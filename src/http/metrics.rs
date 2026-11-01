@@ -131,6 +131,7 @@ mod tests {
         let response = build_router(&disabled)?
             .oneshot(
                 Request::get("/metrics")
+                    .header(header::ACCEPT, "application/json")
                     .body(Body::empty())
                     .map_err(crate::core::Error::internal)?,
             )

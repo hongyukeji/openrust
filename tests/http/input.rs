@@ -9,9 +9,10 @@ use axum::{
     routing::{get, post},
 };
 use openrust::ServiceExt;
-use openrust::http::{InputNormalization, Json, Query, Request};
+use openrust::http::{InputNormalization, InputOutcome, Json, Query, Request, UploadedFile};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use tokio::io::AsyncReadExt;
 
 async fn inspect(method: &str, uri: &str, content_type: &str, body: &str) -> Request {
     Request::from_request(
@@ -25,6 +26,173 @@ async fn inspect(method: &str, uri: &str, content_type: &str, body: &str) -> Req
     )
     .await
     .expect("input")
+}
+
+fn assert_multipart_input_priority_and_empty_files(request: &Request) {
+    assert_eq!(
+        request.input("profile.name").expect("name"),
+        Some(json!("Ada"))
+    );
+    assert_eq!(request.input("from").expect("query"), Some(json!("query")));
+    assert_eq!(
+        request.input("same").expect("input"),
+        Some(json!("input wins"))
+    );
+    assert!(request.has_file("same").expect("shadowed file"));
+    assert_eq!(
+        request
+            .all()
+            .get("same")
+            .expect("combined")
+            .and_then(|value| value.to_json().ok()),
+        Some(json!("input wins"))
+    );
+    let shadowed = request.file("same").expect("file").expect("present");
+    let shadowed = shadowed.downcast_ref::<UploadedFile>().expect("uploaded");
+    assert_eq!(shadowed.client_original_name(), "client.txt");
+    assert_eq!(shadowed.client_original_path(), "folder/client.txt");
+    assert!(
+        request
+            .file("empty")
+            .expect("empty")
+            .is_some_and(|value| value.is_null())
+    );
+    assert!(!request.has_file("empty").expect("empty file"));
+    assert!(request.file("list.0").expect("list zero").is_none());
+    assert!(request.has_file("list.1").expect("list one"));
+    assert!(
+        request
+            .file("named.missing")
+            .expect("named empty")
+            .is_some_and(|value| value.is_null())
+    );
+    assert!(request.has_file("profile.avatar").expect("avatar"));
+    assert!(!request.has_file("photos").expect("nested isn't direct"));
+    assert!(request.has_file("photos.0").expect("direct array"));
+}
+
+#[tokio::test]
+async fn multipart_file_tree_preserves_identity_input_priority_and_original_body() {
+    let raw = concat!(
+        "--files\r\nContent-Disposition: form-data; name=\"profile[name]\"\r\n\r\nAda\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"same\"\r\n\r\ninput wins\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"same\"; filename=\"folder/client.txt\"\r\nContent-Type: text/plain\r\n\r\nfile\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"profile[avatar]\"; filename=\"client.png\"\r\nContent-Type: image/png\r\n\r\nhello\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"photos[0][image]\"; filename=\"first.txt\"\r\nContent-Type: text/plain\r\n\r\nfirst\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"photos[1][image]\"; filename=\"second.txt\"\r\nContent-Type: text/plain\r\n\r\nsecond\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"empty\"; filename=\"\"\r\nContent-Type: application/octet-stream\r\n\r\n\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"list[0]\"; filename=\"\"\r\n\r\n\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"list[1]\"; filename=\"kept.txt\"\r\nContent-Type: text/plain\r\n\r\nkept\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"named[missing]\"; filename=\"\"\r\n\r\n\r\n",
+        "--files--\r\n"
+    );
+    let request = inspect(
+        "POST",
+        "/?from=query",
+        "multipart/form-data; boundary=files",
+        raw,
+    )
+    .await;
+    assert_eq!(
+        request.content_bytes(raw.len()).await.expect("raw body"),
+        Bytes::from_static(raw.as_bytes())
+    );
+    assert_multipart_input_priority_and_empty_files(&request);
+    let avatar = request
+        .file("profile.avatar")
+        .expect("file")
+        .expect("present");
+    let from_all = request
+        .all()
+        .get("profile.avatar")
+        .expect("path")
+        .cloned()
+        .expect("all file");
+    assert!(avatar.same_object(&from_all));
+    assert_eq!(
+        request
+            .when_has("profile.avatar", |value| Ok(value.same_object(&avatar)))
+            .expect("file callback")
+            .into_value(),
+        Some(true)
+    );
+    assert!(matches!(
+        request
+            .when_filled("profile.avatar", |_| Ok(true))
+            .expect("file-only is not filled input"),
+        InputOutcome::Request(_)
+    ));
+    assert_eq!(
+        request
+            .when_has("same", |value| value.to_json())
+            .expect("input priority callback")
+            .into_value(),
+        Some(json!("input wins"))
+    );
+    assert_eq!(
+        request
+            .when_filled("same", |value| value.to_json())
+            .expect("pure input gate with mixed callback")
+            .into_value(),
+        Some(json!("input wins"))
+    );
+    let wildcard = request
+        .file("photos.*.image")
+        .expect("wildcard")
+        .expect("files");
+    assert_eq!(wildcard.entries().map(<[_]>::len), Some(2));
+    assert!(request.all().to_json().is_err());
+    assert_eq!(request.input_all()["profile"]["name"], "Ada");
+    assert_eq!(
+        request.keys(),
+        vec![
+            "profile", "same", "from", "same", "profile", "photos", "empty", "list", "named"
+        ]
+    );
+    let file = avatar
+        .downcast_ref::<UploadedFile>()
+        .expect("uploaded file")
+        .clone();
+    let mut first = file.open().await.expect("first reader");
+    let mut second = file.open().await.expect("second reader");
+    drop(request);
+    drop(avatar);
+    drop(from_all);
+    let mut one = [0_u8; 2];
+    let mut two = [0_u8; 5];
+    first.read_exact(&mut one).await.expect("first bytes");
+    second.read_exact(&mut two).await.expect("second bytes");
+    assert_eq!(&one, b"he");
+    assert_eq!(&two, b"hello");
+}
+
+#[tokio::test]
+async fn file_wildcards_keep_missing_positions_and_collapse_nested_arrays() {
+    let raw = concat!(
+        "--files\r\nContent-Disposition: form-data; name=\"photos[0][image]\"; filename=\"a.txt\"\r\n\r\na\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"photos[1][other]\"; filename=\"b.txt\"\r\n\r\nb\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"groups[0][photos][0][image]\"; filename=\"c.txt\"\r\n\r\nc\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"groups[0][photos][1][other]\"; filename=\"d.txt\"\r\n\r\nd\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"groups[1][other]\"; filename=\"e.txt\"\r\n\r\ne\r\n",
+        "--files--\r\n"
+    );
+    let request = inspect("POST", "/", "multipart/form-data; boundary=files", raw).await;
+    let photos = request
+        .file("photos.*.image")
+        .expect("photos")
+        .expect("array");
+    let photos = photos.entries().expect("array entries");
+    assert_eq!(photos.len(), 2);
+    assert!(photos[0].1.downcast_ref::<UploadedFile>().is_some());
+    assert!(photos[1].1.is_null());
+    let groups = request
+        .file("groups.*.photos.*.image")
+        .expect("groups")
+        .expect("collapsed array");
+    let groups = groups.entries().expect("collapsed entries");
+    assert_eq!(groups.len(), 2);
+    assert!(groups[0].1.downcast_ref::<UploadedFile>().is_some());
+    assert!(groups[1].1.is_null());
 }
 
 #[tokio::test]
@@ -49,7 +217,10 @@ async fn json_source_union_null_and_original_body_are_preserved() {
     assert!(request.is_not_filled(&["blank", "missing", "nullable"]));
     assert!(request.any_filled(&["missing", "q"]));
     assert!(request.missing(&["q", "absent"]));
-    assert_eq!(request.content(), &Bytes::from_static(raw.as_bytes()));
+    assert_eq!(
+        request.content_bytes(raw.len()).await.expect("raw body"),
+        Bytes::from_static(raw.as_bytes())
+    );
     request
         .merge_if_missing(json!({"nullable":"no","q":"no","new":" untrimmed "}))
         .expect("merge");
@@ -59,7 +230,10 @@ async fn json_source_union_null_and_original_body_are_preserved() {
     );
     request.replace(json!({"only":1})).expect("replace");
     assert_eq!(request.input("q").expect("get"), Some(json!("value")));
-    assert_eq!(request.content(), &Bytes::from_static(raw.as_bytes()));
+    assert_eq!(
+        request.content_bytes(raw.len()).await.expect("raw body"),
+        Bytes::from_static(raw.as_bytes())
+    );
     assert!(request.post("user").is_none());
 }
 
@@ -88,17 +262,16 @@ async fn form_get_head_other_media_and_dynamic_json_scalars_follow_sources() {
         Some(json!(["a", "b"]))
     );
     assert_eq!(form.input("fallback").expect("get"), Some(json!("yes")));
-    let unknown = inspect(
-        "POST",
-        "/?q=yes",
-        "multipart/form-data;boundary=x",
-        "unparsed raw multipart",
-    )
-    .await;
-    assert_eq!(unknown.all(), json!({"q":"yes"}));
+    let malformed = Wire::post("/?q=yes")
+        .header("content-type", "multipart/form-data;boundary=x")
+        .body(Body::from("unparsed raw multipart"))
+        .expect("wire");
     assert_eq!(
-        unknown.content(),
-        &Bytes::from_static(b"unparsed raw multipart")
+        Request::from_request(malformed, &())
+            .await
+            .expect_err("畸形 multipart 必须失败")
+            .code(),
+        "multipart_invalid"
     );
     for (raw, expected) in [
         ("broken", json!([])),
@@ -108,7 +281,9 @@ async fn form_get_head_other_media_and_dynamic_json_scalars_follow_sources() {
         ("\" hi \"", json!(["hi"])),
     ] {
         assert_eq!(
-            inspect("POST", "/", "application/json", raw).await.all(),
+            inspect("POST", "/", "application/json", raw)
+                .await
+                .input_all(),
             expected
         );
     }
@@ -144,7 +319,7 @@ async fn normalize_unicode_password_full_key_and_policy_overrides() {
     let app = Router::new()
         .route(
             "/",
-            post(|request: Request| async move { Json(request.all()) }),
+            post(|request: Request| async move { Json(request.input_all()) }),
         )
         .layer(InputNormalization::default().except_trim(["rows.*.password"]));
     let response = app
@@ -169,7 +344,7 @@ async fn normalize_unicode_password_full_key_and_policy_overrides() {
         .expect("wire");
     wire.extensions_mut().insert(InputNormalization::disabled());
     let request = Request::from_request(wire, &()).await.expect("input");
-    assert_eq!(request.all(), json!({"empty":"","text":" hi "}));
+    assert_eq!(request.input_all(), json!({"empty":"","text":" hi "}));
     let debug = format!("{request:?}");
     assert!(!debug.contains("hi"));
     assert!(!debug.contains("empty"));
@@ -283,11 +458,19 @@ async fn filtering_mutations_are_atomic_and_bounded_without_rewriting_raw() {
     )
     .await;
     assert_eq!(
-        request.only(&["users.*.name", "absent"]).expect("only"),
+        request
+            .only(&["users.*.name", "absent"])
+            .expect("only")
+            .to_json()
+            .expect("pure input"),
         json!({"users":{"*":{"name":["a","b"]}}})
     );
     assert_eq!(
-        request.except(&["users.0"]).expect("except")["users"],
+        request
+            .except(&["users.0"])
+            .expect("except")
+            .to_json()
+            .expect("pure input")["users"],
         json!({"1":{"name":"b"}})
     );
     request
@@ -297,14 +480,14 @@ async fn filtering_mutations_are_atomic_and_bounded_without_rewriting_raw() {
         request.input(r"users.\*.name").expect("literal"),
         Some(json!("literal"))
     );
-    let old = request.all();
+    let old = request.input_all();
     let huge = Value::Object(
         (0..1025)
             .map(|index| (format!("k{index}"), Value::Null))
             .collect(),
     );
     assert!(request.merge(huge).is_err());
-    assert_eq!(request.all(), old);
+    assert_eq!(request.input_all(), old);
     assert_eq!(
         request
             .input(&vec!["x"; 65].join("."))
@@ -332,7 +515,7 @@ async fn query_encoding_pair_and_body_limits_are_rejections_not_truncation() {
     let router = Router::new()
         .route(
             "/",
-            post(|request: Request| async move { Json(request.content().len()) }),
+            post(|request: Request| async move { Json(request.content_len()) }),
         )
         .layer(DefaultBodyLimit::max(8));
     let response = router
@@ -359,7 +542,7 @@ async fn json_depth_guard_precedes_decoder_and_non_json_raw_stays_available() {
         assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let plain = inspect("POST", "/?q=yes", "text/plain", &raw).await;
         assert_eq!(plain.input("q").expect("query"), Some(json!("yes")));
-        assert_eq!(plain.content().len(), raw.len());
+        assert_eq!(plain.content_len(), raw.len());
         assert_eq!(
             plain.json("0").expect_err("lazy JSON limit").status(),
             StatusCode::PAYLOAD_TOO_LARGE
@@ -430,7 +613,7 @@ async fn typed_json_recursion_is_a_limit_and_raw_bytes_have_explicit_limits() {
     }
     let plain_router = Router::new().route(
         "/",
-        post(|request: Request| async move { Json(request.content().len()) }),
+        post(|request: Request| async move { Json(request.content_len()) }),
     );
     let raw = "x".repeat(2 * 1024 * 1024 + 1);
     let wire = || Wire::post("/").body(Body::from(raw.clone())).expect("wire");
@@ -920,7 +1103,7 @@ async fn typed_arrays_and_collections_preserve_php_keys() {
         request.array_only(&["email", "missing"]).expect("subset"),
         json!({"email":"one@example.test"})
     );
-    assert_eq!(request.array_all(), request.all());
+    assert_eq!(request.array_all(), request.input_all());
     let filtered = request
         .collect("roles")
         .expect("collect")
@@ -1098,7 +1281,7 @@ async fn conditional_mut_callbacks_modify_same_bag_and_short_circuit() {
     let mut request = inspect("POST", "/", "application/json", r#"{"count":1}"#).await;
     let result = request
         .when_has_mut("count", |value, same| {
-            assert_eq!(value, json!(1));
+            assert_eq!(value.to_json()?, json!(1));
             same.merge(json!({"count":2}))?;
             Ok(false)
         })
@@ -1314,7 +1497,14 @@ async fn date_timestamp_carry_extremes_return_safe_errors_through_public_readers
             assert_eq!(error.status(), StatusCode::BAD_REQUEST);
             assert!(!error.to_string().contains(source));
         }
-        assert_eq!(request.content().as_ref(), raw.as_bytes());
+        assert_eq!(
+            request
+                .content_bytes(raw.len())
+                .await
+                .expect("raw body")
+                .as_ref(),
+            raw.as_bytes()
+        );
         assert_eq!(
             request.input("when").expect("unchanged input"),
             Some(json!(source))
@@ -1547,7 +1737,7 @@ async fn scalar_helpers_match_actual_php_control_character_cases_without_normali
 #[tokio::test]
 async fn intervals_keep_components_and_distinguish_absence_invalid_units_and_work_limits() {
     use openrust::support::IntervalUnit;
-    let mut request = inspect(
+    let request = inspect(
         "POST",
         "/",
         "application/json",
@@ -1605,10 +1795,11 @@ async fn intervals_keep_components_and_distinguish_absence_invalid_units_and_wor
             .expect("same parser"),
         Some(interval)
     );
-    request
-        .merge(json!({"large":"1".repeat(20*1024*1024)}))
-        .expect("programmatic value");
-    let error = request
+    let mut budget_request = inspect("POST", "/", "application/json", "{}").await;
+    budget_request
+        .merge(json!({"large":"1".repeat(20 * 1024 * 1024 - "large".len())}))
+        .expect("value reaches DataValue budget without exceeding it");
+    let error = budget_request
         .interval_with_unit("large", "minute")
         .expect_err("independent source plus unit budget");
     assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
@@ -1626,7 +1817,7 @@ async fn interval_of_grammar_and_shared_term_budget_reject_without_mutating_bags
     .await;
     for text in ["of 2 days", "of of 2 days", "1 day of 2 days"] {
         request.merge(json!({"value":text})).expect("fixture");
-        let previous = request.all();
+        let previous = request.input_all();
         assert_eq!(
             request.interval("value").expect_err("invalid of").code(),
             "input_interval_invalid"
@@ -1640,7 +1831,7 @@ async fn interval_of_grammar_and_shared_term_budget_reject_without_mutating_bags
                 .code(),
             "input_interval_invalid"
         );
-        assert_eq!(request.all(), previous);
+        assert_eq!(request.input_all(), previous);
     }
     assert_eq!(
         request
@@ -1658,10 +1849,87 @@ async fn interval_of_grammar_and_shared_term_budget_reject_without_mutating_bags
         request
             .merge(json!({"value":term.repeat(1025)}))
             .expect("source valid but parser terms bounded");
-        let previous = request.all();
+        let previous = request.input_all();
         let error = request.interval("value").expect_err("term budget");
         assert_eq!(error.code(), "input_limits_exceeded");
         assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
-        assert_eq!(request.all(), previous);
+        assert_eq!(request.input_all(), previous);
     }
+}
+
+/// 检出原文 spill 后两个 reader 共用文件游标，或 Request 释放时提前删除暂存。
+#[tokio::test]
+async fn spilled_raw_readers_keep_independent_offsets_and_ownership() {
+    // 超过暂存阈值，保持在默认 2 MiB 的 Axum 正文限制内。
+    let raw = format!("start{}end", "x".repeat(1024 * 1024));
+    let request = inspect("POST", "/", "text/plain", &raw).await;
+    assert_eq!(request.content_len(), raw.len());
+    assert_eq!(
+        request
+            .content_bytes(raw.len() - 1)
+            .await
+            .expect_err("explicit bound must reject")
+            .status(),
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
+    let mut first = request.content().await.expect("first reader");
+    let mut second = request.content().await.expect("second reader");
+    let clone = request.clone();
+    drop(request);
+    let mut prefix = [0_u8; 5];
+    first.read_exact(&mut prefix).await.expect("first prefix");
+    assert_eq!(&prefix, b"start");
+    let mut independent = [0_u8; 5];
+    second
+        .read_exact(&mut independent)
+        .await
+        .expect("second prefix");
+    assert_eq!(&independent, b"start");
+    drop(clone);
+    let mut suffix = Vec::new();
+    second
+        .read_to_end(&mut suffix)
+        .await
+        .expect("reader outlives request");
+    assert_eq!(suffix, raw.as_bytes()[5..]);
+    let mut next = [0_u8; 1];
+    first.read_exact(&mut next).await.expect("first offset");
+    assert_eq!(&next, b"x");
+}
+
+/// 检出关闭 Axum 默认 2 MiB 限制后误被 Request 内部硬阈值拒绝。
+#[tokio::test]
+async fn disabled_default_body_limit_accepts_large_raw_with_explicit_projection_bound() {
+    let raw = "x".repeat(2 * 1024 * 1024 + 1);
+    let router = Router::new()
+        .route(
+            "/",
+            post(|request: Request| async move {
+                let length = request.content_len();
+                let below_limit = request.content_bytes(length - 1).await.is_err();
+                let exact = request.content_bytes(length).await?.len();
+                Ok::<_, openrust::Error>(Json(json!({
+                    "length": length,
+                    "below_limit": below_limit,
+                    "exact": exact,
+                })))
+            }),
+        )
+        .layer(DefaultBodyLimit::disable());
+    let response = router
+        .oneshot(Wire::post("/").body(Body::from(raw.clone())).expect("wire"))
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 1024)
+        .await
+        .expect("response body");
+    let envelope = serde_json::from_slice::<Value>(&body).expect("JSON");
+    assert_eq!(envelope["success"], true);
+    assert_eq!(envelope["code"], "ok");
+    assert_eq!(envelope["message"], "ok");
+    assert_eq!(
+        envelope["data"],
+        json!({"length": raw.len(), "below_limit": true, "exact": raw.len()})
+    );
 }

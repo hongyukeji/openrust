@@ -1,6 +1,6 @@
 # Session 当前事实
 
-> C04-D1限定子范围已完成适用集成验收，提交以Git为准。契约见 [ADR-082](../decisions/adr-082-session-store-and-flash.md)，唯一执行队列见 [todo](../todo.md)。
+> C04-D1限定子范围已完成适用集成验收，提交以Git为准。契约见 历史决策 082，唯一执行队列见 [todo](../todo.md)。
 
 ## S-DV 对象值与保存边界（main限定组合已验收）
 
@@ -59,13 +59,13 @@ R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原fa
 ## D4 Cookie driver（限定子范围已验收）
 
 - 固定`CookieSessionHandler`、`SessionManager`、`StartSession`及官方Cookie driver集成测试已审计；四份源码哈希与限定PHP表达式探针的边界见[来源记录](../../../tests/http/fixtures/laravel-session/provenance.json)。该来源核对不等于完整PHP oracle；本簇Rust实际证据另列。
-- 契约采用双Cookie、请求绑定、统一Cookie保护和秒级包含截止；公开`ServerSide`/`ClientSideSnapshot`区分后端条件写入与客户端快照。PHP异常弱类型比较的严格差异、浏览器实际容量和不可全局撤销边界见[ADR-082](../decisions/adr-082-session-store-and-flash.md#d4实现契约与明确差异)。
+- 契约采用双Cookie、请求绑定、统一Cookie保护和秒级包含截止；公开`ServerSide`/`ClientSideSnapshot`区分后端条件写入与客户端快照。PHP异常弱类型比较的严格差异、浏览器实际容量和不可全局撤销边界见历史决策 082。
 - D4内置Cookie driver限定子范围已验收：final3完整12门禁通过（默认668/全特性1367 passed，29/102 ignored不算实服务），根真实双库加密各62/无加密安全负例各1、新生成plain5/双库认证各2、真实TLS代理链与仓内Chromium HTTP脚本4项及不同模型审查通过；root target清零、五旧consumer不变。本簇不关闭PHP异常弱类型、全局撤销或完整Session/Web能力，详细证据见testing。请求内保存后读取解析同请求队列的完整数据，以载荷摘要防止写后外部覆盖，不能以元数据合成空属性记录。
 
 
 ## D5 GC lottery（限定子范围已验收）
 
-- 当前Spec见[ADR-082 D5](../decisions/adr-082-session-store-and-flash.md#d5-gc-lottery与公开driver契约)：默认`[2,100]`，start成功后业务前调用实际请求绑定driver的公开GC，数据库/Memory清扫已过期记录，Cookie/Redis保noop/TTL职责。
+- 当前Spec见历史决策 082 D5：默认`[2,100]`，start成功后业务前调用实际请求绑定driver的公开GC，数据库/Memory清扫已过期记录，Cookie/Redis保noop/TTL职责。
 - 绝对expiry、配置变化/显式期限与Laravel last_activity及Array等时刻差异按安全增强公开；取消不后台续跑，已发生删除不回滚，不建立第二存储或分布式请求锁。
 - D5请求级GC lottery/公开driver回收与追加expiry索引迁移限定子范围已验收：final4完整12门禁通过（默认668/29 ignored、全特性1374/103 ignored），根真实双库各62、Store/GC各2、Redis Store1/Auth10、新生成plain5/双库认证各2、独立审查及资源收尾通过；忽略项不算实服务，不关闭完整Session。公开`SessionGcMigration`在默认统一Migrator建表后只登记一次，自定义Migrator显式追加。当前可复跑证据与必要差异见[testing](../memory/testing.md#c04-d5-gc-lottery限定子范围已验收)。
 

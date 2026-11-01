@@ -111,6 +111,7 @@ impl<A: Application> TestAppBuilder<A> {
             .extract()
             .map_err(|_| Error::custom("test_app_config_invalid", "测试应用配置提取失败"))?;
         let mut builder = ProviderBuilder::for_application::<A>(&config);
+        builder.testing_boot();
         if let Some(name) = name {
             builder.console_command(name);
         }
@@ -359,6 +360,10 @@ mod tests {
     struct Example;
     impl Application for Example {
         type Config = NoConfig;
+
+        fn default_providers() -> crate::core::DefaultProviders {
+            crate::core::DefaultProviders::empty()
+        }
         fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
             vec![Box::new(HttpServiceProvider), Box::new(BusinessProvider)]
         }
@@ -687,6 +692,10 @@ mod tests {
     struct CommandExample;
     impl Application for CommandExample {
         type Config = NoConfig;
+
+        fn default_providers() -> crate::core::DefaultProviders {
+            crate::core::DefaultProviders::empty()
+        }
 
         fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
             vec![Box::new(HttpServiceProvider), Box::new(CommandProvider)]

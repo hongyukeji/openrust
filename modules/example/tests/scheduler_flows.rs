@@ -62,7 +62,9 @@ async fn application(
             "auth":{"jwt":{"issuer":"http://example.test","audience":"scheduler-business","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));
-    let mut builder = TestApp::<crate::bootstrap::Server>::builder(source);
+    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(source))?,
+    );
     // 不替换生产任务、调度器或队列；仅通过公开测试 hook 为现业务 scoped 依赖加观测。
     builder.configure_after_register(move |bindings| {
         let probe = Arc::clone(&probe);

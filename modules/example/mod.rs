@@ -1,5 +1,7 @@
 //! 普通业务模块，通过应用注册清单接入框架；全部业务资源在本目录内。
 
+mod config;
+
 #[cfg(all(
     test,
     feature = "auth",
@@ -319,3 +321,9 @@ pub(crate) fn descriptor(
 #[cfg(all(test, feature = "session"))]
 #[path = "tests/session_flows.rs"]
 mod session_flows;
+
+#[cfg(test)]
+#[path = "tests/config_sources.rs"]
+mod config_sources;
+#[cfg(test)]
+pub(crate) use config_sources::application_sources as test_sources;

@@ -1,7 +1,7 @@
 //! 同一次加载形成的有序原始配置与类型化来源投影。
 
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
@@ -12,6 +12,7 @@ use figment::{
 use serde_json::{Map as JsonMap, Value};
 
 use super::ConfigError;
+use super::code::{ConfigContext, TypedValue};
 use super::repository::{
     merge_shallow, normalize_php_source, php_value, read_dot_value, reorder_like, replace_section,
     replace_section_overlay, set_dot_value,
@@ -28,7 +29,20 @@ pub struct ConfigSources {
     pre_file_base: Option<Value>,
     after_file_layers: Vec<Value>,
     cached: bool,
+    typed: BTreeMap<String, TypedValue>,
+    code_context: Option<ConfigContext>,
 }
+
+type SourceParts = (
+    Figment,
+    Option<Value>,
+    HashSet<String>,
+    Option<Value>,
+    Vec<Value>,
+    bool,
+    BTreeMap<String, TypedValue>,
+    Option<ConfigContext>,
+);
 
 impl ConfigSources {
     /// 按根键的迭代顺序建立显式来源；重复键覆盖原位置。
@@ -55,21 +69,59 @@ impl ConfigSources {
         Self::checked(figment, ordered)
     }
 
+    /// 按显式根键顺序覆盖来源，并保留同次代码配置环境、typed 值与 profile。
+    ///
+    /// 提供的路径作为高优先级 Global 层对全部 profile 生效，未覆盖路径保持原值。
+    /// 此方法不恢复此前经 `Figment` 丢失的声明顺序。
+    /// 已编译缓存来源拒绝再次覆盖，避免绕过缓存冻结语义。
+    ///
+    /// # Errors
+    ///
+    /// 缓存来源、原始值与 typed 路径冲突，或来源投影校验失败时返回错误。
+    pub fn merge_ordered_entries<K: Into<String>>(
+        mut self,
+        entries: impl IntoIterator<Item = (K, Value)>,
+    ) -> Result<Self, ConfigError> {
+        if self.cached {
+            return Err(ConfigError::Invalid(
+                "configuration: 已编译缓存来源不允许追加覆盖".to_owned(),
+            ));
+        }
+        let overlay = Self::from_ordered_entries(entries)?;
+        let ordered = overlay.ordered.ok_or_else(|| {
+            ConfigError::Invalid("configuration: 显式覆盖缺少有序原始值".to_owned())
+        })?;
+        let provider = CapturedProvider::new(&figment::providers::Serialized::globals(
+            project_root(&ordered),
+        ))?;
+        let candidate = self.figment.clone().merge(provider);
+        let mut order = self
+            .ordered
+            .clone()
+            .unwrap_or_else(|| Value::Object(JsonMap::new()));
+        merge_order(&mut order, ordered.clone());
+        let resolved: Value = candidate.extract()?;
+        let raw = reorder_like(&order, resolved);
+        if candidate.extract::<Value>()? != project_root(&raw) {
+            return Err(ConfigError::Invalid(
+                "configuration: 显式覆盖的原始值与投影不一致".to_owned(),
+            ));
+        }
+        self.figment = candidate;
+        self.ordered = Some(raw);
+        if self.pre_file_base.is_some() {
+            self.after_file_layers.push(ordered);
+        }
+        self.validate_typed_paths()?;
+        Ok(self)
+    }
+
     /// 借用保留 profile 与来源元数据的 Figment 投影。
     pub fn figment(&self) -> &Figment {
         &self.figment
     }
 
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        Figment,
-        Option<Value>,
-        HashSet<String>,
-        Option<Value>,
-        Vec<Value>,
-        bool,
-    ) {
+    pub(crate) fn into_parts(self) -> SourceParts {
         (
             self.figment,
             self.ordered,
@@ -77,6 +129,8 @@ impl ConfigSources {
             self.pre_file_base,
             self.after_file_layers,
             self.cached,
+            self.typed,
+            self.code_context,
         )
     }
 
@@ -102,6 +156,8 @@ impl ConfigSources {
             pre_file_base: None,
             after_file_layers: Vec::new(),
             cached: false,
+            typed: BTreeMap::new(),
+            code_context: None,
         })
     }
 
@@ -204,6 +260,64 @@ impl ConfigSources {
         self.pre_file_base = Some(pre_file_base);
         Ok(())
     }
+
+    pub(crate) fn merge_code_section(
+        &mut self,
+        name: &str,
+        value: Value,
+    ) -> Result<(), ConfigError> {
+        self.merge_file(name, value, Metadata::named("Rust configuration"))
+    }
+
+    pub(crate) fn set_code_context(&mut self, context: ConfigContext) {
+        self.code_context = Some(context);
+    }
+
+    pub(crate) fn insert_typed(&mut self, key: &str, value: TypedValue) -> Result<(), ConfigError> {
+        if self
+            .typed
+            .keys()
+            .any(|existing| paths_overlap(existing, key))
+        {
+            return Err(ConfigError::Invalid(
+                "代码配置类型路径重复（源值未公开）".to_owned(),
+            ));
+        }
+        self.typed.insert(key.to_owned(), value);
+        Ok(())
+    }
+
+    pub(crate) fn validate_typed_paths(&self) -> Result<(), ConfigError> {
+        let raw = self
+            .ordered
+            .as_ref()
+            .ok_or_else(|| ConfigError::Invalid("代码配置缺少原始视图".to_owned()))?;
+        for key in self.typed.keys() {
+            if raw_path_conflicts(raw, key) {
+                return Err(ConfigError::Invalid(
+                    "代码配置类型路径与原始值冲突（源值未公开）".to_owned(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn paths_overlap(left: &str, right: &str) -> bool {
+    left == right
+        || left.starts_with(&format!("{right}."))
+        || right.starts_with(&format!("{left}."))
+}
+
+pub(crate) fn raw_path_conflicts(raw: &Value, typed_key: &str) -> bool {
+    let mut current = raw;
+    for part in typed_key.split('.') {
+        let Some(next) = current.as_object().and_then(|map| map.get(part)) else {
+            return !current.is_object();
+        };
+        current = next;
+    }
+    true
 }
 
 pub(crate) fn mergeable_options(name: &str) -> &'static [&'static str] {
@@ -227,6 +341,8 @@ impl From<Figment> for ConfigSources {
             pre_file_base: None,
             after_file_layers: Vec::new(),
             cached: false,
+            typed: BTreeMap::new(),
+            code_context: None,
         }
     }
 }
@@ -307,6 +423,7 @@ impl EnvironmentSnapshot {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn with_dotenv(&self) -> Result<Self, ConfigError> {
         self.with_dotenv_at(Path::new(".env"))
     }
@@ -367,7 +484,12 @@ impl EnvironmentSnapshot {
         }
         mapped.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
         let mut root = Value::Object(JsonMap::new());
-        for (path, _, text) in mapped {
+        for (path, key, text) in mapped {
+            if path == "app.debug" {
+                let value = super::code::parse_bool(&key, &text)?;
+                merge_order(&mut root, serde_json::json!({ "app": { "debug": value } }));
+                continue;
+            }
             let value: figment::value::Value = text.parse().map_err(|_| {
                 ConfigError::Invalid("environment: 配置值无法解析（源值未公开）".into())
             })?;
@@ -425,6 +547,107 @@ mod tests {
     use super::{ConfigSources, EnvironmentSnapshot, natural_name_cmp};
     use crate::config::repository::ConfigRepository;
     use crate::core::Result;
+
+    #[test]
+    fn ordered_overrides_preserve_code_context_profile_metadata_and_typed_boundaries() -> Result<()>
+    {
+        use crate::config::{ConfigLoader, ConfigManifest, Environment};
+        let snapshot = EnvironmentSnapshot {
+            values: vec![("OVERLAY_SENTINEL".into(), "captured-once".into())],
+        };
+        let loader = ConfigLoader::from_snapshot(Environment::Testing, "APP_", snapshot)?;
+        let manifest = ConfigManifest::new()
+            .section("reading", |_| Ok(json!({"name": "base", "keep": true})))
+            .typed("factory", |_| Ok(42_u32));
+        let mut original = loader.code_sources(&manifest)?;
+        original.figment = original
+            .figment
+            .clone()
+            .merge(figment::providers::Serialized::from(
+                json!({"profiled": {"name": "test", "keep": "test-only"}}),
+                "testing",
+            ))
+            .merge(figment::providers::Serialized::from(
+                json!({"profiled": {"name": "prod", "keep": "prod-only"}}),
+                "production",
+            ))
+            .select("testing");
+        let metadata = original
+            .figment
+            .find_metadata("reading.keep")
+            .map(|value| value.name.clone());
+        let merged = original.clone().merge_ordered_entries([
+            ("reading", json!({"name": "override", "z": 1, "a": 2})),
+            ("empty", Value::Null),
+            ("profiled", json!({"name": "shared-override"})),
+        ])?;
+        for (profile, keep) in [("testing", "test-only"), ("production", "prod-only")] {
+            let selected = merged.figment.clone().select(profile);
+            assert_eq!(
+                selected
+                    .extract_inner::<String>("profiled.name")
+                    .map_err(crate::config::ConfigError::from)?,
+                "shared-override"
+            );
+            assert_eq!(
+                selected
+                    .extract_inner::<String>("profiled.keep")
+                    .map_err(crate::config::ConfigError::from)?,
+                keep
+            );
+        }
+        assert_eq!(merged.figment.profile(), original.figment.profile());
+        assert_eq!(
+            merged
+                .figment
+                .find_metadata("reading.keep")
+                .map(|value| value.name.clone()),
+            metadata
+        );
+        assert_eq!(
+            merged
+                .code_context
+                .as_ref()
+                .and_then(|context| context.env("OVERLAY_SENTINEL")),
+            Some("captured-once".to_owned())
+        );
+        let repository = ConfigRepository::new(merged);
+        assert_eq!(repository.string("reading.name")?, "override");
+        assert!(repository.boolean("reading.keep")?);
+        assert_eq!(repository.get("empty")?, Some(Value::Null));
+        assert_eq!(repository.typed::<u32>("factory")?.as_deref(), Some(&42));
+        let keys = repository.get("reading")?.and_then(|value| {
+            value
+                .as_object()
+                .map(|values| values.keys().cloned().collect::<Vec<_>>())
+        });
+        assert_eq!(
+            keys,
+            Some(vec![
+                "name".to_owned(),
+                "keep".to_owned(),
+                "z".to_owned(),
+                "a".to_owned()
+            ])
+        );
+        assert!(
+            original
+                .merge_ordered_entries([("factory", json!({"nested": 1}))])
+                .is_err()
+        );
+        let cached = ConfigSources::from_cached(json!({"reading": {"name": "cached"}}))?;
+        assert!(
+            cached
+                .clone()
+                .merge_ordered_entries([("reading", json!({"name": "changed"}))])
+                .is_err()
+        );
+        assert_eq!(
+            ConfigRepository::new(cached).string("reading.name")?,
+            "cached"
+        );
+        Ok(())
+    }
 
     #[test]
     fn file_base_merge_is_shallow_except_laravel_mergeable_option() -> Result<()> {

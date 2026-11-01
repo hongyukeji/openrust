@@ -50,6 +50,10 @@ impl Authenticator for AuthenticatorForTest {
 impl Application for RealtimeHttpApp {
     type Config = NoConfig;
 
+    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::empty()
+    }
+
     fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
         vec![
             Box::new(HttpServiceProvider),

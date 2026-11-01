@@ -83,12 +83,16 @@ impl Fixture {
             "auth":{"jwt":{"issuer":"http://example.test","audience":"cache-behavior","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));
-        let a = TestApp::<crate::bootstrap::Server>::builder(source.clone())
-            .build()
-            .await?;
-        let b = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let a = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source.clone()))?,
+        )
+        .build()
+        .await?;
+        let b = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let db = a.app()?.state().resolve::<Db>().await?;
         let connection = db.primary_connection()?;
         let users = db.quoted_table_name("users")?;
@@ -178,7 +182,7 @@ impl Fixture {
         let material = format!("{ARTICLE_STORE}:{}::{TAG}", self.namespace);
         let digest = format!("{:x}", Sha256::digest(material.as_bytes()));
         let _: usize = redis::cmd("DEL")
-            .arg(format!("__openrust_cache_tag_meta_v1:{digest}"))
+            .arg(format!("__cache_tag_meta_v1:{digest}"))
             .arg(format!("{}:{}", self.namespace, self.key()))
             .query_async(&mut self.redis)
             .await?;

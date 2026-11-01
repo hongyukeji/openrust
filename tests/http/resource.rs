@@ -541,6 +541,9 @@ where
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|_, _| true);
+            })?;
             app.routes(move |value| routes(value))?;
             Ok(())
         })

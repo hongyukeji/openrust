@@ -126,7 +126,9 @@ async fn article_precognition_uses_real_database_without_constructing_or_writing
         .merge(("app.env", "test"));
         let captured = CaptureMailer::default();
         let mail = captured.clone();
-        let mut builder = TestApp::<super::bootstrap::Server>::builder(source);
+        let mut builder = TestApp::<super::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        );
         builder.configure_after_register(move |bindings| {
             let mail = mail.clone();
             Box::pin(async move {

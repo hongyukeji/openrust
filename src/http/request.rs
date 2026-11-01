@@ -1,10 +1,17 @@
 //! 有界请求输入、独立元信息与 Laravel 风格内容协商。
 
 mod conditional;
+#[cfg(feature = "session")]
+mod csrf_replay;
 mod deserialize;
 mod form;
 mod input;
+mod mime;
+mod mime_map;
+mod multipart;
 mod normalize;
+mod raw_body;
+mod uploaded_file;
 mod url;
 mod url_query;
 mod value;
@@ -15,7 +22,12 @@ pub(crate) fn deserialize_query<T: serde::de::DeserializeOwned>(
     deserialize::query(value)
 }
 pub use conditional::{InputOutcome, InputOutcomeMut, InputTruthy, Truthy};
+#[cfg(feature = "session")]
+pub(crate) use csrf_replay::prepare as prepare_csrf_request;
 pub use input::Request;
+pub use mime::{
+    FileBinaryMimeTypeGuesser, MimeFile, MimeFileReader, MimeGuess, MimeTypeGuesser, MimeTypes,
+};
 pub(crate) fn parse_query(
     raw: Option<&str>,
     policy: &InputNormalization,
@@ -26,6 +38,8 @@ pub(crate) fn policy(parts: &http::request::Parts) -> InputNormalization {
     input::policy(parts)
 }
 pub use normalize::InputNormalization;
+pub use raw_body::{RawBodyReader, RequestBodyLimits};
+pub use uploaded_file::{UploadedFile, UploadedFileReader};
 
 pub(crate) fn validate_json_depth(raw: &[u8]) -> crate::Result<()> {
     input::json_depth(raw)
@@ -83,6 +97,7 @@ impl fmt::Debug for VaporRawQueryString {
 pub struct RequestInfo {
     secure: std::result::Result<bool, std::sync::Arc<Error>>,
     proxy: super::proxy::ProxySnapshot,
+    trusted_hosts: super::trusted_hosts::TrustedHostsSnapshot,
     method: Method,
     uri: Uri,
     vapor_raw_query: Option<VaporRawQueryString>,
@@ -172,6 +187,11 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
         Ok(Self {
             secure,
             proxy,
+            trusted_hosts: parts
+                .extensions
+                .get::<super::trusted_hosts::TrustedHostsSnapshot>()
+                .cloned()
+                .unwrap_or_default(),
             method: parts.method.clone(),
             uri: parts
                 .extensions
@@ -423,11 +443,13 @@ impl RequestInfo {
 
     /// 校验 Host 与绝对 URI authority，并返回不含端口的主机名。
     pub fn host(&self) -> Result<String> {
-        if let Some((host, _)) = self.proxy_context()?.host()? {
-            Ok(host)
+        let host = if let Some((host, _)) = self.proxy_context()?.host()? {
+            host
         } else {
-            authority(&self.headers, &self.uri)
-        }
+            authority(&self.headers, &self.uri)?
+        };
+        self.trusted_hosts.check(&host)?;
+        Ok(host)
     }
 
     pub(crate) fn proxy_context(&self) -> Result<&super::proxy::ProxyContext> {
@@ -636,6 +658,29 @@ struct AcceptItem {
     key: String,
     quality: f64,
     index: usize,
+}
+
+// 异常链在正文提取失败时仍需协商；复用同一有界 Accept 解析，但不重试错误提取器。
+pub(crate) fn expects_json_headers(headers: &HeaderMap) -> bool {
+    let Ok(acceptable) = parse_accept(headers) else {
+        return false;
+    };
+    let wants_json = acceptable.first().is_some_and(|first| {
+        let first = first.to_ascii_lowercase();
+        first.contains("/json") || first.contains("+json")
+    });
+    let any = acceptable
+        .first()
+        .is_none_or(|first| first == "*/*" || first == "*");
+    let ajax = headers
+        .get("x-requested-with")
+        .and_then(|value| value.to_str().ok())
+        == Some("XMLHttpRequest");
+    let pjax = headers
+        .get("x-pjax")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| !value.is_empty() && value != "0");
+    wants_json || (ajax && !pjax && any)
 }
 
 fn parse_accept(headers: &HeaderMap) -> Result<Vec<String>> {

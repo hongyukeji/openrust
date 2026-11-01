@@ -76,9 +76,9 @@ S3 driver 仍由 OpenDAL 将完整内容写入私有 staging，再由 S3 SDK 在
 
 应用可实现 `StorageBackend` / `StorageDriver`，通过 `StorageServiceProvider::new().with_driver(driver)` 注册，或在后续 Provider boot 中解析 `Storage` 并调用 `extend(driver)`。默认 disk 在 boot 解析，其他 named disk 按需构造并缓存；替换 creator 不改变已解析实例，调用 `forget_disk` / `purge` 后可重建。driver 可实现 `validate` 检查专属选项，未实现时框架无法验证自定义选项。driver 必须维持单调用背压、版本读取 metadata 对齐、失败/取消时尽力 abort，以及只有完成提交后目标 key 才可见。写入完成检查后通过 `UploadCancellation::begin_publication()` 与调用方取消争夺同一发布权；取消先赢绝不提交，发布先赢须完成原子提交，且持有的 `UploadPublication` 仅在成功后 `complete()`、已知失败后 `fail()`，结果不明时 `uncertain()` 并返回 `storage_publication_uncertain`。框架对已领取但未结清、或标记结果不明后返回其他错误的 driver 也保守映射为 `storage_publication_uncertain`，已知失败仍保留 driver 的原始错误。异步提交要与可能被丢弃的调用方 future 解耦；响应丢失时不得盲目删 final，应报结果不确定。进程强杀可能留下不可见的服务端 multipart 残片；driver 需提供有界清理策略。
 
-内置 S3 driver 将通过检查的完整内容先写到当前 disk root 下的私有 `.openrust-staging/` 随机 key，完成写入、EOF 检查与关闭后，才以同 bucket copy 发布到目标 key。领取发布权的 CAS 是与取消仲裁的提交边界；随后同一同步段构造 Copy 请求并将其交给独立任务执行。此后调用方取消或远端响应丢失，完整目标对象仍可能已发布；`storage_publication_uncertain` 要求调用方读取目标状态核对，不能盲目补偿删除目标。正常失败和取消会有界尝试清理暂存对象，清理失败记安全告警；进程强杀或远端持续不可用时不保证同步清理。运维应只针对各 disk root 内的 `.openrust-staging/` 设置短期对象过期与未完成 multipart 回收；版本化 bucket 还需处理该暂存前缀的旧版本和删除标记，不能把同一规则施加到业务目标前缀。
+内置 S3 driver 将通过检查的完整内容先写到当前 disk root 下的私有 `.staging/` 随机 key，完成写入、EOF 检查与关闭后，才以同 bucket copy 发布到目标 key。领取发布权的 CAS 是与取消仲裁的提交边界；随后同一同步段构造 Copy 请求并将其交给独立任务执行。此后调用方取消或远端响应丢失，完整目标对象仍可能已发布；`storage_publication_uncertain` 要求调用方读取目标状态核对，不能盲目补偿删除目标。正常失败和取消会有界尝试清理暂存对象，清理失败记安全告警；进程强杀或远端持续不可用时不保证同步清理。运维应只针对各 disk root 内的 `.staging/` 设置短期对象过期与未完成 multipart 回收；版本化 bucket 还需处理该暂存前缀的旧版本和删除标记，不能把同一规则施加到业务目标前缀。既有 `.openrust-staging/` 对象不会自动迁移或删除，仍禁止通过业务路径读取；部署时需单独核查旧前缀的生命周期规则与遗留对象。
 
 `presign_read` 只为当前对象的确切版本生成短期只读 URL。bucket 未启用版本控制、对象没有 version ID 或 backend 不支持版本化 presign 时会 fail-closed。此 URL 是到期前可转发的 bearer 凭据，不能通过 `SignedLinks` 撤销；local disk 不提供 provider presign，需要应用自行建立授权 route。框架不提供 presigned write URL。
 
 
-本地 disk 的 staging 回收允许其他实例在扫描后正常关闭并删除自身 run 目录。仅该条目已消失且 staging 根目录当前可读时忽略 NotFound；根目录丢失、非目录、权限或其他 I/O 错误仍阻止初始化。根目录检查不是原子身份校验，不能抵御并发替换；storage root 仍须由当前应用系统用户独占写入。
+本地 disk 首次创建 `.staging/` 时写入 `.storage-owner` 标记；后续启动只接管标记有效的目录。此前合法的同名业务目录或符号链接会使初始化失败，框架不会改权限或清理其内容，应用应人工选择新存储根并核查原对象。staging 回收允许其他实例在扫描后正常关闭并删除自身 run 目录。仅该条目已消失且 staging 根目录当前可读时忽略 NotFound；根目录丢失、非目录、权限或其他 I/O 错误仍阻止初始化。根目录检查不是原子身份校验，不能抵御并发替换；storage root 仍须由当前应用系统用户独占写入。

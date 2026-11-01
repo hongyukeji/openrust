@@ -5,7 +5,7 @@ use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode, header::CONTENT_TYPE},
 };
-use openrust::http::{InputOutcome, Json, Request as InputRequest, Routes};
+use openrust::http::{InputOutcome, Json, Request as InputRequest, Routes, UploadedFile};
 use openrust::support::{ArrayKey, BackedEnum, DateOptions, InputNumber, TimezoneInput};
 use openrust::testing::TestApp;
 use std::time::Duration;
@@ -31,6 +31,7 @@ impl ServiceProvider for InputRoutesProvider {
             app.routes(|routes: Routes| {
                 routes
                     .post("/test/request-input", inspect_input)
+                    .post("/test/request-file", inspect_file)
                     .route(
                         "/test/request-url",
                         openrust::http::routing::get(inspect_url).post(inspect_url),
@@ -40,6 +41,32 @@ impl ServiceProvider for InputRoutesProvider {
             Ok(())
         })
     }
+}
+
+// 生成项目从公开模块外接线读取文件，不依赖框架私有暂存路径。
+async fn inspect_file(request: InputRequest) -> openrust::Result<Json<serde_json::Value>> {
+    let file = request
+        .file("document")?
+        .ok_or_else(|| openrust::Error::custom("file_missing", "文件缺失"))?;
+    let uploaded = file
+        .downcast_ref::<UploadedFile>()
+        .ok_or_else(|| openrust::Error::custom("file_invalid", "文件无效"))?;
+    let mime = uploaded.mime_type().await?;
+    let extension = uploaded.extension().await?;
+    let selected = request.only(&["document"])?;
+    let selected_file = selected
+        .get("document")?
+        .ok_or_else(|| openrust::Error::custom("file_missing", "选取结果缺失"))?;
+    Ok(Json(serde_json::json!({
+        "name": uploaded.client_original_name(),
+        "mime": mime,
+        "extension": extension,
+        "bytes": uploaded.size(),
+        "has_file": request.has_file("document")?,
+        "same_object": file.same_object(selected_file),
+        "text": request.input("label")?,
+        "raw_len": request.content_len(),
+    })))
 }
 
 // 保留生成应用的 Provider 与模块装配，只在本测试追加公开路由扩展。
@@ -207,6 +234,27 @@ pub async fn assert_request_input<A: Application>(
                     "microseconds": 0,
                     "total_days": null
                 }
+                }
+            }))?;
+        let multipart = concat!(
+            "--generated\r\nContent-Disposition: form-data; name=\"label\"\r\n\r\npublic\r\n",
+            "--generated\r\nContent-Disposition: form-data; name=\"document\"; filename=\"client.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n",
+            "--generated--\r\n"
+        );
+        app.request(Request::builder()
+            .method(Method::POST).uri("/test/request-file")
+            .header(CONTENT_TYPE, "multipart/form-data; boundary=generated")
+            .body(Body::from(multipart))?)
+            .await?
+            .assert_status(StatusCode::OK)?
+            .assert_json(&serde_json::json!({
+                "success": true,
+                "code": "ok",
+                "message": "ok",
+                "data": {
+                    "name": "client.txt", "mime": "text/plain", "extension": "txt",
+                    "bytes": 5, "has_file": true,
+                    "same_object": true, "text": "public", "raw_len": multipart.len()
                 }
             }))?;
         for (method, json_source) in [

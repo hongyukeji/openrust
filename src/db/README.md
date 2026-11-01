@@ -4,6 +4,26 @@
 
 OpenRust 框架的数据库模块。
 
+## Query Builder 限定实现
+
+`Db::table(logical_name)` 走现有表名解析器和连接池，返回 `QueryBuilder`。当前实现以 SeaORM 已重导出的 `SeaQuery` AST 为方言和绑定层；`get`/`first` 走读连接，`insert`/`update`/`delete`/`upsert` 走主连接，`using_transaction` 显式借用现有 `DatabaseTransaction`。查询列名由框架校验，值由 `SeaQuery` 绑定；调用方应从可信代码选择列，不能把任意客户端字符串当列名。`QueryResult::try_get` 读取类型化字段。 默认查询选择 `*`；显式 `select(&["id", "title"])` 替换默认列，不叠加通配符。
+
+```rust,ignore
+use openrust::db::SortDirection;
+
+let page = db.table("example_articles")?
+    .where_eq("owner_id", user.id())?
+    .order_by("id", SortDirection::Asc)?
+    .paginate(15).await?;
+let title: Option<String> = db.table("example_articles")?
+    .where_eq("id", article_id)?
+    .value("title").await?;
+```
+
+`paginate(15)` 从当前请求的 `PageContext` 自动解析 `page`，命令和队列无请求时回第一页。HTTP Provider 需在请求 future 上安装 `with_page_context`，受管 `Request` 提取器需将规范化 `all` 输入绑定到同一任务；实际分页构建时可延迟读取可信外部 URL。分页链接默认只包含本分页器的参数；`with_query_string` 和 `appends` 是应用明确选择，若参数含签名或敏感值须由应用筛选。`paginate_named` 用独立参数名，`simple_paginate` 只额外读取一行判断后页，不执行 count。
+
+本批限定实现已通过 workspace 门禁及真实 MySQL 文章分页 HTTP 回归；验证包含默认选择列、总数、行数据、空第二页和所有者隔离。固定 Laravel Query Builder 中的完整关联/子查询、JSON 路径、原始表达式、聚合类型、普通 chunk/lazy/cursor/cursorPaginate、分页资源和跨方言锁仍有未实现部分；现有 upsert 与 `chunk_by_id` 是部分覆盖，不能把本候选标为完整 R4 C07。模块 `example_articles` 使用固定物理表名；默认空前缀与之相符。自定义非空前缀仍需在后续 Model 集成中统一静态 Entity 表名。
+
 ## 连接数据库
 
 启用一个 backend feature，并在应用中注册 `DatabaseServiceProvider`：
@@ -15,7 +35,7 @@ openrust = { version = "0.0.0", features = ["db-postgres"] }
 
 数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。驱动名采用 `postgres` 或 `mysql`，连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在 `config/database.toml` 的 `url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `config/database.toml` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
 
-框架管理的表默认使用 `tb_` 前缀。设置 `table_prefix` 可更改前缀（空字符串表示不使用前缀）；也可以将指定的逻辑表名映射为完整物理表名：
+框架管理的表默认不使用前缀。设置 `table_prefix` 可更改前缀；也可以将指定的逻辑表名映射为完整物理表名：
 
 ```toml
 table_prefix = "app_"
@@ -55,7 +75,7 @@ read_replicas = ["postgres://app:secret@replica-a/app", "postgres://app:secret@r
 
 ```toml
 url = "postgres://app:password@primary/app"
-table_prefix = "tb_"
+table_prefix = "app_"
 
 [instances.analytics]
 url = "postgres://app:password@analytics/app"

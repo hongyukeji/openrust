@@ -14,9 +14,9 @@ OpenRust 面向熟悉 Laravel 的开发者：目标是让开发者沿用 Laravel
 
 ## 当前实现与目标结构
 
-最终业务目录为 `modules/<模块名>/`，唯一综合示例为 `modules/example/`；根 `app/` 保留通用应用级职责。根目录继续保留 Laravel 的 `bootstrap/`、`config/`、`database/`、`public/`、`resources/`、`routes/`、`storage/` 和 `tests/`，并保留 Rust 的 `src/`、`tools/` 和 Cargo。框架与应用同仓、同 workspace、只在 main 开发。
+根 `app/` 支持正常应用开发（Controller、Model、Provider）；`modules/<模块名>/` 是可选且可并存的业务组织，唯一综合示例为 `modules/example/`。根目录继续保留 Laravel 的 `bootstrap/`、`config/`、`database/`、`public/`、`resources/`、`routes/`、`storage/` 和 `tests/`，并保留 Rust 的 `src/`、`tools/` 和 Cargo。框架与应用同仓、同 workspace、只在 main 开发。
 
-业务示例代码现位于 `modules/example/`，通过模块清单和文件激活状态接入统一 Provider 内核。模块管理命令、完整 CRUD 与全部能力示例仍在实施，当前闭环不代表 laravel-modules 全矩阵已完成。目标与边界见 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md)。
+业务示例代码现位于 `modules/example/`，通过模块清单和文件激活状态接入统一 Provider 内核。模块管理命令、完整 CRUD 与全部能力示例仍在实施，当前闭环不代表 laravel-modules 全矩阵已完成。目标与边界见 [ADR-001](.agents/project/decisions/adr-001-framework-principles.md)。
 
 ## 设计目标
 
@@ -38,9 +38,9 @@ cargo run
 SERVER_PORT=4000 cargo run
 ```
 
-根 `default-members = ["."]`、`default-run = "server"`，默认启动唯一 server。`app/` 保留应用级装配，`modules/` 放业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
+根 `default-members = ["."]`、`default-run = "server"`，默认启动唯一 server。`app/` 编写应用代码，`modules/` 可选组织业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
 
-当前综合示例 [`modules/example`](modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；新业务统一位于 `modules/<业务>/`，由根 `modules/mod.rs`、bootstrap 和 routes 显式接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
+当前综合示例 [`modules/example`](modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；开发者可直接在根 `app/` 编写业务；需要模块组织时，在 `modules/<业务>/` 定义模块，经模块清单与统一 Provider 接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
 
 标准应用默认启用 Redis 缓存，需可用的 Redis 配置与服务；`/health` 与 `/ready` 提供探针。R2-M 模块清单、资源与迁移已有真实服务验收；管理写命令、完整发布和 CRUD 仍按当前计划推进。
 
@@ -53,7 +53,7 @@ cargo test --workspace
 
 ## 编写业务与扩展
 
-真实参考链是 `src/main.rs` → `bootstrap::Server::modules` → 文件激活清单 → `ExampleServiceProvider` → 模块 `routes::register` → `/api/example` handler；根 routes 只处理通用框架路由。当前实现由 `modules/mod.rs` 声明已编译模块，`bootstrap::Server::modules` 读取 `modules_statuses.json` 决定本次启动启用。先声明业务描述和 Provider，再用公开 `Routes` 定义模块路由；设置状态文件后运行根 `cargo run` 请求验证，无需修改框架 `src/` 核心。完整代码与操作见 [模块开发示例](modules/example/README.md#新建自己的业务模块)。
+真实参考链是 `src/main.rs` → `bootstrap::Server::modules` → 文件激活清单 → `ExampleServiceProvider` → 模块 `routes::register` → `/api/example` handler；根 routes 可定义普通应用业务路由，与模块路由共用同一框架机制。当前实现由 `modules/mod.rs` 声明已编译模块，`bootstrap::Server::modules` 读取 `modules_statuses.json` 决定本次启动启用。先声明业务描述和 Provider，再用公开 `Routes` 定义模块路由；设置状态文件后运行根 `cargo run` 请求验证，无需修改框架 `src/` 核心。完整代码与操作见 [模块开发示例](modules/example/README.md#新建自己的业务模块)。
 
 综合示例的硬交付包括完整实体 CRUD，以及当前所有已实现公开能力的实际使用和 Provider/driver 扩展参考；目标业务边界为 modules/，模块之外保留框架通用结构和代码；示例专有迁移/种子/资源/协议/生成脚本及测试 fixture 留模块内，根只提供通用结构和公开挂载，不因示例保留 build.rs 或 build 依赖。当前正在补齐，基础常量路由不是 CRUD，文档或其他 consumer 的代码不代表模块已覆盖；实际代码、接入条件与测试缺口见 [能力覆盖表](modules/example/README.md#当前能力覆盖与缺口)。
 
@@ -108,9 +108,9 @@ cargo run
 
 业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 
-应用默认从当前工作目录的 `config/` 读取配置。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；根唯一 server 同时承担综合示例与集成验收。
+应用通过已编译的 `config/*.rs` 与显式 `ConfigManifest` 定义配置，在所选 dotenv 与环境快照就绪后求值到同一仓储；不是运行时扫描执行 Rust 文件。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。应用可编辑配置保存在根 `config/*.rs`；TOML 仅通过显式可选 source 接入，不是默认应用配置。根唯一 server 同时承担综合示例与集成验收。
 
-网站静态文件位于应用的公开目录，默认是工作目录下的 `public/`，目录中的文件按相对 URL 路径提供。生成项目默认启用 `view` feature 并用 `views/index.html` 渲染 `/`；`public/` 仍用于 CSS、图片等静态资源。`[server].public_dir` 可更换静态目录；`[server].root_target` 可设为 `view:index.html`、`file:/index.html`、`forward:/api` 或 `redirect:https://example.com/`。环境变量 `APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 覆盖 TOML；`/api/*` 保留 JSON API，`/ws/*` 用于 WebSocket。视图配置与 API 示例见[视图指南](src/view/README.md)。
+网站静态文件位于应用公开目录，默认是工作目录下的 `public/`。在 `config/server.rs` 配置 `public_dir` 和 `root_target`；可按需选择 `view:index.html`、`file:/index.html`、`forward:/api` 或外部 redirect，视图目标须启用 `view` 并提供实际模板。公开环境覆盖仍经同一配置来源处理；默认欢迎页的完整对应尚未交付，不能以可选视图能力代替该工作流。视图配置与 API 示例见[视图指南](src/view/README.md)。
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionServiceProvider`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
 
 文件存储由可选 `storage-local` 与 `storage-s3` feature 提供，使用 `StorageServiceProvider` 装配 `Storage` 的 default/named disks。上传与下载都使用有界流，应用须先执行身份和资源授权；本地 disk 仅在当前节点可见。配置、安全边界与 `StorageBackend` 扩展方法见[文件存储指南](src/storage/README.md)。

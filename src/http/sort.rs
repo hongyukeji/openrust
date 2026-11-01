@@ -35,7 +35,7 @@ impl SortField {
 pub struct SortParams(Vec<SortField>);
 
 impl SortParams {
-    /// 根据固定的公开字段名解析 ADR-008 的 `sort=-created_at,title` 语法。
+    /// 根据固定的公开字段名解析 历史决策 008 的 `sort=-created_at,title` 语法。
     ///
     /// 输入缺失或为空表示不指定排序。最多允许 16 个不重复字段，输入长度上限为 256 字节。
     /// 未知或格式错误的字段名会返回 bad request，且不会回显输入内容。

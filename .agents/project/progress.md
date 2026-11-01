@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-🟡 环境身份保真已在任务分支限定提交`8d5e635`，独审、定向/consumer/feature/生成及真实MySQL验证通过；用户已授权与Request/MIME同批main整合，组合源码和最终main门禁尚未完成。来源及开放CLI/骨架差异见[分支证据](memory/testing.md#environment-identity-branch)。
+本批 Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已完成限定组合验收，本地提交以Git为准。真实来源保全、双workspace门禁、生成、MySQL、TCP/TLS及开放差异见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一步按唯一todo优先配置默认值/单一来源等整改，不将本批通过等同完整1:1。
 
 ✅ C04-G TrustProxies已完成main限定子范围验收：默认/全特性workspace963/1775通过、34/111忽略，双严格Clippy/docs、精确MSRV/no-default/deny、公开consumer/唯一模块、fresh普通8项/MySQL认证2项及真实TCP补充3案均通过；三项代理差异经不同模型复审关闭，专属缓存回收后仅保留下一环境簇所需主缓存。PHP8.2参考低于Symfony官方最低版本、MySQL无事前schema基线、逐案Rust映射与真实Cloud部署缺口明确保留；完整能力不关闭。见[本簇验收](memory/testing.md#c04-g-trustproxies-main-限定验收)，提交号以Git为准。
 
@@ -45,7 +45,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 
 > 更新：2026-10-31；C04-B2本轮适用验收已完成，本簇限定本地提交见Git；不将子簇完成外推整能力。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
 
-**总体仍未完成严格1:1。** 已验收的是明确子范围，不是整项能力全完成。R1-S、R2-A/A2/A3/B/C/D/M/N、R1-E及R3-A–F保留各簇证据；旧专项实现也须重新对应固定Laravel生产行为。C04-B1 `8846a6a`已交付，B2类型便捷方法按子簇验收；APP_PORT `591142f`只关闭端口配置子项，分页`4573234`仅整改计划，ADR-080仅规划。
+**总体仍未完成严格1:1。** 已验收的是明确子范围，不是整项能力全完成。R1-S、R2-A/A2/A3/B/C/D/M/N、R1-E及R3-A–F保留各簇证据；旧专项实现也须重新对应固定Laravel生产行为。C04-B1 `8846a6a`已交付，B2类型便捷方法按子簇验收；APP_PORT `591142f`只关闭端口配置子项，分页`4573234`仅整改计划，历史决策 080仅规划。
 
 图例：✅ **已验收子范围**（只限边界列）；🟡 **开发中**（未收口）；🔵 **已有实现待1:1对齐**；📝 **仅规划**；⬜ **待开发**；⛔ **阻塞**（须写具体原因）。同一行以主状态概括，已验收基础不会把整体涂成✅；阻塞只是具体交付受限，不隐去其他可做部分。
 
@@ -93,7 +93,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | 能力 | 状态 | 已有边界与下一步 |
 | --- | --- | --- |
 | 官方可选包与配套工具 | ⬜ 已授权待开发 | [全量范围与分期](plans/laravel-official-coverage.md#全量交付授权与两阶段)已登记749条Laravel行为与35个模块入口；AI SDK/MCP/Boost、官方认证/计费/搜索/实时包及工具UI、前端配套等须逐包冻结源码/测试与可执行Spec，登记不等于实现或验收 |
-| DB动态业务设置 / 管理员动态计划 | ⬜ 已授权待开发 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；阶段二V1必交增强（不移动核心Config/Queue/Scheduler），宿主启用可选，尚无新实现/验收；可选快速开发模块表单后置 |
+| DB动态业务设置 / 管理员动态计划 | ⬜ 已授权待开发 | 历史决策 080及[唯一计划](plans/runtime-configuration-scheduling.md)；阶段二V1必交增强（不移动核心Config/Queue/Scheduler），宿主启用可选，尚无新实现/验收；可选快速开发模块表单后置 |
 | 统一返回格式 / 业务观测增强 | 🔵 已有实现待1:1对齐 | 保留价值，须经Response/Resource/异常与公开扩展融合；分页独立协议整改仍未完成，不宣称上游原生默认 |
 | SMS具体渠道 | 🔵 已有实现待1:1对齐 | 作为Notification/驱动扩展；Twilio adapter与fake/log资产不代表真实短信投递，实发缺授权账号/凭据/目标；[mail](core/mail.md) |
 | gRPC | 🔵 已有实现待1:1对齐 | 可选协议扩展、生成与真实TCP专项见[grpc](core/grpc.md)；不是Laravel核心原生gRPC；完整集群/生命周期仍须R11/R14验收 |
@@ -123,7 +123,7 @@ C04-B2类型便捷方法已通过适用门禁：公开Request/Fluent、唯一模
 
 C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用验收：默认523/29、全特性1082/99（passed/ignored），fmt/Clippy/Rustdoc/no-default/MSRV1.97/deny、生成consumer2/2和根默认入口真实TCP均通过；不同模型独审通过。仅完成无正文请求检查与协商，不代表完整C04。 原三轮构建NotFound、可控red/green及非原子base复核边界见 [testing](memory/testing.md#c04-a-请求检查与内容协商)。
 
-R3-F 已实现 `RouteGroup::domain`、独立 `DomainParams<T>`、域具名 URL 与保留原请求的候选分派。独立复审发现的声明顺序、merge、forward authority、域与路径参数冲突、fallback scope 优先级及非法嵌套 scope 均已修正；最终只读复审无 blocker/should-fix，定向 HTTP router 87/87。默认/全特性 workspace Clippy/tests/Rustdoc、no-default、MSRV1.97、deny、生成应用和生产模块专项均通过，根无参数入口真实 TCP 域响应/错误 Host/health 与 SIGTERM exit0 已验收。根/生成 target 分别回收28.4/2.8GiB，仓库target归零、磁盘可用120GiB；本簇限定提交见Git，后继C04。已知域模式及fallback前缀差异见ADR-077，不宣称完整R3已完成。
+R3-F 已实现 `RouteGroup::domain`、独立 `DomainParams<T>`、域具名 URL 与保留原请求的候选分派。独立复审发现的声明顺序、merge、forward authority、域与路径参数冲突、fallback scope 优先级及非法嵌套 scope 均已修正；最终只读复审无 blocker/should-fix，定向 HTTP router 87/87。默认/全特性 workspace Clippy/tests/Rustdoc、no-default、MSRV1.97、deny、生成应用和生产模块专项均通过，根无参数入口真实 TCP 域响应/错误 Host/health 与 SIGTERM exit0 已验收。根/生成 target 分别回收28.4/2.8GiB，仓库target归零、磁盘可用120GiB；本簇限定提交见Git，后继C04。已知域模式及fallback前缀差异见历史决策 077，不宣称完整R3已完成。
 
 当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；modules/example 是普通业务模块，经生产 `Application::modules` 编译清单与 FileModuleActivator 状态接入。根无示例 build.rs 或构建依赖；protobuf 工具和锁仍在模块内。
 
@@ -131,11 +131,11 @@ R3-F 已实现 `RouteGroup::domain`、独立 `DomainParams<T>`、域具名 URL �
 
 R1-E 真实 CRUD/当前公开能力示例已按适用范围验收并以 bc3fa01 提交，附件 deadline/EOF 竞态修复经独立复审和真实 MinIO 双库场景验证；限定的跨系统故障边界仍记录在 [testing](memory/testing.md#r1-e-审查修复与追加验收2026-10-29)。这只关闭当前综合示例子簇，不代表 Laravel/laravel-modules 全行为矩阵完成。后继按 [待办](todo.md) 领取。
 
-R2-N 模块依赖顺序已按 [ADR-075](decisions/adr-075-module-dependency-order.md) 实现并验收：依赖声明与稳定拓扑排序进入 `ModuleManifest`，`ProviderBuilder` 的 register/boot 同序；缺失、未启用、无效、重复、自依赖与循环均有稳定错误码。真实 PostgreSQL 18/MySQL 8.4 隔离数据库 HTTP、生成应用 `.requires` API check/test、根默认 `cargo run` 的 TCP `/health` 与 `/api/example`、workspace 默认/全特性门禁、MSRV/no-default、Rustdoc、deny 均通过。详细命令和证据见 [R2-N 测试记录](memory/testing.md#r2-n-模块硬依赖与确定性启动顺序)。完整模块管理仍属于后继；Laravel 总体范围继续未完成。
+R2-N 模块依赖顺序已按 历史决策 075 实现并验收：依赖声明与稳定拓扑排序进入 `ModuleManifest`，`ProviderBuilder` 的 register/boot 同序；缺失、未启用、无效、重复、自依赖与循环均有稳定错误码。真实 PostgreSQL 18/MySQL 8.4 隔离数据库 HTTP、生成应用 `.requires` API check/test、根默认 `cargo run` 的 TCP `/health` 与 `/api/example`、workspace 默认/全特性门禁、MSRV/no-default、Rustdoc、deny 均通过。详细命令和证据见 [R2-N 测试记录](memory/testing.md#r2-n-模块硬依赖与确定性启动顺序)。完整模块管理仍属于后继；Laravel 总体范围继续未完成。
 
-目录目标为 `modules/<模块名>/` 与唯一 `modules/example/`，见 [ADR-074](decisions/adr-074-laravel-modules-directory.md)。R2-M 当前实现与真实验收单独记录；完整管理命令、发布流程和 CRUD 未交付。计划修订与文档检查不能代替这些代码验收。
+目录目标为 `modules/<模块名>/` 与唯一 `modules/example/`，见 [ADR-001](decisions/adr-001-framework-principles.md)。R2-M 当前实现与真实验收单独记录；完整管理命令、发布流程和 CRUD 未交付。计划修订与文档检查不能代替这些代码验收。
 
-当前规划记录已统一：ADR-074、总计划、活跃队列、执行说明与 README 区分 app/example 过渡事实和 modules/example 目标；此前规划文档检查覆盖 63 个变更 Markdown、1222 个本地链接和 53 个锚点，无断链；749 个 Laravel 稳定 ID 与 35 个模块入口 ID 未改状态。文档检查不是代码门禁，代码门禁已补齐，限定提交仍须完成最终审查与提交树核对。
+当前规划记录已统一：ADR-001、总计划、活跃队列、执行说明与 README 区分 app/example 过渡事实和 modules/example 目标；此前规划文档检查覆盖 63 个变更 Markdown、1222 个本地链接和 53 个锚点，无断链；749 个 Laravel 稳定 ID 与 35 个模块入口 ID 未改状态。文档检查不是代码门禁，代码门禁已补齐，限定提交仍须完成最终审查与提交树核对。
 
 R2-A 容器基元已实际完成15项回归与默认279/22、full502/32及双Clippy/docs、deny、MSRV/no-default。公开下游consumer1项与根裸run/HTTP通过，不同模型最终复审无blocker/should-fix；已提交26df75c。生产启动仍未切换；Provider、异步资源生命周期、配置合并与模块系统留后继，不把基元当整体R2完成。
 
@@ -153,7 +153,7 @@ R2-M：编译期 `ModuleDescriptor` 与运行时 FileModuleActivator 快照进�
 
 R1-E（已验收并提交 bc3fa01）：`modules/example` 已接真实 Article CRUD、模块业务服务与当前公开能力的实际调用；PG18/MySQL8.4 的 Article、tenant/MinIO/Redis、队列与 Scheduler、OIDC/浏览器 WebSocket 等有定向证据。Collector PostgreSQL 活跃日志路径已校正，隔离 sink delivery/unavailable 各 1/1；16 MiB 与隐私检查保留，共享 Collector 未改。CLI 生成器重生十种变体，生成源码格式、基础/认证/MFA真实 HTTP、gRPC TLS Echo/HTTP/停机均实际验收，测试 0 ignored；CLI 20/20。默认/全特性 workspace Clippy/tests/Rustdoc、deny、no-default 与 MSRV 适用门禁均通过；默认测试 454 passed/23 ignored，全特性 990 passed/90 ignored。附件 AtomicU8 仲裁 deadline 与 EOF；PG18/MySQL8.4 全模块附件各 15/15，期限释放锁用例与真实 MinIO CopyObject 延迟响应删除竞态各按双库 1/1。独立复审确认并发 blocker 已消除；真实 Keycloak `AlwaysOk` 错误密码、已消费 state 与成功夹证 PG/MySQL 各 1/1；gRPC TLS 错误标识验证成功 RPC 前后、错误 hostname 与网络故障负例；浏览器拒绝事件结合真实 TCP 精确状态测试分别验证，未声称浏览器暴露状态码。远端结果不确定后的迟到发布、App 关闭期限和进程强杀仍不保证跨系统原子性/无孤儿。提交后任务专属 root 与临时 Cargo targets 均已清理。下一簇为 R2-N 模块硬依赖图与确定性启动顺序，具体契约见 [todo](todo.md#当前-r2-n-spec模块硬依赖图与确定性启动顺序)；R1-E 完成不代表 Laravel/laravel-modules 全体完成。
 
-R3-A：已按 ADR-076 将 `semantic` 作为框架、配置、请求错误 fallback 与生成应用默认，`always_ok` 仅显式配置启用。默认/显式状态、统一 JSON envelope、request ID、validation 422、创建 201、路由与服务错误、middleware I18n 解析早退均有测试；普通与双库认证生成项目实际运行，根默认 TCP 入口验证 404/health 200/正常 SIGINT。默认/all-features Clippy、测试、warnings-denied Rustdoc、no-default、deny、MSRV1.97 通过；并行 all-features 首次出现的两项运行时错误单项通过且串行全量复验通过，具体边界与命令见 [testing](memory/testing.md#r3-a-laravel-语义-http-状态默认与统一-json-响应)。独立复审 blocker 已修复，最终只读复审无 blocker/should-fix。R3 后续路由、Request、FormRequest、Resource、Session/CSRF 仍未交付。
+R3-A：已按 历史决策 076 将 `semantic` 作为框架、配置、请求错误 fallback 与生成应用默认，`always_ok` 仅显式配置启用。默认/显式状态、统一 JSON envelope、request ID、validation 422、创建 201、路由与服务错误、middleware I18n 解析早退均有测试；普通与双库认证生成项目实际运行，根默认 TCP 入口验证 404/health 200/正常 SIGINT。默认/all-features Clippy、测试、warnings-denied Rustdoc、no-default、deny、MSRV1.97 通过；并行 all-features 首次出现的两项运行时错误单项通过且串行全量复验通过，具体边界与命令见 [testing](memory/testing.md#r3-a-laravel-语义-http-状态默认与统一-json-响应)。独立复审 blocker 已修复，最终只读复审无 blocker/should-fix。R3 后续路由、Request、FormRequest、Resource、Session/CSRF 仍未交付。
 
 R3-B：公开 `RouteGroup` builder 与 `Routes::group` 已接入，支持嵌套前缀、组级 Tower middleware 和稳定路由冲突错误；`nest` 复用同一前缀归一逻辑。`modules/example` tenant API 已迁移且认证/成员校验顺序保留。定向 HTTP、Rustdoc、真实 PostgreSQL 18/MySQL 8.4 tenant HTTP、带嵌套分组的 CLI 生成项目 TestApp、default/all-features workspace 门禁、deny、MSRV/no-default 均通过；独立只读复审无 blocker/should-fix。完整命令、计数和证据边界见 [testing](memory/testing.md#r3-b-laravel-路由组前缀与-middleware)。R3-B 只关闭此路由组子簇，命名路由、middleware alias/group、domain、model binding、fallback、signed URL 与 C04 Request/Response 仍未交付。
 

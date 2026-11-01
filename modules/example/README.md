@@ -1,36 +1,8 @@
 # 综合业务示例
 
-根应用启用本模块后，可执行 `config:cache`，修改 `config/` 中的示例配置，再重新启动访问 `GET /api/example/config-greeting` 验证缓存值；执行 `config:clear` 并再次启动后读取新值。两个命令只改变后续进程的启动来源，已运行进程的业务服务保持原快照。
+`ExampleServiceProvider::boot` 通过公开 `BootContext::exceptions` 为示例业务异常登记类型化报告、409 渲染及最终响应头；`GET /api/example/exception` 经真实模块路由和异常链展示。`/api` 错误 envelope 策略由根应用 `AppServiceProvider` 显式登记；模块只贡献业务异常扩展，保留宿主的全局响应策略。此接线已通过本批限定 workspace、真实 MySQL 与公开 HTTP 验收；完整异常与 HTTP 能力继续逐项交付。
 
-冻结本次源码 SHA 清单后构建 `server` 并保留构建日志。先把应用和唯一业务模块复制到自有临时目录，为副本写入与实际目录一致的任务标记，再从仓库根对副本运行真实进程回归。脚本会拒绝无标记目录与不匹配的二进制；只修改副本配置，使用临时缓存路径和端口，并在结束时核对恢复文件的 SHA。构建日志、源码清单和二进制 SHA 应归入同一验收记录：
-
-```sh
-set -e
-freeze_receipt=/path/to/frozen-18-file-sha-receipt.json
-verify_freeze() {
-  python3 -B -c 'import hashlib,json,pathlib,sys; r=json.loads(pathlib.Path(sys.argv[1]).read_text()); changed=[p for p,s in r["files"].items() if hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()!=s]; print("freeze files:",len(r["files"]),"drift:",changed); sys.exit(bool(changed))' "$freeze_receipt"
-}
-case_root="$(mktemp -d /tmp/openrust-config-cache-example.XXXXXX)"
-verify_freeze
-cargo build --locked --offline --bin server > "$case_root/build-server.log" 2>&1
-verify_freeze
-binary="${CARGO_TARGET_DIR:-$PWD/target}/debug/server"
-binary_sha="$(shasum -a 256 "$binary" | cut -d ' ' -f 1)"
-mkdir "$case_root/app"
-rsync -a --exclude='.git' --exclude='target' --exclude='.env' \
-  --exclude='bootstrap/cache' ./ "$case_root/app/"
-python3 -c 'import pathlib, sys; p = pathlib.Path(sys.argv[1]).resolve(strict=True); (p / ".openrust-config-cache-task-root").write_text(str(p) + "\n", encoding="utf-8")' "$case_root/app"
-python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_restart.py \
-  "$case_root/app" "$binary" \
-  modules/example/config/config.toml \
-  'Hello from modules/example' 'Cache updated' \
-  /api/example/config-greeting data.greeting \
-  'Hello from modules/example' 'Cache updated' \
-  --bad-content 'greeting = [' --expected-binary-sha256 "$binary_sha"
-python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_command_bootstrap.py \
-  "$case_root/app" "$binary" \
-  modules/example/config/config.toml --expected-binary-sha256 "$binary_sha"
-```
+本模块的 `config/mod.rs` 在 Provider boot 时通过 `BootContext::code_config` 接入应用同一个配置仓储；`EXAMPLE_GREETING` 和 `EXAMPLE_FEATURE_ENABLED` 从启动时同次 dotenv 快照求值。`example.runtime_policy` 是进程本地 typed 配置工厂，仅在显式调用 `ExampleServiceProvider::with_runtime_policy()` 后登记；Provider 从同一仓储读取并挂载 `/api/example/config-policy`。默认模块仅登记可序列化区段，继续支持 `config:cache`；开启 typed 演示后，公开缓存契约会拒绝缓存读写。旧 TOML overlay 仅保留为显式选择来源的回归 fixture；修改 Rust 配置须重新编译，运行中的进程不会热加载。
 
 > 当前源码位于 `modules/example/`，通过统一模块清单与 ServiceProvider 接入；隔离的 example_* 表 CRUD、当前已实现公开能力的业务调用与适用双库验收已由 R1-E 提交 `bc3fa01`。
 
@@ -38,7 +10,7 @@ python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_comman
 
 `ServiceProvider::register` 返回 `BoxFuture`，依赖绑定使用 `RegisterContext` 的异步 `instance`、`singleton` 等方法并在登记位置 `await?`。应用启动后可用 `App::register_provider` 登记新 Provider；相同类型普通登记保留首次实例，显式 `force_register_provider` 则重新执行登记并更新后续解析的服务。已持有的 `Arc` 保留原实例。现有模块回归以 `ExampleMessage` 和 `GET /api/example` 验证同一应用中的更新；已构建的 HTTP Router 是快照，业务应在构建 Router 前完成需要反映在路由表中的登记。
 
-配置仓储的原始读写与严格类型读取语义见[配置说明](../../src/config/README.md)。模块自有的 [`config/feature.toml`](config/feature.toml) 经 `ModuleConfigFiles` overlay 写入 `example.feature`，`GET /api/example/config-feature` 通过公开配置仓储读取其固定 `enabled` 字段；无该文件时返回 `false`。应用配置文件的递归发现另由 `ConfigLoader` 处理，不给模块 overlay 重复包装命名空间。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
+配置仓储的原始读写与严格类型读取语义见[配置说明](../../src/config/README.md)。模块自有的 [`config/mod.rs`](config/mod.rs) 通过统一清单写入 `example.feature`，`GET /api/example/config-feature` 通过公开配置仓储读取其固定 `enabled` 字段；模块未启用时该路由不存在。TOML 递归发现仅由显式附加的旧来源处理，不参与本模块默认引导。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
 
 **综合示例已贯通当前已实现的公开框架能力。** 文章 HTTP CRUD、事务事件、审计、缓存、存储、账户安全及协议调用均有业务代码和分组验证；tenant 路由通过 `RouteGroup` 演示共享路径前缀与组级认证/授权 middleware。这不表示全部 Laravel 能力已完成。
 
@@ -84,7 +56,7 @@ curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query
 
 浏览器随后向匹配路径回送 Cookie。测试将实际 `Set-Cookie` 的首个 name/value 对原样作为后续 `Cookie` 请求头，不假定 wire 值为明文，也不在业务中解密。Cookie 不经过普通输入的 trim/null 转换；读取使用直接键，数组叶子的解释由框架 wire 解析器负责。
 
-宿主必须登记 `CookieServiceProvider`；默认构造要求现有 Encryptor，提供受保护 Cookie 与历史密钥解密。显式 `plain()` 仅提供无加密路径，不保护 Cookie 的机密性或完整性。当前 API 宿主按编译能力明确选择模式，不能把 plain 模式当成完整 Laravel 默认 Web 栈。普通业务依赖同一个请求级 Jar，无需再登记一套 Provider。Session、flash、CSRF 等仍按各自能力与配置使用，不因这个偏好示例而全部完成。
+宿主必须登记 `CookieServiceProvider`；示例 Cookie API 路由显式使用 `cookies` 中间件，普通 API 不自动启用 Cookie。默认构造要求现有 Encryptor，提供受保护 Cookie 与历史密钥解密。显式 `plain()` 仅提供无加密路径，不保护 Cookie 的机密性或完整性，不能用于默认 Web 组。Session API、账户 Session 与 OIDC 浏览器绑定路由逐组显式叠加 `cookies`、`session`；其余 API 不默认创建会话。未经过 Web CSRF 验证的 Session Auth API 保留独立认证 token 校验。
 
 ## Session 偏好与一次性提示
 
@@ -119,7 +91,7 @@ Session 在成功 start 后、业务 handler 前，按最终 `session.lottery` �
 
 ### 不使用数据库的 Cookie Session
 
-在宿主 `config/session.toml` 显式选择下列驱动即可复用同一业务控制器，不修改模块或框架源码：
+在宿主 `config/session.rs` 或环境变量显式选择下列驱动即可复用同一业务控制器，不修改模块或框架源码：
 
 ```toml
 [session]
@@ -149,7 +121,7 @@ python3 -B modules/example/tests/browser_cookie_session.py \
 
 根 [`src/main.rs`](../../src/main.rs) 声明应用宿主和已编译模块，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 的 `Application::modules` 返回模块清单，加入 [`descriptor`](mod.rs)；根 [`modules_statuses.json`](../../modules_statuses.json) 的 `example: true` 决定本次启动启用。descriptor 将 [`ExampleServiceProvider`](providers/example.rs)、自定义缓存 driver、以及适用数据库能力的任务/迁移/种子、文章事件和欢迎业务 Provider 纳入同一 register/boot 生命周期；禁用模块不会登记这些 Provider。默认模块根为进程工作目录，可由显式配置 `modules_root` 指定部署根；状态、配置、语言、视图和发布资源均从同一根解析。根 [`routes/web.rs`](../../routes/web.rs) 只保留框架通用路由，不硬编码业务 handler。
 
-[`ExampleServiceProvider::register`](providers/example.rs) 登记 `example` 类型化配置/schema 和业务依赖工厂；其 `boot` 在正确配置时点调用 `ModuleConfigFiles::overlay`，读取模块 [`config/config.toml`](config/config.toml)，再贡献 [`routes::register`](routes/mod.rs)。后续业务工厂读取共享配置仓储，`greeting` 用于响应文字。模块配置覆盖既有同键值，与 Laravel 核心 defaults 的低优先级合并不同；不把整个模块的 overlay 提前到所有 Provider boot 之前。
+[`ExampleServiceProvider::register`](providers/example.rs) 登记 `example` 类型化配置/schema 和业务依赖工厂；其 `boot` 调用 `BootContext::code_config` 求值模块 [`config/mod.rs`](config/mod.rs)，按显式选项读取同仓储 typed 策略，再贡献 [`routes::register`](routes/mod.rs)。后续业务工厂读取共享配置仓储，`greeting` 用于响应文字。模块配置在 Provider 的 boot 时点接入；显式 TOML overlay 的旧回归 fixture 保留在 `tests/fixtures/config/`。
 
 模块 `GET /api/example` 由 `show` 返回 `Json<ExampleInfo>`，其中 `message` 来自 Provider 登记并经 `Inject<ExampleMessage>` 注入的业务依赖，`served_at` 直接调用第三方 `chrono::Utc::now()`；类型通过 serde 序列化，经过框架 HTTP 处理链。
 从仓库根启动，在另一终端请求默认端口：
@@ -163,7 +135,7 @@ curl --noproxy '*' http://127.0.0.1:3000/api/example
 curl --noproxy '*' http://127.0.0.1:3000/health
 ```
 
-默认基础示例不要求数据库或 Redis；端口与公开目录见根 [`config/server.toml`](../../config/server.toml)。文章及欢迎路由仅在配置数据库并编译认证能力后出现；无数据库启动不表示文章业务可用。
+默认基础示例不要求数据库或 Redis；端口与公开目录见根 [`config/server.rs`](../../config/server.rs)。文章及欢迎路由仅在配置数据库并编译认证能力后出现；无数据库启动不表示文章业务可用。
 
 ## 隔离的字段类型示例
 
@@ -271,8 +243,8 @@ ModuleManifest::from_file(root.join("modules_statuses.json"))
 | --- | --- |
 | mod.rs | 模块声明，保持薄入口 |
 | providers/example.rs | register 登记配置与业务依赖，boot 合并模块配置并贡献路由 |
-| config/config.toml | 在对应 Provider boot 时点覆盖 example 区段的模块配置 |
-| config/feature.toml | 在同一 boot 时点覆盖 example.feature 区段，供固定公开业务读取 |
+| config/mod.rs | 在对应 Provider boot 时点求值 example 区段；typed 策略须显式开启 |
+| tests/fixtures/config/*.toml | 仅用于显式可选 TOML 来源回归 |
 | services/message.rs | 实际供控制器调用、测试可替换的问候内容 |
 | routes/api.rs、routes/web.rs | API/页面路由组合，调用 controller |
 | http/controllers/example.rs、article.rs、attachments.rs、welcome.rs、auth.rs、jobs.rs、pages.rs | 实际请求处理 |
@@ -487,3 +459,5 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 [`tests/tools/verify-route-context.py`](tests/tools/verify-route-context.py)接收与 D6 工具相同的 `--binary`、`--binary-sha256`、`--source-snapshot` 和可选 `--root`。它复用 D6 的配置隔离、来源快照、资源门限、有界请求、进程组守护和任务专有清理，真实启动一个加载唯一模块的 server，检查具名/匿名、参数/default、输入伪造、业务 404、middleware 403、HEAD 与方法 miss。PG/MySQL feature 的二进制分别运行，但工具不连接数据库，不能据此声称数据库或 TLS 等价验收；临时目录沿用共享 supervisor 的 D6 前缀。
 
 D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响应头并确认没有额外正文，且路由 before/after 两个标记均正确；方法 miss 只证明路由 middleware 未执行，不据此推断私有共享 slot。来源快照与二进制 SHA256 分别证明检查对象未变化，二者本身不能证明该二进制由该快照构建；验收须附记录构建命令、来源快照摘要及产物摘要的实际构建记录，将构建与后续网络结果关联。
+
+账户示例的 `/account/session/*` 路由也只在宿主实际登记 Session 且最终驱动启用时接入 `cookies`、`session` 别名；仅启用数据库或认证编译能力不会强制 Session。JWT 及普通模块 API 仍可在无 Session 的宿主中运行。

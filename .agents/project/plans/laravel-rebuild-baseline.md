@@ -63,7 +63,7 @@ Laravel 与 Goravel 仅参考机制；复制代码需逐文件核对 MIT/原许�
 
 ## 破坏性共享 contract 与旧规则
 
-[ADR-070](../decisions/adr-070-laravel-first-rebuild.md) 是替代清单的权威入口：001 参考顺序，006/010/016 命名与 CLI，007/021/039/062–065 目录/分发，008 HTTP 包装，018 JWT-first，023 扩展，030/068/069 配置/路由/模板。R1 仅定目录/分发；R2 定 Container/Provider、scope、配置与停机；R3 定 HTTP 默认/错误，R7 定 guard。旧 ADR 的目标约束被替代，行为证据和 WIP 保护不失效。
+[ADR-001](../decisions/adr-001-framework-principles.md) 是唯一方向入口。旧决策的目标约束已被取代，历史内容可从 Git 基线读取；已实现行为、验收事实和 WIP 保护不失效，按当前矩阵与核心事实重新核对。
 
 依赖顺序保持总计划 R0→R1→R2；数据在 R4、Model R5、SQLite R6、安全 R7 后，再收敛共享 store、异步事务、网络和集群。默认 store/Session/认证/响应不能在目录迁移时偷偷重写。每项领域测试必须覆盖正常、错误、取消/停机、竞争、资源上限与适用服务故障/恢复。
 

@@ -160,7 +160,9 @@ impl Fixture {
             "realtime":{"max_connections":1,"max_message_bytes":256,"heartbeat_interval_secs":1,"allowed_origins":[origin]}
         })));
         let ttl = time::Duration::seconds(i64::try_from(ttl)?);
-        let mut builder = TestApp::<crate::bootstrap::Server>::builder(sources);
+        let mut builder = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(sources))?,
+        );
         builder.configure_after_register(move |bindings| {
             Box::pin(async move {
                 bindings

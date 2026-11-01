@@ -34,7 +34,7 @@ where
 async fn normalized_json<S: Send + Sync>(req: Request, state: &S) -> Result<Vec<u8>> {
     let (parts, body) = req.into_parts();
     let policy = super::request::policy(&parts);
-    let _ = super::request::parse_query(parts.uri.query(), &policy)?;
+    let query = super::request::parse_query(parts.uri.query(), &policy)?;
     // 固定小正文仅复用 Axum 的 MIME 判定，保留 415 优先且不消费真实正文。
     let mut probe = Request::from_parts(parts.clone(), axum::body::Body::from("null"));
     axum::extract::DefaultBodyLimit::disable().apply(&mut probe);
@@ -48,6 +48,22 @@ async fn normalized_json<S: Send + Sync>(req: Request, state: &S) -> Result<Vec<
     let _ = AxumJson::<serde::de::IgnoredAny>::from_bytes(&raw).map_err(json_error)?;
     // 有界额外 buffer 只重写字符串值，数字/键/重复字段维持原始词法。
     let encoded = policy.rewrite_json(&raw)?;
+    #[cfg(feature = "session")]
+    {
+        // 可选闪回视图不可表示正文时，仍由 typed DTO 决定请求有效性。
+        // 清除先前 Query 提取器的局部视图，避免将其误当完整输入闪回。
+        match AxumJson::<serde_json::Value>::from_bytes(&encoded) {
+            Ok(AxumJson(body)) => {
+                let all =
+                    crate::support::data::union(&crate::support::data::cast_json(body), &query);
+                crate::support::data::validate_limits(&all)?;
+                crate::core::error::bind_exception_input(all);
+            }
+            Err(_) => crate::core::error::clear_exception_input(),
+        }
+    }
+    #[cfg(not(feature = "session"))]
+    let _ = query;
     Ok(encoded)
 }
 
@@ -127,6 +143,8 @@ where
         let _ = state;
         let policy = super::request::policy(parts);
         let value = super::request::parse_query(parts.uri.query(), &policy)?;
+        #[cfg(feature = "session")]
+        crate::core::error::bind_exception_input(value.clone());
         super::request::deserialize_query(value).map(Self)
     }
 }

@@ -448,7 +448,9 @@ impl RedirectResponse<'_> {
                 "需要完整 Request 才能 flash 输入",
             )
         })?;
-        self.info.session()?.flash_input_typed(request.all())?;
+        self.info
+            .session()?
+            .flash_input_typed(request.input_all())?;
         Ok(self)
     }
 
@@ -463,7 +465,7 @@ impl RedirectResponse<'_> {
         })?;
         self.info
             .session()?
-            .flash_input_typed(request.only(keys)?)?;
+            .flash_input_typed(request.input_only_for_redirect(keys)?)?;
         Ok(self)
     }
 
@@ -478,7 +480,7 @@ impl RedirectResponse<'_> {
         })?;
         self.info
             .session()?
-            .flash_input_typed(request.except(keys)?)?;
+            .flash_input_typed(request.input_except_for_redirect(keys)?)?;
         Ok(self)
     }
 
@@ -1681,6 +1683,50 @@ mod tests {
         );
         assert_eq!(session.read_errors()?.count(), 1);
         assert_eq!(redirect.into_response().status(), StatusCode::FOUND);
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn redirect_filters_files_after_mixed_selection_and_keeps_empty_parent() -> Result<()> {
+        let session = crate::session::Session::new(
+            None,
+            std::sync::Arc::new(crate::session::MemorySessionStore::default()),
+            None,
+        )?;
+        let body = concat!(
+            "--files\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nDraft\r\n",
+            "--files\r\nContent-Disposition: form-data; name=\"album[avatar]\"; filename=\"avatar.png\"\r\n\r\nimage\r\n",
+            "--files--\r\n"
+        );
+        let mut incoming = HttpRequest::post("/form")
+            .header("host", "example.test")
+            .header("content-type", "multipart/form-data; boundary=files")
+            .body(Body::from(body))
+            .expect("request");
+        incoming.extensions_mut().insert(session.clone());
+        let request = Request::from_request(incoming, &()).await?;
+        Redirector::from_request(&request)
+            .to("/done")?
+            .only_input(&["album"])?;
+        assert_eq!(
+            session.get_old_input_json(None)?,
+            Some(serde_json::json!({"album": []}))
+        );
+        Redirector::from_request(&request)
+            .to("/done")?
+            .except_input(&["title"])?;
+        assert_eq!(
+            session.get_old_input_json(None)?,
+            Some(serde_json::json!({"album": []}))
+        );
+        Redirector::from_request(&request)
+            .to("/done")?
+            .with_input()?;
+        assert_eq!(
+            session.get_old_input_json(None)?,
+            Some(serde_json::json!({"title": "Draft"}))
+        );
         Ok(())
     }
 }

@@ -116,7 +116,7 @@ async fn configured_oidc_rejects_missing_business_dependencies_before_ready() ->
         }}
     })));
     let error = builder
-        .start(source)
+        .start(crate::modules::example::test_sources(&(source))?)
         .await
         .err()
         .ok_or("OIDC without AuthFlows and Encryptor unexpectedly became ready")?;
@@ -182,9 +182,11 @@ impl Fixture {
             "session":{"secure":false,"cookie":"example_oidc_session","same_site":"lax"},
             "example":{"oidc":{"issuer":idp.config.issuer,"client_id":idp.config.client_id,"client_secret":idp.config.client_secret,"redirect_uri":idp.config.redirect_uri,"allow_loopback":true}}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         Ok(Some(Self { app, database }))
     }
     async fn close(mut self) -> TestResult {
@@ -690,7 +692,10 @@ async fn keycloak_existing_email_requires_explicit_link_instead_of_automatic_mer
     let row = connection
         .query_one_raw(Statement::from_sql_and_values(
             backend,
-            format!("SELECT email FROM tb_users WHERE id = {placeholder}"),
+            format!(
+                "SELECT email FROM {} WHERE id = {placeholder}",
+                db.quoted_table_name("users")?
+            ),
             [user_id.into()],
         ))
         .await?

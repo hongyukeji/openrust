@@ -1,7 +1,11 @@
 //! 复制到生成应用 tests/ 后，验证生产 Provider 的 boot/HTTP 同一服务链。
 
+#[path = "../app/mod.rs"]
+mod app;
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../config/mod.rs"]
+mod config;
 #[path = "../modules/mod.rs"]
 mod modules;
 #[path = "../routes/web.rs"]
@@ -22,9 +26,9 @@ use std::time::Duration;
 #[tokio::test]
 async fn generated_provider_extends_original_factory_in_boot_and_http()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
-    ))
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.app.env = openrust::config::Environment::Testing;
+    let source = Figment::from(Serialized::defaults(config))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));

@@ -1,6 +1,6 @@
 ---
 source: tools/cli/src/main.rs
-assertion_line: 3113
+assertion_line: 3276
 expression: snapshot
 ---
 --- Cargo.toml ---
@@ -14,10 +14,10 @@ license.workspace = true
 [dependencies]
 openrust = { workspace = true, features = ["cache-redis", "view", "session"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 figment = { version = "0.10", features = ["toml"] }
-serde_json = "1"
 time = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
@@ -67,63 +67,118 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
   </body>
 </html>
 
---- config/app.toml ---
-name = "blog"
-# 签名 URL 使用 APP_KEY 原始字节；生产环境应设置不可预测的密钥。
-# 未配置时 Laravel 基线以空密钥签发，普通 URL 同样可用。
-# 旧密钥可由 APP_PREVIOUS_KEYS=old-one,old-two 或 previous_keys 数组提供，仅用于验签。
-url = "http://localhost:3000"
-timezone = "UTC"
+--- config/mod.rs ---
+//! 应用代码配置清单；每个区段由 Rust 函数求值。
 
---- config/cache.toml ---
-default = "redis"
+pub mod api;
+pub mod app;
+pub mod auth;
+pub mod cache;
+pub mod database;
+pub mod i18n;
+pub mod mail;
+pub mod security;
+pub mod server;
+pub mod session;
+pub mod sms;
+pub mod view;
 
-[stores.redis]
-driver = "redis"
-namespace = "blog"
-dsn = "redis://127.0.0.1:6379/"
+/// 登记应用默认配置；运行环境覆盖仍由统一配置仓储处理。
+pub fn boot() -> openrust::config::ConfigManifest {
+    openrust::config::ConfigManifest::new()
+        .section("app", app::config)
+        .section("server", server::config)
+        .section("api", api::config)
+        .section("cache", cache::config)
+        .section("database", database::config)
+        .section("i18n", i18n::config)
+        .section("mail", mail::config)
+        .section("session", session::config)
+        .section("sms", sms::config)
+        .section("auth", auth::config)
+        .section("security", security::config)
+        .section("view", view::config)
+}
 
-[singleflight]
-max_in_flight_keys = 128
-max_waiters_per_key = 64
-loader_timeout_secs = 30
+--- config/app.rs ---
+//! 应用身份默认值。
 
-[swr]
-max_in_flight_refreshes = 64
+use openrust::config::{AppConfig, ConfigContext, ConfigError};
 
---- config/server.toml ---
-host = "127.0.0.1"
-port = 3000
-public_dir = "public"
-root_target = "view:index.html"
-request_timeout_secs = 30
-max_concurrent_requests = 1024
-shutdown_timeout_secs = 10
-metrics_endpoint_enabled = false
-# 显式设置 trusted_proxy_ranges = [] 可关闭平台自动代理；省略则沿框架默认策略。
+/// 在同次 dotenv 快照上求值应用身份。
+pub fn config(ctx: &ConfigContext) -> Result<AppConfig, ConfigError> {
+    Ok(AppConfig {
+        name: ctx.env_or("APP_NAME", "blog"),
+        debug: ctx.bool_or("APP_DEBUG", false)?,
+        url: ctx.env_or("APP_URL", "http://localhost:3000"),
+        ..AppConfig::default()
+    })
+}
 
-[compression]
-enabled = true
+--- config/cache.rs ---
+//! Redis 缓存默认值与公开 store 配置。
 
-[cors]
-enabled = false
+use openrust::config::{CacheConfig, CacheStoreConfig, ConfigContext, ConfigError};
 
---- config/session.toml ---
-# Cookie名称缺省按最终app.name推导；Secure缺省由可信传输信息决定。
-driver = "database"
-path = "/"
-http_only = true
-same_site = "lax"
-lifetime = 120
-lottery = [2, 100]
-expire_on_close = false
-partitioned = false
-max_bytes = 20971520
-serializer = "native"
+/// 使用统一 Redis URL 与 Laravel 风格 `CACHE_STORE` 选择。
+#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
+pub fn config(ctx: &ConfigContext) -> Result<CacheConfig, ConfigError> {
+    let mut cache = CacheConfig {
+        default: ctx.env_or("CACHE_STORE", "redis"),
+        ..CacheConfig::default()
+    };
+    cache.stores.insert(
+        "redis".to_owned(),
+        CacheStoreConfig {
+            driver: "redis".to_owned(),
+            namespace: "blog".to_owned(),
+            options: std::collections::BTreeMap::from([(
+                "dsn".to_owned(),
+                serde_json::Value::String(ctx.env_or("REDIS_URL", "redis://127.0.0.1:6379/")),
+            )]),
+        },
+    );
+    Ok(cache)
+}
 
---- config/i18n.toml ---
-default_locale = "en"
-fallback_locale = "en"
+--- config/server.rs ---
+//! HTTP 服务默认值。
+
+use openrust::config::{ConfigContext, ConfigError, ServerConfig};
+
+/// 保留当前根站点目标与 listener 默认值。
+///
+/// 如需限制主机，在返回前设置 `server.trusted_hosts` 为
+/// `Some(openrust::config::TrustedHostsConfig { at: None, subdomains: true })`；
+/// `at: None` 从 `app.url` 推导主域，默认不启用此限制。
+#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
+pub fn config(_ctx: &ConfigContext) -> Result<ServerConfig, ConfigError> {
+    let mut server = ServerConfig::default();
+    server.root_target = "view:index.html".to_owned();
+    Ok(server)
+}
+
+--- config/session.rs ---
+//! Session 默认值。
+
+use openrust::config::{ConfigContext, ConfigError, SessionConfig};
+
+/// 使用框架公开的 Session 默认设置。
+#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
+pub fn config(_ctx: &ConfigContext) -> Result<SessionConfig, ConfigError> {
+    Ok(SessionConfig::default())
+}
+
+--- config/i18n.rs ---
+//! 国际化默认值。
+
+use openrust::config::{ConfigContext, ConfigError};
+
+/// 默认及回退 locale 均为英文。
+#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
+pub fn config(_ctx: &ConfigContext) -> Result<openrust::i18n::I18nConfig, ConfigError> {
+    Ok(openrust::i18n::I18nConfig::default())
+}
 
 --- src/main.rs ---
 //! 应用程序入口。
@@ -132,6 +187,8 @@ fallback_locale = "en"
 mod app;
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../config/mod.rs"]
+mod config;
 #[path = "../modules/mod.rs"]
 mod modules;
 #[path = "../routes/web.rs"]
@@ -142,41 +199,16 @@ fn main() -> std::process::ExitCode {
 }
 
 --- bootstrap/app.rs ---
-use openrust::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
+use openrust::core::ServiceProvider;
 use openrust::prelude::*;
-use std::sync::Arc;
 
-use crate::routes;
-
-struct ReadinessProvider;
-impl ServiceProvider for ReadinessProvider {
-    fn register<'a>(
-        &'a self,
-        app: &'a mut RegisterContext<'_>,
-    ) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            app.instance(Arc::new(openrust::core::Readiness::default())).await?;
-            Ok(())
-        })
-    }
-}
-
-struct RoutesProvider;
-impl ServiceProvider for RoutesProvider {
-    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            app.routes(routes::register)?;
-            Ok(())
-        })
-    }
-}
+mod providers;
 
 /// 应用自己的运行时模块根；默认从当前工作目录解析。
 #[derive(Default, serde::Deserialize)]
 #[serde(default)]
 pub struct Configuration {
     pub database: openrust::config::DatabaseConfig,
-    pub session: openrust::config::SessionConfig,
     pub modules_root: Option<std::path::PathBuf>,
 }
 
@@ -185,32 +217,12 @@ pub struct Blog;
 impl Application for Blog {
     type Config = Configuration;
 
+    fn config() -> openrust::config::ConfigManifest {
+        crate::config::boot()
+    }
+
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
-        let mut providers: Vec<Box<dyn ServiceProvider>> = vec![
-            Box::new(openrust::http::HttpServiceProvider),
-            Box::new(ReadinessProvider),
-            Box::new(openrust::view::ViewServiceProvider),
-            Box::new(openrust::i18n::I18nServiceProvider::default()),
-            Box::new(openrust::cache::CacheServiceProvider::new()),
-            Box::new(openrust::mail::MailerServiceProvider),
-            Box::new(openrust::sms::SmsServiceProvider),
-        ];
-        // 当前 API 宿主显式使用未加密 Cookie；这不是 Laravel web 默认组。
-        providers.push(Box::new(openrust::http::CookieServiceProvider::plain()));
-        let has_database = config.database.url.is_some()
-            || !config.database.instances.is_empty()
-            || !config.database.read_replicas.is_empty();
-        if has_database
-            || config
-                .session
-                .driver
-                .as_deref()
-                .is_some_and(|driver| driver != "database")
-        {
-            providers.push(Box::new(openrust::session::SessionServiceProvider::new()));
-        }
-        providers.push(Box::new(RoutesProvider));
-        providers
+        providers::application_providers(config)
     }
 
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
@@ -238,19 +250,14 @@ pub fn manifest(root: &std::path::Path) -> ModuleManifest {
 
 --- routes/web.rs ---
 use openrust::prelude::*;
-use openrust::{core::AppState, http::axum::extract::State};
+use crate::app::http::controllers::home::index as root;
 
 pub fn register(routes: Routes) -> Routes {
-    routes.get("/api", root).fallback(not_found)
-}
-
-async fn root(
-    State(state): State<AppState>,
-) -> Json<std::collections::BTreeMap<&'static str, String>> {
-    Json(std::collections::BTreeMap::from([(
-        "name",
-        state.config().app.name.clone(),
-    )]))
+    routes
+        .group(RouteGroup::new().middleware_group("api"), |routes| {
+    routes.get("/api", root)
+        })
+        .fallback(not_found)
 }
 
 async fn not_found(
@@ -264,8 +271,12 @@ async fn not_found(
 
 --- tests/test_app.rs ---
 //! 使用与生产相同的 Provider 清单测试应用 HTTP 路由。
+#[path = "../app/mod.rs"]
+mod app;
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../config/mod.rs"]
+mod config;
 #[path = "support/message_bags.rs"]
 mod message_bags;
 #[path = "../modules/mod.rs"]
@@ -296,6 +307,43 @@ use openrust::http::axum::{
 use openrust::testing::TestApp;
 use std::time::Duration;
 
+fn test_configuration() -> openrust::config::FrameworkConfig {
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.app.env = openrust::config::Environment::Testing;
+    config
+}
+
+// 生成应用在公开 server 配置上按精确环境启用主机信任列表。
+#[tokio::test]
+async fn generated_application_applies_trusted_hosts() -> Result<(), Box<dyn std::error::Error>> {
+    let mut config = test_configuration();
+    config.app.env = openrust::config::Environment::Development;
+    config.server.trusted_hosts = Some(openrust::config::TrustedHostsConfig::default());
+    let source = Figment::from(Serialized::defaults(config)).merge(Toml::string(
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    let mut app = TestApp::<GeneratedApplication>::builder(source)
+        .build()
+        .await?;
+    app.request(
+        Request::get("/api")
+            .header("host", "localhost")
+            .body(Body::empty())?,
+    )
+    .await?
+    .assert_status(StatusCode::OK)?;
+    app.request(
+        Request::get("/api")
+            .header("host", "attacker.test")
+            .body(Body::empty())?,
+    )
+    .await?
+    .assert_status(StatusCode::BAD_REQUEST)?;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
 struct RuntimeGreeting(&'static str);
 
 struct RuntimeGreetingProvider(&'static str);
@@ -316,12 +364,15 @@ impl ServiceProvider for RuntimeGreetingProvider {
 #[tokio::test]
 async fn generated_application_exposes_runtime_provider_registration()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+    let source = Figment::from(Serialized::defaults(test_configuration()))
         .merge(Toml::string("[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n"));
     let configuration: bootstrap::Configuration = source.extract()?;
     let builder =
         openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
     let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    assert_eq!(app.environment().as_str(), "testing");
+    assert!(app.running_unit_tests());
+    assert!(!app.is_production());
     let first = app
         .register_provider(RuntimeGreetingProvider("初次登记"))
         .await?;
@@ -354,7 +405,7 @@ async fn generated_application_exposes_runtime_provider_registration()
 #[tokio::test]
 async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[app]\nname = 'configured-application'\n[server]\nroot_target = 'view:index.html'\n[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -441,7 +492,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
 async fn generated_application_exposes_request_input_to_business_provider()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -453,7 +504,7 @@ async fn generated_application_exposes_request_input_to_business_provider()
 async fn generated_application_consumes_message_bags_through_business_provider()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -466,7 +517,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
 async fn generated_application_redirects_to_named_route_and_restores_errors()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -477,7 +528,7 @@ async fn generated_application_redirects_to_named_route_and_restores_errors()
 #[tokio::test]
 async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -490,7 +541,7 @@ async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn s
 async fn generated_application_exposes_session_lifecycle() -> Result<(), Box<dyn std::error::Error>>
 {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -503,7 +554,7 @@ async fn generated_application_exposes_session_lifecycle() -> Result<(), Box<dyn
 async fn generated_original_host_supports_explicit_cookie_session_without_database()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -522,7 +573,7 @@ use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode, header::CONTENT_TYPE},
 };
-use openrust::http::{InputOutcome, Json, Request as InputRequest, Routes};
+use openrust::http::{InputOutcome, Json, Request as InputRequest, Routes, UploadedFile};
 use openrust::support::{ArrayKey, BackedEnum, DateOptions, InputNumber, TimezoneInput};
 use openrust::testing::TestApp;
 use std::time::Duration;
@@ -548,6 +599,7 @@ impl ServiceProvider for InputRoutesProvider {
             app.routes(|routes: Routes| {
                 routes
                     .post("/test/request-input", inspect_input)
+                    .post("/test/request-file", inspect_file)
                     .route(
                         "/test/request-url",
                         openrust::http::routing::get(inspect_url).post(inspect_url),
@@ -557,6 +609,32 @@ impl ServiceProvider for InputRoutesProvider {
             Ok(())
         })
     }
+}
+
+// 生成项目从公开模块外接线读取文件，不依赖框架私有暂存路径。
+async fn inspect_file(request: InputRequest) -> openrust::Result<Json<serde_json::Value>> {
+    let file = request
+        .file("document")?
+        .ok_or_else(|| openrust::Error::custom("file_missing", "文件缺失"))?;
+    let uploaded = file
+        .downcast_ref::<UploadedFile>()
+        .ok_or_else(|| openrust::Error::custom("file_invalid", "文件无效"))?;
+    let mime = uploaded.mime_type().await?;
+    let extension = uploaded.extension().await?;
+    let selected = request.only(&["document"])?;
+    let selected_file = selected
+        .get("document")?
+        .ok_or_else(|| openrust::Error::custom("file_missing", "选取结果缺失"))?;
+    Ok(Json(serde_json::json!({
+        "name": uploaded.client_original_name(),
+        "mime": mime,
+        "extension": extension,
+        "bytes": uploaded.size(),
+        "has_file": request.has_file("document")?,
+        "same_object": file.same_object(selected_file),
+        "text": request.input("label")?,
+        "raw_len": request.content_len(),
+    })))
 }
 
 // 保留生成应用的 Provider 与模块装配，只在本测试追加公开路由扩展。
@@ -724,6 +802,27 @@ pub async fn assert_request_input<A: Application>(
                     "microseconds": 0,
                     "total_days": null
                 }
+                }
+            }))?;
+        let multipart = concat!(
+            "--generated\r\nContent-Disposition: form-data; name=\"label\"\r\n\r\npublic\r\n",
+            "--generated\r\nContent-Disposition: form-data; name=\"document\"; filename=\"client.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n",
+            "--generated--\r\n"
+        );
+        app.request(Request::builder()
+            .method(Method::POST).uri("/test/request-file")
+            .header(CONTENT_TYPE, "multipart/form-data; boundary=generated")
+            .body(Body::from(multipart))?)
+            .await?
+            .assert_status(StatusCode::OK)?
+            .assert_json(&serde_json::json!({
+                "success": true,
+                "code": "ok",
+                "message": "ok",
+                "data": {
+                    "name": "client.txt", "mime": "text/plain", "extension": "txt",
+                    "bytes": 5, "has_file": true,
+                    "same_object": true, "text": "public", "raw_len": multipart.len()
                 }
             }))?;
         for (method, json_source) in [
@@ -1021,7 +1120,8 @@ use openrust::http::axum::{
     response::IntoResponse,
 };
 use openrust::http::{
-    Cookie, CookieJar, CookieOptions, CookieResponseExt, Json, RequestInfo, Routes, SameSite,
+    Cookie, CookieJar, CookieOptions, CookieResponseExt, Json, RequestInfo, RouteGroup, Routes,
+    SameSite,
 };
 use openrust::session::Session;
 use openrust::testing::{TestApp, TestResponse};
@@ -1037,11 +1137,20 @@ struct CookieRoutesProvider;
 impl ServiceProvider for CookieRoutesProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| {
-                routes
-                    .get(&format!("{PREFIX}/set"), set_cookies)
-                    .get(&format!("{PREFIX}/inspect"), inspect_cookies)
-                    .get(&format!("{PREFIX}/forget"), forget_cookies)
+            let session = app.is_bound::<openrust::session::SessionStoreHandle>();
+            app.routes(move |routes: Routes| {
+                let group = RouteGroup::new().middleware_alias("cookies");
+                let group = if session {
+                    group.middleware_alias("session")
+                } else {
+                    group
+                };
+                routes.group(group, |routes| {
+                    routes
+                        .get(&format!("{PREFIX}/set"), set_cookies)
+                        .get(&format!("{PREFIX}/inspect"), inspect_cookies)
+                        .get(&format!("{PREFIX}/forget"), forget_cookies)
+                })
             })?;
             Ok(())
         })
@@ -1053,6 +1162,22 @@ struct CookieApplication<A>(std::marker::PhantomData<fn() -> A>);
 
 impl<A: Application> Application for CookieApplication<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        A::default_providers()
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
 
     fn config_namespace() -> &'static str {
         A::config_namespace()
@@ -1466,33 +1591,40 @@ impl ServiceProvider for SessionRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes: Routes| {
-                routes
-                    .get(&format!("{PREFIX}/set"), set)
-                    .get(&format!("{PREFIX}/inspect"), inspect)
-                    .get(&format!("{PREFIX}/advance"), advance)
-                    .get(&format!("{PREFIX}/remove"), remove)
-                    .get(&format!("{PREFIX}/seed-one"), seed_one)
-                    .get(&format!("{PREFIX}/seed-two"), seed_two)
-                    .get(&format!("{PREFIX}/probe"), probe)
-                    .post(&format!("{PREFIX}/old-input"), save_old_input)
-                    .get(&format!("{PREFIX}/old-input"), read_old_input)
-                    .post(&format!("{PREFIX}/old-input/default"), save_all_old_input)
-                    .get(&format!("{PREFIX}/previous/named"), previous_visit)
-                    .name("contract.session.previous.named")
-                    .get(&format!("{PREFIX}/previous/anonymous"), previous_visit)
-                    .post(&format!("{PREFIX}/previous/read"), previous_read)
-                    .group(
-                        RouteGroup::new()
-                            .prefix(format!("{PREFIX}/previous"))
-                            .middleware_alias("precognitive"),
-                        |routes| routes.get("/preview", previous_visit),
-                    )
-                    .group(
-                        RouteGroup::new()
-                            .prefix(format!("{PREFIX}/old-input"))
-                            .middleware_alias("precognitive"),
-                        |routes| routes.post("/preview", save_old_input),
-                    )
+                routes.group(
+                    RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .get(&format!("{PREFIX}/set"), set)
+                            .get(&format!("{PREFIX}/inspect"), inspect)
+                            .get(&format!("{PREFIX}/advance"), advance)
+                            .get(&format!("{PREFIX}/remove"), remove)
+                            .get(&format!("{PREFIX}/seed-one"), seed_one)
+                            .get(&format!("{PREFIX}/seed-two"), seed_two)
+                            .get(&format!("{PREFIX}/probe"), probe)
+                            .post(&format!("{PREFIX}/old-input"), save_old_input)
+                            .get(&format!("{PREFIX}/old-input"), read_old_input)
+                            .post(&format!("{PREFIX}/old-input/default"), save_all_old_input)
+                            .get(&format!("{PREFIX}/previous/named"), previous_visit)
+                            .name("contract.session.previous.named")
+                            .get(&format!("{PREFIX}/previous/anonymous"), previous_visit)
+                            .post(&format!("{PREFIX}/previous/read"), previous_read)
+                            .group(
+                                RouteGroup::new()
+                                    .prefix(format!("{PREFIX}/previous"))
+                                    .middleware_alias("precognitive"),
+                                |routes| routes.get("/preview", previous_visit),
+                            )
+                            .group(
+                                RouteGroup::new()
+                                    .prefix(format!("{PREFIX}/old-input"))
+                                    .middleware_alias("precognitive"),
+                                |routes| routes.post("/preview", save_old_input),
+                            )
+                    },
+                )
             })?;
             Ok(())
         })
@@ -1502,6 +1634,28 @@ impl ServiceProvider for SessionRoutes {
 struct SessionApplication<A, const EXISTING: bool>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application, const EXISTING: bool> Application for SessionApplication<A, EXISTING> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        // 同类型 Provider 保留先登记项；显式测试 driver 必须先排除默认 Session。
+        let providers = A::default_providers();
+        if EXISTING {
+            providers
+        } else {
+            providers.except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+        }
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
@@ -1665,6 +1819,23 @@ pub async fn assert_request_session<A: Application>(
 struct CookieSessionApplication<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for CookieSessionApplication<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        // Cookie 场景显式替换 Session，不让默认项的同类型去重吞掉替换。
+        A::default_providers().except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
@@ -2385,10 +2556,17 @@ struct OriginalHostRoutes;
 impl ServiceProvider for OriginalHostRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| {
-                routes
-                    .get("/__original-session/write", original_write)
-                    .get("/__original-session/read", original_read)
+            app.routes(|routes: Routes| {
+                routes.group(
+                    RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .get("/__original-session/write", original_write)
+                            .get("/__original-session/read", original_read)
+                    },
+                )
             })?;
             Ok(())
         })
@@ -2406,19 +2584,27 @@ async fn original_read(session: Session) -> openrust::Result<Json<Value>> {
 struct OriginalHost<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for OriginalHost<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        A::default_providers()
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers = A::providers(config);
-        assert_eq!(
-            providers
-                .iter()
-                .filter(|provider| provider.id()
-                    == openrust::core::ProviderId::of::<SessionServiceProvider>())
-                .count(),
-            1
-        );
         providers.push(Box::new(OriginalHostRoutes));
         providers
     }
@@ -2432,8 +2618,23 @@ pub async fn assert_original_host_cookie_session<A: Application>(
     let source = source.merge(figment::providers::Serialized::defaults(
         json!({"session":{"driver":"cookie","cookie":"original_host_session","secure":false,"lottery":[1,1]}}),
     ));
+    let configuration: A::Config = source.extract().map_err(openrust::Error::internal)?;
     let mut app = TestApp::<OriginalHost<A>>::builder(source).build().await?;
     let outcome: openrust::Result<()> = async {
+        let mut providers = A::default_providers().resolve(&app.app()?.config_repository())?;
+        providers.extend(A::package_providers(&configuration));
+        providers.extend(A::additional_providers());
+        if A::with_bootstrap_providers() {
+            providers.extend(A::providers(&configuration));
+        }
+        assert_eq!(
+            providers
+                .iter()
+                .filter(|provider| provider.id()
+                    == openrust::core::ProviderId::of::<SessionServiceProvider>())
+                .count(),
+            1,
+        );
         let response = app
             .request_with_limits(
                 Request::get("/__original-session/write")
@@ -2525,47 +2726,62 @@ impl ServiceProvider for RedirectRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes: Routes| {
-                routes
-                    .group(
-                        RouteGroup::new()
-                            .prefix(format!("{PREFIX}/actions"))
-                            .namespace("Generated\\Draft"),
-                        |drafts| {
-                            drafts
-                                // 静态概览先于参数路由；后登记的模块概览替换默认实现。
-                                .get("/summary", summary_default)
-                                .get_action("/summary", "DraftSummaryController", summary_page)
-                                .get_action("/{id}", "DraftController@show", action_page)
-                                .get_action("/{id}/preview", "PreviewDraftController", action_page)
-                        },
-                    )
-                    .get(&format!("{PREFIX}/action"), action_redirect)
-                    .get(&format!("{PREFIX}/action-preview"), action_preview)
-                    .on_action(
-                        &format!("{PREFIX}/action-submit"),
-                        &["POST"],
-                        ("Generated\\Draft\\DraftController", "store"),
-                        action_submit,
-                    )
-                    .get(&format!("{PREFIX}/plain"), plain)
-                    .get(&format!("{PREFIX}/signed-issue"), signed_issue)
-                    .group(RouteGroup::new(), |signed| {
-                        signed
-                            .get(&format!("{PREFIX}/signed/{{id}}"), signed_show)
-                            .name("generated.draft.signed")
-                            .middleware_alias("signed")
-                    })
-                    .get(&format!("{PREFIX}/secure"), secure)
-                    .get(&format!("{PREFIX}/guide"), guide)
-                    .get(&format!("{PREFIX}/refresh"), refresh_page)
-                    .post(&format!("{PREFIX}/refresh"), refresh_submit)
-                    .get(&format!("{PREFIX}/preview"), preview)
-                    .get(&format!("{PREFIX}/confirm"), confirmation)
-                    .post(&format!("{PREFIX}/confirm"), confirm)
-                    .post(&format!("{PREFIX}/submit"), submit)
-                    .get(&format!("{PREFIX}/review"), review)
-                    .name("generated.draft.review")
-                    .get(&format!("{PREFIX}/view"), view)
+                routes.group(
+                    RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .group(
+                                RouteGroup::new()
+                                    .prefix(format!("{PREFIX}/actions"))
+                                    .namespace("Generated\\Draft"),
+                                |drafts| {
+                                    drafts
+                                        // 静态概览先于参数路由；后登记的模块概览替换默认实现。
+                                        .get("/summary", summary_default)
+                                        .get_action(
+                                            "/summary",
+                                            "DraftSummaryController",
+                                            summary_page,
+                                        )
+                                        .get_action("/{id}", "DraftController@show", action_page)
+                                        .get_action(
+                                            "/{id}/preview",
+                                            "PreviewDraftController",
+                                            action_page,
+                                        )
+                                },
+                            )
+                            .get(&format!("{PREFIX}/action"), action_redirect)
+                            .get(&format!("{PREFIX}/action-preview"), action_preview)
+                            .on_action(
+                                &format!("{PREFIX}/action-submit"),
+                                &["POST"],
+                                ("Generated\\Draft\\DraftController", "store"),
+                                action_submit,
+                            )
+                            .get(&format!("{PREFIX}/plain"), plain)
+                            .get(&format!("{PREFIX}/signed-issue"), signed_issue)
+                            .group(RouteGroup::new(), |signed| {
+                                signed
+                                    .get(&format!("{PREFIX}/signed/{{id}}"), signed_show)
+                                    .name("generated.draft.signed")
+                                    .middleware_alias("signed")
+                            })
+                            .get(&format!("{PREFIX}/secure"), secure)
+                            .get(&format!("{PREFIX}/guide"), guide)
+                            .get(&format!("{PREFIX}/refresh"), refresh_page)
+                            .post(&format!("{PREFIX}/refresh"), refresh_submit)
+                            .get(&format!("{PREFIX}/preview"), preview)
+                            .get(&format!("{PREFIX}/confirm"), confirmation)
+                            .post(&format!("{PREFIX}/confirm"), confirm)
+                            .post(&format!("{PREFIX}/submit"), submit)
+                            .get(&format!("{PREFIX}/review"), review)
+                            .name("generated.draft.review")
+                            .get(&format!("{PREFIX}/view"), view)
+                    },
+                )
             })?;
             Ok(())
         })
@@ -2575,6 +2791,23 @@ impl ServiceProvider for RedirectRoutes {
 struct RedirectApplication<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for RedirectApplication<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        // 本测试显式使用隔离内存 Session，先排除同类型默认项以保留替换。
+        A::default_providers().except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
@@ -3201,10 +3434,12 @@ pub async fn assert_request_redirect<A: Application>(
 
 本项目基于 OpenRust，普通 `cargo run` 启动应用，`cargo test` 执行测试。
 
-`src/main.rs` 只负责入口；`bootstrap/app.rs` 装配应用，`routes/web.rs` 注册 HTTP 路由。`app/` 保留通用应用装配，业务放在 `modules/<业务>/`，配置在 `config/`，迁移与种子在 `database/`，资源在 `resources/`，公开文件在 `public/`，运行数据在 `storage/`。
+`src/main.rs` 只负责入口；`bootstrap/app.rs` 装配应用，`bootstrap/providers.rs` 登记应用 Provider，`routes/web.rs` 注册 HTTP 路由。普通业务可直接写在 `app/` 的控制器、模型和 Provider 中；`modules/<业务>/` 是可选并存的组织方式。配置在 `config/`，迁移与种子在 `database/`，资源在 `resources/`，公开文件在 `public/`，运行数据在 `storage/`。
 
-本地依赖通过应用自身 Cargo.toml 的 workspace 配置解析；保持框架源码目录可达。`--grpc` 生成 proto/build.rs、Echo 服务与 `serve all` 联合运行命令；普通 `cargo run` 仍只启动 HTTP。配置 `config/grpc.toml` 的 TLS 证书和私钥后用 `cargo run -- serve all` 启动 HTTP 与 gRPC 两个端口；不配置 TLS 时 gRPC 启动会拒绝，只有本机开发或可信 TLS 终止拓扑才能显式开启明文。
+本地依赖通过应用自身 Cargo.toml 的 workspace 配置解析；保持框架源码目录可达。`config/*.rs` 经 `config/mod.rs` 显式编译，`bootstrap/app.rs` 以 `Application::config` 接入统一配置仓储；`.env` 在同次启动快照中先读取，配置函数可按环境构造类型化值。`--grpc` 生成 proto/build.rs、Echo 服务与 `serve all` 联合运行命令；普通 `cargo run` 仍只启动 HTTP。在 `config/grpc.rs` 配置 TLS 证书和私钥后用 `cargo run -- serve all` 启动 HTTP 与 gRPC 两个端口；不配置 TLS 时 gRPC 启动会拒绝，只有本机开发或可信 TLS 终止拓扑才能显式开启明文。
 
-`modules/mod.rs` 静态声明业务代码，并通过 `manifest(root)` 返回采用 `FileModuleActivator` 的公开 `ModuleManifest`；默认从运行工作目录读取 `modules_statuses.json`，与默认 `config/` 加载约定一致；部署时从应用根启动，不能把编译机路径当部署根。`bootstrap/app.rs` 的 `Application::modules` 使用此清单；模块的 `ModuleDescriptor` 引入普通 ServiceProvider，与框架共用唯一容器和 register/boot 生命周期。模块根使用部署时的应用目录；生成的 `Configuration.modules_root` 可显式指定运行根，`Application::modules` 把相同根传给状态文件和各模块 descriptor，不扫描 Rust 源码或在运行时自动加载 crate。启用状态文件默认是空对象 `{}`；只有对应名称的 JSON `true` 启用模块，缺少文件/键、`false` 或其他非 `true` 值均关闭，损坏 JSON 启动失败且不被自动覆写。状态变更只影响下次应用启动，不热卸载当前应用；管理写命令尚未实现。
+默认 `/api` 路由使用 `app/providers/app.rs` 中公开 Handler 扩展选择统一 JSON 错误包装；更改 API 前缀时同步更改该判定。HTML/Web 路由保持自身异常表现。`APP_DEBUG=false` 默认关闭服务端错误详情，非法布尔值使启动失败。
+
+`modules/mod.rs` 静态声明业务代码，并通过 `manifest(root)` 返回采用 `FileModuleActivator` 的公开 `ModuleManifest`；默认从运行工作目录读取 `modules_statuses.json`；代码配置由编译清单显式登记，与该运行时状态文件职责分开；部署时从应用根启动，不能把编译机路径当部署根。`bootstrap/app.rs` 的 `Application::modules` 使用此清单；模块的 `ModuleDescriptor` 引入普通 ServiceProvider，与框架共用唯一容器和 register/boot 生命周期。模块根使用部署时的应用目录；生成的 `Configuration.modules_root` 可显式指定运行根，`Application::modules` 把相同根传给状态文件和各模块 descriptor，不扫描 Rust 源码或在运行时自动加载 crate。启用状态文件默认是空对象 `{}`；只有对应名称的 JSON `true` 启用模块，缺少文件/键、`false` 或其他非 `true` 值均关闭，损坏 JSON 启动失败且不被自动覆写。状态变更只影响下次应用启动，不热卸载当前应用；管理写命令尚未实现。
 
 模块专属配置、迁移、资源与测试留在该模块目录；现有根级生成器产物属于应用级职责，模块生成与资源发布等管理命令仍待后续实现。第三方依赖在本应用 Cargo.toml 管理，不在普通模块下放无效 Cargo.toml。

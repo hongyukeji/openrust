@@ -115,9 +115,7 @@ impl ServiceProvider for ExampleOidcServiceProvider {
                     let config = configured(resolver.section::<ExampleConfig>("example")?)?;
                     config.validate()?;
                     let environment = resolver.section::<openrust::config::AppConfig>("app")?.env;
-                    if environment == openrust::config::Environment::Production
-                        && config.allow_loopback
-                    {
+                    if environment.enforces_production_safety() && config.allow_loopback {
                         return Err(invalid());
                     }
                     let issuer = url::Url::parse(&config.issuer).map_err(|_| invalid())?;

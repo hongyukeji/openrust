@@ -13,7 +13,10 @@ use figment::{
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
+use crate::config::code::TypedValue;
+use crate::config::code::{ConfigContext, ConfigManifest, EvaluatedEntry};
 use crate::config::sources::{merge_order, mergeable_options};
+use crate::config::sources::{paths_overlap, raw_path_conflicts};
 use crate::config::{ConfigError, ConfigSourceError, ConfigSources};
 use crate::core::{Error, Result};
 use crate::support::Collection;
@@ -196,6 +199,8 @@ struct State {
     pre_file_base: Option<Value>,
     after_file_layers: Vec<Value>,
     cached: bool,
+    typed: BTreeMap<String, TypedValue>,
+    code_context: Option<ConfigContext>,
     register_effects: Vec<RegisterEffect>,
     sections: BTreeMap<&'static str, Section>,
     phase: Phase,
@@ -415,8 +420,16 @@ impl ConfigRepository {
 
     /// 保留现有来源及其优先级，开始 Provider 注册阶段。
     pub fn new(sources: impl Into<ConfigSources>) -> Self {
-        let (figment, raw, file_domains, pre_file_base, after_file_layers, cached) =
-            sources.into().into_parts();
+        let (
+            figment,
+            raw,
+            file_domains,
+            pre_file_base,
+            after_file_layers,
+            cached,
+            typed,
+            code_context,
+        ) = sources.into().into_parts();
         Self {
             inner: Arc::new(Mutex::new(State {
                 origin: figment.clone(),
@@ -426,6 +439,8 @@ impl ConfigRepository {
                 pre_file_base,
                 after_file_layers,
                 cached,
+                typed,
+                code_context,
                 register_effects: Vec::new(),
                 sections: BTreeMap::new(),
                 phase: Phase::Register,
@@ -876,6 +891,21 @@ impl ConfigRepository {
             .map_err(|error| safe_source_error(error, "configuration"))
     }
 
+    /// 读取同一配置仓储中已编译的 Rust 类型或工厂；原始值视图不包含此值。
+    pub fn typed<T: Send + Sync + 'static>(
+        &self,
+        key: &str,
+    ) -> std::result::Result<Option<Arc<T>>, ConfigError> {
+        let value = self.lock().typed.get(key).cloned();
+        value
+            .map(|value| {
+                Arc::downcast::<T>(value).map_err(|_| {
+                    ConfigError::Invalid("代码配置类型不匹配（源值未公开）".to_owned())
+                })
+            })
+            .transpose()
+    }
+
     /// 返回独立的来源快照；包含秘密值，调用方必须执行适用的输出脱敏。
     pub fn snapshot(&self) -> Figment {
         self.lock().figment.clone()
@@ -973,6 +1003,103 @@ impl ConfigRepository {
         )
     }
 
+    /// 在 Provider boot 时用同次环境快照原子应用模块代码配置。
+    ///
+    /// 已编译缓存跳过可序列化函数；含 Rust 类型的模块清单拒绝缓存。
+    pub fn apply_code_manifest(
+        &mut self,
+        manifest: &ConfigManifest,
+        console_command: Option<&str>,
+    ) -> Result<()> {
+        if manifest.includes_toml() {
+            return Err(invalid(
+                "configuration",
+                "module TOML source requires ModuleConfigFiles",
+            ));
+        }
+        let (context, cached, revision, sections, mut candidate, mut raw, mut typed) = {
+            let state = self.lock();
+            require_phase(state.phase, Phase::Boot)?;
+            (
+                state.code_context.clone(),
+                state.cached,
+                state.revision,
+                state.sections.clone(),
+                state.figment.clone(),
+                state.raw.clone(),
+                state.typed.clone(),
+            )
+        };
+        if manifest.has_typed() && (cached || console_command == Some("config:cache")) {
+            return Err(invalid(
+                "configuration",
+                "runtime Rust configuration cannot use config cache",
+            ));
+        }
+        if cached {
+            return Ok(());
+        }
+        let context = context
+            .ok_or_else(|| invalid("configuration", "missing code configuration environment"))?;
+        let evaluated = manifest.evaluate(&context).map_err(Error::from)?;
+        if evaluated.is_empty() {
+            return Ok(());
+        }
+        let mut raw = raw
+            .take()
+            .ok_or_else(|| invalid("configuration", "missing raw configuration"))?;
+        for entry in evaluated {
+            match entry {
+                EvaluatedEntry::Section(key, value) => {
+                    validate_key(&key)?;
+                    let mut existing = match candidate.extract_inner::<Value>(&key) {
+                        Ok(value) => value,
+                        Err(error) if error.missing() => Value::Null,
+                        Err(error) => return Err(Error::Config(safe_source_error(error, &key))),
+                    };
+                    let mut raw_existing =
+                        read_dot_value(&raw, &key).cloned().unwrap_or(Value::Null);
+                    replace_recursive(&mut existing, value.clone(), &key)?;
+                    replace_recursive(&mut raw_existing, value, &key)?;
+                    let original = candidate.find_value(&key).ok();
+                    candidate = replace_section(&candidate, &key, existing, original.as_ref())?;
+                    set_dot_value(&mut raw, &key, raw_existing);
+                }
+                EvaluatedEntry::Typed(key, value) => {
+                    validate_key(&key)?;
+                    if typed.keys().any(|existing| paths_overlap(existing, &key)) {
+                        return Err(invalid(
+                            "configuration",
+                            "typed configuration paths overlap",
+                        ));
+                    }
+                    typed.insert(key, value);
+                }
+            }
+        }
+        if typed.keys().any(|key| raw_path_conflicts(&raw, key)) {
+            return Err(invalid(
+                "configuration",
+                "raw and typed configuration paths overlap",
+            ));
+        }
+        validate_candidate(&candidate, &sections)?;
+        let mut state = self.lock();
+        require_phase(state.phase, Phase::Boot)?;
+        if state.revision != revision {
+            return Err(invalid("configuration", "concurrent configuration update"));
+        }
+        state.version = state
+            .version
+            .checked_add(1)
+            .ok_or_else(|| invalid("configuration", "version exhausted"))?;
+        state.figment = candidate;
+        state.raw = Some(raw);
+        state.typed = typed;
+        state.revision = state.revision.wrapping_add(1);
+        Ok(())
+    }
+
     /// 最终校验并冻结；重复冻结幂等，之后拒绝注册或覆盖。
     pub fn freeze(&mut self) -> Result<()> {
         let (candidate, raw, sections, revision) = {
@@ -1019,6 +1146,15 @@ impl ConfigRepository {
         require_phase(state.phase, before)?;
         if state.revision != revision {
             return Err(invalid("configuration", "concurrent configuration update"));
+        }
+        if raw
+            .as_ref()
+            .is_some_and(|raw| state.typed.keys().any(|key| raw_path_conflicts(raw, key)))
+        {
+            return Err(invalid(
+                "configuration",
+                "raw and typed configuration paths overlap",
+            ));
         }
         let version = if changed {
             state

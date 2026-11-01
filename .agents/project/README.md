@@ -1,6 +1,6 @@
 # AI Agent 记忆索引
 
-当前设计和开发顺序由 [ADR-070](decisions/adr-070-laravel-first-rebuild.md) 与 [全面重构计划](plans/laravel-rebuild.md) 接管；[执行任务](plans/laravel-rebuild-execution.md) 提供可直接使用的任务说明。旧计划只作能力/证据输入。
+当前设计和开发顺序由 [ADR-001](decisions/adr-001-framework-principles.md) 与 [全面重构计划](plans/laravel-rebuild.md) 接管。旧计划只作能力/证据输入。
 
 > 受众：AI Agent
 > 摘要：`.agents/project/` 只维护 OpenRust 当前基线。执行历史、已解决问题和完成任务由 Git 追溯。
@@ -18,17 +18,18 @@
 | `plan.md` | 当前里程碑、优先级、crate 路由和验证入口 |
 | [progress.md](progress.md#laravel-11-功能与进度概览) | Laravel/laravel-modules 1:1概览、固定状态标记与证据入口；不虚报整体百分比 |
 | `roadmap.md` | v1 之后的版本方向 |
+| [行为整改对照](plans/laravel-rebuild.md#执行偏离的纠正) | 固定上游静态审计的23项偏离及缺口；执行只在todo领取，不是动态验收证明 |
 | `plans/` | 框架版本计划与设计方案，以及独立排期的可选领域套件与完整应用规划；仅框架活跃任务进入 `todo.md` |
 | [`plans/ai-model-platform.md`](plans/ai-model-platform.md) | AI模型平台唯一计划：完整范围、内含网关源码、工程验收及同仓 main 的模块/目录隔离；用户明确要求开发后才启动 |
 | `architecture.md` / `stack.md` / `conventions.md` | 架构、技术栈和工程规范 |
 | `style.md` | 文档写作、文件命名和清理规范 |
-| [decisions/README.md](decisions/README.md) | ADR 唯一编号、有效决定与替代关系索引 |
+| [decisions/README.md](decisions/README.md) | 唯一 ADR 与历史来源入口 |
 | `memory/testing.md` / `memory/verification.md` | 当前可复验测试命令和验收边界 |
 | `scripts/` | 提交脚本 |
 | `guards/` | 本地守护看板、心跳及审计状态，忽略Git提交 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
-代码落地后按框架模块或保留工具 package 在 core/ 维护当前事实。根 openrust package 同时提供 src/lib.rs 框架库与 src/main.rs 默认 server；Laravel 应用职责目录直接位于根，当前 app/example 仍为迁移中的代码；最终唯一综合示例为 modules/example，由统一模块入口装配。最终布局、迁移和验收边界见 [ADR-074](decisions/adr-074-laravel-modules-directory.md)。CLI 模板与生成器保留用户应用生成功能，不要求另建长期源码仓库。
+代码落地后按框架模块或保留工具 package 在 core/ 维护当前事实。根 openrust package 同时提供 src/lib.rs 框架库与 src/main.rs 默认 server；Laravel 应用职责目录直接位于根，当前唯一综合示例为 modules/example，由统一模块入口装配。最终布局、迁移和验收边界见 [ADR-001](decisions/adr-001-framework-principles.md)。CLI 模板与生成器保留用户应用生成功能，不要求另建长期源码仓库。
 
 ## 维护规则
 

@@ -4,7 +4,7 @@
 
 | 任务 | 技能 | 使用边界 |
 | --- | --- | --- |
-| 持续开发、异常接续与停止清理 | [continuous-development-guard](continuous-development-guard/SKILL.md) | 结合上下文判断持续执行意图并自动启用，不为普通问答或子代理重复启动 |
+| 持续开发、异常接续与停止清理 | [agent-continuous-development-guard](agent-continuous-development-guard/SKILL.md) | 结合上下文判断持续执行意图并自动启用，不为普通问答或子代理重复启动 |
 | 设计 API、模块职责与公开扩展 | [codebase-design](codebase-design/SKILL.md) | 接口有待确定或已有耦合证据时使用 |
 | 按已定 contract 完成功能簇 | [implement-feature](implement-feature/SKILL.md) | 覆盖根模块、driver、CLI、生成器及集成收口 |
 | 复杂故障与性能回归 | [diagnosing-bugs](diagnosing-bugs/SKILL.md) | 以证据收敛原因，按环境选择复现方式 |

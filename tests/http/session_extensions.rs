@@ -574,7 +574,14 @@ impl openrust::core::ServiceProvider for CaptureSession {
         app: &'a mut openrust::core::BootContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| routes.get("/extension/close", capture_session))?;
+            app.routes(|routes| {
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| routes.get("/extension/close", capture_session),
+                )
+            })?;
             Ok(())
         })
     }
@@ -651,6 +658,36 @@ async fn completed_response_closes_setters_and_request_binding_on_retained_clone
     outcome
 }
 
+struct ApiErrors;
+impl openrust::core::ServiceProvider for ApiErrors {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|_, _| true);
+            })?;
+            app.routes(|routes| {
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes.get("/failure", || async {
+                            Err::<(), _>(Error::custom(
+                                "unexpected_failure_handler",
+                                "失败 Store 不应进入业务处理",
+                            ))
+                        })
+                    },
+                )
+            })?;
+            Ok(())
+        })
+    }
+}
+
 struct FailingRequestDriver {
     fail_bind: bool,
     context: Option<SessionRequestContext>,
@@ -718,6 +755,7 @@ async fn binding_or_start_failure_discards_queued_cookies_and_preserves_original
         let mut builder = openrust::core::ProviderBuilder::new();
         builder
             .provider(openrust::http::HttpServiceProvider)
+            .provider(ApiErrors)
             .provider(openrust::http::CookieServiceProvider::plain())
             .provider(openrust::session::SessionServiceProvider::with_store(
                 FailingRequestDriver {
@@ -892,7 +930,17 @@ impl openrust::core::ServiceProvider for GcRoutes {
         app: &'a mut openrust::core::BootContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| routes.get("/gc", gc_business))?;
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|_, _| true);
+            })?;
+            app.routes(|routes| {
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| routes.get("/gc", gc_business),
+                )
+            })?;
             Ok(())
         })
     }

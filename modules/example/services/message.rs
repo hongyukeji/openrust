@@ -6,6 +6,7 @@ pub(crate) struct ExampleConfig {
     pub(crate) greeting: String,
     pub(crate) article_summary_origin: Option<String>,
     pub(crate) feature: ExampleFeatureConfig,
+    pub(crate) trusted_hosts: Option<openrust::config::TrustedHostsConfig>,
     #[cfg(all(
         feature = "auth-oidc",
         any(feature = "db-postgres", feature = "db-mysql")
@@ -19,6 +20,7 @@ impl Default for ExampleConfig {
             greeting: "Hello from modules/example".to_owned(),
             article_summary_origin: None,
             feature: ExampleFeatureConfig::default(),
+            trusted_hosts: None,
             #[cfg(all(
                 feature = "auth-oidc",
                 any(feature = "db-postgres", feature = "db-mysql")

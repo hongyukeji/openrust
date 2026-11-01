@@ -1911,7 +1911,15 @@ where
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {
-            app.routes(move |value| routes(value))?;
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|_, _| true);
+            })?;
+            app.routes(move |value| {
+                value.group(
+                    openrust::http::RouteGroup::new().middleware_alias("session"),
+                    |value| routes(value),
+                )
+            })?;
             Ok(())
         })
     }

@@ -1,6 +1,6 @@
 # 版本路线
 
-> 当前优先级：由 [ADR-070](decisions/adr-070-laravel-first-rebuild.md) 与 [R0–R16](plans/laravel-rebuild.md) 接管。下文旧 v1 设计/顺序是待映射输入；可选快速开发模块 端侧与独立 AI 产品边界保留。
+> 当前优先级：由 [ADR-001](decisions/adr-001-framework-principles.md) 与 [R0–R16](plans/laravel-rebuild.md) 接管。下文旧 v1 设计/顺序是待映射输入；可选快速开发模块 端侧与独立 AI 产品边界保留。
 
 > 受众：AI Agent
 > 更新：2026-10-26
@@ -9,12 +9,12 @@
 ## v1：完整通用底座
 
 - 长期定位为用 Rust 忠实实现 Laravel，并持续跟进其框架功能和行为更新；版本对应、必要语言差异与更新流程以[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)为准。旧参考排序不覆盖该目标，Goravel 用于跨语言实现参考。
-- 交付可独立开发 API 与服务的 Rust 框架，单机起步、按需扩展集群；标准应用默认 Redis（见 [ADR-015](decisions/adr-015-redis-default-calibration.md)），库层 Redis feature 可选，保留显式 memory/file 选择且不静默回退，见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md) 与 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)。缓存仍待 M5 实现，这里的默认是交付契约。
-- 数据层包含默认单库、按需启用的显式只读副本路由与主库 scope；已在 PostgreSQL/MySQL 真实复制拓扑验证。完整集群验收仍按 [专题计划](plans/v1-database-read-write-splitting.md) 与集群计划执行。
-- 包含数据、认证/授权/会话、验证码、国际化、本地加密与轮换、签名、审计、幂等、限流、缓存/锁/多实例、存储/上传下载、邮件/SMS/薄通知层、队列/常用编排/调度、WebSocket/SSE、gRPC server/client、CLI/生成器/测试与部署。gRPC 已正式纳入 v1，范围与完整验收见 [ADR-040](decisions/adr-040-grpc-integration.md)。
-- [底层补齐计划](plans/v1-foundation-completion.md) 纳入 v1 必交：cron/IANA/DST、应用级生成器模板覆盖、显式轻量 factory/fixtures、安全邮件模板、i18n 复数与地区格式化、cache tags/SWR/singleflight、可信租户隔离、公共查询权限规则、外部 OAuth2/OIDC/SSO 客户端及 TOTP/恢复码、CSV/XLSX 通用导入导出。按需启用不等于允许省略交付；具体配置、契约与验收先定稿。
-- 集群部署是必须项，包含多 API/worker/scheduler、共享状态、跨节点在线投递和滚动/故障恢复，按 [集群计划](plans/v1-cluster-deployment.md) 双库多副本验收。性能基线、资源边界、第三方扩展与干净环境完整路径同为完成条件。
-- 入口：[v1 总计划](plans/gen1-plan.md)、[能力覆盖与归属](plans/v1-capability-coverage.md)。v1 不承担后台业务 UI、组织管理与部门数据权限的固定模型；租户隔离机制不包含租户管理后台，外部身份接入不包含独立 OAuth 授权服务器。
+- 交付可独立开发 API 与服务的 Rust 框架，单机起步、按需扩展集群；标准应用默认 Redis（见 历史决策 015），库层 Redis feature 可选，保留显式 memory/file 选择且不静默回退，见 历史决策 013 与 历史决策 014。缓存仍待 M5 实现，这里的默认是交付契约。
+- 数据层包含默认单库、按需启用的显式只读副本路由与主库 scope；已在 PostgreSQL/MySQL 真实复制拓扑验证。完整集群验收仍按 专题计划 与集群计划执行。
+- 包含数据、认证/授权/会话、验证码、国际化、本地加密与轮换、签名、审计、幂等、限流、缓存/锁/多实例、存储/上传下载、邮件/SMS/薄通知层、队列/常用编排/调度、WebSocket/SSE、gRPC server/client、CLI/生成器/测试与部署。gRPC 已正式纳入 v1，范围与完整验收见 历史决策 040。
+- 底层补齐计划 纳入 v1 必交：cron/IANA/DST、应用级生成器模板覆盖、显式轻量 factory/fixtures、安全邮件模板、i18n 复数与地区格式化、cache tags/SWR/singleflight、可信租户隔离、公共查询权限规则、外部 OAuth2/OIDC/SSO 客户端及 TOTP/恢复码、CSV/XLSX 通用导入导出。按需启用不等于允许省略交付；具体配置、契约与验收先定稿。
+- 集群部署是必须项，包含多 API/worker/scheduler、共享状态、跨节点在线投递和滚动/故障恢复，按 集群计划 双库多副本验收。性能基线、资源边界、第三方扩展与干净环境完整路径同为完成条件。
+- 入口：v1 总计划、能力覆盖与归属。v1 不承担后台业务 UI、组织管理与部门数据权限的固定模型；租户隔离机制不包含租户管理后台，外部身份接入不包含独立 OAuth 授权服务器。
 - M0-M3 的局部验收与 M4 队列/调度基础不代表上述全部范围完成。目录迁移与源码交付已完成；剩余能力依赖顺序在 `todo.md` 领取，不在路线图创建另一份完成清单。
 
 ## 可选快速开发模块（原V2版本安排取消）
@@ -40,7 +40,7 @@
 
 ## 框架对标后的候选评估
 
-参考范围遵循 [框架设计「框架参考与对标」](plans/framework-design.md#框架参考与对标)：v1 只用前四个框架，若依与芋道仅用于 可选快速开发模块。以下按实际接入需求分层评估，不进入 v1 必交范围：
+参考范围遵循 [ADR-001](decisions/adr-001-framework-principles.md)：Laravel 为行为标准，Goravel 只作跨语言参考；若依与芋道式业务模块暂不开发。以下按实际接入需求分层评估，不进入 v1 必交范围：
 
 - GraphQL：V1 明确不包含；按客户端按需组合数据的实际需求，评估是否需要独立集成，不能仅因参考框架支持而纳入。
 - 身份扩展：Passkeys 与独立 OAuth 授权服务器；不与 v1 外部身份客户端、TOTP/恢复码混淆，新增标准与安全契约单独验证。
@@ -48,7 +48,7 @@
 - 搜索与运行时 feature flags：先明确索引同步/重建、查询授权，或开关求值/共享传播/失败策略，避免以数据库过滤或编译期 Cargo features 冒充完整机制。
 - 可选 SSR/静态 Starter：V1 保持 API 优先，按实际页面/表单需求评估；复用认证、CSRF、验证与模板安全，不强制纯 API 应用引入页面栈。
 
-以上是候选，不构成 v1/可选快速开发模块 必交付范围。显式 factory/fixtures 等已纳入的机制按 [v1 底层补齐计划](plans/v1-foundation-completion.md) 交付，不再列为候选；OpenRouter 仅作为 AI模型平台的产品能力对标。
+以上是候选，不构成 v1/可选快速开发模块 必交付范围。显式 factory/fixtures 等已纳入的机制按 v1 底层补齐计划 交付，不再列为候选；OpenRouter 仅作为 AI模型平台的产品能力对标。
 
 ## 维护规则
 

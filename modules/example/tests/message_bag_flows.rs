@@ -44,9 +44,11 @@ async fn post(app: &TestApp<crate::bootstrap::Server>, input: Value) -> TestResu
 
 #[tokio::test]
 async fn module_message_bag_aggregates_create_and_update_errors() -> TestResult {
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(sources()))?,
+    )
+    .build()
+    .await?;
     let result = async {
         let errors = post(&app, json!({"title": "", "email": "bad", "record_id": 0})).await?;
         assert_eq!(errors["default"]["keys"], json!(["title", "email"]));

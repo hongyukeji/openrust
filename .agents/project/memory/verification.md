@@ -1,5 +1,7 @@
 # 验收口径
 
+当前 Env/Request-MIME、应用内核与部分 Query 的 main 组合限定证据见 [本批验收](testing.md#当前-main-组合限定验收)。默认/全 feature 门禁、生成、MySQL、TCP/TLS 与来源保全分别绑定实际输入；无完整 Laravel/Modules 或全后端交付推断。原失败、忽略和未部署 skill WIP 保留。
+
 ## C04-D10-B 当前限定核验
 
 请求绑定重定向与 Session 命名错误包已通过当前源码的严格门禁、唯一模块、普通生成应用和 MySQL 8.4 私有库真实 TCP；空库迁移候选只对实际框架命令免 MFA 表预查，缺表普通 `serve` 仍失败。证据索引、生成项目逐项边界与历史失败见[testing](testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。本簇待限定本地提交，不把局部验收升级为完整 Redirector、请求局部视图、Validation、CSRF 或全部后端兼容。真实失败迁移历史/重启恢复未在本轮带连接变量执行；gRPC 早期偶发失败根因未确认。
@@ -53,7 +55,7 @@ PHP差分仅22条表达式加22条固定官方异常处理路径，不等于完�
 
 ## C04-B1 输入基础与规范化
 
-ADR-079的body-owning Request、query/json/form bags、PHP键与优先级、读取修改、默认trim/null及公开策略已通过定向/不同模型限定复审；最新workspace默认570/29、全特性1136/99（passed/ignored），完整PG/MySQL target各47通过且零ignored/filtered，真实生成认证应用各2通过，普通consumer2通过，根默认cargo run真实TCP通过。fmt/default+all Clippy/Rustdoc/no-default/MSRV1.97/deny均实际通过；ignore不替代服务证据。Host缺失fixture与迁移排序失败的red/green、原始日志丢失缺口、fake mail及外部WIP范围见[testing](testing.md#c04-b1-统一请求输入)。只关闭B1范围，B2便捷方法、Old Input、Cookies、FormRequest与完整文件语义保留。
+历史决策 079的body-owning Request、query/json/form bags、PHP键与优先级、读取修改、默认trim/null及公开策略已通过定向/不同模型限定复审；最新workspace默认570/29、全特性1136/99（passed/ignored），完整PG/MySQL target各47通过且零ignored/filtered，真实生成认证应用各2通过，普通consumer2通过，根默认cargo run真实TCP通过。fmt/default+all Clippy/Rustdoc/no-default/MSRV1.97/deny均实际通过；ignore不替代服务证据。Host缺失fixture与迁移排序失败的red/green、原始日志丢失缺口、fake mail及外部WIP范围见[testing](testing.md#c04-b1-统一请求输入)。只关闭B1范围，B2便捷方法、Old Input、Cookies、FormRequest与完整文件语义保留。
 
 ## R2-C 四类入口 scope 的证据边界
 
@@ -79,29 +81,29 @@ R2-D 的生产与测试同清单启动、全 register 后覆盖、Provider 移�
 
 ## R1-S 当前根结构与过渡模块
 
-根 openrust 同 package 提供框架 lib 与默认 server，应用职责回根，当前 app/example 通过现有公开 Plugin 清单装配。按 ADR-074，modules/example 仍为后继 R2-M 目标；当前验收不等于该目录、统一 Provider 或完整 CRUD 已实现。
+根 openrust 同 package 提供框架 lib 与默认 server，应用职责回根，当前 app/example 通过现有公开 Plugin 清单装配。按 ADR-001，modules/example 仍为后继 R2-M 目标；当前验收不等于该目录、统一 Provider 或完整 CRUD 已实现。
 
 R1-S 实际重新通过默认/full workspace fmt/Clippy/tests/docs、deny、no-default 与 MSRV1.97；默认 263/22，全 feature 486/32（passed/ignored）。PG18.6/MySQL8.4.13 各 12 targets/48 项及 testing 1 项；最终 CI db/auth/example 三组两库均通过。四类生成项目（普通/auth双库/gRPC）、普通模块复制与直接 serde/chrono 依赖、根无参数运行/HTML/API/退出及八个消费者的适用门禁通过。gRPC 生成项目仅 compile/test（无业务用例），真实 RPC 来自明确运行的 consumer，不能混淆。
 
 框架领域 .rs、dependencies/features 与 14c143f 等值，根 34 test targets 完整保留原覆盖；根 registry 无新增或升级，consumer 锁不变。模块自有 proto 工具锁定且重生字节一致。审查静态证据与实现者实际运行分开记录；结果及保留的外部/资源限制见 [testing](testing.md#r1-当前工程边界与验收入口)。完整模块能力、配置改进及 Provider 生命周期依后继合同，R1 总体未完成。
 
-## R1 ADR-072 历史验收事实
+## R1 历史决策 072 历史验收事实
 
-根 openrust/src 与 examples/demo 位于同一仓库、同一 Cargo workspace，共用根 Cargo.lock；根 default-members=["examples/demo"] 默认启动 server。CLI 模板是新应用骨架唯一来源，ADR-072 替代 ADR-071 布局。新布局已重新执行 fmt、默认/all-features workspace Clippy/test/doc、deny、MSRV/no-default、八个 consumer、三类生成项目、根/demo 默认 cargo run 与 HTTP。默认 361/26、全 feature 481/32（passed/ignored），显式库单测 146/0；双库各 11 targets/46 项真实集成与 testing 1 项，最终 CI workspace db/auth 组分别 373/26 与 392/26。详细命令、真实服务和证据边界见 [testing](testing.md#r1-adr-072-历史验收事实)。
+根 openrust/src 与 examples/demo 位于同一仓库、同一 Cargo workspace，共用根 Cargo.lock；根 default-members=["examples/demo"] 默认启动 server。CLI 模板是新应用骨架唯一来源，历史决策 072 替代 历史决策 071 布局。新布局已重新执行 fmt、默认/all-features workspace Clippy/test/doc、deny、MSRV/no-default、八个 consumer、三类生成项目、根/demo 默认 cargo run 与 HTTP。默认 361/26、全 feature 481/32（passed/ignored），显式库单测 146/0；双库各 11 targets/46 项真实集成与 testing 1 项，最终 CI workspace db/auth 组分别 373/26 与 392/26。详细命令、真实服务和证据边界见 [testing](testing.md#r1-历史决策-072-历史验收事实)。
 
 最终不同模型 gpt-6-sol 只读审查无 blocker/should-fix；其静态核对不替代实现者实际执行记录。仅目录职责、路径与 Cargo 工作流在本簇完成，不代表 R2 内核或 Laravel 全功能等价；忽略项、复制/完整集群、SQLite 全支持及供应商外部条件保持后继门禁。
 
-旧 ADR-071 的根应用/独立 framework 的命令行与真实服务记录见 [testing](testing.md#r1-旧布局验收事实adr-071)，仅作为迁移回归输入。
+旧 历史决策 071 的根应用/独立 framework 的命令行与真实服务记录见 [testing](testing.md#r1-旧布局验收事实历史决策-071)，仅作为迁移回归输入。
 
 ## 当前已有证据
 
 R2-M 的编译/启用分离、模块 Provider 配置时点、命名空间资源及统一迁移由同一生产启动路径实现。PostgreSQL 18/MySQL 8.4 的隔离库分别通过迁移内测 10 项、集成 5 项、示例迁移 1 项；真实 Redis 8 队列 3 项、双库 queue/schedule 各 3+7 项通过。根默认 server 与迁址后的生成应用均经真实 HTTP 和 SIGINT 验证；普通及双库认证生成项目 check/test 均通过。默认/全特性 workspace、Rustdoc、Clippy、deny、no-default 和 Rust 1.97 检查的精确命令、日志与忽略项见 [R2-M 测试证据](testing.md#r2-m-模块清单资源与统一迁移验收证据)。MySQL DDL 可能部分提交；模块管理写命令、完整发布与 CRUD 不由本簇验收。
 
-[ADR-039](../decisions/adr-039-source-workspace-distribution.md) 的源码交付与包改名已完成实现验收，干净源码生成/双应用隔离/双库证据见 [testing.md](testing.md)。旧包名和旧模板 patch 仅为历史记录。
+历史决策 039 的源码交付与包改名已完成实现验收，干净源码生成/双应用隔离/双库证据见 [testing.md](testing.md)。旧包名和旧模板 patch 仅为历史记录。
 
 | 范围 | 已有通过记录 | 证据边界 |
 | --- | --- | --- |
-| Laravel 式全面重构规划 | ADR-070、R0–R16、33 类能力与执行任务已记录；38 个 Markdown 文档的本地链接/锚点检查与 diff 检查通过；gpt-6.1-sol 只读计划审查发现的阶段门禁循环已修正 | 仅计划/规则/技能文档；未实施 R0/R1，未运行代码、双库或真实服务验收；旧专项证据不转记为重写通过 |
+| Laravel 式全面重构规划 | ADR-001、R0–R16、33 类能力与执行任务已记录；38 个 Markdown 文档的本地链接/锚点检查与 diff 检查通过；gpt-6.1-sol 只读计划审查发现的阶段门禁循环已修正 | 仅计划/规则/技能文档；未实施 R0/R1，未运行代码、双库或真实服务验收；旧专项证据不转记为重写通过 |
 | M6 开发体验规划 | DX1–DX8 已记录依赖、交付范围和验收条件；diff 与旧引用检查通过；81 个本地链接目标、10 个锚点通过；8 个官方链接经浏览工具解析（直连返回 403） | 仅计划文档；不代表 TestApp、生成器、进程编排或源码升级已实现/验收 |
 | C1 默认文档入口中文化 | 根 README、贡献/安全/行为准则/变更日志及 `src/**/README.md`、工具/宿主 README；13 个改动 Markdown 的相对链接与锚点检查、`git diff --check`、warnings-denied `cargo doc -p openrust --no-deps`、`cargo test -p openrust --doc` 通过 | 本簇仅整改默认入口说明，不覆盖 Rustdoc/源码注释（C2）或 CLI/生成模板说明（C3）；英文许可、引用和协议原文保留 |
 | C2 Rustdoc 与源码/配置注释中文化 | 注释-only 改动；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；PostgreSQL 18/MySQL 8.4 各以 `auth,queue,db-<backend>` 执行 `auth_database`（6）、`db_connection`（4）、`db_migration`（1）、`queue`（1）、`queue_crash_recovery`（2）、`schedule`（4），均全部通过 | 不改 API/运行时文案/行为；生成入口 Rustdoc 改动同步快照；CLI 帮助、生成说明和模板注释仍属 C3 |
@@ -112,7 +114,7 @@ R2-M 的编译/启用分离、模块 Provider 配置时点、命名空间资源�
 | HTTP 路由限流 | 公开 `RateLimitLayer` 支持 trusted IP、auth user、匿名 fallback 与自定义 scope/key；HTTP 行为测试加 PG18/MySQL8.4 真实隔离库 store/路由层各通过 | 未包裹路由不自动限流；完整跨节点压测仍属集群门禁 |
 | M3 数据输出/查询边界 | 排序 parser 单测、严格 DTO/显式过滤与关联示例；PG18/MySQL8.4 CLI 生成 UUIDv7/软删除项目的格式、check 和真实隔离库 CRUD 通过 | allowlist/授权由应用定义；软删除 scope 是显式调用，不自动覆盖 raw SeaORM/SQL |
 | M4 类型化事件 | 顺序/短路/类型隔离、fake queue payload/error 单测；临时下游 consumer API check；PostgreSQL 18.6 与 MySQL 8.4 的真实隔离库事件 rollback/commit/worker 消费各通过；workspace default/all-features tests、all-target/all-features clippy、warnings-denied docs、deny、fmt 通过 | 不覆盖事件跨节点广播、exactly-once 或完整集群 |
-| ADR-041 事务与认证流程事件 | PG18/MySQL8.4 临时隔离服务各通过 `db_connection transaction_events_rollback_before_commit_and_ignore_after_commit_errors` 与 `auth_database auth_flow_events_share_account_and_refresh_transactions`：提交前拒绝回滚且不发 after event；提交后 listener 错误不改变已提交返回；注册校验拒绝不建账户；泛化登录失败事件触发；登录成功事件失败不留 refresh token | direct after-commit 通知是尽力语义；不验证 Twilio 等外部副作用；当前新增四项双库服务验收已执行，完整 workspace 门禁在本功能簇最终提交前执行 |
+| 历史决策 041 事务与认证流程事件 | PG18/MySQL8.4 临时隔离服务各通过 `db_connection transaction_events_rollback_before_commit_and_ignore_after_commit_errors` 与 `auth_database auth_flow_events_share_account_and_refresh_transactions`：提交前拒绝回滚且不发 after event；提交后 listener 错误不改变已提交返回；注册校验拒绝不建账户；泛化登录失败事件触发；登录成功事件失败不留 refresh token | direct after-commit 通知是尽力语义；不验证 Twilio 等外部副作用；当前新增四项双库服务验收已执行，完整 workspace 门禁在本功能簇最终提交前执行 |
 | 双库与读写路由 | PG18/MySQL8.4 真实数据库迁移/事务/隔离；真实复制暂停、primary scope 隔离与追平 | 串行 SELECT 1 微基准不是业务性能证明；不等于完整集群 |
 | M3 认证/安全 | 两库 auth_database/auth_runtime 每库各 6 项；新生成 auth 项目格式/check/真实 TCP auth_flows；Mailer/Policy 生成器双库项目 check/test | 不包含业务流程扩展点或跨节点完整场景 |
 | Mail/SMS | Mailpit v1.32.0 本机 SMTP 实收；Twilio transport 协议/错误/超时/no retry；模板 check/test | 没有实际 Twilio 账号投递或送达证据 |
@@ -128,13 +130,13 @@ R2-M 的编译/启用分离、模块 Provider 配置时点、命名空间资源�
 
 ## 尚未关闭的门禁
 
-- 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；当时保留 `apps/server` 有明确评估证据，现按 ADR-062 迁入根 package。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
-- M4 共享锁与请求幂等已按 ADR-042 完成 PostgreSQL 18/MySQL 8.4 双 pool 隔离库验收；Worker 停机/lease 修正、F1 日历调度、F2 国际化、F3 邮件模板与 M4 通知/生成组合均以 `todo.md` 中的专项记录为准，已完成项不重复列为未实现。旧活跃范围为 M5 可观测性与生产资源；原 M6 包括开发编排、生成器/测试工具、正式文档、源码升级和完整产品集群验收。
+- 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；当时保留 `apps/server` 有明确评估证据，现按 历史决策 062 迁入根 package。历史决策 039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
+- M4 共享锁与请求幂等已按 历史决策 042 完成 PostgreSQL 18/MySQL 8.4 双 pool 隔离库验收；Worker 停机/lease 修正、F1 日历调度、F2 国际化、F3 邮件模板与 M4 通知/生成组合均以 `todo.md` 中的专项记录为准，已完成项不重复列为未实现。旧活跃范围为 M5 可观测性与生产资源；原 M6 包括开发编排、生成器/测试工具、正式文档、源码升级和完整产品集群验收。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
-- [底层补齐 F1–F10](../plans/v1-foundation-completion.md) 仍须按顺序交付：F1 日历调度已实现并有双库专项证据；邮件模板/i18n/cache、查询/租户/身份/MFA、CSV/XLSX 与 fixtures 各自仍须完成公开入口、真实失败/并发、有效组合和生成验收。
-- gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，已按 [ADR-040](../decisions/adr-040-grpc-integration.md) 完成 G1–G3c 验收；依据为当前 `progress.md` 与 `todo.md` 中的真实 TCP、独立 consumer、Envoy 双节点和 workspace 门禁记录。M6 仍须复验其与完整产品集群、滚动升级的组合行为。跨协议验证/上下文、出站策略、迁移互斥与有界退出已有对应完成记录，不再列为待实现；若这些验收证据变化，应同步更新本节与功能事实。
+- 底层补齐 F1–F10 仍须按顺序交付：F1 日历调度已实现并有双库专项证据；邮件模板/i18n/cache、查询/租户/身份/MFA、CSV/XLSX 与 fixtures 各自仍须完成公开入口、真实失败/并发、有效组合和生成验收。
+- gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，已按 历史决策 040 完成 G1–G3c 验收；依据为当前 `progress.md` 与 `todo.md` 中的真实 TCP、独立 consumer、Envoy 双节点和 workspace 门禁记录。M6 仍须复验其与完整产品集群、滚动升级的组合行为。跨协议验证/上下文、出站策略、迁移互斥与有界退出已有对应完成记录，不再列为待实现；若这些验收证据变化，应同步更新本节与功能事实。
 - Redis 与对象存储真实驱动语义；代表性业务负载 p50/p95/p99、吞吐、CPU、内存和资源上限；发布前设定基于实测的回归门槛。
-- 独立 consumer 的配置/注册/执行契约，构建与依赖成本，C2/C3 完成后的中文文档独立走查、保留业务的源码升级回归及平台/维护约定；详细验收只在 [补强计划](../plans/v1-performance-and-readiness.md) 维护。本次文档工作不新增代码行为测试记录。
+- 独立 consumer 的配置/注册/执行契约，构建与依赖成本，C2/C3 完成后的中文文档独立走查、保留业务的源码升级回归及平台/维护约定；详细验收只在 补强计划 维护。本次文档工作不新增代码行为测试记录。
 - 暂定最低 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+ 的完整承诺路径；日常只用 PG18/MySQL8.4/Redis8，额外矩阵按大跨度/明确兼容风险与发布门禁触发。运行时版本检查通过不等于最低版本功能已全部验证。
 - Twilio 实发需要开发者授权账号、凭据与目标；未满足则外部验收保持未通过，不能虚报投递成功。发布/tag/上线仍由独立授权决定。
 

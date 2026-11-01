@@ -15,9 +15,15 @@ cd blog
 cargo run -p cli -- dev
 ```
 
-`openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，通用路由在 `routes/web.rs`，应用装配在 `app/`，业务模块在 `modules/<业务>/`，资源在 `resources/`，迁移与种子在 `database/`。
+`openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，通用路由在 `routes/web.rs`，应用控制器、模型和 Provider 可直接在 `app/` 开发，业务模块可选放在 `modules/<业务>/`，资源在 `resources/`，迁移与种子在 `database/`。
+
+生成应用的 `tests/support/request_input.rs` 通过公开 Provider 挂载 multipart 业务测试路由，验证 `Request::file`、`has_file`、`only` 的对象身份、纯文本输入及异步服务端 MIME/扩展名；该测试路由不进入生产应用。
+
+默认应用控制器通过公开 `ApiResponse` 返回带 `data` 的成功响应。生成测试的 Cookie、Session 和重定向专属路由按需显式选用 `cookies`、`session` 中间件；Provider 注册服务不代表全部路由自动启动 Session。原宿主测试保留框架默认清单与应用清单合成后的唯一 Session Provider 和真实 Cookie 往返断言。
 
 生成项目默认启用可选 `view` feature、注册 `ViewServiceProvider`，并以 `resources/views/index.html` 渲染 `/`。应用级 HTML 页面模板放在 `resources/views/`，CSS、图片等静态资源放在 `public/`；`root_target` 可切换为静态文件、应用内转发或重定向。需要纯 API 应用时，可在生成后的 `Cargo.toml` 移除 `view` feature 和 Provider 注册，再将 `root_target` 设为其他模式。
+
+生成应用的 `bootstrap/app.rs` 通过公开 Handler 扩展仅对当前 `/api` 前缀选择统一 JSON 错误包装。应用修改 API 前缀时应同步修改该判定；HTML/Web 路由继续按自身内容协商处理异常。`APP_DEBUG` 由严格布尔配置读取，默认关闭服务端详情。
 
 不带 `--db` 时只生成 HTTP 应用；`--db postgres` 或 `--db mysql` 会生成对应迁移 package，并注册数据库、迁移和 seed Provider。`--auth` 需要 `--db`，会启用 JWT、AuthFlows、Policy 与共享限流 migration，并生成注册、邮箱验证、登录、refresh、登出和密码重置路由。`--auth-mfa` 还要求 `--encryption`，会启用 TOTP 多因素认证，并生成两步登录、TOTP enrollment、确认、禁用和恢复码轮换路由；MFA 路由使用 JWT 认证，配置邮件、JWT 与加密密钥后须先运行 `openrust migrate`。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。
 
@@ -34,7 +40,7 @@ cargo run -p cli -- generate migration posts --uuid-id --soft-delete title:strin
 cargo run -p cli -- g migration labels slug:string
 ```
 
-`dev` 沿用已配置的应用运行环境并运行 `serve`；需要 development 时可在进程环境或应用 `.env` 中设置对应命名空间的 `ENV`，`serve` 同样保留当前环境。`dev` 默认使用 `APP_`；若应用的 `Application::config_namespace()` 返回 `SHOP_`，请运行 `openrust dev --config-namespace SHOP_`。CLI 与应用处于不同进程，无法读取该 Rust 类型常量，因此自定义命名空间须显式传入。`dev` 与应用引导共用配置来源选择：先用外部环境查配置缓存，命中时跳过 `.env` 与实时 TOML；未命中才按应用根目录读取 `.env`、重选缓存路径并加载递归配置。外部环境优先，CLI 不改写父进程环境；缺省 `config/` 不存在时仍读取环境来源。若有效配置指向 loopback Redis，会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听、就绪等待或自动迁移。
+`dev` 沿用已配置的应用运行环境并运行 `serve`；需要 development 时可在进程环境或应用 `.env` 中设置对应命名空间的 `ENV`，`serve` 同样保留当前环境。`dev` 默认使用 `APP_`；若应用的 `Application::config_namespace()` 返回 `SHOP_`，请运行 `openrust dev --config-namespace SHOP_`。CLI 与应用处于不同进程，无法读取该 Rust 类型常量，因此自定义命名空间须显式传入。`dev` 的 Redis 启动预检目前只对显式 TOML 来源与可由环境确定的配置使用 `ConfigLoader`；CLI 进程不能静态求值应用的 Rust 配置函数，因此代码配置的最终依赖由实际应用启动校验。配置缓存命中时跳过实时 TOML；未命中时按应用根读取 `.env` 与显式文件来源。外部环境优先，CLI 不改写父进程环境；缺省 `config/` 不存在时仍读取环境来源。若有效配置指向 loopback Redis，会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听、就绪等待或自动迁移。
 
 ## 接入自己的业务模块
 
@@ -94,7 +100,7 @@ ModuleManifest::from_file(root.join("modules_statuses.json"))
 
 同时在 `modules_statuses.json` 中启用 `orders` 和 `shared`。启用的模块依赖缺少编译声明、未启用或构成循环时启动失败；框架不自动编辑启用状态。依赖图优先于模块 `priority`，同一批就绪模块仍按 priority 和清单顺序稳定排列。
 
-源码声明、注册清单与状态文件属于应用配置，无需修改框架 `src/` 或依赖清单。默认状态文件和模块资源路径相对于运行工作目录，与默认 `config/` 加载规则一致。请从部署应用根启动；`cargo --manifest-path` 本身不会替应用切换运行工作目录，从其他目录执行时不能假定它读取项目根。TestApp 的显式 Figment 不会改变这一资源根约定，也不修改全局 cwd/env。生成应用已有 `Configuration.modules_root` 可设置绝对运行根；`Application::modules(config)` 将其同时传入状态文件与所有模块 descriptor；`APP_CONFIG_DIR` 只覆盖配置目录，不会自动替模块选择资源根。缺少文件或键表示关闭；`false`、字符串 `"true"`、数字等非 JSON `true` 值也关闭。损坏 JSON 会使启动失败，框架不会覆盖原文件；可读状态变更在下次应用构建才生效，当前实例不热卸载。此处没有新增状态管理写命令。
+源码声明、注册清单与状态文件属于应用配置，无需修改框架 `src/` 或依赖清单。默认状态文件和模块资源路径相对于运行工作目录，与代码配置编译清单职责分开。请从部署应用根启动；`cargo --manifest-path` 本身不会替应用切换运行工作目录，从其他目录执行时不能假定它读取项目根。TestApp 的显式 Figment 不会改变这一资源根约定，也不修改全局 cwd/env。生成应用已有 `Configuration.modules_root` 可设置绝对运行根；`Application::modules(config)` 将其同时传入状态文件与所有模块 descriptor；`APP_CONFIG_DIR` 只覆盖配置目录，不会自动替模块选择资源根。缺少文件或键表示关闭；`false`、字符串 `"true"`、数字等非 JSON `true` 值也关闭。损坏 JSON 会使启动失败，框架不会覆盖原文件；可读状态变更在下次应用构建才生效，当前实例不热卸载。此处没有新增状态管理写命令。
 
 启动后请求 `/api/orders`；默认语义状态成功 envelope 的 `data.module` 为 `"orders"`。在生成的普通应用 `tests/test_app.rs` 中，可沿用已有 `TestApp<bootstrap::应用类型>` 和显式测试来源，对该路径调用 `request` 后 `assert_json`，再显式 `shutdown`。`TestAppBuilder::remove_module("orders")` 只移除本次测试应用的模块；默认缺失路由返回 HTTP 404 和正文 `code="not_found"`；只有显式设置 `always_ok` 才返回 HTTP 200。
 
@@ -110,7 +116,9 @@ curl --noproxy '*' http://127.0.0.1:3000/api/orders
 
 ## 生成代码
 
-`generate model` 在 `app/models/_entities/` 生成 SeaORM entity；`generate migration` 在 `database/migrations/` 生成迁移并写入 registry。字段支持 `string`、`text`、`integer`、`big_integer`、`boolean`、`date_time`、`json` 和 `references`，在字段类型后加 `?` 表示可空。model 使用单数名称，表名采用简单英语复数；migration 接受表名。被引用表须在外键迁移前创建。
+生成项目默认在 `app/providers/app.rs` 实现 `AppServiceProvider`，由 `bootstrap/providers.rs` 实际登记。框架默认 Provider 由统一启动链按配置与编译 feature 安装；应用清单只写应用专属 Provider，模块继续走相同管线。当前编译期包 Provider 可显式登记，Cargo 包自动发现和 ProviderRepository 的 eager/deferred 缓存尚待后继对应。
+
+`make:controller PostController` 在 `app/http/controllers/` 生成控制器类型并登记 Rust 模块，具体处理函数由开发者实现后在 `routes/web.rs` 注册；`make:provider CatalogServiceProvider` 在 `app/providers/` 生成 `register`/`boot` 骨架，并自动加入 `bootstrap/providers.rs`。`make:model Post` 在 `app/models/` 创建 SeaORM 模型，允许暂不声明字段；它们都拒绝覆盖同名文件。原有 `generate model` 继续在 `app/models/_entities/` 生成字段驱动的 SeaORM entity；`generate migration` 在 `database/migrations/` 生成迁移并写入 registry。字段支持 `string`、`text`、`integer`、`big_integer`、`boolean`、`date_time`、`json` 和 `references`，在字段类型后加 `?` 表示可空。model 使用单数名称，表名采用简单英语复数；migration 接受表名。被引用表须在外键迁移前创建。
 
 两个数据库生成命令均支持 `--uuid-id` 与 `--soft-delete`，model 与对应迁移须使用相同选项。UUID 使用 UUIDv7，并同时为应用与 migration package 启用 `db-uuid`；软删除增加可空 UTC `deleted_at`，只提供显式 `Entity::not_deleted()` scope，不改变普通 `Entity::find()`。
 
@@ -118,13 +126,15 @@ curl --noproxy '*' http://127.0.0.1:3000/api/orders
 
 ## 配置与验收
 
-生成项目采用按领域命名的配置文件，例如 `config/app.toml`、`config/cache.toml`、`config/database.toml`；文件内容直接属于该领域，嵌套表只写相对表名，`config/example/feature.toml` 形成 `example.feature` 配置键。Rust 配置类型和默认值位于框架 `src/config/`。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 连接使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`；缓存选择使用 `CACHE_STORE`，映射到 `cache.default`，缺省为已登记的具名 `redis` store；队列使用 `QUEUE_DRIVER`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。监听端口由中性 `SERVER_PORT=3000` 映射到 `server.port`，`APP_URL` 可使用 `${SERVER_PORT}` 插值；应用字段仍使用 `APP_LOG_LEVEL`、`APP_NAME` 等命名空间变量。`APP_PORT`、独立 `PORT`、`REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 不再控制监听或缓存选择。签名 URL 的 `APP_KEY` 与轮换旧值 `APP_PREVIOUS_KEYS` 在 `.env.example` 中有注释入口，签名使用原始字符串字节，生产环境须使用不可预测密钥；`openrust key generate` 的 Base64 输出不会自动解码。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
+生成项目采用按领域命名的 Rust 代码配置，例如 `config/app.rs`、`config/cache.rs`、`config/database.rs`。`config/mod.rs` 显式登记各 `config(&ConfigContext)` 函数，`bootstrap/app.rs` 经 `Application::config()` 接入统一仓储；函数在同次 dotenv 快照后求值，可组合类型、条件和环境值。框架仍允许显式附加 TOML source，但默认不会扫描或运行 TOML 文件。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 连接使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`；缓存选择使用 `CACHE_STORE`，映射到 `cache.default`，缺省为已登记的具名 `redis` store；队列使用 `QUEUE_DRIVER`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。监听端口由中性 `SERVER_PORT=3000` 映射到 `server.port`，`APP_URL` 可使用 `${SERVER_PORT}` 插值；应用字段仍使用 `APP_LOG_LEVEL`、`APP_NAME` 等命名空间变量。`APP_PORT`、独立 `PORT`、`REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 不再控制监听或缓存选择。签名 URL 的 `APP_KEY` 与轮换旧值 `APP_PREVIOUS_KEYS` 在 `.env.example` 中有注释入口，签名使用原始字符串字节，生产环境须使用不可预测密钥；`openrust key generate` 的 Base64 输出不会自动解码。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
 
 未选择数据库、加密或 gRPC 的普通项目会生成 `tests/test_app.rs`：通过与生产同一 Provider 清单和 Router 的 `TestApp` 验证 `/api`、`/health`，使用显式内存 cache 与 view 目录，不要求 Redis 服务。数据库项目需真实数据库配置；加密项目需显式密钥；gRPC 项目生成自己的 `tests/grpc_flows.rs`，启动生成二进制的 `serve all`，用临时 TLS 证书验证真实 HTTP、Echo RPC、证书拒绝和信号停机。`TestApp` 公共 API 仍可用于这些应用，测试须自行提供相应配置。启用认证的应用会另生成 `tests/auth_flows.rs`，其中既有真实 TCP HTTP 集成，也有隔离数据库和 fake 邮件驱动的 `TestApp` 注册请求；启用 `--auth-mfa` 时还验证生成路由的 MFA 挑战与恢复码。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；变量缺失时测试会跳过数据库路径，不能视为真实数据库验收通过。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
 
+普通生成应用的 `tests/test_app.rs` 还包含可选 `server.trusted_hosts` 测试：精确 `development` 环境下 `app.url` 主机通过，其他 Host 返回 400。生成配置保留 `[server.trusted_hosts]` 注释示例；应用 Provider 可经 `BootContext::trust_hosts` 或每请求 `trust_hosts_with` 覆盖。详见 [HTTP 可信主机](../../src/http/README.md#可信主机)。
+
 生成的 Provider 在 `register` 中返回 `BoxFuture`，绑定服务时调用异步 `RegisterContext::instance` 等方法并 `await?`。测试替换使用 `TestAppBuilder::configure_after_register`，其回调接收与生产相同的 `Container` 共享句柄，返回 `BoxFuture<'static, Result<()>>`；框架在全体 Provider 登记后、基础配置校验和 boot 前等待回调完成。运行期业务 Provider 可经 `App::register_provider` 登记，显式重新登记使用 `force_register_provider`。
 
-应用默认安装 `I18nServiceProvider`。`config/i18n.toml` 中的 `i18n.default_locale` 与 `i18n.fallback_locale` 设定默认语言和回退；请求的 `Accept-Language` 选择受支持的语言。应用可通过 `MessageCatalog` 扩展 JSON 消息资源。
+应用默认安装 `I18nServiceProvider`。`config/i18n.rs` 中的 `i18n.default_locale` 与 `i18n.fallback_locale` 设定默认语言和回退；请求的 `Accept-Language` 选择受支持的语言。应用可通过 `MessageCatalog` 扩展 JSON 消息资源。
 
 ## API、worker 与 scheduler
 

@@ -10,6 +10,8 @@ pub mod client_ip;
 pub mod cookie;
 pub mod domain;
 pub mod extract;
+#[cfg(feature = "session")]
+pub mod forgery;
 pub mod health;
 #[cfg(feature = "metrics")]
 pub mod metrics;
@@ -29,6 +31,7 @@ pub mod serve;
 pub(crate) mod site;
 pub mod sort;
 pub mod transport;
+pub(crate) mod trusted_hosts;
 pub mod url;
 
 pub use crate::i18n::RequestLocale;
@@ -48,6 +51,11 @@ pub use cookie::{
 };
 pub use domain::DomainParams;
 pub use extract::{Inject, Json, Path, Query, Validated};
+#[cfg(feature = "session")]
+pub use forgery::PreventRequestForgery;
+#[cfg(feature = "session")]
+#[allow(deprecated)]
+pub use forgery::VerifyCsrfToken;
 pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use precognition::handle_precognitive_requests;
 pub use proxy::TrustedProxyHeaders;
@@ -56,8 +64,9 @@ pub use rate_limit::{RateLimitKey, RateLimitLayer};
 pub use redirect::RedirectErrors;
 pub use redirect::{RedirectResponse, Redirector};
 pub use request::{
-    InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy, Request, RequestInfo, Truthy,
-    VaporRawQueryString,
+    FileBinaryMimeTypeGuesser, InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy,
+    MimeFile, MimeFileReader, MimeGuess, MimeTypeGuesser, MimeTypes, RawBodyReader, Request,
+    RequestBodyLimits, RequestInfo, Truthy, UploadedFile, UploadedFileReader, VaporRawQueryString,
 };
 pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};

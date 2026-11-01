@@ -55,7 +55,7 @@ impl DatabaseAuthenticator {
         if row.is_none() {
             return Err(Error::Unauthorized);
         }
-        if !is_safe_method(credential.method().as_str()) {
+        if !is_safe_method(credential.method().as_str()) && !credential.csrf_verified() {
             let submitted = credential
                 .csrf_token()
                 .ok_or_else(|| Error::Forbidden("invalid CSRF token".into()))?;

@@ -16,7 +16,11 @@ pub(super) fn register(
 ) -> Routes {
     let routes = routes
         .get("/api/example", controllers::example::show)
-        .name("example.index");
+        .name("example.index")
+        .get(
+            "/api/example/exception",
+            controllers::example::exception_example,
+        );
     let routes = config_greeting_routes(routes, repository)
         .get("/api/example/route-url", controllers::example::route_url);
     let routes = route_context_routes(request_url_routes(routes))
@@ -28,11 +32,14 @@ pub(super) fn register(
             "/api/example/request-body",
             controllers::example::request_body,
         );
-    let routes = draft_redirect_routes(message_bag_routes(routes))
+    let routes = draft_redirect_routes(message_bag_routes(routes), capabilities)
         .post("/api/example/input", controllers::example::input)
         .name("example.input")
-        .get("/api/example/cookie", controllers::cookie::show)
-        .post("/api/example/cookie", controllers::cookie::store)
+        .group(RouteGroup::new().middleware_alias("cookies"), |routes| {
+            routes
+                .get("/api/example/cookie", controllers::cookie::show)
+                .post("/api/example/cookie", controllers::cookie::store)
+        })
         .group(
             RouteGroup::new().middleware(openrust::http::InputNormalization::disabled()),
             |routes| {
@@ -74,7 +81,7 @@ pub(super) fn register(
     #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
     let routes = if capabilities.database {
         article_routes(
-            tenant_routes(account_routes(auth_routes(routes))),
+            tenant_routes(account_routes(auth_routes(routes), capabilities)),
             capabilities.summary_origin.is_some(),
         )
     } else {
@@ -140,7 +147,7 @@ fn message_bag_routes(routes: Routes) -> Routes {
     )
 }
 
-fn draft_redirect_routes(routes: Routes) -> Routes {
+fn draft_redirect_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
     routes
         .get(
             "/api/example/draft/signed-links",
@@ -177,16 +184,19 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
                         "DraftSummaryController",
                         controllers::draft_redirect::summary,
                     )
-                    .get_action(
-                        "/{id}",
-                        "DraftController@show",
-                        controllers::draft_redirect::action_show,
-                    )
-                    .get_action(
-                        "/{id}/preview",
-                        "PreviewDraftController",
-                        controllers::draft_redirect::action_show,
-                    )
+                    .group(draft_session_group(capabilities), |drafts| {
+                        drafts
+                            .get_action(
+                                "/{id}",
+                                "DraftController@show",
+                                controllers::draft_redirect::action_show,
+                            )
+                            .get_action(
+                                "/{id}/preview",
+                                "PreviewDraftController",
+                                controllers::draft_redirect::action_show,
+                            )
+                    })
             },
         )
         .get(
@@ -197,10 +207,12 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
             "/api/example/draft/action-preview",
             controllers::draft_redirect::action_preview,
         )
-        .post(
-            "/api/example/draft/action-submit",
-            controllers::draft_redirect::action_submit,
-        )
+        .group(draft_session_group(capabilities), |routes| {
+            routes.post(
+                "/api/example/draft/action-submit",
+                controllers::draft_redirect::action_submit,
+            )
+        })
         .get(
             "/api/example/draft/plain",
             controllers::draft_redirect::plain,
@@ -210,14 +222,17 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
             "/api/example/draft/guide",
             controllers::draft_redirect::guide,
         )
-        .get(
-            "/api/example/draft/refresh",
-            controllers::draft_redirect::refreshed,
-        )
-        .post(
-            "/api/example/draft/refresh",
-            controllers::draft_redirect::refresh,
-        )
+        .group(draft_session_group(capabilities), |routes| {
+            routes
+                .get(
+                    "/api/example/draft/refresh",
+                    controllers::draft_redirect::refreshed,
+                )
+                .post(
+                    "/api/example/draft/refresh",
+                    controllers::draft_redirect::refresh,
+                )
+        })
         .get(
             "/api/example/draft/secure",
             controllers::draft_redirect::secure,
@@ -228,11 +243,36 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
         )
 }
 
+// API 草稿仅在应用提供 Session 时显式启用状态，不加入 Web CSRF 组。
+fn draft_session_group(capabilities: &RouteCapabilities) -> RouteGroup {
+    let group = RouteGroup::new();
+    #[cfg(feature = "session")]
+    if capabilities.session {
+        return group
+            .middleware_alias("cookies")
+            .middleware_alias("session");
+    }
+    #[cfg(not(feature = "session"))]
+    let _ = capabilities;
+    group
+}
+
 #[cfg(feature = "session")]
 fn draft_session_routes(routes: Routes, session_enabled: bool) -> Routes {
-    let routes = routes.post(
-        "/api/example/draft/submit",
-        controllers::draft_redirect::submit,
+    let routes = routes.group(
+        if session_enabled {
+            RouteGroup::new()
+                .middleware_alias("cookies")
+                .middleware_alias("session")
+        } else {
+            RouteGroup::new()
+        },
+        |routes| {
+            routes.post(
+                "/api/example/draft/submit",
+                controllers::draft_redirect::submit,
+            )
+        },
     );
     if session_enabled {
         session_routes(routes)
@@ -243,63 +283,70 @@ fn draft_session_routes(routes: Routes, session_enabled: bool) -> Routes {
 
 #[cfg(feature = "session")]
 fn session_routes(routes: Routes) -> Routes {
-    routes
-        .get(
-            "/api/example/draft/review",
-            controllers::draft_redirect::review,
-        )
-        .name("example.draft.review")
-        .get(
-            "/api/example/draft/preview",
-            controllers::draft_redirect::preview,
-        )
-        .get(
-            "/api/example/draft/confirm",
-            controllers::draft_redirect::confirmation,
-        )
-        .post(
-            "/api/example/draft/confirm",
-            controllers::draft_redirect::confirm,
-        )
-        .get("/api/example/session", controllers::session::show)
-        .post("/api/example/session", controllers::session::store)
-        .get(
-            "/api/example/session/old-input",
-            controllers::session::old_input,
-        )
-        .post(
-            "/api/example/session/old-input",
-            controllers::session::old_input_store,
-        )
-        .post(
-            "/api/example/session/previous",
-            controllers::session::previous,
-        )
-        .get(
-            "/api/example/session/previous/named",
-            controllers::session::previous_visit,
-        )
-        .name("example.session.previous.named")
-        .get(
-            "/api/example/session/previous/anonymous",
-            controllers::session::previous_visit,
-        )
-        .group(
-            RouteGroup::new()
-                .prefix("/api/example/session/previous")
-                .middleware_alias("precognitive"),
-            |routes| {
-                routes
-                    .get("/preview", controllers::session::previous_visit)
-                    .name("example.session.previous.preview")
-            },
-        )
-        .group(
-            RouteGroup::new()
-                .prefix("/api/example/session/old-input")
-                .middleware_alias("precognitive"),
-            |routes| routes.post("/preview", controllers::session::old_input_store),
-        )
+    routes.group(
+        RouteGroup::new()
+            .middleware_alias("cookies")
+            .middleware_alias("session"),
+        |routes| {
+            routes
+                .get(
+                    "/api/example/draft/review",
+                    controllers::draft_redirect::review,
+                )
+                .name("example.draft.review")
+                .get(
+                    "/api/example/draft/preview",
+                    controllers::draft_redirect::preview,
+                )
+                .get(
+                    "/api/example/draft/confirm",
+                    controllers::draft_redirect::confirmation,
+                )
+                .post(
+                    "/api/example/draft/confirm",
+                    controllers::draft_redirect::confirm,
+                )
+                .get("/api/example/session", controllers::session::show)
+                .post("/api/example/session", controllers::session::store)
+                .get(
+                    "/api/example/session/old-input",
+                    controllers::session::old_input,
+                )
+                .post(
+                    "/api/example/session/old-input",
+                    controllers::session::old_input_store,
+                )
+                .post(
+                    "/api/example/session/previous",
+                    controllers::session::previous,
+                )
+                .get(
+                    "/api/example/session/previous/named",
+                    controllers::session::previous_visit,
+                )
+                .name("example.session.previous.named")
+                .get(
+                    "/api/example/session/previous/anonymous",
+                    controllers::session::previous_visit,
+                )
+                .group(
+                    RouteGroup::new()
+                        .prefix("/api/example/session/previous")
+                        .middleware_alias("precognitive"),
+                    |routes| {
+                        routes
+                            .get("/preview", controllers::session::previous_visit)
+                            .name("example.session.previous.preview")
+                    },
+                )
+                .group(
+                    RouteGroup::new()
+                        .prefix("/api/example/session/old-input")
+                        .middleware_alias("precognitive"),
+                    |routes| routes.post("/preview", controllers::session::old_input_store),
+                )
+        },
+    )
 }
 
 fn route_context_routes(routes: Routes) -> Routes {
@@ -391,21 +438,46 @@ async fn private_account_response(
 }
 
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
-fn account_routes(routes: Routes) -> Routes {
+fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
     use controllers::account_security as account;
     use openrust::auth::{AuthLayer, AuthMode};
+    #[cfg(feature = "session")]
+    let session_enabled = capabilities.session;
+    #[cfg(not(feature = "session"))]
+    let session_enabled = {
+        let _ = capabilities;
+        false
+    };
     routes.nest("/api/example/account", |api| {
-        let api = api
-            .post("/login", account::login)
-            .post("/session/login", account::session_login);
+        let api = api.post("/login", account::login);
+        let api = if session_enabled {
+            api.group(
+                RouteGroup::new()
+                    .middleware_alias("cookies")
+                    .middleware_alias("session"),
+                |routes| routes.post("/session/login", account::session_login),
+            )
+        } else {
+            api
+        };
         #[cfg(feature = "auth-mfa")]
         let api = api.post("/login/mfa", account::complete);
-        let session = Routes::new()
-            .get("/session/preference", account::preference)
-            .post("/session/preference", account::set_preference)
-            .post("/session/logout", account::session_logout)
-            .layer(AuthLayer::required(AuthMode::Session));
-        let api = api.merge(session);
+        let api = if session_enabled {
+            api.group(
+                RouteGroup::new()
+                    .middleware_alias("cookies")
+                    .middleware_alias("session"),
+                |routes| {
+                    routes
+                        .get("/session/preference", account::preference)
+                        .post("/session/preference", account::set_preference)
+                        .post("/session/logout", account::session_logout)
+                        .layer(AuthLayer::required(AuthMode::Session))
+                },
+            )
+        } else {
+            api
+        };
         #[cfg(feature = "auth-mfa")]
         let api = api.merge(
             Routes::new()
@@ -430,11 +502,18 @@ fn oidc_routes(routes: Routes) -> Routes {
     use openrust::auth::{AuthLayer, AuthMode};
 
     routes.nest("/api/example/oidc", |api| {
-        let browser_binding = Routes::new()
-            .post("/bind/authorize", oidc::browser_bind_authorize)
-            .post("/bind/confirm", oidc::browser_bind_confirm)
-            .post("/session/attach", oidc::attach_session)
-            .layer(AuthLayer::required(AuthMode::Session));
+        let api = api.group(
+            RouteGroup::new()
+                .middleware_alias("cookies")
+                .middleware_alias("session"),
+            |routes| {
+                routes
+                    .post("/bind/authorize", oidc::browser_bind_authorize)
+                    .post("/bind/confirm", oidc::browser_bind_confirm)
+                    .post("/session/attach", oidc::attach_session)
+                    .layer(AuthLayer::required(AuthMode::Session))
+            },
+        );
         let protected = Routes::new()
             .get("/links", oidc::linked)
             .post("/bind", oidc::bind)
@@ -444,7 +523,6 @@ fn oidc_routes(routes: Routes) -> Routes {
         api.get("/authorize", oidc::authorize)
             .get("/callback", oidc::callback)
             .post("/backchannel", oidc::backchannel)
-            .merge(browser_binding)
             .merge(protected)
             .layer(openrust::http::axum::middleware::from_fn(
                 private_oidc_response,
@@ -557,6 +635,10 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
             any(feature = "db-postgres", feature = "db-mysql")
         ))]
         let api = api
+            .post(
+                "/articles/{id}/attachment/file",
+                controllers::attachments::upload_multipart,
+            )
             .put(
                 "/articles/{id}/attachment",
                 controllers::attachments::upload,

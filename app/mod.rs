@@ -1,1 +1,4 @@
-//! 应用模块清单；装配由根 `Application::providers` 统一执行。
+//! 应用代码入口；业务可在 `app/` 和 `modules/` 并存。
+
+pub mod http;
+pub mod providers;

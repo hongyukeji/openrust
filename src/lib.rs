@@ -155,6 +155,14 @@ pub mod prelude {
 ///
 /// 返回进程退出码而不触发 panic，使 `main` 保持为单行调用。
 pub fn run<A: Application>() -> ExitCode {
+    run_with_args::<A>(std::env::args().skip(1))
+}
+
+/// 使用显式控制台参数启动应用；`--env name` 和 `--env=name` 只选择存在的环境文件。
+///
+/// 嵌入式调用方传入自己的参数，普通 [`lifecycle::bootstrap`] 不观察进程参数。
+pub fn run_with_args<A: Application>(args: impl IntoIterator<Item = String>) -> ExitCode {
+    let (name, command_args, console_environment) = parse_console_args(args);
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -163,10 +171,9 @@ pub fn run<A: Application>() -> ExitCode {
         Err(error) => return fail(&format!("cannot start tokio runtime: {error}")),
     };
     runtime.block_on(async {
-        let mut args = std::env::args().skip(1);
-        let name = args.next().unwrap_or_else(|| "serve".to_owned());
-        let command_args = args.collect();
-        let app = match lifecycle::bootstrap_for_command::<A>(&name).await {
+        let app = match lifecycle::bootstrap_for_console::<A>(&name, console_environment.as_deref())
+            .await
+        {
             Ok(app) => app,
             Err(error) => return fail(&format!("bootstrap failed: {error}")),
         };
@@ -190,6 +197,32 @@ pub fn run<A: Application>() -> ExitCode {
     })
 }
 
+fn parse_console_args(
+    args: impl IntoIterator<Item = String>,
+) -> (String, Vec<String>, Option<String>) {
+    let mut command = Vec::new();
+    let mut environment = None;
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        if arg == "--env" {
+            if let Some(value) = args.next()
+                && environment.is_none()
+            {
+                environment = Some(value);
+            }
+        } else if let Some(value) = arg.strip_prefix("--env=") {
+            if environment.is_none() {
+                environment = Some(value.to_owned());
+            }
+        } else {
+            command.push(arg);
+        }
+    }
+    let mut command = command.into_iter();
+    let name = command.next().unwrap_or_else(|| "serve".to_owned());
+    (name, command.collect(), environment)
+}
+
 fn fail(message: &str) -> ExitCode {
     // 配置加载失败时 tracing 可能尚未安装，因此始终写入 stderr。
     eprintln!("error: {message}");
@@ -198,6 +231,7 @@ fn fail(message: &str) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
+    use super::parse_console_args;
     use super::prelude::*;
 
     #[test]
@@ -205,5 +239,22 @@ mod tests {
         let response = Json("ok").into_response();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["content-type"], "application/json");
+    }
+
+    #[test]
+    fn console_environment_argument_is_removed_before_command_dispatch() {
+        let parse = |args: &[&str]| parse_console_args(args.iter().map(|arg| (*arg).to_owned()));
+        assert_eq!(
+            parse(&["--env", "local", "config:cache"]),
+            ("config:cache".into(), Vec::new(), Some("local".into()))
+        );
+        assert_eq!(
+            parse(&["help", "--env=staging", "detail"]),
+            ("help".into(), vec!["detail".into()], Some("staging".into()))
+        );
+        assert_eq!(
+            parse(&["--envelope=mail", "--env"]),
+            ("--envelope=mail".into(), Vec::new(), None)
+        );
     }
 }

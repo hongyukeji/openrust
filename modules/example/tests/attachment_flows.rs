@@ -66,9 +66,11 @@ impl Fixture {
                 "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":directory.path()}}}
             }),
         ));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let db = app.app()?.state().resolve::<Db>().await?;
         let model = article::ActiveModel {
             owner_id: Set(1),
@@ -130,6 +132,86 @@ fn request(
         builder = builder.header("authorization", format!("Bearer {token}"));
     }
     builder.body(body).map_err(Error::internal)
+}
+
+#[tokio::test]
+async fn multipart_attachment_uses_public_file_extractor_and_existing_owner_guard() -> TestResult {
+    let Some(fixture) = Fixture::create().await? else {
+        return Ok(());
+    };
+    let result = std::panic::AssertUnwindSafe(async {
+        let body = concat!(
+            "--example-file\r\nContent-Disposition: form-data; name=\"document\"; filename=\"../../client.txt\"\r\nContent-Type: text/plain\r\n\r\npublic Request file\r\n",
+            "--example-file--\r\n"
+        );
+        let path = format!("{}/file", fixture.path());
+        for (token, status) in [
+            (&fixture.other_token, StatusCode::NOT_FOUND),
+            (&fixture.owner_token, StatusCode::CREATED),
+        ] {
+            fixture
+                .app
+                .request(request(
+                    "POST",
+                    &path,
+                    Some(token),
+                    "multipart/form-data; boundary=example-file",
+                    Body::from(body),
+                )?)
+                .await?
+                .assert_status(status)?;
+        }
+        let declared_binary = body.replace("Content-Type: text/plain", "Content-Type: application/octet-stream");
+        fixture
+            .app
+            .request(request(
+                "POST", &path, Some(&fixture.owner_token),
+                "multipart/form-data; boundary=example-file", Body::from(declared_binary),
+            )?)
+            .await?
+            .assert_status(StatusCode::CREATED)?;
+        let disguised_pdf = body.replace(
+            "public Request file",
+            "%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n",
+        );
+        fixture
+            .app
+            .request(request(
+                "POST", &path, Some(&fixture.owner_token),
+                "multipart/form-data; boundary=example-file", Body::from(disguised_pdf),
+            )?)
+            .await?
+            .assert_status(StatusCode::UNSUPPORTED_MEDIA_TYPE)?;
+        assert_eq!(
+            tokio::fs::read(fixture.object()).await?,
+            b"public Request file"
+        );
+        assert!(!fixture.directory.path().join("client.txt").exists());
+        Ok::<(), Box<dyn std::error::Error>>(())
+    })
+    .catch_unwind()
+    .await;
+    let closed = std::panic::AssertUnwindSafe(fixture.close())
+        .catch_unwind()
+        .await;
+    match result {
+        Ok(Ok(())) => match closed {
+            Ok(cleanup) => cleanup,
+            Err(payload) => std::panic::resume_unwind(payload),
+        },
+        Ok(Err(error)) => {
+            if !matches!(closed, Ok(Ok(()))) {
+                eprintln!("REQUEST_FILE_FIXTURE_CLEANUP secondary_failure");
+            }
+            Err(error)
+        }
+        Err(payload) => {
+            if !matches!(closed, Ok(Ok(()))) {
+                eprintln!("REQUEST_FILE_FIXTURE_CLEANUP secondary_failure");
+            }
+            std::panic::resume_unwind(payload)
+        }
+    }
 }
 
 #[tokio::test]

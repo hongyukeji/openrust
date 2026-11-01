@@ -58,6 +58,10 @@ impl Authenticator for TokenAuthenticator {
 impl Application for RealtimeNode {
     type Config = NoConfig;
 
+        fn default_providers() -> openrust::core::DefaultProviders {
+            openrust::core::DefaultProviders::empty()
+        }
+
     fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let redis_url = std::env::var("OPENRUST_REALTIME_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379/".into());

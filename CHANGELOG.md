@@ -6,12 +6,24 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
-- TrustProxies 请求上下文统一读取可信代理范围和头集合；客户端链、协议、主机、端口与前缀供 Request、路由、重定向和签名消费者共享，新增公开客户端链及 base URL 读取。可信协议头先于物理 TLS 回退；`trusted_proxy_ranges`区分缺省/null和显式空数组，后者关闭平台代理自动信任。普通非平台请求未配置信任时忽略伪造头；`RequestInfo::port` 改为有符号 `i64` 以保留 PHP 请求端口语义，实际 listener 端口仍为 `u16`；唯一模块、生成模板与外部 consumer 同步接线。
+- 根 `app/` 支持普通应用 Controller/Model/Provider 开发，与可选模块共用同一内核；`bootstrap/providers.rs` 登记应用 Provider，默认框架 Provider 在统一 Builder 中装配，生成器同步应用结构与 Provider 自动登记。显式包清单不等同自动发现；deferred/eager 缓存、默认欢迎页及完整模块管理仍有后继范围。
+- 默认应用配置转为已编译的 `config/*.rs` / `ConfigManifest`，dotenv 快照就绪后向同一仓储求值；模块沿相同机制。TOML 保留为显式可选 source，typed/factory 通过同仓储提供且不可序列化配置明确拒绝缓存。显式 `ConfigSources::merge_ordered_entries` 覆盖沿同次环境上下文、保留未覆盖的 profile 数据与元数据，并拒绝修改已编译缓存；旧 Figment 有损输入不伪造代码配置环境或恢复历史键序。console 专属环境文件选择和缓存屏障同步调用方；全部应用可编辑默认项展示及跨领域最终配置依赖另待整改，不能以代码配置入口代替完整对应。
+- 异常处理增加应用作用域 report/render、HTML/JSON 协商和最终响应回调；浏览器验证失败经同一 Session 保存错误包与过滤敏感字段后的旧输入，API envelope 通过公开策略显式配置，应用宿主决定全局路径策略；示例模块只登记自己的异常报告、渲染及响应扩展，不覆盖宿主谓词。`dont_flash` 支持点路径/数组；框架 Json/Validated 提取链在DTO失败前绑定规范输入，原生 Axum 逃生提取器不自动获得该保证。
+- 默认 web/api 路由组分工：Cookie、Session 与请求伪造保护按路由组接入，匿名 Web 非安全请求也受保护；同源快速路径、测试豁免与 multipart 正文复用保留明确边界。未匹配路由或方法不进入该组的 Session 生命周期；匹配业务返回错误仍按原生命周期保存。
+- 开发者运行产物使用中性保留名：`.staging`、`.data-exchange-retention` 与缓存私有命名等；旧名称仅保留拒绝保护，不自动改名或删除现有文件/对象。Local staging 仅接管有有效所有权标记的目录，无法确认的既有目录明确拒绝；旧清理payload不得套用新前缀误删。现有部署与bucket生命周期规则需按实际归属显式迁移。
+- `Db::table` 增加结构化查询与事务接线、部分读写和自动/具名/simple分页，唯一文章列表通过公开查询入口默认分页15；默认表前缀为空、显式前缀与映射保留。CursorPaginator、完整Query/ORM/Factory能力和额外数据库后端仍开放，不以SeaORM或部分API宣称全部对应。
 
-- 配置领域 TOML 改为递归发现与按真实文件名建立点路径命名空间，隐藏文件/目录符号链接排除，同名命名空间按实际遍历后项覆盖，再按完整名称自然序加载，不承诺跨平台胜者。根领域文件迁移为相对内容格式，这是一次破坏性配置迁移；模块配置仍沿既有独立 overlay；CLI 生成文件和唯一模块同步调整。同一 `ConfigSources` 仓储保留来源顺序和环境覆盖，晚到 Provider 默认值按浅层合并，白名单数组按已验证的 PHP 规则合并；仅有子文件时保留文件前 base 剩余父区段。完整 Config 和动态 Settings 继续开放；typed helpers 与配置缓存的限定子范围已另行交付。
+
+- TrustProxies 请求上下文统一读取可信代理范围和头集合；客户端链、协议、主机、端口与前缀供 Request、路由、重定向和签名消费者共享，新增公开客户端链及 base URL 读取。可信协议头先于物理 TLS 回退；`trusted_proxy_ranges`区分缺省/null和显式空数组，后者关闭平台代理自动信任。普通非平台请求未配置信任时忽略伪造头；`RequestInfo::port` 改为有符号 `i64` 以保留 PHP 请求端口语义，实际 listener 端口仍为 `u16`；唯一模块、生成模板与外部 consumer 同步接线。
+- TrustedHosts 新增可选 `server.trusted_hosts` 和公开 `BootContext::trust_hosts` / `trust_hosts_with`；按精确环境、请求局部 PCRE 模式校验代理解析后的有效 Host；物理 authority 先做语法检查，并同步唯一模块、生成模板及外部 consumer。本批限定组合门禁及静态模式、代理 Host、HEAD 与精确环境的真实 TCP 验证已通过。
+- 应用环境保留精确名称、自定义值、大小写与空字符串；未指定配置时默认 `production`。公开环境匹配与 `is_local` / `is_production` / `running_unit_tests` 按固定 Laravel 语义查询，既有生产安全保护使用独立派生策略。Loader 改用 `environment_override()` 区分显式覆盖与最终文件/缓存环境；环境值不再 `Copy`，同名值的相等性、哈希与序列化一致。唯一模块、公开消费者与生成测试夹具同步；骨架显式 `development` 保留应用选择；CLI 专属 dotenv 接线已纳入本批限定组合验收；完整配置与控制台家族仍开放。
+- 上传文件 MIME 使用应用作用域 `MimeTypes`、可扩展 `MimeTypeGuesser` 与固定 Symfony v8.0.0 全量有序映射；默认 Unix `file` 内容检测，`UploadedFile` 的 MIME/扩展名/随机名改为按需异步并仅缓存随机主体。模块附件按真实内容校验，客户端声明不参与判定；Fileinfo 和 Windows 原生检测后端保留差异。
+- Request 通过官方 Axum multipart 提取器接入有界文件 bag；`all/only/except` 改为返回可保留上传对象身份的 `DataValue`，纯 JSON 由 `input_all` 或显式投影取得。新增 `file/all_files/has_file` 与 `UploadedFile` 与原始正文的受管暂存、独立异步游标及 Storage 存储入口；`when_has/when_filled` 回调改接收可保留对象身份的 `DataValue`，前者在混合树判存在、后者在纯输入判非空；唯一模块、生成应用与公开 consumer 同步展示。客户端元数据不可信，有限服务端格式识别、S3 真实 ACL 与 `throw=false` 仍保留缺口。
+
+- 显式可选 TOML source 支持递归发现与按真实文件名建立点路径命名空间，隐藏文件/目录符号链接排除，同名命名空间按实际遍历后项覆盖，再按完整名称自然序加载，不承诺跨平台胜者。根领域文件迁移为相对内容格式，这是一次破坏性配置迁移；模块配置仍沿既有独立 overlay；CLI 生成文件和唯一模块同步调整。同一 `ConfigSources` 仓储保留来源顺序和环境覆盖，晚到 Provider 默认值按浅层合并，白名单数组按已验证的 PHP 规则合并；仅有子文件时保留文件前 base 剩余父区段。完整 Config 和动态 Settings 继续开放；typed helpers 与配置缓存的限定子范围已另行交付。
 - 配置仓储新增 `string`、`integer`、`float`、`boolean`、`array`、`collection` 六类严格读取，各提供直接、值默认与惰性默认入口；默认仅用于缺失，显式 null 与类型错误不回退。整数/浮点不宽松转换，错误不回显原值；配置集合复用现有 `Collection`，不把请求输入预算错误施加于已加载配置，其他集合受限操作不变。唯一模块与公开 consumer 展示固定业务键调用。
 - 增加 Laravel 式 `config:cache` / `config:clear`，缓存同一应用 fresh Provider 启动后的最终配置。缓存命中跳过 dotenv、普通配置文件和模块配置重载；维护命令先正常引导再派发，坏缓存不静默回退。默认私有数据文件 `bootstrap/cache/config.json` 是 Rust 表示适配；原子写入、失败清理与资源关闭沿同一生命周期，命令只影响后续启动，不热改已解析客户端。
-- Session 属性树的公共读取统一返回 `DataValue`，原始写入保留对象身份；DTO 使用显式 `*_typed` 写入，JSON/DTO 读取使用显式投影并处理不可投影对象。默认 native 编码在保存对象时拒绝且不写后端，json 编码仅接受对象声明的投影；唯一业务模块、生成模板和公开 consumer 同步迁移。本次破坏性 API 调整不承诺 PHP serialize 字节兼容，也不代表完整 Request 文件或 Session 能力已验收。
+- Session 属性树的公共读取统一返回 `DataValue`，原始写入保留对象身份；DTO 使用显式 `*_typed` 写入，JSON/DTO 读取使用显式投影并处理不可投影对象。默认 native 编码在保存对象时拒绝且不写后端，json 编码仅接受对象声明的投影；唯一业务模块、生成模板和公开 consumer 同步迁移。本次破坏性 API 调整不承诺 PHP serialize 字节兼容，也不代表完整 Session 能力已验收。
 
 - 测试应用增加受控 `TestAppBuilder::run_command`，使用同名 console 启动上下文执行命令并在返回前关闭应用；普通 `build` 继续进行正常启动校验。唯一模块的迁移用例经此入口先运行初次迁移，再按原断言检查回滚、重迁移与禁用后的旧表。
 - Storage 增加公开可见性、受控对象发布与 CAS 仲裁基础，本地文件权限和租户附件示例经定向验证；可选 S3 对象 ACL/CopyObject 使用明确连接配置。真实 S3 ACL 正负例、迟到 CopyObject 响应以及 Laravel `throw=false` 返回语义仍未完成验收或对齐，不计为完整 Storage 1:1 交付。
@@ -43,7 +55,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - 新增公开 `MessageBag`、`ViewErrorBag` 与消息包扩展契约：保序/稀疏键、字段与通配查询、格式化、命名包及 JSON 选项；递归合并通过 `MessageValue` 保留派生数组。纯消息包无需 Session，自定义命名包保留对象身份并派发契约方法。请求局部视图共享通过 `Views::render_for_request` 提供；自动验证失败重定向仍属后继范围。
 
-- Session与Request增加旧输入读写：`flash_input/get_old_input/get_old_input_or/has_old_input`、`Request::flash/flash_only/flash_except/flush`和`RequestInfo::old/old_or/old_all`。复用已有flash老化和单次写入预算回滚，保留缺失/null/默认、字面键优先dot及空筛选语义。手动闪存不默认剔除密码，应用须显式排除敏感字段；文件输入合并仍属后继范围。
+- Session与Request增加旧输入读写：`flash_input/get_old_input/get_old_input_or/has_old_input`、`Request::flash/flash_only/flash_except/flush`和`RequestInfo::old/old_or/old_all`。复用已有flash老化和单次写入预算回滚，保留缺失/null/默认、字面键优先dot及空筛选语义。手动闪存不默认剔除密码，应用须显式排除敏感字段；上传文件的持久化编码仍属后继范围。
 
 - D10-B 公开 `Redirector::from_info/from_request`、`RedirectResponse` 与 `RedirectErrors`，普通重定向携带 `Location` 和 HTML 正文；请求绑定方法显式闪存规范化输入和命名错误包。Session 的 `ErrorBagCodecs` 支持 Provider 扩展并跨请求恢复自定义错误包，编码/解码在属性锁外运行，失败和预算超限不发布半成品。内置包无需登记；请求局部视图共享见本节视图入口，异常 `dontFlash` 与自动验证失败重定向仍属后继范围。
 
@@ -160,8 +172,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 将默认运行时配置命名空间切换为 `APP_`；应用可通过 `Application::config_namespace()` 选择一个自定义前缀。
 - 将所有 OpenRust JSON 成功和错误响应统一为 `ApiResponse<T>`，并新增 `[api] http_status`（`always_ok` 或 `semantic`）、请求 ID 正文/响应头一致性及限流重试响应头。
 
-- 将 facade prelude 切换为 OpenRust 提取器，并按照 ADR-008 统一校验、超时和未匹配路由响应。
+- 将 facade prelude 切换为 OpenRust 提取器，并按照 历史决策 008 统一校验、超时和未匹配路由响应。
 
-- 按照 ADR-006 在已实现 API 中统一采用以下名称：`Plugin::build/finish`、`AppBuilder::plugin/insert/get`、`AppState::get/try_get`、`HttpPlugin`、`Routes::nest`，以及资源操作 `list/get/create/update/delete`。
+- 按照 历史决策 006 在已实现 API 中统一采用以下名称：`Plugin::build/finish`、`AppBuilder::plugin/insert/get`、`AppState::get/try_get`、`HttpPlugin`、`Routes::nest`，以及资源操作 `list/get/create/update/delete`。
 - 将运行时配置切换为 `config/default.toml`、`OPENRUST_ENV` 和 `OPENRUST_<SECTION>__<KEY>`；`DATABASE_URL` 和 `PORT` 映射到对应配置区段，带前缀的变量优先。
 - 将配置命令改为 `config show`，并记录未来的 `openrust generate` CLI 规划。

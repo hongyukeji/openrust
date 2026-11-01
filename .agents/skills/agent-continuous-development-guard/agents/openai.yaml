@@ -1,0 +1,6 @@
+interface:
+  display_name: "Agent 持续开发守护"
+  short_description: "Agent Continuous Development Guard：自动接续获准任务并保留人工控制"
+  default_prompt: "使用 $agent-continuous-development-guard 持续推进当前获准计划直到完成，自动管理守护并保留人工停止控制。"
+policy:
+  allow_implicit_invocation: true

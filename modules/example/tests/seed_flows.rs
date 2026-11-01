@@ -43,9 +43,11 @@ impl Fixture {
                 "auth":{"jwt":{"issuer":"http://example.test","audience":"seed-tests","active_key_id":"test","keys":{"test":key}}},
                 "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
             })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         Ok(Some(Self { app, database }))
     }
     async fn seed(&self) -> openrust::Result<()> {

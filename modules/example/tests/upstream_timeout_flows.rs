@@ -194,9 +194,11 @@ impl Fixture {
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
             "example":{"article_summary_origin":origin}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let auth = app.app()?.state().resolve::<AuthFlows>().await?;
         let email = "summary-timeout@example.test";
         let password = "an isolated summary fixture password";

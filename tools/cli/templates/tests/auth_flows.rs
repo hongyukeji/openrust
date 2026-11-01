@@ -4,6 +4,8 @@
 mod app;
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../config/mod.rs"]
+mod config;
 {{grpc_module}}#[path = "../modules/mod.rs"]
 mod modules;
 #[path = "support/request_cookie.rs"]
@@ -36,6 +38,12 @@ use openrust::tokio::sync::oneshot;
 use testing::TestDatabase;
 
 type TestResult<T = ()> = std::result::Result<T, Box<dyn StdError>>;
+
+fn test_configuration() -> openrust::config::FrameworkConfig {
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.app.env = openrust::config::Environment::Testing;
+    config
+}
 
 #[derive(Clone, Default)]
 struct CaptureMailer {
@@ -94,6 +102,28 @@ impl openrust::core::ServiceProvider for CaptureMailerProvider {
             Ok(())
         })
     }
+
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| {
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| routes.get("/__generated/session", session_cookie_probe),
+                )
+            })?;
+            Ok(())
+        })
+    }
+}
+
+async fn session_cookie_probe(session: openrust::session::Session) -> openrust::Result<Json<bool>> {
+    session.put_typed("generated.protected_cookie", true)?;
+    Ok(Json(true))
 }
 
 #[tokio::test]
@@ -107,13 +137,13 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let link_key =
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
     let config = format!(
-        "[database]\nurl = {:?}\n\n[cache]\ndefault = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n{{encryption_config}}\n\n[view]\ndirectory = \"resources/views\"\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
+        "[session]\ndriver = 'database'\n[database]\nurl = {:?}\n\n[cache]\ndefault = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n{{encryption_config}}\n\n[view]\ndirectory = \"resources/views\"\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
         database.url(),
         key,
         link_key
     );
     let figment = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(&config));
     let application_config = figment.extract::<bootstrap::Configuration>()?;
@@ -189,7 +219,13 @@ async fn run_auth_flow(
     assert_eq!(registered.status, StatusCode::OK);
     assert_eq!(registered.body["success"], true);
     assert_eq!(registered.body["data"]["status"], "accepted");
-    assert_eq!(registered.set_cookie_count, 1);
+    // API 组保持无状态；Cookie 保护在显式 Session 路由单独验证。
+    assert_eq!(registered.set_cookie_count, 0);
+    assert!(!registered.session_cookie_is_protected);
+    let session_response = request(address, "GET", "/__generated/session", None, None, None).await?;
+    assert_eq!(session_response.status, StatusCode::OK);
+    assert_eq!(session_response.body["data"], true);
+    assert_eq!(session_response.set_cookie_count, 1);
     // 不记录 Cookie 原文；保护模式须改变40字节会话ID的wire表示，往返另有正式helper覆盖。
 {{session_protection_assertion}}
 
@@ -488,13 +524,13 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     let link_key =
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
     let config = format!(
-        "[database]\nurl = {:?}\n[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-auth-tests'\nactive_key_id = 'test'\n[auth.jwt.keys]\ntest = {:?}\n[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test-link'\n[security.signed_links.keys]\ntest-link = {:?}\n{{encryption_config}}\n[view]\ndirectory = 'resources/views'\n",
+        "[session]\ndriver = 'database'\n[database]\nurl = {:?}\n[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-auth-tests'\nactive_key_id = 'test'\n[auth.jwt.keys]\ntest = {:?}\n[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test-link'\n[security.signed_links.keys]\ntest-link = {:?}\n{{encryption_config}}\n[view]\ndirectory = 'resources/views'\n",
         database.url(),
         key,
         link_key
     );
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(&config));
     let mail = CaptureMailer::default();

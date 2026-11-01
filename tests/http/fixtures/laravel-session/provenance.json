@@ -720,7 +720,7 @@
         "a",
         "x"
       ],
-      "reference": "../../../../.agents/project/decisions/adr-082-session-store-and-flash.md",
+      "reference": "../../../../.agents/project/core/session.md",
       "rust_regression": {
         "file": "src/session/attributes.rs",
         "test": "manually_trimmed_flash_metadata_uses_visible_json_next_index"

@@ -59,7 +59,7 @@ impl Default for DatabaseInstanceConfig {
             min_connections: 1,
             connect_timeout_secs: 5,
             acquire_timeout_secs: 30,
-            table_prefix: "tb_".to_owned(),
+            table_prefix: String::new(),
             table_names: std::collections::BTreeMap::new(),
         }
     }
@@ -107,7 +107,7 @@ impl Default for DatabaseConfig {
             min_connections: 1,
             connect_timeout_secs: 5,
             acquire_timeout_secs: 30,
-            table_prefix: "tb_".to_owned(),
+            table_prefix: String::new(),
             table_names: std::collections::BTreeMap::new(),
             instances: std::collections::BTreeMap::new(),
         }

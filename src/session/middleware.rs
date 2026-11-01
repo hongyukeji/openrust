@@ -57,6 +57,7 @@ pub(crate) async fn handle(
             return crate::http::cookie::private_error_response(error);
         }
     };
+    crate::core::error::bind_exception_session(session.clone());
     let jar = request
         .extensions()
         .get::<crate::http::CookieJar>()

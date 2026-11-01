@@ -7,6 +7,7 @@ use axum_core::response::{IntoResponse, Response};
 use http::{HeaderValue, StatusCode, header};
 use serde::Serialize;
 use std::future::Future;
+use std::sync::Arc;
 
 use crate::config::ConfigError;
 
@@ -92,6 +93,19 @@ pub enum Error {
         /// 可安全展示的可读详情。
         message: String,
     },
+    /// 带具体错误来源的 HTTP 异常；Handler 可按来源类型报告或渲染。
+    #[error("{message}")]
+    HttpWithSource {
+        /// HTTP 状态码，包含非标准但有效的扩展状态码。
+        status: StatusCode,
+        /// 稳定的公开错误码。
+        code: String,
+        /// 安全的公开说明；5xx 在非调试模式下仍被隐藏。
+        message: String,
+        /// 具体错误来源，保留给按类型的 Handler 回调。
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     /// 未预期的失败。错误来源会写入日志；调用方只会看到通用消息。
     #[error("internal error: {0}")]
     Internal(#[source] Box<dyn std::error::Error + Send + Sync>),
@@ -148,6 +162,24 @@ impl Error {
         }
     }
 
+    /// 从具体错误创建 HTTP 异常，保留来源类型供应用 Handler 分派。
+    pub fn http_with_source<E>(
+        status: StatusCode,
+        code: impl Into<String>,
+        message: impl Into<String>,
+        source: E,
+    ) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        Self::HttpWithSource {
+            status,
+            code: code.into(),
+            message: message.into(),
+            source: Box::new(source),
+        }
+    }
+
     /// 创建限流错误，并携带以秒为单位的 `Retry-After` 延迟。
     pub fn rate_limited(retry_after_secs: u64) -> Self {
         Self::RateLimitedWithRetryAfter(retry_after_secs)
@@ -172,6 +204,7 @@ impl Error {
             Self::Validation(_) | Self::ValidationDetail { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited | Self::RateLimitedWithRetryAfter(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::Custom { status, .. } => status.unwrap_or(StatusCode::BAD_REQUEST),
+            Self::HttpWithSource { status, .. } => *status,
             Self::Config(_) | Self::Internal(_) | Self::ServiceInitialization { .. } => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
@@ -189,7 +222,7 @@ impl Error {
             Self::Validation(_) | Self::ValidationDetail { .. } => "validation_failed",
             Self::RateLimited | Self::RateLimitedWithRetryAfter(_) => "rate_limited",
             Self::Config(_) => "configuration_error",
-            Self::Custom { code, .. } => code,
+            Self::Custom { code, .. } | Self::HttpWithSource { code, .. } => code,
             Self::Internal(_) => "internal_error",
             Self::ServiceInitialization { .. } => "service_initialization_failed",
         }
@@ -238,6 +271,12 @@ impl From<ValidationErrors> for Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
+        let context = response_context();
+        if let (Some(handler), Some(request)) =
+            (&context.exception_handler, &context.exception_request)
+        {
+            return handler.render_for_request(self, request);
+        }
         if self.is_server_error() && should_log_server_error(&self) {
             tracing::error!(code = self.code(), status = %self.status(), "request failed");
         } else if !self.is_server_error() {
@@ -258,12 +297,28 @@ fn should_log_server_error(error: &Error) -> bool {
 }
 
 /// HTTP middleware 为每个请求设置的响应上下文。
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ResponseContext {
     /// 在响应头和正文中保持一致的关联 ID。
     pub request_id: String,
     /// 已配置的 HTTP 状态码策略。
     pub http_status: HttpStatusMode,
+    /// 当前应用的异常策略；命令和独立响应没有请求策略。
+    pub(crate) exception_handler: Option<Arc<super::ExceptionHandler>>,
+    /// 当前 HTTP 请求的内容协商快照。
+    pub(crate) exception_request: Option<super::ExceptionRequest>,
+}
+
+impl ResponseContext {
+    /// 创建不带 HTTP 异常策略的独立响应上下文。
+    pub fn new(request_id: impl Into<String>, http_status: HttpStatusMode) -> Self {
+        Self {
+            request_id: request_id.into(),
+            http_status,
+            exception_handler: None,
+            exception_request: None,
+        }
+    }
 }
 
 tokio::task_local! {
@@ -275,13 +330,40 @@ pub async fn with_response_context<F: Future>(context: ResponseContext, future: 
     RESPONSE_CONTEXT.scope(context, future).await
 }
 
+/// Web middleware 在载入 Session 后更新同一请求的异常视图。
+#[cfg(feature = "session")]
+pub(crate) fn bind_exception_session(session: crate::session::Session) {
+    let _ = RESPONSE_CONTEXT.try_with(|context| {
+        if let Some(request) = &context.exception_request {
+            request.bind_session(session);
+        }
+    });
+}
+
+/// 受管输入提取器只共享规范化输入，不共享原始正文或 Cookie。
+#[cfg(feature = "session")]
+pub(crate) fn bind_exception_input(input: serde_json::Value) {
+    let _ = RESPONSE_CONTEXT.try_with(|context| {
+        if let Some(request) = &context.exception_request {
+            request.bind_input(input);
+        }
+    });
+}
+
+/// 可选输入投影不可表示正文时撤销先前的局部 Query 视图。
+#[cfg(feature = "session")]
+pub(crate) fn clear_exception_input() {
+    let _ = RESPONSE_CONTEXT.try_with(|context| {
+        if let Some(request) = &context.exception_request {
+            request.clear_input();
+        }
+    });
+}
+
 fn response_context() -> ResponseContext {
     RESPONSE_CONTEXT
         .try_with(Clone::clone)
-        .unwrap_or(ResponseContext {
-            request_id: "-".to_owned(),
-            http_status: HttpStatusMode::Semantic,
-        })
+        .unwrap_or_else(|_| ResponseContext::new("-", HttpStatusMode::Semantic))
 }
 
 /// 返回当前请求使用的状态码策略。

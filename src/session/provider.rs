@@ -96,6 +96,14 @@ impl SessionSettings {
 pub(crate) struct SessionSlot(pub(crate) OnceLock<Session>);
 #[derive(Clone, Default)]
 struct Ready(Arc<OnceLock<Option<super::middleware::SessionLayer>>>);
+/// 最终 Session 层由容器启动后锁定，供 web 路由组按请求安装。
+#[derive(Clone)]
+pub(crate) struct SessionRuntime(Arc<OnceLock<Option<super::middleware::SessionLayer>>>);
+impl SessionRuntime {
+    pub(crate) fn layer(&self) -> Result<Option<super::middleware::SessionLayer>> {
+        self.0.get().cloned().ok_or_else(missing)
+    }
+}
 struct Installed;
 
 /// 安装立即启动、逐响应保存的Session生命周期；默认database。
@@ -272,13 +280,8 @@ impl ServiceProvider for SessionServiceProvider {
                 })
             });
             let ready = app.resolve::<Ready>().await?;
-            app.http_layer_factory(move || {
-                let layer = ready.0.get().ok_or_else(missing)?.clone();
-                Ok(axum::middleware::from_fn_with_state(
-                    layer,
-                    super::middleware::handle,
-                ))
-            })?;
+            app.extension_mut::<Option<SessionRuntime>>()?
+                .replace(SessionRuntime(ready.0.clone()));
             Ok(())
         })
     }

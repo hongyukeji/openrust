@@ -49,6 +49,8 @@ impl StoragePath {
             || path.len() > 1024
             || path.starts_with('/')
             || path.contains('\\')
+            || path.starts_with(".staging/")
+            || path == ".staging"
             || path.starts_with(".openrust-staging/")
             || path == ".openrust-staging"
             || path.bytes().any(|byte| byte.is_ascii_control())
@@ -1315,22 +1317,7 @@ mod opendal_driver {
                     ));
                 }
                 let root = root.to_string_lossy().into_owned();
-                let staging_base = PathBuf::from(&root).join(".openrust-staging");
-                std::fs::create_dir_all(&staging_base).map_err(Error::internal)?;
-                let staging_entry =
-                    std::fs::symlink_metadata(&staging_base).map_err(Error::internal)?;
-                if staging_entry.file_type().is_symlink() || !staging_entry.is_dir() {
-                    return Err(Error::custom(
-                        "storage_invalid_root",
-                        "storage staging root must be a directory",
-                    ));
-                }
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    std::fs::set_permissions(&staging_base, std::fs::Permissions::from_mode(0o700))
-                        .map_err(Error::internal)?;
-                }
+                let staging_base = prepare_staging_base(std::path::Path::new(&root)).await?;
                 cleanup_stale_staging(&staging_base)?;
                 let staging = create_staging_directory(&staging_base)?;
                 let staging = staging.to_string_lossy().into_owned();
@@ -1552,6 +1539,78 @@ mod opendal_driver {
         Ok(())
     }
 
+    async fn prepare_staging_base(root: &std::path::Path) -> Result<PathBuf> {
+        use std::io::Write;
+
+        const OWNER: &[u8] = b"storage-staging-v1\n";
+        let base = root.join(".staging");
+        std::fs::create_dir_all(root).map_err(Error::internal)?;
+        match std::fs::create_dir(&base) {
+            Ok(()) => {
+                // 仅新建者设置目录权限；现存同名业务目录绝不接管或改权限。
+                let directory = std::fs::File::open(&base).map_err(Error::internal)?;
+                let entry = std::fs::symlink_metadata(&base).map_err(Error::internal)?;
+                if !entry.is_dir() || entry.file_type().is_symlink() {
+                    return Err(unowned_staging_root());
+                }
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+                    let opened = directory.metadata().map_err(Error::internal)?;
+                    if entry.dev() != opened.dev() || entry.ino() != opened.ino() {
+                        return Err(unowned_staging_root());
+                    }
+                    directory
+                        .set_permissions(std::fs::Permissions::from_mode(0o700))
+                        .map_err(Error::internal)?;
+                }
+                let marker = base.join(".storage-owner");
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(marker)
+                    .map_err(Error::internal)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    file.set_permissions(std::fs::Permissions::from_mode(0o600))
+                        .map_err(Error::internal)?;
+                }
+                file.write_all(OWNER).map_err(Error::internal)?;
+                file.sync_all().map_err(Error::internal)?;
+                Ok(base)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                // 并发首次创建时 marker 可能尚未落盘；只读等待有界，失败即拒绝。
+                for _ in 0..100 {
+                    let entry = std::fs::symlink_metadata(&base).map_err(Error::internal)?;
+                    if !entry.is_dir() || entry.file_type().is_symlink() {
+                        return Err(unowned_staging_root());
+                    }
+                    let marker = base.join(".storage-owner");
+                    if let Ok(metadata) = std::fs::symlink_metadata(&marker)
+                        && metadata.is_file()
+                        && !metadata.file_type().is_symlink()
+                        && metadata.len() == OWNER.len() as u64
+                        && std::fs::read(&marker).is_ok_and(|bytes| bytes == OWNER)
+                    {
+                        return Ok(base);
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+                Err(unowned_staging_root())
+            }
+            Err(error) => Err(Error::internal(error)),
+        }
+    }
+
+    fn unowned_staging_root() -> Error {
+        Error::custom(
+            "storage_staging_unowned",
+            "storage staging root already exists without a valid owner marker",
+        )
+    }
+
     fn cleanup_staging_entry(
         base: &std::path::Path,
         entry: &std::fs::DirEntry,
@@ -1697,6 +1756,94 @@ mod opendal_driver {
     }
 
     #[cfg(test)]
+    #[tokio::test]
+    async fn existing_business_staging_is_not_claimed_or_cleaned() -> Result<()> {
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        let business = root.path().join(".staging");
+        std::fs::create_dir(&business).map_err(Error::internal)?;
+        let object = business.join("run-backup");
+        std::fs::write(&object, b"business data").map_err(Error::internal)?;
+        #[cfg(unix)]
+        let permissions = {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::metadata(&business)
+                .map_err(Error::internal)?
+                .permissions()
+                .mode()
+        };
+        let config = StorageDriverConfig {
+            disk_name: "local".to_owned(),
+            options: std::collections::BTreeMap::from([(
+                "root".to_owned(),
+                serde_json::Value::String(root.path().to_string_lossy().into_owned()),
+            )]),
+        };
+        assert!(FsDriver.build(&config).await.is_err());
+        assert_eq!(
+            std::fs::read(&object).map_err(Error::internal)?,
+            b"business data"
+        );
+        assert!(!business.join(".storage-owner").exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&business)
+                    .map_err(Error::internal)?
+                    .permissions()
+                    .mode(),
+                permissions
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(all(test, unix))]
+    #[tokio::test]
+    async fn symlinked_staging_is_not_claimed() -> Result<()> {
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        let outside = tempfile::tempdir().map_err(Error::internal)?;
+        let object = outside.path().join("run-backup");
+        std::fs::write(&object, b"outside data").map_err(Error::internal)?;
+        std::os::unix::fs::symlink(outside.path(), root.path().join(".staging"))
+            .map_err(Error::internal)?;
+        let config = StorageDriverConfig {
+            disk_name: "local".to_owned(),
+            options: std::collections::BTreeMap::from([(
+                "root".to_owned(),
+                serde_json::Value::String(root.path().to_string_lossy().into_owned()),
+            )]),
+        };
+        assert!(FsDriver.build(&config).await.is_err());
+        assert_eq!(
+            std::fs::read(&object).map_err(Error::internal)?,
+            b"outside data"
+        );
+        assert!(!outside.path().join(".storage-owner").exists());
+        Ok(())
+    }
+
+    #[cfg(test)]
+    #[tokio::test]
+    async fn owned_staging_survives_backend_restart() -> Result<()> {
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        let config = StorageDriverConfig {
+            disk_name: "local".to_owned(),
+            options: std::collections::BTreeMap::from([(
+                "root".to_owned(),
+                serde_json::Value::String(root.path().to_string_lossy().into_owned()),
+            )]),
+        };
+        drop(FsDriver.build(&config).await?);
+        assert_eq!(
+            std::fs::read(root.path().join(".staging/.storage-owner")).map_err(Error::internal)?,
+            b"storage-staging-v1\n"
+        );
+        drop(FsDriver.build(&config).await?);
+        Ok(())
+    }
+
+    #[cfg(test)]
     #[test]
     fn staging_base_disappearing_after_enumeration_remains_a_failure() -> Result<()> {
         let root = tempfile::tempdir().map_err(Error::internal)?;
@@ -1775,12 +1922,12 @@ mod opendal_driver {
         for task in tasks {
             task.await.map_err(Error::internal)??;
         }
-        assert_eq!(
-            std::fs::read_dir(root.path().join(".openrust-staging"))
-                .map_err(Error::internal)?
-                .count(),
-            0
-        );
+        for entry in std::fs::read_dir(root.path().join(".staging")).map_err(Error::internal)? {
+            assert_eq!(
+                entry.map_err(Error::internal)?.file_name(),
+                std::ffi::OsStr::new(".storage-owner")
+            );
+        }
         Ok(())
     }
 
@@ -1869,7 +2016,7 @@ mod opendal_driver {
     ) -> Result<StorageMetadata> {
         use aws_sdk_s3::error::ProvideErrorMetadata;
         // 保留目录不能通过 StoragePath 构造；随机 key 不包含业务或租户标识。
-        let staging = format!(".openrust-staging/{}", uuid::Uuid::now_v7());
+        let staging = format!(".staging/{}", uuid::Uuid::now_v7());
         let staged = write_object(
             operator.clone(),
             staging.clone(),
@@ -2618,7 +2765,7 @@ mod opendal_driver {
             .file_name()
             .ok_or_else(|| Error::custom("storage_invalid_root", "staging path has no run name"))?;
         let key = format!(
-            ".openrust-staging/{}/{}",
+            ".staging/{}/{}",
             run_name.to_string_lossy(),
             uuid::Uuid::now_v7()
         );
@@ -3184,7 +3331,10 @@ mod tests {
             "a//b",
             "a\\b",
             "a\n",
+            ".staging/run-1/temp",
+            ".staging",
             ".openrust-staging/run-1/temp",
+            ".openrust-staging",
         ] {
             assert!(StoragePath::new(path).is_err(), "accepted {path:?}");
         }
@@ -3393,9 +3543,12 @@ mod tests {
         let _ = upload.await;
         tokio::time::sleep(Duration::from_millis(25)).await;
         assert!(disk.stat(&cancelled_path).await.is_err());
-        let staging_base = root.join("objects/.openrust-staging");
+        let staging_base = root.join("objects/.staging");
         for run_directory in std::fs::read_dir(&staging_base).map_err(crate::Error::internal)? {
             let run_directory = run_directory.map_err(crate::Error::internal)?;
+            if run_directory.file_name() == std::ffi::OsStr::new(".storage-owner") {
+                continue;
+            }
             assert_eq!(
                 std::fs::read_dir(run_directory.path())
                     .map_err(crate::Error::internal)?

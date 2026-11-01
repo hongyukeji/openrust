@@ -130,6 +130,7 @@ pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> R
             value: Some(value),
             session: None,
             csrf_token: None,
+            csrf_verified: false,
             method: &method,
         };
         (
@@ -260,6 +261,7 @@ pub struct AuthCredential<'a> {
     value: Option<&'a str>,
     session: Option<Session>,
     csrf_token: Option<&'a str>,
+    csrf_verified: bool,
     method: &'a Method,
 }
 
@@ -282,6 +284,11 @@ impl AuthCredential<'_> {
     /// 如果存在 session 凭据，则返回请求中的 CSRF header。
     pub const fn csrf_token(&self) -> Option<&str> {
         self.csrf_token
+    }
+
+    /// 当前请求是否已由默认 Web 中间件验证 Session CSRF token。
+    pub const fn csrf_verified(&self) -> bool {
+        self.csrf_verified
     }
 
     /// 返回与此凭据关联的 HTTP method。
@@ -568,6 +575,10 @@ fn original_cookie_is_ambiguous(request: &Request, mode: AuthMode, name: &str) -
             })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "认证顺序在同一入口处理 token、session、撤销与请求身份扩展"
+)]
 async fn authenticate(
     State(config): State<AuthLayerConfig>,
     Extension(state): Extension<AppState>,
@@ -586,6 +597,10 @@ async fn authenticate(
         request.headers(),
         request.method(),
         &cookie_name,
+        request
+            .extensions()
+            .get::<crate::http::forgery::CsrfVerified>()
+            .is_some(),
     ) {
         Ok(selected) => selected,
         Err(error) => return error.into_response(),
@@ -623,6 +638,10 @@ async fn authenticate(
             None
         },
         csrf_token,
+        csrf_verified: request
+            .extensions()
+            .get::<crate::http::forgery::CsrfVerified>()
+            .is_some(),
         method: request.method(),
     };
     let principal = if source == AuthSource::Jwt {
@@ -680,7 +699,7 @@ fn select_credential<'a>(
     headers: &'a HeaderMap,
     method: &'a Method,
 ) -> Result<Option<(AuthSource, &'a str, Option<&'a str>)>> {
-    select_credential_named(mode, headers, method, "openrust_session")
+    select_credential_named(mode, headers, method, "openrust_session", false)
 }
 
 fn select_credential_named<'a>(
@@ -688,6 +707,7 @@ fn select_credential_named<'a>(
     headers: &'a HeaderMap,
     method: &'a Method,
     cookie_name: &str,
+    csrf_verified: bool,
 ) -> Result<Option<(AuthSource, &'a str, Option<&'a str>)>> {
     let session = if matches!(mode, AuthMode::Session | AuthMode::SessionOrToken) {
         session_cookie(headers, cookie_name)?
@@ -716,7 +736,7 @@ fn select_credential_named<'a>(
         if session.is_empty() {
             return Err(Error::Unauthorized);
         }
-        let csrf = if is_safe_method(method) {
+        let csrf = if is_safe_method(method) || csrf_verified {
             None
         } else {
             Some(
@@ -1240,7 +1260,13 @@ mod tests {
             HeaderValue::from_static("openrust_session=other; custom_session=chosen"),
         );
         assert!(matches!(
-            select_credential_named(AuthMode::Session, &headers, &Method::GET, "custom_session"),
+            select_credential_named(
+                AuthMode::Session,
+                &headers,
+                &Method::GET,
+                "custom_session",
+                false
+            ),
             Ok(Some((AuthSource::Session, "chosen", None)))
         ));
         headers.append(
@@ -1253,6 +1279,7 @@ mod tests {
                 &headers,
                 &Method::GET,
                 "custom_session",
+                false,
             )),
             "ambiguous_credentials"
         );
@@ -1273,6 +1300,16 @@ mod tests {
             )),
             "forbidden"
         );
+        assert!(matches!(
+            select_credential_named(
+                AuthMode::Session,
+                &headers,
+                &Method::POST,
+                "openrust_session",
+                true,
+            ),
+            Ok(Some((AuthSource::Session, "session-secret", None)))
+        ));
         headers.insert("x-csrf-token", HeaderValue::from_static("csrf-secret"));
         let selected = select_credential(AuthMode::Session, &headers, &Method::POST);
         assert!(matches!(

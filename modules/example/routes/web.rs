@@ -6,9 +6,13 @@ pub(super) fn register(
 ) -> openrust::http::Routes {
     #[cfg(not(feature = "view"))]
     let _ = view_enabled;
+    if !view_enabled {
+        return routes;
+    }
     routes.group(
         openrust::http::RouteGroup::new()
             .prefix("/example/pages")
+            .middleware_group("web")
             .middleware_group("example.response"),
         |pages| {
             #[cfg(feature = "view")]

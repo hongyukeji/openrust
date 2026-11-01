@@ -1,6 +1,6 @@
 //! 默认 middleware stack。
 //!
-//! 从最外层到最内层依次为：设置 `x-request-id` → 响应上下文 → 将 ID 写入响应 → tracing span →
+//! 从最外层到最内层依次为：规范化并设置 `x-request-id` → 将 ID 写入响应 → 响应上下文 → tracing span →
 //! CORS → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Routes::layer`](crate::http::Routes::layer) 添加的应用 layer
 //! 在此 stack 内运行。
 
@@ -14,8 +14,8 @@ use std::{
 
 use crate::config::{ApiConfig, ConfigError, CorsConfig, ServerConfig};
 use crate::core::{
-    CancelOnDrop, Cancellation, Error, ExecutionContext, ExecutionMetadata, ResponseContext,
-    Result, with_execution_context, with_response_context,
+    CancelOnDrop, Cancellation, Error, ExceptionHandler, ExceptionRequest, ExecutionContext,
+    ExecutionMetadata, ResponseContext, Result, with_execution_context, with_response_context,
 };
 use crate::i18n::{I18n, with_request_locale};
 use axum::Router;
@@ -116,7 +116,13 @@ use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 /// 使用默认 middleware stack 包装 `router`。
-pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<Router> {
+pub fn apply(
+    router: Router,
+    server: &ServerConfig,
+    api: &ApiConfig,
+    exceptions: Arc<ExceptionHandler>,
+    debug: bool,
+) -> Result<Router> {
     let cors = if server.cors.enabled {
         Some(cors_layer(&server.cors)?)
     } else {
@@ -140,10 +146,11 @@ pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<R
     };
     Ok(router
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
-        .layer(PropagateRequestIdLayer::x_request_id())
         .layer(axum::middleware::from_fn_with_state(
             ResponseSettings {
                 api: api.clone(),
+                exceptions,
+                debug,
                 request_timeout: Duration::from_secs(server.request_timeout_secs),
                 request_slots: Arc::new(tokio::sync::Semaphore::new(
                     server.max_concurrent_requests,
@@ -151,6 +158,8 @@ pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<R
             },
             response_context,
         ))
+        // 外层也覆盖 response_context 在调用 next 前返回的异常。
+        .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(axum::middleware::from_fn(normalize_request_id)))
 }
@@ -158,6 +167,8 @@ pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<R
 #[derive(Clone)]
 struct ResponseSettings {
     api: ApiConfig,
+    exceptions: Arc<ExceptionHandler>,
+    debug: bool,
     request_timeout: Duration,
     request_slots: Arc<tokio::sync::Semaphore>,
 }
@@ -213,6 +224,20 @@ async fn response_context(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("-")
         .to_owned();
+    let exception_request = ExceptionRequest::new(
+        request.method().clone(),
+        request.uri().path(),
+        crate::http::request::expects_json_headers(request.headers()),
+        request_id.clone(),
+        settings.debug,
+    );
+    #[cfg(feature = "view")]
+    let exception_request = exception_request.with_views(
+        request
+            .extensions()
+            .get::<crate::core::AppState>()
+            .and_then(crate::core::AppState::get::<crate::view::Views>),
+    );
     let locale_service = if let Some(state) = request.extensions().get::<crate::core::AppState>() {
         if state.container().contains::<I18n>() {
             match state.resolve::<I18n>().await {
@@ -222,6 +247,8 @@ async fn response_context(
                         ResponseContext {
                             request_id,
                             http_status: settings.api.http_status,
+                            exception_handler: Some(Arc::clone(&settings.exceptions)),
+                            exception_request: Some(exception_request),
                         },
                         async move { error.into_response() },
                     )
@@ -282,6 +309,8 @@ async fn response_context(
             ResponseContext {
                 request_id,
                 http_status: settings.api.http_status,
+                exception_handler: Some(settings.exceptions),
+                exception_request: Some(exception_request),
             },
             async move {
                 let _cancel_on_drop = cancel_on_drop;
@@ -601,7 +630,7 @@ mod tests {
     use super::{apply, request_span};
     use crate::{
         config::{ApiConfig, HttpStatusMode, ServerConfig},
-        core::ExecutionContext,
+        core::{ExceptionHandler, ExecutionContext},
     };
     use axum::{
         Router, body::Body, extract::Request, http::StatusCode, response::Response, routing::get,
@@ -660,7 +689,13 @@ mod tests {
         let api = ApiConfig {
             http_status: HttpStatusMode::Semantic,
         };
-        let app = apply(router, &server, &api)?;
+        let app = apply(
+            router,
+            &server,
+            &api,
+            Arc::new(ExceptionHandler::default()),
+            false,
+        )?;
         let first_app = app.clone();
         let first = tokio::spawn(async move {
             first_app
@@ -735,7 +770,13 @@ mod tests {
         let api = ApiConfig {
             http_status: HttpStatusMode::Semantic,
         };
-        let app = apply(router, &server, &api)?;
+        let app = apply(
+            router,
+            &server,
+            &api,
+            Arc::new(ExceptionHandler::default()),
+            false,
+        )?;
         let active = app
             .clone()
             .oneshot(
@@ -782,7 +823,13 @@ mod tests {
                     .unwrap_or_default()
             }),
         );
-        let app = apply(router, &ServerConfig::default(), &ApiConfig::default())?;
+        let app = apply(
+            router,
+            &ServerConfig::default(),
+            &ApiConfig::default(),
+            Arc::new(ExceptionHandler::default()),
+            false,
+        )?;
         let valid = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
         let response = app
             .clone()

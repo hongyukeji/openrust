@@ -1,4 +1,4 @@
-//! 文章输入与分页参数，在进入数据库之前完成字段校验。
+//! 文章输入，在进入数据库之前完成字段校验。
 
 use openrust::validation::{Rule, Rules, Validate};
 
@@ -7,22 +7,6 @@ pub(crate) struct ArticleInput {
     pub(crate) title: String,
 
     pub(crate) body: String,
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub(crate) struct ArticlePage {
-    #[serde(default = "default_page")]
-    pub(crate) page: u64,
-    #[serde(default = "default_per_page")]
-    pub(crate) per_page: u64,
-}
-
-const fn default_page() -> u64 {
-    1
-}
-
-const fn default_per_page() -> u64 {
-    20
 }
 
 fn not_blank(value: &str) -> Result<(), validator::ValidationError> {
@@ -74,20 +58,6 @@ impl Validate for ArticleInput {
                             .map_or(Ok(()), not_blank)
                     }),
                 ],
-            )
-    }
-}
-
-impl Validate for ArticlePage {
-    fn rules() -> Rules {
-        Rules::new()
-            .field(
-                "page",
-                [Rule::integer(), Rule::range(Some(1), Some(1_000_000))],
-            )
-            .field(
-                "per_page",
-                [Rule::integer(), Rule::range(Some(1), Some(100))],
             )
     }
 }

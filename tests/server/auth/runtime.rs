@@ -190,7 +190,7 @@ async fn build_redis_session_app(store: RedisSessionStore) -> Result<openrust::A
             }),
         )
         .provider(TestInstance(std::sync::Arc::new(Marker("injected"))))
-        .provider(TestRoutes::new(current_routes));
+        .provider(TestRoutes::with_session(current_routes));
     builder
         .start(sources)
         .await
@@ -226,7 +226,7 @@ async fn build_app(
             ),
         )
         .provider(TestInstance(std::sync::Arc::new(Marker("injected"))))
-        .provider(TestRoutes::new(routes));
+        .provider(TestRoutes::with_session(routes));
     builder
         .start(sources)
         .await
@@ -730,10 +730,18 @@ impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<
     }
 }
 
-struct TestRoutes<F>(std::sync::Arc<F>);
+struct TestRoutes<F>(std::sync::Arc<F>, u8);
 impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
     fn new(routes: F) -> Self {
-        Self(std::sync::Arc::new(routes))
+        Self(std::sync::Arc::new(routes), 0)
+    }
+
+    fn with_session(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes), 1)
+    }
+
+    fn with_cookies(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes), 2)
     }
 }
 impl<F> openrust::core::ServiceProvider for TestRoutes<F>
@@ -745,8 +753,24 @@ where
         app: &'a mut openrust::core::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
+        let mode = self.1;
         Box::pin(async move {
-            app.routes(move |value| routes(value))?;
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|_, _| true);
+            })?;
+            app.routes(move |value| match mode {
+                1 => value.group(
+                    openrust::http::RouteGroup::new().middleware_alias("session"),
+                    |value| routes(value),
+                ),
+                2 => value.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |value| routes(value),
+                ),
+                _ => routes(value),
+            })?;
             Ok(())
         })
     }
@@ -795,7 +819,7 @@ async fn protected_cookie_app() -> Result<openrust::App> {
         .provider(openrust::security::EncryptionServiceProvider)
         .provider(openrust::http::CookieServiceProvider::new())
         .provider(TestInstance(std::sync::Arc::new(Marker("injected"))))
-        .provider(TestRoutes::new(|routes| {
+        .provider(TestRoutes::with_cookies(|routes| {
             current_routes(routes)
                 .get("/cookie-snapshot", protected_cookie_snapshot)
                 .get("/cookie-overflow", oversized_cookie_response)

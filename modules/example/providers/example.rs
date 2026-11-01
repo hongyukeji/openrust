@@ -1,7 +1,7 @@
 //! 通过 `ServiceProvider` 装配本模块业务。
 
 use openrust::Result;
-use openrust::core::{BootContext, BoxFuture, ModuleConfigFiles, RegisterContext, ServiceProvider};
+use openrust::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
 use std::sync::Arc;
 #[cfg(feature = "session")]
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,11 +16,25 @@ use openrust::db::sea_orm::{EntityTrait, QuerySelect};
 /// 将综合示例路由接入 Provider 引导阶段。
 pub(crate) struct ExampleServiceProvider {
     root: std::path::PathBuf,
+    runtime_policy_enabled: bool,
 }
 
 impl ExampleServiceProvider {
     pub(crate) fn new(root: std::path::PathBuf) -> Self {
-        Self { root }
+        Self {
+            root,
+            runtime_policy_enabled: false,
+        }
+    }
+
+    /// 显式开启进程本地 typed 配置演示；启用后该应用不能写配置缓存。
+    #[allow(
+        dead_code,
+        reason = "应用可按需选择此 Provider 选项，默认模块保持可缓存"
+    )]
+    pub(crate) fn with_runtime_policy(mut self) -> Self {
+        self.runtime_policy_enabled = true;
+        self
     }
 }
 
@@ -68,10 +82,32 @@ async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<(
 async fn overlay_example_config_and_register_resources(
     app: &mut BootContext<'_>,
     application_root: &std::path::Path,
+    runtime_policy_enabled: bool,
 ) -> Result<()> {
     let root = application_root.join("modules/example");
-    let files = ModuleConfigFiles::new("example", root.clone())?;
-    files.overlay(app)?;
+    app.code_config(&crate::modules::example::config::boot())?;
+    if runtime_policy_enabled {
+        app.code_config(&crate::modules::example::config::runtime_policy_manifest())?;
+        let policy = app
+            .config_repository()
+            .typed::<crate::modules::example::config::ExampleRuntimePolicy>(
+                "example.runtime_policy",
+            )?
+            .ok_or_else(|| {
+                openrust::Error::custom("example_policy_missing", "示例模块缺少进程本地配置策略")
+            })?;
+        app.routes(move |routes| {
+            let policy = Arc::clone(&policy);
+            routes.get("/api/example/config-policy", move || {
+                let policy = Arc::clone(&policy);
+                async move {
+                    openrust::http::Json(serde_json::json!({
+                        "greeting_prefix": policy.greeting_prefix.clone(),
+                    }))
+                }
+            })
+        })?;
+    }
     if app.is_bound::<openrust::i18n::I18n>() {
         let source = root.join("lang");
         let published = application_root.join("resources/lang/vendor/example");
@@ -81,6 +117,7 @@ async fn overlay_example_config_and_register_resources(
     }
     #[cfg(feature = "view")]
     if app.is_bound::<openrust::view::Views>() {
+        let files = openrust::core::ModuleConfigFiles::new("example", &root)?;
         let source = files.resource("resources/views")?;
         let published = application_root.join("resources/views/vendor/example");
         app.resolve::<openrust::view::Views>()
@@ -128,6 +165,23 @@ fn register_example_schema(app: &mut RegisterContext<'_>) -> Result<()> {
                     "enabled",
                     openrust::config::repository::SectionSchema::Boolean,
                 )]),
+            ),
+            (
+                "trusted_hosts",
+                openrust::config::repository::SectionSchema::object([
+                    (
+                        "at",
+                        openrust::config::repository::SectionSchema::array(
+                            openrust::config::repository::SectionSchema::String,
+                        )
+                        .nullable(),
+                    ),
+                    (
+                        "subdomains",
+                        openrust::config::repository::SectionSchema::Boolean,
+                    ),
+                ])
+                .nullable(),
             ),
             #[cfg(all(
                 feature = "auth-oidc",
@@ -236,7 +290,12 @@ impl ServiceProvider for ExampleServiceProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_middleware(app)?;
-            overlay_example_config_and_register_resources(app, &self.root).await?;
+            overlay_example_config_and_register_resources(
+                app,
+                &self.root,
+                self.runtime_policy_enabled,
+            )
+            .await?;
             let config = app.section::<openrust::config::DatabaseConfig>("database")?;
             let database_enabled = config.url.is_some()
                 || !config.instances.is_empty()
@@ -264,6 +323,32 @@ impl ServiceProvider for ExampleServiceProvider {
             let view_enabled = false;
             let i18n_enabled = app.is_bound::<openrust::i18n::I18n>();
             let example_config = app.section::<ExampleConfig>("example")?;
+            if let Some(trusted_hosts) = example_config.trusted_hosts.clone() {
+                app.trust_hosts(trusted_hosts)?;
+            }
+            app.exceptions(|handler| {
+                handler
+                    .report::<crate::modules::example::http::controllers::example::ExampleDomainConflict, _>(
+                        |_| openrust::core::ReportDecision::Stop,
+                    )
+                    .render::<crate::modules::example::http::controllers::example::ExampleDomainConflict, _>(
+                        |_, _| {
+                            use openrust::http::axum::response::IntoResponse;
+                            Some((openrust::http::axum::http::StatusCode::CONFLICT,
+                                openrust::http::axum::Json(serde_json::json!({"message": "示例业务冲突"})))
+                                .into_response())
+                        },
+                    )
+                    .respond(|mut response, _, request| {
+                        if request.path() == "/api/example/exception" {
+                            response.headers_mut().insert(
+                                "x-example-exception",
+                                openrust::http::axum::http::HeaderValue::from_static("rendered"),
+                            );
+                        }
+                        response
+                    });
+            })?;
             let summary_origin = example_config.article_summary_origin;
             #[cfg(feature = "session")]
             let session_enabled = session_capability(app);

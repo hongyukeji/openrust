@@ -614,6 +614,7 @@ async fn run_data_exchange_flow(app: &App) -> Result<(), Box<dyn std::error::Err
     };
     let cleanup_attempt = context(app, "locked-cleanup")?.begin_attempt()?;
     let cleanup_result = ImportReportCleanupJob {
+        marker_format: 2,
         disk: "local".to_owned(),
         path: published_output.as_str().to_owned(),
         expires_at_unix_secs: 0,
@@ -642,6 +643,7 @@ async fn run_data_exchange_flow(app: &App) -> Result<(), Box<dyn std::error::Err
             "data-exchange-cleanup",
             ImportReportCleanupJob::NAME,
             &ImportReportCleanupJob {
+                marker_format: 2,
                 disk: "local".to_owned(),
                 path: published_output.as_str().to_owned(),
                 expires_at_unix_secs: 0,
@@ -703,6 +705,7 @@ async fn run_data_exchange_flow(app: &App) -> Result<(), Box<dyn std::error::Err
             "data-exchange-cleanup",
             ImportReportCleanupJob::NAME,
             &ImportReportCleanupJob {
+                marker_format: 2,
                 disk: "local".to_owned(),
                 path: cleanup_path.as_str().to_owned(),
                 expires_at_unix_secs: 0,
@@ -723,6 +726,44 @@ async fn run_data_exchange_flow(app: &App) -> Result<(), Box<dyn std::error::Err
             .await
             .is_err()
     );
+
+    let legacy_path = StoragePath::new("private/reports/legacy-cleanup.json")?;
+    put_source(app, &legacy_path, b"retained report").await?;
+    let mut marker_hash = Sha256::new();
+    marker_hash.update(b"local");
+    marker_hash.update([0]);
+    marker_hash.update(legacy_path.as_str().as_bytes());
+    let mut marker_suffix = String::new();
+    for byte in marker_hash.finalize() {
+        write!(&mut marker_suffix, "{byte:02x}")?;
+    }
+    let legacy_marker =
+        StoragePath::new(format!(".openrust-data-exchange-retention/{marker_suffix}"))?;
+    put_source(
+        app,
+        &legacy_marker,
+        b"{\"expires_at_unix_secs\":4102444800}",
+    )
+    .await?;
+    let legacy: ImportReportCleanupJob = serde_json::from_value(json!({
+        "disk": "local",
+        "path": legacy_path.as_str(),
+        "expires_at_unix_secs": 0
+    }))?;
+    let legacy_attempt = context(app, "legacy-cleanup")?.begin_attempt()?;
+    let legacy_result = legacy.handle(legacy_attempt.context().clone()).await;
+    legacy_attempt
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    assert_eq!(
+        legacy_result
+            .expect_err("legacy cleanup must not delete")
+            .code(),
+        "data_exchange_cleanup_format_unsupported"
+    );
+    let disk = storage.disk("local").await?;
+    assert!(disk.stat(&legacy_path).await.is_ok());
+    assert!(disk.stat(&legacy_marker).await.is_ok());
     Ok(())
 }
 

@@ -23,6 +23,7 @@ mod coordination;
 pub mod dialect;
 pub(crate) mod migration;
 mod migration_lock;
+pub mod query;
 mod rate_limit;
 mod seed;
 mod table_names;
@@ -36,6 +37,10 @@ pub use coordination::{
     LockLease, RequestIdempotency, SharedLocks,
 };
 pub use migration::{FrameworkMigrator, MigrationServiceProvider};
+pub use query::{
+    JoinKind, PageContext, QueryBuilder, QueryPage, RawSql, SimplePage, SortDirection, WhereGroup,
+    with_page_context,
+};
 pub use rate_limit::{DatabaseRateLimitMigration, DatabaseRateLimitStore};
 pub use sea_orm;
 pub use sea_orm::{DatabaseConnection, DatabaseTransaction, DbBackend};

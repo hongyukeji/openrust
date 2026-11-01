@@ -2,6 +2,9 @@
 //! 不启动监听端口；Memory store 与受控保存失败不替代双库证据。
 #![cfg(feature = "session")]
 
+#[cfg(feature = "encryption")]
+mod forgery;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -89,7 +92,7 @@ struct Control {
     business: AtomicUsize,
     resolver_calls: AtomicUsize,
 }
-struct TestRoutes(Arc<Control>);
+struct TestRoutes(Arc<Control>, bool);
 impl ServiceProvider for TestRoutes {
     fn register<'a>(
         &'a self,
@@ -102,40 +105,62 @@ impl ServiceProvider for TestRoutes {
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| {
-                routes
-                    .get("/session-test/shared", shared)
-                    .get("/session-test/flash", flash)
-                    .get("/session-test/inspect", inspect)
-                    .get("/session-test/handler-error", handler_error)
-                    .get("/session-test/cancel", cancel)
-                    .get("/session-test/unsaved", unsaved)
-                    .get("/session-test/presence", presence)
-                    .get("/session-test/require", require)
-                    .get("/history/named", history)
-                    .name("history.named")
-                    .get("/history/anonymous", history)
-                    .post("/history/read", history)
-                    .get("/history/business-error", handler_error)
-                    .name("history.error")
-                    .get("/history/resolver-error", resolver_error)
-                    .get("/history/no-route", no_route)
-                    .get("/history/resolver/{mode}", changing_resolver)
-                    .get("/history/invalid-cookie", invalid_cookie)
-                    .group(
+            let enabled = self.1;
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|request, _| {
+                    request.path().starts_with("/history/")
+                        || request.path().starts_with("/session-test/")
+                });
+            })?;
+            app.routes(move |routes| {
+                let add = |routes: openrust::http::Routes| {
+                    routes
+                        .get("/session-test/shared", shared)
+                        .get("/session-test/flash", flash)
+                        .get("/session-test/inspect", inspect)
+                        .get("/session-test/handler-error", handler_error)
+                        .get("/session-test/cancel", cancel)
+                        .get("/session-test/unsaved", unsaved)
+                        .get("/session-test/presence", presence)
+                        .get("/session-test/require", require)
+                        .get("/history/named", history)
+                        .name("history.named")
+                        .get("/history/anonymous", history)
+                        .post("/history/read", history)
+                        .get("/history/business-error", handler_error)
+                        .name("history.error")
+                        .get("/history/resolver-error", resolver_error)
+                        .get("/history/no-route", no_route)
+                        .get("/history/resolver/{mode}", changing_resolver)
+                        .get("/history/invalid-cookie", invalid_cookie)
+                        .group(
+                            RouteGroup::new().prefix("/history/confirmed").middleware(
+                                axum::middleware::from_fn(handle_precognitive_requests),
+                            ),
+                            |routes| {
+                                routes
+                                    .get("/read", history)
+                                    .post("/validate", history_validated)
+                                    .group(
+                                        RouteGroup::new()
+                                            .middleware(axum::middleware::from_fn(deny)),
+                                        |routes| {
+                                            routes.get("/denied", history).name("history.denied")
+                                        },
+                                    )
+                            },
+                        )
+                };
+                if enabled {
+                    routes.group(
                         RouteGroup::new()
-                            .prefix("/history/confirmed")
-                            .middleware(axum::middleware::from_fn(handle_precognitive_requests)),
-                        |routes| {
-                            routes
-                                .get("/read", history)
-                                .post("/validate", history_validated)
-                                .group(
-                                    RouteGroup::new().middleware(axum::middleware::from_fn(deny)),
-                                    |routes| routes.get("/denied", history).name("history.denied"),
-                                )
-                        },
+                            .middleware_alias("cookies")
+                            .middleware_alias("session"),
+                        add,
                     )
+                } else {
+                    add(routes)
+                }
             })?;
             Ok(())
         })
@@ -344,7 +369,7 @@ async fn app(enabled: bool, probe: Probe, control: Arc<Control>) -> Result<App> 
             }),
         );
     }
-    builder.provider(TestRoutes(control));
+    builder.provider(TestRoutes(control, enabled));
     App::from_provider_runtime(
         builder
             .start(figment::Figment::from(
@@ -548,38 +573,49 @@ async fn business_errors_still_update_previous_but_head_ajax_prefetch_and_intern
             );
         }
         let expected = stored_history(&probe, &cookie).await?;
-        for (method, path, headers, status) in [
-            (Method::HEAD, "/history/named", &[][..], StatusCode::OK),
+        for (method, path, headers, status, session_access) in [
+            (Method::HEAD, "/history/named", &[][..], StatusCode::OK, 1),
             (
                 Method::POST,
                 "/history/named",
                 &[][..],
                 StatusCode::METHOD_NOT_ALLOWED,
+                0,
             ),
             (
                 Method::GET,
                 "/history/not-registered",
                 &[][..],
                 StatusCode::NOT_FOUND,
+                0,
             ),
             (
                 Method::GET,
                 "/history/named",
                 &[("x-requested-with", "XMLHttpRequest")][..],
                 StatusCode::OK,
+                1,
             ),
             (
                 Method::GET,
                 "/history/named",
                 &[("purpose", "prefetch")][..],
                 StatusCode::OK,
+                1,
             ),
         ] {
             let writes = probe.writes.load(Ordering::SeqCst);
+            let loads = probe.loads.load(Ordering::SeqCst);
+            let collections = probe.collections.load(Ordering::SeqCst);
             let response =
                 send_wire(router.clone(), method, path, Some(&cookie), headers, "").await?;
             assert_eq!(response.status, status);
-            assert_eq!(probe.writes.load(Ordering::SeqCst), writes + 1);
+            assert_eq!(probe.loads.load(Ordering::SeqCst), loads + session_access);
+            assert_eq!(
+                probe.collections.load(Ordering::SeqCst),
+                collections + session_access
+            );
+            assert_eq!(probe.writes.load(Ordering::SeqCst), writes + session_access);
             assert_eq!(stored_history(&probe, &cookie).await?, expected);
         }
         Ok(())
@@ -727,7 +763,10 @@ async fn missing_route_short_circuits_header_checks_after_exactly_one_resolver_c
             assert_eq!(response.status(), status);
         }
         assert_eq!(control.resolver_calls.load(Ordering::SeqCst), 1);
-        assert_eq!(probe.writes.load(Ordering::SeqCst), 2);
+        // 未注册路径没有进入路由组，因此不触发该组的 Session 生命周期。
+        assert_eq!(probe.loads.load(Ordering::SeqCst), 1);
+        assert_eq!(probe.collections.load(Ordering::SeqCst), 1);
+        assert_eq!(probe.writes.load(Ordering::SeqCst), 1);
         Ok(())
     }
     .await;
@@ -1037,7 +1076,14 @@ struct RenameSessionRoutes;
 impl ServiceProvider for RenameSessionRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| routes.get("/session-d2/rename", rename_session))?;
+            app.routes(|routes| {
+                routes.group(
+                    RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| routes.get("/session-d2/rename", rename_session),
+                )
+            })?;
             Ok(())
         })
     }
@@ -1074,7 +1120,7 @@ async fn set_name_changes_real_response_cookie_but_inbound_still_uses_configurat
                 },
             ),
         )
-        .provider(TestRoutes(control.clone()))
+        .provider(TestRoutes(control.clone(), true))
         .provider(RenameSessionRoutes);
     let app = App::from_provider_runtime(
         builder

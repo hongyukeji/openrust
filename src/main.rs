@@ -5,6 +5,8 @@
 mod app;
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../config/mod.rs"]
+mod config;
 #[path = "../modules/mod.rs"]
 mod modules;
 #[path = "../routes/web.rs"]

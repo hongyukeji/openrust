@@ -138,7 +138,7 @@ impl crate::core::ServiceProvider for MailerServiceProvider {
                 Box::pin(async move {
                     let config = resolver.section::<MailConfig>("mail")?;
                     let env = resolver.section::<crate::config::Environment>("app.env")?;
-                    if env == crate::config::Environment::Production && config.driver == "log" {
+                    if env.enforces_production_safety() && config.driver == "log" {
                         return Err(Error::Config(ConfigError::Invalid(
                             "mail.driver=log is not allowed in production".into(),
                         )));

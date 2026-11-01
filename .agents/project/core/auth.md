@@ -10,7 +10,7 @@
 
 - `AuthServiceProvider::new()` 注册共享密码服务与数据库认证器的同容器异步工厂；boot 解析当前最终绑定的认证服务，并检查数据库后端为 PostgreSQL 或 MySQL。`AuthServiceProvider::with_authenticator` 使用应用或第三方实现，不依赖 `Db`；后序 Provider 可按容器覆盖契约提供完整自定义服务。
 - `auth::Session` 与相关 store 现重导唯一 `openrust::session` 实现，旧 tower Session 内核已移除。`SessionServiceProvider` 复用最终配置、Cookie 和请求 Scope；默认数据库 store、公开 custom store 与显式内存路径见 [Session 当前事实](session.md) 和 [使用指南](../../../src/session/README.md)。40位ID按原始字节计算摘要，数据库保存有界JSON文本；Insert不覆盖、已加载记录Update不复活删除/过期ID是保留的安全增强。本簇当前Store专项、Auth database双库各8、Redis Auth10、根模块HTTP各53、模块OIDC各8及真实Keycloak主流程各1均已按新运行时验收；完整CSRF和上游Auth默认对应仍开放，详见testing。
-- C04-C已验证的Cookie外层继续给Session提供明文视图，保原始wire供认证严格重复检查；其旧双库各48项记录不自动沿用为D1通过。当前配置改为lifetime=120分钟、secure=None按可信传输推导、same_site可空且默认lax，Cookie名按最终app.name推导或显式配置。最终配置延迟装配与overlay沿[ADR-082](../decisions/adr-082-session-store-and-flash.md)，完整Session/Web范围仍开放。
+- C04-C已验证的Cookie外层继续给Session提供明文视图，保原始wire供认证严格重复检查；其旧双库各48项记录不自动沿用为D1通过。当前配置改为lifetime=120分钟、secure=None按可信传输推导、same_site可空且默认lax，Cookie名按最终app.name推导或显式配置。最终配置延迟装配与overlay沿历史决策 082，完整Session/Web范围仍开放。
 - `SessionStoreHandle::authorized_until(&Session, user_id)` 从该Session实际绑定的服务器端handler重新读取已认证会话，核对存储身份与请求快照及用户 ID，返回真正的持久截止时间；缺记录、过期、身份不符或读取失败均拒绝，不因查询滑动延长期限。模块浏览器 WebSocket 在握手时使用该截止；建连后的撤销不自动即时踢出，最长持续至已读取的截止。外部 test-app consumer 仅证明公开签名可调用，真实行为见模块双库测试。
 - C04-D4的Cookie客户端快照仅在真实Cookie中间件验证完整性且ID/合法数据ID未被except时支持Session认证；`supports_session_authentication`默认为服务器后端允许、客户端后端拒绝，自定义包装须委托。实际Session凭据、默认Db认证入口、登录/登出副作用前、OIDC关联与最终save均校验；plain或被排除保护时返回500 `session_cookie_protection_required`，JWT-only不误拒。Cookie的无请求远程delete及需持续服务器撤销保证的authorized_until明确Unsupported，不假报OIDC远程会话已删。双库plain负例各1及完整加密根组各62已按各自范围通过；完整Auth上游对应与集群仍开放。
 - `Authenticator` 接收路由选中的 `AuthCredential`，返回用户 ID 与 PAT abilities；凭据字段不实现 `Debug` / 序列化。默认数据库实现验证共享 Session 身份和 CSRF，或验证 PAT 到期、撤销、用户禁用并更新 `last_used_at`。
@@ -31,17 +31,17 @@
 - `Policy` 由 `AuthServiceProvider` 在 `Db` 已注册时放入 `AppState`，并通过追加的 `AuthPolicyMigration` 建立全局 roles/permissions/user_roles/role_permissions。支持确保角色、角色分配/撤销、精确权限授予/撤销与显式 `allows` / `authorize`。权限检查每次读取共享数据库，不缓存；JWT/Session 需要角色授予，PAT 还需同名 token ability。授权管理路由由应用负责保护。
 - `QueryRule<E>` / `QueryScope<E>` 按 SeaORM Entity 定义资源行范围；`QueryScope` 必须从非空表达式起步，可通过 AND 与非空 OR 组扩展。`AuthorizedSelect` 只提供 AND 筛选、排序、limit/offset、列表/详情和分页；页大小最多 500，溢出偏移拒绝。批量 update/delete 在真实写语句上组合 rule AND user filter。`related` 会先按父规则校验父记录，再按子实体规则查询关联记录。F6-A 新增 `TenantQueryRule<E>`，由 `QueryRule::for_tenant` 绑定应用租户列；它在 select/related/update/delete 上将当前可信租户与原用户 scope 继续 AND，缺少 TenantContext 时拒绝。此能力不代替 `Policy::authorize`，也不拦截裸 SeaORM、原生 SQL 或自定义 driver。真实 PostgreSQL 18/MySQL 8.4 HTTP 集成覆盖 owner filter、越权详情、混合批量更新/删除和受限关联。
 - `Policy::grant_permission_in_transaction` 接受调用方事务，用于将权限变更与 `openrust::audit::DatabaseAuditSink::record_in_transaction` 原子提交；常规 `grant_permission` 保持内部事务兼容。
-- `AuthMigration` 创建中性逻辑名 `users`、`sessions` 与 `personal_access_tokens`，实际物理名由 ADR-016 的 `DatabaseTableNames` resolver 解析（默认 `tb_*`）。PostgreSQL/MySQL 集成验证默认、空前缀、自定义前缀和 `users` 完整名映射，并走通认证持久化查询。
+- `AuthMigration` 创建中性逻辑名 `users`、`sessions` 与 `personal_access_tokens`，实际物理名由 历史决策 016 的 `DatabaseTableNames` resolver 解析（默认 `tb_*`）。PostgreSQL/MySQL 集成验证默认、空前缀、自定义前缀和 `users` 完整名映射，并走通认证持久化查询。
 - `AuthRefreshTokenMigration` 作为追加迁移创建逻辑名 `auth_refresh_tokens`，不修改原认证迁移版本。`AuthServiceProvider` 在先注册 `DatabaseServiceProvider` 时向应用状态注册 `RefreshTokens`；它签发 32 字节随机 opaque token、只持久化 SHA-256、单次事务轮换、重放撤销整组，并提供单 token 与账户级撤销。账户行锁将签发、轮换和撤销串行化，避免并发轮换在账户级撤销后留下后继 token。初次过期时间由 AuthFlows 默认 30 天或显式配置提供，轮换不延长。
 - `openrust new --db postgres|mysql --auth` 生成 JWT/Auth/AuthFlows 插件、Auth / refresh / verification / Policy migrations、`DatabaseRateLimitMigration`、JWT 默认保护的 `/api/me`、数据库 PAT 保护的 `/api/me/pat`、注册/验证/登录/refresh/logout/密码找回 HTTP routes 和 `[auth.jwt]` 配置区；密钥必须通过 `APP_AUTH__JWT__KEYS__LOCAL` 设置，不内嵌示例密钥。流程端点使用 `ClientIp` extractor；`[server].trusted_proxy_ranges` 默认为空，仅配置的代理 peer 可提供可信 XFF 链。认证代码调用 `Mailer`，由应用配置 SMTP；默认 `log` driver 只确认接收，不暴露验证码，也不代表邮件已送达。
 - 认证生成物附带 `tests/auth_flows.rs`：使用 `TestDatabase` 创建独立数据库、替换 `Mailer` 为 fake，并通过真实 TCP listener 验证生成路由。覆盖统一响应、`Inject` 与 `ClientIp` 共存、可信 XFF、验证码、JWT 当前用户、默认数据库 PAT 认证、登录限流错误、refresh 单次轮换/重放拒绝、密码重置及登出撤销。由于默认 `HttpStatusMode::AlwaysOk`，错误的稳定 `code` 在统一 JSON envelope 中表达，HTTP status 保持 200。运行数据库 e2e 需设置 `OPENRUST_TEST_DATABASE_URL` 并授予测试账号创建/删除数据库权限；未设置时测试会提示并跳过。
 
 ## 外部身份（F7 OIDC 子簇）
 
-- 可选 `auth-oidc` 提供 OAuth2 authorization-code + S256 PKCE relying-party、OIDC Discovery/JWKS 与 ID Token 验证。使用静态 issuer/client/redirect/scope，并通过受限命名 `DependencyClient` 访问 IdP；正常地址只允许 HTTPS，loopback 开发地址可使用 HTTP。`openidconnect` 未采用，具体依赖边界见 [ADR-053](../decisions/adr-053-external-identity-client.md)。
+- 可选 `auth-oidc` 提供 OAuth2 authorization-code + S256 PKCE relying-party、OIDC Discovery/JWKS 与 ID Token 验证。使用静态 issuer/client/redirect/scope，并通过受限命名 `DependencyClient` 访问 IdP；正常地址只允许 HTTPS，loopback 开发地址可使用 HTTP。`openidconnect` 未采用，具体依赖边界见 历史决策 053。
 - `ExternalIdentityFlows` 将短时 state/nonce/verifier 加密保存在数据库，以单次事务消费；额外校验十分钟 HttpOnly/Secure/SameSite=Lax 浏览器绑定 Cookie。identity key 为 provider + issuer + subject，不按邮箱合并；新账户要求已验证邮箱，绑定/解绑要求本地密码重新认证并写入审计。需要 `AuthExternalIdentityMigration` 和应用侧身份创建策略。
 - Discovery、token、JWKS 请求共享一次总时限与 1 MiB 响应体上限。JWKS 最长缓存 5 分钟，过期刷新失败时拒绝认证；未知 `kid` 主动刷新受 30 秒冷却限制。短暂 IdP 故障在缓存过期后会使 OIDC 登录失败关闭。
-- PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码已按 ADR-054 完成并单独通过 PostgreSQL 18/MySQL 8.4 验收；双应用 SSO/统一退出已按 ADR-055 完成双库真实验收。
+- PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码已按 历史决策 054 完成并单独通过 PostgreSQL 18/MySQL 8.4 验收；双应用 SSO/统一退出已按 历史决策 055 完成双库真实验收。
 
 ## 双应用 SSO 与统一退出（F7 验收完成）
 
@@ -50,18 +50,18 @@
 - `begin_logout` 先提交本地关联撤销，再按静态 provider endpoint/client/allowlist 回调 URI生成 RP-Initiated Logout URL；`complete_logout` 一次性消费 state。Session store 删除发生在数据库事务外，失败不会恢复已撤销凭据；重复提交同一关联句柄可补做 RP Session 删除，重放 Back-Channel Logout 可补做通知侧清理。
 - callback 成功后释放未用于撤销的临时 scope 行；过期退出墓碑按索引每次最多清理 100 行，避免长期累积和单次清理造成无界事务。
 - stateless JWT 仍有效至其签名 TTL 到期；本地退出/IdP 通知不提供即时 access-token 撤销。默认 access TTL 为 900 秒且配置上限 3600 秒；应用若覆盖默认值，应以其配置为实际残留上界。
-- PostgreSQL 18 与 MySQL 8.4 的 Keycloak/Redis 真实验收均使用两个隔离应用、每应用两个独立 API 子进程及 TCP round-robin，覆盖双 client SSO、应用 callback/RP logout、跨节点 MFA completion、logout 期间 pending challenge 撤销后拒绝 completion、挂起 callback 在 logout 后拒绝、refresh/logout 并发、退出后两个节点拒绝共享 Session/refresh、节点重启重放与 15 秒 JWT 到期窗口。provider fake 双库测试另覆盖 RP state、审计、关联撤销与旧 callback；Redis store 上的一次删除错误注入后相同通知可重试清理。真实 Redis 断连期间返回 503，恢复后重启双应用四个 API 子进程并以相同 Logout Token 重放成功，PostgreSQL 18/MySQL 8.4 均通过；F7 仍等待本簇完整门禁，详见 [ADR-055](../decisions/adr-055-openid-connect-sso.md) 与 [测试基线](../memory/testing.md)。
+- PostgreSQL 18 与 MySQL 8.4 的 Keycloak/Redis 真实验收均使用两个隔离应用、每应用两个独立 API 子进程及 TCP round-robin，覆盖双 client SSO、应用 callback/RP logout、跨节点 MFA completion、logout 期间 pending challenge 撤销后拒绝 completion、挂起 callback 在 logout 后拒绝、refresh/logout 并发、退出后两个节点拒绝共享 Session/refresh、节点重启重放与 15 秒 JWT 到期窗口。provider fake 双库测试另覆盖 RP state、审计、关联撤销与旧 callback；Redis store 上的一次删除错误注入后相同通知可重试清理。真实 Redis 断连期间返回 503，恢复后重启双应用四个 API 子进程并以相同 Logout Token 重放成功，PostgreSQL 18/MySQL 8.4 均通过；F7 仍等待本簇完整门禁，详见 历史决策 055 与 [测试基线](../memory/testing.md)。
 
 ## 边界与未纳入范围
 
-- AuthFlows service contract 已记录在 [ADR-024](../decisions/adr-024-authentication-flow-service.md) 并已实现；验证码与 RateLimiter 数据库实现分别见 ADR-026/025，Policy contract 和基础实现见 ADR-027。验证码消费和账户变更不是同一事务；密码更新与 refresh family revoke 是单一事务。
+- AuthFlows service contract 已记录在 历史决策 024 并已实现；验证码与 RateLimiter 数据库实现分别见 历史决策 026/025，Policy contract 和基础实现见 历史决策 027。验证码消费和账户变更不是同一事务；密码更新与 refresh family revoke 是单一事务。
 - 生成项目 HTTP handlers 的真实 HTTP/fake-mail/`ClientIp` 集成覆盖已加入。2026-10-26 按当前模板新生成的 PostgreSQL 18 与 MySQL 8.4 项目均通过格式检查、`cargo check` 和完整 JWT/PAT HTTP 流程；Session 登录/退出及 CSRF 流程也在双库隔离集成测试覆盖。
-- 注册、登录、找回、邮箱验证、refresh/logout 与共享限流已有 service 编排和生成 HTTP 路由模板；可信代理来源策略按 ADR-028 实现。
+- 注册、登录、找回、邮箱验证、refresh/logout 与共享限流已有 service 编排和生成 HTTP 路由模板；可信代理来源策略按 历史决策 028 实现。
 - Policy/basic RBAC 已实现；复杂业务策略、租户范围与可缓存授权模型未纳入本 contract。
 - 同一 workspace 内的 `tests/server/` 的认证集成测试构建各自测试 Application；默认 `Server::build` 没有安装 Auth/JWT/Database 插件，启用 `auth` feature 不会自动安装它们。完整认证业务 HTTP 流程由 CLI 生成项目通过真实 TCP 测试覆盖。
-- 按 [ADR-041](../decisions/adr-041-transaction-and-auth-flow-events.md)，`AuthFlows` 提供 direct `RegistrationValidating`、`LoginValidating`、泛化 `LoginFailed`，以及事务内 `RegistrationSucceeded`、`LoginSucceeded`。拒绝校验或成功监听器错误会回滚对应账户/refresh 写入；注册验证码在账户提交后单独签发，Session 登录不声明 SessionStore 原子提交。规范化邮箱只供验证策略使用，监听器不得记录；事件不包含任何认证秘密。
+- 按 历史决策 041，`AuthFlows` 提供 direct `RegistrationValidating`、`LoginValidating`、泛化 `LoginFailed`，以及事务内 `RegistrationSucceeded`、`LoginSucceeded`。拒绝校验或成功监听器错误会回滚对应账户/refresh 写入；注册验证码在账户提交后单独签发，Session 登录不声明 SessionStore 原子提交。规范化邮箱只供验证策略使用，监听器不得记录；事件不包含任何认证秘密。
 - AuthFlows 敏感接口限流及可配置的通用 HTTP `RateLimitLayer` 已实现，路由/key/策略边界见 [HTTP 事实](http.md)；`generate mailer` / `generate policy` 的双库生成验收见 [测试基线](../memory/testing.md)。这些交付不代表公开业务钩子或总体资源限制已完成。
-- 密码服务使用受参数限制的 Argon2id 与 `spawn_blocking`，当前服务本身没有独立的总体并发许可或排队容量；生产资源控制按 [补强计划](../plans/v1-performance-and-readiness.md#2-过载阻塞操作与超时) 补齐，不能由单次参数上限推定全进程内存有界。
+- 密码服务使用受参数限制的 Argon2id 与 `spawn_blocking`，当前服务本身没有独立的总体并发许可或排队容量；生产资源控制按 补强计划 补齐，不能由单次参数上限推定全进程内存有界。
 
 - Twilio 适配器有请求协议、认证、错误脱敏、timeout 与无重试测试，尚无已授权账号和目标号码的真实送达证据。认证和通用安全本地实现及双库验收不依赖该外部条件。
 

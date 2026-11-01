@@ -59,4 +59,4 @@ let report = import_storage_task(
 
 应用负责验证上传者对源对象的访问权限，并在 callback 中执行业务授权和租户约束。`export_storage_task` 同样不接受 SQL 或模型反射；应用提供的 producer 应从 `AuthorizedSelect` 等已授权查询逐批调用 `ExportRowSink::send`。导出先写临时文件，完成后才流式上传对象；`output_path` 是基础路径，框架按 job ID 和 attempt 派生本次尝试的唯一对象路径，实际路径在 `ExportTaskReport.path` 返回。应用必须自行保护下载入口。框架使用数据库 `SharedLocks` 将对象发布与清理串行化；只有完整上传后才写入到期标记并派发清理，避免未完成对象被定时删除。每个尝试路径独立，旧尝试的迟到发布也不会覆盖新尝试的对象。对象操作期间租约每 5 分钟续期，单次续期最多等待 30 秒；续租失败会让任务报错并交由队列重试，但不会丢弃可能已提交的 Storage future，因此数据库不可用时不承诺 Storage exactly-once。worker 请求取消时，上传开始前会检查取消；已开始的上传会等待完成/中止边界后再清理并返回取消错误。应用需确保协调数据库可用，使用 `CoordinationMigration` 创建租约表。清理成功后会同时移除对象和标记。清理 job 由 `QueueServiceProvider` 自动注册，清理失败交给队列的重试和失败任务管理。
 
-`.openrust-data-exchange-retention/` 是框架内部保留的 Storage key 前缀，不可用于源、报告或导出对象。
+`.data-exchange-retention/` 是框架内部保留的 Storage key 前缀，不可用于源、报告或导出对象。旧 `.openrust-data-exchange-retention/` 仍被业务路径校验拒绝；已有索引不会自动迁移或删除，应用应核查旧对象及其生命周期规则。新派发的清理任务携带格式版本；升级前已排队且无版本字段的任务会报 `data_exchange_cleanup_format_unsupported` 并停止自动删除，须人工核对旧对象、保留索引和任务状态。

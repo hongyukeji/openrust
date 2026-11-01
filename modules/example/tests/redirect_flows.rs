@@ -19,6 +19,11 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 struct DraftApplication;
 impl Application for DraftApplication {
     type Config = <crate::bootstrap::Server as Application>::Config;
+
+    fn default_providers() -> openrust::core::DefaultProviders {
+        crate::bootstrap::Server::default_providers()
+            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
     fn config_namespace() -> &'static str {
         crate::bootstrap::Server::config_namespace()
     }
@@ -53,9 +58,14 @@ fn sources() -> Figment {
 
 #[tokio::test]
 async fn example_signed_draft_routes_use_public_generator_request_and_middleware() -> TestResult {
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources())
-        .build()
-        .await?;
+    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(sources()))?,
+    );
+    #[cfg(feature = "view")]
+    builder.remove_provider(openrust::core::ProviderId::of::<
+        openrust::view::OptionalViewServiceProvider,
+    >());
+    let mut app = builder.build().await?;
     let result = async {
         let issue = get(&app, "/api/example/draft/signed-links", None, None).await?;
         let links = state(&issue)?;
@@ -211,9 +221,10 @@ fn state(response: &TestResponse) -> TestResult<Value> {
 
 #[tokio::test]
 async fn draft_redirect_flash_modes_and_two_clients_age_independently() -> TestResult {
-    let mut app = TestApp::<DraftApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app =
+        TestApp::<DraftApplication>::builder(crate::modules::example::test_sources(&(sources()))?)
+            .build()
+            .await?;
     let result = async {
         let a = get(&app, "/api/example/draft/review", None, None).await?;
         let mut a_cookie = cookie_pair(&a)?;
@@ -277,9 +288,10 @@ async fn draft_redirect_flash_modes_and_two_clients_age_independently() -> TestR
 
 #[tokio::test]
 async fn draft_named_route_redirect_retains_flash_and_restores_custom_errors() -> TestResult {
-    let mut app = TestApp::<DraftApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app =
+        TestApp::<DraftApplication>::builder(crate::modules::example::test_sources(&(sources()))?)
+            .build()
+            .await?;
     let result = async {
         let initial = get(&app, "/api/example/draft/review", None, None).await?;
         let mut cookie = cookie_pair(&initial)?;
@@ -317,9 +329,10 @@ async fn draft_named_route_redirect_retains_flash_and_restores_custom_errors() -
 #[cfg(feature = "view")]
 #[tokio::test]
 async fn draft_errors_render_per_request_for_two_clients_and_age() -> TestResult {
-    let mut app = TestApp::<DraftApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app =
+        TestApp::<DraftApplication>::builder(crate::modules::example::test_sources(&(sources()))?)
+            .build()
+            .await?;
     let result = async {
         let initial_a = about(&app, None).await?;
         let initial_b = about(&app, None).await?;
@@ -385,9 +398,14 @@ async fn draft_errors_render_per_request_for_two_clients_and_age() -> TestResult
 
 #[tokio::test]
 async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure() -> TestResult {
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources())
-        .build()
-        .await?;
+    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(sources()))?,
+    );
+    #[cfg(feature = "view")]
+    builder.remove_provider(openrust::core::ProviderId::of::<
+        openrust::view::OptionalViewServiceProvider,
+    >());
+    let mut app = builder.build().await?;
     let result = async {
         redirect(
             &get(&app, "/api/example/draft/plain", None, None).await?,
@@ -557,9 +575,10 @@ async fn confirm<A: Application>(app: &TestApp<A>, cookie: &str) -> TestResult<T
 
 #[tokio::test]
 async fn draft_guest_intended_survives_refresh_and_is_consumed_per_cookie() -> TestResult {
-    let mut app = TestApp::<DraftApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app =
+        TestApp::<DraftApplication>::builder(crate::modules::example::test_sources(&(sources()))?)
+            .build()
+            .await?;
     let result = async {
         let paths = [
             "/api/example/draft/preview?section=summary",

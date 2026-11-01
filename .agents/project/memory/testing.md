@@ -1,5 +1,21 @@
 # 测试基线
 
+## 当前 main 组合限定验收
+
+2026-11-02 收齐本批 Env/Request-MIME、TrustedHosts、中性运行命名、应用代码配置与 Provider、Handler、Web/CSRF、部分 Query 的组合证据。基线 `317e2f6`、环境来源 `8d5e635`；Request/MIME 与其他来源的祖先或三方等价映射保留于 `tmp/controller-handoff-20261102/` 及各 integration 目录。本节对应本地集成树，提交以 Git 为准，不代表完整 Laravel、Modules 或 R4/C07 已完成。
+
+最终默认与全 feature workspace 测试、双严格 Clippy、拒警 Rustdoc、no-default lib、精确 Rust 1.97.0 check、cargo-deny 全部 exit0。最终命令、日志 SHA、耗时及资源见 `tmp/takeover-20261102/{final-gates-index,final-gates-resume-index,final-gates-final-index}.json`；冻结生产/测试/模板输入在同目录 `services-final-inputs.json`。Clippy 首次因 SSE 测试行数失败，等价抽出两次相同的请求构造后通过，未增加 allow 或降低警告级别；快照仅三份已审 helper 与源模板一致后更新，旧失败及快照差异保留。
+
+普通 fresh 生成项目 check/test/build 通过：配置读取、Container 扩展各1项，应用9项，无忽略；实际缓存生成、坏 dotenv 屏障、重启、清除后重读通过。MySQL8.4 fresh check 与真实测试3项通过，包括认证 HTTP、TestApp 邮件覆盖和新 Job 对原 QueueContributions 的复用。原生 API 注册严格无 Session Cookie，显式测试 Session 路由另保 Cookie 数量和加密正向断言。证据 `tmp/combined-validation-20261101/services-*-attempt{7,8}.{json,log}`；不将旧 fixture 的 test/testing、字面键、Provider 清单和全局 Session 假设失败回填为通过。
+
+真实 MySQL 根 bin server 147通过/20忽略；独立 server 集成162通过/20忽略；综合认证/CRUD/分页/Session driver fixture 精确测试1通过。不同目标有重叠模块用例，不相加为覆盖率。证据为 `services-root-mysql-attempt9`、`services-server-integration-attempt11`、`services-root-mysql-attempt11`。首轮缺 Host 的8项及无 Session 宿主错误接线已保留：统一分派 authority 诊断确认后补合法请求头；账户 `/session/*` 按实际 Session 能力登记，原 JWT/模块 API 保留，并新增无绑定及404回归。Query 初始空选择列导致分页 count 子查询 SQL 失败，`Db::table` 已默认选择 `*`，显式 select 替换；真实分页总数、行数据、空第二页和所有者隔离通过。扩展 fixture 显式使用精确 Testing，未放宽生产 Mailer 策略。
+
+根真实 TCP Request 通过；Cookie TLS 的可信 HTTPS、可信 HTTP、不可信伪造协议、属性与密文往返全部通过。TLS 首次输出路径不符被参数检查拒绝、未进入网络，修正 runner 后通过，不改安全检查。TrustedHosts 独立真实 TCP 9案通过：development allow/reject、可信 forwarded Host、HEAD 空体，以及精确 local/testing 绕过。证据为 `services-request-input-tcp-attempt11`、`services-cookie-security-tls-attempt12`、`/tmp/openrust-c04c-tls-takeover-20261102-attempt12.json` 与 `tmp/takeover-20261102/trusted-hosts-tcp-attempt3.json`；前两次模式配置输入格式失败保留。成功验收的自有服务进程正常结束、端口释放；前两次 Host 配置输入失败均在监听前退出，失败证据保留。最终数据库集合无增删。忽略、函数内无凭据返回和 PHP/Windows/Fileinfo/全后端/真实集群等外部或发布矩阵不算此次通过。
+
+旧九份来源、六份 WIP、完整历史 bundle 与保护 refs 已核保全，所有非 main worktree 及八个来源 workspace 已正常退役，不重复整合。危险 `cd487bb` 未合入。skill 本批仅接纳与旧142/61测试及独审九文件 SHA 完全匹配的版本；后续 ended-grant/Codex 原生适配由独立 owner 收口，保持 WIP、未部署，旧总控及旧守护停止。预算历史与问答账本未改；本对话无正式剩余额度读数，不从旧账号推定。
+
+本批完成后确认无构建/服务进程及产物句柄占用，`cargo clean --dry-run` 与正常 `cargo clean` 均exit0；根产物48,729,780,224B→0，磁盘可用154,006,482,944B→202,384,363,520B。源码、生成fixture、依赖源码与证据保留；明细 `tmp/takeover-20261102/completed-target-retirement.json`。下一配置簇仅按需重建同一根target。
+
 <a id="environment-identity-branch"></a>
 ## 环境身份保真分支限定验收
 
@@ -31,8 +47,11 @@ fresh普通生成check/test通过，实际8项、0 ignored；fresh MySQL认证ch
 
 Request库41、`http_input`38、公开test-app consumer Session2、最终CLI主测试23均通过；CLI嵌套摘要不重复计数。旧最终索引曾把父CLI的23项再次扣除而记922；按原日志逐Running/Doc-tests段最后summary复核，959项原始摘要扣14项嵌套为945。更正证据`/tmp/openrust-request-mime-counter-historical-audit.json`保留每binary行号和日志SHA；旧索引/原日志未改写。默认workspace945通过/34忽略，全特性1760通过/111忽略；双严格Clippy与警告拒绝Rustdoc、no-default、Rust1.97和deny适用门禁按代码审计`/tmp/openrust-request-files-code-gates-root-audit.json`与全特性审计`/tmp/openrust-request-files-all-features-root-audit.json`通过。ignored或无服务环境跳过不算真实后端验收。
 
-最终真实链`/tmp/openrust-request-files-services-third-20261101T042452Z/receipt.json`中，CLI23、全新生成项目check及`test_app`8、真实TCP1、Request精确1/TCP精确1均通过；唯一模块multipart附件真实MySQL精确1项无skip，隔离库集合前后相等且同一server UUID。进程组均无残留，生成应用源码已由driver清理，现不能重算其原字节，保留命令、fixture SHA和日志。正文沿原Axum默认/覆盖/禁用限额读取；原文32 MiB、结构化8 MiB是可调整Rust资源预算，不冒称Laravel默认。任务结束清理回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`记录正常Cargo清理exit0，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B；原缺缓存标记中止记录保留，归属核定后恢复标准标记，未动未知外置缓存。源码冻结后的最终变更仅为Agent事实文档与依赖说明，不影响已执行Rust门禁；真实服务细节以driver回执`/tmp/openrust-request-files-services-prepare/run-20261101T042456Z/receipt.json`为准。完整Symfony MIME、真实S3 ACL、迟到CopyObject、Storage `throw=false`和Windows原生取消清理仍开放，不能关闭整个Request/Files。
+最终真实链`/tmp/openrust-request-files-services-third-20261101T042452Z/receipt.json`中，CLI23、全新生成项目check及`test_app`8、真实TCP1、Request精确1/TCP精确1均通过；唯一模块multipart附件真实MySQL精确1项无skip，隔离库集合前后相等且同一server UUID。进程组均无残留，生成应用源码已由driver清理，现不能重算其原字节，保留命令、fixture SHA和日志。正文沿原Axum默认/覆盖/禁用限额读取；原文32 MiB、结构化8 MiB是可调整Rust资源预算，不冒称Laravel默认。任务结束清理回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`记录正常Cargo清理exit0，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B；原缺缓存标记中止记录保留，归属核定后恢复标准标记，未动未知外置缓存。源码冻结后的最终变更仅为Agent事实文档与依赖说明，不影响已执行Rust门禁；真实服务细节以driver回执`/tmp/openrust-request-files-services-prepare/run-20261101T042456Z/receipt.json`为准。当时完整Symfony MIME、真实S3 ACL、迟到CopyObject、Storage `throw=false`和Windows原生取消清理仍开放；MIME续作的新限定证据见下，不能关闭整个Request/Files。
 
+MIME续作的任务分支限定证据索引`/tmp/openrust-request-mime-final-evidence-index.json`已核608输入、21候选及24份本轮原始日志SHA无漂移；v7代码回执`/tmp/openrust-request-mime-code-verification-v7/receipt.json`复用v6前8阶段的有效证据，15阶段均exit0。Request库51、`http_input`38、公开MIME consumer1、Session consumer3通过；默认workspace955/0/34忽略，全特性1770/0/111忽略，双严格Clippy、全特性警告拒绝Rustdoc、no-default、Rust1.97和deny通过。真实链`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`九阶段exit0：全新生成项目check与`test_app`8、生成multipart与真实TCP精确各1、唯一模块真实MySQL multipart精确1无skip；同一MySQL server UUID及既有60个schema集合前后相等，进程组无残留，生成应用由本任务清理。此轮证明固定Symfony v8.0.0有序扩展表、Unix `FileBinary`与可替换guesser的限定行为；原生Fileinfo、Windows默认检测/清理、完整MIME及S3 ACL、迟到CopyObject、`throw=false`继续开放。MIME续作本次任务分支限定交付，尚未纳入main；v3–v6失败原始证据保留，旧Request默认945/34（原922误扣CLI父23）的更正不被新955/34替换。
+
+本轮资源清理回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`核无构建进程/target打开句柄，`cargo clean --dry-run`与实际`cargo clean`均exit0；根target30,115,557,376B→0，磁盘可用168,778,330,112B（16.968%）→198,646,296,576B（19.971%），未知外置65,982,464B未删。首次lsof解码失败时未执行clean的原证据保留；本次数值为清理前后实测，不与代码/服务阶段的末次采样混算。
 
 <a id="st-v-main-限定组合验收"></a>
 ## ST-V main 限定组合验收
@@ -230,7 +249,7 @@ P分支默认严格Clippy曾连续三次失败，按§5暂停并获用户明确�
 
 ## C04-D8 previous 与 Precognition（限定子范围已验收）
 
-本簇实现见 [ADR-084](../decisions/adr-084-session-previous-and-precognition.md) 与 [HTTP](../core/http.md)、[Session](../core/session.md)。不关闭整个HTTP/Session、完整FormRequest或Laravel验证规则集。
+本簇实现见 历史决策 084 与 [HTTP](../core/http.md)、[Session](../core/session.md)。不关闭整个HTTP/Session、完整FormRequest或Laravel验证规则集。
 
 | 当前证据 | 实际范围与限制 |
 | --- | --- |
@@ -251,7 +270,7 @@ Cookie模板与受控快照修复相对上述runtime快照只改这两个CLI生�
 
 ## C04-D7 真实路由上下文（限定子范围已验收）
 
-按ADR-083交付受管理RouteMethods、真实Route/参数/名称通配与可信应用Resolver；全局前后、路由中间件/短路、错误、domain候选、group/nest/merge/forward、GET/HEAD/QUERY/custom/any、OPTIONS/fallback/静态与请求隔离均有真实生产回归。完整Routing、可选参数/声明defaults/约束/模型与枚举绑定、previous/Precognition不由本簇关闭。
+按历史决策 083交付受管理RouteMethods、真实Route/参数/名称通配与可信应用Resolver；全局前后、路由中间件/短路、错误、domain候选、group/nest/merge/forward、GET/HEAD/QUERY/custom/any、OPTIONS/fallback/静态与请求隔离均有真实生产回归。完整Routing、可选参数/声明defaults/约束/模型与枚举绑定、previous/Precognition不由本簇关闭。
 
 | 最终证据 | 实际结果 |
 | --- | --- |
@@ -272,7 +291,7 @@ Cookie模板与受控快照修复相对上述runtime快照只改这两个CLI生�
 
 ## C04-D6 Request URL（限定子范围已验收）
 
-公开API与差异见[ADR-078](../decisions/adr-078-request-inspection.md#c04-d6请求地址与查询串契约)。本簇覆盖Info的请求origin、URL、解码路径/分段/星号匹配/prefetch，以及唯一Request当前query增删；原始OriginalUri与GET/HEAD当前输入分开，JSON输入优先于HTTP方法。未关闭真实路由命中、previous、Precognition、TrustProxies完整转发Host/Port/Prefix。
+公开API与差异见历史决策 078。本簇覆盖Info的请求origin、URL、解码路径/分段/星号匹配/prefetch，以及唯一Request当前query增删；原始OriginalUri与GET/HEAD当前输入分开，JSON输入优先于HTTP方法。未关闭真实路由命中、previous、Precognition、TrustProxies完整转发Host/Port/Prefix。
 
 | 证据 | 实际结果与范围 |
 | --- | --- |
@@ -301,7 +320,7 @@ Cookie模板与受控快照修复相对上述runtime快照只改这两个CLI生�
 
 ## C04-D5 GC lottery（限定子范围已验收）
 
-公开行为与固定源码SHA见[ADR-082 D5](../decisions/adr-082-session-store-and-flash.md#d5-gc-lottery与公开driver契约)。默认`[2,100]`在start后、业务前调用实际请求驱动的GC；DB/Memory按已持久绝对expiry清理，Cookie/Redis保持noop/TTL职责。与Laravel当前lifetime回溯last_activity、Array严格小于的安全差异仍公开，不以本簇关闭完整Session。
+公开行为与固定源码SHA见历史决策 082 D5。默认`[2,100]`在start后、业务前调用实际请求驱动的GC；DB/Memory按已持久绝对expiry清理，Cookie/Redis保持noop/TTL职责。与Laravel当前lifetime回溯last_activity、Array严格小于的安全差异仍公开，不以本簇关闭完整Session。
 
 | 范围 | 实际结果 | 证据与边界 |
 | --- | --- | --- |
@@ -326,7 +345,7 @@ Cookie模板与受控快照修复相对上述runtime快照只改这两个CLI生�
 
 ## C04-D4 内置Cookie Session driver（限定子范围已验收）
 
-契约见[ADR-082 D4](../decisions/adr-082-session-store-and-flash.md#d4实现契约与明确差异)。以下均为本簇实际运行；忽略项不算真实服务，代理TLS不算Rust原生TLS或集群。本簇完成限定子范围，不关闭整个Session或已公开差异。
+契约见历史决策 082 D4。以下均为本簇实际运行；忽略项不算真实服务，代理TLS不算Rust原生TLS或集群。本簇完成限定子范围，不关闭整个Session或已公开差异。
 
 | 范围 | 实际结果 | 证据与边界 |
 | --- | --- | --- |
@@ -362,7 +381,7 @@ plain3-PG修后真实命令退出0，具名负例实际1 passed、0 failed/ignor
 
 ## C04-D3 Session扩展生命周期（限定子范围已验收）
 
-契约见[ADR-082 D3](../decisions/adr-082-session-store-and-flash.md#d3扩展生命周期契约与验收边界)。D2的3cabae2不继承为D3通过；完整Cookie driver另列紧邻D4。
+契约见历史决策 082 D3。D2的3cabae2不继承为D3通过；完整Cookie driver另列紧邻D4。
 
 | 范围 | 实际结果 | 证据与边界 |
 | --- | --- | --- |
@@ -388,7 +407,7 @@ plain3-PG修后真实命令退出0，具名负例实际1 passed、0 failed/ignor
 
 ## C04-D2 Store公开API（限定子范围已验收）
 
-契约见[ADR-082 D2](../decisions/adr-082-session-store-and-flash.md#d2基础store方法与公开扩展契约与验收边界)。D1已由d47162d提交，其完整验收不继承为D2通过。
+契约见历史决策 082 D2。D1已由d47162d提交，其完整验收不继承为D2通过。
 
 | 范围 | 实际结果 | 证据与边界 |
 | --- | --- | --- |
@@ -409,7 +428,7 @@ PHP8.5.0缓存实际执行44条结果，22条裸表达式与22条真实固定官
 
 ## C04-D1 Session Store/flash（限定子范围已验收）
 
-契约见[ADR-082](../decisions/adr-082-session-store-and-flash.md)，当前实现见[Session](../core/session.md)。以下定向结果仅证明各自源码快照，不代替后续修改后的最终门禁；本簇限定提交以Git为准。
+契约见历史决策 082，当前实现见[Session](../core/session.md)。以下定向结果仅证明各自源码快照，不代替后续修改后的最终门禁；本簇限定提交以Git为准。
 
 | 范围 | 实际证据 | 边界与入口 |
 | --- | --- | --- |
@@ -449,7 +468,7 @@ PHP8.5.0缓存实际执行44条结果，22条裸表达式与22条真实固定官
 
 ## C04-C Cookie/响应（已验收）
 
-契约见[ADR-081](../decisions/adr-081-request-response-cookies.md)。以下均为本簇实际证据，按范围记录，不沿用B2门禁；早期定向记录不替代最终快照；空domain修后根双库已按final独立证据重验。
+契约见历史决策 081。以下均为本簇实际证据，按范围记录，不沿用B2门禁；早期定向记录不替代最终快照；空domain修后根双库已按final独立证据重验。
 
 | 范围 | 当前证据 | 限制与入口 |
 | --- | --- | --- |
@@ -481,7 +500,7 @@ PHP8.5真实SAPI参考采集22个原始HTTP请求，均200：20个可表达单he
 
 ## C04-B2 类型便捷方法
 
-- 已通过本簇适用门禁，限定公开Request/Fluent的标量、Stringable、保键Collection、枚举、clamp、条件分支、日期/区间和上下文；不代表完整Carbon工具箱或完整C04。contract与Rust适配见[ADR-079](../decisions/adr-079-request-input.md)，固定源/许可证/再生成见[SOURCES](../../../src/support/calendar/date/SOURCES.md)。
+- 已通过本簇适用门禁，限定公开Request/Fluent的标量、Stringable、保键Collection、枚举、clamp、条件分支、日期/区间和上下文；不代表完整Carbon工具箱或完整C04。contract与Rust适配见历史决策 079，固定源/许可证/再生成见[SOURCES](../../../src/support/calendar/date/SOURCES.md)。
 - 最终冻结快照：`/tmp/openrust-c04b2-final2-*.result.json`共20阶段，全部actual_exit=0、source_changed=[]；driver `/tmp/openrust-c04b2-final2-driver.log`。fmt、default/all-features workspace all-target Clippy（`-D warnings`）、默认/全特性Rustdoc（`-D warnings`）、no-default all-target check、Rust 1.97 all-feature all-target check、cargo deny通过。默认workspace tests 645 passed/29 ignored；全特性1211 passed/99 ignored，均0 failed；default的29项均为Rustdoc示例；all的99项为35个Rustdoc示例与64个显式外部服务验收（20项在三target重复、Mailpit2、Keycloak1、S3版本1）。ignored与未显式提供外部条件的测试不算真实服务证据，分类记录`/tmp/openrust-c04b2-final2-ignored.json`。
 - 根真实PG18/MySQL8.4：完整`example_auth_flows`各47 passed，0 ignored/filtered/skipped；普通生成项目check/tests 2项通过；PG/MySQL生成认证项目各2具名测试通过，含同库配置的共用B2公开helper，0 ignored/skipped。四个本轮独占数据库anchor均已DROP，原认证与清理断言保留。邮件采用测试驱动，不将其记作真实供应商发送。
 - 真实TCP：根默认`cargo run`，仓内`verify-request-input.py` SHA `028e50883fa8f069d7637dcf304a679e971b9cce4844163ef38410279dc62fea`；6/6（正常/default-null 200，枚举/日期/区间错误400，区间词项超限413），健康200、工具exit0、服务优雅退出0，外层45秒有界。新证据使用final2独立路径，未覆盖第一次运行记录。
@@ -516,7 +535,7 @@ PHP8.5真实SAPI参考采集22个原始HTTP请求，均200：20个可表达单he
 
 CLI 生成的普通项目 `/tmp/openrust-r2n-generated-20261029`：`cargo fmt --all --check`、`cargo check --workspace --all-targets --offline`、`cargo test --workspace --offline` 通过；生成应用 API/health 测试与新增公开 `ModuleDescriptor::requires` 调用测试共 2/2。根仓库 `cargo fmt --all --check`、默认/all-features workspace all-target Clippy（`-D warnings`）、默认/all-features workspace tests、warnings-denied 双 Rustdoc、`cargo check --workspace --all-targets --no-default-features`、Rust 1.97 `check --workspace --all-targets --all-features` 与 `check -p openrust --no-default-features`、`cargo deny check` 均退出 0。核心库默认 297 项、all-features 489 项通过；全特性核心另有 2 ignored；外部服务 ignored 用例不计验收。cargo-deny 的 advisories/bans/licenses/sources 通过，保留原有 duplicate base64/winnow 与未匹配 MPL allowance 警告。
 
-Spec、ADR-075、core/模块/CLI 文档与唯一队列已同步。该簇不改数据库读写契约，真实 DB HTTP 用来验证模块启动与应用装配；完整 Laravel/laravel-modules、模块管理命令、生产集群仍未完成。
+Spec、历史决策 075、core/模块/CLI 文档与唯一队列已同步。该簇不改数据库读写契约，真实 DB HTTP 用来验证模块启动与应用装配；完整 Laravel/laravel-modules、模块管理命令、生产集群仍未完成。
 
 ## R2-A3 缓存发布与锁外唤醒
 
@@ -562,7 +581,7 @@ ConfigLoader::figment现在返回Result，全部第一方loader调用同步传�
 
 ## R1 当前工程边界与验收入口
 
-按 [ADR-073](../decisions/adr-073-root-application-and-example-module.md)，根 openrust package 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs。default-members=["."]、default-run="server"；Laravel 应用职责直接位于根，唯一 app/example 通过 app/mod.rs 注册薄业务 Plugin。以下是结构迁移子步骤的新执行记录，不表示 R1 综合 CRUD、全能力示例或 Laravel/modules 1:1 目标已完成。
+按 历史决策 073，根 openrust package 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs。default-members=["."]、default-run="server"；Laravel 应用职责直接位于根，唯一 app/example 通过 app/mod.rs 注册薄业务 Plugin。以下是结构迁移子步骤的新执行记录，不表示 R1 综合 CRUD、全能力示例或 Laravel/modules 1:1 目标已完成。
 
 本布局已实际通过 fmt、默认/all-features workspace all-target Clippy、默认/all-features workspace tests、warnings-denied 默认/all-features Rustdoc、deny 和 no-default check。默认 263 passed/22 ignored，全 feature 486 passed/32 ignored；默认不再由独立 example 包隐式强开 auth/grpc 等 feature，不与旧默认测试计数机械比较。根显式 34 个测试 target 保留原框架+demo 的 33 个与原 example auth HTTP 测试；模块注册有/无、普通业务路由、声明错误数据库启动失败回归已执行。底层框架源码、dependencies/features 未改；根锁无新增或升级 registry name/version/checksum，仅移除 20 个不再由根示例 build 使用的工具节点。
 
@@ -582,13 +601,13 @@ Rust 1.97.0 的 cargo check --workspace --all-targets --all-features 通过，SQ
 
 最终确认无 Cargo/rustc/server 进程后，对独占 /tmp/openrust-r1-root-target 先 cargo clean --dry-run 再 cargo clean，实际回收 44051 files/14.1 GiB，磁盘剩余 118 GiB（约13%）。本任务在软限时也只于安全阶段清理该独占目录；未知归属根 target 与预存 consumer 缓存不清。/tmp 生成项目和日志保留作本轮证据。后继未挂载 app/example/extensions.rs 与未审 R2 contract 是独立 WIP，不计本次已验证功能。
 
-以上仅为 ADR-073 过渡路径的 R1-S 结构子交付。最终 modules/example 目录迁移依 ADR-074/R2-M；统一 Provider、完整 CRUD、全能力示例、供应商实发及完整集群尚未交付或不在本子步骤范围，不能转记为这些目标通过。
+以上仅为 历史决策 073 过渡路径的 R1-S 结构子交付。最终 modules/example 目录迁移依 ADR-001/R2-M；统一 Provider、完整 CRUD、全能力示例、供应商实发及完整集群尚未交付或不在本子步骤范围，不能转记为这些目标通过。
 
-## R1 ADR-072 历史验收事实
+## R1 历史决策 072 历史验收事实
 
-以下是 14c143f 及其前置布局的实际记录，保留原命令和目录以追溯当时证据；它们不是当前可直接运行的路径或本次 ADR-073 验收。
+以下是 14c143f 及其前置布局的实际记录，保留原命令和目录以追溯当时证据；它们不是当前可直接运行的路径或本次 历史决策 073 验收。
 
-按 [ADR-072](../decisions/adr-072-framework-and-application-projects.md)，根 openrust/src 是框架库，examples/demo 是根 workspace 成员，共用根 Cargo.lock，无嵌套 workspace。根 default-members=["examples/demo"]，根与 demo 目录无参数 cargo run 默认 server；全部原 tests/server 迁入 examples/demo/tests/server。CLI 模板是唯一骨架来源；本轮迁移实现与适用验收已完成。
+按 历史决策 072，根 openrust/src 是框架库，examples/demo 是根 workspace 成员，共用根 Cargo.lock，无嵌套 workspace。根 default-members=["examples/demo"]，根与 demo 目录无参数 cargo run 默认 server；全部原 tests/server 迁入 examples/demo/tests/server。CLI 模板是唯一骨架来源；本轮迁移实现与适用验收已完成。
 
 本轮同一 workspace 已实际通过：cargo fmt --all --check，默认/all-features workspace all-target Clippy，默认/all-features workspace test，默认及 warnings-denied all-features Rustdoc，cargo deny check。默认 361 passed / 26 ignored；all-features 481 passed / 32 ignored。另显式 cargo test -p openrust --lib 为 146 passed / 0 ignored。根锁图仅把原 application 本地节点变为 demo，注册表 name/version/checksum 集合完全不变。
 
@@ -618,9 +637,9 @@ Rust 1.97.0 的 cargo check --workspace --all-targets --all-features 通过，SQ
 
 不同模型独立审查发现 MySQL CI 普通用户缺 CREATE DATABASE 权限，新增 demo 整组已改 root；该记录为中间状态；最终同一 workspace 已复验修后双库 feature 命令，结果见本节开头。
 
-## R1 旧布局验收事实（ADR-071）
+## R1 旧布局验收事实（历史决策 071）
 
-以下保留旧 ADR-071 根 application/server 与 framework/openrust 布局的实际验收；不能作为 ADR-072 新布局通过。目录与分发依据旧 ADR-071。根为 application/server，框架库为 framework/openrust，默认成员只有根应用；apps/example 已迁为 examples/example。下文保留的原专项记录是迁移前行为证据，含 `cargo test -p openrust --test ...` 的旧命令；当时应用集成 target 使用 `-p application`，框架单元测试仍用 `-p openrust --lib`。
+以下保留旧 历史决策 071 根 application/server 与 framework/openrust 布局的实际验收；不能作为 历史决策 072 新布局通过。目录与分发依据旧 历史决策 071。根为 application/server，框架库为 framework/openrust，默认成员只有根应用；apps/example 已迁为 examples/example。下文保留的原专项记录是迁移前行为证据，含 `cargo test -p openrust --test ...` 的旧命令；当时应用集成 target 使用 `-p application`，框架单元测试仍用 `-p openrust --lib`。
 
 实际执行：fmt，默认/all-features workspace all-target Clippy，默认/all-features workspace test，默认及 warnings-denied all-features Rustdoc，cargo deny；MSRV `cargo +1.97.0 check --workspace --all-targets --all-features`，no-default-features check。依赖审计仅保留既有重复版本告警。最终默认 workspace 349 passed / 26 ignored，all-features 480 passed / 32 ignored；忽略或缺服务导致 skip 不计真实服务通过。
 
@@ -634,7 +653,7 @@ Rust 1.97.0 的 cargo check --workspace --all-targets --all-features 通过，SQ
 
 ## M5 WebSocket 与 SSE 跨节点路由
 
-按 [ADR-059](../decisions/adr-059-realtime-transport.md) 启用 `realtime` / `realtime-redis`。在本机已有 Redis 8.10.2 上通过独立示例执行：
+按 历史决策 059 启用 `realtime` / `realtime-redis`。在本机已有 Redis 8.10.2 上通过独立示例执行：
 
 ```bash
 OPENRUST_REALTIME_TEST_REDIS_URL=redis://127.0.0.1:6379/ \
@@ -649,7 +668,7 @@ OPENRUST_REALTIME_TEST_REDIS_URL=redis://127.0.0.1:6379/ \
 
 ## M5 gRPC G1 基础与生成
 
-按 [ADR-040](../decisions/adr-040-grpc-integration.md) 增加可选 `grpc` feature、配置校验、服务注册/冲突检测、默认及具名共享 Channel、`grpc serve` 命令、应用自有 proto/build.rs 生成和 loopback TCP 示例。默认 feature 不启用 tonic/prost/protoc；G1 只接受明文 `http://` client endpoint，TLS/认证/health/配额由 G2 交付。
+按 历史决策 040 增加可选 `grpc` feature、配置校验、服务注册/冲突检测、默认及具名共享 Channel、`grpc serve` 命令、应用自有 proto/build.rs 生成和 loopback TCP 示例。默认 feature 不启用 tonic/prost/protoc；G1 只接受明文 `http://` client endpoint，TLS/认证/health/配额由 G2 交付。
 
 服务端集成测试 3 项通过（注册与真实 TCP 生命周期、重复名称拒绝、未注册服务失败）；独立示例实际执行 unary、server stream、client stream、bidirectional stream、半关闭与断连清理。CLI `--grpc` 模板测试通过；在无 `.git`、无 target 的干净源码副本生成应用后 `cargo check` 和 `cargo test --locked` 通过，无绝对路径或 registry patch。默认 workspace 测试与 `RUST_TEST_THREADS=1 cargo test --workspace --all-features` 通过；all-features 包含真实 Redis targets。all-target/all-features workspace 与独立示例 Clippy、warnings-denied 默认/all-features Rustdoc、workspace 与独立示例 `cargo deny`、fmt/diff check 通过。deny 仅保留既有重复依赖版本及未匹配 MPL allowance 告警。`cargo +1.97.0 check` 的框架 gRPC feature 与独立示例均已通过；默认依赖树不含 tonic/prost/protoc。未覆盖 G2 安全语义和 G3 多节点/联合运行。
 
@@ -694,7 +713,7 @@ OIDC 子簇及并发 storage 回归修复的门禁：`cargo fmt --all --check`�
 
 SSO 强制验收使用真实 Keycloak 26.8.1、PostgreSQL 18/MySQL 8.4、Redis 8 和两个隔离应用（每个应用两个 API 子进程）。callback、MFA 与 logout handler 经真实 loopback TCP round-robin；双库均通过双 client SSO、callback/logout 并发（挂起 callback 在 logout 后返回 401）、MFA completion/logout 竞态（challenge 撤销后返回 401）、refresh/logout 竞争、每个子节点拒绝已撤销 Session/refresh、重启节点后 Token 重放幂等，以及 15 秒 access token 在退出后仍可验签并按 `exp` 到期拒绝。OIDC 双库测试还在真实 Redis Session store 上注入一次 delete error，确认同一通知重放可完成清理；此项与物理 Redis 断连分开记录。真实断连验收与结果见本节 2026-10-27 F7 记录。复跑需 `OPENRUST_REQUIRE_SHARED_SESSION=1`、`OPENRUST_TEST_SESSION_REDIS_URL`、`OPENRUST_REQUIRE_OIDC_IDP=1`、`OPENRUST_OIDC_ISSUER`、Keycloak 管理员变量、双库 `OPENRUST_TEST_DATABASE_URL` 与 `RUST_TEST_THREADS=1`；命令见本节上方。现有 PostgreSQL 18、MySQL 8.4、Redis 8 服务未停止。
 
-## M5 ADR-054 TOTP MFA 与恢复码（F7 子簇）
+## M5 历史决策 054 TOTP MFA 与恢复码（F7 子簇）
 
 `cargo test -p openrust --features auth-mfa auth::mfa::tests --lib` 覆盖 RFC 6238 SHA-1 向量、6 位格式及允许时间步边界。`examples/demo/tests/server/auth/mfa.rs` 的真实 TCP/数据库生命周期测试在 PostgreSQL 18 与 MySQL 8.4 各通过 1 项：`OPENRUST_TEST_DATABASE_URL=... cargo test --manifest-path examples/demo/Cargo.toml --features 'auth-mfa auth-oidc db-<backend>' --test auth_mfa --test auth_oidc -- --nocapture`。覆盖 password 与 OIDC challenge、Session 登录/既有 Session 阻断、挑战来源绑定/过期/五次失败、TOTP replay、恢复码单次消费、enrollment/禁用/重置、密钥轮换、审计与 refresh 撤销；服务端测试还验证此前密码登录 helper 无法绕过 MFA。
 
@@ -710,7 +729,7 @@ MFA 子簇门禁：fmt、默认/all-features workspace all-target Clippy、默�
 
 `cargo test -p openrust cache::tests` 覆盖 memory generation 失效、命名空间隔离、旧 entry 写入拒绝、无能力 file driver 拒绝；Redis 真实服务测试使用两个独立 Redis 连接验证共享读取、代际失效和旧 entry 回填被拒绝，`根目录集成宿主` 聚合测试通过真实 Redis 验证应用集成。Redis tag generation 不设置 TTL，tagged value 必须有 TTL；未创建真实跨进程双节点测试，F4c 最终矩阵仍需补足。F4a 的 workspace default/all-features tests、clippy、warnings-denied docs、fmt、cargo deny 和 no-default check 均通过；数据库集成测试因未配置 `OPENRUST_TEST_DATABASE_URL` 跳过，与本簇无关。
 
-## M5 命名数据库连接实例（ADR-045）
+## M5 命名数据库连接实例（历史决策 045）
 
 `cargo test -p openrust --features db-postgres named_instance -- --nocapture`、`database_selector` 与 `migration_action` 定向测试通过。`cargo test --manifest-path examples/demo/Cargo.toml --features db-postgres --test db_migration named_database_instances_keep_migrations_and_transactions_isolated -- --exact --nocapture` 和 MySQL 对应命令各通过 1 项，使用 PostgreSQL 18 与 MySQL 8.4 真实隔离库。测试同时配置 default、analytics、reporting 三个独立实例，验证连接身份、默认句柄兼容、具名副本读取、prefix、显式 migration 目标、未迁移表隔离及事务数据不串用。具名副本使用对应实例自己的隔离数据库 URL，验证的是实例绑定边界，不是物理复制延迟；复制语义由读写分离专项另行覆盖。
 
@@ -722,7 +741,7 @@ MFA 子簇门禁：fmt、默认/all-features workspace all-target Clippy、默�
 
 `cargo +1.97.0 check -p openrust --no-default-features --features session-redis` 与 server feature check 通过。默认/all-features workspace clippy、test、warnings-denied docs、fmt、no-default check 与 `cargo deny check` 通过；deny 仍有既有重复版本与未匹配 MPL allowance 警告，advisories/bans/licenses/sources 均通过。两个 App 在同一测试进程内，未代表多进程集群门禁；Redis 6.2 最低版本兼容和在线 Redis 故障期间的端到端恢复留待发布/集群验收。
 
-## M5 Redis Queue driver（ADR-046）
+## M5 Redis Queue driver（历史决策 046）
 
 本次使用已运行的真实 Redis 8.10.2 服务。`cargo test --manifest-path examples/demo/Cargo.toml --features queue-redis --test queue_redis_driver` 3 项通过：四个独立连接 worker 对 40 个任务竞争、活动唯一键、失败保留/重试/幂等 retry ID/进度、独立子进程强杀后租约到期恢复、非法 namespace 与不可达服务失败关闭。`cargo test --manifest-path examples/demo/Cargo.toml --features queue-redis --test queue_redis` 2 项通过：Redis QueuePlugin 无需 DatabasePlugin；存在数据库 scheduler 注册时 build 失败。另用 `examples/queue` Redis-only 启动 API，真实 TCP `POST /jobs` 返回任务 ID，再由独立 worker 使用同一 namespace 运行；两个任务进程均正常响应 Ctrl-C。
 
@@ -732,7 +751,7 @@ MFA 子簇门禁：fmt、默认/all-features workspace all-target Clippy、默�
 
 2026-10-26 定向测试：`cargo test -p openrust serve::tests -- --nocapture` 覆盖未绑定/绑定就绪、drain 中停止接入、在途请求完成、非合作请求到期取消及 bind 失败；`cargo test --manifest-path examples/demo/Cargo.toml --test server serve_process_exits_successfully_after_sigterm -- --nocapture` 通过真实 TCP readiness 和真实子进程 SIGTERM，all-features 下同一测试额外注入仅供测试的加密 key 后通过。全量门禁：fmt、diff check、all-target/all-features clippy、默认/all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check` 和 `cargo check -p openrust --no-default-features` 均通过。deny 输出既有重复 crate 版本与未匹配 MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。此项未改数据库/队列协议，不需要双库测试；未覆盖集群依赖 readiness 或跨节点 drain。
 
-## ADR-039 源码交付验收
+## 历史决策 039 源码交付验收
 
 当前 workspace packages 为根 `openrust` 与 `tools/` 下的 `cli`、`macros`、`testing`、`performance`；根 package 内含 `server` bin，所有 package 均显式禁用发布，内部依赖通过 workspace path 解析。仅根 package 是 `default-members`，以保证裸 `cargo run` 选择 `server`；完整验证显式使用 `--workspace`。2026-10-27 目录收纳后，Cargo metadata、CLI fixture 与 workspace 检查确认这五个 package 及 `db_routing` bench target；PostgreSQL 与 MySQL feature 转发的 benchmark 编译检查通过，真实数据库 benchmark 未因目录调整重跑。CLI 保留 `openrust` 命令，并默认生成 `apps/<name>`，应用与 migration 加入现有 workspace。生成器保留根 manifest 其他内容，拒绝重复名、现存目录和不支持的外部目标；dev/serve 按目标应用定位二进制和配置。
 
@@ -740,7 +759,7 @@ MFA 子簇门禁：fmt、默认/all-features workspace all-target Clippy、默�
 
 本仓库最终门禁：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`、`cargo deny check`、`git diff --check` 均通过。另在真实 PostgreSQL 18 与 MySQL 8.4 服务分别执行 openrust/testing/server 的数据库、认证、队列、崩溃恢复与调度 feature 集成测试并通过。`cargo deny` 仅有既有重复依赖版本和未使用 MPL allowance 警告；advisories/bans/licenses/sources 均通过。C1–C3 文档整改不属于本簇。
 
-以下 `-p openrust-*` 命令只代表历史验收；当前命令使用新包名。历史临时 patch 不作为 ADR-039 黄金路径证据。
+以下 `-p openrust-*` 命令只代表历史验收；当前命令使用新包名。历史临时 patch 不作为 历史决策 039 黄金路径证据。
 
 ## 本地 workspace 门禁
 
@@ -823,32 +842,32 @@ M2 读写路由真实复制测试使用 `OPENRUST_TEST_DATABASE_URL`、`OPENRUST
 
 ## 生成项目
 
-CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQL `--auth` 项目后运行 `cargo fmt --all --check`、`cargo check`、`cargo test`。旧模板的历史集成验证使用 Cargo patch 指向本地根 `openrust` 与 `testing`。新的源码交付验收按 ADR-039，在干净源码副本中生成 apps 后直接运行，不继续以 patch 作为默认操作入口。
+CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQL `--auth` 项目后运行 `cargo fmt --all --check`、`cargo check`、`cargo test`。旧模板的历史集成验证使用 Cargo patch 指向本地根 `openrust` 与 `testing`。新的源码交付验收按 历史决策 039，在干净源码副本中生成 apps 后直接运行，不继续以 patch 作为默认操作入口。
 
 2026-10-26 根模块迁移后，两种生成项目都以真实 PostgreSQL 16 / MySQL 8.4 服务运行 `generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail` 并通过。测试覆盖实际 HTTP、JWT/PAT 认证、数据库流程、可信代理 client IP 与 fake mail。
 
 2026-10-26 当前日常基线复验：`cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-postgres --test auth_database` 在现有 PostgreSQL 18 容器通过 4 项；`--features auth,db-mysql` 在现有 MySQL 8.4 容器通过 4 项。按当前 CLI 模板新生成的 `--auth` 项目分别以本地 Cargo patch 指向未发布 workspace，并在真实 PostgreSQL 18 / MySQL 8.4 服务上通过 `cargo fmt --all --check`、`cargo check` 和 `cargo test --test auth_flows`（每库 1 项真实 TCP HTTP 流程，使用隔离数据库与 fake mail）。生成目录位于 `/tmp/openrust-auth-pg-resume` 与 `/tmp/openrust-auth-mysql-resume`，没有纳入仓库。
 
-2026-10-26 ADR-031 出站 HTTP：历史基线为 `cargo test -p openrust --features http-client http::client::tests` 15 项及 `根目录集成宿主` 聚合接入 1 项；CLI `--http-client` 生成项目 check/test 通过，证据保留于原验收记录。
+2026-10-26 历史决策 031 出站 HTTP：历史基线为 `cargo test -p openrust --features http-client http::client::tests` 15 项及 `根目录集成宿主` 聚合接入 1 项；CLI `--http-client` 生成项目 check/test 通过，证据保留于原验收记录。
 
-2026-10-27 ADR-051/052 出站策略与韧性：`cargo test -p openrust --features http-client http::client::tests -- --nocapture` 21 项通过，涵盖目标策略、DNS 固定、重试上限/抖动/Retry-After、单次 body 限制；`cargo test --manifest-path examples/demo/Cargo.toml --all-features --test http_client -- --nocapture` 6 项通过，聚合 HTTP consumer 验证目标拒绝、依赖隔离、容量与等待上限、取消释放、熔断打开/半开恢复。总门禁 `cargo fmt --all --check`、`cargo test --workspace`、`RUST_TEST_THREADS=1 cargo test --workspace --all-features`、default/all-features workspace all-target clippy、warnings-denied default/all-features Rustdoc、`cargo check -p openrust --no-default-features`、`cargo deny check`、`git diff --check` 全部通过。`cargo deny` 仅输出既有未匹配 MPL-2.0 allowance 与重复版本警告，advisories/bans/licenses/sources 均通过。无需外部服务；只访问回环 TCP 测试服务，不访问公网目标、云 metadata 或供应商。
+2026-10-27 历史决策 051/052 出站策略与韧性：`cargo test -p openrust --features http-client http::client::tests -- --nocapture` 21 项通过，涵盖目标策略、DNS 固定、重试上限/抖动/Retry-After、单次 body 限制；`cargo test --manifest-path examples/demo/Cargo.toml --all-features --test http_client -- --nocapture` 6 项通过，聚合 HTTP consumer 验证目标拒绝、依赖隔离、容量与等待上限、取消释放、熔断打开/半开恢复。总门禁 `cargo fmt --all --check`、`cargo test --workspace`、`RUST_TEST_THREADS=1 cargo test --workspace --all-features`、default/all-features workspace all-target clippy、warnings-denied default/all-features Rustdoc、`cargo check -p openrust --no-default-features`、`cargo deny check`、`git diff --check` 全部通过。`cargo deny` 仅输出既有未匹配 MPL-2.0 allowance 与重复版本警告，advisories/bans/licenses/sources 均通过。无需外部服务；只访问回环 TCP 测试服务，不访问公网目标、云 metadata 或供应商。
 
-2026-10-26 ADR-033 邮件/SMS：`cargo test -p openrust --features 'mail-smtp,sms-twilio,test-util' mail::tests:: -- --include-ignored` 通过，含真实本机 SMTP 对 Mailpit v1.32.0 的投递；`curl --noproxy '*' http://127.0.0.1:18025/api/v1/messages` 确认 `user@example.test` 收到 `Welcome`。Twilio transport tests 覆盖 POST URL、Basic auth、form/template fields、2xx receipt、4xx脱敏、timeout及单次调用不重试；测试不访问 Twilio。CLI 9 项测试与 `--sms-twilio` 生成项目 `/tmp/openrust-sms-generated-20261026` 的 check/test 通过；default/all-features workspace test、all-features clippy、warnings-denied docs、cargo deny 与 diff-check 通过。未提供实际 Twilio 账号凭据与授权号码，真实 SMS 投递仍未验收。
+2026-10-26 历史决策 033 邮件/SMS：`cargo test -p openrust --features 'mail-smtp,sms-twilio,test-util' mail::tests:: -- --include-ignored` 通过，含真实本机 SMTP 对 Mailpit v1.32.0 的投递；`curl --noproxy '*' http://127.0.0.1:18025/api/v1/messages` 确认 `user@example.test` 收到 `Welcome`。Twilio transport tests 覆盖 POST URL、Basic auth、form/template fields、2xx receipt、4xx脱敏、timeout及单次调用不重试；测试不访问 Twilio。CLI 9 项测试与 `--sms-twilio` 生成项目 `/tmp/openrust-sms-generated-20261026` 的 check/test 通过；default/all-features workspace test、all-features clippy、warnings-denied docs、cargo deny 与 diff-check 通过。未提供实际 Twilio 账号凭据与授权号码，真实 SMS 投递仍未验收。
 
-2026-10-26 ADR-032 请求级国际化：6 项 `i18n` 单测与 5 项 `examples/demo/tests/server/i18n/runtime.rs` 通过，覆盖 locale 规范化、Accept-Language q 值、TOML config、JSON resource 合并/参数/fallback、请求并发隔离、错误/validator message、稳定 code/字段路径、未翻译应用错误保留与显式 locale override。新生成项目 `/tmp/openrust-i18n-generated-20261026` 使用本地 Cargo patch 通过 `cargo check`、`cargo test`；其真实 server 进程收到 `Accept-Language: zh-CN` 后对 404 返回中文 message。default/all-features `fmt --check`、workspace clippy/test、warnings-denied docs、`cargo deny check` 通过。无数据库行为，不要求双库集成；邮件/SMS 的实际供应商验收留在 M3 通信簇。
+2026-10-26 历史决策 032 请求级国际化：6 项 `i18n` 单测与 5 项 `examples/demo/tests/server/i18n/runtime.rs` 通过，覆盖 locale 规范化、Accept-Language q 值、TOML config、JSON resource 合并/参数/fallback、请求并发隔离、错误/validator message、稳定 code/字段路径、未翻译应用错误保留与显式 locale override。新生成项目 `/tmp/openrust-i18n-generated-20261026` 使用本地 Cargo patch 通过 `cargo check`、`cargo test`；其真实 server 进程收到 `Accept-Language: zh-CN` 后对 404 返回中文 message。default/all-features `fmt --check`、workspace clippy/test、warnings-denied docs、`cargo deny check` 通过。无数据库行为，不要求双库集成；邮件/SMS 的实际供应商验收留在 M3 通信簇。
 
 ## 迁移验收记录
 
 - `cargo metadata --no-deps --format-version 1` 确认根 package 为 `openrust`，workspace 共四个成员：根 package `openrust`、`cli`、`macros`、`testing`。
 - 无默认、默认、关键单独 feature、all-features 编译已检查；workspace default/all-features clippy 与 test、warnings-denied rustdoc、`cargo deny check` 均通过。`cargo deny` 仍会输出重复版本依赖提示，但无 advisory、license、ban 或 source 失败；JWT 使用 `aws_lc_rs`，不再解析到受 RUSTSEC-2023-0071 覆盖的 `rsa 0.9`。
-- M2 数据库读写分离的 PostgreSQL/MySQL 真实复制拓扑已单独通过（见上文）；其余尚未验收的范围包括 Redis 最低版本、生产负载下多 worker/旧 token 竞态、M6 全栈集群、S3 bucket-version 专项与完整性能门禁，继续按 `todo.md` 和各专题计划推进。实时在线跨节点单项验收见本文件 M5 ADR-059。
+- M2 数据库读写分离的 PostgreSQL/MySQL 真实复制拓扑已单独通过（见上文）；其余尚未验收的范围包括 Redis 最低版本、生产负载下多 worker/旧 token 竞态、M6 全栈集群、S3 bucket-version 专项与完整性能门禁，继续按 `todo.md` 和各专题计划推进。实时在线跨节点单项验收见本文件 M5 历史决策 059。
 - PostgreSQL 14 / MySQL 8.0 结果是历史兼容性证据；当前暂定下限已采用 PostgreSQL 14+ / MySQL 8.0+，但这些结果不替代发布前对完整承诺能力的最低版本复核。Redis 6.2+ 的真实兼容性在 M5 driver 落地后验证。
 
-2026-10-26 ADR-034 应用数据加密/本地轮换：`cargo test -p openrust --features encryption security::tests` 8 项通过，包含 RFC 8452 AES-256-GCM-SIV 向量、二进制/空明文、随机 nonce、context、active key 写入/历史 key 解密、篡改/格式/越界、配置脱敏与多 Encryptor 互解；`cargo test -p openrust-cli` 11 项通过，包含 32-byte Base64 key generation 与 `--encryption` 模板；`cargo check -p openrust --bin server --features encryption` 通过。实际 CLI 生成项目 `/tmp/openrust-encryption-generated-20261026` 使用本地 Cargo path patch 通过 `cargo check`、`cargo test`，并用环境 key 执行 `cargo run -- config show`；输出中的 active key ID 与 key map 值均为 `********`。最终 default/all-features workspace tests、all-features clippy、warnings-denied default/all-features docs、`cargo deny check` 和 `git diff --check` 通过；cargo-deny 保留既有重复依赖与未使用 MPL allowance 警告，advisories/bans/licenses/sources 通过。该簇无数据库读写，不要求新增双库集成验收。测试应用 all-features 时显式注入测试 key ring；生产默认配置不含 key。
+2026-10-26 历史决策 034 应用数据加密/本地轮换：`cargo test -p openrust --features encryption security::tests` 8 项通过，包含 RFC 8452 AES-256-GCM-SIV 向量、二进制/空明文、随机 nonce、context、active key 写入/历史 key 解密、篡改/格式/越界、配置脱敏与多 Encryptor 互解；`cargo test -p openrust-cli` 11 项通过，包含 32-byte Base64 key generation 与 `--encryption` 模板；`cargo check -p openrust --bin server --features encryption` 通过。实际 CLI 生成项目 `/tmp/openrust-encryption-generated-20261026` 使用本地 Cargo path patch 通过 `cargo check`、`cargo test`，并用环境 key 执行 `cargo run -- config show`；输出中的 active key ID 与 key map 值均为 `********`。最终 default/all-features workspace tests、all-features clippy、warnings-denied default/all-features docs、`cargo deny check` 和 `git diff --check` 通过；cargo-deny 保留既有重复依赖与未使用 MPL allowance 警告，advisories/bans/licenses/sources 通过。该簇无数据库读写，不要求新增双库集成验收。测试应用 all-features 时显式注入测试 key ring；生产默认配置不含 key。
 
-2026-10-26 ADR-035 审计簇：`cargo test -p openrust --features test-util audit::tests` 6 项通过，覆盖 allowlist、敏感详情/Debug 脱敏、错误传播、database/custom plugin 和公开 fake；PostgreSQL 18 与 MySQL 8.4 的 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test auth_database` 各 5 项通过。新增测试使用 `TestDatabase` 隔离库和完整 audit 表名映射，验证权限变更与审计同事务提交、外层回滚、审计 insert 失败导致权限回滚，以及最多 N 行的重复清理。CLI 新生成的 PostgreSQL 与 MySQL `--auth` 项目均通过 `cargo fmt --all --check`、本地 Cargo patch `cargo check` 和真实 `auth_flows` HTTP/TCP 数据库流程测试。workspace default/all-features tests/clippy、warnings-denied default/all-features docs、no-default-features check、`cargo deny check` 通过；deny 仅有既有重复依赖与未使用 MPL allowance 警告，advisories/bans/licenses/sources 通过。
+2026-10-26 历史决策 035 审计簇：`cargo test -p openrust --features test-util audit::tests` 6 项通过，覆盖 allowlist、敏感详情/Debug 脱敏、错误传播、database/custom plugin 和公开 fake；PostgreSQL 18 与 MySQL 8.4 的 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test auth_database` 各 5 项通过。新增测试使用 `TestDatabase` 隔离库和完整 audit 表名映射，验证权限变更与审计同事务提交、外层回滚、审计 insert 失败导致权限回滚，以及最多 N 行的重复清理。CLI 新生成的 PostgreSQL 与 MySQL `--auth` 项目均通过 `cargo fmt --all --check`、本地 Cargo patch `cargo check` 和真实 `auth_flows` HTTP/TCP 数据库流程测试。workspace default/all-features tests/clippy、warnings-denied default/all-features docs、no-default-features check、`cargo deny check` 通过；deny 仅有既有重复依赖与未使用 MPL allowance 警告，advisories/bans/licenses/sources 通过。
 
-2026-10-26 ADR-036 signed links：`cargo test -p openrust --no-default-features --features signing signing::tests` 4 项通过，覆盖用途/subject/TTL、Debug 脱敏、shared store 撤销与保留旧 key 的轮换；PostgreSQL 18、MySQL 8.4 完整 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test auth_database` 各 6 项通过，覆盖两个 signer 实例跨库撤销、自定义完整表名映射、过期记录有界清理及应用插件注册。新生成 `--auth` 项目分别使用本地 Cargo patch，通过 `cargo fmt --all --check`、`cargo check`、真实数据库迁移及 TCP HTTP auth flow。最终 `cargo fmt --all --check`、`git diff --check`、workspace default/all-features clippy/test、warnings-denied default/all-features docs、`cargo check -p openrust --no-default-features`、`cargo deny check` 均通过；deny 仅有已存在的重复依赖与 unused MPL allowance 警告，advisories/bans/licenses/sources 通过。没有新增依赖。
+2026-10-26 历史决策 036 signed links：`cargo test -p openrust --no-default-features --features signing signing::tests` 4 项通过，覆盖用途/subject/TTL、Debug 脱敏、shared store 撤销与保留旧 key 的轮换；PostgreSQL 18、MySQL 8.4 完整 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test auth_database` 各 6 项通过，覆盖两个 signer 实例跨库撤销、自定义完整表名映射、过期记录有界清理及应用插件注册。新生成 `--auth` 项目分别使用本地 Cargo patch，通过 `cargo fmt --all --check`、`cargo check`、真实数据库迁移及 TCP HTTP auth flow。最终 `cargo fmt --all --check`、`git diff --check`、workspace default/all-features clippy/test、warnings-denied default/all-features docs、`cargo check -p openrust --no-default-features`、`cargo deny check` 均通过；deny 仅有已存在的重复依赖与 unused MPL allowance 警告，advisories/bans/licenses/sources 通过。没有新增依赖。
 
 2026-10-26 M3 认证/安全总验收：本机预置 PostgreSQL 18 / MySQL 8.4 容器凭据与仓库 CI 默认值不同，未触碰预置数据库；使用仓库 `compose.ci.yaml` 的无持久卷 PostgreSQL 18 / MySQL 8.4 服务、独立测试库后，`cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test auth_database --test auth_runtime` 各 12 项通过。按当前模板生成的 PG/MySQL 项目分别用真实数据库执行 `cargo test --test auth_flows`，各 1 项真实 TCP HTTP 流程通过。覆盖注册/重复注册、邮箱验证、JWT 与 PAT、refresh 单次轮换/重放撤销、密码重置、refresh logout、Session 登录/退出与 CSRF、共享限流、可信代理、Policy/RBAC 与 PAT ability 交集。生成项目各自还通过 `cargo fmt --all --check` 与 `cargo check`。临时 Compose 服务已停止并移除，既有 PG/MySQL/Redis 服务保持运行。
 
@@ -856,9 +875,9 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 
 2026-10-26 M4 typed events/queued listener：`cargo test -p openrust --all-features events::tests` 与 `cargo test -p openrust --features queue --lib events::queued_tests` 通过，后者覆盖 mapper 成功、mapper error 与 Queue dispatch error 传播/短路。外部下游 consumer crate 在 `/tmp/openrust-events-consumer` 以 `queue,db-postgres` 通过离线 `cargo check`。真实双库命令均运行成功：`cargo test --manifest-path examples/demo/Cargo.toml --features queue,db-postgres --test queue database_queue_dispatch_worker_concurrency_failure_and_retry -- --exact` 在现有 PostgreSQL 18.6 通过；`cargo test --manifest-path examples/demo/Cargo.toml --features queue,db-mysql --test queue database_queue_dispatch_worker_concurrency_failure_and_retry -- --exact` 在临时 MySQL 8.4 通过。覆盖事件 transaction context、事务回滚不留任务、提交后 worker 消费、普通 dispatch 消费；测试显式释放 Events/Queue/Db/App 后 `TestDatabase::close` 正常删除隔离库。预置 MySQL 8.4 容器因容器内 socket PID lock 错误持续重启，未改动；仅使用 `compose.ci.yaml` 在空闲 53306 端口创建 `openrust-ci` 临时 MySQL，测试后 `docker compose ... down -v` 仅清理本次创建的容器/网络/卷。修复后的最终门禁通过：`cargo fmt --all --check`、`git diff --check`、workspace all-target/all-features clippy、default/all-features workspace tests、warnings-denied default/all-features docs、`cargo deny check`、`cargo check -p openrust --no-default-features`。未触碰预置 PostgreSQL/MySQL/Redis 数据，无凭据输出。
 
-2026-10-26 ADR-041 事务与 AuthFlows 事件：在任务专属 Compose project `openrust-m4-auth-tx`（PostgreSQL 18、MySQL 8.4，端口 55432/53306）分别执行 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test db_connection transaction_events_rollback_before_commit_and_ignore_after_commit_errors -- --exact` 与 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test auth_database auth_flow_events_share_account_and_refresh_transactions -- --exact`，四项均实际运行通过。验证提交前拒绝回滚、提交后错误不掩盖已提交结果、注册校验拒绝不建账户、泛化登录失败事件，以及登录成功事件失败无 refresh token 遗留。临时服务由本任务创建；预置服务未改动。
+2026-10-26 历史决策 041 事务与 AuthFlows 事件：在任务专属 Compose project `openrust-m4-auth-tx`（PostgreSQL 18、MySQL 8.4，端口 55432/53306）分别执行 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test db_connection transaction_events_rollback_before_commit_and_ignore_after_commit_errors -- --exact` 与 `cargo test --manifest-path examples/demo/Cargo.toml --features auth,db-<backend> --test auth_database auth_flow_events_share_account_and_refresh_transactions -- --exact`，四项均实际运行通过。验证提交前拒绝回滚、提交后错误不掩盖已提交结果、注册校验拒绝不建账户、泛化登录失败事件，以及登录成功事件失败无 refresh token 遗留。临时服务由本任务创建；预置服务未改动。
 
-2026-10-26 ADR-042 共享锁与请求幂等：在任务专属 `openrust-m4-auth-tx` PostgreSQL 18 / MySQL 8.4 服务，对每个 backend 实际执行 `cargo test --manifest-path examples/demo/Cargo.toml --features db-<backend> --test db_coordination -- --exact shared_locks_and_request_idempotency_are_database_scoped`，均 1 项通过。测试使用 `coord_` 自定义表前缀的 TestDatabase 隔离库及两个独立 SeaORM pool，覆盖迁移索引、共享锁 owner 竞争、过期接管/fencing、旧 owner 释放与事务内检查、同键并发仅一 owner、scope 隔离/指纹冲突、事务回滚同时撤销业务写入和完成快照、成功完成后的 JSON replay、过期 lease 接管及每次最多 N 行清理。测试运行时没有临时 services 以外的依赖；没有声称进程强杀、真实 HTTP middleware 或外部副作用 exactly-once。
+2026-10-26 历史决策 042 共享锁与请求幂等：在任务专属 `openrust-m4-auth-tx` PostgreSQL 18 / MySQL 8.4 服务，对每个 backend 实际执行 `cargo test --manifest-path examples/demo/Cargo.toml --features db-<backend> --test db_coordination -- --exact shared_locks_and_request_idempotency_are_database_scoped`，均 1 项通过。测试使用 `coord_` 自定义表前缀的 TestDatabase 隔离库及两个独立 SeaORM pool，覆盖迁移索引、共享锁 owner 竞争、过期接管/fencing、旧 owner 释放与事务内检查、同键并发仅一 owner、scope 隔离/指纹冲突、事务回滚同时撤销业务写入和完成快照、成功完成后的 JSON replay、过期 lease 接管及每次最多 N 行清理。测试运行时没有临时 services 以外的依赖；没有声称进程强杀、真实 HTTP middleware 或外部副作用 exactly-once。
 
 2026-10-26 F2 国际化：`cargo test -p openrust --lib i18n::tests::` 9 项通过，新增覆盖结构化 plural/select、英文与波兰语 CLDR 类别、无效/缺失参数 fallback、按实际 fallback 资源 locale 选择复数规则、精确小数、英中日期差异及显式时区跨日；`cargo test --manifest-path examples/demo/Cargo.toml --test i18n` 6 项通过，包含并发请求 locale 及按请求语言选复数。干净源码副本 `/tmp/openrust-f2-source-wgP07b/source`（无 `.git`、无 registry patch/开发机路径）使用 `cargo run -p cli -- new i18n_sample --db postgres` 生成到 `apps/i18n_sample`，其 `cargo check` 与 `cargo test` 通过。工作区 `cargo fmt --all --check`、default/all-features workspace tests、default/all-features clippy、`RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps`、`cargo +1.97.0 check -p openrust`、`cargo deny check` 通过；deny 输出为既有重复依赖版本警告，advisories/bans/licenses/sources 均通过。F2 无数据库读写行为，不要求 PostgreSQL/MySQL 集成验收；F1 已有双库证据不由此替代或重做。
 
@@ -878,19 +897,19 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 
 2026-10-26 M5 F4c stale-while-revalidate 与应用后台任务生命周期：定向 SWR 测试覆盖 fresh/stale/最终过期、tag 失效、刷新失败与 stale 上限、并发刷新限制、取消及停机 join；真实 Redis 双连接 server 测试通过。PostgreSQL 18 与 MySQL 8.4 分别以两个独立 App/数据库 pool/Redis 连接实际运行 `db_coordination::f4c_swr_uses_shared_locks_across_apps_and_redis_connections`，各 1 项通过，验证共享锁降低重复刷新并观察共享刷新结果；此为单进程多 App 专项，不代表多节点集群验收。干净源码副本生成应用直接 `cargo check`、`cargo test` 通过，无 registry patch 或开发机绝对路径。`cargo test --workspace`、`cargo test --workspace --all-features`、default/all-features all-target clippy、warnings-denied default/all-features docs、`cargo check -p openrust --no-default-features`、`cargo deny check`、fmt 与 diff check 通过；deny 仅有既有未匹配 MPL allowance 与重复依赖警告，advisories/bans/licenses/sources 均通过。完整集群、多节点缓存负载及外部通知未由本簇覆盖。
 
-2026-10-26 显式同步任务执行：复用 ADR-043 的 `JobRegistry::execute`，没有增加重复 API。定向 `cargo test --manifest-path examples/demo/Cargo.toml --features queue --test queue_driver_contract` 5 项通过，新增纯进程内 await 行为断言，不配置数据库/Redis；明确进度需 reporter、取消为合作语义，且直接执行不提供事务派发、持久化、自动重试或任务组。workspace fmt、clippy、tests、warnings-denied docs 与 `cargo deny check` 均通过；deny 的重复 crate 版本与未匹配 MPL allowance 为现有告警。
+2026-10-26 显式同步任务执行：复用 历史决策 043 的 `JobRegistry::execute`，没有增加重复 API。定向 `cargo test --manifest-path examples/demo/Cargo.toml --features queue --test queue_driver_contract` 5 项通过，新增纯进程内 await 行为断言，不配置数据库/Redis；明确进度需 reporter、取消为合作语义，且直接执行不提供事务派发、持久化、自动重试或任务组。workspace fmt、clippy、tests、warnings-denied docs 与 `cargo deny check` 均通过；deny 的重复 crate 版本与未匹配 MPL allowance 为现有告警。
 
-2026-10-26 M5 F5 资源查询授权（ADR-047）：`cargo test -p openrust --features 'auth db-postgres' auth::query::tests` 验证非空范围构造、空 OR 组与规则错误 fail-closed，以及嵌套 OR 筛选仍位于 owner scope 的 AND 内。真实隔离库 HTTP 测试 `cargo test --manifest-path examples/demo/Cargo.toml --features 'auth db-postgres' --test auth_query_authorization` 与 MySQL `db-mysql` 对应命令均通过 PostgreSQL 18 / MySQL 8.4：owner 只能读取匹配行；越权 ID 返回空；分页只计授权行；混合授权 ID 批量修改/删除只影响本人行；关联查询校验父记录并用子实体规则过滤子集合。独立 consumer `cargo check --manifest-path tests/consumers/query-authorization/Cargo.toml` 通过。裸 SeaORM、直接关联加载、原生 SQL、自定义 driver 不被自动拦截；完整业务 CRUD、导出组合和集群压力仍待相应验收。
+2026-10-26 M5 F5 资源查询授权（历史决策 047）：`cargo test -p openrust --features 'auth db-postgres' auth::query::tests` 验证非空范围构造、空 OR 组与规则错误 fail-closed，以及嵌套 OR 筛选仍位于 owner scope 的 AND 内。真实隔离库 HTTP 测试 `cargo test --manifest-path examples/demo/Cargo.toml --features 'auth db-postgres' --test auth_query_authorization` 与 MySQL `db-mysql` 对应命令均通过 PostgreSQL 18 / MySQL 8.4：owner 只能读取匹配行；越权 ID 返回空；分页只计授权行；混合授权 ID 批量修改/删除只影响本人行；关联查询校验父记录并用子实体规则过滤子集合。独立 consumer `cargo check --manifest-path tests/consumers/query-authorization/Cargo.toml` 通过。裸 SeaORM、直接关联加载、原生 SQL、自定义 driver 不被自动拦截；完整业务 CRUD、导出组合和集群压力仍待相应验收。
 
-## M5 ADR-048 稳定键有界分批读取
+## M5 历史决策 048 稳定键有界分批读取
 
 `cargo test -p openrust --features 'auth db-postgres' batch_options_enforce_the_documented_row_bound` 验证默认 100、最小 1、最大 1000 及越界拒绝。PostgreSQL 18 与 MySQL 8.4 分别使用已有 loopback 服务运行 `cargo test --manifest-path examples/demo/Cargo.toml --features 'auth db-<backend>' --test auth_query_authorization -- --nocapture`，各实际执行 1 项通过：owner scope 分页读取、取消后用最后完整主键游标续读、无越权/重复行、复合主键升降序和跨页顺序、callback 错误停止及连接继续可用。测试凭据从既有容器配置在进程内构造，不输出凭据、不创建或更改服务。独立 consumer `cargo check --manifest-path tests/consumers/query-authorization/Cargo.toml --locked` 通过。
 
-## M5 ADR-049 数据库迁移互斥
+## M5 历史决策 049 数据库迁移互斥
 
 在既有 PostgreSQL 18 与 MySQL 8.4 loopback 服务上，分别执行 `OPENRUST_TEST_DATABASE_URL=<service-url> cargo test --manifest-path examples/demo/Cargo.toml --features db-<backend> --test db_migration -- --nocapture`，4 项均通过。真实隔离数据库和独立子进程验证首次迁移竞争只运行一个 migration callback、第二个 up 等待并读到最新状态、短等待预算返回 `migration_lock_timeout`、持锁进程强杀后恢复，以及既有 up/down/status 与具名数据库隔离。凭据从容器配置在进程中构造，不输出、不更改或停止服务。fmt、default/all-features all-target warnings-denied Clippy、default/all-features workspace tests、warnings-denied default/all-features docs、no-default-features check 与 `cargo deny check` 通过；workspace 运行时不配置的 DB 集成 targets 不代替上述显式双库执行。未宣称生产多节点迁移演练。
 
-## M5 ADR-050 文件存储
+## M5 历史决策 050 文件存储
 
 `cargo fmt --all --check`、default/all-features all-target Clippy、`cargo test --workspace`、`cargo test --workspace --all-features`、warnings-denied default/all-features Rustdoc、`cargo check -p openrust --no-default-features` 与 `storage-local`/`storage-s3` feature checks 均通过；`cargo deny check` 通过，仍报告既有 duplicate versions 与未匹配 MPL-2.0 allowance。all-features 中 `openrust::storage` 本地文件测试、`server/tests/storage/driver_contract.rs` 独立公开 API consumer、`server/tests/storage/http.rs` 真实 TCP 授权上传/下载均执行并通过。CLI 生成的 `apps/storage_demo` 在无 `.git` 的源码副本中直接 `cargo check -p storage_demo` 与 `cargo test -p storage_demo` 通过；生成 manifest 使用 workspace 相对 path，无临时 registry patch 或开发机绝对路径。
 
@@ -934,21 +953,21 @@ trace 仅传播经严格校验的 W3C version 00 `traceparent`。`cargo test -p 
 
 本簇门禁通过：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --all-features -- -D warnings`、`cargo test --workspace --quiet`、`RUST_TEST_THREADS=1 cargo test --workspace --all-features --quiet`、warnings-denied workspace/示例 all-features Rustdoc、workspace 与独立示例 `cargo deny check`、独立示例 all-target/all-features Clippy、Rust 1.97 根 `grpc` 和独立示例 check、shell syntax、`git diff --check`，以及上述真实 Envoy 双节点验收。cargo deny 的 advisories/bans/licenses/sources 通过，保留既有 duplicate crate 与未匹配 MPL allowance 提示。G3c 不涉及数据库行为，不以本簇重复数据库验收；完整 API/worker 集群、多 worker/scheduler、共享依赖、跨节点上传和实时通信留在 M6。
 
-## M5 ADR-060 密码哈希容量
+## M5 历史决策 060 密码哈希容量
 
 使用 `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p openrust --features auth auth::password::tests --lib`，7 项通过；`cargo test -p openrust --features auth --lib`，160 项通过；`cargo test -p openrust --all-features --lib`，258 项通过、2 项忽略。`cargo test --manifest-path examples/demo/Cargo.toml --features auth --test auth_runtime auth_plugin_rejects_invalid_password_capacity_during_startup -- --exact`，1 项通过。PostgreSQL 18 和 MySQL 8.4 复用已运行容器，分别在 `OPENRUST_TEST_DATABASE_URL` 指向容器本地管理库时执行 `cargo test --manifest-path examples/demo/Cargo.toml --features 'auth db-<backend>' --test auth_database auth_flows_run_registration_login_refresh_reset_and_logout_on_the_configured_database -- --exact --nocapture`，各 1 项通过；URL 凭据从容器配置在测试进程内构造，未输出，数据由 `TestDatabase` 创建隔离库并在结束时删除。
 
 门禁：`cargo fmt --all --check`、`git diff --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`、auth feature 下根库/`根目录集成宿主` 定向 Clippy 与 Rustdoc、`cargo check -p openrust --no-default-features`、`cargo deny check` 均通过。首次对仅 `auth` 的根包 all-target Clippy 出现已有的 `CurrentUser::test_user` dead_code 警告，随后匹配范围的库 Clippy 和完整 workspace all-target Clippy 均通过。cargo deny 的 advisories/bans/licenses/sources 通过，保留既有重复 crate 与未匹配 MPL allowance 警告。默认 workspace 未配置 DB URL 的其他集成 targets 按条件跳过；双库 AuthFlows 用例已显式执行。无 all-features workspace 矩阵记录；此子簇匹配 `auth` feature、默认 workspace 及双库用例均已覆盖。
 
-## M5 ADR-061 依赖就绪探针
+## M5 历史决策 061 依赖就绪探针
 
-`Readiness::register_probe`/`dependencies_ready` 与 HTTP `/ready` 已实现；最多 64 个稳定命名探针，整轮 2 秒、最多 16 并发且同一时刻只运行一轮。探针失败仅在服务日志记录探针名与稳定错误码，HTTP 返回通用 503。探针注册/重复名、失败恢复、并发上限/单飞及 ready 503 脱敏单测通过；根 `cargo test -p openrust --lib` 在新增单飞测试前 139 项通过，随后相关 readiness 5 项与 health 1 项再次定向通过。PostgreSQL 18/MySQL 8.4 均使用现有容器，经本地 TCP 故障代理实测真实 DB pool 断连时探测失败、代理恢复后 pool 重新连通并恢复 readiness；健康 pool 探针各另通过 1 项。Redis 8 现有服务运行 `cargo test --manifest-path examples/demo/Cargo.toml --features cache-redis --test server cache_plugin_uses_the_configured_shared_redis_store -- --exact --nocapture`，真实 CachePlugin store 探针通过。`cargo clippy -p openrust --all-targets --features 'db-postgres,cache-redis' -- -D warnings`、`cargo clippy -p server --test db_connection --features 'db-postgres,db-mysql' -- -D warnings`、`RUSTDOCFLAGS='-D warnings' cargo doc -p openrust --no-deps --features 'db-postgres,cache-redis'`、`cargo deny check`、fmt 与 diff check 通过；deny 的 advisories/bans/licenses/sources 通过，保留既有 duplicate crate 与未匹配 MPL allowance 提示。随后完整 workspace 默认 Clippy 与 tests 已通过；此记录仅描述 ADR-061 专项证据，不代表当前 M5 全部验收完成。
+`Readiness::register_probe`/`dependencies_ready` 与 HTTP `/ready` 已实现；最多 64 个稳定命名探针，整轮 2 秒、最多 16 并发且同一时刻只运行一轮。探针失败仅在服务日志记录探针名与稳定错误码，HTTP 返回通用 503。探针注册/重复名、失败恢复、并发上限/单飞及 ready 503 脱敏单测通过；根 `cargo test -p openrust --lib` 在新增单飞测试前 139 项通过，随后相关 readiness 5 项与 health 1 项再次定向通过。PostgreSQL 18/MySQL 8.4 均使用现有容器，经本地 TCP 故障代理实测真实 DB pool 断连时探测失败、代理恢复后 pool 重新连通并恢复 readiness；健康 pool 探针各另通过 1 项。Redis 8 现有服务运行 `cargo test --manifest-path examples/demo/Cargo.toml --features cache-redis --test server cache_plugin_uses_the_configured_shared_redis_store -- --exact --nocapture`，真实 CachePlugin store 探针通过。`cargo clippy -p openrust --all-targets --features 'db-postgres,cache-redis' -- -D warnings`、`cargo clippy -p server --test db_connection --features 'db-postgres,db-mysql' -- -D warnings`、`RUSTDOCFLAGS='-D warnings' cargo doc -p openrust --no-deps --features 'db-postgres,cache-redis'`、`cargo deny check`、fmt 与 diff check 通过；deny 的 advisories/bans/licenses/sources 通过，保留既有 duplicate crate 与未匹配 MPL allowance 提示。随后完整 workspace 默认 Clippy 与 tests 已通过；此记录仅描述 历史决策 061 专项证据，不代表当前 M5 全部验收完成。
 
-## M5 ADR-067 低基数指标与 OpenTelemetry（WIP）
+## M5 历史决策 067 低基数指标与 OpenTelemetry（WIP）
 
 2026-10-27：可选 `metrics` feature 提供显式启用的 Prometheus `/metrics`，HTTP 指标使用固定 method/status 类标签；真实 TCP 子进程测试确认默认服务不提供该路由、配置开启后可抓取，正文无 request ID 或路由标签。HTTP middleware 有界并发超限快速返回 503。可选 `otel` feature 通过 OTLP/HTTP batch exporter 导出 spans；本机临时 Collector 0.120.0 实际收到 HTTP spans，并通过真实跨协议 consumer 观察到 HTTP 与 typed gRPC spans 保留同一个 W3C Trace ID。同步 exporter 在 Tokio blocking pool 中 flush，测试覆盖 server lifecycle drain。HTTP span 不写 URI/request ID/traceparent；OTel 属性只含协议字段。PG18/MySQL8.4 真实隔离库登录突发在 2 connection pool 下运行 16 次请求，两个后端均观察到密码哈希容量拒绝并在突发后成功登录；样本结果见当前任务记录，尚不足以建立正式回归阈值或分离 API CPU/内存基线。
 
-当前轮门禁：`cargo fmt --all --check`、`git diff --check`、默认与 all-features `cargo clippy --workspace --all-targets`、默认与 all-features `cargo test --workspace`、`RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --all-features` 与 `cargo deny check` 均通过；default workspace 中未设置 `OPENRUST_TEST_DATABASE_URL` 的集成测试按条件跳过。all-features workspace 测试 270 项通过、2 项忽略；默认 230 项通过。deny 的 advisories/bans/licenses/sources 通过，仍有既有 duplicate crate 与未匹配 MPL allowance 警告。PG18/MySQL8.4 突发单次样本分别为：PG pool=2、16 请求、4 成功/12 容量拒绝、623.1 req/s、p50 10.9ms、p95/p99 17.8ms、恢复 7.8ms；MySQL pool=2、16 请求、4 成功/12 拒绝、488.7 req/s、p50 16.8ms、p95/p99 23.9ms、恢复 8.7ms。单次本机小样本不能作为回归阈值；`/usr/bin/time -lp` 包含编译与测试进程，不能分离服务 CPU/内存。仍缺稳定重复压力模型、服务资源分项及过载下真实 API 吞吐/错误率报告，因此 ADR-067 保持 Proposed，M5 继续 in_progress。
+当前轮门禁：`cargo fmt --all --check`、`git diff --check`、默认与 all-features `cargo clippy --workspace --all-targets`、默认与 all-features `cargo test --workspace`、`RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --all-features` 与 `cargo deny check` 均通过；default workspace 中未设置 `OPENRUST_TEST_DATABASE_URL` 的集成测试按条件跳过。all-features workspace 测试 270 项通过、2 项忽略；默认 230 项通过。deny 的 advisories/bans/licenses/sources 通过，仍有既有 duplicate crate 与未匹配 MPL allowance 警告。PG18/MySQL8.4 突发单次样本分别为：PG pool=2、16 请求、4 成功/12 容量拒绝、623.1 req/s、p50 10.9ms、p95/p99 17.8ms、恢复 7.8ms；MySQL pool=2、16 请求、4 成功/12 拒绝、488.7 req/s、p50 16.8ms、p95/p99 23.9ms、恢复 8.7ms。单次本机小样本不能作为回归阈值；`/usr/bin/time -lp` 包含编译与测试进程，不能分离服务 CPU/内存。仍缺稳定重复压力模型、服务资源分项及过载下真实 API 吞吐/错误率报告，因此 历史决策 067 保持 Proposed，M5 继续 in_progress。
 
 后续对 HTTP response body 持有并发许可的工作区 WIP 做定向复验：`cargo test -p openrust --features 'metrics,otel,grpc' http::middleware::tests --lib` 4 项通过；`cargo clippy -p openrust --all-targets --features 'metrics,otel,grpc' -- -D warnings` 通过。测试验证许可在 body 读完/丢弃后释放，并保持并发超限立即返回 503；这部分 WIP 未包含在前述全 workspace 门禁或已提交实现中。
 
@@ -1089,7 +1108,7 @@ Collector PostgreSQL path 已明确读 `evidence-pg-final.log` 且检查 sink mt
 
 ## R3-A Laravel 语义 HTTP 状态默认与统一 JSON 响应
 
-R3-A 按 ADR-076 将 `HttpStatusMode::Semantic` 设为框架、配置、无请求上下文错误 fallback 与生成应用默认；`always_ok` 保留显式覆盖。默认 HTTP 行为测试覆盖创建 201、404、405、415、422、429、500，显式覆盖覆盖成功、异常、fallback、提取错误和 timeout 的 HTTP 200。另测试故障 I18n Provider 的早退分支：`semantic` 返回 500、`always_ok` 返回 200，响应头和正文 request ID 均与输入 ID 一致。metrics 未启用路由现按语义返回 404；原先把 200 当默认值的断言已改正。ADR-008 已明确旧 always_ok 默认是历史决策，索引登记 ADR-076。
+R3-A 按 历史决策 076 将 `HttpStatusMode::Semantic` 设为框架、配置、无请求上下文错误 fallback 与生成应用默认；`always_ok` 保留显式覆盖。默认 HTTP 行为测试覆盖创建 201、404、405、415、422、429、500，显式覆盖覆盖成功、异常、fallback、提取错误和 timeout 的 HTTP 200。另测试故障 I18n Provider 的早退分支：`semantic` 返回 500、`always_ok` 返回 200，响应头和正文 request ID 均与输入 ID 一致。metrics 未启用路由现按语义返回 404；原先把 200 当默认值的断言已改正。历史决策 008 已明确旧 always_ok 默认是历史决策，索引登记 历史决策 076。
 
 源码门禁：`cargo fmt --all --check`、`git diff --check`、默认与 all-features workspace all-target Clippy（warnings denied）、默认 workspace tests、串行 all-features workspace tests、默认与 all-features workspace Rustdoc（`RUSTDOCFLAGS='-D warnings'`）、workspace no-default all-target check、`cargo deny check`、Rust 1.97 all-features workspace check 和 Rust 1.97 `openrust --no-default-features` 均通过。默认 workspace 测试中核心库 298/298；all-features 串行 workspace 所有组汇总 1,011 passed/0 failed/93 ignored。两次默认并行度 all-features 全量运行分别在视图失败场景和模块禁用 TestApp 场景报告了 `internal_error`；两个用例各自单独重跑通过，完整 `RUST_TEST_THREADS=1` all-features workspace 复跑通过。未把 ignored 用例计作通过；该并行运行异常保留为证据，后续若复现再定位。
 
@@ -1168,7 +1187,7 @@ RequestInfo 的 parts-only 快照、严格 authority 复用、文本头/bearer�
 
 ## C04-B1 统一请求输入
 
-状态：B1 实现与下述验收已有实际证据；最新源码的全部适用门禁已通过，最终资源收尾完成，限定本地提交见Git。不得据此宣称已完成全部 C04、Laravel Request 或严格 1:1。契约见 [ADR-079](../decisions/adr-079-request-input.md)。
+状态：B1 实现与下述验收已有实际证据；最新源码的全部适用门禁已通过，最终资源收尾完成，限定本地提交见Git。不得据此宣称已完成全部 C04、Laravel Request 或严格 1:1。契约见 历史决策 079。
 
 范围为唯一正文所有者 `Request` 的 query/json/form bags、顶层左并集、dot/数字/读取通配、存在性、筛选和修改，以及受管理 `Request`/`Json`/`Query` 的 trim/null 规范化和公开策略覆盖。原始正文不重编码；query 16KiB、原始非空 URL 字段对及容器 entry 各1024、子级最大64层、展开完整 dot key 累计20MiB，超限不截断并安全拒绝。typed JSON 保留数字词法，动态 Value 不保证128位整数精度。multipart 仅在显式选择 Request 时保存有界原文，不解析文本/文件 bag；B2 string/integer/date/enum 等便捷方法、Cookie/Session、Old Input/flash、FormRequest 与完整文件/响应语义仍保留未完成范围。
 
@@ -1239,7 +1258,7 @@ skill-only提交 `a3b2ca3` 提供显式 `--rebase-usage-budget` 及正式额度�
 - 所有执行句柄收齐；网络worker/stop实际0、非强杀/非超时、监听释放与敏感配置移除true，自有MySQL生成/网络库created/dropped=true。无F运行失败，准备期network dryrun变量错误与修后输出保留，不作运行失败或成功的替代证据。
 - 3个F自有package按实际manifest/fingerprint精确clean，actual0；同名test_app/auth_flows/generated_view仅排除本包unit hash，未泛排其他包。源码/锁/serverCLI/框架与非自有依赖哨兵不变，无Cargo/target锁占用，不清根缓存。登记缓存37,209,677,824→36,771,332,096字节，磁盘空闲107,002,572,800/994,662,584,320字节，满足50/100GB及10/5%策略。
 
-固定Laravel为d52c3b3，Symfony8对象14案实际构造只作ADR-078独立固定比较点；Laravel无已解析composer.lock，不声称锁定该版本或完整PHP HTTP。共享构造器顺序为HTTP范围→空目标→允许状态→头；to先生成目标，与固定上游一致，guest先put/intended先pull未变。核心、调用方、驱动均经不同模型独审，无剩余问题。完整Redirector、action/signed、URL参数其余语义及HTTP/Session/发布全后端矩阵继续开放。
+固定Laravel为d52c3b3，Symfony8对象14案实际构造只作历史决策 078独立固定比较点；Laravel无已解析composer.lock，不声称锁定该版本或完整PHP HTTP。共享构造器顺序为HTTP范围→空目标→允许状态→头；to先生成目标，与固定上游一致，guest先put/intended先pull未变。核心、调用方、驱动均经不同模型独审，无剩余问题。完整Redirector、action/signed、URL参数其余语义及HTTP/Session/发布全后端矩阵继续开放。
 
 
 ## C04-D10-G 动作身份与 action URL（限定子范围已验收，提交见Git）

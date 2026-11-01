@@ -11,19 +11,10 @@ tokio::task_local! {
 }
 
 /// 由查询和迁移共用的不可变表前缀及全名映射。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DatabaseTableNames {
     prefix: String,
     mappings: BTreeMap<String, String>,
-}
-
-impl Default for DatabaseTableNames {
-    fn default() -> Self {
-        Self {
-            prefix: "tb_".to_owned(),
-            mappings: BTreeMap::new(),
-        }
-    }
 }
 
 impl DatabaseTableNames {
@@ -169,7 +160,7 @@ mod tests {
 
     #[test]
     fn resolves_defaults_empty_prefix_and_full_mapping() -> Result<()> {
-        assert_eq!(DatabaseTableNames::default().resolve("users")?, "tb_users");
+        assert_eq!(DatabaseTableNames::default().resolve("users")?, "users");
         assert_eq!(
             DatabaseTableNames::new("", BTreeMap::new())?.resolve("users")?,
             "users"

@@ -1509,9 +1509,11 @@ mod database_auth_tests {
             return Ok(());
         }
         let database = TestDatabase::create::<AuthMigrator>(&admin_url).await?;
-        database.connection()?.execute_unprepared(
-            "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES ('grpc-auth@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-        ).await?;
+        let users = openrust::db::DatabaseTableNames::default()
+            .quote("users", database.connection()?.get_database_backend())?;
+        database.connection()?.execute_unprepared(&format!(
+            "INSERT INTO {users} (email, password_hash, created_at, updated_at) VALUES ('grpc-auth@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+        )).await?;
 
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;

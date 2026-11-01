@@ -6,14 +6,16 @@
 //! 配置源按以下顺序合并，后面的层会覆盖前面的层：
 //!
 //! 1. crate 默认值（[`FrameworkConfig::default`]）
-//! 2. `<config-dir>/**/*.toml` 中按相对目录与文件名映射后的完整键自然排序的领域配置
+//! 2. 显式 [`ConfigManifest`] 的 Rust 配置函数；可选 `.with_toml()` 再叠加 TOML 文件
 //! 3. Laravel 风格的 `DB_*` / `REDIS_*` 分项连接设置
 //! 4. 本地 `.env` 与进程变量中的应用配置；默认以 `APP_` 为前缀，使用单下划线扁平键
 //!    （`SERVER_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
 //!
 //! bootstrap 将 `.env` 解析到本次应用的独立快照；外部进程环境优先且不被改写。
 
+mod code;
 pub(crate) mod compiled;
+pub use code::{ConfigContext, ConfigManifest};
 /// Provider 配置仓储、显式 schema 与启动合并操作。
 pub mod repository;
 mod sources;
@@ -69,7 +71,7 @@ pub use queue::{QueueConfig, QueueConnectionConfig, QueueDriverKind};
 pub use realtime::RealtimeConfig;
 #[cfg(feature = "encryption")]
 pub use security::EncryptionConfig;
-pub use server::{CompressionConfig, CorsConfig, ServerConfig};
+pub use server::{CompressionConfig, CorsConfig, ServerConfig, TrustedHostsConfig};
 pub use session::SessionConfig;
 pub use signing::SignedLinksConfig;
 pub use sms::SmsConfig;
@@ -94,14 +96,6 @@ pub enum ConfigError {
     /// 错误消息保留安全的键路径和错误类别，但省略源值。
     #[error("{0}")]
     Source(ConfigSourceError),
-    /// 所选命名空间的环境变量包含不受支持的值。
-    #[error("unknown environment `{value}` in {key}; expected development, test or production")]
-    UnknownEnvironment {
-        /// 提供无效值的环境变量键。
-        key: String,
-        /// 无法识别的环境变量值。
-        value: String,
-    },
     /// 配置值已加载，但违反框架约束。
     #[error("invalid configuration: {0}")]
     Invalid(String),
@@ -224,7 +218,7 @@ pub(crate) fn dotenv_environment(namespace: &str) -> Result<Environment, ConfigE
     let key = format!("{namespace}ENV");
     let entries = match dotenvy::from_path_iter(".env") {
         Ok(entries) => entries,
-        Err(error) if error.not_found() => return Ok(Environment::Development),
+        Err(error) if error.not_found() => return Ok(Environment::Production),
         Err(_) => {
             return Err(ConfigError::Invalid(
                 "无法读取 .env 文件，请检查文件格式和读取权限".to_owned(),
@@ -235,18 +229,11 @@ pub(crate) fn dotenv_environment(namespace: &str) -> Result<Environment, ConfigE
         let (entry_key, entry_value) = entry.map_err(|_| {
             ConfigError::Invalid(".env 文件格式无效，请检查变量定义语法".to_owned())
         })?;
-        if entry_key == key && !entry_value.trim().is_empty() {
-            return entry_value
-                .parse()
-                .map_err(|error: ConfigError| match error {
-                    ConfigError::UnknownEnvironment { value, .. } => {
-                        ConfigError::UnknownEnvironment { key, value }
-                    }
-                    other => other,
-                });
+        if entry_key == key {
+            return Ok(Environment::from(entry_value));
         }
     }
-    Ok(Environment::Development)
+    Ok(Environment::Production)
 }
 
 pub(crate) fn selected_environment(
@@ -255,17 +242,33 @@ pub(crate) fn selected_environment(
 ) -> Result<Environment, ConfigError> {
     validate_namespace(namespace)?;
     let key = format!("{namespace}ENV");
-    match environment.value(&key) {
-        Some(value) if !value.trim().is_empty() => {
-            value.parse().map_err(|error: ConfigError| match error {
-                ConfigError::UnknownEnvironment { value, .. } => {
-                    ConfigError::UnknownEnvironment { key, value }
-                }
-                other => other,
-            })
-        }
-        _ => Ok(Environment::Development),
+    Ok(environment
+        .get(&key)
+        .map_or_else(Environment::default, Environment::from))
+}
+
+pub(crate) fn selected_dotenv_path(
+    app_dir: &Path,
+    namespace: &str,
+    external: &EnvironmentSnapshot,
+    console_environment: Option<&str>,
+) -> PathBuf {
+    let specific = |name: &str| app_dir.join(format!(".env.{name}"));
+    if let Some(path) = console_environment
+        .map(specific)
+        .filter(|path| path.is_file())
+    {
+        return path;
     }
+    if let Some(path) = external
+        .get(&format!("{namespace}ENV"))
+        .as_deref()
+        .map(specific)
+        .filter(|path| path.is_file())
+    {
+        return path;
+    }
+    app_dir.join(".env")
 }
 
 /// 为一个运行环境构建合并后的配置源。
@@ -275,6 +278,7 @@ pub struct ConfigLoader {
     explicit_config_dir: bool,
     config_dir_key: String,
     env: Environment,
+    pin_env: bool,
     namespace: String,
     environment: Option<EnvironmentSnapshot>,
 }
@@ -298,34 +302,89 @@ impl ConfigLoader {
         app_dir: impl AsRef<Path>,
         namespace: &str,
     ) -> Result<ConfigSources, ConfigError> {
-        Self::resolve_application_sources(app_dir.as_ref(), namespace)
+        Self::resolve_application_sources(app_dir.as_ref(), namespace, None, None)
             .map(|(sources, _, _)| sources)
+    }
+
+    /// 为控制台启动读取配置；`console_environment` 仅选择存在的 `.env.<名称>` 文件。
+    ///
+    /// 配置缓存命中时不会读取任何 dotenv 文件。最终应用环境由加载后的配置决定。
+    pub fn console_application_sources(
+        app_dir: impl AsRef<Path>,
+        namespace: &str,
+        console_environment: Option<&str>,
+    ) -> Result<ConfigSources, ConfigError> {
+        Self::resolve_application_sources(app_dir.as_ref(), namespace, console_environment, None)
+            .map(|(sources, _, _)| sources)
+    }
+
+    /// 以显式 Rust 配置清单加载应用；默认不会扫描 TOML 目录。
+    pub fn application_code_sources(
+        app_dir: impl AsRef<Path>,
+        namespace: &str,
+        console_environment: Option<&str>,
+        manifest: &ConfigManifest,
+    ) -> Result<ConfigSources, ConfigError> {
+        Self::resolve_application_sources(
+            app_dir.as_ref(),
+            namespace,
+            console_environment,
+            Some(manifest),
+        )
+        .map(|(sources, _, _)| sources)
     }
 
     pub(crate) fn resolve_application_sources(
         app_dir: &Path,
         namespace: &str,
+        console_environment: Option<&str>,
+        manifest: Option<&ConfigManifest>,
     ) -> Result<(ConfigSources, PathBuf, &'static str), ConfigError> {
         validate_namespace(namespace)?;
         let external = EnvironmentSnapshot::capture();
         let early_path = compiled::selected_path_from(app_dir, namespace, &external)?;
         if let Some(cached) = compiled::load(&early_path)? {
+            if manifest.is_some_and(ConfigManifest::has_typed) {
+                return Err(ConfigError::Invalid(
+                    "已编译配置含运行期 Rust 类型，不能加载配置缓存".to_owned(),
+                ));
+            }
             return Ok((cached, early_path, "cache"));
         }
-        let environment = external.with_dotenv_at(&app_dir.join(".env"))?;
+        let dotenv_path = selected_dotenv_path(app_dir, namespace, &external, console_environment);
+        let environment = external.with_dotenv_at(&dotenv_path)?;
         let path = compiled::selected_path_from(app_dir, namespace, &environment)?;
         if let Some(cached) = compiled::load(&path)? {
+            if manifest.is_some_and(ConfigManifest::has_typed) {
+                return Err(ConfigError::Invalid(
+                    "已编译配置含运行期 Rust 类型，不能加载配置缓存".to_owned(),
+                ));
+            }
             return Ok((cached, path, "cache"));
         }
         let env = selected_environment(namespace, &environment)?;
         let mut loader = Self::from_snapshot(env, namespace, environment)?;
         loader.config_dir = app_dir.join(&loader.config_dir);
+        if manifest.is_some()
+            && loader.config_dir_source() != "default"
+            && !loader.config_dir.is_dir()
+        {
+            return Err(ConfigError::Invalid(format!(
+                "{}: 显式配置目录不存在或不是目录（路径未公开）",
+                loader.config_dir_key,
+            )));
+        }
         let source = if loader.config_dir_source() == "default" {
             "default"
         } else {
             "configured"
         };
-        Ok((loader.sources()?, path, source))
+        let sources = if let Some(manifest) = manifest {
+            loader.code_sources(manifest)?
+        } else {
+            loader.sources()?
+        };
+        Ok((sources, path, source))
     }
 
     /// 使用 `APP_CONFIG_DIR`（或 [`DEFAULT_CONFIG_DIR`]）和 `APP_ENV`。
@@ -335,8 +394,11 @@ impl ConfigLoader {
 
     /// 使用所选命名空间的 `<PREFIX>ENV` 和 `<PREFIX>CONFIG_DIR` 值。
     pub fn from_env_with_namespace(namespace: &str) -> Result<Self, ConfigError> {
-        let env = Environment::from_env_with_namespace(namespace)?;
-        Self::from_environment_with_namespace(env, namespace)
+        let environment = EnvironmentSnapshot::capture();
+        let env = selected_environment(namespace, &environment)?;
+        let mut loader = Self::from_snapshot(env, namespace, environment)?;
+        loader.environment = None;
+        Ok(loader)
     }
 
     /// 使用所选命名空间的 `<PREFIX>CONFIG_DIR`（或 [`DEFAULT_CONFIG_DIR`]）。
@@ -346,6 +408,7 @@ impl ConfigLoader {
     ) -> Result<Self, ConfigError> {
         let mut loader = Self::from_snapshot(env, namespace, EnvironmentSnapshot::capture())?;
         loader.environment = None;
+        loader.pin_env = true;
         Ok(loader)
     }
 
@@ -367,6 +430,7 @@ impl ConfigLoader {
             config_dir: selected.map_or_else(|| PathBuf::from(DEFAULT_CONFIG_DIR), PathBuf::from),
             config_dir_key,
             env,
+            pin_env: environment.present(&format!("{namespace}ENV")),
             namespace: namespace.to_owned(),
             environment: Some(environment),
         })
@@ -392,6 +456,7 @@ impl ConfigLoader {
             explicit_config_dir: true,
             config_dir_key: "config_dir".to_owned(),
             env,
+            pin_env: true,
             namespace: ENV_PREFIX.to_owned(),
             environment: None,
         }
@@ -407,9 +472,9 @@ impl ConfigLoader {
         Ok(self)
     }
 
-    /// 所选运行环境。
-    pub fn environment(&self) -> Environment {
-        self.env
+    /// 显式环境覆盖；缺失时最终身份由配置文件或默认值决定。
+    pub fn environment_override(&self) -> Option<&Environment> {
+        self.pin_env.then_some(&self.env)
     }
 
     /// 读取 TOML 文件的目录。
@@ -431,13 +496,42 @@ impl ConfigLoader {
         reason = "顺序列出文件、通用别名与命名空间环境层，避免隐藏配置优先级"
     )]
     pub fn sources(&self) -> Result<ConfigSources, ConfigError> {
+        self.sources_inner(None, true)
+    }
+
+    pub(crate) fn code_sources(
+        &self,
+        manifest: &ConfigManifest,
+    ) -> Result<ConfigSources, ConfigError> {
+        self.sources_inner(Some(manifest), manifest.includes_toml())
+    }
+
+    fn sources_inner(
+        &self,
+        manifest: Option<&ConfigManifest>,
+        include_toml: bool,
+    ) -> Result<ConfigSources, ConfigError> {
         let defaults = serde_json::to_value(FrameworkConfig::default())
             .map_err(|_| ConfigError::Invalid("configuration: 默认值无法表示为有序配置".into()))?;
         let entries = defaults
             .as_object()
             .ok_or_else(|| ConfigError::Invalid("configuration: 默认值根必须是对象".into()))?;
         let mut sources = ConfigSources::from_ordered_entries(entries.clone())?;
-        for (name, file) in self.domain_files()? {
+        let environment = self
+            .environment
+            .clone()
+            .unwrap_or_else(EnvironmentSnapshot::capture);
+        if let Some(manifest) = manifest {
+            let context = ConfigContext::new(environment.clone());
+            manifest.apply(&mut sources, &context)?;
+            sources.set_code_context(context);
+        }
+        let files = if include_toml {
+            self.domain_files()?
+        } else {
+            Vec::new()
+        };
+        for (name, file) in files {
             let content = std::fs::read_to_string(&file).map_err(|_| {
                 ConfigError::Invalid(format!(
                     "{}: 配置文件无法读取（源值未公开）",
@@ -462,10 +556,6 @@ impl ConfigLoader {
                 Metadata::named("TOML file").source(file.as_path()),
             )?;
         }
-        let environment = self
-            .environment
-            .clone()
-            .unwrap_or_else(EnvironmentSnapshot::capture);
         if let Some(url) = conventional_database_url(&environment) {
             let layer = serde_json::json!({ "database": { "url": url } });
             sources.merge(Serialized::defaults(layer.clone()), layer)?;
@@ -495,6 +585,11 @@ impl ConfigLoader {
             Serialized::defaults(namespaced_nulls.clone()),
             namespaced_nulls,
         )?;
+        if self.pin_env {
+            let selected = serde_json::json!({ "app": { "env": self.env.as_str() } });
+            sources.merge(Serialized::defaults(selected.clone()), selected)?;
+        }
+        sources.validate_typed_paths()?;
         Ok(sources)
     }
 
@@ -587,10 +682,12 @@ impl ConfigLoader {
         Ok(self.figment()?.extract()?)
     }
 
-    /// 提取框架配置区段，并将 `app.env` 固定为所选运行环境。
+    /// 提取框架配置区段；显式环境选择覆盖文件内的 `app.env`。
     pub fn load_framework(&self) -> Result<FrameworkConfig, ConfigError> {
         let mut config: FrameworkConfig = self.load()?;
-        config.app.env = self.env;
+        if self.pin_env {
+            config.app.env = self.env.clone();
+        }
         Ok(config)
     }
 }
@@ -733,6 +830,7 @@ fn namespaced_environment_path(key: &str, namespace: &str) -> Option<String> {
 fn flat_environment_path(key: &str) -> String {
     match key {
         "NAME" => "app.name".to_owned(),
+        "DEBUG" => "app.debug".to_owned(),
         "URL" => "app.url".to_owned(),
         "KEY" => "app.key".to_owned(),
         "PREVIOUS_KEYS" => "app.previous_keys".to_owned(),
@@ -1811,15 +1909,231 @@ mod tests {
     }
 
     #[test]
-    fn unknown_environment_is_rejected() {
-        assert!(matches!(
-            "staging".parse::<Environment>(),
-            Err(ConfigError::UnknownEnvironment { value, .. }) if value == "staging"
-        ));
+    fn environment_identity_preserves_exact_names() -> Result<(), Box<dyn std::error::Error>> {
+        for name in [
+            "local",
+            "dev",
+            "development",
+            "test",
+            "testing",
+            "production",
+            "prod",
+            "PROD",
+            "staging",
+            "",
+        ] {
+            let environment: Environment = name.parse()?;
+            assert_eq!(environment.as_str(), name);
+            assert_eq!(
+                serde_json::to_value(&environment).ok(),
+                Some(serde_json::json!(name))
+            );
+            assert_eq!(
+                serde_json::from_value::<Environment>(serde_json::json!(name)).ok(),
+                Some(environment)
+            );
+        }
+        assert!(Environment::Local.is_local());
+        assert!(!Environment::Development.is_local());
+        assert!(Environment::Production.is_production());
+        assert!(!Environment::Prod.is_production());
+        assert!(Environment::Testing.running_unit_tests());
+        assert!(!Environment::Test.running_unit_tests());
+        for name in ["prod", "PROD", "Production", " production "] {
+            let environment = Environment::from(name.to_owned());
+            assert!(!environment.is_production());
+            assert!(environment.enforces_production_safety());
+        }
+        assert!(!Environment::from("staging".to_owned()).enforces_production_safety());
+        assert!(Environment::from("staging".to_owned()).matches(["local", "stag*"]));
+        assert!(!Environment::from("Staging".to_owned()).matches(["stag*"]));
+        assert!(Environment::from("stage-qa".to_owned()).matches(["st*e-*a"]));
+        let canonical = Environment::Production;
+        let custom = Environment::Custom("production".to_owned());
+        let decoded: Environment = serde_json::from_value(serde_json::to_value(&custom)?)?;
+        assert_eq!(custom, canonical);
+        assert_eq!(decoded, custom);
         assert_eq!(
-            "PROD".parse::<Environment>().ok(),
-            Some(Environment::Production)
+            std::collections::HashSet::from([canonical, custom]).len(),
+            1
         );
+        Ok(())
+    }
+
+    #[test]
+    fn application_file_environment_is_preserved_without_app_env_override() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.create_file("config/app.toml", "env = 'Staging'\n")?;
+            let sources = ConfigLoader::application_sources(".", ENV_PREFIX)
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let actual: Environment = sources.figment().extract_inner("app.env")?;
+            assert_eq!(actual.as_str(), "Staging");
+            jail.set_env("APP_ENV", "testing");
+            let override_sources = ConfigLoader::application_sources(".", ENV_PREFIX)
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let override_value: Environment =
+                override_sources.figment().extract_inner("app.env")?;
+            assert_eq!(override_value, Environment::Testing);
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn console_dotenv_file_selection_uses_existing_cli_then_external_then_plain_file() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_file(".env", "APP_NAME=plain\nAPP_ENV=inside\n")?;
+            jail.create_file(".env.local", "APP_NAME=local-file\nAPP_ENV=selected-file\n")?;
+            jail.create_file(".env.outside", "APP_NAME=external-file\n")?;
+
+            let read = |console_environment| -> Result<(String, String), figment::Error> {
+                let sources =
+                    ConfigLoader::console_application_sources(".", ENV_PREFIX, console_environment)
+                        .map_err(|error| figment::Error::from(error.to_string()))?;
+                Ok((
+                    sources.figment().extract_inner("app.name")?,
+                    sources.figment().extract_inner("app.env")?,
+                ))
+            };
+            assert_eq!(
+                read(Some("local"))?,
+                ("local-file".into(), "selected-file".into())
+            );
+            assert_eq!(read(Some("missing"))?, ("plain".into(), "inside".into()));
+            assert_eq!(
+                ConfigLoader::application_sources(".", ENV_PREFIX)
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .figment()
+                    .extract_inner::<String>("app.name")?,
+                "plain"
+            );
+
+            jail.set_env("APP_ENV", "outside");
+            assert_eq!(
+                read(Some("missing"))?,
+                ("external-file".into(), "outside".into())
+            );
+            assert_eq!(
+                read(Some("local"))?,
+                ("local-file".into(), "outside".into())
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn cached_console_configuration_skips_invalid_specific_dotenv() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("bootstrap")?;
+            jail.create_dir("bootstrap/cache")?;
+            jail.create_file(".env.local", "invalid dotenv line")?;
+            let mut cached = serde_json::to_value(FrameworkConfig::default())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            cached["app"]["name"] = serde_json::json!("cached");
+            jail.create_file(
+                "bootstrap/cache/config.json",
+                &serde_json::to_string(&cached)
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+            )?;
+            let sources = ConfigLoader::console_application_sources(".", ENV_PREFIX, Some("local"))
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(
+                sources.figment().extract_inner::<String>("app.name")?,
+                "cached"
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn app_debug_environment_is_strict_and_defaults_false() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            let default = ConfigLoader::from_env()
+                .and_then(|loader| loader.load_framework())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert!(!default.app.debug);
+            jail.set_env("APP_DEBUG", "yes");
+            let enabled = ConfigLoader::from_env()
+                .and_then(|loader| loader.load_framework())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert!(enabled.app.debug);
+            jail.set_env("APP_DEBUG", "private-invalid-value");
+            let error = ConfigLoader::from_env()
+                .and_then(|loader| loader.load_framework())
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_default();
+            assert!(error.contains("APP_DEBUG"));
+            assert!(!error.contains("private-invalid-value"));
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn custom_namespace_uses_its_external_environment_for_dotenv_file_selection() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_file(".env", "SHOP_NAME=plain\n")?;
+            jail.create_file(".env.shop", "SHOP_NAME=shop-file\nSHOP_ENV=from-file\n")?;
+            jail.set_env("APP_ENV", "unrelated");
+            jail.set_env("SHOP_ENV", "shop");
+            let sources = ConfigLoader::console_application_sources(".", "SHOP_", None)
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(
+                sources.figment().extract_inner::<String>("app.name")?,
+                "shop-file"
+            );
+            assert_eq!(
+                sources.figment().extract_inner::<String>("app.env")?,
+                "shop"
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn public_loader_keeps_file_environment_without_explicit_namespace_value() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.create_file("config/app.toml", "env = 'Staging'\n")?;
+            let app = ConfigLoader::from_env()
+                .and_then(|loader| loader.load_framework())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(app.app.env.as_str(), "Staging");
+            assert_eq!(
+                ConfigLoader::from_env()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .environment_override(),
+                None
+            );
+            let shop = ConfigLoader::from_env_with_namespace("SHOP_")
+                .and_then(|loader| loader.load_framework())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(shop.app.env.as_str(), "Staging");
+            jail.set_env("SHOP_ENV", "testing");
+            let selected = ConfigLoader::from_env_with_namespace("SHOP_")
+                .and_then(|loader| loader.load_framework())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(selected.app.env, Environment::Testing);
+            assert_eq!(
+                ConfigLoader::from_env_with_namespace("SHOP_")
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .environment_override(),
+                Some(&Environment::Testing)
+            );
+            Ok(())
+        });
     }
 
     #[test]
@@ -2171,7 +2485,7 @@ mod tests {
             jail.set_env("OPENRUST_ENV", "production");
             assert_eq!(
                 Environment::from_env().map_err(|error| figment::Error::from(error.to_string()))?,
-                Environment::Development
+                Environment::Production
             );
             jail.set_env("APP_ENV", "test");
             assert_eq!(
@@ -2275,15 +2589,14 @@ mod tests {
     }
 
     #[test]
-    fn invalid_custom_environment_reports_selected_key() {
+    fn custom_environment_keeps_selected_namespace() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("SHOP_ENV", "staging");
-            assert!(matches!(
-                Environment::from_env_with_namespace("SHOP_"),
-                Err(ConfigError::UnknownEnvironment { key, value })
-                    if key == "SHOP_ENV" && value == "staging"
-            ));
+            assert_eq!(
+                Environment::from_env_with_namespace("SHOP_").ok(),
+                Some(Environment::from("staging".to_owned()))
+            );
             Ok(())
         });
     }

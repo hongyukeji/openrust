@@ -4,7 +4,7 @@ Session 为同一请求提供共享属性与 flash，并在响应发送前持久
 
 ## 启用与存储
 
-编译 `session` feature，并在应用 Provider 清单中登记 `SessionServiceProvider`。启用 `auth` 已包含 `session` 编译能力，但仍需要应用明确装配 Provider。认证入口与通用 Session 共用同一 Provider、句柄和存储，不能再登记第二套 Session Provider。
+编译 `session` feature，并在应用 Provider 清单中登记 `SessionServiceProvider`。启用 `auth` 已包含 `session` 编译能力，但仍需要应用明确装配 Provider。认证入口与通用 Session 共用同一 Provider、句柄和存储，不能再登记第二套 Session Provider。Provider 只登记运行时；路由用 `RouteGroup::new().middleware_group("web")` 或在 API 中显式追加 `middleware_alias("cookies")`、`middleware_alias("session")` 才启动和保存会话。普通 API 不自动读取 Cookie、执行 Session GC 或发送 Session cookie；实际引用但 driver 禁用时 Router 构建报配置错误。
 
 同时启用 `view` 时，Session middleware 会在 `start` 成功后、进入处理器前恢复 `errors` 为当前请求的视图共享对象；损坏的已识别错误包会拒绝请求。处理器可用 `RequestInfo::put_view_error_bag` 修改本请求可见的命名包；已有 Session 错误对象的修改同步到 Session，但不延长原 flash 寿命；`Session::flash_errors` 显式闪存错误，已有 flash 可通过 `keep`/`reflash` 延续。整个 `errors` 属性被替换后，视图原对象保留但与 Session 断开；缺失时的空回退对象不会写回。没有 Session Provider 时，视图只得到本请求的独立空包。`Session::read_errors()` 返回独立读取快照；请求共享修改使用 `RequestInfo::put_view_error_bag`。
 
@@ -186,7 +186,7 @@ fn inspect(session: &Session) -> openrust::Result<()> {
 | `forget` / `flush` | 删除指定字面键或 dot 路径 / 清空全部属性（包含 token 和 flash 元数据）。 |
 | `only` / `except` | 选择顶层字面键 / 从独立快照按删除规则排除；不修改当前属性。 |
 
-这里不展开 `*` 通配符。属性使用 `DataValue` 单一值树；`all()` 和读出的值是快照，对象通过 `Arc` 保留身份，空属性根表示为 `[]`。参数或树超限时，批量变更保持原子性。不要直接管理框架 `_flash` 元数据：手动删除尾项后再追加按当前可见整数键计算，不保存 PHP 数组隐藏的 next-free 历史；普通 flash 与稀疏删除语义见[差异说明](../../.agents/project/decisions/adr-082-session-store-and-flash.md)。
+这里不展开 `*` 通配符。属性使用 `DataValue` 单一值树；`all()` 和读出的值是快照，对象通过 `Arc` 保留身份，空属性根表示为 `[]`。参数或树超限时，批量变更保持原子性。不要直接管理框架 `_flash` 元数据：手动删除尾项后再追加按当前可见整数键计算，不保存 PHP 数组隐藏的 next-free 历史；普通 flash 与稀疏删除语义见差异说明。
 
 ## 便捷读写与计数
 

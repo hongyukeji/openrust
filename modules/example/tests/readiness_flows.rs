@@ -37,9 +37,11 @@ async fn module_readiness_requires_its_article_table() -> Result<(), Box<dyn std
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         }),
     ));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
-        .build()
-        .await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(source))?,
+    )
+    .build()
+    .await?;
     let readiness = app
         .app()?
         .state()

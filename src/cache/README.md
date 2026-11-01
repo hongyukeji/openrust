@@ -83,3 +83,5 @@ let profile = store
 ```
 
 扩展包可实现 `CacheDriver` 与 `CacheBackend`，通过 `CacheServiceProvider::new().with_driver(driver)` 在构造时登记，或在后续 Provider boot 中异步解析 `Cache` 并调用 `extend(driver)`。默认 store 在 boot 时解析；其他 named store 按需异步构造并缓存。同名 creator 替换不会改变已解析的 store；`forget_driver` / `purge` 后重新解析会使用当前配置和 creator。driver 可实现 `validate` 以在最终配置校验时检查专属选项；未实现时框架无法验证其自定义选项。自定义选项使用 `[stores.<name>]` 下除 `driver`、`namespace` 以外的字段。
+
+缓存 tag 值与 generation 元数据使用 `__cache_tag_v1:` 和 `__cache_tag_meta_v1:` 物理键；`__cache_` 与旧 `__openrust_cache_` 前缀不能作为应用键。旧 tag 键不会自动读取、迁移或清除；切换后旧 generation 不参与新键隔离，应用需按自己的数据保留策略评估旧键到期与清理。租户物理键改用 `__tenant_` 前缀，新旧租户前缀均拒绝作为应用逻辑键；旧键同样不会自动读取。

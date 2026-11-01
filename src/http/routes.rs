@@ -294,6 +294,108 @@ impl Default for MiddlewareRegistry {
 }
 
 impl MiddlewareRegistry {
+    pub(crate) fn install_web_defaults(
+        &mut self,
+        cookie: Option<super::cookie::CookieLayer>,
+        #[cfg(feature = "session")] session: Option<crate::session::SessionLayer>,
+        #[cfg(feature = "session")] forgery: Option<super::forgery::ForgeryRuntime>,
+    ) -> crate::core::Result<()> {
+        if !self.aliases.contains_key("cookies") && !self.groups.contains_key("cookies") {
+            self.alias(
+                "cookies".to_owned(),
+                Arc::new(move |mut routes| {
+                    if let Some(layer) = &cookie {
+                        routes.layer(axum::middleware::from_fn_with_state(
+                            layer.clone(),
+                            super::cookie::middleware::handle,
+                        ))
+                    } else {
+                        routes.middleware_errors.push(crate::Error::custom(
+                            "web_cookie_provider_missing",
+                            "Cookie 路由层要求 CookieServiceProvider",
+                        ));
+                        routes
+                    }
+                }),
+            )?;
+        }
+        if !self.aliases.contains_key("session") && !self.groups.contains_key("session") {
+            #[cfg(feature = "session")]
+            let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
+                if let Some(layer) = &session {
+                    routes.layer(axum::middleware::from_fn_with_state(
+                        Some(layer.clone()),
+                        crate::session::handle_session,
+                    ))
+                } else {
+                    routes.middleware_errors.push(crate::Error::custom(
+                        "web_session_provider_missing",
+                        "Session 路由层要求已启用的 SessionServiceProvider",
+                    ));
+                    routes
+                }
+            });
+            #[cfg(not(feature = "session"))]
+            let builder: MiddlewareLayerBuilder = Arc::new(|mut routes| {
+                routes.middleware_errors.push(crate::Error::custom(
+                    "web_session_feature_missing",
+                    "Web 路由组要求 session feature",
+                ));
+                routes
+            });
+            self.alias("session".to_owned(), builder)?;
+        }
+        if !self.aliases.contains_key("csrf") && !self.groups.contains_key("csrf") {
+            #[cfg(feature = "session")]
+            let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
+                if let Some(runtime) = &forgery {
+                    if runtime
+                        .cookie
+                        .protects_web_cookies(&runtime.session_cookie_name)
+                    {
+                        return routes.layer(axum::middleware::from_fn_with_state(
+                            runtime.clone(),
+                            super::forgery::handle,
+                        ));
+                    }
+                    routes.middleware_errors.push(crate::Error::custom(
+                        "web_cookie_encryption_missing",
+                        "默认 Web 组要求受保护 Cookie 与 Encryptor",
+                    ));
+                } else {
+                    routes.middleware_errors.push(crate::Error::custom(
+                        "web_csrf_runtime_missing",
+                        "Web CSRF 要求 Cookie 和有效 Session",
+                    ));
+                }
+                routes
+            });
+            #[cfg(not(feature = "session"))]
+            let builder: MiddlewareLayerBuilder = Arc::new(|mut routes| {
+                routes.middleware_errors.push(crate::Error::custom(
+                    "web_session_feature_missing",
+                    "Web CSRF 要求 session feature",
+                ));
+                routes
+            });
+            self.alias("csrf".to_owned(), builder)?;
+        }
+        if !self.groups.contains_key("web") && !self.aliases.contains_key("web") {
+            self.group(
+                "web".to_owned(),
+                vec!["cookies", "session", "csrf"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+            )?;
+        }
+        if !self.groups.contains_key("api") && !self.aliases.contains_key("api") {
+            // SubstituteBindings 已由受管理路由分发器执行；空追加链表示不重复包装。
+            self.groups.insert("api".to_owned(), Vec::new());
+        }
+        Ok(())
+    }
+
     pub(crate) fn install_framework_defaults(
         &mut self,
         signed_except: Vec<String>,
@@ -1484,6 +1586,10 @@ pub(crate) fn assemble(parts: RouteParts) -> Router<AppState> {
         ))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "单次路由决策同时维护方法、域名与 fallback 优先顺序"
+)]
 async fn dispatch_collection(
     candidates: &[DispatchCandidate],
     state: AppState,
@@ -1493,7 +1599,7 @@ async fn dispatch_collection(
         .iter()
         .any(|candidate| candidate.domain.is_some())
     {
-        match request
+        let host = request
             .extensions()
             .get::<super::proxy::ProxySnapshot>()
             .cloned()
@@ -1511,7 +1617,16 @@ async fn dispatch_collection(
                     || authority(request.headers(), request.uri()),
                     |(host, _)| Ok(host),
                 )
-            }) {
+            });
+        match host.and_then(|host| {
+            request
+                .extensions()
+                .get::<super::trusted_hosts::TrustedHostsSnapshot>()
+                .cloned()
+                .unwrap_or_default()
+                .check(&host)?;
+            Ok(host)
+        }) {
             Ok(host) => Some(host),
             Err(error) => return error.into_response(),
         }

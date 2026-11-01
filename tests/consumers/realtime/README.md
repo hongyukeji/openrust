@@ -28,4 +28,4 @@ OPENRUST_REALTIME_TEST_REDIS_URL=redis://127.0.0.1:6379/ \
 - 同一 Redis namespace 内所有节点都能读取 envelope。不要在消息中放入秘密或不应由所有同 namespace 节点读取的数据。
 - 每节点连接数、消息大小、每连接队列和总队列字节数均有上限；慢连接会被关闭。跨节点 Redis 故障明确报错，不会改成本地 transport。
 
-可调配置见 RealtimeConfig 与 [ADR-059](../../../.agents/project/decisions/adr-059-realtime-transport.md)。完整集群、负载均衡滚动升级与 PostgreSQL/MySQL 总体验收仍由 v1 最终门禁负责。
+可调配置见 RealtimeConfig 与 历史决策 059。完整集群、负载均衡滚动升级与 PostgreSQL/MySQL 总体验收仍由 v1 最终门禁负责。

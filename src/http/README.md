@@ -2,9 +2,16 @@
 
 OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
+## 异常报告与渲染
+
+Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandler`。`Error::internal(source)` 保留原始具体异常，报告与渲染回调按类型和来源链匹配；`render` 返回 `None` 时继续下一项，最终 `respond` 可定制完整原生 Response。请求错误默认按 `RequestInfo::expects_json` 使用的 Accept 与 AJAX/PJAX 规则选择 JSON 或 HTML，非 debug 的内部错误隐藏 source。应用可通过 `api_envelope_when` 对 `/api` 等明确路径保留统一错误 envelope；这是公开响应策略，不把所有 Web 异常强制转为 JSON。`app.debug` 来自服务端配置，客户端头不能启用。
+
+受管理 Handler 抛出的 `Error`、框架提取与 middleware 返回的 `Error` 共用请求局部策略。受管 Web 请求的校验错误在 Session 保存前 flash 字段错误与已规范化旧输入，默认排除 `current_password`、`password`、`password_confirmation`，`dont_flash` 可追加字段；然后重定向至 Session 记录的上一页。JSON 校验错误返回 422 与 `message` / `errors`。浏览器未认证请求可用 `redirect_unauthenticated_to` 指定登录地址。原生 Axum handler 若自行构造 `Response`，框架不会猜测它是异常并重包；要进入 Handler，应返回框架 `Error` 或显式调用公开渲染 API。CLI `report_error` 不伪造 HTTP 协商。当前代码尚待最终组合验证；上述 Web 流程需结合最终 web 组层序验证。
+
 - [`HttpServiceProvider`]：在 `register` 登记 HTTP 配置与能力，在 `boot` 贡献 `serve` 命令、默认 middleware 栈、`/health` 和 `/ready`。
 - `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
 - `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
+- 默认 `web` 组按 Cookie 解密/队列、Session（含共享 errors）、CSRF、受管理路由固有参数绑定的顺序执行；`api` 组仅含固有参数绑定。用 `RouteGroup::new().middleware_group("web")` 或 `middleware_group("api")` 显式给路由分组。需要 Cookie/Session 的 API 可逐组追加 `middleware_alias("cookies")`、`middleware_alias("session")`；普通 API 不创建会话。`SubstituteBindings` 已由受管理路由分发器执行，`api` 组不再追加空 Tower middleware。
 - [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；`route(path, RouteMethods)` 接受 `routing::{get, post, put, patch, delete, head, options, query, on, any}` 受管理方法声明，可链式追加不同方法。`on` 校验并规范化 HTTP 方法字符串，`any` 仅包含 Laravel 固定的 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY。[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 默认按声明顺序进入请求；命名项按公开优先级调整并去重，组外路由不受影响。
 - [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
@@ -14,7 +21,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - 公开站点由 `[server].public_dir` 指定，默认是应用工作目录下的 `public/`；其他文件从站点根按 URL 路径提供。根 GET/HEAD 在普通业务路由路径均未命中后，先执行自定义 `[server].root_target`，再考虑用户 fallback；即使 `public/index.html` 存在，也不会覆盖自定义根目标。默认值 `file:/index.html` 保留静态首页模式：存在文件时返回文件，缺失时允许用户根 fallback 接管；显式配置相同值也使用此模式。`[server].root_target` 默认 `file:/index.html`，也支持 `forward:/path`、`redirect:/path` / `redirect:https://host/path`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:index.html`。视图模板放在 `[view].directory`（默认 `views/`），静态资源仍放在 `public/`。`APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 可在 `.env` 或进程环境覆盖 TOML；进程环境优先。生产部署不得将包含 `.env` 的应用根目录设为静态公开目录。API 与 `/ws/*` 的未匹配路径保留框架 404 响应，不回落到静态文件。
 
 站点响应边界会在业务或站点处理完成后清空 HEAD 正文，保留状态、全部响应头和扩展；原正文直接 drop，不读取流，也不推断或补入 Content-Length。GET 响应不变。此保证覆盖经过站点 service 的响应；站点外层 middleware 自行短路构造的响应不在此边界内。
-- [`SortParams`]：只按显式字段白名单解析 ADR-008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
+- [`SortParams`]：只按显式字段白名单解析 历史决策 008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
 - [`Json<T>`]、[`Path<T>`] 与 [`Query<T>`]：兼容 axum 的 extractors，并将拒绝结果包装为 API 响应。`Json<T>` 还实现了 `IntoResponse`。
 - [`Validated`]：普通请求在强类型 `Json<T>` / `Query<T>` 解析后执行公开字段规则；已确认的 Precognition 可在构造完整 DTO 前只验证所选字段。
 - [`Inject`]：提取由容器实例或异步工厂注册的服务。
@@ -24,9 +31,21 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
 ## 请求检查与内容协商
 
-`RequestInfo` 是不消费正文的只读请求提取器，可放在 `Json<T>` 等唯一正文提取器前面。`path()` 返回去首尾斜线的原始路径（根路径为 `/`），`method()` / `is_method()` 检查方法；`header()`、`bearer_token()` 返回 `Result<Option<&str>>`，非法文本头为稳定的 400 错误。`headers()` 保留只读二进制头访问。`host()` 与域路由共用严格 authority 校验，不采信转发 Host；客户端 IP 继续使用 `ClientIp`。
+`RequestInfo` 是不消费正文的只读请求提取器，可放在 `Json<T>` 等唯一正文提取器前面。`path()` 返回去首尾斜线的原始路径（根路径为 `/`），`method()` / `is_method()` 检查方法；`header()`、`bearer_token()` 返回 `Result<Option<&str>>`，非法文本头为稳定的 400 错误。`headers()` 保留只读二进制头访问。`host()` 与域路由共用 authority 校验及可信代理快照；只有直连 peer 可信时才采用配置允许的转发 Host。客户端 IP 继续使用 `ClientIp`。
 
-启用 `view` 时，`Views::render_for_request(name, &RequestInfo, &context)` 使用本请求的 `errors` 对象；`RequestInfo::put_view_error_bag` 可在处理器中添加或替换命名包，后续渲染可见。Session Provider 若存在，会在 handler 前恢复错误包；未安装时为空包。该对象不存放在全局视图环境。
+### 可信主机
+
+`[server.trusted_hosts]` 缺省时不启用 Host allowlist。显式配置后，`at` 缺省使用 `app.url` 的主机及任意层子域；`at = []` 且 `subdomains = false` 表示启用空模式列表，不限制主机。显式 `at` 是按原顺序求值的 PCRE 模式体，大小写不敏感，不自动添加锚点；`subdomains = true` 时会追加 `app.url` 默认模式。空字符串和 `"0"` 按 Laravel 的空值规则过滤。只有精确 `local`、`testing` 环境跳过策略，`development`、`dev`、`test` 等其他环境仍执行。
+
+应用或模块 Provider 可在 `boot` 中调用 `BootContext::trust_hosts(TrustedHostsConfig { at, subdomains })` 覆盖静态配置，也可调用 `trust_hosts_with(subdomains, |state| Box::pin(async move { /* 返回 Vec<String> */ }))`；回调得到当前 `AppState`，每个生效请求求值一次，策略只在该请求内保存。物理 Host 在可信代理捕获前校验；后续 `RequestInfo::host()`、域路由及其 URL 消费者读取有效代理 Host 时复用同一模式。无匹配返回 400；实际求值触及非法模式返回内部错误，先匹配成功不会求值后续非法模式。主机校验不使 `port()`、客户端 IP 或前缀读取依赖 Host 求值。
+
+启用 `view` 时，`Views::render_for_request(name, &RequestInfo, &context)` 使用本请求的 `errors` 对象；`RequestInfo::put_view_error_bag` 可在处理器中添加或替换命名包，后续渲染可见。路由显式使用 Session 层时会在 handler 前恢复错误包；未安装时为空包。该对象不存放在全局视图环境。
+
+### Web CSRF
+
+启用 `session`、`encryption` 并登记 `SessionServiceProvider`、`EncryptionServiceProvider`、`CookieServiceProvider::new()` 后，`web` 组在实际路由引用时装配。缺任一前置或使用明文 Cookie 时构建 Router 报配置错误；没有 Web 路由的 API 应用不需要这些能力。`BootContext::prevent_request_forgery(PreventRequestForgery::new().except(["webhook/*"]).allow_same_site())` 按应用设置例外和同站策略，也可选 `origin_only()` 或 `without_xsrf_cookie()`。默认只读 GET/HEAD/OPTIONS 放行；unsafe 请求先检查 `Sec-Fetch-Site: same-origin`，同站需显式允许，否则按 `_token`、`X-CSRF-TOKEN`、加密 `X-XSRF-TOKEN` 顺序比对 Session token；失败进入统一异常 Handler，token 错误为 419，纯来源策略错误为 403。成功响应发送可供前端读取的加密 `XSRF-TOKEN` cookie，按 Session 的 path/domain/secure/SameSite/lifetime/partitioned 配置。
+
+测试豁免仅由 `TestAppBuilder` 内部启动身份与最终 `Environment::Testing` 同时触发；普通命令启动、debug 配置和客户端请求头均不能伪造。Rust 没有 PHP SAPI 的 `runningInConsole`，因此以受信测试启动器替代，不从进程 argv 推断 HTTP 运行模式。CSRF 复用唯一受管 `Request` 的 `_token` 输入解析，包括 multipart 文本字段；原始正文和上传文件由共享暂存所有权保留，下游受管 Request 复用缓存，原生提取器从独立异步游标重放正文。正文、字段及文件遵循同一 `RequestBodyLimits`，取消时按原所有权回收。
 
 ```rust,ignore
 async fn store(
@@ -128,7 +147,7 @@ secure 未指定时，原生 TLS 宿主可注入 `RequestSecurity`；可信代�
 
 ## 统一请求输入
 
-`openrust::http::Request` 是唯一正文所有者，复用 `RequestInfo` 的检查方法并提供 `input` / `json` / `query` / `post`、`all` / `keys`、存在性、筛选和修改。它与 `Json<T>` 不在同一 handler 中并列；需要 DTO 时使用 `deserialize_json::<T>()`、`deserialize_query::<T>()` 或 `deserialize_input::<T>()`。只需检查 headers 且继续用 `Json<T>` 时仍选 `RequestInfo`。`content()` 返回有界的原始字节，输入修改不会重写原文；不要把原文或密码写入日志。
+`openrust::http::Request` 是唯一正文所有者，复用 `RequestInfo` 的检查方法并提供 `input` / `json` / `query` / `post`、`all` / `keys`、存在性、筛选和修改。它与 `Json<T>` 不在同一 handler 中并列；需要 DTO 时使用 `deserialize_json::<T>()`、`deserialize_query::<T>()` 或 `deserialize_input::<T>()`。只需检查 headers 且继续用 `Json<T>` 时仍选 `RequestInfo`。`content().await?` 返回持有暂存所有权的独立异步读取游标；需要完整字节时显式调用 `content_bytes(max).await?` 并处理超限，`content_len()` 不作内存投影。输入修改不会重写原文；不要把原文或密码写入日志。
 
 JSON 类型优先，包括 GET/HEAD；其他 GET/HEAD 取 query，其他方法取 form。`all` / `input` 采用 source 与 query 的顶层左并集，body 的 null 或完整对象会遮住同名 query 值。`input("profile.name")?` / `json("profile.name")?` 支持 dot 与读取通配；`query("profile.name")` / `post(...)` 只取直接键。读取结果为 Option，资源超限另由 Result 返回；`has(&["name"])` 包括 null，`filled(&["name"])` 对空白/null 为假、对 false/0/空数组为真。
 
@@ -138,7 +157,11 @@ JSON 类型优先，包括 GET/HEAD；其他 GET/HEAD 取 query，其他方法�
 
 正文按 Axum 受限读取，默认2MiB，可由应用显式 `DefaultBodyLimit` 调整；query限制16KiB，URL编码输入最多1024个原始非空字段对，值树最多1024 entries/64层，完整展开键累计20MiB。超限明确拒绝，不截断；非法UTF-8的form/query报400，不用替代字符改写。动态 `Request` 保留 Laravel 畸形JSON为空bag、scalar转数组的语义；typed `Json<T>` 继续严格返回语法400、媒体415和类型422。规范化 typed JSON 仅改写值字符串，保留原始数字词法以支持 Rust `u128` / `i128`，并使用有界额外缓冲。动态 `Request` bags 使用标准 `serde_json::Value` 数值表示；需要保持128位整数精度时选择 typed `Json<T>`，不要先经动态Value往返。
 
-multipart 在显式选择 `Request` 时只保存有界原文，本簇不提供其文本/文件bag合并；需要现有流式上传时使用对应公开上传接口。Cookie 通过独立接口读取；Session、old input/flash、FormRequest及完整文件语义按各自能力交付，不因增加此提取器而自动具备。
+multipart 使用 Axum 官方解析器；网络正文只读一次，先遵守 `DefaultBodyLimit`，超过受管内存阈值后异步暂存原文，再用共享游标分块解析文件，不把完整上传载入内存。`RequestBodyLimits` 是额外的 Rust 安全预算：默认正文32 MiB、内存阈值256 KiB、动态 JSON/form 与 multipart 文本总量解码预算8 MiB、单文件16 MiB、单文本字段1 MiB、最多1024字段、单part头16 KiB，可通过请求 extension 明确覆盖；这些数值不是 Laravel/PHP 默认值。解码预算与原文暂存阈值独立：超过预算的 JSON/form 输入及对大体积非结构化正文调用 `json` 会明确报超限，`content` 仍可按流读取；不会静默返回空 bag。默认 Axum 2 MiB 仍先行，应用若提高/关闭它，受管总量和解码预算仍需分别调整。最后一个请求/文件/读取游标释放后暂存自动清理；这与 PHP/SAPI 接收时机不同。畸形 multipart、UTF-8 文本失败和超限不会静默变空 bag。
+
+`all_files()` 返回保序的 `DataValue` 文件树，`file("profile.avatar")?` 和 `file("photos.*.image")?` 读取嵌套与通配值；通配缺失位置保留 null，多级通配按 Laravel 展平一层，`has_file` 只检查当前值或其直接数组成员是否为已接收文件，不等于文件有效性递归检查。`all()`、`only()`、`except()` 返回混合 `DataValue`：纯输入优先于同键文件，文件对象克隆保留共享身份；响应/DTO 须显式投影，未声明投影的上传对象不能序列化为 JSON。`input_all()` 与 `input/json/query/post` 保持纯输入，`flash()` 默认只保存纯输入，`flash_only/except` 可选到文件对象，原生 Session 编码保存时会拒绝该对象；Redirect 的 `with_input` 默认只保存纯输入；`only_input/except_input` 先从混合树筛选，再递归去除上传对象，保留被清空的父数组。
+
+`UploadedFile` 保留客户端原名/相对路径/MIME 等不可信展示信息、大小和独立异步游标；`mime_type().await` 检测服务端实际内容，`extension().await` 使用固定 Symfony Mime v8.0.0 有序全表的首选扩展名。`hash_name().await` 仅缓存 40 字符随机主体，扩展名随检测器或应用映射变更而重算；`store/store_as/store_publicly/store_publicly_as` 成功返回规范存储路径。`App::mime_types().await` / `RegisterContext::mime_types().await` 通过同一容器解析并取得同一应用的 `MimeTypes`，可按后注册优先登记 `MimeTypeGuesser`，也可覆盖 MIME 的有序扩展列表；另一个 App 独立。外部检测器使用公开 `MimeFile::open()` 的受管异步游标，无需自行管理暂存路径。默认检测调用本机 `file -b --mime --`，有界输出和 5 秒检测限时；取消或超时会通知受管检测任务，并在额外 2 秒清理期限内尝试终止、回收子进程；Windows 或缺少 `file` 时需应用提供可用检测器，否则返回明确错误。受支持检测器全部返回未知时 `mime_type` 为 `None`，`extension/hash_name` 则返回稳定错误；已识别 MIME 但全表无扩展时 `extension` 为 `None`。存储路径经 `StoragePath` 校验，客户端 MIME 或文件名不参与可信检测或对象 key。Rust 默认检测后端尚未包含 Symfony Fileinfo，Windows 原生后端及真实 S3 ACL、迟到 `CopyObject`、`throw=false` 差异仍开放。
 
 启用 Session 后，`RequestInfo::old`、`old_or` 和 `old_all` 返回原始 `DataValue`，同一请求能观察 `flash_input` 中对象的共享身份；缺失键才采用默认值，显式 null 保留。需要 DTO 或响应 JSON 时显式调用 `old_json`、`old_or_json`、`old_all_json`；未指定对象投影时返回安全错误，不把对象当作缺失值。
 
@@ -148,7 +171,7 @@ multipart 在显式选择 `Request` 时只保存有界原文，本簇不提供�
 
 `array(key)` / `collect(key)` / `fluent(key)`读取指定值；对应`*_all()`读取全部输入，`*_only(keys)`读取选定路径。`Collection`保留PHP整数/字符串键与稀疏性，`values()`才显式重编号；`Fluent`是独立属性快照，修改快照不修改原请求。`fluent_or`对null和缺失都采用默认属性，与标量方法的默认规则不同。
 
-`when_has`、`when_filled`、`when_missing`的主回调返回false、0、空字符串、字符串`"0"`、空数组或null时，结果分支保留原请求；`*_or_else`的默认回调结果直接保留。Rust用`InputOutcome`显式区分请求、主回调结果和默认结果，`and_then`仅继续请求分支。需同时修改请求时选择`*_mut`，避免捕获已借用的请求；框架对象即使为空也按PHP对象视为真，不等同于空数组。
+`when_has`、`when_filled`、`when_missing`的主回调返回false、0、空字符串、字符串`"0"`、空数组或null时，结果分支保留原请求；`*_or_else`的默认回调结果直接保留。Rust用`InputOutcome`显式区分请求、主回调结果和默认结果，`and_then`仅继续请求分支。`when_has/when_filled` 回调接收 `DataValue`，能保留上传对象身份；`when_has` 的存在判断来自混合树，`when_filled` 的空值判断仍按纯输入，因此仅有文件的字段可进入前者而不会进入后者。需同时修改请求时选择`*_mut`，避免捕获已借用的请求；框架对象即使为空也按PHP对象视为真，不等同于空数组。
 
 业务枚举实现`support::BackedEnum`，指定`Backing = String`或`i64`并提供`try_from_backing`。`r#enum::<E>(key)`与`enum_value::<E>(key)`共用转换，合法但未知的backing返回None，`enum_or`和惰性的`enum_or_else`提供默认值；不合法容器类型返回安全输入错误。`enums::<E>(key)`过滤不存在的case，保留原键、顺序和重复值；此集合路径另要求`Serialize`以校验有界输出，单值枚举读取不要求序列化。`when_enum`按转换成功的case决定是否调用主回调。
 
@@ -183,7 +206,7 @@ async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 `interval(key)`保留年月日时分秒及带符号微秒，`interval_with_unit(key, IntervalUnit::Hour)`或字符串`"hour"`按显式单位读取。表达式里的`"90 minutes"`仍保留90分钟，不自动改成1小时30分钟；年月不折算为固定秒数。显式单位名称与表达式缩写是不同规则，例如`"m"`可出现在表达式中，不能作为显式单位参数。缺失或空值返回None，非法表达式返回安全输入错误；仍未覆盖的相对区间语法以`input_interval_unsupported`明确拒绝，不静默返回None。
 
-日历解析另限制源字符串与显式参数合计20MiB；默认日期解析的语义操作、区间词项分别限制每次最多1024项操作，超限返回413。区间预算同样覆盖无空格的compact表达式；这些预算与值树展开键预算分别执行。错误不回显原始日期、格式或时区内容。完整PHP/Carbon语法对应仍按[ADR-079](../../.agents/project/decisions/adr-079-request-input.md)推进，当前公开方法不表示整个Carbon工具箱已经交付。
+日历解析另限制源字符串与显式参数合计20MiB；默认日期解析的语义操作、区间词项分别限制每次最多1024项操作，超限返回413。区间预算同样覆盖无空格的compact表达式；这些预算与值树展开键预算分别执行。错误不回显原始日期、格式或时区内容。完整PHP/Carbon语法对应仍按历史决策 079推进，当前公开方法不表示整个Carbon工具箱已经交付。
 
 `/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabaseServiceProvider 检查每个已配置连接池，CacheServiceProvider 对已解析 store 执行只读读取探针；应用 Provider 也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
@@ -544,7 +567,7 @@ for field in sort.fields() {
 
 关联关系应通过 SeaORM `Relation` / `Related` 为生成的外键定义边，然后使用 `Entity::find_with_related(related::Entity)` 预加载集合；也可先分页读取父记录，再调用 SeaORM 2 的 `load_many(related::Entity, db)`。不要在循环中逐条查询每个父记录。应为每个相关 entity 显式应用授权、软删除和租户条件；关系加载不会推断这些应用策略。批量加载前先分页父记录，以限制父子两侧的处理量。
 
-请求解析遵循 [ADR-008](../../.agents/project/decisions/adr-008-api-conventions.md)：格式错误的 JSON、path 或 query 使用 `bad_request`（semantic 模式 HTTP 400）；缺少 `Content-Type` 或类型不是 JSON 时使用 `unsupported_media_type`（415）；结构有效但缺少字段或字段类型错误的 JSON 使用 `validation_failed`（422），并尽可能提供可读 `message` 和字段 `errors`；超过 axum 默认 2 MiB 限制的请求体使用 `payload_too_large`（413）。校验规则失败同样使用 422。未匹配路由使用 `not_found`（404），不支持的方法使用带 `Allow` 的 `method_not_allowed`（405），请求超时使用 `request_timeout`（408）。括号内的 HTTP 状态码仅在 `semantic` 模式适用。这些响应均使用带 `x-request-id` 的 `application/json` 封装；启用 CORS 时也会应用对应头部。CORS 预检请求（含 `Access-Control-Request-Method` 的 `OPTIONS`）无论允许或拒绝都保留 tower-http 的空 body；浏览器只使用协议响应头。普通跨域错误仍会包装，并为允许的 origin 返回 CORS 头。Handler 生成的客户端错误保留自身 message。原生 axum extractors 仍可通过 [`axum`] 使用。
+请求解析遵循 历史决策 008：格式错误的 JSON、path 或 query 使用 `bad_request`（semantic 模式 HTTP 400）；缺少 `Content-Type` 或类型不是 JSON 时使用 `unsupported_media_type`（415）；结构有效但缺少字段或字段类型错误的 JSON 使用 `validation_failed`（422），并尽可能提供可读 `message` 和字段 `errors`；超过 axum 默认 2 MiB 限制的请求体使用 `payload_too_large`（413）。校验规则失败同样使用 422。未匹配路由使用 `not_found`（404），不支持的方法使用带 `Allow` 的 `method_not_allowed`（405），请求超时使用 `request_timeout`（408）。括号内的 HTTP 状态码仅在 `semantic` 模式适用。这些响应均使用带 `x-request-id` 的 `application/json` 封装；启用 CORS 时也会应用对应头部。CORS 预检请求（含 `Access-Control-Request-Method` 的 `OPTIONS`）无论允许或拒绝都保留 tower-http 的空 body；浏览器只使用协议响应头。普通跨域错误仍会包装，并为允许的 origin 返回 CORS 头。Handler 生成的客户端错误保留自身 message。原生 axum extractors 仍可通过 [`axum`] 使用。
 
 `Created::with_location("/api/posts/42", Json(post))?` 会返回 `Located<T>` 响应。无效的 `Location` header 值会返回一个渲染为 `internal_error` 封装的 `Error`（semantic 模式 HTTP 500）；构造过程不会 panic。不需要 location 时仍可使用 `Created(Json(post))`。
 
@@ -630,4 +653,4 @@ let response = client
     .await?;
 ```
 
-`[api] http_status` 默认是 `"semantic"`：框架 JSON 封装按 ADR-008 保留创建、校验、未找到、限流及服务故障等 HTTP 状态，同时保持统一 envelope。仅显式设置 `"always_ok"` 时才将这些 JSON 状态映射为 HTTP 200。middleware 会将选定模式和 request ID 保存在请求级 task context 中，使成功响应、提取错误、fallback、timeout 和 panic 响应遵循同一策略。JSON `/health` 响应也使用相同封装；文件、流和 HTML 等非 JSON 响应保持原始格式。
+`[api] http_status` 默认是 `"semantic"`：框架 JSON 封装按 历史决策 008 保留创建、校验、未找到、限流及服务故障等 HTTP 状态，同时保持统一 envelope。仅显式设置 `"always_ok"` 时才将这些 JSON 状态映射为 HTTP 200。middleware 会将选定模式和 request ID 保存在请求级 task context 中，使成功响应、提取错误、fallback、timeout 和 panic 响应遵循同一策略。JSON `/health` 响应也使用相同封装；文件、流和 HTML 等非 JSON 响应保持原始格式。

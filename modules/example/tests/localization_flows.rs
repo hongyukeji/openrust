@@ -39,9 +39,11 @@ impl Fixture {
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
             "i18n":{"default_locale":"en","fallback_locale":"en"}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;
         let router = openrust::http::build_router(app.app()?)?;

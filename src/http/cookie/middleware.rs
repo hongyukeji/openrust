@@ -1,5 +1,5 @@
 //! 解密在 Session 前，响应先附加队列再加密。
-use super::{CookieJar, crypto::Protection, provider::CookieRuntime};
+use super::{CookieJar, crypto::Protection};
 use axum::{
     extract::{FromRequestParts, Request, State},
     middleware::Next,
@@ -28,14 +28,35 @@ impl<S: Send + Sync> FromRequestParts<S> for CookieJar {
     }
 }
 
-pub(crate) fn apply(router: axum::Router, runtime: &CookieRuntime) -> axum::Router {
-    match &runtime.0 {
-        Some(layer) => router.layer(axum::middleware::from_fn_with_state(layer.clone(), handle)),
-        None => router,
+impl CookieLayer {
+    #[cfg(feature = "session")]
+    pub(crate) fn protects_web_cookies(&self, session_cookie_name: &str) -> bool {
+        #[cfg(feature = "encryption")]
+        {
+            matches!(&self.protection, Protection::Encrypted(_))
+                && !self.except.iter().any(|name| name == "XSRF-TOKEN")
+                && !self.except.iter().any(|name| name == session_cookie_name)
+        }
+        #[cfg(not(feature = "encryption"))]
+        {
+            let _ = session_cookie_name;
+            false
+        }
+    }
+
+    #[cfg(feature = "session")]
+    pub(crate) fn decrypt_xsrf_header(&self, value: &str) -> Option<String> {
+        let mut root = serde_json::json!({"XSRF-TOKEN": value});
+        self.protection.decrypt(&mut root, &[]);
+        root.get("XSRF-TOKEN")?.as_str().map(str::to_owned)
     }
 }
 
-async fn handle(State(layer): State<CookieLayer>, mut request: Request, next: Next) -> Response {
+pub(crate) async fn handle(
+    State(layer): State<CookieLayer>,
+    mut request: Request,
+    next: Next,
+) -> Response {
     let secure = match crate::http::transport::is_secure(&request) {
         Ok(secure) => secure,
         Err(error) => return super::private_error_response(error),

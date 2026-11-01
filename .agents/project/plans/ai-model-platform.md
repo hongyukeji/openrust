@@ -345,4 +345,4 @@ P0 退出前按细项和依赖编制 WBS：负责人/角色、实现与独立审
 - [供应商路由](https://openrouter.ai/docs/guides/routing/provider-selection)：供应商筛选与路由策略基线。
 - [流式协议](https://openrouter.ai/docs/api_reference/streaming)：各协议 usage/终止事件不同，不假定所有 Chat usage 帧的 choices 为空或供应商均能取消计费。
 - [用量计量](https://openrouter.ai/docs/cookbook/administration/usage-accounting)：用量核实与可追踪计费设计参考。
-- 框架依据：[架构](../architecture.md)、[V1 能力覆盖](v1-capability-coverage.md)、[可选快速开发模块](optional-rapid-development-modules.md)；OpenRouter 是本项目产品能力参照，不是 V1 框架参考。
+- 框架依据：[架构](../architecture.md)、V1 能力覆盖、[可选快速开发模块](optional-rapid-development-modules.md)；OpenRouter 是本项目产品能力参照，不是 V1 框架参考。

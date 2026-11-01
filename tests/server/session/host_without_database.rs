@@ -2,7 +2,7 @@
 
 use super::Server;
 use figment::{Figment, providers::Serialized};
-use openrust::config::{FrameworkConfig, HttpStatusMode};
+use openrust::config::{FrameworkConfig, HttpStatusMode, repository::ConfigRepository};
 use openrust::core::{Application, ProviderId};
 use openrust::http::axum::{
     body::Body,
@@ -16,16 +16,34 @@ use std::time::Duration;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
+fn selected_session_provider_count(
+    config: &super::Configuration,
+    driver: Option<&str>,
+) -> Result<usize> {
+    let sources = Figment::from(Serialized::defaults(json!({
+        "database": {"url": &config.database.url},
+        "session": {"driver": driver}
+    })));
+    let repository = ConfigRepository::new(sources);
+    let defaults = Server::default_providers().resolve(&repository)?;
+    let application = Server::providers(config);
+    let session = ProviderId::of::<SessionServiceProvider>();
+    Ok(defaults
+        .iter()
+        .chain(application.iter())
+        .filter(|provider| provider.id() == session)
+        .count())
+}
+
 #[test]
-fn database_host_registers_one_session_provider_even_without_auth() {
+fn database_host_selects_one_session_provider_even_without_auth() -> Result<()> {
     let mut config = super::Configuration::default();
     config.database.url = Some("postgres://placeholder.invalid/not_connected".into());
-    let session = ProviderId::of::<SessionServiceProvider>();
-    let count = Server::providers(&config)
-        .iter()
-        .filter(|provider| provider.id() == session)
-        .count();
-    assert_eq!(count, 1);
+    assert_eq!(
+        selected_session_provider_count(&config, Some("database"))?,
+        1
+    );
+    Ok(())
 }
 
 #[tokio::test]
@@ -50,7 +68,9 @@ async fn no_database_host_keeps_example_but_omits_session_route() -> Result<()> 
             "test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
         }}}
     })));
-    let mut app = TestApp::<Server>::builder(source).build().await?;
+    let mut app = TestApp::<Server>::builder(crate::modules::example::test_sources(&source)?)
+        .build()
+        .await?;
     let outcome: Result<()> = async {
         if app
             .app()?
@@ -92,6 +112,10 @@ struct LateDriverConfig {
 struct LateDriverApp;
 impl Application for LateDriverApp {
     type Config = LateDriverConfig;
+
+    fn default_providers() -> openrust::core::DefaultProviders {
+        Server::default_providers().except([ProviderId::of::<SessionServiceProvider>()])
+    }
     fn providers(config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
         let mut providers = Server::providers(&config.server);
         let session = Box::new(SessionServiceProvider::with_store(
@@ -164,10 +188,13 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })));
-        let mut app =
-            tokio::time::timeout(TIMEOUT, TestApp::<LateDriverApp>::builder(source).build())
-                .await
-                .map_err(Error::internal)??;
+        let mut app = tokio::time::timeout(
+            TIMEOUT,
+            TestApp::<LateDriverApp>::builder(crate::modules::example::test_sources(&source)?)
+                .build(),
+        )
+        .await
+        .map_err(Error::internal)??;
         let outcome: Result<()> = async {
             let response = app
                 .request_with_limits(
@@ -197,15 +224,12 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
 }
 
 #[test]
-fn explicit_non_database_driver_registers_once_without_database() -> Result<()> {
+fn explicit_non_database_driver_selects_once_without_database() -> Result<()> {
     for driver in [Some("cookie"), Some("array"), Some("unknown"), None] {
         let config: super::Configuration =
             serde_json::from_value(json!({"session":{"driver":driver}}))
                 .map_err(Error::internal)?;
-        let count = Server::providers(&config)
-            .iter()
-            .filter(|provider| provider.id() == ProviderId::of::<SessionServiceProvider>())
-            .count();
+        let count = selected_session_provider_count(&config, driver)?;
         assert_eq!(count, usize::from(driver.is_some()));
     }
     Ok(())
@@ -232,7 +256,9 @@ async fn explicit_cookie_without_database_uses_original_host_provider_and_persis
         "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
     })));
-    let mut app = TestApp::<Server>::builder(source).build().await?;
+    let mut app = TestApp::<Server>::builder(crate::modules::example::test_sources(&source)?)
+        .build()
+        .await?;
     let outcome = cookie_host_roundtrip(&mut app).await;
     let stopped = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
     outcome?;

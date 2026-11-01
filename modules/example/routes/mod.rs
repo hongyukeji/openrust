@@ -25,8 +25,9 @@ pub(crate) fn register(
     capabilities: &RouteCapabilities,
     repository: openrust::config::repository::ConfigRepository,
 ) -> openrust::http::Routes {
-    web::register(
-        api::register(routes, capabilities, repository),
-        capabilities.view,
-    )
+    let routes = routes.group(
+        openrust::http::RouteGroup::new().middleware_group("api"),
+        |routes| api::register(routes, capabilities, repository),
+    );
+    web::register(routes, capabilities.view)
 }

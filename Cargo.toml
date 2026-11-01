@@ -49,7 +49,7 @@ tonic-reflection = { version = "~0.14.6", default-features = false, features = [
 prost = "0.14"
 protoc-bin-vendored = "~3.3.0"
 rcgen = "0.14.10"
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "multipart"] }
 axum-core = "0.5"
 tower = "0.5"
 tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "catch-panic", "util", "cors", "compression-gzip", "compression-br", "fs"] }
@@ -98,6 +98,7 @@ zeroize = "1.9.1"
 async-trait = "0.1"
 redis = { version = "1.8.0", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 url = "2.5"
+pcre2 = "=0.2.11"
 sqlx = { version = "0.9", default-features = false }
 toml = { version = "1.1", features = ["preserve_order"] }
 toml_edit = "0.25.17"
@@ -141,6 +142,7 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 
 [dependencies]
+pcre2.workspace = true
 aes-gcm-siv = { workspace = true, optional = true }
 axum.workspace = true
 axum-core.workspace = true
@@ -199,14 +201,14 @@ calamine = { workspace = true, optional = true }
 rust_xlsxwriter = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 quick-xml = { workspace = true, optional = true }
-tempfile = { workspace = true, optional = true }
+tempfile.workspace = true
 tokio-stream = { workspace = true, optional = true }
 tonic = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 tonic-prost = { workspace = true, optional = true }
 tonic-health = { workspace = true, optional = true }
 tonic-reflection = { workspace = true, optional = true }
-http-body-util = { workspace = true, optional = true }
+http-body-util.workspace = true
 http-body.workspace = true
 prost = { workspace = true, optional = true }
 metrics = { workspace = true, optional = true }
@@ -273,8 +275,8 @@ sms-twilio = ["http-client", "dep:base64"]
 encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
 data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
-data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile", "dep:uuid"]
-grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body-util", "dep:rustls"]
+data-exchange-tasks = ["data-exchange", "queue", "dep:uuid"]
+grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:rustls"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
 realtime = ["auth", "axum/ws", "dep:uuid"]

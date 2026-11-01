@@ -67,9 +67,11 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
             "auth":{"jwt":{"issuer":"http://example.test","audience":"example-record-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
-        .build()
-        .await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(source))?,
+    )
+    .build()
+    .await?;
     for (method, path) in [
         (Method::POST, "/api/auth/login"),
         (Method::GET, "/api/me"),

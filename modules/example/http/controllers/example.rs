@@ -11,6 +11,15 @@ use openrust::http::{DomainParams, Inject, Json, Path, Request, RequestInfo};
 use openrust::support::{MessageBag, MessageJsonOptions, MessageKeys, ViewErrorBag};
 use serde::{Deserialize, Serialize};
 
+/// 只由综合示例的公开 Handler 扩展处理的业务异常。
+#[derive(Debug, thiserror::Error)]
+#[error("example domain conflict")]
+pub(crate) struct ExampleDomainConflict;
+
+pub(crate) async fn exception_example() -> openrust::Result<Json<serde_json::Value>> {
+    Err(openrust::Error::internal(ExampleDomainConflict))
+}
+
 #[derive(Deserialize)]
 pub(crate) struct ExampleDomainParams {
     account: String,
@@ -233,11 +242,13 @@ fn typed_input(request: &Request) -> openrust::Result<serde_json::Value> {
 
 /// 由唯一正文提取器读取动态输入；响应只展示业务白名单与凭据处理布尔值。
 pub(crate) async fn input(mut request: Request) -> openrust::Result<Json<serde_json::Value>> {
-    let original = request.content().clone();
+    let original = request.content_bytes(request.content_len()).await?;
     let query: InputQuery = request.deserialize_query()?;
     let title = request.input("title")?;
     let profile_name = request.input("profile.name")?;
-    let selected = request.only(&["title", "profile.name", "items", "php_keys"])?;
+    let selected = request
+        .only(&["title", "profile.name", "items", "php_keys"])?
+        .to_json()?;
     let typed = typed_input(&request)?;
     let checks = serde_json::json!({
         "has_nullable": request.has(&["nullable"]),
@@ -253,11 +264,13 @@ pub(crate) async fn input(mut request: Request) -> openrust::Result<Json<serde_j
     let query_title = request.query("title");
     let form_title = request.post("title");
     let json_title = request.json("title")?;
-    let excluded_title = request.except(&["title"])?.get("title").is_none();
-    let source_has_title = request.all().get("title").is_some();
+    let excluded_title = request.except(&["title"])?.get("title")?.is_none();
+    let source_has_title = request.all().get("title")?.is_some();
     request.merge(serde_json::json!({"title": "  revised  ", "profile.role": "reader"}))?;
     request.merge_if_missing(serde_json::json!({"title": "ignored", "generated": "fallback"}))?;
-    let merged = request.only(&["title", "profile.role", "generated"])?;
+    let merged = request
+        .only(&["title", "profile.role", "generated"])?
+        .to_json()?;
     request.replace(serde_json::json!({"title": "replacement"}))?;
     Ok(Json(serde_json::json!({
         "method": request.info().method().as_str(),
@@ -277,7 +290,7 @@ pub(crate) async fn input(mut request: Request) -> openrust::Result<Json<serde_j
         "replaced_title": request.input("title")?,
         "query_fallback": request.input("fallback")?,
         "content_bytes": original.len(),
-        "content_preserved": request.content() == &original,
+        "content_preserved": request.content_bytes(original.len()).await? == original,
     })))
 }
 

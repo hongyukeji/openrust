@@ -53,22 +53,24 @@ impl<const MODE: u8> Application for CookieAuthApplication<MODE> {
     fn config_namespace() -> &'static str {
         crate::bootstrap::Server::config_namespace()
     }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        let defaults = crate::bootstrap::Server::default_providers();
+        if MODE == 0 {
+            return defaults;
+        }
+        let cookie = match MODE {
+            1 => openrust::http::CookieServiceProvider::plain(),
+            2 => openrust::http::CookieServiceProvider::new().except([COOKIE_NAME]),
+            _ => openrust::http::CookieServiceProvider::new()
+                .except(["ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"]),
+        };
+        defaults.replace(
+            openrust::core::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            Box::new(cookie),
+        )
+    }
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers = crate::bootstrap::Server::providers(config);
-        if MODE != 0 {
-            let cookie = match MODE {
-                1 => openrust::http::CookieServiceProvider::plain(),
-                2 => openrust::http::CookieServiceProvider::new().except([COOKIE_NAME]),
-                _ => openrust::http::CookieServiceProvider::new()
-                    .except(["ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"]),
-            };
-            if let Some(index) = providers.iter().position(|provider| {
-                provider.id()
-                    == openrust::core::ProviderId::of::<openrust::http::CookieServiceProvider>()
-            }) {
-                providers[index] = Box::new(cookie);
-            }
-        }
         if MODE == 3 {
             providers.push(Box::new(ControlledIdRoute));
         }
@@ -86,7 +88,14 @@ impl ServiceProvider for ControlledIdRoute {
         app: &'a mut openrust::core::BootContext<'_>,
     ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| routes.get("/__cookie-auth/controlled-id", controlled_id))?;
+            app.routes(|routes| {
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| routes.get("/__cookie-auth/controlled-id", controlled_id),
+                )
+            })?;
             Ok(())
         })
     }
@@ -116,7 +125,11 @@ async fn run_case<const MODE: u8>() -> TestResult {
             let builder = openrust::core::ProviderBuilder::for_application::<
                 CookieAuthApplication<MODE>,
             >(&config);
-            Ok::<_, Box<dyn StdError>>(App::from_provider_runtime(builder.start(source).await?)?)
+            Ok::<_, Box<dyn StdError>>(App::from_provider_runtime(
+                builder
+                    .start(crate::modules::example::test_sources(&(source))?)
+                    .await?,
+            )?)
         }
         .await;
     let app = match app_result {

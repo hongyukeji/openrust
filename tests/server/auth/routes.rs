@@ -40,6 +40,10 @@ struct ProfileService;
 impl Application for App {
     type Config = NoConfig;
 
+    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::empty()
+    }
+
     fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
         vec![
             Box::new(HttpServiceProvider),
@@ -56,6 +60,10 @@ impl Application for App {
 
 impl Application for JwtApp {
     type Config = NoConfig;
+
+    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::empty()
+    }
 
     fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
         let key = [0x5a; 32];

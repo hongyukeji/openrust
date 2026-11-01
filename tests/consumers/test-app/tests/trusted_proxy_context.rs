@@ -44,6 +44,10 @@ struct ProxyApplication;
 impl Application for ProxyApplication {
     type Config = NoConfig;
 
+        fn default_providers() -> openrust::core::DefaultProviders {
+            openrust::core::DefaultProviders::empty()
+        }
+
     fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
         vec![Box::new(HttpServiceProvider), Box::new(ProxyRoutes)]
     }

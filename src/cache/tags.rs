@@ -481,7 +481,7 @@ impl TaggedCacheEntry {
             material.push(':');
             material.push_str(&generation.to_string());
         }
-        Ok(format!("__openrust_cache_tag_v1:{}", digest(&material)))
+        Ok(format!("__cache_tag_v1:{}", digest(&material)))
     }
 }
 
@@ -535,7 +535,7 @@ fn tag_key(store: &CacheStore, tag: &str) -> String {
         .map(|tenant| tenant.as_str().to_owned())
         .unwrap_or_default();
     format!(
-        "__openrust_cache_tag_meta_v1:{}",
+        "__cache_tag_meta_v1:{}",
         digest(&format!(
             "{}:{}:{}:{tag}",
             store.store_name, store.namespace, tenant

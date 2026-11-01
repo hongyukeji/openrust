@@ -22,6 +22,9 @@ use super::resources::{ResourceOwner, ResourceRegistrar};
 use super::{BoxFuture, Error, Result};
 
 pub(crate) type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
+
+/// `TestAppBuilder` 启动身份；只有最终 Testing 环境可使用 CSRF 测试豁免。
+pub(crate) struct TestingBoot;
 pub(crate) type Required = Box<dyn Fn(&Container) -> BoxFuture<'_, Result<()>> + Send + Sync>;
 pub(crate) type Finalizer = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;
 type AppConfigRegistration = Box<dyn FnOnce(&mut ContainerBuilder, ConfigRepository) + Send>;
@@ -112,6 +115,11 @@ impl RegisterContext<'_> {
     /// 判断已有 Provider 是否已登记服务，供默认绑定遵循应用覆盖顺序。
     pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.container.contains::<T>()
+    }
+
+    /// 当前应用的MIME检测登记器；Provider晚注册的后续请求立即可见。
+    pub async fn mime_types(&self) -> Result<Arc<crate::http::MimeTypes>> {
+        self.container.resolve::<crate::http::MimeTypes>().await
     }
 
     /// 判断原始来源是否声明区段，供可选领域 Provider 选择是否安装。
@@ -315,6 +323,12 @@ impl BootContext<'_> {
         self.config.clone()
     }
 
+    /// 用本次应用引导的环境快照应用模块 Rust 配置清单；缓存命中时跳过函数。
+    pub fn code_config(&mut self, manifest: &crate::config::ConfigManifest) -> Result<()> {
+        self.config
+            .apply_code_manifest(manifest, self.console_command)
+    }
+
     /// 按模块启动顺序递归覆盖一个配置区段。
     pub fn overlay(&mut self, key: &str, value: Value) -> Result<()> {
         self.config.overlay(key, value)
@@ -394,7 +408,9 @@ impl ProviderRuntime {
 #[derive(Default)]
 pub struct ProviderBuilder {
     console_command: Option<String>,
+    testing_boot: bool,
     providers: Vec<ProviderEntry>,
+    default_providers: Option<(usize, crate::core::DefaultProviders)>,
     modules: ModuleManifest,
     removed: HashSet<ProviderId>,
     app_config: Option<AppConfigRegistration>,
@@ -553,11 +569,23 @@ impl ProviderBuilder {
         Self::default()
     }
 
+    /// 在当前清单槽位安装框架默认 Provider，启动时从同一配置仓储求值。
+    pub fn default_providers(&mut self, defaults: crate::core::DefaultProviders) -> &mut Self {
+        self.default_providers = Some((self.providers.len(), defaults));
+        self
+    }
+
     /// 指定本次启动实际要执行的控制台命令；普通引导默认无命令上下文。
     ///
     /// 调用方须用同一名称随后执行 [`crate::core::App::run_command`]。
     pub(crate) fn console_command(&mut self, name: impl Into<String>) -> &mut Self {
         self.console_command = Some(name.into());
+        self
+    }
+
+    /// 仅测试应用启动器可设置；普通 HTTP 启动不能由请求伪造此事实。
+    pub(crate) fn testing_boot(&mut self) -> &mut Self {
+        self.testing_boot = true;
         self
     }
 
@@ -641,13 +669,30 @@ impl ProviderBuilder {
     }
 
     /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "统一启动顺序保持 register、配置和 boot 生命周期可审阅"
+    )]
     pub async fn start(self, sources: impl Into<ConfigSources>) -> Result<ProviderRuntime> {
         let console_command = self.console_command;
         let mut providers = self.providers;
+        let defaults = self.default_providers;
+        let mut bindings = ContainerBuilder::new();
+        bindings.instance(Arc::new(crate::http::MimeTypes::new()));
+        let mut config = ConfigRepository::new(sources);
+        if let Some((position, defaults)) = defaults {
+            let entries = defaults
+                .resolve(&config)?
+                .into_iter()
+                .filter(|provider| !self.removed.contains(&provider.id()))
+                .map(|provider| ProviderEntry {
+                    provider,
+                    force: false,
+                });
+            providers.splice(position..position, entries);
+        }
         Self::append_modules(self.modules, &self.removed, &mut providers)?;
         ordered_providers(&providers)?;
-        let mut bindings = ContainerBuilder::new();
-        let mut config = ConfigRepository::new(sources);
         let mut resources = StartupResources::new();
         if let Some(register_config) = self.app_config {
             register_config(&mut bindings, config.clone());
@@ -659,6 +704,9 @@ impl ProviderBuilder {
         let mut active: Vec<Box<dyn ServiceProvider>> = Vec::new();
         let mut active_index = HashMap::new();
         let mut extensions = Extensions::new();
+        if self.testing_boot {
+            extensions.insert(TypeId::of::<TestingBoot>(), Box::new(TestingBoot));
+        }
         let mut commands = Vec::new();
         let mut finalizers = Vec::new();
         let result = async {

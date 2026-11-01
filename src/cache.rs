@@ -672,7 +672,7 @@ impl CacheStore {
     }
 
     async fn check_readiness(&self) -> Result<()> {
-        let key = self.key_for_tenant("__openrust_readiness_probe__", None)?;
+        let key = self.key_for_tenant("__readiness_probe__", None)?;
         self.backend.get(&key).await.map(|_| ())
     }
 
@@ -843,9 +843,17 @@ impl CacheStore {
             format!("{}:{key}", self.namespace)
         };
         let physical = tenant.map_or(base.clone(), |tenant| {
-            format!("__openrust_tenant_{}:{base}", cache_tenant_digest(tenant))
+            format!("__tenant_{}:{base}", cache_tenant_digest(tenant))
         });
-        if physical.starts_with("__openrust_cache_") {
+        if key.starts_with("__cache_")
+            || key.starts_with("__openrust_cache_")
+            || key.starts_with("__tenant_")
+            || key.starts_with("__openrust_tenant_")
+            || physical.starts_with("__cache_")
+            || physical.starts_with("__openrust_cache_")
+            || (tenant.is_none() && physical.starts_with("__tenant_"))
+            || physical.starts_with("__openrust_tenant_")
+        {
             return Err(Error::custom(
                 "cache_reserved_key",
                 "cache key uses a reserved framework prefix",
@@ -1962,12 +1970,15 @@ mod tests {
             refresh_limiter: Arc::clone(&cache_store.refresh_limiter),
             shared_locks: None,
         };
-        assert!(
-            unnamespaced
-                .set("__openrust_cache_tag_meta_v1:reserved", &1, None)
-                .await
-                .is_err()
-        );
+        for key in [
+            "__cache_tag_meta_v1:reserved",
+            "__openrust_cache_tag_meta_v1:reserved",
+            "__tenant_deadbeef:reserved",
+            "__openrust_tenant_deadbeef:reserved",
+        ] {
+            assert!(unnamespaced.set(key, &1, None).await.is_err());
+            assert!(cache_store.set(key, &1, None).await.is_err());
+        }
         let file_store = store(
             Arc::new(FileBackend {
                 root: PathBuf::from("."),

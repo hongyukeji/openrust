@@ -2,7 +2,9 @@
 
 > 受众：设计、实现、验收 Agent
 > 更新：2026-10-28
-> 状态：整体方向已授权；本文件是目标设计与实施计划，R0 基线已交付，R1-S 正在收敛根应用与 app/example 过渡实现；最终模块位置按 ADR-074 采用 modules/example，尚未完成迁移；后继语义按阶段推进。
+> 状态：整体方向已授权；本文件是目标设计与实施计划，R0 基线已交付，R1-S 与 modules/example 目录迁移已有历史交付；完整模块能力仍逐项验收；后继语义按阶段推进。
+
+当前[23项行为整改对照](#执行偏离的纠正)作为固定上游静态纠偏输入；已实现方式偏离优先于新增增强，逐项映射唯一todo既有R阶段，不另建待办体系。默认代码配置按已授权代码配置契约推进，旧TOML与typed/set/cache证据不能关闭该目标。
 
 ## 1. 目标与授权
 
@@ -12,7 +14,7 @@
 
 “低学习成本”以常见任务的对照走查验收；Rust 语法、所有权和异步仍需学习，不承诺 PHP 源码直接运行或跨语言零知识成本。范围覆盖机制、默认体验、生成、文档、运维和故障语义，不能以目录改名完成本任务。
 
-权威决策为 [ADR-070](../decisions/adr-070-laravel-first-rebuild.md)。当前代码与 Git 说明已实现事实，本计划说明获准的新目标。唯一活跃队列是 [todo.md](../todo.md)；原 M5/M6、DX1–DX8 与 F/G 专题被重排到本计划，不取消其有效能力和未完成验收。
+权威决策为 [ADR-001](../decisions/adr-001-framework-principles.md)。当前代码与 Git 说明已实现事实，本计划说明获准的新目标。唯一活跃队列是 [todo.md](../todo.md)；原 M5/M6、DX1–DX8 与 F/G 专题被重排到本计划，不取消其有效能力和未完成验收。
 
 本轮规划起点为 `7f964b8`，开始时工作区干净，只有一个 Git worktree；系统存在多个 Agent 进程，不能据此认定它们都在本仓库工作。执行前重新核对 HEAD、WIP、进程与代理任务，不依赖本快照。
 
@@ -51,6 +53,39 @@ R0–R16是技术职责分解，不是自动串行执行所有产品阶段的指
 - 新内核必须在预定集成功能簇切换生产入口，并实际替代旧执行语义；Container 基元存在而请求仍查旧 Registry、Provider 仅转发旧 Plugin 等情况，不得报告内核迁移完成。允许明确排期的可构建过渡，不能长期保留两套生产内核或仅因旧测试通过宣称等价。
 - 以能区分旧、新行为的高价值测试验收：例如全部 register 后 boot、scoped 生命周期隔离、显式配置路径失败、语义 HTTP 状态、模块启停的路由可见性。CRUD 须实际读写数据库；资源路由不能代替 API Resource 序列化，SeaORM Entity 不能直接作为 Eloquent 等价的证据。测试覆盖上游行为及授权差异，不要求为每个名称新增测试。
 - 审查发现的偏离在修正并回归前阻断受影响行为的完成判定；已经误记完成的条目退回相符状态并修正进度说明。复用已有矩阵、todo 和领域 contract 跟踪，不另建平行队列；保护其他 Agent 的 WIP，由既定负责人收口修改。用户约定和统一响应等授权增强继续保留，不以纠偏为由删除。
+
+固定上游与当前树的静态对照给出以下 23 个纠偏入口。它们映射到既有 R 阶段、矩阵及唯一 todo，不是新增队列或完成判定；在途 WIP 须重新核对。前 12 项已有实现方式与目标行为存在差距，后 11 项有基础资产但尚未完整对应：
+
+| 既有实现偏离 | 对应职责 |
+| --- | --- |
+| 根 `app/` 曾被限制只装配、业务强制放模块 | R1/R2：根 Controller/Model/Provider 与可选模块并存 |
+| 静态 `config/*.toml` 默认来源 | R2：`config/*.rs`、dotenv、同一仓储与缓存拒绝语义 |
+| 固定 JSON 错误码与状态 | R3：异常 Handler 的 report/render、HTML/JSON 与公开定制 |
+| 缺默认 Web 组及匿名请求 CSRF 保护 | R3/R7：Middleware 与 PreventRequestForgery |
+| 手写分页与响应 Resource | R3/R5：默认分页、查询解析与 JsonResource 序列化 |
+| 统一迁移连接和事务策略 | R4：逐迁移 connection、事务、schema grammar 与事件 |
+| 队列事务需显式分派路径 | R8：Job/connection 的 afterCommit、rollback 与 handler |
+| 全局调度 DB slot 去重 | R10：逐任务单节点/重叠策略与锁期限 |
+| Storage 错误一律 `Err` | R8：`throw=false` 失败值及 S3 ACL/迟到发布差异 |
+| 固定 AuthMode 与简化 Policy | R7：named/custom guard、provider、Gate/Policy 生命周期 |
+| URL 只接受字符串映射 | R3：数组/对象查询与完整路由参数 |
+| 自有加密格式与固定 Argon2 | R7：官方 Encrypter/Hash 驱动、配置与轮换行为 |
+
+| 未完整对应的能力 | 对应职责 |
+| --- | --- |
+| Eloquent Query/Model/关系/cast/fill/guard/observer/集合 | R4/R5 |
+| Factory states/has/for 与官方 SQLite driver | R6/R4 |
+| Container contextual/tagged/alias/call/resolving、Facade 与 Provider 发现 | R2/R13 |
+| FormRequest 授权、准备、失败重定向、error bag、safe/validated | R3/R7 |
+| Cache Repository 的 add/increment/remember/flexible 等逐方法语义 | R8 |
+| Event subscriber/until/halt/response 与对象命令 Bus | R9 |
+| Mailable、Notification channel、多 mailer、附件、路由与测试 | R9/阶段二 |
+| View finder/composer/shared 与 I18n 组/JSON复数/fallback | R3/R9 |
+| CLI 生成、独立应用默认工作流与模块创建/启停/发布 | R1/R2/R13 |
+| Process、Context、HTTP client fake/序列/池 | R2/R9 |
+| 命名动态限流、多限制与响应回调 | R3/R7 |
+
+用户特约的 Redis 缓存与默认数据库队列仍按配置和矩阵披露差异；已有 ConfigRepository 写入、命名 store/disk/driver、模块共用内核不能误报为不存在。安全与数据能力应保留已验证约束，按 Laravel 公开机制重验，不能凭静态审计覆盖真实服务结论。
 
 ### 开发者任务对照验收
 
@@ -124,11 +159,11 @@ R0 为已有增强记录对应 Laravel 职责及上游扩展机制、Rust 公开
 
 ### 3.1 最终工程边界与模块目录
 
-目标以 [ADR-074](../decisions/adr-074-laravel-modules-directory.md) 为准。以下为目标树；当前源码仍有 `app/example/` WIP，`modules/example/` 尚未迁移和验收。根 openrust package 保留 src/lib.rs 与唯一默认 server；default-members=["."]、default-run="server"，根 cargo run 启动应用。
+目标以 [ADR-001](../decisions/adr-001-framework-principles.md) 为准。根 app 与可选 modules 均须具备不修改框架 src 的开发及生成流程；`make controller/model/provider` 等按固定 Laravel 生成命令、默认命名空间与真实 stub 对应，Rust 仅作必要模块导出适配。`new` 生成布局与根宿主同一职责。以下是目标树，不把目录存在当成能力验收。根 openrust package 保留 src/lib.rs 与唯一默认 server；default-members=["."]、default-run="server"，根 cargo run 启动应用。
 
 ```text
 openrust/
-├── app/                  # 通用应用级代码与装配
+├── app/                  # Laravel 常规 Controller/Model/Provider 等应用职责
 ├── bootstrap/            # 启动与 Provider/模块清单接入
 ├── config/               # 完整领域配置与公开配置入口
 ├── database/             # 通用迁移/种子设施
@@ -147,7 +182,7 @@ openrust/
 └── Cargo.toml
 ```
 
-当前框架与唯一示例同仓、main为集成主线；允许总控分配本地任务分支/worktree并行独立功能开发，不创建额外源码仓库；可选快速开发模块暂不开发，未来用户明确开工后再决定分支/交付组织，当前不预建或默认合回main，不保留根 examples 或第二 demo 应用。业务统一在 modules/<模块名>，根 app/ 保留通用应用级职责。框架核心不依赖具体业务类型；示例专用配置、迁移、资源、协议、生成脚本、fixture 均留模块内，不为示例增加根 build.rs 或构建依赖。
+当前框架与唯一示例同仓、main为集成主线；允许总控分配本地任务分支/worktree并行独立功能开发，不创建额外源码仓库；可选快速开发模块暂不开发，未来用户明确开工后再决定分支/交付组织，当前不预建或默认合回main，不保留根 examples 或第二 demo 应用。根app支持Laravel常规应用开发，modules/<模块名>为可选并存的模块组织，不强制业务迁入模块；根bootstrap承担启动，app/mod.rs仅必要Rust模块导出。框架核心不依赖具体业务类型；示例专用配置、迁移、资源、协议、生成脚本、fixture 均留模块内，不为示例增加根 build.rs 或构建依赖。
 
 模块按职责组织，只有存在实际实现时才创建相应目录：
 
@@ -184,7 +219,7 @@ CLI 模板与生成器保持唯一维护来源；生成用户应用是框架功�
 
 用户的Laravel功能、可观察语义与开发体验是需求约束；具体Rust实现建议视为候选。Agent依据编译/链接、类型/所有权、async生命周期和依赖成本验证，必要时直接纠正候选并给出等价方案、理由与验收，不机械采纳、不擅自缩范围或用“Rust惯用”豁免核心。一般实现选择自主推进，真正目标变化或授权边界按AGENTS处理；此原则不扩张既定生态范围。
 
-R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，吸收已经完成的 Goravel 定向审计：补齐领域配置、中文说明、env 映射和安全占位；保留具名数据库/缓存能力。Provider 在最终读取前声明模块 defaults/schema/validator，定义命名空间、覆盖优先级、动态 driver options、命名 map 合并和数组替换。显式配置目录不存在/不可读不能静默跳过；未知键按已注册 section 检查，不能误拒合法动态键；错误给安全字段路径，不回显密码/DSN。当前默认运行值不因审计而改变，Redis 默认和禁止静默本地回退保持。审计是输入，设计草稿和代码验收分别记录。
+R2 默认配置目标为可编辑 `config/*.rs` 与部署 `.env`：dotenv 加载后显式编译 manifest 的普通 Rust 配置函数向唯一 ConfigRepository 求值，模块用同一 Provider 生命周期。原始可序列化值和不可序列化类型 / 工厂共用仓储，公开工厂交由现 Container 管理；原始视图须明确不含 opaque 值。缓存遇不可序列化项明确拒绝并脱敏，不静默丢弃；旧 TOML 仅作显式可选来源。不能运行期扫描或热编译 Rust 源码。保留具名数据库 / 缓存、现有安全错误边界，默认 Redis 策略作为用户差异记录；旧 `typed` / `set` / 缓存的限定验收不关闭代码配置目标。
 
 | Laravel 心智模型 | OpenRust 目标与边界 |
 | --- | --- |
@@ -262,7 +297,7 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | 阶段 | 前置 | 交付与退出条件 |
 | --- | --- | --- |
 | R0 基线和全量对照 | 本计划 | 固定上游；逐章矩阵；资产/回归清单；旧规则替代清单；每项归属/测试/外部条件；优先识别破坏性共享 contract，完成后立即进入 R1 |
-| R1-S 根结构与普通模块挂载 | R0 | ADR-073根职责、同package lib/server、静态模块公开注册、资源内聚、无双应用；实际代码/生成/双库/HTTP门禁及审查通过可限定本地提交。仅结构子交付，不关闭完整示例 |
+| R1-S 根结构与普通模块挂载 | R0 | 根应用职责、同package lib/server、静态模块公开注册、资源内聚、无双应用；实际代码/生成/双库/HTTP门禁及审查通过可限定本地提交。仅结构子交付，不关闭完整示例 |
 | R2 基础及后继内核/测试子簇 | R1-S；不依赖R1-E全部示例 | 先收敛Container/ServiceProvider register→boot、模块配置与TestApp最小公开路径，形成示例稳定API前置；scope/Facade等按子簇继续，不把全部R2塞首批 |
 | R2-M 模块最小闭环与迁移 | R2 基础 | 正式 modules/<模块> 注册/资源/配置/依赖最小契约，将既有示例迁至 modules/example；验证启用/禁用、冲突、失败与实际 HTTP，不以目录搬迁替代模块能力 |
 | R1-E 真实CRUD与当前能力示例 | R1-S + R2基础 + R2-M；不要求未来框架全功能已完成 | modules/example真实实体列表/详情/新增/更新/删除，校验/分页/404/授权/事务，两库HTTP闭环；当前已实现能力逐项实际调用/扩展与测试，未覆盖保留活跃任务；R1整体仅在适用子项实交后关闭 |
@@ -287,7 +322,7 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 
 ### R2/R10 明确目标：运行时配置与数据库动态计划
 
-[专门计划](runtime-configuration-scheduling.md) 与 [ADR-080](../decisions/adr-080-runtime-configuration-scheduling.md) 收敛用户授权目标：沿Laravel `.env`/config/Repository/Provider保持简洁读取，V1必交typed分组DB设置/受权管理API（宿主启用可选）封装白名单校验/权限/CAS审计/整快照/通知+轮询；默认DB队列与代码注册任务，动态计划复用同一Scheduler，基础设施部署项不热换，业务渠道secret加密、支持driver受控激活，否则pending_restart，DB保存/节点应用状态分开。R2契约/持久基础依赖R4/R7及适用R8，R10完成事务/策略与管理，R14验真实多节点/故障/迁移；UI仍遵[可选快速开发模块暂不开发闸门](optional-rapid-development-modules.md#开发与使用边界)，不因R14完成自动开工。仅规划，不改变当前HTTP领取顺序；现有静态配置、内存贡献和旧测试不能算此目标完成。
+[专门计划](runtime-configuration-scheduling.md) 与 历史决策 080 收敛用户授权目标：沿Laravel `.env`/config/Repository/Provider保持简洁读取，V1必交typed分组DB设置/受权管理API（宿主启用可选）封装白名单校验/权限/CAS审计/整快照/通知+轮询；默认DB队列与代码注册任务，动态计划复用同一Scheduler，基础设施部署项不热换，业务渠道secret加密、支持driver受控激活，否则pending_restart，DB保存/节点应用状态分开。R2契约/持久基础依赖R4/R7及适用R8，R10完成事务/策略与管理，R14验真实多节点/故障/迁移；UI仍遵[可选快速开发模块暂不开发闸门](optional-rapid-development-modules.md#开发与使用边界)，不因R14完成自动开工。仅规划，不改变当前HTTP领取顺序；现有静态配置、内存贡献和旧测试不能算此目标完成。
 
 ### R10 明确待办：每任务调度执行策略
 
@@ -334,7 +369,7 @@ MQTT作为按需引入的可选扩展，不表述为框架内置后默认禁用�
 
 ## 6. 功能簇 contract 模板
 
-每簇创建/更新领域 ADR 或 Spec，至少包含：
+每簇在对应计划或 Spec 中记录 contract，至少包含：
 
 1. 上游版本/源码与选定子行为；Laravel固定源码/测试、Rust公开API与等价证据的映射；Goravel仅作实现参考。
 2. 普通开发者示例、默认配置/命令、公共类型/trait/错误；示例须进入可编译测试或生成项目。
@@ -386,12 +421,12 @@ MQTT作为按需引入的可选扩展，不表述为框架内置后默认禁用�
 
 ## 9. 文档、删除与交付
 
-每簇同步 `todo.md`、`plan.md`、`progress.md`、领域 ADR、`core/`、用户文档、测试/验收记录和生成模板；稳定事实只有一个权威入口，旧规范标注替代关系后清理失效正文。`AGENTS.md` 和技能不得继续否定已批准的 Laravel 术语/目录目标。
+每簇同步 `todo.md`、`plan.md`、`progress.md`、对应矩阵、`core/`、用户文档、测试/验收记录和生成模板；稳定事实只有一个权威入口，旧规范标注替代关系后清理失效正文。`AGENTS.md` 和技能不得继续否定已批准的 Laravel 术语/目录目标。
 
 删除已替代代码、兼容别名、旧模板/脚本/目录走 `git rm`，先核对 WIP 与行为覆盖。不得清理他人 worktree、进程或共享服务。新结构可改变全部历史约束，但不能通过复制旧实现再长期维护两套核心完成重构。
 
 最终报告提供矩阵关闭情况、真实测试/拓扑/性能证据、生成项目 check/test、默认 cargo run 与真实 HTTP 证据、独立审查结论、提交范围及外部缺口。本地 commit 后不 push、不发布、不打 tag。
 
-执行任务入口见 [重构执行说明](laravel-rebuild-execution.md)。本计划记录完成不代表 R0 盘点或 R1 代码已完成。
+执行任务从[唯一待办](../todo.md)领取；本计划只定义目标与范围，不代表代码已验收。
 
 完整实现并通过最终门禁后、首次正式远程交付前，执行[发布仓库整理](release-repository-consolidation.md)：按最终功能簇重组本地提交，收敛有效ADR与文档、删除失效中间态，保留来源/许可证、关键决策和验收边界，再按后置任务的授权与远程状态推送。开发期间仍只本地提交，本轮不改写历史或推送。

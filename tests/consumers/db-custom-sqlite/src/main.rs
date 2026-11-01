@@ -1,7 +1,8 @@
 use figment::Figment;
 use openrust::core::{App, Error, ProviderBuilder, RegisterContext, Result, ServiceProvider};
 use openrust::db::{
-    DatabaseTableNames, Db, DbBackend, MigrationServiceProvider, sea_orm, sea_orm_migration,
+    DatabaseTableNames, Db, DbBackend, MigrationServiceProvider, PageContext, SortDirection,
+    sea_orm, sea_orm_migration, with_page_context,
 };
 use sea_orm::{ConnectionTrait, Database, Statement};
 use sea_orm_migration::prelude::*;
@@ -83,7 +84,10 @@ impl ServiceProvider for CustomSqliteProvider {
                             async move { closing.close_by_ref().await.map_err(Error::internal) },
                         )
                     })?;
-                    let db = Db::default();
+                    let db = Db::with_table_names(DatabaseTableNames::new(
+                        "tb_",
+                        std::collections::BTreeMap::new(),
+                    )?);
                     db.initialize(connection)?;
                     Ok(std::sync::Arc::new(db))
                 })
@@ -181,6 +185,57 @@ async fn main() -> Result<()> {
         .try_get::<i64>("", "count")
         .map_err(Error::internal)?;
     assert_eq!(count, 1);
+    let entries = db.table("entries")?;
+    assert_eq!(entries.count().await?, 1);
+    assert_eq!(
+        entries
+            .clone()
+            .where_eq("value", "committed")?
+            .value::<String>("value")
+            .await?
+            .as_deref(),
+        Some("committed")
+    );
+    assert_eq!(
+        entries.insert(vec![("value", "via-query".into())]).await?,
+        1
+    );
+    let page_context = PageContext::from_uri(&"/entries?page=2".parse().map_err(Error::internal)?);
+    let page = with_page_context(
+        page_context,
+        entries
+            .clone()
+            .order_by("value", SortDirection::Asc)?
+            .paginate(1),
+    )
+    .await?;
+    assert_eq!(
+        (
+            page.current_page,
+            page.total,
+            page.last_page,
+            page.items.len()
+        ),
+        (2, 2, 2, 1)
+    );
+    assert_eq!(page.previous_page_url().as_deref(), Some("/entries?page=1"));
+    assert_eq!(
+        entries
+            .clone()
+            .where_eq("value", "via-query")?
+            .update(vec![("value", "updated".into())])
+            .await?,
+        1
+    );
+    assert_eq!(
+        entries
+            .clone()
+            .where_eq("value", "updated")?
+            .delete()
+            .await?,
+        1
+    );
+    assert_eq!(entries.count().await?, 1);
     let unsupported_migration = app
         .run_command("migrate", vec!["up".into()])
         .await

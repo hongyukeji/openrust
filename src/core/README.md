@@ -2,6 +2,15 @@
 
 OpenRust 框架的应用内核。
 
+## 应用异常 Handler
+
+应用或模块 Provider 可在 `boot` 中调用 `BootContext::exceptions(|handler| { ... })`，按实际 Rust 异常类型登记 `map::<E>`、`report::<E>`、`dont_report::<E>`、`render::<E>` 与最终 `respond`。业务错误用 `Error::internal(source)` 保留原始类型及 source 链；需要指定 HTTP 状态时可用 `Error::http_with_source(status, code, message, source)`。`ReportDecision::Stop` 停止后续报告和默认日志，但仍渲染。`dont_retry::<E>` / `dont_retry_when` 供应用队列决定重试，HTTP 渲染不会自行重试。CLI、队列或调度器可调用 `App::report_exception`，仅应用的报告策略生效，不伪造 HTTP 请求并进入渲染。Handler 随应用实例隔离，不保存进程全局策略。调用方提供的 `context` 进入报告日志，应用须自行避免秘密信息；默认报告仅写安全错误码和状态。
+
+HTTP 默认根据请求的 `Accept`、AJAX/PJAX 语义选择 HTML 或 JSON；`should_render_json_when` 可覆盖，`api_envelope_when` 可按路由显式保留 OpenRust 统一 API envelope，Web 请求不被强制包装。`respond` 接收已渲染的原生 `Response`，可保留或有意修改状态、头、扩展和流正文。`app.debug` 只由服务端配置决定，非 debug 的内部异常不输出 source 或追踪。完整入口与原生 Axum 逃生边界见 [HTTP 说明](../http/README.md#异常报告与渲染)。此家族目前处于 code-first 候选，最终组合门禁、真实请求及独审尚未执行。
+
+`throttle::<E>` 可登记 `ReportThrottle::Lottery` 或应用实例内的 `Limit`；后者共享当前 App 的克隆 Handler，但不跨实例或部署副本协调。需要跨副本的异常报告限频时，应用应在类型化 report 回调中接入共享服务。`should_report` 会消耗本次限频配额，调用方不应为同一报告先探测再调用 `report_error`。
+`dont_report_duplicates` 对共享的 `Arc<Error>` 使用 `report_shared` 时按同一实例身份去重；借用的 `&Error` 没有可保留的身份所有权，普通 `report_error` 每次独立报告。
+
 ## 容器与 Provider 生命周期
 
 `openrust::core::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；`build` 建立唯一容器后，Provider 注册仍可在同一容器动态重绑，不使用 PHP 反射构造。重绑使各 scope 的旧缓存失效；已交给调用方的旧 `Arc` 和在途引用仍有效，新解析按新定义构造。绑定版本与缓存槽准入同锁核验，旧构造不能回填新槽。
@@ -23,7 +32,7 @@ app.extend::<dyn Driver, _>(|original, resolver| {
 
 缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。
 
-生产 `bootstrap` 使用同一 `Container`：`Application::providers` 给出清单，`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`App::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。注册失败不更新 Provider 索引，但此前贡献可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`App::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
+生产 `bootstrap` 使用同一 `Container`：`Application::default_providers` 从同次配置仓储选取框架默认清单，已编译包经 `package_providers` 显式接入，`Application::providers` 仅给出应用清单，模块清单随后接入；`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`App::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。注册失败不更新 Provider 索引，但此前贡献可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`App::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
 
 ## 入口作用域与资源回收
 
@@ -101,20 +110,20 @@ match (result, cleanup) {
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。
 - [`Readiness`]：进程 listener 生命周期状态，并允许 Provider 注册有界异步依赖探针；HTTP `/ready` 聚合探针结果，`is_ready()` 本身仍只表示 listener 状态。
-- `config`：类型化配置按领域组织在 `openrust::config::{app,api,auth,database,logger,mailer,server}`，并由统一加载器合并：crate 默认值 → 根 `config/*.toml` 按文件名排序读取 → 应用工作目录 `.env` → 进程环境变量。领域文件如 `app.toml`、`server.toml`、`cache.toml`；环境差异与密钥放 `.env` 或部署环境变量，不再按环境拆 TOML。`APP_NAME`、`APP_URL` 可直接配置应用名与地址。若进程尚未设置 `APP_ENV`，启动引导阶段先从 `.env` 选择环境。进程环境变量优先；未显式选择目录且默认 `config/` 不存在时可使用内置默认；显式目录缺失、为空、非目录或不可读均失败，已发现的 TOML 必须可读且格式有效。错误、`Debug` 和引导日志不回显目录原值。`APP_CONFIG_DIR` 用于指定运行时 TOML 目录；`src/config/` 仅存放 Rust 配置代码。`Application::config_namespace()` 可选用其他有效前缀，如 `SHOP_`；只读取选定的命名空间。旧配置按领域重新导出以保持兼容。
+- `config`：应用在根 `config/*.rs` 声明可编辑配置，经 `Application::config()` 返回显式 `ConfigManifest`。加载器先建立所选 dotenv 与外部环境快照，再求值已编译配置函数，发布到唯一 `ConfigRepository`；不运行时扫描 Rust。模块使用相同代码配置机制；需要 TOML 时显式注册可选 source，不再默认扫描 `config/*.toml`。`APP_NAME`、`APP_URL` 和命名空间读取沿公开 `ConfigContext` 与统一来源优先级；缓存命中跳过 dotenv 和配置函数，遇不可序列化 typed/factory 必须明确拒绝，不能静默丢弃。Rust 代码修改需要重新编译，环境配置修改需要重启；`src/config/` 定义框架类型与加载机制，根 `config/` 定义应用策略。
 - [`lifecycle`]：启动顺序、优雅停机信号与应用后台刷新任务回收。
 
 应用内核位于根 `openrust` package 的 `src/core/`；`config`、`http`、`db`、`auth` 和 `mail` 是同一 package 中的兄弟 Rust 模块。应用依赖公开的 `openrust` package。CLI、proc-macro 和可复用测试工具继续作为独立 workspace package，维持工具与构建边界。
 
-`ServerConfig` 包含 `[server].trusted_proxy_ranges`（默认未配置，显式空列表关闭平台自动信任）与 `trusted_proxy_headers`（默认 62）、`[server.compression]`（默认启用）和 `[server.cors]`（默认禁用）。可信代理项接受 IP 或 CIDR，由 HTTP `ClientIp` extractor 使用；只有直接 socket peer 可信时才处理转发头，否则忽略任意转发头。CORS 默认允许来源列表为空，方法为 GET/POST/PUT/PATCH/DELETE/OPTIONS，请求头为 `content-type`/`authorization`/`x-request-id`，暴露 `x-request-id`，不启用 credentials，预检缓存 600 秒。环境变量使用 `APP_SERVER_CORS_ENABLED=true`；列表采用 Figment 数组语法，例如 `APP_SERVER_CORS_ALLOWED_ORIGINS='["https://example.com", "https://other.example"]'`。
+`ServerConfig` 包含 `[server].trusted_proxy_ranges`（默认未配置，显式空列表关闭平台自动信任）与 `trusted_proxy_headers`（默认 62）、可选 `[server.trusted_hosts]`、`[server.compression]`（默认启用）和 `[server.cors]`（默认禁用）。可信代理项接受 IP 或 CIDR，由 HTTP `ClientIp` extractor 使用；只有直接 socket peer 可信时才处理转发头，否则忽略任意转发头。可信主机可在应用或模块 Provider 的 `boot` 中用 `BootContext::trust_hosts` / `trust_hosts_with` 覆盖静态配置；请求与异常边界见 [HTTP 说明](../http/README.md#可信主机)。CORS 默认允许来源列表为空，方法为 GET/POST/PUT/PATCH/DELETE/OPTIONS，请求头为 `content-type`/`authorization`/`x-request-id`，暴露 `x-request-id`，不启用 credentials，预检缓存 600 秒。环境变量使用 `APP_SERVER_CORS_ENABLED=true`；列表采用 Figment 数组语法，例如 `APP_SERVER_CORS_ALLOWED_ORIGINS='["https://example.com", "https://other.example"]'`。
 
-HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安全的 `message`、有业务载荷时出现的 `data`、可选的类型化 `PageMeta` / `errors`；错误 JSON 额外包含 `request_id` 和 RFC 3339 UTC 字符串 `timestamp`（毫秒精度）。每个 HTTP 响应都通过 `x-request-id` 响应头提供请求关联 ID，成功 JSON 正文不重复携带诊断字段。无载荷时省略 `data`，空集合仍返回 `[]`。错误可使用 `Error::custom(code, message)`（semantic 模式默认状态码为 400）或 `Error::custom_with_status(status, code, message)`。`Error::rate_limited(seconds)` 会生成 `Retry-After`；`Error::validation_with_detail` 提供 422 字段错误。5xx 错误详情会隐藏。HTTP 并发上限触发的 `http_overloaded` 属于预期拒绝，不逐请求写 ERROR 日志；启用指标时由固定标签的过载计数器统计。HTTP middleware 为每个请求设置不可变的 `request_id` 和 `[api] http_status`。默认 `semantic` 使用 [ADR-008](../../.agents/project/decisions/adr-008-api-conventions.md) 中的状态码表；只有显式设置 `APP_API_HTTP_STATUS=always_ok` 才将框架 JSON 响应状态映射为 HTTP 200。
+HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安全的 `message`、有业务载荷时出现的 `data`、可选的类型化 `PageMeta` / `errors`；错误 JSON 额外包含 `request_id` 和 RFC 3339 UTC 字符串 `timestamp`（毫秒精度）。每个 HTTP 响应都通过 `x-request-id` 响应头提供请求关联 ID，成功 JSON 正文不重复携带诊断字段。无载荷时省略 `data`，空集合仍返回 `[]`。错误可使用 `Error::custom(code, message)`（semantic 模式默认状态码为 400）或 `Error::custom_with_status(status, code, message)`。`Error::rate_limited(seconds)` 会生成 `Retry-After`；`Error::validation_with_detail` 提供 422 字段错误。5xx 错误详情会隐藏。HTTP 并发上限触发的 `http_overloaded` 属于预期拒绝，不逐请求写 ERROR 日志；启用指标时由固定标签的过载计数器统计。HTTP middleware 为每个请求设置不可变的 `request_id` 和 `[api] http_status`。默认 `semantic` 使用 历史决策 008 中的状态码表；只有显式设置 `APP_API_HTTP_STATUS=always_ok` 才将框架 JSON 响应状态映射为 HTTP 200。
 
 `RateLimiter::check(key, limit, window)` 会在已注册的 `RateLimitStore` 中计入一次请求，并返回剩余配额；超限时返回带 `Retry-After` 的 429 错误。核心契约不决定 HTTP 身份提取方式或 middleware 策略。调用方应按策略命名 key，并对同一个 key 使用一致的时间窗口；存储故障不会被当成未超限。数据库 store 保存 SHA-256 摘要而非原始 key，但无法阻止对低熵值的猜测。
 
 `FrameworkConfig.i18n` 定义 locale 默认值。`I18nServiceProvider` 注册共享 `I18n` 服务；HTTP middleware 解析 `Accept-Language`，并为当前 task 设置请求 locale。框架响应和内置 validator 规则消息使用该 locale，同时保留错误码与字段路径。应用消息可从 JSON 资源合并，并通过 `RequestLocale` 翻译；普通 `{name}` 文本保持兼容，也可用有限 `plural` / `select` 分支。`I18n::format_number` 接受精确十进制字符串；`format_date` 接受已按业务时区确定的日期，`format_datetime` 按传入 Chrono 值的本地墙上时间格式化。显式 task scope 使用 `I18n::with_locale`。
 
-`openrust::validation::validate(value)` 可在命令与 typed Job 中复用 HTTP `Validated<T>` 的 validator 错误转换。`ExecutionContext::current()` 读取单次调用的 metadata、剩余 budget 与 cancellation；子调用 deadline 不超过父级，子 timeout 不会取消父级。队列可传播经校验的 request ID、traceparent、locale 和可信租户 ID；不序列化用户身份或请求凭据；见 [ADR-044](../../.agents/project/decisions/adr-044-cross-protocol-execution-context.md)。
+`openrust::validation::validate(value)` 可在命令与 typed Job 中复用 HTTP `Validated<T>` 的 validator 错误转换。`ExecutionContext::current()` 读取单次调用的 metadata、剩余 budget 与 cancellation；子调用 deadline 不超过父级，子 timeout 不会取消父级。队列可传播经校验的 request ID、traceparent、locale 和可信租户 ID；不序列化用户身份或请求凭据；见 历史决策 044。
 
 ```json
 {

@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn private_get_bounds_path_before_collecting_segments() {
-        // 资源保护是 ADR-079 的 Rust 适配；公开接口负责 413，私有读取安全返回缺失。
+        // 资源保护是 历史决策 079 的 Rust 适配；公开接口负责 413，私有读取安全返回缺失。
         let empty = json!({});
         assert_eq!(get(&empty, &".".repeat(100_000)), None);
         assert_eq!(get(&empty, &"s".repeat(MAX_EXPANDED_KEYS + 1)), None);

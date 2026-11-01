@@ -196,9 +196,11 @@ async fn verify_old_input_selection<A: Application>(app: &TestApp<A>, cookie: &s
 
 #[tokio::test]
 async fn module_old_input_uses_one_session_and_explicit_sensitive_field_exclusion() -> TestResult {
-    let mut app = TestApp::<SessionApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<SessionApplication>::builder(crate::modules::example::test_sources(
+        &(sources()),
+    )?)
+    .build()
+    .await?;
     let result = verify_old_input(&app).await;
     let shutdown = app
         .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
@@ -211,6 +213,11 @@ async fn module_old_input_uses_one_session_and_explicit_sensitive_field_exclusio
 struct SessionApplication;
 impl Application for SessionApplication {
     type Config = <crate::bootstrap::Server as Application>::Config;
+
+    fn default_providers() -> openrust::core::DefaultProviders {
+        crate::bootstrap::Server::default_providers()
+            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
     fn config_namespace() -> &'static str {
         crate::bootstrap::Server::config_namespace()
     }
@@ -342,9 +349,11 @@ fn previous_data(
 #[tokio::test]
 async fn module_previous_named_anonymous_and_opt_in_precognition_preserve_request_history()
 -> TestResult {
-    let mut app = TestApp::<SessionApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<SessionApplication>::builder(crate::modules::example::test_sources(
+        &(sources()),
+    )?)
+    .build()
+    .await?;
     let outcome = verify_module_previous(&app).await;
     let shutdown = app
         .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
@@ -373,9 +382,11 @@ async fn module_database_previous_history_and_precognition_use_the_original_pers
             "keys":{"test":"Q0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0M="}}}
     })));
     let outcome: TestResult = async {
-        let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let mut app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let outcome = verify_module_previous(&app).await;
         let shutdown = app
             .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
@@ -409,9 +420,11 @@ async fn module_database_old_input_survives_real_request_boundaries() -> TestRes
             "keys":{"test":"Q0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0M="}}}
     })));
     let outcome: TestResult = async {
-        let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let mut app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let result = verify_old_input(&app).await;
         let shutdown = app
             .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
@@ -582,9 +595,11 @@ async fn invalid(
 
 #[tokio::test]
 async fn module_session_preferences_flash_keep_and_request_isolation() -> TestResult {
-    let mut app = TestApp::<SessionApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<SessionApplication>::builder(crate::modules::example::test_sources(
+        &(sources()),
+    )?)
+    .build()
+    .await?;
     let outcome: TestResult = async {
         let initial = request(&app, None, None).await?;
         success(&initial, &data(None, None, None))?;
@@ -629,9 +644,11 @@ async fn module_session_preferences_flash_keep_and_request_isolation() -> TestRe
 
 #[tokio::test]
 async fn module_session_public_value_tree_persists_pure_business_preference() -> TestResult {
-    let mut app = TestApp::<SessionApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<SessionApplication>::builder(crate::modules::example::test_sources(
+        &(sources()),
+    )?)
+    .build()
+    .await?;
     let outcome: TestResult = async {
         let initial = request(&app, None, None).await?;
         let cookie = cookie_pair(&initial)?;
@@ -675,9 +692,11 @@ async fn module_session_public_value_tree_persists_pure_business_preference() ->
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // 固定业务键的跨请求状态序列保持在同一 Cookie 与 fixture 中。
 async fn module_session_store_helpers_use_fixed_business_keys_across_requests() -> TestResult {
-    let mut app = TestApp::<SessionApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<SessionApplication>::builder(crate::modules::example::test_sources(
+        &(sources()),
+    )?)
+    .build()
+    .await?;
     let outcome: TestResult = async {
         let initial = request(&app, None, None).await?;
         success(&initial, &helper_data(None, None, None, None, None))?;
@@ -783,9 +802,11 @@ async fn module_session_store_helpers_use_fixed_business_keys_across_requests() 
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // 同一 Cookie 验证业务字节/列表上限及失败后全快照不变。
 async fn module_session_utf8_budget_invalid_values_and_namespace_are_bounded() -> TestResult {
-    let mut app = TestApp::<SessionApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<SessionApplication>::builder(crate::modules::example::test_sources(
+        &(sources()),
+    )?)
+    .build()
+    .await?;
     let outcome: TestResult = async {
         let initial = request(&app, None, None).await?;
         success(&initial, &data(None, None, None))?;
@@ -912,6 +933,11 @@ async fn module_session_utf8_budget_invalid_values_and_namespace_are_bounded() -
 struct RequestDriverApplication;
 impl Application for RequestDriverApplication {
     type Config = <SessionApplication as Application>::Config;
+
+    fn default_providers() -> openrust::core::DefaultProviders {
+        crate::bootstrap::Server::default_providers()
+            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
     fn config_namespace() -> &'static str {
         SessionApplication::config_namespace()
     }
@@ -957,9 +983,11 @@ fn merge_probe_cookies(response: &TestResponse, cookies: &mut Vec<(String, Strin
 #[tokio::test]
 async fn explicit_request_driver_consumes_cookie_and_keeps_two_request_queues_isolated()
 -> TestResult {
-    let mut app = TestApp::<RequestDriverApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<RequestDriverApplication>::builder(
+        crate::modules::example::test_sources(&(sources()))?,
+    )
+    .build()
+    .await?;
     let outcome: TestResult = async {
         let mut first = Vec::new();
         let mut second = Vec::new();
@@ -1077,6 +1105,11 @@ fn probe_business_data(
 struct CookieSessionApplication;
 impl Application for CookieSessionApplication {
     type Config = <SessionApplication as Application>::Config;
+
+    fn default_providers() -> openrust::core::DefaultProviders {
+        crate::bootstrap::Server::default_providers()
+            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
     fn config_namespace() -> &'static str {
         SessionApplication::config_namespace()
     }
@@ -1118,9 +1151,11 @@ fn merge_cookie_driver_cookies(
 #[tokio::test]
 async fn builtin_cookie_session_is_explicit_and_preserves_two_clients_business_state() -> TestResult
 {
-    let mut app = TestApp::<CookieSessionApplication>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<CookieSessionApplication>::builder(
+        crate::modules::example::test_sources(&(sources()))?,
+    )
+    .build()
+    .await?;
     let outcome: TestResult = async {
         let mut first = Vec::new();
         let mut second = Vec::new();

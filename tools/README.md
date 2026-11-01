@@ -7,4 +7,4 @@
 - `testing/`：应用可选的数据库测试辅助 package。
 - `performance/`：维护者基准与性能验证，不进入默认 workspace members。
 
-各 package 仍独立维护 manifest 与测试。目录和 workspace 约定见 [ADR-021](../.agents/project/decisions/adr-021-loco-style-module-layout.md) 与 [架构说明](../.agents/project/architecture.md)。
+各 package 仍独立维护 manifest 与测试。目录和 workspace 约定见 历史决策 021 与 [架构说明](../.agents/project/architecture.md)。

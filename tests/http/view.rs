@@ -33,12 +33,22 @@ impl openrust::core::ServiceProvider for ViewRoutes {
         app: &'a mut openrust::core::BootContext<'_>,
     ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|request, _| request.path() == "/view/read");
+            })?;
             app.routes(|routes| {
-                routes
-                    .get("/view/flash/{message}", flash_view_error)
-                    .get("/view/corrupt", corrupt_view_error)
-                    .get("/view/mutate", mutate_view_error)
-                    .get("/view/read", read_view_error)
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .get("/view/flash/{message}", flash_view_error)
+                            .get("/view/corrupt", corrupt_view_error)
+                            .get("/view/mutate", mutate_view_error)
+                            .get("/view/read", read_view_error)
+                    },
+                )
             })?;
             Ok(())
         })

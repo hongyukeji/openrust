@@ -57,6 +57,10 @@ impl Default for Plan {
 struct HarnessApp;
 impl Application for HarnessApp {
     type Config = Harness;
+
+    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::empty()
+    }
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let plan = &config.session_test;
         let mut session = if plan.memory {
@@ -121,10 +125,27 @@ struct TestRoutes;
 impl ServiceProvider for TestRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| {
-                routes
-                    .get("/config/session", inspect)
-                    .get("/config/presence", presence)
+            let enabled = app
+                .config_repository()
+                .section::<SessionConfig>("session")?
+                .driver
+                .is_some();
+            app.routes(move |routes| {
+                let add = |routes: openrust::http::Routes| {
+                    routes
+                        .get("/config/session", inspect)
+                        .get("/config/presence", presence)
+                };
+                if enabled {
+                    routes.group(
+                        openrust::http::RouteGroup::new()
+                            .middleware_alias("cookies")
+                            .middleware_alias("session"),
+                        add,
+                    )
+                } else {
+                    add(routes)
+                }
             })?;
             Ok(())
         })

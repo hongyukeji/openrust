@@ -55,9 +55,11 @@ struct Node {
 }
 impl Node {
     async fn start(source: Figment) -> TestResult<Self> {
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let router = openrust::http::build_router(app.app()?)?;
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;

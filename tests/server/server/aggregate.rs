@@ -15,10 +15,11 @@ mod routes;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use figment::Figment;
-#[cfg(any(feature = "db-postgres", feature = "db-mysql", feature = "cache-redis"))]
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use figment::providers::Format;
 use openrust::ServiceExt;
-use openrust::config;
+#[path = "../../../config/mod.rs"]
+mod config;
 use openrust::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
@@ -176,6 +177,10 @@ struct ResourceMacroApp;
 impl Application for ResourceMacroApp {
     type Config = openrust::NoConfig;
 
+    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::empty()
+    }
+
     fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         vec![
             Box::new(openrust::http::HttpServiceProvider),
@@ -233,34 +238,25 @@ async fn router() -> Result<openrust::http::axum::Router, openrust::Error> {
 }
 
 async fn test_server() -> Result<openrust::App, openrust::Error> {
-    let loader = config::ConfigLoader::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
-        config::Environment::Development,
-    );
-    let figment = loader.figment().inspect_err(|_| {
-        eprintln!("server fixture config loader stage failed");
-    })?;
+    let source = openrust::config::ConfigLoader::application_code_sources(
+        env!("CARGO_MANIFEST_DIR"),
+        "APP_",
+        None,
+        &apps::Server::config(),
+    )?;
+    let mut overrides =
+        serde_json::Map::from_iter([("app".to_owned(), serde_json::json!({"env":"development"}))]);
     #[cfg(feature = "cache-redis")]
-    let figment = figment.merge(figment::providers::Toml::string(
-        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'redis'\nnamespace = 'server-test'\ndsn = 'redis://127.0.0.1:6379/'\n",
-    ));
+    overrides.insert("cache".to_owned(), serde_json::json!({"default":"default","stores":{"default":{"driver":"redis","namespace":"server-test","dsn":"redis://127.0.0.1:6379/"}}}));
     #[cfg(feature = "encryption")]
-    let figment = figment
-        .merge(("security.encryption.active_key_id", "local"))
-        .merge((
-            "security.encryption.keys.local",
-            "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
-        ));
-    let application_config = figment
-        .extract::<<apps::Server as Application>::Config>()
+    overrides.insert("security".to_owned(), serde_json::json!({"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}));
+    let sources = source.merge_ordered_entries(overrides)?;
+    let configuration = sources
+        .figment()
+        .extract::<apps::Configuration>()
         .map_err(openrust::config::ConfigError::from)?;
-    let builder = ProviderBuilder::for_application::<apps::Server>(&application_config);
-    let runtime = builder.start(figment).await.inspect_err(|error| {
-        eprintln!("server fixture provider stage failed: {}", error.code());
-    })?;
-    openrust::App::from_provider_runtime(runtime).inspect_err(|error| {
-        eprintln!("server fixture app stage failed: {}", error.code());
-    })
+    let builder = ProviderBuilder::for_application::<apps::Server>(&configuration);
+    openrust::App::from_provider_runtime(builder.start(sources).await?)
 }
 
 #[test]
@@ -298,6 +294,7 @@ fn serve_process_exits_successfully_after_sigterm() -> TestResult {
         let mut child = ChildGuard(
             Command::new(env!("CARGO_BIN_EXE_server"))
                 .current_dir(env!("CARGO_MANIFEST_DIR"))
+                .env("APP_ENV", "local")
                 .env("APP_SERVER_HOST", "127.0.0.1")
                 .env("SERVER_PORT", port.to_string())
                 .env("APP_SERVER_SHUTDOWN_TIMEOUT_SECS", "2")
@@ -376,8 +373,11 @@ fn metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled() -> TestResul
         let reservation = std::net::TcpListener::bind("127.0.0.1:0")?;
         let port = reservation.local_addr()?.port();
         drop(reservation);
+        let stderr = tempfile::NamedTempFile::new()?;
         let mut child = ChildGuard(
             Command::new(env!("CARGO_BIN_EXE_server"))
+                .current_dir(env!("CARGO_MANIFEST_DIR"))
+                .env("APP_ENV", "local")
                 .env("APP_SERVER_HOST", "127.0.0.1")
                 .env("SERVER_PORT", port.to_string())
                 .env("APP_SERVER_METRICS_ENDPOINT_ENABLED", "true")
@@ -387,12 +387,18 @@ fn metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled() -> TestResul
                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
                 )
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stderr(stderr.reopen()?)
                 .spawn()?,
         );
         let address = format!("127.0.0.1:{port}");
         openrust::tokio::time::timeout(Duration::from_secs(8), async {
             loop {
+                if let Some(status) = child.0.try_wait()? {
+                    let diagnostic = std::fs::read_to_string(stderr.path())?;
+                    return Err(std::io::Error::other(format!(
+                        "metrics server exited before readiness: {status}; {diagnostic}"
+                    )));
+                }
                 if request_status(&address, "/ready")
                     .await
                     .is_ok_and(|status| status == 200)
@@ -401,8 +407,9 @@ fn metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled() -> TestResul
                 }
                 openrust::tokio::time::sleep(Duration::from_millis(25)).await;
             }
+            Ok::<_, std::io::Error>(())
         })
-        .await?;
+        .await??;
         let _ = request_bytes(&address, "/").await?;
         let scrape = request_bytes(&address, "/metrics").await?;
         let scrape = String::from_utf8(scrape)?;
@@ -516,9 +523,9 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
 #[test]
 fn database_configuration_enables_infrastructure_without_silent_fallback() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
-        let loader = config::ConfigLoader::new(
+        let loader = openrust::config::ConfigLoader::new(
             concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
-            config::Environment::Development,
+            openrust::config::Environment::Development,
         );
         let figment = loader
             .figment()?
@@ -529,13 +536,9 @@ fn database_configuration_enables_infrastructure_without_silent_fallback() -> Te
                 "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
             ));
         let configuration = figment.extract::<apps::Configuration>()?;
-        let mut builder = ProviderBuilder::new();
-        builder.app_config::<apps::Configuration>();
-        for provider in apps::Server::providers(&configuration) {
-            builder.boxed_provider(provider);
-        }
+        let builder = ProviderBuilder::for_application::<apps::Server>(&configuration);
         let error = builder
-            .start(figment)
+            .start(crate::modules::example::test_sources(&(figment))?)
             .await
             .err()
             .ok_or("声明错误数据库应导致启动失败")?;
@@ -600,9 +603,9 @@ fn resource_macro_registers_controller_actions() -> TestResult {
 }
 
 async fn test_application<A: Application>() -> Result<openrust::App, openrust::Error> {
-    let loader = config::ConfigLoader::new(
+    let loader = openrust::config::ConfigLoader::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
-        config::Environment::Development,
+        openrust::config::Environment::Development,
     );
     let application_config = loader.load::<A::Config>()?;
     let mut builder = ProviderBuilder::new();
@@ -610,7 +613,11 @@ async fn test_application<A: Application>() -> Result<openrust::App, openrust::E
     for provider in A::providers(&application_config) {
         builder.boxed_provider(provider);
     }
-    openrust::App::from_provider_runtime(builder.start(loader.figment()?).await?)
+    openrust::App::from_provider_runtime(
+        builder
+            .start(crate::modules::example::test_sources(&(loader.figment()?))?)
+            .await?,
+    )
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -625,7 +632,11 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
         let figment = Figment::new().merge(figment::providers::Toml::string(&source));
         let mut builder = ProviderBuilder::new();
         builder.provider(openrust::db::DatabaseServiceProvider);
-        let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
+        let app = openrust::App::from_provider_runtime(
+            builder
+                .start(crate::modules::example::test_sources(&(figment))?)
+                .await?,
+        )?;
         let database = app.state().resolve::<openrust::Db>().await?.connection()?;
         database.execute_unprepared("SELECT 1").await?;
         app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
@@ -653,6 +664,7 @@ fn config_show_runs_and_redacts_secrets() -> TestResult {
     command
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("APP_ENV", "local")
         .env("APP_API_TOKEN", "server-secret-value")
         .env("APP_CONFIG_DIR", selected.path())
         .env("APP_LOG_LEVEL", "debug");
@@ -689,6 +701,7 @@ fn configured_missing_directory_fails_before_application_boot() -> TestResult {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_server"))
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("APP_ENV", "local")
         .env("APP_CONFIG_DIR", missing)
         .output()?;
     assert_eq!(output.status.code(), Some(1));
@@ -701,14 +714,21 @@ fn configured_missing_directory_fails_before_application_boot() -> TestResult {
 
 #[test]
 fn default_config_loads_from_package_directory() -> TestResult {
-    let loader = config::ConfigLoader::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
-        config::Environment::Development,
-    );
-    let framework = loader.load_framework()?;
+    let sources = openrust::config::ConfigLoader::application_code_sources(
+        env!("CARGO_MANIFEST_DIR"),
+        "APP_",
+        None,
+        &apps::Server::config(),
+    )?;
+    let framework = sources
+        .figment()
+        .extract::<openrust::config::FrameworkConfig>()?;
     assert_eq!(framework.app.name, "openrust");
     assert_eq!(framework.server.port, 3000);
-    assert_eq!(framework.api.http_status, config::HttpStatusMode::Semantic);
+    assert_eq!(
+        framework.api.http_status,
+        openrust::config::HttpStatusMode::Semantic
+    );
     assert!(framework.server.compression.enabled);
     assert!(!framework.server.cors.enabled);
     Ok(())
@@ -720,7 +740,7 @@ fn unknown_route_returns_envelope() -> TestResult {
         let response = router()
             .await?
             .oneshot(
-                Request::get("/nope")
+                Request::get("/api/nope")
                     .header("host", "localhost")
                     .body(Body::empty())?,
             )
@@ -737,6 +757,21 @@ fn unknown_route_returns_envelope() -> TestResult {
         assert!(json["timestamp"].as_str().is_some_and(|value| {
             value.ends_with('Z') && chrono::DateTime::parse_from_rfc3339(value).is_ok()
         }));
+        let web_response = router()
+            .await?
+            .oneshot(
+                Request::get("/nope")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(web_response.status(), StatusCode::NOT_FOUND);
+        assert!(
+            web_response.headers()["content-type"]
+                .to_str()?
+                .starts_with("text/html")
+        );
+        assert!(web_response.headers().contains_key("x-request-id"));
         Ok(())
     })
 }

@@ -4900,7 +4900,9 @@ async fn default_status_mode_uses_semantic_http_codes() -> TestResult {
     Ok(())
 }
 
-struct FailingI18nProvider;
+struct FailingI18nProvider {
+    api_envelope: bool,
+}
 impl openrust::core::ServiceProvider for FailingI18nProvider {
     fn register<'a>(
         &'a self,
@@ -4915,6 +4917,20 @@ impl openrust::core::ServiceProvider for FailingI18nProvider {
                 })
             })
             .await?;
+            Ok(())
+        })
+    }
+
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            if self.api_envelope {
+                app.exceptions(|handler| {
+                    handler.api_envelope_when(|_, _| true);
+                })?;
+            }
             Ok(())
         })
     }
@@ -4936,7 +4952,7 @@ async fn i18n_resolution_errors_keep_request_status_mode_and_id() -> TestResult 
         let mut builder = openrust::core::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
-            .provider(FailingI18nProvider);
+            .provider(FailingI18nProvider { api_envelope: true });
         let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
         let response = build_router(&app)?
             .oneshot(
@@ -4952,6 +4968,55 @@ async fn i18n_resolution_errors_keep_request_status_mode_and_id() -> TestResult 
         let body = json_body(response).await;
         assert_eq!(body["request_id"], request_id);
         assert_eq!(body["code"], "service_initialization_failed");
+    }
+    Ok(())
+}
+
+// 捕获 next 之前失败时默认协商响应遗漏 request-id 或 HEAD 正文的回归。
+#[tokio::test]
+async fn early_i18n_errors_keep_default_negotiation_and_request_id() -> TestResult {
+    let config = FrameworkConfig::default();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(FailingI18nProvider {
+            api_envelope: false,
+        });
+    let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+    let router = build_router(&app)?;
+    for (method, accept, expected_type) in [
+        ("GET", None, "text/html"),
+        ("GET", Some("text/html"), "text/html"),
+        ("GET", Some("application/json"), "application/json"),
+        ("HEAD", None, "text/html"),
+        ("HEAD", Some("application/json"), "application/json"),
+    ] {
+        let mut request = Request::builder()
+            .method(method)
+            .uri("/unreachable")
+            .header("x-request-id", "default-i18n-failure");
+        if let Some(accept) = accept {
+            request = request.header(header::ACCEPT, accept);
+        }
+        let response = router.clone().oneshot(request.body(Body::empty())?).await?;
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.headers()["x-request-id"], "default-i18n-failure");
+        assert!(
+            response.headers()[header::CONTENT_TYPE]
+                .to_str()?
+                .starts_with(expected_type)
+        );
+        let body = to_bytes(response.into_body(), 4096).await?;
+        if method == "HEAD" {
+            assert!(body.is_empty());
+        } else if expected_type == "application/json" {
+            let value: serde_json::Value = serde_json::from_slice(&body)?;
+            assert_eq!(value["message"], "Server Error");
+            assert!(value.get("code").is_none());
+        } else {
+            assert!(String::from_utf8_lossy(&body).contains("Server Error"));
+        }
     }
     Ok(())
 }
@@ -4985,6 +5050,9 @@ where
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|_, _| true);
+            })?;
             app.routes(move |value| routes(value))?;
             Ok(())
         })

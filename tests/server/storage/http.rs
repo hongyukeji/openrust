@@ -17,6 +17,10 @@ struct StorageHttpApp;
 impl Application for StorageHttpApp {
     type Config = NoConfig;
 
+    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::empty()
+    }
+
     fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         vec![
             Box::new(openrust::http::HttpServiceProvider),

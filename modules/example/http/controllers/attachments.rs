@@ -8,8 +8,9 @@ use openrust::http::axum::{
     http::{HeaderValue, StatusCode, header},
     response::Response,
 };
-use openrust::http::{Created, Inject, Json, Path};
+use openrust::http::{Created, Inject, Json, Path, Request as InputRequest, UploadedFile};
 use openrust::storage::Visibility;
+use tokio::io::AsyncReadExt;
 
 use crate::modules::example::http::requests::attachments::AttachmentUpload;
 use crate::modules::example::services::attachments::ArticleAttachments;
@@ -30,6 +31,47 @@ pub(crate) async fn upload(
     let stored = attachments
         .upload(user.id(), id, declaration, request.into_body())
         .await?;
+    Ok(Created(Json(AttachmentInfo {
+        bytes: stored.metadata.size,
+        content_type: "text/plain; charset=utf-8",
+    })))
+}
+
+/// 通过公开请求文件 API 上传普通业务附件，沿原服务执行授权和对象发布。
+pub(crate) async fn upload_multipart(
+    user: CurrentUser,
+    Inject(attachments): Inject<ArticleAttachments>,
+    Path(id): Path<i64>,
+    request: InputRequest,
+) -> Result<Created<Json<AttachmentInfo>>> {
+    let file = request
+        .file("document")?
+        .ok_or_else(|| openrust::Error::custom("example_attachment_missing", "缺少附件文件"))?;
+    let file = file
+        .downcast_ref::<UploadedFile>()
+        .ok_or_else(|| openrust::Error::custom("example_attachment_invalid", "附件字段不是文件"))?;
+    if file.size() > crate::modules::example::http::requests::attachments::MAX_ATTACHMENT_BYTES {
+        return Err(crate::modules::example::http::requests::attachments::too_large());
+    }
+    let mime = file.mime_type().await?.unwrap_or_default();
+    let declaration = AttachmentUpload::from_content_type(&mime)?;
+    let reader = file.open().await?;
+    let body = Body::from_stream(futures_util::stream::unfold(
+        Some(reader),
+        |reader| async move {
+            let mut reader = reader?;
+            let mut buffer = vec![0_u8; 16 * 1024];
+            match reader.read(&mut buffer).await {
+                Ok(0) => None,
+                Ok(size) => {
+                    buffer.truncate(size);
+                    Some((Ok::<_, std::io::Error>(buffer), Some(reader)))
+                }
+                Err(error) => Some((Err(error), None)),
+            }
+        },
+    ));
+    let stored = attachments.upload(user.id(), id, declaration, body).await?;
     Ok(Created(Json(AttachmentInfo {
         bytes: stored.metadata.size,
         content_type: "text/plain; charset=utf-8",

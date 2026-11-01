@@ -88,9 +88,11 @@ impl Fixture {
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":directory.path()}}}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let db = app.app()?.state().resolve::<Db>().await?;
         let connection = db.primary_connection()?;
         let table = db.quoted_table_name("users")?;
@@ -144,6 +146,7 @@ fn request(
     let mut builder = Request::builder()
         .method(method)
         .uri(path)
+        .header("host", "localhost")
         .header("content-type", format.mime());
     if let Some(token) = token {
         builder = builder.header("authorization", format!("Bearer {token}"));

@@ -1,27 +1,51 @@
 //! 应用身份和运行环境设置。
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{ConfigError, ENV_PREFIX, ENV_VAR, validate_namespace};
+use super::{ConfigError, ENV_PREFIX, validate_namespace};
 
-/// 运行环境，默认由 `APP_ENV` 选择。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// 应用环境的精确名称；自定义名称、大小写与空字符串均予以保留。
+#[derive(Debug, Clone, Default)]
 pub enum Environment {
-    /// 本地开发：详细日志、启用 API 文档并读取 `.env`。
-    #[default]
+    /// Laravel `local`。
+    Local,
+    /// 旧应用骨架显式使用的 `development`。
     Development,
-    /// 自动化测试：默认使用 fake driver。
+    /// 精确的 `dev`。
+    Dev,
+    /// 精确的 `test`。
     Test,
-    /// 生产环境：JSON 日志，不启用调试入口。
+    /// Laravel `testing`。
+    Testing,
+    /// Laravel `production`。
+    #[default]
     Production,
+    /// 精确的 `prod`。
+    Prod,
+    /// 其他环境名称。
+    Custom(String),
+}
+
+impl PartialEq for Environment {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for Environment {}
+
+impl Hash for Environment {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
+    }
 }
 
 impl Environment {
-    /// 从 `APP_ENV` 读取运行环境；未设置时默认为 [`Environment::Development`]。
+    /// 从 `APP_ENV` 读取运行环境；未设置时默认为 [`Environment::Production`]。
     pub fn from_env() -> Result<Self, ConfigError> {
         Self::from_env_with_namespace(ENV_PREFIX)
     }
@@ -32,31 +56,100 @@ impl Environment {
     pub fn from_env_with_namespace(namespace: &str) -> Result<Self, ConfigError> {
         validate_namespace(namespace)?;
         let key = format!("{namespace}ENV");
-        match std::env::var(&key) {
-            Ok(value) if !value.trim().is_empty() => {
-                value.parse().map_err(|error: ConfigError| match error {
-                    ConfigError::UnknownEnvironment { value, .. } => {
-                        ConfigError::UnknownEnvironment { key, value }
-                    }
-                    other => other,
-                })
-            }
-            _ => Ok(Self::Development),
-        }
+        Ok(std::env::var(&key).map_or_else(|_| Self::Production, Self::from))
     }
 
-    /// 用于文件名和日志的小写名称。
-    pub fn as_str(self) -> &'static str {
+    /// 返回原始环境名称。
+    pub fn as_str(&self) -> &str {
         match self {
+            Self::Local => "local",
             Self::Development => "development",
+            Self::Dev => "dev",
             Self::Test => "test",
+            Self::Testing => "testing",
             Self::Production => "production",
+            Self::Prod => "prod",
+            Self::Custom(value) => value,
         }
     }
 
-    /// 仅当环境为 [`Environment::Production`] 时返回 `true`。
-    pub fn is_production(self) -> bool {
-        matches!(self, Self::Production)
+    /// 按 Laravel `Str::is` 的 `*` 通配规则匹配任一大小写敏感模式。
+    pub fn matches<'a>(&self, patterns: impl IntoIterator<Item = &'a str>) -> bool {
+        patterns
+            .into_iter()
+            .any(|pattern| wildcard_match(pattern, self.as_str()))
+    }
+
+    /// 仅当精确名称为 `local` 时返回 `true`。
+    pub fn is_local(&self) -> bool {
+        self.as_str() == "local"
+    }
+
+    /// 仅当精确名称为 `production` 时返回 `true`。
+    pub fn is_production(&self) -> bool {
+        self.as_str() == "production"
+    }
+
+    /// 保留框架原有生产安全限制；仅用于拒绝危险开发驱动与本地绕行。
+    ///
+    /// 与 Laravel 精确 `isProduction` 不同：历史输入中的 `prod`、大小写及首尾空白仍按生产保护。
+    pub fn enforces_production_safety(&self) -> bool {
+        matches!(
+            self.as_str().trim().to_ascii_lowercase().as_str(),
+            "prod" | "production"
+        )
+    }
+
+    /// 仅当精确名称为 `testing` 时返回 `true`。
+    pub fn running_unit_tests(&self) -> bool {
+        self.as_str() == "testing"
+    }
+}
+
+fn wildcard_match(pattern: &str, value: &str) -> bool {
+    let Some((prefix, tail)) = pattern.split_once('*') else {
+        return pattern == value;
+    };
+    let Some(mut remaining) = value.strip_prefix(prefix) else {
+        return false;
+    };
+    let mut parts = tail.split('*').peekable();
+    while let Some(part) = parts.next() {
+        if parts.peek().is_none() && !pattern.ends_with('*') {
+            return remaining.ends_with(part);
+        }
+        let Some(position) = remaining.find(part) else {
+            return false;
+        };
+        remaining = &remaining[position + part.len()..];
+    }
+    true
+}
+
+impl From<String> for Environment {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "local" => Self::Local,
+            "development" => Self::Development,
+            "dev" => Self::Dev,
+            "test" => Self::Test,
+            "testing" => Self::Testing,
+            "production" => Self::Production,
+            "prod" => Self::Prod,
+            _ => Self::Custom(value),
+        }
+    }
+}
+
+impl Serialize for Environment {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for Environment {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(Self::from)
     }
 }
 
@@ -64,15 +157,7 @@ impl FromStr for Environment {
     type Err = ConfigError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "development" | "dev" | "local" => Ok(Self::Development),
-            "test" | "testing" => Ok(Self::Test),
-            "production" | "prod" => Ok(Self::Production),
-            other => Err(ConfigError::UnknownEnvironment {
-                key: ENV_VAR.to_owned(),
-                value: other.to_owned(),
-            }),
-        }
+        Ok(Self::from(value.to_owned()))
     }
 }
 
@@ -88,8 +173,10 @@ impl fmt::Display for Environment {
 pub struct AppConfig {
     /// 用于日志和邮件的可读名称。
     pub name: String,
-    /// 运行环境。加载配置后始终会被所选命名空间的值覆盖。
+    /// 运行环境；显式 `<PREFIX>ENV` 覆盖代码或文件配置，缺省为 `production`。
     pub env: Environment,
+    /// 是否向开发者展示详细诊断；生产部署应明确关闭。
+    pub debug: bool,
     /// 用于构造绝对链接的公开基础 URL。
     pub url: String,
     /// URL 签名使用的原始应用密钥；不进行 Base64 解码。
@@ -105,7 +192,8 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             name: "OpenRust".to_owned(),
-            env: Environment::Development,
+            env: Environment::Production,
+            debug: false,
             url: "http://localhost:3000".to_owned(),
             key: None,
             previous_keys: Vec::new(),
@@ -120,6 +208,7 @@ impl fmt::Debug for AppConfig {
             .debug_struct("AppConfig")
             .field("name", &self.name)
             .field("env", &self.env)
+            .field("debug", &self.debug)
             .field("url", &self.url)
             .field("key", &self.key.as_ref().map(|_| "[REDACTED]"))
             .field("previous_keys", &"[REDACTED]")

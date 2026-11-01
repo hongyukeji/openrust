@@ -50,47 +50,62 @@ impl ServiceProvider for RedirectRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes: Routes| {
-                routes
-                    .group(
-                        RouteGroup::new()
-                            .prefix(format!("{PREFIX}/actions"))
-                            .namespace("Generated\\Draft"),
-                        |drafts| {
-                            drafts
-                                // 静态概览先于参数路由；后登记的模块概览替换默认实现。
-                                .get("/summary", summary_default)
-                                .get_action("/summary", "DraftSummaryController", summary_page)
-                                .get_action("/{id}", "DraftController@show", action_page)
-                                .get_action("/{id}/preview", "PreviewDraftController", action_page)
-                        },
-                    )
-                    .get(&format!("{PREFIX}/action"), action_redirect)
-                    .get(&format!("{PREFIX}/action-preview"), action_preview)
-                    .on_action(
-                        &format!("{PREFIX}/action-submit"),
-                        &["POST"],
-                        ("Generated\\Draft\\DraftController", "store"),
-                        action_submit,
-                    )
-                    .get(&format!("{PREFIX}/plain"), plain)
-                    .get(&format!("{PREFIX}/signed-issue"), signed_issue)
-                    .group(RouteGroup::new(), |signed| {
-                        signed
-                            .get(&format!("{PREFIX}/signed/{{id}}"), signed_show)
-                            .name("generated.draft.signed")
-                            .middleware_alias("signed")
-                    })
-                    .get(&format!("{PREFIX}/secure"), secure)
-                    .get(&format!("{PREFIX}/guide"), guide)
-                    .get(&format!("{PREFIX}/refresh"), refresh_page)
-                    .post(&format!("{PREFIX}/refresh"), refresh_submit)
-                    .get(&format!("{PREFIX}/preview"), preview)
-                    .get(&format!("{PREFIX}/confirm"), confirmation)
-                    .post(&format!("{PREFIX}/confirm"), confirm)
-                    .post(&format!("{PREFIX}/submit"), submit)
-                    .get(&format!("{PREFIX}/review"), review)
-                    .name("generated.draft.review")
-                    .get(&format!("{PREFIX}/view"), view)
+                routes.group(
+                    RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .group(
+                                RouteGroup::new()
+                                    .prefix(format!("{PREFIX}/actions"))
+                                    .namespace("Generated\\Draft"),
+                                |drafts| {
+                                    drafts
+                                        // 静态概览先于参数路由；后登记的模块概览替换默认实现。
+                                        .get("/summary", summary_default)
+                                        .get_action(
+                                            "/summary",
+                                            "DraftSummaryController",
+                                            summary_page,
+                                        )
+                                        .get_action("/{id}", "DraftController@show", action_page)
+                                        .get_action(
+                                            "/{id}/preview",
+                                            "PreviewDraftController",
+                                            action_page,
+                                        )
+                                },
+                            )
+                            .get(&format!("{PREFIX}/action"), action_redirect)
+                            .get(&format!("{PREFIX}/action-preview"), action_preview)
+                            .on_action(
+                                &format!("{PREFIX}/action-submit"),
+                                &["POST"],
+                                ("Generated\\Draft\\DraftController", "store"),
+                                action_submit,
+                            )
+                            .get(&format!("{PREFIX}/plain"), plain)
+                            .get(&format!("{PREFIX}/signed-issue"), signed_issue)
+                            .group(RouteGroup::new(), |signed| {
+                                signed
+                                    .get(&format!("{PREFIX}/signed/{{id}}"), signed_show)
+                                    .name("generated.draft.signed")
+                                    .middleware_alias("signed")
+                            })
+                            .get(&format!("{PREFIX}/secure"), secure)
+                            .get(&format!("{PREFIX}/guide"), guide)
+                            .get(&format!("{PREFIX}/refresh"), refresh_page)
+                            .post(&format!("{PREFIX}/refresh"), refresh_submit)
+                            .get(&format!("{PREFIX}/preview"), preview)
+                            .get(&format!("{PREFIX}/confirm"), confirmation)
+                            .post(&format!("{PREFIX}/confirm"), confirm)
+                            .post(&format!("{PREFIX}/submit"), submit)
+                            .get(&format!("{PREFIX}/review"), review)
+                            .name("generated.draft.review")
+                            .get(&format!("{PREFIX}/view"), view)
+                    },
+                )
             })?;
             Ok(())
         })
@@ -100,6 +115,23 @@ impl ServiceProvider for RedirectRoutes {
 struct RedirectApplication<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for RedirectApplication<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        // 本测试显式使用隔离内存 Session，先排除同类型默认项以保留替换。
+        A::default_providers().except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }

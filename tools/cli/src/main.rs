@@ -80,6 +80,19 @@ enum Builtin {
         #[arg(long)]
         soft_delete: bool,
     },
+    /// 在 app/ 中创建应用控制器。
+    #[command(name = "make:controller")]
+    MakeController { name: String },
+    /// 在 app/ 中创建数据库模型。
+    #[command(name = "make:model")]
+    MakeModel {
+        name: String,
+        /// 模型字段，格式为 field:type。
+        fields: Vec<String>,
+    },
+    /// 创建 `ServiceProvider` 并登记到 `bootstrap/providers.rs`。
+    #[command(name = "make:provider")]
+    MakeProvider { name: String },
     /// 管理应用本地加密密钥。
     Key {
         #[command(subcommand)]
@@ -366,6 +379,26 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             )?;
             Ok(ExitCode::SUCCESS)
         }
+        Some(Builtin::MakeController { name }) => {
+            let workspace = framework_workspace(&std::env::current_dir()?)?;
+            let (project, _) = application_directory(&workspace, &std::env::current_dir()?)?;
+            generate_controller(&name, &project)?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Builtin::MakeModel { name, fields }) => {
+            let workspace = framework_workspace(&std::env::current_dir()?)?;
+            let (project, _) = application_directory(&workspace, &std::env::current_dir()?)?;
+            let mut values = vec![name];
+            values.extend(fields);
+            generate_application_model(&values, &project)?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Builtin::MakeProvider { name }) => {
+            let workspace = framework_workspace(&std::env::current_dir()?)?;
+            let (project, _) = application_directory(&workspace, &std::env::current_dir()?)?;
+            generate_provider(&name, &project)?;
+            Ok(ExitCode::SUCCESS)
+        }
         Some(Builtin::Key {
             command: KeyCommand::Generate,
         }) => {
@@ -596,6 +629,7 @@ fn populate_project_with_mfa(
         "app/http/controllers",
         "app/models/_entities",
         "app/services",
+        "app/providers",
         "app/policies",
         "app/jobs",
         "app/events",
@@ -653,13 +687,59 @@ fn populate_project_with_mfa(
             include_str!("../templates/views/index.html").replace("{{name}}", name),
         ),
         ("src/main.rs", main_source(crate_name, database, grpc)),
+        ("config/mod.rs", code_config_manifest(grpc)),
         (
-            "bootstrap/app.rs",
-            app_source(crate_name, database, auth, encryption, auth_mfa, grpc),
+            "config/api.rs",
+            include_str!("../templates/config/api.rs").to_owned(),
         ),
         (
+            "config/app.rs",
+            include_str!("../templates/config/app.rs").replace("{{name}}", name),
+        ),
+        (
+            "config/auth.rs",
+            include_str!("../templates/config/auth.rs").replace("{{name}}", name),
+        ),
+        (
+            "config/cache.rs",
+            include_str!("../templates/config/cache.rs").replace("{{name}}", name),
+        ),
+        (
+            "config/database.rs",
+            include_str!("../templates/config/database.rs").to_owned(),
+        ),
+        (
+            "config/i18n.rs",
+            include_str!("../templates/config/i18n.rs").to_owned(),
+        ),
+        (
+            "config/mail.rs",
+            include_str!("../templates/config/mail.rs").to_owned(),
+        ),
+        (
+            "config/security.rs",
+            include_str!("../templates/config/security.rs").to_owned(),
+        ),
+        (
+            "config/server.rs",
+            include_str!("../templates/config/server.rs").to_owned(),
+        ),
+        (
+            "config/session.rs",
+            include_str!("../templates/config/session.rs").to_owned(),
+        ),
+        (
+            "config/sms.rs",
+            include_str!("../templates/config/sms.rs").to_owned(),
+        ),
+        (
+            "config/view.rs",
+            include_str!("../templates/config/view.rs").to_owned(),
+        ),
+        ("bootstrap/app.rs", app_source(crate_name)),
+        (
             "app/mod.rs",
-            "//! 通用应用装配；业务模块位于 modules/。\n".to_owned(),
+            include_str!("../templates/app/mod.rs").to_owned(),
         ),
         (
             "modules/mod.rs",
@@ -670,14 +750,31 @@ fn populate_project_with_mfa(
             include_str!("../templates/modules_statuses.json").to_owned(),
         ),
         ("routes/web.rs", routes_source(auth, auth_mfa)),
+        ("bootstrap/providers.rs", providers_source(database, grpc)),
+        (
+            "app/http/mod.rs",
+            include_str!("../templates/app/http/mod.rs").to_owned(),
+        ),
+        (
+            "app/http/controllers/home.rs",
+            include_str!("../templates/app/http/controllers/home.rs").to_owned(),
+        ),
         ("routes/console.rs", "//! 应用调度。\n".to_owned()),
         ("database/seeders.rs", seed_source(database)),
         (
             "app/http/controllers/mod.rs",
-            "//! HTTP 控制器。\n".to_owned(),
+            include_str!("../templates/app/http/controllers/mod.rs").to_owned(),
         ),
         ("app/models/mod.rs", "//! 应用模型。\n".to_owned()),
         ("app/models/_entities/.gitkeep", String::new()),
+        (
+            "app/providers/mod.rs",
+            include_str!("../templates/app/providers/mod.rs").to_owned(),
+        ),
+        (
+            "app/providers/app.rs",
+            include_str!("../templates/app/providers/app.rs").to_owned(),
+        ),
         ("app/services/mod.rs", "//! 应用服务。\n".to_owned()),
         ("app/policies/mod.rs", "//! 授权策略。\n".to_owned()),
         ("app/jobs/mod.rs", "//! 后台任务。\n".to_owned()),
@@ -693,11 +790,12 @@ fn populate_project_with_mfa(
         ),
     ];
 
-    let mut runtime_config = default_config(name, auth, encryption);
     if grpc {
-        runtime_config.push_str("\n[grpc]\nlisten_addr = \"127.0.0.1:50051\"\n");
+        files.push((
+            "config/grpc.rs",
+            include_str!("../templates/config/grpc.rs").to_owned(),
+        ));
     }
-    let domain_files = domain_config_files(&runtime_config)?;
     if database.is_none() && !encryption && !grpc {
         files.push((
             "tests/test_app.rs",
@@ -773,11 +871,20 @@ fn populate_project_with_mfa(
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
     }
-    for (relative_path, contents) in domain_files {
-        fs::write(project_dir.join(&relative_path), contents)
-            .with_context(|| format!("failed to write {relative_path}"))?;
-    }
     Ok(())
+}
+
+fn code_config_manifest(grpc: bool) -> String {
+    include_str!("../templates/config/mod.rs")
+        .replace("{{grpc_module}}", if grpc { "pub mod grpc;\n" } else { "" })
+        .replace(
+            "{{grpc_registration}}",
+            if grpc {
+                "        .section(\"grpc\", grpc::config)\n"
+            } else {
+                ""
+            },
+        )
 }
 
 fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool, grpc: bool) -> String {
@@ -792,9 +899,9 @@ fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool, grpc: 
         .replace(
             "{{session_protection_assertion}}",
             if encryption {
-                "    assert!(registered.session_cookie_is_protected);"
+                "    assert!(session_response.session_cookie_is_protected);"
             } else {
-                "    assert!(!registered.session_cookie_is_protected);"
+                "    assert!(!session_response.session_cookie_is_protected);"
             },
         )
         .replace(
@@ -909,8 +1016,8 @@ fn cargo_manifest(
         }
         manifest = manifest.replace("openrust = { workspace = true }", &dependency);
     }
-    manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n");
-    manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\ntime = \"0.3\"\n");
+    manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n");
+    manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\ntime = \"0.3\"\n");
     if auth {
         manifest.push_str("base64 = \"0.22\"\n");
     }
@@ -948,61 +1055,19 @@ fn cargo_manifest(
     manifest
 }
 
-#[allow(
-    clippy::fn_params_excessive_bools,
-    reason = "feature flags map directly to the public generator options"
-)]
-fn app_source(
-    crate_name: &str,
-    database: Option<DatabaseBackend>,
-    auth: bool,
-    encryption: bool,
-    auth_mfa: bool,
-    grpc: bool,
-) -> String {
-    let providers = if database.is_some() {
-        let mut providers = String::from(
-            "\n        providers.push(Box::new(openrust::db::DatabaseServiceProvider));",
-        );
-        if auth {
-            providers.push_str("\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(\n            openrust::signing::SignedLinksServiceProvider::new()\n                .with_database_revocations_from_app(),\n        ));");
-        }
-        if encryption {
-            providers.push_str("\n        providers.push(Box::new(openrust::security::EncryptionServiceProvider));");
-        }
-        if auth_mfa {
-            providers.push_str(
-                "\n        providers.push(Box::new(openrust::auth::MfaServiceProvider));",
-            );
-        }
-        if auth {
-            providers.push_str("\n        providers.push(Box::new(openrust::auth::AuthFlowsServiceProvider::new()));");
-        }
-        providers.push_str("\n        providers.push(Box::new(openrust::db::MigrationServiceProvider::<\n            openrust_migration::Migrator,\n        >::new()));\n        providers.push(Box::new(openrust::db::SeedServiceProvider::new(\n            crate::seed::run,\n        )));");
-        providers
-    } else {
-        String::new()
-    };
-    let encryption_provider = if encryption && database.is_none() {
-        "\n        providers.push(Box::new(openrust::security::EncryptionServiceProvider));"
-    } else {
-        ""
-    };
-    let grpc_providers = if grpc {
-        "\n        providers.push(Box::new(openrust::grpc::GrpcServiceProvider::new()));\n        providers.push(Box::new(crate::grpc::EchoServiceProvider));\n        providers.push(Box::new(openrust::runtime::HttpGrpcServiceProvider));"
-    } else {
-        ""
-    };
-    include_str!("../templates/src/app.rs")
-        .replace("{{type_name}}", crate_name)
-        .replace("{{database_providers}}", &providers)
-        .replace("{{encryption_provider}}", encryption_provider)
-        .replace("{{cookie_provider}}", if encryption {
-            "\n        providers.push(Box::new(openrust::http::CookieServiceProvider::new()));"
-        } else {
-            "\n        // 当前 API 宿主显式使用未加密 Cookie；这不是 Laravel web 默认组。\n        providers.push(Box::new(openrust::http::CookieServiceProvider::plain()));"
-        })
-        .replace("{{grpc_providers}}", grpc_providers)
+fn app_source(crate_name: &str) -> String {
+    include_str!("../templates/src/app.rs").replace("{{type_name}}", crate_name)
+}
+
+fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
+    let mut additions = String::new();
+    if database.is_some() {
+        additions.push_str("\n    providers.push(Box::new(openrust::db::MigrationServiceProvider::<\n        openrust_migration::Migrator,\n    >::new()));\n    providers.push(Box::new(openrust::db::SeedServiceProvider::new(crate::seed::run)));");
+    }
+    if grpc {
+        additions.push_str("\n    providers.push(Box::new(openrust::grpc::GrpcServiceProvider::new()));\n    providers.push(Box::new(crate::grpc::EchoServiceProvider));\n    providers.push(Box::new(openrust::runtime::HttpGrpcServiceProvider));");
+    }
+    include_str!("../templates/src/providers.rs").replace("{{application_providers}}", &additions)
 }
 
 fn routes_source(auth: bool, auth_mfa: bool) -> String {
@@ -1256,9 +1321,9 @@ fn env_example(
     encryption: bool,
     grpc: bool,
 ) -> String {
-    let mut contents = "# 复制为 .env 供本地或部署环境使用。不要提交填入实际值的 .env 文件。\n# 生产环境可使用权限受控的 .env 或部署平台注入的变量；进程环境变量优先。\n# 常用环境值和密钥放在这里；结构化默认值见 config/*.toml。\nAPP_ENV=development\nAPP_NAME=".to_owned();
+    let mut contents = "# 复制为 .env 供本地或部署环境使用。不要提交填入实际值的 .env 文件。\n# 生产环境可使用权限受控的 .env 或部署平台注入的变量；进程环境变量优先。\n# 常用环境值和密钥放在这里；结构化默认值见 config/*.rs。\nAPP_ENV=development\nAPP_NAME=".to_owned();
     contents.push_str(name);
-    contents.push_str("\nSERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n# 签名 URL 使用原始 APP_KEY 字节；生产环境设置不可预测的密钥。\n# APP_KEY=<随机密钥>\n# 轮换时保留旧值用于验签，多个旧值以逗号分隔。\n# APP_PREVIOUS_KEYS=old-one,old-two\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
+    contents.push_str("\n# 服务端错误详情开关；部署环境保持 false。\nAPP_DEBUG=false\nSERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n# 签名 URL 使用原始 APP_KEY 字节；生产环境设置不可预测的密钥。\n# APP_KEY=<随机密钥>\n# 轮换时保留旧值用于验签，多个旧值以逗号分隔。\n# APP_PREVIOUS_KEYS=old-one,old-two\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
     if grpc {
         contents.push_str(
             "\n# 仅本地开发可按需取消注释；生产环境请保持关闭。\n# APP_GRPC_ALLOW_INSECURE_SERVER=true\n",
@@ -1272,7 +1337,7 @@ fn env_example(
         let _ = writeln!(contents, "DB_PORT={}", database.port());
         let _ = writeln!(contents, "DB_DATABASE={name}");
         contents.push_str("DB_USERNAME=openrust\nDB_PASSWORD=openrust\n");
-        contents.push_str("DB_TABLE_PREFIX=tb_\n");
+        contents.push_str("DB_TABLE_PREFIX=\n");
     } else {
         contents.push_str(
             "# 启用 --db postgres 或 --db mysql 后配置。\n# DB_CONNECTION=postgres\n# DB_HOST=127.0.0.1\n# DB_PORT=5432\n# DB_DATABASE=应用数据库名\n# DB_USERNAME=数据库用户名\n# DB_PASSWORD=数据库密码\n",
@@ -1295,48 +1360,6 @@ fn env_example(
         "\n# 可选：SMTP 邮件投递配置。\n# MAIL_DRIVER=smtp\n# MAIL_SMTP_HOST=mail.example.com\n# MAIL_SMTP_PORT=587\n# MAIL_SMTP_STARTTLS=true\n# 本地 Mailpit 地址为 127.0.0.1:1025 时，将 MAIL_SMTP_STARTTLS 设为 false。\n# MAIL_SMTP_USERNAME=\n# MAIL_SMTP_PASSWORD=\n# 可选：Twilio 短信驱动（sms-twilio feature）。\n# SMS_DRIVER=twilio\n# SMS_ACCOUNT_SID=\n# SMS_API_KEY_SID=\n# SMS_API_KEY_SECRET=\n# SMS_FROM 和 SMS_MESSAGING_SERVICE_SID 必须且只能设置一项。\n",
     );
     contents
-}
-
-fn default_config(name: &str, auth: bool, encryption: bool) -> String {
-    let mut config = include_str!("../templates/config/framework.toml").replace("{{name}}", name);
-    if auth {
-        config.push_str("\n[auth.jwt]\nissuer = \"http://localhost:3000\"\naudience = \"");
-        config.push_str(name);
-        config.push_str("\"\nactive_key_id = \"local\"\nkeys = {}\n");
-        config.push_str("\n[security.signed_links]\nissuer = \"http://localhost:3000\"\nactive_key_id = \"local\"\nkeys = {}\n");
-    }
-    if encryption {
-        config.push_str("\n[security.encryption]\nactive_key_id = \"local\"\nkeys = {}\n");
-    }
-    config
-}
-
-fn domain_config_files(contents: &str) -> anyhow::Result<Vec<(String, String)>> {
-    let mut document = contents
-        .parse::<toml_edit::DocumentMut>()
-        .context("embedded configuration template is invalid TOML")?;
-    let domains = document
-        .iter()
-        .map(|(name, _)| name.to_owned())
-        .collect::<Vec<_>>();
-    domains
-        .into_iter()
-        .map(|domain| {
-            let mut file = toml_edit::DocumentMut::new();
-            if let Some(value) = document.remove(&domain) {
-                let table = value.as_table().ok_or_else(|| {
-                    anyhow::anyhow!("configuration domain {domain} must be a TOML table")
-                })?;
-                for (name, item) in table {
-                    let key = table.key(name).ok_or_else(|| {
-                        anyhow::anyhow!("configuration domain {domain} lost key {name}")
-                    })?;
-                    file.as_table_mut().insert_formatted(key, item.clone());
-                }
-            }
-            Ok((format!("config/{domain}.toml"), file.to_string()))
-        })
-        .collect()
 }
 
 fn seed_source(database: Option<DatabaseBackend>) -> String {
@@ -1577,6 +1600,28 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     Ok(())
 }
 
+fn register_job_module_in_auth_test(test_source: String) -> anyhow::Result<String> {
+    let registered = test_source
+        .lines()
+        .filter(|line| line.trim() == "mod jobs;")
+        .count();
+    if registered > 1 {
+        bail!("authentication test has ambiguous job module registration");
+    }
+    if registered == 1 {
+        Ok(test_source)
+    } else {
+        let anchor = "#[path = \"../routes/web.rs\"]\nmod routes;";
+        if test_source.matches(anchor).count() != 1 {
+            bail!("authentication test source does not match the generated template");
+        }
+        Ok(test_source.replace(
+        "#[path = \"../routes/web.rs\"]\nmod routes;",
+        "#[path = \"../routes/web.rs\"]\nmod routes;\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;",
+    ))
+    }
+}
+
 fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let [name] = values else {
         bail!("usage: openrust generate job <name>");
@@ -1607,19 +1652,11 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     }
     let main_file = project_dir.join("src/main.rs");
     let main_source = fs::read_to_string(&main_file)?;
-    let app_file = project_dir.join("bootstrap/app.rs");
+    let app_file = project_dir.join("bootstrap/providers.rs");
     let app_source = fs::read_to_string(&app_file)?;
     let auth_test_file = project_dir.join("tests/auth_flows.rs");
     let updated_auth_test = if auth_test_file.exists() {
-        let test_source = fs::read_to_string(&auth_test_file)?;
-        if test_source.contains("mod jobs;") {
-            test_source
-        } else {
-            test_source.replace(
-                "#[path = \"../routes/web.rs\"]\nmod routes;",
-                "#[path = \"../routes/web.rs\"]\nmod routes;\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;",
-            )
-        }
+        register_job_module_in_auth_test(fs::read_to_string(&auth_test_file)?)?
     } else {
         String::new()
     };
@@ -1631,9 +1668,12 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let updated_app = if app_source.contains("crate::jobs::JobsServiceProvider") {
         app_source
     } else {
+        if app_source.matches("    providers\n}").count() != 1 {
+            bail!("application provider registry has a missing or ambiguous insertion point");
+        }
         let updated = app_source.replace(
-            "        providers.push(Box::new(RoutesProvider));",
-            "        let queue = openrust::queue::QueueServiceProvider::new();\n        let contributions = queue.contributions();\n        providers.push(Box::new(crate::jobs::JobsServiceProvider::new(contributions)));\n        providers.push(Box::new(queue));\n        providers.push(Box::new(RoutesProvider));",
+            "    providers\n}",
+            "    providers.push(Box::new(crate::jobs::JobsServiceProvider));\n    providers\n}",
         );
         if updated == app_source {
             bail!("application source does not match the generated app template");
@@ -1646,9 +1686,13 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
         format!("{main_source}\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;\n")
     };
     let updated_modules = if modules.contains("pub struct JobsServiceProvider") {
-        let registration = format!("self.0.register_job::<crate::jobs::{module}::{type_name}>()?;");
+        let registration =
+            format!("contributions.register_job::<crate::jobs::{module}::{type_name}>()?;");
         if modules.contains(&registration) {
             bail!("job handler is already registered: {module}");
+        }
+        if modules.matches("            Ok(())").count() != 1 {
+            bail!("job provider source has a missing or ambiguous registration point");
         }
         append_sorted_module_content(&modules, &format!("pub mod {module};"))?.replace(
             "            Ok(())",
@@ -1656,7 +1700,7 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
         )
     } else {
         format!(
-            "{}\npub mod {module};\n\nuse std::sync::Arc;\nuse openrust::core::{{RegisterContext, Result, ServiceProvider}};\nuse openrust::queue::QueueContributions;\n\n/// 注册应用的后台任务。\npub struct JobsServiceProvider(Arc<QueueContributions>);\n\nimpl JobsServiceProvider {{\n    /// 使用队列 Provider 的共享贡献目录。\n    pub fn new(contributions: Arc<QueueContributions>) -> Self {{ Self(contributions) }}\n}}\n\nimpl ServiceProvider for JobsServiceProvider {{\n    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> openrust::core::BoxFuture<'a, Result<()>> {{\n        Box::pin(async move {{\n            self.0.register_job::<crate::jobs::{module}::{type_name}>()?;\n            Ok(())\n        }})\n    }}\n}}\n",
+            "{}\npub mod {module};\n\nuse openrust::core::{{BootContext, Result, ServiceProvider}};\nuse openrust::queue::QueueContributions;\n\n/// 注册应用的后台任务。\npub struct JobsServiceProvider;\n\nimpl ServiceProvider for JobsServiceProvider {{\n    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> openrust::core::BoxFuture<'a, Result<()>> {{\n        Box::pin(async move {{\n            let contributions = app.resolve::<QueueContributions>().await?;\n            contributions.register_job::<crate::jobs::{module}::{type_name}>()?;\n            Ok(())\n        }})\n    }}\n}}\n",
             modules.trim_end(),
         )
     };
@@ -1911,6 +1955,125 @@ fn generate_model(
     }
     print_generated(&format!("Generated model `{module}` for table `{table}`."))?;
     Ok(())
+}
+
+fn generate_controller(name: &str, project_dir: &Path) -> anyhow::Result<()> {
+    let module = normalize_generator_type(name, "Controller")?;
+    let type_name = format!("{}Controller", pascal_case(&module));
+    let file = project_dir.join(format!("app/http/controllers/{module}.rs"));
+    if file.exists() {
+        bail!("controller already exists: {}", file.display());
+    }
+    let registry = project_dir.join("app/http/controllers/mod.rs");
+    let source = format!(
+        "//! 应用控制器。\n\n/// `{type_name}` 控制器；在 `routes/web.rs` 中注册其处理方法。\npub struct {type_name};\n"
+    );
+    fs::write(&file, source)?;
+    append_sorted_module(
+        &registry,
+        &format!("pub mod {module};"),
+        "//! 应用控制器。\n",
+    )?;
+    print_generated(&format!("Generated controller `{type_name}`."))?;
+    Ok(())
+}
+
+fn generate_application_model(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
+    let Some(name) = values.first() else {
+        bail!("usage: openrust make:model <name> [field:type ...]");
+    };
+    let manifest = fs::read_to_string(project_dir.join("Cargo.toml"))?;
+    if !manifest.contains("db-postgres") && !manifest.contains("db-mysql") {
+        bail!("make:model requires an application created with `openrust new --db`");
+    }
+    let module = normalize_generator_type(name, "")?;
+    let fields = if values.len() == 1 {
+        Vec::new()
+    } else {
+        parse_model_arguments(values, false)?.1
+    };
+    let file = project_dir.join(format!("app/models/{module}.rs"));
+    if file.exists() {
+        bail!("model already exists: {}", file.display());
+    }
+    let table = pluralize(&module);
+    fs::create_dir_all(project_dir.join("app/models"))?;
+    fs::write(&file, render_model(&table, &fields, false, false))?;
+    append_sorted_module(
+        &project_dir.join("app/models/mod.rs"),
+        &format!("pub mod {module};"),
+        "//! 应用模型。\n",
+    )?;
+    append_sorted_module(
+        &project_dir.join("app/mod.rs"),
+        "pub mod models;",
+        "//! 应用代码编译入口。\n",
+    )?;
+    print_generated(&format!("Generated model `{module}` for table `{table}`."))?;
+    Ok(())
+}
+
+fn generate_provider(name: &str, project_dir: &Path) -> anyhow::Result<()> {
+    let module = normalize_generator_type(name, "ServiceProvider")?;
+    let type_name = format!("{}ServiceProvider", pascal_case(&module));
+    let file = project_dir.join(format!("app/providers/{module}.rs"));
+    if file.exists() {
+        bail!("provider already exists: {}", file.display());
+    }
+    let modules = project_dir.join("app/providers/mod.rs");
+    let bootstrap = project_dir.join("bootstrap/providers.rs");
+    let bootstrap_source = fs::read_to_string(&bootstrap)?;
+    let registration =
+        format!("    providers.push(Box::new(crate::app::providers::{module}::{type_name}));");
+    if bootstrap_source.contains(&registration) {
+        bail!("provider is already registered: {type_name}");
+    }
+    let updated_bootstrap = bootstrap_source.replace(
+        "    Vec::new()",
+        &format!("    let mut providers: Vec<Box<dyn ServiceProvider>> = Vec::new();\n{registration}\n    providers"),
+    );
+    let updated_bootstrap = if updated_bootstrap == bootstrap_source {
+        bootstrap_source.replace(
+            "    providers\n}",
+            &format!("{registration}\n    providers\n}}"),
+        )
+    } else {
+        updated_bootstrap
+    };
+    if updated_bootstrap == bootstrap_source {
+        bail!("bootstrap/providers.rs has an unsupported provider registry layout");
+    }
+    let source = format!(
+        "//! 应用服务 Provider。\n\nuse openrust::core::{{BootContext, BoxFuture, RegisterContext, ServiceProvider}};\nuse openrust::prelude::*;\n\n/// `{type_name}` 的注册与启动钩子。\npub struct {type_name};\n\nimpl ServiceProvider for {type_name} {{\n    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n\n    fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n}}\n"
+    );
+    fs::write(&file, source)?;
+    append_sorted_module(
+        &modules,
+        &format!("pub mod {module};"),
+        "//! 应用 Provider。\n",
+    )?;
+    fs::write(&bootstrap, updated_bootstrap)?;
+    print_generated(&format!("Generated and registered provider `{type_name}`."))?;
+    Ok(())
+}
+
+fn normalize_generator_type(name: &str, suffix: &str) -> anyhow::Result<String> {
+    let bare = name.strip_suffix(suffix).unwrap_or(name);
+    if bare.is_empty() || !bare.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        bail!("`{name}` must be an ASCII Rust type or snake_case identifier");
+    }
+    let mut module = String::new();
+    for (index, character) in bare.chars().enumerate() {
+        if character.is_ascii_uppercase() {
+            if index > 0 && !module.ends_with('_') {
+                module.push('_');
+            }
+            module.push(character.to_ascii_lowercase());
+        } else {
+            module.push(character);
+        }
+    }
+    normalize_identifier(&module)
 }
 
 fn generate_migration(
@@ -2536,7 +2699,7 @@ mod tests {
         assert!(project.join("proto/echo.proto").is_file());
         assert!(project.join("app/grpc.rs").is_file());
         assert!(project.join("tests/grpc_flows.rs").is_file());
-        let app = fs::read_to_string(project.join("bootstrap/app.rs"))
+        let app = fs::read_to_string(project.join("bootstrap/providers.rs"))
             .expect("read generated application providers");
         assert!(app.contains("GrpcServiceProvider::new()"));
         assert!(app.contains("EchoServiceProvider"));
@@ -2544,9 +2707,9 @@ mod tests {
         let proto =
             fs::read_to_string(project.join("proto/echo.proto")).expect("read generated Protobuf");
         assert!(proto.contains("package grpc_demo.v1;"));
-        let config = fs::read_to_string(project.join("config/grpc.toml"))
+        let config = fs::read_to_string(project.join("config/grpc.rs"))
             .expect("read generated gRPC configuration");
-        assert!(config.contains("listen_addr = "));
+        assert!(config.contains("GrpcConfig::default()"));
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment configuration");
         assert!(env.contains("# APP_GRPC_ALLOW_INSECURE_SERVER=true"));
@@ -2577,12 +2740,13 @@ mod tests {
         populate_project(&project, "blog", "Blog", None, false, false, false, true)
             .expect("generate encryption project");
         let app = fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-        let config = fs::read_to_string(project.join("config/security.toml"))
+        let config = fs::read_to_string(project.join("config/security.rs"))
             .expect("read generated encryption configuration");
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
-        assert!(app.contains("EncryptionServiceProvider"));
-        assert!(config.contains("[encryption]"));
+        assert!(app.contains("providers::application_providers(config)"));
+        assert!(!app.contains("EncryptionServiceProvider"));
+        assert!(config.contains("encryption: KeyRing"));
         assert!(env.contains("APP_SECURITY_ENCRYPTION_KEYS_LOCAL="));
         let _ = fs::remove_dir_all(root);
     }
@@ -2604,27 +2768,11 @@ mod tests {
         fs::create_dir_all(&root).expect("create temporary test directory");
         populate_project(&app, "blog", "Blog", None, false, false, false, false)
             .expect("generate project");
-        let source = fs::read_to_string(app.join("config/cache.toml"))
+        let source = fs::read_to_string(app.join("config/cache.rs"))
             .expect("read generated cache configuration");
-        let document = source
-            .parse::<toml_edit::DocumentMut>()
-            .expect("parse generated cache configuration");
-        let cache = document.as_table();
-        assert_eq!(
-            cache.get("default").and_then(toml_edit::Item::as_str),
-            Some("redis")
-        );
-        let store = cache["stores"]["redis"]
-            .as_table()
-            .expect("generated named store");
-        assert_eq!(
-            store.get("driver").and_then(toml_edit::Item::as_str),
-            Some("redis")
-        );
-        assert_eq!(
-            store.get("dsn").and_then(toml_edit::Item::as_str),
-            Some("redis://127.0.0.1:6379/")
-        );
+        assert!(source.contains("ctx.env_or(\"CACHE_STORE\", \"redis\")"));
+        assert!(source.contains("driver: \"redis\""));
+        assert!(source.contains("redis://127.0.0.1:6379/"));
         let _ = fs::remove_dir_all(root);
     }
 
@@ -3059,14 +3207,19 @@ mod tests {
             "resources/views/index.html",
             "src/main.rs",
             "bootstrap/app.rs",
+            "bootstrap/providers.rs",
+            "app/mod.rs",
+            "app/http/controllers/home.rs",
+            "app/providers/mod.rs",
             "modules/mod.rs",
             "modules_statuses.json",
             "routes/web.rs",
-            "config/app.toml",
-            "config/cache.toml",
-            "config/server.toml",
-            "config/session.toml",
-            "config/i18n.toml",
+            "config/mod.rs",
+            "config/app.rs",
+            "config/cache.rs",
+            "config/server.rs",
+            "config/session.rs",
+            "config/i18n.rs",
             "tests/test_app.rs",
             "tests/support/request_input.rs",
             "tests/support/message_bags.rs",
@@ -3078,16 +3231,26 @@ mod tests {
             assert!(project.join(path).is_file(), "missing generated {path}");
         }
         assert_module_layout(&project);
+        let routes = fs::read_to_string(project.join("routes/web.rs")).expect("read routes");
+        assert!(routes.contains("crate::app::http::controllers::home::index"));
+        let application = fs::read_to_string(project.join("bootstrap/app.rs"))
+            .expect("read application bootstrap");
+        assert!(application.contains("providers::application_providers(config)"));
+        assert!(project.join("app/providers/app.rs").is_file());
+        let registry = fs::read_to_string(project.join("bootstrap/providers.rs"))
+            .expect("read application Provider list");
+        assert!(registry.contains("AppServiceProvider"));
         let snapshot = [
             "Cargo.toml",
             ".gitignore",
             "public/index.html",
             "resources/views/index.html",
-            "config/app.toml",
-            "config/cache.toml",
-            "config/server.toml",
-            "config/session.toml",
-            "config/i18n.toml",
+            "config/mod.rs",
+            "config/app.rs",
+            "config/cache.rs",
+            "config/server.rs",
+            "config/session.rs",
+            "config/i18n.rs",
             "src/main.rs",
             "bootstrap/app.rs",
             "modules/mod.rs",
@@ -3152,6 +3315,34 @@ mod tests {
     }
 
     #[test]
+    fn application_generators_register_types_without_overwriting_existing_sources() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-application-generators-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        let project = root.join("blog");
+        populate_project(&project, "blog", "Blog", None, false, false, false, false)
+            .expect("generate project");
+        generate_controller("PostController", &project).expect("generate controller");
+        generate_provider("CatalogServiceProvider", &project).expect("generate provider");
+        assert!(project.join("app/http/controllers/post.rs").is_file());
+        assert!(project.join("app/providers/catalog.rs").is_file());
+        let providers = fs::read_to_string(project.join("bootstrap/providers.rs"))
+            .expect("read provider registry");
+        assert!(providers.contains("crate::app::providers::catalog::CatalogServiceProvider"));
+        assert!(generate_controller("PostController", &project).is_err());
+        assert!(generate_provider("CatalogServiceProvider", &project).is_err());
+        assert!(Cli::try_parse_from(["openrust", "make:controller", "PostController"]).is_ok());
+        assert!(
+            Cli::try_parse_from(["openrust", "make:provider", "CatalogServiceProvider"]).is_ok()
+        );
+        assert!(Cli::try_parse_from(["openrust", "make:model", "Post"]).is_ok());
+        fs::remove_dir_all(root).expect("remove temporary test directory");
+    }
+
+    #[test]
     fn database_templates_include_backend_migration_and_seed_support() {
         let root = std::env::temp_dir().join(format!("openrust-cli-db-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
@@ -3178,9 +3369,9 @@ mod tests {
             assert!(project.join("database/migrations/Cargo.toml").is_file());
             assert!(project.join("database/migrations/src/lib.rs").is_file());
             assert!(
-                fs::read_to_string(project.join("config/database.toml"))
+                fs::read_to_string(project.join("config/database.rs"))
                     .expect("read database domain config")
-                    .contains("table_prefix = \"tb_\"")
+                    .contains("DatabaseConfig::default()")
             );
             assert!(
                 fs::read_to_string(project.join("database/migrations/src/lib.rs"))
@@ -3189,16 +3380,21 @@ mod tests {
             );
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            assert!(app.contains("DatabaseServiceProvider"));
-            assert!(app.contains("openrust_migration::Migrator"));
-            assert!(app.contains("SeedServiceProvider"));
+            assert!(app.contains("providers::application_providers(config)"));
+            assert!(!app.contains("fn default_providers("));
+            let defaults = include_str!("../../../src/core/default_providers.rs");
+            assert!(defaults.contains("DatabaseServiceProvider"));
+            let providers = fs::read_to_string(project.join("bootstrap/providers.rs"))
+                .expect("read generated provider registry");
+            assert!(providers.contains("openrust_migration::Migrator"));
+            assert!(providers.contains("SeedServiceProvider"));
             assert!(project.join(".env.example").is_file());
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated database environment example");
             assert!(env.contains(&format!("DB_CONNECTION={}", backend.connection_name())));
             assert!(env.contains(&format!("DB_PORT={}", backend.port())));
             assert!(env.contains("DB_DATABASE=blog"));
-            assert!(env.contains("DB_TABLE_PREFIX=tb_"));
+            assert!(env.contains("DB_TABLE_PREFIX="));
             assert!(env.contains("REDIS_HOST=127.0.0.1"));
         }
         let _ = fs::remove_dir_all(root);
@@ -3270,14 +3466,17 @@ mod tests {
             assert!(migration.contains("openrust::signing::SignedLinkRevocationMigration"));
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            assert!(app.contains("AuthServiceProvider"));
-            assert!(app.contains("JwtServiceProvider"));
-            assert!(app.contains("AuthFlowsServiceProvider"));
-            assert!(app.contains("AuditServiceProvider::database()"));
-            assert!(app.contains("SignedLinksServiceProvider"));
-            let config = fs::read_to_string(project.join("config/security.toml"))
+            assert!(app.contains("providers::application_providers(config)"));
+            assert!(!app.contains("fn default_providers("));
+            let defaults = include_str!("../../../src/core/default_providers.rs");
+            assert!(defaults.contains("AuthServiceProvider"));
+            assert!(defaults.contains("JwtServiceProvider"));
+            assert!(defaults.contains("AuthFlowsServiceProvider"));
+            assert!(defaults.contains("AuditServiceProvider::database()"));
+            assert!(defaults.contains("SignedLinksServiceProvider"));
+            let config = fs::read_to_string(project.join("config/security.rs"))
                 .expect("read generated signing config");
-            assert!(config.contains("[signed_links]"));
+            assert!(config.contains("signed_links: SignedLinks"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated signing environment template");
             assert!(env.contains("APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL="));
@@ -3297,10 +3496,10 @@ mod tests {
             let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
             assert!(auth_test.contains("trusted_proxy_ranges"));
-            let config = fs::read_to_string(project.join("config/auth.toml"))
+            let config = fs::read_to_string(project.join("config/auth.rs"))
                 .expect("read generated auth config");
-            assert!(config.contains("[jwt]"));
-            assert!(config.contains("keys = {}"));
+            assert!(config.contains("jwt: Jwt"));
+            assert!(config.contains("BTreeMap::new()"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated environment example");
             assert!(env.contains("APP_AUTH_JWT_KEYS_LOCAL="));
@@ -3378,8 +3577,8 @@ mod tests {
             .expect("generate MFA project");
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            assert!(app.find("EncryptionServiceProvider") < app.find("MfaServiceProvider"));
-            assert!(app.find("MfaServiceProvider") < app.find("AuthFlowsServiceProvider"));
+            assert!(app.contains("providers::application_providers(config)"));
+            assert!(!app.contains("MfaServiceProvider"));
             assert!(
                 fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                     .expect("migration")
@@ -3422,6 +3621,12 @@ mod tests {
         ]
         .map(str::to_owned);
         generate_model(&model, false, false, &project).expect("generate model");
+        generate_application_model(&["Article".to_owned()], &project)
+            .expect("generate Laravel-style application model without fields");
+        let application_model = fs::read_to_string(project.join("app/models/article.rs"))
+            .expect("read application model");
+        assert!(application_model.contains("table_name = \"articles\""));
+        assert!(generate_application_model(&["Article".to_owned()], &project).is_err());
         let entity = fs::read_to_string(project.join("app/models/_entities/post.rs"))
             .expect("read generated model");
         assert!(entity.contains("pub title: String"));
@@ -3625,7 +3830,8 @@ mod tests {
         assert!(source.contains("WelcomeEmailJob"));
         assert!(source.contains("job_not_implemented"));
         assert!(source.contains("请先实现此任务的业务逻辑"));
-        let app = fs::read_to_string(project.join("bootstrap/app.rs")).expect("read app");
+        let app = fs::read_to_string(project.join("bootstrap/providers.rs"))
+            .expect("read application provider registry");
         assert!(app.contains("crate::jobs::JobsServiceProvider"));
         let main = fs::read_to_string(project.join("src/main.rs")).expect("read main");
         assert!(main.contains("#[path = \"../app/jobs/mod.rs\"]\nmod jobs;"));
@@ -3655,7 +3861,7 @@ mod tests {
         assert_eq!(modules.matches("pub struct JobsServiceProvider").count(), 1);
         assert_eq!(
             modules
-                .matches("self.0.register_job::<crate::jobs::")
+                .matches("contributions.register_job::<crate::jobs::")
                 .count(),
             2
         );
@@ -3669,6 +3875,90 @@ mod tests {
                 .expect("read jobs directory after duplicate")
                 .count(),
             before
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn job_generator_rejects_changed_registration_before_writing_files() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-job-anchors-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create fixture root");
+        for (index, duplicate) in [false, true].into_iter().enumerate() {
+            let project = root.join(format!("case-{index}"));
+            populate_project(
+                &project,
+                "blog",
+                "Blog",
+                Some(DatabaseBackend::Mysql),
+                true,
+                false,
+                false,
+                false,
+            )
+            .expect("generate database fixture");
+            generate_job(&["first".to_owned()], &project).expect("generate first job");
+            let module = project.join("app/jobs/mod.rs");
+            let source = fs::read_to_string(&module).expect("read job provider");
+            fs::write(
+                &module,
+                source.replace(
+                    "            Ok(())",
+                    if duplicate {
+                        "            Ok(())\n            Ok(())"
+                    } else {
+                        "            std::result::Result::Ok(())"
+                    },
+                ),
+            )
+            .expect("change registration anchor");
+            let paths = [
+                "app/jobs/mod.rs",
+                "bootstrap/providers.rs",
+                "src/main.rs",
+                "Cargo.toml",
+                "database/migrations/Cargo.toml",
+                "database/migrations/src/lib.rs",
+                "tests/auth_flows.rs",
+            ];
+            let before =
+                paths.map(|path| fs::read(project.join(path)).expect("capture fixture input"));
+            assert!(generate_job(&["second".to_owned()], &project).is_err());
+            assert!(!project.join("app/jobs/second.rs").exists());
+            for (path, expected) in paths.into_iter().zip(before) {
+                assert_eq!(
+                    fs::read(project.join(path)).expect("read rejected fixture"),
+                    expected,
+                    "{path}"
+                );
+            }
+        }
+        let project = root.join("auth-anchor");
+        populate_project(
+            &project,
+            "blog",
+            "Blog",
+            Some(DatabaseBackend::Mysql),
+            true,
+            false,
+            false,
+            false,
+        )
+        .expect("generate authentication fixture");
+        let test = project.join("tests/auth_flows.rs");
+        fs::write(&test, "//! 应用已自定义认证测试入口。\n").expect("change auth fixture");
+        let registry =
+            fs::read(project.join("bootstrap/providers.rs")).expect("capture provider registry");
+        assert!(generate_job(&["unregistered".to_owned()], &project).is_err());
+        assert!(!project.join("app/jobs/unregistered.rs").exists());
+        assert_eq!(
+            fs::read(project.join("bootstrap/providers.rs")).expect("read provider registry"),
+            registry
+        );
+        assert_eq!(
+            fs::read_to_string(test).expect("read auth fixture"),
+            "//! 应用已自定义认证测试入口。\n"
         );
         let _ = fs::remove_dir_all(root);
     }

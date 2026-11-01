@@ -1,6 +1,11 @@
 //! 验证根应用挂载示例业务后的真实认证流程。
 #![cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 
+#[path = "../../../app/mod.rs"]
+mod app;
+#[path = "../../../config/mod.rs"]
+mod config;
+
 #[path = "../../../bootstrap/app.rs"]
 mod bootstrap;
 #[path = "../../../modules/mod.rs"]
@@ -150,6 +155,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let upstream_origin = format!("http://{}/", upstream_listener.local_addr()?);
     let config = auth_fixture_config(database.url());
     let mut framework = openrust::config::FrameworkConfig::default();
+    framework.app.env = openrust::config::Environment::Testing;
     framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let figment = Figment::from(Serialized::defaults(framework))
         .merge(Toml::string(&config))
@@ -167,7 +173,11 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let captured_sms = CaptureSms::default();
     builder.provider(CaptureSmsProvider(captured_sms.clone()));
     let extension_source = figment.clone();
-    let app = openrust::core::App::from_provider_runtime(builder.start(figment).await?)?;
+    let app = openrust::core::App::from_provider_runtime(
+        builder
+            .start(crate::modules::example::test_sources(&(figment))?)
+            .await?,
+    )?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     let router = openrust::http::build_router(&app)?;
@@ -881,20 +891,20 @@ async fn run_article_flow(
         );
     }
 
-    let first_page = get(address, &format!("{path}?page=1&per_page=2"), owner_token).await?;
+    let first_page = get(address, &format!("{path}?page=1"), owner_token).await?;
     assert_eq!(first_page.status, StatusCode::OK);
     assert_eq!(first_page.body["meta"]["total"], 3);
     assert_eq!(first_page.body["meta"]["page"], 1);
-    assert_eq!(first_page.body["meta"]["per_page"], 2);
+    assert_eq!(first_page.body["meta"]["per_page"], 15);
     assert_eq!(first_page.body["data"][0]["id"], ids[0]);
     assert_eq!(first_page.body["data"][1]["id"], ids[1]);
-    let second_page = get(address, &format!("{path}?page=2&per_page=2"), owner_token).await?;
-    assert_eq!(second_page.body["data"][0]["id"], ids[2]);
-    assert_eq!(second_page.body["data"].as_array().map(Vec::len), Some(1));
-    for query in ["page=0", "per_page=0", "per_page=101"] {
+    assert_eq!(first_page.body["data"][2]["id"], ids[2]);
+    let second_page = get(address, &format!("{path}?page=2"), owner_token).await?;
+    assert_eq!(second_page.body["data"].as_array().map(Vec::len), Some(0));
+    for query in ["page=0", "page=-1", "page=abc"] {
         let response = get(address, &format!("{path}?{query}"), owner_token).await?;
-        assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(response.body["code"], "validation_failed");
+        assert_eq!(response.status, StatusCode::OK);
+        assert_eq!(response.body["meta"]["page"], 1);
     }
 
     let other_email = format!("article-other-{}@example.test", std::process::id());
@@ -1477,7 +1487,11 @@ async fn run_request_driver_fixture(source: Figment) -> TestResult {
         openrust::core::ProviderBuilder::for_application::<bootstrap::Server>(&config);
     builder
         .provider(modules::example::providers::session::ExampleSessionDriverProvider::database());
-    let app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    let app = openrust::App::from_provider_runtime(
+        builder
+            .start(crate::modules::example::test_sources(&(source))?)
+            .await?,
+    )?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     let router = openrust::http::build_router(&app)?;

@@ -14,7 +14,7 @@
 - C04-C普通与认证模板均接入CookieServiceProvider和`tests/support/request_cookie.rs`，由正式Provider/Router测试读取、队列、直接响应及删除，使用opaque wire回送；加密缺失仅显式plain选择，不暗降级。普通项目fmt/check/3项测试、认证PG18/MySQL8.4项目各2项及完整CLI20项已实际通过，证据见[testing](../memory/testing.md)。
 - `dev`/`serve` 通过 metadata 找到含 bootstrap/app.rs 的当前应用，再从其目录运行普通 cargo run；dev 设置 APP_ENV=development，复用/准备缓存服务，不提供 watch。
 
-- package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 已完成。
+- package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 历史决策 039 已完成。
 - `openrust --help` 及子命令帮助使用简体中文标题、选项说明和帮助/版本说明；命令、参数、配置键和协议值保留技术原名。
 - 新应用的 `AGENTS.md`、`.env.example` 注释、模块入口 Rustdoc，以及 Model/Migration/Mailer/Policy 生成 Rustdoc 使用简体中文；模板说明不改变应用邮件等运行时语言策略。
 
@@ -32,9 +32,9 @@
 
 ## 后续边界
 
-- controller/scaffold/command 等生成器、只读 `doctor`、诊断和开发编排属于 M6 待补项。具体顺序以 [v1 计划](../plans/gen1-plan.md) 与活跃待办为准。
+- controller/scaffold/command 等生成器、只读 `doctor`、诊断和开发编排属于 M6 待补项。具体顺序以 v1 计划 与活跃待办为准。
 - 出站 HTTP 客户端与生成 feature 的已有验收见 [测试基线](../memory/testing.md)；外部邮件/SMS 投递属于各通信 driver 的单独验收边界。
 
-目录/分发以 [ADR-073](../decisions/adr-073-root-application-and-example-module.md) 和 [architecture](../architecture.md) 为准；独立生成应用不修改源 workspace。根 package 为 openrust library；同一根 package 提供唯一默认 server bin。
+目录/分发以 历史决策 073 和 [architecture](../architecture.md) 为准；独立生成应用不修改源 workspace。根 package 为 openrust library；同一根 package 提供唯一默认 server bin。
 
 后继 R13 补全命令/生成器、doctor、watch 和编排；当前 generate API 暂保留，未宣称 Artisan 全命令完成。

@@ -69,13 +69,12 @@ impl Fixture {
         };
         let database = TestDatabase::create::<Migrator>(&admin).await?;
         let storage = tempfile::tempdir()?;
-        let app = TestApp::<crate::bootstrap::Server>::builder(sources(
-            database.url(),
-            store,
-            storage.path(),
-        ))
-        .build()
-        .await?;
+        let app =
+            TestApp::<crate::bootstrap::Server>::builder(crate::modules::example::test_sources(
+                &(sources(database.url(), store, storage.path())),
+            )?)
+            .build()
+            .await?;
         let db = app.app()?.state().resolve::<Db>().await?;
         let connection = db.primary_connection()?;
         let users = db.quoted_table_name("users")?;
@@ -282,9 +281,11 @@ async fn explicit_redis_default_runs_business_swr_without_memory_fallback() -> T
             "redis":{"driver":"redis","namespace":namespace,"dsn":redis_url}
         }}})),
     );
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
-        .build()
-        .await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(source))?,
+    )
+    .build()
+    .await?;
     let cache = app.app()?.state().resolve::<Cache>().await?;
     assert_eq!(
         app.app()?
@@ -354,7 +355,7 @@ async fn explicit_redis_default_runs_business_swr_without_memory_fallback() -> T
         .get_multiplexed_async_connection()
         .await?;
     let _: usize = redis::cmd("DEL")
-        .arg(format!("__openrust_cache_tag_meta_v1:{digest}"))
+        .arg(format!("__cache_tag_meta_v1:{digest}"))
         .query_async(&mut connection)
         .await?;
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
@@ -385,13 +386,12 @@ async fn redis_named_projection_is_shared_across_apps_and_rebuilt_after_committe
     let Some(fixture) = Fixture::create(Some(store.clone())).await? else {
         return Ok(());
     };
-    let mut second = TestApp::<crate::bootstrap::Server>::builder(sources(
-        fixture.database.url(),
-        Some(store),
-        fixture.storage.path(),
-    ))
-    .build()
-    .await?;
+    let mut second =
+        TestApp::<crate::bootstrap::Server>::builder(crate::modules::example::test_sources(
+            &(sources(fixture.database.url(), Some(store), fixture.storage.path())),
+        )?)
+        .build()
+        .await?;
     let first_cache = fixture.app.app()?.state().resolve::<Cache>().await?;
     let second_cache = second.app()?.state().resolve::<Cache>().await?;
     assert!(!Arc::ptr_eq(&first_cache, &second_cache));
@@ -544,13 +544,12 @@ async fn explicit_unknown_named_driver_is_not_overwritten_by_example_default() -
         serde_json::json!({"driver":"nonexistent-example-driver"}),
         serde_json::json!({"driver":"example-prefix","key_prefix":""}),
     ] {
-        let result = TestApp::<crate::bootstrap::Server>::builder(sources(
-            fixture.database.url(),
-            Some(store),
-            fixture.storage.path(),
-        ))
-        .build()
-        .await;
+        let result =
+            TestApp::<crate::bootstrap::Server>::builder(crate::modules::example::test_sources(
+                &(sources(fixture.database.url(), Some(store), fixture.storage.path())),
+            )?)
+            .build()
+            .await;
         assert!(result.is_err());
     }
     fixture.close().await
@@ -566,7 +565,10 @@ async fn unavailable_explicit_default_redis_does_not_become_example_memory_store
         .merge(Serialized::defaults(serde_json::json!({"cache":{"default":"example-prefix"}})));
     let result = tokio::time::timeout(
         Duration::from_secs(15),
-        TestApp::<crate::bootstrap::Server>::builder(source).build(),
+        TestApp::<crate::bootstrap::Server>::builder(crate::modules::example::test_sources(
+            &(source),
+        )?)
+        .build(),
     )
     .await?;
     assert!(result.is_err());

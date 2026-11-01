@@ -90,9 +90,11 @@ fn wire_cookie(response: &TestResponse) -> TestResult<String> {
 
 #[tokio::test]
 async fn module_cookie_queue_direct_forget_and_request_isolation() -> TestResult {
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources())
-        .build()
-        .await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(sources()))?,
+    )
+    .build()
+    .await?;
     let result = async {
         success(
             &get(&app, None).await?,

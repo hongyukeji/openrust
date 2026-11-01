@@ -18,9 +18,11 @@ async fn enabled_module_registers_real_grpc_business_service() -> TestResult {
             "security": {"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
             "grpc": {"allow_insecure_server":true}
         })));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
-        .build()
-        .await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(source))?,
+    )
+    .build()
+    .await?;
     let server = GrpcServer::from_app(app.app()?).await?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;

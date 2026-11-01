@@ -80,5 +80,5 @@ git diff --check
 
 - 每次框架开发进度汇报都附当时最新的能力状态总览表，至少包含“能力 / 状态 / 当前边界”，详细目标、缺口与证据链接到[唯一概览](progress.md#laravel-11-功能与进度概览)。沿用其✅、🟡、🔵、📝、⬜、⛔图例，不另建状态体系；普通问答不强制附表。
 - 汇报前依据当前代码、Git提交、todo与实际验收更新状态，不照搬上次表格。已验收子范围、未提交实现和整项未完成须分清，不把定向测试/规划当交付，不提供无可靠分子的整体百分比。
-- 面向开发者统一表述目标为“**1:1 的 Laravel 框架 Rust 版**”，不用含糊的“Laravel完全体”。这是目标描述，不表示当前已经全部实现；正式架构范围仍为Laravel + laravel-modules，按[ADR-070](decisions/adr-070-laravel-first-rebuild.md)及固定矩阵执行，不缩减模块化或行为验收要求。
+- 面向开发者统一表述目标为“**1:1 的 Laravel 框架 Rust 版**”，不用含糊的“Laravel完全体”。这是目标描述，不表示当前已经全部实现；正式架构范围仍为Laravel + laravel-modules，按[ADR-001](decisions/adr-001-framework-principles.md)及固定矩阵执行，不缩减模块化或行为验收要求。
 - 项目标题、简介和宣传文案中的组合名称使用“Laravel + Laravel Modules”；正式包名、依赖标识、源码路径与来源链接仍使用 `laravel-modules`，不改写第三方技术标识。

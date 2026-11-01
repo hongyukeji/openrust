@@ -27,7 +27,7 @@ impl MigratorTrait for RealtimeMigrator {
 }
 
 fn request(path: &str, token: Option<&str>, origin: Option<&str>) -> TestResultRequest {
-    let mut builder = Request::get(path);
+    let mut builder = Request::get(path).header("host", "localhost");
     if let Some(token) = token {
         builder = builder.header("authorization", format!("Bearer {token}"));
     }
@@ -37,6 +37,13 @@ fn request(path: &str, token: Option<&str>, origin: Option<&str>) -> TestResultR
     Ok(builder.body(Body::empty())?)
 }
 type TestResultRequest = std::result::Result<Request<Body>, Box<dyn std::error::Error>>;
+
+fn announce_request(path: &str, token: &str) -> TestResultRequest {
+    Ok(Request::post(path)
+        .header("host", "localhost")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())?)
+}
 
 #[tokio::test]
 async fn owner_sse_receives_only_authorized_article_announcement() -> TestResult {
@@ -56,9 +63,11 @@ async fn owner_sse_receives_only_authorized_article_announcement() -> TestResult
             "realtime":{"allowed_origins":["https://example.test"]}
         }),
     ));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
-        .build()
-        .await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(source))?,
+    )
+    .build()
+    .await?;
     let db = app.app()?.state().resolve::<Db>().await?;
     let connection = db.primary_connection()?;
     let users = db.quoted_table_name("users")?;
@@ -101,21 +110,9 @@ async fn owner_sse_receives_only_authorized_article_announcement() -> TestResult
     assert_eq!(response.headers()["content-type"], "text/event-stream");
     let mut stream = response.into_body().into_data_stream();
     let announce = format!("/api/example/articles/{}/announce", article.id);
-    let denied = app
-        .request(
-            Request::post(&announce)
-                .header("authorization", format!("Bearer {other}"))
-                .body(Body::empty())?,
-        )
-        .await?;
+    let denied = app.request(announce_request(&announce, &other)?).await?;
     denied.assert_status(StatusCode::NOT_FOUND)?;
-    let delivered = app
-        .request(
-            Request::post(&announce)
-                .header("authorization", format!("Bearer {owner}"))
-                .body(Body::empty())?,
-        )
-        .await?;
+    let delivered = app.request(announce_request(&announce, &owner)?).await?;
     delivered.assert_status(StatusCode::OK)?;
     let report: serde_json::Value = delivered.json()?;
     assert_eq!(report["data"]["local_sessions_queued"], 1);

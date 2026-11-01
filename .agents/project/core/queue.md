@@ -29,7 +29,7 @@
 
 - 生产负载下 scheduler 的跨节点/资源边界验收，最终归入 M4 集群门禁；其本地多进程正确性证据见 [core/schedule.md](schedule.md)。
 - 类型化事件与显式 queued listener 见 [events 事实](events.md)；持久化任务继续遵循至少一次执行契约。
-- 其余专项：多实例生产负载与完整集群边界仍需按 [todo.md](../todo.md) 和 [集群计划](../plans/v1-cluster-deployment.md) 验收；单项 SIGTERM 通过不等于完整 M4/集群验收。
+- 其余专项：多实例生产负载与完整集群边界仍需按 [todo.md](../todo.md) 和 集群计划 验收；单项 SIGTERM 通过不等于完整 M4/集群验收。
 - 生产多实例负载和完整集群验收；单项 SIGTERM/强杀恢复及 scheduler 多进程测试不替代完整部署拓扑。执行任务见 [todo.md](../todo.md)。
 
-当前合同以 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md) 为准。该文件是 M4 总契约，不表示上列未完成项已经实现。
+当前合同以 历史决策 037 为准。该文件是 M4 总契约，不表示上列未完成项已经实现。

@@ -1,6 +1,6 @@
 use figment::{Figment, providers::Serialized};
 use openrust::config::repository::ConfigRepository;
-use openrust::config::{ConfigLoader, Environment, NoConfig};
+use openrust::config::{ConfigLoader, ConfigManifest, Environment, NoConfig};
 use openrust::core::{Application, ServiceProvider};
 use openrust::testing::TestApp;
 use serde_json::json;
@@ -34,6 +34,10 @@ fn external_consumer_registers_and_forces_provider_on_same_application()
             let mut builder = openrust::core::ProviderBuilder::new();
             builder.provider(config_repository_reading_consumer::ReadingProvider);
             let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+            assert_eq!(app.environment().as_str(), "production");
+            assert!(app.environment_matches(["pro*"]));
+            assert!(app.is_production());
+            assert!(!app.running_unit_tests());
             assert_eq!(app.section::<String>("app.name")?, "外部读取者");
             let first = app.register_provider(LateReader("初次登记")).await?;
             let old = app.state().resolve::<&'static str>().await?;
@@ -191,6 +195,52 @@ fn ordered_public_source_keeps_business_keys_after_set() -> Result<(), Box<dyn s
 }
 
 #[test]
+fn public_console_loader_selects_file_without_changing_plain_application_loader()
+-> Result<(), Box<dyn std::error::Error>> {
+    struct FixtureDir(std::path::PathBuf);
+    impl Drop for FixtureDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let root = std::env::temp_dir().join(format!(
+        "openrust-console-env-consumer-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    std::fs::create_dir(&root)?;
+    let fixture = FixtureDir(root);
+    std::fs::write(fixture.0.join(".env"), "CONSUMER_NAME=plain\n")?;
+    std::fs::write(fixture.0.join(".env.local"), "CONSUMER_NAME=local\n")?;
+    let plain = ConfigLoader::application_sources(&fixture.0, "CONSUMER_")?;
+    let console = ConfigLoader::console_application_sources(
+        &fixture.0,
+        "CONSUMER_",
+        Some("local"),
+    )?;
+    assert_eq!(plain.figment().extract_inner::<String>("app.name")?, "plain");
+    assert_eq!(console.figment().extract_inner::<String>("app.name")?, "local");
+    std::fs::write(fixture.0.join(".env.local"), "CONSUMER_SUFFIX=from-code\n")?;
+    let manifest = ConfigManifest::new()
+        .section("app", |ctx| {
+            Ok(json!({"name": ctx.env_or("CONSUMER_SUFFIX", "missing")}))
+        })
+        .typed("reader.factory", |_| Ok(17_u32));
+    let coded = ConfigLoader::application_code_sources(
+        &fixture.0,
+        "CONSUMER_",
+        Some("local"),
+        &manifest,
+    )?;
+    let coded = ConfigRepository::new(coded);
+    assert_eq!(coded.string("app.name")?, "from-code");
+    assert_eq!(coded.typed::<u32>("reader.factory")?.as_deref(), Some(&17));
+    Ok(())
+}
+
+#[test]
 fn file_discovery_reaches_external_provider_and_app() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = openrust::tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -200,6 +250,10 @@ fn file_discovery_reaches_external_provider_and_app() -> Result<(), Box<dyn std:
 
         impl Application for ReadingApplication {
             type Config = NoConfig;
+
+        fn default_providers() -> openrust::core::DefaultProviders {
+            openrust::core::DefaultProviders::empty()
+        }
 
             fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
                 vec![Box::new(
@@ -247,4 +301,53 @@ fn file_discovery_reaches_external_provider_and_app() -> Result<(), Box<dyn std:
             .await?;
         Ok(())
     })
+}
+
+// 防止显式测试覆盖丢失生产 loader 的同次 dotenv context 或原 typed 工厂。
+#[test]
+fn ordered_source_overrides_keep_original_environment_for_module_config()
+-> Result<(), Box<dyn std::error::Error>> {
+    struct ModuleConfig;
+    impl ServiceProvider for ModuleConfig {
+        fn boot<'a>(&'a self, app: &'a mut openrust::core::BootContext<'_>)
+        -> openrust::BoxFuture<'a, openrust::Result<()>> {
+            Box::pin(async move {
+                app.code_config(&ConfigManifest::new().section("module", |context| {
+                    Ok(json!({"token": context.env_or("CONSUMER_TOKEN", "missing")}))
+                }))?;
+                Ok(())
+            })
+        }
+    }
+    let root = std::path::Path::new("/tmp").join(format!(
+        "openrust-config-overlay-{}-{}", std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos(),
+    ));
+    std::fs::create_dir(&root)?;
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        std::fs::write(root.join(".env"), "CONSUMER_TOKEN=captured-once\n")?;
+        let manifest = ConfigManifest::new()
+            .section("reader", |_| Ok(json!({"name": "base", "keep": true})))
+            .typed("consumer.factory", |_| Ok(17_u32));
+        let base = ConfigLoader::application_code_sources(&root, "APP_", None, &manifest)?;
+        let merged = base.clone().merge_ordered_entries([
+            ("reader", json!({"name": "override", "z": 1, "a": 2})),
+        ])?;
+        assert!(base.merge_ordered_entries([("consumer", json!({"factory": 2}))]).is_err());
+        std::fs::write(root.join(".env"), "CONSUMER_TOKEN=changed-after-load\n")?;
+        openrust::tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(async {
+            let mut builder = openrust::core::ProviderBuilder::new();
+            builder.provider(ModuleConfig);
+            let app = openrust::App::from_provider_runtime(builder.start(merged).await?)?;
+            let repository = app.config_repository();
+            assert_eq!(repository.string("reader.name")?, "override");
+            assert!(repository.boolean("reader.keep")?);
+            assert_eq!(repository.string("module.token")?, "captured-once");
+            assert_eq!(repository.typed::<u32>("consumer.factory")?.as_deref(), Some(&17));
+            app.shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(1)).await?;
+            Ok::<_, Box<dyn std::error::Error>>(())
+        })
+    })();
+    std::fs::remove_dir_all(&root)?;
+    result
 }

@@ -97,9 +97,11 @@ impl Fixture {
         }
         let source = Figment::from(Serialized::defaults(framework))
             .merge(Serialized::defaults(configuration.take()));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let auth = app.app()?.state().resolve::<AuthFlows>().await?;
         let tokens = app.app()?.state().resolve::<JwtTokens>().await?;
         let mut identities = Vec::new();

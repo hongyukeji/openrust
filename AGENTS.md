@@ -12,11 +12,15 @@
 
 用户已明确授权固定范围内Laravel核心、laravel-modules及官方可选生态全量对应开发，分阶段完成，验收语义始终以官方为准。可选表示开发者按需启用，不表示Agent可省略实现；官方工具自身必要界面/前端配套属于阶段二官方可选包，不等同暂不开发的若依/芋道式业务后台。范围、阶段及Rust必要适配见[官方全量交付规则](.agents/project/plans/laravel-official-coverage.md#全量交付授权与两阶段)，唯一todo按依赖领取；不得仅凭Tokio、同名API或上游PHP实现判定已对应或不适用。
 
-已有优秀能力也必须通过 Laravel 对应机制实现，例如统一返回格式使用 Response / API Resource 与异常渲染的公开扩展。保留能力价值，不保留违背目标的旧 API 或独立体系；仅移动目录、套 Provider 或改名不算融合。这些是已授权的通用增强，不限于语言适配，不得因上游没有相同内置能力就删除；具体边界见 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md#用户意图与验收原则)。
+已有优秀能力也必须通过 Laravel 对应机制实现，例如统一返回格式使用 Response / API Resource 与异常渲染的公开扩展。保留能力价值，不保留违背目标的旧 API 或独立体系；仅移动目录、套 Provider 或改名不算融合。这些是已授权的通用增强，不限于语言适配，不得因上游没有相同内置能力就删除；具体边界见 [ADR-001](.agents/project/decisions/adr-001-framework-principles.md)。
 
-[ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md) 与 [全面重构计划](.agents/project/plans/laravel-rebuild.md) 是当前目标：Laravel 优先、参考 Goravel，允许全面重写目录/API/默认值/实现，无历史兼容义务，保留 Rust 语言与工具优势。旧规定不能阻止已批准的重构；已实现事实和真实验收记录仍须保留。工程质量、WIP 保护和 §5 对外授权边界继续适用。当前任务与后续顺序只在 `todo.md` 领取。
+[ADR-001](.agents/project/decisions/adr-001-framework-principles.md) 与 [全面重构计划](.agents/project/plans/laravel-rebuild.md) 是当前目标：Laravel 优先、参考 Goravel，允许全面重写目录/API/默认值/实现，无历史兼容义务，保留 Rust 语言与工具优势。旧规定不能阻止已批准的重构；已实现事实和真实验收记录仍须保留。工程质量、WIP 保护和 §5 对外授权边界继续适用。当前任务与后续顺序只在 `todo.md` 领取。
 
-当前目标布局以 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md) 为准；业务代码已迁至 `modules/example/`，R2-M 的具体验收以当前 todo、源码和 Git 为准，不能将目录相似当作完整能力验收：Laravel 应用职责直接位于根；openrust 同 package 提供框架 src/lib.rs 与默认 server 薄 src/main.rs，default-members=["."]、default-run="server"。业务模块统一在 `modules/<模块名>/`，模块目录外均为框架通用结构和代码，示例专有迁移、种子、模板、协议、生成脚本与测试 fixture 全留模块内；根只提供通用结构与公开挂载，不放示例 build.rs/build 依赖或业务特判。唯一 modules/example 是供开发者参考的普通业务模块；根 app/ 保留应用级装配，模块经统一 Provider/模块清单与公开接口接入，只用公开框架 API；不包含完整子应用骨架，不新增 example feature，不保留 demo/example 双应用或根 examples 目录。新布局迁移与验收以当前 todo、源码和 Git 为准。
+每项 Spec、实现和审查由 Agent 主动对照固定官方源码、默认、生命周期、公开扩展与开发流程；Goravel 仅供跨语言参考，Rust 适配须有具体必要约束和等价证据。现有代码、旧决策或旧测试不能为偏离背书。发现不符主动整改并映射唯一 todo，不能只改名、套 Provider、换目录或自创机制后称 1:1 完成。报告分别标明已编码、对标差距、已验证、已提交，未闭合保留缺口；编码优先和后置运行验证不豁免事先 contract 对照及静态自审。
+
+当前目标布局以 [ADR-001](.agents/project/decisions/adr-001-framework-principles.md) 为准；业务代码已迁至 `modules/example/`，R2-M 的具体验收以当前 todo、源码和 Git 为准，不能将目录相似当作完整能力验收：Laravel 应用职责直接位于根；openrust 同 package 提供框架 src/lib.rs 与默认 server 薄 src/main.rs，default-members=["."]、default-run="server"。根 `app/` 支持 Laravel 正常应用开发职责（Controller、Model、Provider 等）；`modules/<模块名>/` 是可选且可并存的业务组织，两者复用唯一 Container / Provider / routes 机制。示例专有迁移、种子、模板、协议、生成脚本与测试 fixture 全留模块内；框架核心不放示例 build.rs / build 依赖或业务特判。唯一 modules/example 是供开发者参考的普通业务模块；根 app 按 Laravel 职责承载应用代码，bootstrap 承担应用启动装配，app/mod.rs 只作必要 Rust 模块导出；模块经统一 Provider / 模块清单与公开接口接入，只用公开框架 API；不包含完整子应用骨架，不新增 example feature，不保留 demo/example 双应用或根 examples 目录。新布局迁移与验收以当前 todo、源码和 Git 为准。
+
+默认应用配置目标为可编辑的 `config/*.rs`，`.env` 提供部署值；已编译配置函数在 dotenv 加载后向同一 ConfigRepository / Provider 生命周期求值，模块同机制。Rust 源码需显式 mod / manifest 编译，不运行期扫描执行或热编译。旧默认 TOML 是临时实现，整改后仅作显式可选 source；缓存遇不可序列化类型 / 工厂必须明确拒绝，不静默丢弃。管理员 DBSettings 仍是独立领域。
 
 ## 1. 角色与契约
 
@@ -50,15 +54,15 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 每次会话先读：`AGENTS.md`、`.agents/project/README.md`、`context.md` 的固定约束与本任务相关段落、`todo.md` 的本任务待办、`plan.md` 的当前里程碑。已注入或本会话已读且未变化的内容不重复读取；长文件先用 `rg -n` 定位。
 
-领取或切换功能簇、上下文压缩后恢复、收到新需求时，先核对 Git/WIP、`todo.md` 与 `plan.md`「执行校准」。已完成的根 `src/` 迁移是旧架构事实；新的目录/API 目标按 ADR-070 重新设计，不沿用旧 M0–M6 排序。相关计划有变化时读取最新差异；不得沿用旧提示词中的范围或阶段替代仓库最新要求。
+领取或切换功能簇、上下文压缩后恢复、收到新需求时，先核对 Git/WIP、`todo.md` 与 `plan.md`「执行校准」。已完成的根 `src/` 迁移是旧架构事实；新的目录/API 目标按 ADR-001 重新设计，不沿用旧 M0–M6 排序。相关计划有变化时读取最新差异；不得沿用旧提示词中的范围或阶段替代仓库最新要求。
 
 | 任务类型 | 补读 |
 | --- | --- |
-| 架构 / crate 边界 / 公共 API 设计 | `architecture.md`、`plans/framework-design.md`、相关 ADR |
+| 架构 / crate 边界 / 公共 API 设计 | `architecture.md`、`plans/laravel-rebuild.md`、唯一 ADR |
 | 编码 / 命名 / 测试 / 提交 | `conventions.md` |
 | 依赖 / 版本 / feature | `stack.md` |
 | 某个 crate 的实现 | `core/<crate>.md` + 该 crate 的 `README.md` 与源码 |
-| 里程碑范围与验收 | `plans/gen1-plan.md` |
+| 里程碑范围与验收 | `plans/laravel-rebuild.md` |
 | 文档写作 | `style.md` |
 | 最近验证 | `memory/testing.md` / `memory/verification.md` |
 
@@ -80,7 +84,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 ├── conventions.md    # 代码 / 测试 / 文档 / Git 规范
 ├── stack.md          # 技术栈与版本政策
 ├── roadmap.md        # v1 版本之后的方向
-├── decisions/        # ADR，每决策一文件 adr-NNN-<topic>.md
+├── decisions/        # 唯一方向决策 ADR-001
 ├── core/             # 每个 crate 一文件的当前事实
 ├── plans/            # v1 版本计划与框架设计
 ├── memory/           # 测试与验收基线
@@ -102,6 +106,10 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 ## 6. 工作循环
 
+本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留及50GB软/100GB硬、磁盘保护不变。
+
+当前执行覆盖：先完成当前在途组合，冻结后集中适用验收并本地提交，再处理今日剩余整改和ADR001后续；大功能簇完整编码及配套后再测试，不逐小改动重复矩阵。未验证源码保持WIP，不报交付。
+
 每个功能簇采用 **Spec → Implement → Verify → Commit**。默认先完成代码与配套测试代码，再在功能簇提交前集中执行验证，不逐小改动反复测试；分支交付与main组合门禁分层，具体见[集中验证](.agents/project/conventions.md#功能簇提交前集中验证)。验证未通过不得提交或报完成。
 
 ### 6.1 Spec
@@ -111,9 +119,9 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 ### 6.2 Implement
 
 - 一个功能簇 = 一个工程闭环，不夹带无关需求。
-- 设计与重写遵循 ADR-070：以 Laravel 能力和体验为首要依据，参考 Goravel 的跨语言实现；Spec 说明 Rust 适配、复用/重写选择和验收。允许重写已验证实现，但保留并重新验证其有效行为证据。
+- 设计与重写遵循 ADR-001：以 Laravel 能力和体验为首要依据，参考 Goravel 的跨语言实现；Spec 说明 Rust 适配、复用/重写选择和验收。允许重写已验证实现，但保留并重新验证其有效行为证据。
 - 公共 API 变更先评估下游（其他 crate、模板、`modules/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
-- 新增依赖必须有理由并写入 `stack.md`；主版本升级写 ADR 或 changelog。
+- 新增依赖必须有理由并写入 `stack.md`；主版本升级写入 `stack.md`、必要时更新 ADR-001 与 changelog。
 - 遵守 `conventions.md`：`#![forbid(unsafe_code)]`、`#![deny(missing_docs)]`、库 crate 禁止 `unwrap` / `expect` / `panic` / `todo` / `unimplemented`、不写 `TODO` 注释。
 - 顺手修边界清楚、可当场验证的小问题并纳入说明；需要跨 crate 设计或改变方向的问题写入 `todo.md`。
 - 优先编辑既有文件；不做未需要的抽象，不为假设的未来需求预留扩展点。
@@ -161,11 +169,11 @@ Laravel 对应能力须按[纠偏规则](.agents/project/plans/laravel-rebuild.m
 默认 **单开发者 + AI Agent**，开发者授予 Agent 在 §5 边界内的最高执行权限。
 
 - Agent 回复语言跟随开发者提问语言；代码、命令、路径和专有名词保持原文。
-- 结合上下文判断用户希望持续推进既有计划时（例如对多阶段任务说“持续开发”“全部处理好”“做完再告诉我”），或要求恢复/停止持续开发时，自动读取并使用 [continuous-development-guard](.agents/skills/continuous-development-guard/SKILL.md)，不要求用户再输入技能名。启动守护须核对实际任务身份与完整Goal；完成或手动停止后自动清理仅本任务的守护进程。中间提问/进度查询不视为停止。
+- 结合上下文判断用户希望持续推进既有计划时（例如对多阶段任务说“持续开发”“全部处理好”“做完再告诉我”），或要求恢复/停止持续开发时，自动读取并使用 [agent-continuous-development-guard](.agents/skills/agent-continuous-development-guard/SKILL.md)，不要求用户再输入技能名。启动守护须核对实际任务身份与完整Goal；完成或手动停止后自动清理仅本任务的守护进程。中间提问/进度查询不视为停止。
 - 日常决策（命名、文件组织、测试布局、小版本依赖）Agent 直接定。
 - 只在以下情况停下询问：§5 授权边界、需求方向真正模糊、信息必须由开发者提供、连续 3 次同类编码/测试失败（运行器故障按 §5 冷却监测）。
-- 多模型协作：用户授权优先使用 `gpt-6.1-sol` 子智能体做已定 contract 的实现/测试；架构由主控收敛，高风险改码由不同模型或 Provider 独立审查。总控按依赖图派发独立功能簇或互不冲突子任务，worker 不递归派发、不擅改 contract；允许在本仓库本地任务分支与独立 worktree 开发，由总控串行集成 main。Cargo manifest/lock、迁移、共享文档、构建及集成门禁由集成负责人统一调度；提前分配文件、target 和服务资源，审查可并行只读。分支交付不等于 main 已验收；创建、交接与合并后清理遵循[并行开发与集成](.agents/project/conventions.md#并行开发与集成)。模型不可用时如实记录并选成本合适的可用方案。
-- **长期 Git 工作方式**：框架保持同一源码仓库与 main 集成主线；用户已持续授权总控将已授权框架范围的本地任务串行整合到 main，无需每个分支再次确认。先整合本批源码、解决冲突，再集中执行适用组合验收，通过后创建本地集成提交并安全退役任务分支/worktree；分支通过不等于 main 通过，保护 WIP、单一索引负责人和来源祖先或等价映射。用户已授权总控创建本地任务分支和临时 worktree 加速独立功能开发，不创建额外源码仓库、不推送/发布/tag。原V2版本计划已取消，需求转为[可选快速开发模块](.agents/project/plans/optional-rapid-development-modules.md#开发与使用边界)，暂不开发；R14通过或持续Goal“全部完成”均不授权启动。main只维护通用框架与唯一示例，不强制集成后台业务或UI；上述暂不开发业务模块的开工及分支/交付组织另由用户明确指定，不为它们预建分支或默认合并；已授权框架任务分支不受此冻结限制。AI产品仍未启动，既有单独授权边界保持。
+- 多模型协作：用户授权优先使用 `gpt-6.1-sol` 子智能体做已定 contract 的实现/测试；架构由主控收敛，高风险改码由不同模型或 Provider 独立审查。总控按依赖图派发独立功能簇或互不冲突子任务，worker 不递归派发、不擅改 contract；后续默认同一main物理目录、多对话框按文件归属分工，不再默认新建worktree；既有worktree先保全交接再由总控串行集成main。Cargo manifest/lock、迁移、共享文档、构建及集成门禁由集成负责人统一调度；提前分配文件、target 和服务资源，审查可并行只读。分支交付不等于 main 已验收；创建、交接与合并后清理遵循[并行开发与集成](.agents/project/conventions.md#并行开发与集成)。模型不可用时如实记录并选成本合适的可用方案。
+- **长期 Git 工作方式**：框架保持同一源码仓库与 main 集成主线；用户已持续授权总控将已授权框架范围的本地任务串行整合到 main，无需每个分支再次确认。先整合本批源码、解决冲突，再集中执行适用组合验收，通过后创建本地集成提交并安全退役任务分支/worktree；分支通过不等于 main 通过，保护 WIP、单一索引负责人和来源祖先或等价映射。当前默认共享main目录多对话框协作，既有任务分支/worktree先安全交接退役，后续不默认新增，不创建额外源码仓库、不推送/发布/tag。原V2版本计划已取消，需求转为[可选快速开发模块](.agents/project/plans/optional-rapid-development-modules.md#开发与使用边界)，暂不开发；R14通过或持续Goal“全部完成”均不授权启动。main只维护通用框架与唯一示例，不强制集成后台业务或UI；上述暂不开发业务模块的开工及分支/交付组织另由用户明确指定，不为它们预建分支或默认合并；已授权框架任务分支不受此冻结限制。AI产品仍未启动，既有单独授权边界保持。
 
 ## 9. 记忆维护
 
@@ -176,7 +184,7 @@ Laravel 对应能力须按[纠偏规则](.agents/project/plans/laravel-rebuild.m
 | 待办增删 | `todo.md` |
 | 里程碑进度、路由 | `plan.md`、`progress.md` |
 | crate 当前事实 | `core/<crate>.md` |
-| 技术决策 | `decisions/adr-NNN-<topic>.md` |
+| 方向决策 | `decisions/adr-001-framework-principles.md`；领域实现取舍见相应计划 / core |
 | 依赖与版本 | `stack.md` |
 | 测试入口、验收事实 | `memory/testing.md`、`memory/verification.md` |
 | 可复用工作流 | `.agents/skills/<name>/SKILL.md` |

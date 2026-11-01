@@ -5,6 +5,7 @@ import errno
 import hashlib
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -29,10 +30,10 @@ def require_task_copy(root_arg: Path) -> Path:
         Path(tempfile.gettempdir()).resolve(strict=True),
         Path("/tmp").resolve(strict=True),
     }
-    marker = root / ".openrust-config-cache-task-root"
+    marker = root / ".config-cache-task-root"
     if (
         root.parent.parent not in temporary_roots
-        or not root.parent.name.startswith("openrust-config-cache-")
+        or not root.parent.name.startswith("config-cache-")
         or marker.is_symlink()
         or not marker.is_file()
         or marker.read_text(encoding="utf-8").strip() != str(root)
@@ -45,19 +46,24 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def restore_copy(config: Path, original: bytes) -> list[Exception]:
+def restore_copy(dotenv: Path, original: bytes | None) -> list[Exception]:
     errors = []
     try:
-        if config.is_symlink():
+        if dotenv.is_symlink():
             raise OSError("symlink")
-        config.write_bytes(original)
+        if original is None:
+            dotenv.unlink(missing_ok=True)
+        else:
+            dotenv.write_bytes(original)
     except OSError:
-        errors.append(RuntimeError("副本配置恢复失败"))
+        errors.append(RuntimeError("副本 dotenv 恢复失败"))
     try:
-        if config.is_symlink() or digest(config) != hashlib.sha256(original).hexdigest():
-            errors.append(RuntimeError("副本配置恢复 SHA 不符"))
+        restored = digest(dotenv) if dotenv.exists() else None
+        expected = hashlib.sha256(original).hexdigest() if original is not None else None
+        if dotenv.is_symlink() or restored != expected:
+            errors.append(RuntimeError("副本 dotenv 恢复 SHA 不符"))
     except OSError:
-        errors.append(RuntimeError("副本配置恢复 SHA 无法核对"))
+        errors.append(RuntimeError("副本 dotenv 恢复 SHA 无法核对"))
     return errors
 
 
@@ -140,9 +146,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("binary", type=Path)
-    parser.add_argument("config", type=Path, help="相对应用根的配置文件")
-    parser.add_argument("find", help="原文件中唯一待替换的文本")
-    parser.add_argument("replace", help="替换后的文本")
     parser.add_argument("route", help="GET 路径")
     parser.add_argument("field", help="响应 JSON 点路径")
     parser.add_argument("before", help="缓存时预期值")
@@ -150,58 +153,61 @@ def main() -> None:
     parser.add_argument("--expected-binary-sha256", required=True)
     parser.add_argument(
         "--bad-content",
-        help="可选：先把配置文件改为无效 TOML，验证缓存命中仍能重启 GET",
+        help="可选：先把 .env 改为无效 dotenv，验证缓存命中跳过解析并仍能重启 GET",
     )
     args = parser.parse_args()
     root = require_task_copy(args.root)
     binary = args.binary.resolve(strict=True)
     if digest(binary) != args.expected_binary_sha256:
         raise SystemExit("二进制 SHA-256 与本次构建不符")
-    config_path = root / args.config
-    if config_path.is_symlink():
-        raise SystemExit("配置文件必须属于应用根且不是符号链接")
-    config = config_path.resolve(strict=True)
-    if not config.is_relative_to(root):
-        raise SystemExit("配置文件必须属于应用根且不是符号链接")
-    original = config.read_bytes()
-    original_sha = digest(config)
-    text = original.decode("utf-8")
-    if text.count(args.find) != 1:
-        raise SystemExit("待替换文本必须恰好出现一次")
+    if not all(re.fullmatch(r"[A-Za-z0-9_-]+", value) for value in (args.before, args.after)):
+        raise SystemExit("APP_NAME 验收值只允许 ASCII 字母、数字、下划线和连字符")
+    dotenv = root / ".env"
+    if dotenv.is_symlink():
+        raise SystemExit(".env 不能是符号链接")
+    original = dotenv.read_bytes() if dotenv.exists() else None
+    original_sha = hashlib.sha256(original).hexdigest() if original is not None else None
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    with tempfile.TemporaryDirectory(prefix="openrust-config-cache-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="config-cache-") as temporary:
         env = os.environ.copy()
+        env.pop("APP_NAME", None)
+        env.pop("APP_ENV", None)
         env["APP_CONFIG_CACHE"] = str(Path(temporary) / "config.json")
         env["SERVER_PORT"] = str(port)
         url = f"http://127.0.0.1:{port}{args.route}"
         primary = None
         try:
+            dotenv.write_text(f"APP_ENV=local\nAPP_NAME={args.before}\n", encoding="utf-8")
             run(binary, root, env, "config:cache")
+            if not Path(env["APP_CONFIG_CACHE"]).is_file():
+                raise AssertionError("构建后缺少配置缓存")
             if args.bad_content is not None:
-                config.write_text(args.bad_content, encoding="utf-8")
+                dotenv.write_text(args.bad_content, encoding="utf-8")
                 bad_cached = read_once(binary, root, env, url, args.field)
                 if bad_cached != args.before:
-                    raise AssertionError("坏 TOML 缓存启动值不符")
-            config.write_text(text.replace(args.find, args.replace), encoding="utf-8")
+                    raise AssertionError("坏 dotenv 缓存启动值不符")
+            dotenv.write_text(f"APP_ENV=local\nAPP_NAME={args.after}\n", encoding="utf-8")
             cached = read_once(binary, root, env, url, args.field)
             if cached != args.before:
                 raise AssertionError("缓存启动值不符")
             run(binary, root, env, "config:clear")
+            if Path(env["APP_CONFIG_CACHE"]).exists():
+                raise AssertionError("清除后配置缓存仍存在")
             fresh = read_once(binary, root, env, url, args.field)
             if fresh != args.after:
                 raise AssertionError("清除后启动值不符")
             result = {"cached": cached, "cleared": fresh}
             if args.bad_content is not None:
-                result["bad_toml_cached"] = bad_cached
+                result["bad_dotenv_cached"] = bad_cached
         except BaseException as error:
             primary = error
         finally:
-            recovery_errors = restore_copy(config, original)
+            recovery_errors = restore_copy(dotenv, original)
         finish(primary, recovery_errors)
         result["binary_sha256"] = digest(binary)
-        result["config_sha256_restored"] = original_sha
+        result["dotenv_sha256_restored"] = original_sha
         print(json.dumps(result, ensure_ascii=False))
 
 

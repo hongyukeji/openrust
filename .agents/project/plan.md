@@ -1,6 +1,6 @@
 # 当前计划
 
-> 当前代码与目标：R1-E、R2-N、R3-A/B/C/D/E/F 均已按范围交付（R3-E：dab80d4；R3-F 本簇限定提交见 Git）。R3-F 已完成独立复审、适用门禁、生成应用、根真实 TCP 与资源收尾；C04-A RequestInfo/内容协商与staging并发回收修复已通过适用验收，随后继续todo中的完整C04剩余行为。完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：R1-E、R2-N、R3-A/B/C/D/E/F 均已按范围交付（R3-E：dab80d4；R3-F 本簇限定提交见 Git）。R3-F 已完成独立复审、适用门禁、生成应用、根真实 TCP 与资源收尾；C04-A RequestInfo/内容协商与staging并发回收修复已通过适用验收，随后继续todo中的完整C04剩余行为。完整模块管理仍按 [ADR-001](decisions/adr-001-framework-principles.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
@@ -8,37 +8,47 @@
 
 ## 当前里程碑
 
-[ADR-070](decisions/adr-070-laravel-first-rebuild.md) 已接受全面重写方向；[总计划](plans/laravel-rebuild.md) 定义能力矩阵、Rust 适配、目标目录、R0–R16、验收和模型分工。[执行任务](plans/laravel-rebuild-execution.md) 可直接交给执行 Agent。当前领取项仅在 [todo.md](todo.md)。
+[ADR-001](decisions/adr-001-framework-principles.md) 已接受全面重写方向；[总计划](plans/laravel-rebuild.md) 定义能力矩阵、Rust 适配、目标目录、R0–R16、验收和模型分工。执行按唯一待办领取。当前领取项仅在 [todo.md](todo.md)。
 
 R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收，并纳入R03/CC/Signed同一main限定组合交付；原分支生成与TCP证据保留，主线结果须引用组合门禁和最终五父提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`。完整Config仍开放。
 
 ## 运行时配置与动态调度依赖
 
-用户授权目标见 [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md) 与 [运行时配置与动态调度计划](plans/runtime-configuration-scheduling.md)：Laravel配置体验、V1必交typed分组DB业务设置与受权管理API（宿主启用可选）、默认DB队列与动态计划；业务secret加密及driver受控激活/待重启，DB保存和节点应用分别可见。当前仅规划，不切换当前HTTP簇；R2契约/持久基础（依赖R4/R7及适用R8）→R10队列事务/每任务策略/动态管理→R14真实多节点与迁移验收；[可选管理界面暂不开发](plans/optional-rapid-development-modules.md#开发与使用边界)，不得自动进入。公共服务/CLI和示例随各簇交付，内部版本/快照不增加普通读取负担；唯一执行状态仍见todo。
+用户授权目标见 历史决策 080 与 [运行时配置与动态调度计划](plans/runtime-configuration-scheduling.md)：Laravel配置体验、V1必交typed分组DB业务设置与受权管理API（宿主启用可选）、默认DB队列与动态计划；业务secret加密及driver受控激活/待重启，DB保存和节点应用分别可见。当前仅规划，不切换当前HTTP簇；R2契约/持久基础（依赖R4/R7及适用R8）→R10队列事务/每任务策略/动态管理→R14真实多节点与迁移验收；[可选管理界面暂不开发](plans/optional-rapid-development-modules.md#开发与使用边界)，不得自动进入。公共服务/CLI和示例随各簇交付，内部版本/快照不增加普通读取负担；唯一执行状态仍见todo。
 
 ## 执行校准
 
-已授权框架范围的本地任务持续允许总控串行集成 main，不再逐分支申请确认；当前批次先整合环境身份及 Request/MIME 源码、解决冲突，再执行同一组合门禁，通过后提交和安全退役。真实验证、WIP/索引归属及来源映射保持，不推送/发布/tag或改写已推历史。
+2026-11-02 接管校准：当前对话为唯一框架集成总控，旧总控/旧守护保持停止。九份来源及未提交/未追踪代码已归档保全，来源 worktree 与 workspace 已正常退役，当前仅 main；六个未合任务分支保留。本批限定源码、生成与真实服务验收已收齐，本地提交以Git为准，清理后优先配置整改，详见唯一 todo 顶部的接管状态与 `tmp/takeover-20261102/`。另一个已获用户授权的 skill owner 正收口 Codex 原生守护适配，本总控不并改该范围，不把开发中适配当已启用。默认80%政策与旧账本保持；无正式剩余额度读数，不估算。
 
-C04-G TrustProxies已完成当前main限定子范围验收与专属产物回收，提交号以Git为准；452项源码和日志已核，生成/真实TCP/MySQL及公开接线完成，PHP运行时与逐案映射等限制见[验收记录](memory/testing.md#c04-g-trustproxies-main-限定验收)。环境身份簇已限定提交`8d5e635`，与Request/MIME`5e2ec6b`合成同一main候选后集中验证；TrustedHosts待前置集成与公共契约最终核对。C04-F/MIME仍为任务分支交付，未自动合入main。
+本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留及50GB软/100GB硬、磁盘保护不变。
 
-用户本轮已明确恢复原完整Laravel+laravel-modules计划，解除仅收尾/不领取新簇限制；当前C04-F Request文件家族与MIME续作已完成任务分支限定验证，本次任务分支限定交付，均尚未集成main；owner、冻结输入及开放边界见唯一[todo](todo.md#c04-f-request-files)和[测试记录](memory/testing.md#c04-f-request文件家族分支限定验收)。沿用原Goal、默认80%预算及20%保留，不新建守护、不重算基线，不启动冻结产品。
+后续默认同一 OpenRust 项目、同一 main 物理工作目录，多个对话框或 workspace 标签页按不重叠文件分工；不再默认创建任务分支/worktree。产品不支持共享目录标签页时复用既有 main workspace 的多个对话框，不新建源码副本或修改内部数据库。同文件串行交接，公共 API 先收敛；manifest/lock、共享文档、Git索引/MERGE/提交、target/Cargo和真实服务由总控唯一调度。冻结受验文件禁止并发修改。
+
+用户已纠正根app职责：正常应用开发与可选modules并存，旧强制业务只能modules无效。应用/生成器、dotenv、TrustedHosts及本批Web/Handler/Query候选已由`/root/laravel_application_layout`串行整合到main工作树，当前进入集中验收；原worktree源码与证据保全，后续默认共享main目录按文件归属分工。
+
+当前执行覆盖：先完成当前在途组合，冻结后集中适用验收并本地提交，再处理今日剩余整改和ADR001后续；大功能簇完整编码及配套后再测试，不逐小改动重复矩阵。未验证源码保持WIP，不报交付。
+
+已授权框架范围的本地任务持续允许新总控串行集成 main。本批源码已组合且收齐限定门禁、生成、MySQL与TCP/TLS，提交与安全分支清理以Git为准；来源worktree/workspace已正常退役，不重复merge。具体证据见[当前main组合](memory/testing.md#当前-main-组合限定验收)。不推送/发布/tag或改写已推历史。
+
+C04-G TrustProxies历史限定交付保留；后续Env/Request-MIME、TrustedHosts及应用内核组合已完成当前main限定验收，Git提交与下一批整改以唯一todo为准，不把分支结果替代本批证据。
+
+本对话继续完整Laravel+laravel-modules与已授权官方生态计划；旧总控及旧守护保持停止，新Goal不复用旧额度授权，默认80%政策及保留线不变。当前组合后按唯一todo领取配置默认值/单一来源等整改，不启动冻结产品。
 
 R2-P `4ac8099` 与 S-DV `6ffb5c8` 已由三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成main限定组合门禁；ST-V `2262df9` 后由两父提交 `8d18021b630ea10652316e025ef6019c7772bbb0` 完成main限定组合门禁；真实S3 ACL、迟到CopyObject及`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。S-DV与P均已完成工作区/分支安全退役，P文档事实已迁入main并保全原稿，完整Provider/Container/Session仍开放。四簇main组合默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored）；双docs/MSRV、no-default、deny和生成/MySQL限定证据见组合记录；五父本地提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a` 仅关闭本轮限定集成。唯一队列见[todo](todo.md)。
 
-C04-D10-E scheme/secure与guest/intended已通过适用集中门禁、fresh生成/MySQL及真实TCP4/9，资源收尾完成，限定提交见Git；D10-D为018b778。E限定提交6b143ca。C04-D10-F refresh/away已通过当前门禁、生成/MySQL与真实TCP7/12，资源收尾完成、限定提交见Git；F已提交ba538ea；动作路由身份与action URL按ADR-083 D10-G已限定验收，主门禁、新构建/fresh生成/MySQL及真实TCP10/15与资源收尾通过，含单实例namespace setter与clone隔离；当前H按ADR-083收口真实声明集合/分派同源化，已完成限定验收：定向/双严格Clippy/完整router及主矩阵11项、新构建/生成/MySQL/真实TCP与资源收尾通过，限定提交见Git；T01已完成限定入口整合并实测名单/计时，未证明整体显著提速；R2-R01按ADR-086已完成同仓储运行期set/set_many、App读取及启动快照限定交付，含工作区/fresh生成/MySQL/真实TCP与资源收尾；当前R2-R02按ADR-086已完成有序来源实现、适用Rust门禁、普通/MySQL生成、真实TCP与资源收尾限定验证；已提交a875dd7，R2-ENV已完成工作区/consumer、fresh普通/MySQL、真实HTTP/Redis与资源收尾限定验收；signed完整家族基于af0f62b隔离实现/修复，R2-R03基于e25ec75隔离编码递归配置发现，main集成/组合验证串行；唯一队列见[todo](todo.md)，action/signed前置与完整Redirector、发布全后端矩阵继续开放，不以薄封装替代缺失底层契约。
+C04-D10-E scheme/secure与guest/intended已通过适用集中门禁、fresh生成/MySQL及真实TCP4/9，资源收尾完成，限定提交见Git；D10-D为018b778。E限定提交6b143ca。C04-D10-F refresh/away已通过当前门禁、生成/MySQL与真实TCP7/12，资源收尾完成、限定提交见Git；F已提交ba538ea；动作路由身份与action URL按历史决策 083 D10-G已限定验收，主门禁、新构建/fresh生成/MySQL及真实TCP10/15与资源收尾通过，含单实例namespace setter与clone隔离；当前H按历史决策 083收口真实声明集合/分派同源化，已完成限定验收：定向/双严格Clippy/完整router及主矩阵11项、新构建/生成/MySQL/真实TCP与资源收尾通过，限定提交见Git；T01已完成限定入口整合并实测名单/计时，未证明整体显著提速；R2-R01按历史决策 086已完成同仓储运行期set/set_many、App读取及启动快照限定交付，含工作区/fresh生成/MySQL/真实TCP与资源收尾；当前R2-R02按历史决策 086已完成有序来源实现、适用Rust门禁、普通/MySQL生成、真实TCP与资源收尾限定验证；已提交a875dd7，R2-ENV已完成工作区/consumer、fresh普通/MySQL、真实HTTP/Redis与资源收尾限定验收；signed完整家族基于af0f62b隔离实现/修复，R2-R03基于e25ec75隔离编码递归配置发现，main集成/组合验证串行；唯一队列见[todo](todo.md)，action/signed前置与完整Redirector、发布全后端矩阵继续开放，不以薄封装替代缺失底层契约。
 
 C04-D9旧输入限定子范围已完成main组合验收，[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)保留；R2-Q/X与守护补丁已在main收口。C04-D10-A纯MessageBag/ViewErrorBag已由`27c006a`限定提交。C04-D10-B请求绑定重定向、Session命名错误包及空库迁移启动修复已通过当前源码门禁、无Session与MySQL8.4真实TCP、普通生成7项及MySQL生成认证2项，已由 `a2befef` 限定提交；证据和未覆盖边界见[testing](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。[测试入口整合小试点](memory/testing.md#session-测试入口整合小试点限定验收通过)已通过适用验收并由 `4023e05` 限定提交：三个纯 Session 测试 target 聚为一个，26 项与独立环境/服务入口保留；联合 gRPC 测试的预绑定 listener 修复及旧配置入口也经真实测试；C04-D10-C请求局部视图错误共享、Session对象身份及模板参数桥接已按限定子范围验收并提交 `784045c`；根目标/fallback、内部forward与HEAD站点边界修复已通过不同模型审查及当前输入门禁、fresh生成与真实TCP。默认workspace798/31 ignored、全特性1571/105 ignored，严格双Clippy/docs、features/deny/MSRV、新server/CLI、普通生成7项、MySQL认证2项与独立公开consumer1项通过；无Session/MySQL8.4.13真实TCP通过并清理自有库/端口。ignored不计真实服务，完整Redirector、Validation/CSRF、HTTP/Session及PG/全部后端发布矩阵仍开放。[最终测试记录](memory/testing.md#c04-d10-c-请求局部视图错误共享验收中未提交)。C04-D10-D命名路由重定向限定子范围已验收，提交见Git：`route/route_with` 复用同应用URL生成器及既有响应/闪存链；v2定向、双严格Clippy及main11项通过，默认workspace802 passed/32 ignored、全特性1576 passed/106 ignored。最终server/CLI、fresh普通7项、MySQL8.4.13认证2项及独立公开helper1项通过；无Session/MySQL真实TCP分别3/4个场景通过，正常停止并释放监听、清理敏感文件及自有数据库。ignored不算真实服务；完整Redirector及L020.02仍开放。见[当前验收](memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。固定参考路径与最新源码区分见context。
 
 R2-R03 `6482a38` 的配置76、CLI21、模块2、consumer6、生成/MySQL与真实HTTP分支证据保留；typed `b1f4bf7`、CC `7be446d`、Signed `c77521f` 已与其完成同一main限定组合交付。主线限定验收见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)，旧分支结果不替代主线组合记录。
 
-当前验证节奏：先完成代码与配套测试代码，功能簇稳定后在提交前集中验收；分支限定验证、main完整组合门禁。实现期不反复跑测试/Clippy矩阵，无关计划文档不使代码证据失效；按[集中验证](conventions.md#功能簇提交前集中验证)调度。正常空间阈值内受控缓存可跨簇复用，50/100 GB（十进制）及磁盘10%/5%政策不变；不再每簇强制清空target。
+当前验证节奏：先收口当前已在途组合，源码/调用方/模板/唯一示例/测试代码完整后集中适用验收并本地提交，再领取已登记今日整改与ADR001后继；不以全计划最后测试无限延后本批交付。独立编码可按文件归属并行，冻结输入不改；有效证据按实际源码影响复用。验收收齐后集中清完成任务/生成与多feature可再生产物，跨簇仅保留下一实际已安排步骤明确需要的一份缓存，不每条命令clean；50/100GB十进制及磁盘10%软/5%硬保护、源码/WIP/服务/证据保护不变。
 
 全量范围已按用户最新授权收敛：固定Laravel核心、laravel-modules及官方可选生态必须按官方功能/默认/生命周期/扩展体验完整对应；[749条/35入口分期与工具UI边界](plans/laravel-official-coverage.md#全量交付授权与两阶段)为本轮范围，唯一todo已分两阶段排期。官方工具自身UI随阶段二包交付，业务后台/App及AI产品仍未启动；不因语言、可选或阶段二而省略适用功能，当前核心簇按依赖继续。
 
-1. 当前代码的根 lib/server 和旧 app/example 过渡结构由 R1-S 以34dfb5e收口；R2-M 已将业务代码迁入 modules/example，根模块边界依 ADR-074。模块清单、运行激活、资源与统一迁移的真实验收见本轮 testing；完整模块管理和 R1-E CRUD 不因目录迁移自动完成。
+1. 当前代码的根 lib/server 和旧 app/example 过渡结构由 R1-S 以34dfb5e收口；R2-M 已将业务代码迁入 modules/example，根模块边界依 ADR-001。模块清单、运行激活、资源与统一迁移的真实验收见本轮 testing；完整模块管理和 R1-E CRUD 不因目录迁移自动完成。
 2. 正式定位 Laravel + laravel-modules = OpenRust，以固定上游源码/测试和文档逐项1:1实现功能/可观察语义、默认/错误安全边界、Container/Provider与开发流程，并持续跟进；模块化不是只有示例目录规范。目录、概念、命名、默认行为和扩展流程以 Laravel 为准；Goravel 为实现参考。Rust必要适配、用户约定和授权增强须按[差异分类](plans/laravel-rebuild.md#逐项对应与差异分类)记录原行为/限制/选定行为/证据，未等价保持缺口；版本基线和后继更新见[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)。既有目录和 API 可以重写，无历史兼容义务。
-3. 旧 ADR 中的已实现行为和验收记录作为迁移输入；统一返回格式等优秀机制须融合进 Laravel 对应职责，不能为追求上游外形而删除。新方向不自动使旧记录变成新代码已通过。冲突约束依 ADR-070 替代，功能簇落地时同步领域 ADR/事实。
+3. 旧 ADR 中的已实现行为和验收记录作为迁移输入；统一返回格式等优秀机制须融合进 Laravel 对应职责，不能为追求上游外形而删除。新方向不自动使旧记录变成新代码已通过。冲突约束依 ADR-001 替代，功能簇落地时同步对应矩阵与事实文档。
 4. 原 M5/M6、DX/F/G 顺序让位于 R0–R16；未完成生产、集群、SQLite、供应商条件等映射到新矩阵，不丢弃。总控可按依赖图批准独立功能簇并行 in_progress，main集成与最终门禁串行。
 5. 对已定 contract 的实现/测试优先 gpt-6.1-sol；主控定跨模块接口，高风险改码不同模型或 Provider 审查。worker可在总控分配的本地任务分支/worktree并行，前置和contract须明确；manifest/lock/迁移/共享文档与main集成由负责人串行协调，构建target/服务预先分配。按[并行开发与集成](conventions.md#并行开发与集成)验收、合入并清理，不覆盖main WIP，不创建额外源码仓库、不递归派发、不推送。
 6. 根无参数 cargo run、唯一综合示例、生成应用和真实 HTTP 是验收项；根 package 同时包含框架库和默认 server。
@@ -54,14 +64,13 @@ C04-A/B1/B2/C与C04-D1均按各自子簇验收。D1以唯一公开Session领域�
 
 | 任务 | 入口 |
 | --- | --- |
-| 新方向与替代关系 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)、[ADR 索引](decisions/README.md) |
+| 新方向与替代关系 | [ADR-001](decisions/adr-001-framework-principles.md)、[ADR 索引](decisions/README.md) |
 | 宏观执行顺序 | [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一固定Laravel+modules基线→阶段二已纳入通用增强，均属框架main；R0–R16为技术分解，原R15版本阶段取消，可选模块不自动开工 |
 | 整体范围、阶段、验收 | [全面重构计划](plans/laravel-rebuild.md)、[模块正式矩阵](plans/laravel-modules-matrix.md) |
 | Provider包发现后继 | [Provider编译期发现Spec](plans/laravel-rebuild.md#r2r13-provider-编译期发现-spec)；R2契约→R13工具，依赖R2-M/N；仅规划不切换当前HTTP |
 | 当前实现资产 | [architecture.md](architecture.md)、core、Cargo.toml、源码和 Git |
-| 原能力/生产验收输入 | [原 v1 计划](plans/gen1-plan.md)、[底层补齐](plans/v1-foundation-completion.md)、[集群](plans/v1-cluster-deployment.md)、[原 DX](plans/v1-developer-experience.md) |
+| 原能力/生产验收输入 | 原 v1 计划、底层补齐、集群、原 DX |
 | 编码、提交、证据 | [conventions.md](conventions.md)、[testing.md](memory/testing.md)、[verification.md](memory/verification.md) |
-| 执行任务文本 | [执行说明](plans/laravel-rebuild-execution.md) |
 
 ## 验证入口
 

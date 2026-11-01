@@ -8,7 +8,6 @@ Cargo.lock.bak
 
 # Generated projects and spikes
 /tmp/
-/.openrust-dev/
 
 # Editors and OS
 .idea/

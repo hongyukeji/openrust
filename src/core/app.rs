@@ -8,7 +8,7 @@ use figment::Figment;
 use serde::de::DeserializeOwned;
 
 use crate::config::repository::ConfigRepository;
-use crate::config::{ConfigError, FrameworkConfig};
+use crate::config::{ConfigError, Environment, FrameworkConfig};
 use crate::core::command::Command;
 use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
@@ -35,6 +35,11 @@ pub trait Application: Send + Sync + 'static {
     /// 没有应用专属配置时，请使用 [`NoConfig`](crate::config::NoConfig)。
     type Config: DeserializeOwned + Send + Sync + 'static;
 
+    /// 显式声明已编译的 Rust 配置函数；缺省清单不扫描 TOML 文件。
+    fn config() -> crate::config::ConfigManifest {
+        crate::config::ConfigManifest::new()
+    }
+
     /// 用于引导加载此应用配置的环境变量命名空间。
     ///
     /// 默认值为 `APP_`；应用也可以返回 `SHOP_` 等值。
@@ -42,7 +47,29 @@ pub trait Application: Send + Sync + 'static {
         "APP_"
     }
 
-    /// 按框架、应用、模块顺序返回 Provider 清单；选择依据为启动来源的应用配置。
+    /// 选择框架默认 Provider；缺省从本次配置仓储自动推导。
+    fn default_providers() -> crate::core::DefaultProviders {
+        crate::core::DefaultProviders::auto()
+    }
+
+    /// 显式登记已编译包的 Provider；位于框架默认项与应用项之间。
+    ///
+    /// Cargo 包自动发现仍需独立实现；此入口不扫描包或反射 Rust 类型。
+    fn package_providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        Vec::new()
+    }
+
+    /// 额外的编译期 Provider，相当于 `withProviders` 的显式输入。
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        Vec::new()
+    }
+
+    /// 是否读取应用的 bootstrap Provider 清单；对应 `withProviders` 的开关。
+    fn with_bootstrap_providers() -> bool {
+        true
+    }
+
+    /// 返回应用自身 Provider 清单，由 `bootstrap/providers.rs` 显式登记。
     fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         Vec::new()
     }
@@ -103,6 +130,39 @@ impl AppState {
     /// 启动时解析的框架配置快照；运行期原始写入不重建其中的服务配置。
     pub fn config(&self) -> &FrameworkConfig {
         &self.inner.framework
+    }
+
+    /// 返回启动时绑定的精确应用环境名称。
+    pub fn environment(&self) -> &Environment {
+        &self.inner.framework.app.env
+    }
+
+    /// 按大小写敏感的 `*` 通配规则检查任一环境模式。
+    pub fn environment_matches<'a>(&self, patterns: impl IntoIterator<Item = &'a str>) -> bool {
+        self.environment().matches(patterns)
+    }
+
+    /// 仅当环境名称精确为 `local` 时返回 `true`。
+    pub fn is_local(&self) -> bool {
+        self.environment().is_local()
+    }
+
+    /// 仅当环境名称精确为 `production` 时返回 `true`。
+    pub fn is_production(&self) -> bool {
+        self.environment().is_production()
+    }
+
+    /// 仅当已启动应用的环境精确为 `testing` 时返回 `true`。
+    pub fn running_unit_tests(&self) -> bool {
+        self.environment().running_unit_tests()
+    }
+
+    /// 当前应用共享的MIME检测登记器；各App互不共享。
+    pub async fn mime_types(&self) -> Result<Arc<crate::http::MimeTypes>> {
+        self.inner
+            .services
+            .resolve::<crate::http::MimeTypes>()
+            .await
     }
 
     /// 返回与 Provider 和当前应用共享的配置仓储句柄。
@@ -285,6 +345,36 @@ impl App {
     /// 启动时解析的框架配置快照；运行期原始写入不重建已有服务。
     pub fn config(&self) -> &FrameworkConfig {
         self.state.config()
+    }
+
+    /// 返回启动时绑定的精确应用环境名称。
+    pub fn environment(&self) -> &Environment {
+        self.state.environment()
+    }
+
+    /// 按大小写敏感的 `*` 通配规则检查任一环境模式。
+    pub fn environment_matches<'a>(&self, patterns: impl IntoIterator<Item = &'a str>) -> bool {
+        self.state.environment_matches(patterns)
+    }
+
+    /// 仅当环境名称精确为 `local` 时返回 `true`。
+    pub fn is_local(&self) -> bool {
+        self.state.is_local()
+    }
+
+    /// 仅当环境名称精确为 `production` 时返回 `true`。
+    pub fn is_production(&self) -> bool {
+        self.state.is_production()
+    }
+
+    /// 仅当已启动应用的环境精确为 `testing` 时返回 `true`。
+    pub fn running_unit_tests(&self) -> bool {
+        self.state.running_unit_tests()
+    }
+
+    /// 当前应用共享的MIME检测登记器。
+    pub async fn mime_types(&self) -> Result<Arc<crate::http::MimeTypes>> {
+        self.state.mime_types().await
     }
 
     /// 返回与 Provider 和应用状态共享的配置仓储句柄。
@@ -643,6 +733,11 @@ mod tests {
     async fn services_are_typed_and_shared() -> Result<()> {
         let app = start(CounterProvider).await?;
         assert_eq!(app.state().get::<Counter>().map(|c| c.0), Some(7));
+        assert_eq!(app.environment().as_str(), "production");
+        assert!(app.is_production());
+        assert!(!app.is_local());
+        assert!(!app.running_unit_tests());
+        assert!(app.state().environment_matches(["pro*"]));
         Ok(())
     }
 

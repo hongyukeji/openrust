@@ -21,7 +21,7 @@ type ServerApp = TestApp<crate::bootstrap::Server>;
 
 fn sources() -> Figment {
     let mut config = FrameworkConfig::default();
-    config.app.env = Environment::Test;
+    config.app.env = Environment::Testing;
     Figment::from(Serialized::defaults(config)).merge(Toml::string(
         r#"
 [cache]
@@ -43,7 +43,9 @@ test = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
 
 #[tokio::test]
 async fn module_named_cache_driver_preserves_default_and_rejects_unsupported_tags() -> Result<()> {
-    let mut app = ServerApp::builder(sources()).build().await?;
+    let mut app = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?)
+        .build()
+        .await?;
     let cache = app.app()?.state().resolve::<Cache>().await?;
     let workshop = cache.store("workshop").await?;
     assert_eq!(workshop.scope(), CacheScope::Process);
@@ -92,9 +94,14 @@ async fn module_named_driver_validates_options_and_is_not_registered_when_disabl
             serde_json::json!({"cache":{"stores":{"workshop":{"key_prefix":42}}}}),
         )),
     ] {
-        assert!(ServerApp::builder(config).build().await.is_err());
+        assert!(
+            ServerApp::builder(crate::modules::example::test_sources(&(config))?)
+                .build()
+                .await
+                .is_err()
+        );
     }
-    let mut builder = ServerApp::builder(sources());
+    let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
     builder.remove_module("example");
     // 配置仍选择该业务 driver，但未启用其模块时必须失败，不回退到 memory/Redis。
     assert!(builder.build().await.is_err());
@@ -105,7 +112,7 @@ async fn module_named_driver_validates_options_and_is_not_registered_when_disabl
 async fn welcome_service_captures_real_business_content_only_after_explicit_call() -> Result<()> {
     let captured = CapturedDeliveries::default();
     let capture = captured.clone();
-    let mut builder = ServerApp::builder(sources());
+    let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
     builder.configure_after_register(move |bindings| {
         let capture = capture.clone();
         Box::pin(async move { capture.install(&bindings).await })
@@ -142,7 +149,7 @@ async fn welcome_service_captures_real_business_content_only_after_explicit_call
 async fn invalid_destinations_are_rejected_before_any_channel_sends() -> Result<()> {
     let captured = CapturedDeliveries::default();
     let capture = captured.clone();
-    let mut builder = ServerApp::builder(sources());
+    let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
     builder.configure_after_register(move |bindings| {
         let capture = capture.clone();
         Box::pin(async move { capture.install(&bindings).await })
@@ -181,7 +188,7 @@ async fn welcome_transport_failures_propagate_without_claiming_atomic_delivery()
     for mail_fails in [false, true] {
         let captured = CapturedDeliveries::default();
         let capture = captured.clone();
-        let mut builder = ServerApp::builder(sources());
+        let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
         builder.configure_after_register(move |bindings| {
             let capture = capture.clone();
             Box::pin(async move {
@@ -230,16 +237,20 @@ async fn welcome_transport_failures_propagate_without_claiming_atomic_delivery()
 #[tokio::test]
 async fn capture_installation_is_explicit_and_rejects_production() -> Result<()> {
     let capture = CapturedDeliveries::default();
-    let mut builder = ServerApp::builder(sources().merge(Serialized::defaults(
-        serde_json::json!({"app":{"env":"production"}}),
-    )));
+    let mut builder = ServerApp::builder(crate::modules::example::test_sources(
+        &(sources().merge(Serialized::defaults(
+            serde_json::json!({"app":{"env":"production"}}),
+        ))),
+    )?);
     builder.configure_after_register(move |bindings| {
         let capture = capture.clone();
         Box::pin(async move { capture.install(&bindings).await })
     });
     assert!(builder.build().await.is_err());
     // 不调用 install 时，标准 Provider 保持自身 driver；服务装配本身不会捕获或发送欢迎消息。
-    let mut unmodified = ServerApp::builder(sources()).build().await?;
+    let mut unmodified = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?)
+        .build()
+        .await?;
     unmodified
         .app()?
         .state()
@@ -274,7 +285,9 @@ async fn capture_rechecks_environment_after_a_later_boot_overlay() -> Result<()>
     builder.configure_after_register(move |bindings| {
         Box::pin(async move { capture.install(&bindings).await })
     });
-    let runtime = builder.start(sources()).await?;
+    let runtime = builder
+        .start(crate::modules::example::test_sources(&(sources()))?)
+        .await?;
     let error = runtime
         .container()
         .resolve::<WelcomeService>()

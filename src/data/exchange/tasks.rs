@@ -817,9 +817,14 @@ impl ExportTaskOptions {
     }
 }
 
+const RETENTION_MARKER_FORMAT: u8 = 2;
+
 /// 自动清理到期导出或导入错误报告的内置任务。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportReportCleanupJob {
+    /// 保留标记命名格式；旧持久任务缺失该字段时拒绝自动清理。
+    #[serde(default)]
+    pub marker_format: u8,
     /// 要清理的具名 disk。
     pub disk: String,
     /// 到期对象路径。
@@ -833,6 +838,12 @@ impl Job for ImportReportCleanupJob {
 
     fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>> {
         Box::pin(async move {
+            if self.marker_format != RETENTION_MARKER_FORMAT {
+                return Err(task_error(
+                    "data_exchange_cleanup_format_unsupported",
+                    "旧清理任务需人工核查对象与保留标记，禁止自动删除",
+                ));
+            }
             let storage = context.service::<Storage>().await?;
             let queue = context.service::<Queue>().await?;
             let db = context.service::<Db>().await?;
@@ -974,6 +985,7 @@ fn dispatch_report_cleanup(
 ) -> BoxFuture<'static, Result<String>> {
     let queue = queue.clone();
     let payload = ImportReportCleanupJob {
+        marker_format: RETENTION_MARKER_FORMAT,
         disk: disk.to_owned(),
         path: path.as_str().to_owned(),
         expires_at_unix_secs,
@@ -1002,7 +1014,7 @@ fn cleanup_unique_key(disk: &str, path: &StoragePath, expires_at_unix_secs: u64)
     hasher.update([0]);
     hasher.update(path.as_str().as_bytes());
     hasher.update(expires_at_unix_secs.to_be_bytes());
-    format!("data-exchange-cleanup-{}", hex(&hasher.finalize()[..16]))
+    format!("data-exchange-cleanup-v2-{}", hex(&hasher.finalize()[..16]))
 }
 
 fn retention_marker_path(disk: &str, path: &StoragePath) -> Result<StoragePath> {
@@ -1011,7 +1023,7 @@ fn retention_marker_path(disk: &str, path: &StoragePath) -> Result<StoragePath> 
     hasher.update([0]);
     hasher.update(path.as_str().as_bytes());
     StoragePath::new(format!(
-        ".openrust-data-exchange-retention/{}",
+        ".data-exchange-retention/{}",
         hex(&hasher.finalize())
     ))
 }
@@ -1035,17 +1047,17 @@ fn attempt_object_path(
     hasher.update(attempt.to_be_bytes());
     hasher.update([0]);
     hasher.update(discriminator.as_bytes());
-    let suffix = format!(
-        ".openrust-{purpose}-{}-{attempt}",
-        hex(&hasher.finalize()[..12])
-    );
+    let suffix = format!(".{purpose}-{}-{attempt}", hex(&hasher.finalize()[..12]));
     StoragePath::new(format!("{}{suffix}", base_path.as_str()))
 }
 
 fn validate_exchange_object_path(path: &StoragePath) -> Result<()> {
-    if path
-        .as_str()
-        .starts_with(".openrust-data-exchange-retention/")
+    if [
+        ".data-exchange-retention",
+        ".openrust-data-exchange-retention",
+    ]
+    .iter()
+    .any(|prefix| path.as_str() == *prefix || path.as_str().starts_with(&format!("{prefix}/")))
     {
         return Err(task_error(
             "data_exchange_path_reserved",
@@ -1204,4 +1216,31 @@ fn hex(bytes: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
+}
+
+#[cfg(test)]
+mod naming_tests {
+    use super::{attempt_object_path, retention_marker_path, validate_exchange_object_path};
+    use crate::storage::StoragePath;
+
+    #[test]
+    fn exchange_paths_keep_attempts_distinct_and_reserve_both_marker_prefixes() -> crate::Result<()>
+    {
+        let base = StoragePath::new("reports/import.json")?;
+        let first = attempt_object_path(&base, "import", "job-1", 1, "source-1")?;
+        let retry = attempt_object_path(&base, "import", "job-1", 2, "source-1")?;
+        assert!(first.as_str().starts_with("reports/import.json.import-"));
+        assert_ne!(first, retry);
+        let marker = retention_marker_path("private", &first)?;
+        assert!(marker.as_str().starts_with(".data-exchange-retention/"));
+        for value in [
+            ".data-exchange-retention",
+            ".data-exchange-retention/existing",
+            ".openrust-data-exchange-retention",
+            ".openrust-data-exchange-retention/existing",
+        ] {
+            assert!(validate_exchange_object_path(&StoragePath::new(value)?).is_err());
+        }
+        Ok(())
+    }
 }

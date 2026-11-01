@@ -12,7 +12,8 @@ use openrust::http::axum::{
     response::IntoResponse,
 };
 use openrust::http::{
-    Cookie, CookieJar, CookieOptions, CookieResponseExt, Json, RequestInfo, Routes, SameSite,
+    Cookie, CookieJar, CookieOptions, CookieResponseExt, Json, RequestInfo, RouteGroup, Routes,
+    SameSite,
 };
 use openrust::session::Session;
 use openrust::testing::{TestApp, TestResponse};
@@ -28,11 +29,20 @@ struct CookieRoutesProvider;
 impl ServiceProvider for CookieRoutesProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| {
-                routes
-                    .get(&format!("{PREFIX}/set"), set_cookies)
-                    .get(&format!("{PREFIX}/inspect"), inspect_cookies)
-                    .get(&format!("{PREFIX}/forget"), forget_cookies)
+            let session = app.is_bound::<openrust::session::SessionStoreHandle>();
+            app.routes(move |routes: Routes| {
+                let group = RouteGroup::new().middleware_alias("cookies");
+                let group = if session {
+                    group.middleware_alias("session")
+                } else {
+                    group
+                };
+                routes.group(group, |routes| {
+                    routes
+                        .get(&format!("{PREFIX}/set"), set_cookies)
+                        .get(&format!("{PREFIX}/inspect"), inspect_cookies)
+                        .get(&format!("{PREFIX}/forget"), forget_cookies)
+                })
             })?;
             Ok(())
         })
@@ -44,6 +54,22 @@ struct CookieApplication<A>(std::marker::PhantomData<fn() -> A>);
 
 impl<A: Application> Application for CookieApplication<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        A::default_providers()
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
 
     fn config_namespace() -> &'static str {
         A::config_namespace()

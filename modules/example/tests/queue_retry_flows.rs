@@ -63,9 +63,11 @@ impl Fixture {
             "auth":{"jwt":{"issuer":"http://example.test","audience":"queue-retry","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(config)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(config))?,
+        )
+        .build()
+        .await?;
         let db = app.app()?.state().resolve::<Db>().await?;
         let article = article::ActiveModel {
             owner_id: Set(1),

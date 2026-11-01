@@ -189,9 +189,16 @@ impl ServiceProvider for ExternalSessionExtension {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.routes(|routes| {
-                routes
-                    .get("/session-extension/write", write)
-                    .get("/session-extension/read", read)
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .get("/session-extension/write", write)
+                            .get("/session-extension/read", read)
+                    },
+                )
             })?;
             Ok(())
         })

@@ -224,7 +224,7 @@ async fn s3_late_copy_response_keeps_complete_target_and_cleans_staging() -> Tes
     let staged = client
         .list_objects_v2()
         .bucket(&bucket)
-        .prefix(format!("{root}/.openrust-staging/"))
+        .prefix(format!("{root}/.staging/"))
         .send()
         .await?;
     assert_eq!(staged.contents(), &[] as &[aws_sdk_s3::types::Object]);

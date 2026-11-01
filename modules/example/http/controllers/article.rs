@@ -1,11 +1,11 @@
 //! 文章 CRUD：所有查询受当前账户约束，写入在主库事务内完成。
 
 use crate::modules::example::events::article::ArticleChanged;
+use crate::modules::example::http::requests::article::ArticleInput;
 #[cfg(feature = "encryption")]
 use crate::modules::example::http::requests::article::PrivateNoteInput;
 #[cfg(feature = "signing")]
 use crate::modules::example::http::requests::article::ShareTokenInput;
-use crate::modules::example::http::requests::article::{ArticleInput, ArticlePage};
 use crate::modules::example::http::resources::article::ArticleResource;
 #[cfg(feature = "signing")]
 use crate::modules::example::http::resources::article::ArticleShare;
@@ -23,6 +23,7 @@ use crate::modules::example::services::telemetry::{self, ArticleOperation};
 use crate::modules::example::services::upstream::{ArticleSummary, ArticleSummaryService};
 use openrust::audit::{Audit, AuditEvent, AuditOutcome, AuditSubject};
 use openrust::auth::{CurrentUser, QueryRule, QueryScope};
+use openrust::db::SortDirection;
 use openrust::db::sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, sea_query::Expr};
 use openrust::events::Events;
 #[cfg(feature = "encryption")]
@@ -31,7 +32,7 @@ use openrust::http::axum::{
     response::{IntoResponse, Response},
 };
 use openrust::http::{
-    Created, Json, PageParams, Paginated, Path, Query, Resource, ResourceActions, Validated,
+    Created, Json, PageParams, Paginated, Path, Resource, ResourceActions, Validated,
 };
 use openrust::prelude::{Db, Inject};
 #[cfg(feature = "encryption")]
@@ -67,20 +68,25 @@ impl Resource for Articles {
 pub(crate) async fn index(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Validated(Query(page)): Validated<Query<ArticlePage>>,
 ) -> Result<Paginated<ArticleResource>> {
-    let (rows, total) = article_rule()
-        .select(&user, Condition::all())?
-        .order_by_asc(article::Column::Id)
-        .page(&db.read_connection()?, page.page - 1, page.per_page)
+    let page = db
+        .table("example_articles")?
+        .where_eq("owner_id", user.id())?
+        .order_by("id", SortDirection::Asc)?
+        .paginate(15)
         .await?;
+    let rows = page
+        .items
+        .iter()
+        .map(ArticleResource::from_query_row)
+        .collect::<Result<Vec<_>>>()?;
     Ok(Paginated::new(
-        rows.into_iter().map(ArticleResource::from).collect(),
+        rows,
         PageParams {
-            page: page.page,
+            page: page.current_page,
             per_page: page.per_page,
         },
-        total,
+        page.total,
     ))
 }
 

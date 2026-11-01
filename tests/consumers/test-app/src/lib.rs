@@ -9,7 +9,7 @@ mod tests {
         provider::ProviderId,
     };
     use openrust::http::{
-        HttpServiceProvider,
+        HttpServiceProvider, Request as InputRequest, UploadedFile,
         axum::{
             Json,
             body::Body,
@@ -44,15 +44,30 @@ mod tests {
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.routes(|routes| {
-                    routes.get(
-                        "/api/greeting",
-                        |State(state): State<openrust::core::AppState>| async move {
-                            let value = state.resolve::<dyn Greeting>().await?;
-                            Ok::<_, openrust::Error>(Json(
-                                serde_json::json!({"message": value.message()}),
-                            ))
-                        },
-                    )
+                    routes
+                        .get(
+                            "/api/greeting",
+                            |State(state): State<openrust::core::AppState>| async move {
+                                let value = state.resolve::<dyn Greeting>().await?;
+                                Ok::<_, openrust::Error>(Json(
+                                    serde_json::json!({"message": value.message()}),
+                                ))
+                            },
+                        )
+                        .post("/api/upload", |request: InputRequest| async move {
+                            let file = request.file("document")?.ok_or_else(|| {
+                                openrust::Error::custom("file_missing", "文件缺失")
+                            })?;
+                            let file = file.downcast_ref::<UploadedFile>().ok_or_else(|| {
+                                openrust::Error::custom("file_invalid", "文件无效")
+                            })?;
+                            Ok::<_, openrust::Error>(Json(serde_json::json!({
+                                "name": file.client_original_name(),
+                                "bytes": file.size(),
+                                "has_file": request.has_file("document")?,
+                                "input": request.input("label")?,
+                            })))
+                        })
                 })?;
                 Ok(())
             })
@@ -61,6 +76,10 @@ mod tests {
     struct Example;
     impl Application for Example {
         type Config = NoConfig;
+
+        fn default_providers() -> openrust::core::DefaultProviders {
+            openrust::core::DefaultProviders::empty()
+        }
         fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
             vec![Box::new(HttpServiceProvider), Box::new(BusinessProvider)]
         }
@@ -106,6 +125,17 @@ mod tests {
                 .assert_header("content-type", "application/json")?
                 .assert_json(&serde_json::json!({"message": message}))?;
         }
+        first.request(Request::builder()
+            .method("POST").uri("/api/upload")
+            .header("content-type", "multipart/form-data; boundary=consumer")
+            .body(Body::from(concat!(
+                "--consumer\r\nContent-Disposition: form-data; name=\"label\"\r\n\r\noutside\r\n",
+                "--consumer\r\nContent-Disposition: form-data; name=\"document\"; filename=\"client.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n",
+                "--consumer--\r\n"
+            )))?)
+            .await?
+            .assert_status(StatusCode::OK)?
+            .assert_json(&serde_json::json!({"name":"client.txt","bytes":5,"has_file":true,"input":"outside"}))?;
         let mut removed_builder = TestApp::<Example>::builder(source());
         removed_builder.remove_provider(ProviderId::of::<BusinessProvider>());
         let mut removed = removed_builder.build().await?;

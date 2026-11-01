@@ -86,11 +86,16 @@ impl openrust::core::ServiceProvider for CookieRoutes {
     ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes| {
-                routes
-                    .get("/queue/{value}", scoped_queue)
-                    .get("/inspect", empty_queue)
-                    .get("/cancel", cancel_queue)
-                    .get("/security", security_cookies)
+                routes.group(
+                    openrust::http::RouteGroup::new().middleware_alias("cookies"),
+                    |routes| {
+                        routes
+                            .get("/queue/{value}", scoped_queue)
+                            .get("/inspect", empty_queue)
+                            .get("/cancel", cancel_queue)
+                            .get("/security", security_cookies)
+                    },
+                )
             })?;
             Ok(())
         })

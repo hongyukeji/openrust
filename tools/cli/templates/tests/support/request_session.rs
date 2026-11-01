@@ -82,33 +82,40 @@ impl ServiceProvider for SessionRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes: Routes| {
-                routes
-                    .get(&format!("{PREFIX}/set"), set)
-                    .get(&format!("{PREFIX}/inspect"), inspect)
-                    .get(&format!("{PREFIX}/advance"), advance)
-                    .get(&format!("{PREFIX}/remove"), remove)
-                    .get(&format!("{PREFIX}/seed-one"), seed_one)
-                    .get(&format!("{PREFIX}/seed-two"), seed_two)
-                    .get(&format!("{PREFIX}/probe"), probe)
-                    .post(&format!("{PREFIX}/old-input"), save_old_input)
-                    .get(&format!("{PREFIX}/old-input"), read_old_input)
-                    .post(&format!("{PREFIX}/old-input/default"), save_all_old_input)
-                    .get(&format!("{PREFIX}/previous/named"), previous_visit)
-                    .name("contract.session.previous.named")
-                    .get(&format!("{PREFIX}/previous/anonymous"), previous_visit)
-                    .post(&format!("{PREFIX}/previous/read"), previous_read)
-                    .group(
-                        RouteGroup::new()
-                            .prefix(format!("{PREFIX}/previous"))
-                            .middleware_alias("precognitive"),
-                        |routes| routes.get("/preview", previous_visit),
-                    )
-                    .group(
-                        RouteGroup::new()
-                            .prefix(format!("{PREFIX}/old-input"))
-                            .middleware_alias("precognitive"),
-                        |routes| routes.post("/preview", save_old_input),
-                    )
+                routes.group(
+                    RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .get(&format!("{PREFIX}/set"), set)
+                            .get(&format!("{PREFIX}/inspect"), inspect)
+                            .get(&format!("{PREFIX}/advance"), advance)
+                            .get(&format!("{PREFIX}/remove"), remove)
+                            .get(&format!("{PREFIX}/seed-one"), seed_one)
+                            .get(&format!("{PREFIX}/seed-two"), seed_two)
+                            .get(&format!("{PREFIX}/probe"), probe)
+                            .post(&format!("{PREFIX}/old-input"), save_old_input)
+                            .get(&format!("{PREFIX}/old-input"), read_old_input)
+                            .post(&format!("{PREFIX}/old-input/default"), save_all_old_input)
+                            .get(&format!("{PREFIX}/previous/named"), previous_visit)
+                            .name("contract.session.previous.named")
+                            .get(&format!("{PREFIX}/previous/anonymous"), previous_visit)
+                            .post(&format!("{PREFIX}/previous/read"), previous_read)
+                            .group(
+                                RouteGroup::new()
+                                    .prefix(format!("{PREFIX}/previous"))
+                                    .middleware_alias("precognitive"),
+                                |routes| routes.get("/preview", previous_visit),
+                            )
+                            .group(
+                                RouteGroup::new()
+                                    .prefix(format!("{PREFIX}/old-input"))
+                                    .middleware_alias("precognitive"),
+                                |routes| routes.post("/preview", save_old_input),
+                            )
+                    },
+                )
             })?;
             Ok(())
         })
@@ -118,6 +125,28 @@ impl ServiceProvider for SessionRoutes {
 struct SessionApplication<A, const EXISTING: bool>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application, const EXISTING: bool> Application for SessionApplication<A, EXISTING> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        // 同类型 Provider 保留先登记项；显式测试 driver 必须先排除默认 Session。
+        let providers = A::default_providers();
+        if EXISTING {
+            providers
+        } else {
+            providers.except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+        }
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
@@ -281,6 +310,23 @@ pub async fn assert_request_session<A: Application>(
 struct CookieSessionApplication<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for CookieSessionApplication<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        // Cookie 场景显式替换 Session，不让默认项的同类型去重吞掉替换。
+        A::default_providers().except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
@@ -1001,10 +1047,17 @@ struct OriginalHostRoutes;
 impl ServiceProvider for OriginalHostRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| {
-                routes
-                    .get("/__original-session/write", original_write)
-                    .get("/__original-session/read", original_read)
+            app.routes(|routes: Routes| {
+                routes.group(
+                    RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .get("/__original-session/write", original_write)
+                            .get("/__original-session/read", original_read)
+                    },
+                )
             })?;
             Ok(())
         })
@@ -1022,19 +1075,27 @@ async fn original_read(session: Session) -> openrust::Result<Json<Value>> {
 struct OriginalHost<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for OriginalHost<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        A::default_providers()
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers = A::providers(config);
-        assert_eq!(
-            providers
-                .iter()
-                .filter(|provider| provider.id()
-                    == openrust::core::ProviderId::of::<SessionServiceProvider>())
-                .count(),
-            1
-        );
         providers.push(Box::new(OriginalHostRoutes));
         providers
     }
@@ -1048,8 +1109,23 @@ pub async fn assert_original_host_cookie_session<A: Application>(
     let source = source.merge(figment::providers::Serialized::defaults(
         json!({"session":{"driver":"cookie","cookie":"original_host_session","secure":false,"lottery":[1,1]}}),
     ));
+    let configuration: A::Config = source.extract().map_err(openrust::Error::internal)?;
     let mut app = TestApp::<OriginalHost<A>>::builder(source).build().await?;
     let outcome: openrust::Result<()> = async {
+        let mut providers = A::default_providers().resolve(&app.app()?.config_repository())?;
+        providers.extend(A::package_providers(&configuration));
+        providers.extend(A::additional_providers());
+        if A::with_bootstrap_providers() {
+            providers.extend(A::providers(&configuration));
+        }
+        assert_eq!(
+            providers
+                .iter()
+                .filter(|provider| provider.id()
+                    == openrust::core::ProviderId::of::<SessionServiceProvider>())
+                .count(),
+            1,
+        );
         let response = app
             .request_with_limits(
                 Request::get("/__original-session/write")

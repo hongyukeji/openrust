@@ -12,4 +12,4 @@
 - F4c 增加 `TaggedCacheStore::get_stale_while_revalidate` 与 `[cache.swr].max_in_flight_refreshes`；TTL 同时界定 fresh/stale 与最终过期，不返回超窗旧值。Redis 用 Redis `TIME`，tag generation 在 stale 返回前核验且在刷新写入时原子比较；真实 Redis 双连接 server 集成验证跨连接刷新可见。应用命令退出、HTTP 停机/异常触发后台 refresh 取消与 join，超过统一停机 deadline 会 abort；注册 `SharedLocks` 时 best-effort 降低跨实例重复刷新，锁故障回退本机协调，不保证 exactly-once。
 - CLI 生成应用默认启用 `cache-redis` 并安装 `CacheServiceProvider`。`openrust dev` 复用可达 loopback Redis；否则用 workspace `compose.ci.yaml` 启动 Redis。生产与 `serve` 不自动编排依赖。
 
-验收入口和未覆盖边界见 [`memory/testing.md`](../memory/testing.md) 与 [ADR-014](../decisions/adr-014-cache-driver-and-store-contract.md)。
+验收入口和未覆盖边界见 [`memory/testing.md`](../memory/testing.md) 与 历史决策 014。

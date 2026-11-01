@@ -22,14 +22,12 @@ async fn binding_extension_preserves_default_greeting() -> Result<(), Box<dyn st
 }
 
 #[tokio::test]
-async fn binding_extension_uses_module_overlay_before_first_resolve()
+async fn binding_extension_uses_module_code_config_before_first_resolve()
 -> Result<(), Box<dyn std::error::Error>> {
     let deployed = tempfile::tempdir()?;
-    let module_config = deployed.path().join("modules/example/config");
-    std::fs::create_dir_all(&module_config)?;
     std::fs::write(
-        module_config.join("config.toml"),
-        "greeting = 'Hello from isolated module overlay'\n",
+        deployed.path().join(".env"),
+        "EXAMPLE_GREETING=\"Hello from isolated module overlay\"\n",
     )?;
     assert_extension(
         deployed.path().to_path_buf(),
@@ -45,9 +43,10 @@ async fn assert_extension(
     let mut builder = ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
+        .provider(openrust::http::CookieServiceProvider::plain())
         .provider(openrust::db::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
-        .provider(ExampleServiceProvider::new(root));
+        .provider(ExampleServiceProvider::new(root.clone()));
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         openrust::config::FrameworkConfig::default(),
     ))
@@ -56,6 +55,11 @@ async fn assert_extension(
             "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}}
         }),
     ));
+    let manifest = <crate::bootstrap::Server as openrust::core::Application>::config();
+    let sources = openrust::config::ConfigLoader::application_code_sources(
+        &root, "APP_", None, &manifest,
+    )?
+    .merge_ordered_entries(sources.extract::<serde_json::Map<String, serde_json::Value>>()?)?;
     let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
     let service = app.state().resolve::<ExampleMessage>().await?;
     assert_eq!(service.text(), expected_greeting);

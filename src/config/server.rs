@@ -30,6 +30,8 @@ pub struct ServerConfig {
     pub trusted_proxy_ranges: Option<Vec<String>>,
     /// 可信代理可提供的转发头位掩码；默认使用 Laravel 的 X-Forwarded 集合。
     pub trusted_proxy_headers: u8,
+    /// Laravel `TrustHosts` 模式；`None` 表示不启用主机信任列表。
+    pub trusted_hosts: Option<TrustedHostsConfig>,
     /// 响应压缩设置。
     pub compression: CompressionConfig,
     /// 跨域请求设置。
@@ -56,8 +58,28 @@ impl Default for ServerConfig {
             metrics_endpoint_enabled: false,
             trusted_proxy_ranges: None,
             trusted_proxy_headers: crate::http::TrustedProxyHeaders::DEFAULT,
+            trusted_hosts: None,
             compression: CompressionConfig::default(),
             cors: CorsConfig::default(),
+        }
+    }
+}
+
+/// `[server.trusted_hosts]`：公开模式是 PCRE 模式体，不自动添加锚点。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TrustedHostsConfig {
+    /// `None` 使用 `app.url` 主机；显式空列表可与 `subdomains=false` 一起关闭限制。
+    pub at: Option<Vec<String>>,
+    /// 向显式列表追加 `app.url` 主机及任意层子域；默认启用。
+    pub subdomains: bool,
+}
+
+impl Default for TrustedHostsConfig {
+    fn default() -> Self {
+        Self {
+            at: None,
+            subdomains: true,
         }
     }
 }

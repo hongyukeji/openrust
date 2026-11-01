@@ -103,7 +103,10 @@ impl Command for ConfigClearCommand {
 }
 
 /// 重新引导同一应用类型，再保存最终配置仓储的完整有序值。
-pub(crate) struct ConfigCacheCommand<A>(pub(crate) std::marker::PhantomData<A>);
+pub(crate) struct ConfigCacheCommand<A> {
+    pub(crate) console_environment: Option<String>,
+    pub(crate) marker: std::marker::PhantomData<A>,
+}
 
 impl<A: crate::core::Application> Command for ConfigCacheCommand<A> {
     fn name(&self) -> &'static str {
@@ -116,9 +119,16 @@ impl<A: crate::core::Application> Command for ConfigCacheCommand<A> {
 
     fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            if A::config().has_typed() {
+                return Err(crate::config::ConfigError::Invalid(
+                    "已编译配置含运行期 Rust 类型，不能创建配置缓存".to_owned(),
+                )
+                .into());
+            }
             crate::config::compiled::clear(app.config_cache_path()?)?;
             let fresh = crate::core::lifecycle::bootstrap_for_cache::<A>(
                 app.config_cache_path()?.to_path_buf(),
+                self.console_environment.as_deref(),
             )
             .await?;
             let result = fresh

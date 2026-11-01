@@ -63,17 +63,34 @@ impl ServiceProvider for Routes {
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|_, _| true);
+            })?;
             #[cfg(feature = "auth")]
-            app.routes(|routes| routes.get("/cookie/auth-save-failed", auth_save_failed))?;
             app.routes(|routes| {
-                routes
-                    .get("/cookie/one", one)
-                    .get("/cookie/two", two)
-                    .get("/cookie/read", read)
-                    .get("/cookie/renew", renew)
-                    .get("/cookie/logout", logout)
-                    .get("/cookie/cancel", cancel)
-                    .get("/cookie/renew-failed", renew_failed)
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| routes.get("/cookie/auth-save-failed", auth_save_failed),
+                )
+            })?;
+            app.routes(|routes| {
+                routes.group(
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
+                    |routes| {
+                        routes
+                            .get("/cookie/one", one)
+                            .get("/cookie/two", two)
+                            .get("/cookie/read", read)
+                            .get("/cookie/renew", renew)
+                            .get("/cookie/logout", logout)
+                            .get("/cookie/cancel", cancel)
+                            .get("/cookie/renew-failed", renew_failed)
+                    },
+                )
             })?;
             Ok(())
         })

@@ -10,10 +10,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crate::core::exception_handler::ExceptionRegistry;
 use crate::core::{ApiResponse, App, AppState, BootContext, Error, Result};
+use crate::core::{ExceptionHandler, ExceptionRequest};
 use axum::Router;
 use axum::body::Body;
-use axum::extract::{Request, State};
+use axum::extract::{FromRequestParts, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -22,12 +24,14 @@ use bytes::Bytes;
 use http_body::{Body as HttpBody, Frame, SizeHint};
 use tower::{Layer, Service};
 
+use crate::http::authority::authority;
 use crate::http::client_ip::validate_trusted_proxy_ranges;
 use crate::http::health;
 use crate::http::middleware;
 pub use crate::http::routes::Routes;
 use crate::http::routes::{MiddlewareLayerBuilder, MiddlewareRegistry, assemble};
 use crate::http::serve::ServeCommand;
+use crate::http::trusted_hosts::TrustedHostsSnapshot;
 
 /// 注册根宿主的框架信息 API `GET /api`。
 ///
@@ -53,6 +57,50 @@ struct RouterLayerRegistry {
     builders: Vec<RouterLayerBuilder>,
 }
 
+type TrustedHostsCallback =
+    Arc<dyn Fn(AppState) -> crate::core::BoxFuture<'static, Result<Vec<String>>> + Send + Sync>;
+
+#[derive(Clone)]
+enum TrustedHostsSource {
+    Static(crate::config::TrustedHostsConfig),
+    Dynamic {
+        callback: TrustedHostsCallback,
+        subdomains: bool,
+    },
+}
+
+#[derive(Default)]
+struct TrustedHostsRegistry(Option<TrustedHostsSource>);
+
+#[derive(Clone)]
+struct TrustedHostsRuntime {
+    app: AppState,
+    source: Option<TrustedHostsSource>,
+}
+
+impl TrustedHostsRuntime {
+    async fn snapshot(&self) -> Result<TrustedHostsSnapshot> {
+        let app_url = &self.app.config().app.url;
+        match &self.source {
+            None => Ok(TrustedHostsSnapshot::disabled()),
+            Some(TrustedHostsSource::Static(config)) => {
+                Ok(TrustedHostsSnapshot::from_config(config, app_url))
+            }
+            Some(TrustedHostsSource::Dynamic {
+                callback,
+                subdomains,
+            }) => {
+                let patterns = callback(self.app.clone()).await.map_err(Error::internal)?;
+                Ok(TrustedHostsSnapshot::from_patterns(
+                    Some(patterns),
+                    *subdomains,
+                    app_url,
+                ))
+            }
+        }
+    }
+}
+
 /// 注册阶段收集的路由构建器；构建 router 时按顺序应用。
 #[derive(Default)]
 pub struct RouteRegistry {
@@ -60,6 +108,8 @@ pub struct RouteRegistry {
     middleware: MiddlewareRegistry,
     root_controller_namespace: Option<String>,
     signed_except: Vec<String>,
+    #[cfg(feature = "session")]
+    forgery: crate::http::PreventRequestForgery,
 }
 
 impl RouteRegistry {
@@ -75,6 +125,37 @@ impl RouteRegistry {
 }
 
 impl BootContext<'_> {
+    /// 为当前应用设置静态可信主机模式，覆盖 `[server.trusted_hosts]`。
+    pub fn trust_hosts(&mut self, config: crate::config::TrustedHostsConfig) -> Result<&mut Self> {
+        self.extension_mut::<TrustedHostsRegistry>()?.0 = Some(TrustedHostsSource::Static(config));
+        Ok(self)
+    }
+
+    /// 每个请求求值一次公开 PCRE 模式；后登记的策略覆盖先登记者。
+    pub fn trust_hosts_with<F>(&mut self, subdomains: bool, callback: F) -> Result<&mut Self>
+    where
+        F: Fn(AppState) -> crate::core::BoxFuture<'static, Result<Vec<String>>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.extension_mut::<TrustedHostsRegistry>()?.0 = Some(TrustedHostsSource::Dynamic {
+            callback: Arc::new(callback),
+            subdomains,
+        });
+        Ok(self)
+    }
+
+    /// 设置本应用默认 web 组的请求伪造策略；仅影响该应用最终 Router。
+    #[cfg(feature = "session")]
+    pub fn prevent_request_forgery(
+        &mut self,
+        policy: crate::http::PreventRequestForgery,
+    ) -> Result<&mut Self> {
+        self.extension_mut::<RouteRegistry>()?.forgery = policy;
+        Ok(self)
+    }
+
     /// 在 Provider boot 阶段贡献路由。
     pub fn routes<F>(&mut self, builder: F) -> Result<&mut Self>
     where
@@ -239,6 +320,14 @@ impl crate::core::ServiceProvider for HttpServiceProvider {
                 ("trusted_proxy_ranges", strings().nullable()),
                 ("trusted_proxy_headers", Schema::Integer),
                 (
+                    "trusted_hosts",
+                    Schema::object([
+                        ("at", strings().nullable()),
+                        ("subdomains", Schema::Boolean),
+                    ])
+                    .nullable(),
+                ),
+                (
                     "compression",
                     Schema::object([("enabled", Schema::Boolean)]),
                 ),
@@ -358,6 +447,10 @@ pub(crate) struct HttpPluginInstalled;
 /// 通过 `BootContext::routes` 注册的路由若在组装时 panic（例如 Axum 检测到重复路由），
 /// 此函数会将其转换为启动错误 `http_route_registration_failed`。直接调用底层 Axum 构建 API
 /// 不在此错误转换范围内。
+#[allow(
+    clippy::too_many_lines,
+    reason = "路由装配在同一入口保持 Provider、协议及中间件顺序"
+)]
 pub fn build_router(app: &App) -> Result<Router> {
     validate_trusted_proxy_ranges(app.config().server.trusted_proxy_ranges.as_deref())?;
     crate::http::proxy::validate_headers(app.config().server.trusted_proxy_headers)?;
@@ -372,6 +465,41 @@ pub fn build_router(app: &App) -> Result<Router> {
             .map(|registry| registry.signed_except.clone())
             .unwrap_or_default();
         middleware_registry.install_framework_defaults(signed_except)?;
+        let cookie = app
+            .extension::<crate::http::cookie::CookieRuntime>()
+            .and_then(|runtime| runtime.0.clone());
+        #[cfg(feature = "session")]
+        let session = app
+            .extension::<Option<crate::session::SessionRuntime>>()
+            .and_then(Option::as_ref)
+            .map(crate::session::SessionRuntime::layer)
+            .transpose()?
+            .flatten();
+        #[cfg(feature = "session")]
+        let forgery = cookie
+            .as_ref()
+            .zip(session.as_ref())
+            .map(|(cookie, session)| crate::http::forgery::ForgeryRuntime {
+                policy: app
+                    .extension::<RouteRegistry>()
+                    .map_or_else(crate::http::PreventRequestForgery::new, |registry| {
+                        registry.forgery.clone()
+                    }),
+                cookie: cookie.clone(),
+                session: session.settings.config.clone(),
+                session_cookie_name: session.settings.cookie_name.clone(),
+                testing_boot: app
+                    .extension::<crate::core::provider::TestingBoot>()
+                    .is_some()
+                    && app.config().app.env == crate::config::Environment::Testing,
+            });
+        middleware_registry.install_web_defaults(
+            cookie,
+            #[cfg(feature = "session")]
+            session,
+            #[cfg(feature = "session")]
+            forgery,
+        )?;
         middleware_registry.validate()?;
         let mut routes = Routes::with_middleware_registry(Arc::new(middleware_registry));
         if let Some(registry) = app.extension::<RouteRegistry>() {
@@ -408,10 +536,6 @@ pub fn build_router(app: &App) -> Result<Router> {
             stateful = build_layer(stateful)?;
         }
     }
-    // 固定优先级使 Cookie 解密始终先于 Session，与 Provider 声明顺序无关。
-    if let Some(runtime) = app.extension::<crate::http::cookie::CookieRuntime>() {
-        stateful = crate::http::cookie::middleware::apply(stateful, runtime);
-    }
     let calendar = app
         .extension::<crate::support::CalendarContext>()
         .cloned()
@@ -430,7 +554,18 @@ pub fn build_router(app: &App) -> Result<Router> {
         calendar,
         expose_calendar_context,
     ));
-    let app_router = middleware::apply(stateful, &app.config().server, &app.config().api)?;
+    let exceptions = Arc::new(
+        app.extension::<ExceptionRegistry>()
+            .map(|registry| registry.0.clone())
+            .unwrap_or_default(),
+    );
+    let app_router = middleware::apply(
+        stateful,
+        &app.config().server,
+        &app.config().api,
+        Arc::clone(&exceptions),
+        app.config().app.debug,
+    )?;
     let app_router = app_router.layer(axum::middleware::from_fn_with_state(
         route_urls.ok_or_else(|| {
             Error::custom(
@@ -440,8 +575,31 @@ pub fn build_router(app: &App) -> Result<Router> {
         })?,
         expose_route_urls,
     ));
+    let source = app
+        .extension::<TrustedHostsRegistry>()
+        .and_then(|registry| registry.0.clone())
+        .or_else(|| {
+            app.config()
+                .server
+                .trusted_hosts
+                .clone()
+                .map(TrustedHostsSource::Static)
+        });
+    let source = if app.is_local() || app.running_unit_tests() {
+        None
+    } else {
+        source
+    };
     Ok(app_router.layer(axum::middleware::from_fn_with_state(
-        app.state().clone(),
+        ExceptionRuntime {
+            state: app.state().clone(),
+            exceptions,
+            debug: app.config().app.debug,
+            trusted_hosts: TrustedHostsRuntime {
+                app: app.state().clone(),
+                source,
+            },
+        },
         expose_app_state,
     )))
 }
@@ -524,11 +682,33 @@ async fn expose_route_urls(
     next.run(request).await
 }
 
+#[derive(Clone)]
+struct ExceptionRuntime {
+    state: AppState,
+    exceptions: Arc<ExceptionHandler>,
+    debug: bool,
+    trusted_hosts: TrustedHostsRuntime,
+}
+
 async fn expose_app_state(
-    State(state): State<AppState>,
+    State(runtime): State<ExceptionRuntime>,
     mut request: Request,
     next: Next,
 ) -> Response {
+    let state = runtime.state.clone();
+    let trusted_hosts = match runtime.trusted_hosts.snapshot().await {
+        Ok(snapshot) => snapshot,
+        Err(error) => return render_early_error(&runtime, &request, error),
+    };
+    // 物理 Host 必须先通过 authority 语法与重复头检查；模式匹配使用可信代理后的有效 Host。
+    let physical_host = if runtime.trusted_hosts.source.is_some() {
+        match authority(request.headers(), request.uri()) {
+            Ok(host) => Some(host),
+            Err(error) => return render_early_error(&runtime, &request, error),
+        }
+    } else {
+        None
+    };
     if crate::http::proxy::platform_host(request.headers(), request.uri()) {
         request.headers_mut().remove("x-forwarded-host");
     }
@@ -538,10 +718,24 @@ async fn expose_app_state(
         request.extensions(),
         Some(&state.config().server),
     );
+    if let Some(physical_host) = physical_host {
+        let effective_host = match proxy
+            .context()
+            .and_then(crate::http::proxy::ProxyContext::host)
+        {
+            Ok(Some((host, _))) => host,
+            Ok(None) => physical_host,
+            Err(error) => return render_early_error(&runtime, &request, error),
+        };
+        if let Err(error) = trusted_hosts.check(&effective_host) {
+            return render_early_error(&runtime, &request, error);
+        }
+    }
+    request.extensions_mut().insert(trusted_hosts);
     request.extensions_mut().insert(proxy);
     let scope = match state.container().scope() {
         Ok(scope) => Arc::new(scope),
-        Err(error) => return error.into_response(),
+        Err(error) => return render_early_error(&runtime, &request, error),
     };
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
     request.extensions_mut().insert(state);
@@ -555,15 +749,42 @@ async fn expose_app_state(
             .insert(crate::http::route::RouteSlot::default());
     }
     request.extensions_mut().insert(Arc::clone(&scope));
-    let response = scope.run(next.run(request)).await.map(|body| {
-        Body::new(ScopeBody {
-            inner: body,
-            scope: Some(Arc::clone(&scope)),
-        })
-    });
+    let page = crate::db::query::PageContext::from_uri(request.uri());
+    let (mut parts, body) = request.into_parts();
+    let info = match crate::http::RequestInfo::from_request_parts(&mut parts, &()).await {
+        Ok(info) => info,
+        Err(error) => {
+            let request = Request::from_parts(parts, body);
+            return render_early_error(&runtime, &request, error);
+        }
+    };
+    let page = page.with_path_resolver(move || info.url());
+    let request = Request::from_parts(parts, body);
+    let response = scope
+        .run(crate::db::query::with_page_context(page, next.run(request)))
+        .await
+        .map(|body| {
+            Body::new(ScopeBody {
+                inner: body,
+                scope: Some(Arc::clone(&scope)),
+            })
+        });
     // 响应 body 已接管关闭责任；handler future 取消时 guard 仍会同步封闭 scope。
     close_on_cancel.0.take();
     response
+}
+
+fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Error) -> Response {
+    let view = ExceptionRequest::new(
+        request.method().clone(),
+        request.uri().path(),
+        crate::http::request::expects_json_headers(request.headers()),
+        "-",
+        runtime.debug,
+    );
+    #[cfg(feature = "view")]
+    let view = view.with_views(runtime.state.get::<crate::view::Views>());
+    runtime.exceptions.render_for_request(error, &view)
 }
 
 struct ScopeCloseGuard(Option<Arc<crate::core::container::Scope>>);

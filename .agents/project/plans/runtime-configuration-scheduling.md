@@ -1,7 +1,7 @@
 # 运行时配置、数据库队列与动态调度
 
 > 状态：V1底层设计/排期保留，未实现/未真实验收；所有可选快速开发模块/UI叙述均受[冻结闸门](optional-rapid-development-modules.md#开发与使用边界)约束，须用户明确开工，R14不自动授权。
-> 依据：[ADR-080](../decisions/adr-080-runtime-configuration-scheduling.md)、[Laravel 固定基线](laravel-rebuild-baseline.md)、[唯一队列](../todo.md)。
+> 依据：历史决策 080、[Laravel 固定基线](laravel-rebuild-baseline.md)、[唯一队列](../todo.md)。
 
 本计划遵[两阶段框架主线](laravel-rebuild.md#两阶段框架主线)：核心Config/Queue/Scheduler及安全/事务/每任务策略仍属阶段一；DB管理员业务设置与动态计划是阶段二通用增强，技术职责继续复用R2/R10。“V1必须”涵盖同V1两阶段，不取消本增强、不自动启动可选快速开发模块表单；已实现资产保留，必要核心依赖继续。
 
@@ -71,7 +71,7 @@
 
 ## 默认 DB 队列与事务
 
-- 沿用 [ADR-003](../decisions/adr-003-database-queue-default.md)、[ADR-037](../decisions/adr-037-queue-worker-lifecycle.md)、[ADR-046](../decisions/adr-046-redis-queue-driver.md)，`database` 为默认持久队列；显式 Redis connection 仍可选，不能热切 driver/凭据或失败后换本地队列。
+- 沿用 历史决策 003、历史决策 037、历史决策 046，`database` 为默认持久队列；显式 Redis connection 仍可选，不能热切 driver/凭据或失败后换本地队列。
 - 普通派发、同库同事务派发、Laravel `after_commit` 必须分别描述并测试：普通派发不自动与业务回滚绑定；同事务插入在提交后可见且回滚消失；after_commit 在外层提交后再派发，回滚不派发，提交到回调间崩溃可能丢失，不能称可靠 outbox。需可靠跨存储投递时在业务事务写 outbox，再由同一队列体系补偿投递，不能把 Redis 与 SQL 假称原子提交。
 - Job 仍由代码注册稳定名称和 payload schema/版本，旧未完成任务的 handler/参数兼容属于滚动升级契约。管理员只能向授权的 connection/queue 和已注册 schema 派发/重试；不允许 Rust/PHP/Java 字符串反射执行、任意命令或 shell。未注册版本、无权限、无效参数均显错，不吞任务。
 - 复用当前并发领取、lease/heartbeat/owner token、退避、timeout、failed/retry 关联和 SIGTERM/drain/join；至少一次与 handler 幂等边界保持，外部副作用不保证 exactly-once。运行状态、尝试和必要失败关联保留 DB，完成后有界清理与审计保留策略在 Spec 定义。

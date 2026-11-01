@@ -14,4 +14,4 @@
 | --- | --- |
 | `tools/performance/benches/db_routing.rs` | 连接 PostgreSQL/MySQL 主库和只读副本，运行串行 `SELECT 1`，输出吞吐及 p50/p95/p99 |
 
-运行方式与测试 URL 见 [performance README](../../../tools/performance/README.md)。根 package 不再声明该 bench target；普通 `cargo test` 不运行基准。完整 HTTP/业务性能、CPU/内存和集群负载验收仍按 [性能计划](../plans/v1-performance-and-readiness.md) 执行。
+运行方式与测试 URL 见 [performance README](../../../tools/performance/README.md)。根 package 不再声明该 bench target；普通 `cargo test` 不运行基准。完整 HTTP/业务性能、CPU/内存和集群负载验收仍按 性能计划 执行。

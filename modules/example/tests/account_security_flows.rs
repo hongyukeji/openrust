@@ -52,9 +52,11 @@ impl Fixture {
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":ORIGIN,"active_key_id":"test","keys":{"test":key}}},
             "session":{"secure":false,"cookie":"example_account_session","same_site":"strict"}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         let flows = app.app()?.state().resolve::<AuthFlows>().await?;
         let code = flows
             .register(EMAIL, PASSWORD, "fixture-seed")

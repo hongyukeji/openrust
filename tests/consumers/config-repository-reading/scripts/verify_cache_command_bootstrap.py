@@ -28,10 +28,10 @@ def require_task_copy(root_arg: Path) -> Path:
         Path(tempfile.gettempdir()).resolve(strict=True),
         Path("/tmp").resolve(strict=True),
     }
-    marker = root / ".openrust-config-cache-task-root"
+    marker = root / ".config-cache-task-root"
     if (
         root.parent.parent not in temporary_roots
-        or not root.parent.name.startswith("openrust-config-cache-")
+        or not root.parent.name.startswith("config-cache-")
         or marker.is_symlink()
         or not marker.is_file()
         or marker.read_text(encoding="utf-8").strip() != str(root)
@@ -108,7 +108,7 @@ def main() -> None:
     old_dotenv = dotenv.read_bytes() if dotenv.exists() else None
     original_sha = digest(config)
     dotenv_sha = digest(dotenv) if old_dotenv is not None else None
-    with tempfile.TemporaryDirectory(prefix="openrust-cache-command-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="cache-command-") as temporary:
         cache = Path(temporary) / "selected.json"
         other_cache = Path(temporary) / "other.json"
         other_cache.write_bytes(b"other-cache-preserved")

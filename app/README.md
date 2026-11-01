@@ -1,7 +1,13 @@
-# 应用装配
+# 应用代码
 
-`app/` 保留应用级装配；唯一综合业务示例位于 [`modules/example/`](../modules/example/README.md)。根 `src/main.rs` 只声明已编译模块与薄 server 入口，`bootstrap/app.rs` 通过 `Application::providers` 和 `Application::modules` 选择框架 Provider 与本次启动启用的模块。
+`app/` 可承载 Laravel 式应用控制器、模型和 Provider；`modules/<名称>/` 是可选并存的业务组织。唯一综合示例位于 [`modules/example/`](../modules/example/README.md)，无需把普通应用业务放入模块。两处代码共用框架的 Container、ServiceProvider 生命周期和路由机制。
 
-根 `config/`、`routes/`、`database/`、`resources/`、`public/` 与 `storage/` 提供通用应用职责；示例业务迁移、种子、视图、语言资源、协议、生成脚本和测试 fixture 均在 `modules/example/`。增加业务模块需在 `modules/mod.rs` 声明编译入口并在应用清单显式启用；运行状态只选择已编译模块，不热加载 Rust 源码。
+根 `src/main.rs` 是薄 server 入口。框架启动链从同次配置仓储装载默认 Provider，随后接入显式编译的包 Provider、`bootstrap/providers.rs` 的应用 Provider 与模块；`bootstrap/app.rs` 保持启动和模块装配。`app/mod.rs` 只声明 Rust 编译模块。应用控制器在 `app/http/controllers/` 编译声明后由 `routes/web.rs` 注册；模型在 `app/models/`；Provider 类型在 `app/providers/`，使用公开的 `ServiceProvider::register` 与 `boot`。这些 `mod.rs` 是 Rust 编译所需适配，不是另一套运行时。
 
-从仓库根运行 `cargo run` 与 `cargo test`。数据库、认证、队列等能力还需对应 Cargo feature、配置与外部服务；不会因启用模块而回退到内存模拟实现。
+生成应用可用 `openrust make:controller PostController`、`openrust make:model Post`（需数据库选项）和 `openrust make:provider CatalogServiceProvider`。控制器由开发者选择具体处理函数并在路由注册；Provider 生成后写入 `bootstrap/providers.rs`。生成器拒绝覆盖同名文件。`openrust generate model` 仍保留原字段驱动实体生成路径；`make:model` 创建应用根 `app/models/` 中的模型，可省略字段。
+
+根 `config/`、`routes/`、`database/`、`resources/`、`public/` 和 `storage/` 保持应用职责。新增模块在 `modules/mod.rs` 声明编译入口，并通过应用模块清单选择启用。数据库、认证、队列等能力仍需对应 Cargo feature、配置与实际服务。
+
+根 `config/*.rs` 是可编辑的 Rust 配置函数，由 `config/mod.rs` 显式声明和登记。`Application::config()` 把清单接入同一配置仓储；函数接收同次 dotenv 快照的 `ConfigContext`，可构造类型化值、条件分支和明确的环境默认值。`APP_DEBUG` 经严格布尔解析，非法值会使启动失败；部署默认关闭服务端错误详情。TOML 可通过公开来源 API 显式附加，默认启动不扫描 TOML。
+
+根应用当前 API 前缀固定为 `/api`，`AppServiceProvider` 通过公开的 Handler 扩展仅对该前缀选择统一 JSON 错误包装。若应用调整 API 路由前缀，应同步调整这个判定；HTML/Web 路由沿原有内容协商与异常渲染机制。

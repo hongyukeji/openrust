@@ -1,5 +1,25 @@
 # 配置仓储原始读写
 
+## Rust 代码配置
+
+应用的 `Application::config()` 返回显式 `ConfigManifest`：根 `config/mod.rs` 可用 `.section("app", app::config)` 逐项登记 `config/*.rs` 中已编译的普通 Rust 函数。启动先读取进程优先的部署变量及所选 dotenv，再把同次只读 `ConfigContext` 交给这些函数；`env`、`env_or`、`bool_or` 可读取字符串和严格布尔值，错误不输出部署值。代码区段在框架默认值之后、部署变量覆盖之前求值。默认应用启动不扫描 TOML；需要旧文件来源时须在清单中显式 `.with_toml()`，原有 `ConfigLoader::sources()` 仍保留文件配置能力。Rust 源码和 `mod` 声明改变后必须重新编译，部署值改变后重启生效。
+
+`.typed("example.runtime_policy", factory)` 可保存不可序列化 Rust 类型或工厂闭包，由 `ConfigRepository::typed::<T>(key)` 返回共享 `Arc<T>`；调用与资源关闭仍由 Provider/Container 负责。raw `all()` 只返回可序列化视图，不能代表 typed 值；同名及会互相遮蔽的父子路径写入被拒绝。模块 Provider 可在 boot 时调用 `BootContext::code_config(&manifest)`，沿用应用同一次环境快照并原子发布配置；缓存命中时跳过模块代码求值，含 typed 清单则明确拒绝缓存加载和创建。可序列化配置继续由现有 `config:cache` 写入最终值快照；失败不写半成品。
+
+可选 `[server.trusted_hosts]` 配置 Laravel 主机信任列表：缺省不启用；启用后 `at` 缺省由 `app.url` 主机生成 PCRE 模式，`subdomains` 默认 `true`。`at = []` 加 `subdomains = false` 表示空模式列表，不限制主机。应用或模块 Provider 可经 `BootContext::trust_hosts` / `trust_hosts_with` 覆盖静态配置。模式与物理/代理 Host 的校验顺序见 [HTTP 说明](../http/README.md#可信主机)。
+
+## 应用环境身份
+
+`app.env` 保存精确环境名称。未声明时按固定 Laravel `LoadConfiguration` 回调缺省为 `production`；Rust `config/app.rs` 函数或显式选择的 `config/app.toml` 可声明环境，外部进程 `APP_ENV` 优先于 `.env` 和代码/文件配置。根 `.env.example` 和 CLI 生成的 `.env.example` 显式选用 `development`，因此开发模板不会受到缺省值变化影响。`APP_ENV=local`、`development`、`dev`、`test`、`testing` 及自定义 `staging` 均保持不同身份，大小写和显式空字符串也保留。配置缓存命中时使用缓存内的 `app.env`。
+
+`App::environment()` 和 `AppState::environment()` 返回启动时名称；`environment_matches(["local", "stag*"])` 按 Laravel `Str::is` 的大小写敏感 `*` 模式检查。`is_local()` 只匹配 `local`，`is_production()` 只匹配 `production`，`running_unit_tests()` 只匹配 `testing`。Rust 将 PHP 的返回值重载与可变参数拆成独立读取和模式匹配方法；不从 Rust 测试进程状态猜测 `running_unit_tests`。已运行应用的配置仓储可以被显式写入，但这些启动身份查询使用启动快照，不重建旧服务。
+
+`ConfigLoader::environment_override()` 只报告显式指定的环境；`None` 表示最终身份由配置文件或默认值决定。最终名称从 `load_framework().app.env` 或已启动应用的 `environment()` 读取，避免把缺省提示误当作文件环境。`Environment` 按精确名称比较与哈希，即使使用 `Custom("production")` 构造也与 `Production` 表示同一值。
+
+现有邮件、短信的 `log` driver 和示例模块的 OIDC loopback/本地捕获限制继续使用独立的 `enforces_production_safety()` 策略；它对 `prod`、大小写变体和首尾空白仍执行旧生产保护。该安全策略不改变上述 Laravel 精确环境查询结果。
+
+应用二进制的控制台入口接受 `--env local` 或 `--env=local`，并尝试读取实际存在的 `.env.local`。找不到时再按外部 `APP_ENV`（自定义命名空间对应 `<PREFIX>ENV`）尝试专属文件，最后读取普通 `.env`；不会先从普通 `.env` 取环境名再反推专属文件。外部变量始终优先，最终应用身份仍以配置的 `app.env` 为准，控制台参数本身不强制改写身份。配置缓存命中时完全跳过 dotenv 文件；`config:cache` 的 fresh 引导沿用本次控制台文件选择。普通 `lifecycle::bootstrap` 不读取进程参数；嵌入式控制台可用 `lifecycle::bootstrap_for_console` 或 `run_with_args` 显式传参。
+
 ## 配置缓存
 
 应用二进制执行 `config:cache` 时，框架先清除本次选定的旧缓存，再用同一 `Application` 类型重新 bootstrap，完成所有 Provider 的 register、boot、最终校验，写入唯一配置仓储的最终有序值。`config:clear` 只清除该文件。默认文件是应用根的 `bootstrap/cache/config.json`；`APP_CONFIG_CACHE` 或应用自定命名空间的 `<PREFIX>CONFIG_CACHE` 可选绝对路径或相对应用根的路径。全局 `openrust` CLI 将这两个命令转发给应用二进制。
@@ -31,7 +51,7 @@
 
 核心原始写入在 Register、Boot、Frozen 阶段均可调用。Register/Boot 写入仍受后续启动 schema 校验约束；Frozen 后的写入允许任意可表达的 `serde_json::Value`，后续类型化读取不匹配时返回安全错误。注册、boot overlay 和 freeze 的阶段限制保持不变。`App::config_repository()`、`AppState::config_repository()` 与 Provider 返回同一共享句柄；`App::section<T>` 读取最新仓储。`App::config()`、`AppState::config()`、`App::figment()` 和已经解析的服务保留启动快照，不因内存写入自动重建。`clone()` 共享服务句柄；`all()` 返回独立值快照。
 
-运行期写入值与后续启动阶段的原始键序保存在同一仓储状态内；Figment 投影和来源元数据随同一版本原子发布。启动使用 `ConfigLoader::sources()` 返回的不可变 `ConfigSources`：默认值、已发现的 TOML 文件和环境层在同一次加载中形成原始值与 Figment 投影。可信应用代码也可用 `ConfigSources::from_ordered_entries([(key, value), …])?` 按输入顺序提供配置，重复根键覆盖原位置；`figment()` 借用对应类型化来源。`ConfigRepository::new`、应用 Provider 与 `TestApp` 可接收这个输入。`ConfigRepository::new(Figment)` 仍可用，但 Figment 的字典已排序，该转换有损，无法恢复原始声明顺序。应用启动的 typed 配置、`App::figment()` 与已解析服务仍是启动快照，后续 raw 写入只更新共享仓储。
+运行期写入值与后续启动阶段的原始键序保存在同一仓储状态内；Figment 投影和来源元数据随同一版本原子发布。默认应用引导使用 `ConfigManifest` 构成的不可变 `ConfigSources`：默认值、已编译 Rust 配置函数和环境层在同一次加载中形成原始值与 Figment 投影。显式选择旧 TOML 来源时，`ConfigLoader::sources()` 仍从默认值、文件和环境层构建来源。可信应用代码也可用 `ConfigSources::from_ordered_entries([(key, value), …])?` 按输入顺序提供配置，重复根键覆盖原位置；`figment()` 借用对应类型化来源。`ConfigRepository::new`、应用 Provider 与 `TestApp` 可接收这个输入。代码来源可用 `ConfigSources::merge_ordered_entries([(key, value), …])?` 显式追加优先级更高的 Global 覆盖：提供路径对各 profile 统一生效，其他字段保持各 profile 原值；同时保留原 profile、来源元数据、同次环境快照及 typed 值；typed/raw 路径冲突或已编译缓存来源明确拒绝。该方法不会恢复此前经 Figment 丢失的声明顺序。`ConfigRepository::new(Figment)` 仍可用，但 Figment 的字典已排序，该转换有损，无法恢复原始声明顺序。应用启动的 typed 配置、`App::figment()` 与已解析服务仍是启动快照，后续 raw 写入只更新共享仓储。
 
 有序入口沿现有 `php_entries` / `php_value` 规则表示规范数字键：连续 `0..n` 是列表，反序、稀疏或数字与字符串混合为有序对象，`01` 是字符串键；空根输入是空列表。Figment 要求根为字典，因此纯数字根列表在类型化投影中暂时展开为数字键字典；`ConfigRepository::all()` 保留列表形态。嵌套数组保持数组。原始值与投影值经同一来源验证，构造失败不发布半成品。固定 PHP 8.5.0 的值、键序、列表/混合/稀疏形态见 [golden fixture](../../tests/fixtures/config_runtime_set.json)；PHP 对象、Closure 和资源不属于 `serde_json::Value` 可表达范围，仍是公开差异。
 
@@ -39,10 +59,10 @@
 
 `ConfigLoader` 递归发现 `config/**/*.toml`，`config/app.toml` 内直接写 `name = ...`，`config/cache.toml` 内写 `[stores.redis]`；文件相对目录的点路径与文件名形成根配置键，例如应用自有的 `config/shop/feature.toml` 形成可按 `shop.feature.enabled` 读取的嵌套配置。完整映射键按自然序装载，文件内表和数组保持声明顺序。隐藏项忽略；目录符号链接不递归，文件符号链接按入口扩展名筛选、以目标真实 basename 命名。相同映射键由实际目录遍历中最后的文件覆盖，遍历次序依文件系统而定，不保证跨平台胜者。精确文件区段与框架及 Provider 注册的 base 默认值在顶层浅合并；`cache.stores` 等 Laravel `mergeableOptions` 指定选项只再合并一层，数字键按 PHP `array_merge` 追加并重新编号。仅有 `config/cache/custom.toml` 不把 `cache` 视为精确文件区段；若 `cache` 的 base 根仍待发布，最终根写入会覆盖子文件值，随后加载的环境层继续获胜。普通程序来源仍沿既有 typed 默认补齐。Rust TOML 无法表示 PHP 对象、Closure、资源；缺失隐式目录允许使用默认值，显式目录缺失或坏文件安全失败。文件层重建 Figment 投影时按根键保留前序文件来源元数据，环境层再附加自身来源；文件值与未覆盖的来源保持各自元数据，文件层的精确命名空间边界随同一来源进入仓储。DB/Redis 分项与环境层仍按原优先级在单次环境捕获中构造，`.env` 由启动流程先加载。模块 `ModuleConfigFiles` 的 overlay 是独立模块契约，不使用此应用文件命名规则；配置缓存、完整 PHP 值表示仍未验收。
 
-此写入仅供可信应用代码使用，保存在当前进程内；它不写文件或数据库、不跨节点传播，也不刷新 DB、Redis、邮件等已建资源。管理员 Settings、授权、密钥和待重启策略见 [ADR-080](../../.agents/project/decisions/adr-080-runtime-configuration-scheduling.md)，不由此原始写入接口代替。
+此写入仅供可信应用代码使用，保存在当前进程内；它不写文件或数据库、不跨节点传播，也不刷新 DB、Redis、邮件等已建资源。管理员 Settings、授权、密钥和待重启策略见 历史决策 080，不由此原始写入接口代替。
 
 成功返回的值与 `snapshot()` 一样可能包含秘密。调用方在日志、CLI 或 HTTP 输出前须使用适用脱敏机制。此读取簇的原始来源错误不显示来源提供的路径；类型化来源错误仅保留按 schema 层级核对的字段，来源提供的规范数字数组段显示为 `<index>`，动态 Map 名称显示为 `<entry>`。schema 自行校验数组时生成的索引仍可用于可信诊断；未知键和动态 Map 键不出现在错误路径中。这里的脱敏保证限于上述路径与原始来源错误，不能代替调用方对成功值及其他业务错误的审查。
 
 业务代码可按固定白名单键读取，例如 `repository.get_or("app.name", serde_json::json!("应用"))?`；返回值是原始 JSON，调用方仍须判断类型。独立公开 API 调用与边界测试位于 [config-repository-reading consumer](../../tests/consumers/config-repository-reading/README.md)。生成器建立空 `modules/`，开发者可在自己模块的 Provider 中取得 `BootContext::config_repository()` 并把其克隆放入业务服务；当前生成器不会复制唯一示例模块。
 
-当前接口与固定上游映射见 [ADR-086](../../.agents/project/decisions/adr-086-config-repository-reading.md)。唯一示例的固定业务入口见[模块路由](../../modules/example/routes/api.rs)与[服务](../../modules/example/services/config_reading.rs)；生成应用可显式安装上述 consumer 的 Provider。读取子簇的既有验收不代替本轮写入、应用接线及真实请求验证，也不代表完整 Laravel Config 已验收。
+当前接口与固定上游映射见 历史决策 086。唯一示例的固定业务入口见[模块路由](../../modules/example/routes/api.rs)与[服务](../../modules/example/services/config_reading.rs)；生成应用可显式安装上述 consumer 的 Provider。读取子簇的既有验收不代替本轮写入、应用接线及真实请求验证，也不代表完整 Laravel Config 已验收。

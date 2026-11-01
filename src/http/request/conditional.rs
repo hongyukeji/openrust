@@ -104,6 +104,18 @@ impl InputTruthy for Value {
         }
     }
 }
+impl InputTruthy for crate::support::DataValue {
+    fn is_truthy(&self) -> bool {
+        match self {
+            Self::Null => false,
+            Self::Bool(value) => value.is_truthy(),
+            Self::Number(value) => value.as_f64().is_some_and(|value| value.is_truthy()),
+            Self::String(value) => value.is_truthy(),
+            Self::Array(value) => value.is_truthy(),
+            Self::Object(_) => true,
+        }
+    }
+}
 impl InputTruthy for () {
     fn is_truthy(&self) -> bool {
         false

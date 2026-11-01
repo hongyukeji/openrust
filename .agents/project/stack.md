@@ -12,14 +12,15 @@
 | --- | --- | --- |
 | 异步运行时 | `tokio` 1.x | 唯一运行时；启用 `io-util` 支持 HTTP 验收与异步 I/O、`fs` 支持本地缓存异步文件操作 |
 | HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `fs` 提供静态目录/文件服务，`cors`、`compression-gzip`、`compression-br` 支持跨域与压缩，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
+| TrustedHosts 正则 | `pcre2` 精确 0.2.11（高层 bytes API，MIT OR Unlicense） | 固定 Symfony 模式需要 lookaround、反向引用和 PHP `{...}i` 分隔符语义，现有 Rust `regex` 子集不足；默认不启用 JIT/UTF。`pcre2-sys` 0.2.10 经安全高层调用 PCRE2 C（BSD-3-Clause WITH PCRE2-exception）；本库维持 `forbid(unsafe_code)`，但 native/unsafe 依赖、系统库优先或捆绑 C 编译、`cc`/`pkg-config` 等构建与链接成本需在统一门禁中实际记录。当前仅已声明直接依赖，锁定/实际链接版本、MSRV、跨平台与行为验证待最终集成。 |
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
-| Cookie | C04-C选用现锁中的 `cookie` 0.18.2作为直接HTTP依赖 | 独立于可选auth/session使用Cookie值与time类型，避免HTTP反向依赖auth；请求队列/wire解析及加密接线已按ADR-081完成C04-C子范围验收，完整Session/Web栈继续按后继执行。加密复用现Encryptor，不新增密码算法或PHP运行时依赖 |
-| 会话 | 唯一 `openrust::session`；复用现 `time`、`getrandom`、SeaORM 与可选 `redis` | 已移除tower-sessions；独立session feature，auth依赖session，session-redis不依赖auth。默认数据库、显式array/custom store，通过SessionServiceProvider装配；40位ID/属性flash与受管理请求生命周期见ADR-082。D3生成应用仅测试路径显式加入既有`time` 0.3 dev-dependency，用于外部SessionStore实现命名公开签名OffsetDateTime，不新增运行时选型或框架reexport。完整driver/Web生态未全交付 |
-| gRPC | 可选 `grpc` feature 使用 `tonic` / `tonic-prost` / `tonic-health` / `tonic-reflection` `~0.14.6`（当前 lock 解析为 0.14.7）、`prost` 0.14、`http-body-util` 0.1；应用代码生成用 `tonic-prost-build` `~0.14.6` | 显式启用 tonic `tls-ring`，并直接声明 `rustls` 0.23 ring 后端以在其他 TLS feature 同时启用时选定进程级 CryptoProvider，避免自动选择歧义；运行时依赖 MSRV 1.88，低于 workspace 1.97。默认构建不链接运行时或要求 `protoc`；生成应用使用 `protoc-bin-vendored` 3.3，不执行全局安装。rcgen 仅供独立 gRPC 示例生成临时测试证书。G2a TLS/mTLS、G2b JWT/PAT/Policy/Status、G2c 健康/reflection/调用预算/资源/有界停机、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由已完成对应验收；真实 L7 验收固定 Envoy 1.40.1。完整集群留在 M6，不自研 RPC 栈，见 ADR-040 |
+| Cookie | C04-C选用现锁中的 `cookie` 0.18.2作为直接HTTP依赖 | 独立于可选auth/session使用Cookie值与time类型，避免HTTP反向依赖auth；请求队列/wire解析及加密接线已按历史决策 081完成C04-C子范围验收，完整Session/Web栈继续按后继执行。加密复用现Encryptor，不新增密码算法或PHP运行时依赖 |
+| 会话 | 唯一 `openrust::session`；复用现 `time`、`getrandom`、SeaORM 与可选 `redis` | 已移除tower-sessions；独立session feature，auth依赖session，session-redis不依赖auth。默认数据库、显式array/custom store，通过SessionServiceProvider装配；40位ID/属性flash与受管理请求生命周期见历史决策 082。D3生成应用仅测试路径显式加入既有`time` 0.3 dev-dependency，用于外部SessionStore实现命名公开签名OffsetDateTime，不新增运行时选型或框架reexport。完整driver/Web生态未全交付 |
+| gRPC | 可选 `grpc` feature 使用 `tonic` / `tonic-prost` / `tonic-health` / `tonic-reflection` `~0.14.6`（当前 lock 解析为 0.14.7）、`prost` 0.14、`http-body-util` 0.1；应用代码生成用 `tonic-prost-build` `~0.14.6` | 显式启用 tonic `tls-ring`，并直接声明 `rustls` 0.23 ring 后端以在其他 TLS feature 同时启用时选定进程级 CryptoProvider，避免自动选择歧义；运行时依赖 MSRV 1.88，低于 workspace 1.97。默认构建不链接运行时或要求 `protoc`；生成应用使用 `protoc-bin-vendored` 3.3，不执行全局安装。rcgen 仅供独立 gRPC 示例生成临时测试证书。G2a TLS/mTLS、G2b JWT/PAT/Policy/Status、G2c 健康/reflection/调用预算/资源/有界停机、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由已完成对应验收；真实 L7 验收固定 Envoy 1.40.1。完整集群留在 M6，不自研 RPC 栈，见 历史决策 040 |
 | 实时通信 | 可选 `realtime` 启用 Axum WebSocket 与在线 SSE；`realtime-redis` 复用 `redis` 1.8.0 Pub/Sub 跨节点路由 | 本地无 Redis 的 transport 是显式选择；跨节点没有静默本地回退。主包 dev-dependency 与独立验收宿主 `tests/consumers/realtime/` 使用 `tokio-tungstenite` 0.29 做真实 WebSocket 回归；独立宿主另用 `reqwest` 0.13、`futures-util` 与 `bytes` 做双进程 TCP/WebSocket/SSE 及停机验收；Redis 8 服务为验收依赖 |
 | OpenAPI | 规划 `utoipa` + `utoipa-axum`，尚未引入 | 类型 schema、统一响应文档与非生产 `/docs` 均待实现 |
 | 出站 HTTP | `reqwest` 0.13（Rustls）、`ipnet` 2.11、`httpdate` 1.x | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；默认禁重定向和代理继承；`HttpClient::restricted` 可选执行目标主机/端口、DNS 全结果及公网地址策略，内网例外由主机 + CIDR + 端口显式登记；命名依赖隔离及可选进程内熔断复用此客户端 |
-| 外部 OIDC 客户端 | `oauth2` 5.0（禁用 crate 默认 feature）+ 现有 `jsonwebtoken` 11.1（aws-lc-rs） | 可选 `auth-oidc` feature 依赖 `auth`、`http-client`、`encryption`；授权码/PKCE/令牌交换由 oauth2 提供，OIDC Discovery/JWKS 与 ID Token 必需声明校验由框架 glue 完成并通过受限命名 `DependencyClient` 出站；避免引入 `openidconnect` 的受影响 `rsa` 依赖，见 ADR-053 |
+| 外部 OIDC 客户端 | `oauth2` 5.0（禁用 crate 默认 feature）+ 现有 `jsonwebtoken` 11.1（aws-lc-rs） | 可选 `auth-oidc` feature 依赖 `auth`、`http-client`、`encryption`；授权码/PKCE/令牌交换由 oauth2 提供，OIDC Discovery/JWKS 与 ID Token 必需声明校验由框架 glue 完成并通过受限命名 `DependencyClient` 出站；避免引入 `openidconnect` 的受影响 `rsa` 依赖，见 历史决策 053 |
 | 序列化 | `serde` + `serde_json`（`preserve_order`） | R2 包配置合并需要保留 JSON 对象的插入顺序以对应 PHP 数组键顺序；`indexmap` 已在锁图中。C04-B1 typed JSON 规范化保留原始数值词法以支持Rust u128/i128；不启用全局arbitrary_precision，避免serde_json数值的私有结构序列化破坏应用Figment配置来源。根集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
 | 国际化 | `openrust::i18n`、`serde_json` 与 ICU4X `icu_datetime`/`icu_decimal`/`icu_locale`/`icu_plurals` 2.3.x | 同一 catalog 支持字符串插值、CLDR plural/select；编译数据用于 locale 数字与公历日期格式化。仅启用所需组件；数据随二进制构建，不使用运行时网络。日期时区转换由调用方显式完成；最终二进制尺寸增量纳入 M6 构建基线测量 |
@@ -55,9 +56,10 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 
 | 能力 | 当前实现 | 待实现边界 |
 | --- | --- | --- |
-| 队列 | `queue` feature 下默认使用数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`）；可选 `queue-redis` 复用已有 `redis` 1.8.0 | Redis Queue 已通过 Redis 8.10.2 多连接、唯一派发、失败重试、租约恢复与 Redis-only server 集成验收；至少一次及事务/任务组限制见 ADR-046，Redis 持久性/复制与最低版本仍由部署和 v1 发布门禁负责 |
-| 调度 | `queue` feature；`Scheduler` + interval/UTC daily/五字段 cron，`cron-parser` 0.12 与 `chrono-tz` 0.10.4 | F1 已实现；cron 使用 IANA zoneinfo 表，DST gap 跳过、重复 wall minute 去重；有界补跑及双库验收见 ADR-037 |
+| 队列 | `queue` feature 下默认使用数据库 driver（历史决策 003，不依赖 `apalis`）；可选 `queue-redis` 复用已有 `redis` 1.8.0 | Redis Queue 已通过 Redis 8.10.2 多连接、唯一派发、失败重试、租约恢复与 Redis-only server 集成验收；至少一次及事务/任务组限制见 历史决策 046，Redis 持久性/复制与最低版本仍由部署和 v1 发布门禁负责 |
+| 调度 | `queue` feature；`Scheduler` + interval/UTC daily/五字段 cron，`cron-parser` 0.12 与 `chrono-tz` 0.10.4 | F1 已实现；cron 使用 IANA zoneinfo 表，DST gap 跳过、重复 wall minute 去重；有界补跑及双库验收见 历史决策 037 |
 | 缓存 | 根 `openrust::cache` 提供 Cache、命名 stores、memory/file 与公开 custom driver contract；Redis 由 `redis` 1.8.0、`connection-manager` + `tokio-rustls-comp` feature 提供 | 根 package 默认启用 `cache-redis`，与标准应用 Redis store 配置一致；`--no-default-features` 仅保留未编译 Redis driver 的库构建，显式 Redis 配置启动时拒绝，不回退 memory；Redis 6.2 最低版兼容仍待专项验收 |
+| 请求文件解析（C04-F分支限定交付） | Axum 0.8.9启用官方`multipart`，仅新增锁定`multer` 3.1.0（MIT、未声明MSRV，本簇Rust1.97适用检查已通过）；既有`tempfile` 3.27作为Request基础依赖，取消仅data-exchange-tasks启用的门槛 | 不手写multipart协议或安全临时文件；沿唯一Request提取与所有权/取消机制。既有`http-body-util`从grpc专属提升为基础直接依赖，用`LengthLimitError`区分413与底层I/O错误，未引入新版本。multipart上限与公开行为已完成C04-F任务分支限定门禁、生成应用、真实MySQL/TCP验收，已进入未提交main组合候选、尚未完成组合门禁；Rust1.97适用检查与deny已通过，不把它等同全部平台或完整MIME/Storage验收。当前锁仅新增multer，无既有第三方版本升级。 |
 | 存储 | OpenDAL 0.59.x（当前锁定 0.59.5）提供 filesystem/S3-compatible I/O；`bytes` 1.12 与 `futures-util` 0.3 承载有界流 | 根模块 `openrust::storage` 提供配置、流检查和 driver contract；默认不启用，`storage-local` 启用文件系统，`storage-s3` 增加 S3 服务和 Rustls HTTP transport；OpenDAL facade 关闭默认 feature，仅开启相应服务。S3 签名依赖链使用 `tiny-keccak`（CC0-1.0），许可在 `deny.toml` 中显式允许 |
 | S3 ACL（ST-V main限定集成） | 可选精确 `aws-sdk-s3` 1.152.0；关闭默认feature，仅 `rt-tokio/default-https-client/http-1x`，随 `storage-s3` 启用 | OpenDAL 0.59.5未公开对象ACL读取/修改；SDK用于GetObjectAcl/PutObjectAcl及最终CopyObject显式ACL，仍复用唯一Storage/现暂存流。官方声明MSRV1.94.1与Apache-2.0；当前锁图、Rust 1.97双feature检查与deny已在main验收；真实ACL启用/禁用bucket和迟到CopyObject仍待服务证据。不得读取系统凭据链、吞ACL错误或将可见性等同公网可达；真实范围见本簇Spec，未宣称真实ACL服务已验收。 |
 | Unix受限文件操作（ST-V main限定集成） | 可选精确 `rustix` 1.1.5，`default-features=false`、`fs/std`，仅Unix依赖且随storage-local启用 | 复用现锁定版本的安全dirfd/openat/fstat/fchmod/renameat接口，修复可见性修改硬链接与目录替换竞态；不写unsafe/手造syscall。std用于安全OwnedFd与标准文件互转；本地/公开driver/真实TCP限定行为已验收，其他平台与完整Filesystem仍开放。 |
@@ -94,7 +96,7 @@ Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只
 
 ## 已确认但尚未引入的底层补强
 
-[底层补齐计划](plans/v1-foundation-completion.md) F1–F10 是目标范围；具体版本、MSRV、许可证、安全维护和构建成本在实施 Spec 核实后登记。F1 使用 `cron-parser` 0.12 与 `chrono-tz` 0.10.4；F2 使用 ICU4X 2.3.x 编译数据组件，cargo feature 只启用日期、数字、locale 与复数能力，不引入运行时数据服务。
+底层补齐计划 F1–F10 是目标范围；具体版本、MSRV、许可证、安全维护和构建成本在实施 Spec 核实后登记。F1 使用 `cron-parser` 0.12 与 `chrono-tz` 0.10.4；F2 使用 ICU4X 2.3.x 编译数据组件，cargo feature 只启用日期、数字、locale 与复数能力，不引入运行时数据服务。
 
 - cron/时区、i18n 复数/地区格式化、邮件与生成模板优先成熟组件；候选名称仅供评估，不能当作已锁定选择。
 - OAuth2/OIDC、TOTP、CSV/XLSX 使用成熟协议/格式组件；复用本地认证/密钥、Queue/Storage，不自研协议和文件格式。

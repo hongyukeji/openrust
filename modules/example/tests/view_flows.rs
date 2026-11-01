@@ -2,6 +2,7 @@
 #![cfg(feature = "view")]
 
 use figment::{Figment, providers::Serialized};
+use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider};
 use openrust::http::axum;
 use openrust::http::axum::http::StatusCode;
 use openrust::testing::TestApp;
@@ -11,6 +12,41 @@ use tokio::sync::oneshot;
 type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 const BUDGET: Duration = Duration::from_secs(5);
 const PRIVATE: &str = "PRIVATE_TEMPLATE_SENTINEL";
+
+struct ViewApplication;
+impl Application for ViewApplication {
+    type Config = <crate::bootstrap::Server as Application>::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        crate::bootstrap::Server::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        crate::bootstrap::Server::default_providers()
+    }
+    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        let mut providers = crate::bootstrap::Server::providers(config);
+        providers.push(Box::new(ViewErrors));
+        providers
+    }
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        crate::bootstrap::Server::modules(config)
+    }
+}
+struct ViewErrors;
+impl ServiceProvider for ViewErrors {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|request, _| {
+                    request.path() == "/api"
+                        || request.path().starts_with("/api/")
+                        || request.path() == "/example/pages/about"
+                });
+            })?;
+            Ok(())
+        })
+    }
+}
 
 struct TcpServer {
     stop: Option<oneshot::Sender<()>>,
@@ -44,7 +80,7 @@ impl Drop for TcpServer {
     }
 }
 struct Fixture {
-    app: TestApp<crate::bootstrap::Server>,
+    app: TestApp<ViewApplication>,
     server: TcpServer,
     client: reqwest::Client,
     origin: String,
@@ -90,11 +126,14 @@ impl Fixture {
             "app":{"env":"test"},"modules_root":directory.path(),
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
-            "view":{"directory":app_views,"auto_reload":true}
+            "view":{"directory":app_views,"auto_reload":true},
+            "session":{"driver":"array","secure":false}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(source_config)
-            .build()
-            .await?;
+        let app = TestApp::<ViewApplication>::builder(crate::modules::example::test_sources(
+            &(source_config),
+        )?)
+        .build()
+        .await?;
         let router = openrust::http::build_router(app.app()?)?;
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let origin = format!("http://{}", listener.local_addr()?);
@@ -128,9 +167,16 @@ impl Fixture {
         })
     }
     async fn page(&self) -> TestResult<Page> {
+        self.page_accept("text/html").await
+    }
+    async fn page_accept(&self, accept: &str) -> TestResult<Page> {
+        self.request_page("/example/pages/about", accept).await
+    }
+    async fn request_page(&self, path: &str, accept: &str) -> TestResult<Page> {
         let mut response = self
             .client
-            .get(format!("{}/example/pages/about", self.origin))
+            .get(format!("{}{path}", self.origin))
+            .header("accept", accept)
             .send()
             .await?;
         let status = response.status();
@@ -194,13 +240,25 @@ async fn real_tcp_module_view_prefers_published_copy_and_falls_back_to_source() 
 async fn real_tcp_invalid_published_or_missing_source_view_fails_without_disclosing_paths()
 -> TestResult {
     let fixture = Fixture::start().await?;
+    // 启用业务模块后，宿主的 API 边界和额外网页错误策略仍须保留。
+    let api = fixture
+        .request_page("/api/nope", "application/json")
+        .await?;
+    assert_eq!(api.status, StatusCode::NOT_FOUND);
+    let api_body: serde_json::Value = serde_json::from_str(&api.text)?;
+    assert_eq!(api_body["code"], "not_found");
+    let outside = fixture.request_page("/apifoo", "application/json").await?;
+    assert_eq!(outside.status, StatusCode::NOT_FOUND);
+    let outside_body: serde_json::Value = serde_json::from_str(&outside.text)?;
+    assert!(outside_body.get("code").is_none());
+    assert!(outside_body["message"].is_string());
     std::fs::write(&fixture.published, format!("{PRIVATE} {{% if %}}"))?;
-    let invalid = fixture.page().await?;
+    let invalid = fixture.page_accept("application/json").await?;
     assert_safe_error(&fixture, &invalid)?;
     // 坏副本必须报错，不能静默回退到存在的源；删除两者后也不能借用根同名模板。
     std::fs::remove_file(&fixture.published)?;
     std::fs::remove_file(&fixture.source)?;
-    let missing = fixture.page().await?;
+    let missing = fixture.page_accept("application/json").await?;
     assert_safe_error(&fixture, &missing)?;
     assert!(!missing.text.contains("ROOT_VIEW_MUST_NOT_REPLACE_MODULE"));
     fixture.close().await

@@ -37,4 +37,6 @@ cargo test --test container_extension
 cargo test
 ```
 
-`generated_provider_extends_original_factory_in_boot_and_http` 对 `/api/generated/container-extension` 断言 `data.message == "from original factory"`、`data.extended == true`、`data.same_boot_instance == true`。另可在生成应用目录运行 `cargo run`，再从另一终端 `curl --noproxy '*' http://127.0.0.1:3000/api/generated/container-extension` 核对真实 TCP 响应中的同三项；端口以该生成应用的 `config/server.toml` 为准。安装脚本只修改该临时应用的 `bootstrap/app.rs`，复制 fixture 到 `app/container_extension.rs` 与 `tests/container_extension.rs`，遇到已修改的同名文件会拒绝覆盖。它只适用于当前生成骨架的固定锚点；骨架变化时显式失败。
+`generated_provider_extends_original_factory_in_boot_and_http` 对 `/api/generated/container-extension` 断言 `data.message == "from original factory"`、`data.extended == true`、`data.same_boot_instance == true`。另可在生成应用目录运行 `SERVER_PORT=3000 cargo run`，再从另一终端 `curl --noproxy '*' http://127.0.0.1:3000/api/generated/container-extension` 核对真实 TCP 响应中的同三项；默认服务配置位于可编辑的 `config/server.rs`，部署时可用 `SERVER_PORT` 指定监听端口。
+
+安装脚本在该临时应用的 `app/providers/mod.rs` 导出 fixture Provider，并在 `bootstrap/providers.rs` 的应用清单中登记；复制 fixture 到 `app/providers/container_extension.rs` 与 `tests/container_extension.rs`。测试入口显式编译同一 `app`、`bootstrap`、`config`、`modules` 和 `routes`，经生产 Provider 清单验证原 factory、boot 与 HTTP 同实例。脚本遇到已修改的同名 fixture 文件、部分或重复登记会拒绝覆盖，重复安装相同内容不会重复注册。它只适用于当前生成骨架的固定锚点；骨架变化时显式失败。

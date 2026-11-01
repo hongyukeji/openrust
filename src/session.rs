@@ -9,6 +9,8 @@ mod middleware;
 mod migration;
 mod name;
 mod provider;
+pub(crate) use middleware::{SessionLayer, handle as handle_session};
+pub(crate) use provider::SessionRuntime;
 mod request;
 mod state;
 mod store;

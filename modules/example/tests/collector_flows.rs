@@ -158,7 +158,7 @@ async fn await_evidence(id: &str, operation: &str, metrics: bool, baseline: usiz
             if text.contains(PRIVATE) {
                 return Err("private article input escaped into Collector evidence".into());
             }
-            // ADR-044 仅把入站 traceparent 作为 ExecutionMetadata 传递；这里用唯一
+            // 历史决策 044 仅把入站 traceparent 作为 ExecutionMetadata 传递；这里用唯一
             // service/run_id 与请求前的文件位置归属 OTel span，不冒称 W3C parent 已接入。
             let new = text
                 .get(baseline..)
@@ -225,9 +225,11 @@ impl Fixture {
             "auth":{"jwt":{"issuer":"http://example.test","audience":"collector-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(config)
-            .build()
-            .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(config))?,
+        )
+        .build()
+        .await?;
         let db = app.app()?.state().resolve::<Db>().await?;
         let connection = db.primary_connection()?;
         let users = db.quoted_table_name("users")?;

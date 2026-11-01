@@ -86,12 +86,16 @@ impl Fixture {
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
             "storage":{"default_disk":"shared","disks":{"shared":{"driver":"s3","bucket":bucket,"region":region,"endpoint":app_endpoint.unwrap_or(&endpoint),"access_key_id":access,"secret_access_key":secret,"root":root}}}
         })));
-        let a = TestApp::<crate::bootstrap::Server>::builder(source.clone())
-            .build()
-            .await?;
-        let b = TestApp::<crate::bootstrap::Server>::builder(source)
-            .build()
-            .await?;
+        let a = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source.clone()))?,
+        )
+        .build()
+        .await?;
+        let b = TestApp::<crate::bootstrap::Server>::builder(
+            crate::modules::example::test_sources(&(source))?,
+        )
+        .build()
+        .await?;
         for app in [&a, &b] {
             let config = app
                 .app()?
@@ -146,7 +150,7 @@ impl Fixture {
     async fn assert_staging_cleaned(&self) -> TestResult {
         tokio::time::timeout(Duration::from_secs(10), async {
             loop {
-                let entries = self.observer.list(".openrust-staging/").await?;
+                let entries = self.observer.list(".staging/").await?;
                 if entries.iter().all(|entry| entry.path().ends_with('/')) {
                     return Ok::<(), Box<dyn std::error::Error>>(());
                 }

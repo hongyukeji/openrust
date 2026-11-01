@@ -1,6 +1,10 @@
 //! 使用与生产相同的 Provider 清单测试应用 HTTP 路由。
+#[path = "../app/mod.rs"]
+mod app;
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../config/mod.rs"]
+mod config;
 #[path = "support/message_bags.rs"]
 mod message_bags;
 #[path = "../modules/mod.rs"]
@@ -31,6 +35,43 @@ use openrust::http::axum::{
 use openrust::testing::TestApp;
 use std::time::Duration;
 
+fn test_configuration() -> openrust::config::FrameworkConfig {
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.app.env = openrust::config::Environment::Testing;
+    config
+}
+
+// 生成应用在公开 server 配置上按精确环境启用主机信任列表。
+#[tokio::test]
+async fn generated_application_applies_trusted_hosts() -> Result<(), Box<dyn std::error::Error>> {
+    let mut config = test_configuration();
+    config.app.env = openrust::config::Environment::Development;
+    config.server.trusted_hosts = Some(openrust::config::TrustedHostsConfig::default());
+    let source = Figment::from(Serialized::defaults(config)).merge(Toml::string(
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    let mut app = TestApp::<GeneratedApplication>::builder(source)
+        .build()
+        .await?;
+    app.request(
+        Request::get("/api")
+            .header("host", "localhost")
+            .body(Body::empty())?,
+    )
+    .await?
+    .assert_status(StatusCode::OK)?;
+    app.request(
+        Request::get("/api")
+            .header("host", "attacker.test")
+            .body(Body::empty())?,
+    )
+    .await?
+    .assert_status(StatusCode::BAD_REQUEST)?;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
 struct RuntimeGreeting(&'static str);
 
 struct RuntimeGreetingProvider(&'static str);
@@ -51,12 +92,15 @@ impl ServiceProvider for RuntimeGreetingProvider {
 #[tokio::test]
 async fn generated_application_exposes_runtime_provider_registration()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+    let source = Figment::from(Serialized::defaults(test_configuration()))
         .merge(Toml::string("[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n"));
     let configuration: bootstrap::Configuration = source.extract()?;
     let builder =
         openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
     let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    assert_eq!(app.environment().as_str(), "testing");
+    assert!(app.running_unit_tests());
+    assert!(!app.is_production());
     let first = app
         .register_provider(RuntimeGreetingProvider("初次登记"))
         .await?;
@@ -89,7 +133,7 @@ async fn generated_application_exposes_runtime_provider_registration()
 #[tokio::test]
 async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[app]\nname = 'configured-application'\n[server]\nroot_target = 'view:index.html'\n[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -176,7 +220,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
 async fn generated_application_exposes_request_input_to_business_provider()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -188,7 +232,7 @@ async fn generated_application_exposes_request_input_to_business_provider()
 async fn generated_application_consumes_message_bags_through_business_provider()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -201,7 +245,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
 async fn generated_application_redirects_to_named_route_and_restores_errors()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -212,7 +256,7 @@ async fn generated_application_redirects_to_named_route_and_restores_errors()
 #[tokio::test]
 async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -225,7 +269,7 @@ async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn s
 async fn generated_application_exposes_session_lifecycle() -> Result<(), Box<dyn std::error::Error>>
 {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
@@ -238,7 +282,7 @@ async fn generated_application_exposes_session_lifecycle() -> Result<(), Box<dyn
 async fn generated_original_host_supports_explicit_cookie_session_without_database()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",

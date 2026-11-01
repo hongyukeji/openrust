@@ -242,7 +242,9 @@ async fn real_tls_and_http_share_module_binding_and_one_supervised_shutdown() ->
     })));
     let closed = Arc::new(AtomicUsize::new(0));
     let observed = Arc::clone(&closed);
-    let mut builder = TestApp::<crate::bootstrap::Server>::builder(source);
+    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(source))?,
+    );
     builder.configure_after_register(move |bindings| {
         let closed = Arc::clone(&observed);
         Box::pin(async move {

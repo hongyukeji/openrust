@@ -1,8 +1,0 @@
-[signed_links]
-issuer = "http://localhost:3000"
-active_key_id = "local"
-keys = {}
-
-[encryption]
-active_key_id = "local"
-keys = {}
