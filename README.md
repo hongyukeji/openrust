@@ -1,10 +1,10 @@
-# OpenRust — Laravel + Laravel Modules 的 Rust 实现
+# OpenRust — Laravel 的 Rust 实现
 
-> Laravel + Laravel Modules = OpenRust。以 Rust 语言 1:1 实现 Laravel 的框架能力与 Laravel Modules 的模块化开发机制。
+> 以 Rust 语言 1:1 实现 Laravel 的框架能力与开发体验，默认集成优秀的第三方扩展。
 
 OpenRust 面向熟悉 Laravel 的开发者：目标是让开发者沿用 Laravel 官方文档中的概念和操作流程，用 Rust 编写应用。以固定版本的 Laravel 文档、源码和测试为实现基准，逐项对应服务容器、Service Provider、路由、数据库、认证、队列等能力；Goravel 作为跨语言实现参考。
 
-模块化是框架正式能力：以 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules) 为对应上游，通过统一的 Service Provider 与服务容器接入 `modules/<模块名>/` 中的业务代码、路由、配置、迁移和资源。模块创建、注册、管理与测试纳入实施范围；`modules/example/` 是完整 CRUD、框架调用及扩展方式的唯一综合参考。以上为实现目标，当前模块能力与验收缺口按实施计划逐项记录。
+框架默认集成的第三方扩展包括模块化能力，以 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules) 为对应上游，通过统一的 Service Provider 与服务容器接入 `modules/<模块名>/` 中的业务代码、路由、配置、迁移和资源。模块创建、注册、管理与测试纳入实施范围；`modules/example/` 是完整 CRUD、框架调用及扩展方式的唯一综合参考。以上为实现目标，当前模块能力与验收缺口按实施计划逐项记录。
 
 **当前状态：全面重构进行中，尚未完成 Laravel 1:1 等价验收。** 每项能力须经过实现、行为测试、综合示例和适用的真实服务验收；已实现代码、目标能力及未验收项分别记录，详见[实施计划](.agents/project/plans/laravel-rebuild.md)。
 

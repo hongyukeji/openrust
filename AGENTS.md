@@ -6,7 +6,7 @@
 
 ## 当前设计授权
 
-正式定位为 **Laravel + laravel-modules = OpenRust**：用 Rust 1:1 实现固定基线 Laravel 框架能力与 laravel-modules 模块化能力，并持续跟进上游。目录、概念、命名、默认行为、工作流和扩展方式以 Laravel 为准；仅在 Rust 语言、运行时或工具约束确有必要时适配，并记录原因与等价行为证据。上游跟进与版本范围规则见 [总计划](.agents/project/plans/laravel-rebuild.md#长期上游跟进)。
+对外定位为 **OpenRust — Laravel 的 Rust 实现**，Laravel Modules 是默认集成的优秀第三方扩展，不与 Laravel 并列为项目品牌。实现范围不变：用 Rust 1:1 实现固定基线 Laravel 框架能力与 laravel-modules 模块化能力，并持续跟进上游。目录、概念、命名、默认行为、工作流和扩展方式以 Laravel 为准；仅在 Rust 语言、运行时或工具约束确有必要时适配，并记录原因与等价行为证据。上游跟进与版本范围规则见 [总计划](.agents/project/plans/laravel-rebuild.md#长期上游跟进)。
 
 1:1 以逐项功能与可观察语义、默认值、错误/安全边界、Container/Provider 生命周期、扩展契约和 CLI/生成/测试/部署流程为验收；Laravel 使用者可按官方章节完成对应操作，仅 Rust 语法、类型、所有权、async 等确有必要时适配。不是 PHP 运行环境或字节兼容。每项须具备上游源码/测试→Rust API/配置→等价行为测试→modules/example→文档→真实服务证据；名称近似、旧测试或目录相似不算完成。适用核心能力不得因难度、个人偏好或“Rust 惯用”被划为不适用。差异按[对应与分类规则](.agents/project/plans/laravel-rebuild.md#逐项对应与差异分类)公开记录，无法等价保留缺口，不虚报严格 1:1 已达成。
 
