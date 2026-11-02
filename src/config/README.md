@@ -51,11 +51,13 @@ assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localh
 
 `Configuration.application_root` 是应用运行根锚点，缺省为当前工作目录；模块资源仍从该根下的 `modules/<模块名>/` 解析。`ModuleManifest::from_config(&root, &config.modules)` 将状态文件的相对路径锚定到同一应用根，绝对路径保持原值。例如可将状态单独放在 `state/modules.json`，而不移动模块源码、语言或视图。不会自动搬迁旧状态文件；`APP_CONFIG_DIR` 也不会替应用选择资源根。生成的 `modules::manifest(root, &config.modules)` 使用同一入口。
 
-`file` 通过已编译清单选择；自定义激活器须先用 `register_activator` 登记，未知名称启动失败。源码清单中的 `ModuleManifest::enable/disable` 只调整本次构建，持久写使用 [模块管理服务与命令](../core/README.md#编译模块与持久启停)。普通只读自定义激活器的写操作明确拒绝，不回退到默认文件。
+默认 `file` 在实际激活器构造时读取一次，后续 `snapshot/has_status` 使用该实例缓存，外部进程写文件不会刷新它。自身 set/delete 先更新缓存再写；写失败缓存不回滚，后续成功写保留尚未持久化的自身变更。`file-live` 是显式实时读取扩展，可用 `MODULES_ACTIVATOR=file-live` 选择，复用同一状态路径；它不冒充上游默认。`FileModuleActivator::new(path)` 返回 `Result`，坏文件在构造处失败，手工恢复可显式调用 `FileModuleActivator::reset_file(path)`。
 
-状态文件只认模块声明名的精确键和 JSON 布尔 `true`；缺文件、缺键、null 或其他值不启用，损坏 JSON 不当作空文件覆写。`Module::is_disabled()` 是启用判断的否定；`has_status(false)` 则按精确布尔规则比较，缺失/null 视为 false，其他非布尔值不等于 false。未知键和值会保留，但不会成为可执行模块。模块加载是每次 App 的快照；持久状态读取与写入不更改当前已加载的 Provider、路由或迁移历史。配置缓存可固定激活器及状态路径，**不缓存状态 JSON 内容**；改选路径后如已启用配置缓存，须显式重建或清除缓存。
+`file` 通过同一模块清单选择；自定义激活器须先用 `register_activator` 登记，未知名称启动失败。源码清单中的 `ModuleManifest::enable/disable` 只调整本次构建，持久写使用 [模块管理服务与命令](../core/README.md#编译模块与持久启停)。普通只读自定义激活器的写操作明确拒绝，不回退到默认文件。
 
-文件写在协作式 sidecar 锁内重读，保留其他键，经同目录临时文件同步后原子替换；忙锁报 `module_state_busy`，由调用方决定重试。事件和用户回调不在文件锁内执行；替换是提交点，提交后的事件失败不回滚状态。路径按符号链接目标协作；不同 hardlink 路径的等价锁定/替换语义及 Windows 原生文件系统行为仍待验收，不作已支持保证。与并发 `shutdown` 之间也不保证原子提交屏障；应用应协调管理动作与停机，而不是把一次生命周期检查当作事务锁。
+状态文件只认模块声明名的精确键和 JSON 布尔 `true`；缺文件、缺键、null 或其他值不启用，损坏 JSON 不当作空文件覆写。`Module::is_disabled()` 是启用判断的否定；`has_status(false)` 则按精确布尔规则比较，缺失/null 视为 false，其他非布尔值不等于 false。未知键和值会保留，但不会成为可执行模块。模块加载是每次 App 的快照；激活器实例状态与磁盘持久化结果分别观察，写入 Err 不代表内存未变；它们不更改当前已加载的 Provider、路由或迁移历史。配置缓存可固定激活器及状态路径，**不缓存状态 JSON 内容**；改选路径后如已启用配置缓存，须显式重建或清除缓存。
+
+默认缓存视图保持独立，文件写在协作式 sidecar 锁内重读，保留其他键，经同目录临时文件同步后原子替换；忙锁报 `module_state_busy`，由调用方决定重试。事件和用户回调不在文件锁内执行；替换是提交点，提交后的事件失败不回滚状态。缓存中 null/missing 的 delete 不写，文件已消失但缓存仍有记录时 delete 重建剩余内容；reset 即使文件已消失也清缓存。严格 IO 错误仍显式返回 Err，这是保留增强，区别于上游 reset 可能忽略底层 delete=false。空表和连续数字键写成 PHP 列表形状；外来非空列表或等价 numeric 对象拒绝，不能覆盖未知坏文件。只有同一实例对同一解析目标已成功提交且字节精确匹配的列表，才允许自身后续读写恢复。路径按符号链接目标协作；不同 hardlink 路径的等价锁定/替换语义及 Windows 原生文件系统行为仍待验收，不作已支持保证。与并发 `shutdown` 之间也不保证原子提交屏障；应用应协调管理动作与停机，而不是把一次生命周期检查当作事务锁。
 
 `paths.modules` 默认 modules（获准目录约定），`scan.enabled` 默认 false、`scan.paths` 默认 vendor/*/*；主路径与状态文件独立。运行发现读取 module.json，按声明调用已编译 Provider/文件初始化绑定，不能执行未编译 Rust。MODULES_PATH 覆盖主路径；metadata读取在包register，仓储get_path动态读当前配置，不热挂卸资源。
 

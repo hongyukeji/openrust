@@ -2,6 +2,7 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::{ConfigLoader, ConfigManifest, ConfigSources, FrameworkConfig};
+use openrust::core::{FileModuleActivator, ModuleRepository};
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -136,6 +137,7 @@ async fn check_state(app: &ServerApp, enabled: bool, events: &[&str]) -> Result<
 
 async fn verify_changes(root: &Path, apps: &mut Vec<ServerApp>) -> Result<()> {
     apps.push(start(root).await?);
+    let live = FileModuleActivator::new(root.join("state/example.json"))?.with_live_reads();
     check_state(instance(apps, 0)?, true, &[]).await?;
     instance(apps, 0)?
         .app()?
@@ -143,12 +145,40 @@ async fn verify_changes(root: &Path, apps: &mut Vec<ServerApp>) -> Result<()> {
         .await?;
     let disabling = ["modules.example.disabling", "modules.example.disabled"];
     check_state(instance(apps, 0)?, false, &disabling).await?;
+    check(
+        live.has_status("example", false)?,
+        "显式 live 驱动未观察禁用写入",
+    )?;
     status(instance(apps, 0)?, "/api/example", StatusCode::OK).await?;
 
     apps.push(start(root).await?);
     status(instance(apps, 1)?, MODULE_STATE, StatusCode::NOT_FOUND).await?;
     status(instance(apps, 1)?, "/api/example", StatusCode::NOT_FOUND).await?;
     status(instance(apps, 1)?, "/api", StatusCode::OK).await?;
+    let second_repository = instance(apps, 1)?
+        .app()?
+        .state()
+        .resolve::<ModuleRepository>()
+        .await?;
+    let second_module = second_repository.find_or_fail("example")?;
+    instance(apps, 1)?
+        .app()?
+        .run_command("module:enable", vec!["example".to_owned()])
+        .await?;
+    check(
+        second_module.is_enabled()? && !second_module.is_loaded(),
+        "第二实例自身启用应更新缓存，但不能热加载模块",
+    )?;
+    check_state(instance(apps, 0)?, false, &disabling).await?;
+    check(
+        live.has_status("example", true)?,
+        "显式 live 驱动未观察其他实例写入",
+    )?;
+    status(instance(apps, 1)?, MODULE_STATE, StatusCode::NOT_FOUND).await?;
+    instance(apps, 1)?
+        .app()?
+        .run_command("module:disable", vec!["example".to_owned()])
+        .await?;
 
     instance(apps, 0)?
         .app()?
@@ -161,7 +191,15 @@ async fn verify_changes(root: &Path, apps: &mut Vec<ServerApp>) -> Result<()> {
         "modules.example.enabled",
     ];
     check_state(instance(apps, 0)?, true, &changes).await?;
-    // 已启动的第二实例不会因文件重新启用而热挂 Provider 或路由。
+    // 默认实例保留自己的状态缓存；只有显式 live 驱动读取其他实例的新写入。
+    check(
+        second_module.is_disabled()? && !second_module.is_loaded(),
+        "其他实例写盘不应刷新第二实例缓存或已加载资源",
+    )?;
+    check(
+        live.has_status("example", true)?,
+        "显式 live 驱动未观察重新启用",
+    )?;
     status(instance(apps, 1)?, MODULE_STATE, StatusCode::NOT_FOUND).await?;
     status(instance(apps, 1)?, "/api", StatusCode::OK).await?;
 

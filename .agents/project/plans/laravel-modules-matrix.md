@@ -73,8 +73,8 @@ R2交共享Provider/Container、配置注册和模块依赖/贡献基础；R13�
 | --- | --- | --- | --- |
 | B001 / M005,M021 | Repository 扫描路径内 `module.json`，Manifest 另从扫描路径收集启用模块；不是只读取目录名。[S1][S2] | 已实现配置路径扫描metadata与命名编译绑定的[限定子范围](../memory/testing.md#模块运行发现与编译文件限定验收)；仓储/Provider资源取manifest目录，仅files使用module_directory覆盖。完整glob/非有限JSON/平台边界继续开放；modules小写为用户约定，不执行未编译Rust | T01 |
 | B002 / M019,M021 | `find` 先不区分大小写精确匹配，再 Studly 名回退；找不到 `findOrFail` 抛 ModuleNotFoundException。[S2][U1] | 保留身份查找顺序，Rust 路径名与显示名分开；错误含模块身份，不返回空模块 | T02 |
-| B003 / M008,M021 | FileActivator 没有状态键则 disabled；只有严格布尔 true 才 enabled。[S3][U2] | 缺失记录不默认启用；已发现旧实现fresh读盘与固定构造期实例快照不同，B003待优先整改；自身写失败内存语义、数字键与array_is_list归B003/B004，不用旧测试关闭 | T03 |
-| B004 / M008,M021 | 状态文件缺失、空白为无状态；损坏 JSON、非对象及非空列表报错并保留文件；空列表可读为空。[S3][U2] | 兼容导入状态解析必须保留这些可观察边界；诊断给路径/类别，不覆写损坏证据 | T04 |
+| B003 / M008,M021 | FileActivator 没有状态键则 disabled；只有严格布尔 true 才 enabled。[S3][U2] | 缺失记录不默认启用；构造期实例快照、自身写失败内存语义及顶层数字键已按限定范围验收；实时file-live/锁内合并/严格IO为公开增强。完整边界仍开放，见[实例缓存验收](../memory/testing.md#fileactivator-实例缓存限定验收) | T03 |
+| B004 / M008,M021 | 状态文件缺失、空白为无状态；损坏 JSON、非对象及非空列表报错并保留文件；空列表可读为空。[S3][U2] | 顶层PHP trim、空表/list及numeric对象拒绝、构造错误与原字节保护已限定验收；非有限数、未知嵌套形状/PHP字节编码完整等价仍开放，不覆写损坏证据 | T04 |
 | B005 / M018,M020 | enable/disable 改 activator；Module 发 enabling→enabled 或 disabling→disabled，setActive 直接更新不等于完整事件操作。[S3][S4][U3] | 管理结果和事件分开验证；失败不得发成功事件。运行状态改变不等于卸载当前 App | T05 |
 | B006 / M018,M020 | 多名称先 validateModules 再执行；无参数且非交互失败；`--all` 展开；动作失败汇总非零退出。[S5][U3] | CLI 语法可采用 Rust CLI 表达，但名称校验先于写状态；操作性失败不虚报事务式全回滚 | T06 |
 | B007 / M016 | Manifest providers→Laravel ProviderRepository；先 aliases，后 providers，再 include files。`Module::register/boot` 已 deprecated，包不调用。[S1][S4][S6] | 命名编译工厂/真正嵌套注册及ModuleFile已接唯一内核；aliases与完整ProviderRepository eager构造/编译缓存、deferred仍未交付，不复活deprecated Module生命周期，不以子范围关闭T07 | T07 |

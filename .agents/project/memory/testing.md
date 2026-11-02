@@ -1,5 +1,19 @@
 # 测试基线
 
+## FileActivator 实例缓存限定验收
+
+2026-11-02，d32162d后继；固定Modules5971484的FileActivator及Laravel d52c3b3 Filesystem/ConfigRepository。默认file构造读取、实例快照、自身修改先于写入且失败不回滚、cached null/missing delete无写、外部删除后重建剩余缓存及reset均按实际链整改。Manifest仅保存工厂，实际包register读取当前配置后构造；FileModuleActivator::new返回Result，显式reset_file保手工恢复。file-live/with_live_reads保实时增强，不作为官方默认。
+
+751输入最终冻结、attempt3十门禁全exit0：fmt、默认/全特性严格Clippy、workspace tests（harness汇总1159 passed/35 ignored、2002/112）、双拒警Rustdoc、no-default lib、精确Rust1.97.0、deny。跨target汇总不等于唯一行为数，ignored不计服务。默认cache/foreign隔离、busy失败pending续写、delete/null/missing、numeric list、自写同target且同字节恢复与外来重编码/符号链接改向拒绝均有实际回归；原fresh保护用例保为显式live，不以删断言求绿。
+
+临时固定PHP8.5.0/64位镜像执行真实FileActivator/Filesystem/ConfigRepository，只有Container服务寻址及Module.getName为替身；构造缓存、失败内存/重试、cached noop、缺文件重建、numeric list、新实例拒绝、空路径及reset delete=false均有输出/SHA。不是完整上游包或Laravel应用测试。顶层PHP trim/array_is_list/四空格与列表形状由codec对应；未知嵌套值保原JSON、非有限数、任意PHP字节转义/serialize_precision仍不作等价保证。协作锁内合并、原子替换、严格reset IO错误与file-live属于公开保留增强；PHP reset可能忽略delete=false，Rust明确返回Err。
+
+根真实MySQL8.4精确1，fresh普通check/test/build及12、MySQL认证/Job3、MFA2、相同二进制SHA的config cache/坏dotenv/clear复启均通过。隔离部署四TCP进程证明默认旧App不热读外部状态、显式live读取变化、新App按状态挂路由与宿主API保留；各进程正常exit0且端口释放，数据库集合前后0增0删。唯一example和fresh公开fixture均保三App、自身写/外部隔离、路由/事件/原文件保护断言。
+
+失败原件保全：attempt1三处doc-markdown lint；attempt2旧测试用?将新增fallible构造错误提前抛出，改捕获构造→prepare完整链，保原错误码与坏文件原字节断言后attempt3通过。首次清target检测occupied而exit1，未删除；复查无占用，单独正常retry清28,613,931,008B→0，不重复真实TCP。不同模型最终核751输入漂移0、十门禁/服务日志SHA及计数，限定范围无确定blocker；报告/tmp/openrust-file-activator-cache-final-evidence-review.md并已复制证据目录。
+
+生成源码/证据归档SHA7cab7031ef7196bc4aa32ecd9f3ff1c0ff0750fd8a4cc5bee2eefc64f6831cd6，原目录保留；完成fresh后确认无构建进程/target句柄，再正常dry-run+clean 9,007,976,448B→0、磁盘可用200,362,778,624B。独占PHP镜像772,442,516B无容器占用后正常移除，共享MySQL/PostgreSQL/Redis未动。完整回执tmp/file-activator-cache-20261102/；仅本地提交，skill独立owner WIP未混入或部署，不操作其Goal/账本。Windows/硬链接、完整B003/B004、Modules/ProviderRepository/aliases与ADR-001全量仍开放；本机原非UTF8 FS能力缺口不因本簇变为通过。
+
 ## 模块运行发现与编译文件限定验收
 
 2026-11-02，39086cf后继；固定Modules5971484、Laravel d52c3b3及PHP8.5.0。源码证据`tmp/module-discovery-upstream-evidence/`、`tmp/module-discovery-20261102/upstream-field-boundaries/`与同目录优先级取证；主路径/额外scan、原始metadata、PHP标量名称、providers flatten/falsy、同名仓储赢家均进入真实包register。命名编译工厂通过唯一内核注册Provider，编译ModuleFile在eager register后、boot前执行；RegisterContext::resolve沿同一容器，已有资源identity及失败/取消回收断言保留。Explicit ModuleDescriptor增强独立保留，不混入发现清单或称上游拓扑。

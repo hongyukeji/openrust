@@ -148,7 +148,7 @@ match (result, cleanup) {
 
 显式程序化 `ModuleDescriptor` 清单仍保留 requires/priority 增强，与发现输入不可混用，不将增强拓扑称为上游 Manifest 排序。
 
-`Module::is_loaded()` 是本 App 的加载快照，`is_enabled()`、`is_disabled()` 和 `has_status(bool)` 读取当前持久状态。`enable().await` / `disable().await` 派发前事件、持久化，再派发后事件；`set_active(bool)` 直接写而不派发这四事件。已有 `ModuleManifest::enable/disable` 仍只改变当前启动输入，不是持久管理接口。
+`Module::is_loaded()` 是本 App 的加载快照，`is_enabled()`、`is_disabled()` 和 `has_status(bool)` 读取所选激活器视图：默认 file 保构造期缓存及自身修改，不跟随其他进程；显式 file-live 扩展才读取新文件。`enable().await` / `disable().await` 派发前事件、持久化，再派发后事件；`set_active(bool)` 直接写而不派发这四事件。自身状态在写前改变，写失败保留缓存变更但不发成功事件，不能把 enabled=true 当持久化已经成功；当前写结果与磁盘字节须分别判断。已有 `ModuleManifest::enable/disable` 仍只改变当前启动输入，不是持久管理接口。
 
 ```rust
 use openrust::core::ModuleRepository;

@@ -6,6 +6,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 默认文件模块激活器恢复构造期实例快照及写失败后的内存语义，实时读取保留为显式 file-live 扩展；构造返回 Result，坏文件可显式 reset_file 恢复。数字状态键与空表按 PHP 列表规则处理，协作锁/原子替换和未知值保护继续保留。
 - 模块运行发现读取可配置路径中的 module.json，经命名编译工厂在包 register 接入同一 Provider 内核；编译文件初始化支持解析路径一次与显式共享执行会话，唯一示例/生成应用同步接线。PHP 弱类型优先级、仓储排序与显示分别对应；class aliases、完整 deferred 加载及非有限 JSON 表示缺口明确保留。
 - `RegisterContext` 增加同内核嵌套 Provider 注册及配置仓储句柄；启动与已启动 App 共用去重、force、失败和取消状态，子 register 真实 await、boot 遵循原生命周期。唯一模块与生成 consumer 通过父 Provider 注册独立子项；空 Events 默认绑定采用独立身份，避免吞掉后续真实监听。
 

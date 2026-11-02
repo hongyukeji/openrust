@@ -4,11 +4,17 @@
 > 更新：2026-11-02
 > 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
+## FileActivator 默认快照（限定验收）
+
+默认file构造读取并返回Result，缓存与本实例后续修改独立于其他writer。显式with_live_reads/file-live保实时扩展；文件driver以惰性工厂在实际包register/legacy准备处构造，自定义driver仍同trait共享。set/delete先改缓存、失败pending不丢，reset清缓存；锁内物理合并/原子替换与严格IO错误属已授权质量增强，不改变默认缓存视图。PHP数字键/list与空表codec、同目标同字节的自身提交恢复及外来坏文件保护已配套，new/reset_file/公开调用方已同步，限定适用验收已通过；完整Modules仍开放。
+
+固定真实FileActivator/Filesystem/ConfigRepository已在PHP8.5隔离执行，Container寻址与Module.getName仅作测试替身，不是整套Laravel应用；构造缓存、写失败后的memory/retry、cached noop、delete缺文件重建、数字list及空path事实保全tmp/file-activator-cache-20261102/reference/。751输入十门禁、fresh12/MySQL3/MFA2/root1及四TCP已通过，独审/归档与target清零收齐，见[限定验收](../memory/testing.md#fileactivator-实例缓存限定验收)；本地提交以Git为准，skill独立owner仍独占。
+
 ## module.json 运行发现（限定验收）
 
 包Provider在register读取同仓储路径/状态并发现元数据（仓储/Provider资源取manifest实际目录，仅files使用module_directory覆盖），命名编译工厂注册真正Provider，随后编译ModuleFile初始化；根/生成模板及唯一example已接线。条件候选仅参与可达性，实际依赖仍核Registry。Module::priority改为原始JSON值，Manifest/Repository排序与CLI显示分别按固定PHP契约实现；2068真实PHP向量已在最终默认/全特性对照通过。显式ModuleExecution保存同执行的Manifest/文件状态，初始化并发等待、错误/取消封闭、同链重入报错；跨tokio::spawn不自动传播。完整适用门禁、fresh/真实MySQL/TCP及资源收尾已通过[限定验收](../memory/testing.md#模块运行发现与编译文件限定验收)，本地提交以Git为准。
 
-class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件仍缺口；本机两原始字节目录fixture被OS errno92拒绝，只标平台无法执行，不冒称scanner通过。原失败与修复回执位于tmp/module-discovery-20261102/，仅本地提交事实以Git为准；旧FileActivator实例快照/数值键等B003/B004先纠正，再DB门控。skill仍独立owner独占。
+class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件仍缺口；本机两原始字节目录fixture被OS errno92拒绝，只标平台无法执行，不冒称scanner通过。原失败与修复回执位于tmp/module-discovery-20261102/，仅本地提交事实以Git为准；FileActivator实例快照/顶层数值键已按限定范围纠正并验收，DB能力门控为下一整改。skill仍独立owner独占。
 
 ## 嵌套 Provider 注册（限定验收）
 

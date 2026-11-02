@@ -14,8 +14,8 @@ mod routes;
 use bootstrap::__GENERATED_APPLICATION__ as Original;
 use openrust::config::{ConfigLoader, ConfigManifest, ConfigSources};
 use openrust::core::{
-    Application, BootContext, BoxFuture, DefaultProviders, Module, ModuleFile, RegisterContext,
-    ModuleManifest, ModuleRepository, ServiceProvider,
+    Application, BootContext, BoxFuture, DefaultProviders, FileModuleActivator, Module, ModuleFile,
+    ModuleManifest, ModuleRepository, RegisterContext, ServiceProvider,
 };
 use openrust::http::{
     RouteGroup, Routes,
@@ -28,8 +28,11 @@ use openrust::testing::TestApp;
 use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 const MODULE_NAME: &str = "ActivationFixture";
@@ -71,7 +74,11 @@ impl Application for ActivationApplication {
     fn modules(config: &Self::Config) -> ModuleManifest {
         Original::modules(config)
             .compiled_provider("ActivationProvider", |_| Ok(ActivationProvider))
-            .compiled_module_file(MODULE_NAME, "module_init.rs", ActivationFile(Arc::new(AtomicUsize::new(0))))
+            .compiled_module_file(
+                MODULE_NAME,
+                "module_init.rs",
+                ActivationFile(Arc::new(AtomicUsize::new(0))),
+            )
     }
 }
 
@@ -94,22 +101,34 @@ impl ServiceProvider for ActivationProvider {
 struct ActivationFile(Arc<AtomicUsize>);
 struct FileMarker(Arc<AtomicUsize>);
 impl ModuleFile for ActivationFile {
-    fn initialize<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+    fn initialize<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             self.0.fetch_add(1, Ordering::SeqCst);
-            app.instance(Arc::new(FileMarker(Arc::clone(&self.0)))).await?;
+            app.instance(Arc::new(FileMarker(Arc::clone(&self.0))))
+                .await?;
             let marker = app.resolve::<FileMarker>().await?;
             if !Arc::ptr_eq(&marker.0, &self.0) {
-                return Err(openrust::Error::custom("module_initializer_container_changed", "文件初始化没有使用同一容器"));
+                return Err(openrust::Error::custom(
+                    "module_initializer_container_changed",
+                    "文件初始化没有使用同一容器",
+                ));
             }
             Ok(())
         })
     }
 }
 
-async fn module_response(openrust::http::Inject(marker): openrust::http::Inject<FileMarker>) -> openrust::Result<&'static str> {
+async fn module_response(
+    openrust::http::Inject(marker): openrust::http::Inject<FileMarker>,
+) -> openrust::Result<&'static str> {
     if marker.0.load(Ordering::SeqCst) != 1 {
-        return Err(openrust::Error::custom("module_initializer_duplicate", "模块编译文件没有遵守 include_once"));
+        return Err(openrust::Error::custom(
+            "module_initializer_duplicate",
+            "模块编译文件没有遵守 include_once",
+        ));
     }
     Ok("compiled activation fixture")
 }
@@ -178,7 +197,10 @@ async fn generated_application_persists_module_activation_without_hot_resource_c
     let mut root = OwnedTempRoot::new()?;
     fs::create_dir_all(root.path.join("modules/activation_fixture"))?;
     fs::write(root.path.join("modules/activation_fixture/module.json"), br#"{"name":"ActivationFixture","priority":0,"providers":[["ActivationProvider"],"ActivationProvider"],"files":["module_init.rs","./module_init.rs"]}"#)?;
-    fs::write(root.path.join("modules/activation_fixture/module_init.rs"), "// 已编译初始化的运行路径凭证\n")?;
+    fs::write(
+        root.path.join("modules/activation_fixture/module_init.rs"),
+        "// 已编译初始化的运行路径凭证\n",
+    )?;
     fs::create_dir(root.path.join("state"))?;
     fs::write(
         root.path.join("state/modules.json"),
@@ -194,6 +216,8 @@ async fn generated_application_persists_module_activation_without_hot_resource_c
         route_status(&apps[0], MODULE_ROUTE, StatusCode::OK).await?;
         let repository = apps[0].app()?.state().resolve::<ModuleRepository>().await?;
         let module: Module = repository.find_or_fail(MODULE_NAME)?;
+        let live =
+            FileModuleActivator::new(root.path.join("state/modules.json"))?.with_live_reads();
         ensure(
             repository.find("activation-fixture").is_some(),
             "Studly 名称无法找到已编译模块",
@@ -257,6 +281,10 @@ async fn generated_application_persists_module_activation_without_hot_resource_c
             module.is_loaded() && !module.is_enabled()?,
             "持久禁用改变了当前 loaded 快照或未写状态",
         )?;
+        ensure(
+            live.has_status(MODULE_NAME, false)?,
+            "显式 live 驱动没有观察首个 App 的禁用写入",
+        )?;
         route_status(&apps[0], MODULE_ROUTE, StatusCode::OK).await?;
         let disabled = state(&root.path)?;
         ensure(
@@ -286,6 +314,22 @@ async fn generated_application_persists_module_activation_without_hot_resource_c
             "第二 App 仍加载了禁用模块",
         )?;
 
+        second_module.set_active(true)?;
+        ensure(
+            second_module.is_enabled()? && !second_module.is_loaded(),
+            "第二 App 自身写入没有更新缓存，或错误地热加载了模块",
+        )?;
+        ensure(
+            module.is_loaded() && !module.is_enabled()?,
+            "第二 App 写盘不应刷新首个 App 的默认实例缓存",
+        )?;
+        ensure(
+            live.has_status(MODULE_NAME, true)?,
+            "显式 live 驱动没有观察第二 App 的写入",
+        )?;
+        route_status(&apps[1], MODULE_ROUTE, StatusCode::NOT_FOUND).await?;
+        second_module.set_active(false)?;
+
         apps[0]
             .app()?
             .run_command(
@@ -294,8 +338,16 @@ async fn generated_application_persists_module_activation_without_hot_resource_c
             )
             .await?;
         ensure(
-            !second_module.is_loaded() && second_module.is_enabled()?,
-            "持久启用错误地热挂载了第二 App",
+            !second_module.is_loaded() && !second_module.is_enabled()?,
+            "其他 App 持久启用不应刷新第二 App 缓存或热挂载资源",
+        )?;
+        ensure(
+            module.is_loaded() && module.is_enabled()?,
+            "首个 App 自身重新启用没有更新实例缓存",
+        )?;
+        ensure(
+            live.has_status(MODULE_NAME, true)?,
+            "显式 live 驱动没有观察重新启用",
         )?;
         route_status(&apps[1], MODULE_ROUTE, StatusCode::NOT_FOUND).await?;
         let enabled = state(&root.path)?;
@@ -315,9 +367,10 @@ async fn generated_application_persists_module_activation_without_hot_resource_c
         );
         route_status(&apps[2], MODULE_ROUTE, StatusCode::OK).await?;
         let third_repository = apps[2].app()?.state().resolve::<ModuleRepository>().await?;
+        let third_module = third_repository.find_or_fail(MODULE_NAME)?;
         ensure(
-            third_repository.find_or_fail(MODULE_NAME)?.is_loaded(),
-            "第三 App 没有重新加载启用模块",
+            third_module.is_loaded() && third_module.is_enabled()?,
+            "第三 App 没有从新文件快照加载已启用模块",
         )?;
         Ok(())
     }

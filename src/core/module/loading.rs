@@ -81,21 +81,26 @@ impl ModuleManifest {
         config: &ModulesConfig,
     ) -> Result<Arc<dyn super::ModuleActivator>> {
         if self.config_managed {
-            if config.activator == "file" {
+            if matches!(config.activator.as_str(), "file" | "file-live") {
                 let path = &config.activators.file.statuses_file;
-                return Ok(Arc::new(super::FileModuleActivator::new(
-                    if path.is_absolute() {
+                let driver = super::FileModuleActivator::new(
+                    if path.as_os_str().is_empty() || path.is_absolute() {
                         path.clone()
                     } else {
                         self.application_root.join(path)
                     },
-                )));
+                )?;
+                return Ok(Arc::new(if config.activator == "file-live" {
+                    driver.with_live_reads()
+                } else {
+                    driver
+                }));
             }
             return self
                 .activators
                 .get(&config.activator)
-                .cloned()
-                .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"));
+                .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"))?
+                .build();
         }
         if self.explicit_selected {
             Ok(Arc::new(super::ExplicitActivator {
@@ -104,8 +109,8 @@ impl ModuleManifest {
         } else {
             self.activators
                 .get(&self.selected)
-                .cloned()
-                .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"))
+                .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"))?
+                .build()
         }
     }
 

@@ -71,6 +71,7 @@ mod execution;
 mod loading;
 mod priority;
 mod repository;
+mod state_json;
 
 pub use activator::{FileModuleActivator, ModuleActivationSnapshot, ModuleActivator};
 pub(crate) use commands::register_commands;
@@ -86,6 +87,39 @@ struct ExplicitActivator {
 impl ModuleActivator for ExplicitActivator {
     fn enabled(&self) -> Result<HashSet<String>> {
         Ok(self.enabled.clone())
+    }
+}
+
+enum ActivatorRegistration {
+    Shared(Arc<dyn ModuleActivator>),
+    File {
+        path: PathBuf,
+        captured: bool,
+        live: bool,
+    },
+}
+
+impl ActivatorRegistration {
+    fn build(&self) -> Result<Arc<dyn ModuleActivator>> {
+        match self {
+            Self::Shared(driver) => Ok(Arc::clone(driver)),
+            Self::File {
+                path,
+                captured: true,
+                live,
+            } => {
+                let driver = FileModuleActivator::new(path)?;
+                Ok(Arc::new(if *live {
+                    driver.with_live_reads()
+                } else {
+                    driver
+                }))
+            }
+            Self::File { .. } => Err(Error::custom(
+                "module_state_path_invalid",
+                "配置模块清单时无法捕获状态文件绝对路径",
+            )),
+        }
     }
 }
 
@@ -116,7 +150,7 @@ pub struct ModuleManifest {
     application_root_error: bool,
     modules: Vec<ModuleDescriptor>,
     explicit: ExplicitActivator,
-    activators: HashMap<String, Arc<dyn ModuleActivator>>,
+    activators: HashMap<String, ActivatorRegistration>,
     selected: String,
     explicit_selected: bool,
     disabled: HashSet<String>,
@@ -150,9 +184,31 @@ impl ModuleManifest {
     /// 使用文件激活器建立清单；状态按每次 App 启动读取，缺文件表示全禁用。
     pub fn from_file(path: impl Into<PathBuf>) -> Self {
         let mut manifest = Self::new();
-        manifest
-            .activators
-            .insert("file".to_owned(), Arc::new(FileModuleActivator::new(path)));
+        let path = path.into();
+        let (path, captured) = if path.as_os_str().is_empty() {
+            (path, true)
+        } else {
+            match std::path::absolute(&path) {
+                Ok(path) => (path, true),
+                Err(_) => (path, false),
+            }
+        };
+        manifest.activators.insert(
+            "file".to_owned(),
+            ActivatorRegistration::File {
+                path: path.clone(),
+                captured,
+                live: false,
+            },
+        );
+        manifest.activators.insert(
+            "file-live".to_owned(),
+            ActivatorRegistration::File {
+                path,
+                captured,
+                live: true,
+            },
+        );
         "file".clone_into(&mut manifest.selected);
         manifest.explicit_selected = false;
         manifest
@@ -164,7 +220,7 @@ impl ModuleManifest {
         config: &crate::config::ModulesConfig,
     ) -> Self {
         let selected = &config.activators.file.statuses_file;
-        let path = if selected.is_absolute() {
+        let path = if selected.as_os_str().is_empty() || selected.is_absolute() {
             selected.clone()
         } else {
             application_root.as_ref().join(selected)
@@ -216,7 +272,8 @@ impl ModuleManifest {
                 "模块启用源名称重复",
             ));
         }
-        self.activators.insert(name, Arc::new(activator));
+        self.activators
+            .insert(name, ActivatorRegistration::Shared(Arc::new(activator)));
         Ok(self)
     }
 
@@ -243,11 +300,10 @@ impl ModuleManifest {
         let activator: Arc<dyn ModuleActivator> = if self.explicit_selected {
             Arc::new(self.explicit)
         } else {
-            Arc::clone(
-                self.activators
-                    .get(&self.selected)
-                    .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"))?,
-            )
+            self.activators
+                .get(&self.selected)
+                .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"))?
+                .build()?
         };
         let snapshot = activator.snapshot()?;
         let mut modules = self.modules;
@@ -802,7 +858,7 @@ mod tests {
         let make_manifest = || -> Result<ModuleManifest> {
             let mut manifest =
                 ModuleManifest::new().module(ModuleDescriptor::new("Blog", root.clone(), 0));
-            manifest.register_activator("file", FileModuleActivator::new(&state))?;
+            manifest.register_activator("file", FileModuleActivator::new(&state)?)?;
             manifest.use_activator("file");
             Ok(manifest)
         };
@@ -816,8 +872,8 @@ mod tests {
         for value in ["[true]", "null", "{broken"] {
             std::fs::write(&state, value).map_err(Error::internal)?;
             assert_eq!(
-                make_manifest()?
-                    .prepare()
+                make_manifest()
+                    .and_then(ModuleManifest::prepare)
                     .err()
                     .map(|error| error.code().to_owned())
                     .as_deref(),

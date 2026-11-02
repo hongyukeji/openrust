@@ -1,5 +1,7 @@
 # 验收口径
 
+FileActivator实例缓存已通过[限定验收](testing.md#fileactivator-实例缓存限定验收)：751输入、attempt3十门禁、fresh12/MySQL3/MFA2/root1及四TCP一致；PHP固定类probe与两次失败保全，严格IO/锁合并/live增强和数值/平台缺口明确公开。target正常清零，完整Modules与ADR-001仍开放。
+
 模块运行发现、命名编译Provider及files已通过[限定验收](testing.md#模块运行发现与编译文件限定验收)：最终749输入、完整主门禁/fresh/MySQL/TCP及PHP2068向量匹配。两Mac原始字节FS分支未执行，旧FileActivator实例快照、完整ProviderRepository/aliases等明确开放；不能以已绿旧输入覆盖官方双路径。
 
 

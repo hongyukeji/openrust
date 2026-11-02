@@ -19,3 +19,5 @@ fixture 编译生成应用真实的 `app/bootstrap/config/modules/routes` 入口
 实际 `TestApp` 和 `App::run_command` 验证未知第二名称零写、`--all` 覆盖显式错误名称、大小写/Studly 参数写 canonical 状态键。禁用后当前 App 路由仍可用，下一 App 不加载模块而宿主 `/api` 保留；再启用不热挂第二 App，第三 App 才重新加载。断言同时检查公开 `ModuleRepository`/`Module` 的 loaded 与持久 enabled 状态、未知值保留。
 
 所有返回错误的分支都会先尝试异步关闭全部已建立的 App，再清理由原子建目录和归属标记保护的自有临时目录。该测试使用进程内公开 Router；真实 TCP/跨进程重启及文件写并发仍由对应主控门禁单独验收。
+
+默认 file 的三 App 流程验证双方缓存互不热读、自身写入立即可见与新实例重载；同一真实文件另用公开 with_live_reads 显式验证实时扩展。持久写失败与缓存状态不能混为成功，构造现在返回Result。

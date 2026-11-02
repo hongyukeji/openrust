@@ -86,7 +86,7 @@ cargo run -- module:enable orders --no-interaction
 cargo run -- module:enable --all --no-interaction
 ```
 
-全部名称先检查，再逐项写入；重复保留，`--all` 覆盖显式名单，异常保留前项并中断。管理命令仍完成唯一应用 bootstrap；坏 metadata 或启用项加载失败不会另开绕过启动器。现 App 的 Provider/路由不热卸载，下一独立执行才按新状态加载。
+全部名称先检查，再逐项写入；重复保留，`--all` 覆盖显式名单，异常保留前项并中断。管理命令仍完成唯一应用 bootstrap；坏 metadata 或启用项加载失败不会另开绕过启动器。默认 file 缓存本实例状态，自身修改先改缓存后写盘；写失败不会回滚缓存，外部改盘在现App不可见。新实例才读取外部状态，Provider/路由不热卸载。需要实时状态时用 MODULES_ACTIVATOR=file-live 显式扩展，或 FileModuleActivator::new(path)?.with_live_reads()；构造失败可手工reset_file，不绕过完整bootstrap。
 
 程序化 `ModuleManifest::new/from_file/from_config().module(ModuleDescriptor)` 仍支持显式清单和已授权 requires 拓扑增强；这是独立的显式输入方式，不能混入运行发现清单或冒称上游 Manifest 自动拓扑。
 

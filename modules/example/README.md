@@ -26,7 +26,7 @@
 
 `GET /example/pages/about` 是可选页面路由；`/example/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Routes::fallback` 的写法。
 
-模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，读取日期 2026-10-28，未宣称源码 revision 已对齐。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
+模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
 ## 统一请求输入与路由规范化
 
@@ -129,7 +129,7 @@ cargo run -- module:disable example --no-interaction
 cargo run -- module:enable example --no-interaction
 ```
 
-独立 CLI 命令是新进程；事件日志仅记录本 App 内的派发，不接收其他进程的事件广播。一个已加载 App 内执行 `app.run_command("module:disable", vec!["example".to_owned()]).await?` 后，状态端点仍可返回 `enabled=false, loaded=true`；新 App 不再挂示例路由，但宿主 `/api` 继续可用。再次启用不热挂先前未加载的 App，后续新 App 才恢复示例。对应[三实例回归](tests/module_activation_flows.rs)使用临时应用根、独立状态文件和真实 `bootstrap::Server`，源码用于验证上述流程，不在真实根状态文件上操作。
+默认 file 在构造时读取并缓存，独立 CLI 命令改盘不会改变既有 App 的 enabled 视图；新 App 读取新状态。事件日志仅记录本 App 内的派发，不接收其他进程的事件广播。一个已加载 App 内执行 `app.run_command("module:disable", vec!["example".to_owned()]).await?` 后，状态端点仍可返回 `enabled=false, loaded=true`；新 App 不再挂示例路由，但宿主 `/api` 继续可用。再次启用不热挂先前未加载的 App，后续新 App 才恢复示例。需要实时查看外部状态时显式选择 MODULES_ACTIVATOR=file-live；编译代码直接使用 FileModuleActivator::new(path)?.with_live_reads()，仍不热挂卸已加载资源。对应[三实例回归](tests/module_activation_flows.rs)使用临时应用根、独立状态文件和真实 `bootstrap::Server`，源码用于验证上述流程，不在真实根状态文件上操作。
 
 运行 catalog 来自 module.json，执行仍需显式编译绑定；class aliases、完整deferred加载与TTY搜索选择仍待实现。文件的 hardlink 等价及 Windows 原生行为尚未验收，启停与并发 `shutdown` 不提供原子提交屏障，详见[模块配置边界](../../src/config/README.md#模块激活与运行根)。
 

@@ -34,6 +34,19 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
+### B003/B004 FileActivator 实例快照（限定验收）
+
+1. 固定5971484 FileActivator构造readJson、hasStatus/set/delete/reset及Laravel Filesystem错误行为；默认file实例不观察外部改盘，重新构造才读取。自身set/delete的内存修改先于持久写，失败不伪回滚；reset清自身快照。
+2. FileModuleActivator::new改为Result<Self>，构造时捕获绝对路径并读取；ModuleManifest保存文件激活器工厂，在实际包register/legacy准备处构造，不在配置装配中提前读盘，保自定义共享driver扩展。
+3. 默认缓存clone快照，多个独立实例互不更新；显式with_live_reads及file-live激活器保留已授权fresh读取增强，不冒称官方file默认，沿同一ModuleActivator/配置机制，不新增第二状态仓储。
+4. 保协作锁/锁内重读/原子替换/符号链接与未知值保护增强；默认实例内存视图不吸收其他writer。失败的自身变更保pending，后续成功写包含这些变更，不能因磁盘合并丢掉失败后内存语义。
+5. 按PHP关联数组规则拒绝非空numeric-consecutive对象等array_is_list输入，写空表/连续数字键按列表编码；仅本实例已提交且字节精确匹配的列表允许后续写恢复，不用此例外覆盖外部坏文件。非有限值缺口继续公开。
+6. fallible构造失败时通过显式reset_file(path)保旧手工恢复能力；不提供绕过完整bootstrap的管理CLI，不重建/删除业务目录。写失败与缓存状态、持久化结果分开说明及验收。
+7. root独占activator.rs/manifest加载/配置/共享docs/index/Cargo/服务；codec worker仅新state_json.rs，测试worker仅新activator_cache_tests.rs及唯一example/publicconsumer对应测试，不运行Cargo或服务；不同模型只读审查。
+8. 根/生成/唯一模块同步默认缓存与显式live用法，真实四进程验证旧App不热读/新App重载、显式live刷新和状态文件保护；完整编码与配套后冻结集中适用门禁，正常清理并本地提交。不改独立guard skill/live/Goal/账本。
+
+owner=root，main共享目录，基线d32162d；751输入最终attempt3十门禁、PHP真实固定类probe、fresh12/MySQL3/MFA2/root1及四TCP均通过，独审与生成源码归档、target清零已收齐，本地提交以Git为准。旧失败和首次占用清理回执保留，见[限定验收](memory/testing.md#fileactivator-实例缓存限定验收)。下一按用户优先顺序收敛DB通用能力门控；ProviderRepository/aliases等原缺口保留，不关闭完整B003/B004或Modules，skill独立writer仍独占。
+
 ### module.json 运行发现与编译绑定（限定验收）
 
 1. 固定nWidart5971484正常ModulesServiceProvider::registerModules：aliases→同内核Provider加载→files；不使用deprecated Module::register/boot，也不重新执行Application::modules。
@@ -47,7 +60,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 当前停点：最终749输入及attempt6十门禁、fresh普通12/MySQL3/MFA2、根MySQL1/三进程/缓存复启、PHP2068向量与独审均通过，源码与证据归档、完成缓存及独占PHP镜像正常清理，本地提交以Git为准，见[限定验收](memory/testing.md#模块运行发现与编译文件限定验收)。两项Mac nonUTF8 FS分支只证能力不足、不计scanner已验；aliases、完整ProviderRepository eager编译/构造缓存与deferred、非有限JSON、完整POSIX glob/非UTF8通配及完整Modules仍开放。三个旧绿/失败阶段与官方双路径纠正均保留，未删断言降门禁。skill继续独立owner独占，不部署/Goal/账本操作；嵌套前置39086cf。
 
-后继确认整改（归既有B003/T03，不加入当前冻结输入）：固定FileActivator.php构造时readJson保存modulesStatuses；当前7f60560 driver每次snapshot读盘，跨进程改动在现App立即可见，默认行为不符。恢复实例级快照、自身set/reset/delete及失败后内存语义，核PHP数字键转array_is_list与空表序列化边界，保已授权锁内合并/原子写增强；外部实时读取如保留须显式扩展而非默认file。三进程旧enabled热读证据只证明Rust既有增强，不作固定官方缓存验收。完成当前发现批提交后优先此项，再DB门控，来源tmp/module-discovery-20261102/upstream-field-boundaries/src/Activators/FileActivator.php。
+B003/T03后继实例快照整改已按上节限定验收；旧7f60560热读证据仅证明历史Rust增强，不能替代固定上游缓存语义。严格IO/锁内合并/live明确保留增强，非有限数及完整B003/B004继续开放，下一DB门控。
 
 ### 模块运行发现前置：同内核嵌套 Provider 注册（限定验收）
 
