@@ -145,7 +145,7 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 
 ## 原生 Codex 共享服务适配
 
-本节仅说明共享app-server的Python后端；Codex Desktop默认使用[官方原生heartbeat](codex-desktop.md)，不以本节socket条件限制Desktop原生接入。
+本节仅说明共享app-server的Python后端；Codex Desktop使用[同线程合作式守护](codex-desktop.md)，不以本节socket条件限制Desktop接入。CLI队列定时器与App原生空闲heartbeat的实际验收和限制分别见该说明，不混用两种回执。
 
 `--backend auto` 在有 Paseo agent 时保留原适配；缺少 Paseo 身份则必须有可信 `CODEX_THREAD_ID`（或显式 `--thread`），以线程 UUID 为同一生命周期的运行目录。`--backend codex` 显式选原生；`--codex-socket` 只连接已有控制 socket，不启动 daemon。项目线程数据库、rollout 首条主线程 metadata 与正式 `thread/read` 的 id/cwd/parentThreadId/source 交叉核对，并绑定现有原生Goal。全程不写内部数据库。
 

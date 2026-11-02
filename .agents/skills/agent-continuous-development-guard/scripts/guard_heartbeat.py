@@ -211,7 +211,7 @@ def output(ledger, action, reason, thread):
     budget = ledger.get('account_budgets', {}).get(key, {})
     return {'action': action, 'reason': reason, 'thread': thread,
             'goal_id': ledger.get('goal', {}).get('id'), 'automation_id': ledger.get('automation_id'),
-            'goal_status': ledger.get('goal_status'),
+            'goal_status': ledger.get('goal_status'), 'last_check': ledger.get('last_check'),
             'budget': {'fraction': '0.8', 'allow_existing_credits': False,
                        'status': ledger.get('usage_status', 'unknown'),
                        'error': ledger.get('usage_error'),
@@ -222,9 +222,11 @@ def output(ledger, action, reason, thread):
                                    for name, item in budget.get('windows', {}).items()}}}
 
 
-def run(thread, command, usage_file=None, automation_id=None, now=None):
+def run(thread, command, usage_file=None, automation_id=None, now=None, previous_automation_id=None):
     """一次门禁检查；官方自动化的创建、暂停与删除由调用方执行。"""
     thread = str(uuid.UUID(thread))
+    if command == 'checkpoint' and os.environ.get('CODEX_THREAD_ID') != thread:
+        return output({}, 'wait', 'checkpoint_caller_mismatch', thread)
     now = time.time() if now is None else now
     home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).resolve()
     guards = ROOT / '.agents/project/guards'
@@ -275,20 +277,42 @@ def run(thread, command, usage_file=None, automation_id=None, now=None):
         if status not in ('active', 'usage_limited', 'budget_limited'):
             atomic(path, ledger)
             return output(ledger, 'wait', 'goal_state_wait', thread)
-        if command == 'bind':
+        if command in ('bind', 'rebind'):
             if not isinstance(automation_id, str) or not automation_id.strip() or len(automation_id) > 256:
                 return output(ledger, 'stop', 'automation_id_invalid', thread)
+            current = ledger.get('automation_id')
+            if command == 'rebind':
+                # 旧ID的正式删除与新ID的目标/授权由调用Agent另存工具回执。
+                previous = ledger.get('automation_rebindings', [])
+                if not isinstance(previous, list) or any(
+                        not isinstance(item, dict)
+                        or not isinstance(item.get('from'), str) or not item['from']
+                        or not isinstance(item.get('to'), str) or not item['to']
+                        or item['from'] == item['to']
+                        or type(item.get('at')) not in (int, float) or not math.isfinite(item['at'])
+                        for item in previous):
+                    return output(ledger, 'stop', 'automation_rebinding_history_invalid', thread)
+                repeated = (current == automation_id and previous
+                            and previous[-1]['from'] == previous_automation_id
+                            and previous[-1]['to'] == automation_id)
+                if (not isinstance(previous_automation_id, str) or not previous_automation_id
+                        or previous_automation_id == automation_id
+                        or (current != previous_automation_id and not repeated)):
+                    return output(ledger, 'stop', 'automation_rebind_mismatch', thread)
             with (guards / 'native-heartbeat-binding.lock').open('a') as bindings:
                 lock_file(bindings)
                 for other in guards.glob('*/native-heartbeat.json'):
                     if other != path and read_json(other).get('automation_id') == automation_id:
                         return output(ledger, 'stop', 'automation_id_other_task', thread)
-                if ledger.get('automation_id') not in (None, automation_id):
+                if command == 'bind' and current not in (None, automation_id):
                     return output(ledger, 'stop', 'automation_id_changed', thread)
+                if command == 'rebind' and current != automation_id:
+                    ledger.setdefault('automation_rebindings', []).append(
+                        {'from': current, 'to': automation_id, 'at': now})
                 ledger['automation_id'] = automation_id
                 atomic(path, ledger)
             return output(ledger, 'continue', 'automation_bound', thread)
-        if command == 'check' and not ledger.get('automation_id'):
+        if command in ('check', 'checkpoint') and not ledger.get('automation_id'):
             return output(ledger, 'stop', 'automation_unbound', thread)
         available = False
         ledger.pop('usage_error', None)
@@ -320,6 +344,9 @@ def run(thread, command, usage_file=None, automation_id=None, now=None):
             if now - ledger['first_wait_at'] >= WAIT_TIMEOUT:
                 action, reason = 'stop', 'usage_wait_expired'
                 ledger.update(terminal_action=action, terminal_reason=reason)
+        ledger['last_check'] = {'at': now, 'mode': command,
+                                'caller_thread': os.environ.get('CODEX_THREAD_ID'),
+                                'action': action}
         atomic(path, ledger)
         return output(ledger, action, reason, thread)
 
@@ -328,13 +355,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--thread', required=True)
     commands = parser.add_subparsers(dest='command', required=True)
-    for command in ('init', 'check'):
+    for command in ('init', 'check', 'checkpoint'):
         commands.add_parser(command).add_argument('--usage-file', type=Path, required=True)
     commands.add_parser('bind').add_argument('--automation-id', required=True)
+    replacement = commands.add_parser('rebind')
+    replacement.add_argument('--automation-id', required=True)
+    replacement.add_argument('--previous-automation-id', required=True)
     args = parser.parse_args()
     try:
         result = run(args.thread, args.command, getattr(args, 'usage_file', None),
-                     getattr(args, 'automation_id', None))
+                     getattr(args, 'automation_id', None),
+                     previous_automation_id=getattr(args, 'previous_automation_id', None))
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
         result = output({}, 'stop', 'local_evidence_unavailable', args.thread)
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))

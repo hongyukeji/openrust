@@ -376,6 +376,99 @@ class HeartbeatTests(unittest.TestCase):
         self.assertNotIn('first_wait_at', self.ledger())
         self.assertIsNone(result['budget']['error'])
 
+    def test_checkpoint_requires_same_thread_and_does_not_mutate_on_mismatch(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        for caller in ('', str(uuid.uuid4())):
+            with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': caller}):
+                self.assertEqual(self.run_gate('checkpoint')['reason'], 'checkpoint_caller_mismatch')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_wrong_checkpoint_caller_never_reads_identity_or_creates_runtime(self):
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': str(uuid.uuid4())}), \
+                mock.patch.object(heartbeat, 'identity', side_effect=AssertionError('不能读身份')):
+            self.assertEqual(self.run_gate('checkpoint')['reason'], 'checkpoint_caller_mismatch')
+        self.assertFalse((self.root / '.agents').exists())
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        self.update_goal(goal_id=str(uuid.uuid4()))
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': str(uuid.uuid4())}):
+            self.assertEqual(self.run_gate('checkpoint')['reason'], 'checkpoint_caller_mismatch')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_checkpoint_uses_original_goal_budget_and_records_actual_caller(self):
+        self.prepared()
+        before = copy.deepcopy(self.ledger())
+        self.snapshot = {'content': [{'type': 'text', 'text': json.dumps(usage(used=20))}]}
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            result = self.run_gate('checkpoint', now=1100)
+        self.assertEqual(result['action'], 'continue')
+        self.assertEqual(result['last_check'], {'at': 1100, 'mode': 'checkpoint',
+                                               'caller_thread': self.thread, 'action': 'continue'})
+        self.assertEqual(self.ledger()['goal'], before['goal'])
+        self.assertEqual(self.ledger()['account_budgets'], before['account_budgets'])
+
+    def test_checkpoint_rejects_unknown_quota_and_keeps_human_pause(self):
+        self.prepared()
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            self.snapshot = {'isError': True, 'content': []}
+            self.assertEqual(self.run_gate('checkpoint')['action'], 'wait')
+            self.update_goal(status='paused')
+            self.snapshot = usage()
+            self.assertEqual(self.run_gate('checkpoint')['reason'], 'goal_paused')
+        with closing(sqlite3.connect(self.home / 'goals_1.sqlite')) as db:
+            self.assertEqual(db.execute('SELECT status FROM thread_goals').fetchone()[0], 'paused')
+
+    def test_checkpoint_does_not_skip_automation_binding(self):
+        self.init()
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            self.assertEqual(self.run_gate('checkpoint')['reason'], 'automation_unbound')
+
+    def test_explicit_rebind_preserves_goal_and_budget_and_is_idempotent(self):
+        self.prepared()
+        before = copy.deepcopy(self.ledger())
+        for _ in range(2):
+            result = heartbeat.run(self.thread, 'rebind', automation_id='replacement', now=1100,
+                                   previous_automation_id='automation-1')
+            self.assertEqual(result['reason'], 'automation_bound')
+        after = self.ledger()
+        self.assertEqual(after['goal'], before['goal'])
+        self.assertEqual(after['account_budgets'], before['account_budgets'])
+        self.assertEqual(after['automation_rebindings'],
+                         [{'from': 'automation-1', 'to': 'replacement', 'at': 1100}])
+
+    def test_rebind_compare_rejects_stale_or_missing_old_id_without_mutation(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        for previous in (None, 'unrelated', 'replacement'):
+            self.assertEqual(heartbeat.run(self.thread, 'rebind', automation_id='replacement',
+                             previous_automation_id=previous, now=1100)['reason'],
+                             'automation_rebind_mismatch')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebind_cannot_claim_another_tasks_automation(self):
+        self.prepared()
+        other = self.root / '.agents/project/guards' / str(uuid.uuid4())
+        other.mkdir()
+        (other / 'native-heartbeat.json').write_text(json.dumps({'automation_id': 'replacement'}))
+        before = self.ledger_path.read_bytes()
+        self.assertEqual(heartbeat.run(self.thread, 'rebind', automation_id='replacement',
+                         previous_automation_id='automation-1', now=1100)['reason'],
+                         'automation_id_other_task')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebind_rejects_corrupt_history_without_writing(self):
+        self.prepared()
+        valid = self.ledger()
+        for history in ('private', [None], [{}], [{'from': 'a', 'to': 'b', 'at': None}]):
+            damaged = {**valid, 'automation_rebindings': history}
+            self.ledger_path.write_text(json.dumps(damaged))
+            before = self.ledger_path.read_bytes()
+            result = heartbeat.run(self.thread, 'rebind', automation_id='replacement',
+                                   previous_automation_id='automation-1', now=1100)
+            self.assertEqual(result['reason'], 'automation_rebinding_history_invalid')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+
     def test_mcp_structured_result_and_matching_text_are_accepted(self):
         self.prepared()
         for content in ([], [{'type': 'text', 'text': json.dumps(usage())}]):
