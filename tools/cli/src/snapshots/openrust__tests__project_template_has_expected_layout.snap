@@ -1,6 +1,6 @@
 ---
 source: tools/cli/src/main.rs
-assertion_line: 3457
+assertion_line: 3476
 expression: snapshot
 ---
 --- Cargo.toml ---
@@ -404,6 +404,22 @@ pub(crate) fn routes(routes: Routes) -> Routes {
         crate::routes::api::register,
     );
     crate::routes::web::register(routes)
+}
+
+--- bootstrap/providers.rs ---
+//! 应用 Provider 清单，对应 Laravel 的 `bootstrap/providers.php`。
+
+use openrust::core::ServiceProvider;
+
+pub(super) fn application_providers(
+    _config: &super::Configuration,
+) -> Vec<Box<dyn ServiceProvider>> {
+    let mut providers: Vec<Box<dyn ServiceProvider>> = Vec::new();
+    providers.push(Box::new(crate::app::providers::AppServiceProvider));
+    providers.push(Box::new(openrust::db::MigrationServiceProvider::<
+        openrust::db::FrameworkMigrator,
+    >::new()));
+    providers
 }
 
 --- modules/mod.rs ---

@@ -1,6 +1,6 @@
 # 自定义 SQLite 数据库 Provider
 
-此独立示例展示如何在应用 package 中开启 SeaORM 的 SQLite driver，并通过 OpenRust 公共 `Db` 服务使用自定义连接、backend 查询、表名解析和事务。
+此独立示例展示如何在应用 package 中开启 SeaORM 的 SQLite driver，并通过 OpenRust 无官方驱动也可用的 `prelude::Db` 与 `database` 公共导出使用自定义连接、backend 查询、表名解析和事务。
 
 SQLite 在此验证自定义 Provider的通用 SeaORM 连接、事务和应用自有迁移，不属于 OpenRust 官方数据库支持矩阵。示例通过公开 `DatabaseTableNames::scope` 与应用自己的 SeaORM `Migrator` 执行单机迁移并查询验证，再验证框架 `MigrationServiceProvider` 对 SQLite 的迁移互斥明确返回 `unsupported_database_backend`；不把它当作框架官方迁移支持。框架自带的数据库连接配置、方言 helper、认证/队列/协调迁移、共享锁、数据库限流及 `TestDatabase` 仍仅面向 PostgreSQL/MySQL；使用其他 backend 时，应用必须自行提供并验证对应能力。
 

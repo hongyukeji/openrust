@@ -1286,10 +1286,7 @@ mod tests {
             let _: Option<crate::auth::PasswordConfig> = None::<auth::PasswordConfig>;
             let _: Option<crate::auth::SessionConfig> = None::<SessionConfig>;
         }
-        #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-        {
-            let _: Option<crate::db::DatabaseConfig> = None::<database::DatabaseConfig>;
-        }
+        let _: Option<crate::db::DatabaseConfig> = None::<database::DatabaseConfig>;
         let _: Option<crate::mail::MailConfig> = None::<mailer::MailConfig>;
     }
 

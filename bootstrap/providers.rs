@@ -3,18 +3,13 @@
 use openrust::core::ServiceProvider;
 
 pub(super) fn application_providers(
-    config: &super::Configuration,
+    _config: &super::Configuration,
 ) -> Vec<Box<dyn ServiceProvider>> {
-    #[allow(unused_mut, reason = "数据库 Provider 仅在对应 feature 启用时追加")]
-    let mut providers: Vec<Box<dyn ServiceProvider>> =
-        vec![Box::new(crate::app::providers::AppServiceProvider)];
-    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-    if config.uses_database() {
-        providers.push(Box::new(openrust::db::MigrationServiceProvider::<
+    // 迁移注册不连接数据库；执行命令时再沿统一 Db 验证实际连接。
+    vec![
+        Box::new(crate::app::providers::AppServiceProvider),
+        Box::new(openrust::db::MigrationServiceProvider::<
             openrust::db::FrameworkMigrator,
-        >::new()));
-    }
-    #[cfg(not(any(feature = "db-postgres", feature = "db-mysql")))]
-    let _ = config;
-    providers
+        >::new()),
+    ]
 }

@@ -1,17 +1,19 @@
 # `openrust::db`
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-11-02
 > 摘要：M2 数据层当前实现边界。
 
 ## 当前实现
 
+- 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。
+
 - `Db::table` 的限定 Query Builder 默认选择 `*`，显式 `select` 替换默认列；真实 MySQL 文章分页已验证计数、行数据、空第二页与所有者隔离。完整 C07、ORM、CursorPaginator 和全后端矩阵仍开放；本批证据见 [testing](../memory/testing.md#当前-main-组合限定验收)。
 
-- `DatabaseConfig` 定义在 `openrust::config::database`，旧的 `openrust::database::DatabaseConfig` 导出保持可用。运行 TOML 位于应用根 `config/`；本地 URL 可用 `.env`，生产环境使用进程变量。
+- `DatabaseConfig` 定义在 `openrust::config::database`，旧的 `openrust::database::DatabaseConfig` 导出保持可用。默认可编辑配置位于应用根 `config/*.rs`，TOML仅显式可选来源；本地 URL 可用 `.env`，生产环境使用进程变量。
 
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
-- `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它只描述 v1 官方支持集合，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。SQLite 不属于官方矩阵，可由自定义插件使用通用 `Db` 连接/事务接口。框架迁移互斥明确拒绝 SQLite；consumer 验证此拒绝后以应用自有 SeaORM Migrator/表名 scope 验证单机迁移。
+- `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它当前只描述已实现的 PostgreSQL/MySQL 集合，固定官方五后端仍保留交付缺口，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。SQLite 尚未进入当前内置已验矩阵，可由自定义插件使用通用 `Db` 连接/事务接口。框架迁移互斥明确拒绝 SQLite；consumer 验证此拒绝后以应用自有 SeaORM Migrator/表名 scope 验证单机迁移。
 - `DatabaseServiceProvider` 在 register 登记当前配置的异步 singleton 工厂；首次解析按最终可见配置连接 SeaORM pool，每个成功连接立即登记受管关闭，之后的副本、具名库或版本检查失败会回收前池。boot 解析并验证；最终校验涵盖 pool 参数、完整 URL 语法和 backend feature。无主库 URL 时提供明确未初始化的可选句柄，配置副本却无主库则拒绝。运行时按暂定最低支持接受 PostgreSQL 14+ / MySQL 8.0+。日常开发与常规 CI 基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；v1 发布前须完成最低版本能力矩阵。
 - 启用 `HttpServiceProvider` 时，`DatabaseServiceProvider` 为每个数据库实例注册 runtime readiness 探针，使用只读 `ping` 检查主库与所有配置只读副本。依赖故障会使 `/ready` 返回 503；连接池恢复后下一轮探测可重新转为 ready，不暴露连接错误或 URL。
 - 命名数据库按 历史决策 045 实现：既有 `[database]` 和 `Db` 是兼容默认实例；`[database.instances.<name>]` 为独立完整连接配置，由应用级 `Databases` 选择。实例各自持有连接池、只读副本与表名 resolver，未知名称启动/选择时显式失败。认证、Session、Queue、Audit 和 RateLimiter 仍绑定 default。
@@ -40,9 +42,9 @@
 
 嵌套事务与 savepoint、重试、直接 SeaORM/原生 SQL 逃生口均不受事务事件覆盖；提交前与提交后失败边界见 历史决策 041。
 
-官方 v1 数据库支持限定 PostgreSQL 与 MySQL，暂定最低版本为 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
+当前内置连接器已实现 PostgreSQL 与 MySQL，暂定最低版本检查为 PostgreSQL 14+ / MySQL 8.0+；固定 Laravel 五 SQL 后端及其最低版本对应尚未全部交付，不能把当前双库事实限制为最终范围。日常开发/常规CI默认MySQL8.4 LTS与Redis8，PG18保留并按影响定向验证。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
 
-SQLite 自定义插件通过 SeaORM 自行创建连接后，可使用 `Db::initialize()`、`Db::transaction()`、通用表名解析与应用自有 SeaORM `MigrationServiceProvider`。该连接不使 SQLite 成为 OpenRust 官方支持后端：`DatabaseServiceProvider`、官方 URL/feature 检查、方言 helper、框架认证/队列/协调迁移与 `TestDatabase` 仍限定 PostgreSQL/MySQL，调用不支持的能力时应显式失败。独立 consumer 示例见 `tests/consumers/db-custom-sqlite/`。其他 SeaORM backend 还须先实现受控的表名 quoting，再适配实际使用的迁移、方言与测试隔离；不能由连接成功推断认证/队列兼容。新增官方 backend 仍需独立完成 feature、能力检查、方言、生成器及真实测试闭环。
+SQLite 自定义插件通过 SeaORM 自行创建连接后，可使用 `Db::initialize()`、`Db::transaction()`、通用表名解析与应用自有 SeaORM `MigrationServiceProvider`。该连接不证明 SQLite 已得到内置驱动与全框架支持：`DatabaseServiceProvider`、官方 URL/feature 检查、方言 helper、框架认证/队列/协调迁移与 `TestDatabase` 仍限定 PostgreSQL/MySQL，调用不支持的能力时应显式失败。独立 consumer 示例见 `tests/consumers/db-custom-sqlite/`。其他 SeaORM backend 还须先实现受控的表名 quoting，再适配实际使用的迁移、方言与测试隔离；不能由连接成功推断认证/队列兼容。新增官方 backend 仍需独立完成 feature、能力检查、方言、生成器及真实测试闭环。
 
 ## 验证
 

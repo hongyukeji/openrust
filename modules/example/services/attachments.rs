@@ -39,18 +39,18 @@ pub(crate) struct ArticleAttachments {
     db: Arc<Db>,
     storage: Arc<Storage>,
     resources: ResourceRegistrar,
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     publish_gate: Mutex<Option<Arc<PublishGate>>>,
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     cleanup_gate: Mutex<Option<Arc<PublishGate>>>,
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     locked_cleanup_gate: Mutex<std::collections::VecDeque<Arc<PublishGate>>>,
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     deleted_object_gate: Mutex<Option<Arc<PublishGate>>>,
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     before_intent_lock: Mutex<Option<Arc<tokio::sync::Notify>>>,
 }
-#[cfg(test)]
+#[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
 struct PublishGate {
     reached: Arc<tokio::sync::Notify>,
     release: Arc<tokio::sync::Semaphore>,
@@ -61,20 +61,20 @@ impl ArticleAttachments {
             db,
             storage,
             resources,
-            #[cfg(test)]
+            #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
             publish_gate: Mutex::new(None),
-            #[cfg(test)]
+            #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
             cleanup_gate: Mutex::new(None),
-            #[cfg(test)]
+            #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
             locked_cleanup_gate: Mutex::new(std::collections::VecDeque::new()),
-            #[cfg(test)]
+            #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
             deleted_object_gate: Mutex::new(None),
-            #[cfg(test)]
+            #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
             before_intent_lock: Mutex::new(None),
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     pub(crate) fn pause_before_cleanup(
         &self,
         reached: Arc<tokio::sync::Notify>,
@@ -88,7 +88,7 @@ impl ArticleAttachments {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     pub(crate) fn pause_after_cleanup_lock(
         &self,
         reached: Arc<tokio::sync::Notify>,
@@ -103,7 +103,7 @@ impl ArticleAttachments {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     pub(crate) fn pause_after_object_delete(
         &self,
         reached: Arc<tokio::sync::Notify>,
@@ -115,7 +115,7 @@ impl ArticleAttachments {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     pub(crate) fn signal_before_intent_lock(&self, signal: Arc<tokio::sync::Notify>) -> Result<()> {
         *self.before_intent_lock.lock().map_err(|_| {
             Error::internal(std::io::Error::other("intent lock test signal poisoned"))
@@ -123,7 +123,7 @@ impl ArticleAttachments {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     pub(crate) fn pause_after_publish(
         &self,
         reached: Arc<tokio::sync::Notify>,
@@ -197,13 +197,13 @@ impl ArticleAttachments {
     /// 提交后幂等处理持久意图；取消/存储失败时意图保留，可由后续调用或维护命令重试。
     #[allow(clippy::too_many_lines)] // 持锁重查、对象删除与意图提交必须在同一事务作用域。
     pub(crate) async fn cleanup_deleted(&self, owner_id: i64, article_id: i64) -> Result<()> {
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         let cleanup_gate = self
             .cleanup_gate
             .lock()
             .map_err(|_| Error::internal(std::io::Error::other("cleanup test gate poisoned")))?
             .take();
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         if let Some(gate) = cleanup_gate {
             gate.reached.notify_one();
             let _permit =
@@ -213,7 +213,7 @@ impl ArticleAttachments {
         }
         let connection = self.db.primary_connection()?;
         let transaction = connection.begin().await.map_err(Error::internal)?;
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         if let Some(signal) = self
             .before_intent_lock
             .lock()
@@ -229,7 +229,7 @@ impl ArticleAttachments {
             .one(&transaction)
             .await
             .map_err(Error::internal)?;
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         let locked_gate = self
             .locked_cleanup_gate
             .lock()
@@ -237,7 +237,7 @@ impl ArticleAttachments {
                 Error::internal(std::io::Error::other("locked cleanup test gate poisoned"))
             })?
             .pop_front();
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         if let Some(gate) = locked_gate {
             gate.reached.notify_one();
             let _permit = gate.release.acquire().await.map_err(|_| {
@@ -284,7 +284,7 @@ impl ArticleAttachments {
                 "文章已删除，但附件清理失败",
             ))?,
         }
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         let deleted_gate = self
             .deleted_object_gate
             .lock()
@@ -292,7 +292,7 @@ impl ArticleAttachments {
                 Error::internal(std::io::Error::other("deleted object test gate poisoned"))
             })?
             .take();
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         if let Some(gate) = deleted_gate {
             gate.reached.notify_one();
             let _permit = gate.release.acquire().await.map_err(|_| {
@@ -354,7 +354,7 @@ impl ArticleAttachments {
         .await
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     pub(crate) async fn upload_with_test_deadline(
         &self,
         owner_id: i64,
@@ -374,7 +374,12 @@ impl ArticleAttachments {
         .await
     }
 
-    #[cfg(all(test, feature = "http-client"))]
+    #[cfg(all(
+        test,
+        feature = "http-client",
+        feature = "storage-s3",
+        any(feature = "db-postgres", feature = "db-mysql")
+    ))]
     pub(crate) async fn upload_with_test_deadlines(
         &self,
         owner_id: i64,
@@ -407,7 +412,7 @@ impl ArticleAttachments {
     ) -> Result<StoredObject> {
         let path = Self::object_path(owner_id, article_id)?;
         let disk = self.storage.default_disk().await?;
-        #[cfg(test)]
+        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
         let publish_gate = self
             .publish_gate
             .lock()
@@ -477,7 +482,7 @@ impl ArticleAttachments {
                 .map_err(storage_error);
                 match result {
                     Ok(stored) => {
-                        #[cfg(test)]
+                        #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
                         if let Some(gate) = publish_gate {
                             gate.reached.notify_one();
                             let _permit = gate.release.acquire().await.map_err(|_| {

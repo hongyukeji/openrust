@@ -1029,5 +1029,10 @@ pub(crate) use tasks::{
     import_status, open as open_export, open_import_report, upload_import,
 };
 
-#[cfg(all(test, feature = "data-exchange-tasks", feature = "storage-local"))]
+#[cfg(all(
+    test,
+    feature = "data-exchange-tasks",
+    feature = "storage-local",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
 pub(crate) use tasks::cleanup_import_at;

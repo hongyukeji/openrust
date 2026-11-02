@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+#[cfg(feature = "auth")]
 pub(crate) mod article_index;
 pub mod example_heartbeat;
 
@@ -49,6 +50,7 @@ impl ServiceProvider for JobsServiceProvider {
         Box::pin(async move {
             let contributions = app.resolve::<QueueContributions>().await?;
             contributions.register_job::<example_heartbeat::ExampleHeartbeatJob>()?;
+            #[cfg(feature = "auth")]
             contributions.register_job::<article_index::ArticleIndexJob>()?;
             contributions.schedule_interval(
                 "example-heartbeat",

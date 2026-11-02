@@ -2,7 +2,7 @@
 
 use super::RouteCapabilities;
 use crate::modules::example::http::controllers;
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 use controllers::auth::{
     auth_login, auth_logout, auth_refresh, auth_register, auth_request_email_verification,
     auth_request_password_reset, auth_reset_password, auth_verify_email, current_user,
@@ -72,7 +72,7 @@ pub(super) fn register(
     } else {
         routes
     };
-    #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+    #[cfg(feature = "auth")]
     let routes = if capabilities.database {
         article_routes(
             tenant_routes(account_routes(auth_routes(routes), capabilities)),
@@ -81,10 +81,7 @@ pub(super) fn register(
     } else {
         routes
     };
-    #[cfg(all(
-        feature = "auth-oidc",
-        any(feature = "db-postgres", feature = "db-mysql")
-    ))]
+    #[cfg(feature = "auth-oidc")]
     let routes = if capabilities.database && capabilities.oidc {
         oidc_routes(routes)
     } else {
@@ -99,12 +96,9 @@ pub(super) fn register(
     } else {
         routes
     };
-    #[cfg(not(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql"))))]
+    #[cfg(not(feature = "auth"))]
     let _ = &capabilities.summary_origin;
-    #[cfg(not(any(
-        feature = "queue",
-        all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql"))
-    )))]
+    #[cfg(not(any(feature = "queue", feature = "auth")))]
     let _ = capabilities.database;
     routes
 }
@@ -405,7 +399,7 @@ pub(crate) async fn response_marker_middleware(
     response
 }
 
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 fn tenant_routes(routes: Routes) -> Routes {
     use controllers::tenant;
     use openrust::auth::{AuthLayer, AuthMode};
@@ -433,7 +427,7 @@ fn tenant_routes(routes: Routes) -> Routes {
     )
 }
 
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 async fn private_account_response(
     request: openrust::http::axum::extract::Request,
     next: openrust::http::axum::middleware::Next,
@@ -449,7 +443,7 @@ async fn private_account_response(
     response
 }
 
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
     use controllers::account_security as account;
     use openrust::auth::{AuthLayer, AuthMode};
@@ -505,10 +499,7 @@ fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
     })
 }
 
-#[cfg(all(
-    feature = "auth-oidc",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "auth-oidc")]
 fn oidc_routes(routes: Routes) -> Routes {
     use controllers::oidc;
     use openrust::auth::{AuthLayer, AuthMode};
@@ -542,10 +533,7 @@ fn oidc_routes(routes: Routes) -> Routes {
     })
 }
 
-#[cfg(all(
-    feature = "auth-oidc",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "auth-oidc")]
 async fn private_oidc_response(
     request: openrust::http::axum::extract::Request,
     next: openrust::http::axum::middleware::Next,
@@ -559,7 +547,7 @@ async fn private_oidc_response(
     response
 }
 
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 #[allow(clippy::too_many_lines)] // 文章同一认证组的路由装配保留在一个可审查入口。
 fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
     use controllers::article;
@@ -586,10 +574,7 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
                 "/articles/{id}/cached-title/swr",
                 controllers::article_cache::show_swr,
             );
-        #[cfg(all(
-            feature = "realtime",
-            any(feature = "db-postgres", feature = "db-mysql")
-        ))]
+        #[cfg(feature = "realtime")]
         let api = api
             .get("/articles/{id}/events", controllers::realtime::events)
             .get(
@@ -642,10 +627,7 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
         };
         #[cfg(not(feature = "http-client"))]
         let _ = summary_enabled;
-        #[cfg(all(
-            feature = "storage-local",
-            any(feature = "db-postgres", feature = "db-mysql")
-        ))]
+        #[cfg(feature = "storage-local")]
         let api = api
             .post(
                 "/articles/{id}/attachment/file",
@@ -711,7 +693,7 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
     routes
 }
 
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 fn auth_routes(routes: Routes) -> Routes {
     routes.nest("/api/example", |api| {
         api.get("/me", current_user)

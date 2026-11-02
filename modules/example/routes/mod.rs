@@ -13,10 +13,7 @@ pub(crate) struct RouteCapabilities {
     pub(crate) view: bool,
     pub(crate) i18n: bool,
     pub(crate) summary_origin: Option<String>,
-    #[cfg(all(
-        feature = "auth-oidc",
-        any(feature = "db-postgres", feature = "db-mysql")
-    ))]
+    #[cfg(feature = "auth-oidc")]
     pub(crate) oidc: bool,
 }
 

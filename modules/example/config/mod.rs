@@ -40,10 +40,7 @@ pub(crate) fn config(ctx: &ConfigContext) -> Result<serde_json::Value, ConfigErr
     if let Some(hosts) = trusted_hosts {
         values["trusted_hosts"] = trusted_hosts_values(hosts);
     }
-    #[cfg(all(
-        feature = "auth-oidc",
-        any(feature = "db-postgres", feature = "db-mysql")
-    ))]
+    #[cfg(feature = "auth-oidc")]
     if let Some(oidc) = oidc(ctx)? {
         values["oidc"] = oidc;
     }
@@ -67,10 +64,7 @@ pub(crate) fn runtime_policy(ctx: &ConfigContext) -> Result<ExampleRuntimePolicy
 }
 
 /// 只有显式启用时提供 OIDC 策略；不序列化会跳过 `client_secret` 的框架业务类型。
-#[cfg(all(
-    feature = "auth-oidc",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "auth-oidc")]
 fn oidc(ctx: &ConfigContext) -> Result<Option<serde_json::Value>, ConfigError> {
     const ENABLED: bool = false;
     if !ENABLED {
@@ -108,10 +102,7 @@ fn trusted_hosts_values(hosts: openrust::config::TrustedHostsConfig) -> serde_js
     values
 }
 
-#[cfg(all(
-    feature = "auth-oidc",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "auth-oidc")]
 fn oidc_values(oidc: super::services::oidc::ExampleOidcConfig) -> serde_json::Value {
     let mut values = serde_json::json!({
         "issuer": oidc.issuer,
@@ -204,10 +195,7 @@ mod projection_tests {
         Ok(())
     }
 
-    #[cfg(all(
-        feature = "auth-oidc",
-        any(feature = "db-postgres", feature = "db-mysql")
-    ))]
+    #[cfg(feature = "auth-oidc")]
     #[tokio::test]
     async fn enabled_oidc_projection_inherits_absent_secret_and_keeps_explicit_empty_string()
     -> openrust::Result<()> {

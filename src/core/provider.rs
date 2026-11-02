@@ -786,9 +786,12 @@ impl ProviderBuilder {
         let mut bindings = ContainerBuilder::new();
         bindings.instance(Arc::new(crate::http::MimeTypes::new()));
         let mut config = ConfigRepository::new(sources);
+        let mut automatic_database = None;
         if let Some((position, defaults)) = defaults {
-            let entries = defaults
-                .resolve(&config)?
+            let selected = defaults.resolve_selection(&config)?;
+            automatic_database = selected.database;
+            let entries = selected
+                .providers
                 .into_iter()
                 .filter(|provider| !self.removed.contains(&provider.id()))
                 .map(|provider| ProviderEntry {
@@ -856,6 +859,7 @@ impl ProviderBuilder {
             for configure in self.binding_overrides {
                 configure(container.clone()).await?;
             }
+            super::default_providers::validate_database_selection(&config, automatic_database)?;
             config.validate_base()?;
             container.initialize_extensions().await?;
             for provider in active.iter() {
@@ -871,6 +875,7 @@ impl ProviderBuilder {
                         finalizers: &mut finalizers,
                     })
                     .await?;
+                super::default_providers::validate_database_selection(&config, automatic_database)?;
             }
             finalize_startup(&mut config, finalizers, required, &container).await
         }

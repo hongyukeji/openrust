@@ -7,10 +7,7 @@ pub(crate) struct ExampleConfig {
     pub(crate) article_summary_origin: Option<String>,
     pub(crate) feature: ExampleFeatureConfig,
     pub(crate) trusted_hosts: Option<openrust::config::TrustedHostsConfig>,
-    #[cfg(all(
-        feature = "auth-oidc",
-        any(feature = "db-postgres", feature = "db-mysql")
-    ))]
+    #[cfg(feature = "auth-oidc")]
     pub(crate) oidc: Option<super::oidc::ExampleOidcConfig>,
 }
 
@@ -21,10 +18,7 @@ impl Default for ExampleConfig {
             article_summary_origin: None,
             feature: ExampleFeatureConfig::default(),
             trusted_hosts: None,
-            #[cfg(all(
-                feature = "auth-oidc",
-                any(feature = "db-postgres", feature = "db-mysql")
-            ))]
+            #[cfg(feature = "auth-oidc")]
             oidc: None,
         }
     }
@@ -39,10 +33,7 @@ pub(crate) struct ExampleFeatureConfig {
 
 impl ExampleConfig {
     pub(crate) fn validate(&self) -> openrust::Result<()> {
-        #[cfg(all(
-            feature = "auth-oidc",
-            any(feature = "db-postgres", feature = "db-mysql")
-        ))]
+        #[cfg(feature = "auth-oidc")]
         if let Some(oidc) = &self.oidc {
             oidc.validate()?;
         }

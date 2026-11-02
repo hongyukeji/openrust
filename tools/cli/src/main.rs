@@ -1091,6 +1091,8 @@ fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
     let mut additions = String::new();
     if database.is_some() {
         additions.push_str("\n    providers.push(Box::new(openrust::db::MigrationServiceProvider::<\n        openrust_migration::Migrator,\n    >::new()));\n    providers.push(Box::new(openrust::db::SeedServiceProvider::new(crate::seed::run)));");
+    } else {
+        additions.push_str("\n    providers.push(Box::new(openrust::db::MigrationServiceProvider::<\n        openrust::db::FrameworkMigrator,\n    >::new()));");
     }
     if grpc {
         additions.push_str("\n    providers.push(Box::new(openrust::grpc::GrpcServiceProvider::new()));\n    providers.push(Box::new(crate::grpc::EchoServiceProvider));\n    providers.push(Box::new(openrust::runtime::HttpGrpcServiceProvider));");
@@ -1502,10 +1504,16 @@ fn generate(
 }
 
 fn enable_uuid_feature(project_dir: &Path) -> anyhow::Result<()> {
-    for path in [
-        project_dir.join("Cargo.toml"),
-        project_dir.join("database/migrations/Cargo.toml"),
-    ] {
+    let mut manifests = vec![project_dir.join("Cargo.toml")];
+    let migration_package = project_dir.join("database/migrations");
+    match fs::symlink_metadata(&migration_package) {
+        Ok(_) => manifests.push(migration_package.join("Cargo.toml")),
+        // 仅整个 package 不存在时可省略；目录存在而清单缺失或不可读必须报错。
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    let mut updates = Vec::new();
+    for path in manifests {
         let source = fs::read_to_string(&path)?;
         let mut document = source
             .parse::<toml_edit::DocumentMut>()
@@ -1529,8 +1537,12 @@ fn enable_uuid_feature(project_dir: &Path) -> anyhow::Result<()> {
             .any(|feature| feature.as_str() == Some("db-uuid"))
         {
             features.push("db-uuid");
-            fs::write(path, document.to_string())?;
+            updates.push((path, document.to_string()));
         }
+    }
+    // 两份清单全部读取、解析和准备成功后才开始写，不能留下预检失败的半更新。
+    for (path, source) in updates {
+        fs::write(path, source)?;
     }
     Ok(())
 }
@@ -1652,9 +1664,6 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let type_name = format!("{}Job", pascal_case(&module));
     let app_manifest_path = project_dir.join("Cargo.toml");
     let app_manifest = fs::read_to_string(&app_manifest_path)?;
-    if !app_manifest.contains("db-postgres") && !app_manifest.contains("db-mysql") {
-        bail!("job generation requires an application created with `openrust new --db`");
-    }
     let migration_manifest_path = project_dir.join("database/migrations/Cargo.toml");
     let migration_source = fs::read_to_string(&migration_manifest_path)
         .context("job generation requires a database migration package")?;
@@ -2021,10 +2030,8 @@ fn generate_model(
     project_dir: &Path,
 ) -> anyhow::Result<()> {
     let (name, fields) = parse_model_arguments(values, soft_delete)?;
-    let manifest = fs::read_to_string(project_dir.join("Cargo.toml"))?;
-    if !manifest.contains("db-postgres") && !manifest.contains("db-mysql") {
-        bail!("model generation requires an application created with `openrust new --db`");
-    }
+    // 通用 ORM 实体不要求连接驱动；仍在任何写入前确认目标应用清单可读。
+    let _manifest = fs::read_to_string(project_dir.join("Cargo.toml"))?;
     let module = normalize_identifier(name)?;
     let table = pluralize(&module);
     let model_file = project_dir.join(format!("app/models/_entities/{module}.rs"));
@@ -2035,6 +2042,9 @@ fn generate_model(
     let models_module = project_dir.join("app/models/mod.rs");
     let main_file = project_dir.join("src/main.rs");
     let generated = render_model(&table, &fields, uuid_id, soft_delete);
+    if uuid_id {
+        enable_uuid_feature(project_dir)?;
+    }
     fs::write(&model_file, generated)?;
     append_module(
         &entity_module,
@@ -2047,9 +2057,6 @@ fn generate_model(
         "#[path = \"../app/models/mod.rs\"]\npub mod models;",
         "//! 应用入口。\n",
     )?;
-    if uuid_id {
-        enable_uuid_feature(project_dir)?;
-    }
     print_generated(&format!("Generated model `{module}` for table `{table}`."))?;
     Ok(())
 }
@@ -2079,10 +2086,7 @@ fn generate_application_model(values: &[String], project_dir: &Path) -> anyhow::
     let Some(name) = values.first() else {
         bail!("usage: openrust make:model <name> [field:type ...]");
     };
-    let manifest = fs::read_to_string(project_dir.join("Cargo.toml"))?;
-    if !manifest.contains("db-postgres") && !manifest.contains("db-mysql") {
-        bail!("make:model requires an application created with `openrust new --db`");
-    }
+    let _manifest = fs::read_to_string(project_dir.join("Cargo.toml"))?;
     let module = normalize_generator_type(name, "")?;
     let fields = if values.len() == 1 {
         Vec::new()
@@ -2202,14 +2206,14 @@ fn generate_migration(
         bail!("migration already exists: {module}");
     }
     let updated_registry = register_migration(&registry, &module)?;
+    if uuid_id {
+        enable_uuid_feature(project_dir)?;
+    }
     fs::write(
         &migration_file,
         render_migration(&module, &table, &fields, uuid_id, soft_delete),
     )?;
     fs::write(lib_file, updated_registry)?;
-    if uuid_id {
-        enable_uuid_feature(project_dir)?;
-    }
     print_generated(&format!(
         "Generated migration `{module}` for table `{table}`."
     ))?;
@@ -3428,6 +3432,10 @@ mod tests {
         let registry = fs::read_to_string(project.join("bootstrap/providers.rs"))
             .expect("read application Provider list");
         assert!(registry.contains("AppServiceProvider"));
+        assert!(registry.contains("openrust::db::FrameworkMigrator"));
+        assert_eq!(registry.matches("MigrationServiceProvider").count(), 1);
+        assert!(!registry.contains("SeedServiceProvider"));
+        assert!(!project.join("database/migrations").exists());
         let snapshot = [
             "Cargo.toml",
             ".gitignore",
@@ -3442,6 +3450,7 @@ mod tests {
             "config/modules.rs",
             "src/main.rs",
             "bootstrap/app.rs",
+            "bootstrap/providers.rs",
             "modules/mod.rs",
             "modules_statuses.json",
             "routes/mod.rs",
@@ -3584,6 +3593,8 @@ mod tests {
                 .expect("read generated provider registry");
             assert!(providers.contains("openrust_migration::Migrator"));
             assert!(providers.contains("SeedServiceProvider"));
+            assert!(!providers.contains("openrust::db::FrameworkMigrator"));
+            assert_eq!(providers.matches("MigrationServiceProvider").count(), 1);
             assert!(project.join(".env.example").is_file());
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated database environment example");
@@ -3787,6 +3798,184 @@ mod tests {
                     .expect("API routes")
                     .contains("/auth/mfa/login")
             );
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn ordinary_projects_generate_both_model_styles_without_driver_features() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-model-no-driver-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("创建临时目录");
+        let project = root.join("blog");
+        populate_project(&project, "blog", "Blog", None, false, false, false, false)
+            .expect("生成普通应用");
+        let manifest = fs::read(project.join("Cargo.toml")).expect("读取应用清单");
+        generate_application_model(&["Article", "title:string"].map(str::to_owned), &project)
+            .expect("普通应用生成 make:model");
+        let model = ["post", "title:string", "metadata:json"].map(str::to_owned);
+        generate_model(&model, false, false, &project).expect("普通应用生成旧式实体");
+        for relative in ["app/models/article.rs", "app/models/_entities/post.rs"] {
+            let source = fs::read_to_string(project.join(relative)).expect("读取实体");
+            assert!(source.contains("use openrust::database::sea_orm_migration::sea_orm;"));
+            assert!(source.contains("DeriveEntityModel"));
+            assert!(source.contains("pub title: String"));
+        }
+        assert!(
+            fs::read_to_string(project.join("app/mod.rs"))
+                .expect("读取应用模块")
+                .contains("pub mod models;")
+        );
+        assert!(
+            fs::read_to_string(project.join("app/models/_entities/mod.rs"))
+                .expect("读取实体模块")
+                .contains("pub mod post;")
+        );
+        assert_eq!(
+            fs::read(project.join("Cargo.toml")).expect("读取清单"),
+            manifest
+        );
+        assert!(!project.join("database/migrations").exists());
+        let paths = [
+            "Cargo.toml",
+            "app/mod.rs",
+            "app/models/mod.rs",
+            "app/models/article.rs",
+            "app/models/_entities/mod.rs",
+            "app/models/_entities/post.rs",
+            "src/main.rs",
+        ];
+        let before = paths.map(|path| fs::read(project.join(path)).expect("保存生成内容"));
+        assert!(generate_application_model(&["Article".to_owned()], &project).is_err());
+        assert!(generate_model(&model, false, false, &project).is_err());
+        for (path, expected) in paths.into_iter().zip(before) {
+            assert_eq!(
+                fs::read(project.join(path)).expect("读取冲突后内容"),
+                expected
+            );
+        }
+        let missing = root.join("not-an-application");
+        assert!(generate_application_model(&["Article".to_owned()], &missing).is_err());
+        assert!(generate_model(&model, false, false, &missing).is_err());
+        assert!(!missing.exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn uuid_model_without_migration_package_enables_only_application_extension() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-uuid-no-driver-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("创建临时目录");
+        let project = root.join("blog");
+        populate_project(&project, "blog", "Blog", None, false, false, false, false)
+            .expect("生成普通应用");
+        generate_model(
+            &["entry", "title:string"].map(str::to_owned),
+            true,
+            true,
+            &project,
+        )
+        .expect("无迁移包生成 UUID 实体");
+        let source = fs::read_to_string(project.join("app/models/_entities/entry.rs"))
+            .expect("读取 UUID 实体");
+        assert!(source.contains("pub id: Uuid"));
+        assert!(source.contains("Uuid::now_v7()"));
+        assert!(source.contains("pub deleted_at: Option<DateTimeUtc>"));
+        let manifest = fs::read_to_string(project.join("Cargo.toml")).expect("读取应用清单");
+        assert!(manifest.contains("\"db-uuid\""));
+        assert!(!manifest.contains("db-mysql"));
+        assert!(!manifest.contains("db-postgres"));
+        assert!(!project.join("database/migrations").exists());
+        fs::create_dir_all(project.join("database/migrations/Cargo.toml"))
+            .expect("用目录模拟已存在但不可读取的迁移清单");
+        assert!(enable_uuid_feature(&project).is_err());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn uuid_generators_preflight_both_manifests_before_mutating_any_files() {
+        fn file_bytes(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+            let mut result = std::collections::BTreeMap::new();
+            let mut directories = vec![root.to_path_buf()];
+            while let Some(directory) = directories.pop() {
+                for entry in fs::read_dir(directory).expect("读取 fixture 目录") {
+                    let entry = entry.expect("读取 fixture 条目");
+                    if entry.file_type().expect("读取条目类型").is_dir() {
+                        directories.push(entry.path());
+                    } else {
+                        result.insert(
+                            entry.path(),
+                            fs::read(entry.path()).expect("保存原文件字节"),
+                        );
+                    }
+                }
+            }
+            result
+        }
+
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-uuid-preflight-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("创建临时目录");
+        for (case, invalid) in [
+            ("syntax", Some("[dependencies")),
+            ("directory", None),
+            ("missing", None),
+            (
+                "features",
+                Some("[dependencies]\nopenrust = { workspace = true, features = 17 }\n"),
+            ),
+        ] {
+            let project = root.join(case);
+            populate_project(
+                &project,
+                "blog",
+                "Blog",
+                Some(DatabaseBackend::Mysql),
+                false,
+                false,
+                false,
+                false,
+            )
+            .expect("生成带迁移 package 的应用");
+            let manifest = project.join("database/migrations/Cargo.toml");
+            if let Some(source) = invalid {
+                fs::write(&manifest, source).expect("模拟损坏迁移清单");
+            } else {
+                fs::remove_file(&manifest).expect("移除自有 fixture 迁移清单");
+                if case == "directory" {
+                    fs::create_dir(&manifest).expect("用目录模拟不可读的迁移清单");
+                }
+            }
+            assert!(project.join("database/migrations").is_dir());
+            assert!(
+                !fs::read_to_string(project.join("Cargo.toml"))
+                    .expect("读取应用清单")
+                    .contains("db-uuid")
+            );
+            let before = file_bytes(&project);
+            let model = ["entry", "title:string"].map(str::to_owned);
+            assert!(
+                generate_model(&model, true, false, &project).is_err(),
+                "{case}"
+            );
+            assert!(!project.join("app/models/_entities/entry.rs").exists());
+            assert_eq!(file_bytes(&project), before, "model / {case}");
+            assert!(
+                generate_migration(&model, true, false, &project).is_err(),
+                "{case}"
+            );
+            assert_eq!(file_bytes(&project), before, "migration / {case}");
+            assert!(enable_uuid_feature(&project).is_err(), "{case}");
+            assert_eq!(file_bytes(&project), before, "feature / {case}");
         }
         let _ = fs::remove_dir_all(root);
     }
@@ -4000,6 +4189,114 @@ mod tests {
         let manifest =
             fs::read_to_string(project.join("Cargo.toml")).expect("read generated app manifest");
         assert!(manifest.contains("mail-templates"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn job_generation_accepts_inherited_or_custom_driver_with_migration_structure() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-job-no-driver-text-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("创建临时目录");
+        for (name, custom_driver) in [("inherited", false), ("custom", true)] {
+            let project = root.join(name);
+            populate_project(
+                &project,
+                name,
+                "Blog",
+                Some(DatabaseBackend::Mysql),
+                false,
+                false,
+                false,
+                false,
+            )
+            .expect("生成带迁移结构的应用");
+            for relative in ["Cargo.toml", "database/migrations/Cargo.toml"] {
+                let path = project.join(relative);
+                let mut manifest = fs::read_to_string(&path)
+                    .expect("读取 fixture 清单")
+                    .parse::<toml_edit::DocumentMut>()
+                    .expect("解析 fixture 清单");
+                let dependency = manifest["dependencies"]["openrust"]
+                    .as_value_mut()
+                    .and_then(toml_edit::Value::as_inline_table_mut)
+                    .expect("工作区依赖");
+                assert_eq!(
+                    dependency
+                        .get("workspace")
+                        .and_then(toml_edit::Value::as_bool),
+                    Some(true)
+                );
+                dependency.remove("features");
+                if custom_driver {
+                    let mut driver = toml_edit::InlineTable::new();
+                    driver.insert("version", "2.0.4".into());
+                    driver.insert("default-features", false.into());
+                    let mut features = toml_edit::Array::new();
+                    features.push("sqlx-sqlite");
+                    driver.insert("features", toml_edit::Value::Array(features));
+                    manifest["dependencies"]["sea-orm"] = toml_edit::value(driver);
+                }
+                let source = manifest.to_string();
+                assert!(!source.contains("db-mysql"));
+                assert!(!source.contains("db-postgres"));
+                fs::write(path, source).expect("保存继承或外部驱动清单");
+            }
+            generate_job(&["delivery".to_owned()], &project).expect("按迁移结构生成任务");
+            assert!(project.join("app/jobs/delivery.rs").is_file());
+            for relative in ["Cargo.toml", "database/migrations/Cargo.toml"] {
+                let source = fs::read_to_string(project.join(relative)).expect("读取任务依赖");
+                assert!(source.contains("\"queue\""));
+                assert!(!source.contains("db-mysql"));
+                assert!(!source.contains("db-postgres"));
+                assert_eq!(source.contains("sqlx-sqlite"), custom_driver);
+            }
+            let source = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
+                .expect("读取迁移注册");
+            assert_eq!(source.matches("openrust::queue::QueueMigration").count(), 1);
+            let source = fs::read_to_string(project.join("bootstrap/providers.rs"))
+                .expect("读取任务 Provider");
+            assert!(source.contains("crate::jobs::JobsServiceProvider"));
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn ordinary_project_job_without_migration_package_fails_before_any_write() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-job-no-migrations-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("创建临时目录");
+        let project = root.join("blog");
+        populate_project(&project, "blog", "Blog", None, false, false, false, false)
+            .expect("生成普通应用");
+        let paths = [
+            "Cargo.toml",
+            "config/mod.rs",
+            "app/jobs/mod.rs",
+            "bootstrap/providers.rs",
+            "src/main.rs",
+        ];
+        let before = paths.map(|path| fs::read(project.join(path)).expect("保存生成前内容"));
+        let queue_before = fs::read(project.join("config/queue.rs")).ok();
+        let result = generate_job(&["delivery".to_owned()], &project);
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(error.to_string().contains("migration package"));
+        }
+        assert!(!project.join("app/jobs/delivery.rs").exists());
+        assert!(!project.join("database/migrations").exists());
+        assert_eq!(fs::read(project.join("config/queue.rs")).ok(), queue_before);
+        for (path, expected) in paths.into_iter().zip(before) {
+            assert_eq!(
+                fs::read(project.join(path)).expect("读取拒绝后内容"),
+                expected
+            );
+        }
         let _ = fs::remove_dir_all(root);
     }
 

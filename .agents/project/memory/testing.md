@@ -1,5 +1,21 @@
 # 测试基线
 
+## DB 通用能力与驱动分层限定验收
+
+2026-11-02，基线710dd55，失败处理规则另由231b0b8本地提交。固定framework d52c3b3的DefaultProviders/DatabaseServiceProvider/MigrationServiceProvider/ModelMakeCommand及对应测试；只闭合通用能力编译、注册、当前默认连接选择及生成子范围。db/database/facade/prelude常开，driver feature只控制连接器；根/活跃模块迁移与种子注册不因缺URL消失。DatabaseConfig::has_default_connection只指默认url；具名实例独立连接，不误选绑定default的自动Auth/Queue/database Session或示例业务。生产模块register读同仓储，静态nested/possible候选不冒充实际登记。自动清单选择后默认URL有无变化拒绝启动；显式模块register未选业务而boot反向启用也拒绝，保原startup资源回收；有变无可关闭路由而不卸绑定。这是当前装配失配的明确失败边界，不抵扣完整Laravel懒连接/动态默认连接缺口。
+
+752输入，attempt8十四门禁全exit0；补查queue-only仅发现候选Vec构造lint，保持相同条件/顺序改vec!后attempt9重新验证fmt、默认/全特性/无DB/queue-only严格Clippy、无DB Server、双workspace tests及双拒警docs十项，全0。仅modules/example/providers/module.rs与attempt8不同；MySQL/PG单驱动库单元、no-default lib、精确Rust1.97 lib与deny五项按输入/作用域未变复用，逐项SHA在attempt9-evidence-reuse.json。最后workspace原始harness汇总1175 passed/35 ignored、2024/115；含重叠target/子进程，不作唯一行为数。8→9只有独立1项summary输出少1/3，27/51个Cargo Running target相同、其余summary值与频数相同，未删测试，见harness-summary-variation.json。无DB业务组合86/1 ignored，单驱动库单元MySQL44/PG43；ignored、未配置IdP的提前返回不算真实服务。
+
+源码阶段的失败均保全：初始类型复杂度/条件lint、内部结果类型旧解构漏改、fixture借用/方法闭包lint；全特性发现私有AuthService误引及旧Session helper参数，改检查四项公开认证绑定与完整同步调用方。无DB编译定位Keycloak的DB/MFA条件和测试hooks边界，保无DB双客户端/token/SSO路径及原20/56/4断言计数；附件仅收紧实际DB测试接缝，3项纯deadline保留。运行profile误删了既有cache-redis，root仍配置Redis store而合法拒绝；控制探针定位后补回缓存feature，DB驱动仍关闭，未放宽缓存校验，临时诊断已还原。用户已将AGENTS改为Agent自主处理失败，旧次数/问答不再作暂停依据，严格门禁与所有失败证据保留。
+
+根真实MySQL8.4与PG18认证各精确1；具名库而无default的真实应用两库各1，0 ignored，验证实际连接/ping、默认句柄未初始化、四项公开认证服务与Queue未绑定及基础HTTP可用。四TCP进程验证模块真实装配、状态缓存/live与下次启动路由，均正常exit0且端口释放。fresh普通应用实际生成两种模型/UUID后check/test/build及12项、MySQL认证/Job3、MFA2、同二进制SHA的缓存/坏dotenv/clear复启全过。新的local环境migrate负例确实进入命令并因未初始化连接池exit1；旧未设APP_ENV的负例在测试Mailer bootstrap失败，明确排除，不能当数据库证据。用户显式授权的旧定向重验答复晚于新自主规则，作为补充，不撤回新规则。
+
+外部SQLite consumer以公开database/prelude导出在无官方DB driver下locked check/run通过，保连接/事务/表名/查询及应用迁移资产，框架迁移互斥仍明确拒绝SQLite。首次check仅补consumer Cargo.lock的openrust→glob既有依赖边，421包身份/版本/checksum全部不变；冻结检查发现并停止后严格核差异，保存post-consumer-lock-source-snapshot，再locked check/run，不重跑无关主门禁。PG首次runner误用postgres角色，按现容器POSTGRES_USER修正，无角色/服务改动；先前MySQL结果复用，不重复场景。不是单个脚本一路绿，原失败与逐停点恢复均可追溯。MySQL/PG数据库集合最终0增0删，未清他人旧库，共享服务未停。
+
+不同模型最终核752输入零漂移、十项新门禁与五项复用、服务SHA/实际数量及锁差异，无限定范围blocker；报告/tmp/openrust-db-capability-final-evidence-review.md已复制证据目录。生成源码192文件归档SHA f00c9daf51d104aa56d1f0454c387434efcc48beee199bd7026623a67f6e42c3，原目录及缓存重启副本仍保留。主target39,083,229,184B→0后跑consumer/fresh，最后无构建进程或target句柄，正常dry-run+clean 10,721,374,208B→0，磁盘可用197,526,224,896B。完整回执tmp/db-capability-20261102/；本地提交以Git为准，不push/tag/release。
+
+固定官方DatabaseManager/ConnectionFactory测试明确懒连接、database.default/usingConnection恢复与扩展resolver；五SQL后端、完整默认连接切换、purge/reconnect、配置工厂及最低版本矩阵仍归L057/R4–R6，不把当前双库实现当最终授权范围。当前自动选择省略无default URL的database Session，完整上游启用/错误语义仍归Session后继；标准MySQL+Redis开箱/队列仍按唯一todo继续，完整CLI/DB/Modules/ADR-001未关闭。Keycloak本批仅编译/条件覆盖，未宣称真实IdP验收。skill独立owner源码不混入、不部署旧Paseo守护、不重建Goal/预算；原生heartbeat手动交接不算真实调度成功。
+
 ## FileActivator 实例缓存限定验收
 
 2026-11-02，d32162d后继；固定Modules5971484的FileActivator及Laravel d52c3b3 Filesystem/ConfigRepository。默认file构造读取、实例快照、自身修改先于写入且失败不回滚、cached null/missing delete无写、外部删除后重建剩余缓存及reset均按实际链整改。Manifest仅保存工厂，实际包register读取当前配置后构造；FileModuleActivator::new返回Result，显式reset_file保手工恢复。file-live/with_live_reads保实时增强，不作为官方默认。

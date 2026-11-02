@@ -66,11 +66,9 @@ pub(crate) fn lock_test_env() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// 数据库模块，由 facade 的 `db-postgres` 或 `db-mysql` feature 启用。
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+/// 通用数据库模块；具体连接器由 `db-postgres` / `db-mysql` feature 选择。
 pub use db as database;
 
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 pub use db::{DatabaseConfig, DatabaseInstanceConfig, Databases, Db};
 
 /// 扩展方法，用于在不绑定监听器的情况下测试 HTTP router。
@@ -147,7 +145,6 @@ pub mod prelude {
         App, Application, BoxFuture, Cancellation, Command, Error, ExecutionContext,
         ExecutionMetadata, NoConfig, Result,
     };
-    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
     pub use crate::{DatabaseConfig, DatabaseInstanceConfig, Databases, Db};
 }
 

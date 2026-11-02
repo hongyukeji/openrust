@@ -18,6 +18,10 @@ async fn default_provider_manifest_serves_application_route() -> Result<()> {
         .start(crate::modules::example::test_sources(&(source))?)
         .await?;
     let app = openrust::App::from_provider_runtime(runtime)?;
+    // 无driver/无URL仍注册通用迁移命令；具体执行必须通过未初始化Db明确失败。
+    assert!(app.commands().any(|command| command.name() == "migrate"));
+    let db: std::sync::Arc<openrust::prelude::Db> = app.state().resolve().await?;
+    assert!(db.backend().is_err());
     let router = openrust::http::build_router(&app)?;
     let response = router
         .oneshot(
@@ -164,4 +168,107 @@ async fn disabled_example_keeps_application_api_and_removes_module_api() -> Resu
         .await;
     outcome?;
     shutdown
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[tokio::test]
+#[ignore = "需要真实 PostgreSQL/MySQL 管理连接，创建并清理自有隔离库"]
+async fn named_only_database_keeps_default_services_unselected() -> Result<()> {
+    let admin = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(openrust::Error::internal)?;
+    let database =
+        openrust::testing::TestDatabase::create::<openrust::db::FrameworkMigrator>(&admin).await?;
+    // 将创建后的全部错误纳入统一清理；失败不能只依赖 Drop 的尽力清理。
+    let outcome = verify_named_only_database_host(&database).await;
+    let cleanup = database.close().await;
+    outcome.and(cleanup)
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+async fn verify_named_only_database_host(database: &openrust::testing::TestDatabase) -> Result<()> {
+    use openrust::http::axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    fn check(condition: bool) -> Result<()> {
+        if condition {
+            Ok(())
+        } else {
+            Err(openrust::Error::custom(
+                "test_named_database_selection",
+                "真实具名库没有遵守默认连接隔离",
+            ))
+        }
+    }
+    let root = tempfile::tempdir().map_err(openrust::Error::internal)?;
+    crate::modules::example::write_discovery_fixture(root.path())?;
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Serialized::defaults(serde_json::json!({
+        "application_root": root.path(),
+        "app": {"env": "testing"},
+        "database": {"url": null, "instances": {"reporting": {"url": database.url()}}},
+        "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
+        "security": {"encryption": {"active_key_id": "test", "keys": {
+            "test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
+        }}}
+    })));
+    let mut app = openrust::testing::TestApp::<Server>::builder(
+        crate::modules::example::test_sources(&source)?,
+    )
+    .build()
+    .await?;
+    let outcome: Result<()> = async {
+        let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
+        check(databases.names() == ["default", "reporting"])?;
+        check(databases.default_database().backend().is_err())?;
+        databases
+            .get("reporting")?
+            .connection()?
+            .ping()
+            .await
+            .map_err(openrust::Error::internal)?;
+        #[cfg(feature = "auth")]
+        {
+            let container = app.app()?.state().container();
+            // 只检查公开认证服务，不为验收扩大框架内部 AuthService 的可见性。
+            check(
+                !container.contains::<openrust::auth::Passwords>()
+                    && !container.contains::<openrust::auth::RefreshTokens>()
+                    && !container.contains::<openrust::auth::PersonalAccessTokens>()
+                    && !container.contains::<openrust::auth::Policy>(),
+            )?;
+        }
+        #[cfg(feature = "queue")]
+        check(
+            !app.app()?
+                .state()
+                .container()
+                .contains::<openrust::queue::Queue>(),
+        )?;
+        check(
+            app.app()?
+                .commands()
+                .any(|command| command.name() == "migrate"),
+        )?;
+        for (uri, status) in [
+            ("/api", StatusCode::OK),
+            ("/api/example/articles", StatusCode::NOT_FOUND),
+        ] {
+            app.request(
+                Request::get(uri)
+                    .header("host", "localhost")
+                    .body(Body::empty())
+                    .map_err(openrust::Error::internal)?,
+            )
+            .await?
+            .assert_status(status)?;
+        }
+        Ok(())
+    }
+    .await;
+    let shutdown = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome.and(shutdown)
 }

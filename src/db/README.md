@@ -4,6 +4,15 @@
 
 OpenRust 框架的数据库模块。
 
+## 通用能力、驱动与连接
+
+`openrust::db`、`openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。
+
+`DatabaseConfig::has_default_connection()` 仅表示默认 `url` 已配置，不是健康检查。具名实例仍由数据库 Provider 独立初始化；仅配置具名实例不自动启用绑定默认库的 Auth、数据库 Session、Queue 或示例业务。默认 Provider 自动选择在启动装配读取配置；模块在真实 register 读同一仓储，自动默认清单选定后，register或boot改变默认URL有无将明确拒绝启动，要求按最终配置重新引导；显式清单仍由应用管理。示例已在register跳过业务后，boot若反向启用则明确拒绝，不能开放缺依赖路由；有变无只关闭路由，不卸载已有绑定。后续任意覆盖不承诺重新选择或热卸载服务。非法、未知或未编译的 URL/副本配置继续由驱动预检拒绝，不能回退为无数据库。
+
+自定义 Provider 可在同一 Container 登记其他 SeaORM backend 的通用 `Db`，见[SQLite consumer](../../tests/consumers/db-custom-sqlite/README.md)；这不扩张官方方言、迁移互斥、认证或队列支持矩阵。现自动装配在无默认 URL 时省略 database Session Provider，即使 driver 字段显式为 database；不能将该配置当作 Session 已成功启用，严格上游启用/错误语义仍保留在 Session 后继。当前标准 Provider 仍在启动期解析连接；Laravel 完整懒连接生命周期尚有缺口，不能由本簇编译门控整改宣称等价。
+
+
 ## Query Builder 限定实现
 
 `Db::table(logical_name)` 走现有表名解析器和连接池，返回 `QueryBuilder`。当前实现以 SeaORM 已重导出的 `SeaQuery` AST 为方言和绑定层；`get`/`first` 走读连接，`insert`/`update`/`delete`/`upsert` 走主连接，`using_transaction` 显式借用现有 `DatabaseTransaction`。查询列名由框架校验，值由 `SeaQuery` 绑定；调用方应从可信代码选择列，不能把任意客户端字符串当列名。`QueryResult::try_get` 读取类型化字段。 默认查询选择 `*`；显式 `select(&["id", "title"])` 替换默认列，不叠加通配符。
@@ -26,14 +35,14 @@ let title: Option<String> = db.table("example_articles")?
 
 ## 连接数据库
 
-启用一个 backend feature，并在应用中注册 `DatabaseServiceProvider`：
+标准应用已注册 `DatabaseServiceProvider`；使用官方连接时启用对应 backend feature：
 
 ```toml
 [dependencies]
 openrust = { version = "0.0.0", features = ["db-postgres"] }
 ```
 
-数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。驱动名采用 `postgres` 或 `mysql`，连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在 `config/database.toml` 的 `url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `config/database.toml` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
+数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。驱动名采用 `postgres` 或 `mysql`，连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在可编辑 `config/database.rs` 的 `url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `config/database.rs` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
 
 框架管理的表默认不使用前缀。设置 `table_prefix` 可更改前缀；也可以将指定的逻辑表名映射为完整物理表名：
 

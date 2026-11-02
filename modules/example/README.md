@@ -444,3 +444,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 ### 模块父 Provider 与独立子项
 
 编译 descriptor 只登记 `ExampleModuleServiceProvider`。它在 register 中按原条件和顺序 await 框架的 `register_provider`，状态日志、真实事件监听、业务路由及适用数据库/队列等子项仍各自保有 ProviderId 与真正的 register/boot；父 Provider 不手工转调它们的生命周期。禁用模块不构造这些运行状态；测试移除业务子项仍生效，不能被父重新装回。此接线为后续 module.json 的普通 ModuleServiceProvider 工作流提供前置，不代表运行发现已实现。
+
+## 数据库能力选择
+
+普通模型、迁移与业务代码按其通用能力编译，不把 MySQL/PG 连接器 feature 当作 ORM 开关。活跃模块总注册迁移与 seed 命令贡献；有无连接不影响注册，命令实际执行才检查连接。生产模块在真实 register 读取同一配置仓储的默认 URL，决定默认库业务子 Provider；具名连接不冒充默认库，未配置默认库时宿主与基础示例仍运行。具体官方 URL 的驱动必须已编入，非法配置继续明确拒绝；这不代表示例已支持 SQLite 方言或完整 Laravel 懒连接。

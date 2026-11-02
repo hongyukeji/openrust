@@ -17,16 +17,16 @@ use std::time::Duration;
 const TIMEOUT: Duration = Duration::from_secs(5);
 
 fn selected_session_provider_count(
-    config: &super::Configuration,
+    config: &openrust::config::DatabaseConfig,
     driver: Option<&str>,
 ) -> Result<usize> {
     let sources = Figment::from(Serialized::defaults(json!({
-        "database": {"url": &config.database.url},
+        "database": {"url": &config.url},
         "session": {"driver": driver}
     })));
     let repository = ConfigRepository::new(sources);
     let defaults = Server::default_providers().resolve(&repository)?;
-    let application = Server::providers(config);
+    let application = Server::providers(&super::Configuration::default());
     let session = ProviderId::of::<SessionServiceProvider>();
     Ok(defaults
         .iter()
@@ -37,8 +37,10 @@ fn selected_session_provider_count(
 
 #[test]
 fn database_host_selects_one_session_provider_even_without_auth() -> Result<()> {
-    let mut config = super::Configuration::default();
-    config.database.url = Some("postgres://placeholder.invalid/not_connected".into());
+    let config = openrust::config::DatabaseConfig {
+        url: Some("postgres://placeholder.invalid/not_connected".into()),
+        ..openrust::config::DatabaseConfig::default()
+    };
     assert_eq!(
         selected_session_provider_count(&config, Some("database"))?,
         1
@@ -228,9 +230,7 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
 #[test]
 fn explicit_non_database_driver_selects_once_without_database() -> Result<()> {
     for driver in [Some("cookie"), Some("array"), Some("unknown"), None] {
-        let config: super::Configuration =
-            serde_json::from_value(json!({"session":{"driver":driver}}))
-                .map_err(Error::internal)?;
+        let config = openrust::config::DatabaseConfig::default();
         let count = selected_session_provider_count(&config, driver)?;
         assert_eq!(count, usize::from(driver.is_some()));
     }

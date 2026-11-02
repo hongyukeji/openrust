@@ -8,16 +8,21 @@ use std::{
     time::Duration,
 };
 
+use axum::{Form, Router, extract::State, http::StatusCode, routing::post};
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use axum::{
-    Form, Json, Router,
+    Json,
     body::Body,
-    extract::{Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    extract::Query,
+    http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::get,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-#[cfg(feature = "auth-mfa")]
+#[cfg(all(
+    feature = "auth-mfa",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
 use hmac::{Hmac, Mac, digest::KeyInit};
 use openrust::auth::{ExternalIdentityProvider, OidcProvider, VerifiedLogoutToken};
 use openrust::http::{DependencyPolicy, HttpClient, HttpClientConfig, HttpTargetPolicy};
@@ -25,17 +30,19 @@ use openrust::http::{DependencyPolicy, HttpClient, HttpClientConfig, HttpTargetP
 use openrust::session::SessionStore as _;
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use openrust::session::{MemorySessionStore as MemoryStore, SessionRecord as Record};
-#[cfg(feature = "auth-mfa")]
+#[cfg(all(
+    feature = "auth-mfa",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
-use tokio::{
-    net::TcpListener,
-    sync::{Mutex, mpsc},
-    task::JoinHandle,
-};
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+use tokio::sync::Mutex;
+use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
 
 type TestResult = std::result::Result<(), Box<dyn StdError>>;
 type CapturedLogout = (String, Option<&'static str>, Option<String>);
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 type LogoutConfirmation = (url::Url, Vec<(String, String)>);
 
 const CLIENT_ID: &str = "openrust-rp";
@@ -46,6 +53,7 @@ const TEST_PASSWORD: &str = "openrust-test-password";
 const SECOND_CLIENT_ID: &str = "openrust-rp-secondary";
 const SECOND_CLIENT_SECRET: &str = "openrust-secondary-test-client-secret";
 const SECOND_REDIRECT_URI: &str = "http://127.0.0.1:3001/callback";
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 const TEST_ACCESS_TTL_SECS: u64 = 15;
 const KEYCLOAK_ADMIN_USERNAME: &str = "OPENRUST_KEYCLOAK_ADMIN_USERNAME";
 const KEYCLOAK_ADMIN_PASSWORD: &str = "OPENRUST_KEYCLOAK_ADMIN_PASSWORD";
@@ -329,15 +337,13 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
             }
             None
         };
-        #[cfg(not(any(feature = "db-postgres", feature = "db-mysql")))]
-        let app_acceptance: Option<()> = None;
-
         #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         if let Some((primary, secondary)) = app_acceptance.as_mut() {
             complete_logout_app_login(primary, &browser, &authenticated_cookie).await?;
             complete_logout_app_login(secondary, &browser, &authenticated_cookie).await?;
         }
 
+        #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         let (backchannel_url, mut tokens, server) =
             if let Some((primary, secondary)) = app_acceptance.as_mut() {
                 let (base, receiver, server) = start_logout_apps(primary, secondary).await?;
@@ -346,6 +352,8 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                 let (base, receiver, server) = start_logout_receiver().await?;
                 (base, receiver, server)
             };
+        #[cfg(not(any(feature = "db-postgres", feature = "db-mysql")))]
+        let (backchannel_url, mut tokens, server) = start_logout_receiver().await?;
         let admin = admin_client(&browser, &issuer_url, &admin_username, &admin_password).await?;
         let primary_url = format!("{backchannel_url}/primary/backchannel");
         let secondary_url = format!("{backchannel_url}/secondary/backchannel");
@@ -404,6 +412,11 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
             any(feature = "db-postgres", feature = "db-mysql")
         ))]
         let had_pending_mfa = mfa_completion.is_some();
+        #[cfg(all(
+            not(feature = "auth-mfa"),
+            any(feature = "db-postgres", feature = "db-mysql")
+        ))]
+        let had_pending_mfa = false;
         #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         let callback_completion = if let Some((primary, _)) = app_acceptance.as_ref() {
             if primary.api_nodes.is_some() {
@@ -443,8 +456,9 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                     .ok_or("Keycloak logout receiver stopped before receiving two tokens")?,
             );
         }
-        #[cfg(feature = "auth-mfa")]
+        #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         if let Some((primary, _)) = app_acceptance.as_ref() {
+            #[cfg(feature = "auth-mfa")]
             if let Some(mfa_request) = mfa_completion {
                 // logout handler 已处理真实 IdP 通知，现在释放退出前的 MFA completion。
                 release_mfa_gates(primary, &browser).await?;
@@ -480,8 +494,12 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
         }
         let mut verified_primary = None;
         let mut verified_secondary = None;
-        for (token, handler_outcome, handler_node) in &received {
+        for received_token in &received {
+            let (token, _, _) = received_token;
+            #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+            let (_, handler_outcome, handler_node) = received_token;
             if let Ok(verified) = provider.verify_logout_token(token).await {
+                #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
                 if app_acceptance.is_some() {
                     assert_eq!(
                         *handler_outcome,
@@ -497,6 +515,7 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                 continue;
             }
             if let Ok(verified) = second_provider.verify_logout_token(token).await {
+                #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
                 if app_acceptance.is_some() {
                     if handler_outcome.is_none() {
                         assert_eq!(handler_node.as_deref(), Some("deferred"));
@@ -3462,6 +3481,7 @@ fn keycloak_login_action(
     Err("Keycloak login page does not contain the kc-form-login form".into())
 }
 
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 fn keycloak_logout_confirmation(
     html: &str,
     base: &url::Url,
@@ -3546,7 +3566,9 @@ fn decode_html_attribute(value: &str) -> String {
         .replace("&#39;", "'")
 }
 
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,

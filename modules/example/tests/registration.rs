@@ -72,16 +72,10 @@ async fn module_exception_handler_renders_typed_error() -> Result<(), Box<dyn st
     Ok(())
 }
 
-#[cfg(all(
-    feature = "auth-oidc",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "auth-oidc")]
 struct LateOidcOverlay;
 
-#[cfg(all(
-    feature = "auth-oidc",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "auth-oidc")]
 impl openrust::core::ServiceProvider for LateOidcOverlay {
     fn boot<'a>(
         &'a self,
@@ -102,10 +96,7 @@ impl openrust::core::ServiceProvider for LateOidcOverlay {
     }
 }
 
-#[cfg(all(
-    feature = "auth-oidc",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "auth-oidc")]
 #[tokio::test]
 async fn oidc_overlay_after_module_routes_fails_before_ready()
 -> Result<(), Box<dyn std::error::Error>> {

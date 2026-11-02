@@ -28,6 +28,15 @@ pub struct DatabaseConfig {
     pub instances: std::collections::BTreeMap<String, DatabaseInstanceConfig>,
 }
 
+impl DatabaseConfig {
+    /// 是否配置默认连接 URL；具名实例不代表默认连接可用。
+    ///
+    /// 此选择不验证 URL、驱动或连接健康；这些仍由数据库 Provider 统一检查。
+    pub fn has_default_connection(&self) -> bool {
+        self.url.is_some()
+    }
+}
+
 /// `[database.instances.<name>]` 中独立连接池的配置。
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -130,5 +139,33 @@ impl fmt::Debug for DatabaseConfig {
             .field("table_names", &self.table_names)
             .field("instances", &self.instances)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_connection_selection_does_not_infer_driver_or_named_pool_health() {
+        let mut config = DatabaseConfig::default();
+        assert!(!config.has_default_connection());
+        config.instances.insert(
+            "reporting".into(),
+            DatabaseInstanceConfig {
+                url: Some("mysql://private.invalid/named".into()),
+                ..DatabaseInstanceConfig::default()
+            },
+        );
+        assert!(!config.has_default_connection());
+        config
+            .read_replicas
+            .push("postgres://private.invalid/replica".into());
+        assert!(!config.has_default_connection());
+        // 非法但显式配置的URL不能在能力选择时静默当作未配置；后续统一预检必须拒绝。
+        config.url = Some(String::new());
+        assert!(config.has_default_connection());
+        config.url = Some("unknown://private.invalid/default".into());
+        assert!(config.has_default_connection());
     }
 }

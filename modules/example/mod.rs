@@ -62,8 +62,10 @@ mod cookie_auth_flows;
 #[cfg(test)]
 #[path = "tests/cookie_flows.rs"]
 mod cookie_flows;
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 pub(crate) mod database;
+#[cfg(test)]
+#[path = "tests/database_selection_flows.rs"]
+mod database_selection_flows;
 mod events;
 #[cfg(all(
     test,
@@ -94,7 +96,7 @@ mod localization_flows;
 #[cfg(test)]
 #[path = "tests/message_bag_flows.rs"]
 mod message_bag_flows;
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 mod models;
 #[cfg(test)]
 #[path = "tests/module_activation_flows.rs"]
@@ -232,20 +234,21 @@ mod websocket_flows;
 
 /// 将运行声明绑定到已编译实现；普通启动不再硬编码声明为已发现模块。
 pub(crate) fn manifest(
-    uses_database: bool,
     application_root: &std::path::Path,
     config: &openrust::config::ModulesConfig,
 ) -> openrust::core::ModuleManifest {
     use openrust::core::ServiceProvider;
-    let possible =
-        providers::ExampleModuleServiceProvider::new(uses_database, application_root.to_path_buf())
-            .nested_providers();
+    let provider =
+        providers::ExampleModuleServiceProvider::from_config(application_root.to_path_buf());
+    let possible = provider
+        .nested_providers()
+        .into_iter()
+        .chain(provider.possible_nested_providers());
     openrust::core::ModuleManifest::discover_from_config(application_root, config)
         .compiled_provider::<providers::ExampleModuleServiceProvider, _>(
             "ExampleModuleServiceProvider",
             move |context| {
-                Ok(providers::ExampleModuleServiceProvider::new(
-                    uses_database,
+                Ok(providers::ExampleModuleServiceProvider::from_config(
                     context.application_root().to_path_buf(),
                 )
                 .with_module_repository())

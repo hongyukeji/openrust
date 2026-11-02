@@ -27,6 +27,11 @@ pub struct DefaultProviders {
     actions: Vec<Action>,
 }
 
+pub(crate) struct ResolvedDefaultProviders {
+    pub(crate) providers: Vec<Box<dyn ServiceProvider>>,
+    pub(crate) database: Option<bool>,
+}
+
 enum Selection {
     Auto,
     Explicit,
@@ -143,17 +148,19 @@ impl DefaultProviders {
         self,
         config: &crate::config::repository::ConfigRepository,
     ) -> crate::core::Result<Vec<Box<dyn ServiceProvider>>> {
+        self.resolve_selection(config)
+            .map(|selected| selected.providers)
+    }
+
+    pub(crate) fn resolve_selection(
+        self,
+        config: &crate::config::repository::ConfigRepository,
+    ) -> crate::core::Result<ResolvedDefaultProviders> {
+        let mut automatic_database = None;
         let mut providers = match self.selection {
             Selection::Auto => {
-                let database = config
-                    .get("database.url")?
-                    .is_some_and(|value| value.as_str().is_some())
-                    || config.get("database.instances")?.is_some_and(|value| {
-                        value.as_object().is_some_and(|items| !items.is_empty())
-                    })
-                    || config.get("database.read_replicas")?.is_some_and(|value| {
-                        value.as_array().is_some_and(|items| !items.is_empty())
-                    });
+                let database = has_default_database(config)?;
+                automatic_database = Some(database);
                 let session = config
                     .get("session.driver")?
                     .and_then(|value| value.as_str().map(str::to_owned))
@@ -174,8 +181,37 @@ impl DefaultProviders {
                 Action::Except(ids) => providers.retain(|provider| !ids.contains(&provider.id())),
             }
         }
-        Ok(providers)
+        Ok(ResolvedDefaultProviders {
+            providers,
+            database: automatic_database,
+        })
     }
+}
+
+fn has_default_database(
+    config: &crate::config::repository::ConfigRepository,
+) -> super::Result<bool> {
+    let database = if config.get("database")?.is_some() {
+        config.section::<crate::config::DatabaseConfig>("database")?
+    } else {
+        crate::config::DatabaseConfig::default()
+    };
+    Ok(database.has_default_connection())
+}
+
+pub(crate) fn validate_database_selection(
+    config: &crate::config::repository::ConfigRepository,
+    selected: Option<bool>,
+) -> super::Result<()> {
+    if let Some(selected) = selected
+        && selected != has_default_database(config)?
+    {
+        return Err(super::Error::custom(
+            "database_selection_changed",
+            "自动 Provider 选择后默认数据库启用状态发生变化，请以最终配置重新引导应用",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -217,6 +253,157 @@ mod tests {
             ids.last(),
             Some(&ProviderId::of::<crate::mail::MailerServiceProvider>())
         );
+        Ok(())
+    }
+
+    struct DatabaseSelectionChange {
+        value: serde_json::Value,
+        during_register: bool,
+    }
+
+    impl ServiceProvider for DatabaseSelectionChange {
+        fn register<'a>(
+            &'a self,
+            app: &'a mut super::super::RegisterContext<'_>,
+        ) -> super::super::BoxFuture<'a, super::super::Result<()>> {
+            Box::pin(async move {
+                if self.during_register {
+                    app.config_repository()
+                        .set("database.url", self.value.clone())?;
+                }
+                Ok(())
+            })
+        }
+
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut super::super::BootContext<'_>,
+        ) -> super::super::BoxFuture<'a, super::super::Result<()>> {
+            Box::pin(async move {
+                if !self.during_register {
+                    app.config_repository()
+                        .set("database.url", self.value.clone())?;
+                }
+                Ok(())
+            })
+        }
+    }
+
+    async fn changed_database_selection_fails(
+        initial: serde_json::Value,
+        next: serde_json::Value,
+    ) -> super::super::Result<()> {
+        for during_register in [true, false] {
+            let mut builder = super::super::ProviderBuilder::new();
+            // 前序业务 Provider 使用同仓储 set；自动默认清单仍在任何 register 前选择。
+            builder
+                .provider(DatabaseSelectionChange {
+                    value: next.clone(),
+                    during_register,
+                })
+                .default_providers(DefaultProviders::auto());
+            let source = figment::Figment::from(figment::providers::Serialized::defaults(
+                crate::config::FrameworkConfig::default()
+            )).merge(figment::providers::Serialized::defaults(json!({
+                "database":{"url":initial},
+                "cache":{"default":"memory","stores":{"memory":{"driver":"memory"}}},
+                "auth":{"jwt":{"issuer":"http://fixture.test","audience":"fixture","active_key_id":"test","keys":{
+                    "test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
+                }}},
+                "security":{
+                    "encryption":{"active_key_id":"test","keys":{
+                        "test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
+                    }},
+                    "signed_links":{"issuer":"http://fixture.test","active_key_id":"test","keys":{
+                        "test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
+                    }}
+                }
+            })));
+            let error = match builder.start(source).await {
+                Ok(runtime) => {
+                    runtime
+                        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                        .await?;
+                    return Err(super::super::Error::custom(
+                        "test_selection_change_accepted",
+                        "自动清单接受了默认连接选择变化",
+                    ));
+                }
+                Err(error) => error,
+            };
+            assert_eq!(error.code(), "database_selection_changed");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn auto_selection_rejects_none_to_some_in_register_and_boot() -> super::super::Result<()>
+    {
+        changed_database_selection_fails(
+            serde_json::Value::Null,
+            json!("unknown://private.invalid/db"),
+        )
+        .await
+    }
+
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    #[tokio::test]
+    async fn auto_selection_rejects_some_to_none_before_opening_a_pool() -> super::super::Result<()>
+    {
+        let url = if cfg!(feature = "db-postgres") {
+            "postgres://private.invalid/db"
+        } else {
+            "mysql://private.invalid/db"
+        };
+        changed_database_selection_fails(json!(url), serde_json::Value::Null).await
+    }
+
+    #[test]
+    fn automatic_selection_rejects_invalid_database_types_without_echoing_values()
+    -> super::super::Result<()> {
+        let repository = crate::config::repository::ConfigRepository::new(
+            crate::config::ConfigSources::from_ordered_entries([(
+                "database",
+                json!({
+                    "url": {"private-key":"private-value"}
+                }),
+            )])?,
+        );
+        let error = DefaultProviders::auto()
+            .resolve(&repository)
+            .err()
+            .ok_or_else(|| {
+                super::super::Error::custom("test_expected_config_error", "非法数据库类型没有拒绝")
+            })?;
+        assert!(!error.to_string().contains("private-key"));
+        assert!(!error.to_string().contains("private-value"));
+        Ok(())
+    }
+
+    #[test]
+    fn named_only_database_does_not_select_services_bound_to_default_connection()
+    -> super::super::Result<()> {
+        let repository = crate::config::repository::ConfigRepository::new(
+            crate::config::ConfigSources::from_ordered_entries([
+                (
+                    "database",
+                    json!({"instances":{"reporting":{"url":"mysql://example.invalid/reporting"}}}),
+                ),
+                ("session", json!({"driver":"database"})),
+            ])?,
+        );
+        let ids = DefaultProviders::auto()
+            .resolve(&repository)?
+            .iter()
+            .map(|provider| provider.id())
+            .collect::<Vec<_>>();
+        assert!(ids.contains(&ProviderId::of::<crate::db::DatabaseServiceProvider>()));
+        #[cfg(feature = "auth")]
+        assert!(!ids.contains(&ProviderId::of::<crate::auth::AuthServiceProvider>()));
+        #[cfg(feature = "queue")]
+        assert!(!ids.contains(&ProviderId::of::<crate::queue::QueueServiceProvider>()));
+        #[cfg(feature = "session")]
+        assert!(!ids.contains(&ProviderId::of::<crate::session::SessionServiceProvider>()));
         Ok(())
     }
 

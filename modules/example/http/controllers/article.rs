@@ -13,10 +13,7 @@ use crate::modules::example::http::resources::article::ArticleShare;
 use crate::modules::example::http::resources::article::PrivateNoteResource;
 use crate::modules::example::models::article;
 use crate::modules::example::services::article_write::ArticleWriter;
-#[cfg(all(
-    feature = "storage-local",
-    any(feature = "db-postgres", feature = "db-mysql")
-))]
+#[cfg(feature = "storage-local")]
 use crate::modules::example::services::attachments::ArticleAttachments;
 use crate::modules::example::services::telemetry::{self, ArticleOperation};
 #[cfg(feature = "http-client")]
@@ -191,18 +188,11 @@ pub(crate) async fn destroy(
     user: CurrentUser,
     Inject(db): Inject<Db>,
     Inject(events): Inject<Events>,
-    #[cfg(all(
-        feature = "storage-local",
-        any(feature = "db-postgres", feature = "db-mysql")
-    ))]
-    Inject(attachments): Inject<ArticleAttachments>,
+    #[cfg(feature = "storage-local")] Inject(attachments): Inject<ArticleAttachments>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>> {
     let owner_id = user.id();
-    #[cfg(all(
-        feature = "storage-local",
-        any(feature = "db-postgres", feature = "db-mysql")
-    ))]
+    #[cfg(feature = "storage-local")]
     let transaction_attachments = attachments.clone();
     telemetry::observe(ArticleOperation::Delete, async {
         let deleted = db
@@ -215,10 +205,7 @@ pub(crate) async fn destroy(
                         .await
                         .map_err(Error::internal)?;
                     if result.rows_affected == 1 {
-                        #[cfg(all(
-                            feature = "storage-local",
-                            any(feature = "db-postgres", feature = "db-mysql")
-                        ))]
+                        #[cfg(feature = "storage-local")]
                         transaction_attachments
                             .record_deleted(transaction, owner_id, id)
                             .await?;
@@ -240,15 +227,9 @@ pub(crate) async fn destroy(
         if !deleted {
             return Err(not_found());
         }
-        #[cfg(all(
-            feature = "storage-local",
-            any(feature = "db-postgres", feature = "db-mysql")
-        ))]
+        #[cfg(feature = "storage-local")]
         attachments.cleanup_deleted(owner_id, id).await?;
-        #[cfg(not(all(
-            feature = "storage-local",
-            any(feature = "db-postgres", feature = "db-mysql")
-        )))]
+        #[cfg(not(feature = "storage-local"))]
         let _ = owner_id;
         Ok(())
     })

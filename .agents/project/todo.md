@@ -34,6 +34,19 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
+### DB 通用能力与驱动门控（限定验收）
+
+1. 固定Laravel d52c3b3 DefaultProviders/DatabaseServiceProvider/MigrationServiceProvider与ModelMakeCommand；通用DB/ORM/迁移注册不取决于某个连接driver，Rust编译驱动与运行配置分别判断。
+2. 当前db层和SeaORM本已常开，不为名称统一新增虚假db总feature；解除facade/prelude、根迁移与唯一模块普通业务对MySQL/PG并列cfg的耦合，方言/连接器及真实后端专测保专属cfg。
+3. DatabaseConfig增加单一has_default_connection语义，只指默认url已配置；具名库不冒充默认库。DefaultProviders自动选择、业务模块与路由复用此语义，未知/未编译/replica非法仍走现驱动预检拒绝且脱敏。
+4. 根及活跃模块迁移/种子注册独立于连接可用；实际执行再沿同一Db与现有锁/错误。生产模块在真实register读当前配置，静态候选仅声明可达性；显式测试descriptor保其明确覆写能力。自动默认清单选择后register/boot改变默认URL有无拒绝启动；显式模块register未选业务而boot反向启用也拒绝，防不完整装配暴露。此为当前生命周期缺口下的明确失败，不冒称完整上游动态/懒连接。
+5. make:model与普通实体生成不靠Cargo文本包含driver；generate job保真实migration/queue结构预检，去driver字符串假能力判断。workspace继承、自定义driver与普通无连接生成均加回归，不将新queue默认体验混入本簇。
+6. 保原自定义SQLite Provider通用Db/事务/应用迁移扩展；框架互斥及默认auth/队列未承诺SQLite，不因解除编译门控宣称新后端支持。现eager启动连接与完整Laravel懒连接仍保明确缺口。无默认URL时显式database Session仍被现自动选择省略，不能当已启用/已报错，严格上游语义保Session既有后继。
+7. owner=root独占公共contract/config/defaultProviders/bootstrap、Cargo/index/docs/服务；example worker仅modules/example源码且不改README；CLI worker仅tools/cli/src/main.rs及必要模板/快照且不改README/共享AGENTS。worker不跑Cargo/Git/服务/skill、不递归派发。
+8. 源码/调用方/测试/唯一模块/模板/docs完整后冻结，一次集中门禁、无driver/单driver/双driver、外部SQLite、fresh普通与MySQL及PG定向真实服务；验收通过正常清产物、本地提交，完整框架Goal继续。
+
+owner=root，main共享目录，基线710dd55、规则提交231b0b8；752输入已完成主门禁/作用域复用、无DB/queue-only、真实两库认证与named-only各1、SQLite与fresh12/3/2、四TCP及最终独审，源码归档与target清零收齐，本地提交以Git为准。前三次及后续失败均保留，用户已改自主最优处理规则，不再按次数问授权。准确范围、旧负例排除及全部边界见[限定验收](memory/testing.md#db-通用能力与驱动分层限定验收)。下一标准MySQL+Redis依赖与队列开箱沿下表既有项；本轮先在安全提交停点收取原生heartbeat验证，手动交接不当真实触发证据，不重启旧守护或重建Goal/预算。
+
 ### B003/B004 FileActivator 实例快照（限定验收）
 
 1. 固定5971484 FileActivator构造readJson、hasStatus/set/delete/reset及Laravel Filesystem错误行为；默认file实例不观察外部改盘，重新构造才读取。自身set/delete的内存修改先于持久写，失败不伪回滚；reset清自身快照。
@@ -45,7 +58,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 7. root独占activator.rs/manifest加载/配置/共享docs/index/Cargo/服务；codec worker仅新state_json.rs，测试worker仅新activator_cache_tests.rs及唯一example/publicconsumer对应测试，不运行Cargo或服务；不同模型只读审查。
 8. 根/生成/唯一模块同步默认缓存与显式live用法，真实四进程验证旧App不热读/新App重载、显式live刷新和状态文件保护；完整编码与配套后冻结集中适用门禁，正常清理并本地提交。不改独立guard skill/live/Goal/账本。
 
-owner=root，main共享目录，基线d32162d；751输入最终attempt3十门禁、PHP真实固定类probe、fresh12/MySQL3/MFA2/root1及四TCP均通过，独审与生成源码归档、target清零已收齐，本地提交以Git为准。旧失败和首次占用清理回执保留，见[限定验收](memory/testing.md#fileactivator-实例缓存限定验收)。下一按用户优先顺序收敛DB通用能力门控；ProviderRepository/aliases等原缺口保留，不关闭完整B003/B004或Modules，skill独立writer仍独占。
+owner=root，main共享目录，基线d32162d；751输入最终attempt3十门禁、PHP真实固定类probe、fresh12/MySQL3/MFA2/root1及四TCP均通过，独审与生成源码归档、target清零已收齐，本地提交以Git为准。旧失败和首次占用清理回执保留，见[限定验收](memory/testing.md#fileactivator-实例缓存限定验收)。该后继DB通用能力门控已按上节限定验收完成，下一标准MySQL+Redis队列项；ProviderRepository/aliases等原缺口保留，不关闭完整B003/B004或Modules，skill独立writer仍独占。
 
 ### module.json 运行发现与编译绑定（限定验收）
 
@@ -127,7 +140,7 @@ B003/T03后继实例快照整改已按上节限定验收；旧7f60560热读证�
 | bootstrap及同类正式入口测试/fixture职责 | 新配置owner，既有应用布局后继 | 真实测试主体迁tests，不复制宿主/扩大API | 已迁移原两测试并新增宿主/模块边界断言；完整门禁和真实服务限定验收通过，提交以Git为准 |
 | 固定/api宿主内容及同类业务反向依赖 | layout应用/路由owner，与既有app职责整改合批 | app/controllers处理内容、routes/api.rs声明、AppServiceProvider公开挂载；src仅通用路由机制 | 已移除库专属端点，根/生成Controller与bootstrap真实接线；consumer、fresh普通/MySQL/MFA、真实TCP/TLS通过，完整路由仍开放 |
 | 模块状态路径/发现注册/持久启停/统一Provider | 新配置owner与root contract，既有模块整改 | 现ModuleManifest/FileActivator扩展，不造新内核 | 已完成持久启停/独立状态路径/非交互命令事件限定验收与清理；提交事实见Git，运行发现/metadata Provider/files绑定随后，TTY/硬链接/Windows及完整模块管理仍开放 |
-| 数据库通用能力门控与驱动选择/运行时启用分层 | layout应用装配owner，root收敛Cargo/公开contract；同类整改后继 | bootstrap/app/模块/auth/通用层/模板/consumer，专属方言保留后端cfg | 待设计实施；no-default、MySQL/PG、未编译/未知驱动拒绝、迁移注册及扩展验证待验 |
+| 数据库通用能力门控与驱动选择/运行时启用分层 | root统筹公共contract/应用装配，example与CLI worker按文件交接；当前710dd55后继 | bootstrap/app/模块/auth/通用层/模板/consumer，专属方言保留后端cfg | 通用门控/注册/生成已限定验收，no-driver/queue-only、真实MySQL/PG/named-only与SQLite扩展均有证据；完整DB生命周期及标准依赖开箱继续开放 |
 | 标准应用队列开箱体验与精简构建分层 | layout配置/模板owner + root队列contract/Cargo单一调度；关联R10既有队列能力 | 根/new标准能力、config/queue.rs、具名连接/env/Provider/worker统一接线 | 已确认待实现；默认DB和可选Redis真实派发→worker、精简错误/无副作用及生成待验 |
 
 设计与复审同时遵循conventions现有单一来源/默认继承/能力边界规则：同一根因主动查完整传播链，验证修改正确归属的一处后实际跟随，独立语义保持覆写。不是新ADR或扩大当前批次。
@@ -142,13 +155,13 @@ B003/T03后继实例快照整改已按上节限定验收；旧7f60560热读证�
 实际代码完成后将此表“待”状态改为精确差异与运行证据、本地commit；未闭合项保留，不以消息已交或局部截图已改标完成。生成或证据副本先核归属，从真实源头更新；不另建竞争计划。
 
 - 用户已确认，待当前组合集中验收并本地提交后立即领取；不扩大当前冻结输入。单一owner 本对话后续指定的单一配置owner 承接全部根 `config/*.rs` 与 CLI new 对应配置模板，按共享main文件归属串行；root收敛必要跨配置公开contract及索引/门禁，模块沿同一机制核实际需要，不建第二配置体系。
-- 同类数据库门控补充：bootstrap/providers.rs及模块通用装配不得长期逐处枚举db-postgres/db-mysql。先核固定Laravel Database/Migration Provider与现Rust依赖，分清通用能力编译门控、backend实现feature、运行时连接配置、驱动迁移/锁/方言能力。可选统一db能力feature须由backend显式启用且宿主映射同步，不只是将枚举挪成别名；也可沿现统一Provider按配置/实际能力校验，具体实现待contract收敛。
+- 同类数据库门控补充：bootstrap/providers.rs及模块通用装配不得长期逐处枚举db-postgres/db-mysql。先核固定Laravel Database/Migration Provider与现Rust依赖，分清通用能力编译门控、backend实现feature、运行时连接配置、驱动迁移/锁/方言能力。可选统一db能力feature须由backend显式启用且宿主映射同步，不只是将枚举挪成别名；也可沿现统一Provider按配置/实际能力校验，本轮contract已选现有db常开与统一Provider路径并限定验收，不新增虚假db总feature；完整连接管理仍开放。
 - 标准队列体验补充（同配置/生成整改，核心语义映射既有R10，不新建计划）：默认连接按固定Laravel与既定DB默认收敛，标准根/new应用预置常用DB及Redis队列实现/Provider/worker/config，选择Redis主要改具名连接配置，不再临时编辑Cargo才能用。内部feature/no-default仍支持精简，不将可编译等同运行连接，更不因Redis可选实现使DB队列依赖Redis队列服务。
 - 用户明确标准开发路径为MySQL+Redis：根宿主/new项目预整合常用MySQL数据库、Redis缓存与队列实现所需依赖/feature、Provider、可编辑配置/env映射，填连接信息后无需再手补内置driver Cargo/Provider。仅激活所选连接，不无条件连所有driver；默认DB队列不变，Redis队列配置可选，部署服务/迁移/显式worker仍必需，不静默降级。PG/其他承诺后端/外部driver保留，精简opt-out单列；标准体验不是全体开发者环境统计。后继验证真实MySQL/Redis及两队列链、fresh生成、精简构建/其他后端影响；当前只已授权待实施。
 - 重核QUEUE_DRIVER与官方QUEUE_CONNECTION、default_connection/connections/legacy driver及配置覆盖，统一同一机制；新增可编辑config/queue.rs并纳根/生成manifest，不能只删注释/重命名键掩盖两套入口。迁移/连接/显式worker是部署步骤，不serve暗启、不静默fallback sync或其他后端；公开外部driver扩展保留。库feature与宿主feature分别核映射，不机械将全生态all-features视为标准默认。
 - 该同项验证包含根与fresh生成默认DB派发→worker→执行、显式Redis连接同链路、未知连接/精简未编译driver明确错误、no-default与无无关连接副作用、配置缓存与文档模板。主动核同类内置能力使用摩擦，但只扩既有授权范围，当前冻结组合不改Cargo/queue源码；现阶段未编码/未验收。
 
-- 扫描bootstrap、app、模块、auth、通用框架、CLI模板及consumer；真实专属SQL/锁/迁移/测试继续保留backend条件，不能全仓替换。配置了未编译或未知驱动须明确失败，不无条件注入缺前置服务、不平行造Db/Provider、不承诺任意连接trait自带完整能力。现有两个后端条件不是天然错误，问题是通用扩展遗漏；未实现SQLite等仍保留缺口。此项当前只已确认待设计，保护在途验收输入。
+- 扫描bootstrap、app、模块、auth、通用框架、CLI模板及consumer；真实专属SQL/锁/迁移/测试继续保留backend条件，不能全仓替换。配置了未编译或未知驱动须明确失败，不无条件注入缺前置服务、不平行造Db/Provider、不承诺任意连接trait自带完整能力。现有两个后端条件不是天然错误，问题是通用扩展遗漏；未实现SQLite等仍保留缺口。本轮通用能力/注册/调用方及真实测试边界已完成限定验收；真实专属backend条件仍保留，完整后端与连接管理继续开放。
 
 - 每个领域（含feature门控）显式呈现应用可编辑选项、嵌套配置、可选项、默认策略及必要中文说明；不能用单独 `XxxConfig::default()` 或大面积结构体默认更新隐藏应用选项。框架类型Default可保留供serde/程序化使用；内部运行状态、随机/运行时生成数据不机械暴露为配置。
 - APP_URL存在时保留用户值（包括外部域名、HTTPS、反代及显式空值现有语义）；缺失时本地URL取同一有效server.port，无两项配置时仍localhost:3000。开发者仅修改config/server.rs默认端口也要生效；实现先收敛同次求值/依赖顺序，避免两处3000、重复工厂求值副作用或循环依赖。不得把Rust字符串`${SERVER_PORT}`当插值或另造env解析/全局状态。

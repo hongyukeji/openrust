@@ -3,15 +3,14 @@
 use openrust::Result;
 use openrust::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
 use std::sync::Arc;
-#[cfg(feature = "session")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 use crate::modules::example::services::article_write::ArticleWriter;
 #[cfg(feature = "http-client")]
 use crate::modules::example::services::upstream::ArticleSummaryService;
 use crate::modules::example::services::{ExampleConfig, ExampleMessage};
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 use openrust::db::sea_orm::{EntityTrait, QuerySelect};
 /// 将综合示例路由接入 Provider 引导阶段。
 pub(crate) struct ExampleServiceProvider {
@@ -19,6 +18,8 @@ pub(crate) struct ExampleServiceProvider {
     directory: std::path::PathBuf,
     module_repository: bool,
     runtime_policy_enabled: bool,
+    database_override: Option<bool>,
+    database_selected_at_register: AtomicBool,
 }
 
 impl ExampleServiceProvider {
@@ -28,12 +29,20 @@ impl ExampleServiceProvider {
             module_repository: false,
             root,
             runtime_policy_enabled: false,
+            database_override: None,
+            database_selected_at_register: AtomicBool::new(false),
         }
     }
 
     /// 与官方普通模块 Provider 一样，到 boot 使用模块仓储的真实目录。
     pub(crate) fn with_module_repository(mut self) -> Self {
         self.module_repository = true;
+        self
+    }
+
+    /// 仅程序化模块描述可显式覆盖；生产路径在 register/boot 分别读取当前配置。
+    pub(super) fn with_database_override(mut self, enabled: Option<bool>) -> Self {
+        self.database_override = enabled;
         self
     }
 
@@ -56,7 +65,7 @@ fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
         ),
     )?;
     app.middleware_group("example.response", ["example.response-marker"])?;
-    #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+    #[cfg(feature = "auth")]
     {
         app.middleware_alias(
             "example.article-auth",
@@ -193,10 +202,7 @@ fn register_example_schema(app: &mut RegisterContext<'_>) -> Result<()> {
                 ])
                 .nullable(),
             ),
-            #[cfg(all(
-                feature = "auth-oidc",
-                any(feature = "db-postgres", feature = "db-mysql")
-            ))]
+            #[cfg(feature = "auth-oidc")]
             (
                 "oidc",
                 openrust::config::repository::SectionSchema::object([
@@ -264,20 +270,31 @@ impl ServiceProvider for ExampleServiceProvider {
                 })
             })
             .await?;
-            #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
-            app.singleton::<ArticleWriter, _>(|resolver| {
-                Box::pin(async move {
-                    Ok(Arc::new(ArticleWriter::new(
-                        resolver.resolve::<openrust::Db>().await?,
-                        resolver.resolve::<openrust::events::Events>().await?,
-                        #[cfg(feature = "queue")]
-                        resolver
-                            .resolve::<openrust::notifications::Notifier>()
-                            .await?,
-                    )))
+            let database_enabled = match self.database_override {
+                Some(enabled) => enabled,
+                None => app
+                    .config_repository()
+                    .section::<openrust::config::DatabaseConfig>("database")?
+                    .has_default_connection(),
+            };
+            self.database_selected_at_register
+                .store(database_enabled, Ordering::Release);
+            #[cfg(feature = "auth")]
+            if database_enabled {
+                app.singleton::<ArticleWriter, _>(|resolver| {
+                    Box::pin(async move {
+                        Ok(Arc::new(ArticleWriter::new(
+                            resolver.resolve::<openrust::Db>().await?,
+                            resolver.resolve::<openrust::events::Events>().await?,
+                            #[cfg(feature = "queue")]
+                            resolver
+                                .resolve::<openrust::notifications::Notifier>()
+                                .await?,
+                        )))
+                    })
                 })
-            })
-            .await?;
+                .await?;
+            }
             #[cfg(feature = "http-client")]
             app.singleton::<ArticleSummaryService, _>(|resolver| {
                 Box::pin(async move {
@@ -299,6 +316,19 @@ impl ServiceProvider for ExampleServiceProvider {
     #[allow(clippy::too_many_lines, reason = "模块 boot 同时装配业务资源和路由")]
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            let database_enabled = match self.database_override {
+                Some(enabled) => enabled,
+                None => app
+                    .section::<openrust::config::DatabaseConfig>("database")?
+                    .has_default_connection(),
+            };
+            // 注册时未选择业务子项，boot 后加 URL 不能把可达候选冒充已登记依赖。
+            if database_enabled && !self.database_selected_at_register.load(Ordering::Acquire) {
+                return Err(openrust::Error::custom(
+                    "example_database_selection_changed",
+                    "示例模块在 register 后新增默认数据库连接，请重新 bootstrap 应用",
+                ));
+            }
             register_example_middleware(app)?;
             let directory = if self.module_repository {
                 app.resolve::<openrust::core::ModuleRepository>()
@@ -316,11 +346,7 @@ impl ServiceProvider for ExampleServiceProvider {
                 self.runtime_policy_enabled,
             )
             .await?;
-            let config = app.section::<openrust::config::DatabaseConfig>("database")?;
-            let database_enabled = config.url.is_some()
-                || !config.instances.is_empty()
-                || !config.read_replicas.is_empty();
-            #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+            #[cfg(feature = "auth")]
             if database_enabled && app.is_bound::<openrust::core::Readiness>() {
                 let db = app.resolve::<openrust::Db>().await?;
                 app.resolve::<openrust::core::Readiness>()
@@ -372,15 +398,9 @@ impl ServiceProvider for ExampleServiceProvider {
             let summary_origin = example_config.article_summary_origin;
             #[cfg(feature = "session")]
             let session_enabled = session_capability(app);
-            #[cfg(all(
-                feature = "auth-oidc",
-                any(feature = "db-postgres", feature = "db-mysql")
-            ))]
+            #[cfg(feature = "auth-oidc")]
             let oidc_config = example_config.oidc;
-            #[cfg(all(
-                feature = "auth-oidc",
-                any(feature = "db-postgres", feature = "db-mysql")
-            ))]
+            #[cfg(feature = "auth-oidc")]
             {
                 let repository = app.config_repository();
                 let expected = oidc_config.clone();
@@ -397,10 +417,7 @@ impl ServiceProvider for ExampleServiceProvider {
                     })
                 });
             }
-            #[cfg(all(
-                feature = "auth-oidc",
-                any(feature = "db-postgres", feature = "db-mysql")
-            ))]
+            #[cfg(feature = "auth-oidc")]
             let oidc_enabled = oidc_config.is_some();
             register_binding_extension_route(app).await?;
             let config_reading_repository = app.config_repository();
@@ -414,10 +431,7 @@ impl ServiceProvider for ExampleServiceProvider {
                         view: view_enabled,
                         i18n: i18n_enabled,
                         summary_origin: summary_origin.clone(),
-                        #[cfg(all(
-                            feature = "auth-oidc",
-                            any(feature = "db-postgres", feature = "db-mysql")
-                        ))]
+                        #[cfg(feature = "auth-oidc")]
                         oidc: oidc_enabled,
                     },
                     config_reading_repository.clone(),

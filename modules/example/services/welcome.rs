@@ -3,13 +3,13 @@
 use std::sync::Arc;
 
 use openrust::core::{RegisterContext, ServiceProvider};
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
 use openrust::mail::{Email, Mailer, lettre::Message};
 #[cfg(test)]
 use openrust::sms::{SmsMessage, SmsSender};
 use openrust::{Error, Result};
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 use openrust::{
     i18n::{I18n, Locale, MessageArgs},
     mail::LocalizedEmail,
@@ -62,7 +62,7 @@ pub(crate) struct WelcomeService {
 }
 impl WelcomeService {
     /// HTTP 自助欢迎邮件只发往数据库确认的当前账户邮箱。
-    #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+    #[cfg(feature = "auth")]
     pub(crate) async fn send_email(
         &self,
         verified_email: String,
@@ -96,7 +96,7 @@ impl WelcomeService {
 }
 
 /// 以可信账户 ID 从同一数据库连接读取未停用、已验证的邮箱。
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+#[cfg(feature = "auth")]
 pub(crate) async fn verified_email<C: ConnectionTrait>(
     db: &openrust::Db,
     connection: &C,

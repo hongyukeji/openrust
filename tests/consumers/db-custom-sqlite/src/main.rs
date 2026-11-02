@@ -1,7 +1,8 @@
 use figment::Figment;
 use openrust::core::{App, Error, ProviderBuilder, RegisterContext, Result, ServiceProvider};
-use openrust::db::{
-    DatabaseTableNames, Db, DbBackend, MigrationServiceProvider, PageContext, SortDirection,
+use openrust::prelude::Db;
+use openrust::database::{
+    DatabaseTableNames, DbBackend, MigrationServiceProvider, PageContext, SortDirection,
     sea_orm, sea_orm_migration, with_page_context,
 };
 use sea_orm::{ConnectionTrait, Database, Statement};

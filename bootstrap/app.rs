@@ -5,11 +5,10 @@ use openrust::prelude::*;
 
 mod providers;
 
-/// 启动来源决定需要数据库的应用能力；后续配置覆盖由各 Provider 验证。
+/// 应用运行根与模块配置；数据库由统一配置仓储及其 Provider 读取。
 #[derive(Default, serde::Deserialize)]
 #[serde(default)]
 pub(crate) struct Configuration {
-    database: openrust::config::DatabaseConfig,
     pub modules: openrust::config::ModulesConfig,
     // 运行时应用根锚点，供所有模块资源解析；不再兼作状态文件配置。
     application_root: Option<std::path::PathBuf>,
@@ -20,12 +19,6 @@ impl Configuration {
         self.application_root
             .clone()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
-    }
-
-    fn uses_database(&self) -> bool {
-        self.database.url.is_some()
-            || !self.database.instances.is_empty()
-            || !self.database.read_replicas.is_empty()
     }
 }
 
@@ -44,7 +37,7 @@ impl Application for Server {
 
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
         let root = config.application_root();
-        crate::modules::example::manifest(config.uses_database(), &root, &config.modules)
+        crate::modules::example::manifest(&root, &config.modules)
     }
 }
 
