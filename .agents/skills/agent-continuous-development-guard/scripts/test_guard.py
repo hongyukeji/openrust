@@ -1369,6 +1369,7 @@ class Lifecycle(unittest.TestCase):
         self.script.parent.mkdir(parents=True)
         shutil.copyfile(SCRIPT, self.script)
         shutil.copyfile(SCRIPT.with_name('guard_platform.py'), self.script.with_name('guard_platform.py'))
+        shutil.copyfile(SCRIPT.with_name('guard_codex.py'), self.script.with_name('guard_codex.py'))
         shutil.copyfile(SCRIPT.with_name('guard_questions.py'), self.script.with_name('guard_questions.py'))
         self.agent = '11111111-1111-4111-8111-111111111111'
         self.thread = '22222222-2222-4222-8222-222222222222'
@@ -1392,6 +1393,8 @@ class Lifecycle(unittest.TestCase):
         code = '''import json,os,sys,sqlite3
 from pathlib import Path
 root=Path(os.environ['TEST_ROOT'])
+# 通知替身立即结束，不等待Codex协议stdin，避免5秒超时污染监督恢复时序。
+if Path(sys.argv[0]).name=='osascript':sys.exit(0)
 if Path(sys.argv[0]).name=='paseo':
  if sys.argv[1]=='inspect':
   if (root/'pause-inspect').exists():
@@ -2062,9 +2065,9 @@ class FullBudgetOnce(unittest.TestCase):
         self.assertEqual([p for m, p in calls if m == 'thread/goal/set'], [{'threadId': 't', 'status': 'active'}])
         with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
 
-    def monitor_full_budget(self, response, *, controls_changed=False, now=1000):
+    def monitor_full_budget(self, response, *, controls_changed=False, now=1000, windows=None):
         state = self.state()
-        state['percentage_pause'].update(controls=dict(self.controls), windows={'primary': '2000'},
+        state['percentage_pause'].update(controls=dict(self.controls), windows={'primary': '2000'} if windows is None else windows,
                                          next_quota_at=0, account_id='account', account_recovery=True)
         calls = []
         def remote(method, params):
@@ -2115,6 +2118,157 @@ class FullBudgetOnce(unittest.TestCase):
         self.assertEqual(sends, 1)
         self.assertEqual(grant_path.read_bytes(), grant_bytes)
         self.assertFalse(recovery.effective_usage_budget(self.config).get('_full_budget_once'))
+
+    def test_old_account_ended_grant_does_not_block_owned_default_budget_recovery(self):
+        self.grant()
+        recovery.end_full_budget(self.config, 'actual_quota_exhausted')
+        path, document = recovery.grant_document(self.config)
+        grant = next(iter(document['grants'].values()))
+        grant['account_id'] = 'old-account'
+        recovery.atomic(path, document)
+        frozen = path.read_bytes()
+        outcome, state, calls, sends = self.monitor_full_budget(self.response, windows={})
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(calls.count('thread/goal/set'), 1)
+        self.assertEqual(sends, 1)
+        self.assertEqual(path.read_bytes(), frozen)
+        self.assertNotIn('_full_budget_once', recovery.effective_usage_budget(self.config))
+        self.assertEqual(state['questions'], {'q': {'status': 'unknown'}})
+
+    def test_old_account_identity_ended_grant_allows_only_default_budget(self):
+        self.grant()
+        recovery.end_full_budget(self.config, 'account_identity_changed')
+        path, document = recovery.grant_document(self.config)
+        grant = next(iter(document['grants'].values()))
+        grant['account_id'] = 'old-account'
+        recovery.atomic(path, document)
+        frozen = path.read_bytes()
+        baseline = json.loads(json.dumps(self.config))
+        low = json.loads(json.dumps(self.response))
+        low['rateLimits']['primary']['usedPercent'] = 90
+        outcome, _, calls, sends = self.monitor_full_budget(low, windows={})
+        self.assertNotEqual(outcome, 'percentage_resumed')
+        self.assertNotIn('thread/goal/set', calls)
+        self.assertEqual(sends, 0)
+        outcome, _, calls, sends = self.monitor_full_budget(self.response, windows={})
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(calls.count('thread/goal/set'), 1)
+        self.assertEqual(sends, 1)
+        self.assertEqual(self.config, baseline)
+        self.assertEqual(path.read_bytes(), frozen)
+
+    def test_recovered_old_account_grant_worker_keeps_default_floor_monitoring(self):
+        """恢复成功后的主循环必须继续检查80%预算，并在随后触线时暂停。"""
+        self.grant()
+        recovery.end_full_budget(self.config, 'account_identity_changed')
+        path, document = recovery.grant_document(self.config)
+        next(iter(document['grants'].values()))['account_id'] = 'old-account'
+        recovery.atomic(path, document)
+        frozen = path.read_bytes()
+        baseline = json.loads(json.dumps(self.config))
+        state = self.state()
+        state['percentage_pause'].update(controls=dict(self.controls), windows={},
+                                         next_quota_at=0, account_id='account', account_recovery=True)
+        recovery.atomic(self.runtime / 'config.json', self.config)
+        recovery.atomic(self.runtime / 'state.json', state)
+        observed = []
+        low = json.loads(json.dumps(self.response))
+        low['rateLimits']['primary']['usedPercent'] = 90
+        def remote(method, params):
+            if method == 'thread/goal/set':
+                self.current['status'] = params['status']
+                return {}
+            self.assertEqual(method, 'account/rateLimits/read')
+            return low if len(observed) >= 2 else self.response
+        def next_cycle(*_):
+            observed.append(json.loads((self.runtime / 'state.json').read_text()))
+            if len(observed) >= 3:
+                (self.runtime / 'disabled').touch()
+        with patch.object(recovery, 'rpc', side_effect=remote) as calls, \
+             patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'login_revision', return_value=None), \
+             patch.object(recovery, 'run_json') as send, \
+             patch.object(recovery, 'inspect', return_value={'Status': 'running'}), \
+             patch.object(recovery, 'timeline', return_value={'key': 't'}), \
+             patch.object(recovery, 'publish_registry'), \
+             patch.object(recovery, 'pause_at_usage_budget', return_value=True) as pause, \
+             patch.object(recovery, 'owned_percentage_pause', return_value=False), \
+             patch.object(recovery, 'sleep_until', side_effect=next_cycle):
+            recovery.worker(self.runtime, os.getppid())
+        final = json.loads((self.runtime / 'state.json').read_text())
+        self.assertEqual(observed[0]['reason'], 'percentage_resumed')
+        self.assertEqual(observed[1]['status'], 'working')
+        self.assertIn('usage_budget_checked_at', observed[1])
+        self.assertEqual(final['reason'], 'usage_budget_reached')
+        self.assertEqual(final['status'], 'paused')
+        pause.assert_called_once()
+        self.assertEqual(sum(c.args[0] == 'thread/goal/set' for c in calls.call_args_list), 1)
+        self.assertEqual(send.call_count, 1)
+        self.assertEqual(self.config, baseline)
+        self.assertEqual(path.read_bytes(), frozen)
+        self.assertEqual(final['questions'], state['questions'])
+        persisted = json.loads((self.runtime / 'config.json').read_text())
+        self.assertEqual(persisted['usage_budget'], baseline['usage_budget'])
+        self.assertEqual(persisted['account_budgets'], baseline['account_budgets'])
+
+    def test_worker_ended_identity_grant_keeps_ambiguous_or_same_identity_blocked(self):
+        """主循环不能借旧授权放行同账号、未知身份、目标变化或人工暂停。"""
+        self.grant()
+        recovery.end_full_budget(self.config, 'account_identity_changed')
+        path, original = recovery.grant_document(self.config)
+        for kind in ('same_account', 'unknown_account', 'unknown_limit', 'different_goal',
+                     'task_changed', 'goal_changed', 'missing_goal', 'manual'):
+            with self.subTest(kind=kind):
+                (self.runtime / 'disabled').unlink(missing_ok=True)
+                (self.runtime / 'state.json').unlink(missing_ok=True)
+                document = json.loads(json.dumps(original))
+                grant = next(iter(document['grants'].values()))
+                grant['account_id'] = 'old-account'
+                if kind == 'same_account': grant['account_id'] = self.config['usage_budget']['account_id']
+                if kind == 'unknown_account': grant['account_id'] = None
+                if kind == 'unknown_limit': grant['limit_id'] = None
+                if kind == 'different_goal': grant['goal']['objective'] = 'other'
+                if kind == 'task_changed': grant['reason'] = 'task_identity_changed'
+                if kind == 'goal_changed': grant['reason'] = 'goal_identity_changed'
+                recovery.atomic(path, document)
+                frozen = path.read_bytes()
+                self.current['status'] = 'paused' if kind == 'manual' else 'active'
+                recovery.atomic(self.runtime / 'config.json', self.config)
+                observed = []
+                def finish_check(*_):
+                    observed.append(json.loads((self.runtime / 'state.json').read_text()))
+                    (self.runtime / 'disabled').touch()
+                with patch.object(recovery, 'goal', return_value=None if kind == 'missing_goal' else dict(self.current)), \
+                     patch.object(recovery, 'rpc', return_value=self.response) as calls, \
+                     patch.object(recovery, 'run_json') as send, \
+                     patch.object(recovery, 'publish_registry'), \
+                     patch.object(recovery, 'sleep_until', side_effect=finish_check):
+                    recovery.worker(self.runtime, os.getppid())
+                final = observed[0] if observed else json.loads((self.runtime / 'state.json').read_text())
+                self.assertEqual(final['reason'], 'paused' if kind == 'manual' else 'full_budget_identity_changed')
+                self.assertNotIn('usage_budget_checked_at', final)
+                self.assertFalse(any(c.args[0] == 'thread/goal/set' for c in calls.call_args_list))
+                send.assert_not_called()
+                self.assertEqual(path.read_bytes(), frozen)
+
+    def test_ended_grant_unknown_identity_or_goal_never_bypasses_ownership(self):
+        self.grant()
+        recovery.end_full_budget(self.config, 'actual_quota_exhausted')
+        path, original = recovery.grant_document(self.config)
+        for kind in ('unknown_account', 'unknown_limit', 'different_goal', 'manual'):
+            with self.subTest(kind=kind):
+                document = json.loads(json.dumps(original))
+                grant = next(iter(document['grants'].values()))
+                grant['account_id'] = 'old-account'
+                if kind == 'unknown_account': grant['account_id'] = None
+                if kind == 'unknown_limit': grant['limit_id'] = None
+                if kind == 'different_goal': grant['goal']['objective'] = 'other'
+                recovery.atomic(path, document)
+                outcome, _, calls, sends = self.monitor_full_budget(
+                    self.response, controls_changed=kind == 'manual', windows={})
+                self.assertNotEqual(outcome, 'percentage_resumed')
+                self.assertNotIn('thread/goal/set', calls)
+                self.assertEqual(sends, 0)
 
     def test_exhaustion_worker_keeps_guard_owned_wait_without_send(self):
         self.grant()

@@ -1450,3 +1450,14 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 冻结v7的608项构建输入复核无漂移，代码15门禁通过，默认workspace955 passed/34 ignored，全特性1770 passed/111 ignored；回执`/tmp/openrust-request-mime-code-verification-v7/receipt.json`。fresh生成、真实TCP与MySQL九阶段全exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`，无新增库残留。仍是任务分支限定证据，未证明main集成或完整Request/Filesystem已完成。
 
 确认本轮归属、无进程/打开句柄后，正常Cargo dry-run与clean均exit0；根target30,115,557,376B→0，磁盘可用增加29,867,966,464B、16.968%→19.971%。未知外置65,982,464B、源码、数据库卷和日志保留。清理回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json` SHA256 `49405499ac040bc6779687558f9704e40070865975e86302a0bce19d66c8409c`；首轮仅lsof解码失败，未clean，原回执保留。后续实现按需重建，不为纯Agent文档变化重跑Rust门禁。
+
+
+## 原生 Codex 守护适配限定验收
+
+原生后端复用现有守护生命周期和预算账本，以可信主线程、同项目与原Goal绑定，通过既有共享app-server的proxy读取状态、入队、启动及精确中断；不启动第二服务或接管Desktop writer。终态清理仅删除同线程/Goal/dispatch身份的自有队列，删除未知保留独立账本且不重放。入队后重新核对线程、唯一自有队列、原Goal和停止标记；启动proxy缺失仍保留发送意图，防止丢失清理身份或重复派发。
+
+当前代码的隔离验证：完整守护147项（144通过、3项原生Windows跳过）、问答61项、原生适配28项全部通过，ResourceWarning按错误处理；Python AST、局部diff空白与本地文档链接检查通过。不同模型独立审查发现的入队后控制变化、后续proxy失败丢失发送意图两个阻断均修复并新增回归，复审无阻断。最终日志分别为`/tmp/openrust-guard-final-main-v2.log`、`/tmp/openrust-guard-final-questions.log`、`/tmp/openrust-guard-final-native-v2.log`。
+
+首轮探索性完整回归的SIGKILL用例在tearDown等待监督回收时超时，其余通过；日志`/tmp/openrust-guard-final-main.log`保留，不回填成功。生命周期fixture的通知替身原误入Codex stdin协议，已改为立即退出，原断言与时限不变；定向真实子进程回归通过，日志`/tmp/openrust-guard-restart-regression.log`，最终完整147项结果以上述v2日志为准。
+
+本机CLI为0.159.3，正式experimental JSON schema与proxy参数已核查；`codex app-server daemon version`实测默认共享控制socket不存在，未启动/重启服务，未改真人线程、Goal、额度或问答账本。当前Desktop真实恢复及proxy断连后的工具推进未验收，原生精确问答、可信真人控制水位与预算自动恢复仍保缺口；Windows跳过项不计原生通过。最后读取与queue/start没有CAS，仍有竞态，不能声称原子遵守其间的真人暂停。接入条件与最小路径见[平台说明](../../skills/agent-continuous-development-guard/references/platforms.md#原生接入条件与最小路径)。本簇仅skill和验收事实，不替代任何Rust业务源码门禁。

@@ -22,6 +22,7 @@ from types import SimpleNamespace
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import guard_codex as native
 import guard_platform as platform
 import guard_questions as questions
 
@@ -39,6 +40,7 @@ PROMPT = (
     "用户停止优先，整体验收后完成Goal并清理守护。"
 )
 _TIMELINE_CACHE = (None, None)
+_BACKEND_CONFIG = {}
 
 
 
@@ -78,7 +80,7 @@ def summary(runtime):
     supervisor = json.loads((runtime / 'supervisor.json').read_text(encoding='utf-8')) if (runtime / 'supervisor.json').exists() else None
     alive = supervisor_alive(supervisor, runtime)
     fresh = time.time() - state.get('checked_at', 0) <= CHECK_INTERVAL * 3
-    terminal = state.get('status') in ('complete', 'paused', 'stopped', 'parent_lost', 'quota_wait_expired')
+    terminal = state.get('status') in ('complete', 'paused', 'stopped', 'parent_lost', 'quota_wait_expired', 'cleanup_pending')
     state.update(agent=config.get('agent', runtime.name), thread=config.get('thread'),
                  label=config.get('label', '持续开发任务'), goal_id=config.get('goal_id'),
                  lock_held=held, supervisor=supervisor, supervisor_alive=alive,
@@ -134,10 +136,85 @@ def run_json(command):
 
 
 def inspect(agent):
+    if _BACKEND_CONFIG.get('backend') == 'codex':
+        if agent != _BACKEND_CONFIG.get('agent'):
+            raise ValueError('原生任务身份不一致')
+        return native.snapshot(_BACKEND_CONFIG, ROOT, rpc)
     result = run_json(['paseo', 'inspect', agent, '--json'])
     if result.get('PendingPermissions'):
         questions.enrich_snapshot(result, globals())
     return result
+
+
+def send_task(config, dispatch_key=None):
+    if config.get('backend') == 'codex':
+        original = bound_goal(config)
+        runtime = ROOT / '.agents/project/guards' / config['agent']
+        def before_start():
+            current = bound_goal(config)
+            if ((runtime / 'disabled').exists() or current.get('status') != 'active'
+                    or any(current.get(key) != original.get(key)
+                           for key in ('id', 'created_at_ms', 'objective'))):
+                raise ValueError('原生入队期间目标或控制已变化，保留意图而不启动')
+        return native.enqueue(config, PROMPT, rpc, ROOT, dispatch_key, before_start)
+    return run_json(['paseo', 'send', config['agent'], PROMPT, '--no-wait', '--json'])
+
+
+def cleanup_native_queue(runtime, config, state):
+    """终态只撤销本Goal已落盘意图的队列；未知删除先记账且不重放。"""
+    if config.get('backend') != 'codex' or not state.get('dispatch_key'):
+        return True
+    path = runtime / 'native-queue-cleanup.json'
+    with (runtime / 'native-cleanup.lock').open('a') as lock:
+        platform.lock_file(lock)
+        identity = native.queue_client_id(config, state['dispatch_key'])
+        try:
+            document = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'entries': {}}
+            entries = document.get('entries') if isinstance(document, dict) else None
+            if not isinstance(entries, dict):
+                raise ValueError('原生清理账本格式无法核验')
+            ledger = entries.get(identity)
+            if ledger is None:
+                ledger = {'client_id': identity, 'thread': config['thread'],
+                          'goal_id': config['goal_id'], 'delete_intents': []}
+                entries[identity] = ledger
+            if not isinstance(ledger, dict) or not isinstance(ledger.get('delete_intents'), list):
+                raise ValueError('原生清理意图无法核验')
+        except (OSError, ValueError):
+            state['native_queue_cleanup'] = {'status': 'unknown', 'client_id': identity}
+            return False
+        def before_delete(queued_id):
+            if queued_id in ledger['delete_intents']:
+                raise ValueError('自有队列已有删除意图且尚可见，结果未知不重复删除')
+            ledger['delete_intents'].append(queued_id)
+            ledger.update(status='deleting', checked_at=time.time())
+            atomic(path, document)
+        try:
+            if not binding_valid(config):
+                raise ValueError('终态清理的线程绑定无法核验')
+            native.cancel_queued(config, state['dispatch_key'], rpc, before_delete)
+        except Exception:
+            ledger.update(status='unknown', checked_at=time.time())
+            atomic(path, document)
+            state['native_queue_cleanup'] = {'status': 'unknown', 'client_id': identity}
+            return False
+        ledger.update(status='confirmed', checked_at=time.time())
+        atomic(path, document)
+        state['native_queue_cleanup'] = {'status': 'confirmed', 'client_id': identity}
+        return True
+
+
+def stop_task(config, runtime=None):
+    if config.get('backend') == 'codex':
+        if runtime is not None and (runtime / 'state.json').exists():
+            state = json.loads((runtime / 'state.json').read_text(encoding='utf-8'))
+            if not cleanup_native_queue(runtime, config, state):
+                state.update(status='cleanup_pending', reason='native_queue_cleanup_unconfirmed',
+                             task_running=False, next_check_at=None)
+                atomic(runtime / 'state.json', state)
+                raise ValueError('原生自有队列清理尚未确认，未宣称已停止')
+        return native.interrupt(config, ROOT, rpc)
+    return run_json(['paseo', 'stop', config['agent'], '--json'])
 
 
 def answer_question(config, request, answer, binding, pending):
@@ -146,7 +223,12 @@ def answer_question(config, request, answer, binding, pending):
 
 def rpc(method, params):
     """使用已安装Codex的正式本机协议；子进程总会回收，不读取认证文件。"""
-    process = platform.launch_tool(['codex', 'app-server', '--stdio'], stdin=subprocess.PIPE,
+    command = ['codex', 'app-server', '--stdio']
+    if _BACKEND_CONFIG.get('backend') == 'codex':
+        command = ['codex', 'app-server', 'proxy']
+        if _BACKEND_CONFIG.get('codex_socket'):
+            command += ['--sock', _BACKEND_CONFIG['codex_socket']]
+    process = platform.launch_tool(command, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     lines = platform.Lines(process.stdout)
 
@@ -434,11 +516,15 @@ def controlled_turn(state, turn, current, config):
 def decision(agent, current_goal, turn, config, now):
     if not current_goal or current_goal['id'] != config['goal_id']:
         return 'needs_attention'
+    if agent.get('NativeWaitReason'):
+        return 'needs_attention'
     if agent.get('Archived'):
         return 'stopped'
     if Path(agent.get('Cwd', '/')).resolve() != ROOT:
         return 'needs_attention'
     status = current_goal['status']
+    if config.get('backend') == 'codex' and status not in ('active', 'complete', 'paused'):
+        return 'needs_attention'
     if status in ('complete', 'paused'):
         return status
     if turn and (turn['kind'] == 'turn_aborted' or turn.get('abort_barrier')
@@ -663,6 +749,29 @@ def exhausted_grant_matches(config, current):
     return (grant.get('status') == 'ended' and grant.get('reason') == 'actual_quota_exhausted'
             and all(grant.get('goal', {}).get(k) == current.get(k) for k in ('id', 'created_at_ms', 'objective'))
             and all(grant.get(k) == budget.get(k) for k in ('account_id', 'limit_id')))
+
+
+def ended_grant_blocks_default_recovery(config, current):
+    """旧账号已结束授权不支配当前默认预算；未知身份仍保守拒绝。"""
+    reason = full_budget_end_reason(config)
+    if reason not in ('actual_quota_exhausted', 'account_identity_changed',
+                      'task_identity_changed', 'goal_identity_changed'):
+        return False
+    if reason == 'actual_quota_exhausted' and exhausted_grant_matches(config, current):
+        return False
+    _, document = grant_document(config)
+    grants = [g for g in document.get('grants', {}).values()
+              if all(g.get(k) == config.get(k) for k in ('agent', 'thread', 'goal_id'))]
+    grant = max(grants, key=lambda g: g['granted_at']) if grants else {}
+    budget = config.get('usage_budget') or {}
+    unrelated = (reason in ('actual_quota_exhausted', 'account_identity_changed')
+                 and grant.get('status') == 'ended' and current
+                 and all(grant.get('goal', {}).get(k) == current.get(k)
+                         for k in ('id', 'created_at_ms', 'objective'))
+                 and all(isinstance(item.get(k), str) and item[k]
+                         for item in (grant, budget) for k in ('account_id', 'limit_id'))
+                 and grant['account_id'] != budget['account_id'])
+    return not unrelated
 
 
 def effective_usage_budget(config):
@@ -992,12 +1101,15 @@ def pause_at_usage_budget(runtime, config):
             return False
         if bound_goal(config).get('status') != 'paused':
             return False
-        run_json(['paseo', 'stop', config['agent'], '--json'])
+        stop_task(config, runtime)
         return True
 
 
 def percentage_pause_controls(config, allow_old_control=False):
     """原任务用户/控制快照；缺可靠证据不授予自动恢复资格。"""
+    if config.get('backend') == 'codex':
+        # 原生协议没有已验证的真人用户控制水位，不能伪造自有暂停恢复资格。
+        return None
     agent = inspect(config['agent'])
     if agent.get('Archived') or agent.get('PendingPermissions'):
         return None
@@ -1132,8 +1244,7 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
     if now < pause.get('next_quota_at', 0):
         return 'percentage_reset_wait'
     end_reason = full_budget_end_reason(config)
-    if (end_reason in ('account_identity_changed', 'task_identity_changed', 'goal_identity_changed')
-            or end_reason == 'actual_quota_exhausted' and not exhausted_grant_matches(config, current)):
+    if ended_grant_blocks_default_recovery(config, current):
         return 'percentage_pause_not_owned'
     response = rpc('account/rateLimits/read', {})
     budget = effective_usage_budget(config)
@@ -1147,7 +1258,7 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
     budget = effective_usage_budget(config)
     full_budget = bool(budget.get('_full_budget_once'))
     status = usage_budget_status(response, budget)
-    if full_budget_end_reason(config) == 'actual_quota_exhausted' and not exhausted_grant_matches(config, current):
+    if ended_grant_blocks_default_recovery(config, current):
         return 'percentage_pause_not_owned'
     if status == 'usage_budget_unknown':
         pause['next_quota_at'] = (budget_wait_deadline(pause, response, now)
@@ -1239,7 +1350,7 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
                 or percentage_pause_controls(config) != controls):
             return 'percentage_resume_unconfirmed'
         pause['resume_status'] = 'sending'; atomic(runtime / 'state.json', state)
-        run_json(['paseo', 'send', config['agent'], PROMPT, '--no-wait', '--json'])
+        send_task(config)
         pause['resume_status'] = 'sent'
         state['usage_budget_paused'] = False
         atomic(runtime / 'state.json', state)
@@ -1314,6 +1425,12 @@ def binding_attention_object(record):
 
 def attention_details(agent, current, turn, config):
     """解释既有拒绝恢复结果，不改变decision或问答授权判定。"""
+    if agent.get('NativeWaitReason'):
+        return {'reason': agent['NativeWaitReason'],
+                'attention_object': attention_object(config.get('thread'))}
+    if config.get('backend') == 'codex' and current and current.get('status') != 'active':
+        return {'reason': 'native_goal_control_unverifiable',
+                'attention_object': attention_object(current.get('id'))}
     turn = turn or {}
     pending = agent.get('PendingPermissions') or []
     subject = turn.get('key')
@@ -1375,14 +1492,15 @@ def notification_event(state, config, now):
     """独立于控制策略的持久通知去重；普通等待连续确认，硬边界立即提醒。"""
     status = state.get('status')
     reason = state.get('notification_reason') or state.get('reason', 'unclassified_boundary')
-    eligible = {'needs_attention', 'cooldown', 'quota_wait', 'complete', 'paused'}
+    eligible = {'needs_attention', 'cooldown', 'quota_wait', 'complete', 'paused', 'cleanup_pending'}
     if status not in eligible:
         state.pop('notice_observation', None)
         return None
     soft = {'awaiting_user_input_activity', 'turn_snapshot_unavailable',
             'turn_completion_time_unavailable', 'awaiting_new_turn',
             'awaiting_percentage_resume_turn', 'question_wait', 'question_answered',
-            'question_capacity_wait', 'question_quota_wait', 'question_snapshot_wait'}
+            'question_capacity_wait', 'question_quota_wait', 'question_snapshot_wait',
+            'native_input_pending', 'native_input_queued', 'native_state_unverifiable'}
     subject = state.get('attention_object') or attention_object(config.get('goal_id'))
     identity = attention_object([config.get('goal_id'), config.get('agent'),
                                  config.get('thread'), reason, subject])
@@ -1399,6 +1517,13 @@ def notification_event(state, config, now):
     if reason in soft and now - observation['first_seen'] < CHECK_INTERVAL:
         return None
     messages = {
+        'native_input_pending': '原生 Codex 等待输入；缺少已验证的精确问答通道，守护未代答。',
+        'native_input_queued': '原生 Codex 已有排队输入；守护等待原队列推进。',
+        'native_state_unverifiable': '原生 Codex 运行快照不可确认；守护未接管线程。',
+        'native_goal_terminal_unconfirmed': '自有队列清理后原Goal终态未能再次确认；守护未报告完整完成。',
+        'native_queue_cleanup_unconfirmed': '守护已保留停止边界，但本任务队列清理结果未知；未重复删除或报告清理完成。',
+        'native_goal_control_unverifiable': '原生Goal存在非active控制状态，缺少可靠控制水位；守护未自动激活。',
+        'native_approval_pending': '原生 Codex 存在正式审批等待；守护未代为授权。',
         'permissions_pending': '当前请求等待权限或输入确认；守护未代为授权。',
         'pending_request_unclassified': '当前待处理请求类型尚未核实；守护未代答或授权。',
         'question_snapshot_wait': '普通问答的控制或会话快照尚未满足核验条件；守护继续监测。',
@@ -1448,6 +1573,20 @@ def sleep_until(runtime, seconds):
 
 def binding_valid(config, evidence=None):
     try:
+        if config.get('backend') == 'codex':
+            with Path(config['rollout']).open(encoding='utf-8') as source:
+                metadata = json.loads(source.readline())['payload']
+            valid = (metadata.get('id') == config['thread']
+                     and not isinstance(metadata.get('source'), dict)
+                     and Path(metadata.get('cwd', '/')).resolve() == ROOT
+                     and Path(config.get('project', '/')).resolve() == ROOT)
+            if valid:
+                native.validate_thread(rpc('thread/read', {'threadId': config['thread'],
+                                       'includeTurns': False}).get('thread') or {}, config, ROOT)
+            if evidence is not None:
+                evidence.update(reason='task_binding_changed',
+                                attention_object=attention_object(config.get('thread')))
+            return valid
         record = json.loads(Path(config['agent_record']).read_text(encoding='utf-8'))
         persistence = record.get('persistence') or {}
         valid = (record.get('id') == config['agent'] and record.get('provider') == 'codex'
@@ -1479,21 +1618,38 @@ def apply_task_policy(state, config):
 
 
 def worker(runtime, parent_pid):
+    global _BACKEND_CONFIG
     config = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
+    _BACKEND_CONFIG = config
     path = runtime / 'state.json'
     state = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
     apply_task_policy(state, config)
     attempts = state.get('attempts', 0)
 
     def record(status, **extra):
+        requested_status = status
+        if status in ('complete', 'paused', 'stopped', 'parent_lost', 'quota_wait_expired'):
+            if not cleanup_native_queue(runtime, config, state):
+                status = 'cleanup_pending'
+                extra.update(reason='native_queue_cleanup_unconfirmed', terminal_intent=requested_status)
+        if requested_status == 'complete' and status == 'complete' and config.get('backend') == 'codex':
+            try:
+                final_goal = goal(config)
+                confirmed = (final_goal and final_goal['id'] == config['goal_id']
+                             and final_goal['status'] == 'complete')
+            except Exception:
+                confirmed = False
+            if not confirmed:
+                status = 'cleanup_pending'
+                extra.update(reason='native_goal_terminal_unconfirmed', terminal_intent=requested_status)
         before = (state.get('status'), state.get('reason'), state.get('attention_object'))
         state.pop('attention_object', None)
         state.pop('notification_reason', None)
         state.update(status=status, attempts=attempts, checked_at=time.time(),
                          updated_at=datetime.now().astimezone().isoformat(), **extra)
-        if (status in ('complete', 'paused', 'quota_wait_expired')
-                or status == 'stopped' and not (runtime / 'disabled').exists()):
-            end_full_budget(config, status)
+        if (requested_status in ('complete', 'paused', 'quota_wait_expired')
+                or requested_status == 'stopped' and not (runtime / 'disabled').exists()):
+            end_full_budget(config, requested_status)
         if status != 'working':
             state['task_running'] = False
         state['reason'] = extra.get('reason', {
@@ -1504,7 +1660,7 @@ def worker(runtime, parent_pid):
         update_quota_wait(state, status, state['reason'], time.time())
         state['next_recovery_at'] = (state.get('quota_check_at') if status == 'quota_wait' else
                                      state.get('retry_at') if status in ('backoff', 'cooldown') else None)
-        state['next_check_at'] = None if status in ('complete', 'paused', 'stopped', 'parent_lost', 'quota_wait_expired') else time.time() + CHECK_INTERVAL
+        state['next_check_at'] = None if status in ('complete', 'paused', 'stopped', 'parent_lost', 'quota_wait_expired', 'cleanup_pending') else time.time() + CHECK_INTERVAL
         event = notification_event(state, config, time.time())
         if event:
             state['last_notification'] = {key: value for key, value in event.items() if key != 'message'}
@@ -1578,7 +1734,8 @@ def worker(runtime, parent_pid):
             current = terminal
             if config.get('usage_budget') is not None:
                 response = rpc('account/rateLimits/read', {})
-                if full_budget_end_reason(config) in ('account_identity_changed', 'task_identity_changed', 'goal_identity_changed'):
+                if (full_budget_end_reason(config) in ('account_identity_changed', 'task_identity_changed', 'goal_identity_changed')
+                        and ended_grant_blocks_default_recovery(config, current)):
                     record('needs_attention', reason='full_budget_identity_changed',
                            attention_object=attention_object(response.get('accountId')))
                     sleep_until(runtime, CHECK_INTERVAL)
@@ -1652,7 +1809,8 @@ def worker(runtime, parent_pid):
             if action in ('complete', 'paused', 'stopped'):
                 record(action)
                 return
-            question_status = questions.step(runtime, state, config, agent, current, turn, SimpleNamespace(**globals()))
+            question_status = (None if config.get('backend') == 'codex' else
+                               questions.step(runtime, state, config, agent, current, turn, SimpleNamespace(**globals())))
             if question_status:
                 record('needs_attention', **question_attention(state, agent, question_status))
                 sleep_until(runtime, min(CHECK_INTERVAL, questions.WAIT_SECONDS))
@@ -1739,10 +1897,11 @@ def worker(runtime, parent_pid):
                 record('dispatching', dispatch_key=key, dispatch_at=time.time())
                 # 先落盘意图；发送异常也不清除，必须看到新的实际轮次才可再发送。
                 try:
-                    run_json(['paseo', 'send', config['agent'], PROMPT, '--no-wait', '--json'])
+                    send_task(config, key)
                 except FileNotFoundError:
-                    # 工具尚未启动，确定没有入队；网络/退出错误仍保留意图避免重发。
-                    state.pop('dispatch_key', None)
+                    # 原生发送分多次proxy，后续启动失败时可能已经入队，不能丢失清理身份。
+                    if config.get('backend') != 'codex':
+                        state.pop('dispatch_key', None)
                     raise
                 state['check_failures'] = 0
                 record('sent')
@@ -1864,12 +2023,8 @@ def supervise(runtime, lock_fd):
 
 
 def config_for(args):
-    agent = args.agent or os.environ.get('PASEO_AGENT_ID')
-    thread = args.thread or os.environ.get('CODEX_THREAD_ID')
-    if not agent or not thread:
-        raise ValueError('缺少可信Paseo/Codex任务身份，不能猜测最新任务')
-    uuid.UUID(agent)
-    uuid.UUID(thread)
+    global _BACKEND_CONFIG
+    backend, agent, thread = native.select_backend(args, os.environ)
     home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
     with sqlite3.connect((home / 'state_5.sqlite').resolve().as_uri() + '?mode=ro', uri=True) as db:
         row = db.execute('SELECT rollout_path,cwd FROM threads WHERE id=?', (thread,)).fetchone()
@@ -1879,6 +2034,28 @@ def config_for(args):
         metadata = json.loads(source.readline())['payload']
     if metadata.get('id') != thread or isinstance(metadata.get('source'), dict):
         raise ValueError('只能登记已确认的主线程，不能为子代理另建守护')
+    if backend == 'codex':
+        config = {'backend': 'codex', 'agent': agent, 'thread': thread, 'rollout': row[0],
+                  'goals_db': str(home / 'goals_1.sqlite'), 'project': str(ROOT),
+                  'label': args.label or '持续开发任务',
+                  'codex_socket': getattr(args, 'codex_socket', None)}
+        _BACKEND_CONFIG = config
+        try:
+            if not binding_valid(config):
+                raise ValueError('原生 Codex 主线程绑定不一致')
+            inspected = inspect(agent)
+        except (OSError, RuntimeError, TimeoutError, subprocess.SubprocessError):
+            raise ValueError('原生共享 app-server 控制端点不可核验；不会启动临时执行器或接管线程') from None
+        if inspected.get('NativeWaitReason') == 'native_state_unverifiable':
+            raise ValueError('缺少已加载原生线程的共享 app-server 控制端点；不会临时接管线程')
+        current = goal(config)
+        if not current or current['status'] == 'complete':
+            raise ValueError('请先为当前完整任务创建未完成的原生Goal')
+        if current['status'] == 'paused':
+            raise ValueError('原生Goal已暂停，暂停来源不可确认；不会自动恢复人工控制')
+        config['goal_id'] = current['id']
+        return config
+    _BACKEND_CONFIG = {}
     inspected = inspect(agent)
     if Path(inspected.get('Cwd', '/')).resolve() != ROOT or inspected.get('Provider') != 'codex':
         raise ValueError('Paseo目标不是本仓Codex任务')
@@ -1910,8 +2087,11 @@ def config_for(args):
 
 
 def main():
+    global _BACKEND_CONFIG
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'status', 'list', 'stop', 'finish', '_supervise', '_worker'])
+    parser.add_argument('--backend', choices=['auto', 'paseo', 'codex'], default='auto')
+    parser.add_argument('--codex-socket', help='已有共享 app-server 控制 socket；不启动 daemon 或接管线程')
     parser.add_argument('--agent')
     parser.add_argument('--thread')
     parser.add_argument('--label', help='供本地看板显示的简短任务名，不写凭据')
@@ -1955,10 +2135,7 @@ def main():
             publish_registry(base / '_overview')
         print((base / 'registry.json').read_text(encoding='utf-8') if (base / 'registry.json').exists() else '{"guards":[]}')
         return
-    agent = args.agent or os.environ.get('PASEO_AGENT_ID')
-    if not agent:
-        raise SystemExit('缺少Paseo任务身份')
-    uuid.UUID(agent)
+    backend, agent, _thread = native.select_backend(args, os.environ, require_thread=args.command == 'start')
     runtime = ROOT / '.agents/project/guards' / agent
     if args.command == 'status':
         print(json.dumps(summary(runtime) if runtime.exists() else {'status': 'not_started'}, ensure_ascii=False))
@@ -1966,11 +2143,13 @@ def main():
     if args.command == 'start':
         if sys.version_info < (3, 10):
             raise SystemExit('需要已有 Python 3.10+，不会自动安装')
-        for executable in ('paseo', 'codex'):
+        for executable in (('paseo', 'codex') if backend == 'paseo' else ('codex',)):
             platform.command([executable])
         # 在任何项目运行状态写入之前，确认现有客户端可用。
         preflight = config_for(args)
         bound_goal(preflight)
+    if args.command != 'start' and (runtime / 'config.json').exists():
+        _BACKEND_CONFIG = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
     runtime.mkdir(parents=True, exist_ok=True)
     ignore = runtime.parent / '.gitignore'
     if not ignore.exists():
@@ -2006,12 +2185,12 @@ def main():
                 bound_goal(config)
                 rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'paused'})
                 bound_goal(config)
-                run_json(['paseo', 'stop', agent, '--json'])
+                stop_task(config, runtime)
                 # Paseo发送会等两个安静秒；让已入队操作落定后再确认中断。
                 time.sleep(3)
                 if inspect(agent).get('Status') == 'running':
                     bound_goal(config)
-                    run_json(['paseo', 'stop', agent, '--json'])
+                    stop_task(config, runtime)
                     time.sleep(2)
                     if inspect(agent).get('Status') == 'running':
                         raise SystemExit('守护已禁用，但主控尚未确认停止，需检查客户端状态')
@@ -2022,6 +2201,26 @@ def main():
                 raise SystemExit('停止请求已记录，但监督进程尚未确认退出')
             state_path = runtime / 'state.json'
             state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
+            saved_config = json.loads((runtime / 'config.json').read_text(encoding='utf-8')) if (runtime / 'config.json').exists() else {}
+            if not cleanup_native_queue(runtime, saved_config, state):
+                state.update(status='cleanup_pending', reason='native_queue_cleanup_unconfirmed',
+                             terminal_intent='complete' if args.command == 'finish' else 'stopped',
+                             task_running=False, next_check_at=None, next_recovery_at=None)
+                atomic(state_path, state)
+                publish_registry(runtime)
+                raise SystemExit('原生自有队列清理结果未知，已保留账本；未报告终态清理完成')
+            if args.command == 'finish' and saved_config.get('backend') == 'codex':
+                try:
+                    current = goal(saved_config)
+                except Exception:
+                    current = None
+                if not current or current['id'] != finish_goal_id or current['status'] != 'complete':
+                    state.update(status='cleanup_pending', reason='native_goal_terminal_unconfirmed',
+                                 terminal_intent='complete', task_running=False,
+                                 next_check_at=None, next_recovery_at=None)
+                    atomic(state_path, state)
+                    publish_registry(runtime)
+                    raise SystemExit('队列清理后原Goal终态已变化，未报告完整完成')
             state.update(status='complete' if args.command == 'finish' else 'stopped',
                          task_running=False, next_recovery_at=None,
                          reason='complete' if args.command == 'finish' else 'stopped', next_check_at=None, updated_at=datetime.now().astimezone().isoformat())
@@ -2110,6 +2309,8 @@ def main():
                     raise SystemExit('任务用量预算已触发或未知，不恢复暂停目标')
                 if remote.get('status') != 'paused':
                     raise SystemExit('暂停Goal状态不一致，未恢复任务')
+                if not monitoring_percentage and config.get('backend') == 'codex':
+                    raise SystemExit('原生暂停来源不可确认，保留人工控制；请正式恢复原Goal后再启动')
                 if not monitoring_percentage:
                     rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
             # 同一Goal重启保留退避、语义阻塞及不明确发送记录，只有新目标才重置。

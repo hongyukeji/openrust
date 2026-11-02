@@ -141,3 +141,64 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 入口核对同一任务、Goal、账号/limit和窗口时长、正式授权水位及两次一致额度快照；按当前正式可用值建立80%可用、20%保留的新基线。未知资格、人工暂停、审批、身份变化与并发停止仍拒绝。旧config/state、正式快照及候选基线先写任务运行目录中的独立prepared审计，config只保存索引，不递归嵌入旧账本。准备失败不改变有效基线；若正式Goal恢复后config落盘失败，保留旧config和prepared证据，先核实际状态再处理，不自动重放。
 
 旧额度等待计时只有在原Goal正式active、当前额度可用、控制和身份复核成功后才清除，避免刚恢复便触发旧的一小时超时；普通重启或仍缺额度不刷新计时。实际服务商限制、credits的独立使用许可和原问答防重账本保持不变。
+
+
+## 原生 Codex 共享服务适配
+
+`--backend auto` 在有 Paseo agent 时保留原适配；缺少 Paseo 身份则必须有可信 `CODEX_THREAD_ID`（或显式 `--thread`），以线程 UUID 为同一生命周期的运行目录。`--backend codex` 显式选原生；`--codex-socket` 只连接已有控制 socket，不启动 daemon。项目线程数据库、rollout 首条主线程 metadata 与正式 `thread/read` 的 id/cwd/parentThreadId/source 交叉核对，并绑定现有原生Goal。全程不写内部数据库。
+
+原生协议通过 `codex app-server proxy` 连接已有服务。`thread/read` 不含 turns，运行状态必须是已加载的 `idle` / `systemError` 或 `active`；`notLoaded`、未知 activeFlags 或快照缺失都不能宣称业务运行。`waitingOnUserInput` 是普通输入等待，`waitingOnApproval` 是正式审批等待；无精确请求响应协议时都不代答，不把前者称为权限硬阻断。`thread/queue/list` 的已有输入阻止重复恢复。
+
+空闲恢复经 `thread/queue/add` 与指定 queuedSubmissionId 的 `thread/queue/start`；调用前原守护先持久化发送意图。任何回执未知保留意图且不换通道重发。clientUserMessageId由同线程、同Goal及已落盘dispatch_key确定；stop和预算暂停只按该ID撤销本守护尚未消费的队列项，保留真人与其他任务输入，核验未知不宣称已停止。共享服务持有执行生命周期，guard只回收自己启动的proxy子进程，不接管活动writer、不执行resume、不启动临时执行线程。CLI `codex queue` 虽可入队，其默认执行器生命周期不能证明会在命令退出后持续运行，因此不作为自动恢复后备。入队或inProgress回执不等于完成或真实工具推进。原生暂停通过原Goal协议加正式 `thread/turns/list` 有界快照定位唯一inProgress turn后 `turn/interrupt`；未知不猜ID。
+
+入队完成后再次正式读取线程与队列：只允许仍为空闲或`systemError`且可直接输入、队列仅含本次自有项，并在启动前复核原Goal身份、目标、active状态与本地停止标记；变化时保留意图而不启动。启动proxy缺失也不能清除已落盘身份，因为前次入队可能已经成功。协议没有把这些读取与queue/start合成CAS，最后复核至启动之间仍有竞态，不能承诺原子遵守该窗口内的真人暂停；严格原子控制仍待上游协议支持。
+
+原生没有已验证的真人用户水位与精确审批快照，因此控制水位函数返回不可用，不伪造Paseo QuestionBinding；预算保护照常暂停，但自动恢复预算暂停、一次性完整额度授权等依赖水位的能力暂不可用，人工暂停也不自动激活。不得把普通start当作恢复人工暂停的新授权。共享端点不存在/目标未加载时，在写运行状态前明确失败。当前Desktop私有stdio连接不等于公开共享端点；禁止UI或内部数据库绕过。
+
+依据：本机已安装CLI的 `app-server generate-json-schema`（含 `ThreadStatus`、`ThreadActiveFlag`、`ThreadTurnsListParams`、`ThreadQueue*`、`TurnInterruptParams`）及[官方app-server文档](https://developers.openai.com/codex/app-server)、[Goal安全续作边界](https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex)。隔离测试覆盖平台边界，不证明当前Desktop真实恢复、proxy断连后的实际工具推进、原生问答或真人暂停水位已通过原生验收。
+
+
+### 原生终态队列清理
+
+所有守护终态与显式finish复用 `cleanup_native_queue`：用独立 `native-cleanup.lock` 串行处理 `native-queue-cleanup.json`（不与stop持有的control.lock交叉等待）。精确client id绑定线程、Goal、已落盘dispatch key，只删除该意图的未消费项。每个queue delete意图先落盘；未知或进程退出后该项仍可见时只读核验，不重复删除。正式列表已无该项可确认其已消费/移除；删除回执后也必须重新读列表，不能仅凭返回成功确认清理。
+
+complete/finish只承认正式原Goal本来已complete；清理队列成功不会改变业务Goal状态。真人paused、普通守护stop、parent_lost与quota_wait_expired都保留各自业务/守护语义；未确认清理时记 `cleanup_pending` / `native_queue_cleanup_unconfirmed`，保留禁用与账本、退出自身监督/worker，不声称终态清理成功。需恢复核验时只读原队列，不通过重发continuation或重放未知delete解决。
+
+### 原生接入条件与最小路径
+
+本适配要求**同一任务由一个既有、可正式连接的共享app-server持有**。`notLoaded`仅说明所查服务没加载此线程，不能由它推断Desktop业务已停止；也不能向另外启动的服务resume来抢writer。Desktop私有stdio既不是共享proxy endpoint，也没有本skill可安全追加连接的正式通道。
+
+| 环境/能力 | 本适配边界 |
+| --- | --- |
+| 既有Unix共享服务已加载本线程 | 可经proxy核对运行状态、原Goal、额度及队列，复用守护生命周期 |
+| Desktop仅私有stdio，无共享监听 | 启动明确失败；不能全功能监护当前Desktop线程 |
+| 已有排队输入/正式active运行 | 等待现有工作，不额外派发 |
+| 正式审批/普通输入等待 | 分别记录原因，原生精确代答尚未接通 |
+| 缺可信真人控制水位 | 可保护性暂停；不自动恢复暂停/授予依赖水位的额度覆盖 |
+| 发送或终态清理未知 | 持久化并停止重放，等待正式状态核验 |
+
+本机只读复核方式：`codex app-server daemon version` 查询已有默认共享服务版本；`codex app-server proxy --help`确认自定义socket参数；有界进程transport及Unix/TCP监听元数据可确认当前服务是否暴露可连接通道，不能读取凭据或使用未公开私有IPC。守护不执行daemon bootstrap/start/restart，不改全局配置，不因缺端点自动新建服务。
+
+对于**未来明确选择共享服务承载**的任务，可按官方Unix transport与remote TUI方式接入。下列是接入示例，不是本skill自动执行的恢复脚本：原负责人须先完成受控交接并正式释放旧writer，不能一边保留Desktop活动writer一边运行resume；如无法证明已释放，继续等待，不杀进程抢占。
+
+```sh
+# 由使用者明确选择此前台服务；不是系统安装或后台daemon bootstrap。
+codex app-server --listen unix:///tmp/openrust-codex-control.sock
+```
+
+在另一终端连接同一服务（按本机 `codex resume --help` 的正式语法），由该客户端承载原任务：
+
+```sh
+codex resume --remote unix:///tmp/openrust-codex-control.sock \
+  --cd /Users/Home/Codes/Rust/openrust <已核实的原主线程UUID>
+```
+
+在该任务正式恢复、原Goal active且已有真实工具活动后，用同一已核实主线程启动原守护：
+
+```sh
+python3 -B .agents/skills/agent-continuous-development-guard/scripts/guard.py start \
+  --backend codex --codex-socket /tmp/openrust-codex-control.sock \
+  --thread <已核实的原主线程UUID> --label "原任务简短名称"
+```
+
+以上需要使用者选择承载方式、受控释放旧writer及保持前台服务运行；不能靠本skill在当前Desktop私有stdio上无缝完成。若已有同一任务的共享服务，直接提供其已核实socket即可，不创建第二writer或重建Goal。官方app-server/Unix transport仍属实验接口，当前没有原生真实恢复与proxy断连后工具推进证据；接入后仍须按恢复验收核原Goal、额度、守护心跳及新tools。
