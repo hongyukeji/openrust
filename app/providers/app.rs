@@ -9,12 +9,12 @@ pub struct AppServiceProvider;
 impl ServiceProvider for AppServiceProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.exceptions(|handler| {
-                handler.api_envelope_when(|request, _| {
-                    request.path() == "/api" || request.path().starts_with("/api/")
-                });
+            let api: openrust::config::ApiConfig = app.section("api")?;
+            let prefix = api.normalized_prefix()?;
+            app.exceptions(move |handler| {
+                handler.api_envelope_when(move |request, _| api.matches_path(request.path()));
             })?;
-            app.routes(crate::bootstrap::routes)?;
+            app.routes(move |routes| crate::bootstrap::routes(routes, &prefix))?;
             Ok(())
         })
     }

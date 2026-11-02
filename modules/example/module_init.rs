@@ -33,3 +33,13 @@ pub(crate) async fn show(
 ) -> ApiResponse<ModuleInitializationMarker> {
     ApiResponse::success((*marker).clone())
 }
+
+// 显式注册和文件发现复用同一初始化回调；每条路径只登记一次。
+pub(crate) struct RegisteredInitialization;
+
+impl openrust::core::ServiceProvider for RegisteredInitialization {
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        static INITIALIZER: ExampleModuleInit = ExampleModuleInit;
+        INITIALIZER.initialize(app)
+    }
+}

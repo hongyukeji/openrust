@@ -15,7 +15,7 @@ pub fn config(ctx: &ConfigContext) -> Result<ModulesConfig, ConfigError> {
             modules: ctx.env_or("MODULES_PATH", "modules").into(),
         },
         scan: ModuleScanConfig::default(),
-        activator: ctx.env_or("MODULES_ACTIVATOR", "file"),
+        activator: ctx.env_or("MODULES_ACTIVATOR", "registered"),
         activators: ModuleActivatorsConfig {
             file: FileModuleActivatorConfig {
                 statuses_file: ctx

@@ -46,11 +46,13 @@ cargo run -p cli -- g migration labels slug:string
 
 `dev` 沿用已配置的应用运行环境并运行 `serve`；需要 development 时可在进程环境或应用 `.env` 中设置对应命名空间的 `ENV`，`serve` 同样保留当前环境。`dev` 默认使用 `APP_`；若应用的 `Application::config_namespace()` 返回 `SHOP_`，请运行 `openrust dev --config-namespace SHOP_`。CLI 与应用处于不同进程，无法读取该 Rust 类型常量，因此自定义命名空间须显式传入。`dev` 的 Redis 启动预检目前只对显式 TOML 来源与可由环境确定的配置使用 `ConfigLoader`；CLI 进程不能静态求值应用的 Rust 配置函数，因此代码配置的最终依赖由实际应用启动校验。配置缓存命中时跳过实时 TOML；未命中时按应用根读取 `.env` 与显式文件来源。外部环境优先，CLI 不改写父进程环境；缺省 `config/` 不存在时仍读取环境来源。若有效配置指向 loopback Redis，会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听、就绪等待或自动迁移。
 
+`config/api.rs` 通过 `API_PREFIX` 配置 API 路由前缀（默认 `/api`）；应用 Provider 从同一 `ApiConfig` 规范化前缀并选择异常响应格式，前缀调整同时作用于路由与异常呈现。
+
 ## 接入自己的业务模块
 
-新应用的 `modules/mod.rs` 使用 `ModuleManifest::discover_from_config(root, config)`；`Application::modules` 只装配一次清单，与应用共用唯一 Container 和 Provider 生命周期。根 app 仍支持常规应用开发，模块是可并存的业务组织。默认不复制框架示例。
+新应用默认 `MODULES_ACTIVATOR=registered`，`modules/mod.rs` 返回锚定应用根的空清单，不扫描目录、不读写状态文件；显式选择其他激活器时使用 `ModuleManifest::discover_from_config(root, config)`；`Application::modules` 只装配一次清单，与应用共用唯一 Container 和 Provider 生命周期。根 app 仍支持常规应用开发，模块是可并存的业务组织。默认不复制框架示例。
 
-在 `modules/orders/mod.rs` 编译自己的公开 Provider，再在 `modules/mod.rs` 登记 metadata 名称到 Rust 工厂的绑定：
+需要文件发现模式时设置 `MODULES_ACTIVATOR=file`（或 `file-live`），在 `modules/orders/mod.rs` 编译自己的公开 Provider，再在 `modules/mod.rs` 的文件发现分支登记 metadata 名称到 Rust 工厂的绑定：
 
 ```rust
 pub mod orders;
@@ -68,7 +70,7 @@ pub fn manifest(root: &std::path::Path, config: &ModulesConfig) -> ModuleManifes
 {"name":"orders","priority":0,"providers":["OrdersServiceProvider"],"files":[]}
 ```
 
-应用根 `modules_statuses.json` 中的 `{"orders":true}` 选择加载。已发现但没有编译绑定的 disabled 模块仍可被持久启用；缺失实现到实际加载时明确失败。Rust 不执行磁盘上的任意 `.rs` 或运行时编译 crate。
+生成器不创建状态 JSON，也不迁移已有文件。显式文件发现模式下，应用根 `modules_statuses.json` 中的 `{"orders":true}` 选择加载。已发现但没有编译绑定的 disabled 模块仍可被持久启用；缺失实现到实际加载时明确失败。Rust 不执行磁盘上的任意 `.rs` 或运行时编译 crate。
 
 `config/modules.rs` 的 `paths.modules` 默认 `modules`（本项目获准目录约定），可用 `MODULES_PATH` 部署覆盖；`scan.enabled` 默认 false、`scan.paths` 默认 `["vendor/*/*"]`。额外位置可由 `add_location` 添加；依次扫描每个位置的直接子模块 `module.json`，保重复来源和声明顺序。状态路径另由 `activators.file.statuses-file` 控制，默认应用根 `modules_statuses.json`，部署变量 `MODULES_STATUSES_FILE`。相对路径基于 `Configuration.application_root`，不绑定编译机源码位置。
 
@@ -88,7 +90,7 @@ cargo run -- module:enable orders --no-interaction
 cargo run -- module:enable --all --no-interaction
 ```
 
-全部名称先检查，再逐项写入；重复保留，`--all` 覆盖显式名单，异常保留前项并中断。管理命令仍完成唯一应用 bootstrap；坏 metadata 或启用项加载失败不会另开绕过启动器。默认 file 缓存本实例状态，自身修改先改缓存后写盘；写失败不会回滚缓存，外部改盘在现App不可见。新实例才读取外部状态，Provider/路由不热卸载。需要实时状态时用 MODULES_ACTIVATOR=file-live 显式扩展，或 FileModuleActivator::new(path)?.with_live_reads()；构造失败可手工reset_file，不绕过完整bootstrap。
+全部名称先检查，再逐项写入；重复保留，`--all` 覆盖显式名单，异常保留前项并中断。管理命令仍完成唯一应用 bootstrap；坏 metadata 或启用项加载失败不会另开绕过启动器。显式 file 缓存本实例状态，自身修改先改缓存后写盘；写失败不会回滚缓存，外部改盘在现App不可见。新实例才读取外部状态，Provider/路由不热卸载。需要实时状态时用 MODULES_ACTIVATOR=file-live 显式扩展，或 FileModuleActivator::new(path)?.with_live_reads()；构造失败可手工reset_file，不绕过完整bootstrap。
 
 程序化 `ModuleManifest::new/from_file/from_config().module(ModuleDescriptor)` 仍支持显式清单和已授权 requires 拓扑增强；这是独立的显式输入方式，不能混入运行发现清单或冒称上游 Manifest 自动拓扑。
 

@@ -18,6 +18,8 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
+显式模块注册与宿主API前缀已完成[限定验收](memory/testing.md#显式模块注册与宿主-api-前缀限定验收)：10项主门禁、6个真实server进程、fresh minimal9/MFA真实MySQL3、生成模块持久启停1及只读空目录负例通过；首批8页mdBook构建/链接、112生成源码归档、不同模型独审和target清零完成，本地提交以Git为准。registered为应用约定，库file默认保留；完整Modules/Routing与全量文档未关闭，下一SQLite及CLI后继按唯一todo。
+
 默认production＋log通信启动与安全诊断已完成[限定验收](memory/testing.md#默认生产日志驱动启动与安全诊断限定验收)：原始cargo run三场景、10项主门禁、通信consumer、fresh minimal9/MFA真实MySQL3与实际help通过，113生成源码及失败证据保全，最终target正常清零。完整MailManager与ADR-001未闭合，本地提交以Git为准；随后按唯一todo依次完成模块默认注册/API前缀及首批正式文档，再立即SQLite，CLI后继保留。
 
 2026-11-02 接管校准：当前对话为唯一框架集成总控，旧总控/旧守护保持停止。九份来源及未提交/未追踪代码已归档保全，来源 worktree 与 workspace 已正常退役，当前仅 main；六个已归档任务分支活动别名已安全退役，source/WIP保护引用与完整bundle保留。本批限定源码、生成与真实服务验收已收齐，本地集成提交 `9035a00`，清理后优先配置整改，详见唯一 todo 顶部的接管状态与 `tmp/takeover-20261102/`。另一个已获用户授权的 skill owner 正收口 Codex 原生守护适配，本总控不并改该范围，不把开发中适配当已启用。默认80%政策与旧账本保持；本对话已可通过正式额度工具读取共享账号窗口，数值以当次回执为准；不rebase/fullgrant，不改变默认80%及旧账本。

@@ -88,7 +88,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | 依赖审计 | 当前验证使用 `cargo-deny`；`cargo-audit` 为规划工具，不等于已执行 |
 | 语义化版本检查 | M6 对已有源码版本做 API 兼容性检查；使用 `cargo-semver-checks` 时明确源码 baseline，不以 crates.io 已发布包为前提 |
 | 变更日志 | `git-cliff` 为规划工具 |
-| 文档站 | M6 规划 `mdbook`；当前尚无 mdBook 用户文档站 |
+| 文档站 | mdBook 0.4.52，首批指南位于 `docs/`；固定 Laravel 主导航、Modules 独立扩展组。验收使用项目内官方预编译工具，校验发布资产 SHA256，不全局安装；后续章节随功能补齐 |
 | CI | GitHub Actions；常规MySQL8.4 service集成，手动release-backends包含PG18子矩阵；后端专属风险另按影响定向，CI子矩阵不等于完整发布验收 |
 
 ## 版本政策

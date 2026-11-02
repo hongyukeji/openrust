@@ -3,6 +3,7 @@
 use super::*;
 use figment::{Figment, providers::Serialized};
 use openrust::ServiceExt;
+use std::fmt::Write as _;
 
 #[tokio::test]
 async fn default_provider_manifest_serves_application_route() -> Result<()> {
@@ -333,4 +334,202 @@ fn queue_defaults_inherit_effective_cache_configuration() -> Result<()> {
         "redis://independent.example.test:6382/7"
     );
     Ok(())
+}
+
+fn registered_sources(
+    root: &std::path::Path,
+    prefix: &str,
+) -> Result<openrust::config::ConfigSources> {
+    let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+        .merge(Serialized::defaults(serde_json::json!({
+            "application_root": root,
+            "modules": {"activator":"registered"},
+            "api": {"prefix":prefix},
+            "app":{"env":"test"},
+            "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
+            "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
+        })));
+    crate::modules::example::test_sources(&source)
+}
+
+fn registered_root() -> Result<tempfile::TempDir> {
+    let root = tempfile::tempdir().map_err(openrust::Error::internal)?;
+    for directory in ["modules/example/resources/views", "modules/example/lang"] {
+        std::fs::create_dir_all(root.path().join(directory)).map_err(openrust::Error::internal)?;
+    }
+    Ok(root)
+}
+
+#[tokio::test]
+async fn registered_module_requires_no_json_and_initializes_after_business() -> Result<()> {
+    use openrust::http::axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    let root = registered_root()?;
+    let mut app =
+        openrust::testing::TestApp::<Server>::builder(registered_sources(root.path(), "/api")?)
+            .build()
+            .await?;
+    let outcome: Result<()> = async {
+        let repository = app.app()?.state().resolve::<openrust::core::ModuleRepository>().await?;
+        assert!(repository.find_or_fail("example")?.is_enabled()?);
+        assert!(repository.statuses_file_path().is_none());
+        assert_eq!(repository.get_path()?, root.path().join("modules"));
+        app.request(Request::get("/api/example/module-initialization").header("host", "localhost").body(Body::empty()).map_err(openrust::Error::internal)?)
+            .await?.assert_status(StatusCode::OK)?.assert_json(&serde_json::json!({"success":true,"code":"ok","message":"ok","data":{"initialized":true,"business_registered":true}}))?;
+        assert!(!root.path().join("modules_statuses.json").exists());
+        assert!(!root.path().join("modules/example/module.json").exists());
+        Ok(())
+    }.await;
+    let cleanup = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome?;
+    cleanup
+}
+
+#[tokio::test]
+async fn configured_api_prefix_changes_mount_and_preserves_module_errors() -> Result<()> {
+    use openrust::http::axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    for (prefix, endpoint, missing) in [
+        ("/v1/", "/v1", "/v1/missing"),
+        ("", "/", "/missing"),
+        (
+            "tenant/{tenant}/api",
+            "/tenant/acme/api",
+            "/tenant/acme/api/missing",
+        ),
+    ] {
+        let root = registered_root()?;
+        let mut app =
+            openrust::testing::TestApp::<Server>::builder(registered_sources(root.path(), prefix)?)
+                .build()
+                .await?;
+        let outcome: Result<()> = async {
+            app.request(
+                Request::get(endpoint)
+                    .header("host", "localhost")
+                    .body(Body::empty())
+                    .map_err(openrust::Error::internal)?,
+            )
+            .await?
+            .assert_status(StatusCode::OK)?
+            .assert_json(&application_identity("OpenRust"))?;
+            for path in [missing, "/api/example/missing"] {
+                let response = app
+                    .request(
+                        Request::get(path)
+                            .header("host", "localhost")
+                            .body(Body::empty())
+                            .map_err(openrust::Error::internal)?,
+                    )
+                    .await?;
+                response.assert_status(StatusCode::NOT_FOUND)?;
+                let json: serde_json::Value = response.json()?;
+                assert_eq!(json["success"], false);
+            }
+            if !prefix.is_empty() {
+                let response = app
+                    .request(
+                        Request::get("/v10/missing")
+                            .header("host", "localhost")
+                            .header("accept", "application/json")
+                            .body(Body::empty())
+                            .map_err(openrust::Error::internal)?,
+                    )
+                    .await?;
+                assert!(
+                    response
+                        .json::<serde_json::Value>()?
+                        .get("success")
+                        .is_none()
+                );
+                app.request(
+                    Request::get("/api")
+                        .header("host", "localhost")
+                        .body(Body::empty())
+                        .map_err(openrust::Error::internal)?,
+                )
+                .await?
+                .assert_status(StatusCode::NOT_FOUND)?;
+            }
+            Ok(())
+        }
+        .await;
+        let cleanup = app
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await;
+        outcome?;
+        cleanup?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn invalid_prefix_is_rejected_during_real_bootstrap() -> Result<()> {
+    let root = registered_root()?;
+    let mut oversized = String::new();
+    for n in 0..26 {
+        write!(&mut oversized, "/{{p{n}}}").map_err(openrust::Error::internal)?;
+    }
+    for prefix in ["/bad?private-token", oversized.as_str()] {
+        let result =
+            openrust::testing::TestApp::<Server>::builder(registered_sources(root.path(), prefix)?)
+                .build()
+                .await;
+        assert!(
+            matches!(result, Err(error) if error.to_string().contains("api.prefix") && !error.to_string().contains("private-token"))
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn removing_registered_module_keeps_host_without_initialization_routes() -> Result<()> {
+    use openrust::http::axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    let root = registered_root()?;
+    let mut builder =
+        openrust::testing::TestApp::<Server>::builder(registered_sources(root.path(), "/v1")?);
+    builder.remove_module("example");
+    let mut app = builder.build().await?;
+    let outcome: Result<()> = async {
+        app.request(
+            Request::get("/v1")
+                .header("host", "localhost")
+                .body(Body::empty())
+                .map_err(openrust::Error::internal)?,
+        )
+        .await?
+        .assert_status(StatusCode::OK)?;
+        for path in ["/api/example", "/api/example/module-initialization"] {
+            app.request(
+                Request::get(path)
+                    .header("host", "localhost")
+                    .body(Body::empty())
+                    .map_err(openrust::Error::internal)?,
+            )
+            .await?
+            .assert_status(StatusCode::NOT_FOUND)?;
+        }
+        let repository = app
+            .app()?
+            .state()
+            .resolve::<openrust::core::ModuleRepository>()
+            .await?;
+        assert!(!repository.find_or_fail("example")?.is_loaded());
+        Ok(())
+    }
+    .await;
+    let cleanup = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome?;
+    cleanup
 }

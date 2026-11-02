@@ -53,7 +53,7 @@ cargo test --workspace
 
 ## 编写业务与扩展
 
-真实参考链是 `src/main.rs` → `bootstrap::Server::modules` → 文件激活清单 → `ExampleServiceProvider` → 模块 `routes::register` → `/api/example` handler；根 routes 可定义普通应用业务路由，与模块路由共用同一框架机制。当前实现由 `modules/mod.rs` 声明已编译模块，`bootstrap::Server::modules` 读取 `modules_statuses.json` 决定本次启动启用。先声明业务描述和 Provider，再用公开 `Routes` 定义模块路由；设置状态文件后运行根 `cargo run` 请求验证，无需修改框架 `src/` 核心。完整代码与操作见 [模块开发示例](modules/example/README.md#新建自己的业务模块)。
+真实参考链为 `src/main.rs` → `bootstrap::Server::modules` → `modules::manifest` → 同一模块仓储与 Provider → 模块路由和 handler。根应用与新生成应用默认使用 `registered`：在 `modules/mod.rs` 显式登记模块即启用，移除登记即不挂载，Rust `mod` 本身只负责编译。默认不依赖状态 JSON；需要持久启停时显式选择 `file` 或 `file-live`。业务接入不修改框架 `src/`，详见[模块注册指南](docs/src/modules/registration.md)和[唯一综合示例](modules/example/README.md#新建自己的业务模块)。
 
 综合示例的硬交付包括完整实体 CRUD，以及当前所有已实现公开能力的实际使用和 Provider/driver 扩展参考；目标业务边界为 modules/，模块之外保留框架通用结构和代码；示例专有迁移/种子/资源/协议/生成脚本及测试 fixture 留模块内，根只提供通用结构和公开挂载，不因示例保留 build.rs 或 build 依赖。当前正在补齐，基础常量路由不是 CRUD，文档或其他 consumer 的代码不代表模块已覆盖；实际代码、接入条件与测试缺口见 [能力覆盖表](modules/example/README.md#当前能力覆盖与缺口)。
 
@@ -106,7 +106,7 @@ cargo run
 
 未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](src/core/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `Application` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
 
-业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
+宿主 JSON API 前缀由 `config/api.rs` 的 `prefix`（部署变量 `API_PREFIX`）选择，默认 `/api`，挂载和异常范围读取同一配置。模块可以保留自己的 API 路径及响应策略；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 
 应用通过已编译的 `config/*.rs` 与显式 `ConfigManifest` 定义配置，在所选 dotenv 与环境快照就绪后求值到同一仓储；不是运行时扫描执行 Rust 文件。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。应用可编辑配置保存在根 `config/*.rs`；TOML 仅通过显式可选 source 接入，不是默认应用配置。根唯一 server 同时承担综合示例与集成验收。
 
@@ -233,7 +233,7 @@ async fn greeting(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<Str
 
 ## 文档
 
-当前用户指南位于各模块和 package 的 README 中。[Agent 计划](.agents/project/plans/README.md)记录剩余工作；M6 计划建立独立的公开文档站。规划记录与用户文档分开维护。
+正式用户指南从 [OpenRust 指南](docs/src/README.md) 进入，以 mdBook 按固定 Laravel 文档阅读顺序逐步补齐；Laravel Modules 为独立扩展组。模块和 package README 补充接口，Rustdoc 提供 API 参考；首批指南不代表全量文档已迁移。[Agent 计划](.agents/project/plans/README.md)仅记录内部剩余工作。
 
 开发与验证请阅读[贡献指南](CONTRIBUTING.md)，并遵守其中的[构建空间管理规范](CONTRIBUTING.md#构建空间管理)，在任务收尾时检查并清理临时构建产物。
 

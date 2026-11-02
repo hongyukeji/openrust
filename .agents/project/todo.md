@@ -34,24 +34,6 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
-### 下一簇：模块 Provider 默认启用入口（真人授权，尚未编码）
-
-1. owner=root，main；当前冻结命令簇闭环并本地提交后，先完成这项范围明确整改，再立即进入下节SQLite，不扩展为完整Modules后继或长期排队。
-2. 真人已批准默认注册example即生效、移除注册即不挂载；若直接Provider较复杂，采用集中modules/mod.rs清单/注册入口＋显式可选持久activator。Rust mod仅编译可用性，不新增宏/build.rs自动发现或第二内核。
-3. 优先复用公开ModuleManifest::new/module/enable与已有统一注册管线；bootstrap只依赖模块统一入口，不直接依赖example。不直接把ExampleModuleServiceProvider塞普通providers丢失Repository seed、依赖、模块资源和文件初始化。
-4. 默认应用/new不再要求根modules_statuses.json，不把JSON和注册变成双重必选。FileActivator及enable/disable持久化保显式可选模式（建议modules/modules_statuses.json），不隐式迁移/覆盖旧文件；registered模式持久管理错误及事件副作用须明确。
-5. 模块metadata/依赖/路由/配置/迁移/翻译/任务/关闭仍沿同一Container/Provider；registered模式保module_init.rs等已实现初始化行为与application_root，重复/禁用依赖明确失败。file/file-live保现发现、compiled-file与可选持久管理语义。
-6. root独占contract/共享docs/index/Cargo/服务；deferred_contract_review只读对比当前链并报告/tmp/openrust-module-provider-activation-contract.md。设计吸收回执tmp/module-provider-activation-20261102/handoff.json；本段为真人批准默认差异，不将旧root“保根JSON”建议当约束。
-7. 同簇全调用方/模板/唯一示例/文档→冻结集中验收；实际注册开关/资源/依赖/可选文件模式、fresh check/test及独审通过后脚本本地提交，不只删JSON或只写计划。
-
-### 同期宿主子项：可编辑 API 前缀（真人授权，尚未编码）
-
-1. owner=root；本次模块入口整改协调实现，当前冻结命令簇不追加源码，不扩展完整HTTP/Modules范围；这两个明确宿主子项完成后立即SQLite。
-2. 复用config/api.rs与ApiConfig新增prefix，默认/api；API_PREFIX若提供须经同一ConfigContext/ConfigRepository。bootstrap按有效仓储挂载根routes/api.rs相对路由，异常JSON路径边界使用同一前缀，不私读env、不只改挂载一半。
-3. 同步根及CLI模板/全部ApiConfig字面量/消费者/文档；模块自有路由是否共享前缀按现contract明确，不全局强加前缀。
-4. 明确空值根前缀/尾斜杠规范化，非法值返回配置错误而非panic/双斜线；覆盖默认/api、自定义/v1生效且旧/api不再挂载、/v10不误匹配、异常JSON跟随、配置缓存及生产boot、fresh check/test。
-5. 与模块默认启用共享bootstrap/配置/Handler所有权，主控串行收敛，完整代码和配套后集中适用验收/独审/本地提交；不以回复定义位置代替实现。吸收回执并入tmp/module-provider-activation-20261102/handoff.json。
-
 ### R13 文档正式对齐：固定 Laravel 13.x 主导航（真人授权）
 
 1. owner=root，去重既有R13/docs；当前命令簇先提交，不以全量文档延迟当前簇或SQLite。首批mdBook骨架/规范整改与下一模块/API宿主簇同步，已实现章节迁移和后续各功能同步交付分别取证。
@@ -59,7 +41,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 3. 首批修规范旧口径：conventions的M6建立/Diataxis主导航、README旧M6建站承诺、style强制TOML及同类当前规范；保留有效历史M6验收记录，不机械全替换。默认config/*.rs＋.env，TOML仅显式可选。
 4. 各已实现章连接稳定ID、固定上游源码/测试、当前Rust API/配置/CLI、正常/错误/安全边界与必要适配/用户特约/未实现缺口；指南讲完整流程，Rustdoc作API参考，README作入口，Agent计划不混入用户教程。
 5. 建站沿用mdBook；不全局安装、不部署/推送/发布。适用构建、链接/锚点/旧引用、Rustdoc/真实编译示例、CLI失败退出/生成check+test及相关真实服务验收；复用绑定当前源码的有效证据，不逐句全矩阵。
-6. 状态：已授权吸收，正式book尚未创建；下一步根目录规范/固定documentation导航盘点，按已实现能力给出可运行首批内容并与模块/API同步，SQLite和CLI各簇继续同指南补齐，官方可选生态文档范围不删。
+6. 状态：首批8页指南、代码配套、mdBook构建与189链接已随宿主簇限定验收，规范已改Laravel主导航/默认Rust配置；不代表全量迁移。未迁移的已实现章节及后续官方生态指南仍开放，SQLite优先并随簇补章，不以全量文档延后SQLite。
 7. 五项负责人/依赖/状态/下一步吸收回执tmp/docs-laravel-alignment-20261102/handoff.json。业务后台/独立AI未启动边界保持。
 
 ### R13 明确补充：Laravel CLI 使用方式全对应（真人授权，按依赖穿插）
@@ -365,7 +347,7 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 | 8 每任务调度锁策略 | R10 C20 | 新总控协调；统一slot资产保留，补每任务withoutOverlapping/onOneServer语义 | services:schedule【确认缺口】C20 |
 | 9 Storage throw/ACL/迟到发布 | R8 C15 | 新总控协调；已有visibility/presign限定验收保留；ACL/迟到发布/throw=false与copy/move仍开放 | services:storage_throw【确认缺口，Result仅为Rust形式】C15；services:storage_visibility【已有资产＋未验子行为/确认缺口】C15 |
 | 10 named guard/provider、Gate/Policy | R7 C12/C13 | 新总控协调；依HTTP/Session前置补named manager/Gate，现JWT/Session/RBAC资产不抹除 | http:5【确认缺口】L051.07/08 L052.02/04/05 |
-| 11 URL复杂参数/路由绑定 | R3 C03/C04 | 新总控协调；简单golden不算全量；Request已有已验范围见C04-F/G，完整路由/绑定仍开放 | http:1【resource/apiResource七动作确认缺口】L018.04 L015.03/05；http:9【复杂参数/隐式绑定确认缺口】L015.05 L024.03/04/06；http:assets:request【已验子范围＋明确Rust资源/async适配】L019.02–07 |
+| 11 URL复杂参数/路由绑定 | R3 C03/C04 | 新总控协调；简单golden不算全量；Request已有已验范围见C04-F/G，完整路由/绑定仍开放；matchit普通参数25上限已安全拒绝，但仍是需解除的后端差距，不是Rust语言必要适配 | http:1【resource/apiResource七动作确认缺口】L018.04 L015.03/05；http:9【复杂参数/隐式绑定确认缺口】L015.05 L024.03/04/06；http:assets:request【已验子范围＋明确Rust资源/async适配】L019.02–07 |
 | 12 Encrypt/Hash drivers | R7 C13 | 新总控协调；补官方算法/选择与key默认工作流，保AAD/key-ring/容量增强，不改用户真实.env | foundation:F5【确认缺口】L054.02；http:6【确认缺口＋授权增强保留】L054.02/03 L055.02/03/04 |
 | 13 Query/Eloquent | R4/R5 C07–C09 | 新总控协调；9035a00默认SELECT *、真实count/分页/隔离已验；cursor、完整Query/ORM仍开放，不以SeaORM抵扣 | http:assets:query【已验子范围＋cursor缺口】L059.02/03/05；services:query【同一子范围，cursor确认缺口】C07/L059；services:eloquent【确认缺口】C08/C09 |
 | 14 Factory/SQLite | R6/R4 C10/C11 | root；SQLite内置单机支持按用户要求在当前冻结R2提交后优先，现R4基础可提前；Factory仍依R5。seed/custom driver资产保留，不冒充完整支持 | services:factory【确认缺口】C10/C11 |

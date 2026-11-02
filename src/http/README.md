@@ -6,7 +6,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
 ## 异常报告与渲染
 
-Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandler`。`Error::internal(source)` 保留原始具体异常，报告与渲染回调按类型和来源链匹配；`render` 返回 `None` 时继续下一项，最终 `respond` 可定制完整原生 Response。请求错误默认按 `RequestInfo::expects_json` 使用的 Accept 与 AJAX/PJAX 规则选择 JSON 或 HTML，非 debug 的内部错误隐藏 source。应用可通过 `api_envelope_when` 对 `/api` 等明确路径保留统一错误 envelope；这是公开响应策略，不把所有 Web 异常强制转为 JSON。`app.debug` 来自服务端配置，客户端头不能启用。
+Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandler`。`Error::internal(source)` 保留原始具体异常，报告与渲染回调按类型和来源链匹配；`render` 返回 `None` 时继续下一项，最终 `respond` 可定制完整原生 Response。请求错误默认按 `RequestInfo::expects_json` 使用的 Accept 与 AJAX/PJAX 规则选择 JSON 或 HTML，非 debug 的内部错误隐藏 source。应用可通过 `api_envelope_when` 替换范围，模块可用 `or_api_envelope_when` 追加自身范围，对明确路径保留统一错误 envelope；这是公开响应策略，不把所有 Web 异常强制转为 JSON。`app.debug` 来自服务端配置，客户端头不能启用。
 
 受管理 Handler 抛出的 `Error`、框架提取与 middleware 返回的 `Error` 共用请求局部策略。受管 Web 请求的校验错误在 Session 保存前 flash 字段错误与已规范化旧输入，默认排除 `current_password`、`password`、`password_confirmation`，`dont_flash` 可追加字段；然后重定向至 Session 记录的上一页。JSON 校验错误返回 422 与 `message` / `errors`。浏览器未认证请求可用 `redirect_unauthenticated_to` 指定登录地址。原生 Axum handler 若自行构造 `Response`，框架不会猜测它是异常并重包；要进入 Handler，应返回框架 `Error` 或显式调用公开渲染 API。CLI `report_error` 不伪造 HTTP 协商。当前代码尚待最终组合验证；上述 Web 流程需结合最终 web 组层序验证。
 

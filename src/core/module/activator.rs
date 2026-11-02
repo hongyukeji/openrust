@@ -92,6 +92,11 @@ pub trait ModuleActivator: Send + Sync + 'static {
         self.enabled().map(ModuleActivationSnapshot::from_enabled)
     }
 
+    /// 在事件或持久副作用前确认驱动支持写入；只读驱动默认明确拒绝。
+    fn ensure_writable(&self) -> Result<()> {
+        Err(read_only())
+    }
+
     /// 持久设置精确名称；只读驱动默认明确拒绝。
     fn set_active_by_name(&self, _name: &str, _active: bool) -> Result<()> {
         Err(read_only())
@@ -328,6 +333,10 @@ impl fmt::Debug for FileModuleActivator {
 }
 
 impl ModuleActivator for FileModuleActivator {
+    fn ensure_writable(&self) -> Result<()> {
+        Ok(())
+    }
+
     fn enabled(&self) -> Result<HashSet<String>> {
         Ok(self.snapshot()?.enabled())
     }
@@ -688,6 +697,7 @@ mod tests {
         assert!(driver.snapshot()?.is_enabled("Blog"));
         assert!(driver.path().is_none());
         for result in [
+            driver.ensure_writable(),
             driver.set_active_by_name("Blog", false),
             driver.delete("Blog"),
             driver.reset(),

@@ -2,10 +2,14 @@
 
 use openrust::core::ModuleManifest;
 
-/// 从同一配置发现 module.json；Provider 与初始化文件须显式登记编译绑定。
+/// 默认只加载显式登记模块；其他激活器按配置发现 module.json 与文件状态。
 pub fn manifest(
     root: &std::path::Path,
     config: &openrust::config::ModulesConfig,
 ) -> ModuleManifest {
-    ModuleManifest::discover_from_config(root, config)
+    if config.activator == "registered" {
+        ModuleManifest::new().with_application_root(root)
+    } else {
+        ModuleManifest::discover_from_config(root, config)
+    }
 }

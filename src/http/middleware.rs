@@ -688,6 +688,7 @@ mod tests {
         };
         let api = ApiConfig {
             http_status: HttpStatusMode::Semantic,
+            ..ApiConfig::default()
         };
         let app = apply(
             router,
@@ -769,6 +770,7 @@ mod tests {
         };
         let api = ApiConfig {
             http_status: HttpStatusMode::Semantic,
+            ..ApiConfig::default()
         };
         let app = apply(
             router,

@@ -169,7 +169,7 @@ cargo deny check
 - 默认文档入口使用简体中文，英文仅作必要术语对照；完整英文文档成熟后再评估。范围与例外统一见 [语言规范](style.md#语言规范)，翻译需保持内容语义、链接和可运行示例。
 
 - 每个 crate 的 README 即 `lib.rs` 文档（`#![doc = include_str!("../README.md")]`）。
-- 正式文档在 `docs/`（mdBook，M6 建立），信息架构按 Diátaxis：Tutorials → How-to → Reference → Explanation，另设「从其他框架迁移」对照页与 coming-from-axum 页；M6 前用户文档写在 crate `README.md`。
+- 正式指南在 `docs/`（mdBook），主导航采用固定 Laravel documentation.md 的章节分组和顺序；Modules 按固定包来源设独立扩展组。不创建空页冒充完成。Diátaxis 用于章内组织，不替代 Laravel 主导航；README 作入口，Rustdoc 作 API 参考。
 - `.agents/project/` 写法见 [style.md](style.md)。
 
 

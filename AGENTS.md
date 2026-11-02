@@ -66,7 +66,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 | 文档写作 | `style.md` |
 | 最近验证 | `memory/testing.md` / `memory/verification.md` |
 
-`docs/` 于 M6 以 mdBook 建立；在此之前，用户文档写在各 crate 的 `README.md`。不全量读取 `docs/`、`target/`、`Cargo.lock`。项目 skills 位于 `.agents/skills/<name>/SKILL.md`，按任务名称与描述匹配后再读正文。
+正式用户指南位于 `docs/`，以 mdBook 按固定 Laravel 导航逐步建立；README 和 Rustdoc 分别承担入口补充与 API 参考。首批章节不代表全量文档迁移完成。不全量读取 `docs/`、`target/`、`Cargo.lock`。项目 skills 位于 `.agents/skills/<name>/SKILL.md`，按任务名称与描述匹配后再读正文。
 
 ## 4. `.agents/project/` 目录约定
 

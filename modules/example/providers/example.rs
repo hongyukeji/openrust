@@ -329,6 +329,11 @@ impl ServiceProvider for ExampleServiceProvider {
                     "示例模块在 register 后新增默认数据库连接，请重新 bootstrap 应用",
                 ));
             }
+            app.exceptions(|handler| {
+                handler.or_api_envelope_when(|request, _| {
+                    request.path() == "/api/example" || request.path().starts_with("/api/example/")
+                });
+            })?;
             register_example_middleware(app)?;
             let directory = if self.module_repository {
                 app.resolve::<openrust::core::ModuleRepository>()

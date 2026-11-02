@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 根应用与新应用默认通过集中模块清单注册启用，不再必需状态 JSON；文件发现与持久启停保留为显式选择。只读状态修改在事件前拒绝，空目录全选同样拒绝。宿主 API 前缀可编辑且与错误范围同源，模块响应策略可组合保留；路由参数超限转安全启动错误。首批正式指南采用固定 Laravel 导航。
+
 - Mail/SMS日志驱动允许production或缺省环境启动，默认应用不再强制要求真实供应商；日志仍不记录正文/凭据。服务初始化错误提供有界、安全的配置键和原因诊断；其service字段改为封装身份，手动包装用Error::service_initialization::<T>，未知driver/SMTP feature与配置错误保持明确失败。
 
 - `App::commands()` 与 `ProviderRuntime::commands()` 的迭代项改为 `Arc<dyn Command>`，启动与运行期注册共享命令目录；同名覆盖保槽位，旧快照保实例，枚举/匹配/执行不持目录锁。显式类型身份需用 `command.as_ref().type_id()`；完整deferred Provider仍待后继。

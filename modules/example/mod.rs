@@ -258,6 +258,24 @@ pub(crate) fn manifest(
         .compiled_module_file("example", "module_init.rs", module_init::ExampleModuleInit)
 }
 
+/// 普通业务模块的显式注册入口；不读取运行期元数据或持久状态文件。
+pub(crate) fn registered_descriptor(
+    application_root: &std::path::Path,
+    config: &openrust::config::ModulesConfig,
+) -> openrust::core::ModuleDescriptor {
+    let modules = if config.paths.modules.is_absolute() {
+        config.paths.modules.clone()
+    } else {
+        application_root.join(&config.paths.modules)
+    };
+    openrust::core::ModuleDescriptor::new("example", modules.join("example"), 0)
+        .provider(
+            providers::ExampleModuleServiceProvider::from_config(application_root.to_path_buf())
+                .with_module_repository(),
+        )
+        .provider(module_init::RegisteredInitialization)
+}
+
 /// 程序化测试仍可显式选择编译描述；生产启动使用 metadata 发现清单。
 #[cfg(test)]
 pub(crate) fn descriptor(

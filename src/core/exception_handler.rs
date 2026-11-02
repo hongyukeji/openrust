@@ -420,6 +420,23 @@ impl ExceptionHandler {
         self
     }
 
+    /// 为模块追加统一响应范围，同时保留应用已选择的范围。
+    ///
+    /// `api_envelope_when` 仍显式替换策略；此方法按逻辑或组合现有策略。
+    pub fn or_api_envelope_when<F>(&mut self, predicate: F) -> &mut Self
+    where
+        F: Fn(&ExceptionRequest, &Error) -> bool + Send + Sync + 'static,
+    {
+        let previous = self.api_envelope.take();
+        self.api_envelope = Some(Arc::new(move |request, error| {
+            predicate(request, error)
+                || previous
+                    .as_ref()
+                    .is_some_and(|previous| previous(request, error))
+        }));
+        self
+    }
+
     /// 为浏览器未认证请求指定登录地址；JSON 请求继续返回 401。
     pub fn redirect_unauthenticated_to<F>(&mut self, target: F) -> &mut Self
     where

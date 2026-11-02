@@ -10,8 +10,8 @@
 
 根 `config/*.rs` 是可编辑的 Rust 配置函数，由 `config/mod.rs` 显式声明和登记。`Application::config()` 把清单接入同一配置仓储；函数接收同次 dotenv 快照的 `ConfigContext`，可构造类型化值、条件分支和明确的环境默认值。`APP_DEBUG` 经严格布尔解析，非法值会使启动失败；部署默认关闭服务端错误详情。TOML 可通过公开来源 API 显式附加，默认启动不扫描 TOML。
 
-根应用当前 API 前缀固定为 `/api`，`AppServiceProvider` 通过公开的 Handler 扩展仅对该前缀选择统一 JSON 错误包装。若应用调整 API 路由前缀，应同步调整这个判定；HTML/Web 路由沿原有内容协商与异常渲染机制。
+根应用 API 前缀由 `config/api.rs` 的 `ApiConfig.prefix` 决定，默认 `/api`，部署变量为 `API_PREFIX`；`AppServiceProvider` 从同一仓储读取它，同时配置挂载与 Handler 的统一错误包装，不需手动同步两个字面量。`/v1` 不匹配 `/v10`；空值挂载到根。模块可经 `or_api_envelope_when` 保留自身路径的策略，HTML/Web 继续使用内容协商。
 
-`GET /api` 的应用信息由根应用 Controller 提供；`routes/api.rs` 声明相对API路径，`bootstrap/app.rs` 用公开 API 路由组配置 `/api` 前缀，`routes/web.rs` 承担应用 Web 路由，`routes/mod.rs` 是 Rust 所需的模块导出。`AppServiceProvider` 在 boot 时登记它们；框架 HTTP Provider 本身不提供该应用端点。禁用业务模块不移除宿主 API。
+`GET /api` 的应用信息由根应用 Controller 提供；`routes/api.rs` 声明相对API路径，`bootstrap/app.rs` 用公开 API 路由组配置有效前缀，`routes/web.rs` 承担应用 Web 路由，`routes/mod.rs` 是 Rust 所需的模块导出。`AppServiceProvider` 在 boot 时登记它们；框架 HTTP Provider 本身不提供该应用端点。禁用业务模块不移除宿主 API。
 
 `bootstrap/app.rs` 保存应用启动配置和 `Application` 装配。宿主与模块资源的测试主体放在 `tests/server/`，bootstrap 中只保留访问私有宿主所需的测试模块挂载；该编译适配不增加生产公共 API。

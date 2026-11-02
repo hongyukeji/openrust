@@ -77,6 +77,11 @@ impl ModuleRepository {
         self.state.seed.activator.snapshot()
     }
 
+    /// 在选择模块或触发事件前确认同一状态驱动支持持久修改。
+    pub fn ensure_writable(&self) -> Result<()> {
+        self.state.seed.activator.ensure_writable()
+    }
+
     /// 按 activator 的精确布尔比较筛选；非布尔状态不同于 disabled 比较结果。
     pub fn get_by_status(&self, status: bool) -> Result<Vec<Module>> {
         let snapshot = self.snapshot()?;
@@ -182,6 +187,7 @@ impl Module {
 
     /// 直接持久化状态，不触发 enable/disable 的前后事件。
     pub fn set_active(&self, active: bool) -> Result<()> {
+        self.state.seed.activator.ensure_writable()?;
         self.state
             .seed
             .activator
@@ -199,6 +205,7 @@ impl Module {
     }
 
     async fn change(&self, active: bool) -> Result<()> {
+        self.state.seed.activator.ensure_writable()?;
         let (before, after) = if active {
             (
                 ModuleLifecyclePhase::Enabling,
@@ -656,6 +663,77 @@ mod tests {
             .await?;
         assert!(!root.path().join("empty.json").exists());
         close(&empty).await?;
+        Ok(())
+    }
+
+    // 只读清单即使没有模块，也必须在 --all 的空循环前拒绝写命令。
+    #[tokio::test]
+    async fn registered_empty_all_rejects_status_commands() -> TestResult {
+        let app = build(ModuleManifest::new(), None).await?;
+        for command in ["module:enable", "module:disable"] {
+            let error = app
+                .run_command(command, vec!["--all".into()])
+                .await
+                .err()
+                .ok_or("readonly empty catalog accepted mutation")?;
+            assert_eq!(error.code(), "module_activator_read_only");
+        }
+        close(&app).await?;
+        Ok(())
+    }
+
+    // 只读拒绝必须发生在真实事件派发前，避免监听器已产生不可回滚副作用。
+    #[tokio::test]
+    async fn registered_status_changes_never_dispatch_before_events() -> TestResult {
+        let root = tempfile::tempdir()?;
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let observed = Arc::clone(&calls);
+        let mut events = EventsServiceProvider::new();
+        events.listen_named::<ModuleLifecycleEvent, _>("modules.*", move |event, _| {
+            let observed = Arc::clone(&observed);
+            Box::pin(async move {
+                observed
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(event.phase);
+                Ok(EventPropagation::Continue)
+            })
+        });
+        let app = build(
+            ModuleManifest::new()
+                .module(ModuleDescriptor::new("Blog", root.path(), 0))
+                .enable("Blog"),
+            Some(events),
+        )
+        .await?;
+        let repository = app.state().resolve::<ModuleRepository>().await?;
+        let blog = repository.find_or_fail("Blog")?;
+        for result in [
+            blog.enable().await,
+            blog.disable().await,
+            blog.set_active(false),
+            repository.enable("Blog").await,
+            repository.disable("Blog").await,
+            app.run_command("module:enable", vec!["Blog".into()]).await,
+            app.run_command("module:disable", vec!["--all".into()])
+                .await,
+        ] {
+            assert_eq!(
+                result
+                    .err()
+                    .ok_or("readonly catalog accepted mutation")?
+                    .code(),
+                "module_activator_read_only"
+            );
+        }
+        assert!(
+            calls
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty()
+        );
+        assert!(blog.is_enabled()?);
+        close(&app).await?;
         Ok(())
     }
 

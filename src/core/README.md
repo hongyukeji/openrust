@@ -142,6 +142,8 @@ match (result, cleanup) {
 
 ### 编译模块与持久启停
 
+根应用和生成应用默认选择 `registered`，使用 `ModuleManifest::new().with_application_root(root)` 的显式描述与启用名称；同一仓储仍管理路径、依赖和 Provider。库 `ModulesConfig::default()` 保留上游 `file` 默认；下列发现/文件流程是应用显式选择的可选模式。只读激活器在状态变更前返回错误，不派发前事件或在空目录 `--all` 时误报成功。第三方可写激活器须覆盖 `ModuleActivator::ensure_writable`，再实现持久动作；文件驱动已实现。
+
 `Application::modules` 在一次启动中只产生一份清单。`ModuleManifest::discover_from_config` 在包 Provider 的 register 中扫描 `module.json`，读取同一 `ConfigRepository` 已发布路径；`compiled_provider` 把运行名称映射到已编译类型工厂，真实调用即时进入唯一注册器。未编译 disabled 元数据可发现并持久启用，实际加载缺失绑定时失败。重复声明不预先去重，Provider 去重仍归唯一内核；仓储同名项以后来源覆盖，lookup 先大小写不敏感精确匹配，再 Studly 回退。状态写 canonical 精确键，不运行未编译 Rust。
 
 `get_path()` 动态读取配置而不重扫既有快照。`possible_nested_providers` 仅声明条件可达类型，原平面 missing/order 预检保留；候选未被选择时不能满足真实登记点的依赖。必登记的 `nested_providers` 仍在父成功后核实际登记。

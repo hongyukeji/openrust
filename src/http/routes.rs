@@ -1301,6 +1301,26 @@ fn compile_candidates(
     declarations: &[RouteDeclaration],
     metadata: &[MatchedRouteMetadata],
 ) -> crate::core::Result<Vec<DispatchCandidate>> {
+    // matchit 内部以有限字母标记参数，第26项会panic；在调用Axum前转换成安全启动错误。
+    for route in metadata {
+        let mut chars = route.path.chars().peekable();
+        let mut parameters = 0;
+        while let Some(ch) = chars.next() {
+            if ch == '{' {
+                if chars.peek() == Some(&'{') {
+                    chars.next();
+                } else if chars.peek() != Some(&'*') {
+                    parameters += 1;
+                }
+            }
+        }
+        if parameters > 25 {
+            return Err(crate::core::Error::custom(
+                "http_route_parameter_limit",
+                "路由参数超过底层匹配器支持的上限",
+            ));
+        }
+    }
     let methods: std::collections::BTreeSet<_> = metadata
         .iter()
         .flat_map(|route| route.methods.iter().cloned())
@@ -2318,5 +2338,29 @@ mod collection_tests {
         ] {
             assert_eq!(route_runtime_path(path, prefix), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod parameter_budget_tests {
+    use super::*;
+
+    #[test]
+    fn final_route_parameter_budget_preserves_catch_all_and_rejects_overflow() -> crate::Result<()>
+    {
+        use std::fmt::Write as _;
+        let mut prefix = String::new();
+        for n in 0..25 {
+            write!(&mut prefix, "/{{p{n}}}").map_err(crate::Error::internal)?;
+        }
+        let valid = Routes::new().get(&format!("{prefix}/{{*rest}}"), || async { "ok" });
+        let _ = valid.into_router()?;
+        let invalid = Routes::new().group(RouteGroup::new().prefix(&prefix), |routes| {
+            routes.get("/{child}", || async { "unreachable" })
+        });
+        assert!(
+            matches!(invalid.into_router(), Err(error) if error.code() == "http_route_parameter_limit")
+        );
+        Ok(())
     }
 }

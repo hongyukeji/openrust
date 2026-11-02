@@ -4,6 +4,9 @@
 > 更新：2026-11-02
 > 摘要：源码内 `openrust` 命令提供中文帮助、项目生成、开发启动与运行期命令代理；生成项目遵循根 workspace 和简体中文说明规范。
 
+
+当前宿主：显式模块注册与宿主API前缀已完成[限定验收](../memory/testing.md#显式模块注册与宿主-api-前缀限定验收)：10项主门禁、6个真实server进程、fresh minimal9/MFA真实MySQL3、生成模块持久启停1及只读空目录负例通过；首批8页mdBook构建/链接、112生成源码归档、不同模型独审和target清零完成，本地提交以Git为准。registered为应用约定，库file默认保留；完整Modules/Routing与全量文档未关闭，下一SQLite及CLI后继按唯一todo。 新应用不再生成根modules_statuses.json，显式file/file-live仍调用原发现/编译绑定。全部CLI使用方式对应仍按R13。
+
 标准生成应用默认MySQL、Redis缓存与Redis队列编译依赖，队列默认database，连接在实际使用时创建；`--minimal`明确选择无数据库/队列模板。框架迁移由FrameworkMigrator统一提供，生成任务不重复登记QueueMigration，生成迁移目录测试检查框架前缀和重复名。四种fresh的check/tests、MySQL/PG/Redis实际任务与默认MySQL认证/MFA、精简consumer和配置缓存重启已通过[限定验收](../memory/testing.md#标准依赖与队列开箱限定验收)；未据此关闭完整Artisan/R13。
 
 ## 通用 DB 门控（限定验收）

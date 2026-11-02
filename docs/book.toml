@@ -1,0 +1,8 @@
+[book]
+title = "OpenRust — Laravel 的 Rust 实现"
+authors = ["OpenRust Contributors"]
+language = "zh-CN"
+src = "src"
+
+[build]
+build-dir = "book"

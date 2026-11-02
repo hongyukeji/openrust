@@ -37,15 +37,15 @@ impl Application for Server {
 
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
         let root = config.application_root();
-        crate::modules::example::manifest(&root, &config.modules)
+        crate::modules::manifest(&root, &config.modules)
     }
 }
 
 /// 装配应用 API 的统一前缀与无状态中间件组，再加载应用 Web 声明。
-pub(crate) fn routes(routes: openrust::http::Routes) -> openrust::http::Routes {
+pub(crate) fn routes(routes: openrust::http::Routes, prefix: &str) -> openrust::http::Routes {
     let routes = routes.group(
         openrust::http::RouteGroup::new()
-            .prefix("/api")
+            .prefix(prefix)
             .middleware_group("api"),
         crate::routes::api::register,
     );

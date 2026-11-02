@@ -4,6 +4,9 @@
 > 更新：2026-11-02
 > 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
+
+当前宿主：显式模块注册与宿主API前缀已完成[限定验收](../memory/testing.md#显式模块注册与宿主-api-前缀限定验收)：10项主门禁、6个真实server进程、fresh minimal9/MFA真实MySQL3、生成模块持久启停1及只读空目录负例通过；首批8页mdBook构建/链接、112生成源码归档、不同模型独审和target清零完成，本地提交以Git为准。registered为应用约定，库file默认保留；完整Modules/Routing与全量文档未关闭，下一SQLite及CLI后继按唯一todo。 ModuleActivator::ensure_writable为可写驱动的公开前置；or_api_envelope_when按逻辑或组合应用/模块错误范围。普通参数25上限是待消除的后端差距，不作Rust必要适配关闭。
+
 当前R2共享生命周期的命令所有权前置已完成[限定验收](../memory/testing.md#共享命令所有权前置限定验收)：命令目录共享，App/ProviderRuntime返回不借用宿主的Arc命令快照，动态同名替换保原槽，回调/析构/await不持目录锁；12门禁、MySQL模块1、fresh9/3及实际help通过，本地提交以Git为准。完整deferred/manifest/when、扩展及ProviderRegistry共享仍按唯一todo，不据前置关闭。
 
 ## FileActivator 默认快照（限定验收）

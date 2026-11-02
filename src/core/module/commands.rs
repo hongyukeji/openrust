@@ -44,6 +44,7 @@ impl Command for ChangeStatusCommand {
     fn run<'a>(&'a self, app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let repository = app.state().resolve::<ModuleRepository>().await?;
+            repository.ensure_writable()?;
             let modules = selected_modules(&repository, args)?;
             // 具体 enable/disable 动作对应上游 void 方法：异常中断，前项已提交不回滚。
             for module in modules {

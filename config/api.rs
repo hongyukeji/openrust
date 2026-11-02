@@ -7,8 +7,9 @@ use openrust::config::{ApiConfig, ConfigContext, ConfigError, HttpStatusMode};
     clippy::unnecessary_wraps,
     reason = "保持 ConfigManifest 配置函数统一的可失败契约"
 )]
-pub fn config(_ctx: &ConfigContext) -> Result<ApiConfig, ConfigError> {
+pub fn config(ctx: &ConfigContext) -> Result<ApiConfig, ConfigError> {
     Ok(ApiConfig {
+        prefix: ctx.env_or("API_PREFIX", "/api"),
         http_status: HttpStatusMode::Semantic,
     })
 }

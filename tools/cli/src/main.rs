@@ -783,10 +783,6 @@ fn populate_project_with_mfa(
             include_str!("../templates/modules/mod.rs").to_owned(),
         ),
         (
-            "modules_statuses.json",
-            include_str!("../templates/modules_statuses.json").to_owned(),
-        ),
-        (
             "routes/mod.rs",
             include_str!("../templates/src/routes.rs").to_owned(),
         ),
@@ -3355,12 +3351,9 @@ mod tests {
         assert!(!module_manifest.contains("CARGO_MANIFEST_DIR"));
         assert!(!module_manifest.contains("root.join(\"modules_statuses.json\")"));
         assert!(!module_manifest.contains(".enable("));
-        let statuses: serde_json::Value = serde_json::from_str(
-            &fs::read_to_string(project.join("modules_statuses.json"))
-                .expect("read generated module statuses"),
-        )
-        .expect("valid module statuses JSON");
-        assert_eq!(statuses, serde_json::json!({}));
+        assert!(module_manifest.contains("config.activator == \"registered\""));
+        assert!(module_manifest.contains("ModuleManifest::new().with_application_root(root)"));
+        assert!(!project.join("modules_statuses.json").exists());
         assert!(!project.join("modules/example").exists());
         let application = fs::read_to_string(project.join("bootstrap/app.rs"))
             .expect("read generated application");
@@ -3390,7 +3383,6 @@ mod tests {
             "app/http/controllers/home.rs",
             "app/providers/mod.rs",
             "modules/mod.rs",
-            "modules_statuses.json",
             "routes/mod.rs",
             "routes/api.rs",
             "routes/web.rs",
@@ -3436,8 +3428,8 @@ mod tests {
         assert!(!api.contains(".middleware_group("));
         let bootstrap =
             fs::read_to_string(project.join("bootstrap/app.rs")).expect("read routing bootstrap");
-        assert!(bootstrap.contains("pub(crate) fn routes(routes: Routes) -> Routes"));
-        assert!(bootstrap.contains(".prefix(\"/api\").middleware_group(\"api\")"));
+        assert!(bootstrap.contains("pub(crate) fn routes(routes: Routes, prefix: &str) -> Routes"));
+        assert!(bootstrap.contains(".prefix(prefix).middleware_group(\"api\")"));
         assert!(bootstrap.contains("crate::routes::api::register"));
         assert!(bootstrap.contains("crate::routes::web::register(routes)"));
         assert!(api.contains(".get(\"/\", root)"));
@@ -3452,7 +3444,13 @@ mod tests {
         assert!(!web.contains("middleware_group(\"api\")"));
         let provider = fs::read_to_string(project.join("app/providers/app.rs"))
             .expect("read application Provider");
-        assert!(provider.contains("app.routes(crate::bootstrap::routes)?;"));
+        assert!(provider.contains("app.section::<openrust::config::ApiConfig>(\"api\")?"));
+        assert!(provider.contains("api.normalized_prefix()?"));
+        assert!(provider.contains("api.matches_path(request.path())"));
+        assert!(
+            provider
+                .contains("app.routes(move |routes| crate::bootstrap::routes(routes, &prefix))?;")
+        );
         for path in ["src/main.rs", "tests/test_app.rs", "tests/auth_flows.rs"] {
             if project.join(path).is_file() {
                 let source = fs::read_to_string(project.join(path)).expect("read route caller");
@@ -3489,7 +3487,10 @@ mod tests {
         assert!(config_manifest.contains(".section(\"modules\", modules::config)"));
         let modules = fs::read_to_string(project.join("config/modules.rs"))
             .expect("read independent module activation configuration");
-        assert!(modules.contains("MODULES_ACTIVATOR"));
+        assert!(modules.contains("ctx.env_or(\"MODULES_ACTIVATOR\", \"registered\")"));
+        let api =
+            fs::read_to_string(project.join("config/api.rs")).expect("read API configuration");
+        assert!(api.contains("prefix: ctx.env_or(\"API_PREFIX\", \"/api\")"));
         assert!(modules.contains("MODULES_STATUSES_FILE"));
         assert!(modules.contains("modules_statuses.json"));
     }
@@ -3685,7 +3686,6 @@ mod tests {
             "bootstrap/app.rs",
             "bootstrap/providers.rs",
             "modules/mod.rs",
-            "modules_statuses.json",
             "routes/mod.rs",
             "routes/api.rs",
             "routes/web.rs",
@@ -3892,11 +3892,7 @@ mod tests {
             assert!(
                 http_test.contains("request_input::assert_request_input::<GeneratedApplication>")
             );
-            assert_eq!(
-                fs::read_to_string(project.join("modules_statuses.json"))
-                    .expect("read generated auth module statuses"),
-                "{}\n"
-            );
+            assert!(!project.join("modules_statuses.json").exists());
             assert!(http_test.contains("into_make_service_with_connect_info"));
             assert!(http_test.contains("/api/auth/password-reset/confirm"));
             assert!(!http_test.contains("{{type_name}}"));

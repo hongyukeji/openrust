@@ -1,4 +1,4 @@
-//! 模块源码发现、激活器和独立持久状态路径。
+//! 默认显式模块注册；文件发现及独立持久状态为可选模式。
 
 use openrust::config::{
     ConfigContext, ConfigError, FileModuleActivatorConfig, ModuleActivatorsConfig,
@@ -16,7 +16,7 @@ pub fn config(ctx: &ConfigContext) -> Result<ModulesConfig, ConfigError> {
             modules: ctx.env_or("MODULES_PATH", "modules").into(),
         },
         scan: ModuleScanConfig::default(),
-        activator: ctx.env_or("MODULES_ACTIVATOR", "file"),
+        activator: ctx.env_or("MODULES_ACTIVATOR", "registered"),
         activators: ModuleActivatorsConfig {
             file: FileModuleActivatorConfig {
                 statuses_file: ctx

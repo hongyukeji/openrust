@@ -181,6 +181,19 @@ impl ModuleManifest {
         }
     }
 
+    /// 显式锚定应用根；模块仓储的资源路径不再依赖执行命令时的工作目录。
+    #[must_use]
+    pub fn with_application_root(mut self, root: impl AsRef<Path>) -> Self {
+        match std::path::absolute(root.as_ref()) {
+            Ok(root) => {
+                self.application_root = root;
+                self.application_root_error = false;
+            }
+            Err(_) => self.application_root_error = true,
+        }
+        self
+    }
+
     /// 使用文件激活器建立清单；状态按每次 App 启动读取，缺文件表示全禁用。
     pub fn from_file(path: impl Into<PathBuf>) -> Self {
         let mut manifest = Self::new();

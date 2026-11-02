@@ -212,7 +212,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 ## 新建自己的业务模块
 
-按 [CLI 模块接入](../../tools/cli/README.md#接入自己的业务模块) 编译普通 Provider、登记命名工厂，再提供 module.json 与启用状态。模块内保留自己的 Controller、Model、Provider、迁移和资源，全部使用公开框架接口。`ModuleLoadContext::directory()` 读取仓储模块目录，`module_directory` 元数据覆盖只用于 files；`application_root()` 用于应用级发布位置。不要复制另一应用骨架或添加第二容器。
+默认在 `modules/mod.rs` 声明编译模块，并登记 `registered_descriptor` 到同一 `ModuleManifest`；Provider、资源仓储与初始化仍经过唯一管线。Rust `mod` 本身不启用模块；移除清单登记则不挂载。默认不需要 module.json 或状态 JSON。需要运行元数据发现及持久启停时，显式选择 `file`/`file-live`，按 [CLI 模块接入](../../tools/cli/README.md#接入自己的业务模块) 登记编译工厂和文件回调。`ModuleLoadContext::directory()` 取模块仓储目录，`module_directory` 只覆盖 files 包含目录，不复制应用或容器。
 
 显式 ModuleDescriptor 与 requires 是已授权的程序化增强，仍可独立使用；不与运行发现清单混用，不把 requires 拓扑伪装成上游 module.json 排序。禁用不热卸载，完整生成/发布和 TTY 管理仍待后继实现。
 
@@ -445,7 +445,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 ### 模块父 Provider 与独立子项
 
-编译 descriptor 只登记 `ExampleModuleServiceProvider`。它在 register 中按原条件和顺序 await 框架的 `register_provider`，状态日志、真实事件监听、业务路由及适用数据库/队列等子项仍各自保有 ProviderId 与真正的 register/boot；父 Provider 不手工转调它们的生命周期。禁用模块不构造这些运行状态；测试移除业务子项仍生效，不能被父重新装回。此接线为后续 module.json 的普通 ModuleServiceProvider 工作流提供前置，不代表运行发现已实现。
+默认编译 descriptor 依次登记 `ExampleModuleServiceProvider` 和复用原 `ModuleFile` 的初始化 Provider。它在 register 中按原条件和顺序 await 框架的 `register_provider`，状态日志、真实事件监听、业务路由及适用数据库/队列等子项仍各自保有 ProviderId 与真正的 register/boot；父 Provider 不手工转调它们的生命周期。禁用模块不构造这些运行状态；测试移除业务子项仍生效，不能被父重新装回。此接线为后续 module.json 的普通 ModuleServiceProvider 工作流提供前置，不代表运行发现已实现。
 
 ## 数据库能力选择
 

@@ -1,5 +1,19 @@
 # 测试基线
 
+## 显式模块注册与宿主 API 前缀限定验收
+
+2026-11-02，基线85f6e9a。固定Laravel d52c3b3的ApplicationBuilder::withRouting/buildRoutingCallback以apiPrefix装配API组；模块文件机制按固定Modules5971484保留。根/new默认registered为获准应用约定，库ModulesConfig::default仍保留file；不是把上游默认重写成语言必要适配。modules/mod.rs集中注册，bootstrap不再直接依赖example；同一ModuleRepositorySeed/Provider管线和原初始化回调保留，with_application_root锚定外部运行根。只读预检先于事件与选择，空catalog --all亦失败。
+
+707输入冻结；fmt、默认/全特性严格workspace Clippy、两组workspace tests和拒警Rustdoc、no-default适用严格Clippy及lib tests、精确Rust1.97 check共10项均实际exit0。覆盖真实bootstrap无JSON注册/模块移除/初始化先后、默认/自定义/空/普通参数前缀、路径边界和模块错误格式、只读无事件副作用及参数预算。CLI定向35及组合CLI断言/快照通过。初始闭包缺move、新fixture lint、CLI断言与后续格式同步失败均保留，未删有效断言或降门禁；同输入root依赖审计复用31项SHA一致及原exit0日志，不虚报本轮deny重跑。
+
+标准server/CLI构建后，6个真实原生server进程验证：默认注册忽略坏状态JSON、/v1挂载和/api撤销且模块自有路径错误格式保留、配置缓存忽略外部前缀/activator替换、file禁用/enable后新进程加载、file-live启动。逐案健康/HTTP、实际config show白名单、SIGINT exit0、端口释放；根状态文件字节未改，自有配置缓存清除，无新建.env。registered全选及未知activator实际命令拒绝，文件enable/disable实际写入自有状态；这些不等于动态热挂卸或完整Modules。
+
+通信consumer1、fresh minimal check/test9、MFA check及真实MySQL认证2＋迁移目录1、实际help通过。生成项目安装公开module-activation fixture并精确执行持久启停/编译文件include_once/跨App loaded快照测试1，原生成9项证据不因追加独立测试文件而失效；fresh空catalog实际enable --all exit1且不生成状态JSON。无服务skip，MySQL数据库集合0增0删。112生成源码/lock归档；相对旧113，两个默认状态JSON不再生成，补1个模块fixture，不是删除行为断言。
+
+首批8页指南按固定Laravel章节顺序和Modules独立组组织；mdBook0.4.52官方资产digest验证、项目内构建command/exit0/logSHA齐备，189相对文件链接无缺失。仅首批，不关闭全部官方章节/生态文档。不同模型代码及最终证据独审无剩余阻断。无占用后正常cargo clean：29,746,253,824B→0后进入fresh，最终5,535,178,752B→0，磁盘可用160,202,297,344B；源码/WIP、服务和证据保留。完整回执 `tmp/module-provider-activation-20261102/final-integrity.json`，本地提交以Git为准。
+
+底层matchit普通参数上限25现转安全错误，前缀＋子路径合计，catch-all不误计；这是尚待解除的后端能力限制，不称Laravel等价或Rust语言必然限制，归唯一todo R3复杂参数后继。完整Modules、Routing、ProviderRepository与ADR-001仍开放；下一SQLite，不扩当前簇。
+
 ## 默认生产日志驱动启动与安全诊断限定验收
 
 2026-11-02，基线46bebfb。固定framework d52c3b3的MailManager::createLogTransport无production禁用；MailLogTransportTest覆盖logger/channel及MIME正文。本簇闭合默认production＋log启动故障和安全初始化诊断，保留既有仅记录接受摘要的隐私增强；不声明完整MailManager、具名mailer/channel或SMTP供应商送达对应。SMS为既有增强，不冒称Laravel内建。
