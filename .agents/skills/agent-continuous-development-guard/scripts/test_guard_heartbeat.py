@@ -363,6 +363,66 @@ class HeartbeatTests(unittest.TestCase):
                 'thread': self.thread, 'observed_at': observed, 'payload': usage()}))
             self.assertEqual(heartbeat.run(self.thread, 'check', self.usage_file, now=1000)['action'], 'continue')
 
+    def test_mcp_text_result_recovers_wait_without_rebasing(self):
+        self.prepared()
+        before = copy.deepcopy(self.ledger()['account_budgets'])
+        self.snapshot = {'content': [{'type': 'text', 'text': 'unavailable'}], 'isError': True}
+        self.assertEqual(self.run_gate()['action'], 'wait')
+        self.snapshot = {'content': [{'type': 'text', 'text': json.dumps(usage(used=20))}],
+                         'isError': False}
+        result = self.run_gate(now=1100)
+        self.assertEqual(result['action'], 'continue')
+        self.assertEqual(self.ledger()['account_budgets'], before)
+        self.assertNotIn('first_wait_at', self.ledger())
+        self.assertIsNone(result['budget']['error'])
+
+    def test_mcp_structured_result_and_matching_text_are_accepted(self):
+        self.prepared()
+        for content in ([], [{'type': 'text', 'text': json.dumps(usage())}]):
+            self.snapshot = {'structuredContent': usage(), 'content': content}
+            self.assertEqual(self.run_gate()['action'], 'continue')
+
+    def test_mcp_errors_malformed_and_conflicting_results_never_grant_usage(self):
+        self.prepared()
+        before = copy.deepcopy(self.ledger()['account_budgets'])
+        text = {'type': 'text', 'text': json.dumps(usage())}
+        invalid = [
+            {'isError': True, 'content': [text]},
+            {'isError': 'false', 'content': [text]},
+            {'content': []}, {'content': [text, text]},
+            {'content': [{'type': 'image', 'data': 'private'}]},
+            {'content': [{'type': 'text', 'text': 'private-not-json'}]},
+            {'content': [{'type': 'text', 'text': '[]'}]},
+            {'content': [{'type': 'text', 'text': '{}'}]},
+            {'content': [{'type': 'text', 'text': json.dumps(usage()).replace(
+                '"ordinaryUsageAllowed": true',
+                '"ordinaryUsageAllowed": false, "ordinaryUsageAllowed": true')}]},
+            {'content': [{'type': 'text', 'text': json.dumps(usage()).replace(
+                '"usedPercent": 10', '"usedPercent": 100, "usedPercent": 10')}]},
+            {'structuredContent': usage(used=99), 'content': [text]},
+            {'structuredContent': None, 'content': [text]},
+            {'structuredContent': usage(), 'content': [text, text]},
+            {**usage(), 'isError': True},
+            {**usage(), 'content': [text]},
+        ]
+        for payload in invalid:
+            with self.subTest(payload=payload):
+                self.snapshot = payload
+                result = self.run_gate()
+                self.assertEqual(result['action'], 'wait')
+                self.assertIn(result['budget']['error'],
+                              ('usage_tool_error', 'usage_tool_result_invalid',
+                               'usage_budget_validation_failed'))
+                self.assertNotIn('private', json.dumps(result))
+                self.assertEqual(self.ledger()['account_budgets'], before)
+
+    def test_mcp_result_still_enforces_reserve_and_no_paid_eligibility(self):
+        self.prepared()
+        for snapshot in (usage(used=82), {**usage(), 'ordinaryUsageAllowed': False}):
+            self.snapshot = {'content': [{'type': 'text', 'text': json.dumps(snapshot)}]}
+            self.assertEqual(self.run_gate()['action'], 'wait')
+        self.assertFalse(self.ledger()['allow_existing_credits'])
+
     def test_goal_changed_during_budget_check_never_continues(self):
         self.prepared()
         original = heartbeat.budget_check

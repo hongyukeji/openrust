@@ -23,12 +23,26 @@ MAX_JSON = 1024 * 1024
 USAGE_TTL = 120
 
 
+class UsageSnapshotError(ValueError):
+    """只输出固定诊断码，不泄漏官方工具错误正文。"""
+
+
+def unique_object(pairs):
+    """JSON重复键存在歧义，不能依赖解析器以后值覆盖。"""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('JSON重复键')
+        result[key] = value
+    return result
+
+
 def read_json(path):
     with Path(path).open('rb') as source:
         raw = source.read(MAX_JSON + 1)
     if len(raw) > MAX_JSON:
         raise ValueError('JSON过大')
-    value = json.loads(raw)
+    value = json.loads(raw, object_pairs_hook=unique_object)
     if not isinstance(value, dict):
         raise ValueError('JSON对象未知')
     return value
@@ -56,8 +70,47 @@ def usage_snapshot(path, thread, now):
             or type(observed) not in (int, float) or not math.isfinite(observed)
             or not -5 <= now - observed <= USAGE_TTL
             or not isinstance(envelope.get('payload'), dict)):
-        raise ValueError('正式额度快照来源、绑定或新鲜度未知')
-    return envelope['payload']
+        raise UsageSnapshotError('usage_snapshot_invalid')
+    return usage_result(envelope['payload'])
+
+
+def usage_result(payload):
+    """兼容正式额度对象及MCP结果；错误、歧义或混合数据不得授予资格。"""
+    if 'isError' in payload and type(payload['isError']) is not bool:
+        raise UsageSnapshotError('usage_tool_result_invalid')
+    if payload.get('isError') is True:
+        raise UsageSnapshotError('usage_tool_error')
+    if 'content' not in payload and 'structuredContent' not in payload:
+        return payload
+    if 'rateLimits' in payload or 'accountId' in payload:
+        raise UsageSnapshotError('usage_tool_result_invalid')
+    structured = payload.get('structuredContent')
+    if 'structuredContent' in payload and not isinstance(structured, dict):
+        raise UsageSnapshotError('usage_tool_result_invalid')
+    content = payload.get('content', [])
+    if not isinstance(content, list) or len(content) > 1:
+        raise UsageSnapshotError('usage_tool_result_invalid')
+    decoded = None
+    if content:
+        item = content[0]
+        if (not isinstance(item, dict) or item.get('type') != 'text'
+                or not isinstance(item.get('text'), str)):
+            raise UsageSnapshotError('usage_tool_result_invalid')
+        try:
+            decoded = json.loads(item['text'], object_pairs_hook=unique_object)
+        except ValueError as error:
+            raise UsageSnapshotError('usage_tool_result_invalid') from error
+        if not isinstance(decoded, dict):
+            raise UsageSnapshotError('usage_tool_result_invalid')
+    if structured is not None and decoded is not None and structured != decoded:
+        raise UsageSnapshotError('usage_tool_result_invalid')
+    result = structured if structured is not None else decoded
+    if not isinstance(result, dict):
+        raise UsageSnapshotError('usage_tool_result_invalid')
+    # 不递归拆包，不允许内层错误标记绕过外层成功状态。
+    if any(key in result for key in ('content', 'structuredContent', 'isError')):
+        raise UsageSnapshotError('usage_tool_result_invalid')
+    return result
 
 
 def identity(thread, home):
@@ -161,6 +214,7 @@ def output(ledger, action, reason, thread):
             'goal_status': ledger.get('goal_status'),
             'budget': {'fraction': '0.8', 'allow_existing_credits': False,
                        'status': ledger.get('usage_status', 'unknown'),
+                       'error': ledger.get('usage_error'),
                        'accounts': len(ledger.get('account_budgets', {})),
                        'active_key_sha256': hashlib.sha256(key.encode()).hexdigest()[:16] if key else None,
                        'windows': {name: {field: item.get(field) for field in
@@ -237,10 +291,15 @@ def run(thread, command, usage_file=None, automation_id=None, now=None):
         if command == 'check' and not ledger.get('automation_id'):
             return output(ledger, 'stop', 'automation_unbound', thread)
         available = False
+        ledger.pop('usage_error', None)
         try:
             available = budget_check(ledger, usage_snapshot(usage_file, thread, now), now)
+        except UsageSnapshotError as error:
+            ledger['usage_status'] = 'usage_budget_unknown'
+            ledger['usage_error'] = str(error)
         except (OSError, ValueError, TypeError, KeyError, InvalidOperation):
             ledger['usage_status'] = 'usage_budget_unknown'
+            ledger['usage_error'] = 'usage_budget_validation_failed'
         if available and status != 'active':
             available = False
             ledger['usage_status'] = 'goal_not_active'

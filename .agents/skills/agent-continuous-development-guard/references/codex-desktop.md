@@ -11,6 +11,8 @@ Desktop默认通过正式App工具的heartbeat自动化唤醒独立原生监护�
 
 ## 每次触发的固定职责
 
+额度envelope的`payload`保留正式工具原始返回值，不手工提取或拼接百分比。helper同时兼容直接额度对象、MCP的单一`content[].text` JSON和`structuredContent`；两种表示同时出现须一致，工具报错、重复JSON键、多份文本或混合/冲突结果均拒绝。未知时查看结构化输出的`budget.error`：`usage_snapshot_invalid`表示来源/绑定/新鲜度问题，`usage_tool_error`表示正式工具报错，`usage_tool_result_invalid`表示包装/内容歧义，`usage_budget_validation_failed`表示额度字段或预算验证失败。只记录固定诊断码，不输出工具错误正文。修复解析后用新鲜正式快照复核，沿用原账本，不用重新init、清账本或重算基线绕过未知。
+
 触发提示须写明它是无业务Goal的监护检查，不是新的真人授权。监护收到后先检查业务Goal，不对自己调用创建Goal或承担业务。先核对原Goal和最后真人控制；遇暂停/停止、目标更换、真正权限审批或必要外部信息不得借本提示恢复。只收取既有在途结果，不重复派发或启动另一个总控。
 
 用正式`get_usage_limits`刷新额度，立即保存同一envelope后执行helper的`check --usage-file <file>`。没有可用正式快照时不继续新业务：记录未知等待而非猜测额度。`continue`且原业务Goal、最近真人控制均再次核实后，先正式read_thread读取业务线程。业务active/等待输入或审批/未知时不发消息、不代答；只写本轮检查回执并正常final，避免监护自身常驻active。只有业务idle、最近turn completed、无真人控制/审批边界，且发送前再次核Goal和turn身份一致，才通过正式send_message_to_thread提示按原唯一todo停点接续。发送意图先落盘，未知不重发；见新的业务工具后才能称恢复。interrupted及未知failed不自动恢复。业务新的耗时阶段前也要再次查预算；普通编码/测试失败自主诊断修复，不降低门禁。`wait`保留账本和原任务，不把超时当授权。`stop`或`finish`必须通过正式自动化工具暂停/删除本ID，并核回执，再在本地记录处理结果；不能仅写一句“已停止”。不得修改别人的自动化、替换Goal、登录换号、购买或兑换额度。
