@@ -194,13 +194,13 @@ impl crate::core::ServiceProvider for SmsServiceProvider {
             .await?;
             app.singleton::<SmsSender, _>(|resolver| {
                 Box::pin(async move {
-                    let config = resolver.section::<SmsConfig>("sms")?;
-                    let env = resolver.section::<crate::config::Environment>("app.env")?;
-                    if env.enforces_production_safety() && config.driver == "log" {
-                        return Err(Error::Config(ConfigError::Invalid(
-                            "sms.driver=log is not allowed in production".into(),
-                        )));
-                    }
+                    let config = resolver.section::<SmsConfig>("sms").map_err(|source| {
+                        Error::Config(ConfigError::diagnostic_with_source(
+                            "sms",
+                            "invalid_section",
+                            source,
+                        ))
+                    })?;
                     Ok(Arc::new(configured_sender(&config)?))
                 })
             })
@@ -248,13 +248,17 @@ mod provider_tests {
     }
 
     #[tokio::test]
-    async fn provider_rejects_production_log_and_missing_environment() {
-        let mut builder = ProviderBuilder::new();
-        builder.provider(SmsServiceProvider);
-        assert!(builder.start(sources("production")).await.is_err());
-        let mut builder = ProviderBuilder::new();
-        builder.provider(SmsServiceProvider);
-        assert!(builder.start(Figment::new()).await.is_err());
+    async fn provider_constructs_log_in_production_or_without_environment() -> Result<()> {
+        for source in [sources("production"), Figment::new()] {
+            let mut builder = ProviderBuilder::new();
+            builder.provider(SmsServiceProvider);
+            let runtime = builder.start(source).await?;
+            let _ = runtime.container().resolve::<SmsSender>().await?;
+            runtime
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+                .await?;
+        }
+        Ok(())
     }
 
     #[tokio::test]
@@ -298,8 +302,9 @@ fn configured_sender(config: &SmsConfig) -> Result<SmsSender> {
     match config.driver.as_str() {
         "log" => Ok(SmsSender::new(LogSmsDriver)),
         "twilio" => configured_twilio(config),
-        _ => Err(Error::Config(ConfigError::Invalid(
-            "unsupported sms.driver; expected `log` or `twilio`".into(),
+        _ => Err(Error::Config(ConfigError::diagnostic(
+            "sms.driver",
+            "unsupported_driver",
         ))),
     }
 }
@@ -555,13 +560,17 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn production_rejects_log_driver() {
+    async fn production_accepts_log_without_external_credentials() -> Result<()> {
         let mut builder = crate::core::ProviderBuilder::new();
         builder.provider(SmsServiceProvider);
         let figment = figment::Figment::from(figment::providers::Serialized::defaults(
             serde_json::json!({"app":{"env":"production"},"sms":{"driver":"log"}}),
         ));
-        assert!(builder.start(figment).await.is_err());
+        let runtime = builder.start(figment).await?;
+        let _ = runtime.container().resolve::<SmsSender>().await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
     }
 
     #[test]

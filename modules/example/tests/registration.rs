@@ -7,6 +7,51 @@ use openrust::http::{
 };
 use tower::ServiceExt;
 
+// 生产日志服务仍由标准Provider构造，模块路由继续使用同一启动管线。
+#[tokio::test]
+async fn production_log_services_coexist_with_normal_module_routes()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = crate::modules::example::test_sources(&production_sources(true))?
+        .merge_ordered_entries([
+            ("app", serde_json::json!({"env":"production"})),
+            ("mail", serde_json::json!({"driver":"log"})),
+            ("sms", serde_json::json!({"driver":"log"})),
+        ])?;
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+        .build()
+        .await?;
+    let outcome: Result<(), Box<dyn std::error::Error>> = async {
+        if !app.app()?.is_production() {
+            return Err("生产配置未进入实际App".into());
+        }
+        let _ = app
+            .app()?
+            .state()
+            .resolve::<openrust::mail::Mailer>()
+            .await?;
+        let _ = app
+            .app()?
+            .state()
+            .resolve::<openrust::sms::SmsSender>()
+            .await?;
+        app.request(
+            Request::get("/api/example")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?
+        .assert_status(StatusCode::OK)?;
+        Ok(())
+    }
+    .await;
+    let cleanup = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome?;
+    cleanup?;
+    Ok(())
+}
+
 // 模块通过公开 BootContext 覆盖应用静态 Host 策略，真实业务路由接受或拒绝请求。
 #[tokio::test]
 async fn module_trusted_hosts_override_reaches_business_routes()

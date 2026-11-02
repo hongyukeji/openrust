@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+✅ 默认production＋log通信启动与安全诊断已完成[限定验收](memory/testing.md#默认生产日志驱动启动与安全诊断限定验收)：原始cargo run三场景、10项主门禁、通信consumer、fresh minimal9/MFA真实MySQL3与实际help通过，113生成源码及失败证据保全，最终target正常清零。完整MailManager与ADR-001未闭合，本地提交以Git为准；随后按唯一todo依次完成模块默认注册/API前缀及首批正式文档，再立即SQLite，CLI后继保留。
+
 > 受众：AI Agent
 > 更新：2026-11-02
 > 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 均已按子簇完成适用门禁；R3-D 真实 HTTP、生成应用和安全复审证据见 `memory/testing.md`。完整 Laravel/laravel-modules 行为矩阵继续推进。

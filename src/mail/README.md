@@ -2,11 +2,15 @@
 
 `MailerServiceProvider` 提供配置驱动的 Provider 装配入口。装配只构造 driver，不发送邮件。
 
-`MailConfig` 定义于 `openrust::config::mailer`，并从 `openrust::mail` 重新导出。运行时 TOML 配置放在应用根目录的 `config/`；SMTP 凭据可通过受保护的 `.env` 或部署环境变量提供，进程环境变量优先。生产使用 `.env` 时须限制文件权限，并确保应用根目录不作为静态公开目录。
+`MailConfig` 定义于 `openrust::config::mailer`，并从 `openrust::mail` 重新导出。默认配置在可编辑的 `config/mail.rs`，经同一配置仓储加载；TOML 仅作显式可选来源；SMTP 凭据可通过受保护的 `.env` 或部署环境变量提供，进程环境变量优先。生产使用 `.env` 时须限制文件权限，并确保应用根目录不作为静态公开目录。
 
-OpenRust 框架的邮件能力。实现 `Email::message` 来构造 `lettre::Message`，然后通过 `Mailer` 服务发送。`MailerServiceProvider` 默认注册 log driver。启用 `mail-smtp`，并设置 `[mail] driver = "smtp"`、`smtp_host`，还可按需设置成对的 `smtp_username` / `smtp_password` 字段，以使用强制 STARTTLS 的 SMTP 发送邮件。SMTP 凭据在 `Debug` 输出中会被隐藏。默认要求 STARTTLS；只有 Mailpit 等未认证的 localhost/loopback 开发接收端可以显式设置 `smtp_starttls = false`，生产环境会拒绝该设置。使用 `docker compose -f compose.ci.yaml up -d mailpit` 启动本地 Mailpit 服务，然后设置 `MAIL_DRIVER=smtp`、`MAIL_SMTP_HOST=127.0.0.1`、`MAIL_SMTP_PORT=1025` 和 `MAIL_SMTP_STARTTLS=false`。生产环境拒绝默认的 `log` driver，因此必须显式配置实际邮件供应商。启用 `test-util` 后，可在测试中使用 `FakeMailer` 的 `sent_count` 和 `assert_sent_to` 断言。SMS 是 `openrust::sms` 中的同级服务；两者都使用公开 driver trait、显式 locale 选择，并且单次提交不会自动重试。启用 `sms-twilio`（同时启用 `http-client`）即可使用 Twilio；配置时必须设置 `SMS_ACCOUNT_SID`、`SMS_API_KEY_SID`、`SMS_API_KEY_SECRET`，并在 `SMS_FROM` 与 `SMS_MESSAGING_SERVICE_SID` 中二选一。凭据和消息数据在 debug 输出中会被隐藏；生产环境拒绝 log driver。
+实现 `Email::message` 构造 `lettre::Message`，通过同一容器的 `Mailer` 发送。可编辑 `config/mail.rs` 默认选择 `log`，在 production 和其他环境均可启动；它只记录接受摘要，不记录邮件正文、收件人或凭据，也不表示远端送达。没有真实投递需求时无需配置SMTP或修改应用环境。
 
-`Mailer::send` 会立即发送。启用 `queue` 后，`openrust::notifications::Notifier` 可把固定邮件/SMS 内容排入数据库队列；worker 重试复用已渲染内容，不会重新读取 locale 或模板。先注册 `DatabaseServiceProvider`、`QueueServiceProvider` 与 `NotificationsServiceProvider`，并把 `QueueMigration` 加入应用迁移器；标准 worker 用 `queue work notifications` 处理默认通知队列。邮件与短信分别作为独立任务，渠道之间没有顺序保证。
+实际邮件投递需启用 `mail-smtp`，在同一配置仓储选择 `smtp` 并提供 `smtp_host`；部署值使用 `MAIL_DRIVER`、`MAIL_SMTP_HOST`、`MAIL_SMTP_PORT`、`MAIL_SMTP_STARTTLS`，用户名和密码必须成对设置。远程主机要求STARTTLS；仅未认证的localhost/loopback开发sink可显式关闭。未知driver、缺少feature、缺失主机、凭据配对或TLS错误均拒绝初始化，不回退log。错误诊断显示服务、固定配置键和原因码，原始值保留于私有错误链，不直接输出到Display/Debug或HTTP 5xx响应。
+
+测试可用 `test-util` 的 `FakeMailer`、`sent_count` 和 `assert_sent_to`。本机Mailpit协议验收需自行准备已有服务并显式配置；它不是外部供应商送达证明。SMS沿同一Provider/公开 `SmsDriver` 接口，默认log同样可在production启动且不记录PII；选择Twilio需启用 `sms-twilio` 并配置部署凭据和发送身份，真实发送仍需授权。
+
+`Mailer::send` 会立即发送。启用 `queue` 后，`openrust::notifications::Notifier` 可把固定邮件/SMS 内容排入数据库队列；worker 重试复用已渲染内容，不会重新读取 locale 或模板。先注册 `DatabaseServiceProvider`、`QueueServiceProvider` 与 `NotificationsServiceProvider`，并把 `QueueMigration` 加入应用迁移器；标准 worker 用 `queue work --queue notifications` 处理通知队列。邮件与短信分别作为独立任务，渠道之间没有顺序保证。
 
 应用可实现公开的 `MailDriver` / `SmsDriver`，再由应用自己的 `ServiceProvider::register` 注册 singleton 工厂，工厂通过 `Resolver::section` 读取当前配置并返回 `Arc<Mailer>` / `Arc<SmsSender>`。使用自定义供应商时，不注册对应的内建 `MailerServiceProvider` 或 `SmsServiceProvider`；内建 driver 名称只由框架维护。独立 consumer 展示从配置到发送的完整路径：[自定义邮件与短信 driver](../../tests/consumers/communication-drivers/README.md)。应用自定义供应商时也要自行定义其重试、幂等、凭据轮换和送达状态处理；短信 `SmsReceipt` 仅代表提交被接受。
 

@@ -1,5 +1,17 @@
 # 测试基线
 
+## 默认生产日志驱动启动与安全诊断限定验收
+
+2026-11-02，基线46bebfb。固定framework d52c3b3的MailManager::createLogTransport无production禁用；MailLogTransportTest覆盖logger/channel及MIME正文。本簇闭合默认production＋log启动故障和安全初始化诊断，保留既有仅记录接受摘要的隐私增强；不声明完整MailManager、具名mailer/channel或SMTP供应商送达对应。SMS为既有增强，不冒称Laravel内建。
+
+696输入冻结；fmt、默认/全特性严格workspace Clippy、两组workspace tests及拒警Rustdoc、no-default适用严格Clippy和lib tests、Rust1.97 check共10项实际exit0。新增依赖链/静态配置键原因/私有原source/深链/HTTP脱敏、日志敏感哨兵和唯一模块production服务/路由回归均通过；两项compile_fail证明外部不能伪造服务身份。默认/全特性测试中ignored不计真实服务。依赖审计复用上一簇同输入exit0证据，31项清单/锁/规则与日志SHA匹配；独立通信consumer锁补齐既有root依赖的13行单独记录，不改变root清单或版本，未虚报本轮重跑deny。
+
+原始 `/Users/Home/.cargo/bin/cargo run --color=always --profile dev` 在缺省、显式production、自有配置缓存三案均真实监听、health和根API200、SIGINT exit0及端口释放。实际config show仅保存production/mail.log/sms.log/cache.redis等白名单；无development覆盖，无新建.env，无外部邮件短信。未知driver与未编译SMTP两项实际负例分别有固定原因且不回显秘密哨兵；缓存命中忽略非法MAIL_DRIVER，自有缓存正常清除。harness首次误把JSON按TOML解析、doc标记及fixture误用私有API的失败均保留；仅文档/测试差异不重跑未受影响生产HTTP。
+
+通信consumer锁定测试1项、标准server/CLI构建、fresh minimal check/test9、fresh MFA check及真实MySQL认证2＋迁移目录1、生成应用实际help均通过，无服务skip，数据库集合0增0删。消费者初次--locked在编译前发现旧锁遗漏，保全旧锁后离线同步并锁定复验；只该独立workspace锁变化，不使已通过root门禁失效。主门禁输入/生产运行映射及113份生成源码归档均保全，当前Rust输入匹配，59相对文件链接无缺失。
+
+不同模型生产代码/证据独审完成，最终收口以证据目录报告为准。无占用后正常cargo clean：29,881,606,144B→0后进入fresh，最终5,422,854,144B→0，磁盘可用161,157,271,552B；源码/WIP、生成源码/锁及服务保留。完整日志/退出码/SHA/失败/清理与归档索引见 `tmp/default-mail-startup-20261102/final-integrity.json`。本地提交以Git为准，不push/tag/release；完整官方能力及模块/API、正式文档、SQLite、CLI后继仍按唯一todo推进。
+
 ## DB 通用能力与驱动分层限定验收
 
 2026-11-02，基线710dd55，失败处理规则另由231b0b8本地提交。固定framework d52c3b3的DefaultProviders/DatabaseServiceProvider/MigrationServiceProvider/ModelMakeCommand及对应测试；只闭合通用能力编译、注册、当前默认连接选择及生成子范围。db/database/facade/prelude常开，driver feature只控制连接器；根/活跃模块迁移与种子注册不因缺URL消失。DatabaseConfig::has_default_connection只指默认url；具名实例独立连接，不误选绑定default的自动Auth/Queue/database Session或示例业务。生产模块register读同仓储，静态nested/possible候选不冒充实际登记。自动清单选择后默认URL有无变化拒绝启动；显式模块register未选业务而boot反向启用也拒绝，保原startup资源回收；有变无可关闭路由而不卸绑定。这是当前装配失配的明确失败边界，不抵扣完整Laravel懒连接/动态默认连接缺口。

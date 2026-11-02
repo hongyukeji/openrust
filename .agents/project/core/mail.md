@@ -1,7 +1,7 @@
 # `openrust::mail` 与 `openrust::sms` 当前事实
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-11-02
 > 摘要：SMTP/log/fake 与 Twilio adapter 已实现；本机 Mailpit 邮件实收有记录，真实短信投递仍待授权。
 
 ## 邮件
@@ -11,13 +11,13 @@
 - `LocalizedEmail` 使用 `I18n` catalog、显式 `Locale` 与命名参数渲染纯文本主题/正文；后台任务不依赖请求 task-local locale。
 - 可选 `mail-templates` 使用 MiniJinja 2.24；`EmailTemplateCatalog` 只注册 `include_str!` 嵌入式应用资源，不开文件/网络 loader。按 locale 分层覆盖并支持继承布局；HTML 自动转义、严格缺参失败，模板燃料和输出分别限制为 100,000 与 256 KiB；主题拒绝换行且最多 998 字节。
 - `RenderedEmail` 生成纯文本/HTML alternative，保留 lettre multipart 附件组合能力；新消息继续经现有 `Email`/`Mailer` driver。`openrust generate mailer` 生成中英模板与注册封装，并为应用启用 feature，不覆盖已有文件。
-- `MailerServiceProvider` 默认注册不记录内容的 `LogMailer`；production 选择 `log` 会启动失败。
+- `MailerServiceProvider` 默认注册不记录内容的 `LogMailer`；log不再按应用环境拒绝。默认、显式production与配置缓存的原始cargo run均已实际监听、HTTP成功并SIGINT正常退出；本簇10项主门禁、通信consumer及fresh普通/MFA真实MySQL验收通过，提交见Git。
 - `mail-smtp` 使用 Tokio / Rustls，默认要求 STARTTLS；只有无认证 loopback 开发服务可显式关闭 TLS。SMTP 密码 Debug 脱敏，`test-util` 暴露 `FakeMailer`。
 
 ## 短信
 
 - `SmsConfig` 在 `openrust::config::sms`；应用可安装 `SmsServiceProvider` 获得 `SmsSender`。`SmsMessage` 支持 E.164 文本或供应商 template SID 与参数，号码与内容 Debug 脱敏。
-- 公开 `SmsDriver`/`SmsSender::new` 可由第三方驱动扩展；默认 `LogSmsDriver` 不记录 PII，production 选择 log 启动失败；`test-util` 的 `FakeSmsDriver` 仅用于测试。
+- 公开 `SmsDriver`/`SmsSender::new` 可由第三方驱动扩展；默认 `LogSmsDriver` 不记录 PII，log不再按应用环境拒绝且本簇已验；`test-util` 的 `FakeSmsDriver` 仅用于测试。
 - `sms-twilio` feature 启用 `http-client` 与 Twilio Messages REST adapter，认证使用 API key SID/secret，凭据配合 account SID 与发送方配置；使用有界超时/响应、不会自动重试。成功表示 Twilio 接受请求，不表示最终送达。
 - 邮件与短信文本由调用方显式选择语言；邮件可直接用 `LocalizedEmail`，短信通过 `I18n::translate(locale, ...)` 准备文本；短信 provider templates 使用供应商管理的模板，不被框架本地插值。
 
@@ -30,3 +30,5 @@
 - 认证验证码由 `VerificationCodes` 生成消费，发送仍由调用方选择渠道；本簇不启用短信登录或更改账号流程。
 
 F3 已交付安全模板与生成体验，M4 已接入固定内容的队列通知。SMTP 本机实际投递、Mailpit API 内容及通知队列双库证据见 [测试基线](../memory/testing.md)。
+
+固定 Laravel d52c3b3 的 `MailManager::createLogTransport` 不限制 production，`MailLogTransportTest` 覆盖 logger/channel 和 MIME 正文日志。本簇只整改环境禁用与安全启动诊断；现有仅记录接受摘要是保留的隐私增强，不冒称日志内容、具名 mailer/channel 或完整 MailManager 已对应。SMS 是既有增强，非 Laravel 内建能力。限定来源与实际启动证据见 `tmp/default-mail-startup-20261102/upstream-correspondence.json`。

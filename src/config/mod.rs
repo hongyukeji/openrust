@@ -93,10 +93,16 @@ pub const ENV_PREFIX: &str = "APP_";
 /// 相对于工作目录、用于保存按领域划分的 TOML 配置文件的目录。
 pub const DEFAULT_CONFIG_DIR: &str = "config";
 
+mod diagnostic;
+pub use diagnostic::ConfigurationDiagnostic;
+
 /// 配置来源、读取及校验错误；启动与运行期读取均可能返回。
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigError {
+    /// 固定配置键和原因码；私有来源不参与Display/Debug。
+    #[error("{0}")]
+    Diagnostic(#[source] ConfigurationDiagnostic),
     /// 同步代码配置依赖读取错误，类别由内核生成且不含源值。
     #[error("{0}")]
     Dependency(ConfigDependencyError),

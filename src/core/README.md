@@ -204,6 +204,8 @@ HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安�
 
 `plural` 使用 ICU/CLDR 类别键（`zero`、`one`、`two`、`few`、`many`、`other`），`select` 按参数精确匹配有限字符串键；两者都必须提供 `other`。缺少参数或分支时走 `other`，模板中缺少的 `{name}` 仍保留原占位符。地区格式使用 ICU4X 编译数据，无效十进制或不可格式化日期返回错误，不会改写 API 数值字段。
 
-邮件支持 `LocalizedEmail`，可使用显式选择的 locale 从共享 i18n catalog 渲染主题和正文；其他格式仍可通过自定义 `Email` 实现。SMS 使用 `openrust::sms::{SmsMessage, SmsSender, SmsServiceProvider}` 和公开的 `SmsDriver` 契约。默认 log driver 仅用于本地；`sms-twilio` 会启用 Twilio Messages adapter 和有界共享 HTTP client。生产环境拒绝 log driver。成功 receipt 仅表示供应商接受请求；异步队列重试和最终送达跟踪是独立能力。
+邮件支持 `LocalizedEmail`，可使用显式选择的 locale 从共享 i18n catalog 渲染主题和正文；其他格式仍可通过自定义 `Email` 实现。SMS 使用 `openrust::sms::{SmsMessage, SmsSender, SmsServiceProvider}` 和公开的 `SmsDriver` 契约。默认log驱动只记录接受摘要且可在production启动；`sms-twilio` 会启用 Twilio Messages adapter 和有界共享 HTTP client。日志驱动不代表外部送达，实际Twilio投递需显式配置与授权。成功 receipt 仅表示供应商接受请求；异步队列重试和最终送达跟踪是独立能力。
 
 `ConfigLoader::figment()` 现在返回 `Result<Figment, ConfigError>`，直接调用者使用 `?` 传播来源错误；`load`/`load_framework` 使用同一失败语义。此行为不修改领域默认值、环境变量优先级或具名driver配置。
+
+服务工厂初始化失败的 CLI 诊断保留依赖服务路径，服务身份由受封装的 Rust 类型信息构造，并显示框架定义的固定配置键和原因码；不拼接任意来源文本或自定义错误码，深依赖路径有界。`ConfigError::Diagnostic` 的原始来源留在私有错误链，HTTP 5xx 继续仅返回通用消息。

@@ -34,29 +34,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
-### R2 Provider 共享生命周期前置：命令所有权（限定验收完成，提交收尾）
-
-1. owner=root，main共享目录，基线e8d0072；承接既有R2/R13表15及Queue deferred缺口，不新增平行队列。完整deferred、manifest/when、统一Resolver触发和生命周期时点保持后继范围。
-2. 固定framework d52c3b3 ProviderRepository::load/compileManifest、Application::registerDeferredProvider/make/resolve/boot及FoundationApplicationTest为上游；完整延迟加载需同一Container/Provider生命周期共享状态，不能用App外层包装替代。
-3. 本前置将启动/运行期命令目录从独占Vec改成同一内部共享目录；同名替换保原槽位，返回Arc持有的命令快照，替换不使已选命令悬空，不跨用户回调/await持目录锁。
-4. App/ProviderRuntime::commands仍按顺序迭代，Item从借用改为Arc<dyn Command>；help/最长命令匹配/DeferredBootChecks身份检查/所有调用方同步。command真实type_id必须取dyn Command，不能误取Arc类型。
-5. 先实现命令共享所有权，再按依赖收敛extensions/ProviderRegistry及递归执行权；不在本前置伪装已实现provides/when或取消/并发deferred。Rust适配依据是借用与异步共享要求，必要性不等于已证完整上游语义。
-6. root独占公共API、app/provider/registration/command、共享docs/index/Cargo/服务；sol worker仅新command_registry.rs及其单元测试，不跑Cargo/服务/Git；独审另行只读。独立guard skill owner范围不碰。
-7. 同步唯一模块维护命令公开快照/执行与生成应用调用配套；测试覆盖同名原槽、共享可见、旧快照、析构重入无锁死及App真实命令身份/最长匹配。完整编码后集中main适用门禁/模块及fresh/root实际命令，影响未触DB SQL不重复全部实服务矩阵。
-8. 编码/自审→冻结→集中验证→本地提交→正常资源清理；验证前明确WIP，不把31/21项守护测试或旧框架绿替代本簇证据。
-
-当前停点：CommandRegistry的6项目录回归、App快照跨Provider替换、唯一模块重启快照及实际维护调用均完成；693冻结输入无漂移，独审两项问题已修并复审关闭。12项main门禁、真实MySQL模块维护1项、标准server/CLI续作构建、fresh minimal check/test9、默认MySQL MFA check/test3（认证2＋迁移目录1）及实际生成help均通过；无服务skip，无自有库增删。113份生成源码/lock已归档，最终独审无阻断，构建缓存9,414,590,464B已正常清零；当前限定本地提交，不添加新源码；完整deferred后继未闭合。
-
-恢复停点：真人已明确“已经切换账号了 恢复吧”，并通过宿主把原Goal 9a1bcc8a-769f-48ac-9034-77a1de19b599恢复active；正式checkpoint continue，宿主仍识别旧账号、剩余19%，沿原baseline27/reserve5.4及80%政策，不授credits/满额度或重建Goal。693冻结源码无漂移，12项主门禁与真实MySQL模块维护快照1项已通过；此前中断的root-cli-build用services_resume.py及新日志名续作，不重跑通过门禁/模块测试、不覆盖旧中断日志。fresh/CLI已通过；最终证据/清理与本地提交收尾，完整Goal保持。自有300秒timer新run179b596a-99db-4cf4-b5fa-0b7dcc50eecf已持锁、last_tick新鲜，旧自有队列只读确认消失后由支持协议解除pending，仅记absent不记执行；原预算历史保持。恢复证据tmp/guard-desktop-20261102/user-resume-after-account-switch.json；本簇提交后先本次范围明确模块入口整改，再立即SQLite。
-
-### 紧急后继：默认 production＋log Mailer 启动阻断（真人故障，冻结簇提交后优先）
-
-1. owner=root；本冻结命令簇先限定提交，再独立修复，不篡改693输入或把限定门禁当用户默认cargo run已通过。随后模块/API/首批正式文档、SQLite及CLI后继均保留。
-2. 用户实际cargo run报Mailer初始化失败；只读定位无.env/MAIL覆盖，默认Production＋mail.driver=log，src/mail/mod.rs显式拒绝。固定Laravel d52c3b3 MailManager::createLogTransport无production禁用；核用户特约后修无谓阻断，不改默认env、不造隐藏.env、不要求SMTP绕过。
-3. 旧provider_rejects_production_log_and_missing_environment/production_rejects_log_driver需按批准上游contract改成允许log的真实回归，不降低未知driver/未编译SMTP/坏SMTP配置与内容/凭据脱敏门禁。可用稳定安全cause code改善错误定位，避免扩当前Container WIP。
-4. 实际production＋log、默认无.env生产boot/TCP、无敏感值错误回归及适用集中门禁通过后脚本本地提交；只读报告不冒称复现运行通过。当前尚未修码，target已因前簇资源清理清零，Architect未重建/并跑Cargo。
-
-### 紧接当前提交：模块 Provider 默认启用入口（真人授权，尚未编码）
+### 下一簇：模块 Provider 默认启用入口（真人授权，尚未编码）
 
 1. owner=root，main；当前冻结命令簇闭环并本地提交后，先完成这项范围明确整改，再立即进入下节SQLite，不扩展为完整Modules后继或长期排队。
 2. 真人已批准默认注册example即生效、移除注册即不挂载；若直接Provider较复杂，采用集中modules/mod.rs清单/注册入口＋显式可选持久activator。Rust mod仅编译可用性，不新增宏/build.rs自动发现或第二内核。

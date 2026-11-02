@@ -316,7 +316,7 @@ impl Failure {
     fn error(&self) -> Error {
         if let Some((service, source)) = &self.source {
             Error::ServiceInitialization {
-                service,
+                service: super::error::ServiceIdentity::from_type_name(service),
                 source: Arc::clone(source),
             }
         } else {

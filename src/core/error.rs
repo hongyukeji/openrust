@@ -11,6 +11,34 @@ use std::sync::Arc;
 
 use crate::config::ConfigError;
 
+/// 由框架类型信息构造的服务身份；不可从部署值或任意来源字符串创建。
+///
+/// ```compile_fail
+/// use openrust::core::error::ServiceIdentity;
+/// let _ = ServiceIdentity { name: "credential_password" };
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct ServiceIdentity {
+    name: &'static str,
+}
+
+impl ServiceIdentity {
+    /// 已注册服务的 Rust 类型名。
+    pub fn name(self) -> &'static str {
+        self.name
+    }
+
+    pub(crate) fn from_type_name(name: &'static str) -> Self {
+        Self { name }
+    }
+}
+
+impl std::fmt::Display for ServiceIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.name)
+    }
+}
+
 /// 框架和生成应用通用的 Result 别名。
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -110,10 +138,10 @@ pub enum Error {
     #[error("internal error: {0}")]
     Internal(#[source] Box<dyn std::error::Error + Send + Sync>),
     /// 容器工厂失败；公开详情不包含底层配置值，source 保留原始错误链。
-    #[error("service `{service}` initialization failed")]
+    #[error("service `{service}` initialization failed (cause: {})", source.initialization_cause())]
     ServiceInitialization {
         /// 构造失败的 Rust 服务类型。
-        service: &'static str,
+        service: ServiceIdentity,
         /// 内部错误链；不得直接作为 HTTP 响应输出。
         #[source]
         source: std::sync::Arc<Error>,
@@ -123,15 +151,72 @@ pub enum Error {
 // Debug 常用于 tracing/断言，不能递归打印任意业务或配置 source 中的秘密值。
 impl std::fmt::Debug for Error {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("Error")
+        let mut output = formatter.debug_struct("Error");
+        output
             .field("code", &self.code())
-            .field("status", &self.status())
-            .finish_non_exhaustive()
+            .field("status", &self.status());
+        if let Self::ServiceInitialization { service, source } = self {
+            output
+                .field("service", service)
+                .field("cause", &source.initialization_cause());
+        }
+        output.finish_non_exhaustive()
     }
 }
 
 impl Error {
+    /// 从具体服务类型包装初始化失败；诊断身份不接受任意来源文本。
+    ///
+    /// ```compile_fail
+    /// use openrust::core::Error;
+    /// use std::sync::Arc;
+    /// let _ = Error::ServiceInitialization {
+    ///     service: "token-sentinel",
+    ///     source: Arc::new(Error::custom("failure", "private-mail-body")),
+    /// };
+    /// ```
+    pub fn service_initialization<T: ?Sized + 'static>(source: Error) -> Self {
+        Self::ServiceInitialization {
+            service: ServiceIdentity::from_type_name(std::any::type_name::<T>()),
+            source: Arc::new(source),
+        }
+    }
+
+    // 来源文本和自定义code可能包含部署值；只展示封闭类别或框架构造的诊断。
+    fn initialization_cause(&self) -> String {
+        let mut current = self;
+        let mut output = String::new();
+        for _ in 0..16 {
+            match current {
+                Self::ServiceInitialization { service, source } => {
+                    output.push_str("dependency `");
+                    output.push_str(service.name());
+                    output.push_str("` -> ");
+                    current = source;
+                }
+                Self::Config(ConfigError::Diagnostic(diagnostic)) => {
+                    output.push_str(&diagnostic.to_string());
+                    return output;
+                }
+                _ => {
+                    output.push_str(match current {
+                        Self::Config(ConfigError::Source(_)) => "configuration_source_error",
+                        Self::Config(ConfigError::Dependency(_)) => {
+                            "configuration_dependency_error"
+                        }
+                        Self::Config(_) => "configuration_error",
+                        Self::Internal(_) => "internal_error",
+                        Self::Custom { .. } | Self::HttpWithSource { .. } => "custom_error",
+                        _ => current.code(),
+                    });
+                    return output;
+                }
+            }
+        }
+        output.push_str("cause_chain_truncated");
+        output
+    }
+
     /// 将任意错误包装为 [`Error::Internal`]。
     pub fn internal<E>(source: E) -> Self
     where
@@ -623,3 +708,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "error/initialization_diagnostic_tests.rs"]
+mod initialization_diagnostic_tests;

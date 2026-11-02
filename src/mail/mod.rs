@@ -100,7 +100,7 @@ impl Mailer {
     }
 }
 
-/// 声明从当前配置构造的 mail 服务；生产入口仍待统一 Provider 切换。
+/// 经统一 Provider 从当前配置构造邮件服务；log 不受应用环境限制。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MailerServiceProvider;
 
@@ -136,13 +136,13 @@ impl crate::core::ServiceProvider for MailerServiceProvider {
             .await?;
             app.singleton::<Mailer, _>(|resolver| {
                 Box::pin(async move {
-                    let config = resolver.section::<MailConfig>("mail")?;
-                    let env = resolver.section::<crate::config::Environment>("app.env")?;
-                    if env.enforces_production_safety() && config.driver == "log" {
-                        return Err(Error::Config(ConfigError::Invalid(
-                            "mail.driver=log is not allowed in production".into(),
-                        )));
-                    }
+                    let config = resolver.section::<MailConfig>("mail").map_err(|source| {
+                        Error::Config(ConfigError::diagnostic_with_source(
+                            "mail",
+                            "invalid_section",
+                            source,
+                        ))
+                    })?;
                     Ok(Arc::new(configured_mailer(&config)?))
                 })
             })
@@ -192,13 +192,17 @@ mod provider_tests {
     }
 
     #[tokio::test]
-    async fn provider_rejects_production_log_and_missing_environment() {
-        let mut builder = ProviderBuilder::new();
-        builder.provider(MailerServiceProvider);
-        assert!(builder.start(sources("production")).await.is_err());
-        let mut builder = ProviderBuilder::new();
-        builder.provider(MailerServiceProvider);
-        assert!(builder.start(Figment::new()).await.is_err());
+    async fn provider_constructs_log_in_production_or_without_environment() -> Result<()> {
+        for source in [sources("production"), Figment::new()] {
+            let mut builder = ProviderBuilder::new();
+            builder.provider(MailerServiceProvider);
+            let runtime = builder.start(source).await?;
+            let _ = runtime.container().resolve::<Mailer>().await?;
+            runtime
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+                .await?;
+        }
+        Ok(())
     }
 
     #[tokio::test]
@@ -244,19 +248,19 @@ fn configured_mailer(config: &MailConfig) -> Result<Mailer> {
     match config.driver.as_str() {
         "log" => Ok(Mailer::new(LogMailer)),
         "smtp" => configured_smtp(config),
-        _ => Err(Error::Config(ConfigError::Invalid(
-            "unsupported mail.driver; expected `log` or `smtp`".into(),
+        _ => Err(Error::Config(ConfigError::diagnostic(
+            "mail.driver",
+            "unsupported_driver",
         ))),
     }
 }
 
 #[cfg(feature = "mail-smtp")]
 fn configured_smtp(config: &MailConfig) -> Result<Mailer> {
-    let host = config.smtp_host.as_deref().ok_or_else(|| {
-        Error::Config(ConfigError::Invalid(
-            "missing mail.smtp_host for the SMTP driver".into(),
-        ))
-    })?;
+    let host = config
+        .smtp_host
+        .as_deref()
+        .ok_or_else(|| Error::Config(ConfigError::diagnostic("mail.smtp_host", "required")))?;
     let credentials = match (&config.smtp_username, &config.smtp_password) {
         (None, None) => None,
         (Some(username), Some(password)) => {
@@ -266,26 +270,36 @@ fn configured_smtp(config: &MailConfig) -> Result<Mailer> {
             ))
         }
         _ => {
-            return Err(Error::Config(ConfigError::Invalid(
-                "mail.smtp_username and mail.smtp_password must be configured together".into(),
+            return Err(Error::Config(ConfigError::diagnostic(
+                "mail.smtp_username",
+                "credentials_pair_required",
             )));
         }
     };
     if !config.smtp_starttls {
         if !is_loopback_host(host) {
-            return Err(Error::Config(ConfigError::Invalid(
-                "mail.smtp_starttls=false is limited to localhost or a loopback IP".into(),
+            return Err(Error::Config(ConfigError::diagnostic(
+                "mail.smtp_starttls",
+                "remote_tls_required",
             )));
         }
         if credentials.is_some() {
-            return Err(Error::Config(ConfigError::Invalid(
-                "mail.smtp_username/password require mail.smtp_starttls=true".into(),
+            return Err(Error::Config(ConfigError::diagnostic(
+                "mail.smtp_starttls",
+                "credentials_tls_required",
             )));
         }
     }
     let mut builder = if config.smtp_starttls {
-        lettre::AsyncSmtpTransport::<lettre::Tokio1Executor>::starttls_relay(host)
-            .map_err(Error::internal)?
+        lettre::AsyncSmtpTransport::<lettre::Tokio1Executor>::starttls_relay(host).map_err(
+            |source| {
+                Error::Config(ConfigError::diagnostic_with_source(
+                    "mail.smtp_host",
+                    "invalid_host",
+                    source,
+                ))
+            },
+        )?
     } else {
         lettre::AsyncSmtpTransport::<lettre::Tokio1Executor>::builder_dangerous(host)
     }
@@ -308,8 +322,9 @@ fn is_loopback_host(host: &str) -> bool {
 
 #[cfg(not(feature = "mail-smtp"))]
 fn configured_smtp(_config: &MailConfig) -> Result<Mailer> {
-    Err(Error::Config(ConfigError::Invalid(
-        "mail.driver `smtp` requires the `mail-smtp` feature".into(),
+    Err(Error::Config(ConfigError::diagnostic(
+        "mail.driver",
+        "missing_feature:mail-smtp",
     )))
 }
 
@@ -455,13 +470,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn production_rejects_log_driver() {
+    async fn production_accepts_log_without_external_credentials() -> Result<()> {
         let mut builder = crate::core::ProviderBuilder::new();
         builder.provider(MailerServiceProvider);
         let figment = figment::Figment::from(figment::providers::Serialized::defaults(
             serde_json::json!({"app":{"env":"production"},"mail":{"driver":"log"}}),
         ));
-        assert!(builder.start(figment).await.is_err());
+        let runtime = builder.start(figment).await?;
+        let _ = runtime.container().resolve::<Mailer>().await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
     }
 
     #[cfg(feature = "mail-smtp")]
@@ -552,3 +571,6 @@ mod tests {
         assert!(configured_mailer(&authenticated).is_err());
     }
 }
+
+#[cfg(test)]
+mod log_diagnostic_tests;
