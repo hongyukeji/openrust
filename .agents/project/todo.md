@@ -34,7 +34,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
-### 标准 MySQL＋Redis 与队列开箱（限定验收完成，提交以Git为准）
+### 标准 MySQL＋Redis 与队列开箱（已限定提交3703939）
 
 1. owner=root，main共享目录，基线91b1d9e；只领取下表既有标准依赖/队列项，不新增队列。原生接入负责人已撤销同线程只等待heartbeat的临时约束；本主线恢复正常开发，主动helper检查不冒充真实定时触发。
 2. 固定Laravel d52c3b3的config/queue.php、QueueManager、QueueServiceProvider及对应tests/docs为来源；默认database具名连接、QUEUE_CONNECTION选择、连接按需解析和公开creator扩展统一到一套配置/管理器。
@@ -309,7 +309,7 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 | 项 | 既有阶段 | owner与当前边界 | 审计归并与稳定矩阵 |
 | --- | --- | --- | --- |
 | 1 app与modules | R1/R2/R13 | 新总控协调；9035a00交付应用/模块同内核与生成子范围；bootstrap测试归属、固定API与模块完整管理仍按首批表整改 | 根app/modules并存为用户特约，不等于Modules全量完成 |
-| 2 Rust代码配置 | R2/R13 | 新总控协调；生产Rust manifest/dotenv/typed/cache子范围已验；当前新总控Spec：可编辑默认值、最终配置依赖与开发预检 | foundation:F6【确认缺口】L005.02/03；services:redis_default【用户特约，官方应用默认另核】L005/C14；显式编译manifest/typed工厂拒绝缓存为必要Rust适配 |
+| 2 Rust代码配置 | R2/R13 | 新总控协调；生产Rust manifest/dotenv/typed/cache与可编辑默认值、最终配置依赖已由d952199限定验收；标准依赖/具名队列3703939已提交；其余配置完整对应与开发预检继续核 | foundation:F6【确认缺口】L005.02/03；services:redis_default【用户特约，官方应用默认另核】L005/C14；显式编译manifest/typed工厂拒绝缓存为必要Rust适配 |
 | 3 Exceptions/Handler | R3 C06/R12 | 新总控协调；9035a00已验应用/模块report/render/respond限定链；完整异常行为继续逐项核 | http:assets:handler【已验子范围】L027.02/03/04 |
 | 4 web组/CSRF/Session | R3 C04/R7 | 新总控协调；9035a00已验显式组/419/默认边界；分布式Session blocking等仍开放 | http:assets:web【已验子范围】L017.02/03/04；http:assets:session【已有已验资产＋blocking确认缺口】L025.04 |
 | 5 分页/API Resource | R3 C04/C05→R4 C07→R5 C09 | 新总控协调；沿既有分页Spec补Resource分页链接/meta与真正NoContent，不重造Query底座 | http:2【确认缺口，Query子范围已验】L059.02/03/05/06 L068.03/04/06；http:3【确认缺口】L020.01/03 |
@@ -322,7 +322,7 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 | 12 Encrypt/Hash drivers | R7 C13 | 新总控协调；补官方算法/选择与key默认工作流，保AAD/key-ring/容量增强，不改用户真实.env | foundation:F5【确认缺口】L054.02；http:6【确认缺口＋授权增强保留】L054.02/03 L055.02/03/04 |
 | 13 Query/Eloquent | R4/R5 C07–C09 | 新总控协调；9035a00默认SELECT *、真实count/分页/隔离已验；cursor、完整Query/ORM仍开放，不以SeaORM抵扣 | http:assets:query【已验子范围＋cursor缺口】L059.02/03/05；services:query【同一子范围，cursor确认缺口】C07/L059；services:eloquent【确认缺口】C08/C09 |
 | 14 Factory/SQLite | R6 C10/C11 | 新总控协调；seed/custom driver资产保留，不冒充Factory state/关系或完整SQLite | services:factory【确认缺口】C10/C11 |
-| 15 Container/Facade/发现 | R2/R13 C02 | 新总控协调；运行期register/force、extend/rebinding/scoped已验；contextual/tag/call、嵌套注册、deferred与包自动发现仍缺 | foundation:F1【确认缺口】L012.02/03/04；foundation:F2【已验注册子范围＋deferred/发现缺口】L013.02/03/04 L044.02；foundation:facade【完整对应待核】L014.03/04 L079.03 |
+| 15 Container/Facade/发现 | R2/R13 C02 | 新总控协调；运行期register/force、extend/rebinding/scoped已验；contextual/tag/call、deferred与包自动发现仍缺；同内核嵌套注册39086cf及模块运行发现d32162d已限定验收，不重复领取 | foundation:F1【确认缺口】L012.02/03/04；foundation:F2【已验注册子范围＋deferred/发现缺口】L013.02/03/04 L044.02；foundation:facade【完整对应待核】L014.03/04 L079.03 |
 | 16 FormRequest生命周期 | R3 C04/R7 | 新总控协调；沿Handler/Web/权限补prepare/authorize/validated与完整规则 | http:4【确认缺口】L026.03/05/07/10/12 |
 | 17 Cache Repository契约 | R8 C14 | 新总控协调；现tags/driver资产保留，补原子add/increment/flexible等契约 | services:cache【确认缺口】C14 |
 | 18 Events/Bus完整派发 | R10 C18/C19 | 新总控协调；typed/queued及chain/batch既有资产保留；until/defer/subscribe/afterResponse等未闭合 | services:bus【已编码资产/未闭合子行为待验及缺口】C18/C19；services:events【同类分类，确认缺口保留】C18/C19 |
