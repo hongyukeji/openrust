@@ -57,7 +57,7 @@ async fn application(
     let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(serde_json::json!({
             "app":{"env":"test"}, "database":{"url":url},
-            "queue":{"driver":"database"},
+            "queue":{"default":"database"},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"scheduler-business","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}

@@ -6,7 +6,7 @@
 
 ## 创建和运行应用
 
-从框架仓库根目录创建应用：
+从框架仓库根目录创建应用（默认 MySQL；示例显式选择 PostgreSQL）：
 
 ```bash
 cargo run -p cli -- --help
@@ -17,7 +17,9 @@ cargo run -p cli -- dev
 
 `openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，通用路由在 `routes/web.rs`，应用控制器、模型和 Provider 可直接在 `app/` 开发，业务模块可选放在 `modules/<业务>/`，资源在 `resources/`，迁移与种子在 `database/`。
 
-根/生成 `config/*.rs` 显式展示已实现策略，按 `server → app → auth/security` 声明依赖。APP_NAME/APP_URL只在app配置求值，缺省URL取同次有效server.port；auth/security缺省身份读取最终app值，显式独立来源仍优先。普通生成项目不默认启用queue/realtime；生成Job时会保留已有queue.rs并安全登记queue代码配置，发现冲突先拒绝而不覆盖源码。根View的常量只控制默认声明，生成项目默认声明View，均不强制屏蔽显式来源。
+根/生成 `config/*.rs` 显式展示已实现策略，按 `server → app → auth/security` 声明依赖。APP_NAME/APP_URL只在app配置求值，缺省URL取同次有效server.port；auth/security缺省身份读取最终app值，显式独立来源仍优先。标准生成项目默认启用queue及queue-redis，realtime仍按需选择；--minimal省略queue装配，生成Job时会保留已有queue.rs并安全登记queue代码配置，发现冲突先拒绝而不覆盖源码。根View的常量只控制默认声明，生成项目默认声明View，均不强制屏蔽显式来源。
+
+队列统一由 `config/queue.rs` 的 `default` 与 `connections` 配置；`QUEUE_CONNECTION` 默认 `database`，可选择 `redis`，不再使用 `QUEUE_DRIVER`。先完成实际服务配置与迁移，再显式运行 `openrust queue work` 或 `openrust queue work redis --queue example`。编译内置 driver 与登记 Provider 不自动启动 worker，也不连接未选队列。`--minimal` 与 `--db`、`--auth`、`--auth-mfa` 互斥。
 
 生成应用的 `tests/support/request_input.rs` 通过公开 Provider 挂载 multipart 业务测试路由，验证 `Request::file`、`has_file`、`only` 的对象身份、纯文本输入及异步服务端 MIME/扩展名；该测试路由不进入生产应用。
 
@@ -27,7 +29,7 @@ cargo run -p cli -- dev
 
 生成应用的 `bootstrap/app.rs` 通过公开 Handler 扩展仅对当前 `/api` 前缀选择统一 JSON 错误包装。应用修改 API 前缀时应同步修改该判定；HTML/Web 路由继续按自身内容协商处理异常。`APP_DEBUG` 由严格布尔配置读取，默认关闭服务端详情。
 
-不带 `--db` 时生成无默认连接的应用，仍可生成模型并注册通用迁移命令；`--db postgres` 或 `--db mysql` 会生成对应迁移 package，并注册数据库、迁移和 seed Provider。`--auth` 需要 `--db`，会启用 JWT、AuthFlows、Policy 与共享限流 migration，并生成注册、邮箱验证、登录、refresh、登出和密码重置路由。`--auth-mfa` 还要求 `--encryption`，会启用 TOTP 多因素认证，并生成两步登录、TOTP enrollment、确认、禁用和恢复码轮换路由；MFA 路由使用 JWT 认证，配置邮件、JWT 与加密密钥后须先运行 `openrust migrate`。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。
+不带 `--db` 时默认生成 MySQL 应用，并预整合 Redis 缓存与两种队列驱动；`--db postgres` 选择 PostgreSQL，`--minimal` 显式生成无数据库/队列的应用，仍可生成模型并注册通用迁移命令。标准数据库应用生成自己的迁移 package 和 seed 入口，迁移以 `FrameworkMigrator` 的同一框架清单加应用迁移，覆盖所启用的 Session、Queue 等基础设施，不运行自动迁移。`--auth` 使用所选数据库，会启用 JWT、AuthFlows、Policy 与共享限流 migration，并生成注册、邮箱验证、登录、refresh、登出和密码重置路由。`--auth-mfa` 还要求 `--encryption`，会启用 TOTP 多因素认证，并生成两步登录、TOTP enrollment、确认、禁用和恢复码轮换路由；MFA 路由使用 JWT 认证，配置邮件、JWT 与加密密钥后须先运行 `openrust migrate`。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。
 
 启用 MFA 的应用中，`POST /auth/login` 对未启用 MFA 的账户返回 `status: "authenticated"` 和 `credentials`；对已启用 MFA 的账户只返回 `status: "mfa_required"`、短时 `challenge` 与 `expires_at`。客户端把 challenge 与 TOTP 或恢复码提交到 `POST /auth/mfa/login`，成功后才会收到 access/refresh 凭据。已登录用户使用 JWT 调用 `POST /auth/mfa/enrollment`（邮箱与密码重新认证）获取一次性 provisioning URI，再以 `POST /auth/mfa/enrollment/confirm` 确认 TOTP 并领取一次性恢复码。`POST /auth/mfa/disable` 和 `POST /auth/mfa/recovery-codes` 同样要求 JWT、密码及当前 TOTP/恢复码；成功后撤销 refresh token。无状态 access JWT 仍会在其配置 TTL 到期前有效。
 
@@ -104,7 +106,7 @@ cargo run -- module:enable --all --no-interaction
 
 ## 配置与验收
 
-生成项目采用按领域命名的 Rust 代码配置，例如 `config/app.rs`、`config/cache.rs`、`config/database.rs`。`config/mod.rs` 显式登记各 `config(&ConfigContext)` 函数，`bootstrap/app.rs` 经 `Application::config()` 接入统一仓储；函数在同次 dotenv 快照后求值，可组合类型、条件和环境值。框架仍允许显式附加 TOML source，但默认不会扫描或运行 TOML 文件。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 连接使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`；缓存选择使用 `CACHE_STORE`，映射到 `cache.default`，缺省为已登记的具名 `redis` store；队列使用 `QUEUE_DRIVER`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。监听端口由中性 `SERVER_PORT=3000` 映射到 `server.port`，`APP_URL` 可使用 `${SERVER_PORT}` 插值；应用字段仍使用 `APP_LOG_LEVEL`、`APP_NAME` 等命名空间变量。`APP_PORT`、独立 `PORT`、`REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 不再控制监听或缓存选择。签名 URL 的 `APP_KEY` 与轮换旧值 `APP_PREVIOUS_KEYS` 在 `.env.example` 中有注释入口，签名使用原始字符串字节，生产环境须使用不可预测密钥；`openrust key generate` 的 Base64 输出不会自动解码。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
+生成项目采用按领域命名的 Rust 代码配置，例如 `config/app.rs`、`config/cache.rs`、`config/database.rs`。`config/mod.rs` 显式登记各 `config(&ConfigContext)` 函数，`bootstrap/app.rs` 经 `Application::config()` 接入统一仓储；函数在同次 dotenv 快照后求值，可组合类型、条件和环境值。框架仍允许显式附加 TOML source，但默认不会扫描或运行 TOML 文件。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 连接使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`；缓存选择使用 `CACHE_STORE`，映射到 `cache.default`，缺省为已登记的具名 `redis` store；队列使用 `QUEUE_CONNECTION`，标准默认 `database`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。监听端口由中性 `SERVER_PORT=3000` 映射到 `server.port`，`APP_URL` 可使用 `${SERVER_PORT}` 插值；应用字段仍使用 `APP_LOG_LEVEL`、`APP_NAME` 等命名空间变量。`APP_PORT`、独立 `PORT`、`REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 不再控制监听或缓存选择。签名 URL 的 `APP_KEY` 与轮换旧值 `APP_PREVIOUS_KEYS` 在 `.env.example` 中有注释入口，签名使用原始字符串字节，生产环境须使用不可预测密钥；`openrust key generate` 的 Base64 输出不会自动解码。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
 
 未选择数据库、加密或 gRPC 的普通项目会生成 `tests/test_app.rs`：通过与生产同一 Provider 清单和 Router 的 `TestApp` 验证 `/api`、`/health`，使用显式内存 cache 与 view 目录，不要求 Redis 服务。数据库项目需真实数据库配置；加密项目需显式密钥；gRPC 项目生成自己的 `tests/grpc_flows.rs`，启动生成二进制的 `serve all`，用临时 TLS 证书验证真实 HTTP、Echo RPC、证书拒绝和信号停机。`TestApp` 公共 API 仍可用于这些应用，测试须自行提供相应配置。启用认证的应用会另生成 `tests/auth_flows.rs`，其中既有真实 TCP HTTP 集成，也有隔离数据库和 fake 邮件驱动的 `TestApp` 注册请求；启用 `--auth-mfa` 时还验证生成路由的 MFA 挑战与恢复码。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；变量缺失时测试会跳过数据库路径，不能视为真实数据库验收通过。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
 

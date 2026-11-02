@@ -1311,19 +1311,8 @@ impl crate::core::ServiceProvider for QueueServiceProvider {
                 "queue",
                 crate::config::QueueConfig::default(),
                 S::object([
-                    ("default_connection", S::String),
-                    (
-                        "connections",
-                        S::map(S::object([
-                            ("driver", S::String),
-                            ("redis_url", S::String.nullable().sensitive()),
-                            ("redis_namespace", S::String.nullable()),
-                            ("options", S::any().sensitive()),
-                        ])),
-                    ),
-                    ("driver", S::String),
-                    ("redis_url", S::String.nullable().sensitive()),
-                    ("redis_namespace", S::String.nullable()),
+                    ("default", S::String),
+                    ("connections", S::map(S::any().sensitive())),
                     ("poll_interval_millis", S::Integer),
                     ("lease_secs", S::Integer),
                     ("job_timeout_secs", S::Integer),
@@ -1384,7 +1373,6 @@ impl crate::core::ServiceProvider for QueueServiceProvider {
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let queue = app.resolve::<Queue>().await?;
-            let _ = queue.resolve_driver().await?;
             let final_queue = Arc::clone(&queue);
             app.validate_at_finalize(move || {
                 Box::pin(async move { final_queue.validate_configured() })
@@ -1639,7 +1627,7 @@ mod provider_tests {
     }
     fn sources() -> Figment {
         Figment::from(Serialized::defaults(
-            serde_json::json!({"queue":{"default_connection":"first","connections":{"first":{"driver":"custom"},"second":{"driver":"custom"}}}}),
+            serde_json::json!({"queue":{"default":"first","connections":{"first":{"driver":"custom"},"second":{"driver":"custom"}}}}),
         ))
     }
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -1666,6 +1654,12 @@ mod provider_tests {
         let mut builder = ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(sources()).await?;
+        runtime
+            .container()
+            .resolve::<Queue>()
+            .await?
+            .connection("first")
+            .await?;
         runtime
             .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
             .await
@@ -1735,9 +1729,7 @@ mod provider_tests {
     struct LateDefaultConnection;
     impl ServiceProvider for LateDefaultConnection {
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move {
-                app.overlay("queue", serde_json::json!({"default_connection":"second"}))
-            })
+            Box::pin(async move { app.overlay("queue", serde_json::json!({"default":"second"})) })
         }
     }
     #[tokio::test]
@@ -1752,6 +1744,7 @@ mod provider_tests {
         builder
             .provider(crate::db::DatabaseServiceProvider)
             .provider(provider)
+            .provider(Early)
             .provider(LateDefaultConnection);
         let runtime = builder.start(sources()).await?;
         let queue = runtime.container().resolve::<Queue>().await?;
@@ -1842,22 +1835,30 @@ mod provider_tests {
     #[tokio::test]
     async fn validated_creator_rejects_late_invalid_options_and_redacts() -> Result<()> {
         let provider = QueueServiceProvider::new();
+        let count = Arc::new(AtomicUsize::new(0));
         provider.contributions().extend_validated(
             "custom",
             require_valid,
-            creator(Arc::new(AtomicUsize::new(0))),
+            creator(Arc::clone(&count)),
         )?;
         let source = Figment::from(Serialized::defaults(
-            serde_json::json!({"queue":{"default_connection":"first","connections":{"first":{"driver":"custom","options":{"valid":true}},"second":{"driver":"custom","options":{"valid":true}}}}}),
+            serde_json::json!({"queue":{"default":"first","connections":{"first":{"driver":"custom","options":{"valid":true}},"second":{"driver":"custom","options":{"valid":true}}}}}),
         ));
         let mut builder = ProviderBuilder::new();
         builder.provider(provider).provider(BadOptions);
-        let result = builder.start(source).await;
+        let runtime = builder.start(source).await?;
+        let queue = runtime.container().resolve::<Queue>().await?;
+        assert_eq!(count.load(Ordering::SeqCst), 0);
+        queue.connection("first").await?;
+        let result = queue.connection("second").await;
         assert!(result.is_err());
         if let Err(error) = result {
             assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
         }
-        Ok(())
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
     }
     #[tokio::test]
     async fn replacing_creator_discards_previous_validator() -> Result<()> {
@@ -1872,6 +1873,12 @@ mod provider_tests {
         let mut builder = ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(sources()).await?;
+        runtime
+            .container()
+            .resolve::<Queue>()
+            .await?
+            .connection("first")
+            .await?;
         runtime
             .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
             .await
@@ -1889,15 +1896,20 @@ mod provider_tests {
         }
     }
     #[tokio::test]
-    async fn late_invalid_driver_fails_final_validation() -> Result<()> {
+    async fn late_invalid_driver_fails_only_when_selected() -> Result<()> {
         let provider = QueueServiceProvider::new();
         provider
             .contributions()
             .extend("custom", creator(Arc::new(AtomicUsize::new(0))))?;
         let mut builder = ProviderBuilder::new();
         builder.provider(provider).provider(BadOverlay);
-        assert!(builder.start(sources()).await.is_err());
-        Ok(())
+        let runtime = builder.start(sources()).await?;
+        let queue = runtime.container().resolve::<Queue>().await?;
+        queue.connection("first").await?;
+        assert!(queue.connection("second").await.is_err());
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
     }
 
     struct OverrideContributions(Arc<QueueContributions>);
@@ -1927,6 +1939,12 @@ mod provider_tests {
             .provider(provider)
             .provider(OverrideContributions(Arc::clone(&replacement)));
         let runtime = builder.start(sources()).await?;
+        runtime
+            .container()
+            .resolve::<Queue>()
+            .await?
+            .connection("first")
+            .await?;
         assert!(Arc::ptr_eq(
             &runtime.container().resolve::<QueueContributions>().await?,
             &replacement
@@ -1961,7 +1979,7 @@ mod provider_tests {
                 Box::pin(async { Ok(Arc::new(Driver) as Arc<dyn QueueDriver>) })
             })?;
         let mut builder = ProviderBuilder::new();
-        builder.provider(provider).provider(LateJob);
+        builder.provider(provider).provider(Early).provider(LateJob);
         let runtime = builder.start(sources()).await?;
         let registry = observed
             .lock()
@@ -2089,8 +2107,7 @@ mod provider_tests {
         let mut builder = ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(sources()).await?;
-        // 默认连接创建不消耗第二连接的首次慢构造计数。
-        count.store(0, Ordering::SeqCst);
+        assert_eq!(count.load(Ordering::SeqCst), 0);
         let queue = runtime.container().resolve::<Queue>().await?;
         let task_queue = Arc::clone(&queue);
         let task = tokio::spawn(async move { task_queue.connection("second").await });
@@ -2127,21 +2144,30 @@ mod provider_tests {
     #[cfg(feature = "queue-redis")]
     impl ServiceProvider for RedisOverlay {
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move { app.overlay("queue", serde_json::json!({"redis_url":null})) })
+            Box::pin(async move {
+                app.overlay(
+                    "queue",
+                    serde_json::json!({"connections":{"redis":{"redis_url":null}}}),
+                )
+            })
         }
     }
     #[cfg(feature = "queue-redis")]
     #[tokio::test]
-    async fn fallback_redis_is_revalidated_after_overlay_without_io() -> Result<()> {
+    async fn selected_redis_is_validated_after_overlay_without_io() -> Result<()> {
         let source = Figment::from(Serialized::defaults(
-            serde_json::json!({"queue":{"driver":"redis","redis_url":"redis://127.0.0.1:1","redis_namespace":"test"}}),
+            serde_json::json!({"queue":{"default":"redis","connections":{"redis":{"driver":"redis","redis_url":"redis://127.0.0.1:1","redis_namespace":"test"}}}}),
         ));
         let mut builder = ProviderBuilder::new();
         builder
             .provider(QueueServiceProvider::new())
             .provider(RedisOverlay);
-        assert!(builder.start(source).await.is_err());
-        Ok(())
+        let runtime = builder.start(source).await?;
+        let queue = runtime.container().resolve::<Queue>().await?;
+        assert!(queue.connection("redis").await.is_err());
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
     }
     #[cfg(feature = "queue-redis")]
     #[tokio::test]
@@ -2155,18 +2181,231 @@ mod provider_tests {
                 .contributions()
                 .extend("custom", creator(Arc::new(AtomicUsize::new(0))))?;
             let source = Figment::from(Serialized::defaults(
-                serde_json::json!({"queue":{"default_connection":"first","connections":{"first":{"driver":"custom"},"second":{"driver":"redis","redis_url":url,"redis_namespace":namespace}}}}),
+                serde_json::json!({"queue":{"default":"first","connections":{"first":{"driver":"custom"},"second":{"driver":"redis","redis_url":url,"redis_namespace":namespace}}}}),
             ));
             let mut builder = ProviderBuilder::new();
             builder.provider(provider);
-            let error = builder
-                .start(source)
+            let runtime = builder.start(source).await?;
+            let queue = runtime.container().resolve::<Queue>().await?;
+            queue.connection("first").await?;
+            let error = queue
+                .connection("second")
                 .await
                 .err()
                 .ok_or_else(|| Error::custom("test", "invalid configuration accepted"))?;
             assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+            runtime
+                .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await?;
         }
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn boot_without_database_pool_is_lazy_but_selected_database_fails() -> Result<()> {
+        for include_database_provider in [false, true] {
+            let mut builder = ProviderBuilder::new();
+            if include_database_provider {
+                builder.provider(crate::db::DatabaseServiceProvider);
+            }
+            builder.provider(QueueServiceProvider::new());
+            let runtime = builder.start(Figment::new()).await?;
+            let queue = runtime.container().resolve::<Queue>().await?;
+            assert!(queue.connection("database").await.is_err());
+            assert!(
+                queue
+                    .dispatch("default", ExampleJob::NAME, &serde_json::json!({}))
+                    .await
+                    .is_err()
+            );
+            runtime
+                .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await?;
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_top_level_queue_fields_fail_without_disclosing_values() {
+        for field in [
+            "driver",
+            "default_connection",
+            "redis_url",
+            "redis_namespace",
+        ] {
+            let mut queue = serde_json::Map::new();
+            queue.insert(
+                field.to_owned(),
+                Value::String("secret-sentinel".to_owned()),
+            );
+            let mut builder = ProviderBuilder::new();
+            builder.provider(QueueServiceProvider::new());
+            let result = builder
+                .start(Figment::from(Serialized::defaults(
+                    serde_json::json!({"queue":queue}),
+                )))
+                .await;
+            assert!(result.is_err());
+            if let Err(error) = result {
+                assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+            }
+        }
+    }
+
+    #[cfg(feature = "queue-redis")]
+    #[tokio::test]
+    async fn redis_connection_can_coexist_with_database_schedule_declarations() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let contributions = provider.contributions();
+        contributions.register_job::<ExampleJob>()?;
+        contributions.schedule_interval(
+            "heartbeat",
+            "default",
+            ExampleJob::NAME,
+            &serde_json::json!({}),
+            Duration::from_secs(60),
+        )?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider);
+        let source = Figment::from(Serialized::defaults(serde_json::json!({
+            "queue":{"default":"redis","connections":{"redis":{"driver":"redis","redis_url":"redis://127.0.0.1:1","redis_namespace":"schedule-coexist"}}}
+        })));
+        let runtime = builder.start(source).await?;
+        let queue = runtime.container().resolve::<Queue>().await?;
+        queue.connection("redis").await?;
+        assert_eq!(contributions.schedules().len(), 1);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[test]
+    fn worker_options_distinguish_connections_from_queues() -> Result<()> {
+        let mut config = crate::config::QueueConfig::default();
+        config.connections.insert(
+            "redis".into(),
+            serde_json::json!({"driver":"redis", "queue":"priority"}),
+        );
+        for (arguments, expected_connection, expected_queue) in [
+            (vec![], "database", "default"),
+            (vec!["redis"], "redis", "priority"),
+            (vec!["--queue", "emails"], "database", "emails"),
+            (vec!["redis", "--queue=emails"], "redis", "emails"),
+            (vec!["--queue=emails", "redis"], "redis", "emails"),
+        ] {
+            let arguments: Vec<_> = arguments.into_iter().map(str::to_owned).collect();
+            assert_eq!(
+                queue_work_options(&config, &arguments)?,
+                (expected_connection.to_owned(), expected_queue.to_owned())
+            );
+        }
+        for arguments in [
+            vec!["database", "redis"],
+            vec!["--unknown"],
+            vec!["--queue"],
+            vec!["--queue", "--unknown"],
+            vec!["--queue="],
+            vec!["--queue=one", "--queue=two"],
+            vec!["missing"],
+        ] {
+            let arguments: Vec<_> = arguments.into_iter().map(str::to_owned).collect();
+            assert!(queue_work_options(&config, &arguments).is_err());
+        }
+        for queue in [serde_json::json!(""), Value::Null, serde_json::json!(17)] {
+            config.connections.insert(
+                "redis".into(),
+                serde_json::json!({"driver":"redis","queue":queue}),
+            );
+            assert!(queue_work_options(&config, &["redis".into()]).is_err());
+        }
+        Ok(())
+    }
+
+    struct WorkerProbe(Arc<std::sync::Mutex<Vec<String>>>);
+    impl QueueDriver for WorkerProbe {
+        fn dispatch<'a>(
+            &'a self,
+            queue: &'a str,
+            job: &'a str,
+            payload: Value,
+            options: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Driver.dispatch(queue, job, payload, options)
+        }
+        fn dispatch_in_transaction<'a>(
+            &'a self,
+            transaction: &'a DatabaseTransaction,
+            queue: &'a str,
+            job: &'a str,
+            payload: Value,
+            options: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Driver.dispatch_in_transaction(transaction, queue, job, payload, options)
+        }
+        fn run_next<'a>(&'a self, queue: &'a str) -> BoxFuture<'a, Result<bool>> {
+            Box::pin(async move {
+                self.0
+                    .lock()
+                    .map_err(|_| Error::custom("test", "worker probe lock poisoned"))?
+                    .push(queue.to_owned());
+                Err(Error::custom(
+                    "worker_probe_stop",
+                    "stop after observing selected queue",
+                ))
+            })
+        }
+        fn retry_failed<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<String>> {
+            Driver.retry_failed(id)
+        }
+        fn reset_shutdown(&self) {}
+        fn request_shutdown(&self) {}
+        fn is_shutdown_requested(&self) -> bool {
+            false
+        }
+    }
+
+    #[tokio::test]
+    async fn worker_command_runs_selected_connection_and_queue_without_default_fallback()
+    -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let created = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let count = Arc::clone(&created);
+        let seen = Arc::clone(&observed);
+        provider
+            .contributions()
+            .extend("probe", move |_, name, config, _, _| {
+                assert_eq!(name, "second");
+                assert_eq!(config.queue, "urgent");
+                count.fetch_add(1, Ordering::SeqCst);
+                let seen = Arc::clone(&seen);
+                Box::pin(async move { Ok(Arc::new(WorkerProbe(seen)) as Arc<dyn QueueDriver>) })
+            })?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider);
+        let source = Figment::from(Serialized::defaults(serde_json::json!({
+            "queue":{"default":"first","connections":{"first":{"driver":"probe"},"second":{"driver":"probe","queue":"urgent"}}}
+        })));
+        let app = crate::core::App::from_provider_runtime(builder.start(source).await?)?;
+        assert_eq!(created.load(Ordering::SeqCst), 0);
+        for arguments in [vec!["second"], vec!["second", "--queue", "explicit"]] {
+            let result = app
+                .run_command(
+                    "queue work",
+                    arguments.into_iter().map(str::to_owned).collect(),
+                )
+                .await;
+            assert!(matches!(result, Err(error) if error.code() == "worker_probe_stop"));
+        }
+        assert_eq!(created.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            *observed
+                .lock()
+                .map_err(|_| Error::custom("test", "worker probe lock poisoned"))?,
+            ["urgent", "explicit"]
+        );
+        app.shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
     }
 }
 
@@ -2684,28 +2923,28 @@ impl DatabaseQueue {
 }
 
 impl Queue {
-    fn default_driver_name(config: &crate::config::QueueConfig) -> Result<String> {
-        if config.connections.is_empty() {
-            return Ok(match config.driver {
-                crate::config::QueueDriverKind::Database => "database",
-                crate::config::QueueDriverKind::Redis => "redis",
-            }
-            .to_owned());
-        }
-        config
-            .connections
-            .get(&config.default_connection)
-            .map(|connection| connection.driver.clone())
-            .ok_or_else(|| {
+    fn connection_config(
+        config: &crate::config::QueueConfig,
+        name: &str,
+    ) -> Result<crate::config::QueueConnectionConfig> {
+        let raw = config.connections.get(name).ok_or_else(|| {
+            Error::custom(
+                "queue_connection_missing",
+                "queue connection is not configured",
+            )
+        })?;
+        let connection: crate::config::QueueConnectionConfig = serde_json::from_value(raw.clone())
+            .map_err(|_| {
                 Error::custom(
-                    "queue_connection_missing",
-                    "default queue connection is not configured",
+                    "queue_invalid_connection_config",
+                    "queue connection configuration is invalid",
                 )
-            })
+            })?;
+        validate_name("queue", &connection.queue, MAX_QUEUE_NAME)?;
+        Ok(connection)
     }
 
-    /// 校验最终队列配置与已登记的连接 creator，不建立新连接。
-    #[allow(clippy::too_many_lines, reason = "逐项校验连接与调度配置")]
+    /// 校验全局 worker 参数、默认连接名称和调度引用，不解析未选连接或运行 validator。
     pub fn validate_configured(&self) -> Result<()> {
         let manager = self
             .manager
@@ -2715,111 +2954,27 @@ impl Queue {
             .resolver
             .section::<crate::config::QueueConfig>("queue")?;
         validate_config(&config)?;
-        validate_name(
-            "queue connection",
-            &config.default_connection,
-            MAX_QUEUE_NAME,
-        )?;
-        let _ = Self::default_driver_name(&config)?;
-        let (plugin, creators) = {
+        validate_name("queue connection", &config.default, MAX_QUEUE_NAME)?;
+        if !config.connections.contains_key(&config.default) {
+            return Err(Error::custom(
+                "queue_connection_missing",
+                "default queue connection is not configured",
+            ));
+        }
+        let schedules = {
             let inner = manager
                 .contributions
                 .inner
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            (inner.plugin.clone(), inner.creators.clone())
+            inner.plugin.schedules.clone()
         };
-        for schedule in &plugin.schedules {
+        for schedule in schedules {
             if !manager.contributions.jobs.contains(schedule.job_name()) {
                 return Err(Error::custom(
                     "unregistered_schedule_job",
                     "schedule references an unregistered job",
                 ));
-            }
-        }
-        let connections = if config.connections.is_empty() {
-            HashMap::from([(
-                config.default_connection.clone(),
-                crate::config::QueueConnectionConfig {
-                    driver: Self::default_driver_name(&config)?,
-                    redis_url: config.redis_url.clone(),
-                    redis_namespace: config.redis_namespace.clone(),
-                    options: Value::Null,
-                },
-            )])
-        } else {
-            config.connections.clone()
-        };
-        for (name, connection) in &connections {
-            validate_name("queue connection", name, MAX_QUEUE_NAME)?;
-            if !matches!(connection.driver.as_str(), "database" | "redis")
-                && !creators.contains_key(&connection.driver)
-            {
-                return Err(Error::custom(
-                    "queue_driver_missing",
-                    "queue driver is not registered",
-                ));
-            }
-            if let Some(validator) = creators
-                .get(&connection.driver)
-                .and_then(|entry| entry.validator.as_ref())
-            {
-                validator(name, connection).map_err(|_| {
-                    Error::custom(
-                        "queue_invalid_driver_config",
-                        "queue driver configuration is invalid",
-                    )
-                })?;
-            }
-            if matches!(connection.driver.as_str(), "database" | "redis")
-                && !creators.contains_key(&connection.driver)
-                && !serde_json::Value::is_null(&connection.options)
-                && !connection
-                    .options
-                    .as_object()
-                    .is_some_and(serde_json::Map::is_empty)
-            {
-                return Err(Error::custom(
-                    "queue_invalid_options",
-                    "built-in queue driver does not accept options",
-                ));
-            }
-            if connection.driver == "redis" && !creators.contains_key(&connection.driver) {
-                #[cfg(not(feature = "queue-redis"))]
-                return Err(Error::custom(
-                    "queue_redis_feature_disabled",
-                    "enable queue-redis",
-                ));
-                #[cfg(feature = "queue-redis")]
-                {
-                    let mut candidate = config.clone();
-                    candidate.redis_url.clone_from(&connection.redis_url);
-                    candidate
-                        .redis_namespace
-                        .clone_from(&connection.redis_namespace);
-                    let url = candidate.redis_url.as_deref().ok_or_else(|| {
-                        Error::custom("queue_redis_config_invalid", "queue Redis URL is required")
-                    })?;
-                    let namespace = candidate.redis_namespace.as_deref().ok_or_else(|| {
-                        Error::custom(
-                            "queue_redis_config_invalid",
-                            "queue Redis namespace is required",
-                        )
-                    })?;
-                    // 构造器只解析 URL/命名空间；网络连接由 driver 首次操作建立。
-                    RedisQueueDriver::new(
-                        url,
-                        namespace,
-                        JobRegistry::default(),
-                        candidate.clone(),
-                    )
-                    .map_err(|_| {
-                        Error::custom(
-                            "queue_redis_config_invalid",
-                            "queue Redis configuration is invalid",
-                        )
-                    })?;
-                }
             }
         }
         Ok(())
@@ -2855,30 +3010,13 @@ impl Queue {
                 {
                     return Err(queue_stopped());
                 }
-                let mut config = manager
+                let config = manager
                     .resolver
                     .section::<crate::config::QueueConfig>("queue")?;
                 validate_config(&config)?;
-                let connection =
-                    if config.connections.is_empty() && name == config.default_connection {
-                        crate::config::QueueConnectionConfig {
-                            driver: Self::default_driver_name(&config)?,
-                            redis_url: config.redis_url.clone(),
-                            redis_namespace: config.redis_namespace.clone(),
-                            options: Value::Null,
-                        }
-                    } else {
-                        config.connections.get(name).cloned().ok_or_else(|| {
-                            Error::custom(
-                                "queue_connection_missing",
-                                "queue connection is not configured",
-                            )
-                        })?
-                    };
-                config.redis_url = connection.redis_url.clone();
-                config.redis_namespace = connection.redis_namespace.clone();
+                let connection = Self::connection_config(&config, name)?;
                 let driver_name = connection.driver.clone();
-                let (creator, registry, schedules) = {
+                let (creator, registry) = {
                     let inner = manager
                         .contributions
                         .inner
@@ -2887,7 +3025,6 @@ impl Queue {
                     (
                         inner.creators.get(&driver_name).cloned(),
                         manager.contributions.jobs.clone(),
-                        inner.plugin.schedules.clone(),
                     )
                 };
                 let driver = if let Some(entry) = creator {
@@ -2922,38 +3059,35 @@ impl Queue {
                     match driver_name.as_str() {
                         "database" => {
                             let db = manager.resolver.resolve::<Db>().await?;
+                            if !matches!(db.backend()?, DbBackend::Postgres | DbBackend::MySql) {
+                                return Err(Error::custom(
+                                    "unsupported_queue_backend",
+                                    "database queue requires PostgreSQL or MySQL",
+                                ));
+                            }
                             Ok(
                                 Arc::new(DatabaseQueue::configured((*db).clone(), registry, config))
                                     as Arc<dyn QueueDriver>,
                             )
                         }
                         "redis" => {
-                            if !schedules.is_empty() {
-                                return Err(Error::custom(
-                                    "redis_queue_schedule_unsupported",
-                                    "Redis queue cannot use database schedules",
-                                ));
-                            }
                             #[cfg(feature = "queue-redis")]
                             {
-                                let url = config.redis_url.as_deref().ok_or_else(|| {
+                                let url = connection.redis_url.as_deref().ok_or_else(|| {
                                     Error::custom(
                                         "queue_redis_url_required",
                                         "queue Redis URL is required",
                                     )
                                 })?;
                                 let namespace =
-                                    config.redis_namespace.as_deref().ok_or_else(|| {
+                                    connection.redis_namespace.as_deref().ok_or_else(|| {
                                         Error::custom(
                                             "queue_redis_namespace_required",
                                             "queue Redis namespace is required",
                                         )
                                     })?;
                                 Ok(Arc::new(RedisQueueDriver::new(
-                                    url,
-                                    namespace,
-                                    registry,
-                                    config.clone(),
+                                    url, namespace, registry, config,
                                 )?) as Arc<dyn QueueDriver>)
                             }
                             #[cfg(not(feature = "queue-redis"))]
@@ -3002,7 +3136,7 @@ impl Queue {
         let config = manager
             .resolver
             .section::<crate::config::QueueConfig>("queue")?;
-        self.connection(&config.default_connection)
+        self.connection(&config.default)
             .await?
             .driver
             .ok_or_else(|| Error::custom("queue_driver_missing", "queue driver unavailable"))
@@ -3021,7 +3155,7 @@ impl Queue {
             .connections
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&config.default_connection)
+            .get(&config.default)
             .and_then(|cell| cell.get())
             .cloned()
     }
@@ -3618,6 +3752,49 @@ async fn run_group_task(
     execute_handler(handler, task.payload, context).await
 }
 
+fn queue_work_options(
+    config: &crate::config::QueueConfig,
+    args: &[String],
+) -> Result<(String, String)> {
+    let mut connection = None;
+    let mut queue = None;
+    let mut arguments = args.iter();
+    while let Some(argument) = arguments.next() {
+        if argument == "--queue" {
+            if queue.is_some() {
+                return Err(invalid_queue_work_command());
+            }
+            let value = arguments.next().ok_or_else(invalid_queue_work_command)?;
+            if value.starts_with('-') {
+                return Err(invalid_queue_work_command());
+            }
+            queue = Some(value.clone());
+        } else if let Some(value) = argument.strip_prefix("--queue=") {
+            if queue.is_some() {
+                return Err(invalid_queue_work_command());
+            }
+            queue = Some(value.to_owned());
+        } else if argument.starts_with('-') || connection.is_some() {
+            return Err(invalid_queue_work_command());
+        } else {
+            connection = Some(argument.clone());
+        }
+    }
+    let connection = connection.unwrap_or_else(|| config.default.clone());
+    validate_name("queue connection", &connection, MAX_QUEUE_NAME)?;
+    let selected = Queue::connection_config(config, &connection)?;
+    let queue = queue.unwrap_or(selected.queue);
+    validate_name("queue", &queue, MAX_QUEUE_NAME)?;
+    Ok((connection, queue))
+}
+
+fn invalid_queue_work_command() -> Error {
+    Error::custom(
+        "invalid_queue_command",
+        "usage: queue work [connection] [--queue <queue>]",
+    )
+}
+
 struct QueueWorkCommand;
 
 impl crate::core::Command for QueueWorkCommand {
@@ -3626,7 +3803,7 @@ impl crate::core::Command for QueueWorkCommand {
     }
 
     fn about(&self) -> &'static str {
-        "运行数据库队列 worker"
+        "运行所选连接的队列 worker"
     }
 
     fn accepts_args(&self) -> bool {
@@ -3639,23 +3816,18 @@ impl crate::core::Command for QueueWorkCommand {
         args: Vec<String>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            if args.len() > 1 {
-                return Err(Error::custom(
-                    "invalid_queue_command",
-                    "usage: queue work [queue]",
-                ));
-            }
-            let queue_name = args.first().map_or("default", String::as_str);
-            validate_name("queue", queue_name, MAX_QUEUE_NAME)?;
-            let queue = app.state().resolve::<Queue>().await?;
+            let config = app.section::<crate::config::QueueConfig>("queue")?;
+            let (connection_name, queue_name) = queue_work_options(&config, &args)?;
+            let manager = app.state().resolve::<Queue>().await?;
+            manager.reset_shutdown();
+            let queue = manager.connection(&connection_name).await?;
             let app_state = app.state().clone();
-            let config = app.state().resolve::<crate::config::QueueConfig>().await?;
             queue.reset_shutdown();
             let mut workers = tokio::task::JoinSet::new();
             for _ in 0..config.worker_concurrency {
-                let queue = (*queue).clone();
+                let queue = queue.clone();
                 let app_state = app_state.clone();
-                let queue_name = queue_name.to_owned();
+                let queue_name = queue_name.clone();
                 let poll_interval = config.poll_interval_millis;
                 workers.spawn(async move {
                     worker_loop(queue, app_state, queue_name, poll_interval).await
@@ -3672,7 +3844,7 @@ impl crate::core::Command for QueueWorkCommand {
                         })
                     }
             };
-            queue.request_shutdown();
+            manager.request_shutdown();
             let drain = join_workers(&mut workers);
             let grace = Duration::from_secs(config.shutdown_timeout_secs.saturating_add(2));
             let drain_result = if let Ok(result) = tokio::time::timeout(grace, drain).await {

@@ -65,7 +65,7 @@ fn redis_url() -> String {
 async fn assembled(namespace: &str) -> Result<openrust::App> {
     let url = redis_url();
     let figment = figment::Figment::from(figment::providers::Toml::string(&format!(
-        "[queue]\ndriver = 'redis'\nredis_url = {url:?}\nredis_namespace = '{namespace}'\n"
+        "[queue]\ndefault = 'redis'\n[queue.connections.redis]\ndriver = 'redis'\nredis_url = {url:?}\nredis_namespace = '{namespace}'\n"
     )));
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
@@ -111,12 +111,11 @@ async fn queue_plugin_selects_redis_without_a_database_plugin() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn redis_queue_rejects_database_transactional_schedules_at_build() -> Result<()> {
+async fn assembled_scheduled(database_url: Option<&str>) -> Result<openrust::App> {
     let namespace = namespace();
     let url = redis_url();
     let figment = figment::Figment::from(figment::providers::Toml::string(&format!(
-        "[queue]\ndriver = 'redis'\nredis_url = {url:?}\nredis_namespace = '{namespace}'\n"
+        "[queue]\ndefault = 'redis'\n[queue.connections.redis]\ndriver = 'redis'\nredis_url = {url:?}\nredis_namespace = '{namespace}'\n"
     )));
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
@@ -132,17 +131,120 @@ async fn redis_queue_rejects_database_transactional_schedules_at_build() -> Resu
         &(),
         std::time::Duration::from_secs(60),
     )?;
+    if let Some(url) = database_url {
+        builder.provider(openrust::db::DatabaseServiceProvider);
+        builder.provider(plugin);
+        return builder
+            .start(sources.merge(figment::providers::Serialized::defaults(
+                serde_json::json!({"database":{"url":url}}),
+            )))
+            .await
+            .and_then(openrust::App::from_provider_runtime);
+    }
     builder.provider(plugin);
-    let error = builder
+    builder
         .start(sources)
         .await
         .and_then(openrust::App::from_provider_runtime)
-        .err()
-        .ok_or_else(|| {
-            Error::custom("test_expected_error", "Redis scheduler unexpectedly built")
-        })?;
-    assert_eq!(error.code(), "redis_queue_schedule_unsupported");
-    Ok(())
+}
+
+#[tokio::test]
+async fn redis_queue_keeps_schedule_catalog_without_a_database_provider() -> Result<()> {
+    let app = assembled_scheduled(None).await?;
+    let outcome: Result<()> = async {
+        let manager = app.state().resolve::<Queue>().await?;
+        let _selected = manager.connection("redis").await?;
+        if !app
+            .commands()
+            .any(|command| command.name() == "schedule run")
+        {
+            return Err(Error::custom(
+                "test_schedule_command_missing",
+                "调度目录必须保留命令",
+            ));
+        }
+        let error = app
+            .run_command("schedule", vec!["run".into(), "--once".into()])
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("test_expected_error", "数据库调度缺少 Db 时不得运行"))?;
+        if error.code() != "service_not_bound" {
+            return Err(Error::custom(
+                "test_schedule_error_changed",
+                "缺少 Db 必须明确报依赖未绑定",
+            ));
+        }
+        Ok(())
+    }
+    .await;
+    let shutdown = app
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await;
+    outcome.and(shutdown)
+}
+
+#[cfg(any(feature = "db-mysql", feature = "db-postgres"))]
+#[tokio::test]
+#[ignore = "需要 OPENRUST_TEST_DATABASE_URL，实际验证调度事务拒绝 Redis"]
+async fn redis_queue_rejects_database_transaction_at_schedule_execution() -> Result<()> {
+    use openrust::db::sea_orm::{ConnectionTrait, Statement};
+    use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    struct Migrator;
+    impl MigratorTrait for Migrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![Box::new(openrust::queue::QueueMigration)]
+        }
+    }
+    let admin = std::env::var("OPENRUST_TEST_DATABASE_URL")
+        .map_err(|_| Error::custom("test_database_missing", "必须提供真实数据库"))?;
+    let database = openrust::testing::TestDatabase::create::<Migrator>(&admin).await?;
+    let outcome: Result<()> = async {
+        let app = assembled_scheduled(Some(database.url())).await?;
+        let outcome: Result<()> = async {
+            let scheduler = app
+                .state()
+                .resolve::<openrust::schedule::Scheduler>()
+                .await?;
+            let error = scheduler.tick().await.err().ok_or_else(|| {
+                Error::custom("test_expected_error", "Redis 调度事务不得被伪装成成功")
+            })?;
+            if error.code() != "queue_transaction_unsupported" {
+                return Err(Error::custom(
+                    "test_transaction_error_changed",
+                    "Redis 必须明确拒绝数据库事务",
+                ));
+            }
+            let db = app.state().resolve::<openrust::Db>().await?;
+            for name in ["jobs", "schedule_runs"] {
+                let row = db
+                    .connection()?
+                    .query_one_raw(Statement::from_string(
+                        db.backend()?,
+                        format!(
+                            "SELECT COUNT(*) AS total FROM {}",
+                            db.quoted_table_name(name)?
+                        ),
+                    ))
+                    .await
+                    .map_err(Error::internal)?
+                    .ok_or_else(|| Error::custom("test_missing_count", "缺少数据库计数"))?;
+                if row.try_get::<i64>("", "total").map_err(Error::internal)? != 0 {
+                    return Err(Error::custom(
+                        "test_schedule_data_written",
+                        "拒绝 Redis 事务不得写入任务或调度记录",
+                    ));
+                }
+            }
+            Ok(())
+        }
+        .await;
+        let shutdown = app
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+            .await;
+        outcome.and(shutdown)
+    }
+    .await;
+    outcome.and(database.close().await)
 }
 
 #[derive(Default)]
@@ -369,7 +471,7 @@ async fn assembled_attempts(
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     )).merge(figment::providers::Toml::string(&format!(
-        "[queue]\ndriver = 'redis'\nredis_url = {:?}\nredis_namespace = '{namespace}'\njob_timeout_secs = 1\n",
+        "[queue]\ndefault = 'redis'\njob_timeout_secs = 1\n[queue.connections.redis]\ndriver = 'redis'\nredis_url = {:?}\nredis_namespace = '{namespace}'\n",
         redis_url()
     )));
     let mut builder = openrust::core::ProviderBuilder::new();

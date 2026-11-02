@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。同内核嵌套Provider注册前置已通过限定验收和资源收尾，本地提交39086cf，见[嵌套注册证据](memory/testing.md#同内核嵌套-provider-注册限定验收)；module.json运行发现与Provider/files编译绑定已通过[限定验收](memory/testing.md#模块运行发现与编译文件限定验收)及资源收尾，本地提交d32162d；B003/B004默认实例缓存、失败内存语义与PHP顶层列表形状已通过[限定验收](memory/testing.md#fileactivator-实例缓存限定验收)并完成资源收尾，本地提交以Git为准；完整Modules/ProviderRepository/aliases、DB能力门控及ADR-001继续开放。DB通用能力/驱动/默认连接选择已完成[限定验收](memory/testing.md#db-通用能力与驱动分层限定验收)、独审与资源收尾，本地提交以Git为准；下一按唯一todo处理标准MySQL+Redis依赖与队列开箱。完整懒连接/默认名切换、五后端与ADR-001仍开放。
+配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。同内核嵌套Provider注册前置已通过限定验收和资源收尾，本地提交39086cf，见[嵌套注册证据](memory/testing.md#同内核嵌套-provider-注册限定验收)；module.json运行发现与Provider/files编译绑定已通过[限定验收](memory/testing.md#模块运行发现与编译文件限定验收)及资源收尾，本地提交d32162d；B003/B004默认实例缓存、失败内存语义与PHP顶层列表形状已通过[限定验收](memory/testing.md#fileactivator-实例缓存限定验收)并完成资源收尾，本地提交以Git为准；完整Modules/ProviderRepository/aliases、DB能力门控及ADR-001继续开放。DB通用能力/驱动/默认连接选择已完成[限定验收](memory/testing.md#db-通用能力与驱动分层限定验收)、独审与资源收尾，本地提交以Git为准；标准MySQL+Redis依赖与队列开箱已通过主门禁、根真实DB/Redis独立worker、四种fresh、外部SQLite及缓存重启的限定验收；不同模型独审、源码归档及资源收尾完成，本地提交以Git为准，详见[队列开箱证据](memory/testing.md#标准依赖与队列开箱限定验收)。默认连接错误时点与完整deferred Provider仍为R2/R10明确缺口。完整懒连接/默认名切换、五后端与ADR-001仍开放。
 
 本批 Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已完成限定组合验收，本地集成提交 `9035a00`。真实来源保全、双workspace门禁、生成、MySQL、TCP/TLS及开放差异见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一步按唯一todo优先配置默认值/单一来源等整改，不将本批通过等同完整1:1。
 
@@ -77,7 +77,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | Views / 模板 / Assets | view与模板扩展、资产开发/生成体验 | 🔵 已有实现待1:1对齐 | 服务端模板和根公开HTML已有实际应用；D10-C请求局部errors与生成helper限定验收通过，已提交 `784045c` | Blade职责等价、组件/布局/资产完整流程；非PHP字节兼容 | L008/L021–L023；R9/R13；[view](core/view.md) |
 | Localization | locale/fallback、翻译格式与作用域 | 🔵 已有实现待1:1对齐 | 请求/job locale与国际化模块/真实流程资产 | 完整Laravel本地化语义与资源生成/错误边界 | L041；R9；[i18n](core/i18n.md) |
 | Mail / Notifications | Mailable/通知渠道、同步/排队与模板 | 🔵 已有实现待1:1对齐 | SMTP/log/fake、Mailpit与队列通知专项；SMS见增强 | 完整Mailable/Notification公开契约和适用渠道真实验收 | L042/L043；R9/R10；[mail](core/mail.md)/[queue](core/queue.md) |
-| Queue / Bus | 代码Job/connection/queue、事务/重试/编排 | 🔵 已有实现待1:1对齐 | DB默认/Redis可选、lease/token/worker/chain/batch已有专项 | R10 after_commit/outbox等完整对应；新动态管理未实现 | L046；R10/R14；[queue](core/queue.md)/[todo](todo.md) |
+| Queue / Bus | 代码Job/connection/queue、事务/重试/编排 | 🔵 已有实现待1:1对齐 | DB默认/Redis可选、lease/token/worker/chain/batch已有专项 | R10 after_commit/outbox等完整对应；default错误时点/完整deferred仍有缺口；新动态管理未实现 | L046；R10/R14；[queue](core/queue.md)/[todo](todo.md) |
 | Scheduling | frequency/timezone、单服务器/不重叠、runner | 🔵 已有实现待1:1对齐 | DB slot+job事务、cron/IANA/DST/补跑已有双库专项 | 每任务onOneServer/withoutOverlapping默认与策略；DB动态计划未实现 | L050；R10/R14；[schedule](core/schedule.md)/[todo](todo.md) |
 | Events / Broadcasting / WS | 事件/listener、排队监听与跨节点广播 | 🔵 已有实现待1:1对齐 | 进程事件、queued listener、WS/SSE和Redis跨进程专项 | 完整Laravel广播/授权/事件契约与故障拓扑 | L030/L036/L096；R10/R11/R14；[events](core/events.md)/[realtime](core/realtime.md) |
 | HTTP Client / Process / Context | 出站请求/进程、并发与上下文边界 | 🔵 已有实现待1:1对齐 | 可选出站HTTP与ExecutionContext已有实现 | 完整Client/Process API、fake、取消/资源与上下游故障 | L033/L034/L039/L045；R11；[http](core/http.md)/[core](core/core.md) |

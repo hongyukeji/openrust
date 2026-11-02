@@ -1,4 +1,4 @@
-//! 可由数据库队列执行的应用任务。
+//! 复用所选数据库或 Redis 队列执行的应用任务。
 
 use openrust::core::{BoxFuture, Result};
 use openrust::queue::{Job, JobContext};

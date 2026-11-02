@@ -53,6 +53,8 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | 签名链接 | 既有 `jsonwebtoken` 11.1、`base64` 0.22、`getrandom` 0.3、`sha2` 0.10 | 可选 `signing` feature 固定 HS256 和用途专属 key ring；逐条撤销用 PostgreSQL/MySQL 共享存储；未新增依赖 |
 | JWT、锁与幂等 owner randomness | `base64` 0.22 + 必需依赖 `getrandom` 0.3 | 操作系统 CSPRNG 生成 JWT jti、refresh credential、共享锁、请求幂等 owner token及Session ID；共享锁令该依赖不再按认证/队列/加密 feature 可选。启用std错误集成；Session随机错误仍转安全内部I/O错误，独立consumer不依赖根dev feature统一 |
 
+标准宿主构建预整合既有 `db-mysql`、`cache-redis`、`queue-redis` feature，不引入新依赖或版本。生成项目显式登记所选驱动和队列 feature，库的 `default-features=false` 精简路径保留；编译能力、Provider 登记与实际连接分别处理。本簇适用门禁、真实服务与fresh已通过限定验收，完整后端/生产范围仍见唯一 todo。
+
 ## 异步能力与 driver
 
 | 能力 | 当前实现 | 待实现边界 |

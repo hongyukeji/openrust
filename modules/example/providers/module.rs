@@ -55,12 +55,10 @@ impl ExampleModuleServiceProvider {
             ProviderId::of::<example::services::article_transfer::ArticleTransferProvider>(),
             #[cfg(all(feature = "auth", feature = "storage-local"))]
             ProviderId::of::<super::ArticleAttachmentsProvider>(),
-            #[cfg(feature = "queue")]
-            ProviderId::of::<example::jobs::JobsServiceProvider>(),
         ]
     }
 
-    #[cfg(any(feature = "auth", feature = "queue"))]
+    #[cfg(feature = "auth")]
     async fn register_database_providers(app: &mut RegisterContext<'_>) -> Result<()> {
         #[cfg(feature = "auth")]
         {
@@ -77,9 +75,6 @@ impl ExampleModuleServiceProvider {
             .await?;
         #[cfg(all(feature = "auth", feature = "storage-local"))]
         app.register_provider(super::ArticleAttachmentsProvider)
-            .await?;
-        #[cfg(feature = "queue")]
-        app.register_provider(example::jobs::JobsServiceProvider)
             .await?;
         Ok(())
     }
@@ -99,6 +94,8 @@ impl ServiceProvider for ExampleModuleServiceProvider {
             ProviderId::of::<openrust::grpc::GrpcServiceProvider>(),
             ProviderId::of::<example::grpc::ExampleGrpcServiceProvider>(),
         ]);
+        #[cfg(feature = "queue")]
+        providers.push(ProviderId::of::<example::jobs::JobsServiceProvider>());
         #[cfg(feature = "realtime")]
         providers.push(ProviderId::of::<openrust::realtime::RealtimeServiceProvider>());
         #[cfg(any(test, feature = "auth"))]
@@ -165,11 +162,14 @@ impl ServiceProvider for ExampleModuleServiceProvider {
             #[cfg(any(test, feature = "auth"))]
             app.register_provider(example::services::welcome::WelcomeServiceProvider)
                 .await?;
-            #[cfg(any(feature = "auth", feature = "queue"))]
+            #[cfg(feature = "queue")]
+            app.register_provider(example::jobs::JobsServiceProvider)
+                .await?;
+            #[cfg(feature = "auth")]
             if uses_database {
                 Self::register_database_providers(app).await?;
             }
-            #[cfg(not(any(feature = "auth", feature = "queue")))]
+            #[cfg(not(feature = "auth"))]
             let _ = uses_database;
             // 迁移与种子贡献始终可见；SQL 只在用户实际执行相应命令时运行。
             app.register_provider(

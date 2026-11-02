@@ -1,5 +1,5 @@
 //! 使用与生产相同的 Provider 清单测试应用 HTTP 路由。
-#[path = "../app/mod.rs"]
+{{seed_module}}#[path = "../app/mod.rs"]
 mod app;
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;

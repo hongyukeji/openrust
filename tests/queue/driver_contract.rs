@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicU64, AtomicUsize, Ordering},
 };
 
 #[derive(Deserialize, Serialize)]
@@ -220,4 +220,69 @@ async fn legacy_custom_driver_rejects_nonempty_execution_metadata() -> Result<()
     .ok_or_else(|| Error::custom("test_expected_error", "metadata was silently discarded"))?;
     assert_eq!(error.code(), "queue_driver_metadata_unsupported");
     Ok(())
+}
+
+#[tokio::test]
+async fn named_connections_parse_and_validate_only_when_selected() -> Result<()> {
+    use figment::{Figment, providers::Serialized};
+    use openrust::core::ProviderBuilder;
+    use openrust::queue::QueueServiceProvider;
+
+    let created = Arc::new(AtomicUsize::new(0));
+    let validated = Arc::new(AtomicUsize::new(0));
+    let provider = QueueServiceProvider::new();
+    let creator_count = Arc::clone(&created);
+    let validator_count = Arc::clone(&validated);
+    provider.contributions().extend_validated(
+        "legacy",
+        move |_, config| {
+            validator_count.fetch_add(1, Ordering::SeqCst);
+            if config.options.get("valid").and_then(Value::as_bool) == Some(true) {
+                Ok(())
+            } else {
+                Err(Error::custom("private", "secret-sentinel"))
+            }
+        },
+        move |_, name, config, _, _| {
+            assert_eq!(name, "good");
+            assert_eq!(config.queue, "emails");
+            creator_count.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { Ok(Arc::new(LegacyDriver) as Arc<dyn QueueDriver>) })
+        },
+    )?;
+    let mut builder = ProviderBuilder::new();
+    builder.provider(provider);
+    let runtime = builder
+        .start(Figment::from(Serialized::defaults(json!({
+            "queue": {"default":"good", "connections":{
+                "good":{"driver":"legacy","queue":"emails","options":{"valid":true}},
+                "malformed":"secret-sentinel",
+                "unknown":{"driver":"unregistered"},
+                "redis":{"driver":"redis","redis_url":null},
+                "rejected":{"driver":"legacy","options":{"valid":false,"secret":"secret-sentinel"}}
+            }}
+        }))))
+        .await?;
+    let queue = runtime.container().resolve::<Queue>().await?;
+    assert_eq!(created.load(Ordering::SeqCst), 0);
+    assert_eq!(validated.load(Ordering::SeqCst), 0);
+    let (first, second) = tokio::join!(queue.connection("good"), queue.connection("good"));
+    first?;
+    second?;
+    assert_eq!(created.load(Ordering::SeqCst), 1);
+    assert_eq!(validated.load(Ordering::SeqCst), 1);
+    for name in ["malformed", "unknown", "redis", "rejected"] {
+        let error = queue.connection(name).await.err().ok_or_else(|| {
+            Error::custom(
+                "test_expected_error",
+                "invalid selected connection was accepted",
+            )
+        })?;
+        assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+    }
+    assert_eq!(created.load(Ordering::SeqCst), 1);
+    assert_eq!(validated.load(Ordering::SeqCst), 2);
+    runtime
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+        .await
 }

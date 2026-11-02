@@ -4,23 +4,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// 任务队列的显式存储后端。
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum QueueDriverKind {
-    /// 使用应用数据库保存任务，支持数据库事务派发。
-    #[default]
-    Database,
-    /// 使用 Redis 保存共享任务；不支持与业务数据库原子事务派发。
-    Redis,
-}
-
-/// 设置轮询、任务租约和 worker 优雅停机的边界。
 /// 具名队列连接的存储后端与专属连接参数。
 #[derive(Clone, Deserialize, Serialize)]
 pub struct QueueConnectionConfig {
     /// 已注册的 driver 名称。
     pub driver: String,
+    /// 此连接的默认队列；连接名和队列名互相独立。
+    #[serde(default = "default_queue")]
+    pub queue: String,
     /// Redis 连接 URL，仅 Redis driver 使用。
     #[serde(default)]
     pub redis_url: Option<String>,
@@ -37,6 +28,7 @@ impl std::fmt::Debug for QueueConnectionConfig {
         formatter
             .debug_struct("QueueConnectionConfig")
             .field("driver", &self.driver)
+            .field("queue", &self.queue)
             .field("redis_url", &self.redis_url.as_ref().map(|_| "[redacted]"))
             .field(
                 "redis_namespace",
@@ -49,18 +41,12 @@ impl std::fmt::Debug for QueueConnectionConfig {
 
 /// 队列默认连接、具名连接与 worker 运行边界。
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct QueueConfig {
     /// 默认具名连接。
-    pub default_connection: String,
-    /// 具名连接的 driver 与连接参数；空表时使用旧版 default 配置。
-    pub connections: HashMap<String, QueueConnectionConfig>,
-    /// 持久化任务后端；默认使用应用数据库。
-    pub driver: QueueDriverKind,
-    /// Redis 队列连接 URL；仅 Redis 后端使用，默认由共享的 `REDIS_*` 连接设置生成。
-    pub redis_url: Option<String>,
-    /// Redis 队列键隔离命名空间；仅 Redis 后端使用。
-    pub redis_namespace: Option<String>,
+    pub default: String,
+    /// 原始具名连接配置；只在选用该连接时解析、校验和构造 driver。
+    pub connections: HashMap<String, Value>,
     /// 队列为空时，两次轮询之间的延迟（毫秒）。
     pub poll_interval_millis: u64,
     /// 已领取任务的租约时长（秒）。
@@ -77,11 +63,17 @@ pub struct QueueConfig {
 impl Default for QueueConfig {
     fn default() -> Self {
         Self {
-            default_connection: "default".to_owned(),
-            connections: HashMap::new(),
-            driver: QueueDriverKind::Database,
-            redis_url: None,
-            redis_namespace: None,
+            default: "database".to_owned(),
+            connections: HashMap::from([
+                (
+                    "database".to_owned(),
+                    serde_json::json!({"driver":"database","queue":"default"}),
+                ),
+                (
+                    "redis".to_owned(),
+                    serde_json::json!({"driver":"redis","queue":"default","redis_url":null,"redis_namespace":null}),
+                ),
+            ]),
             poll_interval_millis: 500,
             lease_secs: 60,
             job_timeout_secs: 300,
@@ -89,4 +81,8 @@ impl Default for QueueConfig {
             shutdown_timeout_secs: 10,
         }
     }
+}
+
+fn default_queue() -> String {
+    "default".to_owned()
 }

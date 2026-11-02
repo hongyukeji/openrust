@@ -9,15 +9,15 @@ pub mod database;
 pub mod log;
 pub mod mail;
 pub mod modules;
-pub mod security;
+{{queue_module}}pub mod security;
 pub mod server;
 pub mod session;
 pub mod sms;
 pub mod storage;
 pub mod view;
 
-// queue.rs 与 realtime.rs 是尚未声明的可选配置源码。启用时须同步依赖 feature、
-// pub mod 声明、下方 section 和实际 Provider；generate job 会接入 queue 配置。
+// realtime.rs 是尚未声明的可选配置源码；精简项目同样不声明 queue.rs。
+// 启用领域须同步依赖、mod/section 与 Provider；generate job 保留旧项目的显式接入。
 
 /// 登记默认配置；显式文件、环境及前置覆写通过同一仓储参与依赖读取。
 pub fn boot() -> openrust::config::ConfigManifest {
@@ -36,7 +36,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("storage", storage::config)
         .section("auth", auth::config)
         .section("security", security::config);
-    // 只控制默认区段声明；显式来源仍可让 OptionalViewServiceProvider 启用视图。
+{{queue_registration}}    // 只控制默认区段声明；显式来源仍可让 OptionalViewServiceProvider 启用视图。
     let manifest = if view::ENABLED {
         manifest.section("view", view::config)
     } else {

@@ -123,6 +123,8 @@ async fn module_registration_controls_only_its_business_routes()
 -> Result<(), Box<dyn std::error::Error>> {
     for registered in [false, true] {
         let mut builder = openrust::core::ProviderBuilder::new();
+        #[cfg(feature = "queue")]
+        builder.provider(openrust::queue::QueueServiceProvider::new());
         builder
             .provider(HttpServiceProvider)
             .provider(openrust::http::CookieServiceProvider::plain())
@@ -231,6 +233,8 @@ impl openrust::core::ServiceProvider for LateExampleMessage {
 async fn module_business_uses_runtime_provider_rebinding_after_boot()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = openrust::core::ProviderBuilder::new();
+    #[cfg(feature = "queue")]
+    builder.provider(openrust::queue::QueueServiceProvider::new());
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
@@ -993,6 +997,8 @@ async fn dependent_business_module_serves_http_with_real_database()
     ));
 
     let mut builder = ProviderBuilder::new();
+    #[cfg(feature = "queue")]
+    builder.provider(openrust::queue::QueueServiceProvider::new());
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())

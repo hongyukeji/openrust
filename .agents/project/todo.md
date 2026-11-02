@@ -34,6 +34,23 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
+### 标准 MySQL＋Redis 与队列开箱（限定验收完成，提交以Git为准）
+
+1. owner=root，main共享目录，基线91b1d9e；只领取下表既有标准依赖/队列项，不新增队列。原生接入负责人已撤销同线程只等待heartbeat的临时约束；本主线恢复正常开发，主动helper检查不冒充真实定时触发。
+2. 固定Laravel d52c3b3的config/queue.php、QueueManager、QueueServiceProvider及对应tests/docs为来源；默认database具名连接、QUEUE_CONNECTION选择、连接按需解析和公开creator扩展统一到一套配置/管理器。
+3. 核清并移除顶层旧driver与空connections回退路径；根/new可编辑配置同机制提供database与redis，未选driver不连接、不要求其编译依赖，未知/未编译的实际选择明确失败。所有旧调用方与测试一起迁移，保留其有效断言。
+4. 标准根/new预整合MySQL、Redis缓存及Redis队列依赖；保留PG/外部driver与明确精简opt-out，编译具备不代表运行已连接。DB队列仍默认，迁移和worker显式运行，serve不启动worker且不静默fallback。
+5. 唯一模块真实Jobs贡献与DB/Redis选择解耦；DB业务任务/事务和数据库调度的必要限制留在实际使用边界，不能让可并存的调度目录阻断Redis队列派发/worker。
+6. root独占公共contract、src/config/mod.rs、DefaultProviders、根config/模块/调用方、Cargo/lock、共享文档/索引/构建/实服务。config_dependency_kernel已获队列内核src/queue.rs、src/config/queue.rs、必要src/queue/redis.rs与tests/queue/driver_contract.rs的writer；config_editable_defaults独占tools/cli/src/main.rs、templates及其快照。两者不跑Cargo/Git/服务、不递归派发，skill独立owner范围不碰。
+7. 源码、全部调用方、配套测试、模板、modules/example和文档收齐后冻结；集中适用主门禁、精简/no-driver、实际MySQL与Redis派发→worker→执行、fresh生成及缓存验收。未验证保持WIP，通过后本地提交和资源收尾。
+8. root/内核/CLI源码、全部调用方、模板和唯一模块已收齐，writer均停写。tmp/standard-queue-20261102/attempt5完整12门禁实际通过；其后只改tests/server/queue/redis.rs的四个资源后断言为fallible检查，独审确认清理闭合，默认/全特性queue_redis与严格Clippy定向通过，其他输入按SHA影响复用。真实MySQL/PG调度事务拒绝各1、无默认库Redis模块HTTP→handler→ACK各1已实际通过，数据库集合无增删。
+9. 根标准构建TCP/独立worker的数据库与Redis两条链、serve不暗启worker、缓存固定database选择及clear后切换Redis均通过；四个进程正常exit0、端口释放、无任务库/Redis键遗留。首轮缓存后另选端口的fixture失败原样保留，根因是缓存确实冻结server.port，生产源码未改。并行3eae8df仅改品牌标题/包简介/说明，Cargo除description完全相同、队列WIP未夹带，差异与文档补验在branding-only-delta.json/branding-doc.log。
+10. fresh验收已收齐：minimal check/test/build通过，12项为原模板9项＋三个公开consumer各1；standard与PostgreSQL生成应用各check/test通过（迁移目录1＋test_app 11），其中真实数据库派发→handler→ACK及无默认库Redis同链各1；MFA默认MySQL生成应用check/test通过（认证2＋迁移目录1）。全部无ignored，服务环境显式设置且runner检查未跳过。fixture曾缺app.env=testing的失败与诊断原样保留，修复只涉及临时验收fixture，不改生产源码/断言。
+11. SQLite外部consumer已显式default-features=false并保原cache-redis闭包，locked check与真实SQLite事务run通过，lock未改；生成minimal的真实配置缓存/清缓存重启及坏dotenv缓存隔离通过。所有真实验收库集合无增删，证据tmp/standard-queue-20261102/。源码归档、文档/矩阵与不同模型最终独审已收齐；全部适用验证通过，仅限定本地提交，不追加新簇延长本批。完整Laravel Queue仍开放：当前启动检查default名称/存在且Queue Provider非完整deferred，默认连接错误时点与固定QueueManager/DeferrableProvider未等价；并入既有R2/Queue R10，不作为Rust必要适配。生成fixture仅验证公开单次worker入口，独立CLI/SIGTERM证据来自根标准应用，两者分别计证。
+12. 本线程合作式checkpoint沿原Goal/default80%账本已实际continue，当前专属automation为openrust，旧openrust-agent不可恢复；主动回执与真正定时触发分别取证。尚未收到同框native输入，不伪写native成功。自然批次边界正常final、Goal保持active；下一轮回本节原停点，不暂停/空转等调度。
+
+13. 本标准队列簇资源已确认归属/无进程及文件占用，正常cargo clean：11,963,707,392B→0，磁盘可用161,699,864,576B；生成/运行源码341份与lock已归档，SHA核对无漂移，32份命令回执日志及12门禁SHA匹配。最终不同模型独审无阻断，文档两次全特性-Dwarnings补验通过；源码/证据/服务与独立skill WIP保持。下一依赖领取先核本簇Git提交及唯一R2/R10缺口，不把完整ADR-001标完成。
+
 ### DB 通用能力与驱动门控（限定验收）
 
 1. 固定Laravel d52c3b3 DefaultProviders/DatabaseServiceProvider/MigrationServiceProvider与ModelMakeCommand；通用DB/ORM/迁移注册不取决于某个连接driver，Rust编译驱动与运行配置分别判断。
@@ -45,7 +62,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 7. owner=root独占公共contract/config/defaultProviders/bootstrap、Cargo/index/docs/服务；example worker仅modules/example源码且不改README；CLI worker仅tools/cli/src/main.rs及必要模板/快照且不改README/共享AGENTS。worker不跑Cargo/Git/服务/skill、不递归派发。
 8. 源码/调用方/测试/唯一模块/模板/docs完整后冻结，一次集中门禁、无driver/单driver/双driver、外部SQLite、fresh普通与MySQL及PG定向真实服务；验收通过正常清产物、本地提交，完整框架Goal继续。
 
-owner=root，main共享目录，基线710dd55、规则提交231b0b8；752输入已完成主门禁/作用域复用、无DB/queue-only、真实两库认证与named-only各1、SQLite与fresh12/3/2、四TCP及最终独审，源码归档与target清零收齐，本地提交以Git为准。前三次及后续失败均保留，用户已改自主最优处理规则，不再按次数问授权。准确范围、旧负例排除及全部边界见[限定验收](memory/testing.md#db-通用能力与驱动分层限定验收)。下一标准MySQL+Redis依赖与队列开箱沿下表既有项；本轮先在安全提交停点收取原生heartbeat验证，手动交接不当真实触发证据，不重启旧守护或重建Goal/预算。
+owner=root，main共享目录，基线710dd55、规则提交231b0b8；752输入已完成主门禁/作用域复用、无DB/queue-only、真实两库认证与named-only各1、SQLite与fresh12/3/2、四TCP及最终独审，源码归档与target清零收齐，本地提交91b1d9e。前三次及后续失败均保留，用户已改自主最优处理规则，不再按次数问授权。准确范围、旧负例排除及全部边界见[限定验收](memory/testing.md#db-通用能力与驱动分层限定验收)。后继标准MySQL+Redis依赖与队列开箱已在上节领取；原生守护实际触发另行取证，不重启旧守护或重建Goal/预算。
 
 ### B003/B004 FileActivator 实例快照（限定验收）
 

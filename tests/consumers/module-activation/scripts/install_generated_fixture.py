@@ -54,11 +54,14 @@ def main() -> None:
     app_dependency = data.get("dependencies", {}).get("openrust", {})
     if not isinstance(app_dependency, dict) or app_dependency.get("workspace") is not True:
         raise SystemExit("生成应用没有使用同一 workspace openrust 依赖")
-    features = dependency.get("features", [])
-    if not isinstance(features, list) or any(not isinstance(feature, str) for feature in features):
-        raise SystemExit("workspace openrust features 配置无效")
-    if any(feature in {"auth", "grpc"} or feature.startswith("db-") for feature in features):
-        raise SystemExit("本 fixture 要求普通无 --db/--auth/--grpc 的 fresh 应用，不使用真实数据库")
+    features = []
+    for source in (dependency, app_dependency):
+        declared = source.get("features", [])
+        if not isinstance(declared, list) or any(not isinstance(feature, str) for feature in declared):
+            raise SystemExit("openrust features 配置无效")
+        features.extend(declared)
+    if any(feature in {"auth", "grpc", "queue", "queue-redis"} or feature.startswith("db-") for feature in features):
+        raise SystemExit("本 fixture 要求 --minimal fresh 应用，不启用数据库或队列")
     source_bootstrap = bootstrap.read_text(encoding="utf-8")
     names = re.findall(r"^pub struct ([A-Za-z_][A-Za-z_0-9]*);$", source_bootstrap, re.MULTILINE)
     if (

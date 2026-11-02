@@ -520,7 +520,7 @@ async fn child_queue_worker_drains_on_sigterm() -> Result<(), Box<dyn std::error
     let db = app.state().resolve::<Db>().await?;
     let _ = SHUTDOWN_TEST_DB.set((*db).clone());
     match app
-        .run_command("queue", vec!["work".into(), queue_name])
+        .run_command("queue", vec!["work".into(), "--queue".into(), queue_name])
         .await
     {
         Ok(()) if cooperative => Ok(()),

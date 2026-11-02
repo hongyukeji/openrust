@@ -8,7 +8,7 @@ OpenRust 框架的数据库模块。
 
 `openrust::db`、`openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。
 
-`DatabaseConfig::has_default_connection()` 仅表示默认 `url` 已配置，不是健康检查。具名实例仍由数据库 Provider 独立初始化；仅配置具名实例不自动启用绑定默认库的 Auth、数据库 Session、Queue 或示例业务。默认 Provider 自动选择在启动装配读取配置；模块在真实 register 读同一仓储，自动默认清单选定后，register或boot改变默认URL有无将明确拒绝启动，要求按最终配置重新引导；显式清单仍由应用管理。示例已在register跳过业务后，boot若反向启用则明确拒绝，不能开放缺依赖路由；有变无只关闭路由，不卸载已有绑定。后续任意覆盖不承诺重新选择或热卸载服务。非法、未知或未编译的 URL/副本配置继续由驱动预检拒绝，不能回退为无数据库。
+`DatabaseConfig::has_default_connection()` 仅表示默认 `url` 已配置，不是健康检查。具名实例仍由数据库 Provider 独立初始化；仅配置具名实例不自动启用绑定默认库的 Auth、数据库 Session 或示例数据库业务。Queue Provider 与连接选择独立，实际使用数据库队列时才要求默认 Db，Redis 队列可无默认库运行。默认 Provider 自动选择在启动装配读取配置；模块在真实 register 读同一仓储，自动默认清单选定后，register或boot改变默认URL有无将明确拒绝启动，要求按最终配置重新引导；显式清单仍由应用管理。示例已在register跳过业务后，boot若反向启用则明确拒绝，不能开放缺依赖路由；有变无只关闭路由，不卸载已有绑定。后续任意覆盖不承诺重新选择或热卸载服务。非法、未知或未编译的 URL/副本配置继续由驱动预检拒绝，不能回退为无数据库。
 
 自定义 Provider 可在同一 Container 登记其他 SeaORM backend 的通用 `Db`，见[SQLite consumer](../../tests/consumers/db-custom-sqlite/README.md)；这不扩张官方方言、迁移互斥、认证或队列支持矩阵。现自动装配在无默认 URL 时省略 database Session Provider，即使 driver 字段显式为 database；不能将该配置当作 Session 已成功启用，严格上游启用/错误语义仍保留在 Session 后继。当前标准 Provider 仍在启动期解析连接；Laravel 完整懒连接生命周期尚有缺口，不能由本簇编译门控整改宣称等价。
 

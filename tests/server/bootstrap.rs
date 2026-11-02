@@ -241,7 +241,7 @@ async fn verify_named_only_database_host(database: &openrust::testing::TestDatab
         }
         #[cfg(feature = "queue")]
         check(
-            !app.app()?
+            app.app()?
                 .state()
                 .container()
                 .contains::<openrust::queue::Queue>(),
@@ -271,4 +271,66 @@ async fn verify_named_only_database_host(database: &openrust::testing::TestDatab
         .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await;
     outcome.and(shutdown)
+}
+
+#[cfg(feature = "queue")]
+#[test]
+fn queue_defaults_inherit_effective_cache_configuration() -> Result<()> {
+    let root = tempfile::tempdir().map_err(openrust::Error::internal)?;
+    std::fs::write(
+        root.path().join(".env"),
+        "REDIS_HOST=initial.example.test\n",
+    )
+    .map_err(openrust::Error::internal)?;
+    let source = openrust::config::ConfigLoader::application_code_sources_with_overrides(
+        root.path(),
+        "QUEUE_DEPENDENCY_TEST_",
+        Some("testing"),
+        &crate::config::boot(),
+        [(
+            "cache",
+            serde_json::json!({"stores":{"redis":{
+                "driver":"redis","dsn":"redis://effective.example.test:6381/6"
+            }}}),
+        )],
+    )?;
+    let queue: openrust::config::QueueConfig = source
+        .figment()
+        .extract_inner("queue")
+        .map_err(openrust::config::ConfigError::from)?;
+    assert_eq!(queue.default, "database");
+    assert_eq!(
+        queue.connections["redis"]["redis_url"],
+        "redis://effective.example.test:6381/6"
+    );
+    assert_eq!(queue.connections["database"]["driver"], "database");
+    let explicit = openrust::config::ConfigLoader::application_code_sources_with_overrides(
+        root.path(),
+        "QUEUE_DEPENDENCY_TEST_",
+        Some("testing"),
+        &crate::config::boot(),
+        [
+            (
+                "cache",
+                serde_json::json!({"stores":{"redis":{"driver":"redis",
+                "dsn":"redis://effective.example.test:6381/6"}}}),
+            ),
+            (
+                "queue",
+                serde_json::json!({"default":"redis","connections":{"redis":{
+                    "redis_url":"redis://independent.example.test:6382/7"
+                }}}),
+            ),
+        ],
+    )?;
+    let queue: openrust::config::QueueConfig = explicit
+        .figment()
+        .extract_inner("queue")
+        .map_err(openrust::config::ConfigError::from)?;
+    assert_eq!(queue.default, "redis");
+    assert_eq!(
+        queue.connections["redis"]["redis_url"],
+        "redis://independent.example.test:6382/7"
+    );
+    Ok(())
 }

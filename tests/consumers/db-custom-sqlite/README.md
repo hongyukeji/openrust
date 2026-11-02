@@ -10,4 +10,4 @@ SQLite 在此验证自定义 Provider的通用 SeaORM 连接、事务和应用�
 cargo run --manifest-path tests/consumers/db-custom-sqlite/Cargo.toml
 ```
 
-`openrust` 未启用 `db-postgres` 或 `db-mysql` feature；示例通过自身 `sea-orm` 依赖开启 `sqlx-sqlite`。自定义 Provider在 register 登记共享 `Db` 工厂，解析时创建 SeaORM `DatabaseConnection`、登记异步关闭回调并调用 `Db::initialize()`。多个连接可使用 `Db::initialize_with_replicas()`，但需由应用自行验证只读和复制语义。
+`openrust` 显式关闭标准默认 feature，并保留原有 `cache-redis`；未启用 `db-postgres`、`db-mysql` 或队列。示例通过自身 `sea-orm` 依赖开启 `sqlx-sqlite`。自定义 Provider在 register 登记共享 `Db` 工厂，解析时创建 SeaORM `DatabaseConnection`、登记异步关闭回调并调用 `Db::initialize()`。多个连接可使用 `Db::initialize_with_replicas()`，但需由应用自行验证只读和复制语义。

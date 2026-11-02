@@ -192,13 +192,18 @@ async fn final_named_only_sources_do_not_select_default_database_business() -> R
         check_no_database_business(&app)?;
         #[cfg(feature = "queue")]
         check(
-            !app.state().container().contains::<openrust::queue::Queue>(),
-            "example_database_named_selected_queue",
-            "仅具名连接不应自动选择默认数据库队列",
+            app.state().container().contains::<openrust::queue::Queue>(),
+            "example_queue_manager_missing",
+            "队列管理器的登记不依赖默认数据库连接",
         )?;
         status(&app, "/api/example", StatusCode::OK).await?;
         status(&app, "/api/example/articles", StatusCode::NOT_FOUND).await?;
-        status(&app, "/api/example/jobs/heartbeat", StatusCode::NOT_FOUND).await
+        let expected = if cfg!(feature = "queue") {
+            StatusCode::METHOD_NOT_ALLOWED
+        } else {
+            StatusCode::NOT_FOUND
+        };
+        status(&app, "/api/example/jobs/heartbeat", expected).await
     }
     .await;
     let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
@@ -383,4 +388,151 @@ async fn adding_default_url_in_earlier_boot_rejects_unregistered_business_and_cl
         "example_database_failed_boot_leaked_resource",
         "模块拒绝启动后仍须等待已登记服务资源关闭",
     )
+}
+
+/// 发现模块后经真实 HTTP 派发普通任务，Redis worker 不应要求默认数据库。
+#[cfg(feature = "queue-redis")]
+#[tokio::test]
+#[ignore = "需要显式 OPENRUST_TEST_REDIS_URL；只清理本用例随机命名空间"]
+async fn redis_module_heartbeat_runs_without_default_database() -> Result<()> {
+    let url = std::env::var("OPENRUST_TEST_REDIS_URL")
+        .map_err(|_| Error::custom("test_redis_url_missing", "必须提供真实 Redis 测试连接"))?;
+    let mut nonce = [0_u8; 16];
+    getrandom::fill(&mut nonce).map_err(Error::internal)?;
+    let mut namespace = String::from("module-heartbeat-");
+    for byte in nonce {
+        std::fmt::Write::write_fmt(&mut namespace, format_args!("{byte:02x}"))
+            .map_err(Error::internal)?;
+    }
+    let prefix = format!("{{openrust:{namespace}}}:");
+    let mut redis = redis::Client::open(url.clone())
+        .map_err(Error::internal)?
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(Error::internal)?;
+    let root = deployment()?;
+    let configured = sources(root.path(), &json!({"url":null}))?.merge_ordered_entries([(
+        "queue",
+        json!({
+            "default":"redis", "connections":{
+                "redis":{"driver":"redis","redis_url":url,"redis_namespace":namespace}
+            }
+        }),
+    )])?;
+    let mut builder = ProviderBuilder::new();
+    builder
+        .default_providers(DefaultProviders::auto())
+        .module_manifest(super::manifest(root.path(), &ModulesConfig::default()));
+    let started = builder
+        .start(configured)
+        .await
+        .and_then(App::from_provider_runtime);
+    let outcome = match started {
+        Ok(app) => {
+            let outcome = execute_redis_module_heartbeat(&app, &mut redis, &prefix).await;
+            let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+            outcome.and(shutdown)
+        }
+        Err(error) => Err(error),
+    };
+    let cleanup = clear_redis_heartbeat_namespace(&mut redis, &prefix).await;
+    outcome.and(cleanup)
+}
+
+#[cfg(feature = "queue-redis")]
+async fn execute_redis_module_heartbeat(
+    app: &App,
+    redis: &mut redis::aio::MultiplexedConnection,
+    prefix: &str,
+) -> Result<()> {
+    check(
+        app.state()
+            .resolve::<openrust::Db>()
+            .await?
+            .connection()
+            .is_err(),
+        "example_redis_database_initialized",
+        "Redis 模块任务不应建立默认数据库",
+    )?;
+    let response = openrust::http::build_router(app)?
+        .oneshot(
+            Request::post("/api/example/jobs/heartbeat")
+                .header("host", "localhost")
+                .body(Body::empty())
+                .map_err(Error::internal)?,
+        )
+        .await
+        .map_err(Error::internal)?;
+    check(
+        response.status() == StatusCode::OK,
+        "example_redis_dispatch_failed",
+        "模块真实路由必须派发到所选 Redis 连接",
+    )?;
+    let pending: usize = redis::cmd("HLEN")
+        .arg(format!("{prefix}jobs"))
+        .query_async(&mut *redis)
+        .await
+        .map_err(Error::internal)?;
+    check(
+        pending == 1,
+        "example_redis_job_not_persisted",
+        "HTTP 派发须实际写入 Redis",
+    )?;
+    let queue = app.state().resolve::<openrust::queue::Queue>().await?;
+    check(
+        queue.run_next_with_state("example", app.state()).await?,
+        "example_redis_job_missing",
+        "真实 worker 必须执行模块 heartbeat handler",
+    )?;
+    check(
+        !queue.run_next_with_state("example", app.state()).await?,
+        "example_redis_job_not_acknowledged",
+        "成功任务必须完成确认",
+    )?;
+    for suffix in ["jobs", "failed"] {
+        let remaining: usize = redis::cmd("HLEN")
+            .arg(format!("{prefix}{suffix}"))
+            .query_async(&mut *redis)
+            .await
+            .map_err(Error::internal)?;
+        check(
+            remaining == 0,
+            "example_redis_job_failed_or_pending",
+            "真实 handler 成功后不得留下重试或失败记录",
+        )?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "queue-redis")]
+async fn clear_redis_heartbeat_namespace(
+    redis: &mut redis::aio::MultiplexedConnection,
+    prefix: &str,
+) -> Result<()> {
+    let mut cursor = 0_u64;
+    let mut keys = Vec::new();
+    loop {
+        let (next, batch): (u64, Vec<String>) = redis::cmd("SCAN")
+            .arg(cursor)
+            .arg("MATCH")
+            .arg(format!("{prefix}*"))
+            .arg("COUNT")
+            .arg(100)
+            .query_async(&mut *redis)
+            .await
+            .map_err(Error::internal)?;
+        keys.extend(batch);
+        cursor = next;
+        if cursor == 0 {
+            break;
+        }
+    }
+    if !keys.is_empty() {
+        let _: usize = redis::cmd("DEL")
+            .arg(keys)
+            .query_async(&mut *redis)
+            .await
+            .map_err(Error::internal)?;
+    }
+    Ok(())
 }

@@ -251,7 +251,7 @@ reqwest.workspace = true
 tempfile.workspace = true
 rcgen.workspace = true
 [features]
-default = ["cache-redis"]
+default = ["db-mysql", "cache-redis", "queue-redis"]
 db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
 db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]

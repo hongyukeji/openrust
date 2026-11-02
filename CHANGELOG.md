@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 标准根构建与 `new` 应用预整合 MySQL、Redis 缓存及数据库/Redis 队列；`--minimal` 显式选择无数据库/队列骨架。队列统一 `default`/`connections` 与 `QUEUE_CONNECTION`，旧顶层 driver 配置明确拒绝；连接及外部 creator/validator 按需解析。`queue work [connection] --queue <queue>` 区分连接和队列，迁移与 worker 仍显式运行；标准生成迁移复用唯一 FrameworkMigrator，普通模块任务可经无默认数据库的 Redis 队列执行。
+
 - 通用数据库门面与 prelude 不再依赖 MySQL/PG feature，迁移注册独立于连接配置；具名实例不误启用默认库业务，普通模型生成去除驱动文字门槛。
 
 - 默认文件模块激活器恢复构造期实例快照及写失败后的内存语义，实时读取保留为显式 file-live 扩展；构造返回 Result，坏文件可显式 reset_file 恢复。数字状态键与空表按 PHP 列表规则处理，协作锁/原子替换和未知值保护继续保留。

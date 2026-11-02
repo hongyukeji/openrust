@@ -4,6 +4,8 @@
 > 更新：2026-11-02
 > 摘要：源码内 `openrust` 命令提供中文帮助、项目生成、开发启动与运行期命令代理；生成项目遵循根 workspace 和简体中文说明规范。
 
+标准生成应用默认MySQL、Redis缓存与Redis队列编译依赖，队列默认database，连接在实际使用时创建；`--minimal`明确选择无数据库/队列模板。框架迁移由FrameworkMigrator统一提供，生成任务不重复登记QueueMigration，生成迁移目录测试检查框架前缀和重复名。四种fresh的check/tests、MySQL/PG/Redis实际任务与默认MySQL认证/MFA、精简consumer和配置缓存重启已通过[限定验收](../memory/testing.md#标准依赖与队列开箱限定验收)；未据此关闭完整Artisan/R13。
+
 ## 通用 DB 门控（限定验收）
 
 模型生成不依赖官方驱动文字；普通new登记FrameworkMigrator而不建迁移package，有DB骨架仍使用自有Migrator避免重复贡献。普通UUID模型只为应用及已有迁移清单启用db-uuid，Job依真实迁移结构预检。根/生成/SQLite及真双库、普通两种模型与UUID已按[限定范围验收](../memory/testing.md#db-通用能力与驱动分层限定验收)；UUID先预检两清单再写，坏输入真实生成调用保持原字节。写阶段不保证跨文件事务回滚；完整CLI与标准队列默认体验仍开放。

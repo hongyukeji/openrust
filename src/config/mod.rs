@@ -71,7 +71,7 @@ pub use modules::{
     ModulesConfig,
 };
 #[cfg(feature = "queue")]
-pub use queue::{QueueConfig, QueueConnectionConfig, QueueDriverKind};
+pub use queue::{QueueConfig, QueueConnectionConfig};
 #[cfg(feature = "realtime")]
 pub use realtime::RealtimeConfig;
 #[cfg(feature = "encryption")]
@@ -583,6 +583,11 @@ impl ConfigLoader {
             .environment
             .clone()
             .unwrap_or_else(EnvironmentSnapshot::capture);
+        if environment.get("QUEUE_DRIVER").is_some() {
+            return Err(ConfigError::Invalid(
+                "QUEUE_DRIVER 已移除；请以 QUEUE_CONNECTION 选择 queue.connections 中的连接".into(),
+            ));
+        }
         if let Some(manifest) = manifest {
             manifest.validate()?;
         }
@@ -633,8 +638,10 @@ impl ConfigLoader {
             ));
         }
         #[cfg(feature = "queue")]
-        if let Some(redis_url) = conventional_redis_dsn(&environment) {
-            let layer = serde_json::json!({ "queue": { "redis_url": redis_url } });
+        if manifest.is_none()
+            && let Some(redis_url) = conventional_redis_dsn(&environment)
+        {
+            let layer = serde_json::json!({ "queue": { "connections": { "redis": { "redis_url": redis_url } } } });
             environment_layers.push((
                 CapturedProvider::new(&Serialized::defaults(layer.clone()))?,
                 layer,
@@ -831,7 +838,9 @@ fn common_environment_path(key: &str) -> Option<String> {
         "SERVER_PORT",
         "DB_TABLE_PREFIX",
         "CACHE_STORE",
-        "QUEUE_DRIVER",
+        "QUEUE_CONNECTION",
+        "QUEUE_REDIS_URL",
+        "QUEUE_REDIS_NAMESPACE",
         "MAIL_DRIVER",
         "MAIL_SMTP_HOST",
         "MAIL_SMTP_PORT",
@@ -867,7 +876,9 @@ fn common_environment_path(key: &str) -> Option<String> {
             "SERVER_PORT" => "server.port",
             "DB_TABLE_PREFIX" => "database.table_prefix",
             "CACHE_STORE" => "cache.default",
-            "QUEUE_DRIVER" => "queue.driver",
+            "QUEUE_CONNECTION" => "queue.default",
+            "QUEUE_REDIS_URL" => "queue.connections.redis.redis_url",
+            "QUEUE_REDIS_NAMESPACE" => "queue.connections.redis.redis_namespace",
             "MAIL_DRIVER" => "mail.driver",
             "MAIL_SMTP_HOST" => "mail.smtp_host",
             "MAIL_SMTP_PORT" => "mail.smtp_port",
@@ -2508,7 +2519,7 @@ mod tests {
             jail.set_env("SMS_DRIVER", "log");
             jail.set_env("I18N_DEFAULT_LOCALE", "zh-CN");
             #[cfg(feature = "queue")]
-            jail.set_env("QUEUE_DRIVER", "redis");
+            jail.set_env("QUEUE_CONNECTION", "redis");
 
             jail.create_dir("empty-config")?;
             let loader = ConfigLoader::new("empty-config", Environment::Test);
@@ -2559,13 +2570,66 @@ mod tests {
                     .figment()
                     .map_err(|error| figment::Error::from(error.to_string()))?
                     .extract_inner("queue")?;
-                assert_eq!(queue["driver"], "redis");
-                let queue_url = url::Url::parse(queue["redis_url"].as_str().unwrap_or_default())
-                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(queue["default"], "redis");
+                let queue_url = url::Url::parse(
+                    queue["connections"]["redis"]["redis_url"]
+                        .as_str()
+                        .unwrap_or_default(),
+                )
+                .map_err(|error| figment::Error::from(error.to_string()))?;
                 assert_eq!(queue_url.host_str(), Some("cache.example.test"));
                 assert_eq!(queue_url.path(), "/4");
                 assert_eq!(queue_url.password(), Some("redis%3Asecret"));
             }
+            Ok(())
+        });
+    }
+
+    #[cfg(feature = "queue")]
+    #[test]
+    fn queue_environment_selects_named_connections_and_rejects_removed_driver() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("empty-config")?;
+            jail.set_env("QUEUE_CONNECTION", "redis");
+            jail.set_env("REDIS_HOST", "shared.example.test");
+            jail.set_env("QUEUE_REDIS_URL", "redis://queue.example.test:6380/7");
+            jail.set_env("QUEUE_REDIS_NAMESPACE", "queue-tests");
+            let loader = ConfigLoader::new("empty-config", Environment::Test);
+            let manifest = ConfigManifest::new().section("queue", |_| Ok(QueueConfig::default()));
+            let selected: QueueConfig = loader
+                .code_sources(&manifest)
+                .map(|source| source.figment().clone())
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("queue")?;
+            assert_eq!(selected.default, "redis");
+            assert_eq!(selected.connections["database"]["driver"], "database");
+            assert_eq!(
+                selected.connections["redis"]["redis_url"],
+                "redis://queue.example.test:6380/7"
+            );
+            assert_eq!(
+                selected.connections["redis"]["redis_namespace"],
+                "queue-tests"
+            );
+            jail.set_env("APP_QUEUE_DEFAULT", "database");
+            let overridden: QueueConfig = loader
+                .code_sources(&manifest)
+                .map(|source| source.figment().clone())
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("queue")?;
+            assert_eq!(overridden.default, "database");
+            jail.set_env("QUEUE_DRIVER", "must-not-be-printed");
+            let error = match loader
+                .code_sources(&manifest)
+                .map(|source| source.figment().clone())
+            {
+                Ok(_) => return Err(figment::Error::from("旧选择器不得静默生效或被忽略")),
+                Err(error) => error.to_string(),
+            };
+            assert!(error.contains("QUEUE_DRIVER") && error.contains("QUEUE_CONNECTION"));
+            assert!(!error.contains("must-not-be-printed"));
             Ok(())
         });
     }

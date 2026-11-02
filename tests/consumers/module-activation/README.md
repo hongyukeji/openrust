@@ -1,6 +1,6 @@
 # 生成应用的模块持久启停 consumer
 
-本目录只有安装器与公开测试 fixture，不增加 Cargo package、依赖或第二套启动器。先使用当前框架 CLI 建立普通 fresh 应用（不带 `--db`、`--auth`、`--grpc`），再运行：
+本目录只有安装器与公开测试 fixture，不增加 Cargo package、依赖或第二套启动器。先使用当前框架 CLI 建立 `--minimal` fresh 应用（不带 `--db`、`--auth`、`--grpc`），再运行：
 
 ```sh
 python3 -B tests/consumers/module-activation/scripts/install_generated_fixture.py \

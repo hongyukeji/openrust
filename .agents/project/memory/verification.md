@@ -162,3 +162,7 @@ R2-M 的编译/启用分离、模块 Provider 配置时点、命名空间资源�
 ## C04-A 请求检查与内容协商
 
 C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用验收：默认523/29、全特性1082/99（passed/ignored），fmt/Clippy/Rustdoc/no-default/MSRV1.97/deny、生成consumer2/2和根默认入口真实TCP均通过；不同模型独审通过。仅完成无正文请求检查与协商，不代表完整C04。 headers/Accept有界、正文单次所有权、严格Host及敏感Debug均有公开测试；模块和生成应用均使用同一公开API。修复前全特性三轮构建IO NotFound日志与可控red/green保留，修后完整测试默认并发通过。staging仅在base当前可读时忽略已枚举条目NotFound，其他IO失败；非原子复核不抵御并发目录替换。精确命令、ignored分类与资源收尾见 [testing](testing.md#c04-a-请求检查与内容协商)。
+
+## 标准依赖与队列开箱
+
+标准依赖、原始具名连接按需driver构造、根独立worker与四种fresh已通过[限定验收](testing.md#标准依赖与队列开箱限定验收)。默认名错误时点/完整deferred、完整R10与全后端/集群仍开放；模板fixture公开单次worker和根CLI进程两类证据分别计证，不扩大结论。源码归档及失败日志保留，Git仅提交本簇文件，不包含另一owner的guard skill WIP。

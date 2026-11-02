@@ -93,6 +93,11 @@ impl DefaultProviders {
         }
         #[cfg(not(feature = "session"))]
         let _ = session;
+        #[cfg(feature = "queue")]
+        {
+            providers.push(Box::new(crate::queue::QueueServiceProvider::new()));
+            providers.push(Box::new(crate::notifications::NotificationsServiceProvider));
+        }
         if database {
             #[cfg(feature = "auth")]
             {
@@ -108,11 +113,6 @@ impl DefaultProviders {
                 crate::signing::SignedLinksServiceProvider::new()
                     .with_database_revocations_from_app(),
             ));
-            #[cfg(feature = "queue")]
-            {
-                providers.push(Box::new(crate::queue::QueueServiceProvider::new()));
-                providers.push(Box::new(crate::notifications::NotificationsServiceProvider));
-            }
         }
         Self {
             selection: Selection::Explicit,
@@ -401,7 +401,7 @@ mod tests {
         #[cfg(feature = "auth")]
         assert!(!ids.contains(&ProviderId::of::<crate::auth::AuthServiceProvider>()));
         #[cfg(feature = "queue")]
-        assert!(!ids.contains(&ProviderId::of::<crate::queue::QueueServiceProvider>()));
+        assert!(ids.contains(&ProviderId::of::<crate::queue::QueueServiceProvider>()));
         #[cfg(feature = "session")]
         assert!(!ids.contains(&ProviderId::of::<crate::session::SessionServiceProvider>()));
         Ok(())

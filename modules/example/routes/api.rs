@@ -88,17 +88,13 @@ pub(super) fn register(
         routes
     };
     #[cfg(feature = "queue")]
-    let routes = if capabilities.database {
-        routes.post(
-            "/api/example/jobs/heartbeat",
-            controllers::jobs::enqueue_example_heartbeat,
-        )
-    } else {
-        routes
-    };
+    let routes = routes.post(
+        "/api/example/jobs/heartbeat",
+        controllers::jobs::enqueue_example_heartbeat,
+    );
     #[cfg(not(feature = "auth"))]
     let _ = &capabilities.summary_origin;
-    #[cfg(not(any(feature = "queue", feature = "auth")))]
+    #[cfg(not(feature = "auth"))]
     let _ = capabilities.database;
     routes
 }

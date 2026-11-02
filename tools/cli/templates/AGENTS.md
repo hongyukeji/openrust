@@ -2,6 +2,10 @@
 
 本项目基于 OpenRust，普通 `cargo run` 启动应用，`cargo test` 执行测试。
 
+标准 `openrust new` 预置 MySQL、Redis 缓存以及数据库和 Redis 队列实现；`--db postgres` 可选择 PostgreSQL，`--auth` 复用默认数据库，`--minimal` 明确省略数据库驱动、迁移包和队列（仍保留 Redis 缓存、view、session）。生成项目显式选择框架依赖 feature；应用本身没有本地 feature 映射，不能仅靠 `cargo check --no-default-features` 取消这些已选依赖。
+
+复制 `.env.example` 为 `.env` 并填写实际连接信息；标准默认 `QUEUE_CONNECTION=database`，可改为 `redis`，不需要手改 Cargo 或 Provider。Redis 队列 URL 默认继承同次有效 `cache.stores.redis.dsn`，可用 `QUEUE_REDIS_URL` 独立覆盖，`QUEUE_REDIS_NAMESPACE` 覆盖键隔离名。框架迁移与应用自定义迁移由同一 `Migrator` 贡献，部署须显式执行 `openrust migrate`。任务处理器须已编译并登记；`openrust generate job delivery` 自动接入应用任务 Provider，生成的未实现 handler 会明确报错。启动 worker 使用 `openrust queue work database --queue default` 或 `openrust queue work redis --queue default`；第一个参数选择连接，`--queue` 选择该连接的队列。`serve` 不自动运行迁移或 worker，未选连接不初始化，不静默改用其他后端。
+
 `src/main.rs` 只负责入口；`bootstrap/app.rs` 装配应用与路由前缀、middleware 组，`bootstrap/providers.rs` 登记应用 Provider，`routes/mod.rs` 只声明路由文件的 Rust 模块；`routes/api.rs` 声明无状态 API，`routes/web.rs` 声明 Web 路由与全局 fallback。普通业务可直接写在 `app/` 的控制器、模型和 Provider 中；`modules/<业务>/` 是可选并存的组织方式。配置在 `config/`，迁移与种子在 `database/`，资源在 `resources/`，公开文件在 `public/`，运行数据在 `storage/`。
 
 本地依赖通过应用自身 Cargo.toml 的 workspace 配置解析；保持框架源码目录可达。`config/*.rs` 经 `config/mod.rs` 显式编译，`bootstrap/app.rs` 以 `Application::config` 接入统一配置仓储；`.env` 在同次启动快照中先读取，配置函数可按环境构造类型化值。`--grpc` 生成 proto/build.rs、Echo 服务与 `serve all` 联合运行命令；普通 `cargo run` 仍只启动 HTTP。在 `config/grpc.rs` 配置 TLS 证书和私钥后用 `cargo run -- serve all` 启动 HTTP 与 gRPC 两个端口；不配置 TLS 时 gRPC 启动会拒绝，只有本机开发或可信 TLS 终止拓扑才能显式开启明文。

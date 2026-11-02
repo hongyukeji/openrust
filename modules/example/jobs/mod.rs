@@ -50,15 +50,27 @@ impl ServiceProvider for JobsServiceProvider {
         Box::pin(async move {
             let contributions = app.resolve::<QueueContributions>().await?;
             contributions.register_job::<example_heartbeat::ExampleHeartbeatJob>()?;
+            let database = if app.config_repository().get("database")?.is_some() {
+                app.config_repository()
+                    .section::<openrust::config::DatabaseConfig>("database")?
+                    .has_default_connection()
+            } else {
+                false
+            };
             #[cfg(feature = "auth")]
-            contributions.register_job::<article_index::ArticleIndexJob>()?;
-            contributions.schedule_interval(
-                "example-heartbeat",
-                "example",
-                example_heartbeat::ExampleHeartbeatJob::NAME,
-                &example_heartbeat::ExampleHeartbeatJob,
-                Duration::from_secs(60),
-            )
+            if database {
+                contributions.register_job::<article_index::ArticleIndexJob>()?;
+            }
+            if database {
+                contributions.schedule_interval(
+                    "example-heartbeat",
+                    "example",
+                    example_heartbeat::ExampleHeartbeatJob::NAME,
+                    &example_heartbeat::ExampleHeartbeatJob,
+                    Duration::from_secs(60),
+                )?;
+            }
+            Ok(())
         })
     }
 }

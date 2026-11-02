@@ -1,54 +1,56 @@
-//! 队列连接与显式 worker 的应用默认值；仅 queue feature 编译。
+//! 具名队列连接与显式 worker；标准项目已编译数据库和 Redis 驱动。
 
-use openrust::config::{
-    ConfigContext, ConfigError, QueueConfig, QueueConnectionConfig, QueueDriverKind,
-};
+use openrust::config::{ConfigContext, ConfigError, QueueConfig};
 use std::collections::HashMap;
 
-/// false 保持当前旧版 default 配置路径；true 显式采用下方具名连接表。
-const NAMED_CONNECTIONS_ENABLED: bool = false;
-
-/// 仅激活所选连接；配置文件不会启动 worker、编译 driver 或自动运行迁移。
-#[allow(
-    clippy::unnecessary_wraps,
-    reason = "保持 ConfigManifest 配置函数统一的可失败契约"
-)]
-pub fn config(_ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
-    let connections = if NAMED_CONNECTIONS_ENABLED {
-        HashMap::from([
+/// 配置不启动 worker 或执行迁移；只建立实际选择的连接，不静默切换后端。
+pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
+    let redis_url = match ctx.env("QUEUE_REDIS_URL") {
+        Some(url) => Some(url),
+        // CacheStoreConfig 的专属选项已 flatten；继承同次最终缓存来源，不重复拼接 Redis 环境。
+        None => ctx.get::<String>("cache.stores.redis.dsn")?,
+    };
+    // app.name 可含空格/Unicode；默认隔离名限制为 Redis driver 接受的安全 ASCII。
+    let mut namespace = ctx
+        .require::<String>("app.name")?
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .take(63)
+        .collect::<String>();
+    if namespace.is_empty() {
+        namespace.push_str("app");
+    }
+    let namespace = ctx.env_or("QUEUE_REDIS_NAMESPACE", &namespace);
+    Ok(QueueConfig {
+        default: ctx.env_or("QUEUE_CONNECTION", "database"),
+        connections: HashMap::from([
             (
-                "default".to_owned(),
-                QueueConnectionConfig {
-                    driver: "database".to_owned(),
-                    // 数据库 driver 不使用 Redis 连接设置。
-                    redis_url: None,
-                    redis_namespace: None,
-                    options: serde_json::json!({}),
-                },
+                "database".to_owned(),
+                serde_json::json!({
+                    "driver":"database",
+                    "queue":"default",
+                    // 数据库连接复用统一 Db；不使用 Redis 配置。
+                    "options":{},
+                }),
             ),
             (
                 "redis".to_owned(),
-                QueueConnectionConfig {
-                    // 选择前仍须编译 queue-redis 并提供实际连接；不静默回退。
-                    driver: "redis".to_owned(),
-                    redis_url: None,
-                    redis_namespace: None,
-                    // 内置 driver 只接受自己的已实现选项；外部 driver 可定义该对象。
-                    options: serde_json::json!({}),
-                },
+                serde_json::json!({
+                    "driver":"redis",
+                    "queue":"default",
+                    // null 表示没有配置 URL，选择此连接时必须明确报错；未选连接不建立服务连接。
+                    "redis_url":redis_url,
+                    "redis_namespace":namespace,
+                    "options":{},
+                }),
             ),
-        ])
-    } else {
-        HashMap::new()
-    };
-    Ok(QueueConfig {
-        default_connection: "default".to_owned(),
-        connections,
-        // connections 为空时使用此既有 default 路径，命名连接整改另行交付。
-        driver: QueueDriverKind::Database,
-        // None 不在源码指定 Redis URL/命名空间；部署来源可提供所选 driver 的设置。
-        redis_url: None,
-        redis_namespace: None,
+        ]),
         poll_interval_millis: 500,
         lease_secs: 60,
         job_timeout_secs: 300,

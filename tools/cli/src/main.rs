@@ -35,14 +35,17 @@ enum Builtin {
     New {
         /// 应用目标目录；支持相对或绝对路径。
         name: String,
-        /// 添加 PostgreSQL 或 MySQL 连接和迁移包。
+        /// 选择数据库驱动；标准应用默认 MySQL，也可显式选择 PostgreSQL。
         #[arg(long, value_enum)]
         db: Option<DatabaseBackend>,
-        /// 添加数据库认证能力和受保护的示例路由（需要 `--db`）。
-        #[arg(long, requires = "db")]
+        /// 生成无数据库驱动、迁移包和队列依赖的精简应用。
+        #[arg(long, conflicts_with_all = ["db", "auth", "auth_mfa"])]
+        minimal: bool,
+        /// 添加数据库认证能力和受保护的示例路由。
+        #[arg(long)]
         auth: bool,
-        /// 为认证启用 TOTP 多因素登录（需要 `--auth`、`--db` 与 `--encryption`）。
-        #[arg(long, requires_all = ["auth", "db", "encryption"])]
+        /// 为认证启用 TOTP 多因素登录（需要 `--auth` 与 `--encryption`）。
+        #[arg(long, requires_all = ["auth", "encryption"])]
         auth_mfa: bool,
         /// 启用可选的出站 HTTP 客户端。
         #[arg(long)]
@@ -340,6 +343,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Some(Builtin::New {
             name,
             db,
+            minimal,
             auth,
             auth_mfa,
             http_client,
@@ -349,7 +353,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         }) => {
             create_project_with_mfa(
                 &name,
-                db,
+                project_database(db, minimal),
                 auth,
                 auth_mfa,
                 http_client,
@@ -409,6 +413,14 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     }
 }
 
+fn project_database(database: Option<DatabaseBackend>, minimal: bool) -> Option<DatabaseBackend> {
+    if minimal {
+        None
+    } else {
+        Some(database.unwrap_or(DatabaseBackend::Mysql))
+    }
+}
+
 fn generate_key() -> anyhow::Result<String> {
     let mut key = [0_u8; 32];
     getrandom::fill(&mut key).map_err(|_| anyhow::anyhow!("OS randomness provider failed"))?;
@@ -461,10 +473,12 @@ fn create_project_with_mfa(
     current_dir: &Path,
 ) -> anyhow::Result<()> {
     if auth && database.is_none() {
-        bail!("authentication requires a database; use `openrust new --db postgres|mysql --auth`");
+        bail!(
+            "authentication requires a standard database profile; omit `--minimal` or select `--db postgres|mysql`"
+        );
     }
     if auth_mfa && (!auth || !encryption || database.is_none()) {
-        bail!("MFA requires `--auth`, `--db postgres|mysql` and `--encryption`");
+        bail!("MFA requires `--auth`, `--encryption` and a standard database profile");
     }
     let workspace = framework_workspace(current_dir)?;
     if !workspace.packages.iter().any(|package| {
@@ -687,7 +701,10 @@ fn populate_project_with_mfa(
             include_str!("../templates/views/index.html").replace("{{name}}", name),
         ),
         ("src/main.rs", main_source(crate_name, database, grpc)),
-        ("config/mod.rs", code_config_manifest(grpc)),
+        (
+            "config/mod.rs",
+            code_config_manifest(grpc, database.is_some()),
+        ),
         (
             "config/api.rs",
             include_str!("../templates/config/api.rs").to_owned(),
@@ -824,14 +841,22 @@ fn populate_project_with_mfa(
             include_str!("../templates/config/grpc.rs").to_owned(),
         ));
     }
-    if database.is_none() && !encryption && !grpc {
+    if !auth && !encryption && !grpc {
         files.push((
             "tests/test_app.rs",
             include_str!("../templates/tests/test_app.rs")
-                .replace("OpenRustGeneratedApplication", crate_name),
+                .replace("OpenRustGeneratedApplication", crate_name)
+                .replace(
+                    "{{seed_module}}",
+                    if database.is_some() {
+                        "#[path = \"../database/seeders.rs\"]\nmod seed;\n"
+                    } else {
+                        ""
+                    },
+                ),
         ));
     }
-    if (database.is_none() && !encryption && !grpc) || auth {
+    if auth || (!encryption && !grpc) {
         files.push((
             "tests/support/request_input.rs",
             include_str!("../templates/tests/support/request_input.rs").to_owned(),
@@ -865,9 +890,10 @@ fn populate_project_with_mfa(
                 "database/migrations/Cargo.toml",
                 migration_manifest(name, database, auth, auth_mfa),
             ),
+            ("database/migrations/src/lib.rs", migration_lib()),
             (
-                "database/migrations/src/lib.rs",
-                migration_lib(auth, auth_mfa),
+                "tests/migration_catalog.rs",
+                migration_catalog_test_source(auth, auth_mfa),
             ),
         ]);
     }
@@ -902,8 +928,20 @@ fn populate_project_with_mfa(
     Ok(())
 }
 
-fn code_config_manifest(grpc: bool) -> String {
+fn code_config_manifest(grpc: bool, queue: bool) -> String {
     include_str!("../templates/config/mod.rs")
+        .replace(
+            "{{queue_module}}",
+            if queue { "pub mod queue;\n" } else { "" },
+        )
+        .replace(
+            "{{queue_registration}}",
+            if queue {
+                "    let manifest = manifest.section(\"queue\", queue::config);\n"
+            } else {
+                ""
+            },
+        )
         .replace("{{grpc_module}}", if grpc { "pub mod grpc;\n" } else { "" })
         .replace(
             "{{grpc_registration}}",
@@ -1011,6 +1049,7 @@ fn cargo_manifest(
         let mut features = vec!["cache-redis", "view", "session"];
         if let Some(database) = database {
             features.push(database.feature());
+            features.extend(["queue", "queue-redis"]);
         }
         if auth {
             features.push("auth");
@@ -1364,12 +1403,21 @@ fn env_example(
         contents.push_str("DB_TABLE_PREFIX=\n");
     } else {
         contents.push_str(
-            "# 启用 --db postgres 或 --db mysql 后配置。\n# DB_CONNECTION=postgres\n# DB_HOST=127.0.0.1\n# DB_PORT=5432\n# DB_DATABASE=应用数据库名\n# DB_USERNAME=数据库用户名\n# DB_PASSWORD=数据库密码\n",
+            "# 此精简应用未编译数据库驱动或队列；标准 new 默认 MySQL，--db postgres 可选择 PostgreSQL。\n# DB_CONNECTION=postgres\n# DB_HOST=127.0.0.1\n# DB_PORT=5432\n# DB_DATABASE=应用数据库名\n# DB_USERNAME=数据库用户名\n# DB_PASSWORD=数据库密码\n",
         );
     }
     contents.push_str(
-        "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\nI18N_DEFAULT_LOCALE=en\n\n# Redis 队列需启用 queue-redis feature 后再配置；与缓存共用 REDIS_* 连接信息。\n# QUEUE_DRIVER=redis\n",
+        "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\nI18N_DEFAULT_LOCALE=en\n",
     );
+    if database.is_some() {
+        contents.push_str(
+            "\n# 默认数据库队列；可选择已预置的 Redis 连接，URL 默认继承有效缓存 dsn。\nQUEUE_CONNECTION=database\n# QUEUE_CONNECTION=redis\n# 独立 Redis 队列连接和命名空间可按需覆盖：\n# QUEUE_REDIS_URL=redis://127.0.0.1:6379/\n# QUEUE_REDIS_NAMESPACE=app_queue\n# 先执行 openrust migrate，再显式运行 openrust queue work database --queue default。\n# Redis worker：openrust queue work redis --queue default；serve 不会自动启动 worker。\n",
+        );
+    } else {
+        contents.push_str(
+            "\n# --minimal 不编译数据库驱动和队列；标准 new 已预置 MySQL 与可选 Redis 队列。\n",
+        );
+    }
     if auth {
         contents.push_str(
             "\n# 使用 openrust key generate 生成独立密钥。\nAPP_AUTH_JWT_KEYS_LOCAL=\nAPP_SECURITY_SIGNED_LINKS_KEYS_LOCAL=\n",
@@ -1395,7 +1443,7 @@ fn seed_source(database: Option<DatabaseBackend>) -> String {
 }
 
 fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool, auth_mfa: bool) -> String {
-    let mut features = vec![database.feature()];
+    let mut features = vec![database.feature(), "session", "queue"];
     if auth {
         features.push("auth");
     }
@@ -1407,19 +1455,26 @@ fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool, auth_mf
     )
 }
 
-fn migration_lib(auth: bool, auth_mfa: bool) -> String {
-    let migrations = if auth {
-        if auth_mfa {
-            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::audit::DatabaseAuditTenantMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n            Box::new(openrust::auth::AuthMfaMigration),\n        ]"
-        } else {
-            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::audit::DatabaseAuditTenantMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n        ]"
-        }
+fn migration_lib() -> String {
+    "//! 应用数据库迁移；框架基础设施仅从统一清单贡献一次。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        let mut migrations = openrust::db::FrameworkMigrator::migrations();\n        let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![];\n        migrations.extend(application_migrations);\n        migrations\n    }\n}\n".to_owned()
+}
+
+fn migration_catalog_test_source(auth: bool, auth_mfa: bool) -> String {
+    let auth = if auth {
+        "assert!(names.contains(&openrust::auth::AuthMigration.name().to_owned()));\n    assert!(names.contains(&openrust::auth::AuthRefreshTokenMigration.name().to_owned()));\n    assert!(names.contains(&openrust::auth::AuthVerificationCodeMigration.name().to_owned()));\n    assert!(names.contains(&openrust::auth::AuthPolicyMigration.name().to_owned()));"
     } else {
-        "vec![]"
+        "assert!(names.contains(&openrust::session::SessionMigration.name().to_owned()));"
     };
-    format!(
-        "//! 应用数据库迁移。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {{\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {{\n        {migrations}\n    }}\n}}\n"
-    )
+    include_str!("../templates/tests/migration_catalog.rs")
+        .replace("// {{auth_migration_assertions}}", auth)
+        .replace(
+            "// {{mfa_migration_assertions}}",
+            if auth_mfa {
+                "assert!(names.contains(&openrust::auth::AuthMfaMigration.name().to_owned()));"
+            } else {
+                ""
+            },
+        )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1634,20 +1689,20 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     Ok(())
 }
 
-fn register_job_module_in_auth_test(test_source: String) -> anyhow::Result<String> {
+fn register_job_module_in_test(test_source: String) -> anyhow::Result<String> {
     let registered = test_source
         .lines()
         .filter(|line| line.trim() == "mod jobs;")
         .count();
     if registered > 1 {
-        bail!("authentication test has ambiguous job module registration");
+        bail!("application test has ambiguous job module registration");
     }
     if registered == 1 {
         Ok(test_source)
     } else {
         let anchor = "#[path = \"../routes/mod.rs\"]\nmod routes;";
         if test_source.matches(anchor).count() != 1 {
-            bail!("authentication test source does not match the generated template");
+            bail!("application test source does not match the generated template");
         }
         Ok(test_source.replace(
         "#[path = \"../routes/mod.rs\"]\nmod routes;",
@@ -1685,12 +1740,16 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let main_source = fs::read_to_string(&main_file)?;
     let app_file = project_dir.join("bootstrap/providers.rs");
     let app_source = fs::read_to_string(&app_file)?;
-    let auth_test_file = project_dir.join("tests/auth_flows.rs");
-    let updated_auth_test = if auth_test_file.exists() {
-        register_job_module_in_auth_test(fs::read_to_string(&auth_test_file)?)?
-    } else {
-        String::new()
-    };
+    let mut updated_tests = Vec::new();
+    for relative in ["tests/auth_flows.rs", "tests/test_app.rs"] {
+        let path = project_dir.join(relative);
+        if path.exists() {
+            updated_tests.push((
+                path.clone(),
+                register_job_module_in_test(fs::read_to_string(path)?)?,
+            ));
+        }
+    }
     let (updated_config_manifest, queue_config_missing) = prepare_queue_configuration(project_dir)?;
     let updated_migration = register_queue_migration(&migration_registry)?;
     let updated_app_manifest = enable_feature_source(&app_manifest, "queue", &app_manifest_path)?;
@@ -1741,8 +1800,8 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     fs::write(&module_file, updated_modules)?;
     fs::write(&main_file, updated_main)?;
     fs::write(&app_file, updated_app)?;
-    if auth_test_file.exists() {
-        fs::write(&auth_test_file, updated_auth_test)?;
+    for (path, source) in updated_tests {
+        fs::write(path, source)?;
     }
     fs::write(&app_manifest_path, updated_app_manifest)?;
     fs::write(&migration_manifest_path, updated_migration_manifest)?;
@@ -1874,8 +1933,30 @@ fn add_serde_workspace_dependency(source: &str) -> anyhow::Result<String> {
 }
 
 fn register_queue_migration(registry: &str) -> anyhow::Result<String> {
-    if registry.contains("openrust::queue::QueueMigration") {
+    let framework = "let mut migrations = openrust::db::FrameworkMigrator::migrations();";
+    if registry.contains("FrameworkMigrator::migrations()") {
+        if registry.matches("FrameworkMigrator::migrations()").count() != 1
+            || registry
+                .lines()
+                .filter(|line| line.trim() == framework)
+                .count()
+                != 1
+            || registry
+                .matches("migrations.extend(application_migrations);")
+                .count()
+                != 1
+            || registry.contains("openrust::queue::QueueMigration")
+        {
+            bail!("framework migration registry is ambiguous or duplicates queue migrations");
+        }
+        // 应用和迁移依赖均启用 queue 后，唯一框架清单已贡献 QueueMigration。
         return Ok(registry.to_owned());
+    }
+    if registry.contains("openrust::queue::QueueMigration") {
+        if registry.matches("openrust::queue::QueueMigration").count() == 1 {
+            return Ok(registry.to_owned());
+        }
+        bail!("queue migration is registered more than once");
     }
     let start = registry
         .find("vec![")
@@ -2187,7 +2268,9 @@ fn generate_migration(
     let table = normalize_identifier(name)?;
     let migration_dir = project_dir.join("database/migrations/src");
     if !migration_dir.join("lib.rs").is_file() {
-        bail!("migration generation requires a project created with `openrust new --db`");
+        bail!(
+            "migration generation requires a standard project with a database migration package; `--minimal` omits it"
+        );
     }
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -3411,6 +3494,156 @@ mod tests {
         assert!(modules.contains("modules_statuses.json"));
     }
 
+    fn assert_framework_migration_registry(source: &str) {
+        assert_eq!(
+            source
+                .matches("openrust::db::FrameworkMigrator::migrations()")
+                .count(),
+            1
+        );
+        assert_eq!(
+            source
+                .matches("let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![")
+                .count(),
+            1
+        );
+        assert_eq!(
+            source
+                .matches("migrations.extend(application_migrations);")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn new_defaults_to_mysql_and_minimal_is_an_explicit_conflicting_choice() -> anyhow::Result<()> {
+        for (arguments, expected) in [
+            (
+                vec!["openrust", "new", "blog"],
+                Some(DatabaseBackend::Mysql),
+            ),
+            (
+                vec!["openrust", "new", "blog", "--auth"],
+                Some(DatabaseBackend::Mysql),
+            ),
+            (
+                vec![
+                    "openrust",
+                    "new",
+                    "blog",
+                    "--auth",
+                    "--auth-mfa",
+                    "--encryption",
+                ],
+                Some(DatabaseBackend::Mysql),
+            ),
+            (
+                vec!["openrust", "new", "blog", "--db", "postgres"],
+                Some(DatabaseBackend::Postgres),
+            ),
+            (vec!["openrust", "new", "blog", "--minimal"], None),
+        ] {
+            let cli = Cli::try_parse_from(arguments)?;
+            let Some(Builtin::New { db, minimal, .. }) = cli.command else {
+                bail!("预期 new 命令");
+            };
+            assert_eq!(project_database(db, minimal), expected);
+        }
+        for arguments in [
+            vec!["openrust", "new", "blog", "--minimal", "--db", "mysql"],
+            vec!["openrust", "new", "blog", "--minimal", "--auth"],
+            vec![
+                "openrust",
+                "new",
+                "blog",
+                "--minimal",
+                "--auth-mfa",
+                "--encryption",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(arguments).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn standard_project_preconfigures_mysql_and_both_queue_drivers() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-standard-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("创建临时目录");
+        let project = root.join("blog");
+        populate_project(
+            &project,
+            "blog",
+            "Blog",
+            project_database(None, false),
+            false,
+            false,
+            false,
+            false,
+        )
+        .expect("生成标准应用");
+        assert_generated_application_files(&project);
+        assert_module_layout(&project);
+        assert_generated_route_layout(&project);
+        let manifest = fs::read_to_string(project.join("Cargo.toml")).expect("应用依赖");
+        for feature in ["db-mysql", "cache-redis", "queue", "queue-redis", "session"] {
+            assert!(
+                manifest.contains(&format!("\"{feature}\"")),
+                "缺少 {feature}"
+            );
+        }
+        assert!(!manifest.contains("db-postgres"));
+        let migration_manifest =
+            fs::read_to_string(project.join("database/migrations/Cargo.toml")).expect("迁移依赖");
+        for feature in ["db-mysql", "session", "queue"] {
+            assert!(
+                migration_manifest.contains(&format!("\"{feature}\"")),
+                "迁移缺少 {feature}"
+            );
+        }
+        let registry_path = project.join("database/migrations/src/lib.rs");
+        let registry = fs::read_to_string(&registry_path).expect("迁移清单");
+        assert_framework_migration_registry(&registry);
+        let config = fs::read_to_string(project.join("config/mod.rs")).expect("配置清单");
+        assert_eq!(config.matches("pub mod queue;").count(), 1);
+        assert_eq!(
+            config.matches(".section(\"queue\", queue::config)").count(),
+            1
+        );
+        let queue = fs::read_to_string(project.join("config/queue.rs")).expect("队列配置");
+        assert!(queue.contains("ctx.env_or(\"QUEUE_CONNECTION\", \"database\")"));
+        assert!(queue.contains("cache.stores.redis.dsn"));
+        assert!(!queue.contains("NAMED_CONNECTIONS_ENABLED"));
+        assert!(!queue.contains("QueueDriverKind"));
+        let env = fs::read_to_string(project.join(".env.example")).expect("环境配置");
+        assert!(env.contains("DB_CONNECTION=mysql"));
+        assert!(env.contains("DB_PORT=3306"));
+        assert!(env.contains("QUEUE_CONNECTION=database"));
+        assert!(env.contains("QUEUE_REDIS_NAMESPACE"));
+        assert!(!env.contains("QUEUE_DRIVER"));
+        generate_job(&["delivery".to_owned()], &project).expect("标准应用生成任务无需手改依赖");
+        generate_job(&["retry_delivery".to_owned()], &project).expect("重复登记共用单个 Provider");
+        assert_eq!(
+            fs::read_to_string(registry_path).expect("生成后迁移"),
+            registry
+        );
+        let providers =
+            fs::read_to_string(project.join("bootstrap/providers.rs")).expect("Provider");
+        assert_eq!(
+            providers
+                .matches("crate::jobs::JobsServiceProvider")
+                .count(),
+            1
+        );
+        let test = fs::read_to_string(project.join("tests/test_app.rs")).expect("普通 HTTP 回归");
+        assert!(test.contains("#[path = \"../database/seeders.rs\"]\nmod seed;"));
+        assert_eq!(test.matches("mod jobs;").count(), 1);
+        assert!(!test.contains("{{seed_module}}"));
+        let _ = fs::remove_dir_all(root);
+    }
+
     #[test]
     fn project_template_has_expected_layout() {
         let root = std::env::temp_dir().join(format!("openrust-cli-{}", std::process::id()));
@@ -3510,7 +3743,8 @@ mod tests {
         assert!(env_example.contains("APP_SERVER_ROOT_TARGET=file:/index.html"));
         assert!(env_example.contains("MAIL_SMTP_PASSWORD="));
         assert!(env_example.contains("SMS_API_KEY_SECRET="));
-        assert!(env_example.contains("# QUEUE_DRIVER=redis"));
+        assert!(env_example.contains("--minimal 不编译数据库驱动和队列"));
+        assert!(!env_example.contains("QUEUE_DRIVER"));
         assert!(env_example.contains("生产环境可使用权限受控的 .env"));
         assert!(!env_example.contains("Production reads configuration"));
         let guide = fs::read_to_string(project.join("AGENTS.md")).expect("read generated guide");
@@ -3583,6 +3817,15 @@ mod tests {
                     .expect("read empty migration registry")
                     .contains("vec![]")
             );
+            let registry = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
+                .expect("读取统一迁移清单");
+            assert_framework_migration_registry(&registry);
+            let catalog = fs::read_to_string(project.join("tests/migration_catalog.rs"))
+                .expect("读取可执行迁移目录回归");
+            assert!(catalog.contains("QueueMigration.name()"));
+            assert!(catalog.contains("SessionGcMigration.name()"));
+            assert!(catalog.contains("SessionMigration.name()"));
+            assert!(!catalog.contains("{{"));
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
@@ -3664,14 +3907,32 @@ mod tests {
             assert!(migration_manifest.contains("\"auth\""));
             let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                 .expect("read generated migration registry");
-            assert!(migration.contains("openrust::auth::AuthMigration"));
-            assert!(migration.contains("openrust::auth::AuthRefreshTokenMigration"));
-            assert!(migration.contains("openrust::auth::AuthVerificationCodeMigration"));
-            assert!(migration.contains("openrust::auth::AuthPolicyMigration"));
-            assert!(migration.contains("openrust::database::DatabaseRateLimitMigration"));
-            assert!(migration.contains("openrust::audit::DatabaseAuditMigration"));
-            assert!(migration.contains("openrust::audit::DatabaseAuditTenantMigration"));
-            assert!(migration.contains("openrust::signing::SignedLinkRevocationMigration"));
+            assert_framework_migration_registry(&migration);
+            let framework = include_str!("../../../src/db/migration.rs");
+            for name in [
+                "AuthMigration",
+                "AuthRefreshTokenMigration",
+                "AuthVerificationCodeMigration",
+                "AuthPolicyMigration",
+                "DatabaseRateLimitMigration",
+                "DatabaseAuditMigration",
+                "DatabaseAuditTenantMigration",
+                "SignedLinkRevocationMigration",
+                "SessionGcMigration",
+                "QueueMigration",
+            ] {
+                assert!(framework.contains(name), "框架清单缺少 {name}");
+            }
+            for feature in ["auth", "session", "queue", backend.feature()] {
+                assert!(
+                    migration_manifest.contains(&format!("\"{feature}\"")),
+                    "迁移包缺少 {feature}"
+                );
+                assert!(
+                    manifest.contains(&format!("\"{feature}\"")),
+                    "应用缺少 {feature}"
+                );
+            }
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
@@ -3729,7 +3990,8 @@ mod tests {
         assert!(auth_test.contains("\\n[security.encryption]\\n"));
         assert!(auth_test.contains("active_key_id = \\\"test\\\""));
         assert!(auth_test.contains("KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="));
-        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth"]).is_err());
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth"]).is_ok());
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--minimal", "--auth"]).is_err());
         let _ = fs::remove_dir_all(root);
     }
 
@@ -3788,11 +4050,17 @@ mod tests {
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
             assert!(!app.contains("MfaServiceProvider"));
-            assert!(
-                fs::read_to_string(project.join("database/migrations/src/lib.rs"))
-                    .expect("migration")
-                    .contains("AuthMfaMigration")
-            );
+            let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
+                .expect("migration");
+            assert_framework_migration_registry(&migration);
+            assert!(include_str!("../../../src/db/migration.rs").contains("AuthMfaMigration"));
+            for path in ["Cargo.toml", "database/migrations/Cargo.toml"] {
+                assert!(
+                    fs::read_to_string(project.join(path))
+                        .expect("MFA dependency")
+                        .contains("\"auth-mfa\"")
+                );
+            }
             assert!(
                 fs::read_to_string(project.join("routes/api.rs"))
                     .expect("API routes")
@@ -3803,7 +4071,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_projects_generate_both_model_styles_without_driver_features() {
+    fn minimal_projects_generate_both_model_styles_without_driver_features() {
         let root = std::env::temp_dir().join(format!(
             "openrust-cli-model-no-driver-{}",
             std::process::id()
@@ -3812,7 +4080,7 @@ mod tests {
         fs::create_dir_all(&root).expect("创建临时目录");
         let project = root.join("blog");
         populate_project(&project, "blog", "Blog", None, false, false, false, false)
-            .expect("生成普通应用");
+            .expect("生成精简应用");
         let manifest = fs::read(project.join("Cargo.toml")).expect("读取应用清单");
         generate_application_model(&["Article", "title:string"].map(str::to_owned), &project)
             .expect("普通应用生成 make:model");
@@ -3874,7 +4142,7 @@ mod tests {
         fs::create_dir_all(&root).expect("创建临时目录");
         let project = root.join("blog");
         populate_project(&project, "blog", "Blog", None, false, false, false, false)
-            .expect("生成普通应用");
+            .expect("生成精简应用");
         generate_model(
             &["entry", "title:string"].map(str::to_owned),
             true,
@@ -4255,7 +4523,8 @@ mod tests {
             }
             let source = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                 .expect("读取迁移注册");
-            assert_eq!(source.matches("openrust::queue::QueueMigration").count(), 1);
+            assert_framework_migration_registry(&source);
+            assert!(!source.contains("Box::new(openrust::queue::QueueMigration)"));
             let source = fs::read_to_string(project.join("bootstrap/providers.rs"))
                 .expect("读取任务 Provider");
             assert!(source.contains("crate::jobs::JobsServiceProvider"));
@@ -4264,7 +4533,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_project_job_without_migration_package_fails_before_any_write() {
+    fn minimal_project_job_without_migration_package_fails_before_any_write() {
         let root = std::env::temp_dir().join(format!(
             "openrust-cli-job-no-migrations-{}",
             std::process::id()
@@ -4273,7 +4542,7 @@ mod tests {
         fs::create_dir_all(&root).expect("创建临时目录");
         let project = root.join("blog");
         populate_project(&project, "blog", "Blog", None, false, false, false, false)
-            .expect("生成普通应用");
+            .expect("生成精简应用");
         let paths = [
             "Cargo.toml",
             "config/mod.rs",
@@ -4341,11 +4610,9 @@ mod tests {
         assert!(auth_test.contains("#[path = \"../app/jobs/mod.rs\"]\nmod jobs;"));
         let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
             .expect("read migration registry");
-        assert!(migration.contains("openrust::queue::QueueMigration"));
+        assert_framework_migration_registry(&migration);
+        assert!(!migration.contains("Box::new(openrust::queue::QueueMigration)"));
         assert!(!migration.contains(",,"));
-        assert!(migration.contains(
-            "SignedLinkRevocationMigration),\n            Box::new(openrust::queue::QueueMigration),"
-        ));
         let app_manifest =
             fs::read_to_string(project.join("Cargo.toml")).expect("read app manifest");
         assert!(app_manifest.contains("\"queue\""));
@@ -4401,7 +4668,7 @@ mod tests {
 
     #[test]
     fn queue_config_registration_is_idempotent_and_rejects_custom_or_ambiguous_sources() {
-        let original = code_config_manifest(false);
+        let original = code_config_manifest(false, false);
         let registered = register_queue_config(&original).expect("register queue");
         assert_eq!(
             register_queue_config(&registered).expect("keep queue"),
@@ -4418,6 +4685,37 @@ mod tests {
             original.replace(".section(\"storage\", storage::config)", ""),
         ] {
             assert!(register_queue_config(&source).is_err());
+        }
+    }
+
+    #[test]
+    fn queue_migrations_reuse_framework_or_extend_a_legacy_application_list_once() {
+        let framework = migration_lib();
+        assert_eq!(
+            register_queue_migration(&framework).expect("框架已经贡献队列"),
+            framework
+        );
+        let legacy = "fn migrations() -> Vec<Box<dyn MigrationTrait>> { vec![] }";
+        let registered = register_queue_migration(legacy).expect("旧应用显式贡献队列迁移");
+        assert_eq!(
+            registered
+                .matches("openrust::queue::QueueMigration")
+                .count(),
+            1
+        );
+        assert_eq!(
+            register_queue_migration(&registered).expect("保持旧登记"),
+            registered
+        );
+        for conflicting in [
+            format!("{framework}\nlet duplicate = openrust::db::FrameworkMigrator::migrations();"),
+            format!("{framework}\nBox::new(openrust::queue::QueueMigration)"),
+            registered.replace(
+                "openrust::queue::QueueMigration",
+                "openrust::queue::QueueMigration, openrust::queue::QueueMigration",
+            ),
+        ] {
+            assert!(register_queue_migration(&conflicting).is_err());
         }
     }
 

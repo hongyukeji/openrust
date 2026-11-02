@@ -419,7 +419,7 @@ async fn each_due_slot_uses_and_closes_its_own_scope() -> Result<(), Box<dyn std
         FrameworkConfig::default(),
     ))
     .merge(Toml::string(&format!(
-        "[database]\nurl = {:?}\n[queue.connections.default]\ndriver = 'trigger-test'\n",
+        "[database]\nurl = {:?}\n[queue]\ndefault = 'default'\n[queue.connections.default]\ndriver = 'trigger-test'\n",
         database.url()
     )));
     let mut builder = openrust::core::ProviderBuilder::new();
@@ -498,7 +498,7 @@ async fn failed_and_cancelled_trigger_close_scoped_resources()
         FrameworkConfig::default(),
     ))
     .merge(Toml::string(&format!(
-        "[database]\nurl = {:?}\n[queue.connections.default]\ndriver = 'trigger-test'\n",
+        "[database]\nurl = {:?}\n[queue]\ndefault = 'default'\n[queue.connections.default]\ndriver = 'trigger-test'\n",
         database.url()
     )));
     let mut builder = openrust::core::ProviderBuilder::new();

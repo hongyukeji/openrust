@@ -1477,3 +1477,20 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 首轮探索性完整回归的SIGKILL用例在tearDown等待监督回收时超时，其余通过；日志`/tmp/openrust-guard-final-main.log`保留，不回填成功。生命周期fixture的通知替身原误入Codex stdin协议，已改为立即退出，原断言与时限不变；定向真实子进程回归通过，日志`/tmp/openrust-guard-restart-regression.log`，最终完整147项结果以上述v2日志为准。
 
 本机CLI为0.159.3，正式experimental JSON schema与proxy参数已核查；`codex app-server daemon version`实测默认共享控制socket不存在，未启动/重启服务，未改真人线程、Goal、额度或问答账本。当前Desktop真实恢复及proxy断连后的工具推进未验收，原生精确问答、可信真人控制水位与预算自动恢复仍保缺口；Windows跳过项不计原生通过。最后读取与queue/start没有CAS，仍有竞态，不能声称原子遵守其间的真人暂停。接入条件与最小路径见[平台说明](../../skills/agent-continuous-development-guard/references/platforms.md#原生接入条件与最小路径)。本簇仅skill和验收事实，不替代任何Rust业务源码门禁。
+
+## 标准依赖与队列开箱限定验收
+
+范围为标准根应用与 `new` 的 MySQL/Redis 依赖、`queue.default`/原始具名连接、实际使用时构造 driver、显式 worker、同一模块 Jobs 与生成迁移目录；固定上游 framework `d52c3b3` 的 `config/queue.php`、`QueueManager::connection/resolve`、`QueueServiceProvider`，不把现有独立队列扩展等同完整 Laravel Queue。
+
+| 验证范围 | 本批真实证据与结果 |
+| --- | --- |
+| 冻结主门禁 | `tmp/standard-queue-20261102/attempt5/results.json` 的12项全部exit0、日志SHA匹配：fmt，默认/全特性workspace严格Clippy、tests、warnings-denied docs，无默认驱动cache-redis+queue严格Clippy、no-default lib tests、PG-only db tests、Rust1.97.0 check、cargo deny。ignored/无服务环境的提前返回不计真实服务。 |
+| 受验输入映射 | 692文件冻结；其后仅Redis测试四处资源后assert改fallible且条件全保留、品牌文字/包description、独立SQLite consumer显式opt-out。`post-cleanup-inputs.json`、`branding-only-delta.json`、`sqlite-consumer-opt-out-delta.json`、`final-inputs.json`保存映射。资源清理测试有默认/全特性定向tests/严格Clippy补验；品牌及最终错误时点说明有全特性warnings-denied docs补验。 |
+| 真实MySQL8.4/PG18/Redis8 | 双库各1项Redis调度事务拒绝，均检查无任务/slot残留；无默认库模块HTTP→Redis→同容器handler→ACK 1项。根标准构建真实TCP与独立CLI worker分别走DB/Redis，serve不暗启worker、config:cache固定database、clear后切换Redis；四进程正常exit0、端口释放、任务库与Redis自有键无遗留。见`real-*.json`、`root-live-attempt2-receipt.json`。 |
+| 四种fresh应用 | minimal check/test/build通过，12项为9 stock＋3公开consumer，并生成普通/UUID模型；standard和PG各check/test通过，迁移目录1＋test_app11（包含真实DB与无默认库Redis两个任务fixture），无ignored；默认MySQL auth+MFA+encryption check/test通过，认证2＋迁移目录1。见`fresh-*-check/test*.json/log`；runner检查服务测试未跳过。 |
+| SQLite与缓存重启 | 外部SQLite保留原cache-redis闭包、显式default-features=false；`--locked` check及真实事务run通过，lock未改，未扩大内置后端承诺。minimal生成二进制实际缓存/清缓存重启、缓存隔离坏dotenv通过，二进制SHA及命令在`fresh-minimal-cache-restart.json`。 |
+| 独审与保全 | 不同模型最终审查`/tmp/openrust-standard-queue-final-evidence-review.md`核日志SHA、源码差异、断言/清理和真实调用链；341份生成/运行源码与lock归档`generated-and-runtime-sources.tar.gz`，排除target、部署env与bootstrap/cache；逐文件SHA在`source-archive-manifest.json`。旧失败、诊断和每次回执均保留。 |
+
+初轮fresh fixture只有console环境而缺代码app.env=testing导致Mailer拒绝，修复临时fixture显式覆盖后两个真实用例及完整standard tests通过；不改生产安全限制。首轮TCP fixture缓存后换探测端口而失败，生产正确固定server.port，修runner后通过。SQLite初次locked check失败由新默认依赖暴露独立consumer未opt-out，显式修manifest后通过；不得把这些原失败回填exit0。
+
+默认名称格式/存在仍在启动验证，QueueServiceProvider尚未具备完整DeferrableProvider机制，与固定上游默认错误时点不等价；此确认缺口归既有R2/R10。fresh任务fixture使用公开单次worker入口，独立CLI进程/SIGTERM证据来自根应用，分别取证。完整after_commit、Bus/Chain/Batch、worker参数/默认值、全部官方driver、生产多节点及最低服务版本矩阵仍开放，不能据本簇关闭R10或ADR-001。资源最终收尾见同目录`final-target-cleanup.json`；只清确认归属、无占用可再生产物，源代码/证据/共享服务保留。提交事实以Git为准。

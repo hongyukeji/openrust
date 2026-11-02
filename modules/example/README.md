@@ -14,6 +14,8 @@
 
 **综合示例已贯通当前已实现的公开框架能力。** 文章 HTTP CRUD、事务事件、审计、缓存、存储、账户安全及协议调用均有业务代码和分组验证；tenant 路由通过 `RouteGroup` 演示共享路径前缀与组级认证/授权 middleware。这不表示全部 Laravel 能力已完成。
 
+启用 `queue` 时，模块始终通过同容器 `QueueContributions` 登记普通 heartbeat 任务，`POST /api/example/jobs/heartbeat` 经公开 `Queue` 派发；登记不要求默认数据库。标准构建包含数据库与 Redis 队列驱动，`QUEUE_CONNECTION=redis` 选择 Redis，`cargo run -- queue work redis --queue example` 执行该队列。Article 索引与数据库调度仍只在配置默认数据库时贡献；Redis worker 不因目录存在调度而被拒绝，实际事务型调度对 Redis 的限制在调度执行时报告。真实 Redis 无默认数据库的 HTTP→派发→handler→确认回归位于 `tests/database_selection_flows.rs`，必须显式提供服务运行，默认 ignored 不代表已验收。
+
 `GET /api/example/route-url` 展示命名路由：`GET /api/example` 注册为 `example.index`，处理器从请求提取 `RouteUrlGenerator` 并生成该名称对应的绝对 URL。
 
 `POST /api/example/message-bag` 是不依赖数据库或 Session 的业务错误聚合示例。请求可传 `{"title":"","email":"bad","record_id":0}`；[`controllers/example.rs`](http/controllers/example.rs) 自行判断创建表单字段和更新记录编号，再用公开 `MessageBag` 收集错误。重复调用 `add` 不增加同键同文案，`merge` 保留导入的重复消息；`ViewErrorBag` 将创建错误放在 `default`、更新错误放在 `update`，读取不存在的包只得到临时空包。响应展示键顺序、`first`、`all`、`unique`、格式化和 `to_json`；缺失键的 `first` 返回空字符串，格式参数 `"0"` 沿用当前格式，空键选择在非空包上为真、空包上为假。[模块 HTTP 回归](tests/message_bag_flows.rs)直接请求这条正式路由。开发者在自己的 `modules/<模块名>/http/controllers/` 编写业务判断，在该模块 `routes/api.rs` 挂载处理器，只需调用 `openrust::support` 的公开接口；此例是错误消息聚合参考，不替代真实 Validator、FormRequest 或自动重定向。
