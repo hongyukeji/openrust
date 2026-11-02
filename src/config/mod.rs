@@ -852,6 +852,15 @@ fn nullable_environment_values(
         }
     }
     let mut values = serde_json::Map::new();
+    for (suffix, field) in [("CONNECTION", "connection"), ("TABLE", "table")] {
+        if let Some(value) = environment.get(&format!("{namespace}SESSION_{suffix}")) {
+            fields.insert(
+                field.into(),
+                code::nullable_env_string(&value)
+                    .map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+        }
+    }
     if !fields.is_empty() {
         values.insert("session".into(), serde_json::Value::Object(fields));
     }
@@ -894,6 +903,8 @@ fn common_environment_path(key: &str) -> Option<String> {
         "SMS_DRIVER",
         "I18N_DEFAULT_LOCALE",
         "SESSION_DRIVER",
+        "SESSION_CONNECTION",
+        "SESSION_TABLE",
         "SESSION_COOKIE",
         "SESSION_LIFETIME",
         "SESSION_EXPIRE_ON_CLOSE",
@@ -933,6 +944,8 @@ fn common_environment_path(key: &str) -> Option<String> {
             "SMS_MESSAGING_SERVICE_SID" => "sms.messaging_service_sid",
             "I18N_DEFAULT_LOCALE" => "i18n.default_locale",
             "SESSION_DRIVER" => "session.driver",
+            "SESSION_CONNECTION" => "session.connection",
+            "SESSION_TABLE" => "session.table",
             "SESSION_COOKIE" => "session.cookie",
             "SESSION_LIFETIME" => "session.lifetime",
             "SESSION_EXPIRE_ON_CLOSE" => "session.expire_on_close",

@@ -36,6 +36,7 @@ fn sources(root: &Path, database: &Value) -> Result<ConfigSources> {
         Serialized::defaults(json!({
             "application_root":root,"app":{"env":"testing"},
             "database":database,
+            "session":{"driver":null},
             "cache":{"default":"memory","stores":{"memory":{"driver":"memory"}}},
             "storage":{"default_disk":"local","disks":{"local":{
                 "driver":"fs","root":root.join("storage/app")

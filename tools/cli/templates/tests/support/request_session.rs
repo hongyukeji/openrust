@@ -13,9 +13,9 @@ use openrust::http::{
     CookieFactory, CookieJar, CookieOptions, Inject, Json, RequestInfo, RouteGroup, Routes,
 };
 use openrust::session::{
-    CookieSessionStore, DatabaseSessionStore, MemorySessionStore, Session, SessionId,
-    SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreHandle,
-    SessionWriteMode, SessionWriteOutcome,
+    CookieSessionStore, DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore,
+    Session, SessionId, SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore,
+    SessionStoreHandle, SessionWriteMode, SessionWriteOutcome,
 };
 use openrust::support::{DataObject, DataValue, ObjectEncoding};
 use openrust::testing::{TestApp, TestResponse};
@@ -64,9 +64,27 @@ impl ServiceProvider for SessionRoutes {
                             config.lifetime,
                             config.expire_on_close,
                         )?),
-                        Some("database") => Arc::new(DatabaseSessionStore::new(
-                            (*resolver.resolve::<openrust::db::Db>().await?).clone(),
-                        )),
+                        Some(driver @ ("database" | "database-guarded")) => {
+                            let db = if let Some(connection) = &config.connection {
+                                resolver
+                                    .resolve::<openrust::db::Databases>()
+                                    .await?
+                                    .get(connection)?
+                            } else {
+                                (*resolver.resolve::<openrust::db::Db>().await?).clone()
+                            };
+                            if driver == "database" {
+                                Arc::new(
+                                    DatabaseSessionStore::new(db)
+                                        .configured(config.table.clone(), config.lifetime)?,
+                                )
+                            } else {
+                                Arc::new(
+                                    GuardedDatabaseSessionStore::new(db)
+                                        .for_table(config.table.clone())?,
+                                )
+                            }
+                        }
                         _ => return Err(mismatch()),
                     };
                     Ok(Arc::new(SessionStoreHandle::new(ContractRequestDriver {
@@ -865,6 +883,29 @@ struct ContractRequestDriver {
     context: Option<SessionRequestContext>,
 }
 impl SessionStore for ContractRequestDriver {
+    fn semantics(&self) -> openrust::session::SessionStoreSemantics {
+        self.backend.semantics()
+    }
+    fn for_session(&self) -> openrust::Result<Option<Arc<dyn SessionStore>>> {
+        let backend = self
+            .backend
+            .for_session()?
+            .unwrap_or_else(|| self.backend.clone());
+        Ok(Some(Arc::new(Self {
+            backend,
+            context: self.context.clone(),
+        })))
+    }
+    fn activity_lifetime_seconds(&self) -> Option<i64> {
+        self.backend.activity_lifetime_seconds()
+    }
+    fn reset_exists(&self) -> openrust::Result<()> {
+        self.backend.reset_exists()
+    }
+    fn accepts_request(&self) -> bool {
+        // 当前装饰器本身需要请求Cookie，也转交底层native的可选请求metadata。
+        self.needs_request() || self.backend.accepts_request()
+    }
     fn gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, openrust::Result<u64>> {
         Box::pin(async move {
             let deleted = self.backend.gc(lifetime_seconds).await?;
@@ -894,12 +935,14 @@ impl SessionStore for ContractRequestDriver {
         &self,
         context: SessionRequestContext,
     ) -> openrust::Result<Option<Arc<dyn SessionStore>>> {
-        let backend = if self.backend.needs_request() {
+        let backend = if self.backend.accepts_request() {
             self.backend
                 .bind_request(context.clone())?
                 .ok_or_else(mismatch)?
         } else {
-            self.backend.clone()
+            self.backend
+                .for_session()?
+                .unwrap_or_else(|| self.backend.clone())
         };
         Ok(Some(Arc::new(Self {
             backend,

@@ -115,6 +115,20 @@ impl ConfigContext {
         self.env(key).unwrap_or_else(|| default.to_owned())
     }
 
+    /// 读取 Laravel env 保留字和成对引号后的可空字符串；布尔值按 PHP 字符串转换。
+    pub fn nullable_string_or(&self, key: &str, default: Option<&str>) -> Option<String> {
+        self.env(key).map_or_else(
+            || default.map(str::to_owned),
+            |value| nullable_env_string(&value),
+        )
+    }
+
+    /// 读取非可空类型的字符串配置；显式 null 报配置错误，不静默采用默认值。
+    pub fn string_or(&self, key: &str, default: &str) -> Result<String, ConfigError> {
+        self.nullable_string_or(key, Some(default))
+            .ok_or_else(|| ConfigError::Invalid(format!("{key}: 字符串配置不接受 null")))
+    }
+
     /// 严格读取布尔部署值；无效输入只报告变量名，不显示值。
     pub fn bool_or(&self, key: &str, default: bool) -> Result<bool, ConfigError> {
         let Some(value) = self.env(key) else {
@@ -129,6 +143,23 @@ impl ConfigContext {
     pub fn nullable_bool_or(&self, key: &str, default: Option<bool>) -> Option<bool> {
         self.env(key)
             .map_or(default, |value| nullable_env_bool(&value))
+    }
+}
+
+pub(super) fn nullable_env_string(value: &str) -> Option<String> {
+    match value.to_ascii_lowercase().as_str() {
+        "null" | "(null)" => None,
+        "true" | "(true)" => Some("1".into()),
+        "false" | "(false)" | "empty" | "(empty)" => Some(String::new()),
+        _ => {
+            let quoted = (value.starts_with('"') && value.ends_with('"'))
+                || (value.starts_with('\'') && value.ends_with('\''));
+            Some(if quoted && value.len() > 1 && !value.contains('\n') {
+                value[1..value.len() - 1].to_owned()
+            } else {
+                value.to_owned()
+            })
+        }
     }
 }
 
@@ -1064,6 +1095,28 @@ mod tests {
 
 #[cfg(test)]
 mod nullable_bool_tests {
+    #[test]
+    fn connection_string_conversion_keeps_null_quotes_and_php_scalar_conversion() {
+        for (raw, expected) in [
+            ("null", None),
+            ("(NuLl)", None),
+            ("\"null\"", Some("null")),
+            ("'reporting'", Some("reporting")),
+            ("", Some("")),
+            ("(empty)", Some("")),
+            ("(true)", Some("1")),
+            ("false", Some("")),
+            ("off", Some("off")),
+            ("\"a\nb\"", Some("\"a\nb\"")),
+        ] {
+            assert_eq!(
+                super::nullable_env_string(raw).as_deref(),
+                expected,
+                "{raw:?}"
+            );
+        }
+    }
+
     #[test]
     fn laravel_reserved_environment_values_then_php_truthiness_are_preserved() {
         for (raw, expected) in [

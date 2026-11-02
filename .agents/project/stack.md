@@ -1,5 +1,7 @@
 # 技术栈
 
+Session 的原生数据库载荷复用现有 `base64` 0.22；`session` feature 显式启用该依赖，不能依赖 Auth 或 MySQL 的偶然 feature 联合。没有新增 crate。SQLx 0.9 物理连接所有权及驻留确认复用 SQLite 迁移已有机制，原生 handler 的驱动错误分类通过 SeaORM 的 SQLx reexport 支持 PG-only 与 session-only 编译边界。
+
 > 重构状态：本文件记录当前依赖资产；[全面重构计划](plans/laravel-rebuild.md) 可按功能簇重新选型，新增/替换后同步这里。计划不等于依赖已安装或新后端已验收。
 
 > 受众：AI Agent

@@ -50,6 +50,7 @@ fn sources() -> Figment {
     Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(json!({
             "app":{"env":"test","url":"http://localhost","key":"example-signed-test-key"},
+            "session":{"driver":null},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "view":{"directory":std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("modules/example/resources/views"),"auto_reload":false},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
@@ -58,13 +59,17 @@ fn sources() -> Figment {
 
 #[tokio::test]
 async fn example_signed_draft_routes_use_public_generator_request_and_middleware() -> TestResult {
-    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
+    let builder = TestApp::<crate::bootstrap::Server>::builder(
         crate::modules::example::test_sources(&(sources()))?,
     );
     #[cfg(feature = "view")]
-    builder.remove_provider(openrust::core::ProviderId::of::<
-        openrust::view::OptionalViewServiceProvider,
-    >());
+    let builder = {
+        let mut builder = builder;
+        builder.remove_provider(openrust::core::ProviderId::of::<
+            openrust::view::OptionalViewServiceProvider,
+        >());
+        builder
+    };
     let mut app = builder.build().await?;
     let result = async {
         let issue = get(&app, "/api/example/draft/signed-links", None, None).await?;
@@ -398,13 +403,17 @@ async fn draft_errors_render_per_request_for_two_clients_and_age() -> TestResult
 
 #[tokio::test]
 async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure() -> TestResult {
-    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
+    let builder = TestApp::<crate::bootstrap::Server>::builder(
         crate::modules::example::test_sources(&(sources()))?,
     );
     #[cfg(feature = "view")]
-    builder.remove_provider(openrust::core::ProviderId::of::<
-        openrust::view::OptionalViewServiceProvider,
-    >());
+    let builder = {
+        let mut builder = builder;
+        builder.remove_provider(openrust::core::ProviderId::of::<
+            openrust::view::OptionalViewServiceProvider,
+        >());
+        builder
+    };
     let mut app = builder.build().await?;
     let result = async {
         redirect(

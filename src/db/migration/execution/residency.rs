@@ -19,7 +19,7 @@ static WITNESSES: OnceLock<Mutex<HashMap<usize, Weak<Comparator>>>> = OnceLock::
 ///
 /// 已被其他任务借出也可返回 true；false 不表示同一池的其他连接均已失效。
 /// 仅适用于标准 SQLx/SQLite 正常析构，不承诺绕过安全 API 的扩展泄漏原生句柄时仍可靠。
-pub(super) async fn return_connection(connection: PoolConnection<Sqlite>) -> Result<bool> {
+pub(crate) async fn return_connection(connection: PoolConnection<Sqlite>) -> Result<bool> {
     let witness = return_with_witness(connection).await?;
     Ok(witness.upgrade().is_some())
 }

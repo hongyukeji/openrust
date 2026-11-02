@@ -37,6 +37,9 @@ struct Migrator;
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        // 精确持久截止属于显式增强driver；复用同一sessions表，不改原生默认迁移。
+        migrations.push(Box::new(openrust::session::GuardedSessionMigration));
+        migrations.push(Box::new(openrust::session::GuardedSessionGcMigration));
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -66,7 +69,7 @@ struct Fixture {
 // 测试专属 driver 只收紧正式数据库记录截止，保留原生浏览器秒级到期场景。
 #[derive(Clone)]
 struct ShortSessionStore {
-    inner: openrust::session::DatabaseSessionStore,
+    inner: openrust::session::GuardedDatabaseSessionStore,
     ttl: time::Duration,
 }
 impl openrust::session::SessionStore for ShortSessionStore {
@@ -156,7 +159,7 @@ impl Fixture {
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage.path()}}},
             "auth":{"jwt":{"issuer":origin,"audience":"browser-socket","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":origin,"active_key_id":"test","keys":{"test":key}}},
-            "session":{"cookie":COOKIE,"secure":false,"http_only":true,"same_site":"strict"},
+            "session":{"driver":"database-guarded","cookie":COOKIE,"secure":false,"http_only":true,"same_site":"strict"},
             "realtime":{"max_connections":1,"max_message_bytes":256,"heartbeat_interval_secs":1,"allowed_origins":[origin]}
         })));
         let ttl = time::Duration::seconds(i64::try_from(ttl)?);
@@ -171,7 +174,7 @@ impl Fixture {
                             let db = resolver.resolve::<Db>().await?;
                             Ok(std::sync::Arc::new(
                                 openrust::session::SessionStoreHandle::new(ShortSessionStore {
-                                    inner: openrust::session::DatabaseSessionStore::new(
+                                    inner: openrust::session::GuardedDatabaseSessionStore::new(
                                         (*db).clone(),
                                     ),
                                     ttl,
@@ -346,7 +349,22 @@ impl Fixture {
 async fn rejected(request: axum::http::Request<()>, status: u16) -> TestResult {
     match tokio::time::timeout(BUDGET, connect_async(request)).await? {
         Err(WsError::Http(response)) => {
-            assert_eq!(response.status().as_u16(), status);
+            if response.status().as_u16() != status {
+                let code = response
+                    .body()
+                    .as_deref()
+                    .and_then(|body| serde_json::from_slice::<serde_json::Value>(body).ok())
+                    .and_then(|body| {
+                        body.get("code")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_owned)
+                    });
+                return Err(format!(
+                    "握手拒绝状态不符：actual={}, expected={status}, error_code={code:?}",
+                    response.status()
+                )
+                .into());
+            }
             Ok(())
         }
         // 不打印请求/响应，避免错误上下文泄露 Cookie 或 Authorization。

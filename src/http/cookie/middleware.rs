@@ -31,17 +31,9 @@ impl<S: Send + Sync> FromRequestParts<S> for CookieJar {
 impl CookieLayer {
     #[cfg(feature = "session")]
     pub(crate) fn protects_web_cookies(&self, session_cookie_name: &str) -> bool {
-        #[cfg(feature = "encryption")]
-        {
-            matches!(&self.protection, Protection::Encrypted(_))
-                && !self.except.iter().any(|name| name == "XSRF-TOKEN")
-                && !self.except.iter().any(|name| name == session_cookie_name)
-        }
-        #[cfg(not(feature = "encryption"))]
-        {
-            let _ = session_cookie_name;
-            false
-        }
+        !matches!(&self.protection, Protection::Plain)
+            && !self.except.iter().any(|name| name == "XSRF-TOKEN")
+            && !self.except.iter().any(|name| name == session_cookie_name)
     }
 
     #[cfg(feature = "session")]

@@ -49,7 +49,8 @@ fn database_host_selects_one_session_provider_even_without_auth() -> Result<()> 
 }
 
 #[tokio::test]
-async fn no_database_host_keeps_example_but_omits_session_route() -> Result<()> {
+async fn host_with_explicitly_disabled_session_keeps_example_but_omits_session_route() -> Result<()>
+{
     let root = tempfile::tempdir().map_err(Error::internal)?;
     crate::modules::example::write_discovery_fixture(root.path())?;
     let module = root.path().join("modules/example");
@@ -66,6 +67,7 @@ async fn no_database_host_keeps_example_but_omits_session_route() -> Result<()> 
     let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
         "application_root": root.path(),
         "app": {"env": "test"},
+        "session": {"driver": null},
         "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
         "security": {"encryption": {"active_key_id": "test", "keys": {
             "test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="

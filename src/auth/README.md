@@ -10,6 +10,8 @@ OpenRust 的认证与授权能力。
 
 ## 当前能力
 
+数据库 Session 默认遵循 Laravel 原生 `database` 语义；普通登录复用同一 Session 内核。OIDC 远程/后通道注销和浏览器实时授权截止要求持续服务器撤销，须显式配置 `database-guarded` 并登记 `GuardedSessionMigration`、`GuardedSessionGcMigration`，或使用提供相同保证的 Memory/Redis driver。原生 `NativeDatabase` 不冒充这种保证，相关强接口返回 `session_store_guarantee_unsupported`。SQLite Session 的独立适配不表示 Auth/MFA/OIDC 的数据库 SQL 已适配 SQLite；见 [Session 驱动边界](../session/README.md#原生-database-与显式增强)。
+
 - `AuthServiceProvider::new()` 会注册数据库认证器和共享 refresh token 服务。该 Provider 依赖 `DatabaseServiceProvider`、PostgreSQL 或 MySQL，以及 `AuthMigration` 创建的表；使用 refresh token 时还需要 `AuthRefreshTokenMigration`。
 - 启用 MFA 时，普通应用启动在 Provider boot 阶段检查 MFA 与审计表，缺表即失败。框架自带 `migrate` 控制台命令可先在空库运行官方迁移；仅实际派发到该命令时延后 MFA 的表预查，其他命令、HTTP 启动和测试应用仍严格校验。迁移的 up/down/状态及参数错误保持原有语义。
 - `SessionServiceProvider::new()` 安装唯一的通用 Session middleware，默认使用应用现有 `Db` 的 PostgreSQL/MySQL store；先装配 `DatabaseServiceProvider`。认证与业务通过 `openrust::session::Session` 共享同一请求句柄及 store，不再安装第二套 Session。自定义 store 实现公开 `openrust::session::SessionStore`，通过 `SessionServiceProvider::with_store` 安装；`driver = "array"` 或显式内存 store 才使用进程内存储，数据库故障不会静默降级。`SessionConfig.cookie` 可指定名称，未指定时从最终 `app.name` 推导；`path`、`domain`、`secure`、`http_only`、`same_site`、`lifetime`、`expire_on_close`、`partitioned` 和 `max_bytes` 均来自最终 `session` 配置。`with_cookie_config` 在自身 boot 阶段覆盖文件和环境来源；更晚 Provider 的显式 overlay 仍按顺序生效。安装 `CookieServiceProvider` 后，Session 读取解密后的 Cookie 视图，`RequestInfo` 仍保留原始 wire 头，认证层继续拒绝原始重复凭据。自定义 Provider 的额外装配边界和完整 API 见 [Session 使用指南](../session/README.md)。

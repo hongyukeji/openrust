@@ -10,6 +10,10 @@ mod session_helpers;
 #[path = "session_source_cases.rs"]
 mod session_source_cases;
 
+#[cfg(feature = "db-sqlite")]
+#[path = "session_native_database.rs"]
+mod native_database;
+
 use std::{
     collections::{HashMap, VecDeque},
     sync::{Arc, Mutex, MutexGuard},

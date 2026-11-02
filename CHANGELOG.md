@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 数据库 Session 默认转为原始 ID、Base64 属性载荷、`last_activity` 与请求内 `exists`；`connection/table` 复用统一配置及数据库管理器。原哈希身份、绝对截止、防复活和持续撤销能力通过显式 `database-guarded` 与增强迁移保留；旧摘要表不隐式转换。
+
 - SQLite 配置支持 nullable 外键与原生 PRAGMA 标量；`foreign_key_constraints` 改为 `Option<bool>`，三个专用 PRAGMA 字段改为 `Option<serde_json::Value>`。SQLite 安装默认迁移、既有清单 up/down/status、单机文件锁与取消所有者已完成限定验收；旧版删列重建保留 main 普通表结构与数据。最低 3.26 路径关闭传递 RETURNING feature；完整 Migrator/Schema、业务 SQL 与故障原子窗口保持未完成。
 
 - 新增 `db-sqlite` 内置连接与标准 Provider 配置、每物理连接 PRAGMA 和自有 SQLite 测试库；唯一模块支持独立 reporting 探测。SQLite 完整框架迁移及现有业务 SQL 适配尚未交付。MySQL 会话 UTC 初始化改为逐物理连接执行。

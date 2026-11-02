@@ -164,7 +164,7 @@ impl DefaultProviders {
                 let session = config
                     .get("session.driver")?
                     .and_then(|value| value.as_str().map(str::to_owned))
-                    .is_some_and(|driver| driver != "database" || database);
+                    .is_some();
                 Self::build(database, session).providers
             }
             Selection::Explicit => Vec::new(),
@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn named_only_database_does_not_select_services_bound_to_default_connection()
+    fn named_only_database_keeps_auth_gate_and_selects_configured_session()
     -> super::super::Result<()> {
         let repository = crate::config::repository::ConfigRepository::new(
             crate::config::ConfigSources::from_ordered_entries([
@@ -389,7 +389,10 @@ mod tests {
                     "database",
                     json!({"instances":{"reporting":{"url":"mysql://example.invalid/reporting"}}}),
                 ),
-                ("session", json!({"driver":"database"})),
+                (
+                    "session",
+                    json!({"driver":"database", "connection":"reporting"}),
+                ),
             ])?,
         );
         let ids = DefaultProviders::auto()
@@ -403,7 +406,7 @@ mod tests {
         #[cfg(feature = "queue")]
         assert!(ids.contains(&ProviderId::of::<crate::queue::QueueServiceProvider>()));
         #[cfg(feature = "session")]
-        assert!(!ids.contains(&ProviderId::of::<crate::session::SessionServiceProvider>()));
+        assert!(ids.contains(&ProviderId::of::<crate::session::SessionServiceProvider>()));
         Ok(())
     }
 

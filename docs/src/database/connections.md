@@ -24,6 +24,8 @@ DB_FOREIGN_KEYS=true
 
 ## 独立具名连接
 
+数据库 Session 通过 `session.connection` 选择这里的同一具名连接，`session.table` 仍使用该连接的表名解析规则。默认 `database` 使用原始 ID、Base64 属性载荷和活动时间；要求绝对截止或持续撤销时显式选择 `database-guarded`，并登记同表增强迁移。具体配置、载荷切换与后端边界见 [Session 指南](../../../src/session/README.md#原生-database-与显式增强)。Session 的后端支持不等同整个 Auth、队列和 Schema 已适配。
+
 `DatabaseConfig.instances` 中每项是完整的 `DatabaseInstanceConfig`，不继承默认连接。应用通过 `Databases::get("reporting")` 获取句柄；具名连接不自动启用默认库的认证或队列。唯一综合模块提供 `/api/example/reporting-connection`：仅配置 reporting 时挂载，通过标准 Provider 检查该连接，响应仅含 backend 和 reachable。
 
 ## 隔离测试库

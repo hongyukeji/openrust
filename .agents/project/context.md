@@ -1,5 +1,7 @@
 # 项目上下文
 
+✅ SQLite S3a 原生数据库 Session 与显式 Guarded 已完成限定验收、不同模型独审及资源收尾；全特性2193/默认1333测试、23项真实双库、最低3.26新索引路径和fresh四类均有分输入证据，本地提交以Git为准。完整Guard.id、SQLite认证/MFA/缓存锁/队列及完整框架仍开放，下一步见[唯一 todo](todo.md)。
+
 ✅ SQLite配置与迁移子范围已完成13主组合、最低3.26/当前引擎、真实生成/根宿主、12consumer及限定双库验收，最后能力前置/文档4项补验与资源收尾也已完成，见[SQLite配置与迁移限定验收](memory/testing.md#sqlite-配置与迁移限定验收)。本地提交以Git为准；SQLite整体仍🟡，S3、完整Migrator/Schema/故障原子性及ADR-001继续开放。
 
 > 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C/D 已按范围验收并提交；R3-E fallback 已验收并由 dab80d4 提交。完整模块管理和 Laravel 1:1 范围仍按 [ADR-001](decisions/adr-001-framework-principles.md) 与活跃队列推进。

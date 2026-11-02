@@ -8,6 +8,10 @@ use serde::{Deserialize, Serialize};
 pub struct SessionConfig {
     /// driver 名称；None 明确不启用 Session。自定义 `with_store` 复用同一 Provider。
     pub driver: Option<String>,
+    /// 数据库连接名称；None 使用同一数据库管理器的默认连接。
+    pub connection: Option<String>,
+    /// 数据库 Session 的逻辑表名；默认 sessions，由选定 Db 的表名规则解析。
+    pub table: String,
     /// Cookie名称；None按最终app.name推导。
     pub cookie: Option<String>,
     /// Cookie路径，默认`/`。
@@ -104,6 +108,8 @@ impl Default for SessionConfig {
     fn default() -> Self {
         Self {
             driver: Some("database".into()),
+            connection: None,
+            table: "sessions".into(),
             cookie: None,
             path: "/".into(),
             domain: None,
@@ -124,6 +130,8 @@ impl std::fmt::Debug for SessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SessionConfig")
             .field("driver", &self.driver)
+            .field("connection", &self.connection)
+            .field("table", &self.table)
             .field("cookie", &self.cookie)
             .field("path", &self.path)
             .field("domain", &self.domain)
@@ -172,5 +180,50 @@ mod tests {
             assert!(message.contains(&format!("{lottery:?}")));
         }
         Ok(())
+    }
+
+    #[test]
+    fn database_connection_and_table_keep_defaults_and_explicit_configuration() -> crate::Result<()>
+    {
+        let defaults = SessionConfig::default();
+        assert_eq!(defaults.connection, None);
+        assert_eq!(defaults.table, "sessions");
+        assert_eq!(defaults.lifetime, 120);
+        let inherited: SessionConfig =
+            serde_json::from_value(serde_json::json!({"driver":"database"}))
+                .map_err(crate::Error::internal)?;
+        assert_eq!(inherited.connection, None);
+        assert_eq!(inherited.table, "sessions");
+        let configured: SessionConfig = serde_json::from_value(serde_json::json!({
+            "connection":"reporting", "table":"request_sessions"
+        }))
+        .map_err(crate::Error::internal)?;
+        assert_eq!(configured.connection.as_deref(), Some("reporting"));
+        assert_eq!(configured.table, "request_sessions");
+        let encoded = serde_json::to_value(&configured).map_err(crate::Error::internal)?;
+        assert_eq!(encoded["connection"], "reporting");
+        assert_eq!(encoded["table"], "request_sessions");
+        let debug = format!("{configured:?}");
+        assert!(debug.contains("reporting") && debug.contains("request_sessions"));
+        let explicit_empty: SessionConfig = serde_json::from_value(serde_json::json!({
+            "connection":"", "table":""
+        }))
+        .map_err(crate::Error::internal)?;
+        assert_eq!(explicit_empty.connection.as_deref(), Some(""));
+        assert_eq!(explicit_empty.table, "");
+        Ok(())
+    }
+
+    #[test]
+    fn application_and_generated_session_defaults_share_environment_keys() {
+        let application = include_str!("../../config/session.rs");
+        let generated = include_str!("../../tools/cli/templates/config/session.rs");
+        assert_eq!(application, generated);
+        assert!(
+            application
+                .contains("connection: ctx.nullable_string_or(\"SESSION_CONNECTION\", None)")
+        );
+        assert!(application.contains("table: ctx.string_or(\"SESSION_TABLE\", \"sessions\")?"));
+        assert!(application.contains("lifetime: 120"));
     }
 }

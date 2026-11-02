@@ -63,11 +63,13 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 6. root独占公共contract/Cargo/lock、共享文档/索引/构建/实服务；deferred_contract_review仅只读盘点上游和现链，报告/tmp/openrust-sqlite-builtin-contract-audit.md。当前生产阻点已核：DatabaseBackend拒绝sqlite、标准连接/版本match仅双库、dialect UTC/JSON拒绝、TestDatabase无SQLite、migration_lock仅PG/MySQL；默认audit、Session/auth/MFA、coordination/限流、queue SKIP LOCKED与schedule也有双库限定，不能只移除SQL锁语句。只读报告已保全tmp/sqlite-builtin-20261102/contract-audit.md。
 7. 下一动作：当前R2验收期间收齐只读contract/文件清单；R2本地提交及本次范围明确模块入口整改后，立即按必要依赖收敛短Spec并实际编码SQLite，不只留计划。Factory维持R5前置，SQLite内置适配用现有R4基础优先交付，完整后续矩阵随各簇保持。
 
-当前owner与停点：root，main基线20cea6c，无新worktree，全部worker停写。S2配置/连接/既有迁移与安装子范围的13主门禁、SQLite定向/所有者12、最低3.26库46/Root3、真实生成check/test与9配置子进程、根CLI/配置/HTTP、生成HTTP及12consumer check已通过；最后cfg(not db-sqlite)能力错误前置的默认严格Clippy/完整workspace测试与最新全feature文档4项也通过。外部consumer保全部事务/查询断言，run-2成功；不同模型final-review按直接source diff批准已排除代码的SQLite-enabled证据作用域复用，双库各5亦仅限定复用。当前依据见[验收](memory/testing.md#sqlite-配置与迁移限定验收)，所有失败与补丁来源保全，不把子范围记为全量SQLite完成。
+S2已交付限定范围，编码基线20cea6c（交付提交f9e831a），无新worktree。S2配置/连接/既有迁移与安装子范围的13主门禁、SQLite定向/所有者12、最低3.26库46/Root3、真实生成check/test与9配置子进程、根CLI/配置/HTTP、生成HTTP及12consumer check已通过；最后cfg(not db-sqlite)能力错误前置的默认严格Clippy/完整workspace测试与最新全feature文档4项也通过。外部consumer保全部事务/查询断言，run-2成功；不同模型final-review按直接source diff批准已排除代码的SQLite-enabled证据作用域复用，双库各5亦仅限定复用。当前依据见[验收](memory/testing.md#sqlite-配置与迁移限定验收)，所有失败与补丁来源保全，不把子范围记为全量SQLite完成。
 
-收尾已实证：61份生成文件SHA核对归档后移除；main target50.28GB与后期5.57GB、minimum1.77GB均清零，二进制/HTML/自有cache回收，SQLite文件证据归档；磁盘可用约159GB，依赖源码/native oracle和全部服务/回执保留。最后只核Git与脚本本地提交；提交事实以Git为准，已提交后不得重跑已关闭矩阵或重复领取S2，继续下面同一SQLite项的S3业务适配及剩余缺口，不建第二队列。
+收尾已实证：61份生成文件SHA核对归档后移除；main target50.28GB与后期5.57GB、minimum1.77GB均清零，二进制/HTML/自有cache回收，SQLite文件证据归档；磁盘可用约159GB，依赖源码/native oracle和全部服务/回执保留。本地提交f9e831a已存在；不得重跑已关闭矩阵或重复领取S2，继续下面同一SQLite项的S3业务适配及剩余缺口，不建第二队列。
 
-整项SQLite继续in_progress：S3认证/Session/DB缓存锁/队列调度业务SQL、完整Migrator/fresh/Schema/native JSON、Root+Auth、构造/Drop/驱动fault全矩阵、Windows原生、mount/bind别名与替换路径TOCTOU仍开放。after_release/驱动故障与已在途acquire没有原子禁重连保证；不降低断言、不说全面防丢库，也不把该窗口归为必要Rust适配。原Goal active、27/5.4预算/default80%不变，不rebase/credits，不重启stopped coop/旧守护。
+S3a已完成限定验收：基线 `f9e831a`，root独占main/索引/Cargo/公共contract/文档/服务，所有writer停写交接。原生DatabaseSessionHandler/Store、canonical表/官方索引/exists/活动期限、connection/table/IP/UA及绑定Session身份投影；显式Guarded/SQLite微秒事务/GC与调用方/模板/唯一示例/原强断言同步。冻结20主全feature四门禁均0（2193/0/122 ignored），默认18经等价差异独审限定复用（1333/0/40 ignored）；三精简feature、MSRV1.97、deny、最低3.26当前原生common/真实动态库身份、双库23项及fresh四类9/11/3/3均按分输入实证通过。不同模型独审核700输入零漂移、日志SHA/真实执行/数量与复用边界，无限定blocker。229份生成源归档SHA核对，main/最低/生成target全部正常clean至0，磁盘可用约157GB；依赖/native源码、服务及全部失败/证据保留。详见[限定验收](memory/testing.md#sqlite-数据库-session-对应限定验收)；本地提交以Git为准，不重跑已关闭S2/S3a矩阵，不扩大本批。下一停点：先核本地提交和干净Git，再按同项S3b审计固定上游认证/MFA/Guard实际调用链与SQLite阻点，短Spec后完整编码配套再集中验收。完整Guard.id/named guard仍归R7，当前身份投影不冒充完整Guard。
+
+整项SQLite继续in_progress：S3b认证/MFA/Guard解析、Session其余语义、DB缓存锁/队列调度业务SQL、完整Migrator/fresh/Schema/native JSON、Root+Auth、构造/Drop/驱动fault全矩阵、Windows原生、mount/bind别名与替换路径TOCTOU仍开放。after_release/驱动故障与已在途acquire没有原子禁重连保证；不降低断言、不说全面防丢库，也不把该窗口归为必要Rust适配。原Goal active、27/5.4预算/default80%不变，不rebase/credits，不重启stopped coop/旧守护。
 
 ### 标准 MySQL＋Redis 与队列开箱（已限定提交3703939）
 
@@ -352,7 +354,7 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 | 7 Queue afterCommit | R10 C19 | 新总控协调；按R4事务前置领取，事务内持久写入不替代提交回调 | services:after_commit【确认缺口】C19 |
 | 8 每任务调度锁策略 | R10 C20 | 新总控协调；统一slot资产保留，补每任务withoutOverlapping/onOneServer语义 | services:schedule【确认缺口】C20 |
 | 9 Storage throw/ACL/迟到发布 | R8 C15 | 新总控协调；已有visibility/presign限定验收保留；ACL/迟到发布/throw=false与copy/move仍开放 | services:storage_throw【确认缺口，Result仅为Rust形式】C15；services:storage_visibility【已有资产＋未验子行为/确认缺口】C15 |
-| 10 named guard/provider、Gate/Policy | R7 C12/C13 | 新总控协调；依HTTP/Session前置补named manager/Gate，现JWT/Session/RBAC资产不抹除 | http:5【确认缺口】L051.07/08 L052.02/04/05 |
+| 10 named guard/provider、Gate/Policy | R7 C12/C13 | 新总控协调；依HTTP/Session前置补named manager/Gate，包括数据库Session元数据从绑定身份投影补为真实Guard.id解析/失效生命周期；现JWT/Session/RBAC资产不抹除 | http:5【确认缺口】L051.07/08 L052.02/04/05 |
 | 11 URL复杂参数/路由绑定 | R3 C03/C04 | 新总控协调；简单golden不算全量；Request已有已验范围见C04-F/G，完整路由/绑定仍开放；matchit普通参数25上限已安全拒绝，但仍是需解除的后端差距，不是Rust语言必要适配 | http:1【resource/apiResource七动作确认缺口】L018.04 L015.03/05；http:9【复杂参数/隐式绑定确认缺口】L015.05 L024.03/04/06；http:assets:request【已验子范围＋明确Rust资源/async适配】L019.02–07 |
 | 12 Encrypt/Hash drivers | R7 C13 | 新总控协调；补官方算法/选择与key默认工作流，保AAD/key-ring/容量增强，不改用户真实.env | foundation:F5【确认缺口】L054.02；http:6【确认缺口＋授权增强保留】L054.02/03 L055.02/03/04 |
 | 13 Query/Eloquent | R4/R5 C07–C09 | 新总控协调；9035a00默认SELECT *、真实count/分页/隔离已验；cursor、完整Query/ORM仍开放，不以SeaORM抵扣 | http:assets:query【已验子范围＋cursor缺口】L059.02/03/05；services:query【同一子范围，cursor确认缺口】C07/L059；services:eloquent【确认缺口】C08/C09 |

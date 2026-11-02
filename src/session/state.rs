@@ -14,7 +14,7 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use super::{
     DEFAULT_MAX_BYTES, SessionId, SessionRecord, SessionRequestContext, SessionStore,
-    SessionWriteMode, SessionWriteOutcome,
+    SessionStoreSemantics, SessionWriteMode, SessionWriteOutcome,
 };
 use super::{
     attributes::Attributes,
@@ -54,16 +54,29 @@ struct Driver {
     actual: Arc<dyn SessionStore>,
     needs_request: bool,
     bound: bool,
+    accepts_request: bool,
+    semantics: SessionStoreSemantics,
+    activity_lifetime: Option<i64>,
 }
 impl Driver {
-    fn new(store: Arc<dyn SessionStore>) -> Self {
+    fn new(store: Arc<dyn SessionStore>) -> Result<Self> {
         let needs_request = store.needs_request();
-        Self {
-            identity: store.clone(),
-            actual: store,
+        let actual = store.for_session()?.unwrap_or_else(|| store.clone());
+        if actual.guarantees() != store.guarantees() || actual.semantics() != store.semantics() {
+            return Err(invalid_record());
+        }
+        let accepts_request = store.accepts_request();
+        let semantics = store.semantics();
+        let activity_lifetime = store.activity_lifetime_seconds();
+        Ok(Self {
+            identity: store,
+            actual,
             needs_request,
             bound: !needs_request,
-        }
+            accepts_request,
+            semantics,
+            activity_lifetime,
+        })
     }
     #[cfg(feature = "auth")]
     fn require_authenticated(&self, name: &str) -> Result<()> {
@@ -234,7 +247,23 @@ impl Session {
             Some(id) => id,
             None => SessionId::generate()?,
         };
-        let driver = Driver::new(store);
+        let driver = Driver::new(store)?;
+        let expiry = if let Some(lifetime) = driver.activity_lifetime {
+            match expiry {
+                None | Some(Expiry::OnSessionEnd) => {
+                    Some(Expiry::OnInactivity(Duration::seconds(lifetime)))
+                }
+                Some(Expiry::OnInactivity(value)) if value == Duration::seconds(lifetime) => expiry,
+                _ => {
+                    return Err(extension_error(
+                        "session_expiry_unsupported",
+                        "原生数据库活动期限来自最终配置，其他截止须选择增强 driver",
+                    ));
+                }
+            }
+        } else {
+            expiry
+        };
         Ok(Self {
             inner: Arc::new(Inner {
                 state: Mutex::new(State {
@@ -299,9 +328,14 @@ impl Session {
         let mut retired_errors = None;
         let operation = self.write_operation()?;
         let outcome = (|| -> Result<()> {
-            let (snapshot, id, expiry) = {
+            let (snapshot, id, expiry, semantics) = {
                 let state = self.lock()?;
-                (state.attributes.clone(), state.id.clone(), state.expiry)
+                (
+                    state.attributes.clone(),
+                    state.id.clone(),
+                    state.expiry,
+                    state.driver.semantics,
+                )
             };
             candidate = Some(snapshot);
             let current = candidate.as_mut().ok_or_else(invalid_record)?;
@@ -311,7 +345,7 @@ impl Session {
                 data: current.budget_json()?,
                 expiry_date: expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
             }
-            .encode(self.inner.max_bytes)?;
+            .validate_for(semantics, self.inner.max_bytes)?;
             let mut state = self.lock()?;
             state.ensure_live()?;
             #[cfg(feature = "view")]
@@ -438,7 +472,8 @@ impl Session {
         };
         let mut state = self.lock()?;
         state.ensure_mutable()?;
-        if state.destroyed.contains(&id) {
+        if state.driver.semantics == SessionStoreSemantics::Guarded && state.destroyed.contains(&id)
+        {
             return Err(write_conflict());
         }
         if state.id != id {
@@ -453,6 +488,7 @@ impl Session {
 
     /// 替换并返回配置驱动；保留属性和 started，不自动注入请求。
     pub fn set_handler(&self, handler: Arc<dyn SessionStore>) -> Result<Arc<dyn SessionStore>> {
+        let semantics = handler.semantics();
         {
             let state = self.lock()?;
             state.ensure_mutable()?;
@@ -461,13 +497,28 @@ impl Session {
             {
                 return Ok(handler);
             }
+            if semantics != state.driver.semantics && state.has_transfer_data()? {
+                return Err(extension_error(
+                    "session_transfer_unsupported",
+                    "已有会话不能跨原生与增强语义转移期限及撤销授权",
+                ));
+            }
         }
         // 用户驱动代码和旧 Arc 的最终释放均不在属性锁内。
-        let driver = Driver::new(handler.clone());
+        let driver = Driver::new(handler.clone())?;
         let old = {
             let mut state = self.lock()?;
             state.ensure_mutable()?;
+            if driver.semantics != state.driver.semantics && state.has_transfer_data()? {
+                return Err(extension_error(
+                    "session_transfer_unsupported",
+                    "已有会话不能跨原生与增强语义转移期限及撤销授权",
+                ));
+            }
             let old = std::mem::replace(&mut state.driver, driver);
+            if let Some(lifetime) = state.driver.activity_lifetime {
+                state.expiry = Some(Expiry::OnInactivity(Duration::seconds(lifetime)));
+            }
             state.intent = CreateIntent::Explicit;
             state.restore_proof();
             old
@@ -496,6 +547,10 @@ impl Session {
         Ok(self.lock()?.driver.needs_request)
     }
 
+    pub(crate) fn handler_accepts_request(&self) -> Result<bool> {
+        Ok(self.lock()?.driver.accepts_request)
+    }
+
     /// 在 I/O 门控下创建请求内实例；普通驱动不调用绑定回调。
     #[allow(
         clippy::unused_async,
@@ -505,7 +560,7 @@ impl Session {
     pub async fn set_request_on_handler(&self, context: SessionRequestContext) -> Result<&Self> {
         let _operation = self.try_operation()?;
         let driver = self.lock()?.driver.clone();
-        if !driver.needs_request {
+        if !driver.accepts_request {
             return Ok(self);
         }
         let actual = driver.identity.bind_request(context)?.ok_or_else(|| {
@@ -514,7 +569,9 @@ impl Session {
                 "Session handler did not bind the request",
             )
         })?;
-        if actual.guarantees() != driver.identity.guarantees() {
+        if actual.guarantees() != driver.identity.guarantees()
+            || actual.semantics() != driver.semantics
+        {
             return Err(extension_error(
                 "session_request_binding_invalid",
                 "Session 请求绑定改变了存储保证",
@@ -644,7 +701,7 @@ impl Session {
             let mut retired = None;
             let operation = session.write_operation()?;
             let outcome = (|| -> Result<()> {
-                let (snapshot, id, expiry) = {
+                let (snapshot, id, expiry, semantics) = {
                     let state = session.lock()?;
                     if !state
                         .view_errors
@@ -659,7 +716,12 @@ impl Session {
                         }
                         return Ok(());
                     }
-                    (state.attributes.clone(), state.id.clone(), state.expiry)
+                    (
+                        state.attributes.clone(),
+                        state.id.clone(),
+                        state.expiry,
+                        state.driver.semantics,
+                    )
                 };
                 candidate = Some(snapshot);
                 let current = candidate.as_mut().ok_or_else(invalid_record)?;
@@ -678,7 +740,7 @@ impl Session {
                     data: current.budget_json()?,
                     expiry_date: expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
                 }
-                .encode(session.inner.max_bytes)?;
+                .validate_for(semantics, session.inner.max_bytes)?;
                 let mut state = session.lock()?;
                 state.ensure_live()?;
                 if !state
@@ -1028,12 +1090,25 @@ impl Session {
     pub fn set_expiry(&self, expiry: Option<Expiry>) -> Result<&Self> {
         let mut state = self.lock()?;
         state.ensure_mutable()?;
+        if let Some(lifetime) = state.driver.activity_lifetime {
+            let compatible = match expiry {
+                None | Some(Expiry::OnSessionEnd) => lifetime == 120 * 60,
+                Some(Expiry::OnInactivity(duration)) => duration == Duration::seconds(lifetime),
+                Some(Expiry::AtDateTime(_)) => false,
+            };
+            if !compatible {
+                return Err(extension_error(
+                    "session_expiry_unsupported",
+                    "原生数据库期限来自最终配置；绝对截止须显式选择增强 driver",
+                ));
+            }
+        }
         SessionRecord {
             id: state.id.clone(),
             data: state.attributes.budget_json()?,
             expiry_date: expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
         }
-        .encode(self.inner.max_bytes)?;
+        .validate_for(state.driver.semantics, self.inner.max_bytes)?;
         state.expiry = expiry;
         Ok(self)
     }
@@ -1053,7 +1128,8 @@ impl Session {
         let _operation = self.operation().await?;
         let (id, expiry, driver, existing) = {
             let state = self.lock()?;
-            if state.pending_transfer() {
+            if state.driver.semantics == SessionStoreSemantics::Guarded && state.pending_transfer()
+            {
                 return Err(extension_error(
                     "session_rebind_pending",
                     "Save the explicit Session transfer before starting",
@@ -1080,7 +1156,7 @@ impl Session {
             if record.id != id {
                 return Err(invalid_record());
             }
-            record.encode(self.inner.max_bytes)?;
+            record.validate_for(driver.semantics, self.inner.max_bytes)?;
             if record.expiry_date > OffsetDateTime::now_utc() {
                 budget_expiry = record.expiry_date;
                 #[cfg(feature = "view")]
@@ -1094,11 +1170,11 @@ impl Session {
                 };
                 attributes.merge_loaded(incoming)?;
                 found = true;
-            } else if existing {
+            } else if existing && driver.semantics == SessionStoreSemantics::Guarded {
                 self.lock()?.revoked = true;
                 return Err(write_conflict());
             }
-        } else if existing {
+        } else if existing && driver.semantics == SessionStoreSemantics::Guarded {
             self.lock()?.revoked = true;
             return Err(write_conflict());
         }
@@ -1113,7 +1189,7 @@ impl Session {
             data: attributes.budget_json()?,
             expiry_date: budget_expiry,
         }
-        .encode(self.inner.max_bytes)?;
+        .validate_for(driver.semantics, self.inner.max_bytes)?;
         let retired = {
             let mut state = self.lock()?;
             #[cfg(feature = "view")]
@@ -1173,7 +1249,7 @@ impl Session {
             data: candidate.all_value().project(encoding)?,
             expiry_date: expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
         };
-        record.encode(self.inner.max_bytes)?;
+        record.validate_for(driver.semantics, self.inner.max_bytes)?;
         Ok(PreparedSave {
             record,
             mode,
@@ -1202,28 +1278,38 @@ impl Session {
         }
         let store = driver.ready()?;
         if let Some(origin) = origin {
-            let source = origin.driver.ready()?;
-            let record = source
-                .load(&origin.id, self.inner.max_bytes, record.expiry_date)
-                .await?;
-            let live = match record {
-                Some(record) => {
-                    if record.id != origin.id {
-                        return Err(invalid_record());
+            let native = driver.semantics == SessionStoreSemantics::NativeDatabase
+                || origin.driver.semantics == SessionStoreSemantics::NativeDatabase;
+            if native && driver.semantics != origin.driver.semantics {
+                return Err(extension_error(
+                    "session_transfer_unsupported",
+                    "跨 driver 期限及撤销转移须显式选择增强存储",
+                ));
+            }
+            if !native {
+                let source = origin.driver.ready()?;
+                let record = source
+                    .load(&origin.id, self.inner.max_bytes, record.expiry_date)
+                    .await?;
+                let live = match record {
+                    Some(record) => {
+                        if record.id != origin.id {
+                            return Err(invalid_record());
+                        }
+                        record.validate_for(origin.driver.semantics, self.inner.max_bytes)?;
+                        record.expiry_date > OffsetDateTime::now_utc()
                     }
-                    record.encode(self.inner.max_bytes)?;
-                    record.expiry_date > OffsetDateTime::now_utc()
+                    None => false,
+                };
+                if !live {
+                    self.lock()?.revoked = true;
+                    return Err(write_conflict());
                 }
-                None => false,
-            };
-            if !live {
-                self.lock()?.revoked = true;
-                return Err(write_conflict());
             }
         }
         // source 检查与目标写入不构成跨后端事务；显式复制不承诺线性撤销。
         for attempt in 0..3 {
-            record.encode(self.inner.max_bytes)?;
+            record.validate_for(driver.semantics, self.inner.max_bytes)?;
             match store.write(&record, mode, self.inner.max_bytes).await? {
                 SessionWriteOutcome::Written => {
                     let old = {
@@ -1268,16 +1354,25 @@ impl Session {
         let id = SessionId::generate()?;
         let (old_id, mut candidate, driver, expiry) = {
             let state = self.lock()?;
-            if destroy && state.pending_transfer() {
+            if destroy
+                && state.driver.semantics == SessionStoreSemantics::Guarded
+                && state.pending_transfer()
+            {
                 return Err(extension_error(
                     "session_rebind_pending",
                     "Save the explicit Session transfer before destroying",
                 ));
             }
-            if destroy && !state.destroyed.contains(&state.id) && state.destroyed.len() >= 1024 {
+            if destroy
+                && state.driver.semantics == SessionStoreSemantics::Guarded
+                && !state.destroyed.contains(&state.id)
+                && state.destroyed.len() >= 1024
+            {
                 return Err(limit_error());
             }
-            if state.destroyed.contains(&id) {
+            if state.driver.semantics == SessionStoreSemantics::Guarded
+                && state.destroyed.contains(&id)
+            {
                 return Err(write_conflict());
             }
             (
@@ -1298,19 +1393,21 @@ impl Session {
             data: candidate.budget_json()?,
             expiry_date: expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
         }
-        .encode(self.inner.max_bytes)?;
+        .validate_for(driver.semantics, self.inner.max_bytes)?;
         // 候选全部验证后才删除持久记录；IO失败本身不承诺回滚外部副作用。
         let store = driver.ready()?;
         if destroy {
             store.delete(&old_id).await?;
         }
+        // 同一 I/O 门控内同步重置，取消不能留下“新 ID + 旧 exists”的组合。
+        store.reset_exists()?;
         let retired = {
             let mut state = self.lock()?;
             #[cfg(feature = "view")]
             let retired_errors = state.retire_view_errors(&candidate, flush)?;
             #[cfg(not(feature = "view"))]
             let retired_errors = ();
-            if destroy {
+            if destroy && driver.semantics == SessionStoreSemantics::Guarded {
                 state.destroyed.insert(old_id);
             }
             state.id = id;
@@ -1345,6 +1442,17 @@ impl Session {
 }
 
 impl State {
+    fn has_transfer_data(&self) -> Result<bool> {
+        if self.started || self.existing || self.origin.is_some() {
+            return Ok(true);
+        }
+        match self.attributes.budget_json()? {
+            Value::Array(values) => Ok(!values.is_empty()),
+            Value::Object(values) => Ok(!values.is_empty()),
+            _ => Err(invalid_record()),
+        }
+    }
+
     #[cfg(feature = "view")]
     fn retire_view_errors(
         &mut self,

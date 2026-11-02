@@ -10,7 +10,7 @@ use crate::db::{Db, DbBackend, migration_lock::MigrationLock};
 use super::{CatalogMigrator, MigrationAction};
 
 #[cfg(feature = "db-sqlite")]
-mod residency;
+pub(super) mod residency;
 
 #[cfg(feature = "db-sqlite")]
 tokio::task_local! { static SQLITE_OWNER: (); }

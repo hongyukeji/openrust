@@ -12,6 +12,7 @@ pub struct SessionRequestContext {
     cookies: Value,
     jar: CookieJar,
     protection: Option<crate::http::cookie::CookieProtection>,
+    database_metadata: super::DatabaseSessionMetadata,
 }
 
 impl std::fmt::Debug for SessionRequestContext {
@@ -35,6 +36,7 @@ impl SessionRequestContext {
             cookies,
             jar,
             protection: None,
+            database_metadata: super::DatabaseSessionMetadata::default(),
         })
     }
 
@@ -74,6 +76,18 @@ impl SessionRequestContext {
     /// 当前请求共享的出站 Cookie 队列。
     pub fn cookie_jar(&self) -> &CookieJar {
         &self.jar
+    }
+
+    /// 安装本请求真实观测的数据库元数据；缺省列保持省略语义。
+    #[must_use]
+    pub fn with_database_metadata(mut self, metadata: super::DatabaseSessionMetadata) -> Self {
+        self.database_metadata = metadata;
+        self
+    }
+
+    /// 数据库 driver 的请求内元数据快照，不包含请求体或容器作用域。
+    pub fn database_metadata(&self) -> &super::DatabaseSessionMetadata {
+        &self.database_metadata
     }
 }
 

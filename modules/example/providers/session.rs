@@ -2,8 +2,9 @@
 
 use openrust::http::CookieOptions;
 use openrust::session::{
-    DatabaseSessionStore, MemorySessionStore, SessionId, SessionRecord, SessionRequestContext,
-    SessionStore, SessionStoreHandle, SessionWriteMode, SessionWriteOutcome,
+    DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore, SessionId,
+    SessionRecord, SessionRequestContext, SessionStore, SessionStoreHandle, SessionWriteMode,
+    SessionWriteOutcome,
 };
 use openrust::{
     Result,
@@ -45,6 +46,29 @@ impl ExampleSessionDriver {
     }
 }
 impl SessionStore for ExampleSessionDriver {
+    fn semantics(&self) -> openrust::session::SessionStoreSemantics {
+        self.backend.semantics()
+    }
+    fn for_session(&self) -> Result<Option<Arc<dyn SessionStore>>> {
+        let backend = self
+            .backend
+            .for_session()?
+            .unwrap_or_else(|| self.backend.clone());
+        Ok(Some(Arc::new(Self {
+            backend,
+            request: self.request.clone(),
+        })))
+    }
+    fn activity_lifetime_seconds(&self) -> Option<i64> {
+        self.backend.activity_lifetime_seconds()
+    }
+    fn reset_exists(&self) -> Result<()> {
+        self.backend.reset_exists()
+    }
+    fn accepts_request(&self) -> bool {
+        // 装饰器自身也需要请求Cookie；底层可选metadata不得因needs_request=false丢失。
+        self.needs_request() || self.backend.accepts_request()
+    }
     fn gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
         Box::pin(async move {
             let deleted = self.backend.gc(lifetime_seconds).await?;
@@ -74,12 +98,14 @@ impl SessionStore for ExampleSessionDriver {
         &self,
         context: SessionRequestContext,
     ) -> Result<Option<Arc<dyn SessionStore>>> {
-        let backend = if self.backend.needs_request() {
+        let backend = if self.backend.accepts_request() {
             self.backend.bind_request(context.clone())?.ok_or_else(|| {
                 openrust::Error::custom("example_session_binding_invalid", "示例底层驱动未绑定请求")
             })?
         } else {
-            self.backend.clone()
+            self.backend
+                .for_session()?
+                .unwrap_or_else(|| self.backend.clone())
         };
         Ok(Some(Arc::new(Self {
             backend,
@@ -139,9 +165,24 @@ impl ServiceProvider for ExampleSessionDriverProvider {
             app.singleton::<SessionStoreHandle, _>(move |resolver| {
                 Box::pin(async move {
                     let backend: Arc<dyn SessionStore> = if database {
-                        Arc::new(DatabaseSessionStore::new(
-                            (*resolver.resolve::<openrust::db::Db>().await?).clone(),
-                        ))
+                        let config =
+                            resolver.section::<openrust::config::SessionConfig>("session")?;
+                        let db = if let Some(connection) = &config.connection {
+                            resolver
+                                .resolve::<openrust::db::Databases>()
+                                .await?
+                                .get(connection)?
+                        } else {
+                            (*resolver.resolve::<openrust::db::Db>().await?).clone()
+                        };
+                        if config.driver.as_deref() == Some("database-guarded") {
+                            Arc::new(GuardedDatabaseSessionStore::new(db).for_table(config.table)?)
+                        } else {
+                            Arc::new(
+                                DatabaseSessionStore::new(db)
+                                    .configured(config.table, config.lifetime)?,
+                            )
+                        }
                     } else {
                         Arc::new(MemorySessionStore::default())
                     };

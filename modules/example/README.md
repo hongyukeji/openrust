@@ -34,7 +34,7 @@
 
 模块的 reporting 路由通过标准 `Databases` 使用独立 SQLite 连接；对应测试在真实 Router 调用后检查同一池的 nullable/raw PRAGMA。迁移清单通过公开 Framework/模块 MigrationServiceProvider 接入，`PrivateNote` 回滚使用 `dialect::drop_column`；旧版 SQLite 在迁移所有者内重建 main 普通表，无需业务自行分支。
 
-这些连接与既有迁移清单已在 SQLite 3.26/3.51.3 验证；无 auth 根宿主另有真实 up/status/down/up。独立清单 Provider 验收不等于 Root+Auth 或全部业务已支持：认证、数据库 Session、DB缓存/队列/调度 SQL 与完整 Migrator/Schema 仍在后继范围。接口及边界见[数据库连接](../../docs/src/database/connections.md)。
+这些连接与既有迁移清单已在 SQLite 3.26/3.51.3 验证；无 auth 根宿主另有真实 up/status/down/up。独立清单 Provider 验收不等于 Root+Auth 或全部业务已支持；认证、DB缓存/队列/调度与完整 Migrator/Schema 仍开放。数据库 Session 的原生默认与显式 Guarded 语义见 [Session 指南](../../src/session/README.md#原生-database-与显式增强)。需要浏览器实时授权截止或远程注销时显式选择 Guarded，并在同一表登记增强列/索引迁移；示例包装器转发同一 Session driver 工厂和请求元数据，不保存第二套会话。
 
 ## 统一请求输入与路由规范化
 

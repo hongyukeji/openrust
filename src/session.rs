@@ -3,7 +3,10 @@
 mod attributes;
 mod backend;
 mod cookie;
+mod database_handler;
+mod database_store;
 mod error_bag;
+mod guarded_migration;
 mod id;
 mod middleware;
 mod migration;
@@ -17,14 +20,20 @@ mod store;
 
 #[cfg(feature = "session-redis")]
 pub use backend::RedisSessionStore;
-pub use backend::{DatabaseSessionStore, MemorySessionStore};
+pub use backend::{GuardedDatabaseSessionStore, MemorySessionStore};
 pub use cookie::CookieSessionStore;
+pub use database_handler::{DatabaseSessionHandler, DatabaseSessionMetadata};
+pub use database_store::DatabaseSessionStore;
 pub use error_bag::ErrorBagCodecs;
+pub use guarded_migration::{
+    GuardedSessionGcMigration, GuardedSessionMigration, GuardedSessionTableGcMigration,
+    GuardedSessionTableMigration,
+};
 pub use id::SessionId;
-pub use migration::{SessionGcMigration, SessionMigration};
+pub use migration::{SessionGcMigration, SessionMigration, SessionTableMigration};
 pub use store::{
-    DEFAULT_MAX_BYTES, SessionRecord, SessionStore, SessionStoreGuarantees, SessionWriteMode,
-    SessionWriteOutcome,
+    DEFAULT_MAX_BYTES, SessionRecord, SessionStore, SessionStoreGuarantees, SessionStoreSemantics,
+    SessionWriteMode, SessionWriteOutcome,
 };
 
 #[cfg(feature = "auth")]

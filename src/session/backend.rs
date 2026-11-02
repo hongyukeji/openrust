@@ -8,6 +8,10 @@ use tokio::sync::Mutex;
 
 use super::store::{digest_id, invalid_record, limit_error, unavailable};
 use super::{SessionId, SessionRecord, SessionStore, SessionWriteMode, SessionWriteOutcome};
+#[cfg(feature = "db-sqlite")]
+#[path = "sqlite_guarded.rs"]
+mod sqlite_guarded;
+
 use crate::{
     Result,
     core::BoxFuture,
@@ -17,31 +21,59 @@ use crate::{
     },
 };
 
-/// 基于应用现有数据库连接及逻辑sessions表的共享store。
+/// 显式增强数据库 driver；哈希身份、受限 JSON envelope 与绝对截止复用原生表。
+///
+/// 必须预先登记增强 `expires_at` 迁移；不是原生 database handler 的 Base64 编码。
 #[derive(Clone)]
-pub struct DatabaseSessionStore {
+pub struct GuardedDatabaseSessionStore {
     db: Db,
+    table: String,
 }
 
-impl std::fmt::Debug for DatabaseSessionStore {
+impl std::fmt::Debug for GuardedDatabaseSessionStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("DatabaseSessionStore")
+        f.write_str("GuardedDatabaseSessionStore")
     }
 }
 
-impl DatabaseSessionStore {
+impl GuardedDatabaseSessionStore {
     /// 复用已有Db，不建立第二连接池或迁移仓储。
     pub fn new(db: Db) -> Self {
-        Self { db }
+        Self {
+            db,
+            table: "sessions".to_owned(),
+        }
+    }
+
+    /// 选择同一公开表名解析器中的增强 Session 表；不会创建或改写表。
+    ///
+    /// # Errors
+    ///
+    /// 表名无法由当前 Db 解析时安全拒绝。
+    pub fn for_table(mut self, table: impl Into<String>) -> Result<Self> {
+        let table = table.into();
+        self.db
+            .table_names()
+            .resolve(&table)
+            .map_err(|_| unavailable())?;
+        self.table = table;
+        Ok(self)
     }
 }
 
-impl SessionStore for DatabaseSessionStore {
+impl SessionStore for GuardedDatabaseSessionStore {
     fn gc(&self, _lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
         Box::pin(async move {
             let connection = self.db.connection().map_err(|_| unavailable())?;
             let backend = connection.get_database_backend();
-            let table = self.db.quoted_table_name("sessions")?;
+            let table = self
+                .db
+                .quoted_table_name(&self.table)
+                .map_err(|_| unavailable())?;
+            #[cfg(feature = "db-sqlite")]
+            if backend == DbBackend::Sqlite {
+                return sqlite_guarded::gc(connection.get_sqlite_connection_pool(), &table).await;
+            }
             let now = match backend {
                 DbBackend::Postgres => "CURRENT_TIMESTAMP",
                 DbBackend::MySql => "CURRENT_TIMESTAMP(6)",
@@ -67,15 +99,29 @@ impl SessionStore for DatabaseSessionStore {
         Box::pin(async move {
             let connection = self.db.connection().map_err(|_| unavailable())?;
             let backend = connection.get_database_backend();
-            let table = self.db.quoted_table_name("sessions")?;
+            let table = self
+                .db
+                .quoted_table_name(&self.table)
+                .map_err(|_| unavailable())?;
+            #[cfg(feature = "db-sqlite")]
+            if backend == DbBackend::Sqlite {
+                return sqlite_guarded::load(
+                    connection.get_sqlite_connection_pool(),
+                    &table,
+                    id,
+                    max_bytes,
+                    empty_expiry,
+                )
+                .await;
+            }
             let maximum = i64::try_from(max_bytes).map_err(|_| limit_error())?;
             // 同一次查询检查长度并有界返回，避免length/GET分离的TOCTOU。
             let sql = match backend {
                 DbBackend::Postgres => format!(
-                    "SELECT CASE WHEN octet_length(data) <= $1 THEN data ELSE NULL END AS payload, octet_length(data)::bigint AS payload_length, expires_at FROM {table} WHERE id_hash = $2"
+                    "SELECT CASE WHEN octet_length(payload) <= $1 THEN payload ELSE NULL END AS bounded_payload, octet_length(payload)::bigint AS payload_length, expires_at FROM {table} WHERE id = $2"
                 ),
                 DbBackend::MySql => format!(
-                    "SELECT CASE WHEN OCTET_LENGTH(data) <= ? THEN data ELSE NULL END AS payload, CAST(OCTET_LENGTH(data) AS SIGNED) AS payload_length, expires_at FROM {table} WHERE id_hash = ?"
+                    "SELECT CASE WHEN OCTET_LENGTH(payload) <= ? THEN payload ELSE NULL END AS bounded_payload, CAST(OCTET_LENGTH(payload) AS SIGNED) AS payload_length, expires_at FROM {table} WHERE id = ?"
                 ),
                 _ => return Err(unavailable()),
             };
@@ -97,7 +143,7 @@ impl SessionStore for DatabaseSessionStore {
                 return Err(limit_error());
             }
             let payload = row
-                .try_get::<String>("", "payload")
+                .try_get::<String>("", "bounded_payload")
                 .map_err(|_| invalid_record())?;
             let expiry = row
                 .try_get::<DateTime<Utc>>("", "expires_at")
@@ -113,7 +159,7 @@ impl SessionStore for DatabaseSessionStore {
                     "?"
                 };
                 connection.execute_raw(Statement::from_sql_and_values(backend,
-                    format!("DELETE FROM {table} WHERE id_hash={marker} AND expires_at<=CURRENT_TIMESTAMP"),
+                    format!("DELETE FROM {table} WHERE id={marker} AND expires_at<=CURRENT_TIMESTAMP"),
                     [digest_id(id).into()])).await.map_err(|_| unavailable())?;
                 return Ok(None);
             }
@@ -144,33 +190,59 @@ impl SessionStore for DatabaseSessionStore {
             let payload = String::from_utf8(bytes).map_err(|_| invalid_record())?;
             let connection = self.db.connection().map_err(|_| unavailable())?;
             let backend = connection.get_database_backend();
-            let table = self.db.quoted_table_name("sessions")?;
+            let table = self
+                .db
+                .quoted_table_name(&self.table)
+                .map_err(|_| unavailable())?;
             let expiry = DateTime::<Utc>::from_timestamp(
                 normalized_expiry.unix_timestamp(),
                 normalized_expiry.nanosecond(),
             )
             .ok_or_else(invalid_record)?;
+            #[cfg(feature = "db-sqlite")]
+            if backend == DbBackend::Sqlite {
+                return sqlite_guarded::write(
+                    connection.get_sqlite_connection_pool(),
+                    &table,
+                    &record.id,
+                    payload,
+                    expiry,
+                    mode,
+                )
+                .await;
+            }
+            let activity = OffsetDateTime::now_utc().unix_timestamp();
             let sql = match (backend, mode) {
                 (DbBackend::Postgres, SessionWriteMode::Insert) => format!(
-                    "INSERT INTO {table} (id_hash,data,expires_at,created_at) VALUES ($1,$2,$3,CURRENT_TIMESTAMP)"
+                    "INSERT INTO {table} (id,payload,expires_at,last_activity) VALUES ($1,$2,$3,$4)"
                 ),
                 (DbBackend::MySql, SessionWriteMode::Insert) => format!(
-                    "INSERT INTO {table} (id_hash,data,expires_at,created_at) VALUES (?,?,?,CURRENT_TIMESTAMP)"
+                    "INSERT INTO {table} (id,payload,expires_at,last_activity) VALUES (?,?,?,?)"
                 ),
                 (DbBackend::Postgres, SessionWriteMode::Update) => format!(
-                    "UPDATE {table} SET data=$2,expires_at=$3 WHERE id_hash=$1 AND expires_at>CURRENT_TIMESTAMP"
+                    "UPDATE {table} SET payload=$2,expires_at=$3,last_activity=$4 WHERE id=$1 AND expires_at>CURRENT_TIMESTAMP"
                 ),
                 (DbBackend::MySql, SessionWriteMode::Update) => {
                     format!(
-                        "UPDATE {table} SET data=?,expires_at=? WHERE id_hash=? AND expires_at>CURRENT_TIMESTAMP(6)"
+                        "UPDATE {table} SET payload=?,expires_at=?,last_activity=? WHERE id=? AND expires_at>CURRENT_TIMESTAMP(6)"
                     )
                 }
                 _ => return Err(unavailable()),
             };
             let values = if backend == DbBackend::MySql && mode == SessionWriteMode::Update {
-                vec![payload.into(), expiry.into(), digest_id(&record.id).into()]
+                vec![
+                    payload.into(),
+                    expiry.into(),
+                    activity.into(),
+                    digest_id(&record.id).into(),
+                ]
             } else {
-                vec![digest_id(&record.id).into(), payload.into(), expiry.into()]
+                vec![
+                    digest_id(&record.id).into(),
+                    payload.into(),
+                    expiry.into(),
+                    activity.into(),
+                ]
             };
             let result = connection
                 .execute_raw(Statement::from_sql_and_values(backend, sql, values))
@@ -200,16 +272,19 @@ impl SessionStore for DatabaseSessionStore {
         Box::pin(async move {
             let connection = self.db.connection().map_err(|_| unavailable())?;
             let backend = connection.get_database_backend();
-            let table = self.db.quoted_table_name("sessions")?;
+            let table = self
+                .db
+                .quoted_table_name(&self.table)
+                .map_err(|_| unavailable())?;
             let placeholder = match backend {
                 DbBackend::Postgres => "$1",
-                DbBackend::MySql => "?",
+                DbBackend::MySql | DbBackend::Sqlite => "?",
                 _ => return Err(unavailable()),
             };
             connection
                 .execute_raw(Statement::from_sql_and_values(
                     backend,
-                    format!("DELETE FROM {table} WHERE id_hash={placeholder}"),
+                    format!("DELETE FROM {table} WHERE id={placeholder}"),
                     [digest_id(id).into()],
                 ))
                 .await

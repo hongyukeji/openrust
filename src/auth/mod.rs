@@ -324,7 +324,7 @@ pub trait Authenticator: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<AuthPrincipal>>;
 }
 
-struct AuthService {
+pub(crate) struct AuthService {
     authenticator: Arc<dyn Authenticator>,
 }
 

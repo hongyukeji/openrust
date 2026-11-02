@@ -77,6 +77,7 @@ pub(super) fn register(
         article_routes(
             tenant_routes(account_routes(auth_routes(routes), capabilities)),
             capabilities.summary_origin.is_some(),
+            capabilities.session,
         )
     } else {
         routes
@@ -545,8 +546,10 @@ async fn private_oidc_response(
 
 #[cfg(feature = "auth")]
 #[allow(clippy::too_many_lines)] // 文章同一认证组的路由装配保留在一个可审查入口。
-fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
+fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) -> Routes {
     use controllers::article;
+    #[cfg(not(feature = "realtime"))]
+    let _ = session_enabled;
 
     let routes = routes.group(
         RouteGroup::new()
@@ -675,15 +678,26 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
         ))
     });
     #[cfg(feature = "realtime")]
-    let routes = routes.nest("/api/example", |api| {
-        api.get(
-            "/articles/{id}/browser-socket",
-            controllers::article_socket::browser_connect,
-        )
-        .layer(openrust::auth::AuthLayer::required(
-            openrust::auth::AuthMode::Session,
-        ))
-    });
+    let routes = if session_enabled {
+        routes.nest("/api/example", |api| {
+            api.group(
+                RouteGroup::new()
+                    .middleware_alias("cookies")
+                    .middleware_alias("session"),
+                |api| {
+                    api.get(
+                        "/articles/{id}/browser-socket",
+                        controllers::article_socket::browser_connect,
+                    )
+                    .layer(openrust::auth::AuthLayer::required(
+                        openrust::auth::AuthMode::Session,
+                    ))
+                },
+            )
+        })
+    } else {
+        routes
+    };
     #[cfg(feature = "signing")]
     let routes = routes.get("/api/example/shared-articles/{token}", article::shared_show);
     routes

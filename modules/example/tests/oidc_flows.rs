@@ -129,6 +129,9 @@ struct Migrator;
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut m = openrust::db::FrameworkMigrator::migrations();
+        // RP/logout/backchannel 验证服务器端撤销；在同一原生表上显式安装增强能力。
+        m.push(Box::new(openrust::session::GuardedSessionMigration));
+        m.push(Box::new(openrust::session::GuardedSessionGcMigration));
         m.extend(super::database::migrations::Migrator::migrations());
         m
     }
@@ -179,7 +182,7 @@ impl Fixture {
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"oidc-example","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
-            "session":{"secure":false,"cookie":"example_oidc_session","same_site":"lax"},
+            "session":{"driver":"database-guarded","secure":false,"cookie":"example_oidc_session","same_site":"lax"},
             "example":{"oidc":{"issuer":idp.config.issuer,"client_id":idp.config.client_id,"client_secret":idp.config.client_secret,"redirect_uri":idp.config.redirect_uri,"allow_loopback":true}}
         })));
         let app = TestApp::<crate::bootstrap::Server>::builder(

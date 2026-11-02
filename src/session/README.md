@@ -8,7 +8,7 @@ Session 为同一请求提供共享属性与 flash，并在响应发送前持久
 
 同时启用 `view` 时，Session middleware 会在 `start` 成功后、进入处理器前恢复 `errors` 为当前请求的视图共享对象；损坏的已识别错误包会拒绝请求。处理器可用 `RequestInfo::put_view_error_bag` 修改本请求可见的命名包；已有 Session 错误对象的修改同步到 Session，但不延长原 flash 寿命；`Session::flash_errors` 显式闪存错误，已有 flash 可通过 `keep`/`reflash` 延续。整个 `errors` 属性被替换后，视图原对象保留但与 Session 断开；缺失时的空回退对象不会写回。没有 Session Provider 时，视图只得到本请求的独立空包。`Session::read_errors()` 返回独立读取快照；请求共享修改使用 `RequestInfo::put_view_error_bag`。
 
-默认 driver 是 `database`。它使用应用已有 `Db` 和逻辑 `sessions` 表，不另建连接池。选择 PostgreSQL 或 MySQL 时启用对应的 `db-postgres` / `db-mysql`，登记 `DatabaseServiceProvider`，配置数据库并运行迁移。下面是已经配置加密密钥的宿主的 Provider 片段；`EncryptionServiceProvider` 需要 `encryption` feature：
+默认 driver 是 `database`，复用已有 `Db` 和逻辑 `sessions` 表。按后端启用 `db-postgres`、`db-mysql` 或 `db-sqlite`，登记 `DatabaseServiceProvider`，配置数据库并运行迁移。SQLite Session 的适配不代表认证、队列或完整 Schema 已适配。下面是已配置加密密钥的宿主片段；`EncryptionServiceProvider` 需要 `encryption` feature：
 
 ```rust
 use openrust::core::ProviderBuilder;
@@ -34,7 +34,19 @@ fn register(builder: &mut ProviderBuilder) {
 - 不使用认证迁移时，在应用 Migrator 中登记公开 `SessionMigration`。
 - 已登记 `AuthMigration` 时，它内部已经复用 `SessionMigration`，不要再次登记独立 `SessionMigration`。重复迁移版本的回滚可能删除另一版本仍依赖的表。
 
-迁移使用应用的表名前缀与完整名称映射。表保存身份摘要、有界记录及微秒精度截止时间；不要把会话 ID 当作普通日志字段。
+迁移使用应用的表名前缀与完整名称映射。原生表为 `id/user_id/ip_address/user_agent/payload/last_activity`。自定义表用 `SessionMigration::for_table` 创建，运行期 `session.table` 选择同一逻辑名称。旧摘要表无法恢复原始 ID，须显式处理迁移并保全原数据，框架不会覆盖。
+
+### 原生 database 与显式增强
+
+`DatabaseSessionHandler` 对应固定 Laravel `d52c3b3` 的低层接口，接收原始字节及任意 ID；受管 `Session` 仍验证 40 字符 ID。原生 `payload` 是属性 JSON 的 Base64，不包含身份或绝对期限 envelope。JSON 是 Rust 属性表示的适配，不与 PHP serialize 字节互通；ID 与载荷均不进入日志。
+
+读取过期条件为 `last_activity < 当前秒数 - lifetime秒数`；过期行返回空属性但不删除。`validate_id` 只检查存在，过期行仍返回 true。handler 的 `exists` 在每个 Session 内独立，`migrate` 清除此标志；普通写入按该标志选择 UPDATE 或 INSERT，INSERT 查询错误按上游回退 UPDATE，UPDATE 零行仍表示处理成功。连接获取、传输及已知结果不确定故障保守报错；不能据此宣称所有 PDO 异常已严格对应。
+
+需要身份摘要、微秒绝对截止、防止删除后迟到写入复活、OIDC 远程撤销或浏览器实时授权截止时，显式选择 `session.driver = "database-guarded"` 或 `GuardedDatabaseSessionStore`。在同一原生表迁移后追加 `GuardedSessionMigration` 与 `GuardedSessionGcMigration`；它们扩展该表，不建立第二套 Session。增强载荷为受限 JSON envelope，不与原生载荷混用；切换 driver 前选择新表或显式处理已有记录。SQLite 增强列回滚经标准迁移 Provider 的旧版删列重建执行，不能放入用户自建事务。
+
+`NativeDatabase` 保证分类允许普通登录及当前请求销毁，不能冒充 `ServerSide` 持续撤销保证。`SessionStoreHandle::delete`、`authorized_until` 对原生数据库明确拒绝；这些增强的调用方须选 Guarded 或等价 driver。已有属性的原生/增强跨界切换也拒绝，保留原 handler。原生期限来自最终 `lifetime`，绝对 `Expiry` 需选增强 driver。
+
+`SESSION_CONNECTION` 缺失或未加引号的 `null/(null)` 选择默认连接，具名值经同一 `Databases` 解析。`SESSION_TABLE` 默认 `sessions`；显式 null 因 Rust 非可空类型报配置错误，不回退默认。HTTP 绑定记录可信 IP 和 UA；UA 按固定 PHP 默认 UTF-8 与问号替代规则转换，截取 500 个 Unicode 字符。真实认证服务已绑定时才投影当前 Session guard 的用户 ID；完整 named guard 仍属后继。
 
 ### 显式内存与自定义 store
 
@@ -65,7 +77,7 @@ lifetime = 120
 expire_on_close = false
 ```
 
-本仓正式宿主与生成应用会根据显式非数据库 driver 安装唯一 Session Provider，数据库应用无需额外启用 Auth 才能使用 Session。默认 database 驱动且未配置数据库时仍不安装该层，不暗降级到 memory；未知显式 driver 会在最终配置校验报错。
+正式宿主与生成应用按最终 driver 安装唯一 Session Provider，数据库应用无需额外启用 Auth。显式 database 缺少 URL 时仍会安装，在实际 I/O 明确失败，不暗降级到 memory；未知 driver 在最终配置校验报错。
 
 此模式不需要 Session 数据表；应用其他数据库功能仍按自己的 Provider 装配。外部 driver 组合也可使用公开的 `CookieSessionStore::new(lifetime_minutes, expire_on_close)`。构造器验证正数分钟与时间范围，不在构造时保存请求。自定义包装 driver 必须委托 `guarantees()` 与 `supports_session_authentication(cookie_name)`，并保持请求绑定前后的保证分类一致。
 
@@ -92,9 +104,12 @@ Cookie driver 是**客户端快照**：登出和迁移仅删除当前浏览器�
 | 方法 | 要求 |
 | --- | --- |
 | `load(id, max_bytes, empty_expiry)` | 在复制或解码完整载荷前限制字节；返回指定身份的记录。`empty_expiry` 供损坏载荷的空属性回退使用。 |
-| `guarantees()` | 默认 `ServerSide`，声明当前后端的条件写入/删除；客户端快照须返回 `ClientSideSnapshot`，不得假报全局撤销。 |
+| `guarantees()` | 默认 `ServerSide` 声明增强条件写入/删除；原生数据库为 `NativeDatabase`，客户端快照为 `ClientSideSnapshot`。 |
+| `semantics()` / `for_session()` | 包装器转发持久语义和请求独占工厂；exists 不能保存在应用单例中。 |
+| `accepts_request()` / `bind_request()` | 原生数据库接收可选 HTTP 元数据，Cookie driver 仍强制请求上下文。 |
+| `reset_exists()` / `activity_lifetime_seconds()` | 包装器转发原生 ID 迁移与最终活动期限。 |
 | `supports_session_authentication(cookie_name)` | 默认仅服务器后端返回 true。客户端快照必须明确提供自己的来源与完整性验证；仅声明一个 driver 名称不构成保证。 |
-| `write(record, mode, max_bytes)` | 服务器后端原子区分 `Insert` 与 `Update`；客户端快照仅检查本请求可观测状态。返回 `Written`、`Conflict` 或 `Missing`。 |
+| `write(record, mode, max_bytes)` | 增强后端原子区分模式；原生数据库使用 handler exists，`Written` 不保证影响行数非零。客户端快照只检查请求内状态。 |
 | `delete(id)` | 重复删除成功；不能因此重建记录。 |
 
 公开 `SessionRequestContext::new` 构造的 Cookie 快照不附带受管理中间件的可信保护事实，不能用它伪装内置 Cookie 认证请求。第三方客户端 driver 若返回认证支持，须自行负责验证载荷完整性，并在请求绑定与包装中保留该保证。
@@ -129,7 +144,7 @@ serializer = "native"
 | `lifetime` | 120 分钟非活动超时；每次保存更新截止，必须为正且可安全换算。 |
 | `expire_on_close` | `false`；设为 true 时发送浏览器会话 Cookie，持久记录仍受 `lifetime` 限制。 |
 | `partitioned` | `false`；启用时发送 Partitioned 标记，应用还需正确设置 Secure 并满足浏览器要求。 |
-| `max_bytes` | 完整持久记录默认 20 MiB，包含属性与记录元数据；只能调低，不能超过硬上限。 |
+| `max_bytes` | 默认 20 MiB，只能调低。原生数据库约束 Base64 解码后的属性字节，增强 driver 计入完整 envelope。 |
 
 TOML 没有 null 字面量。需要把可选字段明确设为 `None` 时，可以使用 `SessionConfig` 或支持 null 的配置源；不要用空字符串代替。
 
@@ -269,6 +284,8 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 ## ID、token 与撤销
 
+本节的防复活、碰撞重试和持久绝对截止属于 Guarded / `ServerSide` 增强语义；原生数据库遵循前述 handler exists、活动期限和零行 UPDATE 规则。
+
 构造 `Session::new(id, store, expiry)` 时 ID 已立即可见；ID 为大小写敏感的 40 位 ASCII 字母数字。合法 ID 没有持久记录时保留此 ID，属性重新开始。`start` 为缺失或 null 的 `_token` 生成同样长度与字符集的随机 token；已有 false、0、空串等非 null 值按 Store 规则保留。token 的存在不代表请求已经通过 CSRF 验证。
 
 | 操作 | ID / token / 属性 |
@@ -312,11 +329,11 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 `session.lottery = [2, 100]` 默认每次请求以 2% 概率回收。分母必须非零，分子不得大于分母；`[0, 100]` 禁用，`[1, 1]` 每次执行。抽签在 Session 成功启动后、业务前运行，调用本请求已绑定的实际驱动；传入最终 `lifetime` 的秒数。
 
-外部驱动可覆盖 `SessionStore::gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>>`，返回实际删除数量，默认返回 0。数据库使用带截止索引的单条条件删除，Memory 在同一锁内移除已到期记录；Cookie 不清扫客户端副本，Redis 由服务端 TTL 回收。它们的默认 GC 返回 0，不承诺服务器撤销客户端快照。
+外部驱动覆盖 `SessionStore::gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>>`，返回实际删除数量。原生数据库按 `last_activity <= 当前秒数 - lifetime_seconds` 删除；Guarded 按 `expires_at <= 当前时间`，不缩短显式长截止。Memory 在同一锁内清扫；Cookie 返回 0，Redis 由服务端 TTL 回收。
 
-现有持久绝对截止仍是授权上界，GC 不用当前 lifetime 反推或缩短显式长截止。这与 Laravel 数据库按当前 lifetime 回溯 last_activity、Array 使用严格小于的边界不同，属于已分类的期限安全增强。GC 不是分布式请求锁：并发续期与回收仍依靠后端条件写入，已删除记录的旧 Update 不得复活。
+Guarded 的绝对期限与条件写入属于已分类增强，不是 Laravel 数据库默认语义。SQLite 增强 GC 在同一 `BEGIN IMMEDIATE` 所有权内分批读取截止并作 UTC 比较；不依靠文本日期排序或秒精度近似。它不是分布式请求锁。
 
 GC 错误阻止业务与保存，返回脱敏且禁止缓存的错误响应；取消关闭本请求句柄并清理本请求 Cookie 队列，不后台继续。已在外部后端完成的删除不回滚。
 
 
-截止索引使用独立 `SessionGcMigration` 升级版本；默认 `FrameworkMigrator` 在 Session 或 Auth 建表迁移后只登记一次。自定义迁移列表须在 `SessionMigration`（或已包含该表的 `AuthMigration`）后显式追加 `SessionGcMigration`。索引名按实际表名摘要生成，支持同 schema 不同表前缀；同名索引不会被忽略，外部异列定义应修正后再运行迁移。升级不改变原 Session 表迁移版本、不删除记录。
+原生索引按固定 Blueprint 命名规则从实际物理表名生成：默认 `sessions_user_id_index` 与 `sessions_last_activity_index`，ASCII 转小写并将点和横线替换为下划线。`SessionMigration` 创建这两个索引，默认清单保留 `SessionGcMigration` 活动索引升级。增强截止索引用独立 `GuardedSessionGcMigration`，在 `GuardedSessionMigration` 后显式登记；同名异列索引正常失败。迁移支持表名前缀与完整名称映射，不删除已有记录。

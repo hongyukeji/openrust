@@ -1206,12 +1206,15 @@ async fn session_gc_indexes(
     table: &str,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+    let expected = format!("{table}_last_activity_index")
+        .to_ascii_lowercase()
+        .replace(['-', '.'], "_");
     let sql = match connection.get_database_backend() {
         DbBackend::Postgres => {
-            "SELECT i.relname AS name FROM pg_index x JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_class t ON t.oid=x.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace JOIN pg_am m ON m.oid=i.relam JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=x.indkey[0] WHERE n.nspname=current_schema() AND t.relname=$1 AND left(i.relname,length('ix_sessions_expiry_'))='ix_sessions_expiry_' AND m.amname='btree' AND NOT x.indisunique AND x.indisvalid AND x.indisready AND x.indnatts=1 AND x.indnkeyatts=1 AND x.indpred IS NULL AND x.indexprs IS NULL AND a.attname='expires_at' ORDER BY i.relname"
+            "SELECT i.relname AS name FROM pg_index x JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_class t ON t.oid=x.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace JOIN pg_am m ON m.oid=i.relam JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=x.indkey[0] WHERE n.nspname=current_schema() AND t.relname=$1 AND i.relname=$2 AND m.amname='btree' AND NOT x.indisunique AND x.indisvalid AND x.indisready AND x.indnatts=1 AND x.indnkeyatts=1 AND x.indpred IS NULL AND x.indexprs IS NULL AND a.attname='last_activity' ORDER BY i.relname"
         }
         DbBackend::MySql => {
-            "SELECT index_name AS name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND LEFT(index_name,CHAR_LENGTH('ix_sessions_expiry_'))='ix_sessions_expiry_' GROUP BY index_name HAVING COUNT(*)=1 AND MIN(seq_in_index)=1 AND MAX(seq_in_index)=1 AND MIN(non_unique)=1 AND MAX(non_unique)=1 AND MIN(index_type)='BTREE' AND MAX(index_type)='BTREE' AND MAX(column_name)='expires_at' AND MAX(sub_part) IS NULL ORDER BY index_name"
+            "SELECT index_name AS name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=? GROUP BY index_name HAVING COUNT(*)=1 AND MIN(seq_in_index)=1 AND MAX(seq_in_index)=1 AND MIN(non_unique)=1 AND MAX(non_unique)=1 AND MIN(index_type)='BTREE' AND MAX(index_type)='BTREE' AND MAX(column_name)='last_activity' AND MAX(sub_part) IS NULL ORDER BY index_name"
         }
         _ => return Err("不支持的迁移测试数据库".into()),
     };
@@ -1219,7 +1222,7 @@ async fn session_gc_indexes(
         .query_all_raw(Statement::from_sql_and_values(
             connection.get_database_backend(),
             sql,
-            [table.into()],
+            [table.into(), expected.into()],
         ))
         .await?
         .into_iter()

@@ -1,7 +1,7 @@
 //! 每个子进程单独读取 Session 环境变量，避免并行测试修改全局环境。
 #![cfg(feature = "session")]
 
-use openrust::config::{ConfigLoader, Environment, SessionConfig};
+use openrust::config::{ConfigError, ConfigLoader, Environment, SessionConfig};
 use serde::Deserialize;
 use std::{process::Command, time::Duration};
 
@@ -15,7 +15,33 @@ struct Loaded {
 fn session_environment_child() -> Result<(), Box<dyn std::error::Error>> {
     let case = std::env::var("OPENRUST_SESSION_ENV_CASE")?;
     let config = tempfile::tempdir()?;
-    let source = ConfigLoader::new(config.path(), Environment::Test).figment()?;
+    let config_loader = ConfigLoader::new(config.path(), Environment::Test);
+    if matches!(case.as_str(), "table_null" | "namespaced_table_null") {
+        let error = config_loader
+            .load::<Loaded>()
+            .err()
+            .ok_or("显式null Session table不得回退sessions")?;
+        assert!(matches!(
+            error,
+            ConfigError::Source(_) | ConfigError::Invalid(_) | ConfigError::Diagnostic(_)
+        ));
+        assert!(
+            error.to_string().contains("table"),
+            "错误必须标识Session表配置"
+        );
+        return Ok(());
+    }
+    let source = if case == "process_over_dotenv" {
+        std::fs::write(
+            config.path().join(".env"),
+            "SESSION_DRIVER=array\nSESSION_CONNECTION=dotenv_connection\nSESSION_TABLE=dotenv_sessions\n",
+        )?;
+        ConfigLoader::application_sources(config.path(), "APP_")?
+            .figment()
+            .clone()
+    } else {
+        config_loader.figment()?
+    };
     if case == "absent" {
         assert!(source.find_value("session").is_err());
         return Ok(());
@@ -33,18 +59,40 @@ fn session_environment_child() -> Result<(), Box<dyn std::error::Error>> {
             assert!(!value.http_only);
             assert_eq!(value.same_site.as_deref(), Some("strict"));
             assert!(value.expire_on_close && value.partitioned);
+            assert_eq!(value.connection.as_deref(), Some("reporting"));
+            assert_eq!(value.table, "conventional_sessions");
         }
         "namespace" => {
             assert_eq!(value.cookie.as_deref(), Some("namespaced_session"));
             assert_eq!(value.lifetime, 9);
             assert_eq!(value.secure, Some(true));
             assert_eq!(value.same_site.as_deref(), Some("lax"));
+            assert_eq!(value.connection.as_deref(), Some("namespace_reporting"));
+            assert_eq!(value.table, "namespace_sessions");
         }
         "nullable" | "namespaced_nullable" => {
             assert!(value.driver.is_none());
             assert!(value.domain.is_none());
             assert!(value.secure.is_none());
             assert!(value.same_site.is_none());
+            assert_eq!(value.connection, None);
+            assert_eq!(value.table, "sessions");
+        }
+        "database_defaults" | "connection_parenthesized" => {
+            assert_eq!(value.connection, None);
+            assert_eq!(value.table, "sessions");
+        }
+        "connection_quoted_null" | "namespaced_quoted_null" => {
+            assert_eq!(value.connection.as_deref(), Some("null"));
+            assert_eq!(value.table, "sessions");
+        }
+        "quoted_reporting" => {
+            assert_eq!(value.connection.as_deref(), Some("reporting"));
+            assert_eq!(value.table, "quoted_sessions");
+        }
+        "process_over_dotenv" => {
+            assert_eq!(value.connection.as_deref(), Some("process_reporting"));
+            assert_eq!(value.table, "process_sessions");
         }
         _ => return Err("未知 Session 环境子测试".into()),
     }
@@ -60,6 +108,14 @@ fn session_environment_aliases_are_isolated_and_namespaced()
         "nullable",
         "namespaced_nullable",
         "absent",
+        "database_defaults",
+        "connection_parenthesized",
+        "connection_quoted_null",
+        "namespaced_quoted_null",
+        "quoted_reporting",
+        "table_null",
+        "namespaced_table_null",
+        "process_over_dotenv",
     ] {
         let mut command = Command::new(std::env::current_exe()?);
         command
@@ -108,6 +164,7 @@ fn session_environment_aliases_are_isolated_and_namespaced()
                 command.env(key, "(NULL)");
             }
         }
+        database_environment(&mut command, case);
         command.stdout(std::process::Stdio::piped());
         command.stderr(std::process::Stdio::piped());
         let mut child = command.spawn()?;
@@ -134,4 +191,59 @@ fn session_environment_aliases_are_isolated_and_namespaced()
         }
     }
     Ok(())
+}
+
+fn database_environment(command: &mut Command, case: &str) {
+    match case {
+        "conventional" => {
+            command
+                .env("SESSION_CONNECTION", "reporting")
+                .env("SESSION_TABLE", "conventional_sessions");
+        }
+        "namespace" => {
+            command
+                .env("SESSION_CONNECTION", "conventional_reporting")
+                .env("SESSION_TABLE", "conventional_sessions")
+                .env("APP_SESSION_CONNECTION", "namespace_reporting")
+                .env("APP_SESSION_TABLE", "namespace_sessions");
+        }
+        "nullable" => {
+            command.env("SESSION_CONNECTION", "null");
+        }
+        "namespaced_nullable" => {
+            command
+                .env("SESSION_CONNECTION", "conventional_reporting")
+                .env("APP_SESSION_CONNECTION", "(NULL)");
+        }
+        "connection_parenthesized" => {
+            command.env("SESSION_CONNECTION", "(null)");
+        }
+        "connection_quoted_null" => {
+            command.env("SESSION_CONNECTION", "'null'");
+        }
+        "namespaced_quoted_null" => {
+            command
+                .env("SESSION_CONNECTION", "reporting")
+                .env("APP_SESSION_CONNECTION", "\"null\"");
+        }
+        "quoted_reporting" => {
+            command
+                .env("SESSION_CONNECTION", "\"reporting\"")
+                .env("SESSION_TABLE", "'quoted_sessions'");
+        }
+        "table_null" => {
+            command.env("SESSION_TABLE", "null");
+        }
+        "namespaced_table_null" => {
+            command
+                .env("SESSION_TABLE", "valid_sessions")
+                .env("APP_SESSION_TABLE", "(NULL)");
+        }
+        "process_over_dotenv" => {
+            command
+                .env("SESSION_CONNECTION", "process_reporting")
+                .env("SESSION_TABLE", "process_sessions");
+        }
+        _ => {}
+    }
 }

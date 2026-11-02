@@ -46,7 +46,13 @@ pub(crate) async fn handle(
     let Some(layer) = layer else {
         return next.run(request).await;
     };
-    let result = prepare(&layer, &mut request).await;
+    let (mut parts, body) = request.into_parts();
+    let info = match RequestInfo::from_request_parts(&mut parts, &()).await {
+        Ok(info) => info,
+        Err(error) => return crate::http::cookie::private_error_response(error),
+    };
+    request = Request::from_parts(parts, body);
+    let result = prepare(&layer, &mut request, &info).await;
     let session = match result {
         Ok(session) => session,
         Err(error) => {
@@ -65,10 +71,8 @@ pub(crate) async fn handle(
     let mut close = Close(Some(session.clone()), jar);
     let result = async {
         let secure = crate::http::transport::is_secure(&request)?;
-        let (mut parts, body) = request.into_parts();
         // Route 与 Precognition 共享请求私有状态；不得在下游前猜测最终命中或确认。
-        let info = RequestInfo::from_request_parts(&mut parts, &()).await?;
-        let response = next.run(Request::from_parts(parts, body)).await;
+        let response = next.run(request).await;
         complete(&layer, &session, &info, secure, response).await
     }
     .await;
@@ -136,7 +140,11 @@ async fn complete(
     }
     Ok(response)
 }
-async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session> {
+async fn prepare(
+    layer: &SessionLayer,
+    request: &mut Request,
+    info: &RequestInfo,
+) -> Result<Session> {
     let parsed = crate::http::cookie::parse_headers(request.headers())?;
     let id = parsed
         .value
@@ -177,22 +185,39 @@ async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session>
             .get::<crate::http::CookieJar>()
             .cloned(),
     );
-    if session.handler_needs_request()? {
+    if session.handler_accepts_request()? {
         let jar = request
             .extensions()
             .get::<crate::http::CookieJar>()
             .cloned()
             .ok_or_else(missing)?;
-        session
-            .set_request_on_handler(SessionRequestContext::from_request(
-                parsed.value,
-                jar,
-                request
-                    .extensions()
-                    .get::<crate::http::cookie::CookieProtection>()
-                    .cloned(),
-            )?)
-            .await?;
+        let context = SessionRequestContext::from_request(
+            parsed.value,
+            jar,
+            request
+                .extensions()
+                .get::<crate::http::cookie::CookieProtection>()
+                .cloned(),
+        )?;
+        let context =
+            if session.handler()?.semantics() == super::SessionStoreSemantics::NativeDatabase {
+                context.with_database_metadata(
+                    super::DatabaseSessionMetadata {
+                        user_id: None,
+                        ip_address: Some(info.client_ip()?.map(|ip| ip.to_string())),
+                        user_agent: None,
+                    }
+                    .with_user_agent_bytes(
+                        request
+                            .headers()
+                            .get(http::header::USER_AGENT)
+                            .map_or(&[][..], http::HeaderValue::as_bytes),
+                    ),
+                )
+            } else {
+                context
+            };
+        session.set_request_on_handler(context).await?;
     }
     session.start().await?;
     if lottery_wins(layer.settings.config.lottery)? {

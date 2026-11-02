@@ -3,6 +3,9 @@
 mod execution;
 
 #[cfg(feature = "db-sqlite")]
+pub(crate) use execution::residency::return_connection as return_sqlite_connection;
+
+#[cfg(feature = "db-sqlite")]
 pub(super) fn sqlite_execution_owner() -> bool {
     execution::is_sqlite_owner()
 }

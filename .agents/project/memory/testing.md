@@ -1537,6 +1537,16 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 
 主矩阵后至fresh前已确认无占用并正常Cargo clean：30,940,479,488B→0，二进制/源码/证据保留；最终再核无占用并正常Cargo clean：9,414,590,464B→0，磁盘可用161,398,218,752B；回执见同目录final-target-cleanup.json。模板没有直接受影响的借用命令调用，仍实际新生成check/test。SQL未变，MySQL覆盖受影响的模块维护链；PG限定lib不冒充PG真实服务复验。完整deferred的统一Resolver加载、when、manifest缓存及boot/失败/取消时序仍开放，本簇不关闭R2/R10/ADR-001。当前命令API是必要所有权前置，不以此声称完整Laravel Console/Artisan等价。
 
+## SQLite 数据库 Session 对应限定验收
+
+- 固定来源：framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911155ad16326ade49c0ea5d18eda0b8`；文件 SHA、PHP8.5 mbstring 12 案 oracle、冻结输入与全部失败记录在 `tmp/sqlite-s3-20261103/`。
+- 冻结20最终主组合：fmt、全feature全target `-D warnings` Clippy、workspace tests、docs均exit0，2193 passed / 0 failed / 122 ignored；冻结18默认严格Clippy/tests/docs按无行为变化范围复用通过，1333 passed / 0 failed / 40 ignored。缺环境返回的skip和ignored不计真实服务。19仅Cookie精简feature表达式等价整改，20仅fixture按view feature局部mut作用域；三种精简feature严格Clippy、Rust1.97与deny均通过，默认1333和全部聚合数均含子harness，不是唯一行为数。
+- 当前真实服务23项通过：MySQL8.4.13共12、PostgreSQL18.6共11；涵盖原生 handler、MySQL SQLSTATE/错误号、增强精度/撤销/GC/索引与并发、模块历史/old input/迁移、TCP 浏览器握手/持久截止/关闭、实际Chromium和默认原生 Auth HTTP。分项命令/退出码/实际执行判定/SHA见 `real-services-summary.json`；自有数据库增删差异0，曾因panic留下的单个自有库已核0连接后清理并保全回执。
+- 实跑修复：基础设施错误由默认400改为500；SQLite跨连接旧schema在CREATE prepare时假报已有索引，改同physical先step schema读取再prepare DDL，保留重复/异列冲突断言；浏览器Session认证路由补cookies/session公开链并按能力启用。临时安全探针已移除，严格状态检查改Result以保证失败清理。
+- 冻结18原生索引名称与GC up/down、三码/500断言和模块迁移在双库四项补验通过。最低SQLite3.26冻结20原生完整common contract与同引擎身份用例各1通过，另以DYLD追踪确认实际加载固定3.26.0 dylib且SHA一致；源16最低引擎74项lib Session、2项增强Store和4项Provider HTTP只按未变化子范围保留，不冒称全量当前重跑。不关闭完整Session、Guard解析、SQLite Auth/缓存锁/队列或完整Schema。
+- 当前CLI源20生成四类fresh：minimal9、SQLite11、MySQL-MFA3、PostgreSQL-auth3项实际通过，四类check/test共12条new/check/test命令均0，无ignored；双库认证没有skip，数据库集合0增0删。SQLite附加用例实际链接生成config，验证自定义表/原生往返/官方索引；MFA步骤内嵌认证流程，数量不与根服务相加。
+- 不同模型最终核700输入无漂移、成功日志SHA/数量/实际执行和复用边界，限定范围无blocker。333链接无缺失、mdBook实际build0。四类229份生成文件逐字节校验归档SHA `de86e1d02fb8c3a0579f110d4ba4342c530be9fa0ed7911be4ccbc418d23f35d` 后正常移除；main target40,236,716,032B、最低1,027,358,720B与生成3,637,743,616B均正常clean至0，二进制/HTML回收，磁盘可用157,301,743,616B。源码/WIP、依赖/native oracle、全部服务和原始失败证据保留；完整回执/审查在上述证据根，本地提交以Git为准。
+
 ## SQLite 配置与迁移限定验收
 
 状态：S2限定源码、最后能力前置默认组合、文档与资源收尾已完成适用验收；本地提交以Git为准，不是完整SQLite或ADR-001交付。owner=root，main基线20cea6c，无新worktree，原Goal及27/5.4预算保留。证据根为 `tmp/sqlite-builtin-20261102/s2/`。

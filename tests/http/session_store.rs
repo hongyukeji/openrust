@@ -1,22 +1,22 @@
-//! 用真实 PostgreSQL/MySQL 验证 Session 持久写入、撤销与授权截止。
+//! 用真实 PostgreSQL/MySQL 与自有 SQLite 文件验证显式 Guarded Session 强保证。
 //!
-//! 此测试显式忽略，必须由双库验收传入 `OPENRUST_TEST_DATABASE_URL` 后执行；
+//! PostgreSQL/MySQL 入口显式忽略，须传入 `OPENRUST_TEST_DATABASE_URL`；SQLite 入口正常执行。
 //! 未配置服务或所需 backend feature 时失败，不将缺失服务作为测试成功。
 #![cfg(all(
     feature = "session",
     feature = "auth",
-    any(feature = "db-postgres", feature = "db-mysql")
+    any(feature = "db-postgres", feature = "db-mysql", feature = "db-sqlite")
 ))]
 
 use std::error::Error as StdError;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use openrust::auth::AuthMigration;
 use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use openrust::database::sea_orm_migration::{MigratorTrait, prelude::*};
 use openrust::database::{DatabaseBackend, DatabaseTableNames, Db};
 use openrust::session::{
-    DEFAULT_MAX_BYTES, DatabaseSessionStore, SessionId, SessionRecord, SessionStore,
+    DEFAULT_MAX_BYTES, GuardedDatabaseSessionStore, SessionId, SessionRecord, SessionStore,
     SessionWriteMode, SessionWriteOutcome,
 };
 use openrust::testing::TestDatabase;
@@ -30,7 +30,10 @@ struct SessionMigrator;
 impl MigratorTrait for SessionMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         // 复用正式账户迁移中的 sessions 表；不维护测试专用 schema。
-        vec![Box::new(AuthMigration)]
+        vec![
+            Box::new(AuthMigration),
+            Box::new(openrust::session::GuardedSessionMigration),
+        ]
     }
 }
 
@@ -51,7 +54,10 @@ fn record(letter: char, marker: &str) -> TestResult<SessionRecord> {
     })
 }
 
-async fn loaded(store: &DatabaseSessionStore, record: &SessionRecord) -> TestResult<SessionRecord> {
+async fn loaded(
+    store: &GuardedDatabaseSessionStore,
+    record: &SessionRecord,
+) -> TestResult<SessionRecord> {
     store
         .load(&record.id, DEFAULT_MAX_BYTES, record.expiry_date)
         .await?
@@ -59,7 +65,7 @@ async fn loaded(store: &DatabaseSessionStore, record: &SessionRecord) -> TestRes
 }
 
 async fn write_is(
-    store: &DatabaseSessionStore,
+    store: &GuardedDatabaseSessionStore,
     record: &SessionRecord,
     mode: SessionWriteMode,
     expected: SessionWriteOutcome,
@@ -71,7 +77,7 @@ async fn write_is(
 }
 
 async fn insert_conflict_unchanged_update_and_microseconds(
-    store: &DatabaseSessionStore,
+    store: &GuardedDatabaseSessionStore,
 ) -> TestResult {
     let record = record('a', "original")?;
     write_is(
@@ -122,7 +128,7 @@ async fn insert_conflict_unchanged_update_and_microseconds(
     Ok(())
 }
 
-async fn case_sensitive_ids_and_late_update(store: &DatabaseSessionStore) -> TestResult {
+async fn case_sensitive_ids_and_late_update(store: &GuardedDatabaseSessionStore) -> TestResult {
     let lower = record('b', "lower")?;
     let upper = SessionRecord {
         id: SessionId::parse(&"B".repeat(40))?,
@@ -173,11 +179,19 @@ async fn set_column_expiry(db: &Db, expiry: OffsetDateTime) -> TestResult {
     let backend = connection.get_database_backend();
     let marker = match backend {
         DbBackend::Postgres => "$1",
-        DbBackend::MySql => "?",
-        _ => return Err("Session fixture requires PostgreSQL or MySQL".into()),
+        DbBackend::MySql | DbBackend::Sqlite => "?",
+        _ => return Err("Session fixture requires PostgreSQL, MySQL or SQLite".into()),
     };
     let expiry = DateTime::<Utc>::from_timestamp(expiry.unix_timestamp(), expiry.nanosecond())
         .ok_or("Fixture expiry cannot be represented for SQL")?;
+    let expiry = if backend == DbBackend::Sqlite {
+        // 与生产SQLite增强driver相同的UTC RFC3339微秒编码，避免SQLite TEXT异格式比较。
+        openrust::database::sea_orm::Value::from(
+            expiry.to_rfc3339_opts(SecondsFormat::Micros, true),
+        )
+    } else {
+        expiry.into()
+    };
     // 只操作本次 TestDatabase 的正式表；这里不复刻 driver 的编码或身份摘要。
     connection
         .execute_raw(Statement::from_sql_and_values(
@@ -186,13 +200,16 @@ async fn set_column_expiry(db: &Db, expiry: OffsetDateTime) -> TestResult {
                 "UPDATE {} SET expires_at={marker}",
                 db.quoted_table_name("sessions")?
             ),
-            [expiry.into()],
+            [expiry],
         ))
         .await?;
     Ok(())
 }
 
-async fn column_cutoff_and_expired_update(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+async fn column_cutoff_and_expired_update(
+    db: &Db,
+    store: &GuardedDatabaseSessionStore,
+) -> TestResult {
     let record = record('c', "column cutoff")?;
     write_is(
         store,
@@ -231,7 +248,10 @@ async fn column_cutoff_and_expired_update(db: &Db, store: &DatabaseSessionStore)
 }
 
 // 同秒内已经过期的记录也必须拒绝旧句柄 UPDATE，不能被 SQL 秒精度复活。
-async fn subsecond_expired_update(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+async fn subsecond_expired_update(db: &Db, store: &GuardedDatabaseSessionStore) -> TestResult {
+    if db.backend()? == DbBackend::Sqlite {
+        return sqlite_subsecond_expired_update(db, store).await;
+    }
     let connection = db.connection()?;
     let backend = connection.get_database_backend();
     let (clock, expired) = match backend {
@@ -291,15 +311,65 @@ async fn subsecond_expired_update(db: &Db, store: &DatabaseSessionStore) -> Test
     Err("Could not obtain a same-second database expiry sample".into())
 }
 
+async fn sql_storage_keeps_envelope_and_write_seconds(
+    db: &Db,
+    encoded: &[u8],
+    write_started: i64,
+) -> TestResult {
+    let envelope: serde_json::Value = serde_json::from_slice(encoded)?;
+    let digest = envelope
+        .get("id_hash")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("增强JSON envelope必须保留id_hash身份字段")?;
+    let connection = db.connection()?;
+    let backend = connection.get_database_backend();
+    let marker = if backend == DbBackend::Postgres {
+        "$1"
+    } else {
+        "?"
+    };
+    let stored = connection
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            format!(
+                "SELECT id,payload,{} AS last_activity FROM {} WHERE id={marker}",
+                if backend == DbBackend::Postgres {
+                    "CAST(last_activity AS BIGINT)"
+                } else {
+                    "last_activity"
+                },
+                db.quoted_table_name("sessions")?
+            ),
+            [digest.to_owned().into()],
+        ))
+        .await?
+        .ok_or("增强Session存储行缺失")?;
+    check(
+        stored.try_get::<String>("", "id")? == digest,
+        "SQL id没有保留原envelope身份摘要",
+    )?;
+    check(
+        stored.try_get::<String>("", "payload")?.as_bytes() == encoded,
+        "SQL payload改写了既有JSON envelope编码",
+    )?;
+    let activity: i64 = stored.try_get("", "last_activity")?;
+    check(
+        activity >= write_started && activity <= OffsetDateTime::now_utc().unix_timestamp(),
+        "last_activity必须是真实写入Unix秒，不能伪装成expiry或日期",
+    )?;
+    Ok(())
+}
+
 async fn text_order_nul_budget_and_authorization(
     db: &Db,
-    store: &DatabaseSessionStore,
+    store: &GuardedDatabaseSessionStore,
 ) -> TestResult {
     let mut record = record('d', "text")?;
     record.data = serde_json::from_str(
         r#"{"z":"a\u0000b","a":1,"m":null,"openrust":{"auth":{"user_id":42}}}"#,
     )?;
     let encoded = record.encode(DEFAULT_MAX_BYTES)?;
+    let write_started = OffsetDateTime::now_utc().unix_timestamp();
     check(
         store
             .write(&record, SessionWriteMode::Insert, encoded.len())
@@ -307,6 +377,7 @@ async fn text_order_nul_budget_and_authorization(
             == SessionWriteOutcome::Written,
         "Exact encoded budget was rejected",
     )?;
+    sql_storage_keeps_envelope_and_write_seconds(db, &encoded, write_started).await?;
     let restored = store
         .load(&record.id, encoded.len(), record.expiry_date)
         .await?
@@ -367,6 +438,13 @@ async fn database_session_atomic_writes_precision_and_revocation() -> TestResult
         backend.is_enabled(),
         "Selected database backend feature is disabled",
     )?;
+    check(
+        matches!(
+            backend,
+            DatabaseBackend::PostgreSql | DatabaseBackend::MySql
+        ),
+        "此服务入口仅验收PostgreSQL/MySQL；SQLite有独立ownedfile入口",
+    )?;
     let names = DatabaseTableNames::new("session_it_", std::collections::BTreeMap::new())?;
     let database = TestDatabase::create_with_table_names::<SessionMigrator>(&url, names.clone())
         .await
@@ -374,7 +452,7 @@ async fn database_session_atomic_writes_precision_and_revocation() -> TestResult
     let outcome = async {
         let db = Db::with_table_names(names);
         db.initialize(database.connection()?)?;
-        let store = DatabaseSessionStore::new(db.clone());
+        let store = GuardedDatabaseSessionStore::new(db.clone());
         insert_conflict_unchanged_update_and_microseconds(&store).await?;
         case_sensitive_ids_and_late_update(&store).await?;
         column_cutoff_and_expired_update(&db, &store).await?;
@@ -392,6 +470,9 @@ async fn database_session_atomic_writes_precision_and_revocation() -> TestResult
 }
 
 async fn gc_indexes(db: &Db) -> TestResult<Vec<String>> {
+    if db.backend()? == DbBackend::Sqlite {
+        return sqlite_gc_indexes(db).await;
+    }
     let connection = db.connection()?;
     let backend = connection.get_database_backend();
     let sql = match backend {
@@ -420,16 +501,18 @@ async fn index_count(db: &Db) -> TestResult<usize> {
 }
 
 async fn upgrade_gc_index(db: &Db, names: &DatabaseTableNames) -> TestResult {
+    eprintln!("guarded_session_gc_index phase=create_first");
     check(index_count(db).await? == 0, "旧 Session 表不应已有 GC 索引")?;
     let connection = db.connection()?;
     let manager = SchemaManager::new(&connection);
     names
-        .scope(openrust::session::SessionGcMigration.up(&manager))
+        .scope(openrust::session::GuardedSessionGcMigration.up(&manager))
         .await?;
     check(index_count(db).await? == 1, "GC 升级未建立唯一截止索引")?;
+    eprintln!("guarded_session_gc_index phase=duplicate_expected_failure");
     check(
         names
-            .scope(openrust::session::SessionGcMigration.up(&manager))
+            .scope(openrust::session::GuardedSessionGcMigration.up(&manager))
             .await
             .is_err(),
         "重复索引不应被静默接受",
@@ -439,10 +522,12 @@ async fn upgrade_gc_index(db: &Db, names: &DatabaseTableNames) -> TestResult {
         .into_iter()
         .next()
         .ok_or("缺少新建截止索引")?;
+    eprintln!("guarded_session_gc_index phase=drop_first");
     names
-        .scope(openrust::session::SessionGcMigration.down(&manager))
+        .scope(openrust::session::GuardedSessionGcMigration.down(&manager))
         .await?;
     check(index_count(db).await? == 0, "GC 回滚后截止索引仍在")?;
+    eprintln!("guarded_session_gc_index phase=create_wrong_column");
     manager
         .create_index(
             Index::create()
@@ -451,29 +536,51 @@ async fn upgrade_gc_index(db: &Db, names: &DatabaseTableNames) -> TestResult {
                     db.table_name("sessions")?,
                 ))
                 .col(openrust::database::sea_orm::sea_query::Alias::new(
-                    "created_at",
+                    "last_activity",
                 ))
                 .to_owned(),
         )
         .await?;
     check(
         names
-            .scope(openrust::session::SessionGcMigration.up(&manager))
+            .scope(openrust::session::GuardedSessionGcMigration.up(&manager))
             .await
             .is_err(),
         "同名异列索引不应被静默接受",
     )?;
     check(index_count(db).await? == 0, "异列索引不能冒充 GC 索引")?;
+    eprintln!("guarded_session_gc_index phase=drop_wrong_column");
     names
-        .scope(openrust::session::SessionGcMigration.down(&manager))
+        .scope(openrust::session::GuardedSessionGcMigration.down(&manager))
         .await?;
-    names
-        .scope(openrust::session::SessionGcMigration.up(&manager))
-        .await?;
+    eprintln!("guarded_session_gc_index phase=restore");
+    let restored = names
+        .scope(openrust::session::GuardedSessionGcMigration.up(&manager))
+        .await;
+    if restored.is_err() && connection.get_database_backend() == DbBackend::Sqlite {
+        let definitions = connection
+            .query_all_raw(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                "SELECT name,sql FROM sqlite_master WHERE type='index' AND name=?",
+                [index.into()],
+            ))
+            .await?;
+        eprintln!(
+            "guarded_session_gc_index restore_failure_actual_index_count={}",
+            definitions.len()
+        );
+        for definition in definitions {
+            eprintln!(
+                "guarded_session_gc_index actual_sql={:?}",
+                definition.try_get::<String>("", "sql")?
+            );
+        }
+    }
+    restored?;
     check(index_count(db).await? == 1, "GC 截止索引未能恢复")
 }
 
-async fn gc_absolute_deadlines(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+async fn gc_absolute_deadlines(db: &Db, store: &GuardedDatabaseSessionStore) -> TestResult {
     let mut expired = record('g', "expired before gc")?;
     expired.expiry_date = OffsetDateTime::now_utc() - Duration::hours(1);
     write_is(
@@ -522,7 +629,10 @@ async fn gc_absolute_deadlines(db: &Db, store: &DatabaseSessionStore) -> TestRes
     check(index_count(db).await? == 1, "GC 不应删除支撑索引")
 }
 
-async fn gc_subsecond_deadline(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+async fn gc_subsecond_deadline(db: &Db, store: &GuardedDatabaseSessionStore) -> TestResult {
+    if db.backend()? == DbBackend::Sqlite {
+        return sqlite_gc_subsecond_deadline(db, store).await;
+    }
     let connection = db.connection()?;
     let backend = connection.get_database_backend();
     let (clock, expired) = match backend {
@@ -577,7 +687,10 @@ async fn gc_subsecond_deadline(db: &Db, store: &DatabaseSessionStore) -> TestRes
     Err("GC 在有限重试内未取得同秒样本".into())
 }
 
-async fn gc_concurrent_renewal(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+async fn gc_concurrent_renewal(db: &Db, store: &GuardedDatabaseSessionStore) -> TestResult {
+    if db.backend()? == DbBackend::Sqlite {
+        return sqlite_gc_concurrent_renewal(db, store).await;
+    }
     let mut old = record('k', "before renewal")?;
     old.expiry_date = OffsetDateTime::now_utc() + Duration::seconds(2);
     write_is(
@@ -606,16 +719,22 @@ async fn gc_concurrent_renewal(db: &Db, store: &DatabaseSessionStore) -> TestRes
     let table = db.quoted_table_name("sessions")?;
     let transaction = connection.begin().await?;
     let sql = if backend == DbBackend::MySql {
-        format!("UPDATE {table} SET data=?,expires_at=? WHERE expires_at>{now}")
+        format!("UPDATE {table} SET payload=?,expires_at=?,last_activity=? WHERE expires_at>{now}")
     } else {
-        format!("UPDATE {table} SET data=$1,expires_at=$2 WHERE expires_at>{now}")
+        format!(
+            "UPDATE {table} SET payload=$1,expires_at=$2,last_activity=$3 WHERE expires_at>{now}"
+        )
     };
     check(
         transaction
             .execute_raw(Statement::from_sql_and_values(
                 backend,
                 sql,
-                [payload.into(), expiry.into()],
+                [
+                    payload.into(),
+                    expiry.into(),
+                    OffsetDateTime::now_utc().unix_timestamp().into(),
+                ],
             ))
             .await?
             .rows_affected()
@@ -660,13 +779,21 @@ async fn gc_concurrent_renewal(db: &Db, store: &DatabaseSessionStore) -> TestRes
 async fn database_session_gc_absolute_expiry_index_upgrade_and_renewal_race() -> TestResult {
     let url = std::env::var("OPENRUST_TEST_DATABASE_URL")
         .map_err(|_| "GC 需要 OPENRUST_TEST_DATABASE_URL")?;
+    let backend = DatabaseBackend::from_url(&url)?;
+    check(
+        matches!(
+            backend,
+            DatabaseBackend::PostgreSql | DatabaseBackend::MySql
+        ) && backend.is_enabled(),
+        "GC服务入口需要已启用的PostgreSQL/MySQL；不能把SQLite当作服务后端",
+    )?;
     let names = DatabaseTableNames::new("session_gc_it_", std::collections::BTreeMap::new())?;
     let database =
         TestDatabase::create_with_table_names::<SessionMigrator>(&url, names.clone()).await?;
     let outcome = async {
         let db = Db::with_table_names(names.clone());
         db.initialize(database.connection()?)?;
-        let store = DatabaseSessionStore::new(db.clone());
+        let store = GuardedDatabaseSessionStore::new(db.clone());
         let retained = record('f', "old schema retained")?;
         write_is(
             &store,
@@ -689,4 +816,288 @@ async fn database_session_gc_absolute_expiry_index_upgrade_and_renewal_race() ->
     let cleanup = database.close().await;
     cleanup?;
     outcome
+}
+
+// SQLite 的强保证以宿主 UTC 微秒作截止；不能借用SQLite秒级CURRENT_TIMESTAMP伪造同秒证据。
+fn sqlite_host_micros() -> TestResult<i64> {
+    Ok(<i64 as TryFrom<i128>>::try_from(
+        OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000,
+    )?)
+}
+
+async fn sqlite_subsecond_expired_update(
+    db: &Db,
+    store: &GuardedDatabaseSessionStore,
+) -> TestResult {
+    let record = record('e', "SQLite subsecond expiry")?;
+    write_is(
+        store,
+        &record,
+        SessionWriteMode::Insert,
+        SessionWriteOutcome::Written,
+    )
+    .await?;
+    for _ in 0..100 {
+        let before = sqlite_host_micros()?;
+        if !(200_000..500_000).contains(&before.rem_euclid(1_000_000)) {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            continue;
+        }
+        set_column_expiry(db, OffsetDateTime::now_utc() - Duration::microseconds(1)).await?;
+        let outcome = store
+            .write(&record, SessionWriteMode::Update, DEFAULT_MAX_BYTES)
+            .await?;
+        let after = sqlite_host_micros()?;
+        if before / 1_000_000 == after / 1_000_000 {
+            return check(
+                outcome == SessionWriteOutcome::Missing,
+                "SQLite同秒微秒过期的旧句柄被UPDATE复活",
+            );
+        }
+    }
+    Err("SQLite未取得同秒UPDATE截止样本".into())
+}
+
+async fn sqlite_gc_subsecond_deadline(db: &Db, store: &GuardedDatabaseSessionStore) -> TestResult {
+    let record = record('j', "SQLite same second gc")?;
+    for _ in 0..100 {
+        let before = sqlite_host_micros()?;
+        if !(200_000..500_000).contains(&before.rem_euclid(1_000_000)) {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            continue;
+        }
+        store.delete(&record.id).await?;
+        write_is(
+            store,
+            &record,
+            SessionWriteMode::Insert,
+            SessionWriteOutcome::Written,
+        )
+        .await?;
+        set_column_expiry(db, OffsetDateTime::now_utc() - Duration::microseconds(1)).await?;
+        let removed = store.gc(7200).await?;
+        let after = sqlite_host_micros()?;
+        if before / 1_000_000 == after / 1_000_000 {
+            return check(removed == 1, "SQLite GC遗漏同秒内已过期记录");
+        }
+    }
+    Err("SQLite未取得同秒GC截止样本".into())
+}
+
+async fn sqlite_gc_indexes(db: &Db) -> TestResult<Vec<String>> {
+    let connection = db.connection()?;
+    let rows = connection
+        .query_all_raw(Statement::from_string(
+            DbBackend::Sqlite,
+            format!("PRAGMA index_list({})", db.quoted_table_name("sessions")?),
+        ))
+        .await?;
+    let mut indexes = Vec::new();
+    for row in rows {
+        let name: String = row.try_get("", "name")?;
+        if !name.starts_with("ix_sessions_expiry_")
+            || row.try_get::<i64>("", "unique")? != 0
+            || row.try_get::<i64>("", "partial")? != 0
+        {
+            continue;
+        }
+        // 元数据标识符仍显式quote，不能把PRAGMA返回的名字当未经检查SQL片段。
+        let quoted = name.replace('"', "\"\"");
+        let columns = connection
+            .query_all_raw(Statement::from_string(
+                DbBackend::Sqlite,
+                format!("PRAGMA index_info(\"{quoted}\")"),
+            ))
+            .await?;
+        if columns.len() == 1
+            && columns[0].try_get::<Option<String>>("", "name")?.as_deref() == Some("expires_at")
+            && columns[0].try_get::<i64>("", "seqno")? == 0
+        {
+            indexes.push(name);
+        }
+    }
+    indexes.sort();
+    Ok(indexes)
+}
+
+async fn sqlite_gc_concurrent_renewal(db: &Db, store: &GuardedDatabaseSessionStore) -> TestResult {
+    let mut old = record('k', "SQLite before renewal")?;
+    old.expiry_date = OffsetDateTime::now_utc() + Duration::seconds(2);
+    write_is(
+        store,
+        &old,
+        SessionWriteMode::Insert,
+        SessionWriteOutcome::Written,
+    )
+    .await?;
+    let mut renewed = old.clone();
+    renewed.data = json!({"renewed": true});
+    renewed.expiry_date = OffsetDateTime::now_utc() + Duration::days(2);
+    let connection = db.connection()?;
+    let table = db.quoted_table_name("sessions")?;
+    let expiry = DateTime::<Utc>::from_timestamp(
+        renewed.expiry_date.unix_timestamp(),
+        renewed.expiry_date.nanosecond(),
+    )
+    .ok_or("SQLite续期期限无效")?;
+    let expiry = expiry.to_rfc3339_opts(SecondsFormat::Micros, true);
+    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true);
+    let payload = String::from_utf8(renewed.encode(DEFAULT_MAX_BYTES)?)?;
+    let transaction = connection.begin().await?;
+    check(
+        transaction
+            .execute_raw(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                format!(
+                    "UPDATE {table} SET payload=?,expires_at=?,last_activity=? WHERE expires_at>?"
+                ),
+                [
+                    payload.into(),
+                    expiry.into(),
+                    OffsetDateTime::now_utc().unix_timestamp().into(),
+                    now.into(),
+                ],
+            ))
+            .await?
+            .rows_affected()
+            == 1,
+        "SQLite续期未取得存活记录",
+    )?;
+    let mut observed_expired = false;
+    for _ in 0..150 {
+        let row = connection
+            .query_one_raw(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                format!("SELECT COUNT(*) AS expired_count FROM {table} WHERE expires_at<=?"),
+                [Utc::now()
+                    .to_rfc3339_opts(SecondsFormat::Micros, true)
+                    .into()],
+            ))
+            .await?
+            .ok_or("SQLite GC旧版本计数缺失")?;
+        if row.try_get::<i64>("", "expired_count")? == 1 {
+            observed_expired = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    // 即使检查失败也先回滚/释放写事务，不留下阻塞fixture关闭的持锁连接。
+    if !observed_expired {
+        transaction.rollback().await?;
+        return Err("SQLite GC未观察到已过期的已提交版本".into());
+    }
+    let mut gc = store.gc(7200);
+    let early = tokio::time::timeout(std::time::Duration::from_millis(100), gc.as_mut())
+        .await
+        .ok();
+    let blocked = early.is_none();
+    let committed = transaction.commit().await;
+    let removed = match early {
+        Some(result) => result?,
+        None => tokio::time::timeout(std::time::Duration::from_secs(3), gc.as_mut()).await??,
+    };
+    committed?;
+    check(
+        blocked && removed == 0,
+        "SQLite GC未等待写锁或误删已续期记录",
+    )?;
+    check(
+        loaded(store, &renewed).await?.data == renewed.data,
+        "SQLite GC丢失已提交续期",
+    )
+}
+
+#[cfg(feature = "db-sqlite")]
+#[tokio::test]
+async fn guarded_sqlite_owned_file_atomic_writes_precision_and_revocation() -> TestResult {
+    let database = TestDatabase::sqlite_file::<SessionMigrator>().await?;
+    let outcome = async {
+        let db = Db::default();
+        db.initialize(database.connection()?)?;
+        let store = GuardedDatabaseSessionStore::new(db.clone());
+        insert_conflict_unchanged_update_and_microseconds(&store).await?;
+        case_sensitive_ids_and_late_update(&store).await?;
+        column_cutoff_and_expired_update(&db, &store).await?;
+        subsecond_expired_update(&db, &store).await?;
+        text_order_nul_budget_and_authorization(&db, &store).await
+    }
+    .await;
+    let cleanup = database.close().await;
+    cleanup?;
+    outcome
+}
+
+#[cfg(feature = "db-sqlite")]
+#[tokio::test]
+async fn guarded_sqlite_owned_file_gc_upgrade_subseconds_and_renewal_race() -> TestResult {
+    let database = TestDatabase::sqlite_file::<SessionMigrator>().await?;
+    let outcome = async {
+        let names = DatabaseTableNames::default();
+        let db = Db::with_table_names(names.clone());
+        db.initialize(database.connection()?)?;
+        let store = GuardedDatabaseSessionStore::new(db.clone());
+        let retained = record('f', "SQLite old guarded schema retained")?;
+        write_is(
+            &store,
+            &retained,
+            SessionWriteMode::Insert,
+            SessionWriteOutcome::Written,
+        )
+        .await?;
+        upgrade_gc_index(&db, &names).await?;
+        check(
+            loaded(&store, &retained).await?.data == retained.data,
+            "SQLite索引升级丢失既有Session",
+        )?;
+        store.delete(&retained.id).await?;
+        gc_absolute_deadlines(&db, &store).await?;
+        gc_subsecond_deadline(&db, &store).await?;
+        sqlite_gc_crosses_batch_boundary(&store).await?;
+        gc_concurrent_renewal(&db, &store).await
+    }
+    .await;
+    let cleanup = database.close().await;
+    cleanup?;
+    outcome
+}
+
+async fn sqlite_gc_crosses_batch_boundary(store: &GuardedDatabaseSessionStore) -> TestResult {
+    let expired = OffsetDateTime::now_utc() - Duration::hours(1);
+    // 513条跨越SQLite增强GC的512条扫描批次；不能只证明单批工作。
+    for index in 0..513 {
+        let record = SessionRecord {
+            id: SessionId::parse(&format!("gcbatch{index:033}"))?,
+            data: json!({"batch": index}),
+            expiry_date: expired,
+        };
+        write_is(
+            store,
+            &record,
+            SessionWriteMode::Insert,
+            SessionWriteOutcome::Written,
+        )
+        .await?;
+    }
+    let live = record('z', "retained across SQLite GC batches")?;
+    write_is(
+        store,
+        &live,
+        SessionWriteMode::Insert,
+        SessionWriteOutcome::Written,
+    )
+    .await?;
+    check(
+        store.gc(1).await? == 513,
+        "SQLite GC遗漏跨512边界的过期记录或误删存活记录",
+    )?;
+    check(
+        store.gc(i64::MAX).await? == 0,
+        "SQLite跨批清理后仍残留过期行",
+    )?;
+    check(
+        loaded(store, &live).await?.data == live.data,
+        "SQLite跨批GC改变存活数据",
+    )?;
+    store.delete(&live.id).await?;
+    Ok(())
 }

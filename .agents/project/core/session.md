@@ -1,5 +1,13 @@
 # Session 当前事实
 
+## S3a 原生数据库与显式增强（限定验收通过）
+
+本簇编码基线 `f9e831a`；S2不重复验收。固定 Laravel `d52c3b3` 的原生 handler、表、read/exists/write/GC 已对应为 `DatabaseSessionHandler`，默认 `DatabaseSessionStore` 接入同一状态机；每 Session 独占 exists，属性 JSON 经 Base64 持久化。原哈希 envelope、微秒绝对截止及防复活改为显式 Guarded driver 与同表增强迁移，不删除旧行为断言。
+
+`SessionConfig.connection/table`、代码配置/环境层、具名连接、请求 IP/UA 与绑定后的 Session 身份投影已落码。PHP8.5 mbstring 默认 UTF-8/问号替代12案oracle已实测，对应Rust纯测试、低层SQLite、独占exists/故障以及正式Provider HTTP4项已在相应冻结输入运行通过。完整Guard.id解析/失效生命周期仍归R7确认缺口，不把当前投影当完整Guard。SQLite增强事务持有物理连接，确认提交/回滚及驻留后才成功；在途acquire原子窗口仍开放。
+
+独审报告与源头证据在 `tmp/sqlite-s3-20261103/`。700输入冻结20的最终全特性fmt/严格Clippy/workspace tests/docs均0（2193 passed / 122 ignored），冻结18默认严格Clippy/tests/docs通过（1333 passed / 40 ignored）；未执行服务的条件skip不计真实服务。23项真实服务（MySQL12、PG11）按各输入/日志计证，其中冻结18原生表/索引/GC及模块迁移双库补验已过。精简三组合严格Clippy、MSRV1.97与deny均已通过；最低3.26冻结20原生索引/GC/common contract与真实动态库身份已补验；fresh四类check/test与实际数据库认证、不同模型独审及资源收尾均已通过；本地提交以Git为准。完整 Auth named guard、OIDC/实时强撤销生命周期、SQLite其他业务能力保持缺口。本文后续旧验收不直接当本批通过。
+
 > C04-D1限定子范围已完成适用集成验收，提交以Git为准。契约见 历史决策 082，唯一执行队列见 [todo](../todo.md)。
 
 ## S-DV 对象值与保存边界（main限定组合已验收）
@@ -38,8 +46,8 @@ R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原fa
 - `Session` 在同请求内共享状态。属性方法同步返回 Result，真正 store I/O 的 start/save/migrate/regenerate/invalidate 为 async；同步锁不跨 await。I/O 期间修改明确拒绝，取消释放 busy，不后台补保存，也不承诺撤销已发生的外部写入。
 - ID 为大小写敏感的40位 ASCII 字母数字，构造即有；有效外部 ID 未命中记录时保留。启动补缺失或 null 的 token，非 null 的假值保留。ID/记录 Debug 脱敏；显式字符串与序列化仍可能暴露凭据，不能写入日志。
 - 属性读取采用完整字面键优先的 Arr 语义，缺失与 null 分开。flash/now/reflash/keep 使用同一属性树，每次 save 推进老化。JSON 表示不能保留 PHP 数组删除尾项后的隐藏 next-free 历史，具体差异见 ADR。
-- 已加载记录仅允许原子 Update；记录删除、过期或重复 start 发现撤销时拒绝以旧认证数据重建。该策略是保留的 OpenRust 安全增强，不冒称 Laravel 缓存 Session 默认 PUT 语义。普通同 ID 并发仍可能最后写入覆盖，不提供默认分布式锁。
-- 持久键与 envelope 以原始 ID 字节的 SHA-256 绑定，不额外持久化原始 ID。受管理读取/编码有大小与深度边界；自定义 driver 须遵守公开契约，框架仍校验返回记录。数据库独立到期列是授权截止上界。
+- Guarded 已加载记录仅允许原子 Update；记录删除、过期或重复 start 发现撤销时拒绝以旧认证数据重建。该策略是保留的 OpenRust 安全增强，不冒称 Laravel 缓存 Session 默认 PUT 语义。普通同 ID 并发仍可能最后写入覆盖，不提供默认分布式锁。
+- Guarded 持久键与 envelope 以原始 ID 字节的 SHA-256 绑定，不额外持久化原始 ID。受管理读取/编码有大小与深度边界；自定义 driver 须遵守公开契约，框架仍校验返回记录。数据库独立到期列是授权截止上界。
 
 ## D2 Store 公开 API（限定子范围已验收）
 

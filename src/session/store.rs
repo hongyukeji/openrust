@@ -20,6 +20,17 @@ pub enum SessionStoreGuarantees {
     ServerSide,
     /// 浏览器快照与本请求观察；旧副本可重放，响应接收顺序决定最终 Cookie。
     ClientSideSnapshot,
+    /// 原生数据库 handler；DELETE 后的并发 INSERT 回退遵循 Laravel，不提供防复活承诺。
+    NativeDatabase,
+}
+
+/// 同一 Session 内核使用的持久语义；增强能力必须显式选择。
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum SessionStoreSemantics {
+    /// 身份 envelope、绝对截止及条件写入。
+    Guarded,
+    /// 原始 ID、属性载荷及 handler 请求内 exists 状态。
+    NativeDatabase,
 }
 
 /// 写入是否允许创建新记录。
@@ -34,7 +45,7 @@ pub enum SessionWriteMode {
 /// driver 原子写入的结果。
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SessionWriteOutcome {
-    /// 记录已经写入。
+    /// 驱动已处理写入；原生数据库遵循 Laravel，UPDATE 零行也可成功。
     Written,
     /// Insert碰撞或driver检测到不相容的写入状态。
     Conflict,
@@ -49,7 +60,7 @@ pub struct SessionRecord {
     pub id: SessionId,
     /// 有序PHP属性数组；只允许JSON对象或数组作为根。
     pub data: Value,
-    /// 记录的持久截止时间。
+    /// 增强记录的持久截止；原生数据库以实际 `last_activity` 和最终配置判断过期。
     pub expiry_date: OffsetDateTime,
 }
 
@@ -78,6 +89,22 @@ struct Decoded {
 }
 
 impl SessionRecord {
+    pub(super) fn validate_for(
+        &self,
+        semantics: SessionStoreSemantics,
+        max_bytes: usize,
+    ) -> Result<()> {
+        self.validate()?;
+        match semantics {
+            SessionStoreSemantics::Guarded => {
+                self.encode(max_bytes)?;
+            }
+            SessionStoreSemantics::NativeDatabase => {
+                json_bytes(&self.data, max_bytes)?;
+            }
+        }
+        Ok(())
+    }
     /// 编码一次完整记录；writer在越过上限前停止，不先生成无界字节缓冲。
     ///
     /// 属性树本身须由调用方先有界构造；该函数不承诺倒退限制既有树的分配。
@@ -163,8 +190,29 @@ impl SessionRecord {
 /// 可由外部crate实现的唯一Session store接口。
 ///
 /// `max_bytes`要求load在解码或复制完整载荷前限制读取；框架仍会验证返回记录。
-/// 实现不得将Update的Missing自动改成插入。错误不得包含凭据或原始属性。
+/// Guarded 实现不得将 Update 的 Missing 改成插入；NativeDatabase 按 handler exists。
+/// 错误不得包含凭据或原始属性。
 pub trait SessionStore: Send + Sync + 'static {
+    /// 持久语义；默认保留既有增强 driver 的严格契约。
+    fn semantics(&self) -> SessionStoreSemantics {
+        SessionStoreSemantics::Guarded
+    }
+
+    /// 每个受管 Session 独占的 handler 实例；无请求内状态的驱动返回 None。
+    fn for_session(&self) -> Result<Option<std::sync::Arc<dyn SessionStore>>> {
+        Ok(None)
+    }
+
+    /// 原生数据库活动期限；其他驱动使用记录自身的绝对截止。
+    fn activity_lifetime_seconds(&self) -> Option<i64> {
+        None
+    }
+
+    /// 迁移 ID 时同步清除 handler 的 exists；不能在此执行异步 I/O。
+    fn reset_exists(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// 当前后端提供的保证；请求绑定前后必须一致。
     fn guarantees(&self) -> SessionStoreGuarantees {
         SessionStoreGuarantees::ServerSide
@@ -182,6 +230,11 @@ pub trait SessionStore: Send + Sync + 'static {
         false
     }
 
+    /// 接收可选 HTTP 元数据；不等于缺少 HTTP 请求就拒绝独立使用。
+    fn accepts_request(&self) -> bool {
+        self.needs_request()
+    }
+
     /// 创建同一逻辑后端的请求内实例；不得修改单例或跨请求保存上下文。
     ///
     /// 需要请求的实现必须返回 Some；普通驱动不会被框架调用此方法。
@@ -192,9 +245,9 @@ pub trait SessionStore: Send + Sync + 'static {
         Ok(None)
     }
 
-    /// 回收持久截止已到的记录并返回删除数；默认由后端 TTL 或外部机制负责。
+    /// 回收已过期记录并返回删除数；默认由后端 TTL 或外部机制负责。
     ///
-    /// `lifetime_seconds` 是最终请求配置；已有绝对截止不得据此缩短。取消不后台续跑，
+    /// 原生数据库按 `lifetime_seconds` 回溯活动时间；Guarded 不据此缩短绝对截止。取消不后台续跑，
     /// 已提交的外部删除不回滚；该操作不提供请求锁或跨后端事务。
     fn gc(&self, _lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
         Box::pin(async { Ok(0) })
@@ -208,7 +261,7 @@ pub trait SessionStore: Send + Sync + 'static {
         empty_expiry: OffsetDateTime,
     ) -> BoxFuture<'a, Result<Option<SessionRecord>>>;
 
-    /// `ServerSide` 按模式原子写入；`ClientSideSnapshot` 仅检查本请求观察。
+    /// `ServerSide` 按模式原子写入；原生数据库按 exists；快照仅检查本请求观察。
     fn write<'a>(
         &'a self,
         record: &'a SessionRecord,

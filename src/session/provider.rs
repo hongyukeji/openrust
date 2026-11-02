@@ -1,8 +1,8 @@
 //! 唯一Session状态的Provider、最终配置和请求层。
 
 use super::{
-    CookieSessionStore, DatabaseSessionStore, MemorySessionStore, Session, SessionStore,
-    SessionStoreGuarantees,
+    CookieSessionStore, DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore,
+    Session, SessionStore, SessionStoreGuarantees,
 };
 use crate::{
     Error, Result,
@@ -51,6 +51,50 @@ pub(crate) struct SessionSettings {
     pub(crate) cookie_name: String,
 }
 impl SessionSettings {
+    async fn configured_store(
+        &self,
+        resolver: &crate::core::container::Resolver,
+    ) -> Result<Arc<dyn SessionStore>> {
+        let store: Arc<dyn SessionStore> = match self.config.driver.as_deref() {
+            Some(driver @ ("database" | "database-guarded")) => {
+                let db = if let Some(connection) = &self.config.connection {
+                    resolver
+                        .resolve::<crate::db::Databases>()
+                        .await?
+                        .get(connection)?
+                } else {
+                    (*resolver.resolve::<crate::db::Db>().await?).clone()
+                };
+                if driver == "database" {
+                    let store = DatabaseSessionStore::new(db)
+                        .configured(self.config.table.clone(), self.config.lifetime)?;
+                    #[cfg(feature = "auth")]
+                    let store = store.with_session_user_metadata(
+                        resolver.is_bound::<crate::auth::AuthService>()?,
+                    );
+                    Arc::new(store)
+                } else {
+                    Arc::new(
+                        GuardedDatabaseSessionStore::new(db)
+                            .for_table(self.config.table.clone())?,
+                    )
+                }
+            }
+            Some("array") => Arc::new(MemorySessionStore::default()),
+            Some("cookie") => Arc::new(CookieSessionStore::new(
+                self.config.lifetime,
+                self.config.expire_on_close,
+            )?),
+            _ => {
+                return Err(Error::custom(
+                    "session_config_invalid",
+                    "Session driver要求公开with_store实现",
+                ));
+            }
+        };
+        Ok(store)
+    }
+
     fn read(repository: &crate::config::repository::ConfigRepository) -> Result<Self> {
         let config: SessionConfig = repository.section("session")?;
         let same_site = config.validate()?;
@@ -160,6 +204,8 @@ impl ServiceProvider for SessionServiceProvider {
                 SessionConfig::default(),
                 S::object([
                     ("driver", S::String.nullable()),
+                    ("connection", S::String.nullable()),
+                    ("table", S::String),
                     ("cookie", S::String.nullable()),
                     ("path", S::String),
                     ("domain", S::String.nullable()),
@@ -189,22 +235,7 @@ impl ServiceProvider for SessionServiceProvider {
                     let store: Arc<dyn SessionStore> = if let Some(store) = custom {
                         store
                     } else {
-                        match settings.config.driver.as_deref() {
-                            Some("database") => Arc::new(DatabaseSessionStore::new(
-                                (*resolver.resolve::<crate::db::Db>().await?).clone(),
-                            )),
-                            Some("array") => Arc::new(MemorySessionStore::default()),
-                            Some("cookie") => Arc::new(CookieSessionStore::new(
-                                settings.config.lifetime,
-                                settings.config.expire_on_close,
-                            )?),
-                            _ => {
-                                return Err(Error::custom(
-                                    "session_config_invalid",
-                                    "Session driver要求公开with_store实现",
-                                ));
-                            }
-                        }
+                        settings.configured_store(&resolver).await?
                     };
                     Ok(Arc::new(SessionStoreHandle(store)))
                 })
@@ -269,7 +300,7 @@ impl ServiceProvider for SessionServiceProvider {
                     let settings = SessionSettings::read(&repository)?;
                     if !custom_store
                         && settings.config.driver.as_deref().is_some_and(|driver| {
-                            !matches!(driver, "database" | "array" | "cookie")
+                            !matches!(driver, "database" | "database-guarded" | "array" | "cookie")
                         })
                     {
                         return Err(Error::Config(crate::config::ConfigError::Invalid(
