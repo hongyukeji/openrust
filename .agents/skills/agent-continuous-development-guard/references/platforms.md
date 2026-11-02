@@ -145,6 +145,8 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 
 ## 原生 Codex 共享服务适配
 
+本节仅说明共享app-server的Python后端；Codex Desktop默认使用[官方原生heartbeat](codex-desktop.md)，不以本节socket条件限制Desktop原生接入。
+
 `--backend auto` 在有 Paseo agent 时保留原适配；缺少 Paseo 身份则必须有可信 `CODEX_THREAD_ID`（或显式 `--thread`），以线程 UUID 为同一生命周期的运行目录。`--backend codex` 显式选原生；`--codex-socket` 只连接已有控制 socket，不启动 daemon。项目线程数据库、rollout 首条主线程 metadata 与正式 `thread/read` 的 id/cwd/parentThreadId/source 交叉核对，并绑定现有原生Goal。全程不写内部数据库。
 
 原生协议通过 `codex app-server proxy` 连接已有服务。`thread/read` 不含 turns，运行状态必须是已加载的 `idle` / `systemError` 或 `active`；`notLoaded`、未知 activeFlags 或快照缺失都不能宣称业务运行。`waitingOnUserInput` 是普通输入等待，`waitingOnApproval` 是正式审批等待；无精确请求响应协议时都不代答，不把前者称为权限硬阻断。`thread/queue/list` 的已有输入阻止重复恢复。
