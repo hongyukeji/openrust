@@ -81,14 +81,14 @@ async fn explicit_special_pragmas_override_misc_on_every_connection() -> TestRes
     let mut config = DatabaseInstanceConfig {
         max_connections: 2,
         min_connections: 0,
-        busy_timeout: Some(43),
+        busy_timeout: Some(43.into()),
         journal_mode: Some("memory".into()),
         synchronous: Some("full".into()),
         ..Default::default()
     };
     config
         .pragmas
-        .insert("foreign_keys".into(), serde_json::json!(false));
+        .insert("foreign_keys".into(), serde_json::json!(0));
     config
         .pragmas
         .insert("busy_timeout".into(), serde_json::json!(17));
@@ -359,5 +359,315 @@ async fn sqlite_transaction_savepoint_rollback_preserves_outer_transaction() -> 
         .await?;
     assert_eq!(sum, 1);
     database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn nullable_foreign_keys_preserve_the_actual_shared_engine_default() -> TestResult {
+    let native = rusqlite::Connection::open_in_memory()?;
+    let native_default: i64 = native.query_row("PRAGMA foreign_keys", [], |row| row.get(0))?;
+    let native_source: String =
+        native.query_row("SELECT sqlite_source_id()", [], |row| row.get(0))?;
+    let config: DatabaseInstanceConfig = serde_json::from_value(serde_json::json!({
+        "foreign_key_constraints": null
+    }))?;
+    assert_eq!(config.foreign_key_constraints, None);
+    let database = connect("sqlite::memory:", &config, None).await?;
+    let pool = database.get_sqlite_connection_pool();
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT sqlite_source_id()")
+            .fetch_one(pool)
+            .await?,
+        native_source
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
+            .fetch_one(pool)
+            .await?,
+        native_default
+    );
+    database.close().await?;
+
+    let mut config = config;
+    config
+        .pragmas
+        .insert("foreign_keys".into(), serde_json::json!(0));
+    let database = connect("sqlite::memory:", &config, None).await?;
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
+            .fetch_one(database.get_sqlite_connection_pool())
+            .await?,
+        0
+    );
+    database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn numeric_specials_and_schema_qualified_quoted_pragma_use_native_scalar_semantics()
+-> TestResult {
+    let mut config = DatabaseInstanceConfig {
+        foreign_key_constraints: None,
+        busy_timeout: Some(serde_json::json!(-1)),
+        synchronous: Some(serde_json::json!(1)),
+        ..Default::default()
+    };
+    config.pragmas.insert(
+        "\"main\".\"user_version\"".into(),
+        serde_json::json!("'73'"),
+    );
+    let database = connect("sqlite::memory:", &config, None).await?;
+    let pool = database.get_sqlite_connection_pool();
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("PRAGMA busy_timeout")
+            .fetch_one(pool)
+            .await?,
+        0
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("PRAGMA synchronous")
+            .fetch_one(pool)
+            .await?,
+        1
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("PRAGMA main.user_version")
+            .fetch_one(pool)
+            .await?,
+        73
+    );
+    database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn null_specials_skip_without_erasing_prior_misc_values() -> TestResult {
+    let mut config = DatabaseInstanceConfig {
+        foreign_key_constraints: None,
+        busy_timeout: Some(serde_json::Value::Null),
+        journal_mode: Some(serde_json::Value::Null),
+        synchronous: Some(serde_json::Value::Null),
+        ..Default::default()
+    };
+    config
+        .pragmas
+        .insert("busy_timeout".into(), serde_json::json!(29));
+    config
+        .pragmas
+        .insert("synchronous".into(), serde_json::json!(0));
+    let database = connect("sqlite::memory:", &config, None).await?;
+    let pool = database.get_sqlite_connection_pool();
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("PRAGMA busy_timeout")
+            .fetch_one(pool)
+            .await?,
+        29
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("PRAGMA synchronous")
+            .fetch_one(pool)
+            .await?,
+        0
+    );
+    database.close().await?;
+    Ok(())
+}
+
+fn native_first_statement(connection: &rusqlite::Connection, sql: &str) -> rusqlite::Result<()> {
+    // rusqlite 0.39 prepare 会拒绝真实多语句；调用方传入人工独立确定的 PDO 首句 fixture，
+    // 不能用待测 boundary/statement helper 生成 reference，否则会形成循环证据。
+    let mut statement = connection.prepare(sql)?;
+    let mut rows = statement.raw_query();
+    while rows.next()?.is_some() {}
+    Ok(())
+}
+
+#[tokio::test]
+async fn provider_first_statement_boundaries_match_independent_native_fixtures() -> TestResult {
+    for (value, native_first, expected_success) in [
+        (
+            "1; PRAGMA user_version=999",
+            "PRAGMA synchronous = 1;",
+            true,
+        ),
+        (
+            "1\0; PRAGMA user_version=999",
+            "PRAGMA synchronous = 1",
+            true,
+        ),
+        (
+            "'FULL'; PRAGMA user_version=999",
+            "PRAGMA synchronous = 'FULL';",
+            true,
+        ),
+        ("1 -- ; hidden", "PRAGMA synchronous = 1 -- ; hidden", true),
+        ("1 /* ; hidden", "PRAGMA synchronous = 1 /* ; hidden", true),
+        ("1 /*;\0 hidden", "PRAGMA synchronous = 1 /*;", true),
+        ("1 -- \0 hidden", "PRAGMA synchronous = 1 -- ", true),
+        (
+            "'private-secret",
+            "PRAGMA synchronous = 'private-secret",
+            false,
+        ),
+        ("1 /*", "PRAGMA synchronous = 1 /*", false),
+        ("1 /*\0 hidden", "PRAGMA synchronous = 1 /*", false),
+        (
+            "$name(; PRAGMA user_version=999)",
+            "PRAGMA synchronous = $name(; PRAGMA user_version=999)",
+            false,
+        ),
+        (
+            "$name::suffix(; PRAGMA user_version=999)",
+            "PRAGMA synchronous = $name::suffix(; PRAGMA user_version=999)",
+            false,
+        ),
+    ] {
+        let root = tempfile::tempdir()?;
+        let reference = rusqlite::Connection::open(root.path().join("native.sqlite"))?;
+        reference.busy_timeout(std::time::Duration::from_secs(60))?;
+        native_first_statement(&reference, "PRAGMA user_version=101")?;
+        let native_result = native_first_statement(&reference, native_first);
+        assert_eq!(
+            native_result.is_ok(),
+            expected_success,
+            "native fixture {value:?}"
+        );
+        if native_result.is_ok() {
+            native_first_statement(&reference, "PRAGMA main.user_version=202")?;
+        }
+        let expected_version: i64 =
+            reference.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        assert_eq!(expected_version, if expected_success { 202 } else { 101 });
+
+        let path = root.path().join("provider.sqlite");
+        std::fs::File::create(&path)?;
+        let url = format!(
+            "sqlite://{}",
+            super::encode_path(path.to_str().ok_or("path encoding")?)
+        );
+        let mut config = DatabaseInstanceConfig {
+            foreign_key_constraints: None,
+            ..Default::default()
+        };
+        config
+            .pragmas
+            .insert("user_version".into(), serde_json::json!(101));
+        config
+            .pragmas
+            .insert("synchronous".into(), serde_json::json!(value));
+        config
+            .pragmas
+            .insert("main.user_version".into(), serde_json::json!(202));
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            connect(&url, &config, None),
+        )
+        .await
+        .map_err(|_| "invalid initialization retried instead of returning promptly")?;
+        assert_eq!(
+            result.is_ok(),
+            expected_success,
+            "provider fixture {value:?}"
+        );
+        match result {
+            Ok(database) => database.close().await?,
+            Err(error) => assert!(!format!("{error} {error:?}").contains("private-secret")),
+        }
+        let observed = rusqlite::Connection::open(&path)?;
+        observed.busy_timeout(std::time::Duration::from_secs(1))?;
+        let observed_version: i64 =
+            observed.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        assert_eq!(
+            observed_version, expected_version,
+            "persistent prefix/sentinel fixture {value:?}"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn false_null_and_container_misc_fail_after_prefix_without_executing_sentinel() -> TestResult
+{
+    for value in [
+        serde_json::json!(false),
+        serde_json::Value::Null,
+        serde_json::json!([]),
+        serde_json::json!({"private-secret": 1}),
+    ] {
+        let file = tempfile::NamedTempFile::new()?;
+        let url = format!(
+            "sqlite://{}",
+            super::encode_path(file.path().to_str().ok_or("path encoding")?)
+        );
+        let mut config = DatabaseInstanceConfig {
+            foreign_key_constraints: None,
+            ..Default::default()
+        };
+        config
+            .pragmas
+            .insert("user_version".into(), serde_json::json!(117));
+        config.pragmas.insert("synchronous".into(), value);
+        config
+            .pragmas
+            .insert("main.user_version".into(), serde_json::json!(919));
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            connect(&url, &config, None),
+        )
+        .await
+        .map_err(|_| "invalid scalar initialization retried")?;
+        let error = match result {
+            Ok(database) => {
+                database.close().await?;
+                return Err("invalid scalar accepted".into());
+            }
+            Err(error) => error,
+        };
+        assert!(!format!("{error} {error:?}").contains("private-secret"));
+        let native = rusqlite::Connection::open(file.path())?;
+        let version: i64 = native.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        assert_eq!(version, 117);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn empty_filename_memory_uris_are_anonymous_single_connection_pools() -> TestResult {
+    for url in [
+        "sqlite:?mode=memory&cache=shared",
+        "sqlite:file:?mode=memory&cache=shared",
+    ] {
+        let config = DatabaseInstanceConfig {
+            max_connections: 4,
+            min_connections: 0,
+            ..Default::default()
+        };
+        let first = connect(url, &config, None).await?;
+        let second = connect(url, &config, None).await?;
+        let pool = first.get_sqlite_connection_pool();
+        assert_eq!(pool.options().get_max_connections(), 1);
+        assert_eq!(pool.options().get_idle_timeout(), None);
+        assert_eq!(pool.options().get_max_lifetime(), None);
+        sqlx::query("CREATE TABLE anonymous_empty (value INTEGER)")
+            .execute(pool)
+            .await?;
+        sqlx::query("INSERT INTO anonymous_empty VALUES (31)")
+            .execute(pool)
+            .await?;
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT value FROM anonymous_empty")
+                .fetch_one(pool)
+                .await?,
+            31
+        );
+        assert!(
+            sqlx::query("SELECT value FROM anonymous_empty")
+                .fetch_all(second.get_sqlite_connection_pool())
+                .await
+                .is_err()
+        );
+        first.close().await?;
+        second.close().await?;
+    }
     Ok(())
 }

@@ -45,12 +45,12 @@ impl MigrationTrait for SessionMigration {
             crate::db::sea_orm::DbBackend::MySql => {
                 data.custom("LONGTEXT");
             }
-            crate::db::sea_orm::DbBackend::Postgres => {
+            crate::db::sea_orm::DbBackend::Postgres | crate::db::sea_orm::DbBackend::Sqlite => {
                 data.text();
             }
             _ => {
                 return Err(DbErr::Migration(
-                    "Session supports PostgreSQL and MySQL".into(),
+                    "Session supports PostgreSQL, MySQL and SQLite".into(),
                 ));
             }
         }

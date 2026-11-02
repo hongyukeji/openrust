@@ -173,4 +173,9 @@ C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用�
 
 ## SQLite 连接基础
 
-标准连接、配置、逐物理PRAGMA、owned测试库显式关闭与唯一模块探测已通过[限定验收](testing.md#sqlite-连接基础限定验收)。主10门禁/deny、单driver Clippy/doc、生成11、真实MySQL3与根进程HTTP分别绑定实际输入，末尾feature补丁按静态等价与受影响重验复用。最低3.26、完整配置边界、取消清理、迁移/CLI/业务SQL仍未完成；实际3.51.3不关闭全后端范围。
+标准连接、配置、逐物理PRAGMA、owned测试库显式关闭与唯一模块探测已通过[限定验收](testing.md#sqlite-连接基础限定验收)。主10门禁/deny、单driver Clippy/doc、生成11、真实MySQL3与根进程HTTP分别绑定实际输入，末尾feature补丁按静态等价与受影响重验复用。此为S1当时范围；后继最低/配置/迁移子范围见下节，业务SQL等余缺继续开放。
+
+
+## SQLite 配置与迁移子范围
+
+当前证据及未完成边界统一见[限定验收](testing.md#sqlite-配置与迁移限定验收)。13主门禁、3.26与3.51.3、真实安装/生成/API、根CLI/配置/HTTP、12consumer图与check已有实际回执；非内置feature前置的默认组合/最新全feature文档补验已通过，61生成文件归档与最终Cargo target5.57GB清零完成；本地提交以Git为准，仅关闭上述子范围。

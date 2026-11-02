@@ -2,7 +2,7 @@
 
 ## Rust 代码配置
 
-应用的 `Application::config()` 返回显式 `ConfigManifest`：根 `config/mod.rs` 可用 `.section("app", app::config)` 逐项登记 `config/*.rs` 中已编译的普通 Rust 函数。启动先读取进程优先的部署变量及所选 dotenv，再把同次只读 `ConfigContext` 交给这些函数；`env`、`env_or`、`bool_or` 可读取字符串和严格布尔值，错误不输出部署值。代码区段在框架默认值之后、部署变量覆盖之前求值。默认应用启动不扫描 TOML；需要旧文件来源时须在清单中显式 `.with_toml()`，原有 `ConfigLoader::sources()` 仍保留文件配置能力。Rust 源码和 `mod` 声明改变后必须重新编译，部署值改变后重启生效。
+应用的 `Application::config()` 返回显式 `ConfigManifest`：根 `config/mod.rs` 可用 `.section("app", app::config)` 逐项登记 `config/*.rs` 中已编译的普通 Rust 函数。启动先读取进程优先的部署变量及所选 dotenv，再把同次只读 `ConfigContext` 交给这些函数；`env`、`env_or`、`bool_or` 可读取字符串和严格布尔值，错误不输出部署值。`nullable_bool_or(key, default)` 单独对应 Laravel env 保留字及 PHP truthiness：null/(null) 返回 None，false/(false)/0 为 false，off/no 等普通非空值为 true；现有 `bool_or` 继续严格解析。根与生成数据库配置用该方法读取 DB_FOREIGN_KEYS，命名空间环境层仍优先。代码区段在框架默认值之后、部署变量覆盖之前求值。默认应用启动不扫描 TOML；需要旧文件来源时须在清单中显式 `.with_toml()`，原有 `ConfigLoader::sources()` 仍保留文件配置能力。Rust 源码和 `mod` 声明改变后必须重新编译，部署值改变后重启生效。
 
 `.typed("example.runtime_policy", factory)` 可保存不可序列化 Rust 类型或工厂闭包，由 `ConfigRepository::typed::<T>(key)` 返回共享 `Arc<T>`；调用与资源关闭仍由 Provider/Container 负责。raw `all()` 只返回可序列化视图，不能代表 typed 值；同名及会互相遮蔽的父子路径写入被拒绝。模块 Provider 可在 boot 时调用 `BootContext::code_config(&manifest)`，沿用应用同一次环境快照并原子发布配置；缓存命中时跳过模块代码求值，含 typed 清单则明确拒绝缓存加载和创建。可序列化配置继续由现有 `config:cache` 写入最终值快照；失败不写半成品。
 

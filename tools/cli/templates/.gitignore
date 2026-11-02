@@ -1,5 +1,8 @@
 /target/
 /storage/
+/database/*.sqlite
+/database/*.sqlite-*
+**/.openrust-migration-*.lock
 /bootstrap/cache/*.json
 **/.modules_statuses.json.lock
 .env

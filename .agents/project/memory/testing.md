@@ -1537,6 +1537,23 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 
 主矩阵后至fresh前已确认无占用并正常Cargo clean：30,940,479,488B→0，二进制/源码/证据保留；最终再核无占用并正常Cargo clean：9,414,590,464B→0，磁盘可用161,398,218,752B；回执见同目录final-target-cleanup.json。模板没有直接受影响的借用命令调用，仍实际新生成check/test。SQL未变，MySQL覆盖受影响的模块维护链；PG限定lib不冒充PG真实服务复验。完整deferred的统一Resolver加载、when、manifest缓存及boot/失败/取消时序仍开放，本簇不关闭R2/R10/ADR-001。当前命令API是必要所有权前置，不以此声称完整Laravel Console/Artisan等价。
 
+## SQLite 配置与迁移限定验收
+
+状态：S2限定源码、最后能力前置默认组合、文档与资源收尾已完成适用验收；本地提交以Git为准，不是完整SQLite或ADR-001交付。owner=root，main基线20cea6c，无新worktree，原Goal及27/5.4预算保留。证据根为 `tmp/sqlite-builtin-20261102/s2/`。
+
+- 固定框架d52c3b3的SQLiteConnector/SQLiteGrammar/Migrator/Env及固定docs960eedf为来源；nullable外键、原生标量PRAGMA顺序/首条语句与错误边界经同C引擎SQLx/rusqlite和固定PHP8.5参考核对。PDO/reference-2为实际错误处理器下18项，Env为16项源码闭包/布尔转换，不冒称完整Laravel应用验收。
+- frozen-13的fmt/全feature严格Clippy、SQLite定向及所有者12项实际通过；`main-gates-3/results.json`的13项默认/全feature/精简/MSRV1.97/doc/deny门禁均0。新增同物理handle析构见证代替num_idle；真实perform在归还后让另一任务借走唯一连接，owner仍正常结束、池开放、数据/历史保留。name collision、拒绝归还、有限复用、callback析构分别有真实SQLx测试。
+- 最低引擎官方3.26.0归档SHA3与source_id已核，实际连接默认FK0。初次Provider失败定位到官方迁移crate传递启用RETURNING；固定2.0.4原样源码仅manifest禁default，workspace显式保留其余此前有效features，vendor来源/许可/文件SHA齐全。`minimum-3.26-gates-3`库46过/1 ignored子进程入口、所有者12、Root/真实清单3、单独同引擎身份1均通过；父锁测试实际执行子入口两次。生成列专项需3.31，不纳入3.26，当前3.51.3矩阵保留全部该断言。loader追踪塞满子进程pipe的前次超时原样保留，追踪拆为独立不派生子进程的身份用例，原锁断言未改未跳。
+- 内核只确认既有FrameworkMigrator与example已登记清单、默认SQLite非事务执行、显式事务失败await rollback/异常关闭及取消所有者。main普通表删列重建保留约束/索引/触发器/行标识/sequence，main/TEMP隔离、表名大小写及不可访问rowid保护有真实证据，不包括完整Schema/attached/virtual/native JSON能力。
+- `real-services/results.json`为MySQL8.4/PostgreSQL18各5个真实迁移/模块案例，数据库前后集合均无增删。后继变化为SQLite专属分支及原样迁移源码的feature来源修正，其他ORM有效features显式保持；独审按差异限定复用，不当作新全矩阵。
+- `fresh-gates`真实new --db sqlite自动迁移、check/test通过；生成实际config::boot/ConfigLoader的9个隔离子进程核dotenv/process/namespace优先级、最终nullable字段和真实Provider PRAGMA。矩阵父测试和无参子入口分别计证，不把空入口算业务测试。原模板迁移清单及TestApp用例也通过；真实生成二进制/api为200、SIGINT退出0、端口释放。Session/认证/worker业务并未因此获验。
+- `native`为真实根二进制migrate up/status/down/up、配置缓存null/namespace最终选择、唯一模块named reporting HTTP200及正常退出/端口释放；config缓存不等于Root池PRAGMA逐值矩阵，两者分列。
+- 最后非内置feature能力前置的 `post-consumer-gates` fmt、默认严格Clippy、完整workspace测试与最新全feature文档4项均0；不同模型final-review核源差异允许上述作用域复用。mdBook构建0，当前改动本地链接检查无缺失，不等于全仓未实现章节完成。
+- 12个独立consumer更新lock并metadata/check均0，都是单一本地迁移来源、无RETURNING；gRPC check有两处未构造fixture struct警告，不冒称12个consumer strictClippy。外部SQLite实际run首轮暴露错误顺序，后置仅cfg(not db-sqlite)能力前置并同步consumer断言，run-2已0；连接/事务/查询所有原断言保留。该改动在SQLite-enabled构建完全排除，独审允许按原范围复用min/fresh/native/allfeatures，默认新分支另验。
+- TestDatabase显式close未poll/失败/取消保全目录，全部URL借用者先停/禁新借用是安全清理前提，不是外部连接跟踪器。跨进程sidecar取得全部锁后才删自有文件，未知/链接/占用失败保全；普通迁移不unlink sidecar。hardlink拒绝对应SQLite journal/WAL上游边界，不称Rust限制。
+- 开放缺口：Root+Auth仍明确拒绝SQLite；S3认证/Session/DB缓存锁/队列调度业务SQL、完整Migrator/fresh与Schema、构造/Drop/驱动fault全矩阵、Windows原生、mount别名/替换路径TOCTOU均未完成。见证失败后的标关闭不撤销在途acquire，故障与禁重连不原子；不宣称已防全部静默重连或把此问题归为必要Rust适配。
+- 资源：minimum target 1,768,640,512B→0，主target50,282,713,088B→0均有占用/源码/回执保护记录；仅保留实际后续native/fresh用的二进制及一份重建cache。最终61份生成文件逐项SHA核对/归档后移除，重建Cargo target5,565,292,544B→0；native库文件归档，敏感配置cache仅保选择值/摘要后清理，二进制/HTML再生产物回收。磁盘可用158,987,571,200B，记录final-resource-retirement.json；保留依赖源码/native oracle供既定S3，服务未停止。
+
 ## SQLite 连接基础限定验收
 
 - 固定framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs960eedf0911155ad16326ade49c0ea5d18eda0b8及PDO默认timeout为来源。db-sqlite/标准Provider、平铺配置、同仓储application_root、文件存在/URI/内存池与逐物理PRAGMA、owned TestDatabase、根模板及唯一模块reporting真实调用共同验收。

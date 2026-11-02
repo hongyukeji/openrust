@@ -18,7 +18,7 @@ pub fn config(ctx: &ConfigContext) -> Result<DatabaseConfig, ConfigError> {
             DatabaseInstanceConfig {
                 // 启用前提供此独立实例的 URL；不自动继承默认连接。
                 url: None,
-                foreign_key_constraints: true,
+                foreign_key_constraints: Some(true),
                 busy_timeout: None,
                 journal_mode: None,
                 synchronous: None,
@@ -37,7 +37,7 @@ pub fn config(ctx: &ConfigContext) -> Result<DatabaseConfig, ConfigError> {
     };
     Ok(DatabaseConfig {
         url: None,
-        foreign_key_constraints: ctx.bool_or("DB_FOREIGN_KEYS", true)?,
+        foreign_key_constraints: ctx.nullable_bool_or("DB_FOREIGN_KEYS", Some(true)),
         busy_timeout: None,
         journal_mode: None,
         synchronous: None,

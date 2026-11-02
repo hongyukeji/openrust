@@ -39,6 +39,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
 | ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，OpenRust 官方连接驱动按 `db-postgres` / `db-mysql` / `db-sqlite` feature 开启，SQLite当前仅连接基础限定范围。外部自定义插件可通过同版本 SeaORM 依赖的 feature 统一选择其他 backend；SQLite 通用 `Db` 与应用自有迁移示例见 `tests/consumers/db-custom-sqlite/`，不代表 OpenRust 框架迁移、认证/队列或方言的完整支持 |
+| SQLite 最低版本依赖修正（限定验收） | 固定官方 `sea-orm-migration` 2.0.4 的仓库内副本 `vendor/sea-orm-migration` | 上游内部 SeaORM 依赖隐式 defaults 启用 SQLite RETURNING，3.26 实测连接被拒绝。副本仅在该依赖显式 `default-features=false`，源码/测试原样；来源、补丁和许可见副本 SOURCES。workspace 直接 path 传递，生成应用继续唯一 OpenRust re-export，不使用不可传递的根 patch。SeaORM 其他此前有效 defaults 在 workspace 显式保留，避免丢 codec/stream 行为。不得额外直接引官方迁移包重新统一 RETURNING；12个独立consumer与生成依赖图均为单一迁移来源，真实3.26连接/迁移子范围已验；未来 crates.io 分发另验，不等于已发布或已支持全 SQLite。 |
 | 数据库 URL | `url` 2.5 | `testing` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
 | 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/常规CI真实验证默认MySQL8.4 LTS；Compose保留PostgreSQL18/MySQL8.4可用服务 | 日常不每簇重复PG全套；PG/其他后端专属SQL/驱动/迁移/锁风险按影响定向。发布前全部承诺后端及适用版本完整验收。运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
@@ -112,3 +113,7 @@ Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只
 根框架库、server 与工具共用根 Cargo.lock，独立 consumer/生成应用拥有自己的锁图，本轮只调整本地 package 身份/路径解析，不升级注册表依赖。框架根无需额外包别名或包装 crate；公共导入、宏与 Rustdoc 都保持 openrust。
 
 SQLite连接基础：db-sqlite复用既有SeaORM2.0.4/SQLx0.9的SQLite驱动，libsqlite3-sys0.37的bundled编译仅新增既有cc依赖边，未升级版本或启用sqlite-use-returning-for-3_35；cargo-deny全特性四项通过。实际引擎3.51.3及compile_options已保全。固定官方最低3.26.0保留且完整运行矩阵未验；PDO默认busy_timeout60000ms与逐物理PRAGMA已验，默认不强制WAL/NORMAL。完整迁移/业务SQL与配置边界仍待后继，见唯一todo及testing。
+
+SQLite S2在途依赖：optional rusqlite精确0.39.0、default-features=false，仅db-sqlite编入。其libsqlite3-sys ^0.37与SQLx现0.37共享唯一C引擎；用于安全fresh内存连接探测真实原生外键默认，SQLx0.9公开API不能移除初始外键PRAGMA，compileoption宏存在也不能区分宏值0。不是第二业务Provider/池或新engine；不启用rusqlite bundled/modern/full/cache或提高SQLite最低版本。源码包SHA与官方元数据在tmp/sqlite-builtin-20261102/s2/references，尚未运行验收；全局auto-extension动态重配/按VFS或filename定制初始化仍须明确边界。
+
+SQLite迁移锁在途：db-sqlite同时启用既有rustix1.1.5（Unix NOFOLLOW安全sidecar打开），Windows仅启用winapi-util精确0.1.11安全读取打开文件身份/链接计数；复用已有锁图版本，不在库写unsafe。普通文件sidecar锁与原生DDL池分离，防独立SQLite写锁自锁；硬链接共同数据库路径仍是未闭合项，不能凭identity hash或canonicalize视为已解决。

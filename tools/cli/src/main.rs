@@ -35,7 +35,7 @@ enum Builtin {
     New {
         /// 应用目标目录；支持相对或绝对路径。
         name: String,
-        /// 选择数据库驱动；标准应用默认 MySQL，也可显式选择 PostgreSQL。
+        /// 选择数据库驱动；标准应用默认 MySQL，也可显式选择 PostgreSQL 或 SQLite。
         #[arg(long, value_enum)]
         db: Option<DatabaseBackend>,
         /// 生成无数据库驱动、迁移包和队列依赖的精简应用。
@@ -127,6 +127,8 @@ enum DatabaseBackend {
     Postgres,
     #[value(name = "mysql")]
     Mysql,
+    #[value(name = "sqlite")]
+    Sqlite,
 }
 
 #[derive(Debug)]
@@ -263,6 +265,7 @@ impl DatabaseBackend {
         match self {
             Self::Postgres => "db-postgres",
             Self::Mysql => "db-mysql",
+            Self::Sqlite => "db-sqlite",
         }
     }
 
@@ -270,13 +273,15 @@ impl DatabaseBackend {
         match self {
             Self::Postgres => "postgres",
             Self::Mysql => "mysql",
+            Self::Sqlite => "sqlite",
         }
     }
 
-    fn port(self) -> u16 {
+    fn port(self) -> Option<u16> {
         match self {
-            Self::Postgres => 5432,
-            Self::Mysql => 3306,
+            Self::Postgres => Some(5432),
+            Self::Mysql => Some(3306),
+            Self::Sqlite => None,
         }
     }
 }
@@ -351,17 +356,27 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             encryption,
             grpc,
         }) => {
+            let current_dir = std::env::current_dir()?;
+            let database = project_database(db, minimal);
             create_project_with_mfa(
                 &name,
-                project_database(db, minimal),
+                database,
                 auth,
                 auth_mfa,
                 http_client,
                 sms_twilio,
                 encryption,
                 grpc,
-                &std::env::current_dir()?,
+                &current_dir,
             )?;
+            if database == Some(DatabaseBackend::Sqlite) {
+                // 与生成 helper 分离：真实安装完成全部文件后才运行默认迁移。
+                // 迁移失败保留生成源码和数据库，返回子进程的失败状态供开发者修复。
+                let status = installation_migration_command(&current_dir.join(&name))
+                    .status()
+                    .context("无法运行新 SQLite 应用的默认迁移；生成文件已保留")?;
+                return Ok(exit_code(status));
+            }
             Ok(ExitCode::SUCCESS)
         }
         Some(Builtin::Dev { config_namespace }) => {
@@ -411,6 +426,14 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         }
         Some(Builtin::Forward(args)) => run_project(&args, false),
     }
+}
+
+fn installation_migration_command(project_dir: &Path) -> Process {
+    let mut command = Process::new("cargo");
+    command
+        .current_dir(project_dir)
+        .args(["run", "--quiet", "--", "migrate"]);
+    command
 }
 
 fn project_database(database: Option<DatabaseBackend>, minimal: bool) -> Option<DatabaseBackend> {
@@ -921,6 +944,16 @@ fn populate_project_with_mfa(
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
     }
+    if database == Some(DatabaseBackend::Sqlite) {
+        // 安装器创建自身的新数据库；普通 Connector 仍拒绝缺失的文件。
+        fs::File::options()
+            .write(true)
+            .create_new(true)
+            .open(project_dir.join("database/database.sqlite"))
+            .context("无法创建 SQLite 应用数据库")?;
+        fs::copy(project_dir.join(".env.example"), project_dir.join(".env"))
+            .context("无法写入 SQLite 应用环境配置")?;
+    }
     Ok(())
 }
 
@@ -1392,10 +1425,14 @@ fn env_example(
     if let Some(database) = database {
         use std::fmt::Write as _;
         let _ = writeln!(contents, "DB_CONNECTION={}", database.connection_name());
-        contents.push_str("DB_HOST=127.0.0.1\n");
-        let _ = writeln!(contents, "DB_PORT={}", database.port());
-        let _ = writeln!(contents, "DB_DATABASE={name}");
-        contents.push_str("DB_USERNAME=openrust\nDB_PASSWORD=openrust\n");
+        if let Some(port) = database.port() {
+            contents.push_str("DB_HOST=127.0.0.1\n");
+            let _ = writeln!(contents, "DB_PORT={port}");
+            let _ = writeln!(contents, "DB_DATABASE={name}");
+            contents.push_str("DB_USERNAME=openrust\nDB_PASSWORD=openrust\n");
+        } else {
+            contents.push_str("DB_DATABASE=database/database.sqlite\n");
+        }
         contents.push_str("DB_TABLE_PREFIX=\n");
     } else {
         contents.push_str(
@@ -3542,6 +3579,10 @@ mod tests {
                 vec!["openrust", "new", "blog", "--db", "postgres"],
                 Some(DatabaseBackend::Postgres),
             ),
+            (
+                vec!["openrust", "new", "blog", "--db", "sqlite"],
+                Some(DatabaseBackend::Sqlite),
+            ),
             (vec!["openrust", "new", "blog", "--minimal"], None),
         ] {
             let cli = Cli::try_parse_from(arguments)?;
@@ -3842,7 +3883,10 @@ mod tests {
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated database environment example");
             assert!(env.contains(&format!("DB_CONNECTION={}", backend.connection_name())));
-            assert!(env.contains(&format!("DB_PORT={}", backend.port())));
+            assert!(env.contains(&format!(
+                "DB_PORT={}",
+                backend.port().expect("网络数据库端口")
+            )));
             assert!(env.contains("DB_DATABASE=blog"));
             assert!(env.contains("DB_TABLE_PREFIX="));
             assert!(env.contains("REDIS_HOST=127.0.0.1"));
@@ -4967,5 +5011,90 @@ mod tests {
             original
         );
         fs::remove_dir_all(root).expect("清理本测试目录");
+    }
+
+    #[test]
+    fn sqlite_generation_creates_only_its_empty_database_and_sqlite_environment()
+    -> anyhow::Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-sqlite-{}-{}",
+            std::process::id(),
+            MIGRATION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root)?;
+        let project = root.join("sqlite-blog");
+        populate_project(
+            &project,
+            "sqlite-blog",
+            "SqliteBlog",
+            Some(DatabaseBackend::Sqlite),
+            false,
+            false,
+            false,
+            false,
+        )?;
+        let database = project.join("database/database.sqlite");
+        assert!(database.is_file());
+        assert_eq!(fs::metadata(&database)?.len(), 0);
+        assert_eq!(fs::read(&database)?, [] as [u8; 0]);
+        let env = fs::read_to_string(project.join(".env"))?;
+        assert_eq!(env, fs::read_to_string(project.join(".env.example"))?);
+        assert!(env.lines().any(|line| line == "DB_CONNECTION=sqlite"));
+        assert!(
+            env.lines()
+                .any(|line| line == "DB_DATABASE=database/database.sqlite")
+        );
+        for key in ["DB_HOST=", "DB_PORT=", "DB_USERNAME=", "DB_PASSWORD="] {
+            assert!(
+                !env.lines().any(|line| line.starts_with(key)),
+                "SQLite 环境不应写入 {key}"
+            );
+        }
+        for path in ["Cargo.toml", "database/migrations/Cargo.toml"] {
+            let manifest = fs::read_to_string(project.join(path))?;
+            assert!(manifest.contains("\"db-sqlite\""));
+            assert!(!manifest.contains("\"db-mysql\""));
+            assert!(!manifest.contains("\"db-postgres\""));
+            assert!(manifest.contains("\"session\""));
+            assert!(manifest.contains("\"queue\""));
+        }
+        assert!(project.join("bootstrap/providers.rs").is_file());
+        assert!(project.join("database/migrations/src/lib.rs").is_file());
+        // 纯生成不能执行默认迁移；空文件同时保护此职责边界。
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn sqlite_installation_migrates_the_generated_application_without_shell_interpolation() {
+        let directory = Path::new("/tmp/application with spaces");
+        let command = installation_migration_command(directory);
+        assert_eq!(command.get_program(), "cargo");
+        assert_eq!(command.get_current_dir(), Some(directory));
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            ["run", "--quiet", "--", "migrate"]
+        );
+    }
+
+    #[test]
+    fn sqlite_driver_choice_remains_explicit_and_supports_existing_generation_options()
+    -> anyhow::Result<()> {
+        let cli = Cli::try_parse_from(["openrust", "new", "blog", "--db", "sqlite", "--auth"])?;
+        let Some(Builtin::New {
+            db, minimal, auth, ..
+        }) = cli.command
+        else {
+            bail!("预期 new 命令");
+        };
+        assert_eq!(project_database(db, minimal), Some(DatabaseBackend::Sqlite));
+        assert!(auth);
+        assert!(
+            Cli::try_parse_from(["openrust", "new", "blog", "--minimal", "--db", "sqlite"])
+                .is_err()
+        );
+        assert_eq!(project_database(None, false), Some(DatabaseBackend::Mysql));
+        assert_eq!(project_database(None, true), None);
+        Ok(())
     }
 }

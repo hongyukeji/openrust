@@ -122,6 +122,33 @@ impl ConfigContext {
         };
         parse_bool(key, &value)
     }
+
+    /// 按 Laravel env 保留 null，并按 PHP 布尔转换读取部署值；仅缺失时使用默认值。
+    ///
+    /// 支持保留字及其括号形式。其他字符串仅空串或 `0` 为 false，成对引号先去除。
+    pub fn nullable_bool_or(&self, key: &str, default: Option<bool>) -> Option<bool> {
+        self.env(key)
+            .map_or(default, |value| nullable_env_bool(&value))
+    }
+}
+
+// 固定 Illuminate\Support\Env::getOption 的保留字转换，随后执行 PHP 的布尔转换。
+pub(super) fn nullable_env_bool(value: &str) -> Option<bool> {
+    match value.to_ascii_lowercase().as_str() {
+        "null" | "(null)" => None,
+        "true" | "(true)" => Some(true),
+        "false" | "(false)" | "empty" | "(empty)" => Some(false),
+        _ => {
+            let quoted = (value.starts_with('"') && value.ends_with('"'))
+                || (value.starts_with('\'') && value.ends_with('\''));
+            let value = if value.len() > 1 && quoted {
+                &value[1..value.len() - 1]
+            } else {
+                value
+            };
+            Some(!value.is_empty() && value != "0")
+        }
+    }
 }
 
 /// 配置函数依赖读取的安全错误；私有字段阻止用户构造可绕过脱敏的消息。
@@ -1032,5 +1059,32 @@ mod tests {
                 Ok(())
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod nullable_bool_tests {
+    #[test]
+    fn laravel_reserved_environment_values_then_php_truthiness_are_preserved() {
+        for (raw, expected) in [
+            ("null", None),
+            ("(NuLl)", None),
+            ("false", Some(false)),
+            ("(false)", Some(false)),
+            ("true", Some(true)),
+            ("(true)", Some(true)),
+            ("", Some(false)),
+            ("0", Some(false)),
+            ("empty", Some(false)),
+            ("(empty)", Some(false)),
+            ("off", Some(true)),
+            ("no", Some(true)),
+            ("\"null\"", Some(true)),
+            ("\"false\"", Some(true)),
+            ("\"0\"", Some(false)),
+            ("'0'", Some(false)),
+        ] {
+            assert_eq!(super::nullable_env_bool(raw), expected, "{raw:?}");
+        }
     }
 }

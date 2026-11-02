@@ -1,14 +1,14 @@
 # `openrust::db`
 
 > 受众：AI Agent
-> 更新：2026-11-02
+> 更新：2026-11-03
 > 摘要：M2 数据层当前实现边界。
 
 ## SQLite 连接基础限定范围
 
 `db-sqlite` 提供标准Provider的文件/URI/内存连接、同仓储application_root及逐物理PRAGMA，默认MySQL/Redis不变。PDO初始60000ms、外键默认true，未显式配置时不强制WAL/NORMAL；普通文件必须存在。内存池限制/禁回收、URI单次解码、named隔离及owned TestDatabase显式close已实际验证；唯一模块reporting路由不启用默认库业务。SQLite-only导出与类型推断已修，严格单driver Clippy、fresh11和文档通过；主10门禁、真实MySQL3、根进程HTTP及影响复用见[限定验收](../memory/testing.md#sqlite-连接基础限定验收)。本地提交以Git为准。
 
-最低3.26.0运行矩阵、复杂PRAGMA名称/数值级别与nullable外键的完整配置对应、构造取消/Drop故障清理仍未闭合；实际引擎3.51.3不替代最低版本。标准迁移互斥、默认迁移、CLI安装SQLite及既有Auth/Session/队列等SQL仍属后继，不能称完整SQLite或Laravel已对应。
+SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlite-配置与迁移限定验收)：nullable/raw PRAGMA、原生默认、内存所有者、文件跨进程锁、既有FrameworkMigrator/example清单、main普通表删列重建、生成安装和真实宿主已验。3.26.0与3.51.3分别计证；完整Migrator/Schema、Auth/Session/Queue业务SQL、构造取消/Drop全故障与原子禁重连仍未完成。仅SQLite代码启用物理handle collation析构见证，避免把并发借走误判为归还失败；名称碰撞拒绝、同handle有界复用，故障失效不证明池内其他连接失效。
 
 ## 当前实现
 
@@ -19,7 +19,7 @@
 - `DatabaseConfig` 定义在 `openrust::config::database`，旧的 `openrust::database::DatabaseConfig` 导出保持可用。默认可编辑配置位于应用根 `config/*.rs`，TOML仅显式可选来源；本地 URL 可用 `.env`，生产环境使用进程变量。
 
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
-- `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它当前只描述已实现的 PostgreSQL/MySQL 集合，固定官方五后端仍保留交付缺口，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。SQLite 尚未进入当前内置已验矩阵，可由自定义插件使用通用 `Db` 连接/事务接口。框架迁移互斥明确拒绝 SQLite；consumer 验证此拒绝后以应用自有 SeaORM Migrator/表名 scope 验证单机迁移。
+- `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它当前描述 PostgreSQL/MySQL/SQLite 连接集合，固定官方五后端仍保留交付缺口，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。SQLite已按上述限定范围内置；未编译db-sqlite的外部consumer仍可使用通用连接/事务/查询，框架迁移明确返回database_feature_disabled后由其自有Migrator执行。
 - `DatabaseServiceProvider` 在 register 登记当前配置的异步 singleton 工厂；首次解析按最终可见配置连接 SeaORM pool，每个成功连接立即登记受管关闭，之后的副本、具名库或版本检查失败会回收前池。boot 解析并验证；最终校验涵盖 pool 参数、完整 URL 语法和 backend feature。无主库 URL 时提供明确未初始化的可选句柄，配置副本却无主库则拒绝。运行时按暂定最低支持接受 PostgreSQL 14+ / MySQL 8.0+。日常开发与常规 CI 基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；v1 发布前须完成最低版本能力矩阵。
 - 启用 `HttpServiceProvider` 时，`DatabaseServiceProvider` 为每个数据库实例注册 runtime readiness 探针，使用只读 `ping` 检查主库与所有配置只读副本。依赖故障会使 `/ready` 返回 503；连接池恢复后下一轮探测可重新转为 ready，不暴露连接错误或 URL。
 - 命名数据库按 历史决策 045 实现：既有 `[database]` 和 `Db` 是兼容默认实例；`[database.instances.<name>]` 为独立完整连接配置，由应用级 `Databases` 选择。实例各自持有连接池、只读副本与表名 resolver，未知名称启动/选择时显式失败。认证、Session、Queue、Audit 和 RateLimiter 仍绑定 default。
@@ -33,14 +33,14 @@
 - 按 历史决策 048，`BatchReader<E>` 复用 SeaORM keyset cursor，以实体所有主键列组成升序/降序游标；每次最多物化 1–1000 行，默认 100。通过 `Db::primary_connection()` 执行，不使用只读副本；`AuthorizedSelect::into_batches()` 保留每页授权范围。取消在批次间检查，报告游标只推进完整成功 callback；callback 失败立即返回。没有隐式跨批事务或快照，副作用重试与一致快照由调用方负责。此限制按行数而非字节数计算，输入 Select 不应已有分页 offset/limit。
 - 成功提交后只通知 `TransactionCommitted` 的 direct listeners。其错误仅记录稳定错误码，返回值仍表示数据库已提交；queued listeners 不在此边界执行。需可靠持久派发的副作用须在提交前事件中通过事务队列落库。直接 SeaORM/raw SQL 不经过此 API，不触发事务事件。
 - `CoordinationMigration` 需由应用 migrator 显式注册；`SharedLocks` 基于数据库 UTC 时钟提供跨实例 owner token、TTL、单调 fencing token、条件续约/释放及事务内 `assert_current_in_transaction`。过期可接管，但 TTL 不会终止暂停的旧进程或 fence 任意外部副作用。`RequestIdempotency` 由应用显式传入 scope/key/规范化 fingerprint；同键不同 fingerprint 返回冲突，活跃 owner 返回处理中，完成后可重放不超过 64 KiB 的 JSON body。业务写入与 `complete_in_transaction` 必须同事务；lease 到期可恢复，完成记录用有界 `prune_expired(1..=1000)` 清理。表名使用 Db resolver，SHA-256 摘要和 256-bit CSPRNG token 不写日志。真实 PG18/MySQL8.4 双池竞争、旧 owner 防护、scope/冲突/事务回滚/回放/有界清理已通过。
-- `DatabaseConfig` 支持 `table_prefix`（默认 `tb_`，空值禁用）和 `table_names` 完整物理名映射；`Db` 持有不可变 `DatabaseTableNames`，提供物理名与 backend quoting。标识符只允许 ASCII 字母/数字/下划线；连接初始化时按 PostgreSQL 63-byte、MySQL 64-byte 限制校验映射和框架核心表名。
+- `DatabaseConfig` 支持 `table_prefix`（默认空值，显式值启用）和 `table_names` 完整物理名映射；`Db` 持有不可变 `DatabaseTableNames`，提供物理名与 backend quoting。标识符只允许 ASCII 字母/数字/下划线；连接初始化时按 PostgreSQL 63-byte、MySQL 64-byte 限制校验映射和框架核心表名。
 - `MigrationServiceProvider` 在每次 up/down/status 调用中用 Tokio task-local scope 提供 `DatabaseTableNames`；OpenRust AuthMigration 无 scope 时失败。手写 SeaORM migration 可用 `DatabaseTableNames::current()` 获取当前 resolver。`TestDatabase::create_with_table_names()` 用相同 scope 执行隔离迁移。
 - 认证迁移、Session/PAT/refresh-token SQL 使用同一 resolver；应用自行书写的 raw SQL 不自动改写，必须使用 `Db::table_name()` / `quoted_table_name()`。表名前缀或映射不会迁移既有 schema 或数据。
-- 按 历史决策 049，`MigrationServiceProvider<M>` 的 `up`、`down`、`status` 均在所选 Db 主库上取得独立 `migration_locks` 固定行的事务锁；resolver-aware 锁表惰性初始化，默认等待 30 秒，可通过 `with_lock_wait_timeout` 配置。竞争按 PostgreSQL/MySQL 驱动锁冲突短暂重试，超时 fail-closed；进程/连接退出释放行锁。仅保护同一物理数据库、相同 resolver 且通过 `MigrationServiceProvider` 执行的命令；直接 SeaORM/raw SQL/外部工具不受保护。DDL 仍由 SeaORM runner 管理，MySQL 隐式提交和部分 schema 清理由应用负责。PostgreSQL 18/MySQL 8.4 多进程等待超时与 owner 强杀恢复测试均通过。
+- 按 历史决策 049，`MigrationServiceProvider<M>` 在 PostgreSQL/MySQL 上的 `up`、`down`、`status` 于所选 Db 主库取得独立 `migration_locks` 固定行的事务锁；resolver-aware 锁表惰性初始化，默认等待 30 秒，可通过 `with_lock_wait_timeout` 配置。竞争按 PostgreSQL/MySQL 驱动锁冲突短暂重试，超时 fail-closed；进程/连接退出释放行锁。仅保护同一物理数据库、相同 resolver 且通过 `MigrationServiceProvider` 执行的命令；直接 SeaORM/raw SQL/外部工具不受保护。DDL 仍由 SeaORM runner 管理，MySQL 隐式提交和部分 schema 清理由应用负责。PostgreSQL 18/MySQL 8.4 多进程等待超时与 owner 强杀恢复测试均通过。
 - `MigrationServiceProvider<M>` 注册 `migrate` 命令，调用应用 migrator 的 `up`、`down` 和 `status`；`sea_orm_migration` 从 `openrust::database` re-export。
 - `SeedServiceProvider::new(seed_fn)` 注册 `db seed`；异步回调接收 `Db`，种子数据与幂等性由应用负责。
 - `openrust generate model` 与 `generate migration` 可一致传入 `--uuid-id`（`db-uuid` feature，UUIDv7）及 `--soft-delete`（nullable UTC `deleted_at`）；实体生成显式 `Entity::not_deleted()` scope。删除范围不会自动作用于 `find()`、raw SQL 或其他入口，恢复由应用将 `deleted_at` 清空；模型和迁移选项须匹配。
-- `dialect::timestamp_utc(name, backend)` 生成 PostgreSQL `TIMESTAMP WITH TIME ZONE` / MySQL `DATETIME(6)`；`dialect::json(name, backend)` 生成 PostgreSQL `JSONB` / MySQL `JSON`；两者返回 `DbErr`，对其他 backend 显式拒绝。
+- `dialect::timestamp_utc(name, backend)` 生成 PostgreSQL `TIMESTAMP WITH TIME ZONE` / MySQL `DATETIME(6)` / SQLite `DATETIME`；`dialect::json(name, backend)` 生成 PostgreSQL `JSONB` / MySQL `JSON` / SQLite `TEXT`，完整SQLite JSON选项仍开放；其他backend明确拒绝。
 - `db-postgres` 与 `db-mysql` 是可选 feature；未启用 backend feature 时默认不启用具体数据库 driver。
 - 数据库连接失败只给出 backend 名，不把连接 URL 或驱动错误写入启动错误。
 
@@ -48,9 +48,9 @@
 
 嵌套事务与 savepoint、重试、直接 SeaORM/原生 SQL 逃生口均不受事务事件覆盖；提交前与提交后失败边界见 历史决策 041。
 
-当前内置连接器已实现 PostgreSQL 与 MySQL，暂定最低版本检查为 PostgreSQL 14+ / MySQL 8.0+；固定 Laravel 五 SQL 后端及其最低版本对应尚未全部交付，不能把当前双库事实限制为最终范围。日常开发/常规CI默认MySQL8.4 LTS与Redis8，PG18保留并按影响定向验证。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
+当前内置连接器包括 PostgreSQL、MySQL 与上述限定SQLite，最低检查为 PostgreSQL 14+ / MySQL 8.0+ / SQLite 3.26+；固定 Laravel 五 SQL 后端及其最低版本对应尚未全部交付，不能把当前双库事实限制为最终范围。日常开发/常规CI默认MySQL8.4 LTS与Redis8，PG18保留并按影响定向验证。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
 
-SQLite 自定义插件通过 SeaORM 自行创建连接后，可使用 `Db::initialize()`、`Db::transaction()`、通用表名解析与应用自有 SeaORM `MigrationServiceProvider`。该连接不证明 SQLite 已得到内置驱动与全框架支持：`DatabaseServiceProvider`、官方 URL/feature 检查、方言 helper、框架认证/队列/协调迁移与 `TestDatabase` 仍限定 PostgreSQL/MySQL，调用不支持的能力时应显式失败。独立 consumer 示例见 `tests/consumers/db-custom-sqlite/`。其他 SeaORM backend 还须先实现受控的表名 quoting，再适配实际使用的迁移、方言与测试隔离；不能由连接成功推断认证/队列兼容。新增官方 backend 仍需独立完成 feature、能力检查、方言、生成器及真实测试闭环。
+SQLite自定义插件仍可经通用Db公开API提供连接；只有实际启用内置feature、标准配置与迁移锁来源时才走SQLite迁移所有者。固定迁移crate依赖只作可追溯manifest修正：移除其传递SeaORM默认RETURNING，其他此前有效features在workspace显式保持，生成/consumer不另引官方迁移包。源码、许可和微补丁见vendor/sea-orm-migration/SOURCES.md；path/Git消费已验不等于未来crates.io发布。五后端、完整懒连接与SQLite业务链继续在唯一todo内，不将连接或DDL通过扩张成全框架支持。
 
 ## 验证
 

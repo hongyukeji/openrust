@@ -28,6 +28,11 @@ mod rate_limit;
 mod seed;
 #[cfg(feature = "db-sqlite")]
 mod sqlite;
+
+#[cfg(feature = "db-sqlite")]
+pub(crate) fn cleanup_owned_sqlite_directory(directory: &std::path::Path) -> Result<()> {
+    sqlite::migration_lock::cleanup_owned_directory(directory)
+}
 mod table_names;
 
 pub use crate::config::database::{DatabaseConfig, DatabaseInstanceConfig};
@@ -442,10 +447,10 @@ fn database_instance_schema() -> crate::config::repository::SectionSchema {
     S::object([
         ("url", S::String.nullable().sensitive()),
         ("read_replicas", S::array(S::String.sensitive())),
-        ("foreign_key_constraints", S::Boolean),
-        ("busy_timeout", S::Integer.nullable()),
-        ("journal_mode", S::String.nullable()),
-        ("synchronous", S::String.nullable()),
+        ("foreign_key_constraints", S::Boolean.nullable()),
+        ("busy_timeout", S::any().nullable().sensitive()),
+        ("journal_mode", S::any().nullable().sensitive()),
+        ("synchronous", S::any().nullable().sensitive()),
         ("pragmas", S::map(S::any().sensitive())),
         ("max_connections", S::Integer),
         ("min_connections", S::Integer),
@@ -780,7 +785,12 @@ async fn connect_database(
     if backend == DatabaseBackend::Sqlite {
         use sqlx::ConnectOptions as _;
         let prepared = sqlite::connection_settings(url, config, application_root)?;
-        let sqlite_options = prepared.options.disable_statement_logging();
+        let native_foreign_keys = sqlite::native::foreign_keys_default().await?;
+        let initial_pragmas = sqlite::initial_pragma_value(&prepared.pragmas, native_foreign_keys);
+        let sqlite_options = prepared
+            .options
+            .pragma("foreign_keys", initial_pragmas)
+            .disable_statement_logging();
         options = ConnectOptions::new(prepared.url);
         options
             .max_connections(if prepared.single_connection {
@@ -797,26 +807,13 @@ async fn connect_database(
             .acquire_timeout(Duration::from_secs(config.acquire_timeout_secs));
         options.map_sqlx_sqlite_opts(move |_| sqlite_options.clone());
         let in_memory = prepared.in_memory;
-        let pragmas = Arc::new(prepared.pragmas);
+        // SQLx after_connect 会重连并记录原错误；初始化批次必须在 connect 内执行。
         options.map_sqlx_sqlite_pool_opts(move |pool| {
-            // 内存库的最后连接就是数据所有者，不能被空闲/寿命回收暗中重置。
-            let pool = if in_memory {
+            if in_memory {
                 pool.idle_timeout(None).max_lifetime(None)
             } else {
                 pool
-            };
-            let pragmas = Arc::clone(&pragmas);
-            pool.after_connect(move |connection, _| {
-                let pragmas = Arc::clone(&pragmas);
-                Box::pin(async move {
-                    for statement in pragmas.iter() {
-                        sqlx::query(sqlx::AssertSqlSafe(statement.as_str()))
-                            .execute(&mut *connection)
-                            .await?;
-                    }
-                    Ok(())
-                })
-            })
+            }
         });
     }
     #[cfg(feature = "db-mysql")]

@@ -596,17 +596,12 @@ impl MigrationTrait for DatabaseAuditTenantMigration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(migration_table(
-                        "audit_records",
-                        manager.get_database_backend(),
-                    )?)
-                    .drop_column(AuditTable::TenantId)
-                    .to_owned(),
-            )
-            .await
+        crate::db::dialect::drop_column(
+            manager,
+            migration_table("audit_records", manager.get_database_backend())?,
+            AuditTable::TenantId,
+        )
+        .await
     }
 }
 

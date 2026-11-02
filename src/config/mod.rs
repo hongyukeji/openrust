@@ -676,7 +676,7 @@ impl ConfigLoader {
         let common_provider = CapturedProvider::new(&Serialized::defaults(common.clone()))?
             .with_metadata(Env::prefixed("").metadata());
         environment_layers.push((common_provider, common));
-        let common_nulls = session_environment_nulls(&environment, "", true);
+        let common_nulls = nullable_environment_values(&environment, "", true);
         environment_layers.push((
             CapturedProvider::new(&Serialized::defaults(common_nulls.clone()))?,
             common_nulls,
@@ -686,7 +686,7 @@ impl ConfigLoader {
         let namespaced_provider = CapturedProvider::new(&Serialized::defaults(namespaced.clone()))?
             .with_metadata(Env::prefixed(&self.namespace).metadata());
         environment_layers.push((namespaced_provider, namespaced));
-        let namespaced_nulls = session_environment_nulls(&environment, &self.namespace, false);
+        let namespaced_nulls = nullable_environment_values(&environment, &self.namespace, false);
         environment_layers.push((
             CapturedProvider::new(&Serialized::defaults(namespaced_nulls.clone()))?,
             namespaced_nulls,
@@ -821,8 +821,8 @@ impl ConfigLoader {
 }
 
 // Laravel env 将未加引号的 null/(null) 视为 null；Figment 默认仍把它当字符串。
-// 只修正本簇声明的 nullable Session 字段，且保留每层环境源的通常优先级。
-fn session_environment_nulls(
+// 只修正已声明的 nullable Session/数据库字段，且保留每层环境源的通常优先级。
+fn nullable_environment_values(
     environment: &EnvironmentSnapshot,
     namespace: &str,
     conventional: bool,
@@ -851,11 +851,24 @@ fn session_environment_nulls(
             fields.insert(field.into(), serde_json::Value::Null);
         }
     }
-    if fields.is_empty() {
-        serde_json::json!({})
-    } else {
-        serde_json::json!({"session":fields})
+    let mut values = serde_json::Map::new();
+    if !fields.is_empty() {
+        values.insert("session".into(), serde_json::Value::Object(fields));
     }
+    let database_key = if conventional {
+        "DB_FOREIGN_KEYS".to_owned()
+    } else {
+        format!("{namespace}DATABASE_FOREIGN_KEY_CONSTRAINTS")
+    };
+    if let Some(value) = environment.get(&database_key) {
+        values.insert(
+            "database".into(),
+            serde_json::json!({
+                "foreign_key_constraints": code::nullable_env_bool(&value)
+            }),
+        );
+    }
+    serde_json::Value::Object(values)
 }
 
 fn common_environment_path(key: &str) -> Option<String> {
@@ -2572,11 +2585,47 @@ mod tests {
                     .map_err(|e| figment::Error::from(e.to_string()))?
                     .extract_inner("database")?;
                 assert_eq!(value.url.as_deref(), Some(expected));
-                assert!(!value.foreign_key_constraints);
+                assert_eq!(value.foreign_key_constraints, Some(false));
                 assert_eq!(value.busy_timeout, None);
                 assert_eq!(value.journal_mode, None);
                 assert_eq!(value.synchronous, None);
             }
+            for raw in ["null", "(NuLl)"] {
+                jail.set_env("DB_FOREIGN_KEYS", raw);
+                let value: DatabaseConfig = ConfigLoader::new("config", Environment::Test)
+                    .figment()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .extract_inner("database")?;
+                assert_eq!(value.foreign_key_constraints, None);
+            }
+            for (raw, expected) in [
+                ("true", true),
+                ("(false)", false),
+                ("0", false),
+                ("empty", false),
+                ("off", true),
+                ("\"false\"", true),
+            ] {
+                jail.set_env("DB_FOREIGN_KEYS", raw);
+                let value: DatabaseConfig = ConfigLoader::new("config", Environment::Test)
+                    .figment()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .extract_inner("database")?;
+                assert_eq!(value.foreign_key_constraints, Some(expected));
+            }
+            jail.set_env("DB_FOREIGN_KEYS", "null");
+            jail.set_env("APP_DATABASE_FOREIGN_KEY_CONSTRAINTS", "true");
+            let value: DatabaseConfig = ConfigLoader::new("config", Environment::Test)
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("database")?;
+            assert_eq!(value.foreign_key_constraints, Some(true));
+            jail.set_env("APP_DATABASE_FOREIGN_KEY_CONSTRAINTS", "(null)");
+            let value: DatabaseConfig = ConfigLoader::new("config", Environment::Test)
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("database")?;
+            assert_eq!(value.foreign_key_constraints, None);
             jail.clear_env();
             jail.set_env("DB_CONNECTION", "sqlite");
             let environment = EnvironmentSnapshot::capture();

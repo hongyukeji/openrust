@@ -261,6 +261,10 @@ impl ExecutionContext {
         &self.metadata
     }
 
+    pub(crate) fn deadline(&self) -> Option<Instant> {
+        self.deadline
+    }
+
     /// 返回父调用剩余预算；没有 deadline 时返回 `None`。
     pub fn remaining_budget(&self) -> Option<Duration> {
         self.deadline

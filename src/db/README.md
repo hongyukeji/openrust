@@ -15,7 +15,7 @@ OpenRust 框架的数据库模块。
 
 ## SQLite 内置连接
 
-启用 `db-sqlite` 后使用同一标准 Provider，按固定 SQLite 3.26.0+ 最低目标接入文件、URI 与内存连接；当前实际验证为 3.51.3，最低版本运行矩阵未完成。外键默认开启，PDO 默认忙等待 60000ms；PRAGMA 随每条物理连接执行。普通文件必须先存在；内存池保留数据至关闭。配置与 owned 测试库流程见[数据库连接指南](../../docs/src/database/connections.md)。当前仅连接子范围，完整框架迁移、互斥、认证、队列和调度 SQL 的 SQLite 适配仍未交付；旧自定义 consumer 不能替代这些验收。
+启用 `db-sqlite` 后使用同一标准 Provider，按固定 SQLite 3.26.0+ 最低目标接入文件、URI 与内存连接；连接、既有迁移清单与所有者边界已在 3.26.0/3.51.3 验证，全部业务最低版本矩阵仍开放。外键默认开启，PDO 默认忙等待 60000ms；PRAGMA 随每条物理连接执行。普通文件必须先存在；内存池保留数据至关闭。配置与 owned 测试库流程见[数据库连接指南](../../docs/src/database/connections.md)。nullable/raw PRAGMA、CLI 安装迁移、单机文件互斥、既有 FrameworkMigrator/示例清单和 main 普通表删列重建已有对应证据。完整 Migrator/Schema、认证、Session、队列和调度业务 SQL 仍未交付；旧自定义 consumer 不能替代这些验收。固定迁移依赖的局部 feature 修正见[来源与许可](../../vendor/sea-orm-migration/SOURCES.md)。
 
 ## Query Builder 限定实现
 

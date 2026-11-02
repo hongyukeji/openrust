@@ -63,7 +63,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 6. root独占公共contract/Cargo/lock、共享文档/索引/构建/实服务；deferred_contract_review仅只读盘点上游和现链，报告/tmp/openrust-sqlite-builtin-contract-audit.md。当前生产阻点已核：DatabaseBackend拒绝sqlite、标准连接/版本match仅双库、dialect UTC/JSON拒绝、TestDatabase无SQLite、migration_lock仅PG/MySQL；默认audit、Session/auth/MFA、coordination/限流、queue SKIP LOCKED与schedule也有双库限定，不能只移除SQL锁语句。只读报告已保全tmp/sqlite-builtin-20261102/contract-audit.md。
 7. 下一动作：当前R2验收期间收齐只读contract/文件清单；R2本地提交及本次范围明确模块入口整改后，立即按必要依赖收敛短Spec并实际编码SQLite，不只留计划。Factory维持R5前置，SQLite内置适配用现有R4基础优先交付，完整后续矩阵随各簇保持。
 
-当前owner与停点：root，同一main、无新worktree。连接基础限定证据见[testing](memory/testing.md#sqlite-连接基础限定验收)，提交事实以Git为准；workers均停写。下一步按S2依赖先补PRAGMA schema-qualified/quoted名称、synchronous数值级别、nullable foreign_key_constraints的严格上游配置对应，再实现迁移互斥/方言、全部已有迁移及CLI安装器SQLite路径；S3业务SQL随后。SQLite3.26最低版本须实际运行，现3.51.3引擎证据不能关闭。owned TestDatabase成功close已验，构造取消/Drop/失败关闭完整矩阵未齐。以上均为确认缺口，不归为必要Rust适配；SQLx非UTF8文件名限制另提供明确拒绝。迁移hardlink/并发锁不能仅canonicalize解决，独审/tmp/openrust-sqlite-pdo-and-lock-review.md；主线沿原27/5.4预算，不rebase/credits。
+当前owner与停点：root，main基线20cea6c，无新worktree，全部worker停写。S2配置/连接/既有迁移与安装子范围的13主门禁、SQLite定向/所有者12、最低3.26库46/Root3、真实生成check/test与9配置子进程、根CLI/配置/HTTP、生成HTTP及12consumer check已通过；最后cfg(not db-sqlite)能力错误前置的默认严格Clippy/完整workspace测试与最新全feature文档4项也通过。外部consumer保全部事务/查询断言，run-2成功；不同模型final-review按直接source diff批准已排除代码的SQLite-enabled证据作用域复用，双库各5亦仅限定复用。当前依据见[验收](memory/testing.md#sqlite-配置与迁移限定验收)，所有失败与补丁来源保全，不把子范围记为全量SQLite完成。
+
+收尾已实证：61份生成文件SHA核对归档后移除；main target50.28GB与后期5.57GB、minimum1.77GB均清零，二进制/HTML/自有cache回收，SQLite文件证据归档；磁盘可用约159GB，依赖源码/native oracle和全部服务/回执保留。最后只核Git与脚本本地提交；提交事实以Git为准，已提交后不得重跑已关闭矩阵或重复领取S2，继续下面同一SQLite项的S3业务适配及剩余缺口，不建第二队列。
+
+整项SQLite继续in_progress：S3认证/Session/DB缓存锁/队列调度业务SQL、完整Migrator/fresh/Schema/native JSON、Root+Auth、构造/Drop/驱动fault全矩阵、Windows原生、mount/bind别名与替换路径TOCTOU仍开放。after_release/驱动故障与已在途acquire没有原子禁重连保证；不降低断言、不说全面防丢库，也不把该窗口归为必要Rust适配。原Goal active、27/5.4预算/default80%不变，不rebase/credits，不重启stopped coop/旧守护。
 
 ### 标准 MySQL＋Redis 与队列开箱（已限定提交3703939）
 

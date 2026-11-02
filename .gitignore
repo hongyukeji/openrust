@@ -6,6 +6,9 @@ Cargo.lock.bak
 !/storage/README.md
 /bootstrap/cache/*.json
 **/.modules_statuses.json.lock
+/database/*.sqlite
+/database/*.sqlite-*
+**/.openrust-migration-*.lock
 
 # Generated projects and spikes
 /tmp/

@@ -19,6 +19,8 @@ autotests = false
 [workspace]
 resolver = "3"
 members = ["tools/cli", "tools/macros", "tools/testing", "tools/performance"]
+# 第三方原始迁移 crate 只作依赖；不作为第一方 workspace 包调度。
+exclude = ["vendor/sea-orm-migration"]
 default-members = ["."]
 
 [workspace.package]
@@ -79,8 +81,8 @@ validator = { version = "0.21", features = ["derive"] }
 clap = { version = "4.6", features = ["derive"] }
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
-sea-orm = { version = "2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "runtime-tokio-rustls"] }
-sea-orm-migration = { version = "2.0.4", default-features = false, features = ["runtime-tokio-rustls"] }
+sea-orm = { version = "2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "with-rust_decimal", "with-uuid", "with-time", "stream", "runtime-tokio-rustls"] }
+sea-orm-migration = { version = "=2.0.4", path = "vendor/sea-orm-migration", default-features = false, features = ["runtime-tokio-rustls"] }
 sha2 = "0.10"
 sha2_11 = { package = "sha2", version = "0.11" }
 hmac = "0.13"
@@ -101,6 +103,7 @@ redis = { version = "1.8.0", default-features = false, features = ["connection-m
 url = "2.5"
 pcre2 = "=0.2.11"
 sqlx = { version = "0.9", default-features = false }
+rusqlite = { version = "=0.39.0", default-features = false }
 toml = { version = "1.1", features = ["preserve_order"] }
 toml_edit = "0.25.17"
 insta = "1.49"
@@ -143,6 +146,7 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 
 [dependencies]
+rusqlite = { workspace = true, optional = true }
 pcre2.workspace = true
 aes-gcm-siv = { workspace = true, optional = true }
 axum.workspace = true
@@ -254,7 +258,7 @@ rcgen.workspace = true
 default = ["db-mysql", "cache-redis", "queue-redis"]
 db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
 db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
-db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite"]
+db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
 session = ["dep:time"]
 auth = [
@@ -512,3 +516,6 @@ required-features = ["session"]
 [[test]]
 name = "container_extension_contract"
 path = "tests/core/container_extension_contract.rs"
+
+[target.'cfg(windows)'.dependencies]
+winapi-util = { version = "=0.1.11", optional = true }

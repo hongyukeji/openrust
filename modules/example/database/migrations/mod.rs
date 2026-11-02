@@ -92,14 +92,18 @@ impl MigrationTrait for CreateExampleRecordShowcase {
                     )
                     .col(ColumnDef::new(ExampleRecords::Enabled).boolean().not_null())
                     .col(
-                        ColumnDef::new(ExampleRecords::PublishedAt)
-                            .timestamp_with_time_zone()
-                            .null(),
+                        openrust::database::dialect::timestamp_utc(
+                            ExampleRecords::PublishedAt,
+                            manager.get_database_backend(),
+                        )?
+                        .null(),
                     )
                     .col(
-                        ColumnDef::new(ExampleRecords::Metadata)
-                            .json_binary()
-                            .null(),
+                        openrust::database::dialect::json(
+                            ExampleRecords::Metadata,
+                            manager.get_database_backend(),
+                        )?
+                        .null(),
                     )
                     .col(
                         ColumnDef::new(ExampleRecords::CategoryId)
@@ -357,14 +361,12 @@ impl MigrationTrait for AddExampleArticlePrivateNotes {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(ExampleArticles::Table)
-                    .drop_column(ExampleArticles::PrivateNoteCiphertext)
-                    .to_owned(),
-            )
-            .await
+        openrust::database::dialect::drop_column(
+            manager,
+            ExampleArticles::Table,
+            ExampleArticles::PrivateNoteCiphertext,
+        )
+        .await
     }
 }
 

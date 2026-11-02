@@ -2174,6 +2174,7 @@ dependencies = [
  "figment",
  "futures-util",
  "getrandom 0.3.4",
+ "glob",
  "hmac",
  "http",
  "http-body",
@@ -2192,6 +2193,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "sha2 0.11.1",
+ "sqlx",
  "subtle",
  "tempfile",
  "thiserror",
@@ -2787,6 +2789,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "sqlx-core",
  "strum",
  "thiserror",
  "time",
@@ -2844,8 +2847,6 @@ dependencies = [
 [[package]]
 name = "sea-orm-migration"
 version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07970137dbbed6daf56a2429db349abfb68ed1c79206957c30d4a0e9ea808c08"
 dependencies = [
  "async-trait",
  "sea-orm",

@@ -29,6 +29,8 @@ pub struct TestDatabase {
     sqlite_runtime: Option<Box<crate::core::ProviderRuntime>>,
     sqlite_directory: Option<std::path::PathBuf>,
     sqlite: bool,
+    // 显式关闭开始后，失败/取消必须保留文件，不能再由 Drop 无条件重试删除。
+    preserve_sqlite: bool,
 }
 
 impl TestDatabase {
@@ -96,6 +98,7 @@ impl TestDatabase {
             sqlite_runtime: None,
             sqlite_directory: directory,
             sqlite: true,
+            preserve_sqlite: false,
         };
         let setup = async {
             let mut builder = crate::core::ProviderBuilder::new();
@@ -247,6 +250,7 @@ impl TestDatabase {
             sqlite_runtime: None,
             sqlite_directory: None,
             sqlite: false,
+            preserve_sqlite: false,
         })
     }
 
@@ -263,7 +267,17 @@ impl TestDatabase {
     }
 
     /// 关闭连接池并删除隔离数据库。
-    pub async fn close(mut self) -> Result<()> {
+    ///
+    /// SQLite 文件库调用前必须先关闭所有借用该 URL 的应用/worker，并停止创建新借用。
+    /// 调用时即禁止 `Drop` 另行删除；关闭 future 失败、取消或未被轮询时均保留目录。
+    pub fn close(mut self) -> crate::core::BoxFuture<'static, Result<()>> {
+        if self.sqlite {
+            self.preserve_sqlite = true;
+        }
+        Box::pin(self.close_inner())
+    }
+
+    async fn close_inner(mut self) -> Result<()> {
         if self.sqlite {
             let shutdown = if let Some(runtime) = self.sqlite_runtime.take() {
                 runtime
@@ -313,7 +327,7 @@ impl fmt::Debug for TestDatabase {
 
 impl Drop for TestDatabase {
     fn drop(&mut self) {
-        if self.cleaned {
+        if self.cleaned || self.preserve_sqlite {
             return;
         }
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
@@ -393,19 +407,18 @@ fn cleanup_sqlite_directory(directory: Option<&std::path::Path>) -> Result<()> {
     let Some(directory) = directory else {
         return Ok(());
     };
-    for file in [
-        "database.sqlite",
-        "database.sqlite-wal",
-        "database.sqlite-shm",
-        "database.sqlite-journal",
-    ] {
-        match std::fs::remove_file(directory.join(file)) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(Error::internal(error)),
-        }
+    #[cfg(feature = "db-sqlite")]
+    {
+        crate::db::cleanup_owned_sqlite_directory(directory)
     }
-    std::fs::remove_dir(directory).map_err(Error::internal)
+    #[cfg(not(feature = "db-sqlite"))]
+    {
+        let _ = directory;
+        Err(Error::custom(
+            "database_feature_disabled",
+            "清理 SQLite 测试库需要 db-sqlite",
+        ))
+    }
 }
 
 #[cfg(feature = "db-postgres")]

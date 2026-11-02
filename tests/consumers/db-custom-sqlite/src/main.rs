@@ -1,10 +1,10 @@
 use figment::Figment;
 use openrust::core::{App, Error, ProviderBuilder, RegisterContext, Result, ServiceProvider};
-use openrust::prelude::Db;
 use openrust::database::{
-    DatabaseTableNames, DbBackend, MigrationServiceProvider, PageContext, SortDirection,
-    sea_orm, sea_orm_migration, with_page_context,
+    DatabaseTableNames, DbBackend, MigrationServiceProvider, PageContext, SortDirection, sea_orm,
+    sea_orm_migration, with_page_context,
 };
+use openrust::prelude::Db;
 use sea_orm::{ConnectionTrait, Database, Statement};
 use sea_orm_migration::prelude::*;
 
@@ -244,10 +244,11 @@ async fn main() -> Result<()> {
         .ok_or_else(|| {
             Error::custom(
                 "expected_unsupported_backend",
-                "SQLite migration lock accepted",
+                "未启用内置 SQLite 时迁移命令必须拒绝",
             )
         })?;
-    assert_eq!(unsupported_migration.code(), "unsupported_database_backend");
+    // 自定义 SQLx 连接仍可事务/查询；框架 SQLite 互斥须显式编译 db-sqlite。
+    assert_eq!(unsupported_migration.code(), "database_feature_disabled");
 
     println!("自定义 SQLite Provider 连接、提交与回滚验证通过");
     Ok(())

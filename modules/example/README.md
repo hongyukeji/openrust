@@ -30,6 +30,12 @@
 
 模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
+## SQLite 配置与迁移接入
+
+模块的 reporting 路由通过标准 `Databases` 使用独立 SQLite 连接；对应测试在真实 Router 调用后检查同一池的 nullable/raw PRAGMA。迁移清单通过公开 Framework/模块 MigrationServiceProvider 接入，`PrivateNote` 回滚使用 `dialect::drop_column`；旧版 SQLite 在迁移所有者内重建 main 普通表，无需业务自行分支。
+
+这些连接与既有迁移清单已在 SQLite 3.26/3.51.3 验证；无 auth 根宿主另有真实 up/status/down/up。独立清单 Provider 验收不等于 Root+Auth 或全部业务已支持：认证、数据库 Session、DB缓存/队列/调度 SQL 与完整 Migrator/Schema 仍在后继范围。接口及边界见[数据库连接](../../docs/src/database/connections.md)。
+
 ## 统一请求输入与路由规范化
 
 `POST /api/example/input` 在 [`controllers/example.rs`](http/controllers/example.rs) 使用公开 `openrust::http::Request` 作为唯一读取正文的提取器。`request.info()` 提供方法和路径等元信息；不要在同一个 handler 中再并列 `Json<T>` 或原生 Request 消费正文。需要类型化数据时可调用 `deserialize_json`、`deserialize_query` 或 `deserialize_input`，示例用 `deserialize_query::<InputQuery>()` 把 `page=7` 转成 `Option<u32>` 并读取已去空白的 `label`。 `deserialize_json` 会经过动态 `serde_json::Value`；需要精确保留128位整数时直接使用 typed `Json<T>`，详见[HTTP 输入说明](../../src/http/README.md#统一请求输入)。

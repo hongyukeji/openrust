@@ -173,3 +173,56 @@ async fn application_pool_keeps_shared_memory_alive_after_guard_close() -> Resul
         .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await
 }
+
+#[cfg(feature = "db-sqlite")]
+#[tokio::test]
+async fn explicit_sqlite_close_failure_does_not_retry_deletion_after_lock_release() -> Result<()> {
+    let database = TestDatabase::sqlite_file::<EmptyMigrator>().await?;
+    let directory = database
+        .sqlite_directory
+        .clone()
+        .ok_or_else(|| crate::Error::custom("test_directory_missing", "文件测试库缺少自有目录"))?;
+    let path = directory.join("database.sqlite");
+    let mutex_path = directory.join(format!(".openrust-migration-{}.lock", "0".repeat(64)));
+    let mutex = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&mutex_path)
+        .map_err(crate::Error::internal)?;
+    mutex.lock().map_err(crate::Error::internal)?;
+    let outcome = database.close().await;
+    // current-thread runtime 在下次 await 前不会运行旧 Drop 另行 spawn 的删除任务。
+    mutex.unlock().map_err(crate::Error::internal)?;
+    drop(mutex);
+    assert_eq!(
+        outcome.err().as_ref().map(crate::Error::code),
+        Some("sqlite_cleanup_active_migration")
+    );
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert!(path.exists());
+    assert!(mutex_path.exists());
+    super::cleanup_sqlite_directory(Some(&directory))?;
+    assert!(!directory.exists());
+    Ok(())
+}
+
+#[cfg(feature = "db-sqlite")]
+#[tokio::test]
+async fn unpolled_sqlite_close_keeps_its_owned_files_instead_of_scheduling_drop_deletion()
+-> Result<()> {
+    let database = TestDatabase::sqlite_file::<EmptyMigrator>().await?;
+    let directory = database
+        .sqlite_directory
+        .clone()
+        .ok_or_else(|| crate::Error::custom("test_directory_missing", "文件测试库缺少自有目录"))?;
+    let connection = database.connection()?;
+    let future = database.close();
+    drop(future);
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert!(directory.join("database.sqlite").exists());
+    connection.close().await.map_err(crate::Error::internal)?;
+    super::cleanup_sqlite_directory(Some(&directory))?;
+    assert!(!directory.exists());
+    Ok(())
+}

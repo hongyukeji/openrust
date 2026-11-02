@@ -5,7 +5,12 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use serde_json::Value;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
+use sqlx::sqlite::SqliteConnectOptions;
+
+pub(super) mod migration_lock;
+pub(super) mod native;
+mod pragma;
+pub(super) mod schema_rebuild;
 
 use super::DatabaseInstanceConfig;
 use crate::config::ConfigError;
@@ -86,73 +91,58 @@ pub(super) fn connection_settings(
         options = options.filename(resolved).create_if_missing(false);
     }
     // PDO SQLite 的默认 timeout 为 60 秒；声明的 PRAGMA 随后逐连接执行。
-    options = options
-        .foreign_keys(false)
-        .busy_timeout(Duration::from_secs(60));
-    let pragmas = configured_pragmas(config)?;
+    options = options.busy_timeout(Duration::from_secs(60));
+    let pragmas = configured_pragmas(config);
     Ok(SqliteConnectionSettings {
         options,
         url: normalized_url,
-        single_connection: memory && (path == ":memory:" || path == "file::memory:" || !shared),
+        single_connection: memory
+            && (path.is_empty()
+                || path == "file:"
+                || path == ":memory:"
+                || path == "file::memory:"
+                || !shared),
         in_memory: memory,
         pragmas,
     })
 }
 
-fn configured_pragmas(config: &DatabaseInstanceConfig) -> crate::Result<Vec<String>> {
-    let mut pragmas = Vec::new();
-    for (name, value) in &config.pragmas {
-        if name.is_empty()
-            || !name.bytes().enumerate().all(|(index, byte)| {
-                byte.is_ascii_alphabetic() || byte == b'_' || (index > 0 && byte.is_ascii_digit())
-            })
-        {
-            return Err(invalid("database.pragmas", "invalid_sqlite_pragma_name"));
+fn configured_pragmas(config: &DatabaseInstanceConfig) -> Vec<String> {
+    let mut declarations: Vec<(String, Value)> = config
+        .pragmas
+        .iter()
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<Vec<_>>();
+    if let Some(enabled) = config.foreign_key_constraints {
+        declarations.push(("foreign_keys".into(), serde_json::json!(u8::from(enabled))));
+    }
+    for (name, value) in [
+        ("busy_timeout", &config.busy_timeout),
+        ("journal_mode", &config.journal_mode),
+        ("synchronous", &config.synchronous),
+    ] {
+        if let Some(value) = value.as_ref().filter(|value| !value.is_null()) {
+            declarations.push((name.into(), value.clone()));
         }
-        let value = pragma_value(value)?;
-        pragmas.push(format!("PRAGMA {} = {};", name.to_ascii_lowercase(), value));
     }
-    pragmas.push(format!(
-        "PRAGMA foreign_keys = {};",
-        u8::from(config.foreign_key_constraints)
-    ));
-    if let Some(timeout) = config.busy_timeout {
-        if timeout > i32::MAX as u32 {
-            return Err(invalid(
-                "database.busy_timeout",
-                "invalid_sqlite_busy_timeout",
-            ));
-        }
-        pragmas.push(format!("PRAGMA busy_timeout = {timeout};"));
-    }
-    if let Some(mode) = &config.journal_mode {
-        SqliteJournalMode::from_str(mode)
-            .map_err(|_| invalid("database.journal_mode", "invalid_sqlite_journal_mode"))?;
-        pragmas.push(format!(
-            "PRAGMA journal_mode = {};",
-            mode.to_ascii_uppercase()
-        ));
-    }
-    if let Some(mode) = &config.synchronous {
-        SqliteSynchronous::from_str(mode)
-            .map_err(|_| invalid("database.synchronous", "invalid_sqlite_synchronous"))?;
-        pragmas.push(format!(
-            "PRAGMA synchronous = {};",
-            mode.to_ascii_uppercase()
-        ));
-    }
-    Ok(pragmas)
+    declarations
+        .into_iter()
+        .map(|(name, value)| {
+            match pragma::statement(&name, &value) {
+                Ok(statement) => statement,
+                // 保留 foreach 前序已执行的持久 PRAGMA，错误在对应原生初始化步发生。
+                Err(_) => "PRAGMA = ;".to_owned(),
+            }
+        })
+        .collect()
 }
 
-fn pragma_value(value: &Value) -> crate::Result<String> {
-    match value {
-        Value::Bool(value) => Ok(if *value { "1" } else { "0" }.to_owned()),
-        Value::Number(value) => Ok(value.to_string()),
-        Value::String(value) if !value.contains('\0') => {
-            Ok(format!("'{}'", value.replace('\'', "''")))
-        }
-        _ => Err(invalid("database.pragmas", "invalid_sqlite_pragma_value")),
+pub(super) fn initial_pragma_value(pragmas: &[String], native_foreign_keys: bool) -> String {
+    let mut value = format!("{};\n", u8::from(native_foreign_keys));
+    for statement in pragmas {
+        value.push_str(&pragma::batch_fragment(statement));
     }
+    value
 }
 
 fn encode_path(path: &str) -> String {
@@ -166,45 +156,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pragma_strings_are_single_quoted_and_escape_quotes() -> crate::Result<()> {
-        assert_eq!(
-            pragma_value(&Value::String("a'; DROP TABLE users;--".into()))?,
-            "'a''; DROP TABLE users;--'"
-        );
-        assert_eq!(pragma_value(&Value::Bool(true))?, "1");
-        assert!(pragma_value(&Value::Null).is_err());
-        assert!(pragma_value(&serde_json::json!([1])).is_err());
-        assert!(pragma_value(&Value::String("\0".into())).is_err());
-        Ok(())
-    }
-
-    #[test]
     fn pragma_declaration_order_precedes_special_overrides() -> crate::Result<()> {
         let mut config = DatabaseInstanceConfig::default();
         config
             .pragmas
             .insert("synchronous".into(), Value::String("OFF".into()));
-        config
-            .pragmas
-            .insert("foreign_keys".into(), Value::Bool(false));
+        config.pragmas.insert("foreign_keys".into(), Value::from(0));
         config
             .pragmas
             .insert("busy_timeout".into(), Value::from(17));
-        config.foreign_key_constraints = true;
-        config.busy_timeout = Some(42);
+        config.foreign_key_constraints = Some(true);
+        config.busy_timeout = Some(42.into());
         config.journal_mode = Some("delete".into());
         config.synchronous = Some("full".into());
         let settings = connection_settings("sqlite::memory:", &config, None)?;
         assert_eq!(
             settings.pragmas,
             [
-                "PRAGMA synchronous = 'OFF';",
-                "PRAGMA foreign_keys = 0;",
-                "PRAGMA busy_timeout = 17;",
-                "PRAGMA foreign_keys = 1;",
-                "PRAGMA busy_timeout = 42;",
-                "PRAGMA journal_mode = DELETE;",
-                "PRAGMA synchronous = FULL;",
+                "PRAGMA synchronous = OFF",
+                "PRAGMA foreign_keys = 0",
+                "PRAGMA busy_timeout = 17",
+                "PRAGMA foreign_keys = 1",
+                "PRAGMA busy_timeout = 42",
+                "PRAGMA journal_mode = delete",
+                "PRAGMA synchronous = full",
             ]
         );
         Ok(())
@@ -214,7 +189,7 @@ mod tests {
     fn defaults_do_not_force_journal_or_synchronous_mode() -> crate::Result<()> {
         let settings =
             connection_settings("sqlite::memory:", &DatabaseInstanceConfig::default(), None)?;
-        assert_eq!(settings.pragmas, ["PRAGMA foreign_keys = 1;"]);
+        assert_eq!(settings.pragmas, ["PRAGMA foreign_keys = 1"]);
         assert!(settings.single_connection);
         Ok(())
     }
@@ -236,6 +211,16 @@ mod tests {
         assert!(private.single_connection);
         let anonymous = connection_settings("sqlite://:memory:?cache=shared", &config, None)?;
         assert!(anonymous.single_connection);
+        for url in [
+            "sqlite:?mode=memory&cache=shared",
+            "sqlite:file:?mode=memory&cache=shared",
+        ] {
+            let anonymous = connection_settings(url, &config, None)?;
+            assert!(
+                anonymous.single_connection,
+                "空文件名不能跨连接共享同一内存数据库"
+            );
+        }
         Ok(())
     }
 

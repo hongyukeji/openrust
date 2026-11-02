@@ -1,6 +1,6 @@
 ---
 source: tools/cli/src/main.rs
-assertion_line: 3708
+assertion_line: 3750
 expression: snapshot
 ---
 --- Cargo.toml ---
@@ -24,6 +24,9 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 --- .gitignore ---
 /target/
 /storage/
+/database/*.sqlite
+/database/*.sqlite-*
+**/.openrust-migration-*.lock
 /bootstrap/cache/*.json
 **/.modules_statuses.json.lock
 .env

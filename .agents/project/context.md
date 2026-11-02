@@ -1,5 +1,7 @@
 # 项目上下文
 
+✅ SQLite配置与迁移子范围已完成13主组合、最低3.26/当前引擎、真实生成/根宿主、12consumer及限定双库验收，最后能力前置/文档4项补验与资源收尾也已完成，见[SQLite配置与迁移限定验收](memory/testing.md#sqlite-配置与迁移限定验收)。本地提交以Git为准；SQLite整体仍🟡，S3、完整Migrator/Schema/故障原子性及ADR-001继续开放。
+
 > 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C/D 已按范围验收并提交；R3-E fallback 已验收并由 dab80d4 提交。完整模块管理和 Laravel 1:1 范围仍按 [ADR-001](decisions/adr-001-framework-principles.md) 与活跃队列推进。
 
 > 受众：AI Agent
@@ -8,7 +10,7 @@
 
 ## 当前状态
 
-SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础限定验收)：主10门禁/deny、SQLite-only严格Clippy/文档、fresh11、真实MySQL3与根进程HTTP通过，固定输入补丁影响经独审映射。实际引擎3.51.3；最低3.26、复杂PRAGMA/nullable配置及完整取消清理仍未验。迁移/CLI安装/现有业务SQL继续按唯一todo推进，本地提交以Git为准；不称全量SQLite完成。
+SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础限定验收)：主10门禁/deny、SQLite-only严格Clippy/文档、fresh11、真实MySQL3与根进程HTTP通过，固定输入补丁影响经独审映射。实际引擎3.51.3；此为S1当时范围；最低/配置/迁移子范围由上述S2补证，完整取消/故障边界仍开放。迁移/CLI安装/现有业务SQL继续按唯一todo推进，本地提交以Git为准；不称全量SQLite完成。
 
 显式模块注册与宿主API前缀已完成[限定验收](memory/testing.md#显式模块注册与宿主-api-前缀限定验收)：10项主门禁、6个真实server进程、fresh minimal9/MFA真实MySQL3、生成模块持久启停1及只读空目录负例通过；首批8页mdBook构建/链接、112生成源码归档、不同模型独审和target清零完成，本地提交以Git为准。registered为应用约定，库file默认保留；完整Modules/Routing与全量文档未关闭，下一SQLite及CLI后继按唯一todo。
 

@@ -1,6 +1,8 @@
 # 当前交付与验证
 
-✅ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础限定验收)：主10门禁/deny、单driver严格Clippy/doc、fresh11、真实MySQL3及根进程HTTP通过；SQLite整体仍🟡，最低3.26、配置边界、取消清理与S2/S3保持缺口。最后导出补丁按静态影响复用已验组合，不删断言；本地提交以Git为准。
+✅ SQLite配置与迁移子范围已完成13主组合、最低3.26/当前引擎、真实生成/根宿主、12consumer及限定双库验收，最后能力前置/文档4项补验与资源收尾也已完成，见[SQLite配置与迁移限定验收](memory/testing.md#sqlite-配置与迁移限定验收)。本地提交以Git为准；SQLite整体仍🟡，S3、完整Migrator/Schema/故障原子性及ADR-001继续开放。
+
+✅ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础限定验收)：主10门禁/deny、单driver严格Clippy/doc、fresh11、真实MySQL3及根进程HTTP通过；SQLite整体仍🟡；S1当时的最低/配置/迁移缺口由上述S2分范围补证，剩余边界见唯一todo。最后导出补丁按静态影响复用已验组合，不删断言；本地提交以Git为准。
 
 ✅ 显式模块注册与宿主API前缀已完成[限定验收](memory/testing.md#显式模块注册与宿主-api-前缀限定验收)：10项主门禁、6个真实server进程、fresh minimal9/MFA真实MySQL3、生成模块持久启停1及只读空目录负例通过；首批8页mdBook构建/链接、112生成源码归档、不同模型独审和target清零完成，本地提交以Git为准。registered为应用约定，库file默认保留；完整Modules/Routing与全量文档未关闭，下一SQLite及CLI后继按唯一todo。
 

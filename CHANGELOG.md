@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- SQLite 配置支持 nullable 外键与原生 PRAGMA 标量；`foreign_key_constraints` 改为 `Option<bool>`，三个专用 PRAGMA 字段改为 `Option<serde_json::Value>`。SQLite 安装默认迁移、既有清单 up/down/status、单机文件锁与取消所有者已完成限定验收；旧版删列重建保留 main 普通表结构与数据。最低 3.26 路径关闭传递 RETURNING feature；完整 Migrator/Schema、业务 SQL 与故障原子窗口保持未完成。
+
 - 新增 `db-sqlite` 内置连接与标准 Provider 配置、每物理连接 PRAGMA 和自有 SQLite 测试库；唯一模块支持独立 reporting 探测。SQLite 完整框架迁移及现有业务 SQL 适配尚未交付。MySQL 会话 UTC 初始化改为逐物理连接执行。
 
 - 根应用与新应用默认通过集中模块清单注册启用，不再必需状态 JSON；文件发现与持久启停保留为显式选择。只读状态修改在事件前拒绝，空目录全选同样拒绝。宿主 API 前缀可编辑且与错误范围同源，模块响应策略可组合保留；路由参数超限转安全启动错误。首批正式指南采用固定 Laravel 导航。

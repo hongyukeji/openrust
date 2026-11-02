@@ -1,5 +1,12 @@
 //! 基于 SeaORM migration 定义的运行时迁移命令。
 
+mod execution;
+
+#[cfg(feature = "db-sqlite")]
+pub(super) fn sqlite_execution_owner() -> bool {
+    execution::is_sqlite_owner()
+}
+
 use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
@@ -11,7 +18,7 @@ use sea_orm_migration::sea_orm::{
 };
 use sea_orm_migration::{MigrationTrait, MigratorTrait, SchemaManager};
 
-use crate::db::{Databases, Db, migration_lock::MigrationLock};
+use crate::db::{Databases, Db};
 
 /// 框架数据库基础设施迁移；业务模块迁移由各模块独立贡献。
 pub struct FrameworkMigrator;
@@ -210,6 +217,7 @@ where
             app.command(MigrationCommand {
                 lock_wait_timeout: self.lock_wait_timeout,
                 catalog,
+                resources: app.resources().clone(),
             });
             Ok(())
         })
@@ -219,6 +227,7 @@ where
 struct MigrationCommand {
     lock_wait_timeout: Duration,
     catalog: Arc<MigrationCatalog>,
+    resources: crate::core::resources::ResourceRegistrar,
 }
 
 #[cfg(feature = "auth-mfa")]
@@ -247,22 +256,24 @@ impl Command for MigrationCommand {
             } else {
                 app.state().resolve::<Db>().await?.as_ref().clone()
             };
-            if !matches!(db.backend()?, DbBackend::Postgres | DbBackend::MySql) {
-                return Err(Error::custom(
-                    "unsupported_database_backend",
-                    "迁移仅支持 PostgreSQL 和 MySQL",
-                ));
+            #[cfg(not(feature = "db-sqlite"))]
+            if matches!(db.backend(), Ok(DbBackend::Sqlite)) {
+                return Err(execution::sqlite_feature_disabled());
             }
-            let lock_url = db.migration_lock_url()?;
-            let lock = MigrationLock::acquire(&db, lock_url, self.lock_wait_timeout).await?;
+            let lock_url = db.migration_lock_url()?.to_owned();
             let migrator = CatalogMigrator {
                 sources: self.catalog.snapshot()?,
             };
-            let result = run_migrator(&migrator, &db, action).await;
-            let release = lock.release().await;
-            result?;
-            release?;
-            Ok(())
+            execution::execute(
+                app,
+                &self.resources,
+                db,
+                lock_url,
+                migrator,
+                action,
+                self.lock_wait_timeout,
+            )
+            .await
         })
     }
 }
@@ -283,7 +294,24 @@ impl CatalogMigrator {
     }
 }
 
+#[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
 async fn run_migrator(migrator: &CatalogMigrator, db: &Db, action: MigrationAction) -> Result<()> {
+    run_migrator_owned(
+        migrator,
+        db,
+        action,
+        &execution::MigrationCancellation::uncancelled(),
+    )
+    .await
+}
+
+async fn run_migrator_owned(
+    migrator: &CatalogMigrator,
+    db: &Db,
+    action: MigrationAction,
+    cancellation: &execution::MigrationCancellation,
+) -> Result<()> {
+    cancellation.check()?;
     let database = db.connection()?;
     let mut history = migration_history(&database).await?;
     let migrations = migrator.migrations();
@@ -302,6 +330,7 @@ async fn run_migrator(migrator: &CatalogMigrator, db: &Db, action: MigrationActi
             };
             let first_batch = next_batch(&history)?;
             for (index, migration) in pending.take(limit).enumerate() {
+                cancellation.check()?;
                 let batch = if matches!(action, MigrationAction::UpStep) {
                     first_batch
                         .checked_add(i64::try_from(index).map_err(|_| {
@@ -339,6 +368,7 @@ async fn run_migrator(migrator: &CatalogMigrator, db: &Db, action: MigrationActi
                 .and_then(|count| usize::try_from(count).ok())
                 .unwrap_or(usize::MAX);
             for row in selected.take(limit) {
+                cancellation.check()?;
                 let Some(migration) = migrations
                     .iter()
                     .find(|migration| migration.name() == row.version)
@@ -481,12 +511,18 @@ async fn apply_migration(
 ) -> Result<()> {
     if migration_uses_transaction(migration, db.get_database_backend()) {
         let transaction = db.begin().await.map_err(Error::internal)?;
-        migration
-            .up(&SchemaManager::new(&transaction))
-            .await
-            .map_err(Error::internal)?;
-        insert_history(&transaction, migration.name(), batch).await?;
-        transaction.commit().await.map_err(Error::internal)?;
+        let outcome = async {
+            migration
+                .up(&SchemaManager::new(&transaction))
+                .await
+                .map_err(Error::internal)?;
+            insert_history(&transaction, migration.name(), batch).await
+        }
+        .await;
+        if let Err(error) = outcome {
+            return rollback_migration(transaction, error).await;
+        }
+        commit_migration(transaction).await?;
     } else {
         migration
             .up(&SchemaManager::new(db))
@@ -500,12 +536,18 @@ async fn apply_migration(
 async fn revert_migration(db: &DatabaseConnection, migration: &dyn MigrationTrait) -> Result<()> {
     if migration_uses_transaction(migration, db.get_database_backend()) {
         let transaction = db.begin().await.map_err(Error::internal)?;
-        migration
-            .down(&SchemaManager::new(&transaction))
-            .await
-            .map_err(Error::internal)?;
-        delete_history(&transaction, migration.name()).await?;
-        transaction.commit().await.map_err(Error::internal)?;
+        let outcome = async {
+            migration
+                .down(&SchemaManager::new(&transaction))
+                .await
+                .map_err(Error::internal)?;
+            delete_history(&transaction, migration.name()).await
+        }
+        .await;
+        if let Err(error) = outcome {
+            return rollback_migration(transaction, error).await;
+        }
+        commit_migration(transaction).await?;
     } else {
         migration
             .down(&SchemaManager::new(db))
@@ -514,6 +556,31 @@ async fn revert_migration(db: &DatabaseConnection, migration: &dyn MigrationTrai
         delete_history(db, migration.name()).await?;
     }
     Ok(())
+}
+
+async fn rollback_migration(
+    transaction: sea_orm::DatabaseTransaction,
+    original: Error,
+) -> Result<()> {
+    if transaction.rollback().await.is_err() {
+        tracing::error!("迁移失败后的事务回滚失败；不能确认事务已结束");
+        return Err(Error::custom(
+            "migration_rollback_failed",
+            "迁移失败且无法确认事务回滚完成",
+        ));
+    }
+    Err(original)
+}
+
+async fn commit_migration(transaction: sea_orm::DatabaseTransaction) -> Result<()> {
+    // SeaORM commit(self) 失败后只能 Drop 排队回滚；执行所有者必须识别此不确定状态。
+    transaction.commit().await.map_err(|_| {
+        Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "migration_commit_failed",
+            "迁移事务提交失败，不能确认事务已结束",
+        )
+    })
 }
 
 #[derive(Clone, Copy)]
