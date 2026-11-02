@@ -22,6 +22,8 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。同内核嵌套Provider注册前置已通过限定验收和资源收尾，本地提交39086cf，见[嵌套注册证据](memory/testing.md#同内核嵌套-provider-注册限定验收)；module.json运行发现与Provider/files编译绑定已通过[限定验收](memory/testing.md#模块运行发现与编译文件限定验收)及资源收尾，本地提交d32162d；B003/B004默认实例缓存、失败内存语义与PHP顶层列表形状已通过[限定验收](memory/testing.md#fileactivator-实例缓存限定验收)并完成资源收尾，本地提交以Git为准；完整Modules/ProviderRepository/aliases、DB能力门控及ADR-001继续开放。DB通用能力/驱动/默认连接选择已完成[限定验收](memory/testing.md#db-通用能力与驱动分层限定验收)、独审与资源收尾，本地提交以Git为准；标准MySQL+Redis依赖与队列开箱已通过主门禁、根真实DB/Redis独立worker、四种fresh、外部SQLite及缓存重启的限定验收；不同模型独审、源码归档及资源收尾完成，本地提交以Git为准，详见[队列开箱证据](memory/testing.md#标准依赖与队列开箱限定验收)。默认连接错误时点与完整deferred Provider仍为R2/R10明确缺口。完整懒连接/默认名切换、五后端与ADR-001仍开放。
 
+当前R2共享生命周期的命令所有权前置已完成[限定验收](memory/testing.md#共享命令所有权前置限定验收)：12项主门禁、真实MySQL模块维护1项、标准server/CLI续作构建、fresh精简9/MFA3及实际help通过；用户换号暂停/恢复与原始中断证据保留，原Goal active、原预算沿用。独审、113份生成源码归档及最终target清零完成，本地提交以Git为准；不关闭deferred/manifest/when或完整ProviderRepository。具体owner、配套和下一步以唯一todo顶部为准。 用户已明确后继顺序：当前簇提交后先完成本次模块Provider默认入口整改，再立即内置SQLite，不扩Modules全量或等待R5/Factory；默认MySQL＋Redis不变，custom consumer不等于内置支持。
+
 本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留及50GB软/100GB硬、磁盘保护不变。
 
 后续默认同一 OpenRust 项目、同一 main 物理工作目录，多个对话框或 workspace 标签页按不重叠文件分工；不再默认创建任务分支/worktree。产品不支持共享目录标签页时复用既有 main workspace 的多个对话框，不新建源码副本或修改内部数据库。同文件串行交接，公共 API 先收敛；manifest/lock、共享文档、Git索引/MERGE/提交、target/Cargo和真实服务由总控唯一调度。冻结受验文件禁止并发修改。

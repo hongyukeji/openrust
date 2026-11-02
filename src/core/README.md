@@ -2,6 +2,8 @@
 
 OpenRust 框架的应用内核。
 
+`App::commands()` 与 `ProviderRuntime::commands()` 返回按登记顺序持有 `Arc<dyn Command>` 的快照。启动与运行期 Provider 共用同一命令目录，同名替换保留原槽位；已取得的快照继续持有原命令，新快照读取替换后的实例。命令枚举、匹配和执行不会跨用户回调或异步等待持有目录锁；调用方需要命令类型身份时使用 `command.as_ref().type_id()`。这只是共享 Provider 生命周期的命令所有权前置，完整延迟 Provider 注册/事件触发尚未完成。
+
 ## 应用异常 Handler
 
 应用或模块 Provider 可在 `boot` 中调用 `BootContext::exceptions(|handler| { ... })`，按实际 Rust 异常类型登记 `map::<E>`、`report::<E>`、`dont_report::<E>`、`render::<E>` 与最终 `respond`。业务错误用 `Error::internal(source)` 保留原始类型及 source 链；需要指定 HTTP 状态时可用 `Error::http_with_source(status, code, message, source)`。`ReportDecision::Stop` 停止后续报告和默认日志，但仍渲染。`dont_retry::<E>` / `dont_retry_when` 供应用队列决定重试，HTTP 渲染不会自行重试。CLI、队列或调度器可调用 `App::report_exception`，仅应用的报告策略生效，不伪造 HTTP 请求并进入渲染。Handler 随应用实例隔离，不保存进程全局策略。调用方提供的 `context` 进入报告日志，应用须自行避免秘密信息；默认报告仅写安全错误码和状态。

@@ -540,10 +540,23 @@ async fn cancelled_after_delete_commit_recovers_cleanup_after_app_reset() -> Tes
             .await?
             .is_some()
     );
+    let prior_command = fixture
+        .app
+        .app()?
+        .commands()
+        .find(|command| command.name() == "example attachments reconcile")
+        .ok_or("模块维护命令未登记")?;
     fixture
         .app
         .reset(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
+    let current_command = fixture
+        .app
+        .app()?
+        .commands()
+        .find(|command| command.name() == prior_command.name())
+        .ok_or("重新引导后模块维护命令未登记")?;
+    let snapshots_are_distinct = !Arc::ptr_eq(&prior_command, &current_command);
     fixture
         .app
         .app()?
@@ -562,7 +575,9 @@ async fn cancelled_after_delete_commit_recovers_cleanup_after_app_reset() -> Tes
         .app()?
         .run_command("example", vec!["attachments".into(), "reconcile".into()])
         .await?;
-    fixture.close().await
+    fixture.close().await?;
+    assert!(snapshots_are_distinct);
+    Ok(())
 }
 
 #[tokio::test]

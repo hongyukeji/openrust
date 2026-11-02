@@ -4,6 +4,8 @@
 > 更新：2026-11-02
 > 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
+当前R2共享生命周期的命令所有权前置已完成[限定验收](../memory/testing.md#共享命令所有权前置限定验收)：命令目录共享，App/ProviderRuntime返回不借用宿主的Arc命令快照，动态同名替换保原槽，回调/析构/await不持目录锁；12门禁、MySQL模块1、fresh9/3及实际help通过，本地提交以Git为准。完整deferred/manifest/when、扩展及ProviderRegistry共享仍按唯一todo，不据前置关闭。
+
 ## FileActivator 默认快照（限定验收）
 
 默认file构造读取并返回Result，缓存与本实例后续修改独立于其他writer。显式with_live_reads/file-live保实时扩展；文件driver以惰性工厂在实际包register/legacy准备处构造，自定义driver仍同trait共享。set/delete先改缓存、失败pending不丢，reset清缓存；锁内物理合并/原子替换与严格IO错误属已授权质量增强，不改变默认缓存视图。PHP数字键/list与空表codec、同目标同字节的自身提交恢复及外来坏文件保护已配套，new/reset_file/公开调用方已同步，限定适用验收已通过；完整Modules仍开放。

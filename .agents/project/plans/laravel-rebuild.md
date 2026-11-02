@@ -304,7 +304,7 @@ R2 默认配置目标为可编辑 `config/*.rs` 与部署 `.env`：dotenv 加载
 | R3 HTTP 与 Web | R2 | 路由、控制器、FormRequest、response/resource 基础、middleware、Session/CSRF 基础、异常；默认错误码与 HTML/JSON 行为在真实 HTTP 验收 |
 | R4 数据基础 | R2–R3 | 公开连接/QueryBuilder/Schema/迁移、事务/读写路由和 before/after 边界；PG/MySQL 真实复制拓扑和故障/恢复 |
 | R5 Model 与 Resource | R4 | Eloquent 式关系、scope、cast、mass assignment、软删、observer、分页；真实双库 N+1/并发/批量资源边界 |
-| R6 工厂与 SQLite | R5 | factories/seed/关系 fixtures 与 SQLite 单机全能力所需基础；后续能力分别加入 SQLite 验收，不能此阶段就宣布全能力支持 |
+| R6 工厂与 SQLite | Factory依R5；SQLite内置驱动/单机适配依其实际R4基础 | Factory states/seed/关系fixtures保持模型前置；按用户优先要求，SQLite内置驱动、配置/测试库、迁移与现有能力适配不等待完整R5/Factory，当前冻结R2命令簇提交后优先实施。后续功能分别补SQLite矩阵，不在基础接通时宣布全框架支持 |
 | R7 身份安全 | R3–R6 | 多 guard、完整认证 HTTP、授权/MFA/SSO、Session/限流、加密审计；双库与跨请求 scope 隔离；独立安全审查 |
 | R8 Cache/Storage | R2/R4/R7 | 统一 stores/disks 与驱动、并发/锁/私有文件/流式上传、第三方扩展；真实 Redis/S3 和跨节点文件验收 |
 | R9 视图与通信 | R3/R7/R8 | 模板/国际化/资产、Mailable/SMS/Notification 同步路径，真实 SMTP；供应商实发缺条件如实保持缺口 |

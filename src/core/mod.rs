@@ -4,6 +4,7 @@
 
 pub mod app;
 pub mod command;
+pub(crate) mod command_registry;
 pub mod container;
 pub mod default_providers;
 pub mod error;

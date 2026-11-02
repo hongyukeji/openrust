@@ -10,6 +10,7 @@ use serde::de::DeserializeOwned;
 use crate::config::repository::ConfigRepository;
 use crate::config::{ConfigError, Environment, FrameworkConfig};
 use crate::core::command::Command;
+use crate::core::command_registry::CommandRegistry;
 use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
 use crate::core::module::ModuleManifest;
@@ -226,7 +227,7 @@ pub struct App {
     state: AppState,
     figment: Figment,
     config_cache_path: Option<std::path::PathBuf>,
-    commands: Vec<Box<dyn Command>>,
+    commands: CommandRegistry,
     extensions: Extensions,
     providers: ProviderRegistry,
 }
@@ -297,7 +298,7 @@ impl App {
             Some(LiveBoot {
                 resources: self.state.inner.provider_resources.registrar(),
                 extensions: &mut self.extensions,
-                commands: &mut self.commands,
+                commands: &self.commands,
             }),
         )
         .await
@@ -368,9 +369,9 @@ impl App {
         self.state.inner.config_repository.section(key)
     }
 
-    /// 按注册顺序排列的命令。
-    pub fn commands(&self) -> impl Iterator<Item = &dyn Command> {
-        self.commands.iter().map(AsRef::as_ref)
+    /// 按注册顺序取得持有命令实例的快照；执行不持有命令目录锁。
+    pub fn commands(&self) -> impl Iterator<Item = Arc<dyn Command>> + use<> {
+        self.commands.snapshot().into_iter()
     }
 
     /// 注册阶段填充的 crate 专属扩展容器。
@@ -385,14 +386,15 @@ impl App {
         self.run_command_inner(name, args).await
     }
 
-    fn find_command(&self, name: &str, args: &[String]) -> Result<&dyn Command> {
-        let available: Vec<&str> = self
-            .commands()
+    fn find_command(&self, name: &str, args: &[String]) -> Result<Arc<dyn Command>> {
+        let commands = self.commands.snapshot();
+        let available: Vec<&str> = commands
+            .iter()
             .filter(|command| command.name().split_whitespace().next() == Some(name))
-            .map(Command::name)
+            .map(|command| command.name())
             .collect();
-        let command = self
-            .commands()
+        let command = commands
+            .into_iter()
             .filter(|command| {
                 let mut words = command.name().split_whitespace();
                 command.name() == name
@@ -427,7 +429,7 @@ impl App {
         let command = self.find_command(name, &args)?;
         if let Some(checks) = self.extension::<super::provider::DeferredBootChecks>() {
             for check in &checks.0 {
-                if command.type_id() != check.permitted_command {
+                if command.as_ref().type_id() != check.permitted_command {
                     (check.validate)().await?;
                 }
             }
@@ -763,6 +765,85 @@ mod tests {
             Some(vec!["a", "b"])
         );
         Ok(())
+    }
+
+    struct SnapshotCommand {
+        generation: &'static str,
+        trace: Arc<std::sync::Mutex<Vec<&'static str>>>,
+    }
+
+    impl Command for SnapshotCommand {
+        fn name(&self) -> &'static str {
+            "snapshot command"
+        }
+        fn about(&self) -> &'static str {
+            self.generation
+        }
+        fn run<'a>(&'a self, _app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.trace
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(self.generation);
+                Ok(())
+            })
+        }
+    }
+
+    struct SnapshotProvider {
+        generation: &'static str,
+        trace: Arc<std::sync::Mutex<Vec<&'static str>>>,
+    }
+
+    impl ServiceProvider for SnapshotProvider {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.command(SnapshotCommand {
+                    generation: self.generation,
+                    trace: Arc::clone(&self.trace),
+                });
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn owned_command_snapshot_survives_runtime_provider_replacement() -> Result<()> {
+        let trace = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut app = start(SnapshotProvider {
+            generation: "original",
+            trace: Arc::clone(&trace),
+        })
+        .await?;
+        let outcome = async {
+            let mut snapshot = app.commands();
+            app.force_register_provider(SnapshotProvider {
+                generation: "replacement",
+                trace: Arc::clone(&trace),
+            })
+            .await?;
+            let command = snapshot
+                .find(|command| command.name() == "snapshot command")
+                .ok_or_else(|| Error::custom("missing_command", "快照命令未登记"))?;
+            command.run(&app, Vec::new()).await?;
+            app.run_command("snapshot", vec!["command".into()]).await?;
+            let observed = trace
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            if observed != ["original", "replacement"] {
+                return Err(Error::custom(
+                    "command_snapshot_changed",
+                    "命令快照与新目录未各自保留实例",
+                ));
+            }
+            Ok(())
+        }
+        .await;
+        let cleanup = app
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await;
+        outcome.and(cleanup)
     }
 
     #[tokio::test]

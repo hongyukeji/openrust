@@ -1236,10 +1236,7 @@ mod tests {
             crate::config::FrameworkConfig::default(),
         ));
         let app = App::from_provider_runtime(builder.start(sources).await?)?;
-        let names: Vec<&str> = app
-            .commands()
-            .map(crate::core::command::Command::name)
-            .collect();
+        let names: Vec<&str> = app.commands().map(|command| command.name()).collect();
         assert_eq!(
             names,
             ["help", "config show", "config:cache", "config:clear"]

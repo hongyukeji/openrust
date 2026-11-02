@@ -40,7 +40,7 @@ impl Command for HelpCommand {
 
     fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let mut commands: Vec<&dyn Command> = app.commands().collect();
+            let mut commands: Vec<_> = app.commands().collect();
             commands.sort_by_key(|c| c.name());
             let width = commands.iter().map(|c| c.name().len()).max().unwrap_or(0);
             let mut out = format!("{} commands:\n", app.config().app.name);

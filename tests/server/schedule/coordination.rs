@@ -121,7 +121,7 @@ async fn independent_scheduler_processes_dispatch_one_job_per_slot()
 
     let commands = app
         .commands()
-        .map(openrust::core::Command::name)
+        .map(|command| command.name())
         .collect::<Vec<_>>();
     assert!(commands.contains(&"schedule run"));
     assert!(commands.contains(&"schedule list"));

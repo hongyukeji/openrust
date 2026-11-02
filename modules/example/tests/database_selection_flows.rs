@@ -104,7 +104,7 @@ async fn no_url_host_registers_module_migrations_and_seed_without_running_sql() 
     let outcome: Result<()> = async {
         let commands = app
             .commands()
-            .map(openrust::Command::name)
+            .map(|command| command.name())
             .collect::<Vec<_>>();
         check(
             commands.contains(&"migrate") && commands.contains(&"db seed"),

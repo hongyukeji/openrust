@@ -34,6 +34,75 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
+### R2 Provider 共享生命周期前置：命令所有权（限定验收完成，提交收尾）
+
+1. owner=root，main共享目录，基线e8d0072；承接既有R2/R13表15及Queue deferred缺口，不新增平行队列。完整deferred、manifest/when、统一Resolver触发和生命周期时点保持后继范围。
+2. 固定framework d52c3b3 ProviderRepository::load/compileManifest、Application::registerDeferredProvider/make/resolve/boot及FoundationApplicationTest为上游；完整延迟加载需同一Container/Provider生命周期共享状态，不能用App外层包装替代。
+3. 本前置将启动/运行期命令目录从独占Vec改成同一内部共享目录；同名替换保原槽位，返回Arc持有的命令快照，替换不使已选命令悬空，不跨用户回调/await持目录锁。
+4. App/ProviderRuntime::commands仍按顺序迭代，Item从借用改为Arc<dyn Command>；help/最长命令匹配/DeferredBootChecks身份检查/所有调用方同步。command真实type_id必须取dyn Command，不能误取Arc类型。
+5. 先实现命令共享所有权，再按依赖收敛extensions/ProviderRegistry及递归执行权；不在本前置伪装已实现provides/when或取消/并发deferred。Rust适配依据是借用与异步共享要求，必要性不等于已证完整上游语义。
+6. root独占公共API、app/provider/registration/command、共享docs/index/Cargo/服务；sol worker仅新command_registry.rs及其单元测试，不跑Cargo/服务/Git；独审另行只读。独立guard skill owner范围不碰。
+7. 同步唯一模块维护命令公开快照/执行与生成应用调用配套；测试覆盖同名原槽、共享可见、旧快照、析构重入无锁死及App真实命令身份/最长匹配。完整编码后集中main适用门禁/模块及fresh/root实际命令，影响未触DB SQL不重复全部实服务矩阵。
+8. 编码/自审→冻结→集中验证→本地提交→正常资源清理；验证前明确WIP，不把31/21项守护测试或旧框架绿替代本簇证据。
+
+当前停点：CommandRegistry的6项目录回归、App快照跨Provider替换、唯一模块重启快照及实际维护调用均完成；693冻结输入无漂移，独审两项问题已修并复审关闭。12项main门禁、真实MySQL模块维护1项、标准server/CLI续作构建、fresh minimal check/test9、默认MySQL MFA check/test3（认证2＋迁移目录1）及实际生成help均通过；无服务skip，无自有库增删。113份生成源码/lock已归档，最终独审无阻断，构建缓存9,414,590,464B已正常清零；当前限定本地提交，不添加新源码；完整deferred后继未闭合。
+
+恢复停点：真人已明确“已经切换账号了 恢复吧”，并通过宿主把原Goal 9a1bcc8a-769f-48ac-9034-77a1de19b599恢复active；正式checkpoint continue，宿主仍识别旧账号、剩余19%，沿原baseline27/reserve5.4及80%政策，不授credits/满额度或重建Goal。693冻结源码无漂移，12项主门禁与真实MySQL模块维护快照1项已通过；此前中断的root-cli-build用services_resume.py及新日志名续作，不重跑通过门禁/模块测试、不覆盖旧中断日志。fresh/CLI已通过；最终证据/清理与本地提交收尾，完整Goal保持。自有300秒timer新run179b596a-99db-4cf4-b5fa-0b7dcc50eecf已持锁、last_tick新鲜，旧自有队列只读确认消失后由支持协议解除pending，仅记absent不记执行；原预算历史保持。恢复证据tmp/guard-desktop-20261102/user-resume-after-account-switch.json；本簇提交后先本次范围明确模块入口整改，再立即SQLite。
+
+### 紧急后继：默认 production＋log Mailer 启动阻断（真人故障，冻结簇提交后优先）
+
+1. owner=root；本冻结命令簇先限定提交，再独立修复，不篡改693输入或把限定门禁当用户默认cargo run已通过。随后模块/API/首批正式文档、SQLite及CLI后继均保留。
+2. 用户实际cargo run报Mailer初始化失败；只读定位无.env/MAIL覆盖，默认Production＋mail.driver=log，src/mail/mod.rs显式拒绝。固定Laravel d52c3b3 MailManager::createLogTransport无production禁用；核用户特约后修无谓阻断，不改默认env、不造隐藏.env、不要求SMTP绕过。
+3. 旧provider_rejects_production_log_and_missing_environment/production_rejects_log_driver需按批准上游contract改成允许log的真实回归，不降低未知driver/未编译SMTP/坏SMTP配置与内容/凭据脱敏门禁。可用稳定安全cause code改善错误定位，避免扩当前Container WIP。
+4. 实际production＋log、默认无.env生产boot/TCP、无敏感值错误回归及适用集中门禁通过后脚本本地提交；只读报告不冒称复现运行通过。当前尚未修码，target已因前簇资源清理清零，Architect未重建/并跑Cargo。
+
+### 紧接当前提交：模块 Provider 默认启用入口（真人授权，尚未编码）
+
+1. owner=root，main；当前冻结命令簇闭环并本地提交后，先完成这项范围明确整改，再立即进入下节SQLite，不扩展为完整Modules后继或长期排队。
+2. 真人已批准默认注册example即生效、移除注册即不挂载；若直接Provider较复杂，采用集中modules/mod.rs清单/注册入口＋显式可选持久activator。Rust mod仅编译可用性，不新增宏/build.rs自动发现或第二内核。
+3. 优先复用公开ModuleManifest::new/module/enable与已有统一注册管线；bootstrap只依赖模块统一入口，不直接依赖example。不直接把ExampleModuleServiceProvider塞普通providers丢失Repository seed、依赖、模块资源和文件初始化。
+4. 默认应用/new不再要求根modules_statuses.json，不把JSON和注册变成双重必选。FileActivator及enable/disable持久化保显式可选模式（建议modules/modules_statuses.json），不隐式迁移/覆盖旧文件；registered模式持久管理错误及事件副作用须明确。
+5. 模块metadata/依赖/路由/配置/迁移/翻译/任务/关闭仍沿同一Container/Provider；registered模式保module_init.rs等已实现初始化行为与application_root，重复/禁用依赖明确失败。file/file-live保现发现、compiled-file与可选持久管理语义。
+6. root独占contract/共享docs/index/Cargo/服务；deferred_contract_review只读对比当前链并报告/tmp/openrust-module-provider-activation-contract.md。设计吸收回执tmp/module-provider-activation-20261102/handoff.json；本段为真人批准默认差异，不将旧root“保根JSON”建议当约束。
+7. 同簇全调用方/模板/唯一示例/文档→冻结集中验收；实际注册开关/资源/依赖/可选文件模式、fresh check/test及独审通过后脚本本地提交，不只删JSON或只写计划。
+
+### 同期宿主子项：可编辑 API 前缀（真人授权，尚未编码）
+
+1. owner=root；本次模块入口整改协调实现，当前冻结命令簇不追加源码，不扩展完整HTTP/Modules范围；这两个明确宿主子项完成后立即SQLite。
+2. 复用config/api.rs与ApiConfig新增prefix，默认/api；API_PREFIX若提供须经同一ConfigContext/ConfigRepository。bootstrap按有效仓储挂载根routes/api.rs相对路由，异常JSON路径边界使用同一前缀，不私读env、不只改挂载一半。
+3. 同步根及CLI模板/全部ApiConfig字面量/消费者/文档；模块自有路由是否共享前缀按现contract明确，不全局强加前缀。
+4. 明确空值根前缀/尾斜杠规范化，非法值返回配置错误而非panic/双斜线；覆盖默认/api、自定义/v1生效且旧/api不再挂载、/v10不误匹配、异常JSON跟随、配置缓存及生产boot、fresh check/test。
+5. 与模块默认启用共享bootstrap/配置/Handler所有权，主控串行收敛，完整代码和配套后集中适用验收/独审/本地提交；不以回复定义位置代替实现。吸收回执并入tmp/module-provider-activation-20261102/handoff.json。
+
+### R13 文档正式对齐：固定 Laravel 13.x 主导航（真人授权）
+
+1. owner=root，去重既有R13/docs；当前命令簇先提交，不以全量文档延迟当前簇或SQLite。首批mdBook骨架/规范整改与下一模块/API宿主簇同步，已实现章节迁移和后续各功能同步交付分别取证。
+2. 固定docs13.x commit960eedf的documentation.md实际章节及阅读顺序为主导航，Modules按固定包来源独立章节组；OpenRust—Laravel的Rust实现。内部102章/749节矩阵和Modules35入口不是用户指南，不复制上游整章或以空页/矩阵数量报完成。
+3. 首批修规范旧口径：conventions的M6建立/Diataxis主导航、README旧M6建站承诺、style强制TOML及同类当前规范；保留有效历史M6验收记录，不机械全替换。默认config/*.rs＋.env，TOML仅显式可选。
+4. 各已实现章连接稳定ID、固定上游源码/测试、当前Rust API/配置/CLI、正常/错误/安全边界与必要适配/用户特约/未实现缺口；指南讲完整流程，Rustdoc作API参考，README作入口，Agent计划不混入用户教程。
+5. 建站沿用mdBook；不全局安装、不部署/推送/发布。适用构建、链接/锚点/旧引用、Rustdoc/真实编译示例、CLI失败退出/生成check+test及相关真实服务验收；复用绑定当前源码的有效证据，不逐句全矩阵。
+6. 状态：已授权吸收，正式book尚未创建；下一步根目录规范/固定documentation导航盘点，按已实现能力给出可运行首批内容并与模块/API同步，SQLite和CLI各簇继续同指南补齐，官方可选生态文档范围不删。
+7. 五项负责人/依赖/状态/下一步吸收回执tmp/docs-laravel-alignment-20261102/handoff.json。业务后台/独立AI未启动边界保持。
+
+### R13 明确补充：Laravel CLI 使用方式全对应（真人授权，按依赖穿插）
+
+1. owner=root，沿原Goal/main/预算。当前冻结命令所有权簇先提交，不追加本项；随后优先模块入口/API小闭环，SQLite尽快，CLI独立子项可穿插，不以全量CLI拖延SQLite。
+2. 固定Laravel framework/docs及nWidart为准，逐命令核名称/参数/选项/默认/错误/退出码/交互、产物/自动登记与应用生命周期；不是机械别名。R13已有项去重保留，缺能力按原依赖补齐，不伪造支持。
+3. 已确认待对齐：queue work→queue:work、queue retry→queue:retry、schedule run→schedule:run、db seed→db:seed、config show→config:show、key generate→key:generate；generate迁移/mail/policy/job等对应真实make:*，mail不是机械make:mailer。make:controller/model/provider现名已存在，行为/选项仍核。
+4. 安装器new与应用命令职责明确，Rust入口openrust可保留。静态CLI与应用Command解析复用唯一规范；Provider/Command/Container扩展、发现/help/list、未知选项/有效参数及退出码/自动登记须一致，无历史兼容义务不等于吞参数。
+5. 每个可验簇同改消费者/模板/快照/文档/脚本及唯一example；真实CLI/生成check+test，核路径/内容/登记/重复冲突/失败不破坏文件、错误退出码，独审和适用集中门禁后限定本地提交。完整CLI开放范围继续保留，不只help快照宣称完成。
+6. 当前状态：吸收已完成，CLI语义改码尚未开始。下一步在当前提交及明确宿主两子项后，建立现实现→固定官方的逐命令差异/依赖，选择可独立且不拖SQLite的首簇。四项总回执tmp/cli-laravel-alignment-20261102/handoff.json。
+
+### 优先后继：内置 SQLite 单机支持（本次明确宿主整改后立即领取）
+
+1. 用户明确要求“SQLite 支持请尽快安排开发好”；owner=root，沿用原完整Goal/预算/main。当前R2命令所有权簇先闭环；按最新真人明确顺序接范围明确的模块入口整改，再立即SQLite。SQLite可并行只读盘点，不加入当前受验源码，不等待完整R5/Factory。
+2. 固定docs 960eedf database章节的SQLite 3.26.0+、默认外键开启与显式DB_FOREIGN_KEYS=false，以及framework d52c3b3 SQLiteConnector/SQLiteConnection、Query/Schema Grammar、迁移与官方测试为contract；复用同一Db/ConfigRepository/Provider，新增db-sqlite及内置backend，保默认MySQL＋Redis。现custom consumer只证扩展/事务子范围，不算标准支持。
+3. 首簇收敛内存/文件/URI、普通文件存在与错误脱敏、每连接PRAGMA/池初始化/隔离、事务/savepoint及DDL类型；官方installer选择SQLite时创建database/database.sqlite并执行默认迁移，与Connector对普通缺失文件拒绝连接分别对应，不能靠连接器静默建库代替生成流程；同步标准根配置/CLI new/测试库，记录依赖feature与版本，不要求开发者自写Provider。锁与迁移单机互斥须按SQLite实际行为证明，不借用双库SQL。
+4. 按依赖分簇打通现有已实现Query/模型CRUD、认证/MFA/Session、DB cache/锁、DB queue/worker/scheduler及框架迁移。每个未适配生产链明确保持缺口，不能以连接SELECT 1或SqliteQueryBuilder分支关闭全部能力。
+5. 同步modules/example真实调用、生成/测试/文档；验收内存与真实临时文件、migration fresh/rollback/status、事务/失败/并发隔离、文件跨进程持久化、根HTTP/CLI及独立worker和生成check/test。SQLite仅单机；不能为方便使用RETURNING无据提高固定官方最低版本，所需能力/编译选项与最低版本须实际取证。未来通用功能继续补SQLite矩阵，不宣称共享多机集群或未开发Laravel能力已对应。
+6. root独占公共contract/Cargo/lock、共享文档/索引/构建/实服务；deferred_contract_review仅只读盘点上游和现链，报告/tmp/openrust-sqlite-builtin-contract-audit.md。当前生产阻点已核：DatabaseBackend拒绝sqlite、标准连接/版本match仅双库、dialect UTC/JSON拒绝、TestDatabase无SQLite、migration_lock仅PG/MySQL；默认audit、Session/auth/MFA、coordination/限流、queue SKIP LOCKED与schedule也有双库限定，不能只移除SQL锁语句。只读报告已保全tmp/sqlite-builtin-20261102/contract-audit.md。
+7. 下一动作：当前R2验收期间收齐只读contract/文件清单；R2本地提交及本次范围明确模块入口整改后，立即按必要依赖收敛短Spec并实际编码SQLite，不只留计划。Factory维持R5前置，SQLite内置适配用现有R4基础优先交付，完整后续矩阵随各簇保持。
+
 ### 标准 MySQL＋Redis 与队列开箱（已限定提交3703939）
 
 1. owner=root，main共享目录，基线91b1d9e；只领取下表既有标准依赖/队列项，不新增队列。原生接入负责人已撤销同线程只等待heartbeat的临时约束；本主线恢复正常开发，主动helper检查不冒充真实定时触发。
@@ -197,7 +266,7 @@ B003/T03后继实例快照整改已按上节限定验收；旧7f60560热读证�
 - 长期WIP恢复：neutral 17文件与dotenv 9文件已从任务HEAD生成binary diff并保全逐文件SHA、来源base/branch，位于ignored `guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/wip-source-bundles/`；仅恢复/集成输入，不代表提交或验收。dotenv临时Spec也已保全，不依赖/tmp存活。
 - 根app职责与生成器整改的原来源已由9035a00整合并安全归档；配置默认依赖由d952199限定提交。本次新总控与root-app/generator worker按同main文件归属完成应用API、bootstrap测试组织及调用方/模板验收，owner均交接停写，旧worktree不再作为活跃来源。完整应用/CLI及其余矩阵继续开放。
   - bootstrap测试组织本次已限定验收：原两测试主体迁tests/server/bootstrap.rs，真实Server/Provider/HTTP与模块运行根断言保留；仅私有宿主访问所需cfg/path，不扩大生产API、不复制启动内核。模板/调用方同步；不将所有框架unit tests判违规。
-  - 同项补模块启停布局决策：root倾向“编译manifest + 可配置持久activator + 统一Provider”互补，不能以注释mod/删Provider替代enable/disable/发现/依赖/资源生命周期。固定nWidart v13.2.0 commit5971484实际取证已完成，回执 `tmp/module-activation-layout-review.md`（SHA `974447b79208d145e51b1c0c4b907db8ba4ee3d4cc2182861827008c6c3e5216`）。root决策保上游应用根modules_statuses.json默认，公开独立statuses-file配置允许modules/modules_statuses.json；不把modules_root资源根当状态路径替代，持久enable/disable管理仍未实现待补，不以路径可配关闭完整管理能力。
+  - 同项补模块启停布局决策：root倾向“编译manifest + 可配置持久activator + 统一Provider”互补，不能以注释mod/删Provider替代enable/disable/发现/依赖/资源生命周期。固定nWidart v13.2.0 commit5971484实际取证已完成，回执 `tmp/module-activation-layout-review.md`（SHA `974447b79208d145e51b1c0c4b907db8ba4ee3d4cc2182861827008c6c3e5216`）。旧root保根JSON默认建议已被最新真人授权替代：默认Provider注册为唯一启用来源，集中模块入口fallback获准；file/file-live与可配置statuses-file仅显式可选，不隐式迁移文件。既有持久管理已按限定子范围提交，不重复标未实现；完整交付仍按顶部新整改及既有矩阵。
   - 后继实施同owner布局/模块范围，覆盖根/生成模板、路径配置/状态持久命令、依赖与Provider启动、缺失状态行为及旧文件显式迁移；不自动移动用户已有状态文件，不删未合WIP。当前只方案核对，保持冻结组合先验收提交，不新Goal/守护。
   - 同类入口排查范围包含bootstrap/app/routes/config及CLI生成正式入口：仅搬应用装配/HTTP测试主体、fixture和示例特判，保留正常框架unit tests与普通app业务能力；必要薄cfg挂载明确Rust原因。模块同时核路径/清单硬编码、持久状态对Provider/路由/资源真实控制及依赖错误，不以截图路径移动关闭整类问题。
   - 固定/api职责本次已限定验收：原库内置内容归根app/http/controllers/application_info.rs，routes/api.rs相对声明，AppServiceProvider经bootstrap前缀/组公开挂载。根/生成及consumer同步，库不反向引用宿主；通用API分组/异常协商、health/readiness/metrics和模块业务保留。
@@ -298,7 +367,7 @@ B003/T03后继实例快照整改已按上节限定验收；旧7f60560热读证�
 
 - 阶段二R11 MQTT按[总计划可选扩展契约](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)排期：client/Broker按需独立引入，沿既有Provider加载，client操作/订阅CLI/Broker CLI才产生网络副作用；仅规划，不抢占当前HTTP簇。
 
-R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后继及R3 HTTP → R4 数据 → R5 Model → R6 Factory/SQLite → R7 安全 → R8 Cache/Storage → R9 视图/通信 → R10 异步/事务 → R11 网络/组合 → R12 搜索/特性/观测 → R13 开发体验 ；阶段一核心门禁后，R16官方框架扩展及工具自身界面按各自前置在阶段二分批领取，最终证据汇入R14；原R15版本阶段取消，业务后台/App转为可选模块并暂不开发，官方工具自身UI随包阶段二交付，待用户明确开工。每个后继能力同簇补示例；R1-E不等待未来全框架完成，R2基础不等待完整示例，消除循环依赖。阶段内部按总计划拆可验证提交。
+R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后继及R3 HTTP → R4 数据 → SQLite内置适配优先（现R4基础）/R5 Model → R6 Factory → R7 安全 → R8 Cache/Storage → R9 视图/通信 → R10 异步/事务 → R11 网络/组合 → R12 搜索/特性/观测 → R13 开发体验 ；阶段一核心门禁后，R16官方框架扩展及工具自身界面按各自前置在阶段二分批领取，最终证据汇入R14；原R15版本阶段取消，业务后台/App转为可选模块并暂不开发，官方工具自身UI随包阶段二交付，待用户明确开工。每个后继能力同簇补示例；R1-E不等待未来全框架完成，R2基础不等待完整示例，消除循环依赖。阶段内部按总计划拆可验证提交。
 
 ## 23项静态纠偏的唯一执行映射
 
@@ -321,7 +390,7 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 | 11 URL复杂参数/路由绑定 | R3 C03/C04 | 新总控协调；简单golden不算全量；Request已有已验范围见C04-F/G，完整路由/绑定仍开放 | http:1【resource/apiResource七动作确认缺口】L018.04 L015.03/05；http:9【复杂参数/隐式绑定确认缺口】L015.05 L024.03/04/06；http:assets:request【已验子范围＋明确Rust资源/async适配】L019.02–07 |
 | 12 Encrypt/Hash drivers | R7 C13 | 新总控协调；补官方算法/选择与key默认工作流，保AAD/key-ring/容量增强，不改用户真实.env | foundation:F5【确认缺口】L054.02；http:6【确认缺口＋授权增强保留】L054.02/03 L055.02/03/04 |
 | 13 Query/Eloquent | R4/R5 C07–C09 | 新总控协调；9035a00默认SELECT *、真实count/分页/隔离已验；cursor、完整Query/ORM仍开放，不以SeaORM抵扣 | http:assets:query【已验子范围＋cursor缺口】L059.02/03/05；services:query【同一子范围，cursor确认缺口】C07/L059；services:eloquent【确认缺口】C08/C09 |
-| 14 Factory/SQLite | R6 C10/C11 | 新总控协调；seed/custom driver资产保留，不冒充Factory state/关系或完整SQLite | services:factory【确认缺口】C10/C11 |
+| 14 Factory/SQLite | R6/R4 C10/C11 | root；SQLite内置单机支持按用户要求在当前冻结R2提交后优先，现R4基础可提前；Factory仍依R5。seed/custom driver资产保留，不冒充完整支持 | services:factory【确认缺口】C10/C11 |
 | 15 Container/Facade/发现 | R2/R13 C02 | 新总控协调；运行期register/force、extend/rebinding/scoped已验；contextual/tag/call、deferred与包自动发现仍缺；同内核嵌套注册39086cf及模块运行发现d32162d已限定验收，不重复领取 | foundation:F1【确认缺口】L012.02/03/04；foundation:F2【已验注册子范围＋deferred/发现缺口】L013.02/03/04 L044.02；foundation:facade【完整对应待核】L014.03/04 L079.03 |
 | 16 FormRequest生命周期 | R3 C04/R7 | 新总控协调；沿Handler/Web/权限补prepare/authorize/validated与完整规则 | http:4【确认缺口】L026.03/05/07/10/12 |
 | 17 Cache Repository契约 | R8 C14 | 新总控协调；现tags/driver资产保留，补原子add/increment/flexible等契约 | services:cache【确认缺口】C14 |

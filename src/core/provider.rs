@@ -16,6 +16,7 @@ use crate::config::repository::{ConfigRepository, SectionSchema};
 use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 
 use super::command::Command;
+use super::command_registry::CommandRegistry;
 use super::container::{Container, ContainerBuilder, Resolver};
 use super::module::{ModuleManifest, ModuleRepository, ModuleRepositorySeed};
 use super::resources::{ResourceOwner, ResourceRegistrar};
@@ -307,7 +308,7 @@ pub struct BootContext<'a> {
     pub(crate) resources: ResourceRegistrar,
     pub(crate) required: &'a mut Vec<Required>,
     pub(crate) extensions: &'a mut Extensions,
-    pub(crate) commands: &'a mut Vec<Box<dyn Command>>,
+    pub(crate) commands: &'a CommandRegistry,
     pub(crate) finalizers: &'a mut Vec<Finalizer>,
 }
 
@@ -408,15 +409,7 @@ impl BootContext<'_> {
 
     /// 贡献命令；同名命令由后启动的 Provider 替换。
     pub fn command(&mut self, command: impl Command) {
-        if let Some(index) = self
-            .commands
-            .iter()
-            .position(|existing| existing.name() == command.name())
-        {
-            self.commands[index] = Box::new(command);
-        } else {
-            self.commands.push(Box::new(command));
-        }
+        self.commands.register(command);
     }
 
     /// 取得领域贡献登记器；不能通过它重绑容器服务。
@@ -438,7 +431,7 @@ pub struct ProviderRuntime {
     pub(crate) framework: FrameworkConfig,
     pub(crate) resources: ResourceOwner,
     pub(crate) extensions: Extensions,
-    pub(crate) commands: Vec<Box<dyn Command>>,
+    pub(crate) commands: CommandRegistry,
     pub(crate) providers: registration::ProviderRegistry,
 }
 
@@ -460,9 +453,9 @@ impl ProviderRuntime {
             .and_then(|value| value.downcast_ref::<T>())
     }
 
-    /// 按登记顺序读取命令贡献。
-    pub fn commands(&self) -> impl Iterator<Item = &dyn Command> {
-        self.commands.iter().map(AsRef::as_ref)
+    /// 按登记顺序读取持有实例的命令快照；后续替换不影响本次快照。
+    pub fn commands(&self) -> impl Iterator<Item = Arc<dyn Command>> + use<> {
+        self.commands.snapshot().into_iter()
     }
 
     /// 拒绝新登记并限时回收受管任务与资源。
@@ -841,7 +834,7 @@ impl ProviderBuilder {
         if self.testing_boot {
             extensions.insert(TypeId::of::<TestingBoot>(), Box::new(TestingBoot));
         }
-        let mut commands = Vec::new();
+        let commands = CommandRegistry::default();
         let mut finalizers = Vec::new();
         let result = async {
             for entry in providers {
@@ -871,7 +864,7 @@ impl ProviderBuilder {
                         resources: resources.owner()?.registrar(),
                         required: &mut required,
                         extensions: &mut extensions,
-                        commands: &mut commands,
+                        commands: &commands,
                         finalizers: &mut finalizers,
                     })
                     .await?;

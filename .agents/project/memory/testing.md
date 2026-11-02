@@ -1494,3 +1494,19 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 初轮fresh fixture只有console环境而缺代码app.env=testing导致Mailer拒绝，修复临时fixture显式覆盖后两个真实用例及完整standard tests通过；不改生产安全限制。首轮TCP fixture缓存后换探测端口而失败，生产正确固定server.port，修runner后通过。SQLite初次locked check失败由新默认依赖暴露独立consumer未opt-out，显式修manifest后通过；不得把这些原失败回填exit0。
 
 默认名称格式/存在仍在启动验证，QueueServiceProvider尚未具备完整DeferrableProvider机制，与固定上游默认错误时点不等价；此确认缺口归既有R2/R10。fresh任务fixture使用公开单次worker入口，独立CLI进程/SIGTERM证据来自根应用，分别取证。完整after_commit、Bus/Chain/Batch、worker参数/默认值、全部官方driver、生产多节点及最低服务版本矩阵仍开放，不能据本簇关闭R10或ADR-001。资源最终收尾见同目录`final-target-cleanup.json`；只清确认归属、无占用可再生产物，源代码/证据/共享服务保留。提交事实以Git为准。
+
+## 共享命令所有权前置限定验收
+
+本簇承接固定framework `d52c3b3` 的ProviderRepository/Application延迟生命周期缺口，先解除命令目录跨register/boot/runtime的独占借用。启动及运行期共用CommandRegistry；App/ProviderRuntime返回`Arc<dyn Command>`快照并用Rust精确捕获`use<>`解除宿主借用。同名按当前`name()`覆盖原槽，名称回调在锁外，版本变化重扫；旧快照继续持有原实例，替换/快照析构不持锁。匹配、help、scope、实际dyn Command类型检查保持同一执行器。
+
+| 范围 | 当前真实证据 |
+| --- | --- |
+| 固定输入与门禁 | `tmp/provider-shared-runtime-20261102/attempt1/inputs.json`的693输入，12项实际exit0且日志SHA匹配：fmt、默认/全特性workspace严格Clippy/tests/warnings-denied docs、精简queue+cache-redis严格Clippy、no-default lib、PG限定db lib、Rust1.97.0 check、cargo deny。无服务环境下skip/ignored不计真实服务。 |
+| 公共行为回归 | 目录6项覆盖共享/保槽、旧快照、Drop重入、动态改名两方向及name重入版本漂移；App测试保存整个旧迭代器后force Provider，再执行旧实例及当前命令。原最长匹配/scope/取消/MFA命令身份断言保留。两处旧UFCS map调用同步迁移，独审问题修复后复审关闭。 |
+| 唯一模块真实业务 | `module-maintenance-snapshot.json/log`：MySQL真实隔离库1项实际通过，模块附件提交后取消→重建App→旧/新命令快照实例分离→实际维护命令清理持久意图→幂等重执行。0 ignored，数据库集合无增删。 |
+| 构建与fresh | `root-cli-build-resume.json`标准server/CLI实际构建；新minimal check＋9 stock tests、MySQL auth+MFA+encryption check＋认证2/迁移目录1，以及minimal实际`cargo run -- help`均exit0。对应provider-*/fresh-minimal-help回执日志SHA已核；MFA runner检查两真实认证测试未skip。 |
+| 独审及源码保全 | 不同模型最终报告`/tmp/openrust-shared-command-final-review.md`无剩余代码阻断；归档113份生成源码/lock至`generated-sources.tar.gz`，逐文件SHA在generated-source-manifest.json；12主日志及11服务/生成回执SHA在final-integrity.json。 |
+
+用户要求换账号时，正式原Goal paused，自有driver进程组SIGINT并退出130；Cargo退出码未捕获，不伪填130。旧root-cli-build.log及用户暂停WIP归档保留。用户随后明确恢复，并通过宿主恢复原Goal active；正式工具仍识别旧账号，沿原80%账本，不rebase/credits授权。services_resume.py只续未完构建/生成，不重跑无漂移的12主门禁和已通过模块测试，原Goal与完整目标不变。
+
+主矩阵后至fresh前已确认无占用并正常Cargo clean：30,940,479,488B→0，二进制/源码/证据保留；最终再核无占用并正常Cargo clean：9,414,590,464B→0，磁盘可用161,398,218,752B；回执见同目录final-target-cleanup.json。模板没有直接受影响的借用命令调用，仍实际新生成check/test。SQL未变，MySQL覆盖受影响的模块维护链；PG限定lib不冒充PG真实服务复验。完整deferred的统一Resolver加载、when、manifest缓存及boot/失败/取消时序仍开放，本簇不关闭R2/R10/ADR-001。当前命令API是必要所有权前置，不以此声称完整Laravel Console/Artisan等价。

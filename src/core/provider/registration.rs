@@ -5,9 +5,10 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use super::{
-    BootContext, Command, ConfigRepository, Container, Extensions, Finalizer, ProviderId,
-    RegisterContext, Required, ResourceRegistrar, ServiceProvider, check_dependencies,
+    BootContext, ConfigRepository, Container, Extensions, Finalizer, ProviderId, RegisterContext,
+    Required, ResourceRegistrar, ServiceProvider, check_dependencies,
 };
+use crate::core::command_registry::CommandRegistry;
 use crate::core::{BoxFuture, Error, Result};
 
 /// 有效实例及启动移除规则；用户回调不在正在注册身份的锁内执行。
@@ -59,7 +60,7 @@ impl ProviderRegistry {
 pub(crate) struct LiveBoot<'a> {
     pub(crate) resources: ResourceRegistrar,
     pub(crate) extensions: &'a mut Extensions,
-    pub(crate) commands: &'a mut Vec<Box<dyn Command>>,
+    pub(crate) commands: &'a CommandRegistry,
 }
 
 impl LiveBoot<'_> {
@@ -67,7 +68,7 @@ impl LiveBoot<'_> {
         LiveBoot {
             resources: self.resources.clone(),
             extensions: &mut *self.extensions,
-            commands: &mut *self.commands,
+            commands: self.commands,
         }
     }
 }

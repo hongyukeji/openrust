@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- `App::commands()` 与 `ProviderRuntime::commands()` 的迭代项改为 `Arc<dyn Command>`，启动与运行期注册共享命令目录；同名覆盖保槽位，旧快照保实例，枚举/匹配/执行不持目录锁。显式类型身份需用 `command.as_ref().type_id()`；完整deferred Provider仍待后继。
+
 - 标准根构建与 `new` 应用预整合 MySQL、Redis 缓存及数据库/Redis 队列；`--minimal` 显式选择无数据库/队列骨架。队列统一 `default`/`connections` 与 `QUEUE_CONNECTION`，旧顶层 driver 配置明确拒绝；连接及外部 creator/validator 按需解析。`queue work [connection] --queue <queue>` 区分连接和队列，迁移与 worker 仍显式运行；标准生成迁移复用唯一 FrameworkMigrator，普通模块任务可经无默认数据库的 Redis 队列执行。
 
 - 通用数据库门面与 prelude 不再依赖 MySQL/PG feature，迁移注册独立于连接配置；具名实例不误启用默认库业务，普通模型生成去除驱动文字门槛。
