@@ -53,7 +53,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 5. 每个可验簇同改消费者/模板/快照/文档/脚本及唯一example；真实CLI/生成check+test，核路径/内容/登记/重复冲突/失败不破坏文件、错误退出码，独审和适用集中门禁后限定本地提交。完整CLI开放范围继续保留，不只help快照宣称完成。
 6. 当前状态：吸收已完成，CLI语义改码尚未开始。下一步在当前提交及明确宿主两子项后，建立现实现→固定官方的逐命令差异/依赖，选择可独立且不拖SQLite的首簇。四项总回执tmp/cli-laravel-alignment-20261102/handoff.json。
 
-### 优先后继：内置 SQLite 单机支持（本次明确宿主整改后立即领取）
+### 当前：SQLite 迁移、配置边界与既有能力适配
 
 1. 用户明确要求“SQLite 支持请尽快安排开发好”；owner=root，沿用原完整Goal/预算/main。当前R2命令所有权簇先闭环；按最新真人明确顺序接范围明确的模块入口整改，再立即SQLite。SQLite可并行只读盘点，不加入当前受验源码，不等待完整R5/Factory。
 2. 固定docs 960eedf database章节的SQLite 3.26.0+、默认外键开启与显式DB_FOREIGN_KEYS=false，以及framework d52c3b3 SQLiteConnector/SQLiteConnection、Query/Schema Grammar、迁移与官方测试为contract；复用同一Db/ConfigRepository/Provider，新增db-sqlite及内置backend，保默认MySQL＋Redis。现custom consumer只证扩展/事务子范围，不算标准支持。
@@ -62,6 +62,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 5. 同步modules/example真实调用、生成/测试/文档；验收内存与真实临时文件、migration fresh/rollback/status、事务/失败/并发隔离、文件跨进程持久化、根HTTP/CLI及独立worker和生成check/test。SQLite仅单机；不能为方便使用RETURNING无据提高固定官方最低版本，所需能力/编译选项与最低版本须实际取证。未来通用功能继续补SQLite矩阵，不宣称共享多机集群或未开发Laravel能力已对应。
 6. root独占公共contract/Cargo/lock、共享文档/索引/构建/实服务；deferred_contract_review仅只读盘点上游和现链，报告/tmp/openrust-sqlite-builtin-contract-audit.md。当前生产阻点已核：DatabaseBackend拒绝sqlite、标准连接/版本match仅双库、dialect UTC/JSON拒绝、TestDatabase无SQLite、migration_lock仅PG/MySQL；默认audit、Session/auth/MFA、coordination/限流、queue SKIP LOCKED与schedule也有双库限定，不能只移除SQL锁语句。只读报告已保全tmp/sqlite-builtin-20261102/contract-audit.md。
 7. 下一动作：当前R2验收期间收齐只读contract/文件清单；R2本地提交及本次范围明确模块入口整改后，立即按必要依赖收敛短Spec并实际编码SQLite，不只留计划。Factory维持R5前置，SQLite内置适配用现有R4基础优先交付，完整后续矩阵随各簇保持。
+
+当前owner与停点：root，同一main、无新worktree。连接基础限定证据见[testing](memory/testing.md#sqlite-连接基础限定验收)，提交事实以Git为准；workers均停写。下一步按S2依赖先补PRAGMA schema-qualified/quoted名称、synchronous数值级别、nullable foreign_key_constraints的严格上游配置对应，再实现迁移互斥/方言、全部已有迁移及CLI安装器SQLite路径；S3业务SQL随后。SQLite3.26最低版本须实际运行，现3.51.3引擎证据不能关闭。owned TestDatabase成功close已验，构造取消/Drop/失败关闭完整矩阵未齐。以上均为确认缺口，不归为必要Rust适配；SQLx非UTF8文件名限制另提供明确拒绝。迁移hardlink/并发锁不能仅canonicalize解决，独审/tmp/openrust-sqlite-pdo-and-lock-review.md；主线沿原27/5.4预算，不rebase/credits。
 
 ### 标准 MySQL＋Redis 与队列开箱（已限定提交3703939）
 

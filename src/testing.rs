@@ -6,8 +6,8 @@ mod response;
 pub use app::{TestApp, TestAppBuilder};
 pub use response::TestResponse;
 
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[cfg(any(feature = "db-postgres", feature = "db-mysql", feature = "db-sqlite"))]
 mod database;
 
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[cfg(any(feature = "db-postgres", feature = "db-mysql", feature = "db-sqlite"))]
 pub use database::TestDatabase;

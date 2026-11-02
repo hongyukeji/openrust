@@ -16,6 +16,7 @@ pub(crate) mod attachments;
 pub(crate) mod auth;
 pub(crate) mod config_reading;
 pub(crate) mod cookie;
+pub(crate) mod database_connection;
 pub(crate) mod draft_redirect;
 pub(crate) mod example;
 #[cfg(feature = "auth")]

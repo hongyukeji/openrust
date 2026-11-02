@@ -6,12 +6,16 @@ OpenRust 框架的数据库模块。
 
 ## 通用能力、驱动与连接
 
-`openrust::db`、`openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。
+`openrust::db`、`openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` / `db-sqlite` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。
 
 `DatabaseConfig::has_default_connection()` 仅表示默认 `url` 已配置，不是健康检查。具名实例仍由数据库 Provider 独立初始化；仅配置具名实例不自动启用绑定默认库的 Auth、数据库 Session 或示例数据库业务。Queue Provider 与连接选择独立，实际使用数据库队列时才要求默认 Db，Redis 队列可无默认库运行。默认 Provider 自动选择在启动装配读取配置；模块在真实 register 读同一仓储，自动默认清单选定后，register或boot改变默认URL有无将明确拒绝启动，要求按最终配置重新引导；显式清单仍由应用管理。示例已在register跳过业务后，boot若反向启用则明确拒绝，不能开放缺依赖路由；有变无只关闭路由，不卸载已有绑定。后续任意覆盖不承诺重新选择或热卸载服务。非法、未知或未编译的 URL/副本配置继续由驱动预检拒绝，不能回退为无数据库。
 
 自定义 Provider 可在同一 Container 登记其他 SeaORM backend 的通用 `Db`，见[SQLite consumer](../../tests/consumers/db-custom-sqlite/README.md)；这不扩张官方方言、迁移互斥、认证或队列支持矩阵。现自动装配在无默认 URL 时省略 database Session Provider，即使 driver 字段显式为 database；不能将该配置当作 Session 已成功启用，严格上游启用/错误语义仍保留在 Session 后继。当前标准 Provider 仍在启动期解析连接；Laravel 完整懒连接生命周期尚有缺口，不能由本簇编译门控整改宣称等价。
 
+
+## SQLite 内置连接
+
+启用 `db-sqlite` 后使用同一标准 Provider，按固定 SQLite 3.26.0+ 最低目标接入文件、URI 与内存连接；当前实际验证为 3.51.3，最低版本运行矩阵未完成。外键默认开启，PDO 默认忙等待 60000ms；PRAGMA 随每条物理连接执行。普通文件必须先存在；内存池保留数据至关闭。配置与 owned 测试库流程见[数据库连接指南](../../docs/src/database/connections.md)。当前仅连接子范围，完整框架迁移、互斥、认证、队列和调度 SQL 的 SQLite 适配仍未交付；旧自定义 consumer 不能替代这些验收。
 
 ## Query Builder 限定实现
 
@@ -42,7 +46,7 @@ let title: Option<String> = db.table("example_articles")?
 openrust = { version = "0.0.0", features = ["db-postgres"] }
 ```
 
-数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。驱动名采用 `postgres` 或 `mysql`，连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在可编辑 `config/database.rs` 的 `url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `config/database.rs` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
+数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。网络驱动名采用 `postgres` 或 `mysql`，SQLite 采用 `sqlite`（文件/URI/内存配置见上文），连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在可编辑 `config/database.rs` 的 `url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `config/database.rs` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
 
 框架管理的表默认不使用前缀。设置 `table_prefix` 可更改前缀；也可以将指定的逻辑表名映射为完整物理表名：
 
@@ -53,7 +57,7 @@ table_prefix = "app_"
 users = "accounts"
 ```
 
-显式映射优先级更高，且不会再添加前缀。表名必须是 ASCII 标识符，框架解析器限制物理表名最多 64 字节；PostgreSQL 另检查 63 字节、MySQL 检查 64 字节。SQLite 自定义连接使用双引号引用。`Db::table_name()` 返回经过校验的物理表名；`Db::quoted_table_name()` 返回按 backend 转义后的形式。`MigrationServiceProvider` 和 `TestDatabase::create_with_table_names()` 会在每次迁移调用期间设置相同的 resolver。创建框架相关表的手写迁移可读取 `DatabaseTableNames::current()`；在迁移作用域外调用会返回 `None`。框架不会全局重写原始 SQL：框架认证 SQL 会自行解析表名，应用 SQL 则必须使用 `Db` resolver。修改表名配置不会迁移现有 schema 或数据。
+显式映射优先级更高，且不会再添加前缀。表名必须是 ASCII 标识符，框架解析器限制物理表名最多 64 字节；PostgreSQL 另检查 63 字节、MySQL 检查 64 字节。SQLite 连接使用双引号引用。`Db::table_name()` 返回经过校验的物理表名；`Db::quoted_table_name()` 返回按 backend 转义后的形式。`MigrationServiceProvider` 和 `TestDatabase::create_with_table_names()` 会在每次迁移调用期间设置相同的 resolver。创建框架相关表的手写迁移可读取 `DatabaseTableNames::current()`；在迁移作用域外调用会返回 `None`。框架不会全局重写原始 SQL：框架认证 SQL 会自行解析表名，应用 SQL 则必须使用 `Db` resolver。修改表名配置不会迁移现有 schema 或数据。
 
 ```rust,ignore
 use openrust::{Application, NoConfig};
@@ -80,7 +84,7 @@ read_replicas = ["postgres://app:secret@replica-a/app", "postgres://app:secret@r
 
 `Db::connection()` 和 `Db::primary_connection()` 始终返回主库连接。`Db::read_connection()` 会轮询已配置副本；没有副本时返回主库。只应将它用于可接受复制延迟的只读操作；框架不会检查 SQL、重试查询，也不会在出错后回退。`Db::with_primary(future)` 会临时让当前 Tokio task 中此 handle 的 `read_connection()` 返回主库，适用于同一工作单元内先写后读。独立 spawn 的 task 不会继承该作用域。事务、迁移、seed 和框架关键路径始终使用主库。副本连接或 backend 校验失败会导致启动失败。每个副本都有使用相同连接池上限的独立连接池，因此最大总连接数为 `(replicas + 1) * max_connections`。该配置只管理连接；数据库复制、一致性和副本只读权限仍由部署环境负责。
 
-一个应用可以同时配置多个彼此独立的数据库。现有 `config/database.toml` 顶层是默认实例，原有 `Db` 服务继续指向它；具名实例在 `[instances.<name>]` 下完整配置，不继承默认 URL、池参数、表名解析或副本。名称须匹配小写 ASCII 字母开头、后续为小写字母/数字/下划线/短横线，且不能使用保留名称 `default`：
+一个应用可以同时配置多个彼此独立的数据库。可编辑 `config/database.rs` 顶层是默认实例；下例 TOML 仅适用于显式启用该可选 source 的应用，原有 `Db` 服务继续指向它；具名实例在 `[instances.<name>]` 下完整配置，不继承默认 URL、池参数、表名解析或副本。名称须匹配小写 ASCII 字母开头、后续为小写字母/数字/下划线/短横线，且不能使用保留名称 `default`：
 
 ```toml
 url = "postgres://app:password@primary/app"

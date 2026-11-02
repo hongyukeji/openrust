@@ -297,6 +297,7 @@ pub struct ConfigLoader {
     pin_env: bool,
     namespace: String,
     environment: Option<EnvironmentSnapshot>,
+    application_root: Option<PathBuf>,
 }
 
 impl fmt::Debug for ConfigLoader {
@@ -432,6 +433,10 @@ impl ConfigLoader {
         let env = selected_environment(namespace, &environment)?;
         let mut loader = Self::from_snapshot(env, namespace, environment)?;
         loader.config_dir = app_dir.join(&loader.config_dir);
+        loader.application_root = Some(
+            std::path::absolute(app_dir)
+                .map_err(|_| ConfigError::diagnostic("application_root", "invalid_path"))?,
+        );
         if manifest.is_some()
             && loader.config_dir_source() != "default"
             && !loader.config_dir.is_dir()
@@ -500,6 +505,7 @@ impl ConfigLoader {
             pin_env: environment.present(&format!("{namespace}ENV")),
             namespace: namespace.to_owned(),
             environment: Some(environment),
+            application_root: None,
         })
     }
 
@@ -513,6 +519,10 @@ impl ConfigLoader {
     ) -> Result<Self, ConfigError> {
         let mut loader = Self::from_environment_with_namespace(env, namespace)?;
         loader.config_dir = app_dir.as_ref().join(&loader.config_dir);
+        loader.application_root = Some(
+            std::path::absolute(app_dir.as_ref())
+                .map_err(|_| ConfigError::diagnostic("application_root", "invalid_path"))?,
+        );
         Ok(loader)
     }
 
@@ -526,6 +536,7 @@ impl ConfigLoader {
             pin_env: true,
             namespace: ENV_PREFIX.to_owned(),
             environment: None,
+            application_root: None,
         }
     }
 
@@ -585,6 +596,13 @@ impl ConfigLoader {
             .as_object()
             .ok_or_else(|| ConfigError::Invalid("configuration: 默认值根必须是对象".into()))?;
         let mut sources = ConfigSources::from_ordered_entries(entries.clone())?;
+        if let Some(root) = &self.application_root {
+            sources = sources.merge_ordered_entries([(
+                "application_root",
+                serde_json::to_value(root)
+                    .map_err(|_| ConfigError::diagnostic("application_root", "invalid_path"))?,
+            )])?;
+        }
         let environment = self
             .environment
             .clone()
@@ -629,7 +647,8 @@ impl ConfigLoader {
                 Metadata::named("TOML file").source(file.as_path()),
             ));
         }
-        if let Some(url) = conventional_database_url(&environment) {
+        if let Some(url) = conventional_database_url(&environment, self.application_root.as_deref())
+        {
             let layer = serde_json::json!({ "database": { "url": url } });
             environment_layers.push((
                 CapturedProvider::new(&Serialized::defaults(layer.clone()))?,
@@ -843,6 +862,7 @@ fn common_environment_path(key: &str) -> Option<String> {
     const KEYS: &[&str] = &[
         "SERVER_PORT",
         "DB_TABLE_PREFIX",
+        "DB_FOREIGN_KEYS",
         "CACHE_STORE",
         "QUEUE_CONNECTION",
         "QUEUE_REDIS_URL",
@@ -881,6 +901,7 @@ fn common_environment_path(key: &str) -> Option<String> {
         match key {
             "SERVER_PORT" => "server.port",
             "DB_TABLE_PREFIX" => "database.table_prefix",
+            "DB_FOREIGN_KEYS" => "database.foreign_key_constraints",
             "CACHE_STORE" => "cache.default",
             "QUEUE_CONNECTION" => "queue.default",
             "QUEUE_REDIS_URL" => "queue.connections.redis.redis_url",
@@ -983,7 +1004,10 @@ fn environment_value(environment: &EnvironmentSnapshot, key: &str) -> Option<Str
     environment.value(key)
 }
 
-fn conventional_database_url(environment: &EnvironmentSnapshot) -> Option<String> {
+fn conventional_database_url(
+    environment: &EnvironmentSnapshot,
+    application_root: Option<&Path>,
+) -> Option<String> {
     const KEYS: [&str; 6] = [
         "DB_CONNECTION",
         "DB_HOST",
@@ -998,6 +1022,29 @@ fn conventional_database_url(environment: &EnvironmentSnapshot) -> Option<String
 
     let connection =
         environment_value(environment, "DB_CONNECTION").unwrap_or_else(|| "postgres".to_owned());
+    if connection == "sqlite" {
+        let database = if let Some(database) = environment_value(environment, "DB_DATABASE") {
+            database
+        } else {
+            let path = application_root.map_or_else(
+                || PathBuf::from("database/database.sqlite"),
+                |root| root.join("database/database.sqlite"),
+            );
+            let Some(path) = path.to_str() else {
+                return Some("invalid://".to_owned());
+            };
+            path.to_owned()
+        };
+        let database = if database == ":memory:" || database.starts_with("file:") {
+            database
+        } else {
+            database
+                .replace('%', "%25")
+                .replace('?', "%3F")
+                .replace('#', "%23")
+        };
+        return Some(format!("sqlite:{database}"));
+    }
     let (scheme, default_port) = match connection.as_str() {
         "postgres" => ("postgres", 5432),
         "mysql" => ("mysql", 3306),
@@ -2499,6 +2546,50 @@ mod tests {
                 .map_err(|error| figment::Error::from(error.to_string()))?
                 .extract_inner("cache")?;
             assert_eq!(namespaced.default, "default");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn sqlite_environment_preserves_memory_uri_and_foreign_key_override() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.set_env("DB_CONNECTION", "sqlite");
+            jail.set_env("DB_FOREIGN_KEYS", "false");
+            for (database, expected) in [
+                (":memory:", "sqlite::memory:"),
+                (
+                    "file:shared?mode=memory&cache=shared",
+                    "sqlite:file:shared?mode=memory&cache=shared",
+                ),
+                ("data?百分号%.sqlite", "sqlite:data%3F百分号%25.sqlite"),
+            ] {
+                jail.set_env("DB_DATABASE", database);
+                let value: DatabaseConfig = ConfigLoader::new("config", Environment::Test)
+                    .figment()
+                    .map_err(|e| figment::Error::from(e.to_string()))?
+                    .extract_inner("database")?;
+                assert_eq!(value.url.as_deref(), Some(expected));
+                assert!(!value.foreign_key_constraints);
+                assert_eq!(value.busy_timeout, None);
+                assert_eq!(value.journal_mode, None);
+                assert_eq!(value.synchronous, None);
+            }
+            jail.clear_env();
+            jail.set_env("DB_CONNECTION", "sqlite");
+            let environment = EnvironmentSnapshot::capture();
+            assert_eq!(
+                conventional_database_url(&environment, Some(Path::new("/app"))),
+                Some("sqlite:/app/database/database.sqlite".into())
+            );
+            jail.clear_env();
+            jail.set_env("DB_FOREIGN_KEYS", "false");
+            assert_eq!(
+                conventional_database_url(&EnvironmentSnapshot::capture(), None),
+                None
+            );
             Ok(())
         });
     }

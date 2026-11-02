@@ -28,3 +28,11 @@ pub(crate) fn register(
     );
     web::register(routes, capabilities.view)
 }
+
+/// 仅显式配置 reporting 连接时提供具名连接演示，不触发默认数据库业务选择。
+pub(crate) fn reporting_connection(routes: openrust::http::Routes) -> openrust::http::Routes {
+    routes.get(
+        "/api/example/reporting-connection",
+        super::http::controllers::database_connection::show,
+    )
+}

@@ -26,6 +26,8 @@ mod migration_lock;
 pub mod query;
 mod rate_limit;
 mod seed;
+#[cfg(feature = "db-sqlite")]
+mod sqlite;
 mod table_names;
 
 pub use crate::config::database::{DatabaseConfig, DatabaseInstanceConfig};
@@ -48,13 +50,15 @@ pub use sea_orm_migration;
 pub use seed::SeedServiceProvider;
 pub use table_names::DatabaseTableNames;
 
-/// OpenRust 官方 PostgreSQL/MySQL feature 集支持的数据库后端。
+/// 由内置驱动 feature 控制连接器的数据库后端。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseBackend {
     /// PostgreSQL 14 或更高版本；日常开发与 CI 使用 PostgreSQL 18。
     PostgreSql,
     /// MySQL 8.0 或更高版本；日常开发与 CI 使用 MySQL 8.4 LTS。
     MySql,
+    /// SQLite 3.26.0 或更高版本；单机文件或内存数据库。
+    Sqlite,
 }
 
 impl DatabaseBackend {
@@ -68,10 +72,12 @@ impl DatabaseBackend {
             Ok(Self::PostgreSql)
         } else if url.starts_with("mysql://") {
             Ok(Self::MySql)
+        } else if url.starts_with("sqlite:") {
+            Ok(Self::Sqlite)
         } else {
             Err(Error::custom(
                 "unsupported_database_backend",
-                "OpenRust officially supports PostgreSQL and MySQL database URLs",
+                "OpenRust 支持 PostgreSQL、MySQL 和 SQLite 连接地址",
             ))
         }
     }
@@ -81,6 +87,7 @@ impl DatabaseBackend {
         match self {
             Self::PostgreSql => cfg!(feature = "db-postgres"),
             Self::MySql => cfg!(feature = "db-mysql"),
+            Self::Sqlite => cfg!(feature = "db-sqlite"),
         }
     }
 
@@ -89,6 +96,7 @@ impl DatabaseBackend {
         match self {
             Self::PostgreSql => "db-postgres",
             Self::MySql => "db-mysql",
+            Self::Sqlite => "db-sqlite",
         }
     }
 
@@ -96,6 +104,7 @@ impl DatabaseBackend {
         match self {
             Self::PostgreSql => "PostgreSQL",
             Self::MySql => "MySQL",
+            Self::Sqlite => "SQLite",
         }
     }
 }
@@ -243,6 +252,7 @@ impl Db {
         let backend = match DatabaseBackend::from_url(&url)? {
             DatabaseBackend::PostgreSql => DbBackend::Postgres,
             DatabaseBackend::MySql => DbBackend::MySql,
+            DatabaseBackend::Sqlite => DbBackend::Sqlite,
         };
         if backend != self.backend()? {
             return Err(Error::custom(
@@ -432,6 +442,11 @@ fn database_instance_schema() -> crate::config::repository::SectionSchema {
     S::object([
         ("url", S::String.nullable().sensitive()),
         ("read_replicas", S::array(S::String.sensitive())),
+        ("foreign_key_constraints", S::Boolean),
+        ("busy_timeout", S::Integer.nullable()),
+        ("journal_mode", S::String.nullable()),
+        ("synchronous", S::String.nullable()),
+        ("pragmas", S::map(S::any().sensitive())),
         ("max_connections", S::Integer),
         ("min_connections", S::Integer),
         ("connect_timeout_secs", S::Integer),
@@ -484,8 +499,16 @@ impl crate::core::ServiceProvider for DatabaseServiceProvider {
                 )
             })
             .await?;
-            app.singleton::<Databases, _>(|resolver| {
+            let repository = app.config_repository();
+            app.singleton::<Databases, _>(move |resolver| {
+                let repository = repository.clone();
                 Box::pin(async move {
+                    let application_root = repository
+                        .get("application_root")?
+                        .filter(|value| !value.is_null())
+                        .map(serde_json::from_value::<std::path::PathBuf>)
+                        .transpose()
+                        .map_err(|_| ConfigError::diagnostic("application_root", "invalid_path"))?;
                     let config = resolver.section::<DatabaseConfig>("database")?;
                     let databases = database_handles(&config)?;
                     let resources = resolver.resources()?;
@@ -504,8 +527,14 @@ impl crate::core::ServiceProvider for DatabaseServiceProvider {
                         if name == "default" && instance.url.is_none() {
                             continue;
                         }
-                        connect_instance_managed(&handle, &instance, &name, Some(&resources))
-                            .await?;
+                        connect_instance_managed(
+                            &handle,
+                            &instance,
+                            &name,
+                            Some(&resources),
+                            application_root.as_deref(),
+                        )
+                        .await?;
                     }
                     Ok(Arc::new(databases))
                 })
@@ -653,6 +682,21 @@ fn validate_instance(key: &str, config: &DatabaseInstanceConfig, require_url: bo
 }
 
 fn validate_database_url(url: &str, key: &str) -> Result<()> {
+    if let Some(database) = url.strip_prefix("sqlite:") {
+        if database.is_empty() || database.contains('\0') {
+            return Err(ConfigError::Invalid(format!("{key} has an invalid SQLite URL")).into());
+        }
+        #[cfg(feature = "db-sqlite")]
+        {
+            use std::str::FromStr as _;
+            if !database.trim_start_matches("//").starts_with("file:") {
+                sqlx::sqlite::SqliteConnectOptions::from_str(url).map_err(|_| {
+                    ConfigError::Invalid(format!("{key} has an invalid SQLite URL"))
+                })?;
+            }
+        }
+        return Ok(());
+    }
     url::Url::parse(url).map_err(|_| {
         Error::Config(ConfigError::Invalid(format!(
             "{key} has an invalid database URL"
@@ -666,6 +710,7 @@ async fn connect_instance_managed(
     config: &DatabaseInstanceConfig,
     name: &str,
     resources: Option<&crate::core::resources::ResourceRegistrar>,
+    application_root: Option<&std::path::Path>,
 ) -> Result<()> {
     let url = config.url.as_deref().ok_or_else(|| {
         let message = if name == "default" {
@@ -681,7 +726,15 @@ async fn connect_instance_managed(
     } else {
         format!("primary for database.instances.{name}")
     };
-    let connection = connect_database(url, config, backend, &primary_role, resources).await?;
+    let connection = connect_database(
+        url,
+        config,
+        backend,
+        &primary_role,
+        resources,
+        application_root,
+    )
+    .await?;
     let mut replicas = Vec::with_capacity(config.read_replicas.len());
     for (index, replica_url) in config.read_replicas.iter().enumerate() {
         let replica_backend = DatabaseBackend::from_url(replica_url)?;
@@ -692,6 +745,7 @@ async fn connect_instance_managed(
                 replica_backend,
                 &format!("read replica {index} for database.{name}"),
                 resources,
+                application_root,
             )
             .await?,
         );
@@ -706,6 +760,7 @@ async fn connect_database(
     backend: DatabaseBackend,
     role: &str,
     resources: Option<&crate::core::resources::ResourceRegistrar>,
+    application_root: Option<&std::path::Path>,
 ) -> Result<DatabaseConnection> {
     let mut options = ConnectOptions::new(url.to_owned());
     options
@@ -719,14 +774,62 @@ async fn connect_database(
             mysql_options.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
         });
     }
+    #[cfg(not(feature = "db-sqlite"))]
+    let _ = application_root;
+    #[cfg(feature = "db-sqlite")]
+    if backend == DatabaseBackend::Sqlite {
+        use sqlx::ConnectOptions as _;
+        let prepared = sqlite::connection_settings(url, config, application_root)?;
+        let sqlite_options = prepared.options.disable_statement_logging();
+        options = ConnectOptions::new(prepared.url);
+        options
+            .max_connections(if prepared.single_connection {
+                1
+            } else {
+                config.max_connections
+            })
+            .min_connections(if prepared.single_connection {
+                config.min_connections.min(1)
+            } else {
+                config.min_connections
+            })
+            .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
+            .acquire_timeout(Duration::from_secs(config.acquire_timeout_secs));
+        options.map_sqlx_sqlite_opts(move |_| sqlite_options.clone());
+        let in_memory = prepared.in_memory;
+        let pragmas = Arc::new(prepared.pragmas);
+        options.map_sqlx_sqlite_pool_opts(move |pool| {
+            // 内存库的最后连接就是数据所有者，不能被空闲/寿命回收暗中重置。
+            let pool = if in_memory {
+                pool.idle_timeout(None).max_lifetime(None)
+            } else {
+                pool
+            };
+            let pragmas = Arc::clone(&pragmas);
+            pool.after_connect(move |connection, _| {
+                let pragmas = Arc::clone(&pragmas);
+                Box::pin(async move {
+                    for statement in pragmas.iter() {
+                        sqlx::query(sqlx::AssertSqlSafe(statement.as_str()))
+                            .execute(&mut *connection)
+                            .await?;
+                    }
+                    Ok(())
+                })
+            })
+        });
+    }
     #[cfg(feature = "db-mysql")]
     if backend == DatabaseBackend::MySql {
-        options.after_connect(|connection| {
-            Box::pin(async move {
-                connection
-                    .execute_unprepared("SET time_zone = '+00:00'")
-                    .await?;
-                Ok(())
+        // SeaORM after_connect 是池级回调；会话时区必须随每条物理连接设置。
+        options.map_sqlx_mysql_pool_opts(|pool| {
+            pool.after_connect(|connection, _| {
+                Box::pin(async move {
+                    sqlx::query("SET time_zone = '+00:00'")
+                        .execute(connection)
+                        .await?;
+                    Ok(())
+                })
             })
         });
     }
@@ -759,6 +862,7 @@ async fn validate_server_version(
             "SELECT current_setting('server_version_num') AS version",
         ),
         DatabaseBackend::MySql => (DbBackend::MySql, "SELECT VERSION() AS version"),
+        DatabaseBackend::Sqlite => (DbBackend::Sqlite, "SELECT sqlite_version() AS version"),
     };
     let version = connection
         .query_one_raw(Statement::from_string(sea_backend, query.to_owned()))
@@ -780,6 +884,7 @@ async fn validate_server_version(
         let minimum = match backend {
             DatabaseBackend::PostgreSql => "14",
             DatabaseBackend::MySql => "8.0",
+            DatabaseBackend::Sqlite => "3.26.0",
         };
         return Err(Error::Config(ConfigError::Invalid(format!(
             "configured {} database version is unsupported; OpenRust requires {minimum} or newer",
@@ -794,6 +899,13 @@ fn is_server_version_supported(version: &str, backend: DatabaseBackend) -> bool 
         DatabaseBackend::PostgreSql => version
             .parse::<u32>()
             .is_ok_and(|server_version| server_version >= 140_000),
+        DatabaseBackend::Sqlite => {
+            let parts = version
+                .split('.')
+                .map(str::parse::<u32>)
+                .collect::<std::result::Result<Vec<_>, _>>();
+            matches!(parts, Ok(parts) if parts.len() == 3 && (parts[0], parts[1], parts[2]) >= (3, 26, 0))
+        }
         DatabaseBackend::MySql => {
             if version.to_ascii_lowercase().contains("mariadb") {
                 return false;
@@ -984,6 +1096,7 @@ mod provider_tests {
             backend,
             "provider cleanup first pool",
             Some(&registrar),
+            None,
         )
         .await?;
         first.ping().await.map_err(Error::internal)?;
@@ -1003,6 +1116,7 @@ mod provider_tests {
             backend,
             "provider cleanup second pool",
             Some(&registrar),
+            None,
         )
         .await;
         assert!(second.is_err(), "missing database must fail during connect");
@@ -1160,6 +1274,45 @@ mod provider_tests {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "db-mysql")]
+    #[tokio::test]
+    async fn mysql_every_physical_connection_uses_utc()
+    -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("skipping physical MySQL UTC test: OPENRUST_TEST_DATABASE_URL is unset");
+            return Ok(());
+        };
+        if super::DatabaseBackend::from_url(&url)? != super::DatabaseBackend::MySql {
+            return Ok(());
+        }
+        let config = super::DatabaseInstanceConfig {
+            max_connections: 2,
+            min_connections: 0,
+            ..Default::default()
+        };
+        let database = super::connect_database(
+            &url,
+            &config,
+            super::DatabaseBackend::MySql,
+            "UTC test",
+            None,
+            None,
+        )
+        .await?;
+        let pool = database.get_mysql_connection_pool();
+        let mut first = pool.acquire().await?;
+        let mut second = pool.acquire().await?;
+        for physical in [&mut *first, &mut *second] {
+            let zone: String = sqlx::query_scalar("SELECT @@session.time_zone")
+                .fetch_one(physical)
+                .await?;
+            assert_eq!(zone, "+00:00");
+        }
+        drop(first);
+        drop(second);
+        database.close().await?;
+        Ok(())
+    }
     use super::*;
     use figment::providers::Format;
 
@@ -1349,11 +1502,34 @@ mod tests {
             DatabaseBackend::from_url("mysql://user@host/db"),
             Ok(DatabaseBackend::MySql)
         ));
-        assert!(DatabaseBackend::from_url("sqlite::memory:").is_err());
+        assert!(matches!(
+            DatabaseBackend::from_url("sqlite::memory:"),
+            Ok(DatabaseBackend::Sqlite)
+        ));
     }
 
     #[test]
     fn provisional_minimum_database_versions_are_checked_explicitly() {
+        assert!(is_server_version_supported(
+            "3.26.0",
+            DatabaseBackend::Sqlite
+        ));
+        assert!(is_server_version_supported(
+            "3.51.1",
+            DatabaseBackend::Sqlite
+        ));
+        assert!(!is_server_version_supported(
+            "3.25.3",
+            DatabaseBackend::Sqlite
+        ));
+        assert!(!is_server_version_supported(
+            "3.26",
+            DatabaseBackend::Sqlite
+        ));
+        assert!(!is_server_version_supported(
+            "unknown",
+            DatabaseBackend::Sqlite
+        ));
         assert!(is_server_version_supported(
             "140000",
             DatabaseBackend::PostgreSql

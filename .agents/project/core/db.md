@@ -4,6 +4,12 @@
 > 更新：2026-11-02
 > 摘要：M2 数据层当前实现边界。
 
+## SQLite 连接基础限定范围
+
+`db-sqlite` 提供标准Provider的文件/URI/内存连接、同仓储application_root及逐物理PRAGMA，默认MySQL/Redis不变。PDO初始60000ms、外键默认true，未显式配置时不强制WAL/NORMAL；普通文件必须存在。内存池限制/禁回收、URI单次解码、named隔离及owned TestDatabase显式close已实际验证；唯一模块reporting路由不启用默认库业务。SQLite-only导出与类型推断已修，严格单driver Clippy、fresh11和文档通过；主10门禁、真实MySQL3、根进程HTTP及影响复用见[限定验收](../memory/testing.md#sqlite-连接基础限定验收)。本地提交以Git为准。
+
+最低3.26.0运行矩阵、复杂PRAGMA名称/数值级别与nullable外键的完整配置对应、构造取消/Drop故障清理仍未闭合；实际引擎3.51.3不替代最低版本。标准迁移互斥、默认迁移、CLI安装SQLite及既有Auth/Session/队列等SQL仍属后继，不能称完整SQLite或Laravel已对应。
+
 ## 当前实现
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。

@@ -1536,3 +1536,13 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 用户要求换账号时，正式原Goal paused，自有driver进程组SIGINT并退出130；Cargo退出码未捕获，不伪填130。旧root-cli-build.log及用户暂停WIP归档保留。用户随后明确恢复，并通过宿主恢复原Goal active；正式工具仍识别旧账号，沿原80%账本，不rebase/credits授权。services_resume.py只续未完构建/生成，不重跑无漂移的12主门禁和已通过模块测试，原Goal与完整目标不变。
 
 主矩阵后至fresh前已确认无占用并正常Cargo clean：30,940,479,488B→0，二进制/源码/证据保留；最终再核无占用并正常Cargo clean：9,414,590,464B→0，磁盘可用161,398,218,752B；回执见同目录final-target-cleanup.json。模板没有直接受影响的借用命令调用，仍实际新生成check/test。SQL未变，MySQL覆盖受影响的模块维护链；PG限定lib不冒充PG真实服务复验。完整deferred的统一Resolver加载、when、manifest缓存及boot/失败/取消时序仍开放，本簇不关闭R2/R10/ADR-001。当前命令API是必要所有权前置，不以此声称完整Laravel Console/Artisan等价。
+
+## SQLite 连接基础限定验收
+
+- 固定framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs960eedf0911155ad16326ade49c0ea5d18eda0b8及PDO默认timeout为来源。db-sqlite/标准Provider、平铺配置、同仓储application_root、文件存在/URI/内存池与逐物理PRAGMA、owned TestDatabase、根模板及唯一模块reporting真实调用共同验收。
+- `tmp/sqlite-builtin-20261102/s1/gates-final/results.json`主10门禁全部exit0：默认fmt/严格Clippy/workspace测试/文档，全特性严格Clippy/测试/文档、无默认驱动严格Clippy/测试、1.97.0+SQLite检查。deny四项通过；ignored不算真实服务。原失败日志完整保留。
+- 最后SQLite-only导出补丁只影响此前未编译的单driver路径；默认/全特性已含PG/MySQL，编译模块与可达运行语句保持等价。setup显式Result<()>、cfg mut、同值错误工厂及测试fixture条件shadow没有删断言。主矩阵/MySQL/native按独审与输入映射复用，单driver由`clippy-sqlite-only-attempt4.log`严格workspace/all-targets、`fresh-retry-results.json`重新check/test/doc验证；生成9项原应用＋2项公开SQLite测试，无ignored。
+- 实际MySQL8.4双物理连接UTC、同名库保护及owned迁移失败清理各1通过，库集合0增0减。`native-attempt2.json`根server具名SQLite HTTP200、正常退出与端口释放。首轮native fixture未启用TOML而404、首轮fresh缺SQLite-only公开导出等失败均保留，不回填通过。
+- SQLite真实内存/文件验证每物理FK/busy60000、misc/special覆盖、原生日志默认、URI保留字符/原生psow/只读immutable、内存隔离与共享生命周期、事务/savepoint、owned显式关闭。`sqlite-engine.json`为实际3.51.3及编译选项，不等于最低3.26已验；未启用RETURNING版本抬升feature。生成源码及锁文件摘要保全。
+- 9页mdBook与受影响文档本地链接检查通过。主矩阵target确认归属/无占用后正常cargo clean：38,868,230,144B→0，磁盘可用159,935,385,600B；最后生成target4,905,627,648B与book2,289,664B均确认无占用并正常清零，磁盘可用159,942,160,384B；55份生成源码/锁已归档，源码/WIP/依赖源码/服务/证据保持。
+- 范围不含标准迁移互斥/全部既有迁移/SQLite安装器/既有认证Session队列调度SQL。复杂PRAGMA名称/数值级别、nullable外键、完整取消/Drop故障清理及最低版本仍为唯一todo确认缺口，不称必要Rust适配或完整SQLite/Laravel。SQLx要求UTF8路径时明确拒绝，不有损转换。

@@ -16,6 +16,10 @@
 
 - [路由](the-basics/routing.md)
 
+# 数据库
+
+- [数据库连接](database/connections.md)
+
 # 扩展：Laravel Modules
 
 - [注册与模块组织](modules/registration.md)

@@ -306,3 +306,7 @@ mod config_sources;
 mod module_discovery_flows;
 #[cfg(test)]
 pub(crate) use config_sources::application_sources as test_sources;
+
+#[cfg(all(test, feature = "db-sqlite"))]
+#[path = "tests/sqlite_connection_flows.rs"]
+mod sqlite_connection_flows;

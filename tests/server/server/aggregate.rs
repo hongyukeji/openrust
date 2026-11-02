@@ -244,8 +244,10 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
         None,
         &apps::Server::config(),
     )?;
-    let mut overrides =
+    let overrides =
         serde_json::Map::from_iter([("app".to_owned(), serde_json::json!({"env":"development"}))]);
+    #[cfg(any(feature = "cache-redis", feature = "encryption"))]
+    let mut overrides = overrides;
     #[cfg(feature = "cache-redis")]
     overrides.insert("cache".to_owned(), serde_json::json!({"default":"default","stores":{"default":{"driver":"redis","namespace":"server-test","dsn":"redis://127.0.0.1:6379/"}}}));
     #[cfg(feature = "encryption")]

@@ -38,7 +38,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
-| ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，OpenRust 官方连接驱动按 `db-postgres` / `db-mysql` feature 开启。外部自定义插件可通过同版本 SeaORM 依赖的 feature 统一选择其他 backend；SQLite 通用 `Db` 与应用自有迁移示例见 `tests/consumers/db-custom-sqlite/`，不代表 OpenRust 框架迁移、认证/队列或方言的完整支持 |
+| ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，OpenRust 官方连接驱动按 `db-postgres` / `db-mysql` / `db-sqlite` feature 开启，SQLite当前仅连接基础限定范围。外部自定义插件可通过同版本 SeaORM 依赖的 feature 统一选择其他 backend；SQLite 通用 `Db` 与应用自有迁移示例见 `tests/consumers/db-custom-sqlite/`，不代表 OpenRust 框架迁移、认证/队列或方言的完整支持 |
 | 数据库 URL | `url` 2.5 | `testing` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
 | 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/常规CI真实验证默认MySQL8.4 LTS；Compose保留PostgreSQL18/MySQL8.4可用服务 | 日常不每簇重复PG全套；PG/其他后端专属SQL/驱动/迁移/锁风险按影响定向。发布前全部承诺后端及适用版本完整验收。运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
@@ -110,3 +110,5 @@ Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只
 根 openrust package 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs，modules/example 业务模块通过公开 API 使用框架；工具保留独立 package。没有新增依赖或依赖升级；默认 feature 改为 `cache-redis` 以满足标准配置，显式 `default-features=false` 的消费者仍可关闭它；MSRV 保持 1.97。
 
 根框架库、server 与工具共用根 Cargo.lock，独立 consumer/生成应用拥有自己的锁图，本轮只调整本地 package 身份/路径解析，不升级注册表依赖。框架根无需额外包别名或包装 crate；公共导入、宏与 Rustdoc 都保持 openrust。
+
+SQLite连接基础：db-sqlite复用既有SeaORM2.0.4/SQLx0.9的SQLite驱动，libsqlite3-sys0.37的bundled编译仅新增既有cc依赖边，未升级版本或启用sqlite-use-returning-for-3_35；cargo-deny全特性四项通过。实际引擎3.51.3及compile_options已保全。固定官方最低3.26.0保留且完整运行矩阵未验；PDO默认busy_timeout60000ms与逐物理PRAGMA已验，默认不强制WAL/NORMAL。完整迁移/业务SQL与配置边界仍待后继，见唯一todo及testing。

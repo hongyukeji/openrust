@@ -254,6 +254,7 @@ rcgen.workspace = true
 default = ["db-mysql", "cache-redis", "queue-redis"]
 db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
 db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
+db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
 session = ["dep:time"]
 auth = [

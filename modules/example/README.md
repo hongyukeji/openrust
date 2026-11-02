@@ -452,3 +452,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 普通模型、迁移与业务代码按其通用能力编译，不把 MySQL/PG 连接器 feature 当作 ORM 开关。活跃模块总注册迁移与 seed 命令贡献；有无连接不影响注册，命令实际执行才检查连接。生产模块在真实 register 读取同一配置仓储的默认 URL，决定默认库业务子 Provider；具名连接不冒充默认库，未配置默认库时宿主与基础示例仍运行。具体官方 URL 的驱动必须已编入，非法配置继续明确拒绝；这不代表示例已支持 SQLite 方言或完整 Laravel 懒连接。
 
 模块的附件维护命令由普通 Provider 贡献到同一命令目录。公开 `App::commands()` 快照持有命令实例；重新引导生成新的目录与实例，先前取得的快照不会改指向新实例。实际维护执行仍通过 `App::run_command` 进入当前应用的命令 scope，不把快照本身当作执行授权或后台 worker。
+
+## 独立数据库连接
+
+配置 `database.instances.reporting` 后，`GET /api/example/reporting-connection` 从同一 Container 注入 `Databases`，探测固定 reporting 连接；响应只包含 backend 与 reachable。此路由可使用内置 SQLite，不依赖默认库业务，也不允许请求指定连接名或暴露 URL。回归在 `tests/sqlite_connection_flows.rs`；完整 SQLite 认证、迁移和队列仍待后续。

@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 新增 `db-sqlite` 内置连接与标准 Provider 配置、每物理连接 PRAGMA 和自有 SQLite 测试库；唯一模块支持独立 reporting 探测。SQLite 完整框架迁移及现有业务 SQL 适配尚未交付。MySQL 会话 UTC 初始化改为逐物理连接执行。
+
 - 根应用与新应用默认通过集中模块清单注册启用，不再必需状态 JSON；文件发现与持久启停保留为显式选择。只读状态修改在事件前拒绝，空目录全选同样拒绝。宿主 API 前缀可编辑且与错误范围同源，模块响应策略可组合保留；路由参数超限转安全启动错误。首批正式指南采用固定 Laravel 导航。
 
 - Mail/SMS日志驱动允许production或缺省环境启动，默认应用不再强制要求真实供应商；日志仍不记录正文/凭据。服务初始化错误提供有界、安全的配置键和原因诊断；其service字段改为封装身份，手动包装用Error::service_initialization::<T>，未知driver/SMTP feature与配置错误保持明确失败。

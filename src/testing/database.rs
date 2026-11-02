@@ -1,4 +1,4 @@
-//! 为 PostgreSQL 和 MySQL 的每个测试创建独立数据库。
+//! 为 PostgreSQL、MySQL 和 SQLite 的每个测试创建独立数据库。
 
 use std::{
     fmt,
@@ -26,14 +26,103 @@ pub struct TestDatabase {
     database_url: String,
     connection: Option<DatabaseConnection>,
     cleaned: bool,
+    sqlite_runtime: Option<Box<crate::core::ProviderRuntime>>,
+    sqlite_directory: Option<std::path::PathBuf>,
+    sqlite: bool,
 }
 
 impl TestDatabase {
+    /// 创建由本 guard 持有的唯一共享内存 SQLite 数据库，并执行迁移。
+    ///
+    /// 被测应用可独立连接 [`Self::url`]；guard 关闭前共享内存库一直存在。
+    pub async fn sqlite_memory<M>() -> Result<Self>
+    where
+        M: MigratorTrait + Send + Sync + 'static,
+    {
+        Self::create_sqlite::<M>(false, DatabaseTableNames::default()).await
+    }
+
+    /// 创建自有临时目录中的 SQLite 文件，并在关闭连接后回收文件及 WAL/SHM。
+    ///
+    /// 此方法不接收已有路径，因此不会删除调用方的数据库。
+    pub async fn sqlite_file<M>() -> Result<Self>
+    where
+        M: MigratorTrait + Send + Sync + 'static,
+    {
+        Self::create_sqlite::<M>(true, DatabaseTableNames::default()).await
+    }
+
+    async fn create_sqlite<M>(file: bool, table_names: DatabaseTableNames) -> Result<Self>
+    where
+        M: MigratorTrait + Send + Sync + 'static,
+    {
+        if !cfg!(feature = "db-sqlite") {
+            return Err(Error::custom(
+                "database_feature_disabled",
+                "enable the testing db-sqlite feature",
+            ));
+        }
+        let database_name = unique_database_name();
+        let mut directory = None;
+        let database_url = if file {
+            let path = std::env::temp_dir().join(&database_name);
+            let database = path.join("database.sqlite");
+            let uri = Url::from_file_path(&database).map_err(|()| {
+                Error::custom("test_database_path_invalid", "临时数据库路径无法转换为 URL")
+            })?;
+            std::fs::create_dir(&path).map_err(Error::internal)?;
+            if let Err(error) = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&database)
+            {
+                let _ = std::fs::remove_dir(&path);
+                return Err(Error::internal(error));
+            }
+
+            // url crate 的文件编码保留空格等路径字符，连接器负责解析 sqlite scheme。
+            let sqlite_url = uri.as_str().replacen("file:", "sqlite:", 1);
+            directory = Some(path);
+            sqlite_url
+        } else {
+            format!("sqlite://file:{database_name}?mode=memory&cache=shared")
+        };
+        let mut guard = Self {
+            admin_url: String::new(),
+            database_name,
+            database_url,
+            connection: None,
+            cleaned: false,
+            sqlite_runtime: None,
+            sqlite_directory: directory,
+            sqlite: true,
+        };
+        let setup = async {
+            let mut builder = crate::core::ProviderBuilder::new();
+            builder.provider(crate::db::DatabaseServiceProvider);
+            let runtime = builder.start(figment::Figment::from(figment::providers::Serialized::defaults(
+                serde_json::json!({"database": {"url": guard.database_url, "max_connections": 2, "min_connections": 0}})
+            ))).await?;
+            guard.sqlite_runtime = Some(Box::new(runtime));
+            let runtime = guard.sqlite_runtime.as_ref().ok_or_else(|| Error::custom("test_database_runtime_missing", "测试数据库缺少受管生命周期"))?;
+            let db = runtime.container().resolve::<crate::db::Db>().await?;
+            let connection = db.connection()?;
+            guard.connection = Some(connection.clone());
+            table_names.scope(M::up(&connection, None)).await.map_err(Error::internal)
+        }.await;
+        if let Err(error) = setup {
+            let _ = guard.close().await;
+            return Err(error);
+        }
+        Ok(guard)
+    }
+
     /// 创建唯一命名的数据库，并应用应用程序的迁移。
     ///
     /// URL 必须连接到已存在的数据库，且当前用户必须有权创建和删除数据库。
     /// PostgreSQL 使用临时迁移模板；MySQL 则在隔离数据库中重放迁移。
     /// 仅清理本次 CREATE 成功取得所有权的库；同名创建失败不会删除已有库。
+    /// SQLite 内存 URL 会转换为新的自有共享内存库；文件 URL 必须改用 [`Self::sqlite_file`]。
     pub async fn create<M>(admin_url: &str) -> Result<Self>
     where
         M: MigratorTrait + Send + Sync + 'static,
@@ -61,20 +150,25 @@ impl TestDatabase {
     where
         M: MigratorTrait + Send + Sync + 'static,
     {
-        let parsed = Url::parse(admin_url).map_err(Error::internal)?;
         let backend = DatabaseBackend::from_url(admin_url)?;
-        if !backend.is_enabled() {
-            return Err(Error::custom(
-                "database_feature_disabled",
-                format!("enable the testing {} feature", backend.feature()),
-            ));
+        if backend == DatabaseBackend::Sqlite {
+            if sqlite_memory_url(admin_url) {
+                return Box::pin(Self::create_sqlite::<M>(false, table_names)).await;
+            }
+            return Err(owned_file_source_error());
         }
+        let parsed = Url::parse(admin_url).map_err(Error::internal)?;
+        require_backend_feature(backend)?;
         let database_url = url_for_database(&parsed, &database_name);
         let admin = connect(admin_url).await?;
         // 只有 CREATE 返回成功才取得所有权；同名冲突不能进入失败清理。
+        #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         let mut created = false;
+        #[cfg(not(any(feature = "db-postgres", feature = "db-mysql")))]
+        let created = false;
 
-        let setup = match backend {
+        let setup: Result<()> = match backend {
+            DatabaseBackend::Sqlite => Err(owned_file_source_error()),
             DatabaseBackend::PostgreSql => {
                 #[cfg(feature = "db-postgres")]
                 {
@@ -150,6 +244,9 @@ impl TestDatabase {
             database_url,
             connection: Some(connection),
             cleaned: false,
+            sqlite_runtime: None,
+            sqlite_directory: None,
+            sqlite: false,
         })
     }
 
@@ -167,6 +264,25 @@ impl TestDatabase {
 
     /// 关闭连接池并删除隔离数据库。
     pub async fn close(mut self) -> Result<()> {
+        if self.sqlite {
+            let shutdown = if let Some(runtime) = self.sqlite_runtime.take() {
+                runtime
+                    .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+            } else {
+                Ok(())
+            };
+            let closed = if let Some(connection) = self.connection.take() {
+                connection.close().await.map_err(Error::internal)
+            } else {
+                Ok(())
+            };
+            shutdown?;
+            closed?;
+            cleanup_sqlite_directory(self.sqlite_directory.as_deref())?;
+            self.cleaned = true;
+            return Ok(());
+        }
         let connection = self.connection.take().ok_or_else(|| {
             Error::custom("test_database_closed", "test database is already closed")
         })?;
@@ -203,6 +319,28 @@ impl Drop for TestDatabase {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
             return;
         };
+        if self.sqlite {
+            let connection = self.connection.take();
+            let provider = self.sqlite_runtime.take();
+            let directory = self.sqlite_directory.take();
+            runtime.spawn(async move {
+                if let Some(provider) = provider
+                    && provider
+                        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                        .await
+                        .is_err()
+                {
+                    return;
+                }
+                if let Some(connection) = connection
+                    && connection.close().await.is_err()
+                {
+                    return;
+                }
+                let _ = cleanup_sqlite_directory(directory.as_deref());
+            });
+            return;
+        }
         let connection = self.connection.take();
         let admin_url = self.admin_url.clone();
         let database_name = self.database_name.clone();
@@ -216,6 +354,58 @@ impl Drop for TestDatabase {
             }
         });
     }
+}
+
+fn owned_file_source_error() -> Error {
+    Error::custom(
+        "test_database_owned_constructor_required",
+        "SQLite 文件测试必须使用 TestDatabase::sqlite_file，不能接管已有数据库",
+    )
+}
+
+fn require_backend_feature(backend: DatabaseBackend) -> Result<()> {
+    if backend.is_enabled() {
+        Ok(())
+    } else {
+        Err(Error::custom(
+            "database_feature_disabled",
+            format!("enable the testing {} feature", backend.feature()),
+        ))
+    }
+}
+
+fn sqlite_memory_url(url: &str) -> bool {
+    url.strip_prefix("sqlite:")
+        .map(|path| {
+            path.trim_start_matches("//")
+                .split('?')
+                .next()
+                .unwrap_or_default()
+        })
+        .is_some_and(|path| path == ":memory:" || path == "file::memory:")
+        || url.split_once('?').is_some_and(|(_, query)| {
+            url::form_urlencoded::parse(query.as_bytes())
+                .any(|(key, value)| key == "mode" && value == "memory")
+        })
+}
+
+fn cleanup_sqlite_directory(directory: Option<&std::path::Path>) -> Result<()> {
+    let Some(directory) = directory else {
+        return Ok(());
+    };
+    for file in [
+        "database.sqlite",
+        "database.sqlite-wal",
+        "database.sqlite-shm",
+        "database.sqlite-journal",
+    ] {
+        match std::fs::remove_file(directory.join(file)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(Error::internal(error)),
+        }
+    }
+    std::fs::remove_dir(directory).map_err(Error::internal)
 }
 
 #[cfg(feature = "db-postgres")]
@@ -290,12 +480,14 @@ async fn connect(url: &str) -> Result<DatabaseConnection> {
     #[cfg(feature = "db-mysql")]
     if DatabaseBackend::from_url(url)? == DatabaseBackend::MySql {
         options.map_sqlx_mysql_opts(|mysql| mysql.ssl_mode(sqlx::mysql::MySqlSslMode::Required));
-        options.after_connect(|connection| {
-            Box::pin(async move {
-                connection
-                    .execute_unprepared("SET time_zone = '+00:00'")
-                    .await?;
-                Ok(())
+        options.map_sqlx_mysql_pool_opts(|pool| {
+            pool.after_connect(|connection, _| {
+                Box::pin(async move {
+                    sqlx::query("SET time_zone = '+00:00'")
+                        .execute(connection)
+                        .await?;
+                    Ok(())
+                })
             })
         });
     }
@@ -533,3 +725,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "database/sqlite_tests.rs"]
+mod sqlite_tests;

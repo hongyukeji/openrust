@@ -170,3 +170,7 @@ C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用�
 ## 共享命令所有权前置
 
 693输入及12门禁、MySQL模块维护1、新生成精简9/MFA3及实际help均有[限定验收](testing.md#共享命令所有权前置限定验收)。动态名称覆盖、旧快照、回调/析构重入、原命令身份及scope断言保留。用户暂停的driver130与未捕获Cargo退出分别记录；恢复只续未完步骤。完整deferred/Console继续开放，模块Provider默认入口是下一独立已授权簇，随后SQLite。
+
+## SQLite 连接基础
+
+标准连接、配置、逐物理PRAGMA、owned测试库显式关闭与唯一模块探测已通过[限定验收](testing.md#sqlite-连接基础限定验收)。主10门禁/deny、单driver Clippy/doc、生成11、真实MySQL3与根进程HTTP分别绑定实际输入，末尾feature补丁按静态等价与受影响重验复用。最低3.26、完整配置边界、取消清理、迁移/CLI/业务SQL仍未完成；实际3.51.3不关闭全后端范围。

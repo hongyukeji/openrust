@@ -1,4 +1,4 @@
-//! PostgreSQL/MySQL 连接与连接池配置。
+//! 关系数据库连接、连接池及 SQLite 物理连接配置。
 
 use std::fmt;
 
@@ -10,6 +10,16 @@ use serde::{Deserialize, Serialize};
 pub struct DatabaseConfig {
     /// 数据库连接 URL；可由 `DB_*` 分项设置生成，也可通过配置文件或 `APP_DATABASE_URL` 指定。
     pub url: Option<String>,
+    /// SQLite 每条物理连接的外键约束，默认开启。
+    pub foreign_key_constraints: bool,
+    /// SQLite 显式 `busy_timeout`（毫秒）；`None` 保留 PDO 默认或先行 PRAGMA 设置。
+    pub busy_timeout: Option<u32>,
+    /// SQLite 显式 `journal_mode`；`None` 不强制切换文件日志模式。
+    pub journal_mode: Option<String>,
+    /// SQLite 显式 synchronous；None 保留原生设置。
+    pub synchronous: Option<String>,
+    /// SQLite 按声明顺序执行的其他标量 PRAGMA；专用配置在其后覆盖。
+    pub pragmas: serde_json::Map<String, serde_json::Value>,
     /// 可选的只读副本 URL。每个副本使用与主库相同的连接池限制。
     pub read_replicas: Vec<String>,
     /// 连接池允许打开的最大连接数。
@@ -43,6 +53,16 @@ impl DatabaseConfig {
 pub struct DatabaseInstanceConfig {
     /// 此实例的数据库连接 URL。
     pub url: Option<String>,
+    /// SQLite 每条物理连接的外键约束，默认开启。
+    pub foreign_key_constraints: bool,
+    /// SQLite 显式 `busy_timeout`（毫秒）；`None` 保留 PDO 默认或先行 PRAGMA 设置。
+    pub busy_timeout: Option<u32>,
+    /// SQLite 显式 `journal_mode`；`None` 不强制切换文件日志模式。
+    pub journal_mode: Option<String>,
+    /// SQLite 显式 synchronous；None 保留原生设置。
+    pub synchronous: Option<String>,
+    /// SQLite 按声明顺序执行的其他标量 PRAGMA；专用配置在其后覆盖。
+    pub pragmas: serde_json::Map<String, serde_json::Value>,
     /// 此实例可选的只读副本 URL。
     pub read_replicas: Vec<String>,
     /// 此实例连接池的最大连接数。
@@ -63,6 +83,11 @@ impl Default for DatabaseInstanceConfig {
     fn default() -> Self {
         Self {
             url: None,
+            foreign_key_constraints: true,
+            busy_timeout: None,
+            journal_mode: None,
+            synchronous: None,
+            pragmas: serde_json::Map::new(),
             read_replicas: Vec::new(),
             max_connections: 10,
             min_connections: 1,
@@ -82,13 +107,16 @@ impl std::fmt::Debug for DatabaseInstanceConfig {
                 "read_replicas",
                 &format_args!("{} configured", self.read_replicas.len()),
             )
+            .field("foreign_key_constraints", &self.foreign_key_constraints)
+            .field("busy_timeout", &self.busy_timeout)
+            .field("pragmas_count", &self.pragmas.len())
             .field("max_connections", &self.max_connections)
             .field("min_connections", &self.min_connections)
             .field("connect_timeout_secs", &self.connect_timeout_secs)
             .field("acquire_timeout_secs", &self.acquire_timeout_secs)
             .field("table_prefix", &self.table_prefix)
             .field("table_names", &self.table_names)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -96,6 +124,11 @@ impl From<&DatabaseConfig> for DatabaseInstanceConfig {
     fn from(config: &DatabaseConfig) -> Self {
         Self {
             url: config.url.clone(),
+            foreign_key_constraints: config.foreign_key_constraints,
+            busy_timeout: config.busy_timeout,
+            journal_mode: config.journal_mode.clone(),
+            synchronous: config.synchronous.clone(),
+            pragmas: config.pragmas.clone(),
             read_replicas: config.read_replicas.clone(),
             max_connections: config.max_connections,
             min_connections: config.min_connections,
@@ -111,6 +144,11 @@ impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
             url: None,
+            foreign_key_constraints: true,
+            busy_timeout: None,
+            journal_mode: None,
+            synchronous: None,
+            pragmas: serde_json::Map::new(),
             read_replicas: Vec::new(),
             max_connections: 10,
             min_connections: 1,
@@ -131,6 +169,9 @@ impl fmt::Debug for DatabaseConfig {
                 "read_replicas",
                 &format_args!("{} configured", self.read_replicas.len()),
             )
+            .field("foreign_key_constraints", &self.foreign_key_constraints)
+            .field("busy_timeout", &self.busy_timeout)
+            .field("pragmas_count", &self.pragmas.len())
             .field("max_connections", &self.max_connections)
             .field("min_connections", &self.min_connections)
             .field("connect_timeout_secs", &self.connect_timeout_secs)
@@ -138,7 +179,7 @@ impl fmt::Debug for DatabaseConfig {
             .field("table_prefix", &self.table_prefix)
             .field("table_names", &self.table_names)
             .field("instances", &self.instances)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

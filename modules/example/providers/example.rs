@@ -334,6 +334,12 @@ impl ServiceProvider for ExampleServiceProvider {
                     request.path() == "/api/example" || request.path().starts_with("/api/example/")
                 });
             })?;
+            if app
+                .config_repository()
+                .has("database.instances.reporting")?
+            {
+                app.routes(crate::modules::example::routes::reporting_connection)?;
+            }
             register_example_middleware(app)?;
             let directory = if self.module_repository {
                 app.resolve::<openrust::core::ModuleRepository>()
