@@ -581,14 +581,18 @@ mod sqlite_tests {
             policy.grant_permission(role, "articles.read").await?;
             policy.grant_permission(role, "articles.read").await?;
             let user = CurrentUser {
-                id: 42,
+                id: 42.into(),
+                guard: None,
+                provider: None,
                 source: AuthSource::PersonalAccessToken,
                 token_abilities: Some(vec!["articles.read".into()].into()),
             };
             assert!(policy.allows(&user, "articles.read").await?);
             assert!(!policy.allows(&user, "articles").await?);
             let unscoped = CurrentUser {
-                id: 42,
+                id: 42.into(),
+                guard: None,
+                provider: None,
                 source: AuthSource::PersonalAccessToken,
                 token_abilities: Some(Vec::<String>::new().into()),
             };

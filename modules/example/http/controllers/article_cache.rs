@@ -31,7 +31,7 @@ pub(crate) async fn show(
     let authorized = article::Entity::find_by_id(id)
         .select_only()
         .column(article::Column::Id)
-        .filter(article::Column::OwnerId.eq(user.id()))
+        .filter(article::Column::OwnerId.eq(user.integer_id()?))
         .into_tuple::<(i64,)>()
         .one(&db.primary_connection()?)
         .await
@@ -40,12 +40,12 @@ pub(crate) async fn show(
         return Err(Error::NotFound("article not found".into()));
     }
     let store = cache.store(ARTICLE_STORE).await?;
-    let key = cache_key(user.id(), id);
+    let key = cache_key(user.integer_id()?, id);
     let (entry, cache_hit) = if let Some(entry) = store.get::<ArticleIndexEntry>(&key).await? {
         (entry, true)
     } else {
         let model = article::Entity::find_by_id(id)
-            .filter(article::Column::OwnerId.eq(user.id()))
+            .filter(article::Column::OwnerId.eq(user.integer_id()?))
             .one(&db.primary_connection()?)
             .await
             .map_err(Error::internal)?
@@ -68,7 +68,7 @@ pub(crate) async fn show_swr(
     Inject(cache): Inject<Cache>,
     Path(id): Path<i64>,
 ) -> Result<Json<ArticleSWRTitle>> {
-    let owner_id = user.id();
+    let owner_id = user.integer_id()?;
     let authorized = article::Entity::find_by_id(id)
         .select_only()
         .column(article::Column::Id)

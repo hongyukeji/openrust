@@ -18,7 +18,7 @@ pub(crate) async fn send(
     locale: RequestLocale,
     Json(_input): Json<WelcomeInput>,
 ) -> Result<Json<BTreeMap<&'static str, &'static str>>> {
-    let email = verified_email(&db, &db.primary_connection()?, user.id()).await?;
+    let email = verified_email(&db, &db.primary_connection()?, user.integer_id()?).await?;
     welcome.send_email(email, &i18n, locale.locale()).await?;
     Ok(Json(BTreeMap::from([("status", "accepted")])))
 }

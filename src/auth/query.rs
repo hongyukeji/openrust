@@ -455,7 +455,9 @@ mod tests {
 
     fn user() -> CurrentUser {
         CurrentUser {
-            id: 7,
+            id: 7.into(),
+            guard: None,
+            provider: None,
             source: crate::auth::AuthSource::Jwt,
             token_abilities: None,
         }
@@ -464,7 +466,9 @@ mod tests {
     #[test]
     fn nested_or_user_filters_remain_inside_authorized_and_scope() {
         let rule = QueryRule::<record::Entity>::new(|user| {
-            Ok(QueryScope::new(record::Column::OwnerId.eq(user.id())))
+            Ok(QueryScope::new(
+                record::Column::OwnerId.eq(user.integer_id()?),
+            ))
         });
         let user_filter = Condition::any()
             .add(record::Column::Id.eq(10))

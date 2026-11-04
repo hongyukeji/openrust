@@ -154,6 +154,8 @@ struct Inner {
     #[cfg(test)]
     sync_waiters: AtomicUsize,
     max_bytes: usize,
+    #[cfg(feature = "auth")]
+    auth_scope: std::sync::OnceLock<std::sync::Weak<crate::core::container::Scope>>,
     error_bag_codecs: Arc<super::ErrorBagCodecs>,
 }
 
@@ -295,6 +297,8 @@ impl Session {
                 sync_waiters: AtomicUsize::new(0),
                 max_bytes,
                 error_bag_codecs,
+                #[cfg(feature = "auth")]
+                auth_scope: std::sync::OnceLock::new(),
             }),
         })
     }
@@ -533,6 +537,39 @@ impl Session {
     }
 
     #[cfg(feature = "auth")]
+    pub(crate) fn bind_auth_scope(&self, scope: &Arc<crate::core::container::Scope>) -> Result<()> {
+        self.inner
+            .auth_scope
+            .set(Arc::downgrade(scope))
+            .map_err(|_| extension_error("session_auth_scope_bound", "Session认证请求scope已绑定"))
+    }
+
+    #[cfg(feature = "auth")]
+    async fn project_guard_identity(&self) -> Result<()> {
+        if self.lock()?.driver.semantics != SessionStoreSemantics::NativeDatabase {
+            return Ok(());
+        }
+        let Some(scope) = self.inner.auth_scope.get() else {
+            return Ok(());
+        };
+        let scope = scope.upgrade().ok_or_else(|| {
+            extension_error("session_auth_scope_closed", "Session认证请求scope已释放")
+        })?;
+        if let Some(id) = crate::auth::session_user_id(&scope).await? {
+            let driver = self.lock()?.driver.clone();
+            if driver.semantics == SessionStoreSemantics::NativeDatabase
+                && !driver.ready()?.set_database_user_id(id)?
+            {
+                return Err(extension_error(
+                    "session_auth_metadata_unsupported",
+                    "数据库Session驱动未实现Guard身份元数据投影",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "auth")]
     pub(crate) fn require_authenticated_storage(&self) -> Result<()> {
         let (driver, name) = {
             let state = self.lock()?;
@@ -540,6 +577,28 @@ impl Session {
             (state.driver.clone(), state.name.clone())
         };
         driver.require_authenticated(&name)
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) fn mark_guard_authentication(&self, key: &str, authenticated: bool) -> Result<()> {
+        // 与属性变更共用同一短锁，多个命名 Guard 不覆盖彼此的保存保护。
+        self.mutate(|attributes| {
+            let mut keys = match attributes.get("_openrust_guard_bindings")? {
+                None => Vec::new(),
+                Some(Value::Array(values)) if values.iter().all(Value::is_string) => values,
+                Some(_) => return Err(invalid_record()),
+            };
+            keys.retain(|value| value.as_str() != Some(key));
+            if authenticated {
+                keys.push(Value::String(key.to_owned()));
+            }
+            if keys.is_empty() {
+                attributes.forget(&["_openrust_guard_bindings"])
+            } else {
+                attributes.put("_openrust_guard_bindings", Value::Array(keys))
+            }
+        })?;
+        Ok(())
     }
 
     /// 当前配置驱动是否需要请求上下文。
@@ -1261,6 +1320,9 @@ impl Session {
 
     /// 老化 flash 后保存；显式目标碰撞不覆盖、不换成其他随机 ID。
     pub async fn save(&self) -> Result<()> {
+        // Guard 回调可能读取 Session 或通过 recaller 轮换 ID，不能持有 I/O 门再解析。
+        #[cfg(feature = "auth")]
+        self.project_guard_identity().await?;
         let _operation = self.operation().await?;
         let PreparedSave {
             mut record,
@@ -1272,6 +1334,8 @@ impl Session {
         #[cfg(feature = "auth")]
         if crate::support::data::get(&record.data, crate::auth::AUTH_USER_ID_KEY)
             .is_some_and(|value| !value.is_null())
+            || crate::support::data::get(&record.data, "_openrust_guard_bindings")
+                .is_some_and(|value| value.as_array().is_none_or(|keys| !keys.is_empty()))
         {
             let name = self.lock()?.name.clone();
             driver.require_authenticated(&name)?;

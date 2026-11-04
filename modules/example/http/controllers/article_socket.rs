@@ -20,10 +20,10 @@ pub(crate) async fn connect(
 ) -> Result<Response> {
     let (token_user, expires_at) =
         tokens.verify_access_token_with_expiry(bearer_token(&headers)?)?;
-    if token_user != user.id() {
+    if token_user != user.integer_id()? {
         return Err(Error::Unauthorized);
     }
-    require_owned(&db, user.id(), id).await?;
+    require_owned(&db, user.integer_id()?, id).await?;
     realtime.validate_origin(&headers)?;
     Ok(realtime
         .connect(&user, format!("example.article.{id}"), expires_at)
@@ -42,6 +42,7 @@ pub(crate) async fn browser_connect(
     openrust::http::axum::extract::OriginalUri(uri): openrust::http::axum::extract::OriginalUri,
     Inject(db): Inject<Db>,
     Inject(sessions): Inject<openrust::auth::SessionStoreHandle>,
+    Inject(auth): Inject<openrust::auth::AuthManager>,
     Inject(realtime): Inject<Realtime>,
     Path(id): Path<i64>,
     upgrade: WebSocketUpgrade,
@@ -58,8 +59,11 @@ pub(crate) async fn browser_connect(
     {
         return Err(Error::Unauthorized);
     }
-    require_owned(&db, user.id(), id).await?;
-    let expires_at = sessions.authorized_until(&session, user.id()).await?;
+    require_owned(&db, user.integer_id()?, id).await?;
+    let guard = auth.guard(user.guard_name()).await?;
+    let expires_at = sessions
+        .authorized_until_guard(&session, guard.as_stateful().ok_or(Error::Unauthorized)?)
+        .await?;
     Ok(realtime
         .connect(&user, format!("example.article.{id}"), expires_at)
         .await?

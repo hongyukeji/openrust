@@ -741,6 +741,10 @@ fn populate_project_with_mfa(
             include_str!("../templates/config/auth.rs").replace("{{name}}", name),
         ),
         (
+            "config/hashing.rs",
+            include_str!("../templates/config/hashing.rs").to_owned(),
+        ),
+        (
             "config/cache.rs",
             include_str!("../templates/config/cache.rs").replace("{{name}}", name),
         ),
@@ -829,7 +833,8 @@ fn populate_project_with_mfa(
             "app/http/controllers/mod.rs",
             include_str!("../templates/app/http/controllers/mod.rs").to_owned(),
         ),
-        ("app/models/mod.rs", "//! 应用模型。\n".to_owned()),
+        ("app/models/mod.rs", if auth { "//! 应用模型。\npub mod user;\n".to_owned() } else { "//! 应用模型。\n".to_owned() }),
+        ("app/models/user.rs", include_str!("../templates/app/models/user.rs").to_owned()),
         ("app/models/_entities/.gitkeep", String::new()),
         (
             "app/providers/mod.rs",
@@ -837,7 +842,28 @@ fn populate_project_with_mfa(
         ),
         (
             "app/providers/app.rs",
-            include_str!("../templates/app/providers/app.rs").to_owned(),
+            include_str!("../templates/app/providers/app.rs").replace("{{auth_register}}", if auth { r#"    fn register<'a>(&'a self, app: &'a mut openrust::core::RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if !app.is_bound::<openrust::auth::AuthDrivers>() { return Ok(()); }
+            let drivers = app.resolve::<openrust::auth::AuthDrivers>().await?;
+            drivers.provider("app-users", |resolver, config| Box::pin(async move {
+                let table = config.options.get("table").and_then(serde_json::Value::as_str).ok_or_else(|| openrust::Error::custom_with_status(openrust::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR, "app_user_table_required", "应用账户Provider需要table"))?;
+                let db = resolver.resolve::<openrust::db::Db>().await?;
+                let passwords = resolver.resolve::<openrust::auth::Passwords>().await?;
+                let provider = openrust::auth::DatabaseUserProvider::new((*db).clone(), (*passwords).clone(), table)?
+                    .with_user_factory(|attributes| {
+                        if attributes.get("disabled_at").is_some_and(|value| !value.is_null()) {
+                            return Err(openrust::Error::Unauthorized);
+                        }
+                        Ok(std::sync::Arc::new(crate::app::models::user::User::new(attributes)))
+                    });
+                Ok(std::sync::Arc::new(provider) as std::sync::Arc<dyn openrust::auth::UserProvider>)
+            }))?;
+            Ok(())
+        })
+    }
+
+"# } else { "" }),
         ),
         ("app/services/mod.rs", "//! 应用服务。\n".to_owned()),
         ("app/policies/mod.rs", "//! 授权策略。\n".to_owned()),
@@ -1380,7 +1406,7 @@ async fn auth_mfa_enrollment(
 ) -> openrust::Result<openrust::http::axum::response::Response> {
     let enrollment = flows
         .begin_totp_enrollment(
-            user.id(),
+            user.integer_id()?,
             &input.email,
             &input.password,
             env!("CARGO_PKG_NAME"),
@@ -1400,7 +1426,7 @@ async fn auth_mfa_enrollment_confirm(
     Json(input): Json<MfaCodeInput>,
 ) -> openrust::Result<openrust::http::axum::response::Response> {
     let codes = flows
-        .confirm_totp_enrollment(user.id(), &input.code, &client_ip.ip().to_string())
+        .confirm_totp_enrollment(user.integer_id()?, &input.code, &client_ip.ip().to_string())
         .await?;
     Ok(auth_no_store(Json(MfaRecoveryCodesResponse {
         recovery_codes: codes.expose().to_vec(),
@@ -1415,7 +1441,7 @@ async fn auth_mfa_disable(
 ) -> openrust::Result<Json<std::collections::BTreeMap<&'static str, &'static str>>> {
     flows
         .disable_mfa(
-            user.id(),
+            user.integer_id()?,
             &input.email,
             &input.password,
             &input.code,
@@ -1435,7 +1461,7 @@ async fn auth_mfa_recovery_codes(
 ) -> openrust::Result<openrust::http::axum::response::Response> {
     let codes = flows
         .regenerate_mfa_recovery_codes(
-            user.id(),
+            user.integer_id()?,
             &input.email,
             &input.password,
             &input.code,
@@ -3536,6 +3562,9 @@ mod tests {
             "bootstrap/providers.rs",
             "app/mod.rs",
             "app/http/controllers/home.rs",
+            "app/providers/app.rs",
+            "app/models/mod.rs",
+            "app/models/user.rs",
             "app/providers/mod.rs",
             "modules/mod.rs",
             "routes/mod.rs",
@@ -3549,6 +3578,7 @@ mod tests {
             "config/i18n.rs",
             "config/api.rs",
             "config/auth.rs",
+            "config/hashing.rs",
             "config/database.rs",
             "config/log.rs",
             "config/mail.rs",
@@ -3621,6 +3651,8 @@ mod tests {
     fn assert_generated_configuration(project: &Path) {
         let config_manifest =
             fs::read_to_string(project.join("config/mod.rs")).expect("read configuration manifest");
+        assert!(config_manifest.contains("pub mod hashing;"));
+        assert!(config_manifest.contains(".section(\"hashing\""));
         let server = config_manifest
             .find(".section(\"server\"")
             .expect("server declaration");
@@ -4126,6 +4158,20 @@ mod tests {
             let config = fs::read_to_string(project.join("config/auth.rs"))
                 .expect("read generated auth config");
             assert!(config.contains("jwt: Jwt"));
+            assert!(config.contains("guards: serde_json::Value"));
+            assert!(config.contains("app-users"));
+            let model =
+                fs::read_to_string(project.join("app/models/user.rs")).expect("read auth model");
+            assert!(model.contains("password_hash"));
+            let models = fs::read_to_string(project.join("app/models/mod.rs"))
+                .expect("read auth model exports");
+            assert!(models.contains("pub mod user;"));
+            let provider = fs::read_to_string(project.join("app/providers/app.rs"))
+                .expect("read auth Provider");
+            assert!(!provider.contains("{{auth_register}}"));
+            assert!(provider.contains("drivers.provider(\"app-users\""));
+            assert!(provider.contains("with_user_factory"));
+            assert!(provider.contains("disabled_at"));
             assert!(config.contains("BTreeMap::new()"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated environment example");

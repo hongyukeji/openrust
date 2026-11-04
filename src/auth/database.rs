@@ -206,7 +206,9 @@ impl Authenticator for DatabaseAuthenticator {
             let connection = db.connection()?;
             let backend = db.backend()?;
             match credential.source() {
-                AuthSource::Jwt => Err(Error::internal(UnexpectedJwtCredential)),
+                AuthSource::Jwt | AuthSource::Guard => {
+                    Err(Error::internal(UnexpectedJwtCredential))
+                }
                 AuthSource::Session => {
                     self.authenticate_session(db, &connection, backend, &credential)
                         .await

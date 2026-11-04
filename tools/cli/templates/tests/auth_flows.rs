@@ -45,6 +45,18 @@ fn test_configuration() -> openrust::config::FrameworkConfig {
     config
 }
 
+// 测试覆盖与真实启动共用代码配置；不能遗漏应用声明的具名账户 Provider。
+fn application_test_source(overrides: Figment) -> TestResult<openrust::config::ConfigSources> {
+    let entries = overrides.extract::<std::collections::BTreeMap<String, serde_json::Value>>()?;
+    Ok(openrust::config::ConfigLoader::application_code_sources_with_overrides(
+        ".",
+        GeneratedApplication::config_namespace(),
+        Some("testing"),
+        &GeneratedApplication::config(),
+        entries,
+    )?)
+}
+
 #[derive(Clone, Default)]
 struct CaptureMailer {
     messages: Arc<Mutex<Vec<String>>>,
@@ -142,13 +154,14 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         test_configuration(),
     ))
     .merge(Toml::string(&config));
-    let application_config = figment.extract::<bootstrap::Configuration>()?;
+    let source = application_test_source(figment)?;
+    let application_config = source.figment().extract::<bootstrap::Configuration>()?;
     let mut builder = openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(
         &application_config,
     );
     let captured_mail = CaptureMailer::default();
     builder.provider(CaptureMailerProvider(captured_mail.clone()));
-    let runtime = builder.start(figment).await?;
+    let runtime = builder.start(source).await?;
     let app = openrust::core::App::from_provider_runtime(runtime)?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
@@ -525,9 +538,10 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
         test_configuration(),
     ))
     .merge(Toml::string(&config));
+    let source = application_test_source(source)?;
     let mail = CaptureMailer::default();
     let captured = mail.clone();
-    let input_source = source.clone();
+    let input_source = source.figment().clone();
     let mut builder = openrust::testing::TestApp::<GeneratedApplication>::builder(source);
     builder.configure_after_register(move |bindings| {
         let captured = captured.clone();
@@ -554,6 +568,9 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
             .body(Body::from(serde_json::to_vec(&payload)?))?;
         app.request(request).await?.assert_status(StatusCode::OK)?;
         assert_eq!(mail.latest_code()?.len(), 6);
+        assert_generated_named_user_provider(
+            app.app()?, "testapp@example.test", "initial-password",
+        ).await?;
         Ok(())
     })
     .await;
@@ -566,6 +583,113 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     result?;
     app_result?;
     database_result??;
+    Ok(())
+}
+
+/// 解析生成应用实际注册的工厂，避免JWT成功掩盖默认账户Provider失联。
+async fn assert_generated_named_user_provider(
+    app: &openrust::App,
+    email: &str,
+    plain: &str,
+) -> TestResult {
+    use openrust::auth::{AuthManager, Credentials};
+    use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+
+    let scope = app.state().container().scope()?;
+    let manager = scope.resolve::<AuthManager>().await?;
+    assert!(Arc::ptr_eq(
+        &manager,
+        &scope.resolve::<AuthManager>().await?
+    ));
+    assert_eq!(manager.default_driver()?, "web");
+    // Session Guard需要HTTP请求槽；这里仅解析同scope生产注册的账户Provider。
+    let provider = manager
+        .create_user_provider(Some("users"))
+        .await?
+        .ok_or("生成应用未注册默认users Provider")?;
+    // 配置故障沿生产工厂返回500；未知Provider名的None语义仍独立保留。
+    let repository = app.config_repository();
+    let providers = repository.section::<serde_json::Value>("auth.providers")?;
+    repository.set("auth.providers.users", serde_json::json!({"driver":"app-users"}))?;
+    let misconfigured = manager.create_user_provider(Some("users")).await;
+    repository.set("auth.providers", providers)?;
+    let Err(error) = misconfigured else {
+        return Err("缺失table的应用Provider意外成功".into());
+    };
+    assert_eq!(error.code(), "app_user_table_required");
+    assert_eq!(error.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let credentials = Credentials::new(serde_json::Map::from_iter([
+        ("email".into(), serde_json::json!(email)),
+        ("password".into(), serde_json::json!(plain)),
+    ]));
+    let user = provider
+        .retrieve_by_credentials(&credentials)
+        .await?
+        .ok_or("生成应用Provider无法检索真实注册账户")?;
+    let identifier = user.auth_identifier()?;
+    let numeric_id = identifier
+        .as_i64()
+        .filter(|id| *id > 0)
+        .ok_or("真实数据库数字主键被账户Provider改变类型")?;
+    assert_eq!(user.auth_identifier_name(), "id");
+    assert_eq!(user.auth_password_name(), "password_hash");
+    assert!(user.auth_password()?.is_some_and(|hash| !hash.is_empty()));
+    assert!(
+        provider
+            .validate_credentials(user.as_ref(), &credentials)
+            .await?
+    );
+    let wrong = Credentials::new(serde_json::Map::from_iter([
+        ("email".into(), serde_json::json!(email)),
+        (
+            "password".into(),
+            serde_json::json!("incorrect-generated-password"),
+        ),
+    ]));
+    assert!(!provider.validate_credentials(user.as_ref(), &wrong).await?);
+    let restored = provider
+        .retrieve_by_id(&identifier)
+        .await?
+        .ok_or("生成应用Provider未保留数字账户标识")?;
+    assert_eq!(restored.auth_identifier()?, identifier);
+    assert_eq!(restored.auth_password_name(), "password_hash");
+
+    let token = "generated-provider-remember-probe";
+    assert_eq!(user.remember_token_name(), "remember_token");
+    provider.update_remember_token(user.as_ref(), token).await?;
+    let remembered = provider
+        .retrieve_by_token(&identifier, token)
+        .await?
+        .ok_or("生成应用Provider未持久化记住我token")?;
+    assert_eq!(remembered.auth_identifier()?, identifier);
+
+    let db = scope.resolve::<openrust::db::Db>().await?;
+    let table = db.quoted_table_name("users")?;
+    let placeholder = match db.backend()? {
+        DbBackend::Postgres => "$1",
+        DbBackend::MySql | DbBackend::Sqlite => "?",
+        _ => return Err("生成认证测试不支持当前数据库后端".into()),
+    };
+    // 只有表名进入SQL文本，并复用Db标识符校验；账户主键始终绑定。
+    db.connection()?
+        .execute_raw(Statement::from_sql_and_values(
+            db.backend()?,
+            format!("UPDATE {table} SET disabled_at=CURRENT_TIMESTAMP WHERE id={placeholder}"),
+            [numeric_id.into()],
+        ))
+        .await?;
+    assert!(matches!(
+        provider.retrieve_by_id(&identifier).await,
+        Err(openrust::Error::Unauthorized)
+    ));
+    assert!(matches!(
+        provider.retrieve_by_credentials(&credentials).await,
+        Err(openrust::Error::Unauthorized)
+    ));
+    assert!(matches!(
+        provider.retrieve_by_token(&identifier, token).await,
+        Err(openrust::Error::Unauthorized)
+    ));
     Ok(())
 }
 

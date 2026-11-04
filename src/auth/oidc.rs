@@ -1650,6 +1650,32 @@ impl ExternalIdentityFlows {
         {
             return Err(Error::Unauthorized);
         }
+        self.attach_session_record(user_id, handle, session).await
+    }
+
+    /// 关联已通过指定具名 Guard 认证的持久 Session，不接受 once 或旧身份键旁路。
+    pub async fn attach_session_with_guard(
+        &self,
+        user_id: i64,
+        handle: &ExternalLoginHandle,
+        session: &Session,
+        guard: &dyn crate::auth::StatefulGuard,
+    ) -> Result<()> {
+        super::session::require_account_provider(&self.db, guard)?;
+        if user_id <= 0 {
+            return Err(Error::Unauthorized);
+        }
+        super::session::guard_session_key(session, guard, &serde_json::Value::from(user_id))
+            .await?;
+        self.attach_session_record(user_id, handle, session).await
+    }
+
+    async fn attach_session_record(
+        &self,
+        user_id: i64,
+        handle: &ExternalLoginHandle,
+        session: &Session,
+    ) -> Result<()> {
         let id = session.id()?.to_string();
         let handle_hash = digest(handle.expose());
         let encrypted = self

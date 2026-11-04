@@ -157,12 +157,12 @@ fn request_key(request: &Request, state: &AppState, key: &RateLimitKey) -> crate
         RateLimitKey::AuthenticatedUser => request
             .extensions()
             .get::<crate::auth::CurrentUser>()
-            .map(|user| format!("user:{}", user.id()))
+            .map(crate::auth::CurrentUser::rate_limit_key)
             .ok_or(crate::Error::Unauthorized),
         #[cfg(feature = "auth")]
         RateLimitKey::UserOrClientIp => {
             match request.extensions().get::<crate::auth::CurrentUser>() {
-                Some(user) => Ok(format!("user:{}", user.id())),
+                Some(user) => Ok(user.rate_limit_key()),
                 None => client_ip_key(request, state),
             }
         }

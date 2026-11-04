@@ -266,7 +266,7 @@ async fn seed_session(
 }
 
 async fn protected_session(user: CurrentUser) -> Result<FrameworkJson<i64>> {
-    Ok(FrameworkJson(user.id()))
+    Ok(FrameworkJson(user.integer_id()?))
 }
 
 async fn session_login(

@@ -91,6 +91,42 @@ pub(crate) async fn session_logout(
         .await?;
     Ok(private(serde_json::json!({"status":"logged_out"})))
 }
+/// 该业务模块的整数账户域固定为同一数据库 users 表，不以其他 Provider 同值 ID 授权。
+pub(crate) async fn require_session_account(
+    user: CurrentUser,
+    openrust::http::axum::Extension(scope): openrust::http::axum::Extension<
+        std::sync::Arc<openrust::core::container::Scope>,
+    >,
+    request: openrust::http::axum::extract::Request,
+    next: openrust::http::axum::middleware::Next,
+) -> Result<Response> {
+    let db = scope.resolve::<openrust::db::Db>().await?;
+    let auth = scope.resolve::<openrust::auth::AuthManager>().await?;
+    let selected = auth.guard(user.guard_name()).await?;
+    let guard = selected.as_stateful().ok_or(Error::Unauthorized)?;
+    if !guard.provider().uses_database_accounts(&db, "users")? {
+        return Err(Error::Unauthorized);
+    }
+    Ok(next.run(request).await)
+}
+
+/// 现有示例的增强策略：启用 MFA 后旧 Session 不得继续充当已完成第二因子的凭据。
+#[cfg(feature = "auth-mfa")]
+pub(crate) async fn require_session_factor(
+    user: CurrentUser,
+    openrust::http::axum::Extension(scope): openrust::http::axum::Extension<
+        std::sync::Arc<openrust::core::container::Scope>,
+    >,
+    request: openrust::http::axum::extract::Request,
+    next: openrust::http::axum::middleware::Next,
+) -> Result<Response> {
+    let flows = scope.resolve::<openrust::auth::AuthFlows>().await?;
+    if flows.mfa_enabled(user.integer_id()?).await? {
+        return Err(Error::Unauthorized);
+    }
+    Ok(next.run(request).await)
+}
+
 const DENSITY_KEY: &str = "example.account.density";
 pub(crate) async fn preference(_user: CurrentUser, session: Session) -> Result<Response> {
     let density = session
@@ -128,7 +164,7 @@ pub(crate) async fn enroll(
     Validated(Json(input)): Validated<Json<CredentialsInput>>,
 ) -> Result<Response> {
     let value = service
-        .enroll(user.id(), input, &source.ip().to_string())
+        .enroll(user.integer_id()?, input, &source.ip().to_string())
         .await?;
     Ok(private(
         serde_json::json!({"provisioning_uri":value.provisioning_uri(),"expires_at":value.expires_at().to_rfc3339()}),
@@ -142,7 +178,7 @@ pub(crate) async fn confirm(
     Validated(Json(input)): Validated<Json<FactorInput>>,
 ) -> Result<Response> {
     let codes = service
-        .confirm(user.id(), input, &source.ip().to_string())
+        .confirm(user.integer_id()?, input, &source.ip().to_string())
         .await?;
     Ok(private(
         serde_json::json!({"recovery_codes":codes.expose()}),
@@ -156,7 +192,7 @@ pub(crate) async fn regenerate(
     Validated(Json(input)): Validated<Json<FactorInput>>,
 ) -> Result<Response> {
     let codes = service
-        .regenerate(user.id(), input, &source.ip().to_string())
+        .regenerate(user.integer_id()?, input, &source.ip().to_string())
         .await?;
     Ok(private(
         serde_json::json!({"recovery_codes":codes.expose()}),
@@ -170,7 +206,7 @@ pub(crate) async fn disable(
     Validated(Json(input)): Validated<Json<FactorInput>>,
 ) -> Result<Response> {
     service
-        .disable(user.id(), input, &source.ip().to_string())
+        .disable(user.integer_id()?, input, &source.ip().to_string())
         .await?;
     Ok(private(serde_json::json!({"status":"disabled"})))
 }

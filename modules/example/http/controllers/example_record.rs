@@ -40,7 +40,7 @@ pub(crate) async fn index(
 ) -> Result<Paginated<ExampleRecordResource>> {
     let connection = db.read_connection()?;
     let paginator = example_record::Entity::find()
-        .filter(example_record::Column::OwnerId.eq(user.id()))
+        .filter(example_record::Column::OwnerId.eq(user.integer_id()?))
         .order_by_asc(example_record::Column::Id)
         .paginate(&connection, page.per_page);
     let total = paginator.num_items().await.map_err(Error::internal)?;
@@ -64,7 +64,7 @@ pub(crate) async fn show(
     Path(id): Path<i64>,
 ) -> Result<Json<ExampleRecordResource>> {
     let model = example_record::Entity::find_by_id(id)
-        .filter(example_record::Column::OwnerId.eq(user.id()))
+        .filter(example_record::Column::OwnerId.eq(user.integer_id()?))
         .one(&db.read_connection()?)
         .await
         .map_err(Error::internal)?
@@ -78,7 +78,7 @@ pub(crate) async fn store(
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
 ) -> Result<Created<Json<ExampleRecordResource>>> {
     let model = example_record::ActiveModel {
-        owner_id: Set(user.id()),
+        owner_id: Set(user.integer_id()?),
         name: Set(input.name),
         description: Set(input.description),
         priority: Set(input.priority),
@@ -103,7 +103,7 @@ pub(crate) async fn update(
 ) -> Result<Json<ExampleRecordResource>> {
     let connection = db.primary_connection()?;
     let model = example_record::Entity::find_by_id(id)
-        .filter(example_record::Column::OwnerId.eq(user.id()))
+        .filter(example_record::Column::OwnerId.eq(user.integer_id()?))
         .one(&connection)
         .await
         .map_err(Error::internal)?
@@ -136,7 +136,7 @@ pub(crate) async fn destroy(
 ) -> Result<Json<serde_json::Value>> {
     let result = example_record::Entity::delete_many()
         .filter(example_record::Column::Id.eq(id))
-        .filter(example_record::Column::OwnerId.eq(user.id()))
+        .filter(example_record::Column::OwnerId.eq(user.integer_id()?))
         .exec(&db.primary_connection()?)
         .await
         .map_err(Error::internal)?;

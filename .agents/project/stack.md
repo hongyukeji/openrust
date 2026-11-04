@@ -73,7 +73,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | Unix受限文件操作（ST-V main限定集成） | 可选精确 `rustix` 1.1.5，`default-features=false`、`fs/std`，仅Unix依赖且随storage-local启用 | 复用现锁定版本的安全dirfd/openat/fstat/fchmod/renameat接口，修复可见性修改硬链接与目录替换竞态；不写unsafe/手造syscall。std用于安全OwnedFd与标准文件互转；本地/公开driver/真实TCP限定行为已验收，其他平台与完整Filesystem仍开放。 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
 | 模板 | MiniJinja `~2.24.0` 关闭默认 feature；邮件使用 `mail-templates` 编译期模板，服务端页面使用可选 `view` feature 及其 `loader` 能力 | 邮件继续使用受信任编译期资源；视图使用应用根目录 loader、严格变量、HTML 自动转义、燃料上限和可选开发重载；不读取网络或用户上传模板 |
-| 通用数据交换 | 可选 `data-exchange` 使用 `csv` 1.4、`calamine` 0.37、`rust_xlsxwriter` 0.101、`zip` 9.x 与 `quick-xml` 0.42 | CSV 逐记录处理；XLSX 读取使用 cell streaming，写入启用 constant-memory；限制 ZIP 展开、shared strings 数量和表格行列/单元格。CSV 为 MIT OR Unlicense；其余依赖 MIT 或 MIT OR Apache-2.0；组件 MSRV 1.73/1.88，均低于 workspace 1.97；压缩、加密等非必要 zip feature 关闭 |
+| 通用数据交换 | 可选 `data-exchange` 使用 `csv` 1.4、`calamine` 0.38、`rust_xlsxwriter` 0.101、`zip` 9.x 与 `quick-xml` 0.42 | CSV 逐记录处理；XLSX 读取使用 cell streaming，写入启用 constant-memory；限制 ZIP 展开、shared strings 数量和表格行列/单元格。CSV 为 MIT OR Unlicense；其余依赖 MIT 或 MIT OR Apache-2.0；组件 MSRV 1.73/1.88，均低于 workspace 1.97；压缩、加密等非必要 zip feature 关闭；calamine 0.38修复[RUSTSEC-2026-0436的CFB解析拒绝服务漏洞](https://github.com/tafia/calamine/pull/762)，其MSRV仍为1.88 |
 | 数据交换任务临时文件与导入标识 | 可选 `data-exchange-tasks` 使用 `tempfile` 3.27 和现有 `uuid` 1.x，并复用 Queue、Storage、Db 事务与 RequestIdempotency | 输入/输出暂存使用操作系统临时目录的自动回收文件；UUIDv7 用于服务端生成导入标识，仅显式启用该任务能力 |
 
 ## 工具链

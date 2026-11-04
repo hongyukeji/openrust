@@ -406,17 +406,26 @@ impl OidcAccount {
     pub(crate) async fn attach_session(
         &self,
         user: i64,
-        handle: String,
-        email: &str,
-        password: &str,
+        input: crate::modules::example::http::requests::oidc::AttachSessionInput,
         source: &str,
         session: &Session,
+        guard: &dyn openrust::auth::StatefulGuard,
     ) -> Result<()> {
-        if self.auth.reauthenticate(email, password, source).await? != user {
+        if self
+            .auth
+            .reauthenticate(&input.email, &input.password, source)
+            .await?
+            != user
+        {
             return Err(Error::Unauthorized);
         }
         self.flows
-            .attach_session(user, &ExternalLoginHandle::from_exposed(handle)?, session)
+            .attach_session_with_guard(
+                user,
+                &ExternalLoginHandle::from_exposed(input.handle)?,
+                session,
+                guard,
+            )
             .await
     }
     pub(crate) async fn backchannel(

@@ -441,9 +441,28 @@ async fn private_account_response(
 }
 
 #[cfg(feature = "auth")]
+fn account_session_group() -> RouteGroup {
+    let group = RouteGroup::new()
+        .middleware_alias("cookies")
+        .middleware_alias("session")
+        .middleware(openrust::auth::AuthLayer::guard("web"))
+        .middleware_alias("csrf")
+        .middleware(openrust::http::axum::middleware::from_fn(
+            controllers::account_security::require_session_account,
+        ));
+    #[cfg(feature = "auth-mfa")]
+    let group = group.middleware(openrust::http::axum::middleware::from_fn(
+        controllers::account_security::require_session_factor,
+    ));
+    group
+}
+
+#[cfg(feature = "auth")]
 fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
     use controllers::account_security as account;
-    use openrust::auth::{AuthLayer, AuthMode};
+    use openrust::auth::AuthLayer;
+    #[cfg(feature = "auth-mfa")]
+    use openrust::auth::AuthMode;
     #[cfg(feature = "session")]
     let session_enabled = capabilities.session;
     #[cfg(not(feature = "session"))]
@@ -458,7 +477,11 @@ fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
                 RouteGroup::new()
                     .middleware_alias("cookies")
                     .middleware_alias("session"),
-                |routes| routes.post("/session/login", account::session_login),
+                |routes| {
+                    routes
+                        .post("/session/login", account::session_login)
+                        .layer(AuthLayer::optional_guard("web"))
+                },
             )
         } else {
             api
@@ -466,18 +489,12 @@ fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
         #[cfg(feature = "auth-mfa")]
         let api = api.post("/login/mfa", account::complete);
         let api = if session_enabled {
-            api.group(
-                RouteGroup::new()
-                    .middleware_alias("cookies")
-                    .middleware_alias("session"),
-                |routes| {
-                    routes
-                        .get("/session/preference", account::preference)
-                        .post("/session/preference", account::set_preference)
-                        .post("/session/logout", account::session_logout)
-                        .layer(AuthLayer::required(AuthMode::Session))
-                },
-            )
+            api.group(account_session_group(), |routes| {
+                routes
+                    .get("/session/preference", account::preference)
+                    .post("/session/preference", account::set_preference)
+                    .post("/session/logout", account::session_logout)
+            })
         } else {
             api
         };
@@ -508,25 +525,31 @@ fn oidc_routes(routes: Routes) -> Routes {
                 .middleware_alias("session"),
             |routes| {
                 routes
-                    .post("/bind/authorize", oidc::browser_bind_authorize)
-                    .post("/bind/confirm", oidc::browser_bind_confirm)
-                    .post("/session/attach", oidc::attach_session)
-                    .layer(AuthLayer::required(AuthMode::Session))
+                    .get("/authorize", oidc::authorize)
+                    .get("/callback", oidc::callback)
             },
         );
-        let protected = Routes::new()
-            .get("/links", oidc::linked)
-            .post("/bind", oidc::bind)
-            .post("/unbind", oidc::unbind)
-            .post("/logout", oidc::logout)
-            .layer(AuthLayer::required(AuthMode::Jwt));
-        api.get("/authorize", oidc::authorize)
-            .get("/callback", oidc::callback)
-            .post("/backchannel", oidc::backchannel)
-            .merge(protected)
-            .layer(openrust::http::axum::middleware::from_fn(
-                private_oidc_response,
-            ))
+        let api = api.group(account_session_group(), |routes| {
+            routes
+                .post("/bind/authorize", oidc::browser_bind_authorize)
+                .post("/bind/confirm", oidc::browser_bind_confirm)
+                .post("/session/attach", oidc::attach_session)
+        });
+        let api = api.group(
+            RouteGroup::new()
+                .middleware_alias("cookies")
+                .middleware(AuthLayer::required(AuthMode::Jwt)),
+            |routes| {
+                routes
+                    .get("/links", oidc::linked)
+                    .post("/bind", oidc::bind)
+                    .post("/unbind", oidc::unbind)
+                    .post("/logout", oidc::logout)
+            },
+        );
+        api.post("/backchannel", oidc::backchannel).layer(
+            openrust::http::axum::middleware::from_fn(private_oidc_response),
+        )
     })
 }
 
@@ -680,20 +703,12 @@ fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) 
     #[cfg(feature = "realtime")]
     let routes = if session_enabled {
         routes.nest("/api/example", |api| {
-            api.group(
-                RouteGroup::new()
-                    .middleware_alias("cookies")
-                    .middleware_alias("session"),
-                |api| {
-                    api.get(
-                        "/articles/{id}/browser-socket",
-                        controllers::article_socket::browser_connect,
-                    )
-                    .layer(openrust::auth::AuthLayer::required(
-                        openrust::auth::AuthMode::Session,
-                    ))
-                },
-            )
+            api.group(account_session_group(), |api| {
+                api.get(
+                    "/articles/{id}/browser-socket",
+                    controllers::article_socket::browser_connect,
+                )
+            })
         })
     } else {
         routes

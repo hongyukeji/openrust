@@ -18,6 +18,8 @@ use tower::{Layer, Service};
 mod database;
 pub(crate) use database::AUTH_USER_ID_KEY;
 mod flows;
+mod guard;
+pub(crate) use guard::{AuthRequestContext, install_request, session_user_id};
 mod jwt;
 #[cfg(feature = "auth-mfa")]
 mod mfa;
@@ -40,6 +42,12 @@ pub use flows::{
     LoginSucceeded, LoginValidating, RegistrationSucceeded, RegistrationValidating,
     SessionCredentials,
 };
+pub use guard::{Attempting, Authenticated, Failed, Login, Logout, SessionGuard, Validated};
+pub use guard::{
+    AuthDefaults, AuthDrivers, AuthManager, AuthUser, Authenticatable, Credentials,
+    DatabaseUserProvider, GenericUser, Guard, GuardConfig, GuardContext, StatefulGuard,
+    UserProvider, UserProviderConfig,
+};
 pub use jwt::{JwtServiceProvider, JwtTokens};
 #[cfg(feature = "auth-mfa")]
 pub use mfa::{
@@ -47,7 +55,8 @@ pub use mfa::{
 };
 pub use migration::{
     AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthMigration,
-    AuthPolicyMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
+    AuthPolicyMigration, AuthRefreshTokenMigration, AuthRememberTokenMigration,
+    AuthVerificationCodeMigration,
 };
 #[cfg(feature = "auth-oidc")]
 pub use oidc::{
@@ -113,6 +122,8 @@ pub enum AuthSource {
     Session,
     /// 使用个人访问令牌进行认证。
     PersonalAccessToken,
+    /// 由具名 Guard 及其 Provider 确定的请求身份。
+    Guard,
 }
 
 /// 复用既有 JWT 与 Authenticator 校验 RPC Bearer；gRPC 不接受 Cookie Session。
@@ -156,9 +167,11 @@ pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> R
         _ => return Err(Error::internal(InvalidPrincipal)),
     };
     Ok(CurrentUser {
-        id: principal.user_id,
+        id: principal.user_id.into(),
         source,
         token_abilities,
+        guard: None,
+        provider: None,
     })
 }
 
@@ -178,15 +191,48 @@ pub enum AuthMode {
 /// 提供给请求处理器的已验证身份。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrentUser {
-    id: i64,
+    id: serde_json::Value,
     source: AuthSource,
     token_abilities: Option<Arc<[String]>>,
+    guard: Option<String>,
+    provider: Option<String>,
 }
 
 impl CurrentUser {
     /// 返回已认证账户 ID。
-    pub const fn id(&self) -> i64 {
-        self.id
+    pub fn id(&self) -> serde_json::Value {
+        self.id.clone()
+    }
+
+    /// 将显式采用整数主键的业务模型标识转换为i64；字符串/UUID不静默截断。
+    pub fn integer_id(&self) -> Result<i64> {
+        self.id.as_i64().filter(|id| *id > 0).ok_or_else(|| {
+            Error::custom(
+                "auth_integer_identifier_required",
+                "当前业务模型需要正整数账户标识",
+            )
+        })
+    }
+
+    /// 返回当前具名Guard；旧显式凭据适配路径可能尚无具名归属。
+    pub fn guard_name(&self) -> Option<&str> {
+        self.guard.as_deref()
+    }
+
+    /// 返回当前具名账户Provider。
+    pub fn provider_name(&self) -> Option<&str> {
+        self.provider.as_deref()
+    }
+
+    pub(crate) fn rate_limit_key(&self) -> String {
+        if self.guard.is_none() && self.provider.is_none() {
+            format!("user:{}", self.id)
+        } else {
+            format!(
+                "user:{}",
+                serde_json::json!([self.guard, self.provider, self.id])
+            )
+        }
     }
 
     /// 返回此请求使用的凭据来源。
@@ -208,9 +254,11 @@ impl CurrentUser {
     #[cfg(all(test, feature = "realtime"))]
     pub(crate) fn test_user(id: i64) -> Self {
         Self {
-            id,
+            id: id.into(),
             source: AuthSource::PersonalAccessToken,
             token_abilities: Some(Arc::from(Vec::<String>::new())),
+            guard: None,
+            provider: None,
         }
     }
 }
@@ -452,6 +500,7 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
                 })
             })
             .await?;
+            guard::register(app).await?;
             app.require::<AuthService>();
             app.require::<Passwords>();
             Ok(())
@@ -477,6 +526,68 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
 pub struct AuthLayer;
 
 impl AuthLayer {
+    /// 使用同一AuthManager的具名Guard；空名称使用当前默认Guard。
+    pub fn guard(
+        name: impl Into<String>,
+    ) -> impl Layer<
+        Route,
+        Service: Service<
+            Request,
+            Response = Response,
+            Error = Infallible,
+            Future: Send + 'static,
+        > + Clone
+                     + Send
+                     + Sync
+                     + 'static,
+    > + Clone
+    + Send
+    + Sync
+    + 'static {
+        middleware::from_fn_with_state::<
+            _,
+            _,
+            (State<NamedAuthLayerConfig>, Extension<AppState>, Request),
+        >(
+            NamedAuthLayerConfig {
+                name: name.into(),
+                optional: false,
+            },
+            authenticate_named,
+        )
+    }
+
+    /// 投影具名Guard的可选身份；Provider/存储失败仍返回错误，不当作访客。
+    pub fn optional_guard(
+        name: impl Into<String>,
+    ) -> impl Layer<
+        Route,
+        Service: Service<
+            Request,
+            Response = Response,
+            Error = Infallible,
+            Future: Send + 'static,
+        > + Clone
+                     + Send
+                     + Sync
+                     + 'static,
+    > + Clone
+    + Send
+    + Sync
+    + 'static {
+        middleware::from_fn_with_state::<
+            _,
+            _,
+            (State<NamedAuthLayerConfig>, Extension<AppState>, Request),
+        >(
+            NamedAuthLayerConfig {
+                name: name.into(),
+                optional: true,
+            },
+            authenticate_named,
+        )
+    }
+
     /// 要求使用路由选定的凭据模式。
     pub fn required(
         mode: AuthMode,
@@ -530,6 +641,90 @@ impl AuthLayer {
             authenticate,
         )
     }
+}
+
+#[derive(Clone)]
+struct NamedAuthLayerConfig {
+    name: String,
+    optional: bool,
+}
+
+async fn authenticate_named(
+    State(config): State<NamedAuthLayerConfig>,
+    Extension(state): Extension<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    match project_named_user(&config, &state, request).await {
+        Ok(request) => next.run(request).await,
+        Err(error) => error.into_response(),
+    }
+}
+
+async fn project_named_user(
+    config: &NamedAuthLayerConfig,
+    state: &AppState,
+    request: Request,
+) -> Result<Request> {
+    let (mut parts, body) = request.into_parts();
+    let scope = parts
+        .extensions
+        .get::<Arc<crate::core::container::Scope>>()
+        .cloned()
+        .ok_or_else(|| Error::custom("auth_request_scope_missing", "具名认证需要当前请求scope"))?;
+    let info = crate::http::RequestInfo::from_request_parts(&mut parts, state).await?;
+    guard::install_request(
+        &scope,
+        guard::AuthRequestContext {
+            cookies: info.cookies(),
+            info: Arc::new(info),
+            protection: parts
+                .extensions
+                .get::<crate::http::cookie::CookieProtection>()
+                .cloned(),
+        },
+    )
+    .await?;
+    let manager = scope.resolve::<AuthManager>().await?;
+    let name = if config.name.is_empty() {
+        manager.default_driver()?
+    } else {
+        config.name.clone()
+    };
+    let selected = manager.guard(Some(&name)).await?;
+    manager.should_use(name.clone())?;
+    let user = match selected.user().await? {
+        Some(account) => {
+            let id = account.auth_identifier()?;
+            if !match &id {
+                serde_json::Value::Number(_) => true,
+                serde_json::Value::String(value) => !value.is_empty(),
+                _ => false,
+            } {
+                return Err(Error::internal(InvalidPrincipal));
+            }
+            let provider = selected.provider_name().map(str::to_owned);
+            Some(CurrentUser {
+                id,
+                source: if selected.as_stateful().is_some() {
+                    AuthSource::Session
+                } else {
+                    AuthSource::Guard
+                },
+                token_abilities: None,
+                guard: Some(name),
+                provider,
+            })
+        }
+        None if config.optional => None,
+        None => return Err(Error::Unauthorized),
+    };
+    parts.extensions.remove::<CurrentUser>();
+    if let Some(user) = &user {
+        parts.extensions.insert(user.clone());
+    }
+    parts.extensions.insert(AuthOutcome(user));
+    Ok(Request::from_parts(parts, body))
 }
 
 #[derive(Clone, Copy)]
@@ -614,6 +809,7 @@ async fn authenticate(
             return Error::Unauthorized.into_response();
         }
         let mut request = request;
+        request.extensions_mut().remove::<CurrentUser>();
         request.extensions_mut().insert(AuthOutcome(None));
         return next.run(request).await;
     };
@@ -687,9 +883,11 @@ async fn authenticate(
         }
     }
     let user = CurrentUser {
-        id: principal.user_id,
+        id: principal.user_id.into(),
         source,
         token_abilities,
+        guard: None,
+        provider: None,
     };
     let mut request = request;
     request.extensions_mut().insert(user.clone());
@@ -1320,5 +1518,45 @@ mod tests {
             selected,
             Ok(Some((AuthSource::Session, _, Some("csrf-secret"))))
         ));
+    }
+    #[test]
+    fn named_user_rate_limit_keys_isolate_sources_and_preserve_identifier_types() {
+        use super::{AuthSource, CurrentUser};
+        use serde_json::{Value, json};
+        let make = |id: Value, guard: Option<&str>, provider: Option<&str>| CurrentUser {
+            id,
+            source: AuthSource::Session,
+            token_abilities: None,
+            guard: guard.map(str::to_owned),
+            provider: provider.map(str::to_owned),
+        };
+        let identities = [
+            make(json!(42), Some("web"), Some("users")),
+            make(json!(42), Some("admin"), Some("users")),
+            make(json!(42), Some("web"), Some("admins")),
+            make(json!("42"), Some("web"), Some("users")),
+            make(json!(42), Some("web"), None),
+            make(json!(42), None, Some("users")),
+            make(json!(42), None, None),
+            make(json!("42"), None, None),
+            // 分隔符可出现在自定义来源中，不能用朴素字符串拼接导致边界碰撞。
+            make(json!(42), Some("web|tenant"), Some("users")),
+            make(json!(42), Some("web"), Some("tenant|users")),
+        ];
+        let keys = identities
+            .iter()
+            .map(CurrentUser::rate_limit_key)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            keys.len(),
+            identities.len(),
+            "相同ID不同来源或不同JSON类型共享了限流桶"
+        );
+        let same = make(json!(42), Some("web"), Some("users"));
+        assert_eq!(
+            same.rate_limit_key(),
+            identities[0].rate_limit_key(),
+            "同一来源身份没有稳定限流桶"
+        );
     }
 }

@@ -213,6 +213,18 @@ pub trait SessionStore: Send + Sync + 'static {
         Ok(())
     }
 
+    /// 将本次实际 Guard 身份投影到原生数据库元数据；SQL NULL 表示访客。
+    ///
+    /// 返回是否接受投影。框架在原生数据库驱动不支持时明确拒绝保存；
+    /// 其他驱动不调用此接口，身份不会写入 Session 属性载荷。
+    ///
+    /// # Errors
+    ///
+    /// 驱动状态不可更新时返回错误；不得记录身份值。
+    fn set_database_user_id(&self, _user_id: sea_orm::Value) -> Result<bool> {
+        Ok(false)
+    }
+
     /// 当前后端提供的保证；请求绑定前后必须一致。
     fn guarantees(&self) -> SessionStoreGuarantees {
         SessionStoreGuarantees::ServerSide

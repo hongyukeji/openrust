@@ -122,22 +122,28 @@ async fn complete(
     } else {
         i64::try_from(config.lifetime).map_err(crate::Error::internal)?
     };
-    let cookie = factory
-        .make(
-            session.name()?,
-            session.id()?.to_string(),
-            minutes,
-            CookieOptions {
-                http_only: config.http_only,
-                ..CookieOptions::default()
-            },
-        )?
-        .with_partitioned(config.partitioned);
-    crate::http::cookie::attach_response_cookies(&mut response, [cookie], false)?;
-    // 已确认的预检仍已执行 start/GC，并保留响应 Cookie；仅跳过自动持久化。
+    let make_cookie = || -> Result<_> {
+        Ok(factory
+            .make(
+                session.name()?,
+                session.id()?.to_string(),
+                minutes,
+                CookieOptions {
+                    http_only: config.http_only,
+                    ..CookieOptions::default()
+                },
+            )?
+            .with_partitioned(config.partitioned))
+    };
+    // 先校验整份响应的 Cookie，避免既有非法头在保存后才被拒绝；此时尚未发送响应。
+    crate::http::cookie::attach_response_cookies(&mut response, [make_cookie()?], false)?;
+    // 保存中的 remember 恢复可能轮换 ID；已确认预检仅跳过自动保存。
     if !info.is_precognitive() {
         session.save().await?;
     }
+    // 保存耗时不能从本次出站生命周期扣除；重新求值最终ID及到期时间。
+    let cookie = make_cookie()?;
+    crate::http::cookie::attach_response_cookies(&mut response, [cookie], false)?;
     Ok(response)
 }
 async fn prepare(
@@ -220,6 +226,8 @@ async fn prepare(
         session.set_request_on_handler(context).await?;
     }
     session.start().await?;
+    #[cfg(feature = "auth")]
+    bind_auth_request(&scope, &session, request, info).await?;
     if lottery_wins(layer.settings.config.lottery)? {
         session
             .collect_garbage(layer.settings.config.lifetime_seconds()?)
@@ -232,6 +240,35 @@ async fn prepare(
     close.0 = None;
     close.1 = None;
     Ok(session)
+}
+
+#[cfg(feature = "auth")]
+async fn bind_auth_request(
+    scope: &Arc<crate::core::container::Scope>,
+    session: &Session,
+    request: &mut Request,
+    info: &RequestInfo,
+) -> Result<()> {
+    if request
+        .extensions()
+        .get::<crate::core::AppState>()
+        .is_some_and(|state| state.container().contains::<crate::auth::AuthManager>())
+    {
+        session.bind_auth_scope(scope)?;
+        crate::auth::install_request(
+            scope,
+            crate::auth::AuthRequestContext {
+                cookies: info.cookies(),
+                info: Arc::new(info.clone()),
+                protection: request
+                    .extensions()
+                    .get::<crate::http::cookie::CookieProtection>()
+                    .cloned(),
+            },
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 fn lottery_wins(lottery: [u32; 2]) -> Result<bool> {

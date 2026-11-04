@@ -6,7 +6,31 @@
 
 认证配置定义于 `openrust::config::auth`，并从 `openrust::auth` 重新导出。可编辑默认值位于应用根 `config/auth.rs` 与 `config/session.rs`；TOML仅作为显式可选source；签名密钥可通过受保护的 `.env` 或进程环境变量提供，进程环境变量优先。不要将密钥材料写入受版本控制的配置文件；生产使用 `.env` 时应限制文件权限，并确保应用根目录不作为静态公开目录。
 
-OpenRust 的认证与授权能力。
+## 具名 Guard 与 `UserProvider`
+
+正式用法见[认证指南](../../docs/src/security/authentication.md)。`AuthServiceProvider` 将 `AuthManager` 绑定为请求 scope，应用共享的 `AuthDrivers` 只保存 Guard/Provider 工厂。同请求同名 Guard 复用实例和用户缓存；`should_use` 与 `forget_guards` 只作用于本请求，不能把管理器或 Guard 注册为应用 singleton。
+
+异步 Guard 工厂可解析其他具名 Guard；同一管理器内递归或并发等待成环时返回 `auth_guard_resolution_cycle`。失败或取消不会缓存半成品，后续独立解析可重试；合法并发仍共享同名实例，`forget_guards` 后的新构造与在途旧实例分开。
+
+未定义 Guard、未注册 driver 或账户来源的配置错误返回 HTTP 500；未知 Provider 名直接通过 `create_user_provider` 查询仍返回 `None`，没有通过认证的普通请求仍按路由要求返回 401。
+
+`auth.defaults`、`auth.guards`、`auth.providers` 来自同一配置仓库。默认 Guard 为 `web`，driver 为 `session`；直接 `create_user_provider(None)` 读取可空的 `auth.defaults.provider`，不从默认 Guard 反推。框架 Provider 配置回退仍是 `eloquent`，真实 Eloquent driver 尚未实现；未注册时明确失败。根 `config/auth.rs` 与生成模板显式选择应用注册的 `app-users`，经 `DatabaseUserProvider::with_user_factory` 构造应用 `Authenticatable`，把既有 `password_hash` 解释为密码列，不冒充 Eloquent。
+
+`Authenticatable` / `AuthUser` 不要求邮箱、手机号或整数 ID。`GenericUser` 默认使用 `id/password/remember_token`，可选密码与 remember token 不强制存在；其他字段名由应用适配。`Credentials` 接收调用方挑选的字段，数据库 Provider 查询非密码条件并单独验证 `password`。用户名/邮箱/手机号一框组合 resolver 尚未实现，根应用已有 email schema 保持显式边界。
+
+`AuthDrivers::extend` 与 `provider` 是公开注册入口。Guard 工厂通过 `GuardContext` 取得本请求 resolver、配置和 `RequestInfo`，按需调用 `user_provider()`；自定义 Guard 须准确报告 `provider_name()`，避免跨来源授权。应用实现可参考[根 Provider](../../app/providers/app.rs)与[账户模型](../../app/models/user.rs)。
+
+`AuthLayer::guard(name)` / `optional_guard(name)` 将实际具名身份投影为 `CurrentUser`；`id()` 保留数字或非空字符串（含 UUID），`integer_id()` 是既有正整数业务表的显式适配，不能转换字符串或截断 UUID。`guard_name()` / `provider_name()` 参与授权隔离；整数角色 `Policy` 接收具名身份须显式 `with_guard_scope` 绑定相同来源，不匹配报错，非整数 ID 不授予角色权限。
+
+`StatefulGuard` 提供 `attempt`、`login`、`login_using_id`、`once`、`once_using_id`、`logout`；`validate`、`once` 与 `set_user` 不建立持久登录。Session 登录复用唯一句柄并执行 `regenerate(true)`；注销只删除本 Guard 登录状态并轮换适用的 remember token，不自动 invalidate 整份 Session。默认 remember 为576000分钟、失败凭据时间保护为200000微秒、`hashing.rehash_on_login=true`。记住我 Cookie 必须加密且不在 except 名单；Cookie Session 的认证载荷同样须受保护。名称使用固定 Rust 实现后缀，对应 Laravel 类名 SHA-1 的隔离职责，不与 PHP Cookie/Session 字节互通。
+
+记住我轮换要求 `Authenticatable::compare_and_set_remember_token(expected, replacement) -> Result<bool>`：同一账户锁内比较并替换，冲突返回 false。`GenericUser` 用单个 `RwLock` 实现，根应用及生成模型委托它；未实现的默认方法在 token 修改前返回 `auth_token_atomic_update_unsupported`，不采用非原子回退。`SessionGuard` 用 CAS 安装候选并在失败/取消时有条件恢复，不覆盖其他 Guard 的新值；不承诺撤回已发出的数据库 I/O。这是 Rust 并发与 future 取消的必要适配，不是上游 PHP 的多线程要求。
+
+原生数据库 Session 每次保存前投影当前默认 Guard 实际 `id()`，手动保存须绑定同一请求 scope；注销后为 null。默认 `sessions.user_id` 为 bigint，字符串/UUID ID 须由应用提供兼容字段。完整行为与保护边界见[认证指南](../../docs/src/security/authentication.md)及[Session 指南](../session/README.md)。
+
+唯一模块账户安全路由通过同 scope `AuthManager` 的 web Guard 调用 `AuthFlows::login_session_with_guard` / `logout_session_with_guard`。它们是既有已验证邮箱应用流程的适配，保留禁用账户、限流及 MFA 阻断，使用标准 Session CSRF token 与 middleware；注销后轮换ID/token而保留偏好。应用的 `mfa_enabled` 查询只用于现有增强策略，不表示当前 Guard 已完成第二因子，也不是 Fortify 官方 MFA 流程。服务器端实时连接期限可用 `SessionStoreHandle::authorized_until_guard`，它同时核当前 Guard、`StatefulGuard::session_name()` 返回的可选身份键及实际持久记录，拒绝没有匹配持久登录键的仅请求身份与不能提供服务器端撤销保证的驱动。OIDC 示例经 `ExternalIdentityFlows::attach_session_with_guard` 关联实际 Guard 及其 Session 键；旧 `authorized_until` / `attach_session` 保留显式旧认证键适配，不用于这些新的示例路径。
+
+`AuthFlows::require_account_provider` 通过 `UserProvider::uses_database_accounts(db, table)` 校验既有 `users` 账户域与 Guard 的来源兼容；`login_session_with_guard`、`logout_session_with_guard` 和 OIDC `attach_session_with_guard` 均先校验，拒绝同 ID 的其他来源。该能力默认 false，`DatabaseUserProvider` 核对同一 `Db` 句柄与实际账户表；它是旧数据库增强流程的安全桥接，不是 Laravel 官方 `UserProvider` 原有的第七个方法。
 
 ## SQLite 本地认证边界
 
@@ -16,7 +40,7 @@ OpenRust 的认证与授权能力。
 
 MFA的数据库限流在SQLite写事务前完成，避免另池连接等待同一文件写锁。密码通过后的MFA状态在写锁内再次核对，竞态变化返回`auth_mfa_state_changed`，应重新开始登录；不会重复消费前置配额或悄悄降为单因素。其他后端保留原计数时点。因子、一次性恢复码、refresh撤销和成功审计共用同一事务。
 
-编译OIDC不会阻止本地MFA，但查到真实外部身份关联时SQLite明确返回`unsupported_oidc_database`，不将外部挑战转作本地身份。完整named guard/UserProvider/Gate、remember-me、Guard.id元数据与OIDC仍是开放项；已有JWT/PAT/refresh/MFA流程不能单凭名称视作这些上游能力全部对应。SQLite单文件仅用于单机多进程，不扩展为共享文件的多机集群保证。自定义事务监听器若另取连接写同一SQLite文件，仍可能自锁，应使用提供的同一事务。
+编译OIDC不会阻止本地MFA，但查到真实外部身份关联时SQLite明确返回`unsupported_oidc_database`，不将外部挑战转作本地身份。具名Guard/`UserProvider`、remember-me及Guard.id元数据的公共API见上文；完整Gate、Eloquent与SQLite OIDC仍未对应，已有JWT/PAT/refresh/MFA流程不能单凭名称视作这些上游能力全部对应。SQLite单文件仅用于单机多进程，不扩展为共享文件的多机集群保证。自定义事务监听器若另取连接写同一SQLite文件，仍可能自锁，应使用提供的同一事务。
 
 ## 当前能力
 
@@ -27,19 +51,19 @@ MFA的数据库限流在SQLite写事务前完成，避免另池连接等待同�
 - `SessionServiceProvider::new()` 安装唯一的通用 Session middleware，默认使用应用现有 `Db` 的原生数据库store；先装配 `DatabaseServiceProvider`。认证与业务通过 `openrust::session::Session` 共享同一请求句柄及 store，不再安装第二套 Session。自定义 store 实现公开 `openrust::session::SessionStore`，通过 `SessionServiceProvider::with_store` 安装；`driver = "array"` 或显式内存 store 才使用进程内存储，数据库故障不会静默降级。`SessionConfig.cookie` 可指定名称，未指定时从最终 `app.name` 推导；`path`、`domain`、`secure`、`http_only`、`same_site`、`lifetime`、`expire_on_close`、`partitioned` 和 `max_bytes` 均来自最终 `session` 配置。`with_cookie_config` 在自身 boot 阶段覆盖文件和环境来源；更晚 Provider 的显式 overlay 仍按顺序生效。安装 `CookieServiceProvider` 后，Session 读取解密后的 Cookie 视图，`RequestInfo` 仍保留原始 wire 头，认证层继续拒绝原始重复凭据。自定义 Provider 的额外装配边界和完整 API 见 [Session 使用指南](../session/README.md)。
 - 需要 Redis 共享 Session 时，为 `openrust` 启用 `session-redis` feature，并使用 `RedisSessionStore::connect(redis_url, namespace)` 后传入 `SessionServiceProvider::with_store`。数据库 store 仍是默认路径；Redis 连接失败或操作失败会返回错误。所有共享应用副本必须使用同一 namespace，不同应用应使用不同 namespace。
 - 如果 `DatabaseServiceProvider` 已先注册 `Db`，`AuthServiceProvider` 会注册 `RefreshTokens`。它生成高熵不透明凭据，只持久化 SHA-256 摘要，以原子方式轮换，在检测到重放时撤销整个 token family，并支持按账户整体撤销。调用方提供 family 的初始过期时间；轮换不会延长该时间。
-- `openrust new --db postgres|mysql --auth` 会生成 JWT/Auth/AuthFlows Provider、认证迁移、JWT 保护的 `/api/me`、数据库支持的 PAT 保护 `/api/me/pat`，以及注册、邮箱验证、登录、刷新、登出、密码重置路由和 `[auth.jwt]` 配置。签名密钥必须通过 `APP_AUTH_JWT_KEYS_LOCAL` 提供，不能写入生成的配置。
+- `openrust new --db postgres|mysql --auth` 会生成 JWT/Auth/`AuthFlows` Provider、认证迁移、JWT 保护的 `/api/me`、数据库支持的 PAT 保护 `/api/me/pat`，以及注册、邮箱验证、登录、刷新、登出、密码重置路由和 `[auth.jwt]` 配置。签名密钥必须通过 `APP_AUTH_JWT_KEYS_LOCAL` 提供，不能写入生成的配置。
 - `AuthServiceProvider::with_authenticator` 通过 `ServiceProvider` 生命周期注册应用自定义或第三方 `Authenticator` 实现。
 - `AuthServiceProvider` 还会在 `AppState` 注册 Argon2id `Passwords` 服务。它使用随机 salt 生成 PHC 格式哈希，并在 Tokio blocking pool 中执行。通过 `[auth.password]` 的 `memory_kib`、`iterations`、`parallelism` 配置成本参数；`with_password_operation_capacity(2)` 设置并发上限，默认每个服务实例 2 个操作，范围为 1..=4。超过容量立即返回稳定错误码 `password_capacity_exhausted`，不建立等待队列；默认语义 HTTP 状态为 503，只有显式选择 `always_ok` 时才映射为 HTTP 200。Provider 注册的 `AuthFlows` 与验证码服务共享同一个 `Passwords` 实例；独立构造的实例有各自的容量。考虑已接受的最大 PHC 参数，并发上限确保单服务 Argon2 工作内存不超过约 1 GiB。验证前会检查编码中的算法、版本和成本参数，以拒绝不安全的存储值。`EncodedPasswordHash::as_str()` 是持久化边界；该封装有意不实现 `Debug`。空密码和超过 1024 字节的密码会被拒绝；密码不匹配时返回 `Ok(false)`；格式错误的 PHC 数据会返回内部错误。
 - 配置 `DatabaseServiceProvider` 后，`AuthServiceProvider` 会使用共享数据库 store 和同一个 Argon2id 密码哈希器注册 `VerificationCodes`。签发验证码前，将 `AuthVerificationCodeMigration` 加入应用 migrator。默认策略生成六位数字，有效期十分钟，最多允许五次错误尝试，并设置 60 秒重发冷却时间。返回的 `IssuedVerificationCode` 会在 `Debug` 中隐藏验证码；请自行通过 Mail/SMS 发送，且不要记录日志。签发/验证路由前应应用共享 `RateLimiter`，key 至少包括 endpoint 和请求来源，并可加入身份专属策略。
 - `AuthFlowsServiceProvider` 在 `DatabaseServiceProvider`、`AuthServiceProvider` 和 `JwtServiceProvider` 之后注册 `AuthFlows`。它组合账户注册、邮箱验证、登录、刷新、登出、密码重置请求与密码替换，但不会定义 HTTP 路由或发送邮件/SMS。默认 refresh family 有效期为 30 天；共享固定窗口限流默认为每个 endpoint/source/identity 每 15 分钟最多五次请求。请传入可信请求来源值（例如 socket peer 地址，或仅根据显式可信代理得出的值）；不要信任任意转发头。
 - 通过 `EventsServiceProvider` 可按 历史决策 041 订阅 `RegistrationValidating`、`RegistrationSucceeded`、`LoginValidating`、`LoginSucceeded` 和 `LoginFailed`。校验失败会短路流程；注册成功事件与账户写入、JWT 登录成功事件与 refresh token 写入共享事务。`LoginFailed` 不含邮箱或失败原因。邮箱只供注册/登录校验策略读取，不能写入日志；认证密钥和 token 不会放进事件。注册成功提交后再签发邮箱验证码，验证码存储失败时账户保留为未验证状态。`login_session` 只触发登录前校验，不发 `LoginSucceeded`，因为 Session middleware 在稍后持久化 Session。
-- JWT 登录仍是默认方式。选择 Cookie Session 登录的应用可调用 `AuthFlows::login_session`；该方法在共享登录限流下验证凭据，异步撤销旧 ID 并迁移到立即可见的 40 位大小写敏感字母数字 ID，同步写入统一 Session 属性中的账户 ID 和 CSRF token 的 SHA-256 摘要，并返回经过脱敏的 `SessionCredentials`。应用响应中应将 CSRF token 返回给客户端。退出路由使用 `AuthMode::Session` 保护，并调用 `AuthFlows::logout_session`；它删除认证 key、撤销旧 ID 并迁移新 ID，保留应用自己的 Session 数据。处理器内 `get` / `put` 等属性方法同步执行，`start` / `save` / ID 迁移及 store 操作是异步的；受管理请求会在处理器前启动、响应发出前保存，包括未修改请求和处理器返回 500 的请求。两种认证流程都依赖同一个 `SessionServiceProvider`，详见 [Session 使用指南](../session/README.md#请求共享句柄与属性)。
+- 现有 `AuthFlows` 增强流程继续提供 JWT 登录；具名认证的默认 Guard 为 `web/session`。选择旧显式 Cookie Session 流程的应用可调用 `AuthFlows::login_session`；该方法在共享登录限流下验证凭据，异步撤销旧 ID 并迁移到立即可见的 40 位大小写敏感字母数字 ID，同步写入统一 Session 属性中的账户 ID 和 CSRF token 的 SHA-256 摘要，并返回经过脱敏的 `SessionCredentials`。应用响应中应将 CSRF token 返回给客户端。退出路由使用 `AuthMode::Session` 保护，并调用 `AuthFlows::logout_session`；它删除认证 key、撤销旧 ID 并迁移新 ID，保留应用自己的 Session 数据。处理器内 `get` / `put` 等属性方法同步执行，`start` / `save` / ID 迁移及 store 操作是异步的；受管理请求会在处理器前启动、响应发出前保存，包括未修改请求和处理器返回 500 的请求。两种认证流程都依赖同一个 `SessionServiceProvider`，详见 [Session 使用指南](../session/README.md#请求共享句柄与属性)。
 - `AuthFlows::register`、`request_email_verification` 和 `request_password_reset` 会返回可选的 `IssuedVerificationCode`；该封装的 `Debug` 输出会隐藏验证码。只有电子邮件唯一约束冲突才会让重复注册返回 `None`；其他数据库错误会继续传播。遇到无效或过期挑战时，`verify_email` 和 `reset_password` 返回布尔值。Handler 可保持公开响应一致，只在有验证码时发送。对于不存在、未验证、已禁用账户或密码错误，`login` 返回相同的 unauthorized 错误。登录/刷新成功时返回 `AuthCredentials`，其 `Debug` 输出会隐藏两种 bearer 凭据。DTO、响应格式、路由授权和消息发送均由 handler 负责。
 
 `--auth` 生成路由接受以下 JSON 字段：`/auth/register` 和 `/auth/login` 使用 `email` + `password`；`/auth/request-email-verification` 和 `/auth/password-reset` 使用 `email`；`/auth/verify-email` 使用 `email` + `code`；`/auth/refresh` 和 `/auth/logout` 使用 `refresh_token`；`/auth/password-reset/confirm` 使用 `email`、`code` 和 `password`。注册、登录及重置确认统一使用 `password`，遵循默认 `TrimStrings` 的完整键排除，保留密码首尾空白。凭据响应会在 JSON 响应封装中各返回一次 access token 和 refresh token。限流来源 key 使用公开的 HTTP `ClientIp` extractor：默认以 TCP peer 为准；仅当 peer 匹配 `[server].trusted_proxy_ranges`（含显式星号）或未配置时符合 Forge/Vapor 平台条件、受信宿主声明的 Cloud 入口条件，才采用启用的代理客户端地址头。
 - `JwtServiceProvider` 会在启动时校验显式提供的 key ring；`JwtTokens` 用于签发和验证短时 HS256 access token。`AuthLayer` 支持不依赖 Session middleware 的 `AuthMode::Jwt`；`SessionOrToken` 仍将 Bearer 凭据识别为 PAT。
 - `CurrentUser` 和 `OptionalUser` 用于提取已验证的账户身份，并暴露账户 ID、凭据来源和 PAT abilities；应用 handler 根据 ID 加载自己的业务用户模型。
-- PAT 数据库认证会在每个请求中检查撤销、过期和账户禁用状态，并更新 PAT 的 `last_used_at`。变更提交后，使用同一数据库的其他节点会在下一次请求中看到新状态。Cookie Session 认证使用 历史决策 082 定义的唯一 Session 状态与 store；已认证快照和当前持久记录的账户 ID、截止时间均须符合要求，检查本身不续期。撤销后的已加载会话只允许更新，不能重新插入并恢复认证。
+- PAT 数据库认证会在每个请求中检查撤销、过期和账户禁用状态，并更新 PAT 的 `last_used_at`。变更提交后，使用同一数据库的其他节点会在下一次请求中看到新状态。Cookie Session 认证复用唯一 Session 状态与 store。需要持续服务器撤销及精确授权截止的接口，要求受支持的 `ServerSide` driver，并核对当前持久身份与期限，检查本身不续期；这类驱动拒绝删除后迟到保存重新插入认证状态。原生 database 不提供该精确截止保证，浏览器 WebSocket 入口应使用受支持的 `ServerSide` driver，不能从普通数据库 Session 推断连接授权截止。
 - `PersonalAccessTokens` 提供账户范围内的签发、列举和撤销操作。256 位 bearer 值仅返回一次，数据库只存储其 SHA-256 摘要和短前缀。列举操作不返回秘密；撤销限定于账户，并会立即共享给使用数据库的认证器。
 - `Policy` 提供精确匹配、基于数据库的角色权限。`ensure_role`、`assign_role`、`grant_permission` 及相应撤销方法管理全局角色分配。`allows` / `authorize` 每次都会读取共享数据库；JWT 和 Session 需要已授予的角色权限，PAT 还必须拥有完全匹配的 token ability。未知权限默认拒绝；权限撤销提交后，各节点在下一次检查时都会看到。
 
@@ -54,7 +78,7 @@ let session_provider = SessionServiceProvider::with_store(session_store);
 // 在应用的 Provider 清单中注册 session_provider。
 ```
 
-应用 migrator 必须且只包含一次 `AuthMigration`；它内部复用唯一 `SessionMigration` 建表，不能再单独登记 `SessionMigration`，否则两个迁移版本回滚时可能误删仍被依赖的 Session 表。仅使用 Session 而不使用认证迁移的应用才单独登记 `SessionMigration`。使用 refresh token 时加入 `AuthRefreshTokenMigration`，使用验证码时加入 `AuthVerificationCodeMigration`，使用 Policy 时加入 `AuthPolicyMigration`。`--auth` 项目模板会注册这些认证迁移，以及 `DatabaseRateLimitMigration`、`DatabaseAuditMigration` 和 `DatabaseAuditTenantMigration`。默认迁移会创建中性的 `tb_users`、`tb_sessions`、`tb_personal_access_tokens`、`tb_auth_refresh_tokens`、`tb_verification_codes`、`tb_roles`、`tb_permissions`、`tb_user_roles`、`tb_role_permissions` 和 `tb_audit_records` 表；`DatabaseConfig.table_prefix` 与 `table_names` 可选择其他经过校验的物理表名，认证/授权查询使用相同 resolver。应用专属用户列和业务数据由应用管理。PAT、refresh 凭据和 Cookie Session ID 以 SHA-256 摘要形式存储；Session 数据与身份摘要绑定，保存为共享表中的有界 JSON 原文，而不是数据库 JSON 类型。验证码行包含 purpose/identity 摘要与 Argon2id 验证码哈希，不保存原始 identity 或验证码。摘要属于假名化处理，并非加密，也无法阻止对低熵 identity 的猜测。修改状态的 Session Auth API 请求仍须提供匹配认证摘要的 `x-csrf-token`；真实经过默认 `web` 组 Session CSRF 中间件的请求可用 `_token`、`X-CSRF-TOKEN` 或加密 `X-XSRF-TOKEN` 完成通用 Session token 验证，Auth 层只接受该请求内部的已验证标记。未经过 Web 验证的 API 不会跳过原有认证摘要校验；已选凭据无效时绝不会降级为匿名访问。
+应用 migrator 必须且只包含一次 `AuthMigration`；它内部复用唯一 `SessionMigration` 建表，不能再单独登记 `SessionMigration`，否则两个迁移版本回滚时可能误删仍被依赖的 Session 表。仅使用 Session 而不使用认证迁移的应用才单独登记 `SessionMigration`。使用 Session 记住我时加入 `AuthRememberTokenMigration`，为用户表追加可空的 `remember_token` 列；使用 refresh token 时加入 `AuthRefreshTokenMigration`，使用验证码时加入 `AuthVerificationCodeMigration`，使用 Policy 时加入 `AuthPolicyMigration`。`--auth` 项目模板会注册这些认证迁移，以及 `DatabaseRateLimitMigration`、`DatabaseAuditMigration` 和 `DatabaseAuditTenantMigration`。默认迁移会创建中性的 `users`、`sessions`、`personal_access_tokens`、`auth_refresh_tokens`、`verification_codes`、`roles`、`permissions`、`user_roles`、`role_permissions` 和 `audit_records` 表；`DatabaseConfig.table_prefix` 与 `table_names` 可选择其他经过校验的物理表名，认证/授权查询使用相同 resolver。应用专属用户列和业务数据由应用管理。PAT、refresh 凭据持久化为 SHA-256 摘要；原生数据库 Session 存储原始 ID 与 Base64 属性载荷，显式 Guarded 增强使用身份摘要和截止 envelope，两者的载荷不能混用。验证码行包含 purpose/identity 摘要与 Argon2id 验证码哈希，不保存原始 identity 或验证码。摘要属于假名化处理，并非加密，也无法阻止对低熵 identity 的猜测。旧显式 `AuthMode::Session` / 数据库 `Authenticator` 写请求仍接受匹配独立认证摘要的 `x-csrf-token`；经过标准 Web CSRF 的内部验证标记可满足该边界。具名 `with_guard` 路径使用标准 Session token 与 CSRF middleware，不创建旧认证摘要；不得将两条路径混为同一 token 协议。
 
 若需以原子方式审计权限变更，请在调用方的 `Db::transaction` 中调用 `Policy::grant_permission_in_transaction`，并在同一事务提交前通过 `DatabaseAuditSink::record_in_transaction` 写入已准备好的 `AuditRecord`。`--auth` 模板会注册 `AuditServiceProvider::database()` 并加入 `DatabaseAuditMigration` 与 `DatabaseAuditTenantMigration`；审计事件仍需显式记录，`AuthFlows` 不会默默审计所有操作。数据策略与 sink 故障语义见[审计模块指南](../audit/README.md)。
 
@@ -66,13 +90,15 @@ let session_provider = SessionServiceProvider::with_store(session_store);
 
 ## TOTP 多因素认证
 
+本节描述现有 `auth-mfa` 增强，不表示完整 Fortify 或官方 TOTP 流程已交付。通用 Guard 不查询应用 MFA 启用状态，也不自动检查第二因子；应用需要 MFA 时，须在完成第二因子后调用具名 Guard 的 `login`。
+
 启用 `auth-mfa` feature 后，按 `DatabaseServiceProvider`、`AuthServiceProvider`、`JwtServiceProvider`、`EncryptionServiceProvider`、`MfaServiceProvider`、`AuthFlowsServiceProvider` 的依赖顺序装配；应用 migrator 还须包含 `AuthMfaMigration`。没有注册 `MfaServiceProvider` 的应用继续使用现有 JWT 登录流程。Provider 启动时检查 MFA 和审计表；缺少迁移或必需服务会导致启动失败，不会退化为明文 seed 或本地限流。
 
 登录 handler 应调用 `AuthFlows::begin_login` 并处理 `LoginAttempt`：普通账户得到 `Authenticated` 凭据，启用 MFA 的账户只得到 5 分钟有效、绑定可信请求来源且最多尝试五次的 challenge；随后调用 `complete_mfa_login` 校验第二因子并取得凭据。旧 `login` 在账户启用 MFA 时拒绝签发，OIDC completion 也返回相同的 `LoginAttempt`。challenge、TOTP 时间步、refresh 凭据与成功审计在一次数据库事务中消费/提交。
 
 通过已认证的应用路由调用 `begin_totp_enrollment`，使用本地密码重新认证并创建待确认 provisioning URI；客户端首次验证器代码交给 `confirm_totp_enrollment` 后才启用 MFA，并只返回一次十个恢复码。TOTP seed 以当前进程加密密钥加密，历史密钥仅用于解密。恢复码只保存 SHA-256 摘要并原子单次消费。禁用或重置恢复码须再次验证密码和当前 TOTP/恢复码，且会在同一事务审计并撤销全部 refresh token。
 
-TOTP 遵循 RFC 6238：HMAC-SHA1、30 秒时间步、6 位数字并接受前后各一个时间步；已接受的时间步不会再次使用。MFA 启用后，JWT 与 Session 方式的密码登录均不能绕过 challenge；受保护 Session 路由也会拒绝该账户此前建立的 Session。配置 TTL 内已签发的无状态 JWT 仍有效，因此高风险业务操作仍应结合较短 access-token TTL 与应用授权策略。
+TOTP 遵循 RFC 6238：HMAC-SHA1、30 秒时间步、6 位数字并接受前后各一个时间步；已接受的时间步不会再次使用。现有 `AuthFlows` 的 JWT 密码登录要求完成 challenge，`login_session` / `login_session_with_guard` 对 MFA 已启用账户拒绝建立单因素 Session。唯一示例的受保护账户 Session 路由另装 `require_session_factor` middleware，通过 `mfa_enabled` 拒绝已启用 MFA 账户的该 Session 路径，保留旧 Session 拒绝策略。这是应用增强，不是通用 Guard 的硬编码行为；查询启用状态不代表当前请求已完成第二因子。配置 TTL 内已签发的无状态 JWT 仍有效，因此高风险业务操作仍应结合较短 access-token TTL 与应用授权策略。
 
 ## 资源查询授权
 
@@ -83,7 +109,7 @@ use openrust::auth::{CurrentUser, QueryRule, QueryScope};
 use openrust::db::sea_orm::{ColumnTrait, Condition};
 
 let documents = QueryRule::<document::Entity>::new(|user| {
-    Ok(QueryScope::new(document::Column::OwnerId.eq(user.id())))
+    Ok(QueryScope::new(document::Column::OwnerId.eq(user.integer_id()?)))
 });
 let (rows, total) = documents.select(&user, Condition::all())?
     .order_by_desc(document::Column::CreatedAt)
@@ -116,7 +142,7 @@ Discovery、JWKS 和 token 请求都经过受限 `DependencyClient`，共享单�
 
 ## 外部登录关联与统一退出
 
-需要跨应用或跨副本撤销外部登录时，应用 migrator 还须加入 `AuthExternalSessionMigration`。保留既有 `complete` 接口可继续登录；需要退出关联的应用改用 `complete_with_handle`。回调成功后，服务端应将 `ExternalLoginHandle` 作为秘密保存在受保护的服务端会话中，不放入 URL、日志或客户端可读字段。多副本部署还须使用共享的服务端会话存储，使 MFA 待处理状态和关联句柄可由后续节点恢复；不要依赖进程内状态或粘性会话。安全存储已暴露句柄后，可通过 `ExternalLoginHandle::from_exposed` 恢复不透明句柄。直接认证结果应在创建应用 Session 后调用 `attach_session`；若返回 MFA challenge，`complete_mfa_login` 会在同一事务消费 challenge、签发凭据并将 refresh family 绑定到关联句柄，随后再创建并关联应用 Session。关联句柄只用于定位并撤销本次 provider 登录，不能代替应用授权。
+需要跨应用或跨副本撤销外部登录时，应用 migrator 还须加入 `AuthExternalSessionMigration`。保留既有 `complete` 接口可继续登录；需要退出关联的应用改用 `complete_with_handle`。回调成功后，服务端应将 `ExternalLoginHandle` 作为秘密保存在受保护的服务端会话中，不放入 URL、日志或客户端可读字段。多副本部署还须使用共享的服务端会话存储，使 MFA 待处理状态和关联句柄可由后续节点恢复；不要依赖进程内状态或粘性会话。安全存储已暴露句柄后，可通过 `ExternalLoginHandle::from_exposed` 恢复不透明句柄。直接认证结果在通过具名 Guard 创建应用 Session 后调用 `attach_session_with_guard(user_id, handle, session, guard)`；旧显式认证键路径仍可使用 `attach_session`。若返回 MFA challenge，`complete_mfa_login` 会在同一事务消费 challenge、签发凭据并将 refresh family 绑定到关联句柄，随后再创建并关联应用 Session。关联句柄只用于定位并撤销本次 provider 登录，不能代替应用授权。
 
 应用的退出路由须先通过本地认证保护，再调用 `begin_logout(user_id, handle, fixed_redirect_uri, session_store)`。该调用先撤销关联的 refresh family、MFA challenge 和已关联 Session；配置了 `IdP` logout endpoint 且传入固定 allowlist URI 时才返回 RP-Initiated Logout URL。IdP 不可用或未配置退出能力不恢复本地登录；没有返回 URL 表示本地退出已完成。回调再用 `complete_logout(provider, state)` 一次性消费 state 并取得服务端登记的固定 URI。自定义 provider 的退出 endpoint、client ID、回调 URI 必须来自静态配置。
 

@@ -18,6 +18,10 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
+2026-11-04真人追加并行授权：同main启用多个可见开发对话框结合子智能体，按唯一todo互斥文件/依赖分工；总控继续独占公共contract、共享文档、manifest/lock、迁移、Git、Cargo/服务及最终验收。当前Guard核心先独立验收提交→Fortify官方TOTP优先→返回核心依赖顺序不变；本批冻结范围不扩大，但后续每簇持续按依赖图并行。每次领取/闭环/worker完成/依赖解除主动复核ready队列，前置满足、互斥文件和资源许可就复用可见对话框/子智能体接续派发，无需再次批准；无ready项、接口未定或最终验收须串行时记录原因，不强求固定人数/空转。及时复用或释放worker，不递归派发，不扩大本批。创建/queued不算开发，首个真实业务工具及交付回执登记唯一todo。
+
+真人最新排期：当前在途R7具名认证核心簇先按源码/生产接线/配置/调用方/模板/唯一示例/文档/适用验收闭环，冻结修复后独立本地提交，不追加整个Fortify。随后固定Fortify双因素与Google TOTP按明确批准的阶段二优先例外推进；其他Fortify与全部官方生态范围保留，但其他包不因此全面提前。该优先闭环后回Container/Provider、HTTP/Session剩余前置核对，再沿Query/Schema/迁移→Model/分页→Factory实际依赖逐簇领取；SQLite/CLI/导航文档同步，不重做已验范围或做R2–R6巨型提交。真实Google客户端外部缺口单列，原Goal/main/预算与冻结业务边界保持。
+
 📝 Fortify v1.41.0及同commit官方测试已冻结，[认证契约](plans/fortify-authentication.md)区分包回退/安装模板默认与既有增强；root沿原Goal/main先补R7具名Guard/UserProvider/StatefulGuard前置，再接官方TOTP流程。S3b已提交，完整Fortify与Google真实客户端尚未验收；SQLite/CLI/文档后继不删除。
 
 ✅ S3b SQLite本地认证/MFA限定验收通过，本地提交以Git为准；源17新调用方门禁、四fresh及独审齐备，源9/12/13按未变路径限定复用。双库22项、最低3.26认证52/限流2/Root5，fresh各3无skip；234生成源码归档，所有任务target已正常clean至0。完整Guard/Fortify/Google真实客户端、SQLite其他后端能力与故障窗口仍开放，见memory/testing.md「SQLite 本地认证与 MFA 限定验收」及唯一todo。原Goal active，新99/19.8与旧27/5.4历史保留、creditsfalse。

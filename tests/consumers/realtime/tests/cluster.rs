@@ -103,6 +103,10 @@ async fn two_real_api_processes_route_websocket_and_sse_through_redis() -> TestR
         .json(&json!({"message": "must-fail"}))
         .send()
         .await?;
+    assert_eq!(
+        failed_publish.status(),
+        reqwest::StatusCode::SERVICE_UNAVAILABLE
+    );
     let failure: serde_json::Value = failed_publish.json().await?;
     assert_eq!(failure["code"], "realtime_transport_unavailable");
     stop_node(&mut failed_node).await?;

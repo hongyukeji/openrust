@@ -31,7 +31,7 @@ pub async fn visible_documents(
     requested_id: Option<i64>,
 ) -> Result<Vec<document::Model>> {
     let rule = QueryRule::<document::Entity>::new(|user| {
-        Ok(QueryScope::new(document::Column::OwnerId.eq(user.id())))
+        Ok(QueryScope::new(document::Column::OwnerId.eq(user.integer_id()?)))
     });
     let filter = requested_id.map_or_else(Condition::all, |id| {
         Condition::all().add(document::Column::Id.eq(id))
@@ -46,7 +46,7 @@ pub async fn visible_documents_in_batches(
     cancellation: &Cancellation,
 ) -> Result<Vec<document::Model>> {
     let rule = QueryRule::<document::Entity>::new(|user| {
-        Ok(QueryScope::new(document::Column::OwnerId.eq(user.id())))
+        Ok(QueryScope::new(document::Column::OwnerId.eq(user.integer_id()?)))
     });
     let mut documents = Vec::new();
     rule.select(user, Condition::all())?

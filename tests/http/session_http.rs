@@ -42,6 +42,8 @@ struct Probe {
     collections: Arc<AtomicUsize>,
     pending: Arc<AtomicBool>,
     write_entered: Arc<Notify>,
+    blocked_write: Arc<AtomicBool>,
+    write_released: Arc<Notify>,
 }
 impl SessionStore for Probe {
     fn gc(&self, _: i64) -> BoxFuture<'_, Result<u64>> {
@@ -68,6 +70,10 @@ impl SessionStore for Probe {
             if self.pending.load(Ordering::SeqCst) {
                 self.write_entered.notify_one();
                 return std::future::pending().await;
+            }
+            if self.blocked_write.load(Ordering::SeqCst) {
+                self.write_entered.notify_one();
+                self.write_released.notified().await;
             }
             if self.fail.load(Ordering::SeqCst) {
                 return Err(Error::custom_with_status(
@@ -352,6 +358,15 @@ fn check(condition: bool) -> Result<()> {
 }
 
 async fn app(enabled: bool, probe: Probe, control: Arc<Control>) -> Result<App> {
+    app_with_lifetime(enabled, probe, control, SessionConfig::default().lifetime).await
+}
+
+async fn app_with_lifetime(
+    enabled: bool,
+    probe: Probe,
+    control: Arc<Control>,
+    lifetime: u64,
+) -> Result<App> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
     let mut builder = openrust::core::ProviderBuilder::new();
@@ -363,6 +378,7 @@ async fn app(enabled: bool, probe: Probe, control: Arc<Control>) -> Result<App> 
             SessionServiceProvider::with_store(probe).with_cookie_config(SessionConfig {
                 driver: Some("array".into()),
                 cookie: Some("test_session".into()),
+                lifetime,
                 secure: Some(false),
                 lottery: [1, 1],
                 ..SessionConfig::default()
@@ -885,6 +901,88 @@ async fn previous_resolver_url_cookie_and_persistence_failures_keep_original_rec
         Ok(())
     }
     .await;
+    finish(&app, outcome).await
+}
+
+// 等生产Cookie使用的真实UTC跨越目标秒；每次醒来重读时钟，不假设固定睡眠已跨秒。
+async fn wait_for_real_second(second: i64) -> Result<()> {
+    let target = OffsetDateTime::from_unix_timestamp(second).map_err(Error::internal)?;
+    loop {
+        let now = OffsetDateTime::now_utc();
+        if now >= target {
+            return Ok(());
+        }
+        let remaining = std::time::Duration::try_from(target - now).map_err(Error::internal)?;
+        tokio::time::sleep(remaining).await;
+    }
+}
+
+#[tokio::test]
+async fn slow_save_does_not_shorten_the_final_response_cookie_lifetime() -> Result<()> {
+    let probe = Probe::default();
+    probe.blocked_write.store(true, Ordering::SeqCst);
+    let app = app_with_lifetime(true, probe.clone(), Arc::new(Control::default()), 7).await?;
+    let router = match build_router(&app) {
+        Ok(router) => router,
+        Err(error) => return finish(&app, Err(error)).await,
+    };
+    let mut joined = false;
+    let mut task = tokio::spawn(async move { send(router, "/session-test/shared", None).await });
+    let outcome: Result<()> = async {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            probe.write_entered.notified(),
+        )
+        .await
+        .map_err(Error::internal)?;
+        check(probe.writes.load(Ordering::SeqCst) == 1)?;
+        check(!task.is_finished())?;
+        let entered = OffsetDateTime::now_utc().unix_timestamp();
+        let started = tokio::time::Instant::now();
+        // 从已进入write的时刻再跨两个秒刻度，确保保存实际等待至少一秒。
+        tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            wait_for_real_second(entered + 2),
+        )
+        .await
+        .map_err(Error::internal)??;
+        check(started.elapsed() >= std::time::Duration::from_secs(1))?;
+        check(!task.is_finished())?;
+        let released = OffsetDateTime::now_utc().unix_timestamp();
+        check(released >= entered + 2)?;
+        probe.blocked_write.store(false, Ordering::SeqCst);
+        probe.write_released.notify_one();
+        let completed = tokio::time::timeout(std::time::Duration::from_secs(2), &mut task)
+            .await
+            .map_err(Error::internal)?;
+        joined = true;
+        let response = completed.map_err(Error::internal)??;
+        check(response.status == StatusCode::OK)?;
+        check(probe.writes.load(Ordering::SeqCst) == 1)?;
+        let header = response
+            .headers
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .find(|value| value.starts_with("test_session="))
+            .ok_or_else(invalid)?;
+        check(header.split(';').any(|part| part.trim() == "Max-Age=420"))?;
+        let expires = openrust::http::Cookie::from_header(header)?
+            .expires()
+            .ok_or_else(invalid)?;
+        let received = OffsetDateTime::now_utc().unix_timestamp();
+        // 不仅检查相对期限：Expires也必须由保存释放后的时间生成。
+        check(expires.unix_timestamp() >= released + 420)?;
+        check(expires.unix_timestamp() <= received + 420)?;
+        let persisted = stored_attributes(&probe, &cookie(&response)?).await?;
+        check(persisted["test"]["shared"] == json!({"one":1,"two":2,"three":3}))
+    }
+    .await;
+    // 任一等待或断言失败均取消并join本次请求，不遗留等待释放的save任务。
+    if !joined {
+        task.abort();
+        let _ = task.await;
+    }
     finish(&app, outcome).await
 }
 

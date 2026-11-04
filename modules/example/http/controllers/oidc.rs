@@ -161,7 +161,7 @@ pub(crate) async fn linked(
     user: CurrentUser,
     Inject(account): Inject<OidcAccount>,
 ) -> Result<Response> {
-    let links = account.linked(user.id()).await?;
+    let links = account.linked(user.integer_id()?).await?;
     Ok(private(Json(links.into_iter().map(|link|serde_json::json!({"provider":link.provider(),"issuer":link.issuer(),"subject":link.subject()})).collect::<Vec<_>>()).into_response()))
 }
 pub(crate) async fn bind(
@@ -178,7 +178,12 @@ pub(crate) async fn bind(
         }
         let binding = cookie(&request, &state)?;
         account
-            .bind(user.id(), input, &binding, &source.ip().to_string())
+            .bind(
+                user.integer_id()?,
+                input,
+                &binding,
+                &source.ip().to_string(),
+            )
             .await?;
         Ok(Json(serde_json::json!({"status":"bound"})).into_response())
     }
@@ -192,7 +197,7 @@ pub(crate) async fn unbind(
     Validated(Json(input)): Validated<Json<UnbindInput>>,
 ) -> Result<Response> {
     let removed = account
-        .unbind(user.id(), input, &source.ip().to_string())
+        .unbind(user.integer_id()?, input, &source.ip().to_string())
         .await?;
     Ok(private(
         Json(serde_json::json!({"removed":removed})).into_response(),
@@ -223,7 +228,7 @@ pub(crate) async fn browser_bind_authorize(
         .ok_or(Error::Unauthorized)?;
     let authorization = account
         .begin_browser_bind(
-            user.id(),
+            user.integer_id()?,
             &input.email,
             &input.password,
             &source.ip().to_string(),
@@ -239,7 +244,7 @@ pub(crate) async fn browser_bind_authorize(
         PENDING_BIND_KEY,
         PendingBind {
             state_hash: crate::modules::example::services::oidc::state_hash(&state),
-            owner: user.id(),
+            owner: user.integer_id()?,
             csrf: csrf.into(),
         },
     )?;
@@ -320,18 +325,23 @@ pub(crate) async fn browser_bind_confirm(
         let pending = session
             .get_typed::<PendingBind>(PENDING_BIND_KEY)?
             .ok_or(Error::Unauthorized)?;
-        if pending.owner != user.id()
+        if pending.owner != user.integer_id()?
             || pending.state_hash != crate::modules::example::services::oidc::state_hash(&state)
         {
             return Err(Error::Unauthorized);
         }
         let binding = cookie(&request, &state)?;
         account
-            .transition_browser_bind(user.id(), &state, &binding, "ready", "consumed")
+            .transition_browser_bind(user.integer_id()?, &state, &binding, "ready", "consumed")
             .await?;
         session.forget(&[PENDING_BIND_KEY])?;
         account
-            .bind(user.id(), input, &binding, &source.ip().to_string())
+            .bind(
+                user.integer_id()?,
+                input,
+                &binding,
+                &source.ip().to_string(),
+            )
             .await?;
         Ok(Json(serde_json::json!({"status":"bound"})).into_response())
     }
@@ -375,27 +385,31 @@ pub(crate) async fn logout(
     Inject(sessions): Inject<openrust::auth::SessionStoreHandle>,
     Validated(Json(input)): Validated<Json<LogoutInput>>,
 ) -> Result<Response> {
-    let redirect = account.logout(user.id(), input.handle, &sessions).await?;
+    let redirect = account
+        .logout(user.integer_id()?, input.handle, &sessions)
+        .await?;
     Ok(private(Json(serde_json::json!({"status":"locally_logged_out","end_session_url":redirect.as_ref().map(|redirect|redirect.url().as_str())})).into_response()))
 }
 /// 只关联现有已认证 Session；不是 OIDC 直接创建 Session，也不绕过现有 MFA Session 限制。
 pub(crate) async fn attach_session(
     user: CurrentUser,
     Inject(account): Inject<OidcAccount>,
+    Inject(auth): Inject<openrust::auth::AuthManager>,
     session: Session,
     headers: HeaderMap,
     source: ClientIp,
     Validated(Json(input)): Validated<Json<AttachSessionInput>>,
 ) -> Result<Response> {
     account.require_browser_origin(&headers)?;
+    let selected = auth.guard(user.guard_name()).await?;
+    let guard = selected.as_stateful().ok_or(Error::Unauthorized)?;
     account
         .attach_session(
-            user.id(),
-            input.handle,
-            &input.email,
-            &input.password,
+            user.integer_id()?,
+            input,
             &source.ip().to_string(),
             &session,
+            guard,
         )
         .await?;
     Ok(private(

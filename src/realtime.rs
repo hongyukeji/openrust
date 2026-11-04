@@ -186,7 +186,7 @@ impl Realtime {
         let (close, close_receiver) = watch::channel(false);
         let id = Uuid::now_v7().to_string();
         let entry = LocalConnection {
-            user_id: user.id(),
+            user_id: user.integer_id()?,
             channel: channel.clone(),
             sender,
             close,

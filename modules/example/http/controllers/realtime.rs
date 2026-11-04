@@ -47,10 +47,10 @@ pub(crate) async fn events(
 ) -> Result<Response> {
     let (token_user_id, expires_at) =
         tokens.verify_access_token_with_expiry(bearer_token(&headers)?)?;
-    if token_user_id != user.id() {
+    if token_user_id != user.integer_id()? {
         return Err(Error::Unauthorized);
     }
-    require_owned(&db, user.id(), id).await?;
+    require_owned(&db, user.integer_id()?, id).await?;
     realtime.validate_origin(&headers)?;
     Ok(realtime
         .connect(&user, format!("example.article.{id}"), expires_at)
@@ -64,10 +64,10 @@ pub(crate) async fn announce(
     Inject(realtime): Inject<Realtime>,
     Path(id): Path<i64>,
 ) -> Result<openrust::http::Json<serde_json::Value>> {
-    require_owned(&db, user.id(), id).await?;
+    require_owned(&db, user.integer_id()?, id).await?;
     let delivered = realtime
         .send_to_user(
-            user.id(),
+            user.integer_id()?,
             &format!("example.article.{id}"),
             &serde_json::json!({"article_id": id, "event": "article.announced"}),
             Duration::from_secs(30),

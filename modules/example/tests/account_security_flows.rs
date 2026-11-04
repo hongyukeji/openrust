@@ -48,7 +48,7 @@ impl Fixture {
         let source=Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
             "app":{"env":"test","url":ORIGIN},"database":{"url":database.url()},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
-            "auth":{"jwt":{"issuer":ORIGIN,"audience":"account-tests","active_key_id":"test","keys":{"test":key}}},
+            "auth":{"defaults":{"guard":"web","passwords":"users","provider":null},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"app-users","table":"users"}},"jwt":{"issuer":ORIGIN,"audience":"account-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":ORIGIN,"active_key_id":"test","keys":{"test":key}}},
             "session":{"secure":false,"cookie":"example_account_session","same_site":"strict"}
         })));
@@ -241,7 +241,11 @@ async fn session_login_csrf_preferences_logout_and_origin_are_enforced() -> Test
             None,
         )
         .await?;
-    assert_eq!(response.status(), StatusCode::FORBIDDEN, "missing csrf");
+    assert_eq!(
+        response.status(),
+        StatusCode::from_u16(419)?,
+        "missing csrf"
+    );
     response.assert_header("cache-control", "no-store")?;
     let response = fixture
         .post(
@@ -252,7 +256,7 @@ async fn session_login_csrf_preferences_logout_and_origin_are_enforced() -> Test
             Some("wrong-csrf"),
         )
         .await?;
-    assert_eq!(response.status(), StatusCode::FORBIDDEN, "wrong csrf");
+    assert_eq!(response.status(), StatusCode::from_u16(419)?, "wrong csrf");
     let response = fixture
         .post(
             "/session/preference",
@@ -286,6 +290,7 @@ async fn session_login_csrf_preferences_logout_and_origin_are_enforced() -> Test
         )
         .await?;
     assert_eq!(response.status(), StatusCode::OK, "session logout");
+    let logged_out_session = cookie(&response)?;
     let response = fixture
         .app
         .request(request(
@@ -298,6 +303,102 @@ async fn session_login_csrf_preferences_logout_and_origin_are_enforced() -> Test
         )?)
         .await?;
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "after logout");
+    let response = fixture
+        .post(
+            "/session/login",
+            &credentials(),
+            None,
+            Some(&logged_out_session),
+            None,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let renewed_session = cookie(&response)?;
+    let body: serde_json::Value = response.json()?;
+    let renewed_csrf = body["data"]["csrf_token"]
+        .as_str()
+        .ok_or("missing renewed CSRF token")?;
+    assert_ne!(renewed_csrf, csrf, "注销必须轮换标准 Session token");
+    let response = fixture
+        .app
+        .request(request(
+            "GET",
+            "/session/preference",
+            &serde_json::Value::Null,
+            None,
+            Some(&renewed_session),
+            None,
+        )?)
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = response.json()?;
+    assert_eq!(body["data"]["density"], "compact", "认证轮换保留应用偏好");
+    fixture
+        .post(
+            "/session/preference",
+            &serde_json::json!({"density":"compact"}),
+            None,
+            Some(&renewed_session),
+            Some(&csrf),
+        )
+        .await?
+        .assert_status(StatusCode::from_u16(419)?)?;
+    fixture.close().await
+}
+
+#[tokio::test]
+async fn disabled_account_rejects_existing_named_session_on_new_requests() -> TestResult {
+    let Some(fixture) = Fixture::create().await? else {
+        return Ok(());
+    };
+    let (session, csrf) = login_session(&fixture).await?;
+    let read = || {
+        request(
+            "GET",
+            "/session/preference",
+            &serde_json::Value::Null,
+            None,
+            Some(&session),
+            None,
+        )
+    };
+    fixture
+        .app
+        .request(read()?)
+        .await?
+        .assert_status(StatusCode::OK)?;
+    // 修改真实隔离库；后续每次请求都必须经 app-users 重新加载账户状态。
+    let db = fixture
+        .app
+        .app()?
+        .state()
+        .resolve::<openrust::db::Db>()
+        .await?;
+    let affected = db
+        .table("users")?
+        .where_eq("email", EMAIL)?
+        .update(vec![("disabled_at", chrono::Utc::now().naive_utc().into())])
+        .await?;
+    assert_eq!(affected, 1, "必须实际禁用已登录账户");
+    fixture
+        .app
+        .request(read()?)
+        .await?
+        .assert_status(StatusCode::UNAUTHORIZED)?
+        .assert_header("cache-control", "no-store")?;
+    // 提交正确 CSRF 也不得绕过账户禁用；此处应是认证拒绝而非 419。
+    fixture
+        .post(
+            "/session/preference",
+            &serde_json::json!({"density":"compact"}),
+            None,
+            Some(&session),
+            Some(&csrf),
+        )
+        .await?
+        .assert_status(StatusCode::UNAUTHORIZED)?
+        .assert_header("cache-control", "no-store")?;
+    drop(db);
     fixture.close().await
 }
 

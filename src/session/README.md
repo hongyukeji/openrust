@@ -44,9 +44,17 @@ fn register(builder: &mut ProviderBuilder) {
 
 需要身份摘要、微秒绝对截止、防止删除后迟到写入复活、OIDC 远程撤销或浏览器实时授权截止时，显式选择 `session.driver = "database-guarded"` 或 `GuardedDatabaseSessionStore`。在同一原生表迁移后追加 `GuardedSessionMigration` 与 `GuardedSessionGcMigration`；它们扩展该表，不建立第二套 Session。增强载荷为受限 JSON envelope，不与原生载荷混用；切换 driver 前选择新表或显式处理已有记录。SQLite 增强列回滚经标准迁移 Provider 的旧版删列重建执行，不能放入用户自建事务。
 
-`NativeDatabase` 保证分类允许普通登录及当前请求销毁，不能冒充 `ServerSide` 持续撤销保证。`SessionStoreHandle::delete`、`authorized_until` 对原生数据库明确拒绝；这些增强的调用方须选 Guarded 或等价 driver。已有属性的原生/增强跨界切换也拒绝，保留原 handler。原生期限来自最终 `lifetime`，绝对 `Expiry` 需选增强 driver。
+`NativeDatabase` 保证分类允许普通登录及当前请求销毁，不能冒充 `ServerSide` 持续撤销保证。`SessionStoreHandle::delete`、`authorized_until`、`authorized_until_guard` 对原生数据库明确拒绝；这些增强的调用方须选 Guarded 或等价 driver。已有属性的原生/增强跨界切换也拒绝，保留原 handler。原生期限来自最终 `lifetime`，绝对 `Expiry` 需选增强 driver。
 
-`SESSION_CONNECTION` 缺失或未加引号的 `null/(null)` 选择默认连接，具名值经同一 `Databases` 解析。`SESSION_TABLE` 默认 `sessions`；显式 null 因 Rust 非可空类型报配置错误，不回退默认。HTTP 绑定记录可信 IP 和 UA；UA 按固定 PHP 默认 UTF-8 与问号替代规则转换，截取 500 个 Unicode 字符。真实认证服务已绑定时才投影当前 Session guard 的用户 ID；完整 named guard 仍属后继。
+`SESSION_CONNECTION` 缺失或未加引号的 `null/(null)` 选择默认连接，具名值经同一 `Databases` 解析。`SESSION_TABLE` 默认 `sessions`；显式 null 因 Rust 非可空类型报配置错误，不回退默认。HTTP 绑定记录可信 IP 和 UA；UA 按固定 PHP 默认 UTF-8 与问号替代规则转换，截取 500 个 Unicode 字符。普通 Web/显式 Session middleware 在启用认证时即安装同一请求上下文，不要求路由额外使用认证层。绑定同一请求 scope 后，原生数据库 Session 在每次 `save()` 前解析当前默认具名 Guard 的实际 `id()`，自动保存与显式手动保存走同一投影；`should_use` 切换后使用新的默认来源，注销后保存 null。不扫描历史登录属性猜测身份，也不把 `user_id` 元数据当作认证依据。独立构造、未绑定认证请求的 Session 不自动取得 HTTP 身份。
+
+默认迁移的 `sessions.user_id` 是 bigint；Guard 支持字符串与 UUID ID，不会使该列自动变为 UUID。应用须为实际账户 ID 提供兼容的 Session 表字段类型，类型不匹配的数据库错误会传播。来源隔离、`CurrentUser::id()` 和显式正整数业务适配见[认证指南](../../docs/src/security/authentication.md)。
+
+### 具名 Guard 的持久身份与连接期限
+
+认证代码通过 `StatefulGuard::session_name()` 取得可选持久身份键，不猜测 Guard 键或读旧显式认证属性。`SessionStoreHandle::authorized_until_guard(&session, guard)` 同时核对 Guard 原始 ID、请求 Session 对应键与当前实际 handler 的持久记录，读取不续期；没有匹配持久登录键的仅请求身份不能取得连接期限。该方法要求 `ServerSide` 保证，应选 Guarded 或等价服务器端 driver，不能将原生 database 或 Cookie 快照当作持续撤销保证。
+
+唯一示例的浏览器实时连接使用这个带 Guard 的期限接口，OIDC 关联使用 `ExternalIdentityFlows::attach_session_with_guard`，先校验 Provider 与既有流程使用同一 `Db` 句柄和实际 `users` 表，再验证对应身份键；相同整数 ID 不能绕过账户来源隔离。旧 `authorized_until` / `attach_session` 保留显式旧认证资产的适配；它们不表示示例仍使用旧绑定键。更多调用和 MFA 的应用策略边界见[认证指南](../../docs/src/security/authentication.md)。
 
 ### 显式内存与自定义 store
 
@@ -81,13 +89,15 @@ expire_on_close = false
 
 此模式不需要 Session 数据表；应用其他数据库功能仍按自己的 Provider 装配。外部 driver 组合也可使用公开的 `CookieSessionStore::new(lifetime_minutes, expire_on_close)`。构造器验证正数分钟与时间范围，不在构造时保存请求。自定义包装 driver 必须委托 `guarantees()` 与 `supports_session_authentication(cookie_name)`，并保持请求绑定前后的保证分类一致。
 
-浏览器保存两枚 Cookie：配置名 Cookie 保存会话 ID，以 ID 为名称的 Cookie 保存属性字符串和整数秒截止。默认 Cookie Provider 加密并校验两枚 Cookie，历史密钥仍可解密；业务通过普通 Session API 使用，不接触 wire 内容。显式 plain 模式没有机密性或防篡改能力，不能用来保护认证状态。数据 Cookie 采用 CookieFactory 默认的 `HttpOnly=true`、`Partitioned=false`；ID Cookie 单独采用 `session.http_only`、`session.partitioned`，两者的路径、域、安全传输与 SameSite 沿宿主统一默认值。
+浏览器保存两枚 Cookie：配置名 Cookie 保存会话 ID，以 ID 为名称的 Cookie 保存属性字符串和整数秒截止。默认 Cookie Provider 加密并校验两枚 Cookie，历史密钥仍可解密；业务通过普通 Session API 使用，不接触 wire 内容。显式 plain 模式没有机密性或防篡改能力，不能用来保护认证状态。数据 Cookie 采用 `CookieFactory` 默认的 `HttpOnly=true`、`Partitioned=false`；ID Cookie 单独采用 `session.http_only`、`session.partitioned`，两者的路径、域、安全传输与 `SameSite` 沿宿主统一默认值。
 
 `expire_on_close=true` 使两枚 Cookie 都成为浏览器会话 Cookie，内含截止仍有效。截止所在整秒可读，下一秒失效；此 driver 的显式 `set_expiry` 同样按秒表示，相比纳秒期限可能延长不足一秒。Rust 使用 JSON 表示属性，不与 PHP serialize 字节互通。
 
 Session 认证另需完整性保证。框架只信任实际 Cookie 中间件提供的保护事实，配置中放入密钥或编译 `encryption` 本身不等于 Cookie 已受保护。plain 模式、ID 名被 `except` 排除，或任一合法 40 位数据 Cookie 名被排除时，Cookie driver 不支持 Session 认证；拒绝任一合法数据 ID 排除是为了防止 ID 轮换后改变安全保证。当前 `except` 按精确名称匹配，`*` 不代表通配符。
 
 上述组合仍可用于明确的非认证 Cookie 业务，但登录、登出和实际 Session 认证入口会返回 500 `session_cookie_protection_required`。登录/登出在限流与密码验证等副作用前检查；认证属性保存时也按最终 handler 和 Cookie 名称复核，不能通过 `set_name` 或 `set_handler` 降级保护。JWT 独立认证不会仅因编译了 Cookie driver 就被拒绝。无加密构建应使用服务器端 Session 后端；要使用 Cookie Session 认证，则需启用加密并装配受保护 Cookie Provider。
+
+标准 Web/CSRF 组要求 Session ID Cookie 和 XSRF-TOKEN 受保护；plain 或排除 ID Cookie 的配置会在构建 Router 时以 `web_cookie_encryption_missing` 拒绝，尚不会进入上述请求期认证。仅排除数据 Cookie 的配置仍由 Cookie Session 认证入口拒绝。
 
 Cookie/Session 机制自身失败（包括请求准备、保存、Cookie 生成、保护或头部预算失败）响应统一带 `Cache-Control: no-store` 和 `Pragma: no-cache`。替换错误响应不会携带原业务正文、Cookie 或内容长度；此规则不改变普通成功响应的缓存策略。
 
@@ -156,7 +166,7 @@ Session、认证与 Cookie 加密是独立能力。CLI 的 `--auth` 不要求同
 
 ## 请求共享句柄与属性
 
-受管理请求进入处理器前已经 `start().await`，处理器正常返回后自动 `save().await`。属性方法同步执行，不需要 `.await`；存储 I/O、ID 迁移等方法是异步的。普通处理器不要重复启动或保存，因为每次保存都会推进 flash 年龄。
+受管理请求进入处理器前已经 `start().await`。响应完成时先预检整份响应的 Cookie，包括既有 Cookie 头；预检失败不会开始本次自动保存。通过后执行 `save().await`，再按保存后的最终 Session ID 重新生成并附加出站 Cookie；首次 remember 恢复可能在保存中轮换 ID，Cookie 到期时间也在保存后重新求值，避免慢保存扣减本次出站 `lifetime`。已确认的 Precognition 请求跳过自动保存，仍执行 Cookie 预检与最终生成。属性方法同步执行，不需要 `.await`；存储 I/O、ID 迁移等方法是异步的。普通处理器不要重复启动或保存，因为每次保存都会推进 flash 年龄。
 
 ```rust
 use openrust::http::{Json, Request};
@@ -268,7 +278,7 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 请求中间件在 `start` 前自动调用 `set_request_on_handler(context).await`。手动构造的 Session 需要自己完成绑定；需请求但未绑定时 I/O 返回 `session_request_unbound`，绑定返回 `None` 则为 `session_request_binding_invalid`。`handler_needs_request()?` 用于查询能力；显式更换配置驱动后须重新绑定需要请求的驱动。hook 在状态锁外执行且忙碌时立即拒绝，不排队等待；绑定不改变逻辑后端或清除已有来源证明。
 
-受管理 HTTP 的绑定/加载失败会清除本请求排队 Cookie 并返回原错误；取消不后台补保存。自定义驱动的已发生外部副作用不能由框架自动回滚。请求绑定接口不代表内置 Cookie Session driver 已交付：双 Cookie、过期、加密视图与删除语义仍待完整实现验收。
+受管理HTTP绑定/加载失败清理请求队列，取消不后台补存，已发生外部副作用不自动回滚。请求绑定接口也供内置Cookie driver使用；其双Cookie、到期、保护与删除边界见本指南“客户端Cookie driver”，不代表全部driver生态或全局撤销已完成。
 
 ## flash 的保存时序
 
@@ -322,7 +332,7 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 只读 `RequestInfo::old` / `old_or` / `old_all` 使用同一请求 Session；没有 Session 时按缺失或空 bag 处理。拥有正文的 `Request::flash` / `flash_only` / `flash_except` 使用已经规范化的 `all` / `only` / `except` 快照，`Request::flush` 仅闪存空旧输入，不执行 `Session::flush`。默认 `flash` 不过滤密码；应用需显式 `flash_except(&["password"])`。当前输入不合并上传文件，不能把这里的旧输入称为完整文件输入。Precognition 跳过自动 Session 保存时，本请求的闪存不保证持久化。
 
-这里提供 Session 属性、flash、旧输入与当前存储/请求生命周期，不代表完整 Laravel Web 组。通用 CSRF 中间件、redirect 自动闪存与错误 bag、Session 响应缓存策略、请求阻塞及全部 Session driver 生态仍需各自能力接入。当前认证业务已有的 CSRF 与来源校验不等于通用 Web CSRF 中间件。记录到期不保证马上物理清除，也不应把内存 store 当作生产持久层。
+当前Session属性、flash、旧输入、错误bag、redirect闪存与Web CSRF已接入同一请求机制；这些子范围不表示完整Laravel Web组、请求阻塞、全部driver生态或所有响应缓存语义已完成。记录到期不保证立即物理清除，内存store不作持久层。
 
 
 ## 请求启动时回收过期记录

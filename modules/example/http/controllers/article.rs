@@ -42,7 +42,11 @@ use openrust::{Error, Result};
 const SHARE_PURPOSE: &str = "example.article.read";
 
 fn article_rule() -> QueryRule<article::Entity> {
-    QueryRule::new(|user| Ok(QueryScope::new(article::Column::OwnerId.eq(user.id()))))
+    QueryRule::new(|user| {
+        Ok(QueryScope::new(
+            article::Column::OwnerId.eq(user.integer_id()?),
+        ))
+    })
 }
 
 fn not_found() -> Error {
@@ -68,7 +72,7 @@ pub(crate) async fn index(
 ) -> Result<Paginated<ArticleResource>> {
     let page = db
         .table("example_articles")?
-        .where_eq("owner_id", user.id())?
+        .where_eq("owner_id", user.integer_id()?)?
         .order_by("id", SortDirection::Asc)?
         .paginate(15)
         .await?;
@@ -105,7 +109,7 @@ pub(crate) async fn show(
                 AuditSubject::new("article", id.to_string())?,
                 AuditOutcome::Succeeded,
             )?
-            .actor(AuditSubject::new("user", user.id().to_string())?),
+            .actor(AuditSubject::new("user", user.integer_id()?.to_string())?),
         )
         .await?;
     Ok(Json(model.into()))
@@ -131,7 +135,7 @@ pub(crate) async fn store(
     Inject(writer): Inject<ArticleWriter>,
     Validated(Json(input)): Validated<Json<ArticleInput>>,
 ) -> Result<Created<Json<ArticleResource>>> {
-    let model = writer.create(user.id(), input).await?;
+    let model = writer.create(user.integer_id()?, input).await?;
     Ok(Created(Json(model.into())))
 }
 
@@ -149,7 +153,7 @@ pub(crate) async fn update(
                     .col_expr(article::Column::Title, Expr::value(input.title))
                     .col_expr(article::Column::Body, Expr::value(input.body))
                     .filter(article::Column::Id.eq(id))
-                    .filter(article::Column::OwnerId.eq(user.id()))
+                    .filter(article::Column::OwnerId.eq(user.integer_id()?))
                     .exec(transaction)
                     .await
                     .map_err(Error::internal)?;
@@ -158,7 +162,7 @@ pub(crate) async fn update(
                 }
                 let model = article::Entity::find()
                     .filter(article::Column::Id.eq(id))
-                    .filter(article::Column::OwnerId.eq(user.id()))
+                    .filter(article::Column::OwnerId.eq(user.integer_id()?))
                     .one(transaction)
                     .await
                     .map_err(Error::internal)?;
@@ -167,7 +171,7 @@ pub(crate) async fn update(
                         .dispatch_in_transaction(
                             transaction,
                             &ArticleChanged {
-                                owner_id: user.id(),
+                                owner_id: user.integer_id()?,
                                 article_id: model.id,
                                 action: "updated",
                             },
@@ -191,7 +195,7 @@ pub(crate) async fn destroy(
     #[cfg(feature = "storage-local")] Inject(attachments): Inject<ArticleAttachments>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>> {
-    let owner_id = user.id();
+    let owner_id = user.integer_id()?;
     #[cfg(feature = "storage-local")]
     let transaction_attachments = attachments.clone();
     telemetry::observe(ArticleOperation::Delete, async {
@@ -200,7 +204,7 @@ pub(crate) async fn destroy(
                 Box::pin(async move {
                     let result = article::Entity::delete_many()
                         .filter(article::Column::Id.eq(id))
-                        .filter(article::Column::OwnerId.eq(user.id()))
+                        .filter(article::Column::OwnerId.eq(user.integer_id()?))
                         .exec(transaction)
                         .await
                         .map_err(Error::internal)?;
@@ -213,7 +217,7 @@ pub(crate) async fn destroy(
                             .dispatch_in_transaction(
                                 transaction,
                                 &ArticleChanged {
-                                    owner_id: user.id(),
+                                    owner_id: user.integer_id()?,
                                     article_id: id,
                                     action: "deleted",
                                 },
@@ -245,7 +249,7 @@ pub(crate) async fn put_private_note(
     Path(id): Path<i64>,
     Validated(Json(input)): Validated<Json<PrivateNoteInput>>,
 ) -> Result<Response> {
-    let context = format!("example.article.private_note:{}:{id}", user.id());
+    let context = format!("example.article.private_note:{}:{id}", user.integer_id()?);
     let ciphertext = encryptor.encrypt_with_context(input.note.as_bytes(), context.as_bytes())?;
     let updated = db
         .transaction(move |transaction| {
@@ -256,7 +260,7 @@ pub(crate) async fn put_private_note(
                         Expr::value(ciphertext),
                     )
                     .filter(article::Column::Id.eq(id))
-                    .filter(article::Column::OwnerId.eq(user.id()))
+                    .filter(article::Column::OwnerId.eq(user.integer_id()?))
                     .exec(transaction)
                     .await
                     .map_err(Error::internal)?;
@@ -283,7 +287,7 @@ pub(crate) async fn get_private_note(
         .await?
         .ok_or_else(not_found)?;
     let ciphertext = model.private_note_ciphertext.ok_or_else(not_found)?;
-    let context = format!("example.article.private_note:{}:{id}", user.id());
+    let context = format!("example.article.private_note:{}:{id}", user.integer_id()?);
     let bytes = encryptor
         .decrypt_with_context(&ciphertext, context.as_bytes())
         .map_err(|_| {
@@ -321,7 +325,7 @@ pub(crate) async fn issue_share(
         .one(&db.read_connection()?)
         .await?
         .ok_or_else(not_found)?;
-    let token = links.issue(SHARE_PURPOSE, &format!("{}:{id}", user.id()), 300)?;
+    let token = links.issue(SHARE_PURPOSE, &format!("{}:{id}", user.integer_id()?), 300)?;
     Ok(Json(ArticleShare {
         token: token.expose().to_owned(),
     }))
@@ -336,7 +340,7 @@ pub(crate) async fn revoke_share(
 ) -> Result<Json<serde_json::Value>> {
     let claims = links.verify(&input.token, SHARE_PURPOSE).await?;
     let (owner_id, article_id) = parse_share_subject(claims.subject())?;
-    if owner_id != user.id() || article_id != id {
+    if owner_id != user.integer_id()? || article_id != id {
         return Err(Error::Unauthorized);
     }
     links.revoke(&input.token).await?;

@@ -186,7 +186,9 @@ async fn read_authorized_batches(
     db: &Db,
 ) -> Result<(Vec<i64>, bool, usize, usize)> {
     let resources = QueryRule::<resource::Entity>::new(|user| {
-        Ok(QueryScope::new(resource::Column::OwnerId.eq(user.id())))
+        Ok(QueryScope::new(
+            resource::Column::OwnerId.eq(user.integer_id()?),
+        ))
     });
     let cancellation = openrust::core::Cancellation::new();
     let cancel_after_first = cancellation.clone();
@@ -296,10 +298,14 @@ async fn verify_composite_batches(db: &Db, backend: sea_orm::DbBackend) -> TestR
 async fn exercise(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Json<String>> {
     let connection = db.connection()?;
     let resources = QueryRule::<resource::Entity>::new(|user| {
-        Ok(QueryScope::new(resource::Column::OwnerId.eq(user.id())))
+        Ok(QueryScope::new(
+            resource::Column::OwnerId.eq(user.integer_id()?),
+        ))
     });
     let comments = QueryRule::<comment::Entity>::new(|user| {
-        Ok(QueryScope::new(comment::Column::OwnerId.eq(user.id())))
+        Ok(QueryScope::new(
+            comment::Column::OwnerId.eq(user.integer_id()?),
+        ))
     });
     let requested = Condition::any()
         .add(resource::Column::Id.eq(1))
@@ -372,13 +378,13 @@ async fn tenant_exercise(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Js
     let connection = db.connection()?;
     let resources = QueryRule::<tenant_resource::Entity>::new(|user| {
         Ok(QueryScope::new(
-            tenant_resource::Column::OwnerId.eq(user.id()),
+            tenant_resource::Column::OwnerId.eq(user.integer_id()?),
         ))
     })
     .for_tenant(tenant_resource::Column::TenantId);
     let comments = QueryRule::<tenant_comment::Entity>::new(|user| {
         Ok(QueryScope::new(
-            tenant_comment::Column::OwnerId.eq(user.id()),
+            tenant_comment::Column::OwnerId.eq(user.integer_id()?),
         ))
     })
     .for_tenant(tenant_comment::Column::TenantId);
@@ -418,7 +424,7 @@ async fn tenant_exercise(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Js
 async fn tenant_mutate(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Json<u64>> {
     let resources = QueryRule::<tenant_resource::Entity>::new(|user| {
         Ok(QueryScope::new(
-            tenant_resource::Column::OwnerId.eq(user.id()),
+            tenant_resource::Column::OwnerId.eq(user.integer_id()?),
         ))
     })
     .for_tenant(tenant_resource::Column::TenantId);
@@ -464,7 +470,7 @@ async fn tenant_node(db: Db) -> Result<openrust::http::axum::Router> {
             .extensions()
             .get::<CurrentUser>()
             .ok_or(openrust::Error::Unauthorized)?;
-        match user.id() {
+        match user.integer_id()? {
             1 => TenantId::new("tenant-a"),
             2 => TenantId::new("tenant-b"),
             _ => Err(openrust::Error::Forbidden("tenant is not assigned".into())),

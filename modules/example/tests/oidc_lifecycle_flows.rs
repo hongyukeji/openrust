@@ -34,7 +34,11 @@ async fn authorize(node: &BrowserNode, idp: &Idp) -> TestResult<Authorization> {
         .iter()
         .filter_map(|value| value.to_str().ok())
         .find(|value| {
-            value.contains("HttpOnly") && value.contains("Secure") && value.contains("SameSite=Lax")
+            openrust::http::Cookie::from_header(value).is_ok_and(|cookie| {
+                cookie.http_only()
+                    && cookie.secure() == Some(true)
+                    && cookie.same_site() == Some(openrust::http::SameSite::Lax)
+            })
         })
         .and_then(|value| value.split(';').next())
         .ok_or("binding cookie missing")?

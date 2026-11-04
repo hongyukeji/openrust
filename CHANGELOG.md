@@ -4,6 +4,19 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- 新增配置具名 Guard / UserProvider 与请求内 AuthManager、Session/记住我生命周期及原始类型账户 ID；同步应用模型、生成器和唯一示例，保留真实 Eloquent 与 Fortify 后继范围。异步 Guard 工厂递归或并发等待成环时有界拒绝，取消与失败后可重试。
+- Session 保存核持久认证保护并解析实际 Guard 身份元数据；应用账户桥接校验来源，token 失败恢复采用账户内原子比较更新。
+
+### Security
+
+- Guard / UserProvider 的配置故障与请求装配故障按服务器错误返回 500，保持未知 Provider 查询的空值语义与凭据/Cookie 请求错误边界。
+
+- SQLite 自有目录清理显式释放已验证并成功取得的 sidecar 锁，避免复制描述符暂存时仅 close 导致残留锁；身份不明及活动迁移仍保守拒绝清理。
+
+- calamine 升级至 0.38，修复 RUSTSEC-2026-0436 的 CFB/OLE2 解析 panic 与无界内存分配；保持现有数据交换入口及资源限制。
+
 ### Changed
 
 - SQLite本地认证、PAT/RBAC、refresh、验证码和MFA复用统一数据库/Provider，安全读写采用同一连接Immediate事务、UTC精确期限和条件消费；数据库限流与事务审计同步适配。MFA预限流与锁内状态不一致时明确拒绝；外部OIDC关联不冒充本地挑战。SQLite生成认证测试使用自有文件库，完整Guard/OIDC与其他业务后端范围仍开放。

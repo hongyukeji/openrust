@@ -62,13 +62,29 @@ impl MigratorTrait for GuardedMigrator {
 
 #[derive(Default)]
 struct BusinessCalls(AtomicUsize);
-struct Routes;
-impl ServiceProvider for Routes {
+struct Routes<const AUTH: bool>;
+impl<const AUTH: bool> ServiceProvider for Routes<AUTH> {
     fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move { app.instance(Arc::new(BusinessCalls::default())).await })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            #[cfg(feature = "auth")]
+            if AUTH {
+                app.routes(|routes| {
+                    routes.group(
+                        RouteGroup::new()
+                            .middleware_alias("cookies")
+                            .middleware_alias("session"),
+                        |routes| {
+                            routes
+                                .get("/native/write", write_authenticated)
+                                .get("/native/read", read)
+                        },
+                    )
+                })?;
+                return Ok(());
+            }
             app.routes(|routes| {
                 routes.group(
                     RouteGroup::new()
@@ -91,6 +107,27 @@ async fn write(session: Session, Inject(calls): Inject<BusinessCalls>) -> Result
         json!({"id":session.id()?.as_str(), "message":session.get_json("message")?}),
     ))
 }
+#[cfg(feature = "auth")]
+async fn write_authenticated(
+    session: Session,
+    calls: Inject<BusinessCalls>,
+    Inject(manager): Inject<openrust::auth::AuthManager>,
+) -> Result<Json<Value>> {
+    let guard = manager.guard(None).await?;
+    let stateful = guard.as_stateful().ok_or(Error::Unauthorized)?;
+    // 单次请求认证真实检索 Provider；不轮换 Session，保留原生驱动 raw ID 契约。
+    let user = stateful
+        .once_using_id(&json!(42))
+        .await?
+        .ok_or(Error::Unauthorized)?;
+    if user.auth_identifier()? != json!(42) || guard.id().await? != Some(json!(42)) {
+        return Err(Error::Unauthorized);
+    }
+    let mut response = write(session, calls).await?;
+    response.0["guard_id"] = guard.id().await?.ok_or(Error::Unauthorized)?;
+    Ok(response)
+}
+
 async fn read(session: Session) -> Result<Json<Value>> {
     Ok(Json(
         json!({"id":session.id()?.as_str(), "message":session.get_json("message")?}),
@@ -124,23 +161,24 @@ impl<const AUTO: bool, const AUTH: bool> Application for Harness<AUTO, AUTH> {
         #[cfg(feature = "auth")]
         if AUTH {
             providers.push(Box::new(
-                openrust::auth::AuthServiceProvider::with_authenticator(TestAuthenticator),
+                openrust::auth::AuthServiceProvider::with_authenticator(RejectLegacyAuthenticator),
             ));
         }
-        providers.push(Box::new(Routes));
+        providers.push(Box::new(Routes::<AUTH>));
         providers
     }
 }
 
 #[cfg(feature = "auth")]
-struct TestAuthenticator;
+struct RejectLegacyAuthenticator;
 #[cfg(feature = "auth")]
-impl openrust::auth::Authenticator for TestAuthenticator {
+impl openrust::auth::Authenticator for RejectLegacyAuthenticator {
     fn authenticate<'a>(
         &'a self,
         _: openrust::auth::AuthCredential<'a>,
     ) -> BoxFuture<'a, Result<openrust::auth::AuthPrincipal>> {
-        Box::pin(async { Ok(openrust::auth::AuthPrincipal::new(42, None)) })
+        // 原生数据库 user_id 必须来自具名 Guard，不能借用旧 Authenticator 的常量身份。
+        Box::pin(async { Err(Error::Unauthorized) })
     }
 }
 
@@ -203,19 +241,43 @@ fn data(response: &TestResponse) -> Result<Value> {
     Ok(response.json::<Value>()?["data"].clone())
 }
 
+async fn native_sources<const AUTH: bool>(
+    default: &TestDatabase,
+    selected: &TestDatabase,
+    named: bool,
+) -> Result<Figment> {
+    let sources = sources(Some(default.url()), Some(selected.url()), named, "database");
+    #[cfg(feature = "auth")]
+    let sources = if AUTH {
+        let connection = default.connection()?;
+        connection
+            .execute_unprepared(
+                "CREATE TABLE users (id INTEGER PRIMARY KEY, password TEXT, remember_token TEXT)",
+            )
+            .await
+            .map_err(Error::internal)?;
+        connection
+            .execute_unprepared("INSERT INTO users (id) VALUES (42)")
+            .await
+            .map_err(Error::internal)?;
+        sources.merge(Serialized::defaults(
+            json!({"auth":{"providers":{"users":{"driver":"database","table":"users"}}}}),
+        ))
+    } else {
+        sources
+    };
+    Ok(sources)
+}
+
 async fn native_case<const AUTH: bool>(
     default: &TestDatabase,
     selected: &TestDatabase,
     named: bool,
 ) -> Result<()> {
-    let mut app = TestApp::<Harness<false, AUTH>>::builder(sources(
-        Some(default.url()),
-        Some(selected.url()),
-        named,
-        "database",
-    ))
-    .build()
-    .await?;
+    let sources = native_sources::<AUTH>(default, selected, named).await?;
+    let mut app = TestApp::<Harness<false, AUTH>>::builder(sources)
+        .build()
+        .await?;
     let outcome: Result<()> = async {
         let store = app.app()?.state().resolve::<SessionStoreHandle>().await?;
         assert_eq!(store.guarantees(), SessionStoreGuarantees::NativeDatabase);
@@ -228,6 +290,13 @@ async fn native_case<const AUTH: bool>(
         let response = request(&app, "/native/write", agent.as_bytes()).await?;
         response.assert_status(StatusCode::OK)?;
         assert_eq!(data(&response)?["id"], RAW_ID);
+        if AUTH {
+            assert_eq!(
+                data(&response)?["guard_id"],
+                42,
+                "必须由请求默认 Guard 投影真实 Provider 账户"
+            );
+        }
         let cookie = response
             .headers()
             .get_all(SET_COOKIE)

@@ -29,7 +29,7 @@ pub(crate) async fn upload(
 ) -> Result<Created<Json<AttachmentInfo>>> {
     let declaration = AttachmentUpload::from_headers(request.headers())?;
     let stored = attachments
-        .upload(user.id(), id, declaration, request.into_body())
+        .upload(user.integer_id()?, id, declaration, request.into_body())
         .await?;
     Ok(Created(Json(AttachmentInfo {
         bytes: stored.metadata.size,
@@ -71,7 +71,9 @@ pub(crate) async fn upload_multipart(
             }
         },
     ));
-    let stored = attachments.upload(user.id(), id, declaration, body).await?;
+    let stored = attachments
+        .upload(user.integer_id()?, id, declaration, body)
+        .await?;
     Ok(Created(Json(AttachmentInfo {
         bytes: stored.metadata.size,
         content_type: "text/plain; charset=utf-8",
@@ -83,7 +85,7 @@ pub(crate) async fn download(
     Inject(attachments): Inject<ArticleAttachments>,
     Path(id): Path<i64>,
 ) -> Result<Response> {
-    let reader = attachments.open(user.id(), id).await?;
+    let reader = attachments.open(user.integer_id()?, id).await?;
     let mut response = Response::new(Body::from_stream(reader.body));
     *response.status_mut() = StatusCode::OK;
     let headers = response.headers_mut();
@@ -111,7 +113,7 @@ pub(crate) async fn delete(
     Inject(attachments): Inject<ArticleAttachments>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode> {
-    attachments.delete(user.id(), id).await?;
+    attachments.delete(user.integer_id()?, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -127,7 +129,7 @@ pub(crate) async fn set_visibility(
     Json(input): Json<AttachmentVisibilityInput>,
 ) -> Result<StatusCode> {
     attachments
-        .set_visibility(user.id(), id, input.visibility)
+        .set_visibility(user.integer_id()?, id, input.visibility)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

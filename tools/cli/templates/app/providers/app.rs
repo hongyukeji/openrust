@@ -7,7 +7,7 @@ use openrust::prelude::*;
 pub struct AppServiceProvider;
 
 impl ServiceProvider for AppServiceProvider {
-    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+{{auth_register}}    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let api = app.section::<openrust::config::ApiConfig>("api")?;
             let prefix = api.normalized_prefix()?;

@@ -63,6 +63,9 @@ struct Fixture {
 }
 impl Fixture {
     async fn create(memory: bool) -> Result<Self> {
+        Self::create_with_overlay(memory, json!({})).await
+    }
+    async fn create_with_overlay(memory: bool, overlay: Value) -> Result<Self> {
         let database = if memory {
             TestDatabase::sqlite_memory::<super::EmptyMigrator>().await?
         } else {
@@ -70,13 +73,16 @@ impl Fixture {
         };
         let source = super::sqlite_default_host_source(&database).merge(
             figment::providers::Serialized::defaults(json!({
-                "app":{"url":"http://localhost"},
+                // 精确 testing 引导按Laravel跳过CSRF；本契约显式启用真实Web防护。
+                "app":{"env":"test","url":"http://localhost"},
                 "session":{"driver":"database","cookie":COOKIE,"secure":false,"lottery":[0,100]}
             })),
         );
+        let source = source.merge(figment::providers::Serialized::defaults(overlay));
         let sources = match super::sqlite_test_sources(&source) {
             Ok(sources) => sources,
             Err(error) => {
+                eprintln!("SQLite 根宿主配置/启动诊断：{error}");
                 let _ = database.close().await;
                 return Err(error);
             }
@@ -88,12 +94,14 @@ impl Fixture {
         )
         .await
         {
+            eprintln!("SQLite 根宿主迁移命令诊断：{error}");
             let _ = database.close().await;
             return Err(error);
         }
         match bounded(TestApp::<crate::bootstrap::Server>::builder(sources).build()).await {
             Ok(app) => Ok(Self { app, database }),
             Err(error) => {
+                eprintln!("SQLite 根宿主配置/启动诊断：{error}");
                 let _ = database.close().await;
                 Err(error)
             }
@@ -155,9 +163,21 @@ impl Fixture {
                 serde_json::to_vec(input).map_err(Error::internal)?,
             ))
             .map_err(Error::internal)?;
-        self.app
+        let response = self
+            .app
             .request_with_limits(request, 128 * 1024, BUDGET)
-            .await
+            .await?;
+        if response.status() != StatusCode::OK {
+            let code = response
+                .json::<Value>()
+                .ok()
+                .and_then(|body| body.get("code").cloned());
+            eprintln!(
+                "sqlite_contract response method={method} path={path} status={} code={code:?}",
+                response.status()
+            );
+        }
+        Ok(response)
     }
     async fn scalar(&self, sql: String) -> Result<i64> {
         super::scalar(&self.database.connection()?, &sql).await
@@ -250,7 +270,7 @@ async fn native_session_contract(f: &Fixture) -> Result<()> {
         None,
     )
     .await?
-    .assert_status(StatusCode::FORBIDDEN)?;
+    .assert_status(StatusCode::from_u16(419).map_err(Error::internal)?)?;
     f.request(
         "POST",
         &format!("{ACCOUNT}/session/preference"),
@@ -260,7 +280,7 @@ async fn native_session_contract(f: &Fixture) -> Result<()> {
         Some("wrong-csrf"),
     )
     .await?
-    .assert_status(StatusCode::FORBIDDEN)?;
+    .assert_status(StatusCode::from_u16(419).map_err(Error::internal)?)?;
     f.request(
         "POST",
         &format!("{ACCOUNT}/session/preference"),
@@ -755,4 +775,267 @@ async fn sqlite_root_file_mfa_real_totp_recovery_once_and_atomic_audit() -> Resu
     let cleanup = f.close().await;
     outcome?;
     cleanup
+}
+
+// 此模块已由父模块限定auth+db-sqlite；明确启用encryption以运行真实Cookie/CSRF链。
+#[cfg(all(feature = "realtime", feature = "encryption"))]
+struct ProviderScopeServer(tokio::task::JoinHandle<std::io::Result<()>>);
+#[cfg(all(feature = "realtime", feature = "encryption"))]
+impl Drop for ProviderScopeServer {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+#[cfg(all(feature = "realtime", feature = "encryption"))]
+async fn provider_scope_socket_status(
+    address: std::net::SocketAddr,
+    session: &str,
+) -> Result<StatusCode> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    bounded(async {
+        let mut stream = tokio::net::TcpStream::connect(address).await.map_err(Error::internal)?;
+        // 真实Hyper请求产生OnUpgrade；不以oneshot的缺失upgrade错误冒充所有者查询未发生。
+        let request = format!("GET /api/example/articles/991/browser-socket HTTP/1.1\r\nHost: localhost\r\nOrigin: http://localhost\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nCookie: {session}\r\n\r\n");
+        stream.write_all(request.as_bytes()).await.map_err(Error::internal)?;
+        let mut headers = Vec::new();
+        while !headers.ends_with(b"\r\n\r\n") {
+            ensure(headers.len() < 32 * 1024)?;
+            let byte = stream.read_u8().await.map_err(Error::internal)?;
+            headers.push(byte);
+        }
+        let headers = std::str::from_utf8(&headers).map_err(Error::internal)?;
+        let status = headers.lines().next().and_then(|line| line.split_ascii_whitespace().nth(1))
+            .ok_or_else(mismatch)?.parse::<u16>().map_err(Error::internal)?;
+        // 释放TCP连接，服务器端WebSocket任务随EOF回收；不保留额外认证连接。
+        drop(stream);
+        eprintln!("provider_scope_socket_status={status}");
+        StatusCode::from_u16(status).map_err(Error::internal)
+    }).await
+}
+
+#[cfg(all(feature = "realtime", feature = "encryption"))]
+async fn provider_scope_wrong_sources(
+    fixture: &Fixture,
+    address: std::net::SocketAddr,
+    session: &str,
+    identifier: i64,
+    other: &openrust::Db,
+) -> Result<()> {
+    use openrust::auth::{AuthDrivers, DatabaseUserProvider, Passwords, UserProvider};
+    let state = fixture.app.app()?.state();
+    let db = state.resolve::<openrust::Db>().await?;
+    let drivers = state.resolve::<AuthDrivers>().await?;
+    let passwords = state.resolve::<Passwords>().await?;
+    for (source, table) in [
+        (db.clone(), "provider_scope_users"),
+        (std::sync::Arc::new(other.clone()), "users"),
+    ] {
+        let provider = std::sync::Arc::new(DatabaseUserProvider::new(
+            (*source).clone(),
+            (*passwords).clone(),
+            table,
+        )?);
+        let account = provider
+            .retrieve_by_id(&json!(identifier))
+            .await?
+            .ok_or_else(mismatch)?;
+        ensure(account.auth_identifier()? == json!(identifier))?;
+        ensure(!provider.uses_database_accounts(&db, "users")?)?;
+        drivers.provider("app-users", move |_, _| {
+            let provider = provider.clone();
+            Box::pin(async move { Ok(provider as std::sync::Arc<dyn UserProvider>) })
+        })?;
+        fixture
+            .request(
+                "GET",
+                &format!("{ACCOUNT}/session/preference"),
+                &Value::Null,
+                None,
+                Some(session),
+                None,
+            )
+            .await?
+            .assert_status(StatusCode::UNAUTHORIZED)?;
+        // 根文章表已改名；若越过门禁进入require_owned，真实SQL必定500，不能恰好返回404掩盖查询。
+        ensure(provider_scope_socket_status(address, session).await? == StatusCode::UNAUTHORIZED)?;
+    }
+    Ok(())
+}
+
+#[cfg(all(feature = "realtime", feature = "encryption"))]
+async fn provider_scope_prepare(
+    fixture: &Fixture,
+    other: &openrust::Db,
+) -> Result<(
+    i64,
+    String,
+    std::sync::Arc<dyn openrust::auth::UserProvider>,
+)> {
+    use openrust::auth::AuthManager;
+    use openrust::database::sea_orm::ConnectionTrait;
+    let identifier = fixture.provision().await?;
+    let login = fixture
+        .request(
+            "POST",
+            &format!("{ACCOUNT}/session/login"),
+            &credentials(PASSWORD),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    login.assert_status(StatusCode::OK)?;
+    let session = cookie(&login)?;
+    let state = fixture.app.app()?.state();
+    let db = state.resolve::<openrust::Db>().await?;
+    let scope = state.container().scope()?;
+    let manager = scope.resolve::<AuthManager>().await?;
+    let original = manager
+        .create_user_provider(Some("users"))
+        .await?
+        .ok_or_else(mismatch)?;
+    ensure(original.uses_database_accounts(&db, "users")?)?;
+    db.table("example_articles")?
+        .insert(vec![
+            ("id", 991_i64.into()),
+            ("owner_id", identifier.into()),
+            ("title", "provider source probe".into()),
+            ("body", "owned data".into()),
+        ])
+        .await?;
+    for (source, table) in [
+        ((*db).clone(), "provider_scope_users"),
+        (other.clone(), "users"),
+    ] {
+        let quoted = source.quoted_table_name(table)?;
+        source
+            .connection()?
+            .execute_unprepared(&format!(
+                "CREATE TABLE {quoted} (id INTEGER PRIMARY KEY,password TEXT,remember_token TEXT)"
+            ))
+            .await
+            .map_err(Error::internal)?;
+        source
+            .table(table)?
+            .insert(vec![
+                ("id", identifier.into()),
+                ("password", "not-used-for-session-restore".into()),
+            ])
+            .await?;
+    }
+    Ok((identifier, session, original))
+}
+
+#[cfg(all(feature = "realtime", feature = "encryption"))]
+async fn provider_scope_business(fixture: &Fixture, other: &openrust::Db) -> Result<()> {
+    use openrust::auth::AuthDrivers;
+    use openrust::database::sea_orm::ConnectionTrait;
+    let (identifier, session, original) = provider_scope_prepare(fixture, other).await?;
+    let state = fixture.app.app()?.state();
+    let db = state.resolve::<openrust::Db>().await?;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(Error::internal)?;
+    let address = listener.local_addr().map_err(Error::internal)?;
+    let router = openrust::http::build_router(fixture.app.app()?)?;
+    let mut server = ProviderScopeServer(tokio::spawn(async move {
+        openrust::http::axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+    }));
+    let outcome: Result<()> = async {
+        fixture
+            .request(
+                "GET",
+                &format!("{ACCOUNT}/session/preference"),
+                &Value::Null,
+                None,
+                Some(&session),
+                None,
+            )
+            .await?
+            .assert_status(StatusCode::OK)?;
+        ensure(
+            provider_scope_socket_status(address, &session).await?
+                == StatusCode::SWITCHING_PROTOCOLS,
+        )?;
+        db.connection()?
+            .execute_unprepared(
+                "ALTER TABLE example_articles RENAME TO provider_scope_articles_hidden",
+            )
+            .await
+            .map_err(Error::internal)?;
+        // 正来源校准哨兵：相同真实握手确实进入所有者SQL，而不是在extractor或Origin前被拒。
+        ensure(
+            provider_scope_socket_status(address, &session).await?
+                == StatusCode::INTERNAL_SERVER_ERROR,
+        )?;
+        provider_scope_wrong_sources(fixture, address, &session, identifier, other).await?;
+        let drivers = state.resolve::<AuthDrivers>().await?;
+        drivers.provider("app-users", move |_, _| {
+            let original = original.clone();
+            Box::pin(async move { Ok(original) })
+        })?;
+        db.connection()?
+            .execute_unprepared(
+                "ALTER TABLE provider_scope_articles_hidden RENAME TO example_articles",
+            )
+            .await
+            .map_err(Error::internal)?;
+        ensure(
+            provider_scope_socket_status(address, &session).await?
+                == StatusCode::SWITCHING_PROTOCOLS,
+        )?;
+        Ok(())
+    }
+    .await;
+    server.0.abort();
+    let stopped = tokio::time::timeout(BUDGET, &mut server.0)
+        .await
+        .map_err(Error::internal)?;
+    match stopped {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => return Err(Error::internal(error)),
+        Err(error) => ensure(error.is_cancelled())?,
+    }
+    outcome
+}
+
+/// 必须另跑不启用auth-mfa的组合，防止旧条件MFA门禁恰好掩盖账户域缺口。
+#[cfg(all(feature = "realtime", feature = "encryption"))]
+#[tokio::test]
+async fn sqlite_module_http_rejects_same_numeric_user_from_other_table_and_database_before_ownership_query()
+-> Result<()> {
+    let fixture = Fixture::create_with_overlay(
+        false,
+        json!({
+            "api":{"http_status":"semantic"},
+            "session":{"driver":"array"},
+            "realtime":{"allowed_origins":["http://localhost"],"max_connections":16}
+        }),
+    )
+    .await?;
+    let secondary = match TestDatabase::sqlite_file::<super::EmptyMigrator>().await {
+        Ok(database) => database,
+        Err(error) => {
+            let closed = fixture.close().await;
+            closed?;
+            return Err(error);
+        }
+    };
+    let other = openrust::Db::default();
+    let outcome: Result<()> = async {
+        other.initialize(secondary.connection()?)?;
+        provider_scope_business(&fixture, &other).await
+    }
+    .await;
+    drop(other);
+    let stopped = fixture.close().await;
+    let closed = secondary.close().await;
+    outcome?;
+    stopped?;
+    closed
 }

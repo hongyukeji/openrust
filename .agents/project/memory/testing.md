@@ -1,5 +1,17 @@
 # 测试基线
 
+## R7 具名认证核心限定验收
+
+2026-11-04，开发基线0d3b4fd，本地提交以Git为准。固定Laravel framework d52c3b3与docs960eedf，AuthManager/UserProvider/SessionGuard生命周期、默认与错误边界按源码对应；DatabaseUserProvider通过公开QueryBuilder与模型工厂保留数字/字符串ID、同数据库/表账户来源。Eloquent尚未实现；原有MFA属于增强，不将本簇当完整Fortify、Auth或R7完成。
+
+证据根tmp/fortify-totp-alignment-20261104/。r7-status-final-source.json冻结833项；final-gates-6十一项均exit0：fmt、全feature严格Clippy/tests、默认及全feature拒警Rustdoc、deny、CLI构建、SQLite/auth-mfa与PostgreSQL/auth及auth-only精简严格Clippy、Rust1.97精简check。此后仅独立realtime consumer两文件变化，r7-consumer-final-source.json绑定最终输入；未变的main生产路径限定复用，不声称全部在新输入重新构建。default-current的当前默认workspace严格Clippy/tests均0；嵌套子进程测试不重复累计为整体通过数。
+
+7consumer均通过：前6项按未变输入保留原日志；query-authorization仅check，其余按实际test结果；realtime修独立宿主的公开异常envelope接线并保留503断言，真实双进程Redis WebSocket/SSE通过，见consumers-r7-final-2及其reuse记录。fresh-r7-6四类SQLite-auth/SQLite-mfa/MySQL-mfa/PostgreSQL-auth的new/check/test共12命令均0，各3测试、0跳过，包含缺表配置500与恢复正常认证；生成源码及日志SHA保全，双库差异0。不将生成测试当严格Clippy。
+
+real-services-current-final共14命令实际通过，MySQL/PostgreSQL各33测试：账户3、Cookie4、数据库认证8、remember迁移1、浏览器WebSocket4、OIDC8、生命周期5。真实Keycloak26.8.1签名回调/登出夹具；测试前清理本任务旧IdP会话，不伪造签名。两backend-database-delta均无增删。自有服务清理见keycloak/current-service-cleanup.json，trigger终止、container正常stop、admin.env删除、四端口释放，共享数据库/Redis不变。
+
+minimum-current实际加载自建SQLite3.26.0动态库，SQL version/source_id和dyld路径核对，当前标准Provider/迁移up/down/up及数据/索引/外键/完整性30断言通过。依赖/native源码与历史失败保留。Guard等待图、Cookie保存、配置冻结及HTTP误配500回归已纳入匹配门禁；SQLite复制FD正常释放锁有独立真实red→green，未声称定位原偶发失败的具体继承者。独立final-current-evidence-review.json核833生产/consumer输入、全部日志及242生成文件SHA，无阻止限定提交的证据缺口。242份生成源码已私有归档；358相对文件链接无缺失，锚点不在该检查范围。三任务target合计16,237,453,312B正常clean至0，磁盘可用160,493,772,800B；依赖/native源码与证据保留。本地提交状态以Git为准。
+
 ## SQLite 本地认证与 MFA 限定验收
 
 2026-11-04，开发基线45a1097，守护独立提交2305ca1；S3b最终源码输入17。固定Laravel framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs960eedf0911155ad16326ade49c0ea5d18eda0b8；本地用户/密码/PAT/refresh/验证码/Policy/MFA属于既有增强调用链适配，不冒称完整Laravel Guard或Fortify默认。普通Db事务不变，SQLite安全读写同一连接BEGIN IMMEDIATE；UTC精确期限、条件消费、refresh重放家族撤销、审计与限流配套，唯一modules/example真实调用。验证码GC按主键逐页扫描，最多删除512条，不承诺最多扫描512条或常量锁时长。

@@ -108,6 +108,23 @@ impl Passwords {
         .map_err(Error::internal)?
     }
 
+    /// 判断已有安全 PHC 哈希是否需要按当前 Argon2id 策略重新生成。
+    ///
+    /// 先验证受支持算法和版本，再比较资源参数与输出长度；随机盐不同不要求重算。
+    pub fn needs_rehash(&self, encoded: &EncodedPasswordHash) -> Result<bool> {
+        let hash = PasswordHash::new(encoded.as_str()).map_err(Error::internal)?;
+        validate_encoded_hash(&hash)?;
+        let params = Params::try_from(&hash).map_err(Error::internal)?;
+        Ok(params.m_cost() != self.config.memory_kib
+            || params.t_cost() != self.config.iterations
+            || params.p_cost() != self.config.parallelism
+            || hash
+                .hash
+                .as_ref()
+                .map(argon2::password_hash::phc::Output::len)
+                != Some(Params::DEFAULT_OUTPUT_LEN))
+    }
+
     fn operation_permit(&self) -> Result<tokio::sync::OwnedSemaphorePermit> {
         self.operation_slots
             .clone()
@@ -207,6 +224,13 @@ mod tests {
         let first = passwords.hash("correct horse").await?;
         let second = passwords.hash("correct horse").await?;
         assert_ne!(first.as_str(), second.as_str());
+        assert!(!passwords.needs_rehash(&first)?);
+        assert!(!passwords.needs_rehash(&second)?);
+        let changed = Passwords::new(PasswordConfig {
+            iterations: 2,
+            ..fast_config()
+        })?;
+        assert!(changed.needs_rehash(&first)?);
         assert!(passwords.verify("correct horse", &first).await?);
         assert!(!passwords.verify("wrong horse", &first).await?);
         Ok(())

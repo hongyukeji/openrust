@@ -27,6 +27,7 @@ enum TbUsers {
     Id,
     Email,
     PasswordHash,
+    RememberToken,
     EmailVerifiedAt,
     DisabledAt,
     CreatedAt,
@@ -1114,5 +1115,35 @@ impl MigrationTrait for AuthVerificationCodeMigration {
         manager
             .drop_table(Table::drop().table(table).if_exists().to_owned())
             .await
+    }
+}
+
+/// 为既有账户表追加可撤销的记住我token，不删除或重建账户数据。
+pub struct AuthRememberTokenMigration;
+impl MigrationName for AuthRememberTokenMigration {
+    fn name(&self) -> &'static str {
+        "m20261104_000008_openrust_auth_remember_token"
+    }
+}
+#[async_trait::async_trait]
+impl MigrationTrait for AuthRememberTokenMigration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = migration_table("users", manager.get_database_backend())?;
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(table)
+                    .add_column(
+                        ColumnDef::new(TbUsers::RememberToken)
+                            .string_len(100)
+                            .null(),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = migration_table("users", manager.get_database_backend())?;
+        crate::db::dialect::drop_column(manager, table, TbUsers::RememberToken).await
     }
 }

@@ -1,5 +1,7 @@
 # Session 当前事实
 
+🟡 R7在途适配：命名Guard登录身份保留逐Guard的保存保护标记，保存时重新核当前驱动/Cookie名称；SessionGuard失败/取消仅清本次仍拥有的状态。原生database每次save（手动和自动）在Session I/O门外从同一请求默认Guard.id解析user_id，显式null清旧身份；Weak scope避免循环持有。元数据不是授权输入，字符串/UUID账户需应用兼容列；NativeDatabase不能提供的服务器端撤销期限仍明确拒绝。当前主/默认门禁、双库认证生命周期、fresh及最低3.26迁移适用证据已收齐；最终独审/清理/提交以唯一todo为准。
+
 ## S3a 原生数据库与显式增强（限定验收通过）
 
 本簇编码基线 `f9e831a`；S2不重复验收。固定 Laravel `d52c3b3` 的原生 handler、表、read/exists/write/GC 已对应为 `DatabaseSessionHandler`，默认 `DatabaseSessionStore` 接入同一状态机；每 Session 独占 exists，属性 JSON 经 Base64 持久化。原哈希 envelope、微秒绝对截止及防复活改为显式 Guarded driver 与同表增强迁移，不删除旧行为断言。
@@ -18,7 +20,7 @@
 
 `previous_url` / `previous_route` 返回 `Result<Option<Value>>`，保留缺失和显式 null；setter 沿已有属性状态机。GET 在真实 Route 下游返回后记录 full URL 与可空名称，不按状态码过滤；HEAD、ajax、prefetch 和已确认的 Precognition 不更新。resolver 在记录名称时再次读取，保留可替换 resolver 的可观察调用边界。
 
-已确认的 Precognition 仍 start、执行GC、处理Cookie，仅跳过自动 driver.save 和 previous 更新；客户端同名头不足以跳存。Cookie 组装错误先于driver保存返回，失败路径保持no-store并清理请求队列；不能承诺外部副作用或应用主动save被回滚。授权提取顺序边界见 [HTTP当前事实](http.md)。
+已确认的 Precognition 仍 start、执行GC、处理Cookie，仅跳过自动 driver.save 和 previous 更新；客户端同名头不足以跳存。响应保存前先完整预检既有与Session Cookie；预检失败不开始自动保存。保存可能首次恢复remember并轮换ID，随后重新make最终ID及到期时间并attach，避免慢save扣出站lifetime。最终生成/attach仍可能失败，不能承诺全部Cookie错误均发生在保存前或撤回已完成写入。Precognition仅跳自动save，保留两次Cookie处理。授权提取顺序边界见 [HTTP当前事实](http.md)。
 
 根PG18/MySQL8.4实际 Session previous 精确回归各1项已通过，并保留各67项模块HTTP证据。全特性workspace与不同模型静态审查已有结果；Rust1.97全特性全目标check已通过；新生成应用5/2/2、array单进程真实TCP6项已实际通过，不替代TLS或集群范围。具体队列见[todo](../todo.md)，不以基础Store已有验收代替完整Session/Web栈。
 

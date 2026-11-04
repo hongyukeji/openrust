@@ -275,18 +275,47 @@ impl State {
         defaults: Value,
     ) -> Result<(Figment, Option<Value>, Value)> {
         let mut candidate = self.figment.clone();
+        // 缓存是已求值配置；晚注册仅安装校验，不重新播放默认值。
+        if self.cached {
+            let current = candidate
+                .extract_inner::<Value>(key)
+                .map_err(|error| Error::Config(safe_source_error(error, key)))?;
+            return Ok((candidate, self.raw.clone(), current));
+        }
+        if let Some(domain) = self.containing_file_domain(key) {
+            let defaults = if domain == key {
+                defaults
+            } else {
+                let mut parent = Value::Object(serde_json::Map::new());
+                set_dot_value(&mut parent, &key[domain.len() + 1..], defaults);
+                parent
+            };
+            let current = candidate
+                .extract_inner::<Value>(domain)
+                .map_err(|error| Error::Config(safe_source_error(error, domain)))?;
+            let (combined, _) = file_default_patch(domain, &defaults, &current);
+            let original = candidate.find_value(domain).ok();
+            candidate = replace_section(&candidate, domain, combined.clone(), original.as_ref())?;
+            let mut raw = self.raw.clone();
+            if let Some(raw) = &mut raw {
+                set_dot_value(raw, domain, combined);
+            }
+            let merged = candidate
+                .extract_inner::<Value>(key)
+                .map_err(|error| Error::Config(safe_source_error(error, key)))?;
+            return Ok((candidate, raw, merged));
+        }
         let current = match candidate.extract_inner::<Value>(key) {
             Ok(value) => Some(value),
             Err(error) if error.missing() => None,
             Err(error) => return Err(Error::Config(safe_source_error(error, key))),
         };
-        let mut merged = defaults;
+        let mut merged = defaults.clone();
         if let Some(current) = current {
             let prior = self.raw.as_ref().and_then(|raw| read_dot_value(raw, key));
-            merge_order(
-                &mut merged,
-                prior.map_or(current.clone(), |raw| reorder_like(raw, current)),
-            );
+            let current = prior.map_or(current.clone(), |raw| reorder_like(raw, current));
+            merge_order(&mut merged, current.clone());
+            self.restore_descendant_file_defaults(key, &defaults, &current, &mut merged);
             if let Some(prior) = prior {
                 merged = reorder_like(prior, merged);
             }
@@ -298,6 +327,47 @@ impl State {
             set_dot_value(raw, key, merged.clone());
         }
         Ok((candidate, raw, merged))
+    }
+
+    fn restore_descendant_file_defaults(
+        &self,
+        key: &str,
+        defaults: &Value,
+        current: &Value,
+        merged: &mut Value,
+    ) {
+        let mut domains = self
+            .file_domains
+            .iter()
+            .filter_map(|domain| {
+                domain
+                    .strip_prefix(key)
+                    .and_then(|suffix| suffix.strip_prefix('.'))
+                    .map(|relative| (domain.as_str(), relative))
+            })
+            .collect::<Vec<_>>();
+        domains.sort_by_key(|(domain, _)| domain.len());
+        for (domain, relative) in domains {
+            // 原始当前值保留文件条目的浅覆盖；不能读取已递归补默认后的污染值。
+            if let (Some(defaults), Some(current)) = (
+                read_dot_value(defaults, relative),
+                read_dot_value(current, relative),
+            ) {
+                let (combined, _) = file_default_patch(domain, defaults, current);
+                set_dot_value(merged, relative, combined);
+            }
+        }
+    }
+
+    fn containing_file_domain(&self, key: &str) -> Option<&str> {
+        self.file_domains
+            .iter()
+            .filter(|path| {
+                key.strip_prefix(path.as_str())
+                    .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with('.'))
+            })
+            .max_by_key(|path| path.len())
+            .map(String::as_str)
     }
 
     // 注册时立即发布给下一个 Provider，同时保持递归文件的 Laravel 浅合并边界。
@@ -320,7 +390,16 @@ impl State {
                 .extract::<Value>()
                 .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?,
         };
-        if self.file_domains.contains(key) {
+        if let Some(domain) = self.containing_file_domain(key) {
+            // 子区段的默认值仍属于父文件；从文件边界合并才能保留显式条目的浅替换。
+            let defaults = if domain == key {
+                defaults
+            } else {
+                let mut parent_defaults = Value::Object(serde_json::Map::new());
+                set_dot_value(&mut parent_defaults, &key[domain.len() + 1..], defaults);
+                parent_defaults
+            };
+            let key = domain;
             let current = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
             let (combined, patch) = file_default_patch(key, &defaults, &current);
             if current.is_array() && defaults.is_array() {
@@ -383,7 +462,9 @@ impl State {
             if read_dot_value(&raw, path) != read_dot_value(&order, path) {
                 return Err(invalid(
                     path,
-                    "file configuration projection differs from raw values",
+                    &format!(
+                        "file configuration projection differs from raw values after registering {key}"
+                    ),
                 ));
             }
         }
@@ -461,7 +542,7 @@ impl ConfigRepository {
         }
     }
 
-    /// 登记类型化默认值、结构与校验器；精确文件区段浅合并，
+    /// 登记类型化默认值、结构与校验器；文件内区段沿所属文件的浅合并边界，
     /// 仅有子文件时按 Laravel 剩余 base 根写入覆盖，文件后来源仍优先。
     ///
     /// 同名登记一律拒绝，避免忽略后来登记的校验器。
@@ -2041,6 +2122,138 @@ mod tests {
         assert_eq!(repository.get("demo")?, Some(cached["demo"].clone()));
         repository.validate_base()?;
         assert_eq!(repository.get("demo.items")?, Some(json!([7])));
+        Ok(())
+    }
+
+    // 父 auth 文件的显式 Provider 必须整体获胜，不能混入 eloquent 模型默认值。
+    #[test]
+    fn parent_auth_file_keeps_explicit_provider_through_registration_and_freeze() -> Result<()> {
+        let mut sources = ConfigSources::from_ordered_entries([("auth", json!({}))])?;
+        sources.merge_code_section(
+            "auth",
+            json!({"providers": {"users": {"driver": "app-users", "table": "users"}}}),
+        )?;
+        sources = sources.merge_ordered_entries([(
+            "auth",
+            json!({"providers": {"users": {"connection": "application"}}}),
+        )])?;
+        let mut repository = ConfigRepository::new(sources);
+        repository.set("auth.providers.users.table", json!("accounts"))?;
+        repository.register_section(
+            TypeId::of::<()>(),
+            "auth.defaults",
+            json!({"guard": "web"}),
+            SectionSchema::any(),
+            |_: &Value| Ok(()),
+        )?;
+        repository.register_section(
+            TypeId::of::<()>(),
+            "auth.providers",
+            json!({
+                "users": {"driver": "eloquent", "model": "app::models::User"},
+                "external": {"driver": "custom"}
+            }),
+            SectionSchema::any(),
+            |providers: &Value| {
+                if providers["users"].get("model").is_some() {
+                    return Err(invalid("auth.providers", "unexpected model default"));
+                }
+                Ok(())
+            },
+        )?;
+        repository.register_section(
+            TypeId::of::<()>(),
+            "auth.timebox_duration",
+            200_000_u64,
+            SectionSchema::Integer,
+            |_| Ok(()),
+        )?;
+        let expected = json!({
+            "users": {"driver": "app-users", "table": "accounts", "connection": "application"},
+            "external": {"driver": "custom"}
+        });
+        assert_eq!(repository.get("auth.providers")?, Some(expected.clone()));
+        repository.validate_base()?;
+        assert_eq!(repository.section::<Value>("auth.providers")?, expected);
+        assert_eq!(repository.get("auth.defaults.guard")?, Some(json!("web")));
+        assert_eq!(
+            repository.get("auth.timebox_duration")?,
+            Some(json!(200_000))
+        );
+        repository.freeze()?;
+        assert_eq!(repository.section::<Value>("auth.providers")?, expected);
+        repository.set("auth.providers.users.table", json!("runtime_accounts"))?;
+        assert_eq!(
+            repository.get("auth.providers.users.table")?,
+            Some(json!("runtime_accounts"))
+        );
+        assert_eq!(repository.get("auth.providers.users.model")?, None);
+        Ok(())
+    }
+
+    // 父文件没有 providers 时，子区段仍能补入完整默认值。
+    #[test]
+    fn parent_file_missing_child_receives_section_defaults() -> Result<()> {
+        let mut sources = ConfigSources::from_ordered_entries([("auth", json!({}))])?;
+        sources.merge_code_section("auth", json!({"defaults": {"guard": "web"}}))?;
+        let mut repository = ConfigRepository::new(sources);
+        let providers = json!({"users": {"driver": "eloquent", "model": "app::models::User"}});
+        repository.register_section(
+            TypeId::of::<()>(),
+            "auth.providers",
+            providers.clone(),
+            SectionSchema::any(),
+            |_: &Value| Ok(()),
+        )?;
+        repository.validate_base()?;
+        assert_eq!(repository.section::<Value>("auth.providers")?, providers);
+        assert_eq!(repository.get("auth.defaults.guard")?, Some(json!("web")));
+        Ok(())
+    }
+
+    // 同样的来源未标记文件域时保留普通深默认；不能全局改为浅合并。
+    #[test]
+    fn child_section_without_file_domain_keeps_deep_defaults() -> Result<()> {
+        let mut repository = ConfigRepository::new(ConfigSources::from_ordered_entries([(
+            "auth",
+            json!({"providers": {"users": {"driver": "app-users", "table": "users"}}}),
+        )])?);
+        repository.register_section(
+            TypeId::of::<()>(),
+            "auth.providers",
+            json!({"users": {"driver": "eloquent", "model": "app::models::User"}}),
+            SectionSchema::any(),
+            |_: &Value| Ok(()),
+        )?;
+        repository.validate_base()?;
+        assert_eq!(
+            repository.section::<Value>("auth.providers")?,
+            json!({"users": {"driver": "app-users", "table": "users", "model": "app::models::User"}})
+        );
+        Ok(())
+    }
+
+    // 子区段比 Laravel 可合并选项更深时，也不能穿透显式 Provider 条目的浅边界。
+    #[test]
+    fn nested_section_defaults_do_not_reopen_explicit_provider_fields() -> Result<()> {
+        let mut sources = ConfigSources::from_ordered_entries([("auth", json!({}))])?;
+        sources.merge_code_section(
+            "auth",
+            json!({"providers": {"users": {"driver": "app-users", "table": "users"}}}),
+        )?;
+        let mut repository = ConfigRepository::new(sources);
+        repository.register_section(
+            TypeId::of::<()>(),
+            "auth.providers.users",
+            json!({"driver": "eloquent", "model": "app::models::User"}),
+            SectionSchema::any(),
+            |_: &Value| Ok(()),
+        )?;
+        repository.validate_base()?;
+        assert_eq!(
+            repository.section::<Value>("auth.providers.users")?,
+            json!({"driver": "app-users", "table": "users"})
+        );
         Ok(())
     }
 
@@ -3669,6 +3882,146 @@ mod tests {
         );
         assert_eq!(repository.get("probe.port")?, Some(json!(8080)));
         assert_eq!(repository.all()?["probe"]["port"], 8080);
+        Ok(())
+    }
+    // 动态 Provider 在 Frozen 阶段登记同一文件的子区段，仍不得深补显式条目。
+    #[test]
+    fn frozen_child_section_keeps_parent_file_entry_and_runtime_values() -> Result<()> {
+        let mut sources = ConfigSources::from_ordered_entries([("auth", json!({}))])?;
+        sources.merge_code_section(
+            "auth",
+            json!({
+                "providers": {"users": {"driver": "database", "table": "accounts"}},
+                "guards": {"web": {"driver": "session", "provider": "users"}}
+            }),
+        )?;
+        let mut repository = ConfigRepository::new(sources);
+        repository.validate_base()?;
+        repository.freeze()?;
+        repository.set("auth.providers.users.table", json!("runtime_accounts"))?;
+        repository.register_section_for(
+            TypeId::of::<()>(), false, "auth.providers",
+            json!({"users": {"driver": "eloquent", "model": "User"}, "extra": {"driver": "custom"}}),
+            SectionSchema::any(), |_: &Value| Ok(())
+        )?;
+        assert_eq!(
+            repository.get("auth.providers.users")?,
+            Some(json!({"driver": "database", "table": "runtime_accounts"}))
+        );
+        assert_eq!(
+            repository.get("auth.providers.extra")?,
+            Some(json!({"driver": "custom"}))
+        );
+        assert_eq!(
+            repository.get("auth.guards.web.provider")?,
+            Some(json!("users"))
+        );
+        repository.set("auth.providers.users.table", json!("second_runtime"))?;
+        assert_eq!(repository.get("auth.providers.users.model")?, None);
+        Ok(())
+    }
+
+    // 缓存 Frozen 晚注册仅装校验；不能补 model，也不能增加缓存没有的 Provider。
+    #[test]
+    fn cached_frozen_section_does_not_replay_defaults() -> Result<()> {
+        let cached =
+            json!({"auth": {"providers": {"users": {"driver": "database", "table": "accounts"}}}});
+        let mut repository = ConfigRepository::new(ConfigSources::from_cached(cached.clone())?);
+        repository.validate_base()?;
+        repository.freeze()?;
+        repository.register_section_for(
+            TypeId::of::<()>(), false, "auth.providers",
+            json!({"users": {"driver": "eloquent", "model": "User"}, "extra": {"driver": "custom"}}),
+            SectionSchema::any(), |_: &Value| Ok(())
+        )?;
+        assert_eq!(repository.all()?, cached);
+        repository.set("auth.providers.users.table", json!("runtime_accounts"))?;
+        assert_eq!(
+            repository.get("auth.providers.users.table")?,
+            Some(json!("runtime_accounts"))
+        );
+        assert_eq!(repository.get("auth.providers.users.model")?, None);
+        assert_eq!(repository.get("auth.providers.extra")?, None);
+        Ok(())
+    }
+    #[test]
+    fn frozen_ancestor_section_preserves_descendant_file_boundary_runtime_and_siblings()
+    -> Result<()> {
+        let mut sources = ConfigSources::from_ordered_entries([(
+            "auth",
+            json!({
+                "defaults": {"guard": "web"},
+                "runtime_note": "source-note",
+                "session": {"timeout": 30}
+            }),
+        )])?;
+        // 真正的文件边界位于待注册auth的子路径，不是auth本身。
+        sources.merge_code_section(
+            "auth.providers",
+            json!({"users": {"driver": "database", "table": "accounts"}}),
+        )?;
+        let mut repository = ConfigRepository::new(sources);
+        repository.validate_base()?;
+        repository.freeze()?;
+        repository.set_many([
+            ("auth.providers.users.table", json!("runtime_accounts")),
+            ("auth.defaults.guard", json!("admin")),
+            ("auth.runtime_note", json!("runtime-note")),
+            ("auth.session.timeout", json!(900)),
+            ("auth.session.runtime_only", json!(true)),
+        ])?;
+        let before = repository.version();
+        repository.register_section_for(
+            TypeId::of::<()>(),
+            false,
+            "auth",
+            json!({
+                "providers": {
+                    "users": {"driver": "eloquent", "model": "User"},
+                    "extra": {"driver": "custom"}
+                },
+                "defaults": {"guard": "web", "passwords": "users"},
+                "runtime_note": "default-note",
+                "session": {"timeout": 5, "default_only": true},
+                "new_nonfile_sibling": {"enabled": true}
+            }),
+            SectionSchema::any(),
+            |_: &Value| Ok(()),
+        )?;
+        // users条目是auth.providers文件的浅覆盖；不能偷偷补model，但缺失extra应添加。
+        assert_eq!(
+            repository.get("auth.providers")?,
+            Some(json!({
+                "users": {"driver": "database", "table": "runtime_accounts"},
+                "extra": {"driver": "custom"}
+            }))
+        );
+        assert_eq!(repository.get("auth.providers.users.model")?, None);
+        // 真正非文件子区段保持普通Frozen的递归默认合并，同时保留运行时及兄弟项。
+        assert_eq!(
+            repository.get("auth.defaults")?,
+            Some(json!({"guard": "admin", "passwords": "users"}))
+        );
+        assert_eq!(
+            repository.get("auth.session")?,
+            Some(json!({"timeout": 900, "runtime_only": true, "default_only": true}))
+        );
+        assert_eq!(
+            repository.get("auth.runtime_note")?,
+            Some(json!("runtime-note"))
+        );
+        assert_eq!(
+            repository.get("auth.new_nonfile_sibling.enabled")?,
+            Some(json!(true))
+        );
+        assert_eq!(repository.version(), before + 1);
+        // 发布后继续写入同一现值，不得再从pre_file_base重放旧的accounts。
+        repository.set("auth.providers.users.table", json!("second_runtime"))?;
+        assert_eq!(
+            repository.get("auth.providers.users.table")?,
+            Some(json!("second_runtime"))
+        );
+        assert_eq!(repository.get("auth.providers.users.model")?, None);
         Ok(())
     }
 }

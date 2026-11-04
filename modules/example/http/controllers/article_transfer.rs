@@ -26,7 +26,7 @@ pub(crate) async fn import(
         .map_err(|_| too_large())?;
     Ok(Json(
         transfer
-            .import(user.id(), query.format, bytes.to_vec())
+            .import(user.integer_id()?, query.format, bytes.to_vec())
             .await?,
     ))
 }
@@ -35,7 +35,7 @@ pub(crate) async fn export(
     Inject(transfer): Inject<ArticleTransfer>,
     Query(query): Query<TransferQuery>,
 ) -> Result<Response> {
-    let bytes = transfer.export(user.id(), query.format).await?;
+    let bytes = transfer.export(user.integer_id()?, query.format).await?;
     Ok(download_response(Body::from(bytes), query.format))
 }
 fn download_response(body: Body, format: ArticleFormat) -> Response {
@@ -73,7 +73,7 @@ pub(crate) async fn dispatch_export(
 ) -> Result<openrust::http::Created<Json<ExportQueued>>> {
     let job_id = crate::modules::example::services::article_transfer::dispatch_export(
         &queue,
-        user.id(),
+        user.integer_id()?,
         query.format,
     )
     .await?;
@@ -88,7 +88,7 @@ pub(crate) async fn download_export(
 ) -> Result<Response> {
     let reader = crate::modules::example::services::article_transfer::open_export(
         &storage,
-        user.id(),
+        user.integer_id()?,
         query.format,
         &job_id,
         attempt,
@@ -121,7 +121,7 @@ pub(crate) async fn dispatch_import(
         &db,
         &storage,
         &queue,
-        user.id(),
+        user.integer_id()?,
         query.format,
         bytes.to_vec(),
     )
@@ -137,7 +137,7 @@ pub(crate) async fn import_report(
 ) -> Result<Response> {
     let reader = crate::modules::example::services::article_transfer::open_import_report(
         &storage,
-        user.id(),
+        user.integer_id()?,
         &import_id,
         &job_id,
         attempt,
@@ -169,7 +169,7 @@ pub(crate) async fn import_status(
     Ok(Json(
         crate::modules::example::services::article_transfer::import_status(
             &db,
-            user.id(),
+            user.integer_id()?,
             &import_id,
         )
         .await?,

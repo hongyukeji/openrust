@@ -7,6 +7,7 @@ pub mod cache;
 pub mod database;
 #[cfg(feature = "grpc")]
 pub mod grpc;
+pub mod hashing;
 pub mod i18n;
 pub mod log;
 pub mod mail;
@@ -39,6 +40,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("sms", sms::config)
         .section("storage", storage::config)
         .section("auth", auth::config)
+        .section("hashing", hashing::config)
         .section("security", security::config);
     #[cfg(feature = "queue")]
     let manifest = manifest.section("queue", queue::config);

@@ -98,10 +98,10 @@ impl TenantRecords {
     }
     pub(crate) async fn get(&self, user: &CurrentUser) -> Result<RecordView> {
         let tenant = TenantContext::require_current()?;
-        self.verify_membership(user.id(), &tenant).await?;
+        self.verify_membership(user.integer_id()?, &tenant).await?;
         let record = QueryRule::<tenant_record::Entity>::new(|user| {
             Ok(QueryScope::new(
-                tenant_record::Column::OwnerId.eq(user.id()),
+                tenant_record::Column::OwnerId.eq(user.integer_id()?),
             ))
         })
         .for_tenant(tenant_record::Column::TenantId)
@@ -110,14 +110,18 @@ impl TenantRecords {
         .await?
         .ok_or_else(not_found)?;
         // 每次先确认主库记录和权限；缓存只提供允许短暂旧值的派生显示。
-        if let Some(value) = self.cache.get::<String>(&cache_key(user.id())).await? {
+        if let Some(value) = self
+            .cache
+            .get::<String>(&cache_key(user.integer_id()?))
+            .await?
+        {
             return Ok(RecordView {
                 value,
                 cache_hit: true,
             });
         }
         self.cache
-            .set(&cache_key(user.id()), &record.value, Some(TTL))
+            .set(&cache_key(user.integer_id()?), &record.value, Some(TTL))
             .await?;
         Ok(RecordView {
             value: record.value,
@@ -127,7 +131,7 @@ impl TenantRecords {
     pub(crate) async fn put(&self, user: &CurrentUser, value: String) -> Result<()> {
         validate_value(&value)?;
         let tenant = TenantContext::require_current()?;
-        let owner = user.id();
+        let owner = user.integer_id()?;
         let db = Arc::clone(&self.db);
         self.db.transaction(move |transaction| Box::pin(async move {
             let backend = db.backend()?;

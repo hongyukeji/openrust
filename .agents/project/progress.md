@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+🟡 R7具名认证核心编码及适用验证收齐，最终证据独审与资源收尾通过，本地提交以Git为准；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低SQLite3.26迁移30断言通过。完整Eloquent/Fortify及其余认证范围保留，见[限定验收](memory/testing.md#r7-具名认证核心限定验收)。
+
 ✅ SQLite本地认证/MFA限定验收已通过，本地提交以Git为准；实际门禁与复用边界见[测试基线](memory/testing.md#sqlite-本地认证与-mfa-限定验收)。完整ADR-001和Fortify/Google客户端互操作仍开放。
 
 ✅ SQLite S3a原生数据库Session与显式Guarded已按[限定范围](memory/testing.md#sqlite-数据库-session-对应限定验收)完成主/精简门禁、固定最低3.26、23项真实双库、四类fresh、不同模型独审与资源收尾，本地提交以Git为准。完整Guard.id、SQLite认证/MFA/缓存锁/队列与ADR-001继续开放；后继回唯一todo，不以当前输入覆盖所有历史服务矩阵。

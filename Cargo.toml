@@ -114,7 +114,7 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "j
 opendal = { version = "0.59.2", default-features = false, features = ["services-fs"] }
 tempfile = "3.27"
 csv = "1.4"
-calamine = { version = "0.37", default-features = false, features = ["chrono"] }
+calamine = { version = "0.38", default-features = false, features = ["chrono"] }
 rust_xlsxwriter = { version = "0.101", default-features = false, features = ["constant_memory"] }
 zip = { version = "9", default-features = false }
 quick-xml = { version = "0.42", default-features = false, features = ["encoding"] }
@@ -352,6 +352,11 @@ path = "tests/server/auth/routes.rs"
 [[test]]
 name = "auth_database"
 path = "tests/server/auth/database.rs"
+
+[[test]]
+name = "auth_named_guard"
+path = "tests/server/auth/named_guard.rs"
+required-features = ["auth"]
 
 [[test]]
 name = "auth_runtime"

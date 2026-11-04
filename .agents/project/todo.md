@@ -53,6 +53,36 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 5. 每个可验簇同改消费者/模板/快照/文档/脚本及唯一example；真实CLI/生成check+test，核路径/内容/登记/重复冲突/失败不破坏文件、错误退出码，独审和适用集中门禁后限定本地提交。完整CLI开放范围继续保留，不只help快照宣称完成。
 6. 当前状态：吸收已完成，CLI语义改码尚未开始。下一步在当前提交及明确宿主两子项后，建立现实现→固定官方的逐命令差异/依赖，选择可独立且不拖SQLite的首簇。四项总回执tmp/cli-laravel-alignment-20261102/handoff.json。
 
+### 当前批次与 Fortify 优先例外
+
+真人明确校准：先完成已在途 R7 具名 Guard / UserProvider / StatefulGuard 核心簇，不把整个 Fortify 或其他新簇继续追加。退出条件为配置与同容器生产接线、原始类型账户ID及身份隔离、全部受影响调用方、CLI模板、唯一 modules/example、正式文档和适用测试收齐；冻结后集中验收并修复，独立本地提交。未验证WIP不提交，不把只编译或局部测试称闭环。
+
+当前停点：root独占main/公共contract/索引/Cargo/服务，R7具名认证核心簇编码、适用验证、最终独审与资源收尾已收齐，本地提交以Git为准。最终833项输入见r7-consumer-final-source.json；主矩阵final-gates-6十一项全部通过，后续仅realtime独立consumer两文件变化，主生产输入不变，按范围复用。当前默认workspace严格Clippy/tests、7consumer、四类fresh的new/check/test共12命令均通过（各3测试/0跳过）；realtime保留503断言并经公开异常扩展选择API envelope，真实Redis双进程通过。最低SQLite3.26动态库身份/source_id与当前迁移链30断言通过；当前MySQL/PostgreSQL各33项实际通过（账户、Cookie、数据库认证、remember迁移、浏览器WebSocket及真实Keycloak/OIDC生命周期），双库集合差异均0。自有Keycloak/admin trigger已正常退出、admin.env已删除、四端口释放，共享MySQL/PG/Redis保持运行。独立证据审查final-current-evidence-review.json无阻止限定提交的缺口；242份生成源码已归档，358相对文件链接0缺失，diff检查通过。三个任务target合计16,237,453,312B正常clean至0，磁盘可用160,493,772,800B，依赖/native源码与验收证据保留。详见[当前R7限定验收](memory/testing.md#r7-具名认证核心限定验收)。
+
+本批修复已通过实际回归：Guard构造跨任务等待环与取消/forget代际；SQLite sidecar复制FD释放锁red→green且身份未知仍保守；Guard/Provider配置错误按固定上游异常链返回500，guest401/歧义Cookie400/未知Provider返回None不变。根/生成app-users、原始类型ID、同账户来源隔离、remember CAS、默认Guard数据库Session投影、调用方、唯一模块与指南均在本次范围。完整Eloquent、Fortify/Google真实客户端及其余认证能力仍开放；不把当前簇扩成完整R7或整个Goal完成。旧失败/旧冻结输入全部保留，不覆盖为新源码通过。
+
+持续并行规则（2026-11-04真人明确授权，覆盖原完整Goal余下开发）：本批冻结范围不扩大，但后续每簇持续按依赖图并行。每次领取、闭环、worker完成、依赖解除的自然边界主动复核ready队列；有前置满足、互斥文件和资源许可的已授权任务，复用可见开发对话框或子智能体接续派发，无需用户逐次提醒/批准。维持总控＋多个可见对话框＋按需子智能体，及时复用或释放空闲worker，不保持空转或强求固定人数、不递归派发。无独立ready项、公共contract未定或main最终门禁需串行时记录具体原因；不为并发扩大本批或制造冲突。安全审查、独立配套可并行，公共contract/Cargo/lock/迁移号/共享文档/索引/服务调度及最终组合验收提交仍由root串行负责。Guard→官方TOTP优先闭环→回核心主线、原Goal/预算/20%/credits=false不变。
+
+当前并行与文件归属（所有writer交接冻结，root独占共享文件/索引/Cargo）：
+- Example · OpenRust：可见对话框 `01a1a63a-2d8f-7471-8729-9ce2a9abad19`，gpt-6.1-sol；账户服务/路由/两组账户Cookie测试、Cookie慢save回归已交接；首业务工具exec-407f8323-0ce2-498d-9463-1626eafbd68f，慢save交接exec-2a442f44-fe55-4276-9b80-635750a69321；Cookie负例只读建议已由root按实测边界吸收。
+- Docs · OpenRust：可见对话框 `01a1a63a-2ebb-7782-8f5b-dd49bea8b321`，gpt-6.1-sol；认证/Session指南及导航四文件和配置父文件/子section初始修复已交接；首业务工具exec-df9bb381-0934-43b1-b01d-82836ca8aa08，最新文档48链接核查通过。
+- session_guard_impl：manager.rs及manager/tests.rs修复已停写交接，root定向10通过；guard_database_provider修后只读复审无剩余blocker/should-fix。fortify_contract_audit已独审旧最终证据及不可变来源映射，manager新输入须单独验收。Docs可见对话框9处一致性整改由root已吸收，171相对文件链接0缺失。
+
+当前验证与证据（目录统一 `tmp/fortify-totp-alignment-20261104/`）：
+- 最新认证边界：具名HTTP9、原生Session45、HTTP Session23（实际阻塞save跨真实UTC秒）、配置142均通过；guest的Guard.id fallback不准用于授权；真实双SQLite+TCP的同数字ID跨表/Db来源负例在全feature与无MFA组合均通过。普通Cookie保PHP折叠，原始wire重复Session/dot别名/所选recaller在账户查询前400。各自日志/输入分层，不以定向替代组合。
+- 真实服务：MySQL8.4/PostgreSQL18各33项，账户3、Cookie4、认证DB8、迁移1、浏览器4、OIDC主8/lifecycle5，全部实际执行且0ignored；Cookie4为2Router构建拒绝+2真实TCP流程，不称4TCP。Chrome153实跑、真正IdP签名backchannel/重放、各后端库差异0，索引见real-services-summary.json。按未变生产路径复用，后续calamine升级仅影响数据解析，不重称新Auth实跑。
+- 安全与失败证据：Cookie先完整response预检→save→按最终ID/时间生成；原非法Cookie不先写库、remember自动recall与慢save断言保留。Frozen父/子文件双向浅边界、runtime set和缓存晚注册不补默认；OIDC普通GET用cookies/session，JWT绑定用共享cookies+JWT组，不降CSRF、不混身份。全部失败输入、0测试误过滤、panic残留库精确归属/0连接清理和IdP旧测试会话清理留在tmp，不覆盖原始日志。
+- 组合：新calamine0.38输入833项的final-gates-2十项全部通过：严格全特性Clippy、全特性workspace2272/0/124、默认/全特性warnings-denied文档、deny、CLI构建、三精简feature和MSRV1.97。默认1339/0/40证据按未变路径限定复用；最新模板修复在此输入之后，须补验CLI与fresh，不宣称旧快照覆盖新模板。
+- 最低SQLite：真实3.26.0动态库执行remember迁移标准up/down/up通过30断言（sqlite326.log），含数据/索引/FK/完整性与自有库/锁清理；当前3.51.3旧28断言按输入单列。
+- fresh：新输入r7-freeze-template-source-3.json在fresh-r7-5四类sqlite-auth/sqlite-mfa/mysql-mfa/postgres-auth实际new/check/test十二命令全部0，每类3测试、0跳过、双库差异0。生成测试漏Application::config、装饰器漏Guard元数据转发、Global profile导致fixture lottery覆盖失效均仅修测试模板；旧失败副本/日志保留，未降生产failclosed。CLI39测试、严格Clippy、fmt及更新后的正式快照均通过；输入/日志SHA见template-source-final-evidence.json，尚待consumer与最终独审。
+- 资源/服务：旧受验target经dry-run及Cargo原生锁正常clean；当前受控使用根target、fresh共享target及最低SQLite probe target；总量按实际du核算。专属Keycloak容器、管理trigger进程及管理员凭据已清理；共享MySQL/PG/Redis、源/证据/依赖源码保留。新target前按50GB软/100GB硬与磁盘10%/5%预算估算，源码不随缓存清理。
+
+下一动作：最新状态码manager10与auth_named_guard10已通过；README/指南/变更说明已同步，主target清理结果见r7-pre-status-final-target-retired.json。先按当前文件重新冻结并执行适用组合门禁，再重建CLI/四类fresh验证新增工厂500断言，随后续consumer（查询授权check与自定义Session tests已过，后者lock仅补既有base64声明而触发源保护正常停）→最终独审/不可变证据映射→更新事实/资源收尾→脚本本地提交；不push/tag/release。后继TOTP来源Spec及23项上游测试清单已仅在tmp准备，尚未开工，不能把准备当完成。
+
+本批之后，固定 Fortify 官方双因素与 Google Authenticator TOTP 是经真人批准的阶段二优先例外；复用本认证内核，官方默认/安全增强分开，真实Google客户端未导入保留外部验收缺口。其他Fortify功能全量范围不删除，其他官方生态不随本例外全面提前。
+
+优先闭环后回核心依赖主线：复核 Container/Provider、HTTP/Session实际剩余前置，再按 Query/Schema/迁移 → Model/分页 → Factory 的实际依赖逐簇领取；不重做已验收范围，不把R2–R6绑成巨型提交。SQLite适用链、CLI逐命令/参数/默认/错误/生成、唯一示例与固定Laravel13.x导航文档随所属簇交付；S3及全部核心/Modules/官方生态缺口保留。仍沿原Goal/main/预算/历史，不启动冻结业务UI或AI产品，不重启旧守护。
+
 ### 当前：SQLite 迁移、配置边界与既有能力适配
 
 1. 用户明确要求“SQLite 支持请尽快安排开发好”；owner=root，沿用原完整Goal/预算/main。当前R2命令所有权簇先闭环；按最新真人明确顺序接范围明确的模块入口整改，再立即SQLite。SQLite可并行只读盘点，不加入当前受验源码，不等待完整R5/Factory。
@@ -876,7 +906,7 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 
 1. **范围与基线闭合**：在各簇领取前固定对应官方包独立版本/源码/文档/测试，核对所有子行为、前端/命令/错误及可观察默认；旧资产按新contract重验。SDK、MCP、Boost等不能仅列名字，Wayfinder/Stream、Echo/Vite、Passkeys/通知渠道与开发工具也要给明确对应。维护内部工具/商业平台/语言工具差异按规则分类，不静默删适用功能。
 2. **阶段一**：保全当前在途核心簇，独立簇可按冻结contract与既定R2–R13依赖并行，完成Laravel核心与模块内核/生成管理/资源命令；官方可选包或生态集成不反向阻塞阶段一门禁，核心必需配置、HTTP、数据库/ORM、安全、缓存/存储、队列/调度等不挪走。M031/M033/M034等依赖生态的集成在阶段二闭环，保留范围和ID。
-3. **阶段二A：官方基础包与体验**：共享前置成熟后，按包实现Fortify/Sanctum/Socialite/Passport、Folio/Head/Precognition、Octane对应及额外数据库driver；先Spec默认/安全/扩展与实际生产链路，模块生态集成、官方starter-kit及JS配套同步对应，不新增第二示例。 Fortify/TOTP已于2026-11-04获真人明确实施授权（owner=root；依赖当前S3b冻结批次验收/本地提交及既有Guard/Provider/Session前置；状态已领取来源冻结/Spec，S3b已提交c3ba63b，不再加入旧受验批次）：复用auth-mfa，先固定兼容Laravel13.x的正式release/tag/commit、依赖与官方测试，RFC6238和Google官方Key-Uri-Format只作互操作来源。必须支持Google Authenticator本地otpauth二维码/手动密钥、issuer/account转义、SHA1六位30秒/前导零/窗口；真实Google客户端未实际导入验证须保留外部验收缺口。对齐近期密码确认、待确认绑定、第二因素前无正式Session/token、所有入口防绕过和Guard/账号Provider身份隔离；官方Disable清secret/recovery/confirmed及8份加密可重看恢复码须提供官方默认，现哈希一次展示/关闭保留绑定等仅作显式增强，不降安全。跨实例并发重放/一次消费、期限限速/failclosed、关闭换绑重置挑战/会话及脱敏审计，MySQL/PG/SQLite最低版、generated-project、唯一modules/example、文档及不同模型独审均为交付条件。2026-11-04真人进一步明确一切以前述固定Laravel/Fortify官方机制为前提；跨项目TTL/独立开关/仅哈希恢复码/关闭保留绑定/额外撤销均不得覆盖官方默认，增强必须经同一公开扩展可选提供且不增加强制交互。当前固定Fortify v1.41.0 / c456642584c102f6a6aafee9932299542da637b5及21份同commit官方测试，兼容google2fa v9.1.0独立参考已固定；[认证Spec](plans/fortify-authentication.md)区分包回退/安装模板默认。下一步按R7补配置具名Guard/UserProvider/StatefulGuard前置并接Fortify，不由现有增强定义官方机制；SQLite生产链、CLI选项/生成、Laravel导航文档及S3缺口持续保留。
+3. **阶段二A：官方基础包与体验**：共享前置成熟后，按包实现Fortify/Sanctum/Socialite/Passport、Folio/Head/Precognition、Octane对应及额外数据库driver；先Spec默认/安全/扩展与实际生产链路，模块生态集成、官方starter-kit及JS配套同步对应，不新增第二示例。 Fortify/TOTP已于2026-11-04获真人明确实施授权（owner=root；依赖当前S3b冻结批次验收/本地提交及既有Guard/Provider/Session前置；状态已领取来源冻结/Spec，S3b已提交c3ba63b，不再加入旧受验批次）：复用auth-mfa，先固定兼容Laravel13.x的正式release/tag/commit、依赖与官方测试，RFC6238和Google官方Key-Uri-Format只作互操作来源。必须支持Google Authenticator本地otpauth二维码/手动密钥、issuer/account转义、SHA1六位30秒/前导零/窗口；真实Google客户端未实际导入验证须保留外部验收缺口。对齐近期密码确认、待确认绑定、第二因素前无正式Session/token、所有入口防绕过和Guard/账号Provider身份隔离；官方Disable清secret/recovery/confirmed及8份加密可重看恢复码须提供官方默认，现哈希一次展示/关闭保留绑定等仅作显式增强，不降安全。跨实例并发重放/一次消费、期限限速/failclosed、关闭换绑重置挑战/会话及脱敏审计，MySQL/PG/SQLite最低版、generated-project、唯一modules/example、文档及不同模型独审均为交付条件。2026-11-04真人进一步明确一切以前述固定Laravel/Fortify官方机制为前提；跨项目TTL/独立开关/仅哈希恢复码/关闭保留绑定/额外撤销均不得覆盖官方默认，增强必须经同一公开扩展可选提供且不增加强制交互。当前固定Fortify v1.41.0 / c456642584c102f6a6aafee9932299542da637b5及21份同commit官方测试，兼容google2fa v9.1.0独立参考已固定；[认证Spec](plans/fortify-authentication.md)区分包回退/安装模板默认。用户补充已纳入同一认证契约：用户ID必有且支持整数/UUID等；用户名一般存在但不全局强制，email/phone均允许缺失。按应用配置支持用户名/邮箱/手机号或组合密码入口，常规界面单一“用户名／邮箱／手机号”账号框加密码框、只填任一种，共用同一Provider/密码/限流/MFA，配套唯一示例/生成/验证；明确规范化、大小写与跨字段歧义拒绝，不冒充官方默认。R7前置contracts/DatabaseUserProvider/请求级manager/SessionGuard及测试代码已编码WIP，应用接线、CurrentUser泛化、配套调用方与集中验收未完成，不提交半成品。下一步按R7补配置具名Guard/UserProvider/StatefulGuard前置并接Fortify，不由现有增强定义官方机制；SQLite生产链、CLI选项/生成、Laravel导航文档及S3缺口持续保留。
 4. **阶段二B：数据、异步、观测与工具**：按DB/Model/Queue/HTTP前置对应Scout/Pennant、Cashier Stripe/Paddle、Reverb/Echo、Horizon/Pulse/Telescope及Dusk/Envoy/Prompts/Pail/Tinker/Pint/Sail/Valet/Homestead等适用体验，Wayfinder/Stream和编辑器/分析元数据依赖随相应簇完成。Horizon/观测工具自身必要UI与鉴权随包交付，按需引入不默认公开；这不授权组织/菜单等业务后台或App。
 5. **阶段二C：AI与已授权增强**：AI-0至AI-4、官方MCP Server/Client、Boost按真实前置组合，SDK不能改成另一套机制；MQTT、gRPC、DB动态设置及既定增强继续。AI-5内嵌推理后置评测，不因全量SDK强制模型运行环境。A/B/C是职责批次，可按真实依赖交错，不把列表顺序变成循环前置，独立簇可由总控按依赖图批准并行，main集成与最终验收串行。
 6. **最终收口**：每个官方包逐项行为、公开扩展、唯一模块、生成项目与真实服务/浏览器/协议证据均齐备，Rust差异/外部条件缺口公开；两阶段/C33证据汇入R14，不能只关闭核心便称完全体。若缺账号/许可/服务继续独立项，禁止fake冒充实测；不推送/发布、不改写历史，业务后台与AI产品仍未授权。

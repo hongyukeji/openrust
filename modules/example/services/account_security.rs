@@ -3,7 +3,7 @@
 use crate::modules::example::http::requests::account_security::CredentialsInput;
 #[cfg(feature = "auth-mfa")]
 use crate::modules::example::http::requests::account_security::FactorInput;
-use openrust::auth::{AuthFlows, LoginAttempt, Session, SessionCredentials};
+use openrust::auth::{AuthFlows, AuthManager, LoginAttempt, Session, SessionCredentials};
 use openrust::core::{RegisterContext, ServiceProvider};
 use openrust::http::axum::http::{HeaderMap, header};
 use openrust::{Error, Result};
@@ -38,6 +38,7 @@ impl ServiceProvider for AccountSecurityProvider {
                     }
                     Ok(Arc::new(AccountSecurity {
                         flows: resolver.resolve::<AuthFlows>().await?,
+                        auth: resolver.resolve::<AuthManager>().await?,
                         origin: url.origin().ascii_serialization(),
                     }))
                 })
@@ -50,6 +51,7 @@ impl ServiceProvider for AccountSecurityProvider {
 
 pub(crate) struct AccountSecurity {
     flows: Arc<AuthFlows>,
+    auth: Arc<AuthManager>,
     origin: String,
 }
 impl AccountSecurity {
@@ -84,12 +86,28 @@ impl AccountSecurity {
         session: &Session,
     ) -> Result<SessionCredentials> {
         // 框架拒绝已启用 MFA 的账户；此路径不能绕开第二因子。
+        let guard = self.auth.guard(Some("web")).await?;
+        let guard = guard.as_stateful().ok_or_else(|| {
+            Error::custom(
+                "example_web_guard_not_stateful",
+                "账户 web Guard 必须支持 Session 登录",
+            )
+        })?;
         self.flows
-            .login_session(&input.email, &input.password, source, session)
+            .login_session_with_guard(&input.email, &input.password, source, session, guard)
             .await
     }
     pub(crate) async fn session_logout(&self, source: &str, session: &Session) -> Result<()> {
-        self.flows.logout_session(source, session).await
+        let guard = self.auth.guard(Some("web")).await?;
+        let guard = guard.as_stateful().ok_or_else(|| {
+            Error::custom(
+                "example_web_guard_not_stateful",
+                "账户 web Guard 必须支持 Session 注销",
+            )
+        })?;
+        self.flows
+            .logout_session_with_guard(source, session, guard)
+            .await
     }
     #[cfg(feature = "auth-mfa")]
     pub(crate) async fn complete(

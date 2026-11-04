@@ -1,6 +1,6 @@
 # `openrust::auth`
 
-✅ S3b SQLite本地认证/MFA限定验收通过，本地提交以Git为准；源17新调用方门禁、四fresh及独审齐备，源9/12/13按未变路径限定复用。双库22项、最低3.26认证52/限流2/Root5，fresh各3无skip；234生成源码归档，所有任务target已正常clean至0。完整Guard/Fortify/Google真实客户端、SQLite其他后端能力与故障窗口仍开放，见memory/testing.md「SQLite 本地认证与 MFA 限定验收」及唯一todo。原Goal active，新99/19.8与旧27/5.4历史保留、creditsfalse。
+🟡 R7具名认证核心簇编码及适用验收、最终证据独审和资源收尾已收齐，本地提交以Git为准；当前实际门禁、输入复用及剩余项见唯一todo。已验证的SQLite本地认证/MFA子范围见 [测试基线](../memory/testing.md#sqlite-本地认证与-mfa-限定验收)，不据此关闭完整Auth、Eloquent或官方Fortify。
 
 > 受众：AI Agent
 > 更新：2026-10-29
@@ -8,13 +8,15 @@
 
 ## 当前实现
 
+🟡 R7具名认证当前WIP：AuthServiceProvider注册AuthDrivers与scoped AuthManager，Session/Web请求共享真实上下文；Guard/Provider按配置和请求缓存、CurrentUser保留数字/字符串ID及来源。DatabaseUserProvider走同一Db查询/工厂，根app-users适配password_hash并拒绝disabled_at，真实Eloquent仍未实现。StatefulGuard提供Session/remember/once/事件语义；GenericUser原子CAS用于Rust取消恢复，未实现能力前置拒绝，既有AuthFlows/OIDC桥接核同一数据库句柄和账户表，不按相同整数ID跨域。唯一模块账户/浏览器实时/OIDC Session调用方、CLI生成模型/配置/测试与正式指南已编码；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低3.26迁移30断言已通过；最终证据独审与提交状态见唯一todo。详见唯一todo与Fortify计划的R7前置边界。
+
 - 配置结构位于 `openrust::config::auth`，旧的 `openrust::auth` 配置导出保持可用；JWT 密钥可放在受保护的 `.env` 或由部署环境注入，进程环境优先；生成项目不写入真实密钥。
 
-- `AuthServiceProvider::new()` 注册共享密码服务与数据库认证器的同容器异步工厂；boot 解析当前最终绑定的认证服务，并检查数据库后端为 PostgreSQL 或 MySQL。`AuthServiceProvider::with_authenticator` 使用应用或第三方实现，不依赖 `Db`；后序 Provider 可按容器覆盖契约提供完整自定义服务。
-- `auth::Session` 与相关 store 现重导唯一 `openrust::session` 实现，旧 tower Session 内核已移除。`SessionServiceProvider` 复用最终配置、Cookie 和请求 Scope；默认数据库 store、公开 custom store 与显式内存路径见 [Session 当前事实](session.md) 和 [使用指南](../../../src/session/README.md)。40位ID按原始字节计算摘要，数据库保存有界JSON文本；Insert不覆盖、已加载记录Update不复活删除/过期ID是保留的安全增强。本簇当前Store专项、Auth database双库各8、Redis Auth10、根模块HTTP各53、模块OIDC各8及真实Keycloak主流程各1均已按新运行时验收；完整CSRF和上游Auth默认对应仍开放，详见testing。
+- `AuthServiceProvider::new()` 注册共享密码服务与数据库认证器的同容器异步工厂；boot 解析当前最终绑定的认证服务，并检查当前已支持的 PostgreSQL、MySQL 或 SQLite 后端。`AuthServiceProvider::with_authenticator` 使用应用或第三方实现，不依赖 `Db`；后序 Provider 可按容器覆盖契约提供完整自定义服务。
+- auth::Session重导唯一Session实现。默认database使用原始ID、Base64属性载荷与Laravel handler exists语义；身份摘要envelope、绝对截止、防删除后迟到写入复活属于显式database-guarded增强。历史验收按原输入范围保留，不作为当前R7已验收证明。
 - C04-C已验证的Cookie外层继续给Session提供明文视图，保原始wire供认证严格重复检查；其旧双库各48项记录不自动沿用为D1通过。当前配置改为lifetime=120分钟、secure=None按可信传输推导、same_site可空且默认lax，Cookie名按最终app.name推导或显式配置。最终配置延迟装配与overlay沿历史决策 082，完整Session/Web范围仍开放。
-- `SessionStoreHandle::authorized_until(&Session, user_id)` 从该Session实际绑定的服务器端handler重新读取已认证会话，核对存储身份与请求快照及用户 ID，返回真正的持久截止时间；缺记录、过期、身份不符或读取失败均拒绝，不因查询滑动延长期限。模块浏览器 WebSocket 在握手时使用该截止；建连后的撤销不自动即时踢出，最长持续至已读取的截止。外部 test-app consumer 仅证明公开签名可调用，真实行为见模块双库测试。
-- C04-D4的Cookie客户端快照仅在真实Cookie中间件验证完整性且ID/合法数据ID未被except时支持Session认证；`supports_session_authentication`默认为服务器后端允许、客户端后端拒绝，自定义包装须委托。实际Session凭据、默认Db认证入口、登录/登出副作用前、OIDC关联与最终save均校验；plain或被排除保护时返回500 `session_cookie_protection_required`，JWT-only不误拒。Cookie的无请求远程delete及需持续服务器撤销保证的authorized_until明确Unsupported，不假报OIDC远程会话已删。双库plain负例各1及完整加密根组各62已按各自范围通过；完整Auth上游对应与集群仍开放。
+- 模块浏览器WebSocket从当前具名Guard取得StatefulGuard，通过SessionStoreHandle::authorized_until_guard核对Guard ID、对应Session键与实际持久记录。它要求ServerSide保证；NativeDatabase/Cookie快照不支持。旧authorized_until保留旧整数身份键适配。建立后的连接仍只保证至读取截止，不自动即时踢出。
+- 标准Web/CSRF组要求Session ID与XSRF Cookie受保护；plain或排除这些名称会在构建Router时报web_cookie_encryption_missing。未经过该组且实际使用Cookie Session认证，或运行时更换handler/name导致保护不足，才返回session_cookie_protection_required；仅排除合法数据Cookie名由Cookie认证入口拒绝。JWT独立路径不因编译Cookie driver误拒。
 - `Authenticator` 接收路由选中的 `AuthCredential`，返回用户 ID 与 PAT abilities；凭据字段不实现 `Debug` / 序列化。默认数据库实现验证共享 Session 身份和 CSRF，或验证 PAT 到期、撤销、用户禁用并更新 `last_used_at`。
 - `JwtConfig`、`JwtServiceProvider` 与 `JwtTokens` 提供严格配置的 HS256 access-token 签发/验证、issuer/audience、kid key ring 与重叠密钥轮换。验证强制 `typ=openrust-at+jwt`、正数十进制账户 ID、jti、iat/nbf/exp 边界；`AuthMode::Jwt` 直接以 JWT 服务认证，不要求 SessionServiceProvider，不逐请求查数据库。
 - `AuthLayer::required` / `optional` 通过 Axum `FromFnLayer` 接入现有 `Routes::layer`。路由模式包含 JWT、Session、PAT、Session-or-PAT；组合模式中的 Bearer 明确解释为 PAT。
@@ -23,9 +25,9 @@
 - `AuthServiceProvider` 同时注册 `VerificationCodes`；`AuthVerificationCodeMigration` 创建 resolver-aware `verification_codes` 表。生成 `--auth` 项目注册 Auth / refresh / verification / Policy 与 database rate-limit migrations；通用限流已由 AuthFlows 在敏感流程中组合使用。
 - `AuthFlowsServiceProvider` 在 `DatabaseServiceProvider`、`AuthServiceProvider`、`JwtServiceProvider` 之后注册统一流程服务；缺少任一依赖或 refresh lifetime 越界时构建失败。服务提供注册/邮箱验证/登录/refresh/登出/密码重置编排，按 endpoint + identity 摘要 + 调用方可信 request-source 消费共享 `RateLimiter`。注册和找回返回 redacted code wrapper，不发送邮件/SMS；默认 30 天 refresh family、5 次/15 分钟固定窗口。密码重置与 refresh family 撤销在同一数据库事务提交。
 - 注册仅将邮箱唯一约束冲突映射为 `None`；CHECK、截断及其他 SQL 错误继续传播，避免 MySQL `INSERT IGNORE` 将非重复错误伪装成重复账户。
-- Cookie Session 登录为可选路径：`AuthFlows::login_session` 复用登录认证和限流、轮换 ID，写入用户 ID 与 CSRF token digest，并返回 Debug 脱敏的 256-bit CSRF token；`logout_session` 清理认证键、轮换 ID并保留应用数据。无效凭据不修改 Session。
+- 唯一示例账户Session流程使用login_session_with_guard/logout_session_with_guard，先核同一Db/实际users域，再经同scope web Guard登录/注销，返回标准Session token并使用CSRF middleware；注销轮换ID/token、保留业务偏好。旧login_session/logout_session及用户ID/独立CSRF digest仍作为显式旧认证资产保留，不与具名身份并存。
 - 可选 `auth-mfa` feature 由 `MfaServiceProvider` 显式启用，依赖数据库、`AuthServiceProvider` 的密码/共享限流服务与 `EncryptionServiceProvider`；启动时检查 MFA 表和数据库审计表。应用 migrator 必须注册 `AuthMfaMigration`。TOTP seed 使用本地 `Encryptor` 加密，RFC 6238 采用 SHA-1、30 秒时间步、6 位码和 ±1 窗口；因子行锁及 `last_used_step` 防止重放。
-- `AuthFlows::begin_login` 返回 `LoginAttempt`，启用 MFA 的账户仅获得来源绑定、5 分钟有效、最多五次的挑战；`complete_mfa_login` 在同一事务消费挑战/因子、签发 JWT/refresh 并写审计。兼容的 `login` 与 Session 登录对已启用 MFA 的账户拒绝；MFA 启用时，`AuthLayer` 也会在每个 Session 认证请求检查因子状态并拒绝旧 Session。OIDC 使用同一挑战路径。
+- `AuthFlows::begin_login` 返回 `LoginAttempt`，启用 MFA 的账户仅获得来源绑定、5 分钟有效、最多五次的挑战；`complete_mfa_login` 在同一事务消费挑战/因子、签发 JWT/refresh 并写审计。现有AuthFlows登录和旧显式AuthMode::Session保留MFA阻断。通用具名Guard不查询应用MFA状态；唯一示例受保护账户Session组显式装require_session_factor，以mfa_enabled拒绝已启用MFA账户的该路径。该查询不证明当前请求完成第二因子；官方Fortify/TOTP仍后继。
 - MFA enrollment 需先通过已授权应用路由重新验证本地密码；待确认 seed 仅在 OTP 确认后启用。十个随机恢复码只显示一次，库中仅存 SHA-256 摘要；恢复码按事务原子消费。启用、禁用和恢复码重置写数据库审计并撤销账户 refresh token。已签发无状态 JWT 仍在原 TTL 内有效。
 - `CurrentUser` / `OptionalUser` 从请求扩展读取身份，可与 `Inject<T>` 同一 handler 使用。PAT abilities 精确匹配。
 - 认证主体留在当前 HTTP request extension；`ExecutionMetadata` 只跨任务传递 request ID/locale，不序列化 `CurrentUser`、权限快照、Bearer token、Session cookie 或任意 header。后台 Job 的授权须在执行边界按应用策略重新确认。

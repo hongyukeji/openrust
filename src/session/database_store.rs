@@ -26,6 +26,7 @@ pub struct DatabaseSessionStore {
     minutes: i64,
     metadata: DatabaseSessionMetadata,
     handler: Mutex<Option<DatabaseSessionHandler>>,
+    user_id: std::sync::Mutex<Option<sea_orm::Value>>,
     #[cfg(feature = "auth")]
     session_user_metadata: bool,
 }
@@ -45,6 +46,7 @@ impl DatabaseSessionStore {
             minutes: 120,
             metadata: DatabaseSessionMetadata::default(),
             handler: Mutex::new(None),
+            user_id: std::sync::Mutex::new(None),
             #[cfg(feature = "auth")]
             session_user_metadata: false,
         }
@@ -77,6 +79,7 @@ impl DatabaseSessionStore {
             minutes: self.minutes,
             metadata,
             handler: Mutex::new(None),
+            user_id: std::sync::Mutex::new(None),
             #[cfg(feature = "auth")]
             session_user_metadata: self.session_user_metadata,
         }
@@ -96,6 +99,10 @@ impl DatabaseSessionStore {
 }
 
 impl SessionStore for DatabaseSessionStore {
+    fn set_database_user_id(&self, user_id: sea_orm::Value) -> Result<bool> {
+        *self.user_id.lock().map_err(|_| unavailable())? = Some(user_id);
+        Ok(true)
+    }
     fn guarantees(&self) -> SessionStoreGuarantees {
         SessionStoreGuarantees::NativeDatabase
     }
@@ -199,6 +206,15 @@ impl SessionStore for DatabaseSessionStore {
                     .transpose()?;
                 let mut metadata = self.metadata.clone();
                 metadata.user_id = Some(sea_orm::Value::BigInt(user));
+                slot.as_mut()
+                    .ok_or_else(invalid_record)?
+                    .set_metadata(metadata);
+            }
+            // 请求内 Guard 投影覆盖旧属性适配；显式 SQL NULL 同样覆盖上一身份。
+            let user_id = self.user_id.lock().map_err(|_| unavailable())?.clone();
+            if let Some(user_id) = user_id {
+                let mut metadata = self.metadata.clone();
+                metadata.user_id = Some(user_id);
                 slot.as_mut()
                     .ok_or_else(invalid_record)?
                     .set_metadata(metadata);

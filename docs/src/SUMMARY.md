@@ -16,6 +16,10 @@
 
 - [路由](the-basics/routing.md)
 
+# 安全
+
+- [认证](security/authentication.md)
+
 # 数据库
 
 - [数据库连接](database/connections.md)

@@ -12,6 +12,7 @@ use crate::auth::CurrentUser;
 #[derive(Clone)]
 pub struct Policy {
     db: Db,
+    guard_scope: Option<(String, Option<String>)>,
 }
 
 impl fmt::Debug for Policy {
@@ -23,7 +24,17 @@ impl fmt::Debug for Policy {
 impl Policy {
     /// 使用应用共享数据库创建 policy 服务。
     pub fn new(db: Db) -> Self {
-        Self { db }
+        Self {
+            db,
+            guard_scope: None,
+        }
+    }
+
+    /// 显式将本角色数据库绑定到具名Guard/Provider，避免同值标识跨账户来源授权。
+    #[must_use]
+    pub fn with_guard_scope(mut self, guard: impl Into<String>, provider: Option<String>) -> Self {
+        self.guard_scope = Some((guard.into(), provider));
+        self
     }
 
     /// 确保指定全局名称的角色存在，并返回其数据库 ID。
@@ -163,6 +174,7 @@ impl Policy {
             return Err(Error::BadRequest("role ID must be positive".into()));
         }
         validate_name(permission, "permission")?;
+
         let db = self.db.clone();
         let permission = permission.trim().to_owned();
         self.db
@@ -223,7 +235,21 @@ impl Policy {
     /// PAT 访问还要求 token abilities 中包含完全相同的值。每次调用都会读取共享数据库，因此已提交的授予与撤销会立即生效。
     pub async fn allows(&self, user: &CurrentUser, permission: &str) -> Result<bool> {
         validate_name(permission, "permission")?;
-        if user.id() <= 0
+        let bound = match (&self.guard_scope, user.guard_name(), user.provider_name()) {
+            (None, None, None) => true,
+            (Some((guard, provider)), Some(actual_guard), actual_provider) => {
+                guard == actual_guard && provider.as_deref() == actual_provider
+            }
+            _ => false,
+        };
+        if !bound {
+            return Err(Error::custom(
+                "auth_policy_provider_scope_mismatch",
+                "角色数据库未绑定到当前Guard及账户Provider",
+            ));
+        }
+
+        if user.integer_id().is_err()
             || user.source() == crate::auth::AuthSource::PersonalAccessToken
                 && !user.has_ability(permission)
         {
@@ -244,7 +270,7 @@ impl Policy {
             .query_one_raw(Statement::from_sql_and_values(
                 backend,
                 &crate::auth::resolve_auth_sql(&self.db, sql)?,
-                [user.id().into(), permission.trim().into()],
+                [user.integer_id()?.into(), permission.trim().into()],
             ))
             .await
             .map_err(Error::internal)?
@@ -358,4 +384,137 @@ fn unsupported_backend() -> Error {
         "unsupported_auth_database",
         "authorization requires PostgreSQL, MySQL or SQLite",
     )
+}
+
+#[cfg(all(test, feature = "db-sqlite"))]
+mod scope_tests {
+    use super::*;
+    use crate::auth::{AuthMigration, AuthPolicyMigration, AuthSource};
+    use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use crate::testing::TestDatabase;
+
+    struct PolicyMigrator;
+    impl MigratorTrait for PolicyMigrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![Box::new(AuthMigration), Box::new(AuthPolicyMigration)]
+        }
+    }
+
+    fn user(guard: Option<&str>, provider: Option<&str>) -> CurrentUser {
+        CurrentUser {
+            id: 42.into(),
+            source: AuthSource::Session,
+            token_abilities: None,
+            guard: guard.map(str::to_owned),
+            provider: provider.map(str::to_owned),
+        }
+    }
+
+    fn ensure(condition: bool, message: &'static str) -> Result<()> {
+        if condition {
+            Ok(())
+        } else {
+            Err(Error::custom("policy_scope_contract", message))
+        }
+    }
+
+    #[tokio::test]
+    async fn named_policy_rejects_other_sources_before_database_access() -> Result<()> {
+        let cold = Policy::new(Db::default()).with_guard_scope("web", Some("users".into()));
+        // 未初始化的Db：错误必须来自来源检查，不能先尝试角色查询或默认为拒绝false。
+        for other in [
+            user(Some("admin"), Some("users")),
+            user(Some("web"), Some("admins")),
+            user(Some("web"), None),
+            user(None, None),
+        ] {
+            let error = cold
+                .allows(&other, "articles.read")
+                .await
+                .err()
+                .ok_or_else(|| Error::custom("policy_scope_contract", "跨来源身份未明确拒绝"))?;
+            ensure(
+                error.code() == "auth_policy_provider_scope_mismatch",
+                "来源不匹配前访问了数据库",
+            )?;
+        }
+        let modern = user(Some("web"), Some("users"));
+        let unbound = Policy::new(Db::default());
+        let error = unbound
+            .allows(&modern, "articles.read")
+            .await
+            .err()
+            .ok_or_else(|| {
+                Error::custom("policy_scope_contract", "未绑定角色来源仍授予具名身份")
+            })?;
+        ensure(
+            error.code() == "auth_policy_provider_scope_mismatch",
+            "未绑定角色来源先访问了数据库",
+        )?;
+        let mut string_id = modern.clone();
+        string_id.id = serde_json::json!("42");
+        ensure(
+            !cold.allows(&string_id, "articles.read").await?,
+            "字符串主键被截断为整数角色ID",
+        )?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn named_policy_honors_real_grants_only_for_matching_source() -> Result<()> {
+        let modern = user(Some("web"), Some("users"));
+        let database = TestDatabase::sqlite_file::<PolicyMigrator>().await?;
+        let outcome: Result<()> = async {
+            let db = Db::default();
+            db.initialize(database.connection()?)?;
+            let now: crate::db::sea_orm::Value = "2026-11-04 00:00:00.000000".into();
+            db.table("users")?
+                .insert(vec![
+                    ("id", 42.into()),
+                    ("email", "policy-source@example.test".into()),
+                    ("password_hash", "synthetic-unused-hash".into()),
+                    ("email_verified_at", now.clone()),
+                    ("created_at", now.clone()),
+                    ("updated_at", now),
+                ])
+                .await?;
+            let policy = Policy::new(db).with_guard_scope("web", Some("users".into()));
+            let role = policy.ensure_role("editor").await?;
+            policy.assign_role(42, role).await?;
+            policy.grant_permission(role, "articles.read").await?;
+            ensure(
+                policy.allows(&modern, "articles.read").await?,
+                "同来源真实角色授权未生效",
+            )?;
+            ensure(
+                !policy.allows(&modern, "articles.write").await?,
+                "未授予的权限被放行",
+            )?;
+            for other in [
+                user(Some("admin"), Some("users")),
+                user(Some("web"), Some("admins")),
+            ] {
+                let error = policy
+                    .allows(&other, "articles.read")
+                    .await
+                    .err()
+                    .ok_or_else(|| {
+                        Error::custom("policy_scope_contract", "相同整数ID跨来源借用了真实角色")
+                    })?;
+                ensure(
+                    error.code() == "auth_policy_provider_scope_mismatch",
+                    "跨来源拒绝错误类型变化",
+                )?;
+            }
+            policy.revoke_permission(role, "articles.read").await?;
+            ensure(
+                !policy.allows(&modern, "articles.read").await?,
+                "真实权限撤销后仍授权",
+            )
+        }
+        .await;
+        let closed = database.close().await;
+        outcome?;
+        closed
+    }
 }

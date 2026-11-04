@@ -58,9 +58,9 @@ impl Authenticator for TokenAuthenticator {
 impl Application for RealtimeNode {
     type Config = NoConfig;
 
-        fn default_providers() -> openrust::core::DefaultProviders {
-            openrust::core::DefaultProviders::empty()
-        }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::empty()
+    }
 
     fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let redis_url = std::env::var("OPENRUST_REALTIME_REDIS_URL")
@@ -81,6 +81,10 @@ struct RealtimeRoutes;
 impl ServiceProvider for RealtimeRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            // 当前宿主提供JSON API；通过公开异常扩展显式选择其响应范围。
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|request, _| request.path().starts_with("/realtime/"));
+            })?;
             app.routes(|routes| {
                 routes
                     .get("/realtime/ws", websocket)

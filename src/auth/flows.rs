@@ -648,8 +648,9 @@ impl AuthFlows {
         })
     }
 
+    /// 读取现有账户的 MFA 启用状态；不表示当前 Session 已完成第二因子。
     #[cfg(feature = "auth-mfa")]
-    async fn mfa_enabled(&self, user_id: i64) -> Result<bool> {
+    pub async fn mfa_enabled(&self, user_id: i64) -> Result<bool> {
         match &self.mfa {
             Some(mfa) => mfa.enabled(user_id).await,
             None => Ok(false),
@@ -887,6 +888,76 @@ impl AuthFlows {
             return Err(Error::Unauthorized);
         }
         bind_session(session, user_id).await
+    }
+
+    /// 核对 Guard 的真实账户来源与本流程的数据库账户域一致。
+    pub fn require_account_provider(&self, guard: &dyn crate::auth::StatefulGuard) -> Result<()> {
+        super::session::require_account_provider(&self.db, guard)
+    }
+
+    /// 现有已验证邮箱应用流程通过指定的具名 Guard 建立 Cookie 身份。
+    ///
+    /// 此适配保留既有邮箱/禁用账户及 MFA 门禁；通用账户 Provider 不要求邮箱。
+    /// 路由应在同一请求先安装具名 Guard 上下文，后续写请求使用标准 CSRF middleware。
+    pub async fn login_session_with_guard(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+        session: &Session,
+        guard: &dyn crate::auth::StatefulGuard,
+    ) -> Result<SessionCredentials> {
+        self.require_account_provider(guard)?;
+        session.require_authenticated_storage()?;
+        let user_id = self
+            .authenticate_password(email, password, request_source)
+            .await?;
+        #[cfg(feature = "auth-mfa")]
+        if self.mfa_enabled(user_id).await? {
+            return Err(Error::Unauthorized);
+        }
+        // 旧显式 Session 凭据不与新的具名身份并存。
+        remove_auth_values(session)?;
+        guard
+            .login_using_id(&serde_json::Value::from(user_id), false)
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        let csrf_token = session
+            .token()?
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .ok_or_else(|| {
+                Error::custom(
+                    "auth_csrf_token_missing",
+                    "登录Guard未生成Session CSRF token",
+                )
+            })?;
+        Ok(SessionCredentials {
+            user_id,
+            csrf_token,
+        })
+    }
+
+    /// 注销指定具名 Guard 并轮换 Session ID/token，保留应用自己的偏好属性。
+    pub async fn logout_session_with_guard(
+        &self,
+        request_source: &str,
+        session: &Session,
+        guard: &dyn crate::auth::StatefulGuard,
+    ) -> Result<()> {
+        self.require_account_provider(guard)?;
+        session.require_authenticated_storage()?;
+        let user_id = guard
+            .id()
+            .await?
+            .and_then(|value| value.as_i64())
+            .filter(|id| *id > 0)
+            .ok_or(Error::Unauthorized)?;
+        self.limit("logout_session", request_source, &user_id.to_string())
+            .await?;
+        guard.logout().await?;
+        remove_auth_values(session)?;
+        session.regenerate(true).await?;
+        Ok(())
     }
 
     /// 从 Cookie Session 中移除已认证身份并轮换 Session ID。

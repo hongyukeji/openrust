@@ -48,6 +48,7 @@ impl MigratorTrait for FrameworkMigrator {
                 Box::new(crate::auth::AuthRefreshTokenMigration),
                 Box::new(crate::auth::AuthVerificationCodeMigration),
                 Box::new(crate::auth::AuthPolicyMigration),
+                Box::new(crate::auth::AuthRememberTokenMigration),
             ]);
             migrations
         };

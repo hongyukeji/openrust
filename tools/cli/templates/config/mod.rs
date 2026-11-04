@@ -5,7 +5,8 @@ pub mod app;
 pub mod auth;
 pub mod cache;
 pub mod database;
-{{grpc_module}}pub mod i18n;
+{{grpc_module}}pub mod hashing;
+pub mod i18n;
 pub mod log;
 pub mod mail;
 pub mod modules;
@@ -35,6 +36,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("sms", sms::config)
         .section("storage", storage::config)
         .section("auth", auth::config)
+        .section("hashing", hashing::config)
         .section("security", security::config);
 {{queue_registration}}    // 只控制默认区段声明；显式来源仍可让 OptionalViewServiceProvider 启用视图。
     let manifest = if view::ENABLED {

@@ -1,4 +1,4 @@
-//! Cookie Session 的现有账户业务真实 TCP 回归；准备账户走公开服务，不调用外部邮件。
+//! Cookie Session 的Router构建拒绝与账户业务真实TCP回归；准备账户不调用外部邮件。
 #![cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 
 use figment::{Figment, providers::Serialized};
@@ -33,12 +33,13 @@ async fn cookie_account_login_preferences_and_logout_use_real_tcp_and_isolated_d
     run_case::<0>().await
 }
 #[tokio::test]
-async fn cookie_account_plain_snapshot_is_rejected_even_without_encryption() -> TestResult {
+async fn cookie_account_plain_configuration_is_rejected_before_router_ready_even_without_encryption()
+-> TestResult {
     run_case::<1>().await
 }
 #[cfg(feature = "encryption")]
 #[tokio::test]
-async fn cookie_account_unprotected_id_cookie_is_rejected() -> TestResult {
+async fn cookie_account_unprotected_id_cookie_is_rejected_before_router_ready() -> TestResult {
     run_case::<2>().await
 }
 #[cfg(feature = "encryption")]
@@ -157,7 +158,7 @@ fn cookie_auth_source(database_url: &str, origin: &str) -> Figment {
     Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(json!({
         "app":{"env":"test","url":origin},"database":{"url":database_url},
         "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
-        "auth":{"jwt":{"issuer":origin,"audience":"cookie-account","active_key_id":"test","keys":{"test":key}}},
+        "auth":{"defaults":{"guard":"web","passwords":"users","provider":null},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"app-users","table":"users"}},"jwt":{"issuer":origin,"audience":"cookie-account","active_key_id":"test","keys":{"test":key}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":origin,"active_key_id":"test","keys":{"test":key}}},
         "session":{"driver":"cookie","secure":false,"cookie":COOKIE_NAME,"same_site":"strict"}
     })))
@@ -184,7 +185,18 @@ async fn run_fixture<const MODE: u8>(app: &App, listener: tokio::net::TcpListene
         .user_id();
     let address = listener.local_addr()?;
     eprintln!("C04D4_PHASE phase=router_build");
-    let router = openrust::http::build_router(app)?;
+    let router = match openrust::http::build_router(app) {
+        Err(error) if matches!(MODE, 1 | 2) && error.code() == "web_cookie_encryption_missing" => {
+            // 标准CSRF组在服务监听前拒绝不可信ID Cookie；不把未执行的旧TCP断言计为通过。
+            eprintln!("C04D4_PHASE phase=router_rejected_unprotected_web_cookie");
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
+        Ok(_) if matches!(MODE, 1 | 2) => {
+            return Err("不可信Cookie配置不得构建标准Web路由".into());
+        }
+        Ok(router) => router,
+    };
     let (stop, signal) = tokio::sync::oneshot::channel();
     let mut server = tokio::spawn(async move {
         axum::serve(
@@ -197,9 +209,9 @@ async fn run_fixture<const MODE: u8>(app: &App, listener: tokio::net::TcpListene
         .await
     });
     let outcome = if MODE == 0 {
-        business(address).await
+        business(app, address).await
     } else {
-        unprotected_business::<MODE>(address, user_id).await
+        unprotected_data_cookie_business(address, user_id).await
     };
     let _ = stop.send(());
     let stopped: TestResult = match tokio::time::timeout(WAIT, &mut server).await {
@@ -361,7 +373,7 @@ fn deleted(reply: &Reply, name: &str) -> TestResult {
     }
     Ok(())
 }
-async fn business(address: SocketAddr) -> TestResult {
+async fn business(app: &App, address: SocketAddr) -> TestResult {
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(WAIT)
@@ -433,6 +445,43 @@ async fn business(address: SocketAddr) -> TestResult {
     successful(&copied)?;
     if copied.body["data"]["density"] != "compact" {
         return Err("旧快照重放边界未按契约保留".into());
+    }
+    reject_disabled_cookie(app, &client, &origin, &replay, &csrf).await
+}
+
+async fn reject_disabled_cookie(
+    app: &App,
+    client: &reqwest::Client,
+    origin: &str,
+    browser: &Browser,
+    csrf: &str,
+) -> TestResult {
+    // Cookie 快照自身不能撤销，但每个新请求仍须经真实 app-users 检查数据库账户。
+    let db = app.state().resolve::<openrust::db::Db>().await?;
+    let affected = db
+        .table("users")?
+        .where_eq("email", EMAIL)?
+        .update(vec![("disabled_at", chrono::Utc::now().naive_utc().into())])
+        .await?;
+    if affected != 1 {
+        return Err("未实际禁用持有 Cookie 快照的账户".into());
+    }
+    for payload in [None, Some(json!({"density":"compact"}))] {
+        let denied = request(
+            client,
+            origin,
+            &format!("{BASE}/session/preference"),
+            payload,
+            browser,
+            Some(csrf),
+        )
+        .await?;
+        if denied.status != reqwest::StatusCode::UNAUTHORIZED
+            || denied.body["success"] != false
+            || denied.body["code"] != "unauthorized"
+        {
+            return Err("数据库账户禁用后旧 Cookie 快照仍可读写账户偏好".into());
+        }
     }
     Ok(())
 }
@@ -512,14 +561,10 @@ fn protection_denied(reply: &Reply) -> TestResult {
     Ok(())
 }
 fn forged_browser(user_id: i64, csrf: &str) -> TestResult<Browser> {
-    use sha2::{Digest, Sha256};
-    use std::fmt::Write;
-    let mut hash = String::new();
-    for byte in Sha256::digest(csrf.as_bytes()) {
-        write!(&mut hash, "{byte:02x}")?;
-    }
     let id = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
-    let attributes = json!({"openrust":{"auth":{"user_id":user_id,"csrf_hash":hash}},"_token":"synthetic-token"});
+    // 攻击者同时伪造当前 web Guard 身份和标准 token，不能靠旧键不被识别而通过负例。
+    let attributes =
+        json!({"login_web_ff9a88a790ea81b2b89656e56873ed257a77b366":user_id,"_token":csrf});
     let payload = json!({"data":attributes.to_string(),"expires":time::OffsetDateTime::now_utc().unix_timestamp()+600});
     let factory = openrust::http::CookieFactory::default();
     let mut browser = Browser::default();
@@ -535,7 +580,7 @@ fn forged_browser(user_id: i64, csrf: &str) -> TestResult<Browser> {
     }
     Ok(browser)
 }
-async fn unprotected_business<const MODE: u8>(address: SocketAddr, user_id: i64) -> TestResult {
+async fn unprotected_data_cookie_business(address: SocketAddr, user_id: i64) -> TestResult {
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(WAIT)
@@ -579,9 +624,7 @@ async fn unprotected_business<const MODE: u8>(address: SocketAddr, user_id: i64)
     protection_denied(&login)?;
     let csrf = "synthetic-csrf";
     let mut forged = forged_browser(user_id, csrf)?;
-    if MODE == 3 {
-        preserve_protected_id(&client, &origin, &mut forged).await?;
-    }
+    preserve_protected_id(&client, &origin, &mut forged).await?;
     let read = request(
         &client,
         &origin,

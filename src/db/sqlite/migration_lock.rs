@@ -489,6 +489,17 @@ fn reject_hardlinks(_: &File) -> Result<()> {
     Err(failure("migration_lock_unsupported_platform"))
 }
 
+// 清理阶段正常取得的 sidecar 租约；身份不明的保留路径仍禁止析构。
+struct CleanupLock(File);
+
+impl Drop for CleanupLock {
+    fn drop(&mut self) {
+        // dup 或 fork 到 exec 之间仍可能持有同一打开文件描述；只 close 未必释放 flock。
+        // 身份不明路径会主动 forget 整个租约，不能在这里释放其保留的互斥。
+        let _ = self.0.unlock();
+    }
+}
+
 /// 仅清理 guard 自有目录；调用方必须先关闭所有借用其 URL 的 App、池和 worker，
 /// 且清理期间不得重新创建该数据库或启动新的借用者。此前置条件不等于框架能追踪任意外部连接或阻止不遵守协议的文件系统写入者。
 pub(in crate::db) fn cleanup_owned_directory(directory: &Path) -> Result<()> {
@@ -531,7 +542,7 @@ pub(in crate::db) fn cleanup_owned_directory(directory: &Path) -> Result<()> {
             return Err(error);
         }
         match acquired {
-            Ok(()) => locks.push(file),
+            Ok(()) => locks.push(CleanupLock(file)),
             Err(std::fs::TryLockError::WouldBlock) => {
                 return Err(failure("sqlite_cleanup_active_migration"));
             }
@@ -784,6 +795,27 @@ mod tests {
         // 前序清理尝试必须释放它正常取得的 sidecar 锁，而没有删除现场。
         cleanup_owned_directory(directory.path())?;
         assert!(!directory.path().exists());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_lock_releases_before_a_duplicate_descriptor_is_closed()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let path = cleanup_test_sidecar(directory.path(), 'a');
+        std::fs::write(&path, [])?;
+        let first = open_cleanup_mutex(&path)?;
+        first.try_lock()?;
+        // fork 到 exec 的窗口也共享此打开文件描述；CLOEXEC 不使父进程 close 立即解锁。
+        let duplicate = first.try_clone()?;
+        drop(CleanupLock(first));
+        let peer = open_cleanup_mutex(&path)?;
+        peer.try_lock()?;
+        assert!(duplicate.metadata()?.is_file());
+        peer.unlock()?;
+        drop(peer);
+        drop(duplicate);
         Ok(())
     }
 

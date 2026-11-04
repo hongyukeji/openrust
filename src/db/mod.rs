@@ -183,6 +183,11 @@ struct DatabaseConnections {
 }
 
 impl Db {
+    #[cfg(feature = "auth")]
+    pub(crate) fn same_handle(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.connections, &other.connections)
+    }
+
     /// 安装自定义数据库 Provider 提供的 SeaORM 连接。
     ///
     /// 自定义 Provider 在 register 阶段登记异步工厂；工厂建立连接后先登记受管关闭，再调用此方法并返回句柄。

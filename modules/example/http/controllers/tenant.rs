@@ -47,7 +47,7 @@ pub(crate) async fn verify_membership(request: Request, next: Next) -> Response 
         scope
             .resolve::<TenantRecords>()
             .await?
-            .verify_membership(user.id(), &tenant)
+            .verify_membership(user.integer_id()?, &tenant)
             .await?;
         parts.extensions.insert(VerifiedTenant(tenant));
         Ok(())
@@ -83,7 +83,7 @@ pub(crate) async fn dispatch(
     Inject(records): Inject<TenantRecords>,
 ) -> Result<Json<serde_json::Value>> {
     Ok(Json(
-        serde_json::json!({"job_id":records.dispatch(user.id()).await?}),
+        serde_json::json!({"job_id":records.dispatch(user.integer_id()?).await?}),
     ))
 }
 #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
@@ -91,7 +91,7 @@ pub(crate) async fn write_file(
     user: CurrentUser,
     Inject(records): Inject<TenantRecords>,
 ) -> Result<Json<serde_json::Value>> {
-    records.write_file(user.id()).await?;
+    records.write_file(user.integer_id()?).await?;
     Ok(Json(serde_json::json!({"stored":true})))
 }
 #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
@@ -99,7 +99,7 @@ pub(crate) async fn read_file(
     user: CurrentUser,
     Inject(records): Inject<TenantRecords>,
 ) -> Result<Response> {
-    let reader = records.read_file(user.id()).await?;
+    let reader = records.read_file(user.integer_id()?).await?;
     let mut response = Response::new(openrust::http::axum::body::Body::from_stream(reader.body));
     response.headers_mut().insert(
         header::CONTENT_TYPE,

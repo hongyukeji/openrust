@@ -347,6 +347,7 @@ impl Fixture {
     }
 }
 async fn rejected(request: axum::http::Request<()>, status: u16) -> TestResult {
+    eprintln!("browser_handshake_expect={status}");
     match tokio::time::timeout(BUDGET, connect_async(request)).await? {
         Err(WsError::Http(response)) => {
             if response.status().as_u16() != status {
@@ -368,7 +369,15 @@ async fn rejected(request: axum::http::Request<()>, status: u16) -> TestResult {
             Ok(())
         }
         // 不打印请求/响应，避免错误上下文泄露 Cookie 或 Authorization。
-        _ => Err("unexpected WebSocket handshake result".into()),
+        Ok((mut socket, _)) => {
+            socket.close(None).await?;
+            Err(format!("意外接受WebSocket，预期拒绝状态={status}").into())
+        }
+        Err(error) => Err(format!(
+            "非HTTP握手错误，类型={:?}，预期状态={status}",
+            std::mem::discriminant(&error)
+        )
+        .into()),
     }
 }
 async fn closed(socket: &mut Socket) -> TestResult {

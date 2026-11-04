@@ -187,6 +187,6 @@ pub(crate) async fn auth_reset_password(
 
 pub(crate) async fn current_user(
     user: openrust::auth::CurrentUser,
-) -> Json<std::collections::BTreeMap<&'static str, i64>> {
+) -> Json<std::collections::BTreeMap<&'static str, serde_json::Value>> {
     Json(std::collections::BTreeMap::from([("user_id", user.id())]))
 }

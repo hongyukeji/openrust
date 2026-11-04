@@ -54,7 +54,7 @@ impl Authenticator for FakeAuthenticator {
                     }
                     Ok(AuthPrincipal::new(user_id.unwrap_or_default(), None))
                 }
-                AuthSource::Jwt => Err(Error::Unauthorized),
+                AuthSource::Jwt | AuthSource::Guard => Err(Error::Unauthorized),
                 AuthSource::PersonalAccessToken => {
                     if credential.value() == Some("pat-secret") {
                         Ok(AuthPrincipal::new(42, Some(vec!["posts:read".into()])))

@@ -312,10 +312,13 @@ pub async fn assert_request_session<A: Application>(
     source: Figment,
     existing_session: bool,
 ) -> openrust::Result<()> {
-    let source = source.merge(figment::providers::Serialized::defaults(
+    // 代码配置来源使用 Global profile；测试策略也须显式覆盖同一最高层。
+    let source = source.merge(figment::providers::Serialized::globals(
         json!({"session":{"lottery":[1,1]}}),
     ));
-    let cookie_source = source.clone();
+    let cookie_source = source.clone().merge(figment::providers::Serialized::globals(
+        json!({"session":{"driver":"cookie","cookie":"contract_cookie_session","secure":false}}),
+    ));
     if existing_session {
         verify::<A, true>(source).await?;
     } else {
@@ -901,6 +904,9 @@ impl SessionStore for ContractRequestDriver {
     }
     fn reset_exists(&self) -> openrust::Result<()> {
         self.backend.reset_exists()
+    }
+    fn set_database_user_id(&self, user_id: openrust::db::sea_orm::Value) -> openrust::Result<bool> {
+        self.backend.set_database_user_id(user_id)
     }
     fn accepts_request(&self) -> bool {
         // 当前装饰器本身需要请求Cookie，也转交底层native的可选请求metadata。

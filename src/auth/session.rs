@@ -16,43 +16,90 @@ impl SessionStoreHandle {
         if session.get_typed::<i64>(crate::auth::database::AUTH_USER_ID_KEY)? != Some(user_id) {
             return Err(Error::Unauthorized);
         }
-        let handler = session.handler()?;
-        if handler.guarantees() != crate::session::SessionStoreGuarantees::ServerSide {
-            return Err(Error::custom_with_status(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "session_store_guarantee_unsupported",
-                "Session 驱动无法提供服务器端撤销保证",
-            ));
-        }
-        let id = session.id()?;
-        let record = handler
-            .load(
-                &id,
-                crate::session::DEFAULT_MAX_BYTES,
-                session.expiry_date()?,
-            )
-            .await?
-            .ok_or(Error::Unauthorized)?;
-        if record.id != id {
-            return Err(Error::Unauthorized);
-        }
-        record.encode(crate::session::DEFAULT_MAX_BYTES)?;
-        if crate::support::data::get(&record.data, crate::auth::database::AUTH_USER_ID_KEY)
-            .and_then(|v| v.as_i64())
-            != Some(user_id)
-            || record.expiry_date <= time::OffsetDateTime::now_utc()
-        {
-            return Err(Error::Unauthorized);
-        }
-        let seconds =
-            u64::try_from(record.expiry_date.unix_timestamp()).map_err(|_| Error::Unauthorized)?;
-        std::time::UNIX_EPOCH
-            .checked_add(std::time::Duration::new(
-                seconds,
-                record.expiry_date.nanosecond(),
-            ))
-            .ok_or(Error::Unauthorized)
+        persisted_until(
+            session,
+            crate::auth::database::AUTH_USER_ID_KEY,
+            &serde_json::Value::from(user_id),
+        )
+        .await
     }
+
+    /// 按实际具名 Guard 及当前持久记录限制连接期限；不接受仅本请求的 once 身份。
+    pub async fn authorized_until_guard(
+        &self,
+        session: &crate::session::Session,
+        guard: &dyn crate::auth::StatefulGuard,
+    ) -> crate::Result<std::time::SystemTime> {
+        let id = guard.id().await?.ok_or(crate::Error::Unauthorized)?;
+        let key = guard_session_key(session, guard, &id).await?;
+        persisted_until(session, &key, &id).await
+    }
+}
+
+pub(crate) fn require_account_provider(
+    db: &crate::db::Db,
+    guard: &dyn crate::auth::StatefulGuard,
+) -> crate::Result<()> {
+    if !guard.provider().uses_database_accounts(db, "users")? {
+        return Err(crate::Error::Unauthorized);
+    }
+    Ok(())
+}
+
+pub(crate) async fn guard_session_key(
+    session: &crate::session::Session,
+    guard: &dyn crate::auth::StatefulGuard,
+    user_id: &serde_json::Value,
+) -> crate::Result<String> {
+    session.require_authenticated_storage()?;
+    let key = guard.session_name().ok_or(crate::Error::Unauthorized)?;
+    let account = guard.user().await?.ok_or(crate::Error::Unauthorized)?;
+    if &account.auth_identifier()? != user_id || session.get_json(&key)?.as_ref() != Some(user_id) {
+        return Err(crate::Error::Unauthorized);
+    }
+    Ok(key)
+}
+
+async fn persisted_until(
+    session: &crate::session::Session,
+    key: &str,
+    user_id: &serde_json::Value,
+) -> crate::Result<std::time::SystemTime> {
+    use crate::Error;
+    let handler = session.handler()?;
+    if handler.guarantees() != crate::session::SessionStoreGuarantees::ServerSide {
+        return Err(Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "session_store_guarantee_unsupported",
+            "Session 驱动无法提供服务器端撤销保证",
+        ));
+    }
+    let id = session.id()?;
+    let record = handler
+        .load(
+            &id,
+            crate::session::DEFAULT_MAX_BYTES,
+            session.expiry_date()?,
+        )
+        .await?
+        .ok_or(Error::Unauthorized)?;
+    if record.id != id {
+        return Err(Error::Unauthorized);
+    }
+    record.encode(crate::session::DEFAULT_MAX_BYTES)?;
+    if crate::support::data::get(&record.data, key).as_ref() != Some(user_id)
+        || record.expiry_date <= time::OffsetDateTime::now_utc()
+    {
+        return Err(Error::Unauthorized);
+    }
+    let seconds =
+        u64::try_from(record.expiry_date.unix_timestamp()).map_err(|_| Error::Unauthorized)?;
+    std::time::UNIX_EPOCH
+        .checked_add(std::time::Duration::new(
+            seconds,
+            record.expiry_date.nanosecond(),
+        ))
+        .ok_or(Error::Unauthorized)
 }
 
 #[cfg(test)]
@@ -63,6 +110,212 @@ mod tests {
         session::{CookieSessionStore, MemorySessionStore, Session, SessionRequestContext},
     };
     use std::sync::Arc;
+
+    #[cfg(feature = "db-sqlite")]
+    #[tokio::test]
+    async fn legacy_account_flows_reject_other_provider_domains_before_password_or_session_io()
+    -> Result<()> {
+        use crate::auth::{
+            AuthFlows, DatabaseUserProvider, DatabaseVerificationCodeStore, JwtConfig, JwtTokens,
+            Passwords, RefreshTokens, SessionGuard, VerificationCodes,
+        };
+        use crate::core::RateLimiter;
+        use crate::db::{DatabaseRateLimitStore, Db};
+        struct NoMigrations;
+        impl crate::db::sea_orm_migration::MigratorTrait for NoMigrations {
+            fn migrations() -> Vec<Box<dyn crate::db::sea_orm_migration::MigrationTrait>> {
+                Vec::new()
+            }
+        }
+        let database = crate::testing::TestDatabase::sqlite_file::<NoMigrations>().await?;
+        let db = Db::default();
+        db.initialize(database.connection()?)?;
+        let result: Result<()> = async {
+            let other_db = Db::default();
+            other_db.initialize(database.connection()?)?;
+            let passwords = Passwords::new(crate::config::PasswordConfig::default())?;
+            let jwt = JwtTokens::new(JwtConfig {
+                issuer: "http://scope.test".into(),
+                audience: "scope-test".into(),
+                active_key_id: "test".into(),
+                keys: std::collections::BTreeMap::from([(
+                    "test".into(),
+                    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
+                )]),
+                access_ttl_secs: 900,
+                max_valid_ttl_secs: 3600,
+            })?;
+            let flows = AuthFlows::new(
+                db.clone(),
+                passwords.clone(),
+                jwt,
+                RefreshTokens::new(db.clone()),
+                VerificationCodes::new(
+                    DatabaseVerificationCodeStore::new(db.clone()),
+                    passwords.clone(),
+                ),
+                RateLimiter::new(DatabaseRateLimitStore::new(db.clone())),
+            );
+            // 两种常见错误配置：同数据库其他账户表、其他数据库同名表。
+            for (provider_db, table) in [(db.clone(), "admins"), (other_db, "users")] {
+                let session = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
+                let guard = SessionGuard::new(
+                    "web".into(),
+                    Arc::new(DatabaseUserProvider::new(
+                        provider_db,
+                        passwords.clone(),
+                        table,
+                    )?),
+                    session.clone(),
+                    crate::http::CookieJar::new(crate::http::CookieFactory::default()),
+                    None,
+                    None,
+                    None,
+                );
+                assert!(matches!(
+                    flows
+                        .login_session_with_guard(
+                            "user@example.test",
+                            "secret",
+                            "source",
+                            &session,
+                            &guard
+                        )
+                        .await,
+                    Err(crate::Error::Unauthorized)
+                ));
+                assert!(matches!(
+                    flows
+                        .logout_session_with_guard("source", &session, &guard)
+                        .await,
+                    Err(crate::Error::Unauthorized)
+                ));
+            }
+            let session = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
+            let guard = SessionGuard::new(
+                "web".into(),
+                Arc::new(DatabaseUserProvider::new(db.clone(), passwords, "users")?),
+                session,
+                crate::http::CookieJar::new(crate::http::CookieFactory::default()),
+                None,
+                None,
+                None,
+            );
+            flows.require_account_provider(&guard)?;
+            Ok(())
+        }
+        .await;
+        drop(db);
+        let closed = database.close().await;
+        result?;
+        closed
+    }
+
+    #[cfg(feature = "db-sqlite")]
+    #[tokio::test]
+    async fn missing_database_user_session_id_fallback_cannot_authorize_connections() -> Result<()>
+    {
+        use crate::{
+            auth::{DatabaseUserProvider, Guard, Passwords, SessionGuard, UserProvider},
+            db::{Db, sea_orm::ConnectionTrait},
+        };
+
+        fn require(condition: bool, message: &'static str) -> Result<()> {
+            if condition {
+                Ok(())
+            } else {
+                Err(crate::Error::custom(
+                    "guest_fallback_regression_failed",
+                    message,
+                ))
+            }
+        }
+
+        struct NoMigrations;
+        impl crate::db::sea_orm_migration::MigratorTrait for NoMigrations {
+            fn migrations() -> Vec<Box<dyn crate::db::sea_orm_migration::MigrationTrait>> {
+                Vec::new()
+            }
+        }
+
+        let database = crate::testing::TestDatabase::sqlite_file::<NoMigrations>().await?;
+        let db = Db::default();
+        let result: Result<()> = async {
+            db.initialize(database.connection()?)?;
+            database
+            .connection()?
+            .execute_unprepared(
+                "CREATE TABLE users (id INTEGER PRIMARY KEY, password TEXT, remember_token TEXT)",
+            )
+            .await
+            .map_err(crate::Error::internal)?;
+            let identifier = serde_json::json!(42);
+            let provider = Arc::new(DatabaseUserProvider::new(
+                db.clone(),
+                Passwords::new(crate::config::PasswordConfig::default())?,
+                "users",
+            )?);
+            // 表真实存在且查询正常返回缺失账户，不能以查询错误冒充 guest。
+            require(
+                provider.retrieve_by_id(&identifier).await?.is_none(),
+                "真实 users 表应返回缺失账户",
+            )?;
+
+            let session = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
+            session.start().await?;
+            let guard = SessionGuard::new(
+                "web".into(),
+                provider,
+                session.clone(),
+                crate::http::CookieJar::new(crate::http::CookieFactory::default()),
+                None,
+                None,
+                None,
+            );
+            let key = guard.session_name();
+            session.put_typed(&key, &identifier)?;
+            session.save().await?;
+
+            // 持久 Session 记录、账户键和未过期截止全部有效；唯一缺失条件是账户本身。
+            // persisted_until 内部实际 load，并校验记录 ID、账户键和到期时间。
+            require(
+                persisted_until(&session, &key, &identifier).await? > std::time::SystemTime::now(),
+                "仅持久键校验应能给出有效期限",
+            )?;
+
+            // 保留 Laravel SessionGuard.id 的原行为：账户不存在时仍可返回 Session ID。
+            require(
+                guard.user().await?.is_none(),
+                "缺失账户的 Guard 必须仍为 guest",
+            )?;
+            require(
+                guard.id().await? == Some(identifier.clone()),
+                "必须保留 SessionGuard.id 的官方 fallback",
+            )?;
+            require(
+                matches!(
+                    guard_session_key(&session, &guard, &identifier).await,
+                    Err(crate::Error::Unauthorized)
+                ),
+                "guest 不得取得正式 Guard Session 键",
+            )?;
+            let handle = SessionStoreHandle::new(MemorySessionStore::default());
+            require(
+                matches!(
+                    handle.authorized_until_guard(&session, &guard).await,
+                    Err(crate::Error::Unauthorized)
+                ),
+                "guest 不得取得连接授权期限",
+            )?;
+            Ok(())
+        }
+        .await;
+        drop(db);
+        // 无论测试检查及其他 fallible 操作成功与否，都关闭并清理本测试自有数据库。
+        let closed = database.close().await;
+        result?;
+        closed
+    }
 
     #[tokio::test]
     async fn authorization_deadline_uses_the_sessions_actual_server_driver() -> Result<()> {
