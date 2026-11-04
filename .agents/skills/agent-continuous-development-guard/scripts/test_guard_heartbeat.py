@@ -209,6 +209,58 @@ class HeartbeatTests(unittest.TestCase):
                 self.snapshot['rateLimits']['secondary'] = copy.deepcopy(self.snapshot['rateLimits']['primary'])
             self.assertEqual(self.run_gate()['action'], 'wait')
 
+    def test_temporary_identity_io_failure_does_not_poison_ledger(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        for error in (OSError('private-path'), sqlite3.OperationalError('database is locked')):
+            with mock.patch.object(heartbeat, 'identity', side_effect=error):
+                result = self.run_gate()
+            self.assertEqual(result['action'], 'wait')
+            self.assertEqual(result['recovery'], 'refresh_official_evidence')
+            self.assertNotIn('private-path', json.dumps(result))
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+        self.assertEqual(self.run_gate()['action'], 'continue')
+
+    def test_final_identity_io_failure_is_retryable_without_persisting_changes(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        evidence = heartbeat.identity(self.thread, self.home)
+        with mock.patch.object(heartbeat, 'identity', side_effect=[evidence, sqlite3.OperationalError('busy')]):
+            result = self.run_gate()
+        self.assertEqual(result['action'], 'wait')
+        self.assertEqual(result['recovery'], 'refresh_official_evidence')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+        self.assertEqual(self.run_gate()['action'], 'continue')
+
+    def test_usage_diagnostic_selects_the_actual_recovery_action(self):
+        self.prepared()
+        for diagnostic, recovery in [('usage_tool_error', 'refresh_official_evidence'),
+                                     ('usage_snapshot_invalid', 'refresh_official_evidence'),
+                                     ('usage_tool_result_invalid', 'diagnose_guard_then_recheck')]:
+            with mock.patch.object(heartbeat, 'usage_snapshot', side_effect=heartbeat.UsageSnapshotError(diagnostic)):
+                result = self.run_gate()
+            self.assertEqual(result['budget']['error'], diagnostic)
+            self.assertEqual(result['recovery'], recovery)
+        self.assertEqual(self.run_gate()['action'], 'continue')
+
+    def test_unknown_quota_recovers_without_goal_or_budget_recreation(self):
+        self.prepared()
+        before = copy.deepcopy(self.ledger()['account_budgets'])
+        self.snapshot = {}
+        self.assertEqual(self.run_gate()['recovery'], 'diagnose_guard_then_recheck')
+        self.snapshot = usage(used=20)
+        self.assertEqual(self.run_gate(now=1100)['action'], 'continue')
+        self.assertEqual(self.ledger()['account_budgets'], before)
+
+    def test_blocked_goal_requests_official_resume_and_never_continues(self):
+        self.prepared()
+        self.update_goal(status='blocked')
+        result = self.run_gate()
+        self.assertEqual(result['action'], 'wait')
+        self.assertEqual(result['recovery'], 'official_goal_resume_required')
+        self.update_goal(status='active')
+        self.assertEqual(self.run_gate()['action'], 'continue')
+
     def test_init_keeps_goal_digest_and_reserve_without_database_writes(self):
         originals = {path: path.read_bytes() for path in self.home.iterdir()}
         result = self.init()

@@ -220,7 +220,19 @@ def budget_check(ledger, response, now):
 def output(ledger, action, reason, thread):
     key = ledger.get('active_budget_key')
     budget = ledger.get('account_budgets', {}).get(key, {})
-    return {'action': action, 'reason': reason, 'thread': thread,
+    recovery = 'none'
+    diagnostic = ledger.get('usage_error') if reason == 'usage_budget_unknown' else reason
+    if diagnostic in ('identity_temporarily_unavailable', 'usage_tool_error', 'usage_snapshot_invalid'):
+        recovery = 'refresh_official_evidence'
+    elif diagnostic in ('usage_tool_result_invalid', 'usage_budget_validation_failed'):
+        recovery = 'diagnose_guard_then_recheck'
+    elif reason == 'goal_state_wait' and ledger.get('goal_status') == 'blocked':
+        recovery = 'official_goal_resume_required'
+    elif reason in ('usage_budget_reached', 'usage_budget_unavailable', 'usage_wait_expired'):
+        recovery = 'wait_for_official_eligibility'
+    elif reason == 'usage_budget_unknown':
+        recovery = 'diagnose_guard_then_recheck'
+    return {'action': action, 'reason': reason, 'recovery': recovery, 'thread': thread,
             'goal_id': ledger.get('goal', {}).get('id'), 'automation_id': ledger.get('automation_id'),
             'goal_status': ledger.get('goal_status'), 'last_check': ledger.get('last_check'),
             'budget': {'fraction': '0.8', 'allow_existing_credits': False,
@@ -304,7 +316,12 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
         ledger = read_json(path) if path.exists() else {}
         try:
             binding, current_goal, status = identity(thread, home)
-        except (OSError, ValueError, TypeError, sqlite3.Error):
+        except (OSError, sqlite3.Error):
+            # App索引暂忙或不可读不等于绑定已改变；本轮禁业务，下轮重新核验。
+            if ledger:
+                return output(ledger, 'wait', 'identity_temporarily_unavailable', thread)
+            return output({}, 'stop', 'binding_unknown', thread)
+        except (ValueError, TypeError):
             if ledger:
                 ledger.update(terminal_action='stop', terminal_reason='binding_unknown')
                 atomic(path, ledger)
@@ -392,7 +409,9 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
         if available:
             try:
                 final_binding, final_goal, final_status = identity(thread, home)
-            except (OSError, ValueError, TypeError, sqlite3.Error):
+            except (OSError, sqlite3.Error):
+                return output(ledger, 'wait', 'identity_temporarily_unavailable', thread)
+            except (ValueError, TypeError):
                 final_binding, final_goal, final_status = None, None, None
             if (final_binding != binding or final_goal != current_goal or final_status != status):
                 ledger.update(terminal_action='stop', terminal_reason='binding_changed_during_check')
