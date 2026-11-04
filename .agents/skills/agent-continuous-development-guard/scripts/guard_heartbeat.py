@@ -21,7 +21,7 @@ ROOT = Path.cwd().resolve()
 WAIT_TIMEOUT = 3600
 MAX_JSON = 1024 * 1024
 USAGE_TTL = 120
-RESET_PRECISION_SECONDS = 1
+RESET_PRECISION_SECONDS = 60
 
 
 class UsageSnapshotError(ValueError):
@@ -169,7 +169,7 @@ def refresh_cycles(response, budget, now):
         if used > 100 or budget_decimal(duration) != budget_decimal(item['duration_mins']) or reset <= now:
             raise ValueError('周期数值无效或过期')
         remaining = Decimal(100) - used
-        # 正式接口观测到整秒时间在相邻两秒间摆动；固定原锚点，不累积漂移。
+        # 正式接口重置时间有整秒抖动；允许一分钟精度差，固定原锚点不累积漂移。
         same_cycle = (Decimal(reset) == old_reset or
                       (abs(Decimal(reset) - old_reset) <= RESET_PRECISION_SECONDS
                        and Decimal(str(now)) < min(old_reset, Decimal(reset))))

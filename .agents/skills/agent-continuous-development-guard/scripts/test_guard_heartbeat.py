@@ -170,13 +170,13 @@ class HeartbeatTests(unittest.TestCase):
     def test_adjacent_reset_seconds_keep_fixed_cycle_and_raw_snapshot(self):
         self.prepared()
         before = copy.deepcopy(self.ledger()['account_budgets'])
-        for reset in (2001, 1999, 2000, 2001):
+        for reset in (2001, 1999, 2060, 1940, 2000, 2060):
             self.snapshot = usage(used=20, reset=reset)
             raw = copy.deepcopy(self.snapshot)
             self.assertEqual(self.run_gate()['action'], 'continue')
             self.assertEqual(self.snapshot, raw)
             self.assertEqual(self.ledger()['account_budgets'], before)
-        self.snapshot = usage(used=20, reset=2002)
+        self.snapshot = usage(used=20, reset=2061)
         self.assertEqual(self.run_gate()['action'], 'wait')
         self.assertEqual(self.ledger()['account_budgets'], before)
 
