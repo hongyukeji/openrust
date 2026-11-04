@@ -21,6 +21,7 @@ ROOT = Path.cwd().resolve()
 WAIT_TIMEOUT = 3600
 MAX_JSON = 1024 * 1024
 USAGE_TTL = 120
+RESET_PRECISION_SECONDS = 1
 
 
 class UsageSnapshotError(ValueError):
@@ -168,13 +169,19 @@ def refresh_cycles(response, budget, now):
         if used > 100 or budget_decimal(duration) != budget_decimal(item['duration_mins']) or reset <= now:
             raise ValueError('周期数值无效或过期')
         remaining = Decimal(100) - used
-        if Decimal(reset) == old_reset:
+        # 正式接口观测到整秒时间在相邻两秒间摆动；固定原锚点，不累积漂移。
+        same_cycle = (Decimal(reset) == old_reset or
+                      (abs(Decimal(reset) - old_reset) <= RESET_PRECISION_SECONDS
+                       and Decimal(str(now)) < min(old_reset, Decimal(reset))))
+        if same_cycle:
             if item.get('awaiting_available') and item.get('previous_resets_at') and used < 100:
                 item.update(baseline_remaining=str(remaining), reserve=str(remaining * Decimal('0.2')),
                             participating=True, cycle_observed_at=now, awaiting_available=False)
             elif remaining > budget_decimal(item['baseline_remaining']):
                 raise ValueError('同周期额度上涨')
             continue
+        if abs(Decimal(reset) - old_reset) <= RESET_PRECISION_SECONDS:
+            raise ValueError('相邻秒跨过期边界未知')
         if not old_reset <= Decimal(str(now)) < reset or reset <= old_reset:
             raise ValueError('提前或倒退reset')
         item.update(baseline_remaining=str(remaining), reserve=str(remaining * Decimal('0.2')),
@@ -198,12 +205,16 @@ def budget_check(ledger, response, now):
         history[key] = candidate
         original = candidate
     proposed = refresh_cycles(response, original, now)
-    status = usage_budget_status(response, proposed)
+    # 仅在 refresh_cycles 已通过全部校验后统一精度；不改原始额度回执。
+    normalized = copy.deepcopy(response)
+    for name, item in proposed['windows'].items():
+        normalized['rateLimits'][name]['resetsAt'] = int(budget_decimal(item['resets_at']))
+    status = usage_budget_status(normalized, proposed)
     if status not in ('usage_budget_unknown', 'usage_budget_window_changed', 'usage_budget_credits_changed'):
         history[key] = proposed
     ledger['active_budget_key'] = key
     ledger['usage_status'] = status
-    return status == 'usage_budget_available' and quota_delay(response, now, False, proposed) == 0
+    return status == 'usage_budget_available' and quota_delay(normalized, now, False, proposed) == 0
 
 
 def output(ledger, action, reason, thread):

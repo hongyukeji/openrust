@@ -167,6 +167,48 @@ class HeartbeatTests(unittest.TestCase):
             self.assertEqual(self.resume_gate()['reason'], 'resume_identity_changed')
         self.assertEqual(self.ledger_path.read_bytes(), before)
 
+    def test_adjacent_reset_seconds_keep_fixed_cycle_and_raw_snapshot(self):
+        self.prepared()
+        before = copy.deepcopy(self.ledger()['account_budgets'])
+        for reset in (2001, 1999, 2000, 2001):
+            self.snapshot = usage(used=20, reset=reset)
+            raw = copy.deepcopy(self.snapshot)
+            self.assertEqual(self.run_gate()['action'], 'continue')
+            self.assertEqual(self.snapshot, raw)
+            self.assertEqual(self.ledger()['account_budgets'], before)
+        self.snapshot = usage(used=20, reset=2002)
+        self.assertEqual(self.run_gate()['action'], 'wait')
+        self.assertEqual(self.ledger()['account_budgets'], before)
+
+    def test_precision_never_allows_balance_increase_or_reserve_bypass(self):
+        self.prepared()
+        before = copy.deepcopy(self.ledger()['account_budgets'])
+        self.snapshot = usage(used=0, reset=2001)
+        self.assertEqual(self.run_gate()['action'], 'wait')
+        self.assertEqual(self.ledger()['account_budgets'], before)
+        self.snapshot = usage(used=83, reset=2001)
+        self.assertEqual(self.run_gate()['reason'], 'usage_budget_reached')
+
+    def test_precision_does_not_extend_an_expired_anchor(self):
+        self.prepared()
+        self.snapshot = usage(used=20, reset=2001)
+        self.assertEqual(self.run_gate(now=2000)['action'], 'wait')
+        self.snapshot = usage(used=0, reset=4000)
+        self.assertEqual(self.run_gate(now=2500)['action'], 'continue')
+        budget = next(iter(self.ledger()['account_budgets'].values()))
+        self.assertEqual(budget['windows']['primary']['resets_at'], '4000')
+        self.assertEqual(budget['windows']['primary']['previous_resets_at'], '2000')
+
+    def test_precision_does_not_accept_duration_or_window_changes(self):
+        self.prepared()
+        for change in ('duration', 'window'):
+            self.snapshot = usage(used=20, reset=2001)
+            if change == 'duration':
+                self.snapshot['rateLimits']['primary']['windowDurationMins'] = 120
+            else:
+                self.snapshot['rateLimits']['secondary'] = copy.deepcopy(self.snapshot['rateLimits']['primary'])
+            self.assertEqual(self.run_gate()['action'], 'wait')
+
     def test_init_keeps_goal_digest_and_reserve_without_database_writes(self):
         originals = {path: path.read_bytes() for path in self.home.iterdir()}
         result = self.init()
