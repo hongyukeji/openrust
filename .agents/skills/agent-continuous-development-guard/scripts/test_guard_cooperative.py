@@ -139,6 +139,7 @@ class CooperativeTests(unittest.TestCase):
             'A failed resume produces a warning and the command still succeeds', '')
         first = guard.start(THREAD, str(executable), runner=runner,
                             spawn=lambda *a, **k: calls.append((a, k)))
+        self.assertEqual(first['interval'], 1800)
         second = guard.start(THREAD, str(executable), runner=runner,
                              spawn=lambda *a, **k: calls.append((a, k)))
         self.assertEqual(first['run_id'], second['run_id'])

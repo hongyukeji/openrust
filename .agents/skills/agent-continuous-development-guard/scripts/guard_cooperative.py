@@ -163,7 +163,7 @@ def status_view(path, state):
     return result
 
 
-def start(thread, codex, interval=300, runner=subprocess.run, spawn=subprocess.Popen):
+def start(thread, codex, interval=1800, runner=subprocess.run, spawn=subprocess.Popen):
     thread = caller(thread)  # 错调用方在任何锁/文件写入之前拒绝。
     if type(interval) is not int or interval < 60:
         raise ValueError('interval_must_be_at_least_60')
@@ -276,7 +276,7 @@ def main():
     commands = parser.add_subparsers(dest='action', required=True)
     command = commands.add_parser('start')
     command.add_argument('--codex', required=True)
-    command.add_argument('--interval', type=int, default=300)
+    command.add_argument('--interval', type=int, default=1800)
     commands.add_parser('stop')
     commands.add_parser('status')
     command = commands.add_parser('ack')
