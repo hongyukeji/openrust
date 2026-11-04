@@ -222,10 +222,55 @@ def output(ledger, action, reason, thread):
                                    for name, item in budget.get('windows', {}).items()}}}
 
 
-def run(thread, command, usage_file=None, automation_id=None, now=None, previous_automation_id=None):
+def resume_ledger(ledger, thread, binding, current_goal, status, home, usage_file, now, authorization):
+    """原线程在真人明确恢复后解除可恢复停态；不修改 Goal 或重建预算。"""
+    if (not isinstance(authorization, str) or not authorization.strip()
+            or len(authorization) > 4096):
+        return output(ledger, 'stop', 'resume_authorization_required', thread)
+    if (status != 'active' or ledger.get('terminal_action') != 'stop'
+            or ledger.get('terminal_reason') not in ('goal_paused', 'usage_wait_expired')):
+        return output(ledger, 'stop', 'resume_state_rejected', thread)
+    if (ledger.get('version') != 1 or ledger.get('fraction') != '0.8'
+            or ledger.get('allow_existing_credits') is not False
+            or not ledger.get('automation_id')):
+        return output(ledger, 'stop', 'ledger_invalid', thread)
+    candidate = copy.deepcopy(ledger)
+    try:
+        available = budget_check(candidate, usage_snapshot(usage_file, thread, now), now)
+    except UsageSnapshotError as error:
+        candidate['usage_status'] = 'usage_budget_unknown'
+        candidate['usage_error'] = str(error)
+        return output(candidate, 'wait', 'resume_usage_unavailable', thread)
+    except (OSError, ValueError, TypeError, KeyError, InvalidOperation):
+        return output(ledger, 'wait', 'resume_usage_unavailable', thread)
+    if not available:
+        return output(candidate, 'wait', candidate.get('usage_status', 'usage_budget_unknown'), thread)
+    if identity(thread, home) != (binding, current_goal, 'active'):
+        return output(ledger, 'stop', 'resume_identity_changed', thread)
+    history = candidate.get('explicit_resumptions', [])
+    if not isinstance(history, list):
+        return output(ledger, 'stop', 'resume_history_invalid', thread)
+    history.append({'at': now, 'previous_reason': ledger['terminal_reason'],
+                    'previous_account_budgets': copy.deepcopy(ledger['account_budgets']),
+                    'authorization_sha256': hashlib.sha256(authorization.encode()).hexdigest()})
+    candidate['explicit_resumptions'] = history
+    candidate.pop('terminal_action', None)
+    candidate.pop('terminal_reason', None)
+    candidate.pop('first_wait_at', None)
+    candidate.pop('usage_error', None)
+    candidate['goal_status'] = 'active'
+    candidate['last_check'] = {'at': now, 'mode': 'resume', 'caller_thread': thread,
+                               'action': 'continue'}
+    ledger.clear()
+    ledger.update(candidate)
+    return output(ledger, 'continue', 'explicit_user_resume', thread)
+
+
+def run(thread, command, usage_file=None, automation_id=None, now=None, previous_automation_id=None,
+        user_authorization=None):
     """一次门禁检查；官方自动化的创建、暂停与删除由调用方执行。"""
     thread = str(uuid.UUID(thread))
-    if command == 'checkpoint' and os.environ.get('CODEX_THREAD_ID') != thread:
+    if command in ('checkpoint', 'resume') and os.environ.get('CODEX_THREAD_ID') != thread:
         return output({}, 'wait', 'checkpoint_caller_mismatch', thread)
     now = time.time() if now is None else now
     home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).resolve()
@@ -263,6 +308,12 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
                 ledger.update(terminal_action=action, terminal_reason=reason, goal_status=status)
                 atomic(path, ledger)
             return output(ledger or {'goal': current_goal, 'goal_status': status}, action, reason, thread)
+        if command == 'resume':
+            result = resume_ledger(ledger, thread, binding, current_goal, status, home,
+                                   usage_file, now, user_authorization)
+            if result['action'] == 'continue':
+                atomic(path, ledger)
+            return result
         if ledger.get('terminal_action'):
             return output(ledger, ledger['terminal_action'], ledger['terminal_reason'], thread)
         if not ledger:
@@ -357,6 +408,10 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     for command in ('init', 'check', 'checkpoint'):
         commands.add_parser(command).add_argument('--usage-file', type=Path, required=True)
+    resume = commands.add_parser('resume')
+    resume.add_argument('--usage-file', type=Path, required=True)
+    resume.add_argument('--user-authorization', required=True,
+                        help='调用Agent核验本次真人明确恢复原任务后填写；此参数本身不是授权证明')
     commands.add_parser('bind').add_argument('--automation-id', required=True)
     replacement = commands.add_parser('rebind')
     replacement.add_argument('--automation-id', required=True)
@@ -365,7 +420,8 @@ def main():
     try:
         result = run(args.thread, args.command, getattr(args, 'usage_file', None),
                      getattr(args, 'automation_id', None),
-                     previous_automation_id=getattr(args, 'previous_automation_id', None))
+                     previous_automation_id=getattr(args, 'previous_automation_id', None),
+                     user_authorization=getattr(args, 'user_authorization', None))
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
         result = output({}, 'stop', 'local_evidence_unavailable', args.thread)
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))

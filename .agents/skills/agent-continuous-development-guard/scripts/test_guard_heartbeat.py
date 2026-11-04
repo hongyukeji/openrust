@@ -91,6 +91,82 @@ class HeartbeatTests(unittest.TestCase):
             db.execute('UPDATE thread_goals SET ' + ','.join(key + '=?' for key in fields)
                        + ' WHERE thread_id=?', (*fields.values(), self.thread))
 
+    def paused_then_active(self):
+        self.prepared()
+        self.update_goal(status='paused')
+        self.assertEqual(self.run_gate()['reason'], 'goal_paused')
+        self.update_goal(status='active')
+
+    def resume_gate(self, authorization='真人明确继续原任务', now=1000):
+        self.write_usage(now)
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            return heartbeat.run(self.thread, 'resume', self.usage_file, now=now,
+                                 user_authorization=authorization)
+
+    def test_explicit_resume_preserves_budget_and_goal_then_checkpoint_continues(self):
+        self.paused_then_active()
+        before = self.ledger()
+        self.assertEqual(self.resume_gate()['action'], 'continue')
+        after = self.ledger()
+        for key in ('binding', 'goal', 'account_budgets', 'automation_id', 'fraction', 'allow_existing_credits'):
+            self.assertEqual(after[key], before[key])
+        self.assertNotIn('terminal_action', after)
+        self.assertEqual(after['explicit_resumptions'][0]['previous_account_budgets'], before['account_budgets'])
+        self.assertNotIn('真人明确', self.ledger_path.read_text())
+        self.assertEqual(self.run_gate()['action'], 'continue')
+
+    def test_resume_requires_user_authorization_and_original_caller(self):
+        self.paused_then_active()
+        before = self.ledger_path.read_bytes()
+        self.assertEqual(self.resume_gate(None)['reason'], 'resume_authorization_required')
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': 'wrong'}):
+            self.assertEqual(heartbeat.run(self.thread, 'resume')['reason'], 'checkpoint_caller_mismatch')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_resume_never_releases_pause_or_other_terminal_causes(self):
+        self.paused_then_active()
+        self.update_goal(status='paused')
+        self.assertEqual(self.resume_gate()['reason'], 'goal_paused')
+        self.update_goal(status='active')
+        for reason in ('goal_or_binding_changed', 'binding_unknown', 'binding_changed_during_check'):
+            ledger = self.ledger()
+            ledger['terminal_reason'] = reason
+            heartbeat.atomic(self.ledger_path, ledger)
+            before = self.ledger_path.read_bytes()
+            self.assertEqual(self.resume_gate()['reason'], 'resume_state_rejected')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_resume_unknown_or_exhausted_usage_leaves_terminal_unchanged(self):
+        self.paused_then_active()
+        before = self.ledger_path.read_bytes()
+        for snapshot in ({}, usage(used=99)):
+            self.snapshot = snapshot
+            self.assertEqual(self.resume_gate()['action'], 'wait')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_resume_new_cycle_keeps_old_baseline_in_audit(self):
+        self.paused_then_active()
+        before = self.ledger()['account_budgets']
+        self.snapshot = usage(used=0, reset=4000)
+        self.assertEqual(self.resume_gate(now=2500)['action'], 'continue')
+        ledger = self.ledger()
+        self.assertEqual(ledger['explicit_resumptions'][0]['previous_account_budgets'], before)
+        budget = next(iter(ledger['account_budgets'].values()))
+        self.assertEqual(budget['windows']['primary']['baseline_remaining'], '100')
+        self.assertEqual(budget['windows']['primary']['reserve'], '20.0')
+
+    def test_resume_rechecks_identity_after_budget_check(self):
+        self.paused_then_active()
+        before = self.ledger_path.read_bytes()
+        original = heartbeat.budget_check
+        def changed(*args):
+            result = original(*args)
+            self.update_goal(status='paused')
+            return result
+        with mock.patch.object(heartbeat, 'budget_check', side_effect=changed):
+            self.assertEqual(self.resume_gate()['reason'], 'resume_identity_changed')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
     def test_init_keeps_goal_digest_and_reserve_without_database_writes(self):
         originals = {path: path.read_bytes() for path in self.home.iterdir()}
         result = self.init()
