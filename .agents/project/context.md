@@ -1,5 +1,7 @@
 # 项目上下文
 
+📝 Fortify已领取独立来源/契约簇：v1.41.0及同commit官方测试已固定，见[认证契约](plans/fortify-authentication.md)。包回退与安装模板默认分开，先补同内核具名Guard/UserProvider/StatefulGuard，再接两因素流程；未编码、未验收的行为仍保留缺口。原Goal已由宿主正式恢复active，fresh checkpoint与实际来源工具证据保存在tmp/fortify-totp-alignment-20261104/actual-resumption-receipt.json。
+
 ✅ S3b SQLite本地认证/MFA限定验收通过，本地提交以Git为准；源17新调用方门禁、四fresh及独审齐备，源9/12/13按未变路径限定复用。双库22项、最低3.26认证52/限流2/Root5，fresh各3无skip；234生成源码归档，所有任务target已正常clean至0。完整Guard/Fortify/Google真实客户端、SQLite其他后端能力与故障窗口仍开放，见memory/testing.md「SQLite 本地认证与 MFA 限定验收」及唯一todo。原Goal active，新99/19.8与旧27/5.4历史保留、creditsfalse。
 
 ✅ SQLite S3a 原生数据库 Session 与显式 Guarded 已完成限定验收、不同模型独审及资源收尾；全特性2193/默认1333测试、23项真实双库、最低3.26新索引路径和fresh四类均有分输入证据，本地提交以Git为准。完整Guard.id、SQLite认证/MFA/缓存锁/队列及完整框架仍开放，下一步见[唯一 todo](todo.md)。

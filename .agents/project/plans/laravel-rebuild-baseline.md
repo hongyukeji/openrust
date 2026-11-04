@@ -26,6 +26,10 @@
 
 Laravel 与 Goravel 仅参考机制；复制代码需逐文件核对 MIT/原许可。矩阵保留简短章节标识和自写决策，不复制文档正文。
 
+## Fortify 独立包基线
+
+Fortify 固定 v1.41.0 / `c456642584c102f6a6aafee9932299542da637b5`，2026-10-06发布；composer 允许 Illuminate `^13.0`，不升级原核心与文档基线。依赖参考 google2fa 固定兼容 v9.1.0 / `f00bc788c555adfb6765c437ff3538e59cd88af1`，不是上游已解析 lock。21份官方 tests 由相同commit逐blob补齐并校验Git对象哈希。安装模板与包回退的 two-factor 默认分别对齐，范围、实际差距与验收见[Fortify认证契约](fortify-authentication.md)；仅来源冻结，不表示实现或客户端验收完成。
+
 ## 模块化正式范围
 
 最新定位为Laravel + laravel-modules的Rust 1:1实现。Laravel原固定版本保持，上游模块包另冻v13.2.0/commit `59714840708a2aece19e810764473f53227c35fe`，官方v13文档导航于2026-10-28读取，来源与35个入口见[模块矩阵](laravel-modules-matrix.md)。目前仅登记导航/源码入口，子行为尚待逐项盘点，不声称模块包已经实现或全量取证。
