@@ -16,7 +16,7 @@ DB_DATABASE=/absolute/path/database.sqlite
 DB_FOREIGN_KEYS=true
 ```
 
-普通数据库文件须先存在；未指定 `DB_DATABASE` 时使用应用根下的 `database/database.sqlite`。相对文件先按当前工作目录解析，失败后按应用根解析。连接器不会为普通缺失路径创建文件。`openrust new blog --db sqlite` 的安装路径会创建自有文件及 `.env`，然后运行默认迁移；迁移失败返回非零并保留生成文件。安装迁移、生成 check/test 与无状态 API 已验证；认证、数据库 Session、队列等业务 SQL 仍须后续适配，不能仅凭安装成功切换这些生产能力。
+普通数据库文件须先存在；未指定 `DB_DATABASE` 时使用应用根下的 `database/database.sqlite`。相对文件先按当前工作目录解析，失败后按应用根解析。连接器不会为普通缺失路径创建文件。`openrust new blog --db sqlite` 的安装路径会创建自有文件及 `.env`，然后运行默认迁移；迁移失败返回非零并保留生成文件。安装迁移、生成 check/test 与无状态 API 已验证；原生/Guarded数据库Session已完成限定验收；本地认证/MFA的机制与未支持范围见[认证边界](../../../src/auth/README.md#sqlite-本地认证边界)。完整OIDC、队列等业务SQL仍须后续适配，不能仅凭安装成功切换这些生产能力。
 
 `DB_DATABASE=:memory:` 创建池私有内存库，限制为一条连接，并禁止空闲和寿命回收，直至关闭池。`file:name?mode=memory&cache=shared` 允许同进程、同名 URI 的多个连接共享内存；最后连接关闭后数据消失，不跨进程共享。`file:` URI 由 SQLite 解析，可显式选择只读等模式；仅对可信部署配置开放。
 

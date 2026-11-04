@@ -128,11 +128,7 @@ async fn session_cookie_probe(session: openrust::session::Session) -> openrust::
 
 #[tokio::test]
 async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail() -> TestResult {
-    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("skipping generated auth HTTP test: OPENRUST_TEST_DATABASE_URL is unset");
-        return Ok(());
-    };
-    let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;
+{{auth_http_database_setup}}
     let key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x42_u8; 32]);
     let link_key =
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
@@ -515,11 +511,7 @@ async fn request(
 #[tokio::test]
 async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     use openrust::http::axum::{body::Body, http::Request};
-    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("skipping generated TestApp auth: OPENRUST_TEST_DATABASE_URL is unset");
-        return Ok(());
-    };
-    let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;
+{{auth_testapp_database_setup}}
     let key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x42_u8; 32]);
     let link_key =
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);

@@ -12,10 +12,9 @@ use openrust::audit::{
 };
 use openrust::auth::{
     AuthFlows, AuthLayer, AuthMigration, AuthMode, AuthPolicyMigration, AuthRefreshTokenMigration,
-    AuthServiceProvider, AuthSource, AuthVerificationCodeMigration, CurrentUser,
-    DatabaseSessionStore, JwtConfig, JwtServiceProvider, JwtTokens, PasswordConfig, Passwords,
-    PersonalAccessTokens, Policy, RefreshTokens, Session, SessionServiceProvider,
-    VerificationCodePolicy, VerificationCodes,
+    AuthServiceProvider, AuthSource, AuthVerificationCodeMigration, CurrentUser, JwtConfig,
+    JwtServiceProvider, JwtTokens, PasswordConfig, Passwords, PersonalAccessTokens, Policy,
+    RefreshTokens, Session, SessionServiceProvider, VerificationCodePolicy, VerificationCodes,
 };
 use openrust::core::RateLimiter;
 use openrust::database::sea_orm::{ConnectOptions, ConnectionTrait, Database, Statement};
@@ -28,7 +27,7 @@ use openrust::events::EventsServiceProvider;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::{HttpServiceProvider, Inject, Json, Routes, build_router};
-use openrust::session::SessionStore;
+use openrust::session::{GuardedDatabaseSessionStore, SessionStore};
 use openrust::session::{SessionId as Id, SessionRecord as Record};
 use openrust::signing::{
     DatabaseSignedLinkRevocationStore, SignedLinkRevocationMigration, SignedLinkRevocationStore,
@@ -42,12 +41,22 @@ use tower::ServiceExt;
 
 type TestResult = Result<(), Box<dyn StdError>>;
 
+fn require_auth_contract(condition: bool, message: &'static str) -> TestResult {
+    if condition {
+        Ok(())
+    } else {
+        Err(message.into())
+    }
+}
+
 struct AuthMigrator;
 
 impl MigratorTrait for AuthMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(AuthMigration),
+            Box::new(openrust::session::GuardedSessionMigration),
+            Box::new(openrust::session::GuardedSessionGcMigration),
             Box::new(AuthRefreshTokenMigration),
             Box::new(AuthVerificationCodeMigration),
             Box::new(AuthPolicyMigration),
@@ -99,7 +108,7 @@ async fn require_policy(
 
 async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::http::axum::Router)> {
     let source = format!(
-        "[database]\nurl = {url:?}\ntable_prefix = {table_prefix:?}\n\n[database.table_names]\nusers = \"mapped_accounts\"\n"
+        "[session]\ndriver = 'database-guarded'\n[database]\nurl = {url:?}\ntable_prefix = {table_prefix:?}\n\n[database.table_names]\nusers = \"mapped_accounts\"\n"
     );
     let figment = Figment::new().merge(figment::providers::Toml::string(&source));
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
@@ -267,7 +276,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
     let backend = connection.get_database_backend();
     let session_db = Db::with_table_names(table_names);
     session_db.initialize(connection.clone())?;
-    let session_store = DatabaseSessionStore::new(session_db.clone());
+    let session_store = GuardedDatabaseSessionStore::new(session_db.clone());
     let collision_record = Record {
         id: Id::generate()?,
         data: serde_json::json!({}),
@@ -964,7 +973,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
             .await?
     );
 
-    let session_store = Arc::new(DatabaseSessionStore::new(db.clone()));
+    let session_store = Arc::new(GuardedDatabaseSessionStore::new(db.clone()));
     let session = Session::new(None, session_store.clone(), None)?;
     session.start().await?;
     session.put_typed("app.preference", "compact")?;
@@ -1612,19 +1621,29 @@ async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> 
     Ok(())
 }
 
-#[tokio::test]
-async fn auth_migrations_use_default_empty_prefix_and_full_name_mapping() -> TestResult {
-    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("skipping table-name migration matrix: OPENRUST_TEST_DATABASE_URL is unset");
-        return Ok(());
-    };
-    let backend = DatabaseBackend::from_url(&url)?;
-    if !backend.is_enabled() {
-        return Ok(());
-    }
-    let cases = [
+type AuthMigrationNameCase = (DatabaseTableNames, [&'static str; 9]);
+
+fn auth_migration_name_cases() -> Result<[AuthMigrationNameCase; 4], Box<dyn StdError>> {
+    Ok([
         (
             openrust::database::DatabaseTableNames::default(),
+            [
+                "users",
+                "sessions",
+                "personal_access_tokens",
+                "auth_refresh_tokens",
+                "verification_codes",
+                "roles",
+                "permissions",
+                "user_roles",
+                "role_permissions",
+            ],
+        ),
+        (
+            openrust::database::DatabaseTableNames::new(
+                "tb_",
+                std::collections::BTreeMap::default(),
+            )?,
             [
                 "tb_users",
                 "tb_sessions",
@@ -1668,10 +1687,24 @@ async fn auth_migrations_use_default_empty_prefix_and_full_name_mapping() -> Tes
                 "custom_role_permissions",
             ],
         ),
-    ];
+    ])
+}
+
+#[tokio::test]
+async fn auth_migrations_use_default_empty_prefix_and_full_name_mapping() -> TestResult {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping table-name migration matrix: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        return Ok(());
+    }
+    let cases = auth_migration_name_cases()?;
     for (table_names, expected_names) in cases {
         let database =
             TestDatabase::create_with_table_names::<AuthMigrator>(&url, table_names).await?;
+        let outcome:TestResult=async {
         let connection = database.connection()?;
         for table_name in expected_names {
             let (sql, value) = match connection.get_database_backend() {
@@ -1693,14 +1726,16 @@ async fn auth_migrations_use_default_empty_prefix_and_full_name_mapping() -> Tes
                 ))
                 .await?
                 .ok_or("table-name verification returned no row")?;
-            assert_eq!(
-                row.try_get::<i64>("", "row_count")?,
-                1,
-                "missing table {table_name}"
-            );
+            if row.try_get::<i64>("", "row_count")? != 1 {
+                return Err(format!("missing table {table_name}").into());
+            }
         }
         drop(connection);
-        database.close().await?;
+        Ok(())
+        }.await;
+        let cleanup = database.close().await;
+        outcome?;
+        cleanup?;
     }
     Ok(())
 }
@@ -1726,6 +1761,7 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
     )?;
     let database =
         TestDatabase::create_with_table_names::<AuthMigrator>(&url, names.clone()).await?;
+    let outcome:TestResult=async {
     let connection = database.connection()?;
     let backend = connection.get_database_backend();
     let db = Db::with_table_names(names);
@@ -1769,7 +1805,7 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
         .await?
         .ok_or("audit count query returned no row")?
         .try_get::<i64>("", "count")?;
-    assert_eq!(count, 1);
+    require_auth_contract(count == 1,"audit row count differs")?;
     let stored = connection
         .query_one_raw(Statement::from_string(
             backend,
@@ -1779,10 +1815,10 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
         ))
         .await?
         .ok_or("audit record was not persisted")?;
-    assert_eq!(stored.try_get::<String>("", "action")?, "permission.grant");
-    assert_eq!(stored.try_get::<String>("", "actor_id")?, "9001");
-    assert_eq!(stored.try_get::<String>("", "outcome")?, "succeeded");
-    assert_eq!(stored.try_get::<String>("", "tenant_id")?, "audit-tenant-a");
+    require_auth_contract(stored.try_get::<String>("", "action")? == "permission.grant","audit action differs")?;
+    require_auth_contract(stored.try_get::<String>("", "actor_id")? == "9001","audit actor_id differs")?;
+    require_auth_contract(stored.try_get::<String>("", "outcome")? == "succeeded","audit outcome differs")?;
+    require_auth_contract(stored.try_get::<String>("", "tenant_id")? == "audit-tenant-a","audit tenant_id differs")?;
 
     let failed_record = audit.prepare(AuditEvent::new(
         "permission.grant",
@@ -1803,13 +1839,13 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
             })
         })
         .await;
-    assert!(rollback.is_err());
+    require_auth_contract(rollback.is_err(),"expected rollback failure")?;
     let count = connection
         .query_one_raw(Statement::from_string(backend, count_sql.clone()))
         .await?
         .ok_or("audit count query returned no row")?
         .try_get::<i64>("", "count")?;
-    assert_eq!(count, 1, "rolled back audit record must not remain");
+    require_auth_contract(count == 1,"rolled back audit record must not remain")?;
     let permission =
         "SELECT COUNT(*) AS count FROM audit_it_permissions WHERE name = 'reports:write'";
     let count = connection
@@ -1817,10 +1853,7 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
         .await?
         .ok_or("permission count query returned no row")?
         .try_get::<i64>("", "count")?;
-    assert_eq!(
-        count, 0,
-        "permission mutation must roll back with audit insert"
-    );
+    require_auth_contract(count == 0,"permission mutation must roll back with audit insert")?;
 
     let purge_event = AuditEvent::new(
         "account.updated",
@@ -1835,15 +1868,15 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
     )?;
     audit.record(purge_event).await?;
     let cutoff = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    assert_eq!(sink.purge_before(cutoff, 1).await?, 1);
+    require_auth_contract(sink.purge_before(cutoff, 1).await? == 1,"audit purge batch differs")?;
     let count = connection
         .query_one_raw(Statement::from_string(backend, count_sql.clone()))
         .await?
         .ok_or("audit count query returned no row")?
         .try_get::<i64>("", "count")?;
-    assert_eq!(count, 2, "one purge call must respect its batch bound");
-    assert_eq!(sink.purge_before(cutoff, 2).await?, 2);
-    assert_eq!(sink.purge_before(cutoff, 2).await?, 0);
+    require_auth_contract(count == 2,"one purge call must respect its batch bound")?;
+    require_auth_contract(sink.purge_before(cutoff, 2).await? == 2,"audit purge batch differs")?;
+    require_auth_contract(sink.purge_before(cutoff, 2).await? == 0,"audit purge batch differs")?;
 
     connection
         .execute_unprepared(&format!("DROP TABLE {table}"))
@@ -1866,7 +1899,7 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
             })
         })
         .await;
-    assert!(audit_write_failure.is_err());
+    require_auth_contract(audit_write_failure.is_err(),"expected audit write failure")?;
     let count = connection
         .query_one_raw(Statement::from_string(
             backend,
@@ -1875,10 +1908,12 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
         .await?
         .ok_or("permission count query returned no row")?
         .try_get::<i64>("", "count")?;
-    assert_eq!(
-        count, 0,
-        "audit insert failure must roll back permission changes"
-    );
+    require_auth_contract(count == 0,"audit insert failure must roll back permission changes")?;
+    Ok(())
+    }.await;
+    let cleanup = database.close().await;
+    outcome?;
+    cleanup?;
     Ok(())
 }
 

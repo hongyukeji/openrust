@@ -1,5 +1,7 @@
 # 技术栈
 
+SQLite认证安全事务复用当前SeaORM2.0.4公开TransactionOptions/SqliteTransactionMode，不新增crate或连接池；普通Db事务默认不变。UTC/JSON仍用既有Chrono/serde_json codec，SQLite认证SQL不依赖RETURNING或JSON1。当前依赖身份与来源继续见锁文件及vendor说明，S3b验收状态以唯一todo为准。
+
 Session 的原生数据库载荷复用现有 `base64` 0.22；`session` feature 显式启用该依赖，不能依赖 Auth 或 MySQL 的偶然 feature 联合。没有新增 crate。SQLx 0.9 物理连接所有权及驻留确认复用 SQLite 迁移已有机制，原生 handler 的驱动错误分类通过 SeaORM 的 SQLx reexport 支持 PG-only 与 session-only 编译边界。
 
 > 重构状态：本文件记录当前依赖资产；[全面重构计划](plans/laravel-rebuild.md) 可按功能簇重新选型，新增/替换后同步这里。计划不等于依赖已安装或新后端已验收。
@@ -119,3 +121,7 @@ SQLite连接基础：db-sqlite复用既有SeaORM2.0.4/SQLx0.9的SQLite驱动，l
 SQLite S2在途依赖：optional rusqlite精确0.39.0、default-features=false，仅db-sqlite编入。其libsqlite3-sys ^0.37与SQLx现0.37共享唯一C引擎；用于安全fresh内存连接探测真实原生外键默认，SQLx0.9公开API不能移除初始外键PRAGMA，compileoption宏存在也不能区分宏值0。不是第二业务Provider/池或新engine；不启用rusqlite bundled/modern/full/cache或提高SQLite最低版本。源码包SHA与官方元数据在tmp/sqlite-builtin-20261102/s2/references，尚未运行验收；全局auto-extension动态重配/按VFS或filename定制初始化仍须明确边界。
 
 SQLite迁移锁在途：db-sqlite同时启用既有rustix1.1.5（Unix NOFOLLOW安全sidecar打开），Windows仅启用winapi-util精确0.1.11安全读取打开文件身份/链接计数；复用已有锁图版本，不在库写unsafe。普通文件sidecar锁与原生DDL池分离，防独立SQLite写锁自锁；硬链接共同数据库路径仍是未闭合项，不能凭identity hash或canonicalize视为已解决。
+
+S3b测试工具接线：tools/testing 的 db-sqlite 显式转发既有根 openrust/db-sqlite，并重导出同一TestDatabase；无新依赖或锁文件变化。生成项目实际依赖该feature，不能只以根框架SQLite测试代替调用方验收。
+
+SQLite新应用自动迁移前的部署密钥复用CLI既有getrandom生成32字节Base64，各用途独立；不新增密码学依赖或改变缺密钥启动拒绝规则。

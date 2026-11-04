@@ -900,7 +900,7 @@ fn populate_project_with_mfa(
     if auth {
         files.push((
             "tests/auth_flows.rs",
-            auth_test_template(crate_name, encryption, auth_mfa, grpc),
+            auth_test_template(crate_name, encryption, auth_mfa, grpc, database),
         ));
     }
     if let Some(database) = database {
@@ -953,7 +953,41 @@ fn populate_project_with_mfa(
             .context("无法创建 SQLite 应用数据库")?;
         fs::copy(project_dir.join(".env.example"), project_dir.join(".env"))
             .context("无法写入 SQLite 应用环境配置")?;
+        initialize_sqlite_installation_keys(project_dir, auth, encryption)?;
     }
+    Ok(())
+}
+
+fn initialize_sqlite_installation_keys(
+    project_dir: &Path,
+    auth: bool,
+    encryption: bool,
+) -> anyhow::Result<()> {
+    let path = project_dir.join(".env");
+    let mut contents = fs::read_to_string(&path)?;
+    for (enabled, variable) in [
+        (auth, "APP_AUTH_JWT_KEYS_LOCAL"),
+        (auth, "APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL"),
+        (encryption, "APP_SECURITY_ENCRYPTION_KEYS_LOCAL"),
+    ] {
+        if enabled {
+            let marker = format!("{variable}=\n");
+            if contents.matches(&marker).count() != 1 {
+                bail!("新应用环境配置的密钥占位不唯一，拒绝覆盖");
+            }
+            contents = contents.replacen(&marker, &format!("{variable}={}\n", generate_key()?), 1);
+        }
+    }
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    }
+    file.write_all(contents.as_bytes())?;
     Ok(())
 }
 
@@ -982,7 +1016,13 @@ fn code_config_manifest(grpc: bool, queue: bool) -> String {
         )
 }
 
-fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool, grpc: bool) -> String {
+fn auth_test_template(
+    crate_name: &str,
+    encryption: bool,
+    auth_mfa: bool,
+    grpc: bool,
+    database: Option<DatabaseBackend>,
+) -> String {
     let encryption_config = if encryption {
         "\\n[security.encryption]\\nactive_key_id = \\\"test\\\"\\n\\n[security.encryption.keys]\\ntest = \\\"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=\\\""
     } else {
@@ -1007,6 +1047,30 @@ fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool, grpc: 
                 ""
             },
         );
+    template = template.replace(
+        "{{auth_http_database_setup}}",
+        if database == Some(DatabaseBackend::Sqlite) {
+            "    let database = TestDatabase::sqlite_file::<openrust_migration::Migrator>().await?;"
+        } else {
+            r#"    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping generated auth HTTP test: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;"#
+        },
+    );
+    template = template.replace(
+        "{{auth_testapp_database_setup}}",
+        if database == Some(DatabaseBackend::Sqlite) {
+            "    let database = TestDatabase::sqlite_file::<openrust_migration::Migrator>().await?;"
+        } else {
+            r#"    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping generated TestApp auth: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;"#
+        },
+    );
     if auth_mfa {
         template = template
             .replace("{{login_credentials_suffix}}", "[\"credentials\"]")
@@ -2975,6 +3039,60 @@ mod tests {
     fn key_generation_print_value_is_a_32_byte_base64_secret() {
         let encoded = generate_key().expect("generate key");
         assert_eq!(STANDARD.decode(encoded).expect("decode key").len(), 32);
+    }
+
+    #[test]
+    fn sqlite_installation_keys_are_private_independent_and_not_template_secrets()
+    -> anyhow::Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-sqlite-keys-{}-{}",
+            std::process::id(),
+            MIGRATION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root)?;
+        let mut secrets = std::collections::BTreeSet::new();
+        for name in ["first", "second"] {
+            let project = root.join(name);
+            populate_project(
+                &project,
+                name,
+                "KeyApplication",
+                Some(DatabaseBackend::Sqlite),
+                true,
+                false,
+                false,
+                true,
+            )?;
+            let local = fs::read_to_string(project.join(".env"))?;
+            let template = fs::read_to_string(project.join(".env.example"))?;
+            for variable in [
+                "APP_AUTH_JWT_KEYS_LOCAL",
+                "APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL",
+                "APP_SECURITY_ENCRYPTION_KEYS_LOCAL",
+            ] {
+                let prefix = format!("{variable}=");
+                let key = local
+                    .lines()
+                    .find_map(|line| line.strip_prefix(&prefix))
+                    .context("新应用缺少密钥")?;
+                assert_eq!(STANDARD.decode(key)?.len(), 32);
+                assert!(secrets.insert(key.to_owned()), "密钥不能跨用途或应用复用");
+                assert!(template.lines().any(|line| line == prefix));
+                assert!(!template.contains(key));
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                assert_eq!(
+                    fs::metadata(project.join(".env"))?.permissions().mode() & 0o777,
+                    0o600
+                );
+            }
+            assert!(initialize_sqlite_installation_keys(&project, true, true).is_err());
+            assert_eq!(fs::read_to_string(project.join(".env"))?, local);
+        }
+        fs::remove_dir_all(root)?;
+        Ok(())
     }
 
     #[test]

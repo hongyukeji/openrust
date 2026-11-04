@@ -40,7 +40,9 @@ impl DatabaseAuthenticator {
             .ok_or(Error::Unauthorized)?;
         let sql = match backend {
             DbBackend::Postgres => "SELECT id FROM tb_users WHERE id = $1 AND disabled_at IS NULL",
-            DbBackend::MySql => "SELECT id FROM tb_users WHERE id = ? AND disabled_at IS NULL",
+            DbBackend::MySql | DbBackend::Sqlite => {
+                "SELECT id FROM tb_users WHERE id = ? AND disabled_at IS NULL"
+            }
             _ => return Err(unsupported_auth_database()),
         };
         let statement = Statement::from_sql_and_values(
@@ -82,6 +84,9 @@ impl DatabaseAuthenticator {
         backend: DbBackend,
         credential: &AuthCredential<'_>,
     ) -> Result<AuthPrincipal> {
+        if backend == DbBackend::Sqlite {
+            return self.authenticate_sqlite_token(db, credential).await;
+        }
         let value = credential
             .value()
             .ok_or_else(|| Error::internal(MissingToken))?;
@@ -96,7 +101,7 @@ impl DatabaseAuthenticator {
             _ => {
                 return Err(Error::custom(
                     "unsupported_auth_database",
-                    "authentication requires PostgreSQL or MySQL",
+                    "authentication requires PostgreSQL, MySQL or SQLite",
                 ));
             }
         };
@@ -136,7 +141,7 @@ impl DatabaseAuthenticator {
             _ => {
                 return Err(Error::custom(
                     "unsupported_auth_database",
-                    "authentication requires PostgreSQL or MySQL",
+                    "authentication requires PostgreSQL, MySQL or SQLite",
                 ));
             }
         };
@@ -149,6 +154,42 @@ impl DatabaseAuthenticator {
             .await
             .map_err(Error::internal)?;
         Ok(AuthPrincipal::new(user_id, Some(abilities)))
+    }
+
+    async fn authenticate_sqlite_token(
+        &self,
+        db: &Db,
+        credential: &AuthCredential<'_>,
+    ) -> Result<AuthPrincipal> {
+        let value = credential
+            .value()
+            .ok_or_else(|| Error::internal(MissingToken))?;
+        let hash = sha256_hex(value);
+        let database = db.clone();
+        db.transaction_for_update(move |transaction| { Box::pin(async move {
+            // 同一写事务内读取撤销/账户状态和精确截止，避免校验后被另一writer撤销。
+            let sql = crate::auth::resolve_auth_sql(&database,
+                "SELECT p.user_id, p.abilities, p.expires_at FROM tb_personal_access_tokens p JOIN tb_users u ON u.id=p.user_id WHERE p.token_hash=? AND p.revoked_at IS NULL AND u.disabled_at IS NULL")?;
+            let row = transaction.query_one_raw(Statement::from_sql_and_values(DbBackend::Sqlite, sql, [hash.clone().into()]))
+                .await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+            let expires: Option<chrono::DateTime<chrono::Utc>> = row.try_get("", "expires_at").map_err(Error::internal)?;
+            let now = chrono::Utc::now();
+            if expires.is_some_and(|expiry| expiry <= now) { return Err(Error::Unauthorized); }
+            let user_id: i64 = row.try_get("", "user_id").map_err(Error::internal)?;
+            if user_id <= 0 { return Err(Error::Unauthorized); }
+            let encoded: String = row.try_get("", "abilities").map_err(Error::internal)?;
+            let abilities: serde_json::Value = serde_json::from_str(&encoded).map_err(|_| Error::internal(InvalidAbilities))?;
+            let abilities = abilities.as_array().ok_or_else(|| Error::internal(InvalidAbilities))?
+                .iter().map(|ability| ability.as_str().map(str::to_owned).ok_or_else(|| Error::internal(InvalidAbilities)))
+                .collect::<Result<Vec<_>>>()?;
+            let update = crate::auth::resolve_auth_sql(&database,
+                "UPDATE tb_personal_access_tokens SET last_used_at=? WHERE token_hash=? AND revoked_at IS NULL")?;
+            let updated = transaction.execute_raw(Statement::from_sql_and_values(DbBackend::Sqlite, update,
+                [crate::db::dialect::utc_value(DbBackend::Sqlite, now), hash.into()]))
+                .await.map_err(Error::internal)?;
+            if updated.rows_affected() != 1 { return Err(Error::Unauthorized); }
+            Ok(AuthPrincipal::new(user_id, Some(abilities)))
+        }) }).await
     }
 }
 
@@ -200,7 +241,7 @@ pub(crate) const AUTH_CSRF_HASH_KEY: &str = "openrust.auth.csrf_hash";
 fn unsupported_auth_database() -> Error {
     Error::custom(
         "unsupported_auth_database",
-        "authentication requires PostgreSQL or MySQL",
+        "authentication requires PostgreSQL, MySQL or SQLite",
     )
 }
 

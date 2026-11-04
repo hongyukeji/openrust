@@ -19,6 +19,8 @@ use sha2::Digest;
 
 use crate::auth::{EncodedPasswordHash, Passwords};
 
+mod sqlite;
+
 const MIN_DIGITS: u8 = 6;
 const MAX_DIGITS: u8 = 10;
 const MAX_LIFETIME_SECS: u64 = 86_400;
@@ -369,6 +371,9 @@ impl DatabaseVerificationCodeStore {
         {
             let backend = connection.get_database_backend();
             let table = self.db.quoted_table_name("verification_codes")?;
+            if backend == DbBackend::Sqlite {
+                return sqlite::prune(connection, &table).await;
+            }
             let sql = match backend {
                 DbBackend::Postgres => format!(
                     "DELETE FROM {table} WHERE key_hash IN (SELECT key_hash FROM {table} WHERE expires_at <= CURRENT_TIMESTAMP LIMIT 512 FOR UPDATE SKIP LOCKED)"
@@ -406,6 +411,17 @@ impl VerificationCodeStore for DatabaseVerificationCodeStore {
             self.maybe_prune(&connection).await?;
             let backend = connection.get_database_backend();
             let table = self.db.quoted_table_name("verification_codes")?;
+            if backend == DbBackend::Sqlite {
+                return sqlite::issue(
+                    &connection,
+                    &table,
+                    key_hash,
+                    challenge_id,
+                    code_hash,
+                    policy,
+                )
+                .await;
+            }
             let transaction = connection.begin().await.map_err(Error::internal)?;
             let digits = i32::from(policy.digits);
             let max_attempts = i32::try_from(policy.max_attempts).map_err(Error::internal)?;
@@ -523,6 +539,9 @@ impl VerificationCodeStore for DatabaseVerificationCodeStore {
             self.maybe_prune(&connection).await?;
             let backend = connection.get_database_backend();
             let table = self.db.quoted_table_name("verification_codes")?;
+            if backend == DbBackend::Sqlite {
+                return sqlite::load_active(&connection, &table, key_hash).await;
+            }
             let (sql, values) = match backend {
                 DbBackend::Postgres => (
                     format!(
@@ -579,6 +598,16 @@ impl VerificationCodeStore for DatabaseVerificationCodeStore {
             self.maybe_prune(&connection).await?;
             let backend = connection.get_database_backend();
             let table = self.db.quoted_table_name("verification_codes")?;
+            if backend == DbBackend::Sqlite {
+                return sqlite::finish_attempt(
+                    &connection,
+                    &table,
+                    key_hash,
+                    challenge_id,
+                    code_matches,
+                )
+                .await;
+            }
             let (sql, values) = match backend {
                 DbBackend::Postgres => (
                     format!(

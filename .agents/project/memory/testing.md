@@ -1,5 +1,19 @@
 # 测试基线
 
+## SQLite 本地认证与 MFA 限定验收
+
+2026-11-04，开发基线45a1097，守护独立提交2305ca1；S3b最终源码输入17。固定Laravel framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs960eedf0911155ad16326ade49c0ea5d18eda0b8；本地用户/密码/PAT/refresh/验证码/Policy/MFA属于既有增强调用链适配，不冒称完整Laravel Guard或Fortify默认。普通Db事务不变，SQLite安全读写同一连接BEGIN IMMEDIATE；UTC精确期限、条件消费、refresh重放家族撤销、审计与限流配套，唯一modules/example真实调用。验证码GC按主键逐页扫描，最多删除512条，不承诺最多扫描512条或常量锁时长。
+
+源9的13项workspace fmt、默认/全feature严格Clippy、tests、docs、三精简组合、MSRV1.97、deny与CLI构建实际通过；最终差异逐项独审核对后限定复用未受影响生产路径，不称最终源17重跑整矩阵。两处旧真实服务fixture显式Guarded/增强迁移并保留强断言；MFA修复cookies/session装配、公开异常envelope及同一已enroll账号。源10MySQL认证8、计数器1，加源12MySQL MFA/模块HTTP与PG计数器/认证8/MFA/模块HTTP共22项实际通过，无服务skip、双库差集0。源12→13仅格式，重建原文SHA和rustfmt逐字节等价经独审确认。
+
+最低SQLite3.26.0：源13实际认证52、限流2（另2显式ignored子/服务入口不计通过）及Root5项通过；限流包含两个独立进程，Root包含本地认证/原生Session与真实TOTP/MFA恢复码/审计回滚。dyld实际加载自建3.26动态库、库SHA/原生CLI版本均已核，不能以当前bundled引擎代替最低版证明。最终私有重导出cfg在该session启用组合不改变逻辑。
+
+生成调用方修复testing/db-sqlite feature及同一TestDatabase重导出；新SQLite应用在自动迁移前为所启用用途生成独立32字节OS随机密钥，仅存自有.env，Unix0600，模板空且不覆盖已有应用。JWT/签名密钥属于增强，Laravel安装应用密钥原则见固定encryption.md:16。CLI严格门禁与39测试通过，testing SQLite-only严格Clippy/docs及新CLI构建通过。四fresh（SQLite auth/MFA、MySQL MFA、PG auth）new/check/test共12命令均0，各3项实际通过，无跳过；两个MFA案在实际HTTP测试内执行完整MFA子流程。生成测试有5个既有unused support警告及汇总，不称生成项目严格Clippy通过。
+
+全部失败/完整日志/退出码/来源/输入哈希和234份生成源码归档见tmp/sqlite-s3b-20261103/；独立不同模型核770输入零漂移、日志/归档SHA、实际执行和复用边界，限定无新增blocker。主服务cache9,067,614,208B、最低cache1,206,366,208B、最终共享cache4,314,501,120B均经锁/占用核对后正常clean至0，最终磁盘可用163,407,933,440B；依赖/native源码、服务与证据保留。本地提交以Git为准。
+
+完整Guard.id/named guard/UserProvider、Fortify官方默认与Google真实客户端互操作、SQLite OIDC/缓存锁/队列/完整Schema及一般驱动取消/故障窗口仍开放；事务前签名/RNG失败不承诺已撤销refresh家族。下一步只在唯一todo领取，不将本簇当完整SQLite、认证或ADR-001完成。
+
 ## 显式模块注册与宿主 API 前缀限定验收
 
 2026-11-02，基线85f6e9a。固定Laravel d52c3b3的ApplicationBuilder::withRouting/buildRoutingCallback以apiPrefix装配API组；模块文件机制按固定Modules5971484保留。根/new默认registered为获准应用约定，库ModulesConfig::default仍保留file；不是把上游默认重写成语言必要适配。modules/mod.rs集中注册，bootstrap不再直接依赖example；同一ModuleRepositorySeed/Provider管线和原初始化回调保留，with_application_root锚定外部运行根。只读预检先于事件与选择，空catalog --all亦失败。

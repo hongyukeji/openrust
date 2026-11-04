@@ -15,7 +15,9 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
 use figment::{Figment, providers::Format};
 use hmac::{Hmac, Mac, digest::KeyInit};
-use openrust::http::{HttpServiceProvider, Inject, Json as FrameworkJson, Routes, build_router};
+use openrust::http::{
+    CookieServiceProvider, HttpServiceProvider, Inject, Json as FrameworkJson, Routes, build_router,
+};
 use openrust::testing::TestDatabase;
 use openrust::{
     App, Result,
@@ -150,6 +152,8 @@ impl MigratorTrait for MfaMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(AuthMigration),
+            Box::new(openrust::session::GuardedSessionMigration),
+            Box::new(openrust::session::GuardedSessionGcMigration),
             Box::new(AuthRefreshTokenMigration),
             Box::new(AuthVerificationCodeMigration),
             Box::new(DatabaseRateLimitMigration),
@@ -271,7 +275,7 @@ async fn session_login(
 ) -> Result<FrameworkJson<&'static str>> {
     flows
         .login_session(
-            "mfa-session@example.test",
+            "mfa.user@example.test",
             "correct horse battery staple",
             "mfa-session-login",
             &session,
@@ -325,7 +329,7 @@ async fn build_app(
         .collect::<Vec<_>>()
         .join("\n");
     let source = format!(
-        "[database]\nurl = {database_url:?}\ntable_prefix = {prefix:?}\n\n[security.encryption]\nactive_key_id = {active_key:?}\n[security.encryption.keys]\n{key_entries}\n"
+        "[session]\ndriver = 'database-guarded'\n[database]\nurl = {database_url:?}\ntable_prefix = {prefix:?}\n\n[security.encryption]\nactive_key_id = {active_key:?}\n[security.encryption.keys]\n{key_entries}\n"
     );
     let figment = Figment::new().merge(figment::providers::Toml::string(&source));
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
@@ -349,6 +353,7 @@ async fn build_app(
         ))
         .provider(JwtServiceProvider)
         .provider(EncryptionServiceProvider)
+        .provider(CookieServiceProvider::new())
         .provider(SessionServiceProvider::new())
         .provider(MfaServiceProvider)
         .provider(AuthFlowsServiceProvider::new())
@@ -647,8 +652,10 @@ async fn mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp() -> TestRes
     let client = reqwest::Client::builder().no_proxy().build()?;
     let new_session_login = client
         .post(format!("{session_base}/mfa-test/session/login"))
+        .header("accept", "application/json")
         .send()
         .await?;
+    assert_eq!(new_session_login.status(), StatusCode::UNAUTHORIZED);
     let new_session_body: serde_json::Value = new_session_login.json().await?;
     assert_eq!(
         new_session_body
@@ -661,6 +668,7 @@ async fn mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp() -> TestRes
         .json(&user_id)
         .send()
         .await?;
+    assert!(seeded.status().is_success());
     let cookie = seeded
         .headers()
         .get("set-cookie")
@@ -672,9 +680,11 @@ async fn mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp() -> TestRes
         .to_owned();
     let existing_session = client
         .get(format!("{session_base}/mfa-test/session/protected"))
+        .header("accept", "application/json")
         .header("cookie", cookie)
         .send()
         .await?;
+    assert_eq!(existing_session.status(), StatusCode::UNAUTHORIZED);
     let existing_session_body: serde_json::Value = existing_session.json().await?;
     assert_eq!(
         existing_session_body
@@ -944,9 +954,14 @@ where
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.or_api_envelope_when(|request, _| request.path().starts_with("/mfa-test/"));
+            })?;
             app.routes(move |value| {
                 value.group(
-                    openrust::http::RouteGroup::new().middleware_alias("session"),
+                    openrust::http::RouteGroup::new()
+                        .middleware_alias("cookies")
+                        .middleware_alias("session"),
                     |value| routes(value),
                 )
             })?;

@@ -190,7 +190,9 @@ impl MfaService {
         let backend = connection.get_database_backend();
         let sql = match backend {
             DbBackend::Postgres => format!("SELECT user_id FROM {table} WHERE user_id = $1"),
-            DbBackend::MySql => format!("SELECT user_id FROM {table} WHERE user_id = ?"),
+            DbBackend::MySql | DbBackend::Sqlite => {
+                format!("SELECT user_id FROM {table} WHERE user_id = ?")
+            }
             _ => return Err(unsupported_backend()),
         };
         Ok(connection
@@ -214,7 +216,9 @@ impl MfaService {
         let table = self.db.quoted_table_name("auth_mfa_factors")?;
         let sql = match backend {
             DbBackend::Postgres => format!("SELECT user_id FROM {table} WHERE user_id = $1"),
-            DbBackend::MySql => format!("SELECT user_id FROM {table} WHERE user_id = ?"),
+            DbBackend::MySql | DbBackend::Sqlite => {
+                format!("SELECT user_id FROM {table} WHERE user_id = ?")
+            }
             _ => return Err(unsupported_backend()),
         };
         Ok(transaction
@@ -238,6 +242,7 @@ impl MfaService {
         let sql = match backend {
             DbBackend::Postgres => format!("SELECT id FROM {users} WHERE id = $1 FOR UPDATE"),
             DbBackend::MySql => format!("SELECT id FROM {users} WHERE id = ? FOR UPDATE"),
+            DbBackend::Sqlite => format!("SELECT id FROM {users} WHERE id = ?"),
             _ => return Err(unsupported_backend()),
         };
         transaction
@@ -252,14 +257,55 @@ impl MfaService {
         Ok(())
     }
 
+    async fn challenge_limit_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        operation: &str,
+        identity: &str,
+        source: &str,
+        sqlite_limit_preflight: bool,
+    ) -> Result<()> {
+        if transaction.get_database_backend() == DbBackend::Sqlite {
+            if !sqlite_limit_preflight {
+                return Err(Error::custom_with_status(
+                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "auth_mfa_preflight_required",
+                    "SQLite MFA挑战必须在写事务前完成限流",
+                ));
+            }
+            Ok(())
+        } else {
+            // PG/MySQL 保留 helper 内原计数位置；SQLite 只接受显式前置证明。
+            self.limit(operation, source, identity).await
+        }
+    }
+
+    /// 在 SQLite 写事务外消耗登录挑战限流；调用方锁内还须重读 MFA enabled 状态。
+    pub(crate) async fn limit_login_preflight(&self, user_id: i64, source: &str) -> Result<()> {
+        self.limit("login", source, &user_id.to_string()).await
+    }
+
+    /// 在 SQLite 挑战事务前消耗限流；其他后端仍在原 helper 位置计数。
+    pub(crate) async fn limit_challenge_preflight(&self, token: &str, source: &str) -> Result<()> {
+        self.limit("challenge", source, token).await
+    }
+
     #[cfg(any(feature = "auth-oidc", feature = "auth-mfa"))]
     pub(crate) async fn create_challenge_in_transaction(
         &self,
         transaction: &DatabaseTransaction,
         user_id: i64,
         source: &str,
+        sqlite_limit_preflight: bool,
     ) -> Result<MfaLoginChallenge> {
-        self.limit("login", source, &user_id.to_string()).await?;
+        self.challenge_limit_in_transaction(
+            transaction,
+            "login",
+            &user_id.to_string(),
+            source,
+            sqlite_limit_preflight,
+        )
+        .await?;
         let token = random_secret(32)?;
         let expires_at =
             Utc::now() + chrono::Duration::seconds(CHALLENGE_TTL_SECONDS.cast_signed());
@@ -281,8 +327,16 @@ impl MfaService {
         token: &str,
         source: &str,
         code: &str,
+        sqlite_limit_preflight: bool,
     ) -> Result<Option<i64>> {
-        self.limit("challenge", source, token).await?;
+        self.challenge_limit_in_transaction(
+            transaction,
+            "challenge",
+            token,
+            source,
+            sqlite_limit_preflight,
+        )
+        .await?;
         if token.len() > 128 || token.is_empty() {
             return Ok(None);
         }
@@ -294,6 +348,9 @@ impl MfaService {
             ),
             DbBackend::MySql => format!(
                 "SELECT user_id, source_hash, attempts FROM {challenges} WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP(6) FOR UPDATE"
+            ),
+            DbBackend::Sqlite => format!(
+                "SELECT user_id,source_hash,attempts,expires_at FROM {challenges} WHERE token_hash=?"
             ),
             _ => return Err(unsupported_backend()),
         };
@@ -308,6 +365,15 @@ impl MfaService {
         else {
             return Ok(None);
         };
+        // 外层 Immediate 已在首次读取前取得写所有权；只用精确 UTC 日期判期限。
+        if backend == DbBackend::Sqlite
+            && row
+                .try_get::<DateTime<Utc>>("", "expires_at")
+                .map_err(Error::internal)?
+                <= Utc::now()
+        {
+            return Ok(None);
+        }
         let user_id = row.try_get::<i64>("", "user_id").map_err(Error::internal)?;
         let source_hash = row
             .try_get::<String>("", "source_hash")
@@ -338,33 +404,7 @@ impl MfaService {
                 .map_err(Error::internal)?;
             Ok(Some(user_id))
         } else {
-            let next = attempts.saturating_add(1);
-            if next >= MAX_CHALLENGE_ATTEMPTS.cast_signed() {
-                transaction
-                    .execute_raw(Statement::from_sql_and_values(
-                        backend,
-                        format!(
-                            "DELETE FROM {challenges} WHERE token_hash = {}",
-                            placeholder(backend, 1)
-                        ),
-                        [digest(token).into()],
-                    ))
-                    .await
-                    .map_err(Error::internal)?;
-            } else {
-                transaction
-                    .execute_raw(Statement::from_sql_and_values(
-                        backend,
-                        format!(
-                            "UPDATE {challenges} SET attempts = {} WHERE token_hash = {}",
-                            placeholder(backend, 1),
-                            placeholder(backend, 2)
-                        ),
-                        [next.into(), digest(token).into()],
-                    ))
-                    .await
-                    .map_err(Error::internal)?;
-            }
+            record_failed_challenge(transaction, &challenges, &digest(token), attempts).await?;
             Ok(None)
         }
     }
@@ -384,6 +424,9 @@ impl MfaService {
             DbBackend::MySql => format!(
                 "SELECT encrypted_secret,last_used_step FROM {factors} WHERE user_id = ? FOR UPDATE"
             ),
+            DbBackend::Sqlite => {
+                format!("SELECT encrypted_secret,last_used_step FROM {factors} WHERE user_id = ?")
+            }
             _ => return Err(unsupported_backend()),
         };
         let Some(row) = transaction
@@ -453,7 +496,7 @@ impl MfaService {
         let audit = self.audit.clone();
         let code = code.to_owned();
         self.db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let db = db.clone();
                 let audit = audit.clone();
                 let this = self.clone();
@@ -511,7 +554,7 @@ impl MfaService {
         let code = code.to_owned();
         let changed = self
             .db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let db = db.clone();
                 let audit = audit.clone();
                 let hashes = hashes.clone();
@@ -586,20 +629,26 @@ impl MfaService {
         let expires_at =
             Utc::now() + chrono::Duration::seconds(ENROLLMENT_TTL_SECONDS.cast_signed());
         let db = self.db.clone();
-        self.db.transaction(|transaction| {
+        let expires_at = self.db.transaction_for_update(|transaction| {
             let db = db.clone(); let ciphertext = ciphertext.clone();
             Box::pin(async move {
                 let backend = transaction.get_database_backend();
                 let pending = db.quoted_table_name("auth_mfa_enrollments")?;
-                let delete=match backend{DbBackend::Postgres=>format!("DELETE FROM {pending} WHERE user_id = $1"),DbBackend::MySql=>format!("DELETE FROM {pending} WHERE user_id = ?"),_=>return Err(unsupported_backend())};
+                let delete=match backend{DbBackend::Postgres=>format!("DELETE FROM {pending} WHERE user_id = $1"),DbBackend::MySql|DbBackend::Sqlite=>format!("DELETE FROM {pending} WHERE user_id = ?"),_=>return Err(unsupported_backend())};
                 transaction.execute_raw(Statement::from_sql_and_values(backend, &delete, [user_id.into()])).await.map_err(Error::internal)?;
                 let insert = match backend {
                     DbBackend::Postgres => format!("INSERT INTO {pending} (user_id, encrypted_secret, expires_at, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)"),
                     DbBackend::MySql => format!("INSERT INTO {pending} (user_id, encrypted_secret, expires_at, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP(6))"),
+                    DbBackend::Sqlite => format!("INSERT INTO {pending} (user_id, encrypted_secret, expires_at, created_at) VALUES (?,?,?,?)"),
                     _ => return Err(unsupported_backend()),
                 };
-                transaction.execute_raw(Statement::from_sql_and_values(backend, &insert, [user_id.into(), ciphertext.into(), expires_at.naive_utc().into()])).await.map_err(Error::internal)?;
-                Ok(())
+                let now = Utc::now();
+                let expires_at = if backend == DbBackend::Sqlite { now + chrono::Duration::seconds(ENROLLMENT_TTL_SECONDS.cast_signed()) } else { expires_at };
+                let values = if backend == DbBackend::Sqlite {
+                    vec![user_id.into(),ciphertext.into(),dialect::utc_value(backend,expires_at),dialect::utc_value(backend,now)]
+                } else { vec![user_id.into(),ciphertext.into(),expires_at.naive_utc().into()] };
+                transaction.execute_raw(Statement::from_sql_and_values(backend, &insert, values)).await.map_err(Error::internal)?;
+                Ok(expires_at)
             })
         }).await?;
         let encoded = base32(&seed[..]);
@@ -640,25 +689,31 @@ impl MfaService {
         let db = self.db.clone();
         let audit = self.audit.clone();
         let encrypted = encrypted.clone();
-        let inserted = self.db.transaction(|transaction| {
-            let db=db.clone(); let audit=audit.clone(); let encrypted=encrypted.clone(); let hashes=hashes.clone();
+        let code = code.to_owned();
+        let inserted = self.db.transaction_for_update(|transaction| {
+            let db=db.clone(); let audit=audit.clone(); let encrypted=encrypted.clone(); let hashes=hashes.clone(); let seed=seed.clone(); let code=code.clone();
             Box::pin(async move {
                 // 与登录入口共用用户行锁，避免 MFA 启用和密码登录并发时绕过第二因子。
                 let users = db.quoted_table_name("users")?;
                 let user_lock = match transaction.get_database_backend() {
                     DbBackend::Postgres => format!("SELECT id FROM {users} WHERE id = $1 FOR UPDATE"),
                     DbBackend::MySql => format!("SELECT id FROM {users} WHERE id = ? FOR UPDATE"),
+                    DbBackend::Sqlite => format!("SELECT id FROM {users} WHERE id = ?"),
                     _ => return Err(unsupported_backend()),
                 };
                 transaction.query_one_raw(Statement::from_sql_and_values(transaction.get_database_backend(), &user_lock, [user_id.into()])).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
                 let backend=transaction.get_database_backend();
                 let pending=db.quoted_table_name("auth_mfa_enrollments")?;
-                let pending_sql=match backend { DbBackend::Postgres=>format!("SELECT encrypted_secret FROM {pending} WHERE user_id = $1 AND expires_at > CURRENT_TIMESTAMP FOR UPDATE"), DbBackend::MySql=>format!("SELECT encrypted_secret FROM {pending} WHERE user_id = ? AND expires_at > CURRENT_TIMESTAMP(6) FOR UPDATE"), _=>return Err(unsupported_backend()) };
+                let pending_sql=match backend { DbBackend::Postgres=>format!("SELECT encrypted_secret FROM {pending} WHERE user_id = $1 AND expires_at > CURRENT_TIMESTAMP FOR UPDATE"), DbBackend::MySql=>format!("SELECT encrypted_secret FROM {pending} WHERE user_id = ? AND expires_at > CURRENT_TIMESTAMP(6) FOR UPDATE"), DbBackend::Sqlite=>format!("SELECT encrypted_secret,expires_at FROM {pending} WHERE user_id=?"), _=>return Err(unsupported_backend()) };
                 let Some(pending_row)=transaction.query_one_raw(Statement::from_sql_and_values(backend,&pending_sql,[user_id.into()])).await.map_err(Error::internal)? else{return Ok(false)};
                 if pending_row.try_get::<String>("","encrypted_secret").map_err(Error::internal)?!=encrypted{return Ok(false)}
+                if backend == DbBackend::Sqlite && pending_row.try_get::<DateTime<Utc>>("","expires_at").map_err(Error::internal)? <= Utc::now() { return Ok(false); }
+                let step = if backend == DbBackend::Sqlite { matching_step(&seed,&code,unix_step()?).ok_or(Error::Unauthorized)? } else { step };
                 let factors=db.quoted_table_name("auth_mfa_factors")?;
-                let insert=match backend { DbBackend::Postgres=>format!("INSERT INTO {factors} (user_id, encrypted_secret, last_used_step, enabled_at) VALUES ($1,$2,$3,CURRENT_TIMESTAMP)"), DbBackend::MySql=>format!("INSERT INTO {factors} (user_id, encrypted_secret, last_used_step, enabled_at) VALUES (?,?,?,CURRENT_TIMESTAMP(6))"), _=>return Err(unsupported_backend()) };
-                transaction.execute_raw(Statement::from_sql_and_values(backend,&insert,[user_id.into(),encrypted.into(),<i64 as std::convert::TryFrom<u64>>::try_from(step).map_err(Error::internal)?.into()])).await.map_err(Error::internal)?;
+                let insert=match backend { DbBackend::Postgres=>format!("INSERT INTO {factors} (user_id, encrypted_secret, last_used_step, enabled_at) VALUES ($1,$2,$3,CURRENT_TIMESTAMP)"), DbBackend::MySql=>format!("INSERT INTO {factors} (user_id, encrypted_secret, last_used_step, enabled_at) VALUES (?,?,?,CURRENT_TIMESTAMP(6))"), DbBackend::Sqlite=>format!("INSERT INTO {factors} (user_id,encrypted_secret,last_used_step,enabled_at) VALUES (?,?,?,?)"), _=>return Err(unsupported_backend()) };
+                let mut values=vec![user_id.into(),encrypted.into(),<i64 as std::convert::TryFrom<u64>>::try_from(step).map_err(Error::internal)?.into()];
+                if backend == DbBackend::Sqlite { values.push(dialect::utc_value(backend,Utc::now())); }
+                transaction.execute_raw(Statement::from_sql_and_values(backend,&insert,values)).await.map_err(Error::internal)?;
                 insert_recovery_hashes(transaction,&db,user_id,&hashes).await?;
                 transaction.execute_raw(Statement::from_sql_and_values(backend,format!("DELETE FROM {pending} WHERE user_id = {}",placeholder(backend,1)),[user_id.into()])).await.map_err(Error::internal)?;
                 record_mfa_audit(&audit,transaction,user_id,"auth.mfa.enabled").await?;
@@ -677,6 +732,36 @@ impl MfaService {
         let connection = self.db.connection()?;
         let backend = connection.get_database_backend();
         let table = self.db.quoted_table_name("auth_mfa_enrollments")?;
+        if backend == DbBackend::Sqlite {
+            return self
+                .db
+                .transaction_for_update(|transaction| {
+                    Box::pin(async move {
+                        let now = Utc::now();
+                        let sql = format!(
+                            "SELECT encrypted_secret,expires_at FROM {table} WHERE user_id=?"
+                        );
+                        let row = transaction
+                            .query_one_raw(Statement::from_sql_and_values(
+                                DbBackend::Sqlite,
+                                sql,
+                                [user_id.into()],
+                            ))
+                            .await
+                            .map_err(Error::internal)?
+                            .ok_or(Error::Unauthorized)?;
+                        if row
+                            .try_get::<DateTime<Utc>>("", "expires_at")
+                            .map_err(Error::internal)?
+                            <= now
+                        {
+                            return Err(Error::Unauthorized);
+                        }
+                        row.try_get("", "encrypted_secret").map_err(Error::internal)
+                    })
+                })
+                .await;
+        }
         let sql = match backend {
             DbBackend::Postgres => format!(
                 "SELECT encrypted_secret FROM {table} WHERE user_id = $1 AND expires_at > CURRENT_TIMESTAMP"
@@ -784,6 +869,39 @@ impl crate::core::ServiceProvider for MfaServiceProvider {
     }
 }
 
+async fn record_failed_challenge(
+    transaction: &DatabaseTransaction,
+    table: &str,
+    token_hash: &str,
+    attempts: i32,
+) -> Result<()> {
+    let backend = transaction.get_database_backend();
+    let next = attempts.saturating_add(1);
+    let (sql, values) = if next >= MAX_CHALLENGE_ATTEMPTS.cast_signed() {
+        (
+            format!(
+                "DELETE FROM {table} WHERE token_hash = {}",
+                placeholder(backend, 1)
+            ),
+            vec![token_hash.into()],
+        )
+    } else {
+        (
+            format!(
+                "UPDATE {table} SET attempts = {} WHERE token_hash = {}",
+                placeholder(backend, 1),
+                placeholder(backend, 2)
+            ),
+            vec![next.into(), token_hash.into()],
+        )
+    };
+    transaction
+        .execute_raw(Statement::from_sql_and_values(backend, sql, values))
+        .await
+        .map_err(Error::internal)?;
+    Ok(())
+}
+
 fn digest(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
 }
@@ -861,7 +979,7 @@ fn migration_table(logical: &str, backend: DbBackend) -> std::result::Result<Ali
 fn unsupported_backend() -> Error {
     Error::custom(
         "unsupported_auth_database",
-        "multi-factor authentication requires PostgreSQL or MySQL",
+        "multi-factor authentication requires PostgreSQL, MySQL or SQLite",
     )
 }
 async fn insert_recovery_hashes(
@@ -879,6 +997,9 @@ async fn insert_recovery_hashes(
         DbBackend::MySql => format!(
             "INSERT INTO {table} (user_id, code_hash, created_at) VALUES (?,?,CURRENT_TIMESTAMP(6))"
         ),
+        DbBackend::Sqlite => {
+            format!("INSERT INTO {table} (user_id,code_hash,created_at) VALUES (?,?,?)")
+        }
         _ => return Err(unsupported_backend()),
     };
     for hash in hashes {
@@ -886,7 +1007,15 @@ async fn insert_recovery_hashes(
             .execute_raw(Statement::from_sql_and_values(
                 backend,
                 &sql,
-                [user_id.into(), hash.clone().into()],
+                if backend == DbBackend::Sqlite {
+                    vec![
+                        user_id.into(),
+                        hash.clone().into(),
+                        dialect::utc_value(backend, Utc::now()),
+                    ]
+                } else {
+                    vec![user_id.into(), hash.clone().into()]
+                },
             ))
             .await
             .map_err(Error::internal)?;
@@ -925,24 +1054,36 @@ async fn insert_challenge(
         DbBackend::MySql => format!(
             "INSERT INTO {table} (token_hash,user_id,source_hash,attempts,expires_at,created_at) VALUES (?,?,?,0,?,CURRENT_TIMESTAMP(6))"
         ),
+        DbBackend::Sqlite => format!(
+            "INSERT INTO {table} (token_hash,user_id,source_hash,attempts,expires_at,created_at) VALUES (?,?,?,0,?,?)"
+        ),
         _ => return Err(unsupported_backend()),
     };
     transaction
         .execute_raw(Statement::from_sql_and_values(
             backend,
             &sql,
-            [
-                token_hash.into(),
-                user_id.into(),
-                source_hash.into(),
-                expires_at.naive_utc().into(),
-            ],
+            if backend == DbBackend::Sqlite {
+                vec![
+                    token_hash.into(),
+                    user_id.into(),
+                    source_hash.into(),
+                    dialect::utc_value(backend, expires_at),
+                    dialect::utc_value(backend, Utc::now()),
+                ]
+            } else {
+                vec![
+                    token_hash.into(),
+                    user_id.into(),
+                    source_hash.into(),
+                    expires_at.naive_utc().into(),
+                ]
+            },
         ))
         .await
         .map_err(Error::internal)?;
     Ok(())
 }
-
 #[derive(DeriveIden)]
 #[allow(dead_code)]
 enum MfaEnrollments {
@@ -1257,3 +1398,6 @@ mod provider_tests {
         assert!(migration.start(figment::Figment::new()).await.is_err());
     }
 }
+
+#[cfg(all(test, feature = "db-sqlite"))]
+mod sqlite_tests;

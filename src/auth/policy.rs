@@ -31,6 +31,47 @@ impl Policy {
         validate_name(name, "role")?;
         let connection = self.connection()?;
         let backend = connection.get_database_backend();
+        if backend == DbBackend::Sqlite {
+            let db = self.db.clone();
+            let name = name.trim().to_owned();
+            return self
+                .db
+                .transaction_for_update(move |transaction| {
+                    Box::pin(async move {
+                        let insert = crate::auth::resolve_auth_sql(
+                            &db,
+                            "INSERT INTO tb_roles (name) VALUES (?) ON CONFLICT (name) DO NOTHING",
+                        )?;
+                        transaction
+                            .execute_raw(Statement::from_sql_and_values(
+                                DbBackend::Sqlite,
+                                insert,
+                                [name.clone().into()],
+                            ))
+                            .await
+                            .map_err(Error::internal)?;
+                        let select = crate::auth::resolve_auth_sql(
+                            &db,
+                            "SELECT id FROM tb_roles WHERE name=?",
+                        )?;
+                        let row = transaction
+                            .query_one_raw(Statement::from_sql_and_values(
+                                DbBackend::Sqlite,
+                                select,
+                                [name.into()],
+                            ))
+                            .await
+                            .map_err(Error::internal)?
+                            .ok_or_else(|| {
+                                Error::internal(std::io::Error::other(
+                                    "role insert was not visible",
+                                ))
+                            })?;
+                        row.try_get::<i64>("", "id").map_err(Error::internal)
+                    })
+                })
+                .await;
+        }
         let insert = match backend {
             DbBackend::Postgres => {
                 "INSERT INTO tb_roles (name) VALUES ($1) ON CONFLICT (name) DO NOTHING"
@@ -50,7 +91,7 @@ impl Policy {
             .map_err(Error::internal)?;
         let select = match backend {
             DbBackend::Postgres => "SELECT id FROM tb_roles WHERE name = $1",
-            DbBackend::MySql => "SELECT id FROM tb_roles WHERE name = ?",
+            DbBackend::MySql | DbBackend::Sqlite => "SELECT id FROM tb_roles WHERE name = ?",
             _ => return Err(unsupported_backend()),
         };
         let row = connection
@@ -77,6 +118,9 @@ impl Policy {
             DbBackend::MySql => {
                 "INSERT INTO tb_user_roles (user_id, role_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE role_id = VALUES(role_id)"
             }
+            DbBackend::Sqlite => {
+                "INSERT INTO tb_user_roles (user_id, role_id) VALUES (?, ?) ON CONFLICT (user_id, role_id) DO NOTHING"
+            }
             _ => return Err(unsupported_backend()),
         };
         connection
@@ -97,7 +141,9 @@ impl Policy {
         let backend = connection.get_database_backend();
         let sql = match backend {
             DbBackend::Postgres => "DELETE FROM tb_user_roles WHERE user_id = $1 AND role_id = $2",
-            DbBackend::MySql => "DELETE FROM tb_user_roles WHERE user_id = ? AND role_id = ?",
+            DbBackend::MySql | DbBackend::Sqlite => {
+                "DELETE FROM tb_user_roles WHERE user_id = ? AND role_id = ?"
+            }
             _ => return Err(unsupported_backend()),
         };
         connection
@@ -120,7 +166,7 @@ impl Policy {
         let db = self.db.clone();
         let permission = permission.trim().to_owned();
         self.db
-            .transaction(move |transaction| {
+            .transaction_for_update(move |transaction| {
                 let db = db.clone();
                 let permission = permission.clone();
                 Box::pin(async move {
@@ -156,7 +202,7 @@ impl Policy {
             DbBackend::Postgres => {
                 "DELETE FROM tb_role_permissions WHERE role_id = $1 AND permission_id = (SELECT id FROM tb_permissions WHERE name = $2)"
             }
-            DbBackend::MySql => {
+            DbBackend::MySql | DbBackend::Sqlite => {
                 "DELETE FROM tb_role_permissions WHERE role_id = ? AND permission_id = (SELECT id FROM tb_permissions WHERE name = ?)"
             }
             _ => return Err(unsupported_backend()),
@@ -189,7 +235,7 @@ impl Policy {
             DbBackend::Postgres => {
                 "SELECT 1 FROM tb_user_roles ur INNER JOIN tb_role_permissions rp ON rp.role_id = ur.role_id INNER JOIN tb_permissions p ON p.id = rp.permission_id WHERE ur.user_id = $1 AND p.name = $2 LIMIT 1"
             }
-            DbBackend::MySql => {
+            DbBackend::MySql | DbBackend::Sqlite => {
                 "SELECT 1 FROM tb_user_roles ur INNER JOIN tb_role_permissions rp ON rp.role_id = ur.role_id INNER JOIN tb_permissions p ON p.id = rp.permission_id WHERE ur.user_id = ? AND p.name = ? LIMIT 1"
             }
             _ => return Err(unsupported_backend()),
@@ -254,6 +300,9 @@ async fn grant_permission_in_transaction(
         DbBackend::MySql => {
             "INSERT INTO tb_permissions (name) VALUES (?) ON DUPLICATE KEY UPDATE name = VALUES(name)"
         }
+        DbBackend::Sqlite => {
+            "INSERT INTO tb_permissions (name) VALUES (?) ON CONFLICT (name) DO NOTHING"
+        }
         _ => return Err(unsupported_backend()),
     };
     transaction
@@ -266,7 +315,7 @@ async fn grant_permission_in_transaction(
         .map_err(Error::internal)?;
     let select = match backend {
         DbBackend::Postgres => "SELECT id FROM tb_permissions WHERE name = $1",
-        DbBackend::MySql => "SELECT id FROM tb_permissions WHERE name = ?",
+        DbBackend::MySql | DbBackend::Sqlite => "SELECT id FROM tb_permissions WHERE name = ?",
         _ => return Err(unsupported_backend()),
     };
     let row = transaction
@@ -288,6 +337,9 @@ async fn grant_permission_in_transaction(
         DbBackend::MySql => {
             "INSERT INTO tb_role_permissions (role_id, permission_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE permission_id = VALUES(permission_id)"
         }
+        DbBackend::Sqlite => {
+            "INSERT INTO tb_role_permissions (role_id, permission_id) VALUES (?, ?) ON CONFLICT (role_id, permission_id) DO NOTHING"
+        }
         _ => return Err(unsupported_backend()),
     };
     transaction
@@ -304,6 +356,6 @@ async fn grant_permission_in_transaction(
 fn unsupported_backend() -> Error {
     Error::custom(
         "unsupported_auth_database",
-        "authorization requires PostgreSQL or MySQL",
+        "authorization requires PostgreSQL, MySQL or SQLite",
     )
 }

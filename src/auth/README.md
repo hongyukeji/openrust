@@ -4,17 +4,27 @@
 
 `JwtServiceProvider` 与 `AuthServiceProvider` 提供统一容器注册入口。JWT 密钥及认证依赖在启动时校验。
 
-认证配置定义于 `openrust::config::auth`，并从 `openrust::auth` 重新导出以保持兼容。运行时 TOML 放在应用根目录的 `config/`；签名密钥可通过受保护的 `.env` 或进程环境变量提供，进程环境变量优先。不要将密钥材料写入受版本控制的配置文件；生产使用 `.env` 时应限制文件权限，并确保应用根目录不作为静态公开目录。
+认证配置定义于 `openrust::config::auth`，并从 `openrust::auth` 重新导出。可编辑默认值位于应用根 `config/auth.rs` 与 `config/session.rs`；TOML仅作为显式可选source；签名密钥可通过受保护的 `.env` 或进程环境变量提供，进程环境变量优先。不要将密钥材料写入受版本控制的配置文件；生产使用 `.env` 时应限制文件权限，并确保应用根目录不作为静态公开目录。
 
 OpenRust 的认证与授权能力。
 
+## SQLite 本地认证边界
+
+`SQLite` 使用同一 `Db`、标准Provider和迁移清单承载本地注册、邮箱验证码、密码登录/重置、普通Session、PAT、refresh、现有角色权限及MFA增强。固定最低版本仍为3.26，不依赖`RETURNING`或JSON1。新应用可使用`openrust new blog --db sqlite --auth --auth-mfa --encryption`；生成认证测试使用自有文件库，不依赖服务器数据库凭据。验收事实以[测试记录](../../.agents/project/memory/testing.md)为准。
+
+`SQLite` 没有行级 `FOR UPDATE`。这些安全操作在首次读取前取得同一连接的`BEGIN IMMEDIATE`写所有权，普通`Db::transaction`默认行为不变；不自动重放认证回调或外部副作用。UTC期限按Chrono精确比较，SQLite绑定为UTC六位微秒文本；不以秒/毫秒舍入延长授权。验证码散列验证在短条件写事务外；最终消费仍检查同一挑战、次数及期限。回收按主键分页面读取，每页最多512行、每轮最多删除512行；大量未来项仍可能使本轮跨页扫描并持有SQLite写锁，不承诺总扫描量为512。数据库固定窗口限流属于现有通用增强，不等同完整 Laravel Cache `RateLimiter` 实现。
+
+MFA的数据库限流在SQLite写事务前完成，避免另池连接等待同一文件写锁。密码通过后的MFA状态在写锁内再次核对，竞态变化返回`auth_mfa_state_changed`，应重新开始登录；不会重复消费前置配额或悄悄降为单因素。其他后端保留原计数时点。因子、一次性恢复码、refresh撤销和成功审计共用同一事务。
+
+编译OIDC不会阻止本地MFA，但查到真实外部身份关联时SQLite明确返回`unsupported_oidc_database`，不将外部挑战转作本地身份。完整named guard/UserProvider/Gate、remember-me、Guard.id元数据与OIDC仍是开放项；已有JWT/PAT/refresh/MFA流程不能单凭名称视作这些上游能力全部对应。SQLite单文件仅用于单机多进程，不扩展为共享文件的多机集群保证。自定义事务监听器若另取连接写同一SQLite文件，仍可能自锁，应使用提供的同一事务。
+
 ## 当前能力
 
-数据库 Session 默认遵循 Laravel 原生 `database` 语义；普通登录复用同一 Session 内核。OIDC 远程/后通道注销和浏览器实时授权截止要求持续服务器撤销，须显式配置 `database-guarded` 并登记 `GuardedSessionMigration`、`GuardedSessionGcMigration`，或使用提供相同保证的 Memory/Redis driver。原生 `NativeDatabase` 不冒充这种保证，相关强接口返回 `session_store_guarantee_unsupported`。SQLite Session 的独立适配不表示 Auth/MFA/OIDC 的数据库 SQL 已适配 SQLite；见 [Session 驱动边界](../session/README.md#原生-database-与显式增强)。
+数据库 Session 默认遵循 Laravel 原生 `database` 语义；普通登录复用同一 Session 内核。OIDC 远程/后通道注销和浏览器实时授权截止要求持续服务器撤销，须显式配置 `database-guarded` 并登记 `GuardedSessionMigration`、`GuardedSessionGcMigration`，或使用提供相同保证的 Memory/Redis driver。原生 `NativeDatabase` 不冒充这种保证，相关强接口返回 `session_store_guarantee_unsupported`。SQLite本地认证与MFA复用同一数据库机制，OIDC数据库路径仍未支持；见 [Session 驱动边界](../session/README.md#原生-database-与显式增强)。
 
-- `AuthServiceProvider::new()` 会注册数据库认证器和共享 refresh token 服务。该 Provider 依赖 `DatabaseServiceProvider`、PostgreSQL 或 MySQL，以及 `AuthMigration` 创建的表；使用 refresh token 时还需要 `AuthRefreshTokenMigration`。
+- `AuthServiceProvider::new()` 会注册数据库认证器和共享 refresh token 服务。该 Provider 依赖 `DatabaseServiceProvider`、PostgreSQL/MySQL/SQLite，以及 `AuthMigration` 创建的表；使用 refresh token 时还需要 `AuthRefreshTokenMigration`。
 - 启用 MFA 时，普通应用启动在 Provider boot 阶段检查 MFA 与审计表，缺表即失败。框架自带 `migrate` 控制台命令可先在空库运行官方迁移；仅实际派发到该命令时延后 MFA 的表预查，其他命令、HTTP 启动和测试应用仍严格校验。迁移的 up/down/状态及参数错误保持原有语义。
-- `SessionServiceProvider::new()` 安装唯一的通用 Session middleware，默认使用应用现有 `Db` 的 PostgreSQL/MySQL store；先装配 `DatabaseServiceProvider`。认证与业务通过 `openrust::session::Session` 共享同一请求句柄及 store，不再安装第二套 Session。自定义 store 实现公开 `openrust::session::SessionStore`，通过 `SessionServiceProvider::with_store` 安装；`driver = "array"` 或显式内存 store 才使用进程内存储，数据库故障不会静默降级。`SessionConfig.cookie` 可指定名称，未指定时从最终 `app.name` 推导；`path`、`domain`、`secure`、`http_only`、`same_site`、`lifetime`、`expire_on_close`、`partitioned` 和 `max_bytes` 均来自最终 `session` 配置。`with_cookie_config` 在自身 boot 阶段覆盖文件和环境来源；更晚 Provider 的显式 overlay 仍按顺序生效。安装 `CookieServiceProvider` 后，Session 读取解密后的 Cookie 视图，`RequestInfo` 仍保留原始 wire 头，认证层继续拒绝原始重复凭据。自定义 Provider 的额外装配边界和完整 API 见 [Session 使用指南](../session/README.md)。
+- `SessionServiceProvider::new()` 安装唯一的通用 Session middleware，默认使用应用现有 `Db` 的原生数据库store；先装配 `DatabaseServiceProvider`。认证与业务通过 `openrust::session::Session` 共享同一请求句柄及 store，不再安装第二套 Session。自定义 store 实现公开 `openrust::session::SessionStore`，通过 `SessionServiceProvider::with_store` 安装；`driver = "array"` 或显式内存 store 才使用进程内存储，数据库故障不会静默降级。`SessionConfig.cookie` 可指定名称，未指定时从最终 `app.name` 推导；`path`、`domain`、`secure`、`http_only`、`same_site`、`lifetime`、`expire_on_close`、`partitioned` 和 `max_bytes` 均来自最终 `session` 配置。`with_cookie_config` 在自身 boot 阶段覆盖文件和环境来源；更晚 Provider 的显式 overlay 仍按顺序生效。安装 `CookieServiceProvider` 后，Session 读取解密后的 Cookie 视图，`RequestInfo` 仍保留原始 wire 头，认证层继续拒绝原始重复凭据。自定义 Provider 的额外装配边界和完整 API 见 [Session 使用指南](../session/README.md)。
 - 需要 Redis 共享 Session 时，为 `openrust` 启用 `session-redis` feature，并使用 `RedisSessionStore::connect(redis_url, namespace)` 后传入 `SessionServiceProvider::with_store`。数据库 store 仍是默认路径；Redis 连接失败或操作失败会返回错误。所有共享应用副本必须使用同一 namespace，不同应用应使用不同 namespace。
 - 如果 `DatabaseServiceProvider` 已先注册 `Db`，`AuthServiceProvider` 会注册 `RefreshTokens`。它生成高熵不透明凭据，只持久化 SHA-256 摘要，以原子方式轮换，在检测到重放时撤销整个 token family，并支持按账户整体撤销。调用方提供 family 的初始过期时间；轮换不会延长该时间。
 - `openrust new --db postgres|mysql --auth` 会生成 JWT/Auth/AuthFlows Provider、认证迁移、JWT 保护的 `/api/me`、数据库支持的 PAT 保护 `/api/me/pat`，以及注册、邮箱验证、登录、刷新、登出、密码重置路由和 `[auth.jwt]` 配置。签名密钥必须通过 `APP_AUTH_JWT_KEYS_LOCAL` 提供，不能写入生成的配置。

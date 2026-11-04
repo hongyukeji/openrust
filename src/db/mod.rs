@@ -395,8 +395,32 @@ impl Db {
         T: Send,
         F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
     {
+        self.transaction_impl(callback, false).await
+    }
+
+    /// 为依赖读取后写入的认证安全操作取得同一数据库事务所有权。
+    /// SQLite在首次读取前取得写锁；其他后端保留行锁SQL和原事务行为。
+    #[cfg(feature = "auth")]
+    pub(crate) async fn transaction_for_update<T, F>(&self, callback: F) -> Result<T>
+    where
+        T: Send,
+        F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
+    {
+        self.transaction_impl(callback, true).await
+    }
+
+    async fn transaction_impl<T, F>(&self, callback: F, for_update: bool) -> Result<T>
+    where
+        T: Send,
+        F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
+    {
         let events = self.events.get().cloned();
-        let transaction = self.connection()?.begin().await.map_err(Error::internal)?;
+        let connection = self.connection()?;
+        let transaction = if for_update {
+            begin_for_update(&connection).await?
+        } else {
+            connection.begin().await.map_err(Error::internal)?
+        };
         let value = match callback(&transaction).await {
             Ok(value) => value,
             Err(error) => {
@@ -422,6 +446,23 @@ impl Db {
             );
         }
         Ok(value)
+    }
+}
+
+/// SQLite用同一连接的写事务替代安全操作所需的行级排他，不改变普通事务默认。
+pub(crate) async fn begin_for_update(
+    connection: &DatabaseConnection,
+) -> Result<DatabaseTransaction> {
+    if connection.get_database_backend() == DbBackend::Sqlite {
+        connection
+            .begin_with_options(sea_orm::TransactionOptions {
+                sqlite_transaction_mode: Some(sea_orm::SqliteTransactionMode::Immediate),
+                ..Default::default()
+            })
+            .await
+            .map_err(Error::internal)
+    } else {
+        connection.begin().await.map_err(Error::internal)
     }
 }
 

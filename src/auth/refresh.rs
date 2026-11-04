@@ -46,7 +46,7 @@ impl RefreshTokens {
         self.connection()?;
         let db = self.db.clone();
         self.db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let db = db.clone();
                 let token = token.clone();
                 let family_id = family_id.clone();
@@ -94,7 +94,7 @@ impl RefreshTokens {
         let db = self.db.clone();
         let decision = self
             .db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let db = db.clone();
                 Box::pin(async move {
                     rotate_in_transaction(transaction, &db, &token_hash, &next_hash).await
@@ -120,13 +120,13 @@ impl RefreshTokens {
         let token_hash = sha256_hex(token);
         let db = self.db.clone();
         self.db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let db = db.clone();
                 Box::pin(async move {
                     let backend = transaction.get_database_backend();
                     let sql = match backend {
                         DbBackend::Postgres => "SELECT user_id, family_id FROM tb_auth_refresh_tokens WHERE token_hash = $1",
-                        DbBackend::MySql => "SELECT user_id, family_id FROM tb_auth_refresh_tokens WHERE token_hash = ?",
+                        DbBackend::MySql | DbBackend::Sqlite => "SELECT user_id, family_id FROM tb_auth_refresh_tokens WHERE token_hash = ?",
                         _ => return Err(unsupported_backend()),
                     };
                     let sql = crate::auth::resolve_auth_sql(&db, sql)?;
@@ -158,7 +158,7 @@ impl RefreshTokens {
         }
         let db = self.db.clone();
         self.db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 Box::pin(async move {
                     revoke_all_for_user_in_transaction(transaction, &db, user_id).await
                 })
@@ -166,34 +166,34 @@ impl RefreshTokens {
             .await
     }
 
-    pub(crate) async fn user_id_for_token(&self, token: &str) -> Result<i64> {
+    // 这里只取签名候选的账户，不提前过滤已消费/过期状态；
+    // rotate的同一事务必须观察重放并提交家族撤销，不能被前置查询短路。
+    pub(crate) async fn owner_id_for_rotation(&self, token: &str) -> Result<i64> {
         let connection = self.connection()?;
         let backend = connection.get_database_backend();
         let sql = match backend {
-            DbBackend::Postgres => {
-                "SELECT user_id FROM tb_auth_refresh_tokens WHERE token_hash = $1 AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP"
-            }
-            DbBackend::MySql => {
-                "SELECT user_id FROM tb_auth_refresh_tokens WHERE token_hash = ? AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP(6)"
+            DbBackend::Postgres => "SELECT user_id FROM tb_auth_refresh_tokens WHERE token_hash=$1",
+            DbBackend::MySql | DbBackend::Sqlite => {
+                "SELECT user_id FROM tb_auth_refresh_tokens WHERE token_hash=?"
             }
             _ => return Err(unsupported_backend()),
         };
         let row = connection
             .query_one_raw(Statement::from_sql_and_values(
                 backend,
-                &crate::auth::resolve_auth_sql(&self.db, sql)?,
+                crate::auth::resolve_auth_sql(&self.db, sql)?,
                 [sha256_hex(token).into()],
             ))
             .await
             .map_err(Error::internal)?
             .ok_or(Error::Unauthorized)?;
-        row.try_get::<i64>("", "user_id").map_err(Error::internal)
+        row.try_get("", "user_id").map_err(Error::internal)
     }
 
     fn connection(&self) -> Result<DatabaseConnection> {
         let connection = self.db.connection()?;
         match connection.get_database_backend() {
-            DbBackend::Postgres | DbBackend::MySql => Ok(connection),
+            DbBackend::Postgres | DbBackend::MySql | DbBackend::Sqlite => Ok(connection),
             _ => Err(unsupported_backend()),
         }
     }
@@ -234,6 +234,24 @@ pub(crate) async fn revoke_all_for_user_in_transaction(
     }
     lock_user(transaction, db, user_id).await?;
     let backend = transaction.get_database_backend();
+    if backend == DbBackend::Sqlite {
+        let sql = crate::auth::resolve_auth_sql(
+            db,
+            "UPDATE tb_auth_refresh_tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
+        )?;
+        let result = transaction
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                sql,
+                [
+                    crate::db::dialect::utc_value(backend, Utc::now()),
+                    user_id.into(),
+                ],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        return Ok(result.rows_affected());
+    }
     let sql = match backend {
         DbBackend::Postgres => {
             "UPDATE tb_auth_refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL"
@@ -332,6 +350,9 @@ async fn rotate_in_transaction(
     next_hash: &str,
 ) -> Result<RotationDecision> {
     let backend = transaction.get_database_backend();
+    if backend == DbBackend::Sqlite {
+        return rotate_sqlite(transaction, db, token_hash, next_hash).await;
+    }
     let owner_sql = match backend {
         DbBackend::Postgres => "SELECT user_id FROM tb_auth_refresh_tokens WHERE token_hash = $1",
         DbBackend::MySql => "SELECT user_id FROM tb_auth_refresh_tokens WHERE token_hash = ?",
@@ -447,11 +468,82 @@ async fn rotate_in_transaction(
     })
 }
 
+// 首次 owner 读取前已经持有 Immediate 写事务；精确时间在取得写所有权后采样。
+async fn rotate_sqlite(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    token_hash: &str,
+    next_hash: &str,
+) -> Result<RotationDecision> {
+    let now = Utc::now();
+    let sql = crate::auth::resolve_auth_sql(
+        db,
+        "SELECT user_id,family_id,expires_at,consumed_at,revoked_at FROM tb_auth_refresh_tokens WHERE token_hash=?",
+    )?;
+    let Some(row) = transaction
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            sql,
+            [token_hash.into()],
+        ))
+        .await
+        .map_err(Error::internal)?
+    else {
+        return Ok(RotationDecision::Rejected);
+    };
+    let user_id = row.try_get::<i64>("", "user_id").map_err(Error::internal)?;
+    lock_user(transaction, db, user_id).await?;
+    let family = row
+        .try_get::<String>("", "family_id")
+        .map_err(Error::internal)?;
+    let expiry = row
+        .try_get::<DateTime<Utc>>("", "expires_at")
+        .map_err(Error::internal)?;
+    let consumed = row
+        .try_get::<Option<DateTime<Utc>>>("", "consumed_at")
+        .map_err(Error::internal)?;
+    let revoked = row
+        .try_get::<Option<DateTime<Utc>>>("", "revoked_at")
+        .map_err(Error::internal)?;
+    if consumed.is_some() || revoked.is_some() || expiry <= now {
+        revoke_family_in_transaction(transaction, db, DbBackend::Sqlite, &family).await?;
+        return Ok(RotationDecision::Rejected);
+    }
+    // expiry 条件由同一写事务内的 Chrono 比较兑现，不混比外部 RFC3339/空格文本。
+    let sql = crate::auth::resolve_auth_sql(
+        db,
+        "UPDATE tb_auth_refresh_tokens SET consumed_at=?,replaced_by_hash=? WHERE token_hash=? AND consumed_at IS NULL AND revoked_at IS NULL",
+    )?;
+    let updated = transaction
+        .execute_raw(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            sql,
+            [
+                crate::db::dialect::utc_value(DbBackend::Sqlite, now),
+                next_hash.into(),
+                token_hash.into(),
+            ],
+        ))
+        .await
+        .map_err(Error::internal)?;
+    if updated.rows_affected() != 1 {
+        revoke_family_in_transaction(transaction, db, DbBackend::Sqlite, &family).await?;
+        return Ok(RotationDecision::Rejected);
+    }
+    insert_token(transaction, db, user_id, &family, next_hash, expiry).await?;
+    Ok(RotationDecision::Rotated {
+        user_id,
+        expires_at: expiry,
+    })
+}
+
 async fn lock_user(transaction: &DatabaseTransaction, db: &Db, user_id: i64) -> Result<()> {
     let backend = transaction.get_database_backend();
     let sql = match backend {
         DbBackend::Postgres => "SELECT id FROM tb_users WHERE id = $1 FOR UPDATE",
         DbBackend::MySql => "SELECT id FROM tb_users WHERE id = ? FOR UPDATE",
+        // SQLite 调用方须已由 transaction_for_update 在首次读取前取得写所有权。
+        DbBackend::Sqlite => "SELECT id FROM tb_users WHERE id = ?",
         _ => return Err(unsupported_backend()),
     };
     let sql = crate::auth::resolve_auth_sql(db, sql)?;
@@ -476,6 +568,27 @@ async fn insert_token(
     expires_at: DateTime<Utc>,
 ) -> Result<()> {
     let backend = transaction.get_database_backend();
+    if backend == DbBackend::Sqlite {
+        let sql = crate::auth::resolve_auth_sql(
+            db,
+            "INSERT INTO tb_auth_refresh_tokens (user_id,family_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)",
+        )?;
+        transaction
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                sql,
+                [
+                    user_id.into(),
+                    family_id.into(),
+                    token_hash.into(),
+                    crate::db::dialect::utc_value(backend, expires_at),
+                    crate::db::dialect::utc_value(backend, Utc::now()),
+                ],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        return Ok(());
+    }
     let sql = match backend {
         DbBackend::Postgres => {
             "INSERT INTO tb_auth_refresh_tokens (user_id, family_id, token_hash, expires_at, created_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)"
@@ -512,7 +625,7 @@ pub(crate) async fn revoke_family_in_transaction(
         DbBackend::Postgres => {
             "SELECT user_id FROM tb_auth_refresh_tokens WHERE family_id = $1 LIMIT 1"
         }
-        DbBackend::MySql => {
+        DbBackend::MySql | DbBackend::Sqlite => {
             "SELECT user_id FROM tb_auth_refresh_tokens WHERE family_id = ? LIMIT 1"
         }
         _ => return Err(unsupported_backend()),
@@ -535,6 +648,24 @@ pub(crate) async fn revoke_family_in_transaction(
     // Rotation locks the account row before inserting its successor. Share that
     // serialization point so this family update cannot miss a concurrent insert.
     lock_user(transaction, db, owner_id).await?;
+    if backend == DbBackend::Sqlite {
+        let sql = crate::auth::resolve_auth_sql(
+            db,
+            "UPDATE tb_auth_refresh_tokens SET revoked_at=? WHERE family_id=? AND revoked_at IS NULL",
+        )?;
+        transaction
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                sql,
+                [
+                    crate::db::dialect::utc_value(backend, Utc::now()),
+                    family_id.into(),
+                ],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        return Ok(());
+    }
     let sql = match backend {
         DbBackend::Postgres => {
             "UPDATE tb_auth_refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE family_id = $1 AND revoked_at IS NULL"
@@ -585,6 +716,138 @@ fn hex(bytes: &[u8]) -> String {
 fn unsupported_backend() -> Error {
     Error::custom(
         "unsupported_auth_database",
-        "refresh tokens require PostgreSQL or MySQL",
+        "refresh tokens require PostgreSQL, MySQL or SQLite",
     )
+}
+
+#[cfg(all(test, feature = "db-sqlite"))]
+mod sqlite_tests {
+    use super::*;
+    use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use crate::{core::BoxFuture, testing::TestDatabase};
+
+    struct RefreshMigrator;
+    impl MigratorTrait for RefreshMigrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![
+                Box::new(crate::auth::AuthMigration),
+                Box::new(crate::auth::AuthRefreshTokenMigration),
+            ]
+        }
+    }
+    fn check(condition: bool, message: &'static str) -> Result<()> {
+        if condition {
+            Ok(())
+        } else {
+            Err(Error::custom("sqlite_refresh_contract_failed", message))
+        }
+    }
+    async fn owned<F>(callback: F) -> Result<()>
+    where
+        F: for<'a> FnOnce(&'a Db, i64) -> BoxFuture<'a, Result<()>>,
+    {
+        let guard = TestDatabase::sqlite_file::<RefreshMigrator>().await?;
+        let db = Db::default();
+        let outcome = async {
+            db.initialize(guard.connection()?)?;
+            let table = db.quoted_table_name("users")?;
+            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            let inserted = db.connection()?.execute_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
+                format!("INSERT INTO {table}(email,password_hash,created_at,updated_at) VALUES (?,?,?,?)"),
+                ["refresh-owned@example.test".into(),"unused-test-hash".into(),now.clone(),now]))
+                .await.map_err(Error::internal)?;
+            callback(&db, i64::try_from(inserted.last_insert_id()).map_err(Error::internal)?).await
+        }.await;
+        drop(db);
+        let cleanup = guard.close().await;
+        outcome?;
+        cleanup
+    }
+
+    #[tokio::test]
+    async fn sqlite_refresh_rotation_is_single_use_and_replay_revokes_family() -> Result<()> {
+        owned(|db, user| {
+            Box::pin(async move {
+                let refresh = RefreshTokens::new(db.clone());
+                let deadline = Utc::now() + chrono::Duration::hours(1);
+                let issued = refresh.issue(user, deadline).await?;
+                let rotated = refresh.rotate(issued.expose()).await?;
+                check(rotated.user_id() == user, "轮换改变账户")?;
+                check(
+                    rotated.expires_at().timestamp_micros() == deadline.timestamp_micros(),
+                    "轮换延长或改变家族微秒截止",
+                )?;
+                check(
+                    refresh.rotate(issued.expose()).await.is_err(),
+                    "已消费原 token 被重复接受",
+                )?;
+                check(
+                    refresh.rotate(rotated.token().expose()).await.is_err(),
+                    "重放后家族后继未撤销",
+                )?;
+                let other = refresh.issue(user, deadline).await?;
+                check(
+                    refresh.revoke_all_for_user(user).await? > 0,
+                    "账户撤销未命中任何记录",
+                )?;
+                check(
+                    refresh.rotate(other.expose()).await.is_err(),
+                    "账户撤销后 token 仍可用",
+                )?;
+                Ok(())
+            })
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn sqlite_refresh_concurrent_rotation_has_one_successor_and_offset_expiry_is_exact()
+    -> Result<()> {
+        owned(|db, user| {
+            Box::pin(async move {
+                let refresh = RefreshTokens::new(db.clone());
+                let issued = refresh
+                    .issue(user, Utc::now() + chrono::Duration::hours(1))
+                    .await?;
+                let (first, second) = tokio::join!(
+                    refresh.rotate(issued.expose()),
+                    refresh.rotate(issued.expose())
+                );
+                check(
+                    usize::from(first.is_ok()) + usize::from(second.is_ok()) == 1,
+                    "并发轮换不止一个成功后继或全部失败",
+                )?;
+                let winner = [first, second]
+                    .into_iter()
+                    .find_map(std::result::Result::ok)
+                    .ok_or(Error::Unauthorized)?;
+                check(
+                    refresh.rotate(winner.token().expose()).await.is_err(),
+                    "并发重放未撤销已产生的家族后继",
+                )?;
+                let expired = refresh
+                    .issue(user, Utc::now() + chrono::Duration::hours(1))
+                    .await?;
+                let zone = chrono::FixedOffset::east_opt(8 * 3600).ok_or(Error::Unauthorized)?;
+                let precise = (Utc::now() - chrono::Duration::microseconds(1))
+                    .with_timezone(&zone)
+                    .to_rfc3339_opts(chrono::SecondsFormat::Micros, false);
+                let table = db.quoted_table_name("auth_refresh_tokens")?;
+                db.connection()?
+                    .execute_raw(Statement::from_sql_and_values(
+                        DbBackend::Sqlite,
+                        format!("UPDATE {table} SET expires_at=? WHERE token_hash=?"),
+                        [precise.into(), sha256_hex(expired.expose()).into()],
+                    ))
+                    .await
+                    .map_err(Error::internal)?;
+                check(
+                    refresh.rotate(expired.expose()).await.is_err(),
+                    "带offset已过微秒截止被词法比较延长",
+                )?;
+                Ok(())
+            })
+        })
+        .await
+    }
 }

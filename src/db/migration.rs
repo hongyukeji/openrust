@@ -2,7 +2,7 @@
 
 mod execution;
 
-#[cfg(feature = "db-sqlite")]
+#[cfg(all(feature = "db-sqlite", feature = "session"))]
 pub(crate) use execution::residency::return_connection as return_sqlite_connection;
 
 #[cfg(feature = "db-sqlite")]

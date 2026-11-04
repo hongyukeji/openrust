@@ -2559,6 +2559,9 @@ pub(crate) async fn lock_external_mfa_challenge(
         DbBackend::MySql => format!(
             "SELECT id_hash, user_id, revoked_at FROM {table} WHERE challenge_hash = ? FOR UPDATE"
         ),
+        DbBackend::Sqlite => {
+            format!("SELECT id_hash, user_id, revoked_at FROM {table} WHERE challenge_hash = ?")
+        }
         _ => return Err(oidc_error()),
     };
     let Some(row) = transaction
@@ -2572,6 +2575,14 @@ pub(crate) async fn lock_external_mfa_challenge(
     else {
         return Ok(None);
     };
+    if backend == DbBackend::Sqlite {
+        // 本地挑战没有外部关联可以继续；真实关联不得因尚未支持SQLite OIDC而被当成本地挑战。
+        return Err(Error::custom_with_status(
+            crate::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "unsupported_oidc_database",
+            "SQLite外部身份关联尚未完成，不能消费为本地MFA挑战",
+        ));
+    }
     let revoked_at: Option<chrono::DateTime<Utc>> =
         row.try_get("", "revoked_at").map_err(Error::internal)?;
     if revoked_at.is_some() {

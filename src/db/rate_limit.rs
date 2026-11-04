@@ -1,4 +1,4 @@
-//! PostgreSQL/MySQL 原子固定窗口限流存储。
+//! PostgreSQL、MySQL与SQLite的原子固定窗口限流存储。
 
 use crate::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, Result};
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
@@ -142,9 +142,10 @@ impl RateLimitStore for DatabaseRateLimitStore {
                     consume_postgres(&connection, &table, &key_hash, window).await
                 }
                 DbBackend::MySql => consume_mysql(&connection, &table, &key_hash, window).await,
+                DbBackend::Sqlite => consume_sqlite(&connection, &table, &key_hash, window).await,
                 _ => Err(crate::core::Error::custom(
                     "unsupported_rate_limit_backend",
-                    "database rate limiting requires PostgreSQL or MySQL",
+                    "database rate limiting requires PostgreSQL, MySQL or SQLite",
                 )),
             }
         })
@@ -158,7 +159,7 @@ async fn consume_postgres(
     window: std::time::Duration,
 ) -> Result<RateLimitBucket> {
     let sql = format!(
-        "INSERT INTO {table} (key_hash, window_started_at, window_seconds, hit_count) VALUES ($1, (FLOOR(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) / CAST($2 AS NUMERIC)) * CAST($2 AS NUMERIC))::BIGINT, CAST($2 AS BIGINT), 1) ON CONFLICT (key_hash) DO UPDATE SET hit_count = CASE WHEN {table}.window_started_at = EXCLUDED.window_started_at AND {table}.window_seconds = EXCLUDED.window_seconds THEN LEAST({table}.hit_count + 1, 9223372036854775807) ELSE 1 END, window_started_at = EXCLUDED.window_started_at, window_seconds = EXCLUDED.window_seconds RETURNING hit_count, GREATEST(1, CEIL(window_started_at + window_seconds - EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)))::BIGINT AS reset_after_secs"
+        "INSERT INTO {table} (key_hash, window_started_at, window_seconds, hit_count) VALUES ($1, (FLOOR(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) / CAST($2 AS NUMERIC)) * CAST($2 AS NUMERIC))::BIGINT, CAST($2 AS BIGINT), 1) ON CONFLICT (key_hash) DO UPDATE SET hit_count = CASE WHEN {table}.window_started_at = EXCLUDED.window_started_at AND {table}.window_seconds = EXCLUDED.window_seconds THEN CASE WHEN {table}.hit_count < 9223372036854775807 THEN {table}.hit_count + 1 ELSE 9223372036854775807 END ELSE 1 END, window_started_at = EXCLUDED.window_started_at, window_seconds = EXCLUDED.window_seconds RETURNING hit_count, GREATEST(1, CEIL(window_started_at + window_seconds - EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)))::BIGINT AS reset_after_secs"
     );
     let row = connection
         .query_one_raw(Statement::from_sql_and_values(
@@ -190,7 +191,7 @@ async fn consume_mysql(
         .map_err(crate::core::Error::internal)?;
     let seconds = to_i64(window.as_secs())?;
     let upsert = format!(
-        "INSERT INTO {table} (key_hash, window_started_at, window_seconds, hit_count) VALUES (?, FLOOR(UNIX_TIMESTAMP(CURRENT_TIMESTAMP) / ?) * ?, ?, 1) ON DUPLICATE KEY UPDATE hit_count = IF(window_started_at = VALUES(window_started_at) AND window_seconds = VALUES(window_seconds), LEAST(hit_count + 1, 9223372036854775807), 1), window_started_at = VALUES(window_started_at), window_seconds = VALUES(window_seconds)"
+        "INSERT INTO {table} (key_hash, window_started_at, window_seconds, hit_count) VALUES (?, FLOOR(UNIX_TIMESTAMP(CURRENT_TIMESTAMP) / ?) * ?, ?, 1) ON DUPLICATE KEY UPDATE hit_count = IF(window_started_at = VALUES(window_started_at) AND window_seconds = VALUES(window_seconds), CASE WHEN hit_count < 9223372036854775807 THEN hit_count + 1 ELSE 9223372036854775807 END, 1), window_started_at = VALUES(window_started_at), window_seconds = VALUES(window_seconds)"
     );
     transaction
         .execute_raw(Statement::from_sql_and_values(
@@ -230,6 +231,53 @@ async fn consume_mysql(
     Ok(RateLimitBucket::new(to_u64(count)?, to_u64(reset_after)?))
 }
 
+async fn consume_sqlite(
+    connection: &DatabaseConnection,
+    table: &str,
+    key_hash: &str,
+    window: std::time::Duration,
+) -> Result<RateLimitBucket> {
+    let seconds = to_i64(window.as_secs())?;
+    if seconds <= 0 {
+        return Err(crate::Error::BadRequest("限流窗口必须至少一秒".into()));
+    }
+    let transaction = super::begin_for_update(connection).await?;
+    let outcome = async {
+        // 在取得写所有权后从同一SQLite引擎采样，整数秒与ceil(窗口截止-now)一致。
+        let row = transaction
+            .query_one_raw(Statement::from_string(DbBackend::Sqlite,
+                "SELECT CAST(strftime('%s','now') AS INTEGER) AS now_seconds"))
+            .await.map_err(crate::Error::internal)?
+            .ok_or_else(|| crate::Error::internal(RateLimitStoreError))?;
+        let now: i64 = row.try_get("", "now_seconds").map_err(crate::Error::internal)?;
+        let started = now - now.rem_euclid(seconds);
+        let end = started.checked_add(seconds).ok_or_else(|| crate::Error::BadRequest("限流窗口超出时间范围".into()))?;
+        transaction.execute_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
+            format!("INSERT INTO {table} (key_hash,window_started_at,window_seconds,hit_count) VALUES (?,?,?,1) ON CONFLICT (key_hash) DO UPDATE SET hit_count=CASE WHEN {table}.window_started_at=excluded.window_started_at AND {table}.window_seconds=excluded.window_seconds THEN CASE WHEN {table}.hit_count<9223372036854775807 THEN {table}.hit_count+1 ELSE 9223372036854775807 END ELSE 1 END,window_started_at=excluded.window_started_at,window_seconds=excluded.window_seconds"),
+            [key_hash.to_owned().into(),started.into(),seconds.into()]))
+            .await.map_err(crate::Error::internal)?;
+        let row=transaction.query_one_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
+            format!("SELECT hit_count FROM {table} WHERE key_hash=?"),[key_hash.to_owned().into()]))
+            .await.map_err(crate::Error::internal)?
+            .ok_or_else(|| crate::Error::internal(RateLimitStoreError))?;
+        let count:i64=row.try_get("","hit_count").map_err(crate::Error::internal)?;
+        Ok(RateLimitBucket::new(to_u64(count)?,to_u64(std::cmp::max(end-now,1))?))
+    }.await;
+    match outcome {
+        Ok(bucket) => {
+            transaction.commit().await.map_err(crate::Error::internal)?;
+            Ok(bucket)
+        }
+        Err(error) => {
+            transaction
+                .rollback()
+                .await
+                .map_err(crate::Error::internal)?;
+            Err(error)
+        }
+    }
+}
+
 async fn prune_expired(
     connection: &DatabaseConnection,
     table: &str,
@@ -248,10 +296,16 @@ async fn prune_expired(
             ),
             DbBackend::MySql,
         ),
+        DbBackend::Sqlite => (
+            format!(
+                "DELETE FROM {table} WHERE key_hash IN (SELECT key_hash FROM {table} WHERE window_started_at + window_seconds <= CAST(strftime('%s','now') AS INTEGER) ORDER BY window_started_at LIMIT {CLEANUP_BATCH_LIMIT})"
+            ),
+            DbBackend::Sqlite,
+        ),
         _ => {
             return Err(crate::core::Error::custom(
                 "unsupported_rate_limit_backend",
-                "database rate limiting requires PostgreSQL or MySQL",
+                "database rate limiting requires PostgreSQL, MySQL or SQLite",
             ));
         }
     };
@@ -291,3 +345,6 @@ impl std::fmt::Display for RateLimitStoreError {
 }
 
 impl std::error::Error for RateLimitStoreError {}
+
+#[cfg(all(test, feature = "db-sqlite"))]
+mod tests;

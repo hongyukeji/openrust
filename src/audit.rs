@@ -425,7 +425,7 @@ impl DatabaseAuditSink {
             DbBackend::Postgres => {
                 format!("SELECT id FROM {table} WHERE occurred_at_ms < $1 ORDER BY id LIMIT $2")
             }
-            DbBackend::MySql => {
+            DbBackend::MySql | DbBackend::Sqlite => {
                 format!("SELECT id FROM {table} WHERE occurred_at_ms < ? ORDER BY id LIMIT ?")
             }
             _ => return Err(unsupported_backend()),
@@ -631,7 +631,7 @@ async fn insert_record<C: ConnectionTrait>(
         DbBackend::Postgres => format!(
             "INSERT INTO {table} (actor_kind, actor_id, action, object_kind, object_id, outcome, occurred_at_ms, request_id, tenant_id, source_ip, details) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"
         ),
-        DbBackend::MySql => format!(
+        DbBackend::MySql | DbBackend::Sqlite => format!(
             "INSERT INTO {table} (actor_kind, actor_id, action, object_kind, object_id, outcome, occurred_at_ms, request_id, tenant_id, source_ip, details) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
         ),
         _ => return Err(unsupported_backend()),

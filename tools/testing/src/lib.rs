@@ -2,5 +2,5 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[cfg(any(feature = "db-sqlite", feature = "db-postgres", feature = "db-mysql"))]
 pub use openrust::testing::TestDatabase;

@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+✅ SQLite本地认证/MFA限定验收已通过，本地提交以Git为准；实际门禁与复用边界见[测试基线](memory/testing.md#sqlite-本地认证与-mfa-限定验收)。完整ADR-001和Fortify/Google客户端互操作仍开放。
+
 ✅ SQLite S3a原生数据库Session与显式Guarded已按[限定范围](memory/testing.md#sqlite-数据库-session-对应限定验收)完成主/精简门禁、固定最低3.26、23项真实双库、四类fresh、不同模型独审与资源收尾，本地提交以Git为准。完整Guard.id、SQLite认证/MFA/缓存锁/队列与ADR-001继续开放；后继回唯一todo，不以当前输入覆盖所有历史服务矩阵。
 
 ✅ SQLite配置与迁移子范围已完成13主组合、最低3.26/当前引擎、真实生成/根宿主、12consumer及限定双库验收，最后能力前置/文档4项补验与资源收尾也已完成，见[SQLite配置与迁移限定验收](memory/testing.md#sqlite-配置与迁移限定验收)。本地提交以Git为准；SQLite整体仍🟡，S3、完整Migrator/Schema/故障原子性及ADR-001继续开放。

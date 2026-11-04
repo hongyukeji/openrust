@@ -199,6 +199,9 @@ impl AuthFlows {
             DbBackend::MySql => {
                 "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))"
             }
+            DbBackend::Sqlite => {
+                "INSERT INTO tb_users (email,password_hash,created_at,updated_at) VALUES (?,?,?,?) ON CONFLICT (email) DO NOTHING"
+            }
             _ => return Err(unsupported_backend()),
         };
         let db = self.db.clone();
@@ -207,7 +210,7 @@ impl AuthFlows {
         let password_hash = password_hash.as_str().to_owned();
         let created = self
             .db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let db = db.clone();
                 let events = events.clone();
                 let email = insert_email.clone();
@@ -223,45 +226,23 @@ impl AuthFlows {
                             )
                             .await?;
                     }
-                    let sql = crate::auth::resolve_auth_sql(&db, sql)?;
-                    let inserted = if backend == DbBackend::Postgres {
-                        transaction
-                            .query_one_raw(Statement::from_sql_and_values(
-                                backend,
-                                &sql,
-                                [email.clone().into(), password_hash.into()],
-                            ))
-                            .await
-                            .map_err(Error::internal)?
-                            .map(|row| row.try_get::<i64>("", "id").map_err(Error::internal))
-                            .transpose()?
-                    } else {
-                        match transaction
-                            .execute_raw(Statement::from_sql_and_values(
-                                backend,
-                                &sql,
-                                [email.into(), password_hash.into()],
-                            ))
-                            .await
-                        {
-                            Ok(result) if result.rows_affected() == 1 => Some(
-                                i64::try_from(result.last_insert_id()).map_err(Error::internal)?,
-                            ),
-                            Ok(_) => None,
-                            Err(error)
-                                if matches!(
-                                    error.sql_err(),
-                                    Some(SqlErr::UniqueConstraintViolation(_))
-                                ) =>
-                            {
-                                None
-                            }
-                            Err(error) => return Err(Error::internal(error)),
-                        }
-                    };
+                    let inserted = insert_registered_user(
+                        transaction,
+                        &db,
+                        backend,
+                        sql,
+                        &email,
+                        &password_hash,
+                    )
+                    .await?;
                     let Some(user_id) = inserted else {
                         return Ok(false);
                     };
+                    if user_id <= 0 {
+                        return Err(Error::internal(std::io::Error::other(
+                            "inserted user ID is invalid",
+                        )));
+                    }
                     if let Some(events) = events {
                         events
                             .dispatch_in_transaction(
@@ -306,13 +287,25 @@ impl AuthFlows {
             DbBackend::MySql => {
                 "UPDATE tb_users SET email_verified_at = CURRENT_TIMESTAMP(6), updated_at = CURRENT_TIMESTAMP(6) WHERE email = ? AND email_verified_at IS NULL AND disabled_at IS NULL"
             }
+            DbBackend::Sqlite => {
+                "UPDATE tb_users SET email_verified_at=?,updated_at=? WHERE email=? AND email_verified_at IS NULL AND disabled_at IS NULL"
+            }
             _ => return Err(unsupported_backend()),
         };
         let result = connection
             .execute_raw(Statement::from_sql_and_values(
                 backend,
                 &crate::auth::resolve_auth_sql(&self.db, sql)?,
-                [email.into()],
+                if backend == DbBackend::Sqlite {
+                    let now = Utc::now();
+                    vec![
+                        crate::db::dialect::utc_value(backend, now),
+                        crate::db::dialect::utc_value(backend, now),
+                        email.into(),
+                    ]
+                } else {
+                    vec![email.into()]
+                },
             ))
             .await
             .map_err(Error::internal)?;
@@ -336,7 +329,7 @@ impl AuthFlows {
             DbBackend::Postgres => {
                 "SELECT id FROM tb_users WHERE email = $1 AND email_verified_at IS NULL AND disabled_at IS NULL"
             }
-            DbBackend::MySql => {
+            DbBackend::MySql | DbBackend::Sqlite => {
                 "SELECT id FROM tb_users WHERE email = ? AND email_verified_at IS NULL AND disabled_at IS NULL"
             }
             _ => return Err(unsupported_backend()),
@@ -386,21 +379,44 @@ impl AuthFlows {
             .await?;
         #[cfg(feature = "auth-mfa")]
         if let Some(mfa) = &self.mfa {
+            // SQLite 的数据库限流写入必须在BEGIN IMMEDIATE之前完成；
+            // 锁内重读因子状态，竞态变化安全拒绝，不重放已发生的限流副作用。
+            let expected_enabled = if self.db.backend()? == DbBackend::Sqlite {
+                let enabled = mfa.enabled(user_id).await?;
+                if enabled {
+                    mfa.limit_login_preflight(user_id, request_source).await?;
+                }
+                Some(enabled)
+            } else {
+                None
+            };
             let auth = self.clone();
             let mfa = mfa.clone();
             let source = request_source.to_owned();
             return self
                 .db
-                .transaction(|transaction| {
+                .transaction_for_update(|transaction| {
                     let auth = auth.clone();
                     let mfa = mfa.clone();
                     let source = source.clone();
                     Box::pin(async move {
                         mfa.lock_user_in_transaction(transaction, user_id).await?;
-                        if mfa.enabled_in_transaction(transaction, user_id).await? {
+                        let enabled = mfa.enabled_in_transaction(transaction, user_id).await?;
+                        if expected_enabled.is_some_and(|expected| expected != enabled) {
+                            return Err(Error::custom(
+                                "auth_mfa_state_changed",
+                                "多因素认证状态已变化，请重新开始登录",
+                            ));
+                        }
+                        if enabled {
                             Ok(LoginAttempt::MfaRequired(
-                                mfa.create_challenge_in_transaction(transaction, user_id, &source)
-                                    .await?,
+                                mfa.create_challenge_in_transaction(
+                                    transaction,
+                                    user_id,
+                                    &source,
+                                    expected_enabled == Some(true),
+                                )
+                                .await?,
                             ))
                         } else {
                             Ok(LoginAttempt::Authenticated(
@@ -439,8 +455,12 @@ impl AuthFlows {
         let token = challenge.to_owned();
         let code = code.to_owned();
         let source = request_source.to_owned();
+        let sqlite_limit_preflight = self.db.backend()? == DbBackend::Sqlite;
+        if sqlite_limit_preflight {
+            mfa.limit_challenge_preflight(&token, &source).await?;
+        }
         self.db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let mfa = mfa.clone();
                 let auth = auth.clone();
                 let token = token.clone();
@@ -455,7 +475,13 @@ impl AuthFlows {
                     )
                     .await?;
                     let Some(user_id) = mfa
-                        .complete_challenge_in_transaction(transaction, &token, &source, &code)
+                        .complete_challenge_in_transaction(
+                            transaction,
+                            &token,
+                            &source,
+                            &code,
+                            sqlite_limit_preflight,
+                        )
                         .await?
                     else {
                         return Ok(None);
@@ -588,7 +614,7 @@ impl AuthFlows {
     async fn issue_credentials(&self, user_id: i64) -> Result<AuthCredentials> {
         let auth = self.clone();
         self.db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let auth = auth.clone();
                 Box::pin(async move {
                     auth.issue_credentials_in_transaction(transaction, user_id)
@@ -826,8 +852,13 @@ impl AuthFlows {
             mfa.lock_user_in_transaction(transaction, user_id).await?;
             if mfa.enabled_in_transaction(transaction, user_id).await? {
                 return Ok(LoginAttempt::MfaRequired(
-                    mfa.create_challenge_in_transaction(transaction, user_id, request_source)
-                        .await?,
+                    mfa.create_challenge_in_transaction(
+                        transaction,
+                        user_id,
+                        request_source,
+                        false,
+                    )
+                    .await?,
                 ));
             }
         }
@@ -903,7 +934,7 @@ impl AuthFlows {
             DbBackend::Postgres => {
                 "SELECT id, password_hash FROM tb_users WHERE email = $1 AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
             }
-            DbBackend::MySql => {
+            DbBackend::MySql | DbBackend::Sqlite => {
                 "SELECT id, password_hash FROM tb_users WHERE email = ? AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
             }
             _ => return Err(unsupported_backend()),
@@ -938,7 +969,7 @@ impl AuthFlows {
     pub async fn refresh(&self, token: &str, request_source: &str) -> Result<AuthCredentials> {
         self.limit("refresh", request_source, &digest(token))
             .await?;
-        let user_id = self.refresh.user_id_for_token(token).await?;
+        let user_id = self.refresh.owner_id_for_rotation(token).await?;
         // 先签发新 token，再消费旧 refresh 凭据，避免签名失败时旧凭据已被消耗。
         let access_token = self.jwt.issue_access_token(user_id)?;
         let rotated = self.refresh.rotate(token).await?;
@@ -995,7 +1026,7 @@ impl AuthFlows {
         }
         let db = self.db.clone();
         self.db
-            .transaction(|transaction| {
+            .transaction_for_update(|transaction| {
                 let db = db.clone();
                 let email = email.clone();
                 let password_hash = password_hash.as_str().to_owned();
@@ -1004,6 +1035,7 @@ impl AuthFlows {
                     let select = match backend {
                         DbBackend::Postgres => "SELECT id FROM tb_users WHERE email = $1 AND disabled_at IS NULL FOR UPDATE",
                         DbBackend::MySql => "SELECT id FROM tb_users WHERE email = ? AND disabled_at IS NULL FOR UPDATE",
+                        DbBackend::Sqlite => "SELECT id FROM tb_users WHERE email = ? AND disabled_at IS NULL",
                         _ => return Err(unsupported_backend()),
                     };
                     let Some(row) = transaction.query_one_raw(Statement::from_sql_and_values(
@@ -1017,12 +1049,15 @@ impl AuthFlows {
                     let update = match backend {
                         DbBackend::Postgres => "UPDATE tb_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND disabled_at IS NULL",
                         DbBackend::MySql => "UPDATE tb_users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP(6) WHERE id = ? AND disabled_at IS NULL",
+                        DbBackend::Sqlite => "UPDATE tb_users SET password_hash=?,updated_at=? WHERE id=? AND disabled_at IS NULL",
                         _ => return Err(unsupported_backend()),
                     };
                     let result = transaction.execute_raw(Statement::from_sql_and_values(
                         backend,
                         &crate::auth::resolve_auth_sql(&db, update)?,
-                        [password_hash.into(), user_id.into()],
+                        if backend == DbBackend::Sqlite {
+                            vec![password_hash.into(), crate::db::dialect::utc_value(backend, Utc::now()), user_id.into()]
+                        } else { vec![password_hash.into(), user_id.into()] },
                     )).await.map_err(Error::internal)?;
                     if result.rows_affected() != 1 {
                         return Ok(false);
@@ -1041,7 +1076,7 @@ impl AuthFlows {
             DbBackend::Postgres => {
                 "SELECT id FROM tb_users WHERE email = $1 AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
             }
-            DbBackend::MySql => {
+            DbBackend::MySql | DbBackend::Sqlite => {
                 "SELECT id FROM tb_users WHERE email = ? AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
             }
             _ => return Err(unsupported_backend()),
@@ -1425,6 +1460,54 @@ fn digest(value: &str) -> String {
         let _ = write!(output, "{byte:02x}");
     }
     output
+}
+
+// 注册INSERT的返回ID策略属于方言差异；事件及提交仍由同一调用方事务管理。
+async fn insert_registered_user(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    backend: DbBackend,
+    sql: &str,
+    email: &str,
+    password_hash: &str,
+) -> Result<Option<i64>> {
+    let sql = crate::auth::resolve_auth_sql(db, sql)?;
+    let inserted = if backend == DbBackend::Postgres {
+        transaction
+            .query_one_raw(Statement::from_sql_and_values(
+                backend,
+                &sql,
+                [email.into(), password_hash.into()],
+            ))
+            .await
+            .map_err(Error::internal)?
+            .map(|row| row.try_get::<i64>("", "id").map_err(Error::internal))
+            .transpose()?
+    } else {
+        let mut values = vec![email.into(), password_hash.into()];
+        if backend == DbBackend::Sqlite {
+            let now = Utc::now();
+            values.push(crate::db::dialect::utc_value(backend, now));
+            values.push(crate::db::dialect::utc_value(backend, now));
+        }
+        match transaction
+            .execute_raw(Statement::from_sql_and_values(backend, &sql, values))
+            .await
+        {
+            Ok(result) if result.rows_affected() == 1 => {
+                Some(i64::try_from(result.last_insert_id()).map_err(Error::internal)?)
+            }
+            Ok(_) => None,
+            Err(error)
+                if backend == DbBackend::MySql
+                    && matches!(error.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) =>
+            {
+                None
+            }
+            Err(error) => return Err(Error::internal(error)),
+        }
+    };
+    Ok(inserted)
 }
 
 fn unsupported_backend() -> Error {

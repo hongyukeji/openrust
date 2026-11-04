@@ -10,12 +10,12 @@ OpenRust 框架的数据库模块。
 
 `DatabaseConfig::has_default_connection()` 仅表示默认 `url` 已配置，不是健康检查。具名实例仍由数据库 Provider 独立初始化；仅配置具名实例不自动启用绑定默认库的 Auth、数据库 Session 或示例数据库业务。Queue Provider 与连接选择独立，实际使用数据库队列时才要求默认 Db，Redis 队列可无默认库运行。默认 Provider 自动选择在启动装配读取配置；模块在真实 register 读同一仓储，自动默认清单选定后，register或boot改变默认URL有无将明确拒绝启动，要求按最终配置重新引导；显式清单仍由应用管理。示例已在register跳过业务后，boot若反向启用则明确拒绝，不能开放缺依赖路由；有变无只关闭路由，不卸载已有绑定。后续任意覆盖不承诺重新选择或热卸载服务。非法、未知或未编译的 URL/副本配置继续由驱动预检拒绝，不能回退为无数据库。
 
-自定义 Provider 可在同一 Container 登记其他 SeaORM backend 的通用 `Db`，见[SQLite consumer](../../tests/consumers/db-custom-sqlite/README.md)；这不扩张官方方言、迁移互斥、认证或队列支持矩阵。现自动装配在无默认 URL 时省略 database Session Provider，即使 driver 字段显式为 database；不能将该配置当作 Session 已成功启用，严格上游启用/错误语义仍保留在 Session 后继。当前标准 Provider 仍在启动期解析连接；Laravel 完整懒连接生命周期尚有缺口，不能由本簇编译门控整改宣称等价。
+自定义 Provider 可在同一 Container 登记其他 SeaORM backend 的通用 `Db`，见[SQLite consumer](../../tests/consumers/db-custom-sqlite/README.md)；这不扩张官方方言、迁移互斥、认证或队列支持矩阵。显式database Session即使没有默认URL也会登记，实际访问时按选定connection/table查询或明确报错，不静默省略或降级。当前标准 Provider 仍在启动期解析连接；Laravel 完整懒连接生命周期尚有缺口，不能由本簇编译门控整改宣称等价。
 
 
 ## SQLite 内置连接
 
-启用 `db-sqlite` 后使用同一标准 Provider，按固定 SQLite 3.26.0+ 最低目标接入文件、URI 与内存连接；连接、既有迁移清单与所有者边界已在 3.26.0/3.51.3 验证，全部业务最低版本矩阵仍开放。外键默认开启，PDO 默认忙等待 60000ms；PRAGMA 随每条物理连接执行。普通文件必须先存在；内存池保留数据至关闭。配置与 owned 测试库流程见[数据库连接指南](../../docs/src/database/connections.md)。nullable/raw PRAGMA、CLI 安装迁移、单机文件互斥、既有 FrameworkMigrator/示例清单和 main 普通表删列重建已有对应证据。完整 Migrator/Schema、认证、Session、队列和调度业务 SQL 仍未交付；旧自定义 consumer 不能替代这些验收。固定迁移依赖的局部 feature 修正见[来源与许可](../../vendor/sea-orm-migration/SOURCES.md)。
+启用 `db-sqlite` 后使用同一标准 Provider，按固定 SQLite 3.26.0+ 最低目标接入文件、URI 与内存连接；连接、既有迁移清单与所有者边界已在 3.26.0/3.51.3 验证，全部业务最低版本矩阵仍开放。外键默认开启，PDO 默认忙等待 60000ms；PRAGMA 随每条物理连接执行。普通文件必须先存在；内存池保留数据至关闭。配置与 owned 测试库流程见[数据库连接指南](../../docs/src/database/connections.md)。nullable/raw PRAGMA、CLI 安装迁移、单机文件互斥、既有 FrameworkMigrator/示例清单和 main 普通表删列重建已有对应证据。原生/Guarded Session已完成限定验收；本地认证/MFA与固定窗口限流沿同一Db适配，详见[认证边界](../auth/README.md#sqlite-本地认证边界)。完整Migrator/Schema、OIDC、队列与调度业务SQL仍未交付；旧自定义 consumer 不能替代这些验收。固定迁移依赖的局部 feature 修正见[来源与许可](../../vendor/sea-orm-migration/SOURCES.md)。
 
 ## Query Builder 限定实现
 

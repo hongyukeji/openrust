@@ -1,5 +1,7 @@
 # `openrust::auth`
 
+✅ S3b SQLite本地认证/MFA限定验收通过，本地提交以Git为准；源17新调用方门禁、四fresh及独审齐备，源9/12/13按未变路径限定复用。双库22项、最低3.26认证52/限流2/Root5，fresh各3无skip；234生成源码归档，所有任务target已正常clean至0。完整Guard/Fortify/Google真实客户端、SQLite其他后端能力与故障窗口仍开放，见memory/testing.md「SQLite 本地认证与 MFA 限定验收」及唯一todo。原Goal active，新99/19.8与旧27/5.4历史保留、creditsfalse。
+
 > 受众：AI Agent
 > 更新：2026-10-29
 > 摘要：M3 认证运行时、M5 查询授权/OIDC/TOTP MFA 实现事实；真实 Twilio 送达仍需授权账号与目标。

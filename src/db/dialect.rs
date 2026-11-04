@@ -80,6 +80,19 @@ fn unsupported_backend(backend: DbBackend) -> DbErr {
     ))
 }
 
+/// 认证日期绑定使用同一UTC微秒文本，避免SQLite的RFC3339与SQL日期字符串混排。
+#[cfg(feature = "auth")]
+pub(crate) fn utc_value(
+    backend: DbBackend,
+    value: chrono::DateTime<chrono::Utc>,
+) -> sea_orm::Value {
+    if backend == DbBackend::Sqlite {
+        value.format("%Y-%m-%d %H:%M:%S%.6f").to_string().into()
+    } else {
+        value.into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use sea_orm_migration::prelude::*;

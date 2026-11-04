@@ -15,7 +15,7 @@ cd blog
 cargo run -p cli -- dev
 ```
 
-`openrust new blog --db sqlite` 选择 SQLite，创建 `database/database.sqlite` 及 `.env`，并在全部源码生成后运行默认迁移。迁移失败会返回非零并保留生成文件；数据库及 sidecar 已在生成 `.gitignore` 排除。安装默认迁移、生成 check/test 与实际无状态 API 已验证；完整 Migrator 和业务 SQL 仍未完成，不以生成成功表示认证、数据库 Session、队列等生产能力可用。生成迁移只使用 OpenRust re-export 的同一迁移依赖。
+`openrust new blog --db sqlite` 选择 SQLite，创建 `database/database.sqlite` 及 `.env`，并在全部源码生成后运行默认迁移。启用认证或加密时，安装器先在新建应用自有 `.env` 中为各用途生成独立的32字节系统随机密钥，Unix权限为0600；`.env.example` 保持空占位，密钥不打印。JWT/签名密钥为现有认证增强，非Laravel内置认证默认。已有应用的密钥不被覆盖。迁移失败会返回非零并保留生成文件；数据库及 sidecar 已在生成 `.gitignore` 排除。安装默认迁移、生成 check/test 与实际无状态 API 已验证；完整 Migrator 和业务 SQL 仍未完成，不以生成成功表示认证、数据库 Session、队列等生产能力可用。生成迁移只使用 OpenRust re-export 的同一迁移依赖。
 
 `openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，通用路由在 `routes/web.rs`，应用控制器、模型和 Provider 可直接在 `app/` 开发，业务模块可选放在 `modules/<业务>/`，资源在 `resources/`，迁移与种子在 `database/`。
 

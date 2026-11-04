@@ -1,4 +1,4 @@
-//! 标准 Provider 的 SQLite 具名连接沿唯一业务模块实际访问；不启用默认库业务。
+//! 标准Provider的SQLite具名连接、完整迁移及本地认证沿唯一业务模块验证。
 
 use openrust::http::axum::{
     body::Body,
@@ -200,7 +200,7 @@ fn sqlite_default_host_source(database: &openrust::testing::TestDatabase) -> fig
     figment::Figment::from(figment::providers::Serialized::defaults(
         openrust::config::FrameworkConfig::default(),
     )).merge(figment::providers::Serialized::defaults(serde_json::json!({
-        "app":{"env":"testing"}, "modules":{"activator":"registered"},
+        "app":{"env":"testing","url":"http://localhost"}, "modules":{"activator":"registered"},
         "database":{"url":database.url()},
         "cache":{"default":"memory","stores":{"memory":{"driver":"memory"},"redis":{"driver":"memory"}}},
         "session":{"driver":"array","secure":false},
@@ -235,45 +235,12 @@ async fn sqlite_file_default_host_without_auth_runs_the_actual_complete_catalog(
 }
 
 #[cfg(feature = "auth")]
+#[path = "sqlite_auth_flows.rs"]
+mod sqlite_auth_flows;
+
+#[cfg(feature = "auth")]
 #[tokio::test]
-async fn sqlite_default_host_auth_still_rejects_its_unimplemented_database_backend()
+async fn sqlite_default_host_runs_local_auth_and_native_session_business_contract()
 -> openrust::Result<()> {
-    let database = openrust::testing::TestDatabase::sqlite_file::<EmptyMigrator>().await?;
-    let source = sqlite_default_host_source(&database);
-    let result = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(
-        sqlite_test_sources(&source)?,
-    )
-    .build()
-    .await;
-    let outcome = match result {
-        Err(openrust::Error::ServiceInitialization { service, source }) => {
-            assert_eq!(service.name(), "openrust::auth::AuthService");
-            if let openrust::Error::Config(openrust::config::ConfigError::Invalid(reason)) =
-                source.as_ref()
-            {
-                assert_eq!(
-                    reason,
-                    "the default authenticator supports PostgreSQL and MySQL only"
-                );
-                Ok(())
-            } else {
-                Err(openrust::Error::custom(
-                    "unexpected_sqlite_auth_cause",
-                    "未验证到已登记的 SQLite Auth 能力门槛",
-                ))
-            }
-        }
-        Err(error) => Err(error),
-        Ok(mut app) => {
-            app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
-                .await?;
-            Err(openrust::Error::custom(
-                "sqlite_auth_gap_changed",
-                "SQLite Auth 能力边界已变化，必须补完整业务验收",
-            ))
-        }
-    };
-    let cleanup = database.close().await;
-    outcome?;
-    cleanup
+    sqlite_auth_flows::root_file_local_auth_contract().await
 }

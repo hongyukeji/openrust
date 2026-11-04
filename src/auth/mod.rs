@@ -79,11 +79,13 @@ pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> 
     }
     if !matches!(
         backend,
-        crate::db::sea_orm::DbBackend::Postgres | crate::db::sea_orm::DbBackend::MySql
+        crate::db::sea_orm::DbBackend::Postgres
+            | crate::db::sea_orm::DbBackend::MySql
+            | crate::db::sea_orm::DbBackend::Sqlite
     ) {
         return Err(Error::custom(
             "unsupported_auth_database",
-            "authentication requires PostgreSQL or MySQL",
+            "authentication requires PostgreSQL, MySQL or SQLite",
         ));
     }
     Ok(resolved)
@@ -394,10 +396,12 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
                 Box::pin(async move {
                     if let Some(database_authenticator) = database_authenticator {
                         let db = resolver.resolve::<Db>().await?;
-                        if !matches!(db.backend()?, DbBackend::Postgres | DbBackend::MySql) {
+                        if !matches!(
+                            db.backend()?,
+                            DbBackend::Postgres | DbBackend::MySql | DbBackend::Sqlite
+                        ) {
                             return Err(Error::Config(ConfigError::Invalid(
-                                "the default authenticator supports PostgreSQL and MySQL only"
-                                    .into(),
+                                "默认认证器支持PostgreSQL、MySQL与SQLite".into(),
                             )));
                         }
                         database_authenticator.initialize((*db).clone())?;
