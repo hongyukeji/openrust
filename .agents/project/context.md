@@ -63,13 +63,15 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 
 ## 固定约束
 
+当前持续交付授权：真人已明确要求已验收的完整簇及时限定规范提交并推送origin/main，不等无关WIP或全部计划结束。Lead唯一负责索引/commit/push，Architect不并发push；先fetch核远端祖先，以验收绑定的准确commit SHA安全快进推送，ls-remote核远端hash。主目录有其他WIP时保护原索引/源码，使用临时clean detached树核准确提交后显式SHA推送，再正常移除；不stash/reset/夹带未验源码。此前1a7473ba及祖先已远端，禁止按旧全本地历史重组。旧仅本地/不推送口径由本次专门授权覆盖；force、tag、release、发布与改写已推历史仍不授权。
+
 本对话接管完整已授权框架计划，本批环境身份与Request/MIME等组合已经收齐限定验收，详见[本批证据](memory/testing.md#当前-main-组合限定验收)。旧总控Goal及守护保持停止；本对话独立Goal按默认80%政策执行，不跨Goal复用旧授权，不重算旧baseline或清账本。Codex原生守护适配保持独立WIP，未验收部署前不称已启用。
 
 本机相关参考仓库共同父目录为 `/Users/Home/Codes/Git/`：`laravel-framework/` 是官方框架实现，`laravel-docs/` 是官方文档，`laravel/` 仅指官方应用骨架；固定验收 checkout 分别为 `laravel-framework-baseline/`、`laravel-docs-baseline/`。平级迁移及 linked worktree repair 已核完成，五个仓库工作区均干净；应用骨架本次 HEAD 为 `9ffef3bc4241e3cc333ef267258a404d0d95f194`，未安装 Composer 依赖。执行者不重复迁移或创建旧路径。本次拉取 framework 官方 `13.x` HEAD 为 `5a787ee008553a35206de2918d5242626ddeaed2`，docs HEAD 为 `960eedf0911155ad16326ade49c0ea5d18eda0b8`；固定验收 commit 仍为 framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911155ad16326ade49c0ea5d18eda0b8`，不随最新源码拉取静默升级。新取证/执行脚本读取固定 baseline，不能用应用骨架替代框架，也不再读取 `/tmp` 旧 Laravel 源码；冻结历史输出与 provenance 保留原路径事实。旧副本先核 owner/占用、无WIP后再安全回收，证据不当缓存删除。
 
 - 开发优先完成源码/测试代码/示例/模板，功能簇提交前集中验证；不默认TDD或逐小改动重复跑门禁。分支定向门禁与main完整组合验收分层，未通过不提交。正常空间预算内缓存可跨簇复用，阈值/资源归属与临时worktree清理规则保持；详见[集中验证](conventions.md#功能簇提交前集中验证)。
 
-- 当前框架保持同仓 main 集成；用户已持续授权总控在既定框架范围内直接串行整合本地任务，无需逐次询问合入许可；先组合源码再集中适用验证，通过后本地提交并安全清理，保留来源祖先或等价映射。后续默认共享main目录分工，不再默认创建worktree；既有worktree先保全交接再退役。现有 main WIP由原负责人保全，不强行迁移；分支验收后串行合入并重验组合行为，再清理任务专属资源，细则见[并行开发与集成](conventions.md#并行开发与集成)。不新建源码仓库、不推送。
+- 当前框架保持同仓 main 集成；用户已持续授权总控在既定框架范围内直接串行整合本地任务，无需逐次询问合入许可；先组合源码再集中适用验证，通过后本地提交并安全清理，保留来源祖先或等价映射。后续默认共享main目录分工，不再默认创建worktree；既有worktree先保全交接再退役。现有 main WIP由原负责人保全，不强行迁移；分支验收后串行合入并重验组合行为，再清理任务专属资源，细则见[并行开发与集成](conventions.md#并行开发与集成)。开发仍单main；独立测试目录与验收后推送按本节最新专门授权执行。
 
 - 正式定位为 Laravel + laravel-modules = OpenRust，以固定基线1:1实现功能与可观察语义，持续跟进其框架功能与行为演进；Laravel的目录、概念、默认值、错误/安全边界、Container/Provider register→boot与开发/CLI/生成/测试/部署流程是验收标准。逐项上游源码/测试→Rust API/配置→等价测试→modules/example→文档→真实服务证据，未等价/未实测保留缺口。版本基线、差异矩阵与必要 Rust 适配遵循[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)。
 - 已有优秀机制保留并融合进 Laravel 对应职责；统一返回格式明确归 HTTP Response / API Resource 与异常渲染，提供便捷接入与公开定制，避免重复内核和协议破坏。规则见[融合计划](plans/laravel-rebuild.md#已有优秀机制的融合)。
