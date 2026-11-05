@@ -7,6 +7,8 @@ pub(crate) use api::response_marker_middleware;
 
 #[allow(clippy::struct_excessive_bools)] // 编译能力独立决定示例路由是否可挂载。
 pub(crate) struct RouteCapabilities {
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) jwt_api_guard: Option<String>,
     pub(crate) database: bool,
     #[cfg(feature = "session")]
     pub(crate) session: bool,

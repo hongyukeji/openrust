@@ -24,16 +24,27 @@ pub struct Auth {
     guards: serde_json::Value,
     providers: serde_json::Value,
     timebox_duration: u64,
+    password_timeout: u64,
 }
 
 /// 缺省继承最终应用身份；领域专属显式来源仍可独立覆写。
 /// 这是现有 JWT 增强策略，不是 Laravel 核心的 JWT 默认。
 pub fn config(ctx: &ConfigContext) -> Result<Auth, ConfigError> {
+    #[cfg(feature = "auth-fortify")]
+    let jwt_api = ctx.require::<String>("auth-profile")? == "jwt-api";
+    #[cfg(not(feature = "auth-fortify"))]
+    let jwt_api = false;
+    let mut guards =
+        serde_json::json!({"web":{"driver":"session", "provider":"users", "remember":576_000}});
+    if jwt_api {
+        guards["api"] = serde_json::json!({"driver":"jwt-api", "provider":"users"});
+    }
     Ok(Auth {
-        defaults: serde_json::json!({"guard":"web", "passwords":"users", "provider":null}),
-        guards: serde_json::json!({"web":{"driver":"session", "provider":"users", "remember":576_000}}),
+        defaults: serde_json::json!({"guard":if jwt_api { "api" } else { "web" }, "passwords":"users", "provider":null}),
+        guards,
         providers: serde_json::json!({"users":{"driver":"app-users", "table":"users"}}),
         timebox_duration: 200_000,
+        password_timeout: 10_800,
         jwt: Jwt {
             issuer: ctx.require("app.url")?,
             audience: ctx.require("app.name")?,

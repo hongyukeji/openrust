@@ -1,4 +1,4 @@
-//! 旧版 SQLite 的 DROP COLUMN 表重建；对应固定 Laravel `SQLiteGrammar::compileAlter`。
+//! 旧版 SQLite 的删列与放宽非空表重建；对应固定 Laravel `SQLiteGrammar::compileAlter`。
 
 use sea_orm::{DbErr, RuntimeErr};
 use sqlx::{Row, SqliteConnection, SqlitePool, pool::PoolConnection};
@@ -92,11 +92,68 @@ pub(in crate::db) async fn drop_column(
     drop_column_named(pool, table, column, temporary).await
 }
 
+#[derive(Clone, Copy)]
+enum RebuildOperation {
+    DropColumn,
+    MakeNullable,
+    MakeNotNullable,
+}
+
+pub(in crate::db) async fn make_column_nullable(
+    pool: SqlitePool,
+    table: String,
+    column: String,
+) -> Result<(), DbErr> {
+    let temporary = format!(
+        "__openrust_rebuild_{}_{}",
+        std::process::id(),
+        NEXT_TABLE.fetch_add(1, Ordering::Relaxed)
+    );
+    rebuild_named(
+        pool,
+        table,
+        column,
+        temporary,
+        RebuildOperation::MakeNullable,
+    )
+    .await
+}
+
+pub(in crate::db) async fn make_column_not_nullable(
+    pool: SqlitePool,
+    table: String,
+    column: String,
+) -> Result<(), DbErr> {
+    let temporary = format!(
+        "__openrust_rebuild_{}_{}",
+        std::process::id(),
+        NEXT_TABLE.fetch_add(1, Ordering::Relaxed)
+    );
+    rebuild_named(
+        pool,
+        table,
+        column,
+        temporary,
+        RebuildOperation::MakeNotNullable,
+    )
+    .await
+}
+
 async fn drop_column_named(
     pool: SqlitePool,
     table: String,
     column: String,
     temporary: String,
+) -> Result<(), DbErr> {
+    rebuild_named(pool, table, column, temporary, RebuildOperation::DropColumn).await
+}
+
+async fn rebuild_named(
+    pool: SqlitePool,
+    table: String,
+    column: String,
+    temporary: String,
+    operation: RebuildOperation,
 ) -> Result<(), DbErr> {
     let mut owner = PhysicalOwner(Some(pool.acquire().await.map_err(database_error)?));
     let enabled: i64 = match sqlx::query_scalar("PRAGMA foreign_keys")
@@ -129,7 +186,7 @@ async fn drop_column_named(
         closed?;
         return Err(error);
     }
-    let result = match rebuild(owner.connection()?, &table, &column, &temporary).await {
+    let result = match rebuild(owner.connection()?, &table, &column, &temporary, operation).await {
         Ok(()) => execute(owner.connection()?, "COMMIT").await,
         Err(error) => Err(error),
     };
@@ -160,6 +217,7 @@ async fn rebuild(
     table: &str,
     column: &str,
     temporary: &str,
+    operation: RebuildOperation,
 ) -> Result<(), DbErr> {
     let original = sqlx::query(
         "SELECT name,sql FROM main.sqlite_master WHERE type='table' AND name=? COLLATE NOCASE",
@@ -183,6 +241,7 @@ async fn rebuild(
     let mut columns = Vec::new();
     let mut known = Vec::new();
     let mut target = false;
+    let mut target_not_null = false;
     let mut integer_primary_key = false;
     let mut primary_key_columns = 0;
     for row in information {
@@ -192,12 +251,21 @@ async fn rebuild(
         let declared_type: String = row.try_get("type").map_err(database_error)?;
         if primary > 0 {
             primary_key_columns += 1;
-            integer_primary_key =
-                declared_type.eq_ignore_ascii_case("INTEGER") && !name.eq_ignore_ascii_case(column);
+            integer_primary_key = declared_type.eq_ignore_ascii_case("INTEGER")
+                && (!name.eq_ignore_ascii_case(column)
+                    || !matches!(operation, RebuildOperation::DropColumn));
         }
         if name.eq_ignore_ascii_case(column) {
             target = true;
-        } else if hidden == 0 {
+            target_not_null = row.try_get::<i64, _>("notnull").map_err(database_error)? != 0;
+            if !matches!(operation, RebuildOperation::DropColumn) && (primary > 0 || hidden != 0) {
+                return Err(unsupported());
+            }
+        }
+        if hidden == 0
+            && (!name.eq_ignore_ascii_case(column)
+                || !matches!(operation, RebuildOperation::DropColumn))
+        {
             columns.push(identifier(&name));
         }
         known.push(name);
@@ -241,7 +309,7 @@ async fn rebuild(
                 .iter()
                 .any(|keyword| name.eq_ignore_ascii_case(keyword))
         {
-            definitions.push(*definition);
+            definitions.push((*definition).to_owned());
             continue;
         }
         if !known.iter().any(|known| known.eq_ignore_ascii_case(&name)) {
@@ -250,8 +318,20 @@ async fn rebuild(
         parsed_columns += 1;
         if name.eq_ignore_ascii_case(column) {
             removed += 1;
+            match operation {
+                RebuildOperation::DropColumn => {}
+                RebuildOperation::MakeNullable => {
+                    definitions.push(nullable_definition(definition)?);
+                }
+                RebuildOperation::MakeNotNullable if target_not_null => {
+                    definitions.push((*definition).to_owned());
+                }
+                RebuildOperation::MakeNotNullable => {
+                    definitions.push(not_nullable_definition(definition)?);
+                }
+            }
         } else {
-            definitions.push(*definition);
+            definitions.push((*definition).to_owned());
         }
     }
     if removed != 1 || parsed_columns != known.len() {
@@ -309,6 +389,39 @@ async fn rebuild(
             .execute(&mut *connection)
             .await
             .map_err(database_error)?;
+    }
+    if !matches!(operation, RebuildOperation::DropColumn) {
+        // 最终元数据必须证明非空约束符合目标，不能把未识别语法当成功。
+        let actual = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "PRAGMA main.table_xinfo({})",
+            identifier(table)
+        )))
+        .fetch_all(&mut *connection)
+        .await
+        .map_err(database_error)?;
+        let mut verified = false;
+        for row in actual {
+            let name: String = row.try_get("name").map_err(database_error)?;
+            if name.eq_ignore_ascii_case(column) {
+                let not_null: i64 = row.try_get("notnull").map_err(database_error)?;
+                if (not_null != 0) != matches!(operation, RebuildOperation::MakeNotNullable) {
+                    return Err(unsupported());
+                }
+                verified = true;
+            }
+        }
+        if !verified {
+            return Err(unsupported());
+        }
+        let violations = sqlx::query("PRAGMA main.foreign_key_check")
+            .fetch_all(&mut *connection)
+            .await
+            .map_err(database_error)?;
+        if !violations.is_empty() {
+            return Err(DbErr::Custom(
+                "SQLite 外键检查失败，放宽非空迁移已拒绝".into(),
+            ));
+        }
     }
     Ok(())
 }
@@ -549,12 +662,416 @@ fn token(sql: &str, position: usize) -> Option<(String, bool, usize)> {
     (position > start).then(|| (sql[start..position].to_owned(), false, position))
 }
 
+// 仅解析列定义顶层词项；表达式、字符串、注释中的约束文字不参与改写。
+type DefinitionWord = (String, bool, usize, usize);
+
+fn definition_words(definition: &str) -> Result<(Vec<DefinitionWord>, usize), DbErr> {
+    let mut words = Vec::new();
+    let mut position = 0;
+    let mut depth = 0_usize;
+    let mut last_end = 0;
+    while position < definition.len() {
+        position = skip_trivia(definition, position).ok_or_else(unsupported)?;
+        let Some(byte) = definition.as_bytes().get(position).copied() else {
+            break;
+        };
+        if byte == b'(' {
+            depth += 1;
+            position += 1;
+        } else if byte == b')' {
+            depth = depth.checked_sub(1).ok_or_else(unsupported)?;
+            position += 1;
+            if depth == 0 {
+                words.push((String::new(), true, position - 1, position));
+            }
+        } else if byte == b',' {
+            if depth == 0 {
+                return Err(unsupported());
+            }
+            position += 1;
+        } else {
+            let start = position;
+            let (word, quoted, next) = if matches!(byte, b'\'' | b'"' | b'`' | b'[') {
+                token(definition, position).ok_or_else(unsupported)?
+            } else {
+                let mut end = position;
+                while definition.as_bytes().get(end).is_some_and(|byte| {
+                    !byte.is_ascii_whitespace()
+                        && !matches!(*byte, b'(' | b')' | b',' | b'\'' | b'"' | b'`' | b'[')
+                }) {
+                    if definition.as_bytes().get(end..end + 2) == Some(b"/*")
+                        || definition.as_bytes().get(end..end + 2) == Some(b"--")
+                    {
+                        break;
+                    }
+                    end += 1;
+                }
+                if end == position {
+                    return Err(unsupported());
+                }
+                (definition[position..end].to_owned(), false, end)
+            };
+            if depth == 0 {
+                words.push((word, quoted, start, next));
+            }
+            position = next;
+        }
+        last_end = position;
+    }
+    if depth != 0 {
+        return Err(unsupported());
+    }
+    Ok((words, last_end))
+}
+
+fn nullable_definition(definition: &str) -> Result<String, DbErr> {
+    let (words, _) = definition_words(definition)?;
+    let keyword = |index: usize, expected: &str| {
+        words
+            .get(index)
+            .is_some_and(|(word, quoted, _, _)| !quoted && word.eq_ignore_ascii_case(expected))
+    };
+    let mut ranges = Vec::new();
+    for index in 1..words.len() {
+        if !keyword(index, "NOT") {
+            continue;
+        }
+        if !keyword(index + 1, "NULL") {
+            return Err(unsupported());
+        }
+        let mut start = words[index].2;
+        if index >= 2 && keyword(index - 2, "CONSTRAINT") {
+            start = words[index - 2].2;
+        }
+        let mut end = words[index + 1].3;
+        if keyword(index + 2, "ON") {
+            if !keyword(index + 3, "CONFLICT")
+                || !["ROLLBACK", "ABORT", "FAIL", "IGNORE", "REPLACE"]
+                    .iter()
+                    .any(|action| keyword(index + 4, action))
+            {
+                return Err(unsupported());
+            }
+            end = words[index + 4].3;
+        }
+        ranges.push((start, end));
+    }
+    let mut result = definition.to_owned();
+    for (start, end) in ranges.into_iter().rev() {
+        result.replace_range(start..end, " ");
+    }
+    Ok(result)
+}
+
+fn not_nullable_definition(definition: &str) -> Result<String, DbErr> {
+    let (words, last_end) = definition_words(definition)?;
+    let keyword = |index: usize, expected: &str| {
+        words
+            .get(index)
+            .is_some_and(|(word, quoted, _, _)| !quoted && word.eq_ignore_ascii_case(expected))
+    };
+    let mut ranges = Vec::new();
+    for index in 1..words.len() {
+        if keyword(index, "NOT") {
+            return Err(unsupported());
+        }
+        if !keyword(index, "NULL")
+            || keyword(index - 1, "DEFAULT")
+            || keyword(index - 1, "CONSTRAINT")
+            || keyword(index - 1, "COLLATE")
+        {
+            continue;
+        }
+        let mut start = words[index].2;
+        if index >= 2 && keyword(index - 2, "CONSTRAINT") {
+            start = words[index - 2].2;
+        }
+        // 此变换不支持独立NULL后的ON CONFLICT，不能猜测未知尾部的归属。
+        if keyword(index + 1, "ON") {
+            return Err(unsupported());
+        }
+        ranges.push((start, words[index].3));
+    }
+    let mut result = definition.to_owned();
+    // 插在尾部注释之前，避免行注释吞掉新约束。
+    result.insert_str(last_end, " NOT NULL ");
+    for (start, end) in ranges.into_iter().rev() {
+        result.replace_range(start..end, " ");
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
     type TestResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+    #[test]
+    fn not_nullable_transform_preserves_default_expressions_and_tail_comments() -> TestResult {
+        let changed = not_nullable_definition(
+            "email TEXT CONSTRAINT optional NULL DEFAULT NULL CHECK(email IS NULL OR email!='NOT NULL') /* tail */ -- final",
+        )?;
+        assert!(!changed.contains("CONSTRAINT optional"));
+        assert!(changed.contains("DEFAULT NULL"));
+        assert!(changed.contains("CHECK(email IS NULL OR email!='NOT NULL')"));
+        assert!(changed.contains("NOT NULL  /* tail */ -- final"));
+        let changed = not_nullable_definition("email TEXT DEFAULT (NULL) NULL -- final")?;
+        assert!(changed.contains("DEFAULT (NULL)"));
+        assert!(!changed.contains(") NULL"));
+        assert!(changed.contains("NOT NULL"));
+        assert!(not_nullable_definition("email TEXT NULL ON CONFLICT FAIL").is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn nullable_round_trip_and_failed_down_preserve_schema_data_and_objects() -> TestResult {
+        let pool = pool().await?;
+        for sql in [
+            "CREATE TABLE accounts(id INTEGER PRIMARY KEY AUTOINCREMENT,email TEXT NOT NULL COLLATE NOCASE, secret TEXT DEFAULT 'NULL')",
+            "CREATE UNIQUE INDEX email_unique ON accounts(email)",
+            "CREATE TABLE children(account_id INTEGER REFERENCES accounts(id))",
+            "CREATE TABLE events(value TEXT)",
+            "CREATE TRIGGER account_event AFTER INSERT ON accounts BEGIN INSERT INTO events VALUES(new.email); END",
+            "INSERT INTO accounts(id,email,secret) VALUES(10,'old@example.test','ciphertext')",
+            "INSERT INTO accounts(id,email) VALUES(99,'deleted@example.test')",
+            "DELETE FROM accounts WHERE id=99",
+            "INSERT INTO children VALUES(10)",
+        ] {
+            sqlx::query(sqlx::AssertSqlSafe(sql)).execute(&pool).await?;
+        }
+        make_column_nullable(pool.clone(), "accounts".into(), "email".into()).await?;
+        make_column_not_nullable(pool.clone(), "accounts".into(), "email".into()).await?;
+        make_column_not_nullable(pool.clone(), "accounts".into(), "email".into()).await?;
+        assert!(
+            sqlx::query("INSERT INTO accounts(email) VALUES(NULL)")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        make_column_nullable(pool.clone(), "accounts".into(), "email".into()).await?;
+        sqlx::query("INSERT INTO accounts(email) VALUES(NULL)")
+            .execute(&pool)
+            .await?;
+        let schema: String =
+            sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name='accounts'")
+                .fetch_one(&pool)
+                .await?;
+        assert!(
+            make_column_not_nullable(pool.clone(), "accounts".into(), "email".into())
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT sql FROM sqlite_master WHERE name='accounts'")
+                .fetch_one(&pool)
+                .await?,
+            schema
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT secret FROM accounts WHERE id=10")
+                .fetch_one(&pool)
+                .await?,
+            "ciphertext"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT id FROM accounts WHERE email IS NULL")
+                .fetch_one(&pool)
+                .await?,
+            100
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT seq FROM sqlite_sequence WHERE name='accounts'")
+                .fetch_one(&pool)
+                .await?,
+            100
+        );
+        assert!(
+            sqlx::query("INSERT INTO accounts(email) VALUES('OLD@example.test')")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        assert!(
+            sqlx::query("INSERT INTO children VALUES(999)")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        sqlx::query("INSERT INTO accounts(email) VALUES('trigger-check')")
+            .execute(&pool)
+            .await?;
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM events WHERE value='trigger-check'")
+                .fetch_one(&pool)
+                .await?,
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
+                .fetch_one(&pool)
+                .await?,
+            1
+        );
+        pool.close().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn explicit_null_constraint_is_removed_without_changing_default_null() -> TestResult {
+        let pool = pool().await?;
+        sqlx::query("CREATE TABLE accounts(id INTEGER PRIMARY KEY,email TEXT CONSTRAINT optional NULL DEFAULT NULL CHECK(email IS NULL OR length(email)>0) /* tail */)").execute(&pool).await?;
+        sqlx::query("INSERT INTO accounts VALUES(1,'existing')")
+            .execute(&pool)
+            .await?;
+        make_column_not_nullable(pool.clone(), "accounts".into(), "email".into()).await?;
+        assert!(
+            sqlx::query("INSERT INTO accounts(id) VALUES(2)")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        let schema: String =
+            sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name='accounts'")
+                .fetch_one(&pool)
+                .await?;
+        assert!(schema.contains("DEFAULT NULL"));
+        assert!(!schema.contains("CONSTRAINT optional"));
+        assert!(schema.contains("/* tail */"));
+        pool.close().await;
+        Ok(())
+    }
+
+    #[test]
+    fn nullable_transform_only_removes_top_level_constraint() -> TestResult {
+        let original = "email TEXT CONSTRAINT required NOT /* note */ NULL ON CONFLICT FAIL DEFAULT 'NOT NULL' CHECK(email != 'NOT NULL' AND length('(')>0) COLLATE NOCASE";
+        let changed = nullable_definition(original)?;
+        assert!(!changed.contains("CONSTRAINT required"));
+        assert!(!changed.contains("ON CONFLICT FAIL"));
+        assert!(changed.contains("DEFAULT 'NOT NULL'"));
+        assert!(changed.contains("CHECK(email != 'NOT NULL' AND length('(')>0)"));
+        assert!(changed.contains("COLLATE NOCASE"));
+        assert_eq!(
+            nullable_definition("email TEXT CHECK(email IS NOT NULL)")?,
+            "email TEXT CHECK(email IS NOT NULL)"
+        );
+        assert!(nullable_definition("email TEXT NOT NULL ON CONFLICT unknown").is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn nullable_rebuild_preserves_data_objects_and_nullable_unique() -> TestResult {
+        let pool = pool().await?;
+        for sql in [
+            "CREATE TABLE accounts(id INTEGER PRIMARY KEY AUTOINCREMENT,email TEXT CONSTRAINT required NOT NULL ON CONFLICT FAIL COLLATE NOCASE, secret TEXT DEFAULT 'NOT NULL')",
+            "CREATE UNIQUE INDEX email_unique ON accounts(email)",
+            "CREATE TABLE children(account_id INTEGER REFERENCES accounts(id))",
+            "CREATE TABLE events(value TEXT)",
+            "CREATE TRIGGER account_event AFTER INSERT ON accounts BEGIN INSERT INTO events VALUES(new.email); END",
+            "INSERT INTO accounts(id,email,secret) VALUES(10,'old@example.test','ciphertext')",
+            "INSERT INTO accounts(id,email) VALUES(99,'deleted@example.test')",
+            "DELETE FROM accounts WHERE id=99",
+            "INSERT INTO children VALUES(10)",
+        ] {
+            sqlx::query(sqlx::AssertSqlSafe(sql)).execute(&pool).await?;
+        }
+        make_column_nullable(pool.clone(), "accounts".into(), "email".into()).await?;
+        make_column_nullable(pool.clone(), "accounts".into(), "email".into()).await?;
+        let secret: String = sqlx::query_scalar("SELECT secret FROM accounts WHERE id=10")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(secret, "ciphertext");
+        sqlx::query("INSERT INTO accounts(email) VALUES(NULL),(NULL)")
+            .execute(&pool)
+            .await?;
+        let lowest: i64 = sqlx::query_scalar("SELECT MIN(id) FROM accounts WHERE email IS NULL")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(lowest, 100);
+        let null_events: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE value IS NULL")
+                .fetch_one(&pool)
+                .await?;
+        assert_eq!(null_events, 2);
+        assert!(
+            sqlx::query("INSERT INTO accounts(email) VALUES('OLD@example.test')")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        assert!(
+            sqlx::query("INSERT INTO children VALUES(999)")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
+                .fetch_one(&pool)
+                .await?,
+            1
+        );
+        pool.close().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn nullable_failure_preserves_original_table_and_constraints() -> TestResult {
+        let pool = pool().await?;
+        sqlx::query("CREATE TABLE accounts(id INTEGER PRIMARY KEY,email TEXT NOT NULL)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO accounts VALUES(1,'old')")
+            .execute(&pool)
+            .await?;
+        assert!(
+            make_column_nullable(pool.clone(), "accounts".into(), "id".into())
+                .await
+                .is_err()
+        );
+        assert!(
+            make_column_nullable(pool.clone(), "accounts".into(), "missing".into())
+                .await
+                .is_err()
+        );
+        // 既存外键违规也不能借本次重建提交；事务回滚必须保留非空约束。
+        sqlx::query("PRAGMA foreign_keys=OFF")
+            .execute(&pool)
+            .await?;
+        sqlx::query("CREATE TABLE children(parent INTEGER REFERENCES accounts(id))")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO children VALUES(999)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("PRAGMA foreign_keys=ON").execute(&pool).await?;
+        assert!(
+            make_column_nullable(pool.clone(), "accounts".into(), "email".into())
+                .await
+                .is_err()
+        );
+        assert!(
+            sqlx::query("INSERT INTO accounts VALUES(2,NULL)")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT email FROM accounts WHERE id=1")
+                .fetch_one(&pool)
+                .await?,
+            "old"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
+                .fetch_one(&pool)
+                .await?,
+            1
+        );
+        pool.close().await;
+        Ok(())
+    }
 
     async fn pool() -> Result<SqlitePool, sqlx::Error> {
         SqlitePoolOptions::new()

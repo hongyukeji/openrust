@@ -14,10 +14,8 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 use hmac::{Hmac, Mac, digest::KeyInit};
-#[cfg(feature = "auth-mfa")]
-use openrust::auth::MfaServiceProvider;
 use openrust::config::FrameworkConfig;
 use openrust::session::SessionStore as _;
 use openrust::testing::TestDatabase;
@@ -42,7 +40,7 @@ use openrust::{
     },
     security::Encryptor,
 };
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 use sha1::Sha1;
 use sha2::Digest as _;
 
@@ -109,8 +107,14 @@ impl MigratorTrait for OidcMigrator {
             Box::new(DatabaseAuditTenantMigration),
             Box::new(AuthExternalIdentityMigration),
             Box::new(AuthExternalSessionMigration),
-            #[cfg(feature = "auth-mfa")]
-            Box::new(openrust::auth::AuthMfaMigration),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(openrust::auth::fortify::FortifyTwoFactorMigration::new()),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(openrust::auth::fortify::FactorAuthorityMigration::new()),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(openrust::auth::fortify::CredentialFactorMigration::new()),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(openrust::auth::fortify::CredentialChallengeMigration::new()),
         ]
     }
 }
@@ -244,7 +248,7 @@ fn identity(subject: &str, email: &str, email_verified: bool) -> Result<Verified
 #[allow(
     clippy::too_many_lines,
     clippy::infallible_destructuring_match,
-    reason = "此测试按是否启用 MFA feature 分别验证两种登录结果"
+    reason = "同一真实数据库用例覆盖外部身份、关联撤销与可选Fortify挑战"
 )]
 async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit_linking()
 -> TestResult {
@@ -264,6 +268,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     )?;
     let database =
         TestDatabase::create_with_table_names::<OidcMigrator>(&url, names.clone()).await?;
+    let outcome:TestResult=Box::pin(async {
     let connection = database.connection()?;
     let db = Db::with_table_names(names);
     db.initialize(connection.clone())?;
@@ -297,15 +302,13 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         builder
             .provider(TestInstance(std::sync::Arc::new(db.clone())))
             .provider(TestInstance(std::sync::Arc::new(passwords)))
-            .provider(TestInstance(std::sync::Arc::new(jwt)))
+            .provider(TestInstance(std::sync::Arc::new(jwt.clone())))
             .provider(TestInstance(std::sync::Arc::new(refresh.clone())))
             .provider(TestInstance(std::sync::Arc::new(codes)))
             .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
                 DatabaseRateLimitStore::new(db.clone()),
             ))))
             .provider(TestInstance(std::sync::Arc::new(encryptor.clone())));
-        #[cfg(feature = "auth-mfa")]
-        builder.provider(MfaServiceProvider);
         builder.provider(AuthFlowsServiceProvider::new());
         let app = builder
             .start(sources)
@@ -361,8 +364,8 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let (attempt, association_handle) = result.into_parts();
     let credentials = match attempt {
         openrust::auth::LoginAttempt::Authenticated(credentials) => credentials,
-        #[cfg(feature = "auth-mfa")]
-        openrust::auth::LoginAttempt::MfaRequired(_) => {
+        #[cfg(feature = "auth-fortify")]
+        openrust::auth::LoginAttempt::TwoFactorRequired(_) => {
             return Err("expected completed external login".into());
         }
     };
@@ -498,8 +501,8 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let (second_attempt, second_handle) = second.into_parts();
     let second_credentials = match second_attempt {
         openrust::auth::LoginAttempt::Authenticated(credentials) => credentials,
-        #[cfg(feature = "auth-mfa")]
-        openrust::auth::LoginAttempt::MfaRequired(_) => {
+        #[cfg(feature = "auth-fortify")]
+        openrust::auth::LoginAttempt::TwoFactorRequired(_) => {
             return Err("expected completed second external login".into());
         }
     };
@@ -512,18 +515,19 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     external
         .attach_session(user_id, &second_handle, &second_session)
         .await?;
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     {
-        let challenge = "pending-external-mfa-challenge";
+        // 这里只验证按owner撤销，即使context损坏也不得留下外部关联的待挑战行；不据此授权。
+        let challenge = "pending-external-factor-challenge";
         let challenge_hash = format!("{:x}", sha2::Sha256::digest(challenge));
         let association_hash = format!("{:x}", sha2::Sha256::digest(second_handle.expose()));
         let backend = connection.get_database_backend();
-        let challenge_table = db.quoted_table_name("auth_mfa_challenges")?;
+        let challenge_table = db.quoted_table_name("auth_factor_challenges")?;
         let association_table = db.quoted_table_name("auth_external_sessions")?;
         let (insert, values, update, update_values) = match backend {
             openrust::database::sea_orm::DbBackend::Postgres => (
                 format!(
-                    "INSERT INTO {challenge_table} (token_hash, user_id, source_hash, attempts, expires_at, created_at) VALUES ($1, $2, $3, 0, CURRENT_TIMESTAMP + INTERVAL '5 minutes', CURRENT_TIMESTAMP)"
+                    "INSERT INTO {challenge_table} (token_hash, user_id, source_hash, context, purpose, attempts, expires_at, created_at) VALUES ($1, $2, $3, '{{}}', 'login', 0, CURRENT_TIMESTAMP + INTERVAL '5 minutes', CURRENT_TIMESTAMP)"
                 ),
                 vec![
                     challenge_hash.clone().into(),
@@ -535,7 +539,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
             ),
             openrust::database::sea_orm::DbBackend::MySql => (
                 format!(
-                    "INSERT INTO {challenge_table} (token_hash, user_id, source_hash, attempts, expires_at, created_at) VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE, CURRENT_TIMESTAMP(6))"
+                    "INSERT INTO {challenge_table} (token_hash, user_id, source_hash, context, purpose, attempts, expires_at, created_at) VALUES (?, ?, ?, '{{}}', 'login', 0, CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE, CURRENT_TIMESTAMP(6))"
                 ),
                 vec![
                     challenge_hash.clone().into(),
@@ -558,8 +562,16 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
             ))
             .await?;
     }
+    #[cfg(feature = "auth-fortify")]
+    let cleanup_external = {
+        let encryption = Encryptor::new(EncryptionConfig::new("test-key", BTreeMap::from([("test-key".into(),STANDARD.encode([0xa3_u8;32]))])))?;
+        let parts = web::Parts::new(db.clone(),Passwords::new(PasswordConfig {memory_kib:19_456,iterations:1,parallelism:1})?,encryption.clone(),auth.clone()).await?;
+        ExternalIdentityFlows::new(db.clone(),parts.auth,encryption,[provider.clone() as Arc<dyn ExternalIdentityProvider>])?
+    };
+    #[cfg(not(feature = "auth-fortify"))]
+    let cleanup_external = external.clone();
     assert_eq!(
-        external
+        cleanup_external
             .process_backchannel_logout("test-idp", "test-provider-verified-token", &session_store,)
             .await?,
         BackchannelLogoutOutcome::Processed(1)
@@ -575,9 +587,9 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
             .await?
             .is_none()
     );
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     assert_eq!(
-        count_rows(&connection, &db, "auth_mfa_challenges").await?,
+        count_rows(&connection, &db, "auth_factor_challenges").await?,
         0
     );
     assert_eq!(
@@ -636,8 +648,8 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         openrust::auth::LoginAttempt::Authenticated(credentials) => {
             credentials.refresh_token().expose().to_owned()
         }
-        #[cfg(feature = "auth-mfa")]
-        openrust::auth::LoginAttempt::MfaRequired(_) => {
+        #[cfg(feature = "auth-fortify")]
+        openrust::auth::LoginAttempt::TwoFactorRequired(_) => {
             return Err("expected completed subject-scoped login".into());
         }
     };
@@ -686,8 +698,8 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let (retry_attempt, retry_handle) = retry_result.into_parts();
     let retry_user_id = match retry_attempt {
         openrust::auth::LoginAttempt::Authenticated(credentials) => credentials.user_id(),
-        #[cfg(feature = "auth-mfa")]
-        openrust::auth::LoginAttempt::MfaRequired(_) => {
+        #[cfg(feature = "auth-fortify")]
+        openrust::auth::LoginAttempt::TwoFactorRequired(_) => {
             return Err("expected direct credentials for logout retry test".into());
         }
     };
@@ -964,8 +976,8 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let (local_only_attempt, local_only_handle) = local_only_result.into_parts();
     let local_only_credentials = match local_only_attempt {
         openrust::auth::LoginAttempt::Authenticated(credentials) => credentials,
-        #[cfg(feature = "auth-mfa")]
-        openrust::auth::LoginAttempt::MfaRequired(_) => {
+        #[cfg(feature = "auth-fortify")]
+        openrust::auth::LoginAttempt::TwoFactorRequired(_) => {
             return Err("expected local-only logout account without MFA".into());
         }
     };
@@ -1021,14 +1033,19 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         "external logins, binding, and both scoped logout paths must be audited"
     );
 
-    #[cfg(feature = "auth-mfa")]
-    verify_external_mfa_completion(&external, &provider, &auth, &db, &connection, &refresh).await?;
+    #[cfg(feature = "auth-fortify")]
+    Box::pin(verify_external_two_factor_completion(&provider, &auth, &db, &connection, &refresh, &jwt)).await?;
 
     drop(external);
     drop(auth);
     drop(db);
     drop(connection);
-    database.close().await?;
+    Ok(())
+    }).await;
+    let cleanup = database.close().await;
+    outcome
+        .map_err(|error| -> Box<dyn StdError> { format!("OIDC integration: {error}").into() })?;
+    cleanup?;
     Ok(())
 }
 
@@ -1038,21 +1055,44 @@ fn state_from_url(url: &url::Url) -> std::result::Result<String, Box<dyn StdErro
         .ok_or_else(|| "authorization URL has no state query parameter".into())
 }
 
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 #[allow(
     clippy::too_many_lines,
     reason = "同一双库用例贯通外部身份绑定、本地 MFA challenge、凭据/Session 关联与退出撤销"
 )]
-async fn verify_external_mfa_completion(
-    external: &ExternalIdentityFlows,
-    provider: &TestProvider,
+async fn verify_external_two_factor_completion(
+    provider: &Arc<TestProvider>,
     auth: &AuthFlows,
     db: &Db,
     connection: &openrust::database::DatabaseConnection,
     refresh: &RefreshTokens,
+    jwt: &JwtTokens,
 ) -> TestResult {
     use openrust::auth::LoginAttempt;
 
+    use openrust::auth::UserProvider as _;
+    let encryptor = Encryptor::new(EncryptionConfig::new(
+        "test-key",
+        BTreeMap::from([("test-key".into(), STANDARD.encode([0xa3_u8; 32]))]),
+    ))?;
+    let parts = web::Parts::new(
+        db.clone(),
+        Passwords::new(PasswordConfig {
+            memory_kib: 19_456,
+            iterations: 1,
+            parallelism: 1,
+        })?,
+        encryptor.clone(),
+        auth.clone(),
+    )
+    .await?;
+    let auth = &parts.auth;
+    let external = ExternalIdentityFlows::new(
+        db.clone(),
+        auth.clone(),
+        encryptor,
+        [provider.clone() as Arc<dyn ExternalIdentityProvider>],
+    )?;
     let email = "oidc-mfa@example.test";
     let password = "correct horse battery staple";
     let issued = auth
@@ -1082,27 +1122,20 @@ async fn verify_external_mfa_completion(
         .ok_or("MFA OIDC test user was not stored")?
         .try_get::<i64>("", "id")?;
 
-    let enrollment = auth
-        .begin_totp_enrollment(
-            user_id,
-            email,
-            password,
-            "OpenRust OIDC test",
-            "oidc-mfa-enroll",
-        )
-        .await
-        .map_err(|error| format!("MFA test enrollment start failed: {error:?}"))?;
-    let enrollment_uri = url::Url::parse(enrollment.provisioning_uri())?;
-    let encoded_secret = enrollment_uri
-        .query_pairs()
-        .find_map(|(name, value)| (name == "secret").then(|| value.into_owned()))
-        .ok_or("MFA enrollment omitted the TOTP secret")?;
+    let user = parts
+        .users
+        .retrieve_by_id(&serde_json::json!(user_id))
+        .await?
+        .ok_or("missing factor user")?;
+    parts.actions.enable(&user, false).await?;
+    let encoded_secret = parts.actions.secret_key(&user).await?;
     let secret = decode_base32_secret(&encoded_secret)?;
-    let recovery_codes = auth
-        .confirm_totp_enrollment(user_id, &totp_code(&secret, 0)?, "oidc-mfa-confirm")
-        .await
-        .map_err(|error| format!("MFA test enrollment confirmation failed: {error:?}"))?;
-    assert_eq!(recovery_codes.expose().len(), 10);
+    parts
+        .actions
+        .confirm(&user, &totp_code(&secret, 0)?)
+        .await?;
+    let recovery_codes = parts.actions.recovery_codes(&user).await?;
+    assert_eq!(recovery_codes.len(), 8);
 
     provider.set_identity("mfa-bind", identity("sub-mfa", email, true)?)?;
     let binding = external.authorize("test-idp", "127.0.0.42").await?;
@@ -1136,7 +1169,7 @@ async fn verify_external_mfa_completion(
         .map_err(|error| format!("MFA test external callback failed: {error:?}"))?;
     let (attempt, handle) = result.into_parts();
     let challenge = match attempt {
-        LoginAttempt::MfaRequired(challenge) => challenge.expose().to_owned(),
+        LoginAttempt::TwoFactorRequired(challenge) => challenge.expose().to_owned(),
         LoginAttempt::Authenticated(_) => {
             return Err("external login bypassed the enabled local MFA factor".into());
         }
@@ -1168,7 +1201,12 @@ async fn verify_external_mfa_completion(
     );
 
     let credentials = auth
-        .complete_mfa_login(&challenge, &totp_code(&secret, 1)?, "127.0.0.43")
+        .complete_two_factor_login(
+            &challenge,
+            Some(&totp_code(&secret, 1)?),
+            None,
+            "127.0.0.43",
+        )
         .await
         .map_err(|error| format!("MFA test challenge completion failed: {error:?}"))?;
     let refresh_token = credentials.refresh_token().expose().to_owned();
@@ -1191,47 +1229,172 @@ async fn verify_external_mfa_completion(
     assert!(associated_family.is_some_and(|value| !value.is_empty()));
     let session_store = openrust::session::MemorySessionStore::default();
     let sessions = SessionStoreHandle::new(session_store.clone());
-    let session = Session::new(None, Arc::new(session_store.clone()), None)?;
-    session.start().await?;
-    session.put_typed("openrust.auth.user_id", user_id)?;
-    session.save().await?;
-    let session_id = session.id()?;
-    external
-        .attach_session(user_id, &handle, &session)
-        .await
-        .map_err(|error| format!("MFA test Session association failed: {error:?}"))?;
-
-    let redirect = external
+    // 直接凭据挑战与官方Web登录是独立入口；先撤销前一真实家族，再验证新的Web关联。
+    let direct_logout = external
         .begin_logout(
             user_id,
             &handle,
             "https://idp.example.test/callback",
             &sessions,
         )
-        .await
-        .map_err(|error| format!("MFA test logout failed: {error:?}"))?
-        .ok_or("MFA OIDC logout endpoint was not available")?;
+        .await?
+        .ok_or("missing direct logout")?;
+    external
+        .complete_logout("test-idp", direct_logout.state())
+        .await?;
     assert!(refresh.rotate(&refresh_token).await.is_err());
-    assert!(
-        session_store
-            .load(
-                &session_id,
-                openrust::session::DEFAULT_MAX_BYTES,
-                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+    let web_authorization = external.authorize("test-idp", "127.0.0.44").await?;
+    let web_state = state_from_url(web_authorization.url())?;
+    let (attempt, handle) = external
+        .complete_with_handle(
+            "test-idp",
+            &web_state,
+            "mfa-login",
+            web_authorization.browser_binding_cookie(),
+            "127.0.0.44",
+        )
+        .await?
+        .into_parts();
+    let LoginAttempt::TwoFactorRequired(web_challenge) = attempt else {
+        return Err("Web flow skipped challenge".into());
+    };
+    let mut browser = web::Fixture::new(parts.clone(), external.clone(), sessions.clone()).await?;
+    let result: TestResult = async {
+        let pending = browser.begin(&web_challenge, &handle).await?;
+        assert_eq!(pending.status, http::StatusCode::ACCEPTED);
+        assert!(
+            pending.outcome.is_none(),
+            "pending Web challenge must not issue credentials"
+        );
+        let cookie = web::cookie_header(&pending.headers)?;
+        let csrf = pending
+            .headers
+            .get("x-csrf-token")
+            .and_then(|value| value.to_str().ok())
+            .ok_or("missing actual CSRF token")?;
+        let rejected = browser
+            .complete(&cookie, None, None, Some(&recovery_codes[1]))
+            .await?;
+        assert_eq!(rejected.status, http::StatusCode::from_u16(419)?);
+        assert!(rejected.outcome.is_none());
+        let completed = browser
+            .complete(&cookie, Some(csrf), None, Some(&recovery_codes[1]))
+            .await?;
+        assert_eq!(completed.status, http::StatusCode::OK);
+        let logged_in = completed.outcome.ok_or("Web login omitted outcome")?;
+        assert_eq!(logged_in.user_id, user_id);
+        assert!(<str as PartialEq>::eq(
+            logged_in.handle.expose(),
+            handle.expose()
+        ));
+        assert_eq!(jwt.verify_access_token(&logged_in.access_token)?, user_id);
+        let session_id = logged_in.session_id;
+        let refresh_token = logged_in.refresh_token;
+        let replaced_codes = parts.actions.recovery_codes(&user).await?;
+        assert_eq!(replaced_codes.len(), 8);
+        assert!(!replaced_codes.contains(&recovery_codes[1]));
+        assert_eq!(
+            replaced_codes
+                .iter()
+                .filter(|code| recovery_codes.contains(code))
+                .count(),
+            7,
+            "真实Web完成只替换一份恢复码，保留其余七份"
+        );
+
+        let redirect = external
+            .begin_logout(
+                user_id,
+                &handle,
+                "https://idp.example.test/callback",
+                &sessions,
+            )
+            .await
+            .map_err(|error| format!("MFA test logout failed: {error:?}"))?
+            .ok_or("MFA OIDC logout endpoint was not available")?;
+        assert!(refresh.rotate(&refresh_token).await.is_err());
+        assert!(
+            session_store
+                .load(
+                    &session_id,
+                    openrust::session::DEFAULT_MAX_BYTES,
+                    time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+                )
+                .await?
+                .is_none()
+        );
+        assert!(
+            external
+                .complete_logout("test-idp", redirect.state())
+                .await
+                .is_ok()
+        );
+        // 禁用后另一次真实IdP首因子直接取得凭据；Web只复用该家族，不额外签发脱离SLO的家族。
+        parts.actions.disable(&user).await?;
+        let authorization = external.authorize("test-idp", "oidc-web-no-factor").await?;
+        let state = state_from_url(authorization.url())?;
+        let (attempt, plain_handle) = external
+            .complete_with_handle(
+                "test-idp",
+                &state,
+                "mfa-login",
+                authorization.browser_binding_cookie(),
+                "oidc-web-no-factor",
             )
             .await?
-            .is_none()
-    );
-    assert!(
+            .into_parts();
+        let LoginAttempt::Authenticated(plain_credentials) = attempt else {
+            return Err("disabled factor unexpectedly challenged".into());
+        };
+        let refresh_rows = count_rows(connection, db, "auth_refresh_tokens").await?;
+        let ready = browser
+            .begin_authenticated(&plain_credentials, &plain_handle)
+            .await?;
+        assert_eq!(ready.status, http::StatusCode::OK);
+        assert_eq!(
+            count_rows(connection, db, "auth_refresh_tokens").await?,
+            refresh_rows,
+            "Web attachment must not mint a second family"
+        );
+        let ready = ready.outcome.ok_or("missing no-factor Web identity")?;
+        assert_eq!(ready.access_token, plain_credentials.access_token());
+        assert_eq!(
+            ready.refresh_token,
+            plain_credentials.refresh_token().expose()
+        );
+        let redirect = external
+            .begin_logout(
+                user_id,
+                &plain_handle,
+                "https://idp.example.test/callback",
+                &sessions,
+            )
+            .await?
+            .ok_or("missing no-factor logout")?;
         external
             .complete_logout("test-idp", redirect.state())
-            .await
-            .is_ok()
-    );
+            .await?;
+        assert!(refresh.rotate(&ready.refresh_token).await.is_err());
+        assert!(
+            session_store
+                .load(
+                    &ready.session_id,
+                    openrust::session::DEFAULT_MAX_BYTES,
+                    time::OffsetDateTime::now_utc()
+                )
+                .await?
+                .is_none()
+        );
+        Ok(())
+    }
+    .await;
+    let cleanup = browser.shutdown().await;
+    result?;
+    cleanup?;
     Ok(())
 }
 
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 fn decode_base32_secret(encoded: &str) -> TestResult<Vec<u8>> {
     let mut output = Vec::new();
     let mut buffer = 0_u32;
@@ -1254,7 +1417,7 @@ fn decode_base32_secret(encoded: &str) -> TestResult<Vec<u8>> {
     Ok(output)
 }
 
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 fn totp_code(secret: &[u8], step_offset: u64) -> TestResult<String> {
     let step = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
@@ -1353,3 +1516,12 @@ impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<
         })
     }
 }
+
+#[cfg(feature = "auth-fortify")]
+#[path = "oidc/authority.rs"]
+mod authority;
+
+/// 两个独立test binary共享同一真实Web夹具，不重复编译另一个测试模块。
+#[cfg(feature = "auth-fortify")]
+#[path = "oidc/web.rs"]
+mod web;

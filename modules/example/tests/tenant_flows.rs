@@ -5,7 +5,7 @@ use figment::{Figment, providers::Serialized};
 #[cfg(all(feature = "cache-redis", feature = "queue", feature = "storage-local"))]
 use futures_util::FutureExt as _;
 use openrust::Db;
-use openrust::auth::{AuthFlows, JwtTokens};
+use openrust::auth::AuthFlows;
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
@@ -23,7 +23,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -103,7 +103,6 @@ impl Fixture {
         .build()
         .await?;
         let auth = app.app()?.state().resolve::<AuthFlows>().await?;
-        let tokens = app.app()?.state().resolve::<JwtTokens>().await?;
         let mut identities = Vec::new();
         for email in ["tenant-owner@example.test", "tenant-other@example.test"] {
             let password = "isolated tenant fixture password";
@@ -112,8 +111,8 @@ impl Fixture {
                 .await?
                 .ok_or("verification code missing")?;
             assert!(auth.verify_email(email, code.code(), "tenant-test").await?);
-            let id = auth.login(email, password, "tenant-test").await?.user_id();
-            identities.push((id, tokens.issue_access_token(id)?));
+            let credentials = auth.login(email, password, "tenant-test").await?;
+            identities.push((credentials.user_id(), credentials.access_token().to_owned()));
         }
         let owner = identities[0].0;
         let db = app.app()?.state().resolve::<Db>().await?;

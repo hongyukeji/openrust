@@ -10,7 +10,6 @@ use super::http::requests::article_transfer::{ArticleFormat, MAX_TRANSFER_BYTES}
 use super::models::article;
 use super::services::article_transfer::encode_export;
 use figment::{Figment, providers::Serialized};
-use openrust::auth::JwtTokens;
 use openrust::db::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait,
     QueryFilter, Statement,
@@ -58,7 +57,7 @@ struct TransferMigrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for TransferMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -119,10 +118,9 @@ impl Fixture {
             .insert(&connection)
             .await?;
         }
-        let tokens = app.app()?.state().resolve::<JwtTokens>().await?;
         Ok(Some(Self {
-            token: tokens.issue_access_token(1)?,
-            other: tokens.issue_access_token(2)?,
+            token: super::selected_test_auth::seeded_password_access(app.app()?, 1).await?,
+            other: super::selected_test_auth::seeded_password_access(app.app()?, 2).await?,
             app,
             database,
             directory,

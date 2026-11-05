@@ -120,6 +120,57 @@ impl DatabaseRateLimitStore {
 }
 
 impl RateLimitStore for DatabaseRateLimitStore {
+    fn hit<'a>(
+        &'a self,
+        key: &'a str,
+        decay: std::time::Duration,
+    ) -> RateLimitFuture<'a, Result<RateLimitBucket>> {
+        Box::pin(async move {
+            let connection = self.db.connection()?;
+            let table = self.db.quoted_table_name("rate_limits")?;
+            hit_decay(&connection, &table, &digest(key), decay).await
+        })
+    }
+    fn attempts<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> RateLimitFuture<'a, Result<Option<RateLimitBucket>>> {
+        Box::pin(async move {
+            let connection = self.db.connection()?;
+            let backend = connection.get_database_backend();
+            let table = self.db.quoted_table_name("rate_limits")?;
+            let (now, placeholder) = decay_sql(backend)?;
+            let sql = format!(
+                "SELECT hit_count, window_started_at + window_seconds - {now} AS reset_after_secs FROM {table} WHERE key_hash = {placeholder} AND window_started_at + window_seconds > {now}"
+            );
+            let row = connection
+                .query_one_raw(Statement::from_sql_and_values(
+                    backend,
+                    sql,
+                    [digest(key).into()],
+                ))
+                .await
+                .map_err(crate::Error::internal)?;
+            row.as_ref().map(read_bucket).transpose()
+        })
+    }
+    fn clear<'a>(&'a self, key: &'a str) -> RateLimitFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let connection = self.db.connection()?;
+            let backend = connection.get_database_backend();
+            let (_, placeholder) = decay_sql(backend)?;
+            let table = self.db.quoted_table_name("rate_limits")?;
+            connection
+                .execute_raw(Statement::from_sql_and_values(
+                    backend,
+                    format!("DELETE FROM {table} WHERE key_hash = {placeholder}"),
+                    [digest(key).into()],
+                ))
+                .await
+                .map_err(crate::Error::internal)?;
+            Ok(())
+        })
+    }
     fn consume<'a>(
         &'a self,
         key: &'a str,
@@ -346,5 +397,75 @@ impl std::fmt::Display for RateLimitStoreError {
 
 impl std::error::Error for RateLimitStoreError {}
 
+#[cfg(all(test, any(feature = "db-mysql", feature = "db-postgres")))]
+mod real_server_tests;
 #[cfg(all(test, feature = "db-sqlite"))]
 mod tests;
+
+fn decay_sql(backend: DbBackend) -> Result<(&'static str, &'static str)> {
+    match backend {
+        DbBackend::Postgres => Ok((
+            "CAST(FLOOR(EXTRACT(EPOCH FROM clock_timestamp())) AS BIGINT)",
+            "$1",
+        )),
+        DbBackend::MySql => Ok(("CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP) AS SIGNED)", "?")),
+        DbBackend::Sqlite => Ok(("CAST(strftime('%s','now') AS INTEGER)", "?")),
+        _ => Err(crate::Error::custom(
+            "unsupported_rate_limit_backend",
+            "database rate limiting requires PostgreSQL, MySQL or SQLite",
+        )),
+    }
+}
+fn read_bucket(row: &sea_orm::QueryResult) -> Result<RateLimitBucket> {
+    let count: i64 = row
+        .try_get("", "hit_count")
+        .map_err(crate::Error::internal)?;
+    let reset: i64 = row
+        .try_get("", "reset_after_secs")
+        .map_err(crate::Error::internal)?;
+    Ok(RateLimitBucket::new(to_u64(count)?, to_u64(reset)?))
+}
+async fn hit_decay(
+    connection: &DatabaseConnection,
+    table: &str,
+    key_hash: &str,
+    decay: std::time::Duration,
+) -> Result<RateLimitBucket> {
+    let seconds = to_i64(decay.as_secs())?;
+    if seconds <= 0 || seconds > 31_536_000 || decay.subsec_nanos() != 0 {
+        return Err(crate::Error::custom(
+            "invalid_rate_limit_policy",
+            "限流衰减窗口必须为正整数秒且不超过一年",
+        ));
+    }
+    let backend = connection.get_database_backend();
+    let (now, placeholder) = decay_sql(backend)?;
+    let transaction = super::begin_for_update(connection).await?;
+    let outcome = async {
+        // SQLite先取得写所有权再采样；其他后端同一连接原子upsert锁定冲突行。
+        let upsert = match backend {
+            DbBackend::Postgres => format!("INSERT INTO {table} (key_hash,window_started_at,window_seconds,hit_count) VALUES ($1,{now},$2,1) ON CONFLICT (key_hash) DO UPDATE SET hit_count=CASE WHEN {table}.window_started_at+{table}.window_seconds>EXCLUDED.window_started_at THEN CASE WHEN {table}.hit_count<9223372036854775807 THEN {table}.hit_count+1 ELSE 9223372036854775807 END ELSE 1 END,window_seconds=CASE WHEN {table}.window_started_at+{table}.window_seconds>EXCLUDED.window_started_at THEN {table}.window_seconds ELSE EXCLUDED.window_seconds END,window_started_at=CASE WHEN {table}.window_started_at+{table}.window_seconds>EXCLUDED.window_started_at THEN {table}.window_started_at ELSE EXCLUDED.window_started_at END"),
+            DbBackend::Sqlite => format!("INSERT INTO {table} (key_hash,window_started_at,window_seconds,hit_count) VALUES (?,{now},?,1) ON CONFLICT (key_hash) DO UPDATE SET hit_count=CASE WHEN {table}.window_started_at+{table}.window_seconds>excluded.window_started_at THEN CASE WHEN {table}.hit_count<9223372036854775807 THEN {table}.hit_count+1 ELSE 9223372036854775807 END ELSE 1 END,window_seconds=CASE WHEN {table}.window_started_at+{table}.window_seconds>excluded.window_started_at THEN {table}.window_seconds ELSE excluded.window_seconds END,window_started_at=CASE WHEN {table}.window_started_at+{table}.window_seconds>excluded.window_started_at THEN {table}.window_started_at ELSE excluded.window_started_at END"),
+            // MySQL赋值从左到右：先根据旧到期时间更新count/seconds，最后由重置后的count=1决定新起点。
+            DbBackend::MySql => format!("INSERT INTO {table} (key_hash,window_started_at,window_seconds,hit_count) VALUES (?,{now},?,1) ON DUPLICATE KEY UPDATE hit_count=IF(window_started_at+window_seconds>VALUES(window_started_at),CASE WHEN hit_count<9223372036854775807 THEN hit_count+1 ELSE 9223372036854775807 END,1),window_seconds=IF(window_started_at+window_seconds>VALUES(window_started_at),window_seconds,VALUES(window_seconds)),window_started_at=IF(hit_count=1,VALUES(window_started_at),window_started_at)"),
+            _ => return Err(crate::Error::custom("unsupported_rate_limit_backend", "不支持的限流数据库")),
+        };
+        transaction.execute_raw(Statement::from_sql_and_values(backend, upsert, [key_hash.to_owned().into(), seconds.into()])).await.map_err(crate::Error::internal)?;
+        let sql = format!("SELECT hit_count, CASE WHEN window_started_at+window_seconds>{now} THEN window_started_at+window_seconds-{now} ELSE 1 END AS reset_after_secs FROM {table} WHERE key_hash={placeholder}");
+        let row = transaction.query_one_raw(Statement::from_sql_and_values(backend, sql, [key_hash.to_owned().into()])).await.map_err(crate::Error::internal)?.ok_or_else(|| crate::Error::internal(RateLimitStoreError))?;
+        read_bucket(&row)
+    }.await;
+    match outcome {
+        Ok(bucket) => {
+            transaction.commit().await.map_err(crate::Error::internal)?;
+            Ok(bucket)
+        }
+        Err(error) => {
+            transaction
+                .rollback()
+                .await
+                .map_err(crate::Error::internal)?;
+            Err(error)
+        }
+    }
+}

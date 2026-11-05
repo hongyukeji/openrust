@@ -57,6 +57,35 @@ impl ExampleServiceProvider {
     }
 }
 
+#[cfg(feature = "auth-fortify")]
+async fn register_fortify_views(app: &mut RegisterContext<'_>) -> Result<()> {
+    use crate::modules::example::http::controllers::fortify::ExampleFortifyViews;
+    use openrust::auth::fortify::{
+        ConfirmPasswordViewResponse, FortifyConfig, LoginViewResponse,
+        TwoFactorChallengeViewResponse,
+    };
+
+    // 工厂在请求作用域读取最终配置；调用方已有绑定优先。
+    macro_rules! bind_view {
+        ($contract:ident) => {
+            if !app.is_bound::<dyn $contract>() {
+                app.scoped::<dyn $contract, _>(|resolver| {
+                    Box::pin(async move {
+                        let config = resolver.section::<FortifyConfig>("fortify")?;
+                        Ok(Arc::new(ExampleFortifyViews::new(config.username))
+                            as Arc<dyn $contract>)
+                    })
+                })
+                .await?;
+            }
+        };
+    }
+    bind_view!(LoginViewResponse);
+    bind_view!(ConfirmPasswordViewResponse);
+    bind_view!(TwoFactorChallengeViewResponse);
+    Ok(())
+}
+
 fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
     app.middleware_alias(
         "example.response-marker",
@@ -244,6 +273,8 @@ impl ServiceProvider for ExampleServiceProvider {
     ) -> openrust::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_schema(app)?;
+            #[cfg(feature = "auth-fortify")]
+            register_fortify_views(app).await?;
             app.singleton::<ExampleMessage, _>(|resolver| {
                 Box::pin(async move {
                     let config = resolver.section::<ExampleConfig>("example")?;
@@ -431,12 +462,23 @@ impl ServiceProvider for ExampleServiceProvider {
             #[cfg(feature = "auth-oidc")]
             let oidc_enabled = oidc_config.is_some();
             register_binding_extension_route(app).await?;
+            #[cfg(feature = "auth-fortify")]
+            let jwt_api_guard = if app.is_bound::<openrust::auth::fortify::FortifyJwtApi>() {
+                Some(
+                    app.section::<openrust::auth::fortify::FortifyJwtApiConfig>("fortify-api")?
+                        .guard,
+                )
+            } else {
+                None
+            };
             let config_reading_repository = app.config_repository();
             app.routes(move |routes| {
                 crate::modules::example::routes::register(
                     routes,
                     &crate::modules::example::routes::RouteCapabilities {
                         database: database_enabled,
+                        #[cfg(feature = "auth-fortify")]
+                        jwt_api_guard: jwt_api_guard.clone(),
                         #[cfg(feature = "session")]
                         session: session_enabled.load(Ordering::Acquire),
                         view: view_enabled,

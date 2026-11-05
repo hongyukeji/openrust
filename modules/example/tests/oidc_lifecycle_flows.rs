@@ -1,4 +1,4 @@
-//! 真实 Keycloak 与 RP TCP 的 MFA/退出业务；旧自包含 access JWT 不宣称立即撤销。
+//! 真实 Keycloak 与 RP TCP 的双因素验证、凭据家族及退出业务。
 #![cfg(all(
     feature = "auth-oidc",
     any(feature = "db-postgres", feature = "db-mysql")
@@ -181,69 +181,44 @@ async fn session_status(node: &BrowserNode, session: &BrowserSession) -> TestRes
     Ok(response.status())
 }
 
-#[cfg(feature = "auth-mfa")]
-async fn enable_factor(
-    node: &BrowserNode,
-    local: &str,
-    email: &str,
-) -> TestResult<(String, String)> {
-    let enrollment = post(
-        node,
-        "/api/example/account/mfa/enroll",
-        Some(local),
-        &serde_json::json!({"email":email,"password":LOCAL_PASSWORD}),
-    )
-    .await?;
-    assert_eq!(enrollment.status(), StatusCode::OK);
-    let enrollment = json(enrollment).await?;
-    let uri = text(&enrollment["data"], "provisioning_uri")?;
-    let code = super::account_security_flows::authenticator_code(&uri)?;
-    let confirmed = post(
-        node,
-        "/api/example/account/mfa/confirm",
-        Some(local),
-        &serde_json::json!({"email":email,"password":LOCAL_PASSWORD,"code":code}),
-    )
-    .await?;
-    assert_eq!(confirmed.status(), StatusCode::OK);
-    let confirmed = json(confirmed).await?;
-    let recovery = confirmed["data"]["recovery_codes"]
-        .as_array()
-        .ok_or("recovery codes missing")?;
-    Ok((
-        recovery[0]
-            .as_str()
-            .ok_or("recovery code missing")?
-            .to_owned(),
-        recovery[1]
-            .as_str()
-            .ok_or("recovery code missing")?
-            .to_owned(),
-    ))
+#[cfg(feature = "auth-fortify")]
+async fn enable_factor(node: &BrowserNode, local: &str) -> TestResult<(String, String)> {
+    let app = node.fixture.app.app()?;
+    let jwt = app.state().resolve::<openrust::auth::JwtTokens>().await?;
+    let authority = app
+        .state()
+        .resolve::<openrust::auth::fortify::CredentialAuthority>()
+        .await?;
+    let parent = authority.authenticate_access_token(&jwt, local).await?;
+    let (actions, user) =
+        super::account_security_flows::setup_confirmed_factor(app, parent.user_id()).await?;
+    let recovery = actions.recovery_codes(&user).await?;
+    assert_eq!(recovery.len(), 8);
+    Ok((recovery[0].clone(), recovery[1].clone()))
 }
 
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 #[tokio::test]
-async fn real_oidc_mfa_gates_credentials_once_and_logout_revokes_associated_refresh() -> TestResult
-{
+async fn real_oidc_two_factor_gates_credentials_once_and_logout_revokes_associated_refresh()
+-> TestResult {
     let Some(idp) = Idp::environment()? else {
         return Ok(());
     };
     let Some(node) = BrowserNode::start(&idp).await? else {
         return Ok(());
     };
-    let email = "oidc-mfa-lifecycle@example.test";
+    let email = "oidc-factor-lifecycle@example.test";
     let local = link_local(&node, &idp, email).await?;
-    let (first, second) = enable_factor(&node, &local, email).await?;
+    let (first, second) = enable_factor(&node, &local).await?;
     let authorization = authorize(&node, &idp).await?;
     let response = complete(&node, &authorization).await?;
-    assert_eq!(response["data"]["status"], "mfa_required");
+    assert_eq!(response["data"]["status"], "two_factor_required");
     assert!(response["data"].get("credentials").is_none());
     let handle = text(&response["data"], "external_login_handle")?;
     let challenge = text(&response["data"], "challenge")?;
     let wrong = post(
         &node,
-        "/api/example/account/login/mfa",
+        "/api/example/account/login/two-factor",
         None,
         &serde_json::json!({"challenge":challenge,"code":"not-an-authenticator-code"}),
     )
@@ -251,9 +226,9 @@ async fn real_oidc_mfa_gates_credentials_once_and_logout_revokes_associated_refr
     assert_eq!(wrong.status(), StatusCode::UNAUTHORIZED);
     let completed = post(
         &node,
-        "/api/example/account/login/mfa",
+        "/api/example/account/login/two-factor",
         None,
-        &serde_json::json!({"challenge":challenge,"code":first}),
+        &serde_json::json!({"challenge":challenge,"recovery_code":first}),
     )
     .await?;
     assert_eq!(completed.status(), StatusCode::OK);
@@ -269,9 +244,9 @@ async fn real_oidc_mfa_gates_credentials_once_and_logout_revokes_associated_refr
     let refresh = text(&credentials["data"], "refresh_token")?;
     let replay = post(
         &node,
-        "/api/example/account/login/mfa",
+        "/api/example/account/login/two-factor",
         None,
-        &serde_json::json!({"challenge":challenge,"code":first}),
+        &serde_json::json!({"challenge":challenge,"recovery_code":first}),
     )
     .await?;
     assert!(!replay.status().is_success());
@@ -283,15 +258,15 @@ async fn real_oidc_mfa_gates_credentials_once_and_logout_revokes_associated_refr
     logout(&node, &access, &pending_handle).await?;
     let revoked = post(
         &node,
-        "/api/example/account/login/mfa",
+        "/api/example/account/login/two-factor",
         None,
-        &serde_json::json!({"challenge":pending_challenge,"code":second}),
+        &serde_json::json!({"challenge":pending_challenge,"recovery_code":second}),
     )
     .await?;
     assert_eq!(revoked.status(), StatusCode::UNAUTHORIZED);
     logout(&node, &access, &handle).await?;
     assert_refresh_denied(&node, &refresh).await?;
-    // 当前 JWT 无逐请求撤销表检查；关联 refresh 的退出不被伪称为旧 access JWT 瞬时撤销。
+    // 直接API签发的JWT在每次请求重核同一家族的撤销状态。
     let jwt = node
         .client
         .get(format!("{}{BASE}/links", node.origin))
@@ -299,7 +274,7 @@ async fn real_oidc_mfa_gates_credentials_once_and_logout_revokes_associated_refr
         .send()
         .await
         .map_err(|_| "old JWT boundary request failed")?;
-    assert_eq!(jwt.status(), StatusCode::OK);
+    assert_eq!(jwt.status(), StatusCode::UNAUTHORIZED);
     node.close().await
 }
 

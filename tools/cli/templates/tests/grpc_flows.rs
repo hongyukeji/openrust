@@ -103,10 +103,17 @@ async fn rejected_tls(address: SocketAddr, ca: &str, domain: &str, expected: &st
 
 #[tokio::test]
 async fn generated_binary_serve_all_runs_http_and_tls_echo_then_stops() -> TestResult {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_{{binary_name}}"));
+    command.arg("serve").arg("all").current_dir(env!("CARGO_MANIFEST_DIR"));
+{{auth_config}}{{encryption_config}}{{database_setup}}
+    let result = run_server(command).await;
+{{database_cleanup}}
+    result?;
+    database_result
+}
+
+async fn run_server(mut command: Command) -> TestResult {
     let directory = tempfile::tempdir()?;
-    let config_dir = directory.path().join("config");
-    std::fs::create_dir(&config_dir)?;
-{{database_setup}}{{auth_config}}{{encryption_config}}
     let (trusted_ca, issuer) = certificate_authority("Generated Test CA")?;
     let (untrusted_ca, _) = certificate_authority("Unrelated Test CA")?;
     let mut params = CertificateParams::new(vec!["localhost".into()])?;
@@ -124,45 +131,29 @@ async fn generated_binary_serve_all_runs_http_and_tls_echo_then_stops() -> TestR
     let grpc_probe = TcpListener::bind("127.0.0.1:0").await?;
     let http_address = http_probe.local_addr()?;
     let grpc_address = grpc_probe.local_addr()?;
-    std::fs::write(
-        config_dir.join("server.toml"),
-        format!(
-            "[server]\nhost = '127.0.0.1'\nport = {}\nshutdown_timeout_secs = 3\n",
-            http_address.port()
-        ),
-    )?;
-    std::fs::write(
-        config_dir.join("grpc.toml"),
-        format!(
-            "[grpc]\nlisten_addr = '{grpc_address}'\nhealth_drain_grace_ms = 25\n\n[grpc.tls]\ncertificate_file = {}\nprivate_key_file = {}\n",
-            serde_json::to_string(&cert_file.to_string_lossy())?,
-            serde_json::to_string(&key_file.to_string_lossy())?
-        ),
-    )?;
-    std::fs::write(
-        config_dir.join("cache.toml"),
-        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n",
-    )?;
-    std::fs::write(
-        config_dir.join("view.toml"),
-        format!(
-            "[view]\ndirectory = {}\n",
-            serde_json::to_string(&format!("{}/resources/views", env!("CARGO_MANIFEST_DIR")))?
-        ),
-    )?;
-    drop(http_probe);
-    drop(grpc_probe);
-
-    let mut command = Command::new(env!("CARGO_BIN_EXE_{{binary_name}}"));
+    // APP_GRPC_TLS 对应 grpc.tls；环境对象按 Figment 的 {key=value} 语法解析。
+    let tls = format!(
+        "{{certificate_file={},private_key_file={}}}",
+        serde_json::to_string(&cert_file)?,
+        serde_json::to_string(&key_file)?,
+    );
     command
-        .arg("serve")
-        .arg("all")
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .env("APP_CONFIG_DIR", &config_dir)
-        .env("APP_ENV", "test")
+        .env("APP_ENV", "testing")
+        .env("APP_NAME", "{{binary_name}}")
+        .env("APP_SERVER_HOST", "127.0.0.1")
+        .env("SERVER_PORT", http_address.port().to_string())
+        .env("APP_SERVER_SHUTDOWN_TIMEOUT_SECS", "3")
+        .env("APP_GRPC_LISTEN_ADDR", grpc_address.to_string())
+        .env("APP_GRPC_TLS", tls)
+        .env("APP_GRPC_HEALTH_DRAIN_GRACE_MS", "25")
+        .env("CACHE_STORE", "test")
+        .env("APP_CACHE_STORES_TEST_DRIVER", "memory")
+        .env("APP_VIEW_DIRECTORY", std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/views"))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .kill_on_drop(true);
+    drop(http_probe);
+    drop(grpc_probe);
     let mut server = OwnedServer(command.spawn()?);
     let mut verification = Box::pin(verify_generated_server(
         &mut server,
@@ -200,14 +191,12 @@ async fn generated_binary_serve_all_runs_http_and_tls_echo_then_stops() -> TestR
             }
         }
     };
-{{database_cleanup}}
     let result: TestResult = result.map_err(Into::into).and_then(|outcome| outcome);
     result?;
     let status = stopped?;
     if !status.success() {
         return Err("generated serve all exited unsuccessfully".into());
     }
-    database_result?;
     if TcpStream::connect(http_address).await.is_ok()
         || TcpStream::connect(grpc_address).await.is_ok()
     {

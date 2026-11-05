@@ -307,7 +307,7 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 读取过的记录被删除或过期后，迟到保存必须得到 `Missing`，不能变成一次新插入来恢复旧认证属性；当前句柄进入撤销状态，后续保存或换 ID 也会拒绝。新记录的 Insert 碰撞最多尝试三次，然后安全失败。这些是防止并发撤销后复活的安全增强，不是普通请求的完整冲突检测。
 
-数据库截止列或 Redis 剩余 TTL 是持久授权上界，记录 envelope 不能把截止延长到其之后。数据库保存将精度规范为微秒；认证的持久检查复用同一存储。ID/token 是凭据，不放进响应、URL 或日志。
+数据库截止列或 Redis 剩余 TTL 是持久授权上界，记录 envelope 不能把截止延长到其之后。Redis 独立授权读取在同一服务端脚本中有界读取记录与 PTTL，不刷新 TTL，无 TTL 的键明确拒绝；计算截止保守向下取整到秒，不足一秒时拒绝授权。这避免只读裁剪期限增加有界 envelope 的编码长度；普通请求加载保留原期限语义。数据库保存将精度规范为微秒；认证的持久检查复用同一存储。ID/token 是凭据，不放进响应、URL 或日志。
 
 独立构造的 Session 可以使用 `Expiry::OnSessionEnd`、`Expiry::OnInactivity(time::Duration)` 或 `Expiry::AtDateTime(time::OffsetDateTime)`；未提供策略时使用 120 分钟截止。受管理请求默认按最终 `lifetime` 设置无活动期限。`set_expiry` / `expiry_date` 管理持久截止，不自动改写 Provider 的 Cookie 期限配置，`OnSessionEnd` 也不等于修改 `expire_on_close`。
 

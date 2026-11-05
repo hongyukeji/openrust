@@ -8,7 +8,6 @@
 use super::jobs::article_index::{ARTICLE_STORE, ArticleIndexEntry, article_tag, cache_key};
 use super::models::article;
 use figment::{Figment, providers::Serialized};
-use openrust::auth::JwtTokens;
 use openrust::cache::{Cache, CacheScope};
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
@@ -29,7 +28,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -97,10 +96,9 @@ impl Fixture {
         }
         .insert(&connection)
         .await?;
-        let jwt = app.app()?.state().resolve::<JwtTokens>().await?;
         Ok(Some(Self {
-            token: jwt.issue_access_token(1)?,
-            other: jwt.issue_access_token(2)?,
+            token: super::selected_test_auth::seeded_password_access(app.app()?, 1).await?,
+            other: super::selected_test_auth::seeded_password_access(app.app()?, 2).await?,
             app,
             database,
             id: model.id,

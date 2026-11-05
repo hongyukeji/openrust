@@ -6,7 +6,7 @@
 
 use super::services::oidc::ExampleOidcConfig;
 use figment::{Figment, providers::Serialized};
-use openrust::auth::{AuthFlows, JwtTokens};
+use openrust::auth::AuthFlows;
 use openrust::db::sea_orm::{ConnectionTrait, Statement};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
@@ -128,7 +128,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut m = openrust::db::FrameworkMigrator::migrations();
+        let mut m = super::selected_test_auth::migrations();
         // RP/logout/backchannel 验证服务器端撤销；在同一原生表上显式安装增强能力。
         m.push(Box::new(openrust::session::GuardedSessionMigration));
         m.push(Box::new(openrust::session::GuardedSessionGcMigration));
@@ -252,13 +252,7 @@ impl Fixture {
                 .await?
         );
         let credential = flows.login(email, LOCAL_PASSWORD, "local-fixture").await?;
-        Ok(self
-            .app
-            .app()?
-            .state()
-            .resolve::<JwtTokens>()
-            .await?
-            .issue_access_token(credential.user_id())?)
+        Ok(credential.access_token().to_owned())
     }
 }
 fn request(

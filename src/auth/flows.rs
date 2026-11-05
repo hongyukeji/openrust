@@ -9,23 +9,25 @@ use crate::db::sea_orm::DatabaseTransaction;
 use crate::db::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+#[cfg(feature = "auth-fortify")]
+use chrono::SubsecRound as _;
 use chrono::{Duration as ChronoDuration, Utc};
 
-#[cfg(feature = "auth-mfa")]
-use crate::auth::mfa::{MfaLoginChallenge, MfaService, RecoveryCodes, TotpEnrollment};
+#[cfg(feature = "auth-fortify")]
+use crate::auth::credential::TwoFactorLoginChallenge;
 use crate::auth::{
     EncodedPasswordHash, IssuedRefreshToken, IssuedVerificationCode, JwtTokens, Passwords,
     RefreshTokens, Session, VerificationCodePolicy, VerificationCodes,
     database::{AUTH_CSRF_HASH_KEY, AUTH_USER_ID_KEY},
 };
 
-/// 登录流程返回已签发凭据，或要求客户端完成 MFA challenge。
+/// 登录流程返回已签发凭据，或要求客户端完成一次性双因素挑战。
 pub enum LoginAttempt {
     /// 登录已通过全部启用的因子并签发完整凭据。
     Authenticated(AuthCredentials),
     /// 密码或外部身份验证通过，但完整凭据须等待第二因子。
-    #[cfg(feature = "auth-mfa")]
-    MfaRequired(MfaLoginChallenge),
+    #[cfg(feature = "auth-fortify")]
+    TwoFactorRequired(TwoFactorLoginChallenge),
 }
 
 impl LoginAttempt {
@@ -33,8 +35,8 @@ impl LoginAttempt {
     pub const fn user_id(&self) -> i64 {
         match self {
             Self::Authenticated(credentials) => credentials.user_id(),
-            #[cfg(feature = "auth-mfa")]
-            Self::MfaRequired(challenge) => challenge.user_id(),
+            #[cfg(feature = "auth-fortify")]
+            Self::TwoFactorRequired(challenge) => challenge.user_id(),
         }
     }
 }
@@ -43,9 +45,9 @@ impl std::fmt::Debug for LoginAttempt {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Authenticated(_) => formatter.write_str("Authenticated([REDACTED])"),
-            #[cfg(feature = "auth-mfa")]
-            Self::MfaRequired(challenge) => formatter
-                .debug_tuple("MfaRequired")
+            #[cfg(feature = "auth-fortify")]
+            Self::TwoFactorRequired(challenge) => formatter
+                .debug_tuple("TwoFactorRequired")
                 .field(challenge)
                 .finish(),
         }
@@ -113,6 +115,23 @@ impl LoginSucceeded {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LoginFailed;
 
+/// API双因素登录提交前的显式事务审计扩展；不包含验证码、密钥或凭据。
+///
+/// 实现须使用传入事务写入；错误会回滚本次因子消费和凭据签发。
+#[cfg(feature = "auth-fortify")]
+pub trait ApiLoginAuditSink: Send + Sync + 'static {
+    /// 核验审计目标与凭据流程的数据域；非数据库sink可保留默认实现。
+    fn require_store(&self, _db: &Db) -> Result<()> {
+        Ok(())
+    }
+    /// 在当前账户事务中记录已经实际通过双因素校验的登录。
+    fn record_in_transaction<'a>(
+        &'a self,
+        transaction: &'a DatabaseTransaction,
+        user_id: i64,
+    ) -> BoxFuture<'a, Result<()>>;
+}
+
 /// 共享账户凭据流程。HTTP 路由与消息投递仍由应用负责。
 #[derive(Clone)]
 pub struct AuthFlows {
@@ -124,13 +143,157 @@ pub struct AuthFlows {
     limiter: RateLimiter,
     refresh_lifetime: ChronoDuration,
     code_policy: VerificationCodePolicy,
-    #[cfg(feature = "auth-mfa")]
-    mfa: Option<MfaService>,
+    #[cfg(feature = "auth-fortify")]
+    factor_authority: Option<super::fortify::CredentialAuthority>,
+    #[cfg(feature = "auth-fortify")]
+    factor_actions: Option<super::fortify::TwoFactorActions>,
+    #[cfg(feature = "auth-fortify")]
+    api_login_audit: Option<Arc<dyn ApiLoginAuditSink>>,
 }
 
 impl std::fmt::Debug for AuthFlows {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("AuthFlows")
+    }
+}
+
+#[cfg(feature = "auth-fortify")]
+struct IssuedCredentialCheck {
+    grant: super::credential::JwtCredentialGrant,
+    leaf_hash: String,
+    access_deadline: chrono::DateTime<Utc>,
+    refresh_deadline: chrono::DateTime<Utc>,
+}
+
+#[cfg(feature = "auth-fortify")]
+impl IssuedCredentialCheck {
+    fn capture(flow: &AuthFlows, credentials: &AuthCredentials) -> Result<Self> {
+        let claims = flow.jwt.verify_credential(credentials.access_token())?;
+        if claims.user_id != credentials.user_id {
+            return Err(Error::Unauthorized);
+        }
+        Ok(Self {
+            grant: claims.grant.ok_or(Error::Unauthorized)?,
+            leaf_hash: digest(credentials.refresh_token.expose()),
+            access_deadline: claims.expires_at.into(),
+            refresh_deadline: credentials.refresh_expires_at,
+        })
+    }
+
+    fn require_current(&self) -> Result<()> {
+        let now = Utc::now();
+        if self.access_deadline <= now || self.refresh_deadline <= now {
+            return Err(Error::Unauthorized);
+        }
+        Ok(())
+    }
+
+    async fn validate(
+        &self,
+        flow: &AuthFlows,
+        tx: &DatabaseTransaction,
+        user_id: i64,
+    ) -> Result<()> {
+        let authority = flow.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        authority
+            .check_context_in_transaction(tx, user_id, &self.grant.context)
+            .await?;
+        let deadline = flow
+            .refresh
+            .validate_family_in_transaction(tx, user_id, &self.grant.family_id, &self.grant.context)
+            .await?;
+        let row = flow
+            .db
+            .table("auth_refresh_tokens")?
+            .using_transaction(tx)
+            .select(&["token_hash", "family_id", "user_id"])?
+            .where_eq("token_hash", self.leaf_hash.clone())?
+            .where_null("consumed_at")?
+            .where_null("revoked_at")?
+            .first()
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        if row
+            .try_get::<String>("", "token_hash")
+            .map_err(Error::internal)?
+            != self.leaf_hash
+            || row
+                .try_get::<String>("", "family_id")
+                .map_err(Error::internal)?
+                != self.grant.family_id
+            || row.try_get::<i64>("", "user_id").map_err(Error::internal)? != user_id
+            || deadline != self.refresh_deadline
+        {
+            return Err(Error::Unauthorized);
+        }
+        self.require_current()
+    }
+}
+
+#[cfg(feature = "auth-fortify")]
+#[derive(Default)]
+struct LoginCommitCheck {
+    user_id: i64,
+    password_digest: Option<String>,
+    session_parent: Option<super::VerifiedCredential>,
+    issued: Option<IssuedCredentialCheck>,
+    challenge: Option<super::fortify::ChallengeCommitCheck>,
+    #[cfg(feature = "auth-oidc")]
+    external: Option<(super::oidc::ExternalChallengeBinding, chrono::DateTime<Utc>)>,
+}
+
+#[cfg(feature = "auth-fortify")]
+impl LoginCommitCheck {
+    async fn validate(&self, flow: &AuthFlows, tx: &DatabaseTransaction) -> Result<()> {
+        let authority = flow.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        authority
+            .lock_active_user_in_transaction(tx, self.user_id)
+            .await?;
+        if let Some(password) = &self.password_digest {
+            authority
+                .require_password_for_login(tx, self.user_id, password)
+                .await?;
+        }
+        #[cfg(feature = "auth-oidc")]
+        if let Some((external, deadline)) = &self.external {
+            let issued = self.issued.as_ref().ok_or(Error::Unauthorized)?;
+            if *deadline <= Utc::now() {
+                return Err(Error::Unauthorized);
+            }
+            external
+                .validate_bound(
+                    tx,
+                    &flow.db,
+                    &issued.grant.family_id,
+                    issued.refresh_deadline,
+                )
+                .await?;
+        }
+        if let Some(challenge) = &self.challenge {
+            challenge.validate(authority, tx).await?;
+        }
+        if let Some(issued) = &self.issued {
+            issued.validate(flow, tx, self.user_id).await?;
+        }
+        if let Some(parent) = &self.session_parent {
+            authority.validate_parent_in_transaction(tx, parent).await?;
+            self.issued
+                .as_ref()
+                .ok_or(Error::Unauthorized)?
+                .require_current()?;
+        }
+        if let Some(challenge) = &self.challenge {
+            challenge.require_current()?;
+        }
+        #[cfg(feature = "auth-oidc")]
+        if self
+            .external
+            .as_ref()
+            .is_some_and(|(_, deadline)| *deadline <= Utc::now())
+        {
+            return Err(Error::Unauthorized);
+        }
+        Ok(())
     }
 }
 
@@ -153,15 +316,100 @@ impl AuthFlows {
             limiter,
             refresh_lifetime: ChronoDuration::days(30),
             code_policy: VerificationCodePolicy::default(),
-            #[cfg(feature = "auth-mfa")]
-            mfa: None,
+            #[cfg(feature = "auth-fortify")]
+            factor_authority: None,
+            #[cfg(feature = "auth-fortify")]
+            factor_actions: None,
+            #[cfg(feature = "auth-fortify")]
+            api_login_audit: None,
         }
     }
 
-    #[cfg(feature = "auth-mfa")]
-    pub(crate) fn with_mfa(mut self, mfa: Option<MfaService>) -> Self {
-        self.mfa = mfa;
+    /// 显式选择同一数据库凭据因子策略，拒绝跨账户域的签发。
+    #[cfg(feature = "auth-fortify")]
+    pub fn with_factor_authority(
+        mut self,
+        authority: super::fortify::CredentialAuthority,
+    ) -> Result<Self> {
+        authority.require_store(&self.db)?;
+        self.refresh.require_store(&self.db)?;
+        self.factor_authority = Some(authority);
+        Ok(self)
+    }
+
+    /// 为直接因子挑战选择应用实际注册的验证与恢复码扩展。
+    #[cfg(feature = "auth-fortify")]
+    #[must_use]
+    pub fn with_factor_actions(mut self, actions: super::fortify::TwoFactorActions) -> Self {
+        self.factor_actions = Some(actions);
         self
+    }
+
+    /// 显式安装API双因素登录的同事务审计；未选择时不会查询审计表。
+    #[cfg(feature = "auth-fortify")]
+    pub fn with_api_login_audit(mut self, audit: Arc<dyn ApiLoginAuditSink>) -> Result<Self> {
+        audit.require_store(&self.db)?;
+        self.api_login_audit = Some(audit);
+        Ok(self)
+    }
+
+    #[cfg(feature = "auth-oidc")]
+    pub(crate) fn require_store(&self, db: &Db) -> Result<()> {
+        if !self.db.same_handle(db) {
+            return Err(Error::Unauthorized);
+        }
+        for table in [
+            "users",
+            "auth_refresh_tokens",
+            "personal_access_tokens",
+            "external_identities",
+            "auth_external_sessions",
+        ] {
+            if self.db.table_name(table)? != db.table_name(table)? {
+                return Err(Error::Unauthorized);
+            }
+        }
+        self.refresh.require_store(db)?;
+        #[cfg(feature = "auth-fortify")]
+        if let Some(authority) = &self.factor_authority {
+            authority.require_store(db)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(all(feature = "auth-oidc", feature = "auth-fortify"))]
+    pub(crate) fn external_challenge_table(&self) -> Option<&'static str> {
+        #[cfg(feature = "auth-fortify")]
+        if self.factor_authority.is_some() {
+            return Some("auth_factor_challenges");
+        }
+        None
+    }
+
+    #[cfg(all(feature = "auth-oidc", feature = "auth-fortify"))]
+    pub(crate) fn attachment_authority(&self) -> Option<&super::fortify::CredentialAuthority> {
+        self.factor_authority.as_ref()
+    }
+
+    #[cfg(all(feature = "auth-oidc", feature = "auth-fortify"))]
+    pub(crate) async fn authorize_refresh_attachment(
+        &self,
+        transaction: &DatabaseTransaction,
+        user_id: i64,
+        raw: &str,
+    ) -> Result<(String, chrono::DateTime<Utc>)> {
+        let authority = self.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        let (family, expiry, context) = self
+            .refresh
+            .attach_context_in_transaction(transaction, user_id, raw)
+            .await?;
+        authority
+            .check_context_in_transaction(transaction, user_id, &context)
+            .await?;
+        if expiry <= Utc::now() {
+            return Err(Error::Unauthorized);
+        }
+        Ok((family, expiry))
     }
 
     /// 设置 refresh token 家族的最长有效期。
@@ -359,256 +607,171 @@ impl AuthFlows {
     ) -> Result<AuthCredentials> {
         match self.begin_login(email, password, request_source).await? {
             LoginAttempt::Authenticated(credentials) => Ok(credentials),
-            #[cfg(feature = "auth-mfa")]
-            LoginAttempt::MfaRequired(_) => Err(Error::custom(
-                "auth_mfa_required",
-                "complete the multi-factor login challenge before receiving credentials",
+            #[cfg(feature = "auth-fortify")]
+            LoginAttempt::TwoFactorRequired(_) => Err(Error::custom(
+                "auth_two_factor_required",
+                "请完成双因素登录挑战后再获取凭据",
             )),
         }
     }
 
-    /// 验证密码并返回登录成功凭据或短时 MFA challenge。
+    /// 验证密码并返回登录成功凭据或现代短时双因素挑战。
     pub async fn begin_login(
         &self,
         email: &str,
         password: &str,
         request_source: &str,
     ) -> Result<LoginAttempt> {
-        let user_id = self
-            .authenticate_password(email, password, request_source)
+        let (user_id, hash) = self
+            .authenticate_password_version(email, password, request_source)
             .await?;
-        #[cfg(feature = "auth-mfa")]
-        if let Some(mfa) = &self.mfa {
-            // SQLite 的数据库限流写入必须在BEGIN IMMEDIATE之前完成；
-            // 锁内重读因子状态，竞态变化安全拒绝，不重放已发生的限流副作用。
-            let expected_enabled = if self.db.backend()? == DbBackend::Sqlite {
-                let enabled = mfa.enabled(user_id).await?;
-                if enabled {
-                    mfa.limit_login_preflight(user_id, request_source).await?;
-                }
-                Some(enabled)
-            } else {
-                None
-            };
-            let auth = self.clone();
-            let mfa = mfa.clone();
-            let source = request_source.to_owned();
+        #[cfg(feature = "auth-fortify")]
+        if self.factor_authority.is_some() {
             return self
-                .db
-                .transaction_for_update(|transaction| {
-                    let auth = auth.clone();
-                    let mfa = mfa.clone();
-                    let source = source.clone();
-                    Box::pin(async move {
-                        mfa.lock_user_in_transaction(transaction, user_id).await?;
-                        let enabled = mfa.enabled_in_transaction(transaction, user_id).await?;
-                        if expected_enabled.is_some_and(|expected| expected != enabled) {
-                            return Err(Error::custom(
-                                "auth_mfa_state_changed",
-                                "多因素认证状态已变化，请重新开始登录",
-                            ));
-                        }
-                        if enabled {
-                            Ok(LoginAttempt::MfaRequired(
-                                mfa.create_challenge_in_transaction(
-                                    transaction,
-                                    user_id,
-                                    &source,
-                                    expected_enabled == Some(true),
-                                )
-                                .await?,
-                            ))
-                        } else {
-                            Ok(LoginAttempt::Authenticated(
-                                auth.issue_credentials_in_transaction(transaction, user_id)
-                                    .await?,
-                            ))
-                        }
-                    })
-                })
+                .begin_password_in_scope(
+                    user_id,
+                    digest(hash.as_str()),
+                    request_source,
+                    "password",
+                    None,
+                )
                 .await;
         }
+        #[cfg(not(feature = "auth-fortify"))]
+        drop(hash);
         Ok(LoginAttempt::Authenticated(
             self.issue_credentials(user_id).await?,
         ))
     }
 
-    /// 原子消费 MFA challenge 并在同一事务内签发完整凭据。
-    #[cfg(feature = "auth-mfa")]
-    pub async fn complete_mfa_login(
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) async fn begin_verified_api_login(
         &self,
-        challenge: &str,
-        code: &str,
+        user: &super::AuthUser,
+        provider: &dyn super::UserProvider,
+        scope: super::credential::CredentialGuardBinding,
         request_source: &str,
-    ) -> Result<AuthCredentials> {
-        let mfa = self
-            .mfa
-            .as_ref()
-            .ok_or_else(|| {
-                Error::custom(
-                    "auth_mfa_unavailable",
-                    "multi-factor authentication is not enabled for this application",
-                )
-            })?
-            .clone();
-        let auth = self.clone();
-        let token = challenge.to_owned();
-        let code = code.to_owned();
-        let source = request_source.to_owned();
-        let sqlite_limit_preflight = self.db.backend()? == DbBackend::Sqlite;
-        if sqlite_limit_preflight {
-            mfa.limit_challenge_preflight(&token, &source).await?;
-        }
-        self.db
-            .transaction_for_update(|transaction| {
-                let mfa = mfa.clone();
-                let auth = auth.clone();
-                let token = token.clone();
-                let code = code.clone();
-                let source = source.clone();
-                Box::pin(async move {
-                    #[cfg(feature = "auth-oidc")]
-                    let external_association = crate::auth::oidc::lock_external_mfa_challenge(
-                        transaction,
-                        &auth.db,
-                        &token,
-                    )
-                    .await?;
-                    let Some(user_id) = mfa
-                        .complete_challenge_in_transaction(
-                            transaction,
-                            &token,
-                            &source,
-                            &code,
-                            sqlite_limit_preflight,
-                        )
-                        .await?
-                    else {
-                        return Ok(None);
-                    };
-                    let credentials = auth
-                        .issue_credentials_in_transaction(transaction, user_id)
-                        .await?;
-                    #[cfg(feature = "auth-oidc")]
-                    if let Some((_, associated_user_id)) = external_association {
-                        if associated_user_id != user_id {
-                            return Err(Error::Unauthorized);
-                        }
-                        crate::auth::oidc::bind_external_mfa_credentials(
-                            transaction,
-                            &auth.db,
-                            &token,
-                            user_id,
-                            credentials.refresh_token().expose(),
-                        )
-                        .await?;
-                    }
-                    mfa.record_login_success_in_transaction(transaction, user_id)
-                        .await?;
-                    Ok(Some(credentials))
-                })
-            })
-            .await?
-            .ok_or(Error::Unauthorized)
+    ) -> Result<LoginAttempt> {
+        let id = user.auth_identifier()?;
+        let user_id = id
+            .as_i64()
+            .filter(|id| *id > 0)
+            .ok_or(Error::Unauthorized)?;
+        let policy = self.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        let authority = user
+            .as_two_factor()
+            .and_then(super::fortify::TwoFactorAuthenticatable::two_factor_authority)
+            .ok_or(Error::Unauthorized)?;
+        authority.validate_account(user, provider).await?;
+        policy.require_store(&self.db)?;
+        let password = user.auth_password()?.ok_or(Error::Unauthorized)?;
+        self.begin_password_in_scope(
+            user_id,
+            digest(&password),
+            request_source,
+            "jwt-api-password",
+            Some(scope),
+        )
+        .await
     }
 
-    /// 重新验证本地密码并为账户创建待确认 TOTP enrollment。
-    #[cfg(feature = "auth-mfa")]
-    pub async fn begin_totp_enrollment(
-        &self,
-        user_id: i64,
-        email: &str,
-        password: &str,
-        issuer: &str,
-        request_source: &str,
-    ) -> Result<TotpEnrollment> {
-        let authenticated = self.reauthenticate(email, password, request_source).await?;
-        if authenticated != user_id {
-            return Err(Error::Unauthorized);
-        }
-        self.mfa
-            .as_ref()
-            .ok_or_else(|| {
-                Error::custom(
-                    "auth_mfa_unavailable",
-                    "multi-factor authentication is not enabled for this application",
-                )
-            })?
-            .begin_enrollment(user_id, email, issuer, request_source)
+    #[cfg(feature = "auth-fortify")]
+    async fn checked_login_transaction<T, F>(&self, callback: F) -> Result<T>
+    where
+        T: Send + 'static,
+        F: for<'a> FnOnce(
+                &'a DatabaseTransaction,
+            ) -> BoxFuture<'a, Result<(T, Option<LoginCommitCheck>)>>
+            + Send,
+    {
+        let checks = Arc::new(std::sync::OnceLock::new());
+        let captured = checks.clone();
+        let flow = self.clone();
+        self.db
+            .transaction_for_update_checked(
+                move |tx| {
+                    let result = callback(tx);
+                    Box::pin(async move {
+                        let (value, check) = result.await?;
+                        captured.set(check).map_err(|_| Error::Unauthorized)?;
+                        Ok(value)
+                    })
+                },
+                move |tx| {
+                    Box::pin(async move {
+                        if let Some(check) = checks.get().ok_or(Error::Unauthorized)? {
+                            check.validate(&flow, tx).await?;
+                        }
+                        Ok(())
+                    })
+                },
+            )
             .await
     }
 
-    /// 验证待确认 seed；成功后一次性返回恢复码并启用 MFA。
-    #[cfg(feature = "auth-mfa")]
-    pub async fn confirm_totp_enrollment(
+    #[cfg(feature = "auth-fortify")]
+    async fn begin_password_in_scope(
         &self,
         user_id: i64,
-        code: &str,
+        password_digest: String,
         request_source: &str,
-    ) -> Result<RecoveryCodes> {
-        self.mfa
-            .as_ref()
-            .ok_or_else(|| {
-                Error::custom(
-                    "auth_mfa_unavailable",
-                    "multi-factor authentication is not enabled for this application",
-                )
-            })?
-            .confirm_enrollment(user_id, request_source, code)
-            .await?
-            .ok_or(Error::Unauthorized)
-    }
-
-    /// 重新验证密码与当前第二因子后禁用 MFA，并撤销所有 refresh token。
-    #[cfg(feature = "auth-mfa")]
-    pub async fn disable_mfa(
-        &self,
-        user_id: i64,
-        email: &str,
-        password: &str,
-        code: &str,
-        request_source: &str,
-    ) -> Result<()> {
-        if self.reauthenticate(email, password, request_source).await? != user_id {
-            return Err(Error::Unauthorized);
-        }
-        let mfa = self.mfa.as_ref().ok_or_else(|| {
-            Error::custom(
-                "auth_mfa_unavailable",
-                "multi-factor authentication is not enabled for this application",
-            )
-        })?;
-        if mfa.disable(user_id, request_source, code).await? {
-            Ok(())
-        } else {
-            Err(Error::Unauthorized)
-        }
-    }
-
-    /// 重新验证密码与当前第二因子后轮换并一次性返回恢复码。
-    #[cfg(feature = "auth-mfa")]
-    pub async fn regenerate_mfa_recovery_codes(
-        &self,
-        user_id: i64,
-        email: &str,
-        password: &str,
-        code: &str,
-        request_source: &str,
-    ) -> Result<RecoveryCodes> {
-        if self.reauthenticate(email, password, request_source).await? != user_id {
-            return Err(Error::Unauthorized);
-        }
-        self.mfa
-            .as_ref()
-            .ok_or_else(|| {
-                Error::custom(
-                    "auth_mfa_unavailable",
-                    "multi-factor authentication is not enabled for this application",
-                )
-            })?
-            .regenerate_recovery_codes(user_id, request_source, code)
-            .await?
-            .ok_or(Error::Unauthorized)
+        purpose: &'static str,
+        scope: Option<super::credential::CredentialGuardBinding>,
+    ) -> Result<LoginAttempt> {
+        let this = self.clone();
+        let source = request_source.to_owned();
+        self.checked_login_transaction(move |tx| {
+            Box::pin(async move {
+                let policy = this.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+                policy
+                    .require_password_for_login(tx, user_id, &password_digest)
+                    .await?;
+                let decision = policy
+                    .begin_login_in_scope_in_transaction(
+                        tx,
+                        user_id,
+                        &source,
+                        purpose,
+                        scope.clone(),
+                    )
+                    .await?;
+                let mut check = LoginCommitCheck {
+                    user_id,
+                    password_digest: Some(password_digest),
+                    ..Default::default()
+                };
+                let result = match decision {
+                    super::fortify::CredentialLoginDecision::Ready(context) => {
+                        let issued = this
+                            .issue_context_in_transaction(
+                                tx,
+                                user_id,
+                                (Utc::now() + this.refresh_lifetime).trunc_subsecs(6),
+                                *context,
+                            )
+                            .await?;
+                        check.issued = Some(IssuedCredentialCheck::capture(&this, &issued)?);
+                        LoginAttempt::Authenticated(issued)
+                    }
+                    super::fortify::CredentialLoginDecision::Challenge(challenge) => {
+                        check.challenge = Some(
+                            policy
+                                .capture_new_challenge(
+                                    tx,
+                                    &challenge,
+                                    &source,
+                                    purpose,
+                                    scope.as_ref(),
+                                )
+                                .await?,
+                        );
+                        LoginAttempt::TwoFactorRequired(challenge)
+                    }
+                };
+                Ok((result, Some(check)))
+            })
+        })
+        .await
     }
 
     async fn issue_credentials(&self, user_id: i64) -> Result<AuthCredentials> {
@@ -629,8 +792,19 @@ impl AuthFlows {
         transaction: &DatabaseTransaction,
         user_id: i64,
     ) -> Result<AuthCredentials> {
-        let access_token = self.jwt.issue_access_token(user_id)?;
         let expires_at = Utc::now() + self.refresh_lifetime;
+        #[cfg(feature = "auth-fortify")]
+        if let Some(authority) = &self.factor_authority {
+            let context = authority
+                .context_without_factor_in_transaction(transaction, user_id)
+                .await?;
+            return self
+                .issue_context_in_transaction(transaction, user_id, expires_at, context)
+                .await;
+        }
+        #[cfg(feature = "auth-fortify")]
+        super::factor_gate::require_unbound_fortify_account(&self.db, transaction, user_id).await?;
+        let access_token = self.jwt.issue_access_token(user_id)?;
         let refresh_token = self
             .refresh
             .issue_in_transaction(transaction, user_id, expires_at)
@@ -648,13 +822,306 @@ impl AuthFlows {
         })
     }
 
-    /// 读取现有账户的 MFA 启用状态；不表示当前 Session 已完成第二因子。
-    #[cfg(feature = "auth-mfa")]
-    pub async fn mfa_enabled(&self, user_id: i64) -> Result<bool> {
-        match &self.mfa {
-            Some(mfa) => mfa.enabled(user_id).await,
-            None => Ok(false),
+    #[cfg(all(feature = "auth-fortify", feature = "auth-oidc"))]
+    async fn begin_factor_login_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        user_id: i64,
+        request_source: &str,
+        purpose: &str,
+    ) -> Result<LoginAttempt> {
+        let authority = self.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        match authority
+            .begin_login_in_transaction(transaction, user_id, request_source, purpose)
+            .await?
+        {
+            super::fortify::CredentialLoginDecision::Ready(context) => {
+                Ok(LoginAttempt::Authenticated(
+                    self.issue_context_in_transaction(
+                        transaction,
+                        user_id,
+                        Utc::now() + self.refresh_lifetime,
+                        *context,
+                    )
+                    .await?,
+                ))
+            }
+            super::fortify::CredentialLoginDecision::Challenge(challenge) => {
+                Ok(LoginAttempt::TwoFactorRequired(challenge))
+            }
         }
+    }
+
+    /// 完成直接登录的一次性统一因子挑战；不将第一因素结果升级为第二因素证明。
+    #[cfg(feature = "auth-fortify")]
+    pub async fn complete_two_factor_login(
+        &self,
+        challenge: &str,
+        code: Option<&str>,
+        recovery_code: Option<&str>,
+        request_source: &str,
+    ) -> Result<AuthCredentials> {
+        self.complete_two_factor_login_in_scope(
+            challenge,
+            code,
+            recovery_code,
+            request_source,
+            None,
+            None,
+        )
+        .await
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) async fn complete_two_factor_login_in_scope(
+        &self,
+        challenge: &str,
+        code: Option<&str>,
+        recovery_code: Option<&str>,
+        request_source: &str,
+        scope: Option<&super::credential::CredentialGuardBinding>,
+        provider: Option<&dyn super::UserProvider>,
+    ) -> Result<AuthCredentials> {
+        self.limit("factor_challenge", request_source, &digest(challenge))
+            .await?;
+        let authority = self.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        let actions = self.factor_actions.as_ref().ok_or_else(|| {
+            Error::custom(
+                "auth_factor_actions_missing",
+                "直接登录挑战必须选择实际因子验证扩展",
+            )
+        })?;
+        let prepared = authority
+            .prepare_challenge_in_scope(challenge, request_source, scope)
+            .await?;
+        prepared.require_scope(scope)?;
+        let expected_user = prepared.user_id();
+        let expected_expiry = prepared.expires_at();
+        if expected_expiry <= Utc::now() {
+            return Err(Error::Unauthorized);
+        }
+        let actions = if let Some(provider) = provider {
+            let identifier = serde_json::Value::from(expected_user);
+            let user = authority
+                .db()
+                .with_primary(provider.retrieve_by_id(&identifier))
+                .await??
+                .ok_or(Error::Unauthorized)?;
+            if user.auth_identifier()? != identifier {
+                return Err(Error::Unauthorized);
+            }
+            let model = user.as_two_factor().ok_or(Error::Unauthorized)?;
+            model
+                .two_factor_authority()
+                .ok_or(Error::Unauthorized)?
+                .validate_account(&user, provider)
+                .await?;
+            actions.for_account(model)
+        } else {
+            actions.clone()
+        };
+        let verification = prepared.verify(&actions, code, recovery_code).await?;
+        let this = self.clone();
+        #[cfg(feature = "auth-oidc")]
+        let challenge = challenge.to_owned();
+        self.checked_login_transaction(move |tx| {
+            Box::pin(async move {
+                this.finish_login_in_transaction(
+                    tx,
+                    prepared,
+                    verification,
+                    #[cfg(feature = "auth-oidc")]
+                    &challenge,
+                )
+                .await
+            })
+        })
+        .await?
+        .ok_or(Error::Unauthorized)
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    async fn finish_login_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        prepared: super::fortify::PreparedCredentialChallenge,
+        verification: super::fortify::CredentialChallengeVerification,
+        #[cfg(feature = "auth-oidc")] challenge: &str,
+    ) -> Result<(Option<AuthCredentials>, Option<LoginCommitCheck>)> {
+        let authority = self.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        let expected_user = prepared.user_id();
+        let expected_expiry = prepared.expires_at();
+        // 与后通道注销一致：users→association→challenge/refresh。
+        authority
+            .lock_active_user_in_transaction(transaction, expected_user)
+            .await?;
+        #[cfg(feature = "auth-oidc")]
+        let association =
+            crate::auth::oidc::lock_external_two_factor_challenge(transaction, &self.db, challenge)
+                .await?;
+        #[cfg(feature = "auth-oidc")]
+        if association
+            .as_ref()
+            .is_some_and(|(_, owner)| *owner != expected_user)
+        {
+            return Err(Error::Unauthorized);
+        }
+        let Some(completed) = authority
+            .finish_challenge_in_transaction(transaction, prepared, verification)
+            .await?
+        else {
+            return Ok((None, None));
+        };
+        let user_id = completed
+            .context
+            .identifier
+            .as_i64()
+            .ok_or(Error::Unauthorized)?;
+        if user_id != expected_user || completed.expires_at != expected_expiry {
+            return Err(Error::Unauthorized);
+        }
+        #[cfg(feature = "auth-oidc")]
+        let external = match &association {
+            Some(association) => Some(
+                super::oidc::ExternalChallengeBinding::capture(
+                    transaction,
+                    &self.db,
+                    association,
+                    challenge,
+                    completed.check.purpose(),
+                )
+                .await?,
+            ),
+            None => None,
+        };
+        let credentials = self
+            .issue_context_in_transaction(
+                transaction,
+                user_id,
+                (Utc::now() + self.refresh_lifetime).trunc_subsecs(6),
+                completed.context,
+            )
+            .await?;
+        #[cfg(feature = "auth-oidc")]
+        let external_expiry = crate::auth::oidc::bind_external_login_credentials(
+            transaction,
+            &self.db,
+            association.as_ref(),
+            challenge,
+            &credentials,
+        )
+        .await?;
+
+        if let Some(audit) = &self.api_login_audit {
+            audit.record_in_transaction(transaction, user_id).await?;
+        }
+        #[cfg(feature = "auth-oidc")]
+        if external_expiry.is_some_and(|expiry| expiry <= Utc::now()) {
+            return Err(Error::Unauthorized);
+        }
+        if completed.expires_at <= Utc::now() {
+            return Err(Error::Unauthorized);
+        }
+        #[cfg(feature = "auth-oidc")]
+        if external.as_ref().map(|(_, deadline)| *deadline) != external_expiry {
+            return Err(Error::Unauthorized);
+        }
+        let check = LoginCommitCheck {
+            user_id,
+            issued: Some(IssuedCredentialCheck::capture(self, &credentials)?),
+            challenge: Some(completed.check),
+            #[cfg(feature = "auth-oidc")]
+            external,
+            ..Default::default()
+        };
+        Ok((Some(credentials), Some(check)))
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    async fn issue_context_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        user_id: i64,
+        expires_at: chrono::DateTime<Utc>,
+        context: super::credential::CredentialFactorContext,
+    ) -> Result<AuthCredentials> {
+        self.factor_authority
+            .as_ref()
+            .ok_or(Error::Unauthorized)?
+            .check_context_in_transaction(transaction, user_id, &context)
+            .await?;
+        let issued = self
+            .refresh
+            .issue_context_in_transaction(transaction, user_id, expires_at, &context)
+            .await?;
+        let access_token = self.jwt.issue_access_token_with_grant(
+            user_id,
+            super::credential::JwtCredentialGrant {
+                family_id: issued.family_id,
+                context,
+            },
+        )?;
+        if let Some(events) = self.db.events() {
+            events
+                .dispatch_in_transaction(transaction, &LoginSucceeded { user_id })
+                .await?;
+        }
+        Ok(AuthCredentials {
+            user_id,
+            access_token,
+            refresh_token: issued.token,
+            refresh_expires_at: expires_at,
+        })
+    }
+
+    /// 从当前真实持久Guard准备并签发JWT/refresh，不重新要求已经完成的因子。
+    #[cfg(feature = "auth-fortify")]
+    pub async fn issue_credentials_from_session(
+        &self,
+        guard: &dyn super::StatefulGuard,
+        guard_name: &str,
+    ) -> Result<AuthCredentials> {
+        let authority = self.factor_authority.as_ref().ok_or(Error::Unauthorized)?;
+        self.issue_credentials_from(authority.prepare_session(guard, guard_name).await?)
+            .await
+    }
+
+    /// 消耗已核验的真实Session身份创建独立凭据家族；PAT或JWT不升级为全账户登录。
+    #[cfg(feature = "auth-fortify")]
+    pub async fn issue_credentials_from(
+        &self,
+        credential: super::VerifiedCredential,
+    ) -> Result<AuthCredentials> {
+        if !matches!(&credential.domain, super::CredentialDomain::Session { .. }) {
+            return Err(Error::Unauthorized);
+        }
+        let authority = self.factor_authority.clone().ok_or(Error::Unauthorized)?;
+        let this = self.clone();
+        self.checked_login_transaction(move |tx| {
+            Box::pin(async move {
+                authority
+                    .validate_parent_in_transaction(tx, &credential)
+                    .await?;
+                let context = credential
+                    .context
+                    .as_ref()
+                    .ok_or(Error::Unauthorized)?
+                    .clone();
+                let user_id = credential.user_id;
+                let expires_at = (Utc::now() + this.refresh_lifetime).trunc_subsecs(6);
+                let issued = this
+                    .issue_context_in_transaction(tx, user_id, expires_at, context)
+                    .await?;
+                let check = LoginCommitCheck {
+                    user_id,
+                    issued: Some(IssuedCredentialCheck::capture(&this, &issued)?),
+                    session_parent: Some(credential),
+                    ..Default::default()
+                };
+                Ok((issued, Some(check)))
+            })
+        })
+        .await
     }
 
     /// 使用当前密码重新验证账户，不签发新的 bearer 凭据。
@@ -699,7 +1166,7 @@ impl AuthFlows {
         new_password_hash: Option<&EncodedPasswordHash>,
         request_source: &str,
     ) -> Result<LoginAttempt> {
-        #[cfg(not(feature = "auth-mfa"))]
+        #[cfg(not(feature = "auth-fortify"))]
         let _ = request_source;
         let identity_table = self.db.quoted_table_name("external_identities")?;
         let backend = self.db.backend()?;
@@ -848,20 +1315,16 @@ impl AuthFlows {
             return Err(external_identity_link_required());
         }
 
-        #[cfg(feature = "auth-mfa")]
-        if let Some(mfa) = &self.mfa {
-            mfa.lock_user_in_transaction(transaction, user_id).await?;
-            if mfa.enabled_in_transaction(transaction, user_id).await? {
-                return Ok(LoginAttempt::MfaRequired(
-                    mfa.create_challenge_in_transaction(
-                        transaction,
-                        user_id,
-                        request_source,
-                        false,
-                    )
-                    .await?,
-                ));
-            }
+        #[cfg(feature = "auth-fortify")]
+        if self.factor_authority.is_some() {
+            return self
+                .begin_factor_login_in_transaction(
+                    transaction,
+                    user_id,
+                    request_source,
+                    &format!("external:{provider}"),
+                )
+                .await;
         }
         Ok(LoginAttempt::Authenticated(
             self.issue_credentials_in_transaction(transaction, user_id)
@@ -883,11 +1346,33 @@ impl AuthFlows {
         let user_id = self
             .authenticate_password(email, password, request_source)
             .await?;
-        #[cfg(feature = "auth-mfa")]
-        if self.mfa_enabled(user_id).await? {
-            return Err(Error::Unauthorized);
+        #[cfg(feature = "auth-fortify")]
+        let context = if let Some(authority) = &self.factor_authority {
+            let authority = authority.clone();
+            Some(
+                self.db
+                    .transaction_for_update(move |transaction| {
+                        Box::pin(async move {
+                            authority
+                                .context_without_factor_in_transaction(transaction, user_id)
+                                .await
+                        })
+                    })
+                    .await?,
+            )
+        } else {
+            None
+        };
+        let credentials = bind_session(session, user_id).await?;
+        #[cfg(feature = "auth-fortify")]
+        if let Some(context) = context
+            && let Err(error) =
+                super::fortify::CredentialAuthority::store_session_context(session, context)
+        {
+            let _ = remove_auth_values(session);
+            return Err(error);
         }
-        bind_session(session, user_id).await
+        Ok(credentials)
     }
 
     /// 核对 Guard 的真实账户来源与本流程的数据库账户域一致。
@@ -897,7 +1382,7 @@ impl AuthFlows {
 
     /// 现有已验证邮箱应用流程通过指定的具名 Guard 建立 Cookie 身份。
     ///
-    /// 此适配保留既有邮箱/禁用账户及 MFA 门禁；通用账户 Provider 不要求邮箱。
+    /// 此适配保留既有邮箱、禁用账户及双因素门禁；通用账户 `Provider` 不要求邮箱。
     /// 路由应在同一请求先安装具名 Guard 上下文，后续写请求使用标准 CSRF middleware。
     pub async fn login_session_with_guard(
         &self,
@@ -912,16 +1397,59 @@ impl AuthFlows {
         let user_id = self
             .authenticate_password(email, password, request_source)
             .await?;
-        #[cfg(feature = "auth-mfa")]
-        if self.mfa_enabled(user_id).await? {
-            return Err(Error::Unauthorized);
-        }
+        #[cfg(feature = "auth-fortify")]
+        let context = if let Some(authority) = &self.factor_authority {
+            let model = guard
+                .provider()
+                .retrieve_by_id(&serde_json::Value::from(user_id))
+                .await?
+                .ok_or(Error::Unauthorized)?;
+            let selected = model
+                .as_two_factor()
+                .and_then(super::fortify::TwoFactorAuthenticatable::two_factor_authority)
+                .ok_or(Error::Unauthorized)?;
+            selected
+                .validate_account(&model, guard.provider().as_ref())
+                .await?;
+            let authority = authority.clone();
+            Some(
+                self.db
+                    .transaction_for_update(move |transaction| {
+                        Box::pin(async move {
+                            authority
+                                .context_without_factor_in_transaction(transaction, user_id)
+                                .await
+                        })
+                    })
+                    .await?,
+            )
+        } else {
+            None
+        };
         // 旧显式 Session 凭据不与新的具名身份并存。
         remove_auth_values(session)?;
         guard
             .login_using_id(&serde_json::Value::from(user_id), false)
             .await?
             .ok_or(Error::Unauthorized)?;
+        #[cfg(feature = "auth-fortify")]
+        if let Some(context) = context {
+            let authority = self.factor_authority.clone().ok_or(Error::Unauthorized)?;
+            if let Err(error) = self
+                .db
+                .transaction_for_update(move |transaction| {
+                    Box::pin(async move {
+                        authority
+                            .check_context_in_transaction(transaction, user_id, &context)
+                            .await
+                    })
+                })
+                .await
+            {
+                let _ = guard.logout().await;
+                return Err(error);
+            }
+        }
         let csrf_token = session
             .token()?
             .and_then(|value| value.as_str().map(str::to_owned))
@@ -980,6 +1508,17 @@ impl AuthFlows {
         password: &str,
         request_source: &str,
     ) -> Result<i64> {
+        self.authenticate_password_version(email, password, request_source)
+            .await
+            .map(|(user_id, _)| user_id)
+    }
+
+    async fn authenticate_password_version(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+    ) -> Result<(i64, EncodedPasswordHash)> {
         let email = normalize_email(email)?;
         self.limit("login", request_source, &email).await?;
         if let Some(events) = self.db.events() {
@@ -998,7 +1537,11 @@ impl AuthFlows {
         result
     }
 
-    async fn verify_password(&self, email: &str, password: &str) -> Result<i64> {
+    async fn verify_password(
+        &self,
+        email: &str,
+        password: &str,
+    ) -> Result<(i64, EncodedPasswordHash)> {
         let connection = self.db.connection()?;
         let backend = connection.get_database_backend();
         let sql = match backend {
@@ -1033,13 +1576,89 @@ impl AuthFlows {
         if !self.passwords.verify(password, &hash).await? {
             return Err(Error::Unauthorized);
         }
-        Ok(user_id)
+        Ok((user_id, hash))
     }
 
     /// 原子轮换 refresh 凭据并返回后继凭据对。
     pub async fn refresh(&self, token: &str, request_source: &str) -> Result<AuthCredentials> {
+        self.refresh_in_scope(
+            token,
+            request_source,
+            #[cfg(feature = "auth-fortify")]
+            None,
+        )
+        .await
+    }
+
+    pub(crate) async fn refresh_in_scope(
+        &self,
+        token: &str,
+        request_source: &str,
+        #[cfg(feature = "auth-fortify")] scope: Option<&super::credential::CredentialGuardBinding>,
+    ) -> Result<AuthCredentials> {
         self.limit("refresh", request_source, &digest(token))
             .await?;
+        #[cfg(feature = "auth-fortify")]
+        if let Some(authority) = &self.factor_authority {
+            let authority = authority.clone();
+            let this = self.clone();
+            let token = token.to_owned();
+            let scope = scope.cloned();
+            return self
+                .checked_login_transaction(move |transaction| {
+                    Box::pin(async move {
+                        let Some(locked) = this
+                            .refresh
+                            .lock_context_in_scope_in_transaction(
+                                transaction,
+                                &token,
+                                scope.as_ref(),
+                            )
+                            .await?
+                        else {
+                            return Ok((None, None));
+                        };
+                        if locked.context().scope != scope {
+                            return Err(Error::Unauthorized);
+                        }
+                        authority
+                            .check_context_in_transaction(
+                                transaction,
+                                locked.user_id(),
+                                locked.context(),
+                            )
+                            .await?;
+                        let parent_family = locked.family_id().to_owned();
+                        let parent_expiry = locked.expires_at();
+                        let rotated = this.refresh.rotate_context_in_transaction(locked).await?;
+                        if rotated.family_id != parent_family || rotated.expires_at != parent_expiry
+                        {
+                            return Err(Error::Unauthorized);
+                        }
+                        let access_token = this.jwt.issue_access_token_with_grant(
+                            rotated.user_id,
+                            super::credential::JwtCredentialGrant {
+                                family_id: rotated.family_id,
+                                context: rotated.context,
+                            },
+                        )?;
+                        let credentials = AuthCredentials {
+                            user_id: rotated.user_id,
+                            access_token,
+                            refresh_token: rotated.token,
+                            refresh_expires_at: rotated.expires_at,
+                        };
+                        let check = LoginCommitCheck {
+                            user_id: credentials.user_id,
+                            issued: Some(IssuedCredentialCheck::capture(&this, &credentials)?),
+                            ..Default::default()
+                        };
+                        Ok((Some(credentials), Some(check)))
+                    })
+                })
+                .await?
+                .ok_or(Error::Unauthorized);
+        }
         let user_id = self.refresh.owner_id_for_rotation(token).await?;
         // 先签发新 token，再消费旧 refresh 凭据，避免签名失败时旧凭据已被消耗。
         let access_token = self.jwt.issue_access_token(user_id)?;
@@ -1175,6 +1794,16 @@ impl AuthFlows {
         }
     }
 
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) async fn limit_api(
+        &self,
+        endpoint: &str,
+        source: &str,
+        identity: &str,
+    ) -> Result<()> {
+        self.limit(endpoint, source, identity).await
+    }
+
     async fn limit(&self, endpoint: &str, source: &str, identity: &str) -> Result<()> {
         if source.is_empty()
             || source.len() > 160
@@ -1256,14 +1885,31 @@ impl crate::core::ServiceProvider for AuthFlowsServiceProvider {
                     )
                     .with_refresh_lifetime(lifetime)
                     .with_code_policy(policy);
-                    #[cfg(feature = "auth-mfa")]
-                    let flows = {
-                        let mfa = if resolver.is_bound::<MfaService>()? {
-                            Some((*resolver.resolve::<MfaService>().await?).clone())
-                        } else {
-                            None
-                        };
-                        flows.with_mfa(mfa)
+                    #[cfg(feature = "auth-fortify")]
+                    let flows = if resolver.is_bound::<super::fortify::RequireFactorAuthority>()? {
+                        flows
+                            .with_factor_authority(
+                                (*resolver
+                                    .resolve::<super::fortify::CredentialAuthority>()
+                                    .await?)
+                                    .clone(),
+                            )?
+                            .with_factor_actions(
+                                (*resolver
+                                    .resolve::<super::fortify::TwoFactorActions>()
+                                    .await?)
+                                    .clone(),
+                            )
+                    } else {
+                        flows
+                    };
+                    #[cfg(feature = "auth-fortify")]
+                    let flows = if resolver.is_bound::<dyn ApiLoginAuditSink>()? {
+                        flows.with_api_login_audit(
+                            resolver.resolve::<dyn ApiLoginAuditSink>().await?,
+                        )?
+                    } else {
+                        flows
                     };
                     Ok(Arc::new(flows))
                 })
@@ -1353,39 +1999,6 @@ mod provider_tests {
         runtime
             .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
             .await
-    }
-
-    #[cfg(feature = "auth-mfa")]
-    struct BrokenMfa;
-    #[cfg(feature = "auth-mfa")]
-    impl crate::core::ServiceProvider for BrokenMfa {
-        fn register<'a>(
-            &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
-            Box::pin(async move {
-                app.singleton::<MfaService, _>(|resolver| {
-                    Box::pin(async move {
-                        let _ = resolver.resolve::<u128>().await?;
-                        Err(Error::custom("test", "unreachable"))
-                    })
-                })
-                .await?;
-                Ok(())
-            })
-        }
-    }
-    #[cfg(feature = "auth-mfa")]
-    #[tokio::test]
-    async fn configured_mfa_missing_internal_dependency_fails_startup() {
-        let mut builder = ProviderBuilder::new();
-        builder
-            .provider(AuthFlowsServiceProvider::new())
-            .provider(Dependencies(Arc::new(std::sync::atomic::AtomicUsize::new(
-                0,
-            ))))
-            .provider(BrokenMfa);
-        assert!(builder.start(figment::Figment::new()).await.is_err());
     }
 
     #[tokio::test]
@@ -1513,7 +2126,11 @@ async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredenti
 }
 
 fn remove_auth_values(session: &Session) -> Result<()> {
-    session.forget(&[AUTH_USER_ID_KEY, AUTH_CSRF_HASH_KEY])?;
+    session.forget(&[
+        AUTH_USER_ID_KEY,
+        AUTH_CSRF_HASH_KEY,
+        super::credential::SESSION_FACTOR_CONTEXT_KEY,
+    ])?;
     Ok(())
 }
 

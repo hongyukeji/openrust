@@ -2,7 +2,11 @@
 
 🟡 R7具名认证核心编码及适用验证收齐，最终证据独审与资源收尾通过，本地提交以Git为准；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低SQLite3.26迁移30断言通过。完整Eloquent/Fortify及其余认证范围保留，见[限定验收](memory/testing.md#r7-具名认证核心限定验收)。
 
-📝 Fortify已领取独立来源/契约簇：v1.41.0及同commit官方测试已固定，见[认证契约](plans/fortify-authentication.md)。包回退与安装模板默认分开，先补同内核具名Guard/UserProvider/StatefulGuard，再接两因素流程；未编码、未验收的行为仍保留缺口。原Goal已由宿主正式恢复active，fresh checkpoint与实际来源工具证据保存在tmp/fortify-totp-alignment-20261104/actual-resumption-receipt.json。
+最新真人决定：框架、根默认应用与未显式选择JWT的生成路径，以对应固定Laravel官方默认、生命周期和公开机制为准；Fortify原生Web/Session是其对应模式默认，不将所有场景一律Session或一律JWT。API+Bearer JWT是本批完整必交的显式选配，开发者选择后全程无Session/Cookie/CSRF-cookie/remember/隐藏Session/Set-Cookie或Cookie身份兜底。两种传输共用唯一UserProvider/Guard/Fortify三字段/Actions；旧auth-mfa兼容仍删除。此决定覆盖此前JWT为根默认、一律禁中心Cookie等中间口径，不改写历史验收。
+
+🔵 Fortify 单体系替换进行中：真人明确旧代码/数据均不兼容，旧双轨候选撤销但证据保留；移除auth-mfa、旧状态机/表/生成与legacy兼容，通用安全通过官方扩展融合。原Goal/main/预算不变，尚未提交；唯一下一步及有限退出以todo为准。
+
+本批必交：所选前后端分离应用及显式生成profile的JWT access/refresh、唯一Fortify因子挑战与无Session/Cookie管理流程；显式扩展不表示可省略或任意后置。框架官方Web模式仍保留独立对应。
 
 ✅ S3b SQLite本地认证/MFA限定验收通过，本地提交以Git为准；源17新调用方门禁、四fresh及独审齐备，源9/12/13按未变路径限定复用。双库22项、最低3.26认证52/限流2/Root5，fresh各3无skip；234生成源码归档，所有任务target已正常clean至0。完整Guard/Fortify/Google真实客户端、SQLite其他后端能力与故障窗口仍开放，见memory/testing.md「SQLite 本地认证与 MFA 限定验收」及唯一todo。原Goal active，新99/19.8与旧27/5.4历史保留、creditsfalse。
 

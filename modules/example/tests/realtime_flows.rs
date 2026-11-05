@@ -4,7 +4,6 @@ use super::models::article;
 use figment::{Figment, providers::Serialized};
 use futures_util::StreamExt as _;
 use openrust::Db;
-use openrust::auth::JwtTokens;
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
@@ -20,7 +19,7 @@ struct RealtimeMigrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for RealtimeMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -90,9 +89,8 @@ async fn owner_sse_receives_only_authorized_article_announcement() -> TestResult
     }
     .insert(&connection)
     .await?;
-    let tokens = app.app()?.state().resolve::<JwtTokens>().await?;
-    let owner = tokens.issue_access_token(1)?;
-    let other = tokens.issue_access_token(2)?;
+    let owner = super::selected_test_auth::seeded_password_access(app.app()?, 1).await?;
+    let other = super::selected_test_auth::seeded_password_access(app.app()?, 2).await?;
     let path = format!("/api/example/articles/{}/events", article.id);
     app.request(request(&path, None, Some("https://example.test"))?)
         .await?

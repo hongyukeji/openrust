@@ -7,8 +7,8 @@ use crate::{
     core::BoxFuture,
     db::{
         Db,
-        query::QueryBuilder,
-        sea_orm::{FromQueryResult, QueryResult, Value as SqlValue},
+        query::{QueryBuilder, RawSql},
+        sea_orm::{DbBackend, FromQueryResult, QueryResult, Value as SqlValue},
     },
 };
 use serde_json::{Map, Value};
@@ -68,20 +68,11 @@ impl DatabaseUserProvider {
         self.db.table(&self.table)
     }
 
-    async fn update_attribute(
-        &self,
-        user: &dyn Authenticatable,
-        field: &str,
-        value: String,
-    ) -> Result<()> {
-        self.query()?
-            .where_eq(
-                user.auth_identifier_name(),
-                scalar(&user.auth_identifier()?)?,
-            )?
-            .update(vec![(field, value.into())])
-            .await?;
-        Ok(())
+    fn query_for_user(&self, user: &dyn Authenticatable) -> Result<QueryBuilder<'static>> {
+        self.query()?.where_eq(
+            user.auth_identifier_name(),
+            scalar(&user.auth_identifier()?)?,
+        )
     }
 }
 
@@ -127,8 +118,10 @@ impl UserProvider for DatabaseUserProvider {
         token: &'a str,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            self.update_attribute(user, user.remember_token_name(), token.to_owned())
-                .await
+            self.query_for_user(user)?
+                .update(vec![(user.remember_token_name(), token.into())])
+                .await?;
+            Ok(())
         })
     }
 
@@ -194,14 +187,41 @@ impl UserProvider for DatabaseUserProvider {
                 return Ok(());
             }
             let plain = plaintext(credentials)?.ok_or_else(invalid_credentials)?;
+            let field = user.auth_password_name().to_owned();
+            // where_eq 先校验模型字段名。附加字节比较，避免文本排序规则忽略 PHC 大小写。
+            let query = self
+                .query_for_user(user)?
+                .where_eq(&field, encoded.as_str())?;
+            let exact = match self.db.backend()? {
+                DbBackend::MySql => format!("CAST(`{field}` AS BINARY) = CAST(? AS BINARY)"),
+                DbBackend::Postgres => {
+                    format!("convert_to(\"{field}\", 'UTF8') = convert_to($1, 'UTF8')")
+                }
+                DbBackend::Sqlite => format!("CAST(\"{field}\" AS BLOB) = CAST(? AS BLOB)"),
+                _ => {
+                    return Err(Error::custom(
+                        "unsupported_database_backend",
+                        "密码重哈希不支持此数据库后端",
+                    ));
+                }
+            };
+            let query = query.where_raw(RawSql::new(exact), vec![encoded.as_str().into()]);
             let replacement = self.passwords.hash(plain).await?;
-            // 官方数据库 Provider 只更新持久化属性；不要求账户对象支持 downcast。
-            self.update_attribute(
-                user,
-                user.auth_password_name(),
-                replacement.as_str().to_owned(),
-            )
-            .await
+            self.db
+                .transaction(move |transaction| {
+                    Box::pin(async move {
+                        let affected = query
+                            .using_transaction(transaction)
+                            .update(vec![(&field, replacement.as_str().into())])
+                            .await?;
+                        if affected == 1 {
+                            Ok(())
+                        } else {
+                            Err(Error::Unauthorized)
+                        }
+                    })
+                })
+                .await
         })
     }
 }

@@ -11,7 +11,6 @@
 use super::jobs::article_index::{ARTICLE_STORE, ArticleIndexEntry, cache_key};
 use super::models::article;
 use figment::{Figment, providers::Serialized};
-use openrust::auth::JwtTokens;
 use openrust::cache::{Cache, CacheStore, TaggedCacheEntry};
 use openrust::db::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
@@ -43,7 +42,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -107,13 +106,12 @@ impl Fixture {
         }
         .insert(&connection)
         .await?;
-        let jwt = a.app()?.state().resolve::<JwtTokens>().await?;
         let redis = redis::Client::open(dsn)?
             .get_multiplexed_async_connection()
             .await?;
         Ok(Self {
-            owner: jwt.issue_access_token(1)?,
-            other: jwt.issue_access_token(2)?,
+            owner: super::selected_test_auth::seeded_password_access(a.app()?, 1).await?,
+            other: super::selected_test_auth::seeded_password_access(a.app()?, 2).await?,
             a,
             b,
             database,
@@ -204,7 +202,7 @@ async fn load(db: Arc<Db>, owner: i64, id: i64) -> Result<ArticleIndexEntry> {
 #[ignore = "需真实 PostgreSQL/MySQL 与 Redis，显式配置 OPENRUST_TEST_DATABASE_URL/OPENRUST_TEST_REDIS_URL"]
 async fn article_tags_share_invalidation_and_reject_old_loader_across_apps() -> TestResult {
     tokio::time::timeout(Duration::from_secs(20), async {
-        let mut f = Fixture::create().await?;
+        let mut f = Box::pin(Fixture::create()).await?;
         f.authorization().await?;
         let a = Fixture::store(&f.a).await?;
         let b = Fixture::store(&f.b).await?;
@@ -259,7 +257,7 @@ async fn article_tags_share_invalidation_and_reject_old_loader_across_apps() -> 
 #[ignore = "需真实 PostgreSQL/MySQL 与 Redis，显式配置 OPENRUST_TEST_DATABASE_URL/OPENRUST_TEST_REDIS_URL"]
 async fn article_swr_returns_stale_then_refreshes_and_honors_tag_invalidation() -> TestResult {
     tokio::time::timeout(Duration::from_secs(20), async {
-        let mut f = Fixture::create().await?;
+        let mut f = Box::pin(Fixture::create()).await?;
         f.authorization().await?;
         let a = Fixture::store(&f.a).await?;
         let b = Fixture::store(&f.b).await?;
@@ -339,7 +337,7 @@ async fn article_swr_returns_stale_then_refreshes_and_honors_tag_invalidation() 
 #[ignore = "需真实 PostgreSQL/MySQL 与 Redis，显式配置 OPENRUST_TEST_DATABASE_URL/OPENRUST_TEST_REDIS_URL"]
 async fn article_concurrent_misses_merge_one_app_loader() -> TestResult {
     tokio::time::timeout(Duration::from_secs(20), async {
-        let f = Fixture::create().await?;
+        let f = Box::pin(Fixture::create()).await?;
         let store = Fixture::store(&f.a).await?;
         let calls = Arc::new(AtomicUsize::new(0));
         let entered = Arc::new(Notify::new());

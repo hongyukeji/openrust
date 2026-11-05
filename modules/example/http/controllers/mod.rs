@@ -21,6 +21,8 @@ pub(crate) mod draft_redirect;
 pub(crate) mod example;
 #[cfg(feature = "auth")]
 pub(crate) mod example_record;
+#[cfg(feature = "auth-fortify")]
+pub(crate) mod fortify;
 #[cfg(feature = "queue")]
 pub(crate) mod jobs;
 pub(crate) mod localization;

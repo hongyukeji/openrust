@@ -7,6 +7,7 @@ pub use crate::session::{DatabaseSessionStore, SessionServiceProvider, SessionSt
 
 impl SessionStoreHandle {
     /// 比较请求快照与当前持久身份，不续期；返回截止不晚于持久列或TTL。
+    /// 原生数据库按本次读取的活动时间计算期限，不提升其并发写入/删除保证。
     pub async fn authorized_until(
         &self,
         session: &crate::session::Session,
@@ -25,6 +26,7 @@ impl SessionStoreHandle {
     }
 
     /// 按实际具名 Guard 及当前持久记录限制连接期限；不接受仅本请求的 once 身份。
+    /// 原生数据库只保证当前读取边界，不承诺与后续网络发送原子撤销。
     pub async fn authorized_until_guard(
         &self,
         session: &crate::session::Session,
@@ -67,20 +69,16 @@ async fn persisted_until(
 ) -> crate::Result<std::time::SystemTime> {
     use crate::Error;
     let handler = session.handler()?;
-    if handler.guarantees() != crate::session::SessionStoreGuarantees::ServerSide {
+    if handler.guarantees() == crate::session::SessionStoreGuarantees::ClientSideSnapshot {
         return Err(Error::custom_with_status(
             http::StatusCode::INTERNAL_SERVER_ERROR,
             "session_store_guarantee_unsupported",
-            "Session 驱动无法提供服务器端撤销保证",
+            "客户端Session快照无法提供服务器端当前记录读取",
         ));
     }
     let id = session.id()?;
     let record = handler
-        .load(
-            &id,
-            crate::session::DEFAULT_MAX_BYTES,
-            session.expiry_date()?,
-        )
+        .load_authorized(&id, crate::session::DEFAULT_MAX_BYTES)
         .await?
         .ok_or(Error::Unauthorized)?;
     if record.id != id {
@@ -444,3 +442,8 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(feature = "auth-fortify")]
+mod live;
+#[cfg(feature = "auth-fortify")]
+pub use live::LiveSessionCredential;

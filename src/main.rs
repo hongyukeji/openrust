@@ -7,6 +7,8 @@ mod app;
 mod bootstrap;
 #[path = "../config/mod.rs"]
 mod config;
+#[path = "../database/mod.rs"]
+mod database;
 #[path = "../modules/mod.rs"]
 mod modules;
 #[path = "../routes/mod.rs"]

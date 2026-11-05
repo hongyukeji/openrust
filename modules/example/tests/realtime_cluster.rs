@@ -9,7 +9,6 @@
 use super::models::article;
 use figment::{Figment, providers::Serialized};
 use openrust::Db;
-use openrust::auth::JwtTokens;
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
@@ -29,7 +28,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -276,9 +275,8 @@ async fn exercise(a: &Node, b: &Node, ids: [i64; 2]) -> TestResult {
         &a_state.resolve::<Db>().await?,
         &b_state.resolve::<Db>().await?
     ));
-    let tokens = a_state.resolve::<JwtTokens>().await?;
-    let owner = tokens.issue_access_token(1)?;
-    let other = tokens.issue_access_token(2)?;
+    let owner = super::selected_test_auth::seeded_password_access(a.app.app()?, 1).await?;
+    let other = super::selected_test_auth::seeded_password_access(a.app.app()?, 2).await?;
     let events = format!("/api/example/articles/{}/events", ids[0]);
     assert_eq!(open(a, "GET", &events, None).await?.status, 401);
     assert_eq!(open(a, "GET", &events, Some(&other)).await?.status, 404);

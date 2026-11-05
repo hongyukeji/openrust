@@ -89,7 +89,7 @@ struct Decoded {
 }
 
 impl SessionRecord {
-    pub(super) fn validate_for(
+    pub(crate) fn validate_for(
         &self,
         semantics: SessionStoreSemantics,
         max_bytes: usize,
@@ -187,6 +187,19 @@ impl SessionRecord {
     }
 }
 
+/// 经实际驱动验证来源的只读凭据能力。数据库驱动须使用传入的账户事务；
+/// 内存、Redis 等独立服务器存储保留实际读取时点以及真实过期时间。
+#[cfg(feature = "auth-fortify")]
+pub trait CredentialSessionReader: Send + Sync {
+    /// 有界读取指定 Session 的身份和原截止时间，不续期、不新建记录。
+    fn load_authorized_for_credential<'a>(
+        &'a self,
+        tx: &'a crate::db::DatabaseTransaction,
+        id: &'a SessionId,
+        maximum: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>>;
+}
+
 /// 可由外部crate实现的唯一Session store接口。
 ///
 /// `max_bytes`要求load在解码或复制完整载荷前限制读取；框架仍会验证返回记录。
@@ -272,6 +285,48 @@ pub trait SessionStore: Send + Sync + 'static {
         max_bytes: usize,
         empty_expiry: OffsetDateTime,
     ) -> BoxFuture<'a, Result<Option<SessionRecord>>>;
+
+    /// 从实际驱动创建不保留请求slot的只读认证reader；None表示使用实际驱动自身。
+    ///
+    /// 默认无请求依赖的服务器端驱动可直接使用原Arc。需请求上下文的驱动若不
+    /// 提供独立reader，后续 `load_authorized` 仍须明确拒绝，不能回落另一store域。
+    fn independent_authorization_reader(&self) -> Result<Option<std::sync::Arc<dyn SessionStore>>> {
+        Ok(None)
+    }
+
+    /// 独立请求生命周期的只读认证加载；返回实际存储截止，不续期。
+    ///
+    /// 默认只接受不依赖请求上下文的服务器端驱动；原生数据库须显式实现同次
+    /// 读取的载荷与活动截止，客户端快照不具此能力。此接口不提升驱动原有的
+    /// 删除/并发写保证，也不承诺撤销与后续网络发送线性化。
+    fn load_authorized<'a>(
+        &'a self,
+        id: &'a SessionId,
+        max_bytes: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        Box::pin(async move {
+            if self.guarantees() != SessionStoreGuarantees::ServerSide
+                || self.needs_request()
+                || self.accepts_request()
+            {
+                return Err(unsupported_guarantee());
+            }
+            self.load(id, max_bytes, OffsetDateTime::now_utc()).await
+        })
+    }
+
+    /// 为指定账户库选择父 Session 的复核能力；新登录与已保存身份都必须先通过此来源检查。
+    #[cfg(feature = "auth-fortify")]
+    fn credential_parent_reader(
+        &self,
+        _db: &crate::db::Db,
+    ) -> Result<&dyn CredentialSessionReader> {
+        Err(crate::Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "session_credential_parent_reader_unsupported",
+            "Session 驱动未提供凭据派生所需的持久身份复核",
+        ))
+    }
 
     /// `ServerSide` 按模式原子写入；原生数据库按 exists；快照仅检查本请求观察。
     fn write<'a>(

@@ -31,6 +31,22 @@ struct MessageBagApplication<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for MessageBagApplication<A> {
     type Config = A::Config;
 
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        A::default_providers()
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
+
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }

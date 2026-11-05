@@ -1,7 +1,7 @@
-//! JWT 管理与 Cookie Session 路由分别装配；秘密响应均禁止缓存。
+//! 凭据登录和当前 Session 的账户操作。含凭据的响应禁止缓存。
 
-#[cfg(feature = "auth-mfa")]
-use crate::modules::example::http::requests::account_security::{ChallengeInput, FactorInput};
+#[cfg(feature = "auth-fortify")]
+use crate::modules::example::http::requests::account_security::ChallengeInput;
 use crate::modules::example::http::requests::account_security::{
     CredentialsInput, Density, PreferenceInput,
 };
@@ -40,8 +40,8 @@ enum LoginResponse {
     Authenticated {
         credentials: CredentialsResponse,
     },
-    #[cfg(feature = "auth-mfa")]
-    MfaRequired {
+    #[cfg(feature = "auth-fortify")]
+    TwoFactorRequired {
         challenge: String,
         expires_at: String,
     },
@@ -57,8 +57,8 @@ pub(crate) async fn login(
         LoginAttempt::Authenticated(value) => LoginResponse::Authenticated {
             credentials: credentials(&value),
         },
-        #[cfg(feature = "auth-mfa")]
-        LoginAttempt::MfaRequired(challenge) => LoginResponse::MfaRequired {
+        #[cfg(feature = "auth-fortify")]
+        LoginAttempt::TwoFactorRequired(challenge) => LoginResponse::TwoFactorRequired {
             challenge: challenge.expose().into(),
             expires_at: challenge.expires_at().to_rfc3339(),
         },
@@ -110,8 +110,8 @@ pub(crate) async fn require_session_account(
     Ok(next.run(request).await)
 }
 
-/// 现有示例的增强策略：启用 MFA 后旧 Session 不得继续充当已完成第二因子的凭据。
-#[cfg(feature = "auth-mfa")]
+/// 受保护资源按当前账户策略校验 Session 的双因素证明。
+#[cfg(feature = "auth-fortify")]
 pub(crate) async fn require_session_factor(
     user: CurrentUser,
     openrust::http::axum::Extension(scope): openrust::http::axum::Extension<
@@ -120,10 +120,12 @@ pub(crate) async fn require_session_factor(
     request: openrust::http::axum::extract::Request,
     next: openrust::http::axum::middleware::Next,
 ) -> Result<Response> {
-    let flows = scope.resolve::<openrust::auth::AuthFlows>().await?;
-    if flows.mfa_enabled(user.integer_id()?).await? {
-        return Err(Error::Unauthorized);
-    }
+    let name = user.guard_name().ok_or(Error::Unauthorized)?;
+    let manager = scope.resolve::<openrust::auth::AuthManager>().await?;
+    let guard = manager.guard(Some(name)).await?;
+    let fortify = scope.resolve::<openrust::auth::fortify::Fortify>().await?;
+    let confirm = fortify.confirms_two_factor_authentication()?;
+    openrust::auth::fortify::authorize_session_factor(guard.as_ref(), name, confirm).await?;
     Ok(next.run(request).await)
 }
 
@@ -145,7 +147,7 @@ pub(crate) async fn set_preference(
         .map_err(Error::internal)?;
     Ok(private(serde_json::json!({"density":input.density})))
 }
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 pub(crate) async fn complete(
     Inject(service): Inject<AccountSecurity>,
     headers: HeaderMap,
@@ -156,57 +158,52 @@ pub(crate) async fn complete(
     let value = service.complete(input, &source.ip().to_string()).await?;
     Ok(private(credentials(&value)))
 }
-#[cfg(feature = "auth-mfa")]
-pub(crate) async fn enroll(
+/// 从同一已验证Session交换原始因子来源不变的JWT/refresh家族。
+#[cfg(feature = "auth-fortify")]
+pub(crate) async fn session_credentials(
     user: CurrentUser,
     Inject(service): Inject<AccountSecurity>,
-    source: ClientIp,
-    Validated(Json(input)): Validated<Json<CredentialsInput>>,
+    Inject(flows): Inject<openrust::auth::AuthFlows>,
+    Inject(auth): Inject<openrust::auth::AuthManager>,
+    headers: HeaderMap,
 ) -> Result<Response> {
-    let value = service
-        .enroll(user.integer_id()?, input, &source.ip().to_string())
+    service.require_same_origin(&headers)?;
+    let name = user.guard_name().ok_or(Error::Unauthorized)?;
+    let selected = auth.guard(Some(name)).await?;
+    let guard = selected.as_stateful().ok_or(Error::Unauthorized)?;
+    let issued = flows.issue_credentials_from_session(guard, name).await?;
+    Ok(private(credentials(&issued)))
+}
+
+/// 唯一示例只授予文章读取权限；框架不会把因子验证升级成任意业务授权。
+#[cfg(feature = "auth-fortify")]
+pub(crate) async fn session_read_token(
+    user: CurrentUser,
+    Inject(service): Inject<AccountSecurity>,
+    Inject(tokens): Inject<openrust::auth::PersonalAccessTokens>,
+    Inject(authority): Inject<openrust::auth::fortify::CredentialAuthority>,
+    Inject(auth): Inject<openrust::auth::AuthManager>,
+    headers: HeaderMap,
+) -> Result<Response> {
+    service.require_same_origin(&headers)?;
+    let name = user.guard_name().ok_or(Error::Unauthorized)?;
+    let selected = auth.guard(Some(name)).await?;
+    let verified = authority
+        .prepare_session(selected.as_stateful().ok_or(Error::Unauthorized)?, name)
+        .await?;
+    let maximum = chrono::Utc::now() + chrono::Duration::hours(24);
+    let expires_at = verified
+        .expires_at()
+        .map_or(maximum, |parent| parent.min(maximum));
+    let token = tokens
+        .issue_from_verified(
+            verified,
+            "example-read",
+            &["articles.read".into()],
+            Some(expires_at),
+        )
         .await?;
     Ok(private(
-        serde_json::json!({"provisioning_uri":value.provisioning_uri(),"expires_at":value.expires_at().to_rfc3339()}),
+        serde_json::json!({"token":token.expose(),"abilities":["articles.read"]}),
     ))
-}
-#[cfg(feature = "auth-mfa")]
-pub(crate) async fn confirm(
-    user: CurrentUser,
-    Inject(service): Inject<AccountSecurity>,
-    source: ClientIp,
-    Validated(Json(input)): Validated<Json<FactorInput>>,
-) -> Result<Response> {
-    let codes = service
-        .confirm(user.integer_id()?, input, &source.ip().to_string())
-        .await?;
-    Ok(private(
-        serde_json::json!({"recovery_codes":codes.expose()}),
-    ))
-}
-#[cfg(feature = "auth-mfa")]
-pub(crate) async fn regenerate(
-    user: CurrentUser,
-    Inject(service): Inject<AccountSecurity>,
-    source: ClientIp,
-    Validated(Json(input)): Validated<Json<FactorInput>>,
-) -> Result<Response> {
-    let codes = service
-        .regenerate(user.integer_id()?, input, &source.ip().to_string())
-        .await?;
-    Ok(private(
-        serde_json::json!({"recovery_codes":codes.expose()}),
-    ))
-}
-#[cfg(feature = "auth-mfa")]
-pub(crate) async fn disable(
-    user: CurrentUser,
-    Inject(service): Inject<AccountSecurity>,
-    source: ClientIp,
-    Validated(Json(input)): Validated<Json<FactorInput>>,
-) -> Result<Response> {
-    service
-        .disable(user.integer_id()?, input, &source.ip().to_string())
-        .await?;
-    Ok(private(serde_json::json!({"status":"disabled"})))
 }

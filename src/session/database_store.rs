@@ -98,6 +98,25 @@ impl DatabaseSessionStore {
     }
 }
 
+#[cfg(feature = "auth-fortify")]
+impl super::store::CredentialSessionReader for DatabaseSessionStore {
+    fn load_authorized_for_credential<'a>(
+        &'a self,
+        tx: &'a crate::db::DatabaseTransaction,
+        id: &'a SessionId,
+        maximum: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        Box::pin(async move {
+            let mut handler = self.handler(maximum)?;
+            decode_authorized(
+                id,
+                handler.read_for_credential(tx, id.as_str()).await?,
+                maximum,
+            )
+        })
+    }
+}
+
 impl SessionStore for DatabaseSessionStore {
     fn set_database_user_id(&self, user_id: sea_orm::Value) -> Result<bool> {
         *self.user_id.lock().map_err(|_| unavailable())? = Some(user_id);
@@ -181,6 +200,39 @@ impl SessionStore for DatabaseSessionStore {
         })
     }
 
+    fn independent_authorization_reader(&self) -> Result<Option<Arc<dyn SessionStore>>> {
+        let reader = self.fresh(DatabaseSessionMetadata::default());
+        #[cfg(feature = "auth")]
+        let reader = Self {
+            session_user_metadata: false,
+            ..reader
+        };
+        Ok(Some(Arc::new(reader)))
+    }
+
+    fn load_authorized<'a>(
+        &'a self,
+        id: &'a SessionId,
+        maximum: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        Box::pin(async move {
+            // 每次创建本地handler，不复用请求slot的exists/metadata或延长last_activity。
+            let mut handler = self.handler(maximum)?;
+            decode_authorized(id, handler.read_with_deadline(id.as_str()).await?, maximum)
+        })
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    fn credential_parent_reader(
+        &self,
+        db: &Db,
+    ) -> Result<&dyn super::store::CredentialSessionReader> {
+        if !self.db.same_handle(db) {
+            return Err(super::store::unsupported_guarantee());
+        }
+        Ok(self)
+    }
+
     fn write<'a>(
         &'a self,
         record: &'a SessionRecord,
@@ -235,4 +287,26 @@ impl SessionStore for DatabaseSessionStore {
             Ok(())
         })
     }
+}
+
+fn decode_authorized(
+    id: &SessionId,
+    payload: Option<(Vec<u8>, OffsetDateTime)>,
+    maximum: usize,
+) -> Result<Option<SessionRecord>> {
+    let Some((bytes, expiry_date)) = payload else {
+        return Ok(None);
+    };
+    guard_json_depth(&bytes)?;
+    let data = serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|_| invalid_record())?;
+    if !data.is_array() && !data.is_object() {
+        return Err(invalid_record());
+    }
+    let record = SessionRecord {
+        id: id.clone(),
+        data,
+        expiry_date,
+    };
+    record.validate_for(SessionStoreSemantics::NativeDatabase, maximum)?;
+    Ok(Some(record))
 }

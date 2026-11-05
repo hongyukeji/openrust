@@ -7,6 +7,14 @@ mod config;
     feature = "auth",
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
+#[path = "tests/selected_test_auth.rs"]
+mod selected_test_auth;
+
+#[cfg(all(
+    test,
+    feature = "auth",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
 #[path = "tests/account_security_flows.rs"]
 mod account_security_flows;
 #[cfg(all(
@@ -310,3 +318,12 @@ pub(crate) use config_sources::application_sources as test_sources;
 #[cfg(all(test, feature = "db-sqlite"))]
 #[path = "tests/sqlite_connection_flows.rs"]
 mod sqlite_connection_flows;
+
+#[cfg(all(
+    test,
+    feature = "auth-fortify",
+    feature = "realtime",
+    any(feature = "db-sqlite", feature = "db-mysql", feature = "db-postgres")
+))]
+#[path = "tests/managed_realtime.rs"]
+pub(crate) mod managed_realtime;

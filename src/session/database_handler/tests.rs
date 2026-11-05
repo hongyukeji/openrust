@@ -693,3 +693,59 @@ async fn mysql_native_handler_distinguishes_infrastructure_number_from_query_sql
     outcome?;
     cleanup
 }
+
+#[cfg(feature = "db-sqlite")]
+#[tokio::test]
+async fn authorized_read_uses_same_row_deadline_and_controlled_clock_without_renewal() -> Result<()>
+{
+    let database = TestDatabase::sqlite_file::<SessionMigrator>().await?;
+    let outcome: Result<()> = async {
+        let connection = database.connection()?;
+        let db = Db::default();
+        db.initialize(connection.clone())?;
+        seed(&connection, "authorized-clock", "e30=", NOW - 30).await?;
+        let mut reader = handler(db.clone())?;
+        let (bytes, deadline) = reader
+            .read_with_deadline("authorized-clock")
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        assert_eq!(bytes, b"{}");
+        assert_eq!(deadline.unix_timestamp(), NOW + 30);
+        assert_eq!(
+            required(row(&connection, "authorized-clock").await?)?
+                .try_get::<i64>("", "last_activity")
+                .map_err(Error::internal)?,
+            NOW - 30
+        );
+        let mut expired =
+            DatabaseSessionHandler::new(db.clone(), Some("sessions".into()), 1)?.with_clock(
+                Arc::new(FixedClock::new(CalendarInstant::new(NOW + 30, 0)?)),
+            );
+        assert!(
+            expired
+                .read_with_deadline("authorized-clock")
+                .await?
+                .is_none()
+        );
+        assert!(row(&connection, "authorized-clock").await?.is_some());
+        connection
+            .execute_raw(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                "DELETE FROM sessions WHERE id=?",
+                ["authorized-clock".into()],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        assert!(
+            reader
+                .read_with_deadline("authorized-clock")
+                .await?
+                .is_none()
+        );
+        Ok(())
+    }
+    .await;
+    let cleanup = database.close().await;
+    outcome?;
+    cleanup
+}

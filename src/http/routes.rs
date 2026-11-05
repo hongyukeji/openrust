@@ -265,15 +265,20 @@ pub(crate) struct RouteParts {
     candidates: Vec<DispatchCandidate>,
     pub(crate) names: Vec<NamedRouteDefinition>,
     pub(crate) actions: Vec<ActionRouteDefinition>,
+    pub(crate) get_paths: Vec<String>,
     pub(crate) name_errors: Vec<String>,
     pub(crate) middleware_errors: Vec<crate::core::Error>,
     pub(crate) route_errors: Vec<crate::core::Error>,
 }
 
+pub(crate) type MiddlewareParameterFactory =
+    Arc<dyn Fn(Vec<String>) -> crate::core::Result<MiddlewareLayerBuilder> + Send + Sync>;
+
 /// 应用启动时登记、路由构建时读取的命名 middleware 定义。
 #[derive(Clone)]
 pub(crate) struct MiddlewareRegistry {
     aliases: HashMap<String, MiddlewareLayerBuilder>,
+    parameter_aliases: HashMap<String, MiddlewareParameterFactory>,
     groups: HashMap<String, Vec<String>>,
     priority: Vec<String>,
     signed_except: Vec<String>,
@@ -283,6 +288,7 @@ impl Default for MiddlewareRegistry {
     fn default() -> Self {
         Self {
             aliases: HashMap::new(),
+            parameter_aliases: HashMap::new(),
             groups: HashMap::new(),
             priority: ["precognitive", "auth", "throttle", "auth.session", "can"]
                 .into_iter()
@@ -300,7 +306,7 @@ impl MiddlewareRegistry {
         #[cfg(feature = "session")] session: Option<crate::session::SessionLayer>,
         #[cfg(feature = "session")] forgery: Option<super::forgery::ForgeryRuntime>,
     ) -> crate::core::Result<()> {
-        if !self.aliases.contains_key("cookies") && !self.groups.contains_key("cookies") {
+        if !self.contains_name("cookies") {
             self.alias(
                 "cookies".to_owned(),
                 Arc::new(move |mut routes| {
@@ -319,7 +325,7 @@ impl MiddlewareRegistry {
                 }),
             )?;
         }
-        if !self.aliases.contains_key("session") && !self.groups.contains_key("session") {
+        if !self.contains_name("session") {
             #[cfg(feature = "session")]
             let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
                 if let Some(layer) = &session {
@@ -345,7 +351,7 @@ impl MiddlewareRegistry {
             });
             self.alias("session".to_owned(), builder)?;
         }
-        if !self.aliases.contains_key("csrf") && !self.groups.contains_key("csrf") {
+        if !self.contains_name("csrf") {
             #[cfg(feature = "session")]
             let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
                 if let Some(runtime) = &forgery {
@@ -380,7 +386,7 @@ impl MiddlewareRegistry {
             });
             self.alias("csrf".to_owned(), builder)?;
         }
-        if !self.groups.contains_key("web") && !self.aliases.contains_key("web") {
+        if !self.contains_name("web") {
             self.group(
                 "web".to_owned(),
                 vec!["cookies", "session", "csrf"]
@@ -389,7 +395,7 @@ impl MiddlewareRegistry {
                     .collect(),
             )?;
         }
-        if !self.groups.contains_key("api") && !self.aliases.contains_key("api") {
+        if !self.contains_name("api") {
             // SubstituteBindings 已由受管理路由分发器执行；空追加链表示不重复包装。
             self.groups.insert("api".to_owned(), Vec::new());
         }
@@ -401,7 +407,41 @@ impl MiddlewareRegistry {
         signed_except: Vec<String>,
     ) -> crate::core::Result<()> {
         self.signed_except = signed_except;
-        if !self.aliases.contains_key("signed") && !self.groups.contains_key("signed") {
+        #[cfg(feature = "auth")]
+        {
+            for (name, guest) in [("auth", false), ("guest", true)] {
+                if !self.contains_name(name) {
+                    self.parameter_alias(
+                        name.into(),
+                        Arc::new(move |arguments| {
+                            let options = crate::auth::middleware::guards(arguments, guest);
+                            Ok(Arc::new(move |routes: Routes| {
+                                routes.layer(axum::middleware::from_fn_with_state(
+                                    options.clone(),
+                                    crate::auth::middleware::handle,
+                                ))
+                            }))
+                        }),
+                    )?;
+                }
+            }
+            if !self.contains_name("password.confirm") {
+                self.parameter_alias(
+                    "password.confirm".into(),
+                    Arc::new(|arguments| {
+                        let options = crate::auth::middleware::password(arguments)?;
+                        Ok(Arc::new(move |routes: Routes| {
+                            routes.layer(axum::middleware::from_fn_with_state(
+                                options.clone(),
+                                crate::auth::middleware::handle,
+                            ))
+                        }))
+                    }),
+                )?;
+            }
+        }
+
+        if !self.contains_name("signed") {
             let options =
                 super::middleware::ValidateSignature::new().except(self.signed_except.clone());
             self.alias(
@@ -414,7 +454,7 @@ impl MiddlewareRegistry {
                 }),
             )?;
         }
-        if !self.aliases.contains_key("precognitive") && !self.groups.contains_key("precognitive") {
+        if !self.contains_name("precognitive") {
             self.alias(
                 "precognitive".to_owned(),
                 Arc::new(|routes| {
@@ -472,6 +512,22 @@ impl MiddlewareRegistry {
         Ok(())
     }
 
+    pub(crate) fn parameter_alias(
+        &mut self,
+        name: String,
+        factory: MiddlewareParameterFactory,
+    ) -> crate::core::Result<()> {
+        self.validate_new_name(&name)?;
+        self.parameter_aliases.insert(name, factory);
+        Ok(())
+    }
+
+    fn contains_name(&self, name: &str) -> bool {
+        self.aliases.contains_key(name)
+            || self.parameter_aliases.contains_key(name)
+            || self.groups.contains_key(name)
+    }
+
     pub(crate) fn group(&mut self, name: String, members: Vec<String>) -> crate::core::Result<()> {
         self.validate_new_name(&name)?;
         if members.is_empty() {
@@ -500,7 +556,7 @@ impl MiddlewareRegistry {
                 "HTTP middleware names may contain only ASCII letters, digits, dots, underscores and hyphens",
             ));
         }
-        if self.aliases.contains_key(name) || self.groups.contains_key(name) {
+        if self.contains_name(name) {
             return Err(crate::core::Error::custom(
                 "http_middleware_name_duplicate",
                 "HTTP middleware alias or group name is already registered",
@@ -514,6 +570,19 @@ impl MiddlewareRegistry {
         name: &str,
         stack: &mut HashSet<String>,
     ) -> crate::core::Result<Vec<(String, MiddlewareLayerBuilder)>> {
+        if !valid_middleware_reference(name) {
+            return Err(crate::core::Error::custom(
+                "http_middleware_name_invalid",
+                "HTTP middleware 引用名称或参数包含无效字符",
+            ));
+        }
+        let (base, arguments) = match name.split_once(':') {
+            Some((base, arguments)) => (base, arguments.split(',').map(str::to_owned).collect()),
+            None => (name, Vec::new()),
+        };
+        if let Some(factory) = self.parameter_aliases.get(base) {
+            return Ok(vec![(base.to_owned(), factory(arguments)?)]);
+        }
         if let Some(alias) = self.aliases.get(name) {
             return Ok(vec![(name.to_owned(), Arc::clone(alias))]);
         }
@@ -554,7 +623,7 @@ impl MiddlewareRegistry {
         let Some(members) = self.groups.get(name) else {
             return Err(crate::core::Error::custom(
                 "http_middleware_name_unknown",
-                format!("HTTP middleware alias or group `{name}` is not registered"),
+                format!("HTTP middleware alias or group `{base}` is not registered"),
             ));
         };
         if !stack.insert(name.to_owned()) {
@@ -587,7 +656,12 @@ fn valid_middleware_name(name: &str) -> bool {
 }
 
 fn valid_middleware_reference(name: &str) -> bool {
-    valid_middleware_name(name) || name.starts_with("signed:")
+    match name.split_once(':') {
+        Some((base, arguments)) => {
+            valid_middleware_name(base) && !arguments.chars().any(char::is_control)
+        }
+        None => valid_middleware_name(name),
+    }
 }
 
 /// 一组路由共享的 Laravel 式路径前缀与 middleware。
@@ -1204,21 +1278,29 @@ impl Routes {
             .iter()
             .map(|declaration| snapshot_metadata(&declaration.metadata))
             .collect();
-        let (actions, candidates) = match metadata.and_then(|metadata| {
+        let (actions, candidates, get_paths) = match metadata.and_then(|metadata| {
             validate_fallback_scopes(&metadata)?;
             Ok((
                 final_action_routes(&metadata),
                 compile_candidates(&self.declarations, &metadata)?,
+                metadata
+                    .iter()
+                    .filter(|route| {
+                        route.domain.is_none() && route.methods.iter().any(|method| method == "GET")
+                    })
+                    .map(|route| route.path.clone())
+                    .collect(),
             ))
         }) {
             Ok(parts) => parts,
             Err(error) => {
                 self.route_errors.push(error);
-                (Vec::new(), Vec::new())
+                (Vec::new(), Vec::new(), Vec::new())
             }
         };
         RouteParts {
             candidates,
+            get_paths,
             names: self.route_names,
             actions,
             name_errors: self.route_name_errors,
@@ -2361,6 +2443,168 @@ mod parameter_budget_tests {
         assert!(
             matches!(invalid.into_router(), Err(error) if error.code() == "http_route_parameter_limit")
         );
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod parameter_alias_tests {
+    use super::*;
+    use crate::Result;
+
+    fn identity() -> MiddlewareLayerBuilder {
+        Arc::new(|routes| routes)
+    }
+
+    #[test]
+    fn parameters_keep_empty_entries_and_alias_metadata_uses_base_name() -> Result<()> {
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let calls = observed.clone();
+        let mut registry = MiddlewareRegistry::default();
+        registry.parameter_alias(
+            "auth".into(),
+            Arc::new(move |arguments| {
+                calls
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(arguments);
+                Ok(identity())
+            }),
+        )?;
+        for reference in ["auth", "auth:", "auth:staff,,api"] {
+            let expanded = registry.expand(reference, &mut HashSet::new())?;
+            assert_eq!(expanded.len(), 1);
+            assert_eq!(expanded[0].0, "auth");
+        }
+        assert_eq!(
+            *observed
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            vec![
+                Vec::<String>::new(),
+                vec![String::new()],
+                vec!["staff".into(), String::new(), "api".into()]
+            ]
+        );
+        registry.group("protected".into(), vec!["auth:staff".into()])?;
+        registry.validate()?;
+        Ok(())
+    }
+
+    #[test]
+    fn duplicate_names_and_invalid_references_are_rejected_before_factory() -> Result<()> {
+        let mut registry = MiddlewareRegistry::default();
+        registry.parameter_alias(
+            "auth".into(),
+            Arc::new(|_| Err(crate::Error::custom("invalid_guard", "未知Guard"))),
+        )?;
+        assert!(registry.alias("auth".into(), identity()).is_err());
+        assert!(registry.group("auth".into(), vec!["auth".into()]).is_err());
+        assert!(
+            registry
+                .parameter_alias("auth".into(), Arc::new(|_| Ok(identity())))
+                .is_err()
+        );
+        assert!(
+            registry
+                .parameter_alias("bad:name".into(), Arc::new(|_| Ok(identity())))
+                .is_err()
+        );
+        for name in ["auth:staff", "auth:", "auth"] {
+            assert!(registry.expand(name, &mut HashSet::new()).is_err());
+        }
+        for name in [":staff", "bad name:staff", "auth:staff\n", "auth:\u{0085}"] {
+            assert!(!valid_middleware_reference(name));
+            assert!(registry.expand(name, &mut HashSet::new()).is_err());
+        }
+        let mut static_registry = MiddlewareRegistry::default();
+        static_registry.alias("auth".into(), identity())?;
+        assert!(
+            static_registry
+                .parameter_alias("auth".into(), Arc::new(|_| Ok(identity())))
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn framework_and_web_defaults_respect_parameter_aliases_and_keep_signed_support() -> Result<()>
+    {
+        let mut registry = MiddlewareRegistry::default();
+        for name in [
+            "cookies",
+            "session",
+            "csrf",
+            "web",
+            "api",
+            "signed",
+            "precognitive",
+        ] {
+            registry.parameter_alias(name.into(), Arc::new(|_| Ok(identity())))?;
+        }
+        registry.install_framework_defaults(vec!["tracking".into()])?;
+        #[cfg(feature = "session")]
+        registry.install_web_defaults(None, None, None)?;
+        #[cfg(not(feature = "session"))]
+        registry.install_web_defaults(None)?;
+        let expected = [
+            "cookies",
+            "session",
+            "csrf",
+            "web",
+            "api",
+            "signed",
+            "precognitive",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<std::collections::BTreeSet<_>>();
+        #[cfg(feature = "auth")]
+        let expected = expected
+            .into_iter()
+            .chain(
+                ["auth", "guest", "password.confirm"]
+                    .into_iter()
+                    .map(str::to_owned),
+            )
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            registry
+                .parameter_aliases
+                .keys()
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>(),
+            expected
+        );
+        assert!(registry.aliases.is_empty());
+        assert!(registry.groups.is_empty());
+        assert!(
+            registry
+                .expand("signed:custom", &mut HashSet::new())
+                .is_ok()
+        );
+        let mut defaults = MiddlewareRegistry::default();
+        defaults.install_framework_defaults(vec!["tracking".into()])?;
+        assert!(defaults.expand("signed", &mut HashSet::new()).is_ok());
+        assert!(
+            defaults
+                .expand("signed:relative,tracking", &mut HashSet::new())
+                .is_ok()
+        );
+        assert!(defaults.expand("signed:", &mut HashSet::new()).is_err());
+        #[cfg(feature = "session")]
+        defaults.install_web_defaults(None, None, None)?;
+        #[cfg(not(feature = "session"))]
+        defaults.install_web_defaults(None)?;
+        assert_eq!(
+            defaults.groups.get("web"),
+            Some(&vec![
+                "cookies".to_owned(),
+                "session".to_owned(),
+                "csrf".to_owned()
+            ])
+        );
+        assert_eq!(defaults.groups.get("api"), Some(&Vec::<String>::new()));
         Ok(())
     }
 }

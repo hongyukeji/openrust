@@ -198,6 +198,37 @@ impl BootContext<'_> {
         Ok(self)
     }
 
+    /// 登记同一middleware registry的参数化alias；参数按逗号拆分且保留空项。
+    ///
+    /// 无冒号引用传入空Vec，`name:`传入一个空字符串；参数数量与语义由工厂校验。
+    /// 工厂在路由装配时执行，返回错误会阻止应用启动；不能从工厂创建另一请求scope。
+    pub fn middleware_alias_with_parameters<L, F>(
+        &mut self,
+        name: impl Into<String>,
+        factory: F,
+    ) -> Result<&mut Self>
+    where
+        F: Fn(Vec<String>) -> Result<L> + Send + Sync + 'static,
+        L: Layer<Route> + Clone + Send + Sync + 'static,
+        L::Service: Service<Request> + Clone + Send + Sync + 'static,
+        <L::Service as Service<Request>>::Response: IntoResponse + 'static,
+        <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
+        <L::Service as Service<Request>>::Future: Send + 'static,
+    {
+        self.extension_mut::<RouteRegistry>()?
+            .middleware
+            .parameter_alias(
+                name.into(),
+                Arc::new(move |parameters| {
+                    let layer = factory(parameters)?;
+                    let builder: MiddlewareLayerBuilder =
+                        Arc::new(move |routes| routes.layer(layer.clone()));
+                    Ok(builder)
+                }),
+            )?;
+        Ok(self)
+    }
+
     /// 在 Provider boot 阶段登记由 alias 或其他 group 组成的 middleware group。
     pub fn middleware_group<I, S>(
         &mut self,
@@ -606,6 +637,7 @@ fn route_url_generator(
             std::mem::take(&mut parts.actions),
         )?
     };
+    generator.set_get_paths(std::mem::take(&mut parts.get_paths));
     if let Some(namespace) = app
         .extension::<RouteRegistry>()
         .and_then(|registry| registry.root_controller_namespace.as_deref())
@@ -863,4 +895,158 @@ async fn expose_calendar_context(
         request.extensions_mut().insert(context);
     }
     next.run(request).await
+}
+
+#[cfg(test)]
+mod parameter_alias_router_tests {
+    use super::*;
+    use crate::{
+        config::NoConfig,
+        core::{Application, BoxFuture, DefaultProviders, ServiceProvider},
+        http::RouteGroup,
+        testing::TestApp,
+    };
+    use figment::{Figment, providers::Serialized};
+    use std::sync::Mutex;
+
+    #[derive(Clone)]
+    struct Trace(Arc<Mutex<Vec<String>>>);
+    async fn record(
+        State((label, trace)): State<(String, Trace)>,
+        request: Request,
+        next: Next,
+    ) -> Response {
+        trace
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(label);
+        next.run(request).await
+    }
+    struct ParameterProvider;
+    impl ServiceProvider for ParameterProvider {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let trace = app.resolve::<Trace>().await?;
+                for name in ["auth", "throttle"] {
+                    let trace = (*trace).clone();
+                    app.middleware_alias_with_parameters(name, move |arguments| {
+                        if arguments.len() != 1 || arguments[0].is_empty() {
+                            return Err(Error::custom(
+                                "middleware_parameters_invalid",
+                                "要求一个非空参数",
+                            ));
+                        }
+                        Ok(axum::middleware::from_fn_with_state(
+                            (format!("{name}:{}", arguments[0]), trace.clone()),
+                            record,
+                        ))
+                    })?;
+                }
+                app.middleware_priority(["auth", "throttle"])?;
+                app.middleware_group("parameterized", ["throttle:slow", "auth:staff"])?;
+                app.routes(|routes| {
+                    routes.group(
+                        RouteGroup::new().middleware_alias("parameterized"),
+                        |routes| routes.get("/parameterized", || async { "executed" }),
+                    )
+                })?;
+                Ok(())
+            })
+        }
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(Trace(Arc::new(Mutex::new(Vec::new())))))
+                    .await
+            })
+        }
+    }
+    struct InvalidParameterProvider;
+    impl ServiceProvider for InvalidParameterProvider {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.middleware_alias_with_parameters("auth", |arguments| {
+                    if arguments.len() != 1 || arguments[0].is_empty() {
+                        return Err(Error::custom(
+                            "middleware_parameters_invalid",
+                            "要求一个非空参数",
+                        ));
+                    }
+                    Ok(axum::middleware::from_fn_with_state(
+                        (
+                            arguments[0].clone(),
+                            Trace(Arc::new(Mutex::new(Vec::new()))),
+                        ),
+                        record,
+                    ))
+                })?;
+                app.routes(|routes| {
+                    routes.group(RouteGroup::new().middleware_alias("auth:"), |routes| {
+                        routes.get("/invalid", || async { "must not run" })
+                    })
+                })?;
+                Ok(())
+            })
+        }
+    }
+    struct InvalidParameterApp;
+    impl Application for InvalidParameterApp {
+        type Config = NoConfig;
+        fn default_providers() -> DefaultProviders {
+            DefaultProviders::empty()
+        }
+        fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
+            vec![
+                Box::new(HttpServiceProvider),
+                Box::new(InvalidParameterProvider),
+            ]
+        }
+    }
+    #[tokio::test]
+    async fn invalid_parameters_prevent_real_application_router_startup() {
+        let result = TestApp::<InvalidParameterApp>::builder(Figment::from(Serialized::defaults(
+            crate::config::FrameworkConfig::default(),
+        )))
+        .build()
+        .await;
+        assert!(result.is_err());
+    }
+    struct ParameterApp;
+    impl Application for ParameterApp {
+        type Config = NoConfig;
+        fn default_providers() -> DefaultProviders {
+            DefaultProviders::empty()
+        }
+        fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
+            vec![Box::new(HttpServiceProvider), Box::new(ParameterProvider)]
+        }
+    }
+    #[tokio::test]
+    async fn real_router_passes_parameters_and_orders_aliases_by_base_name() -> Result<()> {
+        let fixture = TestApp::<ParameterApp>::builder(Figment::from(Serialized::defaults(
+            crate::config::FrameworkConfig::default(),
+        )))
+        .build()
+        .await?;
+        let response = fixture
+            .raw_response(
+                Request::get("/parameterized")
+                    .body(Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let trace = fixture.app()?.state().resolve::<Trace>().await?;
+        assert_eq!(
+            *trace
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            vec!["auth:staff", "throttle:slow"]
+        );
+        Ok(())
+    }
 }

@@ -4,6 +4,9 @@
 mod apps;
 use apps as bootstrap;
 
+#[path = "../../../database/mod.rs"]
+mod database;
+
 #[path = "../../../modules/mod.rs"]
 mod modules;
 

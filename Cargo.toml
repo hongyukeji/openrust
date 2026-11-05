@@ -87,6 +87,8 @@ sha2 = "0.10"
 sha2_11 = { package = "sha2", version = "0.11" }
 hmac = "0.13"
 sha1 = "0.11"
+md5_11 = { package = "md-5", version = "0.11" }
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 subtle = "2.6"
 chrono = { version = "0.4", features = ["serde"] }
 icu_datetime = { version = "~2.3.0", default-features = false, features = ["compiled_data"] }
@@ -187,6 +189,8 @@ glob.workspace = true
 redis = { workspace = true, optional = true }
 hmac.workspace = true
 sha1 = { workspace = true, optional = true }
+md5_11 = { workspace = true, optional = true }
+qrcode = { workspace = true, optional = true }
 sha2.workspace = true
 sha2_11.workspace = true
 sqlx = { workspace = true, optional = true }
@@ -277,7 +281,7 @@ mail-templates = ["dep:minijinja"]
 view = ["dep:minijinja", "minijinja/loader"]
 http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate"]
 auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2"]
-auth-mfa = ["auth", "encryption", "dep:sha1"]
+auth-fortify = ["auth", "encryption", "dep:sha1", "dep:md5_11", "dep:qrcode"]
 sms-twilio = ["http-client", "dep:base64"]
 encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
@@ -376,11 +380,6 @@ required-features = ["auth-oidc"]
 name = "auth_oidc_keycloak"
 path = "tests/server/auth/oidc_keycloak.rs"
 required-features = ["auth-oidc"]
-
-[[test]]
-name = "auth_mfa"
-path = "tests/server/auth/mfa.rs"
-required-features = ["auth-mfa"]
 
 [[test]]
 name = "data_exchange"

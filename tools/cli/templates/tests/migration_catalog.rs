@@ -18,5 +18,4 @@ fn generated_application_extends_the_framework_catalog_once() {
     assert!(names.contains(&openrust::queue::QueueMigration.name().to_owned()));
     assert!(names.contains(&openrust::session::SessionGcMigration.name().to_owned()));
     // {{auth_migration_assertions}}
-    // {{mfa_migration_assertions}}
 }

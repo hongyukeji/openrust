@@ -64,10 +64,12 @@ impl MigratorTrait for FrameworkMigrator {
             migrations.push(Box::new(crate::signing::SignedLinkRevocationMigration));
             migrations
         };
-        #[cfg(feature = "auth-mfa")]
+        #[cfg(feature = "auth-fortify")]
         let migrations = {
             let mut migrations = migrations;
-            migrations.push(Box::new(crate::auth::AuthMfaMigration));
+            migrations.push(Box::new(
+                crate::auth::fortify::FortifyTwoFactorMigration::new(),
+            ));
             migrations
         };
         #[cfg(feature = "auth-oidc")]
@@ -232,11 +234,6 @@ struct MigrationCommand {
     lock_wait_timeout: Duration,
     catalog: Arc<MigrationCatalog>,
     resources: crate::core::resources::ResourceRegistrar,
-}
-
-#[cfg(feature = "auth-mfa")]
-pub(crate) fn framework_migration_command_id() -> std::any::TypeId {
-    std::any::TypeId::of::<MigrationCommand>()
 }
 
 impl Command for MigrationCommand {

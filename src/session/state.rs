@@ -123,6 +123,14 @@ enum CreateIntent {
     Explicit,
 }
 
+#[cfg(feature = "auth")]
+struct GuardAuthenticationLease {
+    owner: Arc<()>,
+    password_key: String,
+    pending: usize,
+    failed: bool,
+}
+
 #[allow(clippy::struct_excessive_bools, reason = "独立生命周期标记可并存")]
 struct State {
     id: SessionId,
@@ -146,6 +154,11 @@ struct State {
     origin: Option<Binding>,
     intent: CreateIntent,
     destroyed: HashSet<SessionId>,
+    // 请求内元数据，禁止进入属性序列化；失败租约在显式下一次身份转换前保持 fence。
+    #[cfg(feature = "auth")]
+    authentication_leases: std::collections::BTreeMap<String, GuardAuthenticationLease>,
+    #[cfg(feature = "auth-fortify")]
+    new_credential_logins: std::collections::BTreeMap<String, SessionId>,
 }
 struct Inner {
     state: Mutex<State>,
@@ -290,6 +303,10 @@ impl Session {
                     origin: None,
                     intent: CreateIntent::SystemRandom,
                     destroyed: HashSet::new(),
+                    #[cfg(feature = "auth")]
+                    authentication_leases: std::collections::BTreeMap::new(),
+                    #[cfg(feature = "auth-fortify")]
+                    new_credential_logins: std::collections::BTreeMap::new(),
                 }),
                 io: AsyncMutex::new(()),
                 sync_idle: Condvar::new(),
@@ -481,6 +498,8 @@ impl Session {
             return Err(write_conflict());
         }
         if state.id != id {
+            #[cfg(feature = "auth-fortify")]
+            state.new_credential_logins.clear();
             state.id = id;
             state.intent = intent;
             state.restore_proof();
@@ -524,6 +543,8 @@ impl Session {
                 state.expiry = Some(Expiry::OnInactivity(Duration::seconds(lifetime)));
             }
             state.intent = CreateIntent::Explicit;
+            #[cfg(feature = "auth-fortify")]
+            state.new_credential_logins.clear();
             state.restore_proof();
             old
         };
@@ -570,9 +591,236 @@ impl Session {
     }
 
     #[cfg(feature = "auth")]
+    pub(crate) fn begin_authentication_transition(
+        &self,
+        key: &str,
+        password_key: &str,
+        owner: Arc<()>,
+    ) -> Result<()> {
+        // retired 先声明，错误展开时也必须先释放 I/O 门，再析构用户 DataValue。
+        let mut retired = Vec::new();
+        let operation = self.write_operation()?;
+        loop {
+            let (failed, mut candidate) = {
+                let state = self.lock()?;
+                let failed = state
+                    .authentication_leases
+                    .iter()
+                    .filter(|(_, lease)| lease.failed)
+                    .map(|(key, lease)| (key.clone(), lease.password_key.clone()))
+                    .collect::<Vec<_>>();
+                if failed.is_empty() {
+                    break;
+                }
+                (failed, state.attributes.clone())
+            };
+            clear_guard_authentication_attributes(&mut candidate, &failed)?;
+            let old = {
+                let mut state = self.lock()?;
+                state.ensure_live()?;
+                for (key, _) in &failed {
+                    state.authentication_leases.remove(key);
+                }
+                std::mem::replace(&mut state.attributes, candidate)
+            };
+            retired.push(old);
+        }
+        {
+            let mut state = self.lock()?;
+            state.ensure_live()?;
+            match state.authentication_leases.get_mut(key) {
+                Some(lease) if Arc::ptr_eq(&lease.owner, &owner) => {
+                    lease.pending = lease.pending.checked_add(1).ok_or_else(invalid_record)?;
+                }
+                _ => {
+                    state.authentication_leases.insert(
+                        key.to_owned(),
+                        GuardAuthenticationLease {
+                            owner,
+                            password_key: password_key.to_owned(),
+                            pending: 1,
+                            failed: false,
+                        },
+                    );
+                }
+            }
+        }
+        drop(operation);
+        drop(retired);
+        Ok(())
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) fn cleanup_authentication_transition(
+        &self,
+        key: &str,
+        owner: &Arc<()>,
+    ) -> Result<()> {
+        let mut retired = None;
+        let operation = self.write_operation()?;
+        let result = (|| {
+            let (password_key, mut candidate) = {
+                let state = self.lock()?;
+                let Some(lease) = state
+                    .authentication_leases
+                    .get(key)
+                    .filter(|lease| lease.failed && Arc::ptr_eq(&lease.owner, owner))
+                else {
+                    return Ok(());
+                };
+                (lease.password_key.clone(), state.attributes.clone())
+            };
+            clear_guard_authentication_attributes(
+                &mut candidate,
+                &[(key.to_owned(), password_key)],
+            )?;
+            let mut state = self.lock()?;
+            state.ensure_live()?;
+            retired = Some(std::mem::replace(&mut state.attributes, candidate));
+            Ok(())
+        })();
+        drop(operation);
+        drop(retired);
+        result
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) fn commit_authentication_transition(
+        &self,
+        key: &str,
+        owner: &Arc<()>,
+    ) -> Result<()> {
+        let mut state = self.lock()?;
+        state.ensure_live()?;
+        let lease = state
+            .authentication_leases
+            .get_mut(key)
+            .filter(|lease| Arc::ptr_eq(&lease.owner, owner))
+            .ok_or_else(|| {
+                extension_error(
+                    "session_authentication_transition_superseded",
+                    "Session认证转换已由后继操作替换",
+                )
+            })?;
+        if lease.failed {
+            return Err(authentication_fenced());
+        }
+        lease.pending = lease.pending.checked_sub(1).ok_or_else(invalid_record)?;
+        Ok(())
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) fn abort_authentication_transition(
+        &self,
+        key: &str,
+        owner: &Arc<()>,
+    ) -> Result<bool> {
+        // 仅短元数据锁；即使其他 I/O 正忙也必须能记录失败 fence。
+        let mut state = self.lock()?;
+        let Some(lease) = state
+            .authentication_leases
+            .get_mut(key)
+            .filter(|lease| Arc::ptr_eq(&lease.owner, owner))
+        else {
+            return Ok(false);
+        };
+        lease.failed = true;
+        lease.pending = lease.pending.saturating_sub(1);
+        Ok(true)
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) fn owns_authentication_transition(
+        &self,
+        key: &str,
+        owner: &Arc<()>,
+    ) -> Result<bool> {
+        Ok(self
+            .lock()?
+            .authentication_leases
+            .get(key)
+            .is_some_and(|lease| !lease.failed && Arc::ptr_eq(&lease.owner, owner)))
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) fn authentication_transition_committed(&self, key: &str) -> Result<bool> {
+        let state = self.lock()?;
+        state.ensure_live()?;
+        state.require_authentication_unfenced()?;
+        // 已恢复的持久 Session 没有请求内租约；存在租约时必须等全部嵌套转换提交。
+        Ok(state
+            .authentication_leases
+            .get(key)
+            .is_none_or(|lease| !lease.failed && lease.pending == 0))
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) fn credential_parent_max_bytes(&self) -> usize {
+        self.inner.max_bytes
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) fn record_new_credential_login(&self, key: &str) -> Result<()> {
+        let mut state = self.lock()?;
+        state.ensure_mutable()?;
+        if state.existing || state.intent != CreateIntent::SystemRandom {
+            return Err(invalid_record());
+        }
+        let id = state.id.clone();
+        state.new_credential_logins.insert(key.to_owned(), id);
+        Ok(())
+    }
+
+    // 同一短锁内取得身份、证明、期限与首次登录状态，不跨驱动 I/O。
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) fn credential_parent_state(
+        &self,
+        id: &SessionId,
+        handler: &Arc<dyn SessionStore>,
+        identity: (&str, &Value),
+        proof: (&str, Option<&Value>),
+        owner: Option<&Arc<()>>,
+    ) -> Result<(OffsetDateTime, bool)> {
+        let state = self.lock()?;
+        state.ensure_mutable()?;
+        state.require_authentication_unfenced()?;
+        let lease = state.authentication_leases.get(identity.0);
+        if state.id != *id
+            || !Arc::ptr_eq(&state.driver.actual, handler)
+            || lease.is_some_and(|lease| lease.failed || lease.pending != 0)
+            || owner
+                .is_some_and(|owner| lease.is_none_or(|lease| !Arc::ptr_eq(&lease.owner, owner)))
+            || state.attributes.get(identity.0)?.as_ref() != Some(identity.1)
+            || state.attributes.get(proof.0)?.as_ref() != proof.1
+        {
+            return Err(Error::Unauthorized);
+        }
+        let cutoff = state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?;
+        if cutoff <= OffsetDateTime::now_utc() {
+            return Err(Error::Unauthorized);
+        }
+        let fresh = !state.existing
+            && state.intent == CreateIntent::SystemRandom
+            && state.new_credential_logins.get(identity.0) == Some(id);
+        Ok((cutoff, fresh))
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) fn credential_guard_owner(&self, key: &str) -> Result<Option<Arc<()>>> {
+        let state = self.lock()?;
+        state.ensure_mutable()?;
+        Ok(state
+            .authentication_leases
+            .get(key)
+            .filter(|lease| !lease.failed && lease.pending == 0)
+            .map(|lease| lease.owner.clone()))
+    }
+
+    #[cfg(feature = "auth")]
     pub(crate) fn require_authenticated_storage(&self) -> Result<()> {
         let (driver, name) = {
             let state = self.lock()?;
+            state.require_authentication_unfenced()?;
             state.ensure_mutable()?;
             (state.driver.clone(), state.name.clone())
         };
@@ -1257,6 +1505,10 @@ impl Session {
             let retired_errors = ();
             let old_attributes = std::mem::replace(&mut state.attributes, attributes);
             state.existing = found;
+            #[cfg(feature = "auth-fortify")]
+            if found {
+                state.new_credential_logins.clear();
+            }
             state.started = true;
             let origin = found.then_some(Binding { id, driver });
             let old_origin = std::mem::replace(&mut state.origin, origin);
@@ -1269,6 +1521,8 @@ impl Session {
     fn prepare_save(&self) -> Result<PreparedSave> {
         let (mut candidate, driver, id, expiry, encoding, mode, origin, intent) = {
             let state = self.lock()?;
+            #[cfg(feature = "auth")]
+            state.require_authentication_saveable()?;
             let driver = state.driver.clone();
             driver.ready()?;
             let origin = state
@@ -1320,6 +1574,8 @@ impl Session {
 
     /// 老化 flash 后保存；显式目标碰撞不覆盖、不换成其他随机 ID。
     pub async fn save(&self) -> Result<()> {
+        #[cfg(feature = "auth")]
+        self.lock()?.require_authentication_saveable()?;
         // Guard 回调可能读取 Session 或通过 recaller 轮换 ID，不能持有 I/O 门再解析。
         #[cfg(feature = "auth")]
         self.project_guard_identity().await?;
@@ -1379,6 +1635,8 @@ impl Session {
                     let old = {
                         let mut state = self.lock()?;
                         state.existing = true;
+                        #[cfg(feature = "auth-fortify")]
+                        state.new_credential_logins.clear();
                         state.started = false;
                         state.intent = CreateIntent::SystemRandom;
                         state.origin.replace(Binding {
@@ -1475,6 +1733,8 @@ impl Session {
                 state.destroyed.insert(old_id);
             }
             state.id = id;
+            #[cfg(feature = "auth-fortify")]
+            state.new_credential_logins.clear();
             let old_attributes = std::mem::replace(&mut state.attributes, candidate);
             state.existing = false;
             state.intent = CreateIntent::SystemRandom;
@@ -1506,6 +1766,32 @@ impl Session {
 }
 
 impl State {
+    #[cfg(feature = "auth")]
+    fn require_authentication_unfenced(&self) -> Result<()> {
+        if self
+            .authentication_leases
+            .values()
+            .any(|lease| lease.failed)
+        {
+            return Err(authentication_fenced());
+        }
+        Ok(())
+    }
+    #[cfg(feature = "auth")]
+    fn require_authentication_saveable(&self) -> Result<()> {
+        self.require_authentication_unfenced()?;
+        if self
+            .authentication_leases
+            .values()
+            .any(|lease| lease.pending > 0)
+        {
+            return Err(extension_error(
+                "session_authentication_transition_in_progress",
+                "Session认证转换尚未提交，禁止保存临时身份",
+            ));
+        }
+        Ok(())
+    }
     fn has_transfer_data(&self) -> Result<bool> {
         if self.started || self.existing || self.origin.is_some() {
             return Ok(true);
@@ -1588,6 +1874,44 @@ fn write_conflict() -> Error {
         http::StatusCode::INTERNAL_SERVER_ERROR,
         "session_store_write_conflict",
         "Session could not be saved after concurrent revocation",
+    )
+}
+
+#[cfg(feature = "auth")]
+fn clear_guard_authentication_attributes(
+    candidate: &mut Attributes,
+    failed: &[(String, String)],
+) -> Result<()> {
+    for (key, password_key) in failed {
+        let proof_key = format!("_openrust_factor_proof_{key}");
+        candidate.forget(&[key, password_key, &proof_key])?;
+    }
+    if let Some(bindings) = candidate.get("_openrust_guard_bindings")? {
+        let Value::Array(mut bindings) = bindings else {
+            return Err(invalid_record());
+        };
+        if !bindings.iter().all(Value::is_string) {
+            return Err(invalid_record());
+        }
+        bindings.retain(|binding| {
+            !failed
+                .iter()
+                .any(|(key, _)| binding.as_str() == Some(key.as_str()))
+        });
+        if bindings.is_empty() {
+            candidate.forget(&["_openrust_guard_bindings"])?;
+        } else {
+            candidate.put("_openrust_guard_bindings", Value::Array(bindings))?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "auth")]
+fn authentication_fenced() -> Error {
+    extension_error(
+        "session_authentication_transition_failed",
+        "Session存在失败的认证转换，须由显式新转换清理后重试",
     )
 }
 
@@ -1735,6 +2059,104 @@ mod budget_tests {
             reloaded.get_old_input_json(Some("avatar"))?,
             Some(serde_json::json!([]))
         );
+        Ok(())
+    }
+
+    #[cfg(feature = "auth")]
+    #[tokio::test]
+    async fn nested_authentication_leases_block_save_until_last_commit_and_preserve_successors()
+    -> Result<()> {
+        let session = Session::new(
+            None,
+            Arc::new(super::super::MemorySessionStore::default()),
+            None,
+        )?;
+        session.start().await?;
+        let first = Arc::new(());
+        session.begin_authentication_transition(
+            "guard_key",
+            "password_hash_test",
+            first.clone(),
+        )?;
+        session.begin_authentication_transition(
+            "guard_key",
+            "password_hash_test",
+            first.clone(),
+        )?;
+        session.put_typed("guard_key", 42)?;
+        session.commit_authentication_transition("guard_key", &first)?;
+        assert_eq!(
+            session
+                .save()
+                .await
+                .err()
+                .ok_or_else(invalid_record)?
+                .code(),
+            "session_authentication_transition_in_progress"
+        );
+        session.commit_authentication_transition("guard_key", &first)?;
+        session.save().await?;
+        let successor = Arc::new(());
+        session.begin_authentication_transition(
+            "guard_key",
+            "password_hash_test",
+            successor.clone(),
+        )?;
+        session.put_typed("guard_key", 7)?;
+        session.commit_authentication_transition("guard_key", &successor)?;
+        assert!(!session.abort_authentication_transition("guard_key", &first)?);
+        session.cleanup_authentication_transition("guard_key", &first)?;
+        session.save().await?;
+        assert_eq!(session.get_json("guard_key")?, Some(Value::from(7)));
+        session.require_authenticated_storage()?;
+        Ok(())
+    }
+
+    #[cfg(feature = "auth")]
+    #[test]
+    fn authentication_fence_cleanup_retires_objects_after_releasing_session_locks() -> Result<()> {
+        for deferred in [false, true] {
+            let session = Session::new(
+                None,
+                Arc::new(super::super::MemorySessionStore::default()),
+                None,
+            )?;
+            let drops = Arc::new(AtomicUsize::new(0));
+            let owner = Arc::new(());
+            session.begin_authentication_transition(
+                "guard_key",
+                "password_hash_test",
+                owner.clone(),
+            )?;
+            session.put(
+                "guard_key",
+                DataValue::object(ReentrantDrop(Arc::downgrade(&session.inner), drops.clone())),
+            )?;
+            assert!(session.abort_authentication_transition("guard_key", &owner)?);
+            if deferred {
+                let next = Arc::new(());
+                session.begin_authentication_transition(
+                    "next_guard",
+                    "password_hash_next",
+                    next.clone(),
+                )?;
+                session.commit_authentication_transition("next_guard", &next)?;
+                session.require_authenticated_storage()?;
+            } else {
+                session.cleanup_authentication_transition("guard_key", &owner)?;
+                assert_eq!(
+                    session
+                        .require_authenticated_storage()
+                        .err()
+                        .ok_or_else(invalid_record)?
+                        .code(),
+                    "session_authentication_transition_failed"
+                );
+            }
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            assert_eq!(session.get_json("from_drop")?, Some(Value::Bool(true)));
+            assert!(session.get("guard_key")?.is_none());
+        }
         Ok(())
     }
 

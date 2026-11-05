@@ -2,6 +2,11 @@
 
 use std::fmt;
 
+#[cfg(feature = "auth-fortify")]
+use super::{
+    credential::{CredentialDomain, CredentialFactorContext, VerifiedCredential},
+    fortify::CredentialAuthority,
+};
 use crate::core::{Error, Result};
 use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
 use crate::db::{DatabaseConnection, Db};
@@ -9,11 +14,19 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
+#[cfg(feature = "auth-fortify")]
+use {
+    crate::db::DatabaseTransaction,
+    chrono::SubsecRound,
+    std::sync::{Arc, OnceLock},
+};
 
 /// 基于数据库的个人访问令牌生命周期操作。
 #[derive(Clone)]
 pub struct PersonalAccessTokens {
     db: Db,
+    #[cfg(feature = "auth-fortify")]
+    authority: Option<CredentialAuthority>,
 }
 
 impl fmt::Debug for PersonalAccessTokens {
@@ -25,7 +38,11 @@ impl fmt::Debug for PersonalAccessTokens {
 impl PersonalAccessTokens {
     /// 基于应用共享数据库创建令牌服务。
     pub fn new(db: Db) -> Self {
-        Self { db }
+        Self {
+            db,
+            #[cfg(feature = "auth-fortify")]
+            authority: None,
+        }
     }
 
     /// 创建不透明令牌，并一次性返回 bearer 值。
@@ -38,6 +55,10 @@ impl PersonalAccessTokens {
         abilities: &[String],
         expires_at: Option<DateTime<Utc>>,
     ) -> Result<IssuedPersonalAccessToken> {
+        #[cfg(feature = "auth-fortify")]
+        if self.authority.is_some() {
+            return Err(proof_required());
+        }
         validate_input(user_id, name, abilities, expires_at)?;
         let connection = self.connection()?;
         let backend = connection.get_database_backend();
@@ -94,6 +115,133 @@ impl PersonalAccessTokens {
             .await
             .map_err(Error::internal)?;
         Ok(IssuedPersonalAccessToken { value })
+    }
+
+    /// 显式选择同一数据库的因子授权；裸账户 ID 签发随后拒绝。
+    #[cfg(feature = "auth-fortify")]
+    pub fn with_factor_authority(mut self, authority: CredentialAuthority) -> Result<Self> {
+        authority.require_store(&self.db)?;
+        self.authority = Some(authority);
+        Ok(self)
+    }
+
+    /// 从框架已验证凭据派生个人令牌，主库重核父凭据、因子状态和权限上限。
+    #[cfg(feature = "auth-fortify")]
+    pub async fn issue_from_verified(
+        &self,
+        verified: VerifiedCredential,
+        name: &str,
+        abilities: &[String],
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<IssuedPersonalAccessToken> {
+        let authority = self.authority.clone().ok_or_else(proof_required)?;
+        authority.require_store(&self.db)?;
+        validate_input(verified.user_id, name, abilities, expires_at)?;
+        let value = format!("openrust_pat_{}", random_token()?);
+        let issue = Arc::new(DerivedPat {
+            authority,
+            parent: verified,
+            name: name.trim().to_owned(),
+            prefix: value.chars().take(24).collect(),
+            hash: sha256_hex(&value),
+            abilities: abilities.to_vec(),
+            expires_at,
+            id: OnceLock::new(),
+        });
+        let writer = Arc::clone(&issue);
+        self.db
+            .transaction_for_update_checked(
+                move |tx| Box::pin(async move { writer.insert(tx).await }),
+                move |tx| Box::pin(async move { issue.check_at_commit(tx).await }),
+            )
+            .await?;
+        Ok(IssuedPersonalAccessToken { value })
+    }
+
+    /// 验证真实摘要、当前令牌行与因子上下文，并在同一事务记录最近使用时间。
+    #[cfg(feature = "auth-fortify")]
+    pub async fn authenticate_verified(&self, raw: &str) -> Result<VerifiedCredential> {
+        let authority = self.authority.clone().ok_or_else(proof_required)?;
+        authority.require_store(&self.db)?;
+        let hash = sha256_hex(raw);
+        // hint仅决定先锁哪个用户；锁后必须重新读取同摘要当前行并比较owner。
+        let hint = self
+            .db
+            .table("personal_access_tokens")?
+            .select(&["user_id"])?
+            .where_eq("token_hash", hash.clone())?;
+        let owner: i64 = self
+            .db
+            .with_primary(hint.first())
+            .await??
+            .ok_or(Error::Unauthorized)?
+            .try_get("", "user_id")
+            .map_err(|_| Error::Unauthorized)?;
+        let recorded = Arc::new(OnceLock::new());
+        let initial = Arc::clone(&recorded);
+        let check = Arc::clone(&recorded);
+        let write_policy = authority.clone();
+        let write_hash = hash.clone();
+        let check_hash = hash.clone();
+        let prepared_at = self
+            .db
+            .transaction_for_update_checked(
+                move |tx| {
+                    Box::pin(async move {
+                        let mut current =
+                            PatRecord::authenticate(tx, &write_policy, owner, &write_hash).await?;
+                        let now = Utc::now().trunc_subsecs(6);
+                        let changed = write_policy
+                            .db()
+                            .table("personal_access_tokens")?
+                            .using_transaction(tx)
+                            .where_eq("id", current.id)?
+                            .where_eq("user_id", owner)?
+                            .where_eq("token_hash", write_hash)?
+                            .where_null("revoked_at")?
+                            .update(vec![(
+                                "last_used_at",
+                                crate::db::dialect::utc_value(tx.get_database_backend(), now),
+                            )])
+                            .await?;
+                        if changed != 1 {
+                            return Err(Error::Unauthorized);
+                        }
+                        current.last_used_at = Some(now);
+                        initial.set(current).map_err(|_| Error::Unauthorized)?;
+                        Ok(now)
+                    })
+                },
+                move |tx| {
+                    Box::pin(async move {
+                        let current =
+                            PatRecord::authenticate(tx, &authority, owner, &check_hash).await?;
+                        if check.get() != Some(&current) {
+                            return Err(Error::Unauthorized);
+                        }
+                        Ok(())
+                    })
+                },
+            )
+            .await?;
+        let record = Arc::try_unwrap(recorded)
+            .map_err(|_| Error::Unauthorized)?
+            .into_inner()
+            .ok_or(Error::Unauthorized)?;
+        record.require_unexpired()?;
+        Ok(VerifiedCredential {
+            store: self.db.clone(),
+            session_parent: None,
+            user_id: owner,
+            domain: CredentialDomain::PersonalAccessToken {
+                id: record.id,
+                token_hash: hash,
+            },
+            context: Some(record.context),
+            expires_at: record.expires_at,
+            abilities: Some(record.abilities),
+            prepared_at,
+        })
     }
 
     /// 列出账户拥有的令牌元数据，不暴露令牌哈希或 bearer 值。
@@ -278,6 +426,191 @@ impl PersonalAccessTokens {
     }
 }
 
+#[cfg(feature = "auth-fortify")]
+#[derive(PartialEq)]
+struct PatRecord {
+    id: i64,
+    name: String,
+    prefix: String,
+    abilities: Vec<String>,
+    context: CredentialFactorContext,
+    expires_at: Option<DateTime<Utc>>,
+    last_used_at: Option<DateTime<Utc>>,
+}
+
+#[cfg(feature = "auth-fortify")]
+impl PatRecord {
+    fn require_unexpired(&self) -> Result<()> {
+        if self.expires_at.is_some_and(|expiry| expiry <= Utc::now()) {
+            return Err(Error::Unauthorized);
+        }
+        Ok(())
+    }
+
+    async fn read(tx: &DatabaseTransaction, db: &Db, owner: i64, hash: &str) -> Result<Self> {
+        let query = db
+            .table("personal_access_tokens")?
+            .using_transaction(tx)
+            .where_eq("token_hash", hash.to_owned())?;
+        let backend = tx.get_database_backend();
+        let query = if backend == DbBackend::Sqlite {
+            query
+        } else {
+            query.lock_for_update()?
+        };
+        let row = query.first().await?.ok_or(Error::Unauthorized)?;
+        let id: i64 = row.try_get("", "id").map_err(Error::internal)?;
+        let user_id: i64 = row.try_get("", "user_id").map_err(Error::internal)?;
+        let actual: String = row.try_get("", "token_hash").map_err(Error::internal)?;
+        let revoked_at: Option<DateTime<Utc>> =
+            row.try_get("", "revoked_at").map_err(Error::internal)?;
+        if id <= 0 || owner <= 0 || user_id != owner || actual != hash || revoked_at.is_some() {
+            return Err(Error::Unauthorized);
+        }
+        let encoded: Option<String> = row.try_get("", "factor_context").map_err(Error::internal)?;
+        let record = Self {
+            id,
+            name: row.try_get("", "name").map_err(Error::internal)?,
+            prefix: row.try_get("", "token_prefix").map_err(Error::internal)?,
+            abilities: decode_abilities(&row, backend)?,
+            context: CredentialFactorContext::decode(
+                encoded.as_deref().ok_or(Error::Unauthorized)?,
+                owner,
+            )?,
+            expires_at: row.try_get("", "expires_at").map_err(Error::internal)?,
+            last_used_at: row.try_get("", "last_used_at").map_err(Error::internal)?,
+        };
+        record.require_unexpired()?;
+        Ok(record)
+    }
+
+    async fn authenticate(
+        tx: &DatabaseTransaction,
+        policy: &CredentialAuthority,
+        owner: i64,
+        hash: &str,
+    ) -> Result<Self> {
+        policy.lock_active_user_in_transaction(tx, owner).await?;
+        let record = Self::read(tx, policy.db(), owner, hash).await?;
+        policy
+            .check_context_in_transaction(tx, owner, &record.context)
+            .await?;
+        record.require_unexpired()?;
+        Ok(record)
+    }
+}
+
+#[cfg(feature = "auth-fortify")]
+struct DerivedPat {
+    authority: CredentialAuthority,
+    parent: VerifiedCredential,
+    name: String,
+    prefix: String,
+    hash: String,
+    abilities: Vec<String>,
+    expires_at: Option<DateTime<Utc>>,
+    id: OnceLock<i64>,
+}
+
+#[cfg(feature = "auth-fortify")]
+impl DerivedPat {
+    fn stored_expiry(&self) -> Option<DateTime<Utc>> {
+        self.expires_at.map(|expiry| expiry.trunc_subsecs(6))
+    }
+
+    async fn insert(&self, tx: &DatabaseTransaction) -> Result<()> {
+        let db = self.authority.db();
+        let owner = self.parent.user_id;
+        self.authority
+            .validate_parent_in_transaction(tx, &self.parent)
+            .await?;
+        validate_input(owner, &self.name, &self.abilities, self.expires_at)?;
+        validate_derivation_bounds(&self.parent, &self.abilities, self.expires_at)?;
+        let context = self
+            .parent
+            .context
+            .as_ref()
+            .ok_or(Error::Unauthorized)?
+            .encode(owner)?;
+        let backend = tx.get_database_backend();
+        let sql = match backend {
+            DbBackend::Postgres => {
+                "INSERT INTO tb_personal_access_tokens (user_id,name,token_prefix,token_hash,abilities,expires_at,created_at,factor_context) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)"
+            }
+            DbBackend::MySql | DbBackend::Sqlite => {
+                "INSERT INTO tb_personal_access_tokens (user_id,name,token_prefix,token_hash,abilities,expires_at,created_at,factor_context) VALUES (?,?,?,?,?,?,?,?)"
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        let absent_expiry = if backend == DbBackend::Sqlite {
+            sea_orm::Value::String(None)
+        } else {
+            sea_orm::Value::ChronoDateTimeUtc(None)
+        };
+        let expires = self.stored_expiry().map_or(absent_expiry, |expiry| {
+            crate::db::dialect::utc_value(backend, expiry)
+        });
+        let inserted = tx
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                crate::auth::resolve_auth_sql(db, sql)?,
+                [
+                    owner.into(),
+                    self.name.clone().into(),
+                    self.prefix.clone().into(),
+                    self.hash.clone().into(),
+                    serde_json::to_string(&self.abilities)
+                        .map_err(Error::internal)?
+                        .into(),
+                    expires,
+                    crate::db::dialect::utc_value(backend, Utc::now()),
+                    context.into(),
+                ],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        if inserted.rows_affected() != 1 {
+            return Err(Error::Unauthorized);
+        }
+        let id: i64 = db
+            .table("personal_access_tokens")?
+            .using_transaction(tx)
+            .select(&["id"])?
+            .where_eq("user_id", owner)?
+            .where_eq("token_hash", self.hash.clone())?
+            .first()
+            .await?
+            .ok_or(Error::Unauthorized)?
+            .try_get("", "id")
+            .map_err(Error::internal)?;
+        if id <= 0 {
+            return Err(Error::Unauthorized);
+        }
+        self.id.set(id).map_err(|_| Error::Unauthorized)
+    }
+
+    async fn check_at_commit(&self, tx: &DatabaseTransaction) -> Result<()> {
+        let owner = self.parent.user_id;
+        // 该事务已经锁住账户与父凭据，刚插入的子行写锁也一直持有至提交。
+        let record = PatRecord::read(tx, self.authority.db(), owner, &self.hash).await?;
+        if Some(&record.id) != self.id.get()
+            || record.name != self.name
+            || record.prefix != self.prefix
+            || record.last_used_at.is_some()
+            || record.expires_at != self.stored_expiry()
+            || Some(&record.context) != self.parent.context.as_ref()
+            || record.abilities != self.abilities
+        {
+            return Err(Error::Unauthorized);
+        }
+        validate_derivation_bounds(&self.parent, &record.abilities, record.expires_at)?;
+        self.authority
+            .validate_parent_in_transaction(tx, &self.parent)
+            .await?;
+        record.require_unexpired()
+    }
+}
+
 /// 新签发的个人访问令牌，必须且只能向客户端发送一次。
 pub struct IssuedPersonalAccessToken {
     value: String,
@@ -349,6 +682,55 @@ fn validate_input(
         ));
     }
     Ok(())
+}
+
+#[cfg(feature = "auth-fortify")]
+fn proof_required() -> Error {
+    Error::custom(
+        "auth_credential_proof_required",
+        "当前个人令牌签发或认证需要框架已验证凭据与同源因子授权",
+    )
+}
+#[cfg(feature = "auth-fortify")]
+fn validate_derivation_bounds(
+    parent: &VerifiedCredential,
+    abilities: &[String],
+    expires_at: Option<DateTime<Utc>>,
+) -> Result<()> {
+    if parent
+        .expires_at
+        .is_some_and(|limit| expires_at.is_none_or(|expiry| expiry > limit))
+    {
+        return Err(Error::Forbidden("派生令牌不能延长父凭据期限".into()));
+    }
+    if parent.abilities.as_ref().is_some_and(|allowed| {
+        !allowed.iter().any(|value| value == "*")
+            && abilities.iter().any(|ability| !allowed.contains(ability))
+    }) {
+        return Err(Error::Forbidden("派生令牌不能扩大父凭据权限".into()));
+    }
+    Ok(())
+}
+#[cfg(feature = "auth-fortify")]
+fn decode_abilities(
+    row: &crate::db::sea_orm::QueryResult,
+    backend: DbBackend,
+) -> Result<Vec<String>> {
+    let value: serde_json::Value = if backend == DbBackend::Sqlite {
+        let encoded: String = row
+            .try_get("", "abilities")
+            .map_err(|_| Error::Unauthorized)?;
+        serde_json::from_str(&encoded).map_err(|_| Error::Unauthorized)?
+    } else {
+        row.try_get("", "abilities")
+            .map_err(|_| Error::Unauthorized)?
+    };
+    value
+        .as_array()
+        .ok_or(Error::Unauthorized)?
+        .iter()
+        .map(|value| value.as_str().map(str::to_owned).ok_or(Error::Unauthorized))
+        .collect()
 }
 
 fn random_token() -> Result<String> {
@@ -612,3 +994,7 @@ mod sqlite_tests {
         cleanup
     }
 }
+
+#[cfg(all(test, feature = "auth-fortify", feature = "db-sqlite"))]
+#[path = "pat/credential_tests.rs"]
+mod credential_tests;

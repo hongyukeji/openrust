@@ -1,6 +1,6 @@
 # 认证
 
-OpenRust 通过具名 Guard 判断当前请求身份，通过 `UserProvider` 检索账户及验证凭据。本文面向应用开发者，介绍当前公共 API、配置和 Session 登录边界；JWT、PAT、refresh、OIDC 及现有 MFA 增强另见[认证模块指南](../../../src/auth/README.md)。
+OpenRust 通过具名 Guard 判断当前请求身份，通过 `UserProvider` 检索账户及验证凭据。本文面向应用开发者，介绍当前公共 API、配置和 Session 登录边界；JWT、PAT、refresh、OIDC 及显式双因素增强另见[认证模块指南](../../../src/auth/README.md)。
 
 ## Guard 与账户来源
 
@@ -64,7 +64,7 @@ async fn current_id(auth: &AuthManager) -> Result<Option<serde_json::Value>> {
 
 ID 保留原始 JSON 数字或非空字符串类型，UUID 可作为字符串使用。Session Guard 拒绝 null、布尔、数组、对象和空白字符串 ID，不把字符串数字静默转换为整数。`GenericUser` 默认读取 `id`、`password`、`remember_token`；其他列名由应用实现 `Authenticatable`。密码和 remember token 可以缺失或为 null，无密码账户不等于空密码账户，也不等于密码验证成功。
 
-`Credentials::new(Map<String, Value>)` 接收应用明确选择的查询字段，例如 `username`、`email` 或手机号字段。框架不会要求三个字段同时存在；一框组合登录输入的 resolver 尚未提供，根应用现有注册和登录流程仍使用 email schema。接受某个查询字段并不表示框架已经自动识别任意账号输入。
+`Credentials::new(Map<String, Value>)` 接收应用明确选择的查询字段，例如 `username`、`email` 或手机号字段。框架不会要求三个字段同时存在。Fortify 包默认使用单个可配置的 `username` 字段；根应用另通过公开回调提供一个账号输入框，详见下文“根应用的组合账号入口”。该组合入口复用下文同一现代双因素状态；本批跨凭据组合仍待适用验收。
 
 内置 `DatabaseUserProvider`：
 
@@ -103,17 +103,13 @@ async fn attempt_login(auth: &AuthManager, credentials: &Credentials) -> Result<
 
 持久登录将原始账户 ID 写入本 Guard 的 Session 键，并执行 `regenerate(true)`，销毁旧 Session ID、再生 ID 和 CSRF token，保留其他属性。`logout()` 本身不清空整份 Session，也不调用 `invalidate()`；应用需要完整退出流程时，可在注销后显式 `invalidate().await?` 并 `regenerate_token()?`。登录和注销路由仍需应用的 CSRF、防滥用与业务授权保护。
 
-`login` 是受信任的最终登录入口；需要多因素的流程必须在第二因子完成后调用。通用 Guard 不查询应用的 MFA 状态，不会自行执行第二因子或 Fortify pipeline。已有 MFA 增强与完整 Fortify、官方 TOTP 流程是不同范围，后两者尚未交付。
+`login` 是受信任的最终登录入口，不自行执行密码或TOTP验证。需要双因素的应用使用 Fortify 管线和可信收据，不在密码通过后直接调用它绕过挑战。通用Guard本身不成为第二套因子状态机。
 
 ### 既有邮箱应用流程与具名 Guard
 
-`AuthFlows::login_session_with_guard(email, password, request_source, session, guard)` 保留既有应用的已验证邮箱、禁用账户、限流及 MFA 门禁，再经指定 Guard 的 `login_using_id` 建立身份，返回 `SessionCredentials` 的 `user_id()` 和 `csrf_token()`。它移除旧显式认证属性，使用 Guard 再生的标准 Session token，不签发 JWT 或 refresh。此适配仍面向既有整数账户表。`AuthFlows::require_account_provider(guard)` 校验 Guard 的 Provider 是否使用该流程同一 `Db` 句柄与实际 `users` 表；登录与注销的带 Guard 接口均先执行此校验，来源不匹配返回 Unauthorized，不会按其他 Provider 的相同整数 ID 登录或注销。
+`AuthFlows::login_session_with_guard` / `logout_session_with_guard` 为现有已验证邮箱应用提供带来源校验的Session适配，仍面向正整数账户域。`require_account_provider` 严格核同一Db与实际users表；其他Provider的相同数字ID不能借此登录或注销。需要双因素的账户应完成选中的Fortify流程，不以低层登录入口替代挑战。
 
-`logout_session_with_guard(request_source, session, guard)` 要求该 Guard 的正整数身份，通过退出限流后注销 Guard，移除旧显式认证属性并执行 `regenerate(true)`，保留业务偏好。它与仅调用 `guard.logout()` 的行为不同。写请求使用标准 Session CSRF middleware；登录入口的来源校验仍由应用负责。
-
-唯一示例的[账户安全服务](../../../modules/example/services/account_security.rs)使用这两个方法和同 scope 的 `web` Guard。受保护账户 Session 路由先加载 Cookie/Session，经 `AuthLayer::guard("web")` 和标准 CSRF middleware，再在启用 `auth-mfa` 时执行应用的 `require_session_factor`：调用 `AuthFlows::mfa_enabled(integer_id)`，对已启用 MFA 的账户拒绝该 Session 路径。这保留了启用 MFA 后旧 Session 不继续充当第二因子凭据的增强策略；`mfa_enabled` 只查询启用状态，不证明当前请求完成了 MFA。示例的 MFA challenge 登录仍走既有流程，不代表官方 Fortify 已交付。
-
-旧 `login_session` / `logout_session` 与 `AuthMode::Session` 继续为显式旧认证资产提供适配；新的唯一示例账户 Session 路径使用具名 Guard，不再通过旧绑定键建立身份。
+唯一示例的[账户安全服务](../../../modules/example/services/account_security.rs)使用同scope具名Guard，受保护Web路由加载Cookie/Session、标准CSRF和 `require_session_account`。启用Fortify时，`require_session_factor` 通过 `authorize_session_factor` 核当前账户状态和真实Guard证明，而非仅查询“已绑定”布尔值。显式 `login_session` / `logout_session` 与 `AuthMode::Session` 是各自现有适配，不是JWT API profile的前置或临时桥接。
 
 ### 记住我与 Cookie 保护
 
@@ -139,9 +135,9 @@ async fn attempt_login(auth: &AuthManager, credentials: &Credentials) -> Result<
 
 `SessionStoreHandle::authorized_until_guard(session, guard)` 读取实际 Guard 的 `id()` 与 `StatefulGuard::session_name()`，要求当前 Session 的对应键和实际持久记录都具有相同的原始类型账户 ID。它读取 Session 当前实际 handler，不续期，返回不晚于持久记录或 TTL 的授权截止。仅通过 `once` / `set_user` 建立、没有匹配持久登录键的身份不能取得此期限。
 
-该方法要求 `ServerSide` 撤销保证；原生 database 与客户端 Cookie driver 返回 `session_store_guarantee_unsupported`，应显式选择 `database-guarded` 或等价服务器端 driver。唯一示例的[浏览器实时连接](../../../modules/example/http/controllers/article_socket.rs)核对来源、资源所有权与具名 Session 身份后，用这个期限限制连接。它是持续撤销需求下的扩展，不改变 Laravel 原生 database 的默认语义。
+该方法通过实际 handler 的 `load_authorized` 读取当前记录。原生 database 使用同次读取的真实 `last_activity` 与配置 lifetime 计算截止，不续期；客户端 Cookie 快照不能提供独立服务器端读取，仍拒绝。`database-guarded` 提供更强的删除后迟到保存保护；原生 database 沿 Laravel 的并发 INSERT 回退，不能防止迟到 writer 重建已删除记录。唯一示例的[浏览器实时连接](../../../modules/example/http/controllers/article_socket.rs)核对来源、资源所有权与具名 Session 身份后，用这个期限限制连接。它是持续撤销需求下的扩展，不改变 Laravel 原生 database 的默认语义。
 
-启用 `auth-oidc` 后，`ExternalIdentityFlows::attach_session_with_guard(user_id, handle, session, guard)` 先校验 Provider 使用同一 `Db` 句柄与实际 `users` 表，再要求正整数外部关联账户与实际 Guard ID、对应 Session 登录键一致，随后关联当前 Session ID；没有对应键的仅请求身份不能关联。唯一示例的[OIDC 服务](../../../modules/example/services/oidc.rs)先重新验证应用密码，再调用此接口。外部句柄只用于关联与撤销，不能代替账户认证；要求远程注销时仍须具备服务器持续撤销存储。
+启用 `auth-oidc` 后，`ExternalIdentityFlows::attach_session_with_guard(user_id, handle, session, guard)` 先校验 Provider 使用同一 `Db` 句柄与实际 `users` 表，再要求正整数外部关联账户与实际 Guard ID、对应 Session 登录键一致，随后关联当前 Session ID；没有对应键的仅请求身份不能关联。唯一示例的[OIDC 服务](../../../modules/example/services/oidc.rs)先重新验证应用密码，再调用此接口。外部句柄只用于关联与撤销，不能代替账户认证；远程注销使用创建该 Session 的同一服务器端存储；原生 database 执行实际 DELETE，但不具备 Guarded 的防复活保证。
 
 `authorized_until(session, user_id)` 和 `attach_session(user_id, handle, session)` 保留显式旧认证键的适配契约；具名身份使用上述带 Guard 的方法。OIDC 尚不支持 SQLite，具名 Guard 适配不会扩大该后端范围。
 
@@ -157,10 +153,214 @@ Provider 工厂收到本请求 `Resolver` 和 `UserProviderConfig`。自定义�
 
 `UserProvider::uses_database_accounts(db, table) -> Result<bool>` 是既有数据库账户流程与具名 Guard 桥接的显式兼容能力，默认返回 false。`DatabaseUserProvider` 同时比较 `Db` 句柄身份和经表名映射解析的实际表；仅 URL、Provider 名称或账户 ID 相等不能证明兼容。包装 Provider 若确实委托同一账户来源，可实现此能力；不能为通过校验无条件返回 true。该方法是既有增强流程的安全适配，不是 Laravel 官方 `UserProvider` 原有的第七个方法；自定义 Guard/Provider 的独立认证不要求兼容旧 `users` 账户域。
 
+## Fortify 与 TOTP
+
+启用 `auth-fortify` 后，Fortify 对应入口位于 `openrust::auth::fortify`，包括 `FortifyServiceProvider`、`FortifyConfig`、`TwoFactorOptions`、`TwoFactorAuthenticationProvider`、`TwoFactorActions`、`FortifyLogin` 与响应扩展。它们复用同一 Container、具名 Guard、Session 和加密器。
+
+MFA 是多因素认证的总称，2FA 表示双因素形式，TOTP 是其中一种验证码技术。本框架只使用同一现代 Fortify 三字段状态，不提供另一套独立因子账户。下文区分官方 Web 默认与显式 JWT API 扩展；新增 profile、生成应用及跨凭据组合仍待本批行为和集成验收，真实 Google 客户端也未验收。
+
+### 受管凭据的显式桥接
+
+选择 `RequireFactorAuthority` 的应用须登记 `FactorAuthorityMigration` 和 `CredentialFactorMigration`，并让持久账户模型提供同一数据库、账户表和原始类型 ID 的 authority。后者为 refresh 与 PAT 增加可空上下文字段；历史 NULL 行不能自动升级为受管凭据，存在非 NULL 资产时回滚迁移会拒绝。
+
+实际具名 Session 可以调用 `AuthFlows::issue_credentials_from_session` 签发 JWT/refresh；需要 PAT 时先由 `CredentialAuthority::prepare_session` 取得不可外部构造的 `VerifiedCredential`，再交给 `PersonalAccessTokens::issue_from_verified`。只有实际因子验证收据才表示完成第二因子；当前无需第二因子的账户快照不产生该证明。签发时重核当前主库状态和父凭据期限，PAT 派生还受父权限与截止时间约束。
+
+请求处理应按模式通过 `FortifyJwtApi::authenticate`、`CredentialAuthority::authenticate_access_token` 或受管 PAT 验证入口核验当前 authority 与撤销状态。`JwtTokens` 的同步密码学校验不代表主库授权；默认数据库认证器不会将非 NULL 的受管 PAT 上下文当作普通 PAT。refresh 轮换保留原家族和因子来源，旧 refresh 重放会撤销该家族。唯一示例在现有同源、CSRF 和具名 Session 账户组中提供 `/api/example/account/session/credentials` 与只授予文章读取权限的 `/session/read-token`；该示例取24小时上限与真实父凭据截止中的较早时刻，不延长 Session 授权。直接挑战、OIDC 关联和实时连接均有各自当前状态核验入口；不能将接口存在或单条链路通过推定为全部存储、后端和客户端组合已验收。
+
+### 显式 JWT API profile
+
+官方 Fortify 提供 Web/Session 认证流程，不内置无 Session 的 JWT 登录。Laravel 生态的 Passport、Sanctum 属于不同可选能力。OpenRust 的 JWT API profile 是明确选择的公开扩展，不改变框架或官方 Fortify 默认；当前实现仍待适用行为和生成应用验收。
+
+生成应用可选择：
+
+```sh
+openrust new blog --profile jwt-api --db sqlite
+```
+
+普通 `new` 不隐式选择 JWT；`--auth` 和 `--fortify` 均安装 Web/Fortify 模式。根应用在启用 `auth-fortify` 时默认选择 Web；显式设置 `AUTH_PROFILE=jwt-api` 才选择 JWT API，配置在启动期间固定，未知值会拒绝启动。JWT API profile 使用 `FortifyJwtApiServiceProvider` **替换** `FortifyServiceProvider`，不同时挂载两份认证路由。它复用同一账户模型、`UserProvider`、`TwoFactorActions`、`DatabaseFactorAuthority`、密码和加密服务。应用仍须配置数据库、JWT key ring 与加密密钥，并登记 `FortifyTwoFactorMigration`、`FactorAuthorityMigration`、`CredentialFactorMigration` 和 `CredentialChallengeMigration` 及其账户/refresh/PAT前置迁移。
+
+手动装配时，在 `auth.guards.api` 明确配置 `driver="jwt-api"`、`provider="users"`，该 Provider 必须使用 authority 的同一 `Db` 和实际 `users` 表；`fortify-api.guard="api"` 选择此 Guard，`fortify-api.prefix="/auth"` 相对于应用 API 前缀。默认 `api.prefix="/api"` 时路由如下：
+
+| 方法 / `/api/auth` 下路径 | JSON 输入或授权 | 结果 |
+| --- | --- | --- |
+| POST `/login` | `fortify.username` 对应字段和 `password` | 直接凭据，或 `two_factor: true`、`challenge`、`expires_at` |
+| POST `/two-factor-challenge` | `challenge`，以及 `code` 或 `recovery_code` | 完成一次挑战后返回凭据 |
+| POST `/refresh` | `refresh_token` | 同一家族的新 access/refresh，原绝对期限不延长 |
+| POST `/logout` | `refresh_token` | `logged_out: true`，撤销家族 |
+| GET `/user` | `Authorization: Bearer <access_token>` | 当前原始 `id` |
+| POST `/two-factor/authorize` | 当前 Bearer 和 JSON `password` | `management_token` |
+| POST `/two-factor/restart` | 当前 Bearer 和 JSON `password` | 丢弃待确认绑定材料并返回新 `management_token`；已确认账户拒绝 |
+| POST / DELETE `/two-factor` | `X-Fortify-Management` | 准备绑定 / 关闭 |
+| POST `/two-factor/confirm` | 管理 header 和 JSON `code` | `confirmed: true`、`login_required: true` |
+| GET `/two-factor/secret` | 管理 header | `secret_key` |
+| GET `/two-factor/qr-code` | 管理 header | 本地 `svg` 与 `url` |
+| GET / POST `/two-factor/recovery-codes` | 管理 header | 读取 / 整组重建 `recovery_codes` |
+
+凭据响应为裸 JSON，包含 `user_id`、`access_token`、`token_type: "Bearer"`、`refresh_token`、`refresh_expires_at`；该适配的所有响应附 `Cache-Control: no-store` 和 `Pragma: no-cache`。只从请求体接收密码、challenge 和 refresh token，不放入 URL。请求来源取可信 `ClientIp`，须按实际反向代理链配置；缺少可信地址会拒绝。受保护资源用选中域的 `AuthLayer::guard("api")` 或 `FortifyJwtApi::authenticate`，不能以同步 JWT 签名校验代替主库家族和当前因子核验。
+
+API 路由只挂 `api` middleware 组，不挂 Session、Cookie、CSRF 或 remember；应用也不得给该组叠加 `web`。显式 JWT API 流程均无 Session/Cookie 依赖，不以 Web 登录作为前置。未来授权中心默认遵对应官方 Web 机制，只有显式 JWT 中心模式遵循无 Cookie 契约；中心 SSO 的 token 持有、回访和浏览器限制留待授权服务器能力设计取证，不把token放入URL自建回访机制。客户端持有 Bearer 和短挑战，全程不借临时 Session 模拟无状态认证。挑战不是正式身份，完成前不签发 access/refresh；恢复码优先于 TOTP。直接入口的挑战有效期五分钟，最多五次实际尝试，并绑定账户、当前代际、请求来源及所选 Guard/Provider scope。公开底层入口为 `LoginAttempt::TwoFactorRequired(TwoFactorLoginChallenge)` 和 `AuthFlows::complete_two_factor_login`；本 profile 通过 `FortifyJwtApi` 进一步核验选中 scope。
+
+管理授权须先提交**当前有效 access JWT 与真实密码**。`JwtApiFactorManagement` 返回加密 grant，最长300秒，且不超过父 access/真实家族期限；它绑定密码摘要、Guard、Provider、账户与家族。随后只将它放入唯一 `X-Fortify-Management` header，不当 Bearer、PAT、第二因子证明或一般资源授权。管理限流按方法和路径分别计数，不是整次绑定生命周期共享五次额度。首次启用和恢复码重建后，同一有效管理授权可连续读取新密钥、QR 与恢复码；它不让旧 access 获得新代际的资源权限。遗失待确认绑定的管理授权时，可用当前 JWT 和密码调用 `/two-factor/restart`；此操作生成全新密钥，旧绑定材料和授权失效，不能读取旧密钥，也不能重置已确认的因子。确认或关闭后按 `login_required` 重新登录取得当前凭据，不能靠客户端 JSON 的成功标志自行续期或升级身份。
+
+当前 JWT/refresh/PAT 与 API 管理持久适配限于同一 `users.id` 的真实正整数域。通用 Guard、`Authenticatable`、Fortify 模型和三字段 store 保留数字/字符串/UUID原始 ID；不能据此宣称字符串账户已有完整 JWT profile 闭环。
+
+### 实时连接与当前凭据
+
+`Realtime::connect_with_validator` 接受公开 `RealtimeValidator`，在注册及发送、输入、心跳前异步核验真实凭据，收紧而不延长原连接截止。唯一示例的 JWT validator 重核真实家族、当前因子状态及文章所有权；浏览器使用 `SessionStoreHandle::prepare_live_guard` 取得不可外部构造的 `LiveSessionCredential`，从实际 Session handler 的独立 reader 重新读取持久载荷、身份、证明和期限。票据不保留请求 Guard 缓存，首次成功后绑定 source/generation，后续代际变化拒绝。
+
+Native database 从同次实际行读取计算活动截止，删除后下一次实际读取会拒绝；这不改变其迟到 INSERT 可能重建记录的原生语义。Cookie 快照仍不能做独立服务器端重验。验证器不持连接集合互斥锁或数据库事务跨任意回调等待，也不承诺撤销与已经发生的网络发送原子化。
+
+### 包回退、安装默认与应用覆写
+
+`FortifyConfig::default()` / `TwoFactorOptions::default()` 对应包回退；`installed()` 显式选择官方安装模板默认。根应用在可编辑的 [`config/fortify.rs`](../../../config/fortify.rs) 中再作应用覆写，所有值通过同一配置仓库求值。
+
+| 配置 | 包回退 | 官方安装默认 | 根应用选择 |
+| --- | --- | --- | --- |
+| `fortify.guard` | `web` | `web` | `web` |
+| `fortify.username` | `email` | `email` | `account`，由组合回调解释 |
+| `fortify.lowercase_usernames` | false | true | false，组合回调不改写大小写 |
+| `fortify.home` | `/home` | `/home` | 可由应用覆写 |
+| `fortify.prefix` / `domain` | 空字符串 / null | 相同 | 可由应用覆写 |
+| `fortify.middleware` / `views` | `web` / true | 相同 | 可由应用覆写 |
+| `fortify.limiters.login` | null | `login` | 继承安装选择 |
+| `fortify.limiters.two-factor` | null | `two-factor` | 继承安装选择 |
+| `fortify.features` | 固定包7项，含双因素与邮箱验证 | 固定模板6项，不含邮箱验证 | 继承安装清单 |
+| `confirm` | false | true | true |
+| `confirmPassword` | false | true | true |
+| `secret-length` | 16 个 Base32 字符 | 相同 | 相同 |
+| `window` | null，沿引擎默认1 | 相同，可显式覆写 | 相同 |
+
+双因素开关为 `fortify.features` 中的 `two-factor-authentication`，不再使用选项对象中的 `enabled`。功能名称清单保留固定包/模板原值，不表示其余尚未验收功能已经交付。路由及 `confirmPassword` 中间件在应用启动时装配，启动后更改清单不会自动重建路由；默认登录管线选择、确认规则和真正启用/强制重建时的密钥长度在调用时读取同一配置仓储。显式 null 密钥长度按上游整数转换为0，由内置生成器拒绝；负值无法表示为 Rust 的 `usize`，在实际取长度时明确拒绝。已有非假值密钥且未 force 的幂等动作不提前读取无效长度。
+
+`confirm` 控制绑定后是否必须确认才能用于登录；`confirmPassword` 控制管理路由是否要求近期密码确认，二者相互独立。关闭其中一个不隐含关闭另一个。配置公开名称保留 `confirmPassword`、`secret-length`；它们位于双因素选项对象中，不是 `auth.password` 参数。
+
+CLI 的脚手架便利入口为：
+
+```sh
+openrust new blog --fortify
+```
+
+它选择同一应用中的 Fortify/TOTP 配置、Provider、迁移及认证/加密能力，仍需应用的数据库与密钥配置。这个 `new` 选项不是完整 `fortify:install` 命令，也不表示完整包安装发布流程或生成应用的安全组合已验收。官方包其余功能不能由此选项视为全部实现。
+
+### 根应用的组合账号入口
+
+根应用的 [`app/providers/fortify.rs`](../../../app/providers/fortify.rs) 经 `FortifyCallbacks::authenticate_using` 接入一个 `account` 输入框和一个密码框。用户填写用户名、已绑定邮箱或手机号任一种；不要求三个标识同时提交。回调使用所选具名 Guard 的同一 `UserProvider`，验证成功归一为同一账户 ID。
+
+组合回调选择大小写敏感的逐字匹配，不自动 lowercase 或 trim 账号值；查询后仍核对账户字段与输入相等，不依赖数据库默认的不区分大小写查询来决定归属。`phone` 只参与已是 E.164 形式的输入匹配，不猜国家或区域、不自动为本地号码补前缀；同字符串仍可作为用户名匹配。这不表示手机号归属已经验证。不同字段命中不同账户时拒绝歧义，不按查询顺序任选账户。
+
+这是根应用的增强策略，不改变 Fortify 默认的单个 `username=email` 字段。应用账户的 `email`、`phone` 可以缺失或为 null，只有用户名的账户也可由该回调验证密码；这不意味着既有邮箱注册、验证码、找回密码或第三方登录流程都已支持无邮箱。密码确认使用 `FortifyCallbacks::confirm_passwords_using`，对当前受验证账户通过同一 Provider 校验密码，不重新猜账号来源。
+
+数据库唯一索引控制可创建的标识集合，其大小写、等价字符与 collation 规则仍取决于实际后端和列定义。回调逐字匹配不等于已统一所有后端的唯一性语义，也不保证数据库会允许同时创建仅大小写不同的两个标识。应用须按自己的列和索引策略管理这些数据；组合入口及其双因素跨凭据组合仍待本批适用验收。
+
+### 应用账户结构升级与回滚
+
+根应用的 [`AccountIdentifiers`](../../../database/migrations/accounts.rs) 以追加迁移将既有 `email` 改为可空，新增可空 `username`、`phone` 及各自唯一索引；不改写已执行的基础迁移。空字段不是可匹配账号，新增字段也不会自动生成或验证真实登录标识。
+
+回滚在删除列前检查数据：只要有 `email IS NULL`，或任意非 null 的 `username` / `phone`，即拒绝无损回退。空字符串同样属于非 null 标识；迁移不会填假邮箱、删除已有标识或自行转换数据来强行通过。需要回滚时由应用先显式迁出数据，再评估原结构是否仍适用。
+
+MySQL 的列修改必须重述定义，因此此迁移只接受应用原有的默认 `email` 列形状。自定义类型、default、额外属性、comment 或独立 collation 等会明确拒绝，要求应用提供保全这些属性的显式升级；不静默重置为框架默认。该拒绝同样适用于回滚预检，不能将其解释成通用数据库迁移器已支持任意自定义列形状。
+
+### 三项双因素属性与动作
+
+`TwoFactorAuthenticatable` 暴露持久状态读取和条件更新，`TwoFactorState` 包含 `two_factor_secret`、`two_factor_recovery_codes` 与 `two_factor_confirmed_at`。前两项保存密文，第三项为可空时间。账户不必是 Eloquent 模型，也不要求整数 ID；通过 `DatabaseTwoFactorState` 或公开模型能力接入自己的持久来源。
+
+| 动作 | 官方语义与现有公开入口 |
+| --- | --- |
+| 启用 | `TwoFactorActions::enable(user, force)`：无 secret 或 force=true 时生成 secret 和恢复码；重复启用不默认覆盖。 |
+| 确认 | `confirm(user, code)`：验证当前 secret 对应代码并记录 confirmed_at；无 secret、空码或错误码产生字段验证错误。 |
+| 禁用 | `disable(user)`：清除 secret、恢复码和适用的确认时间；不默认要求每次再提交 TOTP。 |
+| 读取恢复码 | `recovery_codes(user)`：解密读取当前官方模式的恢复码列表，不是仅在生成时可读。 |
+| 重建恢复码 | `generate_new_recovery_codes(user)`：替换整组恢复码。 |
+| 手动密钥 / QR | `secret_key(user)`、`qr_code_url(user, company, username)` 与 `two_factor_qr_code_svg(url)`，只在授权读取路径暴露秘密。 |
+
+根应用 `confirm=true`：用户可按需绑定，未绑定时密码正常登录；生成 secret 后尚待确认，不是已开启双因素。确认后后续登录进入挑战；关闭按管理入口要求先作必要身份确认。`confirm=false` 遵循上游 secret 非 null 的启用规则，不全局改写包回退。应用覆写加密器的优先级是 Fortify 显式设置、账户模型设置、默认容器 `Encryptor`；`with_encrypter` 和模型扩展不代表真实 Eloquent 生命周期已经实现。
+
+`TwoFactorActions::with_recovery_code_generator`、`with_options` 与公开 Provider/响应绑定允许应用替换对应机制；扩展不得把账户秘密放进日志或调试输出。条件更新竞争失败和持久化错误会传播，不应被调用方吞为匿名成功或“已经禁用”。
+
+### 官方恢复码
+
+官方默认生成8个 `10字符-10字符` 格式恢复码，加密为 JSON 数组保存；受保护 GET 可以重新读取，POST 重建替换整组。成功使用一个恢复码后用新随机码替换该码，列表仍保留8项，旧码不能因重复展示而再次有效。恢复码生成器可由公开 hook 覆写。
+
+### TOTP 与本地 QR
+
+默认 secret 为16个 Base32 字符，不是16或20随机字节；算法为 HMAC-SHA1、6位数字、30秒时间步，window=1 接受相邻窗口，可显式配置0。密钥由同一公开 Provider 生成并按模型/动作所选加密器持久化。
+
+二维码与手动密钥来自同一 secret。URI 包含 issuer、账户标签、algorithm、digits、period；issuer 使用最终应用名称，账户标签由 `TwoFactorAuthenticatable::two_factor_account_name` 提供，不以可空邮箱作为全局必需字段。组合入口的 `account` 是输入名，不等于持久账户字段；根应用模型显式依次选择非空 username、email、phone，均缺失时使用账户标识文本作为显示标签。这不转换或改变认证使用的原始 ID。完整组合 HTTP 与真实客户端流程仍未验收。本地 SVG 生成不向外部二维码服务发送密钥。HTTP 无 secret 时 QR 返回 `[]`、手动 secret 接口返回404，读取仍服从认证和 `confirmPassword` 规则。
+
+RFC 向量、URI 差分与 SVG 解码只提供本地协议证据。真实 Google Authenticator 扫描、手动输入、生成代码及跨时间窗操作仍未验收，不能将“兼容 TOTP 参数”写成“Google 客户端已测”。
+
+### HTTP 与近期密码确认
+
+Fortify 路由按最终 prefix、domain、路径覆写与 middleware 配置注册，不强加 `/api` 前缀或统一 JSON envelope。默认管理接口包括：
+
+| 方法 / 路径 | 用途 |
+| --- | --- |
+| POST `/user/two-factor-authentication` | 启用，接受可选 force |
+| POST `/user/confirmed-two-factor-authentication` | 提交确认 code |
+| DELETE `/user/two-factor-authentication` | 禁用 |
+| GET `/user/two-factor-qr-code` / `/user/two-factor-secret-key` | 本地 QR / 手动密钥 |
+| GET / POST `/user/two-factor-recovery-codes` | 读取 / 重建恢复码 |
+
+`confirmPassword=true` 时，管理接口要求近期密码确认；确认成功将时间记在 `auth.password_confirmed_at`，不是每个动作都重新提交密码。超时按普通请求重定向，JSON 请求返回423；密码确认本身不表示已经完成第二因子。
+
+首因子发现需要挑战时保存 `login.id` 与 `login.remember`，返回 `two_factor=true` 或挑战重定向，完成前不应发布正式身份或 bearer 凭据。成功二因子才经同一 Guard 登录并处理 remember、Session 再生与响应；失败通过字段错误或公开响应契约呈现。官方 Web 管线不因此改为 JWT；无 Cookie API 的操作见上文显式 profile。
+
+### 同一现代状态与可信证明
+
+根应用及生成的 Fortify 配套选择 `DatabaseFactorAuthority`，由同一账户模型公开 `two_factor_authority()`。它复用 `DatabaseTwoFactorState` 的真实连接、逻辑表和原始 ID；`FactorAuthorityMigration` 保存随机 source、持久 generation、短期验证码摘要及受限管理绑定，不创建第二份账户。未选择该 adapter 的官方三字段模型保留原路径。没有独立旧因子服务、兼容接管或旧数据迁移前置。
+
+`FactorReceipt` 只由框架在实际验证和持久消费后签发。`StatefulGuard::login_with_factor_receipt`、`session_factor_proof` 将证明与实际 Guard/Provider、原始身份、source/generation 绑定。客户端 JSON、普通布尔值、密码确认或管理授权都不是该证明。SessionGuard 在转换提交前不公开证明；普通登录、once、set_user、注销及失败取消不会保留不相符的旧证明。自定义 Guard 默认拒绝不支持的带收据登录，不能静默忽略。
+
+Web 的 `FactorManagementContext` 由真实持久 Guard 身份产生，只给同一 Session 在授权的启用、force、恢复码重建之后继续管理新代际；它不放行资源。确认绑定将实际验证收据附加到当前 Session。JWT API 的管理 grant 另通过当前 Bearer+密码建立，不能从 Web Session 或请求属性伪造。两种适配都调用同一 `TwoFactorActions` 和 authority。
+
+带真实因子收据的 remember 登录可在已认证加密 Cookie 中追加有界证明段，仍核实际 Provider、原始 ID 与主库 source/generation；无证明的普通 remember 不因复用 token 自动升级。状态变化或证明损坏拒绝恢复，不能降级为密码-only。
+
+### 并发、取消与审计
+
+三字段 CAS 和同账户事务在提交前核验当前快照与持久代际。成功 TOTP 在同事务消费短期摘要，恢复码成功则原子替换该码；竞争者不能同时消费同一状态。确认字段、代际与代码消费共同提交，失败回滚不留下已确认状态。管理变更保留尚未过期的代码摘要。
+
+Provider/cache 验证在账户事务外完成；数据库回滚不撤回第三方缓存、网络或已发出的 I/O。Session transition 不提前公开未完成登录；数据库、Session Store、事件或外部回调之间不宣称跨资源事务。有限验证码账本不承诺任意未来扩窗或时钟回退下永久不重放。
+
+通用审计扩展为 `ApiLoginAuditSink`，成功双因素直接登录在凭据消费的同一事务调用它。`DatabaseApiLoginAudit::new(db, audit)` 复用通用脱敏策略，并严格核同一 `Db` 与实际 `audit_records` 表；可通过 `FortifyJwtApiServiceProvider::with_database_audit` 显式选择。默认不绑定该 sink，不自动查询审计表；自定义 sink 必须使用传入事务，错误回滚本次消费和签发，不记录密码、代码、secret 或 token。
+
 ## Laravel 对应与 Rust 边界
 
-本文对照固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `AuthManager`、`CreatesUserProviders`、`SessionGuard`、`DatabaseUserProvider` 与认证契约，以及 docs `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 authentication 章节。异步 trait 使用 `BoxFuture`，账户使用 `Arc`，模型通过已编译工厂显式注册，不能运行期按 PHP 类名实例化。
+本文对照固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `AuthManager`、`CreatesUserProviders`、`SessionGuard`、`DatabaseUserProvider` 与认证契约，以及 docs `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 authentication 与 fortify 章节。Fortify/TOTP 对照固定 Fortify `c456642584c102f6a6aafee9932299542da637b5` 与 google2fa `f00bc788c555adfb6765c437ff3538e59cd88af1`，不随浮动分支静默切换默认值。异步 trait 使用 `BoxFuture`，账户使用 `Arc`，模型通过已编译工厂显式注册，不能运行期按 PHP 类名实例化。
 
 Laravel 用 `sha1(static::class)` 生成 Session/remember 名称后缀。Rust `SessionGuard` 采用固定实现后缀 `ff9a88a790ea81b2b89656e56873ed257a77b366`，分别生成 `login_<guard>_<后缀>` 与 `remember_<guard>_<后缀>`，对应上游类名 SHA-1 的名称隔离职责。Rust 没有 PHP 的动态类名机制，不运行期复刻 `static::class`，也不承诺与 PHP Session/Cookie 字节互通；该后缀不承担密码散列或凭据签名职责。Cookie 加密检查、失败/取消时拒绝部分认证和显式 Provider 授权隔离属于安全边界；Guarded Session 的持续撤销保证则是显式增强，不是 Laravel 原生 database 的默认语义。
 
-当前具名认证 API 不代表完整 Laravel 认证章节、真实 Eloquent、所有 Guard driver、Gate/Policy、Fortify 或官方 TOTP 已完成；已有 JWT、PAT 与 MFA 也不替代这些对应项。
+当前具名认证 API 与 Fortify/TOTP 实现不代表完整 Laravel 认证章节、真实 Eloquent、所有 Guard driver、Gate/Policy 或完整 Fortify 已交付。本批现代因子与 JWT API profile 仍待组合验收，既有 JWT、PAT 能力也不替代这些对应项。
+
+### OIDC 关联的当前 authority 核验
+
+选用 `CredentialAuthority` 的 `ExternalIdentityFlows` 与 `AuthFlows` 必须使用同一 `Db` 句柄和物理账户/凭据表；构造期拒绝错误组合。IdP 返回的身份只证明外部第一因素。当前账户需要本地因子时，回调返回同一直接挑战体系的 `LoginAttempt::TwoFactorRequired`，由 `complete_two_factor_login` 验证真实恢复码/TOTP后签发受管家族；因子来源保留实际 `external:<provider>` 流程。
+
+`attach_session_with_guard` 在事务外准备真实 Guard、Provider、当前因子证明及 Session 绑定，在同一主库事务内重核当前代际，并同步复核同一 Session。`attach_session` 在所选策略下要求已有受保护的显式 Session 上下文；只有手写用户 ID 不足以关联。准备后的 Session 轮换、身份或证明变化会拒绝关联。此检查不承诺数据库与 Session Store 的跨资源原子提交，也不将客户端 Cookie 快照变成可即时远程撤销存储。
+
+`attach_refresh_credentials` 在所选策略下检查实际当前 raw token、完整家族、真实 owner、因子上下文与截止时间；已消费、撤销、到期或家族混合数据均拒绝。attach 本身不轮换或消费凭据，拒绝旧 raw 不会顺带撤销仍有效的后继家族，关联期限取实际校验的截止。使用真实当前凭据关联待完成句柄时，会在同一事务删除其原挑战；过期或已撤销的句柄不能复活。后通道与应用注销覆盖现代挑战及家族。未选择该显式策略的普通调用方保留原契约。
+
+注销调用方必须传入创建关联 Session 的同一应用存储。Native 数据库 driver 使用其实际低层 DELETE，失败仍保留未清理标记供重试；它沿用 Laravel 的并发 INSERT 回退，不能承诺防复活。客户端快照仍不能远程删除。挑战清理使用当前实际选中的现代 authority，不以编译 feature 推断迁移已安装；关联撤销墓碑阻断已撤销句柄再次完成或关联。
+
+本段为当前 WIP 接口说明；限定测试记录和完整组合验收分开报告，完整 OIDC/Socialite、真实 IdP 协议与所有 Session 存储组合不由局部测试推定完成。
+
+### 单次验证码事实与 Provider 扩展
+
+框架默认将 `TwoFactorAuthenticationProvider` 登记为应用单例，`TwoFactorActions` 保持 scoped。内置 Google Provider 每次验证从同一配置仓储读取整数 `fortify-options.two-factor-authentication.window`；null、缺失或非整数沿用该实例上一次窗口，初始窗口为 1。显式整数包括零与负数；零只检查当前步，负数执行空扫描。一次验证固定其开始读取的窗口，等待缓存期间的新配置由后一次验证读取。
+
+自定义 Provider 需要实现 `verify_with_context`，返回 `TwoFactorCodeVerification`。原 `verify` 方法保留布尔门面，默认委托同一次验证，不会再次消费缓存。包装器应直接转交内层事实：
+
+```rust,ignore
+fn verify_with_context<'a>(
+    &'a self,
+    secret: &'a str,
+    code: &'a str,
+) -> BoxFuture<'a, Result<TwoFactorCodeVerification>> {
+    self.inner.verify_with_context(secret, code)
+}
+```
+
+自行校验的实现可用 `TwoFactorCodeVerification::verified(code, window, current_counter, matched_counter)` 报告默认30秒周期，或用 `verified_with_period` 报告实际周期。该类型绑定原始 code 的摘要并校验计数范围、周期及溢出；拒绝结果使用 `rejected()`。这是供原子消费使用的验证事实，不能代替当前账户、代际、Session/Guard 绑定或 `FactorReceipt`。公开 trait 的这一变更要求自定义实现同步新方法；仅布尔结果无法表达实际验证的窗口与时域，框架不会按 Actions 选项猜测。
+
+确认、Session 挑战及直接/外部挑战均传递同一次事实。Provider 与缓存校验在账户事务外完成，事务内只核当前状态及消费，不再次调用 Provider。nonce 保留期使用该次实际窗口和周期，即 `(2 * window + 3) * period_seconds`；使用真实验证事实，不按另一份配置猜测窗口。
+
+Provider 本身仍遵循官方非原子缓存 get/verify/put：缓存 miss 成功后再次读取时钟作为 put 的时间值，返回的验证事实保留真正校验时的计数。有限 nonce 只覆盖该次接受域；管理员之后任意扩窗、冻结或大幅回退时钟可能让历史码重新进入接受域，不承诺跨任意未来策略的永久不重放。挑战的一次性消费与当前 source/generation 核验不能由短期缓存替代。

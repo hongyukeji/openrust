@@ -152,9 +152,9 @@ where
 /// 从应用容器解析已登记实例或异步工厂；请求内使用独立 scope。
 ///
 /// 若服务未注册，将返回包含类型名称的内部错误，不会 panic。
-pub struct Inject<T>(pub Arc<T>);
+pub struct Inject<T: ?Sized>(pub Arc<T>);
 
-impl<T> Deref for Inject<T> {
+impl<T: ?Sized> Deref for Inject<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -166,7 +166,7 @@ impl<S, T> FromRequestParts<S> for Inject<T>
 where
     S: Send + Sync,
     AppState: FromRef<S>,
-    T: Send + Sync + 'static,
+    T: ?Sized + Send + Sync + 'static,
 {
     type Rejection = Error;
 

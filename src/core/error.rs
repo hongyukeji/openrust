@@ -1,7 +1,5 @@
 //! 框架错误与统一 JSON 响应封装。
 
-use std::collections::BTreeMap;
-
 use crate::config::HttpStatusMode;
 use axum_core::response::{IntoResponse, Response};
 use http::{HeaderValue, StatusCode, header};
@@ -43,8 +41,22 @@ impl std::fmt::Display for ServiceIdentity {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// 按字段路径索引的校验错误（例如 `user.email`、`items[2].qty`）。
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-pub struct ValidationErrors(BTreeMap<String, Vec<String>>);
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ValidationErrors(Vec<(String, Vec<String>)>);
+
+impl Serialize for ValidationErrors {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (field, messages) in &self.0 {
+            map.serialize_entry(field, messages)?;
+        }
+        map.end()
+    }
+}
 
 impl ValidationErrors {
     /// 创建空集合。
@@ -54,7 +66,29 @@ impl ValidationErrors {
 
     /// 记录 `field` 的失败消息。
     pub fn add(&mut self, field: impl Into<String>, message: impl Into<String>) {
-        self.0.entry(field.into()).or_default().push(message.into());
+        let field = field.into();
+        let message = message.into();
+        if let Some((_, messages)) = self.0.iter_mut().find(|(name, _)| name == &field) {
+            if !messages.contains(&message) {
+                messages.push(message);
+            }
+        } else {
+            self.0.push((field, vec![message]));
+        }
+    }
+
+    /// 对应官方校验异常的首条消息摘要，保留规则登记顺序。
+    pub fn summary(&self) -> String {
+        let mut messages = self.0.iter().flat_map(|(_, messages)| messages.iter());
+        let Some(first) = messages.next() else {
+            return "The given data was invalid.".into();
+        };
+        let remaining = messages.count();
+        match remaining {
+            0 => first.clone(),
+            1 => format!("{first} (and 1 more error)"),
+            count => format!("{first} (and {count} more errors)"),
+        }
     }
 
     /// 尚未记录任何错误时返回 `true`。
@@ -62,7 +96,7 @@ impl ValidationErrors {
         self.0.is_empty()
     }
 
-    /// 按字段顺序遍历 `(field, messages)`。
+    /// 按首次登记字段的顺序遍历 `(field, messages)`。
     pub fn iter(&self) -> impl Iterator<Item = (&str, &[String])> {
         self.0.iter().map(|(k, v)| (k.as_str(), v.as_slice()))
     }
@@ -92,8 +126,18 @@ pub enum Error {
     #[error("{0}")]
     Conflict(String),
     /// 输入格式正确，但未通过校验规则。
-    #[error("validation failed")]
+    #[error("{}", .0.summary())]
     Validation(ValidationErrors),
+    /// 校验失败并指定Web重定向使用的命名错误包；JSON仍返回相同字段错误。
+    #[error("{}", errors.summary())]
+    ValidationInBag {
+        /// 校验异常的HTTP状态，默认422，可由公开扩展调整。
+        status: StatusCode,
+        /// 同一Session/ViewErrorBag使用的包名。
+        bag: String,
+        /// 按字段路径索引的错误。
+        errors: ValidationErrors,
+    },
     /// 已解析的输入未通过结构校验，并附带可读原因。
     #[error("{detail}")]
     ValidationDetail {
@@ -278,6 +322,33 @@ impl Error {
         }
     }
 
+    /// 创建供Web处理器选择命名错误包的校验异常。
+    pub fn validation_in_bag(bag: impl Into<String>, errors: ValidationErrors) -> Self {
+        Self::ValidationInBag {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            bag: bag.into(),
+            errors,
+        }
+    }
+
+    /// 创建指定HTTP状态的校验异常，复用同一字段错误与错误包渲染。
+    pub fn validation_with_status(status: StatusCode, errors: ValidationErrors) -> Self {
+        Self::ValidationInBag {
+            status,
+            bag: "default".into(),
+            errors,
+        }
+    }
+
+    /// 返回校验异常的错误包，普通校验异常使用default，其余错误返回None。
+    pub fn validation_error_bag(&self) -> Option<&str> {
+        match self {
+            Self::ValidationInBag { bag, .. } => Some(bag),
+            Self::Validation(_) | Self::ValidationDetail { .. } => Some("default"),
+            _ => None,
+        }
+    }
+
     /// 此错误生成的 HTTP 状态码。
     pub fn status(&self) -> StatusCode {
         match self {
@@ -287,9 +358,9 @@ impl Error {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::Validation(_) | Self::ValidationDetail { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::ValidationInBag { status, .. } | Self::HttpWithSource { status, .. } => *status,
             Self::RateLimited | Self::RateLimitedWithRetryAfter(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::Custom { status, .. } => status.unwrap_or(StatusCode::BAD_REQUEST),
-            Self::HttpWithSource { status, .. } => *status,
             Self::Config(_) | Self::Internal(_) | Self::ServiceInitialization { .. } => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
@@ -304,7 +375,9 @@ impl Error {
             Self::Forbidden(_) => "forbidden",
             Self::NotFound(_) => "not_found",
             Self::Conflict(_) => "conflict",
-            Self::Validation(_) | Self::ValidationDetail { .. } => "validation_failed",
+            Self::Validation(_) | Self::ValidationDetail { .. } | Self::ValidationInBag { .. } => {
+                "validation_failed"
+            }
             Self::RateLimited | Self::RateLimitedWithRetryAfter(_) => "rate_limited",
             Self::Config(_) => "configuration_error",
             Self::Custom { code, .. } | Self::HttpWithSource { code, .. } => code,
@@ -334,7 +407,7 @@ impl Error {
                 .unwrap_or(fallback)
         };
         let errors = match self {
-            Self::Validation(errors) => Some(errors.clone()),
+            Self::Validation(errors) | Self::ValidationInBag { errors, .. } => Some(errors.clone()),
             Self::ValidationDetail { errors, .. } if !errors.is_empty() => Some(errors.clone()),
             _ => None,
         };
@@ -667,6 +740,44 @@ mod tests {
         errors.add("email", "invalid");
         let response = Error::Validation(errors).to_api_response();
         assert_eq!(response.errors.as_ref().map(|e| e.iter().count()), Some(1));
+    }
+
+    #[test]
+    fn validation_summary_preserves_rule_order_deduplicates_and_supports_status() {
+        let mut errors = ValidationErrors::new();
+        errors.add("z", "first");
+        errors.add("a", "second");
+        errors.add("z", "first");
+        assert_eq!(errors.summary(), "first (and 1 more error)");
+        assert_eq!(
+            errors.iter().map(|(key, _)| key).collect::<Vec<_>>(),
+            vec!["z", "a"]
+        );
+        let error = Error::validation_with_status(StatusCode::TOO_MANY_REQUESTS, errors);
+        assert_eq!(error.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(error.validation_error_bag(), Some("default"));
+        assert_eq!(error.to_string(), "first (and 1 more error)");
+    }
+
+    #[test]
+    fn named_validation_keeps_field_errors_and_422_json_contract() {
+        let mut errors = ValidationErrors::new();
+        errors.add("code", "invalid");
+        let error = Error::validation_in_bag("confirmTwoFactorAuthentication", errors);
+        assert_eq!(
+            error.validation_error_bag(),
+            Some("confirmTwoFactorAuthentication")
+        );
+        assert_eq!(error.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(error.code(), "validation_failed");
+        assert_eq!(
+            error
+                .to_api_response()
+                .errors
+                .as_ref()
+                .map(|e| e.iter().count()),
+            Some(1)
+        );
     }
 
     #[test]

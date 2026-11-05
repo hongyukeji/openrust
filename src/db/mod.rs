@@ -33,6 +33,8 @@ mod sqlite;
 pub(crate) fn cleanup_owned_sqlite_directory(directory: &std::path::Path) -> Result<()> {
     sqlite::migration_lock::cleanup_owned_directory(directory)
 }
+#[cfg(all(test, feature = "db-sqlite", feature = "auth-fortify"))]
+mod final_check_tests;
 mod table_names;
 
 pub use crate::config::database::{DatabaseConfig, DatabaseInstanceConfig};
@@ -175,6 +177,9 @@ pub struct TransactionBeforeCommit;
 /// 仅在事务成功提交后派发的进程内通知。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TransactionCommitted;
+
+type FinalCheckFn = fn(&DatabaseTransaction) -> BoxFuture<'_, Result<()>>;
+const NO_FINAL_CHECK: Option<FinalCheckFn> = None;
 
 #[derive(Clone)]
 struct DatabaseConnections {
@@ -400,7 +405,7 @@ impl Db {
         T: Send,
         F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
     {
-        self.transaction_impl(callback, false).await
+        self.transaction_impl(callback, false, NO_FINAL_CHECK).await
     }
 
     /// 为依赖读取后写入的认证安全操作取得同一数据库事务所有权。
@@ -411,13 +416,35 @@ impl Db {
         T: Send,
         F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
     {
-        self.transaction_impl(callback, true).await
+        self.transaction_impl(callback, true, NO_FINAL_CHECK).await
     }
 
-    async fn transaction_impl<T, F>(&self, callback: F, for_update: bool) -> Result<T>
+    /// 所有提交前监听器完成后，在同一事务内做最后校验。校验成功后直接开始提交。
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) async fn transaction_for_update_checked<T, F, C>(
+        &self,
+        callback: F,
+        final_check: C,
+    ) -> Result<T>
     where
         T: Send,
         F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
+        C: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<()>> + Send,
+    {
+        self.transaction_impl(callback, true, Some(final_check))
+            .await
+    }
+
+    async fn transaction_impl<T, F, C>(
+        &self,
+        callback: F,
+        for_update: bool,
+        final_check: Option<C>,
+    ) -> Result<T>
+    where
+        T: Send,
+        F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
+        C: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<()>> + Send,
     {
         let events = self.events.get().cloned();
         let connection = self.connection()?;
@@ -437,6 +464,12 @@ impl Db {
             && let Err(error) = events
                 .dispatch_in_transaction(&transaction, &TransactionBeforeCommit)
                 .await
+        {
+            transaction.rollback().await.map_err(Error::internal)?;
+            return Err(error);
+        }
+        if let Some(check) = final_check
+            && let Err(error) = check(&transaction).await
         {
             transaction.rollback().await.map_err(Error::internal)?;
             return Err(error);

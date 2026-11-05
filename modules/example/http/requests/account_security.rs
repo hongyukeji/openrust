@@ -9,23 +9,14 @@ pub(crate) struct CredentialsInput {
 
     pub(crate) password: String,
 }
-#[cfg(feature = "auth-mfa")]
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct FactorInput {
-    pub(crate) email: String,
-
-    pub(crate) password: String,
-
-    pub(crate) code: String,
-}
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ChallengeInput {
     pub(crate) challenge: String,
 
-    pub(crate) code: String,
+    pub(crate) code: Option<String>,
+    pub(crate) recovery_code: Option<String>,
 }
 #[derive(Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -63,39 +54,7 @@ impl Validate for CredentialsInput {
     }
 }
 
-#[cfg(feature = "auth-mfa")]
-impl Validate for FactorInput {
-    fn rules() -> Rules {
-        Rules::new()
-            .field(
-                "email",
-                [
-                    Rule::required(),
-                    Rule::string(),
-                    Rule::email(),
-                    Rule::length(None, Some(320)),
-                ],
-            )
-            .field(
-                "password",
-                [
-                    Rule::required(),
-                    Rule::string(),
-                    Rule::length(Some(1), Some(1024)),
-                ],
-            )
-            .field(
-                "code",
-                [
-                    Rule::required(),
-                    Rule::string(),
-                    Rule::length(Some(6), Some(128)),
-                ],
-            )
-    }
-}
-
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 impl Validate for ChallengeInput {
     fn rules() -> Rules {
         Rules::new()
@@ -110,9 +69,17 @@ impl Validate for ChallengeInput {
             .field(
                 "code",
                 [
-                    Rule::required(),
+                    Rule::nullable(),
                     Rule::string(),
-                    Rule::length(Some(6), Some(128)),
+                    Rule::length(None, Some(128)),
+                ],
+            )
+            .field(
+                "recovery_code",
+                [
+                    Rule::nullable(),
+                    Rule::string(),
+                    Rule::length(None, Some(128)),
                 ],
             )
     }

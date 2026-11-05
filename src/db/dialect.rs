@@ -74,6 +74,91 @@ pub async fn drop_column(
         .await
 }
 
+/// 按调用方声明的列定义修改可空性；MySQL 必须像 Laravel `change` 一样重述所需类型与修饰符。
+///
+/// PostgreSQL 只更改 `NOT NULL`；SQLite 沿标准迁移所有者的同连接重建，复制全部列并
+/// 验证外键。收紧约束时现存 `NULL` 会明确失败，不能为迁移成功删数据或填哨兵。
+/// 此辅助函数不代表完整 Schema `change` 已实现。
+pub async fn set_column_nullable(
+    manager: &sea_orm_migration::SchemaManager<'_>,
+    table: impl IntoIden,
+    mut definition: ColumnDef,
+    nullable: bool,
+) -> Result<(), DbErr> {
+    let table = table.into_iden();
+    let column = definition.get_column_name();
+    match manager.get_database_backend() {
+        DbBackend::Sqlite => {
+            #[cfg(feature = "db-sqlite")]
+            {
+                if !super::migration::sqlite_execution_owner() {
+                    return Err(DbErr::Migration(
+                        "SQLite修改可空性需要标准迁移执行所有者".into(),
+                    ));
+                }
+                let sea_orm::DatabaseExecutor::Connection(connection) = manager.get_connection()
+                else {
+                    return Err(DbErr::Migration(
+                        "SQLite表重建不能位于用户显式事务内".into(),
+                    ));
+                };
+                let pool = connection.get_sqlite_connection_pool().clone();
+                if nullable {
+                    super::sqlite::schema_rebuild::make_column_nullable(
+                        pool,
+                        table.to_string(),
+                        column,
+                    )
+                    .await
+                } else {
+                    super::sqlite::schema_rebuild::make_column_not_nullable(
+                        pool,
+                        table.to_string(),
+                        column,
+                    )
+                    .await
+                }
+            }
+            #[cfg(not(feature = "db-sqlite"))]
+            {
+                Err(DbErr::Migration("SQLite修改可空性需要db-sqlite".into()))
+            }
+        }
+        DbBackend::Postgres => {
+            let mut change = ColumnDef::new(sea_orm::sea_query::Alias::new(column));
+            if nullable {
+                change.null();
+            } else {
+                change.not_null();
+            }
+            manager
+                .alter_table(
+                    sea_orm::sea_query::Table::alter()
+                        .table(table)
+                        .modify_column(change)
+                        .to_owned(),
+                )
+                .await
+        }
+        DbBackend::MySql => {
+            if nullable {
+                definition.null();
+            } else {
+                definition.not_null();
+            }
+            manager
+                .alter_table(
+                    sea_orm::sea_query::Table::alter()
+                        .table(table)
+                        .modify_column(definition)
+                        .to_owned(),
+                )
+                .await
+        }
+        backend => Err(unsupported_backend(backend)),
+    }
+}
+
 fn unsupported_backend(backend: DbBackend) -> DbErr {
     DbErr::Migration(format!(
         "OpenRust UTC and JSON schema helpers support PostgreSQL, MySQL and SQLite, got {backend:?}"

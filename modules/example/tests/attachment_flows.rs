@@ -10,7 +10,6 @@ use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
 use futures_util::{FutureExt, StreamExt};
-use openrust::auth::JwtTokens;
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
@@ -32,7 +31,7 @@ struct AttachmentMigrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for AttachmentMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -80,9 +79,8 @@ impl Fixture {
         }
         .insert(&db.connection()?)
         .await?;
-        let tokens = app.app()?.state().resolve::<JwtTokens>().await?;
-        let owner_token = tokens.issue_access_token(1)?;
-        let other_token = tokens.issue_access_token(2)?;
+        let owner_token = super::selected_test_auth::seeded_password_access(app.app()?, 1).await?;
+        let other_token = super::selected_test_auth::seeded_password_access(app.app()?, 2).await?;
         Ok(Some(Self {
             app,
             database,

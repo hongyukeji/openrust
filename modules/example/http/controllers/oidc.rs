@@ -87,8 +87,8 @@ enum LoginResponse {
         credentials: CredentialsResponse,
         external_login_handle: String,
     },
-    #[cfg(feature = "auth-mfa")]
-    MfaRequired {
+    #[cfg(feature = "auth-fortify")]
+    TwoFactorRequired {
         challenge: String,
         expires_at: String,
         external_login_handle: String,
@@ -145,8 +145,8 @@ pub(crate) async fn callback(
                     refresh_expires_at: value.refresh_expires_at().to_rfc3339(),
                 },
             },
-            #[cfg(feature = "auth-mfa")]
-            LoginAttempt::MfaRequired(challenge) => LoginResponse::MfaRequired {
+            #[cfg(feature = "auth-fortify")]
+            LoginAttempt::TwoFactorRequired(challenge) => LoginResponse::TwoFactorRequired {
                 external_login_handle,
                 challenge: challenge.expose().into(),
                 expires_at: challenge.expires_at().to_rfc3339(),

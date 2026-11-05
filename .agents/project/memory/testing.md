@@ -1,5 +1,22 @@
 # 测试基线
 
+## Fortify 官方默认与显式 JWT 组合验收
+
+当前 main 基线 `5ad34b9` 之上的限定组合，固定官方版本与范围不变，本地提交以Git为准。`tmp/fortify-single-system-20261105/main-gates-6/main-result.json` 绑定981项输入，12项门禁全部通过且各步输入未变：fmt/diff、默认与全特性严格Clippy/workspace tests/拒警Rustdoc、no-default、Rust1.97全特性及no-default、cargo deny。测试日志逐suite汇总默认1362通过/42忽略，全特性2591通过/161忽略；忽略与未配置外部服务的普通测试不作为真实服务证据。
+
+真实生成的Web SQLite/MySQL各13项、显式JWT SQLite26项、JWT+gRPC MySQL27项完成new/fmt/check/test，生成输入未变，两个MySQL数据库/账号清单未变。`generated-acceptance-summary.json`绑定各结果；原fmt/撤销状态断言及runner首次Cargo.lock创建误判的失败均单独保留。生成gRPC真实TLS含正确CA/域名、错误CA/域名、关闭监听器；其公开Echo不冒充受保护认证。
+
+`grpc-profile-production-provider-real-2.log`通过正式Provider工厂的真实SQLite+TLS受保护RPC，覆盖命名Policy、每RPC作用域、撤族、跨Guard/Provider、无scope家族、裸签名及错误issuer/audience。`redis-authorized-read-real-3.log`三项期限/最大合法wire/实际Redis TTL与无TTL拒绝通过；`redis-parent-final-check-real-4.log`真实Redis已保存父Session派生JWT/PAT正例及提交前删除回滚通过。Redis截止保守整秒、不足一秒拒绝，不承诺跨Redis/DB分布式原子性。独立复审未再发现上述修复的明确安全缺陷。
+
+当前受影响consumer均已验证：session-custom-driver、container-extension、test-app执行测试，query-authorization执行locked check，gRPC/MySQL16项与Redis双进程WebSocket/SSE1项通过，见final-consumers-1及单独日志。CI移除失效auth-mfa feature/target后，ci-auth-backends-2实际执行MySQL/PG共8条对应命令：OIDC、根Web confirm两模式、无Session/Cookie根JWT、真实因子门控，库与角色清单未变；原队列管理回滚等每库6项证据仍保留原输入边界。
+
+sqlite326-fortify/receipt.json实载既有SQLite3.26.0动态库，核version/source_id与dyld真实路径，60项迁移/字段/回退断言通过，不外推为全部业务最低版验收。Keycloak-real-8在真实Keycloak26.8.1+专属Redis+MySQL下通过双RP/TOTP、签名backchannel、独立API进程、Redis故障503、恢复同令牌重试/重放拒绝；前后端口映射相同、库/角色清单无差异、自有容器删除。首次测试包装器未转发reader、失败登录pending Session清理及runner标签/动态端口造成的失败逐次保留，精确清理自有失败库，未清历史/共享数据。最终夹具以真实SessionStoreHandle执行；被拒后只保存已flush且Guard非认证的空访客再正常销毁/重建CSRF，原401和503断言保留。四处令牌相等断言仅改脱敏消息，最终Keycloak全特性与无session-redis的严格Clippy通过。
+
+普通无选项fresh-plain-default的new/fmt/check/test10项通过，默认MySQL及原生成输入不变。main-gates-6后生产Rust/manifest/lock没有变化，仅Keycloak测试夹具、CI和事实文档修正，新增Query候选两文件尚未mod引用并排除本次提交；匹配影响已定向重验，不重称完整main在后来元数据上重复运行。Google真实客户端与UUID/字符串JWT持久链仍未达成；完整R7/Fortify/ADR-001及Passport/SSO等后继未关闭。
+
+完成上述在途验收后已核构建进程/target占用与源码归属，先退役生成包产物、再按软保护线正常cargo clean共享target：实际54,535,081,984B→0，磁盘可用94,590,861,312B→148,139,393,024B，1467项源码/生成输入哈希未变。回执`artifact-retirement-after-main/result.json`；源码、依赖来源、服务、原始验收证据保留。
+
+
 ## R7 具名认证核心限定验收
 
 2026-11-04，开发基线0d3b4fd，本地提交以Git为准。固定Laravel framework d52c3b3与docs960eedf，AuthManager/UserProvider/SessionGuard生命周期、默认与错误边界按源码对应；DatabaseUserProvider通过公开QueryBuilder与模型工厂保留数字/字符串ID、同数据库/表账户来源。Eloquent尚未实现；原有MFA属于增强，不将本簇当完整Fortify、Auth或R7完成。

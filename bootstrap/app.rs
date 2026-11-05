@@ -31,6 +31,16 @@ impl Application for Server {
         crate::config::boot()
     }
 
+    fn default_providers() -> openrust::core::DefaultProviders {
+        let providers = openrust::core::DefaultProviders::auto();
+        #[cfg(feature = "auth-fortify")]
+        let providers = providers.replace(
+            openrust::core::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(),
+            Box::new(crate::app::providers::AuthenticationProfileProvider::default()),
+        );
+        providers
+    }
+
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         providers::application_providers(config)
     }
@@ -60,3 +70,19 @@ mod host_without_database;
 #[cfg(test)]
 #[path = "../tests/server/bootstrap.rs"]
 mod tests;
+
+#[cfg(all(
+    test,
+    feature = "auth-fortify",
+    any(feature = "db-sqlite", feature = "db-mysql", feature = "db-postgres")
+))]
+#[path = "../tests/server/auth/fortify.rs"]
+mod fortify_flows;
+
+#[cfg(all(
+    test,
+    feature = "auth-fortify",
+    any(feature = "db-sqlite", feature = "db-mysql", feature = "db-postgres")
+))]
+#[path = "../tests/server/auth/jwt_api.rs"]
+mod jwt_api_flows;

@@ -1,4 +1,3 @@
-    std::fs::write(
-        config_dir.join("encryption.toml"),
-        "[security.encryption]\nactive_key_id = 'test'\n\n[security.encryption.keys]\ntest = 'KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio='\n",
-    )?;
+    command
+        .env("APP_SECURITY_ENCRYPTION_ACTIVE_KEY_ID", "local")
+        .env("APP_SECURITY_ENCRYPTION_KEYS_LOCAL", "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=");

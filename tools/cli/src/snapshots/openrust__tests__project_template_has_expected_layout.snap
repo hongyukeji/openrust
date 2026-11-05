@@ -858,6 +858,22 @@ struct InputApplication<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for InputApplication<A> {
     type Config = A::Config;
 
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        A::default_providers()
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
+
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
@@ -1148,6 +1164,22 @@ impl ServiceProvider for MessageBagRoutes {
 struct MessageBagApplication<A>(std::marker::PhantomData<fn() -> A>);
 impl<A: Application> Application for MessageBagApplication<A> {
     type Config = A::Config;
+
+    fn config() -> openrust::config::ConfigManifest {
+        A::config()
+    }
+    fn default_providers() -> openrust::core::DefaultProviders {
+        A::default_providers()
+    }
+    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        A::package_providers(config)
+    }
+    fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
+        A::additional_providers()
+    }
+    fn with_bootstrap_providers() -> bool {
+        A::with_bootstrap_providers()
+    }
 
     fn config_namespace() -> &'static str {
         A::config_namespace()
@@ -3698,7 +3730,7 @@ pub async fn assert_request_redirect<A: Application>(
 
 本项目基于 OpenRust，普通 `cargo run` 启动应用，`cargo test` 执行测试。
 
-标准 `openrust new` 预置 MySQL、Redis 缓存以及数据库和 Redis 队列实现；`--db postgres` 可选择 PostgreSQL，`--auth` 复用默认数据库，`--minimal` 明确省略数据库驱动、迁移包和队列（仍保留 Redis 缓存、view、session）。生成项目显式选择框架依赖 feature；应用本身没有本地 feature 映射，不能仅靠 `cargo check --no-default-features` 取消这些已选依赖。
+标准 `openrust new` 预置 MySQL、Redis 缓存以及数据库和 Redis 队列实现；`--db postgres` 可选择 PostgreSQL，`--auth` 或 `--fortify` 选择官方 Web/Fortify、`web` Guard 和受保护 Session/Cookie，自动启用加密与现代因子迁移；只有显式 `--profile jwt-api` 选择不使用 Cookie/Session 的完整 JWT API，认证装配复用默认数据库，`--minimal` 明确省略数据库驱动、迁移包和队列（仍保留 Redis 缓存、view、session）。生成项目显式选择框架依赖 feature；认证应用提供本地 `auth`、`encryption`、`auth-fortify` feature 转发，其他能力由生成时所选依赖启用，不能仅靠 `cargo check --no-default-features` 取消这些已选依赖。
 
 复制 `.env.example` 为 `.env` 并填写实际连接信息；标准默认 `QUEUE_CONNECTION=database`，可改为 `redis`，不需要手改 Cargo 或 Provider。Redis 队列 URL 默认继承同次有效 `cache.stores.redis.dsn`，可用 `QUEUE_REDIS_URL` 独立覆盖，`QUEUE_REDIS_NAMESPACE` 覆盖键隔离名。框架迁移与应用自定义迁移由同一 `Migrator` 贡献，部署须显式执行 `openrust migrate`。任务处理器须已编译并登记；`openrust generate job delivery` 自动接入应用任务 Provider，生成的未实现 handler 会明确报错。启动 worker 使用 `openrust queue work database --queue default` 或 `openrust queue work redis --queue default`；第一个参数选择连接，`--queue` 选择该连接的队列。`serve` 不自动运行迁移或 worker，未选连接不初始化，不静默改用其他后端。
 

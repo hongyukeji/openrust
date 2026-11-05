@@ -5,6 +5,8 @@ pub mod app;
 pub mod auth;
 pub mod cache;
 pub mod database;
+#[cfg(feature = "auth-fortify")]
+pub mod fortify;
 #[cfg(feature = "grpc")]
 pub mod grpc;
 pub mod hashing;
@@ -26,7 +28,10 @@ pub mod view;
 
 /// 登记默认配置；显式文件、环境及前置覆写通过同一仓储参与依赖读取。
 pub fn boot() -> openrust::config::ConfigManifest {
-    let manifest = openrust::config::ConfigManifest::new()
+    let manifest = openrust::config::ConfigManifest::new();
+    #[cfg(feature = "auth-fortify")]
+    let manifest = manifest.section("auth-profile", fortify::profile);
+    let manifest = manifest
         .section("server", server::config)
         .section("app", app::config)
         .section("api", api::config)
@@ -42,6 +47,10 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("auth", auth::config)
         .section("hashing", hashing::config)
         .section("security", security::config);
+    #[cfg(feature = "auth-fortify")]
+    let manifest = manifest
+        .section("fortify", fortify::config)
+        .section("fortify-options", fortify::options);
     #[cfg(feature = "queue")]
     let manifest = manifest.section("queue", queue::config);
     #[cfg(feature = "realtime")]

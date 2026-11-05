@@ -31,6 +31,16 @@ use crate::{
 const ENVELOPE_VERSION: u8 = 1;
 const REVOKE_CHANNEL: &str = "__openrust_revoke__";
 
+/// 长连接每次发送或处理输入前重新验证真实凭据。
+///
+/// 返回当前绝对截止时间；框架只收紧握手期限，不续期。实现必须在返回前释放
+/// 数据库事务和锁，不得持锁跨网络发送；错误会终止连接，不向客户端公开细节。
+#[async_trait]
+pub trait RealtimeValidator: Send + Sync + 'static {
+    /// 重新核对同一身份的当前凭据、撤销状态及期限，不要求再次输入TOTP。
+    async fn validate(&self) -> Result<SystemTime>;
+}
+
 /// 可供第三方实现的共享实时消息 transport。
 #[async_trait]
 pub trait RealtimeTransport: Send + Sync + 'static {
@@ -196,6 +206,7 @@ impl Realtime {
         self.0.connection_count.fetch_add(1, Ordering::Relaxed);
         #[cfg(feature = "metrics")]
         metrics::gauge!("openrust_realtime_connections_in_flight").increment(1.0);
+        let monotonic_now = tokio::time::Instant::now();
         let valid_for = SystemTime::UNIX_EPOCH
             .checked_add(Duration::from_secs(expires_at_unix_secs))
             .and_then(|end| end.duration_since(SystemTime::now()).ok())
@@ -207,9 +218,38 @@ impl Realtime {
             receiver,
             close: close_receiver,
             _connection_slot: permit,
-            expires_at: tokio::time::Instant::now() + valid_for,
+            expires_at: monotonic_now + valid_for,
             heartbeat: Duration::from_secs(self.0.config.heartbeat_interval_secs),
+            validator: None,
         })
+    }
+
+    /// 建立在每次输入与发送边界重新验证凭据的连接。
+    ///
+    /// 校验超时为心跳间隔与5秒的较小值；握手期限也会中断校验。回调在连接
+    /// 注册前先执行一次，之后不持连接注册表锁调用。调用方负责固定真实身份，
+    /// 不得把一次握手成功或普通布尔值当作当前凭据仍有效的证明。
+    pub async fn connect_with_validator(
+        &self,
+        user: &CurrentUser,
+        channel: impl Into<String>,
+        authorized_until: SystemTime,
+        validator: Arc<dyn RealtimeValidator>,
+    ) -> Result<RealtimeSession> {
+        let remaining = authorized_until
+            .duration_since(SystemTime::now())
+            .map_err(|_| Error::Unauthorized)?;
+        let timeout = Duration::from_secs(self.0.config.heartbeat_interval_secs)
+            .min(Duration::from_secs(5))
+            .min(remaining);
+        let current = tokio::time::timeout(timeout, validator.validate())
+            .await
+            .map_err(|_| Error::Unauthorized)??;
+        let mut session = self
+            .connect(user, channel, authorized_until.min(current))
+            .await?;
+        session.validator = Some(validator);
+        Ok(session)
     }
 
     /// 向指定用户在目标频道的所有本机及在线远端连接发送 JSON。
@@ -429,6 +469,7 @@ pub struct RealtimeSession {
     _connection_slot: OwnedSemaphorePermit,
     expires_at: tokio::time::Instant,
     heartbeat: Duration,
+    validator: Option<Arc<dyn RealtimeValidator>>,
 }
 
 impl RealtimeSession {
@@ -448,29 +489,24 @@ impl RealtimeSession {
         let stream = futures_util::stream::unfold(
             (self, tokio::time::interval(interval)),
             |(mut session, mut ticker)| async move {
-                tokio::select! {
-                    () = tokio::time::sleep_until(session.expires_at) => {
-                        session.realtime.remove_connection(&session.id).await;
-                        None
-                    }
+                let event = tokio::select! {
+                    () = tokio::time::sleep_until(session.expires_at) => None,
                     changed = session.close.changed() => {
-                        if changed.is_err() || *session.close.borrow() {
-                            session.realtime.remove_connection(&session.id).await;
-                            None
-                        } else {
-                            Some((Ok::<_, Infallible>(Event::default().comment("keep-alive")), (session, ticker)))
-                        }
+                        if changed.is_err() || *session.close.borrow() { None }
+                        else { Some(Event::default().comment("keep-alive")) }
                     }
-                    _ = ticker.tick() => Some((Ok::<_, Infallible>(Event::default().comment("keep-alive")), (session, ticker))),
-                    queued = session.receiver.recv() => {
-                        if let Some(queued) = queued {
-                            Some((Ok::<_, Infallible>(Event::default().id(queued.message.id).data(queued.message.payload)), (session, ticker)))
-                        } else {
-                            session.realtime.remove_connection(&session.id).await;
-                            None
-                        }
-                    }
+                    _ = ticker.tick() => Some(Event::default().comment("keep-alive")),
+                    queued = session.receiver.recv() => queued.map(|queued| {
+                        Event::default().id(queued.message.id).data(queued.message.payload)
+                    }),
+                };
+                if let Some(event) = event
+                    && session.authorize_io().await
+                {
+                    return Some((Ok::<_, Infallible>(event), (session, ticker)));
                 }
+                session.realtime.remove_connection(&session.id).await;
+                None
             },
         );
         let mut response = Sse::new(stream).into_response();
@@ -485,6 +521,35 @@ impl RealtimeSession {
         response
     }
 
+    // 校验在注册表锁外执行，且同一连接串行，避免重叠回调或旧结果覆盖新期限。
+    async fn authorize_io(&mut self) -> bool {
+        if *self.close.borrow() || tokio::time::Instant::now() >= self.expires_at {
+            return false;
+        }
+        let Some(validator) = self.validator.clone() else {
+            return true;
+        };
+        let timeout = self.heartbeat.min(Duration::from_secs(5));
+        let result = tokio::select! {
+            biased;
+            () = tokio::time::sleep_until(self.expires_at) => return false,
+            changed = self.close.changed() => { let _ = changed; return false; }
+            result = tokio::time::timeout(timeout, validator.validate()) => result,
+        };
+        let Ok(Ok(deadline)) = result else {
+            return false;
+        };
+        let monotonic_now = tokio::time::Instant::now();
+        let Ok(remaining) = deadline.duration_since(SystemTime::now()) else {
+            return false;
+        };
+        let Some(deadline) = monotonic_now.checked_add(remaining) else {
+            return false;
+        };
+        self.expires_at = self.expires_at.min(deadline);
+        !*self.close.borrow() && tokio::time::Instant::now() < self.expires_at
+    }
+
     async fn run_websocket(mut self, mut socket: WebSocket) {
         let mut heartbeat = tokio::time::interval(self.heartbeat);
         loop {
@@ -494,13 +559,16 @@ impl RealtimeSession {
                     if changed.is_err() || *self.close.borrow() { break; }
                 }
                 _ = heartbeat.tick() => {
+                    if !self.authorize_io().await { break; }
                     if !send_until_boundary(&mut self.close, self.expires_at, socket.send(WsMessage::Ping(Vec::new().into()))).await { break; }
                 }
                 queued = self.receiver.recv() => {
                     let Some(queued) = queued else { break };
+                    if !self.authorize_io().await { break; }
                     if !send_until_boundary(&mut self.close, self.expires_at, socket.send(WsMessage::Text(queued.message.payload.into()))).await { break; }
                 }
                 incoming = socket.recv() => {
+                    if !self.authorize_io().await { break; }
                     match incoming {
                         Some(Ok(WsMessage::Close(_)) | Err(_)) | None => break,
                         Some(Ok(WsMessage::Ping(payload))) => {
@@ -1103,3 +1171,6 @@ mod provider_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod validator_tests;

@@ -9,7 +9,7 @@ pub(super) fn application_providers(
     vec![
         Box::new(crate::app::providers::AppServiceProvider),
         Box::new(openrust::db::MigrationServiceProvider::<
-            openrust::db::FrameworkMigrator,
+            crate::database::Migrator,
         >::new()),
     ]
 }

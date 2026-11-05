@@ -1,14 +1,31 @@
 # `openrust::auth`
 
+## MFA、2FA 与用户选择
+
+多因素认证（MFA）是总体安全能力名称；双因素认证（2FA）是其中使用两类因素的形式，TOTP 是验证码验证技术。本批对应 Laravel Fortify 的 Two-Factor Authentication，支持密码与 TOTP／恢复流程，不据此宣称支持其他尚未实现的认证因子；官方 API、配置及来源名称保持不变。
+
+用户按需绑定和开启。当前应用 `confirm=true`：未绑定可正常密码登录，待确认不当作已开启，验证确认后登录执行双因素挑战；完成必要身份确认后可关闭。应用开放绑定功能不等于所有账户已开启。其他应用显式选用 `confirm=false` 时仍遵循固定官方语义，不将本应用策略强改为框架默认。
+
+删除旧 MFA 仅指旧 OpenRust 独立实现及旧数据兼容，保留 MFA 概念、TOTP 与正常安全能力；不恢复 `auth-mfa` feature 承载术语。
+
+
 🟡 R7具名认证核心簇编码及适用验收、最终证据独审和资源收尾已收齐，本地提交以Git为准；当前实际门禁、输入复用及剩余项见唯一todo。已验证的SQLite本地认证/MFA子范围见 [测试基线](../memory/testing.md#sqlite-本地认证与-mfa-限定验收)，不据此关闭完整Auth、Eloquent或官方Fortify。
 
 > 受众：AI Agent
-> 更新：2026-10-29
+> 更新：2026-11-05
 > 摘要：M3 认证运行时、M5 查询授权/OIDC/TOTP MFA 实现事实；真实 Twilio 送达仍需授权账号与目标。
+
+## 当前单体系整改
+
+旧MfaService/auth-mfa及双轨兼容已按真人最新决定撤销；实际删除与调用方重写已编码并完成当前限定验收，完整交付与提交状态以唯一todo为准。官方Web二因素管线为Fortify同Guard/Session，用户显式选中的API profile为无Session/Cookie的Bearer JWT与受用途约束短挑战扩展，框架/官方包默认不改为JWT；通用安全扩展逐项举证保留，旧数据不兼容且不执行共享库清空。
 
 ## 当前实现
 
-🟡 R7具名认证当前WIP：AuthServiceProvider注册AuthDrivers与scoped AuthManager，Session/Web请求共享真实上下文；Guard/Provider按配置和请求缓存、CurrentUser保留数字/字符串ID及来源。DatabaseUserProvider走同一Db查询/工厂，根app-users适配password_hash并拒绝disabled_at，真实Eloquent仍未实现。StatefulGuard提供Session/remember/once/事件语义；GenericUser原子CAS用于Rust取消恢复，未实现能力前置拒绝，既有AuthFlows/OIDC桥接核同一数据库句柄和账户表，不按相同整数ID跨域。唯一模块账户/浏览器实时/OIDC Session调用方、CLI生成模型/配置/测试与正式指南已编码；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低3.26迁移30断言已通过；最终证据独审与提交状态见唯一todo。详见唯一todo与Fortify计划的R7前置边界。
+🟡 当前Fortify安全WIP：CredentialAuthority串联受管Session/JWT/PAT/refresh与直接挑战；OIDC第一因素继续同一现代挑战并保留实际流程origin。Session attach准备sealed真实绑定与证明，事务内核当前代际及同步Session；refresh attach只读核实际raw/完整家族/期限，拒绝不暗中撤销后继。关联保留原截止到最后await后复核；现代/旧/无挑战按实际注册能力决定清理，不按编译feature假设迁移存在。Native关联注销调用实际低层DELETE、不承诺防复活；跨策略残留challenge清理与完整矩阵仍开放。SQLite缺列/generation gate严格区分未安装/部分schema/非NULL资产，PRAGMA table_xinfo含大小写与generated列。动态options已按boot/调用点分开求值，使用同一仓储、严格true与PHP整数转换；统一authority及remember缓存重核当前confirm。最新1282库测试、三个生成profile和实库限定复用见唯一todo及options-lifecycle-batch-receipt；未提交、未完成完整Fortify。
+
+🟡 Fortify Provider 扩展现要求 `verify_with_context` 返回同次 `TwoFactorCodeVerification`，原 bool 门面委托一次；自定义周期通过 `verified_with_period` 显式给出，不用 Actions 选项猜测。内置 Google Provider 单例复用 ConfigRepository 的动态 window，缓存 miss 的第二次时钟读取与原缓存期限保留；三消费入口使用实际事实、code绑定及有限nonce期限。接管同种子旧资产仍扫描整个实际窗口，缓存跳过旧碰撞不绕过持久floor。其余动态flags、任意扩窗/回退的永久防重放及非Google旧种子映射不因此宣称闭合，最新限定证据见唯一todo及window-provider-batch-receipt。
+
+✅ R7具名认证限定基线（5ad34b9）：AuthServiceProvider注册AuthDrivers与scoped AuthManager，Session/Web请求共享真实上下文；Guard/Provider按配置和请求缓存、CurrentUser保留数字/字符串ID及来源。DatabaseUserProvider走同一Db查询/工厂，根app-users适配password_hash并拒绝disabled_at，真实Eloquent仍未实现。StatefulGuard提供Session/remember/once/事件语义；GenericUser原子CAS用于Rust取消恢复，未实现能力前置拒绝，既有AuthFlows/OIDC桥接核同一数据库句柄和账户表，不按相同整数ID跨域。唯一模块账户/浏览器实时/OIDC Session调用方、CLI生成模型/配置/测试与正式指南已编码；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低3.26迁移30断言已通过；最终证据独审与提交状态见唯一todo。详见唯一todo与Fortify计划的R7前置边界。
 
 - 配置结构位于 `openrust::config::auth`，旧的 `openrust::auth` 配置导出保持可用；JWT 密钥可放在受保护的 `.env` 或由部署环境注入，进程环境优先；生成项目不写入真实密钥。
 
@@ -26,7 +43,7 @@
 - `AuthFlowsServiceProvider` 在 `DatabaseServiceProvider`、`AuthServiceProvider`、`JwtServiceProvider` 之后注册统一流程服务；缺少任一依赖或 refresh lifetime 越界时构建失败。服务提供注册/邮箱验证/登录/refresh/登出/密码重置编排，按 endpoint + identity 摘要 + 调用方可信 request-source 消费共享 `RateLimiter`。注册和找回返回 redacted code wrapper，不发送邮件/SMS；默认 30 天 refresh family、5 次/15 分钟固定窗口。密码重置与 refresh family 撤销在同一数据库事务提交。
 - 注册仅将邮箱唯一约束冲突映射为 `None`；CHECK、截断及其他 SQL 错误继续传播，避免 MySQL `INSERT IGNORE` 将非重复错误伪装成重复账户。
 - 唯一示例账户Session流程使用login_session_with_guard/logout_session_with_guard，先核同一Db/实际users域，再经同scope web Guard登录/注销，返回标准Session token并使用CSRF middleware；注销轮换ID/token、保留业务偏好。旧login_session/logout_session及用户ID/独立CSRF digest仍作为显式旧认证资产保留，不与具名身份并存。
-- 可选 `auth-mfa` feature 由 `MfaServiceProvider` 显式启用，依赖数据库、`AuthServiceProvider` 的密码/共享限流服务与 `EncryptionServiceProvider`；启动时检查 MFA 表和数据库审计表。应用 migrator 必须注册 `AuthMfaMigration`。TOTP seed 使用本地 `Encryptor` 加密，RFC 6238 采用 SHA-1、30 秒时间步、6 位码和 ±1 窗口；因子行锁及 `last_used_step` 防止重放。
+- `auth-fortify` 启用唯一Fortify/TOTP能力，依赖同一Guard/UserProvider、加密与应用迁移清单。根应用默认Web管线；显式JWT profile经正式Provider选择。旧`MfaServiceProvider`和`AuthMfaMigration`已移除，不存在并行旧因子表或自动接管数据。TOTP seed继续由本地Encryptor加密，算法、重放与因子变更按同一Fortify状态/authority核验。
 - `AuthFlows::begin_login` 返回 `LoginAttempt`，启用 MFA 的账户仅获得来源绑定、5 分钟有效、最多五次的挑战；`complete_mfa_login` 在同一事务消费挑战/因子、签发 JWT/refresh 并写审计。现有AuthFlows登录和旧显式AuthMode::Session保留MFA阻断。通用具名Guard不查询应用MFA状态；唯一示例受保护账户Session组显式装require_session_factor，以mfa_enabled拒绝已启用MFA账户的该路径。该查询不证明当前请求完成第二因子；官方Fortify/TOTP仍后继。
 - MFA enrollment 需先通过已授权应用路由重新验证本地密码；待确认 seed 仅在 OTP 确认后启用。十个随机恢复码只显示一次，库中仅存 SHA-256 摘要；恢复码按事务原子消费。启用、禁用和恢复码重置写数据库审计并撤销账户 refresh token。已签发无状态 JWT 仍在原 TTL 内有效。
 - `CurrentUser` / `OptionalUser` 从请求扩展读取身份，可与 `Inject<T>` 同一 handler 使用。PAT abilities 精确匹配。
@@ -86,3 +103,5 @@
 - 2026-10-26 当前基线复核：PostgreSQL 18 与 MySQL 8.4 的 `auth_database` 各 6 项、`auth_runtime` 各 6 项通过；当前生成模板项目在两库分别通过 `auth_flows` 真实 TCP HTTP 测试。覆盖注册/重复注册、邮箱验证、登录、Session 轮换/CSRF/退出、JWT 与 PAT、refresh 轮换/重放、密码重置、共享限流、Policy/RBAC 与 PAT ability 交集、可信代理和统一错误 envelope。
 - 2026-10-26：默认及 all-features workspace fmt/clippy/test/doc 全通过；认证真实隔离库流程测试在 PostgreSQL 16 与 MySQL 8.4 通过；新生成 PostgreSQL、MySQL 项目分别运行 `cargo fmt --all --check && cargo check && cargo test` 通过。MySQL 模板构建提示有数个未启用可选 crate patch，不影响已启用图谱或测试结果。
 - 2026-10-26：`policy_grants_and_revocations_are_visible_to_authenticated_routes` 在 PostgreSQL 16 与 MySQL 8.4 真实隔离库通过，验证 JWT 路由默认拒绝、授予/撤销即时生效、PAT ability 与数据库授权取交集，并覆盖自定义用户表映射。
+
+显式 FortifyJwtApi 已绑定时，gRPC Bearer JWT 每次在独立 scope 中解析该服务并复用其完整认证，向业务传递所选 Guard / Provider；PAT 与未选 profile 的 JWT 沿既有机制。Redis 父 Session 独立读取以原子有界载荷/PTTL及记录截止为准，不续期、无TTL明确拒绝，计算截止保守向下取整秒且不足一秒拒绝；跨 Redis 与数据库不承诺分布式原子提交。当前批次最终验收与提交状态由唯一 todo 记录。

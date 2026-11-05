@@ -1,7 +1,7 @@
 //! 文章所有者的只读 WebSocket；订阅 topic 和认证截止时间均由服务端确定。
 
-use super::realtime::{bearer_token, require_owned};
-use openrust::auth::{CurrentUser, JwtTokens};
+use super::realtime::{article_access_validator, bearer_token, require_owned};
+use openrust::auth::{CurrentUser, authenticate_access_credential};
 use openrust::http::axum::{extract::ws::WebSocketUpgrade, http::HeaderMap, response::Response};
 use openrust::http::{Inject, Path};
 use openrust::realtime::Realtime;
@@ -13,27 +13,40 @@ pub(crate) async fn connect(
     user: CurrentUser,
     headers: HeaderMap,
     Inject(db): Inject<Db>,
-    Inject(tokens): Inject<JwtTokens>,
+    openrust::http::axum::Extension(state): openrust::http::axum::Extension<
+        openrust::core::AppState,
+    >,
     Inject(realtime): Inject<Realtime>,
     Path(id): Path<i64>,
     upgrade: WebSocketUpgrade,
 ) -> Result<Response> {
     let (token_user, expires_at) =
-        tokens.verify_access_token_with_expiry(bearer_token(&headers)?)?;
+        authenticate_access_credential(&state, bearer_token(&headers)?).await?;
     if token_user != user.integer_id()? {
         return Err(Error::Unauthorized);
     }
     require_owned(&db, user.integer_id()?, id).await?;
     realtime.validate_origin(&headers)?;
     Ok(realtime
-        .connect(&user, format!("example.article.{id}"), expires_at)
+        .connect_with_validator(
+            &user,
+            format!("example.article.{id}"),
+            expires_at,
+            article_access_validator(
+                state,
+                (*db).clone(),
+                user.integer_id()?,
+                id,
+                bearer_token(&headers)?,
+            ),
+        )
         .await?
         .websocket(upgrade))
 }
 
 /// 浏览器使用同请求已认证的 Cookie Session；握手不传 URL 凭据或自定义 CSRF header。
 /// 精确 Origin 防跨站 WebSocket 劫持，连接上限固定为当前持久 Session 截止时间。
-/// 已建连接不宣称在其他请求退出登录后即时撤销。
+/// 统一因子模式在每次发送/输入前读取当前持久记录；不承诺撤销与网络写入原子化。
 #[allow(clippy::too_many_arguments)] // 显式提取认证 Session、URI 和存储，避免隐藏握手安全边界。
 pub(crate) async fn browser_connect(
     user: CurrentUser,
@@ -44,6 +57,9 @@ pub(crate) async fn browser_connect(
     Inject(sessions): Inject<openrust::auth::SessionStoreHandle>,
     Inject(auth): Inject<openrust::auth::AuthManager>,
     Inject(realtime): Inject<Realtime>,
+    #[cfg(feature = "auth-fortify")] Inject(authority): Inject<
+        openrust::auth::fortify::CredentialAuthority,
+    >,
     Path(id): Path<i64>,
     upgrade: WebSocketUpgrade,
 ) -> Result<Response> {
@@ -64,8 +80,26 @@ pub(crate) async fn browser_connect(
     let expires_at = sessions
         .authorized_until_guard(&session, guard.as_stateful().ok_or(Error::Unauthorized)?)
         .await?;
-    Ok(realtime
+    #[cfg(feature = "auth-fortify")]
+    let connection = realtime
+        .connect_with_validator(
+            &user,
+            format!("example.article.{id}"),
+            expires_at,
+            std::sync::Arc::new(super::realtime::BrowserArticleValidator {
+                credential: sessions
+                    .prepare_live_guard(&session, guard.as_stateful().ok_or(Error::Unauthorized)?)
+                    .await?,
+                authority,
+                db: (*db).clone(),
+                user_id: user.integer_id()?,
+                article_id: id,
+            }),
+        )
+        .await?;
+    #[cfg(not(feature = "auth-fortify"))]
+    let connection = realtime
         .connect(&user, format!("example.article.{id}"), expires_at)
-        .await?
-        .websocket(upgrade))
+        .await?;
+    Ok(connection.websocket(upgrade))
 }

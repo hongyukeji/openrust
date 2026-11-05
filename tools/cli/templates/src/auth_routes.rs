@@ -211,5 +211,3 @@ async fn current_user(
 ) -> Json<std::collections::BTreeMap<&'static str, serde_json::Value>> {
     Json(std::collections::BTreeMap::from([("user_id", user.id())]))
 }
-
-{{mfa_handler}}

@@ -11,6 +11,9 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Security
 
+- 显式 Fortify JWT API 的受保护 gRPC 调用复用所选 Guard / UserProvider 的请求作用域与完整凭据校验，拒绝跨域或未绑定 profile 的家族；普通 JWT / PAT 和公开 RPC 保持既有路径。
+- Redis Session 独立授权读取使用同次服务端剩余 TTL 与记录截止的较早时刻，不续期，拒绝没有 TTL 的记录；Session 派生 JWT / PAT 在提交前复核实际父记录。
+
 - Guard / UserProvider 的配置故障与请求装配故障按服务器错误返回 500，保持未知 Provider 查询的空值语义与凭据/Cookie 请求错误边界。
 
 - SQLite 自有目录清理显式释放已验证并成功取得的 sidecar 锁，避免复制描述符暂存时仅 close 导致残留锁；身份不明及活动迁移仍保守拒绝清理。
@@ -18,6 +21,10 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - calamine 升级至 0.38，修复 RUSTSEC-2026-0436 的 CFB/OLE2 解析 panic 与无界内存分配；保持现有数据交换入口及资源限制。
 
 ### Changed
+
+- Fortify 开发中的功能配置归回官方 `fortify.features`，区分包7项和安装6项清单；移除 `TwoFactorOptions.enabled`。动作按调用读取确认与密钥长度，`Fortify::two_factor_options()` 改为返回可失败的当前快照；路由及近期密码确认中间件仍按启动配置装配。
+
+- Fortify 开发中的验证码扩展改为单次 `verify_with_context` 返回实际窗口、计数及周期；自定义 `TwoFactorAuthenticationProvider` 须同步实现该方法，原 `verify` 布尔查询门面保留。默认 Provider 使用单例和同一动态配置仓库，确认、Session 与直接挑战沿用该次事实，维护原缓存行为及同种子旧资产下界。短期消费记录不承诺覆盖未来任意扩窗或时钟回退；完整 Fortify 验收仍在进行。
 
 - SQLite本地认证、PAT/RBAC、refresh、验证码和MFA复用统一数据库/Provider，安全读写采用同一连接Immediate事务、UTC精确期限和条件消费；数据库限流与事务审计同步适配。MFA预限流与锁内状态不一致时明确拒绝；外部OIDC关联不冒充本地挑战。SQLite生成认证测试使用自有文件库，完整Guard/OIDC与其他业务后端范围仍开放。
 
@@ -170,7 +177,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - R1-E 在唯一 `modules/example` 中加入有所有者约束的 Article CRUD，并以实际业务路径展示租户、附件、缓存、队列、认证、实时通信、数据交换、国际化与观测等当前公开能力；具体真实服务范围和仍未关闭的边界见示例 README 与验收记录。
 
-- `openrust new --grpc` 生成 typed Echo 服务与 Provider，并提供应用二进制 `serve all` 的 HTTP + TLS gRPC 联合运行测试。`--auth-mfa` 生成的 HTTP 验收现覆盖真实 TOTP 挑战、恢复码一次性与撤销；与 gRPC、认证、数据库组合时也生成可运行测试配置。
+- `openrust new --grpc` 生成 typed Echo 服务与 Provider，并提供应用二进制 `serve all` 的 HTTP + TLS gRPC 联合运行测试。`--auth` / `--fortify` 使用官方Web默认，显式 `--profile jwt-api` 生成JWT API与真实TOTP挑战、恢复码一次性及撤销测试；旧 `--auth-mfa` 已移除。两种模式与数据库及可选gRPC分别配置和验收。
 
 - R2-M 新增编译期 `ModuleDescriptor`、运行时 `ModuleManifest`/文件激活快照、模块配置与资源路径加载、命名空间视图和翻译，以及按全局名称/批次执行的统一迁移历史。根应用与生成项目从运行根读取模块状态；示例业务完整移至 `modules/example/`。管理写命令与完整发布流程仍属后继。
 

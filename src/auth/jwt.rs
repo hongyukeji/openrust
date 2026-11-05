@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use super::credential::JwtCredentialGrant;
 use crate::config::{ConfigError, JwtConfig};
 use crate::core::{BoxFuture, Error, Result};
 use base64::Engine as _;
@@ -69,8 +70,34 @@ impl JwtTokens {
         })
     }
 
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) fn credential_domain(&self) -> (&str, &str) {
+        (&self.inner.issuer, &self.inner.audience)
+    }
+
     /// 为正数框架账户 ID 签发短期 access token。
     pub fn issue_access_token(&self, user_id: i64) -> Result<String> {
+        self.issue_access_token_inner(user_id, None)
+    }
+
+    #[cfg(any(test, feature = "auth-fortify"))]
+    pub(crate) fn issue_access_token_with_grant(
+        &self,
+        user_id: i64,
+        grant: JwtCredentialGrant,
+    ) -> Result<String> {
+        if !cfg!(feature = "auth-fortify") {
+            return Err(Error::Unauthorized);
+        }
+        grant.validate_for_user(user_id)?;
+        self.issue_access_token_inner(user_id, Some(grant))
+    }
+
+    fn issue_access_token_inner(
+        &self,
+        user_id: i64,
+        grant: Option<JwtCredentialGrant>,
+    ) -> Result<String> {
         if user_id <= 0 {
             return Err(invalid_config("JWT subject must be a positive account ID"));
         }
@@ -88,6 +115,7 @@ impl JwtTokens {
             iat: issued_at,
             nbf: issued_at.saturating_sub(MAX_IAT_FUTURE_SKEW_SECS),
             exp: expires_at,
+            grant,
         };
         let key = self
             .inner
@@ -100,7 +128,9 @@ impl JwtTokens {
         encode(&header, &claims, &key.encoding).map_err(|_| Error::internal(TokenSigningError))
     }
 
-    /// 验证 access token 并返回通过身份验证的框架账户 ID。
+    /// 纯密码学验证 access token 并返回签名中的框架账户 ID。
+    ///
+    /// 不查询主库凭据家族或因子代际，不能替代受控凭据的当前授权检查。
     pub fn verify_access_token(&self, token: &str) -> Result<i64> {
         self.verify_access_token_with_expiry(token)
             .map(|(user_id, _)| user_id)
@@ -109,7 +139,13 @@ impl JwtTokens {
     /// 验证 access token，并返回账户 ID 与签名声明中的失效时刻。
     ///
     /// 实时连接应使用这个截止时间，避免自行猜测凭据的剩余有效期。
+    /// 本方法仅校验密码学声明；不查询主库家族、撤销状态或因子代际。
     pub fn verify_access_token_with_expiry(&self, token: &str) -> Result<(i64, SystemTime)> {
+        self.verify_credential(token)
+            .map(|verified| (verified.user_id, verified.expires_at))
+    }
+
+    pub(crate) fn verify_credential(&self, token: &str) -> Result<VerifiedAccessToken> {
         let header = decode_header(token).map_err(|_| Error::Unauthorized)?;
         if header.alg != Algorithm::HS256 || header.typ.as_deref() != Some(ACCESS_TOKEN_TYPE) {
             return Err(Error::Unauthorized);
@@ -144,7 +180,45 @@ impl JwtTokens {
         let expires_at = UNIX_EPOCH
             .checked_add(std::time::Duration::from_secs(claims.exp))
             .ok_or(Error::Unauthorized)?;
-        Ok((user_id, expires_at))
+        if let Some(grant) = &claims.grant {
+            if !cfg!(feature = "auth-fortify") {
+                return Err(Error::Unauthorized);
+            }
+            grant.validate_for_user(user_id)?;
+        }
+        Ok(VerifiedAccessToken {
+            user_id,
+            expires_at,
+            #[cfg(feature = "auth-fortify")]
+            jti: claims.jti,
+            #[cfg(feature = "auth-fortify")]
+            issuer: claims.iss,
+            #[cfg(feature = "auth-fortify")]
+            audience: claims.aud,
+            #[cfg(any(test, feature = "auth-fortify"))]
+            grant: claims.grant,
+        })
+    }
+}
+
+/// 通过完整密码学验证的事实；当前主库家族和authority须由上层异步复核。
+pub(crate) struct VerifiedAccessToken {
+    pub(crate) user_id: i64,
+    pub(crate) expires_at: SystemTime,
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) jti: String,
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) issuer: String,
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) audience: String,
+    #[cfg(any(test, feature = "auth-fortify"))]
+    pub(crate) grant: Option<JwtCredentialGrant>,
+}
+impl std::fmt::Debug for VerifiedAccessToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("VerifiedAccessToken")
+            .finish_non_exhaustive()
     }
 }
 
@@ -311,6 +385,8 @@ struct AccessClaims {
     iat: u64,
     nbf: u64,
     exp: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    grant: Option<JwtCredentialGrant>,
 }
 
 fn validate_config(config: &JwtConfig) -> Result<()> {
@@ -440,6 +516,7 @@ mod tests {
             iat: now,
             nbf: now,
             exp: now + 60,
+            grant: None,
         }
     }
 
@@ -537,5 +614,244 @@ mod tests {
     #[allow(clippy::needless_pass_by_value)]
     fn assert_unauthorized(result: crate::core::Result<i64>) {
         assert!(matches!(result, Err(crate::core::Error::Unauthorized)));
+    }
+}
+
+#[cfg(test)]
+mod credential_tests {
+    use super::*;
+    use crate::auth::{
+        FactorVerificationMethod,
+        credential::{CredentialFactorContext, FactorEvidence, FactorOrigin},
+    };
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use serde_json::{Value, json};
+
+    fn tokens() -> Result<JwtTokens> {
+        JwtTokens::new(JwtConfig::new(
+            "https://issuer.example",
+            "managed-tests",
+            "active",
+            BTreeMap::from([("active".into(), STANDARD.encode([0x39; 32]))]),
+        ))
+    }
+    fn grant() -> Result<JwtCredentialGrant> {
+        Ok(JwtCredentialGrant {
+            family_id: "1a".repeat(16),
+            context: CredentialFactorContext {
+                scope: None,
+                version: 1,
+                identifier: json!(73),
+                source: "account-authority".into(),
+                generation: "generation-1".into(),
+                factor: Some(FactorEvidence {
+                    method: FactorVerificationMethod::Totp,
+                    verified_at: unix_seconds()?,
+                    origin: FactorOrigin::Guard {
+                        guard: "web".into(),
+                        provider: Some("users".into()),
+                    },
+                }),
+            },
+        })
+    }
+    fn claims(grant: Option<JwtCredentialGrant>) -> Result<AccessClaims> {
+        let now = unix_seconds()?;
+        Ok(AccessClaims {
+            iss: "https://issuer.example".into(),
+            aud: "managed-tests".into(),
+            sub: "73".into(),
+            jti: "ad".repeat(32),
+            iat: now,
+            nbf: now,
+            exp: now + 60,
+            grant,
+        })
+    }
+    fn sign(value: &Value) -> Result<String> {
+        let mut header = Header::new(Algorithm::HS256);
+        header.typ = Some(ACCESS_TOKEN_TYPE.into());
+        header.kid = Some("active".into());
+        encode(&header, value, &EncodingKey::from_secret(&[0x39; 32])).map_err(Error::internal)
+    }
+    #[test]
+    fn old_public_apis_keep_unsigned_grant_absent_and_return_same_expiry() -> Result<()> {
+        let tokens = tokens()?;
+        let token = tokens.issue_access_token(73)?;
+        let verified = tokens.verify_credential(&token)?;
+        assert!(verified.user_id == 73 && verified.grant.is_none());
+        assert_eq!(tokens.verify_access_token(&token)?, verified.user_id);
+        assert_eq!(
+            tokens.verify_access_token_with_expiry(&token)?,
+            (verified.user_id, verified.expires_at)
+        );
+        let payload = token.split('.').nth(1).ok_or(Error::Unauthorized)?;
+        let value: Value =
+            serde_json::from_slice(&URL_SAFE_NO_PAD.decode(payload).map_err(Error::internal)?)
+                .map_err(Error::internal)?;
+        assert!(value.get("grant").is_none());
+        Ok(())
+    }
+    #[cfg(feature = "auth-fortify")]
+    #[test]
+    fn managed_grant_roundtrip_keeps_real_origin_and_signed_credential_domain() -> Result<()> {
+        let tokens = tokens()?;
+        for origin in [
+            FactorOrigin::Guard {
+                guard: "web".into(),
+                provider: Some("users".into()),
+            },
+            FactorOrigin::DatabaseFlow {
+                source: "account-authority".into(),
+                purpose: "password-login".into(),
+            },
+        ] {
+            let mut grant = grant()?;
+            let factor = grant.context.factor.as_mut().ok_or(Error::Unauthorized)?;
+            factor.origin = origin.clone();
+            let verified_at = factor.verified_at;
+            let token = tokens.issue_access_token_with_grant(73, grant.clone())?;
+            let verified = tokens.verify_credential(&token)?;
+            assert_eq!(verified.user_id, 73);
+            assert!(verified.expires_at > SystemTime::now());
+            assert!(valid_jti(&verified.jti));
+            assert!(
+                verified.issuer == "https://issuer.example" && verified.audience == "managed-tests"
+            );
+            assert!(verified.grant.as_ref().eq(&Some(&grant)));
+            let evidence = verified
+                .grant
+                .as_ref()
+                .and_then(|grant| grant.context.factor.as_ref())
+                .ok_or(Error::Unauthorized)?;
+            assert!(evidence.origin == origin && evidence.verified_at == verified_at);
+            assert_eq!(tokens.verify_access_token(&token)?, 73);
+            assert_eq!(format!("{verified:?}"), "VerifiedAccessToken { .. }");
+        }
+        let mut disabled = grant()?;
+        disabled.context.factor = None;
+        let token = tokens.issue_access_token_with_grant(73, disabled.clone())?;
+        assert!(tokens.verify_credential(&token)?.grant.as_ref() == Some(&disabled));
+        Ok(())
+    }
+    #[test]
+    fn managed_signed_invalid_contexts_and_owners_fail_closed() -> Result<()> {
+        let tokens = tokens()?;
+        let valid = grant()?;
+        let mut invalid = Vec::new();
+        let mut changed = valid.clone();
+        changed.family_id.clear();
+        invalid.push(changed);
+        let mut changed = valid.clone();
+        changed.family_id = "AA".repeat(16);
+        invalid.push(changed);
+        let mut changed = valid.clone();
+        changed.family_id = "1a".repeat(15);
+        invalid.push(changed);
+        let mut changed = valid.clone();
+        changed.context.identifier = json!(74);
+        invalid.push(changed);
+        let mut changed = valid.clone();
+        changed.context.identifier = json!("73");
+        invalid.push(changed);
+        let mut changed = valid.clone();
+        changed.context.version = 2;
+        invalid.push(changed);
+        let mut changed = valid.clone();
+        changed.context.source.clear();
+        invalid.push(changed);
+        let mut changed = valid.clone();
+        changed.context.generation.clear();
+        invalid.push(changed);
+        let mut changed = valid;
+        changed
+            .context
+            .factor
+            .as_mut()
+            .ok_or(Error::Unauthorized)?
+            .verified_at = unix_seconds()? + 3_600;
+        invalid.push(changed);
+        for grant in invalid {
+            assert!(
+                tokens
+                    .issue_access_token_with_grant(73, grant.clone())
+                    .is_err()
+            );
+            let token =
+                sign(&serde_json::to_value(claims(Some(grant))?).map_err(Error::internal)?)?;
+            assert!(matches!(
+                tokens.verify_credential(&token),
+                Err(Error::Unauthorized)
+            ));
+        }
+        assert!(tokens.issue_access_token_with_grant(74, grant()?).is_err());
+        Ok(())
+    }
+    #[test]
+    fn unknown_fields_in_claim_grant_context_evidence_or_origin_are_rejected() -> Result<()> {
+        let tokens = tokens()?;
+        let value = serde_json::to_value(claims(Some(grant()?))?).map_err(Error::internal)?;
+        for path in [
+            "",
+            "/grant",
+            "/grant/context",
+            "/grant/context/factor",
+            "/grant/context/factor/origin",
+        ] {
+            let mut altered = value.clone();
+            let target = if path.is_empty() {
+                &mut altered
+            } else {
+                altered.pointer_mut(path).ok_or(Error::Unauthorized)?
+            };
+            target
+                .as_object_mut()
+                .ok_or(Error::Unauthorized)?
+                .insert("unexpected".into(), json!(true));
+            assert!(tokens.verify_credential(&sign(&altered)?).is_err());
+        }
+        Ok(())
+    }
+    #[test]
+    fn claims_binding_cannot_be_changed_without_resigning() -> Result<()> {
+        let tokens = tokens()?;
+        let original = serde_json::to_value(claims(Some(grant()?))?).map_err(Error::internal)?;
+        let token = sign(&original)?;
+        let parts: Vec<_> = token.split('.').collect();
+        let header = parts.first().ok_or(Error::Unauthorized)?;
+        let signature = parts.get(2).ok_or(Error::Unauthorized)?;
+        for path in [
+            "/iss",
+            "/aud",
+            "/jti",
+            "/grant/family_id",
+            "/grant/context/source",
+            "/grant/context/generation",
+        ] {
+            let mut changed = original.clone();
+            *changed.pointer_mut(path).ok_or(Error::Unauthorized)? = json!("altered");
+            let payload =
+                URL_SAFE_NO_PAD.encode(serde_json::to_vec(&changed).map_err(Error::internal)?);
+            let altered = format!("{header}.{payload}.{signature}");
+            assert!(tokens.verify_credential(&altered).is_err());
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "auth-fortify"))]
+    #[test]
+    fn feature_disabled_rejects_managed_signing_and_even_valid_signed_managed_tokens() -> Result<()>
+    {
+        let tokens = tokens()?;
+        assert!(tokens.issue_access_token_with_grant(73, grant()?).is_err());
+        let token = sign(&serde_json::to_value(claims(Some(grant()?))?).map_err(Error::internal)?)?;
+        assert!(matches!(
+            tokens.verify_credential(&token),
+            Err(Error::Unauthorized)
+        ));
+        assert!(tokens.verify_access_token(&token).is_err());
+        assert!(tokens.verify_access_token_with_expiry(&token).is_err());
+        let ordinary = sign(&serde_json::to_value(claims(None)?).map_err(Error::internal)?)?;
+        assert_eq!(tokens.verify_access_token(&ordinary)?, 73);
+        Ok(())
     }
 }

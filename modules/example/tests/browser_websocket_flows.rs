@@ -9,7 +9,7 @@ use super::models::article;
 use figment::{Figment, providers::Serialized};
 use futures_util::{SinkExt, StreamExt};
 use openrust::Db;
-use openrust::auth::{AuthFlows, JwtTokens};
+use openrust::auth::AuthFlows;
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
@@ -36,7 +36,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         // 精确持久截止属于显式增强driver；复用同一sessions表，不改原生默认迁移。
         migrations.push(Box::new(openrust::session::GuardedSessionMigration));
         migrations.push(Box::new(openrust::session::GuardedSessionGcMigration));
@@ -188,7 +188,7 @@ impl Fixture {
         });
         let app = builder.build().await?;
         let flows = app.app()?.state().resolve::<AuthFlows>().await?;
-        let mut owner_id = None;
+        let mut owner = None;
         for (index, email) in [owner_email.as_str(), other_email.as_str()]
             .into_iter()
             .enumerate()
@@ -205,10 +205,11 @@ impl Fixture {
             );
             let credentials = flows.login(email, &password, &source).await?;
             if index == 0 {
-                owner_id = Some(credentials.user_id());
+                owner = Some(credentials);
             }
         }
-        let owner_id = owner_id.ok_or("owner not registered")?;
+        let owner = owner.ok_or("owner not registered")?;
+        let owner_id = owner.user_id();
         let db = app.app()?.state().resolve::<Db>().await?;
         let article = article::ActiveModel {
             owner_id: Set(owner_id),
@@ -218,12 +219,7 @@ impl Fixture {
         }
         .insert(&db.primary_connection()?)
         .await?;
-        let token = app
-            .app()?
-            .state()
-            .resolve::<JwtTokens>()
-            .await?
-            .issue_access_token(owner_id)?;
+        let token = owner.access_token().to_owned();
         let router = openrust::http::build_router(app.app()?)?;
         let (stop, stopped) = oneshot::channel();
         let server = tokio::spawn(async move {

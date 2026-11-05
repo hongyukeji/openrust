@@ -3,6 +3,7 @@
 mod contracts;
 mod database;
 mod manager;
+mod proof;
 mod registration;
 mod session;
 
@@ -13,9 +14,14 @@ pub use database::DatabaseUserProvider;
 pub use manager::{
     AuthDefaults, AuthDrivers, AuthManager, GuardConfig, GuardContext, UserProviderConfig,
 };
+pub use proof::{
+    FactorManagementContext, FactorReceipt, FactorVerificationMethod, SessionFactorProof,
+};
 pub use session::{Attempting, Authenticated, Failed, Login, Logout, SessionGuard, Validated};
 
 pub(super) use registration::register;
 pub(crate) use registration::{AuthRequestContext, install_request};
 
+#[cfg(feature = "auth-fortify")]
+pub(crate) use proof::session_factor_key;
 pub(crate) use registration::session_user_id;

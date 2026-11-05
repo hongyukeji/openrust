@@ -145,7 +145,70 @@ impl DatabaseSessionHandler {
     ///
     /// 数据库、时间、字段类型或容量失败返回不含 SQL/ID/载荷的固定错误。
     pub async fn read(&mut self, id: &str) -> Result<Vec<u8>> {
+        self.read_core(id).await.map(|(bytes, _)| bytes)
+    }
+
+    // 同一次有界SELECT的载荷与活动时间；仅用于独立只读handler，不修改普通read期限语义。
+    pub(crate) async fn read_with_deadline(
+        &mut self,
+        id: &str,
+    ) -> Result<Option<(Vec<u8>, time::OffsetDateTime)>> {
+        self.exists = false;
+        let (bytes, activity) = self.read_core(id).await?;
+        self.live_payload(bytes, activity)
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) async fn read_for_credential(
+        &mut self,
+        tx: &crate::db::DatabaseTransaction,
+        id: &str,
+    ) -> Result<Option<(Vec<u8>, time::OffsetDateTime)>> {
+        self.exists = false;
+        let (_, backend, table) = self.context()?;
+        let (bytes, activity) = self.read_from(tx, backend, &table, id, true).await?;
+        self.live_payload(bytes, activity)
+    }
+
+    fn live_payload(
+        &self,
+        bytes: Vec<u8>,
+        activity: Option<i64>,
+    ) -> Result<Option<(Vec<u8>, time::OffsetDateTime)>> {
+        if !self.exists {
+            return Ok(None);
+        }
+        let activity = activity.ok_or_else(unavailable)?;
+        let deadline = activity
+            .checked_add(self.lifetime_seconds)
+            .ok_or_else(unavailable)?;
+        if deadline <= self.now()? {
+            return Ok(None);
+        }
+        let deadline =
+            time::OffsetDateTime::from_unix_timestamp(deadline).map_err(|_| unavailable())?;
+        Ok(Some((bytes, deadline)))
+    }
+
+    async fn read_core(&mut self, id: &str) -> Result<(Vec<u8>, Option<i64>)> {
         let (connection, backend, table) = self.context()?;
+        self.read_from(&connection, backend, &table, id, false)
+            .await
+    }
+
+    async fn read_from(
+        &mut self,
+        connection: &impl ConnectionTrait,
+        backend: DbBackend,
+        table: &str,
+        id: &str,
+        credential_read: bool,
+    ) -> Result<(Vec<u8>, Option<i64>)> {
+        let lock = if credential_read && backend != DbBackend::Sqlite {
+            " FOR UPDATE"
+        } else {
+            ""
+        };
         let cutoff = self
             .now()?
             .checked_sub(self.lifetime_seconds)
@@ -160,7 +223,7 @@ impl DatabaseSessionHandler {
             "last_activity"
         };
         let sql = format!(
-            "SELECT {activity_column} AS last_activity, {length} AS payload_length, CASE WHEN last_activity < {} THEN NULL WHEN {length} <= {} THEN payload ELSE NULL END AS bounded_payload FROM {table} WHERE id = {}",
+            "SELECT id, {activity_column} AS last_activity, {length} AS payload_length, CASE WHEN last_activity < {} THEN NULL WHEN {length} <= {} THEN payload ELSE NULL END AS bounded_payload FROM {table} WHERE id = {}{lock}",
             placeholders[0], placeholders[1], placeholders[2]
         );
         let maximum = i64::try_from(maximum).map_err(|_| limit_error())?;
@@ -173,20 +236,23 @@ impl DatabaseSessionHandler {
             .await
             .map_err(|_| unavailable())?;
         let Some(row) = row else {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), None));
         };
+        if credential_read && row.try_get::<String>("", "id").map_err(|_| unavailable())? != id {
+            return Ok((Vec::new(), None));
+        }
         let activity: Option<i64> = row
             .try_get("", "last_activity")
             .map_err(|_| unavailable())?;
         if activity.is_some_and(|activity| activity < cutoff) {
             self.exists = true;
-            return Ok(Vec::new());
+            return Ok((Vec::new(), activity));
         }
         let length: Option<i64> = row
             .try_get("", "payload_length")
             .map_err(|_| unavailable())?;
         let Some(length) = length else {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), activity));
         };
         // isset(payload) 为真时，上游在解码之前就设置 exists。
         self.exists = true;
@@ -196,7 +262,7 @@ impl DatabaseSessionHandler {
         let payload: String = row
             .try_get("", "bounded_payload")
             .map_err(|_| unavailable())?;
-        decode_relaxed(payload.as_bytes(), self.max_bytes)
+        decode_relaxed(payload.as_bytes(), self.max_bytes).map(|bytes| (bytes, activity))
     }
 
     /// 写入原始字节；INSERT 的任意数据库查询错误均按上游改走 UPDATE。

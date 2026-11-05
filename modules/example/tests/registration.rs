@@ -1331,11 +1331,21 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     let before_down = before_history.len();
     #[cfg(feature = "session")]
     let gc_indexes = {
-        use openrust::database::sea_orm_migration::MigrationName;
+        use openrust::database::sea_orm_migration::{MigrationName, MigratorTrait};
+        let gc_position = before_history
+            .iter()
+            .position(|name| name == openrust::session::SessionGcMigration.name())
+            .ok_or("Session GC迁移未登记")?;
+        let application_tail = crate::database::Migrator::migrations()
+            .into_iter()
+            .skip(openrust::db::FrameworkMigrator::migrations().len())
+            .map(|migration| migration.name().to_owned())
+            .collect::<Vec<_>>();
         assert_eq!(
-            before_history.last().map(String::as_str),
-            Some(openrust::session::SessionGcMigration.name())
+            &before_history[gc_position + 1..],
+            application_tail.as_slice()
         );
+        let gc_down_steps = before_down - gc_position;
         let db = enabled.app()?.state().resolve::<openrust::db::Db>().await?;
         let indexes = session_gc_indexes(&connection, &db.table_name("sessions")?).await?;
         assert_eq!(indexes.len(), 1);
@@ -1343,13 +1353,16 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             "session_gc_down",
             enabled
                 .app()?
-                .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
+                .run_command(
+                    "migrate",
+                    vec!["down".to_owned(), gc_down_steps.to_string()],
+                )
                 .await,
         )?;
         eprintln!("module_migration phase=read_after_session_gc_down");
         assert_eq!(
             migration_versions(&connection).await?,
-            before_history[..before_down - 1]
+            before_history[..gc_position]
         );
         assert_eq!(
             session_gc_indexes(&connection, &db.table_name("sessions")?).await?,

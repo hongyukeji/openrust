@@ -7,7 +7,7 @@
 
 use super::models::article;
 use figment::{Figment, providers::Serialized};
-use openrust::auth::{AuthFlows, JwtTokens};
+use openrust::auth::AuthFlows;
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
@@ -166,7 +166,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -210,16 +210,9 @@ impl Fixture {
             auth.verify_email(email, verification.code(), "summary-timeout")
                 .await?
         );
-        let owner = auth
-            .login(email, password, "summary-timeout")
-            .await?
-            .user_id();
-        let token = app
-            .app()?
-            .state()
-            .resolve::<JwtTokens>()
-            .await?
-            .issue_access_token(owner)?;
+        let credentials = auth.login(email, password, "summary-timeout").await?;
+        let owner = credentials.user_id();
+        let token = credentials.access_token().to_owned();
         let db = app.app()?.state().resolve::<Db>().await?;
         let model = article::ActiveModel {
             owner_id: Set(owner),

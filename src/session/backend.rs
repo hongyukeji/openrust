@@ -61,7 +61,91 @@ impl GuardedDatabaseSessionStore {
     }
 }
 
+#[cfg(feature = "auth-fortify")]
+impl super::store::CredentialSessionReader for GuardedDatabaseSessionStore {
+    fn load_authorized_for_credential<'a>(
+        &'a self,
+        tx: &'a crate::db::DatabaseTransaction,
+        id: &'a SessionId,
+        maximum: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        Box::pin(async move {
+            let table = self.db.quoted_table_name(&self.table)?;
+            let backend = tx.get_database_backend();
+            let (length, budget, marker, lock) = match backend {
+                DbBackend::Postgres => ("octet_length(payload)::bigint", "$1", "$2", " FOR UPDATE"),
+                DbBackend::MySql => (
+                    "CAST(OCTET_LENGTH(payload) AS SIGNED)",
+                    "?",
+                    "?",
+                    " FOR UPDATE",
+                ),
+                DbBackend::Sqlite => ("length(CAST(payload AS BLOB))", "?", "?", ""),
+                _ => return Err(unavailable()),
+            };
+            let sql = format!(
+                "SELECT id, CASE WHEN {length}<={budget} THEN payload ELSE NULL END AS bounded_payload, {length} AS payload_length, expires_at FROM {table} WHERE id={marker}{lock}"
+            );
+            let row = tx
+                .query_one_raw(Statement::from_sql_and_values(
+                    backend,
+                    sql,
+                    [
+                        i64::try_from(maximum).map_err(|_| limit_error())?.into(),
+                        digest_id(id).into(),
+                    ],
+                ))
+                .await
+                .map_err(|_| unavailable())?;
+            let Some(row) = row else {
+                return Ok(None);
+            };
+            if row
+                .try_get::<String>("", "id")
+                .map_err(|_| invalid_record())?
+                != digest_id(id)
+            {
+                return Ok(None);
+            }
+            let length: i64 = row
+                .try_get("", "payload_length")
+                .map_err(|_| invalid_record())?;
+            if usize::try_from(length).map_err(|_| invalid_record())? > maximum {
+                return Err(limit_error());
+            }
+            let expiry: DateTime<Utc> = row
+                .try_get("", "expires_at")
+                .map_err(|_| invalid_record())?;
+            if expiry <= Utc::now() {
+                return Ok(None);
+            }
+            let cutoff = OffsetDateTime::from_unix_timestamp(expiry.timestamp())
+                .map_err(|_| invalid_record())?
+                .replace_nanosecond(expiry.timestamp_subsec_nanos())
+                .map_err(|_| invalid_record())?;
+            let payload: String = row
+                .try_get("", "bounded_payload")
+                .map_err(|_| invalid_record())?;
+            let mut record =
+                SessionRecord::decode(id.clone(), payload.as_bytes(), cutoff, maximum)?;
+            record.expiry_date = record.expiry_date.min(cutoff);
+            Ok(Some(record))
+        })
+    }
+}
+
 impl SessionStore for GuardedDatabaseSessionStore {
+    #[cfg(feature = "auth-fortify")]
+    fn credential_parent_reader(
+        &self,
+        db: &Db,
+    ) -> Result<&dyn super::store::CredentialSessionReader> {
+        if !self.db.same_handle(db) {
+            return Err(super::store::unsupported_guarantee());
+        }
+        Ok(self)
+    }
+
     fn gc(&self, _lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
         Box::pin(async move {
             let connection = self.db.connection().map_err(|_| unavailable())?;
@@ -316,7 +400,27 @@ impl std::fmt::Debug for MemorySessionStore {
     }
 }
 
+#[cfg(feature = "auth-fortify")]
+impl super::store::CredentialSessionReader for MemorySessionStore {
+    fn load_authorized_for_credential<'a>(
+        &'a self,
+        _tx: &'a crate::db::DatabaseTransaction,
+        id: &'a SessionId,
+        maximum: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        self.load_authorized(id, maximum)
+    }
+}
+
 impl SessionStore for MemorySessionStore {
+    #[cfg(feature = "auth-fortify")]
+    fn credential_parent_reader(
+        &self,
+        _db: &Db,
+    ) -> Result<&dyn super::store::CredentialSessionReader> {
+        Ok(self)
+    }
+
     fn gc(&self, _lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
         Box::pin(async move {
             let mut records = self.records.lock().await;
@@ -427,8 +531,82 @@ impl RedisSessionStore {
     }
 }
 
+// 授权读取不使用请求的回退期限；以读取前时钟加服务端剩余TTL作为保守上界。
+#[cfg(feature = "session-redis")]
+fn redis_authorized_record(
+    id: &SessionId,
+    bytes: &[u8],
+    ttl: i64,
+    observed: OffsetDateTime,
+    maximum: usize,
+) -> Result<Option<SessionRecord>> {
+    match ttl {
+        -2 | 0..=999 => return Ok(None),
+        // 无TTL的键不能证明服务端授权截止，也不能退回请求内期限。
+        -1 => return Err(invalid_record()),
+        value if value < -2 => return Err(invalid_record()),
+        _ => {}
+    }
+    if bytes.len() > maximum {
+        return Err(limit_error());
+    }
+    let deadline = observed
+        .checked_add(time::Duration::milliseconds(ttl))
+        .ok_or_else(invalid_record)?
+        // 截止只缩短；整秒避免改写纳秒字段后重新编码超过原始有界载荷预算。
+        .replace_nanosecond(0)
+        .map_err(|_| invalid_record())?;
+    let mut record = SessionRecord::decode(id.clone(), bytes, deadline, maximum)?;
+    record.expiry_date = record.expiry_date.min(deadline);
+    record.validate_for(super::SessionStoreSemantics::Guarded, maximum)?;
+    if record.expiry_date <= OffsetDateTime::now_utc() {
+        return Ok(None);
+    }
+    Ok(Some(record))
+}
+
+#[cfg(all(feature = "auth-fortify", feature = "session-redis"))]
+impl super::store::CredentialSessionReader for RedisSessionStore {
+    fn load_authorized_for_credential<'a>(
+        &'a self,
+        _tx: &'a crate::db::DatabaseTransaction,
+        id: &'a SessionId,
+        maximum: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        self.load_authorized(id, maximum)
+    }
+}
+
 #[cfg(feature = "session-redis")]
 impl SessionStore for RedisSessionStore {
+    #[cfg(feature = "auth-fortify")]
+    fn credential_parent_reader(
+        &self,
+        _db: &Db,
+    ) -> Result<&dyn super::store::CredentialSessionReader> {
+        Ok(self)
+    }
+
+    fn load_authorized<'a>(
+        &'a self,
+        id: &'a SessionId,
+        max_bytes: usize,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        Box::pin(async move {
+            let observed = OffsetDateTime::now_utc();
+            let mut connection = self.connection.clone();
+            let (bytes, ttl): (Vec<u8>, i64) = redis::cmd("EVAL")
+                .arg("return {redis.call('GETRANGE', KEYS[1], 0, ARGV[1]), redis.call('PTTL', KEYS[1])}")
+                .arg(1)
+                .arg(self.key(id))
+                .arg(max_bytes)
+                .query_async(&mut connection)
+                .await
+                .map_err(|_| unavailable())?;
+            redis_authorized_record(id, &bytes, ttl, observed, max_bytes)
+        })
+    }
+
     fn load<'a>(
         &'a self,
         id: &'a SessionId,
@@ -516,6 +694,146 @@ impl SessionStore for RedisSessionStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "session-redis")]
+    #[test]
+    fn redis_authorized_deadline_is_bounded_by_ttl_and_record_expiry() -> Result<()> {
+        let now = OffsetDateTime::now_utc();
+        let id = SessionId::generate()?;
+        let mut record = SessionRecord {
+            id: id.clone(),
+            data: serde_json::json!({"identity": 42}),
+            expiry_date: now + time::Duration::seconds(90),
+        };
+        let bytes = record.encode(4096)?;
+        let loaded =
+            redis_authorized_record(&id, &bytes, 30_000, now, 4096)?.ok_or_else(invalid_record)?;
+        assert_eq!(
+            loaded.expiry_date,
+            (now + time::Duration::seconds(30))
+                .replace_nanosecond(0)
+                .map_err(|_| invalid_record())?
+        );
+        record.expiry_date = now + time::Duration::seconds(10);
+        let bytes = record.encode(4096)?;
+        let loaded =
+            redis_authorized_record(&id, &bytes, 30_000, now, 4096)?.ok_or_else(invalid_record)?;
+        assert_eq!(loaded.expiry_date, record.expiry_date);
+        assert!(redis_authorized_record(&id, &bytes, -1, now, 4096).is_err());
+        assert!(redis_authorized_record(&id, &bytes, -2, now, 4096)?.is_none());
+        assert!(redis_authorized_record(&id, &bytes, 0, now, 4096)?.is_none());
+        assert!(redis_authorized_record(&id, &bytes, 30_000, now, 1).is_err());
+        Ok(())
+    }
+
+    #[cfg(feature = "session-redis")]
+    #[test]
+    fn redis_authorized_exact_wire_budget_and_subsecond_ttl() -> Result<()> {
+        let now = OffsetDateTime::now_utc();
+        let id = SessionId::generate()?;
+        let record = SessionRecord {
+            id: id.clone(),
+            data: serde_json::json!({"identity": 42}),
+            // 最短纳秒编码使未经取整的TTL截止更容易增大重编码载荷。
+            expiry_date: (now + time::Duration::seconds(90))
+                .replace_nanosecond(1)
+                .map_err(|_| invalid_record())?,
+        };
+        let bytes = record.encode(4096)?;
+        let maximum = bytes.len();
+        let loaded = redis_authorized_record(&id, &bytes, 30_000, now, maximum)?
+            .ok_or_else(invalid_record)?;
+        assert_eq!(loaded.data, record.data);
+        assert!(loaded.expiry_date < record.expiry_date);
+        assert_eq!(loaded.expiry_date.nanosecond(), 0);
+        assert!(loaded.expiry_date <= now + time::Duration::seconds(30));
+        loaded.validate_for(super::super::SessionStoreSemantics::Guarded, maximum)?;
+        assert!(redis_authorized_record(&id, &bytes, 999, now, maximum)?.is_none());
+        assert!(redis_authorized_record(&id, &bytes, 1, now, maximum)?.is_none());
+        assert!(
+            redis_authorized_record(&id, &bytes, 30_000, now, maximum - 1)
+                .is_err_and(|error| error.code() == "session_limits_exceeded")
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "session-redis")]
+    #[tokio::test]
+    #[ignore = "需要显式真实Redis连接；实服务验收必须单独执行"]
+    async fn redis_authorized_read_observes_ttl_without_refresh_and_rejects_persistent_key()
+    -> Result<()> {
+        fn require(condition: bool) -> Result<()> {
+            if condition {
+                Ok(())
+            } else {
+                Err(invalid_record())
+            }
+        }
+        let url = std::env::var("OPENRUST_TEST_REDIS_URL").map_err(|_| unavailable())?;
+        let id = SessionId::generate()?;
+        let mut random = [0_u8; 8];
+        getrandom::fill(&mut random).map_err(crate::Error::internal)?;
+        let namespace = format!("authread-{:x}", u64::from_be_bytes(random));
+        let store = RedisSessionStore::connect(url, namespace).await?;
+        let outcome: Result<()> = async {
+            let record = SessionRecord {
+                id: id.clone(),
+                data: serde_json::json!({"identity": 42}),
+                expiry_date: OffsetDateTime::now_utc() + time::Duration::seconds(60),
+            };
+            require(
+                store.write(&record, SessionWriteMode::Insert, 4096).await?
+                    == SessionWriteOutcome::Written,
+            )?;
+            let mut connection = store.connection.clone();
+            let key = store.key(&id);
+            let shortened: bool = redis::cmd("PEXPIRE")
+                .arg(&key)
+                .arg(10_000)
+                .query_async(&mut connection)
+                .await
+                .map_err(|_| unavailable())?;
+            require(shortened)?;
+            let before: i64 = redis::cmd("PTTL")
+                .arg(&key)
+                .query_async(&mut connection)
+                .await
+                .map_err(|_| unavailable())?;
+            let loaded = store
+                .load_authorized(&id, 4096)
+                .await?
+                .ok_or_else(invalid_record)?;
+            let after: i64 = redis::cmd("PTTL")
+                .arg(&key)
+                .query_async(&mut connection)
+                .await
+                .map_err(|_| unavailable())?;
+            require(after > 0 && after <= before)?;
+            require(loaded.expiry_date > OffsetDateTime::now_utc())?;
+            require(loaded.expiry_date <= record.expiry_date)?;
+            require(
+                loaded.expiry_date
+                    <= OffsetDateTime::now_utc() + time::Duration::milliseconds(before),
+            )?;
+            let persisted: bool = redis::cmd("PERSIST")
+                .arg(&key)
+                .query_async(&mut connection)
+                .await
+                .map_err(|_| unavailable())?;
+            require(persisted)?;
+            require(
+                store
+                    .load_authorized(&id, 4096)
+                    .await
+                    .is_err_and(|error| error.code() == "session_store_data_invalid"),
+            )?;
+            Ok(())
+        }
+        .await;
+        let cleanup = store.delete(&id).await;
+        outcome?;
+        cleanup
+    }
 
     #[tokio::test]
     async fn memory_gc_counts_absolute_deadlines_and_prevents_update_resurrection() -> Result<()> {

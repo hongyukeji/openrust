@@ -1147,7 +1147,7 @@ where
             {
                 return Ok(Status::unauthenticated("unauthenticated").into_http::<Body>());
             }
-            match authenticate_grpc_bearer(&state, value).await {
+            match authenticate_rpc_bearer(&state, value).await {
                 Ok(user) => {
                     request.extensions_mut().insert(user);
                     inner.call(request).await
@@ -1156,6 +1156,28 @@ where
             }
         })
     }
+}
+
+#[cfg(feature = "auth")]
+async fn authenticate_rpc_bearer(state: &AppState, value: &str) -> Result<CurrentUser> {
+    #[cfg(feature = "auth-fortify")]
+    if !value.starts_with("openrust_pat_")
+        && state
+            .container()
+            .contains::<crate::auth::fortify::FortifyJwtApi>()
+    {
+        let scope = Arc::new(state.container().scope()?);
+        return scope
+            .run(async {
+                scope
+                    .resolve::<crate::auth::fortify::FortifyJwtApi>()
+                    .await?
+                    .authenticate_rpc_user(value)
+                    .await
+            })
+            .await;
+    }
+    authenticate_grpc_bearer(state, value).await
 }
 
 #[cfg(feature = "auth")]
@@ -1584,6 +1606,144 @@ mod tests {
         let invalid = super::GrpcAuth::status(&Error::Validation(fields));
         assert_eq!(invalid.code(), Code::InvalidArgument);
         assert_eq!(invalid.details(), b"invalid_argument");
+    }
+}
+
+#[cfg(all(test, feature = "auth-fortify", feature = "db-sqlite"))]
+pub(crate) mod jwt_profile_tests {
+    use super::{AppState, GrpcAuth, GrpcAuthLayer, Policy, ensure_tls_crypto_provider};
+    use crate::{Error, Result};
+    use std::time::Duration;
+    use tonic::transport::{
+        Certificate, Channel, ClientTlsConfig, Endpoint, Identity, Server, ServerTlsConfig,
+    };
+    use tonic::{Code, Request, Response, Status};
+    use tonic_health::pb::{
+        HealthCheckRequest, HealthCheckResponse,
+        health_client::HealthClient,
+        health_server::{Health, HealthServer},
+    };
+
+    struct Probe(Policy);
+    #[tonic::async_trait]
+    impl Health for Probe {
+        type WatchStream =
+            futures_util::stream::Empty<std::result::Result<HealthCheckResponse, Status>>;
+
+        async fn check(
+            &self,
+            request: Request<HealthCheckRequest>,
+        ) -> std::result::Result<Response<HealthCheckResponse>, Status> {
+            if request.get_ref().service == "protected" {
+                let user =
+                    GrpcAuth::current_user(&request).map_err(|error| GrpcAuth::status(&error))?;
+                if user.id() != 42 || user.source() != crate::auth::AuthSource::Guard {
+                    return Err(Status::permission_denied("unexpected identity"));
+                }
+                GrpcAuth::authorize(&request, &self.0, "rpc:read")
+                    .await
+                    .map_err(|error| GrpcAuth::status(&error))?;
+            }
+            Ok(Response::new(HealthCheckResponse {
+                status: tonic_health::ServingStatus::Serving as i32,
+            }))
+        }
+
+        async fn watch(
+            &self,
+            _: Request<HealthCheckRequest>,
+        ) -> std::result::Result<Response<Self::WatchStream>, Status> {
+            Err(Status::unimplemented("unary probe"))
+        }
+    }
+
+    fn request(service: &str, token: Option<&str>) -> Result<Request<HealthCheckRequest>> {
+        let mut request = Request::new(HealthCheckRequest {
+            service: service.into(),
+        });
+        if let Some(token) = token {
+            request.metadata_mut().insert(
+                "authorization",
+                format!("Bearer {token}").parse().map_err(Error::internal)?,
+            );
+        }
+        Ok(request)
+    }
+
+    async fn verify_client(channel: Channel, valid: &str, denied: &[String]) -> Result<()> {
+        let mut client = HealthClient::new(channel);
+        client
+            .check(request("public", None)?)
+            .await
+            .map_err(Error::internal)?;
+        assert!(
+            client
+                .check(request("protected", None)?)
+                .await
+                .is_err_and(|status| status.code() == Code::Unauthenticated)
+        );
+        client
+            .check(request("protected", Some(valid))?)
+            .await
+            .map_err(Error::internal)?;
+        for token in denied {
+            // 公共方法收到无效显式凭据也必须在进入 handler 前失败。
+            assert!(
+                client
+                    .check(request("public", Some(token))?)
+                    .await
+                    .is_err_and(|status| status.code() == Code::Unauthenticated)
+            );
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn verify_over_tls(
+        state: AppState,
+        policy: Policy,
+        valid: &str,
+        denied: &[String],
+    ) -> Result<()> {
+        ensure_tls_crypto_provider();
+        let certified = rcgen::generate_simple_self_signed(vec!["localhost".into()])
+            .map_err(Error::internal)?;
+        let pem = certified.cert.pem();
+        let identity = Identity::from_pem(pem.as_bytes(), certified.signing_key.serialize_pem());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let endpoint = Endpoint::from_shared(format!("https://{}", listener.local_addr()?))
+            .map_err(Error::internal)?
+            .tls_config(
+                ClientTlsConfig::new()
+                    .domain_name("localhost")
+                    .ca_certificate(Certificate::from_pem(pem)),
+            )
+            .map_err(Error::internal)?;
+        let (stop, signal) = tokio::sync::oneshot::channel::<()>();
+        let server = Box::pin(
+            Server::builder()
+                .tls_config(ServerTlsConfig::new().identity(identity))
+                .map_err(Error::internal)?
+                .layer(GrpcAuthLayer { state })
+                .add_service(HealthServer::new(Probe(policy)))
+                .serve_with_incoming_shutdown(
+                    tokio_stream::wrappers::TcpListenerStream::new(listener),
+                    async {
+                        let _ = signal.await;
+                    },
+                ),
+        );
+        let client = async {
+            let channel = endpoint.connect().await.map_err(Error::internal)?;
+            let result = verify_client(channel, valid, denied).await;
+            drop(stop);
+            result
+        };
+        tokio::time::timeout(Duration::from_secs(20), async {
+            tokio::try_join!(async { server.await.map_err(Error::internal) }, client)
+        })
+        .await
+        .map_err(Error::internal)??;
+        Ok(())
     }
 }
 

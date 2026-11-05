@@ -22,6 +22,10 @@
 
 默认应用配置目标为可编辑的 `config/*.rs`，`.env` 提供部署值；已编译配置函数在 dotenv 加载后向同一 ConfigRepository / Provider 生命周期求值，模块同机制。Rust 源码需显式 mod / manifest 编译，不运行期扫描执行或热编译。旧默认 TOML 是临时实现，整改后仅作显式可选 source；缓存遇不可序列化类型 / 工厂必须明确拒绝，不静默丢弃。管理员 DBSettings 仍是独立领域。
 
+2026-11-05 真人明确纠正：旧 OpenRust MFA 代码与数据均不兼容；移除旧独立体系及一次性/长期兼容、迁移、重绑、接管分支。有效通用安全能力经固定 Fortify 公开机制融合，不删除正常认证或有效安全回归；不将此授权扩大为清空共享数据库或丢弃其他WIP。
+
+最新真人决定：框架、根默认应用与未显式选择JWT的生成路径，以对应固定Laravel官方默认、生命周期和公开机制为准；Fortify原生Web/Session是其对应模式默认，不将所有场景一律Session或一律JWT。API+Bearer JWT是本批完整必交的显式选配，开发者选择后全程无Session/Cookie/CSRF-cookie/remember/隐藏Session/Set-Cookie或Cookie身份兜底。两种传输共用唯一UserProvider/Guard/Fortify三字段/Actions；旧auth-mfa兼容仍删除。此决定覆盖此前JWT为根默认、一律禁中心Cookie等中间口径，不改写历史验收。
+
 ## 1. 角色与契约
 
 | 角色 | 职责 |

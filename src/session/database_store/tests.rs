@@ -385,3 +385,64 @@ async fn closed_native_pool_error_cannot_be_reported_as_written() -> Result<()> 
     })
     .await
 }
+
+#[tokio::test]
+async fn independent_authorized_read_uses_configured_activity_deadline_and_never_renews()
+-> Result<()> {
+    owned(|db| {
+        Box::pin(async move {
+            let store = DatabaseSessionStore::new(db.clone()).configured("sessions", 1)?;
+            let session = Session::new(
+                None,
+                Arc::new(DatabaseSessionStore::new(db.clone()).configured("sessions", 1)?),
+                None,
+            )?;
+            session.start().await?;
+            session.put_typed("owned", "native-live")?;
+            session.save().await?;
+            let id = session.id()?;
+            let activity = OffsetDateTime::now_utc().unix_timestamp() - 30;
+            db.table("sessions")?
+                .where_eq("id", id.as_str())?
+                .update(vec![("last_activity", activity.into())])
+                .await?;
+            let record = store
+                .load_authorized(&id, crate::session::DEFAULT_MAX_BYTES)
+                .await?
+                .ok_or(Error::Unauthorized)?;
+            check(
+                record.expiry_date.unix_timestamp() == activity + 60,
+                "独立授权读取未使用真实活动时间及配置期限",
+            )?;
+            let after = row(db, &id).await?.ok_or(Error::Unauthorized)?;
+            check(
+                after
+                    .try_get::<i64>("", "last_activity")
+                    .map_err(Error::internal)?
+                    == activity,
+                "独立读取不得续期",
+            )?;
+            db.table("sessions")?
+                .where_eq("id", id.as_str())?
+                .update(vec![("last_activity", (activity - 120).into())])
+                .await?;
+            check(
+                store
+                    .load_authorized(&id, crate::session::DEFAULT_MAX_BYTES)
+                    .await?
+                    .is_none(),
+                "过期真实记录不得授权",
+            )?;
+            check(row(db, &id).await?.is_some(), "授权读取不得删除过期行")?;
+            store.delete(&id).await?;
+            check(
+                store
+                    .load_authorized(&id, crate::session::DEFAULT_MAX_BYTES)
+                    .await?
+                    .is_none(),
+                "删除后独立授权读取仍返回记录",
+            )
+        })
+    })
+    .await
+}

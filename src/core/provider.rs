@@ -324,7 +324,7 @@ impl BootContext<'_> {
     }
 
     /// 在候选迁移引导中保留严格检查，供实际命令派发前执行。
-    #[cfg(any(feature = "auth-mfa", test))]
+    #[cfg(test)]
     pub(crate) fn defer_boot_check_for_command<F>(
         &mut self,
         permitted_command: TypeId,

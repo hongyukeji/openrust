@@ -31,6 +31,8 @@ pub use guarded_migration::{
 };
 pub use id::SessionId;
 pub use migration::{SessionGcMigration, SessionMigration, SessionTableMigration};
+#[cfg(feature = "auth-fortify")]
+pub use store::CredentialSessionReader;
 pub use store::{
     DEFAULT_MAX_BYTES, SessionRecord, SessionStore, SessionStoreGuarantees, SessionStoreSemantics,
     SessionWriteMode, SessionWriteOutcome,

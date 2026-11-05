@@ -198,6 +198,8 @@ pub struct ExceptionHandler {
     reporters: Vec<Reporter>,
     renderers: Vec<Renderer>,
     response_finalizer: Option<Finalizer>,
+    #[cfg(feature = "auth-fortify")]
+    no_store_error_paths: Vec<crate::config::ApiConfig>,
     json_decision: Option<JsonDecision>,
     api_envelope: Option<JsonDecision>,
     unauthenticated_redirect: Option<RedirectTarget>,
@@ -455,6 +457,18 @@ impl ExceptionHandler {
         self
     }
 
+    /// 显式凭据API的异常响应不能因全局超时或异常重建而重新允许缓存。
+    #[cfg(feature = "auth-fortify")]
+    pub(crate) fn no_store_errors_under(&mut self, prefix: String) {
+        let policy = crate::config::ApiConfig {
+            prefix,
+            ..crate::config::ApiConfig::default()
+        };
+        if !self.no_store_error_paths.contains(&policy) {
+            self.no_store_error_paths.push(policy);
+        }
+    }
+
     /// CLI、任务或 HTTP 均可报告，只有 HTTP 请求才进入渲染链。
     pub fn report_error(&self, error: &Error) {
         let mapped = self.mappers.iter().find_map(|mapper| mapper(error));
@@ -535,6 +549,19 @@ impl ExceptionHandler {
         } else {
             response
         };
+        #[cfg(feature = "auth-fortify")]
+        if self
+            .no_store_error_paths
+            .iter()
+            .any(|policy| policy.matches_path(request.path()))
+        {
+            response
+                .headers_mut()
+                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            response
+                .headers_mut()
+                .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+        }
         if request.method() == Method::HEAD {
             // 不读取流；保留最终状态、头和扩展，直接释放原正文。
             *response.body_mut() = axum::body::Body::empty();
@@ -558,7 +585,9 @@ impl ExceptionHandler {
         } else if json {
             let message = public_message(error, request.debug());
             let mut payload = serde_json::json!({"message": message});
-            if let Error::Validation(errors) | Error::ValidationDetail { errors, .. } = error
+            if let Error::Validation(errors)
+            | Error::ValidationDetail { errors, .. }
+            | Error::ValidationInBag { errors, .. } = error
                 && let Ok(value) = serde_json::to_value(errors)
             {
                 payload["errors"] = value;
@@ -630,7 +659,10 @@ impl ExceptionHandler {
 
     #[cfg(feature = "session")]
     fn validation_redirect(&self, error: &Error, request: &ExceptionRequest) -> Option<Response> {
-        let (Error::Validation(errors) | Error::ValidationDetail { errors, .. }) = error else {
+        let (Error::Validation(errors)
+        | Error::ValidationDetail { errors, .. }
+        | Error::ValidationInBag { errors, .. }) = error
+        else {
             return None;
         };
         let session = request.session()?;
@@ -643,7 +675,18 @@ impl ExceptionHandler {
                 }
             }
         }
-        if let Err(flash_error) = session.flash_errors("default", &bag) {
+        let override_bag = request.input().and_then(|input| {
+            input
+                .get("_error_bag")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        });
+        if let Err(flash_error) = session.flash_errors(
+            override_bag
+                .as_deref()
+                .unwrap_or_else(|| error.validation_error_bag().unwrap_or("default")),
+            &bag,
+        ) {
             self.report_error(&flash_error);
             return None;
         }
@@ -732,6 +775,7 @@ fn builtin_ignored(error: &Error) -> bool {
             | Error::NotFound(_)
             | Error::Validation(_)
             | Error::ValidationDetail { .. }
+            | Error::ValidationInBag { .. }
             | Error::RateLimited
             | Error::RateLimitedWithRetryAfter(_)
             | Error::HttpWithSource { .. }
@@ -982,6 +1026,89 @@ mod tests {
                 "items": [{"name": "first"}]
             }))
         );
+        Ok(())
+    }
+    #[cfg(feature = "session")]
+    #[test]
+    fn named_validation_uses_the_same_web_error_bag_and_json_fields() -> Result<()> {
+        let session = crate::session::Session::new(
+            None,
+            Arc::new(crate::session::MemorySessionStore::default()),
+            None,
+        )?;
+        session.set_previous_url("/two-factor")?;
+        let request = request(false, false);
+        request.bind_session(session.clone());
+        let mut errors = crate::core::ValidationErrors::new();
+        errors.add("code", "invalid");
+        let handler = ExceptionHandler::default();
+        let response = handler.render_for_request(
+            Error::validation_in_bag("confirmTwoFactorAuthentication", errors),
+            &request,
+        );
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let bags = session.read_errors()?;
+        assert!(bags.has_bag("confirmTwoFactorAuthentication"));
+        assert!(!bags.has_bag("default"));
+        Ok(())
+    }
+    #[cfg(feature = "auth-fortify")]
+    #[tokio::test]
+    async fn selected_credential_error_cache_policy_uses_route_prefix_semantics()
+    -> Result<(), Box<dyn StdError>> {
+        let mut handler = ExceptionHandler::default();
+        handler.respond(|mut response, _, _| {
+            response.headers_mut().insert(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("public, max-age=60"),
+            );
+            response
+        });
+        let unselected = handler.clone();
+        handler.no_store_errors_under("/api/{tenant}/auth".into());
+        handler.no_store_errors_under("/jwt/auth".into());
+        for path in [
+            "/api/acme/auth/login",
+            "/api/acme/auth",
+            "/jwt/auth",
+            "/jwt/auth/user",
+        ] {
+            for method in [Method::GET, Method::HEAD] {
+                let request =
+                    ExceptionRequest::new(method.clone(), path, true, "cache-policy", false);
+                let response = handler.render_for_request(Error::Unauthorized, &request);
+                assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+                assert_eq!(response.headers()[header::PRAGMA], "no-cache");
+                if method == Method::HEAD {
+                    assert!(
+                        axum::body::to_bytes(response.into_body(), 1024)
+                            .await?
+                            .is_empty()
+                    );
+                }
+                let response = unselected.render_for_request(Error::Unauthorized, &request);
+                assert_eq!(
+                    response.headers()[header::CACHE_CONTROL],
+                    "public, max-age=60"
+                );
+                assert!(response.headers().get(header::PRAGMA).is_none());
+            }
+        }
+        for path in [
+            "/api/acme/authentication",
+            "/apis/acme/auth",
+            "/api//auth/login",
+            "/jwt/authentication",
+            "/web/login",
+        ] {
+            let request = ExceptionRequest::new(Method::GET, path, true, "cache-policy", false);
+            let response = handler.render_for_request(Error::Unauthorized, &request);
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=60"
+            );
+            assert!(response.headers().get(header::PRAGMA).is_none());
+        }
         Ok(())
     }
 }

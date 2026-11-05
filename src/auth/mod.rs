@@ -9,21 +9,31 @@ use crate::core::{AppState, BoxFuture, Error, Result};
 use crate::db::{Db, DbBackend};
 use axum::extract::{Extension, FromRequestParts, Request, State};
 use axum::http::{HeaderMap, Method, StatusCode, header};
-use axum::middleware::{self, Next};
+use axum::middleware::{self as axum_middleware, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::Route;
 use http::request::Parts;
 use tower::{Layer, Service};
 
+mod credential;
 mod database;
+pub use credential::{CredentialDomain, FactorOrigin, VerifiedCredential};
 pub(crate) use database::AUTH_USER_ID_KEY;
+#[cfg(feature = "auth-fortify")]
+mod factor_gate;
 mod flows;
+#[cfg(feature = "auth-fortify")]
+pub mod fortify;
+#[cfg(feature = "auth-fortify")]
+pub use fortify::Lockout;
 mod guard;
 pub(crate) use guard::{AuthRequestContext, install_request, session_user_id};
 mod jwt;
-#[cfg(feature = "auth-mfa")]
-mod mfa;
+pub(crate) mod middleware;
 mod migration;
+#[cfg(feature = "auth-fortify")]
+mod totp;
+pub use middleware::AuthenticationRedirects;
 #[cfg(feature = "auth-oidc")]
 mod oidc;
 mod password;
@@ -37,6 +47,10 @@ mod verification;
 use database::DatabaseAuthenticator;
 
 pub use crate::config::JwtConfig;
+#[cfg(feature = "auth-fortify")]
+pub use credential::TwoFactorLoginChallenge;
+#[cfg(feature = "auth-fortify")]
+pub use flows::ApiLoginAuditSink;
 pub use flows::{
     AuthCredentials, AuthFlows, AuthFlowsServiceProvider, LoginAttempt, LoginFailed,
     LoginSucceeded, LoginValidating, RegistrationSucceeded, RegistrationValidating,
@@ -45,14 +59,11 @@ pub use flows::{
 pub use guard::{Attempting, Authenticated, Failed, Login, Logout, SessionGuard, Validated};
 pub use guard::{
     AuthDefaults, AuthDrivers, AuthManager, AuthUser, Authenticatable, Credentials,
-    DatabaseUserProvider, GenericUser, Guard, GuardConfig, GuardContext, StatefulGuard,
-    UserProvider, UserProviderConfig,
+    DatabaseUserProvider, FactorManagementContext, FactorReceipt, FactorVerificationMethod,
+    GenericUser, Guard, GuardConfig, GuardContext, SessionFactorProof, StatefulGuard, UserProvider,
+    UserProviderConfig,
 };
 pub use jwt::{JwtServiceProvider, JwtTokens};
-#[cfg(feature = "auth-mfa")]
-pub use mfa::{
-    AuthMfaMigration, MfaLoginChallenge, MfaServiceProvider, RecoveryCodes, TotpEnrollment,
-};
 pub use migration::{
     AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthMigration,
     AuthPolicyMigration, AuthRefreshTokenMigration, AuthRememberTokenMigration,
@@ -69,6 +80,8 @@ pub use policy::Policy;
 pub use query::{
     AuthorizedSelect, MAX_AUTHORIZED_PAGE_SIZE, QueryRule, QueryScope, TenantQueryRule,
 };
+#[cfg(feature = "auth-fortify")]
+pub use session::LiveSessionCredential;
 
 pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> {
     let backend = db.backend()?;
@@ -126,6 +139,88 @@ pub enum AuthSource {
     Guard,
 }
 
+/// 认证实际JWT及其声明期限；已选择的策略还核主库因子与活动家族。
+///
+/// 实时握手等应用入口应复用本函数，不能把纯签名校验当作当前授权。
+pub async fn authenticate_access_credential(
+    state: &AppState,
+    value: &str,
+) -> Result<(i64, std::time::SystemTime)> {
+    authenticate_access_scoped(state, None, value).await
+}
+
+async fn authenticate_access_scoped(
+    state: &AppState,
+    scope: Option<&Arc<crate::core::container::Scope>>,
+    value: &str,
+) -> Result<(i64, std::time::SystemTime)> {
+    let tokens = resolve_request_service::<JwtTokens>(state, scope).await?;
+    #[cfg(feature = "auth-fortify")]
+    if state
+        .container()
+        .contains::<fortify::RequireFactorAuthority>()
+        || tokens.verify_credential(value)?.grant.is_some()
+    {
+        let authority =
+            resolve_request_service::<fortify::CredentialAuthority>(state, scope).await?;
+        let credential = authority.authenticate_access_token(&tokens, value).await?;
+        return Ok((
+            credential.user_id(),
+            credential.expires_at().ok_or(Error::Unauthorized)?.into(),
+        ));
+    }
+    tokens.verify_access_token_with_expiry(value)
+}
+
+#[cfg(feature = "auth-fortify")]
+async fn authenticate_selected_pat(
+    state: &AppState,
+    scope: Option<&Arc<crate::core::container::Scope>>,
+    value: &str,
+) -> Result<AuthPrincipal> {
+    let tokens = resolve_request_service::<PersonalAccessTokens>(state, scope).await?;
+    let authority = resolve_request_service::<fortify::CredentialAuthority>(state, scope).await?;
+    let tokens = (*tokens)
+        .clone()
+        .with_factor_authority((*authority).clone())?;
+    let credential = tokens.authenticate_verified(value).await?;
+    Ok(AuthPrincipal::new(
+        credential.user_id(),
+        Some(
+            credential
+                .token_abilities()
+                .ok_or(Error::Unauthorized)?
+                .to_vec(),
+        ),
+    ))
+}
+
+async fn authenticate_stored_credential(
+    state: &AppState,
+    scope: Option<&Arc<crate::core::container::Scope>>,
+    service: &AuthService,
+    credential: AuthCredential<'_>,
+) -> Result<AuthPrincipal> {
+    #[cfg(feature = "auth-fortify")]
+    let native = (credential.source() == AuthSource::PersonalAccessToken)
+        .then(|| credential.value().map(str::to_owned))
+        .flatten();
+    #[cfg(not(feature = "auth-fortify"))]
+    let _ = (state, scope);
+    let result = service.authenticator.authenticate(credential).await;
+    #[cfg(feature = "auth-fortify")]
+    if matches!(&result, Err(error) if error.code() == "auth_managed_credential_validator_required")
+    {
+        return authenticate_selected_pat(
+            state,
+            scope,
+            native.as_deref().ok_or(Error::Unauthorized)?,
+        )
+        .await;
+    }
+    result
+}
+
 /// 复用既有 JWT 与 Authenticator 校验 RPC Bearer；gRPC 不接受 Cookie Session。
 #[cfg(feature = "grpc")]
 pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> Result<CurrentUser> {
@@ -146,16 +241,21 @@ pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> R
             csrf_verified: false,
             method: &method,
         };
-        (
-            AuthSource::PersonalAccessToken,
-            service.authenticator.authenticate(credential).await?,
-        )
+        #[cfg(feature = "auth-fortify")]
+        let principal = if state
+            .container()
+            .contains::<fortify::RequireFactorAuthority>()
+        {
+            authenticate_selected_pat(state, None, value).await?
+        } else {
+            authenticate_stored_credential(state, None, service.as_ref(), credential).await?
+        };
+        #[cfg(not(feature = "auth-fortify"))]
+        let principal =
+            authenticate_stored_credential(state, None, service.as_ref(), credential).await?;
+        (AuthSource::PersonalAccessToken, principal)
     } else {
-        let tokens = state
-            .resolve::<JwtTokens>()
-            .await
-            .map_err(|_| Error::Unauthorized)?;
-        let user_id = tokens.verify_access_token(value)?;
+        let (user_id, _) = authenticate_access_credential(state, value).await?;
         (AuthSource::Jwt, AuthPrincipal::new(user_id, None))
     };
     if principal.user_id <= 0 {
@@ -478,7 +578,16 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
             app.singleton::<PersonalAccessTokens, _>(|resolver| {
                 Box::pin(async move {
                     let db = resolver.resolve::<Db>().await?;
-                    Ok(Arc::new(PersonalAccessTokens::new((*db).clone())))
+                    let tokens = PersonalAccessTokens::new((*db).clone());
+                    #[cfg(feature = "auth-fortify")]
+                    let tokens = if resolver.is_bound::<fortify::RequireFactorAuthority>()? {
+                        tokens.with_factor_authority(
+                            (*resolver.resolve::<fortify::CredentialAuthority>().await?).clone(),
+                        )?
+                    } else {
+                        tokens
+                    };
+                    Ok(Arc::new(tokens))
                 })
             })
             .await?;
@@ -544,7 +653,7 @@ impl AuthLayer {
     + Send
     + Sync
     + 'static {
-        middleware::from_fn_with_state::<
+        axum_middleware::from_fn_with_state::<
             _,
             _,
             (State<NamedAuthLayerConfig>, Extension<AppState>, Request),
@@ -575,7 +684,7 @@ impl AuthLayer {
     + Send
     + Sync
     + 'static {
-        middleware::from_fn_with_state::<
+        axum_middleware::from_fn_with_state::<
             _,
             _,
             (State<NamedAuthLayerConfig>, Extension<AppState>, Request),
@@ -606,7 +715,11 @@ impl AuthLayer {
     + Send
     + Sync
     + 'static {
-        middleware::from_fn_with_state::<_, _, (State<AuthLayerConfig>, Extension<AppState>, Request)>(
+        axum_middleware::from_fn_with_state::<
+            _,
+            _,
+            (State<AuthLayerConfig>, Extension<AppState>, Request),
+        >(
             AuthLayerConfig {
                 mode,
                 optional: false,
@@ -633,7 +746,11 @@ impl AuthLayer {
     + Send
     + Sync
     + 'static {
-        middleware::from_fn_with_state::<_, _, (State<AuthLayerConfig>, Extension<AppState>, Request)>(
+        axum_middleware::from_fn_with_state::<
+            _,
+            _,
+            (State<AuthLayerConfig>, Extension<AppState>, Request),
+        >(
             AuthLayerConfig {
                 mode,
                 optional: true,
@@ -661,23 +778,21 @@ async fn authenticate_named(
     }
 }
 
-async fn project_named_user(
-    config: &NamedAuthLayerConfig,
+async fn prepare_named_request(
+    parts: &mut axum::http::request::Parts,
     state: &AppState,
-    request: Request,
-) -> Result<Request> {
-    let (mut parts, body) = request.into_parts();
+) -> Result<(Arc<crate::core::container::Scope>, crate::http::RequestInfo)> {
     let scope = parts
         .extensions
         .get::<Arc<crate::core::container::Scope>>()
         .cloned()
         .ok_or_else(|| Error::custom("auth_request_scope_missing", "具名认证需要当前请求scope"))?;
-    let info = crate::http::RequestInfo::from_request_parts(&mut parts, state).await?;
+    let info = crate::http::RequestInfo::from_request_parts(parts, state).await?;
     guard::install_request(
         &scope,
         guard::AuthRequestContext {
             cookies: info.cookies(),
-            info: Arc::new(info),
+            info: Arc::new(info.clone()),
             protection: parts
                 .extensions
                 .get::<crate::http::cookie::CookieProtection>()
@@ -685,6 +800,16 @@ async fn project_named_user(
         },
     )
     .await?;
+    Ok((scope, info))
+}
+
+async fn project_named_user(
+    config: &NamedAuthLayerConfig,
+    state: &AppState,
+    request: Request,
+) -> Result<Request> {
+    let (mut parts, body) = request.into_parts();
+    let (scope, _info) = prepare_named_request(&mut parts, state).await?;
     let manager = scope.resolve::<AuthManager>().await?;
     let name = if config.name.is_empty() {
         manager.default_driver()?
@@ -845,16 +970,30 @@ async fn authenticate(
         method: request.method(),
     };
     let principal = if source == AuthSource::Jwt {
-        let tokens = match resolve_request_service::<JwtTokens>(&state, scope).await {
-            Ok(tokens) => tokens,
-            Err(error) => return error.into_response(),
-        };
-        match tokens.verify_access_token(value) {
-            Ok(user_id) => AuthPrincipal::new(user_id, None),
+        match authenticate_access_scoped(&state, scope, value).await {
+            Ok((user_id, _)) => AuthPrincipal::new(user_id, None),
             Err(error) => return error.into_response(),
         }
     } else {
-        match service.authenticator.authenticate(credential).await {
+        #[cfg(feature = "auth-fortify")]
+        if source == AuthSource::PersonalAccessToken
+            && state
+                .container()
+                .contains::<fortify::RequireFactorAuthority>()
+        {
+            match authenticate_selected_pat(&state, scope, value).await {
+                Ok(principal) => principal,
+                Err(error) => return error.into_response(),
+            }
+        } else {
+            match authenticate_stored_credential(&state, scope, service.as_ref(), credential).await
+            {
+                Ok(principal) => principal,
+                Err(error) => return error.into_response(),
+            }
+        }
+        #[cfg(not(feature = "auth-fortify"))]
+        match authenticate_stored_credential(&state, scope, service.as_ref(), credential).await {
             Ok(principal) => principal,
             Err(error) => return error.into_response(),
         }
@@ -867,18 +1006,47 @@ async fn authenticate(
     if principal.user_id <= 0 {
         return Error::internal(InvalidPrincipal).into_response();
     }
-    #[cfg(feature = "auth-mfa")]
-    if source == AuthSource::Session && state.container().contains::<mfa::MfaService>() {
-        let mfa = match resolve_request_service::<mfa::MfaService>(&state, scope).await {
-            Ok(mfa) => mfa,
-            Err(error) => return error.into_response(),
+    #[cfg(feature = "auth-fortify")]
+    let unified_session = if source == AuthSource::Session {
+        let Some(session) = request.extensions().get::<Session>() else {
+            return Error::Unauthorized.into_response();
         };
-        match mfa.enabled(principal.user_id).await {
-            Ok(true) => {
-                // 已启用 MFA 的账户不能继续使用先前建立的 Cookie Session 绕过第二因子。
-                return Error::Unauthorized.into_response();
+        let selected = state
+            .container()
+            .contains::<fortify::RequireFactorAuthority>()
+            || match session.get_json(credential::SESSION_FACTOR_CONTEXT_KEY) {
+                Ok(value) => value.is_some(),
+                Err(error) => return error.into_response(),
+            };
+        if selected {
+            let authority = match resolve_request_service::<fortify::CredentialAuthority>(
+                &state, scope,
+            )
+            .await
+            {
+                Ok(value) => value,
+                Err(error) => return error.into_response(),
+            };
+            if let Err(error) = authority
+                .authorize_session_context(principal.user_id, session)
+                .await
+            {
+                return error.into_response();
             }
-            Ok(false) => {}
+        }
+        selected
+    } else {
+        false
+    };
+    #[cfg(feature = "auth-fortify")]
+    let _ = unified_session;
+    #[cfg(not(feature = "auth-fortify"))]
+    if source == AuthSource::Session
+        && let Some(session) = request.extensions().get::<Session>()
+    {
+        match session.get_json(credential::SESSION_FACTOR_CONTEXT_KEY) {
+            Ok(None) => {}
+            Ok(Some(_)) => return Error::Unauthorized.into_response(),
             Err(error) => return error.into_response(),
         }
     }

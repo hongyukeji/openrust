@@ -1,6 +1,13 @@
 //! 使用真实 Keycloak authorization-code 流程验证 OIDC relying-party。
 #![cfg(feature = "auth-oidc")]
 
+#[cfg(all(
+    feature = "auth-fortify",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+#[path = "oidc/web.rs"]
+mod web;
+
 use std::{
     collections::{BTreeMap, HashMap},
     error::Error as StdError,
@@ -20,18 +27,16 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 #[cfg(all(
-    feature = "auth-mfa",
+    feature = "auth-fortify",
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
 use hmac::{Hmac, Mac, digest::KeyInit};
 use openrust::auth::{ExternalIdentityProvider, OidcProvider, VerifiedLogoutToken};
 use openrust::http::{DependencyPolicy, HttpClient, HttpClientConfig, HttpTargetPolicy};
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-use openrust::session::SessionStore as _;
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-use openrust::session::{MemorySessionStore as MemoryStore, SessionRecord as Record};
+use openrust::session::{MemorySessionStore, SessionStoreHandle};
 #[cfg(all(
-    feature = "auth-mfa",
+    feature = "auth-fortify",
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
 use sha1::Sha1;
@@ -376,30 +381,33 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
             );
         }
         #[cfg(all(
-            feature = "auth-mfa",
+            feature = "auth-fortify",
             any(feature = "db-postgres", feature = "db-mysql")
         ))]
-        let mfa_completion = if let Some((primary, _)) = app_acceptance.as_ref() {
+        let factor_completion = if let Some((primary, _)) = app_acceptance.as_ref() {
             if primary.api_nodes.is_some() {
-                let pending_cookie =
-                    start_pending_mfa_callback(primary, &browser, &authenticated_cookie).await?;
-                hold_mfa_gates(primary, &browser).await?;
-                let secret = primary
-                    .mfa_secret
-                    .as_deref()
-                    .ok_or("primary application has no MFA seed")?;
-                let code = keycloak_totp_code(secret, 1)?;
-                let mfa_url = url::Url::parse(&primary.redirect_uri)?.join("/mfa")?;
-                let mfa_browser = browser.clone();
+                let (pending_cookie, csrf) =
+                    start_pending_factor_callback(primary, &browser, &authenticated_cookie).await?;
+                hold_factor_gates(primary, &browser).await?;
+                // 使用未提交过的恢复码，拒绝必须来自退出，而不是之前已消费的TOTP。
+                let recovery = primary
+                    .factor
+                    .as_ref()
+                    .and_then(|factor| factor.recovery.first())
+                    .cloned()
+                    .ok_or("missing pending recovery code")?;
+                let factor_url = url::Url::parse(&primary.redirect_uri)?.join("/two-factor")?;
+                let factor_browser = browser.clone();
                 let request = tokio::spawn(async move {
-                    mfa_browser
-                        .post(mfa_url)
+                    factor_browser
+                        .post(factor_url)
                         .header(reqwest::header::COOKIE, pending_cookie)
-                        .form(&[("code", code)])
+                        .header("x-csrf-token", csrf)
+                        .form(&[("recovery_code", recovery)])
                         .send()
                         .await
                 });
-                wait_for_mfa_gate(primary, &browser).await?;
+                wait_for_factor_gate(primary, &browser).await?;
                 Some(request)
             } else {
                 None
@@ -408,15 +416,15 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
             None
         };
         #[cfg(all(
-            feature = "auth-mfa",
+            feature = "auth-fortify",
             any(feature = "db-postgres", feature = "db-mysql")
         ))]
-        let had_pending_mfa = mfa_completion.is_some();
+        let had_pending_factor = factor_completion.is_some();
         #[cfg(all(
-            not(feature = "auth-mfa"),
+            not(feature = "auth-fortify"),
             any(feature = "db-postgres", feature = "db-mysql")
         ))]
-        let had_pending_mfa = false;
+        let had_pending_factor = false;
         #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         let callback_completion = if let Some((primary, _)) = app_acceptance.as_ref() {
             if primary.api_nodes.is_some() {
@@ -458,11 +466,11 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
         }
         #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         if let Some((primary, _)) = app_acceptance.as_ref() {
-            #[cfg(feature = "auth-mfa")]
-            if let Some(mfa_request) = mfa_completion {
-                // logout handler 已处理真实 IdP 通知，现在释放退出前的 MFA completion。
-                release_mfa_gates(primary, &browser).await?;
-                assert_eq!(mfa_request.await??.status(), StatusCode::UNAUTHORIZED);
+            #[cfg(feature = "auth-fortify")]
+            if let Some(factor_request) = factor_completion {
+                // logout handler 已处理真实 IdP 通知，现在释放退出前的 two-factor completion。
+                release_factor_gates(primary, &browser).await?;
+                assert_eq!(factor_request.await??.status(), StatusCode::UNAUTHORIZED);
             }
             if let Some(callback_request) = callback_completion {
                 release_callback_gates(primary, &browser).await?;
@@ -503,7 +511,7 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                 if app_acceptance.is_some() {
                     assert_eq!(
                         *handler_outcome,
-                        Some(if had_pending_mfa {
+                        Some(if had_pending_factor {
                             "processed-one"
                         } else {
                             "processed-other"
@@ -599,7 +607,7 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                         tokio::time::timeout(Duration::from_secs(5), tokens.recv())
                             .await?
                             .ok_or("logout handler did not report Redis recovery replay")?;
-                    assert_eq!(replayed, *token);
+                    assert!(replayed == *token, "退出令牌须匹配原请求，失败时不输出令牌");
                     assert_eq!(outcome, Some("already-processed"));
                     assert!(node.is_some());
                 }
@@ -617,14 +625,14 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                         .as_deref()
                         .ok_or("secondary refresh token is missing")?
                         .to_owned();
-                    let rotate = secondary.refresh.clone();
+                    let rotate = secondary.auth.clone();
                     let refresh_race = tokio::time::timeout(Duration::from_secs(10), async {
                         tokio::join!(
                             browser
                                 .post(race_url)
                                 .form(&[("logout_token", token)])
                                 .send(),
-                            rotate.rotate(&refresh_token),
+                            rotate.refresh(&refresh_token, "concurrent-logout"),
                         )
                     })
                     .await?;
@@ -634,7 +642,10 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                         tokio::time::timeout(Duration::from_secs(2), tokens.recv())
                             .await?
                             .ok_or("logout handler stopped before reporting refresh race")?;
-                    assert_eq!(processed, *token);
+                    assert!(
+                        processed == *token,
+                        "已处理的退出令牌须匹配原请求，失败时不输出令牌"
+                    );
                     assert_eq!(outcome, Some("processed-one"));
                     assert!(node.is_some());
                     let secondary_user_id =
@@ -648,8 +659,8 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                         assert_eq!(rotation.user_id(), secondary_user_id);
                         assert!(
                             secondary
-                                .refresh
-                                .rotate(rotation.token().expose())
+                                .auth
+                                .refresh(rotation.refresh_token().expose(), "rotated-after-logout")
                                 .await
                                 .is_err(),
                             "a token rotated during logout must be revoked with its family"
@@ -676,7 +687,7 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                     tokio::time::timeout(Duration::from_secs(2), tokens.recv())
                         .await?
                         .ok_or("logout handler stopped before reporting replay")?;
-                assert_eq!(replayed, *token);
+                assert!(replayed == *token, "退出令牌须匹配原请求，失败时不输出令牌");
                 assert_eq!(outcome, Some("already-processed"));
                 assert!(node.is_some(), "logout token must reach an API process");
             }
@@ -703,14 +714,19 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                     tokio::time::timeout(Duration::from_secs(2), tokens.recv())
                         .await?
                         .ok_or("logout handler stopped before reporting post-restart replay")?;
-                assert_eq!(replayed, *primary_token);
+                assert!(
+                    replayed == *primary_token,
+                    "重启后的退出令牌须匹配原请求，失败时不输出令牌"
+                );
                 assert_eq!(outcome, Some("already-processed"));
                 assert_eq!(node.as_deref(), Some("api-a"));
             }
             if std::env::var("OPENRUST_F7_REDIS_CONTAINER").is_err() {
                 assert!(
                     primary
-                        .session_store
+                        .state
+                        .sessions
+                        .store()
                         .load(
                             primary
                                 .session_id
@@ -724,7 +740,9 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                 );
                 assert!(
                     secondary
-                        .session_store
+                        .state
+                        .sessions
+                        .store()
                         .load(
                             secondary
                                 .session_id
@@ -737,9 +755,9 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                         .is_none()
                 );
             }
-            #[cfg(feature = "auth-mfa")]
-            let expected_primary_revocations = if had_pending_mfa { 2 } else { 1 };
-            #[cfg(not(feature = "auth-mfa"))]
+            #[cfg(feature = "auth-fortify")]
+            let expected_primary_revocations = if had_pending_factor { 2 } else { 1 };
+            #[cfg(not(feature = "auth-fortify"))]
             let expected_primary_revocations = 1;
             assert_eq!(
                 primary.revoked_associations().await?,
@@ -748,24 +766,26 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
             assert_eq!(secondary.revoked_associations().await?, 1);
             assert!(
                 primary
-                    .refresh
-                    .rotate(
+                    .auth
+                    .refresh(
                         primary
                             .refresh_token
                             .as_deref()
-                            .ok_or("primary refresh token is missing")?
+                            .ok_or("primary refresh token is missing")?,
+                        "primary-after-logout"
                     )
                     .await
                     .is_err()
             );
             assert!(
                 secondary
-                    .refresh
-                    .rotate(
+                    .auth
+                    .refresh(
                         secondary
                             .refresh_token
                             .as_deref()
-                            .ok_or("secondary refresh token is missing")?
+                            .ok_or("secondary refresh token is missing")?,
+                        "secondary-after-logout"
                     )
                     .await
                     .is_err()
@@ -775,8 +795,6 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
             assert_child_nodes_reject_revoked_credentials(&secondary, &browser).await?;
             drop(primary.api_nodes.take());
             drop(secondary.api_nodes.take());
-            primary.database.close().await?;
-            secondary.database.close().await?;
             for server in primary.callback_servers {
                 server.abort();
                 let _ = server.await;
@@ -785,6 +803,15 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                 server.abort();
                 let _ = server.await;
             }
+            #[cfg(feature = "auth-fortify")]
+            for web in primary.web_nodes.into_iter().chain(secondary.web_nodes) {
+                tokio::time::timeout(Duration::from_secs(10), async {
+                    web.write().await.shutdown().await
+                })
+                .await??;
+            }
+            primary.database.close().await?;
+            secondary.database.close().await?;
         }
         server.abort();
     } else if std::env::var("OPENRUST_REQUIRE_OIDC_IDP").as_deref() == Ok("1") {
@@ -837,13 +864,12 @@ struct LogoutAppState {
 #[derive(Clone)]
 struct LoginCallbackState {
     flows: openrust::auth::ExternalIdentityFlows,
-    refresh: openrust::auth::RefreshTokens,
-    #[cfg(feature = "auth-mfa")]
     auth: openrust::auth::AuthFlows,
-    #[cfg(feature = "auth-mfa")]
-    mfa_gate: MfaTestGate,
-    callback_gate: MfaTestGate,
-    session_store: TestSessionStore,
+    #[cfg(feature = "auth-fortify")]
+    web: Arc<tokio::sync::RwLock<web::Fixture>>,
+    #[cfg(feature = "auth-fortify")]
+    factor_gate: CallbackGate,
+    callback_gate: CallbackGate,
     sessions: openrust::auth::SessionStoreHandle,
     outcome: std::sync::Arc<Mutex<Option<LoginCallbackOutcome>>>,
     binding_requests: std::sync::Arc<Mutex<HashMap<String, BindingCredentials>>>,
@@ -853,14 +879,14 @@ struct LoginCallbackState {
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 #[derive(Clone, Default)]
-struct MfaTestGate {
+struct CallbackGate {
     held: Arc<std::sync::atomic::AtomicBool>,
     waiting: Arc<std::sync::atomic::AtomicUsize>,
     released: Arc<tokio::sync::Notify>,
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-impl MfaTestGate {
+impl CallbackGate {
     async fn wait(&self) {
         if !self.held.load(std::sync::atomic::Ordering::Acquire) {
             return;
@@ -1237,73 +1263,15 @@ impl TestApiNodes {
     }
 }
 
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-#[derive(Clone)]
-enum TestSessionStore {
-    Memory(MemoryStore),
-    #[cfg(feature = "session-redis")]
-    Redis(openrust::auth::RedisSessionStore),
-}
-
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-impl std::fmt::Debug for TestSessionStore {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Memory(_) => formatter.write_str("TestSessionStore::Memory"),
-            #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.fmt(formatter),
-        }
-    }
-}
-
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-impl openrust::session::SessionStore for TestSessionStore {
-    fn write<'a>(
-        &'a self,
-        record: &'a Record,
-        mode: openrust::session::SessionWriteMode,
-        max_bytes: usize,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
-    {
-        match self {
-            Self::Memory(store) => store.write(record, mode, max_bytes),
-            #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.write(record, mode, max_bytes),
-        }
-    }
-    fn load<'a>(
-        &'a self,
-        id: &'a openrust::session::SessionId,
-        max_bytes: usize,
-        empty_expiry: time::OffsetDateTime,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<Option<Record>>> {
-        match self {
-            Self::Memory(store) => store.load(id, max_bytes, empty_expiry),
-            #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.load(id, max_bytes, empty_expiry),
-        }
-    }
-    fn delete<'a>(
-        &'a self,
-        id: &'a openrust::session::SessionId,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
-        match self {
-            Self::Memory(store) => store.delete(id),
-            #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.delete(id),
-        }
-    }
-}
-
 #[cfg(all(
     feature = "session-redis",
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
 async fn test_session_store(
     namespace: &str,
-) -> std::result::Result<TestSessionStore, Box<dyn StdError>> {
+) -> std::result::Result<SessionStoreHandle, Box<dyn StdError>> {
     if let Ok(redis_url) = std::env::var("OPENRUST_TEST_SESSION_REDIS_URL") {
-        return Ok(TestSessionStore::Redis(
+        return Ok(SessionStoreHandle::new(
             openrust::auth::RedisSessionStore::connect(redis_url, namespace).await?,
         ));
     }
@@ -1313,7 +1281,7 @@ async fn test_session_store(
                 .into(),
         );
     }
-    Ok(TestSessionStore::Memory(MemoryStore::default()))
+    Ok(SessionStoreHandle::new(MemorySessionStore::default()))
 }
 
 #[cfg(all(
@@ -1322,7 +1290,7 @@ async fn test_session_store(
 ))]
 fn test_session_store(
     namespace: &str,
-) -> std::future::Ready<std::result::Result<TestSessionStore, Box<dyn StdError>>> {
+) -> std::future::Ready<std::result::Result<SessionStoreHandle, Box<dyn StdError>>> {
     let _ = namespace;
     let result = if std::env::var("OPENRUST_REQUIRE_SHARED_SESSION").as_deref() == Ok("1") {
         Err(
@@ -1330,7 +1298,7 @@ fn test_session_store(
                 .into(),
         )
     } else {
-        Ok(TestSessionStore::Memory(MemoryStore::default()))
+        Ok(SessionStoreHandle::new(MemorySessionStore::default()))
     };
     std::future::ready(result)
 }
@@ -1348,12 +1316,12 @@ fn callback_node(state: LoginCallbackState, callback_path: &str) -> Router {
         .route("/session-probe", get(probe_shared_session))
         .route("/refresh-probe", post(probe_revoked_refresh))
         .route("/backchannel", post(process_node_backchannel));
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     let routes = routes
-        .route("/mfa", post(node_mfa_callback))
-        .route("/test/mfa-gate/hold", post(hold_mfa_gate))
-        .route("/test/mfa-gate/release", post(release_mfa_gate))
-        .route("/test/mfa-gate/status", get(mfa_gate_status));
+        .route("/two-factor", post(node_two_factor_callback))
+        .route("/test/two-factor-gate/hold", post(hold_factor_gate))
+        .route("/test/two-factor-gate/release", post(release_factor_gate))
+        .route("/test/two-factor-gate/status", get(factor_gate_status));
     let routes = routes
         .route("/test/callback-gate/hold", post(hold_callback_gate))
         .route("/test/callback-gate/release", post(release_callback_gate))
@@ -1403,7 +1371,8 @@ async fn probe_shared_session(
         return StatusCode::BAD_REQUEST;
     };
     match state
-        .session_store
+        .sessions
+        .store()
         .load(
             &session_id,
             openrust::session::DEFAULT_MAX_BYTES,
@@ -1428,7 +1397,11 @@ async fn probe_revoked_refresh(
     State(state): State<LoginCallbackState>,
     Form(input): Form<RefreshProbeForm>,
 ) -> StatusCode {
-    match state.refresh.rotate(&input.refresh_token).await {
+    match state
+        .auth
+        .refresh(&input.refresh_token, "node-revocation-probe")
+        .await
+    {
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::UNAUTHORIZED,
     }
@@ -1436,30 +1409,30 @@ async fn probe_revoked_refresh(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn hold_mfa_gate(State(state): State<LoginCallbackState>) -> StatusCode {
-    state.mfa_gate.hold();
+async fn hold_factor_gate(State(state): State<LoginCallbackState>) -> StatusCode {
+    state.factor_gate.hold();
     StatusCode::NO_CONTENT
 }
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn release_mfa_gate(State(state): State<LoginCallbackState>) -> StatusCode {
-    state.mfa_gate.release();
+async fn release_factor_gate(State(state): State<LoginCallbackState>) -> StatusCode {
+    state.factor_gate.release();
     StatusCode::NO_CONTENT
 }
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn mfa_gate_status(State(state): State<LoginCallbackState>) -> Json<usize> {
+async fn factor_gate_status(State(state): State<LoginCallbackState>) -> Json<usize> {
     Json(
         state
-            .mfa_gate
+            .factor_gate
             .waiting
             .load(std::sync::atomic::Ordering::Acquire),
     )
@@ -1534,7 +1507,15 @@ async fn keycloak_api_node_process() -> TestResult {
     let namespace = std::env::var("OPENRUST_TEST_SESSION_NAMESPACE")?;
     let node_id = std::env::var("OPENRUST_F7_NODE_ID")?;
     let issuer = std::env::var("OPENRUST_OIDC_ISSUER")?;
-    serve_keycloak_api_node(&database_url, &prefix, &namespace, &node_id, &issuer, &port).await
+    Box::pin(serve_keycloak_api_node(
+        &database_url,
+        &prefix,
+        &namespace,
+        &node_id,
+        &issuer,
+        &port,
+    ))
+    .await
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -1552,13 +1533,10 @@ async fn serve_keycloak_api_node(
     port: &str,
 ) -> TestResult {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    #[cfg(feature = "auth-mfa")]
-    use openrust::auth::MfaServiceProvider;
     use openrust::{
         auth::{
             AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
-            JwtTokens, PasswordConfig, Passwords, RefreshTokens, SessionStoreHandle,
-            VerificationCodes,
+            JwtTokens, PasswordConfig, Passwords, RefreshTokens, VerificationCodes,
         },
         config::EncryptionConfig,
         config::FrameworkConfig,
@@ -1606,21 +1584,29 @@ async fn serve_keycloak_api_node(
     builder
         .provider(TestInstance(std::sync::Arc::new(connection.clone())))
         .provider(TestInstance(std::sync::Arc::new(passwords)))
-        .provider(TestInstance(std::sync::Arc::new(jwt.clone())))
+        .provider(TestInstance(std::sync::Arc::new(jwt)))
         .provider(TestInstance(std::sync::Arc::new(refresh)))
         .provider(TestInstance(std::sync::Arc::new(codes)))
         .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
             DatabaseRateLimitStore::new(connection.clone()),
         ))))
         .provider(TestInstance(std::sync::Arc::new(encryptor.clone())));
-    #[cfg(feature = "auth-mfa")]
-    builder.provider(MfaServiceProvider);
     builder.provider(AuthFlowsServiceProvider::new());
     let app = builder
         .start(sources)
         .await
         .and_then(openrust::App::from_provider_runtime)?;
     let auth = (*app.state().resolve::<AuthFlows>().await?).clone();
+    #[cfg(feature = "auth-fortify")]
+    let parts = web::Parts::new(
+        connection.clone(),
+        (*app.state().resolve::<Passwords>().await?).clone(),
+        encryptor.clone(),
+        auth,
+    )
+    .await?;
+    #[cfg(feature = "auth-fortify")]
+    let auth = parts.auth.clone();
 
     let issuer_url = url::Url::parse(issuer)?;
     let host = issuer_url.host_str().ok_or("Keycloak issuer has no host")?;
@@ -1676,18 +1662,20 @@ async fn serve_keycloak_api_node(
         encryptor,
         [provider_trait],
     )?;
-    let refresh = openrust::auth::RefreshTokens::new(connection);
-    let session_store = test_session_store(namespace).await?;
+    let sessions = test_session_store(namespace).await?;
+    #[cfg(feature = "auth-fortify")]
+    let web = Arc::new(tokio::sync::RwLock::new(
+        web::Fixture::new(parts, flows.clone(), sessions.clone()).await?,
+    ));
     let state = LoginCallbackState {
         flows,
-        refresh,
-        #[cfg(feature = "auth-mfa")]
         auth,
-        #[cfg(feature = "auth-mfa")]
-        mfa_gate: MfaTestGate::default(),
-        callback_gate: MfaTestGate::default(),
-        sessions: SessionStoreHandle::new(session_store.clone()),
-        session_store,
+        #[cfg(feature = "auth-fortify")]
+        web,
+        #[cfg(feature = "auth-fortify")]
+        factor_gate: CallbackGate::default(),
+        callback_gate: CallbackGate::default(),
+        sessions,
         outcome: Arc::new(Mutex::new(None)),
         binding_requests: Arc::new(Mutex::new(HashMap::new())),
         logout_callback: Arc::new(Mutex::new(None)),
@@ -1718,15 +1706,15 @@ async fn node_login_callback(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn node_mfa_callback(
+async fn node_two_factor_callback(
     State(state): State<LoginCallbackState>,
     headers: HeaderMap,
-    Form(input): Form<MfaCallbackForm>,
+    Form(input): Form<TwoFactorForm>,
 ) -> Response {
     let node_id = state.node_id.clone();
-    let mut response = process_mfa_callback(State(state), headers, Form(input)).await;
+    let mut response = process_two_factor_callback(State(state), headers, Form(input)).await;
     if let Ok(value) = HeaderValue::from_str(&node_id) {
         response.headers_mut().insert("x-openrust-node", value);
     }
@@ -1800,11 +1788,10 @@ struct LogoutApp {
     database: openrust::testing::TestDatabase,
     connection: openrust::database::Db,
     state: LogoutAppState,
-    session_store: TestSessionStore,
     session_id: Option<openrust::session::SessionId>,
     jwt: openrust::auth::JwtTokens,
     access_token: Option<String>,
-    refresh: openrust::auth::RefreshTokens,
+    auth: openrust::auth::AuthFlows,
     refresh_token: Option<String>,
     redirect_uri: String,
     session_namespace: String,
@@ -1816,10 +1803,14 @@ struct LogoutApp {
     defer_secondary_logout: Option<Arc<std::sync::atomic::AtomicBool>>,
     user_id: Option<i64>,
     handle: Option<openrust::auth::ExternalLoginHandle>,
-    #[cfg(feature = "auth-mfa")]
-    auth: openrust::auth::AuthFlows,
-    #[cfg(feature = "auth-mfa")]
-    mfa_secret: Option<Vec<u8>>,
+    #[cfg(feature = "auth-fortify")]
+    parts: web::Parts,
+    #[cfg(feature = "auth-fortify")]
+    factor: Option<LocalFactor>,
+    #[cfg(feature = "auth-fortify")]
+    web_nodes: Vec<Arc<tokio::sync::RwLock<web::Fixture>>>,
+    #[cfg(feature = "auth-fortify")]
+    policy: openrust::auth::fortify::CredentialAuthority,
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -1828,27 +1819,32 @@ struct KeycloakMigrator;
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 impl openrust::database::sea_orm_migration::MigratorTrait for KeycloakMigrator {
     fn migrations() -> Vec<Box<dyn openrust::database::sea_orm_migration::MigrationTrait>> {
-        use openrust::database::sea_orm_migration::MigrationTrait;
         use openrust::{
             audit::{DatabaseAuditMigration, DatabaseAuditTenantMigration},
             auth,
             database::DatabaseRateLimitMigration,
         };
 
-        #[allow(unused_mut)]
-        let mut migrations: Vec<Box<dyn MigrationTrait>> = vec![
+        vec![
             Box::new(auth::AuthMigration),
             Box::new(auth::AuthRefreshTokenMigration),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(auth::AuthRememberTokenMigration),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(auth::fortify::FortifyTwoFactorMigration::new()),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(auth::fortify::FactorAuthorityMigration::new()),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(auth::fortify::CredentialFactorMigration::new()),
+            #[cfg(feature = "auth-fortify")]
+            Box::new(auth::fortify::CredentialChallengeMigration::new()),
             Box::new(auth::AuthVerificationCodeMigration),
             Box::new(DatabaseRateLimitMigration),
             Box::new(DatabaseAuditMigration),
             Box::new(DatabaseAuditTenantMigration),
             Box::new(auth::AuthExternalIdentityMigration),
             Box::new(auth::AuthExternalSessionMigration),
-        ];
-        #[cfg(feature = "auth-mfa")]
-        migrations.push(Box::new(auth::AuthMfaMigration));
-        migrations
+        ]
     }
 }
 
@@ -1863,13 +1859,10 @@ async fn create_logout_app(
     provider: std::sync::Arc<OidcProvider>,
 ) -> std::result::Result<LogoutApp, Box<dyn StdError>> {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    #[cfg(feature = "auth-mfa")]
-    use openrust::auth::MfaServiceProvider;
     use openrust::{
         auth::{
             AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
-            JwtTokens, PasswordConfig, Passwords, RefreshTokens, SessionStoreHandle,
-            VerificationCodes,
+            JwtTokens, PasswordConfig, Passwords, RefreshTokens, VerificationCodes,
         },
         config::EncryptionConfig,
         config::FrameworkConfig,
@@ -1923,20 +1916,34 @@ async fn create_logout_app(
         .provider(TestInstance(std::sync::Arc::new(connection.clone())))
         .provider(TestInstance(std::sync::Arc::new(passwords)))
         .provider(TestInstance(std::sync::Arc::new(jwt.clone())))
-        .provider(TestInstance(std::sync::Arc::new(refresh.clone())))
+        .provider(TestInstance(std::sync::Arc::new(refresh)))
         .provider(TestInstance(std::sync::Arc::new(codes)))
         .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
             DatabaseRateLimitStore::new(connection.clone()),
         ))))
         .provider(TestInstance(std::sync::Arc::new(encryptor.clone())));
-    #[cfg(feature = "auth-mfa")]
-    builder.provider(MfaServiceProvider);
     builder.provider(AuthFlowsServiceProvider::new());
     let app = builder
         .start(sources)
         .await
         .and_then(openrust::App::from_provider_runtime)?;
     let auth = (*app.state().resolve::<AuthFlows>().await?).clone();
+    #[cfg(feature = "auth-fortify")]
+    let parts = web::Parts::new(
+        connection.clone(),
+        (*app.state().resolve::<Passwords>().await?).clone(),
+        encryptor.clone(),
+        auth,
+    )
+    .await?;
+    #[cfg(feature = "auth-fortify")]
+    let auth = parts.auth.clone();
+    #[cfg(feature = "auth-fortify")]
+    let policy = openrust::auth::fortify::CredentialAuthority::new(
+        connection.clone(),
+        encryptor.clone(),
+        false,
+    );
     let provider_trait: std::sync::Arc<dyn ExternalIdentityProvider> = provider;
     let flows = openrust::auth::ExternalIdentityFlows::new(
         connection.clone(),
@@ -1947,8 +1954,7 @@ async fn create_logout_app(
 
     let session_namespace = std::env::var("OPENRUST_TEST_SESSION_NAMESPACE")
         .unwrap_or_else(|_| test_session_namespace(prefix));
-    let session_store = test_session_store(&session_namespace).await?;
-    let sessions = SessionStoreHandle::new(session_store.clone());
+    let sessions = test_session_store(&session_namespace).await?;
     let redirect_uri = if prefix == "keycloak_primary_" {
         REDIRECT_URI
     } else {
@@ -1963,11 +1969,10 @@ async fn create_logout_app(
             sessions,
             completed: mpsc::unbounded_channel().0,
         },
-        session_store,
         session_id: None,
         jwt,
         access_token: None,
-        refresh,
+        auth,
         refresh_token: None,
         redirect_uri,
         session_namespace,
@@ -1979,10 +1984,14 @@ async fn create_logout_app(
         defer_secondary_logout: None,
         user_id: None,
         handle: None,
-        #[cfg(feature = "auth-mfa")]
-        auth,
-        #[cfg(feature = "auth-mfa")]
-        mfa_secret: None,
+        #[cfg(feature = "auth-fortify")]
+        parts,
+        #[cfg(feature = "auth-fortify")]
+        factor: None,
+        #[cfg(feature = "auth-fortify")]
+        web_nodes: Vec::new(),
+        #[cfg(feature = "auth-fortify")]
+        policy,
     })
 }
 
@@ -2008,11 +2017,11 @@ async fn complete_logout_app_login(
         .query_pairs()
         .find_map(|(name, value)| (name == "state").then(|| value.into_owned()))
         .ok_or("OpenRust authorization URL has no state")?;
-    #[cfg(feature = "auth-mfa")]
-    if app.redirect_uri == REDIRECT_URI && app.mfa_secret.is_none() {
-        let (user_id, secret) = prepare_keycloak_mfa_user(app).await?;
-        app.mfa_secret = Some(secret);
-        bind_keycloak_mfa_identity(app, browser, browser_cookie, user_id).await?;
+    #[cfg(feature = "auth-fortify")]
+    if app.redirect_uri == REDIRECT_URI && app.factor.is_none() {
+        let (user_id, secret) = prepare_keycloak_factor_user(app).await?;
+        app.factor = Some(secret);
+        bind_keycloak_factor_identity(app, browser, browser_cookie, user_id).await?;
     }
     let process_mode = std::env::var("OPENRUST_REQUIRE_SHARED_SESSION").as_deref() == Ok("1");
     let upstreams = if process_mode {
@@ -2025,29 +2034,43 @@ async fn complete_logout_app_login(
         let node_a_addr = node_a.local_addr()?;
         let node_b = TcpListener::bind("127.0.0.1:0").await?;
         let node_b_addr = node_b.local_addr()?;
-        let node_state = |node_id: &str| LoginCallbackState {
+        #[cfg(feature = "auth-fortify")]
+        let web_nodes = [
+            Arc::new(tokio::sync::RwLock::new(
+                web::Fixture::new(
+                    app.parts.clone(),
+                    app.state.flows.clone(),
+                    app.state.sessions.clone(),
+                )
+                .await?,
+            )),
+            Arc::new(tokio::sync::RwLock::new(
+                web::Fixture::new(
+                    app.parts.clone(),
+                    app.state.flows.clone(),
+                    app.state.sessions.clone(),
+                )
+                .await?,
+            )),
+        ];
+        let node_state = |index: usize| LoginCallbackState {
             flows: app.state.flows.clone(),
-            refresh: app.refresh.clone(),
-            #[cfg(feature = "auth-mfa")]
             auth: app.auth.clone(),
-            #[cfg(feature = "auth-mfa")]
-            mfa_gate: MfaTestGate::default(),
-            callback_gate: MfaTestGate::default(),
-            session_store: app.session_store.clone(),
-            sessions: openrust::auth::SessionStoreHandle::new(app.session_store.clone()),
+            #[cfg(feature = "auth-fortify")]
+            web: web_nodes[index].clone(),
+            #[cfg(feature = "auth-fortify")]
+            factor_gate: CallbackGate::default(),
+            callback_gate: CallbackGate::default(),
+            sessions: app.state.sessions.clone(),
             outcome: app.callback_outcome.clone(),
             binding_requests: app.binding_requests.clone(),
             logout_callback: app.logout_callback.clone(),
-            node_id: node_id.to_owned(),
+            node_id: ["api-a", "api-b"][index].to_owned(),
         };
-        let node_a_app = callback_node(
-            node_state("api-a"),
-            url::Url::parse(&app.redirect_uri)?.path(),
-        );
-        let node_b_app = callback_node(
-            node_state("api-b"),
-            url::Url::parse(&app.redirect_uri)?.path(),
-        );
+        let node_a_app = callback_node(node_state(0), url::Url::parse(&app.redirect_uri)?.path());
+        let node_b_app = callback_node(node_state(1), url::Url::parse(&app.redirect_uri)?.path());
+        #[cfg(feature = "auth-fortify")]
+        app.web_nodes.extend(web_nodes);
         app.callback_servers.extend([
             tokio::spawn(async move {
                 let _ = axum::serve(node_a, node_a_app).await;
@@ -2124,48 +2147,58 @@ async fn complete_logout_app_login(
         )
         .send()
         .await?;
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     let login_node = callback_response
         .headers()
         .get("x-openrust-node")
         .and_then(|value| value.to_str().ok())
         .ok_or("load balancer response omitted its API node")?
         .to_owned();
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     let callback_response = if callback_response.status() == StatusCode::ACCEPTED {
-        let secret = app
-            .mfa_secret
-            .as_deref()
-            .ok_or("application returned MFA challenge without a local factor")?;
-        let session_cookie = callback_response
-            .headers()
-            .get(reqwest::header::SET_COOKIE)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.split(';').next())
-            .ok_or("application returned an MFA challenge without a shared Session cookie")?;
-        let mfa_url = url::Url::parse(&app.redirect_uri)?.join("/mfa")?;
-        let mfa_response = browser
-            .post(mfa_url)
+        let factor = app
+            .factor
+            .as_ref()
+            .ok_or("pending challenge omitted local factor")?;
+        let (session_cookie, csrf) = pending_web_credentials(&callback_response)?;
+        let factor_url = url::Url::parse(&app.redirect_uri)?.join("/two-factor")?;
+        // 同一份浏览器 Cookie 对缺失与伪造 CSRF 各失败一次；两次均不能消耗验证码。
+        let code = keycloak_totp_code(&factor.secret, 1)?;
+        for invalid_csrf in [None, Some("invalid-csrf")] {
+            let mut request = browser
+                .post(factor_url.clone())
+                .header(reqwest::header::COOKIE, &session_cookie);
+            if let Some(invalid) = invalid_csrf {
+                request = request.header("x-csrf-token", invalid);
+            }
+            let denied = request.form(&[("code", &code)]).send().await?;
+            assert_eq!(denied.status().as_u16(), 419);
+        }
+        let factor_response = browser
+            .post(factor_url)
             .header(reqwest::header::COOKIE, session_cookie)
-            .form(&[("code", keycloak_totp_code(secret, 1)?)])
+            .header("x-csrf-token", csrf)
+            .form(&[("code", code)])
             .send()
             .await?;
-        let mfa_node = mfa_response
+        let factor_node = factor_response
             .headers()
             .get("x-openrust-node")
             .and_then(|value| value.to_str().ok())
-            .ok_or("MFA response omitted its API node")?;
-        if login_node == mfa_node {
-            return Err("load balancer sent MFA completion to the same API node".into());
+            .ok_or("two-factor response omitted its API node")?;
+        if login_node == factor_node {
+            return Err("load balancer sent two-factor completion to the same API node".into());
         }
-        mfa_response
+        factor_response
     } else {
         callback_response
     };
-    #[cfg(not(feature = "auth-mfa"))]
+    #[cfg(not(feature = "auth-fortify"))]
     let callback_response = {
         if callback_response.status() == StatusCode::ACCEPTED {
-            return Err("application returned MFA challenge without the auth-mfa feature".into());
+            return Err(
+                "application returned a two-factor challenge without the Fortify feature".into(),
+            );
         }
         callback_response
     };
@@ -2198,18 +2231,30 @@ async fn complete_logout_app_login(
         app.user_id = Some(outcome.user_id);
         app.handle = Some(outcome.handle);
     }
+    #[cfg(feature = "auth-fortify")]
+    {
+        let access = app
+            .access_token
+            .as_deref()
+            .ok_or("missing callback access token")?;
+        let verified = app
+            .policy
+            .authenticate_access_token(&app.jwt, access)
+            .await?;
+        assert_eq!(Some(verified.user_id()), app.user_id);
+    }
     Ok(())
 }
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn start_pending_mfa_callback(
+async fn start_pending_factor_callback(
     app: &LogoutApp,
     browser: &reqwest::Client,
     browser_cookie: &str,
-) -> std::result::Result<String, Box<dyn StdError>> {
+) -> std::result::Result<(String, String), Box<dyn StdError>> {
     let authorization = app.state.flows.authorize("keycloak", "127.0.0.1").await?;
     let response = browser
         .get(authorization.url().clone())
@@ -2218,7 +2263,7 @@ async fn start_pending_mfa_callback(
         .await?;
     if !response.status().is_redirection() {
         return Err(format!(
-            "pending MFA authorization required interaction: {}",
+            "pending two-factor authorization required interaction: {}",
             response.status()
         )
         .into());
@@ -2227,7 +2272,7 @@ async fn start_pending_mfa_callback(
         response
             .headers()
             .get(reqwest::header::LOCATION)
-            .ok_or("pending MFA authorization has no callback Location")?
+            .ok_or("pending two-factor authorization has no callback Location")?
             .to_str()?,
     )?;
     let binding_cookie = callback_cookie(&authorization)?;
@@ -2240,13 +2285,25 @@ async fn start_pending_mfa_callback(
         .send()
         .await?;
     assert_eq!(callback_response.status(), StatusCode::ACCEPTED);
-    let session_cookie = callback_response
-        .headers()
-        .get(reqwest::header::SET_COOKIE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(';').next())
-        .ok_or("pending MFA callback omitted its Session cookie")?;
-    Ok(session_cookie.to_owned())
+    pending_web_credentials(&callback_response)
+}
+
+#[cfg(all(
+    feature = "auth-fortify",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+fn pending_web_credentials(
+    reply: &reqwest::Response,
+) -> std::result::Result<(String, String), Box<dyn StdError>> {
+    Ok((
+        web::cookie_header(reply.headers())?,
+        reply
+            .headers()
+            .get("x-csrf-token")
+            .and_then(|h| h.to_str().ok())
+            .ok_or("pending response omitted CSRF")?
+            .to_owned(),
+    ))
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -2281,19 +2338,19 @@ async fn prepare_pending_callback(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn hold_mfa_gates(
+async fn hold_factor_gates(
     app: &LogoutApp,
     browser: &reqwest::Client,
 ) -> std::result::Result<(), Box<dyn StdError>> {
     let nodes = app
         .api_nodes
         .as_ref()
-        .ok_or("API nodes are not running for the MFA race")?;
+        .ok_or("API nodes are not running for the two-factor race")?;
     for address in nodes.addresses {
         let response = browser
-            .post(format!("http://{address}/test/mfa-gate/hold"))
+            .post(format!("http://{address}/test/two-factor-gate/hold"))
             .send()
             .await?;
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
@@ -2303,21 +2360,21 @@ async fn hold_mfa_gates(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn wait_for_mfa_gate(
+async fn wait_for_factor_gate(
     app: &LogoutApp,
     browser: &reqwest::Client,
 ) -> std::result::Result<(), Box<dyn StdError>> {
     let nodes = app
         .api_nodes
         .as_ref()
-        .ok_or("API nodes are not running for the MFA race")?;
+        .ok_or("API nodes are not running for the two-factor race")?;
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             for address in nodes.addresses {
                 let response = browser
-                    .get(format!("http://{address}/test/mfa-gate/status"))
+                    .get(format!("http://{address}/test/two-factor-gate/status"))
                     .send()
                     .await?;
                 if response.status().is_success() && response.json::<usize>().await? > 0 {
@@ -2333,19 +2390,19 @@ async fn wait_for_mfa_gate(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn release_mfa_gates(
+async fn release_factor_gates(
     app: &LogoutApp,
     browser: &reqwest::Client,
 ) -> std::result::Result<(), Box<dyn StdError>> {
     let nodes = app
         .api_nodes
         .as_ref()
-        .ok_or("API nodes are not running for the MFA race")?;
+        .ok_or("API nodes are not running for the two-factor race")?;
     for address in nodes.addresses {
         let response = browser
-            .post(format!("http://{address}/test/mfa-gate/release"))
+            .post(format!("http://{address}/test/two-factor-gate/release"))
             .send()
             .await?;
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
@@ -2411,86 +2468,73 @@ async fn release_callback_gates(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn prepare_keycloak_mfa_user(
-    app: &LogoutApp,
-) -> std::result::Result<(i64, Vec<u8>), Box<dyn StdError>> {
-    use sea_orm::ConnectionTrait;
+struct LocalFactor {
+    secret: zeroize::Zeroizing<Vec<u8>>,
+    recovery: zeroize::Zeroizing<Vec<String>>,
+}
 
+#[cfg(all(
+    feature = "auth-fortify",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+async fn prepare_keycloak_factor_user(
+    app: &LogoutApp,
+) -> std::result::Result<(i64, LocalFactor), Box<dyn StdError>> {
+    use openrust::auth::UserProvider as _;
     let email = "openrust-test-user@example.test";
-    let password = "openrust-local-mfa-password";
+    let password = "openrust-local-factor-password";
     let issued = app
+        .parts
         .auth
-        .register(email, password, "keycloak-mfa-register")
+        .register(email, password, "keycloak-factor-register")
         .await?
-        .ok_or("Keycloak MFA test account was not created")?;
+        .ok_or("Keycloak two-factor test account was not created")?;
     if !app
+        .parts
         .auth
-        .verify_email(email, issued.code(), "keycloak-mfa-verify")
+        .verify_email(email, issued.code(), "keycloak-factor-verify")
         .await?
     {
-        return Err("Keycloak MFA test account email was not verified".into());
+        return Err("Keycloak two-factor test account email was not verified".into());
     }
-    let users = app.connection.quoted_table_name("users")?;
-    let raw = app.connection.connection()?;
-    let backend = raw.get_database_backend();
-    let row = raw
-        .query_one_raw(openrust::database::sea_orm::Statement::from_sql_and_values(
-            backend,
-            format!(
-                "SELECT id FROM {users} WHERE email = {}",
-                if backend == openrust::database::sea_orm::DbBackend::Postgres {
-                    "$1"
-                } else {
-                    "?"
-                }
-            ),
-            [email.into()],
-        ))
+    let credentials = app
+        .parts
+        .auth
+        .login(email, password, "keycloak-factor-account")
+        .await?;
+    let id = credentials.user_id();
+    let user = app
+        .parts
+        .users
+        .retrieve_by_id(&serde_json::json!(id))
         .await?
-        .ok_or("Keycloak MFA test account row was not stored")?;
-    let user_id = row.try_get::<i64>("", "id")?;
-    let enrollment = app
-        .auth
-        .begin_totp_enrollment(
-            user_id,
-            email,
-            password,
-            "OpenRust Keycloak test",
-            "keycloak-mfa-enroll",
-        )
+        .ok_or("registered account missing")?;
+    app.parts.actions.enable(&user, false).await?;
+    let encoded = app.parts.actions.secret_key(&user).await?;
+    let secret = zeroize::Zeroizing::new(decode_keycloak_base32(&encoded)?);
+    app.parts
+        .actions
+        .confirm(&user, &keycloak_totp_code(&secret, 0)?)
         .await?;
-    let uri = url::Url::parse(enrollment.provisioning_uri())?;
-    let encoded = uri
-        .query_pairs()
-        .find_map(|(name, value)| (name == "secret").then(|| value.into_owned()))
-        .ok_or("Keycloak MFA enrollment omitted its seed")?;
-    let secret = decode_keycloak_base32(&encoded)?;
-    let recovery_codes = app
-        .auth
-        .confirm_totp_enrollment(
-            user_id,
-            &keycloak_totp_code(&secret, 0)?,
-            "keycloak-mfa-confirm",
-        )
-        .await?;
-    assert_eq!(recovery_codes.expose().len(), 10);
-    Ok((user_id, secret))
+    let recovery = app.parts.actions.recovery_codes(&user).await?;
+    assert_eq!(recovery.len(), 8);
+    Ok((id, LocalFactor { secret, recovery }))
 }
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
-async fn bind_keycloak_mfa_identity(
+async fn bind_keycloak_factor_identity(
     app: &LogoutApp,
     browser: &reqwest::Client,
     browser_cookie: &str,
     user_id: i64,
 ) -> std::result::Result<(), Box<dyn StdError>> {
     let email = "openrust-test-user@example.test";
-    let password = "openrust-local-mfa-password";
+    let password = "openrust-local-factor-password";
     let authorization = app.state.flows.authorize("keycloak", "127.0.0.1").await?;
     let state = authorization
         .url()
@@ -2542,13 +2586,13 @@ async fn bind_keycloak_mfa_identity(
             &browser_binding,
         )
         .await
-        .map_err(|error| format!("Keycloak MFA identity binding failed: {error:?}"))?;
+        .map_err(|error| format!("Keycloak two-factor identity binding failed: {error:?}"))?;
     Ok(())
 }
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
 async fn assert_binding_request_state(
     app: &LogoutApp,
@@ -2599,7 +2643,7 @@ async fn assert_binding_request_state(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
 fn decode_keycloak_base32(encoded: &str) -> std::result::Result<Vec<u8>, Box<dyn StdError>> {
     let mut output = Vec::new();
@@ -2625,7 +2669,7 @@ fn decode_keycloak_base32(encoded: &str) -> std::result::Result<Vec<u8>, Box<dyn
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
 fn keycloak_totp_code(
     secret: &[u8],
@@ -2717,7 +2761,9 @@ async fn complete_rp_logout(
         "the app logout callback must consume state only once"
     );
     assert!(
-        app.session_store
+        app.state
+            .sessions
+            .store()
             .load(
                 app.session_id
                     .as_ref()
@@ -2730,11 +2776,12 @@ async fn complete_rp_logout(
         "RP logout must remove the local Session before redirecting to Keycloak"
     );
     assert!(
-        app.refresh
-            .rotate(
+        app.auth
+            .refresh(
                 app.refresh_token
                     .as_deref()
-                    .ok_or("application refresh token is missing")?
+                    .ok_or("application refresh token is missing")?,
+                "rp-after-logout"
             )
             .await
             .is_err(),
@@ -2753,15 +2800,16 @@ struct LoginCallbackQuery {
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 #[allow(
     clippy::too_many_lines,
-    reason = "同一 HTTP callback 同时验证 RP logout、身份绑定、state cookie 与 MFA challenge 语义"
+    reason = "同一 HTTP callback 同时验证 RP logout、身份绑定、state cookie 与 two-factor challenge 语义"
 )]
 async fn process_login_callback(
     State(state): State<LoginCallbackState>,
     Query(query): Query<LoginCallbackQuery>,
     headers: HeaderMap,
 ) -> Response {
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     use openrust::auth::LoginAttempt;
+    #[cfg(not(feature = "auth-fortify"))]
     use openrust::auth::Session;
 
     let Some(code) = query.code.as_deref() else {
@@ -2816,93 +2864,76 @@ async fn process_login_callback(
         return StatusCode::UNAUTHORIZED.into_response();
     };
     let (attempt, handle) = login.into_parts();
-    #[cfg(feature = "auth-mfa")]
-    let credentials = match attempt {
-        LoginAttempt::Authenticated(credentials) => credentials,
-        LoginAttempt::MfaRequired(challenge) => {
-            let Ok(session) = Session::new(None, Arc::new(state.session_store.clone()), None)
-            else {
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            };
-            if session.start().await.is_err() {
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    #[cfg(feature = "auth-fortify")]
+    {
+        let reply = match attempt {
+            LoginAttempt::Authenticated(credentials) => {
+                state
+                    .web
+                    .read()
+                    .await
+                    .begin_authenticated(&credentials, &handle)
+                    .await
             }
-            if session
-                .set_expiry(Some(openrust::session::Expiry::OnInactivity(
-                    time::Duration::minutes(5),
-                )))
-                .is_err()
-            {
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            LoginAttempt::TwoFactorRequired(challenge) => {
+                state.web.read().await.begin(&challenge, &handle).await
             }
-            if session
-                .put("openrust.auth.mfa.user_id", challenge.user_id().into())
-                .is_err()
-                || session
-                    .put("openrust.auth.mfa.challenge", challenge.expose().into())
-                    .is_err()
-                || session
-                    .put("openrust.auth.mfa.external_handle", handle.expose().into())
-                    .is_err()
-                || session.save().await.is_err()
-            {
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-            let Ok(session_id) = session.id() else {
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            };
-            return response_with_session_cookie(StatusCode::ACCEPTED, &session_id);
+        };
+        publish_web_reply(&state, reply).await
+    }
+    #[cfg(not(feature = "auth-fortify"))]
+    {
+        let openrust::auth::LoginAttempt::Authenticated(credentials) = attempt;
+        let user_id = credentials.user_id();
+        let access_token = credentials.access_token().to_owned();
+        let refresh_token = credentials.refresh_token().expose().to_owned();
+        let Ok(session) = Session::new(None, state.sessions.store(), None) else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
+        if session.start().await.is_err() {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
-    };
-    #[cfg(not(feature = "auth-mfa"))]
-    let openrust::auth::LoginAttempt::Authenticated(credentials) = attempt;
-    let user_id = credentials.user_id();
-    let access_token = credentials.access_token().to_owned();
-    let refresh_token = credentials.refresh_token().expose().to_owned();
-    let Ok(session) = Session::new(None, Arc::new(state.session_store.clone()), None) else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    if session.start().await.is_err() {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        if session
+            .set_expiry(Some(openrust::session::Expiry::OnInactivity(
+                time::Duration::minutes(5),
+            )))
+            .is_err()
+        {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+        if session.put_typed("openrust.auth.user_id", user_id).is_err()
+            || session.save().await.is_err()
+        {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+        let Ok(session_id) = session.id() else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
+        if state
+            .flows
+            .attach_session(user_id, &handle, &session)
+            .await
+            .is_err()
+        {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+        let mut outcome = state.outcome.lock().await;
+        if outcome.is_some() {
+            return StatusCode::CONFLICT.into_response();
+        }
+        *outcome = Some(LoginCallbackOutcome {
+            user_id,
+            session_id: session_id.clone(),
+            access_token,
+            refresh_token,
+            handle,
+        });
+        response_with_session_cookie(StatusCode::NO_CONTENT, &session_id)
     }
-    if session
-        .set_expiry(Some(openrust::session::Expiry::OnInactivity(
-            time::Duration::minutes(5),
-        )))
-        .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    if session.put_typed("openrust.auth.user_id", user_id).is_err() || session.save().await.is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    let Ok(session_id) = session.id() else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    if state
-        .flows
-        .attach_session(user_id, &handle, &session)
-        .await
-        .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    let mut outcome = state.outcome.lock().await;
-    if outcome.is_some() {
-        return StatusCode::CONFLICT.into_response();
-    }
-    *outcome = Some(LoginCallbackOutcome {
-        user_id,
-        session_id: session_id.clone(),
-        access_token,
-        refresh_token,
-        handle,
-    });
-    response_with_session_cookie(StatusCode::NO_CONTENT, &session_id)
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[cfg(not(feature = "auth-fortify"))]
 fn response_with_session_cookie(
     status: StatusCode,
     session_id: &openrust::session::SessionId,
@@ -2919,129 +2950,88 @@ fn response_with_session_cookie(
 
 #[cfg(all(
     any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify"
 ))]
 #[derive(serde::Deserialize)]
-struct MfaCallbackForm {
-    code: String,
+struct TwoFactorForm {
+    code: Option<String>,
+    recovery_code: Option<String>,
 }
 
 #[cfg(all(
-    any(feature = "db-postgres", feature = "db-mysql"),
-    feature = "auth-mfa"
+    feature = "auth-fortify",
+    any(feature = "db-postgres", feature = "db-mysql")
 ))]
-#[allow(
-    clippy::too_many_lines,
-    reason = "测试 handler 贯通共享 Session、MFA challenge 与外部身份凭据关联"
-)]
-async fn process_mfa_callback(
+async fn publish_web_reply(
+    state: &LoginCallbackState,
+    reply: openrust::Result<web::Reply>,
+) -> Response {
+    let reply = match reply {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!(
+                "Keycloak Web callback stage=dispatch_web_request code={} status={}",
+                error.code(),
+                error.status().as_u16()
+            );
+            return error.status().into_response();
+        }
+    };
+    let status = if let Some(outcome) = reply.outcome {
+        let mut slot = state.outcome.lock().await;
+        if slot.is_some() {
+            return StatusCode::CONFLICT.into_response();
+        }
+        *slot = Some(LoginCallbackOutcome {
+            user_id: outcome.user_id,
+            session_id: outcome.session_id,
+            access_token: outcome.access_token,
+            refresh_token: outcome.refresh_token,
+            handle: outcome.handle,
+        });
+        StatusCode::NO_CONTENT
+    } else {
+        reply.status
+    };
+    let mut response = status.into_response();
+    for value in reply.headers.get_all(header::SET_COOKIE) {
+        response
+            .headers_mut()
+            .append(header::SET_COOKIE, value.clone());
+    }
+    if let Some(token) = reply.headers.get("x-csrf-token") {
+        response.headers_mut().insert("x-csrf-token", token.clone());
+    }
+    response
+}
+
+#[cfg(all(
+    feature = "auth-fortify",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+async fn process_two_factor_callback(
     State(state): State<LoginCallbackState>,
     headers: HeaderMap,
-    Form(input): Form<MfaCallbackForm>,
+    Form(input): Form<TwoFactorForm>,
 ) -> Response {
-    use openrust::auth::{ExternalLoginHandle, Session};
-
-    let Some(cookie_header) = headers
+    let cookie = headers
         .get(header::COOKIE)
-        .and_then(|value| value.to_str().ok())
-    else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-    let Some(session_id) = cookie_header.split(';').find_map(|cookie| {
-        let (name, value) = cookie.trim().split_once('=')?;
-        (name == "openrust_session")
-            .then_some(value.parse().ok())
-            .flatten()
-    }) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-    let Ok(session) = Session::new(
-        Some(session_id),
-        Arc::new(state.session_store.clone()),
-        None,
-    ) else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    if session.start().await.is_err() {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    let (Some(pending_user_id), Some(challenge), Some(exposed_handle)) = (
-        session
-            .get_typed::<i64>("openrust.auth.mfa.user_id")
-            .ok()
-            .flatten(),
-        session
-            .get_typed::<String>("openrust.auth.mfa.challenge")
-            .ok()
-            .flatten(),
-        session
-            .get_typed::<String>("openrust.auth.mfa.external_handle")
-            .ok()
-            .flatten(),
-    ) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-    let Ok(handle) = ExternalLoginHandle::from_exposed(exposed_handle) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-    state.mfa_gate.wait().await;
-    let Ok(credentials) = state
-        .auth
-        .complete_mfa_login(&challenge, &input.code, "127.0.0.1")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or_default();
+    let csrf = headers.get("x-csrf-token").and_then(|h| h.to_str().ok());
+    state.factor_gate.wait().await;
+    let reply = state
+        .web
+        .read()
         .await
-    else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-    let user_id = credentials.user_id();
-    if user_id != pending_user_id {
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
-    let access_token = credentials.access_token().to_owned();
-    let refresh_token = credentials.refresh_token().expose().to_owned();
-    if session.migrate(true).await.is_err() {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    if session
-        .set_expiry(Some(openrust::session::Expiry::OnInactivity(
-            time::Duration::minutes(5),
-        )))
-        .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    if session.forget(&["openrust.auth.mfa.user_id"]).is_err()
-        || session.forget(&["openrust.auth.mfa.challenge"]).is_err()
-        || session
-            .forget(&["openrust.auth.mfa.external_handle"])
-            .is_err()
-        || session.put_typed("openrust.auth.user_id", user_id).is_err()
-        || session.save().await.is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    let Ok(session_id) = session.id() else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    if state
-        .flows
-        .attach_session(user_id, &handle, &session)
-        .await
-        .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    let mut outcome = state.outcome.lock().await;
-    if outcome.is_some() {
-        return StatusCode::CONFLICT.into_response();
-    }
-    *outcome = Some(LoginCallbackOutcome {
-        user_id,
-        session_id: session_id.clone(),
-        access_token,
-        refresh_token,
-        handle,
-    });
-    response_with_session_cookie(StatusCode::NO_CONTENT, &session_id)
+        .complete(
+            cookie,
+            csrf,
+            input.code.as_deref(),
+            input.recovery_code.as_deref(),
+        )
+        .await;
+    publish_web_reply(&state, reply).await
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -3082,6 +3072,14 @@ async fn verify_logout_access_token_window(
             app.jwt.verify_access_token(token).ok(),
             Some(user_id),
             "logout must not claim to instantly revoke a stateless access token"
+        );
+        #[cfg(feature = "auth-fortify")]
+        assert!(
+            matches!(
+                app.policy.authenticate_access_token(&app.jwt, token).await,
+                Err(openrust::Error::Unauthorized)
+            ),
+            "protected resources must observe the revoked family before JWT expiry"
         );
         expirations.push(jwt_expiration(token)?);
     }

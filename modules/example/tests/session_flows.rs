@@ -364,6 +364,22 @@ async fn module_previous_named_anonymous_and_opt_in_precognition_preserve_reques
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+struct PersistentHostMigrator;
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+impl openrust::db::sea_orm_migration::MigratorTrait for PersistentHostMigrator {
+    fn migrations() -> Vec<Box<dyn openrust::db::sea_orm_migration::MigrationTrait>> {
+        #[cfg(feature = "auth")]
+        {
+            super::selected_test_auth::migrations()
+        }
+        #[cfg(not(feature = "auth"))]
+        {
+            <openrust::db::FrameworkMigrator as openrust::db::sea_orm_migration::MigratorTrait>::migrations()
+        }
+    }
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 #[tokio::test]
 async fn module_database_previous_history_and_precognition_use_the_original_persistent_host()
 -> TestResult {
@@ -372,7 +388,7 @@ async fn module_database_previous_history_and_precognition_use_the_original_pers
         return Ok(());
     };
     let database =
-        openrust::testing::TestDatabase::create::<openrust::db::FrameworkMigrator>(&admin).await?;
+        openrust::testing::TestDatabase::create::<PersistentHostMigrator>(&admin).await?;
     let source = sources().merge(Serialized::defaults(json!({
         "database":{"url":database.url()},
         "session":{"driver":"database","cookie":COOKIE_NAME,"secure":false,"lottery":[1,1]},
@@ -410,7 +426,7 @@ async fn module_database_old_input_survives_real_request_boundaries() -> TestRes
         return Ok(());
     };
     let database =
-        openrust::testing::TestDatabase::create::<openrust::db::FrameworkMigrator>(&admin).await?;
+        openrust::testing::TestDatabase::create::<PersistentHostMigrator>(&admin).await?;
     let source = sources().merge(Serialized::defaults(json!({
         "database":{"url":database.url()},
         "session":{"driver":"database","cookie":COOKIE_NAME,"secure":false,"lottery":[1,1]},

@@ -5,6 +5,8 @@
 mod app;
 #[path = "../../../config/mod.rs"]
 mod config;
+#[path = "../../../database/mod.rs"]
+mod database;
 
 #[path = "../../../bootstrap/app.rs"]
 mod bootstrap;
@@ -42,7 +44,7 @@ struct TestMigrator;
 #[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for TestMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = database::Migrator::migrations();
         migrations.extend(modules::example::database::migrations::Migrator::migrations());
         migrations
     }
@@ -604,13 +606,42 @@ async fn run_auth_flow(
         .ok_or("login omitted refresh token")?;
     let current_user = get(address, "/api/example/me", access_token).await?;
     assert_eq!(current_user.body["data"]["user_id"], user_id);
-    let personal_access_token = app
+    let tokens = app
         .state()
         .resolve::<openrust::auth::PersonalAccessTokens>()
-        .await?
+        .await?;
+    #[cfg(feature = "auth-fortify")]
+    let personal_access_token = {
+        let denied = tokens
+            .issue(user_id, "unverified", &[], None)
+            .await
+            .err()
+            .ok_or("裸账户ID签发未被拒绝")?;
+        assert_eq!(denied.code(), "auth_credential_proof_required");
+        let authority = app
+            .state()
+            .resolve::<openrust::auth::fortify::CredentialAuthority>()
+            .await?;
+        let jwt = app.state().resolve::<openrust::auth::JwtTokens>().await?;
+        let parent = authority
+            .authenticate_access_token(jwt.as_ref(), access_token)
+            .await?;
+        assert_eq!(parent.user_id(), user_id);
+        let expires_at = parent.expires_at();
+        tokens
+            .issue_from_verified(
+                parent,
+                "example-http-test",
+                &["profile:read".to_owned()],
+                expires_at,
+            )
+            .await?
+    };
+    #[cfg(not(feature = "auth-fortify"))]
+    let personal_access_token = tokens
         .issue(
             user_id,
-            "generated-http-test",
+            "example-http-test",
             &["profile:read".to_owned()],
             None,
         )

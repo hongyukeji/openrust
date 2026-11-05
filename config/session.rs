@@ -8,9 +8,17 @@ use openrust::config::{ConfigContext, ConfigError, SessionConfig};
     reason = "保持 ConfigManifest 配置函数统一的可失败契约"
 )]
 pub fn config(ctx: &ConfigContext) -> Result<SessionConfig, ConfigError> {
+    #[cfg(feature = "auth-fortify")]
+    let jwt_api = ctx.require::<String>("auth-profile")? == "jwt-api";
+    #[cfg(not(feature = "auth-fortify"))]
+    let jwt_api = false;
     Ok(SessionConfig {
         // None 明确不启用 Session；database 仍须数据库及迁移。
-        driver: Some("database".to_owned()),
+        driver: if jwt_api {
+            None
+        } else {
+            Some("database".to_owned())
+        },
         // None 选默认数据库连接；部署可指定同一数据库管理器中的具名连接。
         connection: ctx.nullable_string_or("SESSION_CONNECTION", None),
         // 逻辑表名仍通过选定连接的 table_prefix / table_names 解析。

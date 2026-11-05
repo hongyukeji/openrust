@@ -24,6 +24,7 @@ pub struct Auth {
     guards: serde_json::Value,
     providers: serde_json::Value,
     timebox_duration: u64,
+    password_timeout: u64,
 }
 
 /// 缺省继承最终应用身份；领域专属显式来源仍可独立覆写。
@@ -34,6 +35,7 @@ pub fn config(ctx: &ConfigContext) -> Result<Auth, ConfigError> {
         guards: serde_json::json!({"web":{"driver":"session", "provider":"users", "remember":576_000}}),
         providers: serde_json::json!({"users":{"driver":"app-users", "table":"users"}}),
         timebox_duration: 200_000,
+        password_timeout: 10_800,
         jwt: Jwt {
             issuer: ctx.require("app.url")?,
             audience: ctx.require("app.name")?,

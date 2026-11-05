@@ -40,6 +40,25 @@ impl RateLimitBucket {
 /// 调用方必须在每个 key 中包含稳定的策略/作用域标识，并在使用该 key 的各处采用相同的 `window`。
 /// 对 key 哈希只是假名化，不能防止攻击者猜测电子邮件地址等低熵值。
 pub trait RateLimitStore: Send + Sync + 'static {
+    /// 按首次命中开始的衰减窗口原子增量；旧consume-only driver必须显式提供此能力。
+    fn hit<'a>(
+        &'a self,
+        _key: &'a str,
+        _decay: Duration,
+    ) -> RateLimitFuture<'a, Result<RateLimitBucket>> {
+        Box::pin(async { Err(decay_unsupported()) })
+    }
+    /// 只读仍未到期的计数；不延长窗口、不消耗额度。
+    fn attempts<'a>(
+        &'a self,
+        _key: &'a str,
+    ) -> RateLimitFuture<'a, Result<Option<RateLimitBucket>>> {
+        Box::pin(async { Err(decay_unsupported()) })
+    }
+    /// 删除指定衰减策略key的计数与到期状态。
+    fn clear<'a>(&'a self, _key: &'a str) -> RateLimitFuture<'a, Result<()>> {
+        Box::pin(async { Err(decay_unsupported()) })
+    }
     /// 原子地消耗一次请求额度，并返回更新后的计数和重置延迟。
     fn consume<'a>(
         &'a self,
@@ -66,6 +85,43 @@ impl RateLimiter {
         Self {
             store: Arc::new(store),
         }
+    }
+
+    /// 增加首次命中衰减计数；key必须与aligned-window策略使用不同作用域。
+    pub async fn hit(&self, key: &str, decay: Duration) -> Result<RateLimitBucket> {
+        validate_key(key)?;
+        if decay.as_secs() == 0 || decay.subsec_nanos() != 0 || decay.as_secs() > 31_536_000 {
+            return Err(invalid_policy());
+        }
+        self.store.hit(key, decay).await
+    }
+    /// 返回未到期的原始bucket，不递增计数。
+    pub async fn attempts(&self, key: &str) -> Result<Option<RateLimitBucket>> {
+        validate_key(key)?;
+        self.store.attempts(key).await
+    }
+    /// 清除同一衰减策略key。
+    pub async fn clear(&self, key: &str) -> Result<()> {
+        validate_key(key)?;
+        self.store.clear(key).await
+    }
+    /// 判断已发生的命中数是否达到max；不消耗一次请求。
+    pub async fn too_many_attempts(&self, key: &str, max: u64) -> Result<bool> {
+        validate_key(key)?;
+        if max == 0 {
+            return Err(invalid_policy());
+        }
+        Ok(self
+            .attempts(key)
+            .await?
+            .is_some_and(|bucket| bucket.count() >= max))
+    }
+    /// 返回未到期窗口剩余整秒数，缺失或过期为0。
+    pub async fn available_in(&self, key: &str) -> Result<u64> {
+        Ok(self
+            .attempts(key)
+            .await?
+            .map_or(0, RateLimitBucket::reset_after_secs))
     }
 
     /// 消耗一次请求额度，并返回配额状态或稳定的限流错误。
@@ -197,5 +253,177 @@ mod tests {
                 .is_err()
         );
         Ok(())
+    }
+}
+
+fn decay_unsupported() -> Error {
+    Error::custom_with_status(
+        crate::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        "rate_limit_decay_unsupported",
+        "限流存储未实现首次命中衰减计数能力",
+    )
+}
+fn validate_key(key: &str) -> Result<()> {
+    if key.is_empty() || key.len() > 512 || key.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(Error::custom(
+            "invalid_rate_limit_key",
+            "rate-limit key must be non-empty and at most 512 bytes",
+        ));
+    }
+    Ok(())
+}
+fn invalid_policy() -> Error {
+    Error::custom(
+        "invalid_rate_limit_policy",
+        "rate-limit limit and whole-second window must be positive and bounded",
+    )
+}
+
+#[cfg(test)]
+mod decay_tests {
+    use super::*;
+    use std::sync::Mutex;
+    #[derive(Default)]
+    struct DecayStore {
+        bucket: Mutex<Option<RateLimitBucket>>,
+        fail: bool,
+    }
+    impl RateLimitStore for DecayStore {
+        fn consume<'a>(
+            &'a self,
+            _: &'a str,
+            _: Duration,
+        ) -> RateLimitFuture<'a, Result<RateLimitBucket>> {
+            Box::pin(async { Err(decay_unsupported()) })
+        }
+        fn hit<'a>(
+            &'a self,
+            _: &'a str,
+            _: Duration,
+        ) -> RateLimitFuture<'a, Result<RateLimitBucket>> {
+            Box::pin(async move {
+                if self.fail {
+                    return Err(Error::custom("test_store_failed", "存储不可用"));
+                }
+                let mut bucket = self
+                    .bucket
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let new = RateLimitBucket::new(bucket.map_or(1, |b| b.count() + 1), 19);
+                *bucket = Some(new);
+                Ok(new)
+            })
+        }
+        fn attempts<'a>(
+            &'a self,
+            _: &'a str,
+        ) -> RateLimitFuture<'a, Result<Option<RateLimitBucket>>> {
+            Box::pin(async move {
+                if self.fail {
+                    return Err(Error::custom("test_store_failed", "存储不可用"));
+                }
+                Ok(*self
+                    .bucket
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner))
+            })
+        }
+        fn clear<'a>(&'a self, _: &'a str) -> RateLimitFuture<'a, Result<()>> {
+            Box::pin(async move {
+                if self.fail {
+                    return Err(Error::custom("test_store_failed", "存储不可用"));
+                }
+                *self
+                    .bucket
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                Ok(())
+            })
+        }
+    }
+    #[tokio::test]
+    async fn decay_reads_do_not_consume_and_clear_resets_threshold() -> Result<()> {
+        let limiter = RateLimiter::new(DecayStore::default());
+        assert_eq!(limiter.attempts("decay:login").await?, None);
+        assert_eq!(limiter.available_in("decay:login").await?, 0);
+        limiter.hit("decay:login", Duration::from_secs(60)).await?;
+        assert!(!limiter.too_many_attempts("decay:login", 2).await?);
+        assert_eq!(
+            limiter
+                .attempts("decay:login")
+                .await?
+                .map(RateLimitBucket::count),
+            Some(1)
+        );
+        limiter.hit("decay:login", Duration::from_secs(60)).await?;
+        assert!(limiter.too_many_attempts("decay:login", 2).await?);
+        assert_eq!(limiter.available_in("decay:login").await?, 19);
+        limiter.clear("decay:login").await?;
+        assert_eq!(limiter.attempts("decay:login").await?, None);
+        Ok(())
+    }
+    #[tokio::test]
+    async fn decay_rejects_bad_inputs_and_propagates_every_store_failure() -> Result<()> {
+        let limiter = RateLimiter::new(DecayStore {
+            fail: true,
+            ..DecayStore::default()
+        });
+        assert!(limiter.hit("key", Duration::ZERO).await.is_err());
+        assert!(
+            limiter
+                .hit("key", Duration::from_millis(1500))
+                .await
+                .is_err()
+        );
+        assert!(
+            limiter
+                .hit("key", Duration::from_secs(31_536_001))
+                .await
+                .is_err()
+        );
+        assert!(limiter.hit("key", Duration::from_secs(60)).await.is_err());
+        assert!(limiter.attempts("key").await.is_err());
+        assert!(limiter.clear("key").await.is_err());
+        assert!(limiter.too_many_attempts("key", 2).await.is_err());
+        assert!(limiter.available_in("key").await.is_err());
+        for key in ["", "secret\nvalue"] {
+            assert!(limiter.attempts(key).await.is_err());
+            assert!(limiter.clear(key).await.is_err());
+        }
+        assert!(limiter.too_many_attempts("key", 0).await.is_err());
+        Ok(())
+    }
+    #[tokio::test]
+    async fn consume_only_store_keeps_compiling_but_explicitly_refuses_new_capability() {
+        struct Legacy;
+        impl RateLimitStore for Legacy {
+            fn consume<'a>(
+                &'a self,
+                _: &'a str,
+                _: Duration,
+            ) -> RateLimitFuture<'a, Result<RateLimitBucket>> {
+                Box::pin(async { Ok(RateLimitBucket::new(1, 1)) })
+            }
+        }
+        let limiter = RateLimiter::new(Legacy);
+        assert!(
+            limiter
+                .check("aligned:key", 1, Duration::from_secs(60))
+                .await
+                .is_ok()
+        );
+        for error in [
+            limiter
+                .hit("decay:key", Duration::from_secs(60))
+                .await
+                .err(),
+            limiter.attempts("decay:key").await.err(),
+            limiter.clear("decay:key").await.err(),
+        ] {
+            assert_eq!(
+                error.as_ref().map(Error::status),
+                Some(crate::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            );
+        }
     }
 }

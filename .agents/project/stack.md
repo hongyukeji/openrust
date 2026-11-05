@@ -1,5 +1,11 @@
 # 技术栈
 
+Fortify限流键使用固定portable-ascii 2.0.2 / 16c17671a804bb92602822113dd91fbc8a35d2af的字符bank与clean数据（MIT许可和逐文件SHA随src/support/strings保存），不是新crate或运行期PHP依赖。Str当前仅提供strict=false转写，Rust有效UTF-8输入边界公开；不以deunicode/ICU近似官方默认，不宣称完整Laravel Str。真实PHP8.5 oracle与完整数据导出保存在本簇证据，Rust差分尚待集中执行。
+
+Fortify生成应用的真实管理HTTP测试同样显式使用既有hmac 0.13/sha1 0.11开发依赖，作为独立RFC客户端输入验证码，不读取框架私有引擎或生成证明。
+
+Fortify/TOTP在途依赖：复用现锁定md-5 0.11（直接别名md5_11，auth-fortify可选）仅实现官方验证码cache键摘要，不用于密码/签名。新增qrcode 0.14.1、关闭默认image依赖并只启用svg，用于本地生成官方双因素二维码，不向远端传secret；像素格式不同于PHP BaconQrCode不改变编码URI，解码回读与192px/SVG颜色另验。共享TOTP密码学primitive与Encryption，auth-fortify为唯一编译开关，旧auth-mfa及其表/流程已删除；应用沿官方Web默认或显式JWT profile装配，当前限定验收与开放边界见testing。
+
 SQLite认证安全事务复用当前SeaORM2.0.4公开TransactionOptions/SqliteTransactionMode，不新增crate或连接池；普通Db事务默认不变。UTC/JSON仍用既有Chrono/serde_json codec，SQLite认证SQL不依赖RETURNING或JSON1。当前依赖身份与来源继续见锁文件及vendor说明，S3b验收状态以唯一todo为准。
 
 Session 的原生数据库载荷复用现有 `base64` 0.22；`session` feature 显式启用该依赖，不能依赖 Auth 或 MySQL 的偶然 feature 联合。没有新增 crate。SQLx 0.9 物理连接所有权及驻留确认复用 SQLite 迁移已有机制，原生 handler 的驱动错误分类通过 SeaORM 的 SQLx reexport 支持 PG-only 与 session-only 编译边界。
@@ -52,7 +58,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
 | 认证与限流 key 摘要 | `sha2` 0.10 + `subtle` 2.6 | Session、PAT、CSRF 与数据库限流 key 存 SHA-256 摘要；CSRF 摘要比较使用常量时间比较。限流摘要仅避免原文持久化，不抵抗低熵 key 猜测 |
 | JWT | `jsonwebtoken` 11.1（`aws_lc_rs`） | 复用成熟 JWT 编解码与验证；避免 `rust_crypto` 带入被安全公告覆盖的 `rsa 0.9`；OpenRust 固定 HS256 并自行验证配置、kid、claims、密钥轮换与刷新凭据语义；MSRV 声明为 1.88，须由 workspace 1.97 验证 |
-| TOTP | `hmac` 0.13 + `sha1` 0.11 + `subtle` 2.6（仅 sha1 由 `auth-mfa` 启用，hmac/subtle 同时服务基础 URL 签名） | 按 RFC 6238 实现 HMAC-SHA1 动态截断与常量时间码比较；锁文件中已有对应版本，新增直接依赖用于显式协议实现与 RFC 已知向量测试；seed 继续由现有 `Encryptor` 加密 |
+| TOTP | `hmac` 0.13 + `sha1` 0.11 + `subtle` 2.6（仅 sha1 由 `auth-fortify` 启用，hmac/subtle 同时服务基础 URL 签名） | 按 RFC 6238 实现 HMAC-SHA1 动态截断与常量时间码比较；锁文件中已有对应版本，新增直接依赖用于显式协议实现与 RFC 已知向量测试；seed 继续由现有 `Encryptor` 加密 |
 | 应用数据加密 | `aes-gcm-siv` 0.12.1（AES-256-GCM-SIV / RFC 8452）、`getrandom` 0.3、`base64` 0.22、`zeroize` 1.9.1 | `encryption` feature 固定 32-byte key、随机 nonce、认证 envelope 与 key ID 轮换；显式启用 AEAD crate 的 `zeroize` feature；不复用 JWT 签名密钥 |
 | Laravel URL 签名 | `hmac` 0.13 + `sha2_11`（`sha2` 0.11 别名）+ `subtle` 2.6 | 基础路由提供 HMAC-SHA256 URL 签名及常量时间校验，不依赖可选 JWT signing feature。hmac 0.13 与 sha2 0.11 同用 digest 0.11，现 sha2 0.10 调用方保持原版；MFA 仍为 HMAC-SHA1。默认及 no-default 的实际编译与依赖成本待本簇验收，不因锁内已有版本冒称零成本 |
 | 签名链接 | 既有 `jsonwebtoken` 11.1、`base64` 0.22、`getrandom` 0.3、`sha2` 0.10 | 可选 `signing` feature 固定 HS256 和用途专属 key ring；逐条撤销用 PostgreSQL/MySQL 共享存储；未新增依赖 |
@@ -82,7 +88,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | --- | --- |
 | CLI 解析 | 已用 `clap`（derive） |
 | 模板渲染（生成器） | CLI 继续使用内置模板文件与 Rust 字符串生成；应用页面和邮件 renderer 分别由 `view` 与 `mail-templates` feature 提供 |
-| 生成应用验收专用依赖 | gRPC 生成测试使用现有 `rcgen` 0.14.10、`tempfile` 3.27 和 Tokio process/net/io/time；MFA 生成测试使用与框架同主版本的 `hmac` 0.13、`sha1` 0.11、`url` 2.5。仅写入显式选择 `--grpc` / `--auth-mfa` 后的生成项目 dev-dependencies；测试用临时 CA、真实二进制联合监听和测试端 RFC 6238 验证器，不添加生产认证算法或全局证书配置。 |
+| 生成应用验收专用依赖 | gRPC 生成测试使用现有 `rcgen` 0.14.10、`tempfile` 3.27 和 Tokio process/net/io/time；Fortify 生成测试使用与框架同主版本的 `hmac` 0.13、`sha1` 0.11、`url` 2.5。分别按 `--grpc`、`--auth` / `--fortify` 或 `--profile jwt-api` 选择写入生成项目 dev-dependencies；测试用临时 CA、真实二进制联合监听和测试端 RFC 6238 验证器，不添加生产认证算法或全局证书配置。 |
 | 文件监听（`openrust dev`） | 尚未实现；当前仅以 development 环境启动应用，`watchexec` 是规划选型 |
 | 快照测试 | 已用 `insta` |
 | TOML 配置编辑 | CLI 使用 `toml_edit` 在整套源码 workspace 中合并应用成员，并保留根 `Cargo.toml` 的其余内容与注释；不引入额外 manifest 重写器 |

@@ -1,7 +1,7 @@
 //! 文章所有者的实时频道；认证过期时立即结束 SSE 会话。
 
 use crate::modules::example::models::article;
-use openrust::auth::{CurrentUser, JwtTokens};
+use openrust::auth::{CurrentUser, authenticate_access_credential};
 use openrust::db::sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use openrust::http::Path;
 use openrust::http::axum::{
@@ -12,6 +12,57 @@ use openrust::prelude::{Db, Inject};
 use openrust::realtime::Realtime;
 use openrust::{Error, Result};
 use std::time::Duration;
+
+struct ArticleAccessValidator {
+    state: openrust::core::AppState,
+    db: Db,
+    user_id: i64,
+    article_id: i64,
+    token: zeroize::Zeroizing<String>,
+}
+#[async_trait::async_trait]
+impl openrust::realtime::RealtimeValidator for ArticleAccessValidator {
+    async fn validate(&self) -> Result<std::time::SystemTime> {
+        let (user_id, expiry) = authenticate_access_credential(&self.state, &self.token).await?;
+        if user_id != self.user_id {
+            return Err(Error::Unauthorized);
+        }
+        require_owned(&self.db, self.user_id, self.article_id).await?;
+        Ok(expiry)
+    }
+}
+pub(super) fn article_access_validator(
+    state: openrust::core::AppState,
+    db: Db,
+    user_id: i64,
+    article_id: i64,
+    token: &str,
+) -> std::sync::Arc<dyn openrust::realtime::RealtimeValidator> {
+    std::sync::Arc::new(ArticleAccessValidator {
+        state,
+        db,
+        user_id,
+        article_id,
+        token: zeroize::Zeroizing::new(token.to_owned()),
+    })
+}
+#[cfg(feature = "auth-fortify")]
+pub(super) struct BrowserArticleValidator {
+    pub credential: openrust::auth::LiveSessionCredential,
+    pub authority: std::sync::Arc<openrust::auth::fortify::CredentialAuthority>,
+    pub db: Db,
+    pub user_id: i64,
+    pub article_id: i64,
+}
+#[cfg(feature = "auth-fortify")]
+#[async_trait::async_trait]
+impl openrust::realtime::RealtimeValidator for BrowserArticleValidator {
+    async fn validate(&self) -> Result<std::time::SystemTime> {
+        let expiry = self.credential.authorize(&self.authority).await?;
+        require_owned(&self.db, self.user_id, self.article_id).await?;
+        Ok(expiry)
+    }
+}
 
 pub(super) async fn require_owned(db: &Db, user_id: i64, article_id: i64) -> Result<()> {
     article::Entity::find_by_id(article_id)
@@ -41,19 +92,32 @@ pub(crate) async fn events(
     user: CurrentUser,
     headers: HeaderMap,
     Inject(db): Inject<Db>,
-    Inject(tokens): Inject<JwtTokens>,
+    openrust::http::axum::Extension(state): openrust::http::axum::Extension<
+        openrust::core::AppState,
+    >,
     Inject(realtime): Inject<Realtime>,
     Path(id): Path<i64>,
 ) -> Result<Response> {
     let (token_user_id, expires_at) =
-        tokens.verify_access_token_with_expiry(bearer_token(&headers)?)?;
+        authenticate_access_credential(&state, bearer_token(&headers)?).await?;
     if token_user_id != user.integer_id()? {
         return Err(Error::Unauthorized);
     }
     require_owned(&db, user.integer_id()?, id).await?;
     realtime.validate_origin(&headers)?;
     Ok(realtime
-        .connect(&user, format!("example.article.{id}"), expires_at)
+        .connect_with_validator(
+            &user,
+            format!("example.article.{id}"),
+            expires_at,
+            article_access_validator(
+                state,
+                (*db).clone(),
+                user.integer_id()?,
+                id,
+                bearer_token(&headers)?,
+            ),
+        )
         .await?
         .sse())
 }

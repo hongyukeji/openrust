@@ -15,13 +15,15 @@ cd blog
 cargo run -p cli -- dev
 ```
 
-`openrust new blog --db sqlite` 选择 SQLite，创建 `database/database.sqlite` 及 `.env`，并在全部源码生成后运行默认迁移。启用认证或加密时，安装器先在新建应用自有 `.env` 中为各用途生成独立的32字节系统随机密钥，Unix权限为0600；`.env.example` 保持空占位，密钥不打印。JWT/签名密钥为现有认证增强，非Laravel内置认证默认。已有应用的密钥不被覆盖。迁移失败会返回非零并保留生成文件；数据库及 sidecar 已在生成 `.gitignore` 排除。安装默认迁移、生成 check/test 与实际无状态 API 已验证；完整 Migrator 和业务 SQL 仍未完成，不以生成成功表示认证、数据库 Session、队列等生产能力可用。生成迁移只使用 OpenRust re-export 的同一迁移依赖。
+`openrust new blog --db sqlite` 选择 SQLite，创建 `database/database.sqlite` 及 `.env`，并在全部源码生成后运行默认迁移。启用认证或加密时，安装器先在新建应用自有 `.env` 中为各用途生成独立的32字节系统随机密钥，Unix权限为0600；`.env.example` 保持空占位，密钥不打印。JWT/签名密钥为现有认证增强，非Laravel内置认证默认。已有应用的密钥不被覆盖。迁移失败会返回非零并保留生成文件；数据库及 sidecar 已在生成 `.gitignore` 排除。SQLite 安装使用默认迁移；新认证 profile 的生成 check/test 与完整流程验收尚未闭合。完整 Migrator 和业务 SQL 仍有缺口，不以生成成功表示认证、数据库 Session、队列等生产能力已全面验收。生成迁移只使用 OpenRust re-export 的同一迁移依赖。
+
+真实 `new` 在文件生成后使用当前工具链的 rustfmt 格式化新应用及其迁移包，显式选择这些包并排除本地框架依赖，再执行适用的安装步骤。需已安装 Cargo 与 rustfmt；格式化失败返回非零并保留生成文件，不自动安装组件或修改全局配置。
 
 `openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，通用路由在 `routes/web.rs`，应用控制器、模型和 Provider 可直接在 `app/` 开发，业务模块可选放在 `modules/<业务>/`，资源在 `resources/`，迁移与种子在 `database/`。
 
 根/生成 `config/*.rs` 显式展示已实现策略，按 `server → app → auth/security` 声明依赖。APP_NAME/APP_URL只在app配置求值，缺省URL取同次有效server.port；auth/security缺省身份读取最终app值，显式独立来源仍优先。标准生成项目默认启用queue及queue-redis，realtime仍按需选择；--minimal省略queue装配，生成Job时会保留已有queue.rs并安全登记queue代码配置，发现冲突先拒绝而不覆盖源码。根View的常量只控制默认声明，生成项目默认声明View，均不强制屏蔽显式来源。
 
-队列统一由 `config/queue.rs` 的 `default` 与 `connections` 配置；`QUEUE_CONNECTION` 默认 `database`，可选择 `redis`，不再使用 `QUEUE_DRIVER`。先完成实际服务配置与迁移，再显式运行 `openrust queue work` 或 `openrust queue work redis --queue example`。编译内置 driver 与登记 Provider 不自动启动 worker，也不连接未选队列。`--minimal` 与 `--db`、`--auth`、`--auth-mfa` 互斥。
+队列统一由 `config/queue.rs` 的 `default` 与 `connections` 配置；`QUEUE_CONNECTION` 默认 `database`，可选择 `redis`，不再使用 `QUEUE_DRIVER`。先完成实际服务配置与迁移，再显式运行 `openrust queue work` 或 `openrust queue work redis --queue example`。编译内置 driver 与登记 Provider 不自动启动 worker，也不连接未选队列。`--minimal` 与 `--db`、`--auth`、`--fortify`、`--profile jwt-api` 互斥。
 
 生成应用的 `tests/support/request_input.rs` 通过公开 Provider 挂载 multipart 业务测试路由，验证 `Request::file`、`has_file`、`only` 的对象身份、纯文本输入及异步服务端 MIME/扩展名；该测试路由不进入生产应用。
 
@@ -31,9 +33,11 @@ cargo run -p cli -- dev
 
 生成应用的 `bootstrap/app.rs` 通过公开 Handler 扩展仅对当前 `/api` 前缀选择统一 JSON 错误包装。应用修改 API 前缀时应同步修改该判定；HTML/Web 路由继续按自身内容协商处理异常。`APP_DEBUG` 由严格布尔配置读取，默认关闭服务端详情。
 
-不带 `--db` 时默认生成 MySQL 应用，并预整合 Redis 缓存与两种队列驱动；`--db postgres` 选择 PostgreSQL，`--minimal` 显式生成无数据库/队列的应用，仍可生成模型并注册通用迁移命令。标准数据库应用生成自己的迁移 package 和 seed 入口，迁移以 `FrameworkMigrator` 的同一框架清单加应用迁移，覆盖所启用的 Session、Queue 等基础设施，不运行自动迁移。`--auth` 使用所选数据库，会启用 JWT、AuthFlows、Policy 与共享限流 migration，并生成注册、邮箱验证、登录、refresh、登出和密码重置路由。`--auth-mfa` 还要求 `--encryption`，会启用 TOTP 多因素认证，并生成两步登录、TOTP enrollment、确认、禁用和恢复码轮换路由；MFA 路由使用 JWT 认证，配置邮件、JWT 与加密密钥后须先运行 `openrust migrate`。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。
+不带 `--db` 时默认生成 MySQL 应用，并预整合 Redis 缓存与两种队列驱动；`--db postgres` 选择 PostgreSQL，`--minimal` 显式生成无数据库/队列的应用，仍可生成模型并注册通用迁移命令。标准数据库应用生成自己的迁移 package 和 seed 入口，迁移以 `FrameworkMigrator` 的同一框架清单加应用迁移，覆盖所启用的 Session、Queue 等基础设施，不运行自动迁移。`--auth` 与 `--fortify` 选择相同的 Web/Fortify 认证脚手架，可同时使用；安装器自动加入所需加密能力。它们使用所选数据库、具名 Session Guard、Cookie/CSRF 与唯一 Fortify 三字段/Actions，生成 Web 登录、密码确认、TOTP 挑战及管理配套；不默认挂载 JWT 登录与刷新。
 
-启用 MFA 的应用中，`POST /auth/login` 对未启用 MFA 的账户返回 `status: "authenticated"` 和 `credentials`；对已启用 MFA 的账户只返回 `status: "mfa_required"`、短时 `challenge` 与 `expires_at`。客户端把 challenge 与 TOTP 或恢复码提交到 `POST /auth/mfa/login`，成功后才会收到 access/refresh 凭据。已登录用户使用 JWT 调用 `POST /auth/mfa/enrollment`（邮箱与密码重新认证）获取一次性 provisioning URI，再以 `POST /auth/mfa/enrollment/confirm` 确认 TOTP 并领取一次性恢复码。`POST /auth/mfa/disable` 和 `POST /auth/mfa/recovery-codes` 同样要求 JWT、密码及当前 TOTP/恢复码；成功后撤销 refresh token。无状态 access JWT 仍会在其配置 TTL 到期前有效。
+完全无 Session/Cookie 的 API 应用须显式选择 `openrust new blog --profile jwt-api --db sqlite`，不与 `--fortify` 共选。该 profile 用公开 API Provider 替换 Web Provider；`/api/auth/login` 接收 `account` 和 `password`，必要时返回 `two_factor`、`challenge` 与 `expires_at`，再向 `/two-factor-challenge` 提交代码。生成应用的邮箱验证策略由其公开认证回调实现，不成为框架的全账户邮箱要求。资源使用 access Bearer，refresh/注销仅接收 JSON 中的 refresh token。管理先以当前 Bearer 和密码换取短期 `management_token`，后续通过 `X-Fortify-Management` 调用同一 Fortify Actions；该授权不是资源 token。所有认证、挑战与管理均不借 Cookie、隐藏 Session 或 CSRF-cookie。
+
+两种 profile 都提供用户自愿绑定、待确认密钥、TOTP/恢复码和密码复核。恢复码加密可重新读取，成功消费后替换并保持八份；不保留旧独立 MFA profile。路由与安全边界见[认证指南](../../docs/src/security/authentication.md)。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。部署前配置数据库、邮件及对应 JWT/加密密钥并执行迁移；SQLite 安装器已有的自动迁移行为保持。新 profile 的生成/后端验收尚未闭合。
 
 从应用目录运行后续命令；从 workspace 根执行时选择 Cargo metadata 中唯一的默认应用成员。CLI 会选中对应应用 package，并以应用目录作为子进程工作目录，因而读取该应用自己的 `config/`：
 
@@ -112,7 +116,7 @@ cargo run -- module:enable --all --no-interaction
 
 生成项目采用按领域命名的 Rust 代码配置，例如 `config/app.rs`、`config/cache.rs`、`config/database.rs`。`config/mod.rs` 显式登记各 `config(&ConfigContext)` 函数，`bootstrap/app.rs` 经 `Application::config()` 接入统一仓储；函数在同次 dotenv 快照后求值，可组合类型、条件和环境值。框架仍允许显式附加 TOML source，但默认不会扫描或运行 TOML 文件。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 连接使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`；缓存选择使用 `CACHE_STORE`，映射到 `cache.default`，缺省为已登记的具名 `redis` store；队列使用 `QUEUE_CONNECTION`，标准默认 `database`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。监听端口由中性 `SERVER_PORT=3000` 映射到 `server.port`，`APP_URL` 可使用 `${SERVER_PORT}` 插值；应用字段仍使用 `APP_LOG_LEVEL`、`APP_NAME` 等命名空间变量。`APP_PORT`、独立 `PORT`、`REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 不再控制监听或缓存选择。签名 URL 的 `APP_KEY` 与轮换旧值 `APP_PREVIOUS_KEYS` 在 `.env.example` 中有注释入口，签名使用原始字符串字节，生产环境须使用不可预测密钥；`openrust key generate` 的 Base64 输出不会自动解码。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
 
-未选择数据库、加密或 gRPC 的普通项目会生成 `tests/test_app.rs`：通过与生产同一 Provider 清单和 Router 的 `TestApp` 验证 `/api`、`/health`，使用显式内存 cache 与 view 目录，不要求 Redis 服务。数据库项目需真实数据库配置；加密项目需显式密钥；gRPC 项目生成自己的 `tests/grpc_flows.rs`，启动生成二进制的 `serve all`，用临时 TLS 证书验证真实 HTTP、Echo RPC、证书拒绝和信号停机。`TestApp` 公共 API 仍可用于这些应用，测试须自行提供相应配置。启用认证的应用会另生成 `tests/auth_flows.rs`，其中既有真实 TCP HTTP 集成，也有隔离数据库和 fake 邮件驱动的 `TestApp` 注册请求；启用 `--auth-mfa` 时还验证生成路由的 MFA 挑战与恢复码。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；变量缺失时测试会跳过数据库路径，不能视为真实数据库验收通过。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
+未选择数据库、加密或 gRPC 的普通项目会生成 `tests/test_app.rs`：通过与生产同一 Provider 清单和 Router 的 `TestApp` 验证 `/api`、`/health`，使用显式内存 cache 与 view 目录，不要求 Redis 服务。数据库项目需真实数据库配置；加密项目需显式密钥；gRPC 项目生成自己的 `tests/grpc_flows.rs`，启动生成二进制的 `serve all`，用临时 TLS 证书验证真实 HTTP、Echo RPC、证书拒绝和信号停机。`TestApp` 公共 API 仍可用于这些应用，测试须自行提供相应配置。Web 认证应用的 `tests/auth_flows.rs` 使用真实 Router、账户、Cookie/Session/CSRF 验证 Fortify；JWT profile 的同名测试覆盖真实 API 管理、独立 TOTP 与逐响应无 Cookie，`tests/jwt_api_business.rs` 保留注册、邮件验证、密码重置、受管 PAT、refresh 重放和注销回归。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；不得把缺少变量时的跳过算作真实数据库验收；JWT profile 的网络数据库测试缺少该变量会明确失败。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
 
 普通生成应用的 `tests/test_app.rs` 还包含可选 `server.trusted_hosts` 测试：精确 `development` 环境下 `app.url` 主机通过，其他 Host 返回 400。生成配置保留 `[server.trusted_hosts]` 注释示例；应用 Provider 可经 `BootContext::trust_hosts` 或每请求 `trust_hosts_with` 覆盖。详见 [HTTP 可信主机](../../src/http/README.md#可信主机)。
 

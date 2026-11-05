@@ -10,7 +10,6 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::Db;
-use openrust::auth::JwtTokens;
 use openrust::db::sea_orm::{ConnectionTrait, Statement};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
@@ -28,7 +27,7 @@ struct Migrator;
 #[openrust::db::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = super::selected_test_auth::migrations();
         migrations.extend(super::database::migrations::Migrator::migrations());
         migrations
     }
@@ -234,12 +233,7 @@ impl Fixture {
         let connection = db.primary_connection()?;
         let users = db.quoted_table_name("users")?;
         connection.execute_raw(Statement::from_string(connection.get_database_backend(),format!("INSERT INTO {users} (id,email,password_hash,email_verified_at,created_at,updated_at) VALUES (1,'collector-fixture@example.test','unused',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"))).await?;
-        let token = app
-            .app()?
-            .state()
-            .resolve::<JwtTokens>()
-            .await?
-            .issue_access_token(1)?;
+        let token = super::selected_test_auth::seeded_password_access(app.app()?, 1).await?;
         // 复用生产全局桥接；不能用局部测试 subscriber 或另建 SDK 代替出口。
         openrust::core::lifecycle::init_tracing(&app.app()?.config().log);
         let router = openrust::http::build_router(app.app()?)?;

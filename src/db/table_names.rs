@@ -33,6 +33,11 @@ impl DatabaseTableNames {
         &self.prefix
     }
 
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql", feature = "db-sqlite"))]
+    pub(crate) fn mappings(&self) -> &BTreeMap<String, String> {
+        &self.mappings
+    }
+
     /// 将逻辑表名解析为完整的物理表名。
     pub fn resolve(&self, logical_name: &str) -> Result<String> {
         validate_identifier(logical_name, "logical table name")?;

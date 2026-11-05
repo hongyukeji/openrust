@@ -29,6 +29,12 @@ struct Cli {
     command: Option<Builtin>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum ApplicationProfile {
+    /// 共享 Fortify 状态的无 Session JWT API 应用。
+    JwtApi,
+}
+
 #[derive(Debug, Subcommand)]
 enum Builtin {
     /// 使用内置模板创建 OpenRust 应用。
@@ -39,14 +45,17 @@ enum Builtin {
         #[arg(long, value_enum)]
         db: Option<DatabaseBackend>,
         /// 生成无数据库驱动、迁移包和队列依赖的精简应用。
-        #[arg(long, conflicts_with_all = ["db", "auth", "auth_mfa"])]
+        #[arg(long, conflicts_with_all = ["db", "auth", "fortify", "profile"])]
         minimal: bool,
-        /// 添加数据库认证能力和受保护的示例路由。
+        /// 生成官方Web/Fortify认证；自动启用认证、加密和现代因子迁移。
         #[arg(long)]
         auth: bool,
-        /// 为认证启用 TOTP 多因素登录（需要 `--auth` 与 `--encryption`）。
-        #[arg(long, requires_all = ["auth", "encryption"])]
-        auth_mfa: bool,
+        /// 选用官方Fortify/TOTP脚手架，自动启用auth/encryption；不等同完整fortify:install。
+        #[arg(long)]
+        fortify: bool,
+        /// 显式选择无Session/Cookie的JWT API认证profile；默认和--fortify仍使用Web装配。
+        #[arg(long, value_enum, conflicts_with_all = ["minimal", "fortify"])]
+        profile: Option<ApplicationProfile>,
         /// 启用可选的出站 HTTP 客户端。
         #[arg(long)]
         http_client: bool,
@@ -350,7 +359,9 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             db,
             minimal,
             auth,
-            auth_mfa,
+
+            fortify,
+            profile,
             http_client,
             sms_twilio,
             encryption,
@@ -358,21 +369,24 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         }) => {
             let current_dir = std::env::current_dir()?;
             let database = project_database(db, minimal);
-            create_project_with_mfa(
+            create_project_with_selected_profile(
                 &name,
                 database,
-                auth,
-                auth_mfa,
+                auth || fortify,
                 http_client,
                 sms_twilio,
-                encryption,
+                encryption || fortify,
                 grpc,
+                fortify,
+                profile,
                 &current_dir,
             )?;
+            let project_dir = current_dir.join(&name);
+            format_created_project(&mut installation_format_command(&project_dir)?)?;
             if database == Some(DatabaseBackend::Sqlite) {
                 // 与生成 helper 分离：真实安装完成全部文件后才运行默认迁移。
                 // 迁移失败保留生成源码和数据库，返回子进程的失败状态供开发者修复。
-                let status = installation_migration_command(&current_dir.join(&name))
+                let status = installation_migration_command(&project_dir)
                     .status()
                     .context("无法运行新 SQLite 应用的默认迁移；生成文件已保留")?;
                 return Ok(exit_code(status));
@@ -428,6 +442,46 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     }
 }
 
+fn installation_format_command(project_dir: &Path) -> anyhow::Result<Process> {
+    let project_dir = std::path::absolute(project_dir)?;
+    let manifest = project_dir.join("Cargo.toml");
+    let mut command = Process::new("cargo");
+    command
+        .current_dir(&project_dir)
+        .args(["fmt", "--manifest-path"])
+        .arg(&manifest);
+    // cargo fmt --all 还会遍历本地路径依赖，包括生成应用引用的框架源码。
+    let mut packages = vec![manifest];
+    let migrations = project_dir.join("database/migrations/Cargo.toml");
+    if migrations.try_exists()? {
+        packages.push(migrations);
+    }
+    for path in packages {
+        let contents = fs::read_to_string(&path)
+            .with_context(|| format!("无法读取生成清单 {}", path.display()))?;
+        let package = contents
+            .parse::<toml_edit::DocumentMut>()
+            .with_context(|| format!("生成清单无效：{}", path.display()))?;
+        let name = package
+            .get("package")
+            .and_then(|entry| entry.get("name"))
+            .and_then(toml_edit::Item::as_str)
+            .with_context(|| format!("生成清单缺少 package.name：{}", path.display()))?;
+        command.args(["-p", name]);
+    }
+    Ok(command)
+}
+
+fn format_created_project(command: &mut Process) -> anyhow::Result<()> {
+    let status = command
+        .status()
+        .context("无法启动新应用的 cargo fmt，生成文件已保留")?;
+    if !status.success() {
+        bail!("新应用的 cargo fmt 失败（{status}），生成文件已保留");
+    }
+    Ok(())
+}
+
 fn installation_migration_command(project_dir: &Path) -> Process {
     let mut command = Process::new("cargo");
     command
@@ -466,11 +520,10 @@ fn create_project(
     encryption: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
-    create_project_with_mfa(
+    create_project_with_runtime_options(
         name,
         database,
         auth,
-        false,
         http_client,
         sms_twilio,
         encryption,
@@ -484,25 +537,92 @@ fn create_project(
     clippy::too_many_arguments,
     reason = "these flags mirror the public CLI options"
 )]
-fn create_project_with_mfa(
+#[cfg(test)]
+fn create_project_with_runtime_options(
     name: &str,
     database: Option<DatabaseBackend>,
     auth: bool,
-    auth_mfa: bool,
     http_client: bool,
     sms_twilio: bool,
     encryption: bool,
     grpc: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
+    create_project_with_features(
+        name,
+        database,
+        auth,
+        http_client,
+        sms_twilio,
+        encryption,
+        grpc,
+        false,
+        current_dir,
+    )
+}
+
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    reason = "CLI选项映射同一生成器"
+)]
+#[cfg(test)]
+fn create_project_with_features(
+    name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    http_client: bool,
+    sms_twilio: bool,
+    encryption: bool,
+    grpc: bool,
+    fortify: bool,
+    current_dir: &Path,
+) -> anyhow::Result<()> {
+    create_project_with_selected_profile(
+        name,
+        database,
+        auth,
+        http_client,
+        sms_twilio,
+        encryption,
+        grpc,
+        fortify,
+        None,
+        current_dir,
+    )
+}
+
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    reason = "CLI明确选项与既有生成入口共用一个profile装配内核"
+)]
+fn create_project_with_selected_profile(
+    name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    http_client: bool,
+    sms_twilio: bool,
+    encryption: bool,
+    grpc: bool,
+    fortify: bool,
+    profile: Option<ApplicationProfile>,
+    current_dir: &Path,
+) -> anyhow::Result<()> {
+    if fortify && profile.is_some() {
+        bail!("--fortify与--profile不能重复选择认证装配");
+    }
+    let jwt_api = profile == Some(ApplicationProfile::JwtApi);
+    let fortify = fortify || auth || jwt_api;
+    let auth = auth || fortify;
+    let encryption = encryption || fortify;
+
     if auth && database.is_none() {
         bail!(
-            "authentication requires a standard database profile; omit `--minimal` or select `--db postgres|mysql`"
+            "authentication requires a standard database profile; omit `--minimal` or select `--db postgres|mysql|sqlite`"
         );
     }
-    if auth_mfa && (!auth || !encryption || database.is_none()) {
-        bail!("MFA requires `--auth`, `--encryption` and a standard database profile");
-    }
+
     let workspace = framework_workspace(current_dir)?;
     if !workspace.packages.iter().any(|package| {
         package.name == "openrust" && package.manifest_path == workspace.root.join("Cargo.toml")
@@ -536,22 +656,25 @@ fn create_project_with_mfa(
         bail!("application or migration package name is already in use: `{project_name}`");
     }
 
-    let result = populate_project_with_mfa(
+    let result = populate_project_with_features(
         &project_dir,
         project_name,
         &type_name,
         database,
         auth,
-        auth_mfa,
         http_client,
         sms_twilio,
         encryption,
         grpc,
+        fortify,
     );
     if result.is_err() {
         let _ = fs::remove_dir_all(&project_dir);
     }
     result?;
+    if jwt_api {
+        install_jwt_api_profile(&project_dir, &type_name, database, grpc)?;
+    }
     if let Err(error) = standalone_manifest(&workspace.root, &project_dir, database.is_some()) {
         let _ = fs::remove_dir_all(&project_dir);
         return Err(error).context("无法配置独立应用的本地依赖");
@@ -622,13 +745,12 @@ fn populate_project(
     sms_twilio: bool,
     encryption: bool,
 ) -> anyhow::Result<()> {
-    populate_project_with_mfa(
+    populate_project_with_runtime_options(
         project_dir,
         name,
         crate_name,
         database,
         auth,
-        false,
         http_client,
         sms_twilio,
         encryption,
@@ -642,21 +764,57 @@ fn populate_project(
     clippy::too_many_lines,
     reason = "template options map directly to the public generator flags"
 )]
-fn populate_project_with_mfa(
+#[cfg(test)]
+fn populate_project_with_runtime_options(
     project_dir: &Path,
     name: &str,
     crate_name: &str,
     database: Option<DatabaseBackend>,
     auth: bool,
-    auth_mfa: bool,
     http_client: bool,
     sms_twilio: bool,
     encryption: bool,
     grpc: bool,
 ) -> anyhow::Result<()> {
-    if auth_mfa && (!auth || database.is_none() || !encryption) {
-        bail!("MFA requires authentication, a database and encryption");
+    populate_project_with_features(
+        project_dir,
+        name,
+        crate_name,
+        database,
+        auth,
+        http_client,
+        sms_twilio,
+        encryption,
+        grpc,
+        false,
+    )
+}
+
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "同一CLI脚手架选项的完整生成闭环"
+)]
+fn populate_project_with_features(
+    project_dir: &Path,
+    name: &str,
+    crate_name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    http_client: bool,
+    sms_twilio: bool,
+    encryption: bool,
+    grpc: bool,
+    fortify: bool,
+) -> anyhow::Result<()> {
+    let fortify = fortify || auth;
+    let auth = auth || fortify;
+    let encryption = encryption || fortify;
+    if fortify && database.is_none() {
+        bail!("Fortify requires a standard database profile; --minimal is not supported");
     }
+
     fs::create_dir(project_dir)
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
     for directory in [
@@ -703,7 +861,6 @@ fn populate_project_with_mfa(
                 http_client,
                 sms_twilio,
                 encryption,
-                auth_mfa,
                 grpc,
             ),
         ),
@@ -813,7 +970,7 @@ fn populate_project_with_mfa(
             "routes/mod.rs",
             include_str!("../templates/src/routes.rs").to_owned(),
         ),
-        ("routes/api.rs", api_routes_source(auth, auth_mfa)),
+        ("routes/api.rs", api_routes_source(auth)),
         (
             "routes/web.rs",
             include_str!("../templates/routes/web.rs").to_owned(),
@@ -850,12 +1007,29 @@ fn populate_project_with_mfa(
                 let table = config.options.get("table").and_then(serde_json::Value::as_str).ok_or_else(|| openrust::Error::custom_with_status(openrust::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR, "app_user_table_required", "应用账户Provider需要table"))?;
                 let db = resolver.resolve::<openrust::db::Db>().await?;
                 let passwords = resolver.resolve::<openrust::auth::Passwords>().await?;
+                #[cfg(feature = "auth-fortify")]
+                let state_db = (*db).clone();
+                #[cfg(feature = "auth-fortify")]
+                let state_table = table.to_owned();
+                #[cfg(feature = "auth-fortify")]
+                let factor_encrypter = resolver.resolve::<openrust::security::Encryptor>().await?;
                 let provider = openrust::auth::DatabaseUserProvider::new((*db).clone(), (*passwords).clone(), table)?
-                    .with_user_factory(|attributes| {
+                    .with_user_factory(move |attributes| {
                         if attributes.get("disabled_at").is_some_and(|value| !value.is_null()) {
                             return Err(openrust::Error::Unauthorized);
                         }
-                        Ok(std::sync::Arc::new(crate::app::models::user::User::new(attributes)))
+                        let user = crate::app::models::user::User::new(attributes);
+                        #[cfg(feature = "auth-fortify")]
+                        let user = {
+                            let identifier = openrust::auth::Authenticatable::auth_identifier(&user)?;
+                            let state = openrust::auth::fortify::DatabaseTwoFactorState::new(
+                                state_db.clone(), state_table.clone(), "id", identifier,
+                            )?;
+                            user.with_two_factor_state(state.clone()).with_factor_authority(
+                                openrust::auth::fortify::DatabaseFactorAuthority::new(state, (*factor_encrypter).clone()),
+                            )
+                        };
+                        Ok(std::sync::Arc::new(user))
                     });
                 Ok(std::sync::Arc::new(provider) as std::sync::Arc<dyn openrust::auth::UserProvider>)
             }))?;
@@ -926,19 +1100,19 @@ fn populate_project_with_mfa(
     if auth {
         files.push((
             "tests/auth_flows.rs",
-            auth_test_template(crate_name, encryption, auth_mfa, grpc, database),
+            auth_test_template(crate_name, encryption, grpc, database),
         ));
     }
     if let Some(database) = database {
         files.extend([
             (
                 "database/migrations/Cargo.toml",
-                migration_manifest(name, database, auth, auth_mfa),
+                migration_manifest(name, database, auth),
             ),
             ("database/migrations/src/lib.rs", migration_lib()),
             (
                 "tests/migration_catalog.rs",
-                migration_catalog_test_source(auth, auth_mfa),
+                migration_catalog_test_source(auth),
             ),
         ]);
     }
@@ -970,6 +1144,13 @@ fn populate_project_with_mfa(
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
     }
+    if fortify {
+        install_fortify_scaffold(project_dir)?;
+        fs::write(
+            project_dir.join("README.md"),
+            include_str!("../templates/README.web.md"),
+        )?;
+    }
     if database == Some(DatabaseBackend::Sqlite) {
         // 安装器创建自身的新数据库；普通 Connector 仍拒绝缺失的文件。
         fs::File::options()
@@ -981,6 +1162,211 @@ fn populate_project_with_mfa(
             .context("无法写入 SQLite 应用环境配置")?;
         initialize_sqlite_installation_keys(project_dir, auth, encryption)?;
     }
+    Ok(())
+}
+
+// --fortify只选择同一应用/配置/迁移内核；官方HTTP/UI由框架Provider和应用绑定接入。
+fn install_fortify_scaffold(project_dir: &Path) -> anyhow::Result<()> {
+    fs::write(
+        project_dir.join("tests/support/fortify_http.rs"),
+        include_str!("../templates/tests/support/fortify_http.rs"),
+    )?;
+    fs::write(
+        project_dir.join("app/providers/fortify.rs"),
+        include_str!("../../../app/providers/fortify.rs"),
+    )?;
+    let path = project_dir.join("app/providers/mod.rs");
+    let providers = fs::read_to_string(&path)?;
+    fs::write(
+        path,
+        format!("{providers}\n#[cfg(feature = \"auth-fortify\")]\nmod fortify;\n"),
+    )?;
+    let path = project_dir.join("app/providers/app.rs");
+    let provider = fs::read_to_string(&path)?;
+    let marker = "            }))?;\n            Ok(())";
+    if provider.matches(marker).count() != 1 {
+        bail!("Fortify应用Provider登记点不唯一");
+    }
+    fs::write(path, provider.replace(marker, "            }))?;\n            #[cfg(feature = \"auth-fortify\")]\n            super::fortify::register(app).await?;\n            Ok(())"))?;
+    let path = project_dir.join("Cargo.toml");
+    let mut manifest = fs::read_to_string(&path)?.parse::<toml_edit::DocumentMut>()?;
+    // 生成测试使用独立RFC客户端计算真实TOTP，不依赖框架内部引擎。
+    manifest["dev-dependencies"]["hmac"] = toml_edit::value("0.13");
+    manifest["dev-dependencies"]["sha1"] = toml_edit::value("0.11");
+    manifest["features"]["default"]
+        .as_array_mut()
+        .context("认证应用缺少本地features.default")?
+        .push("auth-fortify");
+    manifest["features"]["auth-fortify"]
+        .as_array_mut()
+        .context("认证应用缺少auth-fortify feature")?
+        .push("openrust-migration/auth-fortify");
+    fs::write(path, manifest.to_string())?;
+    let path = project_dir.join("database/migrations/Cargo.toml");
+    let mut migrations = fs::read_to_string(&path)?.parse::<toml_edit::DocumentMut>()?;
+    migrations["features"]["default"] =
+        toml_edit::value(["auth-fortify"].into_iter().collect::<toml_edit::Array>());
+    migrations["features"]["auth-fortify"] = toml_edit::value(
+        ["openrust/auth-fortify"]
+            .into_iter()
+            .collect::<toml_edit::Array>(),
+    );
+    fs::write(path, migrations.to_string())?;
+    fs::write(
+        project_dir.join("database/migrations/src/accounts.rs"),
+        include_str!("../../../database/migrations/accounts.rs"),
+    )?;
+    let path = project_dir.join("database/migrations/src/lib.rs");
+    let migration = fs::read_to_string(&path)?;
+    let marker = "let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![];";
+    if migration.matches(marker).count() != 1 {
+        bail!("Fortify应用迁移登记点不唯一");
+    }
+    fs::write(
+        path,
+        migration.replace("pub struct Migrator;", "mod accounts;\n\npub struct Migrator;").replace(marker,
+            "let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![Box::new(accounts::AccountIdentifiers), Box::new(openrust::auth::fortify::FactorAuthorityMigration::new()), Box::new(openrust::auth::fortify::CredentialFactorMigration::new()), Box::new(openrust::auth::fortify::CredentialChallengeMigration::new())];"),
+    )?;
+    fs::write(
+        project_dir.join("config/fortify.rs"),
+        include_str!("../templates/config/fortify.rs"),
+    )?;
+    let path = project_dir.join("config/mod.rs");
+    let config = fs::read_to_string(&path)?
+        .replace("pub mod hashing;", "pub mod fortify;\npub mod hashing;")
+        .replace(".section(\"security\", security::config);", ".section(\"security\", security::config)\n        .section(\"fortify\", fortify::config)\n        .section(\"fortify-options\", fortify::options);");
+    fs::write(path, config)?;
+    let path = project_dir.join("tests/migration_catalog.rs");
+    let test = fs::read_to_string(&path)?;
+    fs::write(
+        path,
+        format!(
+            "{test}\n#[test]\nfn fortify_migration_is_contributed_by_the_same_framework_catalog() {{\n    let names = openrust_migration::Migrator::migrations().into_iter().map(|migration| migration.name().to_owned()).collect::<Vec<_>>();\n    assert!(names.contains(&openrust::auth::fortify::FortifyTwoFactorMigration::new().name().to_owned()));\n}}\n"
+        ),
+    )?;
+    Ok(())
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "有序替换生成应用的Provider、配置、路由与测试，保留原子生成步骤可审查性"
+)]
+fn install_jwt_api_profile(
+    project_dir: &Path,
+    type_name: &str,
+    database: Option<DatabaseBackend>,
+    grpc: bool,
+) -> anyhow::Result<()> {
+    for (path, contents) in [
+        (
+            "app/providers/fortify.rs",
+            include_str!("../templates/app/providers/fortify_api.rs"),
+        ),
+        (
+            "config/fortify_api.rs",
+            include_str!("../templates/config/fortify_api.rs"),
+        ),
+        (
+            "routes/api.rs",
+            include_str!("../templates/routes/api_jwt.rs"),
+        ),
+        (
+            "tests/support/fortify_api_http.rs",
+            include_str!("../templates/tests/support/fortify_api_http.rs"),
+        ),
+    ] {
+        fs::write(project_dir.join(path), contents)?;
+    }
+    let path = project_dir.join("routes/api.rs");
+    let source = fs::read_to_string(&path)?;
+    let source = source.replace(".get(\"/\", root)", ".get(\"/\", root)\n        .merge(Routes::new().get(\"/me\", current_user).layer(openrust::auth::AuthLayer::guard(\"api\")))\n        .merge(Routes::new().get(\"/me/pat\", current_user).layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken)))");
+    fs::write(
+        path,
+        format!(
+            "{source}\nasync fn current_user(user: openrust::auth::CurrentUser) -> Json<std::collections::BTreeMap<&'static str, serde_json::Value>> {{ Json(std::collections::BTreeMap::from([(\"user_id\", user.id())])) }}\n"
+        ),
+    )?;
+    let path = project_dir.join("bootstrap/app.rs");
+    let source = fs::read_to_string(&path)?;
+    let marker = "    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {";
+    if source.matches(marker).count() != 1 {
+        bail!("JWT API应用Provider装配点不唯一");
+    }
+    let selection = r"    fn default_providers() -> openrust::core::DefaultProviders {
+        openrust::core::DefaultProviders::auto().replace(
+            openrust::core::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(),
+            Box::new(openrust::auth::fortify::FortifyJwtApiServiceProvider::new().with_database_audit()),
+        ).except([
+            openrust::core::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            openrust::core::ProviderId::of::<openrust::session::SessionServiceProvider>(),
+        ])
+    }
+
+";
+    fs::write(
+        path,
+        source.replace(marker, &format!("{selection}{marker}")),
+    )?;
+    let path = project_dir.join("config/session.rs");
+    let session = fs::read_to_string(&path)?;
+    let driver = r#"driver: Some("database".to_owned()),"#;
+    if session.matches(driver).count() != 1 {
+        bail!("JWT API的Session配置装配点不唯一");
+    }
+    fs::write(path, session.replace(driver, "driver: None,"))?;
+    let path = project_dir.join("config/auth.rs");
+    let source = fs::read_to_string(&path)?
+        .replace(
+            "{\"guard\":\"web\", \"passwords\":\"users\", \"provider\":null}",
+            "{\"guard\":\"api\", \"passwords\":\"users\", \"provider\":null}",
+        )
+        .replace(
+            "{\"web\":{\"driver\":\"session\", \"provider\":\"users\", \"remember\":576_000}}",
+            "{\"api\":{\"driver\":\"jwt-api\", \"provider\":\"users\"}}",
+        );
+    if !source.contains("\"driver\":\"jwt-api\"") || !source.contains("\"guard\":\"api\"") {
+        bail!("JWT API的Guard配置替换未命中，拒绝生成混合profile");
+    }
+    fs::write(path, source)?;
+    let path = project_dir.join("config/mod.rs");
+    let source = fs::read_to_string(&path)?
+        .replace("pub mod fortify;", "pub mod fortify;\npub mod fortify_api;")
+        .replace(".section(\"fortify-options\", fortify::options);", ".section(\"fortify-options\", fortify::options)\n        .section(\"fortify-api\", fortify_api::config);");
+    if !source.contains(".section(\"fortify-api\", fortify_api::config)") {
+        bail!("JWT API配置清单登记失败");
+    }
+    fs::write(path, source)?;
+    let setup = if database == Some(DatabaseBackend::Sqlite) {
+        "    let database = TestDatabase::sqlite_file::<openrust_migration::Migrator>().await?;"
+    } else {
+        "    let url = std::env::var(\"OPENRUST_TEST_DATABASE_URL\")?;\n    let database = TestDatabase::create::<openrust_migration::Migrator>(&url).await?;"
+    };
+    let tests = include_str!("../templates/tests/jwt_api_flows.rs")
+        .replace("OpenRustGeneratedApplication", type_name)
+        .replace("{{database_setup}}", setup)
+        .replace("{{grpc_module}}", test_grpc_module(grpc));
+    fs::write(project_dir.join("tests/auth_flows.rs"), tests)?;
+    // 使用相同替换规则渲染显式API协议回归，避免生成未展开的占位符。
+    let business = render_auth_test(
+        include_str!("../templates/tests/jwt_api_business.rs"),
+        type_name,
+        true,
+        grpc,
+        database,
+    );
+    fs::write(project_dir.join("tests/jwt_api_business.rs"), business)?;
+    let common = include_str!("../templates/tests/jwt_api_test_app.rs")
+        .replace("OpenRustGeneratedApplication", type_name)
+        .replace("{{grpc_module}}", test_grpc_module(grpc))
+        .replace(
+            "{{seed_module}}",
+            "#[path = \"../database/seeders.rs\"]\nmod seed;\n",
+        );
+    fs::write(project_dir.join("tests/test_app.rs"), common)?;
+    fs::write(
+        project_dir.join("README.md"),
+        include_str!("../templates/README.jwt-api.md"),
+    )?;
     Ok(())
 }
 
@@ -1045,7 +1431,30 @@ fn code_config_manifest(grpc: bool, queue: bool) -> String {
 fn auth_test_template(
     crate_name: &str,
     encryption: bool,
-    auth_mfa: bool,
+    grpc: bool,
+    database: Option<DatabaseBackend>,
+) -> String {
+    render_auth_test(
+        include_str!("../templates/tests/auth_flows.rs"),
+        crate_name,
+        encryption,
+        grpc,
+        database,
+    )
+}
+
+fn test_grpc_module(grpc: bool) -> &'static str {
+    if grpc {
+        "#[path = \"../app/grpc.rs\"]\nmod grpc;\n"
+    } else {
+        ""
+    }
+}
+
+fn render_auth_test(
+    source: &str,
+    crate_name: &str,
+    encryption: bool,
     grpc: bool,
     database: Option<DatabaseBackend>,
 ) -> String {
@@ -1054,7 +1463,7 @@ fn auth_test_template(
     } else {
         ""
     };
-    let mut template = include_str!("../templates/tests/auth_flows.rs")
+    let mut template = source
         .replace("OpenRustGeneratedApplication", crate_name)
         .replace("{{encryption_config}}", encryption_config)
         .replace(
@@ -1065,23 +1474,13 @@ fn auth_test_template(
                 "    assert!(!session_response.session_cookie_is_protected);"
             },
         )
-        .replace(
-            "{{grpc_module}}",
-            if grpc {
-                "#[path = \"../app/grpc.rs\"]\nmod grpc;\n"
-            } else {
-                ""
-            },
-        );
+        .replace("{{grpc_module}}", test_grpc_module(grpc));
     template = template.replace(
         "{{auth_http_database_setup}}",
         if database == Some(DatabaseBackend::Sqlite) {
             "    let database = TestDatabase::sqlite_file::<openrust_migration::Migrator>().await?;"
         } else {
-            r#"    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("skipping generated auth HTTP test: OPENRUST_TEST_DATABASE_URL is unset");
-        return Ok(());
-    };
+            r#"    let admin_url = std::env::var("OPENRUST_TEST_DATABASE_URL")?;
     let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;"#
         },
     );
@@ -1090,27 +1489,10 @@ fn auth_test_template(
         if database == Some(DatabaseBackend::Sqlite) {
             "    let database = TestDatabase::sqlite_file::<openrust_migration::Migrator>().await?;"
         } else {
-            r#"    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("skipping generated TestApp auth: OPENRUST_TEST_DATABASE_URL is unset");
-        return Ok(());
-    };
+            r#"    let admin_url = std::env::var("OPENRUST_TEST_DATABASE_URL")?;
     let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;"#
         },
     );
-    if auth_mfa {
-        template = template
-            .replace("{{login_credentials_suffix}}", "[\"credentials\"]")
-            .replace(
-                "{{mfa_flow}}",
-                "    run_bounded_mfa_flow(address, mail).await?;\n",
-            );
-        template.push('\n');
-        template.push_str(include_str!("../templates/tests/auth_mfa_flow.rs"));
-    } else {
-        template = template
-            .replace("{{login_credentials_suffix}}", "")
-            .replace("{{mfa_flow}}", "");
-    }
     template
 }
 
@@ -1160,7 +1542,6 @@ fn cargo_manifest(
     http_client: bool,
     sms_twilio: bool,
     encryption: bool,
-    auth_mfa: bool,
     grpc: bool,
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
@@ -1182,9 +1563,7 @@ fn cargo_manifest(
         if encryption {
             features.push("encryption");
         }
-        if auth_mfa {
-            features.push("auth-mfa");
-        }
+
         if grpc {
             features.push("grpc");
         }
@@ -1216,9 +1595,7 @@ fn cargo_manifest(
             "tokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }\n",
         );
     }
-    if auth_mfa {
-        manifest.push_str("hmac = \"0.13\"\nsha1 = \"0.11\"\nurl = \"2.5\"\n");
-    }
+
     if grpc {
         manifest.push_str("rcgen = \"0.14.10\"\ntempfile = \"3.27\"\n");
     }
@@ -1236,6 +1613,20 @@ fn cargo_manifest(
     if grpc {
         manifest.push_str(
             "\n[build-dependencies]\ntonic-prost-build = { workspace = true }\nprotoc-bin-vendored = { workspace = true }\n",
+        );
+    }
+    if auth {
+        let _ = write!(
+            manifest,
+            "\n[features]\ndefault = {:?}\nauth = [\"openrust/auth\"]\nencryption = [\"openrust/encryption\"]\nauth-fortify = [\"auth\", \"encryption\", \"openrust/auth-fortify\"]\n",
+            {
+                let mut selected = vec!["auth"];
+                if encryption {
+                    selected.push("encryption");
+                }
+
+                selected
+            }
         );
     }
     manifest
@@ -1258,221 +1649,15 @@ fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
     include_str!("../templates/src/providers.rs").replace("{{application_providers}}", &additions)
 }
 
-fn api_routes_source(auth: bool, auth_mfa: bool) -> String {
-    let mut source = include_str!("../templates/routes/api.rs").to_owned();
-    let (registration, handler) = if auth {
-        let login_handler = if auth_mfa {
-            mfa_login_handler()
-        } else {
-            standard_login_handler()
-        };
-        let mfa_handler = if auth_mfa {
-            mfa_management_handlers()
-        } else {
-            String::new()
-        };
-        (
-            "    routes\n        .get(\"/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/auth/register\", auth_register)\n        .post(\n            \"/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/auth/verify-email\", auth_verify_email)\n        .post(\"/auth/login\", auth_login)\n        .post(\"/auth/refresh\", auth_refresh)\n        .post(\"/auth/logout\", auth_logout)\n        .post(\"/auth/password-reset\", auth_request_password_reset)\n        .post(\"/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/\", root)\n        .merge(Routes::new().get(\"/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
-            include_str!("../templates/src/auth_routes.rs")
-                .replace("{{login_handler}}", login_handler.trim_end())
-                .replace("{{mfa_handler}}", mfa_handler.trim_end()),
-        )
+fn api_routes_source(auth: bool) -> String {
+    if auth {
+        // 登录、会话、挑战和管理由官方Web Fortify Provider统一登记。
+        include_str!("../templates/routes/api_jwt.rs").to_owned()
     } else {
-        ("    routes.get(\"/\", root)".to_owned(), String::new())
-    };
-    let registration = if auth_mfa {
-        registration.replace(
-            ".post(\"/auth/login\", auth_login)",
-            ".post(\"/auth/login\", auth_login)\n        .post(\"/auth/mfa/login\", auth_mfa_login)",
-        )
-        .replace(
-            ".get(\"/\", root)",
-            ".get(\"/\", root)\n        .merge(\n            Routes::new()\n                .post(\"/auth/mfa/enrollment\", auth_mfa_enrollment)\n                .post(\n                    \"/auth/mfa/enrollment/confirm\",\n                    auth_mfa_enrollment_confirm,\n                )\n                .post(\"/auth/mfa/disable\", auth_mfa_disable)\n                .post(\"/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n                .layer(openrust::auth::AuthLayer::required(\n                    openrust::auth::AuthMode::Jwt,\n                )),\n        )",
-        )
-    } else {
-        registration
-    };
-    source = source.replace("{{routes}}", &registration);
-    source.replace("{{auth_handler}}", handler.trim_end())
-}
-
-fn standard_login_handler() -> String {
-    "async fn auth_login(\n    Inject(flows): Inject<AuthFlows>,\n    client_ip: ClientIp,\n    Json(input): Json<EmailPasswordInput>,\n) -> openrust::Result<Json<CredentialsResponse>> {\n    Ok(credentials_response(\n        flows\n            .login(&input.email, &input.password, &client_ip.ip().to_string())\n            .await?,\n    ))\n}"
-        .to_owned()
-}
-
-fn mfa_login_handler() -> String {
-    r#"#[derive(serde::Serialize)]
-#[serde(tag = "status", rename_all = "snake_case")]
-enum AuthLoginResponse {
-    Authenticated {
-        credentials: CredentialsResponse,
-    },
-    MfaRequired {
-        challenge: String,
-        expires_at: String,
-    },
-}
-
-fn auth_no_store(
-    response: impl openrust::http::axum::response::IntoResponse,
-) -> openrust::http::axum::response::Response {
-    let mut response = response.into_response();
-    response.headers_mut().insert(
-        openrust::http::axum::http::header::CACHE_CONTROL,
-        openrust::http::axum::http::HeaderValue::from_static("no-store"),
-    );
-    response
-}
-
-async fn auth_login(
-    Inject(flows): Inject<AuthFlows>,
-    client_ip: ClientIp,
-    Json(input): Json<EmailPasswordInput>,
-) -> openrust::Result<openrust::http::axum::response::Response> {
-    match flows
-        .begin_login(&input.email, &input.password, &client_ip.ip().to_string())
-        .await?
-    {
-        openrust::auth::LoginAttempt::Authenticated(credentials) => {
-            Ok(auth_no_store(Json(AuthLoginResponse::Authenticated {
-                credentials: credentials_response(credentials).0,
-            })))
-        }
-        openrust::auth::LoginAttempt::MfaRequired(challenge) => {
-            Ok(auth_no_store(Json(AuthLoginResponse::MfaRequired {
-                challenge: challenge.expose().to_owned(),
-                expires_at: challenge.expires_at().to_rfc3339(),
-            })))
-        }
+        include_str!("../templates/routes/api.rs")
+            .replace("{{routes}}", "    routes.get(\"/\", root)")
+            .replace("{{auth_handler}}", "")
     }
-}
-
-#[derive(serde::Deserialize)]
-struct MfaChallengeInput {
-    challenge: String,
-    code: String,
-}
-
-async fn auth_mfa_login(
-    Inject(flows): Inject<AuthFlows>,
-    client_ip: ClientIp,
-    Json(input): Json<MfaChallengeInput>,
-) -> openrust::Result<openrust::http::axum::response::Response> {
-    Ok(auth_no_store(credentials_response(
-        flows
-            .complete_mfa_login(&input.challenge, &input.code, &client_ip.ip().to_string())
-            .await?,
-    )))
-}"#
-    .to_owned()
-}
-
-fn mfa_management_handlers() -> String {
-    r#"#[derive(serde::Deserialize)]
-struct MfaEnrollmentInput {
-    email: String,
-    password: String,
-}
-
-#[derive(serde::Deserialize)]
-struct MfaCodeInput {
-    code: String,
-}
-
-#[derive(serde::Deserialize)]
-struct MfaFactorInput {
-    email: String,
-    password: String,
-    code: String,
-}
-
-#[derive(serde::Serialize)]
-struct MfaEnrollmentResponse {
-    provisioning_uri: String,
-    expires_at: String,
-}
-
-#[derive(serde::Serialize)]
-struct MfaRecoveryCodesResponse {
-    recovery_codes: Vec<String>,
-}
-
-async fn auth_mfa_enrollment(
-    user: openrust::auth::CurrentUser,
-    Inject(flows): Inject<AuthFlows>,
-    client_ip: ClientIp,
-    Json(input): Json<MfaEnrollmentInput>,
-) -> openrust::Result<openrust::http::axum::response::Response> {
-    let enrollment = flows
-        .begin_totp_enrollment(
-            user.integer_id()?,
-            &input.email,
-            &input.password,
-            env!("CARGO_PKG_NAME"),
-            &client_ip.ip().to_string(),
-        )
-        .await?;
-    Ok(auth_no_store(Json(MfaEnrollmentResponse {
-        provisioning_uri: enrollment.provisioning_uri().to_owned(),
-        expires_at: enrollment.expires_at().to_rfc3339(),
-    })))
-}
-
-async fn auth_mfa_enrollment_confirm(
-    user: openrust::auth::CurrentUser,
-    Inject(flows): Inject<AuthFlows>,
-    client_ip: ClientIp,
-    Json(input): Json<MfaCodeInput>,
-) -> openrust::Result<openrust::http::axum::response::Response> {
-    let codes = flows
-        .confirm_totp_enrollment(user.integer_id()?, &input.code, &client_ip.ip().to_string())
-        .await?;
-    Ok(auth_no_store(Json(MfaRecoveryCodesResponse {
-        recovery_codes: codes.expose().to_vec(),
-    })))
-}
-
-async fn auth_mfa_disable(
-    user: openrust::auth::CurrentUser,
-    Inject(flows): Inject<AuthFlows>,
-    client_ip: ClientIp,
-    Json(input): Json<MfaFactorInput>,
-) -> openrust::Result<Json<std::collections::BTreeMap<&'static str, &'static str>>> {
-    flows
-        .disable_mfa(
-            user.integer_id()?,
-            &input.email,
-            &input.password,
-            &input.code,
-            &client_ip.ip().to_string(),
-        )
-        .await?;
-    Ok(Json(std::collections::BTreeMap::from([(
-        "status", "disabled",
-    )])))
-}
-
-async fn auth_mfa_recovery_codes(
-    user: openrust::auth::CurrentUser,
-    Inject(flows): Inject<AuthFlows>,
-    client_ip: ClientIp,
-    Json(input): Json<MfaFactorInput>,
-) -> openrust::Result<openrust::http::axum::response::Response> {
-    let codes = flows
-        .regenerate_mfa_recovery_codes(
-            user.integer_id()?,
-            &input.email,
-            &input.password,
-            &input.code,
-            &client_ip.ip().to_string(),
-        )
-        .await?;
-    Ok(auth_no_store(Json(MfaRecoveryCodesResponse {
-        recovery_codes: codes.expose().to_vec(),
-    })))
-}"#
-    .to_owned()
 }
 
 fn main_source(crate_name: &str, database: Option<DatabaseBackend>, grpc: bool) -> String {
@@ -1565,14 +1750,12 @@ fn seed_source(database: Option<DatabaseBackend>) -> String {
     }
 }
 
-fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool, auth_mfa: bool) -> String {
+fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> String {
     let mut features = vec![database.feature(), "session", "queue"];
     if auth {
         features.push("auth");
     }
-    if auth_mfa {
-        features.push("auth-mfa");
-    }
+
     format!(
         "[package]\nname = \"{name}-migration\"\npublish = false\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ workspace = true, features = {features:?} }}\n"
     )
@@ -1582,7 +1765,7 @@ fn migration_lib() -> String {
     "//! 应用数据库迁移；框架基础设施仅从统一清单贡献一次。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        let mut migrations = openrust::db::FrameworkMigrator::migrations();\n        let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![];\n        migrations.extend(application_migrations);\n        migrations\n    }\n}\n".to_owned()
 }
 
-fn migration_catalog_test_source(auth: bool, auth_mfa: bool) -> String {
+fn migration_catalog_test_source(auth: bool) -> String {
     let auth = if auth {
         "assert!(names.contains(&openrust::auth::AuthMigration.name().to_owned()));\n    assert!(names.contains(&openrust::auth::AuthRefreshTokenMigration.name().to_owned()));\n    assert!(names.contains(&openrust::auth::AuthVerificationCodeMigration.name().to_owned()));\n    assert!(names.contains(&openrust::auth::AuthPolicyMigration.name().to_owned()));"
     } else {
@@ -1590,14 +1773,6 @@ fn migration_catalog_test_source(auth: bool, auth_mfa: bool) -> String {
     };
     include_str!("../templates/tests/migration_catalog.rs")
         .replace("// {{auth_migration_assertions}}", auth)
-        .replace(
-            "// {{mfa_migration_assertions}}",
-            if auth_mfa {
-                "assert!(names.contains(&openrust::auth::AuthMfaMigration.name().to_owned()));"
-            } else {
-                ""
-            },
-        )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1864,7 +2039,11 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let app_file = project_dir.join("bootstrap/providers.rs");
     let app_source = fs::read_to_string(&app_file)?;
     let mut updated_tests = Vec::new();
-    for relative in ["tests/auth_flows.rs", "tests/test_app.rs"] {
+    for relative in [
+        "tests/auth_flows.rs",
+        "tests/test_app.rs",
+        "tests/jwt_api_business.rs",
+    ] {
         let path = project_dir.join(relative);
         if path.exists() {
             updated_tests.push((
@@ -2954,7 +3133,9 @@ mod tests {
             .expect("new subcommand exists")
             .render_help()
             .to_string();
-        assert!(new_help.contains("添加数据库认证能力"));
+        assert!(new_help.contains("生成官方Web/Fortify认证"));
+        assert!(new_help.contains("自动启用认证、加密和现代因子迁移"));
+        assert!(new_help.contains("显式选择无Session/Cookie"));
         assert!(new_help.contains("Twilio 短信驱动"));
         assert!(new_help.contains("Protobuf"));
 
@@ -2970,7 +3151,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_enables_requested_http_client_feature() {
-        let manifest = cargo_manifest("my-app", None, false, true, false, false, false, false);
+        let manifest = cargo_manifest("my-app", None, false, true, false, false, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"http-client\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--http-client"]).is_ok());
@@ -2983,12 +3164,11 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
         let project = root.join("blog");
-        populate_project_with_mfa(
+        populate_project_with_runtime_options(
             &project,
             "grpc-demo",
             "GrpcDemo",
             None,
-            false,
             false,
             false,
             false,
@@ -3029,7 +3209,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_enables_twilio_sms_feature() {
-        let manifest = cargo_manifest("my-app", None, false, false, true, false, false, false);
+        let manifest = cargo_manifest("my-app", None, false, false, true, false, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"sms-twilio\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--sms-twilio"]).is_ok());
@@ -3037,7 +3217,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_and_project_enable_application_encryption() {
-        let manifest = cargo_manifest("my-app", None, false, false, false, true, false, false);
+        let manifest = cargo_manifest("my-app", None, false, false, false, true, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"encryption\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--encryption"]).is_ok());
@@ -3715,14 +3895,7 @@ mod tests {
                 Some(DatabaseBackend::Mysql),
             ),
             (
-                vec![
-                    "openrust",
-                    "new",
-                    "blog",
-                    "--auth",
-                    "--auth-mfa",
-                    "--encryption",
-                ],
+                vec!["openrust", "new", "blog", "--auth", "--encryption"],
                 Some(DatabaseBackend::Mysql),
             ),
             (
@@ -3744,14 +3917,7 @@ mod tests {
         for arguments in [
             vec!["openrust", "new", "blog", "--minimal", "--db", "mysql"],
             vec!["openrust", "new", "blog", "--minimal", "--auth"],
-            vec![
-                "openrust",
-                "new",
-                "blog",
-                "--minimal",
-                "--auth-mfa",
-                "--encryption",
-            ],
+            vec!["openrust", "new", "blog", "--minimal", "--fortify"],
         ] {
             assert!(Cli::try_parse_from(arguments).is_err());
         }
@@ -4078,17 +4244,17 @@ mod tests {
             assert!(manifest.contains("serde_json"));
             let http_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
-            assert!(http_test.contains("ProviderBuilder::for_application::<"));
+            assert!(http_test.contains("TestApp::<GeneratedApplication>::builder"));
             assert!(http_test.contains("use bootstrap::Blog as GeneratedApplication;"));
-            assert!(http_test.contains("for_application::<GeneratedApplication>"));
+            assert!(http_test.contains("fortify_http::exercise::<GeneratedApplication>"));
             assert!(http_test.contains("../modules/mod.rs"));
             assert!(project.join("tests/support/request_input.rs").is_file());
             assert!(
                 http_test.contains("request_input::assert_request_input::<GeneratedApplication>")
             );
             assert!(!project.join("modules_statuses.json").exists());
-            assert!(http_test.contains("into_make_service_with_connect_info"));
-            assert!(http_test.contains("/api/auth/password-reset/confirm"));
+            assert!(project.join("tests/support/fortify_http.rs").is_file());
+            assert!(http_test.contains("request_session::assert_request_session"));
             assert!(!http_test.contains("{{type_name}}"));
             assert!(manifest.contains("\"auth\""));
             let migration_manifest =
@@ -4142,19 +4308,19 @@ mod tests {
             assert!(!app.contains("SessionPlugin::new()"));
             let routes = fs::read_to_string(project.join("routes/api.rs"))
                 .expect("read generated API routes");
-            assert!(routes.contains("AuthLayer::required("));
-            assert!(routes.contains("AuthMode::Jwt"));
-            assert!(routes.contains("/me/pat"));
-            assert!(routes.contains("AuthMode::PersonalAccessToken"));
-            assert!(routes.contains("CurrentUser"));
+            assert!(!routes.contains("AuthLayer::required("));
+            assert!(!routes.contains("AuthMode::Jwt"));
+            assert!(!routes.contains("/me/pat"));
+            assert!(!routes.contains("AuthMode::PersonalAccessToken"));
+            assert!(!routes.contains("CurrentUser"));
             assert!(routes.contains("/auth/register"));
             assert!(routes.contains("/auth/verify-email"));
-            assert!(routes.contains("/auth/refresh"));
+            assert!(!routes.contains("/auth/refresh"));
             assert!(routes.contains("/auth/password-reset/confirm"));
             assert!(routes.contains("ClientIp"));
             let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
-            assert!(auth_test.contains("trusted_proxy_ranges"));
+            assert!(auth_test.contains("fortify_http::exercise::<GeneratedApplication>"));
             let config = fs::read_to_string(project.join("config/auth.rs"))
                 .expect("read generated auth config");
             assert!(config.contains("jwt: Jwt"));
@@ -4196,81 +4362,6 @@ mod tests {
         assert!(auth_test.contains("KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth"]).is_ok());
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--minimal", "--auth"]).is_err());
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn mfa_generator_registers_secure_routes_and_dual_backend_migrations() {
-        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth-mfa"]).is_err());
-        assert!(
-            Cli::try_parse_from([
-                "openrust",
-                "new",
-                "blog",
-                "--db",
-                "postgres",
-                "--auth",
-                "--auth-mfa"
-            ])
-            .is_err()
-        );
-        assert!(
-            Cli::try_parse_from([
-                "openrust",
-                "new",
-                "blog",
-                "--db",
-                "postgres",
-                "--auth",
-                "--auth-mfa",
-                "--encryption"
-            ])
-            .is_ok()
-        );
-
-        let root = std::env::temp_dir().join(format!("openrust-cli-mfa-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("create temporary test directory");
-        for (backend, feature) in [
-            (DatabaseBackend::Postgres, "db-postgres"),
-            (DatabaseBackend::Mysql, "db-mysql"),
-        ] {
-            let project = root.join(feature);
-            populate_project_with_mfa(
-                &project,
-                "blog",
-                "Blog",
-                Some(backend),
-                true,
-                true,
-                false,
-                false,
-                true,
-                false,
-            )
-            .expect("generate MFA project");
-            assert_generated_route_layout(&project);
-            let app =
-                fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            assert!(app.contains("providers::application_providers(config)"));
-            assert!(!app.contains("MfaServiceProvider"));
-            let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
-                .expect("migration");
-            assert_framework_migration_registry(&migration);
-            assert!(include_str!("../../../src/db/migration.rs").contains("AuthMfaMigration"));
-            for path in ["Cargo.toml", "database/migrations/Cargo.toml"] {
-                assert!(
-                    fs::read_to_string(project.join(path))
-                        .expect("MFA dependency")
-                        .contains("\"auth-mfa\"")
-                );
-            }
-            assert!(
-                fs::read_to_string(project.join("routes/api.rs"))
-                    .expect("API routes")
-                    .contains("/auth/mfa/login")
-            );
-        }
         let _ = fs::remove_dir_all(root);
     }
 
@@ -5230,6 +5321,61 @@ mod tests {
     }
 
     #[test]
+    fn installation_formats_only_generated_packages_and_preserves_files_on_failure()
+    -> anyhow::Result<()> {
+        use std::ffi::OsStr;
+        let root = std::env::temp_dir().join(format!(
+            "openrust format {} {}",
+            std::process::id(),
+            MIGRATION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root)?;
+        let outcome = (|| -> anyhow::Result<()> {
+            let manifest = root.join("Cargo.toml");
+            fs::write(
+                &manifest,
+                "[package]\nname='application'\n[dependencies]\nframework={path='../framework'}\n",
+            )?;
+            let command = installation_format_command(&root)?;
+            assert_eq!(command.get_program(), "cargo");
+            assert_eq!(command.get_current_dir(), Some(root.as_path()));
+            let mut expected = vec![
+                OsStr::new("fmt"),
+                OsStr::new("--manifest-path"),
+                manifest.as_os_str(),
+                OsStr::new("-p"),
+                OsStr::new("application"),
+            ];
+            assert_eq!(command.get_args().collect::<Vec<_>>(), expected);
+            let migrations = root.join("database/migrations");
+            fs::create_dir_all(&migrations)?;
+            fs::write(
+                migrations.join("Cargo.toml"),
+                "[package]\nname='owned-migration'\n",
+            )?;
+            expected.extend([OsStr::new("-p"), OsStr::new("owned-migration")]);
+            let command = installation_format_command(&root)?;
+            assert_eq!(command.get_args().collect::<Vec<_>>(), expected);
+
+            // 无需 Cargo：真实失败子进程只返回错误，安装目录仍供开发者修复。
+            let mut failed = Process::new(std::env::current_exe()?);
+            failed
+                .arg("--openrust-invalid-test-option")
+                .current_dir(&root)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+            assert!(format_created_project(&mut failed).is_err());
+            assert!(manifest.is_file());
+            assert!(migrations.join("Cargo.toml").is_file());
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(root);
+        outcome?;
+        cleanup?;
+        Ok(())
+    }
+
+    #[test]
     fn sqlite_installation_migrates_the_generated_application_without_shell_interpolation() {
         let directory = Path::new("/tmp/application with spaces");
         let command = installation_migration_command(directory);
@@ -5259,6 +5405,459 @@ mod tests {
         );
         assert_eq!(project_database(None, false), Some(DatabaseBackend::Mysql));
         assert_eq!(project_database(None, true), None);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod fortify_scaffold_tests {
+    use super::*;
+
+    #[test]
+    fn fortify_cli_selects_default_database_and_rejects_minimal() -> anyhow::Result<()> {
+        let cli = Cli::try_parse_from(["openrust", "new", "fortify-app", "--fortify"])?;
+        let Some(Builtin::New {
+            fortify,
+
+            db,
+            minimal,
+            ..
+        }) = cli.command
+        else {
+            bail!("应解析new");
+        };
+        assert!(fortify);
+        assert_eq!(project_database(db, minimal), Some(DatabaseBackend::Mysql));
+        assert!(
+            Cli::try_parse_from(["openrust", "new", "fortify-app", "--fortify", "--minimal"])
+                .is_err()
+        );
+        for backend in ["sqlite", "postgres", "mysql"] {
+            assert!(
+                Cli::try_parse_from([
+                    "openrust",
+                    "new",
+                    "fortify-app",
+                    "--fortify",
+                    "--db",
+                    backend
+                ])
+                .is_ok()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "同一脚手架跨三个数据库配置核对生成闭环"
+    )]
+    fn fortify_generation_uses_local_features_same_config_catalog_and_model_source()
+    -> anyhow::Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-fortify-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root)?;
+        let result = (|| -> anyhow::Result<()> {
+            for backend in [
+                DatabaseBackend::Mysql,
+                DatabaseBackend::Postgres,
+                DatabaseBackend::Sqlite,
+            ] {
+                let project = root.join(backend.feature());
+                populate_project_with_features(
+                    &project,
+                    "fortify-app",
+                    "FortifyApp",
+                    Some(backend),
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    true,
+                )?;
+                let cargo = fs::read_to_string(project.join("Cargo.toml"))?
+                    .parse::<toml_edit::DocumentMut>()?;
+                let defaults = cargo["features"]["default"]
+                    .as_array()
+                    .context("缺少default features")?;
+                assert!(
+                    defaults
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("auth"))
+                );
+                assert!(
+                    defaults
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("encryption"))
+                );
+                assert!(
+                    defaults
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("auth-fortify"))
+                );
+                assert!(
+                    !defaults
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("auth-mfa"))
+                );
+                let forward = cargo["features"]["auth-fortify"]
+                    .as_array()
+                    .context("缺少Fortify转发")?;
+                assert!(
+                    forward
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("openrust/auth-fortify"))
+                );
+                assert!(
+                    forward
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("openrust-migration/auth-fortify"))
+                );
+                let dependency = cargo["dependencies"]["openrust"]["features"]
+                    .as_array()
+                    .context("缺少库features")?;
+                assert!(
+                    dependency
+                        .iter()
+                        .any(|feature| feature.as_str() == Some(backend.feature()))
+                );
+                assert!(
+                    dependency
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("auth"))
+                );
+                assert!(
+                    dependency
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("encryption"))
+                );
+                assert!(
+                    !dependency
+                        .iter()
+                        .any(|feature| feature.as_str() == Some("auth-mfa"))
+                );
+                let migration = fs::read_to_string(project.join("database/migrations/Cargo.toml"))?
+                    .parse::<toml_edit::DocumentMut>()?;
+                assert_eq!(
+                    migration["features"]["default"]
+                        .as_array()
+                        .and_then(|array| array.get(0))
+                        .and_then(toml_edit::Value::as_str),
+                    Some("auth-fortify")
+                );
+                assert_eq!(
+                    migration["features"]["auth-fortify"]
+                        .as_array()
+                        .and_then(|array| array.get(0))
+                        .and_then(toml_edit::Value::as_str),
+                    Some("openrust/auth-fortify")
+                );
+                let manifest = fs::read_to_string(project.join("config/mod.rs"))?;
+                assert_eq!(manifest.matches("pub mod fortify;").count(), 1);
+                assert_eq!(
+                    manifest
+                        .matches(".section(\"fortify\", fortify::config)")
+                        .count(),
+                    1
+                );
+                assert_eq!(
+                    manifest
+                        .matches(".section(\"fortify-options\", fortify::options)")
+                        .count(),
+                    1
+                );
+                let config = fs::read_to_string(project.join("config/fortify.rs"))?;
+                assert!(config.contains("FortifyConfig::installed()"));
+                assert!(config.contains("TwoFactorOptions::installed()"));
+                let provider = fs::read_to_string(project.join("app/providers/app.rs"))?;
+                assert!(
+                    provider.contains("state_db.clone(), state_table.clone(), \"id\", identifier")
+                );
+                assert!(provider.contains("with_two_factor_state"));
+                assert!(provider.contains("disabled_at"));
+                let model = fs::read_to_string(project.join("app/models/user.rs"))?;
+                assert!(model.contains("feature = \"auth-fortify\""));
+                let account_callback =
+                    fs::read_to_string(project.join("app/providers/fortify.rs"))?;
+                assert!(account_callback.contains("authenticate_using"));
+                assert!(account_callback.contains("confirm_passwords_using"));
+                let application_migration =
+                    fs::read_to_string(project.join("database/migrations/src/accounts.rs"))?;
+                assert!(application_migration.contains("set_column_nullable"));
+                let migration_registry =
+                    fs::read_to_string(project.join("database/migrations/src/lib.rs"))?;
+                assert!(migration_registry.contains("Box::new(accounts::AccountIdentifiers)"));
+                let routes = fs::read_to_string(project.join("routes/api.rs"))?;
+                assert!(!routes.contains("auth_mfa_login"));
+                assert!(!routes.contains("/auth/mfa/"));
+                let tests = fs::read_to_string(project.join("tests/auth_flows.rs"))?;
+                assert!(!tests.contains("async fn run_mfa_flow"));
+                assert!(!tests.contains("run_bounded_mfa_flow("));
+                assert!(
+                    fs::read_to_string(project.join("tests/migration_catalog.rs"))?
+                        .contains("FortifyTwoFactorMigration::new()")
+                );
+            }
+            assert!(
+                populate_project_with_features(
+                    &root.join("minimal"),
+                    "minimal",
+                    "Minimal",
+                    None,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    true
+                )
+                .is_err()
+            );
+            assert!(!root.join("minimal").exists());
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(&root);
+        result?;
+        cleanup?;
+        Ok(())
+    }
+
+    #[test]
+    fn removed_mfa_option_is_not_an_alias_for_fortify() {
+        for arguments in [
+            vec!["openrust", "new", "blog", "--auth-mfa"],
+            vec![
+                "openrust",
+                "new",
+                "blog",
+                "--auth",
+                "--encryption",
+                "--auth-mfa",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(arguments).is_err());
+        }
+    }
+
+    #[test]
+    fn auth_and_fortify_both_select_official_web_defaults() -> anyhow::Result<()> {
+        assert!(Cli::try_parse_from(["openrust", "new", "app", "--auth", "--fortify"]).is_ok());
+        let root =
+            std::env::temp_dir().join(format!("openrust-web-auth-default-{}", std::process::id()));
+        fs::create_dir_all(&root)?;
+        let outcome = (|| -> anyhow::Result<()> {
+            for (name, auth, fortify) in [
+                ("auth", true, false),
+                ("fortify", false, true),
+                ("both", true, true),
+            ] {
+                let path = root.join(name);
+                populate_project_with_features(
+                    &path,
+                    "app",
+                    "App",
+                    Some(DatabaseBackend::Sqlite),
+                    auth,
+                    false,
+                    false,
+                    false,
+                    false,
+                    fortify,
+                )?;
+                let manifest = fs::read_to_string(path.join("Cargo.toml"))?
+                    .parse::<toml_edit::DocumentMut>()?;
+                let defaults = manifest["features"]["default"]
+                    .as_array()
+                    .context("缺少默认features")?;
+                for required in ["auth", "encryption", "auth-fortify"] {
+                    assert!(defaults.iter().any(|item| item.as_str() == Some(required)));
+                }
+                let auth = fs::read_to_string(path.join("config/auth.rs"))?;
+                assert!(auth.contains("\"guard\":\"web\""));
+                assert!(auth.contains("\"driver\":\"session\""));
+                let routes = fs::read_to_string(path.join("routes/api.rs"))?;
+                for jwt_route in ["/auth/login", "/auth/refresh", "/auth/logout"] {
+                    assert!(!routes.contains(jwt_route));
+                }
+                assert!(
+                    !fs::read_to_string(path.join("bootstrap/app.rs"))?
+                        .contains("FortifyJwtApiServiceProvider")
+                );
+                assert!(
+                    fs::read_to_string(path.join("tests/auth_flows.rs"))?
+                        .contains("fortify_http::exercise")
+                );
+            }
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(root);
+        outcome?;
+        cleanup?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod jwt_api_profile_tests {
+    use super::*;
+    #[test]
+    fn jwt_api_is_explicit_and_conflicts_with_web_fortify_or_minimal() -> anyhow::Result<()> {
+        let cli = Cli::try_parse_from([
+            "openrust",
+            "new",
+            "api-app",
+            "--profile",
+            "jwt-api",
+            "--db",
+            "sqlite",
+        ])?;
+        let Some(Builtin::New {
+            profile, fortify, ..
+        }) = cli.command
+        else {
+            bail!("预期new命令")
+        };
+        assert_eq!(profile, Some(ApplicationProfile::JwtApi));
+        assert!(!fortify);
+        for extra in ["--minimal", "--fortify"] {
+            assert!(
+                Cli::try_parse_from(["openrust", "new", "api-app", "--profile", "jwt-api", extra])
+                    .is_err()
+            );
+        }
+        assert!(
+            Cli::try_parse_from(["openrust", "new", "api-app", "--profile", "unknown"]).is_err()
+        );
+        let default = Cli::try_parse_from(["openrust", "new", "web-app"])?;
+        assert!(matches!(
+            default.command,
+            Some(Builtin::New { profile: None, .. })
+        ));
+        Ok(())
+    }
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "三后端生成契约需同时核对Provider替换、Guard、协议测试与原安全回归未丢失"
+    )]
+    fn jwt_api_generation_selects_real_provider_and_dedicated_no_cookie_contract()
+    -> anyhow::Result<()> {
+        let directory = std::env::temp_dir().join(format!(
+            "openrust-jwt-profile-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos()
+        ));
+        fs::create_dir_all(&directory)?;
+        let outcome = (|| -> anyhow::Result<()> {
+            for backend in [
+                DatabaseBackend::Sqlite,
+                DatabaseBackend::Mysql,
+                DatabaseBackend::Postgres,
+            ] {
+                let project = directory.join(backend.feature());
+                let grpc = backend == DatabaseBackend::Mysql;
+                populate_project_with_features(
+                    &project,
+                    "jwt-app",
+                    "JwtApp",
+                    Some(backend),
+                    true,
+                    false,
+                    false,
+                    true,
+                    grpc,
+                    true,
+                )?;
+                install_jwt_api_profile(&project, "JwtApp", Some(backend), grpc)?;
+                let bootstrap = fs::read_to_string(project.join("bootstrap/app.rs"))?;
+                assert!(bootstrap.contains("DefaultProviders::auto().replace("));
+                assert!(bootstrap.contains(
+                    r").except([
+            openrust::core::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            openrust::core::ProviderId::of::<openrust::session::SessionServiceProvider>(),
+        ])"
+                ));
+                let session = fs::read_to_string(project.join("config/session.rs"))?;
+                assert!(session.contains("driver: None,"));
+
+                assert!(
+                    bootstrap.contains("FortifyJwtApiServiceProvider::new().with_database_audit()")
+                );
+                let auth = fs::read_to_string(project.join("config/auth.rs"))?;
+                assert!(auth.contains("\"guard\":\"api\""));
+                assert!(auth.contains("\"driver\":\"jwt-api\""));
+                let manifest = fs::read_to_string(project.join("config/mod.rs"))?;
+                assert!(manifest.contains(".section(\"fortify-api\", fortify_api::config)"));
+                let callbacks = fs::read_to_string(project.join("app/providers/fortify.rs"))?;
+                assert!(callbacks.contains("create_user_provider"));
+                assert!(!callbacks.contains("as_stateful"));
+                let routes = fs::read_to_string(project.join("routes/api.rs"))?;
+                assert!(routes.contains("/auth/register"));
+                assert!(!routes.contains(".post(\"/auth/login\""));
+                let tests = fs::read_to_string(project.join("tests/auth_flows.rs"))?;
+                assert!(tests.contains("fortify_api_http::exercise::<GeneratedApplication>"));
+                assert!(!tests.contains("fortify_http::exercise"));
+                assert!(!tests.contains("{{database_setup}}"));
+                let contract =
+                    fs::read_to_string(project.join("tests/support/fortify_api_http.rs"))?;
+                for endpoint in [
+                    "/two-factor-challenge",
+                    "/two-factor/authorize",
+                    "/two-factor/confirm",
+                    "/refresh",
+                    "/logout",
+                ] {
+                    assert!(contract.contains(endpoint));
+                }
+                assert!(contract.contains("header::SET_COOKIE"));
+                assert!(contract.contains("contains::<openrust::session::SessionStoreHandle>()"));
+                assert!(contract.contains("db.table(\"sessions\")"));
+                let common = fs::read_to_string(project.join("tests/test_app.rs"))?;
+                assert!(
+                    common.contains("assert_original_host_cookie_session::<TestWebHost<true>>")
+                );
+                assert!(common.contains("assert_request_cookie::<TestWebHost<false>>"));
+
+                let business = fs::read_to_string(project.join("tests/jwt_api_business.rs"))?;
+                for assertion in [
+                    "auth_credential_proof_required",
+                    "issue_from_verified",
+                    "password_reset",
+                    "rate_limited",
+                    "generated_named_user_provider",
+                    "set_cookies.is_empty()",
+                ] {
+                    assert!(business.contains(assertion));
+                }
+                assert!(!business.contains("fortify_http::exercise"));
+                assert!(!business.contains("{{auth_http_database_setup}}"));
+                assert_eq!(project.join("app/grpc.rs").is_file(), grpc);
+                for target in [&tests, &business, &common] {
+                    assert!(!target.contains("{{grpc_module}}"));
+                    assert_eq!(target.contains(test_grpc_module(true)), grpc);
+                }
+                assert!(routes.contains(
+                    r#".get("/me", current_user).layer(openrust::auth::AuthLayer::guard("api"))"#
+                ));
+                assert!(routes.contains(
+                    r#".get("/me/pat", current_user).layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken))"#
+                ));
+                assert!(contract.contains(r#""/api/me""#));
+            }
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(&directory);
+        outcome?;
+        cleanup?;
         Ok(())
     }
 }

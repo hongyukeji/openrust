@@ -75,7 +75,10 @@ pub(super) fn register(
     #[cfg(feature = "auth")]
     let routes = if capabilities.database {
         article_routes(
-            tenant_routes(account_routes(auth_routes(routes), capabilities)),
+            tenant_routes(account_routes(
+                auth_routes(routes, capabilities),
+                capabilities,
+            )),
             capabilities.summary_origin.is_some(),
             capabilities.session,
         )
@@ -450,7 +453,7 @@ fn account_session_group() -> RouteGroup {
         .middleware(openrust::http::axum::middleware::from_fn(
             controllers::account_security::require_session_account,
         ));
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     let group = group.middleware(openrust::http::axum::middleware::from_fn(
         controllers::account_security::require_session_factor,
     ));
@@ -461,8 +464,16 @@ fn account_session_group() -> RouteGroup {
 fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
     use controllers::account_security as account;
     use openrust::auth::AuthLayer;
-    #[cfg(feature = "auth-mfa")]
-    use openrust::auth::AuthMode;
+    #[cfg(feature = "auth-fortify")]
+    if let Some(guard) = &capabilities.jwt_api_guard {
+        return routes.nest("/api/example/account", |api| {
+            api.get("/me", current_user)
+                .layer(AuthLayer::guard(guard.clone()))
+                .layer(openrust::http::axum::middleware::from_fn(
+                    private_account_response,
+                ))
+        });
+    }
     #[cfg(feature = "session")]
     let session_enabled = capabilities.session;
     #[cfg(not(feature = "session"))]
@@ -486,27 +497,23 @@ fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
         } else {
             api
         };
-        #[cfg(feature = "auth-mfa")]
-        let api = api.post("/login/mfa", account::complete);
+        #[cfg(feature = "auth-fortify")]
+        let api = api.post("/login/two-factor", account::complete);
         let api = if session_enabled {
             api.group(account_session_group(), |routes| {
-                routes
+                let routes = routes
                     .get("/session/preference", account::preference)
                     .post("/session/preference", account::set_preference)
-                    .post("/session/logout", account::session_logout)
+                    .post("/session/logout", account::session_logout);
+                #[cfg(feature = "auth-fortify")]
+                let routes = routes
+                    .post("/session/credentials", account::session_credentials)
+                    .post("/session/read-token", account::session_read_token);
+                routes
             })
         } else {
             api
         };
-        #[cfg(feature = "auth-mfa")]
-        let api = api.merge(
-            Routes::new()
-                .post("/mfa/enroll", account::enroll)
-                .post("/mfa/confirm", account::confirm)
-                .post("/mfa/recovery", account::regenerate)
-                .post("/mfa/disable", account::disable)
-                .layer(AuthLayer::required(AuthMode::Jwt)),
-        );
         api.layer(openrust::http::axum::middleware::from_fn(
             private_account_response,
         ))
@@ -719,7 +726,24 @@ fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) 
 }
 
 #[cfg(feature = "auth")]
-fn auth_routes(routes: Routes) -> Routes {
+fn auth_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
+    #[cfg(feature = "auth-fortify")]
+    if let Some(guard) = &capabilities.jwt_api_guard {
+        return routes.nest("/api/example", |api| {
+            api.get("/me", current_user)
+                .layer(openrust::auth::AuthLayer::guard(guard.clone()))
+                .post("/auth/register", auth_register)
+                .post(
+                    "/auth/request-email-verification",
+                    auth_request_email_verification,
+                )
+                .post("/auth/verify-email", auth_verify_email)
+                .post("/auth/password-reset", auth_request_password_reset)
+                .post("/auth/password-reset/confirm", auth_reset_password)
+        });
+    }
+    #[cfg(not(feature = "auth-fortify"))]
+    let _ = capabilities;
     routes.nest("/api/example", |api| {
         api.get("/me", current_user)
             .layer(openrust::auth::AuthLayer::required(

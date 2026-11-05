@@ -17,6 +17,19 @@ pub type AuthUser = Arc<dyn Authenticatable>;
 /// 对应 Laravel Authenticatable。异步调用链共享同一账户对象，故记住我 token
 /// 通过内部可变性修改；实现不得在跨越 await 时保留同步锁。
 pub trait Authenticatable: Send + Sync + 'static {
+    /// 返回同一账户对象的可选Fortify能力；普通账户无需实现双因素状态存储。
+    #[cfg(feature = "auth-fortify")]
+    fn as_two_factor(&self) -> Option<&dyn crate::auth::fortify::TwoFactorAuthenticatable> {
+        None
+    }
+    /// 读取模型登录字段，供密码确认复用同一Guard查询，不以邮箱为固定前提。
+    fn auth_attribute(&self, _name: &str) -> Result<Option<Value>> {
+        Err(Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "auth_account_attribute_unsupported",
+            "当前账户模型未实现公开属性读取",
+        ))
+    }
     /// 返回账户标识字段名。
     fn auth_identifier_name(&self) -> &str;
     /// 返回账户标识，保留字符串及数字的原始 JSON 类型。
@@ -162,8 +175,19 @@ pub trait Guard: Send + Sync + 'static {
 
 /// Session Guard 的登录、单次认证和注销行为。
 pub trait StatefulGuard: Guard {
+    /// 是否支持将 Fortify 登录与额外 Session 轮换放入同一失败隔离范围。
+    ///
+    /// 构造 Fortify 登录服务时先检查此能力，默认在密码验证或重哈希前拒绝。
+    fn supports_session_regeneration_login(&self) -> bool {
+        false
+    }
     /// 该 Guard 的持久 Session 身份键；非 Session 实现默认不提供此能力。
     fn session_name(&self) -> Option<String> {
+        None
+    }
+    /// 返回实际 Guard 名称与请求 Session。自定义 Guard 可选择此扩展，凭据派生会独立复核当前用户、Provider 和已保存记录。
+    #[cfg(feature = "auth-fortify")]
+    fn credential_parent_session(&self) -> Option<(&str, crate::session::Session)> {
         None
     }
     /// 返回本 Guard 所用账户 Provider，供 Fortify 首因子验证复用。
@@ -174,10 +198,77 @@ pub trait StatefulGuard: Guard {
         credentials: &'a Credentials,
         remember: bool,
     ) -> BoxFuture<'a, Result<bool>>;
+    /// 验证凭据、登录并完成 Fortify 的额外 Session 轮换，全部属于同一失败隔离范围。
+    ///
+    /// 自定义 Guard 必须显式提供组合实现；默认在任何认证或存储变更前返回 500。
+    fn attempt_with_session_regeneration<'a>(
+        &'a self,
+        _credentials: &'a Credentials,
+        _remember: bool,
+    ) -> BoxFuture<'a, Result<bool>> {
+        Box::pin(async { Err(combined_regeneration_unsupported()) })
+    }
     /// 仅在当前请求认证，不写 Session 或 Cookie。
     fn once<'a>(&'a self, credentials: &'a Credentials) -> BoxFuture<'a, Result<bool>>;
     /// 登录可信调用方提供的账户并轮换 Session；Fortify须在MFA完成后才调用。
     fn login(&self, user: AuthUser, remember: bool) -> BoxFuture<'_, Result<()>>;
+    /// 登录可信账户并完成 Fortify 的额外 Session 轮换，不在两个 await 之间提前提交身份。
+    ///
+    /// 自定义 Guard 必须显式提供组合实现；默认在任何认证或存储变更前返回 500。
+    fn login_with_session_regeneration(
+        &self,
+        _user: AuthUser,
+        _remember: bool,
+    ) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async { Err(combined_regeneration_unsupported()) })
+    }
+    /// 使用内部因子收据登录，并在同一失败隔离范围完成额外 Session 轮换。
+    fn login_with_factor_receipt(
+        &self,
+        _user: AuthUser,
+        _remember: bool,
+        _receipt: super::FactorReceipt,
+    ) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            Err(Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "auth_guard_factor_receipt_unsupported",
+                "当前认证 Guard 尚未实现因子收据登录",
+            ))
+        })
+    }
+    /// 读取同一持久身份的因子快照；调用方仍须核验 authority 当前来源与代际。
+    fn session_factor_proof(&self) -> BoxFuture<'_, Result<Option<super::SessionFactorProof>>> {
+        Box::pin(async { Ok(None) })
+    }
+    /// 将已提交的实际因子验证附加到当前持久身份；不重新登录或额外轮换Session。
+    ///
+    /// 用于已登录用户确认绑定的连续流程，收据仍只能由受控验证路径签发。
+    fn attest_factor_receipt(&self, _receipt: super::FactorReceipt) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            Err(Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "auth_guard_factor_attestation_unsupported",
+                "当前认证Guard尚未实现当前身份因子确认",
+            ))
+        })
+    }
+    /// 核验当前持久身份，取得受限管理上下文；它不授权一般受保护资源。
+    fn factor_management_context(&self) -> BoxFuture<'_, Result<super::FactorManagementContext>> {
+        #[cfg(feature = "auth-fortify")]
+        if let Some((name, session)) = self.credential_parent_session() {
+            return Box::pin(async move {
+                crate::auth::credential::persisted_guard_management(self, name, &session).await
+            });
+        }
+        Box::pin(async {
+            Err(Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "auth_guard_factor_management_unsupported",
+                "当前认证Guard尚未实现因子管理上下文",
+            ))
+        })
+    }
     /// 按 Provider 标识查找并登录，缺失账户返回 None。
     fn login_using_id<'a>(
         &'a self,
@@ -193,6 +284,14 @@ pub trait StatefulGuard: Guard {
     fn via_remember(&self) -> Result<bool>;
     /// 删除本 Guard 登录状态、撤销记住我 token并清用户缓存。
     fn logout(&self) -> BoxFuture<'_, Result<()>>;
+}
+
+fn combined_regeneration_unsupported() -> Error {
+    Error::custom_with_status(
+        http::StatusCode::INTERNAL_SERVER_ERROR,
+        "auth_guard_session_regeneration_unsupported",
+        "当前认证 Guard 尚未实现登录与额外 Session 轮换的组合操作",
+    )
 }
 
 /// Laravel `GenericUser` 对应的属性账户，不依赖具体 ORM 或业务模型。
@@ -242,6 +341,10 @@ impl fmt::Debug for GenericUser {
 }
 
 impl Authenticatable for GenericUser {
+    fn auth_attribute(&self, name: &str) -> Result<Option<Value>> {
+        self.attribute(name)
+    }
+
     fn auth_identifier_name(&self) -> &'static str {
         "id"
     }

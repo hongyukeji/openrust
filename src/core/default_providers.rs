@@ -105,8 +105,8 @@ impl DefaultProviders {
                 providers.push(Box::new(crate::auth::AuthServiceProvider::new()));
                 providers.push(Box::new(crate::audit::AuditServiceProvider::database()));
                 providers.push(Box::new(crate::auth::AuthFlowsServiceProvider::new()));
-                #[cfg(feature = "auth-mfa")]
-                providers.push(Box::new(crate::auth::MfaServiceProvider));
+                #[cfg(feature = "auth-fortify")]
+                providers.push(Box::new(crate::auth::fortify::FortifyServiceProvider::new()));
             }
             #[cfg(feature = "signing")]
             providers.push(Box::new(

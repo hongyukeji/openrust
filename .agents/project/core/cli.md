@@ -34,7 +34,7 @@
 - 数据库模板以稳定 `openrust_migration` dependency alias 引用独立 migration package，生成应用名长短不会改变 `app.rs` 格式。
 - `openrust new` 支持 `--http-client`、`--sms-twilio`、`--encryption` 可选项，可与 `--db` / `--auth` 组合；`openrust key generate` 生成 32-byte OS 随机密钥并输出 Base64，不写配置文件。
 - `openrust new --grpc` 生成可选 gRPC 应用：转发 `grpc` feature，创建应用自有 `proto/echo.proto`、vendored-protoc `build.rs`、typed proto module 和 `[grpc] listen_addr` 配置，并安装 Echo、`GrpcServiceProvider` 与 `HttpGrpcServiceProvider`。默认入口仍是 HTTP `serve`；配置 TLS 证书/私钥后可显式运行 `serve all`，以同一应用在两个端口提供 HTTP 与 typed Echo。默认模板不增加 gRPC 依赖或代码生成。
-- `--auth-mfa` 生成应用在认证 HTTP 测试内实际启用因子，验证登录仅返回挑战、恢复码一次性使用、轮换与 refresh 撤销。`--grpc` 生成测试启动生成的二进制，验证 TLS 信任/拒绝、HTTP/Echo 与信号停机；普通、双库认证/MFA、纯 gRPC 及双库认证/MFA+gRPC 十变体的格式、check 和适用真实测试见 [R1-E 验收记录](../memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)。
+- `--auth` / `--fortify` 生成官方Web默认管线；`--profile jwt-api` 显式生成无Session/Cookie的JWT API与因子管理测试。`--grpc` 的真实二进制验收通过子进程部署环境配置HTTP/TLS，保留信任/拒绝与信号停机断言。当前四类实际生成证据见[组合验收](../memory/testing.md#fortify-官方默认与显式-jwt-组合验收)，旧`--auth-mfa`选项已移除。
 - 生成源码采用内置模板文件与 Rust 字符串拼装，当前未使用 MiniJinja；生成器包含 Model、Migration、Mailer、Policy 和 Job。UUID 主键默认关闭，启用时应用和 migration package 均添加可选 `db-uuid` feature。
 
 - C04-B2在生成的`tests/support/request_input.rs`共用公开Request/Fluent测试入口；普通`test_app`与认证`auth_flows`均调用，认证路径复用真实隔离DB配置和原清理流程。模板根路由从最终应用配置读取`app.name`，不以包名替代；`app.timezone`默认UTC。本簇最终普通与双库生成认证项目均实际通过check/tests，共用helper获独立复审；证据见testing，未以历史快照代替。

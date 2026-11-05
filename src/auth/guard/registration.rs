@@ -89,8 +89,13 @@ pub(crate) async fn session_user_id(scope: &Scope) -> Result<Option<sea_orm::Val
 
 pub(in crate::auth) async fn register(app: &mut RegisterContext<'_>) -> Result<()> {
     register_configuration(app)?;
+    if !app.is_bound::<crate::auth::AuthenticationRedirects>() {
+        app.instance(Arc::new(crate::auth::AuthenticationRedirects::default()))
+            .await?;
+    }
     if !app.is_bound::<AuthDrivers>() {
-        app.instance(Arc::new(default_drivers()?)).await?;
+        app.instance(Arc::new(default_drivers(app.config_repository())?))
+            .await?;
     }
     app.scoped::<AuthRequestSlot, _>(|_| {
         Box::pin(async { Ok(Arc::new(AuthRequestSlot::default())) })
@@ -149,15 +154,18 @@ fn register_configuration(app: &mut RegisterContext<'_>) -> Result<()> {
     )?;
     app.config_section("auth.timebox_duration", 200_000_u64, S::Integer, |_| Ok(()))?;
     app.config_section("hashing.rehash_on_login", true, S::Boolean, |_| Ok(()))?;
+    app.config_section("auth.password_timeout", 10_800_u64, S::Integer, |_| Ok(()))?;
     Ok(())
 }
 
-fn default_drivers() -> Result<AuthDrivers> {
+fn default_drivers(config: crate::config::repository::ConfigRepository) -> Result<AuthDrivers> {
     let drivers = AuthDrivers::default();
     drivers.provider("database", |resolver, config| {
         Box::pin(create_database_provider(resolver, config))
     })?;
-    drivers.extend("session", |context| Box::pin(create_session_guard(context)))?;
+    drivers.extend("session", move |context| {
+        Box::pin(create_session_guard(context, config.clone()))
+    })?;
     Ok(drivers)
 }
 
@@ -204,7 +212,46 @@ async fn create_database_provider(
     )
 }
 
-async fn create_session_guard(context: super::GuardContext) -> Result<Arc<dyn Guard>> {
+fn remember_duration(config: &GuardConfig) -> Result<Option<i64>> {
+    config
+        .options
+        .get("remember")
+        .map(|value| {
+            value.as_i64().ok_or_else(|| {
+                Error::custom_with_status(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "auth_remember_duration_invalid",
+                    "记住我持续分钟数必须是有符号整数",
+                )
+            })
+        })
+        .transpose()
+}
+
+#[cfg(feature = "auth-fortify")]
+fn configure_factor_guard(
+    mut guard: SessionGuard,
+    resolver: &crate::core::container::Resolver,
+    config: crate::config::repository::ConfigRepository,
+) -> Result<SessionGuard> {
+    let required = resolver.is_bound::<crate::auth::fortify::RequireFactorAuthority>()?;
+    if required || resolver.is_bound::<crate::auth::fortify::Fortify>()? {
+        let confirm = crate::auth::fortify::configured_confirmation(&config)?;
+        guard = guard
+            .with_factor_authority_policy(required, confirm)
+            .with_factor_config(config);
+    } else {
+        guard = guard.with_factor_authority_policy(required, false);
+    }
+    Ok(guard)
+}
+
+async fn create_session_guard(
+    context: super::GuardContext,
+    config: crate::config::repository::ConfigRepository,
+) -> Result<Arc<dyn Guard>> {
+    #[cfg(not(feature = "auth-fortify"))]
+    drop(config);
     let provider = context.user_provider().await?.ok_or_else(|| {
         Error::custom_with_status(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -233,20 +280,7 @@ async fn create_session_guard(context: super::GuardContext) -> Result<Arc<dyn Gu
         .resolver
         .section::<bool>("hashing.rehash_on_login")?;
     let timebox = context.resolver.section::<u64>("auth.timebox_duration")?;
-    let remember = context
-        .config
-        .options
-        .get("remember")
-        .map(|value| {
-            value.as_i64().ok_or_else(|| {
-                Error::custom_with_status(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "auth_remember_duration_invalid",
-                    "记住我持续分钟数必须是有符号整数",
-                )
-            })
-        })
-        .transpose()?;
+    let remember = remember_duration(&context.config)?;
 
     let mut guard = SessionGuard::new(
         context.name,
@@ -257,6 +291,10 @@ async fn create_session_guard(context: super::GuardContext) -> Result<Arc<dyn Gu
         events,
         app_config.key,
     );
+    #[cfg(feature = "auth-fortify")]
+    {
+        guard = configure_factor_guard(guard, &context.resolver, config)?;
+    }
     let name = guard.recaller_name();
     let session_cookie = if context
         .resolver

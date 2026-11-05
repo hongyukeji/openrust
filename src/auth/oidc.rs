@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     sync::{Arc, RwLock},
 };
 use std::{net::IpAddr, time::Instant};
@@ -1234,6 +1234,7 @@ impl ExternalIdentityFlows {
         encryptor: Encryptor,
         providers: impl IntoIterator<Item = Arc<dyn ExternalIdentityProvider>>,
     ) -> Result<Self> {
+        auth.require_store(&db)?;
         let mut registry = BTreeMap::new();
         for provider in providers {
             let name = provider.name().to_owned();
@@ -1554,18 +1555,18 @@ impl ExternalIdentityFlows {
                             )
                             .await?,
                         ),
-                        #[cfg(feature = "auth-mfa")]
-                        LoginAttempt::MfaRequired(_) => None,
+                        #[cfg(feature = "auth-fortify")]
+                        LoginAttempt::TwoFactorRequired(_) => None,
                     };
                     if track_association {
-                        #[cfg(feature = "auth-mfa")]
+                        #[cfg(feature = "auth-fortify")]
                         let challenge_hash = match &credentials {
-                            LoginAttempt::MfaRequired(challenge) => {
+                            LoginAttempt::TwoFactorRequired(challenge) => {
                                 Some(digest(challenge.expose()))
                             }
                             LoginAttempt::Authenticated(_) => None,
                         };
-                        #[cfg(not(feature = "auth-mfa"))]
+                        #[cfg(not(feature = "auth-fortify"))]
                         let challenge_hash: Option<String> = None;
                         insert_external_session_in_transaction(
                             transaction,
@@ -1582,9 +1583,9 @@ impl ExternalIdentityFlows {
                                 LoginAttempt::Authenticated(credentials) => {
                                     credentials.refresh_expires_at()
                                 }
-                                #[cfg(feature = "auth-mfa")]
-                                LoginAttempt::MfaRequired(_) => {
-                                    Utc::now() + ChronoDuration::minutes(10)
+                                #[cfg(feature = "auth-fortify")]
+                                LoginAttempt::TwoFactorRequired(challenge) => {
+                                    challenge.expires_at()
                                 }
                             },
                         )
@@ -1639,12 +1640,19 @@ impl ExternalIdentityFlows {
         handle: &ExternalLoginHandle,
         session: &Session,
     ) -> Result<()> {
-        use crate::auth::database::AUTH_USER_ID_KEY;
-
+        #[cfg(feature = "auth-fortify")]
+        if let Some(authority) = self.auth.attachment_authority() {
+            let prepared = authority
+                .prepare_session_context_attachment(user_id, session)
+                .await?;
+            return self
+                .attach_verified_session(handle, session, authority, prepared)
+                .await;
+        }
         session.require_authenticated_storage()?;
         if user_id <= 0
             || session
-                .get_typed::<i64>(AUTH_USER_ID_KEY)
+                .get_typed::<i64>(crate::auth::database::AUTH_USER_ID_KEY)
                 .map_err(Error::internal)?
                 != Some(user_id)
         {
@@ -1661,6 +1669,16 @@ impl ExternalIdentityFlows {
         session: &Session,
         guard: &dyn crate::auth::StatefulGuard,
     ) -> Result<()> {
+        #[cfg(feature = "auth-fortify")]
+        if let Some(authority) = self.auth.attachment_authority() {
+            let prepared = authority
+                .prepare_guard_attachment(user_id, session, guard)
+                .await?;
+            prepared.recheck_guard(session, guard).await?;
+            return self
+                .attach_verified_session(handle, session, authority, prepared)
+                .await;
+        }
         super::session::require_account_provider(&self.db, guard)?;
         if user_id <= 0 {
             return Err(Error::Unauthorized);
@@ -1668,6 +1686,59 @@ impl ExternalIdentityFlows {
         super::session::guard_session_key(session, guard, &serde_json::Value::from(user_id))
             .await?;
         self.attach_session_record(user_id, handle, session).await
+    }
+
+    #[cfg(feature = "auth-fortify")]
+    async fn attach_verified_session(
+        &self,
+        handle: &ExternalLoginHandle,
+        session: &Session,
+        authority: &super::fortify::CredentialAuthority,
+        prepared: super::fortify::PreparedSessionAttachment,
+    ) -> Result<()> {
+        prepared.recheck_session(session)?;
+        let id = session.id()?.to_string();
+        let hash = digest(handle.expose());
+        let encrypted = self
+            .encryptor
+            .encrypt_with_context(id.as_bytes(), hash.as_bytes())?;
+        let db = self.db.clone();
+        let authority = authority.clone();
+        let session = session.clone();
+        let prepared = Arc::new(prepared);
+        let final_prepared = prepared.clone();
+        let final_authority = authority.clone();
+        let final_db = db.clone();
+        let final_session = session.clone();
+        let checkpoint = Arc::new(std::sync::OnceLock::<ExternalAttachmentCheck>::new());
+        let captured = checkpoint.clone();
+        self.db.transaction_for_update_checked(move |tx| {
+            Box::pin(async move {
+                authority.validate_attachment_in_transaction(tx, &prepared).await?;
+                let (challenge, association_expiry) = lock_active_attachment(tx, &db, prepared.user_id(), &hash, false).await?;
+                if let Some(challenge) = &challenge {
+                    revoke_external_two_factor_challenge(tx, &db, challenge, prepared.user_id(), Some("auth_factor_challenges")).await?;
+                }
+                prepared.recheck_session(&session)?;
+                let table = db.quoted_table_name("auth_external_sessions")?;
+                let backend = tx.get_database_backend();
+                let sql = match backend {
+                    DbBackend::Postgres => format!("UPDATE {table} SET encrypted_session_id=$1, challenge_hash=NULL WHERE id_hash=$2 AND user_id=$3 AND revoked_at IS NULL AND expires_at>CURRENT_TIMESTAMP"),
+                    DbBackend::MySql => format!("UPDATE {table} SET encrypted_session_id=?, challenge_hash=NULL WHERE id_hash=? AND user_id=? AND revoked_at IS NULL AND expires_at>CURRENT_TIMESTAMP(6)"),
+                    _ => return Err(oidc_error()),
+                };
+                let changed = tx.execute_raw(Statement::from_sql_and_values(backend, sql,
+                    [encrypted.into(), hash.clone().into(), prepared.user_id().into()])).await.map_err(Error::internal)?;
+                if changed.rows_affected()!=1 { return Err(Error::Unauthorized); }
+                captured.set(ExternalAttachmentCheck::capture(tx, &db, &hash, prepared.user_id(), association_expiry, challenge).await?).map_err(|_| Error::Unauthorized)?;
+                prepared.recheck_session(&session)?;
+                Ok(())
+            })
+        }, move |tx| Box::pin(async move {
+            final_authority.validate_attachment_in_transaction(tx, &final_prepared).await?;
+            checkpoint.get().ok_or(Error::Unauthorized)?.validate(tx, &final_db).await?;
+            final_prepared.recheck_session(&final_session)
+        })).await
     }
 
     async fn attach_session_record(
@@ -1718,6 +1789,44 @@ impl ExternalIdentityFlows {
         if user_id <= 0 || refresh_token.is_empty() || refresh_token.len() > 512 {
             return Err(Error::Unauthorized);
         }
+        #[cfg(feature = "auth-fortify")]
+        if self.auth.attachment_authority().is_some() {
+            let this = self.clone();
+            let handle_hash = digest(handle.expose());
+            let raw = Arc::new(refresh_token.to_owned());
+            let final_raw = raw.clone();
+            let final_this = this.clone();
+            let checkpoint = Arc::new(std::sync::OnceLock::<ExternalAttachmentCheck>::new());
+            let captured = checkpoint.clone();
+            return self.db.transaction_for_update_checked(move |tx| {
+                Box::pin(async move {
+                    lock_external_logout_users(tx, &this.db, [user_id]).await?;
+                    let (challenge, association_expiry)=lock_active_attachment(tx, &this.db, user_id, &handle_hash, true).await?;
+                    let (family, expiry) = this.auth.authorize_refresh_attachment(tx, user_id, &raw).await?;
+                    if let Some(challenge)=&challenge {
+                        revoke_external_two_factor_challenge(tx, &this.db, challenge, user_id, Some("auth_factor_challenges")).await?;
+                    }
+                    let table = this.db.quoted_table_name("auth_external_sessions")?;
+                    let backend = tx.get_database_backend();
+                    let sql = match backend {
+                        DbBackend::Postgres => format!("UPDATE {table} SET refresh_family_id=$1, expires_at=$2, challenge_hash=NULL WHERE id_hash=$3 AND user_id=$4 AND refresh_family_id IS NULL AND revoked_at IS NULL AND expires_at>CURRENT_TIMESTAMP"),
+                        DbBackend::MySql => format!("UPDATE {table} SET refresh_family_id=?, expires_at=?, challenge_hash=NULL WHERE id_hash=? AND user_id=? AND refresh_family_id IS NULL AND revoked_at IS NULL AND expires_at>CURRENT_TIMESTAMP(6)"),
+                        _ => return Err(oidc_error()),
+                    };
+                    let changed=tx.execute_raw(Statement::from_sql_and_values(backend, sql,
+                        [family.into(), expiry.into(), handle_hash.clone().into(), user_id.into()])).await.map_err(Error::internal)?;
+                    if changed.rows_affected()!=1 || expiry<=Utc::now() || association_expiry<=Utc::now() { return Err(Error::Unauthorized); }
+                    captured.set(ExternalAttachmentCheck::capture(tx, &this.db, &handle_hash, user_id, association_expiry, challenge).await?).map_err(|_| Error::Unauthorized)?;
+                    Ok(())
+                })
+            }, move |tx| Box::pin(async move {
+                let check = checkpoint.get().ok_or(Error::Unauthorized)?;
+                let (family, expiry) = final_this.auth.authorize_refresh_attachment(tx, user_id, &final_raw).await?;
+                if check.family.as_deref()!=Some(family.as_str()) || check.expiry!=expiry { return Err(Error::Unauthorized); }
+                check.validate(tx, &final_this.db).await
+            })).await;
+        }
+
         let handle_hash = digest(handle.expose());
         let db = self.db.clone();
         let token = refresh_token.to_owned();
@@ -1726,6 +1835,8 @@ impl ExternalIdentityFlows {
             let token = token.clone();
             let handle_hash = handle_hash.clone();
             Box::pin(async move {
+                // 公开attach入口同样先占有账户；此事务内不跨Guard/Session的await。
+                lock_external_logout_users(transaction, &db, [user_id]).await?;
                 let family_id = refresh_family_in_transaction(transaction, &db, user_id, &token).await?;
                 let association = db.quoted_table_name("auth_external_sessions")?;
                 let refresh = db.quoted_table_name("auth_refresh_tokens")?;
@@ -1774,6 +1885,8 @@ impl ExternalIdentityFlows {
         let session_hash = token.session_id().map(digest);
         let subject_hash = token.subject().map(digest);
         let expired_at = Utc::now() + ChronoDuration::days(1);
+        #[cfg(feature = "auth-fortify")]
+        let modern_challenge = self.auth.external_challenge_table();
         let pending_sessions = self.db.transaction(|transaction| {
             let db = db.clone();
             let audit = audit.clone();
@@ -1817,39 +1930,40 @@ impl ExternalIdentityFlows {
                 let table = db.quoted_table_name("auth_external_sessions")?;
                 let (lookup, values) = match (backend, session_hash, subject_hash) {
                     (DbBackend::Postgres, Some(sid), _) => (
-                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = $1 AND issuer = $2 AND session_hash = $3 AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        format!("SELECT id_hash, user_id, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = $1 AND issuer = $2 AND session_hash = $3 AND {active_clause} ORDER BY id_hash FOR UPDATE"),
                         vec![provider_name.clone().into(), issuer.clone().into(), sid.into()],
                     ),
                     (DbBackend::MySql, Some(sid), _) => (
-                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = ? AND issuer = ? AND session_hash = ? AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        format!("SELECT id_hash, user_id, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = ? AND issuer = ? AND session_hash = ? AND {active_clause} ORDER BY id_hash FOR UPDATE"),
                         vec![provider_name.clone().into(), issuer.clone().into(), sid.into()],
                     ),
                     (DbBackend::Postgres, None, Some(subject)) => (
-                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = $1 AND issuer = $2 AND subject_hash = $3 AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        format!("SELECT id_hash, user_id, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = $1 AND issuer = $2 AND subject_hash = $3 AND {active_clause} ORDER BY id_hash FOR UPDATE"),
                         vec![provider_name.clone().into(), issuer.clone().into(), subject.into()],
                     ),
                     (DbBackend::MySql, None, Some(subject)) => (
-                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = ? AND issuer = ? AND subject_hash = ? AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        format!("SELECT id_hash, user_id, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = ? AND issuer = ? AND subject_hash = ? AND {active_clause} ORDER BY id_hash FOR UPDATE"),
                         vec![provider_name.clone().into(), issuer.clone().into(), subject.into()],
                     ),
                     _ => return Err(oidc_error()),
                 };
-                let rows = transaction.query_all_raw(Statement::from_sql_and_values(backend, &lookup, values)).await.map_err(Error::internal)?;
+                let rows = lock_external_logout_associations(transaction, &db, backend, &lookup, values).await?;
                 let mut revoked = Vec::with_capacity(rows.len());
                 for row in rows {
                     let id_hash: String = row.try_get("", "id_hash").map_err(Error::internal)?;
+                    let owner_id: i64 = row.try_get("", "user_id").map_err(Error::internal)?;
                     let family: Option<String> = row.try_get("", "refresh_family_id").map_err(Error::internal)?;
                     let encrypted: Option<String> = row.try_get("", "encrypted_session_id").map_err(Error::internal)?;
-                    #[cfg(feature = "auth-mfa")]
+                    #[cfg(feature = "auth-fortify")]
                     if is_new
                         && let Some(challenge_hash) = row
                             .try_get::<Option<String>>("", "challenge_hash")
                             .map_err(Error::internal)?
                     {
-                        revoke_external_mfa_challenge(transaction, &db, &challenge_hash).await?;
+                        revoke_external_two_factor_challenge(transaction, &db, &challenge_hash, owner_id, modern_challenge).await?;
                     }
                     if is_new && let Some(family) = family {
-                        crate::auth::refresh::revoke_family_in_transaction(transaction, &db, backend, &family).await?;
+                        crate::auth::refresh::revoke_family_for_locked_owner_in_transaction(transaction, &db, backend, &family, owner_id).await?;
                     }
                     if is_new {
                         let update = match backend {
@@ -1898,6 +2012,8 @@ impl ExternalIdentityFlows {
             return Err(Error::Unauthorized);
         }
         let handle_hash = digest(handle.expose());
+        #[cfg(feature = "auth-fortify")]
+        let modern_challenge = self.auth.external_challenge_table();
         let db = self.db.clone();
         let audit = self.audit.clone();
         let redirect = post_logout_redirect_uri.to_owned();
@@ -1936,31 +2052,39 @@ impl ExternalIdentityFlows {
                 }
                 let issuer: String = identity_row.try_get("", "issuer").map_err(Error::internal)?;
                 let session_hash: Option<String> = identity_row.try_get("", "session_hash").map_err(Error::internal)?;
-                if let Some(session_hash) = session_hash {
+                if let Some(session_hash) = session_hash.as_deref() {
                     lock_external_logout_scope(
                         transaction,
                         &db,
                         &provider_name,
                         &issuer,
-                        &session_hash,
+                        session_hash,
                         Some(Utc::now() + ChronoDuration::minutes(10)),
                     )
                     .await?;
                 }
+                lock_external_logout_users(transaction, &db, [user_id]).await?;
                 let sql = match backend {
-                    DbBackend::Postgres => format!("SELECT refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE id_hash = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP FOR UPDATE"),
-                    DbBackend::MySql => format!("SELECT refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE id_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP(6) FOR UPDATE"),
+                    DbBackend::Postgres => format!("SELECT user_id, provider, issuer, session_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE id_hash = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP FOR UPDATE"),
+                    DbBackend::MySql => format!("SELECT user_id, provider, issuer, session_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE id_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP(6) FOR UPDATE"),
                     _ => return Err(oidc_error()),
                 };
                 let row = transaction.query_one_raw(Statement::from_sql_and_values(backend, &sql, [handle_hash.clone().into(), user_id.into()])).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+                let owner_id: i64 = row.try_get("", "user_id").map_err(Error::internal)?;
+                if owner_id != user_id
+                    || row.try_get::<String>("", "provider").map_err(Error::internal)? != provider_name
+                    || row.try_get::<String>("", "issuer").map_err(Error::internal)? != issuer
+                    || row.try_get::<Option<String>>("", "session_hash").map_err(Error::internal)? != session_hash {
+                    return Err(Error::Unauthorized);
+                }
                 let family: Option<String> = row.try_get("", "refresh_family_id").map_err(Error::internal)?;
                 let encrypted_session: Option<String> = row.try_get("", "encrypted_session_id").map_err(Error::internal)?;
-                #[cfg(feature = "auth-mfa")]
+                #[cfg(feature = "auth-fortify")]
                 if let Some(challenge_hash) = row.try_get::<Option<String>>("", "challenge_hash").map_err(Error::internal)? {
-                    revoke_external_mfa_challenge(transaction, &db, &challenge_hash).await?;
+                    revoke_external_two_factor_challenge(transaction, &db, &challenge_hash, owner_id, modern_challenge).await?;
                 }
                 if let Some(family) = family {
-                    crate::auth::refresh::revoke_family_in_transaction(transaction, &db, backend, &family).await?;
+                    crate::auth::refresh::revoke_family_for_locked_owner_in_transaction(transaction, &db, backend, &family, owner_id).await?;
                 }
                 let update = match backend {
                     DbBackend::Postgres => format!("UPDATE {table} SET revoked_at = CURRENT_TIMESTAMP WHERE id_hash = $1 AND revoked_at IS NULL"),
@@ -2523,7 +2647,16 @@ async fn delete_external_session(
     let session_id =
         encryptor.decrypt_with_context(encrypted_session_id, association_hash.as_bytes())?;
     let session_id = String::from_utf8(session_id).map_err(Error::internal)?;
-    sessions.delete(&session_id).await?;
+    // 原生Laravel数据库driver允许当前DELETE，仍不提供并发INSERT防复活保证。
+    // 仅服务端已加密关联的ID使用底层handler；客户端快照仍明确拒绝。
+    if sessions.guarantees() == crate::session::SessionStoreGuarantees::NativeDatabase {
+        sessions
+            .store()
+            .delete(&crate::session::SessionId::parse(&session_id)?)
+            .await?;
+    } else {
+        sessions.delete(&session_id).await?;
+    }
     let table = db.quoted_table_name("auth_external_sessions")?;
     let backend = db.backend()?;
     let sql = match backend {
@@ -2546,32 +2679,63 @@ async fn delete_external_session(
     Ok(())
 }
 
-#[cfg(feature = "auth-mfa")]
-async fn revoke_external_mfa_challenge(
+#[cfg(feature = "auth-fortify")]
+async fn revoke_external_two_factor_challenge(
     transaction: &DatabaseTransaction,
     db: &Db,
     challenge_hash: &str,
+    owner_id: i64,
+    logical_table: Option<&str>,
 ) -> Result<()> {
-    let table = db.quoted_table_name("auth_mfa_challenges")?;
+    let Some(logical_table) = logical_table else {
+        return Ok(());
+    };
+    let table = db.quoted_table_name(logical_table)?;
     let backend = transaction.get_database_backend();
+    let owner_sql = match backend {
+        DbBackend::Postgres => {
+            format!("SELECT user_id FROM {table} WHERE token_hash = $1 FOR UPDATE")
+        }
+        DbBackend::MySql => {
+            format!("SELECT user_id FROM {table} WHERE token_hash = ? FOR UPDATE")
+        }
+        _ => return Err(oidc_error()),
+    };
+    if let Some(owner) = transaction
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            owner_sql,
+            [challenge_hash.to_owned().into()],
+        ))
+        .await
+        .map_err(Error::internal)?
+        && owner
+            .try_get::<i64>("", "user_id")
+            .map_err(Error::internal)?
+            != owner_id
+    {
+        return Err(Error::Unauthorized);
+    }
     let sql = match backend {
-        DbBackend::Postgres => format!("DELETE FROM {table} WHERE token_hash = $1"),
-        DbBackend::MySql => format!("DELETE FROM {table} WHERE token_hash = ?"),
+        DbBackend::Postgres => {
+            format!("DELETE FROM {table} WHERE token_hash = $1 AND user_id = $2")
+        }
+        DbBackend::MySql => format!("DELETE FROM {table} WHERE token_hash = ? AND user_id = ?"),
         _ => return Err(oidc_error()),
     };
     transaction
         .execute_raw(Statement::from_sql_and_values(
             backend,
             &sql,
-            [challenge_hash.to_owned().into()],
+            [challenge_hash.to_owned().into(), owner_id.into()],
         ))
         .await
         .map_err(Error::internal)?;
     Ok(())
 }
 
-#[cfg(all(feature = "auth-oidc", feature = "auth-mfa"))]
-pub(crate) async fn lock_external_mfa_challenge(
+#[cfg(all(feature = "auth-oidc", feature = "auth-fortify"))]
+pub(crate) async fn lock_external_two_factor_challenge(
     transaction: &DatabaseTransaction,
     db: &Db,
     challenge: &str,
@@ -2580,13 +2744,15 @@ pub(crate) async fn lock_external_mfa_challenge(
     let backend = transaction.get_database_backend();
     let sql = match backend {
         DbBackend::Postgres => format!(
-            "SELECT id_hash, user_id, revoked_at FROM {table} WHERE challenge_hash = $1 FOR UPDATE"
+            "SELECT id_hash, user_id, revoked_at, expires_at FROM {table} WHERE challenge_hash = $1 FOR UPDATE"
         ),
         DbBackend::MySql => format!(
-            "SELECT id_hash, user_id, revoked_at FROM {table} WHERE challenge_hash = ? FOR UPDATE"
+            "SELECT id_hash, user_id, revoked_at, expires_at FROM {table} WHERE challenge_hash = ? FOR UPDATE"
         ),
         DbBackend::Sqlite => {
-            format!("SELECT id_hash, user_id, revoked_at FROM {table} WHERE challenge_hash = ?")
+            format!(
+                "SELECT id_hash, user_id, revoked_at, expires_at FROM {table} WHERE challenge_hash = ?"
+            )
         }
         _ => return Err(oidc_error()),
     };
@@ -2611,7 +2777,8 @@ pub(crate) async fn lock_external_mfa_challenge(
     }
     let revoked_at: Option<chrono::DateTime<Utc>> =
         row.try_get("", "revoked_at").map_err(Error::internal)?;
-    if revoked_at.is_some() {
+    let expiry: chrono::DateTime<Utc> = row.try_get("", "expires_at").map_err(Error::internal)?;
+    if revoked_at.is_some() || expiry <= Utc::now() {
         return Err(Error::Unauthorized);
     }
     Ok(Some((
@@ -2620,51 +2787,407 @@ pub(crate) async fn lock_external_mfa_challenge(
     )))
 }
 
-#[cfg(all(feature = "auth-oidc", feature = "auth-mfa"))]
-pub(crate) async fn bind_external_mfa_credentials(
+#[cfg(feature = "auth-fortify")]
+#[derive(PartialEq, Eq)]
+pub(crate) struct ExternalChallengeBinding {
+    id_hash: String,
+    user_id: i64,
+    provider: String,
+    issuer: String,
+    subject_hash: String,
+    session_hash: Option<String>,
+}
+
+#[cfg(feature = "auth-fortify")]
+impl ExternalChallengeBinding {
+    // 调用方已按 users→association 顺序取得这条关联的排他锁。
+    async fn load(
+        tx: &DatabaseTransaction,
+        db: &Db,
+        id_hash: &str,
+        user_id: i64,
+    ) -> Result<(Self, Option<String>, Option<String>, chrono::DateTime<Utc>)> {
+        let backend = tx.get_database_backend();
+        let (id, owner) = match backend {
+            DbBackend::Postgres => ("$1", "$2"),
+            DbBackend::MySql => ("?", "?"),
+            _ => return Err(oidc_error()),
+        };
+        let table = db.quoted_table_name("auth_external_sessions")?;
+        let row = tx.query_one_raw(Statement::from_sql_and_values(backend,
+            format!("SELECT id_hash,user_id,provider,issuer,subject_hash,session_hash,refresh_family_id,challenge_hash,expires_at FROM {table} WHERE id_hash={id} AND user_id={owner} AND revoked_at IS NULL FOR UPDATE"),
+            [id_hash.to_owned().into(), user_id.into()])).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+        let binding = Self {
+            id_hash: row.try_get("", "id_hash").map_err(Error::internal)?,
+            user_id: row.try_get("", "user_id").map_err(Error::internal)?,
+            provider: row.try_get("", "provider").map_err(Error::internal)?,
+            issuer: row.try_get("", "issuer").map_err(Error::internal)?,
+            subject_hash: row.try_get("", "subject_hash").map_err(Error::internal)?,
+            session_hash: row.try_get("", "session_hash").map_err(Error::internal)?,
+        };
+        let expiry = row.try_get("", "expires_at").map_err(Error::internal)?;
+        if binding.id_hash != id_hash || binding.user_id != user_id || expiry <= Utc::now() {
+            return Err(Error::Unauthorized);
+        }
+        Ok((
+            binding,
+            row.try_get("", "challenge_hash").map_err(Error::internal)?,
+            row.try_get("", "refresh_family_id")
+                .map_err(Error::internal)?,
+            expiry,
+        ))
+    }
+
+    pub(crate) async fn capture(
+        tx: &DatabaseTransaction,
+        db: &Db,
+        association: &(String, i64),
+        challenge: &str,
+        purpose: &str,
+    ) -> Result<(Self, chrono::DateTime<Utc>)> {
+        let (binding, hash, family, expiry) =
+            Self::load(tx, db, &association.0, association.1).await?;
+        if purpose.strip_prefix("external:") != Some(binding.provider.as_str())
+            || hash.as_deref() != Some(digest(challenge).as_str())
+            || family.is_some()
+        {
+            return Err(Error::Unauthorized);
+        }
+        Ok((binding, expiry))
+    }
+
+    pub(crate) async fn validate_bound(
+        &self,
+        tx: &DatabaseTransaction,
+        db: &Db,
+        family: &str,
+        expiry: chrono::DateTime<Utc>,
+    ) -> Result<()> {
+        let (current, challenge, bound_family, deadline) =
+            Self::load(tx, db, &self.id_hash, self.user_id).await?;
+        if &current != self
+            || challenge.is_some()
+            || bound_family.as_deref() != Some(family)
+            || deadline != expiry
+        {
+            return Err(Error::Unauthorized);
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "auth-fortify")]
+struct ExternalAttachmentCheck {
+    binding: ExternalChallengeBinding,
+    challenge: Option<String>,
+    family: Option<String>,
+    encrypted_session: Option<String>,
+    expiry: chrono::DateTime<Utc>,
+    original_expiry: chrono::DateTime<Utc>,
+    original_challenge: Option<String>,
+}
+#[cfg(feature = "auth-fortify")]
+impl ExternalAttachmentCheck {
+    async fn capture(
+        tx: &DatabaseTransaction,
+        db: &Db,
+        id_hash: &str,
+        user_id: i64,
+        original_expiry: chrono::DateTime<Utc>,
+        original_challenge: Option<String>,
+    ) -> Result<Self> {
+        let (binding, challenge, family, expiry) =
+            ExternalChallengeBinding::load(tx, db, id_hash, user_id).await?;
+        let table = db.quoted_table_name("auth_external_sessions")?;
+        let backend = tx.get_database_backend();
+        let markers = match backend {
+            DbBackend::Postgres => ("$1", "$2"),
+            DbBackend::MySql => ("?", "?"),
+            _ => return Err(oidc_error()),
+        };
+        let row = tx.query_one_raw(Statement::from_sql_and_values(backend,
+            format!("SELECT encrypted_session_id FROM {table} WHERE id_hash={} AND user_id={} AND revoked_at IS NULL", markers.0, markers.1),
+            [id_hash.to_owned().into(), user_id.into()])).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+        let encrypted_session = row
+            .try_get("", "encrypted_session_id")
+            .map_err(Error::internal)?;
+        if original_expiry <= Utc::now() || expiry <= Utc::now() {
+            return Err(Error::Unauthorized);
+        }
+        Ok(Self {
+            binding,
+            challenge,
+            family,
+            encrypted_session,
+            expiry,
+            original_expiry,
+            original_challenge,
+        })
+    }
+    async fn validate(&self, tx: &DatabaseTransaction, db: &Db) -> Result<()> {
+        let current = Self::capture(
+            tx,
+            db,
+            &self.binding.id_hash,
+            self.binding.user_id,
+            self.original_expiry,
+            self.original_challenge.clone(),
+        )
+        .await?;
+        if let Some(hash) = &self.original_challenge {
+            let backend = tx.get_database_backend();
+            let marker = match backend {
+                DbBackend::Postgres => "$1",
+                DbBackend::MySql => "?",
+                _ => return Err(oidc_error()),
+            };
+            let table = db.quoted_table_name("auth_factor_challenges")?;
+            // 原挑战不得在关联解除后重新成为可独立消费的外部挑战。
+            if tx
+                .query_one_raw(Statement::from_sql_and_values(
+                    backend,
+                    format!("SELECT token_hash FROM {table} WHERE token_hash={marker} FOR UPDATE"),
+                    [hash.clone().into()],
+                ))
+                .await
+                .map_err(Error::internal)?
+                .is_some()
+            {
+                return Err(Error::Unauthorized);
+            }
+        }
+        if current.binding != self.binding
+            || current.challenge != self.challenge
+            || current.family != self.family
+            || current.encrypted_session != self.encrypted_session
+            || current.expiry != self.expiry
+            || self.original_expiry <= Utc::now()
+            || self.expiry <= Utc::now()
+        {
+            return Err(Error::Unauthorized);
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "auth-fortify")]
+pub(crate) async fn bind_external_login_credentials(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    association: Option<&(String, i64)>,
+    challenge: &str,
+    credentials: &crate::auth::AuthCredentials,
+) -> Result<Option<chrono::DateTime<Utc>>> {
+    let Some((_, owner)) = association else {
+        return Ok(None);
+    };
+    if *owner != credentials.user_id() {
+        return Err(Error::Unauthorized);
+    }
+    bind_external_two_factor_credentials(
+        transaction,
+        db,
+        challenge,
+        *owner,
+        credentials.refresh_token().expose(),
+        credentials.refresh_expires_at(),
+    )
+    .await
+    .map(Some)
+}
+
+#[cfg(all(feature = "auth-oidc", feature = "auth-fortify"))]
+// 调用方已按users→association→factor/refresh持有同一owner；本函数不获取新账户锁。
+pub(crate) async fn bind_external_two_factor_credentials(
     transaction: &DatabaseTransaction,
     db: &Db,
     challenge: &str,
     user_id: i64,
     refresh_token: &str,
-) -> Result<()> {
+    expires_at: chrono::DateTime<Utc>,
+) -> Result<chrono::DateTime<Utc>> {
     let family_id = refresh_family_in_transaction(transaction, db, user_id, refresh_token).await?;
     let table = db.quoted_table_name("auth_external_sessions")?;
-    let refresh = db.quoted_table_name("auth_refresh_tokens")?;
+    if expires_at <= Utc::now() {
+        return Err(Error::Unauthorized);
+    }
     let backend = transaction.get_database_backend();
+    let marker = if backend == DbBackend::Postgres {
+        "$1"
+    } else {
+        "?"
+    };
+    let original = transaction
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            format!("SELECT expires_at FROM {table} WHERE challenge_hash={marker} FOR UPDATE"),
+            [digest(challenge).into()],
+        ))
+        .await
+        .map_err(Error::internal)?
+        .ok_or(Error::Unauthorized)?;
+    let association_expiry: chrono::DateTime<Utc> = original
+        .try_get("", "expires_at")
+        .map_err(Error::internal)?;
+    if association_expiry <= Utc::now() {
+        return Err(Error::Unauthorized);
+    }
+
     let sql = match backend {
         DbBackend::Postgres => format!(
-            "UPDATE {table} SET refresh_family_id = $1, challenge_hash = NULL, expires_at = (SELECT MAX(expires_at) FROM {refresh} WHERE family_id = $1) WHERE challenge_hash = $2 AND user_id = $3 AND revoked_at IS NULL"
+            "UPDATE {table} SET refresh_family_id = $1, challenge_hash = NULL, expires_at = $2 WHERE challenge_hash = $3 AND user_id = $4 AND revoked_at IS NULL AND refresh_family_id IS NULL AND expires_at > CURRENT_TIMESTAMP"
         ),
         DbBackend::MySql => format!(
-            "UPDATE {table} SET refresh_family_id = ?, challenge_hash = NULL, expires_at = (SELECT MAX(expires_at) FROM {refresh} WHERE family_id = ?) WHERE challenge_hash = ? AND user_id = ? AND revoked_at IS NULL"
+            "UPDATE {table} SET refresh_family_id = ?, challenge_hash = NULL, expires_at = ? WHERE challenge_hash = ? AND user_id = ? AND revoked_at IS NULL AND refresh_family_id IS NULL AND expires_at > CURRENT_TIMESTAMP(6)"
         ),
         _ => return Err(oidc_error()),
     };
-    let values = if backend == DbBackend::Postgres {
-        vec![
-            family_id.clone().into(),
-            digest(challenge).into(),
-            user_id.into(),
-        ]
-    } else {
-        vec![
-            family_id.clone().into(),
-            family_id.into(),
-            digest(challenge).into(),
-            user_id.into(),
-        ]
-    };
+    let values = vec![
+        family_id.into(),
+        expires_at.into(),
+        digest(challenge).into(),
+        user_id.into(),
+    ];
     let changed = transaction
         .execute_raw(Statement::from_sql_and_values(backend, &sql, values))
         .await
         .map_err(Error::internal)?;
-    if changed.rows_affected() != 1 {
+    if changed.rows_affected() != 1 || association_expiry <= Utc::now() || expires_at <= Utc::now()
+    {
         return Err(Error::Unauthorized);
+    }
+    Ok(association_expiry)
+}
+
+#[cfg(feature = "auth-fortify")]
+async fn lock_active_attachment(
+    tx: &DatabaseTransaction,
+    db: &Db,
+    user_id: i64,
+    hash: &str,
+    require_unbound: bool,
+) -> Result<(Option<String>, chrono::DateTime<Utc>)> {
+    let table = db.quoted_table_name("auth_external_sessions")?;
+    let backend = tx.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => format!(
+            "SELECT revoked_at,expires_at,refresh_family_id,challenge_hash FROM {table} WHERE id_hash=$1 AND user_id=$2 FOR UPDATE"
+        ),
+        DbBackend::MySql => format!(
+            "SELECT revoked_at,expires_at,refresh_family_id,challenge_hash FROM {table} WHERE id_hash=? AND user_id=? FOR UPDATE"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    let row = tx
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            sql,
+            [hash.to_owned().into(), user_id.into()],
+        ))
+        .await
+        .map_err(Error::internal)?
+        .ok_or(Error::Unauthorized)?;
+    let revoked: Option<chrono::DateTime<Utc>> =
+        row.try_get("", "revoked_at").map_err(Error::internal)?;
+    let expiry: chrono::DateTime<Utc> = row.try_get("", "expires_at").map_err(Error::internal)?;
+    let family: Option<String> = row
+        .try_get("", "refresh_family_id")
+        .map_err(Error::internal)?;
+    let challenge: Option<String> = row.try_get("", "challenge_hash").map_err(Error::internal)?;
+    if revoked.is_some() || expiry <= Utc::now() || (require_unbound && family.is_some()) {
+        return Err(Error::Unauthorized);
+    }
+    Ok((challenge, expiry))
+}
+
+// scope→全部users升序→association→challenge/refresh。预查只是定位，锁定重读才可信。
+async fn lock_external_logout_associations(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    backend: DbBackend,
+    lookup: &str,
+    values: Vec<sea_orm::Value>,
+) -> Result<Vec<sea_orm::QueryResult>> {
+    let discovery = lookup.strip_suffix(" FOR UPDATE").ok_or_else(oidc_error)?;
+    let candidates = transaction
+        .query_all_raw(Statement::from_sql_and_values(
+            backend,
+            discovery,
+            values.clone(),
+        ))
+        .await
+        .map_err(Error::internal)?;
+    let owners = external_logout_owners(&candidates)?;
+    lock_external_logout_users(transaction, db, owners.values().copied()).await?;
+    let rows = transaction
+        .query_all_raw(Statement::from_sql_and_values(backend, lookup, values))
+        .await
+        .map_err(Error::internal)?;
+    // 不允许锁定查询出现新关联或owner变化；失败回滚整个事务（包括token墓碑）。
+    for row in &rows {
+        let id: String = row.try_get("", "id_hash").map_err(Error::internal)?;
+        verified_external_logout_owner(
+            &owners,
+            &id,
+            row.try_get("", "user_id").map_err(Error::internal)?,
+        )?;
+    }
+    Ok(rows)
+}
+fn external_logout_owners(rows: &[sea_orm::QueryResult]) -> Result<BTreeMap<String, i64>> {
+    let mut owners = BTreeMap::new();
+    for row in rows {
+        let id: String = row.try_get("", "id_hash").map_err(Error::internal)?;
+        let user_id: i64 = row.try_get("", "user_id").map_err(Error::internal)?;
+        if user_id <= 0 {
+            return Err(Error::Unauthorized);
+        }
+        if let Some(previous) = owners.insert(id, user_id)
+            && previous != user_id
+        {
+            return Err(Error::Unauthorized);
+        }
+    }
+    Ok(owners)
+}
+fn verified_external_logout_owner(
+    owners: &BTreeMap<String, i64>,
+    id: &str,
+    actual: i64,
+) -> Result<i64> {
+    if actual <= 0 || owners.get(id).copied() != Some(actual) {
+        return Err(Error::Unauthorized);
+    }
+    Ok(actual)
+}
+async fn lock_external_logout_users(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    owners: impl IntoIterator<Item = i64>,
+) -> Result<()> {
+    let users = db.quoted_table_name("users")?;
+    let backend = transaction.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => format!("SELECT id FROM {users} WHERE id = $1 FOR UPDATE"),
+        DbBackend::MySql => format!("SELECT id FROM {users} WHERE id = ? FOR UPDATE"),
+        _ => return Err(oidc_error()),
+    };
+    for user_id in owners.into_iter().collect::<BTreeSet<_>>() {
+        if user_id <= 0 {
+            return Err(Error::Unauthorized);
+        }
+        transaction
+            .query_one_raw(Statement::from_sql_and_values(
+                backend,
+                &sql,
+                [user_id.into()],
+            ))
+            .await
+            .map_err(Error::internal)?
+            .ok_or(Error::Unauthorized)?;
     }
     Ok(())
 }
-
 async fn lock_external_logout_scope(
     transaction: &DatabaseTransaction,
     db: &Db,
@@ -3273,5 +3796,145 @@ mod tests {
             );
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod logout_lock_order_tests {
+    use super::*;
+    use sea_orm::TransactionTrait;
+    use sea_orm_migration::prelude::*;
+
+    #[test]
+    fn locked_association_must_keep_its_prelocked_owner() {
+        let owners = BTreeMap::from([("a".to_owned(), 1), ("b".to_owned(), 2)]);
+        assert_eq!(
+            verified_external_logout_owner(&owners, "a", 1).ok(),
+            Some(1)
+        );
+        assert!(verified_external_logout_owner(&owners, "a", 2).is_err());
+        assert!(verified_external_logout_owner(&owners, "new", 1).is_err());
+        assert!(verified_external_logout_owner(&owners, "a", 0).is_err());
+    }
+    struct LockMigrator;
+    struct LockSchema;
+    impl MigrationName for LockSchema {
+        fn name(&self) -> &'static str {
+            "m20261105_000001_oidc_lock_graph_fixture"
+        }
+    }
+    #[sea_orm_migration::async_trait::async_trait]
+    impl MigrationTrait for LockSchema {
+        async fn up(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
+            for sql in [
+                "CREATE TABLE users (id BIGINT PRIMARY KEY)",
+                "INSERT INTO users VALUES (1),(2)",
+                "CREATE TABLE auth_external_sessions (id_hash VARCHAR(64) PRIMARY KEY,user_id BIGINT NOT NULL,refresh_family_id VARCHAR(64) NULL)",
+                "INSERT INTO auth_external_sessions VALUES ('a',1,NULL),('b',2,NULL)",
+                "CREATE TABLE auth_refresh_tokens (id BIGINT PRIMARY KEY,token_hash VARCHAR(64) NOT NULL UNIQUE,family_id VARCHAR(64),user_id BIGINT NOT NULL,revoked_at TIMESTAMP NULL)",
+                "INSERT INTO auth_refresh_tokens VALUES (1,'hash-foreign','foreign',2,NULL),(2,'hash-mixed-1','mixed',1,NULL),(3,'hash-mixed-2','mixed',2,NULL)",
+            ] {
+                manager.get_connection().execute_unprepared(sql).await?;
+            }
+            Ok(())
+        }
+        async fn down(&self, _manager: &SchemaManager) -> std::result::Result<(), DbErr> {
+            Ok(())
+        }
+    }
+    #[sea_orm_migration::async_trait::async_trait]
+    impl MigratorTrait for LockMigrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![Box::new(LockSchema)]
+        }
+    }
+
+    struct AbortOnDrop<T>(tokio::task::JoinHandle<T>);
+    impl<T> Drop for AbortOnDrop<T> {
+        fn drop(&mut self) {
+            self.0.abort();
+        }
+    }
+
+    #[tokio::test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "真实双事务与NOWAIT探针保持同一可审查锁序回归"
+    )]
+    #[ignore = "真实PG/MySQL行锁barrier；缺少OPENRUST_TEST_DATABASE_URL即错误，不以SQLite代替"]
+    async fn real_logout_waits_for_all_sorted_users_before_locking_any_association() -> Result<()> {
+        let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+        let database = crate::testing::TestDatabase::create::<LockMigrator>(&url).await?;
+        // 两个持锁事务加独立NOWAIT探针需要三条连接；不改通用fixture的两连接预算。
+        let mut options = crate::db::sea_orm::ConnectOptions::new(database.url());
+        options.max_connections(4).min_connections(0);
+        let connection = crate::db::sea_orm::Database::connect(options)
+            .await
+            .map_err(Error::internal)?;
+        let db = Db::default();
+        db.initialize(connection.clone())?;
+        let result: Result<()> = async {
+            let connection = db.connection()?; let backend = connection.get_database_backend();
+            if !matches!(backend, DbBackend::MySql | DbBackend::Postgres) { return Err(oidc_error()); }
+            let holder = connection.begin().await.map_err(Error::internal)?;
+            lock_external_logout_users(&holder, &db, [2]).await?;
+            let association = db.quoted_table_name("auth_external_sessions")?;
+            let lookup = format!("SELECT id_hash,user_id,refresh_family_id FROM {association} ORDER BY id_hash FOR UPDATE");
+            let contender_db = db.clone(); let contender_connection = connection.clone();
+            let mut task = AbortOnDrop(tokio::spawn(async move {
+                let transaction = contender_connection.begin().await.map_err(Error::internal)?;
+                let rows = lock_external_logout_associations(&transaction, &contender_db, backend, &lookup, Vec::new()).await?;
+                let ids = rows.iter().map(|row| row.try_get::<i64>("", "user_id").map_err(Error::internal)).collect::<Result<Vec<_>>>()?;
+                for row in &rows {
+                    let owner = row.try_get::<i64>("", "user_id").map_err(Error::internal)?;
+                    if let Some(family) = row.try_get::<Option<String>>("", "refresh_family_id").map_err(Error::internal)? {
+                        crate::auth::refresh::revoke_family_for_locked_owner_in_transaction(&transaction, &contender_db, backend, &family, owner).await?;
+                    }
+                }
+                transaction.commit().await.map_err(Error::internal)?;
+                Ok::<_, Error>(ids)
+            }));
+            // 数据库NOWAIT探针确认contender已经锁users1并等待users2，不靠sleep猜交错。
+            let users = db.quoted_table_name("users")?;
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                if tokio::time::Instant::now() >= deadline { task.0.abort(); return Err(Error::custom("test_lock_barrier_timeout", "未观察到users升序等待")); }
+                let probe = connection.begin().await.map_err(Error::internal)?;
+                let attempted = probe.query_one_raw(Statement::from_string(backend, format!("SELECT id FROM {users} WHERE id=1 FOR UPDATE NOWAIT"))).await;
+                probe.rollback().await.map_err(Error::internal)?;
+                match attempted {
+                    Err(error) => {
+                        let message = error.to_string();
+                        if message.contains("could not obtain lock") || message.contains("3572") || message.contains("NOWAIT") { break; }
+                        task.0.abort(); return Err(Error::internal(error));
+                    }
+                    Ok(_) => tokio::time::sleep(Duration::from_millis(5)).await,
+                }
+            }
+            let available = tokio::time::timeout(Duration::from_secs(2), holder.query_one_raw(Statement::from_string(backend, format!("SELECT user_id FROM {association} WHERE id_hash='b' FOR UPDATE")))).await;
+            if available.is_err() { task.0.abort(); return Err(Error::custom("test_inverse_lock_order", "注销先占有关联导致MFA账户锁等待环")); }
+            available.map_err(Error::internal)?.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+            let refresh = db.quoted_table_name("auth_refresh_tokens")?;
+            holder.execute_unprepared(&format!("INSERT INTO {refresh} VALUES (4,'hash-late','late-family',2,NULL)")).await.map_err(Error::internal)?;
+            holder.execute_unprepared(&format!("UPDATE {association} SET refresh_family_id='late-family' WHERE id_hash='b'")).await.map_err(Error::internal)?;
+            holder.commit().await.map_err(Error::internal)?;
+            let ids = tokio::time::timeout(Duration::from_secs(5), &mut task.0).await.map_err(Error::internal)?.map_err(Error::internal)??;
+            assert_eq!(ids, vec![1,2]);
+            let late = connection.query_one_raw(Statement::from_string(backend, format!("SELECT CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END AS revoked FROM {refresh} WHERE family_id='late-family'"))).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+            assert_eq!(late.try_get::<i32>("", "revoked").map_err(Error::internal)?, 1);
+            let transaction = connection.begin().await.map_err(Error::internal)?;
+            lock_external_logout_users(&transaction, &db, [1]).await?;
+            assert!(crate::auth::refresh::revoke_family_for_locked_owner_in_transaction(&transaction, &db, backend, "foreign", 1).await.is_err());
+            assert!(crate::auth::refresh::revoke_family_for_locked_owner_in_transaction(&transaction, &db, backend, "mixed", 1).await.is_err());
+            crate::auth::refresh::revoke_family_for_locked_owner_in_transaction(&transaction, &db, backend, "missing", 1).await?;
+            transaction.rollback().await.map_err(Error::internal)?;
+            Ok(())
+        }.await;
+        drop(db);
+        let closed = connection.close().await.map_err(Error::internal);
+        let cleanup = database.close().await;
+        result?;
+        closed?;
+        cleanup
     }
 }

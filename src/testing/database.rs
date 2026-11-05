@@ -26,7 +26,7 @@ pub struct TestDatabase {
     database_url: String,
     connection: Option<DatabaseConnection>,
     cleaned: bool,
-    sqlite_runtime: Option<Box<crate::core::ProviderRuntime>>,
+    sqlite_runtime: Option<Box<crate::core::App>>,
     sqlite_directory: Option<std::path::PathBuf>,
     sqlite: bool,
     // 显式关闭开始后，失败/取消必须保留文件，不能再由 Drop 无条件重试删除。
@@ -103,16 +103,29 @@ impl TestDatabase {
         let setup = async {
             let mut builder = crate::core::ProviderBuilder::new();
             builder.provider(crate::db::DatabaseServiceProvider);
-            let runtime = builder.start(figment::Figment::from(figment::providers::Serialized::defaults(
-                serde_json::json!({"database": {"url": guard.database_url, "max_connections": 2, "min_connections": 0}})
-            ))).await?;
-            guard.sqlite_runtime = Some(Box::new(runtime));
-            let runtime = guard.sqlite_runtime.as_ref().ok_or_else(|| Error::custom("test_database_runtime_missing", "测试数据库缺少受管生命周期"))?;
-            let db = runtime.container().resolve::<crate::db::Db>().await?;
-            let connection = db.connection()?;
-            guard.connection = Some(connection.clone());
-            table_names.scope(M::up(&connection, None)).await.map_err(Error::internal)
-        }.await;
+            builder.provider(crate::db::MigrationServiceProvider::<M>::new());
+            let runtime = builder
+                .start(figment::Figment::from(
+                    figment::providers::Serialized::defaults(serde_json::json!({"database": {
+                        "url": guard.database_url, "max_connections": 2, "min_connections": 0,
+                        "table_prefix": table_names.prefix(), "table_names": table_names.mappings(),
+                    }})),
+                ))
+                .await?;
+            // 标准App命令拥有SQLite迁移执行/取消边界；不能手工伪造执行所有者。
+            guard.sqlite_runtime =
+                Some(Box::new(crate::core::App::from_provider_runtime(runtime)?));
+            let app = guard.sqlite_runtime.as_ref().ok_or_else(|| {
+                Error::custom(
+                    "test_database_runtime_missing",
+                    "测试数据库缺少受管生命周期",
+                )
+            })?;
+            let db = app.state().resolve::<crate::db::Db>().await?;
+            guard.connection = Some(db.connection()?);
+            app.run_command("migrate", Vec::new()).await
+        }
+        .await;
         if let Err(error) = setup {
             let _ = guard.close().await;
             return Err(error);
@@ -742,3 +755,131 @@ mod tests {
 #[cfg(test)]
 #[path = "database/sqlite_tests.rs"]
 mod sqlite_tests;
+
+#[cfg(all(test, feature = "db-sqlite"))]
+mod sqlite_managed_migration_tests {
+    use super::*;
+    use sea_orm::{DbBackend, Statement};
+    use sea_orm_migration::prelude::*;
+
+    struct RebuildMigrator;
+    struct NullableMigration;
+    impl MigrationName for NullableMigration {
+        fn name(&self) -> &'static str {
+            "m20261105_000001_fixture_nullable_owner"
+        }
+    }
+    #[sea_orm_migration::async_trait::async_trait]
+    impl MigrationTrait for NullableMigration {
+        async fn up(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
+            let names = DatabaseTableNames::current()
+                .ok_or_else(|| DbErr::Migration("fixture缺少标准表名作用域".into()))?;
+            let physical = names
+                .resolve("fixture_accounts")
+                .map_err(|error| DbErr::Migration(error.to_string()))?;
+            let quoted = names
+                .quote("fixture_accounts", DbBackend::Sqlite)
+                .map_err(|error| DbErr::Migration(error.to_string()))?;
+            manager
+                .get_connection()
+                .execute_unprepared(&format!(
+                    "CREATE TABLE {quoted} (id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE)"
+                ))
+                .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(&format!(
+                    "INSERT INTO {quoted} VALUES (1,'retained@example.test')"
+                ))
+                .await?;
+            // 该API明确要求标准SQLite迁移执行者；旧fixture直接M::up会在此失败。
+            crate::db::dialect::set_column_nullable(
+                manager,
+                Alias::new(physical),
+                ColumnDef::new(Alias::new("email")).text().take(),
+                true,
+            )
+            .await
+        }
+        async fn down(&self, _manager: &SchemaManager) -> std::result::Result<(), DbErr> {
+            Ok(())
+        }
+    }
+    #[sea_orm_migration::async_trait::async_trait]
+    impl MigratorTrait for RebuildMigrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![Box::new(NullableMigration)]
+        }
+    }
+
+    async fn verify_nullable(database: &TestDatabase, physical: &str) -> Result<()> {
+        let connection = database.connection()?;
+        connection
+            .execute_unprepared(&format!("INSERT INTO \"{physical}\" VALUES (2,NULL)"))
+            .await
+            .map_err(Error::internal)?;
+        let row = connection
+            .query_one_raw(Statement::from_string(
+                DbBackend::Sqlite,
+                format!("SELECT COUNT(*) AS n FROM \"{physical}\""),
+            ))
+            .await
+            .map_err(Error::internal)?
+            .ok_or_else(|| Error::custom("fixture_missing_row", "缺少fixture数据"))?;
+        assert_eq!(row.try_get::<i64>("", "n").map_err(Error::internal)?, 2);
+        let app = database
+            .sqlite_runtime
+            .as_ref()
+            .ok_or_else(|| Error::custom("fixture_app_missing", "缺少标准App"))?;
+        let db = app.state().resolve::<crate::db::Db>().await?;
+        assert_eq!(db.table_names().resolve("fixture_accounts")?, physical);
+        assert_eq!(
+            app.section::<crate::config::DatabaseConfig>("database")?
+                .max_connections,
+            2
+        );
+        // 标准migrate再次执行应使用同一历史，不重复CREATE或丢弃现有记录。
+        app.run_command("migrate", Vec::new()).await?;
+        Ok(())
+    }
+    #[tokio::test]
+    async fn sqlite_memory_and_owned_file_run_nullable_rebuild_through_standard_app() -> Result<()>
+    {
+        for file in [false, true] {
+            let database =
+                TestDatabase::create_sqlite::<RebuildMigrator>(file, DatabaseTableNames::default())
+                    .await?;
+            let result = verify_nullable(&database, "fixture_accounts").await;
+            let cleanup = database.close().await;
+            result?;
+            cleanup?;
+        }
+        Ok(())
+    }
+    #[tokio::test]
+    async fn sqlite_standard_fixture_preserves_arbitrary_mapping_and_prefix() -> Result<()> {
+        for (names, physical) in [
+            (
+                DatabaseTableNames::new("tenant_", std::collections::BTreeMap::new())?,
+                "tenant_fixture_accounts",
+            ),
+            (
+                DatabaseTableNames::new(
+                    "tenant_",
+                    std::collections::BTreeMap::from([(
+                        "fixture_accounts".into(),
+                        "custom_accounts".into(),
+                    )]),
+                )?,
+                "custom_accounts",
+            ),
+        ] {
+            let database = TestDatabase::create_sqlite::<RebuildMigrator>(false, names).await?;
+            let result = verify_nullable(&database, physical).await;
+            let cleanup = database.close().await;
+            result?;
+            cleanup?;
+        }
+        Ok(())
+    }
+}

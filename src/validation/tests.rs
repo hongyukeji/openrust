@@ -61,7 +61,8 @@ fn validates_application_dtos_and_preserves_nested_field_paths() -> Result<()> {
         }
     };
     let paths: Vec<_> = failures.iter().map(|(path, _)| path).collect();
-    assert_eq!(paths, ["address.city", "email"]);
+    // 与固定Laravel MessageBag一致，保留规则声明顺序，而不是字母排序。
+    assert_eq!(paths, ["email", "address.city"]);
     Ok(())
 }
 

@@ -1,0 +1,598 @@
+{
+    "source_commit": "16c17671a804bb92602822113dd91fbc8a35d2af",
+    "runtime": {
+        "php": "8.5.12",
+        "mbstring": true,
+        "mb_oniguruma": "6.9.9",
+        "intl": false,
+        "icu": null,
+        "locale": "LC_CTYPE=C.UTF-8;LC_NUMERIC=C;LC_TIME=C;LC_COLLATE=C;LC_MONETARY=C;LC_MESSAGES=C;LC_PAPER=C;LC_NAME=C;LC_ADDRESS=C;LC_TELEPHONE=C;LC_MEASUREMENT=C;LC_IDENTIFICATION=C"
+    },
+    "cases": [
+        {
+            "name": "ascii",
+            "input_base64": "QVNDSUkgVVNFUkBleGFtcGxlLmNvbQ==",
+            "default": "ASCII USER@example.com",
+            "explicit_default": "ASCII USER@example.com",
+            "unknown_null": "ASCII USER@example.com",
+            "unknown_empty": "ASCII USER@example.com",
+            "unknown_custom": "ASCII USER@example.com"
+        },
+        {
+            "name": "empty",
+            "input_base64": "",
+            "default": "",
+            "explicit_default": "",
+            "unknown_null": "",
+            "unknown_empty": "",
+            "unknown_custom": ""
+        },
+        {
+            "name": "accent",
+            "input_base64": "ZMOpasOgIHZ1",
+            "default": "deja vu",
+            "explicit_default": "deja vu",
+            "unknown_null": "deja vu",
+            "unknown_empty": "deja vu",
+            "unknown_custom": "deja vu"
+        },
+        {
+            "name": "greek",
+            "input_base64": "ZMOpasOgIM+Dz4PPgiBpxLFpaQ==",
+            "default": "deja sss iiii",
+            "explicit_default": "deja sss iiii",
+            "unknown_null": "deja sss iiii",
+            "unknown_empty": "deja sss iiii",
+            "unknown_custom": "deja sss iiii"
+        },
+        {
+            "name": "chinese",
+            "input_base64": "5Lit",
+            "default": "Zhong ",
+            "explicit_default": "Zhong ",
+            "unknown_null": "Zhong ",
+            "unknown_empty": "Zhong ",
+            "unknown_custom": "Zhong "
+        },
+        {
+            "name": "arabic",
+            "input_base64": "2KPYrdio2YM=",
+            "default": "aHbk",
+            "explicit_default": "aHbk",
+            "unknown_null": "aHbk",
+            "unknown_empty": "aHbk",
+            "unknown_custom": "aHbk"
+        },
+        {
+            "name": "japanese",
+            "input_base64": "44Kt44Oj44Oz44OR44K5",
+            "default": "kiyanpasu",
+            "explicit_default": "kiyanpasu",
+            "unknown_null": "kiyanpasu",
+            "unknown_empty": "kiyanpasu",
+            "unknown_custom": "kiyanpasu"
+        },
+        {
+            "name": "cyrillic",
+            "input_base64": "0LHQuNC+0LvQvtCz0LjRh9C10YHQutC+0Lw=",
+            "default": "biologicheskom",
+            "explicit_default": "biologicheskom",
+            "unknown_null": "biologicheskom",
+            "unknown_empty": "biologicheskom",
+            "unknown_custom": "biologicheskom"
+        },
+        {
+            "name": "hangul",
+            "input_base64": "7KCVLCDrs5HtmLg=",
+            "default": "jeong, byeongho",
+            "explicit_default": "jeong, byeongho",
+            "unknown_null": "jeong, byeongho",
+            "unknown_empty": "jeong, byeongho",
+            "unknown_custom": "jeong, byeongho"
+        },
+        {
+            "name": "bengali",
+            "input_base64": "4Kas4Ka+4KaC4Kay4Ka+",
+            "default": "baaNlaa",
+            "explicit_default": "baaNlaa",
+            "unknown_null": "baaNlaa",
+            "unknown_empty": "baaNlaa",
+            "unknown_custom": "baaNlaa"
+        },
+        {
+            "name": "unknown",
+            "input_base64": "8J+YgPSPv78=",
+            "default": "??",
+            "explicit_default": "??",
+            "unknown_null": "😀􏿿",
+            "unknown_empty": "",
+            "unknown_custom": "[unknown][unknown]"
+        },
+        {
+            "name": "unknown_vs_literal",
+            "input_base64": "Pw==",
+            "default": "?",
+            "explicit_default": "?",
+            "unknown_null": "?",
+            "unknown_empty": "?",
+            "unknown_custom": "?"
+        },
+        {
+            "name": "nfc",
+            "input_base64": "w4k=",
+            "default": "E",
+            "explicit_default": "E",
+            "unknown_null": "E",
+            "unknown_empty": "E",
+            "unknown_custom": "E"
+        },
+        {
+            "name": "nfd",
+            "input_base64": "RcyB",
+            "default": "E",
+            "explicit_default": "E",
+            "unknown_null": "É",
+            "unknown_empty": "E",
+            "unknown_custom": "E"
+        },
+        {
+            "name": "marks_only",
+            "input_base64": "zIHMpw==",
+            "default": "",
+            "explicit_default": "",
+            "unknown_null": "̧́",
+            "unknown_empty": "",
+            "unknown_custom": ""
+        },
+        {
+            "name": "ascii_mid_lf",
+            "input_base64": "YQpi",
+            "default": "a\nb",
+            "explicit_default": "a\nb",
+            "unknown_null": "a\nb",
+            "unknown_empty": "a\nb",
+            "unknown_custom": "a\nb"
+        },
+        {
+            "name": "unicode_mid_lf",
+            "input_base64": "w7EKYg==",
+            "default": "n\nb",
+            "explicit_default": "n\nb",
+            "unknown_null": "n\nb",
+            "unknown_empty": "n\nb",
+            "unknown_custom": "n\nb"
+        },
+        {
+            "name": "unicode_end_lf",
+            "input_base64": "w7FiCg==",
+            "default": "nb\n",
+            "explicit_default": "nb\n",
+            "unknown_null": "nb\n",
+            "unknown_empty": "nb\n",
+            "unknown_custom": "nb\n"
+        },
+        {
+            "name": "unicode_start_lf",
+            "input_base64": "CsOxYg==",
+            "default": "\nnb",
+            "explicit_default": "\nnb",
+            "unknown_null": "\nnb",
+            "unknown_empty": "\nnb",
+            "unknown_custom": "\nnb"
+        },
+        {
+            "name": "ascii_tab_cr",
+            "input_base64": "YQliDWM=",
+            "default": "a\tb\rc",
+            "explicit_default": "a\tb\rc",
+            "unknown_null": "a\tb\rc",
+            "unknown_empty": "a\tb\rc",
+            "unknown_custom": "a\tb\rc"
+        },
+        {
+            "name": "unicode_tab_cr",
+            "input_base64": "w7EJYg1j",
+            "default": "n\tb\rc",
+            "explicit_default": "n\tb\rc",
+            "unknown_null": "n\tb\rc",
+            "unknown_empty": "n\tb\rc",
+            "unknown_custom": "n\tb\rc"
+        },
+        {
+            "name": "ascii_control_fast_path",
+            "input_base64": "YRBiE2M=",
+            "default": "a\u0010b\u0013c",
+            "explicit_default": "a\u0010b\u0013c",
+            "unknown_null": "a\u0010b\u0013c",
+            "unknown_empty": "a\u0010b\u0013c",
+            "unknown_custom": "a\u0010b\u0013c"
+        },
+        {
+            "name": "unicode_control_clean",
+            "input_base64": "w7EQYhNj",
+            "default": "nbc",
+            "explicit_default": "nbc",
+            "unknown_null": "nbc",
+            "unknown_empty": "nbc",
+            "unknown_custom": "nbc"
+        },
+        {
+            "name": "nul_ascii",
+            "input_base64": "YQBiAGM=",
+            "default": "abc",
+            "explicit_default": "abc",
+            "unknown_null": "abc",
+            "unknown_empty": "abc",
+            "unknown_custom": "abc"
+        },
+        {
+            "name": "nul_unicode",
+            "input_base64": "YQDDsQBj",
+            "default": "anc",
+            "explicit_default": "anc",
+            "unknown_null": "anc",
+            "unknown_empty": "anc",
+            "unknown_custom": "anc"
+        },
+        {
+            "name": "del",
+            "input_base64": "YX9i",
+            "default": "ab",
+            "explicit_default": "ab",
+            "unknown_null": "ab",
+            "unknown_empty": "ab",
+            "unknown_custom": "ab"
+        },
+        {
+            "name": "unicode_spaces",
+            "input_base64": "YcKgYuKAi2PigK9k4oGfZeOAgGY=",
+            "default": "a b c d e f",
+            "explicit_default": "a b c d e f",
+            "unknown_null": "a b c d e f",
+            "unknown_empty": "a b c d e f",
+            "unknown_custom": "a b c d e f"
+        },
+        {
+            "name": "bidi",
+            "input_base64": "YeKAqmLigKxj4oGmZOKBqWU=",
+            "default": "abcde",
+            "explicit_default": "abcde",
+            "unknown_null": "abcde",
+            "unknown_empty": "abcde",
+            "unknown_custom": "abcde"
+        },
+        {
+            "name": "msword",
+            "input_base64": "wqvigJzigJhh4oCZ4oCd4oCU4oCmwrs=",
+            "default": "<<\"'a'\"-...>>",
+            "explicit_default": "<<\"'a'\"-...>>",
+            "unknown_null": "<<\"'a'\"-...>>",
+            "unknown_empty": "<<\"'a'\"-...>>",
+            "unknown_custom": "<<\"'a'\"-...>>"
+        },
+        {
+            "name": "turkish",
+            "input_base64": "ScSwxLFp",
+            "default": "IIii",
+            "explicit_default": "IIii",
+            "unknown_null": "IIii",
+            "unknown_empty": "IIii",
+            "unknown_custom": "IIii"
+        },
+        {
+            "name": "german",
+            "input_base64": "U1RSQeG6nkUgU3RyYcOfZSBzdHJhc3Nl",
+            "default": "STRASsE Strasse strasse",
+            "explicit_default": "STRASsE Strasse strasse",
+            "unknown_null": "STRASsE Strasse strasse",
+            "unknown_empty": "STRASsE Strasse strasse",
+            "unknown_custom": "STRASsE Strasse strasse"
+        },
+        {
+            "name": "sigma_context",
+            "input_base64": "zp/OoyDOn86jzpEgzqM=",
+            "default": "OS OSA S",
+            "explicit_default": "OS OSA S",
+            "unknown_null": "OS OSA S",
+            "unknown_empty": "OS OSA S",
+            "unknown_custom": "OS OSA S"
+        },
+        {
+            "name": "ascii_pipe",
+            "input_base64": "YXxi",
+            "default": "a|b",
+            "explicit_default": "a|b",
+            "unknown_null": "a|b",
+            "unknown_empty": "a|b",
+            "unknown_custom": "a|b"
+        },
+        {
+            "name": "invalid_utf8",
+            "input_base64": "dGVz6XRpbmc=",
+            "default": "testing",
+            "explicit_default": "testing",
+            "unknown_null": "testing",
+            "unknown_empty": "testing",
+            "unknown_custom": "testing"
+        }
+    ],
+    "throttle_keys": [
+        {
+            "username": "ASCII USER@example.com",
+            "lower": "ascii user@example.com",
+            "ip": "2001:db8::1",
+            "key": "ascii user@example.com|2001:db8::1"
+        },
+        {
+            "username": "ascii user@example.com",
+            "lower": "ascii user@example.com",
+            "ip": "2001:db8::1",
+            "key": "ascii user@example.com|2001:db8::1"
+        },
+        {
+            "username": "José@example.com",
+            "lower": "josé@example.com",
+            "ip": "2001:db8::1",
+            "key": "jose@example.com|2001:db8::1"
+        },
+        {
+            "username": "Jose@example.com",
+            "lower": "jose@example.com",
+            "ip": "2001:db8::1",
+            "key": "jose@example.com|2001:db8::1"
+        },
+        {
+            "username": "JOSÉ@example.com",
+            "lower": "josé@example.com",
+            "ip": "2001:db8::1",
+            "key": "jose@example.com|2001:db8::1"
+        },
+        {
+            "username": "É",
+            "lower": "é",
+            "ip": "2001:db8::1",
+            "key": "e|2001:db8::1"
+        },
+        {
+            "username": "É",
+            "lower": "é",
+            "ip": "2001:db8::1",
+            "key": "e|2001:db8::1"
+        },
+        {
+            "username": "e",
+            "lower": "e",
+            "ip": "2001:db8::1",
+            "key": "e|2001:db8::1"
+        },
+        {
+            "username": "中",
+            "lower": "中",
+            "ip": "2001:db8::1",
+            "key": "Zhong |2001:db8::1"
+        },
+        {
+            "username": "Zhong ",
+            "lower": "zhong ",
+            "ip": "2001:db8::1",
+            "key": "zhong |2001:db8::1"
+        },
+        {
+            "username": "zhong ",
+            "lower": "zhong ",
+            "ip": "2001:db8::1",
+            "key": "zhong |2001:db8::1"
+        },
+        {
+            "username": "أحبك",
+            "lower": "أحبك",
+            "ip": "2001:db8::1",
+            "key": "aHbk|2001:db8::1"
+        },
+        {
+            "username": "aHbk",
+            "lower": "ahbk",
+            "ip": "2001:db8::1",
+            "key": "ahbk|2001:db8::1"
+        },
+        {
+            "username": "ahbk",
+            "lower": "ahbk",
+            "ip": "2001:db8::1",
+            "key": "ahbk|2001:db8::1"
+        },
+        {
+            "username": "😀",
+            "lower": "😀",
+            "ip": "2001:db8::1",
+            "key": "?|2001:db8::1"
+        },
+        {
+            "username": "?",
+            "lower": "?",
+            "ip": "2001:db8::1",
+            "key": "?|2001:db8::1"
+        },
+        {
+            "username": "􏿿",
+            "lower": "􏿿",
+            "ip": "2001:db8::1",
+            "key": "?|2001:db8::1"
+        },
+        {
+            "username": "Straße",
+            "lower": "straße",
+            "ip": "2001:db8::1",
+            "key": "strasse|2001:db8::1"
+        },
+        {
+            "username": "STRASSE",
+            "lower": "strasse",
+            "ip": "2001:db8::1",
+            "key": "strasse|2001:db8::1"
+        },
+        {
+            "username": "İ",
+            "lower": "i̇",
+            "ip": "2001:db8::1",
+            "key": "i|2001:db8::1"
+        },
+        {
+            "username": "i̇",
+            "lower": "i̇",
+            "ip": "2001:db8::1",
+            "key": "i|2001:db8::1"
+        },
+        {
+            "username": "i",
+            "lower": "i",
+            "ip": "2001:db8::1",
+            "key": "i|2001:db8::1"
+        },
+        {
+            "username": "a\nb",
+            "lower": "a\nb",
+            "ip": "2001:db8::1",
+            "key": "a\nb|2001:db8::1"
+        },
+        {
+            "username": "ñ\nb",
+            "lower": "ñ\nb",
+            "ip": "2001:db8::1",
+            "key": "n\nb|2001:db8::1"
+        },
+        {
+            "username": "ñb\n",
+            "lower": "ñb\n",
+            "ip": "2001:db8::1",
+            "key": "nb\n|2001:db8::1"
+        },
+        {
+            "username": "a\u0010b",
+            "lower": "a\u0010b",
+            "ip": "2001:db8::1",
+            "key": "a\u0010b|2001:db8::1"
+        },
+        {
+            "username": "ñ\u0010b",
+            "lower": "ñ\u0010b",
+            "ip": "2001:db8::1",
+            "key": "nb|2001:db8::1"
+        },
+        {
+            "username": "ΟΣ",
+            "lower": "ος",
+            "ip": "2001:db8::1",
+            "key": "os|2001:db8::1"
+        },
+        {
+            "username": "ος",
+            "lower": "ος",
+            "ip": "2001:db8::1",
+            "key": "os|2001:db8::1"
+        },
+        {
+            "username": "οσ",
+            "lower": "οσ",
+            "ip": "2001:db8::1",
+            "key": "os|2001:db8::1"
+        }
+    ],
+    "collisions": [
+        {
+            "left": "ASCII USER@example.com",
+            "right": "ascii user@example.com",
+            "key": "ascii user@example.com|2001:db8::1"
+        },
+        {
+            "left": "José@example.com",
+            "right": "Jose@example.com",
+            "key": "jose@example.com|2001:db8::1"
+        },
+        {
+            "left": "José@example.com",
+            "right": "JOSÉ@example.com",
+            "key": "jose@example.com|2001:db8::1"
+        },
+        {
+            "left": "Jose@example.com",
+            "right": "JOSÉ@example.com",
+            "key": "jose@example.com|2001:db8::1"
+        },
+        {
+            "left": "É",
+            "right": "É",
+            "key": "e|2001:db8::1"
+        },
+        {
+            "left": "É",
+            "right": "e",
+            "key": "e|2001:db8::1"
+        },
+        {
+            "left": "É",
+            "right": "e",
+            "key": "e|2001:db8::1"
+        },
+        {
+            "left": "Zhong ",
+            "right": "zhong ",
+            "key": "zhong |2001:db8::1"
+        },
+        {
+            "left": "aHbk",
+            "right": "ahbk",
+            "key": "ahbk|2001:db8::1"
+        },
+        {
+            "left": "😀",
+            "right": "?",
+            "key": "?|2001:db8::1"
+        },
+        {
+            "left": "😀",
+            "right": "􏿿",
+            "key": "?|2001:db8::1"
+        },
+        {
+            "left": "?",
+            "right": "􏿿",
+            "key": "?|2001:db8::1"
+        },
+        {
+            "left": "Straße",
+            "right": "STRASSE",
+            "key": "strasse|2001:db8::1"
+        },
+        {
+            "left": "İ",
+            "right": "i̇",
+            "key": "i|2001:db8::1"
+        },
+        {
+            "left": "İ",
+            "right": "i",
+            "key": "i|2001:db8::1"
+        },
+        {
+            "left": "i̇",
+            "right": "i",
+            "key": "i|2001:db8::1"
+        },
+        {
+            "left": "ΟΣ",
+            "right": "ος",
+            "key": "os|2001:db8::1"
+        },
+        {
+            "left": "ΟΣ",
+            "right": "οσ",
+            "key": "os|2001:db8::1"
+        },
+        {
+            "left": "ος",
+            "right": "οσ",
+            "key": "os|2001:db8::1"
+        }
+    ]
+}

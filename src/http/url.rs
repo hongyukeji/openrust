@@ -2,7 +2,7 @@
 
 use hmac::{Hmac, KeyInit, Mac};
 use sha2_11::Sha256;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 
@@ -26,6 +26,7 @@ struct NamedRoute {
 #[derive(Clone)]
 pub struct RouteUrlGenerator {
     inner: Arc<RouteUrlInner>,
+    get_paths: Arc<BTreeSet<String>>,
     root_controller_namespace: Option<String>,
     key_resolver: Option<Arc<dyn Fn() -> Result<UrlSigningKeys> + Send + Sync>>,
 }
@@ -62,6 +63,7 @@ struct RouteUrlInner {
 impl RouteUrlGenerator {
     pub(crate) fn empty() -> Self {
         Self {
+            get_paths: Arc::new(BTreeSet::new()),
             inner: Arc::new(RouteUrlInner {
                 base_url: None,
                 routes: BTreeMap::new(),
@@ -145,6 +147,7 @@ impl RouteUrlGenerator {
         }
 
         Ok(Self {
+            get_paths: Arc::new(BTreeSet::new()),
             inner: Arc::new(RouteUrlInner {
                 base_url: Some(base_url),
                 routes: named,
@@ -155,7 +158,21 @@ impl RouteUrlGenerator {
         })
     }
 
-    /// 按名称生成 URL；缺失的域或路径参数报错，额外参数按字典序加入 query。
+    /// 判断当前路由集合是否登记指定名称，不尝试生成其必需参数。
+    pub fn has(&self, name: &str) -> bool {
+        self.inner.routes.contains_key(name)
+    }
+
+    /// 查询真实GET声明的路径，包含未命名路由，不以URL生成成功代替路由存在。
+    pub fn has_get_path(&self, path: &str) -> bool {
+        self.get_paths.contains(path)
+    }
+
+    pub(crate) fn set_get_paths(&mut self, paths: Vec<String>) {
+        self.get_paths = Arc::new(paths.into_iter().collect());
+    }
+
+    /// 按名称生成URL；缺失的域或路径参数报错，额外参数按字典序加入query。
     pub fn route(&self, name: &str, parameters: &BTreeMap<String, String>) -> Result<String> {
         let route = self.inner.routes.get(name).ok_or_else(|| {
             generation_error(

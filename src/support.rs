@@ -37,3 +37,6 @@ pub use stringable::Stringable;
 #[cfg(test)]
 #[path = "../tests/support.rs"]
 mod support_contract_tests;
+
+mod strings;
+pub use strings::Str;

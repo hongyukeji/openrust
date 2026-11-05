@@ -18,7 +18,8 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://127.0.0.1:3000/callback"
+        "http://127.0.0.1:3000/callback",
+        "http://127.0.0.1:3000/api/example/oidc/callback"
       ],
       "webOrigins": [
         "http://127.0.0.1:3000"

@@ -32,26 +32,52 @@ impl ServiceProvider for AppServiceProvider {
                         })?;
                     let db = resolver.resolve::<openrust::db::Db>().await?;
                     let passwords = resolver.resolve::<openrust::auth::Passwords>().await?;
+                    #[cfg(feature = "auth-fortify")]
+                    let state_db = (*db).clone();
+                    #[cfg(feature = "auth-fortify")]
+                    let state_table = table.to_owned();
+                    #[cfg(feature = "auth-fortify")]
+                    let factor_encrypter =
+                        resolver.resolve::<openrust::security::Encryptor>().await?;
                     let provider = openrust::auth::DatabaseUserProvider::new(
                         (*db).clone(),
                         (*passwords).clone(),
                         table,
                     )?
-                    .with_user_factory(|attributes| {
+                    .with_user_factory(move |attributes| {
                         if attributes
                             .get("disabled_at")
                             .is_some_and(|value| !value.is_null())
                         {
                             return Err(openrust::Error::Unauthorized);
                         }
-                        Ok(std::sync::Arc::new(crate::app::models::user::User::new(
-                            attributes,
-                        )))
+                        let user = crate::app::models::user::User::new(attributes);
+                        #[cfg(feature = "auth-fortify")]
+                        let user = {
+                            let identifier =
+                                openrust::auth::Authenticatable::auth_identifier(&user)?;
+                            let state = openrust::auth::fortify::DatabaseTwoFactorState::new(
+                                state_db.clone(),
+                                state_table.clone(),
+                                "id",
+                                identifier,
+                            )?;
+                            user.with_two_factor_state(state.clone())
+                                .with_factor_authority(
+                                    openrust::auth::fortify::DatabaseFactorAuthority::new(
+                                        state,
+                                        (*factor_encrypter).clone(),
+                                    ),
+                                )
+                        };
+                        Ok(std::sync::Arc::new(user))
                     });
                     Ok(std::sync::Arc::new(provider)
                         as std::sync::Arc<dyn openrust::auth::UserProvider>)
                 })
             })?;
+            #[cfg(feature = "auth-fortify")]
+            super::fortify::register(app).await?;
             Ok(())
         })
     }

@@ -39,7 +39,9 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
             ("password", hash.as_str().into()), ("remember_token", "remember-value".into()),
             ("disabled_at", "2026-01-01".into()),
         ]).await?;
-        let provider = DatabaseUserProvider::new(db.clone(), passwords, "guard_accounts")?;
+        let upgraded = Passwords::new(PasswordConfig { memory_kib: 19_456, iterations: 2, parallelism: 1 })?;
+        assert!(upgraded.needs_rehash(&hash)?);
+        let provider = DatabaseUserProvider::new(db.clone(), upgraded.clone(), "guard_accounts")?;
         let user = provider.retrieve_by_id(&json!("tenant:42")).await?.ok_or(Error::Unauthorized)?;
         assert_eq!(user.auth_identifier()?, json!("tenant:42"));
         assert!(provider.retrieve_by_token(&json!("tenant:42"), "remember-value").await?.is_some());
@@ -57,14 +59,171 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
         assert!(provider.retrieve_by_token(&json!("tenant:42"), "replacement").await?.is_some());
         provider.update_remember_token(user.as_ref(), "").await?;
         assert!(provider.retrieve_by_token(&json!("tenant:42"), "").await?.is_none());
-        provider.rehash_password_if_required(user.as_ref(), &credentials(&[("password", json!("correct secret"))]), true).await?;
+        provider.rehash_password_if_required(user.as_ref(), &credentials(&[("password", json!("correct secret"))]), false).await?;
         let row = db.connection()?.query_one_raw(Statement::from_string(DbBackend::Sqlite, format!("SELECT password FROM {table}"))).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
         let replacement: String = row.try_get("", "password").map_err(Error::internal)?;
         assert_ne!(replacement, hash.as_str());
+        let replacement = EncodedPasswordHash::parse(replacement)?;
+        assert!(!upgraded.needs_rehash(&replacement)?);
+        assert!(upgraded.verify("correct secret", &replacement).await?);
         assert_eq!(user.auth_password()?.as_deref(), Some(hash.as_str()));
         assert_eq!(format!("{provider:?}"), "DatabaseUserProvider([REDACTED])");
         Ok(())
     }.await;
+    drop(db);
+    let cleanup = guard.close().await;
+    result?;
+    cleanup
+}
+
+#[tokio::test]
+async fn stale_rehash_cannot_overwrite_a_password_reset() -> Result<()> {
+    let guard = TestDatabase::sqlite_memory::<EmptyMigrator>().await?;
+    let db = Db::default();
+    db.initialize(guard.connection()?)?;
+    let result: Result<()> = async {
+        let passwords = Passwords::new(PasswordConfig {
+            memory_kib: 19_456,
+            iterations: 1,
+            parallelism: 1,
+        })?;
+        let original = passwords.hash("original password").await?;
+        let reset = passwords.hash("reset password").await?;
+        let table = db.quoted_table_name("rehash_accounts")?;
+        db.connection()?
+            .execute_unprepared(&format!(
+                "CREATE TABLE {table} (id TEXT PRIMARY KEY, password TEXT COLLATE NOCASE)"
+            ))
+            .await
+            .map_err(Error::internal)?;
+        let insert = db.table("rehash_accounts")?;
+        insert
+            .insert(vec![
+                ("id", "owner".into()),
+                ("password", original.as_str().into()),
+            ])
+            .await?;
+        let provider = DatabaseUserProvider::new(db.clone(), passwords, "rehash_accounts")?;
+        let owner = json!("owner");
+        let original_credentials = credentials(&[("password", json!("original password"))]);
+        let stale = provider
+            .retrieve_by_id(&owner)
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        assert!(
+            provider
+                .validate_credentials(stale.as_ref(), &original_credentials)
+                .await?
+        );
+        let account = db.table("rehash_accounts")?.where_eq("id", "owner")?;
+        assert_eq!(
+            account
+                .update(vec![("password", reset.as_str().into())])
+                .await?,
+            1
+        );
+        assert!(matches!(
+            provider
+                .rehash_password_if_required(stale.as_ref(), &original_credentials, true)
+                .await,
+            Err(Error::Unauthorized)
+        ));
+        let current = provider
+            .retrieve_by_id(&owner)
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        assert_eq!(current.auth_password()?.as_deref(), Some(reset.as_str()));
+        assert!(
+            provider
+                .validate_credentials(
+                    current.as_ref(),
+                    &credentials(&[("password", json!("reset password"))])
+                )
+                .await?
+        );
+        assert!(
+            !provider
+                .validate_credentials(current.as_ref(), &original_credentials)
+                .await?
+        );
+
+        // 即使持久化字段与旧 PHC 仅大小写不同，NOCASE 也不能让 CAS 重新启用旧密码。
+        let changed = original.as_str().replacen("argon2id", "ARGON2ID", 1);
+        assert_ne!(changed, original.as_str());
+        assert_eq!(
+            account
+                .update(vec![("password", changed.as_str().into())])
+                .await?,
+            1
+        );
+        assert!(matches!(
+            provider
+                .rehash_password_if_required(stale.as_ref(), &original_credentials, true)
+                .await,
+            Err(Error::Unauthorized)
+        ));
+        let current = provider
+            .retrieve_by_id(&owner)
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        assert_eq!(current.auth_password()?.as_deref(), Some(changed.as_str()));
+        Ok(())
+    }
+    .await;
+    drop(db);
+    let cleanup = guard.close().await;
+    result?;
+    cleanup
+}
+
+#[tokio::test]
+async fn ambiguous_rehash_rolls_back_all_matching_accounts() -> Result<()> {
+    let guard = TestDatabase::sqlite_memory::<EmptyMigrator>().await?;
+    let db = Db::default();
+    db.initialize(guard.connection()?)?;
+    let result: Result<()> = async {
+        let passwords = Passwords::new(PasswordConfig {
+            memory_kib: 19_456,
+            iterations: 1,
+            parallelism: 1,
+        })?;
+        let original = passwords.hash("original password").await?;
+        let table = db.quoted_table_name("ambiguous_accounts")?;
+        db.connection()?
+            .execute_unprepared(&format!("CREATE TABLE {table} (id TEXT, password TEXT)"))
+            .await
+            .map_err(Error::internal)?;
+        let accounts = db.table("ambiguous_accounts")?;
+        for _ in 0..2 {
+            accounts
+                .insert(vec![
+                    ("id", "shared".into()),
+                    ("password", original.as_str().into()),
+                ])
+                .await?;
+        }
+        let provider = DatabaseUserProvider::new(db.clone(), passwords, "ambiguous_accounts")?;
+        let user = provider
+            .retrieve_by_id(&json!("shared"))
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        let input = credentials(&[("password", json!("original password"))]);
+        assert!(matches!(
+            provider
+                .rehash_password_if_required(user.as_ref(), &input, true)
+                .await,
+            Err(Error::Unauthorized)
+        ));
+        assert_eq!(
+            accounts
+                .where_eq("password", original.as_str())?
+                .count()
+                .await?,
+            2
+        );
+        Ok(())
+    }
+    .await;
     drop(db);
     let cleanup = guard.close().await;
     result?;

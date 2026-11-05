@@ -173,37 +173,91 @@ async fn sqlite_security_transaction_cancellation_rolls_back_before_next_owner()
 }
 
 #[tokio::test]
-#[ignore = "显式真实MySQL/PostgreSQL，缺少凭据即错误，不以skip冒充通过"]
-async fn real_server_counter_saturates_before_integer_addition() -> crate::Result<()> {
-    let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
-    let database = TestDatabase::create::<Migrator>(&url).await?;
+async fn sqlite_first_hit_decay_is_not_aligned_and_reads_clear_expiry_are_real() -> crate::Result<()>
+{
+    let database = TestDatabase::sqlite_file::<Migrator>().await?;
     let db = Db::default();
     db.initialize(database.connection()?)?;
     let outcome: crate::Result<()> = async {
-        let seconds = <u64 as std::convert::TryFrom<i64>>::try_from(chrono::Utc::now().timestamp())
-            .map_err(Error::internal)?
-            + 3600;
         let store = DatabaseRateLimitStore::new(db.clone());
+        let key = "decay:first-hit@example.test";
+        let first = store.hit(key, std::time::Duration::from_hours(8_760)).await?;
+        check(first.count() == 1 && first.reset_after_secs() > 31_535_990, "首次衰减窗口没有从当前秒开始")?;
+        let table = db.quoted_table_name("rate_limits")?;
+        let row = db.connection()?.query_one_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
+            format!("SELECT window_started_at, CAST(strftime('%s','now') AS INTEGER) AS now_seconds FROM {table} WHERE key_hash=?"), [digest(key).into()])).await.map_err(Error::internal)?.ok_or_else(|| Error::custom("missing_bucket", "缺少计数行"))?;
+        let started: i64 = row.try_get("", "window_started_at").map_err(Error::internal)?;
+        let now: i64 = row.try_get("", "now_seconds").map_err(Error::internal)?;
+        check((now-started).abs() <= 2, "首次窗口不是数据库当前epoch秒")?;
+        let read1 = store.attempts(key).await?.ok_or_else(|| Error::custom("missing_bucket", "缺少计数"))?;
+        let read2 = store.attempts(key).await?.ok_or_else(|| Error::custom("missing_bucket", "缺少计数"))?;
+        check(read1.count() == 1 && read2.count() == 1, "只读查询消耗了额度")?;
+        let second = store.hit(key, std::time::Duration::from_secs(1)).await?;
+        check(second.count() == 2 && second.reset_after_secs() > 31_535_990, "后续命中改变了首次decay或重新对齐窗口")?;
+        db.connection()?.execute_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
+            format!("UPDATE {table} SET window_started_at=CAST(strftime('%s','now') AS INTEGER)-100, window_seconds=1 WHERE key_hash=?"), [digest(key).into()])).await.map_err(Error::internal)?;
+        check(store.attempts(key).await?.is_none(), "到期计数仍可见")?;
+        let fresh = store.hit(key, std::time::Duration::from_secs(60)).await?;
+        check(fresh.count() == 1 && fresh.reset_after_secs() >= 58, "到期命中没有新建完整decay窗口")?;
+        store.clear(key).await?; store.clear(key).await?;
+        check(store.attempts(key).await?.is_none(), "clear没有删除计数")?;
+        check(store.hit(key, std::time::Duration::from_secs(60)).await?.count() == 1, "clear后计数未从1开始")
+    }.await;
+    drop(db);
+    let cleanup = database.close().await;
+    outcome?;
+    cleanup
+}
+
+#[tokio::test]
+async fn sqlite_decay_concurrent_hit_keeps_every_increment_and_missing_table_fails_closed()
+-> crate::Result<()> {
+    let database = TestDatabase::sqlite_file::<Migrator>().await?;
+    let db = Db::default();
+    db.initialize(database.connection()?)?;
+    let outcome: crate::Result<()> = async {
+        let store = DatabaseRateLimitStore::new(db.clone());
+        let mut tasks = tokio::task::JoinSet::new();
+        for _ in 0..24 {
+            let store = store.clone();
+            tasks.spawn(async move {
+                store
+                    .hit("decay:concurrent", std::time::Duration::from_secs(600))
+                    .await
+            });
+        }
+        let mut counts = Vec::new();
+        while let Some(result) = tasks.join_next().await {
+            counts.push(result.map_err(Error::internal)??.count());
+        }
+        counts.sort_unstable();
+        check(counts == (1..=24).collect::<Vec<_>>(), "并发衰减增量丢失")?;
         check(
             store
-                .consume(KEY, std::time::Duration::from_secs(seconds))
+                .attempts("decay:concurrent")
                 .await?
-                .count()
-                == 1,
-            "真实后端未建立首个计数",
+                .is_some_and(|bucket| bucket.count() == 24),
+            "只读最终计数不正确",
         )?;
         let table = db.quoted_table_name("rate_limits")?;
         db.connection()?
-            .execute_unprepared(&format!("UPDATE {table} SET hit_count=9223372036854775807"))
+            .execute_unprepared(&format!("DROP TABLE {table}"))
             .await
             .map_err(Error::internal)?;
         check(
             store
-                .consume(KEY, std::time::Duration::from_secs(seconds))
-                .await?
-                .count()
-                == i64::MAX.cast_unsigned(),
-            "真实后端饱和前发生整数溢出",
+                .hit("decay:failure", std::time::Duration::from_secs(60))
+                .await
+                .is_err(),
+            "hit存储失败被放行",
+        )?;
+        check(
+            store.attempts("decay:failure").await.is_err(),
+            "attempts存储失败成为缺失",
+        )?;
+        check(
+            store.clear("decay:failure").await.is_err(),
+            "clear存储失败成为成功",
         )
     }
     .await;

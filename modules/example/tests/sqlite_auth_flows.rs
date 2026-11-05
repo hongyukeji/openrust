@@ -2,7 +2,7 @@
 
 use std::{future::Future, time::Duration};
 
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 use openrust::database::sea_orm::ConnectionTrait;
 use openrust::{
     Error, Result,
@@ -129,11 +129,7 @@ impl Fixture {
         csrf: Option<&str>,
     ) -> Result<TestResponse> {
         // 每个敏感端点独立受控来源，保留默认限流；login与complete仍用同源88。
-        let peer = if path.ends_with("/mfa/enroll") {
-            20
-        } else if path.ends_with("/mfa/confirm") {
-            21
-        } else if path.ends_with("/session/login") {
+        let peer = if path.ends_with("/session/login") {
             89
         } else {
             88
@@ -337,6 +333,33 @@ async fn native_logout_contract(f: &Fixture, session: &str, csrf: &str) -> Resul
     .assert_status(StatusCode::UNAUTHORIZED)?;
     Ok(())
 }
+// 所选authority保留纯密码学裸签的负例；正式入口必须产生可重核的凭据家族。
+async fn current_password_access(f: &Fixture, user_id: i64, source: &str) -> Result<String> {
+    let tokens = f.app.app()?.state().resolve::<JwtTokens>().await?;
+    let raw = tokens.issue_access_token(user_id)?;
+    #[cfg(feature = "auth-fortify")]
+    {
+        f.request(
+            "GET",
+            "/api/example/me",
+            &Value::Null,
+            Some(&raw),
+            None,
+            None,
+        )
+        .await?
+        .assert_status(StatusCode::UNAUTHORIZED)?;
+        let authenticated = bounded(f.flows().await?.login(EMAIL, PASSWORD, source)).await?;
+        ensure(authenticated.user_id() == user_id)?;
+        Ok(authenticated.access_token().to_owned())
+    }
+    #[cfg(not(feature = "auth-fortify"))]
+    {
+        let _source = source;
+        Ok(raw)
+    }
+}
+
 async fn bearer_pat_rbac_and_refresh(f: &Fixture, user_id: i64) -> Result<()> {
     let flows = f.flows().await?;
     let credentials = bounded(flows.login(EMAIL, PASSWORD, "sqlite-bearer")).await?;
@@ -366,6 +389,34 @@ async fn bearer_pat_rbac_and_refresh(f: &Fixture, user_id: i64) -> Result<()> {
         .state()
         .resolve::<PersonalAccessTokens>()
         .await?;
+    #[cfg(feature = "auth-fortify")]
+    let token = {
+        let refused = bounded(tokens.issue(user_id, "unverified", &["articles.read".into()], None))
+            .await
+            .err()
+            .ok_or_else(mismatch)?;
+        ensure(refused.code() == "auth_credential_proof_required")?;
+        let authority = f
+            .app
+            .app()?
+            .state()
+            .resolve::<openrust::auth::fortify::CredentialAuthority>()
+            .await?;
+        let jwt = f.app.app()?.state().resolve::<JwtTokens>().await?;
+        let parent =
+            bounded(authority.authenticate_access_token(jwt.as_ref(), credentials.access_token()))
+                .await?;
+        ensure(parent.user_id() == user_id)?;
+        let expires_at = parent.expires_at().ok_or_else(mismatch)?;
+        bounded(tokens.issue_from_verified(
+            parent,
+            "SQLite module",
+            &["articles.read".into()],
+            Some(expires_at),
+        ))
+        .await?
+    };
+    #[cfg(not(feature = "auth-fortify"))]
     let token =
         bounded(tokens.issue(user_id, "SQLite module", &["articles.read".into()], None)).await?;
     let meta = bounded(tokens.list_for_user(user_id)).await?;
@@ -475,8 +526,7 @@ async fn root_named_shared_memory_auth_uses_same_catalog_and_public_flows() -> R
     let f = Fixture::create(true).await?;
     let outcome: Result<()> = async {
         let user = f.provision().await?;
-        let tokens = f.app.app()?.state().resolve::<JwtTokens>().await?;
-        let token = tokens.issue_access_token(user)?;
+        let token = current_password_access(&f, user, "sqlite-memory-positive").await?;
         f.request(
             "GET",
             "/api/example/me",
@@ -495,14 +545,9 @@ async fn root_named_shared_memory_auth_uses_same_catalog_and_public_flows() -> R
     cleanup
 }
 
-#[cfg(feature = "auth-mfa")]
-fn authenticator_code(uri: &str) -> Result<String> {
+#[cfg(feature = "auth-fortify")]
+fn authenticator_code(encoded: &str, offset: u64) -> Result<String> {
     use hmac::{Hmac, Mac, digest::KeyInit};
-    let uri = url::Url::parse(uri).map_err(Error::internal)?;
-    let encoded = uri
-        .query_pairs()
-        .find_map(|(key, value)| (key == "secret").then(|| value.into_owned()))
-        .ok_or_else(mismatch)?;
     let (mut bits, mut buffer, mut secret) = (0_u8, 0_u32, Vec::new());
     for byte in encoded.bytes() {
         let value = match byte {
@@ -524,7 +569,7 @@ fn authenticator_code(uri: &str) -> Result<String> {
         / 30;
     let mut mac =
         <Hmac<sha1::Sha1> as KeyInit>::new_from_slice(&secret).map_err(Error::internal)?;
-    mac.update(&step.to_be_bytes());
+    mac.update(&(step + offset).to_be_bytes());
     let digest = mac.finalize().into_bytes();
     let offset = usize::from(digest[19] & 0x0f);
     let value = (u32::from(digest[offset] & 0x7f) << 24)
@@ -534,7 +579,7 @@ fn authenticator_code(uri: &str) -> Result<String> {
     Ok(format!("{:06}", value % 1_000_000))
 }
 
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 async fn challenge(f: &Fixture) -> Result<String> {
     let response = f
         .request(
@@ -550,140 +595,145 @@ async fn challenge(f: &Fixture) -> Result<String> {
         .assert_status(StatusCode::OK)?
         .assert_header("cache-control", "no-store")?;
     let data = response_data(&response)?;
-    ensure(data["status"] == "mfa_required")?;
+    ensure(data["status"] == "two_factor_required" && data.get("credentials").is_none())?;
     string(&data, "challenge")
 }
 
-#[cfg(feature = "auth-mfa")]
-async fn confirm_and_rollback_audit(f: &Fixture, user_id: i64, token: &str) -> Result<Vec<String>> {
-    let response = f
-        .request(
-            "POST",
-            &format!("{ACCOUNT}/mfa/enroll"),
-            &credentials(PASSWORD),
-            Some(token),
-            None,
-            None,
-        )
-        .await?;
-    response
-        .assert_status(StatusCode::OK)?
-        .assert_header("cache-control", "no-store")?;
-    let uri = string(&response_data(&response)?, "provisioning_uri")?;
+#[cfg(feature = "auth-fortify")]
+async fn confirm_with_storage_rollback(
+    f: &Fixture,
+    actions: &openrust::auth::fortify::TwoFactorActions,
+    user: &openrust::auth::AuthUser,
+) -> Result<()> {
+    actions.enable(user, false).await?;
+    let secret = actions.secret_key(user).await?;
+    let codes = actions.recovery_codes(user).await?;
+    ensure(codes.len() == 8)?;
     let db = f.app.app()?.state().resolve::<openrust::Db>().await?;
-    let audit = db.quoted_table_name("audit_records")?;
-    let factors = db.quoted_table_name("auth_mfa_factors")?;
-    let pending = db.quoted_table_name("auth_mfa_enrollments")?;
-    let recovery = db.quoted_table_name("auth_mfa_recovery_codes")?;
-    let connection = f.database.connection()?;
-    // 让真实事务内审计失败；factor/recovery/enrollment变更必须整体回滚，不能静默放行。
-    connection.execute_unprepared(&format!("CREATE TRIGGER openrust_mfa_audit_failure BEFORE INSERT ON {audit} WHEN NEW.action='auth.mfa.enabled' BEGIN SELECT RAISE(ABORT,'controlled audit failure'); END")).await.map_err(Error::internal)?;
-    let code = authenticator_code(&uri)?;
-    f.request(
-        "POST",
-        &format!("{ACCOUNT}/mfa/confirm"),
-        &json!({"email":EMAIL,"password":PASSWORD,"code":code}),
-        Some(token),
-        None,
-        None,
-    )
-    .await?
-    .assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
-    ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {factors} WHERE user_id={user_id}"
-        ))
-        .await?
-            == 0,
-    )?;
-    ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {pending} WHERE user_id={user_id}"
-        ))
-        .await?
-            == 1,
-    )?;
-    ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {recovery} WHERE user_id={user_id}"
-        ))
-        .await?
-            == 0,
-    )?;
-    connection
-        .execute_unprepared("DROP TRIGGER openrust_mfa_audit_failure")
-        .await
-        .map_err(Error::internal)?;
-    let code = authenticator_code(&uri)?;
-    let response = f
-        .request(
-            "POST",
-            &format!("{ACCOUNT}/mfa/confirm"),
-            &json!({"email":EMAIL,"password":PASSWORD,"code":code}),
-            Some(token),
-            None,
-            None,
-        )
-        .await?;
-    response.assert_status(StatusCode::OK)?;
-    ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {factors} WHERE user_id={user_id}"
-        ))
-        .await?
-            == 1,
-    )?;
-    ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {pending} WHERE user_id={user_id}"
-        ))
-        .await?
-            == 0,
-    )?;
-    ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {audit} WHERE action='auth.mfa.enabled'"
-        ))
-        .await?
-            == 1,
-    )?;
-    response_data(&response)?["recovery_codes"]
-        .as_array()
+    let users = db.quoted_table_name("users")?;
+    let account = user
+        .as_two_factor()
         .ok_or_else(mismatch)?
-        .iter()
-        .map(|value| value.as_str().map(str::to_owned).ok_or_else(mismatch))
-        .collect()
+        .two_factor_authority()
+        .ok_or_else(mismatch)?;
+    let pending = account.load().await?;
+    let id = user.auth_identifier()?.as_i64().ok_or_else(mismatch)?;
+    let connection = f.database.connection()?;
+    connection.execute_unprepared(&format!("CREATE TRIGGER reject_confirmation BEFORE UPDATE OF two_factor_confirmed_at ON {users} WHEN NEW.two_factor_confirmed_at IS NOT NULL BEGIN SELECT RAISE(ABORT,'controlled confirmation write failure'); END")).await.map_err(Error::internal)?;
+    let outcome: Result<()> = async {
+        let failed = actions.confirm(user, &authenticator_code(&secret, 0)?)
+            .await.err().ok_or_else(mismatch)?;
+        ensure(failed.status() == StatusCode::INTERNAL_SERVER_ERROR)?;
+        ensure(account.load().await? == pending)?;
+        ensure(f.scalar(format!("SELECT count(*) FROM {users} WHERE id={id} AND two_factor_confirmed_at IS NULL AND two_factor_consumed_codes IS NULL")).await? == 1)?;
+        ensure(*actions.recovery_codes(user).await? == *codes)?;
+        Ok(())
+    }.await;
+    let cleanup = connection
+        .execute_unprepared("DROP TRIGGER reject_confirmation")
+        .await
+        .map_err(Error::internal);
+    outcome?;
+    cleanup?;
+    // 独立时间步产生另一真实验证码，缓存中的前次校验不假称可随数据库回滚。
+    actions
+        .confirm(user, &authenticator_code(&secret, 1)?)
+        .await?;
+    ensure(account.load().await?.state.confirmed_at.is_some())?;
+    Ok(())
 }
 
-#[cfg(feature = "auth-mfa")]
-async fn mfa_contract(f: &Fixture) -> Result<()> {
-    let user = f.provision().await?;
-    let tokens = f.app.app()?.state().resolve::<JwtTokens>().await?;
-    let token = tokens.issue_access_token(user)?;
-    let codes = confirm_and_rollback_audit(f, user, &token).await?;
-    ensure(codes.len() == 10)?;
+#[cfg(feature = "auth-fortify")]
+async fn selected_login_audit_rollback(
+    f: &Fixture,
+    user_id: i64,
+    user: &openrust::auth::AuthUser,
+    challenge: &str,
+    recovery: &str,
+) -> Result<()> {
+    use sha2::{Digest as _, Sha256};
+    let db = f.app.app()?.state().resolve::<openrust::Db>().await?;
+    let audit = db.quoted_table_name("audit_records")?;
+    let challenges = db.quoted_table_name("auth_factor_challenges")?;
+    let refresh = db.quoted_table_name("auth_refresh_tokens")?;
+    let account = user
+        .as_two_factor()
+        .ok_or_else(mismatch)?
+        .two_factor_authority()
+        .ok_or_else(mismatch)?;
+    let before = account.load().await?;
+    let issued_before = f
+        .scalar(format!(
+            "SELECT count(*) FROM {refresh} WHERE user_id={user_id}"
+        ))
+        .await?;
+    let hash = format!("{:x}", Sha256::digest(challenge.as_bytes()));
+    let connection = f.database.connection()?;
+    connection.execute_unprepared(&format!("CREATE TRIGGER reject_factor_audit BEFORE INSERT ON {audit} WHEN NEW.action='auth.two_factor.login' BEGIN SELECT RAISE(ABORT,'controlled login audit failure'); END")).await.map_err(Error::internal)?;
+    let outcome: Result<()> = async {
+        f.request("POST", &format!("{ACCOUNT}/login/two-factor"), &json!({"challenge":challenge,"recovery_code":recovery}), None,None,None)
+            .await?.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
+        ensure(f.scalar(format!("SELECT count(*) FROM {challenges} WHERE token_hash='{hash}' AND consumed_at IS NULL")).await? == 1)?;
+        ensure(f.scalar(format!("SELECT count(*) FROM {refresh} WHERE user_id={user_id}")).await? == issued_before)?;
+        ensure(account.load().await? == before)?;
+        ensure(f.scalar(format!("SELECT count(*) FROM {audit} WHERE action='auth.two_factor.login'")).await? == 0)?;
+        Ok(())
+    }.await;
+    let cleanup = connection
+        .execute_unprepared("DROP TRIGGER reject_factor_audit")
+        .await
+        .map_err(Error::internal);
+    outcome?;
+    cleanup?;
+    Ok(())
+}
+
+#[cfg(feature = "auth-fortify")]
+async fn two_factor_contract(f: &Fixture) -> Result<()> {
+    let user_id = f.provision().await?;
+    let scope = f.app.app()?.state().container().scope()?;
+    let actions = scope
+        .resolve::<openrust::auth::fortify::TwoFactorActions>()
+        .await?;
+    let provider = scope
+        .resolve::<openrust::auth::AuthManager>()
+        .await?
+        .create_user_provider(Some("users"))
+        .await?
+        .ok_or_else(mismatch)?;
+    let user = provider
+        .retrieve_by_id(&json!(user_id))
+        .await?
+        .ok_or_else(mismatch)?;
+    confirm_with_storage_rollback(f, &actions, &user).await?;
+    let codes = actions.recovery_codes(&user).await?;
     let first = codes.first().ok_or_else(mismatch)?;
     let challenge_a = challenge(f).await?;
+    selected_login_audit_rollback(f, user_id, &user, &challenge_a, first).await?;
     let challenge_b = challenge(f).await?;
-    // 两个不同challenge并发竞争同一recovery，只能一个成功；同一Root池/真实事务与审计。
-    let a = json!({"challenge":challenge_a,"code":first});
-    let b = json!({"challenge":challenge_b,"code":first});
-    let endpoint = format!("{ACCOUNT}/login/mfa");
+    let a = json!({"challenge":challenge_a,"recovery_code":first});
+    let b = json!({"challenge":challenge_b,"recovery_code":first});
+    let endpoint = format!("{ACCOUNT}/login/two-factor");
+    let db = f.app.app()?.state().resolve::<openrust::Db>().await?;
+    let refresh = db.quoted_table_name("auth_refresh_tokens")?;
+    let issued_before = f
+        .scalar(format!(
+            "SELECT count(*) FROM {refresh} WHERE user_id={user_id}"
+        ))
+        .await?;
     let (left, right) = tokio::join!(
         f.request("POST", &endpoint, &a, None, None, None),
         f.request("POST", &endpoint, &b, None, None, None)
     );
     let left = left?;
     let right = right?;
-    ensure(
-        (left.status() == StatusCode::OK && right.status() == StatusCode::UNAUTHORIZED)
-            || (right.status() == StatusCode::OK && left.status() == StatusCode::UNAUTHORIZED),
-    )?;
-    let (winner, consumed_input) = if left.status() == StatusCode::OK {
-        (&left, &a)
+    let (winner, replay, loser) = if left.status() == StatusCode::OK {
+        (&left, &a, &right)
     } else {
-        (&right, &b)
+        (&right, &b, &left)
     };
+    winner.assert_status(StatusCode::OK)?;
+    loser.assert_status(StatusCode::UNAUTHORIZED)?;
     let access = string(&response_data(winner)?, "access_token")?;
     f.request(
         "GET",
@@ -695,37 +745,55 @@ async fn mfa_contract(f: &Fixture) -> Result<()> {
     )
     .await?
     .assert_status(StatusCode::OK)?;
-    f.request("POST", &endpoint, consumed_input, None, None, None)
+    f.request("POST", &endpoint, replay, None, None, None)
         .await?
         .assert_status(StatusCode::UNAUTHORIZED)?;
-    let db = f.app.app()?.state().resolve::<openrust::Db>().await?;
-    let recovery = db.quoted_table_name("auth_mfa_recovery_codes")?;
-    let audit = db.quoted_table_name("audit_records")?;
+    let remaining = actions.recovery_codes(&user).await?;
     ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {recovery} WHERE user_id={user}"
-        ))
-        .await?
-            == 9,
+        remaining.len() == 8
+            && !remaining.contains(first)
+            && codes[1..].iter().all(|code| remaining.contains(code)),
     )?;
     ensure(
         f.scalar(format!(
-            "SELECT count(*) FROM {audit} WHERE action='auth.mfa.login'"
+            "SELECT count(*) FROM {refresh} WHERE user_id={user_id}"
+        ))
+        .await?
+            == issued_before + 1,
+    )?;
+    let challenges = db.quoted_table_name("auth_factor_challenges")?;
+    ensure(
+        f.scalar(format!(
+            "SELECT count(*) FROM {challenges} WHERE user_id={user_id} AND consumed_at IS NOT NULL"
+        ))
+        .await?
+            == 1,
+    )?;
+    let audit = db.quoted_table_name("audit_records")?;
+    ensure(
+        f.scalar(format!(
+            "SELECT count(*) FROM {audit} WHERE action='auth.two_factor.login'"
         ))
         .await?
             == 1,
     )?;
     #[cfg(feature = "auth-oidc")]
-    external_association_rejected(f, user, &codes).await?;
-
+    external_association_rejected(f, user_id, &codes).await?;
     Ok(())
 }
 
-#[cfg(all(feature = "auth-mfa", feature = "auth-oidc"))]
+#[cfg(all(feature = "auth-fortify", feature = "auth-oidc"))]
 async fn external_association_rejected(f: &Fixture, user: i64, codes: &[String]) -> Result<()> {
     use sha2::{Digest, Sha256};
     let db = f.app.app()?.state().resolve::<openrust::Db>().await?;
-    let recovery = db.quoted_table_name("auth_mfa_recovery_codes")?;
+    let before: String = db
+        .table("users")?
+        .where_eq("id", user)?
+        .first()
+        .await?
+        .ok_or_else(mismatch)?
+        .try_get("", "two_factor_recovery_codes")
+        .map_err(Error::internal)?;
     let audit = db.quoted_table_name("audit_records")?;
     let external_challenge = challenge(f).await?;
     let hash = format!("{:x}", Sha256::digest(external_challenge.as_bytes()));
@@ -738,28 +806,32 @@ async fn external_association_rejected(f: &Fixture, user: i64, codes: &[String])
             format!("INSERT INTO {external}(id_hash,user_id,provider,issuer,subject_hash,challenge_hash,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?)"),
             [hash.clone().into(),user.into(),"disabled-sqlite-oidc".into(),"https://idp.example.test".into(),"f".repeat(64).into(),hash.into(),expires.into(),now.format("%Y-%m-%d %H:%M:%S%.6f").to_string().into()]))
             .await.map_err(Error::internal)?;
-    let flows = f.app.app()?.state().resolve::<AuthFlows>().await?;
-    let result = bounded(flows.complete_mfa_login(
-        &external_challenge,
-        codes.get(1).ok_or_else(mismatch)?,
-        "127.0.0.1",
-    ))
-    .await;
-    let error = result.err().ok_or_else(mismatch)?;
-    ensure(
-        error.code() == "unsupported_oidc_database"
-            && error.status() == StatusCode::INTERNAL_SERVER_ERROR,
-    )?;
-    ensure(
-        f.scalar(format!(
-            "SELECT count(*) FROM {recovery} WHERE user_id={user}"
-        ))
+    let input =
+        json!({"challenge":external_challenge,"recovery_code":codes.get(1).ok_or_else(mismatch)?});
+    let result = f
+        .request(
+            "POST",
+            &format!("{ACCOUNT}/login/two-factor"),
+            &input,
+            None,
+            None,
+            None,
+        )
+        .await?;
+    result.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
+    ensure(result.json::<Value>()?["code"] == "unsupported_oidc_database")?;
+    let after: String = db
+        .table("users")?
+        .where_eq("id", user)?
+        .first()
         .await?
-            == 9,
-    )?;
+        .ok_or_else(mismatch)?
+        .try_get("", "two_factor_recovery_codes")
+        .map_err(Error::internal)?;
+    ensure(after == before)?;
     ensure(
         f.scalar(format!(
-            "SELECT count(*) FROM {audit} WHERE action='auth.mfa.login'"
+            "SELECT count(*) FROM {audit} WHERE action='auth.two_factor.login'"
         ))
         .await?
             == 1,
@@ -767,11 +839,11 @@ async fn external_association_rejected(f: &Fixture, user: i64, codes: &[String])
     Ok(())
 }
 
-#[cfg(feature = "auth-mfa")]
+#[cfg(feature = "auth-fortify")]
 #[tokio::test]
-async fn sqlite_root_file_mfa_real_totp_recovery_once_and_atomic_audit() -> Result<()> {
+async fn sqlite_root_file_two_factor_recovery_once_and_atomic_audit() -> Result<()> {
     let f = Fixture::create(false).await?;
-    let outcome = mfa_contract(&f).await;
+    let outcome = two_factor_contract(&f).await;
     let cleanup = f.close().await;
     outcome?;
     cleanup
@@ -1004,7 +1076,7 @@ async fn provider_scope_business(fixture: &Fixture, other: &openrust::Db) -> Res
     outcome
 }
 
-/// 必须另跑不启用auth-mfa的组合，防止旧条件MFA门禁恰好掩盖账户域缺口。
+/// 必须另跑不启用auth-fortify的组合，防止条件双因素门禁恰好掩盖账户域缺口。
 #[cfg(all(feature = "realtime", feature = "encryption"))]
 #[tokio::test]
 async fn sqlite_module_http_rejects_same_numeric_user_from_other_table_and_database_before_ownership_query()

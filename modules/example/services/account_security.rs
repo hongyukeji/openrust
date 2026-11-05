@@ -1,8 +1,6 @@
 //! 账户安全业务只调用 AuthFlows；TOTP、挑战、共享 Session 与一次性消费均由框架完成。
 
 use crate::modules::example::http::requests::account_security::CredentialsInput;
-#[cfg(feature = "auth-mfa")]
-use crate::modules::example::http::requests::account_security::FactorInput;
 use openrust::auth::{AuthFlows, AuthManager, LoginAttempt, Session, SessionCredentials};
 use openrust::core::{RegisterContext, ServiceProvider};
 use openrust::http::axum::http::{HeaderMap, header};
@@ -85,7 +83,7 @@ impl AccountSecurity {
         source: &str,
         session: &Session,
     ) -> Result<SessionCredentials> {
-        // 框架拒绝已启用 MFA 的账户；此路径不能绕开第二因子。
+        // 密码登录由所选账户的双因素策略裁决。
         let guard = self.auth.guard(Some("web")).await?;
         let guard = guard.as_stateful().ok_or_else(|| {
             Error::custom(
@@ -109,72 +107,19 @@ impl AccountSecurity {
             .logout_session_with_guard(source, session, guard)
             .await
     }
-    #[cfg(feature = "auth-mfa")]
+    #[cfg(feature = "auth-fortify")]
     pub(crate) async fn complete(
         &self,
         input: crate::modules::example::http::requests::account_security::ChallengeInput,
         source: &str,
     ) -> Result<openrust::auth::AuthCredentials> {
         self.flows
-            .complete_mfa_login(&input.challenge, &input.code, source)
-            .await
-    }
-    #[cfg(feature = "auth-mfa")]
-    pub(crate) async fn enroll(
-        &self,
-        user: i64,
-        input: CredentialsInput,
-        source: &str,
-    ) -> Result<openrust::auth::TotpEnrollment> {
-        self.flows
-            .begin_totp_enrollment(
-                user,
-                &input.email,
-                &input.password,
-                "OpenRust example",
+            .complete_two_factor_login(
+                &input.challenge,
+                input.code.as_deref(),
+                input.recovery_code.as_deref(),
                 source,
             )
             .await
-    }
-    #[cfg(feature = "auth-mfa")]
-    pub(crate) async fn confirm(
-        &self,
-        user: i64,
-        input: FactorInput,
-        source: &str,
-    ) -> Result<openrust::auth::RecoveryCodes> {
-        self.reauthenticate(user, &input, source).await?;
-        self.flows
-            .confirm_totp_enrollment(user, &input.code, source)
-            .await
-    }
-    #[cfg(feature = "auth-mfa")]
-    pub(crate) async fn regenerate(
-        &self,
-        user: i64,
-        input: FactorInput,
-        source: &str,
-    ) -> Result<openrust::auth::RecoveryCodes> {
-        self.flows
-            .regenerate_mfa_recovery_codes(user, &input.email, &input.password, &input.code, source)
-            .await
-    }
-    #[cfg(feature = "auth-mfa")]
-    pub(crate) async fn disable(&self, user: i64, input: FactorInput, source: &str) -> Result<()> {
-        self.flows
-            .disable_mfa(user, &input.email, &input.password, &input.code, source)
-            .await
-    }
-    #[cfg(feature = "auth-mfa")]
-    async fn reauthenticate(&self, user: i64, input: &FactorInput, source: &str) -> Result<()> {
-        if self
-            .flows
-            .reauthenticate(&input.email, &input.password, source)
-            .await?
-            != user
-        {
-            return Err(Error::Unauthorized);
-        }
-        Ok(())
     }
 }

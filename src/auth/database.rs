@@ -8,6 +8,65 @@ use subtle::ConstantTimeEq;
 
 use crate::auth::{AuthCredential, AuthPrincipal, AuthSource, Authenticator};
 
+fn require_plain_token(row: &crate::db::sea_orm::QueryResult) -> Result<()> {
+    // 从本次实际SELECT的列描述识别旧schema，不以权限过滤的元数据推断缺列。
+    if let Some(column) = row
+        .column_names()
+        .into_iter()
+        .find(|name| name.eq_ignore_ascii_case("factor_context"))
+        && row
+            .try_get::<Option<String>>("", &column)
+            .map_err(Error::internal)?
+            .is_some()
+    {
+        return Err(Error::custom_with_status(
+            http::StatusCode::UNAUTHORIZED,
+            "auth_managed_credential_validator_required",
+            "此令牌必须由当前统一因子策略验证",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(all(test, feature = "db-sqlite"))]
+mod managed_token_tests {
+    use super::*;
+
+    // 即使不编译Fortify，默认认证器也不能把非空受管上下文降级为普通PAT。
+    #[tokio::test]
+    async fn actual_row_metadata_rejects_managed_context_without_feature_dependency() -> Result<()>
+    {
+        let connection = crate::db::sea_orm::Database::connect("sqlite::memory:")
+            .await
+            .map_err(Error::internal)?;
+        let outcome = async {
+            for (sql, managed) in [
+                ("SELECT 42 AS user_id", false),
+                ("SELECT 42 AS user_id, NULL AS factor_context", false),
+                ("SELECT 42 AS user_id, '' AS factor_context", true),
+                ("SELECT 42 AS user_id, 'not-json' AS factor_context", true),
+                ("SELECT 42 AS user_id, '{}' AS FACTOR_CONTEXT", true),
+            ] {
+                let row = connection
+                    .query_one_raw(Statement::from_string(DbBackend::Sqlite, sql))
+                    .await
+                    .map_err(Error::internal)?
+                    .ok_or(Error::Unauthorized)?;
+                let result = require_plain_token(&row);
+                if managed {
+                    assert!(matches!(result, Err(error) if error.code() == "auth_managed_credential_validator_required"));
+                } else {
+                    result?;
+                }
+            }
+            Ok(())
+        }
+        .await;
+        connection.close().await.map_err(Error::internal)?;
+        outcome
+    }
+}
+
 #[derive(Default)]
 pub(super) struct DatabaseAuthenticator {
     db: OnceLock<Db>,
@@ -93,10 +152,10 @@ impl DatabaseAuthenticator {
         let hash = sha256_hex(value);
         let sql = match backend {
             DbBackend::Postgres => {
-                "SELECT p.user_id, p.abilities FROM tb_personal_access_tokens p JOIN tb_users u ON u.id = p.user_id WHERE p.token_hash = $1 AND p.revoked_at IS NULL AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP) AND u.disabled_at IS NULL"
+                "SELECT p.* FROM tb_personal_access_tokens p JOIN tb_users u ON u.id = p.user_id WHERE p.token_hash = $1 AND p.revoked_at IS NULL AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP) AND u.disabled_at IS NULL"
             }
             DbBackend::MySql => {
-                "SELECT p.user_id, p.abilities FROM tb_personal_access_tokens p JOIN tb_users u ON u.id = p.user_id WHERE p.token_hash = ? AND p.revoked_at IS NULL AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP) AND u.disabled_at IS NULL"
+                "SELECT p.* FROM tb_personal_access_tokens p JOIN tb_users u ON u.id = p.user_id WHERE p.token_hash = ? AND p.revoked_at IS NULL AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP) AND u.disabled_at IS NULL"
             }
             _ => {
                 return Err(Error::custom(
@@ -117,6 +176,7 @@ impl DatabaseAuthenticator {
         let Some(row) = row else {
             return Err(Error::Unauthorized);
         };
+        require_plain_token(&row)?;
         let user_id = row.try_get::<i64>("", "user_id").map_err(Error::internal)?;
         let abilities = row
             .try_get::<serde_json::Value>("", "abilities")
@@ -169,9 +229,10 @@ impl DatabaseAuthenticator {
         db.transaction_for_update(move |transaction| { Box::pin(async move {
             // 同一写事务内读取撤销/账户状态和精确截止，避免校验后被另一writer撤销。
             let sql = crate::auth::resolve_auth_sql(&database,
-                "SELECT p.user_id, p.abilities, p.expires_at FROM tb_personal_access_tokens p JOIN tb_users u ON u.id=p.user_id WHERE p.token_hash=? AND p.revoked_at IS NULL AND u.disabled_at IS NULL")?;
+                "SELECT p.* FROM tb_personal_access_tokens p JOIN tb_users u ON u.id=p.user_id WHERE p.token_hash=? AND p.revoked_at IS NULL AND u.disabled_at IS NULL")?;
             let row = transaction.query_one_raw(Statement::from_sql_and_values(DbBackend::Sqlite, sql, [hash.clone().into()]))
                 .await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+            require_plain_token(&row)?;
             let expires: Option<chrono::DateTime<chrono::Utc>> = row.try_get("", "expires_at").map_err(Error::internal)?;
             let now = chrono::Utc::now();
             if expires.is_some_and(|expiry| expiry <= now) { return Err(Error::Unauthorized); }
