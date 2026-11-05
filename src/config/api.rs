@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ApiConfig {
-    /// 应用 API 路由前缀；默认 `/api`，空值表示应用根。
+    /// 应用 API 路由前缀；默认 `api`，空值表示应用根。
     pub prefix: String,
     /// 框架 JSON 响应的 HTTP 状态码策略。
     pub http_status: HttpStatusMode,
@@ -15,7 +15,7 @@ pub struct ApiConfig {
 impl Default for ApiConfig {
     fn default() -> Self {
         Self {
-            prefix: "/api".into(),
+            prefix: "api".into(),
             http_status: HttpStatusMode::default(),
         }
     }
@@ -62,7 +62,7 @@ impl ApiConfig {
         Ok(format!("/{prefix}"))
     }
 
-    /// 按相同前缀的完整路径段判断 API 请求；`/v1` 不匹配 `/v10`。
+    /// 按相同前缀的完整路径段判断 API 请求；`/api/admin` 不匹配 `/api/admin2`。
     ///
     /// 启动时先调用 `normalized_prefix` 校验；参数段只匹配一个非空路径段。
     pub fn matches_path(&self, path: &str) -> bool {
@@ -94,11 +94,13 @@ mod tests {
     fn prefix_normalization_and_request_boundaries_share_route_group_semantics()
     -> Result<(), super::super::ConfigError> {
         for (input, expected) in [
+            ("api", "/api"),
             ("/api", "/api"),
-            ("v1/", "/v1"),
+            ("api/admin", "/api/admin"),
+            ("/api/admin/", "/api/admin"),
             ("/", ""),
             ("", ""),
-            ("//v1//", "/v1"),
+            ("//api/admin//", "/api/admin"),
         ] {
             let config = ApiConfig {
                 prefix: input.into(),
@@ -106,13 +108,25 @@ mod tests {
             };
             assert_eq!(config.normalized_prefix()?, expected);
         }
+        assert_eq!(ApiConfig::default().prefix, "api");
+        assert!(ApiConfig::default().matches_path("/api"));
+        assert!(!ApiConfig::default().matches_path("/api2"));
+        for prefix in ["", "/", "///"] {
+            let root = ApiConfig {
+                prefix: prefix.into(),
+                ..ApiConfig::default()
+            };
+            assert!(root.matches_path("/"));
+            assert!(root.matches_path("/api/admin"));
+            assert!(!root.matches_path("api/admin"));
+        }
         let config = ApiConfig {
-            prefix: "/v1/".into(),
+            prefix: "/api/admin/".into(),
             ..ApiConfig::default()
         };
-        assert!(config.matches_path("/v1"));
-        assert!(config.matches_path("/v1/users"));
-        assert!(!config.matches_path("/v10"));
+        assert!(config.matches_path("/api/admin"));
+        assert!(config.matches_path("/api/admin/users"));
+        assert!(!config.matches_path("/api/admin2"));
         assert!(!config.matches_path("/api"));
         let config = ApiConfig {
             prefix: "tenant/{tenant}/api".into(),

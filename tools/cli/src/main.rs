@@ -3897,7 +3897,7 @@ mod tests {
         assert!(modules.contains("ctx.env_or(\"MODULES_ACTIVATOR\", \"registered\")"));
         let api =
             fs::read_to_string(project.join("config/api.rs")).expect("read API configuration");
-        assert!(api.contains("prefix: ctx.env_or(\"API_PREFIX\", \"/api\")"));
+        assert!(api.contains("prefix: ctx.env_or(\"API_PREFIX\", \"api\")"));
         assert!(modules.contains("MODULES_STATUSES_FILE"));
         assert!(modules.contains("modules_statuses.json"));
     }

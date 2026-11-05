@@ -9,7 +9,7 @@ use openrust::config::{ApiConfig, ConfigContext, ConfigError, HttpStatusMode};
 )]
 pub fn config(ctx: &ConfigContext) -> Result<ApiConfig, ConfigError> {
     Ok(ApiConfig {
-        prefix: ctx.env_or("API_PREFIX", "/api"),
+        prefix: ctx.env_or("API_PREFIX", "api"),
         http_status: HttpStatusMode::Semantic,
     })
 }

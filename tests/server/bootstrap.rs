@@ -397,7 +397,10 @@ async fn configured_api_prefix_changes_mount_and_preserves_module_errors() -> Re
         http::{Request, StatusCode},
     };
     for (prefix, endpoint, missing) in [
-        ("/v1/", "/v1", "/v1/missing"),
+        ("api", "/api", "/api/missing"),
+        ("api/admin", "/api/admin", "/api/admin/missing"),
+        ("/api/admin/", "/api/admin", "/api/admin/missing"),
+        ("//api/admin//", "/api/admin", "/api/admin/missing"),
         ("", "/", "/missing"),
         (
             "tenant/{tenant}/api",
@@ -436,7 +439,7 @@ async fn configured_api_prefix_changes_mount_and_preserves_module_errors() -> Re
             if !prefix.is_empty() {
                 let response = app
                     .request(
-                        Request::get("/v10/missing")
+                        Request::get(format!("{endpoint}2/missing"))
                             .header("host", "localhost")
                             .header("accept", "application/json")
                             .body(Body::empty())
@@ -449,14 +452,16 @@ async fn configured_api_prefix_changes_mount_and_preserves_module_errors() -> Re
                         .get("success")
                         .is_none()
                 );
-                app.request(
-                    Request::get("/api")
-                        .header("host", "localhost")
-                        .body(Body::empty())
-                        .map_err(openrust::Error::internal)?,
-                )
-                .await?
-                .assert_status(StatusCode::NOT_FOUND)?;
+                if endpoint != "/api" {
+                    app.request(
+                        Request::get("/api")
+                            .header("host", "localhost")
+                            .body(Body::empty())
+                            .map_err(openrust::Error::internal)?,
+                    )
+                    .await?
+                    .assert_status(StatusCode::NOT_FOUND)?;
+                }
             }
             Ok(())
         }
