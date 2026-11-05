@@ -8,6 +8,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- 既有 SharedLocks 增加 SQLite 同机租约方言，保留数据库时钟、owner/fence/期限及事务内写保护；唯一示例导入生产链与生成 SQLite 回归同步，最低 SQLite 3.26 有真实验收。
+
 - 新增应用 `env` 命令，从同一启动生命周期报告实际环境，拒绝多余命令参数；根宿主与生成应用使用同一命令注册。
 
 - Query Builder 新增 `insert_get_id`，支持主库/事务内同次执行ID、SQLite有符号rowid、PG RETURNING及固定Processor转换；生成数据库应用附带公开行为回归，独立清单继承固定SeaORM安全访问器补丁。

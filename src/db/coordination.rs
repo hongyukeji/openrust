@@ -1,4 +1,4 @@
-//! PostgreSQL/MySQL 共享租约与显式请求幂等记录。
+//! 数据库共享租约与显式请求幂等；SQLite 租约仅用于同机文件协调。
 
 use std::{fmt, time::Duration};
 
@@ -10,6 +10,9 @@ use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::*;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+
+#[cfg(feature = "db-sqlite")]
+mod sqlite_locks;
 
 const MAX_KEY_LEN: usize = 256;
 const MAX_FINGERPRINT_LEN: usize = 1024 * 1024;
@@ -167,6 +170,8 @@ fn migration_table_alias(name: &str, backend: DbBackend) -> std::result::Result<
 }
 
 /// 使用数据库时钟协调多个应用实例的短期租约。
+///
+/// SQLite 仅支持同机共享文件；此增强租约并不等同于完整 Laravel 数据库缓存锁。
 #[derive(Clone)]
 pub struct SharedLocks {
     db: Db,
@@ -192,6 +197,10 @@ impl SharedLocks {
         let owner_token = random_token()?;
         let table = self.db.quoted_table_name("shared_locks")?;
         let backend = self.db.backend()?;
+        #[cfg(feature = "db-sqlite")]
+        if backend == DbBackend::Sqlite {
+            return sqlite_locks::acquire(&self.db, key_hash, owner_token, ttl_ms).await;
+        }
         let sql = lock_acquire_sql(backend, &table)?;
         let result = self.db.transaction(|transaction| {
             let key_hash = key_hash.clone();
@@ -226,6 +235,10 @@ impl SharedLocks {
         let ttl_ms = ttl_millis(ttl)?;
         let table = self.db.quoted_table_name("shared_locks")?;
         let backend = self.db.backend()?;
+        #[cfg(feature = "db-sqlite")]
+        if backend == DbBackend::Sqlite {
+            return sqlite_locks::renew(&self.db, lease, ttl_ms).await;
+        }
         let sql = match backend {
             DbBackend::Postgres => format!(
                 "UPDATE {table} SET expires_at_ms = {} + $3 WHERE key_hash = $1 AND owner_token = $2 AND fencing_token = $4 AND expires_at_ms > {}",
@@ -298,6 +311,10 @@ impl SharedLocks {
     ) -> Result<()> {
         let table = self.db.quoted_table_name("shared_locks")?;
         let backend = transaction.get_database_backend();
+        #[cfg(feature = "db-sqlite")]
+        if backend == DbBackend::Sqlite {
+            return sqlite_locks::assert_current_in_transaction(&self.db, transaction, lease).await;
+        }
         let sql = format!(
             "SELECT owner_token FROM {table} WHERE key_hash = {} AND owner_token = {} AND fencing_token = {} AND expires_at_ms > {} FOR UPDATE",
             placeholder(backend, 1),

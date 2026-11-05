@@ -117,6 +117,8 @@ fn migrations() -> Vec<Box<dyn MigrationTrait>> {
 
 ## 跨实例租约与请求幂等
 
+启用 `db-sqlite` 后，`SharedLocks` 支持同机 SQLite 文件协调。获取租约采用写入优先的条件 UPSERT，续约和事务内校验均检查 owner、fencing 与数据库到期时间；事务内校验持有数据库写锁至提交或回滚。BUSY 或已有读快照无法升级为写锁时返回错误，不重开事务，也不视为持锁成功。续约由调用方显式执行；业务回滚不自动转移持久租约。此增强不代表官方 Cache Lock、SQLite 多机共享或 `RequestIdempotency`、Queue、Scheduler 的完整支持。
+
 需要数据库共享锁或显式请求幂等时，将 `CoordinationMigration` 加入应用 migrator；迁移不会由服务隐式执行。标准应用启用 `data-exchange-tasks` 时，`FrameworkMigrator` 已包含此迁移供任务式导出对象锁使用；自定义 migrator 仍须显式纳入。`SharedLocks` 以数据库时钟保存 owner token、过期时间和 fencing generation。竞争者在租约到期前得到 `Busy`；到期后可接管，旧 lease 不能续约或释放新 owner。保护同一数据库的业务写入时，须在业务事务内调用 `assert_current_in_transaction`；TTL 不能阻止暂停的旧进程继续执行任意外部副作用。
 
 `RequestIdempotency` 必须由变更接口显式调用。应用提供稳定的调用者 scope、幂等 key 和规范化请求指纹；同一有效 key 会返回处理中、指纹冲突或已完成 JSON 响应。首次领取后，将业务写入和 `complete_in_transaction` 放在同一个 `Db::transaction`；事务失败时结果快照与业务写入一起回滚，lease 到期后可再次领取。响应仅支持有上限的 JSON body，不保存 header、二进制或流式内容；授权重验、敏感字段过滤与指纹规范化由应用负责。外部副作用不具备数据库原子性，应结合供应商幂等键或事务队列。
@@ -162,7 +164,7 @@ openrust generate migration posts --uuid-id --soft-delete title:string
 
 应用如需不同的 SeaORM 连接策略，可用自定义 Provider 绑定 `Db`。在 register 阶段声明 singleton 工厂；工厂异步连接，取得连接后立即通过 `resolver.resources().on_shutdown(...)` 登记 `close_by_ref().await`，然后初始化 `Db`。带副本的实现可调用 `initialize_with_replicas(primary, replicas)`，每个连接均须登记关闭，且 backend 必须相同。自定义 PostgreSQL/MySQL Provider 如需使用统一迁移命令，初始化后还须调用 `Db::configure_migration_lock_url`，提供指向同一物理主库的独立互斥连接地址；业务池即使只有一个连接，也不会因持锁而自阻。完整自定义连接示例见 [SQLite consumer](../../tests/consumers/db-custom-sqlite/README.md)。
 
-`DatabaseBackend` 集中管理官方支持的 PostgreSQL/MySQL URL scheme 和 feature 检查。`Db::initialize` 接收 SeaORM `DatabaseConnection`；通用 `Db` 连接、事务与表名解析可用于 SQLite，但统一 `MigrationServiceProvider` 命令需要 PostgreSQL/MySQL 数据库互斥，SQLite 调用会明确报 `unsupported_database_backend`。SQLite 示例见 [`tests/consumers/db-custom-sqlite`](../../tests/consumers/db-custom-sqlite/README.md)。`Db::backend()` 报告已连接的 SeaORM backend。自定义 Provider 负责自己的连接配置，并须校验应用所需能力。v1 官方数据库引擎为 PostgreSQL 和 MySQL，暂定最低版本分别为 PostgreSQL 14+ 和 MySQL 8.0+；日常开发及数据库 CI 使用 PostgreSQL 18 和 MySQL 8.4 LTS。只有主版本跨度较大或存在具体兼容风险时才增加专项版本检查；暂定最低版本的完整兼容性仍是 v1 发布门槛。SQLite 连接不自动启用 OpenRust 方言 helper、认证/队列/协调等框架迁移、UTC/JSON 列能力、数据库共享锁或 `TestDatabase`；应用必须为自定义迁移及需要的能力自行适配和验证。其他 SeaORM backend 亦须满足相同要求，MongoDB 等不同数据模型不在此契约范围内。切换连接不会迁移既有数据。
+`DatabaseBackend` 集中管理官方支持的 PostgreSQL/MySQL URL scheme 和 feature 检查。`Db::initialize` 接收 SeaORM `DatabaseConnection`；通用 `Db` 连接、事务与表名解析可用于 SQLite，但统一 `MigrationServiceProvider` 命令需要 PostgreSQL/MySQL 数据库互斥，SQLite 调用会明确报 `unsupported_database_backend`。SQLite 示例见 [`tests/consumers/db-custom-sqlite`](../../tests/consumers/db-custom-sqlite/README.md)。`Db::backend()` 报告已连接的 SeaORM backend。自定义 Provider 负责自己的连接配置，并须校验应用所需能力。v1 官方数据库引擎为 PostgreSQL 和 MySQL，暂定最低版本分别为 PostgreSQL 14+ 和 MySQL 8.0+；日常开发及数据库 CI 使用 PostgreSQL 18 和 MySQL 8.4 LTS。只有主版本跨度较大或存在具体兼容风险时才增加专项版本检查；暂定最低版本的完整兼容性仍是 v1 发布门槛。内置 `db-sqlite` 已提供连接、迁移、测试库和本节所述同机 `SharedLocks`；其余队列、调度、请求幂等及完整 Schema 方言须分别核对支持边界，不能由连接成功推断全部能力。其他 SeaORM backend 亦须满足相同要求，MongoDB 等不同数据模型不在此契约范围内。切换连接不会迁移既有数据。
 
 为保证迁移列可移植，`openrust::database::dialect::timestamp_utc(name, backend)` 会创建 PostgreSQL `TIMESTAMP WITH TIME ZONE` 或 MySQL `DATETIME(6)`；`dialect::json(name, backend)` 会创建 PostgreSQL `JSONB` 或 MySQL `JSON`。两者均返回 `Result<ColumnDef, DbErr>`，遇到未处理的 backend 时会明确拒绝，而不会静默使用 PostgreSQL SQL。
 

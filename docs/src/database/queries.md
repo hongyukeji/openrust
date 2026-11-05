@@ -155,3 +155,11 @@ let id = db.table("orders")?
 返回类型为`sea_orm::Value`，按固定Laravel Processor的PHP64位规则处理：数值字符串（例如`"000123"`）返回整数123，非数值文本保留；MySQL超有符号范围的原生ID按PDO字符串的规则封顶。不要把这个返回转换当成模型原始主键读取的规则。按固定PHP8.5默认框架错误处理，越界及非有限浮点转换返回错误；INSERT此时可能已经完成，需要原子失败语义时显式使用事务。PostgreSQL BYTEA保留Rust字节值，不能声称模拟PHP资源句柄。
 
 实现依赖仓内固定SeaORM安全结果访问器；手写独立consumer需继承根`[patch.crates-io] sea-orm`路径，生成项目会自动写入规范绝对路径。普通`last_insert_id`旧访问器未改，不能用它替代新路径。当前SQL列参数仍遵守Query的标识符限制，完整Eloquent、全部SQL方言和发布分发边界按支持范围验收。
+
+## SQLite 共享租约与业务事务
+
+`SharedLocks` 是框架增强的数据库租约，不等同于 Laravel 官方 Cache Lock。启用 `db-sqlite` 并迁移 `CoordinationMigration` 后，可用于同机 SQLite 文件的任务协调；调用方须显式续约，未到期的竞争返回 `Busy`，到期接管会增加 fencing generation。
+
+保护业务写入时，在同一个 `Db::transaction` 中调用 `assert_current_in_transaction`，并通过 `QueryBuilder::using_transaction` 执行业务写入。SQLite 校验采用带 owner、fencing 和期限条件的写操作，持有写锁直到事务提交或回滚；普通 SELECT 不能替代该校验。旧 owner、错误 fencing 或过期租约均拒绝保护写入。
+
+BUSY、旧读快照无法升级或执行错误会向调用方传播，不悄悄重启事务。业务失败回滚数据，但持久租约仍按原 TTL 归属，由调用方释放或等待到期；取消不保证立即转移租约。此能力不承诺 SQLite 多机共享，也不表示 SQLite 请求幂等、数据库队列或调度器的完整链路已经实现。

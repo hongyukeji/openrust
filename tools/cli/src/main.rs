@@ -1172,6 +1172,12 @@ fn populate_project_with_features(
                 .replace("    // {{database_setup}}", setup),
         ));
     }
+    if database == Some(DatabaseBackend::Sqlite) {
+        files.push((
+            "tests/sqlite_shared_locks.rs",
+            include_str!("../templates/tests/sqlite_shared_locks.rs").to_owned(),
+        ));
+    }
     for (relative_path, contents) in files {
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
@@ -3302,6 +3308,7 @@ mod tests {
                 false,
                 true,
             )?;
+            assert!(project.join("tests/sqlite_shared_locks.rs").is_file());
             let local = fs::read_to_string(project.join(".env"))?;
             let template = fs::read_to_string(project.join(".env.example"))?;
             for variable in [
@@ -3976,6 +3983,7 @@ mod tests {
         )
         .expect("生成标准应用");
         assert_generated_application_files(&project);
+        assert!(!project.join("tests/sqlite_shared_locks.rs").exists());
         assert_module_layout(&project);
         assert_generated_route_layout(&project);
         let manifest = fs::read_to_string(project.join("Cargo.toml")).expect("应用依赖");
@@ -4195,6 +4203,10 @@ mod tests {
             let manifest =
                 fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
             assert!(manifest.contains(feature));
+            assert_eq!(
+                project.join("tests/sqlite_shared_locks.rs").is_file(),
+                backend == DatabaseBackend::Sqlite
+            );
             assert!(project.join("database/migrations/Cargo.toml").is_file());
             assert!(project.join("database/migrations/src/lib.rs").is_file());
             assert!(

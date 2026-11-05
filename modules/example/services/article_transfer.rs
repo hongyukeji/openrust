@@ -563,7 +563,7 @@ mod tasks {
         }
         Ok(row)
     }
-    async fn terminal(
+    pub(in crate::modules::example) async fn terminal(
         db: &Db,
         locks: &SharedLocks,
         lease: &LockLease,
@@ -589,7 +589,7 @@ mod tasks {
         })
         .await
     }
-    async fn with_import_lease<T, F, Fut>(
+    pub(in crate::modules::example) async fn with_import_lease<T, F, Fut>(
         db: Arc<Db>,
         owner: i64,
         id: &str,
@@ -1036,3 +1036,12 @@ pub(crate) use tasks::{
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
 pub(crate) use tasks::cleanup_import_at;
+
+// SQLite 专项直接复用真实导入的租约与终态事务，不启动 Queue worker。
+#[cfg(all(
+    test,
+    feature = "db-sqlite",
+    feature = "data-exchange-tasks",
+    feature = "storage-local"
+))]
+pub(in crate::modules::example) use tasks::{terminal, with_import_lease};

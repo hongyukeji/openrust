@@ -328,6 +328,16 @@ mod sqlite_connection_flows;
 
 #[cfg(all(
     test,
+    feature = "db-sqlite",
+    feature = "auth",
+    feature = "data-exchange-tasks",
+    feature = "storage-local"
+))]
+#[path = "tests/sqlite_shared_locks.rs"]
+mod sqlite_shared_locks;
+
+#[cfg(all(
+    test,
     feature = "auth-fortify",
     feature = "realtime",
     any(feature = "db-sqlite", feature = "db-mysql", feature = "db-postgres")
