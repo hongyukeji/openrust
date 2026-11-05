@@ -13,7 +13,7 @@ Goravel 只用于跨语言实现参考，不改变 Laravel 的行为标准。Lar
 
 固定基线内的 Laravel 核心、Laravel Modules 和[官方可选生态](../plans/laravel-official-coverage.md#全量交付授权与两阶段)均已授权全量对应，按依赖分两阶段交付。可选指开发者按需启用，不表示开发 Agent 可省略实现。官方工具自身必要界面与前端配套属于官方包交付；若依、芋道式业务后台和独立 AI 产品继续冻结，不能借此目标自动启动。唯一活跃任务与依赖顺序见[待办](../todo.md)，不能从本 ADR 推断某项已完成。
 
-框架和宿主应用在同一仓库、不同 Cargo package。最终批准采用标准 Cargo 布局：框架为 `vendor/openrust/framework/src/lib.rs` 及同层领域模块，包根放 manifest、文档和测试；根应用保留薄 `src/main.rs` 默认 server，使用不同包名并依赖框架，公开导入保持 `openrust::`。第一方可选扩展置于 `vendor/openrust/<扩展>/`，应用→扩展→框架及应用→框架，不允许框架反向依赖应用或扩展。框架与第一方扩展均参与适用 workspace 门禁；第三方 vendor 保留来源、许可证与原目录，单独分类。迁移尚未实施，不保留两套框架，不以计划宣称已验收；具体依赖及迁移验收见[包布局](../plans/extension-package-layout.md)。`app/bootstrap/config/database/public/resources/routes/storage/tests` 承担 Laravel 应用职责。根 `app/` 支持正常的 Controller、Model、Provider 等应用开发；`modules/<模块名>/` 是可选且可并存的业务组织，两者共用公开框架入口。唯一综合示例是普通模块 `modules/example/`，模块专有迁移、种子、模板、协议、脚本与测试 fixture 留在其中；框架核心不依赖示例类型，不建第二 demo 或完整模块子应用。`bootstrap` 负责启动装配，`app/mod.rs` 只承担必要 Rust 模块导出。Rust 源文件与模块入口需显式编译声明，运行时启停不能冒充免编译加载源码。
+框架和宿主应用在同一仓库、不同 Cargo package。最终批准采用标准 Cargo 布局：框架为 `vendor/openrust/framework/src/lib.rs` 及同层领域模块，包根放 manifest、文档和测试；根应用保留薄 `src/main.rs` 默认 server，使用不同包名并依赖框架，公开导入保持 `openrust::`。第一方可选扩展置于 `vendor/openrust/<扩展>/`，应用→扩展→框架及应用→框架，不允许框架反向依赖应用或扩展。框架与第一方扩展均参与适用 workspace 门禁；第三方 vendor 单独分类，目标沿 Laravel/Composer 的 `vendor/<发布者>/<包名>` 思想组织，同仓独立crate平级且包内保原布局；这是受控源码目录约定，Cargo并不自动安装到vendor，来源中保留真实 repository、许可证、版本与原始SHA，不按目录结构推断上游仓库独立性；迁移前保全当前源码与补丁。迁移尚未实施，不保留两套框架，不以计划宣称已验收；具体依赖及迁移验收见[包布局](../plans/extension-package-layout.md)。`app/bootstrap/config/database/public/resources/routes/storage/tests` 承担 Laravel 应用职责。根 `app/` 支持正常的 Controller、Model、Provider 等应用开发；`modules/<模块名>/` 是可选且可并存的业务组织，两者共用公开框架入口。唯一综合示例是普通模块 `modules/example/`，模块专有迁移、种子、模板、协议、脚本与测试 fixture 留在其中；框架核心不依赖示例类型，不建第二 demo 或完整模块子应用。`bootstrap` 负责启动装配，`app/mod.rs` 只承担必要 Rust 模块导出。Rust 源文件与模块入口需显式编译声明，运行时启停不能冒充免编译加载源码。
 
 默认应用配置采用可编辑的 `config/*.rs`，`.env` 提供部署值；dotenv 加载后，显式编译 manifest 中的配置函数通过同一 `ConfigRepository` 与 Provider 生命周期求值。模块配置复用此机制，原始值、类型化值与公开工厂共用仓储，工厂资源仍由现 Container 管理。旧 TOML 仅可作为显式可选来源；缓存遇不可序列化类型或工厂须明确拒绝，不能静默丢弃。管理员 DBSettings 是独立领域，不建立第二配置内核。
 
@@ -21,7 +21,7 @@ Goravel 只用于跨语言实现参考，不改变 Laravel 的行为标准。Lar
 
 每项能力先对照固定版本 Laravel 官方文档，确认开发者应使用的目录、文件、命令、配置、API 与操作步骤，再核对同版本官方源码和测试所定义的默认值、生命周期、错误及扩展边界。文档、源码与测试共同构成对应依据；发生不一致时明确记录并核实，不能混用不同版本或凭记忆选取方便的行为。
 
-验收必须能按对应官方章节完成同等操作，仅替换必要的 Rust 语法和工具调用；不要求开发者为了绕过框架缺失另学一套自创流程。例如 Provider 注册位置、生成命令是否自动登记，都须对应固定版本官方文档，不能因文件名相似就判定完成。每项在既有行为矩阵中关联官方章节、实现入口及验收证据；缺少环节明确保留缺口，不另建平行清单。
+验收必须能按对应官方章节完成同等操作；章节顺序、示例路径与参数值（例如 `api/admin`）、默认值和配置职责也属于对应契约，不以效果近似擅自替换。仅替换必要的 Rust 语法和工具调用；不要求开发者为了绕过框架缺失另学一套自创流程。例如 Provider 注册位置、生成命令是否自动登记，都须对应固定版本官方文档，不能因文件名相似就判定完成。每项在既有行为矩阵中关联官方章节、实现入口及验收证据；缺少环节明确保留缺口，不另建平行清单。
 
 遇到确切语言差异时，先核 Laravel 官方行为，再参考 Goravel 的跨语言实现；不能用 Goravel 的不同默认、旧版 Laravel 文档、第三方教程或个人经验替代当前固定官方基线。官方文档没有覆盖的边界，以同版本官方源码和测试补齐。
 

@@ -10,13 +10,29 @@
 | `vendor/openrust/framework/` | 独立框架 Cargo 包，包根放 manifest、文档与测试 |
 | `vendor/openrust/framework/src/` | 框架库入口 `lib.rs` 及 `core/`、`db/` 等核心源码 |
 | `vendor/openrust/<name>/` | 我们维护的独立扩展包，如 Passport、数据库翻译来源 |
-| `vendor/<upstream-name>/` | 必要第三方源码副本及可追溯修复，如 SeaORM、SQLx |
+| `vendor/<publisher>/<package>/` | 沿 Laravel／Composer 的发布者与包名组织第三方副本；仓库来源单独记录 |
 | `app/`、`modules/` | 宿主应用和业务模块；唯一综合示例保持 `modules/example` |
 | `tools/` | CLI、宏和测试等工具 |
 
 真人最终批准采用标准 Cargo 布局：将根 `src/` 内的框架源码迁入 `vendor/openrust/framework/src/`，框架包根保留 `Cargo.toml`、`README.md` 与 `tests/`。此前平铺源码、不加 `src/` 的方案已被替代；本计划不表示迁移已经完成。核心与扩展按固定官方职责划分，不以默认启用、并行负责人或代码量划分。SQLite 仍是承诺支持的核心数据库后端。基础国际化及公共接口属于核心，数据库翻译来源属于显式可选扩展。
 
 ## Cargo 包与依赖方向
+
+### 第三方来源目录
+
+真人最终批准按 Laravel 使用的 Composer 命名思想采用 `vendor/<发布者>/<包名>/`，替代此前按 GitHub 仓库及仓库内路径分层的中间方案。目录统一小写；Rust 对应包名使用 crate 名，同一仓库内的独立 crate 在发布者目录下平级放置。发布者命名空间属于本项目归属约定，来源仓库 URL 保留真实拼写，不将这些 Rust crate 称为 Composer 包。本规则仅用于确需随仓维护的源码副本，不复制全部 Cargo registry 缓存，也不自动跟随远端更新。
+
+| 当前路径 | 批准的目标路径 | 来源仓库 |
+| --- | --- | --- |
+| `vendor/sea-orm/` | `vendor/seaql/sea-orm/` | `https://github.com/SeaQL/sea-orm` |
+| `vendor/sea-orm-migration/` | `vendor/seaql/sea-orm-migration/` | `https://github.com/SeaQL/sea-orm` |
+| `vendor/sqlx-mysql/` | `vendor/launchbadge/sqlx-mysql/` | `https://github.com/launchbadge/sqlx` |
+
+迁移保留原版本、上游 commit／crate 校验值、许可证和本地补丁说明；发布者、包名及真实仓库映射须核原始 manifest／VCS 来源，不表示副本一定是完整 Git checkout。各包来源清单独立维护，不改原始校验事实。不得在当前冻结测试快照中直接改路径。总控在目录迁移簇中统一调整根 patch、workspace exclude、依赖内部路径、consumer、生成器复制及依赖校验、来源清单和文档，交独立测试验证实际 metadata、构建及生成项目，无动态主仓引用或补丁失效。
+
+规范依据：[Composer 包名](https://getcomposer.org/doc/04-schema.md#name)与[安装路径](https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies)。借鉴目录命名不改变 Cargo 依赖机制；本仓已批准的第一方源码和必要补丁需纳入 Git，不能照搬 Composer 应用通常忽略整个 vendor 的做法。
+
+### 第一方包依赖
 
 - 根目录保留应用 package 和 workspace，默认运行 `server`；框架包位于 `vendor/openrust/framework/Cargo.toml`，保留 `openrust` 库导入路径。根应用 package 使用不同包名，避免同名与自依赖冲突。
 - 框架采用标准 `src/lib.rs` 库入口，不使用平铺 `lib.rs` 的自定义路径；同步相对资源路径、测试 target 与工具路径。根应用仍保留 `src/main.rs`，业务导入保持 `openrust::...`。

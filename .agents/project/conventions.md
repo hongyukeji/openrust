@@ -225,3 +225,5 @@ AI_AGENT_SOURCE="<Agent 名称> <模型>[ (<档位>)]" ./.agents/project/scripts
 ## 第一方包布局迁移边界
 
 目标框架包采用 `vendor/openrust/framework/src/lib.rs` 标准 Cargo 布局，根应用与框架不同包，第一方扩展位于 `vendor/openrust/<扩展>/`。框架及第一方扩展执行适用 workspace 门禁；第三方 vendor 保留原始来源和许可证，不能混作第一方交付量。AR-P01 迁移前冻结并核验所有 owner 输入，旧验收快照不移动；统一修正 feature 转发、资源路径、宏、consumer、生成器及唯一模块，实际通过后才报告迁移完成。不保留两套框架或增加准备脚本。
+
+Lead 与独立验收对话可按真人授权直接交接精确快照、资源、失败和通过回执，无需 Architect 中转。交验后主控继续下一互斥核心开发，测试方不改实现；失败由开发方修后交新 delta，通过后核准确提交树并及时提交推送。不得为激活中断 working 线程或重复派发候选。
