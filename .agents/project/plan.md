@@ -1,6 +1,6 @@
 # 当前计划
 
-Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。下一步仅按唯一todo继续Passport Client/签发/持久接线，不重跑已关闭范围或扩张本簇。
+Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。后续以执行校准的最新核心/并行分工为准：root继续通用核心，Passport Client/签发/持久接线由并行owner推进，不重跑已关闭范围或扩张冻结簇。
 
 > 当前代码与目标：R1-E、R2-N、R3-A/B/C/D/E/F 均已按范围交付（R3-E：dab80d4；R3-F 本簇限定提交见 Git）。R3-F 已完成独立复审、适用门禁、生成应用、根真实 TCP 与资源收尾；C04-A RequestInfo/内容协商与staging并发回收修复已通过适用验收，随后继续todo中的完整C04剩余行为。完整模块管理仍按 [ADR-001](decisions/adr-001-framework-principles.md) 推进。
 
@@ -20,7 +20,11 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
-列边界Query子簇已完成固定上游对应、组合12门禁、唯一示例双库和fresh生成验收，限定事实见[testing](memory/testing.md#query-列边界与布尔条件链限定验收)。exists/doesnt_exist子簇也已完成相同组合门禁、真实双库和fresh生成验收；存在性回调叶也已限定验收；before-query共享子节点/冻结绑定与原查询生命周期也已收齐限定验收，见[testing](memory/testing.md#query-查询前回调与共享子查询限定验收)。冷prepare取消采用已验单连接淘汰边界，临时Cargo补丁约束见[testing](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)；下一步按唯一todo领取Passport/OIDC与后继依赖，不关闭完整Query/ORM。
+最新开发节奏：有限功能簇先Spec固定上游contract→集中补齐实现、调用方、配置、生成、唯一示例、测试代码与文档→逐项Laravel映射及独立静态审查、批量闭合编码缺口→冻结并集中适用验收→失败按影响修复复验→通过后本地提交。状态区分编码中/对照缺口/冻结待验/验收失败修复/已验收已提交；最小编译或歧义诊断探针允许，静态对照不等于行为通过，当前受验批次正常收口不重来或加簇。
+
+2026-11-06真人纠正：总控主线持续实现Laravel核心依赖；Passport/OIDC/SSO等官方可选生态由并行owner交付，不能长期阻塞核心。当前insert_get_id有限核心簇先验收提交，随后通用Model及核心矩阵；SQLite后端/最低版/专项开发交专属并行owner，支持目标与受影响交付门禁不降低，公共API/vendor仍统一收敛。CLI/生成与官方章节配套并行但仍属必交核心。所有状态、owner和前置仅在唯一todo维护，公共contract/资源/集成仍root串行。当前Goal完整普通额度覆盖按本次明确授权单独登记，不修改全局80%默认或历史账本，credits=false。
+
+列边界Query子簇已完成固定上游对应、组合12门禁、唯一示例双库和fresh生成验收，限定事实见[testing](memory/testing.md#query-列边界与布尔条件链限定验收)。exists/doesnt_exist子簇也已完成相同组合门禁、真实双库和fresh生成验收；存在性回调叶也已限定验收；before-query共享子节点/冻结绑定与原查询生命周期也已收齐限定验收，见[testing](memory/testing.md#query-查询前回调与共享子查询限定验收)。冷prepare取消采用已验单连接淘汰边界，临时Cargo补丁约束见[testing](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)；后续按唯一todo及最新分工领取：总控继续通用核心，Passport/OIDC并行推进，不关闭完整Query/ORM。
 
 2026-11-04真人追加并行授权：同main启用多个可见开发对话框结合子智能体，按唯一todo互斥文件/依赖分工；总控继续独占公共contract、共享文档、manifest/lock、迁移、Git、Cargo/服务及最终验收。当前Guard核心先独立验收提交→Fortify官方TOTP优先→返回核心依赖顺序不变；本批冻结范围不扩大，但后续每簇持续按依赖图并行。每次领取/闭环/worker完成/依赖解除主动复核ready队列，前置满足、互斥文件和资源许可就复用可见对话框/子智能体接续派发，无需再次批准；无ready项、接口未定或最终验收须串行时记录原因，不强求固定人数/空转。及时复用或释放worker，不递归派发，不扩大本批。创建/queued不算开发，首个真实业务工具及交付回执登记唯一todo。
 

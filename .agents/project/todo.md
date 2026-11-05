@@ -69,14 +69,29 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 ## Query 剩余对应
 
 - 完整FROM/跨连接、Query/ORM及官方五后端最终验收仍开放，不由before-query子簇关闭。冷PREPARE失败淘汰的限定事实及Cargo必要构建约束见[testing](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)。升级/发布前核对应上游修复及patch实际生效，未证明任意网络阶段取消后同连接可复用。
-- 当前有限簇完成后按下一已授权Passport/OIDC排期与依赖领取，不重置原Goal/main/逐账号预算历史，保留20%、credits=false。
+- 当前有限簇完成后按下一已授权Passport/OIDC排期与依赖领取，不重置原Goal/main/逐账号预算历史，默认保留20%，本次明确普通额度覆盖见下方回执；credits=false。
+
+## 总控核心与并行分工（最新真人排期）
+
+最新开发节奏：有限功能簇先Spec固定上游contract→集中补齐实现、调用方、配置、生成、唯一示例、测试代码与文档→逐项Laravel映射及独立静态审查、批量闭合编码缺口→冻结并集中适用验收→失败按影响修复复验→通过后本地提交。状态区分编码中/对照缺口/冻结待验/验收失败修复/已验收已提交；最小编译或歧义诊断探针允许，静态对照不等于行为通过，当前受验批次正常收口不重来或加簇。
+
+- 总控当前核心簇：root串行闭合Query.insert_get_id、安全SQLite结果访问器、唯一示例/CLI生成与适用验收；当前默认feature测试修正后重新冻结，未提交。
+- 总控下一核心簇：按唯一核心矩阵完成通用Model/连接/身份/hashed cast最小生产前置，再沿Query/Schema/迁移、Eloquent关系/Cast、分页、Factory及剩余Container/Provider/HTTP依赖推进；不因Passport有后继而把整个扩展重新排成总控主线，SQLite专项开发与验证由并行owner承担，受影响功能最终交付前仍匹配验收。
+- 并行扩展：insert_id_adapter_review负责Passport下一Repository/Bridge固定contract及依赖核对，已交Client/协议WIP保留；前置为统一Model/Hash/Query，下一验收为真实Client持久链与授权码/PKCE，然后OIDC OP与双RP SSO。不得另建核心替代体系。
+- SQLite并行：query_between_columns_impl负责后端/最低3.26/生成与认证SessionQueueLock剩余适配contract，已交只读盘点并开始新sqlite_locks叶源码，parent派发未接线，当前验收状态为编码中；依赖冻结Query/通用Model，当前vendor由root独占，专项源码未验未提交。下一动作是明确有限差距/互斥文件与真实专项验证，不能另建通用机制。
+- 并行配套：query_import_timeline_example先完成本次Desktop完整额度覆盖适配与隔离验证，已接CLI env新叶及2项测试源码，parent注册未接线，未运行；官方章节配套随簇完成。CLI、生成器和文档仍属必交核心能力。
+- root唯一调度公共contract、manifest/lock、迁移、共享文档、Cargo/服务和main索引；冻结验收期间不并入新源码。各owner当前实际产出和后继证据位于tmp/full-speed-20261106，ready任务持续复核。
+
+- 2026-11-06真人要求全速并发并取消本任务额度保留线，root已用正式read_thread核原始消息；仅本Goal普通额度覆盖，credits=false、平台硬限与原80%历史不变。Desktop正式覆盖入口适配由query_import_timeline_example负责，正式入口已由root激活，checkpoint=continue且full_budget_once=active，原account_budgets逐字值相等、credits=false；root负责来源/激活/共享集成，query_between_columns_impl修默认feature Model测试，insert_id_adapter_review复审冻结Query/唯一示例。原insert_get_id有限簇不扩大；Cargo/服务/索引串行由root负责。证据tmp/full-speed-20261106。
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 
-- 当前领取：owner=root，同main；Passport v13.10.0/f5f5e9f与League9.4.1/9d2f6fc固定源码和46/37份测试已取证，后者为独立兼容参考，非上游Composer锁定事实。`auth-passport` 已接线PKCE、Scope、参数和本地OAuth错误；定向协议44项、共享支持109项通过，库严格Clippy修正两处文档标记后通过；仍是未提交WIP，不代表AS/OP已交付。`query_import_timeline_example`错误叶与固定来源审计已交接；root独占集成、公共contract、manifest/lock、迁移、共享文档及实服务。统一Hashing前置已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)，不再维护独立密码成本权威；下一步Client/签发/持久接线，完整授权码簇后集中适用验收。证据`tmp/passport-code-pkce-20261105/`。
+- 当前领取：owner=insert_id_adapter_review，root负责公共契约与集成，同main；Passport v13.10.0/f5f5e9f与League9.4.1/9d2f6fc固定源码和46/37份测试已取证，后者为独立兼容参考，非上游Composer锁定事实。`auth-passport` 已接线PKCE、Scope、参数和本地OAuth错误；定向协议44项、共享支持109项通过，库严格Clippy修正两处文档标记后通过；仍是未提交WIP，不代表AS/OP已交付。`query_import_timeline_example`错误叶与固定来源审计已交接；root独占集成、公共contract、manifest/lock、迁移、共享文档及实服务。统一Hashing前置已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)，不再维护独立密码成本权威；下一步Client/签发/持久接线，完整授权码簇后集中适用验收。证据`tmp/passport-code-pkce-20261105/`。
+- Client实现停点：root补通用Eloquent ModelMetadata/ModelIdentity及hashed cast并接根/生成User，worker已交Client纯模型/可替换工厂；均未验WIP。可替换自增Client需要Query.insert_get_id，发现固定SeaORM负SQLite rowid会panic，当前先闭合通用查询/最小安全访问器前置，保Model原始身份与Processor的PHP64位返回转换两个契约，不将NUMERIC经Decimal舍入或负ID划不适用。root独占vendor/manifest/lock/服务，worker独占query四文件，独审已指出numeric/sequence缺口，修复后集中门禁；Client/code/token/schema仍未接线，不报AS/OP完成。
+- PHP8.5框架异常边界后继审计：原始float越界/INF/NaN(int)会E_WARNING，默认HandleExceptions抛ErrorException；本次Query插入ID已覆盖，既有Request/scalars整数入口需按其真实生产调用链复核Result/错误边界，不把裸PHP吞warning后的modulo返回当已等价。见本次18case真实oracle与独审，不重写未受影响数值路径或丢失原证据。
 - Hashing后继缺口：固定Manager的getDrivers/forgetDrivers/getContainer/setContainer与HashManager.getDefaultDriver尚无公开等价；须结合统一Container/Provider生命周期补contract与行为证据，不能因Rust所有权直接判不适用。Model hashed cast仍随Model依赖对应。本前置只关闭生成/校验/配置与认证共用接线，Client不依赖的Manager表面不追加到冻结批次。
 - 对应既有阶段二A Passport / 矩阵L090及R7 SSO，以下为同一条目的优先实施细化，不建立第二队列。
-- owner=root；原 Goal/main/预算历史及20%保留/credits=false不变。前置为当前 Fortify 单体系与显式 JWT API profile 闭环；随后立即按依赖领取 Passport 授权码+PKCE → OIDC Provider → 双 RP SSO/退出簇，不并入当前冻结批次。
+- owner=insert_id_adapter_review；原Goal/main/预算历史不变，本次完整普通额度覆盖按上方真实授权回执，credits=false。扩展按核心实际前置并行领取Passport授权码+PKCE → OIDC Provider → 双RP SSO/退出簇；不占总控核心主线，不并入当前冻结批次。
 - [协议与分期退出](plans/oidc-authorization-server.md)；现 auth-oidc RP、Keycloak fixture、普通 JWT 均不算自建授权服务器。
 - 中心默认沿对应官方Web机制；显式JWT中心模式才执行全程无Cookie契约，Token持有/续期/授权事务及双RP浏览器限制先设计取证。此前一律禁止或等待Cookie确认的口径已由最终决定覆盖；实际实现和验收尚未完成。
 
