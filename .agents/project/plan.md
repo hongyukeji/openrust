@@ -20,6 +20,8 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
+最终批准的包布局为根应用→独立框架包 `vendor/openrust/framework/`，框架使用标准 `src/lib.rs`，扩展位于 `vendor/openrust/<扩展>/`，不采用平铺 lib.rs。当前源码尚未迁移；先关闭已通过有限簇的提交推送，再由 root 按唯一 todo AR-P01 保全 owner WIP 后集中迁移并验收。旧冻结测试输入保持原路径。依赖方向、公开导入与生成验收见[包布局](plans/extension-package-layout.md)。
+
 最新职责分离：Lead与开发worker负责生产/配套测试代码和失败修复；独立验收对话01a1ad87-8f71-7b42-9738-59dd7c27ec42负责官方行为映射验收、运行门禁/实库/生成及证据。当前在途命令自然结束后交资源，不中止重跑。稳定输入SHA、边界、features、命令及资源窗口经tmp/independent-testing-20261106交接；Lead可继续不影响受验输入的互斥编码，源码依赖有变时结果不得沿用。真人随后明确授权独立验收目录作为测试隔离例外：/Users/Home/Codes/Rust/openrust-dev使用detached worktree及自有target（验收方已迁移并核验1528项快照SHA）；短窗口导出准确HEAD+tracked binary patch+未追踪allowlist与SHA，不含.env/guard账本/target。测试path依赖须解析隔离副本，导出核验后解除主目录长冻结，失败由Lead修后同步新快照。共享服务/端口/磁盘及多target总预算仍预约；有效输入绑定回执由Lead核候选树后唯一索引提交。编码及配套收齐、官方契约静态自查后立即导出交验，不先由Lead跑完整测试；交接记编码完成/验收中，Lead继续下一互斥核心编码，失败由Lead修复后导出新快照复验。下一簇若依赖候选接口须显式关联输入变化。未经验收不得交付；不新增业务Goal或Architect守护。
 
 最新开发节奏：有限功能簇先Spec固定上游contract→集中补齐实现、调用方、配置、生成、唯一示例、测试代码与文档→逐项Laravel映射及独立静态审查、批量闭合编码缺口→冻结并集中适用验收→失败按影响修复复验→通过后本地提交。状态区分编码中/对照缺口/冻结待验/验收失败修复/已验收已提交；最小编译或歧义诊断探针允许，静态对照不等于行为通过，当前受验批次正常收口不重来或加簇。

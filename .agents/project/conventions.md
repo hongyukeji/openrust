@@ -221,3 +221,7 @@ AI_AGENT_SOURCE="<Agent 名称> <模型>[ (<档位>)]" ./.agents/project/scripts
 - 脚本优先读 `AI_AGENT_SOURCE`，其次 `AI_AGENT`，再次 `AI_AGENT_NAME` + `AI_AGENT_MODEL`（可附 `AI_REASONING_EFFORT` / `CLAUDE_CODE_EFFORT_LEVEL`）。Claude Code 会话中 `AI_AGENT` 可能被运行环境预置为非规范值，提交时显式传 `AI_AGENT_SOURCE`。
 - 新增文件先 `git add` 再用 pathspec 提交；一个功能簇一个 commit，不夹带无关改动。
 - 不 force push；推送 `main` 前确认准确待推提交已验证，并核用于推送的detached工作树干净；主开发目录的无关WIP按上述授权隔离保护。
+
+## 第一方包布局迁移边界
+
+目标框架包采用 `vendor/openrust/framework/src/lib.rs` 标准 Cargo 布局，根应用与框架不同包，第一方扩展位于 `vendor/openrust/<扩展>/`。框架及第一方扩展执行适用 workspace 门禁；第三方 vendor 保留原始来源和许可证，不能混作第一方交付量。AR-P01 迁移前冻结并核验所有 owner 输入，旧验收快照不移动；统一修正 feature 转发、资源路径、宏、consumer、生成器及唯一模块，实际通过后才报告迁移完成。不保留两套框架或增加准备脚本。

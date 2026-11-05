@@ -1707,3 +1707,15 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 - SQLite真实内存/文件验证每物理FK/busy60000、misc/special覆盖、原生日志默认、URI保留字符/原生psow/只读immutable、内存隔离与共享生命周期、事务/savepoint、owned显式关闭。`sqlite-engine.json`为实际3.51.3及编译选项，不等于最低3.26已验；未启用RETURNING版本抬升feature。生成源码及锁文件摘要保全。
 - 9页mdBook与受影响文档本地链接检查通过。主矩阵target确认归属/无占用后正常cargo clean：38,868,230,144B→0，磁盘可用159,935,385,600B；最后生成target4,905,627,648B与book2,289,664B均确认无占用并正常清零，磁盘可用159,942,160,384B；55份生成源码/锁已归档，源码/WIP/依赖源码/服务/证据保持。
 - 范围不含标准迁移互斥/全部既有迁移/SQLite安装器/既有认证Session队列调度SQL。复杂PRAGMA名称/数值级别、nullable外键、完整取消/Drop故障清理及最低版本仍为唯一todo确认缺口，不称必要Rust适配或完整SQLite/Laravel。SQLx要求UTF8路径时明确拒绝，不有损转换。
+
+## 插入标识返回与事务执行限定验收
+
+DB-I01 对应提交 `960aca43f11191cc9a68d1e03215b91be72fdeab`、树 `981451cdcb17f805591aceb440248aa0985b797d`。独立工作区精确输入核验后完成适用 13 门禁及 v2 fmt/严格 Clippy、真实 MySQL 3 项和 PostgreSQL 3 项、SQLite/MySQL-auth/PostgreSQL fresh new/check/test/metadata、实际 SQLite 3.26 的 7 项及 12 consumers locked metadata 与受影响编译；无跳过冒充通过。干净提交树 1508 blobs 与输入逐字节匹配，补 workspace/all-target/all-feature locked check 与 7 项定向测试后复用不变证据。
+
+原始回执 `tmp/independent-testing-20261106/DB-I01-RESULT.json`、`DB-I01-CLEAN-TREE-RESULT.json`，推送核验 `tmp/push-20261106/db-i01-push-receipt.json`。旧 PostgreSQL SQL 文本断言失败及测试环境 pkg-config 失败保留，修正范围与后续通过分开。仅覆盖插入标识返回闭环，不关闭完整 Query/Eloquent/SQLite、PDO 会话日期格式或其他在途簇。
+
+## 应用环境命令限定验收
+
+CLI-E01 提交 `680908bdd7eb1d136d28196cfadb36830c29ffe7`、精确树 `a900f91b4880c8278c1a6a4d464bd315d9b45ae9`，基线为 DB-I01。六个交付文件与独立组合输入完全一致；13 门禁、env 2 项、Provider 生命周期 1 项、根/fresh 实际命令 16 次及 dotenv/缓存/转发证据见 `tmp/independent-testing-20261106/CLI-E01-RESULT.json`。
+
+干净树 1510 blobs 核验后补 locked metadata、workspace/all-target/all-feature check 及上述 3 项定向测试，前后 SHA 不变，见 `CLI-E01-CLEAN-TREE-RESULT.json`。Windows commit.cmd 既有 CRLF checkout 转换单列，不影响编译输入。原文档 Clippy 失败保留；源码只修该注释后重新通过。不代表完整 Artisan、ANSI 组件或 Symfony 解析器已完成。

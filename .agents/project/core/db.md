@@ -4,6 +4,10 @@
 > 更新：2026-11-03
 > 摘要：M2 数据层当前实现边界。
 
+## 插入标识返回限定交付
+
+`QueryBuilder::insert_get_id` 的同次执行结果、默认空行插入、sequence、回调次数与失败、主库/事务及原始标识转换已由 `960aca43` 提交并推送。PostgreSQL RETURNING 保持精确文本，SQLite 负 rowid 经保留完整来源的最小 SeaORM 安全访问器读取；Query Processor 的数值转换与 Model 属性 cast 是不同契约。完整 Eloquent 与 SQLite 其他能力不因此完成。精确组合及干净提交树证据见[验收基线](../memory/testing.md#插入标识返回与事务执行限定验收)。
+
 ## SQLite 连接基础限定范围
 
 `db-sqlite` 提供标准Provider的文件/URI/内存连接、同仓储application_root及逐物理PRAGMA，默认MySQL/Redis不变。PDO初始60000ms、外键默认true，未显式配置时不强制WAL/NORMAL；普通文件必须存在。内存池限制/禁回收、URI单次解码、named隔离及owned TestDatabase显式close已实际验证；唯一模块reporting路由不启用默认库业务。SQLite-only导出与类型推断已修，严格单driver Clippy、fresh11和文档通过；主10门禁、真实MySQL3、根进程HTTP及影响复用见[限定验收](../memory/testing.md#sqlite-连接基础限定验收)。本地提交以Git为准。

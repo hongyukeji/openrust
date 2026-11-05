@@ -73,6 +73,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 总控核心与并行分工（最新真人排期）
 
+- AR-P01（框架与根应用独立包）：owner=root；先提交推送已通过 DB/CLI，收齐当前 owner 冻结交接并保全 WIP，再实施有限迁移。最终标准路径 `vendor/openrust/framework/src/lib.rs`，包根 manifest/README/tests；根薄 src/main.rs、openrust::、直接 cargo run 不变。同步 feature 转发、CLI/宏/资源路径、12 consumers、唯一示例、生成与适用门禁；第一方扩展进 workspace，第三方 vendor 单独分类，不保留双实现。依[包布局计划](plans/extension-package-layout.md)，当前仅目标已批准、尚未迁移；不重跑或改动已冻结旧布局候选。
+
+- I18N-E01（统一用户可见错误国际化）：owner=query_between_columns_impl，已获真人明确授权。复用唯一I18n/catalog与scope，无语言用配置default_locale（不改默认en）；整改默认JSON/HTML/envelope/validation与5xx安全显示、HTML lang、后台/并发隔离，不翻译code/status/协议/source日志。核心四文件及12项测试代码已冻结，query_import_timeline_example 正补真实模块默认/显式语言与验证/5xx调用；root收齐生成与文档后导出完整候选。未运行验收、未交付。
+- I18N-S01（L041/R9数据库翻译来源）：真人已授权，沿[统一来源计划](plans/localization-sources.md)实现；owner=query_import_timeline_example（等待I18N-E01 owner收敛唯一Loader/Provider API后接新来源adapter/测试，不抢同文件），root持公共contract/迁移。文件默认不变、DB显式独立/组合优先级，统一default_locale/namespace/fallback/空值/plural；批量快照/有界刷新/删除更新/故障观测，不每次翻译查库或常驻daemon。七个来源叶及12项测试代码已冻结，局部静态通过；父I18n/迁移/Provider/配置/唯一模块/生成与文档待接线。数据库来源最终归第一方扩展包，当前叶路径为待迁移WIP；root按AR-P01串行安排包归属。随后独立MySQL/PG/SQLite与并发验收，未验不报支持。
+
 当前持续交付授权：真人已明确要求已验收的完整簇及时限定规范提交并推送origin/main，不等无关WIP或全部计划结束。Lead唯一负责索引/commit/push，Architect不并发push；先fetch核远端祖先，以验收绑定的准确commit SHA安全快进推送，ls-remote核远端hash。主目录有其他WIP时保护原索引/源码，使用临时clean detached树核准确提交后显式SHA推送，再正常移除；不stash/reset/夹带未验源码。此前1a7473ba及祖先已远端，禁止按旧全本地历史重组。旧仅本地/不推送口径由本次专门授权覆盖；force、tag、release、发布与改写已推历史仍不授权。
 
 最新职责分离：Lead与开发worker负责生产/配套测试代码和失败修复；独立验收对话01a1ad87-8f71-7b42-9738-59dd7c27ec42负责官方行为映射验收、运行门禁/实库/生成及证据。当前在途命令自然结束后交资源，不中止重跑。稳定输入SHA、边界、features、命令及资源窗口经tmp/independent-testing-20261106交接；Lead可继续不影响受验输入的互斥编码，源码依赖有变时结果不得沿用。真人随后明确授权独立验收目录作为测试隔离例外：/Users/Home/Codes/Rust/openrust-dev使用detached worktree及自有target（验收方已迁移并核验1528项快照SHA）；短窗口导出准确HEAD+tracked binary patch+未追踪allowlist与SHA，不含.env/guard账本/target。测试path依赖须解析隔离副本，导出核验后解除主目录长冻结，失败由Lead修后同步新快照。共享服务/端口/磁盘及多target总预算仍预约；有效输入绑定回执由Lead核候选树后唯一索引提交。编码及配套收齐、官方契约静态自查后立即导出交验，不先由Lead跑完整测试；交接记编码完成/验收中，Lead继续下一互斥核心编码，失败由Lead修复后导出新快照复验。下一簇若依赖候选接口须显式关联输入变化。未经验收不得交付；不新增业务Goal或Architect守护。
@@ -81,11 +86,9 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 最新开发节奏：有限功能簇先Spec固定上游contract→集中补齐实现、调用方、配置、生成、唯一示例、测试代码与文档→逐项Laravel映射及独立静态审查、批量闭合编码缺口→冻结并集中适用验收→失败按影响修复复验→通过后本地提交。状态区分编码中/对照缺口/冻结待验/验收失败修复/已验收已提交；最小编译或歧义诊断探针允许，静态对照不等于行为通过，当前受验批次正常收口不重来或加簇。
 
-- 总控当前核心簇DB-I01（插入标识返回与事务执行闭环）：root串行闭合Query.insert_get_id、安全SQLite结果访问器、唯一示例/CLI生成与适用验收；原13门禁全部自然结束通过；已导出HEAD+binary patch+429未追踪源码/1528SHA并由openrust-dev完整核验导入，状态编码完成/独立验收中。真实服务与fresh生成由独立测试owner补齐，未提交。
 - 总控下一核心簇：按唯一核心矩阵完成通用Model/连接/身份/hashed cast最小生产前置，再沿Query/Schema/迁移、Eloquent关系/Cast、分页、Factory及剩余Container/Provider/HTTP依赖推进；不因Passport有后继而把整个扩展重新排成总控主线，SQLite专项开发与验证由并行owner承担，受影响功能最终交付前仍匹配验收。
 - 并行扩展：insert_id_adapter_review负责Passport下一Repository/Bridge固定contract及依赖核对，已交Client/协议WIP保留；前置为统一Model/Hash/Query，下一验收为真实Client持久链与授权码/PKCE，然后OIDC OP与双RP SSO。不得另建核心替代体系。
-- SQLite并行簇SQ-L01（既有SharedLocks单机租约方言）：query_between_columns_impl负责后端/最低3.26/生成与认证SessionQueueLock剩余适配contract，已交只读盘点并开始新sqlite_locks叶源码，parent三派发已接线并静态冻结，正在补唯一示例与fresh测试代码，未编译/运行；依赖冻结Query/通用Model，当前vendor由root独占，专项源码未验未提交。下一动作是明确有限差距/互斥文件与真实专项验证，不能另建通用机制。
-- 并行配套簇CLI-E01（应用环境命令）：query_import_timeline_example先完成本次Desktop完整额度覆盖适配与隔离验证，CLI env注册/实现/测试代码及两指南已齐，6文件overlay已导出并交独立验收队列，状态编码完成/验收中；当前继续SQ-L01的fresh测试配套。CLI、生成器和文档仍属必交核心能力。
+- SQLite并行簇SQ-L01（既有SharedLocks单机租约方言）：query_between_columns_impl负责后端/最低3.26/生成与认证SessionQueueLock剩余适配contract，已交只读盘点并开始新sqlite_locks叶源码，v1独立验收已过SQLite-only严格Clippy/7叶测试、2模块fixture及默认Clippy，全feature Clippy在manual_let_else失败。v2由原owner保留断言修复，并改模块测试调用真实article_transfer.with_import_lease/terminal与实际迁移，闭合test-only fixture未覆盖生产链的缺口；不扩展SQLiteQueue运行。旧失败及未启动矩阵保留，root收齐新delta后交独立复验，未提交。
 - root唯一调度公共contract、manifest/lock、迁移、共享文档、Cargo/服务和main索引；冻结验收期间不并入新源码。各owner当前实际产出和后继证据位于tmp/full-speed-20261106，ready任务持续复核。
 
 - 2026-11-06真人要求全速并发并取消本任务额度保留线，root已用正式read_thread核原始消息；仅本Goal普通额度覆盖，credits=false、平台硬限与原80%历史不变。Desktop正式覆盖入口适配由query_import_timeline_example负责，正式入口已由root激活，checkpoint=continue且full_budget_once=active，原account_budgets逐字值相等、credits=false；root负责来源/激活/共享集成，query_between_columns_impl修默认feature Model测试，insert_id_adapter_review复审冻结Query/唯一示例。原insert_get_id有限簇不扩大；Cargo/服务/索引串行由root负责。证据tmp/full-speed-20261106。

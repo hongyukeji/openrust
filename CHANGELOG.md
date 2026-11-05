@@ -8,6 +8,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- 新增应用 `env` 命令，从同一启动生命周期报告实际环境，拒绝多余命令参数；根宿主与生成应用使用同一命令注册。
+
 - Query Builder 新增 `insert_get_id`，支持主库/事务内同次执行ID、SQLite有符号rowid、PG RETURNING及固定Processor转换；生成数据库应用附带公开行为回归，独立清单继承固定SeaORM安全访问器补丁。
 
 - 新增统一 HashManager、bcrypt/Argon2i/id 驱动及可编辑 hashing 配置，认证、验证码与生成应用共享公共 Hasher；移除独立密码成本配置。标准驱动保持官方默认和迁移语义，增强登录统一拒绝截断输入别名，历史2x验证复用安全密码库。

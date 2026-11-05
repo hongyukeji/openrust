@@ -24,6 +24,8 @@ Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memo
 
 ## 当前状态
 
+最新批准的架构目标为根应用包依赖 `vendor/openrust/framework/` 独立框架包，标准 `src/lib.rs`，第一方扩展位于 `vendor/openrust/<扩展>/`。公开 `openrust::`、根薄 server 与直接 `cargo run` 保持；AR-P01 尚未实施，当前根同 package 是待迁移事实。先闭合已通过有限簇的提交推送，保护其他 WIP 与旧冻结快照。当前正式普通额度覆盖有效，原 80% 账本及 credits=false 不变；提交与推送按最新真人持续授权由 Lead 独占。
+
 SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础限定验收)：主10门禁/deny、SQLite-only严格Clippy/文档、fresh11、真实MySQL3与根进程HTTP通过，固定输入补丁影响经独审映射。实际引擎3.51.3；此为S1当时范围；最低/配置/迁移子范围由上述S2补证，完整取消/故障边界仍开放。迁移/CLI安装/现有业务SQL继续按唯一todo推进，本地提交以Git为准；不称全量SQLite完成。
 
 显式模块注册与宿主API前缀已完成[限定验收](memory/testing.md#显式模块注册与宿主-api-前缀限定验收)：10项主门禁、6个真实server进程、fresh minimal9/MFA真实MySQL3、生成模块持久启停1及只读空目录负例通过；首批8页mdBook构建/链接、112生成源码归档、不同模型独审和target清零完成，本地提交以Git为准。registered为应用约定，库file默认保留；完整Modules/Routing与全量文档未关闭，下一SQLite及CLI后继按唯一todo。
@@ -84,7 +86,7 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 
 - 除 modules/example 外均为框架通用结构与代码；示例专有迁移/种子/资源/协议/生成脚本/测试 fixture 均归模块内，根只保留通用加载与公开挂载，不因示例新增 build.rs/build 依赖。
 
-- 根 openrust 同 package 提供框架库与默认 server；default-members=["."]、default-run="server"，根默认启动，modules/example 是唯一综合示例；生成应用与真实 HTTP 验证继续执行。
+- 当前根 openrust 同 package 提供框架库与默认 server，目标独立包迁移按 AR-P01 验收；default-members=["."]、default-run="server"，根默认启动，modules/example 是唯一综合示例；生成应用与真实 HTTP 验证继续执行。
 
 必要Rust差异、用户约定和授权增强按[差异分类](plans/laravel-rebuild.md#逐项对应与差异分类)公开；单仓main、根结构、modules/<模块>、模块专属资源、Vue/uni-app与Redis策略不被字面1:1覆盖。核心全量，模块包独立来源但同内核，生态/商业/外部授权边界保持。
 
