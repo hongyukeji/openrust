@@ -23,6 +23,8 @@ pub(crate) mod example;
 pub(crate) mod example_record;
 #[cfg(feature = "auth-fortify")]
 pub(crate) mod fortify;
+#[cfg(feature = "auth")]
+pub(crate) mod import_timeline;
 #[cfg(feature = "queue")]
 pub(crate) mod jobs;
 pub(crate) mod localization;

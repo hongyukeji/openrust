@@ -10,6 +10,10 @@
 
 SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlite-配置与迁移限定验收)：nullable/raw PRAGMA、原生默认、内存所有者、文件跨进程锁、既有FrameworkMigrator/example清单、main普通表删列重建、生成安装和真实宿主已验。3.26.0与3.51.3分别计证；完整Migrator/Schema、Auth/Session/Queue业务SQL、构造取消/Drop全故障与原子禁重连仍未完成。仅SQLite代码启用物理handle collation析构见证，避免把并发借走误判为归还失败；名称碰撞拒绝、同handle有界复用，故障失效不证明池内其他连接失效。
 
+## 列边界与布尔条件链
+
+固定Laravel d52c3b3的四种between-columns入口已接线，QueryBuilder与WhereGroup共用ColumnOperand和SQL AND/OR条件链；原首OR空条件和后续AND优先级同步纠正。标量子查询、嵌套组与事务重绑保留来源约束。10项新SQLite回归及13项查询家族、完整12项组合门禁、MySQL/PG各2项唯一示例真实HTTP、fresh SQLite JWT应用27项及外部query-authorization锁定检查已通过；范围与失败修复见[限定验收](../memory/testing.md#query-列边界与布尔条件链限定验收)。公开contract见[查询指南](../../../docs/src/database/queries.md)，状态只在todo维护。
+
 ## 当前实现
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。

@@ -470,3 +470,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 ## SQLite本地账户流程
 
 内置SQLite连接仍由根标准Provider和同一迁移命令装配；唯一模块的account路由复用公开AuthFlows、Session、PAT和MFA服务，不另建SQLite账户系统。模块测试覆盖原生Session登录/跨请求/CSRF、令牌撤销和密码重置，以及TOTP确认、一次性恢复码、审计失败回滚。完整R7、外部OIDC、SQLite队列/缓存锁等不能由本地账户流程推导完成；机制、错误码及单机限制见[认证边界](../../src/auth/README.md#sqlite-本地认证边界)。
+
+### 文章导入时间线
+
+认证用户可调用 `GET /api/example/article-imports/timeline`，读取自己已完成或失败的导入任务时间线统计。`valid_count` 表示终结时间位于本行创建时间与服务器观察时点之间，`invalid_count` 表示区间之外；两端包含，NULL 与未终结记录不计入。观察时点由服务器生成，用户不能指定账户或 SQL。实现通过公开 Query Builder 的列边界比较读取既有表，无新增业务迁移；显式 JWT profile 继续采用当前具名 Guard。

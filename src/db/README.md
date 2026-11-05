@@ -37,6 +37,8 @@ let title: Option<String> = db.table("example_articles")?
 
 本批限定实现已通过 workspace 门禁及真实 MySQL 文章分页 HTTP 回归；验证包含默认选择列、总数、行数据、空第二页和所有者隔离。固定 Laravel Query Builder 中的完整关联/子查询、JSON 路径、原始表达式、聚合类型、普通 chunk/lazy/cursor/cursorPaginate、分页资源和跨方言锁仍有未实现部分；现有 upsert 与 `chunk_by_id` 是部分覆盖，不能把本候选标为完整 R4 C07。模块 `example_articles` 使用固定物理表名；默认空前缀与之相符。自定义非空前缀仍需在后续 Model 集成中统一静态 Entity 表名。
 
+`where_between_columns`、`where_not_between_columns` 及两个 OR 变体比较同一行的列边界；`ColumnOperand` 支持可信原始表达式与同句柄/事务的标量子查询。条件链按 SQL 的 AND 优先级组合，显式嵌套才固定分组，空组不增加过滤；SELECT、计数与写操作复用同一来源。子查询附着后改绑事务、或返回其他上下文的嵌套组会明确拒绝。固定两元素边界数组及跨连接拒绝边界见[查询指南](../../docs/src/database/queries.md)。
+
 ## 连接数据库
 
 标准应用已注册 `DatabaseServiceProvider`；使用官方连接时启用对应 backend feature：

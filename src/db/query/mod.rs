@@ -11,6 +11,10 @@ use sea_orm::{
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
+mod between_columns;
+pub use between_columns::ColumnOperand;
+use between_columns::{PredicateChain, QueryContext};
+
 use super::Db;
 use crate::core::{Error, Result};
 
@@ -21,7 +25,7 @@ pub struct QueryBuilder<'a> {
     table: String,
     transaction: Option<&'a DatabaseTransaction>,
     select: SelectStatement,
-    predicates: Condition,
+    predicates: PredicateChain,
 }
 
 /// 查询分页结果；页面默认大小为 15，空结果的末页仍为 1。
@@ -288,8 +292,9 @@ fn page_url(
 }
 
 /// 用于 `where_nested` 的有括号条件组。
-pub struct WhereGroup {
-    condition: Condition,
+pub struct WhereGroup<'a> {
+    context: QueryContext<'a>,
+    condition: PredicateChain,
 }
 
 /// 应用明确声明的受信 SQL 片段；值仍须另行绑定。
@@ -322,7 +327,7 @@ impl RawSql {
     }
 }
 
-impl WhereGroup {
+impl WhereGroup<'_> {
     /// 在组内追加 AND 相等条件。
     pub fn where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
         validate_identifier(column)?;
@@ -335,9 +340,9 @@ impl WhereGroup {
     /// 在组内追加 OR 相等条件。
     pub fn or_where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
         validate_identifier(column)?;
-        self.condition = Condition::any()
-            .add(self.condition)
-            .add(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
+        self.condition = self
+            .condition
+            .or(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
         Ok(self)
     }
 }
@@ -355,14 +360,15 @@ impl Db {
             table,
             transaction: None,
             select,
-            predicates: Condition::all(),
+            predicates: PredicateChain::all(),
         })
     }
 }
 
-impl QueryBuilder<'_> {
+impl<'a> QueryBuilder<'a> {
     /// 在同一 `Db::transaction` 回调中绑定现有事务；不会创建第二连接。
-    pub fn using_transaction(self, transaction: &DatabaseTransaction) -> QueryBuilder<'_> {
+    pub fn using_transaction(mut self, transaction: &DatabaseTransaction) -> QueryBuilder<'_> {
+        self.predicates.rebind(self.transaction, Some(transaction));
         QueryBuilder {
             db: self.db,
             table: self.table,
@@ -532,28 +538,35 @@ impl QueryBuilder<'_> {
     /// 将一个 OR 条件与已有条件组合；嵌套条件保留括号。
     pub fn or_where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
         validate_identifier(column)?;
-        self.predicates = Condition::any()
-            .add(self.predicates)
-            .add(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
+        self.predicates = self
+            .predicates
+            .or(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
         Ok(self)
     }
 
     /// 以闭包生成一个有括号的嵌套 where 组。
     pub fn where_nested<F>(mut self, configure: F) -> Result<Self>
     where
-        F: FnOnce(WhereGroup) -> Result<WhereGroup>,
+        F: FnOnce(WhereGroup<'a>) -> Result<WhereGroup<'a>>,
     {
-        self.predicates = self.predicates.add(
-            configure(WhereGroup {
-                condition: Condition::all(),
-            })?
-            .condition,
-        );
+        let group = configure(WhereGroup {
+            context: QueryContext {
+                db: self.db.clone(),
+                table: self.table.clone(),
+                transaction: self.transaction,
+            },
+            condition: PredicateChain::all(),
+        })?;
+        group.context.validate_same(&self.query_context())?;
+        self.predicates.inherit(&group.condition);
+        self.predicates = self.predicates.add(group.condition);
         Ok(self)
     }
 
     /// 添加同一后端的 EXISTS 子查询；子查询仍保留自己的绑定值。
     pub fn where_exists(mut self, subquery: &QueryBuilder<'_>) -> Result<Self> {
+        subquery.predicates.validate_embedding(subquery, &self)?;
+        self.predicates.inherit(&subquery.predicates);
         if self.db.backend()? != subquery.db.backend()? {
             return Err(unsupported_backend());
         }
@@ -659,6 +672,8 @@ impl QueryBuilder<'_> {
 
     /// 对同一后端查询执行 `UNION` 或 `UNION ALL`。
     pub fn union(mut self, other: &QueryBuilder<'_>, all: bool) -> Result<Self> {
+        other.predicates.validate_embedding(other, &self)?;
+        self.predicates.inherit(&other.predicates);
         if self.db.backend()? != other.db.backend()? {
             return Err(unsupported_backend());
         }
@@ -1043,6 +1058,7 @@ impl QueryBuilder<'_> {
     }
 
     fn statement(&self, select: &SelectStatement) -> Result<Statement> {
+        self.predicates.validate_context()?;
         let backend = self.db.backend()?;
         let (sql, values) = match backend {
             DbBackend::Postgres => select.build(PostgresQueryBuilder),
@@ -1060,6 +1076,7 @@ impl QueryBuilder<'_> {
     }
 
     async fn execute(&self, (sql, values): (String, Values)) -> Result<u64> {
+        self.predicates.validate_context()?;
         let statement = Statement::from_sql_and_values(self.db.backend()?, sql, values.0);
         let result = match self.transaction {
             Some(transaction) => transaction.execute_raw(statement).await,

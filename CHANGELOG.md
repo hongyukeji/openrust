@@ -6,10 +6,14 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Query Builder 与嵌套条件组新增四种列边界 BETWEEN/NOT BETWEEN 查询，支持限定列、可信表达式与同上下文标量子查询；AND/OR 优先级、空条件及读取/更新/删除条件链保持一致。附着后的事务重绑或跨上下文条件组明确拒绝，唯一示例新增账户导入时间线报告。
+
 - 新增配置具名 Guard / UserProvider 与请求内 AuthManager、Session/记住我生命周期及原始类型账户 ID；同步应用模型、生成器和唯一示例，保留真实 Eloquent 与 Fortify 后继范围。异步 Guard 工厂递归或并发等待成环时有界拒绝，取消与失败后可重试。
 - Session 保存核持久认证保护并解析实际 Guard 身份元数据；应用账户桥接校验来源，token 失败恢复采用账户内原子比较更新。
 
 ### Security
+
+- 并发登录挑战验证同一恢复码后，锁内发现因子快照已变化时稳定返回401；管理冲突仍保留409，凭据、审计与恢复码消费保持原子性。
 
 - 显式 Fortify JWT API 的受保护 gRPC 调用复用所选 Guard / UserProvider 的请求作用域与完整凭据校验，拒绝跨域或未绑定 profile 的家族；普通 JWT / PAT 和公开 RPC 保持既有路径。
 - Redis Session 独立授权读取使用同次服务端剩余 TTL 与记录截止的较早时刻，不续期，拒绝没有 TTL 的记录；Session 派生 JWT / PAT 在提交前复核实际父记录。

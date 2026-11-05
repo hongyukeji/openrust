@@ -1,5 +1,18 @@
 # 测试基线
 
+
+## Query 列边界与布尔条件链限定验收
+
+固定framework d52c3b3、docs 960eedf，基线54f4a087。四种between-columns、ColumnOperand、WhereGroup生命周期与来源检查、首OR/AND优先级已接入同一读写条件链；固定两端点数组是公开Rust类型约束。不是完整Query/ORM或跨连接/别名对应。
+
+`tmp/query-between-columns-20261105/main-gates-6/main-result.json`的12条命令全部exit0且输入无漂移：fmt/diff、default/all-feature严格Clippy与workspace tests、拒警Rustdoc、no-default、Rust1.97两组check及deny。default测试汇总1361通过/42 ignored，all-feature2608通过/161 ignored；ignored不计真实服务。新SQLite10案与Query家族13案先已定向通过。早期Rustdoc/test lint及测试接线失败均保留，不降门禁。
+
+组合测试发现两个独立挑战提前验证同一恢复码时败方409：锁内仅核source/generation遗漏完整快照。修复仅登录挑战返回401，底层管理冲突/DB错误不变。确定性双prepare+verify回归实际red→green，完整组合原HTTP一次签发/审计及回滚断言通过；不同模型窄审无阻断。
+
+`example-real-5/result.json`：MySQL8.4与PostgreSQL18各2项真实HTTP通过，无skip，数据库/角色集合前后相同。覆盖账户隔离、NULL/时间边界、默认认证和显式JWT profile、无Cookie/Session、无scope/裸签名拒绝。生成应用`fresh-sqlite-jwt`实际new/check/test共27项通过/0 ignored，其中1项是另加的公开Query验证fixture，26项为生成模板既有测试；不宣称模板自动带该fixture。`query-authorization`外部consumer `--locked`检查通过。完整结果在`final-services-generation/result.json`。
+
+完整Laravel查询、其他数据库版本/后端、Google真实客户端及整个R7/ADR-001仍开放。本地提交以Git为准，不push/tag/release。
+
 ## Fortify 官方默认与显式 JWT 组合验收
 
 当前 main 基线 `5ad34b9` 之上的限定组合，固定官方版本与范围不变，本地提交以Git为准。`tmp/fortify-single-system-20261105/main-gates-6/main-result.json` 绑定981项输入，12项门禁全部通过且各步输入未变：fmt/diff、默认与全特性严格Clippy/workspace tests/拒警Rustdoc、no-default、Rust1.97全特性及no-default、cargo deny。测试日志逐suite汇总默认1362通过/42忽略，全特性2591通过/161忽略；忽略与未配置外部服务的普通测试不作为真实服务证据。

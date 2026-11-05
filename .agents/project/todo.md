@@ -66,11 +66,10 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 排除误报：固定Laravel的VerifyCsrfToken兼容本身属于官方对应；APP_PREVIOUS_KEYS轮换、S3兼容、当前queue无metadata成对payload协议、非空seaql_migrations拒绝保护、正常模块activator、显式可选TOML均不按旧OpenRust兼容删除。
 只读来源：`tmp/fortify-single-implementation/other-compatibility-audit.json`，非全仓穷尽；行号按当前源码重核。持续Goal中实际分簇实现/验证/本地提交，不能以本登记冒充完成。
 
-## 并行后继：Query Builder 列边界谓词（独立WIP，未接线）
+## 当前后继：Query 终结存在性（独立未接线候选）
 
-- owner=`/root/query_between_columns_impl`（gpt-6.1-sol），只读契约独审=`/root/factor_authority_independent_review`；基线main `5ad34b9`，原Goal/预算不变。固定Laravel Builder/Grammar/测试已核四个between-columns入口缺失，依赖现有Db/Query，不依赖Passport或新Model。
-- 仅新增未被mod引用的`src/db/query/between_columns.rs`及`between_columns_tests.rs`；必要既有Query谓词改造只生成ignored专属目录未应用patch。保护当前Fortify全部已编译Rust/manifest/lock SHA见`tmp/query-between-columns-20261105/protected-auth-build-inputs.json`，不写既有源码、共享文档、索引/服务/Cargo，不改变当前验收输入。
-- 契约包含qualified列、Raw与左子查询、四个AND/OR和NOT入口、WhereGroup、绑定/NULL/反向界限及真实SQLite回归；修正必要的有序AND/OR语义，不继承首OR空组放宽条件。两端点固定数组为Rust类型约束。root在当前认证提交后审查、串行应用必要patch/接线、配套唯一示例/文档与集中适用验收、独立提交；候选源码存在不算已集成/已验，不进入本次认证commit。
+- owner=`/root/query_between_columns_impl`（gpt-6.1-sol）；基线`54f4a087`及当前working Query来源校验前置。固定Laravel exists/doesntExist、Grammar compileExists与测试已只读核对，当前Rust无对应terminal API，先按同一Query/读连接/事务机制实现，不新增第二SQL内核。
+- 仅写`tmp/query-existence-20261105/`的两个Rust源码候选、未应用patch与Spec，不修改当前root/public/mod/manifest/lock/共享文档/索引/服务/Cargo，不影响本簇受验输入。候选已冻结并经只读独审，exists/doesnt_exist使用&self，保留查询可复用；root在列边界提交后迁入、接线、适用验证并独立提交。SQLServer、before-query与callback variants仍保原后继，不以两个bool方法关闭完整Query。
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 

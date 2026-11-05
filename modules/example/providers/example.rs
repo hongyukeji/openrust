@@ -409,6 +409,7 @@ impl ServiceProvider for ExampleServiceProvider {
             let view_enabled = app.is_bound::<openrust::view::Views>();
             #[cfg(not(feature = "view"))]
             let view_enabled = false;
+            let cookie_enabled = app.is_bound::<openrust::http::CookieFactory>();
             let i18n_enabled = app.is_bound::<openrust::i18n::I18n>();
             let example_config = app.section::<ExampleConfig>("example")?;
             if let Some(trusted_hosts) = example_config.trusted_hosts.clone() {
@@ -477,6 +478,7 @@ impl ServiceProvider for ExampleServiceProvider {
                     routes,
                     &crate::modules::example::routes::RouteCapabilities {
                         database: database_enabled,
+                        cookie: cookie_enabled,
                         #[cfg(feature = "auth-fortify")]
                         jwt_api_guard: jwt_api_guard.clone(),
                         #[cfg(feature = "session")]

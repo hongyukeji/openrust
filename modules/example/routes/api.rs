@@ -28,12 +28,17 @@ pub(super) fn register(
         );
     let routes = draft_redirect_routes(message_bag_routes(routes), capabilities)
         .post("/api/example/input", controllers::example::input)
-        .name("example.input")
-        .group(RouteGroup::new().middleware_alias("cookies"), |routes| {
+        .name("example.input");
+    let routes = if capabilities.cookie {
+        routes.group(RouteGroup::new().middleware_alias("cookies"), |routes| {
             routes
                 .get("/api/example/cookie", controllers::cookie::show)
                 .post("/api/example/cookie", controllers::cookie::store)
         })
+    } else {
+        routes
+    };
+    let routes = routes
         .group(
             RouteGroup::new().middleware(openrust::http::InputNormalization::disabled()),
             |routes| {
@@ -74,6 +79,7 @@ pub(super) fn register(
     };
     #[cfg(feature = "auth")]
     let routes = if capabilities.database {
+        let routes = import_timeline_routes(routes, capabilities);
         article_routes(
             tenant_routes(account_routes(
                 auth_routes(routes, capabilities),
@@ -572,6 +578,25 @@ async fn private_oidc_response(
         HeaderValue::from_static("no-referrer"),
     );
     response
+}
+
+#[cfg(feature = "auth")]
+fn import_timeline_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
+    #[cfg(feature = "auth-fortify")]
+    if let Some(guard) = &capabilities.jwt_api_guard {
+        return routes.nest("/api/example/article-imports", |api| {
+            api.get("/timeline", controllers::import_timeline::show)
+                .layer(openrust::auth::AuthLayer::guard(guard.clone()))
+        });
+    }
+    #[cfg(not(feature = "auth-fortify"))]
+    let _ = capabilities;
+    routes.nest("/api/example/article-imports", |api| {
+        api.get("/timeline", controllers::import_timeline::show)
+            .layer(openrust::auth::AuthLayer::required(
+                openrust::auth::AuthMode::Jwt,
+            ))
+    })
 }
 
 #[cfg(feature = "auth")]

@@ -508,7 +508,9 @@ impl CredentialAuthority {
         let authority = self.account(prepared.user_id)?;
         let current = authority.load_in_transaction(&self.db, transaction).await?;
         require_fresh(prepared.expires_at)?;
-        if current.source != prepared.context.source
+        // 锁外验证后的因子快照已被消费时，登录失败按认证拒绝返回；管理冲突仍保留409。
+        if current != prepared.snapshot
+            || current.source != prepared.context.source
             || current.generation != prepared.context.generation
             || !current.challenge_required(self.confirmation_required()?)
         {

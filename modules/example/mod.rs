@@ -7,6 +7,13 @@ mod config;
     feature = "auth",
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
+#[path = "tests/import_timeline_flows.rs"]
+mod import_timeline_flows;
+#[cfg(all(
+    test,
+    feature = "auth",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
 #[path = "tests/selected_test_auth.rs"]
 mod selected_test_auth;
 

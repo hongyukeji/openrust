@@ -10,6 +10,7 @@ pub(crate) struct RouteCapabilities {
     #[cfg(feature = "auth-fortify")]
     pub(crate) jwt_api_guard: Option<String>,
     pub(crate) database: bool,
+    pub(crate) cookie: bool,
     #[cfg(feature = "session")]
     pub(crate) session: bool,
     pub(crate) view: bool,

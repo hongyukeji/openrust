@@ -1340,3 +1340,35 @@ mod flow_commit {
         .await
     }
 }
+
+#[tokio::test]
+async fn independently_prepared_recovery_replay_is_unauthorized_without_publication() -> Result<()>
+{
+    owned(|fixture| {
+        Box::pin(async move {
+            enable(&fixture).await?;
+            let a = challenge(&fixture).await?;
+            let b = challenge(&fixture).await?;
+            let first = fixture
+                .policy
+                .prepare_challenge(a.expose(), "source-a")
+                .await?;
+            let second = fixture
+                .policy
+                .prepare_challenge(b.expose(), "source-a")
+                .await?;
+            let proof_a = first.verify(&fixture.actions, None, Some("first")).await?;
+            let proof_b = second.verify(&fixture.actions, None, Some("first")).await?;
+            assert!(finish(&fixture, first, proof_a).await?.is_some());
+            let winner = fixture.authority.load().await?;
+            assert!(matches!(
+                finish(&fixture, second, proof_b).await,
+                Err(Error::Unauthorized)
+            ));
+            assert_eq!(fixture.authority.load().await?, winner);
+            assert_unconsumed_attempt(&fixture, b.expose()).await?;
+            Ok(())
+        })
+    })
+    .await
+}

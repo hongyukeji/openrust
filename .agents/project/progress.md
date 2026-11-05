@@ -2,7 +2,7 @@
 
 当前Fortify官方Web默认/显式JWT组合已通过main12门禁、五类实际生成、正式Provider受保护gRPC TLS、Redis父凭据回滚、真实双库CI、Keycloak/独立API故障恢复、最低SQLite3.26 probe及受影响consumer。限定本地提交以Git为准，具体范围见[当前验收](memory/testing.md#fortify-官方默认与显式-jwt-组合验收)；Google真实客户端、UUID/字符串JWT持久链与完整R7/官方生态仍未闭合。
 
-并行后继Query Builder列边界谓词已实际编码两个未接线候选与未应用patch；独审Q2执行期事务来源问题正由独立owner修复，不计已集成/已验，也不纳入本次认证提交。后继仍从唯一todo领取，原Goal和预算不变。
+Query Builder列边界谓词与AND/OR条件链已完成限定验收，唯一模块导入时间线覆盖MySQL/PG及显式JWT模式，生成应用公开API验证通过；完整Query/ORM仍开放。终结存在性候选尚未接线，后继只在唯一todo领取。
 
 🟡 R7具名认证核心编码及适用验证收齐，最终证据独审与资源收尾通过，本地提交以Git为准；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低SQLite3.26迁移30断言通过。完整Eloquent/Fortify及其余认证范围保留，见[限定验收](memory/testing.md#r7-具名认证核心限定验收)。
 

@@ -23,6 +23,7 @@
 # 数据库
 
 - [数据库连接](database/connections.md)
+- [查询构造器](database/queries.md)
 
 # 扩展：Laravel Modules
 

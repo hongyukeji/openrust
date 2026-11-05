@@ -9,6 +9,8 @@ pub(crate) mod article_write;
 #[cfg(all(feature = "auth", feature = "storage-local"))]
 pub(crate) mod attachments;
 pub(crate) mod config_reading;
+#[cfg(feature = "auth")]
+pub(crate) mod import_timeline;
 mod message;
 #[cfg(feature = "auth-oidc")]
 pub(crate) mod oidc;
