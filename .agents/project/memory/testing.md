@@ -1,5 +1,16 @@
 # 测试基线
 
+## Query 查询前回调与共享子查询限定验收
+
+固定framework d52c3b3：Builder beforeQuery/applyBeforeQueryCallbacks、toSql/getBindings、get/first/value/aggregate、分页与chunk及三类子查询准备时机。基线73a845d，单一QueryState和双生命周期保留不可变终结入口；普通Clone独立父状态并共享live child。标量立即准备、EXISTS不消费子自身回调、UNION延后准备，父绑定按接入时冻结；绑定数不符明确拒绝。失败保留部分修改/列表、成功清空完整列表；同对象并发租约、图环和来源错误不被包装洗掉。完整FROM/跨连接及Query/ORM仍开放。
+
+`tmp/query-before-kernel-20261105/main-gates-5/main-result.json`完整12门禁通过，受验输入无漂移；default汇总1406通过/42 ignored，all-feature2665通过/161 ignored。公开42项覆盖生命周期、投影/limit/分页/chunk、借用事务、共享子节点与绑定、跨线程重入、析构及图环。默认无真实数据库返回与ignored不计真实服务；SQLite行锁取消不适用。既有ColumnOperand编译示例已保留。初轮Clippy与SQLite单连接池测试顺序失败均保留，修复未删断言或降低门禁。
+
+最终`public-real-3/result.json`：真实MySQL8.4/PG18各42项无skip通过，数据库/角色清单前后相同；`example-real-2`各2项HTTP验证唯一模块before_query账户scope及显式JWT时间线。fresh SQLite JWT实际new/check/test27项（26项模板+1项额外公开API fixture），包括回调借用实际事务子查询；最终复验和query-authorization consumer见`final-services-recheck/result.json`，首次生成来源见`final-services-generation-2/result.json`。不是模板自动附带该额外fixture。
+
+取消专项先以实际事务读取reader/blocker身份，再由MySQL data_lock_waits/PG pg_blocking_pids确认指定行锁等待，之后取消、复用和回滚双库通过。原回调通知早于SQL发送，不能充当等锁证据。MySQL冷prepare早期取消可能留下驱动响应清理等待，旧失败、native sample和精确清库回执保留；原生SeaORM对照及任意prepare取消恢复仍是唯一todo中的明确缺口，不从本簇通过推导驱动任意阶段可复用。不同模型限定复审确认时序屏障及最后Clippy整改；未提交前保持WIP，本地提交以Git为准，无push/tag/release。
+
+
 
 ## Query 存在性条件回调限定验收
 
@@ -9,7 +20,7 @@
 
 `example-real-1/result.json`的MySQL8.4/PG18各2项真实HTTP通过，无skip、DB/角色集合前后相同。时间线在账户内open查询上使用exists_or，命中短路与无记录false回调经真实两库；既有exists三后端解码源未变，不将本次wrapper当完整后端驱动新验。fresh SQLite JWT实际new/check/test27项/0 ignored，含另加公开API fixture的惰性分支及不可变query自借用；外部query-authorization --locked check通过。模板既有26项与另加1项fixture分别计证，非模板自动附带该fixture。完整结果`final-services-generation/result.json`。
 
-before-query并未接线：独审发现三类子查询时机、共享child、projection恢复、聚合/分页/chunk与失败残留须完整重构。tmp内before.rs/subqueries.rs只是未编译候选；lifetime-probe为不导入框架的独立Rust类型实验，正例编译/运行、延长static负例失败，不宣称业务或等价验证。后继保留唯一todo。本地提交以Git为准，无push/tag/release。
+本叶原验收不覆盖before-query（当前内核限定证据见本文件开头）：独审发现三类子查询时机、共享child、projection恢复、聚合/分页/chunk与失败残留须完整重构。tmp内before.rs/subqueries.rs只是未编译候选；lifetime-probe为不导入框架的独立Rust类型实验，正例编译/运行、延长static负例失败，不宣称业务或等价验证。后继保留唯一todo。本地提交以Git为准，无push/tag/release。
 
 
 ## Query 存在性终结操作限定验收

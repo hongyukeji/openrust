@@ -12,7 +12,7 @@ pub enum ExistsOrResult<T> {
     Callback(T),
 }
 
-impl QueryBuilder<'_> {
+impl QueryBuilder<'_, '_> {
     /// 存在行时返回 `True`，否则执行一次异步回调并保留其结果。
     ///
     /// 只执行一次存在性查询；查询失败不调用回调，回调错误原样返回。

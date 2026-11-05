@@ -20,7 +20,11 @@ SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlit
 
 ## 存在性条件回调
 
-固定existsOr/doesntExistOr的两个懒执行分支已接线，结果enum保留true和任意T，FnOnce异步闭包只在选中分支创建一次；唯一模块与指南同步。8项SQLite回归、完整12门禁、MySQL/PG各2项HTTP、fresh27项及外部consumer通过，详见[限定验收](../memory/testing.md#query-存在性条件回调限定验收)。&self允许回调只读借用同query。before-query管理/共享子节点候选未接线，复杂生命周期仍有明确缺口。
+固定existsOr/doesntExistOr的两个懒执行分支已接线，结果enum保留true和任意T，FnOnce异步闭包只在选中分支创建一次；唯一模块与指南同步。8项SQLite回归、完整12门禁、MySQL/PG各2项HTTP、fresh27项及外部consumer通过，详见[限定验收](../memory/testing.md#query-存在性条件回调限定验收)。&self允许回调只读借用同query。before-query管理/共享子节点已进入下述未提交WIP，完整Query/ORM继续开放。
+
+## 查询前回调与共享子查询
+
+单一QueryState、双生命周期、父Clone独立/child共享、冻结绑定、图环/来源拒绝和跨I/O租约已限定验收；回调、投影、分页/chunk按固定官方时机执行，唯一时间线与Auth事务调用方同步。main12门禁、真实双库各42公开契约/2HTTP、fresh27及consumer通过，详见[限定证据](../memory/testing.md#query-查询前回调与共享子查询限定验收)。服务器确认行锁后的取消恢复已验；MySQL冷prepare早取消及完整Query/ORM仍开放，下一步只在todo维护。
 
 ## 当前实现
 

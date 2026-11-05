@@ -207,4 +207,6 @@ let report = rule
 
 `QueryBuilder::exists` / `doesnt_exist` 借用完整查询并复用显式事务、读连接和来源校验；错误不转为布尔值，LIMIT/OFFSET与NULL投影保留原查询语义。
 
-`exists_or` / `doesnt_exist_or` 只在存在性条件未短路时调用一次异步闭包，以 `ExistsOrResult<T>` 区分短路true与任意回调值，错误不吞掉。before-query生命周期尚未接入。
+`exists_or` / `doesnt_exist_or` 只在存在性条件未短路时调用一次异步闭包，以 `ExistsOrResult<T>` 区分短路true与任意回调值，错误不吞掉。查询前回调的消费、聚合克隆和共享子查询规则见查询指南。
+
+`before_query` 通过单一查询状态追加执行前条件，`to_sql` 消费回调而 `get_bindings` 不触发；错误保留部分修改和待用列表。`QueryBuilder<'tx, 'cap>` 分别追踪事务和捕获借用，要求事务覆盖捕获期；普通Clone复制父状态并共享已接入子节点。

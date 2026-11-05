@@ -21,7 +21,7 @@ async fn database() -> Result<Db> {
     Ok(db)
 }
 
-async fn ids(query: QueryBuilder<'_>) -> Result<Vec<i64>> {
+async fn ids(query: QueryBuilder<'_, '_>) -> Result<Vec<i64>> {
     query
         .order_by("id", crate::db::query::SortDirection::Asc)?
         .get()
@@ -135,7 +135,7 @@ async fn expressions_and_subqueries_preserve_binding_order() -> Result<()> {
         .table("ranges")?
         .where_eq("flag", 1)?
         .where_between_columns("value", ["lower_bound", "upper_bound"])?;
-    let statement = query.statement(&query.scoped_select())?;
+    let statement = query.statement(&query.scoped_select()?)?;
     assert_eq!(statement.values, Some(Values(vec![1.into()])));
     let scalar = db
         .table("ranges")?
@@ -156,13 +156,13 @@ async fn expressions_and_subqueries_preserve_binding_order() -> Result<()> {
     let mut expected = vec![2.into()];
     expected.extend(
         scalar
-            .statement(&scalar.scoped_select())?
+            .statement(&scalar.scoped_select()?)?
             .values
             .ok_or_else(|| Error::custom("test_bindings_missing", "subquery bindings missing"))?
             .0,
     );
     assert_eq!(
-        query.statement(&query.scoped_select())?.values,
+        query.statement(&query.scoped_select()?)?.values,
         Some(Values(expected))
     );
     assert_eq!(ids(query).await?, [2]);
@@ -178,7 +178,7 @@ async fn expressions_and_subqueries_preserve_binding_order() -> Result<()> {
         let query = db
             .table("ranges")?
             .where_between_columns("value", ["ranges.lower_bound", "ranges.upper_bound"])?;
-        let select = query.scoped_select();
+        let select = query.scoped_select()?;
         let (sql, values) = match backend {
             DbBackend::Sqlite => select.build(SqliteQueryBuilder),
             DbBackend::MySql => select.build(MysqlQueryBuilder),
@@ -196,14 +196,16 @@ async fn expressions_and_subqueries_preserve_binding_order() -> Result<()> {
             .table("ranges")?
             .where_eq("id", 2)?
             .where_between_columns(&scalar, [RawSql::new("10"), RawSql::new("20")])?;
-        let build = |query: &QueryBuilder<'_>| match backend {
-            DbBackend::Sqlite => query.scoped_select().build(SqliteQueryBuilder),
-            DbBackend::MySql => query.scoped_select().build(MysqlQueryBuilder),
-            _ => query.scoped_select().build(PostgresQueryBuilder),
+        let build = |query: &QueryBuilder<'_, '_>| -> Result<(String, Values)> {
+            Ok(match backend {
+                DbBackend::Sqlite => query.scoped_select()?.build(SqliteQueryBuilder),
+                DbBackend::MySql => query.scoped_select()?.build(MysqlQueryBuilder),
+                _ => query.scoped_select()?.build(PostgresQueryBuilder),
+            })
         };
-        let (sql, values) = build(&outer);
+        let (sql, values) = build(&outer)?;
         let mut expected = vec![2.into()];
-        expected.extend(build(&scalar).1.0);
+        expected.extend(build(&scalar)?.1.0);
         assert_eq!(values.0, expected);
         assert!(sql.to_lowercase().contains("limit"));
         assert!(sql.to_lowercase().contains("desc"));
@@ -335,11 +337,13 @@ async fn subquery_database_and_transaction_provenance_is_checked() -> Result<()>
     let result = left
         .table("ranges")?
         .where_between_columns(&foreign, ["lower_bound", "upper_bound"]);
-    assert!(matches!(result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    assert!(matches!(&result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    drop(result);
     let result = left.table("ranges")?.where_nested(|group| {
         group.where_between_columns(&foreign, ["lower_bound", "upper_bound"])
     });
-    assert!(matches!(result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    assert!(matches!(&result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    drop(result);
     let same_handle = left.clone();
     let local = same_handle.table("ranges")?.select(&["value"])?;
     assert_eq!(
@@ -366,12 +370,14 @@ async fn subquery_database_and_transaction_provenance_is_checked() -> Result<()>
     let result = left
         .table("ranges")?
         .where_between_columns(&transactional, ["lower_bound", "upper_bound"]);
-    assert!(matches!(result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    assert!(matches!(&result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    drop(result);
     let result = left
         .table("ranges")?
         .using_transaction(&transaction)
         .where_between_columns(&local, ["lower_bound", "upper_bound"]);
-    assert!(matches!(result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    assert!(matches!(&result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    drop(result);
     let other_context = left
         .table("ranges")?
         .using_transaction(&other_transaction)
@@ -380,7 +386,8 @@ async fn subquery_database_and_transaction_provenance_is_checked() -> Result<()>
         .table("ranges")?
         .using_transaction(&transaction)
         .where_between_columns(&other_context, ["lower_bound", "upper_bound"]);
-    assert!(matches!(result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    assert!(matches!(&result, Err(error) if error.code() == "query_subquery_context_mismatch"));
+    drop(result);
     assert_eq!(
         ids(left
             .table("ranges")?
@@ -391,6 +398,8 @@ async fn subquery_database_and_transaction_provenance_is_checked() -> Result<()>
         .await?,
         [1]
     );
+    drop(transactional);
+    drop(other_context);
     transaction.rollback().await.map_err(Error::internal)?;
     other_transaction
         .rollback()
@@ -444,7 +453,7 @@ async fn logical_qualifiers_reuse_prefix_and_mapping() -> Result<()> {
             "main.ranges.value",
             ["main.ranges.lower_bound", "main.ranges.upper_bound"],
         )?;
-        let (sql, _) = schema_query.scoped_select().build(SqliteQueryBuilder);
+        let (sql, _) = schema_query.scoped_select()?.build(SqliteQueryBuilder);
         assert!(sql.contains("\"prefix_main\".\"ranges\".\"value\""));
         assert_eq!(
             ids(db.table("ranges")?.where_between_columns(
@@ -461,7 +470,7 @@ async fn logical_qualifiers_reuse_prefix_and_mapping() -> Result<()> {
     Ok(())
 }
 
-async fn assert_rebound_terminals_rejected(rebound: QueryBuilder<'_>) {
+async fn assert_rebound_terminals_rejected(rebound: QueryBuilder<'_, '_>) {
     assert!(
         matches!(rebound.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
     );
@@ -503,15 +512,21 @@ async fn assert_transaction_values_unchanged(
     Ok(())
 }
 
+async fn assert_valid_file_range_query(db: &Db) -> Result<()> {
+    let scalar = db.table("ranges")?.select(&["value"])?;
+    let attached = db
+        .table("ranges")?
+        .where_between_columns(&scalar, ["lower_bound", "upper_bound"])?;
+    assert_eq!(attached.count().await?, 1);
+    Ok(())
+}
+
 #[tokio::test]
 async fn attached_subquery_cannot_be_rebound_or_laundered() -> Result<()> {
     let (_left_directory, left) = file_database(15).await?;
     let (_right_directory, right) = file_database(99).await?;
-    let scalar = left.table("ranges")?.select(&["value"])?;
-    let attached = left
-        .table("ranges")?
-        .where_between_columns(&scalar, ["lower_bound", "upper_bound"])?;
-    assert_eq!(attached.count().await?, 1);
+    // 普通池查询须先于占用唯一物理连接的事务。
+    assert_valid_file_range_query(&left).await?;
     let left_tx = left
         .primary_connection()?
         .begin()
@@ -523,89 +538,100 @@ async fn attached_subquery_cannot_be_rebound_or_laundered() -> Result<()> {
         .await
         .map_err(Error::internal)?;
 
-    // 已经附着的非事务标量不能随后改解释为任一事务中的同名表。
-    let rebound = attached.clone().using_transaction(&right_tx);
-    assert_rebound_terminals_rejected(rebound.clone()).await;
-    let same_db_rebind = attached.clone().using_transaction(&left_tx);
-    assert!(
-        matches!(same_db_rebind.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
+    {
+        let scalar = left.table("ranges")?.select(&["value"])?;
+        let attached = left
+            .table("ranges")?
+            .where_between_columns(&scalar, ["lower_bound", "upper_bound"])?;
+        // 已经附着的非事务标量不能随后改解释为任一事务中的同名表。
+        let rebound = attached.clone().using_transaction(&right_tx);
+        assert_rebound_terminals_rejected(rebound.clone()).await;
+        let same_db_rebind = attached.clone().using_transaction(&left_tx);
+        assert!(
+            matches!(same_db_rebind.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
 
-    // invalid 状态必须穿过 scalar/EXISTS/UNION 包装边界，不能被 scoped_select 擦掉。
-    let wrapped = left
-        .table("ranges")?
-        .using_transaction(&right_tx)
-        .where_between_columns(&rebound, ["lower_bound", "upper_bound"]);
-    assert!(matches!(wrapped, Err(error) if error.code() == "query_subquery_context_mismatch"));
-    assert!(
-        matches!(left.table("ranges")?.where_exists(&rebound), Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    assert!(
-        matches!(left.table("ranges")?.union(&rebound, true), Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    assert!(
-        matches!(left.table("ranges")?.using_transaction(&right_tx).where_exists(&attached), Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    assert!(
-        matches!(right.table("ranges")?.union(&attached, true), Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
+        // invalid 状态必须穿过 scalar/EXISTS/UNION 包装边界，不能被 scoped_select 擦掉。
+        let wrapped = left
+            .table("ranges")?
+            .using_transaction(&right_tx)
+            .where_between_columns(&rebound, ["lower_bound", "upper_bound"]);
+        assert!(matches!(wrapped, Err(error) if error.code() == "query_subquery_context_mismatch"));
+        assert!(
+            matches!(left.table("ranges")?.where_exists(&rebound), Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        assert!(
+            matches!(left.table("ranges")?.union(&rebound, true), Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        assert!(
+            matches!(left.table("ranges")?.using_transaction(&right_tx).where_exists(&attached), Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        assert!(
+            matches!(right.table("ranges")?.union(&attached, true), Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
 
-    // 包装成功后再改事务，以及同一有效事务先附着再换另一事务，都应保持拒绝。
-    let wrapped = left
-        .table("ranges")?
-        .where_exists(&attached)?
-        .using_transaction(&right_tx);
-    assert!(
-        matches!(wrapped.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    assert!(
-        matches!(wrapped.first().await, Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    let united = left
-        .table("ranges")?
-        .union(&attached, true)?
-        .using_transaction(&right_tx);
-    assert!(
-        matches!(united.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    let nested = left
-        .table("ranges")?
-        .where_nested(|group| group.where_between_columns(&scalar, ["lower_bound", "upper_bound"]))?
-        .using_transaction(&right_tx);
-    assert!(
-        matches!(nested.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    let scalar_tx = left
-        .table("ranges")?
-        .using_transaction(&left_tx)
-        .select(&["value"])?;
-    let attached_tx = left
-        .table("ranges")?
-        .using_transaction(&left_tx)
-        .where_between_columns(&scalar_tx, ["lower_bound", "upper_bound"])?;
-    assert_eq!(
-        attached_tx
-            .clone()
+        // 包装成功后再改事务，以及同一有效事务先附着再换另一事务，都应保持拒绝。
+        let wrapped = left
+            .table("ranges")?
+            .where_exists(&attached)?
+            .using_transaction(&right_tx);
+        assert!(
+            matches!(wrapped.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        assert!(
+            matches!(wrapped.first().await, Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        let united = left
+            .table("ranges")?
+            .union(&attached, true)?
+            .using_transaction(&right_tx);
+        assert!(
+            matches!(united.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        let nested = left
+            .table("ranges")?
+            .where_nested(|group| {
+                group.where_between_columns(&scalar, ["lower_bound", "upper_bound"])
+            })?
+            .using_transaction(&right_tx);
+        assert!(
+            matches!(nested.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        let scalar_tx = left
+            .table("ranges")?
             .using_transaction(&left_tx)
-            .count()
-            .await?,
-        1
-    );
-    let rebound_tx = attached_tx.using_transaction(&right_tx);
-    assert!(
-        matches!(rebound_tx.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    // 再绑回原事务不能洗掉已经发生的非法重绑定。
-    assert!(
-        matches!(rebound_tx.using_transaction(&left_tx).get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
-    );
-    assert_transaction_values_unchanged(&left, &right, &left_tx, &right_tx).await?;
+            .select(&["value"])?;
+        let attached_tx = left
+            .table("ranges")?
+            .using_transaction(&left_tx)
+            .where_between_columns(&scalar_tx, ["lower_bound", "upper_bound"])?;
+        assert_eq!(
+            attached_tx
+                .clone()
+                .using_transaction(&left_tx)
+                .count()
+                .await?,
+            1
+        );
+        let rebound_tx = attached_tx.using_transaction(&right_tx);
+        assert!(
+            matches!(rebound_tx.get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        // 再绑回原事务不能洗掉已经发生的非法重绑定。
+        assert!(
+            matches!(rebound_tx.using_transaction(&left_tx).get().await, Err(error) if error.code() == "query_subquery_context_mismatch")
+        );
+        assert_transaction_values_unchanged(&left, &right, &left_tx, &right_tx).await?;
+    }
     left_tx.rollback().await.map_err(Error::internal)?;
     right_tx.rollback().await.map_err(Error::internal)?;
     Ok(())
 }
 
-fn capture_group(db: &Db, scalar: &QueryBuilder<'static>) -> Result<WhereGroup<'static>> {
+fn capture_group(
+    db: &Db,
+    scalar: &QueryBuilder<'static, 'static>,
+) -> Result<WhereGroup<'static, 'static>> {
     let mut saved = None;
     let result = db.table("ranges")?.where_nested(|group| {
         saved = Some(group.where_between_columns(scalar, ["lower_bound", "upper_bound"])?);

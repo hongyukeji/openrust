@@ -873,9 +873,9 @@ impl DatabaseFactorAuthority {
     }
 
     fn locked<'a>(
-        query: QueryBuilder<'static>,
+        query: QueryBuilder<'static, 'a>,
         transaction: &'a DatabaseTransaction,
-    ) -> Result<QueryBuilder<'a>> {
+    ) -> Result<QueryBuilder<'a, 'a>> {
         let query = query.using_transaction(transaction);
         if transaction.get_database_backend() == DbBackend::Sqlite {
             Ok(query)

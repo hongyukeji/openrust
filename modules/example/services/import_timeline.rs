@@ -24,9 +24,13 @@ pub(crate) async fn report(db: &Db, owner_id: i64, observed_at_ms: i64) -> Resul
             "服务器观察时间不可早于 Unix 纪元",
         ));
     }
+    // 查询克隆各自消费账户条件回调，账户范围在实际编译前追加到同一构造器。
     let owner_imports = db
         .table("example_article_imports")?
-        .where_eq("owner_id", owner_id)?;
+        .before_query(move |query| {
+            *query = query.clone().where_eq("owner_id", owner_id)?;
+            Ok(())
+        });
     let has_unfinished_imports = match owner_imports
         .clone()
         .where_eq("state", "open")?

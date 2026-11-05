@@ -161,6 +161,7 @@ async fn invalid_scalar_rebinding_and_driver_errors_are_not_false_results() -> R
     assert!(
         matches!(rebound.doesnt_exist().await, Err(error) if error.code() == "query_subquery_context_mismatch")
     );
+    drop(rebound);
     transaction.rollback().await.map_err(Error::internal)?;
     assert!(left.table("missing_table")?.exists().await.is_err());
     assert!(left.table("missing_table")?.doesnt_exist().await.is_err());
@@ -182,8 +183,8 @@ async fn all_dialects_preserve_the_original_query_sql_and_bindings() -> Result<(
             DbBackend::MySql => select.build(super::super::MysqlQueryBuilder),
             _ => select.build(super::super::PostgresQueryBuilder),
         };
-        let (inner_sql, inner_values) = build(&query.scoped_select());
-        let (sql, values) = build(&query.existence_select());
+        let (inner_sql, inner_values) = build(&query.scoped_select()?);
+        let (sql, values) = build(&query.existence_select()?);
         let quote = if backend == DbBackend::MySql {
             '`'
         } else {

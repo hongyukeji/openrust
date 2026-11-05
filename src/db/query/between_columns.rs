@@ -1,20 +1,14 @@
-//! 列边界谓词及保留 SQL 布尔优先级的条件链。
+//! 列间区间谓词与保留生命期的动态布尔树。
 
 use super::{
-    Alias, Condition, Expr, ExprTrait, QueryBuilder, RawSql, Result, WhereGroup,
-    validate_identifier,
+    Alias, Condition, DatabaseTransaction, Db, Error, Expr, ExprTrait, QueryBuilder, QueryState,
+    RawSql, Result, SelectStatement, WhereGroup, subqueries::DeferredChild, validate_identifier,
 };
-use super::{DatabaseTransaction, Db, SelectStatement};
-use sea_orm::sea_query::IntoCondition;
 use std::sync::Arc;
 
-/// 列间区间的操作数：安全列名、显式受信 SQL 或标量子查询。
+/// 列间区间操作数；支持受信列名、原样 SQL 与立即准备的标量子查询。
 ///
-/// 边界采用固定两个元素的数组；调用方须为子查询选择单一列。
-/// 列名不会增加值绑定；子查询绑定按左操作数、下界、上界顺序保留。
-/// 子查询必须使用同一 Db 句柄及同一事务；跨句柄或事务上下文明确返回错误。
-/// 混合列名与表达式边界时，先逐项转换为本类型。
-///
+/// 两个边界使用固定数组；混合输入先逐项转换为本类型。子查询接入时消费其回调。
 /// ```no_run
 /// use openrust::db::{Db, query::{ColumnOperand, RawSql}};
 /// # fn example(db: &Db) -> openrust::Result<()> {
@@ -27,18 +21,16 @@ use std::sync::Arc;
 /// # }
 /// ```
 pub struct ColumnOperand<'a>(Operand<'a>);
-
 enum Operand<'a> {
     Column(String),
     Expression(Expr),
-    Subquery {
-        select: Box<SelectStatement>,
-        db: Db,
-        transaction: Option<&'a DatabaseTransaction>,
-        invalid_context: bool,
-    },
+    Scalar(Result<Box<FrozenScalar<'a>>>),
 }
-
+struct FrozenScalar<'a> {
+    sql: SelectStatement,
+    bindings: SelectStatement,
+    context: QueryContext<'a>,
+}
 impl From<&str> for ColumnOperand<'_> {
     fn from(value: &str) -> Self {
         Self(Operand::Column(value.to_owned()))
@@ -54,19 +46,21 @@ impl From<RawSql> for ColumnOperand<'_> {
         Self(Operand::Expression(Expr::cust(value.0)))
     }
 }
-impl<'a> From<&QueryBuilder<'a>> for ColumnOperand<'a> {
-    fn from(value: &QueryBuilder<'a>) -> Self {
-        Self(Operand::Subquery {
-            select: Box::new(value.scoped_select()),
-            db: value.db.clone(),
-            transaction: value.transaction,
-            invalid_context: value.predicates.invalid_context,
-        })
+impl<'tx: 'capture, 'capture> From<&QueryBuilder<'tx, 'capture>> for ColumnOperand<'tx> {
+    fn from(query: &QueryBuilder<'tx, 'capture>) -> Self {
+        Self(Operand::Scalar((|| {
+            let (sql, bindings) = query.prepare_scalar()?;
+            Ok(Box::new(FrozenScalar {
+                sql,
+                bindings,
+                context: query.query_context()?,
+            }))
+        })()))
     }
 }
-impl<'a> From<QueryBuilder<'a>> for ColumnOperand<'a> {
-    fn from(value: QueryBuilder<'a>) -> Self {
-        Self::from(&value)
+impl<'tx: 'capture, 'capture> From<QueryBuilder<'tx, 'capture>> for ColumnOperand<'tx> {
+    fn from(query: QueryBuilder<'tx, 'capture>) -> Self {
+        Self::from(&query)
     }
 }
 
@@ -77,7 +71,7 @@ pub(super) struct QueryContext<'a> {
     pub(super) transaction: Option<&'a DatabaseTransaction>,
 }
 impl QueryContext<'_> {
-    pub(super) fn validate_same(&self, other: &Self) -> Result<()> {
+    pub(super) fn validate_same(&self, other: &QueryContext<'_>) -> Result<()> {
         let same_transaction = match (self.transaction, other.transaction) {
             (None, None) => true,
             (Some(left), Some(right)) => std::ptr::eq(left, right),
@@ -95,6 +89,21 @@ impl QueryContext<'_> {
             Ok(())
         }
     }
+    pub(super) fn validate_connection(&self, other: &QueryContext<'_>) -> Result<()> {
+        let same_transaction = match (self.transaction, other.transaction) {
+            (None, None) => true,
+            (Some(left), Some(right)) => std::ptr::eq(left, right),
+            _ => false,
+        };
+        if !Arc::ptr_eq(&self.db.connections, &other.db.connections) || !same_transaction {
+            Err(Error::custom(
+                "query_subquery_context_mismatch",
+                "子查询必须使用同一数据库句柄与实际事务",
+            ))
+        } else {
+            Ok(())
+        }
+    }
     fn qualifier(&self, table: &str) -> Result<String> {
         if table == self.table {
             Ok(table.to_owned())
@@ -103,86 +112,69 @@ impl QueryContext<'_> {
         }
     }
 }
-impl ColumnOperand<'_> {
-    fn expression(self, context: &QueryContext<'_>) -> Result<(Expr, bool)> {
+
+impl<'a> ColumnOperand<'a> {
+    fn expressions(
+        self,
+        context: &QueryContext<'_>,
+    ) -> Result<(Expr, Expr, Option<QueryContext<'a>>)> {
         match self.0 {
-            Operand::Expression(expression) => Ok((expression, false)),
-            Operand::Subquery {
-                select,
-                db,
-                transaction,
-                invalid_context,
-            } => {
-                let same_transaction = match (transaction, context.transaction) {
-                    (None, None) => true,
-                    (Some(left), Some(right)) => std::ptr::eq(left, right),
-                    _ => false,
-                };
-                if invalid_context
-                    || !Arc::ptr_eq(&db.connections, &context.db.connections)
-                    || !same_transaction
-                {
-                    return Err(super::Error::custom(
-                        "query_subquery_context_mismatch",
-                        "列子查询必须使用同一数据库句柄和事务",
-                    ));
-                }
-                Ok(((*select).into(), true))
+            Operand::Expression(expression) => Ok((expression.clone(), expression, None)),
+            Operand::Scalar(scalar) => {
+                let scalar = scalar?;
+                scalar.context.validate_connection(context)?;
+                Ok((
+                    scalar.sql.into(),
+                    scalar.bindings.into(),
+                    Some(scalar.context),
+                ))
             }
             Operand::Column(column) => {
                 let parts = column.split('.').collect::<Vec<_>>();
                 for part in &parts {
                     validate_identifier(part)?;
                 }
-                match parts.as_slice() {
-                    [column] => Ok((Expr::col(Alias::new(*column)), false)),
-                    [table, column] => Ok((
-                        Expr::col((Alias::new(context.qualifier(table)?), Alias::new(*column))),
-                        false,
+                let expression = match parts.as_slice() {
+                    [column] => Expr::col(Alias::new(*column)),
+                    [table, column] => {
+                        Expr::col((Alias::new(context.qualifier(table)?), Alias::new(*column)))
+                    }
+                    [schema, table, column] => Expr::col((
+                        Alias::new(context.qualifier(schema)?),
+                        Alias::new(*table),
+                        Alias::new(*column),
                     )),
-                    [schema, table, column] => Ok((
-                        Expr::col((
-                            Alias::new(context.qualifier(schema)?),
-                            Alias::new(*table),
-                            Alias::new(*column),
-                        )),
-                        false,
-                    )),
-                    _ => Err(super::invalid_identifier()),
-                }
+                    _ => return Err(super::invalid_identifier()),
+                };
+                Ok((expression.clone(), expression, None))
             }
         }
     }
 }
 
-fn predicate<'a, C: Into<ColumnOperand<'a>>, B: Into<ColumnOperand<'a>>>(
-    context: &QueryContext<'_>,
-    column: C,
-    bounds: [B; 2],
-    not: bool,
-) -> Result<(Expr, bool)> {
-    let [lower, upper] = bounds;
-    let (column, column_subquery) = column.into().expression(context)?;
-    let (lower, lower_subquery) = lower.into().expression(context)?;
-    let (upper, upper_subquery) = upper.into().expression(context)?;
-    Ok((
-        if not {
-            column.not_between(lower, upper)
-        } else {
-            column.between(lower, upper)
-        },
-        column_subquery || lower_subquery || upper_subquery,
-    ))
+#[derive(Clone)]
+enum Term<'a> {
+    Plain(Condition),
+    Frozen {
+        sql: Expr,
+        bindings: Expr,
+        origins: Vec<QueryContext<'a>>,
+    },
+    Nested {
+        tree: PredicateChain<'a>,
+        context: QueryContext<'a>,
+    },
+    Exists(Box<DeferredChild<'a>>),
 }
 
-/// 保留 SQL 的 AND 优先级；只有显式 `where_nested` 才固定整个括号组。
 #[derive(Clone)]
-pub(super) struct PredicateChain {
-    branches: Vec<Condition>,
-    has_subquery: bool,
-    invalid_context: bool,
+pub(super) struct PredicateChain<'a> {
+    branches: Vec<Vec<Term<'a>>>,
+    pub(super) has_subquery: bool,
+    pub(super) invalid_context: bool,
 }
-impl PredicateChain {
+
+impl<'a> PredicateChain<'a> {
     pub(super) fn all() -> Self {
         Self {
             branches: Vec::new(),
@@ -206,189 +198,336 @@ impl PredicateChain {
         };
         self.invalid_context |= self.has_subquery && !same;
     }
-    pub(super) fn validate_embedding(
-        &self,
-        source: &QueryBuilder<'_>,
-        outer: &QueryBuilder<'_>,
-    ) -> Result<()> {
-        self.validate_context()?;
-        if self.has_subquery {
-            let same_transaction = match (source.transaction, outer.transaction) {
-                (None, None) => true,
-                (Some(left), Some(right)) => std::ptr::eq(left, right),
-                _ => false,
-            };
-            if !Arc::ptr_eq(&source.db.connections, &outer.db.connections) || !same_transaction {
-                return Err(super::Error::custom(
-                    "query_subquery_context_mismatch",
-                    "嵌套列子查询必须保留原数据库与事务",
-                ));
-            }
-        }
-        Ok(())
-    }
     pub(super) fn validate_context(&self) -> Result<()> {
         if self.invalid_context {
-            Err(super::Error::custom(
+            Err(Error::custom(
                 "query_subquery_context_mismatch",
-                "列子查询附着后不能改变数据库与事务上下文",
+                "子查询附着后不能改变数据库或事务",
             ))
         } else {
             Ok(())
         }
     }
-    pub(super) fn add(mut self, condition: impl IntoCondition) -> Self {
-        let condition = condition.into_condition();
+    fn push(mut self, term: Term<'a>, or: bool) -> Self {
+        if or || self.branches.is_empty() {
+            self.branches.push(Vec::new());
+        }
+        if let Some(branch) = self.branches.last_mut() {
+            branch.push(term);
+        }
+        self
+    }
+    pub(super) fn add(self, condition: impl Into<Condition>) -> Self {
+        let condition = condition.into();
         if condition.is_empty() {
-            return self;
-        }
-        let last = self.branches.pop().unwrap_or_else(Condition::all);
-        self.branches.push(last.add(condition));
-        self
-    }
-    pub(super) fn or(mut self, condition: impl IntoCondition) -> Self {
-        let condition = condition.into_condition();
-        if !condition.is_empty() {
-            self.branches.push(Condition::all().add(condition));
-        }
-        self
-    }
-}
-impl From<PredicateChain> for Condition {
-    fn from(chain: PredicateChain) -> Self {
-        if chain.branches.is_empty() {
-            Condition::all()
+            self
         } else {
-            chain
-                .branches
-                .into_iter()
-                .fold(Condition::any(), Condition::add)
+            self.push(Term::Plain(condition), false)
         }
+    }
+    pub(super) fn or(self, condition: impl Into<Condition>) -> Self {
+        let condition = condition.into();
+        if condition.is_empty() {
+            self
+        } else {
+            self.push(Term::Plain(condition), true)
+        }
+    }
+    pub(super) fn add_nested(self, tree: Self, context: QueryContext<'a>) -> Self {
+        if tree.branches.is_empty() {
+            self
+        } else {
+            self.push(Term::Nested { tree, context }, false)
+        }
+    }
+    pub(super) fn add_exists(mut self, child: DeferredChild<'a>) -> Self {
+        self.has_subquery = true;
+        self.push(Term::Exists(Box::new(child)), false)
+    }
+    pub(super) fn validate_sources(&self, context: &QueryContext<'_>) -> Result<()> {
+        self.validate_context()?;
+        for branch in &self.branches {
+            for term in branch {
+                match term {
+                    Term::Frozen { origins, .. } => {
+                        for origin in origins {
+                            origin.validate_connection(context)?;
+                        }
+                    }
+                    Term::Nested {
+                        tree,
+                        context: original,
+                    } => {
+                        if tree.has_subquery {
+                            original.validate_same(context)?;
+                        }
+                        tree.validate_sources(context)?;
+                    }
+                    Term::Exists(child) => child.validate(context)?,
+                    Term::Plain(_) => {}
+                }
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn reaches(
+        &self,
+        target: usize,
+        visited: &mut std::collections::HashSet<usize>,
+    ) -> Result<bool> {
+        for branch in &self.branches {
+            for term in branch {
+                let reaches = match term {
+                    Term::Exists(child) => child.reaches(target, visited)?,
+                    Term::Nested { tree, .. } => tree.reaches(target, visited)?,
+                    _ => false,
+                };
+                if reaches {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+    pub(super) fn compile(&self, context: &QueryContext<'_>, bindings: bool) -> Result<Condition> {
+        self.validate_context()?;
+        if self.branches.is_empty() {
+            return Ok(Condition::all());
+        }
+        let mut result = Condition::any();
+        for branch in &self.branches {
+            let mut conditions = Condition::all();
+            for term in branch {
+                conditions = match term {
+                    Term::Plain(condition) => conditions.add(condition.clone()),
+                    Term::Frozen {
+                        sql,
+                        bindings: frozen,
+                        origins,
+                    } => {
+                        for origin in origins {
+                            origin.validate_connection(context)?;
+                        }
+                        conditions.add(if bindings {
+                            frozen.clone()
+                        } else {
+                            sql.clone()
+                        })
+                    }
+                    Term::Nested {
+                        tree,
+                        context: origin,
+                    } => {
+                        if tree.has_subquery {
+                            origin.validate_same(context)?;
+                        }
+                        conditions.add(tree.compile(context, bindings)?)
+                    }
+                    Term::Exists(child) => {
+                        child.validate(context)?;
+                        conditions.add(Expr::exists(child.prepare(bindings, false)?))
+                    }
+                };
+            }
+            result = result.add(conditions);
+        }
+        Ok(result)
+    }
+    fn between<'operand, C: Into<ColumnOperand<'operand>>, B: Into<ColumnOperand<'operand>>>(
+        mut self,
+        context: &QueryContext<'_>,
+        column: C,
+        bounds: [B; 2],
+        not: bool,
+        or: bool,
+    ) -> Result<Self>
+    where
+        'operand: 'a,
+    {
+        let [lower, upper] = bounds;
+        let (column_sql, column_bind, column_origin) = column.into().expressions(context)?;
+        let (lower_sql, lower_bind, lower_origin) = lower.into().expressions(context)?;
+        let (upper_sql, upper_bind, upper_origin) = upper.into().expressions(context)?;
+        let origins = [column_origin, lower_origin, upper_origin]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        self.has_subquery |= !origins.is_empty();
+        let sql = if not {
+            column_sql.not_between(lower_sql, upper_sql)
+        } else {
+            column_sql.between(lower_sql, upper_sql)
+        };
+        let bindings = if not {
+            column_bind.not_between(lower_bind, upper_bind)
+        } else {
+            column_bind.between(lower_bind, upper_bind)
+        };
+        Ok(self.push(
+            Term::Frozen {
+                sql,
+                bindings,
+                origins,
+            },
+            or,
+        ))
     }
 }
 
-impl QueryBuilder<'_> {
-    pub(super) fn query_context(&self) -> QueryContext<'_> {
-        QueryContext {
-            db: self.db.clone(),
-            table: self.table.clone(),
-            transaction: self.transaction,
-        }
-    }
-
-    /// 以 AND 追加列值位于同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn where_between_columns<'a, C: Into<ColumnOperand<'a>>, B: Into<ColumnOperand<'a>>>(
-        mut self,
-        column: C,
-        bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.query_context(), column, bounds, false)?;
-        self.predicates.has_subquery |= has_subquery;
-        self.predicates = self.predicates.add(predicate);
-        Ok(self)
-    }
-    /// 以 AND 追加列值不在同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn where_not_between_columns<'a, C: Into<ColumnOperand<'a>>, B: Into<ColumnOperand<'a>>>(
-        mut self,
-        column: C,
-        bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.query_context(), column, bounds, true)?;
-        self.predicates.has_subquery |= has_subquery;
-        self.predicates = self.predicates.add(predicate);
-        Ok(self)
-    }
-    /// 以 OR 追加列值位于同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn or_where_between_columns<'a, C: Into<ColumnOperand<'a>>, B: Into<ColumnOperand<'a>>>(
-        mut self,
-        column: C,
-        bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.query_context(), column, bounds, false)?;
-        self.predicates.has_subquery |= has_subquery;
-        self.predicates = self.predicates.or(predicate);
-        Ok(self)
-    }
-    /// 以 OR 追加列值不在同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn or_where_not_between_columns<
-        'a,
-        C: Into<ColumnOperand<'a>>,
-        B: Into<ColumnOperand<'a>>,
+impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
+    /// 以AND添加列间闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn where_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
     >(
         mut self,
         column: C,
         bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.query_context(), column, bounds, true)?;
-        self.predicates.has_subquery |= has_subquery;
-        self.predicates = self.predicates.or(predicate);
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context();
+        self.predicates = self
+            .predicates
+            .between(&context, column, bounds, false, false)?;
         Ok(self)
     }
-}
-
-impl WhereGroup<'_> {
-    /// 以 AND 追加列值位于同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn where_between_columns<'a, C: Into<ColumnOperand<'a>>, B: Into<ColumnOperand<'a>>>(
-        mut self,
-        column: C,
-        bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.context, column, bounds, false)?;
-        self.condition.has_subquery |= has_subquery;
-        self.condition = self.condition.add(predicate);
-        Ok(self)
-    }
-    /// 以 AND 追加列值不在同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn where_not_between_columns<'a, C: Into<ColumnOperand<'a>>, B: Into<ColumnOperand<'a>>>(
-        mut self,
-        column: C,
-        bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.context, column, bounds, true)?;
-        self.condition.has_subquery |= has_subquery;
-        self.condition = self.condition.add(predicate);
-        Ok(self)
-    }
-    /// 以 OR 追加列值位于同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn or_where_between_columns<'a, C: Into<ColumnOperand<'a>>, B: Into<ColumnOperand<'a>>>(
-        mut self,
-        column: C,
-        bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.context, column, bounds, false)?;
-        self.condition.has_subquery |= has_subquery;
-        self.condition = self.condition.or(predicate);
-        Ok(self)
-    }
-    /// 以 OR 追加列值不在同一行两列闭区间的条件；NULL 遵循 SQL 三值逻辑。
-    ///
-    /// 两个边界固定为数组；列名逐段引用，RawSql 必须来自可信代码；动态值通过子查询原有绑定保留。
-    pub fn or_where_not_between_columns<
-        'a,
-        C: Into<ColumnOperand<'a>>,
-        B: Into<ColumnOperand<'a>>,
+    /// 以AND添加列间非闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn where_not_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
     >(
         mut self,
         column: C,
         bounds: [B; 2],
-    ) -> Result<Self> {
-        let (predicate, has_subquery) = predicate(&self.context, column, bounds, true)?;
-        self.condition.has_subquery |= has_subquery;
-        self.condition = self.condition.or(predicate);
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context();
+        self.predicates = self
+            .predicates
+            .between(&context, column, bounds, true, false)?;
+        Ok(self)
+    }
+    /// 以OR添加列间闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn or_where_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
+    >(
+        mut self,
+        column: C,
+        bounds: [B; 2],
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context();
+        self.predicates = self
+            .predicates
+            .between(&context, column, bounds, false, true)?;
+        Ok(self)
+    }
+    /// 以OR添加列间非闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn or_where_not_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
+    >(
+        mut self,
+        column: C,
+        bounds: [B; 2],
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context();
+        self.predicates = self
+            .predicates
+            .between(&context, column, bounds, true, true)?;
+        Ok(self)
+    }
+}
+
+impl<'tx: 'cap, 'cap> WhereGroup<'tx, 'cap> {
+    /// 以AND添加列间闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn where_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
+    >(
+        mut self,
+        column: C,
+        bounds: [B; 2],
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context.clone();
+        self.condition = self
+            .condition
+            .between(&context, column, bounds, false, false)?;
+        Ok(self)
+    }
+    /// 以AND添加列间非闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn where_not_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
+    >(
+        mut self,
+        column: C,
+        bounds: [B; 2],
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context.clone();
+        self.condition = self
+            .condition
+            .between(&context, column, bounds, true, false)?;
+        Ok(self)
+    }
+    /// 以OR添加列间闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn or_where_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
+    >(
+        mut self,
+        column: C,
+        bounds: [B; 2],
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context.clone();
+        self.condition = self
+            .condition
+            .between(&context, column, bounds, false, true)?;
+        Ok(self)
+    }
+    /// 以OR添加列间非闭区间谓词；NULL沿用数据库三值逻辑。
+    pub fn or_where_not_between_columns<
+        'operand,
+        C: Into<ColumnOperand<'operand>>,
+        B: Into<ColumnOperand<'operand>>,
+    >(
+        mut self,
+        column: C,
+        bounds: [B; 2],
+    ) -> Result<Self>
+    where
+        'operand: 'cap,
+    {
+        let context = self.context.clone();
+        self.condition = self
+            .condition
+            .between(&context, column, bounds, true, true)?;
         Ok(self)
     }
 }

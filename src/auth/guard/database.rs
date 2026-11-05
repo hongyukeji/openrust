@@ -64,11 +64,14 @@ impl DatabaseUserProvider {
         (self.user_factory)(row_attributes(row)?)
     }
 
-    fn query(&self) -> Result<QueryBuilder<'static>> {
+    fn query<'cap>(&self) -> Result<QueryBuilder<'static, 'cap>> {
         self.db.table(&self.table)
     }
 
-    fn query_for_user(&self, user: &dyn Authenticatable) -> Result<QueryBuilder<'static>> {
+    fn query_for_user<'cap>(
+        &self,
+        user: &dyn Authenticatable,
+    ) -> Result<QueryBuilder<'static, 'cap>> {
         self.query()?.where_eq(
             user.auth_identifier_name(),
             scalar(&user.auth_identifier()?)?,
@@ -189,9 +192,14 @@ impl UserProvider for DatabaseUserProvider {
             let plain = plaintext(credentials)?.ok_or_else(invalid_credentials)?;
             let field = user.auth_password_name().to_owned();
             // where_eq 先校验模型字段名。附加字节比较，避免文本排序规则忽略 PHC 大小写。
-            let query = self
-                .query_for_user(user)?
-                .where_eq(&field, encoded.as_str())?;
+            let identifier_name = user.auth_identifier_name().to_owned();
+            let identifier = scalar(&user.auth_identifier()?)?;
+            drop(
+                self.db
+                    .table(&self.table)?
+                    .where_eq(&identifier_name, identifier.clone())?
+                    .where_eq(&field, encoded.as_str())?,
+            );
             let exact = match self.db.backend()? {
                 DbBackend::MySql => format!("CAST(`{field}` AS BINARY) = CAST(? AS BINARY)"),
                 DbBackend::Postgres => {
@@ -205,11 +213,17 @@ impl UserProvider for DatabaseUserProvider {
                     ));
                 }
             };
-            let query = query.where_raw(RawSql::new(exact), vec![encoded.as_str().into()]);
             let replacement = self.passwords.hash(plain).await?;
+            let db = self.db.clone();
+            let table = self.table.clone();
             self.db
                 .transaction(move |transaction| {
                     Box::pin(async move {
+                        let query = db
+                            .table(&table)?
+                            .where_eq(&identifier_name, identifier)?
+                            .where_eq(&field, encoded.as_str())?
+                            .where_raw(RawSql::new(exact), vec![encoded.as_str().into()]);
                         let affected = query
                             .using_transaction(transaction)
                             .update(vec![(&field, replacement.as_str().into())])

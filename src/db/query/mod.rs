@@ -12,8 +12,10 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 
 mod between_columns;
+mod builder;
 mod conditional;
 mod existence;
+mod subqueries;
 pub use between_columns::ColumnOperand;
 use between_columns::{PredicateChain, QueryContext};
 pub use conditional::ExistsOrResult;
@@ -21,14 +23,38 @@ pub use conditional::ExistsOrResult;
 use super::Db;
 use crate::core::{Error, Result};
 
-/// 拥有查询结构的 Laravel 风格表查询；克隆后可独立增加约束。
+/// 拥有查询状态的 Laravel 风格查询；普通克隆复制父状态，共享已接入的子查询对象。
+pub struct QueryBuilder<'tx: 'cap, 'cap> {
+    inner: Arc<QueryInner<'tx, 'cap>>,
+}
+
+struct QueryInner<'tx: 'cap, 'cap> {
+    state: Mutex<QueryState<'tx, 'cap>>,
+    busy: std::sync::atomic::AtomicBool,
+}
+
+type BeforeCallback<'cap> =
+    Arc<dyn for<'q> Fn(&mut QueryBuilder<'q, 'cap>) -> Result<()> + Send + Sync + 'cap>;
+
 #[derive(Clone)]
-pub struct QueryBuilder<'a> {
+struct QueryState<'tx: 'cap, 'cap> {
     db: Db,
     table: String,
-    transaction: Option<&'a DatabaseTransaction>,
+    transaction: Option<&'tx DatabaseTransaction>,
     select: SelectStatement,
-    predicates: PredicateChain,
+    predicates: PredicateChain<'cap>,
+    callbacks: Vec<BeforeCallback<'cap>>,
+    unions: Vec<subqueries::DeferredUnion<'cap>>,
+    projection: Option<Vec<String>>,
+    limit: Option<u64>,
+    offset: u64,
+    orders: Vec<(String, SortDirection)>,
+    union_orders: Vec<(String, SortDirection)>,
+    union_limit: Option<u64>,
+    union_offset: Option<u64>,
+    grouped: bool,
+    having: bool,
+    failure: Option<(String, String)>,
 }
 
 /// 查询分页结果；页面默认大小为 15，空结果的末页仍为 1。
@@ -295,9 +321,9 @@ fn page_url(
 }
 
 /// 用于 `where_nested` 的有括号条件组。
-pub struct WhereGroup<'a> {
-    context: QueryContext<'a>,
-    condition: PredicateChain,
+pub struct WhereGroup<'tx: 'cap, 'cap> {
+    context: QueryContext<'tx>,
+    condition: PredicateChain<'cap>,
 }
 
 /// 应用明确声明的受信 SQL 片段；值仍须另行绑定。
@@ -330,7 +356,7 @@ impl RawSql {
     }
 }
 
-impl WhereGroup<'_> {
+impl WhereGroup<'_, '_> {
     /// 在组内追加 AND 相等条件。
     pub fn where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
         validate_identifier(column)?;
@@ -351,41 +377,41 @@ impl WhereGroup<'_> {
 }
 
 impl Db {
-    /// 从当前 Db 的逻辑表名开启查询；使用相同连接池和前缀解析。
-    pub fn table(&self, logical_name: &str) -> Result<QueryBuilder<'static>> {
+    /// 从当前 Db 的逻辑表名开启查询；捕获与事务的生命周期由实际使用推断。
+    pub fn table<'tx: 'cap, 'cap>(&self, logical_name: &str) -> Result<QueryBuilder<'tx, 'cap>> {
         let table = self.table_name(logical_name)?;
-        let select = Query::select()
-            .column(Asterisk)
-            .from(Alias::new(&table))
-            .to_owned();
-        Ok(QueryBuilder {
+        Ok(QueryBuilder::from_state(QueryState {
             db: self.clone(),
-            table,
+            table: table.clone(),
             transaction: None,
-            select,
+            select: Query::select()
+                .column(Asterisk)
+                .from(Alias::new(table))
+                .to_owned(),
             predicates: PredicateChain::all(),
-        })
+            callbacks: Vec::new(),
+            unions: Vec::new(),
+            projection: None,
+            limit: None,
+            offset: 0,
+            orders: Vec::new(),
+            union_orders: Vec::new(),
+            union_limit: None,
+            union_offset: None,
+            grouped: false,
+            having: false,
+            failure: None,
+        }))
     }
 }
 
-impl<'a> QueryBuilder<'a> {
-    /// 在同一 `Db::transaction` 回调中绑定现有事务；不会创建第二连接。
-    pub fn using_transaction(mut self, transaction: &DatabaseTransaction) -> QueryBuilder<'_> {
-        self.predicates.rebind(self.transaction, Some(transaction));
-        QueryBuilder {
-            db: self.db,
-            table: self.table,
-            transaction: Some(transaction),
-            select: self.select,
-            predicates: self.predicates,
-        }
-    }
-
+impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     /// 只选择给定列；列名不是 SQL 绑定值，必须来自应用可信代码。
     pub fn select(mut self, columns: &[&str]) -> Result<Self> {
         if columns.is_empty() {
             return Err(invalid_identifier());
         }
+        self.projection = Some(columns.iter().map(|column| (*column).to_owned()).collect());
         self.select.clear_selects();
         for column in columns {
             validate_identifier(column)?;
@@ -456,57 +482,6 @@ impl<'a> QueryBuilder<'a> {
         Ok(self)
     }
 
-    /// 在已存在唯一递增整数列时分块读取，每块交给回调后释放；取消时不留游标。
-    /// 修改当前行或删除已处理行不改变后续 `id > last` 的窗口。
-    pub async fn chunk_by_id<F, Fut>(
-        &self,
-        size: u64,
-        id_column: &str,
-        mut callback: F,
-    ) -> Result<()>
-    where
-        F: FnMut(Vec<QueryResult>) -> Fut,
-        Fut: Future<Output = Result<()>>,
-    {
-        validate_identifier(id_column)?;
-        if size == 0 {
-            return Err(Error::custom(
-                "query_chunk_size_invalid",
-                "chunk size must be positive",
-            ));
-        }
-        let mut last_id: Option<i64> = None;
-        loop {
-            let mut page = self.clone();
-            page.select.clear_order_by();
-            page = page.order_by(id_column, SortDirection::Asc)?.limit(size);
-            if let Some(id) = last_id {
-                page = page.where_gt(id_column, id)?;
-            }
-            let rows = page.get().await?;
-            if rows.is_empty() {
-                return Ok(());
-            }
-            let count = rows.len() as u64;
-            let next_id = rows
-                .last()
-                .ok_or_else(|| Error::custom("query_chunk_empty", "chunk unexpectedly empty"))?
-                .try_get::<i64>("", id_column)
-                .map_err(Error::internal)?;
-            if last_id.is_some_and(|last| next_id <= last) {
-                return Err(Error::custom(
-                    "query_chunk_not_advancing",
-                    "chunk key must be unique and increasing",
-                ));
-            }
-            callback(rows).await?;
-            if count < size {
-                return Ok(());
-            }
-            last_id = Some(next_id);
-        }
-    }
-
     /// `where column is null`。
     pub fn where_null(mut self, column: &str) -> Result<Self> {
         validate_identifier(column)?;
@@ -550,7 +525,7 @@ impl<'a> QueryBuilder<'a> {
     /// 以闭包生成一个有括号的嵌套 where 组。
     pub fn where_nested<F>(mut self, configure: F) -> Result<Self>
     where
-        F: FnOnce(WhereGroup<'a>) -> Result<WhereGroup<'a>>,
+        F: FnOnce(WhereGroup<'tx, 'cap>) -> Result<WhereGroup<'tx, 'cap>>,
     {
         let group = configure(WhereGroup {
             context: QueryContext {
@@ -560,20 +535,23 @@ impl<'a> QueryBuilder<'a> {
             },
             condition: PredicateChain::all(),
         })?;
-        group.context.validate_same(&self.query_context())?;
+        group.context.validate_same(&self.context())?;
         self.predicates.inherit(&group.condition);
-        self.predicates = self.predicates.add(group.condition);
+        self.predicates = self.predicates.add_nested(group.condition, group.context);
         Ok(self)
     }
 
-    /// 添加同一后端的 EXISTS 子查询；子查询仍保留自己的绑定值。
-    pub fn where_exists(mut self, subquery: &QueryBuilder<'_>) -> Result<Self> {
-        subquery.predicates.validate_embedding(subquery, &self)?;
-        self.predicates.inherit(&subquery.predicates);
-        if self.db.backend()? != subquery.db.backend()? {
-            return Err(unsupported_backend());
-        }
-        self.predicates = self.predicates.add(Expr::exists(subquery.scoped_select()));
+    fn where_exists<'src, 'childcap>(
+        mut self,
+        subquery: &QueryBuilder<'src, 'childcap>,
+    ) -> Result<Self>
+    where
+        'src: 'childcap + 'cap,
+        'childcap: 'cap,
+    {
+        let node = subqueries::DeferredChild::capture(subquery, false)?;
+        node.validate(&self.context())?;
+        self.predicates = self.predicates.add_exists(node);
         Ok(self)
     }
 
@@ -631,19 +609,25 @@ impl<'a> QueryBuilder<'a> {
     /// 按可信列排序。
     pub fn order_by(mut self, column: &str, direction: SortDirection) -> Result<Self> {
         validate_identifier(column)?;
-        self.select.order_by(
-            Alias::new(column),
-            match direction {
-                SortDirection::Asc => Order::Asc,
-                SortDirection::Desc => Order::Desc,
-            },
-        );
+        if self.unions.is_empty() {
+            self.orders.push((column.to_owned(), direction));
+            self.select.order_by(
+                Alias::new(column),
+                match direction {
+                    SortDirection::Asc => Order::Asc,
+                    SortDirection::Desc => Order::Desc,
+                },
+            );
+        } else {
+            self.union_orders.push((column.to_owned(), direction));
+        }
         Ok(self)
     }
 
     /// 按可信列分组。
     pub fn group_by(mut self, column: &str) -> Result<Self> {
         validate_identifier(column)?;
+        self.grouped = true;
         self.select.group_by_col(Alias::new(column));
         Ok(self)
     }
@@ -673,21 +657,19 @@ impl<'a> QueryBuilder<'a> {
         Ok(self)
     }
 
-    /// 对同一后端查询执行 `UNION` 或 `UNION ALL`。
-    pub fn union(mut self, other: &QueryBuilder<'_>, all: bool) -> Result<Self> {
-        other.predicates.validate_embedding(other, &self)?;
-        self.predicates.inherit(&other.predicates);
-        if self.db.backend()? != other.db.backend()? {
-            return Err(unsupported_backend());
-        }
-        self.select.union(
-            if all {
-                UnionType::All
-            } else {
-                UnionType::Distinct
-            },
-            other.scoped_select(),
-        );
+    fn union<'src, 'childcap>(
+        mut self,
+        other: &QueryBuilder<'src, 'childcap>,
+        all: bool,
+    ) -> Result<Self>
+    where
+        'src: 'childcap + 'cap,
+        'childcap: 'cap,
+    {
+        let child = subqueries::DeferredChild::capture(other, false)?;
+        child.validate(&self.context())?;
+        self.predicates.has_subquery = true;
+        self.unions.push(subqueries::DeferredUnion { child, all });
         Ok(self)
     }
 
@@ -706,6 +688,7 @@ impl<'a> QueryBuilder<'a> {
     /// 对聚合列添加 `having column = value`。
     pub fn having_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
         validate_identifier(column)?;
+        self.having = true;
         self.select
             .and_having(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
         Ok(self)
@@ -714,20 +697,30 @@ impl<'a> QueryBuilder<'a> {
     /// 限制返回行数。
     #[must_use]
     pub fn limit(mut self, rows: u64) -> Self {
-        self.select.limit(rows);
+        if self.unions.is_empty() {
+            self.limit = Some(rows);
+            self.select.limit(rows);
+        } else {
+            self.union_limit = Some(rows);
+        }
         self
     }
 
     /// 跳过指定行数。
     #[must_use]
     pub fn offset(mut self, rows: u64) -> Self {
-        self.select.offset(rows);
+        if self.unions.is_empty() {
+            self.offset = rows;
+            self.select.offset(rows);
+        } else {
+            self.union_offset = Some(rows);
+        }
         self
     }
 
     /// 读取当前查询的所有行；每个 `QueryResult` 可使用类型化 `try_get`。
     pub async fn get(&self) -> Result<Vec<QueryResult>> {
-        let statement = self.statement(&self.scoped_select())?;
+        let statement = self.statement(&self.scoped_select(false)?)?;
         match self.transaction {
             Some(transaction) => transaction
                 .query_all_raw(statement)
@@ -742,193 +735,32 @@ impl<'a> QueryBuilder<'a> {
         }
     }
 
-    /// 读取首行；不要求调用方手动添加 limit。
-    pub async fn first(&self) -> Result<Option<QueryResult>> {
-        let mut select = self.scoped_select();
-        select.limit(1);
-        let statement = self.statement(&select)?;
-        match self.transaction {
-            Some(transaction) => transaction
-                .query_one_raw(statement)
-                .await
-                .map_err(Error::internal),
-            None => self
-                .db
-                .read_connection()?
-                .query_one_raw(statement)
-                .await
-                .map_err(Error::internal),
-        }
-    }
-
-    /// 读取单列首个值；无匹配行时返回 `None`。
-    pub async fn value<T: TryGetable>(&self, column: &str) -> Result<Option<T>> {
-        let selected = self.clone().select(&[column])?;
-        selected
-            .first()
-            .await?
-            .map(|row| row.try_get::<T>("", column).map_err(Error::internal))
-            .transpose()
-    }
-
-    /// 读取一列的全部值；调用方应自行设置有界 limit 或选择 `chunk`。
-    pub async fn pluck<T: TryGetable>(&self, column: &str) -> Result<Vec<T>> {
-        let selected = self.clone().select(&[column])?;
-        selected
-            .get()
-            .await?
-            .iter()
-            .map(|row| row.try_get::<T>("", column).map_err(Error::internal))
-            .collect()
-    }
-
-    /// 计算当前条件匹配的行数，不计原查询排序及 limit/offset。
-    pub async fn count(&self) -> Result<u64> {
-        let mut counted = self.scoped_select();
-        counted.clear_order_by().reset_limit().reset_offset();
-        let mut select = Query::select();
-        select
-            .expr_as(Func::count(Expr::val(1)), Alias::new("total"))
-            .from_subquery(counted, Alias::new("counted_query"));
-        let statement = self.statement(&select)?;
+    async fn count(&self) -> Result<u64> {
+        let aggregate = |bindings: bool| -> Result<SelectStatement> {
+            let mut select = self.scoped_select(bindings)?;
+            if !self.unions.is_empty() || self.having {
+                Ok(Query::select()
+                    .expr_as(Func::count(Expr::col(Asterisk)), Alias::new("total"))
+                    .from_subquery(select, Alias::new("aggregate_table"))
+                    .to_owned())
+            } else {
+                select
+                    .clear_selects()
+                    .expr_as(Func::count(Expr::col(Asterisk)), Alias::new("total"));
+                Ok(select)
+            }
+        };
+        let statement = self.statement_pair(&aggregate(false)?, &aggregate(true)?)?;
         let row = match self.transaction {
             Some(transaction) => transaction.query_one_raw(statement).await,
             None => self.db.read_connection()?.query_one_raw(statement).await,
         }
         .map_err(Error::internal)?;
-        let count = row
-            .ok_or_else(|| Error::custom("query_count_missing", "count query returned no row"))?
-            .try_get::<i64>("", "total")
-            .map_err(Error::internal)?;
+        let Some(row) = row else {
+            return Ok(0);
+        };
+        let count = row.try_get::<i64>("", "total").map_err(Error::internal)?;
         u64::try_from(count).map_err(Error::internal)
-    }
-
-    /// 按 Laravel 默认每页 15 行分页。
-    pub async fn paginate_default(&self) -> Result<QueryPage> {
-        self.paginate(15).await
-    }
-
-    /// 从当前请求的 `page` 自动解析页号，无请求时使用第一页。
-    pub async fn paginate(&self, per_page: u64) -> Result<QueryPage> {
-        self.paginate_named(per_page, "page").await
-    }
-
-    /// 为同一请求里的另一个分页器指定独立的页参数名。
-    pub async fn paginate_named(&self, per_page: u64, page_name: &str) -> Result<QueryPage> {
-        validate_identifier(page_name)?;
-        let context = CURRENT_PAGE_CONTEXT
-            .try_with(Clone::clone)
-            .unwrap_or_default();
-        self.paginate_at(
-            per_page,
-            page_name,
-            context.current_page(page_name),
-            context,
-        )
-        .await
-    }
-
-    /// 显式指定页号，仍使用当前请求生成链接。
-    pub async fn paginate_on(
-        &self,
-        per_page: u64,
-        page_name: &str,
-        page: u64,
-    ) -> Result<QueryPage> {
-        validate_identifier(page_name)?;
-        let context = CURRENT_PAGE_CONTEXT
-            .try_with(Clone::clone)
-            .unwrap_or_default();
-        self.paginate_at(per_page, page_name, std::cmp::Ord::max(page, 1), context)
-            .await
-    }
-
-    /// 只取 `per_page + 1` 行判断是否存在下一页，不执行 count。
-    pub async fn simple_paginate(&self, per_page: u64) -> Result<SimplePage> {
-        self.simple_paginate_named(per_page, "page").await
-    }
-
-    /// 使用独立页参数名进行无总数查询的分页。
-    pub async fn simple_paginate_named(
-        &self,
-        per_page: u64,
-        page_name: &str,
-    ) -> Result<SimplePage> {
-        validate_identifier(page_name)?;
-        if per_page == 0 {
-            return Err(Error::custom(
-                "query_per_page_invalid",
-                "per page must be positive",
-            ));
-        }
-        let context = CURRENT_PAGE_CONTEXT
-            .try_with(Clone::clone)
-            .unwrap_or_default();
-        let page = context.current_page(page_name);
-        let offset = page
-            .saturating_sub(1)
-            .checked_mul(per_page)
-            .ok_or_else(|| {
-                Error::custom("query_page_overflow", "page offset exceeds supported range")
-            })?;
-        let fetch = per_page.checked_add(1).ok_or_else(|| {
-            Error::custom(
-                "query_per_page_overflow",
-                "per page exceeds supported range",
-            )
-        })?;
-        let mut items = self.clone().limit(fetch).offset(offset).get().await?;
-        let has_more = items.len() as u64 > per_page;
-        if has_more {
-            items.pop();
-        }
-        let path = context.resolved_path()?;
-        Ok(SimplePage {
-            items,
-            current_page: page,
-            per_page,
-            has_more,
-            path,
-            query: Vec::new(),
-            page_name: page_name.to_owned(),
-            fragment: None,
-        })
-    }
-
-    async fn paginate_at(
-        &self,
-        per_page: u64,
-        page_name: &str,
-        page: u64,
-        context: PageContext,
-    ) -> Result<QueryPage> {
-        if per_page == 0 {
-            return Err(Error::custom(
-                "query_per_page_invalid",
-                "per page must be positive",
-            ));
-        }
-        let offset = page
-            .saturating_sub(1)
-            .checked_mul(per_page)
-            .ok_or_else(|| {
-                Error::custom("query_page_overflow", "page offset exceeds supported range")
-            })?;
-        let total = self.count().await?;
-        let items = self.clone().limit(per_page).offset(offset).get().await?;
-        let last_page = std::cmp::Ord::max(total.div_ceil(per_page), 1);
-        let path = context.resolved_path()?;
-        Ok(QueryPage {
-            items,
-            current_page: page,
-            per_page,
-            total,
-            last_page,
-            path,
-            query: Vec::new(),
-            page_name: page_name.to_owned(),
-            fragment: None,
-        })
     }
 
     /// 插入一行，返回数据库报告的受影响行数。
@@ -955,6 +787,52 @@ impl<'a> QueryBuilder<'a> {
             _ => return Err(unsupported_backend()),
         };
         self.execute(compiled).await
+    }
+
+    fn validate_upsert(
+        rows: &[Vec<(&str, Value)>],
+        unique_by: &[&str],
+        update_columns: &[&str],
+    ) -> Result<()> {
+        let first = rows.first().ok_or_else(empty_values)?;
+        if first.is_empty() || unique_by.is_empty() || update_columns.is_empty() {
+            return Err(empty_values());
+        }
+        let columns = first.iter().map(|(column, _)| *column).collect::<Vec<_>>();
+        for column in columns
+            .iter()
+            .chain(unique_by.iter())
+            .chain(update_columns.iter())
+        {
+            validate_identifier(column)?;
+        }
+        if columns
+            .iter()
+            .any(|column| columns.iter().filter(|other| *other == column).count() != 1)
+            || unique_by.iter().any(|column| !columns.contains(column))
+            || update_columns
+                .iter()
+                .any(|column| !columns.contains(column))
+        {
+            return Err(Error::custom(
+                "query_upsert_columns_invalid",
+                "upsert columns must be present and distinct",
+            ));
+        }
+        for row in rows {
+            if row.len() != columns.len()
+                || row
+                    .iter()
+                    .zip(&columns)
+                    .any(|((column, _), expected)| column != expected)
+            {
+                return Err(Error::custom(
+                    "query_upsert_rows_mismatch",
+                    "upsert rows must use the same ordered columns",
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// 按唯一键插入或更新多行；所有行必须提供相同且同序的列。
@@ -1034,52 +912,198 @@ impl<'a> QueryBuilder<'a> {
             validate_identifier(column)?;
             pairs.push((Alias::new(column), Expr::val(value)));
         }
-        let mut statement = Query::update();
-        statement.table(Alias::new(&self.table)).values(pairs);
-        statement.cond_where(self.predicates.clone());
-        let compiled = match self.db.backend()? {
-            DbBackend::Postgres => statement.build(PostgresQueryBuilder),
-            DbBackend::MySql => statement.build(MysqlQueryBuilder),
-            DbBackend::Sqlite => statement.build(SqliteQueryBuilder),
-            _ => return Err(unsupported_backend()),
+        let build = |bindings: bool| -> Result<(String, Values)> {
+            let mut statement = Query::update();
+            statement
+                .table(Alias::new(&self.table))
+                .values(pairs.clone());
+            statement.cond_where(self.predicates.compile(&self.context(), bindings)?);
+            match self.db.backend()? {
+                DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
+                DbBackend::MySql => Ok(statement.build(MysqlQueryBuilder)),
+                DbBackend::Sqlite => Ok(statement.build(SqliteQueryBuilder)),
+                _ => Err(unsupported_backend()),
+            }
         };
-        self.execute(compiled).await
+        let current = build(false)?;
+        let captured = build(true)?;
+        if current.1.0.len() != captured.1.0.len() {
+            return Err(Error::custom(
+                "query_subquery_bindings_mismatch",
+                "实时子查询SQL与接入时冻结绑定数量不一致",
+            ));
+        }
+        self.execute((current.0, captured.1)).await
     }
 
     /// 删除满足当前 where 约束的行。
     pub async fn delete(&self) -> Result<u64> {
-        let mut statement = Query::delete();
-        statement.from_table(Alias::new(&self.table));
-        statement.cond_where(self.predicates.clone());
-        let compiled = match self.db.backend()? {
-            DbBackend::Postgres => statement.build(PostgresQueryBuilder),
-            DbBackend::MySql => statement.build(MysqlQueryBuilder),
-            DbBackend::Sqlite => statement.build(SqliteQueryBuilder),
-            _ => return Err(unsupported_backend()),
+        let build = |bindings: bool| -> Result<(String, Values)> {
+            let mut statement = Query::delete();
+            statement.from_table(Alias::new(&self.table));
+            statement.cond_where(self.predicates.compile(&self.context(), bindings)?);
+            match self.db.backend()? {
+                DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
+                DbBackend::MySql => Ok(statement.build(MysqlQueryBuilder)),
+                DbBackend::Sqlite => Ok(statement.build(SqliteQueryBuilder)),
+                _ => Err(unsupported_backend()),
+            }
         };
-        self.execute(compiled).await
+        let current = build(false)?;
+        let captured = build(true)?;
+        if current.1.0.len() != captured.1.0.len() {
+            return Err(Error::custom(
+                "query_subquery_bindings_mismatch",
+                "实时子查询SQL与接入时冻结绑定数量不一致",
+            ));
+        }
+        self.execute((current.0, captured.1)).await
+    }
+
+    fn reaches(
+        &self,
+        target: usize,
+        visited: &mut std::collections::HashSet<usize>,
+    ) -> Result<bool> {
+        if self.predicates.reaches(target, visited)? {
+            return Ok(true);
+        }
+        for union in &self.unions {
+            if union.child.reaches(target, visited)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn context(&self) -> QueryContext<'tx> {
+        QueryContext {
+            db: self.db.clone(),
+            table: self.table.clone(),
+            transaction: self.transaction,
+        }
+    }
+
+    fn validate(&self) -> Result<()> {
+        if let Some((code, message)) = &self.failure {
+            return Err(Error::custom(code, message));
+        }
+        self.predicates.validate_sources(&self.context())?;
+        for union in &self.unions {
+            union.child.validate(&self.context())?;
+        }
+        Ok(())
+    }
+
+    fn build(&self, select: &SelectStatement) -> Result<(String, Values)> {
+        self.validate()?;
+        match self.db.backend()? {
+            DbBackend::Postgres => Ok(select.build(PostgresQueryBuilder)),
+            DbBackend::MySql => Ok(select.build(MysqlQueryBuilder)),
+            DbBackend::Sqlite => Ok(select.build(SqliteQueryBuilder)),
+            _ => Err(unsupported_backend()),
+        }
+    }
+
+    fn statement_pair(
+        &self,
+        select: &SelectStatement,
+        bindings: &SelectStatement,
+    ) -> Result<Statement> {
+        let (sql, current_values) = self.build(select)?;
+        let (_, values) = self.build(bindings)?;
+        if current_values.0.len() != values.0.len() {
+            return Err(Error::custom(
+                "query_subquery_bindings_mismatch",
+                "实时子查询SQL与接入时冻结绑定数量不一致",
+            ));
+        }
+        Ok(Statement::from_sql_and_values(
+            self.db.backend()?,
+            sql,
+            values.0,
+        ))
     }
 
     fn statement(&self, select: &SelectStatement) -> Result<Statement> {
-        self.predicates.validate_context()?;
-        let backend = self.db.backend()?;
-        let (sql, values) = match backend {
-            DbBackend::Postgres => select.build(PostgresQueryBuilder),
-            DbBackend::MySql => select.build(MysqlQueryBuilder),
-            DbBackend::Sqlite => select.build(SqliteQueryBuilder),
-            _ => return Err(unsupported_backend()),
-        };
-        Ok(Statement::from_sql_and_values(backend, sql, values.0))
+        self.statement_pair(select, &self.scoped_select(true)?)
     }
 
-    fn scoped_select(&self) -> SelectStatement {
+    fn clear_orders(&mut self) {
+        self.select.clear_order_by();
+        self.orders.clear();
+    }
+    fn remove_orders_for(&mut self, column: &str) {
+        self.orders.retain(|(existing, _)| existing != column);
+        self.select.clear_order_by();
+        for (column, direction) in &self.orders {
+            self.select.order_by(
+                Alias::new(column),
+                match direction {
+                    SortDirection::Asc => Order::Asc,
+                    SortDirection::Desc => Order::Desc,
+                },
+            );
+        }
+        self.union_orders.retain(|(existing, _)| existing != column);
+    }
+
+    fn restore_projection(&mut self, projection: Option<Vec<String>>) {
+        self.select.clear_selects();
+        if let Some(columns) = &projection {
+            for column in columns {
+                self.select.column(Alias::new(column));
+            }
+        } else {
+            self.select.column(Asterisk);
+        }
+        self.projection = projection;
+    }
+
+    fn scoped_select(&self, bindings: bool) -> Result<SelectStatement> {
+        self.validate()?;
         let mut select = self.select.clone();
-        select.cond_where(self.predicates.clone());
-        select
+        select.cond_where(self.predicates.compile(&self.context(), bindings)?);
+        if !self.unions.is_empty()
+            && (self.limit.is_some() || self.offset > 0 || !self.orders.is_empty())
+        {
+            let mut wrapped = Query::select();
+            wrapped
+                .column(Asterisk)
+                .from_subquery(select, Alias::new("union_base"));
+            select = wrapped;
+        }
+        for union in &self.unions {
+            union.child.validate(&self.context())?;
+            select.union(
+                if union.all {
+                    UnionType::All
+                } else {
+                    UnionType::Distinct
+                },
+                union.child.prepare(bindings, true)?,
+            );
+        }
+        for (column, direction) in &self.union_orders {
+            select.order_by(
+                Alias::new(column),
+                match direction {
+                    SortDirection::Asc => Order::Asc,
+                    SortDirection::Desc => Order::Desc,
+                },
+            );
+        }
+        if let Some(limit) = self.union_limit {
+            select.limit(limit);
+        }
+        if let Some(offset) = self.union_offset {
+            select.offset(offset);
+        }
+        Ok(select)
     }
 
     async fn execute(&self, (sql, values): (String, Values)) -> Result<u64> {
-        self.predicates.validate_context()?;
+        self.validate()?;
         let statement = Statement::from_sql_and_values(self.db.backend()?, sql, values.0);
         let result = match self.transaction {
             Some(transaction) => transaction.execute_raw(statement).await,

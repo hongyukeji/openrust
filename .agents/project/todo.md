@@ -66,12 +66,10 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 排除误报：固定Laravel的VerifyCsrfToken兼容本身属于官方对应；APP_PREVIOUS_KEYS轮换、S3兼容、当前queue无metadata成对payload协议、非空seaql_migrations拒绝保护、正常模块activator、显式可选TOML均不按旧OpenRust兼容删除。
 只读来源：`tmp/fortify-single-implementation/other-compatibility-audit.json`，非全仓穷尽；行号按当前源码重核。持续Goal中实际分簇实现/验证/本地提交，不能以本登记冒充完成。
 
-## Query before-query 执行生命周期（契约与候选WIP）
+## Query 驱动取消恢复与剩余对应
 
-- owner=root，沿原Goal/main/预算；前置列边界cd0ac0f、存在性9f51471及当前条件回调子簇。existsOr/doesntExistOr已完成8项SQLite、组合12门禁、真实双库HTTP与fresh验收，限定事实见[testing](memory/testing.md#query-存在性条件回调限定验收)，不能当before-query已实现。
-- 固定源码/测试取证`tmp/query-existence-next-20261105/evidence.md`；Spec与未接线before.rs/subqueries.rs候选在`tmp/query-callbacks-20261105/`。独审已纠正原统一子查询准备设计：标量立即toSql；whereExists不运行自己的pending回调；union编译时触发，父clone共享子对象并保父接入时bindings。不得提前执行或静默重绑后称等价。
-- root下一实际步骤：实现共享子节点与分离SQL/登记绑定的编译计划；仅缩短捕获/事务生命周期，覆盖get成功projection恢复/失败残留、first/value原limit、count克隆、零总数分页与chunk边界，再统一调用方/模板/公开consumer和示例。仅类型探针已证明HRTB/本地借用/共享child与延长失败，未导入框架，不是内核编译或行为验收。
-- 不重置原Goal/预算，不扩大到未授权业务；SQLServer及其余后端、五后端最终验收和完整Query/ORM仍保留。复杂内核候选未接线、未commit，不借已验叶关闭本项。
+- owner=root；before-query内核、调用方、唯一示例及限定验收已收齐，事实见[testing](memory/testing.md#query-查询前回调与共享子查询限定验收)，本地提交以Git为准。完整Query/ORM、FROM/跨连接、SQLServer/其余五后端最终验收继续开放，不以本叶关闭全章。
+- 下一定向诊断：保留MySQL早期取消失败，使用相同SQL/绑定直接SeaORM事务做冷prepare早取消与指定reader/blocker锁等待后取消对照，明确驱动连接状态与可恢复/必须失效边界；不得把通知回调等同SQL已发送，不删拒绝/取消断言求绿。原Goal/main/逐账号预算历史及20%保留、credits=false不变。
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 

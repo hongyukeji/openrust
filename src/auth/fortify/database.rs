@@ -86,7 +86,9 @@ impl DatabaseTwoFactorState {
     ) -> BoxFuture<'a, Result<bool>> {
         Box::pin(async move {
             let backend = self.db.backend()?;
-            let base = self.query()?;
+            // 提前保留字段校验；带事务的构造器在事务借用期内建立。
+            drop(self.query()?);
+            let model = self.clone();
             let expected = expected.clone();
             let values = vec![
                 (SECRET, replacement.secret.clone().into()),
@@ -98,6 +100,7 @@ impl DatabaseTwoFactorState {
             ];
             self.db.transaction_for_update(move |transaction| {
                 Box::pin(async move {
+                    let base = model.query()?;
                     // SQLite时间戳是文本；先在同事务读取并严格解码，不能把同一UTC时刻
                     // 的CURRENT_TIMESTAMP/NaiveDateTime历史表示误判成竞争失败。
                     let sqlite_confirmed = if backend == DbBackend::Sqlite {
@@ -146,19 +149,19 @@ impl DatabaseTwoFactorState {
         &self.raw_identifier
     }
 
-    pub(super) fn query(&self) -> Result<QueryBuilder<'static>> {
+    pub(super) fn query<'cap>(&self) -> Result<QueryBuilder<'static, 'cap>> {
         self.db
             .table(&self.table)?
             .where_eq(&self.identifier_name, self.identifier.clone())
     }
 }
 
-pub(super) fn match_ciphertext(
-    query: QueryBuilder<'static>,
+pub(super) fn match_ciphertext<'cap>(
+    query: QueryBuilder<'static, 'cap>,
     backend: DbBackend,
     field: &str,
     expected: Option<&str>,
-) -> Result<QueryBuilder<'static>> {
+) -> Result<QueryBuilder<'static, 'cap>> {
     let Some(expected) = expected else {
         return query.where_null(field);
     };

@@ -518,6 +518,10 @@ path = "tests/http/session_cookie_driver.rs"
 required-features = ["session"]
 
 [[test]]
+name = "query_before_callbacks_contract"
+path = "tests/query_before_callbacks_contract.rs"
+
+[[test]]
 name = "container_extension_contract"
 path = "tests/core/container_extension_contract.rs"
 

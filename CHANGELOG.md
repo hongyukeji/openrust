@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Query Builder 新增查询前回调与 SQL/绑定预览，单一受控状态保留修改、消费、克隆和共享子查询时机；事务与回调捕获分别跟踪借用，查询节点拒绝成环。
+
 - Query Builder 新增 `exists_or` / `doesnt_exist_or` 惰性异步分支，以 `ExistsOrResult<T>` 保留短路true和任意回调值，查询及回调错误透传。
 
 - Query Builder 新增借用查询的 `exists` / `doesnt_exist`，保留完整查询形状、事务和读副本行为；唯一示例导入时间线返回账户内未结束任务的存在性标记。
