@@ -32,3 +32,6 @@ rcgen = "0.14.10"
 tempfile = "3.27"
 time = "0.3"
 testing = { path = "../../../tools/testing", version = "0.0.0" }
+
+[patch.crates-io]
+sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }

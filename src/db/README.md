@@ -210,3 +210,5 @@ let report = rule
 `exists_or` / `doesnt_exist_or` 只在存在性条件未短路时调用一次异步闭包，以 `ExistsOrResult<T>` 区分短路true与任意回调值，错误不吞掉。查询前回调的消费、聚合克隆和共享子查询规则见查询指南。
 
 `before_query` 通过单一查询状态追加执行前条件，`to_sql` 消费回调而 `get_bindings` 不触发；错误保留部分修改和待用列表。`QueryBuilder<'tx, 'cap>` 分别追踪事务和捕获借用，要求事务覆盖捕获期；普通Clone复制父状态并共享已接入子节点。
+
+MySQL 冷 prepare 的 Future 被取消后，未完成的物理连接明确拒绝新查询/提交/回滚，归还池时淘汰并补建；不自动重试原 SQL，也不把回滚失败当作成功。取消时仍持有的事务可能保留锁直到断线。根及生成应用使用同版本 SQLx0.9.0 临时补丁，手写消费者须在最终 workspace 根应用相同 patch；来源、Cargo 约束和边界见[驱动说明](../../vendor/sqlx-mysql/OPENRUST.md)。

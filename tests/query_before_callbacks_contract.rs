@@ -1287,3 +1287,253 @@ case!(
         check(hits(&entered) == 1, "UNION接入活动参数后执行了间接重入")?;
     }
 );
+
+const MYSQL_COLD_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10);
+
+async fn mysql_cold_connection_id(connection: &impl ConnectionTrait) -> Result<u64> {
+    use openrust::db::sea_orm::{DbBackend, Statement};
+    let row = tokio::time::timeout(
+        MYSQL_COLD_DEADLINE,
+        connection.query_one_raw(Statement::from_string(
+            DbBackend::MySql,
+            "SELECT CONNECTION_ID() AS connection_id".to_owned(),
+        )),
+    )
+    .await
+    .map_err(|_| Error::custom("cold_prepare_id_timeout", "连接标识读取超过期限"))?
+    .map_err(Error::internal)?
+    .ok_or_else(|| Error::custom("cold_prepare_id_missing", "连接标识缺失"))?;
+    row.try_get("", "connection_id").map_err(Error::internal)
+}
+
+async fn mysql_cold_normal_prepare_error_preserves_connection(
+    single: &Db,
+    connection: &openrust::db::sea_orm::DatabaseConnection,
+    original_id: u64,
+) -> Result<()> {
+    // 服务端正常prepare错误可恢复，不应当作取消中的协议状态未知而废弃连接。
+    let invalid = single
+        .table("callback_items")?
+        .select(&["missing_cold_prepare_column"])?;
+    let invalid_result = tokio::time::timeout(MYSQL_COLD_DEADLINE, invalid.get())
+        .await
+        .map_err(|_| {
+            Error::custom(
+                "cold_prepare_server_error_timeout",
+                "正常prepare错误未及时返回",
+            )
+        })?;
+    check(invalid_result.is_err(), "缺列prepare应返回服务端错误")?;
+    check(
+        mysql_cold_connection_id(connection).await? == original_id,
+        "正常服务端prepare错误废弃了可用连接",
+    )
+}
+
+async fn mysql_cold_cancel_transaction_query(
+    single: &Db,
+    tx: &openrust::db::sea_orm::DatabaseTransaction,
+    original_id: u64,
+) -> Result<()> {
+    use futures_util::future::{AbortHandle, Abortable};
+    check(
+        mysql_cold_connection_id(tx).await? == original_id,
+        "单连接池事务未复用原连接",
+    )?;
+    let write = single
+        .table("callback_items")?
+        .using_transaction(tx)
+        .where_eq("id", 1_i64)?;
+    let written = tokio::time::timeout(
+        MYSQL_COLD_DEADLINE,
+        write.update(vec![("label", "uncommitted-cold-prepare".into())]),
+    )
+    .await
+    .map_err(|_| Error::custom("cold_prepare_write_timeout", "事务写入超过期限"))??;
+    check(written == 1, "取消前事务写入必须实际影响一行")?;
+    // 新单池从未准备这一查询形状；biased join保证先轮询get，再立即发取消。
+    let query = single
+        .table("callback_items")?
+        .using_transaction(tx)
+        .select(&["id", "label"])?
+        .where_eq("id", 1_i64)?
+        .where_eq("label", "uncommitted-cold-prepare")?;
+    let (abort, registration) = AbortHandle::new_pair();
+    let pending = Abortable::new(query.get(), registration);
+    let (cancelled, ()) = tokio::join!(biased; pending, async { abort.abort(); });
+    check(cancelled.is_err(), "冷prepare查询首次轮询未观察到取消")?;
+    query.to_sql()?;
+    let retry = tokio::time::timeout(MYSQL_COLD_DEADLINE, query.get())
+        .await
+        .map_err(|_| Error::custom("cold_prepare_retry_timeout", "取消后事务查询未及时失败"))?;
+    check(retry.is_err(), "冷prepare取消后的事务查询假成功")
+}
+
+async fn mysql_cold_cancel_and_rollback(
+    single: &Db,
+    connection: &openrust::db::sea_orm::DatabaseConnection,
+    original_id: u64,
+) -> Result<()> {
+    let transaction = tokio::time::timeout(MYSQL_COLD_DEADLINE, connection.begin())
+        .await
+        .map_err(|_| Error::custom("cold_prepare_begin_timeout", "事务建立超过期限"))?
+        .map_err(Error::internal)?;
+    let attempted = mysql_cold_cancel_transaction_query(single, &transaction, original_id).await;
+    // helper返回后全部借事务查询已销毁；失败路径也执行有界rollback。
+    let rollback = tokio::time::timeout(MYSQL_COLD_DEADLINE, transaction.rollback())
+        .await
+        .map_err(|_| {
+            Error::custom(
+                "cold_prepare_rollback_timeout",
+                "冷prepare取消后rollback超过期限",
+            )
+        });
+    attempted?;
+    check(rollback?.is_err(), "失效事务rollback不应假成功")
+}
+
+async fn mysql_cold_verify_rollback_with_row_lock(
+    single: &Db,
+    connection: &openrust::db::sea_orm::DatabaseConnection,
+) -> Result<()> {
+    let transaction = tokio::time::timeout(MYSQL_COLD_DEADLINE, connection.begin())
+        .await
+        .map_err(|_| {
+            Error::custom(
+                "cold_prepare_replacement_begin_timeout",
+                "替换连接锁验证事务建立超过期限",
+            )
+        })?
+        .map_err(Error::internal)?;
+    let outcome = async {
+        let query = single
+            .table("callback_items")?
+            .using_transaction(&transaction)
+            .select(&["label"])?
+            .where_eq("id", 1_i64)?
+            .lock_for_update()?;
+        // 锁定读必须等旧事务释放行锁；普通MVCC快照读取不能提供这一证据。
+        let rows = tokio::time::timeout(MYSQL_COLD_DEADLINE, query.get())
+            .await
+            .map_err(|_| {
+                Error::custom(
+                    "cold_prepare_replacement_timeout",
+                    "替换连接锁定读取超过期限，旧行锁可能未释放",
+                )
+            })??;
+        check(rows.len() == 1, "替换连接锁定读取未返回唯一目标行")?;
+        let restored = first_row(&rows)?
+            .try_get::<String>("", "label")
+            .map_err(Error::internal)?;
+        check(restored == "row-1", "原事务未提交写入未回滚")
+    }
+    .await;
+    // 先结束借事务查询的作用域，再清理验证事务；读取失败也尝试有界回滚。
+    let cleanup = tokio::time::timeout(MYSQL_COLD_DEADLINE, transaction.rollback())
+        .await
+        .map_err(|_| {
+            Error::custom(
+                "cold_prepare_replacement_rollback_timeout",
+                "替换连接锁验证事务清理超过期限",
+            )
+        });
+    outcome?;
+    cleanup?.map_err(Error::internal)
+}
+
+async fn mysql_cold_check_replacement_and_observer(
+    single: &Db,
+    observer: &Db,
+    connection: &openrust::db::sea_orm::DatabaseConnection,
+    original_id: u64,
+) -> Result<()> {
+    check(
+        mysql_cold_connection_id(connection).await? != original_id,
+        "协议状态未知的原连接仍被复用",
+    )?;
+    mysql_cold_verify_rollback_with_row_lock(single, connection).await?;
+    check(
+        tokio::time::timeout(
+            MYSQL_COLD_DEADLINE,
+            observer.table("callback_items")?.count(),
+        )
+        .await
+        .map_err(|_| Error::custom("cold_prepare_observer_timeout", "独立观察池计数超过期限"))??
+            == 5,
+        "独立观察池不可用",
+    )?;
+    check(
+        tokio::time::timeout(
+            MYSQL_COLD_DEADLINE,
+            observer
+                .table("callback_items")?
+                .where_eq("id", 1_i64)?
+                .value::<String>("label"),
+        )
+        .await
+        .map_err(|_| Error::custom("cold_prepare_observer_timeout", "独立观察池读取超过期限"))??
+            == Some("row-1".to_owned()),
+        "独立观察池看到未提交写入",
+    )
+}
+
+#[tokio::test]
+async fn mysql_cold_prepare_first_poll_cancellation_retires_connection_and_rolls_back() -> Result<()>
+{
+    use openrust::db::sea_orm::{ConnectOptions, Database, DbBackend};
+    use std::time::Duration;
+    let Some(fixture) = Fixture::create().await? else {
+        return Ok(());
+    };
+    let mut extra_pool = None;
+    let outcome = async {
+        if fixture.db.backend()? != DbBackend::MySql {
+            eprintln!(
+                "MySQL冷prepare首次轮询取消回归不适用于SQLite/PostgreSQL；不构成MySQL通过证据"
+            );
+            return Ok(());
+        }
+        let mut options = ConnectOptions::new(fixture.database.url().to_owned());
+        options
+            .max_connections(1)
+            .min_connections(0)
+            .connect_timeout(Duration::from_secs(5))
+            .acquire_timeout(Duration::from_secs(5));
+        let connection = tokio::time::timeout(MYSQL_COLD_DEADLINE, Database::connect(options))
+            .await
+            .map_err(|_| Error::custom("cold_prepare_connect_timeout", "单连接池建立超过期限"))?
+            .map_err(Error::internal)?;
+        extra_pool = Some(connection.clone());
+        let single = Db::default();
+        single.initialize(connection.clone())?;
+        let original_id = mysql_cold_connection_id(&connection).await?;
+        mysql_cold_normal_prepare_error_preserves_connection(&single, &connection, original_id)
+            .await?;
+        mysql_cold_cancel_and_rollback(&single, &connection, original_id).await?;
+        mysql_cold_check_replacement_and_observer(&single, &fixture.db, &connection, original_id)
+            .await
+    }
+    .await;
+    let pool_cleanup = match extra_pool {
+        Some(pool) => match tokio::time::timeout(MYSQL_COLD_DEADLINE, pool.close()).await {
+            Ok(result) => result.map_err(Error::internal),
+            Err(_) => Err(Error::custom(
+                "cold_prepare_pool_cleanup_timeout",
+                "额外单连接池清理超过期限",
+            )),
+        },
+        None => Ok(()),
+    };
+    let fixture_cleanup = tokio::time::timeout(MYSQL_COLD_DEADLINE, fixture.close())
+        .await
+        .map_err(|_| {
+            Error::custom(
+                "cold_prepare_fixture_cleanup_timeout",
+                "隔离数据库清理超过期限",
+            )
+        });
+    outcome?;
+    pool_cleanup?;
+    fixture_cleanup??;
+    Ok(())
+}

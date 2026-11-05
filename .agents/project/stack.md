@@ -1,5 +1,7 @@
 # 技术栈
 
+MySQL冷prepare取消使用固定SQLx0.9.0/SeaORM2.0.4及`vendor/sqlx-mysql`同版本临时补丁（MIT OR Apache-2.0），不新增运行期依赖；原始crate文件hash与源码commit见vendor说明。根与生成项目顶层patch必须实际解析到该源，SQLx暂精确固定防fresh生成绕过。Cargo不传播依赖包patch，手写独立消费者须显式同项；正式上游修复/发布取代补丁前保留此构建约束。冷prepare中断废弃单物理连接、回滚结果不伪造；main12、最终43双库/生成/consumer及源图已[限定验收](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)。
+
 Fortify限流键使用固定portable-ascii 2.0.2 / 16c17671a804bb92602822113dd91fbc8a35d2af的字符bank与clean数据（MIT许可和逐文件SHA随src/support/strings保存），不是新crate或运行期PHP依赖。Str当前仅提供strict=false转写，Rust有效UTF-8输入边界公开；不以deunicode/ICU近似官方默认，不宣称完整Laravel Str。真实PHP8.5 oracle与完整数据导出保存在本簇证据，Rust差分尚待集中执行。
 
 Fortify生成应用的真实管理HTTP测试同样显式使用既有hmac 0.13/sha1 0.11开发依赖，作为独立RFC客户端输入验证码，不读取框架私有引擎或生成证明。

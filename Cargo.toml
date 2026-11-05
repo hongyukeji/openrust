@@ -19,8 +19,8 @@ autotests = false
 [workspace]
 resolver = "3"
 members = ["tools/cli", "tools/macros", "tools/testing", "tools/performance"]
-# 第三方原始迁移 crate 只作依赖；不作为第一方 workspace 包调度。
-exclude = ["vendor/sea-orm-migration"]
+# 第三方 vendored crate 只作依赖，不作为第一方 workspace 包调度。
+exclude = ["vendor/sea-orm-migration", "vendor/sqlx-mysql"]
 default-members = ["."]
 
 [workspace.package]
@@ -104,7 +104,7 @@ async-trait = "0.1"
 redis = { version = "1.8.0", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 url = "2.5"
 pcre2 = "=0.2.11"
-sqlx = { version = "0.9", default-features = false }
+sqlx = { version = "=0.9.0", default-features = false }
 rusqlite = { version = "=0.39.0", default-features = false }
 toml = { version = "1.1", features = ["preserve_order"] }
 toml_edit = "0.25.17"
@@ -527,3 +527,6 @@ path = "tests/core/container_extension_contract.rs"
 
 [target.'cfg(windows)'.dependencies]
 winapi-util = { version = "=0.1.11", optional = true }
+
+[patch.crates-io]
+sqlx-mysql = { path = "vendor/sqlx-mysql" }

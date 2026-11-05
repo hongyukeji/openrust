@@ -265,6 +265,23 @@ fn standalone_manifest(source: &Path, project: &Path, database: bool) -> anyhow:
             }
         }
     }
+    // Cargo只读取最终workspace根的patch；独立应用须继承框架的驱动修复。
+    if let Some(patches) = source_manifest.get("patch") {
+        app["patch"] = patches.clone();
+        if let Some(registries) = app["patch"].as_table_mut() {
+            for (_, registry) in registries.iter_mut() {
+                if let Some(dependencies) = registry.as_table_mut() {
+                    for (_, dependency) in dependencies.iter_mut() {
+                        if let Some(path) = dependency.get("path").and_then(toml_edit::Item::as_str)
+                        {
+                            let path = source.join(path).canonicalize()?;
+                            dependency["path"] = toml_edit::value(path.to_string_lossy().as_ref());
+                        }
+                    }
+                }
+            }
+        }
+    }
     fs::write(project.join("Cargo.toml"), app.to_string())?;
     Ok(())
 }
@@ -5205,6 +5222,34 @@ mod tests {
         assert_eq!(directory, root.canonicalize().expect("应用路径"));
         assert_eq!(package, "openrust");
         fs::remove_dir_all(root).expect("清理临时目录");
+    }
+
+    #[test]
+    fn standalone_apps_inherit_canonical_driver_patches_without_changing_source() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-driver-patch-{}", std::process::id()));
+        fs::create_dir_all(&root).expect("创建独立测试目录");
+        create_framework_fixture(&root);
+        let driver = root.join("vendor/sqlx-mysql");
+        fs::create_dir_all(&driver).expect("创建补丁目录");
+        let source_path = root.join("Cargo.toml");
+        let mut source = fs::read_to_string(&source_path).expect("读取源清单");
+        source.push_str("\n[patch.crates-io]\nsqlx-mysql = { path = \"vendor/sqlx-mysql\" }\n");
+        fs::write(&source_path, &source).expect("登记驱动补丁");
+        let app = root.join("application");
+        fs::create_dir_all(&app).expect("创建应用目录");
+        fs::write(app.join("Cargo.toml"), "[package]\nname=\"application\"\nversion=\"0.0.0\"\n[dependencies]\nopenrust.workspace=true\n").expect("写应用清单");
+        standalone_manifest(&root, &app, false).expect("独立化清单");
+        let generated = fs::read_to_string(app.join("Cargo.toml"))
+            .expect("读取生成清单")
+            .parse::<toml_edit::DocumentMut>()
+            .expect("解析生成清单");
+        assert_eq!(
+            generated["patch"]["crates-io"]["sqlx-mysql"]["path"].as_str(),
+            driver.canonicalize().expect("补丁绝对路径").to_str()
+        );
+        assert_eq!(fs::read_to_string(&source_path).expect("源清单"), source);
+        fs::remove_dir_all(root).expect("清理本测试目录");
     }
 
     #[test]

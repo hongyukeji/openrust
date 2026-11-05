@@ -139,3 +139,5 @@ cargo run -- module:enable --all --no-interaction
 普通生成应用的 `tests/support/request_redirect.rs` 也只在测试 Provider 挂载业务路由：`Redirector::from_info` 生成普通响应，`from_request` 闪存排除敏感字段后的输入与命名错误包；公开 `ErrorBagCodecs` 扩展恢复自定义错误包，再用两个真实 Cookie 请求验证读取与老化。该测试不添加默认生产路由；数据库认证模板仍按自身测试入口验收。
 
 生成应用用 `routes/mod.rs` 导出两类路由，`bootstrap/app.rs` 组合它们并配置 API 前缀和中间件组；API 文件声明相对路径，Web 文件保留应用 fallback。原有认证、MFA、PAT 与签名 URL 的外部路径不变；文件名本身不会自动启用 Cookie/Session，中间件组仍须显式声明。
+
+独立生成应用会继承框架根清单的驱动 `[patch]`，本地路径转换为框架源码的绝对路径。Cargo 不继承依赖包自己的 patch；手写 workspace 须自行登记当前 MySQL 冷预处理取消修复，见[驱动说明](../../vendor/sqlx-mysql/OPENRUST.md)。

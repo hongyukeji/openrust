@@ -30,3 +30,6 @@ unsafe_code = "forbid"
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
+
+[patch.crates-io]
+sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }

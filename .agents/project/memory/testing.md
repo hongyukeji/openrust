@@ -1,5 +1,18 @@
 # 测试基线
 
+## MySQL 冷预处理取消与连接淘汰限定验收
+
+SeaORM2.0.4/SQLx0.9.0原生对照排除了QueryBuilder：冷PREPARE首次等待取消，两次复用错帧/rollback超时；warm及指定reader/blocker行锁等待取消正常。固定同版本vendor补丁仅改executor/stream/connection/tls/transaction五个文件，未重建未知协议：不完整PREPARE永久判该物理连接不可复用，后续查询/提交/显式回滚有界失败，close/Drop不冲刷未知缓冲，归还后池淘汰重建。正常完整数据库ERR仍复用；Result只在实际执行命令完整排入缓冲后登记。原许可、源码commit与原始文件SHA随vendor保留，SQLx暂精确固定0.9.0。
+
+`tmp/query-cancel-driver-20261105/main-gates-1/main-result.json`完整12门禁通过，各步输入无漂移；default汇总1407通过/42 ignored，all-feature2667通过/161 ignored。之后只强化公开测试的affected-row/锁定读断言，生产输入未变（`lock-proof-code-delta.json`），最终严格all-feature Clippy及真实双库43项通过。MySQL43均实际适用；PG沿既有42项，新cold-MySQL项明确不适用，SQLite也不作MySQL证据。未重跑不受影响的生产门禁，输入与补强证据分别计证。
+
+最终`public-real-2/result.json`新案证明正常prepare缺列错误同连接ID；旧事务UPDATE实际影响1行→cold首次poll取消→旧查询/rollback有界Err→max1池新物理ID→新事务有界FOR UPDATE取得唯一原行及row-1→rollback，直接证明此前未提交写撤回及旧锁释放。原先仅普通MVCC读不足的证据已补强；独立观察池仍可读。`patched-results-final`原生五案均在TLS实连下验证cold两次fail-fast、warm/late复用及参数数目错误后复用/rollback。初轮TLS字段遗漏导致编译失败，其后误跑旧binary的patched-results明确invalid，不计修复成功；旧失败/原始源码及清理回执保留。
+
+CLI独立化清单复制根patch并规范绝对路径，回归证明源清单不变。根+12独立consumer的metadata均解析到唯一vendor源（`resolved-patch-graphs.json`），12个--locked consumer check全部通过；双库各2HTTP通过。fresh MySQL JWT实际new/check/test27项（26模板+1公开取消fixture），最终强化fixture同样有affected1+有界FOR UPDATE/原值，见`lock-proof/result.json`与`fresh-mysql-jwt-verification`，无skip/ignored，DB/角色集合前后相同。生成图再次核唯一vendor源，不能只凭manifest含patch称生效。
+
+限定不同模型复审覆盖协议边界、TLS状态传递、生成接线、错误路径与锁释放证据。取消瞬间不保证服务端回滚，持有废事务仍可能持锁，已证明到replacement锁定读完成时释放。Cargo只读取最终workspace根patch，根及生成应用自动接线，手写消费者必须同项；后续上游修复/版本升级/发布前须重核。完整网络任意阶段取消、完整Query/ORM和五后端仍开放，本地提交以Git为准，不push/tag/release。
+
+
 ## Query 查询前回调与共享子查询限定验收
 
 固定framework d52c3b3：Builder beforeQuery/applyBeforeQueryCallbacks、toSql/getBindings、get/first/value/aggregate、分页与chunk及三类子查询准备时机。基线73a845d，单一QueryState和双生命周期保留不可变终结入口；普通Clone独立父状态并共享live child。标量立即准备、EXISTS不消费子自身回调、UNION延后准备，父绑定按接入时冻结；绑定数不符明确拒绝。失败保留部分修改/列表、成功清空完整列表；同对象并发租约、图环和来源错误不被包装洗掉。完整FROM/跨连接及Query/ORM仍开放。
@@ -8,7 +21,7 @@
 
 最终`public-real-3/result.json`：真实MySQL8.4/PG18各42项无skip通过，数据库/角色清单前后相同；`example-real-2`各2项HTTP验证唯一模块before_query账户scope及显式JWT时间线。fresh SQLite JWT实际new/check/test27项（26项模板+1项额外公开API fixture），包括回调借用实际事务子查询；最终复验和query-authorization consumer见`final-services-recheck/result.json`，首次生成来源见`final-services-generation-2/result.json`。不是模板自动附带该额外fixture。
 
-取消专项先以实际事务读取reader/blocker身份，再由MySQL data_lock_waits/PG pg_blocking_pids确认指定行锁等待，之后取消、复用和回滚双库通过。原回调通知早于SQL发送，不能充当等锁证据。MySQL冷prepare早期取消可能留下驱动响应清理等待，旧失败、native sample和精确清库回执保留；原生SeaORM对照及任意prepare取消恢复仍是唯一todo中的明确缺口，不从本簇通过推导驱动任意阶段可复用。不同模型限定复审确认时序屏障及最后Clippy整改；未提交前保持WIP，本地提交以Git为准，无push/tag/release。
+取消专项先以实际事务读取reader/blocker身份，再由MySQL data_lock_waits/PG pg_blocking_pids确认指定行锁等待，之后取消、复用和回滚双库通过。原回调通知早于SQL发送，不能充当等锁证据。MySQL冷prepare早期取消可能留下驱动响应清理等待，旧失败、native sample和精确清库回执保留；此叶原受验不覆盖后续冷prepare淘汰修复，当前限定事实见本文件开头；仍不推导驱动任意阶段可复用。不同模型限定复审确认时序屏障及最后Clippy整改；未提交前保持WIP，本地提交以Git为准，无push/tag/release。
 
 
 

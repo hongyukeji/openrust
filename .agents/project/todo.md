@@ -66,10 +66,10 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 排除误报：固定Laravel的VerifyCsrfToken兼容本身属于官方对应；APP_PREVIOUS_KEYS轮换、S3兼容、当前queue无metadata成对payload协议、非空seaql_migrations拒绝保护、正常模块activator、显式可选TOML均不按旧OpenRust兼容删除。
 只读来源：`tmp/fortify-single-implementation/other-compatibility-audit.json`，非全仓穷尽；行号按当前源码重核。持续Goal中实际分簇实现/验证/本地提交，不能以本登记冒充完成。
 
-## Query 驱动取消恢复与剩余对应
+## Query 剩余对应
 
-- owner=root；before-query内核、调用方、唯一示例及限定验收已收齐，事实见[testing](memory/testing.md#query-查询前回调与共享子查询限定验收)，本地提交以Git为准。完整Query/ORM、FROM/跨连接、SQLServer/其余五后端最终验收继续开放，不以本叶关闭全章。
-- 下一定向诊断：保留MySQL早期取消失败，使用相同SQL/绑定直接SeaORM事务做冷prepare早取消与指定reader/blocker锁等待后取消对照，明确驱动连接状态与可恢复/必须失效边界；不得把通知回调等同SQL已发送，不删拒绝/取消断言求绿。原Goal/main/逐账号预算历史及20%保留、credits=false不变。
+- 完整FROM/跨连接、Query/ORM及官方五后端最终验收仍开放，不由before-query子簇关闭。冷PREPARE失败淘汰的限定事实及Cargo必要构建约束见[testing](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)。升级/发布前核对应上游修复及patch实际生效，未证明任意网络阶段取消后同连接可复用。
+- 当前有限簇完成后按下一已授权Passport/OIDC排期与依赖领取，不重置原Goal/main/逐账号预算历史，保留20%、credits=false。
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 
