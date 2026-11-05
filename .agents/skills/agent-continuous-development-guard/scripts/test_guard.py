@@ -2979,5 +2979,27 @@ class NotificationRegression(unittest.TestCase):
         self.assertIsNotNone(recovery.notification_event(state, config, 2024))
 
 
+class SupervisorCleanupOrder(unittest.TestCase):
+    """监督标记消失必须代表子进程标记已清；不依赖调度命中竞态窗口。"""
+    def test_supervisor_completion_marker_is_removed_after_worker_and_pid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Path(directory)
+            for name in ('disabled', 'worker.json', 'pid', 'supervisor.json'):
+                (runtime / name).touch()
+            removed = []
+            original = Path.unlink
+            def unlink(path, *args, **kwargs):
+                if path.parent == runtime:
+                    removed.append(path.name)
+                return original(path, *args, **kwargs)
+            with patch.object(recovery.platform, 'WINDOWS', False), \
+                 patch.object(recovery.signal, 'signal'), \
+                 patch.object(recovery.os, 'close'), \
+                 patch.object(recovery, 'publish_registry'), \
+                 patch.object(Path, 'unlink', autospec=True, side_effect=unlink):
+                recovery.supervise(runtime, 999)
+            self.assertEqual(removed, ['worker.json', 'pid', 'supervisor.json'])
+
+
 if __name__ == '__main__':
     unittest.main()

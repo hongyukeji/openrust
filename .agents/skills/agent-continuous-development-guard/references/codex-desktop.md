@@ -31,6 +31,33 @@ status以worker锁及本地last_tick取证，不把状态字符串当存活。st
 
 若用户要求删除旧对话的自动化并在总控新建专属自动化，先通过正式工具删除旧ID并保存回执，再正式创建替代ID，核其targetThreadId为原总控且ACTIVE；不能复活用户已删除的监护。已有账本用`guard_heartbeat.py --thread <原总控> rebind --previous-automation-id <已删除旧ID> --automation-id <正式新ID>`显式迁移，不能删账本或重新init。helper只比较旧绑定、检查跨任务排他并记录迁移历史，不自行验证官方删除/创建回执；调用Agent须单独取证并复核Goal、账号历史、baseline与reserve完全保留。普通bind仍拒绝替换ID；rebind及重复执行不授予继续开发资格，仍需新鲜checkpoint。读取本地调度记录时须核对当前运行App实际使用的数据库；开发版/正式版索引可能并存，旧索引不能作为当前调度状态。
 
+## 真人一次性完整额度覆盖
+
+默认80%政策保持不变。仅真人明确授权同一完整Goal取消本次额度保留线后，原总控可使用正式入口；普通继续、定时心跳、Agent建议、测试数据和本参数本身均不是授权。调用总控先用正式 `read_thread` 核验真实 user 消息、完整上下文及授权范围，保存原始工具回执，再建立下列摘要envelope：
+
+```json
+{
+  "source": "codex_app.read_thread",
+  "target_thread": "<原总控UUID>",
+  "observed_at": 0,
+  "source_thread": "<真实授权所在chat的UUID>",
+  "turn_id": "<真实turn UUID>",
+  "user_message_id": "<真实user消息UUID>",
+  "user_text": "<真人授权原文>"
+}
+```
+
+`observed_at` 是本次正式来源核验的实际Unix秒，不是修改旧回执时间；摘要在120秒内使用。来源可为已明确授权此原Goal的另一chat，但不得把普通协调消息当授权。摘要仅记录调用者已核验的来源，不是可独立验签的官方证明；必须保留并审查正式原始回执。运行账本只保存消息身份及原文SHA256，不保存正文。
+
+```bash
+python3 -B .agents/skills/agent-continuous-development-guard/scripts/guard_heartbeat.py --thread <原总控UUID> authorize-full-budget --usage-file <新鲜正式额度envelope> --authorization-file <本次来源摘要envelope> --user-authorization '<与摘要完全一致的真人原文>'
+python3 -B .agents/skills/agent-continuous-development-guard/scripts/guard_heartbeat.py --thread <原总控UUID> checkpoint --usage-file <新鲜正式额度envelope>
+```
+
+只允许可信 `CODEX_THREAD_ID` 等于原总控的调用。已有Goal必须active，原绑定和automation登记有效，正式额度账号/limit必须匹配原当前预算，入口落账前二次核验Goal。入口返回 `full_budget_authorized_checkpoint_required` 的wait仅证明登记成功；下一次checkpoint实际使用覆盖且continue后才能开发。此入口不恢复paused Goal，不修改业务Goal、内部数据库、自动化、模型、全局设置或原80%基线，不重算reserve，不购买额度，且 `allow_existing_credits=false` 不变。原预算停止仅 `usage_wait_expired` 可被本次明确授权解除；其他停止保持。
+
+覆盖独立保存在同任务 `full-budget-once.json`，复用 `guard.py` 的一次性授权状态、`full_budget_status` 和结束语义；checkpoint仅在内存给原预算附加覆盖。官方普通资格、硬限、未知快照、窗口时长及周期核验仍生效。Goal完成/暂停、绑定或账号变化会结束覆盖，真实额度耗尽也结束；重置周期、切回旧账号、重启或重放同一消息均不复活已结束授权。仍有效的同一授权重复登记幂等。结束后回落原80%政策，所有旧账号基准和历史保留。输出 `budget.full_budget_once` 区分有效覆盖与默认政策；不声称该本地门禁能阻止在途请求或其他客户端超额消费。
+
 ## 每次触发的固定职责
 
 ### 异常诊断与自动续作

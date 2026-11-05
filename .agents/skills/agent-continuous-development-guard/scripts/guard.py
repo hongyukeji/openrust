@@ -2012,7 +2012,8 @@ def supervise(runtime, lock_fd):
     finally:
         if process:
             terminate_child(process)
-        for name in ('supervisor.json', 'worker.json', 'pid'):
+        # supervisor标记最后移除；其消失才可作为子进程标记已收齐的终态观察点。
+        for name in ('worker.json', 'pid', 'supervisor.json'):
             (runtime / name).unlink(missing_ok=True)
         if owned_lock:
             owned_lock.close()

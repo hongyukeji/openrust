@@ -713,5 +713,175 @@ class HeartbeatTests(unittest.TestCase):
             self.assertEqual(self.run_gate()['action'], 'stop')
 
 
+    def full_budget_evidence(self, **changes):
+        evidence = {'source': 'codex_app.read_thread', 'target_thread': self.thread,
+                    'observed_at': 1000, 'source_thread': str(uuid.uuid4()),
+                    'turn_id': str(uuid.uuid4()), 'user_message_id': str(uuid.uuid4()),
+                    'user_text': '现在全速并发开发，同时取消额度限制条件。'}
+        evidence.update(changes)
+        path = self.root / 'authorization.json'
+        path.write_text(json.dumps(evidence))
+        return path, evidence
+
+    def authorize_full(self, evidence=None, now=1000, authorization=None):
+        if evidence is None:
+            evidence, _ = self.full_budget_evidence()
+        text = json.loads(evidence.read_text())['user_text'] if authorization is None else authorization
+        self.write_usage(now)
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            return heartbeat.run(self.thread, 'authorize-full-budget', self.usage_file, now=now,
+                                 user_authorization=text, authorization_file=evidence)
+
+    def test_full_budget_override_crosses_reserve_without_rebasing(self):
+        self.prepared()
+        baseline = copy.deepcopy(self.ledger()['account_budgets'])
+        self.snapshot['rateLimits']['primary']['usedPercent'] = 90
+        self.assertEqual(self.run_gate()['action'], 'wait')
+        self.assertEqual(self.authorize_full()['reason'], 'full_budget_authorized_checkpoint_required')
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            result = self.run_gate('checkpoint')
+        self.assertEqual(result['action'], 'continue')
+        self.assertEqual(result['budget']['full_budget_once'], 'active')
+        self.assertEqual(self.ledger()['account_budgets'], baseline)
+        self.assertIs(self.ledger()['allow_existing_credits'], False)
+        self.assertEqual(self.ledger()['fraction'], '0.8')
+
+    def test_full_budget_requires_original_thread_caller(self):
+        self.prepared()
+        path, evidence = self.full_budget_evidence()
+        result = heartbeat.run(self.thread, 'authorize-full-budget', self.usage_file, now=1000,
+                               user_authorization=evidence['user_text'], authorization_file=path)
+        self.assertEqual(result['reason'], 'checkpoint_caller_mismatch')
+        self.assertFalse((self.ledger_path.parent / 'full-budget-once.json').exists())
+
+    def test_full_budget_invalid_provenance_and_stale_evidence_preserve_ledger(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        for changes in ({'source': 'heartbeat'}, {'target_thread': str(uuid.uuid4())},
+                        {'observed_at': 1}, {'user_message_id': 'not-an-id'}):
+            path, _ = self.full_budget_evidence(**changes)
+            self.assertEqual(self.authorize_full(path)['reason'], 'full_budget_evidence_invalid')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+        path, _ = self.full_budget_evidence()
+        self.assertEqual(self.authorize_full(path, authorization='伪造摘要')['reason'], 'full_budget_evidence_invalid')
+
+    def test_full_budget_rejects_account_change_without_mutation(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        self.snapshot['accountId'] = 'different-account'
+        self.assertEqual(self.authorize_full()['reason'], 'full_budget_evidence_invalid')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_full_budget_active_authorization_is_idempotent_but_ended_cannot_replay(self):
+        self.prepared()
+        path, _ = self.full_budget_evidence()
+        self.assertEqual(self.authorize_full(path)['reason'], 'full_budget_authorized_checkpoint_required')
+        grant_path = self.ledger_path.parent / 'full-budget-once.json'
+        original = grant_path.read_bytes()
+        self.assertEqual(self.authorize_full(path)['reason'], 'full_budget_authorized_checkpoint_required')
+        self.assertEqual(grant_path.read_bytes(), original)
+        evidence = json.loads(path.read_text())
+        evidence['user_text'] = '同一消息不能更换原文重新授权'
+        path.write_text(json.dumps(evidence))
+        self.assertEqual(self.authorize_full(path)['reason'], 'full_budget_evidence_invalid')
+        evidence['user_text'] = '现在全速并发开发，同时取消额度限制条件。'
+        path.write_text(json.dumps(evidence))
+        heartbeat.end_full_budget(self.ledger(), 'actual_quota_exhausted')
+        self.assertEqual(self.authorize_full(path)['reason'], 'full_budget_authorization_consumed')
+
+    def test_full_budget_never_grants_existing_credits_or_overrides_official_hard_limits(self):
+        self.prepared()
+        self.authorize_full()
+        for hard_limit in ('spendControlReached', 'rateLimitReachedType'):
+            original = copy.deepcopy(self.snapshot)
+            self.snapshot['rateLimits'][hard_limit] = True if hard_limit == 'spendControlReached' else 'rate_limit_reached'
+            self.assertEqual(self.run_gate()['action'], 'wait')
+            self.snapshot = original
+        self.snapshot['ordinaryUsageAllowed'] = False
+        self.snapshot['rateLimits']['primary']['usedPercent'] = 100
+        self.snapshot['rateLimits']['credits'] = {'hasCredits': True, 'unlimited': False, 'balance': '50'}
+        self.assertEqual(self.run_gate()['action'], 'wait')
+        self.assertIs(self.ledger()['allow_existing_credits'], False)
+
+    def test_full_budget_actual_exhaustion_ends_grant_and_reset_does_not_reactivate(self):
+        self.prepared()
+        self.authorize_full()
+        self.snapshot['ordinaryUsageAllowed'] = False
+        self.snapshot['rateLimits']['primary']['usedPercent'] = 100
+        self.assertEqual(self.run_gate()['action'], 'wait')
+        document = json.loads((self.ledger_path.parent / 'full-budget-once.json').read_text())
+        self.assertIsNone(document['active'])
+        self.assertEqual(next(iter(document['grants'].values()))['reason'], 'actual_quota_exhausted')
+        self.snapshot = usage(used=10, reset=4000)
+        self.assertEqual(self.run_gate(now=2100)['budget']['full_budget_once'], 'inactive')
+
+    def test_full_budget_pause_ends_override_and_cannot_authorize_paused_goal(self):
+        self.prepared()
+        self.authorize_full()
+        self.update_goal(status='paused')
+        self.assertEqual(self.run_gate()['reason'], 'goal_paused')
+        document = json.loads((self.ledger_path.parent / 'full-budget-once.json').read_text())
+        self.assertIsNone(document['active'])
+        self.assertEqual(self.authorize_full()['reason'], 'goal_paused')
+
+    def test_full_budget_second_goal_check_rejects_race(self):
+        self.prepared()
+        original = heartbeat.identity
+        count = 0
+        def changed(*args):
+            nonlocal count
+            count += 1
+            result = original(*args)
+            if count == 2:
+                return result[0], dict(result[1], id=str(uuid.uuid4())), result[2]
+            return result
+        with mock.patch.object(heartbeat, 'identity', side_effect=changed):
+            self.assertEqual(self.authorize_full()['reason'], 'full_budget_identity_changed')
+        self.assertFalse((self.ledger_path.parent / 'full-budget-once.json').exists())
+
+    def test_full_budget_keeps_unknown_snapshot_blocked(self):
+        self.prepared()
+        self.authorize_full()
+        self.snapshot['ordinaryUsageAllowed'] = 'unknown'
+        self.assertEqual(self.run_gate()['action'], 'wait')
+
+    def test_full_budget_account_switch_ends_override_and_return_does_not_revive(self):
+        self.prepared()
+        self.authorize_full()
+        self.snapshot['accountId'] = 'other-account'
+        self.assertEqual(self.run_gate()['action'], 'wait')
+        document = json.loads((self.ledger_path.parent / 'full-budget-once.json').read_text())
+        self.assertIsNone(document['active'])
+        self.snapshot['accountId'] = 'account-a'
+        self.snapshot['rateLimits']['primary']['usedPercent'] = 90
+        self.assertEqual(self.run_gate()['action'], 'wait')
+
+
+    def test_full_budget_goal_replacement_ends_original_authorization(self):
+        self.prepared()
+        self.authorize_full()
+        self.update_goal(goal_id=str(uuid.uuid4()))
+        self.assertEqual(self.run_gate()['reason'], 'goal_or_binding_changed')
+        document = json.loads((self.ledger_path.parent / 'full-budget-once.json').read_text())
+        self.assertIsNone(document['active'])
+
+    def test_full_budget_expired_budget_wait_can_be_explicitly_released_not_reinitialized(self):
+        self.prepared()
+        baseline = copy.deepcopy(self.ledger()['account_budgets'])
+        self.snapshot['rateLimits']['primary']['usedPercent'] = 90
+        with mock.patch.object(heartbeat, 'WAIT_TIMEOUT', 0):
+            self.assertEqual(self.run_gate()['reason'], 'usage_wait_expired')
+        self.assertEqual(self.authorize_full()['reason'], 'full_budget_authorized_checkpoint_required')
+        self.assertNotIn('terminal_reason', self.ledger())
+        self.assertEqual(self.ledger()['account_budgets'], baseline)
+        self.assertEqual(self.run_gate()['action'], 'continue')
+
+    def test_full_budget_registration_requires_current_official_ordinary_eligibility(self):
+        self.prepared()
+        self.snapshot['ordinaryUsageAllowed'] = False
+        self.assertEqual(self.authorize_full()['reason'], 'full_budget_official_usage_unavailable')
+        self.assertFalse((self.ledger_path.parent / 'full-budget-once.json').exists())
+
+
 if __name__ == '__main__':
     unittest.main()

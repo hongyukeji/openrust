@@ -14,7 +14,8 @@ import tempfile
 import time
 import uuid
 
-from guard import budget_decimal, initialize_usage_budget, quota_delay, usage_budget_status
+from guard import (budget_decimal, end_full_budget, full_budget_status, grant_document,
+                   initialize_usage_budget, quota_delay, usage_budget_status)
 from guard_platform import lock_file
 
 ROOT = Path.cwd().resolve()
@@ -143,7 +144,7 @@ def identity(thread, home):
     return {'project': str(ROOT), 'home': str(home), 'rollout': str(rollout), 'thread': thread}, goal, row[1]
 
 
-def refresh_cycles(response, budget, now):
+def refresh_cycles(response, budget, now, full_budget=False):
     """仅采纳官方新周期证据；余额上涨、时长变化或提前reset不生成预算。"""
     proposed = copy.deepcopy(budget)
     limits = response['rateLimits']
@@ -157,7 +158,7 @@ def refresh_cycles(response, budget, now):
             or credits['hasCredits'] != original['has_credits']
             or credits['unlimited'] != original['unlimited']
             or balance > budget_decimal(original['baseline_remaining'])
-            or (original['participating'] and balance <= budget_decimal(original['reserve']))):
+            or (not full_budget and original['participating'] and balance <= budget_decimal(original['reserve']))):
         raise ValueError('credits基线变化或触线')
     for name, item in proposed['windows'].items():
         current = limits[name]
@@ -204,17 +205,45 @@ def budget_check(ledger, response, now):
     if original is None:
         history[key] = candidate
         original = candidate
-    proposed = refresh_cycles(response, original, now)
+    config = {'full_budget_grant_file': ledger.get('full_budget_grant_file')}
+    path, document = grant_document(config)
+    grant = document.get('grants', {}).get(document.get('active'))
+    full_budget = bool(grant and grant.get('status') == 'active')
+    if full_budget and (grant.get('thread') != ledger['binding']['thread']
+            or grant.get('goal') != ledger['goal']
+            or grant.get('account_id') != candidate['account_id']
+            or grant.get('limit_id') != candidate['limit_id']):
+        end_full_budget(config, 'account_or_goal_identity_changed')
+        ledger['usage_status'] = 'usage_budget_unknown'
+        return False
+    proposed = refresh_cycles(response, original, now, full_budget)
+
     # 仅在 refresh_cycles 已通过全部校验后统一精度；不改原始额度回执。
     normalized = copy.deepcopy(response)
     for name, item in proposed['windows'].items():
         normalized['rateLimits'][name]['resetsAt'] = int(budget_decimal(item['resets_at']))
-    status = usage_budget_status(normalized, proposed)
+    if full_budget:
+        effective = copy.deepcopy(proposed)
+        effective['_full_budget_once'] = dict(grant, path=str(path), allow_existing_credits=False)
+        status = full_budget_status(normalized, effective)
+    else:
+        status = usage_budget_status(normalized, proposed)
     if status not in ('usage_budget_unknown', 'usage_budget_window_changed', 'usage_budget_credits_changed'):
         history[key] = proposed
     ledger['active_budget_key'] = key
     ledger['usage_status'] = status
-    return status == 'usage_budget_available' and quota_delay(normalized, now, False, proposed) == 0
+    ledger['full_budget_status'] = 'active' if full_budget and grant_document(config)[1].get('active') else 'inactive'
+    return status == 'usage_budget_available' and quota_delay(normalized, now, False, effective if full_budget else proposed) == 0
+
+
+def full_budget_state(ledger):
+    """结束回执以独立一次性授权文档为准，不展示旧缓存的active。"""
+    try:
+        _, document = grant_document(ledger)
+        grant = document.get('grants', {}).get(document.get('active'))
+        return 'active' if grant and grant.get('status') == 'active' else 'inactive'
+    except (OSError, ValueError, TypeError, KeyError):
+        return 'unknown'
 
 
 def output(ledger, action, reason, thread):
@@ -236,6 +265,7 @@ def output(ledger, action, reason, thread):
             'goal_id': ledger.get('goal', {}).get('id'), 'automation_id': ledger.get('automation_id'),
             'goal_status': ledger.get('goal_status'), 'last_check': ledger.get('last_check'),
             'budget': {'fraction': '0.8', 'allow_existing_credits': False,
+                       'full_budget_once': full_budget_state(ledger),
                        'status': ledger.get('usage_status', 'unknown'),
                        'error': ledger.get('usage_error'),
                        'accounts': len(ledger.get('account_budgets', {})),
@@ -243,6 +273,70 @@ def output(ledger, action, reason, thread):
                        'windows': {name: {field: item.get(field) for field in
                                          ('baseline_remaining', 'reserve', 'resets_at')}
                                    for name, item in budget.get('windows', {}).items()}}}
+
+
+def authorize_full_budget(ledger, runtime, thread, binding, current_goal, status,
+                          home, usage_file, evidence_file, now, authorization):
+    """调用者核实正式真人来源后显式登记；摘要不是来源签名，不修改历史预算。"""
+    if (status != 'active' or not ledger.get('automation_id')
+            or ledger.get('terminal_reason') not in (None, 'usage_wait_expired')):
+        return output(ledger, 'stop', 'full_budget_state_rejected', thread)
+    try:
+        evidence = read_json(evidence_file)
+        observed = evidence.get('observed_at')
+        if (evidence.get('source') != 'codex_app.read_thread'
+                or evidence.get('target_thread') != thread
+                or type(observed) not in (int, float) or not math.isfinite(observed)
+                or not -5 <= now - observed <= USAGE_TTL
+                or not isinstance(authorization, str) or not authorization.strip()
+                or len(authorization) > 4096 or evidence.get('user_text') != authorization):
+            raise ValueError('授权来源无效')
+        provenance = {key: str(uuid.UUID(evidence[key])) for key in
+                      ('source_thread', 'turn_id', 'user_message_id')}
+        provenance['authorization_sha256'] = hashlib.sha256(authorization.encode()).hexdigest()
+        response = usage_snapshot(usage_file, thread, now)
+        candidate = initialize_usage_budget(response, now)
+        key = json.dumps([candidate['account_id'], candidate['limit_id']], separators=(',', ':'))
+        if key != ledger.get('active_budget_key') or key not in ledger['account_budgets']:
+            raise ValueError('账号不匹配')
+        # 完整授权同样不能使官方已拒绝的普通额度或未授权 credits 可用。
+        if quota_delay(response, now, False) != 0:
+            return output(ledger, 'wait', 'full_budget_official_usage_unavailable', thread)
+        path = runtime / 'full-budget-once.json'
+        config = {'full_budget_grant_file': str(path)}
+        _, document = grant_document(config)
+        source_identity = {key: provenance[key] for key in ('source_thread', 'turn_id', 'user_message_id')}
+        grant_key = hashlib.sha256(json.dumps([binding, current_goal, source_identity], sort_keys=True).encode()).hexdigest()
+        previous = document.get('grants', {}).get(grant_key)
+        if previous and previous.get('authorization') != provenance:
+            return output(ledger, 'stop', 'full_budget_evidence_invalid', thread)
+        if previous and (previous.get('status') != 'active' or document.get('active') != grant_key):
+            return output(ledger, 'stop', 'full_budget_authorization_consumed', thread)
+        if document.get('active') not in (None, grant_key):
+            return output(ledger, 'stop', 'full_budget_already_active', thread)
+        if identity(thread, home) != (binding, current_goal, 'active'):
+            return output(ledger, 'stop', 'full_budget_identity_changed', thread)
+        credits = response['rateLimits']['credits']
+        if not previous:
+            document.setdefault('grants', {})[grant_key] = {
+                'thread': thread, 'goal': current_goal, 'authorization': provenance,
+                'account_id': candidate['account_id'], 'limit_id': candidate['limit_id'],
+                'status': 'active', 'granted_at': now, 'allow_existing_credits': False,
+                'previous_terminal_reason': ledger.get('terminal_reason'),
+                'credits_balance': str(budget_decimal(credits['balance'])),
+                'credits_unlimited': credits['unlimited']}
+        document['active'] = grant_key
+        atomic(path, document)
+        ledger['full_budget_grant_file'] = str(path)
+        ledger['full_budget_status'] = 'active'
+        ledger.pop('terminal_action', None)
+        ledger.pop('terminal_reason', None)
+        ledger.pop('first_wait_at', None)
+        ledger['last_check'] = {'at': now, 'mode': 'authorize-full-budget',
+                                'caller_thread': thread, 'action': 'wait'}
+        return output(ledger, 'wait', 'full_budget_authorized_checkpoint_required', thread)
+    except (OSError, ValueError, TypeError, KeyError, InvalidOperation):
+        return output(ledger, 'stop', 'full_budget_evidence_invalid', thread)
 
 
 def resume_ledger(ledger, thread, binding, current_goal, status, home, usage_file, now, authorization):
@@ -290,10 +384,10 @@ def resume_ledger(ledger, thread, binding, current_goal, status, home, usage_fil
 
 
 def run(thread, command, usage_file=None, automation_id=None, now=None, previous_automation_id=None,
-        user_authorization=None):
+        user_authorization=None, authorization_file=None):
     """一次门禁检查；官方自动化的创建、暂停与删除由调用方执行。"""
     thread = str(uuid.UUID(thread))
-    if command in ('checkpoint', 'resume') and os.environ.get('CODEX_THREAD_ID') != thread:
+    if command in ('checkpoint', 'resume', 'authorize-full-budget') and os.environ.get('CODEX_THREAD_ID') != thread:
         return output({}, 'wait', 'checkpoint_caller_mismatch', thread)
     now = time.time() if now is None else now
     home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).resolve()
@@ -314,6 +408,9 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
     with (runtime / 'native-heartbeat.lock').open('a') as lock:
         lock_file(lock)
         ledger = read_json(path) if path.exists() else {}
+        grant_file = ledger.get('full_budget_grant_file')
+        if grant_file is not None and grant_file != str(runtime / 'full-budget-once.json'):
+            return output({}, 'stop', 'ledger_invalid', thread)
         try:
             binding, current_goal, status = identity(thread, home)
         except (OSError, sqlite3.Error):
@@ -323,16 +420,19 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
             return output({}, 'stop', 'binding_unknown', thread)
         except (ValueError, TypeError):
             if ledger:
+                end_full_budget(ledger, 'binding_unknown')
                 ledger.update(terminal_action='stop', terminal_reason='binding_unknown')
                 atomic(path, ledger)
             return output(ledger, 'stop', 'binding_unknown', thread)
         if ledger and (ledger.get('binding') != binding or ledger.get('goal') != current_goal):
+            end_full_budget(ledger, 'goal_or_binding_changed')
             ledger.update(terminal_action='stop', terminal_reason='goal_or_binding_changed')
             atomic(path, ledger)
             return output(ledger, 'stop', 'goal_or_binding_changed', thread)
         if status in ('complete', 'paused'):
             action, reason = ('finish', 'goal_complete') if status == 'complete' else ('stop', 'goal_' + str(status))
             if ledger:
+                end_full_budget(ledger, reason)
                 ledger.update(terminal_action=action, terminal_reason=reason, goal_status=status)
                 atomic(path, ledger)
             return output(ledger or {'goal': current_goal, 'goal_status': status}, action, reason, thread)
@@ -340,6 +440,15 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
             result = resume_ledger(ledger, thread, binding, current_goal, status, home,
                                    usage_file, now, user_authorization)
             if result['action'] == 'continue':
+                atomic(path, ledger)
+            return result
+        if command == 'authorize-full-budget':
+            if (ledger.get('version') != 1 or ledger.get('fraction') != '0.8'
+                    or ledger.get('allow_existing_credits') is not False):
+                return output(ledger, 'stop', 'ledger_invalid', thread)
+            result = authorize_full_budget(ledger, runtime, thread, binding, current_goal, status,
+                                           home, usage_file, authorization_file, now, user_authorization)
+            if result['reason'] == 'full_budget_authorized_checkpoint_required':
                 atomic(path, ledger)
             return result
         if ledger.get('terminal_action'):
@@ -414,6 +523,7 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
             except (ValueError, TypeError):
                 final_binding, final_goal, final_status = None, None, None
             if (final_binding != binding or final_goal != current_goal or final_status != status):
+                end_full_budget(ledger, 'binding_changed_during_check')
                 ledger.update(terminal_action='stop', terminal_reason='binding_changed_during_check')
                 atomic(path, ledger)
                 return output(ledger, 'stop', 'binding_changed_during_check', thread)
@@ -442,6 +552,11 @@ def main():
     resume.add_argument('--usage-file', type=Path, required=True)
     resume.add_argument('--user-authorization', required=True,
                         help='调用Agent核验本次真人明确恢复原任务后填写；此参数本身不是授权证明')
+    full_budget = commands.add_parser('authorize-full-budget')
+    full_budget.add_argument('--usage-file', type=Path, required=True)
+    full_budget.add_argument('--authorization-file', type=Path, required=True)
+    full_budget.add_argument('--user-authorization', required=True,
+                             help='须与正式read_thread真人原文相同；调用者先核验来源，此参数不是授权证明')
     commands.add_parser('bind').add_argument('--automation-id', required=True)
     replacement = commands.add_parser('rebind')
     replacement.add_argument('--automation-id', required=True)
@@ -451,7 +566,8 @@ def main():
         result = run(args.thread, args.command, getattr(args, 'usage_file', None),
                      getattr(args, 'automation_id', None),
                      previous_automation_id=getattr(args, 'previous_automation_id', None),
-                     user_authorization=getattr(args, 'user_authorization', None))
+                     user_authorization=getattr(args, 'user_authorization', None),
+                     authorization_file=getattr(args, 'authorization_file', None))
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
         result = output({}, 'stop', 'local_evidence_unavailable', args.thread)
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
