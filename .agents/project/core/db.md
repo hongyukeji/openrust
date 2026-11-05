@@ -26,6 +26,10 @@ SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlit
 
 单一QueryState、双生命周期、父Clone独立/child共享、冻结绑定、图环/来源拒绝和跨I/O租约已限定验收；回调、投影、分页/chunk按固定官方时机执行，唯一时间线与Auth事务调用方同步。main12门禁、真实双库各42公开契约/2HTTP、fresh27及consumer通过，详见[限定证据](../memory/testing.md#query-查询前回调与共享子查询限定验收)。服务器确认行锁后的取消恢复已验；MySQL冷prepare取消的单连接淘汰/替换与锁释放已另行[限定验收](../memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)，不承诺任意阶段同连接恢复；完整Query/ORM仍开放，下一步只在todo维护。
 
+## 插入标识与事务执行
+
+DB-I01限定实现同次执行返回ID、默认行/sequence、PHP64 Processor数值规则、before-query/来源租约/主库与原事务；PG同RETURNING原值+文本副本保精度，SQLite负rowid通过固定SeaORM安全访问器保留。唯一示例事务内写后读取、CLI生成公开回归及独立patch图同步。适用验收与分发边界见[testing](../memory/testing.md#插入标识与事务执行闭环)；不关闭完整Query、Model或Passport，普通模型getKey转换与Query Processor不得混用。
+
 ## 当前实现
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。

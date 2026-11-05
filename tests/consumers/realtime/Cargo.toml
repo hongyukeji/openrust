@@ -32,4 +32,5 @@ expect_used = "deny"
 panic = "deny"
 
 [patch.crates-io]
+sea-orm = { path = "../../../vendor/sea-orm" }
 sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }

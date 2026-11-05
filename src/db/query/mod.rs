@@ -1,12 +1,12 @@
 //! 由现有 `Db` 连接、表名解析和 `SeaQuery` 方言承载的 fluent 查询入口。
 
 use sea_orm::sea_query::{
-    Alias, Asterisk, Condition, Expr, ExprTrait, Func, JoinType, LockType, MysqlQueryBuilder,
-    OnConflict, Order, PostgresQueryBuilder, Query, SelectStatement, SqliteQueryBuilder, UnionType,
-    Value, Values,
+    Alias, Asterisk, Condition, Expr, ExprTrait, Func, InsertStatement, JoinType, LockType,
+    MysqlQueryBuilder, OnConflict, Order, PostgresQueryBuilder, Query, SelectStatement,
+    SqliteQueryBuilder, UnionType, Value, Values,
 };
 use sea_orm::{
-    ConnectionTrait, DatabaseTransaction, DbBackend, QueryResult, Statement, TryGetable,
+    ConnectionTrait, DatabaseTransaction, DbBackend, ExecResult, QueryResult, Statement, TryGetable,
 };
 use std::future::Future;
 use std::sync::{Arc, Mutex};
@@ -15,6 +15,7 @@ mod between_columns;
 mod builder;
 mod conditional;
 mod existence;
+mod insert_id;
 mod subqueries;
 pub use between_columns::ColumnOperand;
 use between_columns::{PredicateChain, QueryContext};
@@ -768,25 +769,47 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         if values.is_empty() {
             return Err(empty_values());
         }
-        let mut columns = Vec::with_capacity(values.len());
-        let mut expressions = Vec::with_capacity(values.len());
-        for (column, value) in values {
-            validate_identifier(column)?;
-            columns.push(Alias::new(column));
-            expressions.push(Expr::val(value));
+        self.execute(self.compile_insert(values, None)?).await
+    }
+
+    fn compile_insert(
+        &self,
+        values: Vec<(&str, Value)>,
+        returning: Option<&str>,
+    ) -> Result<(String, Values)> {
+        let mut statement: InsertStatement = Query::insert();
+        statement.into_table(Alias::new(&self.table));
+        if values.is_empty() {
+            statement.or_default_values();
+        } else {
+            let mut columns = Vec::with_capacity(values.len());
+            let mut expressions = Vec::with_capacity(values.len());
+            for (column, value) in values {
+                validate_identifier(column)?;
+                columns.push(Alias::new(column));
+                expressions.push(Expr::val(value));
+            }
+            statement
+                .columns(columns)
+                .values(expressions)
+                .map_err(Error::internal)?;
         }
-        let mut statement = Query::insert();
-        statement
-            .into_table(Alias::new(&self.table))
-            .columns(columns);
-        statement.values(expressions).map_err(Error::internal)?;
-        let compiled = match self.db.backend()? {
-            DbBackend::Postgres => statement.build(PostgresQueryBuilder),
-            DbBackend::MySql => statement.build(MysqlQueryBuilder),
-            DbBackend::Sqlite => statement.build(SqliteQueryBuilder),
-            _ => return Err(unsupported_backend()),
-        };
-        self.execute(compiled).await
+        if let Some(column) = returning {
+            validate_identifier(column)?;
+            statement.returning(Query::returning().exprs([
+                Expr::col(Alias::new(column)),
+                Expr::cust_with_expr(
+                    "$1 AS \"__openrust_insert_id_text\"",
+                    Expr::col(Alias::new(column)).cast_as(Alias::new("text")),
+                ),
+            ]));
+        }
+        match self.db.backend()? {
+            DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
+            DbBackend::MySql => Ok(statement.build(MysqlQueryBuilder)),
+            DbBackend::Sqlite => Ok(statement.build(SqliteQueryBuilder)),
+            _ => Err(unsupported_backend()),
+        }
     }
 
     fn validate_upsert(
@@ -1102,7 +1125,11 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         Ok(select)
     }
 
-    async fn execute(&self, (sql, values): (String, Values)) -> Result<u64> {
+    async fn execute(&self, compiled: (String, Values)) -> Result<u64> {
+        Ok(self.execute_result(compiled).await?.rows_affected())
+    }
+
+    async fn execute_result(&self, (sql, values): (String, Values)) -> Result<ExecResult> {
         self.validate()?;
         let statement = Statement::from_sql_and_values(self.db.backend()?, sql, values.0);
         let result = match self.transaction {
@@ -1110,7 +1137,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
             None => self.db.primary_connection()?.execute_raw(statement).await,
         }
         .map_err(Error::internal)?;
-        Ok(result.rows_affected())
+        Ok(result)
     }
 }
 

@@ -1,0 +1,137 @@
+{
+    "php": "8.5.12",
+    "cases": [
+        {
+            "kind": "string",
+            "input": "000123",
+            "result": 123,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "123e2",
+            "result": 12300,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "123tail",
+            "result": "123tail",
+            "result_type": "string",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": " +1.9e2\t",
+            "result": 190,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "9223372036854775808",
+            "result": 9223372036854775807,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "18446744073709551615",
+            "result": 9223372036854775807,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "1234567890.123456789012345678901234567891",
+            "result": 1234567890,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "9999999999999999999999999999",
+            "result": 9223372036854775807,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "1e9999",
+            "result": 0,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "0x10",
+            "result": "0x10",
+            "result_type": "string",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "1\f",
+            "result": 1,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": " 1",
+            "result": " 1",
+            "result_type": "string",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "-1.75",
+            "result": -1,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "string",
+            "input": "-0",
+            "result": 0,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "float",
+            "input": "2^63",
+            "result": -9223372036854775808,
+            "result_type": "int",
+            "warnings": [
+                2
+            ]
+        },
+        {
+            "kind": "float",
+            "input": "-1.75",
+            "result": -1,
+            "result_type": "int",
+            "warnings": []
+        },
+        {
+            "kind": "float",
+            "input": "INF",
+            "result": 0,
+            "result_type": "int",
+            "warnings": [
+                2
+            ]
+        },
+        {
+            "kind": "float",
+            "input": "NAN",
+            "result": 0,
+            "result_type": "int",
+            "warnings": [
+                2
+            ]
+        }
+    ]
+}

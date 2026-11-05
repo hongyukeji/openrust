@@ -443,6 +443,22 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
         self.apply_callbacks()?;
         self.snapshot()?.insert(values).await
     }
+    /// 插入一行并返回本次执行生成的 ID；空值列表插入默认行。
+    ///
+    /// PostgreSQL 的 sequence 指定 RETURNING 列（空值、空串及 0 默认 id）；
+    /// MySQL/SQLite 忽略 sequence，并从本次执行结果读取原生自增 ID。
+    /// 数值按固定 Laravel Processor 的 PHP 64 位整数规则转换，其余值保持原样。
+    /// 浮点转换 warning 按 Laravel 默认处理器返回错误；此前已执行的写入不会隐式回滚。
+    /// 使用同一原查询回调、主连接或已有事务，不另行查询连接级 last ID。
+    pub async fn insert_get_id(
+        &self,
+        values: Vec<(&str, Value)>,
+        sequence: Option<&str>,
+    ) -> Result<Value> {
+        let _lease = self.lease()?;
+        self.apply_callbacks()?;
+        self.snapshot()?.insert_get_id(values, sequence).await
+    }
     /// 按唯一键插入或更新；执行前应用同一原查询的回调。
     pub async fn upsert(
         &self,

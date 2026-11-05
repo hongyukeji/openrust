@@ -142,3 +142,16 @@ fluent 方法按 Rust 所有权返回新的值，因此在回调内显式构造�
 时间线通过执行前回调追加当前账户条件，普通查询克隆各自消费该范围；`exists_or` 返回是否有 open 导入，另一账户的在途记录不影响标记。
 
 本章只描述当前公开子范围，不代表完整 Laravel Query Builder、Model 或 Schema 已完成。固定对应来源为 Laravel `Builder::whereBetweenColumns` 与 Query Grammar，Rustdoc 提供类型与完整签名。
+
+## 插入并取得主键
+
+```rust,ignore
+let id = db.table("orders")?
+    .insert_get_id(vec![("title", "first order".into())], None).await?;
+```
+
+`insert_get_id` 允许空值列表，插入一行数据库默认值。MySQL/SQLite从本次执行结果取自增键，SQLite保留负rowid；PostgreSQL使用同次`RETURNING`，第二个参数可选择返回列，`None`、空字符串或`"0"`均选择`id`。其他两驱动不使用该参数。它执行原查询的`before_query`回调，写入主连接，或使用`using_transaction`借用的原事务。
+
+返回类型为`sea_orm::Value`，按固定Laravel Processor的PHP64位规则处理：数值字符串（例如`"000123"`）返回整数123，非数值文本保留；MySQL超有符号范围的原生ID按PDO字符串的规则封顶。不要把这个返回转换当成模型原始主键读取的规则。按固定PHP8.5默认框架错误处理，越界及非有限浮点转换返回错误；INSERT此时可能已经完成，需要原子失败语义时显式使用事务。PostgreSQL BYTEA保留Rust字节值，不能声称模拟PHP资源句柄。
+
+实现依赖仓内固定SeaORM安全结果访问器；手写独立consumer需继承根`[patch.crates-io] sea-orm`路径，生成项目会自动写入规范绝对路径。普通`last_insert_id`旧访问器未改，不能用它替代新路径。当前SQL列参数仍遵守Query的标识符限制，完整Eloquent、全部SQL方言和发布分发边界按支持范围验收。

@@ -212,3 +212,5 @@ let report = rule
 `before_query` 通过单一查询状态追加执行前条件，`to_sql` 消费回调而 `get_bindings` 不触发；错误保留部分修改和待用列表。`QueryBuilder<'tx, 'cap>` 分别追踪事务和捕获借用，要求事务覆盖捕获期；普通Clone复制父状态并共享已接入子节点。
 
 MySQL 冷 prepare 的 Future 被取消后，未完成的物理连接明确拒绝新查询/提交/回滚，归还池时淘汰并补建；不自动重试原 SQL，也不把回滚失败当作成功。取消时仍持有的事务可能保留锁直到断线。根及生成应用使用同版本 SQLx0.9.0 临时补丁，手写消费者须在最终 workspace 根应用相同 patch；来源、Cargo 约束和边界见[驱动说明](../../vendor/sqlx-mysql/OPENRUST.md)。
+
+`QueryBuilder::insert_get_id(values, sequence)` 取得同次INSERT的主键，允许default row；写主库/原事务，并执行同一原查询回调。SQLite负rowid通过固定SeaORM安全访问器保留，PG同次RETURNING避免跨连接last-id猜测。数值依固定Processor的PHP64位转换，浮点warning依默认框架错误处理返回Err；已经执行的INSERT不隐式回滚。详情见[查询指南](../../docs/src/database/queries.md#插入并取得主键)。这不代表模型原始主键转换或完整 Eloquent 已完成。

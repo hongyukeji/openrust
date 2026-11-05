@@ -2,3 +2,5 @@
 *.cmd text eol=crlf
 *.png binary
 *.jpg binary
+# 保留固定第三方crate逐字来源，避免提交时改变上游资源的行尾及原始SHA。
+/vendor/sea-orm/** -text

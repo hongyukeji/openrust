@@ -77,21 +77,46 @@ pub(crate) async fn store(
     Inject(db): Inject<Db>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
 ) -> Result<Created<Json<ExampleRecordResource>>> {
-    let model = example_record::ActiveModel {
-        owner_id: Set(user.integer_id()?),
-        name: Set(input.name),
-        description: Set(input.description),
-        priority: Set(input.priority),
-        view_count: Set(input.view_count),
-        enabled: Set(input.enabled),
-        published_at: Set(input.published_at),
-        metadata: Set(input.metadata),
-        category_id: Set(input.category_id),
-        ..Default::default()
-    }
-    .insert(&db.primary_connection()?)
-    .await
-    .map_err(Error::internal)?;
+    let owner = user.integer_id()?;
+    // 模块实体固定物理表名；复用已选主库池，不把框架表前缀施加到模块专有表。
+    let query_db = Db::default();
+    query_db.initialize(db.primary_connection()?)?;
+    let model = db
+        .transaction(move |transaction| {
+            Box::pin(async move {
+                let id = query_db
+                    .table("example_records")?
+                    .using_transaction(transaction)
+                    .insert_get_id(
+                        vec![
+                            ("owner_id", owner.into()),
+                            ("name", input.name.into()),
+                            ("description", input.description.into()),
+                            ("priority", input.priority.into()),
+                            ("view_count", input.view_count.into()),
+                            ("enabled", input.enabled.into()),
+                            ("published_at", input.published_at.into()),
+                            ("metadata", input.metadata.into()),
+                            ("category_id", input.category_id.into()),
+                        ],
+                        None,
+                    )
+                    .await?;
+                let openrust::db::sea_orm::Value::BigInt(Some(id)) = id else {
+                    return Err(Error::custom(
+                        "example_record_id_invalid",
+                        "示例记录主键不是预期整数",
+                    ));
+                };
+                example_record::Entity::find_by_id(id)
+                    .filter(example_record::Column::OwnerId.eq(owner))
+                    .one(transaction)
+                    .await
+                    .map_err(Error::internal)?
+                    .ok_or_else(not_found)
+            })
+        })
+        .await?;
     Ok(Created(Json(model.into())))
 }
 

@@ -20,7 +20,7 @@ autotests = false
 resolver = "3"
 members = ["tools/cli", "tools/macros", "tools/testing", "tools/performance"]
 # 第三方 vendored crate 只作依赖，不作为第一方 workspace 包调度。
-exclude = ["vendor/sea-orm-migration", "vendor/sqlx-mysql"]
+exclude = ["vendor/sea-orm-migration", "vendor/sqlx-mysql", "vendor/sea-orm"]
 default-members = ["."]
 
 [workspace.package]
@@ -83,7 +83,7 @@ validator = { version = "0.21", features = ["derive"] }
 clap = { version = "4.6", features = ["derive"] }
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
-sea-orm = { version = "2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "with-rust_decimal", "with-uuid", "with-time", "stream", "runtime-tokio-rustls"] }
+sea-orm = { version = "=2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "with-rust_decimal", "with-uuid", "with-time", "stream", "runtime-tokio-rustls"] }
 sea-orm-migration = { version = "=2.0.4", path = "vendor/sea-orm-migration", default-features = false, features = ["runtime-tokio-rustls"] }
 sha2 = "0.10"
 sha2_11 = { package = "sha2", version = "0.11" }
@@ -534,8 +534,13 @@ path = "tests/core/container_extension_contract.rs"
 winapi-util = { version = "=0.1.11", optional = true }
 
 [patch.crates-io]
+sea-orm = { path = "vendor/sea-orm" }
 sqlx-mysql = { path = "vendor/sqlx-mysql" }
 
 [[test]]
 name = "database_lifecycle_recovery"
 path = "tests/database/lifecycle_recovery.rs"
+
+[[test]]
+name = "query_insert_ids"
+path = "tests/database/insert_ids.rs"

@@ -1,5 +1,13 @@
 # 测试基线
 
+## 插入标识与事务执行闭环
+
+DB-I01 v2独立验收回执为`tmp/independent-testing-20261106/DB-I01-RESULT.json`及同名md，绑定1528项导出组合输入SHA，最终同源。原13项main门禁全0，test-only v2修正后fmt与受影响严格Clippy复验；MySQL8.4和PG18各native/public Query/唯一example真实CRUD三项无skip通过，正常批次catalog恢复。SQLite/MySQL-auth/PG三类fresh实际new/check/test/locked metadata通过；最低SQLite3.26实际加载证明及7项定向无忽略通过。12个consumer locked metadata与两个直接相关consumer编译通过，根/consumer/fresh路径均解析受验副本。
+
+固定SeaORM2.0.4原包SHA、402项原文件及许可证已核，唯一生产改动为安全执行结果访问器；完整vendor是用户已批准分发方案，Cargo顶层patch不会跨workspace自动传播。尚不声称crates.io分发已验。BYTEA字节值是明确Rust表达；完整Query/ORM、其它后端及发布矩阵仍开放。
+
+旧PG SQL文本期待误引号失败与最低版首次pkg-config选系统SDK stub的验收环境失败均保留；v2保留文本投影、绑定和NUMERIC断言，环境修正不改生产源码。网络归属journal均done，完成生成包原生clean回收约1.11GB；独立target仅为后续明确队列保留，主target已清空。组合回执不自动证明任意部分提交树，精确DB-only候选须单独核依赖闭合和适用复验。
+
 ## 统一 Hashing 与认证接线限定验收
 
 固定 Laravel13.39.0 / d52c3b3 的 HashManager、HashServiceProvider、Hasher/三驱动、安装默认及测试为 contract；固定 PHP8.5.12 oracle 验证参数/元信息/算法迁移，并补24条真实 `$2x$` 正反向向量。生产统一 `HashManager` 动态委派与首次解析的 `dyn Hasher` 驱动别名；默认bcrypt12/verify=true，显式Argon安装默认65536/4/1。认证、验证码、标准UserProvider与生成应用共用该服务，删除独立Passwords/PasswordConfig/auth.password成本权威。标准Hash保留72字节/NUL别名；增强认证另有统一前置能力检查，严格Argon混合旧bcrypt及make-only limit分支用固定合法dummy输入统一401，容量/预算错误仍传播。自返回工厂拒绝并释放已捕获强引用，同时保留并发extend后继；不声称任意回调图可自动解环。

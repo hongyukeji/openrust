@@ -15,4 +15,5 @@ sea-orm = { version = "2.0.4", default-features = false, features = ["sqlx-sqlit
 tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
 
 [patch.crates-io]
+sea-orm = { path = "../../../vendor/sea-orm" }
 sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }

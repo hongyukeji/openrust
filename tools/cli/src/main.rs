@@ -1157,6 +1157,21 @@ fn populate_project_with_features(
             ),
         ]);
     }
+    if let Some(backend) = database {
+        let setup = match backend {
+            DatabaseBackend::Sqlite => {
+                "    let database = TestDatabase::sqlite_file::<EmptyMigrator>().await?;"
+            }
+            DatabaseBackend::Mysql | DatabaseBackend::Postgres => {
+                "    let Ok(url) = std::env::var(\"OPENRUST_TEST_DATABASE_URL\") else { eprintln!(\"skipping generated insert ID test: OPENRUST_TEST_DATABASE_URL is unset\"); return Ok(()); };\n    let database = TestDatabase::create::<EmptyMigrator>(&url).await?;"
+            }
+        };
+        files.push((
+            "tests/query_insert_ids.rs",
+            include_str!("../templates/tests/query_insert_ids.rs")
+                .replace("    // {{database_setup}}", setup),
+        ));
+    }
     for (relative_path, contents) in files {
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
@@ -5233,9 +5248,11 @@ mod tests {
         create_framework_fixture(&root);
         let driver = root.join("vendor/sqlx-mysql");
         fs::create_dir_all(&driver).expect("创建补丁目录");
+        let orm = root.join("vendor/sea-orm");
+        fs::create_dir_all(&orm).expect("创建ORM补丁目录");
         let source_path = root.join("Cargo.toml");
         let mut source = fs::read_to_string(&source_path).expect("读取源清单");
-        source.push_str("\n[patch.crates-io]\nsqlx-mysql = { path = \"vendor/sqlx-mysql\" }\n");
+        source.push_str("\n[patch.crates-io]\nsqlx-mysql = { path = \"vendor/sqlx-mysql\" }\nsea-orm = { path = \"vendor/sea-orm\" }\n");
         fs::write(&source_path, &source).expect("登记驱动补丁");
         let app = root.join("application");
         fs::create_dir_all(&app).expect("创建应用目录");
@@ -5248,6 +5265,10 @@ mod tests {
         assert_eq!(
             generated["patch"]["crates-io"]["sqlx-mysql"]["path"].as_str(),
             driver.canonicalize().expect("补丁绝对路径").to_str()
+        );
+        assert_eq!(
+            generated["patch"]["crates-io"]["sea-orm"]["path"].as_str(),
+            orm.canonicalize().expect("ORM补丁绝对路径").to_str()
         );
         assert_eq!(fs::read_to_string(&source_path).expect("源清单"), source);
         fs::remove_dir_all(root).expect("清理本测试目录");

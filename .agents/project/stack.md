@@ -1,5 +1,7 @@
 # 技术栈
 
+DB-I01固定 `sea-orm =2.0.4`，仅在仓内源码新增安全 `ExecResult::try_last_insert_id`，SQLite保留有符号rowid，MySQL保留原生u64，不支持的PG结果返回错误；Query层按各固定Processor另作PHP64位数值转换。原因与原包SHA/许可证见 [SeaORM来源](../../vendor/sea-orm/SOURCES.md)。用户已批准完整必要crate随簇提交，根patch、12个consumer与三类fresh实际metadata均解析同一修复副本；无准备脚本、外部fork或发布替代声明。上游升级时须核修复等价再移除补丁，完整来源/许可证/上游402项SHA保持，当前不为精简改变受验分发。限定验收见[插入标识](memory/testing.md#插入标识与事务执行闭环)。
+
 网络测试库生命周期修复新增可选`shutdown_hooks =0.1.0`（MIT，已取固定crate源码SHA审计，安全接口封装C atexit；无额外依赖）。仅显式网络TestDatabase操作首次调用时登记正常退出回调，等待本进程已派发的有限清理操作；回调只同步计数与条件变量，不执行SQL/访问Tokio/输出日志，不安装信号处理或永久后台进程。原因是async Drop阻塞caller runtime会冻住SQLx已排队的还池任务；不能为此忽略pool.close失败而删除活跃库。SIGKILL/abort等不运行退出钩子，仍需持久归属与下次显式入口补偿；Unix范围已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，非Unix私有ACL与副本/无应答服务专项仍开放。
 
 测试数据库持久归属journal复用已有固定rustix1.1.5安全API，Unix的DB feature同时启用`process`以核对真实有效UID及私有文件归属，不信任PID/环境变量。仅用于测试资源归属核验，不给业务数据库增删权限；跨进程补偿按同上Unix限定证据认定。

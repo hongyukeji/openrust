@@ -13,4 +13,5 @@ openrust = { path = "../../..", version = "0.0.0", features = ["data-exchange-ta
 serde_json = "1.0"
 
 [patch.crates-io]
+sea-orm = { path = "../../../vendor/sea-orm" }
 sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
