@@ -78,6 +78,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - [协议与分期退出](plans/oidc-authorization-server.md)；现 auth-oidc RP、Keycloak fixture、普通 JWT 均不算自建授权服务器。
 - 中心默认沿对应官方Web机制；显式JWT中心模式才执行全程无Cookie契约，Token持有/续期/授权事务及双RP浏览器限制先设计取证。此前一律禁止或等待Cookie确认的口径已由最终决定覆盖；实际实现和验收尚未完成。
 
+## 网络测试库剩余平台与拓扑边界
+
+- Unix生命周期/持久回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；不重复旧22/公开20场。root只提交测试库所需源码、Cargo/lock与文档，Passport/Hashing WIP保持。
+- 后继仍需非Unix安全私有ACL/真实Windows回归、真实只读副本与无应答服务的专项验证；不得将明确unsupported或静态fail-closed标成这些平台/拓扑已交付。MySQL活动快照依赖关闭独立池并停止新借用，不合作新连接/外部DDL与同名含marker备份不具原子CAS保证，不按前缀/PID/年龄清理。不扩当前限定提交；依赖允许时按唯一队列安排，当前回Passport/统一Hashing前置。
+
 ## 当前 Fortify 单体系与显式 JWT API profile（最终生效契约）
 
 最新真人决定：框架、根默认应用与未显式选择JWT的生成路径，以对应固定Laravel官方默认、生命周期和公开机制为准；Fortify原生Web/Session是其对应模式默认，不将所有场景一律Session或一律JWT。API+Bearer JWT是本批完整必交的显式选配，开发者选择后全程无Session/Cookie/CSRF-cookie/remember/隐藏Session/Set-Cookie或Cookie身份兜底。两种传输共用唯一UserProvider/Guard/Fortify三字段/Actions；旧auth-mfa兼容仍删除。此决定覆盖此前JWT为根默认、一律禁中心Cookie等中间口径，不改写历史验收。

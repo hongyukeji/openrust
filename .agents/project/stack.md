@@ -1,5 +1,10 @@
 # 技术栈
 
+网络测试库生命周期修复新增可选`shutdown_hooks =0.1.0`（MIT，已取固定crate源码SHA审计，安全接口封装C atexit；无额外依赖）。仅显式网络TestDatabase操作首次调用时登记正常退出回调，等待本进程已派发的有限清理操作；回调只同步计数与条件变量，不执行SQL/访问Tokio/输出日志，不安装信号处理或永久后台进程。原因是async Drop阻塞caller runtime会冻住SQLx已排队的还池任务；不能为此忽略pool.close失败而删除活跃库。SIGKILL/abort等不运行退出钩子，仍需持久归属与下次显式入口补偿；Unix范围已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，非Unix私有ACL与副本/无应答服务专项仍开放。
+
+测试数据库持久归属journal复用已有固定rustix1.1.5安全API，Unix的DB feature同时启用`process`以核对真实有效UID及私有文件归属，不信任PID/环境变量。仅用于测试资源归属核验，不给业务数据库增删权限；跨进程补偿按同上Unix限定证据认定。
+
+
 MySQL冷prepare取消使用固定SQLx0.9.0/SeaORM2.0.4及`vendor/sqlx-mysql`同版本临时补丁（MIT OR Apache-2.0），不新增运行期依赖；原始crate文件hash与源码commit见vendor说明。根与生成项目顶层patch必须实际解析到该源，SQLx暂精确固定防fresh生成绕过。Cargo不传播依赖包patch，手写独立消费者须显式同项；正式上游修复/发布取代补丁前保留此构建约束。冷prepare中断废弃单物理连接、回滚结果不伪造；main12、最终43双库/生成/consumer及源图已[限定验收](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)。
 
 Fortify限流键使用固定portable-ascii 2.0.2 / 16c17671a804bb92602822113dd91fbc8a35d2af的字符bank与clean数据（MIT许可和逐文件SHA随src/support/strings保存），不是新crate或运行期PHP依赖。Str当前仅提供strict=false转写，Rust有效UTF-8输入边界公开；不以deunicode/ICU近似官方默认，不宣称完整Laravel Str。真实PHP8.5 oracle与完整数据导出保存在本簇证据，Rust差分尚待集中执行。

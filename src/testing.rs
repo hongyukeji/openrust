@@ -10,4 +10,4 @@ pub use response::TestResponse;
 mod database;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql", feature = "db-sqlite"))]
-pub use database::TestDatabase;
+pub use database::{TestDatabase, TestDatabaseRecovery};

@@ -1,5 +1,7 @@
 # 项目上下文
 
+Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。后继继续唯一todo的Passport/统一Hashing前置，不重跑已关闭驱动簇或扩大本次提交。
+
 🟡 R7具名认证核心编码及适用验证收齐，最终证据独审与资源收尾通过，本地提交以Git为准；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低SQLite3.26迁移30断言通过。完整Eloquent/Fortify及其余认证范围保留，见[限定验收](memory/testing.md#r7-具名认证核心限定验收)。
 
 最新真人决定：框架、根默认应用与未显式选择JWT的生成路径，以对应固定Laravel官方默认、生命周期和公开机制为准；Fortify原生Web/Session是其对应模式默认，不将所有场景一律Session或一律JWT。API+Bearer JWT是本批完整必交的显式选配，开发者选择后全程无Session/Cookie/CSRF-cookie/remember/隐藏Session/Set-Cookie或Cookie身份兜底。两种传输共用唯一UserProvider/Guard/Fortify三字段/Actions；旧auth-mfa兼容仍删除。此决定覆盖此前JWT为根默认、一律禁中心Cookie等中间口径，不改写历史验收。

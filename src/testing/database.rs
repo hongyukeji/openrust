@@ -10,18 +10,32 @@ use crate::{
     Error, Result,
     database::{DatabaseBackend, DatabaseTableNames, sea_orm_migration::MigratorTrait},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection};
+use futures_util::FutureExt as _;
+use sea_orm::DatabaseConnection;
+#[cfg(test)]
+use sea_orm::{ConnectOptions, Database};
 use url::Url;
 
 static DATABASE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+mod exit;
+mod lease;
+mod marker;
+mod owned_pool;
+mod ownership;
+mod resources;
+mod session;
+use ownership::ResourceKind;
+use resources::OwnedDatabase;
+pub use resources::TestDatabaseRecovery;
+
 /// 为单个集成测试隔离的数据库。
 ///
 /// 使用 [`TestDatabase::create`] 创建，并将 [`url`](Self::url) 用作应用的 `[database].url`。
-/// 调用 [`close`](Self::close) 等待清理完成；释放 guard 时，会在当前 Tokio runtime 上
-/// 尽力安排清理任务。
+/// 调用 [`close`](Self::close) 等待清理完成。网络库的清理由短寿命线程自驱，
+/// 不依赖调用方 Tokio runtime 继续存活。异步析构只移交清理以允许还池任务推进；
+/// 正常进程退出前有界等待已派发的操作，强杀与 abort 不运行退出回调。
 pub struct TestDatabase {
-    admin_url: String,
     database_name: String,
     database_url: String,
     connection: Option<DatabaseConnection>,
@@ -31,6 +45,11 @@ pub struct TestDatabase {
     sqlite: bool,
     // 显式关闭开始后，失败/取消必须保留文件，不能再由 Drop 无条件重试删除。
     preserve_sqlite: bool,
+    // 网络池的 I/O 驱动随 guard 交接；不能依赖正被 Drop 等待阻塞的调用方 runtime。
+    network_runtime: Option<tokio::runtime::Runtime>,
+    resources: Vec<OwnedDatabase>,
+    #[cfg(test)]
+    force_cleanup_start_failure: Option<()>,
 }
 
 impl TestDatabase {
@@ -90,7 +109,6 @@ impl TestDatabase {
             format!("sqlite://file:{database_name}?mode=memory&cache=shared")
         };
         let mut guard = Self {
-            admin_url: String::new(),
             database_name,
             database_url,
             connection: None,
@@ -99,6 +117,10 @@ impl TestDatabase {
             sqlite_directory: directory,
             sqlite: true,
             preserve_sqlite: false,
+            network_runtime: None,
+            resources: Vec::new(),
+            #[cfg(test)]
+            force_cleanup_start_failure: None,
         };
         let setup = async {
             let mut builder = crate::core::ProviderBuilder::new();
@@ -135,7 +157,9 @@ impl TestDatabase {
 
     /// 创建唯一命名的数据库，并应用应用程序的迁移。
     ///
-    /// URL 必须连接到已存在的数据库，且当前用户必须有权创建和删除数据库。
+    /// URL 必须直连唯一可写主库的既有管理数据库，当前用户须有建库、删库与归属核验权限。
+    /// MySQL 额外要求 CREATE ROUTINE 和完整 `performance_schema` 连接/状态可见性；
+    /// PostgreSQL 要求读取 `pg_control_system()` 与连接活动。拒绝只读副本。
     /// PostgreSQL 使用临时迁移模板；MySQL 则在隔离数据库中重放迁移。
     /// 仅清理本次 CREATE 成功取得所有权的库；同名创建失败不会删除已有库。
     /// SQLite 内存 URL 会转换为新的自有共享内存库；文件 URL 必须改用 [`Self::sqlite_file`]。
@@ -173,89 +197,128 @@ impl TestDatabase {
             }
             return Err(owned_file_source_error());
         }
-        let parsed = Url::parse(admin_url).map_err(Error::internal)?;
         require_backend_feature(backend)?;
+        let admin_url = admin_url.to_owned();
+        let exit_ticket = exit::register_create_operation()?;
+        let (mut sender, result) = tokio::sync::oneshot::channel();
+        std::thread::Builder::new()
+            .name("openrust-test-db-create".to_owned())
+            .spawn(move || {
+                let _exit = exit_ticket;
+                let Ok(runtime) = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build() else {
+                    let _ = sender.send(Err(cleanup_error("test_database_create_runtime_failed")));
+                    return;
+                };
+                let mut outcome = runtime.block_on(async {
+                    let mut created = CreatedDatabases::default();
+                    let outcome = {
+                        let prepare = std::panic::AssertUnwindSafe(Self::prepare_network_database::<M>(
+                            &admin_url, table_names, database_name.clone(), &mut created,
+                        )).catch_unwind();
+                        tokio::select! {
+                            value = prepare => value.unwrap_or_else(|_| Err(cleanup_error("test_database_setup_panicked"))),
+                            () = sender.closed() => Err(cleanup_error("test_database_create_cancelled")),
+                        }
+                    };
+                    if outcome.is_err() {
+                        cleanup_created_databases(&mut created).await;
+                    }
+                    outcome
+                });
+                match &mut outcome {
+                    Ok(database) => database.network_runtime = Some(runtime),
+                    Err(_) => runtime.shutdown_timeout(std::time::Duration::from_secs(1)),
+                }
+                let _ = sender.send(outcome);
+            })
+            .map_err(|_| cleanup_error("test_database_create_worker_failed"))?;
+        let operation = NetworkOperation {
+            result: Some(result),
+        };
+        operation.receive().await
+    }
+
+    async fn prepare_network_database<M>(
+        admin_url: &str,
+        table_names: DatabaseTableNames,
+        database_name: String,
+        created: &mut CreatedDatabases,
+    ) -> Result<Self>
+    where
+        M: MigratorTrait + Send + Sync + 'static,
+    {
+        let backend = DatabaseBackend::from_url(admin_url)?;
+        let parsed = Url::parse(admin_url).map_err(Error::internal)?;
         let database_url = url_for_database(&parsed, &database_name);
-        let admin = connect(admin_url).await?;
-        // 只有 CREATE 返回成功才取得所有权；同名冲突不能进入失败清理。
-        #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-        let mut created = false;
-        #[cfg(not(any(feature = "db-postgres", feature = "db-mysql")))]
-        let created = false;
-
-        let setup: Result<()> = match backend {
-            DatabaseBackend::Sqlite => Err(owned_file_source_error()),
-            DatabaseBackend::PostgreSql => {
-                #[cfg(feature = "db-postgres")]
-                {
-                    create_postgres_database::<M>(
-                        &admin,
-                        &parsed,
-                        &database_name,
-                        table_names.clone(),
-                        &mut created,
-                    )
-                    .await
-                }
-                #[cfg(not(feature = "db-postgres"))]
-                {
-                    Err(Error::custom(
-                        "database_feature_disabled",
-                        "enable the testing db-postgres feature",
-                    ))
-                }
-            }
+        let root = resources::state_root()?;
+        let recovery = resources::recover(admin_url, &root).await?;
+        if recovery.retained > 0 {
+            tracing::warn!(
+                retained = recovery.retained,
+                "有测试资源未通过归属核验，已保留"
+            );
+        }
+        created.resources.push(
+            OwnedDatabase::plan(admin_url, &root, &database_name, ResourceKind::Target).await?,
+        );
+        match backend {
             DatabaseBackend::MySql => {
-                #[cfg(feature = "db-mysql")]
-                {
-                    create_mysql_database::<M>(
-                        &admin,
-                        &database_url,
-                        &database_name,
-                        table_names.clone(),
-                        &mut created,
-                    )
+                created.resources[0].create(None).await?;
+                created.resources[0].migration_pool = Some(
+                    owned_pool::connect(&database_url, created.resources[0].journal.record())
+                        .await?,
+                );
+                created.resources[0].migration_started = true;
+                let pool = created.resources[0]
+                    .migration_pool
+                    .as_ref()
+                    .ok_or_else(|| cleanup_error("test_database_pool_missing"))?;
+                table_names
+                    .scope(M::up(pool, None))
                     .await
-                }
-                #[cfg(not(feature = "db-mysql"))]
-                {
-                    Err(Error::custom(
-                        "database_feature_disabled",
-                        "enable the testing db-mysql feature",
-                    ))
-                }
+                    .map_err(Error::internal)?;
+                created.resources[0].close_migration_pool().await?;
+                created.resources[0].check_marker().await?;
             }
-        };
-
-        if let Err(error) = setup {
-            if created {
-                let _ = drop_database(&admin, &database_name).await;
+            DatabaseBackend::PostgreSql => {
+                let template_name = format!("{database_name}_template");
+                created.resources.push(
+                    OwnedDatabase::plan(admin_url, &root, &template_name, ResourceKind::Template)
+                        .await?,
+                );
+                created.resources[1].create(None).await?;
+                let template_url = url_for_database(&parsed, &template_name);
+                created.resources[1].migration_pool = Some(
+                    owned_pool::connect(&template_url, created.resources[1].journal.record())
+                        .await?,
+                );
+                created.resources[1].migration_started = true;
+                let pool = created.resources[1]
+                    .migration_pool
+                    .as_ref()
+                    .ok_or_else(|| cleanup_error("test_database_pool_missing"))?;
+                table_names
+                    .scope(M::up(pool, None))
+                    .await
+                    .map_err(Error::internal)?;
+                created.resources[1].close_migration_pool().await?;
+                created.resources[1].check_marker().await?;
+                created.resources[1]
+                    .lease()?
+                    .require_idle(&template_name)
+                    .await?;
+                created.resources[0].create(Some(&template_name)).await?;
+                created.resources[0].migration_started = true;
+                created.resources[0].check_marker().await?;
+                created.resources[1].cleanup().await?;
+                created.resources[1].close_lease().await?;
+                drop(created.resources.pop());
             }
-            let _ = admin.close().await;
-            return Err(error);
+            DatabaseBackend::Sqlite => return Err(owned_file_source_error()),
         }
-        if let Err(error) = admin.close().await {
-            if let Ok(cleanup) = connect(admin_url).await {
-                let _ = drop_database(&cleanup, &database_name).await;
-                let _ = cleanup.close().await;
-            }
-            return Err(Error::internal(error));
-        }
-
-        let connection = match connect(&database_url).await {
-            Ok(connection) => connection,
-            Err(error) => {
-                let cleanup = connect(admin_url).await;
-                if let Ok(cleanup) = cleanup {
-                    let _ = drop_database(&cleanup, &database_name).await;
-                    let _ = cleanup.close().await;
-                }
-                return Err(error);
-            }
-        };
-
+        let connection =
+            owned_pool::connect(&database_url, created.resources[0].journal.record()).await?;
         Ok(Self {
-            admin_url: admin_url.to_owned(),
             database_name,
             database_url,
             connection: Some(connection),
@@ -264,7 +327,26 @@ impl TestDatabase {
             sqlite_directory: None,
             sqlite: false,
             preserve_sqlite: false,
+            network_runtime: None,
+            resources: std::mem::take(&mut created.resources),
+            #[cfg(test)]
+            force_cleanup_start_failure: None,
         })
+    }
+
+    /// 从本机私有回执补偿已失活的网络测试库；缺失或错配的见证只保留，不接管旧前缀库。
+    ///
+    /// SQLite不参与此恢复；本方法不强制终止任何数据库连接。
+    /// 回执位于 storage/framework/testing/databases，或进程环境变量
+    /// `OPENRUST_TEST_DATABASE_STATE_DIR` 指定的稳定私有目录；不可删除活跃锁文件。
+    /// 网络恢复当前要求 Unix 私有权限，非 Unix 明确拒绝。
+    pub async fn recover(admin_url: &str) -> Result<TestDatabaseRecovery> {
+        let backend = DatabaseBackend::from_url(admin_url)?;
+        if backend == DatabaseBackend::Sqlite {
+            return Ok(TestDatabaseRecovery::default());
+        }
+        require_backend_feature(backend)?;
+        resources::recover(admin_url, &resources::state_root()?).await
     }
 
     /// 返回用于配置被测应用的连接 URL。
@@ -281,50 +363,107 @@ impl TestDatabase {
 
     /// 关闭连接池并删除隔离数据库。
     ///
-    /// SQLite 文件库调用前必须先关闭所有借用该 URL 的应用/worker，并停止创建新借用。
+    /// 调用前须先关闭借用该 URL 的独立应用/worker 池，并停止创建新借用。
+    /// 不强制终止外部连接；网络库占用或归属不明时保留回执供下次恢复。
     /// 调用时即禁止 `Drop` 另行删除；关闭 future 失败、取消或未被轮询时均保留目录。
     pub fn close(mut self) -> crate::core::BoxFuture<'static, Result<()>> {
+        if !self.sqlite {
+            let cleanup = self.start_network_cleanup();
+            return Box::pin(async move { cleanup?.receive().await });
+        }
         if self.sqlite {
             self.preserve_sqlite = true;
         }
-        Box::pin(self.close_inner())
+        Box::pin(self.close_sqlite_inner())
     }
 
-    async fn close_inner(mut self) -> Result<()> {
-        if self.sqlite {
-            let shutdown = if let Some(runtime) = self.sqlite_runtime.take() {
-                runtime
-                    .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
-                    .await
-            } else {
-                Ok(())
-            };
-            let closed = if let Some(connection) = self.connection.take() {
-                connection.close().await.map_err(Error::internal)
-            } else {
-                Ok(())
-            };
-            shutdown?;
-            closed?;
-            cleanup_sqlite_directory(self.sqlite_directory.as_deref())?;
-            self.cleaned = true;
-            return Ok(());
+    // 调用即移交唯一删除责任；close future 未 poll 或取消不能撤销已开始的回收。
+    fn start_network_cleanup(&mut self) -> Result<NetworkOperation<()>> {
+        #[cfg(test)]
+        if self.force_cleanup_start_failure.is_some() {
+            return Err(cleanup_error("test_database_cleanup_worker_failed"));
         }
-        let connection = self.connection.take().ok_or_else(|| {
-            Error::custom("test_database_closed", "test database is already closed")
-        })?;
-        let close_result = connection.close().await.map_err(Error::internal);
-        let cleanup_result = async {
-            let admin = connect(&self.admin_url).await?;
-            let drop_result = drop_database(&admin, &self.database_name).await;
-            let admin_close_result = admin.close().await.map_err(Error::internal);
-            drop_result?;
-            admin_close_result
+        let exit_ticket = exit::register_cleanup_operation()?;
+        let (sender, result) = tokio::sync::oneshot::channel();
+        let (ready, initialized) = std::sync::mpsc::sync_channel(1);
+        let (handoff, request) = std::sync::mpsc::sync_channel::<CleanupRequest>(1);
+        std::thread::Builder::new()
+            .name("openrust-test-db-cleanup".to_owned())
+            .spawn(move || {
+                let _exit = exit_ticket;
+                let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else {
+                    let _ = ready.send(Err(cleanup_error("test_database_cleanup_runtime_failed")));
+                    return;
+                };
+                if ready.send(Ok(())).is_err() { return; }
+                let Ok(mut request) = request.recv_timeout(std::time::Duration::from_secs(5)) else { return; };
+                let outcome = runtime.block_on(async {
+                    tokio::time::timeout(
+                        std::time::Duration::from_secs(8),
+                        cleanup_network_database(request.connection.take(), &mut request.resources),
+                    ).await.map_err(|_| cleanup_error("test_database_cleanup_timeout"))?
+                });
+                if outcome.is_err() {
+                    for resource in &mut request.resources {
+                        if resource.journal.record().state != ownership::OwnershipState::Done
+                            && let Err(error) = resource.journal.record_error(
+                                ownership::OwnershipState::Ambiguous,
+                                "test_database_cleanup_unconfirmed",
+                            ) {
+                                tracing::warn!(code=error.code(), "测试库失败回执未确认持久化");
+                        }
+                    }
+                }
+                runtime.shutdown_timeout(std::time::Duration::from_secs(1));
+                if let Some(runtime) = request.network_runtime.take() {
+                    runtime.shutdown_timeout(std::time::Duration::from_secs(1));
+                }
+                if let Err(error) = &outcome {
+                    tracing::warn!(database = %request.database_name, code = error.code(), "测试数据库回收未完成");
+                }
+                let _ = sender.send(outcome);
+            })
+            .map_err(|_| cleanup_error("test_database_cleanup_worker_failed"))?;
+        // 执行者确认 runtime 可用后才移交连接与删除权，启动失败仍归原 guard 持有。
+        initialized
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|_| cleanup_error("test_database_cleanup_worker_not_ready"))??;
+        let request = CleanupRequest {
+            connection: self.connection.take(),
+            network_runtime: self.network_runtime.take(),
+            resources: std::mem::take(&mut self.resources),
+            database_name: self.database_name.clone(),
+        };
+        if let Err(error) = handoff.send(request) {
+            self.connection = error.0.connection;
+            self.network_runtime = error.0.network_runtime;
+            self.resources = error.0.resources;
+            return Err(cleanup_error("test_database_cleanup_handoff_failed"));
         }
-        .await;
-        self.cleaned = close_result.is_ok() && cleanup_result.is_ok();
-        close_result?;
-        cleanup_result
+        self.cleaned = true;
+        Ok(NetworkOperation {
+            result: Some(result),
+        })
+    }
+
+    async fn close_sqlite_inner(mut self) -> Result<()> {
+        let shutdown = if let Some(runtime) = self.sqlite_runtime.take() {
+            runtime
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                .await
+        } else {
+            Ok(())
+        };
+        let closed = if let Some(connection) = self.connection.take() {
+            connection.close().await.map_err(Error::internal)
+        } else {
+            Ok(())
+        };
+        shutdown?;
+        closed?;
+        cleanup_sqlite_directory(self.sqlite_directory.as_deref())?;
+        self.cleaned = true;
+        Ok(())
     }
 }
 
@@ -343,10 +482,10 @@ impl Drop for TestDatabase {
         if self.cleaned || self.preserve_sqlite {
             return;
         }
-        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-            return;
-        };
         if self.sqlite {
+            let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+                return;
+            };
             let connection = self.connection.take();
             let provider = self.sqlite_runtime.take();
             let directory = self.sqlite_directory.take();
@@ -368,19 +507,77 @@ impl Drop for TestDatabase {
             });
             return;
         }
-        let connection = self.connection.take();
-        let admin_url = self.admin_url.clone();
-        let database_name = self.database_name.clone();
-        runtime.spawn(async move {
-            if let Some(connection) = connection {
-                let _ = connection.close().await;
+        match self.start_network_cleanup() {
+            Ok(cleanup) => drop(cleanup),
+            Err(error) => {
+                tracing::warn!(database = %self.database_name, code = error.code(), "测试数据库回收线程未启动");
+                // 拒收不授权删除；异步上下文不能隐式 Drop Runtime，否则会二次 panic。
+                drop(self.connection.take());
+                if let Some(runtime) = self.network_runtime.take() {
+                    runtime.shutdown_background();
+                }
             }
-            if let Ok(admin) = connect(&admin_url).await {
-                let _ = drop_database(&admin, &database_name).await;
-                let _ = admin.close().await;
-            }
-        });
+        }
     }
+}
+
+struct CleanupRequest {
+    connection: Option<DatabaseConnection>,
+    network_runtime: Option<tokio::runtime::Runtime>,
+    resources: Vec<OwnedDatabase>,
+    database_name: String,
+}
+
+struct NetworkOperation<T> {
+    result: Option<tokio::sync::oneshot::Receiver<Result<T>>>,
+}
+
+impl<T> NetworkOperation<T> {
+    async fn receive(mut self) -> Result<T> {
+        self.result
+            .as_mut()
+            .ok_or_else(|| cleanup_error("test_database_worker_lost"))?
+            .await
+            .map_err(|_| cleanup_error("test_database_worker_lost"))?
+    }
+}
+
+impl<T> Drop for NetworkOperation<T> {
+    fn drop(&mut self) {
+        // 即使当前无 entered Handle，idle current_thread runtime 也可能有待还池任务。
+        // 不在任何析构路径同步等它；关闭接收端移交取消，正常退出由操作票据统一等待。
+        drop(self.result.take());
+    }
+}
+
+fn cleanup_error(code: &'static str) -> Error {
+    Error::custom(code, "测试数据库清理失败；请核查精确自有库名并重试")
+}
+
+async fn cleanup_network_database(
+    connection: Option<DatabaseConnection>,
+    resources: &mut [OwnedDatabase],
+) -> Result<()> {
+    if let Some(connection) = connection {
+        tokio::time::timeout(std::time::Duration::from_secs(2), connection.close())
+            .await
+            .map_err(|_| cleanup_error("test_database_pool_close_timeout"))?
+            .map_err(Error::internal)?;
+    }
+    let mut failure = None;
+    for resource in resources.iter_mut().rev() {
+        if let Err(error) = resource.cleanup().await
+            && failure.is_none()
+        {
+            failure = Some(error);
+        }
+        if let Err(error) = resource.close_lease().await
+            && failure.is_none()
+        {
+            failure = Some(error);
+        }
+    }
+    failure.map_or(Ok(()), Err)
 }
 
 fn owned_file_source_error() -> Error {
@@ -434,72 +631,36 @@ fn cleanup_sqlite_directory(directory: Option<&std::path::Path>) -> Result<()> {
     }
 }
 
-#[cfg(feature = "db-postgres")]
-async fn create_postgres_database<M>(
-    admin: &DatabaseConnection,
-    base_url: &Url,
-    database_name: &str,
-    table_names: DatabaseTableNames,
-    created: &mut bool,
-) -> Result<()>
-where
-    M: MigratorTrait + Send + Sync + 'static,
-{
-    let template_name = format!("{database_name}_template");
-    // 模板同样先取得所有权；CREATE 失败时直接返回，不删除同名既有模板。
-    execute(admin, &format!("CREATE DATABASE {template_name}")).await?;
-    let template_url = url_for_database(base_url, &template_name);
-    let migration = async {
-        let template = connect(&template_url).await?;
-        let result = table_names
-            .scope(M::up(&template, None))
-            .await
-            .map_err(Error::internal);
-        let close_result = template.close().await.map_err(Error::internal);
-        result?;
-        close_result
-    }
-    .await;
-    if let Err(error) = migration {
-        let _ = execute(admin, &format!("DROP DATABASE IF EXISTS {template_name}")).await;
-        return Err(error);
-    }
-    if let Err(error) = execute(
-        admin,
-        &format!("CREATE DATABASE {database_name} TEMPLATE {template_name}"),
-    )
-    .await
-    {
-        let _ = execute(admin, &format!("DROP DATABASE IF EXISTS {template_name}")).await;
-        return Err(error);
-    }
-    *created = true;
-    execute(admin, &format!("DROP DATABASE {template_name}")).await
+#[derive(Default)]
+struct CreatedDatabases {
+    resources: Vec<OwnedDatabase>,
 }
 
-#[cfg(feature = "db-mysql")]
-async fn create_mysql_database<M>(
-    admin: &DatabaseConnection,
-    database_url: &str,
-    database_name: &str,
-    table_names: DatabaseTableNames,
-    created: &mut bool,
-) -> Result<()>
-where
-    M: MigratorTrait + Send + Sync + 'static,
-{
-    execute(admin, &format!("CREATE DATABASE {database_name}")).await?;
-    *created = true;
-    let database = connect(database_url).await?;
-    let result = table_names
-        .scope(M::up(&database, None))
-        .await
-        .map_err(Error::internal);
-    let close_result = database.close().await.map_err(Error::internal);
-    result?;
-    close_result
+async fn cleanup_created_databases(created: &mut CreatedDatabases) {
+    for resource in created.resources.iter_mut().rev() {
+        let result =
+            tokio::time::timeout(std::time::Duration::from_secs(8), resource.cleanup()).await;
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                tracing::warn!(database=%resource.name(),code=error.code(),"初始化失败后的测试库保留待恢复");
+            }
+            Err(_) => {
+                if let Err(error) = resource.journal.record_error(
+                    ownership::OwnershipState::Ambiguous,
+                    "test_database_cleanup_timeout",
+                ) {
+                    tracing::warn!(code = error.code(), "测试库超时回执未确认持久化");
+                }
+            }
+        }
+        if let Err(error) = resource.close_lease().await {
+            tracing::warn!(code = error.code(), "测试管理租约关闭未确认");
+        }
+    }
 }
 
+#[cfg(test)]
 async fn connect(url: &str) -> Result<DatabaseConnection> {
     let mut options = ConnectOptions::new(url.to_owned());
     options.max_connections(2).min_connections(0);
@@ -518,18 +679,6 @@ async fn connect(url: &str) -> Result<DatabaseConnection> {
         });
     }
     Database::connect(options).await.map_err(Error::internal)
-}
-
-async fn execute(connection: &DatabaseConnection, sql: &str) -> Result<()> {
-    connection
-        .execute_unprepared(sql)
-        .await
-        .map(|_| ())
-        .map_err(Error::internal)
-}
-
-async fn drop_database(connection: &DatabaseConnection, name: &str) -> Result<()> {
-    execute(connection, &format!("DROP DATABASE IF EXISTS {name}")).await
 }
 
 fn url_for_database(base: &Url, name: &str) -> String {
@@ -553,6 +702,31 @@ mod tests {
     use sea_orm::{ConnectionTrait, DbErr, Statement};
     use sea_orm_migration::{MigrationName, MigrationTrait, MigratorTrait, SchemaManager};
     use url::Url;
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn failed_cleanup_start_never_drops_owned_runtime_in_async_context() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .map_err(Error::internal)?;
+        let database = TestDatabase {
+            database_name: "openrust_unowned_no_sql".to_owned(),
+            database_url: "mysql://unreachable/never_used".to_owned(),
+            connection: None,
+            cleaned: false,
+            sqlite_runtime: None,
+            sqlite_directory: None,
+            sqlite: false,
+            preserve_sqlite: false,
+            network_runtime: Some(runtime),
+            resources: Vec::new(),
+            force_cleanup_start_failure: Some(()),
+        };
+        let dropped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(database)));
+        assert!(dropped.is_ok(), "回收执行者拒收不能让异步析构 panic");
+        Ok(())
+    }
 
     struct EmptyMigrator;
 

@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。后继继续唯一todo的Passport/统一Hashing前置，不重跑已关闭驱动簇或扩大本次提交。
+
 当前Fortify官方Web默认/显式JWT组合已通过main12门禁、五类实际生成、正式Provider受保护gRPC TLS、Redis父凭据回滚、真实双库CI、Keycloak/独立API故障恢复、最低SQLite3.26 probe及受影响consumer。限定本地提交以Git为准，具体范围见[当前验收](memory/testing.md#fortify-官方默认与显式-jwt-组合验收)；Google真实客户端、UUID/字符串JWT持久链与完整R7/官方生态仍未闭合。
 
 Query Builder列边界谓词与AND/OR条件链已完成限定验收，唯一模块导入时间线覆盖MySQL/PG及显式JWT模式，生成应用公开API验证通过；完整Query/ORM仍开放。终结存在性已完成限定12门禁、真实双库与生成验收；存在性条件回调已完成8案及限定验收；before-query共享子节点/原query修改与消费已通过限定main12、双库各42及示例/生成验收；MySQL冷prepare已通过单连接淘汰/替换与写回滚、锁释放回归，临时Cargo补丁约束保留；完整Query/ORM仍开放，后继只在唯一todo领取。

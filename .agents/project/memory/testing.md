@@ -1,5 +1,17 @@
 # 测试基线
 
+## 网络测试数据库生命周期与持久恢复限定验收
+
+`TestDatabase` 的Unix网络范围使用独立I/O与清理线程、正常退出有界票据屏障、私有持久归属回执/永久文件锁、每资源随机远端见证及固定原生管理会话锁。目标与PG模板分别持责；每条业务池物理连接验证实际服务、库名、marker及PG OID。关闭池失败、权限/活动可见性不足、错配或未知操作均保留，下一次显式create/recover补偿；不存在库只有权威核验后才写Done。管理库名保留服务端原值，生成目标名仍严格受限。
+
+证据目录`tmp/database-cleanup-fix-20261105/`。`durable-public-final-result.json` 为真实MySQL8.4/PG18各10场公开API进程用例：close/drop/runtime退出/panic、SIGKILL→recover、已缺失终态、活跃guard、错marker、假前缀、独立应用池；全部通过且完整库清单恢复。`durable-lifecycle/verified-result.json`另有两库各11退出/取消/失败场零遗留，后续仅错误分类、等价静态整改与管理名放宽，按独立审查限定复用旧ASCII路径，不声称最终同SHA重跑。
+
+`permission-result.json`真实验证MySQL建库后例程权限拒绝仍清理未迁移自有库；`visibility-result.json`验证受限同实例账号不能把权限过滤的现存库记Done，恢复管理员后回收，数据库与角色清单恢复。历史碰撞/迁移失败哨兵实跑MySQL2、PG3（PG模板在MySQL不适用），`example-service-result.json`唯一模块真实双库就绪正反流程各1，无skip且清单恢复。`admin-name-result.json`验证MySQL小写中文/连字符、PG混合大小写中文管理库的原值重读，单元另证大小写及Unicode不归一化。早期探针受CLI latin1、MySQL lower_case_table_names=2大小写目录环境影响，原始诊断和精确自有资源清理留存，不计框架修复成功或任意配置已保证。
+
+最终`main-gates-result.json`默认fmt、workspace all-target严格Clippy、workspace tests与doc均0。补充`remaining-*/result.json`按实际成功输入收齐no-default、MySQL-only/PG-only/SQLite-only严格Clippy、全特性严格Clippy/tests、默认/全特性拒警Rustdoc、Rust1.97全特性/no-default和cargo deny，共15种适用门禁。ignored和未配置服务返回不计实服务通过；当前工作树仍含独立Hashing/Passport WIP，测试库未依赖其源码/feature，分离提交只选测试库所需Cargo与lock边，审查见`final-review.md`。失败日志按attempt保留；最初workspace Clippy两处README格式失败的全文被重跑覆盖，仅有原工具回执尾部，详见`main-first-failure-evidence.json`，不虚称完整失败日志保全。
+
+公开边界：调用方须关闭独立池并停止新借用；MySQL完整活动快照不排斥不合作的新连接或跨库访问。非合作管理员DDL、复制了同名marker的备份/物理克隆同ID、非Unix私有ACL及真实副本/无应答端点专项仍开放，不将静态保护或本机进程故障测试扩大为这些拓扑已验。无push/tag/release，原完整Goal继续。
+
 ## MySQL 冷预处理取消与连接淘汰限定验收
 
 SeaORM2.0.4/SQLx0.9.0原生对照排除了QueryBuilder：冷PREPARE首次等待取消，两次复用错帧/rollback超时；warm及指定reader/blocker行锁等待取消正常。固定同版本vendor补丁仅改executor/stream/connection/tls/transaction五个文件，未重建未知协议：不完整PREPARE永久判该物理连接不可复用，后续查询/提交/显式回滚有界失败，close/Drop不冲刷未知缓冲，归还后池淘汰重建。正常完整数据库ERR仍复用；Result只在实际执行命令完整排入缓冲后登记。原许可、源码commit与原始文件SHA随vendor保留，SQLx暂精确固定0.9.0。

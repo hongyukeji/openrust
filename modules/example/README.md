@@ -420,7 +420,7 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 
 ## 验证与扩展
 
-根框架测试使用 `cargo test -p openrust`，完整工具门禁使用 `cargo test --workspace`。认证 target 为 example_auth_flows，路径为模块 tests/auth_flows.rs；需要对应 feature 和有建库权限的隔离测试 URL，没有 URL 时跳过不算真实数据库通过。实际命令与结果统一记录于 [测试基线](../../.agents/project/memory/testing.md)。
+根框架测试使用 `cargo test -p openrust`，完整工具门禁使用 `cargo test --workspace`。认证 target 为 example_auth_flows，路径为模块 tests/auth_flows.rs；需要对应 feature 和符合[测试工具权限与恢复约束](../../tools/testing/README.md)的隔离测试 URL，没有 URL 时跳过不算真实数据库通过。实际命令与结果统一记录于 [测试基线](../../.agents/project/memory/testing.md)。
 
 编写业务时使用公开 `Routes`、`Inject`、`AuthFlows`、`Queue` 等入口；当前可参考 `JobsServiceProvider` 的 Provider 注册、`PrefixCacheServiceProvider` 的 driver 扩展与 `WelcomeService` 的标准通信调用。进程内 named 缓存不是跨节点共享缓存；捕获通信仅通过测试显式安装并拒绝 production。
 

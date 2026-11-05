@@ -58,6 +58,7 @@ tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "c
 cookie = { version = "0.18.2", features = ["percent-encode"] }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 argon2 = "0.6"
+shutdown_hooks = "=0.1.0"
 aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes", "alloc", "zeroize"] }
 base64 = "0.22"
 getrandom = { version = "0.3", features = ["std"] }
@@ -155,6 +156,7 @@ axum.workspace = true
 axum-core.workspace = true
 bytes.workspace = true
 argon2 = { workspace = true, optional = true }
+shutdown_hooks = { workspace = true, optional = true }
 async-trait.workspace = true
 base64 = { workspace = true, optional = true }
 chrono.workspace = true
@@ -229,7 +231,7 @@ opentelemetry-otlp = { workspace = true, optional = true }
 tracing-opentelemetry = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "=1.1.5", optional = true, default-features = false, features = ["fs", "std"] }
+rustix = { version = "=1.1.5", optional = true, default-features = false, features = ["fs", "std", "process"] }
 
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
@@ -260,9 +262,9 @@ tempfile.workspace = true
 rcgen.workspace = true
 [features]
 default = ["db-mysql", "cache-redis", "queue-redis"]
-db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
-db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
-db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util"]
+db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:rustix", "dep:shutdown_hooks"]
+db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:rustix", "dep:shutdown_hooks"]
+db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util", "dep:shutdown_hooks"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
 session = ["dep:time", "dep:base64"]
 auth = [
@@ -530,3 +532,7 @@ winapi-util = { version = "=0.1.11", optional = true }
 
 [patch.crates-io]
 sqlx-mysql = { path = "vendor/sqlx-mysql" }
+
+[[test]]
+name = "database_lifecycle_recovery"
+path = "tests/database/lifecycle_recovery.rs"
