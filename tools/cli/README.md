@@ -43,12 +43,15 @@ cargo run -p cli -- dev
 
 ```bash
 cargo run -p cli -- key generate
+cargo run -p cli -- env
 cargo run -p cli -- generate model post title:string published_at:date_time?
 cargo run -p cli -- generate migration comments body:text post:references?
 cargo run -p cli -- generate model post --uuid-id --soft-delete title:string
 cargo run -p cli -- generate migration posts --uuid-id --soft-delete title:string
 cargo run -p cli -- g migration labels slug:string
 ```
+
+`openrust env` 转发给所选应用，输出其本次启动选定的环境，例如 `The application environment is [production].`。该命令没有本地参数，沿应用统一启动与关闭流程执行；它不重新读取父进程环境或把运行期配置修改当成新的启动环境。
 
 `dev` 沿用已配置的应用运行环境并运行 `serve`；需要 development 时可在进程环境或应用 `.env` 中设置对应命名空间的 `ENV`，`serve` 同样保留当前环境。`dev` 默认使用 `APP_`；若应用的 `Application::config_namespace()` 返回 `SHOP_`，请运行 `openrust dev --config-namespace SHOP_`。CLI 与应用处于不同进程，无法读取该 Rust 类型常量，因此自定义命名空间须显式传入。`dev` 的 Redis 启动预检目前只对显式 TOML 来源与可由环境确定的配置使用 `ConfigLoader`；CLI 进程不能静态求值应用的 Rust 配置函数，因此代码配置的最终依赖由实际应用启动校验。配置缓存命中时跳过实时 TOML；未命中时按应用根读取 `.env` 与显式文件来源。外部环境优先，CLI 不改写父进程环境；缺省 `config/` 不存在时仍读取环境来源。若有效配置指向 loopback Redis，会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听或就绪等待；仅 `new --db sqlite` 安装阶段自动执行默认迁移。
 

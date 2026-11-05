@@ -17,7 +17,7 @@ use crate::config::{self, ConfigLoader, LogConfig, LogFormat};
 use crate::core::Cancellation;
 use crate::core::app::{App, Application};
 use crate::core::command::{
-    ConfigCacheCommand, ConfigClearCommand, ConfigShowCommand, HelpCommand,
+    ConfigCacheCommand, ConfigClearCommand, ConfigShowCommand, EnvironmentCommand, HelpCommand,
 };
 use crate::core::error::{Error, Result};
 use crate::core::provider::{BootContext, ProviderBuilder, ServiceProvider};
@@ -35,6 +35,7 @@ impl<A: Application> ServiceProvider for CoreCommandsProvider<A> {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> crate::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.command(HelpCommand);
+            app.command(EnvironmentCommand);
             app.command(ConfigShowCommand);
             app.command(ConfigCacheCommand::<A> {
                 console_environment: self.console_environment.clone(),
@@ -1239,8 +1240,15 @@ mod tests {
         let names: Vec<&str> = app.commands().map(|command| command.name()).collect();
         assert_eq!(
             names,
-            ["help", "config show", "config:cache", "config:clear"]
+            ["help", "env", "config show", "config:cache", "config:clear"]
         );
+        app.run_command("env", Vec::new()).await?;
+        for argument in ["unexpected", "--unknown"] {
+            assert!(matches!(
+                app.run_command("env", vec![argument.into()]).await,
+                Err(error) if error.code() == "unexpected_argument"
+            ));
+        }
         assert_eq!(
             app.run_command("serve", Vec::new())
                 .await

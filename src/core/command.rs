@@ -6,6 +6,9 @@ use crate::core::app::App;
 use crate::core::error::Result;
 use crate::core::plugin::BoxFuture;
 
+mod environment;
+pub(crate) use environment::EnvironmentCommand;
+
 /// 可通过 `<app-binary> <name> [args…]` 运行的命名命令。
 ///
 /// Provider 在 `boot` 阶段注册命令；HTTP 模块提供 `serve`，数据库模块提供 `migrate` 等。
