@@ -14,7 +14,7 @@ use openrust::auth::{
     AuthDrivers, AuthLayer, AuthManager, Credentials, DatabaseUserProvider, ExternalLoginHandle,
     UserProvider,
 };
-use openrust::auth::{AuthFlows, ExternalIdentityFlows, Passwords, Session, SessionStoreHandle};
+use openrust::auth::{AuthFlows, ExternalIdentityFlows, Session, SessionStoreHandle};
 use openrust::config::FrameworkConfig;
 use openrust::core::{
     Application, BootContext, BoxFuture, DefaultProviders, ServiceProvider, container::Scope,
@@ -37,13 +37,13 @@ pub(super) struct Parts {
     pub(super) actions: TwoFactorActions,
     pub(super) users: Arc<DatabaseUserProvider>,
     db: Db,
-    passwords: Passwords,
+    passwords: std::sync::Arc<openrust::hashing::HashManager>,
     encryptor: Encryptor,
 }
 impl Parts {
     pub(super) async fn new(
         db: Db,
-        passwords: Passwords,
+        passwords: std::sync::Arc<openrust::hashing::HashManager>,
         encryptor: Encryptor,
         auth: AuthFlows,
     ) -> Result<Self> {
@@ -396,6 +396,7 @@ impl Fixture {
         config.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(config)).merge(figment::providers::Serialized::defaults(json!({
                 "app":{"env":"local","key":"oidc-owned-web-fixture-key"},
+                "hashing":{"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}},
                 "auth":{"defaults":{"guard":"web","passwords":"users","provider":"accounts"},"guards":{"web":{"driver":"session","provider":"accounts"}},"providers":{"accounts":{"driver":"oidc-test-users"}}},
                 "session":{"driver":"array","cookie":"openrust_session","secure":false,"lifetime":5,"lottery":[0,100]},
                 "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
@@ -407,9 +408,7 @@ impl Fixture {
             let sessions = sessions.clone();
             Box::pin(async move {
                 container.instance(Arc::new(parts.db.clone())).await?;
-                container
-                    .instance(Arc::new(parts.passwords.clone()))
-                    .await?;
+                container.instance(parts.passwords.clone()).await?;
                 container
                     .instance(Arc::new(parts.encryptor.clone()))
                     .await?;

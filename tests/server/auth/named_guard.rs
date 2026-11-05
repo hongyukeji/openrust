@@ -4,7 +4,7 @@
 use openrust::auth::{
     AuthCredential, AuthDrivers, AuthLayer, AuthManager, AuthPrincipal, AuthServiceProvider,
     AuthUser, Authenticatable, Authenticator, Credentials, CurrentUser, EncodedPasswordHash,
-    GenericUser, OptionalUser, Passwords, UserProvider,
+    GenericUser, OptionalUser, UserProvider,
 };
 use openrust::config::{FrameworkConfig, NoConfig, SessionConfig};
 use openrust::core::{
@@ -35,7 +35,7 @@ impl Authenticator for RejectLegacy {
 
 struct UsernameProvider {
     account: Arc<GenericUser>,
-    passwords: Passwords,
+    passwords: std::sync::Arc<openrust::hashing::HashManager>,
 }
 impl UserProvider for UsernameProvider {
     fn retrieve_by_id<'a>(&'a self, id: &'a Value) -> BoxFuture<'a, Result<Option<AuthUser>>> {
@@ -87,8 +87,8 @@ impl UserProvider for UsernameProvider {
                 return Ok(false);
             };
             let hash = user.auth_password()?.ok_or(Error::Unauthorized)?;
-            self.passwords
-                .verify(plain, &EncodedPasswordHash::parse(hash)?)
+            EncodedPasswordHash::from_encoded(hash)
+                .verify(self.passwords.as_ref(), plain)
                 .await
         })
     }
@@ -99,14 +99,15 @@ impl UserProvider for UsernameProvider {
         force: bool,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let encoded =
-                EncodedPasswordHash::parse(user.auth_password()?.ok_or(Error::Unauthorized)?)?;
-            if force || self.passwords.needs_rehash(&encoded)? {
+            let encoded = EncodedPasswordHash::from_encoded(
+                user.auth_password()?.ok_or(Error::Unauthorized)?,
+            );
+            if force || encoded.needs_rehash(self.passwords.as_ref())? {
                 let plain = credentials
                     .get("password")
                     .and_then(Value::as_str)
                     .ok_or(Error::Unauthorized)?;
-                let replacement = self.passwords.hash(plain).await?;
+                let replacement = EncodedPasswordHash::make(self.passwords.as_ref(), plain).await?;
                 self.account
                     .set_attribute("password", json!(replacement.as_str()))?;
             }
@@ -166,10 +167,10 @@ struct NamedRoutes;
 impl ServiceProvider for NamedRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let passwords = app.resolve::<Passwords>().await?;
+            let passwords = app.resolve::<openrust::hashing::HashManager>().await?;
             let mut providers = BTreeMap::new();
             for (realm, plain) in [("accounts", "web-secret"), ("other", "admin-secret")] {
-                let encoded = passwords.hash(plain).await?;
+                let encoded = EncodedPasswordHash::make(passwords.as_ref(), plain).await?;
                 let account = GenericUser::new(Map::from_iter([
                     ("id".into(), json!(ID)),
                     ("username".into(), json!("username-only")),
@@ -182,7 +183,7 @@ impl ServiceProvider for NamedRoutes {
                     realm.to_owned(),
                     Arc::new(UsernameProvider {
                         account: Arc::new(account),
-                        passwords: (*passwords).clone(),
+                        passwords: passwords.clone(),
                     }),
                 );
             }
@@ -385,9 +386,10 @@ fn named_sources(fallback: bool) -> figment::Figment {
         .merge(figment::providers::Serialized::defaults(json!({
             "app": {"env": "test", "key": "named-guard-fixture-key"},
             "auth": {"defaults": {"guard": "web", "passwords": "accounts", "provider": if fallback { json!("accounts") } else { Value::Null }},
-                "password": {"memory_kib": 19456, "iterations": 1, "parallelism": 1},
+
                 "guards": {"web": {"driver": "session", "provider": if fallback { Value::Null } else { json!("accounts") }}, "admin": {"driver": "session", "provider": "other"}},
                 "providers": {"accounts": {"driver": "test-users", "realm": "accounts"}, "other": {"driver": "test-users", "realm": "other"}}},
+            "hashing": {"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}},
             "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })))
 }

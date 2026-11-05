@@ -1,6 +1,6 @@
-//! 认证密钥环与密码哈希的应用默认值。
+//! 认证密钥环与具名身份的应用默认值。
 
-use openrust::config::{ConfigContext, ConfigError, PasswordConfig};
+use openrust::config::{ConfigContext, ConfigError};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -15,11 +15,10 @@ struct Jwt {
     max_valid_ttl_secs: u64,
 }
 
-/// 认证应用默认项，显式呈现具名Guard/Provider、时间保护与JWT/密码哈希设置。
+/// 认证应用默认项，显式呈现具名Guard/Provider、时间保护与JWT设置。
 #[derive(Serialize)]
 pub struct Auth {
     jwt: Jwt,
-    password: PasswordConfig,
     defaults: serde_json::Value,
     guards: serde_json::Value,
     providers: serde_json::Value,
@@ -45,10 +44,6 @@ pub fn config(ctx: &ConfigContext) -> Result<Auth, ConfigError> {
             access_ttl_secs: 900,
             max_valid_ttl_secs: 3_600,
         },
-        password: PasswordConfig {
-            memory_kib: 19_456,
-            iterations: 2,
-            parallelism: 1,
-        },
+
     })
 }

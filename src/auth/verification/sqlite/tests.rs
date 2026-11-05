@@ -3,7 +3,6 @@ use super::*;
 use crate::auth::verification::{
     DatabaseVerificationCodeStore, VerificationCodeStore, VerificationCodes,
 };
-use crate::auth::{PasswordConfig, Passwords};
 use crate::core::BoxFuture;
 use crate::db::Db;
 use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
@@ -23,12 +22,19 @@ fn check(condition: bool, message: &'static str) -> Result<()> {
         Err(Error::custom("sqlite_verification_contract", message))
     }
 }
-fn passwords() -> Result<Passwords> {
-    Passwords::new(PasswordConfig {
-        memory_kib: 19_456,
-        iterations: 1,
-        parallelism: 1,
-    })
+fn passwords() -> Result<std::sync::Arc<dyn crate::hashing::Hasher>> {
+    Ok(std::sync::Arc::new(crate::hashing::HashManager::new(
+        crate::hashing::HashingConfig {
+            driver: "argon2id".into(),
+            argon: crate::hashing::ArgonConfig {
+                memory: 19_456,
+                time: 1,
+                threads: 1,
+                verify: true,
+            },
+            ..Default::default()
+        },
+    )?) as std::sync::Arc<dyn crate::hashing::Hasher>)
 }
 fn policy() -> Result<VerificationCodePolicy> {
     VerificationCodePolicy::new(6, Duration::from_secs(60), Duration::from_secs(30), 2)
@@ -86,7 +92,7 @@ async fn memory_issue_idempotency_cooldown_attempts_and_stale_challenge() -> Res
             let connection = db.connection()?;
             let table = db.quoted_table_name("verification_codes")?;
             // Argon2工作在任何写事务开始之前完成。
-            let hash = passwords()?.hash("123456").await?;
+            let hash = crate::auth::EncodedPasswordHash::make(passwords()?.as_ref(), "123456").await?;
             issue(&connection, &table, "key", "old", &hash, policy()?).await?;
             check(
                 !finish_attempt(&connection, &table, "key", "old", false).await?,
@@ -161,7 +167,8 @@ async fn file_two_stores_consume_once_and_service_binds_purpose_identity() -> Re
         Box::pin(async move {
             let one = DatabaseVerificationCodeStore::new(first.clone());
             let two = DatabaseVerificationCodeStore::new(second.clone());
-            let hash = passwords()?.hash("123456").await?;
+            let hash =
+                crate::auth::EncodedPasswordHash::make(passwords()?.as_ref(), "123456").await?;
             one.issue("concurrent", "challenge", &hash, policy()?)
                 .await?;
             let (a, b) = tokio::join!(
@@ -210,7 +217,7 @@ async fn file_offset_microsecond_expiry_and_prune_batch_preserve_future() -> Res
     owned(true, |db, _| Box::pin(async move {
         let connection = db.connection()?;
         let table = db.quoted_table_name("verification_codes")?;
-        let hash = passwords()?.hash("123456").await?;
+        let hash = crate::auth::EncodedPasswordHash::make(passwords()?.as_ref(), "123456").await?;
         issue(&connection, &table, "offset", "challenge", &hash, policy()?).await?;
         let zone = chrono::FixedOffset::east_opt(8*3600).ok_or_else(|| Error::custom("test_offset", "无效offset"))?;
         let past = (Utc::now()-chrono::Duration::microseconds(1)).with_timezone(&zone)
@@ -244,7 +251,7 @@ async fn file_prune_orders_instants_without_offset_text_starving_expired_rows() 
         Box::pin(async move {
             let connection = db.connection()?;
             let table = db.quoted_table_name("verification_codes")?;
-            let hash = passwords()?.hash("123456").await?;
+            let hash = crate::auth::EncodedPasswordHash::make(passwords()?.as_ref(), "123456").await?;
             let now = Utc::now();
             let zone = chrono::FixedOffset::west_opt(12 * 3600)
                 .ok_or_else(|| Error::custom("test_offset", "无效offset"))?;
@@ -295,7 +302,7 @@ async fn file_prune_scans_across_future_page_and_accepts_fifteen_hour_offset() -
     owned(true, |db, _| Box::pin(async move {
         let connection = db.connection()?;
         let table = db.quoted_table_name("verification_codes")?;
-        let hash = passwords()?.hash("123456").await?;
+        let hash = crate::auth::EncodedPasswordHash::make(passwords()?.as_ref(), "123456").await?;
         let now = Utc::now();
         let zone = chrono::FixedOffset::east_opt(15 * 3600)
             .ok_or_else(|| Error::custom("test_offset", "无效offset"))?;

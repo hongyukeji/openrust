@@ -653,29 +653,12 @@ async fn default_database_authenticator_requires_database_at_startup() -> TestRe
 }
 
 #[tokio::test]
-async fn auth_plugin_rejects_invalid_password_capacity_during_startup() -> TestResult {
-    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
-        FrameworkConfig::default(),
-    ))
-    .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
-    builder.provider(
-        AuthServiceProvider::with_authenticator(FakeAuthenticator)
-            .with_password_operation_capacity(0),
-    );
-    let Err(error) = builder
-        .start(sources)
-        .await
-        .and_then(openrust::App::from_provider_runtime)
+async fn hashing_provider_rejects_invalid_password_capacity_before_registration() -> TestResult {
+    let Err(error) = openrust::hashing::HashServiceProvider::with_max_concurrent_operations(0)
     else {
-        return Err("auth plugin accepted a zero password operation capacity".into());
+        return Err("hashing provider accepted a zero password operation capacity".into());
     };
-    match error {
-        Error::ServiceInitialization { source, .. } => {
-            assert!(source.to_string().contains("max_concurrent_operations"));
-        }
-        other => return Err(format!("unexpected capacity error: {other}").into()),
-    }
+    assert_eq!(error.code(), "hashing_capacity_invalid");
     Ok(())
 }
 
@@ -740,6 +723,7 @@ impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
         Self(std::sync::Arc::new(routes), 1)
     }
 
+    #[cfg(feature = "encryption")]
     fn with_cookies(routes: F) -> Self {
         Self(std::sync::Arc::new(routes), 2)
     }

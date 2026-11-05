@@ -3,13 +3,13 @@
 use super::contracts::{AuthUser, Authenticatable, Credentials, GenericUser, UserProvider};
 use crate::{
     Error, Result,
-    auth::{EncodedPasswordHash, Passwords},
     core::BoxFuture,
     db::{
         Db,
         query::{QueryBuilder, RawSql},
         sea_orm::{DbBackend, FromQueryResult, QueryResult, Value as SqlValue},
     },
+    hashing::HashOptions,
 };
 use serde_json::{Map, Value};
 use std::{fmt, sync::Arc};
@@ -22,7 +22,7 @@ type UserFactory = Arc<dyn Fn(Map<String, Value>) -> Result<AuthUser> + Send + S
 pub struct DatabaseUserProvider {
     db: Db,
     table: String,
-    passwords: Passwords,
+    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
     user_factory: UserFactory,
 }
 
@@ -34,7 +34,11 @@ impl fmt::Debug for DatabaseUserProvider {
 
 impl DatabaseUserProvider {
     /// 使用已选择连接的 Db 与逻辑表名；表前缀、标识校验和绑定复用 Db。
-    pub fn new(db: Db, passwords: Passwords, table: impl Into<String>) -> Result<Self> {
+    pub fn new(
+        db: Db,
+        passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+        table: impl Into<String>,
+    ) -> Result<Self> {
         let table = table.into();
         db.table_name(&table)?;
         Ok(Self {
@@ -172,7 +176,7 @@ impl UserProvider for DatabaseUserProvider {
                 return Ok(false);
             };
             self.passwords
-                .verify(plain, &EncodedPasswordHash::parse(encoded)?)
+                .check(plain, Some(&encoded), &HashOptions::new())
                 .await
         })
     }
@@ -185,13 +189,12 @@ impl UserProvider for DatabaseUserProvider {
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let encoded = user.auth_password()?.ok_or_else(invalid_credentials)?;
-            let encoded = EncodedPasswordHash::parse(encoded)?;
-            if !self.passwords.needs_rehash(&encoded)? && !force {
+            if !self.passwords.needs_rehash(&encoded, &HashOptions::new())? && !force {
                 return Ok(());
             }
             let plain = plaintext(credentials)?.ok_or_else(invalid_credentials)?;
             let field = user.auth_password_name().to_owned();
-            // where_eq 先校验模型字段名。附加字节比较，避免文本排序规则忽略 PHC 大小写。
+            // where_eq 先校验模型字段名。附加字节比较，避免文本排序规则忽略编码哈希的大小写。
             let identifier_name = user.auth_identifier_name().to_owned();
             let identifier = scalar(&user.auth_identifier()?)?;
             drop(
@@ -213,7 +216,7 @@ impl UserProvider for DatabaseUserProvider {
                     ));
                 }
             };
-            let replacement = self.passwords.hash(plain).await?;
+            let replacement = self.passwords.make(plain, &HashOptions::new()).await?;
             let db = self.db.clone();
             let table = self.table.clone();
             self.db

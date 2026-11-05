@@ -69,7 +69,7 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         let runtime=builder.start(figment::Figment::new()).await?;
         let db=(*runtime.container().resolve::<Db>().await?).clone();
         db.initialize(connection.clone())?;
-        let passwords=Passwords::new(PasswordConfig { memory_kib:19_456,iterations:1,parallelism:1 })?;
+        let passwords=std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?);
         let jwt=JwtTokens::new(JwtConfig::new("oidc-owned","oidc-owned","owned",BTreeMap::from([("owned".into(),STANDARD.encode([51_u8;32]))])))?;
         let encryptor=Encryptor::new(EncryptionConfig::new("owned",BTreeMap::from([("owned".into(),STANDARD.encode([61_u8;32]))])))?;
         let policy=CredentialAuthority::new(db.clone(),encryptor.clone(),false);
@@ -101,7 +101,8 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         let user=users.retrieve_by_id(&serde_json::json!(user_id)).await?.ok_or("missing user")?;
         let session_store=SessionStoreHandle::new(openrust::session::DatabaseSessionStore::new(db.clone()));
         let session=Session::new(None,session_store.store(),None)?; session.start().await?;
-        let password_hash=Passwords::new(PasswordConfig { memory_kib:19_456,iterations:1,parallelism:1 })?.hash("owned-session-password").await?;
+        let password_hasher = std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?);
+        let password_hash = openrust::auth::EncodedPasswordHash::make(password_hasher.as_ref(), "owned-session-password").await?;
         db.table("users")?.where_eq("id",user_id)?.update(vec![("password_hash",password_hash.as_str().into())]).await?;
         auth.login_session("owned-oidc@example.test","owned-session-password","owned-session",&session).await?;
         session.save().await?;

@@ -894,18 +894,18 @@ async fn provider_scope_wrong_sources(
     identifier: i64,
     other: &openrust::Db,
 ) -> Result<()> {
-    use openrust::auth::{AuthDrivers, DatabaseUserProvider, Passwords, UserProvider};
+    use openrust::auth::{AuthDrivers, DatabaseUserProvider, UserProvider};
     let state = fixture.app.app()?.state();
     let db = state.resolve::<openrust::Db>().await?;
     let drivers = state.resolve::<AuthDrivers>().await?;
-    let passwords = state.resolve::<Passwords>().await?;
+    let passwords = state.resolve::<openrust::hashing::HashManager>().await?;
     for (source, table) in [
         (db.clone(), "provider_scope_users"),
         (std::sync::Arc::new(other.clone()), "users"),
     ] {
         let provider = std::sync::Arc::new(DatabaseUserProvider::new(
             (*source).clone(),
-            (*passwords).clone(),
+            passwords.clone(),
             table,
         )?);
         let account = provider

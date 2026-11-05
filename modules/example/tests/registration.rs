@@ -1336,14 +1336,17 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             .iter()
             .position(|name| name == openrust::session::SessionGcMigration.name())
             .ok_or("Session GC迁移未登记")?;
-        let application_tail = crate::database::Migrator::migrations()
+        let gc_name = openrust::session::SessionGcMigration.name();
+        // 历史按版本排序，框架新增迁移也可能位于GC之后，不能仅跳过框架数量。
+        let mut later_framework_and_application = crate::database::Migrator::migrations()
             .into_iter()
-            .skip(openrust::db::FrameworkMigrator::migrations().len())
             .map(|migration| migration.name().to_owned())
+            .filter(|name| name.as_str() > gc_name)
             .collect::<Vec<_>>();
+        later_framework_and_application.sort();
         assert_eq!(
             &before_history[gc_position + 1..],
-            application_tail.as_slice()
+            later_framework_and_application.as_slice()
         );
         let gc_down_steps = before_down - gc_position;
         let db = enabled.app()?.state().resolve::<openrust::db::Db>().await?;
@@ -1461,6 +1464,16 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             .query_one_raw(showcase_categories.clone())
             .await?;
         connection.query_one_raw(showcase_records.clone()).await?;
+        let remaining = before_down - migration_versions(&connection).await?.len();
+        if remaining > 0 {
+            migration_command(
+                "later_framework_and_application_up",
+                enabled
+                    .app()?
+                    .run_command("migrate", vec!["up".to_owned(), remaining.to_string()])
+                    .await,
+            )?;
+        }
     }
     assert_eq!(migration_versions(&connection).await?, before_history);
     assert_eq!(

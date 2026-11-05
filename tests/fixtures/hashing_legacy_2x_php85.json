@@ -1,0 +1,269 @@
+{
+    "php": "8.5.12",
+    "vectors": [
+        {
+            "value": "",
+            "hash": "$2x$04$abcdefghijklmnopqrstuubyCG3zY1GIXMyxfivm.ClDiInHzxjiq",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "",
+            "hash": "$2x$04$......................w74bL5gU7LSJClZClCa.Pkz14aTv\/XO",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.RReTSZX7fK3BfBpxM4rr0opiTKA6lM2",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "abc",
+            "hash": "$2x$04$abcdefghijklmnopqrstuuCi15uRb1eH7NAlJ\/TgeJertyknQpYn2",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "abc",
+            "hash": "$2x$04$......................ini1L2hXWkegMV822DC6vks..mWmZHK",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "abc",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.ayaZavN4fUliI9vlVKmvYnRQVHaGEGC",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "a测测测测测测测测测测测测测测测测测测测测测测测测",
+            "hash": "$2x$04$abcdefghijklmnopqrstuuhLmLdEdMkoUnpJNvwn.OZpDO3sIo10m",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "a测测测测测测测测测测测测测测测测测测测测测测测测",
+            "hash": "$2x$04$......................mfm4j6Ml2Tg\/95ioE.ZlDDVLTKce3Zm",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "a测测测测测测测测测测测测测测测测测测测测测测测测",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.4BDtpDPDrHRJJMr8QJ.Y8IqkTiH2CeC",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "é",
+            "hash": "$2x$04$abcdefghijklmnopqrstuuJBkOrAeQ5MyvqBBs7V2uMqYxsK6WLhu",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "é",
+            "hash": "$2x$04$......................Rlie5b9FMucXOpxP7DYlE4AtfglENU.",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "é",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.EbPrtr6PoKaLTvh69zk14LwgSJn7.kO",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "中文密码",
+            "hash": "$2x$04$abcdefghijklmnopqrstuuNfgVvBN6zkyaxG47iDoaIrPOlSVLhGm",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "中文密码",
+            "hash": "$2x$04$......................s.jO3V4CFkB0T2N04GRw\/sE\/noh5\/pW",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "中文密码",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.ENoeXkFSsYb4z5i.sPuRh.wYuLkZ8mC",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "éééééééééééééééééééééééééééééééééééé",
+            "hash": "$2x$04$abcdefghijklmnopqrstuuLJnlGTsXIYCJ.8BIiNKY5Jxmhy6mKbq",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "éééééééééééééééééééééééééééééééééééé",
+            "hash": "$2x$04$......................t9KxgN56XvfLYrSBBHg0jUZMRMhwFKi",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "éééééééééééééééééééééééééééééééééééé",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.3f.J6GyDwBgJoiOc12DM9TNNjt5BdCq",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "ééééééééééééééééééééééééééééééééééééé",
+            "hash": "$2x$04$abcdefghijklmnopqrstuuLJnlGTsXIYCJ.8BIiNKY5Jxmhy6mKbq",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "ééééééééééééééééééééééééééééééééééééé",
+            "hash": "$2x$04$......................t9KxgN56XvfLYrSBBHg0jUZMRMhwFKi",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "ééééééééééééééééééééééééééééééééééééé",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.3f.J6GyDwBgJoiOc12DM9TNNjt5BdCq",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "abc\u0000tail",
+            "hash": "$2x$04$abcdefghijklmnopqrstuuCi15uRb1eH7NAlJ\/TgeJertyknQpYn2",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "abc\u0000tail",
+            "hash": "$2x$04$......................ini1L2hXWkegMV822DC6vks..mWmZHK",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        },
+        {
+            "value": "abc\u0000tail",
+            "hash": "$2x$04$0123456789ABCDEFFEDCB.ayaZavN4fUliI9vlVKmvYnRQVHaGEGC",
+            "valid": true,
+            "wrong": false,
+            "info": {
+                "algo": null,
+                "algoName": "unknown",
+                "options": []
+            }
+        }
+    ]
+}

@@ -27,8 +27,7 @@ use openrust::{
         AuthFlowsServiceProvider, AuthMigration, AuthRefreshTokenMigration,
         AuthVerificationCodeMigration, BackchannelLogoutOutcome, DatabaseVerificationCodeStore,
         ExternalIdentityFlows, ExternalIdentityProvider, JwtConfig, JwtTokens, OidcAuthorization,
-        PasswordConfig, Passwords, RefreshTokens, Session, SessionStoreHandle,
-        VerifiedExternalIdentity, VerifiedLogoutToken,
+        RefreshTokens, Session, SessionStoreHandle, VerifiedExternalIdentity, VerifiedLogoutToken,
     },
     config::EncryptionConfig,
     core::RateLimiter,
@@ -273,11 +272,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let db = Db::with_table_names(names);
     db.initialize(connection.clone())?;
 
-    let passwords = Passwords::new(PasswordConfig {
-        memory_kib: 19_456,
-        iterations: 1,
-        parallelism: 1,
-    })?;
+    let passwords = std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?);
     let jwt = JwtTokens::new(JwtConfig::new(
         "oidc-test-issuer",
         "oidc-test-audience",
@@ -297,11 +292,11 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ))
-        .merge(figment::Figment::new());
+        .merge(figment::providers::Serialized::defaults(serde_json::json!({"hashing":{"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}}})));
         let mut builder = openrust::core::ProviderBuilder::new();
         builder
             .provider(TestInstance(std::sync::Arc::new(db.clone())))
-            .provider(TestInstance(std::sync::Arc::new(passwords)))
+            .provider(TestInstance(passwords))
             .provider(TestInstance(std::sync::Arc::new(jwt.clone())))
             .provider(TestInstance(std::sync::Arc::new(refresh.clone())))
             .provider(TestInstance(std::sync::Arc::new(codes)))
@@ -565,7 +560,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     #[cfg(feature = "auth-fortify")]
     let cleanup_external = {
         let encryption = Encryptor::new(EncryptionConfig::new("test-key", BTreeMap::from([("test-key".into(),STANDARD.encode([0xa3_u8;32]))])))?;
-        let parts = web::Parts::new(db.clone(),Passwords::new(PasswordConfig {memory_kib:19_456,iterations:1,parallelism:1})?,encryption.clone(),auth.clone()).await?;
+        let parts = web::Parts::new(db.clone(),std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?),encryption.clone(),auth.clone()).await?;
         ExternalIdentityFlows::new(db.clone(),parts.auth,encryption,[provider.clone() as Arc<dyn ExternalIdentityProvider>])?
     };
     #[cfg(not(feature = "auth-fortify"))]
@@ -1077,11 +1072,18 @@ async fn verify_external_two_factor_completion(
     ))?;
     let parts = web::Parts::new(
         db.clone(),
-        Passwords::new(PasswordConfig {
-            memory_kib: 19_456,
-            iterations: 1,
-            parallelism: 1,
-        })?,
+        std::sync::Arc::new(openrust::hashing::HashManager::new(
+            openrust::hashing::HashingConfig {
+                driver: "argon2id".into(),
+                argon: openrust::hashing::ArgonConfig {
+                    memory: 19_456,
+                    time: 1,
+                    threads: 1,
+                    verify: true,
+                },
+                ..openrust::hashing::HashingConfig::default()
+            },
+        )?),
         encryptor.clone(),
         auth.clone(),
     )

@@ -71,7 +71,7 @@ ID 保留原始 JSON 数字或非空字符串类型，UUID 可作为字符串使
 - 使用当前 `Db`、逻辑表名和绑定参数；配置 `connection` 可选具名连接，未指定或为空时复用默认连接。
 - `retrieve_by_id` 按 `id` 查询；`with_user_factory` 可以改变账户属性解释，不改变这个默认检索列。
 - `retrieve_by_credentials` 排除名称包含 `password` 的条件；其他标量用相等条件、数组用 `IN`、null 用空值条件，没有非密码条件时返回无账户。
-- `validate_credentials` 读取明文 `password`，交给 `Passwords` 验证账户提供的哈希；缺密码或无账户密码返回 false。
+- `validate_credentials` 读取明文 `password`，交给应用统一 `HashManager` 验证账户提供的哈希；缺密码或无账户密码返回 false。
 - `rehash_password_if_required` 按当前策略更新密码列；remember token 通过 `update_remember_token` 单独持久化。工厂和数据库错误原样传播。
 
 不要把客户端任意 JSON 原样传作查询条件。应用应先校验和挑选允许的字段；账户禁用、租户或其他业务限制也须由应用明确表达。内置数据库 Provider 不自动追加这些业务条件。
@@ -232,7 +232,7 @@ Native database 从同次实际行读取计算活动截止，删除后下一次�
 
 双因素开关为 `fortify.features` 中的 `two-factor-authentication`，不再使用选项对象中的 `enabled`。功能名称清单保留固定包/模板原值，不表示其余尚未验收功能已经交付。路由及 `confirmPassword` 中间件在应用启动时装配，启动后更改清单不会自动重建路由；默认登录管线选择、确认规则和真正启用/强制重建时的密钥长度在调用时读取同一配置仓储。显式 null 密钥长度按上游整数转换为0，由内置生成器拒绝；负值无法表示为 Rust 的 `usize`，在实际取长度时明确拒绝。已有非假值密钥且未 force 的幂等动作不提前读取无效长度。
 
-`confirm` 控制绑定后是否必须确认才能用于登录；`confirmPassword` 控制管理路由是否要求近期密码确认，二者相互独立。关闭其中一个不隐含关闭另一个。配置公开名称保留 `confirmPassword`、`secret-length`；它们位于双因素选项对象中，不是 `auth.password` 参数。
+`confirm` 控制绑定后是否必须确认才能用于登录；`confirmPassword` 控制管理路由是否要求近期密码确认，二者相互独立。关闭其中一个不隐含关闭另一个。配置公开名称保留 `confirmPassword`、`secret-length`；它们位于双因素选项对象中，不是哈希成本参数。
 
 CLI 的脚手架便利入口为：
 
@@ -364,3 +364,5 @@ fn verify_with_context<'a>(
 确认、Session 挑战及直接/外部挑战均传递同一次事实。Provider 与缓存校验在账户事务外完成，事务内只核当前状态及消费，不再次调用 Provider。nonce 保留期使用该次实际窗口和周期，即 `(2 * window + 3) * period_seconds`；使用真实验证事实，不按另一份配置猜测窗口。
 
 Provider 本身仍遵循官方非原子缓存 get/verify/put：缓存 miss 成功后再次读取时钟作为 put 的时间值，返回的验证事实保留真正校验时的计数。有限 nonce 只覆盖该次接受域；管理员之后任意扩窗、冻结或大幅回退时钟可能让历史码重新进入接受域，不承诺跨任意未来策略的永久不重放。挑战的一次性消费与当前 source/generation 核验不能由短期缓存替代。
+
+密码驱动、默认值、已有哈希迁移与bcrypt输入等价边界见[哈希](hashing.md)。

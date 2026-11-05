@@ -1,184 +1,65 @@
-//! Argon2id 密码哈希基础能力。
+//! 增强认证流程的秘密哈希值；计算只委派应用统一 Hasher，不持有算法配置或容量池。
 
-use std::str::FromStr;
-use std::sync::Arc;
-
-use crate::config::PasswordConfig;
-use crate::config::auth::MIN_MEMORY_KIB;
-use crate::core::{Error, Result};
-use argon2::{
-    Algorithm, Argon2, Params, Version,
-    password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
+use crate::{
+    Error, Result,
+    hashing::{HashOptions, Hasher},
 };
-use tokio::sync::Semaphore;
 
-const MAX_PASSWORD_BYTES: usize = 1024;
-const MAX_MEMORY_KIB: u32 = 262_144;
-const MAX_ITERATIONS: u32 = 10;
-const MAX_PARALLELISM: u32 = 4;
-const MAX_CONCURRENT_OPERATIONS: usize = 4;
-
-/// 编码后的 PHC 密码哈希。此类型有意不实现 `Debug`。
+/// 用于认证持久版本比较的已编码秘密值，有意不实现 `Debug`。
+///
+/// 此类型不判断存储算法；标准 `DatabaseUserProvider` 直接使用通用 Hasher。
+/// 增强流程的 make/verify 额外保留非空与1024字节输入边界，并拒绝 bcrypt 截断别名。
 #[derive(Clone, PartialEq, Eq)]
 pub struct EncodedPasswordHash(String);
 
 impl EncodedPasswordHash {
-    /// 解析已存储的 PHC 字符串；数据格式错误时返回内部错误。
-    pub fn parse(value: impl Into<String>) -> Result<Self> {
-        let value = value.into();
-        let parsed = PasswordHash::new(&value).map_err(Error::internal)?;
-        validate_encoded_hash(&parsed)?;
-        Ok(Self(value))
+    /// 原样封装存储值；合法性、算法检查与计算预算由实际选用的 Hasher 决定。
+    pub fn from_encoded(value: impl Into<String>) -> Self {
+        Self(value.into())
     }
 
-    /// 返回用于持久化的编码值。
+    /// 在检索账户前统一核验增强认证输入；不执行KDF，也不依据账户是否存在决定策略。
+    pub fn validate_input(hasher: &dyn Hasher, password: &str) -> Result<()> {
+        validate_input(password)?;
+        if !hasher.accepts_exact_input(password)? {
+            return Err(Error::custom(
+                "password_bcrypt_input_ambiguous",
+                "增强认证输入在当前哈希或迁移策略下会发生截断；请选择完整字节算法或安全重设",
+            ));
+        }
+        Ok(())
+    }
+
+    /// 通过统一 Hasher 生成增强认证所需的哈希；不另建驱动或配置来源。
+    pub async fn make(hasher: &dyn Hasher, password: &str) -> Result<Self> {
+        Self::validate_input(hasher, password)?;
+        let encoded = hasher.make(password, &HashOptions::new()).await?;
+        validate_representation(password, &encoded)?;
+        Ok(Self(encoded))
+    }
+
+    /// 通过同一个 Hasher 核验增强认证输入，拒绝 bcrypt 的长输入与 NUL 别名。
+    pub async fn verify(&self, hasher: &dyn Hasher, password: &str) -> Result<bool> {
+        Self::validate_input(hasher, password)?;
+        validate_representation(password, &self.0)?;
+        hasher
+            .check(password, Some(&self.0), &HashOptions::new())
+            .await
+    }
+
+    /// 根据统一 Hasher 的当前策略判断重哈希，不以随机盐或独立成本配置作决定。
+    pub fn needs_rehash(&self, hasher: &dyn Hasher) -> Result<bool> {
+        hasher.needs_rehash(&self.0, &HashOptions::new())
+    }
+
+    /// 返回持久化和字节级版本比较所需的原始编码。
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
-/// 密码哈希与校验服务。
-#[derive(Clone)]
-pub struct Passwords {
-    config: PasswordConfig,
-    operation_slots: Arc<Semaphore>,
-}
-
-impl Passwords {
-    /// 校验 Argon2id 参数后创建密码服务，默认最多并行执行两个操作。
-    pub fn new(config: PasswordConfig) -> Result<Self> {
-        Self::with_max_concurrent_operations(config, 2)
-    }
-
-    /// 创建密码服务并设置单实例的最大并发数；超出容量的任务会立即拒绝且不排队。
-    pub fn with_max_concurrent_operations(
-        config: PasswordConfig,
-        max_concurrent_operations: usize,
-    ) -> Result<Self> {
-        if !(1..=MAX_CONCURRENT_OPERATIONS).contains(&max_concurrent_operations) {
-            return Err(Error::Config(crate::config::ConfigError::Invalid(
-                "auth.password max_concurrent_operations must be 1..=4".into(),
-            )));
-        }
-        validate_config(&config)?;
-        Ok(Self {
-            operation_slots: Arc::new(Semaphore::new(max_concurrent_operations)),
-            config,
-        })
-    }
-
-    /// 使用随机盐在 Tokio 阻塞线程池中对非空密码生成哈希。
-    pub async fn hash(&self, password: &str) -> Result<EncodedPasswordHash> {
-        validate_password(password)?;
-        let permit = self.operation_permit()?;
-        let password = password.to_owned();
-        let config = self.config.clone();
-        tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            let params = argon_params(&config)?;
-            let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-            let encoded = argon
-                .hash_password(password.as_bytes())
-                .map_err(Error::internal)?
-                .to_string();
-            Ok(EncodedPasswordHash(encoded))
-        })
-        .await
-        .map_err(Error::internal)?
-    }
-
-    /// 在 Tokio 阻塞线程池中校验密码；不匹配时返回 `Ok(false)`。
-    pub async fn verify(&self, password: &str, encoded: &EncodedPasswordHash) -> Result<bool> {
-        validate_password(password)?;
-        let permit = self.operation_permit()?;
-        let password = password.to_owned();
-        let encoded = encoded.0.clone();
-        tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            let parsed = PasswordHash::new(&encoded).map_err(Error::internal)?;
-            validate_encoded_hash(&parsed)?;
-            let argon = Argon2::default();
-            match argon.verify_password(password.as_bytes(), &parsed) {
-                Ok(()) => Ok(true),
-                Err(argon2::password_hash::Error::PasswordInvalid) => Ok(false),
-                Err(error) => Err(Error::internal(error)),
-            }
-        })
-        .await
-        .map_err(Error::internal)?
-    }
-
-    /// 判断已有安全 PHC 哈希是否需要按当前 Argon2id 策略重新生成。
-    ///
-    /// 先验证受支持算法和版本，再比较资源参数与输出长度；随机盐不同不要求重算。
-    pub fn needs_rehash(&self, encoded: &EncodedPasswordHash) -> Result<bool> {
-        let hash = PasswordHash::new(encoded.as_str()).map_err(Error::internal)?;
-        validate_encoded_hash(&hash)?;
-        let params = Params::try_from(&hash).map_err(Error::internal)?;
-        Ok(params.m_cost() != self.config.memory_kib
-            || params.t_cost() != self.config.iterations
-            || params.p_cost() != self.config.parallelism
-            || hash
-                .hash
-                .as_ref()
-                .map(argon2::password_hash::phc::Output::len)
-                != Some(Params::DEFAULT_OUTPUT_LEN))
-    }
-
-    fn operation_permit(&self) -> Result<tokio::sync::OwnedSemaphorePermit> {
-        self.operation_slots
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| {
-                Error::custom_with_status(
-                    http::StatusCode::SERVICE_UNAVAILABLE,
-                    "password_capacity_exhausted",
-                    "密码处理容量已满，请稍后重试",
-                )
-            })
-    }
-}
-
-fn validate_encoded_hash(hash: &PasswordHash) -> Result<()> {
-    if hash.algorithm.as_str() != "argon2id" || hash.version != Some(19) {
-        return Err(Error::internal(StoredHashParameters));
-    }
-    let params = Params::try_from(hash).map_err(Error::internal)?;
-    if !(MIN_MEMORY_KIB..=MAX_MEMORY_KIB).contains(&params.m_cost())
-        || !(1..=MAX_ITERATIONS).contains(&params.t_cost())
-        || !(1..=MAX_PARALLELISM).contains(&params.p_cost())
-        || params.m_cost() < 8 * params.p_cost()
-    {
-        return Err(Error::internal(StoredHashParameters));
-    }
-    Ok(())
-}
-
-fn validate_config(config: &PasswordConfig) -> Result<()> {
-    if !(MIN_MEMORY_KIB..=MAX_MEMORY_KIB).contains(&config.memory_kib)
-        || !(1..=MAX_ITERATIONS).contains(&config.iterations)
-        || !(1..=MAX_PARALLELISM).contains(&config.parallelism)
-        || config.memory_kib < 8 * config.parallelism
-    {
-        return Err(Error::Config(crate::config::ConfigError::Invalid(
-            "auth.password memory_kib must be 19456..=262144, iterations 1..=10, and parallelism 1..=4".into(),
-        )));
-    }
-    Ok(())
-}
-
-fn argon_params(config: &PasswordConfig) -> Result<Params> {
-    Params::new(
-        config.memory_kib,
-        config.iterations,
-        config.parallelism,
-        None,
-    )
-    .map_err(Error::internal)
-}
-
-fn validate_password(password: &str) -> Result<()> {
-    if password.is_empty() || password.len() > MAX_PASSWORD_BYTES {
+fn validate_input(password: &str) -> Result<()> {
+    if password.is_empty() || password.len() > 1024 {
         return Err(Error::BadRequest(
             "password must contain between 1 and 1024 UTF-8 bytes".into(),
         ));
@@ -186,133 +67,85 @@ fn validate_password(password: &str) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug)]
-struct StoredHashParameters;
-
-impl std::fmt::Display for StoredHashParameters {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("stored password hash uses unsupported or unsafe parameters")
+fn validate_representation(password: &str, encoded: &str) -> Result<()> {
+    if encoded.parse::<bcrypt::HashParts>().is_ok()
+        && (password.len() > 72 || password.as_bytes().contains(&0))
+    {
+        return Err(Error::custom(
+            "password_bcrypt_input_ambiguous",
+            "增强认证的bcrypt输入不能超过72字节或包含NUL；完整字节密码请选择Argon驱动",
+        ));
     }
-}
-
-impl std::error::Error for StoredHashParameters {}
-
-impl FromStr for EncodedPasswordHash {
-    type Err = Error;
-
-    fn from_str(value: &str) -> Result<Self> {
-        Self::parse(value)
-    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{EncodedPasswordHash, PasswordConfig, Passwords};
+    use super::*;
+    use crate::hashing::{BcryptConfig, HashManager, HashingConfig};
 
-    fn fast_config() -> PasswordConfig {
-        PasswordConfig {
-            memory_kib: 19_456,
-            iterations: 1,
-            parallelism: 1,
-        }
+    fn manager() -> Result<HashManager> {
+        HashManager::new(HashingConfig {
+            bcrypt: BcryptConfig {
+                rounds: 4,
+                verify: true,
+                limit: None,
+            },
+            ..Default::default()
+        })
     }
 
     #[tokio::test]
-    async fn hashes_use_distinct_random_salts_and_verify_passwords()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let passwords = Passwords::new(fast_config())?;
-        let first = passwords.hash("correct horse").await?;
-        let second = passwords.hash("correct horse").await?;
+    async fn typed_auth_value_uses_shared_bcrypt_driver_and_random_salts() -> Result<()> {
+        let manager = manager()?;
+        let first = EncodedPasswordHash::make(&manager, "correct horse").await?;
+        let second = EncodedPasswordHash::make(&manager, "correct horse").await?;
+        assert!(first.as_str().starts_with("$2y$04$"));
         assert_ne!(first.as_str(), second.as_str());
-        assert!(!passwords.needs_rehash(&first)?);
-        assert!(!passwords.needs_rehash(&second)?);
-        let changed = Passwords::new(PasswordConfig {
-            iterations: 2,
-            ..fast_config()
-        })?;
-        assert!(changed.needs_rehash(&first)?);
-        assert!(passwords.verify("correct horse", &first).await?);
-        assert!(!passwords.verify("wrong horse", &first).await?);
+        assert!(first.verify(&manager, "correct horse").await?);
+        assert!(!first.verify(&manager, "wrong horse").await?);
+        assert!(!first.needs_rehash(&manager)?);
         Ok(())
     }
 
     #[tokio::test]
-    async fn rejects_stored_hashes_with_unsafe_resource_parameters()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let passwords = Passwords::new(fast_config())?;
-        let hash = passwords.hash("correct horse").await?;
-        let oversized = hash.as_str().replace("m=19456", "m=262145");
-        assert!(EncodedPasswordHash::parse(oversized).is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn rejects_out_of_range_parameters_and_malformed_hashes() {
+    async fn enhanced_auth_rejects_aliases_without_changing_generic_hash_semantics() -> Result<()> {
+        let manager = manager()?;
+        for (plain, alias) in [
+            ("x".repeat(72), format!("{}tail", "x".repeat(72))),
+            ("correct".to_owned(), "correct\0tail".to_owned()),
+        ] {
+            let hash = EncodedPasswordHash::make(&manager, &plain).await?;
+            assert!(
+                manager
+                    .check(&alias, Some(hash.as_str()), &HashOptions::new())
+                    .await?
+            );
+            assert!(
+                matches!(hash.verify(&manager, &alias).await, Err(error) if error.code() == "password_bcrypt_input_ambiguous")
+            );
+        }
         assert!(
-            Passwords::new(PasswordConfig {
-                memory_kib: 1024,
-                ..fast_config()
-            })
-            .is_err()
+            EncodedPasswordHash::make(&manager, &"x".repeat(73))
+                .await
+                .is_err()
         );
-        assert!(EncodedPasswordHash::parse("not-a-phc-hash").is_err());
-    }
-
-    #[tokio::test]
-    async fn rejects_empty_and_oversized_passwords() -> Result<(), Box<dyn std::error::Error>> {
-        let passwords = Passwords::new(fast_config())?;
-        assert!(passwords.hash("").await.is_err());
-        assert!(passwords.hash(&"x".repeat(1025)).await.is_err());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn rejects_hash_operations_when_the_service_capacity_is_full()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let passwords = Passwords::with_max_concurrent_operations(fast_config(), 1)?;
-        let encoded = passwords.hash("correct horse").await?;
-        let permit = passwords.operation_slots.clone().acquire_owned().await?;
-        let cloned = passwords.clone();
-        let error = passwords
-            .hash("correct horse")
-            .await
-            .err()
-            .ok_or_else(|| std::io::Error::other("hash should be rejected at capacity"))?;
-        assert_eq!(error.code(), "password_capacity_exhausted");
-        assert_eq!(error.status(), http::StatusCode::SERVICE_UNAVAILABLE);
-        let verify_error = cloned
-            .verify("correct horse", &encoded)
-            .await
-            .err()
-            .ok_or_else(|| std::io::Error::other("verify should be rejected at capacity"))?;
-        assert_eq!(verify_error.code(), "password_capacity_exhausted");
-        drop(permit);
-        assert!(passwords.hash("correct horse").await.is_ok());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn default_capacity_allows_two_operations_and_rejects_the_third()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let passwords = Passwords::new(fast_config())?;
-        let first = passwords.operation_permit()?;
-        let second = passwords.operation_permit()?;
-        assert_eq!(
-            passwords
-                .operation_permit()
-                .err()
-                .ok_or_else(|| std::io::Error::other("third operation should be rejected"))?
-                .code(),
-            "password_capacity_exhausted"
+        assert!(EncodedPasswordHash::make(&manager, "").await.is_err());
+        assert!(
+            EncodedPasswordHash::make(&manager, &"x".repeat(1025))
+                .await
+                .is_err()
         );
-        drop((first, second));
-        assert!(passwords.operation_permit().is_ok());
         Ok(())
     }
 
-    #[test]
-    fn rejects_invalid_operation_capacity() {
-        assert!(Passwords::with_max_concurrent_operations(fast_config(), 0).is_err());
-        assert!(Passwords::with_max_concurrent_operations(fast_config(), 5).is_err());
+    #[tokio::test]
+    async fn arbitrary_stored_values_are_checked_by_the_selected_driver() -> Result<()> {
+        let manager = manager()?;
+        let unknown = EncodedPasswordHash::from_encoded("not-a-hash");
+        assert!(unknown.verify(&manager, "password").await.is_err());
+        let empty = EncodedPasswordHash::from_encoded("");
+        assert!(!empty.verify(&manager, "password").await?);
+        Ok(())
     }
 }

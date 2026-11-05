@@ -9,10 +9,9 @@ use crate::{
     },
     auth::{
         AuthFlows, AuthUser, Authenticatable, Credentials, DatabaseUserProvider,
-        DatabaseVerificationCodeStore, GenericUser, Passwords, SessionGuard, UserProvider,
-        VerificationCodes,
+        DatabaseVerificationCodeStore, GenericUser, SessionGuard, UserProvider, VerificationCodes,
     },
-    config::{EncryptionConfig, JwtConfig, PasswordConfig},
+    config::{EncryptionConfig, JwtConfig},
     core::{BoxFuture, RateLimiter},
     db::{
         DatabaseRateLimitMigration, DatabaseRateLimitStore,
@@ -158,8 +157,21 @@ impl Fixture {
             "owned",
             BTreeMap::from([("owned".into(), key.clone())]),
         ))?;
-        let passwords = Passwords::new(PasswordConfig::default())?;
-        let hash = passwords.hash("owned-lock-expiry-password").await?;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+            crate::hashing::HashingConfig {
+                bcrypt: crate::hashing::BcryptConfig {
+                    rounds: 4,
+                    verify: true,
+                    limit: None,
+                },
+                ..Default::default()
+            },
+        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let hash = crate::auth::EncodedPasswordHash::make(
+            passwords.as_ref(),
+            "owned-lock-expiry-password",
+        )
+        .await?;
         let now =
             crate::db::dialect::utc_value(db.connection()?.get_database_backend(), Utc::now());
         db.table("users")?

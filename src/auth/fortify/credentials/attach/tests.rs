@@ -3,15 +3,15 @@ use super::*;
 use crate::{
     auth::{
         AuthFlows, AuthUser, Authenticatable, Credentials, DatabaseUserProvider,
-        DatabaseVerificationCodeStore, GenericUser, JwtTokens, Passwords, RefreshTokens,
-        SessionGuard, VerificationCodes,
+        DatabaseVerificationCodeStore, GenericUser, JwtTokens, RefreshTokens, SessionGuard,
+        VerificationCodes,
         fortify::{
             DatabaseFactorAuthority, DatabaseTwoFactorState, FactorAuthorityMigration,
             FactorAuthorityMutation, FortifyTwoFactorMigration, TwoFactorAuthenticatable,
             TwoFactorState,
         },
     },
-    config::{EncryptionConfig, JwtConfig, PasswordConfig},
+    config::{EncryptionConfig, JwtConfig},
     core::{BoxFuture, RateLimiter},
     db::{
         DatabaseRateLimitMigration, DatabaseRateLimitStore, Db,
@@ -108,7 +108,7 @@ struct Fixture {
     policy: CredentialAuthority,
     authority: DatabaseFactorAuthority,
     flows: AuthFlows,
-    passwords: Passwords,
+    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
     encrypter: Encryptor,
 }
 impl Fixture {
@@ -122,8 +122,21 @@ impl Fixture {
                 "owned",
                 BTreeMap::from([("owned".into(), key.clone())]),
             ))?;
-            let passwords = Passwords::new(PasswordConfig::default())?;
-            let hash = passwords.hash("attachment-owned-password").await?;
+            let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+                crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: None,
+                    },
+                    ..Default::default()
+                },
+            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+            let hash = crate::auth::EncodedPasswordHash::make(
+                passwords.as_ref(),
+                "attachment-owned-password",
+            )
+            .await?;
             let now = crate::db::dialect::utc_value(crate::db::DbBackend::Sqlite, Utc::now());
             db.table("users")?
                 .insert(vec![

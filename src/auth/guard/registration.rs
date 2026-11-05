@@ -4,7 +4,7 @@ use super::{
     AuthDefaults, AuthDrivers, AuthManager, DatabaseUserProvider, Guard, GuardConfig, SessionGuard,
     UserProvider, UserProviderConfig,
 };
-use crate::auth::Passwords;
+
 use crate::{
     Error, Result,
     config::{AppConfig, repository::SectionSchema as S},
@@ -153,7 +153,6 @@ fn register_configuration(app: &mut RegisterContext<'_>) -> Result<()> {
         |_| Ok(()),
     )?;
     app.config_section("auth.timebox_duration", 200_000_u64, S::Integer, |_| Ok(()))?;
-    app.config_section("hashing.rehash_on_login", true, S::Boolean, |_| Ok(()))?;
     app.config_section("auth.password_timeout", 10_800_u64, S::Integer, |_| Ok(()))?;
     Ok(())
 }
@@ -205,11 +204,9 @@ async fn create_database_provider(
             ));
         }
     };
-    let passwords = resolver.resolve::<Passwords>().await?;
-    Ok(
-        Arc::new(DatabaseUserProvider::new(db, (*passwords).clone(), table)?)
-            as Arc<dyn UserProvider>,
-    )
+    let passwords: std::sync::Arc<dyn crate::hashing::Hasher> =
+        resolver.resolve::<crate::hashing::HashManager>().await?;
+    Ok(Arc::new(DatabaseUserProvider::new(db, passwords.clone(), table)?) as Arc<dyn UserProvider>)
 }
 
 fn remember_duration(config: &GuardConfig) -> Result<Option<i64>> {

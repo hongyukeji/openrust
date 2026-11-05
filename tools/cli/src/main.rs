@@ -1023,14 +1023,14 @@ fn populate_project_with_features(
             drivers.provider("app-users", |resolver, config| Box::pin(async move {
                 let table = config.options.get("table").and_then(serde_json::Value::as_str).ok_or_else(|| openrust::Error::custom_with_status(openrust::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR, "app_user_table_required", "应用账户Provider需要table"))?;
                 let db = resolver.resolve::<openrust::db::Db>().await?;
-                let passwords = resolver.resolve::<openrust::auth::Passwords>().await?;
+                let passwords = resolver.resolve::<openrust::hashing::HashManager>().await?;
                 #[cfg(feature = "auth-fortify")]
                 let state_db = (*db).clone();
                 #[cfg(feature = "auth-fortify")]
                 let state_table = table.to_owned();
                 #[cfg(feature = "auth-fortify")]
                 let factor_encrypter = resolver.resolve::<openrust::security::Encryptor>().await?;
-                let provider = openrust::auth::DatabaseUserProvider::new((*db).clone(), (*passwords).clone(), table)?
+                let provider = openrust::auth::DatabaseUserProvider::new((*db).clone(), passwords, table)?
                     .with_user_factory(move |attributes| {
                         if attributes.get("disabled_at").is_some_and(|value| !value.is_null()) {
                             return Err(openrust::Error::Unauthorized);
@@ -1734,6 +1734,7 @@ fn env_example(
     contents.push_str(
         "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\nI18N_DEFAULT_LOCALE=en\n",
     );
+    contents.push_str("\n# 统一哈希默认；成本和完整策略见config/hashing.rs。\nHASH_DRIVER=bcrypt\nBCRYPT_ROUNDS=12\nHASH_VERIFY=true\nBCRYPT_LIMIT=null\nARGON_MEMORY=65536\nARGON_TIME=4\nARGON_THREADS=1\n");
     if database.is_some() {
         contents.push_str(
             "\n# 默认数据库队列；可选择已预置的 Redis 连接，URL 默认继承有效缓存 dsn。\nQUEUE_CONNECTION=database\n# QUEUE_CONNECTION=redis\n# 独立 Redis 队列连接和命名空间可按需覆盖：\n# QUEUE_REDIS_URL=redis://127.0.0.1:6379/\n# QUEUE_REDIS_NAMESPACE=app_queue\n# 先执行 openrust migrate，再显式运行 openrust queue work database --queue default。\n# Redis worker：openrust queue work redis --queue default；serve 不会自动启动 worker。\n",

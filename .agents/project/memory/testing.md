@@ -1,5 +1,17 @@
 # 测试基线
 
+## 统一 Hashing 与认证接线限定验收
+
+固定 Laravel13.39.0 / d52c3b3 的 HashManager、HashServiceProvider、Hasher/三驱动、安装默认及测试为 contract；固定 PHP8.5.12 oracle 验证参数/元信息/算法迁移，并补24条真实 `$2x$` 正反向向量。生产统一 `HashManager` 动态委派与首次解析的 `dyn Hasher` 驱动别名；默认bcrypt12/verify=true，显式Argon安装默认65536/4/1。认证、验证码、标准UserProvider与生成应用共用该服务，删除独立Passwords/PasswordConfig/auth.password成本权威。标准Hash保留72字节/NUL别名；增强认证另有统一前置能力检查，严格Argon混合旧bcrypt及make-only limit分支用固定合法dummy输入统一401，容量/预算错误仍传播。自返回工厂拒绝并释放已捕获强引用，同时保留并发extend后继；不声称任意回调图可自动解环。
+
+证据目录 `tmp/hashing-20261105/`：最终顶层运行测试默认1405/全特性2762通过（9/124 ignored不计服务证据；不含CLI内部子进程与独立Rustdoc汇总），双严格Clippy/Rustdoc、Hashing-only、no-default、Rust1.97全特性/no-default与deny通过。之后仅三处示例/测试假设和Session装饰器漏转发身份元数据修正；最终冻结重验 `final-closure/final-gates-result.json` 的12种门禁全0，顶层计数两轮一致见 `top-level-test-counts.json`；包含CLI嵌套输出的全文正则简单求和会相差1，不作唯一测试总数。未以旧测试代替新输入。配置函数非法成本只返回统一脱敏求值错误，新增测试保留该真实边界；最初错误断言和所有失败日志保留。
+
+真实MySQL8.4与PostgreSQL18各28项认证测试、唯一示例TCP完整业务及模块迁移往返各1通过，无skip；持久注册/验证码实际为bcrypt12，统一服务验证成功。MySQL28项沿未变生产输入的 `real-mysql-auth.log` 复用，其余最终见 `real-auth-result.json` / 对应分项日志；两库清单最终均恢复。首次广域示例运行190通过/2失败，已修旧token在密码重置后继续使用、迁移GC尾段漏框架项及恢复项、请求Session装饰器漏set_database_user_id；修复后的两失败目标均精确复跑。广域运行未配置的外部OIDC与ignored不计通过，不额外重跑无影响的190项。异常panic遗留只经既有公开持久归属入口恢复，保留journal，不按名称前缀删库。
+
+fresh生成SQLite JWT API与MySQL Web应用，new/check/test全0，分别26和13测试，无skip/ignored；MySQL清单恢复，见 `generated-auth-result.json`。12个独立consumer重新离线锁图并全部locked metadata通过；gRPC/auth和query-authorization显式locked check通过。两份旧锁的rustix1.1.6与根精确1.1.5冲突按已有版本约束修正，没有依赖升级；其余锁补必需bcrypt/测试资源依赖边。
+
+组合门禁在保留独立Passport/共享支持WIP的工作树上执行，限定提交只选本簇必要源码与依赖，不将WIP报交付。本簇不包含Passport协议WIP、Client/code/token持久签发、OIDC Provider、通用Manager缓存枚举/清除及Container访问/替换、完整Model hashed cast或全部Laravel对应。Rust异步、UTF-8类型输入、执行预算与增强认证策略均不等于PHP运行环境。外部Google/Keycloak客户端限制及任意网络/进程资源总体保证继续按原待办保留。已完成阶段产物用原生Cargo清理，源、fixture、日志、私有归属与服务保留；不push/tag/release。
+
 ## 网络测试数据库生命周期与持久恢复限定验收
 
 `TestDatabase` 的Unix网络范围使用独立I/O与清理线程、正常退出有界票据屏障、私有持久归属回执/永久文件锁、每资源随机远端见证及固定原生管理会话锁。目标与PG模板分别持责；每条业务池物理连接验证实际服务、库名、marker及PG OID。关闭池失败、权限/活动可见性不足、错配或未知操作均保留，下一次显式create/recover补偿；不存在库只有权威核验后才写Done。管理库名保留服务端原值，生成目标名仍严格受限。

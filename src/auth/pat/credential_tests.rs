@@ -2,8 +2,8 @@
 use super::*;
 use crate::{
     auth::{
-        AuthUser, Authenticatable, DatabaseUserProvider, GenericUser, PasswordConfig, Passwords,
-        SessionGuard, StatefulGuard, UserProvider,
+        AuthUser, Authenticatable, DatabaseUserProvider, GenericUser, SessionGuard, StatefulGuard,
+        UserProvider,
         fortify::{
             CredentialFactorMigration, DatabaseFactorAuthority, DatabaseTwoFactorState,
             FactorAuthorityMigration, FactorAuthorityMutation, FortifyTwoFactorMigration,
@@ -133,7 +133,16 @@ async fn fixture(db: Db) -> Result<Fixture> {
     let provider: Arc<dyn UserProvider> = Arc::new(
         DatabaseUserProvider::new(
             db.clone(),
-            Passwords::new(PasswordConfig::default())?,
+            std::sync::Arc::new(crate::hashing::HashManager::new(
+                crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: None,
+                    },
+                    ..Default::default()
+                },
+            )?) as std::sync::Arc<dyn crate::hashing::Hasher>,
             "users",
         )?
         .with_user_factory(move |attributes: Map<String, Value>| {
@@ -537,7 +546,16 @@ fn family_flows(
     lifetime: chrono::Duration,
 ) -> Result<(crate::auth::AuthFlows, crate::auth::JwtTokens)> {
     use base64::Engine as _;
-    let passwords = Passwords::new(PasswordConfig::default())?;
+    let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+        crate::hashing::HashingConfig {
+            bcrypt: crate::hashing::BcryptConfig {
+                rounds: 4,
+                verify: true,
+                limit: None,
+            },
+            ..Default::default()
+        },
+    )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
     let jwt = crate::auth::JwtTokens::new(
         crate::auth::JwtConfig::new(
             "https://credential.example.test",
@@ -833,7 +851,16 @@ async fn selected_auth_flows_rejects_refresh_store_from_another_database_without
                     fixture.policy.clone(),
                     chrono::Duration::hours(1),
                 )?;
-                let passwords = Passwords::new(PasswordConfig::default())?;
+                let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+                    crate::hashing::HashingConfig {
+                        bcrypt: crate::hashing::BcryptConfig {
+                            rounds: 4,
+                            verify: true,
+                            limit: None,
+                        },
+                        ..Default::default()
+                    },
+                )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
                 let codes = crate::auth::VerificationCodes::new(
                     crate::auth::DatabaseVerificationCodeStore::new(fixture.db.clone()),
                     passwords.clone(),
@@ -873,8 +900,18 @@ async fn selected_auth_flows_rejects_refresh_store_from_another_database_without
 async fn direct_login_flows(
     fixture: &Fixture,
 ) -> Result<(crate::auth::AuthFlows, crate::auth::JwtTokens)> {
-    let passwords = Passwords::new(PasswordConfig::default())?;
-    let hash = passwords.hash("direct-password").await?;
+    let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+        crate::hashing::HashingConfig {
+            bcrypt: crate::hashing::BcryptConfig {
+                rounds: 4,
+                verify: true,
+                limit: None,
+            },
+            ..Default::default()
+        },
+    )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+    let hash =
+        crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "direct-password").await?;
     fixture
         .db
         .table("users")?

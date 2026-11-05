@@ -30,6 +30,8 @@
 
 模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
+账户注册、验证码和密码验证使用宿主统一 `HashManager`，默认与 `config/hashing.rs` 同源的 bcrypt12；模块不持有独立成本配置。`tests/auth_flows.rs` 在实际注册后读取数据库产物，核对算法、成本、统一服务验证与驱动别名身份。完整字节密码策略及显式 Argon 迁移见[哈希指南](../../docs/src/security/hashing.md)。
+
 ## SQLite 配置与迁移接入
 
 模块的 reporting 路由通过标准 `Databases` 使用独立 SQLite 连接；对应测试在真实 Router 调用后检查同一池的 nullable/raw PRAGMA。迁移清单通过公开 Framework/模块 MigrationServiceProvider 接入，`PrivateNote` 回滚使用 `dialect::drop_column`；旧版 SQLite 在迁移所有者内重建 main 普通表，无需业务自行分支。

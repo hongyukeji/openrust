@@ -1,10 +1,8 @@
-//! 身份认证、密码哈希和共享 Session 配置。
+//! 身份认证和共享 Session 配置。
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
-
-pub(crate) const MIN_MEMORY_KIB: u32 = 19_456;
+use serde::Deserialize;
 
 /// JWT 签发与验证设置。密钥值是经 Base64 编码的 CSPRNG 随机输出。
 #[derive(Clone, Deserialize)]
@@ -59,28 +57,6 @@ impl std::fmt::Debug for JwtConfig {
             .field("access_ttl_secs", &self.access_ttl_secs)
             .field("max_valid_ttl_secs", &self.max_valid_ttl_secs)
             .finish()
-    }
-}
-
-/// 新密码哈希使用的 Argon2id 参数。
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct PasswordConfig {
-    /// 内存开销（KiB）。
-    pub memory_kib: u32,
-    /// Argon2 迭代次数。
-    pub iterations: u32,
-    /// Argon2 并行度。
-    pub parallelism: u32,
-}
-
-impl Default for PasswordConfig {
-    fn default() -> Self {
-        Self {
-            memory_kib: MIN_MEMORY_KIB,
-            iterations: 2,
-            parallelism: 1,
-        }
     }
 }
 

@@ -21,9 +21,12 @@ pub(super) async fn seeded_password_access(app: &App, id: i64) -> Result<String>
     #[cfg(feature = "auth-fortify")]
     {
         let db = app.state().resolve::<openrust::Db>().await?;
-        let passwords = app.state().resolve::<openrust::auth::Passwords>().await?;
+        let passwords = app
+            .state()
+            .resolve::<openrust::hashing::HashManager>()
+            .await?;
         let password = "selected-protocol-fixture-password";
-        let hash = passwords.hash(password).await?;
+        let hash = openrust::auth::EncodedPasswordHash::make(passwords.as_ref(), password).await?;
         let user = db.table("users")?.where_eq("id", id)?.first().await?;
         let email = user
             .as_ref()

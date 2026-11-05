@@ -57,6 +57,7 @@ fn sources(root: &Path, url: &str, api: bool, issuer: &str) -> Result<ConfigSour
         ("database", json!({"url":url,"max_connections":4,"min_connections":0})),
         ("session", json!({"driver":"database","secure":false,"lottery":[0,100]})),
         ("security", json!({"encryption":{"active_key_id":"test","keys":{"test":TEST_KEY}},"signed_links":{"active_key_id":"test","keys":{"test":TEST_KEY}}})),
+        ("hashing", json!({"driver":"argon2id","argon":{"memory":19456,"time":2,"threads":1,"verify":true}})),
         ("auth", json!({"jwt":{"issuer":issuer,"active_key_id":"test","keys":{"test":TEST_KEY}}})),
         #[cfg(feature = "realtime")]
         ("realtime", json!({"allowed_origins":["http://localhost"]})),
@@ -599,13 +600,19 @@ async fn exercise(app: &TestApp<Server>, other: &TestApp<Server>, gate: &AuditGa
     register(app).await?;
     let db = state.resolve::<Db>().await?;
     // 模拟已有账户的较低 Argon 成本，经过真实根账户回调触发 rehash。
-    let weaker = openrust::auth::Passwords::new(openrust::config::PasswordConfig {
-        memory_kib: 19_456,
-        iterations: 1,
-        parallelism: 1,
-    })?
-    .hash(PASSWORD)
-    .await?;
+    let weak_hasher = std::sync::Arc::new(openrust::hashing::HashManager::new(
+        openrust::hashing::HashingConfig {
+            driver: "argon2id".into(),
+            argon: openrust::hashing::ArgonConfig {
+                memory: 19_456,
+                time: 1,
+                threads: 1,
+                verify: true,
+            },
+            ..openrust::hashing::HashingConfig::default()
+        },
+    )?);
+    let weaker = openrust::auth::EncodedPasswordHash::make(weak_hasher.as_ref(), PASSWORD).await?;
     let accounts = db.table("users")?.where_eq("email", EMAIL)?;
     assert_eq!(
         accounts
@@ -617,12 +624,14 @@ async fn exercise(app: &TestApp<Server>, other: &TestApp<Server>, gate: &AuditGa
     let row = accounts.first().await?.ok_or_else(invalid)?;
     let current: String = row.try_get("", "password_hash").map_err(Error::internal)?;
     assert!(!current.eq(weaker.as_str()));
-    let current = openrust::auth::EncodedPasswordHash::parse(current)?;
+    let current = openrust::auth::EncodedPasswordHash::from_encoded(current);
     assert!(
-        !state
-            .resolve::<openrust::auth::Passwords>()
-            .await?
-            .needs_rehash(&current)?
+        !current.needs_rehash(
+            state
+                .resolve::<openrust::hashing::HashManager>()
+                .await?
+                .as_ref()
+        )?
     );
     assert!(initial.get("challenge").is_none());
     assert_eq!(initial["token_type"], "Bearer");

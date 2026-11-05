@@ -70,7 +70,7 @@ pub(super) async fn load_active(
     let digits: i32 = row.try_get("", "code_digits").map_err(Error::internal)?;
     Ok(Some(VerificationChallenge::new(
         challenge,
-        EncodedPasswordHash::parse(hash)?,
+        EncodedPasswordHash::from_encoded(hash),
         u8::try_from(digits).map_err(Error::internal)?,
     )?))
 }

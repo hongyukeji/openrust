@@ -40,6 +40,7 @@ pub mod cache;
 pub mod database;
 #[cfg(feature = "grpc")]
 pub mod grpc;
+pub mod hashing;
 pub mod logger;
 pub mod mailer;
 pub mod modules;
@@ -59,11 +60,12 @@ pub mod view;
 
 pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
-pub use auth::{JwtConfig, PasswordConfig};
+pub use auth::JwtConfig;
 pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig};
 pub use database::{DatabaseConfig, DatabaseInstanceConfig};
 #[cfg(feature = "grpc")]
 pub use grpc::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig};
+pub use hashing::{ArgonConfig, BcryptConfig, HashingConfig};
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 pub use modules::{
@@ -1373,7 +1375,6 @@ mod tests {
         #[cfg(feature = "auth")]
         {
             let _: Option<crate::auth::JwtConfig> = None::<auth::JwtConfig>;
-            let _: Option<crate::auth::PasswordConfig> = None::<auth::PasswordConfig>;
             let _: Option<crate::auth::SessionConfig> = None::<SessionConfig>;
         }
         let _: Option<crate::db::DatabaseConfig> = None::<database::DatabaseConfig>;

@@ -16,8 +16,8 @@ use chrono::{Duration as ChronoDuration, Utc};
 #[cfg(feature = "auth-fortify")]
 use crate::auth::credential::TwoFactorLoginChallenge;
 use crate::auth::{
-    EncodedPasswordHash, IssuedRefreshToken, IssuedVerificationCode, JwtTokens, Passwords,
-    RefreshTokens, Session, VerificationCodePolicy, VerificationCodes,
+    EncodedPasswordHash, IssuedRefreshToken, IssuedVerificationCode, JwtTokens, RefreshTokens,
+    Session, VerificationCodePolicy, VerificationCodes,
     database::{AUTH_CSRF_HASH_KEY, AUTH_USER_ID_KEY},
 };
 
@@ -136,7 +136,7 @@ pub trait ApiLoginAuditSink: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct AuthFlows {
     db: Db,
-    passwords: Passwords,
+    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
     jwt: JwtTokens,
     refresh: RefreshTokens,
     codes: VerificationCodes,
@@ -301,7 +301,7 @@ impl AuthFlows {
     /// 使用应用所需的共享服务创建流程服务。
     pub fn new(
         db: Db,
-        passwords: Passwords,
+        passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
         jwt: JwtTokens,
         refresh: RefreshTokens,
         codes: VerificationCodes,
@@ -437,7 +437,8 @@ impl AuthFlows {
     ) -> Result<Option<IssuedVerificationCode>> {
         let email = normalize_email(email)?;
         self.limit("register", request_source, &email).await?;
-        let password_hash = self.passwords.hash(password).await?;
+        let password_hash =
+            crate::auth::EncodedPasswordHash::make(self.passwords.as_ref(), password).await?;
         let connection = self.db.connection()?;
         let backend = connection.get_database_backend();
         let sql = match backend {
@@ -1140,7 +1141,7 @@ impl AuthFlows {
         let mut random = [0_u8; 32];
         getrandom::fill(&mut random).map_err(Error::internal)?;
         let secret = URL_SAFE_NO_PAD.encode(random);
-        self.passwords.hash(&secret).await
+        crate::auth::EncodedPasswordHash::make(self.passwords.as_ref(), &secret).await
     }
 
     #[cfg(feature = "auth-oidc")]
@@ -1542,6 +1543,7 @@ impl AuthFlows {
         email: &str,
         password: &str,
     ) -> Result<(i64, EncodedPasswordHash)> {
+        EncodedPasswordHash::validate_input(self.passwords.as_ref(), password)?;
         let connection = self.db.connection()?;
         let backend = connection.get_database_backend();
         let sql = match backend {
@@ -1562,21 +1564,35 @@ impl AuthFlows {
             .await
             .map_err(Error::internal)?
         else {
-            self.passwords.hash(password).await?;
+            self.perform_dummy_password_work().await?;
             return Err(Error::Unauthorized);
         };
         let user_id = row.try_get::<i64>("", "id").map_err(Error::internal)?;
         let encoded = row
             .try_get::<String>("", "password_hash")
             .map_err(Error::internal)?;
-        let Ok(hash) = EncodedPasswordHash::parse(encoded) else {
-            self.passwords.hash(password).await?;
-            return Err(Error::Unauthorized);
-        };
-        if !self.passwords.verify(password, &hash).await? {
-            return Err(Error::Unauthorized);
+        let hash = EncodedPasswordHash::from_encoded(encoded);
+        match hash.verify(self.passwords.as_ref(), password).await {
+            Ok(true) => Ok((user_id, hash)),
+            Ok(false) => Err(Error::Unauthorized),
+            Err(error)
+                if matches!(
+                    error.code(),
+                    "password_bcrypt_input_ambiguous" | "hashing_algorithm_mismatch"
+                ) =>
+            {
+                // 与缺失账户采用相同的当前驱动工作，避免将旧存储策略暴露为账户存在信号。
+                self.perform_dummy_password_work().await?;
+                Err(Error::Unauthorized)
+            }
+            Err(error) => Err(error),
         }
-        Ok((user_id, hash))
+    }
+
+    async fn perform_dummy_password_work(&self) -> Result<()> {
+        // make-only 字节上限不应暴露账户存在性；正上限至少允许一字节，0 与上游一样禁用限制。
+        EncodedPasswordHash::make(self.passwords.as_ref(), "x").await?;
+        Ok(())
     }
 
     /// 原子轮换 refresh 凭据并返回后继凭据对。
@@ -1706,7 +1722,8 @@ impl AuthFlows {
         let email = normalize_email(email)?;
         self.limit("password_reset_confirm", request_source, &email)
             .await?;
-        let password_hash = self.passwords.hash(new_password).await?;
+        let password_hash =
+            crate::auth::EncodedPasswordHash::make(self.passwords.as_ref(), new_password).await?;
         if !self
             .codes
             .verify(PASSWORD_RESET_PURPOSE, &email, code)
@@ -1870,14 +1887,15 @@ impl crate::core::ServiceProvider for AuthFlowsServiceProvider {
             app.scoped::<AuthFlows, _>(move |resolver| {
                 Box::pin(async move {
                     let db = resolver.resolve::<Db>().await?;
-                    let passwords = resolver.resolve::<Passwords>().await?;
+                    let passwords: std::sync::Arc<dyn crate::hashing::Hasher> =
+                        resolver.resolve::<crate::hashing::HashManager>().await?;
                     let jwt = resolver.resolve::<JwtTokens>().await?;
                     let refresh = resolver.resolve::<RefreshTokens>().await?;
                     let codes = resolver.resolve::<VerificationCodes>().await?;
                     let limiter = resolver.resolve::<RateLimiter>().await?;
                     let flows = AuthFlows::new(
                         (*db).clone(),
-                        (*passwords).clone(),
+                        passwords.clone(),
                         (*jwt).clone(),
                         (*refresh).clone(),
                         (*codes).clone(),
@@ -1942,9 +1960,19 @@ mod provider_tests {
             Box::pin(async move {
                 use base64::Engine as _;
                 let db = Db::default();
-                let passwords = Passwords::new(crate::config::PasswordConfig::default())?;
+                let manager = Arc::new(crate::hashing::HashManager::new(
+                    crate::hashing::HashingConfig {
+                        bcrypt: crate::hashing::BcryptConfig {
+                            rounds: 4,
+                            verify: true,
+                            limit: None,
+                        },
+                        ..Default::default()
+                    },
+                )?);
+                app.instance(Arc::clone(&manager)).await?;
+                let passwords: std::sync::Arc<dyn crate::hashing::Hasher> = manager;
                 app.instance(Arc::new(db.clone())).await?;
-                app.instance(Arc::new(passwords.clone())).await?;
                 app.instance(Arc::new(RefreshTokens::new(db.clone())))
                     .await?;
                 app.instance(Arc::new(VerificationCodes::new(
@@ -2274,5 +2302,220 @@ mod tests {
                 .is_none()
         );
         Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "db-sqlite"))]
+mod exact_input_login_tests {
+    use super::*;
+    use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+
+    struct Migrations;
+    impl MigratorTrait for Migrations {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![
+                Box::new(crate::auth::AuthMigration),
+                Box::new(crate::auth::AuthRefreshTokenMigration),
+                Box::new(crate::auth::AuthVerificationCodeMigration),
+                Box::new(crate::db::DatabaseRateLimitMigration),
+            ]
+        }
+    }
+
+    #[tokio::test]
+    async fn public_login_rejects_bcrypt_aliases_identically_for_present_and_missing_accounts()
+    -> Result<()> {
+        let database = crate::testing::TestDatabase::sqlite_memory::<Migrations>().await?;
+        let outcome = async {
+            let db = Db::default();
+            db.initialize(database.connection()?)?;
+            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+                crate::hashing::HashManager::new(crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4, verify: true, limit: None,
+                    },
+                    ..Default::default()
+                })?,
+            );
+            let hash = EncodedPasswordHash::make(hasher.as_ref(), "safe-password").await?;
+            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            db.table("users")?.insert(vec![
+                ("id", 42_i64.into()),
+                ("email", "present@example.test".into()),
+                ("password_hash", hash.as_str().into()),
+                ("email_verified_at", now.clone()),
+                ("created_at", now.clone()),
+                ("updated_at", now),
+            ]).await?;
+            let jwt = JwtTokens::new(crate::config::JwtConfig::new(
+                "issuer", "audience", "test",
+                std::collections::BTreeMap::from([(
+                    "test".into(),
+                    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
+                )]),
+            ))?;
+            let flows = AuthFlows::new(
+                db.clone(), hasher.clone(), jwt, RefreshTokens::new(db.clone()),
+                VerificationCodes::new(
+                    crate::auth::DatabaseVerificationCodeStore::new(db.clone()), hasher,
+                ),
+                RateLimiter::new(crate::db::DatabaseRateLimitStore::new(db.clone())),
+            );
+            for email in ["present@example.test", "missing@example.test"] {
+                for password in ["a\0b".to_owned(), "x".repeat(73)] {
+                    let result = flows.login(email, &password, "exact-input-test").await;
+                    assert!(matches!(result, Err(error) if error.code() == "password_bcrypt_input_ambiguous"));
+                }
+                assert!(matches!(
+                    flows.login(email, "wrong-short-password", "exact-input-test").await,
+                    Err(Error::Unauthorized)
+                ));
+            }
+            assert_eq!(db.table("auth_refresh_tokens")?.count().await?, 0);
+            Ok(())
+        }.await;
+        database.close().await?;
+        outcome
+    }
+
+    #[tokio::test]
+    async fn public_login_hides_mixed_bcrypt_storage_policy_under_strict_argon() -> Result<()> {
+        let database = crate::testing::TestDatabase::sqlite_memory::<Migrations>().await?;
+        let outcome = async {
+            let db = Db::default();
+            db.initialize(database.connection()?)?;
+            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+                crate::hashing::HashManager::new(crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: None,
+                    },
+                    ..Default::default()
+                })?,
+            );
+            let hash = EncodedPasswordHash::make(hasher.as_ref(), "safe-password").await?;
+            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            db.table("users")?
+                .insert(vec![
+                    ("id", 42_i64.into()),
+                    ("email", "present@example.test".into()),
+                    ("password_hash", hash.as_str().into()),
+                    ("email_verified_at", now.clone()),
+                    ("created_at", now.clone()),
+                    ("updated_at", now),
+                ])
+                .await?;
+            let jwt = JwtTokens::new(crate::config::JwtConfig::new(
+                "issuer",
+                "audience",
+                "test",
+                std::collections::BTreeMap::from([(
+                    "test".into(),
+                    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
+                )]),
+            ))?;
+            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+                crate::hashing::HashManager::new(crate::hashing::HashingConfig {
+                    driver: "argon2id".into(),
+                    argon: crate::hashing::ArgonConfig {
+                        memory: 1024,
+                        time: 2,
+                        threads: 2,
+                        verify: true,
+                    },
+                    ..Default::default()
+                })?,
+            );
+            let flows = AuthFlows::new(
+                db.clone(),
+                hasher.clone(),
+                jwt,
+                RefreshTokens::new(db.clone()),
+                VerificationCodes::new(
+                    crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
+                    hasher,
+                ),
+                RateLimiter::new(crate::db::DatabaseRateLimitStore::new(db.clone())),
+            );
+            for email in ["present@example.test", "missing@example.test"] {
+                for password in [
+                    "a\0b".to_owned(),
+                    "x".repeat(73),
+                    "wrong-short-password".into(),
+                ] {
+                    assert!(matches!(
+                        flows.login(email, &password, "mixed-policy-test").await,
+                        Err(Error::Unauthorized)
+                    ));
+                }
+            }
+            assert_eq!(db.table("auth_refresh_tokens")?.count().await?, 0);
+            Ok(())
+        }
+        .await;
+        database.close().await?;
+        outcome
+    }
+    #[tokio::test]
+    async fn public_login_make_only_limit_does_not_expose_account_presence() -> Result<()> {
+        let database = crate::testing::TestDatabase::sqlite_memory::<Migrations>().await?;
+        let outcome = async {
+            let db = Db::default();
+            db.initialize(database.connection()?)?;
+            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+                crate::hashing::HashManager::new(crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: Some(8),
+                    },
+                    ..Default::default()
+                })?,
+            );
+            let hash = EncodedPasswordHash::make(hasher.as_ref(), "safe").await?;
+            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            db.table("users")?
+                .insert(vec![
+                    ("id", 42_i64.into()),
+                    ("email", "present@example.test".into()),
+                    ("password_hash", hash.as_str().into()),
+                    ("email_verified_at", now.clone()),
+                    ("created_at", now.clone()),
+                    ("updated_at", now),
+                ])
+                .await?;
+            let jwt = JwtTokens::new(crate::config::JwtConfig::new(
+                "issuer",
+                "audience",
+                "test",
+                std::collections::BTreeMap::from([(
+                    "test".into(),
+                    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
+                )]),
+            ))?;
+            let flows = AuthFlows::new(
+                db.clone(),
+                hasher.clone(),
+                jwt,
+                RefreshTokens::new(db.clone()),
+                VerificationCodes::new(
+                    crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
+                    hasher,
+                ),
+                RateLimiter::new(crate::db::DatabaseRateLimitStore::new(db.clone())),
+            );
+            for email in ["present@example.test", "missing@example.test"] {
+                assert!(matches!(
+                    flows.login(email, "123456789", "make-limit-test").await,
+                    Err(Error::Unauthorized)
+                ));
+            }
+            assert_eq!(db.table("auth_refresh_tokens")?.count().await?, 0);
+            Ok(())
+        }
+        .await;
+        database.close().await?;
+        outcome
     }
 }

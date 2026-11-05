@@ -19,6 +19,7 @@
 # 安全
 
 - [认证](security/authentication.md)
+- [哈希](security/hashing.md)
 
 # 数据库
 

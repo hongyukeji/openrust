@@ -17,7 +17,7 @@ use crate::db::sea_orm::{
 };
 use sha2::Digest;
 
-use crate::auth::{EncodedPasswordHash, Passwords};
+use crate::auth::EncodedPasswordHash;
 
 mod sqlite;
 
@@ -205,7 +205,7 @@ pub trait VerificationCodeStore: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct VerificationCodes {
     store: Arc<dyn VerificationCodeStore>,
-    passwords: Passwords,
+    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
 }
 
 impl fmt::Debug for VerificationCodes {
@@ -216,7 +216,10 @@ impl fmt::Debug for VerificationCodes {
 
 impl VerificationCodes {
     /// 使用自定义或框架提供的 store 与密码哈希器创建服务。
-    pub fn new(store: impl VerificationCodeStore, passwords: Passwords) -> Self {
+    pub fn new(
+        store: impl VerificationCodeStore,
+        passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+    ) -> Self {
         Self {
             store: Arc::new(store),
             passwords,
@@ -236,7 +239,8 @@ impl VerificationCodes {
         validate_binding(purpose, identity)?;
         policy.validate()?;
         let code = generate_code(policy.digits)?;
-        let code_hash = self.passwords.hash(&code).await?;
+        let code_hash =
+            crate::auth::EncodedPasswordHash::make(self.passwords.as_ref(), &code).await?;
         let challenge_id = random_hex(16)?;
         let key_hash = binding_hash(purpose, identity);
         self.store
@@ -256,7 +260,10 @@ impl VerificationCodes {
         };
         let code_matches = code.len() == usize::from(challenge.digits)
             && code.bytes().all(|byte| byte.is_ascii_digit())
-            && self.passwords.verify(code, &challenge.code_hash).await?;
+            && challenge
+                .code_hash
+                .verify(self.passwords.as_ref(), code)
+                .await?;
         self.store
             .finish_attempt(&key_hash, &challenge.challenge_id, code_matches)
             .await
@@ -581,7 +588,7 @@ impl VerificationCodeStore for DatabaseVerificationCodeStore {
             let digits = u8::try_from(digits).map_err(Error::internal)?;
             Ok(Some(VerificationChallenge::new(
                 challenge_id,
-                EncodedPasswordHash::parse(encoded)?,
+                EncodedPasswordHash::from_encoded(encoded),
                 digits,
             )?))
         })
@@ -674,7 +681,7 @@ mod tests {
         VerificationChallenge, VerificationCodeFuture, VerificationCodePolicy,
         VerificationCodeStore, VerificationCodes,
     };
-    use crate::auth::{EncodedPasswordHash, PasswordConfig, Passwords};
+    use crate::auth::EncodedPasswordHash;
 
     type FakeRow = (String, String, u8, u32, u32, bool);
     type FakeRows = Arc<Mutex<std::collections::HashMap<String, FakeRow>>>;
@@ -728,7 +735,7 @@ mod tests {
                 }
                 Ok(Some(VerificationChallenge::new(
                     id.clone(),
-                    EncodedPasswordHash::parse(hash.clone())?,
+                    EncodedPasswordHash::from_encoded(hash.clone()),
                     *digits,
                 )?))
             })
@@ -762,12 +769,19 @@ mod tests {
         }
     }
 
-    fn fast_passwords() -> crate::Result<Passwords> {
-        Passwords::new(PasswordConfig {
-            memory_kib: 19_456,
-            iterations: 1,
-            parallelism: 1,
-        })
+    fn fast_passwords() -> crate::Result<std::sync::Arc<dyn crate::hashing::Hasher>> {
+        Ok(std::sync::Arc::new(crate::hashing::HashManager::new(
+            crate::hashing::HashingConfig {
+                driver: "argon2id".into(),
+                argon: crate::hashing::ArgonConfig {
+                    memory: 19_456,
+                    time: 1,
+                    threads: 1,
+                    verify: true,
+                },
+                ..Default::default()
+            },
+        )?) as std::sync::Arc<dyn crate::hashing::Hasher>)
     }
 
     #[tokio::test]

@@ -5,7 +5,7 @@
     any(feature = "db-sqlite", feature = "db-mysql", feature = "db-postgres")
 ))]
 
-use openrust::auth::{AuthLayer, AuthManager, OptionalUser, Passwords};
+use openrust::auth::{AuthLayer, AuthManager, OptionalUser};
 use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider, container::Scope};
 use openrust::db::{
     Db,
@@ -413,7 +413,7 @@ fn sources(root: &std::path::Path, url: &str) -> Result<openrust::config::Config
 async fn seed(app: &openrust::App) -> Result<()> {
     let passwords = app
         .state()
-        .resolve::<Passwords>()
+        .resolve::<openrust::hashing::HashManager>()
         .await
         .inspect_err(|error| note("seed_passwords_resolve", error))?;
     let db = app
@@ -421,8 +421,7 @@ async fn seed(app: &openrust::App) -> Result<()> {
         .resolve::<Db>()
         .await
         .inspect_err(|error| note("seed_database_resolve", error))?;
-    let encoded = passwords
-        .hash(PASSWORD)
+    let encoded = openrust::auth::EncodedPasswordHash::make(passwords.as_ref(), PASSWORD)
         .await
         .inspect_err(|error| note("seed_password_hash", error))?;
     for (id, username, email, phone) in [

@@ -559,6 +559,46 @@ async fn run_auth_flow(
     assert_eq!(registered.body["success"], true);
     assert_eq!(registered.body["data"]["status"], "accepted");
 
+    // 业务注册实际持久化统一默认驱动产物；不能只证明容器里存在同名服务。
+    let hashes = app
+        .state()
+        .resolve::<openrust::hashing::HashManager>()
+        .await?;
+    let db = app.state().resolve::<openrust::Db>().await?;
+    let connection = db.primary_connection()?;
+    let backend = connection.get_database_backend();
+    let query = match backend {
+        openrust::db::DbBackend::Postgres => "SELECT password_hash FROM users WHERE email = $1",
+        openrust::db::DbBackend::MySql => "SELECT password_hash FROM users WHERE email = ?",
+        _ => return Err("unsupported auth test backend".into()),
+    };
+    let stored = connection
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            query,
+            [email.clone().into()],
+        ))
+        .await?
+        .ok_or("registered account missing")?
+        .try_get::<String>("", "password_hash")?;
+    let info = hashes.info(&stored)?;
+    assert_eq!(info.algo_name, "bcrypt");
+    assert_eq!(info.options.get("cost"), Some(&serde_json::json!(12)));
+    assert!(
+        hashes
+            .check(
+                "initial-password",
+                Some(&stored),
+                &openrust::hashing::HashOptions::new()
+            )
+            .await?
+    );
+    let alias = app
+        .state()
+        .resolve::<dyn openrust::hashing::Hasher>()
+        .await?;
+    assert!(Arc::ptr_eq(&alias, &hashes.driver(None)?));
+
     let verification_code = mail.latest_code()?;
     let unverified_login = post(
         address,
@@ -654,6 +694,8 @@ async fn run_auth_flow(
     .await?;
     assert_eq!(pat_user.body["success"], true);
     assert_eq!(pat_user.body["data"]["user_id"], user_id);
+    // 密码重置会撤销当前凭据权威；业务调用须在重置之前验证。
+    run_welcome_flow(address, mail, sms, access_token, &email).await?;
     run_article_flow(address, mail, access_token, user_id, &email, app).await?;
     #[cfg(feature = "metrics")]
     assert_article_metrics_after_real_http_request(address).await?;
@@ -777,7 +819,6 @@ async fn run_auth_flow(
     assert_eq!(rate_limited.status, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(rate_limited.body["success"], false);
     assert_eq!(rate_limited.body["code"], "rate_limited");
-    run_welcome_flow(address, mail, sms, access_token, &email).await?;
     Ok(())
 }
 
@@ -1720,7 +1761,15 @@ async fn request_driver_step(
         .send()
         .await?;
     if response.status() != StatusCode::OK {
-        return Err("请求驱动 HTTP 状态不是 200".into());
+        let status = response.status();
+        let code = response
+            .json::<serde_json::Value>()
+            .await?
+            .get("code")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("missing")
+            .to_owned();
+        return Err(format!("请求驱动 HTTP 状态={status} code={code}").into());
     }
     for header in response.headers().get_all(reqwest::header::SET_COOKIE) {
         let pair = header

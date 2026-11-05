@@ -8,10 +8,10 @@ use crate::{
     },
     auth::{
         AuthFlows, Authenticatable, DatabaseUserProvider, DatabaseVerificationCodeStore,
-        GenericUser, LoginAttempt, Passwords, VerificationCodes,
+        GenericUser, LoginAttempt, VerificationCodes,
         credential::{CredentialGuardBinding, JwtCredentialGrant},
     },
-    config::{EncryptionConfig, JwtConfig, PasswordConfig},
+    config::{EncryptionConfig, JwtConfig},
     core::{BoxFuture, ProviderBuilder, RateLimiter},
     db::{
         DatabaseRateLimitMigration, DatabaseRateLimitStore,
@@ -106,7 +106,7 @@ impl TwoFactorAuthenticatable for Account {
 struct Fixture {
     db: Db,
     manager: JwtApiFactorManagement,
-    passwords: Passwords,
+    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
 }
 async fn owned<F>(confirm: bool, callback: F) -> Result<()>
 where
@@ -143,8 +143,17 @@ where
     let outcome: Result<()> = async {
         let db = (*runtime.container().resolve::<Db>().await?).clone();
         db.initialize(database.connection()?)?;
-        let passwords = Passwords::new(PasswordConfig::default())?;
-        let password = passwords.hash(PASSWORD).await?;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+            crate::hashing::HashingConfig {
+                bcrypt: crate::hashing::BcryptConfig {
+                    rounds: 4,
+                    verify: true,
+                    limit: None,
+                },
+                ..Default::default()
+            },
+        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let password = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), PASSWORD).await?;
         let now = crate::db::dialect::utc_value(db.backend()?, Utc::now());
         db.table("users")?
             .insert(vec![
@@ -415,7 +424,9 @@ async fn password_changes_and_family_revocation_reject_existing_management_grant
                     PASSWORD,
                 )
                 .await?;
-            let different = fixture.passwords.hash("new-password").await?;
+            let different =
+                crate::auth::EncodedPasswordHash::make(fixture.passwords.as_ref(), "new-password")
+                    .await?;
             fixture
                 .db
                 .table("users")?
@@ -423,7 +434,9 @@ async fn password_changes_and_family_revocation_reject_existing_management_grant
                 .update(vec![("password_hash", different.as_str().into())])
                 .await?;
             assert!(fixture.manager.actions(&grant).await.is_err());
-            let restored = fixture.passwords.hash(PASSWORD).await?;
+            let restored =
+                crate::auth::EncodedPasswordHash::make(fixture.passwords.as_ref(), PASSWORD)
+                    .await?;
             fixture
                 .db
                 .table("users")?
@@ -480,7 +493,11 @@ async fn password_hash_change_during_real_confirmation_callback_prevents_grant()
                 tokio::time::timeout(std::time::Duration::from_secs(2), entered.notified())
                     .await
                     .map_err(Error::internal)?;
-                let password = fixture.passwords.hash("new-concurrent-password").await?;
+                let password = crate::auth::EncodedPasswordHash::make(
+                    fixture.passwords.as_ref(),
+                    "new-concurrent-password",
+                )
+                .await?;
                 fixture
                     .db
                     .table("users")?
@@ -630,6 +647,7 @@ async fn rpc_profile_app(
             "providers": {"users":{"driver":"rpc-accounts"}},
             "jwt": {"issuer":issuer,"audience":audience,"active_key_id":"test","keys":{"test":KEY}}
         },
+        "hashing": {"driver":"bcrypt","bcrypt":{"rounds":4,"verify":true,"limit":null}},
         "fortify-api": {"guard":"api","prefix":"/auth"},
         "fortify-options": {"two-factor-authentication":{"confirm":true}}
     });

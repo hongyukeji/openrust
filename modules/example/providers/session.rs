@@ -62,6 +62,9 @@ impl SessionStore for ExampleSessionDriver {
     fn activity_lifetime_seconds(&self) -> Option<i64> {
         self.backend.activity_lifetime_seconds()
     }
+    fn set_database_user_id(&self, user_id: openrust::db::sea_orm::Value) -> Result<bool> {
+        self.backend.set_database_user_id(user_id)
+    }
     fn reset_exists(&self) -> Result<()> {
         self.backend.reset_exists()
     }

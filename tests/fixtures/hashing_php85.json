@@ -1,0 +1,3061 @@
+{
+  "php": "8.5.12",
+  "source": "Laravel v13.39.0/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181 actual Hashing classes and PHP password functions",
+  "hashes": [
+    {
+      "driver": "bcrypt",
+      "case": "empty",
+      "value": "",
+      "hash": "$2y$04$Vwp.TXyu4w4u7NwPzSSssOC0pvBeCKdsAkqjOiLpJHD.LhrC4HU8u"
+    },
+    {
+      "driver": "bcrypt",
+      "case": "normal",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK"
+    },
+    {
+      "driver": "bcrypt",
+      "case": "72",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hash": "$2y$04$UInPrZ5cEJbp2ulNt8znj.GTVf1/sp.jmPXvCrIj/PqJYoejjwqtu"
+    },
+    {
+      "driver": "bcrypt",
+      "case": "73",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hash": "$2y$04$5nEnzaHUaJxSYCHbIH/ZR.Rh4bUwv2/ShearZ32oiIfmzJLUAsHye"
+    },
+    {
+      "driver": "bcrypt",
+      "case": "unicode",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$2y$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m"
+    },
+    {
+      "driver": "argon",
+      "case": "empty",
+      "value": "",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$cXdDNy9ISzJ2ZWwvQ3B4Mw$fGt4atryvar7jFK4ATm1tKkLxIPMvMxfvZPX1UeZFsc"
+    },
+    {
+      "driver": "argon",
+      "case": "normal",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw"
+    },
+    {
+      "driver": "argon",
+      "case": "72",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$aS5DVWQzaE5zNUR3cDlKNQ$kB4b7+MQCW69VKfUT/HqktpdC8wTNJDSe7+CfauZIRg"
+    },
+    {
+      "driver": "argon",
+      "case": "73",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$RjZBaUNUWHplcDltT1JIcA$7i7d74SCafT6YfVDxycKDVb//+2ihY5r4IGBMKmD5p0"
+    },
+    {
+      "driver": "argon",
+      "case": "nul-start",
+      "value": "\u0000abc",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$ZXR0VVJVSTB1MFRqTmpCaA$oQuWZrBFqp80pBj3PxbWEQet9nPsgXf1qkiERa6J3po"
+    },
+    {
+      "driver": "argon",
+      "case": "nul-middle",
+      "value": "abc\u0000tail",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$aldaNXI0ODBwRU9ET0dRbg$fvSDJjbB5VN97EQxVfy0lhVRu5eLhrKr6iOm3/dUDw4"
+    },
+    {
+      "driver": "argon",
+      "case": "nul-end",
+      "value": "abc\u0000",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$LlNSUVRBTG9iS2s1UnhpOQ$Gu1VmZaQoZweuAAN7ajn2C/J3ob/V7qeL0dJT5xjnxs"
+    },
+    {
+      "driver": "argon",
+      "case": "unicode",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM"
+    },
+    {
+      "driver": "argon2id",
+      "case": "empty",
+      "value": "",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$cTBPbEJxNExEV09lYmt3UQ$G6SrSE8Rh+b7z9PgnTyj1hfW5sxyhLfPHFcGpZy+ZBI"
+    },
+    {
+      "driver": "argon2id",
+      "case": "normal",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4"
+    },
+    {
+      "driver": "argon2id",
+      "case": "72",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$YTdMMnU1TkpnOVJUeUNmMA$MAqOnpBWarScakL65gRTrHlyAt1v6q3371ihcrIJ3O8"
+    },
+    {
+      "driver": "argon2id",
+      "case": "73",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$Sk9MLkZvNnE4Q2R5Z0tZcg$xAdgIg8aUX+c0bZ1wmMFL6Q7EkyJtrcLSnmRR0BY0fU"
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-start",
+      "value": "\u0000abc",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$TGE5WU84SWZiNUJxajhHaA$Ol2MRUByZQrXId1CXvX++GQfmnWx/SDV4Tk5ZwdKeGw"
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-middle",
+      "value": "abc\u0000tail",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$VFBURGI2YS94RVp6YjJFLw$Gh/l4UQakB0bXfwmYtlNNJFN/98WPBmKHJZdIP49zFM"
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-end",
+      "value": "abc\u0000",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$QlVhSnRMY3R2WWpTdGRMSA$x/dGK85qERi1u1wTP6NWrLO9T1NVX4wfuXF2xqTqcys"
+    },
+    {
+      "driver": "argon2id",
+      "case": "unicode",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ"
+    }
+  ],
+  "make": [
+    {
+      "driver": "bcrypt",
+      "case": "empty",
+      "value": "",
+      "result": {
+        "ok": "$2y$04$Vwp.TXyu4w4u7NwPzSSssOC0pvBeCKdsAkqjOiLpJHD.LhrC4HU8u"
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "case": "normal",
+      "value": "OpenRust-test-password",
+      "result": {
+        "ok": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK"
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "case": "72",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "ok": "$2y$04$UInPrZ5cEJbp2ulNt8znj.GTVf1/sp.jmPXvCrIj/PqJYoejjwqtu"
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "case": "73",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "ok": "$2y$04$5nEnzaHUaJxSYCHbIH/ZR.Rh4bUwv2/ShearZ32oiIfmzJLUAsHye"
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "case": "nul-start",
+      "value": "\u0000abc",
+      "result": {
+        "error": "RuntimeException",
+        "message": "Bcrypt hashing not supported."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "case": "nul-middle",
+      "value": "abc\u0000tail",
+      "result": {
+        "error": "RuntimeException",
+        "message": "Bcrypt hashing not supported."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "case": "nul-end",
+      "value": "abc\u0000",
+      "result": {
+        "error": "RuntimeException",
+        "message": "Bcrypt hashing not supported."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "case": "unicode",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "result": {
+        "ok": "$2y$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "empty",
+      "value": "",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$cXdDNy9ISzJ2ZWwvQ3B4Mw$fGt4atryvar7jFK4ATm1tKkLxIPMvMxfvZPX1UeZFsc"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "normal",
+      "value": "OpenRust-test-password",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "72",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$aS5DVWQzaE5zNUR3cDlKNQ$kB4b7+MQCW69VKfUT/HqktpdC8wTNJDSe7+CfauZIRg"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "73",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$RjZBaUNUWHplcDltT1JIcA$7i7d74SCafT6YfVDxycKDVb//+2ihY5r4IGBMKmD5p0"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "nul-start",
+      "value": "\u0000abc",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$ZXR0VVJVSTB1MFRqTmpCaA$oQuWZrBFqp80pBj3PxbWEQet9nPsgXf1qkiERa6J3po"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "nul-middle",
+      "value": "abc\u0000tail",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$aldaNXI0ODBwRU9ET0dRbg$fvSDJjbB5VN97EQxVfy0lhVRu5eLhrKr6iOm3/dUDw4"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "nul-end",
+      "value": "abc\u0000",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$LlNSUVRBTG9iS2s1UnhpOQ$Gu1VmZaQoZweuAAN7ajn2C/J3ob/V7qeL0dJT5xjnxs"
+      }
+    },
+    {
+      "driver": "argon",
+      "case": "unicode",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "result": {
+        "ok": "$argon2i$v=19$m=1024,t=1,p=1$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "empty",
+      "value": "",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$cTBPbEJxNExEV09lYmt3UQ$G6SrSE8Rh+b7z9PgnTyj1hfW5sxyhLfPHFcGpZy+ZBI"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "normal",
+      "value": "OpenRust-test-password",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "72",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$YTdMMnU1TkpnOVJUeUNmMA$MAqOnpBWarScakL65gRTrHlyAt1v6q3371ihcrIJ3O8"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "73",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$Sk9MLkZvNnE4Q2R5Z0tZcg$xAdgIg8aUX+c0bZ1wmMFL6Q7EkyJtrcLSnmRR0BY0fU"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-start",
+      "value": "\u0000abc",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$TGE5WU84SWZiNUJxajhHaA$Ol2MRUByZQrXId1CXvX++GQfmnWx/SDV4Tk5ZwdKeGw"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-middle",
+      "value": "abc\u0000tail",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$VFBURGI2YS94RVp6YjJFLw$Gh/l4UQakB0bXfwmYtlNNJFN/98WPBmKHJZdIP49zFM"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-end",
+      "value": "abc\u0000",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$QlVhSnRMY3R2WWpTdGRMSA$x/dGK85qERi1u1wTP6NWrLO9T1NVX4wfuXF2xqTqcys"
+      }
+    },
+    {
+      "driver": "argon2id",
+      "case": "unicode",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "result": {
+        "ok": "$argon2id$v=19$m=1024,t=1,p=1$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ"
+      }
+    }
+  ],
+  "check": [
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": null,
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "bad-hash",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "$2y$04$invalid",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": null,
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "bad-hash",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "bcrypt",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "$2y$04$invalid",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Bcrypt algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": null,
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "bad-hash",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "$2y$04$invalid",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": null,
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "bad-hash",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "$2y$04$invalid",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2i algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "bcrypt",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "argon",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "argon2id",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": null,
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "bad-hash",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": false,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "$2y$04$invalid",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "bcrypt",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "argon",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "correct",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "wrong",
+      "value": "not-the-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "argon2id",
+      "case": "nul",
+      "value": "OpenRust-test-password\u0000tail",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": null,
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "",
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "bad-hash",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    },
+    {
+      "driver": "argon2id",
+      "verify": true,
+      "stored_driver": "invalid",
+      "case": "empty-or-invalid",
+      "value": "value",
+      "hash": "$2y$04$invalid",
+      "result": {
+        "error": "RuntimeException",
+        "message": "This password does not use the Argon2id algorithm."
+      }
+    }
+  ],
+  "metadata": [
+    {
+      "driver": "bcrypt",
+      "case": "empty",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "bcrypt",
+      "case": "normal",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "bcrypt",
+      "case": "72",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "bcrypt",
+      "case": "73",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "bcrypt",
+      "case": "unicode",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "empty",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "normal",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "72",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "73",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "nul-start",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "nul-middle",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "nul-end",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon",
+      "case": "unicode",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "empty",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "normal",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "72",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "73",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-start",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-middle",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "nul-end",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    },
+    {
+      "driver": "argon2id",
+      "case": "unicode",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "rehash_same": false,
+      "rehash_changed": true,
+      "verify_configuration": true
+    }
+  ],
+  "bcrypt_truncation": {
+    "hash": "$2y$04$HMkzu1n7doHbx3ohvEWL8OTubdohQ3gTF1wF89Upvj43w9Z478Aya",
+    "same72": {
+      "ok": true
+    },
+    "long73": {
+      "ok": true
+    },
+    "limit72": {
+      "error": "InvalidArgumentException",
+      "message": "Value is too long to hash. Value must be less than 72 bytes."
+    }
+  },
+  "variants": [
+    {
+      "source_driver": "bcrypt",
+      "case": "normal",
+      "variant": "original",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": false,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "ok": true
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "normal",
+      "variant": "2a",
+      "value": "OpenRust-test-password",
+      "hash": "$2a$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "normal",
+      "variant": "2b",
+      "value": "OpenRust-test-password",
+      "hash": "$2b$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "normal",
+      "variant": "2x",
+      "value": "OpenRust-test-password",
+      "hash": "$2x$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "normal",
+      "variant": "2y",
+      "value": "OpenRust-test-password",
+      "hash": "$2y$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": false,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "ok": true
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "normal",
+      "variant": "2z",
+      "value": "OpenRust-test-password",
+      "hash": "$2z$04$uuDQOuQPOeLLfVq2TRQyzOg9gH1PLXaTEoN/XYTSHOu8M2MC3JavK",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "unicode",
+      "variant": "original",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$2y$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": false,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "ok": true
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "unicode",
+      "variant": "2a",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$2a$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "unicode",
+      "variant": "2b",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$2b$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "unicode",
+      "variant": "2x",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$2x$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "unicode",
+      "variant": "2y",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$2y$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m",
+      "info": {
+        "algo": "2y",
+        "algoName": "bcrypt",
+        "options": {
+          "cost": 4
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": false,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "ok": true
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "bcrypt",
+      "case": "unicode",
+      "variant": "2z",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$2z$04$w.pZbh4KSR97nWFgd6LlLO8e9P3UXPcBun9HbF6Izy0nCIKOoYZ5m",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "normal",
+      "variant": "original",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": false,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "ok": true
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "normal",
+      "variant": "no-version",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "normal",
+      "variant": "version16",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=16$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": false,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "normal",
+      "variant": "version20",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=20$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": false,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "normal",
+      "variant": "reordered",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2i$v=19$p=1,t=1,m=1024$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "normal",
+      "variant": "unknown-algorithm",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2d$v=19$m=1024,t=1,p=1$TUx1dEhJS3hFY0tKamx0TQ$IOIX5LEWcM+dkVopA2/pNgp1RI4JDK/+oLOWZAA9Jlw",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "unicode",
+      "variant": "original",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2i$v=19$m=1024,t=1,p=1$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": false,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "ok": true
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "unicode",
+      "variant": "no-version",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2i$m=1024,t=1,p=1$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "unicode",
+      "variant": "version16",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2i$v=16$m=1024,t=1,p=1$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": false,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "unicode",
+      "variant": "version20",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2i$v=20$m=1024,t=1,p=1$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": false,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "unicode",
+      "variant": "reordered",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2i$v=19$p=1,t=1,m=1024$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM",
+      "info": {
+        "algo": "argon2i",
+        "algoName": "argon2i",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "ok": false
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon",
+      "case": "unicode",
+      "variant": "unknown-algorithm",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2d$v=19$m=1024,t=1,p=1$cjV0NUdidkpmci9uTnMzUw$jC0y4uLaw1s/3Y+jc1WjwXgXOAq9UtksUTlg80/jAgM",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "normal",
+      "variant": "original",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": false
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "normal",
+      "variant": "no-version",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "normal",
+      "variant": "version16",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=16$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": false
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "normal",
+      "variant": "version20",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=20$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": false
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "normal",
+      "variant": "reordered",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2id$v=19$p=1,t=1,m=1024$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "normal",
+      "variant": "unknown-algorithm",
+      "value": "OpenRust-test-password",
+      "hash": "$argon2d$v=19$m=1024,t=1,p=1$WnZpZXVnSXEvZmE3c2Mxaw$fwSAv95kJgph2ZzsPOCDDiPs6MQz35Rnye9sC5IdLX4",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "unicode",
+      "variant": "original",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2id$v=19$m=1024,t=1,p=1$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": false
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": true
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": true
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": true
+        },
+        "argon2id-strict": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "unicode",
+      "variant": "no-version",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2id$m=1024,t=1,p=1$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "unicode",
+      "variant": "version16",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2id$v=16$m=1024,t=1,p=1$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": false
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "unicode",
+      "variant": "version20",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2id$v=20$m=1024,t=1,p=1$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 1024,
+          "time_cost": 1,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": false
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "unicode",
+      "variant": "reordered",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2id$v=19$p=1,t=1,m=1024$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ",
+      "info": {
+        "algo": "argon2id",
+        "algoName": "argon2id",
+        "options": {
+          "memory_cost": 65536,
+          "time_cost": 4,
+          "threads": 1
+        }
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "ok": false
+        }
+      }
+    },
+    {
+      "source_driver": "argon2id",
+      "case": "unicode",
+      "variant": "unknown-algorithm",
+      "value": "测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "hash": "$argon2d$v=19$m=1024,t=1,p=1$bHFDVncwOUZ0NEgzV0hFNw$3rwVkC8jdjhRM+R/T706NbU3Nrlraguz8eTGUA2OPfQ",
+      "info": {
+        "algo": null,
+        "algoName": "unknown",
+        "options": []
+      },
+      "needs_rehash": {
+        "bcrypt": true,
+        "argon": true,
+        "argon2id": true
+      },
+      "checks": {
+        "bcrypt-permissive": {
+          "ok": false
+        },
+        "bcrypt-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Bcrypt algorithm."
+        },
+        "argon-permissive": {
+          "ok": false
+        },
+        "argon-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2i algorithm."
+        },
+        "argon2id-permissive": {
+          "ok": false
+        },
+        "argon2id-strict": {
+          "error": "RuntimeException",
+          "message": "This password does not use the Argon2id algorithm."
+        }
+      }
+    }
+  ],
+  "provenance": "PHP8.5.12 + fixed Laravel13.39.0; original raw/provenance in tmp/hashing-20261105, case keys normalized to strings only"
+}

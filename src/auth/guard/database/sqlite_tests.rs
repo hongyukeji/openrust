@@ -1,7 +1,7 @@
 //! 防止 Provider 将账户禁用策略、整数主键或密码查询偷偷加入官方默认。
 use super::*;
+use crate::auth::EncodedPasswordHash;
 use crate::{
-    config::PasswordConfig,
     db::sea_orm::{ConnectionTrait, DbBackend, Statement},
     db::sea_orm_migration::{MigrationTrait, MigratorTrait},
     testing::TestDatabase,
@@ -30,8 +30,8 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
     let db = Db::default();
     db.initialize(guard.connection()?)?;
     let result: Result<()> = async {
-        let passwords = Passwords::new(PasswordConfig { memory_kib: 19_456, iterations: 1, parallelism: 1 })?;
-        let hash = passwords.hash("correct secret").await?;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let hash = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "correct secret").await?;
         let table = db.quoted_table_name("guard_accounts")?;
         db.connection()?.execute_unprepared(&format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, username TEXT, password TEXT, remember_token TEXT, disabled_at TEXT)")).await.map_err(Error::internal)?;
         db.table("guard_accounts")?.insert(vec![
@@ -39,8 +39,8 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
             ("password", hash.as_str().into()), ("remember_token", "remember-value".into()),
             ("disabled_at", "2026-01-01".into()),
         ]).await?;
-        let upgraded = Passwords::new(PasswordConfig { memory_kib: 19_456, iterations: 2, parallelism: 1 })?;
-        assert!(upgraded.needs_rehash(&hash)?);
+        let upgraded = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 2, threads: 1, verify: true }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        assert!(hash.needs_rehash(upgraded.as_ref())?);
         let provider = DatabaseUserProvider::new(db.clone(), upgraded.clone(), "guard_accounts")?;
         let user = provider.retrieve_by_id(&json!("tenant:42")).await?.ok_or(Error::Unauthorized)?;
         assert_eq!(user.auth_identifier()?, json!("tenant:42"));
@@ -63,9 +63,9 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
         let row = db.connection()?.query_one_raw(Statement::from_string(DbBackend::Sqlite, format!("SELECT password FROM {table}"))).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
         let replacement: String = row.try_get("", "password").map_err(Error::internal)?;
         assert_ne!(replacement, hash.as_str());
-        let replacement = EncodedPasswordHash::parse(replacement)?;
-        assert!(!upgraded.needs_rehash(&replacement)?);
-        assert!(upgraded.verify("correct secret", &replacement).await?);
+        let replacement = EncodedPasswordHash::from_encoded(replacement);
+        assert!(!replacement.needs_rehash(upgraded.as_ref())?);
+        assert!(replacement.verify(upgraded.as_ref(), "correct secret").await?);
         assert_eq!(user.auth_password()?.as_deref(), Some(hash.as_str()));
         assert_eq!(format!("{provider:?}"), "DatabaseUserProvider([REDACTED])");
         Ok(())
@@ -77,18 +77,31 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
 }
 
 #[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "同一数据库事务与安全断言保留完整回归场景"
+)]
 async fn stale_rehash_cannot_overwrite_a_password_reset() -> Result<()> {
     let guard = TestDatabase::sqlite_memory::<EmptyMigrator>().await?;
     let db = Db::default();
     db.initialize(guard.connection()?)?;
     let result: Result<()> = async {
-        let passwords = Passwords::new(PasswordConfig {
-            memory_kib: 19_456,
-            iterations: 1,
-            parallelism: 1,
-        })?;
-        let original = passwords.hash("original password").await?;
-        let reset = passwords.hash("reset password").await?;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+            crate::hashing::HashingConfig {
+                driver: "argon2id".into(),
+                argon: crate::hashing::ArgonConfig {
+                    memory: 19_456,
+                    time: 1,
+                    threads: 1,
+                    verify: true,
+                },
+                ..Default::default()
+            },
+        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let original =
+            crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "original password").await?;
+        let reset =
+            crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "reset password").await?;
         let table = db.quoted_table_name("rehash_accounts")?;
         db.connection()?
             .execute_unprepared(&format!(
@@ -182,12 +195,20 @@ async fn ambiguous_rehash_rolls_back_all_matching_accounts() -> Result<()> {
     let db = Db::default();
     db.initialize(guard.connection()?)?;
     let result: Result<()> = async {
-        let passwords = Passwords::new(PasswordConfig {
-            memory_kib: 19_456,
-            iterations: 1,
-            parallelism: 1,
-        })?;
-        let original = passwords.hash("original password").await?;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+            crate::hashing::HashingConfig {
+                driver: "argon2id".into(),
+                argon: crate::hashing::ArgonConfig {
+                    memory: 19_456,
+                    time: 1,
+                    threads: 1,
+                    verify: true,
+                },
+                ..Default::default()
+            },
+        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let original =
+            crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "original password").await?;
         let table = db.quoted_table_name("ambiguous_accounts")?;
         db.connection()?
             .execute_unprepared(&format!("CREATE TABLE {table} (id TEXT, password TEXT)"))
@@ -280,8 +301,8 @@ async fn selected_user_factory_controls_real_retrieval_and_model_secret_columns(
     let db = Db::default();
     db.initialize(guard.connection()?)?;
     let result: Result<()> = async {
-        let passwords = Passwords::new(PasswordConfig { memory_kib: 19_456, iterations: 1, parallelism: 1 })?;
-        let hash = passwords.hash("model-password").await?;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let hash = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "model-password").await?;
         let table = db.quoted_table_name("model_accounts")?;
         db.connection()?.execute_unprepared(&format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, username TEXT, password TEXT, alternate_hash TEXT, remember_token TEXT, alternate_token TEXT)")).await.map_err(Error::internal)?;
         db.table("model_accounts")?.insert(vec![
@@ -314,7 +335,7 @@ async fn selected_user_factory_controls_real_retrieval_and_model_secret_columns(
         let row = db.table("model_accounts")?.first().await?.ok_or(Error::Unauthorized)?;
         let persisted_hash: String = row.try_get("", "alternate_hash").map_err(Error::internal)?;
         assert_ne!(persisted_hash, hash.as_str());
-        assert!(passwords.verify("model-password", &EncodedPasswordHash::parse(persisted_hash)?).await?);
+        assert!(EncodedPasswordHash::from_encoded(persisted_hash).verify(passwords.as_ref(), "model-password").await?);
         assert_eq!(row.try_get::<String>("", "password").map_err(Error::internal)?, "must-remain-unchanged");
         assert_eq!(row.try_get::<String>("", "remember_token").map_err(Error::internal)?, "default-token-unchanged");
         assert_eq!(row.try_get::<String>("", "alternate_token").map_err(Error::internal)?, "new-model-token");

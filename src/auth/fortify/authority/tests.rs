@@ -157,15 +157,15 @@ async fn persistent_generation_isolates_aba_and_main_state_but_not_single_code_c
 async fn account_origin_and_raw_identifier_cannot_alias_another_account() -> Result<()> {
     let (database, db, authority) = fixture().await?;
     let outcome:Result<()>=async {
-        use crate::auth::{GenericUser, DatabaseUserProvider, Passwords};
+        use crate::auth::{GenericUser, DatabaseUserProvider};
         let initial = authority.load().await?;
         authority.replace(&initial, &modern()?, FactorAuthorityMutation::Enable).await?;
-        let provider=DatabaseUserProvider::new(db.clone(),Passwords::new(crate::config::PasswordConfig::default())?,"users")?;
+        let provider=DatabaseUserProvider::new(db.clone(),std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { bcrypt: crate::hashing::BcryptConfig { rounds: 4, verify: true, limit: None }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>,"users")?;
         let user: AuthUser=std::sync::Arc::new(GenericUser::new(serde_json::json!({"id":42}).as_object().cloned().unwrap_or_default()));
         authority.validate_account(&user,&provider).await?;
         let string_user:AuthUser=std::sync::Arc::new(GenericUser::new(serde_json::json!({"id":"42"}).as_object().cloned().unwrap_or_default()));
         assert!(authority.validate_account(&string_user,&provider).await.is_err());
-        let other=DatabaseUserProvider::new(db.clone(),Passwords::new(crate::config::PasswordConfig::default())?,"other_accounts")?;
+        let other=DatabaseUserProvider::new(db.clone(),std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { bcrypt: crate::hashing::BcryptConfig { rounds: 4, verify: true, limit: None }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>,"other_accounts")?;
         assert!(authority.validate_account(&user,&other).await.is_err());
         let string_authority=DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(),"users","id",serde_json::json!("42"))?,encrypter()?);
         assert!(string_authority.load().await.is_err());

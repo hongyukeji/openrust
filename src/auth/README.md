@@ -2,6 +2,7 @@
 
 本模块提供具名 Guard、账户 Provider、密码、JWT/PAT/refresh、授权查询与可选 Fortify。完整操作见[认证指南](../../docs/src/security/authentication.md)。现代 Fortify 与 JWT API profile 为本批新增组合，尚待适用行为、生成应用和集成验收；接口存在不代表完整 Laravel 认证生态已交付。
 
+
 ## 具名 Guard 与 `UserProvider`
 
 `AuthServiceProvider` 将 `AuthManager` 绑定为请求 scope；应用共享的 `AuthDrivers` 只保存工厂。同请求同名 Guard 复用实例和用户缓存；`should_use`、`forget_guards` 只影响本请求，不能将管理器或已登录 Guard 注册为 singleton。递归或并发等待成环返回 `auth_guard_resolution_cycle`，失败/取消不缓存半成品。
@@ -31,7 +32,7 @@
 ## 密码、验证码与持久凭据
 
 - `JwtServiceProvider` 与 `AuthServiceProvider` 使用统一容器生命周期，显式 key ring 在启动时校验；不要把秘密写入源码或日志。`JwtTokens` 的同步签名校验不等于当前主库授权。
-- `Passwords` 使用Argon2id、随机salt和PHC编码，在blocking pool中执行。`auth.password` 控制成本，默认每实例并发2、允许1..=4；超限立即返回 `password_capacity_exhausted`（语义503），不排队。Provider注册的流程共享该实例。密码不匹配返回false，坏PHC是存储错误，不伪装坏凭据。
+- 密码、验证码与客户端秘密统一使用 `hashing::HashManager` 和 `config/hashing.rs`；默认 bcrypt12/verify=true，可显式选择 Argon2i/id。随机盐、blocking任务、默认2/最大4的共享容量与执行预算均由Hashing驱动持有；容量满返回503 `password_capacity_exhausted`，不排队。标准UserProvider按官方Hash语义验证/重哈希；增强AuthFlows额外拒绝bcrypt的72字节/NUL截断别名，且查账户前统一检查，完整字节输入可选择严格Argon。详见[哈希](../../docs/src/security/hashing.md)。
 - `VerificationCodes` 依赖同一数据库和密码器，默认六位、十分钟、五次错误、60秒重发冷却；`IssuedVerificationCode` 调试脱敏。应用负责Mail/SMS与公开一致响应。验证码服务不把消费和任意后续账户写入变成跨服务原子操作。
 - `AuthFlowsServiceProvider` 组合注册、邮箱验证、登录、刷新、登出和密码重置，不自动定义业务路由或发消息。请求来源必须来自可信 `ClientIp`，不能信任任意转发头。邮箱流程仍有自己的已验证邮箱前置，通用模型可空邮箱不代表全部邮箱流程已改成用户名流程。
 - `RefreshTokens` 只保存随机凭据摘要，轮换不延长家族原期限；重放撤销整个家族。PAT只返回一次高熵明文，数据库保存摘要/前缀，按账户列举/撤销并在认证时核撤销、期限、禁用状态和abilities。

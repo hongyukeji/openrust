@@ -17,6 +17,8 @@ pub mod db;
 pub mod events;
 #[cfg(feature = "grpc")]
 pub mod grpc;
+#[cfg(feature = "hashing")]
+pub mod hashing;
 pub mod http;
 pub mod i18n;
 pub mod mail;

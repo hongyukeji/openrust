@@ -13,8 +13,8 @@ use openrust::audit::{
 use openrust::auth::{
     AuthFlows, AuthLayer, AuthMigration, AuthMode, AuthPolicyMigration, AuthRefreshTokenMigration,
     AuthServiceProvider, AuthSource, AuthVerificationCodeMigration, CurrentUser, JwtConfig,
-    JwtServiceProvider, JwtTokens, PasswordConfig, Passwords, PersonalAccessTokens, Policy,
-    RefreshTokens, Session, SessionServiceProvider, VerificationCodePolicy, VerificationCodes,
+    JwtServiceProvider, JwtTokens, PersonalAccessTokens, Policy, RefreshTokens, Session,
+    SessionServiceProvider, VerificationCodePolicy, VerificationCodes,
 };
 use openrust::core::RateLimiter;
 use openrust::database::sea_orm::{ConnectOptions, ConnectionTrait, Database, Statement};
@@ -494,7 +494,22 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         persisted_key,
         hex_sha256("email.verify\0code-user@example.test")
     );
-    assert!(persisted_hash.starts_with("$argon2id$"));
+    let hashing = app_a
+        .state()
+        .resolve::<openrust::hashing::HashManager>()
+        .await?;
+    let info = hashing.info(&persisted_hash)?;
+    assert_eq!(info.algo_name, "bcrypt");
+    assert_eq!(info.options.get("cost"), Some(&serde_json::json!(12)));
+    assert!(
+        hashing
+            .check(
+                issued_code.code(),
+                Some(&persisted_hash),
+                &openrust::hashing::HashOptions::new()
+            )
+            .await?
+    );
     assert!(!persisted_hash.contains(issued_code.code()));
     match verification_codes
         .issue("email.verify", "code-user@example.test", code_policy)
@@ -892,11 +907,18 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
         ))
         .await?;
     db.initialize(connection.clone())?;
-    let passwords = Passwords::new(PasswordConfig {
-        memory_kib: 19_456,
-        iterations: 1,
-        parallelism: 1,
-    })?;
+    let passwords = std::sync::Arc::new(openrust::hashing::HashManager::new(
+        openrust::hashing::HashingConfig {
+            driver: "argon2id".into(),
+            argon: openrust::hashing::ArgonConfig {
+                memory: 19_456,
+                time: 1,
+                threads: 1,
+                verify: true,
+            },
+            ..openrust::hashing::HashingConfig::default()
+        },
+    )?);
     let codes = VerificationCodes::new(
         openrust::auth::DatabaseVerificationCodeStore::new(db.clone()),
         passwords.clone(),
@@ -1232,14 +1254,21 @@ async fn auth_login_burst_recovers_under_a_two_connection_database_pool() -> Tes
     let connection = Database::connect(options).await?;
     let db = Db::with_table_names(table_names);
     db.initialize(connection.clone())?;
-    let passwords = Passwords::with_max_concurrent_operations(
-        PasswordConfig {
-            memory_kib: 19_456,
-            iterations: 1,
-            parallelism: 1,
-        },
-        4,
-    )?;
+    let passwords = std::sync::Arc::new(
+        openrust::hashing::HashManager::with_max_concurrent_operations(
+            openrust::hashing::HashingConfig {
+                driver: "argon2id".into(),
+                argon: openrust::hashing::ArgonConfig {
+                    memory: 19_456,
+                    time: 1,
+                    threads: 1,
+                    verify: true,
+                },
+                ..openrust::hashing::HashingConfig::default()
+            },
+            4,
+        )?,
+    );
     let codes = VerificationCodes::new(
         openrust::auth::DatabaseVerificationCodeStore::new(db.clone()),
         passwords.clone(),

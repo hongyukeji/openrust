@@ -73,6 +73,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 
+- 当前领取：owner=root，同main；Passport v13.10.0/f5f5e9f与League9.4.1/9d2f6fc固定源码和46/37份测试已取证，后者为独立兼容参考，非上游Composer锁定事实。`auth-passport` 已接线PKCE、Scope、参数和本地OAuth错误；定向协议44项、共享支持109项通过，库严格Clippy修正两处文档标记后通过；仍是未提交WIP，不代表AS/OP已交付。`query_import_timeline_example`错误叶与固定来源审计已交接；root独占集成、公共contract、manifest/lock、迁移、共享文档及实服务。统一Hashing前置已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)，不再维护独立密码成本权威；下一步Client/签发/持久接线，完整授权码簇后集中适用验收。证据`tmp/passport-code-pkce-20261105/`。
+- Hashing后继缺口：固定Manager的getDrivers/forgetDrivers/getContainer/setContainer与HashManager.getDefaultDriver尚无公开等价；须结合统一Container/Provider生命周期补contract与行为证据，不能因Rust所有权直接判不适用。Model hashed cast仍随Model依赖对应。本前置只关闭生成/校验/配置与认证共用接线，Client不依赖的Manager表面不追加到冻结批次。
 - 对应既有阶段二A Passport / 矩阵L090及R7 SSO，以下为同一条目的优先实施细化，不建立第二队列。
 - owner=root；原 Goal/main/预算历史及20%保留/credits=false不变。前置为当前 Fortify 单体系与显式 JWT API profile 闭环；随后立即按依赖领取 Passport 授权码+PKCE → OIDC Provider → 双 RP SSO/退出簇，不并入当前冻结批次。
 - [协议与分期退出](plans/oidc-authorization-server.md)；现 auth-oidc RP、Keycloak fixture、普通 JWT 均不算自建授权服务器。

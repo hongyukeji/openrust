@@ -76,6 +76,8 @@ impl DefaultProviders {
             Box::new(crate::sms::SmsServiceProvider),
             Box::new(crate::cache::CacheServiceProvider::new()),
         ];
+        #[cfg(feature = "hashing")]
+        providers.push(Box::new(crate::hashing::HashServiceProvider::new()));
         #[cfg(feature = "encryption")]
         providers.push(Box::new(crate::security::EncryptionServiceProvider));
         #[cfg(feature = "encryption")]

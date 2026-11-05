@@ -979,14 +979,14 @@ mod flow_commit {
         audit::{Audit, AuditPolicy, DatabaseAuditMigration, DatabaseAuditSink},
         auth::{
             AuthFlows, AuthMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
-            DatabaseVerificationCodeStore, JwtTokens, LoginAttempt, Passwords, RefreshTokens,
+            DatabaseVerificationCodeStore, JwtTokens, LoginAttempt, RefreshTokens,
             VerificationCodes,
             fortify::{
                 CredentialChallengeMigration, CredentialFactorMigration, DatabaseApiLoginAudit,
                 FactorAuthorityMigration, FortifyTwoFactorMigration,
             },
         },
-        config::{JwtConfig, PasswordConfig},
+        config::JwtConfig,
         core::RateLimiter,
         db::{
             DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseServiceProvider,
@@ -1029,8 +1029,17 @@ mod flow_commit {
         let result = async {
             let db = (*runtime.container().resolve::<Db>().await?).clone();
             db.initialize(database.connection()?)?;
-            let passwords = Passwords::new(PasswordConfig::default())?;
-            let hash = passwords.hash(PASSWORD).await?;
+            let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+                crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: None,
+                    },
+                    ..Default::default()
+                },
+            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+            let hash = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), PASSWORD).await?;
             let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             db.table("users")?
                 .insert(vec![

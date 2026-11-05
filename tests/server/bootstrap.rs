@@ -232,9 +232,10 @@ async fn verify_named_only_database_host(database: &openrust::testing::TestDatab
         #[cfg(feature = "auth")]
         {
             let container = app.app()?.state().container();
-            // 只检查公开认证服务，不为验收扩大框架内部 AuthService 的可见性。
+            // Hashing 独立于数据库认证服务；无默认库时仍登记管理器及默认驱动契约。
             check(
-                !container.contains::<openrust::auth::Passwords>()
+                container.contains::<openrust::hashing::HashManager>()
+                    && container.contains::<dyn openrust::hashing::Hasher>()
                     && !container.contains::<openrust::auth::RefreshTokens>()
                     && !container.contains::<openrust::auth::PersonalAccessTokens>()
                     && !container.contains::<openrust::auth::Policy>(),
@@ -532,4 +533,68 @@ async fn removing_registered_module_keeps_host_without_initialization_routes() -
         .await;
     outcome?;
     cleanup
+}
+
+#[test]
+fn editable_hashing_defaults_and_dotenv_share_one_configuration() -> Result<()> {
+    let root = tempfile::tempdir().map_err(openrust::Error::internal)?;
+    let manifest =
+        openrust::config::ConfigManifest::new().section("hashing", crate::config::hashing::config);
+    let load = || {
+        openrust::config::ConfigLoader::application_code_sources_with_overrides(
+            root.path(),
+            "HASHING_DEFAULTS_TEST_",
+            Some("testing"),
+            &manifest,
+            std::iter::empty::<(&str, serde_json::Value)>(),
+        )
+    };
+    let defaults: openrust::config::HashingConfig = load()?
+        .figment()
+        .extract_inner("hashing")
+        .map_err(openrust::config::ConfigError::from)?;
+    assert_eq!(defaults.driver, "bcrypt");
+    assert_eq!(defaults.bcrypt.rounds, 12);
+    assert!(defaults.bcrypt.verify);
+    assert_eq!(defaults.bcrypt.limit, None);
+    assert_eq!(
+        (
+            defaults.argon.memory,
+            defaults.argon.time,
+            defaults.argon.threads
+        ),
+        (65_536, 4, 1)
+    );
+    std::fs::write(root.path().join(".env"),
+        "HASH_DRIVER=argon2id\nBCRYPT_ROUNDS=5\nHASH_VERIFY=false\nBCRYPT_LIMIT=8\nARGON_MEMORY=2048\nARGON_TIME=2\nARGON_THREADS=2\n")
+        .map_err(openrust::Error::internal)?;
+    let configured: openrust::config::HashingConfig = load()?
+        .figment()
+        .extract_inner("hashing")
+        .map_err(openrust::config::ConfigError::from)?;
+    assert_eq!(configured.driver, "argon2id");
+    assert_eq!(configured.bcrypt.rounds, 5);
+    assert_eq!(configured.bcrypt.limit, Some(8));
+    assert!(!configured.bcrypt.verify && !configured.argon.verify);
+    assert_eq!(
+        (
+            configured.argon.memory,
+            configured.argon.time,
+            configured.argon.threads
+        ),
+        (2048, 2, 2)
+    );
+    std::fs::write(
+        root.path().join(".env"),
+        "BCRYPT_ROUNDS=secret-invalid-cost\n",
+    )
+    .map_err(openrust::Error::internal)?;
+    let Err(error) = load() else {
+        return Err(openrust::Error::internal(std::io::Error::other(
+            "invalid hashing environment was accepted",
+        )));
+    };
+    assert!(error.to_string().contains("求值失败"));
+    assert!(!error.to_string().contains("secret-invalid-cost"));
+    Ok(())
 }

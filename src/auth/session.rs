@@ -111,11 +111,15 @@ mod tests {
 
     #[cfg(feature = "db-sqlite")]
     #[tokio::test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "同一数据库事务与安全断言保留完整回归场景"
+    )]
     async fn legacy_account_flows_reject_other_provider_domains_before_password_or_session_io()
     -> Result<()> {
         use crate::auth::{
             AuthFlows, DatabaseUserProvider, DatabaseVerificationCodeStore, JwtConfig, JwtTokens,
-            Passwords, RefreshTokens, SessionGuard, VerificationCodes,
+            RefreshTokens, SessionGuard, VerificationCodes,
         };
         use crate::core::RateLimiter;
         use crate::db::{DatabaseRateLimitStore, Db};
@@ -131,7 +135,16 @@ mod tests {
         let result: Result<()> = async {
             let other_db = Db::default();
             other_db.initialize(database.connection()?)?;
-            let passwords = Passwords::new(crate::config::PasswordConfig::default())?;
+            let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+                crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: None,
+                    },
+                    ..Default::default()
+                },
+            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
             let jwt = JwtTokens::new(JwtConfig {
                 issuer: "http://scope.test".into(),
                 audience: "scope-test".into(),
@@ -214,7 +227,7 @@ mod tests {
     async fn missing_database_user_session_id_fallback_cannot_authorize_connections() -> Result<()>
     {
         use crate::{
-            auth::{DatabaseUserProvider, Guard, Passwords, SessionGuard, UserProvider},
+            auth::{DatabaseUserProvider, Guard, SessionGuard, UserProvider},
             db::{Db, sea_orm::ConnectionTrait},
         };
 
@@ -250,7 +263,16 @@ mod tests {
             let identifier = serde_json::json!(42);
             let provider = Arc::new(DatabaseUserProvider::new(
                 db.clone(),
-                Passwords::new(crate::config::PasswordConfig::default())?,
+                std::sync::Arc::new(crate::hashing::HashManager::new(
+                    crate::hashing::HashingConfig {
+                        bcrypt: crate::hashing::BcryptConfig {
+                            rounds: 4,
+                            verify: true,
+                            limit: None,
+                        },
+                        ..Default::default()
+                    },
+                )?) as std::sync::Arc<dyn crate::hashing::Hasher>,
                 "users",
             )?);
             // 表真实存在且查询正常返回缺失账户，不能以查询错误冒充 guest。

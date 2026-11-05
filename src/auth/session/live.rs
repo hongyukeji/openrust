@@ -185,14 +185,14 @@ mod tests {
     use super::*;
     use crate::{
         auth::{
-            AuthUser, Authenticatable, DatabaseUserProvider, GenericUser, Passwords, SessionGuard,
+            AuthUser, Authenticatable, DatabaseUserProvider, GenericUser, SessionGuard,
             fortify::{
                 DatabaseFactorAuthority, DatabaseTwoFactorState, FactorAuthorityMigration,
                 FactorAuthorityMutation, FortifyTwoFactorMigration, TwoFactorAuthenticatable,
                 TwoFactorState,
             },
         },
-        config::{EncryptionConfig, PasswordConfig},
+        config::EncryptionConfig,
         core::BoxFuture,
         db::{
             Db,
@@ -285,7 +285,16 @@ mod tests {
         let crypto = encrypter.clone();
         let provider = DatabaseUserProvider::new(
             db.clone(),
-            Passwords::new(PasswordConfig::default())?,
+            std::sync::Arc::new(crate::hashing::HashManager::new(
+                crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: None,
+                    },
+                    ..Default::default()
+                },
+            )?) as std::sync::Arc<dyn crate::hashing::Hasher>,
             "users",
         )?
         .with_user_factory(move |attributes| {
@@ -505,7 +514,16 @@ mod tests {
                 BTreeMap::from([("owned".into(), STANDARD.encode([18_u8; 32]))]),
             ))?;
             let policy = CredentialAuthority::new(db.clone(), encrypter.clone(), true);
-            let passwords = Passwords::new(PasswordConfig::default())?;
+            let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
+                crate::hashing::HashingConfig {
+                    bcrypt: crate::hashing::BcryptConfig {
+                        rounds: 4,
+                        verify: true,
+                        limit: None,
+                    },
+                    ..Default::default()
+                },
+            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
             let jwt = JwtTokens::new(JwtConfig::new(
                 "redis-parent",
                 "redis-parent",

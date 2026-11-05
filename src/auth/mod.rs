@@ -112,10 +112,9 @@ pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> 
     }
     Ok(resolved)
 }
-pub use crate::config::PasswordConfig;
 pub use crate::config::SessionConfig;
 pub use crate::session::Session;
-pub use password::{EncodedPasswordHash, Passwords};
+pub use password::EncodedPasswordHash;
 pub use pat::{IssuedPersonalAccessToken, PersonalAccessTokenInfo, PersonalAccessTokens};
 pub use refresh::{IssuedRefreshToken, RefreshRotation, RefreshTokens};
 #[cfg(feature = "session-redis")]
@@ -482,7 +481,6 @@ pub(crate) struct AuthService {
 pub struct AuthServiceProvider {
     authenticator: Arc<dyn Authenticator>,
     database_authenticator: Option<Arc<DatabaseAuthenticator>>,
-    password_operation_capacity: usize,
 }
 
 impl AuthServiceProvider {
@@ -492,7 +490,6 @@ impl AuthServiceProvider {
         Self {
             authenticator: authenticator.clone(),
             database_authenticator: Some(authenticator),
-            password_operation_capacity: 2,
         }
     }
 
@@ -501,15 +498,7 @@ impl AuthServiceProvider {
         Self {
             authenticator: Arc::new(authenticator),
             database_authenticator: None,
-            password_operation_capacity: 2,
         }
-    }
-
-    /// 设置密码哈希的最大并发操作数。
-    #[must_use]
-    pub fn with_password_operation_capacity(mut self, capacity: usize) -> Self {
-        self.password_operation_capacity = capacity;
-        self
     }
 }
 
@@ -525,17 +514,8 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
         app: &'a mut crate::core::RegisterContext<'_>,
     ) -> crate::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            use crate::config::repository::SectionSchema as S;
-            app.config_section(
-                "auth.password",
-                PasswordConfig::default(),
-                S::object([
-                    ("memory_kib", S::Integer),
-                    ("iterations", S::Integer),
-                    ("parallelism", S::Integer),
-                ]),
-                |config| Passwords::new(config.clone()).map(|_| ()),
-            )?;
+            app.register_provider(crate::hashing::HashServiceProvider::new())
+                .await?;
             let authenticator = Arc::clone(&self.authenticator);
             let database_authenticator = self.database_authenticator.clone();
             app.singleton::<AuthService, _>(move |resolver| {
@@ -555,16 +535,6 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
                         database_authenticator.initialize((*db).clone())?;
                     }
                     Ok(Arc::new(AuthService { authenticator }))
-                })
-            })
-            .await?;
-            let capacity = self.password_operation_capacity;
-            app.singleton::<Passwords, _>(move |resolver| {
-                Box::pin(async move {
-                    let config = resolver.section::<PasswordConfig>("auth.password")?;
-                    Ok(Arc::new(Passwords::with_max_concurrent_operations(
-                        config, capacity,
-                    )?))
                 })
             })
             .await?;
@@ -601,17 +571,17 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
             app.singleton::<VerificationCodes, _>(|resolver| {
                 Box::pin(async move {
                     let db = resolver.resolve::<Db>().await?;
-                    let passwords = resolver.resolve::<Passwords>().await?;
+                    let passwords = resolver.resolve::<crate::hashing::HashManager>().await?;
                     Ok(Arc::new(VerificationCodes::new(
                         DatabaseVerificationCodeStore::new((*db).clone()),
-                        (*passwords).clone(),
+                        passwords as Arc<dyn crate::hashing::Hasher>,
                     )))
                 })
             })
             .await?;
             guard::register(app).await?;
             app.require::<AuthService>();
-            app.require::<Passwords>();
+            app.require::<crate::hashing::HashManager>();
             Ok(())
         })
     }
@@ -619,7 +589,7 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<AuthService>().await?;
-            let _ = app.resolve::<Passwords>().await?;
+            let _ = app.resolve::<crate::hashing::HashManager>().await?;
             if self.database_authenticator.is_some() {
                 let _ = app.resolve::<RefreshTokens>().await?;
                 let _ = app.resolve::<PersonalAccessTokens>().await?;
@@ -1347,7 +1317,7 @@ mod provider_tests {
     struct InvalidPassword;
     impl ServiceProvider for InvalidPassword {
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move { app.overlay("auth.password", json!({"memory_kib": 1})) })
+            Box::pin(async move { app.overlay("hashing.argon", json!({"memory": "invalid-type"})) })
         }
     }
 
@@ -1374,7 +1344,7 @@ mod provider_tests {
                         Ok(())
                     })
                 })?;
-                app.overlay("auth.password", json!({"memory_kib":1}))
+                app.overlay("hashing.argon", json!({"memory":"invalid-type"}))
             })
         }
     }
@@ -1491,8 +1461,14 @@ mod provider_tests {
         let mut builder = ProviderBuilder::new();
         builder.provider(AuthServiceProvider::with_authenticator(RejectAuthenticator));
         let runtime = builder.start(Figment::new()).await?;
-        let first = runtime.container().resolve::<Passwords>().await?;
-        let second = runtime.container().resolve::<Passwords>().await?;
+        let first = runtime
+            .container()
+            .resolve::<crate::hashing::HashManager>()
+            .await?;
+        let second = runtime
+            .container()
+            .resolve::<crate::hashing::HashManager>()
+            .await?;
         assert!(Arc::ptr_eq(&first, &second));
         runtime
             .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))

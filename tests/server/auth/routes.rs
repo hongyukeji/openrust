@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::error::Error as StdError;
 
 use openrust::ServiceExt;
-use openrust::auth::{AuthServiceProvider, JwtServiceProvider, Passwords};
+use openrust::auth::{AuthServiceProvider, JwtServiceProvider};
 use openrust::config::FrameworkConfig;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
@@ -121,7 +121,10 @@ async fn facade_application_authentication_coexists_with_dependency_injection() 
 #[openrust::tokio::test]
 async fn facade_application_authenticates_jwt_without_session_plugin() -> TestResult {
     let app = test_application::<JwtApp>().await?;
-    let _passwords = app.state().resolve::<Passwords>().await?;
+    let _passwords = app
+        .state()
+        .resolve::<openrust::hashing::HashManager>()
+        .await?;
     let tokens = app.state().resolve::<JwtTokens>().await?;
     let token = tokens.issue_access_token(73)?;
     let response = build_router(&app)?

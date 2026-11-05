@@ -4,6 +4,10 @@
 
 测试数据库持久归属journal复用已有固定rustix1.1.5安全API，Unix的DB feature同时启用`process`以核对真实有效UID及私有文件归属，不信任PID/环境变量。仅用于测试资源归属核验，不给业务数据库增删权限；跨进程补偿按同上Unix限定证据认定。
 
+统一Hashing的PHP `$2x$` 兼容仅按固定PHP crypt生成18个有符号扩展key words（72字节），再交现锁定bcrypt0.19.3验证；不复制轮函数、不写unsafe或调用PHP生产fallback，不新增直接blowfish/base64依赖。24条真实PHP8.5.12正反向oracle保留，成本预算/共享容量仍先于计算；限定向量与集成验证见[Hashing验收](memory/testing.md#统一-hashing-与认证接线限定验收)。
+
+统一 Hashing 前置新增可选 `bcrypt =0.19.3`（Keats/rust-bcrypt，MIT，官方crate API提供随机盐与`$2y$`格式），与既有Argon2 0.6共同由`hashing` feature启用；`auth`依赖同一能力，不为Passport单建密码系统。固定Laravel13.39.0的HashManager/三driver及安装配置为行为依据；PHP长度/NUL/跨算法与配置差分、Provider/生成/唯一示例迁移已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)，完整Passport与Model hashed cast仍开放。
+
 
 MySQL冷prepare取消使用固定SQLx0.9.0/SeaORM2.0.4及`vendor/sqlx-mysql`同版本临时补丁（MIT OR Apache-2.0），不新增运行期依赖；原始crate文件hash与源码commit见vendor说明。根与生成项目顶层patch必须实际解析到该源，SQLx暂精确固定防fresh生成绕过。Cargo不传播依赖包patch，手写独立消费者须显式同项；正式上游修复/发布取代补丁前保留此构建约束。冷prepare中断废弃单物理连接、回滚结果不伪造；main12、最终43双库/生成/consumer及源图已[限定验收](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)。
 

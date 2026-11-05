@@ -31,7 +31,7 @@ impl ServiceProvider for AppServiceProvider {
                             )
                         })?;
                     let db = resolver.resolve::<openrust::db::Db>().await?;
-                    let passwords = resolver.resolve::<openrust::auth::Passwords>().await?;
+                    let passwords = resolver.resolve::<openrust::hashing::HashManager>().await?;
                     #[cfg(feature = "auth-fortify")]
                     let state_db = (*db).clone();
                     #[cfg(feature = "auth-fortify")]
@@ -41,7 +41,7 @@ impl ServiceProvider for AppServiceProvider {
                         resolver.resolve::<openrust::security::Encryptor>().await?;
                     let provider = openrust::auth::DatabaseUserProvider::new(
                         (*db).clone(),
-                        (*passwords).clone(),
+                        passwords.clone(),
                         table,
                     )?
                     .with_user_factory(move |attributes| {

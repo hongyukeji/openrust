@@ -1536,7 +1536,7 @@ async fn serve_keycloak_api_node(
     use openrust::{
         auth::{
             AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
-            JwtTokens, PasswordConfig, Passwords, RefreshTokens, VerificationCodes,
+            JwtTokens, RefreshTokens, VerificationCodes,
         },
         config::EncryptionConfig,
         config::FrameworkConfig,
@@ -1549,11 +1549,18 @@ async fn serve_keycloak_api_node(
     let raw = openrust::database::sea_orm::Database::connect(database_url).await?;
     let connection = Db::with_table_names(names);
     connection.initialize(raw)?;
-    let passwords = Passwords::new(PasswordConfig {
-        memory_kib: 19_456,
-        iterations: 1,
-        parallelism: 1,
-    })?;
+    let passwords = std::sync::Arc::new(openrust::hashing::HashManager::new(
+        openrust::hashing::HashingConfig {
+            driver: "argon2id".into(),
+            argon: openrust::hashing::ArgonConfig {
+                memory: 19_456,
+                time: 1,
+                threads: 1,
+                verify: true,
+            },
+            ..openrust::hashing::HashingConfig::default()
+        },
+    )?);
     let jwt = JwtTokens::new(
         JwtConfig::new(
             "keycloak-test-issuer",
@@ -1579,11 +1586,11 @@ async fn serve_keycloak_api_node(
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ))
-    .merge(figment::Figment::new());
+    .merge(figment::providers::Serialized::defaults(serde_json::json!({"hashing":{"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}}})));
     let mut builder = openrust::core::ProviderBuilder::new();
     builder
         .provider(TestInstance(std::sync::Arc::new(connection.clone())))
-        .provider(TestInstance(std::sync::Arc::new(passwords)))
+        .provider(TestInstance(passwords))
         .provider(TestInstance(std::sync::Arc::new(jwt)))
         .provider(TestInstance(std::sync::Arc::new(refresh)))
         .provider(TestInstance(std::sync::Arc::new(codes)))
@@ -1600,7 +1607,9 @@ async fn serve_keycloak_api_node(
     #[cfg(feature = "auth-fortify")]
     let parts = web::Parts::new(
         connection.clone(),
-        (*app.state().resolve::<Passwords>().await?).clone(),
+        app.state()
+            .resolve::<openrust::hashing::HashManager>()
+            .await?,
         encryptor.clone(),
         auth,
     )
@@ -1862,7 +1871,7 @@ async fn create_logout_app(
     use openrust::{
         auth::{
             AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
-            JwtTokens, PasswordConfig, Passwords, RefreshTokens, VerificationCodes,
+            JwtTokens, RefreshTokens, VerificationCodes,
         },
         config::EncryptionConfig,
         config::FrameworkConfig,
@@ -1880,11 +1889,18 @@ async fn create_logout_app(
     let raw_connection = database.connection()?;
     let connection = Db::with_table_names(names);
     connection.initialize(raw_connection.clone())?;
-    let passwords = Passwords::new(PasswordConfig {
-        memory_kib: 19_456,
-        iterations: 1,
-        parallelism: 1,
-    })?;
+    let passwords = std::sync::Arc::new(openrust::hashing::HashManager::new(
+        openrust::hashing::HashingConfig {
+            driver: "argon2id".into(),
+            argon: openrust::hashing::ArgonConfig {
+                memory: 19_456,
+                time: 1,
+                threads: 1,
+                verify: true,
+            },
+            ..openrust::hashing::HashingConfig::default()
+        },
+    )?);
     let jwt = JwtTokens::new(
         JwtConfig::new(
             "keycloak-test-issuer",
@@ -1910,11 +1926,11 @@ async fn create_logout_app(
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ))
-    .merge(figment::Figment::new());
+    .merge(figment::providers::Serialized::defaults(serde_json::json!({"hashing":{"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}}})));
     let mut builder = openrust::core::ProviderBuilder::new();
     builder
         .provider(TestInstance(std::sync::Arc::new(connection.clone())))
-        .provider(TestInstance(std::sync::Arc::new(passwords)))
+        .provider(TestInstance(passwords))
         .provider(TestInstance(std::sync::Arc::new(jwt.clone())))
         .provider(TestInstance(std::sync::Arc::new(refresh)))
         .provider(TestInstance(std::sync::Arc::new(codes)))
@@ -1931,7 +1947,9 @@ async fn create_logout_app(
     #[cfg(feature = "auth-fortify")]
     let parts = web::Parts::new(
         connection.clone(),
-        (*app.state().resolve::<Passwords>().await?).clone(),
+        app.state()
+            .resolve::<openrust::hashing::HashManager>()
+            .await?,
         encryptor.clone(),
         auth,
     )

@@ -58,6 +58,7 @@ tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "c
 cookie = { version = "0.18.2", features = ["percent-encode"] }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 argon2 = "0.6"
+bcrypt = "=0.19.3"
 shutdown_hooks = "=0.1.0"
 aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes", "alloc", "zeroize"] }
 base64 = "0.22"
@@ -156,6 +157,7 @@ axum.workspace = true
 axum-core.workspace = true
 bytes.workspace = true
 argon2 = { workspace = true, optional = true }
+bcrypt = { workspace = true, optional = true }
 shutdown_hooks = { workspace = true, optional = true }
 async-trait.workspace = true
 base64 = { workspace = true, optional = true }
@@ -268,13 +270,14 @@ db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx",
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
 session = ["dep:time", "dep:base64"]
 auth = [
+    "hashing",
     "session",
-    "dep:argon2",
     "dep:base64",
     "dep:jsonwebtoken",
     "dep:time",
     "signing",
 ]
+hashing = ["dep:argon2", "dep:bcrypt"]
 queue = ["dep:cron-parser"]
 queue-redis = ["queue", "dep:redis"]
 signing = ["dep:base64", "dep:jsonwebtoken"]
