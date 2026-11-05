@@ -34,6 +34,10 @@ SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlit
 
 DB-I01限定实现同次执行返回ID、默认行/sequence、PHP64 Processor数值规则、before-query/来源租约/主库与原事务；PG同RETURNING原值+文本副本保精度，SQLite负rowid通过固定SeaORM安全访问器保留。唯一示例事务内写后读取、CLI生成公开回归及独立patch图同步。适用验收与分发边界见[testing](../memory/testing.md#插入标识与事务执行闭环)；不关闭完整Query、Model或Passport，普通模型getKey转换与Query Processor不得混用。
 
+## SQLite 同机 SharedLocks
+
+SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence/期限、续约、同一事务写保护及真实导入生产边界保留；最低3.26与原本MySQL/PG协调回归均有绑定输入证据。当前只支持同机文件租约，不代表完整CacheLock/Queue/幂等。详细范围、native构建诊断与纯提交树闭合见[验收](../memory/testing.md#sqlite-同机租约方言限定验收)。
+
 ## 当前实现
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。

@@ -1719,3 +1719,13 @@ DB-I01 对应提交 `960aca43f11191cc9a68d1e03215b91be72fdeab`、树 `981451cdcb
 CLI-E01 提交 `680908bdd7eb1d136d28196cfadb36830c29ffe7`、精确树 `a900f91b4880c8278c1a6a4d464bd315d9b45ae9`，基线为 DB-I01。六个交付文件与独立组合输入完全一致；13 门禁、env 2 项、Provider 生命周期 1 项、根/fresh 实际命令 16 次及 dotenv/缓存/转发证据见 `tmp/independent-testing-20261106/CLI-E01-RESULT.json`。
 
 干净树 1510 blobs 核验后补 locked metadata、workspace/all-target/all-feature check 及上述 3 项定向测试，前后 SHA 不变，见 `CLI-E01-CLEAN-TREE-RESULT.json`。Windows commit.cmd 既有 CRLF checkout 转换单列，不影响编译输入。原文档 Clippy 失败保留；源码只修该注释后重新通过。不代表完整 Artisan、ANSI 组件或 Symfony 解析器已完成。
+
+## SQLite 同机租约方言限定验收
+
+SQ-L01 提交 `5c26fd0420345cc4756ddadab4f697a0ec65c83b`、树 `df4df11393d1e21872b597b8f092e85eef6b1020` 已推送并核对远端。1530 项组合输入绑定 15 项门禁、无 auth 的 7 项 SQLite 叶测试（父用例实际派生子进程）、2 项真实 article_transfer 生产链回归；MySQL／PostgreSQL 各 1 项原协调回归无跳过且测试库恢复。
+
+最低 SQLite 3.26 的旧手工库缺少 HAVE_USLEEP，busy_timeout=500ms 因秒级 fallback 立即 BUSY；同原源码、256 个 ABI、修正 POSIX 构建后，原严格取消／竞争断言通过。纯 v2 叶文件曾因旧 mtime 复用诊断二进制，该行明确废弃；刷新 mtime、compiler-artifact fresh=false、无诊断标记后重新运行原 7 项通过，最低版真实生产示例 2 项通过。失败、诊断、native 来源与复编证明全部保留，不将其写作框架生产锁修复。
+
+纯提交树 1516 blobs 与 9 个受验运行文件逐字节匹配，CLI 去除 Model factory WIP；补 workspace/all-target/all-feature check、上述 7+2，以及 clean CLI 实际生成 SQLite／MySQL-auth 的 new/check/test/metadata。PostgreSQL 仅生成及 metadata 核专属 fixture 排除，未冒称全 PG 生成测试。回执 `tmp/independent-testing-20261106/SQ-L01-RESULT.json`、`SQ-L01-CLEAN-TREE-RESULT.json`；推送 `tmp/push-20261106/sq-l01-push-receipt.json`。
+
+边界：既有 SharedLocks 的 SQLite 同机租约方言；不代表 Laravel CacheLock、SQLite Queue／幂等、多主机文件锁或完整 SQLite 已完成。构建/生成产物按三次真实资源回执回收，仅保下一已安排步骤所需依赖缓存；主目录 target 保持不存在。
