@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Query Builder 新增 `exists_or` / `doesnt_exist_or` 惰性异步分支，以 `ExistsOrResult<T>` 保留短路true和任意回调值，查询及回调错误透传。
+
 - Query Builder 新增借用查询的 `exists` / `doesnt_exist`，保留完整查询形状、事务和读副本行为；唯一示例导入时间线返回账户内未结束任务的存在性标记。
 
 - Query Builder 与嵌套条件组新增四种列边界 BETWEEN/NOT BETWEEN 查询，支持限定列、可信表达式与同上下文标量子查询；AND/OR 优先级、空条件及读取/更新/删除条件链保持一致。附着后的事务重绑或跨上下文条件组明确拒绝，唯一示例新增账户导入时间线报告。

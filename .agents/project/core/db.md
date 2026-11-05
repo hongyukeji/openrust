@@ -18,6 +18,10 @@ SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlit
 
 固定Laravel exists/doesntExist与compileExists的借用查询API已接线，保留完整查询、绑定、NULL投影、分页、UNION、读副本和显式事务。SQLite6案、main12门禁、真实MySQL/PG各1核心与2HTTP、生成应用27项及公开consumer已通过，见[限定验收](../memory/testing.md#query-存在性终结操作限定验收)。唯一模块时间线按同一逻辑表的open记录返回账户内在途标记。回调变体、before-query和完整Query/ORM仍开放。
 
+## 存在性条件回调
+
+固定existsOr/doesntExistOr的两个懒执行分支已接线，结果enum保留true和任意T，FnOnce异步闭包只在选中分支创建一次；唯一模块与指南同步。8项SQLite回归、完整12门禁、MySQL/PG各2项HTTP、fresh27项及外部consumer通过，详见[限定验收](../memory/testing.md#query-存在性条件回调限定验收)。&self允许回调只读借用同query。before-query管理/共享子节点候选未接线，复杂生命周期仍有明确缺口。
+
 ## 当前实现
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。

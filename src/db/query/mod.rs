@@ -12,9 +12,11 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 
 mod between_columns;
+mod conditional;
 mod existence;
 pub use between_columns::ColumnOperand;
 use between_columns::{PredicateChain, QueryContext};
+pub use conditional::ExistsOrResult;
 
 use super::Db;
 use crate::core::{Error, Result};

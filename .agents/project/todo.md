@@ -66,11 +66,12 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 排除误报：固定Laravel的VerifyCsrfToken兼容本身属于官方对应；APP_PREVIOUS_KEYS轮换、S3兼容、当前queue无metadata成对payload协议、非空seaql_migrations拒绝保护、正常模块activator、显式可选TOML均不按旧OpenRust兼容删除。
 只读来源：`tmp/fortify-single-implementation/other-compatibility-audit.json`，非全仓穷尽；行号按当前源码重核。持续Goal中实际分簇实现/验证/本地提交，不能以本登记冒充完成。
 
-## Query 存在性回调与 before-query 后继
+## Query before-query 执行生命周期（契约与候选WIP）
 
-- owner=root；前置为列边界cd0ac0f及本次exists/doesnt_exist子簇，沿原Goal/main/预算，不能以两个bool入口关闭完整Query。普通exists/doesnt_exist限定验收见[testing](memory/testing.md#query-存在性终结操作限定验收)。
-- 固定Laravel existsOr/doesntExistOr、beforeQuery/applyBeforeQueryCallbacks的源码/测试取证已由只读owner完成，`tmp/query-existence-next-20261105/evidence.md`；仅证据，不代表已编码。root下一步先收敛Rust混合返回、回调消费/复用及async约束的公开contract，再同步实际调用/唯一示例/生成与验证。不复用本簇门禁冒充后继通过。
-- SQLServer及其余未实现后端、五后端最终验收和完整Query/ORM范围保持，不因SeaQuery方言编译而关闭。
+- owner=root，沿原Goal/main/预算；前置列边界cd0ac0f、存在性9f51471及当前条件回调子簇。existsOr/doesntExistOr已完成8项SQLite、组合12门禁、真实双库HTTP与fresh验收，限定事实见[testing](memory/testing.md#query-存在性条件回调限定验收)，不能当before-query已实现。
+- 固定源码/测试取证`tmp/query-existence-next-20261105/evidence.md`；Spec与未接线before.rs/subqueries.rs候选在`tmp/query-callbacks-20261105/`。独审已纠正原统一子查询准备设计：标量立即toSql；whereExists不运行自己的pending回调；union编译时触发，父clone共享子对象并保父接入时bindings。不得提前执行或静默重绑后称等价。
+- root下一实际步骤：实现共享子节点与分离SQL/登记绑定的编译计划；仅缩短捕获/事务生命周期，覆盖get成功projection恢复/失败残留、first/value原limit、count克隆、零总数分页与chunk边界，再统一调用方/模板/公开consumer和示例。仅类型探针已证明HRTB/本地借用/共享child与延长失败，未导入框架，不是内核编译或行为验收。
+- 不重置原Goal/预算，不扩大到未授权业务；SQLServer及其余后端、五后端最终验收和完整Query/ORM仍保留。复杂内核候选未接线、未commit，不借已验叶关闭本项。
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 

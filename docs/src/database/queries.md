@@ -80,6 +80,24 @@ let has_no_pending = query.doesnt_exist().await?;
 
 它们以完整原查询生成 `SELECT EXISTS(...)`，保留投影、条件、排序、LIMIT/OFFSET、UNION 与绑定；投影值为 NULL 不表示没有行。使用显式事务时读取该事务，否则遵循读副本与 `with_primary` 作用域。数据库和来源校验错误继续返回错误，不解释为“没有结果”。完整 before-query callbacks、callback variants 和未实现后端仍有缺口。
 
+## 按存在性选择回调
+
+`exists_or` 在查询存在行时直接返回 `ExistsOrResult::True`，没有行时才调用异步闭包；`doesnt_exist_or` 在没有行时直接返回 `True`，有行时才调用闭包。每次只执行一次存在性查询，短路分支连闭包的 Future 都不创建。
+
+```rust,ignore
+use openrust::db::query::ExistsOrResult;
+
+let result = query.exists_or(|| async { Ok("没有待处理订单") }).await?;
+match result {
+    ExistsOrResult::True => { /* 订单存在 */ }
+    ExistsOrResult::Callback(message) => { /* 使用回调结果 */ }
+}
+```
+
+枚举保留 PHP 的 `true | mixed` 两种结果；回调返回 `false`、空值或其他类型时仍是 `Callback`，不冒充短路结果。闭包可消费拥有的捕获值，数据库和闭包的错误继续返回错误。异步闭包是 Rust 数据库流程的语法适配。
+
+完整 before-query 注册、预览消费、聚合克隆和共享子查询回调生命周期仍在实现，不能将以上条件入口当成该机制已经支持。
+
 ## 唯一示例
 
 认证用户可读取 `GET /api/example/article-imports/timeline`。它使用既有文章导入记录，比较 `terminal_at_ms`、该行 `created_at_ms` 与服务器观察时点，分别统计正常和异常终结时间；未终结记录不计入，另一账户的数据不可见。显式 JWT profile 使用其具名 Guard，普通 JWT 路径保留对应认证方式。

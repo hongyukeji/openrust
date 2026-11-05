@@ -1,6 +1,6 @@
 //! 账户导入时间线：以服务器观察时点识别正常与异常终结时间。
 
-use openrust::db::query::{ColumnOperand, RawSql};
+use openrust::db::query::{ColumnOperand, ExistsOrResult, RawSql};
 use openrust::{Db, Error, Result};
 
 /// 当前账户已终结导入的时间线统计。
@@ -27,11 +27,15 @@ pub(crate) async fn report(db: &Db, owner_id: i64, observed_at_ms: i64) -> Resul
     let owner_imports = db
         .table("example_article_imports")?
         .where_eq("owner_id", owner_id)?;
-    let has_unfinished_imports = owner_imports
+    let has_unfinished_imports = match owner_imports
         .clone()
         .where_eq("state", "open")?
-        .exists()
-        .await?;
+        .exists_or(|| async { Ok(false) })
+        .await?
+    {
+        ExistsOrResult::True => true,
+        ExistsOrResult::Callback(fallback) => fallback,
+    };
     let records = owner_imports
         .where_in("state", ["completed", "failed"])?
         .where_not_null("terminal_at_ms")?;

@@ -206,3 +206,5 @@ let report = rule
 各批次不共享隐式事务或快照。遍历期间游标之后插入的行可能被读到，游标之前插入的行不会回头读取；删除或筛选字段变更会影响后续页。需要一致快照时，由应用自行管理隔离事务及其长事务成本。HTTP 的 `page/per_page` 和游标分页决策不受此 API 影响。
 
 `QueryBuilder::exists` / `doesnt_exist` 借用完整查询并复用显式事务、读连接和来源校验；错误不转为布尔值，LIMIT/OFFSET与NULL投影保留原查询语义。
+
+`exists_or` / `doesnt_exist_or` 只在存在性条件未短路时调用一次异步闭包，以 `ExistsOrResult<T>` 区分短路true与任意回调值，错误不吞掉。before-query生命周期尚未接入。

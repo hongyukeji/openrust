@@ -1,6 +1,17 @@
 # 测试基线
 
 
+## Query 存在性条件回调限定验收
+
+固定framework d52c3b3 Builder4045/4055及交叉命名的官方Or测试，基线9f51471。exists_or/doesnt_exist_or各执行一次已有存在性查询；选中分支才创建一次FnOnce的Future并保留任意T，ExistsOrResult::True与Callback(false)不混淆，数据库/闭包错误透传。最终&self允许不可变query在fallback中再count，公开类型约束无新增依赖。
+
+`tmp/query-callbacks-20261105/main-gates-3/main-result.json`：12门禁实际exit0、受验输入无漂移；default汇总1363通过/42 ignored，all-feature2623通过/161 ignored。8项SQLite覆盖四分支、Future创建惰性、move任意值、false、两方向精确错误、DB错误不调用、同query复用与回调借用原query。初始expect_err strict lint失败保留，修复未弱化错误断言；临时&mut方案经独审改&self，同借用缺口已闭合；先前main-gates-2的通过不替代最终源码。
+
+`example-real-1/result.json`的MySQL8.4/PG18各2项真实HTTP通过，无skip、DB/角色集合前后相同。时间线在账户内open查询上使用exists_or，命中短路与无记录false回调经真实两库；既有exists三后端解码源未变，不将本次wrapper当完整后端驱动新验。fresh SQLite JWT实际new/check/test27项/0 ignored，含另加公开API fixture的惰性分支及不可变query自借用；外部query-authorization --locked check通过。模板既有26项与另加1项fixture分别计证，非模板自动附带该fixture。完整结果`final-services-generation/result.json`。
+
+before-query并未接线：独审发现三类子查询时机、共享child、projection恢复、聚合/分页/chunk与失败残留须完整重构。tmp内before.rs/subqueries.rs只是未编译候选；lifetime-probe为不导入框架的独立Rust类型实验，正例编译/运行、延长static负例失败，不宣称业务或等价验证。后继保留唯一todo。本地提交以Git为准，无push/tag/release。
+
+
 ## Query 存在性终结操作限定验收
 
 固定framework d52c3b3 Builder exists/doesntExist与Grammar compileExists，基线cd0ac0f；借用构造器，不用count/first近似。原SELECT投影、绑定、排序、分页、UNION、NULL行、读副本/primary作用域及显式事务保留，错误不转false。SQLite6案已随全特性执行；`main-gates-3/main-result.json`完整12门禁exit0、受验输入无漂移，default测试1362通过/42 ignored、all-feature2614通过/161 ignored；ignored及未配置服务的返回不计真实服务。早期fixture类型推断、双层Result与构造顺序失败保留，严格门禁不削弱。
