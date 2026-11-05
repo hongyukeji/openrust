@@ -1729,3 +1729,11 @@ SQ-L01 提交 `5c26fd0420345cc4756ddadab4f697a0ec65c83b`、树 `df4df11393d1e218
 纯提交树 1516 blobs 与 9 个受验运行文件逐字节匹配，CLI 去除 Model factory WIP；补 workspace/all-target/all-feature check、上述 7+2，以及 clean CLI 实际生成 SQLite／MySQL-auth 的 new/check/test/metadata。PostgreSQL 仅生成及 metadata 核专属 fixture 排除，未冒称全 PG 生成测试。回执 `tmp/independent-testing-20261106/SQ-L01-RESULT.json`、`SQ-L01-CLEAN-TREE-RESULT.json`；推送 `tmp/push-20261106/sq-l01-push-receipt.json`。
 
 边界：既有 SharedLocks 的 SQLite 同机租约方言；不代表 Laravel CacheLock、SQLite Queue／幂等、多主机文件锁或完整 SQLite 已完成。构建/生成产物按三次真实资源回执回收，仅保下一已安排步骤所需依赖缓存；主目录 target 保持不存在。
+
+## API 前缀与官方案例限定验收
+
+RT-A01 提交 `d9267695f9b5953cac518c5dde4760ef87188e21`、树 `4d8c77b1d936e38d5e565e07a0a021fa1bfaddb4` 已推送并核对远端。默认 `api`、官方 `api/admin`、前后与重复斜线、空前缀及根斜线共六组，根真实TCP与生成应用各六组通过；单次挂载、错误分类与API无Cookie边界同步验证。17项适用门禁及文档字面配置编译通过，生成应用完成new/check/test/metadata/build。
+
+当前 main 纯组合1516项输入绑定精确树；workspace全目标全feature check、CLI全部测试、真实启动prefix回归，以及组合CLI实际生成与六组TCP通过。1515项与提交blob逐字节一致；唯一非运行输入 `commit.cmd` 按已有CRLF检出约定，只转换行尾后内容相同。
+
+原文档缺字段及旧CLI快照失败保留；fresh初始脚本把显式文本fallback误当JSON，按生成路由及既有精确文本断言纠正后续验收，产品未改。回执 `tmp/independent-testing-20261106/RT-A01-RESULT.json`、`RT-A01-CLEAN-TREE-RESULT.json`；边界仅API前缀默认值、归一化与宿主分类，不关闭完整Routing、Sanctum或AR-P01布局。
