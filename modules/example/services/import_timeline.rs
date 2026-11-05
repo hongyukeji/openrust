@@ -10,6 +10,8 @@ pub(crate) struct ImportTimeline {
     pub(crate) valid_count: u64,
     /// 终结时间早于创建时间或晚于观察时点的记录数。
     pub(crate) invalid_count: u64,
+    /// 当前账户是否仍有等待或执行中的导入。
+    pub(crate) has_unfinished_imports: bool,
     /// 服务器本次观察的 Unix 毫秒。
     pub(crate) observed_at_ms: i64,
 }
@@ -22,9 +24,15 @@ pub(crate) async fn report(db: &Db, owner_id: i64, observed_at_ms: i64) -> Resul
             "服务器观察时间不可早于 Unix 纪元",
         ));
     }
-    let records = db
+    let owner_imports = db
         .table("example_article_imports")?
-        .where_eq("owner_id", owner_id)?
+        .where_eq("owner_id", owner_id)?;
+    let has_unfinished_imports = owner_imports
+        .clone()
+        .where_eq("state", "open")?
+        .exists()
+        .await?;
+    let records = owner_imports
         .where_in("state", ["completed", "failed"])?
         .where_not_null("terminal_at_ms")?;
     // SQL 上界只来自校验后的服务器整数，不接收用户提供的 SQL 或时钟。
@@ -46,6 +54,7 @@ pub(crate) async fn report(db: &Db, owner_id: i64, observed_at_ms: i64) -> Resul
     Ok(ImportTimeline {
         valid_count,
         invalid_count,
+        has_unfinished_imports,
         observed_at_ms,
     })
 }

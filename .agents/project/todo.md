@@ -66,10 +66,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 排除误报：固定Laravel的VerifyCsrfToken兼容本身属于官方对应；APP_PREVIOUS_KEYS轮换、S3兼容、当前queue无metadata成对payload协议、非空seaql_migrations拒绝保护、正常模块activator、显式可选TOML均不按旧OpenRust兼容删除。
 只读来源：`tmp/fortify-single-implementation/other-compatibility-audit.json`，非全仓穷尽；行号按当前源码重核。持续Goal中实际分簇实现/验证/本地提交，不能以本登记冒充完成。
 
-## 当前后继：Query 终结存在性（独立未接线候选）
+## Query 存在性回调与 before-query 后继
 
-- owner=`/root/query_between_columns_impl`（gpt-6.1-sol）；基线`54f4a087`及当前working Query来源校验前置。固定Laravel exists/doesntExist、Grammar compileExists与测试已只读核对，当前Rust无对应terminal API，先按同一Query/读连接/事务机制实现，不新增第二SQL内核。
-- 仅写`tmp/query-existence-20261105/`的两个Rust源码候选、未应用patch与Spec，不修改当前root/public/mod/manifest/lock/共享文档/索引/服务/Cargo，不影响本簇受验输入。候选已冻结并经只读独审，exists/doesnt_exist使用&self，保留查询可复用；root在列边界提交后迁入、接线、适用验证并独立提交。SQLServer、before-query与callback variants仍保原后继，不以两个bool方法关闭完整Query。
+- owner=root；前置为列边界cd0ac0f及本次exists/doesnt_exist子簇，沿原Goal/main/预算，不能以两个bool入口关闭完整Query。普通exists/doesnt_exist限定验收见[testing](memory/testing.md#query-存在性终结操作限定验收)。
+- 固定Laravel existsOr/doesntExistOr、beforeQuery/applyBeforeQueryCallbacks的源码/测试取证已由只读owner完成，`tmp/query-existence-next-20261105/evidence.md`；仅证据，不代表已编码。root下一步先收敛Rust混合返回、回调消费/复用及async约束的公开contract，再同步实际调用/唯一示例/生成与验证。不复用本簇门禁冒充后继通过。
+- SQLServer及其余未实现后端、五后端最终验收和完整Query/ORM范围保持，不因SeaQuery方言编译而关闭。
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 

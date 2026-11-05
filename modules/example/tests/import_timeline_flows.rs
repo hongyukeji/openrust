@@ -114,7 +114,7 @@ async fn timeline_counts_terminal_boundaries_and_isolates_accounts_over_http() -
         (5, 1, "open", 100, Some(100)),
         (6, 2, "completed", 100, Some(100)),
         (7, 2, "failed", 200, Some(199)),
-        (8, 1, "pending", 100, Some(future)),
+        (8, 2, "pending", 100, Some(future)),
     ] {
         let terminal: Option<i64> = terminal;
         db.table("example_article_imports")?
@@ -132,6 +132,7 @@ async fn timeline_counts_terminal_boundaries_and_isolates_accounts_over_http() -
     }
     let exact = super::services::import_timeline::report(&db, 1, observed).await?;
     assert_eq!((exact.valid_count, exact.invalid_count), (2, 2));
+    assert!(exact.has_unfinished_imports);
     assert!(matches!(
         super::services::import_timeline::report(&db, 1, -1).await,
         Err(error) if error.code() == "example_import_clock_invalid"
@@ -142,6 +143,7 @@ async fn timeline_counts_terminal_boundaries_and_isolates_accounts_over_http() -
     let report: serde_json::Value = response.json()?;
     assert_eq!(report["data"]["valid_count"], 2);
     assert_eq!(report["data"]["invalid_count"], 2);
+    assert_eq!(report["data"]["has_unfinished_imports"], true);
     let sampled = report["data"]["observed_at_ms"]
         .as_i64()
         .ok_or("missing observation time")?;
@@ -151,6 +153,7 @@ async fn timeline_counts_terminal_boundaries_and_isolates_accounts_over_http() -
     let report: serde_json::Value = response.json()?;
     assert_eq!(report["data"]["valid_count"], 1);
     assert_eq!(report["data"]["invalid_count"], 1);
+    assert_eq!(report["data"]["has_unfinished_imports"], false);
     fixture
         .app
         .request(request(None)?)
@@ -292,6 +295,7 @@ async fn jwt_profile_timeline_requires_current_scoped_family_and_sets_no_cookie(
     let report: serde_json::Value = response.json()?;
     assert_eq!(report["data"]["valid_count"], 1);
     assert_eq!(report["data"]["invalid_count"], 0);
+    assert_eq!(report["data"]["has_unfinished_imports"], false);
     let bare = app
         .app()?
         .state()

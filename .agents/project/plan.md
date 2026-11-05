@@ -18,7 +18,7 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
-列边界Query子簇已完成固定上游对应、组合12门禁、唯一示例双库和fresh生成验收，限定事实见[testing](memory/testing.md#query-列边界与布尔条件链限定验收)。提交后按唯一todo接续exists/doesnt_exist候选，不关闭完整Query/ORM。
+列边界Query子簇已完成固定上游对应、组合12门禁、唯一示例双库和fresh生成验收，限定事实见[testing](memory/testing.md#query-列边界与布尔条件链限定验收)。exists/doesnt_exist子簇也已完成相同组合门禁、真实双库和fresh生成验收；提交后按唯一todo收敛存在性回调/before-query contract，不关闭完整Query/ORM。
 
 2026-11-04真人追加并行授权：同main启用多个可见开发对话框结合子智能体，按唯一todo互斥文件/依赖分工；总控继续独占公共contract、共享文档、manifest/lock、迁移、Git、Cargo/服务及最终验收。当前Guard核心先独立验收提交→Fortify官方TOTP优先→返回核心依赖顺序不变；本批冻结范围不扩大，但后续每簇持续按依赖图并行。每次领取/闭环/worker完成/依赖解除主动复核ready队列，前置满足、互斥文件和资源许可就复用可见对话框/子智能体接续派发，无需再次批准；无ready项、接口未定或最终验收须串行时记录原因，不强求固定人数/空转。及时复用或释放worker，不递归派发，不扩大本批。创建/queued不算开发，首个真实业务工具及交付回执登记唯一todo。
 

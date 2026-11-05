@@ -12,6 +12,7 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 
 mod between_columns;
+mod existence;
 pub use between_columns::ColumnOperand;
 use between_columns::{PredicateChain, QueryContext};
 

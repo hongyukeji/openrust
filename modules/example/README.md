@@ -474,3 +474,5 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 ### 文章导入时间线
 
 认证用户可调用 `GET /api/example/article-imports/timeline`，读取自己已完成或失败的导入任务时间线统计。`valid_count` 表示终结时间位于本行创建时间与服务器观察时点之间，`invalid_count` 表示区间之外；两端包含，NULL 与未终结记录不计入。观察时点由服务器生成，用户不能指定账户或 SQL。实现通过公开 Query Builder 的列边界比较读取既有表，无新增业务迁移；显式 JWT profile 继续采用当前具名 Guard。
+
+导入时间线通过公开 Query `exists()` 返回当前账户是否仍有 open 导入，不扫描或返回整行；另一账户的任务不影响标记。

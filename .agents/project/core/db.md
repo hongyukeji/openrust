@@ -14,6 +14,10 @@ SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlit
 
 固定Laravel d52c3b3的四种between-columns入口已接线，QueryBuilder与WhereGroup共用ColumnOperand和SQL AND/OR条件链；原首OR空条件和后续AND优先级同步纠正。标量子查询、嵌套组与事务重绑保留来源约束。10项新SQLite回归及13项查询家族、完整12项组合门禁、MySQL/PG各2项唯一示例真实HTTP、fresh SQLite JWT应用27项及外部query-authorization锁定检查已通过；范围与失败修复见[限定验收](../memory/testing.md#query-列边界与布尔条件链限定验收)。公开contract见[查询指南](../../../docs/src/database/queries.md)，状态只在todo维护。
 
+## 存在性终结操作
+
+固定Laravel exists/doesntExist与compileExists的借用查询API已接线，保留完整查询、绑定、NULL投影、分页、UNION、读副本和显式事务。SQLite6案、main12门禁、真实MySQL/PG各1核心与2HTTP、生成应用27项及公开consumer已通过，见[限定验收](../memory/testing.md#query-存在性终结操作限定验收)。唯一模块时间线按同一逻辑表的open记录返回账户内在途标记。回调变体、before-query和完整Query/ORM仍开放。
+
 ## 当前实现
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。

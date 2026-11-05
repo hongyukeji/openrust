@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Query Builder 新增借用查询的 `exists` / `doesnt_exist`，保留完整查询形状、事务和读副本行为；唯一示例导入时间线返回账户内未结束任务的存在性标记。
+
 - Query Builder 与嵌套条件组新增四种列边界 BETWEEN/NOT BETWEEN 查询，支持限定列、可信表达式与同上下文标量子查询；AND/OR 优先级、空条件及读取/更新/删除条件链保持一致。附着后的事务重绑或跨上下文条件组明确拒绝，唯一示例新增账户导入时间线报告。
 
 - 新增配置具名 Guard / UserProvider 与请求内 AuthManager、Session/记住我生命周期及原始类型账户 ID；同步应用模型、生成器和唯一示例，保留真实 Eloquent 与 Fortify 后继范围。异步 Guard 工厂递归或并发等待成环时有界拒绝，取消与失败后可重试。

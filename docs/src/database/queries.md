@@ -68,8 +68,22 @@ let query = db.table("products")?
 
 这表示 `featured OR (weight BETWEEN minimum_weight AND maximum_weight AND active)`。要让 `active` 约束整个 OR，先把 OR 放入 `where_nested`，再添加 `where_eq("active", true)`。首个 OR 不加入恒真条件；空组不增加过滤。读取、计数、更新和删除复用同一条件链。
 
+## 判断查询是否存在结果
+
+只需判断存在性时使用 `exists` 或 `doesnt_exist`；两者借用查询，不消费构造器：
+
+```rust,ignore
+let query = db.table("orders")?.where_eq("status", "pending")?;
+let has_pending = query.exists().await?;
+let has_no_pending = query.doesnt_exist().await?;
+```
+
+它们以完整原查询生成 `SELECT EXISTS(...)`，保留投影、条件、排序、LIMIT/OFFSET、UNION 与绑定；投影值为 NULL 不表示没有行。使用显式事务时读取该事务，否则遵循读副本与 `with_primary` 作用域。数据库和来源校验错误继续返回错误，不解释为“没有结果”。完整 before-query callbacks、callback variants 和未实现后端仍有缺口。
+
 ## 唯一示例
 
 认证用户可读取 `GET /api/example/article-imports/timeline`。它使用既有文章导入记录，比较 `terminal_at_ms`、该行 `created_at_ms` 与服务器观察时点，分别统计正常和异常终结时间；未终结记录不计入，另一账户的数据不可见。显式 JWT profile 使用其具名 Guard，普通 JWT 路径保留对应认证方式。
+
+时间线还通过 `exists` 返回当前账户是否有 open 导入；另一账户的在途记录不影响该标记。
 
 本章只描述当前公开子范围，不代表完整 Laravel Query Builder、Model 或 Schema 已完成。固定对应来源为 Laravel `Builder::whereBetweenColumns` 与 Query Grammar，Rustdoc 提供类型与完整签名。

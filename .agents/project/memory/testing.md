@@ -1,6 +1,17 @@
 # 测试基线
 
 
+## Query 存在性终结操作限定验收
+
+固定framework d52c3b3 Builder exists/doesntExist与Grammar compileExists，基线cd0ac0f；借用构造器，不用count/first近似。原SELECT投影、绑定、排序、分页、UNION、NULL行、读副本/primary作用域及显式事务保留，错误不转false。SQLite6案已随全特性执行；`main-gates-3/main-result.json`完整12门禁exit0、受验输入无漂移，default测试1362通过/42 ignored、all-feature2614通过/161 ignored；ignored及未配置服务的返回不计真实服务。早期fixture类型推断、双层Result与构造顺序失败保留，严格门禁不削弱。
+
+`tmp/query-existence-20261105/core-real-1/result.json`记录MySQL8.4/PG18各1核心真实测试；NULL投影、limit0/offset、同列数UNION、同查询复用、事务未提交可见性与不存在表错误通过。`example-real-1/result.json`各2真实HTTP通过：同一逻辑Db表及账户过滤的open导入exists标记，另一账户/仅终态账户为false，认证及无Cookie边界保留。两组数据库与角色集合前后均相同，无服务skip。
+
+fresh SQLite JWT项目实际new/check/test27项、外部query-authorization的--locked check通过；其中1项为另加的公开API consumer fixture，26项为模板测试，非模板自动生成存在性fixture。原附件替代候选被独审识别逻辑映射/物理表不一致后恢复，未留下安全检查fallback。公开API、示例及真实SQL测试不同模型窄审，发现的UNION列数fixture已修，未删断言。完整执行见`final-services-generation/result.json`。
+
+当前仅三个已实现数据库后端的限定范围；existsOr/doesntExistOr、before-query生命周期、SQLServer及完整Query/ORM仍开放，取证不是实现。源码未改模板，无push/tag/release；本地提交以Git为准。
+
+
 ## Query 列边界与布尔条件链限定验收
 
 固定framework d52c3b3、docs 960eedf，基线54f4a087。四种between-columns、ColumnOperand、WhereGroup生命周期与来源检查、首OR/AND优先级已接入同一读写条件链；固定两端点数组是公开Rust类型约束。不是完整Query/ORM或跨连接/别名对应。
