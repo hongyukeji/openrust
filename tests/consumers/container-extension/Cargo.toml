@@ -9,7 +9,7 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../../..", version = "0.0.0", default-features = false }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", version = "0.0.0", default-features = false }
 tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
 axum = { version = "0.8", features = ["macros"], optional = true }
 figment = { version = "0.10", optional = true }
@@ -28,5 +28,5 @@ expect_used = "deny"
 panic = "deny"
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

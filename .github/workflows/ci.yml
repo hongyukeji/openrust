@@ -15,6 +15,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  OPENRUST_TEST_DATABASE_STATE_DIR: ${{ github.workspace }}/storage/framework/testing/databases
+  OPENRUST_TEST_ARTIFACT_DIR: ${{ github.workspace }}/tmp/test-artifacts
 
 jobs:
   check:
@@ -33,9 +35,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - run: cargo test --workspace --all-features
+      - run: python3 .agents/project/scripts/test-workspace.py --database-scope routine-mysql
+      - run: python3 .agents/project/scripts/test-workspace.py --database-scope release-backends
+        if: github.event_name == 'workflow_dispatch' && inputs.database_scope == 'release-backends'
       - run: cargo run --locked --manifest-path tests/consumers/grpc/Cargo.toml --bin grpc-example
-      - run: cargo test -p openrust --features queue-redis --test queue_redis
+      - run: cargo test -p openrust-framework --features queue-redis --test queue_redis
         env:
           REDIS_URL: redis://127.0.0.1:6379/
       - run: cargo doc --workspace --no-deps --all-features
@@ -52,7 +56,9 @@ jobs:
           toolchain: "1.97"
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --all-targets --all-features
+      - run: cargo check --locked --manifest-path tests/consumers/db-custom-sqlite/Cargo.toml
       - run: cargo run --locked --manifest-path tests/consumers/db-custom-sqlite/Cargo.toml
+        if: github.event_name == 'workflow_dispatch' && inputs.database_scope == 'release-backends'
       - run: cargo run --locked --manifest-path tests/consumers/queue-custom-driver/Cargo.toml
       - run: cargo check --locked --manifest-path tests/consumers/grpc/Cargo.toml
 
@@ -132,15 +138,21 @@ jobs:
           cargo test -p openrust --features 'auth-fortify auth-oidc db-mysql' --test auth_oidc
           cargo test -p openrust --features 'auth-fortify auth-oidc db-mysql' --bin server bootstrap::fortify_flows::mysql_ -- --ignored
           cargo test -p openrust --features 'auth-fortify auth-oidc db-mysql' --bin server mysql_root_jwt_api_without_session_or_cookie_provider -- --ignored
-          cargo test -p openrust --features 'auth-fortify auth-oidc db-mysql' --lib auth::factor_gate::real_server_tests -- --ignored
+          cargo test -p openrust-framework --features 'auth-fortify auth-oidc db-mysql' --lib auth::factor_gate::real_server_tests -- --ignored
+          if ! cargo test -p openrust-framework --features 'auth-fortify queue db-mysql' --lib auth::fortify::api_management::tests::event_tests::queued::mysql_global_listener_rejection_rolls_back_queued_enrollment -- --ignored --exact > "$RUNNER_TEMP/fortify-event-test.log" 2>&1; then
+            cat "$RUNNER_TEMP/fortify-event-test.log"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/fortify-event-test.log"
+          rg -q '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/fortify-event-test.log
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
-      - run: cargo test -p openrust --features queue,db-mysql --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
+      - run: cargo test -p openrust-framework --features queue,db-mysql --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
 
   postgres-release:
-    # 发布数据库子矩阵；后端专属变更仍需按风险当场定向验证。
+    # 发布数据库子矩阵；日常实际数据库验收仅MySQL。
     name: PostgreSQL release integration subset
     if: github.event_name == 'workflow_dispatch' && inputs.database_scope == 'release-backends'
     runs-on: ubuntu-latest
@@ -173,9 +185,9 @@ jobs:
           cargo test -p openrust --features 'auth-fortify auth-oidc db-postgres' --test auth_oidc
           cargo test -p openrust --features 'auth-fortify auth-oidc db-postgres' --bin server bootstrap::fortify_flows::postgres_ -- --ignored
           cargo test -p openrust --features 'auth-fortify auth-oidc db-postgres' --bin server postgres_root_jwt_api_without_session_or_cookie_provider -- --ignored
-          cargo test -p openrust --features 'auth-fortify auth-oidc db-postgres' --lib auth::factor_gate::real_server_tests -- --ignored
+          cargo test -p openrust-framework --features 'auth-fortify auth-oidc db-postgres' --lib auth::factor_gate::real_server_tests -- --ignored
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
-      - run: cargo test -p openrust --features queue,db-postgres --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
+      - run: cargo test -p openrust-framework --features queue,db-postgres --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test

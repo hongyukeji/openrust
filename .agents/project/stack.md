@@ -12,6 +12,7 @@ DB-I01固定 `sea-orm =2.0.4`，仅在仓内源码新增安全 `ExecResult::try_
 
 统一 Hashing 前置新增可选 `bcrypt =0.19.3`（Keats/rust-bcrypt，MIT，官方crate API提供随机盐与`$2y$`格式），与既有Argon2 0.6共同由`hashing` feature启用；`auth`依赖同一能力，不为Passport单建密码系统。固定Laravel13.39.0的HashManager/三driver及安装配置为行为依据；PHP长度/NUL/跨算法与配置差分、Provider/生成/唯一示例迁移已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)，完整Passport与Model hashed cast仍开放。
 
+`auth-passport` 为显式可选协议基础，复用现有 auth、sha2、base64、subtle、pcre2 与 serde；不新增依赖，不自动注册授权端点。固定参考 Passport v13.10.0/f5f5e9f 与 League oauth2-server9.4.1/9d2f6fc（后者为兼容范围内独立锁定参考，不冒称上游Composer锁定）。完整客户端、签发、存储、Provider与OIDC能力仍按唯一todo实施。
 
 MySQL冷prepare取消使用固定SQLx0.9.0/SeaORM2.0.4及`vendor/sqlx-mysql`同版本临时补丁（MIT OR Apache-2.0），不新增运行期依赖；原始crate文件hash与源码commit见vendor说明。根与生成项目顶层patch必须实际解析到该源，SQLx暂精确固定防fresh生成绕过。Cargo不传播依赖包patch，手写独立消费者须显式同项；正式上游修复/发布取代补丁前保留此构建约束。冷prepare中断废弃单物理连接、回滚结果不伪造；main12、最终43双库/生成/consumer及源图已[限定验收](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)。
 
@@ -67,7 +68,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | SQLite 最低版本依赖修正（限定验收） | 固定官方 `sea-orm-migration` 2.0.4 的仓库内副本 `vendor/sea-orm-migration` | 上游内部 SeaORM 依赖隐式 defaults 启用 SQLite RETURNING，3.26 实测连接被拒绝。副本仅在该依赖显式 `default-features=false`，源码/测试原样；来源、补丁和许可见副本 SOURCES。workspace 直接 path 传递，生成应用继续唯一 OpenRust re-export，不使用不可传递的根 patch。SeaORM 其他此前有效 defaults 在 workspace 显式保留，避免丢 codec/stream 行为。不得额外直接引官方迁移包重新统一 RETURNING；12个独立consumer与生成依赖图均为单一迁移来源，真实3.26连接/迁移子范围已验；未来 crates.io 分发另验，不等于已发布或已支持全 SQLite。 |
 | 数据库 URL | `url` 2.5 | `testing` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
-| 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/常规CI真实验证默认MySQL8.4 LTS；Compose保留PostgreSQL18/MySQL8.4可用服务 | 日常不每簇重复PG全套；PG/其他后端专属SQL/驱动/迁移/锁风险按影响定向。发布前全部承诺后端及适用版本完整验收。运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
+| 数据库 | Laravel兼容目标：MariaDB 10.3+、MySQL 5.7+、PostgreSQL 10.0+、SQLite 3.26.0+、SQL Server 2017+；日常实际数据库验收仅MySQL8.4 LTS | 目标不等于当前支持。现版本门禁仍PG14/MySQL8/SQLite3.26，须连同驱动/SQL差异整改，不能只降低阈值。其他类型与最低/当前版本运行统一发布前完整适用验收；未实现或未验为发布缺口。详见[兼容基线](plans/database-compatibility-baseline.md)和[运行政策](memory/testing.md#当前数据库运行政策)。 |
 | UUIDv7 主键 | `uuid` 1.x（`v7`, `serde`），通过 `db-uuid` feature 同步启用 SeaORM/SeaQuery UUID codec | 仅在模型生成显式使用 `--uuid-id` 时启用；默认仍为自增整数。UUIDv7 由生成实体的 SeaORM `before_save` 在应用进程生成 |
 | Redis | 暂定最低支持：Redis 6.2+；日常开发/Compose：Redis 8；当前真实服务验收使用 Redis 8.10.2 | 缓存与可选 Session adapter 已通过 Redis 8.10.2；Redis 6.2 最低版本及最终集群兼容仍需发布前专项验收 |
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
@@ -146,3 +147,5 @@ SQLite迁移锁在途：db-sqlite同时启用既有rustix1.1.5（Unix NOFOLLOW�
 S3b测试工具接线：tools/testing 的 db-sqlite 显式转发既有根 openrust/db-sqlite，并重导出同一TestDatabase；无新依赖或锁文件变化。生成项目实际依赖该feature，不能只以根框架SQLite测试代替调用方验收。
 
 SQLite新应用自动迁移前的部署密钥复用CLI既有getrandom生成32字节Base64，各用途独立；不新增密码学依赖或改变缺密钥启动拒绝规则。
+
+AR-P01测试资源scope：框架测试复用同一SQLx0.9.0的sqlite类型feature，仅供不连接数据库的options断言；OpenRust的db-sqlite运行feature仍只在发布多库scope开启。纯FS测试在Unix复用rustix=1.1.5（fs/std/process）、Windows复用winapi-util=0.1.11测试依赖；不新增版本或生产默认后端。原PG NUMERIC wire与Session期限算法拆为生产/纯测试共享叶，不复制算法。

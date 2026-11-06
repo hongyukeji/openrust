@@ -1,6 +1,6 @@
 # 认证
 
-OpenRust 通过具名 Guard 判断当前请求身份，通过 `UserProvider` 检索账户及验证凭据。本文面向应用开发者，介绍当前公共 API、配置和 Session 登录边界；JWT、PAT、refresh、OIDC 及显式双因素增强另见[认证模块指南](../../../src/auth/README.md)。
+OpenRust 通过具名 Guard 判断当前请求身份，通过 `UserProvider` 检索账户及验证凭据。本文面向应用开发者，介绍当前公共 API、配置和 Session 登录边界；JWT、PAT、refresh、OIDC 及显式双因素增强另见[认证模块指南](../../../vendor/openrust/framework/src/auth/README.md)。
 
 ## Guard 与账户来源
 
@@ -33,7 +33,7 @@ timebox_duration: 200_000,
 
 框架 `auth.providers.users` 的配置回退保留 Laravel 的 `eloquent` / `app::models::User` 声明，但真实 Eloquent `UserProvider` 尚未实现。未注册该 driver 时解析会明确失败，不会偷偷改用数据库 Provider。根应用和生成认证应用显式注册 `app-users`：使用同一个 `DatabaseUserProvider`，通过 `with_user_factory` 构造应用账户并将密码字段适配为既有的 `password_hash`。这是应用适配，不提供 Eloquent 模型生命周期。
 
-装配 `AuthServiceProvider` 后，在当前请求 scope 解析 `AuthManager`。内置 Session Guard 还需要同一请求的 Cookie、Session middleware；将路由放入 `web` 组，或按顺序显式启用 `cookies`、`session`。仅注册 `SessionServiceProvider` 不会让所有 API 路由自动加载 Session。数据库 Session 的迁移与 Cookie 密钥配置见[Session 指南](../../../src/session/README.md)。
+装配 `AuthServiceProvider` 后，在当前请求 scope 解析 `AuthManager`。内置 Session Guard 还需要同一请求的 Cookie、Session middleware；将路由放入 `web` 组，或按顺序显式启用 `cookies`、`session`。仅注册 `SessionServiceProvider` 不会让所有 API 路由自动加载 Session。数据库 Session 的迁移与 Cookie 密钥配置见[Session 指南](../../../vendor/openrust/framework/src/session/README.md)。
 
 ## 请求内解析与缓存
 
@@ -155,7 +155,7 @@ Guard 工厂收到 `GuardContext`，包含本请求 `resolver`、具名 `name` �
 
 Provider 工厂收到本请求 `Resolver` 和 `UserProviderConfig`。自定义来源须实现按 ID、按 token、按 credentials 检索、密码校验、token 更新及重哈希契约；查询凭据本身不得建立登录态。`create_user_provider(None)` 在默认 provider 为 null 或对应配置不存在时返回 None；已配置但 driver 未注册则报错。工厂只供请求解析，不能把 resolver、Session 或用户保存在共享注册表中。
 
-根应用的[Provider 注册](../../../app/providers/app.rs)及[账户适配](../../../app/models/user.rs)展示 `DatabaseUserProvider::with_user_factory` 的真实接线；生成模板使用同样公开机制。唯一综合业务模块的[账户安全处理器](../../../modules/example/http/controllers/account_security.rs)经同 scope `AuthManager` 和 `AuthFlows::login_session_with_guard` 展示真实 Session 登录与业务 DTO，整数账户的业务调用显式使用 `integer_id()`；这些流程不替代自定义 Guard/Provider 的适配。更多底层 API 见[认证模块指南](../../../src/auth/README.md)。
+根应用的[Provider 注册](../../../app/providers/app.rs)及[账户适配](../../../app/models/user.rs)展示 `DatabaseUserProvider::with_user_factory` 的真实接线；生成模板使用同样公开机制。唯一综合业务模块的[账户安全处理器](../../../modules/example/http/controllers/account_security.rs)经同 scope `AuthManager` 和 `AuthFlows::login_session_with_guard` 展示真实 Session 登录与业务 DTO，整数账户的业务调用显式使用 `integer_id()`；这些流程不替代自定义 Guard/Provider 的适配。更多底层 API 见[认证模块指南](../../../vendor/openrust/framework/src/auth/README.md)。
 
 `UserProvider::uses_database_accounts(db, table) -> Result<bool>` 是既有数据库账户流程与具名 Guard 桥接的显式兼容能力，默认返回 false。`DatabaseUserProvider` 同时比较 `Db` 句柄身份和经表名映射解析的实际表；仅 URL、Provider 名称或账户 ID 相等不能证明兼容。包装 Provider 若确实委托同一账户来源，可实现此能力；不能为通过校验无条件返回 true。该方法是既有增强流程的安全适配，不是 Laravel 官方 `UserProvider` 原有的第七个方法；自定义 Guard/Provider 的独立认证不要求兼容旧 `users` 账户域。
 

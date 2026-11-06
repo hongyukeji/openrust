@@ -2,12 +2,16 @@
 
 应用的可编辑默认值位于 `config/database.rs`，部署值位于 `.env`。标准 Provider 在同一 Container 中提供 `Db` 和 `Databases`；当前在启动时建立已配置连接，完整 Laravel 懒连接仍待实现。
 
+## 兼容目标与运行验收
+
+固定Laravel最低兼容目标为MariaDB10.3+、MySQL5.7+、PostgreSQL10.0+、SQLite3.26.0+和SQL Server2017+。这些是实现目标，当前尚未全部交付：连接版本门禁仍为PG14/MySQL8，MariaDB差异与SQL Server驱动仍有缺口。日常实际数据库验收只用MySQL8.4；发布前完整验证全部承诺类型与最低/当前版本。日常通过不代表五库完整兼容。
+
 ## SQLite 连接
 
 启用 `db-sqlite` 后可使用标准 Provider，无需自定义连接器。连接器按固定官方最低 SQLite 3.26.0 校验；连接、既有迁移清单及所有者边界已在 3.26.0 和当前 3.51.3 引擎验证；这不代表全部业务 SQL 已支持最低版本。默认 MySQL 与 Redis 不变。
 
 ```toml
-openrust = { version = "0.0.0", features = ["db-sqlite"] }
+openrust = { package = "openrust-framework", path = "/path/to/openrust/vendor/openrust/framework", version = "0.0.0", features = ["db-sqlite"] }
 ```
 
 ```dotenv
@@ -16,7 +20,7 @@ DB_DATABASE=/absolute/path/database.sqlite
 DB_FOREIGN_KEYS=true
 ```
 
-普通数据库文件须先存在；未指定 `DB_DATABASE` 时使用应用根下的 `database/database.sqlite`。相对文件先按当前工作目录解析，失败后按应用根解析。连接器不会为普通缺失路径创建文件。`openrust new blog --db sqlite` 的安装路径会创建自有文件及 `.env`，然后运行默认迁移；迁移失败返回非零并保留生成文件。安装迁移、生成 check/test 与无状态 API 已验证；原生/Guarded数据库Session已完成限定验收；本地认证/MFA的机制与未支持范围见[认证边界](../../../src/auth/README.md#sqlite-本地认证边界)。完整OIDC、队列等业务SQL仍须后续适配，不能仅凭安装成功切换这些生产能力。
+普通数据库文件须先存在；未指定 `DB_DATABASE` 时使用应用根下的 `database/database.sqlite`。相对文件先按当前工作目录解析，失败后按应用根解析。连接器不会为普通缺失路径创建文件。`openrust new blog --db sqlite` 的安装路径会创建自有文件及 `.env`，然后运行默认迁移；迁移失败返回非零并保留生成文件。安装迁移、生成 check/test 与无状态 API 已验证；原生/Guarded数据库Session已完成限定验收；本地认证/MFA的机制与未支持范围见[认证边界](../../../vendor/openrust/framework/src/auth/README.md#sqlite-本地认证边界)。完整OIDC、队列等业务SQL仍须后续适配，不能仅凭安装成功切换这些生产能力。
 
 `DB_DATABASE=:memory:` 创建池私有内存库，限制为一条连接，并禁止空闲和寿命回收，直至关闭池。`file:name?mode=memory&cache=shared` 允许同进程、同名 URI 的多个连接共享内存；最后连接关闭后数据消失，不跨进程共享。`file:` URI 由 SQLite 解析，可显式选择只读等模式；仅对可信部署配置开放。
 
@@ -24,7 +28,7 @@ DB_FOREIGN_KEYS=true
 
 ## 独立具名连接
 
-数据库 Session 通过 `session.connection` 选择这里的同一具名连接，`session.table` 仍使用该连接的表名解析规则。默认 `database` 使用原始 ID、Base64 属性载荷和活动时间；要求绝对截止或持续撤销时显式选择 `database-guarded`，并登记同表增强迁移。具体配置、载荷切换与后端边界见 [Session 指南](../../../src/session/README.md#原生-database-与显式增强)。Session 的后端支持不等同整个 Auth、队列和 Schema 已适配。
+数据库 Session 通过 `session.connection` 选择这里的同一具名连接，`session.table` 仍使用该连接的表名解析规则。默认 `database` 使用原始 ID、Base64 属性载荷和活动时间；要求绝对截止或持续撤销时显式选择 `database-guarded`，并登记同表增强迁移。具体配置、载荷切换与后端边界见 [Session 指南](../../../vendor/openrust/framework/src/session/README.md#原生-database-与显式增强)。Session 的后端支持不等同整个 Auth、队列和 Schema 已适配。
 
 `DatabaseConfig.instances` 中每项是完整的 `DatabaseInstanceConfig`，不继承默认连接。应用通过 `Databases::get("reporting")` 获取句柄；具名连接不自动启用默认库的认证或队列。唯一综合模块提供 `/api/example/reporting-connection`：仅配置 reporting 时挂载，通过标准 Provider 检查该连接，响应仅含 backend 和 reachable。
 
@@ -40,6 +44,6 @@ nullable/原生 PRAGMA、安装器、文件跨进程互斥及既有迁移清单�
 
 归还确认使用 SQLx 安全 API 注册每物理连接一个内部随机 collation 见证，不按空闲连接数判断，也不覆盖已有同名业务扩展。见证失效只表示该 handle 无法确认存活；故障与在途 acquire 之间的原子禁重连尚有缺口，内存连接关闭可能丢失数据。
 
-最低版本路径不依赖 SQLite RETURNING；固定迁移依赖的局部 manifest 补丁和许可记录见仓库 `vendor/sea-orm-migration/SOURCES.md`。生成应用通过 OpenRust 的迁移 re-export 使用同一来源，不另加官方迁移包以免重新启用该 feature。
+最低版本路径不依赖 SQLite RETURNING；固定迁移依赖的局部 manifest 补丁和许可记录见仓库 `vendor/seaql/sea-orm-migration/SOURCES.md`。生成应用通过 OpenRust 的迁移 re-export 使用同一来源，不另加官方迁移包以免重新启用该 feature。
 
 固定来源：[Laravel SQLiteConnector](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Database/Connectors/SQLiteConnector.php)、[Laravel 数据库文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md)、[PDO SQLite 默认超时](https://github.com/php/php-src/blob/php-8.4.0/ext/pdo_sqlite/sqlite_driver.c)。完整配置与事务 API 可用 `cargo doc --open` 查看 `openrust::database`。

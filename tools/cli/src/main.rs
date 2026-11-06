@@ -145,6 +145,9 @@ struct WorkspacePackage {
     name: String,
     manifest_path: PathBuf,
     default_member: bool,
+    has_library: bool,
+    library_name: Option<String>,
+    has_binary: bool,
 }
 
 #[derive(Debug)]
@@ -178,7 +181,27 @@ fn framework_workspace(start: &Path) -> anyhow::Result<FrameworkWorkspace> {
         .context("Cargo metadata omitted packages")?
         .iter()
         .map(|package| {
+            let targets = package["targets"]
+                .as_array()
+                .context("Cargo metadata package omitted targets")?;
+            let has_target = |kind: &str| {
+                targets.iter().any(|target| {
+                    target["kind"].as_array().is_some_and(|kinds| {
+                        kinds
+                            .iter()
+                            .any(|target_kind| target_kind.as_str() == Some(kind))
+                    })
+                })
+            };
             Ok(WorkspacePackage {
+                has_library: has_target("lib"),
+                library_name: targets.iter().find_map(|target| {
+                    target["kind"]
+                        .as_array()
+                        .filter(|kinds| kinds.iter().any(|kind| kind.as_str() == Some("lib")))?;
+                    target["name"].as_str().map(str::to_owned)
+                }),
+                has_binary: has_target("bin"),
                 default_member: default_members.contains(&package["id"]),
                 name: package["name"]
                     .as_str()
@@ -194,6 +217,35 @@ fn framework_workspace(start: &Path) -> anyhow::Result<FrameworkWorkspace> {
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     Ok(FrameworkWorkspace { root, packages })
+}
+
+// 目录名不足以证明框架来源；包身份、编译目标与默认应用均以同一metadata为准。
+fn validate_framework_source(workspace: &FrameworkWorkspace) -> anyhow::Result<()> {
+    let framework_manifest = workspace.root.join("vendor/openrust/framework/Cargo.toml");
+    let framework = workspace.packages.iter().any(|package| {
+        package.name == "openrust-framework"
+            && package.manifest_path == framework_manifest
+            && package.has_library
+            && package.library_name.as_deref() == Some("openrust")
+    });
+    let mut defaults = workspace
+        .packages
+        .iter()
+        .filter(|package| package.default_member);
+    let application = match (defaults.next(), defaults.next()) {
+        (Some(package), None) => {
+            package.manifest_path == workspace.root.join("Cargo.toml")
+                && package.has_binary
+                && !package.has_library
+        }
+        _ => false,
+    };
+    if !framework || !application {
+        bail!(
+            "请从包含独立 vendor/openrust/framework 的 openrust-framework 库与根默认应用的 OpenRust 源码 workspace 创建应用"
+        );
+    }
+    Ok(())
 }
 
 fn application_directory(
@@ -641,11 +693,7 @@ fn create_project_with_selected_profile(
     }
 
     let workspace = framework_workspace(current_dir)?;
-    if !workspace.packages.iter().any(|package| {
-        package.name == "openrust" && package.manifest_path == workspace.root.join("Cargo.toml")
-    }) {
-        bail!("请从包含根 openrust library 的 OpenRust 源码 workspace 创建应用");
-    }
+    validate_framework_source(&workspace)?;
     let destination = Path::new(name);
     if destination
         .components()
@@ -3141,12 +3189,19 @@ mod tests {
 
     fn create_framework_fixture(root: &Path) {
         fs::create_dir_all(root.join("src")).expect("创建框架目录");
-        fs::write(root.join("src/lib.rs"), "").expect("创建框架库");
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\".\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \".\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
+            "[package]\nname = \"openrust\"\ndefault-run = \"server\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[[bin]]\nname = \"server\"\npath = \"src/main.rs\"\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"vendor/openrust/framework\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\".\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { package = \"openrust-framework\", path = \"vendor/openrust/framework\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
         )
         .expect("create framework workspace manifest");
+        let framework = root.join("vendor/openrust/framework");
+        fs::create_dir_all(framework.join("src")).expect("创建独立框架目录");
+        fs::write(framework.join("src/lib.rs"), "").expect("创建独立框架库");
+        fs::write(
+            framework.join("Cargo.toml"),
+            "[package]\nname=\"openrust-framework\"\nversion.workspace=true\nedition.workspace=true\n\n[lib]\nname=\"openrust\"\n",
+        )
+        .expect("框架清单");
         fs::write(root.join("src/main.rs"), "fn main() {} ").expect("默认应用入口");
         fs::create_dir_all(root.join("bootstrap")).expect("创建应用装配目录");
         fs::write(root.join("bootstrap/app.rs"), "").expect("应用标识文件");
@@ -4250,7 +4305,8 @@ mod tests {
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
             assert!(!app.contains("fn default_providers("));
-            let defaults = include_str!("../../../src/core/default_providers.rs");
+            let defaults =
+                include_str!("../../../vendor/openrust/framework/src/core/default_providers.rs");
             assert!(defaults.contains("DatabaseServiceProvider"));
             let providers = fs::read_to_string(project.join("bootstrap/providers.rs"))
                 .expect("read generated provider registry");
@@ -4327,7 +4383,7 @@ mod tests {
             let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                 .expect("read generated migration registry");
             assert_framework_migration_registry(&migration);
-            let framework = include_str!("../../../src/db/migration.rs");
+            let framework = include_str!("../../../vendor/openrust/framework/src/db/migration.rs");
             for name in [
                 "AuthMigration",
                 "AuthRefreshTokenMigration",
@@ -4356,7 +4412,8 @@ mod tests {
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
             assert!(!app.contains("fn default_providers("));
-            let defaults = include_str!("../../../src/core/default_providers.rs");
+            let defaults =
+                include_str!("../../../vendor/openrust/framework/src/core/default_providers.rs");
             assert!(defaults.contains("AuthServiceProvider"));
             assert!(defaults.contains("JwtServiceProvider"));
             assert!(defaults.contains("AuthFlowsServiceProvider"));
@@ -5264,10 +5321,62 @@ mod tests {
         fs::create_dir_all(&root).expect("创建临时目录");
         create_framework_fixture(&root);
         let workspace = framework_workspace(&root).expect("源码 workspace metadata");
+        validate_framework_source(&workspace).expect("独立框架和根默认应用");
+        assert!(!root.join("src/lib.rs").exists());
+        let manifest = fs::read_to_string(root.join("Cargo.toml"))
+            .expect("根清单")
+            .parse::<toml_edit::DocumentMut>()
+            .expect("解析根清单");
+        assert_eq!(manifest["package"]["default-run"].as_str(), Some("server"));
         let (directory, package) = application_directory(&workspace, &root).expect("默认应用");
         assert_eq!(directory, root.canonicalize().expect("应用路径"));
         assert_eq!(package, "openrust");
         fs::remove_dir_all(root).expect("清理临时目录");
+    }
+
+    #[test]
+    fn source_validation_rejects_legacy_root_library_and_non_application_default() {
+        let root = PathBuf::from("/source");
+        let package = |name: &str, manifest: &str, default_member, has_library, has_binary| {
+            WorkspacePackage {
+                name: name.into(),
+                manifest_path: root.join(manifest),
+                default_member,
+                has_library,
+                library_name: has_library.then(|| "openrust".to_owned()),
+                has_binary,
+            }
+        };
+        let legacy = FrameworkWorkspace {
+            root: root.clone(),
+            packages: vec![package("openrust", "Cargo.toml", true, true, true)],
+        };
+        assert!(validate_framework_source(&legacy).is_err());
+        let mut source = FrameworkWorkspace {
+            root: root.clone(),
+            packages: vec![
+                package("openrust", "Cargo.toml", true, false, true),
+                package(
+                    "openrust-framework",
+                    "vendor/openrust/framework/Cargo.toml",
+                    false,
+                    true,
+                    false,
+                ),
+            ],
+        };
+        assert!(validate_framework_source(&source).is_ok());
+        source.packages[0].default_member = false;
+        source.packages[1].default_member = true;
+        assert!(validate_framework_source(&source).is_err());
+        source.packages[0].default_member = true;
+        assert!(validate_framework_source(&source).is_err());
+        source.packages[1].default_member = false;
+        source.packages[1].library_name = Some("wrong_import_name".into());
+        assert!(validate_framework_source(&source).is_err());
+        source.packages[1].library_name = Some("openrust".into());
+        source.packages[1].has_library = false;
+        assert!(validate_framework_source(&source).is_err());
     }
 
     #[test]
@@ -5276,13 +5385,13 @@ mod tests {
             std::env::temp_dir().join(format!("openrust-cli-driver-patch-{}", std::process::id()));
         fs::create_dir_all(&root).expect("创建独立测试目录");
         create_framework_fixture(&root);
-        let driver = root.join("vendor/sqlx-mysql");
+        let driver = root.join("vendor/launchbadge/sqlx-mysql");
         fs::create_dir_all(&driver).expect("创建补丁目录");
-        let orm = root.join("vendor/sea-orm");
+        let orm = root.join("vendor/seaql/sea-orm");
         fs::create_dir_all(&orm).expect("创建ORM补丁目录");
         let source_path = root.join("Cargo.toml");
         let mut source = fs::read_to_string(&source_path).expect("读取源清单");
-        source.push_str("\n[patch.crates-io]\nsqlx-mysql = { path = \"vendor/sqlx-mysql\" }\nsea-orm = { path = \"vendor/sea-orm\" }\n");
+        source.push_str("\n[patch.crates-io]\nsqlx-mysql = { path = \"vendor/launchbadge/sqlx-mysql\" }\nsea-orm = { path = \"vendor/seaql/sea-orm\" }\n");
         fs::write(&source_path, &source).expect("登记驱动补丁");
         let app = root.join("application");
         fs::create_dir_all(&app).expect("创建应用目录");
@@ -5313,9 +5422,12 @@ mod tests {
         create_framework_fixture(&root);
         let source = framework_workspace(&root).expect("解析源码 workspace");
         assert!(source.packages.iter().any(|package| {
-            package.name == "openrust"
+            package.name == "openrust-framework"
                 && package.manifest_path
-                    == root.join("Cargo.toml").canonicalize().expect("源码路径")
+                    == root
+                        .join("vendor/openrust/framework/Cargo.toml")
+                        .canonicalize()
+                        .expect("源码路径")
         }));
         let original = fs::read_to_string(root.join("Cargo.toml")).expect("读取源配置");
         for (name, backend) in [
@@ -5330,6 +5442,30 @@ mod tests {
             assert!(manifest.contains("database/migrations"));
             assert!(!manifest.contains("modules/example"));
             assert!(!manifest.contains("source-only"));
+            let generated = manifest
+                .parse::<toml_edit::DocumentMut>()
+                .expect("解析应用清单");
+            assert_eq!(generated["package"]["name"].as_str(), Some(name));
+            assert_eq!(
+                generated["workspace"]["dependencies"]["openrust"]["package"].as_str(),
+                Some("openrust-framework")
+            );
+            assert_eq!(
+                generated["workspace"]["dependencies"]["openrust"]["path"].as_str(),
+                root.join("vendor/openrust/framework")
+                    .canonicalize()
+                    .expect("独立框架路径")
+                    .to_str()
+            );
+            assert_eq!(
+                generated["workspace"]["default-members"]
+                    .as_array()
+                    .expect("默认成员")
+                    .iter()
+                    .filter_map(toml_edit::Value::as_str)
+                    .collect::<Vec<_>>(),
+                vec!["."]
+            );
             let metadata = framework_workspace(&app).expect("独立应用 metadata");
             assert_eq!(
                 metadata.root,

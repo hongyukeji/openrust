@@ -8,9 +8,9 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../../..", features = ["auth"] }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", features = ["auth"] }
 sea-orm = { version = "2.0.4", default-features = false, features = ["macros"] }
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

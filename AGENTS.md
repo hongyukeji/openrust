@@ -110,7 +110,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 ## 6. 工作循环
 
-本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留及50GB软/100GB硬、磁盘保护不变。
+本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留；构建产物合计80GB软/100GB硬、磁盘剩余8%软/5%硬，取更严格条件。
 
 当前执行覆盖：先完成当前在途组合，冻结后集中适用验收并本地提交，再处理今日剩余整改和ADR001后续；大功能簇完整编码及配套后再测试，不逐小改动重复矩阵。未验证源码保持WIP，不报交付。
 
@@ -145,7 +145,7 @@ Laravel 对应能力须按[纠偏规则](.agents/project/plans/laravel-rebuild.m
 | --- | --- |
 | main功能簇/集成的crate源码 | 提交前集中执行`cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps`；其余适用门禁不变 |
 | 独立任务分支源码 | 提交前执行本簇fmt/Clippy、单元/契约与受影响consumer、必要真实服务/生成验证；完整main组合门禁在集成提交前执行，不当作分支已通过 |
-| `openrust::db` / `openrust::queue` / `openrust::auth` 等数据相关模块 | 日常默认真实MySQL8.4；PostgreSQL或其他后端专属SQL/驱动/迁移/锁风险按实际影响定向验证；发布前全部承诺后端及版本完整适用验收，见[当前政策](.agents/project/memory/testing.md#当前数据库运行政策) |
+| `openrust::db` / `openrust::queue` / `openrust::auth` 等数据相关模块 | 日常实际数据库验收仅真实MySQL8.4；其他数据库及最低版本运行矩阵统一发布前完整适用验收，见[当前政策](.agents/project/memory/testing.md#当前数据库运行政策) |
 | 模板与生成器 | 生成项目后 `cargo check` + `cargo test` |
 | 文档 / skill-only | `git diff --check` + 链接检查 + `rg` 旧引用扫描，不跑全量构建 |
 

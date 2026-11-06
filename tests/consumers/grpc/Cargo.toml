@@ -14,7 +14,7 @@ db-postgres = ["openrust/db-postgres", "testing/db-postgres"]
 db-mysql = ["openrust/db-mysql", "testing/db-mysql"]
 
 [dependencies]
-openrust = { path = "../../..", version = "0.0.0", features = ["grpc", "auth"] }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", version = "0.0.0", features = ["grpc", "auth"] }
 prost = "0.14"
 tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
 tonic-prost = "~0.14.6"
@@ -34,5 +34,5 @@ time = "0.3"
 testing = { path = "../../../tools/testing", version = "0.0.0" }
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

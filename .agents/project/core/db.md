@@ -34,10 +34,6 @@ SQLite配置与迁移的当前限定证据见[验收](../memory/testing.md#sqlit
 
 DB-I01限定实现同次执行返回ID、默认行/sequence、PHP64 Processor数值规则、before-query/来源租约/主库与原事务；PG同RETURNING原值+文本副本保精度，SQLite负rowid通过固定SeaORM安全访问器保留。唯一示例事务内写后读取、CLI生成公开回归及独立patch图同步。适用验收与分发边界见[testing](../memory/testing.md#插入标识与事务执行闭环)；不关闭完整Query、Model或Passport，普通模型getKey转换与Query Processor不得混用。
 
-## SQLite 同机 SharedLocks
-
-SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence/期限、续约、同一事务写保护及真实导入生产边界保留；最低3.26与原本MySQL/PG协调回归均有绑定输入证据。当前只支持同机文件租约，不代表完整CacheLock/Queue/幂等。详细范围、native构建诊断与纯提交树闭合见[验收](../memory/testing.md#sqlite-同机租约方言限定验收)。
-
 ## 模型属性与认证前置（限定验收）
 
 MB-A01 已由 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8` 限定提交并核远端：显式元数据/连接/身份、原始行水合、getter/cast/异步setter、拥有式多字段回执及认证Cookie committed读取。根/模板User与唯一示例复用公开属性管线；普通setter保护同字段后继，回执处理祖先取消、ABA与资源回收。
@@ -47,7 +43,13 @@ MB-A01 已由 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8` 限定提交并核远�
 完整Eloquent save/dirty/关系、日期及完整值载体、PG会话显示仍开放；内存回滚不保证未知DB提交或跨连接持久顺序。公开边界见[模型基础](../../../docs/src/eloquent/getting-started.md)。
 
 
+## SQLite 同机 SharedLocks
+
+SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence/期限、续约、同一事务写保护及真实导入生产边界保留；最低3.26与原本MySQL/PG协调回归均有绑定输入证据。当前只支持同机文件租约，不代表完整CacheLock/Queue/幂等。详细范围、native构建诊断与纯提交树闭合见[验收](../memory/testing.md#sqlite-同机租约方言限定验收)。
+
 ## 当前实现
+
+- C07-W01 基本比较已编码、待独立静态审查及运行验收：`query::{WhereOperator, WhereValue}`、`r#where`／`where_compare` 与 OR／条件组入口，原便捷比较复用内核；NULL／JSON 路径、双编译绑定及子查询来源保留方言约束。唯一示例时间线改用该公开入口，生成测试与文档同步；Closure、多列条件与完整 Query 未关闭。
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。
 
@@ -57,7 +59,7 @@ MB-A01 已由 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8` 限定提交并核远�
 
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
 - `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它当前描述 PostgreSQL/MySQL/SQLite 连接集合，固定官方五后端仍保留交付缺口，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。SQLite已按上述限定范围内置；未编译db-sqlite的外部consumer仍可使用通用连接/事务/查询，框架迁移明确返回database_feature_disabled后由其自有Migrator执行。
-- `DatabaseServiceProvider` 在 register 登记当前配置的异步 singleton 工厂；首次解析按最终可见配置连接 SeaORM pool，每个成功连接立即登记受管关闭，之后的副本、具名库或版本检查失败会回收前池。boot 解析并验证；最终校验涵盖 pool 参数、完整 URL 语法和 backend feature。无主库 URL 时提供明确未初始化的可选句柄，配置副本却无主库则拒绝。运行时按暂定最低支持接受 PostgreSQL 14+ / MySQL 8.0+。日常开发与常规 CI 基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；v1 发布前须完成最低版本能力矩阵。
+- `DatabaseServiceProvider` 在 register 登记当前配置的异步 singleton 工厂；首次解析按最终可见配置连接 SeaORM pool，每个成功连接立即登记受管关闭，之后的副本、具名库或版本检查失败会回收前池。boot 解析并验证；最终校验涵盖 pool 参数、完整 URL 语法和 backend feature。无主库 URL 时提供明确未初始化的可选句柄，配置副本却无主库则拒绝。当前运行时版本门禁仍为PostgreSQL14/MySQL8，属于待整改事实，不能当作最终支持基线。Laravel兼容目标为MariaDB 10.3+、MySQL 5.7+、PostgreSQL 10.0+、SQLite 3.26.0+、SQL Server 2017+；日常实际数据库仅MySQL8.4，发布前统一完整验证多库及最低/当前版本。
 - 启用 `HttpServiceProvider` 时，`DatabaseServiceProvider` 为每个数据库实例注册 runtime readiness 探针，使用只读 `ping` 检查主库与所有配置只读副本。依赖故障会使 `/ready` 返回 503；连接池恢复后下一轮探测可重新转为 ready，不暴露连接错误或 URL。
 - 命名数据库按 历史决策 045 实现：既有 `[database]` 和 `Db` 是兼容默认实例；`[database.instances.<name>]` 为独立完整连接配置，由应用级 `Databases` 选择。实例各自持有连接池、只读副本与表名 resolver，未知名称启动/选择时显式失败。认证、Session、Queue、Audit 和 RateLimiter 仍绑定 default。
 - `DatabaseServiceProvider` 注册 `openrust::core::RateLimiter`，其官方 `DatabaseRateLimitStore` 通过当前 `Db` 实例在 PostgreSQL/MySQL 上原子更新固定窗口记录；`DatabaseRateLimitMigration` 由应用 migrator 显式注册，启动不会自动建表。
@@ -85,10 +87,10 @@ MB-A01 已由 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8` 限定提交并核远�
 
 嵌套事务与 savepoint、重试、直接 SeaORM/原生 SQL 逃生口均不受事务事件覆盖；提交前与提交后失败边界见 历史决策 041。
 
-当前内置连接器包括 PostgreSQL、MySQL 与上述限定SQLite，最低检查为 PostgreSQL 14+ / MySQL 8.0+ / SQLite 3.26+；固定 Laravel 五 SQL 后端及其最低版本对应尚未全部交付，不能把当前双库事实限制为最终范围。日常开发/常规CI默认MySQL8.4 LTS与Redis8，PG18保留并按影响定向验证。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
+当前内置连接器包括PostgreSQL、MySQL与限定SQLite；版本门禁仍为PG14/MySQL8/SQLite3.26。目标为MariaDB 10.3+、MySQL 5.7+、PostgreSQL 10.0+、SQLite 3.26.0+、SQL Server 2017+，MariaDB差异、SQL Server driver及旧版SQL/驱动/能力门控仍须实现，不能仅改版本检查或假定MySQL等同MariaDB。日常仅真实MySQL8.4；其他类型及最低/当前版本统一发布前验收，历史PG14/MySQL8结果不证明新基线完整支持。
 
 SQLite自定义插件仍可经通用Db公开API提供连接；只有实际启用内置feature、标准配置与迁移锁来源时才走SQLite迁移所有者。固定迁移crate依赖只作可追溯manifest修正：移除其传递SeaORM默认RETURNING，其他此前有效features在workspace显式保持，生成/consumer不另引官方迁移包。源码、许可和微补丁见vendor/sea-orm-migration/SOURCES.md；path/Git消费已验不等于未来crates.io发布。五后端、完整懒连接与SQLite业务链继续在唯一todo内，不将连接或DDL通过扩张成全框架支持。
 
 ## 验证
 
-`cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库默认连接支持 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD` 与 `DB_TABLE_PREFIX`；需要完整 URL 时可通过配置文件或应用变量 `APP_DATABASE__URL` 设置。暂定最低支持版本见 历史决策 002，完整兼容矩阵待 v1 发布前复核。
+`cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库默认连接支持 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD` 与 `DB_TABLE_PREFIX`；需要完整 URL 时可通过配置文件或应用变量 `APP_DATABASE__URL` 设置。历史决策002的暂定版本已由[兼容基线](../plans/database-compatibility-baseline.md)替代；上述历史验收不外推新最低版本。

@@ -9,7 +9,7 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../../..", version = "0.0.0", features = ["realtime-redis"] }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", version = "0.0.0", features = ["realtime-redis"] }
 serde_json = "1.0"
 tokio = { version = "1.54", features = ["macros", "net", "process", "rt-multi-thread", "time"] }
 
@@ -32,5 +32,5 @@ expect_used = "deny"
 panic = "deny"
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

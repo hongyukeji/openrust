@@ -9,11 +9,11 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../../..", version = "0.0.0", features = ["queue"] }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", version = "0.0.0", features = ["queue"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "sync"] }
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

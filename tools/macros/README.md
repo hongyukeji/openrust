@@ -15,5 +15,5 @@ impl Posts {
 ```
 
 ```bash
-cargo test -p openrust
+cargo test -p openrust-framework -p openrust
 ```

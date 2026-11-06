@@ -8,6 +8,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- 根项目对应 Laravel 应用骨架，框架迁入同仓独立 `openrust-framework` 包；根应用保持默认 server 与 `openrust::` 导入，工具、测试、consumer 与第三方源码路径同步分包。
+
 - Query Builder 增加 Any／All／None 六个多列入口、列与右值闭包、空 FROM 工厂及受控原始投影；逐子查询核对绑定数量，失效来源与未知原生参数不能因条件组包装而被忽略。完整原始 SQL 模式与版本感知仍开放。
 
 - Query Builder 增加默认等值与显式操作符比较入口，绑定值、NULL、表达式及已有标量子查询复用同一条件内核；三方言 JSON 路径与唯一示例时间线、生成应用回归同步。普通 where 的其余重载及完整 Query 能力仍开放。

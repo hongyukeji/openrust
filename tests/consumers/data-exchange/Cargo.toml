@@ -9,9 +9,9 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../../..", version = "0.0.0", features = ["data-exchange-tasks"] }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", version = "0.0.0", features = ["data-exchange-tasks"] }
 serde_json = "1.0"
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

@@ -8,7 +8,7 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../../..", default-features = false }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", default-features = false }
 figment = "0.10"
 serde_json = "1.0"
 
@@ -16,5 +16,5 @@ serde_json = "1.0"
 unsafe_code = "forbid"
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

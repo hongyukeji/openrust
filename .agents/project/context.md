@@ -1,6 +1,6 @@
 # 项目上下文
 
-当前有限交付：模型属性与认证前置MB-A01已由`06b4d50c6c89001a2db0adee2ff54f13d78bffb8`提交推送，独立适用门禁、实库、最低SQLite、生成与consumer已收齐；完整Model及框架目标未关闭。下一批为已冻结C07-W01/W02，J01及翻译来源各自排期，不能夹入该组合。
+当前有限交付：模型属性与认证前置MB-A01已由`06b4d50c6c89001a2db0adee2ff54f13d78bffb8`提交推送，独立适用门禁、实库、最低SQLite、生成与consumer已收齐；完整Model及框架目标未关闭。C07-W01/W02已由ed3f608提交推送，当前AR-P01框架独立包已物理搬迁并继续配套改码；J01/SC-N01保全不插队，SQLite、翻译来源和Passport并行，不能夹入C07组合。
 
 Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。下一步仅按唯一todo继续Passport Client/签发/持久接线，不重跑已关闭范围或扩张本簇。
 
@@ -26,7 +26,7 @@ Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memo
 
 ## 当前状态
 
-最新批准的架构目标为根应用包依赖 `vendor/openrust/framework/` 独立框架包，标准 `src/lib.rs`，第一方扩展位于 `vendor/openrust/<扩展>/`。公开 `openrust::`、根薄 server 与直接 `cargo run` 保持；AR-P01 尚未实施，当前根同 package 是待迁移事实。先闭合已通过有限簇的提交推送，保护其他 WIP 与旧冻结快照。当前正式普通额度覆盖有效，原 80% 账本及 credits=false 不变；提交与推送按最新真人持续授权由 Lead 独占。
+最新批准的架构目标为根应用包依赖 `vendor/openrust/framework/` 独立框架包，标准 `src/lib.rs`，第一方扩展位于 `vendor/openrust/<扩展>/`。公开 `openrust::`、根薄 server 与直接 `cargo run` 保持；AR-P01 已物理搬迁为独立框架包，当前新布局仍是未验收WIP；根同package仅为已提交基线的历史布局。先闭合已通过有限簇的提交推送，保护其他 WIP 与旧冻结快照。当前正式普通额度覆盖有效，原 80% 账本及 credits=false 不变；提交与推送按最新真人持续授权由 Lead 独占。
 
 SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础限定验收)：主10门禁/deny、SQLite-only严格Clippy/文档、fresh11、真实MySQL3与根进程HTTP通过，固定输入补丁影响经独审映射。实际引擎3.51.3；此为S1当时范围；最低/配置/迁移子范围由上述S2补证，完整取消/故障边界仍开放。迁移/CLI安装/现有业务SQL继续按唯一todo推进，本地提交以Git为准；不称全量SQLite完成。
 
@@ -44,7 +44,7 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 
 收到需求、审计或回执先判定补充/纠正/明确替代；未明确取消的原任务继续有效，重复内容合并、过期结论标明替代关系。每次处理消息后恢复原owner停点，记录范围、实际状态、下一动作与未闭合验证/提交/清理；切簇、压缩恢复和最终提交前核唯一todo，不用最新聊天或已派发代替完成证据。仅源码、匹配验证、本地提交与必要资源交接齐备才关闭对应范围；已编码待验、已提交未集成、外部缺口分别保留。全量审计归并本页/既有矩阵，不覆盖已确认后继、不新建平行队列。
 
-本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留及50GB软/100GB硬、磁盘保护不变。
+本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留；构建产物合计80GB软/100GB硬、磁盘剩余8%软/5%硬，取更严格条件。
 
 后续默认同一 OpenRust 项目、同一 main 物理工作目录，多个对话框或 workspace 标签页按不重叠文件分工；不再默认创建任务分支/worktree。产品不支持共享目录标签页时复用既有 main workspace 的多个对话框，不新建源码副本或修改内部数据库。同文件串行交接，公共 API 先收敛；manifest/lock、共享文档、Git索引/MERGE/提交、target/Cargo和真实服务由总控唯一调度。冻结受验文件禁止并发修改。
 
@@ -88,7 +88,7 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 
 - 除 modules/example 外均为框架通用结构与代码；示例专有迁移/种子/资源/协议/生成脚本/测试 fixture 均归模块内，根只保留通用加载与公开挂载，不因示例新增 build.rs/build 依赖。
 
-- 当前根 openrust 同 package 提供框架库与默认 server，目标独立包迁移按 AR-P01 验收；default-members=["."]、default-run="server"，根默认启动，modules/example 是唯一综合示例；生成应用与真实 HTTP 验证继续执行。
+- 当前WIP为根应用openrust依赖vendor/openrust/framework包，框架公开openrust::与默认server保留，独立包迁移按AR-P01继续验收；default-members=["."]、default-run="server"，根默认启动，modules/example 是唯一综合示例；生成应用与真实 HTTP 验证继续执行。
 
 必要Rust差异、用户约定和授权增强按[差异分类](plans/laravel-rebuild.md#逐项对应与差异分类)公开；单仓main、根结构、modules/<模块>、模块专属资源、Vue/uni-app与Redis策略不被字面1:1覆盖。核心全量，模块包独立来源但同内核，生态/商业/外部授权边界保持。
 
@@ -108,3 +108,5 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 - 发布、推送、tag、修改凭据/系统配置、项目外持久写操作不从重构授权推断。所有阶段仅创建限定范围的本地 commit。
 
 当前重构来源与 102 章/749 子节当前纳入范围盘点见 [固定基线](plans/laravel-rebuild-baseline.md)；未将旧证据继承为新 contract 通过。
+
+数据库兼容目标与固定Laravel一致：MariaDB 10.3+、MySQL 5.7+、PostgreSQL 10.0+、SQLite 3.26.0+、SQL Server 2017+。日常运行验收仅MySQL8.4，其他数据库及最低/当前版本发布前统一验收；当前版本拒绝门禁/SQL/驱动差距尚未关闭，不能仅改数字宣称支持。详见[兼容基线](plans/database-compatibility-baseline.md)。

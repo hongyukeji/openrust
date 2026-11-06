@@ -12,11 +12,11 @@ publish = false
 session = ["openrust/auth"]
 
 [dependencies]
-openrust = { path = "../../..", version = "0.0.0", default-features = false }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", version = "0.0.0", default-features = false }
 figment = { version = "0.10", features = ["toml"] }
 serde_json = "1"
 tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
 
 [patch.crates-io]
-sea-orm = { path = "../../../vendor/sea-orm" }
-sqlx-mysql = { path = "../../../vendor/sqlx-mysql" }
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

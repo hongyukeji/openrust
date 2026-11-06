@@ -18,9 +18,9 @@ autotests = false
 
 [workspace]
 resolver = "3"
-members = ["tools/cli", "tools/macros", "tools/testing", "tools/performance"]
+members = ["vendor/openrust/framework", "tools/cli", "tools/macros", "tools/testing", "tools/performance"]
 # 第三方 vendored crate 只作依赖，不作为第一方 workspace 包调度。
-exclude = ["vendor/sea-orm-migration", "vendor/sqlx-mysql", "vendor/sea-orm"]
+exclude = ["vendor/seaql/sea-orm-migration", "vendor/launchbadge/sqlx-mysql", "vendor/seaql/sea-orm"]
 default-members = ["."]
 
 [workspace.package]
@@ -35,7 +35,7 @@ categories = ["web-programming", "web-programming::http-server"]
 keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 
 [workspace.dependencies]
-openrust = { path = ".", version = "0.0.0", default-features = false }
+openrust = { package = "openrust-framework", path = "vendor/openrust/framework", version = "0.0.0", default-features = false }
 cli = { path = "tools/cli", version = "0.0.0" }
 macros = { path = "tools/macros", version = "0.0.0" }
 testing = { path = "tools/testing", version = "0.0.0" }
@@ -84,7 +84,7 @@ clap = { version = "4.6", features = ["derive"] }
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
 sea-orm = { version = "=2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "with-rust_decimal", "with-uuid", "with-time", "stream", "runtime-tokio-rustls"] }
-sea-orm-migration = { version = "=2.0.4", path = "vendor/sea-orm-migration", default-features = false, features = ["runtime-tokio-rustls"] }
+sea-orm-migration = { version = "=2.0.4", path = "vendor/seaql/sea-orm-migration", default-features = false, features = ["runtime-tokio-rustls"] }
 sha2 = "0.10"
 sha2_11 = { package = "sha2", version = "0.11" }
 hmac = "0.13"
@@ -150,6 +150,7 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 
 [dependencies]
+openrust = { workspace = true }
 rusqlite = { workspace = true, optional = true }
 pcre2.workspace = true
 aes-gcm-siv = { workspace = true, optional = true }
@@ -264,117 +265,43 @@ tempfile.workspace = true
 rcgen.workspace = true
 [features]
 default = ["db-mysql", "cache-redis", "queue-redis"]
-db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:rustix", "dep:shutdown_hooks"]
-db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:rustix", "dep:shutdown_hooks"]
-db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util", "dep:shutdown_hooks"]
-db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
-session = ["dep:time", "dep:base64"]
-auth = [
-    "hashing",
-    "session",
-    "dep:base64",
-    "dep:jsonwebtoken",
-    "dep:time",
-    "signing",
-]
-hashing = ["dep:argon2", "dep:bcrypt"]
-queue = ["dep:cron-parser"]
-queue-redis = ["queue", "dep:redis"]
-signing = ["dep:base64", "dep:jsonwebtoken"]
-mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
-mail-templates = ["dep:minijinja"]
-view = ["dep:minijinja", "minijinja/loader"]
-http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate"]
-auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2"]
-auth-fortify = ["auth", "encryption", "dep:sha1", "dep:md5_11", "dep:qrcode"]
-sms-twilio = ["http-client", "dep:base64"]
-encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
-test-util = []
-data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
-data-exchange-tasks = ["data-exchange", "queue", "dep:uuid"]
-grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:rustls"]
-metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
-otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
-realtime = ["auth", "axum/ws", "dep:uuid"]
-realtime-redis = ["realtime", "dep:redis"]
-cache-redis = ["dep:redis"]
-session-redis = ["session", "dep:redis"]
-storage-local = ["dep:opendal", "dep:uuid", "dep:rustix"]
-storage-s3 = [
-    "dep:aws-sdk-s3",
-    "storage-local",
-    "opendal/services-s3",
-    "opendal/http-transport-reqwest",
-    "opendal/executors-tokio",
-]
+db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:rustix", "dep:shutdown_hooks", "openrust/db-postgres"]
+db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:rustix", "dep:shutdown_hooks", "openrust/db-mysql"]
+db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util", "dep:shutdown_hooks", "openrust/db-sqlite"]
+db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid", "openrust/db-uuid"]
+session = ["dep:time", "dep:base64", "openrust/session"]
+auth = ["hashing", "session", "dep:base64", "dep:jsonwebtoken", "dep:time", "signing", "openrust/auth"]
+hashing = ["dep:argon2", "dep:bcrypt", "openrust/hashing"]
+queue = ["dep:cron-parser", "openrust/queue"]
+queue-redis = ["queue", "dep:redis", "openrust/queue-redis"]
+signing = ["dep:base64", "dep:jsonwebtoken", "openrust/signing"]
+mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls", "openrust/mail-smtp"]
+mail-templates = ["dep:minijinja", "openrust/mail-templates"]
+view = ["dep:minijinja", "minijinja/loader", "openrust/view"]
+http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate", "openrust/http-client"]
+auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2", "openrust/auth-oidc"]
+auth-fortify = ["auth", "encryption", "dep:sha1", "dep:md5_11", "dep:qrcode", "openrust/auth-fortify"]
+sms-twilio = ["http-client", "dep:base64", "openrust/sms-twilio"]
+encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize", "openrust/encryption"]
+test-util = ["openrust/test-util"]
+data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml", "openrust/data-exchange"]
+data-exchange-tasks = ["data-exchange", "queue", "dep:uuid", "openrust/data-exchange-tasks"]
+grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:rustls", "openrust/grpc"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "openrust/metrics"]
+otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry", "openrust/otel"]
+realtime = ["auth", "axum/ws", "dep:uuid", "openrust/realtime"]
+realtime-redis = ["realtime", "dep:redis", "openrust/realtime-redis"]
+cache-redis = ["dep:redis", "openrust/cache-redis"]
+session-redis = ["session", "dep:redis", "openrust/session-redis"]
+storage-local = ["dep:opendal", "dep:uuid", "dep:rustix", "openrust/storage-local"]
+storage-s3 = ["dep:aws-sdk-s3", "storage-local", "opendal/services-s3", "opendal/http-transport-reqwest", "opendal/executors-tokio", "openrust/storage-s3"]
 
 [lints]
 workspace = true
 
-[[test]]
-name = "plugin_contract"
-path = "tests/core/plugin_contract.rs"
-
-[[test]]
-name = "queue_driver_contract"
-path = "tests/queue/driver_contract.rs"
-required-features = ["queue"]
-
-[[test]]
-name = "queue_redis_driver"
-path = "tests/queue/redis_driver.rs"
-required-features = ["queue-redis"]
-
-[[test]]
-name = "http_resource"
-path = "tests/http/resource.rs"
-
-[[test]]
-name = "http_cookie"
-path = "tests/http/cookie.rs"
-
-[[test]]
-name = "http_input"
-path = "tests/http/input.rs"
-
-[[test]]
-name = "http_request"
-path = "tests/http/request.rs"
-
-[[test]]
-name = "http_router"
-path = "tests/http/router.rs"
-
-[[test]]
-name = "http_view"
-path = "tests/http/view.rs"
-required-features = ["view"]
-
 [[bin]]
 name = "server"
 path = "src/main.rs"
-
-[[test]]
-name = "auth"
-path = "tests/server/auth/routes.rs"
-
-[[test]]
-name = "auth_database"
-path = "tests/server/auth/database.rs"
-
-[[test]]
-name = "auth_named_guard"
-path = "tests/server/auth/named_guard.rs"
-required-features = ["auth"]
-
-[[test]]
-name = "auth_runtime"
-path = "tests/server/auth/runtime.rs"
-
-[[test]]
-name = "auth_query_authorization"
-path = "tests/server/auth/query_authorization.rs"
-required-features = ["auth"]
 
 [[test]]
 name = "auth_oidc"
@@ -387,93 +314,8 @@ path = "tests/server/auth/oidc_keycloak.rs"
 required-features = ["auth-oidc"]
 
 [[test]]
-name = "data_exchange"
-path = "tests/server/data_exchange.rs"
-required-features = ["data-exchange"]
-
-[[test]]
-name = "data_exchange_tasks"
-path = "tests/server/data_exchange_tasks.rs"
-required-features = ["data-exchange-tasks"]
-
-[[test]]
-name = "grpc"
-path = "tests/server/grpc.rs"
-required-features = ["grpc"]
-
-[[test]]
-name = "realtime"
-path = "tests/server/realtime.rs"
-required-features = ["realtime"]
-
-[[test]]
-name = "db_connection"
-path = "tests/server/database/connection.rs"
-
-[[test]]
-name = "db_coordination"
-path = "tests/server/database/coordination.rs"
-
-[[test]]
-name = "db_migration"
-path = "tests/server/database/migration.rs"
-
-[[test]]
-name = "http_client"
-path = "tests/server/http/client.rs"
-
-[[test]]
-name = "i18n"
-path = "tests/server/i18n/runtime.rs"
-
-[[test]]
-name = "mail_templates"
-path = "tests/server/mail/templates.rs"
-required-features = ["mail-templates"]
-
-[[test]]
-name = "queue"
-path = "tests/server/queue/worker.rs"
-
-[[test]]
-name = "queue_notifications"
-path = "tests/server/queue/notifications.rs"
-required-features = ["queue"]
-
-[[test]]
-name = "queue_redis"
-path = "tests/server/queue/redis.rs"
-required-features = ["queue-redis"]
-
-[[test]]
-name = "queue_crash_recovery"
-path = "tests/server/queue/crash_recovery.rs"
-
-[[test]]
-name = "schedule"
-path = "tests/server/schedule/coordination.rs"
-
-[[test]]
-name = "schedule_calendar"
-path = "tests/server/schedule/calendar.rs"
-
-[[test]]
 name = "server"
 path = "tests/server/server/aggregate.rs"
-
-[[test]]
-name = "storage_http"
-path = "tests/server/storage/http.rs"
-required-features = ["storage-local"]
-
-[[test]]
-name = "storage_s3"
-path = "tests/server/storage/s3.rs"
-required-features = ["storage-s3"]
-
-[[test]]
-name = "storage_driver_contract"
-path = "tests/server/storage/driver_contract.rs"
 
 [[test]]
 name = "example_auth_flows"
@@ -487,60 +329,14 @@ opt-level = 0
 # 依赖以 O2 编译一次后缓存，显著缩短开发期增量构建。
 opt-level = 2
 
-[[test]]
-name = "http_session"
-path = "tests/http/session.rs"
-required-features = ["session"]
-
-[[test]]
-name = "http_session_store"
-path = "tests/http/session_store.rs"
-required-features = ["session", "auth"]
-
-[[test]]
-name = "http_session_http"
-path = "tests/http/session_http.rs"
-required-features = ["session"]
-
-[[test]]
-name = "http_session_redis_store"
-path = "tests/http/session_redis_store.rs"
-required-features = ["session-redis"]
-
-[[test]]
-name = "http_session_config"
-path = "tests/http/session_config.rs"
-required-features = ["session"]
-
-[[test]]
-name = "http_session_env"
-path = "tests/http/session_env.rs"
-required-features = ["session"]
-
-[[test]]
-name = "http_session_cookie_driver"
-path = "tests/http/session_cookie_driver.rs"
-required-features = ["session"]
-
-[[test]]
-name = "query_before_callbacks_contract"
-path = "tests/query_before_callbacks_contract.rs"
-
-[[test]]
-name = "container_extension_contract"
-path = "tests/core/container_extension_contract.rs"
-
 [target.'cfg(windows)'.dependencies]
 winapi-util = { version = "=0.1.11", optional = true }
 
 [patch.crates-io]
-sea-orm = { path = "vendor/sea-orm" }
-sqlx-mysql = { path = "vendor/sqlx-mysql" }
+sea-orm = { path = "vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "vendor/launchbadge/sqlx-mysql" }
+
 
 [[test]]
-name = "database_lifecycle_recovery"
-path = "tests/database/lifecycle_recovery.rs"
-
-[[test]]
-name = "query_insert_ids"
-path = "tests/database/insert_ids.rs"
+name = "application_session_defaults"
+path = "tests/application/session_defaults.rs"

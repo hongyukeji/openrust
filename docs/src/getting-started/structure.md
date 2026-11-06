@@ -12,9 +12,11 @@
 | `database/` | 应用迁移与种子 |
 | `resources/`、`public/` | 应用资源与公开文件 |
 | `storage/` | 应用运行文件 |
-| `tests/` | 应用和框架集成测试 |
+| `tests/` | 根应用与真实宿主装配测试 |
+| `vendor/openrust/framework/tests/` | 框架公共契约与集成测试 |
 | `modules/` | 可选并存的模块化业务组织 |
-| `src/lib.rs`、`src/main.rs` | 框架库与默认 server 薄入口 |
+| `vendor/openrust/framework/src/lib.rs` | 独立框架库，公开 `openrust::` |
+| `src/main.rs` | 根应用默认 server 薄入口 |
 
 普通业务可直接写在 `app/`，无需先建模块。`modules/example/` 是唯一综合示例，示例自己的路由、迁移、语言和视图留在该模块；它不是另一份完整应用骨架。
 

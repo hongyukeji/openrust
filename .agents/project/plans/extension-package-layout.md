@@ -2,6 +2,25 @@
 
 状态：真人已批准。迁移负责人、当前状态及验收只在[唯一待办](../todo.md)维护；本计划不表示源码迁移已完成。
 
+## 根项目定位
+
+根项目以固定 `laravel/laravel` 应用骨架为直接对照，承载应用代码、启动装配、配置、路由、迁移、资源、测试和开发入口。框架核心与扩展源码在同一 Git 仓库的 `vendor/` 下维护，不另建框架源码仓库，不把根目录继续组织成框架库仓库。独立 Cargo package 用于依赖与编译边界，不等于独立 Git 仓库。
+
+目录职责、默认配置、安装／启动／命令／生成工作流均逐项核固定应用骨架与框架公开机制；仅保留 Rust 编译确需的 manifest、workspace、显式模块声明和薄 `src/main.rs` 等适配。根应用与 vendor 框架不各保留一套核心实现；唯一 `modules/example` 仍为普通业务模块。`tools/` 继续承担已授权开发工具职责，不为目录相似新增重复工具或强行模拟 PHP 运行时。
+
+## 命名空间与开发者体验
+
+真人明确目标：Laravel 开发者应能按固定官方文档的概念和操作步骤使用 OpenRust，主要学习差异限于 Rust 语法和确有必要的语言／运行时约束，不额外学习另一套领域命名、默认或生命周期。
+
+- 框架公共前缀保持 `openrust::`，领域职责及规范公开路径逐项对应固定 `Illuminate` 源码；PHP 命名空间分隔符转为 Rust 路径、模块／方法采用 Rust 必要命名形式，类型职责尽量保持对应。依据官方职责拆分，不能给现有混合 `core` 直接换一个官方名字。
+- 优先核对 Foundation、Container、Contracts、Support、Database、Routing、Http、Translation、Filesystem、Encryption 等领域；当前 `core`、`db/database`、`i18n` 等逐项建立官方类型／方法→Rust 唯一路径→行为与消费者证据映射。表中目标是待实现契约，不因文档改名宣称已有 API。
+- 应用遵循 `app` 内 Controller／Model／Provider 职责；业务模块使用根 `modules`，模块系统与 Passport 等扩展使用各自独立 crate 命名空间，不能把扩展 API 继续混入框架核心作为第二权威入口。
+- 每个行为明确规范公开入口，移除纯旧体系兼容、重复状态和无必要别名；有明确职责的 Facade／prelude／公开 re-export 按官方机制及 Rust 实际需要核定，不机械删除或通过别名掩盖实现未对应。
+- 默认值、配置含义、参数／选项、路由前缀、错误与安全边界、Provider 生命周期和生成行为与命名共同验收。示例保留官方案例的值和步骤，仅作真实 Rust 语法适配；扩展增强明确来源，不能冒充官方默认。
+- 同步实现及全部调用方、宏、CLI、模板、唯一示例、consumer、Rustdoc 和章节指南；提供按官方文档操作的实际验收。Rust 必要差异须写出具体约束、等价入口和证据，不能泛用“Rust 惯用”作为偏离理由。
+
+公共 API 由总控一次收敛接口和受影响文件，worker 按互斥归属实施；当前已冻结迁移候选不无限追加。必要命名调整可在迁移冻结前纳入明确组合边界，其他对应在唯一待办逐簇交付。未验收范围继续标明缺口，不宣称当前已经只剩语法区别。
+
 ## 目录契约
 
 | 目录 | 职责 |
@@ -9,6 +28,7 @@
 | `src/main.rs` | 根应用薄启动入口，不再承载框架库 |
 | `vendor/openrust/framework/` | 独立框架 Cargo 包，包根放 manifest、文档与测试 |
 | `vendor/openrust/framework/src/` | 框架库入口 `lib.rs` 及 `core/`、`db/` 等核心源码 |
+| `vendor/openrust/modules/src/` | 对应 laravel-modules 的独立模块化扩展源码，Cargo 包 `openrust-modules` |
 | `vendor/openrust/<name>/` | 我们维护的独立扩展包，如 Passport、数据库翻译来源 |
 | `vendor/<publisher>/<package>/` | 沿 Laravel／Composer 的发布者与包名组织第三方副本；仓库来源单独记录 |
 | `app/`、`modules/` | 宿主应用和业务模块；唯一综合示例保持 `modules/example` |
@@ -34,13 +54,25 @@
 
 ### 第一方包依赖
 
-- 根目录保留应用 package 和 workspace，默认运行 `server`；框架包位于 `vendor/openrust/framework/Cargo.toml`，保留 `openrust` 库导入路径。根应用 package 使用不同包名，避免同名与自依赖冲突。
+- 包身份按 Laravel 的应用骨架／框架／扩展对应：根应用包 `openrust` 对应 `laravel/laravel`，框架包 `openrust-framework` 对应 `laravel/framework`，扩展包 `openrust-<name>` 对应 `laravel/<name>`。这是 Cargo 不使用 Composer 斜杠命名的显式适配，替代中间方案 `openrust-app`／框架包 `openrust`。
+- 根目录保留应用 package 和 workspace，默认运行 `server`；框架包位于 `vendor/openrust/framework/Cargo.toml`。依赖使用 `openrust = { package = "openrust-framework", ... }` 保留业务 `openrust::...` 导入，根应用与框架包身份不同，不产生自依赖。
+- 框架检查命令和 tools／consumer 的 package 选择须改为准确的 `openrust-framework`；不能机械保留 `-p openrust --lib` 而误选根应用。生成应用使用自身项目包名，框架仍通过上述依赖别名接入。同步 lock、workspace 依赖和 feature 转发，不改已提交历史回执中的原命令事实。
 - 框架采用标准 `src/lib.rs` 库入口，不使用平铺 `lib.rs` 的自定义路径；同步相对资源路径、测试 target 与工具路径。根应用仍保留 `src/main.rs`，业务导入保持 `openrust::...`。
 - 依赖方向固定为“应用 → 框架”“应用 → 扩展 → 框架”；框架不反向依赖宿主业务或具体扩展。共用原公开 Container／Provider／配置契约，不保留重复框架副本。
 - 第一方框架与扩展为实际 workspace members，进入匹配的 fmt／Clippy／测试／文档和最低 Rust 版本检查；第三方 vendored crate 单独分类。
 - 根统一管理锁文件、必要第三方 patch 与构建配置；生成项目和独立消费者必须验证实际依赖解析，不能只迁路径后沿用旧结果。
 
 ## 实施约束
+
+### 模块化扩展拆分
+
+真人已批准将模块专属发现、清单、依赖、启停、资源注册和模块命令等实现收敛为 `vendor/openrust/modules/` 独立 Cargo 包，与 framework 平级，不放在 `framework/modules/`。默认集成不改变其扩展归属；真实来源为固定 laravel-modules，对外仍以 OpenRust／Laravel 定位，不冒称 Laravel 官方内置模块系统。
+
+框架保留通用 Container／Provider、配置、路由、资源和命令公开契约；扩展通过这些契约实现模块能力，依赖方向为“应用 → modules → framework”，不让 framework 反向依赖 modules 或应用。不另建 Container／Provider，不为拆包保留重复实现；必要注册扩展点按实际调用收敛，不创建无需求的插件平台。
+
+根 `modules/example/` 仍是普通业务模块，与 vendor 中实现模块机制的包明确区分。拆分同步根装配、配置、模块生成器／CLI、资源与依赖入口、公开消费者、模板和文档，保留默认综合示例的正常启动及模块生命周期／安全行为。包内部采用 `Cargo.toml`、`src/lib.rs`、测试与说明，第一方适用门禁不可豁免。
+
+总控在唯一待办安排独立模块拆分簇并明确依赖；当前 AR-P01 已冻结输入先闭环，不无界扩大当前迁移批次。若当前框架拆包尚未冻结且接口必须联动，则先确定有限组合边界再编码。模块拆分完整候选交独立测试仓，运行日常 MySQL 8.4 与适用非数据库门禁，其他数据库运行留发布前；验收通过后及时提交推送。
 
 - 扩展通过同一公开 Container／Provider、配置和资源机制接入；按需启用，不另建核心体系，不新增 `packages/` 平行扩展目录。
 - 第一方扩展源码和必要第三方修复纳入版本管理，不整体忽略 `vendor/`；正常 Cargo registry 依赖无需全部复制。第一方扩展必须进入适用验收，不因所在目录被当作第三方而跳过门禁。

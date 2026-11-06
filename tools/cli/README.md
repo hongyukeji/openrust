@@ -121,7 +121,7 @@ cargo run -- module:enable --all --no-interaction
 
 未选择数据库、加密或 gRPC 的普通项目会生成 `tests/test_app.rs`：通过与生产同一 Provider 清单和 Router 的 `TestApp` 验证 `/api`、`/health`，使用显式内存 cache 与 view 目录，不要求 Redis 服务。数据库项目需真实数据库配置；加密项目需显式密钥；gRPC 项目生成自己的 `tests/grpc_flows.rs`，启动生成二进制的 `serve all`，用临时 TLS 证书验证真实 HTTP、Echo RPC、证书拒绝和信号停机。`TestApp` 公共 API 仍可用于这些应用，测试须自行提供相应配置。Web 认证应用的 `tests/auth_flows.rs` 使用真实 Router、账户、Cookie/Session/CSRF 验证 Fortify；JWT profile 的同名测试覆盖真实 API 管理、独立 TOTP 与逐响应无 Cookie，`tests/jwt_api_business.rs` 保留注册、邮件验证、密码重置、受管 PAT、refresh 重放和注销回归。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；不得把缺少变量时的跳过算作真实数据库验收；JWT profile 的网络数据库测试缺少该变量会明确失败。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
 
-普通生成应用的 `tests/test_app.rs` 还包含可选 `server.trusted_hosts` 测试：精确 `development` 环境下 `app.url` 主机通过，其他 Host 返回 400。生成配置保留 `[server.trusted_hosts]` 注释示例；应用 Provider 可经 `BootContext::trust_hosts` 或每请求 `trust_hosts_with` 覆盖。详见 [HTTP 可信主机](../../src/http/README.md#可信主机)。
+普通生成应用的 `tests/test_app.rs` 还包含可选 `server.trusted_hosts` 测试：精确 `development` 环境下 `app.url` 主机通过，其他 Host 返回 400。生成配置保留 `[server.trusted_hosts]` 注释示例；应用 Provider 可经 `BootContext::trust_hosts` 或每请求 `trust_hosts_with` 覆盖。详见 [HTTP 可信主机](../../vendor/openrust/framework/src/http/README.md#可信主机)。
 
 生成的 Provider 在 `register` 中返回 `BoxFuture`，绑定服务时调用异步 `RegisterContext::instance` 等方法并 `await?`。测试替换使用 `TestAppBuilder::configure_after_register`，其回调接收与生产相同的 `Container` 共享句柄，返回 `BoxFuture<'static, Result<()>>`；框架在全体 Provider 登记后、基础配置校验和 boot 前等待回调完成。运行期业务 Provider 可经 `App::register_provider` 登记，显式重新登记使用 `force_register_provider`。
 
@@ -143,4 +143,4 @@ cargo run -- module:enable --all --no-interaction
 
 生成应用用 `routes/mod.rs` 导出两类路由，`bootstrap/app.rs` 组合它们并配置 API 前缀和中间件组；API 文件声明相对路径，Web 文件保留应用 fallback。原有认证、MFA、PAT 与签名 URL 的外部路径不变；文件名本身不会自动启用 Cookie/Session，中间件组仍须显式声明。
 
-独立生成应用会继承框架根清单的驱动 `[patch]`，本地路径转换为框架源码的绝对路径。Cargo 不继承依赖包自己的 patch；手写 workspace 须自行登记当前 MySQL 冷预处理取消修复，见[驱动说明](../../vendor/sqlx-mysql/OPENRUST.md)。
+独立生成应用会继承框架根清单的驱动 `[patch]`，本地路径转换为框架源码的绝对路径。Cargo 不继承依赖包自己的 patch；手写 workspace 须自行登记当前 MySQL 冷预处理取消修复，见[驱动说明](../../vendor/launchbadge/sqlx-mysql/OPENRUST.md)。
