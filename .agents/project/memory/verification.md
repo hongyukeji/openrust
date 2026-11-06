@@ -183,3 +183,9 @@ C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用�
 ## SQLite 配置与迁移子范围
 
 当前证据及未完成边界统一见[限定验收](testing.md#sqlite-配置与迁移限定验收)。13主门禁、3.26与3.51.3、真实安装/生成/API、根CLI/配置/HTTP、12consumer图与check已有实际回执；非内置feature前置的默认组合/最新全feature文档补验已通过，61生成文件归档与最终Cargo target5.57GB清零完成；本地提交以Git为准，仅关闭上述子范围。
+
+## 事务来源与提交前检查
+
+CTX v5正式报告与规范树、源文件和回执绑定见[限定验收](testing.md#事务来源与提交前检查限定验收)。Root独立构造同一8路径规范树，原工作CRLF的`commit.cmd`依`.gitattributes text eol=crlf`过滤后与HEAD同blob，不计本簇差异。四组实际MySQL、正负外包、workspace/生成/文档/MSRV/离线依赖门禁通过；原辅助锁断言与资源暂停保留，未降生产断言。
+
+同一Db并发事务均能通过来源检查，不得据此声称是同一事务或认证授权；声明范围不含完整Model/L090及发布运行矩阵。

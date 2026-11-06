@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+
+事务来源与文章末检：已编码并完成[日常适用限定验收](memory/testing.md#事务来源与提交前检查限定验收)，正式源码树`5056c267888aeb3a8a14cf9319cba422113b24d0`。本地提交/推送事实以Git为准；不改变完整Model/L090、其他数据库/最低版本/Windows及全部框架仍开放的状态。
 模型属性状态 MB-P01-A 已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)：同一属性存储的 original/dirty/changes/previous、公开单值 cast、账户记录无持久化预览及根/生成 User/外包接线；完整转换后 getOriginal、fill/save、事件/关系和完整值域仍开放。有限提交以 Git 为准，下一步沿唯一 todo 处理 Events、Schema 与模型持久生命周期。
 
 核心功能验收按[逐项清单](memory/core-functional-acceptance.md)单独统计：2026-11-06已提交基线501e4a25，188项中72项已验收、86项部分完成、30项待开发，等权验收完成率**38.3%**。覆盖71个核心相关章节，扩展另列不计分母；这是固定功能单元清单的验收比例，不是代码量、工时或全部API方法覆盖率。AR-N01职责迁移单独计证，不因目录/API改名增加功能验收分子；复算入口为`scripts/summarize_core_acceptance.py`。

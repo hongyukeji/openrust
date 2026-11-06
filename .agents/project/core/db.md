@@ -96,3 +96,11 @@ SQLite自定义插件仍可经通用Db公开API提供连接；只有实际启用
 ## 验证
 
 `cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库默认连接支持 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD` 与 `DB_TABLE_PREFIX`；需要完整 URL 时可通过配置文件或应用变量 `APP_DATABASE__URL` 设置。历史决策002的暂定版本已由[兼容基线](../plans/database-compatibility-baseline.md)替代；上述历史验收不外推新最低版本。
+
+## 事务来源与提交前检查
+
+`TransactionContext<'tx>`由同一`Db`事务引擎签发，字段/构造受控；`transaction()`返回实际借用事务，`is_from(&db)`只比较来源句柄，克隆相同而另建句柄不同，同Db并发两笔事务均匹配。原始事务不能任意包装、反序列化或逃逸回调。
+
+`transaction_for_update_checked_context(work, check)`复用唯一事务引擎：工作→提交前direct监听和队列入队→最终检查→提交，不等待worker或赋予跨库原子性。唯一文章创建在末检确认新id与owner；监听删除/改owner返回409，来源错误为500，成功仍返回插入时快照。外层事务导入入口仍由其持有者决定最终检查。
+
+源码树`5056c267888aeb3a8a14cf9319cba422113b24d0`的8路径有限验收见[测试基线](../memory/testing.md#事务来源与提交前检查限定验收)。未知提交结果、认证/同意权威与完整Model保存不由此闭合。

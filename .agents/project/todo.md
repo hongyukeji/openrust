@@ -109,6 +109,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 已授权后继：L090 Passport 与 OIDC SSO 扩展
 
+- L090-AUTH公开授权权威前置：owner=root；现可依赖已验收的[事务来源与文章末检](memory/testing.md#事务来源与提交前检查限定验收)，来源不等于用户认证、同意或具体事务身份。PreparedAuthorization/可信同意请求一次性关联、Guard/Provider/Fortify四态与raw-ID Web/JWT/refresh完整生产链仍待实现；不能把opaque binding非空当证明。普通无Fortify/custom/once/request/非DB Provider能力仍须对应，不强迫额外增强列。批准请求重新准备并绑定真实主体/client/scopes/redirect/PKCE，所有await后再核短期证明；耐久code/refresh/access沿官方期限与jti撤销，不普遍套父Session寿命。完整权威接线及双传输实际验收前不放行HTTP签发。
+
 - 当前领取：owner=insert_id_adapter_review，root负责公共契约与集成，同main；Passport v13.10.0/f5f5e9f与League9.4.1/9d2f6fc固定源码和46/37份测试已取证，后者为独立兼容参考，非上游Composer锁定事实。`auth-passport` 已接线PKCE、Scope、参数和本地OAuth错误；定向协议44项、共享支持109项通过，库严格Clippy修正两处文档标记后通过；仍是未提交WIP，不代表AS/OP已交付。`query_import_timeline_example`错误叶与固定来源审计已交接；root独占集成、公共contract、manifest/lock、迁移、共享文档及实服务。统一Hashing前置已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)，不再维护独立密码成本权威；下一步Client/签发/持久接线，完整授权码簇后集中适用验收。证据`tmp/passport-code-pkce-20261105/`。
 - Client实现停点：root补通用Eloquent ModelMetadata/ModelIdentity及hashed cast并接根/生成User，worker已交Client纯模型/可替换工厂；均未验WIP。可替换自增Client需要Query.insert_get_id，发现固定SeaORM负SQLite rowid会panic，当前先闭合通用查询/最小安全访问器前置，保Model原始身份与Processor的PHP64位返回转换两个契约，不将NUMERIC经Decimal舍入或负ID划不适用。root独占vendor/manifest/lock/服务，worker独占query四文件，独审已指出numeric/sequence缺口，修复后集中门禁；Client/code/token/schema仍未接线，不报AS/OP完成。
 - PHP8.5框架异常边界后继审计：原始float越界/INF/NaN(int)会E_WARNING，默认HandleExceptions抛ErrorException；本次Query插入ID已覆盖，既有Request/scalars整数入口需按其真实生产调用链复核Result/错误边界，不把裸PHP吞warning后的modulo返回当已等价。见本次18case真实oracle与独审，不重写未受影响数值路径或丢失原证据。

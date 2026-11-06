@@ -356,3 +356,7 @@ pub(crate) mod managed_realtime;
 ))]
 #[path = "tests/translation_source_flows.rs"]
 mod translation_source_flows;
+
+#[cfg(all(test, feature = "auth", feature = "db-mysql"))]
+#[path = "tests/transaction_context_article.rs"]
+mod transaction_context_article;

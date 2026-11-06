@@ -228,3 +228,11 @@ MySQL 冷 prepare 的 Future 被取消后，未完成的物理连接明确拒绝
 ### 属性原值与变化快照
 
 同一 `ModelAttributes` 提供水合 original、cast感知的 `get_dirty`、显式 `sync_changes`/`get_previous` 与 fluent `sync_original*`。原始查询支持完整键优先与非通配符点路径；未决或过期快照明确409拒绝，逐字段同步缺项保已写前缀。同步只确认内存基线或变化，不执行SQL，不等同模型save；完整转换getOriginal及日期/自定义cast等仍开放。用法、错误与示例预览见[模型基础](../../../../../docs/src/eloquent/getting-started.md#原始基线与变化记录)。
+
+## 提交前检查与事务来源
+
+`Db::transaction_for_update_checked_context` 沿同一事务执行工作、提交前监听器与最终检查。回调中的 `TransactionContext::transaction()` 返回实际借用的事务；`is_from(&db)` 只核来源句柄，克隆相同，同一 Db 的并发事务也都匹配，不能用这个布尔值替代事务隔离。查询、写入及最后检查必须使用各自上下文提供的原始事务。类型与构造由引擎控制，不提供从任意原始事务包装上下文的入口。
+
+SQLite入口取得写事务；其他后端的行锁由实际查询选择。最后校验的期限检查应放在其最后一次 await 之后。跨库、外部 Provider 或外部副作用不因此成为原子操作；提交结果未知时不可自动重试发放业务凭证。这是 Rust 跨扩展来源借用能力，不是账户认证、同意证明或完整 Laravel 事务 API 的完成声明。
+
+文章示例仅在 `ArticleWriter::create` 的最终检查时核 id 与 owner；归属变化返回 409，内部事务来源错误返回 500。成功结果仍是插入时快照，监听器修改其他字段不会自动刷新返回值。已有外层事务调用 `create_in_transaction` 的导入入口仍由该事务持有者决定最终检查。

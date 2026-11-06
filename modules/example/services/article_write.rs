@@ -1,6 +1,6 @@
 //! 文章写入的唯一业务入口；HTTP 与数据导入共享校验和事务副作用。
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::modules::example::events::article::ArticleChanged;
 use crate::modules::example::http::requests::article::ArticleInput;
@@ -8,8 +8,12 @@ use crate::modules::example::models::article;
 use crate::modules::example::services::telemetry::{self, ArticleOperation};
 #[cfg(feature = "queue")]
 use crate::modules::example::services::welcome::verified_email;
-use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseTransaction};
+use openrust::database::sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter,
+    QuerySelect,
+};
 use openrust::events::Events;
+use openrust::http::axum::http::StatusCode;
 #[cfg(feature = "queue")]
 use openrust::notifications::{EmailDelivery, Notification, Notifier};
 use openrust::prelude::Db;
@@ -44,15 +48,56 @@ impl ArticleWriter {
         input: ArticleInput,
     ) -> Result<article::Model> {
         let writer = self.clone();
+        let work_db = Arc::clone(&self.db);
+        let check_db = Arc::clone(&self.db);
+        let inserted = Arc::new(OnceLock::new());
+        let written = Arc::clone(&inserted);
         telemetry::observe(
             ArticleOperation::Create,
-            self.db.transaction(move |transaction| {
-                Box::pin(async move {
-                    writer
-                        .create_in_transaction(transaction, owner_id, input)
-                        .await
-                })
-            }),
+            self.db.transaction_for_update_checked_context(
+                move |context| {
+                    Box::pin(async move {
+                        if !context.is_from(&work_db) {
+                            return Err(invalid_transaction_source());
+                        }
+                        let model = writer
+                            .create_in_transaction(context.transaction(), owner_id, input)
+                            .await?;
+                        written
+                            .set(model.id)
+                            .map_err(|_| invalid_transaction_source())?;
+                        Ok(model)
+                    })
+                },
+                move |context| {
+                    Box::pin(async move {
+                        if !context.is_from(&check_db) {
+                            return Err(invalid_transaction_source());
+                        }
+                        let id = inserted
+                            .get()
+                            .copied()
+                            .ok_or_else(invalid_transaction_source)?;
+                        // 提交前业务监听器也参与此事务；不可交付已被监听器删除或换归属的文章。
+                        let current = article::Entity::find_by_id(id)
+                            .filter(article::Column::OwnerId.eq(owner_id))
+                            .select_only()
+                            .column(article::Column::Id)
+                            .into_tuple::<i64>()
+                            .one(context.transaction())
+                            .await
+                            .map_err(Error::internal)?;
+                        if current.is_none() {
+                            return Err(Error::custom_with_status(
+                                StatusCode::CONFLICT,
+                                "example_article_changed_before_commit",
+                                "文章在提交前已不存在或归属改变",
+                            ));
+                        }
+                        Ok(())
+                    })
+                },
+            ),
         )
         .await
     }
@@ -100,4 +145,12 @@ impl ArticleWriter {
         }
         Ok(model)
     }
+}
+
+fn invalid_transaction_source() -> Error {
+    Error::custom_with_status(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "example_article_transaction_source_invalid",
+        "文章写入与提交前检查必须使用同一来源的事务",
+    )
 }

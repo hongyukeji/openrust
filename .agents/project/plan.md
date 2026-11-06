@@ -1,5 +1,7 @@
 # 当前计划
 
+
+事务来源与文章末检前置已完成[限定验收](memory/testing.md#事务来源与提交前检查限定验收)，后继来源借用可依赖公开`TransactionContext`，认证权威仍须独立实现。后续按唯一todo串行交验Events/Schema等冻结候选，不把其静审当运行通过，不追加到已闭合CTX有限簇。
 模型属性状态 MB-P01-A 已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)：同一属性存储的 original/dirty/changes/previous、公开单值 cast、账户记录无持久化预览及根/生成 User/外包接线；完整转换后 getOriginal、fill/save、事件/关系和完整值域仍开放。有限提交以 Git 为准，下一步沿唯一 todo 处理 Events、Schema 与模型持久生命周期。
 
 当前有限交付：MB-A01模型属性与认证前置已提交推送`06b4d50`，限定验收见[测试基线](memory/testing.md#模型属性与认证前置限定验收)。C07-W01/W02已按限定日常范围验收并提交推送ed3f608；AR-P01已由4463238完成独立包迁移、日常适用验收及远端核对，AR-M01已由6c21bab0限定验收提交推送，AR-N01职责命名空间限定迁移已由`b3f6117be1fc`提交并收齐[限定验收](memory/testing.md#命名空间与开发流程限定验收)；I18N-S01来源增强已收齐[翻译来源限定验收](memory/testing.md#翻译来源限定验收)；完整官方contract及后继核心仍在唯一todo。J01、SC-N01与日期cast准备保全WIP，不插队扩大当前组合；SQLite、数据库国际化和Passport并行推进实际实现与接线。

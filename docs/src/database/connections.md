@@ -47,3 +47,13 @@ nullable/原生 PRAGMA、安装器、文件跨进程互斥及既有迁移清单�
 最低版本路径不依赖 SQLite RETURNING；固定迁移依赖的局部 manifest 补丁和许可记录见仓库 `vendor/seaql/sea-orm-migration/SOURCES.md`。生成应用通过 OpenRust 的迁移 re-export 使用同一来源，不另加官方迁移包以免重新启用该 feature。
 
 固定来源：[Laravel SQLiteConnector](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Database/Connectors/SQLiteConnector.php)、[Laravel 数据库文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md)、[PDO SQLite 默认超时](https://github.com/php/php-src/blob/php-8.4.0/ext/pdo_sqlite/sqlite_driver.c)。完整配置与事务 API 可用 `cargo doc --open` 查看 `openrust::database`。
+
+## 提交前的最终检查
+
+需要在提交前事件之后复核业务不变量时，使用 `Db::transaction_for_update_checked_context(work, check)`。两回调接收引擎签发的 `TransactionContext`，查询与写入都传 `context.transaction()`。`context.is_from(&db)` 只核发起 Db 的句柄身份：Db 克隆匹配，另建句柄不匹配；同一 Db 的两笔并发事务都匹配，因此不能把一次检查结果移给另一事务。
+
+工作成功后先完成 direct 提交前监听器与事务队列入队，再做最终检查，成功后开始提交；不等待队列 worker。最终检查中的时限判断放在最后一次 await 之后。SQLite先取得写事务，其他后端仍需适当行锁。提交已开始但结果未知时，不自动重复业务操作；外部服务与跨库副作用没有随之获得原子保证。
+
+唯一 `modules/example` 的文章创建用这一入口：写入及业务事件使用同一原始事务，提交前确认新文章仍存在且归属不变。该示例检查的是业务约束，不把来源视图当作用户认证证明。
+
+文章示例仅在 `ArticleWriter::create` 的最终检查时核 id 与 owner；归属变化返回 409，内部事务来源错误返回 500。成功结果仍是插入时快照，监听器修改其他字段不会自动刷新返回值。已有外层事务调用 `create_in_transaction` 的导入入口仍由该事务持有者决定最终检查。

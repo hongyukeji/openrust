@@ -1830,3 +1830,14 @@ I18N-S01 的运行输入以 `0a8cb93f` 上的 Source v17 为准，1610 项源码
 - 正式额度、原失败、资源软线及自然边界回收证据保全；只保留后续已排步骤的一份共享缓存。Markdown 本地链接/锚点静查通过；mdBook 未安装，未执行书籍构建。
 
 数据库 schema、修订及失效提示属于授权来源增强，不宣称 Laravel 内置数据库 Loader。完整 `get`/`choice`、默认 FileLoader、Loader/deferred/locale 生命周期、其他数据库及最低版本运行、Windows 文件来源仍未闭合，不将本有限簇当作完整 Laravel Localization 或完整框架交付。
+
+## 事务来源与提交前检查限定验收
+
+输入为Model提交`1aee9043`上的CTX v5，manifest `b6587ba058a83868f5017c6deefa31d04cfb82db32ae59facad36a9d517cf234`、1618项；原生Git规范化源码树`5056c267888aeb3a8a14cf9319cba422113b24d0`只改8路径。正式报告`tmp/independent-testing-20261106/TRANSACTION-CONTEXT-RESULT.json` SHA `6945ee85ef14018016b15ee990bbb7445a1d1de39930eff52036ab7c36dd0e57`，Root已复核46回执及全部引用日志摘要。
+
+- 全target/allfeature严格检查、fmt、默认严格/workspace及日常MySQL workspace通过；默认62与常规82是结果target数，不是服务用例数。
+- 真MySQL8.4.13的框架来源/外包/文章queue off/on四组各1项通过，均0 ignored/无skip；覆盖来源、顺序、回滚、取消、同Db并发及文章监听删除/owner变化。正向外包无Auth/Fortify；五负向编译按隐私/From/Deserialize/生命周期精确失败，不把编译错误当运行测试。
+- 12 consumer编译及4实际组通过；fresh minimal19、Web/Fortify50、JWT95均0 ignored/无skip，框架path指向当前输入。三profile registry三元组→checksum与先前已验同profile完全相同，root共有key checksum相同；不声称fresh锁是root锁版本子集。
+- 双拒警Rustdoc、14本地链接、no-default及三driver编译、实际Rust1.97两profile和`cargo deny --offline --locked`通过。Advisory仅缓存`309392b18f6b17022f82c701f300433126901068`（2026-11-06T16:34:32+01:00），未live刷新。
+
+v4/v5原失败、夹具修正和资源自然暂停均保全；源/fixture SHA、inode/mtime与catalog恢复已核。完成产物按原生归属回收，最终共享target约9.74GB、磁盘余量约80.30GB/8.073%。这不是认证/同意证明、跨库原子性、未知提交故障注入或完整Model/L090/Passport验收；其他数据库/最低版本/Windows、外部OIDC/SMTP/副本和非UTF8文件系统等边界仍保留，ignored不算实测通过。

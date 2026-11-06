@@ -1,5 +1,7 @@
 # 项目上下文
 
+
+事务来源与提交前最终检查前置已收齐[限定验收](memory/testing.md#事务来源与提交前检查限定验收)。`TransactionContext`只证明同Db来源；文章创建在提交前事件及队列入队后核id/owner，不代表认证、同意或具体事务身份。完整L090/Passport与Model保存、其他数据库/最低版本/Windows运行仍按唯一todo推进。
 模型属性状态 MB-P01-A 已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)：同一属性存储的 original/dirty/changes/previous、公开单值 cast、账户记录无持久化预览及根/生成 User/外包接线；完整转换后 getOriginal、fill/save、事件/关系和完整值域仍开放。有限提交以 Git 为准，下一步沿唯一 todo 处理 Events、Schema 与模型持久生命周期。
 
 当前有限交付：模型属性与认证前置MB-A01已由`06b4d50c6c89001a2db0adee2ff54f13d78bffb8`提交推送，独立适用门禁、实库、最低SQLite、生成与consumer已收齐；完整Model及框架目标未关闭。C07-W01/W02已由ed3f608提交推送，AR-P01框架独立包已由4463238按日常适用范围验收提交推送，AR-M01已由6c21bab0限定验收提交推送，AR-N01职责命名空间限定迁移已由`b3f6117be1fc`提交，见[限定验收](memory/testing.md#命名空间与开发流程限定验收)；完整官方contract继续按唯一todo推进；J01/SC-N01保全不插队，SQLite、翻译来源和Passport并行，不能夹入C07组合。

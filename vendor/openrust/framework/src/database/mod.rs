@@ -131,6 +131,39 @@ pub struct Db {
     events: Arc<OnceLock<crate::events::Events>>,
 }
 
+/// 由实际发起事务的 [`Db`] 签发、仅在本次事务回调内有效的借用视图。
+///
+/// 来源句柄与原始事务由引擎绑定；这不是认证或同意证明。消费方仍须通过
+/// [`Self::transaction`] 执行原子操作，并验证实际表、租户与主体。
+/// 不同句柄即使用相同 URL，也不能冒充本视图的来源。
+///
+/// 字段与构造器不公开，不能包装任意原始事务：
+/// ```compile_fail
+/// use openrust::database::{DatabaseTransaction, TransactionContext};
+/// fn replace<'a>(mut context: TransactionContext<'a>, other: &'a DatabaseTransaction) {
+///     context.transaction = other;
+/// }
+/// ```
+pub struct TransactionContext<'tx> {
+    origin: Arc<OnceLock<DatabaseConnections>>,
+    transaction: &'tx DatabaseTransaction,
+}
+
+impl<'tx> TransactionContext<'tx> {
+    /// 返回引擎实际持有的同一个事务；不赋予提交或回滚所有权。
+    pub fn transaction(&self) -> &'tx DatabaseTransaction {
+        self.transaction
+    }
+
+    /// 核验指定句柄或其克隆是否为本次事务来源。
+    ///
+    /// 同一句柄并发开启的两个事务都会返回 true，本方法不区分事务。
+    /// 查询必须使用各自的 [`Self::transaction`]；认证、表与租户仍须另外核验。
+    pub fn is_from(&self, db: &Db) -> bool {
+        Arc::ptr_eq(&self.origin, &db.connections)
+    }
+}
+
 /// 应用中已配置数据库连接的只读选择器。
 ///
 /// `Databases` 只选择 OpenRust 的 `Db` 句柄，不提供任意服务查找或全局访问。
@@ -424,9 +457,14 @@ impl Db {
         self.transaction_impl(callback, true, NO_FINAL_CHECK).await
     }
 
-    /// 所有提交前监听器完成后，在同一事务内做最后校验。校验成功后直接开始提交。
-    #[cfg(feature = "auth-fortify")]
-    pub(crate) async fn transaction_for_update_checked<T, F, C>(
+    /// 在同一主库事务内执行操作，并在直接提交前监听器返回后做最后校验。
+    ///
+    /// 操作、直接监听器或末检失败时回滚；末检成功后直接开始提交。
+    /// 排队监听器只等待任务入队，不等待其 worker 执行；不能将末检当作队列执行后的校验。
+    /// 调用方须用条件写入与锁定读取维护当前权威，本方法不自动锁定业务记录，
+    /// 也不提供跨连接原子性。提交返回错误时，远端是否已经提交仍可能未知。
+    /// 提交后监听器失败不能撤销已经提交的数据。
+    pub async fn transaction_for_update_checked<T, F, C>(
         &self,
         callback: F,
         final_check: C,
@@ -438,6 +476,47 @@ impl Db {
     {
         self.transaction_impl(callback, true, Some(final_check))
             .await
+    }
+
+    /// 向工作回调及最后校验签发有来源的同事务借用视图。
+    ///
+    /// 复用唯一事务引擎：工作、提交前监听器及队列入队均完成后，执行最后校验，
+    /// 随后直接开始提交；不等待队列 worker。SQLite先取得写事务，其他后端仍需适当行锁。
+    /// 本入口不依赖认证或 Fortify，也不提供跨库及外部服务原子性。
+    ///
+    /// 最后校验可异步读取，期限应在其最后一次 await 后同步检查。
+    /// 提交开始后的取消或错误可能无法确认耐久结果，不应自动重试签发。
+    ///
+    /// # Errors
+    ///
+    /// 开始、提交或回滚失败返回内部错误；回滚成功时保留工作、监听器或最后校验的原错误。
+    pub async fn transaction_for_update_checked_context<T, F, C>(
+        &self,
+        callback: F,
+        final_check: C,
+    ) -> Result<T>
+    where
+        T: Send,
+        F: for<'tx> FnOnce(TransactionContext<'tx>) -> BoxFuture<'tx, Result<T>> + Send,
+        C: for<'tx> FnOnce(TransactionContext<'tx>) -> BoxFuture<'tx, Result<()>> + Send,
+    {
+        let work_origin = Arc::clone(&self.connections);
+        let check_origin = Arc::clone(&self.connections);
+        self.transaction_for_update_checked(
+            move |transaction| {
+                callback(TransactionContext {
+                    origin: work_origin,
+                    transaction,
+                })
+            },
+            move |transaction| {
+                final_check(TransactionContext {
+                    origin: check_origin,
+                    transaction,
+                })
+            },
+        )
+        .await
     }
 
     async fn transaction_impl<T, F, C>(
@@ -1645,3 +1724,7 @@ mod tests {
         ));
     }
 }
+
+#[cfg(all(test, feature = "db-mysql"))]
+#[path = "transaction_context_mysql_tests.rs"]
+mod transaction_context_mysql_tests;
