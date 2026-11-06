@@ -22,6 +22,12 @@ impl openrust::foundation::ApplicationDefinition for {{type_name}} {
         crate::config::boot()
     }
 
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::auto().except([
+            openrust::foundation::ProviderId::of::<openrust::translation::TranslationServiceProvider>(),
+        ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])
+    }
+
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         providers::application_providers(config)
     }

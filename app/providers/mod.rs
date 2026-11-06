@@ -9,3 +9,5 @@ pub use app::AppServiceProvider;
 mod authentication_profile;
 #[cfg(feature = "auth-fortify")]
 pub use authentication_profile::AuthenticationProfileProvider;
+
+pub(crate) mod translation_sources;

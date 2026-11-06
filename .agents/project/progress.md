@@ -4,7 +4,7 @@
 
 模型属性与认证前置MB-A01已由`06b4d50`限定提交并核远端；主线、实库、最低SQLite与三后端生成/适用consumer验证通过，原失败和未闭合边界保留。C07-W01/W02已由ed3f608限定验收提交推送；AR-P01已由4463238完成根应用/框架独立包迁移和日常适用验收，见[根应用与框架独立包限定验收](memory/testing.md#根应用与框架独立包限定验收)；AR-M01已由6c21bab0限定验收提交推送，AR-N01职责命名空间限定迁移已由`b3f6117be1fc`提交，见[限定验收](memory/testing.md#命名空间与开发流程限定验收)，完整官方contract仍开放，J01代码/配套静审完成但尚未接线或运行；不报告完整Query/Model/框架已完成。
 
-Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。下一步按唯一todo由主线收口I18N-S01，AR-N01完整契约按依赖后续推进，Passport Client/签发/持久接线并行，不重跑已关闭范围或扩张本簇。
+Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。I18N-S01文件默认、显式数据库/组合来源、快照刷新及应用/生成接线已收齐[翻译来源限定验收](memory/testing.md#翻译来源限定验收)；完整Localization和AR-N01契约按依赖后续推进，Passport Client/签发/持久接线并行，不重跑已关闭范围。
 
 当前Fortify官方Web默认/显式JWT组合已通过main12门禁、五类实际生成、正式Provider受保护gRPC TLS、Redis父凭据回滚、真实双库CI、Keycloak/独立API故障恢复、最低SQLite3.26 probe及受影响consumer。限定本地提交以Git为准，具体范围见[当前验收](memory/testing.md#fortify-官方默认与显式-jwt-组合验收)；Google真实客户端、UUID/字符串JWT持久链与完整R7/官方生态仍未闭合。
 

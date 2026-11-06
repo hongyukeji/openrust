@@ -23,6 +23,7 @@ pub mod server;
 pub mod session;
 pub mod sms;
 pub mod storage;
+pub mod translation_sources;
 #[cfg(feature = "view")]
 pub mod view;
 
@@ -39,6 +40,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("cache", cache::config)
         .section("database", database::config)
         .section("i18n", i18n::config)
+        .section("translation_sources", translation_sources::config)
         .section("mail", mail::config)
         .section("modules", modules::config)
         .section("session", session::config)

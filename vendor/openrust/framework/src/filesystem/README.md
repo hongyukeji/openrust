@@ -40,7 +40,7 @@ access_key_id = "本地环境变量提供"
 secret_access_key = "本地环境变量提供"
 ```
 
-启动时校验默认 disk 和已登记 driver 的配置；默认 disk 初始化失败会使启动失败。其他 disk 按需初始化，未知名称、初始化失败或 driver 专属配置错误会在解析时返回错误，不会静默回退。自定义 driver 的专属选项是否在启动时校验取决于其 `validate` 实现。使用具名 disk 时调用 `storage.disk("media").await?`。 在可信 `TenantContext` 作用域内，框架会将 tenant ID 的 SHA-256 摘要加到后端物理 key 前缀；应用获得的 `StoredObject.path` 与上传检查器仍只看到逻辑路径。没有租户作用域时沿用原有物理路径。自定义 driver 通过同一 facade 调用时也会收到隔离后的路径；直接使用 driver 不受此保护。
+启动时校验默认 disk 和已登记 driver 的配置；默认 disk 初始化失败会使启动失败。其他 disk 按需初始化，未知名称、初始化失败或 driver 专属配置错误会在解析时返回错误，不会静默回退。自定义 driver 的专属选项是否在启动时校验取决于其 `validate` 实现。使用具名 disk 时调用 `storage.disk("media").await?`。 在可信 `TenantContext` 作用域内，框架会将 tenant ID 的 SHA-256 摘要加到后端物理 key 前缀；应用获得的 `StoredObject.path` 与上传检查器仍只看到逻辑路径。没有租户作用域时沿用原有物理路径。自定义 driver 通过同一 `FilesystemAdapter` 调用时也会收到隔离后的路径；直接使用 driver 不受此保护。
 
 ## 上传与下载
 
@@ -80,5 +80,7 @@ S3 driver 仍由 OpenDAL 将完整内容写入私有 staging，再由 S3 SDK 在
 
 `presign_read` 只为当前对象的确切版本生成短期只读 URL。bucket 未启用版本控制、对象没有 version ID 或 backend 不支持版本化 presign 时会 fail-closed。此 URL 是到期前可转发的 bearer 凭据，不能通过 `SignedLinks` 撤销；local disk 不提供 provider presign，需要应用自行建立授权 route。框架不提供 presigned write URL。
 
+
+本地上传由独立 worker 完成；调用方 future 取消不代表后台清理已经结束。为保留首次创建的暂存文件身份，已经开始的一次本地块写入会继续至返回，再在读取下一块前处理取消并中止同一个 writer。最终发布仍经过原子仲裁；取消先赢时不发布目标。操作系统文件 I/O 持续阻塞或进程被强制结束时，不保证立即清理。
 
 本地 disk 首次创建 `.staging/` 时写入 `.storage-owner` 标记；后续启动只接管标记有效的目录。此前合法的同名业务目录或符号链接会使初始化失败，框架不会改权限或清理其内容，应用应人工选择新存储根并核查原对象。staging 回收允许其他实例在扫描后正常关闭并删除自身 run 目录。仅该条目已消失且 staging 根目录当前可读时忽略 NotFound；根目录丢失、非目录、权限或其他 I/O 错误仍阻止初始化。根目录检查不是原子身份校验，不能抵御并发替换；storage root 仍须由当前应用系统用户独占写入。

@@ -3582,6 +3582,7 @@ dependencies = [
  "opendal",
  "openrust-framework",
  "openrust-modules",
+ "openrust-translation-database",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -3732,6 +3733,18 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 1.1.8+spec-1.1.0",
+]
+
+[[package]]
+name = "openrust-translation-database"
+version = "0.0.0"
+dependencies = [
+ "figment",
+ "openrust-framework",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
 ]
 
 [[package]]

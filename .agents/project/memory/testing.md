@@ -1784,7 +1784,7 @@ MB-A01 提交 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8`，准确树 `f8e5800fe8
 
 最终索引 `tmp/independent-testing-20261106/MB-A01-RESULT.json`，Root复核 `mb-a01-root-final-acceptance.json`；原失败保留。收尾回收firstparty、CLI、多feature/MSRV/native与fresh产物，仅留明确下一C07所需的一份依赖缓存，无在途命令、磁盘余量超过软线，主目录target不存在。
 
-不关闭完整Eloquent、全部casts/日期/关系/持久save、完整PHP数组键/对象身份/无效UTF8/非有限值载体、PG TimeZone/DateStyle显示及未知数据库提交/跨连接顺序；C07组合、J01及数据库翻译来源各自待验。
+不关闭完整Eloquent、全部casts/日期/关系/持久save、完整PHP数组键/对象身份/无效UTF8/非有限值载体、PG TimeZone/DateStyle显示及未知数据库提交/跨连接顺序；C07组合与J01后继边界保留；数据库翻译来源的当前限定证据见下节。
 
 ## 命名空间与开发流程限定验收
 
@@ -1805,3 +1805,16 @@ MB-A01 提交 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8`，准确树 `f8e5800fe8
 Source、SQLite写目标、Passport/授权服务器、J01、SC及Model后继WIP不在本输入；其他数据库与最低版本实际运行、Windows及完整官方contract差距继续开放。资源回执与已明确安排的下一Source验收缓存保留由原测试对话记录；不因保留单份warm target虚报完整清零。
 
 测试根索引原始字节发生metadata漂移，stage路径、模式及blob列表与交接前相同，未强行回写索引；主工作区690项WIP字节/模式/软链均保全。独立私有Git对象库重建精确匹配提交树 `eb740f4a4d22b5a4f8422fda28346509250c837b`，不以简化行尾归一化手算替代实际Git对象。
+
+## 翻译来源限定验收
+
+I18N-S01 的运行输入以 `0a8cb93f` 上的 Source v17 为准，1610 项源码/模式逐项冻结；提交候选仅后置更新使用说明和项目事实，不改变已验 Rust、模板、manifest、锁或测试。正式源码映射与原日志见 `tmp/i18n-sources-20261106/` 及独立验收目录 `tmp/independent-testing-20261106/i18n-source-runtime-v14` 至 `v17`。
+
+- 默认 workspace、原并发 MySQL 组合、默认与全 target/feature 严格 Clippy、精简 feature/三 driver 编译、拒警双 Rustdoc、doctest、MSRV 1.97 两配置与当前锁 deny 均实际通过；其他后端只计编译，不计真实运行。
+- 真实 MySQL 8.4 覆盖来源读写、双消费者、旧快照、坏行/回滚、提交后通知失败、文件/数据库组合及命名连接/前缀；首次文件模式安装迁移再选组合、queued 来源通知在根测试 target 实际执行，不以缺 URL 或 ignored 代替。目录/夹具前后恢复。
+- 五类真实生成的 check/test 与锁图通过；gRPC 生产 `.txt` 片段旧命名空间已修，实际重编 CLI、重新生成、检查产物及依赖指纹。生成 MySQL 来源首次安装与显式 JWT 无 Cookie/Session 边界有实际证据。
+- 12 个公开 consumer 的 locked all-target check 通过，配置、Container、Session 和 TestApp 四组适用行为测试实际通过；SQLite consumer 仅编译。TestApp 旧 `Server Error` 期望按既有 E01 bootstrap 英文契约更新为精确 `internal server error`，保原自定义 Handler/HEAD/应用计数隔离与安全断言并补 HTML 安全文案；完整 consumer 复验通过，原失败保留。
+- 根默认/自定义前缀 TCP、内容协商、404、无 Set-Cookie 和退出端口回收通过。Source 首次 snapshot Drop 负控实际检出失败状态发布回归；本地文件首写取消窗口由 OpenDAL/Tokio 真实负控检出，修复后文件系统组及原组合通过。S3 取消/迟到发布与 Windows 未由这些测试证明。
+- 正式额度、原失败、资源软线及自然边界回收证据保全；只保留后续已排步骤的一份共享缓存。Markdown 本地链接/锚点静查通过；mdBook 未安装，未执行书籍构建。
+
+数据库 schema、修订及失效提示属于授权来源增强，不宣称 Laravel 内置数据库 Loader。完整 `get`/`choice`、默认 FileLoader、Loader/deferred/locale 生命周期、其他数据库及最低版本运行、Windows 文件来源仍未闭合，不将本有限簇当作完整 Laravel Localization 或完整框架交付。

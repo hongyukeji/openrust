@@ -2,7 +2,7 @@
 
 当前有限交付：模型属性与认证前置MB-A01已由`06b4d50c6c89001a2db0adee2ff54f13d78bffb8`提交推送，独立适用门禁、实库、最低SQLite、生成与consumer已收齐；完整Model及框架目标未关闭。C07-W01/W02已由ed3f608提交推送，AR-P01框架独立包已由4463238按日常适用范围验收提交推送，AR-M01已由6c21bab0限定验收提交推送，AR-N01职责命名空间限定迁移已由`b3f6117be1fc`提交，见[限定验收](memory/testing.md#命名空间与开发流程限定验收)；完整官方contract继续按唯一todo推进；J01/SC-N01保全不插队，SQLite、翻译来源和Passport并行，不能夹入C07组合。
 
-Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。下一步按唯一todo先收口I18N-S01来源包图与运行闭环，Passport Client/签发/持久接线继续互斥并行，不重跑已关闭范围或扩张本簇。
+Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。I18N-S01来源增强已收齐[翻译来源限定验收](memory/testing.md#翻译来源限定验收)，完整Localization及官方Loader生命周期仍开放；后继按唯一todo推进通用核心，Passport Client/签发/持久接线继续互斥并行，不重跑已关闭范围。
 
 🟡 R7具名认证核心编码及适用验证收齐，最终证据独审与资源收尾通过，本地提交以Git为准；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低SQLite3.26迁移30断言通过。完整Eloquent/Fortify及其余认证范围保留，见[限定验收](memory/testing.md#r7-具名认证核心限定验收)。
 

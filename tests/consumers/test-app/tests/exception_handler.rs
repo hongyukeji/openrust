@@ -130,7 +130,8 @@ async fn typed_report_render_finalize_and_default_negotiation()
         .await?;
     json.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
     let value: serde_json::Value = serde_json::from_slice(json.body())?;
-    assert_eq!(value["message"], "Server Error");
+    // E01统一安全文案：未安装翻译Provider时也使用内置英语目录。
+    assert_eq!(value["message"], "internal server error");
     assert!(!String::from_utf8_lossy(json.body()).contains("private detail"));
     let html = first
         .request(
@@ -146,6 +147,9 @@ async fn typed_report_render_finalize_and_default_negotiation()
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| value.starts_with("text/html"))
     );
+    let html_body = String::from_utf8_lossy(html.body());
+    assert!(html_body.contains("<p>internal server error</p>"));
+    assert!(!html_body.contains("private detail"));
     let head = first
         .request(
             Request::head("/default")

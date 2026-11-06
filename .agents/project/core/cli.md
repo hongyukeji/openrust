@@ -47,3 +47,7 @@
 目录/分发以 历史决策 073 和 [architecture](../architecture.md) 为准；独立生成应用不修改源 workspace。根 package 为 openrust library；同一根 package 提供唯一默认 server bin。
 
 后继 R13 补全命令/生成器、doctor、watch 和编排；当前 generate API 暂保留，未宣称 Artisan 全命令完成。
+
+## 翻译来源生成
+
+普通、MySQL、Web 认证、JWT 与 gRPC 生成应用均包含可编辑 `translation_sources` 配置、文件来源和同一 Provider 安装机制；数据库扩展显式启用，首次迁移与后续数据库/组合模式分开。JWT 不增 Session/Cookie。五种真实生成与适用来源安装验收见[来源测试基线](../memory/testing.md#翻译来源限定验收)，完整官方翻译接口仍开放。

@@ -41,6 +41,13 @@ impl ApplicationDefinition for Server {
             Box::new(crate::app::providers::AuthenticationProfileProvider::default()),
         );
         providers
+            .except([openrust::foundation::ProviderId::of::<
+                openrust::translation::TranslationServiceProvider,
+            >()])
+            .merge([
+                Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider)
+                    as Box<dyn ServiceProvider>,
+            ])
     }
 
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {

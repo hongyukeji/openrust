@@ -348,3 +348,11 @@ mod sqlite_shared_locks;
 ))]
 #[path = "tests/managed_realtime.rs"]
 pub(crate) mod managed_realtime;
+
+#[cfg(all(
+    test,
+    feature = "translation-database",
+    any(feature = "db-mysql", feature = "db-postgres", feature = "db-sqlite")
+))]
+#[path = "tests/translation_source_flows.rs"]
+mod translation_source_flows;

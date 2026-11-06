@@ -884,6 +884,7 @@ fn populate_project_with_features(
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
     for directory in [
         "config",
+        "lang",
         "src",
         "public",
         "app/http/controllers",
@@ -978,6 +979,10 @@ fn populate_project_with_features(
             "config/i18n.rs",
             include_str!("../templates/config/i18n.rs").to_owned(),
         ),
+        ("config/translation_sources.rs", include_str!("../templates/config/translation_sources.rs").to_owned()),
+        ("app/providers/translation_sources.rs", include_str!("../templates/app/providers/translation_sources.rs").to_owned()),
+        ("lang/en.json", "{}\n".to_owned()),
+        ("lang/zh-CN.json", "{}\n".to_owned()),
         (
             "config/log.rs",
             include_str!("../templates/config/log.rs").to_owned(),
@@ -1392,12 +1397,18 @@ fn install_jwt_api_profile(
     )?;
     let path = project_dir.join("bootstrap/app.rs");
     let source = fs::read_to_string(&path)?;
-    let marker = "    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {";
+    let marker = r"    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::auto().except([
+            openrust::foundation::ProviderId::of::<openrust::translation::TranslationServiceProvider>(),
+        ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])
+    }";
     if source.matches(marker).count() != 1 {
         bail!("JWT API应用Provider装配点不唯一");
     }
     let selection = r"    fn default_providers() -> openrust::support::DefaultProviders {
-        openrust::support::DefaultProviders::auto().replace(
+        openrust::support::DefaultProviders::auto().except([
+            openrust::foundation::ProviderId::of::<openrust::translation::TranslationServiceProvider>(),
+        ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>]).replace(
             openrust::foundation::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(),
             Box::new(openrust::auth::fortify::FortifyJwtApiServiceProvider::new().with_database_audit()),
         ).except([
@@ -1407,10 +1418,7 @@ fn install_jwt_api_profile(
     }
 
 ";
-    fs::write(
-        path,
-        source.replace(marker, &format!("{selection}{marker}")),
-    )?;
+    fs::write(path, source.replace(marker, selection))?;
     let path = project_dir.join("config/session.rs");
     let session = fs::read_to_string(&path)?;
     let driver = r#"driver: Some("database".to_owned()),"#;
@@ -1689,7 +1697,13 @@ fn cargo_manifest(
         manifest.push_str("openrust-modules = { workspace = true }\n");
     }
     manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n");
+    let source_features: Vec<&str> = database.into_iter().map(DatabaseBackend::feature).collect();
+    let _ = writeln!(
+        manifest,
+        "openrust-translation-database = {{ workspace = true, optional = true, features = {source_features:?} }}"
+    );
     manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\ntime = \"0.3\"\n");
+    manifest.push_str("tempfile = \"3.27\"\n");
     if auth {
         manifest.push_str("base64 = \"0.22\"\n");
     }
@@ -1704,7 +1718,7 @@ fn cargo_manifest(
     }
 
     if grpc {
-        manifest.push_str("rcgen = \"0.14.10\"\ntempfile = \"3.27\"\n");
+        manifest.push_str("rcgen = \"0.14.10\"\n");
     }
     if (auth || grpc)
         && let Some(database) = database
@@ -1736,6 +1750,10 @@ fn cargo_manifest(
             }
         );
     }
+    if !auth {
+        manifest.push_str("\n[features]\n");
+    }
+    manifest.push_str("translation-database = [\"dep:openrust-translation-database\"]\n");
     manifest
 }
 
@@ -3198,7 +3216,7 @@ mod tests {
         fs::create_dir_all(root.join("src")).expect("创建框架目录");
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"openrust\"\ndefault-run = \"server\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[[bin]]\nname = \"server\"\npath = \"src/main.rs\"\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"vendor/openrust/framework\", \"vendor/openrust/modules\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\".\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { package = \"openrust-framework\", path = \"vendor/openrust/framework\" }\nopenrust-modules = { path = \"vendor/openrust/modules\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
+            "[package]\nname = \"openrust\"\ndefault-run = \"server\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[[bin]]\nname = \"server\"\npath = \"src/main.rs\"\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"vendor/openrust/framework\", \"vendor/openrust/modules\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\".\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { package = \"openrust-framework\", path = \"vendor/openrust/framework\" }\nopenrust-modules = { path = \"vendor/openrust/modules\" }\nopenrust-translation-database = { path = \"vendor/openrust/translation-database\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
         )
         .expect("create framework workspace manifest");
         let framework = root.join("vendor/openrust/framework");
@@ -3213,6 +3231,10 @@ mod tests {
         fs::create_dir_all(modules.join("src")).expect("模块扩展目录");
         fs::write(modules.join("src/lib.rs"), "").expect("模块扩展入口");
         fs::write(modules.join("Cargo.toml"), "[package]\nname=\"openrust-modules\"\nversion.workspace=true\nedition.workspace=true\n").expect("模块扩展清单");
+        let translation = root.join("vendor/openrust/translation-database");
+        fs::create_dir_all(translation.join("src")).expect("数据库翻译fixture目录");
+        fs::write(translation.join("Cargo.toml"), "[package]\nname=\"openrust-translation-database\"\nversion.workspace=true\nedition.workspace=true\n[features]\ndefault=[]\ndb-mysql=[]\ndb-postgres=[]\ndb-sqlite=[]\n").expect("数据库翻译fixture清单");
+        fs::write(translation.join("src/lib.rs"), "").expect("数据库翻译fixture源码");
         fs::write(root.join("src/main.rs"), "fn main() {} ").expect("默认应用入口");
         fs::create_dir_all(root.join("bootstrap")).expect("创建应用装配目录");
         fs::write(root.join("bootstrap/app.rs"), "").expect("应用标识文件");
@@ -3956,6 +3978,12 @@ mod tests {
     }
 
     fn assert_generated_configuration(project: &Path) {
+        for path in ["lang/en.json", "lang/zh-CN.json"] {
+            let bytes = fs::read(project.join(path)).expect("读取生成应用的语言资源");
+            let messages: serde_json::Value =
+                serde_json::from_slice(&bytes).expect("生成应用的语言资源必须是 JSON");
+            assert_eq!(messages, serde_json::json!({}), "{path}");
+        }
         let config_manifest =
             fs::read_to_string(project.join("config/mod.rs")).expect("read configuration manifest");
         assert!(config_manifest.contains("pub mod hashing;"));
@@ -4151,6 +4179,18 @@ mod tests {
         let registry = fs::read_to_string(project.join("bootstrap/providers.rs"))
             .expect("read application Provider list");
         assert!(registry.contains("AppServiceProvider"));
+        assert_eq!(application.matches("fn default_providers()").count(), 1);
+        assert!(application.contains("TranslationSourcesProvider"));
+        assert!(!registry.contains("application_providers }"));
+        assert!(!registry.contains("{{application_providers}}"));
+        for path in [
+            "config/translation_sources.rs",
+            "app/providers/translation_sources.rs",
+            "lang/en.json",
+            "lang/zh-CN.json",
+        ] {
+            assert!(project.join(path).is_file(), "缺少Source生成接线: {path}");
+        }
         assert!(registry.contains("openrust::database::FrameworkMigrator"));
         assert_eq!(registry.matches("MigrationServiceProvider").count(), 1);
         assert!(!registry.contains("SeedServiceProvider"));
@@ -4318,7 +4358,20 @@ mod tests {
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
-            assert!(!app.contains("fn default_providers("));
+            assert_eq!(app.matches("fn default_providers(").count(), 1);
+            assert!(app.contains("DefaultProviders::auto().except(["));
+            assert!(
+                app.contains(
+                    "ProviderId::of::<openrust::translation::TranslationServiceProvider>()"
+                )
+            );
+            assert!(app.contains(
+                "]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])"
+            ));
+            // Source仅移出原Translation并追加安装器，其他默认Provider仍由auto选择。
+            assert_eq!(app.matches(".except([").count(), 1);
+            assert_eq!(app.matches(".merge([").count(), 1);
+            assert!(!app.contains(".replace("));
             let defaults =
                 include_str!("../../../vendor/openrust/framework/src/support/default_providers.rs");
             assert!(defaults.contains("DatabaseServiceProvider"));
@@ -4426,7 +4479,20 @@ mod tests {
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
-            assert!(!app.contains("fn default_providers("));
+            assert_eq!(app.matches("fn default_providers(").count(), 1);
+            assert!(app.contains("DefaultProviders::auto().except(["));
+            assert!(
+                app.contains(
+                    "ProviderId::of::<openrust::translation::TranslationServiceProvider>()"
+                )
+            );
+            assert!(app.contains(
+                "]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])"
+            ));
+            // Source仅移出原Translation并追加安装器，其他默认Provider仍由auto选择。
+            assert_eq!(app.matches(".except([").count(), 1);
+            assert_eq!(app.matches(".merge([").count(), 1);
+            assert!(!app.contains(".replace("));
             let defaults =
                 include_str!("../../../vendor/openrust/framework/src/support/default_providers.rs");
             assert!(defaults.contains("AuthServiceProvider"));
@@ -4890,6 +4956,39 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    fn optional_translation_dependency(project: &Path) -> String {
+        let manifest = fs::read_to_string(project.join("Cargo.toml"))
+            .expect("读取应用清单")
+            .parse::<toml_edit::DocumentMut>()
+            .expect("解析应用清单");
+        let dependency = &manifest["dependencies"]["openrust-translation-database"];
+        assert_eq!(dependency["optional"].as_bool(), Some(true));
+        let backends = dependency["features"]
+            .as_array()
+            .expect("来源扩展的后端列表");
+        assert_eq!(
+            backends
+                .iter()
+                .map(toml_edit::Value::as_str)
+                .collect::<Vec<_>>(),
+            [Some("db-mysql")]
+        );
+        let features = manifest["features"].as_table().expect("应用特性表");
+        // 两个夹具都没有默认应用特性；只有显式选择时才会激活可选扩展。
+        assert!(!features.contains_key("default"));
+        let activation = features["translation-database"]
+            .as_array()
+            .expect("来源扩展显式入口");
+        assert_eq!(
+            activation
+                .iter()
+                .map(toml_edit::Value::as_str)
+                .collect::<Vec<_>>(),
+            [Some("dep:openrust-translation-database")]
+        );
+        dependency.to_string()
+    }
+
     #[test]
     fn job_generation_accepts_inherited_or_custom_driver_with_migration_structure() {
         let root = std::env::temp_dir().join(format!(
@@ -4928,6 +5027,7 @@ mod tests {
                     Some(true)
                 );
                 dependency.remove("features");
+                assert!(dependency.get("features").is_none());
                 if custom_driver {
                     let mut driver = toml_edit::InlineTable::new();
                     driver.insert("version", "2.0.4".into());
@@ -4938,17 +5038,28 @@ mod tests {
                     manifest["dependencies"]["sea-orm"] = toml_edit::value(driver);
                 }
                 let source = manifest.to_string();
-                assert!(!source.contains("db-mysql"));
-                assert!(!source.contains("db-postgres"));
                 fs::write(path, source).expect("保存继承或外部驱动清单");
             }
+            let source_dependency = optional_translation_dependency(&project);
             generate_job(&["delivery".to_owned()], &project).expect("按迁移结构生成任务");
+            assert_eq!(optional_translation_dependency(&project), source_dependency);
             assert!(project.join("app/jobs/delivery.rs").is_file());
             for relative in ["Cargo.toml", "database/migrations/Cargo.toml"] {
                 let source = fs::read_to_string(project.join(relative)).expect("读取任务依赖");
-                assert!(source.contains("\"queue\""));
-                assert!(!source.contains("db-mysql"));
-                assert!(!source.contains("db-postgres"));
+                let manifest = source
+                    .parse::<toml_edit::DocumentMut>()
+                    .expect("解析任务清单");
+                let framework = &manifest["dependencies"]["openrust"];
+                assert_eq!(framework["workspace"].as_bool(), Some(true));
+                let features = framework["features"].as_array().expect("任务的框架特性");
+                // 唯一新增特性是 queue，因此三种框架数据库后端均未被任务生成器选择。
+                assert_eq!(
+                    features
+                        .iter()
+                        .map(toml_edit::Value::as_str)
+                        .collect::<Vec<_>>(),
+                    [Some("queue")]
+                );
                 assert_eq!(source.contains("sqlx-sqlite"), custom_driver);
             }
             let source = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
@@ -6040,7 +6151,9 @@ mod jwt_api_profile_tests {
                 )?;
                 install_jwt_api_profile(&project, "JwtApp", Some(backend), grpc)?;
                 let bootstrap = fs::read_to_string(project.join("bootstrap/app.rs"))?;
-                assert!(bootstrap.contains("DefaultProviders::auto().replace("));
+                assert!(bootstrap.contains("DefaultProviders::auto().except(["));
+                assert_eq!(bootstrap.matches("fn default_providers()").count(), 1);
+                assert!(bootstrap.contains("TranslationSourcesProvider"));
                 assert!(bootstrap.contains(
                     r").except([
             openrust::foundation::ProviderId::of::<openrust::http::CookieServiceProvider>(),

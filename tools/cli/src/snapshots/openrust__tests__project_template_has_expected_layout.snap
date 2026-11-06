@@ -16,11 +16,16 @@ openrust = { workspace = true, features = ["cache-redis", "view", "session"] }
 openrust-modules = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+openrust-translation-database = { workspace = true, optional = true, features = [] }
 
 [dev-dependencies]
 figment = { version = "0.10", features = ["toml"] }
 time = "0.3"
+tempfile = "3.27"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[features]
+translation-database = ["dep:openrust-translation-database"]
 
 --- .gitignore ---
 /target/
@@ -82,6 +87,7 @@ pub mod cache;
 pub mod database;
 pub mod hashing;
 pub mod i18n;
+pub mod translation_sources;
 pub mod log;
 pub mod mail;
 pub mod modules;
@@ -105,6 +111,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("cache", cache::config)
         .section("database", database::config)
         .section("i18n", i18n::config)
+        .section("translation_sources", translation_sources::config)
         .section("mail", mail::config)
         .section("modules", modules::config)
         .section("session", session::config)
@@ -394,6 +401,12 @@ impl openrust::foundation::ApplicationDefinition for Blog {
 
     fn config() -> openrust::config::ConfigManifest {
         crate::config::boot()
+    }
+
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::auto().except([
+            openrust::foundation::ProviderId::of::<openrust::translation::TranslationServiceProvider>(),
+        ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])
     }
 
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {

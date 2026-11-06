@@ -1,4 +1,4 @@
-    let database = if openrust::db::DatabaseBackend::Sqlite.is_enabled() {
+    let database = if openrust::database::DatabaseBackend::Sqlite.is_enabled() {
         testing::TestDatabase::sqlite_file::<openrust_migration::Migrator>().await?
     } else {
         let admin_url = std::env::var("OPENRUST_TEST_DATABASE_URL")?;

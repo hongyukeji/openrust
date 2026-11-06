@@ -113,6 +113,10 @@ impl ServiceProvider for ExampleModuleServiceProvider {
             >(),
             seed_provider_id(example::database::seeders::run),
         ]);
+        #[cfg(feature = "translation-database")]
+        providers.push(ProviderId::of::<
+            example::services::translation_source::TranslationSourceExampleProvider,
+        >());
         providers
     }
 
@@ -144,6 +148,11 @@ impl ServiceProvider for ExampleModuleServiceProvider {
             app.register_provider(module_state::ModuleStateServiceProvider::new(state_log))
                 .await?;
             app.register_provider(events).await?;
+            #[cfg(feature = "translation-database")]
+            app.register_provider(
+                example::services::translation_source::TranslationSourceExampleProvider,
+            )
+            .await?;
             let business = ExampleServiceProvider::new(self.application_root.clone())
                 .with_database_override(self.database_override);
             let business = if self.module_repository {

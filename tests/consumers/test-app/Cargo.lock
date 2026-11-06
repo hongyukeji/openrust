@@ -2232,6 +2232,7 @@ dependencies = [
  "lettre",
  "macros",
  "pcre2",
+ "rustix",
  "sea-orm",
  "sea-orm-migration",
  "serde",

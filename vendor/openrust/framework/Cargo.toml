@@ -98,7 +98,7 @@ opentelemetry-otlp = { workspace = true, optional = true }
 tracing-opentelemetry = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "=1.1.5", optional = true, default-features = false, features = ["fs", "std", "process"] }
+rustix = { version = "=1.1.5", default-features = false, features = ["fs", "std", "process"] }
 
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
@@ -129,9 +129,9 @@ tempfile.workspace = true
 rcgen.workspace = true
 [features]
 default = ["db-mysql", "cache-redis", "queue-redis"]
-db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:rustix", "dep:shutdown_hooks"]
-db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:rustix", "dep:shutdown_hooks"]
-db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util", "dep:shutdown_hooks"]
+db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:shutdown_hooks"]
+db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:shutdown_hooks"]
+db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:winapi-util", "dep:shutdown_hooks"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
 session = ["dep:time", "dep:base64"]
 auth = [
@@ -164,7 +164,7 @@ realtime = ["auth", "axum/ws", "dep:uuid"]
 realtime-redis = ["realtime", "dep:redis"]
 cache-redis = ["dep:redis"]
 session-redis = ["session", "dep:redis"]
-storage-local = ["dep:opendal", "dep:uuid", "dep:rustix"]
+storage-local = ["dep:opendal", "dep:uuid"]
 storage-s3 = [
     "dep:aws-sdk-s3",
     "storage-local",

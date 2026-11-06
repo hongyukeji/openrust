@@ -1,6 +1,6 @@
 //! 请求作用域的消息目录与 locale 选择。
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::Path;
 use std::str::FromStr;
@@ -21,6 +21,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::ConfigError;
 use crate::core::{Error, Result};
+
+mod composite_loader;
+mod file_loader;
+mod loader;
+mod source_refresh;
+pub use composite_loader::CompositeTranslationLoader;
+pub use file_loader::FileTranslationLoader;
+pub use loader::{
+    TranslationLines, TranslationLoadSession, TranslationLoader, TranslationResource,
+};
+pub use source_refresh::TranslationRefreshOutcome;
+pub use source_refresh::TranslationRefreshStatus;
+pub use source_refresh::parse_translation_lines;
+pub use source_refresh::translation_session;
+use source_refresh::{PublishedCatalog, RefreshRuntime};
 
 /// 应用消息目录使用的规范语言标签。
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -169,11 +184,15 @@ struct RawSelectMessage {
 #[derive(Debug, Clone)]
 pub struct MessageCatalog {
     messages: BTreeMap<Locale, BTreeMap<String, CatalogMessage>>,
+    resource_messages: BTreeMap<TranslationResource, BTreeMap<String, CatalogMessage>>,
+    source_global_keys: BTreeMap<Locale, std::collections::BTreeSet<String>>,
 }
 
 impl Default for MessageCatalog {
     fn default() -> Self {
         Self {
+            resource_messages: BTreeMap::new(),
+            source_global_keys: BTreeMap::new(),
             messages: BTreeMap::from([
                 (
                     Locale("en".to_owned()),
@@ -281,25 +300,57 @@ impl MessageCatalog {
     }
 
     fn message(&self, locale: &Locale, key: &str) -> Option<(&Locale, &CatalogMessage)> {
-        self.messages
-            .get_key_value(locale)
-            .and_then(|(tag, messages)| messages.get(key).map(|message| (tag, message)))
+        self.message_at(locale, key)
+            .or_else(|| self.message_at(&Locale(locale.language().to_owned()), key))
             .or_else(|| {
-                self.messages
-                    .get_key_value(&Locale(locale.language().to_owned()))
-                    .and_then(|(tag, messages)| messages.get(key).map(|message| (tag, message)))
-            })
-            .or_else(|| {
-                // 配置可使用带地区的默认标签而资源仅登记语言或另一地区；仅在该标签
-                // 尚无资源时采用同语言资源，不让缺 key 穿透到任意已登记的兄弟地区。
                 if self.messages.contains_key(locale) {
                     return None;
                 }
                 self.messages
-                    .iter()
-                    .find(|(tag, _)| tag.language() == locale.language())
-                    .and_then(|(tag, messages)| messages.get(key).map(|message| (tag, message)))
+                    .keys()
+                    .find(|tag| tag.language() == locale.language())
+                    .and_then(|tag| self.message_at(tag, key))
             })
+    }
+
+    fn message_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, &CatalogMessage)> {
+        let (locale, global) = self.messages.get_key_value(locale)?;
+        // 固定Translator::get先查完整JSON字面键，再解析group/namespace；不可平铺覆盖。
+        if let Some(message) = global.get(key) {
+            return Some((locale, message));
+        }
+        self.group_message_at(locale, key)
+    }
+
+    fn group_message_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, &CatalogMessage)> {
+        let (locale, _) = self.messages.get_key_value(locale)?;
+        let (namespace, item) = key
+            .split_once("::")
+            .map_or((None, key), |(namespace, key)| (Some(namespace), key));
+        if let Some(namespace) = namespace {
+            let resource = TranslationResource {
+                locale: locale.clone(),
+                group: "*".into(),
+                namespace: Some(namespace.into()),
+            };
+            if let Some(message) = self
+                .resource_messages
+                .get(&resource)
+                .and_then(|lines| lines.get(item))
+            {
+                return Some((locale, message));
+            }
+        }
+        let (group, item) = item.split_once('.')?;
+        let resource = TranslationResource {
+            locale: locale.clone(),
+            group: group.into(),
+            namespace: namespace.map(str::to_owned),
+        };
+        self.resource_messages
+            .get(&resource)
+            .and_then(|lines| lines.get(item))
+            .map(|message| (locale, message))
     }
 
     fn supports(&self, locale: &Locale) -> bool {
@@ -460,7 +511,7 @@ fn messages(entries: &[(&str, &str)]) -> BTreeMap<String, CatalogMessage> {
 pub struct TranslationConfig {
     /// 请求中没有受支持的语言时使用的 locale。
     pub default_locale: Locale,
-    /// 所选 locale 及其语言都没有对应消息时使用的最终回退 locale。
+    /// Laravel查找在请求locale后使用此最终回退；显式Catalog增强可先查语言级资源。
     pub fallback_locale: Locale,
 }
 
@@ -473,12 +524,23 @@ impl Default for TranslationConfig {
     }
 }
 
+/// 默认遵循Laravel JSON字面键优先规则；原Catalog增强只能显式选择。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TranslationLookup {
+    /// JSON仅查请求locale；空串或"0"命中后返回原key，group再按locale回退。
+    #[default]
+    Laravel,
+    /// 显式保留全局Catalog跨locale回退及空串/"0"原样返回的增强。
+    Catalog,
+}
+
 /// 可在多个请求间安全共享的应用国际化服务。
 #[derive(Debug, Clone)]
 pub struct Translator {
     config: TranslationConfig,
-    catalog: Arc<RwLock<MessageCatalog>>,
-    namespaces: Arc<RwLock<HashSet<String>>>,
+    lookup: TranslationLookup,
+    catalog: Arc<RwLock<PublishedCatalog>>,
+    source: Option<Arc<RefreshRuntime>>,
 }
 
 impl Translator {
@@ -496,8 +558,9 @@ impl Translator {
         }
         Ok(Self {
             config,
-            catalog: Arc::new(RwLock::new(catalog)),
-            namespaces: Arc::new(RwLock::new(HashSet::new())),
+            lookup: TranslationLookup::Laravel,
+            catalog: Arc::new(RwLock::new(PublishedCatalog::new(catalog))),
+            source: None,
         })
     }
 
@@ -531,36 +594,20 @@ impl Translator {
             }
         };
         let selected = read_namespace_messages(selected_dir)?;
-        let mut namespaces = self
-            .namespaces
-            .write()
-            .map_err(|_| Error::custom("i18n_namespace_unavailable", "语言资源命名空间不可用"))?;
-        if namespaces.contains(namespace) {
-            return Err(Error::custom(
-                "i18n_namespace_conflict",
-                "语言资源命名空间重复",
-            ));
-        }
-        let mut catalog = self
-            .catalog
-            .write()
-            .map_err(|_| Error::custom("i18n_catalog_unavailable", "语言资源目录不可用"))?;
-        let mut next = catalog.clone();
+        let mut overlay = source_refresh::empty_catalog();
         for (locale, content) in selected {
             let entries = content.as_object().ok_or_else(|| {
-                Error::custom("i18n_namespace_json_invalid", "语言资源 JSON 必须是对象")
+                Error::custom("i18n_namespace_json_invalid", "语言资源JSON必须是对象")
             })?;
             let mut merged = entries.clone();
             for (key, value) in entries {
                 merged.insert(format!("{namespace}::{key}"), value.clone());
             }
             let content = serde_json::to_string(&merged)
-                .map_err(|_| Error::custom("i18n_namespace_json_invalid", "语言资源 JSON 无效"))?;
-            next.merge_json(locale, &content)?;
+                .map_err(|_| Error::custom("i18n_namespace_json_invalid", "语言资源JSON无效"))?;
+            overlay.merge_json(locale, &content)?;
         }
-        *catalog = next;
-        namespaces.insert(namespace.to_owned());
-        Ok(())
+        self.merge_namespace(namespace, &overlay)
     }
 
     /// 根据 `Accept-Language` 请求头选择最匹配的受支持 locale。
@@ -634,10 +681,17 @@ impl Translator {
             .unwrap_or_else(|| self.config.default_locale.clone())
     }
 
-    /// 使用所选 locale 和已配置的回退规则解析 key，然后替换 `{name}` 参数。
+    /// 为当前服务句柄显式选择查找增强；不改变共享目录、来源或默认语言。
+    #[must_use]
+    pub fn with_lookup(mut self, lookup: TranslationLookup) -> Self {
+        self.lookup = lookup;
+        self
+    }
+
+    /// 按传入locale与所选lookup策略解析key，再替换`{name}`参数；HTTP协商在请求入口完成。
     pub fn translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> String {
         self.try_translate(locale, key, args)
-            .unwrap_or_else(|| key.to_owned())
+            .unwrap_or_else(|| interpolate(key, args))
     }
 
     fn try_translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> Option<String> {
@@ -645,10 +699,34 @@ impl Translator {
             .catalog
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let locale = self.select_from_catalog(&catalog, Some(locale.as_str()));
-        let message = catalog
-            .message(&locale, key)
-            .or_else(|| catalog.message(&self.config.fallback_locale, key));
+        // 显式translator调用保留原请求locale；HTTP入口已负责Accept-Language协商。
+        let selected;
+        let locale = match self.lookup {
+            TranslationLookup::Laravel => locale,
+            TranslationLookup::Catalog => {
+                selected = self.select_from_catalog(&catalog, Some(locale.as_str()));
+                &selected
+            }
+        };
+        let message = match self.lookup {
+            TranslationLookup::Catalog => catalog
+                .message(locale, key)
+                .or_else(|| catalog.message(&self.config.fallback_locale, key)),
+            TranslationLookup::Laravel => {
+                if let Some((message_locale, global)) = catalog.messages.get_key_value(locale)
+                    && let Some(message) = global.get(key)
+                {
+                    if matches!(message,CatalogMessage::Text(text) if text.is_empty() || text=="0")
+                    {
+                        return Some(interpolate(key, args));
+                    }
+                    return Some(format_catalog_message(message_locale, message, key, args));
+                }
+                catalog
+                    .group_message_at(locale, key)
+                    .or_else(|| catalog.group_message_at(&self.config.fallback_locale, key))
+            }
+        };
         message.map(|(message_locale, message)| {
             format_catalog_message(message_locale, message, key, args)
         })
@@ -845,17 +923,50 @@ fn format_error(locale: &Locale, error: impl std::fmt::Display) -> TranslationFo
     }
 }
 
-/// 注册配置驱动的国际化服务；应用可提供自定义消息目录。
-///
+type LoaderFactory = Arc<
+    dyn Fn(
+            crate::container::Resolver,
+        ) -> crate::support::BoxFuture<'static, Result<Arc<dyn TranslationLoader>>>
+        + Send
+        + Sync,
+>;
+
+/// 注册配置驱动的国际化服务；应用可选择静态目录或显式异步Loader工厂。
 #[derive(Default)]
 pub struct TranslationServiceProvider {
     catalog: MessageCatalog,
+    loader_factory: Option<LoaderFactory>,
 }
 
 impl TranslationServiceProvider {
     /// 使用应用的消息目录；语言配置始终从当前配置仓储读取。
     pub fn new(catalog: MessageCatalog) -> Self {
-        Self { catalog }
+        Self {
+            catalog,
+            loader_factory: None,
+        }
+    }
+
+    /// 显式选择异步Loader工厂；配置和来源在同一I18n单例首次构造时读取。
+    ///
+    /// 工厂及初始快照失败直接沿启动返回，不静默切换来源，不登记全局Loader或后台任务。
+    /// Provider类型身份与new/default相同，可用于`DefaultProviders::replace`。
+    /// 单例通常在本Provider的boot首次解析；此后其他boot对配置的覆盖不追溯重建已有单例，
+    /// 工厂读取的是首次构造时的视图，不承诺所有Provider启动完成后的最终视图。
+    pub fn from_loader_factory<F>(factory: F) -> Self
+    where
+        F: Fn(
+                crate::container::Resolver,
+            )
+                -> crate::support::BoxFuture<'static, Result<Arc<dyn TranslationLoader>>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self {
+            catalog: MessageCatalog::default(),
+            loader_factory: Some(Arc::new(factory)),
+        }
     }
 }
 
@@ -876,11 +987,19 @@ impl crate::support::ServiceProvider for TranslationServiceProvider {
                 |_| Ok(()),
             )?;
             let catalog = self.catalog.clone();
+            let loader_factory = self.loader_factory.clone();
             app.singleton::<Translator, _>(move |resolver| {
                 let catalog = catalog.clone();
+                let loader_factory = loader_factory.clone();
                 Box::pin(async move {
                     let config = resolver.section::<TranslationConfig>("i18n")?;
-                    Ok(Arc::new(Translator::new(config, catalog)?))
+                    let service = match loader_factory {
+                        Some(factory) => {
+                            Translator::from_loader(config, factory(resolver).await?).await?
+                        }
+                        None => Translator::new(config, catalog)?,
+                    };
+                    Ok(Arc::new(service))
                 })
             })
             .await?;
@@ -906,8 +1025,7 @@ mod provider_tests {
     use super::*;
     use crate::foundation::BootContext;
     use crate::foundation::ProviderBuilder;
-    use crate::support::BoxFuture;
-    use crate::support::ServiceProvider;
+    use crate::support::{BoxFuture, ServiceProvider};
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
 
@@ -1050,18 +1168,28 @@ tokio::task_local! {
     static I18N_CONTEXT: I18nContext;
 }
 
+#[cfg(test)]
 pub(crate) async fn with_request_locale<F: Future>(
     i18n: Translator,
     accept_language: Option<&str>,
     future: F,
 ) -> F::Output {
+    // 异步边界有界核对来源；失败状态已记录，继续使用上次已验证目录。
+    let _ = i18n.refresh_if_due().await;
     let locale = i18n.locale_for_request(accept_language);
     i18n.with_locale(locale, future).await
 }
 
+// 统一validation入口属于项目Catalog协议增强；公开I18n::translate默认仍是Laravel规则。
 pub(crate) fn translate_current(key: &str, args: &MessageArgs) -> Option<String> {
     I18N_CONTEXT
-        .try_with(|context| context.i18n.translate(&context.locale, key, args))
+        .try_with(|context| {
+            context
+                .i18n
+                .clone()
+                .with_lookup(TranslationLookup::Catalog)
+                .translate(&context.locale, key, args)
+        })
         .ok()
 }
 
@@ -1081,11 +1209,23 @@ pub(crate) fn translate_for_rendering(
     key: &str,
     args: &MessageArgs,
 ) -> Option<String> {
-    match I18N_CONTEXT.try_with(|context| context.i18n.try_translate(&context.locale, key, args)) {
+    // ADR统一错误协议显式保留平面Catalog的语言级/最终回退与合法空串；不改公开translator默认。
+    match I18N_CONTEXT.try_with(|context| {
+        context
+            .i18n
+            .clone()
+            .with_lookup(TranslationLookup::Catalog)
+            .try_translate(&context.locale, key, args)
+    }) {
         Ok(message) => message,
         Err(_) => service.map_or_else(
             || bootstrap_translation(key, args),
-            |service| service.try_translate(&service.select(None), key, args),
+            |service| {
+                service
+                    .clone()
+                    .with_lookup(TranslationLookup::Catalog)
+                    .try_translate(&service.select(None), key, args)
+            },
         ),
     }
 }
@@ -1256,7 +1396,8 @@ mod tests {
         let mut catalog = MessageCatalog::new();
         catalog.merge_json("zh-CN", r#"{"hello":"你好，{name}","override":"应用覆盖"}"#)?;
         catalog.insert("en", "fallback.only", "fallback")?;
-        let service = Translator::new(TranslationConfig::default(), catalog)?;
+        let service = Translator::new(TranslationConfig::default(), catalog)?
+            .with_lookup(TranslationLookup::Catalog);
         let locale = Locale::new("zh")?;
         let args = BTreeMap::from([("name".to_owned(), "小明".to_owned())]);
         assert_eq!(service.translate(&locale, "hello", &args), "你好，小明");
@@ -1267,6 +1408,10 @@ mod tests {
         assert_eq!(
             service.translate(&locale, "missing.key", &BTreeMap::new()),
             "missing.key"
+        );
+        assert_eq!(
+            service.translate(&locale, "fallback.only", &args),
+            "fallback"
         );
         assert_eq!(interpolate("{missing} {name}", &args), "{missing} 小明");
         Ok(())
@@ -1327,8 +1472,21 @@ mod tests {
                 "one": "{count} plik", "few": "{count} pliki", "many": "{count} plików", "other": "{count} pliku"
             }}}}"#,
         )?;
-        let service = Translator::new(TranslationConfig::default(), catalog)?;
+        let default_service = Translator::new(TranslationConfig::default(), catalog)?;
         let args = |count: &str| BTreeMap::from([("count".to_owned(), count.to_owned())]);
+        // 官方JSON查找仅请求locale；ICU格式化与跨locale Catalog增强是两层独立能力。
+        assert_eq!(
+            default_service.translate(&Locale::new("en")?, "items", &args("1")),
+            "1 item"
+        );
+        assert_eq!(
+            default_service.translate(&Locale::new("zh-CN")?, "items", &args("1")),
+            "items"
+        );
+        // 复用同一目录显式选择既有增强，保留全部plural/select断言。
+        let service = default_service
+            .clone()
+            .with_lookup(TranslationLookup::Catalog);
         assert_eq!(
             service.translate(&Locale::new("en")?, "items", &args("1")),
             "1 item"
@@ -1492,3 +1650,9 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod rendering_source_tests;
+
+#[cfg(test)]
+mod loader_provider_tests;

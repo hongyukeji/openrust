@@ -150,4 +150,8 @@ SQLite新应用自动迁移前的部署密钥复用CLI既有getrandom生成32字
 
 AR-P01测试资源scope：框架测试复用同一SQLx0.9.0的sqlite类型feature，仅供不连接数据库的options断言；OpenRust的db-sqlite运行feature仍只在发布多库scope开启。纯FS测试在Unix复用rustix=1.1.5（fs/std/process）、Windows复用winapi-util=0.1.11测试依赖；不新增版本或生产默认后端。原PG NUMERIC wire与Session期限算法拆为生产/纯测试共享叶，不复制算法。
 
-AR-M01新增本地workspace包`openrust-modules`，从框架迁移模块/config/activator/命令实现，复用既有serde、serde_json、glob、tokio、toml及开发figment/tempfile依赖，无新增registry依赖版本。框架不依赖该扩展，根应用默认集成；当前仅编码待验，manifest/lock最终以独立冻结验收为准。
+AR-M01新增本地workspace包`openrust-modules`，从框架迁移模块/config/activator/命令实现，复用既有serde、serde_json、glob、tokio、toml及开发figment/tempfile依赖，无新增registry依赖版本。框架不依赖该扩展，根应用默认集成；AR-M01已由6c21bab0限定验收提交，完整模块契约仍沿唯一todo推进。
+
+I18N-S01在途依赖：新增本地workspace扩展openrust-translation-database，应用仅显式translation-database feature启用，三个既有DB feature只弱转发后端；扩展default=[]，依赖既有framework、serde/serde_json、sha2、tokio，开发测试复用figment，无新registry版本。无feature限定的安全FileLoader在Unix需既有rustix1.1.5的安全open API，因此framework将该target依赖由optional改为常规，移除旧dep:rustix feature边，既有fs/std/process集合不变；不新增业务池、驱动默认或第二Translator。官方锁解析仅新增本地扩展包与根边、registry记录未变，Root已核准；运行输入已冻结，编译、生成和实库待集中验收。
+
+Source的Unix特殊文件测试以系统POSIX `mkfifo -m 600`构造临时FIFO；工具启动或退出失败明确报错，不跳过安全断言。仅测试夹具调用该命令，生产FileLoader仍使用已固定rustix安全文件接口，无新Rust依赖、unsafe或运行期命令。

@@ -2177,6 +2177,7 @@ dependencies = [
  "macros",
  "pcre2",
  "redis",
+ "rustix",
  "sea-orm",
  "sea-orm-migration",
  "serde",

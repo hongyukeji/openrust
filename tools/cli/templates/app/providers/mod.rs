@@ -2,3 +2,5 @@
 
 pub mod app;
 pub use app::AppServiceProvider;
+
+pub(crate) mod translation_sources;

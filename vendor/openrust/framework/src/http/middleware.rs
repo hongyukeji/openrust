@@ -25,7 +25,6 @@ use crate::core::with_response_context;
 use crate::foundation::ExceptionHandler;
 use crate::foundation::ExceptionRequest;
 use crate::translation::Translator;
-use crate::translation::with_request_locale;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::FromRequestParts;
@@ -281,6 +280,30 @@ async fn response_context(
         .get(axum::http::header::ACCEPT_LANGUAGE)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
+    let cancellation = server_readiness
+        .as_ref()
+        .map_or_else(Cancellation::new, |readiness| {
+            readiness.request_cancellation()
+        });
+    let cancel_on_drop = CancelOnDrop::new(cancellation.clone());
+    let deadline = tokio::time::Instant::now() + settings.request_timeout;
+    let request_permit = settings.request_slots.clone().try_acquire_owned();
+    // 仅获准请求捕获Source，且刷新与后续handler共享绝对期限和取消信号。
+    let refresh_response = if request_permit.is_ok() {
+        if let Some(i18n) = &locale_service {
+            tokio::select! {
+                biased;
+                () = cancellation.cancelled() => Some(true),
+                () = tokio::time::sleep_until(deadline) => Some(false),
+                _ = i18n.refresh_if_due() => None,
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    // 刷新后只按原始头协商一次；metadata与task-local共享同一Locale。
     let locale = locale_service
         .as_ref()
         .map(|i18n| i18n.locale_for_request(accept_language.as_deref()));
@@ -299,18 +322,8 @@ async fn response_context(
     if let Some(locale) = &locale {
         metadata = metadata.with_locale(locale.clone());
     }
-    let cancellation = server_readiness
-        .as_ref()
-        .map_or_else(Cancellation::new, |readiness| {
-            readiness.request_cancellation()
-        });
-    let cancel_on_drop = CancelOnDrop::new(cancellation.clone());
-    let execution = ExecutionContext::new(
-        metadata,
-        Some(tokio::time::Instant::now() + settings.request_timeout),
-        cancellation.clone(),
-    );
-    let request_permit = settings.request_slots.clone().try_acquire_owned();
+    let execution = ExecutionContext::new(metadata, Some(deadline), cancellation.clone());
+
     #[cfg(feature = "metrics")]
     if request_permit.is_err() {
         metrics::counter!("openrust_http_overloaded_total").increment(1);
@@ -326,10 +339,15 @@ async fn response_context(
             async move {
                 let _cancel_on_drop = cancel_on_drop;
                 let request_permit = request_permit.ok();
-                let response = if request_permit.is_some() {
+                let response = if let Some(cancelled) = refresh_response {
+                    if cancelled {
+                        Error::custom_with_status(StatusCode::SERVICE_UNAVAILABLE, "server_draining", "server is shutting down").into_response()
+                    } else { StatusCode::REQUEST_TIMEOUT.into_response() }
+                } else if request_permit.is_some() {
                     tokio::select! {
                         biased;
                         response = next.run(request) => response,
+                        () = tokio::time::sleep_until(deadline) => StatusCode::REQUEST_TIMEOUT.into_response(),
                         () = cancellation.cancelled() => Error::custom_with_status(
                             StatusCode::SERVICE_UNAVAILABLE,
                             "server_draining",
@@ -358,7 +376,7 @@ async fn response_context(
         );
         match (locale_service, locale) {
             (Some(i18n), Some(locale)) => {
-                with_request_locale(i18n.as_ref().clone(), Some(locale.as_str()), response).await
+                i18n.with_locale(locale, response).await
             }
             _ => response.await,
         }
@@ -871,3 +889,7 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "middleware_source_tests.rs"]
+mod source_tests;

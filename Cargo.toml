@@ -18,7 +18,7 @@ autotests = false
 
 [workspace]
 resolver = "3"
-members = ["vendor/openrust/framework", "vendor/openrust/modules", "tools/cli", "tools/macros", "tools/testing", "tools/performance"]
+members = ["vendor/openrust/framework", "vendor/openrust/modules", "vendor/openrust/translation-database", "tools/cli", "tools/macros", "tools/testing", "tools/performance"]
 # 第三方 vendored crate 只作依赖，不作为第一方 workspace 包调度。
 exclude = ["vendor/seaql/sea-orm-migration", "vendor/launchbadge/sqlx-mysql", "vendor/seaql/sea-orm"]
 default-members = ["."]
@@ -37,6 +37,7 @@ keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 [workspace.dependencies]
 openrust = { package = "openrust-framework", path = "vendor/openrust/framework", version = "0.0.0", default-features = false }
 openrust-modules = { path = "vendor/openrust/modules", version = "0.0.0" }
+openrust-translation-database = { path = "vendor/openrust/translation-database", version = "0.0.0", default-features = false }
 cli = { path = "tools/cli", version = "0.0.0" }
 macros = { path = "tools/macros", version = "0.0.0" }
 testing = { path = "tools/testing", version = "0.0.0" }
@@ -153,6 +154,7 @@ must_use_candidate = "allow"
 [dependencies]
 openrust = { workspace = true }
 openrust-modules.workspace = true
+openrust-translation-database = { workspace = true, optional = true }
 rusqlite = { workspace = true, optional = true }
 pcre2.workspace = true
 aes-gcm-siv = { workspace = true, optional = true }
@@ -266,10 +268,11 @@ reqwest.workspace = true
 tempfile.workspace = true
 rcgen.workspace = true
 [features]
+translation-database = ["dep:openrust-translation-database"]
 default = ["db-mysql", "cache-redis", "queue-redis"]
-db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:rustix", "dep:shutdown_hooks", "openrust/db-postgres"]
-db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:rustix", "dep:shutdown_hooks", "openrust/db-mysql"]
-db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util", "dep:shutdown_hooks", "openrust/db-sqlite"]
+db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:rustix", "dep:shutdown_hooks", "openrust/db-postgres", "openrust-translation-database?/db-postgres"]
+db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:rustix", "dep:shutdown_hooks", "openrust/db-mysql", "openrust-translation-database?/db-mysql"]
+db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:rustix", "dep:winapi-util", "dep:shutdown_hooks", "openrust/db-sqlite", "openrust-translation-database?/db-sqlite"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid", "openrust/db-uuid"]
 session = ["dep:time", "dep:base64", "openrust/session"]
 auth = ["hashing", "session", "dep:base64", "dep:jsonwebtoken", "dep:time", "signing", "openrust/auth"]

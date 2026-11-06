@@ -1953,6 +1953,7 @@ mod opendal_driver {
             content_type,
             ..Default::default()
         };
+        let local = operator.info().scheme() == services::FS_SCHEME;
         let mut writer = operator
             .writer_options(&path, options)
             .await
@@ -1970,7 +1971,9 @@ mod opendal_driver {
                 Some(Ok(chunk)) => {
                     let result = tokio::select! {
                         biased;
-                        () = cancellation.cancelled() => {
+                        // Fs 首写异步创建随机临时文件，须等 writer 接管路径后再 abort。
+                        // 本地每块结束后，在读取下一块前优先处理取消。
+                        () = cancellation.cancelled(), if !local => {
                             let _ = writer.abort().await;
                             return Err(Error::custom("storage_upload_cancelled", "upload was cancelled before publication"));
                         }
@@ -1995,6 +1998,126 @@ mod opendal_driver {
                 Err(map_opendal_error(error))
             }
         }
+    }
+
+    #[cfg(all(test, unix))]
+    async fn advance_one_local_io(
+        worker: std::pin::Pin<&mut impl std::future::Future>,
+    ) -> Result<()> {
+        // 唯一 blocking 线程在本次 poll 期间暂停，文件打开不可能在同一 poll 内返回。
+        let (entered, held) = tokio::sync::oneshot::channel();
+        let (release, resume) = tokio::sync::oneshot::channel::<()>();
+        let holder = tokio::task::spawn_blocking(move || {
+            let _ = entered.send(());
+            let _ = resume.blocking_recv();
+        });
+        held.await.map_err(Error::internal)?;
+        assert!(futures_util::poll!(worker).is_pending());
+        drop(release);
+        holder.await.map_err(Error::internal)?;
+        // 已排队的 fs 操作先完成；尚未再次 poll worker，open 结果仍未交给 writer。
+        tokio::task::spawn_blocking(|| {})
+            .await
+            .map_err(Error::internal)
+    }
+
+    #[cfg(all(test, unix))]
+    #[test]
+    fn cancelling_first_local_write_removes_the_file_created_by_that_write() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .map_err(Error::internal)?;
+        runtime.block_on(async {
+            let root = tempfile::tempdir().map_err(Error::internal)?;
+            let staging = root.path().join(".staging/run");
+            std::fs::create_dir_all(&staging).map_err(Error::internal)?;
+            let operator = Operator::new(
+                services::Fs::default()
+                    .root(&root.path().to_string_lossy())
+                    .atomic_write_dir(&staging.to_string_lossy()),
+            )
+            .map_err(map_opendal_error)?;
+            let (sender, receiver) = tokio::sync::oneshot::channel();
+            let publication = Arc::new(AtomicU8::new(UPLOAD_PENDING));
+            let guard = UploadCancellationGuard {
+                sender: Some(sender),
+                publication: Arc::clone(&publication),
+            };
+            let (next_chunk, mut polled_again) = tokio::sync::oneshot::channel();
+            let body = futures_util::stream::iter([Ok(bytes::Bytes::from_static(b"data"))]).chain(
+                futures_util::stream::once(async move {
+                    let _ = next_chunk.send(());
+                    std::future::pending::<Result<bytes::Bytes>>().await
+                }),
+            );
+            let worker = write_local_object(
+                operator,
+                root.path().to_owned(),
+                staging.clone(),
+                "target".to_owned(),
+                None,
+                None,
+                Box::pin(body),
+                UploadCancellation {
+                    receiver,
+                    publication: Arc::clone(&publication),
+                },
+            );
+            tokio::pin!(worker);
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+            let staged = tokio::time::timeout_at(deadline, async {
+                loop {
+                    advance_one_local_io(worker.as_mut()).await?;
+                    let mut entries = std::fs::read_dir(&staging).map_err(Error::internal)?;
+                    if let Some(entry) = entries.next().transpose().map_err(Error::internal)? {
+                        assert!(entry.file_type().map_err(Error::internal)?.is_file());
+                        assert!(
+                            entries
+                                .next()
+                                .transpose()
+                                .map_err(Error::internal)?
+                                .is_none()
+                        );
+                        return Ok::<_, Error>(entry.path());
+                    }
+                }
+            })
+            .await
+            .map_err(Error::internal)??;
+            assert!(matches!(
+                polled_again.try_recv(),
+                Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+            ));
+            drop(guard);
+            assert_eq!(publication.load(Ordering::Acquire), super::UPLOAD_CANCELLED);
+            let error = tokio::time::timeout_at(deadline, worker)
+                .await
+                .map_err(Error::internal)?
+                .err()
+                .ok_or_else(|| {
+                    Error::custom("storage_test_cancel_expected", "上传应在发布前取消")
+                })?;
+            assert_eq!(error.code(), "storage_upload_cancelled");
+            assert!(!staged.try_exists().map_err(Error::internal)?);
+            assert!(
+                std::fs::read_dir(&staging)
+                    .map_err(Error::internal)?
+                    .next()
+                    .transpose()
+                    .map_err(Error::internal)?
+                    .is_none()
+            );
+            assert!(
+                !root
+                    .path()
+                    .join("target")
+                    .try_exists()
+                    .map_err(Error::internal)?
+            );
+            Ok(())
+        })
     }
 
     #[cfg(feature = "storage-s3")]
@@ -3540,11 +3663,33 @@ mod tests {
         assert!(rejected_inspection.is_err());
         assert!(disk.stat(&rejected_inspection_path).await.is_err());
 
+        let staging_base = root.join("objects/.staging");
+        let staging_objects = || -> crate::Result<usize> {
+            let mut objects = 0;
+            for run_directory in std::fs::read_dir(&staging_base).map_err(crate::Error::internal)? {
+                let run_directory = run_directory.map_err(crate::Error::internal)?;
+                if run_directory.file_name() == std::ffi::OsStr::new(".storage-owner") {
+                    continue;
+                }
+                for object in
+                    std::fs::read_dir(run_directory.path()).map_err(crate::Error::internal)?
+                {
+                    let _ = object.map_err(crate::Error::internal)?;
+                    objects += 1;
+                }
+            }
+            Ok(objects)
+        };
+        assert_eq!(staging_objects()?, 0);
         let cancelled_path = StoragePath::new("files/cancelled.bin")?;
-        let slow_stream = stream::unfold(0, |index| async move {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            Some((Ok(bytes::Bytes::from_static(b"data")), index + 1))
-        });
+        let (started, upload_started) = tokio::sync::oneshot::channel();
+        let slow_stream = stream::once(async { Ok(bytes::Bytes::from_static(b"data")) }).chain(
+            stream::once(async move {
+                // 第二次拉取说明 writer 已接收首块，但尚未遇到 EOF 或发布目标。
+                let _ = started.send(());
+                std::future::pending::<crate::Result<bytes::Bytes>>().await
+            }),
+        );
         let upload = tokio::spawn({
             let disk = disk.clone();
             let cancelled_path = cancelled_path.clone();
@@ -3559,12 +3704,38 @@ mod tests {
                 .await
             }
         });
-        tokio::time::sleep(Duration::from_millis(25)).await;
+        tokio::time::timeout(Duration::from_secs(5), upload_started)
+            .await
+            .map_err(crate::Error::internal)?
+            .map_err(crate::Error::internal)?;
+        assert_eq!(staging_objects()?, 1);
         upload.abort();
-        let _ = upload.await;
-        tokio::time::sleep(Duration::from_millis(25)).await;
-        assert!(disk.stat(&cancelled_path).await.is_err());
-        let staging_base = root.join("objects/.staging");
+        let cancelled = upload.await.err().ok_or_else(|| {
+            crate::Error::custom("storage_test_upload_not_cancelled", "测试上传意外提前结束")
+        })?;
+        assert!(cancelled.is_cancelled());
+        assert!(
+            matches!(disk.stat(&cancelled_path).await, Err(error) if error.code() == "storage_object_not_found")
+        );
+        // abort 结束调用方，不等待独立上传 worker；检查异步清理的有界最终状态。
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if staging_objects()? == 0 {
+                    return Ok::<(), crate::Error>(());
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .map_err(|_| {
+            crate::Error::custom(
+                "storage_test_staging_cleanup_timeout",
+                "取消上传的 staging 对象未在期限内清理",
+            )
+        })??;
+        assert!(
+            matches!(disk.stat(&cancelled_path).await, Err(error) if error.code() == "storage_object_not_found")
+        );
         for run_directory in std::fs::read_dir(&staging_base).map_err(crate::Error::internal)? {
             let run_directory = run_directory.map_err(crate::Error::internal)?;
             if run_directory.file_name() == std::ffi::OsStr::new(".storage-owner") {

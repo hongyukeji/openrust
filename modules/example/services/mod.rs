@@ -26,3 +26,6 @@ pub(crate) mod welcome;
 pub(crate) use message::{ExampleConfig, ExampleMessage};
 #[cfg(feature = "session")]
 pub(crate) mod draft_errors;
+
+#[cfg(feature = "translation-database")]
+pub(crate) mod translation_source;
