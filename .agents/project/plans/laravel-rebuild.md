@@ -239,7 +239,7 @@ R2 默认配置目标为可编辑 `config/*.rs` 与部署 `.env`：dotenv 加载
 
 状态：用户授权方向，仅规划；属阶段一Laravel包机制，R2先定公开声明/覆盖/错误契约，R13依赖现R2-M/N实现生成与包开发工具，不抢占在途HTTP。本项对应L044.02与模块M016，不新增平行计划/发现系统。
 
-1. 当前[`bootstrap/app.rs`](../../../bootstrap/app.rs)显式把example descriptor加入ModuleManifest；[`module.rs`](../../../src/core/module.rs)只选已编译描述、校验激活/依赖并稳定拓扑排序，[`ProviderBuilder`](../../../src/core/provider.rs)合并并走register→boot。FileModuleActivator读取启用状态不等于包发现；现生成模板仍产显式清单，尚无任意依赖Provider自动发现能力。
+1. 当前[`bootstrap/app.rs`](../../../bootstrap/app.rs)显式把example descriptor加入ModuleManifest；[`module.rs`](../../../vendor/openrust/modules/src/module.rs)只选已编译描述、校验激活/依赖并稳定拓扑排序，[`ProviderBuilder`](../../../vendor/openrust/framework/src/foundation/provider.rs)合并并走register→boot。FileModuleActivator读取启用状态不等于包发现；现生成模板仍产显式清单，尚无任意依赖Provider自动发现能力。
 2. 目标链路：扩展公开声明Provider入口 → 宿主实际启用的直接依赖/本地模块，按当前target cfg/feature与构建目标过滤 → 确定性生成可编译Rust注册清单 → 复用现ModuleManifest/拓扑排序与唯一register→boot流水线。传递依赖不能凭锁图自动提升为宿主可引用入口，dev/build依赖与host/target必须区分；不运行目标二进制来发现类型。
 3. 提供Laravel dont-discover式单包/全局opt-out、显式接入/覆盖和来源诊断；身份/别名、覆盖优先级、未声明/缺失/重复/循环错误的格式先Spec。只允许明确覆盖，不以不确定顺序取最后一个；复用现冲突与依赖校验，构建或bootstrap错误fail-fast，不悄悄忽略。安装声明良好扩展→统一工具/构建生成→正常启动，少样板；不兼容包给可诊断显式清单路径，不承诺任意包全自动反射。
 4. Cargo.lock存在、已下载、workspace成员存在不代表当前feature/target启用或链接。Cargo metadata能描述依赖/rename/features/target条件，不能反射Rust类型或单凭整workspace联合图保证候选正确。声明如何暴露合法可引用的公开入口、符号引用/链接保留、确定顺序和增量重建均须可证；inventory类方案也不能省略这些问题。具体宏/生成工具/build-script组合在实施Spec择可靠最小方案，不承诺某build.rs可随意扫描cargo registry并发现所有包。

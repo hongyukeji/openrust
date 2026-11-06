@@ -68,7 +68,7 @@ R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原fa
 
 ## D4 Cookie driver（限定子范围已验收）
 
-- 固定`CookieSessionHandler`、`SessionManager`、`StartSession`及官方Cookie driver集成测试已审计；四份源码哈希与限定PHP表达式探针的边界见[来源记录](../../../tests/http/fixtures/laravel-session/provenance.json)。该来源核对不等于完整PHP oracle；本簇Rust实际证据另列。
+- 固定`CookieSessionHandler`、`SessionManager`、`StartSession`及官方Cookie driver集成测试已审计；四份源码哈希与限定PHP表达式探针的边界见[来源记录](../../../vendor/openrust/framework/tests/http/fixtures/laravel-session/provenance.json)。该来源核对不等于完整PHP oracle；本簇Rust实际证据另列。
 - 契约采用双Cookie、请求绑定、统一Cookie保护和秒级包含截止；公开`ServerSide`/`ClientSideSnapshot`区分后端条件写入与客户端快照。PHP异常弱类型比较的严格差异、浏览器实际容量和不可全局撤销边界见历史决策 082。
 - D4内置Cookie driver限定子范围已验收：final3完整12门禁通过（默认668/全特性1367 passed，29/102 ignored不算实服务），根真实双库加密各62/无加密安全负例各1、新生成plain5/双库认证各2、真实TLS代理链与仓内Chromium HTTP脚本4项及不同模型审查通过；root target清零、五旧consumer不变。本簇不关闭PHP异常弱类型、全局撤销或完整Session/Web能力，详细证据见testing。请求内保存后读取解析同请求队列的完整数据，以载荷摘要防止写后外部覆盖，不能以元数据合成空属性记录。
 

@@ -70,7 +70,7 @@ MFA 是多因素认证总称，2FA 是双因素形式，TOTP 是验证码技术�
 
 `Policy::authorize` 判断操作权限；`QueryRule<E>` / `QueryScope` 定义资源行范围，用户筛选始终与范围相交。受保护列表、详情、分页、批量写入和关联读取不会向外暴露底层SeaORM builder。页大小上限500，偏移溢出拒绝；关联先核父记录再核子规则，软删除条件由应用显式组合。
 
-普通SeaORM、原生SQL和自定义driver不会自动套范围。租户通过可信resolver和 `QueryRule::for_tenant` 绑定；未经验证的header/query不是租户身份。长任务使用 `AuthorizedSelect::into_batches` 保留范围，详见[查询consumer](../../../../../tests/consumers/query-authorization/README.md)、[租户](../tenant/README.md)与[数据库分批读取](../db/README.md#稳定键有界分批读取)。
+普通SeaORM、原生SQL和自定义driver不会自动套范围。租户通过可信resolver和 `QueryRule::for_tenant` 绑定；未经验证的header/query不是租户身份。长任务使用 `AuthorizedSelect::into_batches` 保留范围，详见[查询consumer](../../../../../tests/consumers/query-authorization/README.md)、[租户](../tenant/README.md)与[数据库分批读取](../database/README.md#稳定键有界分批读取)。
 
 ## SQLite 本地认证边界
 
