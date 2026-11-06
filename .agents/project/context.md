@@ -8,9 +8,9 @@ Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memo
 
 最新真人决定：框架、根默认应用与未显式选择JWT的生成路径，以对应固定Laravel官方默认、生命周期和公开机制为准；Fortify原生Web/Session是其对应模式默认，不将所有场景一律Session或一律JWT。API+Bearer JWT是本批完整必交的显式选配，开发者选择后全程无Session/Cookie/CSRF-cookie/remember/隐藏Session/Set-Cookie或Cookie身份兜底。两种传输共用唯一UserProvider/Guard/Fortify三字段/Actions；旧auth-mfa兼容仍删除。此决定覆盖此前JWT为根默认、一律禁中心Cookie等中间口径，不改写历史验收。
 
-🔵 Fortify 单体系替换进行中：真人明确旧代码/数据均不兼容，旧双轨候选撤销但证据保留；移除auth-mfa、旧状态机/表/生成与legacy兼容，通用安全通过官方扩展融合。原Goal/main/预算不变，尚未提交；唯一下一步及有限退出以todo为准。
+Fortify单体系替换及官方Web默认/显式JWT组合已由 `54f4a087` 限定验收提交，旧独立MFA及其数据接管兼容已删除；生产调用方、五类实际生成、受影响consumer、真实父凭据末检与Keycloak/Redis故障恢复证据见[组合验收](memory/testing.md#fortify-官方默认与显式-jwt-组合验收)。完整Fortify、Google真实客户端、UUID/字符串JWT持久链及Passport/OIDC Provider仍开放；其他旧兼容按唯一todo独立整改。
 
-本批必交：所选前后端分离应用及显式生成profile的JWT access/refresh、唯一Fortify因子挑战与无Session/Cookie管理流程；显式扩展不表示可省略或任意后置。框架官方Web模式仍保留独立对应。
+当前已交付的显式JWT API提供access/refresh、唯一Fortify挑战及无Session/Cookie管理；框架与未显式选配生成仍默认官方Web机制。后继仅按唯一todo与实际依赖领取，不因profile已交付关闭全部认证生态。
 
 ✅ S3b SQLite本地认证/MFA限定验收通过，本地提交以Git为准；源17新调用方门禁、四fresh及独审齐备，源9/12/13按未变路径限定复用。双库22项、最低3.26认证52/限流2/Root5，fresh各3无skip；234生成源码归档，所有任务target已正常clean至0。完整Guard/Fortify/Google真实客户端、SQLite其他后端能力与故障窗口仍开放，见memory/testing.md「SQLite 本地认证与 MFA 限定验收」及唯一todo。原Goal active，新99/19.8与旧27/5.4历史保留、creditsfalse。
 
@@ -34,7 +34,7 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 
 默认production＋log通信启动与安全诊断已完成[限定验收](memory/testing.md#默认生产日志驱动启动与安全诊断限定验收)：原始cargo run三场景、10项主门禁、通信consumer、fresh minimal9/MFA真实MySQL3与实际help通过，113生成源码及失败证据保全，最终target正常清零。完整MailManager与ADR-001未闭合，本地提交以Git为准；随后按唯一todo依次完成模块默认注册/API前缀及首批正式文档，再立即SQLite，CLI后继保留。
 
-2026-11-02 接管校准：当前对话为唯一框架集成总控，旧总控/旧守护保持停止。九份来源及未提交/未追踪代码已归档保全，来源 worktree 与 workspace 已正常退役，当前仅 main；六个已归档任务分支活动别名已安全退役，source/WIP保护引用与完整bundle保留。本批限定源码、生成与真实服务验收已收齐，本地集成提交 `9035a00`，清理后优先配置整改，详见唯一 todo 顶部的接管状态与 `tmp/takeover-20261102/`。另一个已获用户授权的 skill owner 正收口 Codex 原生守护适配，本总控不并改该范围，不把开发中适配当已启用。默认80%政策与旧账本保持；本对话已可通过正式额度工具读取共享账号窗口，数值以当次回执为准；不rebase/fullgrant，不改变默认80%及旧账本。
+当前对话为唯一框架集成总控，旧总控与旧守护保持停止。接管来源、工作区退役及 `9035a00` 组合验收事实保留于Git和既有证据，不重复执行历史接管步骤。总控同框合作式守护已接入；正文修订适配的当前状态以正式回执及唯一todo为准，不把历史启用等同当前恢复成功。原Goal、预算历史及credits=false保留，具体额度覆盖/重建仅按另存的真实授权和正式回执执行。
 
 配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。同内核嵌套Provider注册前置已通过限定验收和资源收尾，本地提交39086cf，见[嵌套注册证据](memory/testing.md#同内核嵌套-provider-注册限定验收)；module.json运行发现与Provider/files编译绑定已通过[限定验收](memory/testing.md#模块运行发现与编译文件限定验收)及资源收尾，本地提交d32162d；B003/B004默认实例缓存、失败内存语义与PHP顶层列表形状已通过[限定验收](memory/testing.md#fileactivator-实例缓存限定验收)并完成资源收尾，本地提交以Git为准；完整Modules/ProviderRepository/aliases、DB能力门控及ADR-001继续开放。DB通用能力/驱动/默认连接选择已完成[限定验收](memory/testing.md#db-通用能力与驱动分层限定验收)、独审与资源收尾，本地提交以Git为准；标准MySQL+Redis依赖与队列开箱已通过主门禁、根真实DB/Redis独立worker、四种fresh、外部SQLite及缓存重启的限定验收；不同模型独审、源码归档及资源收尾完成，本地提交以Git为准，详见[队列开箱证据](memory/testing.md#标准依赖与队列开箱限定验收)。默认连接错误时点与完整deferred Provider仍为R2/R10明确缺口。完整懒连接/默认名切换、五后端与ADR-001仍开放。
 
@@ -53,17 +53,17 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 | 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 openrust 同 package 的框架 lib 与默认 server 已装配；应用职责回根，当前示例位于 modules/example，按编译清单和运行激活状态接入；tools 与 consumers 保留；版本和依赖以 Cargo.toml 为准 |
 | 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp、R2-M模块闭环、R2-N模块依赖顺序与R1-E综合示例各子簇按范围完成；R1-E 提交 bc3fa01。R3-A/B/C/D/E 已提交，R3-E 为 dab80d4；R3-F domain routing 的独立复审、workspace/生成项目/根TCP验收与资源收尾完成，本簇限定提交见 Git。`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿；C04-A RequestInfo/内容协商与staging并发回收修复已通过适用门禁、生成应用、根TCP及不同模型独审；C04-B1统一请求输入与默认规范化已通过定向、最新workspace、根真实TCP、生成项目及双库适用验收；C04-B2类型便捷方法已通过当前workspace/feature/MSRV/docs/deny、真实双库、生成应用与TCP及独立复审；C04-C Cookie读取/队列/加密/响应子簇已通过最终workspace、根双库各48、生成应用与真实TLS及不同模型审查；C04-D1统一Session Store/flash与请求生命周期已通过修后适用门禁、真实双库/Redis/Keycloak/浏览器、生成项目和根TLS，限定提交以Git为准；C04-D2 Store基础公开API已通过修后12项门禁、真实双库HTTP各54、三类生成4/2/2及资源收尾，D2提交3cabae2；D3扩展生命周期已完成最终12项门禁、真实双库各55、三类生成4/2/2与资源收尾，限定提交见Git；D4内置Cookie driver限定子范围已验收：final3完整12门禁通过（默认668/全特性1367 passed，29/102 ignored不算实服务），根真实双库加密各62/无加密安全负例各1、新生成plain5/双库认证各2、真实TLS代理链与仓内Chromium HTTP脚本4项及不同模型审查通过；root target清零、五旧consumer不变。本簇提交47cd7b8，不关闭PHP异常弱类型、全局撤销或完整Session/Web能力，详细证据见testing；D5请求级GC lottery/公开driver回收与追加expiry索引迁移限定子范围已验收：final4完整12门禁通过（默认668/29 ignored、全特性1374/103 ignored），根真实双库各62、Store/GC各2、Redis Store1/Auth10、新生成plain5/双库认证各2、独立审查及资源收尾通过；忽略项不算实服务，不关闭完整Session；D6请求URL限定子范围已验收：12项门禁通过（默认686/29 ignored、全特性1393/103 ignored），根PG18/MySQL8.4各63、fresh普通5/双库认证各2、真实TCP/TLS终止代理10场景及不同模型独立审查通过；两线真实PHP8.5差分逐案通过，不关闭可信Host/Port/Prefix、真实路由匹配、previous或完整Session。完整Store/HTTP/Session、RedirectResponse、文件输入、CSRF/FormRequest/Response后继继续开放；D9仅关闭旧输入限定子范围，见 [todo.md](todo.md) |
 | R2-CC 分支历史 | `7be446d` 的限定分支证据保留；已纳入四簇main限定组合交付，最终五父提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`，主线结果以组合验收记录为准。 |
-| R2-P / S-DV main限定组合 | Provider `4ac8099` 与 Session对象值 `6ffb5c8` 已由三父本地提交 `9e5a94198b421987851b3580b27fa90370feeb77` 合入main。默认/全特性workspace分别943/1748通过、34/108忽略；双严格Clippy/docs、MSRV、no-default、deny、公开consumer、fresh生成、真实MySQL与根TCP六场景按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。旧分支失败和用户授权的单次Clippy重验仍按原证据保留；S-DV与P均已安全退役，P两份root文档事实已迁入main并保全原稿，不关闭完整Provider/Container/Session。 |
+| R2-P / S-DV main限定组合 | Provider `4ac8099` 与 Session对象值 `6ffb5c8` 已由三父本地提交 `9e5a94198b421987851b3580b27fa90370feeb77` 合入main。默认/全特性workspace分别943/1748通过、34/108忽略；双严格Clippy/docs、MSRV、no-default、deny、公开consumer、fresh生成、真实MySQL与根TCP六场景按[最终记录](memory/testing.md#r2-p--s-dv-main-限定组合验收)通过。旧分支失败和用户授权的单次Clippy重验仍按原证据保留；S-DV与P均已安全退役，P两份root文档事实已迁入main并保全原稿，不关闭完整Provider/Container/Session。 |
 | 独立实现 | S-DV来源 `6ffb5c8` 已与R2-P在main限定组合交付，原分支子范围证据仍保留；S-DV工作区/本地分支已安全退役。ST-V来源 `2262df9` 已由两父提交 `8d18021b630ea10652316e025ef6019c7772bbb0` 合入main并通过限定组合门禁；真实S3 ACL、迟到CopyObject和`throw=false`失败值语义仍开放，来源工作区与分支已按退役回执安全清理。见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。 |
 | 当前功能簇 | Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已收齐main限定组合验收；提交以Git为准，来源保全与实际门禁见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一批优先配置可编辑默认值、依赖单一来源及应用职责整改，唯一todo保持完整核心/Modules/官方生态范围。 |
 | R2-T 分支历史 | `b1f4bf7` 的仓储、Collection、模块、consumer、生成与TCP限定证据保留；已纳入四簇main限定组合交付，完整L005.03仍开放。 |
 | 目标授权 | [ADR-001](decisions/adr-001-framework-principles.md)：Laravel固定基线为1:1行为标准，laravel-modules为正式模块化范围，Goravel仅跨语言实现参考；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
-| 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/协调；默认同main物理目录多对话框按不重叠文件并行；main集成及共享manifest/lock/迁移/文档由总控串行协调，target/服务资源预先分配，审查并行只读；高风险改码不同模型或 Provider 审查；不推送 |
+| 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/协调；默认同main物理目录多对话框按不重叠文件并行；main集成及共享manifest/lock/迁移/文档由总控串行协调，target/服务资源预先分配，审查并行只读；高风险改码不同模型或 Provider 审查；已验有限簇由Lead按持续授权安全推送，不发布/tag |
 
-本轮新增配置整改已确认：当前组合验收提交后，先由单一配置/模板owner显式展开全部应用config/*.rs可编辑默认策略，并让缺失APP_URL取同次有效server.port（显式APP_URL优先）。APP_NAME/APP_URL由所属应用配置一次求值，下游缺省audience/issuer复用最终应用值并保留显式独立覆写；ConfigContext最终配置依赖读取尚待实现，不能以常量去重/重复求值替代。公开地址策略覆盖auth.jwt.issuer/security.signed_links.issuer默认，不取请求Host；框架Default回退与固定测试输入分类处理。不扩大在途冻结输入；具体范围与空值/缓存/生成验收在唯一todo首批整改项。
+可编辑 `config/*.rs` 默认值及 `ConfigContext` 最终依赖读取已由 `d952199c` 限定验收交付：dotenv快照后单次求值，缺省APP_URL继承同次有效server.port，显式APP_URL优先；下游缺省issuer/audience复用最终应用值，公开地址不取请求Host。来源顺序、空值、缓存及生成边界见[配置验收](memory/testing.md#配置可编辑默认值与有序依赖限定验收)；完整Config及新增来源仍按唯一todo闭合。
 
-用户已明确MySQL+Redis为标准宿主/生成应用便捷路径，常用能力依赖/Provider/config/env预整合；默认DB队列、Redis队列配置可选，精简opt-out和其他承诺后端仍保留。不自动连接所有driver/启动worker，不静默降级；归当前组合提交后的同一配置/生成整改；源码已收齐，尚未验收/提交。
+MySQL+Redis标准宿主/生成路径与默认database队列已由 `3703939e` 限定验收交付；根及生成应用共用Provider、配置与环境来源，具名连接按实际使用构造，精简opt-out及其他承诺后端仍保留。不自动启动worker或静默降级；默认错误时点、完整deferred与其他剩余边界见[队列开箱验收](memory/testing.md#标准依赖与队列开箱限定验收)。
 
 ## 固定约束
 
@@ -105,7 +105,7 @@ SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础�
 
 - 原V2独立版本计划已取消，需求转为[可选快速开发模块](plans/optional-rapid-development-modules.md#开发与使用边界)，用于快速组合应用，暂不开发。R14完成不自动开工；main继续通用框架与唯一示例，未来模块范围和交付组织由用户明确指定。
 - [AI模型平台](plans/ai-model-platform.md) 仍为独立产品，本次不启动；Laravel 生态中的 AI 开发辅助不自动授权该产品。
-- 发布、推送、tag、修改凭据/系统配置、项目外持久写操作不从重构授权推断。所有阶段仅创建限定范围的本地 commit。
+- 已验收的有限框架簇按真人持续授权，由Lead限定提交并安全推送main、核远端对象；无关WIP按规范隔离保护。不force push、改写已推历史、打tag或发布；修改凭据/系统配置及项目外持久写仍按真实授权边界执行。
 
 当前重构来源与 102 章/749 子节当前纳入范围盘点见 [固定基线](plans/laravel-rebuild-baseline.md)；未将旧证据继承为新 contract 通过。
 

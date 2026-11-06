@@ -15,7 +15,7 @@ cd blog
 cargo run -p cli -- dev
 ```
 
-`openrust new blog --db sqlite` 选择 SQLite，创建 `database/database.sqlite` 及 `.env`，并在全部源码生成后运行默认迁移。启用认证或加密时，安装器先在新建应用自有 `.env` 中为各用途生成独立的32字节系统随机密钥，Unix权限为0600；`.env.example` 保持空占位，密钥不打印。JWT/签名密钥为现有认证增强，非Laravel内置认证默认。已有应用的密钥不被覆盖。迁移失败会返回非零并保留生成文件；数据库及 sidecar 已在生成 `.gitignore` 排除。SQLite 安装使用默认迁移；新认证 profile 的生成 check/test 与完整流程验收尚未闭合。完整 Migrator 和业务 SQL 仍有缺口，不以生成成功表示认证、数据库 Session、队列等生产能力已全面验收。生成迁移只使用 OpenRust re-export 的同一迁移依赖。
+`openrust new blog --db sqlite` 选择 SQLite，创建 `database/database.sqlite` 及 `.env`，并在全部源码生成后运行默认迁移。启用认证或加密时，安装器先在新建应用自有 `.env` 中为各用途生成独立的32字节系统随机密钥，Unix权限为0600；`.env.example` 保持空占位，密钥不打印。JWT/签名密钥为现有认证增强，非Laravel内置认证默认。已有应用的密钥不被覆盖。迁移失败会返回非零并保留生成文件；数据库及 sidecar 已在生成 `.gitignore` 排除。SQLite安装使用默认迁移；当前Web SQLite/MySQL、JWT SQLite及JWT+gRPC MySQL生成组合已完成相应验收，其他组合与后端支持仍按实际范围验证。完整 Migrator 和业务 SQL 仍有缺口，不以生成成功表示认证、数据库 Session、队列等生产能力已全面验收。生成迁移只使用 OpenRust re-export 的同一迁移依赖。
 
 真实 `new` 在文件生成后使用当前工具链的 rustfmt 格式化新应用及其迁移包，显式选择这些包并排除本地框架依赖，再执行适用的安装步骤。需已安装 Cargo 与 rustfmt；格式化失败返回非零并保留生成文件，不自动安装组件或修改全局配置。
 
@@ -37,7 +37,7 @@ cargo run -p cli -- dev
 
 完全无 Session/Cookie 的 API 应用须显式选择 `openrust new blog --profile jwt-api --db sqlite`，不与 `--fortify` 共选。该 profile 用公开 API Provider 替换 Web Provider；`/api/auth/login` 接收 `account` 和 `password`，必要时返回 `two_factor`、`challenge` 与 `expires_at`，再向 `/two-factor-challenge` 提交代码。生成应用的邮箱验证策略由其公开认证回调实现，不成为框架的全账户邮箱要求。资源使用 access Bearer，refresh/注销仅接收 JSON 中的 refresh token。管理先以当前 Bearer 和密码换取短期 `management_token`，后续通过 `X-Fortify-Management` 调用同一 Fortify Actions；该授权不是资源 token。所有认证、挑战与管理均不借 Cookie、隐藏 Session 或 CSRF-cookie。
 
-两种 profile 都提供用户自愿绑定、待确认密钥、TOTP/恢复码和密码复核。恢复码加密可重新读取，成功消费后替换并保持八份；不保留旧独立 MFA profile。路由与安全边界见[认证指南](../../docs/src/security/authentication.md)。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。部署前配置数据库、邮件及对应 JWT/加密密钥并执行迁移；SQLite 安装器已有的自动迁移行为保持。新 profile 的生成/后端验收尚未闭合。
+两种 profile 都提供用户自愿绑定、待确认密钥、TOTP/恢复码和密码复核。恢复码加密可重新读取，成功消费后替换并保持八份；不保留旧独立 MFA profile。路由与安全边界见[认证指南](../../docs/src/security/authentication.md)。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。部署前配置数据库、邮件及对应 JWT/加密密钥并执行迁移；SQLite 安装器已有的自动迁移行为保持。当前Web与显式JWT的已交付组合及剩余边界见认证指南；真实Google客户端与UUID/字符串JWT持久链仍未闭合。
 
 从应用目录运行后续命令；从 workspace 根执行时选择 Cargo metadata 中唯一的默认应用成员。CLI 会选中对应应用 package，并以应用目录作为子进程工作目录，因而读取该应用自己的 `config/`：
 
@@ -55,7 +55,7 @@ cargo run -p cli -- g migration labels slug:string
 
 `dev` 沿用已配置的应用运行环境并运行 `serve`；需要 development 时可在进程环境或应用 `.env` 中设置对应命名空间的 `ENV`，`serve` 同样保留当前环境。`dev` 默认使用 `APP_`；若应用的 `Application::config_namespace()` 返回 `SHOP_`，请运行 `openrust dev --config-namespace SHOP_`。CLI 与应用处于不同进程，无法读取该 Rust 类型常量，因此自定义命名空间须显式传入。`dev` 的 Redis 启动预检目前只对显式 TOML 来源与可由环境确定的配置使用 `ConfigLoader`；CLI 进程不能静态求值应用的 Rust 配置函数，因此代码配置的最终依赖由实际应用启动校验。配置缓存命中时跳过实时 TOML；未命中时按应用根读取 `.env` 与显式文件来源。外部环境优先，CLI 不改写父进程环境；缺省 `config/` 不存在时仍读取环境来源。若有效配置指向 loopback Redis，会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听或就绪等待；仅 `new --db sqlite` 安装阶段自动执行默认迁移。
 
-`config/api.rs` 通过 `API_PREFIX` 配置 API 路由前缀（默认 `/api`）；应用 Provider 从同一 `ApiConfig` 规范化前缀并选择异常响应格式，前缀调整同时作用于路由与异常呈现。
+`config/api.rs` 通过 `API_PREFIX` 配置 API 路由前缀（默认 `api`，实际URL前缀为 `/api`）；应用 Provider 从同一 `ApiConfig` 规范化前缀并选择异常响应格式，前缀调整同时作用于路由与异常呈现。
 
 ## 接入自己的业务模块
 

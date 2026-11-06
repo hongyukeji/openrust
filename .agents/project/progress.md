@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+核心功能验收按[逐项清单](memory/core-functional-acceptance.md)单独统计：2026-11-06已提交基线501e4a25，188项中72项已验收、86项部分完成、30项待开发，等权验收完成率**38.3%**。覆盖71个核心相关章节，扩展另列不计分母；这是固定功能单元清单的验收比例，不是代码量、工时或全部API方法覆盖率。未提交AR-N01不计交付；复算入口为`scripts/summarize_core_acceptance.py`。
+
 模型属性与认证前置MB-A01已由`06b4d50`限定提交并核远端；主线、实库、最低SQLite与三后端生成/适用consumer验证通过，原失败和未闭合边界保留。C07-W01/W02已由ed3f608限定验收提交推送；AR-P01已由4463238完成根应用/框架独立包迁移和日常适用验收，见[根应用与框架独立包限定验收](memory/testing.md#根应用与框架独立包限定验收)；AR-M01已由6c21bab0限定验收提交推送，当前主线接续AR-N01，J01代码/配套静审完成但尚未接线或运行；不报告完整Query/Model/框架已完成。
 
 Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。下一步按唯一todo由主线推进AR-N01，Passport Client/签发/持久接线并行，不重跑已关闭范围或扩张本簇。
@@ -40,18 +42,18 @@ C04-F Request文件家族及MIME续作完成任务分支限定验收：MIME续�
 
 ✅ R03/typed/CC/Signed已完成同一main限定组合；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny及生成/MySQL限定证据见最终receipt；五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；S-DV/ST-V/P及两guard工作区不纳入。见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。
 
-✅ R2-P Provider注册生命周期与S-DV Session对象值已完成同一main限定组合：三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 保留两个来源祖先；默认workspace943通过/34忽略，全特性1748通过/108忽略，双严格Clippy/docs、MSRV、no-default、deny、4个公开consumer测试与3项额外check、普通生成7及公开fixture1、真实MySQL根1和生成认证2、缓存命令/重启、根TCP六场景和清理均按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。分支阶段三次Clippy失败后用户授权的单次重验确已通过，旧失败保留；S-DV与P源分支均已安全退役；P两份root文档事实已迁入main，原稿保全。完整Provider发现/Facade、已服务Router热更新、Container及Session/Web仍开放。
+✅ R2-P Provider注册生命周期与S-DV Session对象值已完成同一main限定组合：三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 保留两个来源祖先；默认workspace943通过/34忽略，全特性1748通过/108忽略，双严格Clippy/docs、MSRV、no-default、deny、4个公开consumer测试与3项额外check、普通生成7及公开fixture1、真实MySQL根1和生成认证2、缓存命令/重启、根TCP六场景和清理均按[最终记录](memory/testing.md#r2-p--s-dv-main-限定组合验收)通过。分支阶段三次Clippy失败后用户授权的单次重验确已通过，旧失败保留；S-DV与P源分支均已安全退役；P两份root文档事实已迁入main，原稿保全。完整Provider发现/Facade、已服务Router热更新、Container及Session/Web仍开放。
 
 ✅ ST-V Storage visibility限定子范围已由来源`2262df9`两父合入main `8d18021b630ea10652316e025ef6019c7772bbb0`：805输入/33原日志SHA核对，默认945通过/34忽略、全特性1756通过/111忽略，双严格Clippy/docs、MSRV、no-default、当前锁deny、公开consumer1、根MySQL精确3、普通生成8/MySQL生成2与认证2、根TCP6及正常退出/端口重绑均有[本簇证据](memory/testing.md#st-v-main-限定组合验收)。🔵完整Storage/Filesystem仍开放；真实S3 ACL、迟到CopyObject和`throw=false`差异未实测或未收敛，ignored不算真实服务。
 
 ✅ R2-CC配置缓存家族已在隔离分支限定提交 `7be446d`：修后默认851/全feature1638（68ignored）、双Clippy/docs、doctest22/24、普通生成8与真实模块/生成应用缓存复启通过；两task temp已回收，混合归属同名包缓存保留待精确核对。分支证据不外推完整Configuration；main组合另见本页当前进度。
 ✅ R2-CC配置缓存限定分支验收：官方命令/fresh配置/命中屏障/原子文件/失败资源边界已实现；修后851/1638（all68ignored）、双Clippy/docs、doctest22/24、生成8与真实缓存复启通过，提交见Git。两任务temp已退役，混合归属同名包缓存保留待精确核对；main组合另见本页当前进度，不关闭完整Configuration。
 
-✅ C04-D10-E scheme/secure与guest/intended已验收并提交6b143ca：定向10/main11、新构建、fresh普通7/MySQL认证2+公开helper1、无Session/MySQL真实TCP4/9场景通过；previous原值与先保存/先消费顺序已修复，唯一模块真实确认回跳不替代认证授权。完整Redirector/L020.02仍开放，见[本簇证据](memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
+✅ C04-D10-E scheme/secure与guest/intended已验收并提交6b143ca：定向10/main11、新构建、fresh普通7/MySQL认证2+公开helper1、无Session/MySQL真实TCP4/9场景通过；previous原值与先保存/先消费顺序已修复，唯一模块真实确认回跳不替代认证授权。完整Redirector/L020.02仍开放，见[本簇证据](memory/testing.md#c04-d10-e-scheme-与-guestintended限定子范围已验收)。
 
 C04-D10-A公共错误包限定子范围已提交 `27c006a`。[证据及限制](memory/testing.md#c04-d10-a-错误包限定子范围已验收)。C04-D10-B请求绑定重定向、Session命名错误包与空库迁移启动修复已通过当前源码门禁、无Session及MySQL8.4真实TCP、普通生成7项/MySQL认证生成2项，已由 `a2befef` 限定提交；纯 Session 测试入口整合限定试点已验收并由 `4023e05` 提交：48→46 入口，26 项全保留；gRPC 联合监听测试的端口所有权空窗已修并通过定向/全特性门禁；PG与全部后端发布矩阵及完整Redirector/Validation仍开放。[B证据及限制](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。
 
-✅ D10-C请求局部视图错误共享、Session对象身份及模板参数桥接已按限定子范围验收并提交 `784045c`；根目标/fallback、内部forward与HEAD站点边界修复已通过不同模型审查及当前输入门禁、fresh生成与真实TCP。默认workspace798/31 ignored、全特性1571/105 ignored，严格双Clippy/docs、features/deny/MSRV、新server/CLI、普通生成7项、MySQL认证2项与独立公开consumer1项通过；无Session/MySQL8.4.13真实TCP通过并清理自有库/端口。ignored不计真实服务，完整Redirector、Validation/CSRF、HTTP/Session及PG/全部后端发布矩阵仍开放。证据见[最终测试记录](memory/testing.md#c04-d10-c-请求局部视图错误共享验收中未提交)。旧输入失败保留，原resource-blocked回执不回填；独立public续作与原auth2分别记证。
+✅ D10-C请求局部视图错误共享、Session对象身份及模板参数桥接已按限定子范围验收并提交 `784045c`；根目标/fallback、内部forward与HEAD站点边界修复已通过不同模型审查及当前输入门禁、fresh生成与真实TCP。默认workspace798/31 ignored、全特性1571/105 ignored，严格双Clippy/docs、features/deny/MSRV、新server/CLI、普通生成7项、MySQL认证2项与独立公开consumer1项通过；无Session/MySQL8.4.13真实TCP通过并清理自有库/端口。ignored不计真实服务，完整Redirector、Validation/CSRF、HTTP/Session及PG/全部后端发布矩阵仍开放。证据见[最终测试记录](memory/testing.md#c04-d10-c-请求局部视图错误共享已验收已提交784045c)。旧输入失败保留，原resource-blocked回执不回填；独立public续作与原auth2分别记证。
 
 C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳定主线门禁、全特性1439 passed/104 ignored、Rust1.97 check、真实PG18/MySQL8.4各67项模块HTTP及各1项previous、所有权PG3/My2、新生成应用5/2/2、真实TCP6项与最终CLI快照1项均有证据。默认workspace以709项有效结果与修后20项doctest按影响复用，非虚报原失败命令exit0。完整Old Input/CSRF/FormRequest、规则集与整个HTTP/Session继续开放。 [证据与限制](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)。C04-D9旧输入限定子范围已完成main组合验收：唯一模块与生成helper通过公开API运行，默认750/31 ignored、全特性1491/105 ignored，根双库各72+1、真实TCP六场景与fresh5/2/2具备[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)；RedirectResponse、文件输入合并、CSRF/FormRequest仍开放。R2-X d299ca4与R2-Q 850e1a4已获用户main集成授权，已完成main组合真实验收，本地集成提交见Git与[testing](memory/testing.md#r2-qx-main-组合验收通过)；不以此关闭完整配置/Container。
 
@@ -90,12 +92,13 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
 | Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验已有测试；D10-A消息包已提交，D10-B手动命名错误包闪存已提交；D10-C请求错误视图共享限定验收通过，已提交 `784045c` | 自动验证失败重定向、`dontFlash`、完整FormRequest授权/规则/文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
 | DB / 事务 / Migrations | 连接、事务/savepoint、Schema与迁移生命周期 | 🔵 已有实现待1:1对齐 | SeaORM双库等专项资产；D10-B MySQL8.4空库迁移与MFA启动顺序限定验收通过、待提交 | 失败迁移恢复本轮未实跑；R4完整公开契约与发布全后端边界仍待 | L057/L060/L062；R4；[core](core/core.md)/[todo](todo.md) |
-| Query Builder | Laravel式组合查询、锁/聚合/chunk与分页 | 🔵 已有实现待1:1对齐 | 有查询/tenant policy和原生SeaORM资产 | 完整Laravel查询API/默认/错误；自动分页与生产调用整改 | L058/L059；R4；[db](core/db.md)/[todo](todo.md) |
-| Eloquent / 关系 / Cast / 集合 | Model CRUD、关系、scope、事件、序列化 | 🔵 已有实现待1:1对齐 | 模块持久模型/真实CRUD与扩展资产存在 | SeaORM Entity不等于Eloquent；关系/批量/属性等完整R5待做 | L064–L069；R5；[db](core/db.md)/[todo](todo.md) |
-| Factories / SQLite | 工厂states/关系fixtures及轻量后端等价行为 | ⬜ 待开发 | 已有seeder/TestDatabase不能当Laravel Factory或SQLite完成 | R5之后R6实现工厂/SQLite，并逐后端行为验收 | L061/L070/L078；R6；[计划](plans/laravel-rebuild.md)/[todo](todo.md) |
-| Authentication / Authorization / OIDC | guard/provider、用户流程、Gate/Policy与外部身份 | 🔵 已有实现待1:1对齐 | JWT/PAT/Policy/RBAC、认证/MFA/OIDC双库与生成专项 | R7多guard/默认与完整上游行为；供应商证据分别标明 | L051–L053/L056/L083/L090/L098/L100；R7；[auth](core/auth.md) |
+| Query Builder | Laravel式组合查询、锁/聚合/chunk与分页 | 🔵 已有实现待1:1对齐 | cd0ac0f/9f51471/73a845d/a9103f9/960aca4/ed3f608各有限行为已验收提交 | 完整JSON/FROM/raw/join/写目标、聚合/chunk和自动分页仍未闭合 | L058/L059；R4；[核心清单](memory/core-functional-acceptance.md)/[db](core/db.md) |
+| Eloquent / 关系 / Cast / 集合 | Model CRUD、关系、scope、事件、序列化 | 🔵 已有实现待1:1对齐 | 06b4d50模型原始行、metadata、基础getter/cast与可逆setter已有限验收 | save/dirty/事件完整写链、关系/日期/完整cast与集合仍开放，SeaORM Entity不等于Eloquent | L064–L069；R5；[证据](memory/testing.md#模型属性与认证前置限定验收) |
+| Factories / Seeder | 工厂states/关系fixtures及种子工作流 | 🔵 已有实现待1:1对齐 | 已有seeder/TestDatabase资产，不等于官方Factory或完整db:seed | 完整Factory状态/关系/回调、Seeder命令/模型事件仍未闭合 | L061/L070/L078；R6；[核心清单](memory/core-functional-acceptance.md) |
+| SQLite | 轻量后端连接、SQL/迁移/事务及驱动生命周期 | 🔵 已有实现待1:1对齐 | 连接、配置/迁移、数据库Session、本地认证、同机租约已有main限定验收 | UPDATE/DELETE写目标、完整Schema/Queue/CacheLock及发布矩阵仍开放 | L057/L060/L078；[证据](memory/testing.md)/[todo](todo.md) |
+| Authentication / Authorization | guard/provider、用户流程、Gate/Policy | 🔵 已有实现待1:1对齐 | 5ad34b9具名Guard/UserProvider和SessionGuard限定验收；06b4d50属性接线已交付 | 完整Guard driver、Gate/Policy、PasswordBroker、邮箱验证及所有标识持久链仍开放；Fortify/JWT/OIDC另列扩展 | L051–L053/L056；R7；[auth](core/auth.md)/[核心清单](memory/core-functional-acceptance.md) |
 | Session / CSRF / 限流 | 共享会话、请求伪造防护与限流 | 🟡 开发中 | D1–D3及D5各子簇已验收；D4 47cd7b8内置双Cookie、实际保护认证、宿主/生成接线已通过最终12门禁、根双库各62+1、生成5/2/2与真实网络/浏览器，限定提交见Git | D5 GC/索引迁移已按限定子范围验收，final4/根双库62/专项2/Redis1+10/生成5+2+2通过；D8 previous/Precognition与D9旧输入各自限定子范围已验收；D10-B命名错误包持久恢复与手动闪存已提交；D10-C请求局部错误视图共享已限定验收并提交 `784045c`；完整Redirector、CSRF、blocking/cache、其余driver和PHP异常弱类型差异仍开放 | L017/L025/L047；R3/R7/R14；[session](core/session.md)/[testing](memory/testing.md)/[todo](todo.md) |
-| Encryption / Hash / 安全 | 应用加密、轮换、签名及安全边界 | 🔵 已有实现待1:1对齐 | Encryptor/keyring、密码hash、签名链接等有专项 | 按上游职责核对默认/用途/错误；DB业务secret激活见增强 | L054/L055/L024；R7；[security](core/security.md)/[signing](core/signing.md) |
+| Encryption / Hash / 安全 | 应用加密、轮换、签名及安全边界 | 🔵 已有实现待1:1对齐 | 0c29bd9三Hash驱动/needsRehash/默认与扩展及认证生成共用已有限验收；加密/签名另有专项 | 完整Crypt、HashManager表面及Model hashed cast仍未闭合；DB业务secret激活另列增强 | L054/L055/L024；R7；[security](core/security.md)/[signing](core/signing.md) |
 | Cache / 原子锁 | 默认/具名store、TTL/共享锁与失败语义 | 🔵 已有实现待1:1对齐 | 统一store/Redis/DB及共享锁实现和专项证据 | Laravel Cache全方法/默认/锁与生产故障完整对应 | L031；R8/R14；[cache](core/cache.md) |
 | Storage / Filesystem | 默认/具名disk、私有对象与文件操作 | 🔵 已有实现待1:1对齐 | 本地/S3、受控staging、MinIO与双库业务证据 | 完整Filesystem对应、迟到发布不确定性/孤儿边界仍公开 | L037；R8/R14；[storage](core/storage.md) |
 | Views / 模板 / Assets | view与模板扩展、资产开发/生成体验 | 🔵 已有实现待1:1对齐 | 服务端模板和根公开HTML已有实际应用；D10-C请求局部errors与生成helper限定验收通过，已提交 `784045c` | Blade职责等价、组件/布局/资产完整流程；非PHP字节兼容 | L008/L021–L023；R9/R13；[view](core/view.md) |
@@ -128,8 +131,8 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 ### 如何读取与维护
 
 - [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一Laravel+正式modules基线（含Provider包发现），阶段二交付官方可选生态及已授权通用增强，均属框架main/V1路线；不是未启动可选快速开发模块。表按可证范围显示状态，不因阶段重排抹掉既有实现，也不把阶段一完成说成全部框架交付。
-- 本表按本次审阅划分 **26个Laravel能力族**：✅子范围4、🟡开发中2、🔵待对齐19、⬜待开发1；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
-- 749个Laravel二级节与35个模块导航入口不是同一计数单位；详细矩阵的旧“待验收”不能解释为代码0%，已有代码/测试数量也不能推出1:1完成率。**逐项严格验收暂无可靠已闭合分子，不提供总体百分比。**
+- 本表按本次审阅划分 **27个Laravel能力族**：✅子范围4、🟡开发中2、🔵待对齐21、⬜待开发0；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
+- 749个Laravel二级节与35个模块导航入口不是同一计数单位；详细矩阵的旧“待验收”不能解释为代码0%。核心完成百分比只使用[核心功能验收清单](memory/core-functional-acceptance.md)的固定分母、明确已验收分子及计算规则；不从本概览行数、已有代码或测试数量推出1:1完成率。扩展单列，未完成行为保留。
 - 总控每次功能簇本地commit后就地更新受影响行的状态、可证范围、缺口、commit/证据，并同步详细矩阵；只有新增实际交付/验收才升级状态，WIP与定向测试不能提前变✅。调整分组时重算上述概览行数，不按测试数充进度。
 - 每次框架开发进度汇报附最新能力状态表，汇报前按当前代码/提交/验收复核；表格格式、适用范围与“1:1 的 Laravel 框架 Rust 版”表述统一遵循[汇报规范](style.md#开发进度汇报)，普通问答不强制附表。
 - overview只摘要；矩阵维护详细源码/测试对应及差异，core/testing保存可复验证据，todo是唯一可领取队列，不在此复制任务或建立第二计划。未验收的整项不得因已交付子簇关闭。

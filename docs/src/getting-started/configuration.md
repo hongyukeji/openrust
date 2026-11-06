@@ -9,7 +9,7 @@ pub fn config(ctx: &openrust::config::ConfigContext)
     -> Result<openrust::config::ApiConfig, openrust::config::ConfigError>
 {
     Ok(openrust::config::ApiConfig {
-        prefix: ctx.env_or("API_PREFIX", "/api"),
+        prefix: ctx.env_or("API_PREFIX", "api"),
         http_status: openrust::config::HttpStatusMode::Semantic,
     })
 }

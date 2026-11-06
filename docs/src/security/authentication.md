@@ -70,7 +70,7 @@ async fn current_id(auth: &AuthManager) -> Result<Option<serde_json::Value>> {
 
 ID 保留原始 JSON 数字或非空字符串类型，UUID 可作为字符串使用。Session Guard 拒绝 null、布尔、数组、对象和空白字符串 ID，不把字符串数字静默转换为整数。`GenericUser` 默认读取 `id`、`password`、`remember_token`；其他列名由应用实现 `Authenticatable`。密码和 remember token 可以缺失或为 null，无密码账户不等于空密码账户，也不等于密码验证成功。
 
-`Credentials::new(Map<String, Value>)` 接收应用明确选择的查询字段，例如 `username`、`email` 或手机号字段。框架不会要求三个字段同时存在。Fortify 包默认使用单个可配置的 `username` 字段；根应用另通过公开回调提供一个账号输入框，详见下文“根应用的组合账号入口”。该组合入口复用下文同一现代双因素状态；本批跨凭据组合仍待适用验收。
+`Credentials::new(Map<String, Value>)` 接收应用明确选择的查询字段，例如 `username`、`email` 或手机号字段。框架不会要求三个字段同时存在。Fortify 包默认使用单个可配置的 `username` 字段；根应用另通过公开回调提供一个账号输入框，详见下文“根应用的组合账号入口”。该组合入口复用下文同一现代双因素状态；本文所述官方Web默认与显式JWT跨凭据组合已由 `54f4a087` 限定验收；完整认证/Fortify、Google真实客户端和UUID/字符串JWT持久链仍有缺口。
 
 内置 `DatabaseUserProvider`：
 
@@ -163,7 +163,7 @@ Provider 工厂收到本请求 `Resolver` 和 `UserProviderConfig`。自定义�
 
 启用 `auth-fortify` 后，Fortify 对应入口位于 `openrust::auth::fortify`，包括 `FortifyServiceProvider`、`FortifyConfig`、`TwoFactorOptions`、`TwoFactorAuthenticationProvider`、`TwoFactorActions`、`FortifyLogin` 与响应扩展。它们复用同一 Container、具名 Guard、Session 和加密器。
 
-MFA 是多因素认证的总称，2FA 表示双因素形式，TOTP 是其中一种验证码技术。本框架只使用同一现代 Fortify 三字段状态，不提供另一套独立因子账户。下文区分官方 Web 默认与显式 JWT API 扩展；新增 profile、生成应用及跨凭据组合仍待本批行为和集成验收，真实 Google 客户端也未验收。
+MFA是多因素认证的总称，2FA表示双因素形式，TOTP是其中一种验证码技术。本框架只使用同一现代Fortify三字段状态，不提供另一套独立因子账户。下文区分已交付的官方Web默认与显式JWT API限定能力；真实Google Authenticator客户端互操作、完整Fortify及UUID/字符串JWT持久链仍有未闭合边界。
 
 ### 受管凭据的显式桥接
 
@@ -175,7 +175,7 @@ MFA 是多因素认证的总称，2FA 表示双因素形式，TOTP 是其中一�
 
 ### 显式 JWT API profile
 
-官方 Fortify 提供 Web/Session 认证流程，不内置无 Session 的 JWT 登录。Laravel 生态的 Passport、Sanctum 属于不同可选能力。OpenRust 的 JWT API profile 是明确选择的公开扩展，不改变框架或官方 Fortify 默认；当前实现仍待适用行为和生成应用验收。
+官方Fortify提供Web/Session认证流程，不内置无Session的JWT登录。Laravel生态的Passport、Sanctum属于不同可选能力。OpenRust的JWT API profile是明确选择的公开扩展，不改变框架或官方Fortify默认；当前支持下述直接挑战、管理及access/refresh流程，不表示Passport、OIDC Provider或全部认证生态已完成。
 
 生成应用可选择：
 
@@ -185,7 +185,7 @@ openrust new blog --profile jwt-api --db sqlite
 
 普通 `new` 不隐式选择 JWT；`--auth` 和 `--fortify` 均安装 Web/Fortify 模式。根应用在启用 `auth-fortify` 时默认选择 Web；显式设置 `AUTH_PROFILE=jwt-api` 才选择 JWT API，配置在启动期间固定，未知值会拒绝启动。JWT API profile 使用 `FortifyJwtApiServiceProvider` **替换** `FortifyServiceProvider`，不同时挂载两份认证路由。它复用同一账户模型、`UserProvider`、`TwoFactorActions`、`DatabaseFactorAuthority`、密码和加密服务。应用仍须配置数据库、JWT key ring 与加密密钥，并登记 `FortifyTwoFactorMigration`、`FactorAuthorityMigration`、`CredentialFactorMigration` 和 `CredentialChallengeMigration` 及其账户/refresh/PAT前置迁移。
 
-手动装配时，在 `auth.guards.api` 明确配置 `driver="jwt-api"`、`provider="users"`，该 Provider 必须使用 authority 的同一 `Db` 和实际 `users` 表；`fortify-api.guard="api"` 选择此 Guard，`fortify-api.prefix="/auth"` 相对于应用 API 前缀。默认 `api.prefix="/api"` 时路由如下：
+手动装配时，在 `auth.guards.api` 明确配置 `driver="jwt-api"`、`provider="users"`，该 Provider 必须使用 authority 的同一 `Db` 和实际 `users` 表；`fortify-api.guard="api"` 选择此 Guard，`fortify-api.prefix="/auth"` 相对于应用 API 前缀。默认配置 `api.prefix="api"`（实际URL前缀为 `/api`）时路由如下：
 
 | 方法 / `/api/auth` 下路径 | JSON 输入或授权 | 结果 |
 | --- | --- | --- |
@@ -256,7 +256,7 @@ openrust new blog --fortify
 
 这是根应用的增强策略，不改变 Fortify 默认的单个 `username=email` 字段。应用账户的 `email`、`phone` 可以缺失或为 null，只有用户名的账户也可由该回调验证密码；这不意味着既有邮箱注册、验证码、找回密码或第三方登录流程都已支持无邮箱。密码确认使用 `FortifyCallbacks::confirm_passwords_using`，对当前受验证账户通过同一 Provider 校验密码，不重新猜账号来源。
 
-数据库唯一索引控制可创建的标识集合，其大小写、等价字符与 collation 规则仍取决于实际后端和列定义。回调逐字匹配不等于已统一所有后端的唯一性语义，也不保证数据库会允许同时创建仅大小写不同的两个标识。应用须按自己的列和索引策略管理这些数据；组合入口及其双因素跨凭据组合仍待本批适用验收。
+数据库唯一索引控制可创建的标识集合，其大小写、等价字符与 collation 规则仍取决于实际后端和列定义。回调逐字匹配不等于已统一所有后端的唯一性语义，也不保证数据库会允许同时创建仅大小写不同的两个标识。应用须按自己的列和索引策略管理这些数据；组合入口及本文所述双因素跨凭据组合已有 `54f4a087` 限定验收；不据此声明所有后端唯一性、全部标识持久链或完整Fortify已完成。
 
 ### 应用账户结构升级与回滚
 
@@ -335,7 +335,7 @@ Provider/cache 验证在账户事务外完成；数据库回滚不撤回第三�
 
 Laravel 用 `sha1(static::class)` 生成 Session/remember 名称后缀。Rust `SessionGuard` 采用固定实现后缀 `ff9a88a790ea81b2b89656e56873ed257a77b366`，分别生成 `login_<guard>_<后缀>` 与 `remember_<guard>_<后缀>`，对应上游类名 SHA-1 的名称隔离职责。Rust 没有 PHP 的动态类名机制，不运行期复刻 `static::class`，也不承诺与 PHP Session/Cookie 字节互通；该后缀不承担密码散列或凭据签名职责。Cookie 加密检查、失败/取消时拒绝部分认证和显式 Provider 授权隔离属于安全边界；Guarded Session 的持续撤销保证则是显式增强，不是 Laravel 原生 database 的默认语义。
 
-当前具名认证 API 与 Fortify/TOTP 实现不代表完整 Laravel 认证章节、真实 Eloquent、所有 Guard driver、Gate/Policy 或完整 Fortify 已交付。本批现代因子与 JWT API profile 仍待组合验收，既有 JWT、PAT 能力也不替代这些对应项。
+当前具名认证 API 与 Fortify/TOTP 实现不代表完整 Laravel 认证章节、真实 Eloquent、所有 Guard driver、Gate/Policy 或完整 Fortify 已交付。本文所述现代因子与显式 JWT API profile 已由 `54f4a087` 完成本批限定组合验收；完整认证章节、Google真实客户端和UUID/字符串JWT持久链仍开放，既有 JWT、PAT 能力不替代这些剩余对应项。
 
 ### OIDC 关联的当前 authority 核验
 

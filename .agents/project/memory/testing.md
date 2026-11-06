@@ -1,5 +1,7 @@
 # 测试基线
 
+核心功能当前逐项验收状态与百分比统一维护于[核心功能验收清单](core-functional-acceptance.md)，扩展单列。该清单回溯本文件的实际限定证据，不将本次记录审计当作新运行测试，不修改以下历史结果或替未提交源码背书。
+
 ## 模块扩展独立包限定验收
 
 AR-M01由`6c21bab07a80819cd1a1c6fffd5e8392c43c43cb`提交并核对origin/main，精确树`bde4e7845451739bddb74e366ce88a41ac9d9d45`，1565项输入的规范blob与权限一致。应用→openrust-modules→openrust-framework，模块专属机制不留核心或产生反向依赖，根装配、唯一示例、CLI、模板和consumer同步接入。
