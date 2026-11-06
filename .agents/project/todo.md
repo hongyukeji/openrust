@@ -82,7 +82,6 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 
 - AR-N01（完整官方职责与开发流程后继）：owner=root；职责命名空间限定迁移已由`b3f6117be1fc`提交，范围与[验收证据](memory/testing.md#命名空间与开发流程限定验收)分别记录，不能以搬迁关闭完整Laravel语义。唯一Container/Support/Console/Foundation/Database/Routing/Http/Translation/Filesystem/Encryption实体、调用方、模板、示例和文档入口已收敛；继续补齐[命名空间计划](plans/laravel-namespace-alignment.md)中Contracts及Container绑定/生命周期、Console命令语义、Routing/controller/middleware、Translation默认FileLoader/choice/deferred、Filesystem完整契约/默认及Encryption官方cipher/key/payload等差距，按依赖领取独立有限簇，不建空门面或第二体系。Source、SQLite、Passport、J01、SC和Model后继WIP不计入本次验收。
-- AR-N01附属配置核对：owner=root；第三方包已位于vendor/seaql/sea-orm，但根.gitattributes的逐字行尾保护仍指旧vendor/sea-orm。后续限定修正保护路径并核实际Git属性、固定vendor源码SHA与差异，不因现有索引保留CRLF就忽略未来新增/修改文件的归一化风险；不混入Source运行证据。
 
 
 
