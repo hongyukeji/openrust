@@ -65,7 +65,11 @@ def atomic(path, value):
 
 def usage_snapshot(path, thread, now):
     """调用Agent应将刚取得的正式工具输出原样封装；JSON本身不是来源签名。"""
-    envelope = read_json(path)
+    return usage_envelope(read_json(path), thread, now)
+
+
+def usage_envelope(envelope, thread, now):
+    """校验同一次限长读取的正式envelope，避免审计时再次打开路径。"""
     observed = envelope.get('observed_at')
     if (envelope.get('source') != 'codex_app.get_usage_limits'
             or envelope.get('thread') != thread
@@ -294,6 +298,12 @@ def authorize_full_budget(ledger, runtime, thread, binding, current_goal, status
         provenance = {key: str(uuid.UUID(evidence[key])) for key in
                       ('source_thread', 'turn_id', 'user_message_id')}
         provenance['authorization_sha256'] = hashlib.sha256(authorization.encode()).hexdigest()
+        rebase_history = ledger.get('percentage_rebases', [])
+        if not isinstance(rebase_history, list):
+            raise ValueError('审计历史无效')
+        if any(all(x.get('authorization', {}).get(k) == provenance[k]
+                   for k in ('source_thread', 'turn_id', 'user_message_id')) for x in rebase_history):
+            return output(ledger, 'stop', 'full_budget_authorization_consumed', thread)
         response = usage_snapshot(usage_file, thread, now)
         candidate = initialize_usage_budget(response, now)
         key = json.dumps([candidate['account_id'], candidate['limit_id']], separators=(',', ':'))
@@ -383,12 +393,98 @@ def resume_ledger(ledger, thread, binding, current_goal, status, home, usage_fil
     return output(ledger, 'continue', 'explicit_user_resume', thread)
 
 
+def rebase_budget(ledger, thread, binding, current_goal, status, home,
+                  usage_file, evidence_file, now, authorization, clock=None):
+    """真人显式重建百分比基线；完整历史与credits基线不变。"""
+    if (status != 'active' or ledger.get('version') != 1
+            or ledger.get('fraction') != '0.8' or ledger.get('allow_existing_credits') is not False
+            or not ledger.get('automation_id')
+            or ledger.get('terminal_reason') not in (None, 'goal_paused', 'usage_wait_expired')
+            or full_budget_state(ledger) == 'active'):
+        return output(ledger, 'stop', 'rebase_state_rejected', thread)
+    try:
+        evidence = read_json(evidence_file)
+        observed = evidence.get('observed_at')
+        if (evidence.get('source') != 'codex_app.read_thread'
+                or evidence.get('target_thread') != thread
+                or type(observed) not in (int, float) or not math.isfinite(observed)
+                or not -5 <= now - observed <= USAGE_TTL
+                or not isinstance(authorization, str) or not authorization.strip()
+                or len(authorization) > 4096 or evidence.get('user_text') != authorization):
+            raise ValueError('授权来源无效')
+        provenance = {key: str(uuid.UUID(evidence[key])) for key in
+                      ('source_thread', 'turn_id', 'user_message_id')}
+        provenance['authorization_sha256'] = hashlib.sha256(authorization.encode()).hexdigest()
+        history = ledger.get('percentage_rebases', [])
+        if not isinstance(history, list) or any(not isinstance(x, dict) for x in history):
+            raise ValueError('审计历史无效')
+        if any(all(x.get('authorization', {}).get(k) == provenance[k]
+                   for k in ('source_thread', 'turn_id', 'user_message_id')) for x in history):
+            return output(ledger, 'stop', 'rebase_authorization_consumed', thread)
+        _, grants = grant_document(ledger)
+        if any(all((x.get('authorization') or {}).get(k) == provenance[k]
+                   for k in ('source_thread', 'turn_id', 'user_message_id'))
+               for x in grants.get('grants', {}).values()):
+            return output(ledger, 'stop', 'rebase_authorization_consumed', thread)
+        envelope = read_json(usage_file)
+        response = usage_envelope(envelope, thread, now)
+        fresh = initialize_usage_budget(response, now)
+        key = json.dumps([fresh['account_id'], fresh['limit_id']], separators=(',', ':'))
+        if key != ledger.get('active_budget_key') or key not in ledger['account_budgets']:
+            raise ValueError('账号不匹配')
+        old = ledger['account_budgets'][key]
+        if (set(fresh['windows']) != set(old['windows'])
+                or any(x['duration_mins'] != old['windows'][name]['duration_mins']
+                       for name, x in fresh['windows'].items())):
+            raise ValueError('窗口身份变化')
+        if quota_delay(response, now, False) != 0:
+            return output(ledger, 'wait', 'rebase_official_usage_unavailable', thread)
+        candidate = copy.deepcopy(ledger)
+        budget = copy.deepcopy(old)
+        budget['windows'] = fresh['windows']
+        budget['baseline_at'] = fresh['baseline_at']
+        candidate['account_budgets'][key] = budget
+        if not budget_check(candidate, response, now):
+            return output(candidate, 'wait', candidate.get('usage_status', 'usage_budget_unknown'), thread)
+        candidate['percentage_rebases'] = copy.deepcopy(history) + [{
+            'at': now, 'authorization': provenance,
+            'previous_account_budgets': copy.deepcopy(ledger['account_budgets']),
+            'previous_terminal_reason': ledger.get('terminal_reason'),
+            'validated_usage_envelope_sha256': hashlib.sha256(json.dumps(
+                envelope, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()}]
+        candidate.pop('terminal_action', None)
+        candidate.pop('terminal_reason', None)
+        candidate.pop('first_wait_at', None)
+        candidate.pop('usage_error', None)
+        candidate['goal_status'] = 'active'
+        candidate['last_check'] = {'at': now, 'mode': 'rebase-budget',
+                                   'caller_thread': thread, 'action': 'wait'}
+        if len((json.dumps(candidate, ensure_ascii=False, indent=2, allow_nan=False) + '\n').encode()) > MAX_JSON:
+            return output(ledger, 'stop', 'rebase_ledger_limit', thread)
+        if identity(thread, home) != (binding, current_goal, 'active'):
+            return output(ledger, 'stop', 'rebase_identity_changed', thread)
+        final_now = now if clock is None else clock()
+        if not -5 <= final_now - observed <= USAGE_TTL:
+            raise ValueError('授权已过期')
+        usage_envelope(envelope, thread, final_now)
+        ledger.clear()
+        ledger.update(candidate)
+        return output(ledger, 'wait', 'budget_rebased_checkpoint_required', thread)
+    except UsageSnapshotError as error:
+        result = output(ledger, 'wait', 'rebase_usage_unavailable', thread)
+        result['budget']['error'] = str(error)
+        return result
+    except (OSError, ValueError, TypeError, KeyError, InvalidOperation):
+        return output(ledger, 'stop', 'rebase_evidence_invalid', thread)
+
+
 def run(thread, command, usage_file=None, automation_id=None, now=None, previous_automation_id=None,
         user_authorization=None, authorization_file=None):
     """一次门禁检查；官方自动化的创建、暂停与删除由调用方执行。"""
     thread = str(uuid.UUID(thread))
-    if command in ('checkpoint', 'resume', 'authorize-full-budget') and os.environ.get('CODEX_THREAD_ID') != thread:
+    if command in ('checkpoint', 'resume', 'authorize-full-budget', 'rebase-budget') and os.environ.get('CODEX_THREAD_ID') != thread:
         return output({}, 'wait', 'checkpoint_caller_mismatch', thread)
+    fixed_now = now
     now = time.time() if now is None else now
     home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).resolve()
     guards = ROOT / '.agents/project/guards'
@@ -407,6 +503,8 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
     path = runtime / 'native-heartbeat.json'
     with (runtime / 'native-heartbeat.lock').open('a') as lock:
         lock_file(lock)
+        if fixed_now is None:
+            now = time.time()
         ledger = read_json(path) if path.exists() else {}
         grant_file = ledger.get('full_budget_grant_file')
         if grant_file is not None and grant_file != str(runtime / 'full-budget-once.json'):
@@ -436,6 +534,13 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
                 ledger.update(terminal_action=action, terminal_reason=reason, goal_status=status)
                 atomic(path, ledger)
             return output(ledger or {'goal': current_goal, 'goal_status': status}, action, reason, thread)
+        if command == 'rebase-budget':
+            result = rebase_budget(ledger, thread, binding, current_goal, status, home,
+                                   usage_file, authorization_file, now, user_authorization,
+                                   clock=time.time if fixed_now is None else None)
+            if result['reason'] == 'budget_rebased_checkpoint_required':
+                atomic(path, ledger)
+            return result
         if command == 'resume':
             result = resume_ledger(ledger, thread, binding, current_goal, status, home,
                                    usage_file, now, user_authorization)
@@ -557,6 +662,11 @@ def main():
     full_budget.add_argument('--authorization-file', type=Path, required=True)
     full_budget.add_argument('--user-authorization', required=True,
                              help='须与正式read_thread真人原文相同；调用者先核验来源，此参数不是授权证明')
+    rebase = commands.add_parser('rebase-budget')
+    rebase.add_argument('--usage-file', type=Path, required=True)
+    rebase.add_argument('--authorization-file', type=Path, required=True)
+    rebase.add_argument('--user-authorization', required=True,
+                        help='真人明确重建百分比基线；调用者核read_thread来源，不能由额度恢复推断')
     commands.add_parser('bind').add_argument('--automation-id', required=True)
     replacement = commands.add_parser('rebind')
     replacement.add_argument('--automation-id', required=True)

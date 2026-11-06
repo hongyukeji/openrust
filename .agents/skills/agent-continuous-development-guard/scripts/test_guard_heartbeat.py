@@ -732,6 +732,148 @@ class HeartbeatTests(unittest.TestCase):
             return heartbeat.run(self.thread, 'authorize-full-budget', self.usage_file, now=now,
                                  user_authorization=text, authorization_file=evidence)
 
+    def rebase_gate(self, evidence=None, now=1000):
+        if evidence is None:
+            evidence, _ = self.full_budget_evidence(user_text='允许重建百分比预算，保留历史和20%，禁用credits')
+        self.write_usage(now)
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            return heartbeat.run(self.thread, 'rebase-budget', self.usage_file, now=now,
+                                 user_authorization=json.loads(evidence.read_text())['user_text'],
+                                 authorization_file=evidence)
+
+    def test_rebase_early_reset_preserves_all_history_credits_and_default_reserve(self):
+        self.paused_then_active()
+        before = self.ledger()
+        self.snapshot = usage(used=0, reset=5000)
+        self.assertEqual(self.rebase_gate()['reason'], 'budget_rebased_checkpoint_required')
+        after = self.ledger()
+        key = after['active_budget_key']
+        self.assertEqual(after['percentage_rebases'][0]['previous_account_budgets'], before['account_budgets'])
+        self.assertEqual(after['account_budgets'][key]['credits'], before['account_budgets'][key]['credits'])
+        self.assertEqual(after['account_budgets'][key]['windows']['primary']['baseline_remaining'], '100')
+        self.assertEqual(after['account_budgets'][key]['windows']['primary']['reserve'], '20.0')
+        for name in ('binding', 'goal', 'automation_id', 'fraction', 'allow_existing_credits'):
+            self.assertEqual(after[name], before[name])
+        self.assertNotIn('terminal_action', after)
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            self.assertEqual(self.run_gate('checkpoint')['action'], 'continue')
+        self.snapshot['rateLimits']['primary']['usedPercent'] = 80
+        self.assertEqual(self.run_gate()['action'], 'wait')
+
+    def test_rebase_authorization_cannot_replay_even_with_changed_text(self):
+        self.prepared()
+        evidence, data = self.full_budget_evidence(user_text='允许重建预算')
+        self.assertEqual(self.rebase_gate(evidence)['reason'], 'budget_rebased_checkpoint_required')
+        before = self.ledger_path.read_bytes()
+        for text in (data['user_text'], '换个文本不应重放同一真人水位'):
+            data['user_text'] = text
+            evidence.write_text(json.dumps(data))
+            self.assertEqual(self.rebase_gate(evidence)['reason'], 'rebase_authorization_consumed')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebase_rejects_stale_wrong_thread_and_malformed_authorization_without_writing(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        for changes in ({'observed_at': 800}, {'target_thread': str(uuid.uuid4())},
+                        {'user_message_id': 'not-uuid'}, {'user_text': ''}, {'source': 'heartbeat'}):
+            evidence, _ = self.full_budget_evidence(**changes)
+            self.assertEqual(self.rebase_gate(evidence)['reason'], 'rebase_evidence_invalid')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebase_rejects_account_duration_and_official_unavailable_without_writing(self):
+        self.prepared()
+        before = self.ledger_path.read_bytes()
+        for snapshot in (usage(account='other'), usage()):
+            self.snapshot = snapshot
+            if snapshot['accountId'] != 'other':
+                self.snapshot['rateLimits']['primary']['windowDurationMins'] = 120
+            self.assertEqual(self.rebase_gate()['reason'], 'rebase_evidence_invalid')
+            self.assertEqual(self.ledger_path.read_bytes(), before)
+        self.snapshot = usage(used=100)
+        self.snapshot['ordinaryUsageAllowed'] = False
+        self.assertEqual(self.rebase_gate()['reason'], 'rebase_official_usage_unavailable')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebase_rejects_active_full_grant_and_does_not_revive_ended_grant(self):
+        self.prepared()
+        self.authorize_full()
+        before = self.ledger_path.read_bytes()
+        self.assertEqual(self.rebase_gate()['reason'], 'rebase_state_rejected')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+        heartbeat.end_full_budget(self.ledger(), 'actual_quota_exhausted')
+        self.assertEqual(self.rebase_gate()['reason'], 'budget_rebased_checkpoint_required')
+        self.assertEqual(self.run_gate()['budget']['full_budget_once'], 'inactive')
+
+    def test_rebase_rejects_goal_race_and_wrong_caller(self):
+        self.prepared()
+        evidence, data = self.full_budget_evidence()
+        before = self.ledger_path.read_bytes()
+        self.assertEqual(heartbeat.run(self.thread, 'rebase-budget', self.usage_file, now=1000,
+                         user_authorization=data['user_text'], authorization_file=evidence)['reason'],
+                         'checkpoint_caller_mismatch')
+        real = heartbeat.identity
+        calls = [0]
+        def changed(*args):
+            calls[0] += 1
+            binding, goal, status = real(*args)
+            return binding, goal, ('paused' if calls[0] > 1 else status)
+        with mock.patch.object(heartbeat, 'identity', side_effect=changed):
+            self.assertEqual(self.rebase_gate(evidence)['reason'], 'rebase_identity_changed')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebase_cannot_reuse_ended_full_grant_watermark(self):
+        self.prepared()
+        evidence, _ = self.full_budget_evidence()
+        self.authorize_full(evidence)
+        heartbeat.end_full_budget(self.ledger(), 'actual_quota_exhausted')
+        before = self.ledger_path.read_bytes()
+        self.assertEqual(self.rebase_gate(evidence)['reason'], 'rebase_authorization_consumed')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebase_final_freshness_rejects_slow_validation(self):
+        self.prepared()
+        evidence, data = self.full_budget_evidence()
+        ledger = self.ledger()
+        before = copy.deepcopy(ledger)
+        result = heartbeat.rebase_budget(ledger, self.thread, ledger['binding'], ledger['goal'],
+            'active', self.home, self.usage_file, evidence, 1000, data['user_text'], clock=lambda: 1121)
+        self.assertEqual(result['reason'], 'rebase_evidence_invalid')
+        self.assertEqual(ledger, before)
+
+    def test_rebase_ledger_size_limit_never_writes_unreadable_history(self):
+        self.prepared()
+        ledger = self.ledger()
+        ledger['account_budgets']['historical-other-account'] = {'padding': 'x' * 600000}
+        self.ledger_path.write_text(json.dumps(ledger))
+        before = self.ledger_path.read_bytes()
+        self.assertEqual(self.rebase_gate()['reason'], 'rebase_ledger_limit')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
+    def test_rebase_uses_validated_envelope_for_audit_not_reopened_file(self):
+        self.prepared()
+        original = json.loads(self.usage_file.read_text())
+        real = heartbeat.identity
+        calls = [0]
+        def replace_snapshot(*args):
+            calls[0] += 1
+            if calls[0] > 1:
+                self.usage_file.write_text('not-json-after-validation')
+            return real(*args)
+        with mock.patch.object(heartbeat, 'identity', side_effect=replace_snapshot):
+            self.assertEqual(self.rebase_gate()['reason'], 'budget_rebased_checkpoint_required')
+        import hashlib
+        digest = hashlib.sha256(json.dumps(original, sort_keys=True, separators=(',', ':'),
+                               ensure_ascii=False).encode()).hexdigest()
+        self.assertEqual(self.ledger()['percentage_rebases'][0]['validated_usage_envelope_sha256'], digest)
+
+    def test_rebase_watermark_cannot_upgrade_to_full_budget(self):
+        self.prepared()
+        evidence, _ = self.full_budget_evidence(user_text='允许授权')
+        self.assertEqual(self.rebase_gate(evidence)['reason'], 'budget_rebased_checkpoint_required')
+        before = self.ledger_path.read_bytes()
+        self.assertEqual(self.authorize_full(evidence)['reason'], 'full_budget_authorization_consumed')
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+
     def test_full_budget_override_crosses_reserve_without_rebasing(self):
         self.prepared()
         baseline = copy.deepcopy(self.ledger()['account_budgets'])

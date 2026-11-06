@@ -1672,7 +1672,7 @@ class PlatformBoundaries(unittest.TestCase):
                 config = {'agent': agent, 'thread': 't', 'goal_id': 'old'}
                 (runtime / 'config.json').write_text(json.dumps(dict(config, usage_budget=example_budget())))
                 with patch.object(recovery, 'ROOT', root), \
-                     patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent]), \
+                     patch.object(sys, 'argv', ['guard.py', 'start', '--backend', 'paseo', '--agent', agent, '--thread', agent]), \
                      patch.object(recovery.platform, 'command'), patch.object(recovery, 'config_for', return_value=config), \
                      patch.object(recovery, 'goal', return_value={'id': 'old', 'status': 'paused'}), \
                      patch.object(recovery, 'bound_goal', return_value={'status': 'paused'}), \
@@ -1685,7 +1685,7 @@ class PlatformBoundaries(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             agent = '11111111-1111-4111-8111-111111111111'
-            with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent]), patch.object(recovery.platform, 'command', side_effect=FileNotFoundError('missing')):
+            with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', ['guard.py', 'start', '--backend', 'paseo', '--agent', agent, '--thread', agent]), patch.object(recovery.platform, 'command', side_effect=FileNotFoundError('missing')):
                 with self.assertRaises(FileNotFoundError):
                     recovery.main()
             self.assertFalse((root / '.agents').exists())
