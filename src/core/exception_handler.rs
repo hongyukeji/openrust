@@ -189,6 +189,7 @@ type ThrottleState =
 /// 应用内的异常策略；登记顺序与 Laravel Handler 相同。
 #[derive(Clone, Default)]
 pub struct ExceptionHandler {
+    i18n: Option<crate::i18n::I18n>,
     mappers: Vec<Mapper>,
     ignored: Vec<(std::any::TypeId, Matcher)>,
     unignored: Vec<Matcher>,
@@ -214,6 +215,14 @@ pub struct ExceptionHandler {
 }
 
 impl ExceptionHandler {
+    pub(crate) fn set_i18n(&mut self, service: crate::i18n::I18n) {
+        self.i18n = Some(service);
+    }
+
+    pub(crate) fn i18n_service(&self) -> Option<&crate::i18n::I18n> {
+        self.i18n.as_ref()
+    }
+
     /// 除内置密码字段外，声明校验失败重定向时不得 flash 的输入字段。
     #[cfg(feature = "session")]
     pub fn dont_flash<I, S>(&mut self, attributes: I) -> &mut Self
@@ -581,9 +590,11 @@ impl ExceptionHandler {
                 predicate(request, error)
             });
         let mut response = if envelope {
-            error.to_api_response().into_response()
+            error
+                .to_api_response_with_i18n(self.i18n.as_ref())
+                .into_response()
         } else if json {
-            let message = public_message(error, request.debug());
+            let message = error.user_message(self.i18n.as_ref());
             let mut payload = serde_json::json!({"message": message});
             if let Error::Validation(errors)
             | Error::ValidationDetail { errors, .. }
@@ -614,8 +625,17 @@ impl ExceptionHandler {
                 return response;
             }
             let fallback = || {
-                let message = escape_html(&public_message(error, request.debug()));
-                let title = status.canonical_reason().unwrap_or("Error");
+                let message = escape_html(&error.user_message(self.i18n.as_ref()));
+                let title = escape_html(
+                    &crate::i18n::translate_for_rendering(
+                        self.i18n.as_ref(),
+                        "openrust.error.title",
+                        &crate::i18n::MessageArgs::new(),
+                    )
+                    .unwrap_or_default(),
+                );
+                let locale = crate::i18n::rendering_locale(self.i18n.as_ref());
+                let status_code = status.as_u16();
                 let debug = if request.debug() && status.is_server_error() {
                     debug_sources(error)
                         .into_iter()
@@ -628,7 +648,7 @@ impl ExceptionHandler {
                     String::new()
                 };
                 let body = format!(
-                    "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>{status} {title}</title><body><h1>{status} {title}</h1><p>{message}</p><ol>{debug}</ol></body></html>"
+                    "<!doctype html><html lang=\"{locale}\"><meta charset=\"utf-8\"><title>{status_code} {title}</title><body><h1>{status_code} {title}</h1><p>{message}</p><ol>{debug}</ol></body></html>"
                 );
                 let mut response = (status, body).into_response();
                 response.headers_mut().insert(
@@ -722,7 +742,7 @@ impl ExceptionHandler {
     fn error_view(&self, error: &Error, request: &ExceptionRequest) -> Option<Response> {
         let views = request.views.as_ref()?;
         let status = error.status();
-        let context = serde_json::json!({"message": public_message(error, request.debug())});
+        let context = serde_json::json!({"message": error.user_message(self.i18n.as_ref()), "locale": crate::i18n::rendering_locale(self.i18n.as_ref()).as_str(), "status": error.status().as_u16()});
         for name in [
             format!("errors/{}.html", status.as_u16()),
             format!("errors/{}xx.html", status.as_u16() / 100),
@@ -782,14 +802,6 @@ fn builtin_ignored(error: &Error) -> bool {
     )
 }
 
-fn public_message(error: &Error, debug: bool) -> String {
-    if error.status().is_server_error() && !debug {
-        "Server Error".to_owned()
-    } else {
-        error.to_string()
-    }
-}
-
 fn debug_sources(error: &Error) -> Vec<String> {
     let mut sources = Vec::new();
     let mut current = error.source();
@@ -834,6 +846,14 @@ impl BootContext<'_> {
 }
 
 impl App {
+    /// 返回本应用 Provider 已登记的异常 Handler；未登记时返回 `None`。
+    ///
+    /// 外部调用方可复用本应用的翻译目录与异常策略，不另建默认 Handler。
+    pub fn exception_handler(&self) -> Option<&ExceptionHandler> {
+        self.extension::<ExceptionRegistry>()
+            .map(|registry| &registry.0)
+    }
+
     /// 使用本应用 Provider 登记的报告策略处理 CLI、队列或调度器异常。
     pub fn report_exception(&self, error: &Error) {
         if let Some(registry) = self.extension::<ExceptionRegistry>() {

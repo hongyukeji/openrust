@@ -3,7 +3,7 @@
 use chrono::{DateTime, Datelike, FixedOffset, SecondsFormat};
 use openrust::http::{Inject, Json, Query};
 use openrust::i18n::{DateFormatStyle, DateTimeFormatStyle, I18n, MessageArgs, RequestLocale};
-use openrust::{Error, Result};
+use openrust::{Error, Result, ValidationErrors};
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -24,27 +24,58 @@ pub(crate) struct ReadingSummary {
     time_zone: String,
     local_iso: String,
 }
-fn invalid() -> Error {
-    Error::BadRequest("阅读摘要预览需要受限计数、有效 RFC3339 时间和 utc/utc+08:00 固定偏移".into())
+fn invalid(locale: &RequestLocale, i18n: &I18n, field: &str, key: &str) -> Error {
+    let mut errors = ValidationErrors::new();
+    errors.add(field, locale.translate(i18n, key, &MessageArgs::new()));
+    Error::validation_with_status(openrust::http::axum::http::StatusCode::BAD_REQUEST, errors)
 }
 pub(crate) async fn show(
     locale: RequestLocale,
     Inject(i18n): Inject<I18n>,
     Query(input): Query<ReadingSummaryInput>,
 ) -> Result<Json<ReadingSummary>> {
-    if input.count > 1_000_000 || input.at.len() > 40 {
-        return Err(invalid());
+    let mut errors = ValidationErrors::new();
+    if input.count > 1_000_000 {
+        errors.add(
+            "count",
+            locale.translate(&i18n, "example::reading_invalid_count", &MessageArgs::new()),
+        );
+    }
+    if input.at.len() > 40 {
+        errors.add(
+            "at",
+            locale.translate(&i18n, "example::reading_invalid_at", &MessageArgs::new()),
+        );
     }
     let offset = match input.zone.as_str() {
         "utc" => FixedOffset::east_opt(0),
         "utc+08:00" => FixedOffset::east_opt(8 * 60 * 60),
-        _ => return Err(invalid()),
+        _ => None,
+    };
+    if offset.is_none() {
+        errors.add(
+            "zone",
+            locale.translate(&i18n, "example::reading_invalid_zone", &MessageArgs::new()),
+        );
     }
-    .ok_or_else(invalid)?;
-    let instant = DateTime::parse_from_rfc3339(&input.at).map_err(|_| invalid())?;
+    if !errors.is_empty() {
+        return Err(Error::validation_with_status(
+            openrust::http::axum::http::StatusCode::BAD_REQUEST,
+            errors,
+        ));
+    }
+    let offset =
+        offset.ok_or_else(|| invalid(&locale, &i18n, "zone", "example::reading_invalid_zone"))?;
+    let instant = DateTime::parse_from_rfc3339(&input.at)
+        .map_err(|_| invalid(&locale, &i18n, "at", "example::reading_invalid_at"))?;
     let local = instant.with_timezone(&offset);
     if !(2000..=2100).contains(&local.year()) {
-        return Err(invalid());
+        return Err(invalid(
+            &locale,
+            &i18n,
+            "at",
+            "example::reading_invalid_year",
+        ));
     }
     let date = i18n
         .format_date(locale.locale(), local.date_naive(), DateFormatStyle::Long)

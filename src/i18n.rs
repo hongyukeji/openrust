@@ -175,8 +175,14 @@ impl Default for MessageCatalog {
     fn default() -> Self {
         Self {
             messages: BTreeMap::from([
-                (Locale("en".to_owned()), messages(EN_MESSAGES)),
-                (Locale("zh-CN".to_owned()), messages(ZH_CN_MESSAGES)),
+                (
+                    Locale("en".to_owned()),
+                    framework_messages(EN_MESSAGES, false),
+                ),
+                (
+                    Locale("zh-CN".to_owned()),
+                    framework_messages(ZH_CN_MESSAGES, true),
+                ),
             ]),
         }
     }
@@ -279,6 +285,16 @@ impl MessageCatalog {
             .get_key_value(locale)
             .and_then(|(tag, messages)| messages.get(key).map(|message| (tag, message)))
             .or_else(|| {
+                self.messages
+                    .get_key_value(&Locale(locale.language().to_owned()))
+                    .and_then(|(tag, messages)| messages.get(key).map(|message| (tag, message)))
+            })
+            .or_else(|| {
+                // 配置可使用带地区的默认标签而资源仅登记语言或另一地区；仅在该标签
+                // 尚无资源时采用同语言资源，不让缺 key 穿透到任意已登记的兄弟地区。
+                if self.messages.contains_key(locale) {
+                    return None;
+                }
                 self.messages
                     .iter()
                     .find(|(tag, _)| tag.language() == locale.language())
@@ -398,6 +414,32 @@ fn plural_category(value: icu_plurals::PluralCategory) -> PluralCategory {
         icu_plurals::PluralCategory::Many => PluralCategory::Many,
         icu_plurals::PluralCategory::Other => PluralCategory::Other,
     }
+}
+
+fn framework_messages(entries: &[(&str, &str)], chinese: bool) -> BTreeMap<String, CatalogMessage> {
+    let mut result = messages(entries);
+    let (one, other) = if chinese {
+        (
+            "{first}（另有 {count} 项错误）",
+            "{first}（另有 {count} 项错误）",
+        )
+    } else {
+        (
+            "{first} (and {count} more error)",
+            "{first} (and {count} more errors)",
+        )
+    };
+    result.insert(
+        "openrust.validation.summary.more".into(),
+        CatalogMessage::Plural {
+            argument: "count".into(),
+            forms: BTreeMap::from([
+                (PluralCategory::One, one.into()),
+                (PluralCategory::Other, other.into()),
+            ]),
+        },
+    );
+    result
 }
 
 fn messages(entries: &[(&str, &str)]) -> BTreeMap<String, CatalogMessage> {
@@ -527,6 +569,14 @@ impl I18n {
             .catalog
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.select_from_catalog(&catalog, accept_language)
+    }
+
+    fn select_from_catalog(
+        &self,
+        catalog: &MessageCatalog,
+        accept_language: Option<&str>,
+    ) -> Locale {
         let Some(header) = accept_language else {
             return self.config.default_locale.clone();
         };
@@ -559,60 +609,49 @@ impl I18n {
         candidates
             .into_iter()
             .find_map(|(_, _, candidate)| {
+                if candidate == self.config.default_locale && catalog.supports(&candidate) {
+                    return Some(candidate);
+                }
                 catalog
                     .messages
-                    .keys()
-                    .find(|supported| {
-                        *supported == &candidate || supported.language() == candidate.language()
+                    .get_key_value(&candidate)
+                    .map(|(locale, _)| locale.clone())
+                    .or_else(|| {
+                        catalog
+                            .messages
+                            .keys()
+                            .find(|supported| supported.as_str() == candidate.language())
+                            .cloned()
                     })
-                    .cloned()
+                    .or_else(|| {
+                        catalog
+                            .messages
+                            .keys()
+                            .find(|supported| supported.language() == candidate.language())
+                            .cloned()
+                    })
             })
             .unwrap_or_else(|| self.config.default_locale.clone())
     }
 
     /// 使用所选 locale 和已配置的回退规则解析 key，然后替换 `{name}` 参数。
     pub fn translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> String {
+        self.try_translate(locale, key, args)
+            .unwrap_or_else(|| key.to_owned())
+    }
+
+    fn try_translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> Option<String> {
         let catalog = self
             .catalog
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let message = catalog.message(locale, key).or_else(|| {
-            catalog
-                .messages
-                .get_key_value(&self.config.fallback_locale)?
-                .1
-                .get(key)
-                .map(|message| (&self.config.fallback_locale, message))
-        });
-        message.map_or_else(
-            || key.to_owned(),
-            |(message_locale, message)| match message {
-                CatalogMessage::Text(template) => interpolate(template, args),
-                CatalogMessage::Select { argument, cases } => {
-                    let selected = args
-                        .get(argument)
-                        .and_then(|value| cases.get(value))
-                        .or_else(|| cases.get("other"));
-                    selected.map_or_else(|| key.to_owned(), |template| interpolate(template, args))
-                }
-                CatalogMessage::Plural { argument, forms } => {
-                    let category = args
-                        .get(argument)
-                        .and_then(|value| Decimal::from_str(value).ok())
-                        .map(|value| PluralOperands::from(&value))
-                        .and_then(|value| {
-                            let locale = IcuLocale::from_str(message_locale.as_str()).ok()?;
-                            let rules = PluralRules::try_new_cardinal(locale.into()).ok()?;
-                            Some(plural_category(rules.category_for(value)))
-                        })
-                        .unwrap_or(PluralCategory::Other);
-                    let template = forms
-                        .get(&category)
-                        .or_else(|| forms.get(&PluralCategory::Other));
-                    template.map_or_else(|| key.to_owned(), |template| interpolate(template, args))
-                }
-            },
-        )
+        let locale = self.select_from_catalog(&catalog, Some(locale.as_str()));
+        let message = catalog
+            .message(&locale, key)
+            .or_else(|| catalog.message(&self.config.fallback_locale, key));
+        message.map(|(message_locale, message)| {
+            format_catalog_message(message_locale, message, key, args)
+        })
     }
 
     /// 按 locale 格式化精确十进制字符串，不经过浮点数或舍入。
@@ -688,6 +727,7 @@ impl I18n {
 
     /// 使用显式 locale 执行 future，并覆盖从请求头中选择的 locale。
     pub async fn with_locale<F: Future>(&self, locale: Locale, future: F) -> F::Output {
+        let locale = self.select(Some(locale.as_str()));
         I18N_CONTEXT
             .scope(
                 I18nContext {
@@ -699,8 +739,47 @@ impl I18n {
             .await
     }
 
+    /// 在后台任务或无 HTTP 请求的代码中使用此应用配置的默认语言。
+    pub async fn with_default_locale<F: Future>(&self, future: F) -> F::Output {
+        self.with_locale(self.select(None), future).await
+    }
+
     pub(crate) fn locale_for_request(&self, accept_language: Option<&str>) -> Locale {
         self.select(accept_language)
+    }
+}
+
+fn format_catalog_message(
+    message_locale: &Locale,
+    message: &CatalogMessage,
+    key: &str,
+    args: &MessageArgs,
+) -> String {
+    match message {
+        CatalogMessage::Text(template) => interpolate(template, args),
+        CatalogMessage::Select { argument, cases } => {
+            let selected = args
+                .get(argument)
+                .and_then(|value| cases.get(value))
+                .or_else(|| cases.get("other"));
+            selected.map_or_else(|| key.to_owned(), |template| interpolate(template, args))
+        }
+        CatalogMessage::Plural { argument, forms } => {
+            let category = args
+                .get(argument)
+                .and_then(|value| Decimal::from_str(value).ok())
+                .map(|value| PluralOperands::from(&value))
+                .and_then(|value| {
+                    let locale = IcuLocale::from_str(message_locale.as_str()).ok()?;
+                    let rules = PluralRules::try_new_cardinal(locale.into()).ok()?;
+                    Some(plural_category(rules.category_for(value)))
+                })
+                .unwrap_or(PluralCategory::Other);
+            let template = forms
+                .get(&category)
+                .or_else(|| forms.get(&PluralCategory::Other));
+            template.map_or_else(|| key.to_owned(), |template| interpolate(template, args))
+        }
     }
 }
 
@@ -814,7 +893,8 @@ impl crate::core::ServiceProvider for I18nServiceProvider {
         app: &'a mut crate::core::BootContext<'_>,
     ) -> crate::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let _ = app.resolve::<I18n>().await?;
+            let service = app.resolve::<I18n>().await?;
+            app.exceptions(move |handler| handler.set_i18n((*service).clone()))?;
             Ok(())
         })
     }
@@ -981,6 +1061,39 @@ pub(crate) fn translate_current(key: &str, args: &MessageArgs) -> Option<String>
         .ok()
 }
 
+// 仅为服务尚未初始化时使用的安全内置目录，不解析容器或建立第二个应用服务。
+static BOOTSTRAP_MESSAGES: std::sync::LazyLock<MessageCatalog> =
+    std::sync::LazyLock::new(MessageCatalog::default);
+
+pub(crate) fn bootstrap_translation(key: &str, args: &MessageArgs) -> Option<String> {
+    let locale = Locale("en".to_owned());
+    BOOTSTRAP_MESSAGES
+        .message(&locale, key)
+        .map(|(locale, message)| format_catalog_message(locale, message, key, args))
+}
+
+pub(crate) fn translate_for_rendering(
+    service: Option<&I18n>,
+    key: &str,
+    args: &MessageArgs,
+) -> Option<String> {
+    match I18N_CONTEXT.try_with(|context| context.i18n.try_translate(&context.locale, key, args)) {
+        Ok(message) => message,
+        Err(_) => service.map_or_else(
+            || bootstrap_translation(key, args),
+            |service| service.try_translate(&service.select(None), key, args),
+        ),
+    }
+}
+
+pub(crate) fn rendering_locale(service: Option<&I18n>) -> Locale {
+    I18N_CONTEXT
+        .try_with(|context| context.locale.clone())
+        .unwrap_or_else(|_| {
+            service.map_or_else(|| Locale("en".to_owned()), |service| service.select(None))
+        })
+}
+
 fn normalize_locale(value: &str) -> std::result::Result<String, ConfigError> {
     let mut parts = value.trim().split('-');
     let Some(language) = parts.next() else {
@@ -1051,6 +1164,11 @@ struct MissingRequestLocale;
 
 const EN_MESSAGES: &[(&str, &str)] = &[
     ("openrust.response.ok", "ok"),
+    ("openrust.error.title", "Error"),
+    (
+        "openrust.validation.summary.empty",
+        "The given data was invalid.",
+    ),
     ("openrust.error.bad_request", "bad request"),
     ("openrust.error.unauthorized", "authentication required"),
     ("openrust.error.forbidden", "forbidden"),
@@ -1079,6 +1197,8 @@ const EN_MESSAGES: &[(&str, &str)] = &[
 
 const ZH_CN_MESSAGES: &[(&str, &str)] = &[
     ("openrust.response.ok", "成功"),
+    ("openrust.error.title", "错误"),
+    ("openrust.validation.summary.empty", "输入数据无效。"),
     ("openrust.error.bad_request", "请求参数错误"),
     ("openrust.error.unauthorized", "需要身份验证"),
     ("openrust.error.forbidden", "没有权限执行此操作"),

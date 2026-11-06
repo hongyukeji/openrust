@@ -425,7 +425,7 @@ impl Provider for CapturedProvider {
 }
 
 /// 在一次迭代中冻结进程环境；保留非 UTF-8 值供安全的按键查询。
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct EnvironmentSnapshot {
     values: Vec<(OsString, OsString)>,
 }

@@ -27,17 +27,20 @@ struct Fixture {
 }
 impl Fixture {
     async fn create() -> TestResult<Self> {
+        Self::create_with_locale("en").await
+    }
+    async fn create_with_locale(default_locale: &str) -> TestResult<Self> {
         let mut defaults = openrust::config::FrameworkConfig::default();
         defaults.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let storage = tempfile::tempdir()?;
         let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
         let source=Figment::from(Serialized::defaults(defaults)).merge(Serialized::defaults(serde_json::json!({
-            "app":{"env":"test"},
+            "app":{"env":"test","debug":false},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage.path()}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"localization-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
-            "i18n":{"default_locale":"en","fallback_locale":"en"}
+            "i18n":{"default_locale":default_locale,"fallback_locale":"en"}
         })));
         let app = TestApp::<crate::bootstrap::Server>::builder(
             crate::modules::example::test_sources(&(source))?,
@@ -82,6 +85,7 @@ impl Fixture {
                 "http://{}/api/example/reading-summary",
                 self.address
             ))
+            .header("accept", "application/json")
             .query(parameters);
         if let Some(locale) = locale {
             request = request.header("accept-language", locale);
@@ -225,4 +229,114 @@ async fn reading_summary_uses_last_duplicate_query_value_over_tcp() -> TestResul
     let cleanup = f.close().await;
     result?;
     cleanup
+}
+
+async fn translated_error(
+    response: reqwest::Response,
+    status: u16,
+    code: &str,
+    message: &str,
+) -> TestResult<Value> {
+    assert_eq!(response.status().as_u16(), status);
+    let text = response.text().await?;
+    assert!(!text.contains("translation-private-sentinel"));
+    let body: Value = serde_json::from_str(&text)?;
+    assert_eq!(body["success"], false);
+    assert_eq!(body["code"], code);
+    assert_eq!(body["message"], message);
+    assert!(body["request_id"].as_str().is_some_and(|id| !id.is_empty()));
+    Ok(body)
+}
+
+fn validation_messages(locale: &str) -> (&'static str, &'static str, &'static str) {
+    if locale == "zh-CN" {
+        (
+            "阅读计数不能超过 1000000。",
+            "阅读时区请选择 utc 或 utc+08:00。",
+            "阅读计数不能超过 1000000。（另有 1 项错误）",
+        )
+    } else {
+        (
+            "Reading count must not exceed 1000000.",
+            "Choose utc or utc+08:00 for the reading time zone.",
+            "Reading count must not exceed 1000000. (and 1 more error)",
+        )
+    }
+}
+
+#[tokio::test]
+async fn reading_validation_uses_configured_default_and_explicit_locale_for_summary_and_fields()
+-> TestResult {
+    for default in ["en", "zh-CN"] {
+        let fixture = Fixture::create_with_locale(default).await?;
+        let outcome = async {
+            for requested in [None, Some("en"), Some("zh-CN"), Some("fr")] {
+                let selected = requested.filter(|value| *value != "fr").unwrap_or(default);
+                let (count, zone, summary) = validation_messages(selected);
+                let response = fixture
+                    .response(
+                        requested,
+                        &[("count", "1000001"), ("at", AT), ("zone", "unsupported")],
+                    )
+                    .await?;
+                let body = translated_error(response, 400, "validation_failed", summary).await?;
+                assert_eq!(body["errors"]["count"][0], count);
+                assert_eq!(body["errors"]["zone"][0], zone);
+                assert_eq!(
+                    body["errors"].as_object().map(serde_json::Map::len),
+                    Some(2)
+                );
+            }
+            Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+        }
+        .await;
+        let cleanup = fixture.close().await;
+        outcome?;
+        cleanup?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn normal_config_read_failure_keeps_safe_localized_5xx_and_stable_code() -> TestResult {
+    for default in ["en", "zh-CN"] {
+        let fixture = Fixture::create_with_locale(default).await?;
+        let outcome = async {
+            // 可信运行期原始配置写入可制造类型错误，下一次真实业务读取必须安全失败。
+            fixture.app.app()?.config_repository().set(
+                "example.greeting",
+                serde_json::json!({"private_source":"translation-private-sentinel"}),
+            )?;
+            for requested in [None, Some("en"), Some("zh-CN")] {
+                let selected = requested.unwrap_or(default);
+                let expected = if selected == "zh-CN" {
+                    "服务器内部错误"
+                } else {
+                    "internal server error"
+                };
+                let mut request = fixture
+                    .client
+                    .get(format!(
+                        "http://{}/api/example/config-greeting",
+                        fixture.address
+                    ))
+                    .header("accept", "application/json");
+                if let Some(locale) = requested {
+                    request = request.header("accept-language", locale);
+                }
+                let body =
+                    translated_error(request.send().await?, 500, "configuration_error", expected)
+                        .await?;
+                assert!(body.get("errors").is_none_or(Value::is_null));
+                assert!(!body.to_string().contains("example.greeting"));
+                assert!(!body.to_string().contains("private_source"));
+            }
+            Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+        }
+        .await;
+        let cleanup = fixture.close().await;
+        outcome?;
+        cleanup?;
+    }
+    Ok(())
 }

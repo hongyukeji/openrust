@@ -1854,7 +1854,10 @@ mod tests {
         std::fs::create_dir(directory.path().join("demo")).map_err(crate::core::Error::internal)?;
         std::fs::write(directory.path().join("demo/child.toml"), "new = 2\n")
             .map_err(crate::core::Error::internal)?;
-        let mut sources = ConfigLoader::new(directory.path(), Environment::Test).sources()?;
+        let mut loader = ConfigLoader::new(directory.path(), Environment::Test);
+        // 此用例的环境层由下方显式提供，不能读取并行Jail用例临时修改的进程环境。
+        loader.environment = Some(EnvironmentSnapshot::default());
+        let mut sources = loader.sources()?;
         let environment = json!({"demo": {"from_b": "environment", "override": "origin"}});
         sources.merge(Serialized::defaults(environment.clone()), environment)?;
         let profile = sources.figment().profile().clone();

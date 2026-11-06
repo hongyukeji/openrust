@@ -1066,6 +1066,10 @@ fn populate_project_with_features(
             "//! 应用中间件。\n".to_owned(),
         ),
         (
+            "tests/error_localization.rs",
+            include_str!("../templates/tests/error_localization.rs").to_owned(),
+        ),
+        (
             "AGENTS.md",
             include_str!("../templates/AGENTS.md").to_owned(),
         ),

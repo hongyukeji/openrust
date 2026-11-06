@@ -16,6 +16,10 @@
 
 - [路由](the-basics/routing.md)
 
+# 深入了解
+
+- [本地化](digging-deeper/localization.md)
+
 # 安全
 
 - [认证](security/authentication.md)

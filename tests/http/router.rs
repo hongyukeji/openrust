@@ -5012,10 +5012,10 @@ async fn early_i18n_errors_keep_default_negotiation_and_request_id() -> TestResu
             assert!(body.is_empty());
         } else if expected_type == "application/json" {
             let value: serde_json::Value = serde_json::from_slice(&body)?;
-            assert_eq!(value["message"], "Server Error");
+            assert_eq!(value["message"], "internal server error");
             assert!(value.get("code").is_none());
         } else {
-            assert!(String::from_utf8_lossy(&body).contains("Server Error"));
+            assert!(String::from_utf8_lossy(&body).contains("internal server error"));
         }
     }
     Ok(())

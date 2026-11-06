@@ -393,25 +393,90 @@ impl Error {
 
     /// 使用统一 JSON 封装生成错误响应，并隐藏服务器内部详情。
     pub fn to_api_response(&self) -> ApiResponse<()> {
-        let fallback = if self.is_server_error() {
-            "internal server error".to_owned()
-        } else {
-            self.to_string()
-        };
-        let message = if self.is_server_error() {
-            fallback
-        } else {
-            let key = format!("openrust.error.{}", self.code());
-            crate::i18n::translate_current(&key, &crate::i18n::MessageArgs::new())
-                .filter(|translated| translated != &key)
-                .unwrap_or(fallback)
-        };
+        let service = response_i18n();
+        self.to_api_response_with_i18n(service.as_ref())
+    }
+
+    pub(crate) fn to_api_response_with_i18n(
+        &self,
+        service: Option<&crate::i18n::I18n>,
+    ) -> ApiResponse<()> {
         let errors = match self {
             Self::Validation(errors) | Self::ValidationInBag { errors, .. } => Some(errors.clone()),
             Self::ValidationDetail { errors, .. } if !errors.is_empty() => Some(errors.clone()),
             _ => None,
         };
-        ApiResponse::failure(self.code(), message, self.status(), errors)
+        ApiResponse::failure(
+            self.code(),
+            self.user_message(service),
+            self.status(),
+            errors,
+        )
+    }
+
+    // Display/source 是诊断契约，不随用户语言变化；仅响应展示使用这条统一路径。
+    pub(crate) fn user_message(&self, service: Option<&crate::i18n::I18n>) -> String {
+        let translate = |key: &str, args: &crate::i18n::MessageArgs| {
+            crate::i18n::translate_for_rendering(service, key, args)
+        };
+        if self.is_server_error() {
+            return translate(
+                &format!("openrust.error.{}", self.code()),
+                &crate::i18n::MessageArgs::new(),
+            )
+            .or_else(|| {
+                translate(
+                    "openrust.error.internal_error",
+                    &crate::i18n::MessageArgs::new(),
+                )
+            })
+            .or_else(|| {
+                crate::i18n::bootstrap_translation(
+                    "openrust.error.internal_error",
+                    &crate::i18n::MessageArgs::new(),
+                )
+            })
+            .unwrap_or_default();
+        }
+        if let Self::Validation(errors) | Self::ValidationInBag { errors, .. } = self {
+            let mut messages = errors.iter().flat_map(|(_, messages)| messages.iter());
+            let Some(first) = messages.next() else {
+                return translate(
+                    "openrust.validation.summary.empty",
+                    &crate::i18n::MessageArgs::new(),
+                )
+                .unwrap_or_else(|| errors.summary());
+            };
+            let count = messages.count();
+            if count == 0 {
+                return first.clone();
+            }
+            let args = crate::i18n::MessageArgs::from([
+                ("first".into(), first.clone()),
+                ("count".into(), count.to_string()),
+            ]);
+            return translate("openrust.validation.summary.more", &args)
+                .unwrap_or_else(|| errors.summary());
+        }
+        if let Self::ValidationDetail { detail, .. } = self {
+            return detail.clone();
+        }
+        // 显式HTTP异常详情属于应用公开契约，不能被通用状态码翻译覆盖。
+        match self {
+            Self::BadRequest(detail)
+            | Self::Forbidden(detail)
+            | Self::NotFound(detail)
+            | Self::Conflict(detail)
+            | Self::HttpWithSource {
+                message: detail, ..
+            } => return detail.clone(),
+            _ => {}
+        }
+        translate(
+            &format!("openrust.error.{}", self.code()),
+            &crate::i18n::MessageArgs::new(),
+        )
+        .unwrap_or_else(|| self.to_string())
     }
 }
 
@@ -529,6 +594,18 @@ pub fn current_http_status_mode() -> HttpStatusMode {
     response_context().http_status
 }
 
+fn response_i18n() -> Option<crate::i18n::I18n> {
+    RESPONSE_CONTEXT
+        .try_with(|context| {
+            context
+                .exception_handler
+                .as_ref()
+                .and_then(|handler| handler.i18n_service().cloned())
+        })
+        .ok()
+        .flatten()
+}
+
 /// 附加在成功分页响应中的类型化分页元数据。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct PageMeta {
@@ -581,7 +658,8 @@ impl<T: Serialize> ApiResponse<T> {
         Self {
             success: true,
             code: "ok".to_owned(),
-            message: crate::i18n::translate_current(
+            message: crate::i18n::translate_for_rendering(
+                response_i18n().as_ref(),
                 "openrust.response.ok",
                 &crate::i18n::MessageArgs::new(),
             )
@@ -656,7 +734,8 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
                 tracing::error!("response serialization failed");
                 let mut fallback = Self::failure(
                     "internal_error",
-                    "internal server error".to_owned(),
+                    Error::internal(std::io::Error::other("response serialization failed"))
+                        .user_message(response_i18n().as_ref()),
                     StatusCode::INTERNAL_SERVER_ERROR,
                     None,
                 );
@@ -665,12 +744,8 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
                     .request_id_header
                     .clone_from(&self.request_id_header);
                 let body = serde_json::to_vec(&fallback).unwrap_or_else(|_| {
-                    format!(
-                        "{{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"timestamp\":\"{}\",\"request_id\":{}}}",
-                        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                        serde_json::to_string(&self.request_id_header).unwrap_or_else(|_| "\"-\"".to_owned())
-                    )
-                    .into_bytes()
+                    serde_json::json!({"success":false,"code":"internal_error","message":fallback.message,
+                        "timestamp":fallback.timestamp,"request_id":self.request_id_header}).to_string().into_bytes()
                 });
                 (StatusCode::INTERNAL_SERVER_ERROR, body)
             }
@@ -717,7 +792,9 @@ mod tests {
 
     #[test]
     fn client_error_has_code_and_message() {
-        let response = Error::NotFound("post 42 not found".into()).to_api_response();
+        let error = Error::NotFound("post 42 not found".into());
+        assert_eq!(error.to_string(), "post 42 not found");
+        let response = error.to_api_response();
         assert_eq!(response.code, "not_found");
         assert_eq!(response.message, "post 42 not found");
         assert!(!response.success);
@@ -823,3 +900,7 @@ mod tests {
 #[cfg(test)]
 #[path = "error/initialization_diagnostic_tests.rs"]
 mod initialization_diagnostic_tests;
+
+#[cfg(test)]
+#[path = "error_i18n_tests.rs"]
+mod i18n_tests;
