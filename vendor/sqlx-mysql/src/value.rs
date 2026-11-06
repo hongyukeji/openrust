@@ -33,7 +33,8 @@ pub struct MySqlValueRef<'r> {
 }
 
 impl<'r> MySqlValueRef<'r> {
-    pub(crate) fn format(&self) -> MySqlValueFormat {
+    /// 返回本次列值的协议表示；不根据类型名猜测文本或二进制编码。
+    pub fn format(&self) -> MySqlValueFormat {
         self.format
     }
 

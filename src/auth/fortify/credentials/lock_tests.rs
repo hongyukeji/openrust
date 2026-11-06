@@ -69,16 +69,19 @@ impl Authenticatable for Account {
     fn remember_token(&self) -> Result<Option<String>> {
         self.attributes.remember_token()
     }
-    fn set_remember_token(&self, token: Option<String>) -> Result<()> {
+    fn remember_token_for_cookie(&self) -> Result<Option<String>> {
+        self.attributes.remember_token_for_cookie()
+    }
+    fn set_remember_token(&self, token: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
         self.attributes.set_remember_token(token)
     }
-    fn compare_and_set_remember_token(
-        &self,
-        expected: Option<&str>,
+    fn begin_remember_token_update<'a>(
+        &'a self,
+        expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> Result<bool> {
+    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
         self.attributes
-            .compare_and_set_remember_token(expected, replacement)
+            .begin_remember_token_update(expected, replacement)
     }
     fn remember_token_name(&self) -> &str {
         self.attributes.remember_token_name()

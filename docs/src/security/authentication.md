@@ -60,7 +60,13 @@ async fn current_id(auth: &AuthManager) -> Result<Option<serde_json::Value>> {
 
 `Authenticatable` 提供标识字段名、原始标识、密码字段名、可选密码哈希以及可选 remember token 的读写契约。`AuthUser` 是 `Arc<dyn Authenticatable>`，供异步调用链共享；账户实现应通过内部可变性更新 token，不跨 `await` 持有同步锁。
 
-`Authenticatable::compare_and_set_remember_token(expected, replacement) -> Result<bool>` 要求在同一账户锁内比较并替换 token：匹配并替换返回 true，值已变化返回 false。`GenericUser` 用单个 `RwLock` 原子完成操作，根应用与生成模型委托同一实现。自定义账户未实现时，默认在 token 修改前返回 `auth_token_atomic_update_unsupported`，不允许用先读取再写入模拟原子更新；这会拒绝需要轮换 token 的记住我操作，包括适用的注销轮换。
+`Authenticatable::set_remember_token` 返回异步 future，模型可复用同一属性 setter/cast。Guard 的 `begin_remember_token_update(expected, replacement)` 返回 `Option<RememberTokenUpdate>`：条件不匹配为 None，成功则已经原子安装完整原始补丁并持有恢复所有权。Provider 成功后 commit；失败或 future 取消时，同步回滚只恢复仍属于本次变更的字段，保留后继写入与缺失/null区别，不在 Drop 中再次调用用户访问器或异步任务。
+
+`GenericUser` 保留原始属性语义，应用模型使用相同存储的 getter/cast；两者不复制 token 状态。外部账户可实现公开 `RememberTokenMutation` 后端并用 `RememberTokenUpdate::new` 包装，后端须同步、幂等且不panic。未实现修改能力时返回 `auth_token_atomic_update_unsupported`，不允许用先读再写模拟原子更新。
+
+`remember_token_for_cookie` 必须原子读取可用于签发 Cookie 的已确认值；另一个 Guard 的未持久化候选不能被当作成功状态。该限制不阻止注销安装并提交后继 token。收到修改冲突或未提交读取错误应安全结束本次认证，不静默签发 Cookie。内存回滚不表示已发出的数据库 I/O 一定未提交；未知提交结果及跨连接持久更新排序须另行证明。
+
+当前 `DatabaseUserProvider` 按固定官方数据库 Provider 直接更新传入 token；自定义用户工厂不使它成为 `EloquentUserProvider`。完整 Eloquent save/dirty/连接/事件生命周期仍需后续交付，不能用该属性前置冒称完成。
 
 ID 保留原始 JSON 数字或非空字符串类型，UUID 可作为字符串使用。Session Guard 拒绝 null、布尔、数组、对象和空白字符串 ID，不把字符串数字静默转换为整数。`GenericUser` 默认读取 `id`、`password`、`remember_token`；其他列名由应用实现 `Authenticatable`。密码和 remember token 可以缺失或为 null，无密码账户不等于空密码账户，也不等于密码验证成功。
 
@@ -117,7 +123,7 @@ async fn attempt_login(auth: &AuthManager, credentials: &Credentials) -> Result<
 
 记住我 Cookie 必须经 `CookieServiceProvider` 加密保护，且不能列入 `except`；否则返回 `auth_recaller_protection_required`。`hash_password_for_cookie` 只计算 HMAC，不负责 Cookie 加密。客户端 Cookie Session 的两枚 Cookie 同样需要完整保护；plain 或排除保护的载荷不能承载持久认证。普通服务器端 Session 不要求额外使用 remember Cookie。
 
-`SessionGuard` 轮换 remember token 时用原子比较交换（CAS）安装候选值；若账户已被并发修改，返回 `auth_remember_token_conflict`，不覆盖新状态。持久化失败或 future 取消时，仅当账户仍持有本操作候选值且操作仍有效，才用 CAS 恢复旧值；返回 false 时保留其他 Guard 已写入的新值。这是 Rust 共享账户并发与 future 取消所需的适配，不是上游 PHP 原有的多线程要求，也不构成数据库事务或分布式 CAS。
+`SessionGuard` 轮换 remember token 时通过账户的条件修改入口安装原始补丁，并跨 Provider 调用持有拥有式回执。条件已改变时拒绝，准备期间出现版本冲突时可返回 `model_attribute_mutation_conflict`；最终 Cookie 值失效时返回 `auth_remember_token_conflict`。持久化失败或 future 取消时，按字段 owner/祖先链恢复仍属于本次修改的部分，不因 Guard epoch 已变化而遗漏 raw 清理，也不覆盖后继写入。此为 Rust 共享账户并发与 future 取消的内存安全扩展，不构成数据库事务或分布式 CAS。
 
 登录、token 持久化、Cookie 排队或认证事件失败/取消时，请求内状态按拒绝认证处理；已发出的数据库 I/O 或其他外部写入不承诺撤回或自动回滚。可通过 Events 订阅 `Attempting`、`Validated`、`Login`、`Authenticated`、`Failed`、`Logout`，但不要记录账户秘密或凭据。
 

@@ -16,6 +16,18 @@ pub struct MySqlColumn {
     #[allow(unused)]
     #[cfg_attr(feature = "offline", serde(skip))]
     pub(crate) flags: Option<ColumnFlags>,
+
+    #[cfg_attr(feature = "offline", serde(default))]
+    pub(crate) decimals: Option<u8>,
+}
+
+impl MySqlColumn {
+    /// 返回服务器原始 decimals 字段；旧离线元数据未知时为 None。
+    ///
+    /// 时间类型使用它表示小数秒位数；浮点类型的 31 等协议值须由调用方解释。
+    pub fn fractional_digits(&self) -> Option<u8> {
+        self.decimals
+    }
 }
 
 impl Column for MySqlColumn {

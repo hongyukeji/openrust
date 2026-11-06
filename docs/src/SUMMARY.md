@@ -30,6 +30,10 @@
 - [数据库连接](database/connections.md)
 - [查询构造器](database/queries.md)
 
+# Eloquent ORM
+
+- [模型基础](eloquent/getting-started.md)
+
 # 扩展：Laravel Modules
 
 - [注册与模块组织](modules/registration.md)

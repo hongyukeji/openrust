@@ -18,6 +18,26 @@ pub struct MySqlTypeInfo {
 }
 
 impl MySqlTypeInfo {
+    /// 返回服务器列元数据中的原始 MySQL 协议类型编号，不经名称兼容映射。
+    pub fn wire_type_id(&self) -> u8 {
+        self.r#type as u8
+    }
+
+    /// 服务器是否声明该数值列为 unsigned。
+    pub fn is_unsigned(&self) -> bool {
+        self.flags.contains(ColumnFlags::UNSIGNED)
+    }
+
+    /// 服务器是否声明该数值列为 ZEROFILL。
+    pub fn is_zerofill(&self) -> bool {
+        self.flags.contains(ColumnFlags::ZEROFILL)
+    }
+
+    /// 返回协议 column_length；未知离线元数据保持 None，不猜测显示宽度。
+    pub fn display_width(&self) -> Option<u32> {
+        self.max_size
+    }
+
     pub(crate) const fn binary(ty: ColumnType) -> Self {
         Self {
             r#type: ty,
@@ -72,6 +92,32 @@ impl MySqlTypeInfo {
 impl Display for MySqlTypeInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.pad(self.name())
+    }
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::*;
+
+    #[test]
+    fn raw_metadata_keeps_tiny_wire_type_and_numeric_display_flags() {
+        let mut info = MySqlTypeInfo::binary(ColumnType::Tiny);
+        info.max_size = Some(1);
+        assert_eq!(info.wire_type_id(), 1);
+        assert!(!info.is_unsigned());
+        assert!(!info.is_zerofill());
+        assert_eq!(info.display_width(), Some(1));
+
+        info.flags |= ColumnFlags::UNSIGNED | ColumnFlags::ZEROFILL;
+        info.max_size = Some(20);
+        assert_eq!(info.wire_type_id(), 1);
+        assert!(info.is_unsigned());
+        assert!(info.is_zerofill());
+        assert_eq!(info.display_width(), Some(20));
+        assert_eq!(
+            MySqlTypeInfo::binary(ColumnType::LongLong).display_width(),
+            None
+        );
     }
 }
 

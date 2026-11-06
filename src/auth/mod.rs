@@ -60,8 +60,8 @@ pub use guard::{Attempting, Authenticated, Failed, Login, Logout, SessionGuard, 
 pub use guard::{
     AuthDefaults, AuthDrivers, AuthManager, AuthUser, Authenticatable, Credentials,
     DatabaseUserProvider, FactorManagementContext, FactorReceipt, FactorVerificationMethod,
-    GenericUser, Guard, GuardConfig, GuardContext, SessionFactorProof, StatefulGuard, UserProvider,
-    UserProviderConfig,
+    GenericUser, Guard, GuardConfig, GuardContext, RememberTokenMutation, RememberTokenUpdate,
+    SessionFactorProof, StatefulGuard, UserProvider, UserProviderConfig,
 };
 pub use jwt::{JwtServiceProvider, JwtTokens};
 pub use migration::{

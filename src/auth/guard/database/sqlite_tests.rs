@@ -286,11 +286,55 @@ impl Authenticatable for AlternateModel {
     fn remember_token(&self) -> Result<Option<String>> {
         self.secret(self.remember_token_name())
     }
-    fn set_remember_token(&self, token: Option<String>) -> Result<()> {
-        self.attributes.set_attribute(
-            self.remember_token_name(),
-            token.map_or(Value::Null, Value::String),
-        )
+    fn remember_token_for_cookie(&self) -> Result<Option<String>> {
+        match self
+            .attributes
+            .model_attributes()
+            .committed_raw_attribute(self.remember_token_name())?
+        {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(value)) => Ok(Some(value)),
+            _ => Err(Error::custom(
+                "test_model_secret_invalid",
+                "模型秘密字段类型无效",
+            )),
+        }
+    }
+    fn set_remember_token(&self, token: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+        Box::pin(async move {
+            self.attributes.set_attribute(
+                self.remember_token_name(),
+                token.map_or(Value::Null, Value::String),
+            )
+        })
+    }
+    fn begin_remember_token_update<'a>(
+        &'a self,
+        expected: Option<&'a str>,
+        replacement: Option<String>,
+    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+        Box::pin(async move {
+            self.attributes
+                .model_attributes()
+                .set_raw_attribute_reversibly_if(
+                    self.remember_token_name(),
+                    replacement.map_or(Value::Null, Value::String),
+                    move |value| {
+                        let current = match value {
+                            None | Some(Value::Null) => None,
+                            Some(Value::String(token)) => Some(token),
+                            _ => {
+                                return Err(Error::custom(
+                                    "test_model_secret_invalid",
+                                    "模型秘密字段类型无效",
+                                ));
+                            }
+                        };
+                        Ok(current.as_deref() == expected)
+                    },
+                )
+                .map(|receipt| receipt.map(crate::auth::RememberTokenUpdate::from))
+        })
     }
 }
 
@@ -319,6 +363,14 @@ async fn selected_user_factory_controls_real_retrieval_and_model_secret_columns(
             }
         });
         let user = provider.retrieve_by_id(&json!("model:uuid")).await?.ok_or(Error::Unauthorized)?;
+        let update = user.begin_remember_token_update(Some("model-token"), Some("temporary-token".into())).await?
+            .ok_or_else(|| Error::custom("test_model_receipt_missing", "自定义模型缺少token修改收据"))?;
+        assert_eq!(user.remember_token()?.as_deref(), Some("temporary-token"));
+        assert!(matches!(user.remember_token_for_cookie(), Err(error) if error.code() == "model_attribute_update_pending"));
+        drop(update);
+        assert_eq!(user.remember_token()?.as_deref(), Some("model-token"));
+        assert_eq!(user.remember_token_for_cookie()?.as_deref(), Some("model-token"));
+
         assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
         assert_eq!(user.auth_password_name(), "alternate_hash");
         assert_eq!(user.auth_password()?.as_deref(), Some(hash.as_str()));

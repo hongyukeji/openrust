@@ -5,6 +5,7 @@ mod database;
 mod manager;
 mod proof;
 mod registration;
+mod remember;
 mod session;
 
 pub use contracts::{
@@ -17,6 +18,7 @@ pub use manager::{
 pub use proof::{
     FactorManagementContext, FactorReceipt, FactorVerificationMethod, SessionFactorProof,
 };
+pub use remember::{RememberTokenMutation, RememberTokenUpdate};
 pub use session::{Attempting, Authenticated, Failed, Login, Logout, SessionGuard, Validated};
 
 pub(super) use registration::register;

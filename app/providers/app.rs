@@ -39,6 +39,11 @@ impl ServiceProvider for AppServiceProvider {
                     #[cfg(feature = "auth-fortify")]
                     let factor_encrypter =
                         resolver.resolve::<openrust::security::Encryptor>().await?;
+                    let model_metadata =
+                        std::sync::Arc::new(openrust::db::eloquent::ModelMetadata::new(
+                            table,
+                            "app::models::user::User",
+                        ));
                     let provider = openrust::auth::DatabaseUserProvider::new(
                         (*db).clone(),
                         passwords.clone(),
@@ -51,7 +56,8 @@ impl ServiceProvider for AppServiceProvider {
                         {
                             return Err(openrust::Error::Unauthorized);
                         }
-                        let user = crate::app::models::user::User::new(attributes);
+                        let user = crate::app::models::user::User::new(attributes)
+                            .with_model_metadata(model_metadata.clone());
                         #[cfg(feature = "auth-fortify")]
                         let user = {
                             let identifier =

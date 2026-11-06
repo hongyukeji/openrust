@@ -64,7 +64,7 @@ impl UserProvider for UsernameProvider {
         _: &'a dyn Authenticatable,
         token: &'a str,
     ) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move { self.account.set_remember_token(Some(token.into())) })
+        Box::pin(async move { self.account.set_remember_token(Some(token.into())).await })
     }
     fn retrieve_by_credentials<'a>(
         &'a self,

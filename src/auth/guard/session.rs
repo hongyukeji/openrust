@@ -240,40 +240,6 @@ impl Drop for Transition<'_> {
     }
 }
 
-// Provider 必须观察新 token；但 Rust future 取消不能把尚未确认持久化的值遗留给下次登录。
-struct TokenTransition<'a> {
-    guard: &'a SessionGuard,
-    user: AuthUser,
-    previous: Option<String>,
-    candidate: String,
-    epoch: u64,
-    committed: bool,
-}
-impl TokenTransition<'_> {
-    fn restore(&mut self) -> Result<()> {
-        if self.committed {
-            return Ok(());
-        }
-        let state = self.guard.read()?;
-        if state.epoch == self.epoch {
-            // 多个 Guard 可以共享同一账户；比较与恢复必须由账户的一次原子写完成。
-            let _restored = self
-                .user
-                .compare_and_set_remember_token(Some(&self.candidate), self.previous.clone())?;
-        }
-        self.committed = true;
-        Ok(())
-    }
-    fn commit(mut self) {
-        self.committed = true;
-    }
-}
-impl Drop for TokenTransition<'_> {
-    fn drop(&mut self) {
-        let _restored = self.restore();
-    }
-}
-
 impl SessionGuard {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -759,7 +725,7 @@ impl SessionGuard {
         }
     }
     async fn cycle_token(&self, operation: &Operation<'_>, user: &AuthUser) -> Result<()> {
-        let epoch = operation.epoch.ok_or_else(state_changed)?;
+        operation.epoch.ok_or_else(state_changed)?;
         if !self.owns_operation(operation)? {
             return Err(state_changed());
         }
@@ -775,29 +741,29 @@ impl SessionGuard {
                 }
             }
         }
-        if !user.compare_and_set_remember_token(previous.as_deref(), Some(token.clone()))? {
-            return Err(Error::custom(
+        let Some(mut update) = user
+            .begin_remember_token_update(previous.as_deref(), Some(token.clone()))
+            .await?
+        else {
+            return Err(Error::custom_with_status(
+                http::StatusCode::CONFLICT,
                 "auth_remember_token_conflict",
                 "账户记住我 token 已由并发操作修改",
             ));
-        }
-        let mut transition = TokenTransition {
-            guard: self,
-            user: user.clone(),
-            previous,
-            candidate: token.clone(),
-            epoch,
-            committed: false,
         };
+        // 新增的异步setter边界之后仍需持有本次Guard转换；返回时收据负责恢复。
+        if !self.owns_operation(operation)? {
+            return Err(state_changed());
+        }
         if let Err(error) = self
             .provider
             .update_remember_token(user.as_ref(), &token)
             .await
         {
-            transition.restore()?;
+            update.rollback()?;
             return Err(error);
         }
-        transition.commit();
+        update.commit()?;
         Ok(())
     }
     async fn login_inner<'a>(
@@ -833,19 +799,22 @@ impl SessionGuard {
         if remember {
             self.ensure_remember_cookie_protected()?;
             if user
-                .remember_token()?
+                .remember_token_for_cookie()?
                 .is_none_or(|token| token.is_empty() || token == "0")
             {
                 self.cycle_token(operation, &user).await?;
             }
             let identifier = recaller_identifier(user.auth_identifier()?)?;
-            let token = user.remember_token()?.unwrap_or_default();
-            if token.contains('|') {
-                return Err(Error::custom(
-                    "auth_recaller_token_invalid",
-                    "记住我 token 不支持分隔符",
-                ));
-            }
+            let token = user
+                .remember_token_for_cookie()?
+                .filter(|token| !token.trim().is_empty() && token != "0" && !token.contains('|'))
+                .ok_or_else(|| {
+                    Error::custom_with_status(
+                        http::StatusCode::CONFLICT,
+                        "auth_remember_token_conflict",
+                        "记住我token在Cookie签发前已变化或不可用",
+                    )
+                })?;
             let mut value = format!(
                 "{identifier}|{token}|{}",
                 self.hash_password_for_cookie(user.auth_password()?.as_deref())?
@@ -861,6 +830,13 @@ impl SessionGuard {
                 value.push('|');
                 value.push_str(RECALLER_PROOF_PREFIX);
                 value.push_str(&URL_SAFE_NO_PAD.encode(json));
+            }
+            // 解析器按完整明文载荷限长，必须包含身份、哈希及可选因子证明。
+            if value.len() > RECALLER_LIMIT {
+                return Err(Error::custom(
+                    "auth_recaller_too_large",
+                    "记住我Cookie载荷超过输入界限",
+                ));
             }
             self.cookies.queue(self.cookies.factory().make(
                 self.recaller_name(),
@@ -898,8 +874,7 @@ impl SessionGuard {
                 return Err(state_changed());
             }
         }
-        transition.commit()?;
-        Ok(())
+        transition.commit()
     }
     async fn attempt_inner<'a>(
         &'a self,
@@ -2495,16 +2470,19 @@ mod tests {
         fn remember_token(&self) -> Result<Option<String>> {
             self.attributes.remember_token()
         }
-        fn set_remember_token(&self, token: Option<String>) -> Result<()> {
+        fn remember_token_for_cookie(&self) -> Result<Option<String>> {
+            self.attributes.remember_token_for_cookie()
+        }
+        fn set_remember_token(&self, token: Option<String>) -> BoxFuture<'_, Result<()>> {
             self.attributes.set_remember_token(token)
         }
-        fn compare_and_set_remember_token(
-            &self,
-            expected: Option<&str>,
+        fn begin_remember_token_update<'a>(
+            &'a self,
+            expected: Option<&'a str>,
             replacement: Option<String>,
-        ) -> Result<bool> {
+        ) -> BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
             self.attributes
-                .compare_and_set_remember_token(expected, replacement)
+                .begin_remember_token_update(expected, replacement)
         }
         fn remember_token_name(&self) -> &str {
             self.attributes.remember_token_name()
@@ -3620,6 +3598,8 @@ mod tests {
         fail: std::sync::atomic::AtomicBool,
         stored: std::sync::Mutex<Option<String>>,
         entered: tokio::sync::Notify,
+        controlled: std::sync::atomic::AtomicBool,
+        release: tokio::sync::Notify,
     }
     impl UserProvider for TokenProvider {
         fn retrieve_by_id<'a>(&'a self, _: &'a Value) -> BoxFuture<'a, Result<Option<AuthUser>>> {
@@ -3642,6 +3622,9 @@ mod tests {
                 assert_eq!(user.remember_token()?.as_deref(), Some(token));
                 self.calls.fetch_add(1, Ordering::SeqCst);
                 self.entered.notify_one();
+                if self.controlled.load(Ordering::SeqCst) {
+                    self.release.notified().await;
+                }
                 if self.pending.load(Ordering::SeqCst) {
                     std::future::pending::<()>().await;
                 }
@@ -3673,6 +3656,221 @@ mod tests {
         ) -> BoxFuture<'a, Result<()>> {
             Box::pin(async { Ok(()) })
         }
+    }
+
+    #[tokio::test]
+    async fn pending_provider_token_cannot_be_used_by_another_guards_remember_cookie() -> Result<()>
+    {
+        use std::sync::atomic::Ordering;
+        let provider_a = Arc::new(TokenProvider::default());
+        provider_a.controlled.store(true, Ordering::SeqCst);
+        provider_a.fail.store(true, Ordering::SeqCst);
+        let guard_a = Arc::new(failure_guard(provider_a.clone(), None).await?);
+        let provider_b = Arc::new(TokenProvider::default());
+        let guard_b = failure_guard(provider_b.clone(), None).await?;
+        let user = account();
+        let task_guard = guard_a.clone();
+        let task_user = user.clone();
+        let pending = tokio::spawn(async move { task_guard.login(task_user, true).await });
+        tokio::time::timeout(Duration::from_secs(2), provider_a.entered.notified())
+            .await
+            .map_err(Error::internal)?;
+        assert!(
+            user.remember_token()?
+                .is_some_and(|token| !token.is_empty())
+        );
+        assert!(
+            provider_a
+                .stored
+                .lock()
+                .map_err(|_| state_error())?
+                .is_none()
+        );
+        let result =
+            tokio::time::timeout(Duration::from_secs(2), guard_b.login(user.clone(), true))
+                .await
+                .map_err(Error::internal)?;
+        assert!(matches!(result, Err(error) if error.status().as_u16() == 409));
+        assert_eq!(provider_b.calls.load(Ordering::SeqCst), 0);
+        assert!(
+            provider_b
+                .stored
+                .lock()
+                .map_err(|_| state_error())?
+                .is_none()
+        );
+        assert_failed_closed(&guard_b).await?;
+        // A仅在B已明确拒绝后返回已知持久化错误，排除未知数据库完成的解释。
+        provider_a.release.notify_one();
+        let result = tokio::time::timeout(Duration::from_secs(2), pending)
+            .await
+            .map_err(Error::internal)?
+            .map_err(Error::internal)?;
+        assert!(matches!(result, Err(error) if error.code() == "token_write_failed"));
+        assert_eq!(provider_a.calls.load(Ordering::SeqCst), 1);
+        assert!(
+            provider_a
+                .stored
+                .lock()
+                .map_err(|_| state_error())?
+                .is_none()
+        );
+        assert!(user.remember_token()?.is_none());
+        assert_failed_closed(&guard_a).await?;
+        assert_failed_closed(&guard_b).await?;
+        Ok(())
+    }
+
+    struct CookieClearingIdentity {
+        user: super::super::GenericUser,
+        replacement: Option<String>,
+        cookie_reads: std::sync::atomic::AtomicUsize,
+        cleared: std::sync::atomic::AtomicBool,
+    }
+    impl super::super::Authenticatable for CookieClearingIdentity {
+        fn auth_identifier_name(&self) -> &str {
+            self.user.auth_identifier_name()
+        }
+        fn auth_identifier(&self) -> Result<Value> {
+            use std::sync::atomic::Ordering;
+            // 第一次Cookie快照之后，合法身份getter同步修改同一账户；不依赖调度或sleep。
+            if self.cookie_reads.load(Ordering::SeqCst) > 0
+                && !self.cleared.swap(true, Ordering::SeqCst)
+            {
+                self.user.set_attribute(
+                    "remember_token",
+                    self.replacement.clone().map_or(Value::Null, Value::String),
+                )?;
+            }
+            self.user.auth_identifier()
+        }
+        fn auth_password_name(&self) -> &str {
+            self.user.auth_password_name()
+        }
+        fn auth_password(&self) -> Result<Option<String>> {
+            self.user.auth_password()
+        }
+        fn remember_token(&self) -> Result<Option<String>> {
+            self.user.remember_token()
+        }
+        fn remember_token_for_cookie(&self) -> Result<Option<String>> {
+            let token = self.user.remember_token_for_cookie()?;
+            self.cookie_reads
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(token)
+        }
+        fn set_remember_token(&self, value: Option<String>) -> BoxFuture<'_, Result<()>> {
+            self.user.set_remember_token(value)
+        }
+        fn begin_remember_token_update<'a>(
+            &'a self,
+            expected: Option<&'a str>,
+            replacement: Option<String>,
+        ) -> BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+            self.user.begin_remember_token_update(expected, replacement)
+        }
+        fn remember_token_name(&self) -> &str {
+            self.user.remember_token_name()
+        }
+    }
+    #[tokio::test]
+    async fn final_cookie_token_rejects_invalid_values_set_by_the_identity_getter_after_first_read()
+    -> Result<()> {
+        use super::super::Authenticatable;
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        for replacement in [
+            None,
+            Some(String::new()),
+            Some(" \t\n".into()),
+            Some("0".into()),
+            Some("changed|token".into()),
+        ] {
+            let provider = Arc::new(TokenProvider::default());
+            let guard = failure_guard(provider.clone(), None).await?;
+            let user = Arc::new(CookieClearingIdentity {
+                user: super::super::GenericUser::new(serde_json::Map::from_iter([
+                    ("id".into(), json!(42)),
+                    ("password".into(), json!("hash")),
+                    ("remember_token".into(), json!("initial-committed-token")),
+                ])),
+                replacement: replacement.clone(),
+                cookie_reads: AtomicUsize::new(0),
+                cleared: AtomicBool::new(false),
+            });
+            assert_eq!(
+                user.user.remember_token()?.as_deref(),
+                Some("initial-committed-token")
+            );
+            assert!(matches!(guard.login(user.clone(), true).await, Err(error)
+                if error.code() == "auth_remember_token_conflict" && error.status().as_u16() == 409));
+            assert_eq!(user.cookie_reads.load(Ordering::SeqCst), 2);
+            assert!(user.cleared.load(Ordering::SeqCst));
+            assert_eq!(user.user.remember_token()?, replacement);
+            assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
+            assert_failed_closed(&guard).await?;
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn recaller_queue_and_parser_share_the_exact_complete_payload_byte_limit() -> Result<()> {
+        for with_proof in [false, true] {
+            for extra in [0, 1] {
+                let provider = Arc::new(TokenProvider::default());
+                let guard = failure_guard(provider.clone(), None).await?;
+                let identifier = recaller_identifier(json!(42))?;
+                let hash = guard.hash_password_for_cookie(Some("hash"))?;
+                let suffix = if with_proof {
+                    let proof = receipt(json!(42))?.into_proof();
+                    let json = serde_json::to_vec(&proof).map_err(Error::internal)?;
+                    format!("|{RECALLER_PROOF_PREFIX}{}", URL_SAFE_NO_PAD.encode(json))
+                } else {
+                    String::new()
+                };
+                let overhead = format!("{identifier}||{hash}{suffix}");
+                let token_len = RECALLER_LIMIT
+                    .checked_sub(overhead.len())
+                    .ok_or_else(state_error)?
+                    + extra;
+                let token = "x".repeat(token_len);
+                let expected = format!("{identifier}|{token}|{hash}{suffix}");
+                assert_eq!(expected.len(), RECALLER_LIMIT + extra);
+                if extra == 0 {
+                    let parsed = Recaller::parse(&expected).ok_or_else(state_error)?;
+                    assert_eq!(parsed.identifier, json!("42"));
+                    assert_eq!(parsed.token, token);
+                    assert_eq!(parsed.hash, hash);
+                    assert_eq!(parsed.factor_proof.is_some(), with_proof);
+                } else {
+                    assert!(Recaller::parse(&expected).is_none());
+                }
+                let user = account();
+                user.set_remember_token(Some(token)).await?;
+                let result = if with_proof {
+                    guard
+                        .login_with_factor_receipt(user, true, receipt(json!(42))?)
+                        .await
+                } else {
+                    guard.login(user, true).await
+                };
+                if extra == 0 {
+                    result?;
+                    let cookie = guard
+                        .cookies
+                        .queued(&guard.recaller_name(), None)?
+                        .ok_or_else(state_error)?;
+                    assert_eq!(cookie.value(), Some(expected.as_str()));
+                    assert!(Recaller::parse(cookie.value().ok_or_else(state_error)?).is_some());
+                } else {
+                    assert!(
+                        matches!(result, Err(error) if error.code() == "auth_recaller_too_large")
+                    );
+                    assert_failed_closed(&guard).await?;
+                }
+                assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+            }
+        }
+        Ok(())
     }
 
     #[tokio::test]
@@ -3737,18 +3935,13 @@ mod tests {
         let provider = Arc::new(TokenProvider::default());
         let guard = failure_guard(provider.clone(), None).await?;
         let user = account();
-        user.set_remember_token(Some("old".into()))?;
+        user.set_remember_token(Some("old".into())).await?;
         let mut first = guard.operation().await;
-        let epoch = guard.start_mutation(&mut first)?;
-        user.set_remember_token(Some("pending".into()))?;
-        let stale = TokenTransition {
-            guard: &guard,
-            user: user.clone(),
-            previous: Some("old".into()),
-            candidate: "pending".into(),
-            epoch,
-            committed: false,
-        };
+        guard.start_mutation(&mut first)?;
+        let stale = user
+            .begin_remember_token_update(Some("old"), Some("pending".into()))
+            .await?
+            .ok_or_else(state_changed)?;
         drop(first);
         guard.set_user(user.clone()).await?;
         guard.logout().await?;
@@ -3764,11 +3957,63 @@ mod tests {
         assert_eq!(guard.id().await?, Some(json!(42)));
         Ok(())
     }
+    #[tokio::test]
+    async fn token_receipt_cleanup_restores_raw_even_after_guard_epoch_changes() -> Result<()> {
+        let provider = Arc::new(TokenProvider::default());
+        let guard = failure_guard(provider.clone(), None).await?;
+        let user = account();
+        user.set_remember_token(Some("old".into())).await?;
+        let mut first = guard.operation().await;
+        guard.start_mutation(&mut first)?;
+        let stale = user
+            .begin_remember_token_update(Some("old"), Some("pending".into()))
+            .await?
+            .ok_or_else(state_changed)?;
+        drop(first);
+        guard.set_user(user.clone()).await?;
+        assert_eq!(user.remember_token()?.as_deref(), Some("pending"));
+        drop(stale);
+        assert_eq!(user.remember_token()?.as_deref(), Some("old"));
+        assert_eq!(guard.id().await?, Some(json!(42)));
+        assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        Ok(())
+    }
+    #[tokio::test]
+    async fn overlapping_token_receipt_cancellation_cannot_resurrect_an_aborted_candidate()
+    -> Result<()> {
+        let user = account();
+        let first = user
+            .begin_remember_token_update(None, Some("first".into()))
+            .await?
+            .ok_or_else(state_changed)?;
+        let second = user
+            .begin_remember_token_update(Some("first"), Some("second".into()))
+            .await?
+            .ok_or_else(state_changed)?;
+        drop(first);
+        assert_eq!(user.remember_token()?.as_deref(), Some("second"));
+        drop(second);
+        assert!(user.remember_token()?.is_none());
+        // 同值的普通后继赋值也已经提交，不能因值相等被旧收据撤销。
+        let first = user
+            .begin_remember_token_update(None, Some("first".into()))
+            .await?
+            .ok_or_else(state_changed)?;
+        let second = user
+            .begin_remember_token_update(Some("first"), Some("second".into()))
+            .await?
+            .ok_or_else(state_changed)?;
+        user.set_remember_token(Some("second".into())).await?;
+        drop(first);
+        drop(second);
+        assert_eq!(user.remember_token()?.as_deref(), Some("second"));
+        Ok(())
+    }
     struct RestoreBarrierUser {
         user: super::super::GenericUser,
         install_conflict: bool,
-        restore_entered: tokio::sync::Notify,
-        restore_gate: (std::sync::Mutex<bool>, std::sync::Condvar),
+        restore_entered: Arc<tokio::sync::Notify>,
+        restore_gate: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
     }
     impl super::super::Authenticatable for RestoreBarrierUser {
         fn auth_identifier_name(&self) -> &str {
@@ -3786,24 +4031,54 @@ mod tests {
         fn remember_token(&self) -> Result<Option<String>> {
             self.user.remember_token()
         }
-        fn set_remember_token(&self, value: Option<String>) -> Result<()> {
+        fn remember_token_for_cookie(&self) -> Result<Option<String>> {
+            self.user.remember_token_for_cookie()
+        }
+        fn set_remember_token(&self, value: Option<String>) -> BoxFuture<'_, Result<()>> {
             self.user.set_remember_token(value)
         }
         fn remember_token_name(&self) -> &str {
             self.user.remember_token_name()
         }
-        fn compare_and_set_remember_token(
-            &self,
-            expected: Option<&str>,
+        fn begin_remember_token_update<'a>(
+            &'a self,
+            expected: Option<&'a str>,
             replacement: Option<String>,
-        ) -> Result<bool> {
-            if self.install_conflict && replacement.is_some() {
-                return Ok(false);
-            }
-            if replacement.is_none() {
-                // 暂停旧 Guard 的撤销，使另一 Guard 在原子比较之前提交新 token。
-                self.restore_entered.notify_one();
-                let (gate, signal) = &self.restore_gate;
+        ) -> BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+            Box::pin(async move {
+                if self.install_conflict && replacement.is_some() {
+                    return Ok(None);
+                }
+                Ok(self
+                    .user
+                    .begin_remember_token_update(expected, replacement)
+                    .await?
+                    .map(|inner| {
+                        crate::auth::RememberTokenUpdate::new(RestoreBarrierMutation {
+                            inner: Some(inner),
+                            entered: Some(self.restore_entered.clone()),
+                            gate: self.restore_gate.clone(),
+                        })
+                    }))
+            })
+        }
+    }
+    struct RestoreBarrierMutation {
+        inner: Option<crate::auth::RememberTokenUpdate>,
+        entered: Option<Arc<tokio::sync::Notify>>,
+        gate: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+    }
+    impl crate::auth::RememberTokenMutation for RestoreBarrierMutation {
+        fn commit(&mut self) -> Result<()> {
+            self.inner
+                .take()
+                .map_or(Ok(()), crate::auth::RememberTokenUpdate::commit)
+        }
+        fn rollback(&mut self) -> Result<bool> {
+            // 在真实raw恢复之前暂停，让另一Guard先通过Provider提交后继token。
+            if let Some(entered) = self.entered.take() {
+                entered.notify_one();
+                let (gate, signal) = self.gate.as_ref();
                 let released = gate.lock().map_err(|_| state_error())?;
                 let (released, timeout) = signal
                     .wait_timeout_while(released, Duration::from_secs(5), |released| !*released)
@@ -3812,8 +4087,9 @@ mod tests {
                     return Err(state_error());
                 }
             }
-            self.user
-                .compare_and_set_remember_token(expected, replacement)
+            self.inner
+                .as_mut()
+                .map_or(Ok(true), crate::auth::RememberTokenUpdate::rollback)
         }
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -3825,8 +4101,8 @@ mod tests {
                 ("id".into(), json!(42)),
                 ("password".into(), json!("hash")),
             ])),
-            restore_entered: tokio::sync::Notify::new(),
-            restore_gate: (std::sync::Mutex::new(false), std::sync::Condvar::new()),
+            restore_entered: Arc::new(tokio::sync::Notify::new()),
+            restore_gate: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
         });
         let user: AuthUser = shared.clone();
         let provider_a = Arc::new(TokenProvider::default());
@@ -3853,7 +4129,7 @@ mod tests {
         );
         guard_b.login(user.clone(), true).await?;
         {
-            let (gate, signal) = &shared.restore_gate;
+            let (gate, signal) = shared.restore_gate.as_ref();
             *gate.lock().map_err(|_| state_error())? = true;
             signal.notify_all();
         }
@@ -3878,10 +4154,11 @@ mod tests {
                 json!(42),
             )])),
             install_conflict: true,
-            restore_entered: tokio::sync::Notify::new(),
-            restore_gate: (std::sync::Mutex::new(true), std::sync::Condvar::new()),
+            restore_entered: Arc::new(tokio::sync::Notify::new()),
+            restore_gate: Arc::new((std::sync::Mutex::new(true), std::sync::Condvar::new())),
         });
-        assert!(guard.login(user.clone(), true).await.is_err());
+        assert!(matches!(guard.login(user.clone(), true).await,
+            Err(error) if error.code() == "auth_remember_token_conflict" && error.status().as_u16() == 409));
         assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
         assert!(user.remember_token()?.is_none());
         assert_failed_closed(&guard).await

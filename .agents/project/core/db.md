@@ -38,6 +38,11 @@ DB-I01限定实现同次执行返回ID、默认行/sequence、PHP64 Processor数
 
 SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence/期限、续约、同一事务写保护及真实导入生产边界保留；最低3.26与原本MySQL/PG协调回归均有绑定输入证据。当前只支持同机文件租约，不代表完整CacheLock/Queue/幂等。详细范围、native构建诊断与纯提交树闭合见[验收](../memory/testing.md#sqlite-同机租约方言限定验收)。
 
+## 模型属性前置（冻结待验）
+
+MB-A01 已编码并经三轮不同模型静态复审：显式元数据/连接/身份、精确原始行水合、共享getter/cast/异步setter、拥有式多字段回执与认证Cookie committed读取。普通setter按同字段代次保护后继，收据按祖先状态处理双取消/ABA/poison与资源回收；根/模板User及唯一模块真实调用测试代码同步。当前只通过局部静态检查，Cargo/实库/生成及取消竞态运行仍待独立验收；完整Eloquent save/dirty/关系与PG会话格式仍开放，数据库I/O未知完成不因内存恢复关闭。公开边界见[模型基础](../../../docs/src/eloquent/getting-started.md)。
+
+
 ## 当前实现
 
 - 通用能力门控已通过[限定验收](../memory/testing.md#db-通用能力与驱动分层限定验收)：db及facade/prelude常开、迁移总注册，has_default_connection区分default与named；无DB/queue-only、真MySQL/PG、SQLite扩展与fresh12/3/2、资源收尾通过。当前双库事实不限制最终固定官方五后端范围；完整Laravel懒连接/默认名切换与扩展resolver仍开放。

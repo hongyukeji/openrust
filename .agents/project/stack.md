@@ -1,5 +1,7 @@
 # 技术栈
 
+MB-A01 的模型 Array cast 改用现有同版 `serde_json` 的显式 `raw_value` feature，局部保留JSON数字词法并恢复PHP64类别；保留 `preserve_order`／`float_roundtrip`，不启用全局 `arbitrary_precision`，避免其私有Number序列化破坏通用Figment配置及scalar契约。曾启用全局feature的候选已证配置/Session与golden失败，修正后须按原有效断言和新边界集中验收，当前保持WIP；不新增依赖或升级版本。
+
 DB-I01固定 `sea-orm =2.0.4`，仅在仓内源码新增安全 `ExecResult::try_last_insert_id`，SQLite保留有符号rowid，MySQL保留原生u64，不支持的PG结果返回错误；Query层按各固定Processor另作PHP64位数值转换。原因与原包SHA/许可证见 [SeaORM来源](../../vendor/sea-orm/SOURCES.md)。用户已批准完整必要crate随簇提交，根patch、12个consumer与三类fresh实际metadata均解析同一修复副本；无准备脚本、外部fork或发布替代声明。上游升级时须核修复等价再移除补丁，完整来源/许可证/上游402项SHA保持，当前不为精简改变受验分发。限定验收见[插入标识](memory/testing.md#插入标识与事务执行闭环)。
 
 网络测试库生命周期修复新增可选`shutdown_hooks =0.1.0`（MIT，已取固定crate源码SHA审计，安全接口封装C atexit；无额外依赖）。仅显式网络TestDatabase操作首次调用时登记正常退出回调，等待本进程已派发的有限清理操作；回调只同步计数与条件变量，不执行SQL/访问Tokio/输出日志，不安装信号处理或永久后台进程。原因是async Drop阻塞caller runtime会冻住SQLx已排队的还池任务；不能为此忽略pool.close失败而删除活跃库。SIGKILL/abort等不运行退出钩子，仍需持久归属与下次显式入口补偿；Unix范围已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，非Unix私有ACL与副本/无应答服务专项仍开放。
@@ -45,7 +47,7 @@ Session 的原生数据库载荷复用现有 `base64` 0.22；`session` feature �
 | 出站 HTTP | `reqwest` 0.13（Rustls）、`ipnet` 2.11、`httpdate` 1.x | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；默认禁重定向和代理继承；`HttpClient::restricted` 可选执行目标主机/端口、DNS 全结果及公网地址策略，内网例外由主机 + CIDR + 端口显式登记；命名依赖隔离及可选进程内熔断复用此客户端 |
 | 外部 OIDC 客户端 | `oauth2` 5.0（禁用 crate 默认 feature）+ 现有 `jsonwebtoken` 11.1（aws-lc-rs） | 可选 `auth-oidc` feature 依赖 `auth`、`http-client`、`encryption`；授权码/PKCE/令牌交换由 oauth2 提供，OIDC Discovery/JWKS 与 ID Token 必需声明校验由框架 glue 完成并通过受限命名 `DependencyClient` 出站；避免引入 `openidconnect` 的受影响 `rsa` 依赖，见 历史决策 053 |
 | 模块路径匹配 | `glob` 0.3.3 | 固定laravel-modules对每个显式扫描位置执行POSIX风格glob；保路径顺序、匹配排序及重复来源，不自行实现不完整通配符解析。仅发现module.json，不加载未编译Rust源码。 |
-| 序列化 | `serde` + `serde_json`（`preserve_order`、`float_roundtrip`） | R2 包配置合并需要保留 JSON 对象的插入顺序以对应 PHP 数组键顺序；`indexmap` 已在锁图中。C04-B1 typed JSON 规范化保留原始数值词法以支持Rust u128/i128；不启用全局arbitrary_precision，避免serde_json数值的私有结构序列化破坏应用Figment配置来源。模块JSON发现启用float_roundtrip以对应固定PHP strtod的有限浮点最近舍入，原始整数-0与大整数的PHP类型转换另在发现解析层处理；非有限JSON数值仍明确拒绝并保表示缺口。根集成测试用 `serde_json` 比对包装字段与请求 ID |
+| 序列化 | `serde` + `serde_json`（`preserve_order`、`float_roundtrip`、`raw_value`） | R2 包配置合并需要保留 JSON 对象的插入顺序以对应 PHP 数组键顺序；`indexmap` 已在锁图中。C04-B1 typed JSON 规范化保留原始数值词法以支持Rust u128/i128；不启用全局`arbitrary_precision`；模型Array通过局部`RawValue`保数字词法，保持通用Serde数值与Figment来源表示。修正后仍须覆盖配置、typed请求/scalar/JSON/JWT及无DB feature图。模块JSON发现启用float_roundtrip以对应固定PHP strtod的有限浮点最近舍入，原始整数-0与大整数的PHP类型转换另在发现解析层处理；非有限JSON数值仍明确拒绝并保表示缺口。根集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
 | 国际化 | `openrust::i18n`、`serde_json` 与 ICU4X `icu_datetime`/`icu_decimal`/`icu_locale`/`icu_plurals` 2.3.x | 同一 catalog 支持字符串插值、CLDR plural/select；编译数据用于 locale 数字与公历日期格式化。仅启用所需组件；数据随二进制构建，不使用运行时网络。日期时区转换由调用方显式完成；最终二进制尺寸增量纳入 M6 构建基线测量 |
 | 配置 | `figment` + 既有 `toml` 1.1（`preserve_order`） | R2-R02启用已有TOML解析器的保序feature，在来源进入Figment前保留表声明序；复用已锁定indexmap，不在框架新增toml_edit依赖或手写解析器。功能接线与验收仍以当前todo为准，不能从feature声明推断有序来源已交付；来源错误继续按可信schema路径脱敏 |

@@ -1111,3 +1111,219 @@ async fn sqlite_module_http_rejects_same_numeric_user_from_other_table_and_datab
     stopped?;
     closed
 }
+
+type CapturedRootUsers =
+    std::sync::Arc<std::sync::Mutex<Vec<std::sync::Arc<crate::app::models::user::User>>>>;
+
+struct ModelPasswordGetter {
+    encoded: String,
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+impl openrust::db::eloquent::AttributeGetter for ModelPasswordGetter {
+    fn get(&self, _: Option<&Value>, _: &serde_json::Map<String, Value>) -> Result<Option<Value>> {
+        self.calls
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(Some(json!(self.encoded)))
+    }
+}
+
+// 沿实际根宿主的公开工厂扩展，只改变模型属性解释，不替换账户表或 Guard。
+async fn install_root_model_factory(
+    f: &Fixture,
+    captured: CapturedRootUsers,
+    encoded: String,
+) -> Result<std::sync::Arc<std::sync::atomic::AtomicUsize>> {
+    use openrust::auth::{AuthDrivers, DatabaseUserProvider, UserProvider};
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let getter_calls = calls.clone();
+    let state = f.app.app()?.state();
+    let db = state.resolve::<openrust::Db>().await?;
+    let hashing = state.resolve::<openrust::hashing::HashManager>().await?;
+    #[cfg(feature = "auth-fortify")]
+    let encryption = state.resolve::<openrust::security::Encryptor>().await?;
+    let mut metadata =
+        openrust::db::eloquent::ModelMetadata::new("users", "app::models::user::User");
+    // 本模块的因子authority要求数据库原始typed ID；成功HTTP夹具不改变整数账户域。
+    metadata
+        .casts
+        .insert("id".into(), openrust::db::eloquent::AttributeCast::Integer);
+    metadata.casts.insert(
+        "email_verified_at".into(),
+        openrust::db::eloquent::AttributeCast::Boolean,
+    );
+    let metadata = std::sync::Arc::new(metadata);
+    let source = (*db).clone();
+    let provider = std::sync::Arc::new(
+        DatabaseUserProvider::new((*db).clone(), hashing, "users")?.with_user_factory(
+            move |attributes| {
+                let user = crate::app::models::user::User::new(attributes)
+                    .with_model_metadata(metadata.clone());
+                user.model_attributes().register_getter(
+                    "password_hash",
+                    std::sync::Arc::new(ModelPasswordGetter {
+                        encoded: encoded.clone(),
+                        calls: getter_calls.clone(),
+                    }),
+                )?;
+                #[cfg(feature = "auth-fortify")]
+                let user = {
+                    use openrust::auth::Authenticatable;
+                    let factor = openrust::auth::fortify::DatabaseTwoFactorState::new(
+                        source.clone(),
+                        "users",
+                        "id",
+                        user.auth_identifier()?,
+                    )?;
+                    user.with_two_factor_state(factor.clone())
+                        .with_factor_authority(
+                            openrust::auth::fortify::DatabaseFactorAuthority::new(
+                                factor,
+                                (*encryption).clone(),
+                            ),
+                        )
+                };
+                #[cfg(not(feature = "auth-fortify"))]
+                let _ = &source;
+                let user = std::sync::Arc::new(user);
+                captured.lock().map_err(|_| mismatch())?.push(user.clone());
+                Ok(user)
+            },
+        ),
+    );
+    state
+        .resolve::<AuthDrivers>()
+        .await?
+        .provider("app-users", move |_, _| {
+            let provider = provider.clone();
+            Box::pin(async move { Ok(provider as std::sync::Arc<dyn UserProvider>) })
+        })?;
+    Ok(calls)
+}
+
+// 同一真实HTTP账户的raw快照仍允许独立的字符串主键模型解释；它不成为整数因子账户。
+fn string_identity_model(
+    user: &crate::app::models::user::User,
+    identifier: i64,
+) -> Result<std::sync::Arc<crate::app::models::user::User>> {
+    use openrust::{auth::Authenticatable, db::eloquent::ModelIdentity};
+    let mut metadata = user.model_metadata().clone();
+    metadata
+        .casts
+        .insert("id".into(), openrust::db::eloquent::AttributeCast::String);
+    let candidate = std::sync::Arc::new(
+        crate::app::models::user::User::new(user.model_attributes().raw_attributes()?)
+            .with_model_metadata(std::sync::Arc::new(metadata)),
+    );
+    ensure(candidate.auth_identifier()? == json!(identifier.to_string()))?;
+    ensure(candidate.model_key()? == json!(identifier.to_string()))?;
+    ensure(candidate.model_attributes().raw_attribute("id")? == Some(json!(identifier)))?;
+    Ok(candidate)
+}
+
+async fn root_model_http_attributes(f: &Fixture) -> Result<()> {
+    use openrust::auth::{AuthManager, Authenticatable, Credentials};
+    let identifier = f.provision().await?;
+    // 第一轮保留根 AppServiceProvider 的真实工厂及其默认整数主键。
+    native_session_contract(f).await?;
+    let state = f.app.app()?.state();
+    let scope = state.container().scope()?;
+    let manager = scope.resolve::<AuthManager>().await?;
+    let original = manager
+        .create_user_provider(Some("users"))
+        .await?
+        .ok_or_else(mismatch)?;
+    let default = original
+        .retrieve_by_id(&json!(identifier))
+        .await?
+        .ok_or_else(mismatch)?;
+    ensure(default.as_model().is_some())?;
+    ensure(default.auth_identifier()? == json!(identifier))?;
+    let encoded = default.auth_password()?.ok_or_else(mismatch)?;
+    let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let getter_calls = install_root_model_factory(f, captured.clone(), encoded.clone()).await?;
+    let calls_before_login = getter_calls.load(std::sync::atomic::Ordering::Relaxed);
+    // 第二轮仍经相同模块端点、Session Guard、账户来源和 Fortify 策略。
+    let login = f
+        .request(
+            "POST",
+            &format!("{ACCOUNT}/session/login"),
+            &credentials(PASSWORD),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    login.assert_status(StatusCode::OK)?;
+    // 在任何手工模型/Provider检查前，实证HTTP登录消费了所注册的密码getter。
+    ensure(getter_calls.load(std::sync::atomic::Ordering::Relaxed) > calls_before_login)?;
+    let session = cookie(&login)?;
+    f.request(
+        "GET",
+        &format!("{ACCOUNT}/session/preference"),
+        &Value::Null,
+        None,
+        Some(&session),
+        None,
+    )
+    .await?
+    .assert_status(StatusCode::OK)?;
+    let users = captured.lock().map_err(|_| mismatch())?.clone();
+    ensure(!users.is_empty())?;
+    for user in &users {
+        ensure(user.auth_identifier()? == json!(identifier))?;
+        ensure(user.model_attributes().raw_attribute("id")? == Some(json!(identifier)))?;
+        ensure(user.auth_attribute("email_verified_at")? == Some(json!(true)))?;
+        ensure(
+            user.model_attributes()
+                .raw_attribute("email_verified_at")?
+                .is_some_and(|value| !value.is_boolean()),
+        )?;
+    }
+    // 使用 HTTP 实际物化的同一个 User，区分密码访问器与原始行；此项是 Provider 断言。
+    let user = users.first().ok_or_else(mismatch)?;
+    user.model_attributes()
+        .set_raw_attribute("password_hash", json!("invalid-raw-hash"))?;
+    ensure(user.auth_password()?.as_deref() == Some(encoded.as_str()))?;
+    let scope = state.container().scope()?;
+    let provider = scope
+        .resolve::<AuthManager>()
+        .await?
+        .create_user_provider(Some("users"))
+        .await?
+        .ok_or_else(mismatch)?;
+    let string_user = string_identity_model(user, identifier)?;
+    #[cfg(feature = "auth-fortify")]
+    {
+        let authority = user
+            .as_two_factor()
+            .and_then(openrust::auth::fortify::TwoFactorAuthenticatable::two_factor_authority)
+            .ok_or_else(mismatch)?;
+        let candidate: openrust::auth::AuthUser = string_user;
+        ensure(matches!(
+            authority
+                .validate_account(&candidate, provider.as_ref())
+                .await,
+            Err(Error::Unauthorized)
+        ))?;
+    }
+    #[cfg(not(feature = "auth-fortify"))]
+    let _ = string_user;
+    let input = Credentials::new(serde_json::Map::from_iter([(
+        "password".into(),
+        json!(PASSWORD),
+    )]));
+    ensure(provider.validate_credentials(user.as_ref(), &input).await?)?;
+    ensure(
+        user.model_attributes().raw_attribute("password_hash")? == Some(json!("invalid-raw-hash")),
+    )?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn sqlite_module_http_uses_root_user_attribute_casts_and_registered_getter() -> Result<()> {
+    let f = Fixture::create(false).await?;
+    let outcome = root_model_http_attributes(&f).await;
+    let cleanup = f.close().await;
+    outcome?;
+    cleanup
+}

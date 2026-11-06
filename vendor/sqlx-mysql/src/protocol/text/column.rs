@@ -114,8 +114,7 @@ pub(crate) struct ColumnDefinition {
     pub(crate) max_size: u32,
     pub(crate) r#type: ColumnType,
     pub(crate) flags: ColumnFlags,
-    #[allow(unused)]
-    decimals: u8,
+    pub(crate) decimals: u8,
 }
 
 impl ColumnDefinition {

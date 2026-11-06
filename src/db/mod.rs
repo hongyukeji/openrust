@@ -21,6 +21,8 @@ tokio::task_local! {
 mod batch;
 mod coordination;
 pub mod dialect;
+/// Eloquent通用模型元数据、持久身份与属性转换基础。
+pub mod eloquent;
 pub(crate) mod migration;
 mod migration_lock;
 pub mod query;

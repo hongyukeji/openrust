@@ -59,8 +59,11 @@ impl Authenticatable for Model {
     fn remember_token(&self) -> Result<Option<String>> {
         Ok(None)
     }
-    fn set_remember_token(&self, _: Option<String>) -> Result<()> {
-        Ok(())
+    fn remember_token_for_cookie(&self) -> Result<Option<String>> {
+        Ok(None)
+    }
+    fn set_remember_token(&self, _: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+        Box::pin(async { Ok(()) })
     }
     fn remember_token_name(&self) -> &'static str {
         "remember_token"

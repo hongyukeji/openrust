@@ -15,7 +15,7 @@
 
 `StatefulGuard` 提供 `attempt`、`login`、`login_using_id`、`once`、`once_using_id`、`logout`。`validate`、`once`、`set_user` 不建立持久登录。Session 登录使用同一请求句柄并轮换 ID；Guard 注销移除自身身份并轮换适用 remember token，不自动 invalidate 整份 Session。remember 默认576000分钟，凭据失败时间保护200000微秒，`hashing.rehash_on_login=true`。
 
-记住我 Cookie 必须加密且不在 except 名单。模型 `compare_and_set_remember_token` 必须原子比较/替换；未实现返回 `auth_token_atomic_update_unsupported`，不回退为先读再写。失败/取消时的有条件恢复不能覆盖其他操作的新值，也不承诺撤回已发出的数据库 I/O。Rust 名称后缀承担 Laravel 类名 SHA-1 的隔离职责，不承诺 PHP Cookie/Session 字节互通。
+记住我 Cookie 必须加密且不在 except 名单。账户 `set_remember_token` 为异步属性赋值；Guard 通过 `begin_remember_token_update` 条件安装并取得拥有式 `RememberTokenUpdate`，成功后commit，失败或取消时同步恢复仍属于本次修改的原始字段。未实现返回 `auth_token_atomic_update_unsupported`，不回退为先读再写。签发Cookie只用 `remember_token_for_cookie` 原子确认的快照，不能读取另一Guard未持久化的候选。此内存恢复不承诺撤回已发出的数据库 I/O，也不能掩盖未知提交结果或跨连接更新逆序。Rust 名称后缀承担 Laravel 类名 SHA-1 的隔离职责，不承诺 PHP Cookie/Session 字节互通。
 
 `UserProvider::uses_database_accounts(db, table)` 默认 false，内置数据库实现核同一 `Db` 句柄及实际表。`AuthFlows`、OIDC 与受管凭据适配借此核现有账户域，不能仅凭同 ID、表名字或另一个数据库快照授权。
 

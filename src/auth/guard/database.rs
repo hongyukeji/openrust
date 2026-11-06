@@ -6,8 +6,9 @@ use crate::{
     core::BoxFuture,
     db::{
         Db,
+        eloquent::attributes_from_row,
         query::{QueryBuilder, RawSql},
-        sea_orm::{DbBackend, FromQueryResult, QueryResult, Value as SqlValue},
+        sea_orm::{DbBackend, QueryResult, Value as SqlValue},
     },
     hashing::HashOptions,
 };
@@ -244,25 +245,24 @@ impl UserProvider for DatabaseUserProvider {
 }
 
 fn row_attributes(row: &QueryResult) -> Result<Map<String, Value>> {
-    let Value::Object(attributes) = Value::from_query_result(row, "").map_err(Error::internal)?
-    else {
-        return Err(Error::custom(
+    attributes_from_row(row).map_err(auth_row_error)
+}
+
+fn auth_row_error(error: Error) -> Error {
+    // 认证错误沿用既有 code；行解码是服务端失败，不能沿用旧路径误设的 400。
+    match error.code() {
+        "model_database_row_invalid" => Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
             "auth_database_row_invalid",
             "认证账户必须是属性对象",
-        ));
-    };
-    // SeaORM 对不支持的列可能省略属性；不能悄悄丢失账户数据。
-    if row
-        .column_names()
-        .iter()
-        .any(|column| !attributes.contains_key(column))
-    {
-        return Err(Error::custom(
+        ),
+        "model_database_attribute_unsupported" => Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
             "auth_database_attribute_unsupported",
             "认证账户包含无法转换的数据库字段",
-        ));
+        ),
+        _ => error,
     }
-    Ok(attributes)
 }
 
 fn plaintext(credentials: &Credentials) -> Result<Option<&str>> {
@@ -329,6 +329,37 @@ mod tests {
             .is_err()
         );
         Ok(())
+    }
+
+    #[test]
+    fn common_row_adapter_keeps_auth_codes_and_reports_all_decode_failures_as_server_errors() {
+        for (model_code, auth_code) in [
+            ("model_database_row_invalid", "auth_database_row_invalid"),
+            (
+                "model_database_attribute_unsupported",
+                "auth_database_attribute_unsupported",
+            ),
+        ] {
+            let error = auth_row_error(Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                model_code,
+                "内部适配错误",
+            ));
+            assert_eq!(error.code(), auth_code);
+            assert_eq!(error.status().as_u16(), 500);
+        }
+        for code in [
+            "model_database_attribute_invalid",
+            "model_database_attribute_non_finite",
+        ] {
+            let error = auth_row_error(Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                code,
+                "内部适配错误",
+            ));
+            assert_eq!(error.code(), code);
+            assert_eq!(error.status().as_u16(), 500);
+        }
     }
 }
 

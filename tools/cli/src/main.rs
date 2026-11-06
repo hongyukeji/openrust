@@ -1030,12 +1030,16 @@ fn populate_project_with_features(
                 let state_table = table.to_owned();
                 #[cfg(feature = "auth-fortify")]
                 let factor_encrypter = resolver.resolve::<openrust::security::Encryptor>().await?;
+                let model_metadata = std::sync::Arc::new(openrust::db::eloquent::ModelMetadata::new(
+                    table, "app::models::user::User",
+                ));
                 let provider = openrust::auth::DatabaseUserProvider::new((*db).clone(), passwords, table)?
                     .with_user_factory(move |attributes| {
                         if attributes.get("disabled_at").is_some_and(|value| !value.is_null()) {
                             return Err(openrust::Error::Unauthorized);
                         }
-                        let user = crate::app::models::user::User::new(attributes);
+                        let user = crate::app::models::user::User::new(attributes)
+                            .with_model_metadata(model_metadata.clone());
                         #[cfg(feature = "auth-fortify")]
                         let user = {
                             let identifier = openrust::auth::Authenticatable::auth_identifier(&user)?;

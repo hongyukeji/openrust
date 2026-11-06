@@ -216,3 +216,7 @@ let report = rule
 MySQL 冷 prepare 的 Future 被取消后，未完成的物理连接明确拒绝新查询/提交/回滚，归还池时淘汰并补建；不自动重试原 SQL，也不把回滚失败当作成功。取消时仍持有的事务可能保留锁直到断线。根及生成应用使用同版本 SQLx0.9.0 临时补丁，手写消费者须在最终 workspace 根应用相同 patch；来源、Cargo 约束和边界见[驱动说明](../../vendor/sqlx-mysql/OPENRUST.md)。
 
 `QueryBuilder::insert_get_id(values, sequence)` 取得同次INSERT的主键，允许default row；写主库/原事务，并执行同一原查询回调。SQLite负rowid通过固定SeaORM安全访问器保留，PG同次RETURNING避免跨连接last-id猜测。数值依固定Processor的PHP64位转换，浮点warning依默认框架错误处理返回Err；已经执行的INSERT不隐式回滚。详情见[查询指南](../../docs/src/database/queries.md#插入并取得主键)。这不代表模型原始主键转换或完整 Eloquent 已完成。
+
+## 模型属性与身份前置
+
+`eloquent` 提供 `ModelMetadata`、`ModelAttributes`、`ModelIdentity` 和原始行水合。getter/cast读取与raw分离，普通异步setter保护同字段后继，拥有式 `AttributeMutation` 用于外部操作失败/取消时同步恢复仍归本次的多字段补丁。正常属性读取与Cookie的committed快照读取分开；完整查询/save/关系及任意PG会话日期显示仍开放。公共用法与边界见[模型基础](../../docs/src/eloquent/getting-started.md)。
