@@ -14,7 +14,7 @@ pub(crate) async fn connect(
     headers: HeaderMap,
     Inject(db): Inject<Db>,
     openrust::http::axum::Extension(state): openrust::http::axum::Extension<
-        openrust::core::AppState,
+        openrust::foundation::ApplicationState,
     >,
     Inject(realtime): Inject<Realtime>,
     Path(id): Path<i64>,

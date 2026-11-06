@@ -5,12 +5,19 @@ use super::{
     CredentialAuthority, FortifyCallbacks, FortifyConfig, FortifyJwtApi, FortifyJwtApiConfig,
     FortifyServiceProvider, RequireFactorAuthority, TwoFactorActions,
 };
-use crate::{
-    Error, Result,
-    auth::{AuthDrivers, AuthManager, AuthUser, Credentials, Guard, GuardConfig},
-    config::repository::SectionSchema as S,
-    core::{BootContext, BoxFuture, RegisterContext, ServiceProvider},
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthDrivers;
+use crate::auth::AuthManager;
+use crate::auth::AuthUser;
+use crate::auth::Credentials;
+use crate::auth::Guard;
+use crate::auth::GuardConfig;
+use crate::config::repository::SectionSchema as S;
+use crate::foundation::BootContext;
+use crate::foundation::RegisterContext;
+use crate::support::BoxFuture;
+use crate::support::ServiceProvider;
 use std::{
     collections::BTreeMap,
     sync::{
@@ -160,7 +167,7 @@ async fn register_management(app: &mut RegisterContext<'_>) -> Result<()> {
                 audit.require_management_store(api.authority.db())?;
                 actions = actions.with_api_management_audit(audit);
             }
-            let encrypter = resolver.resolve::<crate::security::Encryptor>().await?;
+            let encrypter = resolver.resolve::<crate::encryption::Encrypter>().await?;
             let options = super::JwtApiFactorManagementOptions {
                 encrypter: (*encrypter).clone(),
                 guard: api.scope.guard.clone(),
@@ -183,7 +190,7 @@ async fn register_database_audit(app: &mut RegisterContext<'_>) -> Result<()> {
     if !app.is_bound::<super::DatabaseApiLoginAudit>() {
         app.singleton::<super::DatabaseApiLoginAudit, _>(|resolver| {
             Box::pin(async move {
-                let db = resolver.resolve::<crate::db::Db>().await?;
+                let db = resolver.resolve::<crate::database::Db>().await?;
                 let audit = resolver.resolve::<crate::audit::Audit>().await?;
                 Ok(Arc::new(super::DatabaseApiLoginAudit::new(
                     (*db).clone(),

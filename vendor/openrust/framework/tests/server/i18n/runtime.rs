@@ -4,14 +4,23 @@ use std::collections::BTreeMap;
 
 use openrust::ServiceExt;
 use openrust::config::FrameworkConfig;
+use openrust::foundation::http::build_router;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Inject;
+use openrust::http::Json;
+use openrust::http::RequestLocale;
+use openrust::http::Validated;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::axum::response::{IntoResponse, Response};
-use openrust::http::routing::get;
-use openrust::http::{
-    HttpServiceProvider, Inject, Json, RequestLocale, Routes, Validated, build_router,
-};
-use openrust::i18n::{I18n, I18nConfig, I18nServiceProvider, Locale, MessageArgs, MessageCatalog};
+use openrust::routing::Router;
+use openrust::routing::methods::get;
+use openrust::translation::Locale;
+use openrust::translation::MessageArgs;
+use openrust::translation::MessageCatalog;
+use openrust::translation::TranslationConfig;
+use openrust::translation::TranslationServiceProvider;
+use openrust::translation::Translator;
 use openrust::validation::{Rule, Rules, Validate};
 use openrust::{Error, Result};
 use serde::Deserialize;
@@ -22,12 +31,12 @@ async fn request_locale(locale: RequestLocale) -> Json<String> {
     Json(locale.as_str().to_owned())
 }
 
-async fn app_greeting(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<String> {
+async fn app_greeting(locale: RequestLocale, Inject(i18n): Inject<Translator>) -> Json<String> {
     let args = MessageArgs::from([("name".to_owned(), "Ada".to_owned())]);
     Json(locale.translate(&i18n, "greeting", &args))
 }
 
-async fn plural_message(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<String> {
+async fn plural_message(locale: RequestLocale, Inject(i18n): Inject<Translator>) -> Json<String> {
     let args = BTreeMap::from([("count".to_owned(), "2".to_owned())]);
     Json(locale.translate(&i18n, "items", &args))
 }
@@ -54,14 +63,14 @@ async fn validated(Validated(Json(input)): Validated<Json<ValidatedInput>>) -> J
     Json(input.email)
 }
 
-async fn explicit_locale(Inject(i18n): Inject<I18n>) -> Result<Response> {
+async fn explicit_locale(Inject(i18n): Inject<Translator>) -> Result<Response> {
     let locale = Locale::new("zh-CN")?;
     Ok(i18n
         .with_locale(locale, async { Json("forced").into_response() })
         .await)
 }
 
-fn i18n_routes(routes: Routes) -> Routes {
+fn i18n_routes(routes: Router) -> Router {
     routes
         .route("/greeting", get(app_greeting))
         .route("/plural", get(plural_message))
@@ -77,7 +86,7 @@ async fn router() -> Result<openrust::http::axum::Router> {
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     let mut catalog = MessageCatalog::new();
     catalog.insert_plural(
         "en",
@@ -85,11 +94,11 @@ async fn router() -> Result<openrust::http::axum::Router> {
         "count",
         BTreeMap::from([
             (
-                openrust::i18n::PluralCategory::One,
+                openrust::translation::PluralCategory::One,
                 "{count} item".to_owned(),
             ),
             (
-                openrust::i18n::PluralCategory::Other,
+                openrust::translation::PluralCategory::Other,
                 "{count} items".to_owned(),
             ),
         ]),
@@ -100,31 +109,31 @@ async fn router() -> Result<openrust::http::axum::Router> {
         "count",
         BTreeMap::from([
             (
-                openrust::i18n::PluralCategory::One,
+                openrust::translation::PluralCategory::One,
                 "{count} plik".to_owned(),
             ),
             (
-                openrust::i18n::PluralCategory::Few,
+                openrust::translation::PluralCategory::Few,
                 "{count} pliki".to_owned(),
             ),
             (
-                openrust::i18n::PluralCategory::Many,
+                openrust::translation::PluralCategory::Many,
                 "{count} plików".to_owned(),
             ),
             (
-                openrust::i18n::PluralCategory::Other,
+                openrust::translation::PluralCategory::Other,
                 "{count} pliku".to_owned(),
             ),
         ]),
     )?;
     builder
         .provider(HttpServiceProvider)
-        .provider(I18nServiceProvider::new(catalog))
+        .provider(TranslationServiceProvider::new(catalog))
         .provider(TestRoutes::new(i18n_routes));
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     build_router(&app)
 }
 
@@ -248,8 +257,8 @@ async fn untranslated_application_error_keeps_its_safe_message() -> TestResult {
 async fn app_catalog_can_override_builtin_messages_with_parameters() -> TestResult {
     let mut catalog = MessageCatalog::new();
     catalog.merge_json("en", r#"{"greeting":"Hello, {name}!"}"#)?;
-    let plugin = I18nServiceProvider::new(catalog);
-    let app = I18n::new(I18nConfig::default(), {
+    let plugin = TranslationServiceProvider::new(catalog);
+    let app = Translator::new(TranslationConfig::default(), {
         let mut messages = MessageCatalog::new();
         messages.merge_json("en", r#"{"greeting":"Hello, {name}!"}"#)?;
         messages
@@ -265,14 +274,14 @@ async fn app_catalog_can_override_builtin_messages_with_parameters() -> TestResu
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(HttpServiceProvider).provider(plugin);
     builder.provider(TestRoutes::new(i18n_routes));
     let assembled = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
-    assert!(assembled.state().resolve::<I18n>().await.is_ok());
+        .and_then(openrust::Application::from_provider_runtime)?;
+    assert!(assembled.state().resolve::<Translator>().await.is_ok());
     let response = build_router(&assembled)?
         .oneshot(
             Request::get("/greeting")
@@ -291,18 +300,18 @@ async fn app_catalog_can_override_builtin_messages_with_parameters() -> TestResu
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {

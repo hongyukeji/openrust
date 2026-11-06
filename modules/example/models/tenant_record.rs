@@ -1,5 +1,5 @@
 //! 每个租户与所有者只有一条小型记录，不复制文章 CRUD。
-use openrust::db::sea_orm::entity::prelude::*;
+use openrust::database::sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "example_tenant_records")]

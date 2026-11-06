@@ -1,7 +1,7 @@
 //! 默认应用的框架与业务模块 Provider 清单。
 
-use openrust::core::ServiceProvider;
 use openrust::prelude::*;
+use openrust::support::ServiceProvider;
 use openrust_modules::ModuleProviderBuilderExt as _;
 
 mod providers;
@@ -25,18 +25,19 @@ impl Configuration {
 
 /// 框架与综合示例共用的默认应用宿主。
 pub(crate) struct Server;
-impl Application for Server {
+impl ApplicationDefinition for Server {
     type Config = Configuration;
 
     fn config() -> openrust::config::ConfigManifest {
         crate::config::boot()
     }
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        let providers = openrust::core::DefaultProviders::auto();
+    fn default_providers() -> openrust::support::DefaultProviders {
+        let providers = openrust::support::DefaultProviders::auto();
         #[cfg(feature = "auth-fortify")]
         let providers = providers.replace(
-            openrust::core::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(),
+            openrust::foundation::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(
+            ),
             Box::new(crate::app::providers::AuthenticationProfileProvider::default()),
         );
         providers
@@ -46,16 +47,19 @@ impl Application for Server {
         providers::application_providers(config)
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         let root = config.application_root();
         builder.module_manifest(crate::modules::manifest(&root, &config.modules));
     }
 }
 
 /// 装配应用 API 的统一前缀与无状态中间件组，再加载应用 Web 声明。
-pub(crate) fn routes(routes: openrust::http::Routes, prefix: &str) -> openrust::http::Routes {
+pub(crate) fn routes(routes: openrust::routing::Router, prefix: &str) -> openrust::routing::Router {
     let routes = routes.group(
-        openrust::http::RouteGroup::new()
+        openrust::routing::RouteGroup::new()
             .prefix(prefix)
             .middleware_group("api"),
         crate::routes::api::register,

@@ -30,10 +30,12 @@ use sha2::{Digest, Sha256, Sha384, Sha512};
 
 use crate::audit::{Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, DatabaseAuditSink};
 use crate::auth::{AuthFlows, LoginAttempt, Session, SessionStoreHandle};
-use crate::core::{BoxFuture, Error, Result};
-use crate::db::{DatabaseTransaction, Db};
+use crate::core::Error;
+use crate::core::Result;
+use crate::database::{DatabaseTransaction, Db};
+use crate::encryption::Encrypter;
 use crate::http::{DependencyClient, HttpBody};
-use crate::security::Encryptor;
+use crate::support::BoxFuture;
 
 /// 通过 ID Token 验证的外部身份；仅包含稳定 subject 与可选邮箱声明。
 #[derive(Clone, PartialEq, Eq)]
@@ -1208,7 +1210,7 @@ impl std::fmt::Debug for ExternalIdentityLink {
 pub struct ExternalIdentityFlows {
     db: Db,
     auth: AuthFlows,
-    encryptor: Encryptor,
+    encryptor: Encrypter,
     providers: Arc<BTreeMap<String, Arc<dyn ExternalIdentityProvider>>>,
     audit: DatabaseAuditSink,
 }
@@ -1231,7 +1233,7 @@ impl ExternalIdentityFlows {
     pub fn new(
         db: Db,
         auth: AuthFlows,
-        encryptor: Encryptor,
+        encryptor: Encrypter,
         providers: impl IntoIterator<Item = Arc<dyn ExternalIdentityProvider>>,
     ) -> Result<Self> {
         auth.require_store(&db)?;
@@ -2638,7 +2640,7 @@ async fn record_external_logout(
 }
 
 async fn delete_external_session(
-    encryptor: &Encryptor,
+    encryptor: &Encrypter,
     db: &Db,
     sessions: &SessionStoreHandle,
     association_hash: &str,
@@ -3863,12 +3865,12 @@ mod logout_lock_order_tests {
     )]
     #[ignore = "真实PG/MySQL行锁barrier；缺少OPENRUST_TEST_DATABASE_URL即错误，不以SQLite代替"]
     async fn real_logout_waits_for_all_sorted_users_before_locking_any_association() -> Result<()> {
-        let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+        let url = crate::test_database_environment::database_url().map_err(Error::internal)?;
         let database = crate::testing::TestDatabase::create::<LockMigrator>(&url).await?;
         // 两个持锁事务加独立NOWAIT探针需要三条连接；不改通用fixture的两连接预算。
-        let mut options = crate::db::sea_orm::ConnectOptions::new(database.url());
+        let mut options = crate::database::sea_orm::ConnectOptions::new(database.url());
         options.max_connections(4).min_connections(0);
-        let connection = crate::db::sea_orm::Database::connect(options)
+        let connection = crate::database::sea_orm::Database::connect(options)
             .await
             .map_err(Error::internal)?;
         let db = Db::default();

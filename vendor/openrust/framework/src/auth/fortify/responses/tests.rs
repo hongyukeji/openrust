@@ -1,12 +1,15 @@
 //! 使用真实请求、Session及TestApp核对公开响应，而非检查静态配置。
 
 use super::*;
-use crate::{
-    core::{Application, BootContext, DefaultProviders, NoConfig, ServiceProvider},
-    http::HttpServiceProvider,
-    session::{MemorySessionStore, Session},
-    testing::TestApp,
-};
+use crate::core::NoConfig;
+use crate::foundation::ApplicationDefinition;
+use crate::foundation::BootContext;
+use crate::http::HttpServiceProvider;
+use crate::session::MemorySessionStore;
+use crate::session::Session;
+use crate::support::DefaultProviders;
+use crate::support::ServiceProvider;
+use crate::testing::TestApp;
 use axum::{
     body::{Body, to_bytes},
     extract::FromRequest,
@@ -201,7 +204,7 @@ impl ServiceProvider for ResponsesProvider {
     }
 }
 struct ResponsesApp;
-impl Application for ResponsesApp {
+impl ApplicationDefinition for ResponsesApp {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -259,7 +262,7 @@ impl ServiceProvider for BindingProvider {
 #[tokio::test]
 async fn registration_preserves_custom_binding_and_scopes_defaults_without_inventing_views()
 -> Result<()> {
-    let mut builder = crate::core::ProviderBuilder::new();
+    let mut builder = crate::foundation::ProviderBuilder::new();
     builder.provider(BindingProvider);
     let runtime = builder.start(figment::Figment::new()).await?;
     let first = runtime.container().scope()?;

@@ -1,22 +1,22 @@
 # `openrust` 框架库当前事实
 
 > 更新：2026-10-28
-> 摘要：openrust package 是框架唯一公共 facade 与实现 package；能力模块位于根 `src/`，包括 `openrust::audit`、`openrust::mail`、`openrust::sms`、可选 `openrust::security` 与 `openrust::signing`。
+> 摘要：openrust package 是框架唯一公共 facade 与实现 package；能力模块位于根 `src/`，包括 `openrust::audit`、`openrust::mail`、`openrust::sms`、可选 `openrust::encryption` 与 `openrust::signing`。
 
 - `src/lib.rs` 声明框架 modules 与 feature-gated 能力；根 `src/main.rs` 提供 `server` bin。对外主路径继续是 `openrust::...`。
-- `openrust::testing::{TestApp, TestAppBuilder, TestResponse}` 由框架库直接公开，不依赖数据库 feature；同一 `Application`/Provider/Router 路径支持测试覆盖与移除、完整重建和有界响应断言。独立 workspace `testing` package 仍提供隔离数据库工具，不是第二个应用启动内核。进程内 HTTP 请求不替代 TCP 验收；关闭后新解析拒绝，已持有 `Arc` 由调用方管理。
+- `openrust::testing::{TestApp, TestAppBuilder, TestResponse}` 由框架库直接公开，不依赖数据库 feature；同一 `ApplicationDefinition`/Provider/Router 路径支持测试覆盖与移除、完整重建和有界响应断言。独立 workspace `testing` package 仍提供隔离数据库工具，不是第二个应用启动内核。进程内 HTTP 请求不替代 TCP 验收；关闭后新解析拒绝，已持有 `Arc` 由调用方管理。
 - 库直接 re-export `ApiResponse<T>`、`PageMeta`、`#[openrust::resource]`、`ServiceExt` 与 Tokio。`openrust::prelude` 提供常用 HTTP、core、mail、db、auth 类型；Axum 类型由 `openrust::http::axum` 公开。
 - `openrust::validation::{Validate, validate}` 复用 validator 与统一字段错误；`ExecutionContext` / `ExecutionMetadata` / `Cancellation` 提供单次请求、命令及 Job attempt 的显式作用域，细节见 [core](core.md) 与 历史决策 044。
 - `db-postgres` / `db-mysql` 启用 SeaORM 对应 backend，并提供 `openrust::database` 别名与常用 DB 类型；默认 feature 不含具体数据库 driver。
 - `auth` 启用 JWT、Session、认证流程与授权模块；依赖 DB feature 的认证流程在运行时要求配置相应数据库及迁移。
 - `queue` 启用 `openrust::queue` 与 `openrust::schedule`；数据库 driver、worker 和 UTC 调度通过应用显式注册，当前功能与验收边界见 [queue](queue.md) / [schedule](schedule.md)。
 - `mail-smtp` 可选启用 SMTP transport；`sms-twilio` 复用可选 `http-client` feature；`test-util` 提供邮件/SMS fake。log 仅供非生产默认路径，生产启动拒绝 log；运行配置保持在应用项目根 `config/`。
-- `encryption` 可选启用 AES-256-GCM-SIV 应用数据加密；`EncryptionServiceProvider` 注册持有轮换 key ring 的 `Encryptor`。仅 active key 写入、历史 key 解密；密钥需由受控配置注入，不含默认 key。
+- `encryption` 可选启用 AES-256-GCM-SIV 应用数据加密；`EncryptionServiceProvider` 注册持有轮换 key ring 的 `Encrypter`。仅 active key 写入、历史 key 解密；密钥需由受控配置注入，不含默认 key。
 - `signing` 可选启用用途绑定的限时签名链接；独立 link key ring 与 JWT/加密密钥隔离；逐条撤销需应用加入共享数据库迁移并配置 `SignedLinkRevocationStore`。
 - Workspace package：根 `openrust` package 提供名为 `openrust` 的 library，同一根 package 提供默认 server bin，另有 `cli` 命令行与模板、`macros` proc-macro、`testing` 测试工具和 `performance` 基准工具。源码交付与命名见 历史决策 039。
 - `testing` 单向依赖 `openrust` package（dependency alias `openrust`）；框架 package 不依赖测试工具，避免依赖环。
 - CLI、proc-macro 与 testing 工具包保留独立编译/依赖边界；根集成宿主布局按 历史决策 073 执行。不能把路径移动当作能力验收完成，也不能把 proc-macro 机械并入普通库。
-- `openrust::cache`、`openrust::storage`、`openrust::realtime`、数据库、认证、队列、gRPC 等能力按各自可选 feature/扩展契约交付；Redis client 由对应 feature 启用，插件须显式安装和配置。各模块当前状态与未完成范围以 `core/<crate>.md` 和 `todo.md` 为准。
+- `openrust::cache`、`openrust::filesystem`、`openrust::realtime`、数据库、认证、队列、gRPC 等能力按各自可选 feature/扩展契约交付；Redis client 由对应 feature 启用，插件须显式安装和配置。各模块当前状态与未完成范围以 `core/<crate>.md` 和 `todo.md` 为准。
 
 
 目录/分发以 历史决策 073 和 [architecture](../architecture.md) 为准；独立生成应用不修改源 workspace。根 package 为 openrust library；同一根 package 提供唯一默认 server bin。

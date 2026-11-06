@@ -3,11 +3,11 @@
 #![deny(missing_docs)]
 
 use openrust::Result;
-use openrust::core::BoxFuture;
 use openrust::session::{
     MemorySessionStore, SessionId, SessionRecord, SessionStore, SessionWriteMode,
     SessionWriteOutcome,
 };
+use openrust::support::BoxFuture;
 use time::OffsetDateTime;
 
 /// 外部 crate 的 store 实现；委托已有有界内存 driver，不复制编码逻辑。

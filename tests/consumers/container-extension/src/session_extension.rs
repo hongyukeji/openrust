@@ -13,17 +13,33 @@ use axum::{
     http::{HeaderMap, Request as Wire, StatusCode},
 };
 use figment::{Figment, providers::Serialized};
-use openrust::{
-    App, Error, Result, ServiceExt,
-    config::{FrameworkConfig, SessionConfig},
-    core::{BootContext, BoxFuture, ProviderBuilder, ProviderId, RegisterContext, ServiceProvider},
-    http::{CookieServiceProvider, HttpServiceProvider, Json, build_router},
-    session::{
-        MemorySessionStore, Session, SessionId, SessionRecord, SessionRequestContext,
-        SessionServiceProvider, SessionStore, SessionStoreGuarantees, SessionStoreHandle,
-        SessionWriteMode, SessionWriteOutcome,
-    },
-};
+use openrust::Application;
+use openrust::Error;
+use openrust::Result;
+use openrust::ServiceExt;
+use openrust::config::FrameworkConfig;
+use openrust::config::SessionConfig;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::ProviderId;
+use openrust::foundation::RegisterContext;
+use openrust::foundation::http::build_router;
+use openrust::http::CookieServiceProvider;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Json;
+use openrust::session::MemorySessionStore;
+use openrust::session::Session;
+use openrust::session::SessionId;
+use openrust::session::SessionRecord;
+use openrust::session::SessionRequestContext;
+use openrust::session::SessionServiceProvider;
+use openrust::session::SessionStore;
+use openrust::session::SessionStoreGuarantees;
+use openrust::session::SessionStoreHandle;
+use openrust::session::SessionWriteMode;
+use openrust::session::SessionWriteOutcome;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 
@@ -165,7 +181,7 @@ impl ServiceProvider for ExternalSessionExtension {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let probe = Arc::clone(&self.0);
             app.extend::<SessionStoreHandle, _>(move |old, _| {
@@ -190,7 +206,7 @@ impl ServiceProvider for ExternalSessionExtension {
         Box::pin(async move {
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| {
@@ -278,7 +294,7 @@ async fn original_custom_session_store_is_extended_through_managed_cookie_roundt
             FrameworkConfig::default(),
         )))
         .await?;
-    let app = App::from_provider_runtime(runtime)?;
+    let app = Application::from_provider_runtime(runtime)?;
     let result = async {
         let router = build_router(&app)?;
         let (headers, first) = request(router.clone(), "/session-extension/write", None).await?;

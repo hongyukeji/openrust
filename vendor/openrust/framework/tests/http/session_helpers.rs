@@ -444,7 +444,7 @@ impl SessionStore for PendingStore {
         _: &'a openrust::session::SessionId,
         _: usize,
         _: time::OffsetDateTime,
-    ) -> openrust::core::BoxFuture<'a, Result<Option<openrust::session::SessionRecord>>> {
+    ) -> openrust::support::BoxFuture<'a, Result<Option<openrust::session::SessionRecord>>> {
         Box::pin(std::future::pending())
     }
     fn write<'a>(
@@ -452,13 +452,13 @@ impl SessionStore for PendingStore {
         _: &'a openrust::session::SessionRecord,
         _: openrust::session::SessionWriteMode,
         _: usize,
-    ) -> openrust::core::BoxFuture<'a, Result<openrust::session::SessionWriteOutcome>> {
+    ) -> openrust::support::BoxFuture<'a, Result<openrust::session::SessionWriteOutcome>> {
         Box::pin(std::future::pending())
     }
     fn delete<'a>(
         &'a self,
         _: &'a openrust::session::SessionId,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async { Ok(()) })
     }
 }

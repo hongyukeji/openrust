@@ -95,12 +95,12 @@ pub(crate) async fn session_logout(
 pub(crate) async fn require_session_account(
     user: CurrentUser,
     openrust::http::axum::Extension(scope): openrust::http::axum::Extension<
-        std::sync::Arc<openrust::core::container::Scope>,
+        std::sync::Arc<openrust::container::Scope>,
     >,
     request: openrust::http::axum::extract::Request,
     next: openrust::http::axum::middleware::Next,
 ) -> Result<Response> {
-    let db = scope.resolve::<openrust::db::Db>().await?;
+    let db = scope.resolve::<openrust::database::Db>().await?;
     let auth = scope.resolve::<openrust::auth::AuthManager>().await?;
     let selected = auth.guard(user.guard_name()).await?;
     let guard = selected.as_stateful().ok_or(Error::Unauthorized)?;
@@ -115,7 +115,7 @@ pub(crate) async fn require_session_account(
 pub(crate) async fn require_session_factor(
     user: CurrentUser,
     openrust::http::axum::Extension(scope): openrust::http::axum::Extension<
-        std::sync::Arc<openrust::core::container::Scope>,
+        std::sync::Arc<openrust::container::Scope>,
     >,
     request: openrust::http::axum::extract::Request,
     next: openrust::http::axum::middleware::Next,

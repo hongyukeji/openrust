@@ -5,7 +5,10 @@ use super::{CookieFactory, CookieJar, crypto::Protection};
 #[cfg(not(feature = "encryption"))]
 use crate::Error;
 use crate::Result;
-use crate::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
+use crate::foundation::BootContext;
+use crate::foundation::RegisterContext;
+use crate::support::BoxFuture;
+use crate::support::ServiceProvider;
 
 /// 登记 Cookie 创建器和请求隔离队列。
 ///
@@ -56,7 +59,7 @@ impl ServiceProvider for CookieServiceProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if self.except.len() > 1024
                 || self.except.iter().map(String::len).sum::<usize>() > 64 * 1024
@@ -102,7 +105,7 @@ impl ServiceProvider for CookieServiceProvider {
                 #[cfg(feature = "encryption")]
                 {
                     Protection::Encrypted(
-                        (*app.resolve::<crate::security::Encryptor>().await?).clone(),
+                        (*app.resolve::<crate::encryption::Encrypter>().await?).clone(),
                     )
                 }
                 #[cfg(not(feature = "encryption"))]

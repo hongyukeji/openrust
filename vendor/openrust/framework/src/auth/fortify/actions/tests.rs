@@ -1,12 +1,12 @@
 //! 固定动作默认、秘密边界及并发条件更新回归。
 
 use super::*;
-use crate::{
-    auth::{Authenticatable, GenericUser},
-    core::{BoxFuture, ProviderBuilder},
-    events::EventsServiceProvider,
-    security::EncryptionConfig,
-};
+use crate::auth::Authenticatable;
+use crate::auth::GenericUser;
+use crate::encryption::EncryptionConfig;
+use crate::events::EventsServiceProvider;
+use crate::foundation::ProviderBuilder;
+use crate::support::BoxFuture;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::sync::{
@@ -21,11 +21,11 @@ type ModelPause = (Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>);
 struct Model {
     state: Mutex<TwoFactorState>,
     writes: AtomicUsize,
-    encrypter: Option<Encryptor>,
+    encrypter: Option<Encrypter>,
     load_pause: Mutex<Option<ModelPause>>,
 }
 impl Model {
-    fn new(encrypter: Option<Encryptor>) -> Self {
+    fn new(encrypter: Option<Encrypter>) -> Self {
         Self {
             state: Mutex::new(TwoFactorState::default()),
             writes: AtomicUsize::new(0),
@@ -62,7 +62,7 @@ impl Authenticatable for Model {
     fn remember_token_for_cookie(&self) -> Result<Option<String>> {
         Ok(None)
     }
-    fn set_remember_token(&self, _: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+    fn set_remember_token(&self, _: Option<String>) -> crate::support::BoxFuture<'_, Result<()>> {
         Box::pin(async { Ok(()) })
     }
     fn remember_token_name(&self) -> &'static str {
@@ -105,7 +105,7 @@ impl TwoFactorAuthenticatable for Model {
     fn two_factor_account_name(&self, username: &str) -> Result<Option<String>> {
         Ok(Some(format!("{username}-account")))
     }
-    fn two_factor_encrypter(&self) -> Option<Encryptor> {
+    fn two_factor_encrypter(&self) -> Option<Encrypter> {
         self.encrypter.clone()
     }
 }
@@ -149,8 +149,8 @@ impl TwoFactorAuthenticationProvider for Provider {
         })
     }
 }
-fn encryptor(byte: u8) -> Result<Encryptor> {
-    Encryptor::new(EncryptionConfig::new(
+fn encryptor(byte: u8) -> Result<Encrypter> {
+    Encrypter::new(EncryptionConfig::new(
         "test",
         std::collections::BTreeMap::from([("test".into(), STANDARD.encode([byte; 32]))]),
     ))
@@ -534,7 +534,7 @@ fn length_repository() -> Result<crate::config::repository::ConfigRepository> {
     Ok(repository)
 }
 async fn resolved_actions(actions: TwoFactorActions) -> Result<Arc<TwoFactorActions>> {
-    let mut builder = crate::core::container::ContainerBuilder::new();
+    let mut builder = crate::container::ContainerBuilder::new();
     builder.instance(Arc::new(actions));
     let container = builder.build();
     let resolved = container.resolve::<TwoFactorActions>().await?;

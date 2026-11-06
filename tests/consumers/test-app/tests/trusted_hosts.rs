@@ -4,9 +4,10 @@ use figment::{Figment, providers::Serialized};
 use openrust::config::{
     Environment, FrameworkConfig, HttpStatusMode, NoConfig, TrustedHostsConfig,
 };
-use openrust::core::{
-    Application, BootContext, BoxFuture, RegisterContext, Result, ServiceProvider,
-};
+use openrust::core::Result;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
 use openrust::http::{
     HttpServiceProvider, RequestInfo,
     axum::{
@@ -16,6 +17,8 @@ use openrust::http::{
         http::{Request, StatusCode},
     },
 };
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use std::{
     net::SocketAddr,
@@ -45,12 +48,12 @@ impl ServiceProvider for HostRoutes {
     }
 }
 struct StaticApplication;
-impl Application for StaticApplication {
+impl ApplicationDefinition for StaticApplication {
     type Config = NoConfig;
 
-        fn default_providers() -> openrust::core::DefaultProviders {
-            openrust::core::DefaultProviders::empty()
-        }
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
+    }
     fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
         vec![Box::new(HttpServiceProvider), Box::new(HostRoutes)]
     }
@@ -76,7 +79,7 @@ fn request(
     }
     Ok(builder.body(Body::empty())?)
 }
-async fn close<A: Application>(app: &mut TestApp<A>) -> Result<()> {
+async fn close<A: ApplicationDefinition>(app: &mut TestApp<A>) -> Result<()> {
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await
 }
@@ -158,12 +161,14 @@ async fn effective_forwarded_host_uses_allowlist_after_trusted_proxy()
         at: Some(vec![r"^public\.test$".into()]),
         subdomains: false,
     };
-    let sources = source(Environment::Production, Some(hosts)).merge(
-        Serialized::defaults(serde_json::json!({
+    let sources = source(Environment::Production, Some(hosts)).merge(Serialized::defaults(
+        serde_json::json!({
             "server": {"trusted_proxy_ranges": ["10.0.0.1/32"]}
-        })),
-    );
-    let mut app = TestApp::<StaticApplication>::builder(sources).build().await?;
+        }),
+    ));
+    let mut app = TestApp::<StaticApplication>::builder(sources)
+        .build()
+        .await?;
     let response = app
         .request(request("backend.internal:8080", Some("public.test"))?)
         .await?;
@@ -255,12 +260,12 @@ impl ServiceProvider for DynamicPolicy {
     }
 }
 struct DynamicApplication;
-impl Application for DynamicApplication {
+impl ApplicationDefinition for DynamicApplication {
     type Config = NoConfig;
 
-        fn default_providers() -> openrust::core::DefaultProviders {
-            openrust::core::DefaultProviders::empty()
-        }
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
+    }
     fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
         vec![Box::new(HttpServiceProvider), Box::new(DynamicPolicy)]
     }

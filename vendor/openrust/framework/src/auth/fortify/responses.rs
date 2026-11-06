@@ -1,12 +1,16 @@
 //! 固定Fortify具名响应契约；默认直接使用HTTP JSON与同一重定向/Session机制。
 
 use super::config::FortifyConfig;
-use crate::{
-    Error, Result,
-    core::{BoxFuture, RegisterContext, error::ValidationErrors},
-    http::{Redirector, Request, redirect::RedirectErrors},
-    support::{ArrayKey, MessageInput},
-};
+use crate::Error;
+use crate::Result;
+use crate::core::error::ValidationErrors;
+use crate::foundation::RegisterContext;
+use crate::http::Request;
+use crate::http::redirect_response::RedirectErrors;
+use crate::routing::Redirector;
+use crate::support::ArrayKey;
+use crate::support::BoxFuture;
+use crate::support::MessageInput;
 use axum::{
     Json,
     http::StatusCode,

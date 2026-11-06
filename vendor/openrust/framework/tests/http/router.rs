@@ -9,15 +9,23 @@ use futures_util::StreamExt as _;
 use http_body::Body as _;
 use openrust::ExecutionContext;
 use openrust::config::FrameworkConfig;
-use openrust::core::container::Scope;
+use openrust::container::Scope;
 use openrust::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, RateLimiter};
+use openrust::foundation::http::build_router;
+use openrust::http::Created;
+use openrust::http::DomainParams;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Inject;
+use openrust::http::NoContent;
+use openrust::http::PageParams;
+use openrust::http::Paginated;
 use openrust::http::RateLimitLayer;
+use openrust::http::Validated;
 use openrust::http::axum;
-use openrust::http::{
-    Created, DomainParams, HttpServiceProvider, Inject, NoContent, PageParams, Paginated,
-    RouteGroup, RouteUrlGenerator, Routes, Validated, build_router,
-};
 use openrust::http::{Json, Path, Query};
+use openrust::routing::RouteGroup;
+use openrust::routing::Router;
+use openrust::routing::UrlGenerator;
 
 use openrust::validation::{Rule, Rules, Validate};
 use serde::Deserialize;
@@ -87,7 +95,7 @@ async fn second_domain_marker() -> &'static str {
     "second domain"
 }
 
-async fn merged_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn merged_named_url(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     let parameters = std::collections::BTreeMap::from([
         ("account".into(), "Acme".into()),
         ("id".into(), "42".into()),
@@ -95,14 +103,14 @@ async fn merged_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<Stri
     Ok(Json(urls.route("merged.show", &parameters)?))
 }
 
-async fn merged_explicit_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn merged_explicit_named_url(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     Ok(Json(urls.route(
         "explicit.named",
         &std::collections::BTreeMap::new(),
     )?))
 }
 
-async fn domain_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn domain_named_url(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     let parameters = std::collections::BTreeMap::from([
         ("account".into(), "Acme".into()),
         ("id".into(), "a b/c".into()),
@@ -111,7 +119,7 @@ async fn domain_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<Stri
     Ok(Json(urls.route("orders.show", &parameters)?))
 }
 
-async fn domain_named_url_invalid(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn domain_named_url_invalid(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     let parameters = std::collections::BTreeMap::from([
         ("account".into(), "a.b".into()),
         ("id".into(), "1".into()),
@@ -123,7 +131,7 @@ async fn domain_test_router() -> Result<axum::Router, Box<dyn std::error::Error>
     let mut config = FrameworkConfig::default();
     config.app.url = "https://app.example.test:8443/base".into();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -146,7 +154,7 @@ async fn domain_test_router() -> Result<axum::Router, Box<dyn std::error::Error>
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     Ok(build_router(&app)?)
 }
 
@@ -248,7 +256,7 @@ async fn domain_group_middleware_runs_only_for_matched_handler() -> TestResult {
     ));
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&calls);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(move |routes| {
@@ -271,7 +279,7 @@ async fn domain_group_middleware_runs_only_for_matched_handler() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .clone()
@@ -301,7 +309,7 @@ async fn scoped_domain_fallback_waits_for_normal_routes_and_only_owns_its_host_a
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -316,7 +324,7 @@ async fn scoped_domain_fallback_waits_for_normal_routes_and_only_owns_its_host_a
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for (host, path, expected) in [
         ("a.example.test", "/api/known", "grouped"),
@@ -433,7 +441,7 @@ async fn interleaved_same_pattern_routes_do_not_jump_ahead_of_overlapping_domain
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -452,7 +460,7 @@ async fn interleaved_same_pattern_routes_do_not_jump_ahead_of_overlapping_domain
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .clone()
@@ -481,7 +489,7 @@ async fn nested_interleaved_domain_routes_keep_each_declaration_position() -> Te
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -500,7 +508,7 @@ async fn nested_interleaved_domain_routes_keep_each_declaration_position() -> Te
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .clone()
@@ -529,7 +537,7 @@ async fn disjoint_same_pattern_buckets_use_last_duplicate_method_route() -> Test
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -548,7 +556,7 @@ async fn disjoint_same_pattern_buckets_use_last_duplicate_method_route() -> Test
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .oneshot(
@@ -567,15 +575,15 @@ async fn independent_route_tables_keep_merge_declaration_order() -> TestResult {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
-            let first = Routes::new().get("/unrelated", grouped_route).group(
+            let first = Router::new().get("/unrelated", grouped_route).group(
                 RouteGroup::new().domain("{account}.example.test"),
                 |domain| domain.get("/overlap", first_domain_marker),
             );
-            let second = Routes::new()
+            let second = Router::new()
                 .group(RouteGroup::new().domain("foo.{region}.test"), |domain| {
                     domain.get("/overlap", second_domain_marker)
                 });
@@ -584,7 +592,7 @@ async fn independent_route_tables_keep_merge_declaration_order() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .oneshot(
@@ -607,7 +615,7 @@ async fn merged_root_routes_bind_to_current_domain_and_keep_nested_contracts() -
     let mut config = FrameworkConfig::default();
     config.app.url = "https://app.example.test:8443/base".into();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -619,7 +627,7 @@ async fn merged_root_routes_bind_to_current_domain_and_keep_nested_contracts() -
                     domain
                         .get("/direct", first_domain_marker)
                         .merge(
-                            Routes::new()
+                            Router::new()
                                 .get("/merged/{id}", domain_order)
                                 .name("merged.show")
                                 .layer(axum::middleware::from_fn(
@@ -659,7 +667,7 @@ async fn merged_root_routes_bind_to_current_domain_and_keep_nested_contracts() -
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for (host, path, expected) in [
         ("acme.example.test", "/api/direct", "first domain"),
@@ -729,7 +737,7 @@ async fn merged_root_paths_override_same_named_domain_parameter_through_prefix()
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
@@ -737,13 +745,13 @@ async fn merged_root_paths_override_same_named_domain_parameter_through_prefix()
                     RouteGroup::new()
                         .domain("{tenant}.example.test")
                         .prefix(prefix),
-                    |domain| domain.merge(Routes::new().get(path, route_tenant_collision)),
+                    |domain| domain.merge(Router::new().get(path, route_tenant_collision)),
                 )
             }));
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         let response = router
             .oneshot(
@@ -774,7 +782,7 @@ async fn overlapping_domain_fallbacks_follow_declaration_order_through_merge_and
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
@@ -783,7 +791,7 @@ async fn overlapping_domain_fallbacks_follow_declaration_order_through_merge_and
                         .domain("{account}.example.test")
                         .prefix("/api"),
                     |domain| {
-                        let explicit = |routes: Routes| {
+                        let explicit = |routes: Router| {
                             routes.group(
                                 RouteGroup::new()
                                     .domain("foo.{region}.test")
@@ -793,10 +801,10 @@ async fn overlapping_domain_fallbacks_follow_declaration_order_through_merge_and
                         };
                         match (merged, broad_first) {
                             (true, true) => {
-                                domain.merge(explicit(Routes::new().fallback(first_domain_marker)))
+                                domain.merge(explicit(Router::new().fallback(first_domain_marker)))
                             }
                             (true, false) => {
-                                domain.merge(explicit(Routes::new()).fallback(first_domain_marker))
+                                domain.merge(explicit(Router::new()).fallback(first_domain_marker))
                             }
                             (false, true) => explicit(domain.fallback(first_domain_marker)),
                             (false, false) => explicit(domain).fallback(first_domain_marker),
@@ -807,7 +815,7 @@ async fn overlapping_domain_fallbacks_follow_declaration_order_through_merge_and
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         let overlap = router
             .clone()
@@ -863,12 +871,12 @@ async fn same_domain_fallbacks_choose_deepest_scope_in_either_registration_order
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
                 routes.group(RouteGroup::new().domain("a.example.test"), |domain| {
-                    let nested = |routes: Routes| {
+                    let nested = |routes: Router| {
                         routes.group(RouteGroup::new().prefix("/api"), |api| {
                             api.fallback(first_domain_marker)
                                 .group(RouteGroup::new().prefix("/v2"), |v2| {
@@ -886,7 +894,7 @@ async fn same_domain_fallbacks_choose_deepest_scope_in_either_registration_order
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         for (path, expected) in [
             ("/api/v2/missing", "second domain"),
@@ -918,11 +926,11 @@ async fn unrestricted_fallbacks_choose_deepest_scope_in_either_registration_orde
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
-                let nested = |routes: Routes| {
+                let nested = |routes: Router| {
                     routes.group(RouteGroup::new().prefix("/api"), |api| {
                         api.fallback(first_domain_marker)
                             .group(RouteGroup::new().prefix("/v2"), |v2| {
@@ -939,7 +947,7 @@ async fn unrestricted_fallbacks_choose_deepest_scope_in_either_registration_orde
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         for (path, expected) in [
             ("/api/v2/missing", "second domain"),
@@ -972,7 +980,7 @@ async fn enclosing_parameter_or_wildcard_prefix_rejects_explicit_domain_fallback
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
@@ -987,7 +995,7 @@ async fn enclosing_parameter_or_wildcard_prefix_rejects_explicit_domain_fallback
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let error = build_router(&app)
             .err()
             .ok_or("parameterized explicit-domain fallback unexpectedly built")?;
@@ -1006,7 +1014,7 @@ async fn unnamed_domain_routes_prefer_path_parameter_over_same_named_domain() ->
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
@@ -1025,7 +1033,7 @@ async fn unnamed_domain_routes_prefer_path_parameter_over_same_named_domain() ->
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         let response = router
             .oneshot(
@@ -1054,7 +1062,7 @@ async fn absolute_uri_authority_survives_site_root_forward_to_domain_route() -> 
     let mut config = FrameworkConfig::default();
     config.server.root_target = "forward:/forwarded".to_owned();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(HttpServiceProvider).provider(TestRoutes::new(|routes| {
         routes.group(RouteGroup::new().domain("{account}.example.test"), |domain| {
             domain.get("/forwarded", |DomainParams(tenant): DomainParams<DomainTenant>, request: Request| async move {
@@ -1065,7 +1073,7 @@ async fn absolute_uri_authority_survives_site_root_forward_to_domain_route() -> 
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .oneshot(Request::get("http://acme.example.test/?q=1").body(Body::empty())?)
@@ -1097,7 +1105,7 @@ async fn domain_registration_rejects_invalid_and_duplicate_parameter_contracts()
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
@@ -1113,7 +1121,7 @@ async fn domain_registration_rejects_invalid_and_duplicate_parameter_contracts()
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let error = build_router(&app)
             .err()
             .ok_or("invalid domain route unexpectedly built")?;
@@ -1128,7 +1136,7 @@ async fn overlapping_domain_patterns_follow_registration_order_and_nested_groups
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -1156,7 +1164,7 @@ async fn overlapping_domain_patterns_follow_registration_order_and_nested_groups
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for (host, path, expected) in [
         ("foo.example.test", "/overlap", "first domain"),
@@ -1231,7 +1239,7 @@ async fn domain_root_route_takes_priority_over_default_site_root_target() -> Tes
     let mut config = FrameworkConfig::default();
     config.server.public_dir = directory.path().to_owned();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -1242,7 +1250,7 @@ async fn domain_root_route_takes_priority_over_default_site_root_target() -> Tes
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .clone()
@@ -1303,7 +1311,7 @@ async fn scoped_factory_survives_response_into_body_until_stream_finishes() -> T
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestInstance(std::sync::Arc::new(ScopeProbe(Arc::clone(
@@ -1318,7 +1326,7 @@ async fn scoped_factory_survives_response_into_body_until_stream_finishes() -> T
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .oneshot(
@@ -1431,7 +1439,7 @@ async fn scope_test_router(
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestInstance(std::sync::Arc::new(ScopeProbe(Arc::clone(
@@ -1454,7 +1462,7 @@ async fn scope_test_router(
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     build_router(&app)
 }
 
@@ -1562,7 +1570,7 @@ async fn inject_resolves_async_scoped_factory_once_per_request() -> TestResult {
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(HttpServiceProvider);
     builder.provider(IdentityProvider::new({
         let calls = Arc::clone(&calls);
@@ -1582,7 +1590,7 @@ async fn inject_resolves_async_scoped_factory_once_per_request() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for expected in ["1:1", "2:2"] {
         let response = router
@@ -1702,7 +1710,7 @@ async fn router_with_config(config: FrameworkConfig) -> openrust::Result<axum::R
 async fn router_with_exact_config(config: FrameworkConfig) -> openrust::Result<axum::Router> {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
         .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestInstance(std::sync::Arc::new(Greeting("hello"))))
@@ -1729,7 +1737,7 @@ async fn router_with_exact_config(config: FrameworkConfig) -> openrust::Result<a
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     build_router(&app)
 }
 
@@ -1756,7 +1764,7 @@ async fn grouped_route() -> &'static str {
     "grouped"
 }
 
-async fn generated_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn generated_named_url(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     let parameters = std::collections::BTreeMap::from([
         ("id".to_owned(), "a b/c".to_owned()),
         ("page".to_owned(), "2".to_owned()),
@@ -1766,13 +1774,13 @@ async fn generated_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<S
 }
 
 async fn generated_named_url_missing_parameter(
-    urls: RouteUrlGenerator,
+    urls: UrlGenerator,
 ) -> openrust::Result<Json<String>> {
     urls.route("admin.users.show", &std::collections::BTreeMap::new())
         .map(Json)
 }
 
-async fn generated_outside_group_name(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn generated_outside_group_name(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     urls.route(
         "admin.management.outside",
         &std::collections::BTreeMap::new(),
@@ -1780,7 +1788,7 @@ async fn generated_outside_group_name(urls: RouteUrlGenerator) -> openrust::Resu
     .map(Json)
 }
 
-async fn generated_trailing_slash_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn generated_trailing_slash_url(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     urls.route("posts.trailing", &std::collections::BTreeMap::new())
         .map(Json)
 }
@@ -1838,7 +1846,7 @@ async fn nested_route_groups_combine_prefixes_and_scope_middleware() -> TestResu
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -1874,7 +1882,7 @@ async fn nested_route_groups_combine_prefixes_and_scope_middleware() -> TestResu
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
 
     let response = build_router(&app)?
         .oneshot(
@@ -1905,10 +1913,10 @@ async fn nested_route_groups_combine_prefixes_and_scope_middleware() -> TestResu
 
 struct NamedMiddlewareProvider;
 
-impl openrust::core::ServiceProvider for NamedMiddlewareProvider {
+impl openrust::support::ServiceProvider for NamedMiddlewareProvider {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.middleware_alias(
@@ -1931,7 +1939,7 @@ async fn named_middleware_aliases_and_nested_groups_keep_declaration_order() -> 
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(NamedMiddlewareProvider)
@@ -1957,7 +1965,7 @@ async fn named_middleware_aliases_and_nested_groups_keep_declaration_order() -> 
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     let response = router
@@ -2021,10 +2029,10 @@ struct DuplicateMiddlewareProvider;
 
 struct PriorityMiddlewareProvider;
 
-impl openrust::core::ServiceProvider for PriorityMiddlewareProvider {
+impl openrust::support::ServiceProvider for PriorityMiddlewareProvider {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.middleware_alias(
@@ -2048,7 +2056,7 @@ async fn provider_priority_sorts_named_route_layers_after_group_flattening() -> 
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(PriorityMiddlewareProvider)
@@ -2068,7 +2076,7 @@ async fn provider_priority_sorts_named_route_layers_after_group_flattening() -> 
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(Request::get("/priority").body(Body::empty())?)
         .await?;
@@ -2086,10 +2094,10 @@ async fn reject_as_unauthorized(_request: Request, _next: Next) -> Response {
     StatusCode::UNAUTHORIZED.into_response()
 }
 
-impl openrust::core::ServiceProvider for RejectingAuthProvider {
+impl openrust::support::ServiceProvider for RejectingAuthProvider {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.middleware_alias("auth", axum::middleware::from_fn(reject_as_unauthorized))?;
@@ -2103,7 +2111,7 @@ async fn default_precognitive_priority_runs_before_route_authorization() -> Test
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(RejectingAuthProvider)
@@ -2118,7 +2126,7 @@ async fn default_precognitive_priority_runs_before_route_authorization() -> Test
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(
             Request::get("/auth-before-handler")
@@ -2137,10 +2145,10 @@ async fn default_precognitive_priority_runs_before_route_authorization() -> Test
     Ok(())
 }
 
-impl openrust::core::ServiceProvider for DuplicateMiddlewareProvider {
+impl openrust::support::ServiceProvider for DuplicateMiddlewareProvider {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.middleware_alias("shared", axum::middleware::from_fn(mark_route_group))?;
@@ -2152,7 +2160,7 @@ impl openrust::core::ServiceProvider for DuplicateMiddlewareProvider {
 
 #[tokio::test]
 async fn duplicate_middleware_names_fail_provider_boot() -> TestResult {
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(DuplicateMiddlewareProvider);
@@ -2172,7 +2180,7 @@ async fn unknown_or_cyclic_named_middleware_fails_router_build() -> TestResult {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2183,13 +2191,13 @@ async fn unknown_or_cyclic_named_middleware_fails_router_build() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let error = build_router(&app)
         .err()
         .ok_or("unknown named middleware unexpectedly built")?;
     assert_eq!(error.code(), "http_middleware_name_unknown");
 
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(CyclicMiddlewareProvider)
@@ -2203,7 +2211,7 @@ async fn unknown_or_cyclic_named_middleware_fails_router_build() -> TestResult {
             figment::providers::Serialized::defaults(FrameworkConfig::default()),
         ))
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let error = build_router(&app)
         .err()
         .ok_or("cyclic named middleware unexpectedly built")?;
@@ -2213,7 +2221,7 @@ async fn unknown_or_cyclic_named_middleware_fails_router_build() -> TestResult {
 
 #[test]
 fn named_middleware_without_registry_fails_closed_on_all_route_paths() -> TestResult {
-    let direct = openrust::http::Routes::new()
+    let direct = openrust::routing::Router::new()
         .get("/private", grouped_order)
         .middleware_alias("auth")
         .get("/public", grouped_outside)
@@ -2222,7 +2230,7 @@ fn named_middleware_without_registry_fails_closed_on_all_route_paths() -> TestRe
         .ok_or("named middleware without an application registry was silently ignored")?;
     assert_eq!(direct.code(), "http_middleware_registry_unavailable");
 
-    let nested = openrust::http::Routes::new()
+    let nested = openrust::routing::Router::new()
         .group(RouteGroup::new(), |routes| {
             routes
                 .get("/private", grouped_order)
@@ -2233,7 +2241,7 @@ fn named_middleware_without_registry_fails_closed_on_all_route_paths() -> TestRe
         .ok_or("nested named middleware without a registry was silently ignored")?;
     assert_eq!(nested.code(), "http_middleware_registry_unavailable");
 
-    let group = openrust::http::Routes::new()
+    let group = openrust::routing::Router::new()
         .group(RouteGroup::new().middleware_alias("auth"), |routes| {
             routes.get("/private", grouped_order)
         })
@@ -2246,10 +2254,10 @@ fn named_middleware_without_registry_fails_closed_on_all_route_paths() -> TestRe
 
 struct CyclicMiddlewareProvider;
 
-impl openrust::core::ServiceProvider for CyclicMiddlewareProvider {
+impl openrust::support::ServiceProvider for CyclicMiddlewareProvider {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.middleware_group("first", ["second"])?;
@@ -2264,7 +2272,7 @@ async fn duplicate_routes_across_groups_dispatch_to_last_registration() -> TestR
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2279,7 +2287,7 @@ async fn duplicate_routes_across_groups_dispatch_to_last_registration() -> TestR
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .oneshot(Request::get("/api/duplicate").body(Body::empty())?)
@@ -2290,7 +2298,7 @@ async fn duplicate_routes_across_groups_dispatch_to_last_registration() -> TestR
 }
 
 async fn secure_redirect_response(info: openrust::http::RequestInfo) -> openrust::Result<Response> {
-    Ok(openrust::http::Redirector::from_info(&info)
+    Ok(openrust::routing::Redirector::from_info(&info)
         .secure("/login?source=protected")?
         .into_response())
 }
@@ -2300,7 +2308,7 @@ async fn guest_redirect_response(info: openrust::http::RequestInfo) -> openrust:
     // 通过受管理Router的匿名Route验证，而非测试手工声明的命中事实。
     assert!(info.route()?.is_some());
     assert_eq!(info.route_name()?, None);
-    Ok(openrust::http::Redirector::from_info(&info)
+    Ok(openrust::routing::Redirector::from_info(&info)
         .guest("/login")?
         .into_response())
 }
@@ -2309,7 +2317,7 @@ async fn guest_redirect_response(info: openrust::http::RequestInfo) -> openrust:
 async fn intended_redirect_response(
     info: openrust::http::RequestInfo,
 ) -> openrust::Result<Response> {
-    Ok(openrust::http::Redirector::from_info(&info)
+    Ok(openrust::routing::Redirector::from_info(&info)
         .intended_or("/fallback")?
         .into_response())
 }
@@ -2322,7 +2330,7 @@ async fn refresh_redirect_response(
         "x-refresh-proof",
         axum::http::HeaderValue::from_static("kept"),
     );
-    Ok(openrust::http::Redirector::from_info(&info)
+    Ok(openrust::routing::Redirector::from_info(&info)
         .refresh_with(StatusCode::SEE_OTHER, headers)?
         .into_response())
 }
@@ -2331,7 +2339,7 @@ async fn away_redirect_response(
     info: openrust::http::RequestInfo,
     Path(mode): Path<String>,
 ) -> openrust::Result<Response> {
-    let redirect = openrust::http::Redirector::from_info(&info);
+    let redirect = openrust::routing::Redirector::from_info(&info);
     let response = match mode.as_str() {
         "empty" => redirect.away("")?,
         "unsafe" => redirect.away("/bad\r\nX-Test: injected")?,
@@ -2433,7 +2441,7 @@ async fn away_public_route_rejects_empty_unsafe_target_and_non_redirect_status()
 }
 
 async fn intent_redirect_router() -> Result<axum::Router, Box<dyn std::error::Error>> {
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2452,7 +2460,7 @@ async fn intent_redirect_router() -> Result<axum::Router, Box<dyn std::error::Er
             figment::providers::Serialized::defaults(FrameworkConfig::default()),
         ))
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     Ok(build_router(&app)?)
 }
 
@@ -2552,7 +2560,7 @@ async fn named_redirect_response(
         !info.has_session(),
         "普通命名跳转fixture不能依赖Session Provider"
     );
-    let redirect = openrust::http::Redirector::from_info(&info);
+    let redirect = openrust::routing::Redirector::from_info(&info);
     let parameters = std::collections::BTreeMap::from([
         ("tenant".into(), "Acme".into()),
         ("id".into(), "a b/c".into()),
@@ -2601,7 +2609,7 @@ async fn named_redirect_router() -> Result<axum::Router, Box<dyn std::error::Err
     let mut config = FrameworkConfig::default();
     config.app.url = "https://configured.example.test:8443/base".into();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2620,7 +2628,7 @@ async fn named_redirect_router() -> Result<axum::Router, Box<dyn std::error::Err
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     Ok(build_router(&app)?)
 }
 
@@ -2717,7 +2725,7 @@ async fn named_route_urls_use_group_prefix_parameters_and_configured_host() -> T
             "api": {"http_status": "semantic"}
         }),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2745,7 +2753,7 @@ async fn named_route_urls_use_group_prefix_parameters_and_configured_host() -> T
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     let response = router
@@ -2793,7 +2801,7 @@ async fn named_url_preserves_trailing_slash_and_targets_a_real_route() -> TestRe
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2805,7 +2813,7 @@ async fn named_url_preserves_trailing_slash_and_targets_a_real_route() -> TestRe
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let response = router
         .clone()
@@ -2834,7 +2842,7 @@ async fn duplicate_named_routes_fail_during_router_build() -> TestResult {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2847,7 +2855,7 @@ async fn duplicate_named_routes_fail_during_router_build() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let error = build_router(&app)
         .err()
         .ok_or("duplicate route names unexpectedly built")?;
@@ -2860,7 +2868,7 @@ async fn named_wildcard_routes_fail_during_router_build() -> TestResult {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2871,7 +2879,7 @@ async fn named_wildcard_routes_fail_during_router_build() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let error = build_router(&app)
         .err()
         .ok_or("named wildcard route unexpectedly built")?;
@@ -2884,7 +2892,7 @@ async fn named_routes_with_empty_segments_fail_during_router_build() -> TestResu
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2895,7 +2903,7 @@ async fn named_routes_with_empty_segments_fail_during_router_build() -> TestResu
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let error = build_router(&app)
         .err()
         .ok_or("named route with empty path segment unexpectedly built")?;
@@ -2908,7 +2916,7 @@ async fn named_group_root_with_repeated_slashes_fails_during_router_build() -> T
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -2919,7 +2927,7 @@ async fn named_group_root_with_repeated_slashes_fails_during_router_build() -> T
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let error = build_router(&app)
         .err()
         .ok_or("named route with repeated root slashes unexpectedly built")?;
@@ -3008,7 +3016,7 @@ async fn app_builder_http_layer_wraps_routes() -> TestResult {
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(SharedHttpLayer)
@@ -3020,7 +3028,7 @@ async fn app_builder_http_layer_wraps_routes() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(Request::get("/shared").body(Body::empty())?)
         .await?;
@@ -3074,7 +3082,7 @@ async fn route_rate_limit_uses_scoped_custom_keys_and_returns_retry_after() -> T
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
         .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
@@ -3086,7 +3094,7 @@ async fn route_rate_limit_uses_scoped_custom_keys_and_returns_retry_after() -> T
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     let first = router
@@ -3128,11 +3136,11 @@ async fn route_rate_limit_uses_scoped_custom_keys_and_returns_retry_after() -> T
 #[tokio::test]
 async fn rate_limit_and_handler_share_the_request_scoped_factory() -> TestResult {
     struct ScopedLimiter(Arc<AtomicUsize>);
-    impl openrust::core::ServiceProvider for ScopedLimiter {
+    impl openrust::support::ServiceProvider for ScopedLimiter {
         fn register<'a>(
             &'a self,
-            app: &'a mut openrust::core::RegisterContext<'_>,
-        ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+            app: &'a mut openrust::foundation::RegisterContext<'_>,
+        ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
             Box::pin(async move {
                 let calls = Arc::clone(&self.0);
                 app.scoped::<RateLimiter, _>(move |_| {
@@ -3151,7 +3159,7 @@ async fn rate_limit_and_handler_share_the_request_scoped_factory() -> TestResult
         "ok"
     }
     let calls = Arc::new(AtomicUsize::new(0));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(ScopedLimiter(Arc::clone(&calls)))
@@ -3169,7 +3177,7 @@ async fn rate_limit_and_handler_share_the_request_scoped_factory() -> TestResult
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(Request::get("/scoped-limit").body(Body::empty())?)
         .await?;
@@ -3186,7 +3194,7 @@ async fn authenticated_rate_limit_rejects_a_missing_identity() -> TestResult {
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
         .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
@@ -3200,7 +3208,7 @@ async fn authenticated_rate_limit_rejects_a_missing_identity() -> TestResult {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(Request::get("/limited-user").body(Body::empty())?)
         .await?;
@@ -3374,7 +3382,7 @@ async fn fallback_runs_only_for_unmatched_requests_after_static_lookup() -> Test
     let mut config = FrameworkConfig::default();
     config.server.public_dir = directory.path().to_owned();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -3386,7 +3394,7 @@ async fn fallback_runs_only_for_unmatched_requests_after_static_lookup() -> Test
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     let known = router
@@ -3458,7 +3466,7 @@ async fn grouped_fallback_is_prefix_scoped_and_uses_group_middleware() -> TestRe
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -3472,7 +3480,7 @@ async fn grouped_fallback_is_prefix_scoped_and_uses_group_middleware() -> TestRe
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     let grouped = router
@@ -3509,14 +3517,14 @@ async fn explicit_fallback_runs_when_api_status_mode_maps_missing_to_ok() -> Tes
     let mut config = FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::AlwaysOk;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| routes.fallback(fallback_echo)));
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     for path in ["/missing", "/api/missing"] {
@@ -3538,24 +3546,24 @@ async fn duplicate_fallbacks_fail_router_build_without_panicking() -> TestResult
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
             routes
                 .fallback(fallback_echo)
-                .merge(openrust::http::Routes::new().fallback(fallback_echo))
+                .merge(openrust::routing::Router::new().fallback(fallback_echo))
         }));
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let Err(error) = build_router(&app) else {
         return Err(std::io::Error::other("duplicate fallback must be rejected").into());
     };
     assert_eq!(error.code(), "http_fallback_duplicate");
 
-    let duplicate_groups = Routes::new()
+    let duplicate_groups = Router::new()
         .group(RouteGroup::new().prefix("/pages"), |routes| {
             routes.fallback(fallback_echo)
         })
@@ -3567,7 +3575,7 @@ async fn duplicate_fallbacks_fail_router_build_without_panicking() -> TestResult
     };
     assert_eq!(error.code(), "http_fallback_duplicate");
 
-    let parameter_group = Routes::new().group(RouteGroup::new().prefix("/{id}"), |routes| {
+    let parameter_group = Router::new().group(RouteGroup::new().prefix("/{id}"), |routes| {
         routes.fallback(fallback_echo)
     });
     let Err(error) = parameter_group.into_router() else {
@@ -3575,8 +3583,8 @@ async fn duplicate_fallbacks_fail_router_build_without_panicking() -> TestResult
     };
     assert_eq!(error.code(), "http_fallback_scope_unsupported");
 
-    let merged_groups = Routes::new().merge(
-        Routes::new()
+    let merged_groups = Router::new().merge(
+        Router::new()
             .group(RouteGroup::new().prefix("/pages"), |routes| {
                 routes.fallback(fallback_echo)
             })
@@ -3642,7 +3650,7 @@ async fn site_root_target_precedes_static_index_and_user_fallback() -> TestResul
         config.server.public_dir = directory.path().to_owned();
         config.server.root_target = target.into();
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(|routes| {
@@ -3657,7 +3665,7 @@ async fn site_root_target_precedes_static_index_and_user_fallback() -> TestResul
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         assert_site_root_target(router, target, expected).await?;
     }
@@ -3751,7 +3759,7 @@ async fn site_root_view_uses_runtime_name_before_static_and_fallback() -> TestRe
                     "view":{"directory":views,"auto_reload":false}
                 }),
             ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(openrust::view::ViewServiceProvider)
@@ -3773,7 +3781,7 @@ async fn site_root_view_uses_runtime_name_before_static_and_fallback() -> TestRe
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         for (host, expected) in [
             ("a.example.test", "first domain"),
@@ -3836,7 +3844,7 @@ async fn site_root_method_miss_keeps_fallback_and_allow() -> TestResult {
         config.server.public_dir = directory.path().to_owned();
         config.server.root_target = "redirect:/unused".into();
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
@@ -3850,7 +3858,7 @@ async fn site_root_method_miss_keeps_fallback_and_allow() -> TestResult {
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         for method in ["GET", "HEAD", "PUT", "OPTIONS"] {
             let response = router
@@ -3894,7 +3902,7 @@ async fn site_root_forward_fallback_preserves_external_url_and_route_capture() -
     config.server.public_dir = directory.path().to_owned();
     config.server.root_target = "forward:/nested/missing".into();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -3925,7 +3933,7 @@ async fn site_root_forward_fallback_preserves_external_url_and_route_capture() -
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(Request::get("http://a.example.test/?q=client").body(Body::empty())?)
         .await?;
@@ -3944,7 +3952,7 @@ async fn site_head_responses_keep_explicit_status_headers_and_errors() -> TestRe
     config.server.public_dir = directory.path().to_owned();
     config.server.root_target = "file:/missing.html".into();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -3959,7 +3967,7 @@ async fn site_head_responses_keep_explicit_status_headers_and_errors() -> TestRe
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let explicit = router
         .clone()
@@ -4011,7 +4019,7 @@ async fn site_default_index_keeps_static_then_user_fallback() -> TestResult {
         let mut config = FrameworkConfig::default();
         config.server.public_dir = directory.path().to_owned();
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(|routes| {
@@ -4020,7 +4028,7 @@ async fn site_default_index_keeps_static_then_user_fallback() -> TestResult {
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         for method in ["GET", "HEAD"] {
             let response = router
@@ -4053,13 +4061,13 @@ async fn standalone_root_fallback_ignores_site_target() -> TestResult {
     config.server.public_dir = directory.path().to_owned();
     config.server.root_target = "redirect:/unused".into();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(HttpServiceProvider);
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
-    let router = Routes::new()
+        .and_then(openrust::Application::from_provider_runtime)?;
+    let router = Router::new()
         .fallback(root_fallback_marker)
         .into_router()?
         .with_state(app.state().clone());
@@ -4078,7 +4086,7 @@ async fn site_root_handler_error_status_is_terminal() -> TestResult {
         let mut config = FrameworkConfig::default();
         config.server.root_target = "redirect:/unused".into();
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(TestRoutes::new(move |routes| {
@@ -4089,7 +4097,7 @@ async fn site_root_handler_error_status_is_terminal() -> TestResult {
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let response = build_router(&app)?
             .oneshot(Request::get("/").body(Body::empty())?)
             .await?;
@@ -4909,13 +4917,13 @@ async fn default_status_mode_uses_semantic_http_codes() -> TestResult {
 struct FailingI18nProvider {
     api_envelope: bool,
 }
-impl openrust::core::ServiceProvider for FailingI18nProvider {
+impl openrust::support::ServiceProvider for FailingI18nProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.scoped::<openrust::i18n::I18n, _>(|_| {
+            app.scoped::<openrust::translation::Translator, _>(|_| {
                 Box::pin(async {
                     Err(openrust::Error::internal(std::io::Error::other(
                         "i18n service unavailable",
@@ -4929,7 +4937,7 @@ impl openrust::core::ServiceProvider for FailingI18nProvider {
 
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             if self.api_envelope {
@@ -4955,11 +4963,11 @@ async fn i18n_resolution_errors_keep_request_status_mode_and_id() -> TestResult 
         config.api.http_status = mode;
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
             .merge(figment::Figment::new());
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(FailingI18nProvider { api_envelope: true });
-        let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+        let app = openrust::Application::from_provider_runtime(builder.start(sources).await?)?;
         let response = build_router(&app)?
             .oneshot(
                 Request::get("/unreachable")
@@ -4983,13 +4991,13 @@ async fn i18n_resolution_errors_keep_request_status_mode_and_id() -> TestResult 
 async fn early_i18n_errors_keep_default_negotiation_and_request_id() -> TestResult {
     let config = FrameworkConfig::default();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(FailingI18nProvider {
             api_envelope: false,
         });
-    let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(sources).await?)?;
     let router = build_router(&app)?;
     for (method, accept, expected_type) in [
         ("GET", None, "text/html"),
@@ -5028,11 +5036,11 @@ async fn early_i18n_errors_keep_default_negotiation_and_request_id() -> TestResu
 }
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
-impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+impl<T: Send + Sync + 'static> openrust::support::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::clone(&self.0)).await?;
             Ok(())
@@ -5041,18 +5049,18 @@ impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {
@@ -5135,7 +5143,7 @@ async fn precognition_confirms_only_opted_in_routes_after_extraction() -> TestRe
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(move |routes| {
@@ -5174,7 +5182,7 @@ async fn precognition_confirms_only_opted_in_routes_after_extraction() -> TestRe
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     let events = Arc::new(Mutex::new(Vec::new()));
 
@@ -5309,7 +5317,7 @@ async fn validated_precognition_selects_json_and_stops_query_parts_extraction() 
     let mut config = FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(move |routes| {
@@ -5359,7 +5367,7 @@ async fn validated_precognition_selects_json_and_stops_query_parts_extraction() 
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     for (body, selected, expected_status, success) in [
@@ -5469,7 +5477,7 @@ async fn validated_precognition_selects_json_and_stops_query_parts_extraction() 
 }
 
 type IdentityFactory = dyn Fn(
-        openrust::core::container::Resolver,
+        openrust::container::Resolver,
     ) -> openrust::BoxFuture<'static, openrust::Result<Arc<RequestIdentity>>>
     + Send
     + Sync;
@@ -5477,7 +5485,7 @@ struct IdentityProvider(std::sync::Arc<IdentityFactory>);
 impl IdentityProvider {
     fn new(
         factory: impl Fn(
-            openrust::core::container::Resolver,
+            openrust::container::Resolver,
         )
             -> openrust::BoxFuture<'static, openrust::Result<Arc<RequestIdentity>>>
         + Send
@@ -5487,11 +5495,11 @@ impl IdentityProvider {
         Self(Arc::new(factory))
     }
 }
-impl openrust::core::ServiceProvider for IdentityProvider {
+impl openrust::support::ServiceProvider for IdentityProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             let factory = Arc::clone(&self.0);
             app.scoped::<RequestIdentity, _>(move |resolver| factory(resolver))
@@ -5501,10 +5509,10 @@ impl openrust::core::ServiceProvider for IdentityProvider {
     }
 }
 struct SharedHttpLayer;
-impl openrust::core::ServiceProvider for SharedHttpLayer {
+impl openrust::support::ServiceProvider for SharedHttpLayer {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.http_layer(axum::middleware::from_fn(add_shared_extension))?;
@@ -5534,11 +5542,11 @@ struct NetworkScopeEvents {
     scopes: tokio::sync::mpsc::UnboundedReceiver<Arc<Scope>>,
 }
 struct NetworkScopeProvider(Arc<NetworkScopeProbe>);
-impl openrust::core::ServiceProvider for NetworkScopeProvider {
+impl openrust::support::ServiceProvider for NetworkScopeProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(Arc::clone(&self.0)).await?;
             app.scoped::<NetworkScopedResource, _>(|resolver| {
@@ -5581,7 +5589,7 @@ impl openrust::core::ServiceProvider for NetworkScopeProvider {
     }
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes| {
@@ -5598,7 +5606,7 @@ impl openrust::core::ServiceProvider for NetworkScopeProvider {
 async fn network_scope_stream(
     Inject(resource): Inject<NetworkScopedResource>,
     Inject(probe): Inject<NetworkScopeProbe>,
-    axum::extract::State(state): axum::extract::State<openrust::AppState>,
+    axum::extract::State(state): axum::extract::State<openrust::ApplicationState>,
     Extension(scope): Extension<Arc<Scope>>,
 ) -> openrust::Result<Response> {
     probe
@@ -5623,7 +5631,7 @@ async fn network_scope_stream(
 async fn network_scope_sse(
     Inject(resource): Inject<NetworkScopedResource>,
     Inject(probe): Inject<NetworkScopeProbe>,
-    axum::extract::State(state): axum::extract::State<openrust::AppState>,
+    axum::extract::State(state): axum::extract::State<openrust::ApplicationState>,
     Extension(scope): Extension<Arc<Scope>>,
 ) -> openrust::Result<Response> {
     use axum::response::sse::{Event, Sse};
@@ -5649,7 +5657,7 @@ async fn network_scope_sse(
 async fn network_scope_identity(
     Inject(identity): Inject<NetworkScopedIdentity>,
     Inject(probe): Inject<NetworkScopeProbe>,
-    axum::extract::State(state): axum::extract::State<openrust::AppState>,
+    axum::extract::State(state): axum::extract::State<openrust::ApplicationState>,
 ) -> openrust::Result<axum::Json<serde_json::Value>> {
     let _ = probe.identity_barrier.wait().await;
     let again = state.resolve::<NetworkScopedIdentity>().await?;
@@ -5669,7 +5677,7 @@ async fn network_scope_identity(
 }
 
 struct NetworkScopeServer {
-    app: Arc<openrust::App>,
+    app: Arc<openrust::Application>,
     address: std::net::SocketAddr,
     stop: tokio::sync::oneshot::Sender<()>,
     task: tokio::task::JoinHandle<std::io::Result<()>>,
@@ -5689,14 +5697,14 @@ impl NetworkScopeServer {
             completed,
             scopes,
         });
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(NetworkScopeProvider(Arc::clone(&probe)));
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let app = Arc::new(openrust::App::from_provider_runtime(
+        let app = Arc::new(openrust::Application::from_provider_runtime(
             builder.start(sources).await?,
         )?);
         let router = build_router(&app)?;
@@ -5904,11 +5912,11 @@ async fn managed_method_marker(
 // 捕获 QUERY/自定义方法被标准方法过滤、any 错收 TRACE/CONNECT，以及 HEAD 或路由 middleware 无真实命中。
 #[tokio::test]
 async fn managed_methods_publish_context_for_query_any_custom_and_chains() -> TestResult {
-    use openrust::http::routing;
+    use openrust::routing::methods as routing;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -5936,7 +5944,7 @@ async fn managed_methods_publish_context_for_query_any_custom_and_chains() -> Te
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for (path, name, methods) in [
         ("/query", "managed.query", vec!["QUERY"]),
@@ -6010,7 +6018,7 @@ async fn route_tenant_collision(
 // 捕获路由名称模式误用正则、大小写折叠、多星重叠消费或按字节破坏 Unicode 的缺陷。
 #[test]
 fn route_named_matches_literal_case_sensitive_unicode_and_nonoverlapping_wildcards() {
-    use openrust::http::Route;
+    use openrust::routing::Route;
     for (name, patterns, expected) in [
         (Some("admin.users.show"), vec!["admin.users.show"], true),
         (Some("admin.users.show"), vec!["Admin.users.show"], false),
@@ -6060,7 +6068,7 @@ async fn request_info_route_resolver_supports_trusted_overrides_clones_errors_an
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(move |routes| {
@@ -6075,7 +6083,7 @@ async fn request_info_route_resolver_supports_trusted_overrides_clones_errors_an
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for id in ["first", "second"] {
         let response = router
@@ -6104,19 +6112,19 @@ async fn request_info_route_resolver_supports_trusted_overrides_clones_errors_an
 
 #[derive(Clone)]
 struct RouteObservation {
-    before: Option<openrust::http::Route>,
+    before: Option<openrust::routing::Route>,
     before_default: Option<serde_json::Value>,
-    after: Option<openrust::http::Route>,
+    after: Option<openrust::routing::Route>,
 }
 
 type RouteObservations = Arc<Mutex<Vec<RouteObservation>>>;
 
 struct GlobalRouteObserver(RouteObservations);
 
-impl openrust::core::ServiceProvider for GlobalRouteObserver {
+impl openrust::support::ServiceProvider for GlobalRouteObserver {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let observations = Arc::clone(&self.0);
         Box::pin(async move {
@@ -6150,7 +6158,7 @@ async fn observe_global_route(
     Ok(response)
 }
 
-fn observed_route(observations: &RouteObservations) -> Option<openrust::http::Route> {
+fn observed_route(observations: &RouteObservations) -> Option<openrust::routing::Route> {
     let mut observations = observations
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -6189,7 +6197,7 @@ async fn global_route_context_is_empty_before_and_preserves_business_errors_and_
     let middleware_calls = Arc::new(AtomicUsize::new(0));
     let capture_handler = Arc::clone(&handler_calls);
     let capture_middleware = Arc::clone(&middleware_calls);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(GlobalRouteObserver(Arc::clone(&observations)))
@@ -6203,7 +6211,7 @@ async fn global_route_context_is_empty_before_and_preserves_business_errors_and_
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for status in [404, 405, 500] {
         let response = router
@@ -6302,7 +6310,7 @@ async fn separate_method_declarations_keep_group_merge_metadata_and_head_registr
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(GlobalRouteObserver(Arc::clone(&observations)))
@@ -6312,7 +6320,7 @@ async fn separate_method_declarations_keep_group_merge_metadata_and_head_registr
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         for (method, path, name, marker, methods) in [
             ("GET", "/shared", "methods.get", "get", vec!["GET", "HEAD"]),
@@ -6382,7 +6390,7 @@ async fn options_context_fallback_parameters_and_domain_scopes_follow_actual_dis
         let mut config = FrameworkConfig::default();
         config.server.public_dir = directory.path().to_owned();
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(GlobalRouteObserver(Arc::clone(&observations)))
@@ -6392,7 +6400,7 @@ async fn options_context_fallback_parameters_and_domain_scopes_follow_actual_dis
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         let router = build_router(&app)?;
         assert_automatic_options_context(router.clone(), Arc::clone(&observations), root_fallback)
             .await?;
@@ -6430,7 +6438,7 @@ async fn global_context_tracks_forward_target_and_discards_domain_candidate_miss
     let mut config = FrameworkConfig::default();
     config.server.root_target = "forward:/api/target/99".into();
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(GlobalRouteObserver(Arc::clone(&observations)))
@@ -6452,7 +6460,7 @@ async fn global_context_tracks_forward_target_and_discards_domain_candidate_miss
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for path in ["/", "/api/target/42"] {
         let response = router
@@ -6575,7 +6583,8 @@ fn exercise_trusted_route_resolver(
     info: &openrust::http::RequestInfo,
     captures: &Arc<Mutex<Vec<openrust::http::RequestInfo>>>,
 ) -> openrust::Result<Json<serde_json::Value>> {
-    use openrust::http::{Route, RouteResolver};
+    use openrust::routing::Route;
+    use openrust::routing::RouteResolver;
     // 每个请求从真实匹配开始，即使上一请求的 clone 仍被测试保留。
     assert_eq!(info.route_name()?, Some("resolver.original".into()));
     let id = info
@@ -6656,10 +6665,10 @@ fn exercise_trusted_route_resolver(
 }
 
 fn global_context_routes(
-    routes: Routes,
+    routes: Router,
     handler_calls: Arc<AtomicUsize>,
     middleware_calls: Arc<AtomicUsize>,
-) -> Routes {
+) -> Router {
     routes
         .get("/business/{status}", |Path(status): Path<u16>| async move {
             StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -6694,7 +6703,7 @@ fn global_context_routes(
         )
 }
 
-fn register_separate_method_declarations(routes: Routes, head_first: bool) -> Routes {
+fn register_separate_method_declarations(routes: Router, head_first: bool) -> Router {
     let routes = routes
         .group(
             RouteGroup::new().middleware(axum::middleware::from_fn(mark_get_declaration)),
@@ -6705,7 +6714,7 @@ fn register_separate_method_declarations(routes: Routes, head_first: bool) -> Ro
             },
         )
         .merge(
-            Routes::new()
+            Router::new()
                 .post("/shared", managed_method_probe)
                 .name("methods.post")
                 .layer(axum::middleware::from_fn(mark_post_declaration)),
@@ -6720,7 +6729,7 @@ fn register_separate_method_declarations(routes: Routes, head_first: bool) -> Ro
                     .name("methods.latest")
             },
         );
-    let head = |routes: Routes| {
+    let head = |routes: Router| {
         routes.group(
             RouteGroup::new().middleware(axum::middleware::from_fn(mark_head_declaration)),
             |routes| {
@@ -6730,7 +6739,7 @@ fn register_separate_method_declarations(routes: Routes, head_first: bool) -> Ro
             },
         )
     };
-    let get = |routes: Routes| {
+    let get = |routes: Router| {
         routes.group(
             RouteGroup::new().middleware(axum::middleware::from_fn(mark_get_declaration)),
             |routes| {
@@ -6747,7 +6756,7 @@ fn register_separate_method_declarations(routes: Routes, head_first: bool) -> Ro
     }
 }
 
-fn register_options_fallback_routes(routes: Routes, root_fallback: bool) -> Routes {
+fn register_options_fallback_routes(routes: Router, root_fallback: bool) -> Router {
     let routes = routes
         .get("/known/{id}", managed_method_probe)
         .name("options.known")
@@ -6773,7 +6782,7 @@ fn register_options_fallback_routes(routes: Routes, root_fallback: bool) -> Rout
             |routes| {
                 routes
                     .merge(
-                        Routes::new()
+                        Router::new()
                             .get("/merged/{id}", managed_method_probe)
                             .name("domain.merged"),
                     )

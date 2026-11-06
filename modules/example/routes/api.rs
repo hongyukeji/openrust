@@ -10,10 +10,10 @@ use controllers::auth::{
 use openrust::prelude::*;
 
 pub(super) fn register(
-    routes: Routes,
+    routes: Router,
     capabilities: &RouteCapabilities,
     repository: openrust::config::repository::ConfigRepository,
-) -> Routes {
+) -> Router {
     let routes = example_routes(routes);
     let routes = config_greeting_routes(routes, repository)
         .get("/api/example/route-url", controllers::example::route_url);
@@ -109,7 +109,7 @@ pub(super) fn register(
     routes
 }
 
-fn example_routes(routes: Routes) -> Routes {
+fn example_routes(routes: Router) -> Router {
     routes
         .get("/api/example", controllers::example::show)
         .name("example.index")
@@ -128,9 +128,9 @@ fn example_routes(routes: Routes) -> Routes {
 }
 
 fn config_greeting_routes(
-    routes: Routes,
+    routes: Router,
     repository: openrust::config::repository::ConfigRepository,
-) -> Routes {
+) -> Router {
     routes
         .get("/api/example/config-feature", {
             let repository = repository.clone();
@@ -152,14 +152,14 @@ fn config_greeting_routes(
         })
 }
 
-fn message_bag_routes(routes: Routes) -> Routes {
+fn message_bag_routes(routes: Router) -> Router {
     routes.post(
         "/api/example/message-bag",
         controllers::example::message_bag,
     )
 }
 
-fn draft_redirect_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
+fn draft_redirect_routes(routes: Router, capabilities: &RouteCapabilities) -> Router {
     routes
         .get(
             "/api/example/draft/signed-links",
@@ -270,7 +270,7 @@ fn draft_session_group(capabilities: &RouteCapabilities) -> RouteGroup {
 }
 
 #[cfg(feature = "session")]
-fn draft_session_routes(routes: Routes, session_enabled: bool) -> Routes {
+fn draft_session_routes(routes: Router, session_enabled: bool) -> Router {
     let routes = routes.group(
         if session_enabled {
             RouteGroup::new()
@@ -294,7 +294,7 @@ fn draft_session_routes(routes: Routes, session_enabled: bool) -> Routes {
 }
 
 #[cfg(feature = "session")]
-fn session_routes(routes: Routes) -> Routes {
+fn session_routes(routes: Router) -> Router {
     routes.group(
         RouteGroup::new()
             .middleware_alias("cookies")
@@ -361,7 +361,7 @@ fn session_routes(routes: Routes) -> Routes {
     )
 }
 
-fn route_context_routes(routes: Routes) -> Routes {
+fn route_context_routes(routes: Router) -> Router {
     routes.group(
         RouteGroup::new()
             .prefix("/api/example/route-context")
@@ -372,7 +372,7 @@ fn route_context_routes(routes: Routes) -> Routes {
             routes
                 .route(
                     "/named/{id}",
-                    openrust::http::routing::get(controllers::example::route_context)
+                    openrust::routing::methods::get(controllers::example::route_context)
                         .post(controllers::example::route_context),
                 )
                 .name("example.route-context.show")
@@ -381,7 +381,7 @@ fn route_context_routes(routes: Routes) -> Routes {
     )
 }
 
-fn request_url_routes(routes: Routes) -> Routes {
+fn request_url_routes(routes: Router) -> Router {
     routes
         .get(
             "/api/example/request-url",
@@ -406,7 +406,7 @@ pub(crate) async fn response_marker_middleware(
 }
 
 #[cfg(feature = "auth")]
-fn tenant_routes(routes: Routes) -> Routes {
+fn tenant_routes(routes: Router) -> Router {
     use controllers::tenant;
     use openrust::auth::{AuthLayer, AuthMode};
 
@@ -467,7 +467,7 @@ fn account_session_group() -> RouteGroup {
 }
 
 #[cfg(feature = "auth")]
-fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
+fn account_routes(routes: Router, capabilities: &RouteCapabilities) -> Router {
     use controllers::account_security as account;
     use openrust::auth::AuthLayer;
     #[cfg(feature = "auth-fortify")]
@@ -527,7 +527,7 @@ fn account_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
 }
 
 #[cfg(feature = "auth-oidc")]
-fn oidc_routes(routes: Routes) -> Routes {
+fn oidc_routes(routes: Router) -> Router {
     use controllers::oidc;
     use openrust::auth::{AuthLayer, AuthMode};
 
@@ -581,7 +581,7 @@ async fn private_oidc_response(
 }
 
 #[cfg(feature = "auth")]
-fn import_timeline_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
+fn import_timeline_routes(routes: Router, capabilities: &RouteCapabilities) -> Router {
     #[cfg(feature = "auth-fortify")]
     if let Some(guard) = &capabilities.jwt_api_guard {
         return routes.nest("/api/example/article-imports", |api| {
@@ -601,7 +601,7 @@ fn import_timeline_routes(routes: Routes, capabilities: &RouteCapabilities) -> R
 
 #[cfg(feature = "auth")]
 #[allow(clippy::too_many_lines)] // 文章同一认证组的路由装配保留在一个可审查入口。
-fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) -> Routes {
+fn article_routes(routes: Router, summary_enabled: bool, session_enabled: bool) -> Router {
     use controllers::article;
     #[cfg(not(feature = "realtime"))]
     let _ = session_enabled;
@@ -613,7 +613,7 @@ fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) 
             .middleware_alias("example.article-auth"),
         |routes| {
             routes.resource_with::<article::Articles>("/articles", |actions| {
-                actions.only(&[openrust::http::Action::Create])
+                actions.only(&[openrust::routing::Action::Create])
             })
         },
     );
@@ -636,7 +636,7 @@ fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) 
                 controllers::article_socket::connect,
             )
             .merge(
-                Routes::new()
+                Router::new()
                     .post("/articles/{id}/announce", controllers::realtime::announce)
                     .layer(
                         openrust::http::RateLimitLayer::by_user(
@@ -712,7 +712,7 @@ fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) 
             .post("/articles/{id}/share", article::issue_share)
             .post("/articles/{id}/share/revoke", article::revoke_share);
         api.merge(
-            Routes::new()
+            Router::new()
                 .post("/welcome", controllers::welcome::send)
                 .layer(
                     openrust::http::RateLimitLayer::by_user(
@@ -725,7 +725,7 @@ fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) 
         )
         // export 等静态业务入口先登记，再挂载包含 /articles/{id} 的资源路由。
         .resource_with::<article::Articles>("/articles", |actions| {
-            actions.except(&[openrust::http::Action::Create])
+            actions.except(&[openrust::routing::Action::Create])
         })
         .resource::<controllers::example_record::ExampleRecords>("/records")
         .layer(openrust::auth::AuthLayer::required(
@@ -751,7 +751,7 @@ fn article_routes(routes: Routes, summary_enabled: bool, session_enabled: bool) 
 }
 
 #[cfg(feature = "auth")]
-fn auth_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
+fn auth_routes(routes: Router, capabilities: &RouteCapabilities) -> Router {
     #[cfg(feature = "auth-fortify")]
     if let Some(guard) = &capabilities.jwt_api_guard {
         return routes.nest("/api/example", |api| {
@@ -785,7 +785,7 @@ fn auth_routes(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
             .post("/auth/logout", auth_logout)
             .post("/auth/password-reset", auth_request_password_reset)
             .post("/auth/password-reset/confirm", auth_reset_password)
-            .merge(Routes::new().get("/me/pat", current_user).layer(
+            .merge(Router::new().get("/me/pat", current_user).layer(
                 openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),
             ))
     })

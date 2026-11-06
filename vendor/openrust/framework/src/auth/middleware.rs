@@ -9,11 +9,11 @@ use axum::{
 };
 
 use super::AuthManager;
-use crate::{
-    Error, Result,
-    core::AppState,
-    http::{Redirector, RequestInfo},
-};
+use crate::Error;
+use crate::Result;
+use crate::foundation::ApplicationState;
+use crate::http::RequestInfo;
+use crate::routing::Redirector;
 
 type RedirectCallback = Arc<dyn Fn(&RequestInfo) -> Result<Option<String>> + Send + Sync>;
 
@@ -66,7 +66,7 @@ pub(crate) enum GuardMiddleware {
 
 pub(crate) async fn handle(
     State(options): State<GuardMiddleware>,
-    Extension(state): Extension<AppState>,
+    Extension(state): Extension<ApplicationState>,
     request: Request,
     next: Next,
 ) -> Response {
@@ -79,7 +79,7 @@ pub(crate) async fn handle(
 
 async fn check(
     options: &GuardMiddleware,
-    state: &AppState,
+    state: &ApplicationState,
     request: Request,
 ) -> Result<std::result::Result<Request, Response>> {
     let (mut parts, body) = request.into_parts();
@@ -165,7 +165,7 @@ async fn check(
 
 fn password_confirmation_response(
     info: &RequestInfo,
-    state: &AppState,
+    state: &ApplicationState,
     route: Option<&str>,
     timeout: Option<i64>,
 ) -> Result<Option<Response>> {

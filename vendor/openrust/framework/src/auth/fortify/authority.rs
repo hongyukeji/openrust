@@ -1,15 +1,18 @@
 //! 数据库因子授权：在同一账户锁下校验 Fortify 三字段、代际和单次消费。
 
 use super::{DatabaseTwoFactorState, TwoFactorState};
-use crate::{
-    Error, Result,
-    auth::{AuthUser, FactorManagementContext, UserProvider},
-    db::{
-        query::{QueryBuilder, RawSql},
-        sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, Value as SqlValue},
-    },
-    security::Encryptor,
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthUser;
+use crate::auth::FactorManagementContext;
+use crate::auth::UserProvider;
+use crate::database::query::QueryBuilder;
+use crate::database::query::RawSql;
+use crate::database::sea_orm::ConnectionTrait;
+use crate::database::sea_orm::DatabaseTransaction;
+use crate::database::sea_orm::DbBackend;
+use crate::database::sea_orm::Value as SqlValue;
+use crate::encryption::Encrypter;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -99,7 +102,7 @@ impl fmt::Debug for DatabaseFactorAuthority {
 impl DatabaseFactorAuthority {
     /// 显式选择同一账户存储。密文由 Fortify Actions 所选加密器处理。
     #[must_use]
-    pub fn new(store: DatabaseTwoFactorState, _encrypter: Encryptor) -> Self {
+    pub fn new(store: DatabaseTwoFactorState, _encrypter: Encrypter) -> Self {
         Self {
             store,
             management_event: None,
@@ -170,7 +173,7 @@ impl DatabaseFactorAuthority {
     // 直接凭据签发只使用同库 users.id 正整数域；普通模型读取仍支持其他 typed ID。
     pub(crate) async fn load_in_transaction(
         &self,
-        db: &crate::db::Db,
+        db: &crate::database::Db,
         transaction: &DatabaseTransaction,
     ) -> Result<FactorAuthoritySnapshot> {
         if !self.store.db().same_handle(db)
@@ -234,7 +237,7 @@ impl DatabaseFactorAuthority {
         F: for<'a> FnOnce(
                 &'a DatabaseTransaction,
             )
-                -> crate::core::BoxFuture<'a, Result<FactorAuthoritySnapshot>>
+                -> crate::support::BoxFuture<'a, Result<FactorAuthoritySnapshot>>
             + Send,
     {
         let db = self.store.db();
@@ -567,7 +570,7 @@ impl DatabaseFactorAuthority {
     /// 参与同库 users 凭据事务；调用方须已完成现代验证，返回值尚未提交。
     pub(crate) async fn consume_modern_in_transaction(
         &self,
-        db: &crate::db::Db,
+        db: &crate::database::Db,
         transaction: &DatabaseTransaction,
         before: &FactorAuthoritySnapshot,
         replacement: Option<&TwoFactorState>,

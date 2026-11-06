@@ -1,6 +1,6 @@
 //! 账户记住我属性修改的拥有式回执；内存恢复与数据库提交分别取证。
 
-use crate::{Result, db::eloquent::AttributeMutation};
+use crate::{Result, database::eloquent::AttributeMutation};
 
 /// 外部账户可提供自己的同步提交/恢复后端，不要求复制为内置账户模型。
 ///

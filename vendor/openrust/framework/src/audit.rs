@@ -11,7 +11,7 @@ use std::{
 
 use crate::{
     BoxFuture, Error, Result,
-    db::{DatabaseTransaction, Db},
+    database::{DatabaseTransaction, Db},
 };
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
@@ -305,11 +305,11 @@ impl AuditServiceProvider {
     }
 }
 
-impl crate::core::ServiceProvider for AuditServiceProvider {
+impl crate::support::ServiceProvider for AuditServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let sink = self.sink.clone();
             let policy = self.policy.clone();
@@ -332,7 +332,10 @@ impl crate::core::ServiceProvider for AuditServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<Audit>().await?;
             Ok(())
@@ -343,7 +346,7 @@ impl crate::core::ServiceProvider for AuditServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::ProviderBuilder;
+    use crate::foundation::ProviderBuilder;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Sink(Arc<AtomicUsize>);
@@ -596,7 +599,7 @@ impl MigrationTrait for DatabaseAuditTenantMigration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
-        crate::db::dialect::drop_column(
+        crate::database::dialect::drop_column(
             manager,
             migration_table("audit_records", manager.get_database_backend())?,
             AuditTable::TenantId,
@@ -606,7 +609,7 @@ impl MigrationTrait for DatabaseAuditTenantMigration {
 }
 
 fn migration_table(logical: &str, backend: DbBackend) -> std::result::Result<Alias, DbErr> {
-    let names = crate::db::DatabaseTableNames::current().ok_or_else(|| {
+    let names = crate::database::DatabaseTableNames::current().ok_or_else(|| {
         DbErr::Migration(
             "audit migration requires MigrationServiceProvider or TestDatabase scope".into(),
         )
@@ -873,18 +876,18 @@ mod tests {
     #[tokio::test]
     async fn provider_registers_the_database_sink_service() -> Result<()> {
         struct DatabaseBinding;
-        impl crate::core::ServiceProvider for DatabaseBinding {
+        impl crate::support::ServiceProvider for DatabaseBinding {
             fn register<'a>(
                 &'a self,
-                app: &'a mut crate::core::RegisterContext<'_>,
-            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                app: &'a mut crate::foundation::RegisterContext<'_>,
+            ) -> crate::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.instance(Arc::new(Db::default())).await?;
                     Ok(())
                 })
             }
         }
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder
             .provider(DatabaseBinding)
             .provider(AuditServiceProvider::database());
@@ -894,7 +897,7 @@ mod tests {
     }
     #[tokio::test]
     async fn provider_registers_a_custom_sink() -> Result<()> {
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(AuditServiceProvider::with_sink(
             MemorySink::default(),
             AuditPolicy::default(),

@@ -3,13 +3,13 @@
 use super::proof::session_factor_key;
 use super::{AuthUser, Credentials, Guard, StatefulGuard, UserProvider};
 use super::{FactorManagementContext, FactorReceipt, SessionFactorProof};
-use crate::{
-    Error, Result,
-    core::BoxFuture,
-    events::Events,
-    http::cookie::{CookieJar, CookieOptions},
-    session::Session,
-};
+use crate::Error;
+use crate::Result;
+use crate::events::Events;
+use crate::http::cookie::CookieJar;
+use crate::http::cookie::CookieOptions;
+use crate::session::Session;
+use crate::support::BoxFuture;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, KeyInit, Mac};
 use serde_json::Value;
@@ -2065,10 +2065,10 @@ mod tests {
 
     #[tokio::test]
     async fn login_and_authenticated_listeners_can_read_same_guard() -> Result<()> {
-        use crate::{
-            core::ProviderBuilder, events::EventsServiceProvider, http::cookie::CookieFactory,
-            session::MemorySessionStore,
-        };
+        use crate::events::EventsServiceProvider;
+        use crate::foundation::ProviderBuilder;
+        use crate::http::cookie::CookieFactory;
+        use crate::session::MemorySessionStore;
         use std::sync::{
             Weak,
             atomic::{AtomicUsize, Ordering},
@@ -2201,7 +2201,7 @@ mod tests {
         provider.listen::<Login, _>(|_, _| {
             Box::pin(async { Err(Error::custom("listener_failed", "测试监听器失败")) })
         });
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime.container().resolve::<Events>().await?).clone();
@@ -2215,7 +2215,7 @@ mod tests {
         provider.listen::<Logout, _>(|_, _| {
             Box::pin(async { Err(Error::custom("listener_failed", "测试监听器失败")) })
         });
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime.container().resolve::<Events>().await?).clone();
@@ -2240,7 +2240,7 @@ mod tests {
                 guard.logout().await
             })
         });
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime.container().resolve::<Events>().await?).clone();
@@ -2256,10 +2256,10 @@ mod tests {
     }
     struct ProofRememberProvider {
         user: AuthUser,
-        database: Option<crate::db::Db>,
+        database: Option<crate::database::Db>,
     }
     impl UserProvider for ProofRememberProvider {
-        fn uses_database_accounts(&self, db: &crate::db::Db, table: &str) -> Result<bool> {
+        fn uses_database_accounts(&self, db: &crate::database::Db, table: &str) -> Result<bool> {
             Ok(table == "users"
                 && self
                     .database
@@ -2311,13 +2311,13 @@ mod tests {
     #[cfg(all(feature = "auth-fortify", feature = "db-sqlite"))]
     struct CacheValidationProvider {
         user: AuthUser,
-        database: Option<crate::db::Db>,
+        database: Option<crate::database::Db>,
         armed: std::sync::atomic::AtomicBool,
         reached: Arc<tokio::sync::Notify>,
     }
     #[cfg(all(feature = "auth-fortify", feature = "db-sqlite"))]
     impl UserProvider for CacheValidationProvider {
-        fn uses_database_accounts(&self, db: &crate::db::Db, table: &str) -> Result<bool> {
+        fn uses_database_accounts(&self, db: &crate::database::Db, table: &str) -> Result<bool> {
             if self.armed.swap(false, std::sync::atomic::Ordering::SeqCst) {
                 self.reached.notify_one();
             }
@@ -2518,16 +2518,16 @@ mod tests {
     #[cfg(all(feature = "auth-fortify", feature = "db-sqlite"))]
     struct RememberEmptyMigrations;
     #[cfg(all(feature = "auth-fortify", feature = "db-sqlite"))]
-    impl crate::db::sea_orm_migration::MigratorTrait for RememberEmptyMigrations {
-        fn migrations() -> Vec<Box<dyn crate::db::sea_orm_migration::MigrationTrait>> {
+    impl crate::database::sea_orm_migration::MigratorTrait for RememberEmptyMigrations {
+        fn migrations() -> Vec<Box<dyn crate::database::sea_orm_migration::MigrationTrait>> {
             Vec::new()
         }
     }
     #[cfg(all(feature = "auth-fortify", feature = "db-sqlite"))]
     struct RememberAuthorityFixture {
-        db: crate::db::Db,
+        db: crate::database::Db,
         identifier: Value,
-        encrypter: crate::security::Encryptor,
+        encrypter: crate::encryption::Encrypter,
         authority: crate::auth::fortify::DatabaseFactorAuthority,
         user: AuthUser,
         provider: Arc<dyn UserProvider>,
@@ -2538,16 +2538,16 @@ mod tests {
         F: FnOnce(RememberAuthorityFixture) -> BoxFuture<'static, Result<()>>,
     {
         use crate::auth::fortify::{DatabaseFactorAuthority, DatabaseTwoFactorState};
-        use crate::db::sea_orm::ConnectionTrait;
+        use crate::database::sea_orm::ConnectionTrait;
         let database =
             crate::testing::TestDatabase::sqlite_file::<RememberEmptyMigrations>().await?;
-        let db = crate::db::Db::default();
+        let db = crate::database::Db::default();
         let outcome: Result<()> = async {
             db.initialize(database.connection()?)?;
             db.connection()?.execute_unprepared("CREATE TABLE users (id TEXT PRIMARY KEY, two_factor_secret TEXT, two_factor_recovery_codes TEXT, two_factor_confirmed_at datetime, two_factor_authority_source TEXT, two_factor_authority_generation TEXT, two_factor_consumed_codes TEXT, two_factor_management_session_hash TEXT, two_factor_management_generation TEXT, two_factor_management_authorized_at datetime)").await.map_err(Error::internal)?;
             let identifier = json!("tenant-user-42");
             db.table("users")?.insert(vec![("id", "tenant-user-42".into())]).await?;
-            let encrypter = crate::security::Encryptor::new(crate::security::EncryptionConfig::new("test", std::collections::BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
+            let encrypter = crate::encryption::Encrypter::new(crate::encryption::EncryptionConfig::new("test", std::collections::BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
             let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(), "users", "id", identifier.clone())?, encrypter.clone());
             let user: AuthUser = Arc::new(ProofRememberAccount {
                 attributes: super::super::GenericUser::new(serde_json::Map::from_iter([("id".into(), identifier.clone()), ("password".into(), json!("hash"))])), authority: Some(authority.clone()),
@@ -2663,7 +2663,7 @@ mod tests {
     }
     #[cfg(all(feature = "auth-fortify", feature = "db-sqlite"))]
     async fn reject_invalid_recall_adapters(
-        db: &crate::db::Db,
+        db: &crate::database::Db,
         identifier: &Value,
         authority: &crate::auth::fortify::DatabaseFactorAuthority,
         user: &AuthUser,
@@ -3379,7 +3379,7 @@ mod tests {
         )))
     }
     async fn test_dispatcher(provider: crate::events::EventsServiceProvider) -> Result<Events> {
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(figment::Figment::new()).await?;
         Ok((*runtime.container().resolve::<Events>().await?).clone())

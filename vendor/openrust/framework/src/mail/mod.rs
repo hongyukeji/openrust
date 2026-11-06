@@ -6,8 +6,12 @@ use std::{fmt, sync::Arc};
 
 use crate::config::ConfigError;
 pub use crate::config::mailer::MailConfig;
-use crate::core::{BoxFuture, Error, Result};
-use crate::i18n::{I18n, Locale, MessageArgs};
+use crate::core::Error;
+use crate::core::Result;
+use crate::support::BoxFuture;
+use crate::translation::Locale;
+use crate::translation::MessageArgs;
+use crate::translation::Translator;
 #[cfg(feature = "mail-smtp")]
 use lettre::AsyncTransport;
 use lettre::Message;
@@ -36,7 +40,7 @@ pub struct LocalizedEmail {
 impl LocalizedEmail {
     /// 从共享目录渲染主题和正文，并构建纯文本邮件。
     pub fn new(
-        i18n: &I18n,
+        i18n: &Translator,
         locale: &Locale,
         args: &MessageArgs,
         from: &str,
@@ -104,11 +108,11 @@ impl Mailer {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MailerServiceProvider;
 
-impl crate::core::ServiceProvider for MailerServiceProvider {
+impl crate::support::ServiceProvider for MailerServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema;
             app.config_section(
@@ -152,7 +156,10 @@ impl crate::core::ServiceProvider for MailerServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<Mailer>().await?;
             Ok(())
@@ -163,7 +170,9 @@ impl crate::core::ServiceProvider for MailerServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
 
@@ -445,12 +454,13 @@ mod tests {
 
     #[test]
     fn localized_email_renders_subject_and_body_from_explicit_locale() -> Result<()> {
-        let mut catalog = crate::i18n::MessageCatalog::new();
+        let mut catalog = crate::translation::MessageCatalog::new();
         catalog.insert("en", "mail.subject", "Welcome {name}")?;
         catalog.insert("en", "mail.body", "Hello {name}")?;
         catalog.insert("zh-CN", "mail.subject", "欢迎 {name}")?;
         catalog.insert("zh-CN", "mail.body", "你好 {name}")?;
-        let i18n = I18n::new(crate::i18n::I18nConfig::default(), catalog).map_err(Error::Config)?;
+        let i18n = Translator::new(crate::translation::TranslationConfig::default(), catalog)
+            .map_err(Error::Config)?;
         let locale = Locale::new("zh-CN").map_err(Error::Config)?;
         let args = MessageArgs::from([("name".to_owned(), "Mina".to_owned())]);
         let email = LocalizedEmail::new(
@@ -471,7 +481,7 @@ mod tests {
 
     #[tokio::test]
     async fn production_accepts_log_without_external_credentials() -> Result<()> {
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(MailerServiceProvider);
         let figment = figment::Figment::from(figment::providers::Serialized::defaults(
             serde_json::json!({"app":{"env":"production"},"mail":{"driver":"log"}}),

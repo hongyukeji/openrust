@@ -7,16 +7,19 @@ use openrust::{
 use serde_json::{Map, Value};
 
 #[cfg(feature = "auth-fortify")]
-use openrust::{
-    auth::fortify::{
-        DatabaseFactorAuthority, DatabaseTwoFactorState, TwoFactorAuthenticatable, TwoFactorState,
-    },
-    core::BoxFuture,
-};
+use openrust::auth::fortify::DatabaseFactorAuthority;
+#[cfg(feature = "auth-fortify")]
+use openrust::auth::fortify::DatabaseTwoFactorState;
+#[cfg(feature = "auth-fortify")]
+use openrust::auth::fortify::TwoFactorAuthenticatable;
+#[cfg(feature = "auth-fortify")]
+use openrust::auth::fortify::TwoFactorState;
+#[cfg(feature = "auth-fortify")]
+use openrust::support::BoxFuture;
 
 /// 当前应用账户模型；密码列沿用已有存储字段，其他应用可实现自己的 `Authenticatable`。
 pub struct User {
-    metadata: std::sync::Arc<openrust::db::eloquent::ModelMetadata>,
+    metadata: std::sync::Arc<openrust::database::eloquent::ModelMetadata>,
     attributes: GenericUser,
     #[cfg(feature = "auth-fortify")]
     two_factor_state: Option<DatabaseTwoFactorState>,
@@ -25,14 +28,14 @@ pub struct User {
 }
 impl User {
     /// 同一账户模型的原始属性与访问器管线，供应用登记公开属性扩展。
-    pub fn model_attributes(&self) -> &openrust::db::eloquent::ModelAttributes {
+    pub fn model_attributes(&self) -> &openrust::database::eloquent::ModelAttributes {
         self.attributes.model_attributes()
     }
     /// 选择同一应用模型的实际表、连接和主键；默认认证标识与模型主键一致。
     #[must_use]
     pub fn with_model_metadata(
         mut self,
-        metadata: std::sync::Arc<openrust::db::eloquent::ModelMetadata>,
+        metadata: std::sync::Arc<openrust::database::eloquent::ModelMetadata>,
     ) -> Self {
         self.metadata = metadata;
         self
@@ -41,7 +44,7 @@ impl User {
     /// 从数据库Provider已转换的属性构造账户，不要求邮箱或手机号存在。
     pub fn new(attributes: Map<String, Value>) -> Self {
         Self {
-            metadata: std::sync::Arc::new(openrust::db::eloquent::ModelMetadata::new(
+            metadata: std::sync::Arc::new(openrust::database::eloquent::ModelMetadata::new(
                 "users",
                 "app::models::user::User",
             )),
@@ -80,8 +83,8 @@ impl User {
         })
     }
 }
-impl openrust::db::eloquent::ModelIdentity for User {
-    fn model_metadata(&self) -> &openrust::db::eloquent::ModelMetadata {
+impl openrust::database::eloquent::ModelIdentity for User {
+    fn model_metadata(&self) -> &openrust::database::eloquent::ModelMetadata {
         &self.metadata
     }
     fn model_key(&self) -> Result<Value> {
@@ -93,7 +96,7 @@ impl openrust::db::eloquent::ModelIdentity for User {
     }
 }
 impl Authenticatable for User {
-    fn as_model(&self) -> Option<&dyn openrust::db::eloquent::ModelIdentity> {
+    fn as_model(&self) -> Option<&dyn openrust::database::eloquent::ModelIdentity> {
         Some(self)
     }
     fn auth_attribute(&self, name: &str) -> Result<Option<Value>> {
@@ -146,7 +149,7 @@ impl Authenticatable for User {
             .attributes
             .model_attributes()
             .committed_attribute(&self.metadata, name)?;
-        let value = openrust::db::eloquent::AttributeCast::String.read(value)?;
+        let value = openrust::database::eloquent::AttributeCast::String.read(value)?;
         Ok(Some(
             value
                 .and_then(|value| value.as_str().map(str::to_owned))
@@ -156,7 +159,7 @@ impl Authenticatable for User {
     fn set_remember_token(
         &self,
         token: Option<String>,
-    ) -> openrust::core::BoxFuture<'_, Result<()>> {
+    ) -> openrust::support::BoxFuture<'_, Result<()>> {
         Box::pin(async move {
             let name = self.remember_token_name();
             if name.is_empty() {
@@ -176,7 +179,7 @@ impl Authenticatable for User {
         &'a self,
         expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> openrust::core::BoxFuture<'a, Result<Option<openrust::auth::RememberTokenUpdate>>> {
+    ) -> openrust::support::BoxFuture<'a, Result<Option<openrust::auth::RememberTokenUpdate>>> {
         Box::pin(async move {
             let name = self.remember_token_name();
             if name.is_empty() {
@@ -189,7 +192,7 @@ impl Authenticatable for User {
                     name,
                     replacement.map_or(Value::Null, Value::String),
                     move |value| {
-                        let current = openrust::db::eloquent::AttributeCast::String
+                        let current = openrust::database::eloquent::AttributeCast::String
                             .read(value)?
                             .and_then(|value| value.as_str().map(str::to_owned))
                             .unwrap_or_default();
@@ -270,7 +273,7 @@ mod tests {
     -> openrust::Result<()> {
         use openrust::{
             auth::Authenticatable,
-            db::eloquent::{AttributeGetter, ModelIdentity},
+            database::eloquent::{AttributeGetter, ModelIdentity},
         };
         use serde_json::{Map, Value, json};
         struct PrefixedKey;
@@ -302,7 +305,7 @@ mod tests {
     #[test]
     fn default_auth_identifier_tracks_the_selected_model_key() -> openrust::Result<()> {
         use openrust::auth::Authenticatable;
-        let mut metadata = openrust::db::eloquent::ModelMetadata::new("accounts", "app::Account");
+        let mut metadata = openrust::database::eloquent::ModelMetadata::new("accounts", "app::Account");
         metadata.key_name = "uuid_key".into();
         metadata.key_type = "string".into();
         metadata.incrementing = false;
@@ -324,16 +327,16 @@ mod tests {
     use serde_json::json;
 
     struct LoginUser(User);
-    impl openrust::db::eloquent::ModelIdentity for LoginUser {
-        fn model_metadata(&self) -> &openrust::db::eloquent::ModelMetadata {
+    impl openrust::database::eloquent::ModelIdentity for LoginUser {
+        fn model_metadata(&self) -> &openrust::database::eloquent::ModelMetadata {
             &self.0.metadata
         }
         fn model_key(&self) -> Result<Value> {
-            openrust::db::eloquent::ModelIdentity::model_key(&self.0)
+            openrust::database::eloquent::ModelIdentity::model_key(&self.0)
         }
     }
     impl Authenticatable for LoginUser {
-        fn as_model(&self) -> Option<&dyn openrust::db::eloquent::ModelIdentity> {
+        fn as_model(&self) -> Option<&dyn openrust::database::eloquent::ModelIdentity> {
             Some(self)
         }
         fn auth_attribute(&self, name: &str) -> Result<Option<Value>> {
@@ -362,14 +365,14 @@ mod tests {
         fn set_remember_token(
             &self,
             token: Option<String>,
-        ) -> openrust::core::BoxFuture<'_, Result<()>> {
+        ) -> openrust::support::BoxFuture<'_, Result<()>> {
             self.0.set_remember_token(token)
         }
         fn begin_remember_token_update<'a>(
             &'a self,
             expected: Option<&'a str>,
             replacement: Option<String>,
-        ) -> openrust::core::BoxFuture<'a, Result<Option<openrust::auth::RememberTokenUpdate>>>
+        ) -> openrust::support::BoxFuture<'a, Result<Option<openrust::auth::RememberTokenUpdate>>>
         {
             self.0.begin_remember_token_update(expected, replacement)
         }
@@ -380,7 +383,7 @@ mod tests {
 
     #[test]
     fn independent_login_column_uses_only_its_explicit_cast_and_getter() -> Result<()> {
-        use openrust::db::eloquent::{
+        use openrust::database::eloquent::{
             AttributeCast, AttributeGetter, ModelIdentity, ModelMetadata,
         };
         struct LoginGetter;
@@ -424,7 +427,7 @@ mod tests {
 
     #[test]
     fn nonincrementing_uuid_identifier_is_preserved() -> Result<()> {
-        use openrust::db::eloquent::{ModelIdentity, ModelMetadata};
+        use openrust::database::eloquent::{ModelIdentity, ModelMetadata};
         let mut metadata = ModelMetadata::new("accounts", "app::Account");
         metadata.key_type = "string".into();
         metadata.incrementing = false;
@@ -440,7 +443,7 @@ mod tests {
     #[tokio::test]
     async fn password_getter_and_setter_share_model_attributes_without_mutating_reads() -> Result<()>
     {
-        use openrust::db::eloquent::{
+        use openrust::database::eloquent::{
             AttributeCast, AttributeGetter, AttributeSetter, ModelMetadata,
         };
         struct PasswordGetter;
@@ -458,7 +461,7 @@ mod tests {
                 &self,
                 value: Value,
                 _: Map<String, Value>,
-            ) -> openrust::core::BoxFuture<'_, Result<Map<String, Value>>> {
+            ) -> openrust::support::BoxFuture<'_, Result<Map<String, Value>>> {
                 Box::pin(async move {
                     Ok(Map::from_iter([
                         ("password_hash".into(), value),
@@ -505,7 +508,7 @@ mod tests {
 
     #[test]
     fn password_return_type_preserves_null_and_rejects_uncast_nonstrings() -> Result<()> {
-        use openrust::db::eloquent::{AttributeCast, ModelMetadata};
+        use openrust::database::eloquent::{AttributeCast, ModelMetadata};
         let user = User::new(Map::from_iter([("password_hash".into(), Value::Null)]));
         assert_eq!(user.auth_password()?, None);
         user.attributes
@@ -530,7 +533,7 @@ mod tests {
     }
 
     struct RememberGetter;
-    impl openrust::db::eloquent::AttributeGetter for RememberGetter {
+    impl openrust::database::eloquent::AttributeGetter for RememberGetter {
         fn get(&self, value: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
             Ok(value
                 .and_then(Value::as_str)
@@ -539,12 +542,12 @@ mod tests {
         }
     }
     struct RememberSetter(std::sync::Arc<std::sync::atomic::AtomicUsize>);
-    impl openrust::db::eloquent::AttributeSetter for RememberSetter {
+    impl openrust::database::eloquent::AttributeSetter for RememberSetter {
         fn set(
             &self,
             value: Value,
             _: Map<String, Value>,
-        ) -> openrust::core::BoxFuture<'_, Result<Map<String, Value>>> {
+        ) -> openrust::support::BoxFuture<'_, Result<Map<String, Value>>> {
             Box::pin(async move {
                 tokio::task::yield_now().await;
                 let generation = self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
@@ -672,7 +675,7 @@ mod tests {
     }
 
     struct DependentRememberGetter;
-    impl openrust::db::eloquent::AttributeGetter for DependentRememberGetter {
+    impl openrust::database::eloquent::AttributeGetter for DependentRememberGetter {
         fn get(&self, _: Option<&Value>, raw: &Map<String, Value>) -> Result<Option<Value>> {
             Ok(raw.get("other_token").cloned())
         }
@@ -725,12 +728,12 @@ mod tests {
         entered: std::sync::Arc<tokio::sync::Notify>,
         release: std::sync::Arc<tokio::sync::Notify>,
     }
-    impl openrust::db::eloquent::AttributeSetter for PausedRememberSetter {
+    impl openrust::database::eloquent::AttributeSetter for PausedRememberSetter {
         fn set(
             &self,
             value: Value,
             _: Map<String, Value>,
-        ) -> openrust::core::BoxFuture<'_, Result<Map<String, Value>>> {
+        ) -> openrust::support::BoxFuture<'_, Result<Map<String, Value>>> {
             Box::pin(async move {
                 self.entered.notify_one();
                 self.release.notified().await;
@@ -783,10 +786,10 @@ mod tests {
     #[tokio::test]
     async fn remember_hashed_assignment_requires_explicit_context_without_global_resolution()
     -> Result<()> {
-        let mut metadata = openrust::db::eloquent::ModelMetadata::new("users", "app::User");
+        let mut metadata = openrust::database::eloquent::ModelMetadata::new("users", "app::User");
         metadata.casts.insert(
             "remember_token".into(),
-            openrust::db::eloquent::AttributeCast::Hashed,
+            openrust::database::eloquent::AttributeCast::Hashed,
         );
         let user = User::new(Map::new()).with_model_metadata(std::sync::Arc::new(metadata));
         let error = user
@@ -878,7 +881,7 @@ mod tests {
             (json!({"id":"uuid-only"}), "uuid-only"),
             (json!({"id":42}), "42"),
         ] {
-            let mut metadata = openrust::db::eloquent::ModelMetadata::new("users", "app::User");
+            let mut metadata = openrust::database::eloquent::ModelMetadata::new("users", "app::User");
             if attributes.get("id").is_some_and(Value::is_string) {
                 metadata.key_type = "string".into();
                 metadata.incrementing = false;

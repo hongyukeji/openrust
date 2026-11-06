@@ -21,24 +21,46 @@ use figment::{
     providers::{Format, Toml},
 };
 use futures_util::{FutureExt, StreamExt, stream};
+use openrust::Cancellation;
+use openrust::core::Error;
+use openrust::core::Result as FrameworkResult;
+use openrust::data_exchange::CellType;
+use openrust::data_exchange::ExportOptions;
+use openrust::data_exchange::ImportColumn;
+use openrust::data_exchange::ImportLimits;
+use openrust::data_exchange::ImportSchema;
+use openrust::data_exchange::tasks::ExchangeFormat;
+use openrust::data_exchange::tasks::ExportTaskOptions;
+use openrust::data_exchange::tasks::ImportReportCleanupJob;
+use openrust::data_exchange::tasks::ImportTaskInput;
+use openrust::data_exchange::tasks::ImportTaskOptions;
+use openrust::data_exchange::tasks::ImportTaskReport;
+use openrust::data_exchange::tasks::export_storage_task;
+use openrust::data_exchange::tasks::import_storage_task;
+use openrust::database::CoordinationMigration;
+use openrust::database::DatabaseServiceProvider;
+use openrust::database::DatabaseTransaction;
+use openrust::database::Db;
+use openrust::database::DbBackend;
+use openrust::database::SharedLocks;
+use openrust::database::sea_orm::ConnectionTrait;
+use openrust::database::sea_orm::Statement;
+use openrust::database::sea_orm_migration::MigrationTrait;
+use openrust::database::sea_orm_migration::MigratorTrait;
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::FilesystemServiceProvider;
+use openrust::filesystem::StoragePath;
+use openrust::filesystem::UploadOptions;
+use openrust::foundation::Application;
+use openrust::foundation::ProviderBuilder;
+use openrust::queue::DispatchOptions;
+use openrust::queue::Job;
+use openrust::queue::JobContext;
+use openrust::queue::Queue;
+use openrust::queue::QueueMigration;
+use openrust::queue::QueueServiceProvider;
+use openrust::support::BoxFuture;
 use openrust::testing::TestDatabase;
-use openrust::{
-    Cancellation,
-    core::{App, BoxFuture, Error, ProviderBuilder, Result as FrameworkResult},
-    data_exchange::tasks::{
-        ExchangeFormat, ExportTaskOptions, ImportReportCleanupJob, ImportTaskInput,
-        ImportTaskOptions, ImportTaskReport, export_storage_task, import_storage_task,
-    },
-    data_exchange::{CellType, ExportOptions, ImportColumn, ImportLimits, ImportSchema},
-    database::{
-        CoordinationMigration, DatabaseServiceProvider, DatabaseTransaction, Db, DbBackend,
-        SharedLocks,
-        sea_orm::{ConnectionTrait, Statement},
-        sea_orm_migration::{MigrationTrait, MigratorTrait},
-    },
-    queue::{DispatchOptions, Job, JobContext, Queue, QueueMigration, QueueServiceProvider},
-    storage::{Storage, StoragePath, StorageServiceProvider, UploadOptions},
-};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
@@ -52,7 +74,9 @@ impl MigratorTrait for ExchangeMigrator {
     }
 }
 
-async fn build_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase, tempfile::TempDir)> {
+async fn build_app(
+    admin_url: &str,
+) -> FrameworkResult<(Application, TestDatabase, tempfile::TempDir)> {
     let database = TestDatabase::create::<ExchangeMigrator>(admin_url).await?;
     let storage_root = tempfile::tempdir().map_err(Error::internal)?;
     let figment = Figment::new().merge(Toml::string(&format!(
@@ -64,8 +88,8 @@ async fn build_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase, tempf
     builder
         .provider(DatabaseServiceProvider)
         .provider(QueueServiceProvider::new())
-        .provider(StorageServiceProvider::new());
-    let app = App::from_provider_runtime(builder.start(figment).await?)?;
+        .provider(FilesystemServiceProvider::new());
+    let app = Application::from_provider_runtime(builder.start(figment).await?)?;
     let db = app.state().resolve::<Db>().await?;
     db.connection()?
         .execute_unprepared("CREATE TABLE exchange_task_rows (email VARCHAR(255) NOT NULL)")
@@ -74,14 +98,14 @@ async fn build_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase, tempf
     Ok((app, database, storage_root))
 }
 
-fn context(app: &App, id: &str) -> FrameworkResult<JobContext> {
+fn context(app: &Application, id: &str) -> FrameworkResult<JobContext> {
     Ok(JobContext::new(id, 1, 3, Cancellation::new())?
         .with_app_state(app.state().clone())
         .with_progress_reporter(|_| Box::pin(async { Ok(()) })))
 }
 
 fn context_with_progress(
-    app: &App,
+    app: &Application,
     id: &str,
     progress: std::sync::Arc<tokio::sync::Mutex<Vec<Value>>>,
 ) -> FrameworkResult<JobContext> {
@@ -164,9 +188,13 @@ where
     })
 }
 
-async fn put_source(app: &App, path: &StoragePath, source: &'static [u8]) -> FrameworkResult<()> {
+async fn put_source(
+    app: &Application,
+    path: &StoragePath,
+    source: &'static [u8],
+) -> FrameworkResult<()> {
     app.state()
-        .resolve::<Storage>()
+        .resolve::<FilesystemManager>()
         .await?
         .disk("local")
         .await?
@@ -252,8 +280,8 @@ fn persist_rows_then_cancel(
     clippy::too_many_lines,
     reason = "同一真实隔离库验证导入重试、租户隔离与导出生命周期"
 )]
-async fn run_data_exchange_flow(app: &App) -> Result<(), Box<dyn std::error::Error>> {
-    let storage = app.state().resolve::<Storage>().await?;
+async fn run_data_exchange_flow(app: &Application) -> Result<(), Box<dyn std::error::Error>> {
+    let storage = app.state().resolve::<FilesystemManager>().await?;
     let input_path = StoragePath::new("private/import/source.csv")?;
     put_source(app, &input_path, b"email\na@example.test\nb@example.test\n").await?;
     let schema = ImportSchema::new(vec![ImportColumn::new("email", "email", CellType::Text)])?;
@@ -607,8 +635,8 @@ async fn run_data_exchange_flow(app: &App) -> Result<(), Box<dyn std::error::Err
     }
     let lock_key = format!("openrust.data-exchange.object.{lock_suffix}");
     let lock_lease = match locks.acquire(&lock_key, Duration::from_secs(30)).await? {
-        openrust::db::LockAcquire::Acquired(lease) => lease,
-        openrust::db::LockAcquire::Busy { .. } => {
+        openrust::database::LockAcquire::Acquired(lease) => lease,
+        openrust::database::LockAcquire::Busy { .. } => {
             return Err("unexpected busy object lock".into());
         }
     };

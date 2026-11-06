@@ -1,11 +1,15 @@
 //! 显式 API 的双因素登录与管理事务审计。
-use crate::{
-    Error, Result,
-    audit::{Audit, AuditEvent, AuditOutcome, AuditSubject, DatabaseAuditSink},
-    auth::flows::ApiLoginAuditSink,
-    core::BoxFuture,
-    db::{DatabaseTransaction, Db},
-};
+use crate::Error;
+use crate::Result;
+use crate::audit::Audit;
+use crate::audit::AuditEvent;
+use crate::audit::AuditOutcome;
+use crate::audit::AuditSubject;
+use crate::audit::DatabaseAuditSink;
+use crate::auth::flows::ApiLoginAuditSink;
+use crate::database::DatabaseTransaction;
+use crate::database::Db;
+use crate::support::BoxFuture;
 
 /// 在受控 API 因子管理动作的原数据库事务内记录成功事实。
 pub trait ApiFactorManagementAuditSink: Send + Sync {
@@ -107,8 +111,8 @@ mod tests {
     use super::*;
     use crate::{
         audit::{AuditPolicy, DatabaseAuditMigration},
-        db::sea_orm::ConnectionTrait as _,
-        db::sea_orm_migration::{MigrationTrait, MigratorTrait},
+        database::sea_orm::ConnectionTrait as _,
+        database::sea_orm_migration::{MigrationTrait, MigratorTrait},
     };
     struct Migrator;
     impl MigratorTrait for Migrator {

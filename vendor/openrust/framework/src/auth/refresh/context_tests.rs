@@ -1,12 +1,12 @@
 //! 受控凭据的真实数据库回归；普通旧schema路径由原测试继续覆盖。
 
 use super::*;
-use crate::{
-    auth::{credential::CredentialFactorContext, fortify::CredentialFactorMigration},
-    core::BoxFuture,
-    db::sea_orm_migration::{MigrationTrait, MigratorTrait},
-    testing::TestDatabase,
-};
+use crate::auth::credential::CredentialFactorContext;
+use crate::auth::fortify::CredentialFactorMigration;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::support::BoxFuture;
+use crate::testing::TestDatabase;
 
 struct Migrator;
 impl MigratorTrait for Migrator {
@@ -180,7 +180,7 @@ where
     F: for<'a> FnOnce(&'a Db, i64) -> BoxFuture<'a, Result<()>>,
 {
     let database = if real {
-        let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(|_| {
+        let url = crate::test_database_environment::database_url().map_err(|_| {
             Error::custom("test_database_url_required", "真实数据库测试必须配置连接")
         })?;
         TestDatabase::create::<Migrator>(&url).await?
@@ -195,7 +195,7 @@ where
         let sql = if backend == DbBackend::Postgres {
             format!("INSERT INTO {users}(id,email,password_hash,created_at,updated_at) VALUES($1,$2,$3,$4,$5)")
         } else { format!("INSERT INTO {users}(id,email,password_hash,created_at,updated_at) VALUES(?,?,?,?,?)") };
-        let now = crate::db::dialect::utc_value(backend,Utc::now());
+        let now = crate::database::dialect::utc_value(backend,Utc::now());
         db.connection()?.execute_raw(Statement::from_sql_and_values(backend,sql,[42_i64.into(),"owned-refresh@example.test".into(),"unused".into(),now.clone(),now])).await.map_err(Error::internal)?;
         callback(&db,42).await
     }.await;
@@ -218,15 +218,15 @@ async fn real_context_rotation_replay_and_strict_context() -> Result<()> {
 }
 
 struct MigrationApp;
-impl crate::core::Application for MigrationApp {
+impl crate::foundation::ApplicationDefinition for MigrationApp {
     type Config = crate::config::NoConfig;
-    fn default_providers() -> crate::core::DefaultProviders {
-        crate::core::DefaultProviders::empty()
+    fn default_providers() -> crate::support::DefaultProviders {
+        crate::support::DefaultProviders::empty()
     }
-    fn providers(_: &Self::Config) -> Vec<Box<dyn crate::core::ServiceProvider>> {
+    fn providers(_: &Self::Config) -> Vec<Box<dyn crate::support::ServiceProvider>> {
         vec![
-            Box::new(crate::db::DatabaseServiceProvider),
-            Box::new(crate::db::MigrationServiceProvider::<Migrator>::new()),
+            Box::new(crate::database::DatabaseServiceProvider),
+            Box::new(crate::database::MigrationServiceProvider::<Migrator>::new()),
         ]
     }
 }
@@ -239,7 +239,7 @@ async fn migrate(database: &TestDatabase, args: Vec<String>) -> Result<()> {
 }
 async fn migration_contract(real: bool) -> Result<()> {
     let database = if real {
-        let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(|_| {
+        let url = crate::test_database_environment::database_url().map_err(|_| {
             Error::custom("test_database_url_required", "真实数据库测试必须配置连接")
         })?;
         TestDatabase::create::<Migrator>(&url).await?
@@ -251,8 +251,10 @@ async fn migration_contract(real: bool) -> Result<()> {
         db.initialize(database.connection()?)?;
         migrate(&database, vec!["down".into(), "1".into()]).await?;
         migrate(&database, vec![]).await?;
-        let now =
-            crate::db::dialect::utc_value(db.connection()?.get_database_backend(), Utc::now());
+        let now = crate::database::dialect::utc_value(
+            db.connection()?.get_database_backend(),
+            Utc::now(),
+        );
         db.table("users")?
             .insert(vec![
                 ("id", 42_i64.into()),
@@ -441,7 +443,7 @@ async fn family_shape_contract(db: &Db, user_id: i64) -> Result<()> {
     };
     db.connection()?.execute_raw(Statement::from_sql_and_values(backend,
         crate::auth::resolve_auth_sql(db,&format!("UPDATE tb_auth_refresh_tokens SET consumed_at={a},expires_at={b} WHERE token_hash={c}"))?,
-        [crate::db::dialect::utc_value(backend,Utc::now()),crate::db::dialect::utc_value(backend,expiry-chrono::Duration::minutes(5)),first_hash.clone().into()])).await.map_err(Error::internal)?;
+        [crate::database::dialect::utc_value(backend,Utc::now()),crate::database::dialect::utc_value(backend,expiry-chrono::Duration::minutes(5)),first_hash.clone().into()])).await.map_err(Error::internal)?;
     db.transaction_for_update(|tx| {
         let service = service.clone();
         let family = family.clone();
@@ -463,7 +465,7 @@ async fn family_shape_contract(db: &Db, user_id: i64) -> Result<()> {
                 &format!("UPDATE tb_auth_refresh_tokens SET expires_at={a} WHERE token_hash={b}"),
             )?,
             [
-                crate::db::dialect::utc_value(backend, expiry),
+                crate::database::dialect::utc_value(backend, expiry),
                 first_hash.into(),
             ],
         ))

@@ -18,19 +18,34 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::{
-    core::{BoxFuture, Error, Result},
-    data_exchange::{
-        ExportOptions, ImportLimits, ImportRow, ImportSchema, XlsxImportOptions, for_each_csv,
-        for_each_xlsx, write_csv, write_xlsx,
-    },
-    db::{
-        DatabaseTransaction, Db, IdempotencyClaim, IdempotencyResponse, LockAcquire,
-        RequestIdempotency, SharedLocks,
-    },
-    queue::{DispatchOptions, Job, JobContext, Queue},
-    storage::{Storage, StorageDisk, StoragePath, StorageStream, UploadOptions},
-};
+use crate::core::Error;
+use crate::core::Result;
+use crate::data_exchange::ExportOptions;
+use crate::data_exchange::ImportLimits;
+use crate::data_exchange::ImportRow;
+use crate::data_exchange::ImportSchema;
+use crate::data_exchange::XlsxImportOptions;
+use crate::data_exchange::for_each_csv;
+use crate::data_exchange::for_each_xlsx;
+use crate::data_exchange::write_csv;
+use crate::data_exchange::write_xlsx;
+use crate::database::DatabaseTransaction;
+use crate::database::Db;
+use crate::database::IdempotencyClaim;
+use crate::database::IdempotencyResponse;
+use crate::database::LockAcquire;
+use crate::database::RequestIdempotency;
+use crate::database::SharedLocks;
+use crate::filesystem::FilesystemAdapter;
+use crate::filesystem::FilesystemManager;
+use crate::filesystem::StoragePath;
+use crate::filesystem::StorageStream;
+use crate::filesystem::UploadOptions;
+use crate::queue::DispatchOptions;
+use crate::queue::Job;
+use crate::queue::JobContext;
+use crate::queue::Queue;
+use crate::support::BoxFuture;
 
 const REPORT_ERROR_LIMIT: usize = 32;
 const IDEMPOTENCY_TTL: Duration = Duration::from_hours(24);
@@ -190,7 +205,7 @@ where
     let report_path =
         options.report_path_for_attempt(context.id(), context.attempt(), &input.import_id)?;
     validate_exchange_object_path(&report_path)?;
-    let storage = context.service::<Storage>().await?;
+    let storage = context.service::<FilesystemManager>().await?;
     let db = context.service::<Db>().await?;
     let queue = context.service::<Queue>().await?;
     let source = storage.disk(&input.disk).await?;
@@ -649,7 +664,7 @@ where
     validate_exchange_object_path(&output_path)?;
     let output_path =
         options.output_path_for_attempt(&output_path, context.id(), context.attempt())?;
-    let storage = context.service::<Storage>().await?;
+    let storage = context.service::<FilesystemManager>().await?;
     let queue = context.service::<Queue>().await?;
     let disk = storage.disk(disk_name).await?;
     let temporary = tempfile::tempfile().map_err(Error::internal)?;
@@ -732,7 +747,7 @@ where
 async fn publish_export_object(
     context: &JobContext,
     queue: &Queue,
-    disk: &StorageDisk,
+    disk: &FilesystemAdapter,
     disk_name: &str,
     output_path: &StoragePath,
     temporary: std::fs::File,
@@ -844,7 +859,7 @@ impl Job for ImportReportCleanupJob {
                     "旧清理任务需人工核查对象与保留标记，禁止自动删除",
                 ));
             }
-            let storage = context.service::<Storage>().await?;
+            let storage = context.service::<FilesystemManager>().await?;
             let queue = context.service::<Queue>().await?;
             let db = context.service::<Db>().await?;
             let path = StoragePath::new(self.path.clone())?;
@@ -964,7 +979,10 @@ fn object_lock_key(disk: &str, path: &StoragePath) -> String {
     format!("openrust.data-exchange.object.{}", hex(&hasher.finalize()))
 }
 
-async fn delete_storage_object_if_present(disk: &StorageDisk, path: &StoragePath) -> Result<()> {
+async fn delete_storage_object_if_present(
+    disk: &FilesystemAdapter,
+    path: &StoragePath,
+) -> Result<()> {
     match disk.stat(path).await {
         Ok(_) => disk.delete(path).await,
         Err(error) if error.code() == "storage_object_not_found" => Ok(()),
@@ -1068,7 +1086,7 @@ fn validate_exchange_object_path(path: &StoragePath) -> Result<()> {
 }
 
 async fn write_retention_marker(
-    disk: &StorageDisk,
+    disk: &FilesystemAdapter,
     disk_name: &str,
     path: &StoragePath,
     expires_at_unix_secs: u64,
@@ -1130,7 +1148,7 @@ fn validate_import_id(import_id: &str) -> Result<()> {
 
 async fn store_report(
     _context: &JobContext,
-    disk: &StorageDisk,
+    disk: &FilesystemAdapter,
     path: &StoragePath,
     report: &ImportTaskReport,
 ) -> Result<()> {
@@ -1221,7 +1239,7 @@ fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod naming_tests {
     use super::{attempt_object_path, retention_marker_path, validate_exchange_object_path};
-    use crate::storage::StoragePath;
+    use crate::filesystem::StoragePath;
 
     #[test]
     fn exchange_paths_keep_attempts_distinct_and_reserve_both_marker_prefixes() -> crate::Result<()>

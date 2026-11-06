@@ -28,7 +28,10 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
-use openrust::core::{Application, BoxFuture, RegisterContext, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::support::BoxFuture;
+use openrust::foundation::RegisterContext;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -39,8 +42,8 @@ use std::time::Duration;
 // 通用 Web 协议用例显式安装自己的 Provider，生产 JWT 宿主继续用于 API 协议用例。
 struct TestWebHost<const SESSION: bool>;
 
-impl<const SESSION: bool> Application for TestWebHost<SESSION> {
-    type Config = <GeneratedApplication as Application>::Config;
+impl<const SESSION: bool> ApplicationDefinition for TestWebHost<SESSION> {
+    type Config = <GeneratedApplication as ApplicationDefinition>::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         GeneratedApplication::config()
@@ -50,7 +53,7 @@ impl<const SESSION: bool> Application for TestWebHost<SESSION> {
         GeneratedApplication::config_namespace()
     }
 
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         let mut extra: Vec<Box<dyn ServiceProvider>> =
             vec![Box::new(openrust::http::CookieServiceProvider::new())];
         if SESSION {
@@ -75,7 +78,7 @@ impl<const SESSION: bool> Application for TestWebHost<SESSION> {
         GeneratedApplication::providers(config)
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         GeneratedApplication::configure_providers(config, builder);
     }
 }
@@ -141,8 +144,8 @@ async fn generated_application_exposes_runtime_provider_registration()
         .merge(Toml::string("[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n")));
     let configuration: bootstrap::Configuration = source.extract()?;
     let builder =
-        openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
-    let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+        openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
+    let mut app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
     assert_eq!(app.environment().as_str(), "testing");
     assert!(app.running_unit_tests());
     assert!(!app.is_production());

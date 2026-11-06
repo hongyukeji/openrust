@@ -38,7 +38,7 @@ pub struct StorageDiskConfig {
     /// Driver 注册名，例如 `fs` 或 `s3`。
     pub driver: String,
     /// 对象写入的默认可见性。
-    pub visibility: Option<crate::storage::Visibility>,
+    pub visibility: Option<crate::filesystem::Visibility>,
     /// Driver 自有选项，例如本地 `root` 或 S3 endpoint/凭据。
     #[serde(flatten)]
     pub options: BTreeMap<String, serde_json::Value>,

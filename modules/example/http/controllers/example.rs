@@ -2,12 +2,12 @@
 
 use super::super::resources::example::ExampleInfo;
 use crate::modules::example::services::ExampleMessage;
-use openrust::http::RouteUrlGenerator;
 use openrust::http::axum::{
     http::{HeaderValue, StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
 use openrust::http::{DomainParams, Inject, Json, Path, Request, RequestInfo};
+use openrust::routing::UrlGenerator;
 use openrust::support::{MessageBag, MessageJsonOptions, MessageKeys, ViewErrorBag};
 use serde::{Deserialize, Serialize};
 
@@ -307,9 +307,7 @@ pub(crate) async fn input_raw(request: Request) -> openrust::Result<Json<serde_j
     })))
 }
 
-pub(crate) async fn route_url(
-    urls: RouteUrlGenerator,
-) -> openrust::Result<Json<serde_json::Value>> {
+pub(crate) async fn route_url(urls: UrlGenerator) -> openrust::Result<Json<serde_json::Value>> {
     let target = urls.route("example.index", &std::collections::BTreeMap::new())?;
     Ok(Json(serde_json::json!({"url": target})))
 }
@@ -317,7 +315,7 @@ pub(crate) async fn route_url(
 pub(crate) async fn domain_route(
     DomainParams(domain): DomainParams<ExampleDomainParams>,
     Path(id): Path<String>,
-    urls: RouteUrlGenerator,
+    urls: UrlGenerator,
 ) -> openrust::Result<Json<serde_json::Value>> {
     let parameters = std::collections::BTreeMap::from([
         ("account".to_owned(), domain.account.clone()),
@@ -336,8 +334,8 @@ pub(crate) async fn middleware() -> Json<&'static str> {
 }
 
 pub(crate) async fn heartbeat_label(
-    locale: openrust::i18n::RequestLocale,
-    Inject(i18n): Inject<openrust::i18n::I18n>,
+    locale: openrust::translation::RequestLocale,
+    Inject(i18n): Inject<openrust::translation::Translator>,
 ) -> openrust::Result<Json<serde_json::Value>> {
     let message = locale.translate(
         &i18n,

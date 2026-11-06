@@ -7,16 +7,21 @@ use openrust::auth::{
     GenericUser, OptionalUser, UserProvider,
 };
 use openrust::config::{FrameworkConfig, NoConfig, SessionConfig};
-use openrust::core::{
-    Application, BootContext, DefaultProviders, ServiceProvider, container::Scope,
-};
+use openrust::container::Scope;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::http::CookieServiceProvider;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Json;
 use openrust::http::axum::{
     Extension,
     body::{Body, to_bytes},
     http::{Method, Request, StatusCode},
 };
-use openrust::http::{CookieServiceProvider, HttpServiceProvider, Json, RouteGroup};
+use openrust::routing::RouteGroup;
 use openrust::session::{MemorySessionStore, Session, SessionServiceProvider};
+use openrust::support::DefaultProviders;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use openrust::{BoxFuture, Error, Result};
 use serde_json::{Map, Value, json};
@@ -117,7 +122,7 @@ impl UserProvider for UsernameProvider {
 }
 
 struct NamedApp;
-impl Application for NamedApp {
+impl ApplicationDefinition for NamedApp {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -137,7 +142,7 @@ impl Application for NamedApp {
         ];
         #[cfg(feature = "encryption")]
         {
-            providers.push(Box::new(openrust::security::EncryptionServiceProvider));
+            providers.push(Box::new(openrust::encryption::EncryptionServiceProvider));
             providers.push(Box::new(CookieServiceProvider::new()));
         }
         #[cfg(not(feature = "encryption"))]
@@ -150,7 +155,7 @@ impl Application for NamedApp {
 #[cfg(feature = "db-sqlite")]
 struct NamedDatabaseApp;
 #[cfg(feature = "db-sqlite")]
-impl Application for NamedDatabaseApp {
+impl ApplicationDefinition for NamedDatabaseApp {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -158,7 +163,7 @@ impl Application for NamedDatabaseApp {
     fn providers(config: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers = NamedApp::providers(config);
         providers[2] = Box::new(SessionServiceProvider::new());
-        providers.insert(0, Box::new(openrust::db::DatabaseServiceProvider));
+        providers.insert(0, Box::new(openrust::database::DatabaseServiceProvider));
         providers
     }
 }
@@ -292,7 +297,7 @@ async fn save_metadata(
     let id = session.id()?;
     #[cfg(feature = "db-sqlite")]
     let user_id = persisted_user(
-        scope.resolve::<openrust::db::Db>().await?.as_ref(),
+        scope.resolve::<openrust::database::Db>().await?.as_ref(),
         id.as_str(),
     )
     .await?;
@@ -397,7 +402,7 @@ fn named_sources(fallback: bool) -> figment::Figment {
 #[derive(Default)]
 struct Browser(BTreeMap<String, String>);
 impl Browser {
-    async fn request<A: Application>(
+    async fn request<A: ApplicationDefinition>(
         &mut self,
         app: &TestApp<A>,
         method: Method,
@@ -451,7 +456,7 @@ impl Browser {
             serde_json::from_slice(&bytes).map_err(Error::internal)?,
         ))
     }
-    async fn post<A: Application>(
+    async fn post<A: ApplicationDefinition>(
         &mut self,
         app: &TestApp<A>,
         path: &str,
@@ -731,15 +736,15 @@ async fn nested_optional_guest_clears_the_outer_guards_current_user_extension() 
 #[cfg(feature = "db-sqlite")]
 struct SessionMigrator;
 #[cfg(feature = "db-sqlite")]
-impl openrust::db::sea_orm_migration::MigratorTrait for SessionMigrator {
-    fn migrations() -> Vec<Box<dyn openrust::db::sea_orm_migration::MigrationTrait>> {
+impl openrust::database::sea_orm_migration::MigratorTrait for SessionMigrator {
+    fn migrations() -> Vec<Box<dyn openrust::database::sea_orm_migration::MigrationTrait>> {
         vec![Box::new(openrust::session::SessionMigration)]
     }
 }
 
 #[cfg(feature = "db-sqlite")]
-async fn persisted_user(db: &openrust::db::Db, id: &str) -> Result<Option<String>> {
-    use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+async fn persisted_user(db: &openrust::database::Db, id: &str) -> Result<Option<String>> {
+    use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
     let row = db
         .connection()?
         .query_one_raw(Statement::from_sql_and_values(
@@ -769,7 +774,7 @@ async fn native_database_metadata_uses_actual_guard_on_manual_save_and_logout() 
             .app()?
             .state()
             .container()
-            .resolve::<openrust::db::Db>()
+            .resolve::<openrust::database::Db>()
             .await?;
         let mut browser = Browser::default();
         let (status, login) = browser.post(&app, "/login", "web-secret").await?;
@@ -866,9 +871,9 @@ async fn persistent_named_guard_exposes_the_actual_server_deadline_for_uuid_user
 mod provider_connection_tests {
     use super::*;
     use figment::{Figment, providers::Serialized};
-    use openrust::db::sea_orm::ConnectionTrait;
-    use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
-    use openrust::db::{DatabaseServiceProvider, Databases, Db};
+    use openrust::database::sea_orm::ConnectionTrait;
+    use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use openrust::database::{DatabaseServiceProvider, Databases, Db};
     use openrust::testing::TestDatabase;
 
     struct EmptyMigrator;
@@ -879,7 +884,7 @@ mod provider_connection_tests {
     }
 
     struct ConnectionApp;
-    impl Application for ConnectionApp {
+    impl ApplicationDefinition for ConnectionApp {
         type Config = NoConfig;
         fn default_providers() -> DefaultProviders {
             DefaultProviders::empty()

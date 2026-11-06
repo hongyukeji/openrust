@@ -10,13 +10,14 @@ use crate::modules::example::{
     models::article,
     services::article_write::ArticleWriter,
 };
-use openrust::core::{RegisterContext, ServiceProvider};
 use openrust::data_exchange::{
     CellType, CsvFormulaPolicy, ExportLimits, ExportOptions, ImportColumn, ImportLimits,
     ImportSchema, XlsxImportOptions, for_each_csv, for_each_xlsx, typed_validator, write_csv,
     write_xlsx,
 };
-use openrust::db::sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use openrust::database::sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use openrust::foundation::RegisterContext;
+use openrust::support::ServiceProvider;
 use openrust::{Db, Error, Result};
 use serde_json::{Map, Value};
 use std::{io::Cursor, sync::Arc};
@@ -26,7 +27,7 @@ impl ServiceProvider for ArticleTransferProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.singleton::<ArticleTransfer, _>(|resolver| {
                 Box::pin(async move {
@@ -43,7 +44,7 @@ impl ServiceProvider for ArticleTransferProvider {
     #[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.resolve::<openrust::queue::QueueContributions>()
@@ -62,7 +63,7 @@ impl ServiceProvider for ArticleTransferProvider {
 struct ReconcileImportSources;
 
 #[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
-impl openrust::core::Command for ReconcileImportSources {
+impl openrust::console::Command for ReconcileImportSources {
     fn name(&self) -> &'static str {
         "example imports reconcile"
     }
@@ -78,7 +79,7 @@ impl openrust::core::Command for ReconcileImportSources {
     #[allow(clippy::print_stdout)] // 显式维护命令向调用者报告安全计数与下一页游标。
     fn run<'a>(
         &'a self,
-        app: &'a openrust::core::App,
+        app: &'a openrust::foundation::Application,
         args: Vec<String>,
     ) -> openrust::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -93,7 +94,10 @@ impl openrust::core::Command for ReconcileImportSources {
                 }
             };
             let db = app.state().resolve::<Db>().await?;
-            let storage = app.state().resolve::<openrust::storage::Storage>().await?;
+            let storage = app
+                .state()
+                .resolve::<openrust::filesystem::FilesystemManager>()
+                .await?;
             let queue = app.state().resolve::<openrust::queue::Queue>().await?;
             let result = tasks::reconcile_imports(db, storage, queue, after).await?;
             println!(
@@ -323,8 +327,10 @@ mod tasks {
     #[allow(clippy::wildcard_imports)] // 子模块复用同文件的私有业务 helper 与界限常量。
     use super::*;
     use openrust::data_exchange::tasks::{ExchangeFormat, ExportTaskOptions, export_storage_task};
+    use openrust::filesystem::FilesystemManager;
+    use openrust::filesystem::StoragePath;
+    use openrust::filesystem::StorageReader;
     use openrust::queue::{Job, JobContext, Queue};
-    use openrust::storage::{Storage, StoragePath, StorageReader};
 
     /// 只由认证 HTTP 入口构造；owner 不接受请求 JSON 覆盖。
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -499,8 +505,8 @@ mod tasks {
     }
 
     use crate::modules::example::models::article_import;
-    use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, IntoActiveModel};
-    use openrust::db::{LockAcquire, LockLease, SharedLocks};
+    use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, IntoActiveModel};
+    use openrust::database::{LockAcquire, LockLease, SharedLocks};
     const IMPORT_WINDOW_MS: i64 = 24 * 3600 * 1000;
     const LEASE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
 
@@ -700,13 +706,13 @@ mod tasks {
     ) -> Result<()> {
         let db = context.service::<Db>().await?;
         let queue = context.service::<Queue>().await?;
-        let storage = context.service::<Storage>().await?;
+        let storage = context.service::<FilesystemManager>().await?;
         cleanup_import_with_services(db, storage, queue, owner, id, deferrals, now).await
     }
 
     async fn cleanup_import_with_services(
         db: Arc<Db>,
-        storage: Arc<Storage>,
+        storage: Arc<FilesystemManager>,
         queue: Arc<Queue>,
         owner: i64,
         id: &str,
@@ -782,7 +788,7 @@ mod tasks {
 
     pub(crate) async fn reconcile_imports(
         db: Arc<Db>,
-        storage: Arc<Storage>,
+        storage: Arc<FilesystemManager>,
         queue: Arc<Queue>,
         after: Option<&str>,
     ) -> Result<ReconcileBatch> {
@@ -871,7 +877,7 @@ mod tasks {
 
     pub(crate) async fn upload_import(
         db: &Db,
-        storage: &Storage,
+        storage: &FilesystemManager,
         queue: &Queue,
         owner_id: i64,
         format: ArticleFormat,
@@ -916,7 +922,7 @@ mod tasks {
                 path,
                 Some(format.mime().into()),
                 Box::pin(chunks),
-                openrust::storage::UploadOptions {
+                openrust::filesystem::UploadOptions {
                     visibility: None,
                     max_bytes: MAX_TRANSFER_BYTES as u64,
                     max_chunk_bytes: 16 * 1024,
@@ -945,7 +951,7 @@ mod tasks {
         .await
     }
     pub(crate) async fn open_import_report(
-        storage: &Storage,
+        storage: &FilesystemManager,
         owner_id: i64,
         import_id: &str,
         job_id: &str,
@@ -1011,7 +1017,7 @@ mod tasks {
         Ok(())
     }
     pub(crate) async fn open(
-        storage: &Storage,
+        storage: &FilesystemManager,
         owner_id: i64,
         format: ArticleFormat,
         job_id: &str,

@@ -6,8 +6,8 @@ use figment::{Figment, providers::Serialized};
 use futures_util::FutureExt as _;
 use openrust::Db;
 use openrust::auth::AuthFlows;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
 use openrust::http::axum::http::StatusCode;
 use openrust::testing::{TestApp, TestDatabase};
@@ -20,7 +20,7 @@ type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 const BUDGET: Duration = Duration::from_secs(10);
 const ROOT: &str = "/api/example/tenant/record";
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -128,7 +128,7 @@ impl Fixture {
             .insert(&db.connection()?)
             .await?;
         }
-        let router = openrust::http::build_router(app.app()?)?;
+        let router = openrust::foundation::http::build_router(app.app()?)?;
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let origin = format!("http://{}", listener.local_addr()?);
         let (stop, stopped) = oneshot::channel();
@@ -568,7 +568,7 @@ async fn persisted_worker_rejects_missing_unentitled_or_revoked_tenant_before_si
 async fn run_broken_message(fixture: &Fixture, broken: BrokenMessage) -> TestResult {
     use super::models::tenant_record;
     use super::services::tenant::{TENANT_QUEUE, TenantRecordJob};
-    use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+    use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
     use openrust::queue::{Job, Queue};
     fixture.put("tenant-a", "allowed-a").await?;
     fixture.put("tenant-b", "allowed-b").await?;
@@ -713,14 +713,15 @@ async fn run_broken_message(fixture: &Fixture, broken: BrokenMessage) -> TestRes
 #[cfg(all(feature = "cache-redis", feature = "queue", feature = "storage-local"))]
 async fn assert_no_projection(fixture: &Fixture) -> TestResult {
     use openrust::cache::Cache;
-    use openrust::storage::{Storage, StoragePath};
+    use openrust::filesystem::FilesystemManager;
+    use openrust::filesystem::StoragePath;
     use openrust::tenant::{TenantContext, TenantId};
     let cache = fixture.app.app()?.state().resolve::<Cache>().await?;
     let disk = fixture
         .app
         .app()?
         .state()
-        .resolve::<Storage>()
+        .resolve::<FilesystemManager>()
         .await?
         .default_disk()
         .await?;

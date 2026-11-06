@@ -85,7 +85,8 @@ fn invalid_sort() -> Error {
 
 #[cfg(test)]
 mod tests {
-    use super::{SortDirection, SortParams};
+    use super::SortDirection;
+    use super::SortParams;
 
     #[test]
     fn parses_only_unique_allowlisted_fields_in_order() {

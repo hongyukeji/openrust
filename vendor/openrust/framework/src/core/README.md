@@ -2,11 +2,11 @@
 
 OpenRust 框架的应用内核。
 
-`App::commands()` 与 `ProviderRuntime::commands()` 返回按登记顺序持有 `Arc<dyn Command>` 的快照。启动与运行期 Provider 共用同一命令目录，同名替换保留原槽位；已取得的快照继续持有原命令，新快照读取替换后的实例。命令枚举、匹配和执行不会跨用户回调或异步等待持有目录锁；调用方需要命令类型身份时使用 `command.as_ref().type_id()`。这只是共享 Provider 生命周期的命令所有权前置，完整延迟 Provider 注册/事件触发尚未完成。
+`Application::commands()` 与 `ProviderRuntime::commands()` 返回按登记顺序持有 `Arc<dyn Command>` 的快照。启动与运行期 Provider 共用同一命令目录，同名替换保留原槽位；已取得的快照继续持有原命令，新快照读取替换后的实例。命令枚举、匹配和执行不会跨用户回调或异步等待持有目录锁；调用方需要命令类型身份时使用 `command.as_ref().type_id()`。这只是共享 Provider 生命周期的命令所有权前置，完整延迟 Provider 注册/事件触发尚未完成。
 
 ## 应用异常 Handler
 
-应用或模块 Provider 可在 `boot` 中调用 `BootContext::exceptions(|handler| { ... })`，按实际 Rust 异常类型登记 `map::<E>`、`report::<E>`、`dont_report::<E>`、`render::<E>` 与最终 `respond`。业务错误用 `Error::internal(source)` 保留原始类型及 source 链；需要指定 HTTP 状态时可用 `Error::http_with_source(status, code, message, source)`。`ReportDecision::Stop` 停止后续报告和默认日志，但仍渲染。`dont_retry::<E>` / `dont_retry_when` 供应用队列决定重试，HTTP 渲染不会自行重试。CLI、队列或调度器可调用 `App::report_exception`，仅应用的报告策略生效，不伪造 HTTP 请求并进入渲染。Handler 随应用实例隔离，不保存进程全局策略。调用方提供的 `context` 进入报告日志，应用须自行避免秘密信息；默认报告仅写安全错误码和状态。
+应用或模块 Provider 可在 `boot` 中调用 `BootContext::exceptions(|handler| { ... })`，按实际 Rust 异常类型登记 `map::<E>`、`report::<E>`、`dont_report::<E>`、`render::<E>` 与最终 `respond`。业务错误用 `Error::internal(source)` 保留原始类型及 source 链；需要指定 HTTP 状态时可用 `Error::http_with_source(status, code, message, source)`。`ReportDecision::Stop` 停止后续报告和默认日志，但仍渲染。`dont_retry::<E>` / `dont_retry_when` 供应用队列决定重试，HTTP 渲染不会自行重试。CLI、队列或调度器可调用 `Application::report_exception`，仅应用的报告策略生效，不伪造 HTTP 请求并进入渲染。Handler 随应用实例隔离，不保存进程全局策略。调用方提供的 `context` 进入报告日志，应用须自行避免秘密信息；默认报告仅写安全错误码和状态。
 
 HTTP 默认根据请求的 `Accept`、AJAX/PJAX 语义选择 HTML 或 JSON；`should_render_json_when` 可覆盖，`api_envelope_when` 可按路由显式保留 OpenRust 统一 API envelope，Web 请求不被强制包装。`respond` 接收已渲染的原生 `Response`，可保留或有意修改状态、头、扩展和流正文。`app.debug` 只由服务端配置决定，非 debug 的内部异常不输出 source 或追踪。完整入口与原生 Axum 逃生边界见 [HTTP 说明](../http/README.md#异常报告与渲染)。此家族目前处于 code-first 候选，最终组合门禁、真实请求及独审尚未执行。
 
@@ -15,7 +15,7 @@ HTTP 默认根据请求的 `Accept`、AJAX/PJAX 语义选择 HTML 或 JSON；`sh
 
 ## 容器与 Provider 生命周期
 
-`openrust::core::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；`build` 建立唯一容器后，Provider 注册仍可在同一容器动态重绑，不使用 PHP 反射构造。重绑使各 scope 的旧缓存失效；已交给调用方的旧 `Arc` 和在途引用仍有效，新解析按新定义构造。绑定版本与缓存槽准入同锁核验，旧构造不能回填新槽。
+`openrust::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；`build` 建立唯一容器后，Provider 注册仍可在同一容器动态重绑，不使用 PHP 反射构造。重绑使各 scope 的旧缓存失效；已交给调用方的旧 `Arc` 和在途引用仍有效，新解析按新定义构造。绑定版本与缓存槽准入同锁核验，旧构造不能回填新槽。
 
 `RegisterContext::extend::<T, _>(...).await?` 保留原 factory，再把异步装饰器依登记顺序作用于其结果；可在 `bind` 前登记，也可包装外部 `Arc<dyn Trait>`。装饰器接收旧 `Arc<T>` 与 `Resolver`，返回 `BoxFuture<'static, Result<Arc<T>>>`。同类型 factory 覆盖仍保留未解析服务的持久装饰链；`forget_extenders::<T>().await?` 清除未来构造的持久链，不撤销已缓存服务。`rebinding::<T, _>(...).await?` 登记监听者；服务已绑定时立即解析并返回当前 `Arc`，后续缓存更新按顺序通知。回调错误在当前 `register` 位置短路，不延迟到 `register` 返回后。已缓存 singleton/instance 可通过 `Container::extend(...).await` 或 `BootContext::extend(...).await` 即时变换；变换失败保留旧缓存，通知失败则新值已发布。`ServiceProvider::register` 返回 `BoxFuture`，绑定、实例、装饰与通知均在原调用位置 `await?`；已完成的贡献即使后续操作失败也不回滚。直接使用 `ContainerBuilder` 时，显式 `instance` 的待执行装饰仍在首次异步 `resolve` 执行；待执行时同步 `get_ready` 不返回旧值。
 
@@ -34,14 +34,17 @@ app.extend::<dyn Driver, _>(|original, resolver| {
 
 缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。
 
-生产 `bootstrap` 使用同一 `Container`：`Application::default_providers` 从同次配置仓储选取框架默认清单，已编译包经 `package_providers` 显式接入，`Application::providers` 仅给出应用清单，模块清单随后接入；`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`App::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。当前失败 Provider 的索引不更新，已成功登记的子项和此前贡献仍可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`App::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
+生产 `bootstrap` 使用同一 `Container`：`ApplicationDefinition::default_providers` 从同次配置仓储选取框架默认清单，已编译包经 `package_providers` 显式接入，`ApplicationDefinition::providers` 仅给出应用清单，模块清单随后接入；`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`Application::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。当前失败 Provider 的索引不更新，已成功登记的子项和此前贡献仍可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`ApplicationState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`Application::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
 
 ### register 中登记子 Provider
 
 `RegisterContext::register_provider`、`force_register_provider` 和 `boxed_register_provider` 与 App 对应入口共用同一注册执行器。父 register 中 await 子注册后才继续下一语句；正常启动时子 register 不提前 boot，全部 register 完成后按实际登记顺序 boot。首次注册时子先完成并进入清单，父随后进入；已有父类型的force仍保首次槽位。已启动 App 的子注册则在返回前完成 register/boot，父才继续。不要手工调用另一 Provider 的 register 或 boot。
 
 ```rust
-use openrust::core::{BoxFuture, RegisterContext, Result, ServiceProvider};
+use openrust::support::BoxFuture;
+use openrust::foundation::RegisterContext;
+use openrust::core::Result;
+use openrust::support::ServiceProvider;
 struct ChildProvider;
 impl ServiceProvider for ChildProvider {}
 struct FeatureProvider;
@@ -64,11 +67,11 @@ impl ServiceProvider for FeatureProvider {
 ## 入口作用域与资源回收
 
 - HTTP：每个请求创建独立 scope，响应 body 仍持有它；body 结束、出错或丢弃，以及请求处理被取消时关闭。流式响应尚未结束时，scope 仍然有效。
-- 命令：每次 `App::run_command` 有独立 scope；长驻的 `queue work` 命令 scope 不代替每次任务尝试的 scope。
+- 命令：每次 `Application::run_command` 有独立 scope；长驻的 `queue work` 命令 scope 不代替每次任务尝试的 scope。
 - 队列：每次 job attempt 使用新 scope，成功、失败、超时或取消都会关闭；重试不会复用上一次的 scoped 实例。`JobContext::service` 从该 attempt 解析。直接调用没有应用状态的 `Queue::run_next` 时，不提供应用服务上下文。
 - 调度：每个到期时段的事务派发使用独立 scope，后续 worker 执行时再创建 job attempt scope。当前全局调度不继承调用者的租户、请求 ID 或其他执行元数据；调度项目前不声明租户。
 
-`Scope::run` 为当前 future 安装 scope，让同一容器的 `AppState::resolve` 使用它。普通 `tokio::spawn` 不继承 task-local scope 或执行上下文；需要共享本次生命周期的后台工作时，用 `Scope::spawn` 登记受管任务，显式传入允许传播的元数据和 deadline。scope 关闭时会请求取消并等待受管任务；任务仍需合作检查取消信号。例如，在已取得 `Arc<Scope>` 的代码中：
+`Scope::run` 为当前 future 安装 scope，让同一容器的 `ApplicationState::resolve` 使用它。普通 `tokio::spawn` 不继承 task-local scope 或执行上下文；需要共享本次生命周期的后台工作时，用 `Scope::spawn` 登记受管任务，显式传入允许传播的元数据和 deadline。scope 关闭时会请求取消并等待受管任务；任务仍需合作检查取消信号。例如，在已取得 `Arc<Scope>` 的代码中：
 
 ```rust,ignore
 use openrust::core::ExecutionMetadata;
@@ -120,25 +123,21 @@ match (result, cleanup) {
 
 ### 测试应用
 
-`openrust::testing::TestApp<A>` 使用与生产相同的 `Application::providers`、`ProviderBuilder` 和 Router。测试显式传入 `Figment`，不修改全局环境或工作目录。`remove_provider(ProviderId)` 在注册前调整清单；`configure_after_register` 在所有 Provider 注册后、boot 前通过同一 `Container` 异步覆盖绑定，因此后续 `boot` 能读取替代服务。测试可通过 `request` 发起进程内请求，默认总期限五秒、响应体上限 1 MiB；`request_with_limits` 可调整这两个预算，`raw_response` 保留流式正文并由调用方消费或丢弃。
-
-`TestResponse` 提供状态、响应头、字节和 JSON 读取以及链式断言；断言失败不会回显正文或头值。状态断言遵循应用配置的 `[api] http_status`，默认为 Laravel 式语义状态；仅显式配置 `always_ok` 时才将框架 JSON 错误映射为 HTTP 200。`shutdown(deadline).await` 等待本应用拥有的资源回收；`reset(deadline).await` 先关闭整个旧应用，再用相同蓝图重建，不把根 scoped 缓存清空冒充完整重置。这里的 deadline 只约束旧应用关闭，新应用的启动与路由构建不受同一期限约束。丢弃 `TestApp` 会立即封闭新解析；存活的 `Tokio` runtime 才能继续异步兜底回收。独立 `TestApp` 持有各自容器，捕获的外部共享 `Arc` fixture 由调用方负责重置。实际业务替换与 Provider 移除示例见 [`modules/example`](../../../../../modules/example/README.md)，CLI 生成项目也包含普通 HTTP 与认证测试。进程内请求不替代真实 TCP 验收。
-
-需要从空数据库测试迁移命令时，使用 `TestApp::<A>::builder(sources).run_command("migrate", args).await`：该入口以相同命令名引导并执行一次命令，然后限时回收应用；成功后再用普通 `build()` 验证迁移后的启动与请求。命令失败仍回收资源，命令和回收同时失败时保留命令错误并记录回收错误码；取消执行 future 时沿夹具 Drop 做异步兜底回收。它不返回带命令上下文的应用。
+应用测试的装配、预算和资源回收见 [Foundation 测试应用](../foundation/README.md#测试应用)。
 
 其他 OpenRust package 所依赖的核心契约包括：
 
-- [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。
-- [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
+- [`ApplicationDefinition`](crate::foundation::ApplicationDefinition)：项目实现一次该 trait，用于描述应用的组装方式。
+- [`ProviderBuilder`](crate::foundation::ProviderBuilder) / [`ServiceProvider`](crate::support::ServiceProvider) / [`Application`](crate::foundation::Application) / [`ApplicationState`](crate::foundation::ApplicationState)：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`Application::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `Application::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
 - `openrust_modules::ModuleManifest` 声明已编译模块及激活器；启用模块的 Provider 进入同一 register/boot 管线，全量 metadata（含未加载模块）与激活器由同一 Container 的 `ModuleRepository` 共享。`ModuleDescriptor::requires` 保留启用依赖校验与拓扑排序；普通启停不级联修改依赖状态，也不删除迁移历史。资源根、独立状态路径与文件边界见 [模块激活配置](../../../modules/README.md#模块激活与运行根)，业务接线见 [`modules/example`](../../../../../modules/example/README.md)。
-- [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
+- [`Command`](crate::console::Command)：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp::build/reset` 均无该上下文；受控的 `TestAppBuilder::run_command` 只引导、执行并关闭同名命令。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。
 - [`Readiness`]：进程 listener 生命周期状态，并允许 Provider 注册有界异步依赖探针；HTTP `/ready` 聚合探针结果，`is_ready()` 本身仍只表示 listener 状态。
-- `config`：应用在根 `config/*.rs` 声明可编辑配置，经 `Application::config()` 返回显式 `ConfigManifest`。加载器先建立所选 dotenv 与外部环境快照，再求值已编译配置函数，发布到唯一 `ConfigRepository`；不运行时扫描 Rust。模块使用相同代码配置机制；需要 TOML 时显式注册可选 source，不再默认扫描 `config/*.toml`。`APP_NAME`、`APP_URL` 和命名空间读取沿公开 `ConfigContext` 与统一来源优先级；缓存命中跳过 dotenv 和配置函数，遇不可序列化 typed/factory 必须明确拒绝，不能静默丢弃。Rust 代码修改需要重新编译，环境配置修改需要重启；`src/config/` 定义框架类型与加载机制，根 `config/` 定义应用策略。
-- [`lifecycle`]：启动顺序、优雅停机信号与应用后台刷新任务回收。
+- `config`：应用在根 `config/*.rs` 声明可编辑配置，经 `ApplicationDefinition::config()` 返回显式 `ConfigManifest`。加载器先建立所选 dotenv 与外部环境快照，再求值已编译配置函数，发布到唯一 `ConfigRepository`；不运行时扫描 Rust。模块使用相同代码配置机制；需要 TOML 时显式注册可选 source，不再默认扫描 `config/*.toml`。`APP_NAME`、`APP_URL` 和命名空间读取沿公开 `ConfigContext` 与统一来源优先级；缓存命中跳过 dotenv 和配置函数，遇不可序列化 typed/factory 必须明确拒绝，不能静默丢弃。Rust 代码修改需要重新编译，环境配置修改需要重启；`src/config/` 定义框架类型与加载机制，根 `config/` 定义应用策略。
+- [`lifecycle`](crate::foundation::lifecycle)：启动顺序、优雅停机信号与应用后台刷新任务回收。
 
 ### 外部包预装配
 
@@ -154,7 +153,7 @@ HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安�
 
 `RateLimiter::check(key, limit, window)` 会在已注册的 `RateLimitStore` 中计入一次请求，并返回剩余配额；超限时返回带 `Retry-After` 的 429 错误。核心契约不决定 HTTP 身份提取方式或 middleware 策略。调用方应按策略命名 key，并对同一个 key 使用一致的时间窗口；存储故障不会被当成未超限。数据库 store 保存 SHA-256 摘要而非原始 key，但无法阻止对低熵值的猜测。
 
-`FrameworkConfig.i18n` 定义 locale 默认值。`I18nServiceProvider` 注册共享 `I18n` 服务；HTTP middleware 解析 `Accept-Language`，并为当前 task 设置请求 locale。框架响应和内置 validator 规则消息使用该 locale，同时保留错误码与字段路径。应用消息可从 JSON 资源合并，并通过 `RequestLocale` 翻译；普通 `{name}` 文本保持兼容，也可用有限 `plural` / `select` 分支。`I18n::format_number` 接受精确十进制字符串；`format_date` 接受已按业务时区确定的日期，`format_datetime` 按传入 Chrono 值的本地墙上时间格式化。显式 task scope 使用 `I18n::with_locale`。未指定语言时采用同一应用的 `default_locale`，后台可用 `with_default_locale`；Provider 将该服务接入同一异常 Handler，默认 JSON/HTML/应用 envelope 的用户消息与验证摘要共用目录，稳定 code/status/header 与内部诊断不翻译。生产 debug=false 时 5xx 保持安全通用消息，不泄露 source。具体配置与边界见[本地化](../../../../../docs/src/digging-deeper/localization.md)。
+`FrameworkConfig.i18n` 定义 locale 默认值。`TranslationServiceProvider` 注册共享 `Translator` 服务；HTTP middleware 解析 `Accept-Language`，并为当前 task 设置请求 locale。框架响应和内置 validator 规则消息使用该 locale，同时保留错误码与字段路径。应用消息可从 JSON 资源合并，并通过 `RequestLocale` 翻译；普通 `{name}` 文本保持兼容，也可用有限 `plural` / `select` 分支。`Translator::format_number` 接受精确十进制字符串；`format_date` 接受已按业务时区确定的日期，`format_datetime` 按传入 Chrono 值的本地墙上时间格式化。显式 task scope 使用 `Translator::with_locale`。未指定语言时采用同一应用的 `default_locale`，后台可用 `with_default_locale`；Provider 将该服务接入同一异常 Handler，默认 JSON/HTML/应用 envelope 的用户消息与验证摘要共用目录，稳定 code/status/header 与内部诊断不翻译。生产 debug=false 时 5xx 保持安全通用消息，不泄露 source。具体配置与边界见[本地化](../../../../../docs/src/digging-deeper/localization.md)。
 
 `openrust::validation::validate(value)` 可在命令与 typed Job 中复用 HTTP `Validated<T>` 的 validator 错误转换。`ExecutionContext::current()` 读取单次调用的 metadata、剩余 budget 与 cancellation；子调用 deadline 不超过父级，子 timeout 不会取消父级。队列可传播经校验的 request ID、traceparent、locale 和可信租户 ID；不序列化用户身份或请求凭据；见 历史决策 044。
 

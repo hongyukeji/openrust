@@ -2,7 +2,7 @@
 
 use openrust::{
     Error, Result,
-    db::{
+    database::{
         CoordinationMigration, Db, LockAcquire, LockLease, SharedLocks,
         sea_orm::{ConnectionTrait, Database},
         sea_orm_migration::{MigrationTrait, MigratorTrait},
@@ -150,7 +150,7 @@ async fn mutate_lease(
     db: &Db,
     fence: i64,
     column: &str,
-    value: openrust::db::sea_orm::Value,
+    value: openrust::database::sea_orm::Value,
 ) -> Result<()> {
     check(db.table("shared_locks")?.count().await? == 1)?;
     check(

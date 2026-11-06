@@ -1,8 +1,10 @@
 //! 模块持久状态与已加载快照的只读业务示例；不提供匿名管理写入端点。
 
-use openrust::core::{ApiResponse, RegisterContext, ServiceProvider};
+use openrust::core::ApiResponse;
 use openrust::events::{EventPropagation, EventsServiceProvider};
+use openrust::foundation::RegisterContext;
 use openrust::http::Inject;
+use openrust::support::ServiceProvider;
 use openrust::{BoxFuture, Error, Result};
 use openrust_modules::{ModuleLifecycleEvent, ModuleRepository};
 use std::collections::VecDeque;

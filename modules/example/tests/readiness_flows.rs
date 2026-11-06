@@ -3,13 +3,13 @@
 use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
-use openrust::db::sea_orm::ConnectionTrait;
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::ConnectionTrait;
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::testing::{TestApp, TestDatabase};
 
 struct Migrator;
 
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();

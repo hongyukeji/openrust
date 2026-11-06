@@ -4,7 +4,7 @@
 #[path = "factor_gate/real_server_tests.rs"]
 mod real_server_tests;
 
-use crate::db::{
+use crate::database::{
     Db,
     sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, Statement},
 };
@@ -17,7 +17,7 @@ async fn factor_column(
     user_id: i64,
     column: &str,
 ) -> Result<Option<Option<String>>> {
-    use crate::db::sea_orm::TransactionTrait;
+    use crate::database::sea_orm::TransactionTrait;
     let backend = transaction.get_database_backend();
     let table = db.quoted_table_name("users")?;
     if backend == DbBackend::Sqlite {
@@ -74,10 +74,10 @@ async fn factor_column(
     }
 }
 
-fn missing_factor_column(error: &crate::db::sea_orm::DbErr, backend: DbBackend) -> bool {
+fn missing_factor_column(error: &crate::database::sea_orm::DbErr, backend: DbBackend) -> bool {
     #[cfg(any(feature = "db-mysql", feature = "db-postgres"))]
     {
-        use crate::db::sea_orm::{DbErr, RuntimeErr};
+        use crate::database::sea_orm::{DbErr, RuntimeErr};
         if let DbErr::Query(RuntimeErr::SqlxError(error))
         | DbErr::Exec(RuntimeErr::SqlxError(error)) = error
         {
@@ -139,7 +139,7 @@ pub(super) async fn require_unbound_fortify_account(
 }
 
 async fn require_gate_user(db: &Db, transaction: &DatabaseTransaction, user_id: i64) -> Result<()> {
-    use crate::db::sea_orm::TransactionTrait;
+    use crate::database::sea_orm::TransactionTrait;
     if user_id <= 0 {
         return Err(Error::Unauthorized);
     }
@@ -185,14 +185,14 @@ async fn require_gate_user(db: &Db, transaction: &DatabaseTransaction, user_id: 
 ))]
 mod tests {
     use super::*;
-    use crate::{
-        core::BoxFuture,
-        db::sea_orm_migration::{
-            MigrationTrait, MigratorTrait, SchemaManager,
-            prelude::{Alias, ColumnDef, Table},
-        },
-        testing::TestDatabase,
-    };
+    use crate::database::sea_orm_migration::MigrationTrait;
+    use crate::database::sea_orm_migration::MigratorTrait;
+    use crate::database::sea_orm_migration::SchemaManager;
+    use crate::database::sea_orm_migration::prelude::Alias;
+    use crate::database::sea_orm_migration::prelude::ColumnDef;
+    use crate::database::sea_orm_migration::prelude::Table;
+    use crate::support::BoxFuture;
+    use crate::testing::TestDatabase;
     pub(super) struct NoMigrations;
     impl MigratorTrait for NoMigrations {
         fn migrations() -> Vec<Box<dyn MigrationTrait>> {
@@ -406,7 +406,7 @@ mod tests {
                 "permission denied; deadlock; table not found",
             ] {
                 assert!(!missing_factor_column(
-                    &crate::db::sea_orm::DbErr::Custom(message.into()),
+                    &crate::database::sea_orm::DbErr::Custom(message.into()),
                     backend
                 ));
             }

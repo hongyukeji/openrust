@@ -1,27 +1,37 @@
 //! 真实Provider/密码登录与同请求未保存Session的关联授权边界。
 use super::*;
-use crate::{
-    auth::{
-        AuthFlows, AuthUser, Authenticatable, Credentials, DatabaseUserProvider,
-        DatabaseVerificationCodeStore, GenericUser, JwtTokens, RefreshTokens, SessionGuard,
-        VerificationCodes,
-        fortify::{
-            DatabaseFactorAuthority, DatabaseTwoFactorState, FactorAuthorityMigration,
-            FactorAuthorityMutation, FortifyTwoFactorMigration, TwoFactorAuthenticatable,
-            TwoFactorState,
-        },
-    },
-    config::{EncryptionConfig, JwtConfig},
-    core::{BoxFuture, RateLimiter},
-    db::{
-        DatabaseRateLimitMigration, DatabaseRateLimitStore, Db,
-        sea_orm_migration::{MigrationTrait, MigratorTrait},
-    },
-    http::{CookieFactory, CookieJar},
-    security::Encryptor,
-    session::MemorySessionStore,
-    testing::TestDatabase,
-};
+use crate::auth::AuthFlows;
+use crate::auth::AuthUser;
+use crate::auth::Authenticatable;
+use crate::auth::Credentials;
+use crate::auth::DatabaseUserProvider;
+use crate::auth::DatabaseVerificationCodeStore;
+use crate::auth::GenericUser;
+use crate::auth::JwtTokens;
+use crate::auth::RefreshTokens;
+use crate::auth::SessionGuard;
+use crate::auth::VerificationCodes;
+use crate::auth::fortify::DatabaseFactorAuthority;
+use crate::auth::fortify::DatabaseTwoFactorState;
+use crate::auth::fortify::FactorAuthorityMigration;
+use crate::auth::fortify::FactorAuthorityMutation;
+use crate::auth::fortify::FortifyTwoFactorMigration;
+use crate::auth::fortify::TwoFactorAuthenticatable;
+use crate::auth::fortify::TwoFactorState;
+use crate::config::EncryptionConfig;
+use crate::config::JwtConfig;
+use crate::core::RateLimiter;
+use crate::database::DatabaseRateLimitMigration;
+use crate::database::DatabaseRateLimitStore;
+use crate::database::Db;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::encryption::Encrypter;
+use crate::http::CookieFactory;
+use crate::http::CookieJar;
+use crate::session::MemorySessionStore;
+use crate::support::BoxFuture;
+use crate::testing::TestDatabase;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::collections::BTreeMap;
 
@@ -69,14 +79,17 @@ impl Authenticatable for Account {
     fn remember_token_for_cookie(&self) -> Result<Option<String>> {
         self.attributes.remember_token_for_cookie()
     }
-    fn set_remember_token(&self, value: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+    fn set_remember_token(
+        &self,
+        value: Option<String>,
+    ) -> crate::support::BoxFuture<'_, Result<()>> {
         self.attributes.set_remember_token(value)
     }
     fn begin_remember_token_update<'a>(
         &'a self,
         expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+    ) -> crate::support::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
         self.attributes
             .begin_remember_token_update(expected, replacement)
     }
@@ -112,7 +125,7 @@ struct Fixture {
     authority: DatabaseFactorAuthority,
     flows: AuthFlows,
     passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
-    encrypter: Encryptor,
+    encrypter: Encrypter,
 }
 impl Fixture {
     async fn new() -> Result<Self> {
@@ -121,7 +134,7 @@ impl Fixture {
             let db = Db::default();
             db.initialize(database.connection()?)?;
             let key = STANDARD.encode([21_u8; 32]);
-            let encrypter = Encryptor::new(EncryptionConfig::new(
+            let encrypter = Encrypter::new(EncryptionConfig::new(
                 "owned",
                 BTreeMap::from([("owned".into(), key.clone())]),
             ))?;
@@ -140,7 +153,8 @@ impl Fixture {
                 "attachment-owned-password",
             )
             .await?;
-            let now = crate::db::dialect::utc_value(crate::db::DbBackend::Sqlite, Utc::now());
+            let now =
+                crate::database::dialect::utc_value(crate::database::DbBackend::Sqlite, Utc::now());
             db.table("users")?
                 .insert(vec![
                     ("id", 42_i64.into()),
@@ -247,7 +261,7 @@ async fn validate(
     prepared: &PreparedSessionAttachment,
 ) -> Result<()> {
     let connection = policy.db.connection()?;
-    let tx = crate::db::begin_for_update(&connection).await?;
+    let tx = crate::database::begin_for_update(&connection).await?;
     let result = policy
         .validate_attachment_in_transaction(&tx, prepared)
         .await;

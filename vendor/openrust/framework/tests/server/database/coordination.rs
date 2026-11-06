@@ -4,12 +4,16 @@
 use std::time::Duration;
 
 use openrust::core::Error;
-#[cfg(feature = "cache-redis")]
-use openrust::core::{ProviderBuilder, RegisterContext, ServiceProvider};
 use openrust::database::{
     CoordinationMigration, DatabaseTableNames, Db, IdempotencyClaim, IdempotencyResponse,
     LockAcquire, RequestIdempotency, SharedLocks, sea_orm, sea_orm_migration,
 };
+#[cfg(feature = "cache-redis")]
+use openrust::foundation::ProviderBuilder;
+#[cfg(feature = "cache-redis")]
+use openrust::foundation::RegisterContext;
+#[cfg(feature = "cache-redis")]
+use openrust::support::ServiceProvider;
 use openrust::testing::TestDatabase;
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, Statement};
 use sea_orm_migration::prelude::*;
@@ -26,7 +30,7 @@ impl ServiceProvider for SharedLocksProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::new(SharedLocks::new(self.0.clone())))
                 .await?;
@@ -42,7 +46,9 @@ impl MigratorTrait for CoordinationMigrator {
 }
 
 #[cfg(feature = "cache-redis")]
-async fn cache_app_with_shared_locks(db: Db) -> Result<openrust::App, Box<dyn std::error::Error>> {
+async fn cache_app_with_shared_locks(
+    db: Db,
+) -> Result<openrust::Application, Box<dyn std::error::Error>> {
     use figment::{Figment, providers::Format};
     let dsn = std::env::var("OPENRUST_TEST_REDIS_URL")
         .unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned());
@@ -53,7 +59,7 @@ async fn cache_app_with_shared_locks(db: Db) -> Result<openrust::App, Box<dyn st
     builder
         .provider(SharedLocksProvider(db))
         .provider(openrust::cache::CacheServiceProvider::new());
-    Ok(openrust::App::from_provider_runtime(
+    Ok(openrust::Application::from_provider_runtime(
         builder.start(figment).await?,
     )?)
 }

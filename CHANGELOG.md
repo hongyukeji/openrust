@@ -72,7 +72,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - Mail/SMS日志驱动允许production或缺省环境启动，默认应用不再强制要求真实供应商；日志仍不记录正文/凭据。服务初始化错误提供有界、安全的配置键和原因诊断；其service字段改为封装身份，手动包装用Error::service_initialization::<T>，未知driver/SMTP feature与配置错误保持明确失败。
 
-- `App::commands()` 与 `ProviderRuntime::commands()` 的迭代项改为 `Arc<dyn Command>`，启动与运行期注册共享命令目录；同名覆盖保槽位，旧快照保实例，枚举/匹配/执行不持目录锁。显式类型身份需用 `command.as_ref().type_id()`；完整deferred Provider仍待后继。
+- `Application::commands()` 与 `ProviderRuntime::commands()` 的迭代项改为 `Arc<dyn Command>`，启动与运行期注册共享命令目录；同名覆盖保槽位，旧快照保实例，枚举/匹配/执行不持目录锁。显式类型身份需用 `command.as_ref().type_id()`；完整deferred Provider仍待后继。
 
 - 标准根构建与 `new` 应用预整合 MySQL、Redis 缓存及数据库/Redis 队列；`--minimal` 显式选择无数据库/队列骨架。队列统一 `default`/`connections` 与 `QUEUE_CONNECTION`，旧顶层 driver 配置明确拒绝；连接及外部 creator/validator 按需解析。`queue work [connection] --queue <queue>` 区分连接和队列，迁移与 worker 仍显式运行；标准生成迁移复用唯一 FrameworkMigrator，普通模块任务可经无默认数据库的 Redis 队列执行。
 
@@ -112,7 +112,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 配置加载增加不可变 `ConfigSources` 与 `ConfigLoader::sources()`，在进入 Figment 投影前保留已有平层 TOML 的声明键序；默认引导一次捕获来源，类型配置和 Provider 复用该输入。仓储、Provider 与 TestApp 沿既有入口接收有序来源，显式 Figment 输入仍是无法恢复历史声明序的有损入口。递归发现与文件名命名空间映射见上项；完整 Config 对应继续开放。
 - 命名路由增加永久与临时签名 URL，支持绝对/相对签名、原始查询验签、过期检查及当前/旧应用密钥轮换；`RequestInfo` 与路由 `signed` 中间件提供验证和忽略查询字段入口，无效签名在业务处理前拒绝。唯一模块和生成应用通过公开接口签发并保护草稿链接。当前参数限字符串映射；Vapor 代理原始查询与前缀入口、PHP 对象/数组/Enum 参数表示仍待对应。
 
-- 配置仓储增加运行期 `set` 与有序原子 `set_many`，保留点路径、覆盖位置及稀疏/混合数组；App 与 Provider 共享仓储，`App::section` 读取当前版本，已解析配置及服务保留启动快照。唯一模块展示固定业务键跨请求更新，生成应用与公开 consumer 同步接入；写入不持久化、不跨节点传播、不自动重建资源，来源进入 Figment 前已丢失的初始键序仍是后继缺口。
+- 配置仓储增加运行期 `set` 与有序原子 `set_many`，保留点路径、覆盖位置及稀疏/混合数组；App 与 Provider 共享仓储，`Application::section` 读取当前版本，已解析配置及服务保留启动快照。唯一模块展示固定业务键跨请求更新，生成应用与公开 consumer 同步接入；写入不持久化、不跨节点传播、不自动重建资源，来源进入 Figment 前已丢失的初始键序仍是后继缺口。
 
 - Session 纯行为扩展测试并入既有 `http_session` 私有模块，保留全部用例与断言；原独立 `http_session_extensions` Cargo 测试入口移除，真实数据库、Redis 和环境子进程入口保持独立。入口减少不等于已证明固定提速。
 
@@ -146,7 +146,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - Session 增加 previous URL/route helper；真实 GET 路由下游返回后记录当前请求，供后续请求读取，已确认预检跳过自动保存及 previous 更新，单纯客户端头不会改变保存行为。
 
-- `Routes::route` 改为接收公开 `http::routing` 的受管理方法声明；同路径按方法合并与后注册覆盖，保留各处理器的路由身份和中间件。原生 Axum 路由仍作为显式逃生口，不自动承诺受管理请求 Route 上下文。
+- `Router::route` 改为接收公开 `http::routing` 的受管理方法声明；同路径按方法合并与后注册覆盖，保留各处理器的路由身份和中间件。原生 Axum 路由仍作为显式逃生口，不自动承诺受管理请求 Route 上下文。
 
 - 显式 fallback 按 Laravel 使用 GET/HEAD；普通当前方法优先，fallback 参与备用方法与自动 OPTIONS 判断。域名与路径可使用同名参数，绑定时路径值优先；单个模式内部重复参数仍拒绝。
 
@@ -203,11 +203,11 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - HTTP 路由支持 `RouteGroup::domain` 与 `DomainParams<T>`：域路由按声明顺序在普通路由前匹配，具名域 URL 由登记模板、单标签参数和 `app.url` scheme/port 生成；畸形 authority 失败关闭，转发 Host 不受信任，业务 404/405 不触发二次派发。
 
-- HTTP 路由支持 `.name(...)`、按原样组合的组名 `name_prefix` 与 `RouteUrlGenerator`；路由参数安全编码，额外参数生成有序 query，URL 来源固定为 `app.url`。
+- HTTP 路由支持 `.name(...)`、按原样组合的组名 `name_prefix` 与 `UrlGenerator`；路由参数安全编码，额外参数生成有序 query，URL 来源固定为 `app.url`。
 
-- Provider 可登记可复用的 HTTP middleware alias 与递归 group，路由及嵌套组可按名称选择应用；未知名称、重名与 group 循环显式报错，无应用注册表时 `Routes::into_router()` 也会失败关闭。
+- Provider 可登记可复用的 HTTP middleware alias 与递归 group，路由及嵌套组可按名称选择应用；未知名称、重名与 group 循环显式报错，无应用注册表时 `Router::into_router()` 也会失败关闭。
 
-- HTTP 路由新增 Laravel 式 `Routes::fallback`；支持静态 RouteGroup 前缀与 middleware，GET/HEAD 未命中时优先服务 public 静态文件（含 `/api`、`/ws`），原始 URI/body 传递给业务 handler，同 scope 重复 fallback 稳定报错。参数化/通配符组前缀暂报 `http_fallback_scope_unsupported`，避免 Axum catch-all panic。
+- HTTP 路由新增 Laravel 式 `Router::fallback`；支持静态 RouteGroup 前缀与 middleware，GET/HEAD 未命中时优先服务 public 静态文件（含 `/api`、`/ws`），原始 URI/body 传递给业务 handler，同 scope 重复 fallback 稳定报错。参数化/通配符组前缀暂报 `http_fallback_scope_unsupported`，避免 Axum catch-all panic。
 
 - R1-E 在唯一 `modules/example` 中加入有所有者约束的 Article CRUD，并以实际业务路径展示租户、附件、缓存、队列、认证、实时通信、数据交换、国际化与观测等当前公开能力；具体真实服务范围和仍未关闭的边界见示例 README 与验收记录。
 
@@ -236,7 +236,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - 应用关闭同步封闭容器的新解析与受管任务登记；`TestApp` 析构时即使没有运行时也先封闭，异步回收仍需显式 `shutdown` 或存活的 Tokio runtime。已持有的服务 `Arc` 由调用者管理。
 
-- `App::run_command` 每次执行使用新scope，应用资源在显式关闭时回收；队列任务与调度触发不继承调用者的请求或租户身份。
+- `Application::run_command` 每次执行使用新scope，应用资源在显式关闭时回收；队列任务与调度触发不继承调用者的请求或租户身份。
 
 - `ConfigLoader::figment()` 返回 `Result`，直接调用方须传播配置来源错误。
 
@@ -248,11 +248,11 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - 错误响应中的 `timestamp_ms` Unix 毫秒数改为 `timestamp` RFC 3339 UTC 字符串（毫秒精度）。
 
-- 将默认运行时配置命名空间切换为 `APP_`；应用可通过 `Application::config_namespace()` 选择一个自定义前缀。
+- 将默认运行时配置命名空间切换为 `APP_`；应用可通过 `ApplicationDefinition::config_namespace()` 选择一个自定义前缀。
 - 将所有 OpenRust JSON 成功和错误响应统一为 `ApiResponse<T>`，并新增 `[api] http_status`（`always_ok` 或 `semantic`）、请求 ID 正文/响应头一致性及限流重试响应头。
 
 - 将 facade prelude 切换为 OpenRust 提取器，并按照 历史决策 008 统一校验、超时和未匹配路由响应。
 
-- 按照 历史决策 006 在已实现 API 中统一采用以下名称：`Plugin::build/finish`、`AppBuilder::plugin/insert/get`、`AppState::get/try_get`、`HttpPlugin`、`Routes::nest`，以及资源操作 `list/get/create/update/delete`。
+- 按照 历史决策 006 在已实现 API 中统一采用以下名称：`Plugin::build/finish`、`AppBuilder::plugin/insert/get`、`ApplicationState::get/try_get`、`HttpPlugin`、`Router::nest`，以及资源操作 `list/get/create/update/delete`。
 - 将运行时配置切换为 `config/default.toml`、`OPENRUST_ENV` 和 `OPENRUST_<SECTION>__<KEY>`；`DATABASE_URL` 和 `PORT` 映射到对应配置区段，带前缀的变量优先。
 - 将配置命令改为 `config show`，并记录未来的 `openrust generate` CLI 规划。

@@ -1,17 +1,17 @@
 //! Laravel `DatabaseUserProvider` 对应：使用宿主 Db、逻辑表与原始类型标识。
 
 use super::contracts::{AuthUser, Authenticatable, Credentials, GenericUser, UserProvider};
-use crate::{
-    Error, Result,
-    core::BoxFuture,
-    db::{
-        Db,
-        eloquent::attributes_from_row,
-        query::{QueryBuilder, RawSql},
-        sea_orm::{DbBackend, QueryResult, Value as SqlValue},
-    },
-    hashing::HashOptions,
-};
+use crate::Error;
+use crate::Result;
+use crate::database::Db;
+use crate::database::eloquent::attributes_from_row;
+use crate::database::query::QueryBuilder;
+use crate::database::query::RawSql;
+use crate::database::sea_orm::DbBackend;
+use crate::database::sea_orm::QueryResult;
+use crate::database::sea_orm::Value as SqlValue;
+use crate::hashing::HashOptions;
+use crate::support::BoxFuture;
 use serde_json::{Map, Value};
 use std::{fmt, sync::Arc};
 use subtle::ConstantTimeEq;

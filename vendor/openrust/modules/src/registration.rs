@@ -1,14 +1,17 @@
 //! 模块装配声明的唯一 Provider 入口，不建立扩展自己的启动循环。
 
 use crate::{ModuleManifest, ModuleRepository, ModulesConfig, module};
-use openrust::{
-    Result,
-    core::{
-        BootContext, BoxFuture, ProviderBuilder, ProviderId, ProviderPreparation,
-        ProviderRegistration, RegisterContext, ServiceProvider,
-    },
-    events::{DefaultEventsServiceProvider, EventsServiceProvider},
-};
+use openrust::Result;
+use openrust::events::DefaultEventsServiceProvider;
+use openrust::events::EventsServiceProvider;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::ProviderId;
+use openrust::foundation::ProviderPreparation;
+use openrust::foundation::ProviderRegistration;
+use openrust::foundation::RegisterContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use std::sync::Arc;
 
 /// 已编译模块清单的预装配声明，展开时点早于所有 Provider 回调。

@@ -3,8 +3,8 @@
 use std::fmt;
 
 use crate::core::{Error, Result};
-use crate::db::sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, Statement};
-use crate::db::{DatabaseConnection, Db};
+use crate::database::sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, Statement};
+use crate::database::{DatabaseConnection, Db};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
@@ -257,7 +257,7 @@ pub(crate) async fn revoke_all_for_user_in_transaction(
                 backend,
                 sql,
                 [
-                    crate::db::dialect::utc_value(backend, Utc::now()),
+                    crate::database::dialect::utc_value(backend, Utc::now()),
                     user_id.into(),
                 ],
             ))
@@ -532,7 +532,7 @@ async fn rotate_sqlite(
             DbBackend::Sqlite,
             sql,
             [
-                crate::db::dialect::utc_value(DbBackend::Sqlite, now),
+                crate::database::dialect::utc_value(DbBackend::Sqlite, now),
                 next_hash.into(),
                 token_hash.into(),
             ],
@@ -594,8 +594,8 @@ async fn insert_token(
                     user_id.into(),
                     family_id.into(),
                     token_hash.into(),
-                    crate::db::dialect::utc_value(backend, expires_at),
-                    crate::db::dialect::utc_value(backend, Utc::now()),
+                    crate::database::dialect::utc_value(backend, expires_at),
+                    crate::database::dialect::utc_value(backend, Utc::now()),
                 ],
             ))
             .await
@@ -671,7 +671,7 @@ pub(crate) async fn revoke_family_in_transaction(
                 backend,
                 sql,
                 [
-                    crate::db::dialect::utc_value(backend, Utc::now()),
+                    crate::database::dialect::utc_value(backend, Utc::now()),
                     family_id.into(),
                 ],
             ))
@@ -760,7 +760,7 @@ pub(crate) async fn revoke_family_for_locked_owner_in_transaction(
             return Err(Error::Unauthorized);
         }
     }
-    let (sql, values): (&str, Vec<crate::db::sea_orm::Value>) = match backend {
+    let (sql, values): (&str, Vec<crate::database::sea_orm::Value>) = match backend {
         DbBackend::Postgres => (
             "UPDATE tb_auth_refresh_tokens SET revoked_at=CURRENT_TIMESTAMP WHERE family_id=$1 AND user_id=$2 AND revoked_at IS NULL",
             vec![family_id.into(), expected_user_id.into()],
@@ -772,7 +772,7 @@ pub(crate) async fn revoke_family_for_locked_owner_in_transaction(
         DbBackend::Sqlite => (
             "UPDATE tb_auth_refresh_tokens SET revoked_at=? WHERE family_id=? AND user_id=? AND revoked_at IS NULL",
             vec![
-                crate::db::dialect::utc_value(backend, Utc::now()),
+                crate::database::dialect::utc_value(backend, Utc::now()),
                 family_id.into(),
                 expected_user_id.into(),
             ],
@@ -826,8 +826,9 @@ fn unsupported_backend() -> Error {
 #[cfg(all(test, feature = "db-sqlite"))]
 mod sqlite_tests {
     use super::*;
-    use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
-    use crate::{core::BoxFuture, testing::TestDatabase};
+    use crate::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use crate::support::BoxFuture;
+    use crate::testing::TestDatabase;
 
     struct RefreshMigrator;
     impl MigratorTrait for RefreshMigrator {
@@ -854,7 +855,7 @@ mod sqlite_tests {
         let outcome = async {
             db.initialize(guard.connection()?)?;
             let table = db.quoted_table_name("users")?;
-            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             let inserted = db.connection()?.execute_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
                 format!("INSERT INTO {table}(email,password_hash,created_at,updated_at) VALUES (?,?,?,?)"),
                 ["refresh-owned@example.test".into(),"unused-test-hash".into(),now.clone(),now]))
@@ -963,7 +964,7 @@ mod sqlite_tests {
 mod locked_owner_tests {
     use super::*;
     use crate::{
-        db::{
+        database::{
             sea_orm::{IsolationLevel, TransactionTrait},
             sea_orm_migration::{MigrationTrait, MigratorTrait},
         },
@@ -1011,7 +1012,7 @@ mod locked_owner_tests {
     )]
     async fn current_family_read_revokes_after_old_snapshot_and_rejects_wrong_owner() -> Result<()>
     {
-        let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+        let url = crate::test_database_environment::database_url().map_err(Error::internal)?;
         let database = TestDatabase::create::<Migrator>(&url).await?;
         let outcome: Result<()> = async {
             let connection = database.connection()?;
@@ -1343,7 +1344,7 @@ impl RefreshTokens {
         &self,
         transaction: &DatabaseTransaction,
         hash: &str,
-    ) -> Result<Option<crate::db::sea_orm::QueryResult>> {
+    ) -> Result<Option<crate::database::sea_orm::QueryResult>> {
         let backend = transaction.get_database_backend();
         let marker = if backend == DbBackend::Postgres {
             "$1"
@@ -1449,7 +1450,7 @@ impl RefreshTokens {
                 (
                     "UPDATE tb_auth_refresh_tokens SET consumed_at=?,replaced_by_hash=? WHERE token_hash=? AND user_id=? AND family_id=? AND consumed_at IS NULL AND revoked_at IS NULL",
                     vec![
-                        crate::db::dialect::utc_value(backend, Utc::now()),
+                        crate::database::dialect::utc_value(backend, Utc::now()),
                         hash.clone().into(),
                         locked.token_hash.into(),
                         locked.user_id.into(),
@@ -1631,7 +1632,7 @@ fn context_expiry_expression(backend: DbBackend) -> &'static str {
 }
 #[cfg(feature = "auth-fortify")]
 fn context_unexpired(
-    row: &crate::db::sea_orm::QueryResult,
+    row: &crate::database::sea_orm::QueryResult,
     backend: DbBackend,
     expiry: DateTime<Utc>,
 ) -> Result<bool> {
@@ -1691,8 +1692,8 @@ async fn insert_context_token(
                 user_id.into(),
                 family.into(),
                 hash.into(),
-                crate::db::dialect::utc_value(backend, expiry),
-                crate::db::dialect::utc_value(backend, Utc::now()),
+                crate::database::dialect::utc_value(backend, expiry),
+                crate::database::dialect::utc_value(backend, Utc::now()),
                 context.into(),
             ],
         ))
@@ -1725,7 +1726,7 @@ async fn revoke_context_family(
             backend,
             crate::auth::resolve_auth_sql(db, sql)?,
             [
-                crate::db::dialect::utc_value(backend, Utc::now()),
+                crate::database::dialect::utc_value(backend, Utc::now()),
                 family.into(),
                 user_id.into(),
             ],

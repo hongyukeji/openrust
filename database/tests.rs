@@ -1,14 +1,16 @@
 //! 应用升级走真实迁移命令，覆盖旧数据与回滚拒绝边界。
 
 use openrust::config::{FrameworkConfig, NoConfig};
-use openrust::core::{Application, DefaultProviders, ServiceProvider};
-use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
-use openrust::db::{DatabaseServiceProvider, FrameworkMigrator, MigrationServiceProvider};
+use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
+use openrust::database::{DatabaseServiceProvider, FrameworkMigrator, MigrationServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::support::DefaultProviders;
+use openrust::support::ServiceProvider;
 use openrust::testing::{TestApp, TestDatabase};
 use openrust::{Error, Result};
 
 struct MigrationApp;
-impl Application for MigrationApp {
+impl ApplicationDefinition for MigrationApp {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()

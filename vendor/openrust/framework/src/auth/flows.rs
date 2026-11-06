@@ -2,11 +2,14 @@
 
 use std::{sync::Arc, time::Duration};
 
-use crate::core::{BoxFuture, Error, RateLimiter, Result};
-use crate::db::Db;
+use crate::core::Error;
+use crate::core::RateLimiter;
+use crate::core::Result;
+use crate::database::Db;
 #[cfg(feature = "auth")]
-use crate::db::sea_orm::DatabaseTransaction;
-use crate::db::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
+use crate::database::sea_orm::DatabaseTransaction;
+use crate::database::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
+use crate::support::BoxFuture;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 #[cfg(feature = "auth-fortify")]
@@ -548,8 +551,8 @@ impl AuthFlows {
                 if backend == DbBackend::Sqlite {
                     let now = Utc::now();
                     vec![
-                        crate::db::dialect::utc_value(backend, now),
-                        crate::db::dialect::utc_value(backend, now),
+                        crate::database::dialect::utc_value(backend, now),
+                        crate::database::dialect::utc_value(backend, now),
                         email.into(),
                     ]
                 } else {
@@ -1763,7 +1766,7 @@ impl AuthFlows {
                         backend,
                         &crate::auth::resolve_auth_sql(&db, update)?,
                         if backend == DbBackend::Sqlite {
-                            vec![password_hash.into(), crate::db::dialect::utc_value(backend, Utc::now()), user_id.into()]
+                            vec![password_hash.into(), crate::database::dialect::utc_value(backend, Utc::now()), user_id.into()]
                         } else { vec![password_hash.into(), user_id.into()] },
                     )).await.map_err(Error::internal)?;
                     if result.rows_affected() != 1 {
@@ -1871,11 +1874,11 @@ impl Default for AuthFlowsServiceProvider {
     }
 }
 
-impl crate::core::ServiceProvider for AuthFlowsServiceProvider {
+impl crate::support::ServiceProvider for AuthFlowsServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let lifetime = self.refresh_lifetime;
             let policy = self.code_policy;
@@ -1938,7 +1941,10 @@ impl crate::core::ServiceProvider for AuthFlowsServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<AuthFlows>().await?;
             Ok(())
@@ -1949,14 +1955,14 @@ impl crate::core::ServiceProvider for AuthFlowsServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::ProviderBuilder;
+    use crate::foundation::ProviderBuilder;
 
     struct Dependencies(Arc<std::sync::atomic::AtomicUsize>);
-    impl crate::core::ServiceProvider for Dependencies {
+    impl crate::support::ServiceProvider for Dependencies {
         fn register<'a>(
             &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            app: &'a mut crate::foundation::RegisterContext<'_>,
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 use base64::Engine as _;
                 let db = Db::default();
@@ -1981,7 +1987,7 @@ mod provider_tests {
                 )))
                 .await?;
                 app.instance(Arc::new(RateLimiter::new(
-                    crate::db::DatabaseRateLimitStore::new(db),
+                    crate::database::DatabaseRateLimitStore::new(db),
                 )))
                 .await?;
                 let counter = Arc::clone(&self.0);
@@ -2203,8 +2209,8 @@ async fn insert_registered_user(
         let mut values = vec![email.into(), password_hash.into()];
         if backend == DbBackend::Sqlite {
             let now = Utc::now();
-            values.push(crate::db::dialect::utc_value(backend, now));
-            values.push(crate::db::dialect::utc_value(backend, now));
+            values.push(crate::database::dialect::utc_value(backend, now));
+            values.push(crate::database::dialect::utc_value(backend, now));
         }
         match transaction
             .execute_raw(Statement::from_sql_and_values(backend, &sql, values))
@@ -2308,7 +2314,7 @@ mod tests {
 #[cfg(all(test, feature = "db-sqlite"))]
 mod exact_input_login_tests {
     use super::*;
-    use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use crate::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 
     struct Migrations;
     impl MigratorTrait for Migrations {
@@ -2317,7 +2323,7 @@ mod exact_input_login_tests {
                 Box::new(crate::auth::AuthMigration),
                 Box::new(crate::auth::AuthRefreshTokenMigration),
                 Box::new(crate::auth::AuthVerificationCodeMigration),
-                Box::new(crate::db::DatabaseRateLimitMigration),
+                Box::new(crate::database::DatabaseRateLimitMigration),
             ]
         }
     }
@@ -2338,7 +2344,7 @@ mod exact_input_login_tests {
                 })?,
             );
             let hash = EncodedPasswordHash::make(hasher.as_ref(), "safe-password").await?;
-            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             db.table("users")?.insert(vec![
                 ("id", 42_i64.into()),
                 ("email", "present@example.test".into()),
@@ -2359,7 +2365,7 @@ mod exact_input_login_tests {
                 VerificationCodes::new(
                     crate::auth::DatabaseVerificationCodeStore::new(db.clone()), hasher,
                 ),
-                RateLimiter::new(crate::db::DatabaseRateLimitStore::new(db.clone())),
+                RateLimiter::new(crate::database::DatabaseRateLimitStore::new(db.clone())),
             );
             for email in ["present@example.test", "missing@example.test"] {
                 for password in ["a\0b".to_owned(), "x".repeat(73)] {
@@ -2395,7 +2401,7 @@ mod exact_input_login_tests {
                 })?,
             );
             let hash = EncodedPasswordHash::make(hasher.as_ref(), "safe-password").await?;
-            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             db.table("users")?
                 .insert(vec![
                     ("id", 42_i64.into()),
@@ -2436,7 +2442,7 @@ mod exact_input_login_tests {
                     crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
                     hasher,
                 ),
-                RateLimiter::new(crate::db::DatabaseRateLimitStore::new(db.clone())),
+                RateLimiter::new(crate::database::DatabaseRateLimitStore::new(db.clone())),
             );
             for email in ["present@example.test", "missing@example.test"] {
                 for password in [
@@ -2474,7 +2480,7 @@ mod exact_input_login_tests {
                 })?,
             );
             let hash = EncodedPasswordHash::make(hasher.as_ref(), "safe").await?;
-            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             db.table("users")?
                 .insert(vec![
                     ("id", 42_i64.into()),
@@ -2503,7 +2509,7 @@ mod exact_input_login_tests {
                     crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
                     hasher,
                 ),
-                RateLimiter::new(crate::db::DatabaseRateLimitStore::new(db.clone())),
+                RateLimiter::new(crate::database::DatabaseRateLimitStore::new(db.clone())),
             );
             for email in ["present@example.test", "missing@example.test"] {
                 assert!(matches!(

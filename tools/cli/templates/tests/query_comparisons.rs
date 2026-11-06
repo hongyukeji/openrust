@@ -2,7 +2,7 @@
 
 use openrust::{
     Result,
-    db::{
+    database::{
         Db,
         query::WhereOperator,
         sea_orm::{ConnectionTrait, TransactionTrait},

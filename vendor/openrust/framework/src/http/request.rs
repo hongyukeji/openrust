@@ -96,17 +96,17 @@ impl fmt::Debug for VaporRawQueryString {
 #[derive(Clone)]
 pub struct RequestInfo {
     secure: std::result::Result<bool, std::sync::Arc<Error>>,
-    proxy: super::proxy::ProxySnapshot,
-    trusted_hosts: super::trusted_hosts::TrustedHostsSnapshot,
+    proxy: crate::http::proxy::ProxySnapshot,
+    trusted_hosts: crate::http::trusted_hosts::TrustedHostsSnapshot,
     method: Method,
     uri: Uri,
     vapor_raw_query: Option<VaporRawQueryString>,
     headers: HeaderMap,
     acceptable: Vec<String>,
     cookies: serde_json::Value,
-    route: super::route::RouteSlot,
-    route_urls: Option<super::RouteUrlGenerator>,
-    precognition: super::precognition::PrecognitionState,
+    route: crate::routing::route::RouteSlot,
+    route_urls: Option<crate::routing::UrlGenerator>,
+    precognition: crate::http::precognition::PrecognitionState,
     #[cfg(feature = "session")]
     session: Option<crate::session::Session>,
     #[cfg(feature = "view")]
@@ -129,15 +129,18 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
         validate_header_size(&parts.headers)?;
         let acceptable = parse_accept(&parts.headers)?;
-        let parsed = match parts.extensions.get::<super::cookie::ParsedCookies>() {
+        let parsed = match parts.extensions.get::<crate::http::cookie::ParsedCookies>() {
             Some(parsed) => parsed.clone(),
-            None => super::cookie::parse_headers(&parts.headers)?,
+            None => crate::http::cookie::parse_headers(&parts.headers)?,
         };
         let mut headers = parts.headers.clone();
-        if super::proxy::platform_host(&parts.headers, &parts.uri) {
+        if crate::http::proxy::platform_host(&parts.headers, &parts.uri) {
             headers.remove("x-forwarded-host");
         }
-        if let Some(original) = parts.extensions.get::<super::cookie::OriginalCookies>() {
+        if let Some(original) = parts
+            .extensions
+            .get::<crate::http::cookie::OriginalCookies>()
+        {
             headers.remove(http::header::COOKIE);
             for value in &original.headers {
                 headers.append(http::header::COOKIE, value.clone());
@@ -145,14 +148,14 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
         }
         let route = parts
             .extensions
-            .get::<super::route::RouteSlot>()
+            .get::<crate::routing::route::RouteSlot>()
             .cloned()
             .unwrap_or_else(|| {
-                let slot = super::route::RouteSlot::default();
+                let slot = crate::routing::route::RouteSlot::default();
                 parts.extensions.insert(slot.clone());
                 slot
             });
-        let precognition = super::precognition::ensure_state(&mut parts.extensions);
+        let precognition = crate::http::precognition::ensure_state(&mut parts.extensions);
         #[cfg(feature = "view")]
         let view_errors = if let Some(errors) = parts
             .extensions
@@ -166,16 +169,16 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
         };
         let proxy = parts
             .extensions
-            .get::<super::proxy::ProxySnapshot>()
+            .get::<crate::http::proxy::ProxySnapshot>()
             .cloned()
             .unwrap_or_else(|| {
-                super::proxy::ProxySnapshot::capture(
+                crate::http::proxy::ProxySnapshot::capture(
                     &parts.headers,
                     &parts.uri,
                     &parts.extensions,
                     parts
                         .extensions
-                        .get::<crate::core::AppState>()
+                        .get::<crate::foundation::ApplicationState>()
                         .map(|state| &state.config().server),
                 )
             });
@@ -189,7 +192,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             proxy,
             trusted_hosts: parts
                 .extensions
-                .get::<super::trusted_hosts::TrustedHostsSnapshot>()
+                .get::<crate::http::trusted_hosts::TrustedHostsSnapshot>()
                 .cloned()
                 .unwrap_or_default(),
             method: parts.method.clone(),
@@ -202,7 +205,10 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             acceptable,
             cookies: parsed.value,
             route,
-            route_urls: parts.extensions.get::<super::RouteUrlGenerator>().cloned(),
+            route_urls: parts
+                .extensions
+                .get::<crate::routing::UrlGenerator>()
+                .cloned(),
             precognition,
             #[cfg(feature = "session")]
             session: parts.extensions.get::<crate::session::Session>().cloned(),
@@ -249,10 +255,10 @@ impl RequestInfo {
             .has_valid_signature_ignoring(self, absolute, ignore)
     }
 
-    pub(crate) fn route_urls(&self) -> Result<&super::RouteUrlGenerator> {
+    pub(crate) fn route_urls(&self) -> Result<&crate::routing::UrlGenerator> {
         self.route_urls
             .as_ref()
-            .ok_or_else(super::url::route_url_unavailable)
+            .ok_or_else(crate::routing::url_generator::route_url_unavailable)
     }
 
     /// 在当前请求共享的错误包中添加或替换命名包，随后渲染立即可见。
@@ -284,7 +290,7 @@ impl RequestInfo {
     }
 
     /// 取得当前实际匹配的路由；无业务命中返回 `None`。
-    pub fn route(&self) -> Result<Option<super::Route>> {
+    pub fn route(&self) -> Result<Option<crate::routing::Route>> {
         self.route.route()
     }
 
@@ -317,12 +323,12 @@ impl RequestInfo {
     }
 
     /// 取得当前路由解析器，可由可信应用包装或替换。
-    pub fn get_route_resolver(&self) -> Result<super::RouteResolver> {
+    pub fn get_route_resolver(&self) -> Result<crate::routing::RouteResolver> {
         self.route.resolver()
     }
 
     /// 为当前请求设置可信应用的路由解析器。
-    pub fn set_route_resolver(&self, resolver: super::RouteResolver) -> Result<()> {
+    pub fn set_route_resolver(&self, resolver: crate::routing::RouteResolver) -> Result<()> {
         self.route.set_resolver(resolver)
     }
     /// 是否安装本请求的Session句柄，不隐式创建会话。
@@ -452,7 +458,7 @@ impl RequestInfo {
         Ok(host)
     }
 
-    pub(crate) fn proxy_context(&self) -> Result<&super::proxy::ProxyContext> {
+    pub(crate) fn proxy_context(&self) -> Result<&crate::http::proxy::ProxyContext> {
         self.proxy
             .0
             .as_ref()

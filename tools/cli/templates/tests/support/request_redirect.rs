@@ -1,16 +1,24 @@
 //! 生成应用通过公开 Provider、Redirector 与 Session 错误包扩展验证跨请求业务流程。
 use figment::Figment;
 use openrust::config::SessionConfig;
-use openrust::core::{Application, BootContext, BoxFuture, RegisterContext, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::foundation::RegisterContext;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{HeaderMap, HeaderValue, Request, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use openrust::http::{
-    Json, RedirectErrors, Redirector, Request as InputRequest, RequestInfo, RouteGroup,
-    RouteUrlGenerator, Routes,
-};
+use openrust::http::Json;
+use openrust::http::RedirectErrors;
+use openrust::routing::Redirector;
+use openrust::http::Request as InputRequest;
+use openrust::http::RequestInfo;
+use openrust::routing::RouteGroup;
+use openrust::routing::UrlGenerator;
+use openrust::routing::Router;
 use openrust::session::{ErrorBagCodecs, MemorySessionStore, SessionServiceProvider};
 use openrust::support::{
     ArrayKey, Collection, MessageBag, MessageBagContract, MessageKeys, MessageLookup,
@@ -29,7 +37,7 @@ impl ServiceProvider for RedirectRoutes {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.extend::<ErrorBagCodecs, _>(|original, _resolver| {
                 Box::pin(async move {
@@ -49,7 +57,7 @@ impl ServiceProvider for RedirectRoutes {
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| {
+            app.routes(|routes: Router| {
                 routes.group(
                     RouteGroup::new()
                         .middleware_alias("cookies")
@@ -113,15 +121,15 @@ impl ServiceProvider for RedirectRoutes {
 }
 
 struct RedirectApplication<A>(std::marker::PhantomData<fn() -> A>);
-impl<A: Application> Application for RedirectApplication<A> {
+impl<A: ApplicationDefinition> ApplicationDefinition for RedirectApplication<A> {
     type Config = A::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         A::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         // 本测试显式使用隔离内存 Session，先排除同类型默认项以保留替换。
-        A::default_providers().except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+        A::default_providers().except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         A::package_providers(config)
@@ -138,7 +146,7 @@ impl<A: Application> Application for RedirectApplication<A> {
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers = A::providers(config);
         if !providers.iter().any(|provider| {
-            provider.id() == openrust::core::ProviderId::of::<SessionServiceProvider>()
+            provider.id() == openrust::foundation::ProviderId::of::<SessionServiceProvider>()
         }) {
             providers.push(Box::new(
                 SessionServiceProvider::with_store(MemorySessionStore::default())
@@ -153,7 +161,7 @@ impl<A: Application> Application for RedirectApplication<A> {
         providers.push(Box::new(RedirectRoutes));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
@@ -222,7 +230,7 @@ async fn action_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
 async fn plain(info: RequestInfo) -> openrust::Result<Response> {
     Ok(Redirector::from_info(&info).to("/api")?.into_response())
 }
-async fn signed_issue(urls: RouteUrlGenerator, info: RequestInfo) -> openrust::Result<Json<Value>> {
+async fn signed_issue(urls: UrlGenerator, info: RequestInfo) -> openrust::Result<Json<Value>> {
     let params = BTreeMap::from([("id".to_owned(), "42".to_owned())]);
     let target = urls.temporary_signed_route("generated.draft.signed", 300, &params, true)?;
     let redirect = Redirector::from_info(&info).signed_route("generated.draft.signed", &params)?;
@@ -405,7 +413,7 @@ fn cookie_pair(response: &TestResponse) -> Result<String, Box<dyn std::error::Er
         .ok_or("Session Cookie 格式无效")?
         .to_owned())
 }
-async fn get<A: Application>(
+async fn get<A: ApplicationDefinition>(
     app: &TestApp<A>,
     path: &str,
     cookie: Option<&str>,
@@ -441,7 +449,7 @@ fn assert_redirect(
     );
     Ok(())
 }
-async fn post_confirmation<A: Application>(
+async fn post_confirmation<A: ApplicationDefinition>(
     app: &TestApp<A>,
     cookie: &str,
 ) -> Result<TestResponse, Box<dyn std::error::Error>> {
@@ -458,7 +466,7 @@ async fn post_confirmation<A: Application>(
         )
         .await?)
 }
-async fn assert_navigation<A: Application>(
+async fn assert_navigation<A: ApplicationDefinition>(
     app: &TestApp<A>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // 仅读取 HTTPS Location，不请求不存在的 TLS 监听器。
@@ -515,7 +523,7 @@ async fn assert_navigation<A: Application>(
     Ok(())
 }
 
-async fn assert_refresh_and_away<A: Application>(
+async fn assert_refresh_and_away<A: ApplicationDefinition>(
     app: &TestApp<A>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let guide = get(
@@ -572,7 +580,7 @@ async fn assert_refresh_and_away<A: Application>(
     Ok(())
 }
 
-async fn assert_actions<A: Application>(
+async fn assert_actions<A: ApplicationDefinition>(
     app: &TestApp<A>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let summary = get(app, &format!("{PREFIX}/actions/summary"), None).await?;
@@ -633,7 +641,7 @@ async fn assert_actions<A: Application>(
 }
 
 /// 经生成应用 Provider、匿名动作/命名路由与 Session Cookie 验证回跳、闪存及错误包。
-pub async fn assert_request_redirect<A: Application>(
+pub async fn assert_request_redirect<A: ApplicationDefinition>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = source.merge(figment::providers::Serialized::defaults(

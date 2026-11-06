@@ -105,7 +105,7 @@ async fn prepare(layer: &CookieLayer, request: &mut Request) -> crate::Result<Co
     request.extensions_mut().insert(parsed);
     let scope = request
         .extensions()
-        .get::<Arc<crate::core::container::Scope>>()
+        .get::<Arc<crate::container::Scope>>()
         .cloned();
     let jar = match scope {
         Some(scope) => (*scope.resolve::<CookieJar>().await?).clone(),

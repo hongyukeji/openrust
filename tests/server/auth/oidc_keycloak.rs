@@ -1533,17 +1533,20 @@ async fn serve_keycloak_api_node(
     port: &str,
 ) -> TestResult {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    use openrust::{
-        auth::{
-            AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
-            JwtTokens, RefreshTokens, VerificationCodes,
-        },
-        config::EncryptionConfig,
-        config::FrameworkConfig,
-        core::RateLimiter,
-        database::{DatabaseRateLimitStore, DatabaseTableNames, Db},
-        security::Encryptor,
-    };
+    use openrust::auth::AuthFlows;
+    use openrust::auth::AuthFlowsServiceProvider;
+    use openrust::auth::DatabaseVerificationCodeStore;
+    use openrust::auth::JwtConfig;
+    use openrust::auth::JwtTokens;
+    use openrust::auth::RefreshTokens;
+    use openrust::auth::VerificationCodes;
+    use openrust::config::EncryptionConfig;
+    use openrust::config::FrameworkConfig;
+    use openrust::core::RateLimiter;
+    use openrust::database::DatabaseRateLimitStore;
+    use openrust::database::DatabaseTableNames;
+    use openrust::database::Db;
+    use openrust::encryption::Encrypter;
 
     let names = DatabaseTableNames::new(prefix, BTreeMap::new())?;
     let raw = openrust::database::sea_orm::Database::connect(database_url).await?;
@@ -1579,7 +1582,7 @@ async fn serve_keycloak_api_node(
         passwords.clone(),
     );
     let encryption_key = STANDARD.encode([0xa8_u8; 32]);
-    let encryptor = Encryptor::new(EncryptionConfig::new(
+    let encryptor = Encrypter::new(EncryptionConfig::new(
         "keycloak-test-key",
         BTreeMap::from([("keycloak-test-key".to_owned(), encryption_key)]),
     ))?;
@@ -1587,7 +1590,7 @@ async fn serve_keycloak_api_node(
         FrameworkConfig::default(),
     ))
     .merge(figment::providers::Serialized::defaults(serde_json::json!({"hashing":{"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}}})));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(TestInstance(std::sync::Arc::new(connection.clone())))
         .provider(TestInstance(passwords))
@@ -1602,7 +1605,7 @@ async fn serve_keycloak_api_node(
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let auth = (*app.state().resolve::<AuthFlows>().await?).clone();
     #[cfg(feature = "auth-fortify")]
     let parts = web::Parts::new(
@@ -1868,17 +1871,20 @@ async fn create_logout_app(
     provider: std::sync::Arc<OidcProvider>,
 ) -> std::result::Result<LogoutApp, Box<dyn StdError>> {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    use openrust::{
-        auth::{
-            AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
-            JwtTokens, RefreshTokens, VerificationCodes,
-        },
-        config::EncryptionConfig,
-        config::FrameworkConfig,
-        core::RateLimiter,
-        database::{DatabaseRateLimitStore, DatabaseTableNames, Db},
-        security::Encryptor,
-    };
+    use openrust::auth::AuthFlows;
+    use openrust::auth::AuthFlowsServiceProvider;
+    use openrust::auth::DatabaseVerificationCodeStore;
+    use openrust::auth::JwtConfig;
+    use openrust::auth::JwtTokens;
+    use openrust::auth::RefreshTokens;
+    use openrust::auth::VerificationCodes;
+    use openrust::config::EncryptionConfig;
+    use openrust::config::FrameworkConfig;
+    use openrust::core::RateLimiter;
+    use openrust::database::DatabaseRateLimitStore;
+    use openrust::database::DatabaseTableNames;
+    use openrust::database::Db;
+    use openrust::encryption::Encrypter;
 
     let names = DatabaseTableNames::new(prefix, BTreeMap::new())?;
     let database = openrust::testing::TestDatabase::create_with_table_names::<KeycloakMigrator>(
@@ -1919,7 +1925,7 @@ async fn create_logout_app(
         passwords.clone(),
     );
     let key = STANDARD.encode([0xa8_u8; 32]);
-    let encryptor = Encryptor::new(EncryptionConfig::new(
+    let encryptor = Encrypter::new(EncryptionConfig::new(
         "keycloak-test-key",
         BTreeMap::from([("keycloak-test-key".to_owned(), key)]),
     ))?;
@@ -1927,7 +1933,7 @@ async fn create_logout_app(
         FrameworkConfig::default(),
     ))
     .merge(figment::providers::Serialized::defaults(serde_json::json!({"hashing":{"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}}})));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(TestInstance(std::sync::Arc::new(connection.clone())))
         .provider(TestInstance(passwords))
@@ -1942,7 +1948,7 @@ async fn create_logout_app(
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let auth = (*app.state().resolve::<AuthFlows>().await?).clone();
     #[cfg(feature = "auth-fortify")]
     let parts = web::Parts::new(
@@ -3585,11 +3591,11 @@ fn decode_html_attribute(value: &str) -> String {
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+impl<T: Send + Sync + 'static> openrust::support::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::clone(&self.0)).await?;
             Ok(())

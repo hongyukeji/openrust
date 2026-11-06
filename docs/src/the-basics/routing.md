@@ -5,7 +5,7 @@
 在路由文件中声明方法、相对 URI 和处理器。例如根应用的 API 入口：
 
 ```rust
-pub(crate) fn register(routes: openrust::http::Routes) -> openrust::http::Routes {
+pub(crate) fn register(routes: openrust::routing::Router) -> openrust::routing::Router {
     routes.get("/", crate::app::http::controllers::application_info::index)
 }
 ```

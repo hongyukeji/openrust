@@ -96,7 +96,7 @@ async fn listen(fixture: &TestApp<RootApplication>) -> Result<(SocketAddr, Liste
         .await
         .map_err(Error::internal)?;
     let address = listener.local_addr().map_err(Error::internal)?;
-    let router = openrust::http::build_router(fixture.app()?)?;
+    let router = openrust::foundation::http::build_router(fixture.app()?)?;
     let (stop, stopped) = oneshot::channel();
     let task = tokio::spawn(async move {
         openrust::http::axum::serve(

@@ -23,11 +23,14 @@ use figment::providers::Format;
 use openrust::ServiceExt;
 #[path = "../../../config/mod.rs"]
 mod config;
-use openrust::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::http::build_router;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
-use openrust::http::build_router;
-use openrust::prelude::{Application, Json};
+use openrust::prelude::{ApplicationDefinition, Json};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 #[cfg(unix)]
 use openrust::tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[cfg(unix)]
@@ -177,11 +180,11 @@ fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
 
 struct ResourceMacroApp;
 
-impl Application for ResourceMacroApp {
+impl ApplicationDefinition for ResourceMacroApp {
     type Config = openrust::NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
     fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -240,7 +243,7 @@ async fn router() -> Result<openrust::http::axum::Router, openrust::Error> {
     })
 }
 
-async fn test_server() -> Result<openrust::App, openrust::Error> {
+async fn test_server() -> Result<openrust::Application, openrust::Error> {
     let source = openrust::config::ConfigLoader::application_code_sources(
         env!("CARGO_MANIFEST_DIR"),
         "APP_",
@@ -261,7 +264,7 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
         .extract::<apps::Configuration>()
         .map_err(openrust::config::ConfigError::from)?;
     let builder = ProviderBuilder::for_application::<apps::Server>(&configuration);
-    openrust::App::from_provider_runtime(builder.start(sources).await?)
+    openrust::Application::from_provider_runtime(builder.start(sources).await?)
 }
 
 #[test]
@@ -607,7 +610,8 @@ fn resource_macro_registers_controller_actions() -> TestResult {
     })
 }
 
-async fn test_application<A: Application>() -> Result<openrust::App, openrust::Error> {
+async fn test_application<A: ApplicationDefinition>()
+-> Result<openrust::Application, openrust::Error> {
     let loader = openrust::config::ConfigLoader::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
         openrust::config::Environment::Development,
@@ -618,7 +622,7 @@ async fn test_application<A: Application>() -> Result<openrust::App, openrust::E
     for provider in A::providers(&application_config) {
         builder.boxed_provider(provider);
     }
-    openrust::App::from_provider_runtime(
+    openrust::Application::from_provider_runtime(
         builder
             .start(crate::modules::example::test_sources(&(loader.figment()?))?)
             .await?,
@@ -636,8 +640,8 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
         let source = format!("[database]\nurl = {url:?}\n");
         let figment = Figment::new().merge(figment::providers::Toml::string(&source));
         let mut builder = ProviderBuilder::new();
-        builder.provider(openrust::db::DatabaseServiceProvider);
-        let app = openrust::App::from_provider_runtime(
+        builder.provider(openrust::database::DatabaseServiceProvider);
+        let app = openrust::Application::from_provider_runtime(
             builder
                 .start(crate::modules::example::test_sources(&(figment))?)
                 .await?,

@@ -5,8 +5,8 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     auth::CurrentUser,
     core::{Error, Result},
-    db::BatchReader,
-    db::sea_orm::{
+    database::BatchReader,
+    database::sea_orm::{
         self, ColumnTrait, Condition, ConnectionTrait, EntityTrait, Iterable, ModelTrait,
         PaginatorTrait, PrimaryKeyToColumn, QueryFilter, QueryOrder, QuerySelect, Related, Select,
         sea_query::SimpleExpr,
@@ -431,7 +431,7 @@ fn forbidden_scope() -> Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::sea_orm::{DbBackend, QueryTrait};
+    use crate::database::sea_orm::{DbBackend, QueryTrait};
 
     use super::*;
 

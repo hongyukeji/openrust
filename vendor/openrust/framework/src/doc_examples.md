@@ -42,9 +42,9 @@ let mut events = openrust::events::EventsServiceProvider::new();
 events.listen_queued::<UserRegistered, WelcomeEmailJob, _>("mail", |event| {
     Ok(WelcomeEmailJob { user_id: event.user_id })
 });
-let mut builder = openrust::core::ProviderBuilder::new();
+let mut builder = openrust::foundation::ProviderBuilder::new();
 builder.provider(openrust::queue::QueueServiceProvider::new()).provider(events);
-let app = openrust::App::from_provider_runtime(builder.start(config).await?)?;
+let app = openrust::Application::from_provider_runtime(builder.start(config).await?)?;
 let events = app.state().resolve::<openrust::events::Events>().await?;
 
 db.transaction(|transaction| {
@@ -62,9 +62,11 @@ db.transaction(|transaction| {
 
 ```rust
 use openrust::http::{Inject, Json};
-use openrust::i18n::{I18n, MessageArgs, RequestLocale};
+use openrust::translation::Translator;
+use openrust::translation::MessageArgs;
+use openrust::translation::RequestLocale;
 
-async fn greeting(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<String> {
+async fn greeting(locale: RequestLocale, Inject(i18n): Inject<Translator>) -> Json<String> {
     let args = MessageArgs::from([("name".to_owned(), "Ada".to_owned())]);
     Json(locale.translate(&i18n, "app.greeting", &args))
 }

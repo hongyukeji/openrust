@@ -2,7 +2,7 @@
 use crate::app::http::controllers::home::index as root;
 use openrust::prelude::*;
 
-pub fn register(routes: Routes) -> Routes {
+pub fn register(routes: Router) -> Router {
     routes
         .get("/", root)
         .post("/auth/register", auth_register)

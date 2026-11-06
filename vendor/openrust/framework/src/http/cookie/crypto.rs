@@ -5,7 +5,7 @@ use serde_json::Value;
 pub(crate) enum Protection {
     Plain,
     #[cfg(feature = "encryption")]
-    Encrypted(crate::security::Encryptor),
+    Encrypted(crate::encryption::Encrypter),
 }
 
 // 由真实 Cookie 层建立的保护事实；不包含密钥或请求对象。
@@ -104,7 +104,7 @@ fn visit_root(root: &mut Value, mut visit: impl FnMut(&str, &mut Value)) {
 
 // false仅代表DecryptException类别，交根调用者把整个根cookie置null。
 #[cfg(feature = "encryption")]
-fn decrypt_node(encryptor: &crate::security::Encryptor, node: &mut Value, name: &str) -> bool {
+fn decrypt_node(encryptor: &crate::encryption::Encrypter, node: &mut Value, name: &str) -> bool {
     match node {
         Value::String(ciphertext) => {
             let Ok(plaintext) = encryptor.decrypt_with_context(ciphertext, COOKIE_DOMAIN) else {
@@ -149,8 +149,8 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use serde_json::json;
 
-    fn encryptor(active: &str) -> crate::Result<crate::security::Encryptor> {
-        crate::security::Encryptor::new(crate::config::EncryptionConfig::new(
+    fn encryptor(active: &str) -> crate::Result<crate::encryption::Encrypter> {
+        crate::encryption::Encrypter::new(crate::config::EncryptionConfig::new(
             active,
             [
                 ("old".to_owned(), STANDARD.encode([7u8; 32])),

@@ -2,25 +2,31 @@
 
 use std::time::{Duration, SystemTime};
 
-use openrust::{
-    Application, BoxFuture, Error, NoConfig, Result,
-    auth::{
-        AuthCredential, AuthLayer, AuthMode, AuthPrincipal, AuthServiceProvider, Authenticator,
-        CurrentUser,
-    },
-    config::RealtimeConfig,
-    core::{BootContext, ServiceProvider},
-    http::{
-        HttpServiceProvider,
-        axum::{
-            extract::{Path, ws::WebSocketUpgrade},
-            http::HeaderMap,
-            response::{IntoResponse, Response},
-        },
-    },
-    prelude::{Inject, Json, Realtime},
-    realtime::RealtimeServiceProvider,
-};
+use openrust::ApplicationDefinition;
+use openrust::BoxFuture;
+use openrust::Error;
+use openrust::NoConfig;
+use openrust::Result;
+use openrust::auth::AuthCredential;
+use openrust::auth::AuthLayer;
+use openrust::auth::AuthMode;
+use openrust::auth::AuthPrincipal;
+use openrust::auth::AuthServiceProvider;
+use openrust::auth::Authenticator;
+use openrust::auth::CurrentUser;
+use openrust::config::RealtimeConfig;
+use openrust::foundation::BootContext;
+use openrust::http::HttpServiceProvider;
+use openrust::http::axum::extract::Path;
+use openrust::http::axum::extract::ws::WebSocketUpgrade;
+use openrust::http::axum::http::HeaderMap;
+use openrust::http::axum::response::IntoResponse;
+use openrust::http::axum::response::Response;
+use openrust::prelude::Inject;
+use openrust::prelude::Json;
+use openrust::prelude::Realtime;
+use openrust::realtime::RealtimeServiceProvider;
+use openrust::support::ServiceProvider;
 use serde_json::{Value, json};
 
 struct RealtimeNode;
@@ -55,11 +61,11 @@ impl Authenticator for TokenAuthenticator {
     }
 }
 
-impl Application for RealtimeNode {
+impl ApplicationDefinition for RealtimeNode {
     type Config = NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
     fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {

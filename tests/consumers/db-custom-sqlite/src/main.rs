@@ -1,10 +1,15 @@
 use figment::Figment;
-use openrust::core::{App, Error, ProviderBuilder, RegisterContext, Result, ServiceProvider};
+use openrust::core::Error;
+use openrust::core::Result;
 use openrust::database::{
     DatabaseTableNames, DbBackend, MigrationServiceProvider, PageContext, SortDirection, sea_orm,
     sea_orm_migration, with_page_context,
 };
+use openrust::foundation::Application;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::RegisterContext;
 use openrust::prelude::Db;
+use openrust::support::ServiceProvider;
 use sea_orm::{ConnectionTrait, Database, Statement};
 use sea_orm_migration::prelude::*;
 
@@ -72,7 +77,7 @@ impl ServiceProvider for CustomSqliteProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.singleton::<Db, _>(|resolver| {
                 Box::pin(async move {
@@ -105,7 +110,7 @@ async fn main() -> Result<()> {
     builder
         .provider(CustomSqliteProvider)
         .provider(MigrationServiceProvider::<Migrator>::new());
-    let app = App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+    let app = Application::from_provider_runtime(builder.start(Figment::new()).await?)?;
     let db = app.state().resolve::<Db>().await?;
     assert_eq!(db.backend()?, DbBackend::Sqlite);
     assert_eq!(db.quoted_table_name("entries")?, "\"tb_entries\"");

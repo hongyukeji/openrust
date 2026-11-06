@@ -7,7 +7,7 @@
 `where` 是 Rust 关键字，默认相等条件使用 `r#where`；三个参数的显式比较使用 `where_compare`：
 
 ```rust,ignore
-use openrust::db::query::WhereOperator;
+use openrust::database::query::WhereOperator;
 
 let rows = db.table("users")?
     .r#where("active", true)?
@@ -30,7 +30,7 @@ let rows = db.table("users")?
 用 `MultiComparison::eq` 指定相同的等值条件，或用 `compare` 指定操作符：
 
 ```rust,ignore
-use openrust::db::query::{MultiComparison, WhereOperator};
+use openrust::database::query::{MultiComparison, WhereOperator};
 
 let rows = db.table("users")?
     .where_any(["name", "email"], MultiComparison::compare(WhereOperator::Like, "%Taylor%"))?
@@ -48,7 +48,7 @@ let rows = db.table("users")?
 Rust 没有 PHP 的可变实参与动态操作符猜参，`MultiComparison::Omitted` 明确表示省略操作符和值，`eq(None::<i64>)` 表示明确的 SQL NULL 等值。两者对列闭包有不同含义：
 
 ```rust,ignore
-use openrust::db::query::{MultiColumn, MultiComparison};
+use openrust::database::query::{MultiColumn, MultiComparison};
 
 let columns = [
     MultiColumn::callback(|query| query.r#where("name", "Taylor")),
@@ -68,7 +68,7 @@ let rows = db.table("users")?
 `Db::query()` 创建真正没有 FROM 的查询；`from` 使用与 `Db::table` 相同的逻辑表名映射。没有 FROM 的写操作明确拒绝。使用 `select_raw` 表达可信 SQL 投影，并把值单独绑定：
 
 ```rust,ignore
-use openrust::db::query::RawSql;
+use openrust::database::query::RawSql;
 
 let rows = db.query()
     .select_raw(RawSql::new("? AS amount"), vec![7_i64.into()])?
@@ -118,7 +118,7 @@ let rows = db.table("products")?
 `ColumnOperand` 接受列名、显式可信的 `RawSql` 和查询构造器。混合操作数时先转换类型：
 
 ```rust,ignore
-use openrust::db::query::{ColumnOperand, RawSql};
+use openrust::database::query::{ColumnOperand, RawSql};
 
 let rows = db.table("products")?
     .where_between_columns("weight", [
@@ -134,7 +134,7 @@ let rows = db.table("products")?
 let latest = db.table("measurements")?
     .select(&["weight"])?
     .where_eq("product_id", 42)?
-    .order_by("id", openrust::db::SortDirection::Desc)?
+    .order_by("id", openrust::database::SortDirection::Desc)?
     .limit(1);
 let rows = db.table("products")?
     .where_between_columns(&latest, ["minimum_weight", "maximum_weight"])?
@@ -175,7 +175,7 @@ let has_no_pending = query.doesnt_exist().await?;
 `exists_or` 在查询存在行时直接返回 `ExistsOrResult::True`，没有行时才调用异步闭包；`doesnt_exist_or` 在没有行时直接返回 `True`，有行时才调用闭包。每次只执行一次存在性查询，短路分支连闭包的 Future 都不创建。
 
 ```rust,ignore
-use openrust::db::query::ExistsOrResult;
+use openrust::database::query::ExistsOrResult;
 
 let result = query.exists_or(|| async { Ok("没有待处理订单") }).await?;
 match result {

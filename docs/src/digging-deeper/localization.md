@@ -2,7 +2,7 @@
 
 ## 简介
 
-应用、模块与框架错误共用 `I18n` 和当前语言作用域。默认文件消息不要求数据库或 Redis；数据库翻译来源仍在开发，不能按文件消息的验收推断其已经可用。当前章节说明语言选择与统一错误显示，完整 Laravel Localization 仍有后续对应范围。
+应用、模块与框架错误共用 `Translator` 和当前语言作用域。默认文件消息不要求数据库或 Redis；数据库翻译来源仍在开发，不能按文件消息的验收推断其已经可用。当前章节说明语言选择与统一错误显示，完整 Laravel Localization 仍有后续对应范围。
 
 ## 配置语言
 
@@ -10,22 +10,23 @@
 
 ```rust
 use openrust::config::{ConfigContext, ConfigError};
-use openrust::i18n::{I18nConfig, Locale};
+use openrust::translation::TranslationConfig;
+use openrust::translation::Locale;
 
-pub fn config(_ctx: &ConfigContext) -> Result<I18nConfig, ConfigError> {
-    Ok(I18nConfig {
+pub fn config(_ctx: &ConfigContext) -> Result<TranslationConfig, ConfigError> {
+    Ok(TranslationConfig {
         default_locale: Locale::new("zh-CN")?,
         fallback_locale: Locale::new("en")?,
     })
 }
 ```
 
-`I18nServiceProvider` 将同一个应用服务接入异常 Handler。需要通过公开异常渲染入口复用策略时，可读取 `App::exception_handler()`；该引用来自已登记的应用策略，未登记时返回 `None`，不会另建默认 Handler。HTTP 请求从 `Accept-Language` 协商已支持语言；没有语言头或请求语言不受支持时采用配置默认值。精确语言候选先于同语言候选；所选语言缺少消息时再查配置回退语言。
+`TranslationServiceProvider` 将同一个应用服务接入异常 Handler。需要通过公开异常渲染入口复用策略时，可读取 `Application::exception_handler()`；该引用来自已登记的应用策略，未登记时返回 `None`，不会另建默认 Handler。HTTP 请求从 `Accept-Language` 协商已支持语言；没有语言头或请求语言不受支持时采用配置默认值。精确语言候选先于同语言候选；所选语言缺少消息时再查配置回退语言。
 
 命令或后台任务可在共享服务的作用域中选择语言，不改进程全局默认：
 
 ```rust,ignore
-let locale = openrust::i18n::Locale::new("zh-CN")?;
+let locale = openrust::translation::Locale::new("zh-CN")?;
 i18n.with_locale(locale, async {
     // 在这里调用复用同一 I18n 的业务或框架服务。
 }).await;
@@ -37,7 +38,7 @@ i18n.with_default_locale(async {
 
 ## 语言文件与消息读取
 
-唯一示例的消息位于 `modules/example/lang/en.json`、`zh-CN.json`，通过模块 Provider 登记 `example` 命名空间。处理器使用 `RequestLocale` 与共享 `I18n` 读取消息，不直接按请求头拼文件名。发布覆盖、命名空间与默认目录遵循当前模块资源机制；完整可替换 Loader 和数据库来源另行交付。
+唯一示例的消息位于 `modules/example/lang/en.json`、`zh-CN.json`，通过模块 Provider 登记 `example` 命名空间。处理器使用 `RequestLocale` 与共享 `Translator` 读取消息，不直接按请求头拼文件名。发布覆盖、命名空间与默认目录遵循当前模块资源机制；完整可替换 Loader 和数据库来源另行交付。
 
 消息支持具名参数及当前已实现的有限 plural/select 模板。缺失键返回键本身，合法空字符串不等于缺失。不要把业务诊断文本直接用作未登记的翻译键，也不要另建与框架错误分离的翻译器。
 

@@ -2,9 +2,12 @@
 #![cfg(feature = "view")]
 
 use figment::{Figment, providers::Serialized};
-use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
 use openrust::http::axum;
 use openrust::http::axum::http::StatusCode;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use std::{path::PathBuf, time::Duration};
 use tokio::sync::oneshot;
@@ -14,13 +17,13 @@ const BUDGET: Duration = Duration::from_secs(5);
 const PRIVATE: &str = "PRIVATE_TEMPLATE_SENTINEL";
 
 struct ViewApplication;
-impl Application for ViewApplication {
-    type Config = <crate::bootstrap::Server as Application>::Config;
+impl ApplicationDefinition for ViewApplication {
+    type Config = <crate::bootstrap::Server as ApplicationDefinition>::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         crate::bootstrap::Server::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         crate::bootstrap::Server::default_providers()
     }
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -28,7 +31,10 @@ impl Application for ViewApplication {
         providers.push(Box::new(ViewErrors));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
@@ -124,6 +130,7 @@ impl Fixture {
         let mut framework = openrust::config::FrameworkConfig::default();
         framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let source_config = Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
+            "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
             "app":{"env":"test"},"application_root":directory.path(),
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
@@ -135,7 +142,7 @@ impl Fixture {
         )?)
         .build()
         .await?;
-        let router = openrust::http::build_router(app.app()?)?;
+        let router = openrust::foundation::http::build_router(app.app()?)?;
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let origin = format!("http://{}", listener.local_addr()?);
         let (stop, stopped) = oneshot::channel();

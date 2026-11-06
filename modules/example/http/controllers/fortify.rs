@@ -3,9 +3,10 @@
 use openrust::auth::fortify::{
     ConfirmPasswordViewResponse, LoginViewResponse, TwoFactorChallengeViewResponse,
 };
-use openrust::core::BoxFuture;
+use openrust::http::Request;
 use openrust::http::axum::response::{Html, IntoResponse, Response};
-use openrust::http::{Redirector, Request};
+use openrust::routing::Redirector;
+use openrust::support::BoxFuture;
 use openrust::support::{MessageValue, ViewErrorBag};
 use openrust::{Error, Result};
 use std::collections::BTreeMap;
@@ -200,10 +201,16 @@ fn document(title: &str, forms: &str, errors: &str) -> String {
 mod tests {
     use super::*;
     use openrust::config::{FrameworkConfig, NoConfig, SessionConfig};
-    use openrust::core::{Application, BootContext, DefaultProviders, ServiceProvider};
-    use openrust::http::{CookieServiceProvider, HttpServiceProvider, Path, RouteGroup};
+    use openrust::foundation::ApplicationDefinition;
+    use openrust::foundation::BootContext;
+    use openrust::http::CookieServiceProvider;
+    use openrust::http::HttpServiceProvider;
+    use openrust::http::Path;
+    use openrust::routing::RouteGroup;
     use openrust::session::{MemorySessionStore, SessionServiceProvider};
+    use openrust::support::DefaultProviders;
     use openrust::support::MessageBag;
+    use openrust::support::ServiceProvider;
     use openrust::testing::TestApp;
     use std::time::Duration;
 
@@ -234,7 +241,7 @@ mod tests {
     }
 
     struct ViewApp;
-    impl Application for ViewApp {
+    impl ApplicationDefinition for ViewApp {
         type Config = NoConfig;
         fn default_providers() -> DefaultProviders {
             DefaultProviders::empty()

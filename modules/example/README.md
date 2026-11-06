@@ -8,7 +8,7 @@
 
 `modules/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `modules/<业务>/` 调用框架公开 API，以及通过公开 Provider/driver 契约扩展框架。框架、应用宿主和业务模块都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。
 
-`ServiceProvider::register` 返回 `BoxFuture`，依赖绑定使用 `RegisterContext` 的异步 `instance`、`singleton` 等方法并在登记位置 `await?`。应用启动后可用 `App::register_provider` 登记新 Provider；相同类型普通登记保留首次实例，显式 `force_register_provider` 则重新执行登记并更新后续解析的服务。已持有的 `Arc` 保留原实例。现有模块回归以 `ExampleMessage` 和 `GET /api/example` 验证同一应用中的更新；已构建的 HTTP Router 是快照，业务应在构建 Router 前完成需要反映在路由表中的登记。
+`ServiceProvider::register` 返回 `BoxFuture`，依赖绑定使用 `RegisterContext` 的异步 `instance`、`singleton` 等方法并在登记位置 `await?`。应用启动后可用 `openrust::foundation::Application::register_provider` 登记新 Provider；相同类型普通登记保留首次实例，显式 `force_register_provider` 则重新执行登记并更新后续解析的服务。已持有的 `Arc` 保留原实例。现有模块回归以 `ExampleMessage` 和 `GET /api/example` 验证同一应用中的更新；已构建的 HTTP Router 是快照，业务应在构建 Router 前完成需要反映在路由表中的登记。
 
 配置仓储的原始读写与严格类型读取语义见[配置说明](../../vendor/openrust/framework/src/config/README.md)。模块自有的 [`config/mod.rs`](config/mod.rs) 通过统一清单写入 `example.feature`，`GET /api/example/config-feature` 通过公开配置仓储读取其固定 `enabled` 字段；模块未启用时该路由不存在。TOML 递归发现仅由显式附加的旧来源处理，不参与本模块默认引导。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
 
@@ -16,7 +16,7 @@
 
 启用 `queue` 时，模块始终通过同容器 `QueueContributions` 登记普通 heartbeat 任务，`POST /api/example/jobs/heartbeat` 经公开 `Queue` 派发；登记不要求默认数据库。标准构建包含数据库与 Redis 队列驱动，`QUEUE_CONNECTION=redis` 选择 Redis，`cargo run -- queue work redis --queue example` 执行该队列。Article 索引与数据库调度仍只在配置默认数据库时贡献；Redis worker 不因目录存在调度而被拒绝，实际事务型调度对 Redis 的限制在调度执行时报告。真实 Redis 无默认数据库的 HTTP→派发→handler→确认回归位于 `tests/database_selection_flows.rs`，必须显式提供服务运行，默认 ignored 不代表已验收。
 
-`GET /api/example/route-url` 展示命名路由：`GET /api/example` 注册为 `example.index`，处理器从请求提取 `RouteUrlGenerator` 并生成该名称对应的绝对 URL。
+`GET /api/example/route-url` 展示命名路由：`GET /api/example` 注册为 `example.index`，处理器从请求提取 `UrlGenerator` 并生成该名称对应的绝对 URL。
 
 `POST /api/example/message-bag` 是不依赖数据库或 Session 的业务错误聚合示例。请求可传 `{"title":"","email":"bad","record_id":0}`；[`controllers/example.rs`](http/controllers/example.rs) 自行判断创建表单字段和更新记录编号，再用公开 `MessageBag` 收集错误。重复调用 `add` 不增加同键同文案，`merge` 保留导入的重复消息；`ViewErrorBag` 将创建错误放在 `default`、更新错误放在 `update`，读取不存在的包只得到临时空包。响应展示键顺序、`first`、`all`、`unique`、格式化和 `to_json`；缺失键的 `first` 返回空字符串，格式参数 `"0"` 沿用当前格式，空键选择在非空包上为真、空包上为假。[模块 HTTP 回归](tests/message_bag_flows.rs)直接请求这条正式路由。开发者在自己的 `modules/<模块名>/http/controllers/` 编写业务判断，在该模块 `routes/api.rs` 挂载处理器，只需调用 `openrust::support` 的公开接口；此例是错误消息聚合参考，不替代真实 Validator、FormRequest 或自动重定向。
 
@@ -26,7 +26,7 @@
 
 `GET /api/example/middleware` 展示模块 Provider 如何通过 `BootContext::middleware_alias` 登记自有 Tower middleware、通过 `middleware_group` 组合，再由模块路由选择应用；集成测试验证只有该路由返回 `x-example-middleware: named-group`。
 
-`GET /example/pages/about` 是可选页面路由；`/example/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Routes::fallback` 的写法。
+`GET /example/pages/about` 是可选页面路由；`/example/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Router::fallback` 的写法。
 
 模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::configure_providers 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
@@ -129,7 +129,7 @@ python3 -B modules/example/tests/browser_cookie_session.py \
 
 ## 从真实调用链开始
 
-根 [`src/main.rs`](../../src/main.rs) 运行同一 `bootstrap::Server`；`Application::configure_providers` 调用模块 [`manifest`](mod.rs)，将 [`module.json`](module.json) 的 `ExampleModuleServiceProvider` 绑定到已编译实现。包 register 实际发现、选择并注册父/子 Provider，随后执行已编译 [`module_init.rs`](module_init.rs)，不是手调生命周期。业务 boot 从同一 ModuleRepository 读取实际清单目录；metadata.module_directory 仅覆盖文件包含路径，发布目录仍基于 application_root。状态文件路径独立配置；禁用只影响新执行，宿主 `/api` 保留。`GET /api/example/module-initialization` 只读返回初始化及业务注册观察值，沿真实 Inject 读取同一 Container。
+根 [`src/main.rs`](../../src/main.rs) 运行同一 `bootstrap::Server`；`ApplicationDefinition::configure_providers` 调用模块 [`manifest`](mod.rs)，将 [`module.json`](module.json) 的 `ExampleModuleServiceProvider` 绑定到已编译实现。包 register 实际发现、选择并注册父/子 Provider，随后执行已编译 [`module_init.rs`](module_init.rs)，不是手调生命周期。业务 boot 从同一 ModuleRepository 读取实际清单目录；metadata.module_directory 仅覆盖文件包含路径，发布目录仍基于 application_root。状态文件路径独立配置；禁用只影响新执行，宿主 `/api` 保留。`GET /api/example/module-initialization` 只读返回初始化及业务注册观察值，沿真实 Inject 读取同一 Container。
 
 `GET /api/example/module-state` 经公开 `Inject<ModuleRepository>` 与共享日志服务返回 `data` 中的 `name`、`enabled`、`loaded`、`events`。这是只读业务接口，持久写只通过核心命令或公开模块管理 API。`ModuleStateServiceProvider` 与父 Provider 的同一个 `EventsServiceProvider` 共享日志；命名监听 `modules.example.*` 追加生命周期事件，适用时再向该 Provider 追加原文章事务/队列监听，不另建事件 bus。
 
@@ -173,9 +173,9 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 文章 HTTP 创建、更新和删除的完整事务结果使用既有 tracing span 记录固定操作与结果；启用 `metrics` 时产生 `example_article_operations_total` 与 `example_article_operation_duration_seconds`。标签仅有 `operation`、`outcome`，不包含账户、文章 ID、邮件地址、正文或错误内容。取消记为未完成的 `cancelled`，不推断数据库回滚；批量导入事务内的单次 `create_in_transaction` 不提前记作已提交。`/metrics` 仍须按框架配置显式开放并限制采集网络。
 
-编译 `encryption` 时，所有者可通过 `PUT/GET /api/example/articles/{id}/private-note` 保存和读取私密备注。主库只保存 `Encryptor` 密文；认证上下文固定绑定 owner ID 与文章 ID，列表和公开文章资源均不包含备注或密文。私密备注输入最多 10,000 字符，越权与不存在返回 404；响应明确设置 `Cache-Control: private, no-store` 与 `nosniff`。双库真实 HTTP 回归还验证密文不能在另一文章上下文解密。密钥需由应用安全配置，测试密钥不适用于生产。
+编译 `encryption` 时，所有者可通过 `PUT/GET /api/example/articles/{id}/private-note` 保存和读取私密备注。主库只保存 `Encrypter` 密文；认证上下文固定绑定 owner ID 与文章 ID，列表和公开文章资源均不包含备注或密文。私密备注输入最多 10,000 字符，越权与不存在返回 404；响应明确设置 `Cache-Control: private, no-store` 与 `nosniff`。双库真实 HTTP 回归还验证密文不能在另一文章上下文解密。密钥需由应用安全配置，测试密钥不适用于生产。
 
-编译 `storage-local` 时，所有者可通过 `PUT/GET/DELETE /api/example/articles/{id}/attachment` 上传、下载和删除一份 UTF-8 文本附件。所有者还可通过 `PUT /api/example/articles/{id}/attachment/visibility` 与 JSON `{"visibility":"public"}` 或 `{"visibility":"private"}` 修改当前租户附件的实际可见性；同一文章的非所有者收到 404，存储权限失败按框架错误返回。服务端构造 `example/` 前缀下 owner/文章专属对象 key，拒绝客户端文件名和其他 MIME；流大小 1 MiB、分块 16 KiB，逐块校验 UTF-8 与控制字符。下载强制固定文件名、`nosniff` 与 `private, no-store`。上传与文章删除使用同一文章行锁串行化；文章删除在数据库事务中写入持久清理意图，提交后才删除对象。上传在 App 资源所有者中受管运行并保留启动时的租户作用域；15 秒 HTTP 等待截止后发布任务继续收尾，文章删除需等该任务完成。45 秒期限约束请求体读取至 EOF；EOF 与期限由共享原子状态仲裁：期限先获胜时，流不能以正常 EOF 交给 storage，因此不会进入对象发布；EOF 先获胜时，发布任务继续持有数据库锁直到存储调用收敛，不因 HTTP 等待超时释放事务。真实 MinIO 代理暂停签名 CopyObject、确认其已向 MinIO 返回成功状态后，PostgreSQL 18 与 MySQL 8.4 各自的竞态回归验证 DELETE 等待复制完成，并在删除后确认最终 key 不存在且 staging 已清理。请求体挂起的 deadline/锁释放回归在 PostgreSQL/MySQL 也各通过 1/1。App shutdown 到达自身 deadline 后仍可能中止任务；进程被强杀、MinIO 永久无响应、网络请求永不收敛，或 CopyObject 已发送后返回 `storage_publication_uncertain` 且远端稍后完成时，不保证数据库与对象存储原子提交或自动消除孤儿。已提交文章删除的清理意图可由 `example attachments reconcile` 幂等重试；重用文章 ID 时，遗留意图会阻止新附件上传并拒绝清理，避免误删新对象。此机制不等于病毒或敏感信息扫描。本地附件回归使用生产 Router 的 `TestApp` 与真实 PostgreSQL/MySQL；S3 回归另外使用隔离 MinIO bucket，包含两独立 App 的真实 TCP 分块上传、下载与越权拒绝、挂起新对象不可见、挂起覆盖保留旧对象、复制在途时删除等待并清理、取消及持久清理意图恢复。S3 路径目前仍需同时编译 `storage-local` 与 `storage-s3`，并显式把默认 disk 配成 S3；发布与运维边界见 [存储说明](../../vendor/openrust/framework/src/storage/README.md)。
+编译 `storage-local` 时，所有者可通过 `PUT/GET/DELETE /api/example/articles/{id}/attachment` 上传、下载和删除一份 UTF-8 文本附件。所有者还可通过 `PUT /api/example/articles/{id}/attachment/visibility` 与 JSON `{"visibility":"public"}` 或 `{"visibility":"private"}` 修改当前租户附件的实际可见性；同一文章的非所有者收到 404，存储权限失败按框架错误返回。服务端构造 `example/` 前缀下 owner/文章专属对象 key，拒绝客户端文件名和其他 MIME；流大小 1 MiB、分块 16 KiB，逐块校验 UTF-8 与控制字符。下载强制固定文件名、`nosniff` 与 `private, no-store`。上传与文章删除使用同一文章行锁串行化；文章删除在数据库事务中写入持久清理意图，提交后才删除对象。上传在 App 资源所有者中受管运行并保留启动时的租户作用域；15 秒 HTTP 等待截止后发布任务继续收尾，文章删除需等该任务完成。45 秒期限约束请求体读取至 EOF；EOF 与期限由共享原子状态仲裁：期限先获胜时，流不能以正常 EOF 交给 storage，因此不会进入对象发布；EOF 先获胜时，发布任务继续持有数据库锁直到存储调用收敛，不因 HTTP 等待超时释放事务。真实 MinIO 代理暂停签名 CopyObject、确认其已向 MinIO 返回成功状态后，PostgreSQL 18 与 MySQL 8.4 各自的竞态回归验证 DELETE 等待复制完成，并在删除后确认最终 key 不存在且 staging 已清理。请求体挂起的 deadline/锁释放回归在 PostgreSQL/MySQL 也各通过 1/1。App shutdown 到达自身 deadline 后仍可能中止任务；进程被强杀、MinIO 永久无响应、网络请求永不收敛，或 CopyObject 已发送后返回 `storage_publication_uncertain` 且远端稍后完成时，不保证数据库与对象存储原子提交或自动消除孤儿。已提交文章删除的清理意图可由 `example attachments reconcile` 幂等重试；重用文章 ID 时，遗留意图会阻止新附件上传并拒绝清理，避免误删新对象。此机制不等于病毒或敏感信息扫描。本地附件回归使用生产 Router 的 `TestApp` 与真实 PostgreSQL/MySQL；S3 回归另外使用隔离 MinIO bucket，包含两独立 App 的真实 TCP 分块上传、下载与越权拒绝、挂起新对象不可见、挂起覆盖保留旧对象、复制在途时删除等待并清理、取消及持久清理意图恢复。S3 路径目前仍需同时编译 `storage-local` 与 `storage-s3`，并显式把默认 disk 配成 S3；发布与运维边界见 [存储说明](../../vendor/openrust/framework/src/filesystem/README.md)。
 
 编译 `data-exchange` 时，认证用户可通过 `POST /api/example/articles/import?format=csv|xlsx` 导入、`GET /api/example/articles/export?format=csv|xlsx` 导出自己的文章。输入最多 1 MiB、100 行，先完成有界解析，再逐行调用同一 `ArticleWriter`；合法行各自提交，报告只给行号、白名单字段和稳定错误码，前序成功行不会因后续坏行回滚。导出只含 `title`、`body`，最多 100 行、2 MiB，不含 owner、私密备注或密文；CSV 公式前缀按框架策略转义，不能承诺逐字导入往返。编译 `data-exchange-tasks` 和 `storage-local` 时，还可通过 `POST /api/example/articles/export-jobs` 排队导出，并经 `GET /api/example/articles/export-jobs/{job_id}/{attempt}` 按当前账户读取本地私有对象；框架清理任务在保留期后删除对象。标准应用迁移包含此能力所需共享锁表。
 
@@ -199,7 +199,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 两种传输复用唯一 Provider、Fortify 状态和实际因子证明。受管资源入口核验当前账户、代际和凭据家族，不能用同步 JWT 签名校验推定当前授权。账户响应禁止缓存；Cookie 名由所选 Session Provider 配置决定。新认证组合的完整后端、Session 派生凭据、OIDC 关联及生成应用验收尚未闭合。通用模型保留原始 ID，但当前 JWT 持久适配的正整数 `users.id` 限制尚未消除。
 
-配置 `example.oidc` 且编译 `auth-oidc` 后，模块才挂载 `/api/example/oidc`。Provider 在启动时完成受限目标的 discovery，并要求同容器中的 `Db`、`AuthFlows` 与 `Encryptor` 可用；模块路由登记之后再覆盖 OIDC 配置会在 Ready 前拒绝。登录回调验证浏览器绑定 cookie、state 与授权码，不按相同邮箱自动合并账户。JWT 原生客户端可显式 bind/unbind；浏览器绑定从已认证 Session 的 `/bind/authorize` 发起，以同源 CSRF 和短时意图绑定账户与浏览器，回调仅准备一次性确认，再由 `/bind/confirm` 复验密码。确认页只在 HTTP 成功且统一响应 envelope 的 `success` 为真、`data.status` 为 `bound` 时显示成功；测试显式 `AlwaysOk` 模式下，错误密码或已消费 state 虽返回 HTTP 200，仍显示失败。显式运行 `browser_confirmation_reports_success_and_failures_from_actual_page` 会启动 Chromium 执行生产 HTML/JavaScript，覆盖成功、业务失败、HTTP 错误和非法 JSON；本地 mock 只验页面判断，不替代真实 Keycloak/数据库验收。意图终态保留 tombstone，以免旧 state 在过期后绕回普通登录或重新绑定；这会持续占用数据库行，当前没有自动压缩，运维需监控表容量，不能按本地 10 分钟 TTL 直接删终态。浏览器测试使用真实 Keycloak 授权网络和随机端口的真实 RP HTTP，但测试夹具截取 IdP 固定回调地址并转交相同路径；不宣称完整浏览器自动导航已验收。
+配置 `example.oidc` 且编译 `auth-oidc` 后，模块才挂载 `/api/example/oidc`。Provider 在启动时完成受限目标的 discovery，并要求同容器中的 `Db`、`AuthFlows` 与 `Encrypter` 可用；模块路由登记之后再覆盖 OIDC 配置会在 Ready 前拒绝。登录回调验证浏览器绑定 cookie、state 与授权码，不按相同邮箱自动合并账户。JWT 原生客户端可显式 bind/unbind；浏览器绑定从已认证 Session 的 `/bind/authorize` 发起，以同源 CSRF 和短时意图绑定账户与浏览器，回调仅准备一次性确认，再由 `/bind/confirm` 复验密码。确认页只在 HTTP 成功且统一响应 envelope 的 `success` 为真、`data.status` 为 `bound` 时显示成功；测试显式 `AlwaysOk` 模式下，错误密码或已消费 state 虽返回 HTTP 200，仍显示失败。显式运行 `browser_confirmation_reports_success_and_failures_from_actual_page` 会启动 Chromium 执行生产 HTML/JavaScript，覆盖成功、业务失败、HTTP 错误和非法 JSON；本地 mock 只验页面判断，不替代真实 Keycloak/数据库验收。意图终态保留 tombstone，以免旧 state 在过期后绕回普通登录或重新绑定；这会持续占用数据库行，当前没有自动压缩，运维需监控表容量，不能按本地 10 分钟 TTL 直接删终态。浏览器测试使用真实 Keycloak 授权网络和随机端口的真实 RP HTTP，但测试夹具截取 IdP 固定回调地址并转交相同路径；不宣称完整浏览器自动导航已验收。
 
 登录回调经 `ExternalIdentityFlows::complete_with_handle` 返回外部登录关联 handle；需要二因素的账户复用唯一 Fortify 挑战，完成前不能签发 token。一次性挑战完成后，refresh 家族沿既有接口关联；`/session/attach` 只允许把**已登录的同账户 Session**关联到该 handle，并重新验证密码、Origin 和 CSRF，不是 OIDC 直接创建 Session 的替代实现。`POST /logout` 先撤销本地关联 refresh/Session，再返回固定 IdP end-session URL；同 callback 的 state-only 分支消费退出 state，不循环重定向。公开 `/backchannel` 只接受框架验证通过的签名 logout token，按 issuer、audience、sid/sub 和 jti 处理撤销与重放；不能用未验证的请求字段选择账户。`tests/oidc_lifecycle_flows.rs` 与服务端 OIDC 测试保留真实 Keycloak、双库 RP TCP、关联退出、签名 backchannel/重放、wrong-audience 及伪签名负例；迁移后的当前 Fortify 调用与事务末检仍须重新执行，历史结果不作为本批通过证据。浏览器 RP 入口依赖其明确的浏览器绑定 Cookie，不属于所选 JWT API 无 Cookie 登录流程；它也不是自建 OAuth2 授权服务器或 OIDC Provider。受管 JWT/refresh 通过实际 Guard/authority 查询当前家族；只做同步签名的自包含 token 不因此获得撤销保证。本地 logout 不等于所有 IdP 会话均已退出，也不保证已建 WebSocket 即时断开。
 
@@ -214,7 +214,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 ## 其它公开能力的业务入口
 
 - **默认 Redis 的 tag/SWR**：`GET /api/example/articles/{id}/cached-title/swr` 在主库 owner 授权后使用 `Cache::default_store`、tag 和 `get_stale_while_revalidate`；新鲜期 30 秒、陈旧期 120 秒，文章索引 job 在提交后消费并失效对应 tag。具名 `redis` store 是框架缺省缓存选择，`CACHE_STORE` 映射到 `cache.default`；显式默认 Redis 的双库回归已覆盖该业务，不静默回退到 memory。它与 `example-prefix` named driver 是两个示例；两者都不是授权来源，队列未消费时允许旧派生值。
-- **本地化预览**：`GET /api/example/reading-summary` 的 [`http/controllers/localization.rs`](http/controllers/localization.rs) 通过 `RequestLocale`、模块消息的 CLDR 复数及 `I18n::format_date/format_datetime` 返回阅读摘要预览；输入为受限 count、RFC3339 at 和 `utc`/`utc+08:00` 固定偏移，不伪装为真实阅读统计或 IANA/DST 时区实现。真实 TCP 测试覆盖英中差异、复数、长日期与跨日边界。
+- **本地化预览**：`GET /api/example/reading-summary` 的 [`http/controllers/localization.rs`](http/controllers/localization.rs) 通过 `RequestLocale`、模块消息的 CLDR 复数及 `Translator::format_date/format_datetime` 返回阅读摘要预览；输入为受限 count、RFC3339 at 和 `utc`/`utc+08:00` 固定偏移，不伪装为真实阅读统计或 IANA/DST 时区实现。真实 TCP 测试覆盖英中差异、复数、长日期与跨日边界。
 - **视图发布**：`GET /example/pages/about` 从当前 `RequestInfo` 调用公开的 `Views::render_for_request("example::pages/about.html", &info, ...)`。模板按请求读取默认 `errors.first("title")`、`errors.any()` 和 `other` 命名包的 `first()`/`all()`；无 Session 时为空，Session 中自定义 `DraftErrors` 恢复后仍保留业务首条消息。生产模块优先使用 `resources/views/vendor/example` 发布副本，缺失时回退模块模板；[`tests/view_flows.rs`](tests/view_flows.rs) 的既有真实 TCP 验证覆盖源模板、发布覆盖、回退、转义和错误边界。页面从当前请求共享包读取默认、命名和自定义消息，后续请求按原有 flash 规则老化。
 - **显式种子与重试**：`database/seeders` 实现公开 Seeder，由 `db seed` 或测试显式调用，boot 不写库。种子使用固定负 ID 命名空间、负数 owner ID 和碰撞 fail-closed；不在框架 `users` 表创建种子账户；重复执行保留用户后续编辑。`tests/queue_retry_flows.rs` 使用真实数据库/Redis worker 展示失败退避、恢复、终态与公开重试，不以直接调用 Job 冒充 worker。
 - **gRPC TLS 与组合监听**：[`grpc.rs`](grpc.rs) 的 Echo 与 HTTP 读取同一个 `ExampleMessage`。[`tests/grpc_tls_flows.rs`](tests/grpc_tls_flows.rs) 使用同一生产 App 的公开组合函数启两个 listener/两个端口，真实客户端验证 CA、hostname、HTTP/Echo 响应和有界联合停机。不是同端口复用、根 `serve all` 自动装配或完整 R11 验收。
@@ -255,7 +255,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 ## 用 TestApp 测试自己的模块
 
-[`tests/registration.rs`](tests/registration.rs) 直接使用根生产 `crate::bootstrap::Server`，复用相同 `Application::providers` 与 `Application::configure_providers`，没有测试专用 Application 或第二容器。业务调用链是模块 descriptor → [`ExampleServiceProvider::register/boot`](providers/example.rs) → 配置驱动的 [`ExampleMessage`](services/message.rs) → [`show` 的 Inject](http/controllers/example.rs)。替换绑定不会改路由或控制器。
+[`tests/registration.rs`](tests/registration.rs) 直接使用根生产 `crate::bootstrap::Server`，复用相同 `ApplicationDefinition::providers` 与 `ApplicationDefinition::configure_providers`，没有测试专用 Application 或第二容器。业务调用链是模块 descriptor → [`ExampleServiceProvider::register/boot`](providers/example.rs) → 配置驱动的 [`ExampleMessage`](services/message.rs) → [`show` 的 Inject](http/controllers/example.rs)。替换绑定不会改路由或控制器。
 
 测试中的 `production_sources` 显式使用测试环境、内存缓存和测试加密密钥，不读取或修改进程环境，也不要求 Redis；这是测试夹具选择，生产缓存默认没有回退。使用公开 API 替换业务依赖的实际写法如下，完整可执行函数见同一测试文件：
 
@@ -378,7 +378,7 @@ cargo deny check
 
 `GET /api/example/draft/secure` 对相对首页目标调用公开 `secure`，返回 `https://` 的 Location；示例只验证重定向响应，不跟随请求或宣称当前 HTTP 监听器已启用 TLS。显式状态、头与协议选择可使用 `secure_with` 或 `to_with_scheme`。
 
-`GET /api/example/draft/signed-links` 使用公开 `RouteUrlGenerator` 为固定草稿 `42` 生成 5 分钟的绝对及相对签名链接，并展示 `Redirector::signed_route` 的目标；生产使用必须设置不可预测的 `APP_KEY`。`/api/example/draft/signed/{id}` 与 `/api/example/draft/signed-relative/{id}` 分别用框架 `signed`、`signed:relative` middleware 验签后才执行 handler，handler 再通过 `RequestInfo` 公共入口确认。更改草稿编号或查询内容返回 403；不使用现有 `SignedLinks` 的 JWT/撤销协议代替 URL 签名。示例仅供开发者理解路由签名，实际私密草稿仍需独立认证和授权。
+`GET /api/example/draft/signed-links` 使用公开 `UrlGenerator` 为固定草稿 `42` 生成 5 分钟的绝对及相对签名链接，并展示 `Redirector::signed_route` 的目标；生产使用必须设置不可预测的 `APP_KEY`。`/api/example/draft/signed/{id}` 与 `/api/example/draft/signed-relative/{id}` 分别用框架 `signed`、`signed:relative` middleware 验签后才执行 handler，handler 再通过 `RequestInfo` 公共入口确认。更改草稿编号或查询内容返回 403；不使用现有 `SignedLinks` 的 JWT/撤销协议代替 URL 签名。示例仅供开发者理解路由签名，实际私密草稿仍需独立认证和授权。
 
 `POST /api/example/draft/refresh?discard=once` 通过 `Redirector::from_request(&request).refresh()` 返回同路径的 302，目标不保留 query；客户端随后 GET `/api/example/draft/refresh` 会显示真实草稿内容，不再次刷新。无 Session 时同样可以完成 POST→GET；存在 Session 时，响应继续使用 `with_input` 和 `with_errors` 保存一次性的规范化标题输入与复核提示，展示一次后老化。该示例提交仅含公开草稿字段；`with_input` 闪存完整规范化输入，实际业务筛除敏感字段可沿既有 `only_input`/`except_input`。生成 helper 展示 `refresh_with` 的显式 303 和自定义头，同样验证 query 丢弃、GET 内容及闪存老化。
 
@@ -405,10 +405,10 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 | 队列与调度 | `JobsServiceProvider` 注册 heartbeat 与幂等 `ArticleIndexJob`，文章事件在事务内排入持久队列 | `queue`、数据库与模块迁移的公开挂载；API/worker/scheduler 为同一应用的进程角色 | 双库 HTTP 后 worker 消费索引；PG/MySQL 的数据库与 Redis backend 各1项真实故障→退避→恢复、终态记录→公开重试及 tenant 分区通过；Scheduler 真实数据库时钟→持久队列→worker 双库各1项通过，同进程双 App 不代表多进程调度集群 |
 | 事件与通知 | Article 写入事务内经 `Events` 派发，监听器同事务记录文章事件并排索引任务；创建经 `Notifier` 将确认邮件排入 notifications 队列 | EventsServiceProvider 由模块清单安装，根注册 NotificationsServiceProvider | 双库真实 HTTP 后显式 worker 消费各3封作者确认邮件并核对捕获内容；无 SMTP 实发，事务失败不入队 |
 | 缓存、tag/SWR、并发加载 | `ArticleIndexJob` 与授权后 `cached-title` 路由使用同一 named store，MISS 主库重建；模块默认 Prefix driver，可显式选择 Redis | 缓存不是授权来源，旧标题最多按单次写入 TTL 缓存且队列延迟另计 | PostgreSQL/MySQL 各 4 项业务回归含真实 Redis 双 App 共享、owner 拒绝、tenant 分区与失效；另默认 Redis tag/SWR 业务双库各6项通过；跨进程拓扑不由此验收 |
-| 本地/S3 存储与流式上传下载 | `ArticleAttachments` 按 owner+文章固定 key 调用公开 `Storage` 流式上传/下载/删除；主库授权、UTF-8/大小限制与安全响应头 | `storage-local`、`auth`、数据库能力；S3 需额外 `storage-s3` 与显式默认 disk 配置 | 本地双库测试及真实 MinIO+PG/MySQL S3 回归通过，含真实 CopyObject 成功响应被暂停、并发 DELETE 等待及最终 key/staging 清理；版本化 S3 multipart/取消/确切版本另1项。跨 DB/对象存储不原子；进程强杀或远端永久无响应仍不保证自动收敛 |
+| 本地/S3 存储与流式上传下载 | `ArticleAttachments` 按 owner+文章固定 key 调用公开 `FilesystemManager` 流式上传/下载/删除；主库授权、UTF-8/大小限制与安全响应头 | `storage-local`、`auth`、数据库能力；S3 需额外 `storage-s3` 与显式默认 disk 配置 | 本地双库测试及真实 MinIO+PG/MySQL S3 回归通过，含真实 CopyObject 成功响应被暂停、并发 DELETE 等待及最终 key/staging 清理；版本化 S3 multipart/取消/确切版本另1项。跨 DB/对象存储不原子；进程强杀或远端永久无响应仍不保证自动收敛 |
 | 服务端视图 | `http/controllers/pages.rs::about_page` 注入 `Views` | `view`；模块 `example::` 命名空间及发布优先/源回退 | 生产 TestApp 与真实 TCP 各自覆盖；真实 TCP 2项通过，含发布副本优先/缺失回退及转义/错误边界 |
 | i18n 与地区格式化 | heartbeat-label 从 `RequestLocale` 读取请求语言，翻译模块消息并调用精确十进制格式化；欢迎邮件用 `LocalizedEmail` 和明确语言 key | 根 I18nServiceProvider 与模块 lang 目录 | 生产 TestApp 验证 en/zh-CN，真实 TCP 捕获邮件验证两种语言；复数与固定偏移长日期业务真实 TCP 2项通过；不包含 IANA/DST 时区 |
-| 加密与签名链接 | 文章短期分享调用 `SignedLinks::issue/verify/revoke`；私密备注调用 `Encryptor` 以 owner+文章上下文加密入库、授权解密 | `signing`/`encryption` feature、根密钥及数据库 | 双库真实 HTTP 覆盖签发/撤销、越权备注拒绝、明文不落库及密文跨文章交换失效；生产密钥运维另行负责 |
+| 加密与签名链接 | 文章短期分享调用 `SignedLinks::issue/verify/revoke`；私密备注调用 `Encrypter` 以 owner+文章上下文加密入库、授权解密 | `signing`/`encryption` feature、根密钥及数据库 | 双库真实 HTTP 覆盖签发/撤销、越权备注拒绝、明文不落库及密文跨文章交换失效；生产密钥运维另行负责 |
 | 审计、租户、权限边界 | Article 详情成功后经 `Audit` 落 actor/object/outcome；`QueryRule` 与写 SQL 同时限制 owner | 通用数据库配置、模块业务迁移，公开 API | 双库审计与租户各3项通过；真实 Redis+MinIO 租户跨 App/worker/附件快照清理双库各1项通过，非多进程证明 |
 | HTTP 出站与上下文 | 文章摘要服务经公开 `HttpClient` 请求运营固定目标；按 owner 授权且限制连接/总时间与正文大小 | `http-client` feature 与显式 `example.article_summary_origin` | 双库真实 HTTP+本地上游覆盖成功、越权、503 和超大响应；另真实上游 TCP 头/体超时及取消 EOF 双库定向通过；取消的 RP 入口为 TestApp oneshot，metadata allowlist 不据此完整验收 |
 | WebSocket/SSE 与跨节点 | 文章 owner 保护的 SSE/只读 WebSocket 订阅与定向发布使用公开 `Realtime`，JWT 路径按 token exp、Session 路径按持久截止结束 | `realtime` 与数据库；精确 Origin allowlist，Redis 跨实例需 `realtime-redis` 与显式配置 | PostgreSQL/MySQL 各3项真实 TCP WebSocket 回归含帧拒绝、expiry/停机与双 App Redis；Session WS 协议双库各3项、Chromium 153 原生浏览器双库各1项通过；不外推到 Safari/Firefox，两进程拓扑不在这些结果内 |
@@ -424,7 +424,7 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 
 根框架测试使用 `cargo test -p openrust`，完整工具门禁使用 `cargo test --workspace`。认证 target 为 example_auth_flows，路径为模块 tests/auth_flows.rs；需要对应 feature 和符合[测试工具权限与恢复约束](../../tools/testing/README.md)的隔离测试 URL，没有 URL 时跳过不算真实数据库通过。实际命令与结果统一记录于 [测试基线](../../.agents/project/memory/testing.md)。
 
-编写业务时使用公开 `Routes`、`Inject`、`AuthFlows`、`Queue` 等入口；当前可参考 `JobsServiceProvider` 的 Provider 注册、`PrefixCacheServiceProvider` 的 driver 扩展与 `WelcomeService` 的标准通信调用。进程内 named 缓存不是跨节点共享缓存；捕获通信仅通过测试显式安装并拒绝 production。
+编写业务时使用公开 `Router`、`Inject`、`AuthFlows`、`Queue` 等入口；当前可参考 `JobsServiceProvider` 的 Provider 注册、`PrefixCacheServiceProvider` 的 driver 扩展与 `WelcomeService` 的标准通信调用。进程内 named 缓存不是跨节点共享缓存；捕获通信仅通过测试显式安装并拒绝 production。
 
 自定义 driver 应实现框架已公开的 trait，通过应用 ServiceProvider 装配，不能修改框架核心来识别某个业务模块。其他 [公开 consumer](../../tests/consumers/README.md) 可辅助理解边界，但不能替代本模块的覆盖交付。
 
@@ -445,9 +445,9 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 
 ### 请求的路由上下文
 
-`GET` / `POST /api/example/route-context/named/{id}` 由公开 `http::routing::get(...).post(...)` 受管理声明注册，路由名为 `example.route-context.show`；`GET /api/example/route-context/anonymous/{id}` 是匿名路由。响应展示 `RequestInfo::route()` 的最终 URI、方法、路径参数、`route_name()`、`route_is()` 和缺参数默认值。查询或 JSON 正文中的 `id` 不覆盖路径参数，匿名路由的名称为空。所有第一方受管理 `Routes::route` 调用须传 `http::routing` 的 `RouteMethods`；原生 Axum Router 是独立逃生口，不提供此匹配上下文契约。
+`GET` / `POST /api/example/route-context/named/{id}` 由公开 `http::routing::get(...).post(...)` 受管理声明注册，路由名为 `example.route-context.show`；`GET /api/example/route-context/anonymous/{id}` 是匿名路由。响应展示 `RequestInfo::route()` 的最终 URI、方法、路径参数、`route_name()`、`route_is()` 和缺参数默认值。查询或 JSON 正文中的 `id` 不覆盖路径参数，匿名路由的名称为空。所有第一方受管理 `Router::route` 调用须传 `http::routing` 的 `RouteMethods`；原生 Axum Router 是独立逃生口，不提供此匹配上下文契约。
 
-将 `{id}` 换为 `missing` 可触发业务 404，换为 `blocked` 可触发路由 middleware 的 403 短路；具名响应仍带 `x-example-route-before` / `x-example-route-after`，证明上下文在路由 middleware 之前发布并跨错误保留。参数当前是 JSON 字符串值，不表示模型或枚举绑定已经实现。出站 `RouteUrlGenerator` 继续负责生成链接，不提供当前请求的命中事实。
+将 `{id}` 换为 `missing` 可触发业务 404，换为 `blocked` 可触发路由 middleware 的 403 短路；具名响应仍带 `x-example-route-before` / `x-example-route-after`，证明上下文在路由 middleware 之前发布并跨错误保留。参数当前是 JSON 字符串值，不表示模型或枚举绑定已经实现。出站 `UrlGenerator` 继续负责生成链接，不提供当前请求的命中事实。
 
 [`tests/tools/verify-route-context.py`](tests/tools/verify-route-context.py)接收与 D6 工具相同的 `--binary`、`--binary-sha256`、`--source-snapshot` 和可选 `--root`。它复用 D6 的配置隔离、来源快照、资源门限、有界请求、进程组守护和任务专有清理，真实启动一个加载唯一模块的 server，检查具名/匿名、参数/default、输入伪造、业务 404、middleware 403、HEAD 与方法 miss。PG/MySQL feature 的二进制分别运行，但工具不连接数据库，不能据此声称数据库或 TLS 等价验收；临时目录沿用共享 supervisor 的 D6 前缀。
 
@@ -463,7 +463,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 普通模型、迁移与业务代码按其通用能力编译，不把 MySQL/PG 连接器 feature 当作 ORM 开关。活跃模块总注册迁移与 seed 命令贡献；有无连接不影响注册，命令实际执行才检查连接。生产模块在真实 register 读取同一配置仓储的默认 URL，决定默认库业务子 Provider；具名连接不冒充默认库，未配置默认库时宿主与基础示例仍运行。具体官方 URL 的驱动必须已编入，非法配置继续明确拒绝；这不代表示例已支持 SQLite 方言或完整 Laravel 懒连接。
 
-模块的附件维护命令由普通 Provider 贡献到同一命令目录。公开 `App::commands()` 快照持有命令实例；重新引导生成新的目录与实例，先前取得的快照不会改指向新实例。实际维护执行仍通过 `App::run_command` 进入当前应用的命令 scope，不把快照本身当作执行授权或后台 worker。
+模块的附件维护命令由普通 Provider 贡献到同一命令目录。公开 `Application::commands()` 快照持有命令实例；重新引导生成新的目录与实例，先前取得的快照不会改指向新实例。实际维护执行仍通过 `Application::run_command` 进入当前应用的命令 scope，不把快照本身当作执行授权或后台 worker。
 
 ## 独立数据库连接
 

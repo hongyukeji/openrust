@@ -1,6 +1,6 @@
 //! 固定 Laravel 数据库 Session 表；增强的绝对截止由显式迁移扩展登记。
 
-use crate::db::{
+use crate::database::{
     DatabaseTableNames,
     sea_orm::{
         DbBackend,
@@ -84,7 +84,7 @@ async fn create(manager: &SchemaManager<'_>, logical: &str) -> Result<(), DbErr>
         ));
     }
     let mut payload = ColumnDef::new(Columns::Payload);
-    if manager.get_database_backend() == crate::db::sea_orm::DbBackend::MySql {
+    if manager.get_database_backend() == crate::database::sea_orm::DbBackend::MySql {
         payload.custom("LONGTEXT");
     } else {
         payload.text();

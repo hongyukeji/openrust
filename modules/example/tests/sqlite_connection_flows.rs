@@ -48,7 +48,7 @@ async fn named_sqlite_reporting_uses_standard_provider_and_module_http() -> open
 fn sqlite_test_sources(
     source: &figment::Figment,
 ) -> openrust::Result<openrust::config::ConfigSources> {
-    use openrust::core::Application;
+    use openrust::foundation::ApplicationDefinition;
     let fixture = tempfile::tempdir().map_err(openrust::Error::internal)?;
     let config = fixture.path().join("config");
     std::fs::create_dir(&config).map_err(openrust::Error::internal)?;
@@ -105,14 +105,14 @@ impl openrust::database::sea_orm_migration::MigratorTrait for EmptyMigrator {
 async fn sqlite_file_catalog_providers_apply_rollback_and_reapply_all_registered_migrations()
 -> openrust::Result<()> {
     let database = openrust::testing::TestDatabase::sqlite_file::<EmptyMigrator>().await?;
-    let mut providers = openrust::core::ProviderBuilder::new();
+    let mut providers = openrust::foundation::ProviderBuilder::new();
     providers
-        .provider(openrust::db::DatabaseServiceProvider)
-        .provider(openrust::db::MigrationServiceProvider::<
-            openrust::db::FrameworkMigrator,
+        .provider(openrust::database::DatabaseServiceProvider)
+        .provider(openrust::database::MigrationServiceProvider::<
+            openrust::database::FrameworkMigrator,
         >::new())
         .provider(
-            openrust::db::MigrationServiceProvider::<super::database::migrations::Migrator>::new()
+            openrust::database::MigrationServiceProvider::<super::database::migrations::Migrator>::new()
                 .for_module("example"),
         );
     let runtime = providers
@@ -122,7 +122,7 @@ async fn sqlite_file_catalog_providers_apply_rollback_and_reapply_all_registered
             ),
         ))
         .await?;
-    let app = openrust::core::App::from_provider_runtime(runtime)?;
+    let app = openrust::foundation::Application::from_provider_runtime(runtime)?;
     let outcome = exercise_catalog(&app, &database).await;
     let shutdown = app
         .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
@@ -134,13 +134,13 @@ async fn sqlite_file_catalog_providers_apply_rollback_and_reapply_all_registered
 }
 
 async fn exercise_catalog(
-    app: &openrust::core::App,
+    app: &openrust::foundation::Application,
     database: &openrust::testing::TestDatabase,
 ) -> openrust::Result<()> {
     use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
     use openrust::database::sea_orm_migration::MigratorTrait;
 
-    let mut names = openrust::db::FrameworkMigrator::migrations()
+    let mut names = openrust::database::FrameworkMigrator::migrations()
         .into_iter()
         .chain(super::database::migrations::Migrator::migrations())
         .map(|migration| migration.name().to_owned())

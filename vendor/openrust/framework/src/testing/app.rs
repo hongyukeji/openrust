@@ -13,9 +13,14 @@ use tokio::time::Instant;
 use tower::ServiceExt;
 
 use crate::config::ConfigSources;
-use crate::core::container::Container;
-use crate::core::provider::ProviderId;
-use crate::core::{App, Application, BoxFuture, Error, ProviderBuilder, Result};
+use crate::container::Container;
+use crate::core::Error;
+use crate::core::Result;
+use crate::foundation::Application;
+use crate::foundation::ApplicationDefinition;
+use crate::foundation::ProviderBuilder;
+use crate::foundation::provider::ProviderId;
+use crate::support::BoxFuture;
 
 use super::response::TestResponse;
 
@@ -27,7 +32,7 @@ type Configure = Arc<dyn Fn(Container) -> BoxFuture<'static, Result<()>> + Send 
 /// 显式配置、Provider 选择及可重复执行的测试替换蓝图。
 ///
 /// 不修改进程环境或当前目录；闭包捕获的外部 `Arc` 由调用方管理，重建不会重置该对象。
-pub struct TestAppBuilder<A: Application> {
+pub struct TestAppBuilder<A: ApplicationDefinition> {
     sources: ConfigSources,
     removed: Vec<ProviderId>,
     configure_providers: Vec<ConfigureProviders>,
@@ -35,7 +40,7 @@ pub struct TestAppBuilder<A: Application> {
     application: PhantomData<fn() -> A>,
 }
 
-impl<A: Application> TestAppBuilder<A> {
+impl<A: ApplicationDefinition> TestAppBuilder<A> {
     /// 从应用 Provider 清单移除具体类型；不修改框架实现。
     pub fn remove_provider(&mut self, id: ProviderId) -> &mut Self {
         self.removed.push(id);
@@ -104,11 +109,11 @@ impl<A: Application> TestAppBuilder<A> {
         }
     }
 
-    async fn start(&self) -> Result<App> {
+    async fn start(&self) -> Result<Application> {
         self.start_with_command(None).await
     }
 
-    async fn start_with_command(&self, name: Option<&str>) -> Result<App> {
+    async fn start_with_command(&self, name: Option<&str>) -> Result<Application> {
         let config: A::Config = self
             .sources
             .figment()
@@ -129,7 +134,7 @@ impl<A: Application> TestAppBuilder<A> {
             let configure = Arc::clone(configure);
             builder.configure_after_register(move |container| configure(container));
         }
-        App::from_provider_runtime(builder.start(self.sources.clone()).await?)
+        Application::from_provider_runtime(builder.start(self.sources.clone()).await?)
     }
 }
 
@@ -137,14 +142,14 @@ impl<A: Application> TestAppBuilder<A> {
 ///
 /// `request` 是进程内 Tower 请求，不是 TCP 网络验收。应显式调用 `shutdown` 等待回收；
 /// Drop 只能在仍有 Tokio 运行时的情况下提交尽力而为的回收。
-pub struct TestApp<A: Application> {
-    app: Option<App>,
+pub struct TestApp<A: ApplicationDefinition> {
+    app: Option<Application>,
     router: Option<axum::Router>,
     active: AtomicBool,
     blueprint: TestAppBuilder<A>,
 }
 
-impl<A: Application> TestApp<A> {
+impl<A: ApplicationDefinition> TestApp<A> {
     /// 以显式配置源建立蓝图；不读取或修改环境变量。
     pub fn builder(sources: impl Into<ConfigSources>) -> TestAppBuilder<A> {
         TestAppBuilder {
@@ -157,7 +162,7 @@ impl<A: Application> TestApp<A> {
     }
 
     /// 获取仍可用的应用；关闭或重建失败后不暴露旧生命周期。
-    pub fn app(&self) -> Result<&App> {
+    pub fn app(&self) -> Result<&Application> {
         self.app
             .as_ref()
             .filter(|_| self.active.load(Ordering::Acquire))
@@ -169,7 +174,7 @@ impl<A: Application> TestApp<A> {
             .app
             .as_ref()
             .ok_or_else(|| Error::custom("test_app_closed", "测试应用尚未启动"))?;
-        match crate::routes::build_router(app) {
+        match crate::foundation::http::build_router(app) {
             Ok(router) => {
                 self.router = Some(router);
                 self.active.store(true, Ordering::Release);
@@ -251,7 +256,7 @@ impl<A: Application> TestApp<A> {
     }
 }
 
-impl<A: Application> Drop for TestApp<A> {
+impl<A: ApplicationDefinition> Drop for TestApp<A> {
     fn drop(&mut self) {
         self.router = None;
         if let Some(app) = self.app.take() {
@@ -271,8 +276,12 @@ impl<A: Application> Drop for TestApp<A> {
 mod tests {
     use super::*;
     use crate::config::{FrameworkConfig, NoConfig};
-    use crate::core::{BootContext, BoxFuture, Command, RegisterContext, ServiceProvider};
+    use crate::console::Command;
+    use crate::foundation::BootContext;
+    use crate::foundation::RegisterContext;
     use crate::http::{HttpServiceProvider, Inject};
+    use crate::support::BoxFuture;
+    use crate::support::ServiceProvider;
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
     use std::sync::atomic::AtomicUsize;
@@ -293,7 +302,7 @@ mod tests {
         fn register<'a>(
             &'a self,
             app: &'a mut RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance(Arc::new(Label("production"))).await?;
                 app.instance(Arc::new(Fixture::default())).await?;
@@ -362,11 +371,11 @@ mod tests {
         std::future::pending().await
     }
     struct Example;
-    impl Application for Example {
+    impl ApplicationDefinition for Example {
         type Config = NoConfig;
 
-        fn default_providers() -> crate::core::DefaultProviders {
-            crate::core::DefaultProviders::empty()
+        fn default_providers() -> crate::support::DefaultProviders {
+            crate::support::DefaultProviders::empty()
         }
         fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
             vec![Box::new(HttpServiceProvider), Box::new(BusinessProvider)]
@@ -611,7 +620,7 @@ mod tests {
         cleanup_finished: tokio::sync::Notify,
         command_gate: std::sync::Mutex<Option<Arc<tokio::sync::Semaphore>>>,
         cleanup_gate: std::sync::Mutex<Option<Arc<tokio::sync::Semaphore>>>,
-        command_state: std::sync::Mutex<Option<crate::core::AppState>>,
+        command_state: std::sync::Mutex<Option<crate::foundation::ApplicationState>>,
     }
 
     struct MigrateProbe;
@@ -624,7 +633,7 @@ mod tests {
             "测试迁移命令"
         }
 
-        fn run<'a>(&'a self, app: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        fn run<'a>(&'a self, app: &'a Application, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 let fixture = app.state().resolve::<CommandFixture>().await?;
                 fixture.runs.fetch_add(1, Ordering::SeqCst);
@@ -694,11 +703,11 @@ mod tests {
     }
 
     struct CommandExample;
-    impl Application for CommandExample {
+    impl ApplicationDefinition for CommandExample {
         type Config = NoConfig;
 
-        fn default_providers() -> crate::core::DefaultProviders {
-            crate::core::DefaultProviders::empty()
+        fn default_providers() -> crate::support::DefaultProviders {
+            crate::support::DefaultProviders::empty()
         }
 
         fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {

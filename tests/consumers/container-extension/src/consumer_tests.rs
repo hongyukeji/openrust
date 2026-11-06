@@ -1,6 +1,6 @@
 //! 验证外部 package 可沿公开 API 装饰 dyn trait 与隔离 scope。
 
-use openrust::core::container::ContainerBuilder;
+use openrust::container::ContainerBuilder;
 use std::sync::{Arc, Mutex};
 
 trait Greeting: Send + Sync {

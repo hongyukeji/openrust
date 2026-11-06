@@ -1,14 +1,17 @@
 //! 真实 Application/裸 `ProviderBuilder` 的模块命令顺序与业务覆盖合同。
 
 use figment::{Figment, providers::Serialized};
-use openrust::{
-    App, Result,
-    config::NoConfig,
-    core::{
-        Application, BootContext, BoxFuture, Command, DefaultProviders, ProviderBuilder,
-        RegisterContext, ServiceProvider,
-    },
-};
+use openrust::Application;
+use openrust::Result;
+use openrust::config::NoConfig;
+use openrust::console::Command;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::RegisterContext;
+use openrust::support::BoxFuture;
+use openrust::support::DefaultProviders;
+use openrust::support::ServiceProvider;
 use openrust_modules::{
     ModuleDescriptor, ModuleManifest, ModuleProviderBuilderExt, ModuleRepository,
     ModuleTestAppBuilderExt, ModulesConfig,
@@ -29,7 +32,7 @@ struct Settings {
     module_root: PathBuf,
 }
 struct WithModules<const OVERRIDE: bool>;
-impl<const OVERRIDE: bool> Application for WithModules<OVERRIDE> {
+impl<const OVERRIDE: bool> ApplicationDefinition for WithModules<OVERRIDE> {
     type Config = Settings;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -81,7 +84,7 @@ impl Command for BusinessList {
     fn about(&self) -> &'static str {
         "业务覆盖列表"
     }
-    fn run<'a>(&'a self, app: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, app: &'a Application, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.state()
                 .resolve::<Calls>()
@@ -108,7 +111,7 @@ async fn application_core_commands_precede_modules_and_business_boot_overrides_o
         module_root: root.path().to_owned(),
     };
     let providers = ProviderBuilder::for_application::<WithModules<true>>(&settings);
-    let app = App::from_provider_runtime(providers.start(source(root.path())).await?)?;
+    let app = Application::from_provider_runtime(providers.start(source(root.path())).await?)?;
     let outcome: Result<()> = async {
         let names = app
             .commands()
@@ -162,7 +165,7 @@ async fn bare_builder_gets_module_commands_only_when_extension_is_selected() -> 
         if selected {
             builder.module_manifest(ModuleManifest::new());
         }
-        let app = App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let app = Application::from_provider_runtime(builder.start(Figment::new()).await?)?;
         let outcome: Result<()> = async {
             let names = app
                 .commands()
@@ -217,7 +220,7 @@ async fn module_configuration_defaults_only_fill_missing_fields() -> Result<()> 
 }
 
 struct HttpModules;
-impl Application for HttpModules {
+impl ApplicationDefinition for HttpModules {
     type Config = Settings;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -231,7 +234,7 @@ impl Application for HttpModules {
 }
 
 struct BareHttp;
-impl Application for BareHttp {
+impl ApplicationDefinition for BareHttp {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()

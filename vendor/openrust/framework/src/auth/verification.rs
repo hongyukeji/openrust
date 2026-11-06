@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::core::{Error, Result};
-use crate::db::sea_orm::{
+use crate::database::sea_orm::{
     ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait,
 };
 use sha2::Digest;
@@ -351,7 +351,7 @@ impl std::error::Error for InvalidVerificationChallenge {}
 /// [`VerificationCodes`] 使用的共享数据库 store。
 #[derive(Clone)]
 pub struct DatabaseVerificationCodeStore {
-    db: crate::db::Db,
+    db: crate::database::Db,
     cleanup_counter: Arc<AtomicU64>,
 }
 
@@ -363,7 +363,7 @@ impl fmt::Debug for DatabaseVerificationCodeStore {
 
 impl DatabaseVerificationCodeStore {
     /// 使用应用共享数据库和表名解析器创建 store。
-    pub fn new(db: crate::db::Db) -> Self {
+    pub fn new(db: crate::database::Db) -> Self {
         Self {
             db,
             cleanup_counter: Arc::new(AtomicU64::new(0)),

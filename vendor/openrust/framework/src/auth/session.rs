@@ -39,7 +39,7 @@ impl SessionStoreHandle {
 }
 
 pub(crate) fn require_account_provider(
-    db: &crate::db::Db,
+    db: &crate::database::Db,
     guard: &dyn crate::auth::StatefulGuard,
 ) -> crate::Result<()> {
     if !guard.provider().uses_database_accounts(db, "users")? {
@@ -122,10 +122,10 @@ mod tests {
             RefreshTokens, SessionGuard, VerificationCodes,
         };
         use crate::core::RateLimiter;
-        use crate::db::{DatabaseRateLimitStore, Db};
+        use crate::database::{DatabaseRateLimitStore, Db};
         struct NoMigrations;
-        impl crate::db::sea_orm_migration::MigratorTrait for NoMigrations {
-            fn migrations() -> Vec<Box<dyn crate::db::sea_orm_migration::MigrationTrait>> {
+        impl crate::database::sea_orm_migration::MigratorTrait for NoMigrations {
+            fn migrations() -> Vec<Box<dyn crate::database::sea_orm_migration::MigrationTrait>> {
                 Vec::new()
             }
         }
@@ -228,7 +228,7 @@ mod tests {
     {
         use crate::{
             auth::{DatabaseUserProvider, Guard, SessionGuard, UserProvider},
-            db::{Db, sea_orm::ConnectionTrait},
+            database::{Db, sea_orm::ConnectionTrait},
         };
 
         fn require(condition: bool, message: &'static str) -> Result<()> {
@@ -243,8 +243,8 @@ mod tests {
         }
 
         struct NoMigrations;
-        impl crate::db::sea_orm_migration::MigratorTrait for NoMigrations {
-            fn migrations() -> Vec<Box<dyn crate::db::sea_orm_migration::MigrationTrait>> {
+        impl crate::database::sea_orm_migration::MigratorTrait for NoMigrations {
+            fn migrations() -> Vec<Box<dyn crate::database::sea_orm_migration::MigrationTrait>> {
                 Vec::new()
             }
         }

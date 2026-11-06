@@ -5,7 +5,10 @@ pub mod calendar;
 mod collection;
 pub(crate) mod data;
 mod data_value;
+pub(crate) mod default_providers;
 mod finite;
+mod future;
+mod service_provider;
 #[cfg(feature = "session")]
 pub(crate) use finite::Finite;
 mod fluent;
@@ -24,12 +27,15 @@ pub use calendar::{
 };
 pub use collection::{ArrayKey, Collection};
 pub use data_value::{DataObject, DataValue, ObjectEncoding};
+pub use default_providers::DefaultProviders;
 pub use fluent::Fluent;
+pub use future::BoxFuture;
 pub use message_bag::{
     MessageBag, MessageBagContract, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
     MessageProvider, MessageValue,
 };
 pub use number::InputNumber;
+pub use service_provider::ServiceProvider;
 pub use view_error_bag::{BagHandle, BagRead, BagWrite, ViewErrorBag};
 
 pub use stringable::Stringable;

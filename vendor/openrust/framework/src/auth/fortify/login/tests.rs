@@ -1,25 +1,31 @@
 //! 实际 SessionGuard、注册 UserProvider、模型能力与事件组成的 Fortify 登录管线。
 use super::*;
-use crate::{
-    auth::fortify::{
-        GoogleTwoFactorAuthenticationProvider, TwoFactorAuthenticatable, TwoFactorOptions,
-        TwoFactorState,
-    },
-    auth::{AuthDrivers, Authenticatable, GenericUser, SessionGuard, UserProvider},
-    config::{ConfigSources, EncryptionConfig, repository::ConfigRepository},
-    core::{
-        ProviderBuilder, ProviderRuntime,
-        container::{ContainerBuilder, Scope},
-        resources::ResourceOwner,
-    },
-    events::{Events, EventsServiceProvider},
-    http::{
-        CookieFactory, CookieJar,
-        axum::{body::Body, extract::FromRequestParts, http::Request},
-    },
-    security::Encryptor,
-    session::MemorySessionStore,
-};
+use crate::auth::AuthDrivers;
+use crate::auth::Authenticatable;
+use crate::auth::GenericUser;
+use crate::auth::SessionGuard;
+use crate::auth::UserProvider;
+use crate::auth::fortify::GoogleTwoFactorAuthenticationProvider;
+use crate::auth::fortify::TwoFactorAuthenticatable;
+use crate::auth::fortify::TwoFactorOptions;
+use crate::auth::fortify::TwoFactorState;
+use crate::config::ConfigSources;
+use crate::config::EncryptionConfig;
+use crate::config::repository::ConfigRepository;
+use crate::container::ContainerBuilder;
+use crate::container::Scope;
+use crate::encryption::Encrypter;
+use crate::events::Events;
+use crate::events::EventsServiceProvider;
+use crate::foundation::ProviderBuilder;
+use crate::foundation::ProviderRuntime;
+use crate::foundation::resources::ResourceOwner;
+use crate::http::CookieFactory;
+use crate::http::CookieJar;
+use crate::http::axum::body::Body;
+use crate::http::axum::extract::FromRequestParts;
+use crate::http::axum::http::Request;
+use crate::session::MemorySessionStore;
 use serde_json::{Map, json};
 #[cfg(feature = "db-sqlite")]
 use sha2::{Digest as _, Sha256};
@@ -63,14 +69,17 @@ impl Authenticatable for Account {
     fn remember_token_for_cookie(&self) -> Result<Option<String>> {
         self.attributes.remember_token_for_cookie()
     }
-    fn set_remember_token(&self, token: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+    fn set_remember_token(
+        &self,
+        token: Option<String>,
+    ) -> crate::support::BoxFuture<'_, Result<()>> {
         self.attributes.set_remember_token(token)
     }
     fn begin_remember_token_update<'a>(
         &'a self,
         expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+    ) -> crate::support::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
         self.attributes
             .begin_remember_token_update(expected, replacement)
     }
@@ -123,11 +132,11 @@ struct AccountProvider {
     rehashed: AtomicUsize,
     by_id: AtomicUsize,
     error_mode: AtomicUsize,
-    database: Option<crate::db::Db>,
+    database: Option<crate::database::Db>,
     validation_pause: Mutex<Option<ValidationPause>>,
 }
 impl UserProvider for AccountProvider {
-    fn uses_database_accounts(&self, db: &crate::db::Db, table: &str) -> Result<bool> {
+    fn uses_database_accounts(&self, db: &crate::database::Db, table: &str) -> Result<bool> {
         Ok(self
             .database
             .as_ref()
@@ -288,7 +297,7 @@ struct Fixture {
     observed: Arc<Observed>,
     request: RequestInfo,
     cookies: CookieJar,
-    encrypter: Encryptor,
+    encrypter: Encrypter,
     _scope: Scope,
     _owner: ResourceOwner,
     _runtime: ProviderRuntime,
@@ -362,7 +371,7 @@ impl Fixture {
         has_secret: bool,
         authority: Option<(
             super::super::authority::DatabaseFactorAuthority,
-            crate::db::Db,
+            crate::database::Db,
         )>,
     ) -> Result<Self> {
         Self::with_authority_id(options, has_secret, authority, json!(ID)).await
@@ -372,13 +381,13 @@ impl Fixture {
         has_secret: bool,
         authority: Option<(
             super::super::authority::DatabaseFactorAuthority,
-            crate::db::Db,
+            crate::database::Db,
         )>,
         identifier: Value,
     ) -> Result<Self> {
         let observed = Arc::new(Observed::default());
         let (events, runtime) = events(&observed).await?;
-        let encrypter = Encryptor::new(EncryptionConfig::new(
+        let encrypter = Encrypter::new(EncryptionConfig::new(
             "test",
             BTreeMap::from([(
                 "test".into(),
@@ -877,8 +886,8 @@ async fn required_authority_cannot_be_disabled_by_feature_flag_or_custom_callbac
 #[cfg(feature = "db-sqlite")]
 struct AuthorityEmptyMigrations;
 #[cfg(feature = "db-sqlite")]
-impl crate::db::sea_orm_migration::MigratorTrait for AuthorityEmptyMigrations {
-    fn migrations() -> Vec<Box<dyn crate::db::sea_orm_migration::MigrationTrait>> {
+impl crate::database::sea_orm_migration::MigratorTrait for AuthorityEmptyMigrations {
+    fn migrations() -> Vec<Box<dyn crate::database::sea_orm_migration::MigrationTrait>> {
         Vec::new()
     }
 }
@@ -886,7 +895,7 @@ impl crate::db::sea_orm_migration::MigratorTrait for AuthorityEmptyMigrations {
 async fn authority_database_case<F>(callback: F) -> Result<()>
 where
     F: FnOnce(
-        crate::db::Db,
+        crate::database::Db,
         super::super::authority::DatabaseFactorAuthority,
     ) -> BoxFuture<'static, Result<()>>,
 {
@@ -896,13 +905,13 @@ where
 async fn authority_database_case_for<F>(identifier: Value, callback: F) -> Result<()>
 where
     F: FnOnce(
-        crate::db::Db,
+        crate::database::Db,
         super::super::authority::DatabaseFactorAuthority,
     ) -> BoxFuture<'static, Result<()>>,
 {
-    use crate::db::sea_orm::ConnectionTrait;
+    use crate::database::sea_orm::ConnectionTrait;
     let database = crate::testing::TestDatabase::sqlite_file::<AuthorityEmptyMigrations>().await?;
-    let db = crate::db::Db::default();
+    let db = crate::database::Db::default();
     let outcome = async {
         db.initialize(database.connection()?)?;
         let key_type = if identifier.is_number() { "INTEGER" } else { "TEXT" };
@@ -913,7 +922,7 @@ where
             _ => return Err(fixture_error()),
         };
         db.table("users")?.insert(vec![("id", id_value)]).await?;
-        let encrypter = Encryptor::new(EncryptionConfig::new("test", BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
+        let encrypter = Encrypter::new(EncryptionConfig::new("test", BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
         let authority = super::super::authority::DatabaseFactorAuthority::new(super::super::DatabaseTwoFactorState::new(db.clone(), "users", "id", identifier)?, encrypter);
         callback(db.clone(), authority).await
     }.await;

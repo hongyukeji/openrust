@@ -22,11 +22,12 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, mpsc, watch};
 use uuid::Uuid;
 
-use crate::{
-    auth::CurrentUser,
-    config::RealtimeConfig,
-    core::{BoxFuture, Cancellation, Error, Result},
-};
+use crate::auth::CurrentUser;
+use crate::config::RealtimeConfig;
+use crate::core::Cancellation;
+use crate::core::Error;
+use crate::core::Result;
+use crate::support::BoxFuture;
 
 const ENVELOPE_VERSION: u8 = 1;
 const REVOKE_CHANNEL: &str = "__openrust_revoke__";
@@ -657,11 +658,11 @@ impl Default for RealtimeServiceProvider {
         Self::new()
     }
 }
-impl crate::core::ServiceProvider for RealtimeServiceProvider {
+impl crate::support::ServiceProvider for RealtimeServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema as S;
             app.config_section(
@@ -731,7 +732,10 @@ impl crate::core::ServiceProvider for RealtimeServiceProvider {
             Ok(())
         })
     }
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let config = app.config_repository();
             let has_custom_transport = self.transport.is_some();
@@ -1084,7 +1088,9 @@ mod tests {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
 
     struct InvalidOverlay;

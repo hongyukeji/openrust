@@ -4,10 +4,11 @@
 mod tests {
     use figment::{Figment, providers::Serialized};
     use openrust::config::{FrameworkConfig, NoConfig};
-    use openrust::core::{
-        Application, BootContext, BoxFuture, RegisterContext, Result, ServiceProvider,
-        provider::ProviderId,
-    };
+    use openrust::core::Result;
+    use openrust::foundation::ApplicationDefinition;
+    use openrust::foundation::BootContext;
+    use openrust::foundation::RegisterContext;
+    use openrust::foundation::provider::ProviderId;
     use openrust::http::{
         HttpServiceProvider, Request as InputRequest, UploadedFile,
         axum::{
@@ -17,6 +18,8 @@ mod tests {
             http::{Request, StatusCode},
         },
     };
+    use openrust::support::BoxFuture;
+    use openrust::support::ServiceProvider;
     use openrust::testing::TestApp;
     use std::{sync::Arc, time::Duration};
 
@@ -34,7 +37,7 @@ mod tests {
         fn register<'a>(
             &'a self,
             app: &'a mut RegisterContext<'_>,
-        ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        ) -> openrust::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance::<dyn Greeting>(Arc::new(FixedGreeting("production")))
                     .await?;
@@ -47,7 +50,7 @@ mod tests {
                     routes
                         .get(
                             "/api/greeting",
-                            |State(state): State<openrust::core::AppState>| async move {
+                            |State(state): State<openrust::foundation::ApplicationState>| async move {
                                 let value = state.resolve::<dyn Greeting>().await?;
                                 Ok::<_, openrust::Error>(Json(
                                     serde_json::json!({"message": value.message()}),
@@ -74,11 +77,11 @@ mod tests {
         }
     }
     struct Example;
-    impl Application for Example {
+    impl ApplicationDefinition for Example {
         type Config = NoConfig;
 
-        fn default_providers() -> openrust::core::DefaultProviders {
-            openrust::core::DefaultProviders::empty()
+        fn default_providers() -> openrust::support::DefaultProviders {
+            openrust::support::DefaultProviders::empty()
         }
         fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
             vec![Box::new(HttpServiceProvider), Box::new(BusinessProvider)]

@@ -1,6 +1,6 @@
 # 配置
 
-应用默认配置放在根 `config/*.rs`，部署值放在 `.env` 或进程环境。`config/mod.rs` 显式声明 Rust 模块，并在 `ConfigManifest` 中登记配置函数；`Application::config()` 把这份清单交给框架。
+应用默认配置放在根 `config/*.rs`，部署值放在 `.env` 或进程环境。`config/mod.rs` 显式声明 Rust 模块，并在 `ConfigManifest` 中登记配置函数；`ApplicationDefinition::config()` 把这份清单交给框架。
 
 配置函数收到同一次环境快照的 `ConfigContext`，可用 `env_or` 读取字符串、用 `bool_or` 严格解析布尔值，用 `require::<T>` 读取已求值的配置。被依赖区段须先登记，例如 `app` 可读取先完成的 `server.port`。错误中不应输出部署值。
 

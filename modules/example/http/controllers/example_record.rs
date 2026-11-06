@@ -6,14 +6,20 @@ use crate::modules::example::http::requests::example_record::{
 use crate::modules::example::http::resources::example_record::ExampleRecordResource;
 use crate::modules::example::models::example_record;
 use openrust::auth::CurrentUser;
-use openrust::db::sea_orm::{
+use openrust::database::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder,
 };
-use openrust::http::{
-    Created, Json, PageParams, Paginated, Path, Query, Resource, ResourceActions, Validated,
-};
+use openrust::http::Created;
+use openrust::http::Json;
+use openrust::http::PageParams;
+use openrust::http::Paginated;
+use openrust::http::Path;
+use openrust::http::Query;
+use openrust::http::Validated;
 use openrust::prelude::{Db, Inject};
+use openrust::routing::Resource;
+use openrust::routing::ResourceActions;
 use openrust::{Error, Result};
 
 pub(crate) struct ExampleRecords;
@@ -102,7 +108,7 @@ pub(crate) async fn store(
                         None,
                     )
                     .await?;
-                let openrust::db::sea_orm::Value::BigInt(Some(id)) = id else {
+                let openrust::database::sea_orm::Value::BigInt(Some(id)) = id else {
                     return Err(Error::custom(
                         "example_record_id_invalid",
                         "示例记录主键不是预期整数",

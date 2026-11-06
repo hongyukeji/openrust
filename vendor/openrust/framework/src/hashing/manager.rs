@@ -4,7 +4,8 @@ use super::{
     Argon2IdHasher, ArgonHasher, BcryptHasher, HashInfo, HashOptions, Hasher, HashingConfig,
     drivers::OperationPool, failure,
 };
-use crate::core::{BoxFuture, Result};
+use crate::core::Result;
+use crate::support::BoxFuture;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},

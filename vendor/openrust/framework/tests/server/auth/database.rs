@@ -24,9 +24,13 @@ use openrust::database::{
     DatabaseTableNames, Db,
 };
 use openrust::events::EventsServiceProvider;
+use openrust::foundation::http::build_router;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Inject;
+use openrust::http::Json;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
-use openrust::http::{HttpServiceProvider, Inject, Json, Routes, build_router};
+use openrust::routing::Router;
 use openrust::session::{GuardedDatabaseSessionStore, SessionStore};
 use openrust::session::{SessionId as Id, SessionRecord as Record};
 use openrust::signing::{
@@ -34,7 +38,7 @@ use openrust::signing::{
     SignedLinks, SignedLinksConfig, SignedLinksServiceProvider,
 };
 use openrust::testing::TestDatabase;
-use openrust::{App, Result, config::FrameworkConfig};
+use openrust::{Application, Result, config::FrameworkConfig};
 use sha2::{Digest, Sha256};
 use time::Duration;
 use tower::ServiceExt;
@@ -106,7 +110,10 @@ async fn require_policy(
     Ok(Json("allowed"))
 }
 
-async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::http::axum::Router)> {
+async fn app_router(
+    url: &str,
+    table_prefix: &str,
+) -> Result<(Application, openrust::http::axum::Router)> {
     let source = format!(
         "[session]\ndriver = 'database-guarded'\n[database]\nurl = {url:?}\ntable_prefix = {table_prefix:?}\n\n[database.table_names]\nusers = \"mapped_accounts\"\n"
     );
@@ -115,7 +122,7 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(openrust::audit::AuditServiceProvider::database())
@@ -143,24 +150,24 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
         .provider(AuthServiceProvider::new())
         .provider(HttpServiceProvider)
         .provider(TestInstance(std::sync::Arc::new(Marker)))
-        .provider(TestRoutes::new(|routes: Routes| {
+        .provider(TestRoutes::new(|routes: Router| {
             routes
                 .merge(
-                    Routes::new()
+                    Router::new()
                         .get("/auth/current", current_user)
                         .post("/auth/current", current_user)
                         .layer(AuthLayer::required(AuthMode::SessionOrToken)),
                 )
-                .merge(Routes::new().get("/auth/session", create_session))
-                .merge(Routes::new().post("/auth/logout", logout))
+                .merge(Router::new().get("/auth/session", create_session))
+                .merge(Router::new().post("/auth/logout", logout))
                 .merge(
-                    Routes::new()
+                    Router::new()
                         .get("/auth/policy", check_policy)
                         .get("/auth/policy-authorize", require_policy)
                         .layer(AuthLayer::required(AuthMode::Jwt)),
                 )
                 .merge(
-                    Routes::new()
+                    Router::new()
                         .get("/auth/policy-pat", check_policy)
                         .layer(AuthLayer::required(AuthMode::PersonalAccessToken)),
                 )
@@ -168,7 +175,7 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     assert!(app.state().resolve::<Audit>().await.is_ok());
     assert!(app.state().resolve::<SignedLinks>().await.is_ok());
     assert_eq!(
@@ -1431,7 +1438,7 @@ async fn auth_flow_events_share_account_and_refresh_transactions() -> TestResult
         FrameworkConfig::default(),
     ))
     .merge(Figment::new().merge(figment::providers::Toml::string(&source)));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(events)
@@ -1450,7 +1457,7 @@ async fn auth_flow_events_share_account_and_refresh_transactions() -> TestResult
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let flows = app.state().resolve::<AuthFlows>().await?;
     let db = app.state().resolve::<Db>().await?;
     let connection = db.connection()?;
@@ -1947,11 +1954,11 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
 }
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
-impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+impl<T: Send + Sync + 'static> openrust::support::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::clone(&self.0)).await?;
             Ok(())
@@ -1960,18 +1967,18 @@ impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {
@@ -1980,7 +1987,7 @@ where
             })?;
             app.routes(move |value| {
                 value.group(
-                    openrust::http::RouteGroup::new().middleware_alias("session"),
+                    openrust::routing::RouteGroup::new().middleware_alias("session"),
                     |value| routes(value),
                 )
             })?;
@@ -2001,11 +2008,11 @@ impl JwtSettings {
             "active_key_id":active_key_id,"keys":keys}))
     }
 }
-impl openrust::core::ServiceProvider for JwtSettings {
+impl openrust::support::ServiceProvider for JwtSettings {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move { app.merge_defaults("auth.jwt", self.0.clone()) })
     }
 }

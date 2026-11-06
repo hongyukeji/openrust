@@ -2,7 +2,12 @@
 
 use std::fmt::Write as _;
 
-use openrust::core::{App, BootContext, BoxFuture, Command, Error, Result};
+use openrust::console::Command;
+use openrust::core::Error;
+use openrust::core::Result;
+use openrust::foundation::Application;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
 
 use super::{Module, ModuleRepository};
 
@@ -41,7 +46,7 @@ impl Command for ChangeStatusCommand {
         true
     }
 
-    fn run<'a>(&'a self, app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, app: &'a Application, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let repository = app.state().resolve::<ModuleRepository>().await?;
             repository.ensure_writable()?;
@@ -53,7 +58,7 @@ impl Command for ChangeStatusCommand {
                 } else {
                     module.disable().await?;
                 }
-                openrust::core::command::print(&format!(
+                openrust::console::command::print(&format!(
                     "模块 {} 已{}，下次启动使用新状态",
                     module.name(),
                     if self.active { "启用" } else { "禁用" }
@@ -108,7 +113,7 @@ impl Command for ListCommand {
         true
     }
 
-    fn run<'a>(&'a self, app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, app: &'a Application, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let repository = app.state().resolve::<ModuleRepository>().await?;
             let (only, direction) = list_options(args)?;
@@ -150,7 +155,7 @@ impl Command for ListCommand {
                     super::priority::priority_label(module.priority())?
                 );
             }
-            openrust::core::command::print(output.trim_end());
+            openrust::console::command::print(output.trim_end());
             Ok(())
         })
     }

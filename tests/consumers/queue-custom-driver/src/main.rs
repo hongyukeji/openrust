@@ -3,7 +3,7 @@
 use openrust::{
     BoxFuture, Error, Result,
     config::QueueConfig,
-    db::DatabaseTransaction,
+    database::DatabaseTransaction,
     queue::{DispatchOptions, Job, JobContext, JobRegistry, Queue, QueueDriver},
 };
 use serde::Deserialize;

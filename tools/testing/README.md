@@ -31,7 +31,7 @@ MySQL/PostgreSQL 数据库测试须使用真实服务；环境变量未设置或
 使用自定义表前缀或全名映射时，将应用使用的 resolver 一并传给隔离数据库：
 
 ```rust,ignore
-let names = openrust::db::DatabaseTableNames::new("shop_", Default::default())?;
+let names = openrust::database::DatabaseTableNames::new("shop_", Default::default())?;
 let database = testing::TestDatabase::create_with_table_names::<migration::Migrator>(
     &std::env::var("OPENRUST_TEST_DATABASE_URL")?,
     names,

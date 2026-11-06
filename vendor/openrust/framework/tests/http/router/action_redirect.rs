@@ -1,14 +1,15 @@
 //! 动作声明、真实匹配和请求绑定重定向的 HTTP 接线。
 
 use super::*;
-use openrust::http::{Redirector, RequestInfo};
+use openrust::http::RequestInfo;
+use openrust::routing::Redirector;
 use std::collections::BTreeMap;
 
 struct ActionNamespace;
-impl openrust::core::ServiceProvider for ActionNamespace {
+impl openrust::support::ServiceProvider for ActionNamespace {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.set_root_controller_namespace("Http\\Draft")?;
@@ -94,7 +95,7 @@ async fn jump(info: RequestInfo, Path(mode): Path<String>) -> openrust::Result<R
 async fn action_router() -> Result<axum::Router, Box<dyn std::error::Error>> {
     let mut config = FrameworkConfig::default();
     config.app.url = "https://configured.example:8443/base".into();
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(ActionNamespace)
@@ -119,7 +120,7 @@ async fn action_router() -> Result<axum::Router, Box<dyn std::error::Error>> {
             figment::providers::Serialized::defaults(config),
         ))
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     Ok(build_router(&app)?)
 }
 
@@ -239,7 +240,7 @@ async fn action_redirect_generation_errors_precede_response_validation() -> Test
     Ok(())
 }
 
-async fn lookup(urls: RouteUrlGenerator, Path(which): Path<String>) -> openrust::Result<String> {
+async fn lookup(urls: UrlGenerator, Path(which): Path<String>) -> openrust::Result<String> {
     let action = match which.as_str() {
         "old" => "Old@show",
         "new" => "New@show",
@@ -253,7 +254,7 @@ async fn lookup(urls: RouteUrlGenerator, Path(which): Path<String>) -> openrust:
 async fn action_index_uses_effective_handler_and_domain_first_registration() -> TestResult {
     let mut config = FrameworkConfig::default();
     config.app.url = "http://localhost".into();
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
@@ -273,7 +274,7 @@ async fn action_index_uses_effective_handler_and_domain_first_registration() -> 
             figment::providers::Serialized::defaults(config),
         ))
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for (which, expected) in [
         ("new", "http://localhost/replaced"),

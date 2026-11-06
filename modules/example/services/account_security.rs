@@ -2,8 +2,9 @@
 
 use crate::modules::example::http::requests::account_security::CredentialsInput;
 use openrust::auth::{AuthFlows, AuthManager, LoginAttempt, Session, SessionCredentials};
-use openrust::core::{RegisterContext, ServiceProvider};
+use openrust::foundation::RegisterContext;
 use openrust::http::axum::http::{HeaderMap, header};
+use openrust::support::ServiceProvider;
 use openrust::{Error, Result};
 use std::sync::Arc;
 
@@ -12,7 +13,7 @@ impl ServiceProvider for AccountSecurityProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             // AuthFlows 是 request-scoped，业务包装不能在 singleton 中捕获它。
             app.scoped::<AccountSecurity, _>(|resolver| {

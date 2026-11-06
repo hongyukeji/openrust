@@ -3,12 +3,21 @@
 use std::sync::{Arc, Mutex};
 
 use figment::providers::Format;
-use openrust::{
-    BoxFuture, Error, Result,
-    core::{App, ProviderBuilder, RegisterContext, ServiceProvider},
-    mail::{Email, MailDriver, Mailer, lettre::Message},
-    sms::{SmsDriver, SmsMessage, SmsReceipt, SmsSender},
-};
+use openrust::BoxFuture;
+use openrust::Error;
+use openrust::Result;
+use openrust::foundation::Application;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::RegisterContext;
+use openrust::mail::Email;
+use openrust::mail::MailDriver;
+use openrust::mail::Mailer;
+use openrust::mail::lettre::Message;
+use openrust::sms::SmsDriver;
+use openrust::sms::SmsMessage;
+use openrust::sms::SmsReceipt;
+use openrust::sms::SmsSender;
+use openrust::support::ServiceProvider;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -29,7 +38,7 @@ impl ServiceProvider for ApplicationCommunicationProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let counts = self.counts.clone();
             app.singleton::<Mailer, _>(move |resolver| {
@@ -118,13 +127,13 @@ impl Email for WelcomeEmail {
     }
 }
 
-async fn build_app(counts: DeliveryCounts) -> Result<App> {
+async fn build_app(counts: DeliveryCounts) -> Result<Application> {
     let figment = figment::Figment::new().merge(figment::providers::Toml::string(
         "[mail]\ndriver = 'example'\n[sms]\ndriver = 'example'\n",
     ));
     let mut builder = ProviderBuilder::new();
     builder.provider(ApplicationCommunicationProvider { counts });
-    App::from_provider_runtime(builder.start(figment).await?)
+    Application::from_provider_runtime(builder.start(figment).await?)
 }
 
 #[tokio::test]

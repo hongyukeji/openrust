@@ -35,7 +35,7 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         let commit_mode=Arc::new(std::sync::atomic::AtomicU8::new(0));
         let listener_mode=commit_mode.clone();
         let mut listeners=openrust::events::EventsServiceProvider::new();
-        listeners.listen::<openrust::db::TransactionBeforeCommit,_>(move |_,ctx| {
+        listeners.listen::<openrust::database::TransactionBeforeCommit,_>(move |_,ctx| {
             let listener_mode=listener_mode.clone();
             Box::pin(async move {
                 let mode=listener_mode.load(std::sync::atomic::Ordering::SeqCst);
@@ -63,15 +63,15 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
                 Ok(())
             })
         });
-        let mut builder=openrust::core::ProviderBuilder::new();
-        builder.provider(openrust::db::DatabaseServiceProvider);
+        let mut builder=openrust::foundation::ProviderBuilder::new();
+        builder.provider(openrust::database::DatabaseServiceProvider);
         builder.provider(listeners);
         let runtime=builder.start(figment::Figment::new()).await?;
         let db=(*runtime.container().resolve::<Db>().await?).clone();
         db.initialize(connection.clone())?;
         let passwords=std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?);
         let jwt=JwtTokens::new(JwtConfig::new("oidc-owned","oidc-owned","owned",BTreeMap::from([("owned".into(),STANDARD.encode([51_u8;32]))])))?;
-        let encryptor=Encryptor::new(EncryptionConfig::new("owned",BTreeMap::from([("owned".into(),STANDARD.encode([61_u8;32]))])))?;
+        let encryptor=Encrypter::new(EncryptionConfig::new("owned",BTreeMap::from([("owned".into(),STANDARD.encode([61_u8;32]))])))?;
         let policy=CredentialAuthority::new(db.clone(),encryptor.clone(),false);
         let events=(*runtime.container().resolve::<openrust::events::Events>().await?).clone();
         let actions=TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None)),encryptor.clone(),events);
@@ -201,7 +201,7 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         let revive_hash=format!("{:x}",sha2::Sha256::digest(revive.expose()));
         let revive_handle_hash=format!("{:x}",sha2::Sha256::digest(revive_handle.expose()));
         let backend=connection.get_database_backend();
-        let marker=if backend==openrust::db::sea_orm::DbBackend::Postgres {"$1"} else {"?"};
+        let marker=if backend==openrust::database::sea_orm::DbBackend::Postgres {"$1"} else {"?"};
         connection.execute_raw(Statement::from_sql_and_values(backend,
             format!("CREATE TABLE test_saved_factor_challenge AS SELECT * FROM auth_factor_challenges WHERE token_hash={marker}"),
             [revive_hash.clone().into()])).await?;

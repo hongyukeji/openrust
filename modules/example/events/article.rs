@@ -2,7 +2,7 @@
 
 use crate::modules::example::models::article_event;
 use openrust::Error;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set};
 use openrust::events::EventsServiceProvider;
 
 #[derive(Clone, Copy)]

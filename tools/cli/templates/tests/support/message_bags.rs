@@ -1,11 +1,15 @@
 //! 生成应用通过公开 Provider 挂载业务路由，消费错误消息包契约。
 use figment::Figment;
-use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use openrust::http::{Json, Routes};
+use openrust::http::Json;
+use openrust::routing::Router;
 use openrust::support::{
     ArrayKey, Collection, MessageBag, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
     MessageValue, ViewErrorBag,
@@ -20,7 +24,7 @@ struct MessageBagRoutes;
 impl ServiceProvider for MessageBagRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| routes.get(PATH, inspect_message_bags))?;
+            app.routes(|routes: Router| routes.get(PATH, inspect_message_bags))?;
             Ok(())
         })
     }
@@ -28,13 +32,13 @@ impl ServiceProvider for MessageBagRoutes {
 
 // 测试扩展保留生成应用原有 Provider 与模块清单。
 struct MessageBagApplication<A>(std::marker::PhantomData<fn() -> A>);
-impl<A: Application> Application for MessageBagApplication<A> {
+impl<A: ApplicationDefinition> ApplicationDefinition for MessageBagApplication<A> {
     type Config = A::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         A::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         A::default_providers()
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -57,7 +61,7 @@ impl<A: Application> Application for MessageBagApplication<A> {
         providers
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
@@ -166,7 +170,7 @@ async fn inspect_message_bags() -> openrust::Result<Json<Value>> {
 }
 
 /// 经生成应用的真实 Provider 与 TestApp 请求入口验证消息包公开能力。
-pub async fn assert_message_bags<A: Application>(
+pub async fn assert_message_bags<A: ApplicationDefinition>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut app = TestApp::<MessageBagApplication<A>>::builder(source)

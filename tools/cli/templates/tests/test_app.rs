@@ -27,7 +27,9 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
-use openrust::core::{BoxFuture, RegisterContext, ServiceProvider};
+use openrust::support::BoxFuture;
+use openrust::foundation::RegisterContext;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -96,8 +98,8 @@ async fn generated_application_exposes_runtime_provider_registration()
         .merge(Toml::string("[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n"));
     let configuration: bootstrap::Configuration = source.extract()?;
     let builder =
-        openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
-    let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+        openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
+    let mut app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
     assert_eq!(app.environment().as_str(), "testing");
     assert!(app.running_unit_tests());
     assert!(!app.is_production());

@@ -2,10 +2,9 @@
 
 use std::{future::Future, time::Duration};
 
-use crate::{
-    core::{Error, Result},
-    i18n::Locale,
-};
+use crate::core::Error;
+use crate::core::Result;
+use crate::translation::Locale;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::watch, time::Instant};
 
@@ -348,7 +347,8 @@ impl Drop for CancelOnDrop {
 #[cfg(test)]
 mod tests {
     use super::{Cancellation, ExecutionContext, ExecutionMetadata, with_execution_context};
-    use crate::{core::Error, i18n::Locale};
+    use crate::core::Error;
+    use crate::translation::Locale;
     use std::time::Duration;
     use tokio::time::Instant;
 

@@ -10,7 +10,7 @@ use crate::{
         FactorVerificationMethod, TwoFactorLoginChallenge,
         credential::{CredentialFactorContext, FactorEvidence, FactorOrigin},
     },
-    db::{
+    database::{
         Db,
         sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, QueryResult},
     },
@@ -343,11 +343,11 @@ impl CredentialAuthority {
                 ("attempts", 0_i64.into()),
                 (
                     "created_at",
-                    crate::db::dialect::utc_value(backend, created_at),
+                    crate::database::dialect::utc_value(backend, created_at),
                 ),
                 (
                     "expires_at",
-                    crate::db::dialect::utc_value(backend, expires_at),
+                    crate::database::dialect::utc_value(backend, expires_at),
                 ),
             ])
             .await?;
@@ -584,7 +584,10 @@ impl CredentialAuthority {
             .where_null("consumed_at")?
             .update(vec![(
                 "consumed_at",
-                crate::db::dialect::utc_value(transaction.get_database_backend(), consumed_at),
+                crate::database::dialect::utc_value(
+                    transaction.get_database_backend(),
+                    consumed_at,
+                ),
             )])
             .await?;
         require_fresh(prepared.expires_at)?;

@@ -176,7 +176,7 @@ impl QueueDriver for LegacyDriver {
 
     fn dispatch_in_transaction<'a>(
         &'a self,
-        _transaction: &'a openrust::db::DatabaseTransaction,
+        _transaction: &'a openrust::database::DatabaseTransaction,
         _queue: &'a str,
         _job_name: &'a str,
         _payload: Value,
@@ -225,7 +225,7 @@ async fn legacy_custom_driver_rejects_nonempty_execution_metadata() -> Result<()
 #[tokio::test]
 async fn named_connections_parse_and_validate_only_when_selected() -> Result<()> {
     use figment::{Figment, providers::Serialized};
-    use openrust::core::ProviderBuilder;
+    use openrust::foundation::ProviderBuilder;
     use openrust::queue::QueueServiceProvider;
 
     let created = Arc::new(AtomicUsize::new(0));

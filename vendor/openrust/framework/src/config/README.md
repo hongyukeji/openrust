@@ -2,7 +2,7 @@
 
 ## Rust 代码配置
 
-应用的 `Application::config()` 返回显式 `ConfigManifest`：根 `config/mod.rs` 可用 `.section("app", app::config)` 逐项登记 `config/*.rs` 中已编译的普通 Rust 函数。启动先读取进程优先的部署变量及所选 dotenv，再把同次只读 `ConfigContext` 交给这些函数；`env`、`env_or`、`bool_or` 可读取字符串和严格布尔值，错误不输出部署值。`nullable_bool_or(key, default)` 单独对应 Laravel env 保留字及 PHP truthiness：null/(null) 返回 None，false/(false)/0 为 false，off/no 等普通非空值为 true；现有 `bool_or` 继续严格解析。根与生成数据库配置用该方法读取 DB_FOREIGN_KEYS，命名空间环境层仍优先。代码区段在框架默认值之后、部署变量覆盖之前求值。默认应用启动不扫描 TOML；需要旧文件来源时须在清单中显式 `.with_toml()`，原有 `ConfigLoader::sources()` 仍保留文件配置能力。Rust 源码和 `mod` 声明改变后必须重新编译，部署值改变后重启生效。
+应用的 `ApplicationDefinition::config()` 返回显式 `ConfigManifest`：根 `config/mod.rs` 可用 `.section("app", app::config)` 逐项登记 `config/*.rs` 中已编译的普通 Rust 函数。启动先读取进程优先的部署变量及所选 dotenv，再把同次只读 `ConfigContext` 交给这些函数；`env`、`env_or`、`bool_or` 可读取字符串和严格布尔值，错误不输出部署值。`nullable_bool_or(key, default)` 单独对应 Laravel env 保留字及 PHP truthiness：null/(null) 返回 None，false/(false)/0 为 false，off/no 等普通非空值为 true；现有 `bool_or` 继续严格解析。根与生成数据库配置用该方法读取 DB_FOREIGN_KEYS，命名空间环境层仍优先。代码区段在框架默认值之后、部署变量覆盖之前求值。默认应用启动不扫描 TOML；需要旧文件来源时须在清单中显式 `.with_toml()`，原有 `ConfigLoader::sources()` 仍保留文件配置能力。Rust 源码和 `mod` 声明改变后必须重新编译，部署值改变后重启生效。
 
 `.typed("example.runtime_policy", factory)` 可保存不可序列化 Rust 类型或工厂闭包，由 `ConfigRepository::typed::<T>(key)` 返回共享 `Arc<T>`；调用与资源关闭仍由 Provider/Container 负责。raw `all()` 只返回可序列化视图，不能代表 typed 值；同名及会互相遮蔽的父子路径写入被拒绝。模块 Provider 可在 boot 时调用 `BootContext::code_config(&manifest)`，沿用应用同一次环境快照并原子发布配置；缓存命中时跳过模块代码求值，含 typed 清单则明确拒绝缓存加载和创建。可序列化配置继续由现有 `config:cache` 写入最终值快照；失败不写半成品。
 
@@ -48,7 +48,7 @@ assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localh
 
 `app.env` 保存精确环境名称。未声明时按固定 Laravel `LoadConfiguration` 回调缺省为 `production`；Rust `config/app.rs` 函数或显式选择的 `config/app.toml` 可声明环境，外部进程 `APP_ENV` 优先于 `.env` 和代码/文件配置。根 `.env.example` 和 CLI 生成的 `.env.example` 显式选用 `development`，因此开发模板不会受到缺省值变化影响。`APP_ENV=local`、`development`、`dev`、`test`、`testing` 及自定义 `staging` 均保持不同身份，大小写和显式空字符串也保留。配置缓存命中时使用缓存内的 `app.env`。
 
-`App::environment()` 和 `AppState::environment()` 返回启动时名称；`environment_matches(["local", "stag*"])` 按 Laravel `Str::is` 的大小写敏感 `*` 模式检查。`is_local()` 只匹配 `local`，`is_production()` 只匹配 `production`，`running_unit_tests()` 只匹配 `testing`。Rust 将 PHP 的返回值重载与可变参数拆成独立读取和模式匹配方法；不从 Rust 测试进程状态猜测 `running_unit_tests`。已运行应用的配置仓储可以被显式写入，但这些启动身份查询使用启动快照，不重建旧服务。
+`Application::environment()` 和 `ApplicationState::environment()` 返回启动时名称；`environment_matches(["local", "stag*"])` 按 Laravel `Str::is` 的大小写敏感 `*` 模式检查。`is_local()` 只匹配 `local`，`is_production()` 只匹配 `production`，`running_unit_tests()` 只匹配 `testing`。Rust 将 PHP 的返回值重载与可变参数拆成独立读取和模式匹配方法；不从 Rust 测试进程状态猜测 `running_unit_tests`。已运行应用的配置仓储可以被显式写入，但这些启动身份查询使用启动快照，不重建旧服务。
 
 `ConfigLoader::environment_override()` 只报告显式指定的环境；`None` 表示最终身份由配置文件或默认值决定。最终名称从 `load_framework().app.env` 或已启动应用的 `environment()` 读取，避免把缺省提示误当作文件环境。`Environment` 按精确名称比较与哈希，即使使用 `Custom("production")` 构造也与 `Production` 表示同一值。
 
@@ -58,7 +58,7 @@ assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localh
 
 ## 配置缓存
 
-应用二进制执行 `config:cache` 时，框架先清除本次选定的旧缓存，再用同一 `Application` 类型重新 bootstrap，完成所有 Provider 的 register、boot、最终校验，写入唯一配置仓储的最终有序值。`config:clear` 只清除该文件。默认文件是应用根的 `bootstrap/cache/config.json`；`APP_CONFIG_CACHE` 或应用自定命名空间的 `<PREFIX>CONFIG_CACHE` 可选绝对路径或相对应用根的路径。全局 `openrust` CLI 将这两个命令转发给应用二进制。
+应用二进制执行 `config:cache` 时，框架先清除本次选定的旧缓存，再用同一 `ApplicationDefinition` 类型重新 bootstrap，完成所有 Provider 的 register、boot、最终校验，写入唯一配置仓储的最终有序值。`config:clear` 只清除该文件。默认文件是应用根的 `bootstrap/cache/config.json`；`APP_CONFIG_CACHE` 或应用自定命名空间的 `<PREFIX>CONFIG_CACHE` 可选绝对路径或相对应用根的路径。全局 `openrust` CLI 将这两个命令转发给应用二进制。
 
 启动先用进程已有环境选择缓存；命中时不读 `.env` 和 TOML，也不会用新的环境配置覆盖缓存值。未命中时将 `.env` 解析到本次引导的独立环境快照，外部环境优先，再重选缓存路径，因此 `.env` 内的 `APP_CONFIG_CACHE` 可以生效。`config:cache` 只清除本次已选路径，fresh App 用同一路径并重新读取最新 `.env`；不改写进程环境。缓存损坏会安全报错，须显式清除。缓存可能含秘密，文件仅允许所有者读取；不要提交、展示或记录内容。缓存和清除只影响下一次启动，不热更新已运行 App。`config show` 仍对展示值脱敏。
 
@@ -85,9 +85,9 @@ assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localh
 
 写入遵循固定 Laravel `Repository::set` / `Arr::set`：即使根上已有字面 `a.b`，`set("a.b", value)` 仍写入嵌套 `a → b`，而 `get("a.b")` 继续优先读完整字面键。空键和连续点号也是可写的数组键；规范数字键可形成列表，稀疏数字键和数字、字符串混合键保留为有序对象。覆盖已有键不移动其位置，尾项整体替换；中途遇到 scalar 或 null 时创建数组。`set_many` 按输入迭代顺序执行，失败时原始值、Figment 类型化投影与版本均保持旧状态。
 
-核心原始写入在 Register、Boot、Frozen 阶段均可调用。Register/Boot 写入仍受后续启动 schema 校验约束；Frozen 后的写入允许任意可表达的 `serde_json::Value`，后续类型化读取不匹配时返回安全错误。注册、boot overlay 和 freeze 的阶段限制保持不变。`App::config_repository()`、`AppState::config_repository()` 与 Provider 返回同一共享句柄；`App::section<T>` 读取最新仓储。`App::config()`、`AppState::config()`、`App::figment()` 和已经解析的服务保留启动快照，不因内存写入自动重建。`clone()` 共享服务句柄；`all()` 返回独立值快照。
+核心原始写入在 Register、Boot、Frozen 阶段均可调用。Register/Boot 写入仍受后续启动 schema 校验约束；Frozen 后的写入允许任意可表达的 `serde_json::Value`，后续类型化读取不匹配时返回安全错误。注册、boot overlay 和 freeze 的阶段限制保持不变。`Application::config_repository()`、`ApplicationState::config_repository()` 与 Provider 返回同一共享句柄；`Application::section<T>` 读取最新仓储。`Application::config()`、`ApplicationState::config()`、`Application::figment()` 和已经解析的服务保留启动快照，不因内存写入自动重建。`clone()` 共享服务句柄；`all()` 返回独立值快照。
 
-运行期写入值与后续启动阶段的原始键序保存在同一仓储状态内；Figment 投影和来源元数据随同一版本原子发布。默认应用引导使用 `ConfigManifest` 构成的不可变 `ConfigSources`：默认值、已编译 Rust 配置函数和环境层在同一次加载中形成原始值与 Figment 投影。显式选择旧 TOML 来源时，`ConfigLoader::sources()` 仍从默认值、文件和环境层构建来源。可信应用代码也可用 `ConfigSources::from_ordered_entries([(key, value), …])?` 按输入顺序提供配置，重复根键覆盖原位置；`figment()` 借用对应类型化来源。`ConfigRepository::new`、应用 Provider 与 `TestApp` 可接收这个输入。代码来源可用 `ConfigSources::merge_ordered_entries([(key, value), …])?` 显式追加优先级更高的 Global 覆盖：提供路径对各 profile 统一生效，其他字段保持各 profile 原值；同时保留原 profile、来源元数据、同次环境快照及 typed 值；typed/raw 路径冲突或已编译缓存来源明确拒绝。该方法不会恢复此前经 Figment 丢失的声明顺序。`ConfigRepository::new(Figment)` 仍可用，但 Figment 的字典已排序，该转换有损，无法恢复原始声明顺序。应用启动的 typed 配置、`App::figment()` 与已解析服务仍是启动快照，后续 raw 写入只更新共享仓储。
+运行期写入值与后续启动阶段的原始键序保存在同一仓储状态内；Figment 投影和来源元数据随同一版本原子发布。默认应用引导使用 `ConfigManifest` 构成的不可变 `ConfigSources`：默认值、已编译 Rust 配置函数和环境层在同一次加载中形成原始值与 Figment 投影。显式选择旧 TOML 来源时，`ConfigLoader::sources()` 仍从默认值、文件和环境层构建来源。可信应用代码也可用 `ConfigSources::from_ordered_entries([(key, value), …])?` 按输入顺序提供配置，重复根键覆盖原位置；`figment()` 借用对应类型化来源。`ConfigRepository::new`、应用 Provider 与 `TestApp` 可接收这个输入。代码来源可用 `ConfigSources::merge_ordered_entries([(key, value), …])?` 显式追加优先级更高的 Global 覆盖：提供路径对各 profile 统一生效，其他字段保持各 profile 原值；同时保留原 profile、来源元数据、同次环境快照及 typed 值；typed/raw 路径冲突或已编译缓存来源明确拒绝。该方法不会恢复此前经 Figment 丢失的声明顺序。`ConfigRepository::new(Figment)` 仍可用，但 Figment 的字典已排序，该转换有损，无法恢复原始声明顺序。应用启动的 typed 配置、`Application::figment()` 与已解析服务仍是启动快照，后续 raw 写入只更新共享仓储。
 
 有序入口沿现有 `php_entries` / `php_value` 规则表示规范数字键：连续 `0..n` 是列表，反序、稀疏或数字与字符串混合为有序对象，`01` 是字符串键；空根输入是空列表。Figment 要求根为字典，因此纯数字根列表在类型化投影中暂时展开为数字键字典；`ConfigRepository::all()` 保留列表形态。嵌套数组保持数组。原始值与投影值经同一来源验证，构造失败不发布半成品。固定 PHP 8.5.0 的值、键序、列表/混合/稀疏形态见 [golden fixture](../../tests/fixtures/config_runtime_set.json)；PHP 对象、Closure 和资源不属于 `serde_json::Value` 可表达范围，仍是公开差异。
 

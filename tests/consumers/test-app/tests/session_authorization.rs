@@ -5,7 +5,8 @@
 #![cfg(feature = "session")]
 
 use openrust::auth::{Session, SessionStoreHandle};
-use openrust::core::{BoxFuture, Result};
+use openrust::core::Result;
+use openrust::support::BoxFuture;
 use std::time::SystemTime;
 
 // 从独立 crate 实际类型检查 await 路径，禁止依赖框架私有 Session key。

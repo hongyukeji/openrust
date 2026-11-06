@@ -4,13 +4,15 @@ use crate::auth::fortify::{
     DatabaseFactorAuthority, DatabaseTwoFactorState, FactorAuthorityMutation,
     GoogleTwoFactorAuthenticationProvider, TwoFactorAuthenticationProvider,
 };
-use crate::{
-    core::{BoxFuture, ProviderBuilder},
-    db::sea_orm_migration::{MigrationTrait, MigratorTrait},
-    events::{Events, EventsServiceProvider},
-    security::{EncryptionConfig, Encryptor},
-    testing::TestDatabase,
-};
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::encryption::Encrypter;
+use crate::encryption::EncryptionConfig;
+use crate::events::Events;
+use crate::events::EventsServiceProvider;
+use crate::foundation::ProviderBuilder;
+use crate::support::BoxFuture;
+use crate::testing::TestDatabase;
 use serde_json::Value;
 
 struct NoMigrations;
@@ -24,7 +26,7 @@ struct Fixture {
     policy: CredentialAuthority,
     authority: DatabaseFactorAuthority,
     actions: TwoFactorActions,
-    _runtime: crate::core::ProviderRuntime,
+    _runtime: crate::foundation::ProviderRuntime,
 }
 async fn owned<F>(callback: F) -> Result<()>
 where
@@ -37,7 +39,7 @@ where
         db.connection()?.execute_unprepared("CREATE TABLE users (id INTEGER PRIMARY KEY, disabled_at datetime, password_hash TEXT DEFAULT 'fixture-password', probe INTEGER NOT NULL DEFAULT 0, two_factor_secret TEXT, two_factor_recovery_codes TEXT, two_factor_confirmed_at datetime, two_factor_authority_source TEXT, two_factor_authority_generation TEXT, two_factor_consumed_codes TEXT, two_factor_management_session_hash TEXT, two_factor_management_generation TEXT, two_factor_management_authorized_at datetime)").await.map_err(Error::internal)?;
         db.connection()?.execute_unprepared("CREATE TABLE auth_factor_challenges (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, source_hash TEXT NOT NULL, context TEXT NOT NULL, purpose TEXT NOT NULL, password_hash_digest TEXT, attempts INTEGER NOT NULL, expires_at datetime NOT NULL, created_at datetime NOT NULL, consumed_at datetime)").await.map_err(Error::internal)?;
         db.table("users")?.insert(vec![("id", 42_i64.into())]).await?;
-        let encrypter = Encryptor::new(EncryptionConfig::new("test", std::collections::BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
+        let encrypter = Encrypter::new(EncryptionConfig::new("test", std::collections::BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
         let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(), "users", "id", Value::from(42))?, encrypter.clone());
         let mut builder = ProviderBuilder::new(); builder.provider(EventsServiceProvider::new());
         let runtime = builder.start(figment::Figment::new()).await?;
@@ -425,14 +427,14 @@ async fn expired_or_corrupt_challenge_and_disabled_account_cannot_publish_factor
                 .update(vec![
                     (
                         "created_at",
-                        crate::db::dialect::utc_value(
+                        crate::database::dialect::utc_value(
                             DbBackend::Sqlite,
                             now - chrono::Duration::seconds(301),
                         ),
                     ),
                     (
                         "expires_at",
-                        crate::db::dialect::utc_value(
+                        crate::database::dialect::utc_value(
                             DbBackend::Sqlite,
                             now - chrono::Duration::seconds(1),
                         ),
@@ -475,7 +477,7 @@ async fn expired_or_corrupt_challenge_and_disabled_account_cannot_publish_factor
                 .where_eq("id", 42_i64)?
                 .update(vec![(
                     "disabled_at",
-                    crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
+                    crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
                 )])
                 .await?;
             assert!(finish(&fixture, prepared, verified).await.is_err());
@@ -800,7 +802,7 @@ async fn cancellation_and_expiry_while_provider_waits_cannot_consume_the_factor(
                 .where_eq("token_hash", digest(expiring.expose()))?
                 .update(vec![(
                     "expires_at",
-                    crate::db::dialect::utc_value(DbBackend::Sqlite, deadline),
+                    crate::database::dialect::utc_value(DbBackend::Sqlite, deadline),
                 )])
                 .await?;
             let second = fixture
@@ -988,7 +990,7 @@ mod flow_commit {
         },
         config::JwtConfig,
         core::RateLimiter,
-        db::{
+        database::{
             DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseServiceProvider,
             TransactionBeforeCommit,
         },
@@ -1040,7 +1042,7 @@ mod flow_commit {
                 },
             )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
             let hash = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), PASSWORD).await?;
-            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             db.table("users")?
                 .insert(vec![
                     ("id", 42_i64.into()),
@@ -1055,7 +1057,7 @@ mod flow_commit {
                 "test".into(),
                 "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
             )]);
-            let encrypter = Encryptor::new(EncryptionConfig::new("test", keys.clone()))?;
+            let encrypter = Encrypter::new(EncryptionConfig::new("test", keys.clone()))?;
             let jwt = JwtTokens::new(JwtConfig::new("issuer", "consumer", "test", keys))?;
             let authority = DatabaseFactorAuthority::new(
                 DatabaseTwoFactorState::new(db.clone(), "users", "id", Value::from(42))?,
@@ -1188,7 +1190,7 @@ mod flow_commit {
             listeners
         }
         async fn interfere(&self, tx: &DatabaseTransaction, selected: Hook) -> Result<()> {
-            use crate::db::sea_orm::Statement;
+            use crate::database::sea_orm::Statement;
             let candidate = match selected {
                 Hook::RevokeRefresh => {
                     "SELECT 1 FROM auth_refresh_tokens WHERE consumed_at IS NOT NULL"
@@ -1328,7 +1330,7 @@ mod flow_commit {
                     .where_eq("token_hash", digest(challenge.expose()))?
                     .update(vec![(
                         "expires_at",
-                        crate::db::dialect::utc_value(DbBackend::Sqlite, cutoff),
+                        crate::database::dialect::utc_value(DbBackend::Sqlite, cutoff),
                     )])
                     .await?;
                 let before = fixture.authority.load().await?;

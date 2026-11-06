@@ -20,7 +20,9 @@ use std::{
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::core::{BoxFuture, Error, Result};
+use crate::core::Error;
+use crate::core::Result;
+use crate::support::BoxFuture;
 
 pub use crate::config::cache::{
     CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig,
@@ -370,7 +372,7 @@ impl FlightWaiter {
 }
 
 struct CacheManager {
-    resolver: crate::core::container::Resolver,
+    resolver: crate::container::Resolver,
     drivers: std::sync::Mutex<CacheDrivers>,
     stores: std::sync::Mutex<BTreeMap<String, Arc<tokio::sync::OnceCell<CacheStore>>>>,
     runtime: std::sync::Mutex<Option<(Arc<SingleFlight>, Arc<RefreshLimiter>)>>,
@@ -385,7 +387,7 @@ pub struct Cache {
 }
 
 impl Cache {
-    fn managed(resolver: crate::core::container::Resolver, drivers: CacheDrivers) -> Self {
+    fn managed(resolver: crate::container::Resolver, drivers: CacheDrivers) -> Self {
         Self {
             manager: Arc::new(CacheManager {
                 resolver,
@@ -506,8 +508,17 @@ impl Cache {
                     options: store.options.clone(),
                 };
                 let background_tasks = manager.resolver.resources()?.background_handle()?;
-                let shared_locks = if manager.resolver.is_bound::<crate::db::SharedLocks>()? {
-                    Some((*manager.resolver.resolve::<crate::db::SharedLocks>().await?).clone())
+                let shared_locks = if manager
+                    .resolver
+                    .is_bound::<crate::database::SharedLocks>()?
+                {
+                    Some(
+                        (*manager
+                            .resolver
+                            .resolve::<crate::database::SharedLocks>()
+                            .await?)
+                            .clone(),
+                    )
                 } else {
                     None
                 };
@@ -651,9 +662,9 @@ pub struct CacheStore {
     namespace: String,
     backend: Arc<dyn CacheBackend>,
     singleflight: Arc<SingleFlight>,
-    background_tasks: crate::core::lifecycle::BackgroundTaskHandle,
+    background_tasks: crate::foundation::lifecycle::BackgroundTaskHandle,
     refresh_limiter: Arc<RefreshLimiter>,
-    shared_locks: Option<crate::db::SharedLocks>,
+    shared_locks: Option<crate::database::SharedLocks>,
 }
 
 impl CacheStore {
@@ -964,11 +975,11 @@ fn validate_cache_config(config: &CacheConfig) -> Result<()> {
     Ok(())
 }
 
-impl crate::core::ServiceProvider for CacheServiceProvider {
+impl crate::support::ServiceProvider for CacheServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema as S;
             app.config_section(
@@ -1015,7 +1026,10 @@ impl crate::core::ServiceProvider for CacheServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let cache = app.resolve::<Cache>().await?;
             let _ = cache.default_store().await?;
@@ -1035,7 +1049,9 @@ impl crate::core::ServiceProvider for CacheServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
 
@@ -1043,8 +1059,8 @@ mod provider_tests {
     impl ServiceProvider for ReadinessProvider {
         fn register<'a>(
             &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            app: &'a mut crate::foundation::RegisterContext<'_>,
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance(Arc::clone(&self.0)).await?;
                 Ok(())
@@ -1813,9 +1829,9 @@ mod tests {
         namespace: &str,
         config: &CacheSingleflightConfig,
     ) -> CacheStore {
-        static TASKS: std::sync::OnceLock<crate::core::lifecycle::BackgroundTasks> =
+        static TASKS: std::sync::OnceLock<crate::foundation::lifecycle::BackgroundTasks> =
             std::sync::OnceLock::new();
-        let tasks = TASKS.get_or_init(crate::core::lifecycle::BackgroundTasks::default);
+        let tasks = TASKS.get_or_init(crate::foundation::lifecycle::BackgroundTasks::default);
         store_with_runtime(backend, namespace, config, tasks)
     }
 
@@ -1823,7 +1839,7 @@ mod tests {
         backend: Arc<dyn CacheBackend>,
         namespace: &str,
         config: &CacheSingleflightConfig,
-        tasks: &crate::core::lifecycle::BackgroundTasks,
+        tasks: &crate::foundation::lifecycle::BackgroundTasks,
     ) -> CacheStore {
         CacheStore {
             store_name: "test".to_owned(),
@@ -2267,7 +2283,7 @@ mod tests {
 
     #[tokio::test]
     async fn swr_returns_stale_during_refresh_and_shares_the_refreshed_value() -> Result<()> {
-        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let tasks = crate::foundation::lifecycle::BackgroundTasks::default();
         let cache = store_with_runtime(
             Arc::new(MemoryBackend::default()),
             "swr",
@@ -2342,7 +2358,7 @@ mod tests {
 
     #[tokio::test]
     async fn swr_does_not_serve_stale_after_tags_are_invalidated() -> Result<()> {
-        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let tasks = crate::foundation::lifecycle::BackgroundTasks::default();
         let cache = store_with_runtime(
             Arc::new(MemoryBackend::default()),
             "swr-invalidation",
@@ -2425,7 +2441,7 @@ mod tests {
 
     #[tokio::test]
     async fn swr_refresh_failure_keeps_stale_only_until_the_maximum_window() -> Result<()> {
-        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let tasks = crate::foundation::lifecycle::BackgroundTasks::default();
         let cache = store_with_runtime(
             Arc::new(MemoryBackend::default()),
             "swr-expiry",
@@ -2484,7 +2500,7 @@ mod tests {
             }
         }
 
-        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let tasks = crate::foundation::lifecycle::BackgroundTasks::default();
         let cache = store_with_runtime(
             Arc::new(MemoryBackend::default()),
             "swr-shutdown",
@@ -2539,7 +2555,7 @@ mod tests {
 
     #[tokio::test]
     async fn swr_caps_concurrent_refreshes_across_keys() -> Result<()> {
-        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let tasks = crate::foundation::lifecycle::BackgroundTasks::default();
         let mut cache = store_with_runtime(
             Arc::new(MemoryBackend::default()),
             "swr-capacity",
@@ -2611,7 +2627,7 @@ mod tests {
 
     #[tokio::test]
     async fn plugin_requires_config_and_registers_named_memory_stores() -> Result<()> {
-        use crate::core::ProviderBuilder;
+        use crate::foundation::ProviderBuilder;
         use figment::providers::{Format, Toml};
 
         let mut missing_builder = ProviderBuilder::new();
@@ -2668,7 +2684,7 @@ mod tests {
 
     #[tokio::test]
     async fn external_driver_is_collected_before_cache_initialization() -> Result<()> {
-        use crate::core::ProviderBuilder;
+        use crate::foundation::ProviderBuilder;
         use figment::providers::{Format, Toml};
 
         let figment = figment::Figment::new().merge(Toml::string(
@@ -2686,7 +2702,7 @@ mod tests {
     #[cfg(feature = "cache-redis")]
     #[tokio::test]
     async fn redis_connection_failure_does_not_fall_back_to_memory() {
-        use crate::core::ProviderBuilder;
+        use crate::foundation::ProviderBuilder;
         use figment::providers::{Format, Toml};
 
         let figment = figment::Figment::new().merge(Toml::string(

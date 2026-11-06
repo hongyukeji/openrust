@@ -4,7 +4,8 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::{BoxFuture, Error, Result as FrameworkResult};
+use openrust::core::Error;
+use openrust::core::Result as FrameworkResult;
 use openrust::database::sea_orm_migration::MigrationTrait;
 use openrust::database::{DatabaseServiceProvider, Db, sea_orm_migration::MigratorTrait};
 use openrust::events::{Events, EventsServiceProvider};
@@ -12,6 +13,7 @@ use openrust::queue::{
     DispatchOptions, GroupFailurePolicy, Job, JobContext, Queue, QueueMigration,
     QueueServiceProvider, QueueTask,
 };
+use openrust::support::BoxFuture;
 use std::sync::{
     Arc,
     atomic::{AtomicI64, AtomicUsize, Ordering},
@@ -222,7 +224,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
         "[database]\nurl = {:?}\n[queue]\njob_timeout_secs = 1\n",
         test_database.url()
     ))));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(queue_plugin)
@@ -230,7 +232,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let queue = app.state().resolve::<Queue>().await?;
     let db = app.state().resolve::<Db>().await?;
     let events = app.state().resolve::<Events>().await?;
@@ -241,7 +243,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     let execution = openrust::ExecutionContext::new(
         openrust::ExecutionMetadata::default()
             .with_request_id("database-queue-request")?
-            .with_locale(openrust::i18n::Locale::new("zh-CN")?),
+            .with_locale(openrust::translation::Locale::new("zh-CN")?),
         None,
         openrust::Cancellation::new(),
     );
@@ -274,7 +276,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     let execution = openrust::ExecutionContext::new(
         openrust::ExecutionMetadata::default()
             .with_request_id("group-request")?
-            .with_locale(openrust::i18n::Locale::new("zh-CN")?),
+            .with_locale(openrust::translation::Locale::new("zh-CN")?),
         None,
         openrust::Cancellation::new(),
     );
@@ -642,17 +644,17 @@ struct AttemptTracker {
     children_stopped: AtomicUsize,
     started: tokio::sync::Notify,
     cleanup: tokio::sync::Notify,
-    state: std::sync::Mutex<Option<openrust::core::AppState>>,
+    state: std::sync::Mutex<Option<openrust::foundation::ApplicationState>>,
     observed: std::sync::Mutex<Vec<(u64, usize)>>,
-    scopes: std::sync::Mutex<Vec<Arc<openrust::core::container::Scope>>>,
+    scopes: std::sync::Mutex<Vec<Arc<openrust::container::Scope>>>,
 }
 struct AttemptInstance(usize);
 struct AttemptBindings(Arc<AttemptTracker>);
-impl openrust::core::ServiceProvider for AttemptBindings {
+impl openrust::support::ServiceProvider for AttemptBindings {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, FrameworkResult<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, FrameworkResult<()>> {
         Box::pin(async move {
             app.instance(Arc::clone(&self.0)).await?;
             app.scoped::<AttemptInstance, _>(|resolver| {
@@ -736,9 +738,11 @@ impl Job for AttemptScopedJob {
 #[tokio::test]
 async fn custom_driver_awaits_attempt_cleanup_before_retry() -> FrameworkResult<()> {
     let tracker = Arc::new(AttemptTracker::default());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(AttemptBindings(Arc::clone(&tracker)));
-    let app = openrust::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+    let app = openrust::foundation::Application::from_provider_runtime(
+        builder.start(Figment::new()).await?,
+    )?;
     *tracker
         .state
         .lock()
@@ -832,12 +836,12 @@ async fn database_worker_attempts_isolate_scoped_services_and_join_children()
         "[database]\nurl = {:?}\n[queue]\njob_timeout_secs = 1\n",
         database.url()
     )));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(AttemptBindings(Arc::clone(&tracker)))
         .provider(queue_provider);
-    let app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
     *tracker.state.lock().map_err(|_| "state lock")? = Some(app.state().clone());
     let queue = app.state().resolve::<Queue>().await?;
     let db = app.state().resolve::<Db>().await?;

@@ -4,13 +4,14 @@
 use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
-use openrust::core::{Application, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
 use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode, header},
 };
 use openrust::http::{Cookie, SameSite};
 use openrust::session::{MemorySessionStore, SessionServiceProvider};
+use openrust::support::ServiceProvider;
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 
@@ -19,7 +20,7 @@ const PATH: &str = "/api/example/session";
 const COOKIE_NAME: &str = "example_module_session";
 const TIMEOUT: Duration = Duration::from_secs(5);
 
-async fn old_input_request<A: Application>(
+async fn old_input_request<A: ApplicationDefinition>(
     app: &TestApp<A>,
     payload: Option<Value>,
     cookie: Option<&str>,
@@ -43,7 +44,7 @@ async fn old_input_request<A: Application>(
         .await?)
 }
 
-async fn old_input_post<A: Application>(
+async fn old_input_post<A: ApplicationDefinition>(
     app: &TestApp<A>,
     path: &str,
     payload: Value,
@@ -66,12 +67,14 @@ async fn old_input_post<A: Application>(
         .await?)
 }
 
-async fn verify_old_input<A: Application>(app: &TestApp<A>) -> TestResult {
+async fn verify_old_input<A: ApplicationDefinition>(app: &TestApp<A>) -> TestResult {
     let cookie = verify_old_input_lifecycle(app).await?;
     verify_old_input_selection(app, &cookie).await
 }
 
-async fn verify_old_input_lifecycle<A: Application>(app: &TestApp<A>) -> TestResult<String> {
+async fn verify_old_input_lifecycle<A: ApplicationDefinition>(
+    app: &TestApp<A>,
+) -> TestResult<String> {
     let first = old_input_request(app, None, None).await?;
     success(
         &first,
@@ -149,7 +152,10 @@ async fn verify_old_input_lifecycle<A: Application>(app: &TestApp<A>) -> TestRes
     Ok(cookie)
 }
 
-async fn verify_old_input_selection<A: Application>(app: &TestApp<A>, cookie: &str) -> TestResult {
+async fn verify_old_input_selection<A: ApplicationDefinition>(
+    app: &TestApp<A>,
+    cookie: &str,
+) -> TestResult {
     let flushed = old_input_request(app, Some(json!({"action":"flush"})), Some(cookie)).await?;
     success(
         &flushed,
@@ -211,12 +217,12 @@ async fn module_old_input_uses_one_session_and_explicit_sensitive_field_exclusio
 }
 
 struct SessionApplication;
-impl Application for SessionApplication {
-    type Config = <crate::bootstrap::Server as Application>::Config;
+impl ApplicationDefinition for SessionApplication {
+    type Config = <crate::bootstrap::Server as ApplicationDefinition>::Config;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         crate::bootstrap::Server::default_providers()
-            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+            .except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
     fn config_namespace() -> &'static str {
         crate::bootstrap::Server::config_namespace()
@@ -238,7 +244,10 @@ impl Application for SessionApplication {
         ));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
@@ -291,7 +300,7 @@ fn success(response: &TestResponse, data: &Value) -> TestResult {
         .assert_json(&json!({"success":true,"code":"ok","message":"ok","data":data}))?;
     Ok(())
 }
-async fn request<A: Application>(
+async fn request<A: ApplicationDefinition>(
     app: &TestApp<A>,
     payload: Option<Value>,
     cookie: Option<&str>,
@@ -313,7 +322,7 @@ async fn request<A: Application>(
         .request_with_limits(builder.body(Body::from(body))?, 4096, TIMEOUT)
         .await?)
 }
-async fn previous_request<A: Application>(
+async fn previous_request<A: ApplicationDefinition>(
     app: &TestApp<A>,
     path: &str,
     method: Method,
@@ -366,15 +375,15 @@ async fn module_previous_named_anonymous_and_opt_in_precognition_preserve_reques
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 struct PersistentHostMigrator;
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-impl openrust::db::sea_orm_migration::MigratorTrait for PersistentHostMigrator {
-    fn migrations() -> Vec<Box<dyn openrust::db::sea_orm_migration::MigrationTrait>> {
+impl openrust::database::sea_orm_migration::MigratorTrait for PersistentHostMigrator {
+    fn migrations() -> Vec<Box<dyn openrust::database::sea_orm_migration::MigrationTrait>> {
         #[cfg(feature = "auth")]
         {
             super::selected_test_auth::migrations()
         }
         #[cfg(not(feature = "auth"))]
         {
-            <openrust::db::FrameworkMigrator as openrust::db::sea_orm_migration::MigratorTrait>::migrations()
+            <openrust::database::FrameworkMigrator as openrust::database::sea_orm_migration::MigratorTrait>::migrations()
         }
     }
 }
@@ -456,7 +465,7 @@ async fn module_database_old_input_survives_real_request_boundaries() -> TestRes
     Ok(())
 }
 
-async fn verify_module_previous<A: Application>(app: &TestApp<A>) -> TestResult {
+async fn verify_module_previous<A: ApplicationDefinition>(app: &TestApp<A>) -> TestResult {
     let base = "/api/example/session/previous";
     let named_url = "http://localhost/api/example/session/previous/named";
     let anonymous_url = "http://localhost/api/example/session/previous/anonymous";
@@ -947,12 +956,12 @@ async fn module_session_utf8_budget_invalid_values_and_namespace_are_bounded() -
 }
 
 struct RequestDriverApplication;
-impl Application for RequestDriverApplication {
-    type Config = <SessionApplication as Application>::Config;
+impl ApplicationDefinition for RequestDriverApplication {
+    type Config = <SessionApplication as ApplicationDefinition>::Config;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         crate::bootstrap::Server::default_providers()
-            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+            .except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
     fn config_namespace() -> &'static str {
         SessionApplication::config_namespace()
@@ -964,7 +973,10 @@ impl Application for RequestDriverApplication {
         ));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         SessionApplication::configure_providers(config, builder);
     }
 }
@@ -1119,12 +1131,12 @@ fn probe_business_data(
 }
 
 struct CookieSessionApplication;
-impl Application for CookieSessionApplication {
-    type Config = <SessionApplication as Application>::Config;
+impl ApplicationDefinition for CookieSessionApplication {
+    type Config = <SessionApplication as ApplicationDefinition>::Config;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         crate::bootstrap::Server::default_providers()
-            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+            .except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
     fn config_namespace() -> &'static str {
         SessionApplication::config_namespace()
@@ -1136,7 +1148,10 @@ impl Application for CookieSessionApplication {
         ));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         SessionApplication::configure_providers(config, builder);
     }
 }

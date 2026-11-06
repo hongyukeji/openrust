@@ -1,7 +1,7 @@
 //! 默认 middleware stack。
 //!
 //! 从最外层到最内层依次为：规范化并设置 `x-request-id` → 将 ID 写入响应 → 响应上下文 → tracing span →
-//! CORS → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Routes::layer`](crate::http::Routes::layer) 添加的应用 layer
+//! CORS → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Routes::layer`](crate::routing::Router::layer) 添加的应用 layer
 //! 在此 stack 内运行。
 
 use std::any::Any;
@@ -13,11 +13,19 @@ use std::{
 };
 
 use crate::config::{ApiConfig, ConfigError, CorsConfig, ServerConfig};
-use crate::core::{
-    CancelOnDrop, Cancellation, Error, ExceptionHandler, ExceptionRequest, ExecutionContext,
-    ExecutionMetadata, ResponseContext, Result, with_execution_context, with_response_context,
-};
-use crate::i18n::{I18n, with_request_locale};
+use crate::core::CancelOnDrop;
+use crate::core::Cancellation;
+use crate::core::Error;
+use crate::core::ExecutionContext;
+use crate::core::ExecutionMetadata;
+use crate::core::ResponseContext;
+use crate::core::Result;
+use crate::core::with_execution_context;
+use crate::core::with_response_context;
+use crate::foundation::ExceptionHandler;
+use crate::foundation::ExceptionRequest;
+use crate::translation::Translator;
+use crate::translation::with_request_locale;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::FromRequestParts;
@@ -215,7 +223,7 @@ async fn response_context(
     next: axum::middleware::Next,
 ) -> Response {
     #[cfg(feature = "metrics")]
-    let metric_method = super::metrics::method_label(request.method());
+    let metric_method = crate::http::metrics::method_label(request.method());
     #[cfg(feature = "metrics")]
     let started = std::time::Instant::now();
     let request_id = request
@@ -235,12 +243,15 @@ async fn response_context(
     let exception_request = exception_request.with_views(
         request
             .extensions()
-            .get::<crate::core::AppState>()
-            .and_then(crate::core::AppState::get::<crate::view::Views>),
+            .get::<crate::foundation::ApplicationState>()
+            .and_then(crate::foundation::ApplicationState::get::<crate::view::Views>),
     );
-    let locale_service = if let Some(state) = request.extensions().get::<crate::core::AppState>() {
-        if state.container().contains::<I18n>() {
-            match state.resolve::<I18n>().await {
+    let locale_service = if let Some(state) = request
+        .extensions()
+        .get::<crate::foundation::ApplicationState>()
+    {
+        if state.container().contains::<Translator>() {
+            match state.resolve::<Translator>().await {
                 Ok(service) => Some(service),
                 Err(error) => {
                     return with_response_context(
@@ -263,8 +274,8 @@ async fn response_context(
     };
     let server_readiness = request
         .extensions()
-        .get::<crate::core::AppState>()
-        .and_then(crate::core::AppState::get::<crate::core::Readiness>);
+        .get::<crate::foundation::ApplicationState>()
+        .and_then(crate::foundation::ApplicationState::get::<crate::core::Readiness>);
     let accept_language = request
         .headers()
         .get(axum::http::header::ACCEPT_LANGUAGE)
@@ -334,7 +345,7 @@ async fn response_context(
                     .into_response()
                 };
                 #[cfg(feature = "metrics")]
-                let status_class = super::metrics::status_class(response.status());
+                let status_class = crate::http::metrics::status_class(response.status());
                 response.map(|body| {
                     Body::new(RequestPermitBody {
                         inner: body,
@@ -627,11 +638,13 @@ fn panic_response(payload: Box<dyn Any + Send + 'static>) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply, request_span};
-    use crate::{
-        config::{ApiConfig, HttpStatusMode, ServerConfig},
-        core::{ExceptionHandler, ExecutionContext},
-    };
+    use super::apply;
+    use super::request_span;
+    use crate::config::ApiConfig;
+    use crate::config::HttpStatusMode;
+    use crate::config::ServerConfig;
+    use crate::core::ExecutionContext;
+    use crate::foundation::ExceptionHandler;
     use axum::{
         Router, body::Body, extract::Request, http::StatusCode, response::Response, routing::get,
     };

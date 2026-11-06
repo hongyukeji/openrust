@@ -117,7 +117,7 @@ impl TenantLayer {
         }
     }
 
-    /// 返回可与 [`crate::http::Routes::layer`] 配合使用的 Tower layer。
+    /// 返回可与 [`crate::routing::Router::layer`] 配合使用的 Tower layer。
     ///
     /// 需要认证时，应让 `AuthLayer` 处于外层，使身份先完成验证。
     pub fn layer(

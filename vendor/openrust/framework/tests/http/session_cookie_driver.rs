@@ -6,6 +6,12 @@ use axum::{
     http::{Request, StatusCode},
     response::Response,
 };
+use openrust::Application;
+use openrust::Error;
+use openrust::Result;
+use openrust::ServiceExt;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
 use openrust::http::{
     Cookie, CookieFactory, CookieJar, CookieOptions, CookieServiceProvider, HttpServiceProvider,
     Inject, Json,
@@ -15,10 +21,8 @@ use openrust::session::{
     SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreGuarantees,
     SessionStoreHandle, SessionWriteMode, SessionWriteOutcome,
 };
-use openrust::{
-    App, Error, Result, ServiceExt,
-    core::{BootContext, BoxFuture, RegisterContext, ServiceProvider},
-};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use time::{Duration, OffsetDateTime};
@@ -50,12 +54,12 @@ struct Captured {
     jar: Mutex<Option<CookieJar>>,
     entered: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
-struct Routes(Arc<Captured>);
-impl ServiceProvider for Routes {
+struct Router(Arc<Captured>);
+impl ServiceProvider for Router {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(self.0.clone()).await?;
             Ok(())
@@ -69,7 +73,7 @@ impl ServiceProvider for Routes {
             #[cfg(feature = "auth")]
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| routes.get("/cookie/auth-save-failed", auth_save_failed),
@@ -77,7 +81,7 @@ impl ServiceProvider for Routes {
             })?;
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| {
@@ -135,15 +139,19 @@ async fn cancel(
     }
     std::future::pending().await
 }
-async fn app(expire_on_close: bool, protected: bool, active: &str) -> Result<(App, Arc<Captured>)> {
+async fn app(
+    expire_on_close: bool,
+    protected: bool,
+    active: &str,
+) -> Result<(Application, Arc<Captured>)> {
     let mut config = openrust::config::FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(HttpServiceProvider);
     #[cfg(feature = "encryption")]
     if protected {
         builder
-            .provider(openrust::security::EncryptionServiceProvider)
+            .provider(openrust::encryption::EncryptionServiceProvider)
             .provider(CookieServiceProvider::new());
     } else {
         builder.provider(CookieServiceProvider::plain());
@@ -168,7 +176,7 @@ async fn app(expire_on_close: bool, protected: bool, active: &str) -> Result<(Ap
         },
     ));
     let captured = Arc::new(Captured::default());
-    builder.provider(Routes(captured.clone()));
+    builder.provider(Router(captured.clone()));
     let source = figment::Figment::from(figment::providers::Serialized::defaults(config)).merge(
         figment::providers::Serialized::defaults(
             json!({"security":{"encryption":{"active_key_id":active,"keys":{
@@ -178,17 +186,17 @@ async fn app(expire_on_close: bool, protected: bool, active: &str) -> Result<(Ap
         ),
     );
     Ok((
-        App::from_provider_runtime(builder.start(source).await?)?,
+        Application::from_provider_runtime(builder.start(source).await?)?,
         captured,
     ))
 }
-async fn send(app: &App, path: &str, cookies: Option<&str>) -> Result<Response> {
+async fn send(app: &Application, path: &str, cookies: Option<&str>) -> Result<Response> {
     let mut request = Request::get(path).header("host", "localhost");
     if let Some(cookies) = cookies {
         request = request.header("cookie", cookies);
     }
     tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        openrust::http::build_router(app)?
+        openrust::foundation::http::build_router(app)?
             .oneshot(request.body(Body::empty()).map_err(Error::internal)?)
             .await
             .map_err(Error::internal)
@@ -240,7 +248,7 @@ async fn success(response: Response, value: Value) -> Result<()> {
     );
     Ok(())
 }
-async fn finish(app: &App, outcome: Result<()>) -> Result<()> {
+async fn finish(app: &Application, outcome: Result<()>) -> Result<()> {
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await?;
     outcome

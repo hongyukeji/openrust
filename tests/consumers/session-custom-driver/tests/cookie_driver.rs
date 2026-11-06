@@ -1,10 +1,11 @@
 //! 外部包消费内置 Cookie driver，并在包装扩展中保留真实持久保证分类。
+use openrust::Result;
 use openrust::http::{CookieFactory, CookieJar};
 use openrust::session::{
     CookieSessionStore, Session, SessionId, SessionRecord, SessionRequestContext, SessionStore,
     SessionStoreGuarantees, SessionWriteMode, SessionWriteOutcome,
 };
-use openrust::{Result, core::BoxFuture};
+use openrust::support::BoxFuture;
 use serde_json::json;
 use std::sync::Arc;
 use time::OffsetDateTime;

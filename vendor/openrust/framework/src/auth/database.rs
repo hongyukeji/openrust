@@ -1,14 +1,14 @@
 use std::sync::OnceLock;
 
 use crate::core::{Error, Result};
-use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
-use crate::db::{DatabaseConnection, Db};
+use crate::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
+use crate::database::{DatabaseConnection, Db};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 use crate::auth::{AuthCredential, AuthPrincipal, AuthSource, Authenticator};
 
-fn require_plain_token(row: &crate::db::sea_orm::QueryResult) -> Result<()> {
+fn require_plain_token(row: &crate::database::sea_orm::QueryResult) -> Result<()> {
     // 从本次实际SELECT的列描述识别旧schema，不以权限过滤的元数据推断缺列。
     if let Some(column) = row
         .column_names()
@@ -36,7 +36,7 @@ mod managed_token_tests {
     #[tokio::test]
     async fn actual_row_metadata_rejects_managed_context_without_feature_dependency() -> Result<()>
     {
-        let connection = crate::db::sea_orm::Database::connect("sqlite::memory:")
+        let connection = crate::database::sea_orm::Database::connect("sqlite::memory:")
             .await
             .map_err(Error::internal)?;
         let outcome = async {
@@ -246,7 +246,7 @@ impl DatabaseAuthenticator {
             let update = crate::auth::resolve_auth_sql(&database,
                 "UPDATE tb_personal_access_tokens SET last_used_at=? WHERE token_hash=? AND revoked_at IS NULL")?;
             let updated = transaction.execute_raw(Statement::from_sql_and_values(DbBackend::Sqlite, update,
-                [crate::db::dialect::utc_value(DbBackend::Sqlite, now), hash.into()]))
+                [crate::database::dialect::utc_value(DbBackend::Sqlite, now), hash.into()]))
                 .await.map_err(Error::internal)?;
             if updated.rows_affected() != 1 { return Err(Error::Unauthorized); }
             Ok(AuthPrincipal::new(user_id, Some(abilities)))
@@ -258,7 +258,7 @@ impl Authenticator for DatabaseAuthenticator {
     fn authenticate<'a>(
         &'a self,
         credential: AuthCredential<'a>,
-    ) -> crate::core::BoxFuture<'a, Result<AuthPrincipal>> {
+    ) -> crate::support::BoxFuture<'a, Result<AuthPrincipal>> {
         Box::pin(async move {
             let db = self
                 .db

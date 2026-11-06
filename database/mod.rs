@@ -12,7 +12,7 @@ pub(crate) struct Migrator;
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         #[allow(unused_mut, reason = "应用迁移按显式feature贡献")]
-        let mut migrations = openrust::db::FrameworkMigrator::migrations();
+        let mut migrations = openrust::database::FrameworkMigrator::migrations();
         #[cfg(feature = "auth-fortify")]
         migrations.push(Box::new(accounts::AccountIdentifiers));
         #[cfg(feature = "auth-fortify")]

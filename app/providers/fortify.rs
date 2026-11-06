@@ -2,7 +2,7 @@
 
 use openrust::auth::fortify::{FortifyCallbacks, FortifyConfig};
 use openrust::auth::{AuthManager, AuthUser, Credentials, UserProvider};
-use openrust::core::RegisterContext;
+use openrust::foundation::RegisterContext;
 use openrust::{Error, Result};
 use serde_json::{Map, Value};
 use std::{sync::Arc, time::Duration};
@@ -13,7 +13,7 @@ pub(super) async fn register(app: &mut RegisterContext<'_>) -> Result<()> {
     if !app.is_bound::<dyn openrust::auth::ApiLoginAuditSink>() {
         app.singleton::<dyn openrust::auth::ApiLoginAuditSink, _>(|resolver| {
             Box::pin(async move {
-                let db = resolver.resolve::<openrust::db::Db>().await?;
+                let db = resolver.resolve::<openrust::database::Db>().await?;
                 let audit = resolver.resolve::<openrust::audit::Audit>().await?;
                 Ok(
                     Arc::new(openrust::auth::fortify::DatabaseApiLoginAudit::new(
@@ -158,7 +158,7 @@ fn is_e164(account: &str) -> bool {
 mod tests {
     use super::*;
     use openrust::auth::{Authenticatable, GenericUser};
-    use openrust::core::BoxFuture;
+    use openrust::support::BoxFuture;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Accounts {

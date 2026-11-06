@@ -15,9 +15,9 @@ impl MigratorTrait for EmptyMigrator {
 }
 
 #[cfg(feature = "db-sqlite")]
-async fn app(url: &str) -> Result<crate::core::ProviderRuntime> {
-    let mut builder = crate::core::ProviderBuilder::new();
-    builder.provider(crate::db::DatabaseServiceProvider);
+async fn app(url: &str) -> Result<crate::foundation::ProviderRuntime> {
+    let mut builder = crate::foundation::ProviderBuilder::new();
+    builder.provider(crate::database::DatabaseServiceProvider);
     builder
         .start(figment::Figment::from(
             figment::providers::Serialized::defaults(serde_json::json!({"database": {"url": url}})),
@@ -45,7 +45,7 @@ async fn owned_memory_isolated_but_application_url_shares_data() -> Result<()> {
     let runtime = app(first.url()).await?;
     let connection = runtime
         .container()
-        .resolve::<crate::db::Db>()
+        .resolve::<crate::database::Db>()
         .await?
         .connection()?;
     let count = connection
@@ -101,7 +101,7 @@ async fn owned_file_persists_across_application_pool_and_is_removed_on_close() -
     let runtime = app(database.url()).await?;
     runtime
         .container()
-        .resolve::<crate::db::Db>()
+        .resolve::<crate::database::Db>()
         .await?
         .connection()?
         .execute_unprepared("INSERT INTO persistent_sentinel VALUES (1)")
@@ -160,7 +160,7 @@ async fn application_pool_keeps_shared_memory_alive_after_guard_close() -> Resul
     let runtime = app(database.url()).await?;
     let connection = runtime
         .container()
-        .resolve::<crate::db::Db>()
+        .resolve::<crate::database::Db>()
         .await?
         .connection()?;
     assert!(!format!("{database:?}").contains(database.url()));

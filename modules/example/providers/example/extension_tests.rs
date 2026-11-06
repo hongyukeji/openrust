@@ -2,7 +2,7 @@
 
 use super::ExampleServiceProvider;
 use crate::modules::example::services::ExampleMessage;
-use openrust::core::ProviderBuilder;
+use openrust::foundation::ProviderBuilder;
 use openrust::http::{
     HttpServiceProvider,
     axum::{
@@ -44,7 +44,7 @@ async fn assert_extension(
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
-        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
         .provider(ExampleServiceProvider::new(root.clone()));
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
@@ -55,17 +55,18 @@ async fn assert_extension(
             "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}}
         }),
     ));
-    let manifest = <crate::bootstrap::Server as openrust::core::Application>::config();
+    let manifest =
+        <crate::bootstrap::Server as openrust::foundation::ApplicationDefinition>::config();
     let sources = openrust::config::ConfigLoader::application_code_sources(
         &root, "APP_", None, &manifest,
     )?
     .merge_ordered_entries(sources.extract::<serde_json::Map<String, serde_json::Value>>()?)?;
-    let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(sources).await?)?;
     let service = app.state().resolve::<ExampleMessage>().await?;
     assert_eq!(service.text(), expected_greeting);
     assert_eq!(service.binding_extension(), Some("module-provider"));
 
-    let response = openrust::http::build_router(&app)?
+    let response = openrust::foundation::http::build_router(&app)?
         .oneshot(
             Request::get("/api/example/container-extension")
                 .header("host", "localhost")

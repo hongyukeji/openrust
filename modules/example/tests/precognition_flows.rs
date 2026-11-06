@@ -6,7 +6,7 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::auth::AuthFlows;
-use openrust::db::sea_orm::{ConnectionTrait, Statement};
+use openrust::database::sea_orm::{ConnectionTrait, Statement};
 use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode},
@@ -72,7 +72,7 @@ async fn state(db: &openrust::Db) -> TestResult<(Vec<(i64, String, String)>, u64
     let backend = db.backend()?;
     // 与既有 auth fixture 一致：模块实体使用固定物理表名，框架表才应用配置前缀。
     // 使用公开解析器校验并引用标识符，不访问模块私有 Entity。
-    let names = openrust::db::DatabaseTableNames::new(
+    let names = openrust::database::DatabaseTableNames::new(
         db.table_names().prefix(),
         std::collections::BTreeMap::from([
             ("example_articles".into(), "example_articles".into()),

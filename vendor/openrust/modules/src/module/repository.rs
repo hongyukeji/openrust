@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use openrust::core::container::Resolver;
+use openrust::container::Resolver;
 use openrust::core::{Error, Result};
 use openrust::events::Events;
 
@@ -306,8 +306,11 @@ mod tests {
 
     use super::*;
     use crate::{ModuleDescriptor, ModuleManifest, ModuleProviderBuilderExt};
-    use openrust::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
     use openrust::events::{EventPropagation, EventsServiceProvider};
+    use openrust::foundation::BootContext;
+    use openrust::foundation::ProviderBuilder;
+    use openrust::support::BoxFuture;
+    use openrust::support::ServiceProvider;
 
     type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -333,13 +336,13 @@ mod tests {
     async fn build(
         manifest: ModuleManifest,
         events: Option<EventsServiceProvider>,
-    ) -> TestResult<openrust::App> {
+    ) -> TestResult<openrust::Application> {
         let mut builder = ProviderBuilder::new();
         builder.module_manifest(manifest).provider(Commands);
         if let Some(events) = events {
             builder.provider(events);
         }
-        Ok(openrust::App::from_provider_runtime(
+        Ok(openrust::Application::from_provider_runtime(
             builder
                 .start(Figment::from(Serialized::defaults(
                     openrust::config::FrameworkConfig::default(),
@@ -355,7 +358,7 @@ mod tests {
             .collect()
     }
 
-    async fn close(app: &openrust::App) -> Result<()> {
+    async fn close(app: &openrust::Application) -> Result<()> {
         app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
             .await
     }
@@ -826,7 +829,7 @@ mod tests {
         let root = tempfile::tempdir()?;
         let original = r#"{"Blog":false}"#;
         std::fs::write(root.path().join("statuses.json"), original)?;
-        let owner = Arc::new(std::sync::OnceLock::<std::sync::Weak<openrust::App>>::new());
+        let owner = Arc::new(std::sync::OnceLock::<std::sync::Weak<openrust::Application>>::new());
         let observed = Arc::clone(&owner);
         let mut events = EventsServiceProvider::new();
         events.listen_named::<ModuleLifecycleEvent, _>("modules.blog.enabling", move |_, _| {

@@ -15,20 +15,33 @@ use axum::{
     http::{HeaderMap, Method, Request as Wire, StatusCode},
     response::{IntoResponse, Response},
 };
+use openrust::Application;
+use openrust::Error;
+use openrust::Result;
+use openrust::ServiceExt;
 use openrust::config::{FrameworkConfig, HttpStatusMode, SessionConfig};
-use openrust::http::{
-    CookieJar, CookieOptions, CookieResponseExt, CookieServiceProvider, HttpServiceProvider,
-    Inject, Json, Path, RequestInfo, Route, RouteGroup, Validated, build_router,
-    handle_precognitive_requests,
-};
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
+use openrust::foundation::http::build_router;
+use openrust::http::CookieJar;
+use openrust::http::CookieOptions;
+use openrust::http::CookieResponseExt;
+use openrust::http::CookieServiceProvider;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Inject;
+use openrust::http::Json;
+use openrust::http::Path;
+use openrust::http::RequestInfo;
+use openrust::http::Validated;
+use openrust::http::handle_precognitive_requests;
+use openrust::routing::Route;
+use openrust::routing::RouteGroup;
 use openrust::session::{
     MemorySessionStore, Session, SessionId, SessionRecord, SessionServiceProvider, SessionStore,
     SessionWriteMode, SessionWriteOutcome,
 };
-use openrust::{
-    App, Error, Result, ServiceExt,
-    core::{BootContext, BoxFuture, RegisterContext, ServiceProvider},
-};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 use tokio::sync::{Notify, oneshot};
@@ -103,7 +116,7 @@ impl ServiceProvider for TestRoutes {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(self.0.clone()).await?;
             Ok(())
@@ -119,7 +132,7 @@ impl ServiceProvider for TestRoutes {
                 });
             })?;
             app.routes(move |routes| {
-                let add = |routes: openrust::http::Routes| {
+                let add = |routes: openrust::routing::Router| {
                     routes
                         .get("/session-test/shared", shared)
                         .get("/session-test/flash", flash)
@@ -357,7 +370,7 @@ fn check(condition: bool) -> Result<()> {
     if condition { Ok(()) } else { Err(invalid()) }
 }
 
-async fn app(enabled: bool, probe: Probe, control: Arc<Control>) -> Result<App> {
+async fn app(enabled: bool, probe: Probe, control: Arc<Control>) -> Result<Application> {
     app_with_lifetime(enabled, probe, control, SessionConfig::default().lifetime).await
 }
 
@@ -366,10 +379,10 @@ async fn app_with_lifetime(
     probe: Probe,
     control: Arc<Control>,
     lifetime: u64,
-) -> Result<App> {
+) -> Result<Application> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(CookieServiceProvider::plain());
@@ -386,7 +399,7 @@ async fn app_with_lifetime(
         );
     }
     builder.provider(TestRoutes(control, enabled));
-    App::from_provider_runtime(
+    Application::from_provider_runtime(
         builder
             .start(figment::Figment::from(
                 figment::providers::Serialized::defaults(config),
@@ -492,7 +505,7 @@ fn failure(reply: &Reply, code: &str) -> Result<()> {
                 == Some(value)
     }))
 }
-async fn finish(app: &App, outcome: Result<()>) -> Result<()> {
+async fn finish(app: &Application, outcome: Result<()>) -> Result<()> {
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
         .await?;
     outcome
@@ -1204,7 +1217,7 @@ async fn set_name_changes_real_response_cookie_but_inbound_still_uses_configurat
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
     let control = Arc::new(Control::default());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(CookieServiceProvider::plain())
@@ -1220,7 +1233,7 @@ async fn set_name_changes_real_response_cookie_but_inbound_still_uses_configurat
         )
         .provider(TestRoutes(control.clone(), true))
         .provider(RenameSessionRoutes);
-    let app = App::from_provider_runtime(
+    let app = Application::from_provider_runtime(
         builder
             .start(figment::Figment::from(
                 figment::providers::Serialized::defaults(config),

@@ -1,6 +1,6 @@
 # 请求生命周期与应用启动
 
-默认 `src/main.rs` 只启动 `bootstrap/app.rs` 中的应用。应用通过 `Application::config()` 提供代码配置清单，通过 Provider 清单和模块清单提供启动贡献。
+默认 `src/main.rs` 只启动 `bootstrap/app.rs` 中的应用。应用通过 `ApplicationDefinition::config()` 提供代码配置清单，通过 Provider 清单和模块清单提供启动贡献。
 
 启动先选择 dotenv 和部署环境，再求值配置函数，向同一 `ConfigRepository` 发布配置。框架、应用和模块 Provider 进入同一个 Container：`register` 登记服务，`boot` 使用已登记服务挂载路由和资源。模块不是第二套容器或独立子应用。
 

@@ -8,20 +8,25 @@ use std::process::ExitCode;
 pub mod audit;
 pub mod cache;
 pub mod config;
+pub mod console;
+pub mod container;
 pub mod core;
 #[cfg(feature = "data-exchange")]
 pub mod data;
 /// 数据交换能力的兼容入口；新代码可使用 [`data::exchange`]。
 #[cfg(feature = "data-exchange")]
 pub use data::exchange as data_exchange;
-pub mod db;
+pub mod database;
+#[cfg(feature = "encryption")]
+pub mod encryption;
 pub mod events;
+pub mod filesystem;
+pub mod foundation;
 #[cfg(feature = "grpc")]
 pub mod grpc;
 #[cfg(feature = "hashing")]
 pub mod hashing;
 pub mod http;
-pub mod i18n;
 pub mod mail;
 #[cfg(feature = "queue")]
 pub mod notifications;
@@ -29,22 +34,20 @@ pub mod notifications;
 pub mod queue;
 #[cfg(feature = "realtime")]
 pub mod realtime;
-pub mod routes;
+pub mod routing;
 #[cfg(feature = "grpc")]
 pub mod runtime;
 #[cfg(feature = "queue")]
 pub mod schedule;
-#[cfg(feature = "encryption")]
-pub mod security;
 #[cfg(feature = "session")]
 pub mod session;
 #[cfg(feature = "signing")]
 pub mod signing;
 pub mod sms;
-pub mod storage;
 pub mod support;
 pub mod tenant;
 pub mod testing;
+pub mod translation;
 pub mod validation;
 #[cfg(feature = "view")]
 pub mod view;
@@ -52,27 +55,43 @@ pub mod view;
 #[cfg(feature = "auth")]
 pub mod auth;
 
-pub use core::{
-    ApiResponse, App, AppState, Application, BoxFuture, Cancellation, Command, Error,
-    ExecutionContext, ExecutionMetadata, MissingServiceError, NoConfig, PageMeta, Result,
-    ValidationErrors, lifecycle, with_execution_context,
-};
+pub use crate::console::Command;
+pub use crate::core::ApiResponse;
+pub use crate::core::Cancellation;
+pub use crate::core::Error;
+pub use crate::core::ExecutionContext;
+pub use crate::core::ExecutionMetadata;
+pub use crate::core::NoConfig;
+pub use crate::core::PageMeta;
+pub use crate::core::Result;
+pub use crate::core::ValidationErrors;
+pub use crate::core::with_execution_context;
+pub use crate::foundation::Application;
+pub use crate::foundation::ApplicationDefinition;
+pub use crate::foundation::ApplicationState;
+pub use crate::foundation::MissingServiceError;
+pub use crate::foundation::lifecycle;
+pub use crate::support::BoxFuture;
 pub use macros::resource;
+
+#[cfg(test)]
+mod test_database_environment;
 
 #[cfg(test)]
 static ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
 pub(crate) fn lock_test_env() -> std::sync::MutexGuard<'static, ()> {
-    ENV_TEST_LOCK
+    let guard = ENV_TEST_LOCK
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // 必须早于Jail构造：构造自身已修改cwd，clear_env随后还会删除数据库输入。
+    test_database_environment::seed();
+    guard
 }
 
 /// 通用数据库模块；具体连接器由 `db-postgres` / `db-mysql` feature 选择。
-pub use db as database;
-
-pub use db::{DatabaseConfig, DatabaseInstanceConfig, Databases, Db};
+pub use crate::database::{DatabaseConfig, DatabaseInstanceConfig, Databases, Db};
 
 /// 扩展方法，用于在不绑定监听器的情况下测试 HTTP router。
 pub use tower::ServiceExt;
@@ -99,22 +118,39 @@ pub mod prelude {
     pub use crate::config::SignedLinksConfig;
     pub use crate::config::SmsConfig;
     pub use crate::config::{CacheConfig, CacheStoreConfig};
+    #[cfg(feature = "encryption")]
+    pub use crate::encryption::Encrypter;
     pub use crate::events::{EventContext, Events};
+    pub use crate::filesystem::FilesystemAdapter;
+    pub use crate::filesystem::FilesystemManager;
+    pub use crate::filesystem::StoragePath;
+    pub use crate::http::Cookie;
+    pub use crate::http::CookieFactory;
+    pub use crate::http::CookieJar;
+    pub use crate::http::CookieOptions;
+    pub use crate::http::CookieResponseExt;
+    pub use crate::http::CookieServiceProvider;
+    pub use crate::http::Created;
+    pub use crate::http::DomainParams;
+    pub use crate::http::Inject;
+    pub use crate::http::InputNormalization;
+    pub use crate::http::InputOutcome;
+    pub use crate::http::InputOutcomeMut;
+    pub use crate::http::InputTruthy;
+    pub use crate::http::Json;
+    pub use crate::http::NoContent;
+    pub use crate::http::PageParams;
+    pub use crate::http::Paginated;
+    pub use crate::http::Path;
+    pub use crate::http::Query;
+    pub use crate::http::Request;
+    pub use crate::http::RequestInfo;
+    pub use crate::http::Truthy;
+    pub use crate::http::Validated;
     pub use crate::http::axum::extract::State;
     pub use crate::http::axum::http::StatusCode;
     pub use crate::http::axum::response::IntoResponse;
-    pub use crate::http::{
-        Action, Cookie, CookieFactory, CookieJar, CookieOptions, CookieResponseExt,
-        CookieServiceProvider, Created, DomainParams, Inject, InputNormalization, InputOutcome,
-        InputOutcomeMut, InputTruthy, Json, ManagedHandler, NoContent, PageParams, Paginated, Path,
-        Query, Request, RequestInfo, Resource, ResourceActions, Route, RouteAction, RouteGroup,
-        RouteMethods, RouteResolver, RouteUrlGenerator, Routes, Truthy, Validated,
-        handle_precognitive_requests,
-    };
-    pub use crate::i18n::{
-        DateFormatStyle, DateTimeFormatStyle, I18n, I18nConfig, I18nFormatError, Locale,
-        MessageArgs, MessageCatalog, PluralCategory, RequestLocale,
-    };
+    pub use crate::http::handle_precognitive_requests;
     pub use crate::mail::{Email, LocalizedEmail, MailConfig, Mailer};
     #[cfg(feature = "queue")]
     pub use crate::queue::{
@@ -123,30 +159,48 @@ pub mod prelude {
     };
     #[cfg(feature = "realtime")]
     pub use crate::realtime::{Realtime, RealtimeMessage, RealtimeSession, RealtimeTransport};
+    pub use crate::routing::Action;
+    pub use crate::routing::ManagedHandler;
+    pub use crate::routing::Resource;
+    pub use crate::routing::ResourceActions;
+    pub use crate::routing::Route;
+    pub use crate::routing::RouteAction;
+    pub use crate::routing::RouteGroup;
+    pub use crate::routing::RouteMethods;
+    pub use crate::routing::RouteResolver;
+    pub use crate::routing::Router;
+    pub use crate::routing::UrlGenerator;
     #[cfg(feature = "queue")]
     pub use crate::schedule::{
         CronOptions, MissedRunPolicy, ScheduleDefinition, ScheduleFrequency, ScheduleReport,
         Scheduler,
     };
-    #[cfg(feature = "encryption")]
-    pub use crate::security::Encryptor;
     #[cfg(feature = "signing")]
     pub use crate::signing::{
         DatabaseSignedLinkRevocationStore, SignedLink, SignedLinkClaims,
         SignedLinkRevocationMigration, SignedLinkRevocationStore, SignedLinks,
     };
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsReceipt, SmsSender};
-    pub use crate::storage::{Storage, StorageDisk, StoragePath};
     pub use crate::support::{
         ArrayKey, BackedEnum, Collection, EnumBacking, Fluent, InputNumber, MessageBag,
         MessageBagContract, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
         MessageProvider, MessageValue, Stringable, ViewErrorBag,
     };
     pub use crate::tenant::{TenantContext, TenantId, TenantLayer};
+    pub use crate::translation::DateFormatStyle;
+    pub use crate::translation::DateTimeFormatStyle;
+    pub use crate::translation::Locale;
+    pub use crate::translation::MessageArgs;
+    pub use crate::translation::MessageCatalog;
+    pub use crate::translation::PluralCategory;
+    pub use crate::translation::RequestLocale;
+    pub use crate::translation::TranslationConfig;
+    pub use crate::translation::TranslationFormatError;
+    pub use crate::translation::Translator;
     pub use crate::validation::{Field, InputContext, Rule, RuleError, Rules, Validate, validate};
     pub use crate::{
-        App, Application, BoxFuture, Cancellation, Command, Error, ExecutionContext,
-        ExecutionMetadata, NoConfig, Result,
+        Application, ApplicationDefinition, BoxFuture, Cancellation, Command, Error,
+        ExecutionContext, ExecutionMetadata, NoConfig, Result,
     };
     pub use crate::{DatabaseConfig, DatabaseInstanceConfig, Databases, Db};
 }
@@ -154,14 +208,14 @@ pub mod prelude {
 /// 启动 `A`，并运行第一个命令行参数指定的命令（默认为 `serve`）。
 ///
 /// 返回进程退出码而不触发 panic，使 `main` 保持为单行调用。
-pub fn run<A: Application>() -> ExitCode {
+pub fn run<A: ApplicationDefinition>() -> ExitCode {
     run_with_args::<A>(std::env::args().skip(1))
 }
 
 /// 使用显式控制台参数启动应用；`--env name` 和 `--env=name` 只选择存在的环境文件。
 ///
 /// 嵌入式调用方传入自己的参数，普通 [`lifecycle::bootstrap`] 不观察进程参数。
-pub fn run_with_args<A: Application>(args: impl IntoIterator<Item = String>) -> ExitCode {
+pub fn run_with_args<A: ApplicationDefinition>(args: impl IntoIterator<Item = String>) -> ExitCode {
     let (name, command_args, console_environment) = parse_console_args(args);
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()

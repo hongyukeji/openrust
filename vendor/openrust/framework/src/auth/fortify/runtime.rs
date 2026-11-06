@@ -5,13 +5,17 @@ use std::{fmt, sync::Arc};
 use serde_json::{Map, Value};
 
 use super::{AuthenticateUsing, FortifyConfig, FortifyLogin, TwoFactorActions, TwoFactorOptions};
-use crate::{
-    Error, Result,
-    auth::{AuthManager, AuthUser, Credentials, Guard},
-    config::AppConfig,
-    core::{BoxFuture, RegisterContext, container::Resolver},
-    http::Request,
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthManager;
+use crate::auth::AuthUser;
+use crate::auth::Credentials;
+use crate::auth::Guard;
+use crate::config::AppConfig;
+use crate::container::Resolver;
+use crate::foundation::RegisterContext;
+use crate::http::Request;
+use crate::support::BoxFuture;
 
 /// 应用在同一Container中显式选择统一因子保护，不受官方路由开关静默解除。
 ///

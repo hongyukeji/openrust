@@ -6,8 +6,10 @@ use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use openrust::i18n::{I18n, Locale, MessageArgs};
 use openrust::testing::TestApp;
+use openrust::translation::Locale;
+use openrust::translation::MessageArgs;
+use openrust::translation::Translator;
 use openrust::{Error, Result};
 use openrust_modules::ModuleRepository;
 use serde_json::json;
@@ -64,6 +66,7 @@ fn deployment() -> Result<(tempfile::TempDir, PathBuf)> {
 fn sources(root: &Path) -> Result<ConfigSources> {
     let source = Figment::from(Serialized::defaults(FrameworkConfig::default()))
         .merge(Serialized::defaults(json!({
+            "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
             "application_root":root, "app":{"env":"testing"},
             "database":{"url":null,"instances":{},"read_replicas":[]},
             "cache":{"default":"memory","stores":{"memory":{"driver":"memory"}}},
@@ -118,7 +121,7 @@ async fn check_host(app: &ServerApp, directory: &Path) -> Result<()> {
 }
 
 async fn translation(app: &ServerApp, key: &str) -> Result<String> {
-    let i18n = app.app()?.state().resolve::<I18n>().await?;
+    let i18n = app.app()?.state().resolve::<Translator>().await?;
     let locale = Locale::new("en")?;
     Ok(i18n.translate(&locale, key, &MessageArgs::new()))
 }

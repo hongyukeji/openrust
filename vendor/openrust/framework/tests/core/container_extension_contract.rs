@@ -7,11 +7,17 @@ use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::FrameworkConfig;
-use openrust::core::container::{ContainerBuilder, Resolver, ScopeFactory};
-use openrust::core::resources::ResourceOwner;
-use openrust::core::{
-    BootContext, BoxFuture, Error, ProviderBuilder, RegisterContext, Result, ServiceProvider,
-};
+use openrust::container::ContainerBuilder;
+use openrust::container::Resolver;
+use openrust::container::ScopeFactory;
+use openrust::core::Error;
+use openrust::core::Result;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::RegisterContext;
+use openrust::foundation::resources::ResourceOwner;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use tokio::sync::{Barrier, Notify};
 use tokio::time::Instant;
 
@@ -227,7 +233,7 @@ impl ServiceProvider for RegisterInstance {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(1usize)).await?;
             app.extend::<usize, _>(|old, resolver| {
@@ -256,7 +262,7 @@ impl ServiceProvider for RegisterLater {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(true)).await?;
             Ok(())
@@ -536,7 +542,7 @@ async fn rebinding_failure_keeps_published_value_and_recursive_extension_has_cyc
     builder.rebinding::<usize, _>({
         let target = Arc::clone(&target);
         move |_, _| {
-            let container: Option<openrust::core::container::Container> = target
+            let container: Option<openrust::container::Container> = target
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .clone();
@@ -1141,7 +1147,7 @@ impl ServiceProvider for OrderedInstances {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(OrderedA(1))).await?;
             app.instance(Arc::new(OrderedB(10))).await?;

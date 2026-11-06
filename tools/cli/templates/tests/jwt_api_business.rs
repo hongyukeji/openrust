@@ -105,11 +105,11 @@ impl MailDriver for CaptureMailer {
 
 struct CaptureMailerProvider(CaptureMailer);
 
-impl openrust::core::ServiceProvider for CaptureMailerProvider {
+impl openrust::support::ServiceProvider for CaptureMailerProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(Mailer::new(self.0.clone()))).await?;
             Ok(())
@@ -135,16 +135,16 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         Figment::from(Serialized::defaults(test_configuration())).merge(Toml::string(&config));
     let source = application_test_source(figment)?;
     let application_config = source.figment().extract::<bootstrap::Configuration>()?;
-    let mut builder = openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(
+    let mut builder = openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(
         &application_config,
     );
     let captured_mail = CaptureMailer::default();
     builder.provider(CaptureMailerProvider(captured_mail.clone()));
     let runtime = builder.start(source).await?;
-    let app = openrust::core::App::from_provider_runtime(runtime)?;
+    let app = openrust::foundation::Application::from_provider_runtime(runtime)?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     let (shutdown, shutdown_signal) = oneshot::channel();
     let mut server = openrust::tokio::spawn(async move {
         openrust::http::axum::serve(
@@ -191,7 +191,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
 async fn run_auth_flow(
     address: SocketAddr,
     mail: &CaptureMailer,
-    app: &openrust::App,
+    app: &openrust::Application,
 ) -> TestResult {
     let email = format!("user-{}@example.test", std::process::id());
     let registered = post_with_forwarded_for(
@@ -596,12 +596,12 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
 
 /// 解析生成应用实际注册的工厂，避免JWT成功掩盖默认账户Provider失联。
 async fn assert_generated_named_user_provider(
-    app: &openrust::App,
+    app: &openrust::Application,
     email: &str,
     plain: &str,
 ) -> TestResult {
     use openrust::auth::{AuthManager, Credentials};
-    use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+    use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
 
     let scope = app.state().container().scope()?;
     let manager = scope.resolve::<AuthManager>().await?;
@@ -674,7 +674,7 @@ async fn assert_generated_named_user_provider(
         .ok_or("生成应用Provider未持久化记住我token")?;
     assert_eq!(remembered.auth_identifier()?, identifier);
 
-    let db = scope.resolve::<openrust::db::Db>().await?;
+    let db = scope.resolve::<openrust::database::Db>().await?;
     let table = db.quoted_table_name("users")?;
     let placeholder = match db.backend()? {
         DbBackend::Postgres => "$1",

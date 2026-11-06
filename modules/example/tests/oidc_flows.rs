@@ -7,8 +7,8 @@
 use super::services::oidc::ExampleOidcConfig;
 use figment::{Figment, providers::Serialized};
 use openrust::auth::AuthFlows;
-use openrust::db::sea_orm::{ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
     body::Body,
     extract::ConnectInfo,
@@ -94,9 +94,9 @@ async fn configured_oidc_rejects_missing_business_dependencies_before_ready() ->
     };
     let admin = std::env::var("OPENRUST_TEST_DATABASE_URL")?;
     let database = TestDatabase::create::<Migrator>(&admin).await?;
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
-        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(openrust::database::DatabaseServiceProvider)
         .provider(super::providers::ExampleServiceProvider::new(
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
         ))
@@ -125,7 +125,7 @@ async fn configured_oidc_rejects_missing_business_dependencies_before_ready() ->
     Ok(())
 }
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut m = super::selected_test_auth::migrations();
@@ -161,8 +161,8 @@ impl Fixture {
         let connection = database.connection()?;
         let backend = connection.get_database_backend();
         let table = match backend {
-            openrust::db::sea_orm::DbBackend::Postgres => "\"example_oidc_bind_intents\"",
-            openrust::db::sea_orm::DbBackend::MySql => "`example_oidc_bind_intents`",
+            openrust::database::sea_orm::DbBackend::Postgres => "\"example_oidc_bind_intents\"",
+            openrust::database::sea_orm::DbBackend::MySql => "`example_oidc_bind_intents`",
             _ => return Err("unsupported browser bind database backend".into()),
         };
         connection
@@ -681,7 +681,7 @@ async fn keycloak_existing_email_requires_explicit_link_instead_of_automatic_mer
     let db = first.app.app()?.state().resolve::<Db>().await?;
     let connection = db.connection()?;
     let backend = connection.get_database_backend();
-    let placeholder = if backend == openrust::db::sea_orm::DbBackend::Postgres {
+    let placeholder = if backend == openrust::database::sea_orm::DbBackend::Postgres {
         "$1"
     } else {
         "?"
@@ -794,7 +794,7 @@ impl BrowserNode {
         else {
             return Ok(None);
         };
-        let router = openrust::http::build_router(fixture.app.app()?)?;
+        let router = openrust::foundation::http::build_router(fixture.app.app()?)?;
         let (stop, stopped) = tokio::sync::oneshot::channel();
         let server = tokio::spawn(async move {
             openrust::http::axum::serve(
@@ -980,11 +980,11 @@ impl BrowserNode {
         let db = self.fixture.app.app()?.state().resolve::<Db>().await?;
         let backend = db.backend()?;
         let table = match backend {
-            openrust::db::sea_orm::DbBackend::Postgres => "\"example_oidc_bind_intents\"",
-            openrust::db::sea_orm::DbBackend::MySql => "`example_oidc_bind_intents`",
+            openrust::database::sea_orm::DbBackend::Postgres => "\"example_oidc_bind_intents\"",
+            openrust::database::sea_orm::DbBackend::MySql => "`example_oidc_bind_intents`",
             _ => return Err("unsupported browser bind database backend".into()),
         };
-        let parameter = if backend == openrust::db::sea_orm::DbBackend::Postgres {
+        let parameter = if backend == openrust::database::sea_orm::DbBackend::Postgres {
             "$1"
         } else {
             "?"

@@ -4,8 +4,8 @@ use super::models::article;
 use figment::{Figment, providers::Serialized};
 use futures_util::StreamExt as _;
 use openrust::Db;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -16,7 +16,7 @@ use std::time::Duration;
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
 struct RealtimeMigrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for RealtimeMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();

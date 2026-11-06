@@ -5,12 +5,17 @@ use axum::extract::Path;
 use axum::http::{Method, Request, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use openrust::config::FrameworkConfig;
+use openrust::foundation::http::build_router;
+use openrust::http::Created;
 use openrust::http::Json;
+use openrust::http::NoContent;
+use openrust::http::PageParams;
+use openrust::http::Paginated;
 use openrust::http::axum;
-use openrust::http::{
-    Action, Created, NoContent, PageParams, Paginated, Resource, ResourceActions, Routes,
-    build_router,
-};
+use openrust::routing::Action;
+use openrust::routing::Resource;
+use openrust::routing::ResourceActions;
+use openrust::routing::Router;
 
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -79,20 +84,20 @@ impl Resource for FilteredBeforeRegistration {
 }
 
 async fn router(
-    f: impl Fn(Routes) -> Routes + Send + Sync + 'static,
+    f: impl Fn(Router) -> Router + Send + Sync + 'static,
 ) -> openrust::Result<axum::Router> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
         .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(openrust::http::HttpServiceProvider)
         .provider(TestRoutes::new(f));
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     build_router(&app)
 }
 
@@ -151,11 +156,11 @@ async fn empty_and_slash_resource_paths_work_inside_groups() -> TestResult {
             let router = router(move |routes| {
                 let routes = match mount {
                     "group" => routes.group(
-                        openrust::http::RouteGroup::new().prefix("/posts"),
+                        openrust::routing::RouteGroup::new().prefix("/posts"),
                         |group| group.resource::<Posts>(path),
                     ),
                     "merge" => routes.nest("/posts", |group| {
-                        group.merge(Routes::new().resource::<Posts>(path))
+                        group.merge(Router::new().resource::<Posts>(path))
                     }),
                     _ => routes.nest("/posts", |group| group.resource::<Posts>(path)),
                 };
@@ -526,18 +531,18 @@ fn created_location_is_set_and_invalid_value_is_safe() -> TestResult {
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {

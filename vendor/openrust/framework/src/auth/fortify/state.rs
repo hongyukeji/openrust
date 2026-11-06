@@ -4,7 +4,10 @@ use std::fmt;
 
 use chrono::{DateTime, Utc};
 
-use crate::{Result, auth::Authenticatable, core::BoxFuture, security::Encryptor};
+use crate::Result;
+use crate::auth::Authenticatable;
+use crate::encryption::Encrypter;
+use crate::support::BoxFuture;
 
 /// 对应官方账户上的三项双因素属性；`secret` 与 `recovery_codes` 必须是密文。
 ///
@@ -61,7 +64,7 @@ pub trait TwoFactorAuthenticatable: Authenticatable {
     /// 返回指定登录字段的二维码账户标签，缺字段时由应用选择可用标识。
     fn two_factor_account_name(&self, username: &str) -> Result<Option<String>>;
     /// 模型专用加密器；Fortify显式覆盖优先于此值，其次使用默认Crypt。
-    fn two_factor_encrypter(&self) -> Option<Encryptor> {
+    fn two_factor_encrypter(&self) -> Option<Encrypter> {
         None
     }
 }

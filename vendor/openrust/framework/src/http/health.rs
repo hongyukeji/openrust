@@ -1,7 +1,7 @@
 //! 存活探针端点。
 
 use crate::core::{ApiResponse, Readiness};
-use crate::http::routes::Routes;
+use crate::routing::router::Router;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -25,7 +25,7 @@ pub async fn live() -> ApiResponse<Health> {
 }
 
 /// 就绪探针：listener 正在接收流量且全部依赖探针成功时返回 200，否则返回 503。
-pub async fn ready(State(state): State<crate::core::AppState>) -> Response {
+pub async fn ready(State(state): State<crate::foundation::ApplicationState>) -> Response {
     let is_ready = match state.resolve::<Readiness>().await {
         Ok(readiness) => readiness.is_ready() && readiness.dependencies_ready().await,
         Err(_) => false,
@@ -41,14 +41,18 @@ pub async fn ready(State(state): State<crate::core::AppState>) -> Response {
 }
 
 /// 注册 `GET /health` 和 `GET /ready`。
-pub fn routes(routes: Routes) -> Routes {
+pub fn routes(routes: Router) -> Router {
     routes.get("/health", live).get("/ready", ready)
 }
 
 #[cfg(test)]
 mod tests {
     use super::ready;
-    use crate::core::{Error, ProviderBuilder, Readiness, RegisterContext, ServiceProvider};
+    use crate::core::Error;
+    use crate::core::Readiness;
+    use crate::foundation::ProviderBuilder;
+    use crate::foundation::RegisterContext;
+    use crate::support::ServiceProvider;
     use axum::{extract::State, http::StatusCode};
     use figment::Figment;
 
@@ -58,7 +62,7 @@ mod tests {
         fn register<'a>(
             &'a self,
             app: &'a mut RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, crate::core::Result<()>> {
+        ) -> crate::support::BoxFuture<'a, crate::core::Result<()>> {
             Box::pin(async move {
                 let readiness = self.0.clone();
                 app.singleton::<Readiness, _>(move |_| {
@@ -82,7 +86,9 @@ mod tests {
         })?;
         let mut builder = ProviderBuilder::new();
         builder.provider(TestReadiness(readiness.clone()));
-        let app = crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let app = crate::foundation::Application::from_provider_runtime(
+            builder.start(Figment::new()).await?,
+        )?;
         let _listener = readiness.begin_listening();
 
         let response = ready(State(app.state().clone())).await;

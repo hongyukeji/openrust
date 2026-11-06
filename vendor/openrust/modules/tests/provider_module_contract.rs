@@ -6,9 +6,13 @@
 
 use figment::Figment;
 use openrust::config::repository::SectionSchema;
-use openrust::core::{
-    BootContext, BoxFuture, Error, ProviderBuilder, RegisterContext, Result, ServiceProvider,
-};
+use openrust::core::Error;
+use openrust::core::Result;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::RegisterContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust_modules::{
     ModuleConfigFiles, ModuleDescriptor, ModuleManifest, ModuleProviderBuilderExt,
 };

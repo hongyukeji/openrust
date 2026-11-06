@@ -1,6 +1,6 @@
 //! 用于共享签名链接撤销的数据库结构。
 
-use crate::db::{
+use crate::database::{
     DatabaseTableNames,
     sea_orm::{DbBackend, sea_query::Alias},
     sea_orm_migration::prelude::*,

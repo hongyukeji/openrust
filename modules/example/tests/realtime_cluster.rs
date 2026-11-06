@@ -9,8 +9,8 @@
 use super::models::article;
 use figment::{Figment, providers::Serialized};
 use openrust::Db;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
 use openrust::realtime::Realtime;
 use openrust::testing::{TestApp, TestDatabase};
@@ -25,7 +25,7 @@ const BUDGET: Duration = Duration::from_secs(10);
 const ORIGIN: &str = "https://example.test";
 
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -59,7 +59,7 @@ impl Node {
         )
         .build()
         .await?;
-        let router = openrust::http::build_router(app.app()?)?;
+        let router = openrust::foundation::http::build_router(app.app()?)?;
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;
         let (stop, stopped) = oneshot::channel();

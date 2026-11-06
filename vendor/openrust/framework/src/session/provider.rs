@@ -4,11 +4,13 @@ use super::{
     CookieSessionStore, DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore,
     Session, SessionStore, SessionStoreGuarantees,
 };
-use crate::{
-    Error, Result,
-    config::SessionConfig,
-    core::{BootContext, BoxFuture, RegisterContext, ServiceProvider},
-};
+use crate::Error;
+use crate::Result;
+use crate::config::SessionConfig;
+use crate::foundation::BootContext;
+use crate::foundation::RegisterContext;
+use crate::support::BoxFuture;
+use crate::support::ServiceProvider;
 use std::sync::{Arc, OnceLock};
 
 /// 共享store撤销句柄；所有认证和普通Session使用同一driver。
@@ -53,17 +55,17 @@ pub(crate) struct SessionSettings {
 impl SessionSettings {
     async fn configured_store(
         &self,
-        resolver: &crate::core::container::Resolver,
+        resolver: &crate::container::Resolver,
     ) -> Result<Arc<dyn SessionStore>> {
         let store: Arc<dyn SessionStore> = match self.config.driver.as_deref() {
             Some(driver @ ("database" | "database-guarded")) => {
                 let db = if let Some(connection) = &self.config.connection {
                     resolver
-                        .resolve::<crate::db::Databases>()
+                        .resolve::<crate::database::Databases>()
                         .await?
                         .get(connection)?
                 } else {
-                    (*resolver.resolve::<crate::db::Db>().await?).clone()
+                    (*resolver.resolve::<crate::database::Db>().await?).clone()
                 };
                 if driver == "database" {
                     let store = DatabaseSessionStore::new(db)
@@ -195,7 +197,7 @@ impl ServiceProvider for SessionServiceProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema as S;
             app.instance(Arc::clone(&self.error_bag_codecs)).await?;

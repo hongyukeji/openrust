@@ -7,9 +7,10 @@ use std::error::Error as StdError;
 use openrust::ServiceExt;
 use openrust::auth::{AuthServiceProvider, JwtServiceProvider};
 use openrust::config::FrameworkConfig;
+use openrust::foundation::http::build_router;
+use openrust::http::HttpServiceProvider;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
-use openrust::http::{HttpServiceProvider, build_router};
 use openrust::prelude::*;
 
 type TestResult = Result<(), Box<dyn StdError>>;
@@ -37,14 +38,14 @@ struct App;
 struct JwtApp;
 struct ProfileService;
 
-impl Application for App {
+impl ApplicationDefinition for App {
     type Config = NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
-    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
+    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::support::ServiceProvider>> {
         vec![
             Box::new(HttpServiceProvider),
             Box::new(AuthServiceProvider::with_authenticator(TestAuthenticator)),
@@ -58,14 +59,14 @@ impl Application for App {
     }
 }
 
-impl Application for JwtApp {
+impl ApplicationDefinition for JwtApp {
     type Config = NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
-    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
+    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::support::ServiceProvider>> {
         let key = [0x5a; 32];
         vec![
             Box::new(HttpServiceProvider),
@@ -141,13 +142,13 @@ async fn facade_application_authenticates_jwt_without_session_plugin() -> TestRe
     Ok(())
 }
 
-async fn test_application<A: Application<Config = NoConfig>>()
--> Result<openrust::App, openrust::Error> {
+async fn test_application<A: ApplicationDefinition<Config = NoConfig>>()
+-> Result<openrust::Application, openrust::Error> {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.app_config::<NoConfig>();
     for provider in A::providers(&NoConfig {}) {
         builder.boxed_provider(provider);
@@ -155,15 +156,15 @@ async fn test_application<A: Application<Config = NoConfig>>()
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
-impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+impl<T: Send + Sync + 'static> openrust::support::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::clone(&self.0)).await?;
             Ok(())
@@ -172,18 +173,18 @@ impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {
@@ -205,11 +206,11 @@ impl JwtSettings {
             "active_key_id":active_key_id,"keys":keys}))
     }
 }
-impl openrust::core::ServiceProvider for JwtSettings {
+impl openrust::support::ServiceProvider for JwtSettings {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move { app.merge_defaults("auth.jwt", self.0.clone()) })
     }
 }

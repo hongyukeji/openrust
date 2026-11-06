@@ -10,7 +10,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, Value};
 
 use crate::support::calendar::{CalendarClock, SystemClock};
-use crate::{Error, Result, db::Db};
+use crate::{Error, Result, database::Db};
 
 /// 本次请求提供的数据库 Session 元数据；缺省字段不会覆盖已有列。
 #[derive(Clone, Default)]
@@ -161,7 +161,7 @@ impl DatabaseSessionHandler {
     #[cfg(feature = "auth-fortify")]
     pub(crate) async fn read_for_credential(
         &mut self,
-        tx: &crate::db::DatabaseTransaction,
+        tx: &crate::database::DatabaseTransaction,
         id: &str,
     ) -> Result<Option<(Vec<u8>, time::OffsetDateTime)>> {
         self.exists = false;

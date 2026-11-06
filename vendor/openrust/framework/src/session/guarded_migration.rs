@@ -1,6 +1,6 @@
 //! 原生 Session 表的显式绝对截止增强；不在默认迁移中隐式安装。
 
-use crate::db::{
+use crate::database::{
     dialect,
     sea_orm::{DbBackend, sea_query::SqliteQueryBuilder},
     sea_orm_migration::prelude::*,
@@ -182,7 +182,7 @@ impl MigrationTrait for GuardedSessionTableGcMigration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{
+    use crate::database::{
         DatabaseTableNames,
         sea_orm::sea_query::{MysqlQueryBuilder, PostgresQueryBuilder, SqliteQueryBuilder},
     };

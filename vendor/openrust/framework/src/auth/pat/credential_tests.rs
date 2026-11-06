@@ -1,24 +1,35 @@
 //! 真实SQLite、数据库账户模型、Session收据与主库父凭据重核的PAT回归。
 use super::*;
-use crate::{
-    auth::{
-        AuthUser, Authenticatable, DatabaseUserProvider, GenericUser, SessionGuard, StatefulGuard,
-        UserProvider,
-        fortify::{
-            CredentialFactorMigration, DatabaseFactorAuthority, DatabaseTwoFactorState,
-            FactorAuthorityMigration, FactorAuthorityMutation, FortifyTwoFactorMigration,
-            GoogleTwoFactorAuthenticationProvider, TwoFactorActions, TwoFactorAuthenticatable,
-            TwoFactorState,
-        },
-    },
-    core::{BoxFuture, ProviderBuilder},
-    db::sea_orm_migration::{MigrationTrait, MigratorTrait},
-    events::{Events, EventsServiceProvider},
-    http::{CookieFactory, CookieJar},
-    security::{EncryptionConfig, Encryptor},
-    session::{MemorySessionStore, Session},
-    testing::TestDatabase,
-};
+use crate::auth::AuthUser;
+use crate::auth::Authenticatable;
+use crate::auth::DatabaseUserProvider;
+use crate::auth::GenericUser;
+use crate::auth::SessionGuard;
+use crate::auth::StatefulGuard;
+use crate::auth::UserProvider;
+use crate::auth::fortify::CredentialFactorMigration;
+use crate::auth::fortify::DatabaseFactorAuthority;
+use crate::auth::fortify::DatabaseTwoFactorState;
+use crate::auth::fortify::FactorAuthorityMigration;
+use crate::auth::fortify::FactorAuthorityMutation;
+use crate::auth::fortify::FortifyTwoFactorMigration;
+use crate::auth::fortify::GoogleTwoFactorAuthenticationProvider;
+use crate::auth::fortify::TwoFactorActions;
+use crate::auth::fortify::TwoFactorAuthenticatable;
+use crate::auth::fortify::TwoFactorState;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::encryption::Encrypter;
+use crate::encryption::EncryptionConfig;
+use crate::events::Events;
+use crate::events::EventsServiceProvider;
+use crate::foundation::ProviderBuilder;
+use crate::http::CookieFactory;
+use crate::http::CookieJar;
+use crate::session::MemorySessionStore;
+use crate::session::Session;
+use crate::support::BoxFuture;
+use crate::testing::TestDatabase;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 
@@ -30,7 +41,7 @@ impl MigratorTrait for Migrations {
             Box::new(crate::auth::AuthRefreshTokenMigration),
             Box::new(crate::auth::AuthRememberTokenMigration),
             Box::new(crate::auth::AuthVerificationCodeMigration),
-            Box::new(crate::db::DatabaseRateLimitMigration),
+            Box::new(crate::database::DatabaseRateLimitMigration),
             Box::new(FortifyTwoFactorMigration::new()),
             Box::new(FactorAuthorityMigration::new()),
             Box::new(CredentialFactorMigration::new()),
@@ -106,10 +117,10 @@ struct Fixture {
     guard: SessionGuard,
     session: Session,
     tokens: PersonalAccessTokens,
-    runtime: crate::core::ProviderRuntime,
+    runtime: crate::foundation::ProviderRuntime,
 }
 async fn account(db: &Db, id: i64) -> Result<()> {
-    let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+    let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
     db.table("users")?
         .insert(vec![
             ("id", id.into()),
@@ -124,7 +135,7 @@ async fn account(db: &Db, id: i64) -> Result<()> {
 async fn fixture(db: Db) -> Result<Fixture> {
     account(&db, 42).await?;
     account(&db, 43).await?;
-    let encrypter = Encryptor::new(EncryptionConfig::new(
+    let encrypter = Encrypter::new(EncryptionConfig::new(
         "test",
         std::collections::BTreeMap::from([("test".into(), STANDARD_KEY.into())]),
     ))?;
@@ -435,7 +446,7 @@ async fn assert_pat_parent_limits(
         .where_eq("token_hash", sha256_hex(parent.expose()))?
         .update(vec![(
             "expires_at",
-            crate::db::dialect::utc_value(DbBackend::Sqlite, shortened),
+            crate::database::dialect::utc_value(DbBackend::Sqlite, shortened),
         )])
         .await?;
     assert!(
@@ -456,7 +467,7 @@ async fn assert_pat_parent_limits(
         .where_eq("token_hash", sha256_hex(parent.expose()))?
         .update(vec![(
             "expires_at",
-            crate::db::dialect::utc_value(DbBackend::Sqlite, expiry),
+            crate::database::dialect::utc_value(DbBackend::Sqlite, expiry),
         )])
         .await?;
     Ok(())
@@ -574,7 +585,8 @@ fn family_flows(
         crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
         passwords.clone(),
     );
-    let limiter = crate::core::RateLimiter::new(crate::db::DatabaseRateLimitStore::new(db.clone()));
+    let limiter =
+        crate::core::RateLimiter::new(crate::database::DatabaseRateLimitStore::new(db.clone()));
     let flows = crate::auth::AuthFlows::new(
         db.clone(),
         passwords,
@@ -710,7 +722,7 @@ async fn family_tokens_reject_factor_change_and_session_parent_from_another_stor
             let other_db = Db::default();
             let cross_store: Result<()> = async {
                 other_db.initialize(other_database.connection()?)?;
-                let encrypter = Encryptor::new(EncryptionConfig::new(
+                let encrypter = Encrypter::new(EncryptionConfig::new(
                     "test",
                     std::collections::BTreeMap::from([("test".into(), STANDARD_KEY.into())]),
                 ))?;
@@ -868,7 +880,7 @@ async fn selected_auth_flows_rejects_refresh_store_from_another_database_without
                     passwords.clone(),
                 );
                 let limiter = crate::core::RateLimiter::new(
-                    crate::db::DatabaseRateLimitStore::new(fixture.db.clone()),
+                    crate::database::DatabaseRateLimitStore::new(fixture.db.clone()),
                 );
                 let flows = crate::auth::AuthFlows::new(
                     fixture.db.clone(),
@@ -922,11 +934,11 @@ async fn direct_login_flows(
             ("password_hash", hash.as_str().into()),
             (
                 "email_verified_at",
-                crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
+                crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
             ),
         ])
         .await?;
-    let encrypter = Encryptor::new(EncryptionConfig::new(
+    let encrypter = Encrypter::new(EncryptionConfig::new(
         "test",
         std::collections::BTreeMap::from([("test".into(), STANDARD_KEY.into())]),
     ))?;
@@ -994,7 +1006,7 @@ async fn direct_challenge_child_insert_failure_rolls_back_consumption_and_allows
 
 mod commit_boundary {
     use super::*;
-    use crate::db::{DatabaseServiceProvider, TransactionBeforeCommit};
+    use crate::database::{DatabaseServiceProvider, TransactionBeforeCommit};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::sync::Notify;
 

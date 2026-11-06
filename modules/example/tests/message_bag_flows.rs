@@ -1,5 +1,6 @@
 //! 通过唯一业务模块的生产路由验证公开错误包接口，不依赖数据库或 Session。
 
+use super::config_sources::enabled_example_sources;
 use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
@@ -44,11 +45,10 @@ async fn post(app: &TestApp<crate::bootstrap::Server>, input: Value) -> TestResu
 
 #[tokio::test]
 async fn module_message_bag_aggregates_create_and_update_errors() -> TestResult {
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(sources()))?,
-    )
-    .build()
-    .await?;
+    let mut app =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(sources()))?)
+            .build()
+            .await?;
     let result = async {
         let errors = post(&app, json!({"title": "", "email": "bad", "record_id": 0})).await?;
         assert_eq!(errors["default"]["keys"], json!(["title", "email"]));

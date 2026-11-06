@@ -8,8 +8,11 @@ use std::sync::Arc;
 
 use crate::config::ConfigError;
 pub use crate::config::SmsConfig;
-use crate::core::{BoxFuture, Error, Result};
-use crate::i18n::{I18n, Locale};
+use crate::core::Error;
+use crate::core::Result;
+use crate::support::BoxFuture;
+use crate::translation::Locale;
+use crate::translation::Translator;
 #[cfg(feature = "sms-twilio")]
 use http::header::AUTHORIZATION;
 #[cfg(feature = "sms-twilio")]
@@ -104,10 +107,10 @@ impl SmsMessage {
     /// 使用指定 locale 翻译文本内容；供应商模板仍由供应商管理。
     pub fn localized_text(
         to: impl Into<String>,
-        i18n: &I18n,
+        i18n: &Translator,
         locale: &Locale,
         key: &str,
-        args: &crate::i18n::MessageArgs,
+        args: &crate::translation::MessageArgs,
     ) -> Result<Self> {
         Self::text(to, i18n.translate(locale, key, args))
     }
@@ -162,11 +165,11 @@ impl SmsSender {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SmsServiceProvider;
 
-impl crate::core::ServiceProvider for SmsServiceProvider {
+impl crate::support::ServiceProvider for SmsServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema;
             app.config_section(
@@ -210,7 +213,10 @@ impl crate::core::ServiceProvider for SmsServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<SmsSender>().await?;
             Ok(())
@@ -221,7 +227,9 @@ impl crate::core::ServiceProvider for SmsServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
 
@@ -561,7 +569,7 @@ mod tests {
 
     #[tokio::test]
     async fn production_accepts_log_without_external_credentials() -> Result<()> {
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(SmsServiceProvider);
         let figment = figment::Figment::from(figment::providers::Serialized::defaults(
             serde_json::json!({"app":{"env":"production"},"sms":{"driver":"log"}}),

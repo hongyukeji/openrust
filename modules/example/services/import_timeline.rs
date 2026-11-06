@@ -1,6 +1,8 @@
 //! 账户导入时间线：以服务器观察时点识别正常与异常终结时间。
 
-use openrust::db::query::{ColumnOperand, ExistsOrResult, MultiComparison, RawSql, WhereOperator};
+use openrust::database::query::{
+    ColumnOperand, ExistsOrResult, MultiComparison, RawSql, WhereOperator,
+};
 use openrust::{Db, Error, Result, ValidationErrors};
 
 /// 导入标识和来源名称的组合匹配方式。

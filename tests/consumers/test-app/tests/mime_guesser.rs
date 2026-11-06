@@ -2,9 +2,11 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::{FrameworkConfig, NoConfig};
-use openrust::core::{
-    AppState, Application, BootContext, BoxFuture, RegisterContext, Result, ServiceProvider,
-};
+use openrust::core::Result;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::ApplicationState;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
 use openrust::http::{
     HttpServiceProvider, MimeFile, MimeFileReader, MimeGuess, MimeTypeGuesser, MimeTypes,
     Request as InputRequest, UploadedFile,
@@ -15,6 +17,8 @@ use openrust::http::{
         http::{Request, StatusCode},
     },
 };
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use openrust::tokio::io::AsyncReadExt;
 use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
@@ -72,7 +76,7 @@ impl ServiceProvider for MimeRouteProvider {
             app.routes(|routes| {
                 routes.post(
                     "/api/mime-consumer",
-                    |State(state): State<AppState>, request: InputRequest| async move {
+                    |State(state): State<ApplicationState>, request: InputRequest| async move {
                         let value = request.file("document")?.ok_or_else(|| {
                             openrust::Error::custom("consumer_file_missing", "文件缺失")
                         })?;
@@ -115,12 +119,12 @@ impl ServiceProvider for MimeRouteProvider {
 
 struct ConsumerApplication;
 
-impl Application for ConsumerApplication {
+impl ApplicationDefinition for ConsumerApplication {
     type Config = NoConfig;
 
-        fn default_providers() -> openrust::core::DefaultProviders {
-            openrust::core::DefaultProviders::empty()
-        }
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
+    }
 
     fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
         vec![Box::new(HttpServiceProvider), Box::new(MimeRouteProvider)]

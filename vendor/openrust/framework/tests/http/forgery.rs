@@ -9,15 +9,22 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use openrust::http::{
-    CookieServiceProvider, HttpServiceProvider, Json, PreventRequestForgery, Query, RequestInfo,
-    RouteGroup, Validated, build_router,
-};
+use openrust::Application;
+use openrust::Result;
+use openrust::ServiceExt;
+use openrust::foundation::BootContext;
+use openrust::foundation::http::build_router;
+use openrust::http::CookieServiceProvider;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Json;
+use openrust::http::PreventRequestForgery;
+use openrust::http::Query;
+use openrust::http::RequestInfo;
+use openrust::http::Validated;
+use openrust::routing::RouteGroup;
 use openrust::session::{MemorySessionStore, Session, SessionServiceProvider};
-use openrust::{
-    App, Result, ServiceExt,
-    core::{BootContext, BoxFuture, ServiceProvider},
-};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use tokio::io::AsyncReadExt;
 
 struct WebRoutes(PreventRequestForgery);
@@ -150,11 +157,11 @@ fn source(env: openrust::config::Environment) -> figment::Figment {
 async fn fixture_with_environment(
     policy: PreventRequestForgery,
     env: openrust::config::Environment,
-) -> Result<App> {
-    let mut builder = openrust::core::ProviderBuilder::new();
+) -> Result<Application> {
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
-        .provider(openrust::security::EncryptionServiceProvider)
+        .provider(openrust::encryption::EncryptionServiceProvider)
         .provider(CookieServiceProvider::new())
         .provider(
             SessionServiceProvider::with_store(MemorySessionStore::default()).with_cookie_config(
@@ -167,20 +174,20 @@ async fn fixture_with_environment(
             ),
         )
         .provider(WebRoutes(policy));
-    App::from_provider_runtime(builder.start(source(env)).await?)
+    Application::from_provider_runtime(builder.start(source(env)).await?)
 }
 
-async fn fixture(policy: PreventRequestForgery) -> Result<App> {
+async fn fixture(policy: PreventRequestForgery) -> Result<Application> {
     fixture_with_environment(policy, openrust::config::Environment::Development).await
 }
 
 #[tokio::test]
 async fn web_group_rejects_missing_runtime_instead_of_running_unprotected() -> Result<()> {
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(WebRoutes(PreventRequestForgery::new()));
-    let app = App::from_provider_runtime(
+    let app = Application::from_provider_runtime(
         builder
             .start(source(openrust::config::Environment::Development))
             .await?,
@@ -432,17 +439,17 @@ async fn multipart_body_token_and_file_share_the_managed_request() -> Result<()>
 }
 
 struct TestingHarness;
-impl openrust::core::Application for TestingHarness {
+impl openrust::foundation::ApplicationDefinition for TestingHarness {
     type Config = openrust::config::NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
     fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         vec![
             Box::new(HttpServiceProvider),
-            Box::new(openrust::security::EncryptionServiceProvider),
+            Box::new(openrust::encryption::EncryptionServiceProvider),
             Box::new(CookieServiceProvider::new()),
             Box::new(
                 SessionServiceProvider::with_store(MemorySessionStore::default())

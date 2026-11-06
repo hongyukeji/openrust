@@ -1,3 +1,4 @@
+use super::config_sources::enabled_example_sources;
 use openrust::http::{
     HttpServiceProvider,
     axum::{
@@ -13,12 +14,11 @@ use tower::ServiceExt;
 #[tokio::test]
 async fn production_log_services_coexist_with_normal_module_routes()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = crate::modules::example::test_sources(&production_sources(true))?
-        .merge_ordered_entries([
-            ("app", serde_json::json!({"env":"production"})),
-            ("mail", serde_json::json!({"driver":"log"})),
-            ("sms", serde_json::json!({"driver":"log"})),
-        ])?;
+    let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([
+        ("app", serde_json::json!({"env":"production"})),
+        ("mail", serde_json::json!({"driver":"log"})),
+        ("sms", serde_json::json!({"driver":"log"})),
+    ])?;
     let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
         .build()
         .await?;
@@ -65,7 +65,7 @@ async fn module_trusted_hosts_override_reaches_business_routes()
         }),
     ));
     let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(sources))?,
+        enabled_example_sources(&(sources))?,
     )
     .build()
     .await?;
@@ -92,7 +92,7 @@ async fn module_trusted_hosts_override_reaches_business_routes()
 #[tokio::test]
 async fn module_exception_handler_renders_typed_error() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(true)))?,
+        enabled_example_sources(&(production_sources(true)))?,
     )
     .build()
     .await?;
@@ -123,10 +123,10 @@ async fn module_exception_handler_renders_typed_error() -> Result<(), Box<dyn st
 struct LateOidcOverlay;
 
 #[cfg(feature = "auth-oidc")]
-impl openrust::core::ServiceProvider for LateOidcOverlay {
+impl openrust::support::ServiceProvider for LateOidcOverlay {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.overlay(
@@ -147,9 +147,9 @@ impl openrust::core::ServiceProvider for LateOidcOverlay {
 #[tokio::test]
 async fn oidc_overlay_after_module_routes_fails_before_ready()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
-        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(openrust::database::DatabaseServiceProvider)
         .provider(super::providers::ExampleServiceProvider::new(
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
         ))
@@ -169,13 +169,13 @@ async fn oidc_overlay_after_module_routes_fails_before_ready()
 async fn module_registration_controls_only_its_business_routes()
 -> Result<(), Box<dyn std::error::Error>> {
     for registered in [false, true] {
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         #[cfg(feature = "queue")]
         builder.provider(openrust::queue::QueueServiceProvider::new());
         builder
             .provider(HttpServiceProvider)
             .provider(openrust::http::CookieServiceProvider::plain())
-            .provider(openrust::db::DatabaseServiceProvider)
+            .provider(openrust::database::DatabaseServiceProvider)
             .provider(openrust::cache::CacheServiceProvider::new())
             .provider(crate::app::providers::AppServiceProvider);
         let manifest = openrust_modules::ModuleManifest::new().module(super::descriptor(
@@ -195,7 +195,7 @@ async fn module_registration_controls_only_its_business_routes()
                 "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}}
             }),
         ));
-        let app = openrust::App::from_provider_runtime(
+        let app = openrust::Application::from_provider_runtime(
             builder
                 .start(crate::modules::example::test_sources(&(sources))?)
                 .await?,
@@ -218,7 +218,7 @@ async fn module_registration_controls_only_its_business_routes()
         } else {
             assert!(app.section::<serde_json::Value>("example").is_err());
         }
-        let router = openrust::http::build_router(&app)?;
+        let router = openrust::foundation::http::build_router(&app)?;
         for path in ["/health", "/api"] {
             let response = router
                 .clone()
@@ -261,10 +261,10 @@ async fn module_registration_controls_only_its_business_routes()
 
 struct LateExampleMessage(&'static str);
 
-impl openrust::core::ServiceProvider for LateExampleMessage {
+impl openrust::support::ServiceProvider for LateExampleMessage {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::new(super::services::ExampleMessage::new(
@@ -279,13 +279,13 @@ impl openrust::core::ServiceProvider for LateExampleMessage {
 #[tokio::test]
 async fn module_business_uses_runtime_provider_rebinding_after_boot()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     #[cfg(feature = "queue")]
     builder.provider(openrust::queue::QueueServiceProvider::new());
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
-        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
         .provider(crate::app::providers::AppServiceProvider)
         .module_manifest(
@@ -304,7 +304,7 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
             "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}}
         }),
     ));
-    let mut app = openrust::App::from_provider_runtime(
+    let mut app = openrust::Application::from_provider_runtime(
         builder
             .start(crate::modules::example::test_sources(&(source))?)
             .await?,
@@ -342,7 +342,7 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
             .text(),
         "强制更新消息"
     );
-    let response = openrust::http::build_router(&app)?
+    let response = openrust::foundation::http::build_router(&app)?
         .oneshot(
             Request::get("/api/example")
                 .header("host", "localhost")
@@ -412,11 +412,11 @@ async fn typed_policy_requires_explicit_provider_option() -> Result<(), Box<dyn 
 {
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     for enabled in [false, true] {
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(HttpServiceProvider)
             .provider(openrust::http::CookieServiceProvider::plain())
-            .provider(openrust::db::DatabaseServiceProvider)
+            .provider(openrust::database::DatabaseServiceProvider)
             .provider(openrust::cache::CacheServiceProvider::new());
         let provider = super::providers::ExampleServiceProvider::new(root.clone());
         builder.provider(if enabled {
@@ -424,14 +424,14 @@ async fn typed_policy_requires_explicit_provider_option() -> Result<(), Box<dyn 
         } else {
             provider
         });
-        let app = openrust::App::from_provider_runtime(
+        let app = openrust::Application::from_provider_runtime(
             builder
                 .start(crate::modules::example::test_sources(
                     &(production_sources(false)),
                 )?)
                 .await?,
         )?;
-        let response = openrust::http::build_router(&app)?
+        let response = openrust::foundation::http::build_router(&app)?
             .oneshot(
                 Request::get("/api/example/config-policy")
                     .header("host", "localhost")
@@ -463,10 +463,10 @@ async fn typed_policy_requires_explicit_provider_option() -> Result<(), Box<dyn 
 async fn old_toml_fixture_remains_an_explicit_optional_source()
 -> Result<(), Box<dyn std::error::Error>> {
     struct Fixture;
-    impl openrust::core::ServiceProvider for Fixture {
+    impl openrust::support::ServiceProvider for Fixture {
         fn boot<'a>(
             &'a self,
-            app: &'a mut openrust::core::BootContext<'_>,
+            app: &'a mut openrust::foundation::BootContext<'_>,
         ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
             Box::pin(async move {
                 let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -475,9 +475,9 @@ async fn old_toml_fixture_remains_an_explicit_optional_source()
             })
         }
     }
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(Fixture);
-    let app = openrust::App::from_provider_runtime(
+    let app = openrust::Application::from_provider_runtime(
         builder
             .start(crate::modules::example::test_sources(
                 &(production_sources(false)),
@@ -523,15 +523,15 @@ async fn production_config_greeting_reads_only_the_module_business_key()
     missing.set("example.greeting", serde_json::json!(7))?;
     assert!(super::services::config_reading::greeting(&missing).is_err());
 
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     assert_config_feature(&mut app).await?;
-    let mut other = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut other = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     let startup_greeting = app
@@ -625,7 +625,7 @@ async fn ordered_business_source_survives_module_overlay_and_runtime_set()
         env!("CARGO_MANIFEST_DIR"),
         "APP_",
         None,
-        &<crate::bootstrap::Server as openrust::core::Application>::config(),
+        &<crate::bootstrap::Server as openrust::foundation::ApplicationDefinition>::config(),
     )?
     .merge_ordered_entries(entries)?;
     let mut app = TestApp::<crate::bootstrap::Server>::builder(sources.clone())
@@ -702,11 +702,10 @@ async fn production_request_representation_negotiates_html_json_and_rejection()
     let sources = production_sources(false).merge(figment::providers::Serialized::defaults(
         serde_json::json!({"api": {"http_status": "always_ok"}}),
     ));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(sources))?,
-    )
-    .build()
-    .await?;
+    let mut app =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(sources))?)
+            .build()
+            .await?;
     for (accept, status, content_type) in [
         (None, StatusCode::OK, "text/html"),
         (Some(""), StatusCode::OK, "text/html"),
@@ -765,9 +764,9 @@ async fn production_request_representation_uses_semantic_406_when_configured()
     use openrust::testing::TestApp;
     use std::time::Duration;
 
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(true)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(true)),
+    )?)
     .build()
     .await?;
     let response = app
@@ -793,9 +792,9 @@ async fn production_request_info_leaves_json_body_for_typed_extractor()
     use openrust::testing::TestApp;
     use std::time::Duration;
 
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     let response = app
@@ -823,9 +822,9 @@ async fn production_html_representation_escapes_business_message()
     use openrust::testing::TestApp;
     use std::{sync::Arc, time::Duration};
 
-    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    );
+    let mut builder = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?);
     builder.configure_after_register(|bindings| {
         Box::pin(async move {
             bindings
@@ -862,14 +861,14 @@ async fn production_testapp_replaces_business_dependency_without_changing_routes
     use std::sync::Arc;
     use std::time::Duration;
 
-    let mut production = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut production = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
-    let mut fixture = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    );
+    let mut fixture = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?);
     fixture.configure_after_register(|bindings| {
         Box::pin(async move {
             bindings
@@ -934,9 +933,9 @@ async fn production_module_domain_route_binds_host_path_and_named_url()
 -> Result<(), Box<dyn std::error::Error>> {
     use openrust::testing::TestApp;
 
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     let response = app
@@ -974,9 +973,9 @@ async fn production_testapp_can_disable_only_the_business_module()
     use openrust::testing::TestApp;
     use std::time::Duration;
 
-    let mut fixture = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(true)))?,
-    );
+    let mut fixture = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(true)),
+    )?);
     fixture.remove_module("example");
     let mut app = fixture.build().await?;
     app.request(
@@ -1002,10 +1001,10 @@ async fn production_testapp_can_disable_only_the_business_module()
 struct OrdersConsumerProvider;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-impl openrust::core::ServiceProvider for OrdersConsumerProvider {
+impl openrust::support::ServiceProvider for OrdersConsumerProvider {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.resolve::<super::services::ExampleMessage>().await?;
@@ -1026,8 +1025,8 @@ async fn orders_index(
 #[tokio::test]
 async fn dependent_business_module_serves_http_with_real_database()
 -> Result<(), Box<dyn std::error::Error>> {
-    use openrust::core::ProviderBuilder;
-    use openrust::db::sea_orm::{ConnectionTrait, Statement};
+    use openrust::database::sea_orm::{ConnectionTrait, Statement};
+    use openrust::foundation::ProviderBuilder;
     use openrust::testing::TestDatabase;
     use openrust_modules::{ModuleDescriptor, ModuleManifest};
     use std::path::PathBuf;
@@ -1050,7 +1049,7 @@ async fn dependent_business_module_serves_http_with_real_database()
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
-        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
         .module_manifest(
             ModuleManifest::new()
@@ -1066,7 +1065,7 @@ async fn dependent_business_module_serves_http_with_real_database()
     let runtime = builder
         .start(crate::modules::example::test_sources(&(sources))?)
         .await?;
-    let app = openrust::core::App::from_provider_runtime(runtime)?;
+    let app = openrust::foundation::Application::from_provider_runtime(runtime)?;
     let database_handle = app.state().resolve::<openrust::Db>().await?;
     let connection = database_handle.primary_connection()?;
     connection
@@ -1077,7 +1076,7 @@ async fn dependent_business_module_serves_http_with_real_database()
         .await?
         .ok_or("real database did not return SELECT 1")?;
 
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     for (path, expected) in [
         ("/api/example", "Hello from modules/example"),
         ("/api/orders", "Hello from modules/example"),
@@ -1187,9 +1186,9 @@ fn module_migration_sources(database: &openrust::testing::TestDatabase) -> figme
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 async fn migration_versions(
-    connection: &openrust::db::DatabaseConnection,
+    connection: &openrust::database::DatabaseConnection,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    use openrust::db::sea_orm::{ConnectionTrait, Statement};
+    use openrust::database::sea_orm::{ConnectionTrait, Statement};
     connection
         .query_all_raw(Statement::from_string(
             connection.get_database_backend(),
@@ -1205,10 +1204,10 @@ async fn migration_versions(
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
 async fn session_gc_indexes(
-    connection: &openrust::db::DatabaseConnection,
+    connection: &openrust::database::DatabaseConnection,
     table: &str,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+    use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
     let expected = format!("{table}_last_activity_index")
         .to_ascii_lowercase()
         .replace(['-', '.'], "_");
@@ -1273,24 +1272,21 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     let sources = || module_migration_sources(&database);
     migration_command(
         "initial_migrate",
-        TestApp::<crate::bootstrap::Server>::builder(crate::modules::example::test_sources(
-            &(sources()),
-        )?)
-        .run_command("migrate", Vec::new())
-        .await,
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(sources()))?)
+            .run_command("migrate", Vec::new())
+            .await,
     )?;
-    let mut enabled = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(sources()))?,
-    )
-    .build()
-    .await
-    .inspect_err(|error| {
-        eprintln!(
-            "module_migration phase=build_app code={} status={}",
-            error.code(),
-            error.status()
-        );
-    })?;
+    let mut enabled =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(sources()))?)
+            .build()
+            .await
+            .inspect_err(|error| {
+                eprintln!(
+                    "module_migration phase=build_app code={} status={}",
+                    error.code(),
+                    error.status()
+                );
+            })?;
     eprintln!("module_migration phase=read_initial");
     let connection = database.connection()?;
     let table = |name| {
@@ -1352,7 +1348,11 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             later_framework_and_application.as_slice()
         );
         let gc_down_steps = before_down - gc_position;
-        let db = enabled.app()?.state().resolve::<openrust::db::Db>().await?;
+        let db = enabled
+            .app()?
+            .state()
+            .resolve::<openrust::database::Db>()
+            .await?;
         let indexes = session_gc_indexes(&connection, &db.table_name("sessions")?).await?;
         assert_eq!(indexes.len(), 1);
         migration_command(
@@ -1446,7 +1446,11 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     assert_eq!(migration_versions(&connection).await?, business_history);
     #[cfg(feature = "session")]
     {
-        let db = enabled.app()?.state().resolve::<openrust::db::Db>().await?;
+        let db = enabled
+            .app()?
+            .state()
+            .resolve::<openrust::database::Db>()
+            .await?;
         assert_eq!(
             session_gc_indexes(&connection, &db.table_name("sessions")?).await?,
             Vec::<String>::new()
@@ -1488,9 +1492,8 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
 
-    let mut disabled = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(sources()))?,
-    );
+    let mut disabled =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(sources()))?);
     disabled.remove_module("example");
     let mut disabled = disabled.build().await?;
     migration_command(
@@ -1519,9 +1522,9 @@ async fn production_input_normalizes_json_and_preserves_source_and_raw_content()
     use openrust::testing::TestApp;
     use std::time::Duration;
 
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     let body = serde_json::json!({
@@ -1603,9 +1606,9 @@ async fn production_input_parses_php_form_arrays_and_mixed_keys()
     use openrust::testing::TestApp;
     use std::time::Duration;
 
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     let response = app.request(
@@ -1639,9 +1642,9 @@ async fn production_input_raw_policy_is_scoped_and_typed_json_keeps_default_norm
     use openrust::testing::TestApp;
     use std::time::Duration;
 
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     for (path, expected) in [
@@ -1675,9 +1678,9 @@ async fn production_request_url_uses_original_uri_and_current_query_bag()
 -> Result<(), Box<dyn std::error::Error>> {
     use openrust::testing::TestApp;
     use std::time::Duration;
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     let base = "http://localhost:8080/api/example/request-url";
@@ -1779,11 +1782,10 @@ async fn production_request_url_reads_trusted_proxy_context()
             "trusted_proxy_headers": TrustedProxyHeaders::DEFAULT
         }}),
     ));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(sources))?,
-    )
-    .build()
-    .await?;
+    let mut app =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(sources))?)
+            .build()
+            .await?;
     let response = app
         .request(
             Request::get("/api/example/request-url?label=public&page=1")
@@ -1822,9 +1824,9 @@ async fn production_route_context_keeps_matched_identity_across_business_boundar
 -> Result<(), Box<dyn std::error::Error>> {
     use openrust::testing::TestApp;
     use std::time::Duration;
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(production_sources(false)))?,
-    )
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &(production_sources(false)),
+    )?)
     .build()
     .await?;
     for (kind, named) in [("named", true), ("anonymous", false)] {
@@ -1904,7 +1906,7 @@ async fn production_route_context_keeps_matched_identity_across_business_boundar
 #[tokio::test]
 async fn generic_http_host_has_no_application_information_route()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
@@ -1917,8 +1919,8 @@ async fn generic_http_host_has_no_application_information_route()
             "cache": {"default":"fixture","stores":{"fixture":{"driver":"memory"}}}
         }),
     ));
-    let app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
-    let router = openrust::http::build_router(&app)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     let response = router
         .clone()
         .oneshot(

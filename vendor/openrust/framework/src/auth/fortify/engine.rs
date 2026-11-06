@@ -1,9 +1,12 @@
 //! 固定 Fortify / `Google2FA` 语义的验证码引擎与可替换账户无关接口。
 
 use super::TwoFactorCodeVerification;
+use crate::Error;
+use crate::Result;
 use crate::auth::totp::totp_code;
+use crate::cache::Cache;
 use crate::config::repository::ConfigRepository;
-use crate::{Error, Result, cache::Cache, core::BoxFuture};
+use crate::support::BoxFuture;
 use md5_11::{Digest, Md5};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::{

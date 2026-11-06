@@ -2,7 +2,6 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-pub mod action;
 pub(crate) mod authority;
 #[cfg(feature = "http-client")]
 pub mod client;
@@ -16,26 +15,20 @@ pub mod health;
 #[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod middleware;
-pub mod plugin;
 pub mod precognition;
 pub(crate) mod proxy;
 pub mod rate_limit;
-pub mod redirect;
+pub mod redirect_response;
 pub mod request;
-pub mod resource;
 pub mod response;
-pub mod route;
-pub mod routes;
-pub mod routing;
 pub mod serve;
+pub mod server_provider;
 pub(crate) mod site;
 pub mod sort;
 pub mod transport;
 pub(crate) mod trusted_hosts;
-pub mod url;
 
-pub use crate::i18n::RequestLocale;
-pub use action::RouteAction;
+pub use crate::translation::RequestLocale;
 pub use axum;
 #[cfg(feature = "http-client")]
 pub use client::{
@@ -56,24 +49,19 @@ pub use forgery::PreventRequestForgery;
 #[cfg(feature = "session")]
 #[allow(deprecated)]
 pub use forgery::VerifyCsrfToken;
-pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use precognition::handle_precognitive_requests;
 pub use proxy::TrustedProxyHeaders;
 pub use rate_limit::{RateLimitKey, RateLimitLayer};
 #[cfg(feature = "session")]
-pub use redirect::RedirectErrors;
-pub use redirect::{RedirectResponse, Redirector};
+pub use redirect_response::RedirectErrors;
+pub use redirect_response::RedirectResponse;
 pub use request::{
     FileBinaryMimeTypeGuesser, InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy,
     MimeFile, MimeFileReader, MimeGuess, MimeTypeGuesser, MimeTypes, RawBodyReader, Request,
     RequestBodyLimits, RequestInfo, Truthy, UploadedFile, UploadedFileReader, VaporRawQueryString,
 };
-pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
-pub use route::{Route, RouteResolver};
-pub use routes::{RouteGroup, Routes};
-pub use routing::{ManagedHandler, RouteMethods};
 pub use serve::{ServeCommand, serve};
+pub use server_provider::HttpServiceProvider;
 pub use sort::{SortDirection, SortField, SortParams};
 pub use transport::{CloudIngress, RequestSecurity};
-pub use url::{RouteUrlGenerator, UrlSigningKeys};

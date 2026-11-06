@@ -168,7 +168,7 @@ struct Inner {
     sync_waiters: AtomicUsize,
     max_bytes: usize,
     #[cfg(feature = "auth")]
-    auth_scope: std::sync::OnceLock<std::sync::Weak<crate::core::container::Scope>>,
+    auth_scope: std::sync::OnceLock<std::sync::Weak<crate::container::Scope>>,
     error_bag_codecs: Arc<super::ErrorBagCodecs>,
 }
 
@@ -558,7 +558,7 @@ impl Session {
     }
 
     #[cfg(feature = "auth")]
-    pub(crate) fn bind_auth_scope(&self, scope: &Arc<crate::core::container::Scope>) -> Result<()> {
+    pub(crate) fn bind_auth_scope(&self, scope: &Arc<crate::container::Scope>) -> Result<()> {
         self.inner
             .auth_scope
             .set(Arc::downgrade(scope))

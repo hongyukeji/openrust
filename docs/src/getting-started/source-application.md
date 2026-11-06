@@ -6,7 +6,7 @@
 
 根 `app/` 支持正常应用开发（Controller、Model、Provider）；`modules/<模块名>/` 是可选且可并存的业务组织，唯一综合示例为 `modules/example/`。根目录继续保留 Laravel 的 `bootstrap/`、`config/`、`database/`、`public/`、`resources/`、`routes/`、`storage/` 和 `tests/`，并保留 Rust 的 `src/`、`tools/` 和 Cargo。框架与应用同仓、同 workspace、只在 main 开发。
 
-业务示例代码现位于 `modules/example/`，通过模块清单和文件激活状态接入统一 Provider 内核。模块管理命令、完整 CRUD 与全部能力示例仍在实施，当前闭环不代表 laravel-modules 全矩阵已完成。目标与边界见 [ADR-001](../../../.agents/project/decisions/adr-001-framework-principles.md)。
+业务示例代码现位于 `modules/example/`，通过模块清单和默认 registered 激活器接入统一 Provider 内核。模块管理命令、完整 CRUD 与全部能力示例仍在实施，当前闭环不代表 laravel-modules 全矩阵已完成。目标与边界见 [ADR-001](../../../.agents/project/decisions/adr-001-framework-principles.md)。
 
 ## 设计目标
 
@@ -94,16 +94,16 @@ cargo run
 
 生成应用可使用自己的名称、workspace 和 Cargo.lock，本地框架/tool 依赖须保持可达；不修改本仓 workspace，也不要求维护额外源码仓库。标准生成应用默认使用 Redis，运行前准备服务或显式选择其他 cache store。
 
-未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](../../../vendor/openrust/framework/src/core/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `Application` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](../../../modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
+未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](../../../vendor/openrust/framework/src/foundation/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `ApplicationDefinition` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](../../../modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
 
-宿主 JSON API 前缀由 `config/api.rs` 的 `prefix`（部署变量 `API_PREFIX`）选择，默认 `/api`，挂载和异常范围读取同一配置。模块可以保留自己的 API 路径及响应策略；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](../../../vendor/openrust/framework/src/http/README.md)。
+宿主 JSON API 前缀由 `config/api.rs` 的 `prefix`（部署变量 `API_PREFIX`）选择，配置默认值为 `api`，最终 URI 为 `/api`；挂载和异常范围读取同一配置。模块可以保留自己的 API 路径及响应策略；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](../../../vendor/openrust/framework/src/http/README.md)。
 
-应用通过已编译的 `config/*.rs` 与显式 `ConfigManifest` 定义配置，在所选 dotenv 与环境快照就绪后求值到同一仓储；不是运行时扫描执行 Rust 文件。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于独立 `vendor/openrust/framework/` 包，其 `src/` 下包含 audit、config、core、db、http、i18n、mail、sms 等能力模块，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。应用可编辑配置保存在根 `config/*.rs`；TOML 仅通过显式可选 source 接入，不是默认应用配置。根唯一 server 同时承担综合示例与集成验收。
+应用通过已编译的 `config/*.rs` 与显式 `ConfigManifest` 定义配置，在所选 dotenv 与环境快照就绪后求值到同一仓储；不是运行时扫描执行 Rust 文件。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `ApplicationDefinition::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于独立 `vendor/openrust/framework/` 包，其 `src/` 下包含 audit、config、core、database、http、translation、mail、sms 等能力模块，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。应用可编辑配置保存在根 `config/*.rs`；TOML 仅通过显式可选 source 接入，不是默认应用配置。根唯一 server 同时承担综合示例与集成验收。
 
 网站静态文件位于应用公开目录，默认是工作目录下的 `public/`。在 `config/server.rs` 配置 `public_dir` 和 `root_target`；可按需选择 `view:index.html`、`file:/index.html`、`forward:/api` 或外部 redirect，视图目标须启用 `view` 并提供实际模板。公开环境覆盖仍经同一配置来源处理；默认欢迎页的完整对应尚未交付，不能以可选视图能力代替该工作流。视图配置与 API 示例见[视图指南](../../../vendor/openrust/framework/src/view/README.md)。
-应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionServiceProvider`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
+应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::encryption::EncryptionServiceProvider`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
 
-文件存储由可选 `storage-local` 与 `storage-s3` feature 提供，使用 `StorageServiceProvider` 装配 `Storage` 的 default/named disks。上传与下载都使用有界流，应用须先执行身份和资源授权；本地 disk 仅在当前节点可见。配置、安全边界与 `StorageBackend` 扩展方法见[文件存储指南](../../../vendor/openrust/framework/src/storage/README.md)。
+文件存储由可选 `storage-local` 与 `storage-s3` feature 提供，使用 `FilesystemServiceProvider` 装配 `FilesystemManager` 的 default/named disks。上传与下载都使用有界流，应用须先执行身份和资源授权；本地 disk 仅在当前节点可见。配置、安全边界与 `StorageBackend` 扩展方法见[文件存储指南](../../../vendor/openrust/framework/src/filesystem/README.md)。
 
 可选 `data-exchange` feature 提供有界 CSV/XLSX 逐行解析、显式字段映射与类型转换，以及流式导出；解析器与业务持久化、事务和任务调度分离。CSV 默认防护电子表格公式注入，XLSX 拒绝公式与宏。使用示例和资源边界见[数据交换指南](../../../vendor/openrust/framework/src/data/exchange/README.md)。
 
@@ -162,9 +162,9 @@ let mut events = openrust::events::EventsServiceProvider::new();
 events.listen_queued::<UserRegistered, WelcomeEmailJob, _>("mail", |event| {
     Ok(WelcomeEmailJob { user_id: event.user_id })
 });
-let mut builder = openrust::core::ProviderBuilder::new();
+let mut builder = openrust::foundation::ProviderBuilder::new();
 builder.provider(openrust::queue::QueueServiceProvider::new()).provider(events);
-let app = openrust::App::from_provider_runtime(builder.start(config).await?)?;
+let app = openrust::Application::from_provider_runtime(builder.start(config).await?)?;
 let events = app.state().resolve::<openrust::events::Events>().await?;
 
 db.transaction(|transaction| {
@@ -186,7 +186,7 @@ db.transaction(|transaction| {
 
 `openrust::validation::validate(value)` 把命令、Job 和其他入口的 DTO 校验转换为与 HTTP `Validated<Json<T>>` 相同的字段路径和 `Error::Validation`；校验 trait 与 derive 宏可由 `openrust::validation::Validate` 使用。
 
-`ExecutionContext::current()` 可读取当前 request ID、locale、剩余时间预算和协作取消状态。HTTP 中间件、`App::run_command` 及 typed Job 执行入口会创建各自的作用域；`JobRegistry::execute` 与数据库 worker 会强制执行 job deadline 和合作取消。直接调用 `JobRegistry::execute` 会在当前异步调用中等待 handler 完成，但不派发、不持久化，也不提供自动重试、事务派发或任务组。存在 `I18n` 服务时，Job 使用派发时的 locale 或应用默认 locale。`tokio::spawn` 不会继承 task-local，需显式传递取消句柄或建立子作用域；子 deadline 不超过父级，子任务超时只取消自身。命令和 Job 可显式调用 `validate` 并在副作用前检查取消/预算。
+`ExecutionContext::current()` 可读取当前 request ID、locale、剩余时间预算和协作取消状态。HTTP 中间件、`Application::run_command` 及 typed Job 执行入口会创建各自的作用域；`JobRegistry::execute` 与数据库 worker 会强制执行 job deadline 和合作取消。直接调用 `JobRegistry::execute` 会在当前异步调用中等待 handler 完成，但不派发、不持久化，也不提供自动重试、事务派发或任务组。存在 `Translator` 服务时，Job 使用派发时的 locale 或应用默认 locale。`tokio::spawn` 不会继承 task-local，需显式传递取消句柄或建立子作用域；子 deadline 不超过父级，子任务超时只取消自身。命令和 Job 可显式调用 `validate` 并在副作用前检查取消/预算。
 
 队列只持久化白名单 `ExecutionMetadata`：最多 128 字节的安全 ASCII request ID 和规范化 locale。身份、token、Cookie、header、deadline 与取消句柄不会进入 payload。自定义 `QueueDriver` 若要接受当前调用中的关联 metadata，须实现 metadata-aware 派发方法；默认实现会在不支持时返回 `queue_driver_metadata_unsupported`。request ID 只用于日志关联，不构成 W3C trace parent 或 exactly-once 保证。
 
@@ -207,13 +207,15 @@ cargo run
 生成的应用应直接依赖仓库内框架源码，通过 `cargo check` 和 `cargo test`，无需发布内部 package 或添加手工 registry patch。依赖编排、自动迁移与 OpenAPI 等保证仍按 v1 计划逐项实现和验收。
 ## 请求语言
 
-生成的应用默认安装 `I18nServiceProvider`。`[i18n] default_locale` 和 `fallback_locale` 用于选择默认语言和最终资源回退；`Accept-Language` 用于选择受支持的请求语言。框架内置英文和简体中文 HTTP 消息。应用可将 JSON 资源合并至 `MessageCatalog`，在处理器中使用 `RequestLocale`，或调用 `I18n::with_locale` 显式设置任务作用域。普通 `{name}` 文本保持兼容，并支持有限的 CLDR `plural` 类别与 `select` 分支。`I18n::format_number` 接受精确十进制字符串；日期时间格式化接收调用方已转换到明确业务时区的 Chrono 值。详见 [`I18n` API](../../../vendor/openrust/framework/src/i18n.rs)。
+生成的应用默认安装 `TranslationServiceProvider`。`config/i18n.rs` 的 `default_locale` 和 `fallback_locale` 用于选择默认语言和最终资源回退；`Accept-Language` 用于选择受支持的请求语言。框架内置英文和简体中文 HTTP 消息。应用可将 JSON 资源合并至 `MessageCatalog`，在处理器中使用 `RequestLocale`，或调用 `Translator::with_locale` 显式设置任务作用域。普通 `{name}` 文本保持兼容，并支持有限的 CLDR `plural` 类别与 `select` 分支。`Translator::format_number` 接受精确十进制字符串；日期时间格式化接收调用方已转换到明确业务时区的 Chrono 值。详见 [`Translator` API](../../../vendor/openrust/framework/src/translation.rs)。
 
 ```rust
 use openrust::http::{Inject, Json};
-use openrust::i18n::{I18n, MessageArgs, RequestLocale};
+use openrust::translation::Translator;
+use openrust::translation::MessageArgs;
+use openrust::translation::RequestLocale;
 
-async fn greeting(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<String> {
+async fn greeting(locale: RequestLocale, Inject(i18n): Inject<Translator>) -> Json<String> {
     let args = MessageArgs::from([("name".to_owned(), "Ada".to_owned())]);
     Json(locale.translate(&i18n, "app.greeting", &args))
 }

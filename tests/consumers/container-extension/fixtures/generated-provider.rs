@@ -1,8 +1,11 @@
 //! 可复制到新生成应用的 Provider；只使用公开注册、装饰和路由 API。
 
 use openrust::Result;
-use openrust::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
 use openrust::http::{Inject, Json};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -43,7 +46,7 @@ impl ServiceProvider for GeneratedExtensionChild {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             self.0.fetch_add(1, Ordering::SeqCst);
             let registrations = Arc::clone(&self.0);

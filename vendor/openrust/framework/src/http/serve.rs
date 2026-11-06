@@ -1,15 +1,21 @@
 //! HTTP 服务器生命周期与 `serve` 命令。
 
-use crate::core::{App, AppState, BoxFuture, Command, Error, Result, shutdown_signal};
+use crate::console::Command;
+use crate::core::Error;
+use crate::core::Result;
+use crate::foundation::Application;
+use crate::foundation::ApplicationState;
+use crate::foundation::shutdown_signal;
+use crate::support::BoxFuture;
 use axum::Router;
 use std::net::SocketAddr;
 use std::{future::Future, time::Duration};
 use tokio::net::TcpListener;
 
-use crate::http::plugin::build_router;
+use crate::foundation::http::build_router;
 
 /// 绑定 `[server] host:port` 并持续提供服务，直到收到关闭信号。
-pub async fn serve(app: &App) -> Result<()> {
+pub async fn serve(app: &Application) -> Result<()> {
     let router = build_router(app)?;
     let addr = app.config().server.bind_addr();
     let listener = TcpListener::bind(&addr).await?;
@@ -19,7 +25,7 @@ pub async fn serve(app: &App) -> Result<()> {
 }
 
 async fn serve_listener<F>(
-    app: &App,
+    app: &Application,
     listener: TcpListener,
     router: Router,
     shutdown: F,
@@ -41,7 +47,7 @@ where
 /// 在联合 supervisor 下运行 HTTP listener，由外层统一收尾应用后台任务。
 #[cfg(feature = "grpc")]
 pub(crate) async fn serve_listener_for_supervisor<F>(
-    state: AppState,
+    state: ApplicationState,
     timeout: Duration,
     listener: TcpListener,
     router: Router,
@@ -54,7 +60,7 @@ where
 }
 
 async fn serve_listener_inner<F>(
-    state: AppState,
+    state: ApplicationState,
     timeout: Duration,
     listener: TcpListener,
     router: Router,
@@ -66,11 +72,11 @@ where
 {
     // PHP 的 laravel_cloud() 仅识别宿主环境中的精确字符串 `1`；启动时捕获一次。
     let router = if std::env::var("LARAVEL_CLOUD").is_ok_and(|value| value == "1") {
-        router.layer(axum::Extension(super::CloudIngress))
+        router.layer(axum::Extension(crate::http::CloudIngress))
     } else {
         router
     };
-    let readiness = state.try_get::<super::health::ServerReadiness>()?;
+    let readiness = state.try_get::<crate::http::health::ServerReadiness>()?;
     let _readiness_guard = readiness.begin_listening();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
     let server = axum::serve(
@@ -131,7 +137,7 @@ where
             }
         }
     };
-    crate::core::lifecycle::flush_telemetry().await;
+    crate::foundation::lifecycle::flush_telemetry().await;
     result
 }
 
@@ -147,7 +153,7 @@ impl Command for ServeCommand {
         "启动 HTTP 服务器"
     }
 
-    fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(serve(app))
     }
 }
@@ -155,11 +161,15 @@ impl Command for ServeCommand {
 #[cfg(test)]
 mod tests {
     use super::serve_listener;
-    use crate::{
-        config::FrameworkConfig,
-        core::{BootContext, BoxFuture, Error, ProviderBuilder, ServiceProvider},
-        http::{HttpServiceProvider, build_router, health::ServerReadiness},
-    };
+    use crate::config::FrameworkConfig;
+    use crate::core::Error;
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::foundation::http::build_router;
+    use crate::http::HttpServiceProvider;
+    use crate::http::health::ServerReadiness;
+    use crate::support::BoxFuture;
+    use crate::support::ServiceProvider;
     use axum::{body::Body, http::Request};
     use figment::{Figment, providers::Serialized};
     use std::{io, net::SocketAddr, sync::Arc, time::Duration};
@@ -223,7 +233,10 @@ mod tests {
         }
     }
 
-    async fn app(shutdown_timeout_secs: u64, probe: Arc<Probe>) -> crate::core::Result<crate::App> {
+    async fn app(
+        shutdown_timeout_secs: u64,
+        probe: Arc<Probe>,
+    ) -> crate::core::Result<crate::Application> {
         app_with_task(shutdown_timeout_secs, probe, None).await
     }
 
@@ -231,7 +244,7 @@ mod tests {
         shutdown_timeout_secs: u64,
         probe: Arc<Probe>,
         task: Option<(Arc<Notify>, Arc<Notify>)>,
-    ) -> crate::core::Result<crate::App> {
+    ) -> crate::core::Result<crate::Application> {
         let mut config = FrameworkConfig::default();
         config.server.shutdown_timeout_secs = shutdown_timeout_secs;
         config.api.http_status = crate::config::HttpStatusMode::Semantic;
@@ -242,7 +255,7 @@ mod tests {
         if let Some((started, stopped)) = task {
             builder.provider(ManagedTaskProvider { started, stopped });
         }
-        crate::core::App::from_provider_runtime(
+        crate::foundation::Application::from_provider_runtime(
             builder
                 .start(Figment::from(Serialized::defaults(config)))
                 .await?,
@@ -423,7 +436,7 @@ mod tests {
         config.server.port = address.port();
         let mut builder = ProviderBuilder::new();
         builder.provider(HttpServiceProvider);
-        let app = crate::core::App::from_provider_runtime(
+        let app = crate::foundation::Application::from_provider_runtime(
             builder
                 .start(Figment::from(Serialized::defaults(config)))
                 .await?,

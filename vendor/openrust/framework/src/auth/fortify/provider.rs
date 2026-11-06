@@ -2,14 +2,15 @@
 
 use std::sync::Arc;
 
-use crate::{
-    Result,
-    cache::Cache,
-    config::repository::SectionSchema as S,
-    core::{BootContext, BoxFuture, RegisterContext, ServiceProvider},
-    events::Events,
-    security::Encryptor,
-};
+use crate::Result;
+use crate::cache::Cache;
+use crate::config::repository::SectionSchema as S;
+use crate::encryption::Encrypter;
+use crate::events::Events;
+use crate::foundation::BootContext;
+use crate::foundation::RegisterContext;
+use crate::support::BoxFuture;
+use crate::support::ServiceProvider;
 
 use super::{
     FortifyConfig, GoogleTwoFactorAuthenticationProvider, TwoFactorActions,
@@ -96,7 +97,7 @@ impl ServiceProvider for FortifyServiceProvider {
                         let provider = resolver
                             .resolve::<dyn TwoFactorAuthenticationProvider>()
                             .await?;
-                        let encrypter = resolver.resolve::<Encryptor>().await?;
+                        let encrypter = resolver.resolve::<Encrypter>().await?;
                         let events = resolver.resolve::<Events>().await?;
                         Ok(Arc::new(
                             TwoFactorActions::new(
@@ -141,8 +142,8 @@ async fn register_credential_authority(app: &mut RegisterContext<'_>) -> Result<
     app.singleton::<super::CredentialAuthority, _>(move |resolver| {
         let config = credential_config.clone();
         Box::pin(async move {
-            let db = resolver.resolve::<crate::db::Db>().await?;
-            let encrypter = resolver.resolve::<Encryptor>().await?;
+            let db = resolver.resolve::<crate::database::Db>().await?;
+            let encrypter = resolver.resolve::<Encrypter>().await?;
             let confirm = super::options::confirmation_required(&config)?;
             Ok(Arc::new(
                 super::CredentialAuthority::new((*db).clone(), (*encrypter).clone(), confirm)

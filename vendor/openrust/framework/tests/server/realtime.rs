@@ -6,7 +6,7 @@ use std::{
 };
 
 use openrust::{
-    Application, BoxFuture, Error, NoConfig, Result, ServiceExt,
+    ApplicationDefinition, BoxFuture, Error, NoConfig, Result, ServiceExt,
     auth::{
         AuthCredential, AuthLayer, AuthMode, AuthPrincipal, AuthServiceProvider, Authenticator,
         CurrentUser,
@@ -47,14 +47,14 @@ impl Authenticator for AuthenticatorForTest {
     }
 }
 
-impl Application for RealtimeHttpApp {
+impl ApplicationDefinition for RealtimeHttpApp {
     type Config = NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
-    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
+    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::support::ServiceProvider>> {
         vec![
             Box::new(HttpServiceProvider),
             Box::new(AuthServiceProvider::with_authenticator(
@@ -91,12 +91,12 @@ async fn sse(
     Ok(session.sse())
 }
 
-async fn assembled_app() -> Result<openrust::App> {
+async fn assembled_app() -> Result<openrust::Application> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
         .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.app_config::<NoConfig>();
     for provider in RealtimeHttpApp::providers(&NoConfig {}) {
         builder.boxed_provider(provider);
@@ -104,13 +104,13 @@ async fn assembled_app() -> Result<openrust::App> {
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[openrust::tokio::test]
 async fn http_auth_origin_and_sse_headers_are_enforced() -> TestResult {
     let app = assembled_app().await?;
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
 
     let unauthorized = router
         .clone()
@@ -152,18 +152,18 @@ async fn http_auth_origin_and_sse_headers_are_enforced() -> TestResult {
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {

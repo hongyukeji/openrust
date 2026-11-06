@@ -4,19 +4,22 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::lifecycle;
-use openrust::core::{
-    App, BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata,
-    Result as FrameworkResult,
-};
+use openrust::core::Cancellation;
+use openrust::core::Error;
+use openrust::core::ExecutionContext;
+use openrust::core::ExecutionMetadata;
+use openrust::core::Result as FrameworkResult;
 use openrust::database::{
     DatabaseServiceProvider, Db, DbBackend,
     sea_orm::Statement,
     sea_orm_migration::{MigrationTrait, MigratorTrait},
 };
+use openrust::foundation::Application;
+use openrust::foundation::lifecycle;
 use openrust::queue::{
     DispatchOptions, Job, JobContext, Queue, QueueMigration, QueueServiceProvider,
 };
+use openrust::support::BoxFuture;
 use sea_orm::ConnectionTrait;
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
@@ -135,7 +138,7 @@ impl Job for TenantRetryProbe {
     }
 }
 
-async fn build_app(url: &str) -> FrameworkResult<App> {
+async fn build_app(url: &str) -> FrameworkResult<Application> {
     let source = format!(
         "[database]\nurl = {url:?}\n[queue]\npoll_interval_millis = 20\nlease_secs = 1\njob_timeout_secs = 60\nworker_concurrency = 1\nshutdown_timeout_secs = 2\n"
     );
@@ -155,14 +158,14 @@ async fn build_app(url: &str) -> FrameworkResult<App> {
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(queue_plugin);
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[tokio::test]

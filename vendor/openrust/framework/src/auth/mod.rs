@@ -5,8 +5,11 @@
 use std::{convert::Infallible, sync::Arc};
 
 use crate::config::ConfigError;
-use crate::core::{AppState, BoxFuture, Error, Result};
-use crate::db::{Db, DbBackend};
+use crate::core::Error;
+use crate::core::Result;
+use crate::database::{Db, DbBackend};
+use crate::foundation::ApplicationState;
+use crate::support::BoxFuture;
 use axum::extract::{Extension, FromRequestParts, Request, State};
 use axum::http::{HeaderMap, Method, StatusCode, header};
 use axum::middleware::{self as axum_middleware, Next};
@@ -83,7 +86,7 @@ pub use query::{
 #[cfg(feature = "auth-fortify")]
 pub use session::LiveSessionCredential;
 
-pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> {
+pub(crate) fn resolve_auth_sql(db: &crate::database::Db, sql: &str) -> Result<String> {
     let backend = db.backend()?;
     let mut resolved = sql.to_owned();
     for logical in [
@@ -101,9 +104,9 @@ pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> 
     }
     if !matches!(
         backend,
-        crate::db::sea_orm::DbBackend::Postgres
-            | crate::db::sea_orm::DbBackend::MySql
-            | crate::db::sea_orm::DbBackend::Sqlite
+        crate::database::sea_orm::DbBackend::Postgres
+            | crate::database::sea_orm::DbBackend::MySql
+            | crate::database::sea_orm::DbBackend::Sqlite
     ) {
         return Err(Error::custom(
             "unsupported_auth_database",
@@ -142,15 +145,15 @@ pub enum AuthSource {
 ///
 /// 实时握手等应用入口应复用本函数，不能把纯签名校验当作当前授权。
 pub async fn authenticate_access_credential(
-    state: &AppState,
+    state: &ApplicationState,
     value: &str,
 ) -> Result<(i64, std::time::SystemTime)> {
     authenticate_access_scoped(state, None, value).await
 }
 
 async fn authenticate_access_scoped(
-    state: &AppState,
-    scope: Option<&Arc<crate::core::container::Scope>>,
+    state: &ApplicationState,
+    scope: Option<&Arc<crate::container::Scope>>,
     value: &str,
 ) -> Result<(i64, std::time::SystemTime)> {
     let tokens = resolve_request_service::<JwtTokens>(state, scope).await?;
@@ -173,8 +176,8 @@ async fn authenticate_access_scoped(
 
 #[cfg(feature = "auth-fortify")]
 async fn authenticate_selected_pat(
-    state: &AppState,
-    scope: Option<&Arc<crate::core::container::Scope>>,
+    state: &ApplicationState,
+    scope: Option<&Arc<crate::container::Scope>>,
     value: &str,
 ) -> Result<AuthPrincipal> {
     let tokens = resolve_request_service::<PersonalAccessTokens>(state, scope).await?;
@@ -195,8 +198,8 @@ async fn authenticate_selected_pat(
 }
 
 async fn authenticate_stored_credential(
-    state: &AppState,
-    scope: Option<&Arc<crate::core::container::Scope>>,
+    state: &ApplicationState,
+    scope: Option<&Arc<crate::container::Scope>>,
     service: &AuthService,
     credential: AuthCredential<'_>,
 ) -> Result<AuthPrincipal> {
@@ -222,7 +225,10 @@ async fn authenticate_stored_credential(
 
 /// 复用既有 JWT 与 Authenticator 校验 RPC Bearer；gRPC 不接受 Cookie Session。
 #[cfg(feature = "grpc")]
-pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> Result<CurrentUser> {
+pub(crate) async fn authenticate_grpc_bearer(
+    state: &ApplicationState,
+    value: &str,
+) -> Result<CurrentUser> {
     if value.trim().is_empty() {
         return Err(Error::Unauthorized);
     }
@@ -508,11 +514,11 @@ impl Default for AuthServiceProvider {
     }
 }
 
-impl crate::core::ServiceProvider for AuthServiceProvider {
+impl crate::support::ServiceProvider for AuthServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.register_provider(crate::hashing::HashServiceProvider::new())
                 .await?;
@@ -586,7 +592,10 @@ impl crate::core::ServiceProvider for AuthServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<AuthService>().await?;
             let _ = app.resolve::<crate::hashing::HashManager>().await?;
@@ -626,7 +635,11 @@ impl AuthLayer {
         axum_middleware::from_fn_with_state::<
             _,
             _,
-            (State<NamedAuthLayerConfig>, Extension<AppState>, Request),
+            (
+                State<NamedAuthLayerConfig>,
+                Extension<ApplicationState>,
+                Request,
+            ),
         >(
             NamedAuthLayerConfig {
                 name: name.into(),
@@ -657,7 +670,11 @@ impl AuthLayer {
         axum_middleware::from_fn_with_state::<
             _,
             _,
-            (State<NamedAuthLayerConfig>, Extension<AppState>, Request),
+            (
+                State<NamedAuthLayerConfig>,
+                Extension<ApplicationState>,
+                Request,
+            ),
         >(
             NamedAuthLayerConfig {
                 name: name.into(),
@@ -688,7 +705,7 @@ impl AuthLayer {
         axum_middleware::from_fn_with_state::<
             _,
             _,
-            (State<AuthLayerConfig>, Extension<AppState>, Request),
+            (State<AuthLayerConfig>, Extension<ApplicationState>, Request),
         >(
             AuthLayerConfig {
                 mode,
@@ -719,7 +736,7 @@ impl AuthLayer {
         axum_middleware::from_fn_with_state::<
             _,
             _,
-            (State<AuthLayerConfig>, Extension<AppState>, Request),
+            (State<AuthLayerConfig>, Extension<ApplicationState>, Request),
         >(
             AuthLayerConfig {
                 mode,
@@ -738,7 +755,7 @@ struct NamedAuthLayerConfig {
 
 async fn authenticate_named(
     State(config): State<NamedAuthLayerConfig>,
-    Extension(state): Extension<AppState>,
+    Extension(state): Extension<ApplicationState>,
     request: Request,
     next: Next,
 ) -> Response {
@@ -750,11 +767,11 @@ async fn authenticate_named(
 
 async fn prepare_named_request(
     parts: &mut axum::http::request::Parts,
-    state: &AppState,
-) -> Result<(Arc<crate::core::container::Scope>, crate::http::RequestInfo)> {
+    state: &ApplicationState,
+) -> Result<(Arc<crate::container::Scope>, crate::http::RequestInfo)> {
     let scope = parts
         .extensions
-        .get::<Arc<crate::core::container::Scope>>()
+        .get::<Arc<crate::container::Scope>>()
         .cloned()
         .ok_or_else(|| Error::custom("auth_request_scope_missing", "具名认证需要当前请求scope"))?;
     let info = crate::http::RequestInfo::from_request_parts(parts, state).await?;
@@ -775,7 +792,7 @@ async fn prepare_named_request(
 
 async fn project_named_user(
     config: &NamedAuthLayerConfig,
-    state: &AppState,
+    state: &ApplicationState,
     request: Request,
 ) -> Result<Request> {
     let (mut parts, body) = request.into_parts();
@@ -829,8 +846,8 @@ struct AuthLayerConfig {
 }
 
 async fn resolve_request_service<T: Send + Sync + 'static>(
-    state: &AppState,
-    scope: Option<&Arc<crate::core::container::Scope>>,
+    state: &ApplicationState,
+    scope: Option<&Arc<crate::container::Scope>>,
 ) -> Result<Arc<T>> {
     match scope {
         Some(scope) => scope.resolve::<T>().await,
@@ -838,7 +855,10 @@ async fn resolve_request_service<T: Send + Sync + 'static>(
     }
 }
 
-async fn configured_session_cookie_name(state: &AppState, mode: AuthMode) -> Result<String> {
+async fn configured_session_cookie_name(
+    state: &ApplicationState,
+    mode: AuthMode,
+) -> Result<String> {
     if matches!(mode, AuthMode::Session | AuthMode::SessionOrToken)
         && state.container().contains::<session::SessionSettings>()
     {
@@ -875,7 +895,7 @@ fn original_cookie_is_ambiguous(request: &Request, mode: AuthMode, name: &str) -
 )]
 async fn authenticate(
     State(config): State<AuthLayerConfig>,
-    Extension(state): Extension<AppState>,
+    Extension(state): Extension<ApplicationState>,
     request: Request,
     next: Next,
 ) -> Response {
@@ -908,9 +928,7 @@ async fn authenticate(
         request.extensions_mut().insert(AuthOutcome(None));
         return next.run(request).await;
     };
-    let scope = request
-        .extensions()
-        .get::<Arc<crate::core::container::Scope>>();
+    let scope = request.extensions().get::<Arc<crate::container::Scope>>();
     let service = match resolve_request_service::<AuthService>(&state, scope).await {
         Ok(service) => service,
         Err(error) => return error.into_response(),
@@ -1202,7 +1220,9 @@ impl std::error::Error for InvalidPrincipal {}
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::Figment;
     use serde_json::json;
 
@@ -1216,8 +1236,8 @@ mod provider_tests {
     impl ServiceProvider for RealCustomDbProvider {
         fn register<'a>(
             &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            app: &'a mut crate::foundation::RegisterContext<'_>,
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance(Arc::clone(&self.db)).await?;
                 Ok(())
@@ -1226,7 +1246,7 @@ mod provider_tests {
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
-                let pool = crate::db::sea_orm::Database::connect(self.url.as_str())
+                let pool = crate::database::sea_orm::Database::connect(self.url.as_str())
                     .await
                     .map_err(Error::internal)?;
                 pool.ping().await.map_err(Error::internal)?;
@@ -1242,7 +1262,7 @@ mod provider_tests {
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
     #[tokio::test]
     async fn default_auth_boots_with_real_custom_database_provider() -> Result<()> {
-        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        let Ok(url) = crate::test_database_environment::database_url() else {
             eprintln!("skipping real custom auth database: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(());
         };
@@ -1286,14 +1306,14 @@ mod provider_tests {
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
     #[tokio::test]
     async fn early_boot_resolves_connected_database_and_initialized_auth() -> Result<()> {
-        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        let Ok(url) = crate::test_database_environment::database_url() else {
             eprintln!("skipping early provider resolve: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(());
         };
         let mut providers = ProviderBuilder::new();
         providers
             .provider(EarlyAuthResolve)
-            .provider(crate::db::DatabaseServiceProvider)
+            .provider(crate::database::DatabaseServiceProvider)
             .provider(AuthServiceProvider::new());
         let runtime = providers
             .start(Figment::from(figment::providers::Serialized::defaults(
@@ -1325,8 +1345,8 @@ mod provider_tests {
     impl ServiceProvider for CustomDbProvider {
         fn register<'a>(
             &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            app: &'a mut crate::foundation::RegisterContext<'_>,
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance(Arc::new(Db::default())).await?;
                 Ok(())
@@ -1375,7 +1395,9 @@ mod provider_tests {
 
     #[tokio::test]
     async fn jwt_middleware_and_inject_use_same_request_scope() -> Result<()> {
-        use crate::http::{HttpServiceProvider, Inject, build_router};
+        use crate::foundation::http::build_router;
+        use crate::http::HttpServiceProvider;
+        use crate::http::Inject;
         use base64::Engine as _;
         use tower::ServiceExt;
         fn make_tokens(key: u8) -> Result<JwtTokens> {
@@ -1396,8 +1418,8 @@ mod provider_tests {
         impl ServiceProvider for ScopedTokens {
             fn register<'a>(
                 &'a self,
-                app: &'a mut crate::core::RegisterContext<'_>,
-            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                app: &'a mut crate::foundation::RegisterContext<'_>,
+            ) -> crate::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.instance(Arc::new(AuthService {
                         authenticator: Arc::new(RejectAuthenticator),
@@ -1434,7 +1456,8 @@ mod provider_tests {
         let source = Figment::from(figment::providers::Serialized::defaults(
             crate::config::FrameworkConfig::default(),
         ));
-        let app = crate::core::App::from_provider_runtime(builder.start(source).await?)?;
+        let app =
+            crate::foundation::Application::from_provider_runtime(builder.start(source).await?)?;
         let _ = app.state().resolve::<JwtTokens>().await?;
         let response = build_router(&app)?
             .oneshot(

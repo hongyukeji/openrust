@@ -2,26 +2,37 @@
 #![cfg(any(feature = "db-mysql", feature = "db-postgres"))]
 
 use super::*;
-use crate::{
-    auth::fortify::{
-        CredentialFactorMigration, FactorAuthorityMigration, FactorAuthorityStatus,
-        FortifyTwoFactorMigration, TwoFactorAuthenticatable, TwoFactorState,
-    },
-    auth::{
-        AuthFlows, AuthUser, Authenticatable, Credentials, DatabaseUserProvider,
-        DatabaseVerificationCodeStore, GenericUser, SessionGuard, UserProvider, VerificationCodes,
-    },
-    config::{EncryptionConfig, JwtConfig},
-    core::{BoxFuture, RateLimiter},
-    db::{
-        DatabaseRateLimitMigration, DatabaseRateLimitStore,
-        sea_orm::{QueryResult, TransactionTrait},
-        sea_orm_migration::{MigrationTrait, MigratorTrait},
-    },
-    http::{CookieFactory, CookieJar},
-    session::{MemorySessionStore, Session},
-    testing::TestDatabase,
-};
+use crate::auth::AuthFlows;
+use crate::auth::AuthUser;
+use crate::auth::Authenticatable;
+use crate::auth::Credentials;
+use crate::auth::DatabaseUserProvider;
+use crate::auth::DatabaseVerificationCodeStore;
+use crate::auth::GenericUser;
+use crate::auth::SessionGuard;
+use crate::auth::UserProvider;
+use crate::auth::VerificationCodes;
+use crate::auth::fortify::CredentialFactorMigration;
+use crate::auth::fortify::FactorAuthorityMigration;
+use crate::auth::fortify::FactorAuthorityStatus;
+use crate::auth::fortify::FortifyTwoFactorMigration;
+use crate::auth::fortify::TwoFactorAuthenticatable;
+use crate::auth::fortify::TwoFactorState;
+use crate::config::EncryptionConfig;
+use crate::config::JwtConfig;
+use crate::core::RateLimiter;
+use crate::database::DatabaseRateLimitMigration;
+use crate::database::DatabaseRateLimitStore;
+use crate::database::sea_orm::QueryResult;
+use crate::database::sea_orm::TransactionTrait;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::http::CookieFactory;
+use crate::http::CookieJar;
+use crate::session::MemorySessionStore;
+use crate::session::Session;
+use crate::support::BoxFuture;
+use crate::testing::TestDatabase;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use sha2::Digest as _;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
@@ -72,14 +83,17 @@ impl Authenticatable for Account {
     fn remember_token_for_cookie(&self) -> Result<Option<String>> {
         self.attributes.remember_token_for_cookie()
     }
-    fn set_remember_token(&self, token: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+    fn set_remember_token(
+        &self,
+        token: Option<String>,
+    ) -> crate::support::BoxFuture<'_, Result<()>> {
         self.attributes.set_remember_token(token)
     }
     fn begin_remember_token_update<'a>(
         &'a self,
         expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+    ) -> crate::support::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
         self.attributes
             .begin_remember_token_update(expected, replacement)
     }
@@ -131,7 +145,7 @@ struct Fixture {
 }
 impl Fixture {
     async fn new() -> Result<Self> {
-        let url = std::env::var("OPENRUST_TEST_DATABASE_URL")
+        let url = crate::test_database_environment::database_url()
             .map_err(|_| Error::custom("test_database_url_required", "真实锁测试必须配置数据库"))?;
         let database = TestDatabase::create::<Migrator>(&url).await?;
         let outcome = Self::setup(&database).await;
@@ -156,7 +170,7 @@ impl Fixture {
         let db = Db::default();
         db.initialize(database.connection()?)?;
         let key = STANDARD.encode([17_u8; 32]);
-        let encrypter = Encryptor::new(EncryptionConfig::new(
+        let encrypter = Encrypter::new(EncryptionConfig::new(
             "owned",
             BTreeMap::from([("owned".into(), key.clone())]),
         ))?;
@@ -175,8 +189,10 @@ impl Fixture {
             "owned-lock-expiry-password",
         )
         .await?;
-        let now =
-            crate::db::dialect::utc_value(db.connection()?.get_database_backend(), Utc::now());
+        let now = crate::database::dialect::utc_value(
+            db.connection()?.get_database_backend(),
+            Utc::now(),
+        );
         db.table("users")?
             .insert(vec![
                 ("id", 42_i64.into()),
@@ -266,7 +282,7 @@ async fn blocked<T: Send + 'static>(
     db: &Db,
     notify: Arc<Notify>,
     mut reader: tokio::task::JoinHandle<Result<T>>,
-    writer: crate::db::sea_orm::DatabaseTransaction,
+    writer: crate::database::sea_orm::DatabaseTransaction,
     hold: Duration,
     baseline: (i64, i64),
 ) -> Result<()> {
@@ -317,7 +333,7 @@ async fn blocked<T: Send + 'static>(
     }
     outcome
 }
-async fn writer(db: &Db) -> Result<crate::db::sea_orm::DatabaseTransaction> {
+async fn writer(db: &Db) -> Result<crate::database::sea_orm::DatabaseTransaction> {
     let tx = db.connection()?.begin().await.map_err(Error::internal)?;
     tx.query_one_raw(Statement::from_string(
         tx.get_database_backend(),
@@ -422,7 +438,7 @@ async fn direct_challenge_outer_rollback_and_concurrent_completion_preserve_one_
     let outcome: Result<()> = Box::pin(async {
         let policy = CredentialAuthority::new(fixture.db.clone(), fixture.policy.encrypter.clone(), false);
         let user = fixture.guard.provider().retrieve_by_id(&serde_json::json!(42)).await?.ok_or(Error::Unauthorized)?;
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(crate::events::EventsServiceProvider::new());
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime.container().resolve::<crate::events::Events>().await?).clone();
@@ -436,7 +452,7 @@ async fn direct_challenge_outer_rollback_and_concurrent_completion_preserve_one_
         let seed = crate::auth::fortify::engine::decode_secret(std::str::from_utf8(&secret).map_err(Error::internal)?)?;
         let step = u64::try_from(Utc::now().timestamp()).map_err(Error::internal)? / 30;
         let code = crate::auth::totp::totp_code(&seed, step, 6)?;
-        fixture.db.table("users")?.where_eq("id", 42_i64)?.update(vec![("email_verified_at", crate::db::dialect::utc_value(fixture.db.backend()?, Utc::now()))]).await?;
+        fixture.db.table("users")?.where_eq("id", 42_i64)?.update(vec![("email_verified_at", crate::database::dialect::utc_value(fixture.db.backend()?, Utc::now()))]).await?;
         let flows = fixture.flows.clone().with_factor_authority(policy.clone())?.with_factor_actions(actions.clone());
         let challenge = match flows.begin_login("lock-expiry@example.test", "owned-lock-expiry-password", "owned-source").await? {
             crate::auth::LoginAttempt::TwoFactorRequired(challenge) => challenge,
@@ -477,14 +493,14 @@ async fn direct_challenge_outer_rollback_and_concurrent_completion_preserve_one_
 #[tokio::test]
 #[ignore = "真实MySQL/PostgreSQL验证实际Provider窗口、同码防重放与家族签发"]
 async fn actual_provider_window_and_clock_bind_nonce_to_one_database_family() -> Result<()> {
-    let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+    let url = crate::test_database_environment::database_url().map_err(Error::internal)?;
     let database = TestDatabase::create::<Migrator>(&url).await?;
     let result: Result<()> = Box::pin(async {
         let (db, policy, flows, jwt, guard) = Fixture::setup(&database).await?;
         let crypto = policy.encrypter.clone();
         let seed = b"0123456789abcdef0123";
         stage_window_factor(&policy).await?;
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(crate::events::EventsServiceProvider::new());
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime
@@ -519,7 +535,7 @@ async fn actual_provider_window_and_clock_bind_nonce_to_one_database_family() ->
             .where_eq("id", 42_i64)?
             .update(vec![(
                 "email_verified_at",
-                crate::db::dialect::utc_value(db.backend()?, Utc::now()),
+                crate::database::dialect::utc_value(db.backend()?, Utc::now()),
             )])
             .await?;
         let code = crate::auth::totp::totp_code(seed, 102, 6)?;

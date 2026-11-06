@@ -1,5 +1,6 @@
 //! 模块阅读摘要预览的真实 TCP locale/复数/固定偏移格式化验收。
 
+use super::config_sources::enabled_example_sources;
 use figment::{Figment, providers::Serialized};
 use openrust::http::axum;
 use openrust::testing::TestApp;
@@ -42,14 +43,12 @@ impl Fixture {
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
             "i18n":{"default_locale":default_locale,"fallback_locale":"en"}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(
-            crate::modules::example::test_sources(&(source))?,
-        )
-        .build()
-        .await?;
+        let app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(source))?)
+            .build()
+            .await?;
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;
-        let router = openrust::http::build_router(app.app()?)?;
+        let router = openrust::foundation::http::build_router(app.app()?)?;
         let (stop, stopped) = oneshot::channel();
         let server = tokio::spawn(async move {
             axum::serve(

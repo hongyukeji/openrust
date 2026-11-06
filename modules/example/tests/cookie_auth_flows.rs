@@ -2,11 +2,12 @@
 #![cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 
 use figment::{Figment, providers::Serialized};
-use openrust::core::{Application, ServiceProvider};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::foundation::ApplicationDefinition;
 use openrust::http::{Cookie, axum};
+use openrust::support::ServiceProvider;
 use openrust::testing::TestDatabase;
-use openrust::{App, auth::AuthFlows};
+use openrust::{Application, auth::AuthFlows};
 use serde_json::{Value, json};
 use std::{error::Error as StdError, net::SocketAddr, time::Duration};
 
@@ -17,7 +18,7 @@ const EMAIL: &str = "cookie-account@example.test";
 const PASSWORD: &str = "correct horse battery staple";
 const WAIT: Duration = Duration::from_secs(5);
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -49,12 +50,12 @@ async fn cookie_account_any_unprotected_data_id_is_rejected() -> TestResult {
 }
 
 struct CookieAuthApplication<const MODE: u8>;
-impl<const MODE: u8> Application for CookieAuthApplication<MODE> {
-    type Config = <crate::bootstrap::Server as Application>::Config;
+impl<const MODE: u8> ApplicationDefinition for CookieAuthApplication<MODE> {
+    type Config = <crate::bootstrap::Server as ApplicationDefinition>::Config;
     fn config_namespace() -> &'static str {
         crate::bootstrap::Server::config_namespace()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         let defaults = crate::bootstrap::Server::default_providers();
         if MODE == 0 {
             return defaults;
@@ -66,7 +67,7 @@ impl<const MODE: u8> Application for CookieAuthApplication<MODE> {
                 .except(["ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"]),
         };
         defaults.replace(
-            openrust::core::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            openrust::foundation::ProviderId::of::<openrust::http::CookieServiceProvider>(),
             Box::new(cookie),
         )
     }
@@ -77,7 +78,10 @@ impl<const MODE: u8> Application for CookieAuthApplication<MODE> {
         }
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
@@ -86,12 +90,12 @@ struct ControlledIdRoute;
 impl ServiceProvider for ControlledIdRoute {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| routes.get("/__cookie-auth/controlled-id", controlled_id),
@@ -117,22 +121,21 @@ async fn run_case<const MODE: u8>() -> TestResult {
     let origin = format!("http://{}", listener.local_addr()?);
     let database = TestDatabase::create::<Migrator>(&admin).await?;
     let source = cookie_auth_source(database.url(), &origin);
-    let app_result =
-        async {
-            eprintln!("C04D4_PHASE phase=config_extract");
-            let config =
-                source.extract::<<CookieAuthApplication<MODE> as Application>::Config>()?;
-            eprintln!("C04D4_PHASE phase=provider_start");
-            let builder = openrust::core::ProviderBuilder::for_application::<
-                CookieAuthApplication<MODE>,
-            >(&config);
-            Ok::<_, Box<dyn StdError>>(App::from_provider_runtime(
-                builder
-                    .start(crate::modules::example::test_sources(&(source))?)
-                    .await?,
-            )?)
-        }
-        .await;
+    let app_result = async {
+        eprintln!("C04D4_PHASE phase=config_extract");
+        let config =
+            source.extract::<<CookieAuthApplication<MODE> as ApplicationDefinition>::Config>()?;
+        eprintln!("C04D4_PHASE phase=provider_start");
+        let builder = openrust::foundation::ProviderBuilder::for_application::<
+            CookieAuthApplication<MODE>,
+        >(&config);
+        Ok::<_, Box<dyn StdError>>(Application::from_provider_runtime(
+            builder
+                .start(crate::modules::example::test_sources(&(source))?)
+                .await?,
+        )?)
+    }
+    .await;
     let app = match app_result {
         Ok(app) => app,
         Err(error) => {
@@ -163,7 +166,10 @@ fn cookie_auth_source(database_url: &str, origin: &str) -> Figment {
         "session":{"driver":"cookie","secure":false,"cookie":COOKIE_NAME,"same_site":"strict"}
     })))
 }
-async fn run_fixture<const MODE: u8>(app: &App, listener: tokio::net::TcpListener) -> TestResult {
+async fn run_fixture<const MODE: u8>(
+    app: &Application,
+    listener: tokio::net::TcpListener,
+) -> TestResult {
     eprintln!("C04D4_PHASE phase=auth_resolve");
     let flows = app.state().resolve::<AuthFlows>().await?;
     eprintln!("C04D4_PHASE phase=auth_register");
@@ -185,7 +191,7 @@ async fn run_fixture<const MODE: u8>(app: &App, listener: tokio::net::TcpListene
         .user_id();
     let address = listener.local_addr()?;
     eprintln!("C04D4_PHASE phase=router_build");
-    let router = match openrust::http::build_router(app) {
+    let router = match openrust::foundation::http::build_router(app) {
         Err(error) if matches!(MODE, 1 | 2) && error.code() == "web_cookie_encryption_missing" => {
             // 标准CSRF组在服务监听前拒绝不可信ID Cookie；不把未执行的旧TCP断言计为通过。
             eprintln!("C04D4_PHASE phase=router_rejected_unprotected_web_cookie");
@@ -373,7 +379,7 @@ fn deleted(reply: &Reply, name: &str) -> TestResult {
     }
     Ok(())
 }
-async fn business(app: &App, address: SocketAddr) -> TestResult {
+async fn business(app: &Application, address: SocketAddr) -> TestResult {
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(WAIT)
@@ -450,14 +456,14 @@ async fn business(app: &App, address: SocketAddr) -> TestResult {
 }
 
 async fn reject_disabled_cookie(
-    app: &App,
+    app: &Application,
     client: &reqwest::Client,
     origin: &str,
     browser: &Browser,
     csrf: &str,
 ) -> TestResult {
     // Cookie 快照自身不能撤销，但每个新请求仍须经真实 app-users 检查数据库账户。
-    let db = app.state().resolve::<openrust::db::Db>().await?;
+    let db = app.state().resolve::<openrust::database::Db>().await?;
     let affected = db
         .table("users")?
         .where_eq("email", EMAIL)?

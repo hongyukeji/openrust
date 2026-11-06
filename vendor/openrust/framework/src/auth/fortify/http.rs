@@ -17,18 +17,22 @@ use super::{
         TwoFactorLoginResponse,
     },
 };
-use crate::{
-    Error, Result,
-    auth::{AuthUser, Credentials},
-    core::error::ValidationErrors,
-    http::{Inject, Redirector, Request, RouteGroup, Routes},
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthUser;
+use crate::auth::Credentials;
+use crate::core::error::ValidationErrors;
+use crate::http::Inject;
+use crate::http::Request;
+use crate::routing::Redirector;
+use crate::routing::RouteGroup;
+use crate::routing::Router;
 
 pub(super) fn route_builder(
     config: FortifyConfig,
     options: &TwoFactorOptions,
     require_authority: bool,
-) -> Result<impl Fn(Routes) -> Routes + Send + Sync + use<>> {
+) -> Result<impl Fn(Router) -> Router + Send + Sync + use<>> {
     let enabled = config.two_factor_enabled()?;
     let confirm_password = options.confirm_password;
     let login = config.route_path("login", "/login")?;
@@ -48,7 +52,7 @@ pub(super) fn route_builder(
         "two-factor.recovery-codes",
         "/user/two-factor-recovery-codes",
     )?;
-    Ok(move |routes: Routes| {
+    Ok(move |routes: Router| {
         let mut group = RouteGroup::new().prefix(&config.prefix);
         if let Some(domain) = &config.domain {
             group = group.domain(domain);

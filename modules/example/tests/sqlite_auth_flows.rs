@@ -1010,7 +1010,7 @@ async fn provider_scope_business(fixture: &Fixture, other: &openrust::Db) -> Res
         .await
         .map_err(Error::internal)?;
     let address = listener.local_addr().map_err(Error::internal)?;
-    let router = openrust::http::build_router(fixture.app.app()?)?;
+    let router = openrust::foundation::http::build_router(fixture.app.app()?)?;
     let mut server = ProviderScopeServer(tokio::spawn(async move {
         openrust::http::axum::serve(
             listener,
@@ -1119,7 +1119,7 @@ struct ModelPasswordGetter {
     encoded: String,
     calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
-impl openrust::db::eloquent::AttributeGetter for ModelPasswordGetter {
+impl openrust::database::eloquent::AttributeGetter for ModelPasswordGetter {
     fn get(&self, _: Option<&Value>, _: &serde_json::Map<String, Value>) -> Result<Option<Value>> {
         self.calls
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -1140,16 +1140,17 @@ async fn install_root_model_factory(
     let db = state.resolve::<openrust::Db>().await?;
     let hashing = state.resolve::<openrust::hashing::HashManager>().await?;
     #[cfg(feature = "auth-fortify")]
-    let encryption = state.resolve::<openrust::security::Encryptor>().await?;
+    let encryption = state.resolve::<openrust::encryption::Encrypter>().await?;
     let mut metadata =
-        openrust::db::eloquent::ModelMetadata::new("users", "app::models::user::User");
+        openrust::database::eloquent::ModelMetadata::new("users", "app::models::user::User");
     // 本模块的因子authority要求数据库原始typed ID；成功HTTP夹具不改变整数账户域。
-    metadata
-        .casts
-        .insert("id".into(), openrust::db::eloquent::AttributeCast::Integer);
+    metadata.casts.insert(
+        "id".into(),
+        openrust::database::eloquent::AttributeCast::Integer,
+    );
     metadata.casts.insert(
         "email_verified_at".into(),
-        openrust::db::eloquent::AttributeCast::Boolean,
+        openrust::database::eloquent::AttributeCast::Boolean,
     );
     let metadata = std::sync::Arc::new(metadata);
     let source = (*db).clone();
@@ -1205,11 +1206,12 @@ fn string_identity_model(
     user: &crate::app::models::user::User,
     identifier: i64,
 ) -> Result<std::sync::Arc<crate::app::models::user::User>> {
-    use openrust::{auth::Authenticatable, db::eloquent::ModelIdentity};
+    use openrust::{auth::Authenticatable, database::eloquent::ModelIdentity};
     let mut metadata = user.model_metadata().clone();
-    metadata
-        .casts
-        .insert("id".into(), openrust::db::eloquent::AttributeCast::String);
+    metadata.casts.insert(
+        "id".into(),
+        openrust::database::eloquent::AttributeCast::String,
+    );
     let candidate = std::sync::Arc::new(
         crate::app::models::user::User::new(user.model_attributes().raw_attributes()?)
             .with_model_metadata(std::sync::Arc::new(metadata)),

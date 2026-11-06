@@ -14,8 +14,8 @@ Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandle
 - `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
 - `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
 - 默认 `web` 组按 Cookie 解密/队列、Session（含共享 errors）、CSRF、受管理路由固有参数绑定的顺序执行；`api` 组仅含固有参数绑定。用 `RouteGroup::new().middleware_group("web")` 或 `middleware_group("api")` 显式给路由分组。需要 Cookie/Session 的 API 可逐组追加 `middleware_alias("cookies")`、`middleware_alias("session")`；普通 API 不创建会话。`SubstituteBindings` 已由受管理路由分发器执行，`api` 组不再追加空 Tower middleware。
-- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；`route(path, RouteMethods)` 接受 `routing::{get, post, put, patch, delete, head, options, query, on, any}` 受管理方法声明，可链式追加不同方法。`on` 校验并规范化 HTTP 方法字符串，`any` 仅包含 Laravel 固定的 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY。[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 默认按声明顺序进入请求；命名项按公开优先级调整并去重，组外路由不受影响。
-- [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
+- [`Router`](crate::routing::Router)：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；`route(path, RouteMethods)` 接受 `routing::{get, post, put, patch, delete, head, options, query, on, any}` 受管理方法声明，可链式追加不同方法。`on` 校验并规范化 HTTP 方法字符串，`any` 仅包含 Laravel 固定的 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY。[`RouteGroup`](crate::routing::RouteGroup) 支持可嵌套路径前缀与组级 Tower middleware。middleware 默认按声明顺序进入请求；命名项按公开优先级调整并去重，组外路由不受影响。
+- [`Resource`](crate::routing::Resource) 与 [`ResourceActions`](crate::routing::ResourceActions)：只注册实际存在的 controller action；`Router::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
 - 统一响应使用 `ApiResponse<T>`；错误响应额外包含 `request_id` 和 RFC 3339 UTC 字符串 `timestamp`（毫秒精度），成功响应不重复包含诊断字段。
@@ -29,7 +29,7 @@ Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandle
 - [`Inject`]：提取由容器实例或异步工厂注册的服务。
 - [`ClientIp`]：默认解析 socket peer；只有来自已配置可信代理 IP/CIDR 的请求才接受 `X-Forwarded-For`。
 - [`RateLimitLayer`]：通过已注册的共享 `RateLimiter` 对选定路由限流。IP key 遵循 `ClientIp` 的可信代理规则；认证用户 key 需要外层 `AuthLayer`；自定义 key 函数可取得请求及策略 scope。
-- [`middleware::apply`]：依次应用 request ID、tracing span、CORS、timeout、gzip/br 压缩和 panic 捕获。`build_router` 会在路由 layer 执行前将最终 `AppState` 注入请求扩展，使能力 middleware 能使用应用注册表。启用的 CORS 配置无效时，会在开始监听前返回配置错误。
+- [`middleware::apply`]：依次应用 request ID、tracing span、CORS、timeout、gzip/br 压缩和 panic 捕获。`build_router` 会在路由 layer 执行前将最终 `ApplicationState` 注入请求扩展，使能力 middleware 能使用应用注册表。启用的 CORS 配置无效时，会在开始监听前返回配置错误。
 
 ## 请求检查与内容协商
 
@@ -39,7 +39,7 @@ Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandle
 
 `[server.trusted_hosts]` 缺省时不启用 Host allowlist。显式配置后，`at` 缺省使用 `app.url` 的主机及任意层子域；`at = []` 且 `subdomains = false` 表示启用空模式列表，不限制主机。显式 `at` 是按原顺序求值的 PCRE 模式体，大小写不敏感，不自动添加锚点；`subdomains = true` 时会追加 `app.url` 默认模式。空字符串和 `"0"` 按 Laravel 的空值规则过滤。只有精确 `local`、`testing` 环境跳过策略，`development`、`dev`、`test` 等其他环境仍执行。
 
-应用或模块 Provider 可在 `boot` 中调用 `BootContext::trust_hosts(TrustedHostsConfig { at, subdomains })` 覆盖静态配置，也可调用 `trust_hosts_with(subdomains, |state| Box::pin(async move { /* 返回 Vec<String> */ }))`；回调得到当前 `AppState`，每个生效请求求值一次，策略只在该请求内保存。物理 Host 在可信代理捕获前校验；后续 `RequestInfo::host()`、域路由及其 URL 消费者读取有效代理 Host 时复用同一模式。无匹配返回 400；实际求值触及非法模式返回内部错误，先匹配成功不会求值后续非法模式。主机校验不使 `port()`、客户端 IP 或前缀读取依赖 Host 求值。
+应用或模块 Provider 可在 `boot` 中调用 `BootContext::trust_hosts(TrustedHostsConfig { at, subdomains })` 覆盖静态配置，也可调用 `trust_hosts_with(subdomains, |state| Box::pin(async move { /* 返回 Vec<String> */ }))`；回调得到当前 `ApplicationState`，每个生效请求求值一次，策略只在该请求内保存。物理 Host 在可信代理捕获前校验；后续 `RequestInfo::host()`、域路由及其 URL 消费者读取有效代理 Host 时复用同一模式。无匹配返回 400；实际求值触及非法模式返回内部错误，先匹配成功不会求值后续非法模式。主机校验不使 `port()`、客户端 IP 或前缀读取依赖 Host 求值。
 
 启用 `view` 时，`Views::render_for_request(name, &RequestInfo, &context)` 使用本请求的 `errors` 对象；`RequestInfo::put_view_error_bag` 可在处理器中添加或替换命名包，后续渲染可见。路由显式使用 Session 层时会在 handler 前恢复错误包；未安装时为空包。该对象不存放在全局视图环境。
 
@@ -68,7 +68,7 @@ async fn store(
 
 ### 请求地址
 
-`RequestInfo`读取请求地址，`RouteUrlGenerator`按已登记路由和`app.url`生成出站链接，两者用途不同。地址方法返回`Result`，不从应用配置补造缺失的请求Host，也不将绝对URI的`https`视为实际TLS。
+`RequestInfo`读取请求地址，`UrlGenerator`按已登记路由和`app.url`生成出站链接，两者用途不同。地址方法返回`Result`，不从应用配置补造缺失的请求Host，也不将绝对URI的`https`视为实际TLS。
 
 ```rust,no_run
 use openrust::http::{Json, Request};
@@ -139,7 +139,7 @@ impl Validate for CreatePost {
 
 `CookieResponseExt::with_cookie` / `with_cookies` 将 Cookie 对象附加到既有 `Json`、统一响应或其他响应；`without_cookie_named` 通过明确传入的工厂创建删除标记。业务仍使用现有响应与异常策略，不需要另一套正文协议。实际调用及路由见[唯一模块 Cookie Controller](../../../../../modules/example/http/controllers/cookie.rs)。
 
-`CookieServiceProvider::new()` 要求 `encryption` feature 与已登记的 `Encryptor`，缺失时启动失败。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
+`CookieServiceProvider::new()` 要求 `encryption` feature 与已登记的 `Encrypter`，缺失时启动失败。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
 
 工厂默认 path `/`、httpOnly=true、SameSite=Lax，domain 与 secure 未指定。有 Session 配置时读取最终共享配置；`with_cookie_config` 在对应 Provider boot 时覆盖，后续显式 overlay 按原 Provider 顺序生效，`with_factory` 仅覆盖 Cookie 工厂。最终配置冻结后才装配 Session 层，避免原生 Session 与 Cookie 工厂使用不同快照。当前 Session 自身默认 secure=true，不能据此声称所有 Session 默认已与上游完成对齐。
 
@@ -163,7 +163,7 @@ multipart 使用 Axum 官方解析器；网络正文只读一次，先遵守 `De
 
 `all_files()` 返回保序的 `DataValue` 文件树，`file("profile.avatar")?` 和 `file("photos.*.image")?` 读取嵌套与通配值；通配缺失位置保留 null，多级通配按 Laravel 展平一层，`has_file` 只检查当前值或其直接数组成员是否为已接收文件，不等于文件有效性递归检查。`all()`、`only()`、`except()` 返回混合 `DataValue`：纯输入优先于同键文件，文件对象克隆保留共享身份；响应/DTO 须显式投影，未声明投影的上传对象不能序列化为 JSON。`input_all()` 与 `input/json/query/post` 保持纯输入，`flash()` 默认只保存纯输入，`flash_only/except` 可选到文件对象，原生 Session 编码保存时会拒绝该对象；Redirect 的 `with_input` 默认只保存纯输入；`only_input/except_input` 先从混合树筛选，再递归去除上传对象，保留被清空的父数组。
 
-`UploadedFile` 保留客户端原名/相对路径/MIME 等不可信展示信息、大小和独立异步游标；`mime_type().await` 检测服务端实际内容，`extension().await` 使用固定 Symfony Mime v8.0.0 有序全表的首选扩展名。`hash_name().await` 仅缓存 40 字符随机主体，扩展名随检测器或应用映射变更而重算；`store/store_as/store_publicly/store_publicly_as` 成功返回规范存储路径。`App::mime_types().await` / `RegisterContext::mime_types().await` 通过同一容器解析并取得同一应用的 `MimeTypes`，可按后注册优先登记 `MimeTypeGuesser`，也可覆盖 MIME 的有序扩展列表；另一个 App 独立。外部检测器使用公开 `MimeFile::open()` 的受管异步游标，无需自行管理暂存路径。默认检测调用本机 `file -b --mime --`，有界输出和 5 秒检测限时；取消或超时会通知受管检测任务，并在额外 2 秒清理期限内尝试终止、回收子进程；Windows 或缺少 `file` 时需应用提供可用检测器，否则返回明确错误。受支持检测器全部返回未知时 `mime_type` 为 `None`，`extension/hash_name` 则返回稳定错误；已识别 MIME 但全表无扩展时 `extension` 为 `None`。存储路径经 `StoragePath` 校验，客户端 MIME 或文件名不参与可信检测或对象 key。Rust 默认检测后端尚未包含 Symfony Fileinfo，Windows 原生后端及真实 S3 ACL、迟到 `CopyObject`、`throw=false` 差异仍开放。
+`UploadedFile` 保留客户端原名/相对路径/MIME 等不可信展示信息、大小和独立异步游标；`mime_type().await` 检测服务端实际内容，`extension().await` 使用固定 Symfony Mime v8.0.0 有序全表的首选扩展名。`hash_name().await` 仅缓存 40 字符随机主体，扩展名随检测器或应用映射变更而重算；`store/store_as/store_publicly/store_publicly_as` 成功返回规范存储路径。`Application::mime_types().await` / `RegisterContext::mime_types().await` 通过同一容器解析并取得同一应用的 `MimeTypes`，可按后注册优先登记 `MimeTypeGuesser`，也可覆盖 MIME 的有序扩展列表；另一个 App 独立。外部检测器使用公开 `MimeFile::open()` 的受管异步游标，无需自行管理暂存路径。默认检测调用本机 `file -b --mime --`，有界输出和 5 秒检测限时；取消或超时会通知受管检测任务，并在额外 2 秒清理期限内尝试终止、回收子进程；Windows 或缺少 `file` 时需应用提供可用检测器，否则返回明确错误。受支持检测器全部返回未知时 `mime_type` 为 `None`，`extension/hash_name` 则返回稳定错误；已识别 MIME 但全表无扩展时 `extension` 为 `None`。存储路径经 `StoragePath` 校验，客户端 MIME 或文件名不参与可信检测或对象 key。Rust 默认检测后端尚未包含 Symfony Fileinfo，Windows 原生后端及真实 S3 ACL、迟到 `CopyObject`、`throw=false` 差异仍开放。
 
 启用 Session 后，`RequestInfo::old`、`old_or` 和 `old_all` 返回原始 `DataValue`，同一请求能观察 `flash_input` 中对象的共享身份；缺失键才采用默认值，显式 null 保留。需要 DTO 或响应 JSON 时显式调用 `old_json`、`old_or_json`、`old_all_json`；未指定对象投影时返回安全错误，不把对象当作缺失值。
 
@@ -216,7 +216,7 @@ async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 `[server].max_concurrent_requests` 默认是 1024，允许配置范围为 1..=65536。达到上限时新请求立即收到 503，不排入等待队列。许可覆盖响应体读取生命周期：body 读完、读取失败或客户端丢弃响应时释放；未消费且仍持有的流式响应会继续占用许可。
 
-`[server.compression] enabled = true` 会根据 `Accept-Encoding` 协商 gzip 和 Brotli；设置为 `false` 可关闭压缩。`[server.cors]` 默认禁用。启用时，将 `enabled` 设为 `true`，并配置 `allowed_origins = ["https://example.com"]`（未启用 credentials 时也可用 `["*"]`）。Methods、request headers、exposed headers、credentials 和预检 `max_age_secs` 均可配置。具体 origin 必须是 `http://` 或 `https://`，后接主机和可选端口，不可包含路径、查询参数或尾部斜杠。CORS 列表中不能混用通配符和具体值；启用 credentials 时，methods、request headers 和 exposed headers 也不能使用通配符。路由构建时若发现配置无效，会返回包含配置 key 和转义值的错误。CORS layer 包裹 timeout layer，因此 408 响应仍保留允许来源信息。`build_router(&App)` 返回 `Result<Router>`；`serve` 会先构建 router，再绑定 listener。
+`[server.compression] enabled = true` 会根据 `Accept-Encoding` 协商 gzip 和 Brotli；设置为 `false` 可关闭压缩。`[server.cors]` 默认禁用。启用时，将 `enabled` 设为 `true`，并配置 `allowed_origins = ["https://example.com"]`（未启用 credentials 时也可用 `["*"]`）。Methods、request headers、exposed headers、credentials 和预检 `max_age_secs` 均可配置。具体 origin 必须是 `http://` 或 `https://`，后接主机和可选端口，不可包含路径、查询参数或尾部斜杠。CORS 列表中不能混用通配符和具体值；启用 credentials 时，methods、request headers 和 exposed headers 也不能使用通配符。路由构建时若发现配置无效，会返回包含配置 key 和转义值的错误。CORS layer 包裹 timeout layer，因此 408 响应仍保留允许来源信息。`build_router(&Application)` 返回 `Result<Router>`；`serve` 会先构建 router，再绑定 listener。
 
 `[server].trusted_proxy_ranges` 未配置为 `None`，普通 Host 不信任代理；显式 `[]` 禁止平台自动信任。可配置 IP/CIDR、`REMOTE_ADDR`、`*`/`**` 双栈全范围；未配置且 Host 为 Forge/Vapor 后缀时遵循上游自动代理规则，但禁用该入口的 `X-Forwarded-Host`。`trusted_proxy_headers` 默认数值 62，可用公开 `TrustedProxyHeaders` 位常量选择 X-Forwarded 单项、AWS ELB 子集或 RFC `Forwarded`。只有可信 socket peer 的转发事实生效；客户端 IP 链剔除可信代理，Host/Port/Proto/Prefix 共用请求入口发布的快照。无效 CIDR/mask 在 router 构建时失败；冲突转发头在读取受影响属性时返回错误，不影响其他属性。`X-Forwarded-Port` 保留 PHP 非数字转为 0、空值回退协议端口的结果；请求公开端口类型为 `i64`，监听端口仍为 `u16`。Laravel Cloud 由受信宿主 `CloudIngress` request extension 声明，`serve` 在 listener 启动时仅当 `LARAVEL_CLOUD=1` 捕获并注入；普通 HTTP 头不能冒充。真实 Cloud 平台环境尚未验证。
 
@@ -224,9 +224,12 @@ async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 ```rust,ignore
 use std::time::Duration;
-use openrust::http::{AuthLayer, AuthMode, RateLimitLayer, Routes};
+use openrust::http::AuthLayer;
+use openrust::http::AuthMode;
+use openrust::http::RateLimitLayer;
+use openrust::routing::Router;
 
-fn routes(routes: Routes) -> Routes {
+fn routes(routes: Router) -> Router {
     routes.get("/api/profile", profile)
         .layer(RateLimitLayer::by_user("profile:read", 60, Duration::from_secs(60)).layer())
         .layer(AuthLayer::required(AuthMode::Jwt))
@@ -239,9 +242,10 @@ Laravel 的 `Route::prefix(...)->middleware(...)->group(...)` 可用 `RouteGroup
 
 ```rust,ignore
 use openrust::auth::{AuthLayer, AuthMode};
-use openrust::http::{RouteGroup, Routes};
+use openrust::routing::RouteGroup;
+use openrust::routing::Router;
 
-fn routes(routes: Routes) -> Routes {
+fn routes(routes: Router) -> Router {
     routes.group(
         RouteGroup::new()
             .prefix("/api")
@@ -253,7 +257,7 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-Provider boot 可用 `BootContext::middleware_alias` 登记一个 Tower `Layer` 的短名称，再用 `middleware_group` 将别名或其他组按声明顺序组合。应用 Provider 贡献的路由组通过 `middleware_alias` / `middleware_group` 引用；也可在带应用注册表的 `Routes` 上引用，以作用于此前登记的路由。没有应用注册表的独立 `Routes` 使用命名 middleware 会在 `into_router()` 返回错误，绝不静默生成未受保护路由。名称重复、格式无效、引用缺失和 group 循环均会使启动或 router 构建明确失败。直接 `.middleware(layer)` / `.layer(layer)` 仍可用于一次性组合：
+Provider boot 可用 `BootContext::middleware_alias` 登记一个 Tower `Layer` 的短名称，再用 `middleware_group` 将别名或其他组按声明顺序组合。应用 Provider 贡献的路由组通过 `middleware_alias` / `middleware_group` 引用；也可在带应用注册表的 `Router` 上引用，以作用于此前登记的路由。没有应用注册表的独立 `Router` 使用命名 middleware 会在 `into_router()` 返回错误，绝不静默生成未受保护路由。名称重复、格式无效、引用缺失和 group 循环均会使启动或 router 构建明确失败。直接 `.middleware(layer)` / `.layer(layer)` 仍可用于一次性组合：
 
 ```rust,ignore
 app.middleware_alias("tenant", tenant_layer)?;
@@ -269,35 +273,39 @@ Provider 可用 `middleware_priority([...])` 设置路由别名优先级，或 `
 
 Middleware 定义在应用内共享，是否应用由各路由或路由组显式选择。当前 OpenRust 路由按 Provider 贡献，没有 Laravel `web` / `api` 文件约定的自动分组，因此由路由明确选择命名 group。
 
-`Routes::fallback(handler)` 注册 GET/HEAD 显式 fallback；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。同方法普通路由优先，GET/HEAD 在没有普通路由命中时仍可执行 fallback，即使同路径存在其他方法。其他方法可得 405；OPTIONS 有 alternate 时合成真实 OPTIONS Route。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`。除交给自定义 `server.root_target` 的未匹配根 GET/HEAD 外，未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
+`Router::fallback(handler)` 注册 GET/HEAD 显式 fallback；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。同方法普通路由优先，GET/HEAD 在没有普通路由命中时仍可执行 fallback，即使同路径存在其他方法。其他方法可得 405；OPTIONS 有 alternate 时合成真实 OPTIONS Route。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`。除交给自定义 `server.root_target` 的未匹配根 GET/HEAD 外，未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
 
 ```rust,ignore
-use openrust::http::{RouteGroup, Routes};
+use openrust::routing::RouteGroup;
+use openrust::routing::Router;
 
 async fn page_not_found(request: openrust::http::axum::extract::Request) -> impl openrust::http::axum::response::IntoResponse {
     (openrust::http::axum::http::StatusCode::NOT_FOUND,
      format!("页面不存在：{}", request.uri().path()))
 }
 
-fn routes(routes: Routes) -> Routes {
+fn routes(routes: Router) -> Router {
     routes.group(RouteGroup::new().prefix("/pages"), |pages| {
         pages.get("/about", about).fallback(page_not_found)
     })
 }
 ```
 
-路由可以在定义后立即通过 `.name(...)` 命名；组的 `name_prefix` 会与内层名称按原样拼接，因此分隔符应由应用提供，例如 `admin.`。处理器提取 `RouteUrlGenerator` 后，可按名称生成绝对 URL。必需路径参数占用一个路径段，其值会编码为单段；多余参数进入按字典序排列的 query。host/scheme 来自 `app.url` 配置，不读取请求的 `Host`：
+路由可以在定义后立即通过 `.name(...)` 命名；组的 `name_prefix` 会与内层名称按原样拼接，因此分隔符应由应用提供，例如 `admin.`。处理器提取 `UrlGenerator` 后，可按名称生成绝对 URL。必需路径参数占用一个路径段，其值会编码为单段；多余参数进入按字典序排列的 query。host/scheme 来自 `app.url` 配置，不读取请求的 `Host`：
 
 ```rust,ignore
 use std::collections::BTreeMap;
-use openrust::http::{Json, RouteGroup, RouteUrlGenerator, Routes};
+use openrust::http::Json;
+use openrust::routing::RouteGroup;
+use openrust::routing::UrlGenerator;
+use openrust::routing::Router;
 
-async fn show_user(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+async fn show_user(urls: UrlGenerator) -> openrust::Result<Json<String>> {
     let params = BTreeMap::from([("id".to_owned(), "42".to_owned())]);
     urls.route("admin.users.show", &params).map(Json)
 }
 
-fn routes(routes: Routes) -> Routes {
+fn routes(routes: Router) -> Router {
     routes.group(
         RouteGroup::new().prefix("/api").name_prefix("admin."),
         |api| api.get("/users/{id}", show_user).name("users.show"),
@@ -307,11 +315,12 @@ fn routes(routes: Routes) -> Routes {
 
 重复路由名、非法名称、通配符及包含空段的具名路径会在 router 构建时失败。缺少命名路由或必需参数会返回稳定错误并映射为 HTTP 500，符合 Laravel URL 生成异常的服务端错误语义；未命名路由不受 URL 模板限制。
 
-命名路由也可直接用于请求绑定重定向：`Redirector::from_info(&info).route(name, &parameters)` 以默认 302 和空自定义头建立响应；`route_with(name, &parameters, status, headers)` 接受显式状态与 `HeaderMap`。它从当前请求捕获同一应用的 `RouteUrlGenerator`，再复用普通重定向的 `to_with`、Location、HTML 转义和头规则，不依赖 Session：
+命名路由也可直接用于请求绑定重定向：`Redirector::from_info(&info).route(name, &parameters)` 以默认 302 和空自定义头建立响应；`route_with(name, &parameters, status, headers)` 接受显式状态与 `HeaderMap`。它从当前请求捕获同一应用的 `UrlGenerator`，再复用普通重定向的 `to_with`、Location、HTML 转义和头规则，不依赖 Session：
 
 ```rust,ignore
 use std::collections::BTreeMap;
-use openrust::http::{Redirector, RequestInfo};
+use openrust::routing::Redirector;
+use openrust::http::RequestInfo;
 use openrust::http::axum::response::{IntoResponse, Response};
 
 async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
@@ -327,7 +336,7 @@ async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
 
 ### 签名命名 URL
 
-设置 `APP_KEY`（对应 `app.key`）后，`RouteUrlGenerator::signed_route(name, &parameters, true)` 生成永久绝对签名 URL；`temporary_signed_route(name, seconds, &parameters, true)` 将秒数加到当前时刻生成 `expires`。最后参数选 `false` 时生成相对 URL。`signed_route_at` 接受显式 Unix 秒时间戳。`signature` 与 `expires` 不能作为调用方参数；额外参数按键排序并采用 RFC 3986 查询编码，签名附在末尾。普通 URL 无密钥仍可生成。Laravel 基线在 `app.key` 缺失或 null 时使用空字节密钥，Rust 对应此可观察签名结果；空密钥可被任何人复现，生产环境必须设置不可预测的 `APP_KEY`。独立构造且未安装 key resolver 的生成器会返回 `url_signing_key_unavailable`。
+设置 `APP_KEY`（对应 `app.key`）后，`UrlGenerator::signed_route(name, &parameters, true)` 生成永久绝对签名 URL；`temporary_signed_route(name, seconds, &parameters, true)` 将秒数加到当前时刻生成 `expires`。最后参数选 `false` 时生成相对 URL。`signed_route_at` 接受显式 Unix 秒时间戳。`signature` 与 `expires` 不能作为调用方参数；额外参数按键排序并采用 RFC 3986 查询编码，签名附在末尾。普通 URL 无密钥仍可生成。Laravel 基线在 `app.key` 缺失或 null 时使用空字节密钥，Rust 对应此可观察签名结果；空密钥可被任何人复现，生产环境必须设置不可预测的 `APP_KEY`。独立构造且未安装 key resolver 的生成器会返回 `url_signing_key_unavailable`。
 
 框架从同一 `ConfigRepository` 快照按次读取 `app.key` 与 `app.previous_keys`：当前密钥签发，当前及旧密钥验签。配置值作为原始字节使用，字面 `base64:` 前缀与空白不会被解码或裁剪；`APP_PREVIOUS_KEYS` 用逗号分隔，空项和 `0` 按 Laravel 默认环境配置过滤。程序运行期 `ConfigRepository::set` 可以轮换；`set_key_resolver` 与 `with_key_resolver` 可为单个生成器提供回调，已有 clone 与请求快照不随 setter 改变。`SignedLinks` 的 JWT 用途、主体及撤销能力继续独立提供，不参与 URL 签名。
 
@@ -346,16 +355,19 @@ Rust 的 `BTreeMap<String, String>` 仅覆盖字符串路由参数，不表示 P
 
 ### 按真实路由动作重定向
 
-`Redirector::action(action, &parameters)` 使用当前请求绑定的 `RouteUrlGenerator::action` 先找到实际登记的动作路由，再复用 `to_with` 建立默认302、空自定义头的响应。`action_with(action, &parameters, status, headers)` 提供显式选项；目标可以是匿名路由，不需要 `.name()`，也不会把动作字符串当作路由名称。无 Session 时普通跳转仍可用。
+`Redirector::action(action, &parameters)` 使用当前请求绑定的 `UrlGenerator::action` 先找到实际登记的动作路由，再复用 `to_with` 建立默认302、空自定义头的响应。`action_with(action, &parameters, status, headers)` 提供显式选项；目标可以是匿名路由，不需要 `.name()`，也不会把动作字符串当作路由名称。无 Session 时普通跳转仍可用。
 
 ```rust,no_run
 use std::collections::BTreeMap;
-use openrust::http::{Redirector, RequestInfo, RouteGroup, Routes};
+use openrust::routing::Redirector;
+use openrust::http::RequestInfo;
+use openrust::routing::RouteGroup;
+use openrust::routing::Router;
 
 async fn show(info: RequestInfo) -> openrust::Result<String> {
     Ok(info.route()?.and_then(|route| route.action().map(str::to_owned)).unwrap_or_default())
 }
-fn register(routes: Routes) -> Routes {
+fn register(routes: Router) -> Router {
     routes.group(RouteGroup::new().prefix("/drafts").namespace("Example\\Draft"), |drafts| {
         drafts.get_action("/{id}", "DraftController@show", show)
     })
@@ -371,7 +383,7 @@ async fn return_to_draft(info: RequestInfo) -> openrust::Result<openrust::http::
 
 `get_action(path, action, handler)` 登记 GET/HEAD；`on_action(path, &["POST"], action, handler)` 等价地支持其他合法方法、组合及自定义方法，均沿现受管理方法声明链执行。字符串与二元组由公开 owned `RouteAction` 接受；`Route::with_action` 仅供可信 resolver 构造快照，不会登记匹配路由或 URL。
 
-Provider 可调用 `BootContext::set_root_controller_namespace(namespace)` 设置最终生成器的查询默认根空间。提取出的 `RouteUrlGenerator` 也可通过 `set_root_controller_namespace(&mut self, namespace)` 改本实例，空串清空；克隆和已捕获的请求快照保持原查询状态，索引仍共享不可变数据，不通过全局锁传播修改。生成器的 `action` 与命名 `route` 使用同一参数渲染内核。
+Provider 可调用 `BootContext::set_root_controller_namespace(namespace)` 设置最终生成器的查询默认根空间。提取出的 `UrlGenerator` 也可通过 `set_root_controller_namespace(&mut self, namespace)` 改本实例，空串清空；克隆和已捕获的请求快照保持原查询状态，索引仍共享不可变数据，不通过全局锁传播修改。生成器的 `action` 与命名 `route` 使用同一参数渲染内核。
 
 动作索引按固定上游的完整 methods 序列、domain、URI 声明 key 去除同 key 覆写项，再从域路由优先的最终集合登记动作：普通规范动作保留首项。不同复合方法声明即使在实际分派中分别被后续方法覆盖，也可能仍保留在上游动作 URL 索引；真实 `Route::action()` 始终来自实际选中的 handler，不能反过来从 URL 索引猜测。上游原 controller key 的存在检查与去掉首尾反斜线后的存储不对称，带反斜线的重复声明可能覆盖先项；不将普通首项规则扩称为全部拼写的统一规则。
 
@@ -388,7 +400,8 @@ Provider 可调用 `BootContext::set_root_controller_namespace(namespace)` 设�
 两入口复用唯一响应构造器：允许201/301/302/303/307/308，非法状态沿 `redirect_status_invalid`；空目标与不安全 `Location` 沿 `redirect_location_invalid` 返回错误。共享构造按HTTP状态范围、空目标、允许重定向状态、头值的顺序检查；普通 `to` 先生成URL再校验响应，纠正此前提前检查状态的顺序偏差；URL来源和状态同时无效时先传播URL生成错误。因此 `to("")` 是请求根，`away("")` 则失败。Rust在 `HeaderValue` 构造时拒绝CRLF等非法值，不模拟PHP将此类值暂存于HeaderBag后才在发送边界处理的过程。自定义Location/Content-Type由真实目标和HTML类型覆盖，其他头保留；HTML转义及301缓存规则不变。
 
 ```rust,ignore
-use openrust::http::{Redirector, RequestInfo};
+use openrust::routing::Redirector;
+use openrust::http::RequestInfo;
 
 async fn reload(info: RequestInfo) -> openrust::Result<axum::response::Response> {
     use axum::response::IntoResponse;
@@ -414,7 +427,8 @@ async fn guide(info: RequestInfo) -> openrust::Result<axum::response::Response> 
 `get_intended_url() -> Result<Option<Value>>` 显式读取纯 JSON，`None` 是缺失、`Some(Value::Null)` 是已存null；对象须由调用方使用原始 `Session::get`。`set_intended_url(value)` 沿纯数据写入并返回自身，不预先验证URL。缺Session、关闭或资源预算错误沿现Session传播，无静默内存回退；预算失败保留原属性。示例中的业务应在完成认证或审核后调用 `intended`：
 
 ```rust,ignore
-use openrust::http::{Redirector, RequestInfo};
+use openrust::routing::Redirector;
+use openrust::http::RequestInfo;
 
 async fn require_login(info: RequestInfo) -> openrust::Result<axum::response::Response> {
     use axum::response::IntoResponse;
@@ -432,7 +446,12 @@ async fn login_completed(info: RequestInfo) -> openrust::Result<axum::response::
 `RouteGroup::domain` 可为路由组指定完整域名模式。域模式先于不限定域的路由匹配，与注册顺序无关；同一请求可用 `DomainParams<T>` 读取域标签参数，路径参数仍由 `Path<T>` 单独提取。嵌套组继承父域，显式声明的新域会覆盖父域。域参数只用于路由分派，不能替代租户认证或授权。域名 URL 从登记模板和显式参数生成，scheme/port 仍取自 `app.url`；不会采信当前 `Host` 或 `X-Forwarded-Host`。域名仅支持 ASCII DNS 标签与预先编码的 punycode，不执行 Unicode IDNA 转换，不支持 IP literal 和尾点；域参数必须是单个标签。
 
 ```rust,ignore
-use openrust::http::{DomainParams, Json, Path, RouteGroup, RouteUrlGenerator, Routes};
+use openrust::http::DomainParams;
+use openrust::http::Json;
+use openrust::http::Path;
+use openrust::routing::RouteGroup;
+use openrust::routing::UrlGenerator;
+use openrust::routing::Router;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -441,7 +460,7 @@ struct TenantDomain { account: String }
 async fn tenant_order(
     DomainParams(tenant): DomainParams<TenantDomain>,
     Path(order_id): Path<u64>,
-    urls: RouteUrlGenerator,
+    urls: UrlGenerator,
 ) -> openrust::Result<Json<String>> {
     let url = urls.route("tenant.orders.show", &std::collections::BTreeMap::from([
         ("account".to_owned(), tenant.account),
@@ -450,7 +469,7 @@ async fn tenant_order(
     Ok(Json(url))
 }
 
-fn routes(routes: Routes) -> Routes {
+fn routes(routes: Router) -> Router {
     routes.group(RouteGroup::new().domain("{account}.example.test").name_prefix("tenant."), |tenant| {
         tenant.get("/orders/{id}", tenant_order).name("orders.show")
     })
@@ -463,8 +482,15 @@ fn routes(routes: Routes) -> Routes {
 
 ```rust
 use std::sync::Arc;
-use openrust::http::{Inject, Json, Routes, Validated};
-use openrust::core::{BootContext, BoxFuture, RegisterContext, Result, ServiceProvider};
+use openrust::http::Inject;
+use openrust::http::Json;
+use openrust::routing::Router;
+use openrust::http::Validated;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::foundation::RegisterContext;
+use openrust::core::Result;
+use openrust::support::ServiceProvider;
 use serde::Deserialize;
 use openrust::validation::{Rule, Rules, Validate};
 
@@ -493,7 +519,7 @@ impl ServiceProvider for PostServiceProvider {
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.routes(|r: Routes| r.nest("/api", |api| api.post("/posts", create)))?;
+            app.routes(|r: Router| r.nest("/api", |api| api.post("/posts", create)))?;
             Ok(())
         })
     }
@@ -503,7 +529,10 @@ impl ServiceProvider for PostServiceProvider {
 Resource controller 会显式列出 handler；未实现的 action 不会创建路由。过滤器会在 controller 注册 action 后应用：
 
 ```rust
-use openrust::http::{Action, Resource, ResourceActions, Routes};
+use openrust::routing::Action;
+use openrust::routing::Resource;
+use openrust::routing::ResourceActions;
+use openrust::routing::Router;
 
 struct Posts;
 async fn list() -> &'static str { "posts" }
@@ -515,7 +544,7 @@ impl Resource for Posts {
     }
 }
 
-fn routes(routes: Routes) -> Routes {
+fn routes(routes: Router) -> Router {
     routes.nest("/api", |api| {
         api.resource_with::<Posts>("/posts", |a| a.only(&[Action::List]))
     })

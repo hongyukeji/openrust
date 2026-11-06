@@ -8,15 +8,15 @@ use super::{
     fortify::CredentialAuthority,
 };
 use crate::core::{Error, Result};
-use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
-use crate::db::{DatabaseConnection, Db};
+use crate::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
+use crate::database::{DatabaseConnection, Db};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 #[cfg(feature = "auth-fortify")]
 use {
-    crate::db::DatabaseTransaction,
+    crate::database::DatabaseTransaction,
     chrono::SubsecRound,
     std::sync::{Arc, OnceLock},
 };
@@ -201,7 +201,7 @@ impl PersonalAccessTokens {
                             .where_null("revoked_at")?
                             .update(vec![(
                                 "last_used_at",
-                                crate::db::dialect::utc_value(tx.get_database_backend(), now),
+                                crate::database::dialect::utc_value(tx.get_database_backend(), now),
                             )])
                             .await?;
                         if changed != 1 {
@@ -332,7 +332,7 @@ impl PersonalAccessTokens {
                 &crate::auth::resolve_auth_sql(&self.db, sql)?,
                 if backend == DbBackend::Sqlite {
                     vec![
-                        crate::db::dialect::utc_value(backend, Utc::now()),
+                        crate::database::dialect::utc_value(backend, Utc::now()),
                         user_id.into(),
                         token_id.into(),
                     ]
@@ -370,7 +370,7 @@ impl PersonalAccessTokens {
                 &crate::auth::resolve_auth_sql(&self.db, sql)?,
                 if backend == DbBackend::Sqlite {
                     vec![
-                        crate::db::dialect::utc_value(backend, Utc::now()),
+                        crate::database::dialect::utc_value(backend, Utc::now()),
                         user_id.into(),
                     ]
                 } else {
@@ -409,8 +409,8 @@ impl PersonalAccessTokens {
                 "INSERT INTO tb_personal_access_tokens (user_id,name,token_prefix,token_hash,abilities,expires_at,created_at) VALUES (?,?,?,?,?,?,?)")?;
             transaction.execute_raw(Statement::from_sql_and_values(DbBackend::Sqlite, insert,
                 [user_id.into(), name.into(), prefix.into(), hash.into(), abilities.into(),
-                    expires_at.map_or(sea_orm::Value::String(None), |expiry| crate::db::dialect::utc_value(DbBackend::Sqlite, expiry)),
-                    crate::db::dialect::utc_value(DbBackend::Sqlite, now)]))
+                    expires_at.map_or(sea_orm::Value::String(None), |expiry| crate::database::dialect::utc_value(DbBackend::Sqlite, expiry)),
+                    crate::database::dialect::utc_value(DbBackend::Sqlite, now)]))
                 .await.map_err(Error::internal)?;
             Ok(())
         }) }).await?;
@@ -548,7 +548,7 @@ impl DerivedPat {
             sea_orm::Value::ChronoDateTimeUtc(None)
         };
         let expires = self.stored_expiry().map_or(absent_expiry, |expiry| {
-            crate::db::dialect::utc_value(backend, expiry)
+            crate::database::dialect::utc_value(backend, expiry)
         });
         let inserted = tx
             .execute_raw(Statement::from_sql_and_values(
@@ -563,7 +563,7 @@ impl DerivedPat {
                         .map_err(Error::internal)?
                         .into(),
                     expires,
-                    crate::db::dialect::utc_value(backend, Utc::now()),
+                    crate::database::dialect::utc_value(backend, Utc::now()),
                     context.into(),
                 ],
             ))
@@ -713,7 +713,7 @@ fn validate_derivation_bounds(
 }
 #[cfg(feature = "auth-fortify")]
 fn decode_abilities(
-    row: &crate::db::sea_orm::QueryResult,
+    row: &crate::database::sea_orm::QueryResult,
     backend: DbBackend,
 ) -> Result<Vec<String>> {
     let value: serde_json::Value = if backend == DbBackend::Sqlite {
@@ -772,7 +772,7 @@ impl std::error::Error for InvalidAbilities {}
 mod sqlite_tests {
     use super::*;
     use crate::auth::{AuthCredential, AuthSource, Authenticator, CurrentUser, Policy};
-    use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use crate::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
     use crate::testing::TestDatabase;
 
     struct Migrator;
@@ -789,7 +789,7 @@ mod sqlite_tests {
         let database = TestDatabase::sqlite_file::<Migrator>().await?;
         let db = Db::default();
         db.initialize(database.connection()?)?;
-        let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+        let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
         let sql = crate::auth::resolve_auth_sql(
             &db,
             "INSERT INTO tb_users (id,email,password_hash,email_verified_at,created_at,updated_at) VALUES (42,?,?,?,?,?)",

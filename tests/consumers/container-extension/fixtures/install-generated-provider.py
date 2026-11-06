@@ -35,7 +35,7 @@ def main() -> int:
     if registry.count(provider_anchor) != 1 or modules.count(module_anchor) != 1:
         print("generated bootstrap template differs from fixture anchors", file=sys.stderr)
         return 2
-    application = re.search(r"impl Application for ([A-Za-z_][A-Za-z0-9_]*)", original)
+    application = re.search(r"impl openrust::foundation::ApplicationDefinition for ([A-Za-z_][A-Za-z0-9_]*)", original)
     if application is None:
         print("generated application type was not found", file=sys.stderr)
         return 2

@@ -293,8 +293,8 @@ impl CredentialSessionParent {
 
     pub(crate) async fn validate(
         &self,
-        db: &crate::db::Db,
-        tx: &crate::db::DatabaseTransaction,
+        db: &crate::database::Db,
+        tx: &crate::database::DatabaseTransaction,
     ) -> Result<DateTime<Utc>> {
         let reader = self.reader.credential_parent_reader(db)?;
         let (mut cutoff, fresh) = self.check_local()?;
@@ -328,7 +328,7 @@ pub struct VerifiedCredential {
     #[cfg(feature = "auth-fortify")]
     pub(crate) session_parent: Option<Box<CredentialSessionParent>>,
     #[cfg(feature = "auth-fortify")]
-    pub(crate) store: crate::db::Db,
+    pub(crate) store: crate::database::Db,
     pub(crate) user_id: i64,
     pub(crate) domain: CredentialDomain,
     pub(crate) context: Option<CredentialFactorContext>,

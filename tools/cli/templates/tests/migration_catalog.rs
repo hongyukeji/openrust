@@ -1,6 +1,6 @@
 //! 不建立数据库连接，验证应用实际迁移清单包含完整框架基础设施且没有重复。
 
-use openrust::db::sea_orm_migration::{MigrationName, MigratorTrait};
+use openrust::database::sea_orm_migration::{MigrationName, MigratorTrait};
 use std::collections::HashSet;
 
 #[test]
@@ -9,7 +9,7 @@ fn generated_application_extends_the_framework_catalog_once() {
         .into_iter()
         .map(|migration| migration.name().to_owned())
         .collect::<Vec<_>>();
-    let framework = openrust::db::FrameworkMigrator::migrations()
+    let framework = openrust::database::FrameworkMigrator::migrations()
         .into_iter()
         .map(|migration| migration.name().to_owned())
         .collect::<Vec<_>>();

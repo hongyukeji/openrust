@@ -8,7 +8,9 @@ use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 
 use super::SessionId;
-use crate::{Error, Result, core::BoxFuture};
+use crate::Error;
+use crate::Result;
+use crate::support::BoxFuture;
 
 /// 默认整个持久记录（含身份绑定与属性）的字节上限。
 pub const DEFAULT_MAX_BYTES: usize = crate::config::SessionConfig::MAX_BYTES;
@@ -194,7 +196,7 @@ pub trait CredentialSessionReader: Send + Sync {
     /// 有界读取指定 Session 的身份和原截止时间，不续期、不新建记录。
     fn load_authorized_for_credential<'a>(
         &'a self,
-        tx: &'a crate::db::DatabaseTransaction,
+        tx: &'a crate::database::DatabaseTransaction,
         id: &'a SessionId,
         maximum: usize,
     ) -> BoxFuture<'a, Result<Option<SessionRecord>>>;
@@ -319,7 +321,7 @@ pub trait SessionStore: Send + Sync + 'static {
     #[cfg(feature = "auth-fortify")]
     fn credential_parent_reader(
         &self,
-        _db: &crate::db::Db,
+        _db: &crate::database::Db,
     ) -> Result<&dyn CredentialSessionReader> {
         Err(crate::Error::custom_with_status(
             http::StatusCode::INTERNAL_SERVER_ERROR,

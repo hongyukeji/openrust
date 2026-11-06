@@ -1,11 +1,11 @@
 //! 真实SQLite只读attach授权：当前raw与完整家族一致，失败也不得暗中撤销。
 use super::*;
-use crate::{
-    auth::{credential::CredentialFactorContext, fortify::CredentialFactorMigration},
-    core::BoxFuture,
-    db::sea_orm_migration::{MigrationTrait, MigratorTrait},
-    testing::TestDatabase,
-};
+use crate::auth::credential::CredentialFactorContext;
+use crate::auth::fortify::CredentialFactorMigration;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::support::BoxFuture;
+use crate::testing::TestDatabase;
 
 struct Migrator;
 impl MigratorTrait for Migrator {
@@ -36,7 +36,7 @@ where
     let outcome: Result<()> = async {
         db.initialize(database.connection()?)?;
         for id in [42_i64, 43_i64] {
-            let now = crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now());
+            let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             db.table("users")?
                 .insert(vec![
                     ("id", id.into()),
@@ -110,7 +110,7 @@ struct RowState {
 }
 async fn snapshot(db: &Db) -> Result<Vec<RowState>> {
     db.table("auth_refresh_tokens")?
-        .order_by("token_hash", crate::db::query::SortDirection::Asc)?
+        .order_by("token_hash", crate::database::query::SortDirection::Asc)?
         .get()
         .await?
         .iter()
@@ -234,7 +234,7 @@ async fn attach_checks_all_historical_family_contexts_owners_revocations_and_exa
                     ("user_id", 42_i64.into()),
                     (
                         "expires_at",
-                        crate::db::dialect::utc_value(
+                        crate::database::dialect::utc_value(
                             DbBackend::Sqlite,
                             next.expires_at + chrono::Duration::hours(1),
                         ),
@@ -247,11 +247,11 @@ async fn attach_checks_all_historical_family_contexts_owners_revocations_and_exa
                 .update(vec![
                     (
                         "expires_at",
-                        crate::db::dialect::utc_value(DbBackend::Sqlite, next.expires_at),
+                        crate::database::dialect::utc_value(DbBackend::Sqlite, next.expires_at),
                     ),
                     (
                         "revoked_at",
-                        crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
+                        crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
                     ),
                 ])
                 .await?;
@@ -287,7 +287,7 @@ async fn attach_rejects_multiple_live_leaves_revoked_leaf_and_invalid_family_wit
                 .where_eq("token_hash", old_hash)?
                 .update(vec![(
                     "consumed_at",
-                    crate::db::dialect::utc_value(
+                    crate::database::dialect::utc_value(
                         DbBackend::Sqlite,
                         consumed.ok_or(Error::Unauthorized)?,
                     ),
@@ -304,7 +304,7 @@ async fn attach_rejects_multiple_live_leaves_revoked_leaf_and_invalid_family_wit
                     ("family_id", first.family_id.into()),
                     (
                         "revoked_at",
-                        crate::db::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
+                        crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now()),
                     ),
                 ])
                 .await?;

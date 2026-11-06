@@ -265,8 +265,8 @@ impl FactorManagementContext {
     #[cfg(feature = "auth-fortify")]
     pub(crate) async fn validate_api_in_transaction(
         &self,
-        db: &crate::db::Db,
-        transaction: &crate::db::sea_orm::DatabaseTransaction,
+        db: &crate::database::Db,
+        transaction: &crate::database::sea_orm::DatabaseTransaction,
     ) -> Result<()> {
         if let Some(authorization) = &self.api_authorization {
             let user_id = self.identifier.as_i64().ok_or(Error::Unauthorized)?;

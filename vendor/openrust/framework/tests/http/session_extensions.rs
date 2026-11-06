@@ -1,12 +1,14 @@
 //! 公开 Session 扩展的身份归属、转移与请求隔离；受控 driver 不替代真实服务证据。
 #![cfg(feature = "session")]
 
+use openrust::Error;
+use openrust::Result;
 use openrust::http::{CookieFactory, CookieJar, CookieOptions};
 use openrust::session::{
     DEFAULT_MAX_BYTES, MemorySessionStore, Session, SessionId, SessionRecord,
     SessionRequestContext, SessionStore, SessionWriteMode, SessionWriteOutcome,
 };
-use openrust::{Error, Result, core::BoxFuture};
+use openrust::support::BoxFuture;
 use serde_json::{Value, json};
 use std::sync::{
     Arc, Mutex,
@@ -559,11 +561,11 @@ fn request_context_has_exact_cookie_names_bounded_ownership_and_redacted_debug()
 }
 
 struct CaptureSession(Arc<Mutex<Option<Session>>>);
-impl openrust::core::ServiceProvider for CaptureSession {
+impl openrust::support::ServiceProvider for CaptureSession {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(self.0.clone()).await?;
             Ok(())
@@ -571,12 +573,12 @@ impl openrust::core::ServiceProvider for CaptureSession {
     }
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| routes.get("/extension/close", capture_session),
@@ -597,7 +599,7 @@ async fn capture_session(
 async fn completed_response_closes_setters_and_request_binding_on_retained_clone() -> Result<()> {
     use openrust::ServiceExt;
     let capture = Arc::new(Mutex::new(None));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(openrust::http::HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
@@ -605,7 +607,7 @@ async fn completed_response_closes_setters_and_request_binding_on_retained_clone
             Probe::default(),
         ))
         .provider(CaptureSession(capture.clone()));
-    let app = openrust::App::from_provider_runtime(
+    let app = openrust::Application::from_provider_runtime(
         builder
             .start(figment::Figment::from(
                 figment::providers::Serialized::defaults(
@@ -615,7 +617,7 @@ async fn completed_response_closes_setters_and_request_binding_on_retained_clone
             .await?,
     )?;
     let outcome: Result<()> = async {
-        let response = openrust::http::build_router(&app)?
+        let response = openrust::foundation::http::build_router(&app)?
             .oneshot(
                 axum::http::Request::get("/extension/close")
                     .header("host", "localhost")
@@ -659,10 +661,10 @@ async fn completed_response_closes_setters_and_request_binding_on_retained_clone
 }
 
 struct ApiErrors;
-impl openrust::core::ServiceProvider for ApiErrors {
+impl openrust::support::ServiceProvider for ApiErrors {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.exceptions(|handler| {
@@ -670,7 +672,7 @@ impl openrust::core::ServiceProvider for ApiErrors {
             })?;
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| {
@@ -752,7 +754,7 @@ async fn binding_or_start_failure_discards_queued_cookies_and_preserves_original
     for fail_bind in [true, false] {
         let mut config = openrust::config::FrameworkConfig::default();
         config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(openrust::http::HttpServiceProvider)
             .provider(ApiErrors)
@@ -763,7 +765,7 @@ async fn binding_or_start_failure_discards_queued_cookies_and_preserves_original
                     context: None,
                 },
             ));
-        let app = openrust::App::from_provider_runtime(
+        let app = openrust::Application::from_provider_runtime(
             builder
                 .start(figment::Figment::from(
                     figment::providers::Serialized::defaults(config),
@@ -771,7 +773,7 @@ async fn binding_or_start_failure_discards_queued_cookies_and_preserves_original
                 .await?,
         )?;
         let outcome: Result<()> = async {
-            let response = openrust::http::build_router(&app)?
+            let response = openrust::foundation::http::build_router(&app)?
                 .oneshot(
                     axum::http::Request::get("/failure")
                         .header("host", "localhost")
@@ -915,11 +917,11 @@ impl SessionStore for GcDriver {
     }
 }
 struct GcRoutes(Arc<GcTrace>);
-impl openrust::core::ServiceProvider for GcRoutes {
+impl openrust::support::ServiceProvider for GcRoutes {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(self.0.clone()).await?;
             Ok(())
@@ -927,7 +929,7 @@ impl openrust::core::ServiceProvider for GcRoutes {
     }
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.exceptions(|handler| {
@@ -935,7 +937,7 @@ impl openrust::core::ServiceProvider for GcRoutes {
             })?;
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| routes.get("/gc", gc_business),
@@ -960,11 +962,11 @@ async fn gc_business(
         json!({"value":session.get_json("business")?}),
     ))
 }
-async fn gc_app(lottery: [u32; 2], mode: u8) -> Result<(openrust::App, Arc<GcTrace>)> {
+async fn gc_app(lottery: [u32; 2], mode: u8) -> Result<(openrust::Application, Arc<GcTrace>)> {
     let trace = Arc::new(GcTrace::default());
     let mut config = openrust::config::FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(openrust::http::HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
@@ -988,7 +990,10 @@ async fn gc_app(lottery: [u32; 2], mode: u8) -> Result<(openrust::App, Arc<GcTra
             figment::providers::Serialized::defaults(config),
         ))
         .await?;
-    Ok((openrust::App::from_provider_runtime(runtime)?, trace))
+    Ok((
+        openrust::Application::from_provider_runtime(runtime)?,
+        trace,
+    ))
 }
 fn gc_request() -> Result<axum::http::Request<axum::body::Body>> {
     axum::http::Request::get("/gc")
@@ -1007,7 +1012,7 @@ async fn gc_lottery_zero_and_full_use_bound_driver_after_start_before_business()
     ] {
         let (app, trace) = gc_app(lottery, 0).await?;
         let outcome: Result<()> = async {
-            let response = openrust::http::build_router(&app)?
+            let response = openrust::foundation::http::build_router(&app)?
                 .oneshot(gc_request()?)
                 .await
                 .map_err(Error::internal)?;
@@ -1034,7 +1039,7 @@ async fn gc_error_discards_queued_cookie_and_never_enters_business_or_save() -> 
     use openrust::ServiceExt;
     let (app, trace) = gc_app([1, 1], 1).await?;
     let outcome: Result<()> = async {
-        let response = openrust::http::build_router(&app)?
+        let response = openrust::foundation::http::build_router(&app)?
             .oneshot(gc_request()?)
             .await
             .map_err(Error::internal)?;
@@ -1080,7 +1085,7 @@ async fn cancelled_gc_drops_request_future_without_business_save_or_background_w
     use openrust::ServiceExt;
     let (app, trace) = gc_app([1, 1], 2).await?;
     let outcome: Result<()> = async {
-        let mut request = Box::pin(openrust::http::build_router(&app)?.oneshot(gc_request()?));
+        let mut request = Box::pin(openrust::foundation::http::build_router(&app)?.oneshot(gc_request()?));
         tokio::select! { ()=trace.entered.notified()=>{}, _=&mut request=>return Err(error()), ()=tokio::time::sleep(std::time::Duration::from_secs(5))=>return Err(error()) }
         drop(request);
         assert_eq!(trace.cancelled.load(Ordering::SeqCst), 1);

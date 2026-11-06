@@ -3,8 +3,8 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::auth::AuthFlows;
-use openrust::db::sea_orm::ConnectionTrait;
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::ConnectionTrait;
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode},
@@ -16,7 +16,7 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 struct Migrator;
 
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -92,7 +92,7 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         .execute_unprepared("INSERT INTO example_record_categories (name) VALUES ('field-types')")
         .await?;
     let category_id = connection
-        .query_one_raw(openrust::db::sea_orm::Statement::from_string(
+        .query_one_raw(openrust::database::sea_orm::Statement::from_string(
             db.backend()?,
             "SELECT id FROM example_record_categories WHERE name = 'field-types'".to_owned(),
         ))

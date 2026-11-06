@@ -1,36 +1,43 @@
 //! 真实SQLite账户/密码/家族的管理grant生命周期；不伪造因子收据。
 use super::*;
+use crate::auth::AuthFlows;
+use crate::auth::Authenticatable;
+use crate::auth::DatabaseUserProvider;
+use crate::auth::DatabaseVerificationCodeStore;
+use crate::auth::GenericUser;
+use crate::auth::LoginAttempt;
+use crate::auth::VerificationCodes;
+use crate::auth::credential::CredentialGuardBinding;
 #[cfg(feature = "db-sqlite")]
 use crate::auth::credential::JwtCredentialGrant;
+use crate::auth::fortify::DatabaseFactorAuthority;
+use crate::auth::fortify::DatabaseTwoFactorState;
+use crate::auth::fortify::FortifyCallbacks;
+use crate::auth::fortify::FortifyConfig;
+use crate::auth::fortify::FortifyJwtApi;
+use crate::auth::fortify::GoogleTwoFactorAuthenticationProvider;
+use crate::auth::fortify::TwoFactorAuthenticatable;
+use crate::auth::fortify::TwoFactorOptions;
+use crate::auth::fortify::TwoFactorState;
+use crate::config::EncryptionConfig;
+use crate::config::JwtConfig;
+use crate::core::RateLimiter;
+use crate::database::DatabaseRateLimitMigration;
+use crate::database::DatabaseRateLimitStore;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::events::Events;
+use crate::events::EventsServiceProvider;
+use crate::foundation::ProviderBuilder;
+use crate::http::RequestInfo;
+use crate::http::axum::body::Body;
+use crate::http::axum::extract::ConnectInfo;
+use crate::http::axum::extract::FromRequestParts;
+use crate::http::axum::http::Request;
 #[cfg(feature = "db-sqlite")]
 use crate::http::axum::http::StatusCode;
-use crate::{
-    auth::fortify::{
-        DatabaseFactorAuthority, DatabaseTwoFactorState, FortifyCallbacks, FortifyConfig,
-        FortifyJwtApi, GoogleTwoFactorAuthenticationProvider, TwoFactorAuthenticatable,
-        TwoFactorOptions, TwoFactorState,
-    },
-    auth::{
-        AuthFlows, Authenticatable, DatabaseUserProvider, DatabaseVerificationCodeStore,
-        GenericUser, LoginAttempt, VerificationCodes, credential::CredentialGuardBinding,
-    },
-    config::{EncryptionConfig, JwtConfig},
-    core::{BoxFuture, ProviderBuilder, RateLimiter},
-    db::{
-        DatabaseRateLimitMigration, DatabaseRateLimitStore,
-        sea_orm_migration::{MigrationTrait, MigratorTrait},
-    },
-    events::{Events, EventsServiceProvider},
-    http::{
-        RequestInfo,
-        axum::{
-            body::Body,
-            extract::{ConnectInfo, FromRequestParts},
-            http::Request,
-        },
-    },
-    testing::TestDatabase,
-};
+use crate::support::BoxFuture;
+use crate::testing::TestDatabase;
 use std::collections::BTreeMap;
 
 const PASSWORD: &str = "api-management-real-password";
@@ -84,14 +91,17 @@ impl Authenticatable for Account {
     fn remember_token_for_cookie(&self) -> Result<Option<String>> {
         self.attributes.remember_token_for_cookie()
     }
-    fn set_remember_token(&self, value: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+    fn set_remember_token(
+        &self,
+        value: Option<String>,
+    ) -> crate::support::BoxFuture<'_, Result<()>> {
         self.attributes.set_remember_token(value)
     }
     fn begin_remember_token_update<'a>(
         &'a self,
         expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+    ) -> crate::support::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
         self.attributes
             .begin_remember_token_update(expected, replacement)
     }
@@ -153,7 +163,7 @@ async fn owned_database<F>(
 where
     F: FnOnce(Fixture) -> BoxFuture<'static, Result<()>>,
 {
-    builder.provider(crate::db::DatabaseServiceProvider);
+    builder.provider(crate::database::DatabaseServiceProvider);
     builder.provider(events);
     let runtime = builder.start(figment::Figment::new()).await?;
     let outcome: Result<()> = async {
@@ -170,7 +180,7 @@ where
             },
         )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
         let password = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), PASSWORD).await?;
-        let now = crate::db::dialect::utc_value(db.backend()?, Utc::now());
+        let now = crate::database::dialect::utc_value(db.backend()?, Utc::now());
         db.table("users")?
             .insert(vec![
                 ("id", 42_i64.into()),
@@ -181,7 +191,7 @@ where
                 ("updated_at", now),
             ])
             .await?;
-        let encrypter = Encryptor::new(EncryptionConfig::new(
+        let encrypter = Encrypter::new(EncryptionConfig::new(
             "test",
             BTreeMap::from([("test".into(), KEY.into())]),
         ))?;
@@ -631,10 +641,10 @@ struct RpcAccountProvider {
 
 #[cfg(feature = "db-sqlite")]
 #[cfg(feature = "grpc")]
-impl crate::core::ServiceProvider for RpcAccountProvider {
+impl crate::support::ServiceProvider for RpcAccountProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
+        app: &'a mut crate::foundation::RegisterContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(self.db.clone())).await?;
@@ -664,7 +674,7 @@ impl crate::core::ServiceProvider for RpcAccountProvider {
 async fn rpc_profile_app(
     fixture: &Fixture,
     resolutions: Arc<std::sync::atomic::AtomicUsize>,
-) -> Result<crate::App> {
+) -> Result<crate::Application> {
     use figment::{Figment, providers::Serialized};
     let (issuer, audience) = fixture.manager.tokens.credential_domain();
     let settings = serde_json::json!({
@@ -693,7 +703,7 @@ async fn rpc_profile_app(
         .provider(crate::auth::JwtServiceProvider)
         .provider(crate::auth::AuthFlowsServiceProvider::new())
         .provider(crate::auth::fortify::FortifyJwtApiServiceProvider::new());
-    crate::App::from_provider_runtime(builder.start(config).await?)
+    crate::Application::from_provider_runtime(builder.start(config).await?)
 }
 
 #[cfg(feature = "db-sqlite")]
@@ -1002,7 +1012,7 @@ async fn session_parent_guard(
 #[cfg(feature = "db-sqlite")]
 #[tokio::test]
 async fn session_exchange_rechecks_new_family_at_the_last_database_hook() -> Result<()> {
-    use crate::db::{TransactionBeforeCommit, sea_orm::ConnectionTrait as _};
+    use crate::database::{TransactionBeforeCommit, sea_orm::ConnectionTrait as _};
     use crate::session::MemorySessionStore;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -1154,7 +1164,7 @@ async fn another_request_deletes_saved_parent_without_changing_the_original_sess
 #[tokio::test]
 async fn session_exchange_observes_database_session_deletion_inside_the_issuance_transaction()
 -> Result<()> {
-    use crate::db::{TransactionBeforeCommit, sea_orm::ConnectionTrait as _};
+    use crate::database::{TransactionBeforeCommit, sea_orm::ConnectionTrait as _};
     use crate::session::{DatabaseSessionStore, GuardedDatabaseSessionStore, SessionStore};
     use std::sync::atomic::{AtomicBool, Ordering};
     let armed = Arc::new(AtomicBool::new(false));
@@ -1257,17 +1267,25 @@ mod event_tests;
 #[cfg(feature = "db-sqlite")]
 mod custom_parent_contract {
     use super::{Fixture, Migrator, PASSWORD, auth_flows, owned, session_parent_guard};
-    use crate::{
-        Error, Result,
-        auth::{AuthUser, Credentials, Guard, StatefulGuard, UserProvider},
-        core::BoxFuture,
-        db::Db,
-        session::{
-            DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore, Session,
-            SessionId, SessionRecord, SessionStore, SessionWriteMode, SessionWriteOutcome,
-        },
-        testing::TestDatabase,
-    };
+    use crate::Error;
+    use crate::Result;
+    use crate::auth::AuthUser;
+    use crate::auth::Credentials;
+    use crate::auth::Guard;
+    use crate::auth::StatefulGuard;
+    use crate::auth::UserProvider;
+    use crate::database::Db;
+    use crate::session::DatabaseSessionStore;
+    use crate::session::GuardedDatabaseSessionStore;
+    use crate::session::MemorySessionStore;
+    use crate::session::Session;
+    use crate::session::SessionId;
+    use crate::session::SessionRecord;
+    use crate::session::SessionStore;
+    use crate::session::SessionWriteMode;
+    use crate::session::SessionWriteOutcome;
+    use crate::support::BoxFuture;
+    use crate::testing::TestDatabase;
     use serde_json::{Map, Value};
     use std::sync::Arc;
     use time::OffsetDateTime;

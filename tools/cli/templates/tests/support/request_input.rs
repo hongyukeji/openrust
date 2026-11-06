@@ -1,11 +1,18 @@
 //! 生成应用在公开 Provider 与 Request API 上的外部消费回归。
 use figment::Figment;
-use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode, header::CONTENT_TYPE},
 };
-use openrust::http::{InputOutcome, Json, Request as InputRequest, Routes, UploadedFile};
+use openrust::http::InputOutcome;
+use openrust::http::Json;
+use openrust::http::Request as InputRequest;
+use openrust::routing::Router;
+use openrust::http::UploadedFile;
 use openrust::support::{ArrayKey, BackedEnum, DateOptions, InputNumber, TimezoneInput};
 use openrust::testing::TestApp;
 use std::time::Duration;
@@ -28,13 +35,13 @@ struct InputRoutesProvider;
 impl ServiceProvider for InputRoutesProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| {
+            app.routes(|routes: Router| {
                 routes
                     .post("/test/request-input", inspect_input)
                     .post("/test/request-file", inspect_file)
                     .route(
                         "/test/request-url",
-                        openrust::http::routing::get(inspect_url).post(inspect_url),
+                        openrust::routing::methods::get(inspect_url).post(inspect_url),
                     )
                     .name("test.request-url")
             })?;
@@ -72,13 +79,13 @@ async fn inspect_file(request: InputRequest) -> openrust::Result<Json<serde_json
 // 保留生成应用的 Provider 与模块装配，只在本测试追加公开路由扩展。
 struct InputApplication<A>(std::marker::PhantomData<fn() -> A>);
 
-impl<A: Application> Application for InputApplication<A> {
+impl<A: ApplicationDefinition> ApplicationDefinition for InputApplication<A> {
     type Config = A::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         A::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         A::default_providers()
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -101,7 +108,7 @@ impl<A: Application> Application for InputApplication<A> {
         providers
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
@@ -191,7 +198,7 @@ async fn inspect_url(mut request: InputRequest) -> openrust::Result<Json<serde_j
 }
 
 /// 通过生成应用自身的 Provider 清单发送进程内请求，不代表 TCP 验收。
-pub async fn assert_request_input<A: Application>(
+pub async fn assert_request_input<A: ApplicationDefinition>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut app = TestApp::<InputApplication<A>>::builder(source)

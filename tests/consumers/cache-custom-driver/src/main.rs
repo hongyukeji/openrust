@@ -8,13 +8,16 @@ use std::{
 
 use async_trait::async_trait;
 use figment::providers::Format;
-use openrust::{
-    BoxFuture, Error, Result,
-    cache::{
-        Cache, CacheBackend, CacheDriver, CacheDriverConfig, CacheScope, CacheServiceProvider,
-    },
-    core::ProviderBuilder,
-};
+use openrust::BoxFuture;
+use openrust::Error;
+use openrust::Result;
+use openrust::cache::Cache;
+use openrust::cache::CacheBackend;
+use openrust::cache::CacheDriver;
+use openrust::cache::CacheDriverConfig;
+use openrust::cache::CacheScope;
+use openrust::cache::CacheServiceProvider;
+use openrust::foundation::ProviderBuilder;
 use tokio::sync::Mutex;
 
 struct PrefixDriver;
@@ -127,8 +130,8 @@ mod tests {
     #[test]
     fn resource_macro_resolves_the_public_framework_dependency() {
         // 框架迁回根工程后，宏必须继续通过下游的 openrust 依赖找到 Resource。
-        let _ = <PublicResource as openrust::http::Resource>::actions(
-            openrust::http::ResourceActions::new(),
+        let _ = <PublicResource as openrust::routing::Resource>::actions(
+            openrust::routing::ResourceActions::new(),
         );
     }
 }

@@ -1,6 +1,6 @@
 //! 字段类型演示实体，使用专属的 `example_records` 表。
 
-use openrust::db::sea_orm::entity::prelude::*;
+use openrust::database::sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "example_records")]

@@ -2,6 +2,7 @@
 
 use openrust::Result;
 use openrust::auth::CurrentUser;
+use openrust::filesystem::Visibility;
 use openrust::http::axum::{
     body::Body,
     extract::Request,
@@ -9,7 +10,6 @@ use openrust::http::axum::{
     response::Response,
 };
 use openrust::http::{Created, Inject, Json, Path, Request as InputRequest, UploadedFile};
-use openrust::storage::Visibility;
 use tokio::io::AsyncReadExt;
 
 use crate::modules::example::http::requests::attachments::AttachmentUpload;

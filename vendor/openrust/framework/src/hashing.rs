@@ -14,7 +14,9 @@ pub use drivers::{Argon2IdHasher, ArgonHasher, BcryptHasher};
 pub use manager::HashManager;
 pub use provider::HashServiceProvider;
 
-use crate::core::{BoxFuture, Error, Result};
+use crate::core::Error;
+use crate::core::Result;
+use crate::support::BoxFuture;
 use std::collections::BTreeMap;
 
 /// 每次调用的上游选项；内置驱动识别 rounds 或 memory/time/threads。

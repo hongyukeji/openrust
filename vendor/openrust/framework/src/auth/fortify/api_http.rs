@@ -1,19 +1,23 @@
 //! JWT API HTTP 入口；挑战和管理授权都不升级为资源凭据。
 
 use super::{FortifyJwtApi, JwtApiFactorManagement};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthCredentials;
+use crate::auth::Credentials;
+use crate::auth::LoginAttempt;
+use crate::http::Inject;
+use crate::http::Request;
 use crate::http::axum::{
     Json,
     http::{HeaderValue, header},
     response::{IntoResponse, Response},
 };
-use crate::{
-    Error, Result,
-    auth::{AuthCredentials, Credentials, LoginAttempt},
-    http::{Inject, Request, RouteGroup, Routes},
-};
+use crate::routing::RouteGroup;
+use crate::routing::Router;
 use serde_json::{Value, json};
 
-pub(super) fn routes(prefix: String, guard: String) -> impl Fn(Routes) -> Routes + Send + Sync {
+pub(super) fn routes(prefix: String, guard: String) -> impl Fn(Router) -> Router + Send + Sync {
     move |routes| {
         routes.group(
             RouteGroup::new()

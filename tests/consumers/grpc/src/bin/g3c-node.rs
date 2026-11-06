@@ -1,11 +1,17 @@
 use std::{env, net::SocketAddr, pin::Pin, time::Duration};
 
 use futures_util::{Stream, stream};
-use openrust::{
-    config::{FrameworkConfig, GrpcConfig},
-    core::{App, BootContext, BoxFuture, ProviderBuilder, ServiceProvider},
-    grpc::{GrpcServer, GrpcServiceProvider, GrpcServiceRegistry, tonic},
-};
+use openrust::config::FrameworkConfig;
+use openrust::config::GrpcConfig;
+use openrust::foundation::Application;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::grpc::GrpcServer;
+use openrust::grpc::GrpcServiceProvider;
+use openrust::grpc::GrpcServiceRegistry;
+use openrust::grpc::tonic;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use tokio::net::TcpListener;
 use tonic::{Request, Response, Status};
 
@@ -106,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     builder
         .provider(GrpcServiceProvider::new())
         .provider(NodeProvider(id.clone()));
-    let app = App::from_provider_runtime(
+    let app = Application::from_provider_runtime(
         builder
             .start(figment::Figment::from(
                 figment::providers::Serialized::defaults(config),

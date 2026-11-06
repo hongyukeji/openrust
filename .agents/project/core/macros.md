@@ -8,7 +8,7 @@
 
 独立 `macros` proc-macro package 位于 `tools/macros/`；应用仍通过 `openrust` facade 调用。
 
-- `#[openrust::resource]` 标注 inherent `impl`，读取其中的 `list` / `get` / `create` / `update` / `delete` 无 receiver、非泛型关联函数，并生成 `openrust::http::Resource` 实现。
+- `#[openrust::resource]` 标注 inherent `impl`，读取其中的 `list` / `get` / `create` / `update` / `delete` 无 receiver、非泛型关联函数，并生成 `openrust::routing::Resource` 实现。
 - 未识别的关联方法保留为普通辅助方法；属性参数、trait impl、动作 receiver 和动作方法泛型会产生编译错误。
 - 门面 `openrust` re-export 宏；同一 workspace 内的 `tests/server/server/aggregate.rs` 集成测试通过 `ResourceMacroApp` 验证动作路由映射。
 

@@ -13,15 +13,16 @@ use axum::body::Bytes;
 use std::io::Write;
 use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 
-use crate::{
-    Error, Result,
-    http::request::{
-        mime::{MimeFile, MimeTypes},
-        raw_body::TempFileReader,
-    },
-    storage::{Storage, StoragePath, UploadOptions, Visibility},
-    support::DataObject,
-};
+use crate::Error;
+use crate::Result;
+use crate::filesystem::FilesystemManager;
+use crate::filesystem::StoragePath;
+use crate::filesystem::UploadOptions;
+use crate::filesystem::Visibility;
+use crate::http::request::mime::MimeFile;
+use crate::http::request::mime::MimeTypes;
+use crate::http::request::raw_body::TempFileReader;
+use crate::support::DataObject;
 
 struct Inner {
     temporary: Arc<tempfile::TempPath>,
@@ -217,7 +218,7 @@ impl UploadedFile {
     }
 
     /// 在默认disk的目录中以服务端随机名存储。
-    pub async fn store(&self, storage: &Storage, directory: &str) -> Result<String> {
+    pub async fn store(&self, storage: &FilesystemManager, directory: &str) -> Result<String> {
         self.store_as(storage, directory, &self.hash_name().await?, None, None)
             .await
     }
@@ -225,7 +226,7 @@ impl UploadedFile {
     /// 以显式名称和可选具名disk存储；对象路径由StoragePath校验。
     pub async fn store_as(
         &self,
-        storage: &Storage,
+        storage: &FilesystemManager,
         directory: &str,
         name: &str,
         disk: Option<&str>,
@@ -265,7 +266,11 @@ impl UploadedFile {
     }
 
     /// 以默认disk的公开可见性存储；public不等于公网可达。
-    pub async fn store_publicly(&self, storage: &Storage, directory: &str) -> Result<String> {
+    pub async fn store_publicly(
+        &self,
+        storage: &FilesystemManager,
+        directory: &str,
+    ) -> Result<String> {
         self.store_as(
             storage,
             directory,
@@ -279,7 +284,7 @@ impl UploadedFile {
     /// 在具名disk以显式名称公开存储。
     pub async fn store_publicly_as(
         &self,
-        storage: &Storage,
+        storage: &FilesystemManager,
         directory: &str,
         name: &str,
         disk: Option<&str>,

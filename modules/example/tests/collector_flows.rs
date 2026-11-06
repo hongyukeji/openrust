@@ -10,8 +10,8 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::Db;
-use openrust::db::sea_orm::{ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
 use openrust::testing::{TestApp, TestDatabase};
 use std::{fmt::Write, net::SocketAddr, path::PathBuf, time::Duration};
@@ -24,7 +24,7 @@ const CHILD: &str = "modules::example::collector_flows::collector_child_runtime"
 const BUDGET: Duration = Duration::from_secs(10);
 const PRIVATE: &str = "COLLECTOR_PRIVATE_INPUT_SENTINEL";
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -235,8 +235,8 @@ impl Fixture {
         connection.execute_raw(Statement::from_string(connection.get_database_backend(),format!("INSERT INTO {users} (id,email,password_hash,email_verified_at,created_at,updated_at) VALUES (1,'collector-fixture@example.test','unused',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"))).await?;
         let token = super::selected_test_auth::seeded_password_access(app.app()?, 1).await?;
         // 复用生产全局桥接；不能用局部测试 subscriber 或另建 SDK 代替出口。
-        openrust::core::lifecycle::init_tracing(&app.app()?.config().log);
-        let router = openrust::http::build_router(app.app()?)?;
+        openrust::foundation::lifecycle::init_tracing(&app.app()?.config().log);
+        let router = openrust::foundation::http::build_router(app.app()?)?;
         let (stop, stopped) = oneshot::channel();
         let server = ListenerTask(tokio::spawn(async move {
             axum::serve(
@@ -343,7 +343,7 @@ async fn business_child(unavailable: bool) -> TestResult {
             .as_i64()
             .ok_or("created article id absent")?;
         stage("initial_flush");
-        tokio::time::timeout(BUDGET, openrust::core::lifecycle::flush_telemetry()).await?;
+        tokio::time::timeout(BUDGET, openrust::foundation::lifecycle::flush_telemetry()).await?;
         if !unavailable {
             stage("collector_delivery");
             await_evidence(&run_id()?, "create", true, initial_evidence).await?;
@@ -384,7 +384,7 @@ async fn business_child(unavailable: bool) -> TestResult {
         stage("shutdown");
         fixture.stop().await?;
         stage("final_flush");
-        tokio::time::timeout(BUDGET, openrust::core::lifecycle::flush_telemetry()).await?;
+        tokio::time::timeout(BUDGET, openrust::foundation::lifecycle::flush_telemetry()).await?;
         if !unavailable {
             stage("final_delivery");
             await_evidence(&run_id()?, "delete", false, before_delete).await?;

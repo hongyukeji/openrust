@@ -21,12 +21,12 @@
 
 | 生产入口 | 已有事实 | 本目标尚缺 |
 | --- | --- | --- |
-| [`ConfigLoader`](../../../src/config/mod.rs) 与 [`ConfigRepository`](../../../src/config/repository.rs) | Figment/`.env`/领域配置；注册 typed section/schema/validator；锁外校验候选后比较进程内 revision 发布；`snapshot` 独立，clone 共享仓储 | 持久 DB revision/CAS/审计、运行时白名单、跨节点刷新与期限；现有 `version` 不是 DB 全局版本 |
-| [`ProviderBuilder::start`](../../../src/core/provider.rs) | 全体 register → validate_base → 顺序 boot/overlay → freeze → finalizers/解析 → Ready；freeze 后拒绝 overlay | 在保留启动冻结语义下新增受控运行时更新路径；不能直接解冻整树或绕过注册屏障 |
-| [`App`/生命周期](../../../src/core/lifecycle.rs) | 已有受管后台任务与 cancellation/join/有界关闭；服务和配置对象可在启动时被解析、持有 | 审计白名单消费者，避免长期持有旧 typed 值；刷新归同一资源所有者，不另起独立 daemon |
-| [`Queue`/`JobRegistry`/`QueueContributions`](../../../src/queue.rs)、[`QueueConfig`](../../../src/config/queue.rs) | 默认 database，任务名显式注册；同库事务派发；DB lease/token、并发、失败与重试；共享内存贡献目录 | 管理权限、参数 schema 和允许策略目录；运行时 worker 并发调整；完整 Laravel after_commit/outbox 对应不能以当前事务方法冒充 |
-| [`Scheduler`](../../../src/schedule.rs) | `entries()` 读取内存贡献；DB 时钟、cron/IANA/DST、有界补跑；slot 与 job 同事务、slot 唯一去重 | DB 可编辑计划/版本/审计/状态；禁用/删除线性化；当前所有计划全局 slot 去重不等于已完成可选 `onOneServer()` 默认语义 |
-| [`Encryptor`](../../../src/security.rs)、[`Storage`](../../../src/storage.rs) | 已有带key ID/context的加密封装；storage manager缓存disk，extend不替换现有实例，purge移除缓存引用 | DB设置secret加密/权限/轮换迁移，以及业务渠道版本构建/原子激活/在途资源管理尚未接入；只更新Repository不重建客户端 |
+| [`ConfigLoader`](../../../vendor/openrust/framework/src/config/mod.rs) 与 [`ConfigRepository`](../../../vendor/openrust/framework/src/config/repository.rs) | Figment/`.env`/领域配置；注册 typed section/schema/validator；锁外校验候选后比较进程内 revision 发布；`snapshot` 独立，clone 共享仓储 | 持久 DB revision/CAS/审计、运行时白名单、跨节点刷新与期限；现有 `version` 不是 DB 全局版本 |
+| [`ProviderBuilder::start`](../../../vendor/openrust/framework/src/foundation/provider.rs) | 全体 register → validate_base → 顺序 boot/overlay → freeze → finalizers/解析 → Ready；freeze 后拒绝 overlay | 在保留启动冻结语义下新增受控运行时更新路径；不能直接解冻整树或绕过注册屏障 |
+| [`Application`/生命周期](../../../vendor/openrust/framework/src/foundation/lifecycle.rs) | 已有受管后台任务与 cancellation/join/有界关闭；服务和配置对象可在启动时被解析、持有 | 审计白名单消费者，避免长期持有旧 typed 值；刷新归同一资源所有者，不另起独立 daemon |
+| [`Queue`/`JobRegistry`/`QueueContributions`](../../../vendor/openrust/framework/src/queue.rs)、[`QueueConfig`](../../../vendor/openrust/framework/src/config/queue.rs) | 默认 database，任务名显式注册；同库事务派发；DB lease/token、并发、失败与重试；共享内存贡献目录 | 管理权限、参数 schema 和允许策略目录；运行时 worker 并发调整；完整 Laravel after_commit/outbox 对应不能以当前事务方法冒充 |
+| [`Scheduler`](../../../vendor/openrust/framework/src/schedule.rs) | `entries()` 读取内存贡献；DB 时钟、cron/IANA/DST、有界补跑；slot 与 job 同事务、slot 唯一去重 | DB 可编辑计划/版本/审计/状态；禁用/删除线性化；当前所有计划全局 slot 去重不等于已完成可选 `onOneServer()` 默认语义 |
+| [`Encrypter`](../../../vendor/openrust/framework/src/encryption.rs)、[`FilesystemManager`](../../../vendor/openrust/framework/src/filesystem.rs) | 已有带key ID/context的加密封装；storage manager缓存disk，extend不替换现有实例，purge移除缓存引用 | DB设置secret加密/权限/轮换迁移，以及业务渠道版本构建/原子激活/在途资源管理尚未接入；只更新Repository不重建客户端 |
 | [队列/调度事实](../core/queue.md)、[调度事实](../core/schedule.md) | 有旧双库/Redis、多进程和故障专项记录 | 本轮未执行任何服务或 Cargo 验证，不能把旧证据计入新目标完成 |
 
 ## 固定源码参照与取舍

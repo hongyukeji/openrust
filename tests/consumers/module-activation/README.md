@@ -16,7 +16,7 @@ fixture 编译生成应用真实的 `app/bootstrap/config/modules/routes` 入口
 
 测试从原应用 `config()` 取得清单，再用公开 `application_code_sources_with_overrides` 指定包含显式应用身份/URL的 Testing、独立 `application_root`、`state/modules.json` 与 memory 缓存。来源加载以私有临时目录和独立命名空间为根，没有该目录的 dotenv 文件，不读取生成应用或框架部署的 dotenv，不改它们的状态文件；不要求真实 DB/Redis。memory store 按既有扁平选项结构配置，不使用额外 `options` 子表。
 
-实际 `TestApp` 和 `App::run_command` 验证未知第二名称零写、`--all` 覆盖显式错误名称、大小写/Studly 参数写 canonical 状态键。禁用后当前 App 路由仍可用，下一 App 不加载模块而宿主 `/api` 保留；再启用不热挂第二 App，第三 App 才重新加载。断言同时检查公开 `ModuleRepository`/`Module` 的 loaded 与持久 enabled 状态、未知值保留。
+实际 `TestApp` 和 `Application::run_command` 验证未知第二名称零写、`--all` 覆盖显式错误名称、大小写/Studly 参数写 canonical 状态键。禁用后当前 App 路由仍可用，下一 App 不加载模块而宿主 `/api` 保留；再启用不热挂第二 App，第三 App 才重新加载。断言同时检查公开 `ModuleRepository`/`Module` 的 loaded 与持久 enabled 状态、未知值保留。
 
 所有返回错误的分支都会先尝试异步关闭全部已建立的 App，再清理由原子建目录和归属标记保护的自有临时目录。该测试使用进程内公开 Router；真实 TCP/跨进程重启及文件写并发仍由对应主控门禁单独验收。
 

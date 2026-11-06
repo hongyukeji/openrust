@@ -1,9 +1,10 @@
 //! 根应用显式选择认证传输；缺省保留官方 Fortify Web 模式。
+use openrust::Result;
 use openrust::auth::fortify::{FortifyJwtApiServiceProvider, FortifyServiceProvider};
-use openrust::{
-    Result,
-    core::{BootContext, BoxFuture, RegisterContext, ServiceProvider},
-};
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// 按应用编译配置选择同一 Fortify 能力的官方 Web 或 JWT API 装配。

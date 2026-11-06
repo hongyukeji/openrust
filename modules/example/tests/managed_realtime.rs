@@ -1,16 +1,20 @@
 //! 经真实示例路由和数据库家族撤销的SSE集成fixture，不创建替代应用或控制器。
 
 use http_body_util::BodyExt as _;
+use openrust::Db;
+use openrust::Error;
+use openrust::Result;
+use openrust::foundation::ApplicationDefinition;
 use openrust::http::axum::{
     body::Body,
     extract::ConnectInfo,
     http::{Request, StatusCode, header},
 };
-use openrust::{Db, Error, Result, core::Application, testing::TestApp};
+use openrust::testing::TestApp;
 use serde_json::json;
 use std::time::Duration;
 
-pub(crate) async fn exercise<A: Application>(
+pub(crate) async fn exercise<A: ApplicationDefinition>(
     fixture: &TestApp<A>,
     user_id: i64,
     token: &str,

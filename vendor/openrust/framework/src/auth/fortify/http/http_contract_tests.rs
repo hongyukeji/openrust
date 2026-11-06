@@ -1,22 +1,40 @@
 //! 生产Web保护、真实SessionGuard及公开响应/路由扩展的HTTP组合回归。
 use super::*;
-use crate::{
-    auth::fortify::{FortifyServiceProvider, TwoFactorAuthenticatable, TwoFactorState},
-    auth::{
-        AuthCredential, AuthDrivers, AuthPrincipal, AuthServiceProvider, Authenticatable,
-        Authenticator, GenericUser, UserProvider,
-    },
-    cache::CacheServiceProvider,
-    config::{FrameworkConfig, HttpStatusMode, NoConfig},
-    core::{
-        Application, BootContext, BoxFuture, DefaultProviders, RateLimitBucket, RateLimitFuture,
-        RateLimitStore, RateLimiter, RegisterContext, ServiceProvider,
-    },
-    events::EventsServiceProvider,
-    http::{CookieServiceProvider, HttpServiceProvider, Request as ParsedRequest, RequestInfo},
-    session::{MemorySessionStore, Session, SessionServiceProvider},
-    testing::{TestApp, TestResponse},
-};
+use crate::auth::AuthCredential;
+use crate::auth::AuthDrivers;
+use crate::auth::AuthPrincipal;
+use crate::auth::AuthServiceProvider;
+use crate::auth::Authenticatable;
+use crate::auth::Authenticator;
+use crate::auth::GenericUser;
+use crate::auth::UserProvider;
+use crate::auth::fortify::FortifyServiceProvider;
+use crate::auth::fortify::TwoFactorAuthenticatable;
+use crate::auth::fortify::TwoFactorState;
+use crate::cache::CacheServiceProvider;
+use crate::config::FrameworkConfig;
+use crate::config::HttpStatusMode;
+use crate::config::NoConfig;
+use crate::core::RateLimitBucket;
+use crate::core::RateLimitFuture;
+use crate::core::RateLimitStore;
+use crate::core::RateLimiter;
+use crate::events::EventsServiceProvider;
+use crate::foundation::ApplicationDefinition;
+use crate::foundation::BootContext;
+use crate::foundation::RegisterContext;
+use crate::http::CookieServiceProvider;
+use crate::http::HttpServiceProvider;
+use crate::http::Request as ParsedRequest;
+use crate::http::RequestInfo;
+use crate::session::MemorySessionStore;
+use crate::session::Session;
+use crate::session::SessionServiceProvider;
+use crate::support::BoxFuture;
+use crate::support::DefaultProviders;
+use crate::support::ServiceProvider;
+use crate::testing::TestApp;
+use crate::testing::TestResponse;
 use axum::{
     extract::{Path, State},
     http::{Method, Request as RawRequest, header},
@@ -69,14 +87,17 @@ impl Authenticatable for Account {
     fn remember_token_for_cookie(&self) -> Result<Option<String>> {
         self.attributes.remember_token_for_cookie()
     }
-    fn set_remember_token(&self, token: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+    fn set_remember_token(
+        &self,
+        token: Option<String>,
+    ) -> crate::support::BoxFuture<'_, Result<()>> {
         self.attributes.set_remember_token(token)
     }
     fn begin_remember_token_update<'a>(
         &'a self,
         expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+    ) -> crate::support::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
         self.attributes
             .begin_remember_token_update(expected, replacement)
     }
@@ -282,7 +303,7 @@ impl TwoFactorEnabledResponse for CustomResponses {
     }
 }
 struct App<const MODE: u8>;
-impl<const MODE: u8> Application for App<MODE> {
+impl<const MODE: u8> ApplicationDefinition for App<MODE> {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -290,7 +311,7 @@ impl<const MODE: u8> Application for App<MODE> {
     fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
         vec![
             Box::new(HttpServiceProvider),
-            Box::new(crate::security::EncryptionServiceProvider),
+            Box::new(crate::encryption::EncryptionServiceProvider),
             Box::new(CookieServiceProvider::new()),
             Box::new(SessionServiceProvider::with_store(
                 MemorySessionStore::default(),

@@ -10,11 +10,11 @@ use super::http::requests::article_transfer::{ArticleFormat, MAX_TRANSFER_BYTES}
 use super::models::article;
 use super::services::article_transfer::encode_export;
 use figment::{Figment, providers::Serialized};
-use openrust::db::sea_orm::{
+use openrust::database::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait,
     QueryFilter, Statement,
 };
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
     body::Body,
     http::{HeaderMap, HeaderValue, Request, StatusCode},
@@ -54,7 +54,7 @@ fn format_contract_rejects_ambiguous_mime_and_declared_oversize() -> Result<()> 
 }
 
 struct TransferMigrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for TransferMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -540,7 +540,7 @@ async fn queued_import_failed_batch_rolls_back_and_retry_keeps_committed_batches
     run_cleanup(&fixture, 1, &import_id, 0, receipt.created_at_ms + 1).await?;
     assert!(fixture.directory.path().join(&receipt.source_key).exists());
     let sql = match connection.get_database_backend() {
-        openrust::db::sea_orm::DbBackend::MySql => {
+        openrust::database::sea_orm::DbBackend::MySql => {
             "ALTER TABLE example_articles DROP CHECK chk_transfer_title"
         }
         _ => "ALTER TABLE example_articles DROP CONSTRAINT chk_transfer_title",
@@ -639,7 +639,7 @@ async fn source_cleanup_retains_pending_and_running_import_then_removes_only_ter
 -> TestResult {
     use super::models::article_import;
     use super::services::article_transfer::ArticleImportJob;
-    use openrust::db::{LockAcquire, SharedLocks};
+    use openrust::database::{LockAcquire, SharedLocks};
     use openrust::queue::{Job, JobContext, JobRegistry, Queue};
     let Some(fixture) = Fixture::create().await? else {
         return Ok(());
@@ -967,7 +967,7 @@ async fn real_tcp_import_upload_worker_and_owner_report() -> TestResult {
     };
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
-    let router = openrust::http::build_router(fixture.app.app()?)?;
+    let router = openrust::foundation::http::build_router(fixture.app.app()?)?;
     let (stop, stopped) = oneshot::channel::<()>();
     let server = tokio::spawn(async move {
         openrust::http::axum::serve(

@@ -2,7 +2,7 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::FrameworkConfig;
-use openrust::core::ProviderId;
+use openrust::foundation::ProviderId;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -28,6 +28,7 @@ async fn removing_business_child_does_not_remove_module_parent_or_restore_child(
     .map_err(Error::internal)?;
     let source = Figment::from(Serialized::defaults(FrameworkConfig::default())).merge(
         Serialized::defaults(json!({
+            "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
             "application_root": root.path(),
             "app": {"env": "testing"},
             "database": {"url": null, "instances": {}, "read_replicas": []},

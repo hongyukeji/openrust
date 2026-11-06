@@ -183,26 +183,28 @@ impl LiveSessionCredential {
 #[cfg(all(test, feature = "db-sqlite"))]
 mod tests {
     use super::*;
-    use crate::{
-        auth::{
-            AuthUser, Authenticatable, DatabaseUserProvider, GenericUser, SessionGuard,
-            fortify::{
-                DatabaseFactorAuthority, DatabaseTwoFactorState, FactorAuthorityMigration,
-                FactorAuthorityMutation, FortifyTwoFactorMigration, TwoFactorAuthenticatable,
-                TwoFactorState,
-            },
-        },
-        config::EncryptionConfig,
-        core::BoxFuture,
-        db::{
-            Db,
-            sea_orm_migration::{MigrationTrait, MigratorTrait},
-        },
-        http::{CookieFactory, CookieJar},
-        security::Encryptor,
-        session::MemorySessionStore,
-        testing::TestDatabase,
-    };
+    use crate::auth::AuthUser;
+    use crate::auth::Authenticatable;
+    use crate::auth::DatabaseUserProvider;
+    use crate::auth::GenericUser;
+    use crate::auth::SessionGuard;
+    use crate::auth::fortify::DatabaseFactorAuthority;
+    use crate::auth::fortify::DatabaseTwoFactorState;
+    use crate::auth::fortify::FactorAuthorityMigration;
+    use crate::auth::fortify::FactorAuthorityMutation;
+    use crate::auth::fortify::FortifyTwoFactorMigration;
+    use crate::auth::fortify::TwoFactorAuthenticatable;
+    use crate::auth::fortify::TwoFactorState;
+    use crate::config::EncryptionConfig;
+    use crate::database::Db;
+    use crate::database::sea_orm_migration::MigrationTrait;
+    use crate::database::sea_orm_migration::MigratorTrait;
+    use crate::encryption::Encrypter;
+    use crate::http::CookieFactory;
+    use crate::http::CookieJar;
+    use crate::session::MemorySessionStore;
+    use crate::support::BoxFuture;
+    use crate::testing::TestDatabase;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use std::collections::BTreeMap;
     struct Migrator;
@@ -283,7 +285,7 @@ mod tests {
             string_attribute(&self.attributes, username)
         }
     }
-    async fn guard(db: &Db, encrypter: &Encryptor, session: Session) -> Result<SessionGuard> {
+    async fn guard(db: &Db, encrypter: &Encrypter, session: Session) -> Result<SessionGuard> {
         let model_db = db.clone();
         let crypto = encrypter.clone();
         let provider = DatabaseUserProvider::new(
@@ -331,7 +333,7 @@ mod tests {
     struct Fixture {
         database: TestDatabase,
         db: Db,
-        encrypter: Encryptor,
+        encrypter: Encrypter,
         policy: CredentialAuthority,
         session: Session,
         sessions: super::super::SessionStoreHandle,
@@ -343,8 +345,10 @@ mod tests {
             let setup: Result<_> = async {
                 let db = Db::default();
                 db.initialize(database.connection()?)?;
-                let now =
-                    crate::db::dialect::utc_value(crate::db::DbBackend::Sqlite, chrono::Utc::now());
+                let now = crate::database::dialect::utc_value(
+                    crate::database::DbBackend::Sqlite,
+                    chrono::Utc::now(),
+                );
                 db.table("users")?
                     .insert(vec![
                         ("id", 42_i64.into()),
@@ -354,7 +358,7 @@ mod tests {
                         ("updated_at", now),
                     ])
                     .await?;
-                let encrypter = Encryptor::new(EncryptionConfig::new(
+                let encrypter = Encrypter::new(EncryptionConfig::new(
                     "owned",
                     BTreeMap::from([("owned".into(), STANDARD.encode([18_u8; 32]))]),
                 ))?;
@@ -410,19 +414,21 @@ mod tests {
         reason = "同一真实Redis与隔离数据库贯穿两种派生及回滚"
     )]
     async fn redis_parent_deleted_before_commit_rolls_back_jwt_and_pat() -> Result<()> {
-        use crate::{
-            auth::{
-                AuthFlows, DatabaseVerificationCodeStore, JwtConfig, JwtTokens,
-                PersonalAccessTokens, RefreshTokens, VerificationCodes,
-            },
-            core::{ProviderBuilder, RateLimiter},
-            db::{
-                DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseServiceProvider,
-                TransactionBeforeCommit,
-            },
-            events::EventsServiceProvider,
-            session::RedisSessionStore,
-        };
+        use crate::auth::AuthFlows;
+        use crate::auth::DatabaseVerificationCodeStore;
+        use crate::auth::JwtConfig;
+        use crate::auth::JwtTokens;
+        use crate::auth::PersonalAccessTokens;
+        use crate::auth::RefreshTokens;
+        use crate::auth::VerificationCodes;
+        use crate::core::RateLimiter;
+        use crate::database::DatabaseRateLimitMigration;
+        use crate::database::DatabaseRateLimitStore;
+        use crate::database::DatabaseServiceProvider;
+        use crate::database::TransactionBeforeCommit;
+        use crate::events::EventsServiceProvider;
+        use crate::foundation::ProviderBuilder;
+        use crate::session::RedisSessionStore;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         fn stage(name: &'static str, error: &Error) -> Error {
@@ -501,8 +507,10 @@ mod tests {
         let outcome: Result<()> = async {
             let db = (*runtime.container().resolve::<Db>().await?).clone();
             db.initialize(database.connection()?)?;
-            let now =
-                crate::db::dialect::utc_value(crate::db::DbBackend::Sqlite, chrono::Utc::now());
+            let now = crate::database::dialect::utc_value(
+                crate::database::DbBackend::Sqlite,
+                chrono::Utc::now(),
+            );
             db.table("users")?
                 .insert(vec![
                     ("id", 42_i64.into()),
@@ -512,7 +520,7 @@ mod tests {
                     ("updated_at", now),
                 ])
                 .await?;
-            let encrypter = Encryptor::new(EncryptionConfig::new(
+            let encrypter = Encrypter::new(EncryptionConfig::new(
                 "owned",
                 BTreeMap::from([("owned".into(), STANDARD.encode([18_u8; 32]))]),
             ))?;
@@ -916,7 +924,7 @@ mod tests {
         use crate::auth::Guard as _;
         use crate::auth::fortify::{GoogleTwoFactorAuthenticationProvider, TwoFactorActions};
         let fixture = Fixture::new().await?;
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(crate::events::EventsServiceProvider::new());
         let runtime = match builder.start(figment::Figment::new()).await {
             Ok(runtime) => runtime,

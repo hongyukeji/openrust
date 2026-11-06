@@ -7,9 +7,11 @@ use std::sync::{
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::{FrameworkConfig, HttpStatusMode, NoConfig};
-use openrust::core::{
-    Application, BootContext, BoxFuture, RegisterContext, ReportDecision, Result, ServiceProvider,
-};
+use openrust::core::Result;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
+use openrust::foundation::ReportDecision;
 use openrust::http::{
     HttpServiceProvider,
     axum::{
@@ -18,6 +20,8 @@ use openrust::http::{
         response::IntoResponse,
     },
 };
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 
 #[derive(Debug)]
@@ -82,11 +86,11 @@ async fn fail() -> Result<()> {
 }
 
 struct ConsumerApp;
-impl Application for ConsumerApp {
+impl ApplicationDefinition for ConsumerApp {
     type Config = NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
     fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {

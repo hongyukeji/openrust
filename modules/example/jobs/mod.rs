@@ -7,8 +7,12 @@ use std::time::Duration;
 pub(crate) mod article_index;
 pub mod example_heartbeat;
 
-use openrust::core::{BootContext, BoxFuture, RegisterContext, Result, ServiceProvider};
+use openrust::core::Result;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
 use openrust::queue::{Job, QueueContributions};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 
 /// 使用共享队列贡献目录登记示例任务与调度。
 pub struct JobsServiceProvider;
@@ -24,7 +28,7 @@ impl ServiceProvider for JobsServiceProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(HeartbeatSequence(AtomicU64::new(0))))
                 .await?;
@@ -79,7 +83,9 @@ impl ServiceProvider for JobsServiceProvider {
 mod tests {
     use super::*;
     use openrust::config::FrameworkConfig;
-    use openrust::core::{App, Cancellation, ProviderBuilder};
+    use openrust::core::Cancellation;
+    use openrust::foundation::Application;
+    use openrust::foundation::ProviderBuilder;
     use openrust::queue::{JobContext, JobRegistry};
 
     #[tokio::test]
@@ -89,7 +95,7 @@ mod tests {
             fn register<'a>(
                 &'a self,
                 app: &'a mut RegisterContext<'_>,
-            ) -> openrust::core::BoxFuture<'a, Result<()>> {
+            ) -> openrust::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.instance(Arc::new(QueueContributions::default()))
                         .await?;
@@ -106,7 +112,7 @@ mod tests {
                 figment::providers::Serialized::defaults(FrameworkConfig::default()),
             ))
             .await?;
-        let app = App::from_provider_runtime(runtime)?;
+        let app = Application::from_provider_runtime(runtime)?;
         let mut jobs = JobRegistry::default();
         jobs.register_job::<example_heartbeat::ExampleHeartbeatJob>()?;
         for attempt in 1..=2 {

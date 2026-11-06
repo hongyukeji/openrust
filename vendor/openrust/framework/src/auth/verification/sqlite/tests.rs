@@ -3,9 +3,9 @@ use super::*;
 use crate::auth::verification::{
     DatabaseVerificationCodeStore, VerificationCodeStore, VerificationCodes,
 };
-use crate::core::BoxFuture;
-use crate::db::Db;
-use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use crate::database::Db;
+use crate::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use crate::support::BoxFuture;
 use crate::testing::TestDatabase;
 use std::time::Duration;
 

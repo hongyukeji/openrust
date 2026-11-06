@@ -25,16 +25,16 @@ pub struct CloudIngress;
 pub(crate) fn is_secure(request: &Request) -> Result<bool> {
     request
         .extensions()
-        .get::<super::proxy::ProxySnapshot>()
+        .get::<crate::http::proxy::ProxySnapshot>()
         .cloned()
         .unwrap_or_else(|| {
-            super::proxy::ProxySnapshot::capture(
+            crate::http::proxy::ProxySnapshot::capture(
                 request.headers(),
                 request.uri(),
                 request.extensions(),
                 request
                     .extensions()
-                    .get::<crate::core::AppState>()
+                    .get::<crate::foundation::ApplicationState>()
                     .map(|state| &state.config().server),
             )
         })

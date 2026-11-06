@@ -3,7 +3,7 @@
 use crate::bootstrap::Server;
 use openrust::auth::{AuthFlows, JwtTokens, fortify::FortifyJwtApi};
 use openrust::config::{ConfigLoader, ConfigSources};
-use openrust::core::ProviderId;
+use openrust::foundation::ProviderId;
 use openrust::http::axum::{
     body::Body,
     extract::ConnectInfo,
@@ -478,9 +478,9 @@ impl openrust::auth::ApiLoginAuditSink for CancellableAudit {
     }
     fn record_in_transaction<'a>(
         &'a self,
-        tx: &'a openrust::db::DatabaseTransaction,
+        tx: &'a openrust::database::DatabaseTransaction,
         id: i64,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             self.inner.record_in_transaction(tx, id).await?;
             if self
@@ -715,7 +715,7 @@ async fn sqlite_root_jwt_api_without_session_or_cookie_provider() -> Result<()> 
 #[tokio::test]
 #[ignore = "需要 OPENRUST_TEST_DATABASE_URL 指向真实 MySQL"]
 async fn mysql_root_jwt_api_without_session_or_cookie_provider() -> Result<()> {
-    use openrust::db::sea_orm::DbBackend;
+    use openrust::database::sea_orm::DbBackend;
     let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
     let db = TestDatabase::create::<crate::database::Migrator>(&url).await?;
     assert_eq!(db.connection()?.get_database_backend(), DbBackend::MySql);
@@ -726,7 +726,7 @@ async fn mysql_root_jwt_api_without_session_or_cookie_provider() -> Result<()> {
 #[tokio::test]
 #[ignore = "需要 OPENRUST_TEST_DATABASE_URL 指向真实 PostgreSQL"]
 async fn postgres_root_jwt_api_without_session_or_cookie_provider() -> Result<()> {
-    use openrust::db::sea_orm::DbBackend;
+    use openrust::database::sea_orm::DbBackend;
     let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
     let db = TestDatabase::create::<crate::database::Migrator>(&url).await?;
     assert_eq!(db.connection()?.get_database_backend(), DbBackend::Postgres);
@@ -737,11 +737,11 @@ async fn postgres_root_jwt_api_without_session_or_cookie_provider() -> Result<()
 struct ChangeRegisteredProfile;
 
 #[cfg(feature = "db-sqlite")]
-impl openrust::core::ServiceProvider for ChangeRegisteredProfile {
+impl openrust::support::ServiceProvider for ChangeRegisteredProfile {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.config_repository()
                 .set("auth-profile", json!("jwt-api"))?;
@@ -770,7 +770,7 @@ async fn default_root_uses_web_and_rejects_unknown_profiles() -> Result<()> {
             .figment()
             .extract::<crate::bootstrap::Configuration>()
             .map_err(Error::internal)?;
-        let mut changed = openrust::core::ProviderBuilder::for_application::<Server>(&config);
+        let mut changed = openrust::foundation::ProviderBuilder::for_application::<Server>(&config);
         changed
             .remove_module("example")
             .provider(ChangeRegisteredProfile);
@@ -887,11 +887,11 @@ async fn example_account_resource_requires_the_selected_api_guard() -> Result<()
 #[cfg(feature = "db-sqlite")]
 struct ApiShortCircuit;
 #[cfg(feature = "db-sqlite")]
-impl openrust::core::ServiceProvider for ApiShortCircuit {
+impl openrust::support::ServiceProvider for ApiShortCircuit {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.middleware_alias(
                 "test-api-failure",
@@ -927,22 +927,27 @@ impl openrust::core::ServiceProvider for ApiShortCircuit {
 #[cfg(feature = "db-sqlite")]
 struct ApiGroupApplication;
 #[cfg(feature = "db-sqlite")]
-impl openrust::core::Application for ApiGroupApplication {
-    type Config = <Server as openrust::core::Application>::Config;
+impl openrust::foundation::ApplicationDefinition for ApiGroupApplication {
+    type Config = <Server as openrust::foundation::ApplicationDefinition>::Config;
     fn config() -> openrust::config::ConfigManifest {
-        <Server as openrust::core::Application>::config()
+        <Server as openrust::foundation::ApplicationDefinition>::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
-        <Server as openrust::core::Application>::default_providers()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        <Server as openrust::foundation::ApplicationDefinition>::default_providers()
     }
-    fn additional_providers() -> Vec<Box<dyn openrust::core::ServiceProvider>> {
+    fn additional_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>> {
         vec![Box::new(ApiShortCircuit)]
     }
-    fn providers(config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
-        <Server as openrust::core::Application>::providers(config)
+    fn providers(config: &Self::Config) -> Vec<Box<dyn openrust::support::ServiceProvider>> {
+        <Server as openrust::foundation::ApplicationDefinition>::providers(config)
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
-        <Server as openrust::core::Application>::configure_providers(config, builder);
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
+        <Server as openrust::foundation::ApplicationDefinition>::configure_providers(
+            config, builder,
+        );
     }
 }
 

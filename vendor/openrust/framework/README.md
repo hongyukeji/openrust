@@ -4,4 +4,4 @@ OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀�
 
 框架源码位于 `src/lib.rs`；宿主应用、bootstrap 和唯一综合示例保留在仓库根目录。默认启动在根执行 `cargo run`。
 
-功能与尚未完成的对应以[用户指南](../../../docs/src/SUMMARY.md)为准；当前目录拆分仍在验收中，不表示全量 Laravel 能力已完成。
+功能与尚未完成的对应以[用户指南](../../../docs/src/SUMMARY.md)为准；独立框架包拆分已由 `44632383` 完成限定验收；后续命名空间迁移及全量 Laravel 能力仍须分别验收。

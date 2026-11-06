@@ -2,7 +2,8 @@
 
 use super::*;
 use futures_util::FutureExt as _;
-use openrust::http::{Redirector, RequestInfo};
+use openrust::http::RequestInfo;
+use openrust::routing::Redirector;
 use std::collections::BTreeMap;
 use std::sync::{
     Arc,
@@ -10,10 +11,10 @@ use std::sync::{
 };
 
 struct GlobalExcept;
-impl openrust::core::ServiceProvider for GlobalExcept {
+impl openrust::support::ServiceProvider for GlobalExcept {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.signed_url_except(["global"])?;
@@ -22,7 +23,7 @@ impl openrust::core::ServiceProvider for GlobalExcept {
     }
 }
 
-async fn issue(urls: RouteUrlGenerator) -> openrust::Result<Json<serde_json::Value>> {
+async fn issue(urls: UrlGenerator) -> openrust::Result<Json<serde_json::Value>> {
     let params = BTreeMap::from([
         ("id".to_owned(), "42".to_owned()),
         ("kind".to_owned(), "draft".to_owned()),
@@ -56,11 +57,11 @@ async fn redirect(info: RequestInfo) -> openrust::Result<Response> {
 
 async fn fixture_with_except(
     except: bool,
-) -> Result<(openrust::App, axum::Router, Arc<AtomicUsize>), Box<dyn std::error::Error>> {
+) -> Result<(openrust::Application, axum::Router, Arc<AtomicUsize>), Box<dyn std::error::Error>> {
     let mut config = FrameworkConfig::default();
     config.app.url = "http://signed.example".into();
     config.app.key = Some("base64:YWJj".into());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     let calls = Arc::new(AtomicUsize::new(0));
     if except {
         builder.provider(GlobalExcept);
@@ -112,13 +113,13 @@ async fn fixture_with_except(
             figment::providers::Serialized::defaults(config),
         ))
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     Ok((app, router, calls))
 }
 
 async fn fixture()
--> Result<(openrust::App, axum::Router, Arc<AtomicUsize>), Box<dyn std::error::Error>> {
+-> Result<(openrust::Application, axum::Router, Arc<AtomicUsize>), Box<dyn std::error::Error>> {
     fixture_with_except(false).await
 }
 

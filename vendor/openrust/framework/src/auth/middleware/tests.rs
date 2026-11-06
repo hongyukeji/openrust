@@ -1,22 +1,36 @@
 //! 实际HTTP scope、参数alias、CurrentUser投影与密码确认存储保护回归。
 use super::*;
-use crate::{
-    auth::{
-        AuthCredential, AuthDrivers, AuthPrincipal, AuthServiceProvider, AuthUser, Authenticator,
-        Credentials, CurrentUser, GenericUser, Guard,
-    },
-    config::{FrameworkConfig, HttpStatusMode, NoConfig},
-    core::{
-        Application, BootContext, BoxFuture, DefaultProviders, RegisterContext, ServiceProvider,
-        container::Scope,
-    },
-    http::{
-        CookieFactory, CookieOptions, CookieServiceProvider, HttpServiceProvider, Inject,
-        RouteGroup,
-    },
-    session::{MemorySessionStore, Session, SessionServiceProvider},
-    testing::{TestApp, TestResponse},
-};
+use crate::auth::AuthCredential;
+use crate::auth::AuthDrivers;
+use crate::auth::AuthPrincipal;
+use crate::auth::AuthServiceProvider;
+use crate::auth::AuthUser;
+use crate::auth::Authenticator;
+use crate::auth::Credentials;
+use crate::auth::CurrentUser;
+use crate::auth::GenericUser;
+use crate::auth::Guard;
+use crate::config::FrameworkConfig;
+use crate::config::HttpStatusMode;
+use crate::config::NoConfig;
+use crate::container::Scope;
+use crate::foundation::ApplicationDefinition;
+use crate::foundation::BootContext;
+use crate::foundation::RegisterContext;
+use crate::http::CookieFactory;
+use crate::http::CookieOptions;
+use crate::http::CookieServiceProvider;
+use crate::http::HttpServiceProvider;
+use crate::http::Inject;
+use crate::routing::RouteGroup;
+use crate::session::MemorySessionStore;
+use crate::session::Session;
+use crate::session::SessionServiceProvider;
+use crate::support::BoxFuture;
+use crate::support::DefaultProviders;
+use crate::support::ServiceProvider;
+use crate::testing::TestApp;
+use crate::testing::TestResponse;
 use axum::{
     Extension, Json,
     body::Body,
@@ -90,7 +104,7 @@ impl ServiceProvider for NullGuestRedirect {
     }
 }
 struct App<const MODE: u8>;
-impl<const MODE: u8> Application for App<MODE> {
+impl<const MODE: u8> ApplicationDefinition for App<MODE> {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -112,7 +126,7 @@ impl<const MODE: u8> Application for App<MODE> {
         }
         #[cfg(feature = "encryption")]
         if MODE == 2 {
-            providers.push(Box::new(crate::security::EncryptionServiceProvider));
+            providers.push(Box::new(crate::encryption::EncryptionServiceProvider));
             providers.push(Box::new(
                 CookieServiceProvider::new().except([NAME, FORGED_ID]),
             ));
@@ -121,12 +135,12 @@ impl<const MODE: u8> Application for App<MODE> {
         }
         #[cfg(not(feature = "encryption"))]
         providers.push(Box::new(CookieServiceProvider::plain()));
-        providers.push(Box::new(Routes));
+        providers.push(Box::new(Router));
         providers
     }
 }
-struct Routes;
-impl ServiceProvider for Routes {
+struct Router;
+impl ServiceProvider for Router {
     fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move { app.instance(Arc::new(Calls::default())).await })
     }

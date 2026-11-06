@@ -16,29 +16,44 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 #[cfg(feature = "auth-fortify")]
 use hmac::{Hmac, Mac, digest::KeyInit};
+use openrust::Error;
+use openrust::Result;
+use openrust::audit::DatabaseAuditMigration;
+use openrust::audit::DatabaseAuditTenantMigration;
+use openrust::auth::AuthExternalIdentityMigration;
+use openrust::auth::AuthExternalSessionMigration;
+use openrust::auth::AuthFlows;
+use openrust::auth::AuthFlowsServiceProvider;
+use openrust::auth::AuthMigration;
+use openrust::auth::AuthRefreshTokenMigration;
+use openrust::auth::AuthVerificationCodeMigration;
+use openrust::auth::BackchannelLogoutOutcome;
+use openrust::auth::DatabaseVerificationCodeStore;
+use openrust::auth::ExternalIdentityFlows;
+use openrust::auth::ExternalIdentityProvider;
+use openrust::auth::JwtConfig;
+use openrust::auth::JwtTokens;
+use openrust::auth::OidcAuthorization;
+use openrust::auth::RefreshTokens;
+use openrust::auth::Session;
+use openrust::auth::SessionStoreHandle;
+use openrust::auth::VerifiedExternalIdentity;
+use openrust::auth::VerifiedLogoutToken;
+use openrust::config::EncryptionConfig;
 use openrust::config::FrameworkConfig;
+use openrust::core::RateLimiter;
+use openrust::database::DatabaseBackend;
+use openrust::database::DatabaseRateLimitMigration;
+use openrust::database::DatabaseRateLimitStore;
+use openrust::database::DatabaseTableNames;
+use openrust::database::Db;
+use openrust::database::sea_orm::ConnectionTrait;
+use openrust::database::sea_orm::Statement;
+use openrust::database::sea_orm_migration::MigratorTrait;
+use openrust::database::sea_orm_migration::prelude::*;
+use openrust::encryption::Encrypter;
 use openrust::session::SessionStore as _;
 use openrust::testing::TestDatabase;
-use openrust::{
-    Error, Result,
-    audit::{DatabaseAuditMigration, DatabaseAuditTenantMigration},
-    auth::{
-        AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthFlows,
-        AuthFlowsServiceProvider, AuthMigration, AuthRefreshTokenMigration,
-        AuthVerificationCodeMigration, BackchannelLogoutOutcome, DatabaseVerificationCodeStore,
-        ExternalIdentityFlows, ExternalIdentityProvider, JwtConfig, JwtTokens, OidcAuthorization,
-        RefreshTokens, Session, SessionStoreHandle, VerifiedExternalIdentity, VerifiedLogoutToken,
-    },
-    config::EncryptionConfig,
-    core::RateLimiter,
-    database::{
-        DatabaseBackend, DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseTableNames,
-        Db,
-        sea_orm::{ConnectionTrait, Statement},
-        sea_orm_migration::{MigratorTrait, prelude::*},
-    },
-    security::Encryptor,
-};
 #[cfg(feature = "auth-fortify")]
 use sha1::Sha1;
 use sha2::Digest as _;
@@ -63,7 +78,7 @@ impl openrust::session::SessionStore for FailDeleteOnceStore {
         record: &'a openrust::session::SessionRecord,
         mode: openrust::session::SessionWriteMode,
         max_bytes: usize,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
     {
         self.inner.write(record, mode, max_bytes)
     }
@@ -72,14 +87,14 @@ impl openrust::session::SessionStore for FailDeleteOnceStore {
         id: &'a openrust::session::SessionId,
         max_bytes: usize,
         empty_expiry: time::OffsetDateTime,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<Option<openrust::session::SessionRecord>>>
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<Option<openrust::session::SessionRecord>>>
     {
         self.inner.load(id, max_bytes, empty_expiry)
     }
     fn delete<'a>(
         &'a self,
         id: &'a openrust::session::SessionId,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             if self.fail_next_delete.swap(false, Ordering::SeqCst) {
                 return Err(openrust::Error::custom_with_status(
@@ -171,7 +186,7 @@ impl ExternalIdentityProvider for TestProvider {
     fn verify_logout_token<'a>(
         &'a self,
         token: &'a str,
-    ) -> openrust::core::BoxFuture<'a, Result<VerifiedLogoutToken>> {
+    ) -> openrust::support::BoxFuture<'a, Result<VerifiedLogoutToken>> {
         Box::pin(async move {
             match token {
                 "test-provider-verified-token" => VerifiedLogoutToken::after_provider_validation(
@@ -216,7 +231,7 @@ impl ExternalIdentityProvider for TestProvider {
         code: &'a str,
         _nonce: &'a str,
         _pkce_verifier: &'a str,
-    ) -> openrust::core::BoxFuture<'a, Result<VerifiedExternalIdentity>> {
+    ) -> openrust::support::BoxFuture<'a, Result<VerifiedExternalIdentity>> {
         Box::pin(async move {
             if callback_state != expected_state {
                 return Err(Error::Unauthorized);
@@ -284,7 +299,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         passwords.clone(),
     );
     let refresh = RefreshTokens::new(db.clone());
-    let encryptor = Encryptor::new(EncryptionConfig::new(
+    let encryptor = Encrypter::new(EncryptionConfig::new(
         "test-key",
         BTreeMap::from([("test-key".to_owned(), STANDARD.encode([0xa3_u8; 32]))]),
     ))?;
@@ -293,7 +308,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
             FrameworkConfig::default(),
         ))
         .merge(figment::providers::Serialized::defaults(serde_json::json!({"hashing":{"driver":"argon2id","argon":{"memory":19456,"time":1,"threads":1,"verify":true}}})));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(TestInstance(std::sync::Arc::new(db.clone())))
             .provider(TestInstance(passwords))
@@ -308,7 +323,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         let app = builder
             .start(sources)
             .await
-            .and_then(openrust::App::from_provider_runtime)?;
+            .and_then(openrust::Application::from_provider_runtime)?;
         (*app.state().resolve::<AuthFlows>().await?).clone()
     };
     let provider = Arc::new(TestProvider::new());
@@ -559,7 +574,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     }
     #[cfg(feature = "auth-fortify")]
     let cleanup_external = {
-        let encryption = Encryptor::new(EncryptionConfig::new("test-key", BTreeMap::from([("test-key".into(),STANDARD.encode([0xa3_u8;32]))])))?;
+        let encryption = Encrypter::new(EncryptionConfig::new("test-key", BTreeMap::from([("test-key".into(),STANDARD.encode([0xa3_u8;32]))])))?;
         let parts = web::Parts::new(db.clone(),std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?),encryption.clone(),auth.clone()).await?;
         ExternalIdentityFlows::new(db.clone(),parts.auth,encryption,[provider.clone() as Arc<dyn ExternalIdentityProvider>])?
     };
@@ -1066,7 +1081,7 @@ async fn verify_external_two_factor_completion(
     use openrust::auth::LoginAttempt;
 
     use openrust::auth::UserProvider as _;
-    let encryptor = Encryptor::new(EncryptionConfig::new(
+    let encryptor = Encrypter::new(EncryptionConfig::new(
         "test-key",
         BTreeMap::from([("test-key".into(), STANDARD.encode([0xa3_u8; 32]))]),
     ))?;
@@ -1507,11 +1522,11 @@ async fn expire_request(
 }
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
-impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+impl<T: Send + Sync + 'static> openrust::support::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::clone(&self.0)).await?;
             Ok(())

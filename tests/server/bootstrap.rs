@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 #[tokio::test]
 async fn default_provider_manifest_serves_application_route() -> Result<()> {
     let builder =
-        openrust::core::ProviderBuilder::for_application::<Server>(&Configuration::default());
+        openrust::foundation::ProviderBuilder::for_application::<Server>(&Configuration::default());
     let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(serde_json::json!({
         "app": {"env": "test"},
@@ -19,12 +19,12 @@ async fn default_provider_manifest_serves_application_route() -> Result<()> {
     let runtime = builder
         .start(crate::modules::example::test_sources(&(source))?)
         .await?;
-    let app = openrust::App::from_provider_runtime(runtime)?;
+    let app = openrust::Application::from_provider_runtime(runtime)?;
     // 无driver/无URL仍注册通用迁移命令；具体执行必须通过未初始化Db明确失败。
     assert!(app.commands().any(|command| command.name() == "migrate"));
     let db: std::sync::Arc<openrust::prelude::Db> = app.state().resolve().await?;
     assert!(db.backend().is_err());
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     let response = router
         .oneshot(
             openrust::http::axum::http::Request::builder()
@@ -128,6 +128,7 @@ async fn disabled_example_keeps_application_api_and_removes_module_api() -> Resu
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Serialized::defaults(serde_json::json!({
+        "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
         "application_root": deployed.path(),
         "app": {"name": "Host without example", "env": "test"},
         "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
@@ -178,7 +179,8 @@ async fn disabled_example_keeps_application_api_and_removes_module_api() -> Resu
 async fn named_only_database_keeps_default_services_unselected() -> Result<()> {
     let admin = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(openrust::Error::internal)?;
     let database =
-        openrust::testing::TestDatabase::create::<openrust::db::FrameworkMigrator>(&admin).await?;
+        openrust::testing::TestDatabase::create::<openrust::database::FrameworkMigrator>(&admin)
+            .await?;
     // 将创建后的全部错误纳入统一清理；失败不能只依赖 Drop 的尽力清理。
     let outcome = verify_named_only_database_host(&database).await;
     let cleanup = database.close().await;
@@ -207,6 +209,7 @@ async fn verify_named_only_database_host(database: &openrust::testing::TestDatab
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Serialized::defaults(serde_json::json!({
+        "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
         "application_root": root.path(),
         "app": {"env": "testing"},
         "database": {"url": null, "instances": {"reporting": {"url": database.url()}}},

@@ -9,11 +9,19 @@ use std::{
 };
 
 use futures_util::{Stream, StreamExt, TryStreamExt, stream};
-use openrust::{
-    config::{FrameworkConfig, GrpcConfig},
-    core::{App, BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider},
-    grpc::{GrpcClientRegistry, GrpcServer, GrpcServiceProvider, GrpcServiceRegistry, tonic},
-};
+use openrust::config::FrameworkConfig;
+use openrust::config::GrpcConfig;
+use openrust::foundation::Application;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::RegisterContext;
+use openrust::grpc::GrpcClientRegistry;
+use openrust::grpc::GrpcServer;
+use openrust::grpc::GrpcServiceProvider;
+use openrust::grpc::GrpcServiceRegistry;
+use openrust::grpc::tonic;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use tokio::{net::TcpListener, sync::oneshot};
 use tokio_stream::iter;
 use tonic::{Request, Response, Status};
@@ -23,7 +31,7 @@ impl ServiceProvider for TokensProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(self.0.clone())).await?;
             Ok(())
@@ -35,7 +43,7 @@ impl ServiceProvider for RegistryProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(self.0.clone())).await?;
             Ok(())
@@ -43,7 +51,7 @@ impl ServiceProvider for RegistryProvider {
     }
 }
 struct RouteProvider<F>(F);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + Clone + 'static>
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + Clone + 'static>
     ServiceProvider for RouteProvider<F>
 {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
@@ -57,8 +65,11 @@ impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + Clo
 fn sources(config: FrameworkConfig) -> figment::Figment {
     figment::Figment::from(figment::providers::Serialized::defaults(config))
 }
-async fn start(builder: ProviderBuilder, sources: figment::Figment) -> openrust::Result<App> {
-    App::from_provider_runtime(builder.start(sources).await?)
+async fn start(
+    builder: ProviderBuilder,
+    sources: figment::Figment,
+) -> openrust::Result<Application> {
+    Application::from_provider_runtime(builder.start(sources).await?)
 }
 
 pub mod proto {
@@ -612,14 +623,15 @@ mod tls_tests {
 #[cfg(test)]
 mod auth_tests {
     use super::*;
-    use openrust::{
-        auth::{
-            AuthCredential, AuthPrincipal, AuthServiceProvider, AuthSource, Authenticator,
-            JwtTokens,
-        },
-        config::JwtConfig,
-        core::{BoxFuture, Error},
-    };
+    use openrust::auth::AuthCredential;
+    use openrust::auth::AuthPrincipal;
+    use openrust::auth::AuthServiceProvider;
+    use openrust::auth::AuthSource;
+    use openrust::auth::Authenticator;
+    use openrust::auth::JwtTokens;
+    use openrust::config::JwtConfig;
+    use openrust::core::Error;
+    use openrust::support::BoxFuture;
     use tonic::{Code, metadata::MetadataValue, transport::Channel};
 
     struct FakePatAuthenticator;
@@ -996,14 +1008,14 @@ mod runtime_tests {
         grpc_address: SocketAddr,
         shutdown_timeout_secs: u64,
         blocked_request: Option<Arc<Notify>>,
-    ) -> Result<Arc<openrust::App>, Box<dyn StdError>> {
+    ) -> Result<Arc<openrust::Application>, Box<dyn StdError>> {
         let mut config = FrameworkConfig::default();
         config.server.host = http_address.ip().to_string();
         config.server.port = http_address.port();
         config.server.shutdown_timeout_secs = shutdown_timeout_secs;
         config.grpc.listen_addr = grpc_address;
         config.grpc.allow_insecure_server = true;
-        openrust::core::lifecycle::init_tracing(&config.log);
+        openrust::foundation::lifecycle::init_tracing(&config.log);
         let config = sources(config);
         let mut builder = ProviderBuilder::new();
         let mut registry = GrpcServiceRegistry::default();
@@ -1016,7 +1028,7 @@ mod runtime_tests {
             .max_encoding_message_size(grpc.max_encoding_message_size_bytes)
         })?;
         if let Some(blocked_request) = blocked_request {
-            builder.provider(RouteProvider(move |routes: openrust::http::Routes| {
+            builder.provider(RouteProvider(move |routes: openrust::routing::Router| {
                 let blocked_request = Arc::clone(&blocked_request);
                 routes.get("/blocked", move || {
                     let blocked_request = Arc::clone(&blocked_request);
@@ -1030,7 +1042,7 @@ mod runtime_tests {
         let grpc_channel =
             tonic::transport::Endpoint::from_shared(format!("http://{grpc_address}"))?
                 .connect_lazy();
-        builder.provider(RouteProvider(move |routes: openrust::http::Routes| {
+        builder.provider(RouteProvider(move |routes: openrust::routing::Router| {
             let grpc_channel = grpc_channel.clone();
             routes.get("/trace", move || {
                 let mut client = EchoClient::new(grpc_channel.clone());
@@ -1509,7 +1521,7 @@ mod database_auth_tests {
             return Ok(());
         }
         let database = TestDatabase::create::<AuthMigrator>(&admin_url).await?;
-        let users = openrust::db::DatabaseTableNames::default()
+        let users = openrust::database::DatabaseTableNames::default()
             .quote("users", database.connection()?.get_database_backend())?;
         database.connection()?.execute_unprepared(&format!(
             "INSERT INTO {users} (email, password_hash, created_at, updated_at) VALUES ('grpc-auth@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"

@@ -1,6 +1,6 @@
 //! 为显式选用统一因子授权的凭据保存受控上下文。
 
-use crate::db::{
+use crate::database::{
     DatabaseTableNames, dialect,
     sea_orm::{ConnectionTrait, DbBackend, sea_query::Alias},
     sea_orm_migration::prelude::*,
@@ -33,7 +33,7 @@ fn table(name: &str, backend: DbBackend) -> Result<Alias, DbErr> {
         .map(Alias::new)
         .map_err(|error| DbErr::Migration(error.to_string()))
 }
-#[crate::db::sea_orm_migration::async_trait::async_trait]
+#[crate::database::sea_orm_migration::async_trait::async_trait]
 impl MigrationTrait for CredentialFactorMigration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         for name in ["auth_refresh_tokens", "personal_access_tokens"] {

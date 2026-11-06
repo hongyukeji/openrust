@@ -31,7 +31,7 @@ let report = for_each_csv(input, &schema, &ImportLimits::default(), |row| {
 
 ## 队列化导入与导出
 
-应用显式启用 `data-exchange-tasks`，并注册 `DatabaseServiceProvider`、`QueueServiceProvider` 与 `StorageServiceProvider`。该 feature 组合 `data-exchange`、数据库队列和临时文件能力；本地或对象存储 driver 仍由应用单独启用。迁移中必须包含 `QueueMigration` 与 `CoordinationMigration`。
+应用显式启用 `data-exchange-tasks`，并注册 `DatabaseServiceProvider`、`QueueServiceProvider` 与 `FilesystemServiceProvider`。该 feature 组合 `data-exchange`、数据库队列和临时文件能力；本地或对象存储 driver 仍由应用单独启用。迁移中必须包含 `QueueMigration` 与 `CoordinationMigration`。
 
 `import_storage_task` 接收应用已授权的源对象、稳定 `import_id`、格式和 `ImportSchema`，再通过有界流复制到自动回收的临时文件。每个有效批次由框架单独开启数据库事务，应用 callback 在事务内写入业务数据；业务写入和批次幂等完成记录原子提交。重试会跳过已提交批次；批次失败会保留此前提交的数据并保存有界错误报告。幂等记录保留 24 小时，安全的自动恢复窗口也为 24 小时；超过窗口后，应用须使用业务唯一约束或人工核对防止重复写入。`import_id` 应绑定输入、schema 和业务写入语义。`ImportTaskOptions.report_path` 是基础路径，框架按 job ID、attempt 和 import ID 生成唯一报告对象路径，并在成功返回的报告中给出路径；错误报告路径可用 `report_path_for_attempt` 确定。报告默认保留 7 天且最多 30 天。队列取消会保存报告并返回 `queue_job_cancelled`，由现有队列重试策略接管。
 

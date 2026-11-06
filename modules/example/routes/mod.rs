@@ -21,19 +21,19 @@ pub(crate) struct RouteCapabilities {
 }
 
 pub(crate) fn register(
-    routes: openrust::http::Routes,
+    routes: openrust::routing::Router,
     capabilities: &RouteCapabilities,
     repository: openrust::config::repository::ConfigRepository,
-) -> openrust::http::Routes {
+) -> openrust::routing::Router {
     let routes = routes.group(
-        openrust::http::RouteGroup::new().middleware_group("api"),
+        openrust::routing::RouteGroup::new().middleware_group("api"),
         |routes| api::register(routes, capabilities, repository),
     );
     web::register(routes, capabilities.view)
 }
 
 /// 仅显式配置 reporting 连接时提供具名连接演示，不触发默认数据库业务选择。
-pub(crate) fn reporting_connection(routes: openrust::http::Routes) -> openrust::http::Routes {
+pub(crate) fn reporting_connection(routes: openrust::routing::Router) -> openrust::routing::Router {
     routes.get(
         "/api/example/reporting-connection",
         super::http::controllers::database_connection::show,

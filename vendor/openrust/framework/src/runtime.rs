@@ -2,12 +2,16 @@
 
 use std::{future::Future, time::Duration};
 
-use crate::{
-    App, BoxFuture, Command, Error, Result,
-    core::{Readiness, shutdown_signal},
-    grpc::GrpcServer,
-    http::{build_router, serve::serve_listener_for_supervisor},
-};
+use crate::Application;
+use crate::BoxFuture;
+use crate::Command;
+use crate::Error;
+use crate::Result;
+use crate::core::Readiness;
+use crate::foundation::http::build_router;
+use crate::foundation::shutdown_signal;
+use crate::grpc::GrpcServer;
+use crate::http::serve::serve_listener_for_supervisor;
 use tokio::{
     net::TcpListener,
     task::{JoinError, JoinSet},
@@ -16,10 +20,13 @@ use tokio::{
 
 /// 为已注册 HTTP 与 gRPC 能力贡献联合运行命令。
 pub struct HttpGrpcServiceProvider;
-impl crate::core::ServiceProvider for HttpGrpcServiceProvider {
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+impl crate::support::ServiceProvider for HttpGrpcServiceProvider {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            if !app.is_bound::<crate::routes::HttpPluginInstalled>()
+            if !app.is_bound::<crate::http::server_provider::HttpServerInstalled>()
                 || !app.is_bound::<crate::grpc::GrpcPluginInstalled>()
             {
                 return Err(Error::custom(
@@ -41,12 +48,12 @@ impl crate::core::ServiceProvider for HttpGrpcServiceProvider {
 ///
 /// 两个 listener 都成功绑定后才会启动服务任务。收到进程信号时同时发起优雅停机；
 /// 任一服务意外退出时会停止另一个服务。停机超时会取消请求、终止并 join 剩余任务。
-pub async fn serve_http_and_grpc(app: &App) -> Result<()> {
+pub async fn serve_http_and_grpc(app: &Application) -> Result<()> {
     serve_http_and_grpc_until(app, shutdown_signal()).await
 }
 
 /// 以调用方提供的退出 future 同时运行 HTTP 与 gRPC，供嵌入式宿主控制生命周期。
-pub async fn serve_http_and_grpc_until<F>(app: &App, shutdown: F) -> Result<()>
+pub async fn serve_http_and_grpc_until<F>(app: &Application, shutdown: F) -> Result<()>
 where
     F: Future<Output = ()> + Send + 'static,
 {
@@ -73,7 +80,7 @@ where
 /// 停机与资源清理检查。若准备失败，两个 listener 随调用返回一并释放。普通配置绑定仍使用
 /// [`serve_http_and_grpc_until`]。
 pub async fn serve_http_and_grpc_with_listeners_until<F>(
-    app: &App,
+    app: &Application,
     http_listener: TcpListener,
     grpc_listener: TcpListener,
     shutdown: F,
@@ -93,11 +100,11 @@ where
     .await
 }
 
-async fn prepare_http_and_grpc(app: &App) -> Result<(axum::Router, GrpcServer)> {
+async fn prepare_http_and_grpc(app: &Application) -> Result<(axum::Router, GrpcServer)> {
     if !app
         .state()
         .container()
-        .contains::<crate::routes::HttpPluginInstalled>()
+        .contains::<crate::http::server_provider::HttpServerInstalled>()
     {
         return Err(Error::custom(
             "http_service_missing",
@@ -110,7 +117,7 @@ async fn prepare_http_and_grpc(app: &App) -> Result<(axum::Router, GrpcServer)> 
 }
 
 async fn supervise_http_and_grpc<F>(
-    app: &App,
+    app: &Application,
     router: axum::Router,
     grpc_server: GrpcServer,
     http_listener: TcpListener,
@@ -188,7 +195,7 @@ where
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
         let _ = background_state.shutdown_resources(deadline).await;
-        crate::core::lifecycle::flush_telemetry().await;
+        crate::foundation::lifecycle::flush_telemetry().await;
         return Err(Error::custom(
             "http_grpc_shutdown_timeout",
             "HTTP 与 gRPC 服务未能在共同停机期限内结束",
@@ -199,7 +206,7 @@ where
     {
         failure = Some(error);
     }
-    crate::core::lifecycle::flush_telemetry().await;
+    crate::foundation::lifecycle::flush_telemetry().await;
     failure.map_or(Ok(()), Err)
 }
 
@@ -254,7 +261,7 @@ impl Command for ServeAllCommand {
         "同时启动 HTTP 与 gRPC 服务"
     }
 
-    fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(serve_http_and_grpc(app))
     }
 }
@@ -314,7 +321,7 @@ mod tests {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::ProviderBuilder;
+    use crate::foundation::ProviderBuilder;
     use figment::{Figment, providers::Serialized};
 
     #[tokio::test]

@@ -3,7 +3,8 @@
 use super::Server;
 use figment::{Figment, providers::Serialized};
 use openrust::config::{FrameworkConfig, HttpStatusMode, repository::ConfigRepository};
-use openrust::core::{Application, ProviderId};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::ProviderId;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -66,6 +67,7 @@ async fn host_with_explicitly_disabled_session_keeps_example_but_omits_session_r
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
     let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
+        "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
         "application_root": root.path(),
         "app": {"env": "test"},
         "session": {"driver": null},
@@ -116,13 +118,13 @@ struct LateDriverConfig {
     late_driver: Option<String>,
 }
 struct LateDriverApp;
-impl Application for LateDriverApp {
+impl ApplicationDefinition for LateDriverApp {
     type Config = LateDriverConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         Server::default_providers().except([ProviderId::of::<SessionServiceProvider>()])
     }
-    fn providers(config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
+    fn providers(config: &Self::Config) -> Vec<Box<dyn openrust::support::ServiceProvider>> {
         let mut providers = Server::providers(&config.server);
         let session = Box::new(SessionServiceProvider::with_store(
             openrust::session::MemorySessionStore::default(),
@@ -137,7 +139,10 @@ impl Application for LateDriverApp {
         }
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         let driver = config.late_driver.clone();
         builder.module_manifest(
             crate::modules::manifest(&config.server.application_root(), &config.server.modules)
@@ -149,7 +154,7 @@ impl Application for LateDriverApp {
     }
 }
 struct LateDriver(Option<String>);
-impl openrust::core::ServiceProvider for LateDriver {
+impl openrust::support::ServiceProvider for LateDriver {
     fn dependencies(&self) -> Vec<ProviderId> {
         // 若真实清单未把Example放在前面，启动应失败，不能让测试靠早覆盖误过。
         vec![ProviderId::of::<
@@ -158,8 +163,8 @@ impl openrust::core::ServiceProvider for LateDriver {
     }
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move { app.overlay("session", json!({"driver":self.0})) })
     }
 }
@@ -192,7 +197,8 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
         let mut config = FrameworkConfig::default();
         config.api.http_status = HttpStatusMode::Semantic;
         let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
-            "application_root":root.path(), "late_driver":final_driver,
+            "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
+        "application_root":root.path(), "late_driver":final_driver,
             "app":{"env":"test"}, "session":{"driver":initial,"secure":false},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
@@ -259,6 +265,7 @@ async fn explicit_cookie_without_database_uses_original_host_provider_and_persis
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
     let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
+        "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
         "application_root":root.path(), "app":{"env":"test"},
         "session":{"driver":"cookie","cookie":"host_cookie_session","secure":false},
         "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},

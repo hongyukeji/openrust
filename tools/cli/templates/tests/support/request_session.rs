@@ -1,7 +1,11 @@
 //! 生成应用经正式 Session Provider 与请求作用域验证跨请求生命周期。
 use figment::Figment;
 use openrust::config::SessionConfig;
-use openrust::core::{Application, BootContext, BoxFuture, RegisterContext, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::foundation::RegisterContext;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{
@@ -9,9 +13,14 @@ use openrust::http::axum::{
         header::{COOKIE, SET_COOKIE},
     },
 };
-use openrust::http::{
-    CookieFactory, CookieJar, CookieOptions, Inject, Json, RequestInfo, RouteGroup, Routes,
-};
+use openrust::http::CookieFactory;
+use openrust::http::CookieJar;
+use openrust::http::CookieOptions;
+use openrust::http::Inject;
+use openrust::http::Json;
+use openrust::http::RequestInfo;
+use openrust::routing::RouteGroup;
+use openrust::routing::Router;
 use openrust::session::{
     CookieSessionStore, DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore,
     Session, SessionId, SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore,
@@ -50,7 +59,7 @@ impl ServiceProvider for SessionRoutes {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(PreviousCalls::default())).await?;
             app.instance(Arc::new(OldInputCalls::default())).await?;
@@ -67,11 +76,11 @@ impl ServiceProvider for SessionRoutes {
                         Some(driver @ ("database" | "database-guarded")) => {
                             let db = if let Some(connection) = &config.connection {
                                 resolver
-                                    .resolve::<openrust::db::Databases>()
+                                    .resolve::<openrust::database::Databases>()
                                     .await?
                                     .get(connection)?
                             } else {
-                                (*resolver.resolve::<openrust::db::Db>().await?).clone()
+                                (*resolver.resolve::<openrust::database::Db>().await?).clone()
                             };
                             if driver == "database" {
                                 Arc::new(
@@ -99,7 +108,7 @@ impl ServiceProvider for SessionRoutes {
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| {
+            app.routes(|routes: Router| {
                 routes.group(
                     RouteGroup::new()
                         .middleware_alias("cookies")
@@ -141,19 +150,19 @@ impl ServiceProvider for SessionRoutes {
 }
 
 struct SessionApplication<A, const EXISTING: bool>(std::marker::PhantomData<fn() -> A>);
-impl<A: Application, const EXISTING: bool> Application for SessionApplication<A, EXISTING> {
+impl<A: ApplicationDefinition, const EXISTING: bool> ApplicationDefinition for SessionApplication<A, EXISTING> {
     type Config = A::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         A::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         // 同类型 Provider 保留先登记项；显式测试 driver 必须先排除默认 Session。
         let providers = A::default_providers();
         if EXISTING {
             providers
         } else {
-            providers.except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+            providers.except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
         }
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -172,7 +181,7 @@ impl<A: Application, const EXISTING: bool> Application for SessionApplication<A,
         let mut providers = A::providers(config);
         if !EXISTING
             && !providers.iter().any(|provider| {
-                provider.id() == openrust::core::ProviderId::of::<SessionServiceProvider>()
+                provider.id() == openrust::foundation::ProviderId::of::<SessionServiceProvider>()
             })
         {
             // plain 没有正式 Session 时才显式安装内存 driver；Cookie Provider 完整保留。
@@ -190,7 +199,7 @@ impl<A: Application, const EXISTING: bool> Application for SessionApplication<A,
         providers.push(Box::new(SessionRoutes));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
@@ -308,7 +317,7 @@ fn snapshot(session: &Session, info: &RequestInfo) -> openrust::Result<Value> {
 /// Session 的 plain 应用追加显式内存 driver。此参数不表示 Cookie 是否加密，
 /// 响应不返回 ID/token，ID 仅在处理器内比较句柄；Set-Cookie 首段只逐字传入
 /// 后续请求，不解密也不打印。
-pub async fn assert_request_session<A: Application>(
+pub async fn assert_request_session<A: ApplicationDefinition>(
     source: Figment,
     existing_session: bool,
 ) -> openrust::Result<()> {
@@ -329,15 +338,15 @@ pub async fn assert_request_session<A: Application>(
 }
 
 struct CookieSessionApplication<A>(std::marker::PhantomData<fn() -> A>);
-impl<A: Application> Application for CookieSessionApplication<A> {
+impl<A: ApplicationDefinition> ApplicationDefinition for CookieSessionApplication<A> {
     type Config = A::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         A::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         // Cookie 场景显式替换 Session，不让默认项的同类型去重吞掉替换。
-        A::default_providers().except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+        A::default_providers().except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         A::package_providers(config)
@@ -364,7 +373,7 @@ impl<A: Application> Application for CookieSessionApplication<A> {
         );
         // 替换原位置，保留 Auth 等 Provider 对 Session 先注册的依赖顺序。
         if let Some(index) = providers.iter().position(|provider| {
-            provider.id() == openrust::core::ProviderId::of::<SessionServiceProvider>()
+            provider.id() == openrust::foundation::ProviderId::of::<SessionServiceProvider>()
         }) {
             providers[index] = cookie;
         } else {
@@ -372,13 +381,13 @@ impl<A: Application> Application for CookieSessionApplication<A> {
         }
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
 
 #[allow(clippy::too_many_lines)] // 生成应用的正式 Provider、Cookie 往返和关闭必须留在同一生命周期。
-async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openrust::Result<()> {
+async fn verify<A: ApplicationDefinition, const EXISTING: bool>(source: Figment) -> openrust::Result<()> {
     let mut app = TestApp::<SessionApplication<A, EXISTING>>::builder(source)
         .build()
         .await?;
@@ -544,7 +553,7 @@ impl DataObject for GeneratedObject {
     }
 }
 
-async fn verify_object_codec<A: Application, const EXISTING: bool>(
+async fn verify_object_codec<A: ApplicationDefinition, const EXISTING: bool>(
     app: &TestApp<SessionApplication<A, EXISTING>>,
 ) -> openrust::Result<()> {
     let store = app
@@ -626,7 +635,7 @@ fn expected(
     }
     value
 }
-async fn previous_exchange<A: Application, const EXISTING: bool>(
+async fn previous_exchange<A: ApplicationDefinition, const EXISTING: bool>(
     app: &TestApp<SessionApplication<A, EXISTING>>,
     action: &str,
     name: &str,
@@ -666,7 +675,7 @@ async fn previous_exchange<A: Application, const EXISTING: bool>(
     Ok(response)
 }
 
-async fn verify_previous<A: Application, const EXISTING: bool>(
+async fn verify_previous<A: ApplicationDefinition, const EXISTING: bool>(
     app: &TestApp<SessionApplication<A, EXISTING>>,
     name: &str,
 ) -> openrust::Result<()> {
@@ -723,7 +732,7 @@ fn request(action: &str, cookies: Option<&str>) -> openrust::Result<Request<Body
         .body(Body::empty())
         .map_err(openrust::Error::internal)
 }
-async fn verify_old_input<A: Application>(app: &TestApp<A>, name: &str) -> openrust::Result<()> {
+async fn verify_old_input<A: ApplicationDefinition>(app: &TestApp<A>, name: &str) -> openrust::Result<()> {
     let payload = json!({"name":"Generated","password":"secret"});
     let sent = old_input_post(app, "old-input", &payload, None, false).await?;
     check_response(
@@ -818,7 +827,7 @@ async fn verify_old_input<A: Application>(app: &TestApp<A>, name: &str) -> openr
             "name":"Generated","missing":"fallback","business_calls":3}),
     )
 }
-async fn old_input_post<A: Application>(
+async fn old_input_post<A: ApplicationDefinition>(
     app: &TestApp<A>,
     action: &str,
     payload: &Value,
@@ -907,7 +916,7 @@ impl SessionStore for ContractRequestDriver {
     }
     fn set_database_user_id(
         &self,
-        user_id: openrust::db::sea_orm::Value,
+        user_id: openrust::database::sea_orm::Value,
     ) -> openrust::Result<bool> {
         self.backend.set_database_user_id(user_id)
     }
@@ -1031,7 +1040,7 @@ fn gc_receipt_valid(value: Option<Value>) -> bool {
             })
         })
 }
-async fn verify_request_driver<A: Application, const EXISTING: bool>(
+async fn verify_request_driver<A: ApplicationDefinition, const EXISTING: bool>(
     app: &TestApp<SessionApplication<A, EXISTING>>,
     name: &str,
 ) -> openrust::Result<()> {
@@ -1099,7 +1108,7 @@ struct OriginalHostRoutes;
 impl ServiceProvider for OriginalHostRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| {
+            app.routes(|routes: Router| {
                 routes.group(
                     RouteGroup::new()
                         .middleware_alias("cookies")
@@ -1125,13 +1134,13 @@ async fn original_read(session: Session) -> openrust::Result<Json<Value>> {
     ))
 }
 struct OriginalHost<A>(std::marker::PhantomData<fn() -> A>);
-impl<A: Application> Application for OriginalHost<A> {
+impl<A: ApplicationDefinition> ApplicationDefinition for OriginalHost<A> {
     type Config = A::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         A::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         A::default_providers()
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -1151,11 +1160,11 @@ impl<A: Application> Application for OriginalHost<A> {
         providers.push(Box::new(OriginalHostRoutes));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
-pub async fn assert_original_host_cookie_session<A: Application>(
+pub async fn assert_original_host_cookie_session<A: ApplicationDefinition>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = source.merge(figment::providers::Serialized::defaults(
@@ -1174,7 +1183,7 @@ pub async fn assert_original_host_cookie_session<A: Application>(
             providers
                 .iter()
                 .filter(|provider| provider.id()
-                    == openrust::core::ProviderId::of::<SessionServiceProvider>())
+                    == openrust::foundation::ProviderId::of::<SessionServiceProvider>())
                 .count(),
             1,
         );

@@ -11,10 +11,10 @@ Session 为同一请求提供共享属性与 flash，并在响应发送前持久
 默认 driver 是 `database`，复用已有 `Db` 和逻辑 `sessions` 表。按后端启用 `db-postgres`、`db-mysql` 或 `db-sqlite`，登记 `DatabaseServiceProvider`，配置数据库并运行迁移。SQLite Session 的适配不代表认证、队列或完整 Schema 已适配。下面是已配置加密密钥的宿主片段；`EncryptionServiceProvider` 需要 `encryption` feature：
 
 ```rust
-use openrust::core::ProviderBuilder;
+use openrust::foundation::ProviderBuilder;
 use openrust::database::DatabaseServiceProvider;
 use openrust::http::{CookieServiceProvider, HttpServiceProvider};
-use openrust::security::EncryptionServiceProvider;
+use openrust::encryption::EncryptionServiceProvider;
 use openrust::session::SessionServiceProvider;
 
 fn register(builder: &mut ProviderBuilder) {
@@ -27,7 +27,7 @@ fn register(builder: &mut ProviderBuilder) {
 }
 ```
 
-不需要 Cookie 加密的明确使用场景可以选择 `CookieServiceProvider::plain()`；它不提供 Cookie 机密性或完整性保护，不能当作 Laravel 默认 Web 组。密钥配置见[安全能力](../security/README.md)，请求 Cookie 规则见 [HTTP 指南](../http/README.md#cookie-读取队列与响应)。
+不需要 Cookie 加密的明确使用场景可以选择 `CookieServiceProvider::plain()`；它不提供 Cookie 机密性或完整性保护，不能当作 Laravel 默认 Web 组。密钥配置见[安全能力](../encryption/README.md)，请求 Cookie 规则见 [HTTP 指南](../http/README.md#cookie-读取队列与响应)。
 
 ### 迁移只选一种入口
 

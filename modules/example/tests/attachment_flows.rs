@@ -10,13 +10,19 @@ use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
 use futures_util::{FutureExt, StreamExt};
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait,
+};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::StoragePath;
+use openrust::filesystem::UploadContext;
+use openrust::filesystem::UploadInspector;
+use openrust::filesystem::UploadOptions;
 use openrust::http::axum::{
     body::{Body, Bytes},
     http::{Request, StatusCode},
 };
-use openrust::storage::{Storage, StoragePath, UploadContext, UploadInspector, UploadOptions};
 use openrust::tenant::{TenantContext, TenantId};
 use openrust::testing::{TestApp, TestDatabase};
 use openrust::{Db, Error, Result};
@@ -28,7 +34,7 @@ use super::services::attachments::{ArticleAttachments, TextAttachmentInspector};
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
 struct AttachmentMigrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for AttachmentMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -315,7 +321,12 @@ async fn detached_upload_preserves_tenant_storage_scope() -> TestResult {
         .state()
         .resolve::<ArticleAttachments>()
         .await?;
-    let storage = fixture.app.app()?.state().resolve::<Storage>().await?;
+    let storage = fixture
+        .app
+        .app()?
+        .state()
+        .resolve::<FilesystemManager>()
+        .await?;
     let path = StoragePath::new(format!(
         "example/articles/1/{}/attachment.txt",
         fixture.article_id
@@ -747,7 +758,12 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
             .state()
             .resolve::<ArticleAttachments>()
             .await?;
-        let storage = fixture.app.app()?.state().resolve::<Storage>().await?;
+        let storage = fixture
+            .app
+            .app()?
+            .state()
+            .resolve::<FilesystemManager>()
+            .await?;
         let connection = db.primary_connection()?;
         let id = fixture.article_id;
         let path = StoragePath::new(format!("example/articles/1/{id}/attachment.txt"))?;
@@ -778,16 +794,16 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
         .await??;
         assert_eq!(
             TenantContext::scope(tenant_a.clone(), disk.visibility(&path)).await??,
-            openrust::storage::Visibility::Private
+            openrust::filesystem::Visibility::Private
         );
         TenantContext::scope(
             tenant_b.clone(),
-            disk.set_visibility(&path, openrust::storage::Visibility::Private),
+            disk.set_visibility(&path, openrust::filesystem::Visibility::Private),
         )
         .await??;
         assert_eq!(
             TenantContext::scope(tenant_b.clone(), disk.visibility(&path)).await??,
-            openrust::storage::Visibility::Private
+            openrust::filesystem::Visibility::Private
         );
         #[cfg(unix)]
         {
@@ -809,7 +825,7 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
                     Some("text/plain".into()),
                     Body::from("published tenant object"),
                     UploadOptions {
-                        visibility: Some(openrust::storage::Visibility::Public),
+                        visibility: Some(openrust::filesystem::Visibility::Public),
                         ..Default::default()
                     },
                     None,
@@ -819,7 +835,7 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
             .await??;
             assert_eq!(
                 TenantContext::scope(public_tenant.clone(), disk.visibility(&path)).await??,
-                openrust::storage::Visibility::Public
+                openrust::filesystem::Visibility::Public
             );
             for (parent, mode) in private_parents {
                 assert_eq!(
@@ -846,7 +862,7 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
             foreign_owner_response.assert_status(StatusCode::NOT_FOUND)?;
             assert_eq!(
                 TenantContext::scope(public_tenant.clone(), disk.visibility(&path)).await??,
-                openrust::storage::Visibility::Public
+                openrust::filesystem::Visibility::Public
             );
             let owner_response = TenantContext::scope(
                 public_tenant.clone(),
@@ -866,11 +882,11 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
             owner_response.assert_status(StatusCode::NO_CONTENT)?;
             assert_eq!(
                 TenantContext::scope(public_tenant, disk.visibility(&path)).await??,
-                openrust::storage::Visibility::Private
+                openrust::filesystem::Visibility::Private
             );
             assert_eq!(
                 TenantContext::scope(tenant_b.clone(), disk.visibility(&path)).await??,
-                openrust::storage::Visibility::Private
+                openrust::filesystem::Visibility::Private
             );
             let mut other_reader =
                 TenantContext::scope(tenant_b.clone(), disk.open(&path, None)).await??;

@@ -1,13 +1,14 @@
 //! 请求级缓存隔离、并发构造、递归与取消恢复的行为回归。
 use super::*;
-use crate::{
-    auth::guard::contracts::{AuthUser, Authenticatable, Credentials, GenericUser},
-    config::{ConfigSources, repository::ConfigRepository},
-    core::{
-        container::{Container, ContainerBuilder},
-        resources::ResourceOwner,
-    },
-};
+use crate::auth::guard::contracts::AuthUser;
+use crate::auth::guard::contracts::Authenticatable;
+use crate::auth::guard::contracts::Credentials;
+use crate::auth::guard::contracts::GenericUser;
+use crate::config::ConfigSources;
+use crate::config::repository::ConfigRepository;
+use crate::container::Container;
+use crate::container::ContainerBuilder;
+use crate::foundation::resources::ResourceOwner;
 use serde_json::json;
 use std::{
     sync::atomic::{AtomicUsize, Ordering},

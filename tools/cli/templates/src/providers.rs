@@ -1,6 +1,6 @@
 //! 应用 Provider 清单，对应 Laravel 的 `bootstrap/providers.php`。
 
-use openrust::core::ServiceProvider;
+use openrust::support::ServiceProvider;
 
 pub(super) fn application_providers(
     _config: &super::Configuration,

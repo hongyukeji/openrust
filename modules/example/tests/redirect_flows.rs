@@ -3,12 +3,13 @@
 use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
-use openrust::core::{Application, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode, header},
 };
 use openrust::session::{MemorySessionStore, SessionServiceProvider};
+use openrust::support::ServiceProvider;
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 
@@ -17,12 +18,12 @@ const COOKIE: &str = "example_draft_session";
 const TIMEOUT: Duration = Duration::from_secs(5);
 
 struct DraftApplication;
-impl Application for DraftApplication {
-    type Config = <crate::bootstrap::Server as Application>::Config;
+impl ApplicationDefinition for DraftApplication {
+    type Config = <crate::bootstrap::Server as ApplicationDefinition>::Config;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         crate::bootstrap::Server::default_providers()
-            .except([openrust::core::ProviderId::of::<SessionServiceProvider>()])
+            .except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
     fn config_namespace() -> &'static str {
         crate::bootstrap::Server::config_namespace()
@@ -41,7 +42,10 @@ impl Application for DraftApplication {
         ));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
@@ -65,7 +69,7 @@ async fn example_signed_draft_routes_use_public_generator_request_and_middleware
     #[cfg(feature = "view")]
     let builder = {
         let mut builder = builder;
-        builder.remove_provider(openrust::core::ProviderId::of::<
+        builder.remove_provider(openrust::foundation::ProviderId::of::<
             openrust::view::OptionalViewServiceProvider,
         >());
         builder
@@ -103,11 +107,14 @@ async fn example_signed_draft_routes_use_public_generator_request_and_middleware
 }
 
 #[cfg(feature = "view")]
-async fn about<A: Application>(app: &TestApp<A>, cookie: Option<&str>) -> TestResult<TestResponse> {
+async fn about<A: ApplicationDefinition>(
+    app: &TestApp<A>,
+    cookie: Option<&str>,
+) -> TestResult<TestResponse> {
     get(app, "/example/pages/about", cookie, None).await
 }
 
-async fn get<A: Application>(
+async fn get<A: ApplicationDefinition>(
     app: &TestApp<A>,
     path: &str,
     cookie: Option<&str>,
@@ -127,7 +134,7 @@ async fn get<A: Application>(
         .await?)
 }
 
-async fn post_refresh<A: Application>(
+async fn post_refresh<A: ApplicationDefinition>(
     app: &TestApp<A>,
     cookie: Option<&str>,
 ) -> TestResult<TestResponse> {
@@ -147,7 +154,7 @@ async fn post_refresh<A: Application>(
         .await?)
 }
 
-async fn assert_refreshed_flash<A: Application>(app: &TestApp<A>) -> TestResult {
+async fn assert_refreshed_flash<A: ApplicationDefinition>(app: &TestApp<A>) -> TestResult {
     let response = post_refresh(app, None).await?;
     redirect(&response, "/api/example/draft/refresh")?;
     let cookie = cookie_pair(&response)?;
@@ -169,7 +176,7 @@ async fn assert_refreshed_flash<A: Application>(app: &TestApp<A>) -> TestResult 
     Ok(())
 }
 
-async fn submit<A: Application>(
+async fn submit<A: ApplicationDefinition>(
     app: &TestApp<A>,
     cookie: Option<&str>,
     value: Value,
@@ -409,7 +416,7 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
     #[cfg(feature = "view")]
     let builder = {
         let mut builder = builder;
-        builder.remove_provider(openrust::core::ProviderId::of::<
+        builder.remove_provider(openrust::foundation::ProviderId::of::<
             openrust::view::OptionalViewServiceProvider,
         >());
         builder
@@ -455,7 +462,7 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
     result
 }
 
-async fn assert_public_actions<A: Application>(app: &TestApp<A>) -> TestResult {
+async fn assert_public_actions<A: ApplicationDefinition>(app: &TestApp<A>) -> TestResult {
     let summary = get(app, "/api/example/draft/actions/summary", None, None).await?;
     assert_eq!(
         state(&summary)?,
@@ -490,7 +497,7 @@ async fn assert_public_actions<A: Application>(app: &TestApp<A>) -> TestResult {
     Ok(())
 }
 
-async fn assert_action_flash<A: Application>(app: &TestApp<A>) -> TestResult {
+async fn assert_action_flash<A: ApplicationDefinition>(app: &TestApp<A>) -> TestResult {
     let response = app
         .request_with_limits(
             Request::post("/api/example/draft/action-submit?url=https://untrusted.example")
@@ -530,7 +537,7 @@ async fn assert_action_flash<A: Application>(app: &TestApp<A>) -> TestResult {
     Ok(())
 }
 
-async fn assert_public_refresh_and_guide<A: Application>(app: &TestApp<A>) -> TestResult {
+async fn assert_public_refresh_and_guide<A: ApplicationDefinition>(app: &TestApp<A>) -> TestResult {
     let refreshed = post_refresh(app, None).await?;
     redirect(&refreshed, "/api/example/draft/refresh")?;
     let page = get(app, "/api/example/draft/refresh", None, None).await?;
@@ -567,7 +574,10 @@ async fn assert_public_refresh_and_guide<A: Application>(app: &TestApp<A>) -> Te
     Ok(())
 }
 
-async fn confirm<A: Application>(app: &TestApp<A>, cookie: &str) -> TestResult<TestResponse> {
+async fn confirm<A: ApplicationDefinition>(
+    app: &TestApp<A>,
+    cookie: &str,
+) -> TestResult<TestResponse> {
     Ok(app
         .request_with_limits(
             Request::post("/api/example/draft/confirm")

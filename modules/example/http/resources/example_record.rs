@@ -10,7 +10,7 @@ pub(crate) struct ExampleRecordResource {
     pub(crate) priority: i32,
     pub(crate) view_count: i64,
     pub(crate) enabled: bool,
-    pub(crate) published_at: Option<openrust::db::sea_orm::prelude::DateTimeUtc>,
+    pub(crate) published_at: Option<openrust::database::sea_orm::prelude::DateTimeUtc>,
     pub(crate) metadata: Option<serde_json::Value>,
     pub(crate) category_id: Option<i64>,
 }

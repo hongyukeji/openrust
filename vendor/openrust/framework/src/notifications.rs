@@ -13,11 +13,13 @@ use lettre::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::core::{BoxFuture, Error, Result};
-use crate::db::DatabaseTransaction;
+use crate::core::Error;
+use crate::core::Result;
+use crate::database::DatabaseTransaction;
 use crate::mail::{Email, Mailer};
 use crate::queue::{Job, JobContext, Queue};
 use crate::sms::{SmsMessage, SmsSender};
+use crate::support::BoxFuture;
 
 const DEFAULT_QUEUE: &str = "notifications";
 const EMAIL_JOB_NAME: &str = "openrust.notification.email.v1";
@@ -381,11 +383,11 @@ fn scoped_unique_key(key: &str, channel: &str) -> String {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NotificationsServiceProvider;
 
-impl crate::core::ServiceProvider for NotificationsServiceProvider {
+impl crate::support::ServiceProvider for NotificationsServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.singleton::<Notifier, _>(|resolver| {
                 Box::pin(async move {
@@ -398,7 +400,10 @@ impl crate::core::ServiceProvider for NotificationsServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.resolve::<Notifier>().await?;
             Ok(())
@@ -469,11 +474,11 @@ mod provider_service_tests {
             mail: Arc<AtomicUsize>,
             sms: Arc<AtomicUsize>,
         }
-        impl crate::core::ServiceProvider for DeliveryProvider {
+        impl crate::support::ServiceProvider for DeliveryProvider {
             fn register<'a>(
                 &'a self,
-                app: &'a mut crate::core::RegisterContext<'_>,
-            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                app: &'a mut crate::foundation::RegisterContext<'_>,
+            ) -> crate::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     let count = Arc::clone(&self.mail);
                     app.singleton::<Mailer, _>(move |_| {
@@ -493,13 +498,14 @@ mod provider_service_tests {
         }
         let mail_count = Arc::new(AtomicUsize::new(0));
         let sms_count = Arc::new(AtomicUsize::new(0));
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(DeliveryProvider {
             mail: Arc::clone(&mail_count),
             sms: Arc::clone(&sms_count),
         });
-        let app =
-            crate::core::App::from_provider_runtime(builder.start(figment::Figment::new()).await?)?;
+        let app = crate::foundation::Application::from_provider_runtime(
+            builder.start(figment::Figment::new()).await?,
+        )?;
         let context = JobContext::new("test", 1, 1, crate::core::Cancellation::new())?
             .with_app_state(app.state().clone());
         let registry = crate::queue::QueueContributions::default().job_registry();
@@ -534,8 +540,10 @@ mod provider_service_tests {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{ProviderBuilder, RegisterContext, ServiceProvider};
+    use crate::foundation::ProviderBuilder;
+    use crate::foundation::RegisterContext;
     use crate::queue::{DispatchOptions, QueueDriver};
+    use crate::support::ServiceProvider;
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -580,7 +588,7 @@ mod provider_tests {
         fn register<'a>(
             &'a self,
             app: &'a mut RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 let calls = Arc::clone(&self.0);
                 app.singleton::<Queue, _>(move |_| {
@@ -620,7 +628,7 @@ mod provider_tests {
         fn register<'a>(
             &'a self,
             app: &'a mut RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.singleton::<Queue, _>(|_| {
                     Box::pin(async { Err(Error::custom("broken_driver", "private-queue-secret")) })

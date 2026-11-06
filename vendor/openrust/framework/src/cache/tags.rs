@@ -270,7 +270,7 @@ async fn run_refresh<T, F, Fut>(
     total_ttl: Duration,
     timeout: Duration,
     cancellation: &crate::core::Cancellation,
-    shared_locks: Option<&crate::db::SharedLocks>,
+    shared_locks: Option<&crate::database::SharedLocks>,
     lock_key: &str,
     lease_ttl: Duration,
 ) -> Option<SwrValue<T>>
@@ -281,8 +281,8 @@ where
 {
     let lease = if let Some(locks) = shared_locks {
         match locks.acquire(lock_key, lease_ttl).await {
-            Ok(crate::db::LockAcquire::Acquired(lease)) => Some((locks, lease)),
-            Ok(crate::db::LockAcquire::Busy { .. }) => {
+            Ok(crate::database::LockAcquire::Acquired(lease)) => Some((locks, lease)),
+            Ok(crate::database::LockAcquire::Busy { .. }) => {
                 return wait_for_shared_refresh(entry, cancellation, timeout).await;
             }
             Err(error) => {

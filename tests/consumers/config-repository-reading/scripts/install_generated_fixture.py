@@ -90,7 +90,7 @@ mod routes;
 use bootstrap::{match.group(1)} as GeneratedApplication;
 use openrust::http::axum::{{body::Body, http::{{Request, StatusCode}}}};
 use openrust::config::ConfigLoader;
-use openrust::core::Application;
+use openrust::foundation::ApplicationDefinition;
 use openrust::testing::TestApp;
 use std::time::Duration;
 

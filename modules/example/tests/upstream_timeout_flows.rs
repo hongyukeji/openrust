@@ -8,8 +8,8 @@
 use super::models::article;
 use figment::{Figment, providers::Serialized};
 use openrust::auth::AuthFlows;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
     body::Body,
     extract::ConnectInfo,
@@ -163,7 +163,7 @@ impl<T> Drop for RequestTask<T> {
 }
 
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();

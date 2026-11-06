@@ -36,7 +36,7 @@ async fn plugin_opens_pool_and_executes_a_query() -> Result<(), Box<dyn std::err
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(DatabaseServiceProvider);
@@ -44,7 +44,7 @@ async fn plugin_opens_pool_and_executes_a_query() -> Result<(), Box<dyn std::err
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     assert!(app.state().resolve::<RateLimiter>().await.is_ok());
     let readiness = app.state().resolve::<openrust::core::Readiness>().await?;
     assert!(readiness.dependencies_ready().await);
@@ -142,14 +142,14 @@ async fn runtime_database_readiness_fails_and_recovers_through_a_proxy()
         FrameworkConfig::default(),
     ))
     .merge(Figment::new().merge(Toml::string(&source)));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(DatabaseServiceProvider);
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let readiness = app.state().resolve::<openrust::core::Readiness>().await?;
     assert!(readiness.dependencies_ready().await);
 
@@ -272,24 +272,24 @@ async fn primary_scope_reads_fresh_data_while_replica_apply_is_paused()
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider);
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let db = app.state().resolve::<Db>().await?;
     let peer_figment = Figment::new().merge(Toml::string(&source));
     let peer_builder_sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ))
     .merge(peer_figment);
-    let mut peer_builder = openrust::core::ProviderBuilder::new();
+    let mut peer_builder = openrust::foundation::ProviderBuilder::new();
     peer_builder.provider(DatabaseServiceProvider);
     let peer_app = peer_builder
         .start(peer_builder_sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let peer_db = peer_app.state().resolve::<Db>().await?;
     let primary = db.primary_connection()?;
     let replica = db.read_connection()?;
@@ -449,13 +449,13 @@ async fn transaction_commits_success_and_rolls_back_callback_errors()
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider);
 
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let database = app.state().resolve::<Db>().await?;
     let connection = database.connection()?;
     let table = format!(
@@ -560,7 +560,7 @@ async fn transaction_events_rollback_before_commit_and_ignore_after_commit_error
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     let reject = Arc::new(AtomicBool::new(false));
     let after_calls = Arc::new(AtomicUsize::new(0));
     let mut events = EventsServiceProvider::new();
@@ -590,7 +590,7 @@ async fn transaction_events_rollback_before_commit_and_ignore_after_commit_error
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let db = app.state().resolve::<Db>().await?;
     let connection = db.connection()?;
     let table = format!("openrust_tx_events_{}", std::process::id());
@@ -666,13 +666,13 @@ async fn supported_backends_skip_rows_locked_by_another_transaction()
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider);
 
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let database = app.state().resolve::<Db>().await?;
     let connection = database.connection()?;
     let table = format!(

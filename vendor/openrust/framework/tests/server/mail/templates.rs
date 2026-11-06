@@ -4,8 +4,12 @@
 
 use std::collections::BTreeMap;
 
-use openrust::i18n::{I18n, I18nConfig, Locale, MessageArgs, MessageCatalog};
 use openrust::mail::{EmailTemplateBody, EmailTemplateCatalog};
+use openrust::translation::Locale;
+use openrust::translation::MessageArgs;
+use openrust::translation::MessageCatalog;
+use openrust::translation::TranslationConfig;
+use openrust::translation::Translator;
 
 const TEXT: &str = "Hello, {{ user }}";
 const HTML: &str = "<p>Hello, {{ user }}</p>";
@@ -16,7 +20,7 @@ fn server_application_can_render_and_build_localized_multipart_mail() {
     messages
         .insert("en", "mail.welcome.subject", "Welcome")
         .expect("insert English subject");
-    let i18n = I18n::new(I18nConfig::default(), messages).expect("i18n service");
+    let i18n = Translator::new(TranslationConfig::default(), messages).expect("i18n service");
     let locale = Locale::new("en").expect("locale");
     let mut templates = EmailTemplateCatalog::new(locale.clone());
     templates

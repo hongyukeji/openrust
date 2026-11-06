@@ -134,7 +134,7 @@ cargo deny check
 | --- | --- |
 | main功能簇/集成源码 | 提交前集中执行上述命令及受影响单元测试 |
 | 独立任务分支源码 | 按本节分支限定门禁验证，main组合门禁另在集成提交前执行 |
-| `openrust::db` / `openrust::queue` / `openrust::auth` 等数据模块 | 日常实际数据库验收仅真实MySQL8.4；其他类型及最低版本运行矩阵统一发布前完整适用验收，见 `memory/testing.md` |
+| `openrust::database` / `openrust::queue` / `openrust::auth` 等数据模块 | 日常实际数据库验收仅真实MySQL8.4；其他类型及最低版本运行矩阵统一发布前完整适用验收，见 `memory/testing.md` |
 | 模板与生成器 | 模板快照检查；日常普通与MySQL生成项目，其他数据库运行统一发布前另验；生成项目后 `cargo check` + `cargo test` |
 | 文档-only | `git diff --check` + 相对链接检查 + `rg` 旧路径扫描 |
 | 生成项目模板 | 模板快照检查；日常数据库型生成仅MySQL，其他数据库运行统一发布前另验；检查真实 `.env` / `.env.*` 忽略且 `.env.example` 可跟踪，生成项目后 `cargo check` + `cargo test` |

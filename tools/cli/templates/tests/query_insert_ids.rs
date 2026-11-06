@@ -2,7 +2,7 @@
 
 use openrust::{
     Error, Result,
-    db::{
+    database::{
         Db,
         sea_orm::{ConnectionTrait, DbBackend, TransactionTrait, Value},
         sea_orm_migration::{MigrationTrait, MigratorTrait},

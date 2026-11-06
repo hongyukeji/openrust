@@ -9,7 +9,8 @@ use axum::{
 };
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 
-use crate::{core::Error, http::Routes};
+use crate::core::Error;
+use crate::routing::Router;
 
 static PROMETHEUS: OnceLock<std::result::Result<PrometheusHandle, String>> = OnceLock::new();
 
@@ -53,7 +54,7 @@ pub async fn scrape() -> Response {
 }
 
 /// 注册 Prometheus scrape 路由。
-pub(crate) fn routes(routes: Routes) -> Routes {
+pub(crate) fn routes(routes: Router) -> Router {
     routes.get("/metrics", scrape)
 }
 
@@ -83,7 +84,8 @@ pub(super) fn status_class(status: StatusCode) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{method_label, status_class};
+    use super::method_label;
+    use super::status_class;
     use axum::http::{Method, StatusCode, header};
 
     #[test]
@@ -98,11 +100,12 @@ mod tests {
     #[tokio::test]
     async fn scrape_route_is_opt_in_and_does_not_export_request_secrets() -> crate::core::Result<()>
     {
-        use crate::{
-            config::FrameworkConfig,
-            core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider},
-            http::build_router,
-        };
+        use crate::config::FrameworkConfig;
+        use crate::foundation::BootContext;
+        use crate::foundation::ProviderBuilder;
+        use crate::foundation::http::build_router;
+        use crate::support::BoxFuture;
+        use crate::support::ServiceProvider;
         use axum::{body::Body, http::Request};
         use figment::{Figment, providers::Serialized};
         use tower::ServiceExt;
@@ -123,7 +126,7 @@ mod tests {
         let mut config = FrameworkConfig::default();
         let mut disabled = ProviderBuilder::new();
         disabled.provider(crate::http::HttpServiceProvider);
-        let disabled = crate::core::App::from_provider_runtime(
+        let disabled = crate::foundation::Application::from_provider_runtime(
             disabled
                 .start(Figment::from(Serialized::defaults(config.clone())))
                 .await?,
@@ -151,7 +154,7 @@ mod tests {
         builder
             .provider(crate::http::HttpServiceProvider)
             .provider(MetricsRoutes);
-        let app = crate::core::App::from_provider_runtime(
+        let app = crate::foundation::Application::from_provider_runtime(
             builder
                 .start(Figment::from(Serialized::defaults(config)))
                 .await?,

@@ -1,7 +1,8 @@
 //! 复用所选数据库或 Redis 队列执行的应用任务。
 
-use openrust::core::{BoxFuture, Result};
+use openrust::core::Result;
 use openrust::queue::{Job, JobContext};
+use openrust::support::BoxFuture;
 use serde::{Deserialize, Serialize};
 
 /// `example_heartbeat` 后台任务。

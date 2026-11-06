@@ -1,6 +1,6 @@
 //! 文章删除后的持久对象清理意图。
 
-use openrust::db::sea_orm::entity::prelude::*;
+use openrust::database::sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "example_attachment_cleanup")]

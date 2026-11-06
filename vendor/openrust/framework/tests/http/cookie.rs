@@ -69,11 +69,11 @@ fn response_cookie_composition_preserves_envelope_and_unencoded_value() {
 }
 
 struct CookieRoutes;
-impl openrust::core::ServiceProvider for CookieRoutes {
+impl openrust::support::ServiceProvider for CookieRoutes {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::new(tokio::sync::Notify::new()))
                 .await?;
@@ -82,12 +82,12 @@ impl openrust::core::ServiceProvider for CookieRoutes {
     }
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new().middleware_alias("cookies"),
+                    openrust::routing::RouteGroup::new().middleware_alias("cookies"),
                     |routes| {
                         routes
                             .get("/queue/{value}", scoped_queue)
@@ -151,16 +151,16 @@ async fn security_cookies(jar: openrust::http::CookieJar) -> openrust::Result<im
 }
 async fn cookie_app(
     provider: openrust::http::CookieServiceProvider,
-) -> openrust::Result<openrust::App> {
+) -> openrust::Result<openrust::Application> {
     let mut config = openrust::config::FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
     config.server.trusted_proxy_ranges = Some(vec!["127.0.0.1/32".to_owned()]);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(openrust::http::HttpServiceProvider)
         .provider(provider)
         .provider(CookieRoutes);
-    openrust::App::from_provider_runtime(
+    openrust::Application::from_provider_runtime(
         builder
             .start(figment::Figment::from(
                 figment::providers::Serialized::defaults(config),
@@ -173,7 +173,7 @@ async fn request_scope_shares_jar_but_concurrent_and_cancelled_requests_are_isol
 -> openrust::Result<()> {
     use openrust::ServiceExt;
     let app = cookie_app(openrust::http::CookieServiceProvider::plain()).await?;
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     let send = |path: &str| {
         Wire::builder()
             .uri(path)
@@ -239,7 +239,7 @@ async fn origin_form_secure_defaults_use_trusted_transport_and_preserve_explicit
     use openrust::ServiceExt;
     use std::net::SocketAddr;
     let app = cookie_app(openrust::http::CookieServiceProvider::plain()).await?;
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     for (peer, proto, native_tls, expected) in [
         ("127.0.0.1:80", "https", None, true),
         ("192.0.2.1:80", "https", None, false),
@@ -309,7 +309,7 @@ async fn origin_form_secure_defaults_use_trusted_transport_and_preserve_explicit
         .expect("automatic");
     assert!(automatic.to_str().expect("header").contains("; secure"));
     // 客户端提供 absolute-form https 不能代替原生连接的 TLS 属性。
-    let response = openrust::http::build_router(&app)?
+    let response = openrust::foundation::http::build_router(&app)?
         .oneshot(
             Wire::builder()
                 .uri("https://localhost/security")
@@ -332,11 +332,11 @@ async fn origin_form_secure_defaults_use_trusted_transport_and_preserve_explicit
 }
 
 struct LateSessionDefaults;
-impl openrust::core::ServiceProvider for LateSessionDefaults {
+impl openrust::support::ServiceProvider for LateSessionDefaults {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.overlay("session", json!({"path":"/late", "domain":"example.test", "secure":false, "same_site":"strict"}))?;
             Ok(())
@@ -359,7 +359,7 @@ async fn factory_uses_final_session_section_without_auth_and_explicit_factory_wi
         } else {
             openrust::http::CookieServiceProvider::plain()
         };
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder.provider(provider).provider(LateSessionDefaults);
         let runtime = builder.start(figment::Figment::new()).await?;
         let factory = runtime.container().resolve::<CookieFactory>().await?;
@@ -388,11 +388,11 @@ async fn factory_uses_final_session_section_without_auth_and_explicit_factory_wi
 struct EarlyCookieFactoryProbe(
     std::sync::Arc<tokio::sync::Mutex<Option<std::sync::Arc<CookieFactory>>>>,
 );
-impl openrust::core::ServiceProvider for EarlyCookieFactoryProbe {
+impl openrust::support::ServiceProvider for EarlyCookieFactoryProbe {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             let early = app
                 .rebinding::<CookieFactory, _>(|_, _| Box::pin(async { Ok(()) }))
@@ -421,7 +421,7 @@ async fn early_cookie_factory_resolution_keeps_singleton_snapshot_after_late_ses
             openrust::http::CookieServiceProvider::plain()
         };
         let early = std::sync::Arc::new(tokio::sync::Mutex::new(None));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(provider)
             .provider(EarlyCookieFactoryProbe(early.clone()))
@@ -460,7 +460,7 @@ async fn existing_session_section_preserves_null_or_missing_same_site_without_au
             Some(section) => figment::Figment::new().merge(("session", section)),
             None => figment::Figment::new(),
         };
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder.provider(openrust::http::CookieServiceProvider::plain());
         let runtime = builder.start(source).await?;
         let factory = runtime.container().resolve::<CookieFactory>().await?;

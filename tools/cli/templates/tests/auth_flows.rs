@@ -178,12 +178,12 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
 
 /// 解析生成应用实际注册的工厂，避免JWT成功掩盖默认账户Provider失联。
 async fn assert_generated_named_user_provider(
-    app: &openrust::App,
+    app: &openrust::Application,
     email: &str,
     plain: &str,
 ) -> TestResult {
     use openrust::auth::{AuthManager, Credentials};
-    use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+    use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
 
     let scope = app.state().container().scope()?;
     let manager = scope.resolve::<AuthManager>().await?;
@@ -256,7 +256,7 @@ async fn assert_generated_named_user_provider(
         .ok_or("生成应用Provider未持久化记住我token")?;
     assert_eq!(remembered.auth_identifier()?, identifier);
 
-    let db = scope.resolve::<openrust::db::Db>().await?;
+    let db = scope.resolve::<openrust::database::Db>().await?;
     let table = db.quoted_table_name("users")?;
     let placeholder = match db.backend()? {
         DbBackend::Postgres => "$1",

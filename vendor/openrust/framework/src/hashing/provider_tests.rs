@@ -1,8 +1,9 @@
 //! 通过真实 `ProviderBuilder` 与 Container 验证共享实例及应用覆盖。
 
 use super::*;
-use crate::core::{ProviderBuilder, ServiceProvider};
+use crate::foundation::ProviderBuilder;
 use crate::hashing::{Argon2IdHasher, ArgonConfig, HashOptions};
+use crate::support::ServiceProvider;
 use figment::{Figment, providers::Serialized};
 use serde_json::json;
 

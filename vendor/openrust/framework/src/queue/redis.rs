@@ -4,7 +4,7 @@ use super::{
     DispatchOptions, JobContext, JobRegistry, QueueDriver, new_id, persist_execution_metadata,
     restore_execution_metadata, safe_error_code, validate_name, validate_options, validate_payload,
 };
-use crate::{AppState, BoxFuture, Cancellation, Error, ExecutionMetadata, Result};
+use crate::{ApplicationState, BoxFuture, Cancellation, Error, ExecutionMetadata, Result};
 use redis::aio::ConnectionManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -216,7 +216,7 @@ impl RedisQueueDriver {
 
     // Redis 领取、续租、handler 生命周期与最终确认共享一条 token-fencing 状态机。
     #[allow(clippy::too_many_lines)]
-    async fn run_next_inner(&self, queue: &str, state: Option<AppState>) -> Result<bool> {
+    async fn run_next_inner(&self, queue: &str, state: Option<ApplicationState>) -> Result<bool> {
         validate_name("queue", queue, 64)?;
         let mut connection = self.connection().await?;
         let keys = self.keys(queue);
@@ -374,7 +374,7 @@ impl QueueDriver for RedisQueueDriver {
     }
     fn dispatch_in_transaction<'a>(
         &'a self,
-        _transaction: &'a crate::db::DatabaseTransaction,
+        _transaction: &'a crate::database::DatabaseTransaction,
         _queue: &'a str,
         _job_name: &'a str,
         _payload: Value,
@@ -402,7 +402,7 @@ impl QueueDriver for RedisQueueDriver {
     }
     fn dispatch_in_transaction_with_metadata<'a>(
         &'a self,
-        _transaction: &'a crate::db::DatabaseTransaction,
+        _transaction: &'a crate::database::DatabaseTransaction,
         _queue: &'a str,
         _job_name: &'a str,
         _payload: Value,
@@ -422,7 +422,7 @@ impl QueueDriver for RedisQueueDriver {
     fn run_next_with_state<'a>(
         &'a self,
         queue: &'a str,
-        state: &'a AppState,
+        state: &'a ApplicationState,
     ) -> BoxFuture<'a, Result<bool>> {
         Box::pin(async move { self.run_next_inner(queue, Some(state.clone())).await })
     }

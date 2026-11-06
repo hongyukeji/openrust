@@ -1,14 +1,21 @@
 //! 显式JWT API配置的短期因子管理授权；不建立Session，也不是资源凭据。
 use super::{ConfirmPasswordsUsing, CredentialAuthority, TwoFactorActions};
-use crate::{
-    Error, Result,
-    auth::{
-        AuthUser, CredentialDomain, Credentials, FactorManagementContext, FactorOrigin, JwtTokens,
-        RefreshTokens, SessionFactorProof, UserProvider, credential::CredentialFactorContext,
-    },
-    db::{DatabaseTransaction, Db, sea_orm::DbBackend},
-    security::Encryptor,
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthUser;
+use crate::auth::CredentialDomain;
+use crate::auth::Credentials;
+use crate::auth::FactorManagementContext;
+use crate::auth::FactorOrigin;
+use crate::auth::JwtTokens;
+use crate::auth::RefreshTokens;
+use crate::auth::SessionFactorProof;
+use crate::auth::UserProvider;
+use crate::auth::credential::CredentialFactorContext;
+use crate::database::DatabaseTransaction;
+use crate::database::Db;
+use crate::database::sea_orm::DbBackend;
+use crate::encryption::Encrypter;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -25,7 +32,7 @@ const MAX_GRANT_BYTES: usize = 32 * 1024;
 /// 显式JWT API管理入口的固定来源及密码确认扩展。
 pub struct JwtApiFactorManagementOptions {
     /// 认证加密管理grant的应用加密器；使用独立AAD域，不产生第二套密码学。
-    pub encrypter: Encryptor,
+    pub encrypter: Encrypter,
     /// 绑定的实际API Guard名称，不将原登录来源改写为Web身份。
     pub guard: String,
     /// 绑定的实际账户 `Provider` 名称；必须显式提供非空Some值。
@@ -49,7 +56,7 @@ pub struct JwtApiFactorManagement {
     actions: TwoFactorActions,
     tokens: JwtTokens,
     provider: Arc<dyn UserProvider>,
-    encrypter: Encryptor,
+    encrypter: Encrypter,
     guard: String,
     provider_name: Option<String>,
     confirm_passwords: Option<ConfirmPasswordsUsing>,

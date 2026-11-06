@@ -26,8 +26,8 @@ use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
 };
+use openrust::database::sea_orm::{ConnectionTrait, Statement};
 use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
-use openrust::db::sea_orm::{ConnectionTrait, Statement};
 use openrust::http::axum::http::StatusCode;
 use openrust::mail::{MailDriver, Mailer};
 use openrust::prelude::*;
@@ -118,11 +118,11 @@ impl SmsDriver for CaptureSms {
 }
 
 struct CaptureMailerProvider(CaptureMailer);
-impl openrust::core::ServiceProvider for CaptureMailerProvider {
+impl openrust::support::ServiceProvider for CaptureMailerProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(Mailer::new(self.0.clone()))).await?;
             Ok(())
@@ -131,11 +131,11 @@ impl openrust::core::ServiceProvider for CaptureMailerProvider {
 }
 
 struct CaptureSmsProvider(CaptureSms);
-impl openrust::core::ServiceProvider for CaptureSmsProvider {
+impl openrust::support::ServiceProvider for CaptureSmsProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(SmsSender::new(self.0.clone())))
                 .await?;
@@ -167,7 +167,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     #[cfg(feature = "http-client")]
     let figment = figment.merge(("example.article_summary_origin", upstream_origin));
     let bootstrap_configuration = figment.extract::<bootstrap::Configuration>()?;
-    let mut builder = openrust::core::ProviderBuilder::for_application::<bootstrap::Server>(
+    let mut builder = openrust::foundation::ProviderBuilder::for_application::<bootstrap::Server>(
         &bootstrap_configuration,
     );
     let captured_mail = CaptureMailer::default();
@@ -175,14 +175,14 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let captured_sms = CaptureSms::default();
     builder.provider(CaptureSmsProvider(captured_sms.clone()));
     let extension_source = figment.clone();
-    let app = openrust::core::App::from_provider_runtime(
+    let app = openrust::foundation::Application::from_provider_runtime(
         builder
             .start(crate::modules::example::test_sources(&(figment))?)
             .await?,
     )?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     let (shutdown, shutdown_signal) = oneshot::channel();
     let server = openrust::tokio::spawn(async move {
         openrust::http::axum::serve(
@@ -528,7 +528,7 @@ async fn run_auth_flow(
     address: SocketAddr,
     mail: &CaptureMailer,
     sms: &CaptureSms,
-    app: &openrust::App,
+    app: &openrust::Application,
 ) -> TestResult {
     run_session_flow(address).await?;
     let root = request(address, "GET", "/api", None, None, None).await?;
@@ -568,8 +568,10 @@ async fn run_auth_flow(
     let connection = db.primary_connection()?;
     let backend = connection.get_database_backend();
     let query = match backend {
-        openrust::db::DbBackend::Postgres => "SELECT password_hash FROM users WHERE email = $1",
-        openrust::db::DbBackend::MySql => "SELECT password_hash FROM users WHERE email = ?",
+        openrust::database::DbBackend::Postgres => {
+            "SELECT password_hash FROM users WHERE email = $1"
+        }
+        openrust::database::DbBackend::MySql => "SELECT password_hash FROM users WHERE email = ?",
         _ => return Err("unsupported auth test backend".into()),
     };
     let stored = connection
@@ -917,7 +919,7 @@ async fn run_article_flow(
     owner_token: &str,
     owner_id: i64,
     owner_email: &str,
-    app: &openrust::App,
+    app: &openrust::Application,
 ) -> TestResult {
     let path = "/api/example/articles";
     let anonymous = request(address, "GET", path, None, None, None).await?;
@@ -1027,7 +1029,7 @@ async fn run_article_flow(
     let audit_table = audit_db.quoted_table_name("audit_records")?;
     let audit_row = audit_db
         .connection()?
-        .query_one_raw(openrust::db::sea_orm::Statement::from_string(
+        .query_one_raw(openrust::database::sea_orm::Statement::from_string(
             audit_db.connection()?.get_database_backend(),
             format!(
                 "SELECT actor_id, object_id, outcome FROM {audit_table} WHERE action = 'example.article.view'"
@@ -1199,7 +1201,7 @@ async fn run_external_summary_flow(
 
 #[cfg(feature = "queue")]
 async fn drain_article_notifications(
-    app: &openrust::App,
+    app: &openrust::Application,
     mail: &CaptureMailer,
     owner_email: &str,
 ) -> TestResult {
@@ -1234,7 +1236,7 @@ async fn drain_article_notifications(
 #[allow(clippy::too_many_lines)]
 async fn run_private_note_flow(
     address: SocketAddr,
-    app: &openrust::App,
+    app: &openrust::Application,
     ids: &[i64],
     owner_token: &str,
     other_token: &str,
@@ -1298,15 +1300,15 @@ async fn run_private_note_flow(
     let backend = connection.get_database_backend();
     // 模块业务表由 SeaORM entity 固定命名；框架 table_prefix 只用于框架表。
     let table = match backend {
-        openrust::db::DbBackend::Postgres => "\"example_articles\"",
-        openrust::db::DbBackend::MySql => "`example_articles`",
+        openrust::database::DbBackend::Postgres => "\"example_articles\"",
+        openrust::database::DbBackend::MySql => "`example_articles`",
         _ => return Err("unsupported article test database".into()),
     };
     let select = match backend {
-        openrust::db::DbBackend::Postgres => {
+        openrust::database::DbBackend::Postgres => {
             format!("SELECT private_note_ciphertext FROM {table} WHERE id = $1")
         }
-        openrust::db::DbBackend::MySql => {
+        openrust::database::DbBackend::MySql => {
             format!("SELECT private_note_ciphertext FROM {table} WHERE id = ?")
         }
         _ => return Err("unsupported test backend".into()),
@@ -1322,10 +1324,10 @@ async fn run_private_note_flow(
     let ciphertext = row.try_get::<String>("", "private_note_ciphertext")?;
     assert!(!ciphertext.contains(secret));
     let update = match backend {
-        openrust::db::DbBackend::Postgres => {
+        openrust::database::DbBackend::Postgres => {
             format!("UPDATE {table} SET private_note_ciphertext = $1 WHERE id = $2")
         }
-        openrust::db::DbBackend::MySql => {
+        openrust::database::DbBackend::MySql => {
             format!("UPDATE {table} SET private_note_ciphertext = ? WHERE id = ?")
         }
         _ => return Err("unsupported test backend".into()),
@@ -1350,7 +1352,11 @@ async fn run_private_note_flow(
 }
 
 #[cfg(feature = "queue")]
-async fn drain_article_index_jobs(app: &openrust::App, owner_id: i64, ids: &[i64]) -> TestResult {
+async fn drain_article_index_jobs(
+    app: &openrust::Application,
+    owner_id: i64,
+    ids: &[i64],
+) -> TestResult {
     use modules::example::jobs::article_index::{ARTICLE_STORE, ArticleIndexEntry, cache_key};
     let queue = app.state().resolve::<openrust::queue::Queue>().await?;
     let mut processed = 0;
@@ -1556,17 +1562,17 @@ async fn run_request_driver_fixture(source: Figment) -> TestResult {
     ));
     let config = source.extract::<bootstrap::Configuration>()?;
     let mut builder =
-        openrust::core::ProviderBuilder::for_application::<bootstrap::Server>(&config);
+        openrust::foundation::ProviderBuilder::for_application::<bootstrap::Server>(&config);
     builder
         .provider(modules::example::providers::session::ExampleSessionDriverProvider::database());
-    let app = openrust::App::from_provider_runtime(
+    let app = openrust::Application::from_provider_runtime(
         builder
             .start(crate::modules::example::test_sources(&(source))?)
             .await?,
     )?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
-    let router = openrust::http::build_router(&app)?;
+    let router = openrust::foundation::http::build_router(&app)?;
     let (shutdown, signal) = oneshot::channel();
     let mut server = openrust::tokio::spawn(async move {
         openrust::http::axum::serve(

@@ -3,7 +3,7 @@
 use openrust::prelude::*;
 use crate::app::http::controllers::home::index as root;
 
-pub fn register(routes: Routes) -> Routes {
+pub fn register(routes: Router) -> Router {
 {{routes}}
 }
 {{auth_handler}}

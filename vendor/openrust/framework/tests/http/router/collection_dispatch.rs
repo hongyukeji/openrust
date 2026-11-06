@@ -72,13 +72,13 @@ async fn business_405(info: RequestInfo) -> openrust::Result<Response> {
     Ok(response)
 }
 
-async fn build_app<F>(routes: F) -> CaseResult<(openrust::App, Arc<Calls>)>
+async fn build_app<F>(routes: F) -> CaseResult<(openrust::Application, Arc<Calls>)>
 where
-    F: Fn(Routes) -> Routes + Send + Sync + 'static,
+    F: Fn(Router) -> Router + Send + Sync + 'static,
 {
     let mut config = FrameworkConfig::default();
     config.app.url = "http://localhost".into();
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(routes));
@@ -87,12 +87,12 @@ where
             figment::providers::Serialized::defaults(config),
         ))
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     Ok((app, Arc::new(Calls::default())))
 }
 async fn build<F>(routes: F) -> CaseResult<(axum::Router, Arc<Calls>)>
 where
-    F: Fn(Routes) -> Routes + Send + Sync + 'static,
+    F: Fn(Router) -> Router + Send + Sync + 'static,
 {
     let (app, calls) = build_app(routes).await?;
     Ok((
@@ -234,7 +234,7 @@ async fn collection_surviving_post_has_get_head_405_and_options_from_live_method
     Ok(())
 }
 
-async fn old_urls(urls: RouteUrlGenerator) -> openrust::Result<Json<serde_json::Value>> {
+async fn old_urls(urls: UrlGenerator) -> openrust::Result<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({
         "split":urls.action("SplitOld@show", &BTreeMap::new())?,
         "partial":urls.action("PartialOld@show", &BTreeMap::new())?,
@@ -404,7 +404,7 @@ async fn collection_alternate_verbs_keep_fixed_order_query_and_custom_direct_onl
 const TCP_BUDGET: Duration = Duration::from_secs(5);
 
 struct CollectionTcpServer {
-    app: openrust::App,
+    app: openrust::Application,
     address: std::net::SocketAddr,
     stop: Option<tokio::sync::oneshot::Sender<()>>,
     task: Option<tokio::task::JoinHandle<std::io::Result<()>>>,
@@ -474,7 +474,7 @@ async fn tcp_response(
 }
 
 async fn prepare_collection_tcp(
-    app: &openrust::App,
+    app: &openrust::Application,
     calls: &Arc<Calls>,
 ) -> CaseResult<(axum::Router, tokio::net::TcpListener, std::net::SocketAddr)> {
     let setup: CaseResult<_> = async {

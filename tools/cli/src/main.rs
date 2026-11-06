@@ -71,7 +71,7 @@ enum Builtin {
     },
     /// 以开发模式运行应用。
     Dev {
-        /// 应用的配置环境变量命名空间；须与 `Application::config_namespace` 一致。
+        /// 应用的配置环境变量命名空间；须与 `ApplicationDefinition::config_namespace` 一致。
         #[arg(long, default_value = "APP_")]
         config_namespace: String,
     },
@@ -1064,21 +1064,21 @@ fn populate_project_with_features(
         ),
         (
             "app/providers/app.rs",
-            include_str!("../templates/app/providers/app.rs").replace("{{auth_register}}", if auth { r#"    fn register<'a>(&'a self, app: &'a mut openrust::core::RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            include_str!("../templates/app/providers/app.rs").replace("{{auth_register}}", if auth { r#"    fn register<'a>(&'a self, app: &'a mut openrust::foundation::RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if !app.is_bound::<openrust::auth::AuthDrivers>() { return Ok(()); }
             let drivers = app.resolve::<openrust::auth::AuthDrivers>().await?;
             drivers.provider("app-users", |resolver, config| Box::pin(async move {
                 let table = config.options.get("table").and_then(serde_json::Value::as_str).ok_or_else(|| openrust::Error::custom_with_status(openrust::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR, "app_user_table_required", "应用账户Provider需要table"))?;
-                let db = resolver.resolve::<openrust::db::Db>().await?;
+                let db = resolver.resolve::<openrust::database::Db>().await?;
                 let passwords = resolver.resolve::<openrust::hashing::HashManager>().await?;
                 #[cfg(feature = "auth-fortify")]
                 let state_db = (*db).clone();
                 #[cfg(feature = "auth-fortify")]
                 let state_table = table.to_owned();
                 #[cfg(feature = "auth-fortify")]
-                let factor_encrypter = resolver.resolve::<openrust::security::Encryptor>().await?;
-                let model_metadata = std::sync::Arc::new(openrust::db::eloquent::ModelMetadata::new(
+                let factor_encrypter = resolver.resolve::<openrust::encryption::Encrypter>().await?;
+                let model_metadata = std::sync::Arc::new(openrust::database::eloquent::ModelMetadata::new(
                     table, "app::models::user::User",
                 ));
                 let provider = openrust::auth::DatabaseUserProvider::new((*db).clone(), passwords, table)?
@@ -1383,7 +1383,7 @@ fn install_jwt_api_profile(
     }
     let path = project_dir.join("routes/api.rs");
     let source = fs::read_to_string(&path)?;
-    let source = source.replace(".get(\"/\", root)", ".get(\"/\", root)\n        .merge(Routes::new().get(\"/me\", current_user).layer(openrust::auth::AuthLayer::guard(\"api\")))\n        .merge(Routes::new().get(\"/me/pat\", current_user).layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken)))");
+    let source = source.replace(".get(\"/\", root)", ".get(\"/\", root)\n        .merge(Router::new().get(\"/me\", current_user).layer(openrust::auth::AuthLayer::guard(\"api\")))\n        .merge(Router::new().get(\"/me/pat\", current_user).layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken)))");
     fs::write(
         path,
         format!(
@@ -1396,13 +1396,13 @@ fn install_jwt_api_profile(
     if source.matches(marker).count() != 1 {
         bail!("JWT API应用Provider装配点不唯一");
     }
-    let selection = r"    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::auto().replace(
-            openrust::core::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(),
+    let selection = r"    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::auto().replace(
+            openrust::foundation::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(),
             Box::new(openrust::auth::fortify::FortifyJwtApiServiceProvider::new().with_database_audit()),
         ).except([
-            openrust::core::ProviderId::of::<openrust::http::CookieServiceProvider>(),
-            openrust::core::ProviderId::of::<openrust::session::SessionServiceProvider>(),
+            openrust::foundation::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            openrust::foundation::ProviderId::of::<openrust::session::SessionServiceProvider>(),
         ])
     }
 
@@ -1746,9 +1746,9 @@ fn app_source(crate_name: &str) -> String {
 fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
     let mut additions = String::new();
     if database.is_some() {
-        additions.push_str("\n    providers.push(Box::new(openrust::db::MigrationServiceProvider::<\n        openrust_migration::Migrator,\n    >::new()));\n    providers.push(Box::new(openrust::db::SeedServiceProvider::new(crate::seed::run)));");
+        additions.push_str("\n    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust_migration::Migrator,\n    >::new()));\n    providers.push(Box::new(openrust::database::SeedServiceProvider::new(crate::seed::run)));");
     } else {
-        additions.push_str("\n    providers.push(Box::new(openrust::db::MigrationServiceProvider::<\n        openrust::db::FrameworkMigrator,\n    >::new()));");
+        additions.push_str("\n    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust::database::FrameworkMigrator,\n    >::new()));");
     }
     if grpc {
         additions.push_str("\n    providers.push(Box::new(openrust::grpc::GrpcServiceProvider::new()));\n    providers.push(Box::new(crate::grpc::EchoServiceProvider));\n    providers.push(Box::new(openrust::runtime::HttpGrpcServiceProvider));");
@@ -1870,7 +1870,7 @@ fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> Stri
 }
 
 fn migration_lib() -> String {
-    "//! 应用数据库迁移；框架基础设施仅从统一清单贡献一次。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        let mut migrations = openrust::db::FrameworkMigrator::migrations();\n        let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![];\n        migrations.extend(application_migrations);\n        migrations\n    }\n}\n".to_owned()
+    "//! 应用数据库迁移；框架基础设施仅从统一清单贡献一次。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        let mut migrations = openrust::database::FrameworkMigrator::migrations();\n        let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![];\n        migrations.extend(application_migrations);\n        migrations\n    }\n}\n".to_owned()
 }
 
 fn migration_catalog_test_source(auth: bool) -> String {
@@ -2201,7 +2201,7 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
         )
     } else {
         format!(
-            "{}\npub mod {module};\n\nuse openrust::core::{{BootContext, Result, ServiceProvider}};\nuse openrust::queue::QueueContributions;\n\n/// 注册应用的后台任务。\npub struct JobsServiceProvider;\n\nimpl ServiceProvider for JobsServiceProvider {{\n    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> openrust::core::BoxFuture<'a, Result<()>> {{\n        Box::pin(async move {{\n            let contributions = app.resolve::<QueueContributions>().await?;\n            contributions.register_job::<crate::jobs::{module}::{type_name}>()?;\n            Ok(())\n        }})\n    }}\n}}\n",
+            "{}\npub mod {module};\n\nuse openrust::foundation::BootContext;\nuse openrust::core::Result;\nuse openrust::support::ServiceProvider;\nuse openrust::queue::QueueContributions;\n\n/// 注册应用的后台任务。\npub struct JobsServiceProvider;\n\nimpl ServiceProvider for JobsServiceProvider {{\n    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> openrust::support::BoxFuture<'a, Result<()>> {{\n        Box::pin(async move {{\n            let contributions = app.resolve::<QueueContributions>().await?;\n            contributions.register_job::<crate::jobs::{module}::{type_name}>()?;\n            Ok(())\n        }})\n    }}\n}}\n",
             modules.trim_end(),
         )
     };
@@ -2295,7 +2295,7 @@ fn register_queue_config(source: &str) -> anyhow::Result<String> {
 
 fn render_job(type_name: &str, module: &str) -> String {
     format!(
-        "//! 可由数据库队列执行的应用任务。\n\nuse openrust::core::{{BoxFuture, Error, Result}};\nuse openrust::queue::{{Job, JobContext}};\nuse serde::{{Deserialize, Serialize}};\n\n/// `{module}` 后台任务。\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct {type_name};\n\nimpl Job for {type_name} {{\n    const NAME: &'static str = \"{module}.v1\";\n\n    fn handle(&self, _context: JobContext) -> BoxFuture<'_, Result<()>> {{\n        Box::pin(async {{\n            Err(Error::custom(\n                \"job_not_implemented\",\n                \"请先实现此任务的业务逻辑，再启动 worker\",\n            ))\n        }})\n    }}\n}}\n"
+        "//! 可由数据库队列执行的应用任务。\n\nuse openrust::support::BoxFuture;\nuse openrust::core::Error;\nuse openrust::core::Result;\nuse openrust::queue::{{Job, JobContext}};\nuse serde::{{Deserialize, Serialize}};\n\n/// `{module}` 后台任务。\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct {type_name};\n\nimpl Job for {type_name} {{\n    const NAME: &'static str = \"{module}.v1\";\n\n    fn handle(&self, _context: JobContext) -> BoxFuture<'_, Result<()>> {{\n        Box::pin(async {{\n            Err(Error::custom(\n                \"job_not_implemented\",\n                \"请先实现此任务的业务逻辑，再启动 worker\",\n            ))\n        }})\n    }}\n}}\n"
     )
 }
 
@@ -2343,7 +2343,7 @@ fn add_serde_workspace_dependency(source: &str) -> anyhow::Result<String> {
 }
 
 fn register_queue_migration(registry: &str) -> anyhow::Result<String> {
-    let framework = "let mut migrations = openrust::db::FrameworkMigrator::migrations();";
+    let framework = "let mut migrations = openrust::database::FrameworkMigrator::migrations();";
     if registry.contains("FrameworkMigrator::migrations()") {
         if registry.matches("FrameworkMigrator::migrations()").count() != 1
             || registry
@@ -2426,10 +2426,14 @@ fn render_mailer(type_name: &str, module: &str) -> String {
 
 use std::collections::BTreeMap;
 
-use openrust::{
-    i18n::{I18n, Locale, MessageArgs},
-    mail::{Email, EmailTemplateBody, EmailTemplateCatalog, EmailTemplateError, lettre::Message},
-};
+use openrust::translation::Translator;
+use openrust::translation::Locale;
+use openrust::translation::MessageArgs;
+use openrust::mail::Email;
+use openrust::mail::EmailTemplateBody;
+use openrust::mail::EmailTemplateCatalog;
+use openrust::mail::EmailTemplateError;
+use openrust::mail::lettre::Message;
 
 /// 使用受信模板构建的邮件。
 pub struct __TYPE__(Message);
@@ -2463,7 +2467,7 @@ impl __TYPE__ {
     /// 按显式 locale 渲染邮件并构建 MIME alternative。
     pub fn new(
         catalog: &EmailTemplateCatalog,
-        i18n: &I18n,
+        i18n: &Translator,
         locale: &Locale,
         subject_args: &MessageArgs,
         context: &BTreeMap<String, String>,
@@ -2636,7 +2640,7 @@ fn generate_provider(name: &str, project_dir: &Path) -> anyhow::Result<()> {
         bail!("bootstrap/providers.rs has an unsupported provider registry layout");
     }
     let source = format!(
-        "//! 应用服务 Provider。\n\nuse openrust::core::{{BootContext, BoxFuture, RegisterContext, ServiceProvider}};\nuse openrust::prelude::*;\n\n/// `{type_name}` 的注册与启动钩子。\npub struct {type_name};\n\nimpl ServiceProvider for {type_name} {{\n    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n\n    fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n}}\n"
+        "//! 应用服务 Provider。\n\nuse openrust::foundation::BootContext;\nuse openrust::support::BoxFuture;\nuse openrust::foundation::RegisterContext;\nuse openrust::support::ServiceProvider;\nuse openrust::prelude::*;\n\n/// `{type_name}` 的注册与启动钩子。\npub struct {type_name};\n\nimpl ServiceProvider for {type_name} {{\n    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n\n    fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n}}\n"
     );
     fs::write(&file, source)?;
     append_sorted_module(
@@ -3916,7 +3920,7 @@ mod tests {
         assert!(!api.contains(".middleware_group("));
         let bootstrap =
             fs::read_to_string(project.join("bootstrap/app.rs")).expect("read routing bootstrap");
-        assert!(bootstrap.contains("pub(crate) fn routes(routes: Routes, prefix: &str) -> Routes"));
+        assert!(bootstrap.contains("pub(crate) fn routes(routes: Router, prefix: &str) -> Router"));
         assert!(bootstrap.contains(".prefix(prefix).middleware_group(\"api\")"));
         assert!(bootstrap.contains("crate::routes::api::register"));
         assert!(bootstrap.contains("crate::routes::web::register(routes)"));
@@ -3988,7 +3992,7 @@ mod tests {
     fn assert_framework_migration_registry(source: &str) {
         assert_eq!(
             source
-                .matches("openrust::db::FrameworkMigrator::migrations()")
+                .matches("openrust::database::FrameworkMigrator::migrations()")
                 .count(),
             1
         );
@@ -4147,7 +4151,7 @@ mod tests {
         let registry = fs::read_to_string(project.join("bootstrap/providers.rs"))
             .expect("read application Provider list");
         assert!(registry.contains("AppServiceProvider"));
-        assert!(registry.contains("openrust::db::FrameworkMigrator"));
+        assert!(registry.contains("openrust::database::FrameworkMigrator"));
         assert_eq!(registry.matches("MigrationServiceProvider").count(), 1);
         assert!(!registry.contains("SeedServiceProvider"));
         assert!(!project.join("database/migrations").exists());
@@ -4316,13 +4320,13 @@ mod tests {
             assert!(app.contains("providers::application_providers(config)"));
             assert!(!app.contains("fn default_providers("));
             let defaults =
-                include_str!("../../../vendor/openrust/framework/src/core/default_providers.rs");
+                include_str!("../../../vendor/openrust/framework/src/support/default_providers.rs");
             assert!(defaults.contains("DatabaseServiceProvider"));
             let providers = fs::read_to_string(project.join("bootstrap/providers.rs"))
                 .expect("read generated provider registry");
             assert!(providers.contains("openrust_migration::Migrator"));
             assert!(providers.contains("SeedServiceProvider"));
-            assert!(!providers.contains("openrust::db::FrameworkMigrator"));
+            assert!(!providers.contains("openrust::database::FrameworkMigrator"));
             assert_eq!(providers.matches("MigrationServiceProvider").count(), 1);
             assert!(project.join(".env.example").is_file());
             let env = fs::read_to_string(project.join(".env.example"))
@@ -4393,7 +4397,8 @@ mod tests {
             let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                 .expect("read generated migration registry");
             assert_framework_migration_registry(&migration);
-            let framework = include_str!("../../../vendor/openrust/framework/src/db/migration.rs");
+            let framework =
+                include_str!("../../../vendor/openrust/framework/src/database/migration.rs");
             for name in [
                 "AuthMigration",
                 "AuthRefreshTokenMigration",
@@ -4423,7 +4428,7 @@ mod tests {
             assert!(app.contains("providers::application_providers(config)"));
             assert!(!app.contains("fn default_providers("));
             let defaults =
-                include_str!("../../../vendor/openrust/framework/src/core/default_providers.rs");
+                include_str!("../../../vendor/openrust/framework/src/support/default_providers.rs");
             assert!(defaults.contains("AuthServiceProvider"));
             assert!(defaults.contains("JwtServiceProvider"));
             assert!(defaults.contains("AuthFlowsServiceProvider"));
@@ -5133,7 +5138,9 @@ mod tests {
             registered
         );
         for conflicting in [
-            format!("{framework}\nlet duplicate = openrust::db::FrameworkMigrator::migrations();"),
+            format!(
+                "{framework}\nlet duplicate = openrust::database::FrameworkMigrator::migrations();"
+            ),
             format!("{framework}\nBox::new(openrust::queue::QueueMigration)"),
             registered.replace(
                 "openrust::queue::QueueMigration",
@@ -6036,8 +6043,8 @@ mod jwt_api_profile_tests {
                 assert!(bootstrap.contains("DefaultProviders::auto().replace("));
                 assert!(bootstrap.contains(
                     r").except([
-            openrust::core::ProviderId::of::<openrust::http::CookieServiceProvider>(),
-            openrust::core::ProviderId::of::<openrust::session::SessionServiceProvider>(),
+            openrust::foundation::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            openrust::foundation::ProviderId::of::<openrust::session::SessionServiceProvider>(),
         ])"
                 ));
                 let session = fs::read_to_string(project.join("config/session.rs"))?;

@@ -1,7 +1,9 @@
 //! 独立应用通过公开配置仓储读取业务配置。
 
 use openrust::config::{ConfigError, repository::ConfigRepository};
-use openrust::core::{BootContext, BoxFuture, ServiceProvider};
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use serde_json::{Value, json};
 
 /// 只向业务展示预先选定的名称；不接受客户端提供的配置路径。

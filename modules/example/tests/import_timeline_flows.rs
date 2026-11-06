@@ -3,8 +3,8 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::Db;
-use openrust::db::sea_orm::{ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -16,7 +16,7 @@ type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 const TIMELINE: &str = "/api/example/article-imports/timeline";
 
 struct TimelineMigrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for TimelineMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -276,7 +276,7 @@ async fn assert_no_cookie_capability(app: &TestApp<crate::bootstrap::Server>) ->
 #[tokio::test]
 async fn jwt_profile_timeline_requires_current_scoped_family_and_sets_no_cookie() -> TestResult {
     use openrust::auth::JwtTokens;
-    use openrust::core::ProviderId;
+    use openrust::foundation::ProviderId;
     use openrust::http::axum::extract::ConnectInfo;
     use std::net::SocketAddr;
     let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {

@@ -62,7 +62,7 @@ fn redis_url() -> String {
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned())
 }
 
-async fn assembled(namespace: &str) -> Result<openrust::App> {
+async fn assembled(namespace: &str) -> Result<openrust::Application> {
     let url = redis_url();
     let figment = figment::Figment::from(figment::providers::Toml::string(&format!(
         "[queue]\ndefault = 'redis'\n[queue.connections.redis]\ndriver = 'redis'\nredis_url = {url:?}\nredis_namespace = '{namespace}'\n"
@@ -71,14 +71,14 @@ async fn assembled(namespace: &str) -> Result<openrust::App> {
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     let plugin = QueueServiceProvider::new();
     plugin.contributions().register_job::<ProbeJob>()?;
     builder.provider(plugin);
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -111,7 +111,7 @@ async fn queue_plugin_selects_redis_without_a_database_plugin() -> Result<()> {
     Ok(())
 }
 
-async fn assembled_scheduled(database_url: Option<&str>) -> Result<openrust::App> {
+async fn assembled_scheduled(database_url: Option<&str>) -> Result<openrust::Application> {
     let namespace = namespace();
     let url = redis_url();
     let figment = figment::Figment::from(figment::providers::Toml::string(&format!(
@@ -121,7 +121,7 @@ async fn assembled_scheduled(database_url: Option<&str>) -> Result<openrust::App
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     let plugin = QueueServiceProvider::new();
     plugin.contributions().register_job::<ProbeJob>()?;
     plugin.contributions().schedule_interval(
@@ -132,20 +132,20 @@ async fn assembled_scheduled(database_url: Option<&str>) -> Result<openrust::App
         std::time::Duration::from_secs(60),
     )?;
     if let Some(url) = database_url {
-        builder.provider(openrust::db::DatabaseServiceProvider);
+        builder.provider(openrust::database::DatabaseServiceProvider);
         builder.provider(plugin);
         return builder
             .start(sources.merge(figment::providers::Serialized::defaults(
                 serde_json::json!({"database":{"url":url}}),
             )))
             .await
-            .and_then(openrust::App::from_provider_runtime);
+            .and_then(openrust::Application::from_provider_runtime);
     }
     builder.provider(plugin);
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -187,8 +187,8 @@ async fn redis_queue_keeps_schedule_catalog_without_a_database_provider() -> Res
 #[tokio::test]
 #[ignore = "需要 OPENRUST_TEST_DATABASE_URL，实际验证调度事务拒绝 Redis"]
 async fn redis_queue_rejects_database_transaction_at_schedule_execution() -> Result<()> {
-    use openrust::db::sea_orm::{ConnectionTrait, Statement};
-    use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use openrust::database::sea_orm::{ConnectionTrait, Statement};
+    use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
     struct Migrator;
     impl MigratorTrait for Migrator {
         fn migrations() -> Vec<Box<dyn MigrationTrait>> {
@@ -254,17 +254,17 @@ struct AttemptTracker {
     children_stopped: AtomicUsize,
     started: tokio::sync::Notify,
     cleanup: tokio::sync::Notify,
-    state: std::sync::Mutex<Option<openrust::core::AppState>>,
+    state: std::sync::Mutex<Option<openrust::foundation::ApplicationState>>,
     observed: std::sync::Mutex<Vec<(u64, usize)>>,
-    scopes: std::sync::Mutex<Vec<Arc<openrust::core::container::Scope>>>,
+    scopes: std::sync::Mutex<Vec<Arc<openrust::container::Scope>>>,
 }
 struct AttemptInstance(usize);
 struct AttemptBindings(Arc<AttemptTracker>);
-impl openrust::core::ServiceProvider for AttemptBindings {
+impl openrust::support::ServiceProvider for AttemptBindings {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::clone(&self.0)).await?;
             app.scoped::<AttemptInstance, _>(|resolver| {
@@ -463,7 +463,7 @@ async fn assert_attempt_closed(tracker: &AttemptTracker, count: usize) -> Result
 async fn assembled_attempts(
     namespace: &str,
     tracker: &Arc<AttemptTracker>,
-) -> Result<openrust::App> {
+) -> Result<openrust::Application> {
     let provider = QueueServiceProvider::new();
     provider
         .contributions()
@@ -474,11 +474,11 @@ async fn assembled_attempts(
         "[queue]\ndefault = 'redis'\njob_timeout_secs = 1\n[queue.connections.redis]\ndriver = 'redis'\nredis_url = {:?}\nredis_namespace = '{namespace}'\n",
         redis_url()
     )));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(AttemptBindings(Arc::clone(tracker)))
         .provider(provider);
-    let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(sources).await?)?;
     *tracker
         .state
         .lock()

@@ -28,12 +28,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         FrameworkConfig::default(),
     ))
     .merge(Figment::new().merge(Toml::string(&source)));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider);
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let db = app.state().resolve::<Db>().await?;
     let backend = db.backend()?;
 

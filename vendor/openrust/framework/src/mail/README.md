@@ -22,14 +22,22 @@
 #[cfg(feature = "queue")]
 use std::sync::Arc;
 #[cfg(feature = "queue")]
-use openrust::{
-    core::{App, Result},
-    db::Db,
-    notifications::{EmailDelivery, Notification, Notifier, SmsDelivery},
-};
+use openrust::foundation::Application;
+#[cfg(feature = "queue")]
+use openrust::core::Result;
+#[cfg(feature = "queue")]
+use openrust::database::Db;
+#[cfg(feature = "queue")]
+use openrust::notifications::EmailDelivery;
+#[cfg(feature = "queue")]
+use openrust::notifications::Notification;
+#[cfg(feature = "queue")]
+use openrust::notifications::Notifier;
+#[cfg(feature = "queue")]
+use openrust::notifications::SmsDelivery;
 
 #[cfg(feature = "queue")]
-async fn queue_account_notice(app: &App, db: &Db) -> Result<()> {
+async fn queue_account_notice(app: &Application, db: &Db) -> Result<()> {
     let notifier = app.state().resolve::<Notifier>().await?;
     let message = Notification::new()
         .email(EmailDelivery::new(
@@ -56,11 +64,11 @@ async fn queue_account_notice(app: &App, db: &Db) -> Result<()> {
 
 队列执行至少一次。SMTP/Twilio 已受理但 worker 在确认任务前故障时，重试可能再次发送；框架不承诺外部发送 exactly-once。供应商接受提交也不代表最终送达。
 
-要本地化邮件，请从请求的 `RequestLocale` 中选择 `Locale`，或为后台任务显式指定 locale。`LocalizedEmail::new` 会从共享 `I18n` catalog 中读取独立的主题和正文 key，使用命名参数渲染，并构造纯文本 `lettre::Message`；应用仍可自行实现 `Email`，以使用自定义 multipart 或 HTML 格式。邮件传输层不会从全局状态推断 locale；调用方须在构造消息时选择。
+要本地化邮件，请从请求的 `RequestLocale` 中选择 `Locale`，或为后台任务显式指定 locale。`LocalizedEmail::new` 会从共享 `Translator` catalog 中读取独立的主题和正文 key，使用命名参数渲染，并构造纯文本 `lettre::Message`；应用仍可自行实现 `Email`，以使用自定义 multipart 或 HTML 格式。邮件传输层不会从全局状态推断 locale；调用方须在构造消息时选择。
 
-启用可选 feature `mail-templates` 后，可使用 `EmailTemplateCatalog` 注册应用编译期嵌入的模板，并以 `MiniJinja` 渲染纯文本及 HTML。模板源由 `include_str!` 引入；框架不提供任意文件或网络 loader。注册名必须是受限相对标识符；HTML 文件自动转义，缺少变量、语法错误、执行预算耗尽会返回错误。单个正文最多输出 256 KiB，主题拒绝换行并限制为 998 字节。locale 依次尝试精确标签、同语言资源和配置的模板回退 locale；主题仍由共享 `I18n` catalog 翻译。`RenderedEmail::multipart` 可直接组合附件，之后仍通过现有 `Mailer` 发送。
+启用可选 feature `mail-templates` 后，可使用 `EmailTemplateCatalog` 注册应用编译期嵌入的模板，并以 `MiniJinja` 渲染纯文本及 HTML。模板源由 `include_str!` 引入；框架不提供任意文件或网络 loader。注册名必须是受限相对标识符；HTML 文件自动转义，缺少变量、语法错误、执行预算耗尽会返回错误。单个正文最多输出 256 KiB，主题拒绝换行并限制为 998 字节。locale 依次尝试精确标签、同语言资源和配置的模板回退 locale；主题仍由共享 `Translator` catalog 翻译。`RenderedEmail::multipart` 可直接组合附件，之后仍通过现有 `Mailer` 发送。
 
-运行 `openrust generate mailer <name>` 会启用 `mail-templates`，生成 Rust 注册封装与 `templates/mail/<name>/{en,zh-CN}/` 下的纯文本/HTML 示例。生成后须在应用 `I18n` catalog 中增加 `mailers.<name>.subject`，并按应用需要编辑模板。该命令不会覆盖已存在邮件或模板目录。
+运行 `openrust generate mailer <name>` 会启用 `mail-templates`，生成 Rust 注册封装与 `templates/mail/<name>/{en,zh-CN}/` 下的纯文本/HTML 示例。生成后须在应用 `Translator` catalog 中增加 `mailers.<name>.subject`，并按应用需要编辑模板。该命令不会覆盖已存在邮件或模板目录。
 
 ```rust,no_run
 use openrust::mail::{Email, Mailer, lettre::Message};

@@ -4,14 +4,21 @@ use std::{sync::Arc, time::Duration};
 use crate::modules::example::models::{tenant_membership, tenant_record};
 use openrust::auth::{CurrentUser, QueryRule, QueryScope};
 use openrust::cache::Cache;
-use openrust::core::{RegisterContext, ServiceProvider};
-use openrust::db::sea_orm::{
+use openrust::database::sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DbBackend, EntityTrait, Statement,
 };
+#[cfg(any(feature = "storage-local", feature = "storage-s3"))]
+use openrust::filesystem::FilesystemManager;
+#[cfg(any(feature = "storage-local", feature = "storage-s3"))]
+use openrust::filesystem::StoragePath;
+#[cfg(any(feature = "storage-local", feature = "storage-s3"))]
+use openrust::filesystem::StorageReader;
+#[cfg(any(feature = "storage-local", feature = "storage-s3"))]
+use openrust::filesystem::UploadOptions;
+use openrust::foundation::RegisterContext;
 #[cfg(feature = "queue")]
 use openrust::queue::{Job, JobContext, Queue, QueueContributions};
-#[cfg(any(feature = "storage-local", feature = "storage-s3"))]
-use openrust::storage::{Storage, StoragePath, StorageReader, UploadOptions};
+use openrust::support::ServiceProvider;
 use openrust::tenant::{TenantContext, TenantId};
 use openrust::{Db, Error, Result};
 
@@ -23,7 +30,7 @@ impl ServiceProvider for TenantServiceProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.scoped::<TenantRecords, _>(|resolver| {
                 Box::pin(async move {
@@ -31,8 +38,8 @@ impl ServiceProvider for TenantServiceProvider {
                         db: resolver.resolve::<Db>().await?,
                         cache: resolver.resolve::<Cache>().await?,
                         #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
-                        storage: if resolver.is_bound::<Storage>()? {
-                            Some(resolver.resolve::<Storage>().await?)
+                        storage: if resolver.is_bound::<FilesystemManager>()? {
+                            Some(resolver.resolve::<FilesystemManager>().await?)
                         } else {
                             None
                         },
@@ -52,7 +59,7 @@ impl ServiceProvider for TenantServiceProvider {
     #[cfg(feature = "queue")]
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if app.is_bound::<QueueContributions>() {
@@ -68,7 +75,7 @@ pub(crate) struct TenantRecords {
     db: Arc<Db>,
     cache: Arc<Cache>,
     #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
-    storage: Option<Arc<Storage>>,
+    storage: Option<Arc<FilesystemManager>>,
     #[cfg(feature = "queue")]
     queue: Option<Arc<Queue>>,
 }

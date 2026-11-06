@@ -40,7 +40,7 @@ pub struct TestDatabase {
     database_url: String,
     connection: Option<DatabaseConnection>,
     cleaned: bool,
-    sqlite_runtime: Option<Box<crate::core::App>>,
+    sqlite_runtime: Option<Box<crate::foundation::Application>>,
     sqlite_directory: Option<std::path::PathBuf>,
     sqlite: bool,
     // 显式关闭开始后，失败/取消必须保留文件，不能再由 Drop 无条件重试删除。
@@ -123,9 +123,9 @@ impl TestDatabase {
             force_cleanup_start_failure: None,
         };
         let setup = async {
-            let mut builder = crate::core::ProviderBuilder::new();
-            builder.provider(crate::db::DatabaseServiceProvider);
-            builder.provider(crate::db::MigrationServiceProvider::<M>::new());
+            let mut builder = crate::foundation::ProviderBuilder::new();
+            builder.provider(crate::database::DatabaseServiceProvider);
+            builder.provider(crate::database::MigrationServiceProvider::<M>::new());
             let runtime = builder
                 .start(figment::Figment::from(
                     figment::providers::Serialized::defaults(serde_json::json!({"database": {
@@ -135,15 +135,16 @@ impl TestDatabase {
                 ))
                 .await?;
             // 标准App命令拥有SQLite迁移执行/取消边界；不能手工伪造执行所有者。
-            guard.sqlite_runtime =
-                Some(Box::new(crate::core::App::from_provider_runtime(runtime)?));
+            guard.sqlite_runtime = Some(Box::new(
+                crate::foundation::Application::from_provider_runtime(runtime)?,
+            ));
             let app = guard.sqlite_runtime.as_ref().ok_or_else(|| {
                 Error::custom(
                     "test_database_runtime_missing",
                     "测试数据库缺少受管生命周期",
                 )
             })?;
-            let db = app.state().resolve::<crate::db::Db>().await?;
+            let db = app.state().resolve::<crate::database::Db>().await?;
             guard.connection = Some(db.connection()?);
             app.run_command("migrate", Vec::new()).await
         }
@@ -366,7 +367,7 @@ impl TestDatabase {
     /// 调用前须先关闭借用该 URL 的独立应用/worker 池，并停止创建新借用。
     /// 不强制终止外部连接；网络库占用或归属不明时保留回执供下次恢复。
     /// 调用时即禁止 `Drop` 另行删除；关闭 future 失败、取消或未被轮询时均保留目录。
-    pub fn close(mut self) -> crate::core::BoxFuture<'static, Result<()>> {
+    pub fn close(mut self) -> crate::support::BoxFuture<'static, Result<()>> {
         if !self.sqlite {
             let cleanup = self.start_network_cleanup();
             return Box::pin(async move { cleanup?.receive().await });
@@ -626,7 +627,7 @@ fn cleanup_sqlite_directory(directory: Option<&std::path::Path>) -> Result<()> {
     };
     #[cfg(feature = "db-sqlite")]
     {
-        crate::db::cleanup_owned_sqlite_directory(directory)
+        crate::database::cleanup_owned_sqlite_directory(directory)
     }
     #[cfg(not(feature = "db-sqlite"))]
     {
@@ -818,7 +819,7 @@ mod tests {
 
     #[tokio::test]
     async fn failed_database_create_preserves_existing_database_and_sentinel() -> Result<()> {
-        let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        let Ok(admin) = crate::test_database_environment::database_url() else {
             eprintln!("skipping database ownership collision: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(());
         };
@@ -844,7 +845,7 @@ mod tests {
     #[tokio::test]
     async fn failed_template_create_preserves_existing_template_and_target_sentinels() -> Result<()>
     {
-        let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        let Ok(admin) = crate::test_database_environment::database_url() else {
             eprintln!("skipping template ownership collision: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(());
         };
@@ -882,7 +883,7 @@ mod tests {
 
     #[tokio::test]
     async fn failed_owned_migration_cleans_only_successfully_created_databases() -> Result<()> {
-        let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        let Ok(admin) = crate::test_database_environment::database_url() else {
             eprintln!("skipping owned migration failure: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(());
         };
@@ -906,7 +907,7 @@ mod tests {
 
     #[cfg(all(unix, feature = "db-mysql"))]
     fn mysql_cleanup_admin() -> Result<Option<String>> {
-        let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        let Ok(admin) = crate::test_database_environment::database_url() else {
             eprintln!("skipping MySQL close barrier: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(None);
         };
@@ -1143,7 +1144,7 @@ mod sqlite_managed_migration_tests {
                 ))
                 .await?;
             // 该API明确要求标准SQLite迁移执行者；旧fixture直接M::up会在此失败。
-            crate::db::dialect::set_column_nullable(
+            crate::database::dialect::set_column_nullable(
                 manager,
                 Alias::new(physical),
                 ColumnDef::new(Alias::new("email")).text().take(),
@@ -1181,7 +1182,7 @@ mod sqlite_managed_migration_tests {
             .sqlite_runtime
             .as_ref()
             .ok_or_else(|| Error::custom("fixture_app_missing", "缺少标准App"))?;
-        let db = app.state().resolve::<crate::db::Db>().await?;
+        let db = app.state().resolve::<crate::database::Db>().await?;
         assert_eq!(db.table_names().resolve("fixture_accounts")?, physical);
         assert_eq!(
             app.section::<crate::config::DatabaseConfig>("database")?

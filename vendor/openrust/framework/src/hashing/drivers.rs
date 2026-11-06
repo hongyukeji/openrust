@@ -1,7 +1,8 @@
 //! 成熟密码库驱动；参数解析与资源容量独立于认证业务。
 
 use super::{ArgonConfig, BcryptConfig, ExecutionLimits, HashInfo, HashOptions, Hasher, failure};
-use crate::core::{BoxFuture, Result};
+use crate::core::Result;
+use crate::support::BoxFuture;
 use argon2::{
     Algorithm, Argon2, Params, Version,
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},

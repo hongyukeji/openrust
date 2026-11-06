@@ -2,18 +2,22 @@
 
 use std::sync::Arc;
 
-use openrust::core::{RegisterContext, ServiceProvider};
 #[cfg(feature = "auth")]
-use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
+use openrust::foundation::RegisterContext;
+#[cfg(feature = "auth")]
+use openrust::mail::LocalizedEmail;
 use openrust::mail::{Email, Mailer, lettre::Message};
 #[cfg(test)]
 use openrust::sms::{SmsMessage, SmsSender};
-use openrust::{Error, Result};
+use openrust::support::ServiceProvider;
 #[cfg(feature = "auth")]
-use openrust::{
-    i18n::{I18n, Locale, MessageArgs},
-    mail::LocalizedEmail,
-};
+use openrust::translation::Locale;
+#[cfg(feature = "auth")]
+use openrust::translation::MessageArgs;
+#[cfg(feature = "auth")]
+use openrust::translation::Translator;
+use openrust::{Error, Result};
 
 /// 注册欢迎业务服务，复用当前应用最终绑定的通信服务。
 pub(crate) struct WelcomeServiceProvider;
@@ -21,7 +25,7 @@ impl ServiceProvider for WelcomeServiceProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.singleton::<WelcomeService, _>(|resolver| {
                 Box::pin(async move {
@@ -66,7 +70,7 @@ impl WelcomeService {
     pub(crate) async fn send_email(
         &self,
         verified_email: String,
-        i18n: &I18n,
+        i18n: &Translator,
         locale: &Locale,
     ) -> Result<()> {
         WelcomeEmail::new(verified_email.clone())?;

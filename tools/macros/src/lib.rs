@@ -69,10 +69,10 @@ pub fn resource(args: TokenStream, input: TokenStream) -> TokenStream {
         #implementation
 
         #[allow(clippy::unused_async_trait_impl)]
-        impl #impl_generics ::openrust::http::Resource for #self_type #where_clause {
+        impl #impl_generics ::openrust::routing::Resource for #self_type #where_clause {
             fn actions(
-                actions: ::openrust::http::ResourceActions,
-            ) -> ::openrust::http::ResourceActions {
+                actions: ::openrust::routing::ResourceActions,
+            ) -> ::openrust::routing::ResourceActions {
                 actions #(#action_calls)*
             }
         }

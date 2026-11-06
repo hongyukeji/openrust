@@ -14,7 +14,9 @@ use super::{
     DatabaseSessionHandler, DatabaseSessionMetadata, SessionId, SessionRecord, SessionStore,
     SessionStoreGuarantees, SessionStoreSemantics, SessionWriteMode, SessionWriteOutcome,
 };
-use crate::{Result, core::BoxFuture, db::Db};
+use crate::Result;
+use crate::database::Db;
+use crate::support::BoxFuture;
 
 /// Laravel database driver 的属性适配器；每个受管 Session 独占 handler exists 状态。
 ///
@@ -102,7 +104,7 @@ impl DatabaseSessionStore {
 impl super::store::CredentialSessionReader for DatabaseSessionStore {
     fn load_authorized_for_credential<'a>(
         &'a self,
-        tx: &'a crate::db::DatabaseTransaction,
+        tx: &'a crate::database::DatabaseTransaction,
         id: &'a SessionId,
         maximum: usize,
     ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {

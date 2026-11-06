@@ -2,7 +2,9 @@
 
 use std::net::IpAddr;
 
-use crate::core::{AppState, Error, Result};
+use crate::core::Error;
+use crate::core::Result;
+use crate::foundation::ApplicationState;
 use axum::extract::{FromRequestParts, Request};
 use http::request::Parts;
 
@@ -16,13 +18,13 @@ impl ClientIp {
         self.0
     }
 
-    pub(crate) fn from_request(request: &Request, state: &AppState) -> Result<Self> {
+    pub(crate) fn from_request(request: &Request, state: &ApplicationState) -> Result<Self> {
         request
             .extensions()
-            .get::<super::proxy::ProxySnapshot>()
+            .get::<crate::http::proxy::ProxySnapshot>()
             .cloned()
             .unwrap_or_else(|| {
-                super::proxy::ProxySnapshot::capture(
+                crate::http::proxy::ProxySnapshot::capture(
                     request.headers(),
                     request.uri(),
                     request.extensions(),
@@ -38,17 +40,17 @@ impl ClientIp {
     }
 }
 
-impl FromRequestParts<AppState> for ClientIp {
+impl FromRequestParts<ApplicationState> for ClientIp {
     type Rejection = Error;
 
     #[allow(clippy::unused_async_trait_impl)]
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self> {
+    async fn from_request_parts(parts: &mut Parts, state: &ApplicationState) -> Result<Self> {
         parts
             .extensions
-            .get::<super::proxy::ProxySnapshot>()
+            .get::<crate::http::proxy::ProxySnapshot>()
             .cloned()
             .unwrap_or_else(|| {
-                super::proxy::ProxySnapshot::capture(
+                crate::http::proxy::ProxySnapshot::capture(
                     &parts.headers,
                     &parts.uri,
                     &parts.extensions,

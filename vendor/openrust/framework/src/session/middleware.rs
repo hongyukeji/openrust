@@ -174,7 +174,7 @@ async fn prepare(
     })?;
     let scope = request
         .extensions()
-        .get::<Arc<crate::core::container::Scope>>()
+        .get::<Arc<crate::container::Scope>>()
         .ok_or_else(missing)?
         .clone();
     scope
@@ -244,14 +244,14 @@ async fn prepare(
 
 #[cfg(feature = "auth")]
 async fn bind_auth_request(
-    scope: &Arc<crate::core::container::Scope>,
+    scope: &Arc<crate::container::Scope>,
     session: &Session,
     request: &mut Request,
     info: &RequestInfo,
 ) -> Result<()> {
     if request
         .extensions()
-        .get::<crate::core::AppState>()
+        .get::<crate::foundation::ApplicationState>()
         .is_some_and(|state| state.container().contains::<crate::auth::AuthManager>())
     {
         session.bind_auth_scope(scope)?;

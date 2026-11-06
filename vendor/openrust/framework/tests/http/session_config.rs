@@ -6,8 +6,10 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::{ConfigError, FrameworkConfig, HttpStatusMode, SessionConfig};
-use openrust::core::{Application, BootContext, BoxFuture, RegisterContext, ServiceProvider};
-use openrust::db::Db;
+use openrust::database::Db;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode, header::SET_COOKIE},
@@ -17,6 +19,8 @@ use openrust::http::{
     RequestInfo, RequestSecurity, SameSite,
 };
 use openrust::session::{MemorySessionStore, Session, SessionServiceProvider};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::{TestApp, TestResponse};
 use openrust::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -55,11 +59,11 @@ impl Default for Plan {
     }
 }
 struct HarnessApp;
-impl Application for HarnessApp {
+impl ApplicationDefinition for HarnessApp {
     type Config = Harness;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let plan = &config.session_test;
@@ -102,7 +106,7 @@ impl ServiceProvider for DbTrap {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let count = Arc::new(DbResolutions::default());
             app.instance(count.clone()).await?;
@@ -131,14 +135,14 @@ impl ServiceProvider for TestRoutes {
                 .driver
                 .is_some();
             app.routes(move |routes| {
-                let add = |routes: openrust::http::Routes| {
+                let add = |routes: openrust::routing::Router| {
                     routes
                         .get("/config/session", inspect)
                         .get("/config/presence", presence)
                 };
                 if enabled {
                     routes.group(
-                        openrust::http::RouteGroup::new()
+                        openrust::routing::RouteGroup::new()
                             .middleware_alias("cookies")
                             .middleware_alias("session"),
                         add,

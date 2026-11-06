@@ -10,7 +10,8 @@ use figment::{
 use openrust::config::FrameworkConfig;
 
 use openrust::ServiceExt;
-use openrust::http::{HttpServiceProvider, build_router};
+use openrust::foundation::http::build_router;
+use openrust::http::HttpServiceProvider;
 use openrust::support::{ArrayKey, Collection, MessageBag, MessageInput};
 use openrust::view::{ViewServiceProvider, Views};
 use serde::Serialize;
@@ -20,25 +21,25 @@ use tempfile::tempdir;
 struct ViewRoutes;
 
 #[cfg(feature = "session")]
-impl openrust::core::ServiceProvider for ViewRoutes {
+impl openrust::support::ServiceProvider for ViewRoutes {
     fn register<'a>(
         &'a self,
-        _app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        _app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move { Ok(()) })
     }
 
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.exceptions(|handler| {
                 handler.api_envelope_when(|request, _| request.path() == "/view/read");
             })?;
             app.routes(|routes| {
                 routes.group(
-                    openrust::http::RouteGroup::new()
+                    openrust::routing::RouteGroup::new()
                         .middleware_alias("cookies")
                         .middleware_alias("session"),
                     |routes| {
@@ -117,7 +118,7 @@ async fn configured_app(
     directory: &std::path::Path,
     with_provider: bool,
     auto_reload: bool,
-) -> openrust::Result<openrust::App> {
+) -> openrust::Result<openrust::Application> {
     let mut config = FrameworkConfig::default();
     "Example & Co".clone_into(&mut config.app.name);
     "view:index.html".clone_into(&mut config.server.root_target);
@@ -130,14 +131,14 @@ async fn configured_app(
     )));
     let sources =
         figment::Figment::from(figment::providers::Serialized::defaults(config)).merge(figment);
-    let mut app = openrust::core::ProviderBuilder::new();
+    let mut app = openrust::foundation::ProviderBuilder::new();
     app.provider(HttpServiceProvider);
     if with_provider {
         app.provider(ViewServiceProvider);
     }
     app.start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -339,7 +340,7 @@ async fn session_errors_are_shared_before_handler_and_age_per_cookie()
     let path = directory.path().to_string_lossy().replace('\\', "\\\\");
     let sources = Figment::from(figment::providers::Serialized::defaults(config))
         .merge(Toml::string(&format!("[view]\ndirectory = \"{path}\"")));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(CookieServiceProvider::plain())
@@ -356,7 +357,7 @@ async fn session_errors_are_shared_before_handler_and_age_per_cookie()
             ),
         )
         .provider(ViewRoutes);
-    let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(sources).await?)?;
     let router = build_router(&app)?;
     let first = send_view(&router, "/view/flash/%3Cfirst%3E", None).await?;
     assert_eq!(first.status(), StatusCode::OK);

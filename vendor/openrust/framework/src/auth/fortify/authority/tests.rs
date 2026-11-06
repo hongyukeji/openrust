@@ -1,15 +1,20 @@
 //! 真实 SQLite 三字段状态、同用户并发、事务回滚与持久代际。
 use super::*;
-use crate::{
-    config::{EncryptionConfig, FrameworkConfig, NoConfig},
-    core::{Application, DefaultProviders, ServiceProvider},
-    db::{
-        DatabaseServiceProvider, Db, MigrationServiceProvider,
-        sea_orm::ConnectionTrait,
-        sea_orm_migration::{MigrationName, MigrationTrait, MigratorTrait},
-    },
-    testing::{TestApp, TestDatabase},
-};
+use crate::config::EncryptionConfig;
+use crate::config::FrameworkConfig;
+use crate::config::NoConfig;
+use crate::database::DatabaseServiceProvider;
+use crate::database::Db;
+use crate::database::MigrationServiceProvider;
+use crate::database::sea_orm::ConnectionTrait;
+use crate::database::sea_orm_migration::MigrationName;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::foundation::ApplicationDefinition;
+use crate::support::DefaultProviders;
+use crate::support::ServiceProvider;
+use crate::testing::TestApp;
+use crate::testing::TestDatabase;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::collections::BTreeMap;
 
@@ -24,7 +29,7 @@ impl MigratorTrait for Migrator {
     }
 }
 struct MigrationApp;
-impl Application for MigrationApp {
+impl ApplicationDefinition for MigrationApp {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
@@ -36,8 +41,8 @@ impl Application for MigrationApp {
         ]
     }
 }
-fn encrypter() -> Result<Encryptor> {
-    Encryptor::new(EncryptionConfig::new(
+fn encrypter() -> Result<Encrypter> {
+    Encrypter::new(EncryptionConfig::new(
         "test",
         BTreeMap::from([("test".into(), STANDARD.encode([7_u8; 32]))]),
     ))

@@ -252,7 +252,7 @@ pub(crate) fn manifest(
     application_root: &std::path::Path,
     config: &openrust_modules::config::ModulesConfig,
 ) -> openrust_modules::ModuleManifest {
-    use openrust::core::ServiceProvider;
+    use openrust::support::ServiceProvider;
     let provider =
         providers::ExampleModuleServiceProvider::from_config(application_root.to_path_buf());
     let possible = provider
@@ -320,7 +320,11 @@ mod config_sources;
 #[path = "tests/module_discovery_flows.rs"]
 mod module_discovery_flows;
 #[cfg(test)]
-pub(crate) use config_sources::application_sources as test_sources;
+pub(crate) fn test_sources(
+    figment: &figment::Figment,
+) -> openrust::Result<openrust::config::ConfigSources> {
+    config_sources::enabled_example_sources(figment)
+}
 
 #[cfg(all(test, feature = "db-sqlite"))]
 #[path = "tests/sqlite_connection_flows.rs"]

@@ -5,7 +5,7 @@ use figment::{Figment, providers::Serialized};
 use openrust::auth::AuthFlows;
 #[cfg(feature = "auth-fortify")]
 use openrust::auth::JwtTokens;
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum::{
     body::Body,
     extract::ConnectInfo,
@@ -21,7 +21,7 @@ const EMAIL: &str = "account-security@example.test";
 const PASSWORD: &str = "correct horse battery staple";
 const ORIGIN: &str = "http://example.test";
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -400,7 +400,7 @@ async fn disabled_account_rejects_existing_named_session_on_new_requests() -> Te
         .app
         .app()?
         .state()
-        .resolve::<openrust::db::Db>()
+        .resolve::<openrust::database::Db>()
         .await?;
     let affected = db
         .table("users")?
@@ -463,7 +463,7 @@ fn authenticator_code(encoded: &str) -> TestResult<String> {
 }
 #[cfg(feature = "auth-fortify")]
 pub(super) async fn setup_confirmed_factor(
-    app: &openrust::App,
+    app: &openrust::Application,
     id: i64,
 ) -> TestResult<(
     std::sync::Arc<openrust::auth::fortify::TwoFactorActions>,

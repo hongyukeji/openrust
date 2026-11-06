@@ -2,8 +2,8 @@
 use super::*;
 use crate::auth::EncodedPasswordHash;
 use crate::{
-    db::sea_orm::{ConnectionTrait, DbBackend, Statement},
-    db::sea_orm_migration::{MigrationTrait, MigratorTrait},
+    database::sea_orm::{ConnectionTrait, DbBackend, Statement},
+    database::sea_orm_migration::{MigrationTrait, MigratorTrait},
     testing::TestDatabase,
 };
 use serde_json::{Map, json};
@@ -300,7 +300,10 @@ impl Authenticatable for AlternateModel {
             )),
         }
     }
-    fn set_remember_token(&self, token: Option<String>) -> crate::core::BoxFuture<'_, Result<()>> {
+    fn set_remember_token(
+        &self,
+        token: Option<String>,
+    ) -> crate::support::BoxFuture<'_, Result<()>> {
         Box::pin(async move {
             self.attributes.set_attribute(
                 self.remember_token_name(),
@@ -312,7 +315,7 @@ impl Authenticatable for AlternateModel {
         &'a self,
         expected: Option<&'a str>,
         replacement: Option<String>,
-    ) -> crate::core::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
+    ) -> crate::support::BoxFuture<'a, Result<Option<crate::auth::RememberTokenUpdate>>> {
         Box::pin(async move {
             self.attributes
                 .model_attributes()

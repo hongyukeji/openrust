@@ -4,7 +4,9 @@ use std::{fmt, sync::Arc};
 
 use serde_json::{Map, Value};
 
-use crate::{Error, Result, core::BoxFuture};
+use crate::Error;
+use crate::Result;
+use crate::support::BoxFuture;
 
 /// Provider 返回的共享账户；缓存必须属于请求，不能放入进程级已登录状态。
 pub type AuthUser = Arc<dyn Authenticatable>;
@@ -15,7 +17,7 @@ pub type AuthUser = Arc<dyn Authenticatable>;
 /// 通过内部可变性修改；实现不得在跨越 await 时保留同步锁。
 pub trait Authenticatable: Send + Sync + 'static {
     /// 返回同一账户对象的可选持久模型身份；不能用登录标识猜测多态主键。
-    fn as_model(&self) -> Option<&dyn crate::db::eloquent::ModelIdentity> {
+    fn as_model(&self) -> Option<&dyn crate::database::eloquent::ModelIdentity> {
         None
     }
     /// 返回同一账户对象的可选Fortify能力；普通账户无需实现双因素状态存储。
@@ -111,7 +113,7 @@ pub trait UserProvider: Send + Sync + 'static {
     ///
     /// 此 Rust 适配能力只用于把已绑定数据库账户域的 AuthFlows/OIDC 桥接到 Guard，
     /// 必须同时核同一连接句柄和实际账户表，不能仅比较 Provider 名或整数 ID。
-    fn uses_database_accounts(&self, _db: &crate::db::Db, _table: &str) -> Result<bool> {
+    fn uses_database_accounts(&self, _db: &crate::database::Db, _table: &str) -> Result<bool> {
         Ok(false)
     }
     /// 按原始标识查找账户；找不到时返回 None。
@@ -315,14 +317,14 @@ fn combined_regeneration_unsupported() -> Error {
 /// 字段名固定为 `id/password/remember_token`；需要其他字段名时实现 `Authenticatable`。
 /// Debug有意不包含任何属性值；内存属性更改不会隐式写数据库。
 pub struct GenericUser {
-    attributes: crate::db::eloquent::ModelAttributes,
+    attributes: crate::database::eloquent::ModelAttributes,
 }
 
 impl GenericUser {
     /// 保留 Provider 返回的属性原始类型。
     pub fn new(attributes: Map<String, Value>) -> Self {
         Self {
-            attributes: crate::db::eloquent::ModelAttributes::new(attributes),
+            attributes: crate::database::eloquent::ModelAttributes::new(attributes),
         }
     }
     /// 返回单个属性副本；调用方负责保护敏感值。
@@ -338,7 +340,7 @@ impl GenericUser {
             .map_err(auth_attribute_error)
     }
     /// 返回同一账户的属性存储，供应用模型执行转换；不复制认证或记住我状态。
-    pub fn model_attributes(&self) -> &crate::db::eloquent::ModelAttributes {
+    pub fn model_attributes(&self) -> &crate::database::eloquent::ModelAttributes {
         &self.attributes
     }
     fn string_attribute(&self, name: &str) -> Result<Option<String>> {
@@ -453,7 +455,7 @@ mod tests {
     #[tokio::test]
     async fn model_attributes_and_authentication_share_one_raw_store() -> Result<()> {
         let user = GenericUser::new(Map::from_iter([("id".into(), json!("00042"))]));
-        let metadata = crate::db::eloquent::ModelMetadata::new("users", "User");
+        let metadata = crate::database::eloquent::ModelMetadata::new("users", "User");
         assert_eq!(
             user.model_attributes().get_attribute(&metadata, "id")?,
             Some(json!(42))

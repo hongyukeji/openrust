@@ -10,8 +10,8 @@ use figment::{Figment, providers::Serialized};
 use futures_util::{SinkExt, StreamExt};
 use openrust::Db;
 use openrust::auth::AuthFlows;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::http::axum;
 use openrust::testing::{TestApp, TestDatabase};
 use std::{
@@ -33,7 +33,7 @@ const PASSWORD: &str = "correct horse battery staple";
 const COOKIE: &str = "example_browser_session";
 const BUDGET: Duration = Duration::from_secs(8);
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -78,7 +78,7 @@ impl openrust::session::SessionStore for ShortSessionStore {
         id: &'a openrust::session::SessionId,
         max_bytes: usize,
         empty_expiry: time::OffsetDateTime,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<Option<openrust::session::SessionRecord>>>
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<Option<openrust::session::SessionRecord>>>
     {
         openrust::session::SessionStore::load(&self.inner, id, max_bytes, empty_expiry)
     }
@@ -87,7 +87,7 @@ impl openrust::session::SessionStore for ShortSessionStore {
         record: &'a openrust::session::SessionRecord,
         mode: openrust::session::SessionWriteMode,
         max_bytes: usize,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
     {
         Box::pin(async move {
             let mut record = record.clone();
@@ -114,7 +114,7 @@ impl openrust::session::SessionStore for ShortSessionStore {
     fn delete<'a>(
         &'a self,
         id: &'a openrust::session::SessionId,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         openrust::session::SessionStore::delete(&self.inner, id)
     }
 }
@@ -220,7 +220,7 @@ impl Fixture {
         .insert(&db.primary_connection()?)
         .await?;
         let token = owner.access_token().to_owned();
-        let router = openrust::http::build_router(app.app()?)?;
+        let router = openrust::foundation::http::build_router(app.app()?)?;
         let (stop, stopped) = oneshot::channel();
         let server = tokio::spawn(async move {
             axum::serve(

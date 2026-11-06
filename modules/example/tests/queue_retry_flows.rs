@@ -11,8 +11,8 @@ use super::jobs::article_index::{ARTICLE_STORE, ArticleIndexEntry, ArticleIndexJ
 use super::models::article;
 use figment::{Figment, providers::Serialized};
 use openrust::cache::Cache;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::queue::{DispatchOptions, Job, Queue};
 use openrust::tenant::{TenantContext, TenantId};
 use openrust::testing::{TestApp, TestDatabase};
@@ -24,7 +24,7 @@ type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 const TENANT: &str = "article-queue-retry";
 const QUEUE: &str = "article-retry";
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -141,14 +141,14 @@ impl Fixture {
         let connection = db.primary_connection()?;
         let table = db.quoted_table_name(if failed { "failed_jobs" } else { "jobs" })?;
         let backend = connection.get_database_backend();
-        let parameter = if backend == openrust::db::sea_orm::DbBackend::Postgres {
+        let parameter = if backend == openrust::database::sea_orm::DbBackend::Postgres {
             "$1"
         } else {
             "?"
         };
         let fields = if failed {
             "attempts, payload, error AS error_code".to_owned()
-        } else if backend == openrust::db::sea_orm::DbBackend::Postgres {
+        } else if backend == openrust::database::sea_orm::DbBackend::Postgres {
             "attempts, payload, available_at::text AS available_at".to_owned()
         } else {
             "attempts, payload, CAST(available_at AS CHAR) AS available_at".to_owned()
@@ -231,11 +231,11 @@ impl TableFault {
         let connection = db.primary_connection()?;
         // 模块迁移使用固定业务表名，不能套用框架表前缀。
         let (table, unavailable) = match connection.get_database_backend() {
-            openrust::db::sea_orm::DbBackend::Postgres => (
+            openrust::database::sea_orm::DbBackend::Postgres => (
                 "\"example_articles\"",
                 "\"example_articles_retry_unavailable\"",
             ),
-            openrust::db::sea_orm::DbBackend::MySql => {
+            openrust::database::sea_orm::DbBackend::MySql => {
                 ("`example_articles`", "`example_articles_retry_unavailable`")
             }
             _ => return Err("unsupported queue retry database backend".into()),

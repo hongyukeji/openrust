@@ -4,7 +4,10 @@ use super::{ExampleServiceProvider, module_state};
 use crate::modules::example;
 use openrust::Result;
 use openrust::config::DatabaseConfig;
-use openrust::core::{BoxFuture, ProviderId, RegisterContext, ServiceProvider};
+use openrust::foundation::ProviderId;
+use openrust::foundation::RegisterContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -104,7 +107,9 @@ impl ServiceProvider for ExampleModuleServiceProvider {
         >());
         providers.extend([
             ProviderId::of::<
-                openrust::db::MigrationServiceProvider<example::database::migrations::Migrator>,
+                openrust::database::MigrationServiceProvider<
+                    example::database::migrations::Migrator,
+                >,
             >(),
             seed_provider_id(example::database::seeders::run),
         ]);
@@ -173,10 +178,13 @@ impl ServiceProvider for ExampleModuleServiceProvider {
             let _ = uses_database;
             // 迁移与种子贡献始终可见；SQL 只在用户实际执行相应命令时运行。
             app.register_provider(
-                openrust::db::MigrationServiceProvider::<example::database::migrations::Migrator>::new()
-                    .for_module("example"),
-            ).await?;
-            app.register_provider(openrust::db::SeedServiceProvider::new(
+                openrust::database::MigrationServiceProvider::<
+                    example::database::migrations::Migrator,
+                >::new()
+                .for_module("example"),
+            )
+            .await?;
+            app.register_provider(openrust::database::SeedServiceProvider::new(
                 example::database::seeders::run,
             ))
             .await?;
@@ -187,5 +195,5 @@ impl ServiceProvider for ExampleModuleServiceProvider {
 
 // 函数 item 类型无法直接命名；只让编译器推导与 new(run) 完全相同的 F，不调用种子或构造服务。
 fn seed_provider_id<F: 'static>(_seed: F) -> ProviderId {
-    ProviderId::of::<openrust::db::SeedServiceProvider<F>>()
+    ProviderId::of::<openrust::database::SeedServiceProvider<F>>()
 }

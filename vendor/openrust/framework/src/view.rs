@@ -42,14 +42,14 @@ pub struct ViewServiceProvider;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct OptionalViewServiceProvider;
 
-impl crate::core::ServiceProvider for OptionalViewServiceProvider {
+impl crate::support::ServiceProvider for OptionalViewServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if app.source_has_section("view")? {
-                crate::core::ServiceProvider::register(&ViewServiceProvider, app).await?;
+                crate::support::ServiceProvider::register(&ViewServiceProvider, app).await?;
             }
             Ok(())
         })
@@ -57,8 +57,8 @@ impl crate::core::ServiceProvider for OptionalViewServiceProvider {
 
     fn boot<'a>(
         &'a self,
-        app: &'a mut crate::core::BootContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if app.is_bound::<Views>() {
                 let _ = app.resolve::<Views>().await?;
@@ -68,11 +68,11 @@ impl crate::core::ServiceProvider for OptionalViewServiceProvider {
     }
 }
 
-impl crate::core::ServiceProvider for ViewServiceProvider {
+impl crate::support::ServiceProvider for ViewServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema;
             app.config_section(
@@ -98,8 +98,8 @@ impl crate::core::ServiceProvider for ViewServiceProvider {
 
     fn boot<'a>(
         &'a self,
-        app: &'a mut crate::core::BootContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<Views>().await?;
             Ok(())
@@ -372,7 +372,10 @@ fn load_template(
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::BoxFuture;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
 

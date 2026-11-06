@@ -3,8 +3,12 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use crate::core::container::Scope;
-use crate::core::{ApiResponse, AppState, Error, Result, ValidationErrors};
+use crate::container::Scope;
+use crate::core::ApiResponse;
+use crate::core::Error;
+use crate::core::Result;
+use crate::core::ValidationErrors;
+use crate::foundation::ApplicationState;
 use crate::validation::{InputContext, Validate, validate_input};
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRef, FromRequest, FromRequestParts, Request};
@@ -33,8 +37,8 @@ where
 
 async fn normalized_json<S: Send + Sync>(req: Request, state: &S) -> Result<Vec<u8>> {
     let (parts, body) = req.into_parts();
-    let policy = super::request::policy(&parts);
-    let query = super::request::parse_query(parts.uri.query(), &policy)?;
+    let policy = crate::http::request::policy(&parts);
+    let query = crate::http::request::parse_query(parts.uri.query(), &policy)?;
     // 固定小正文仅复用 Axum 的 MIME 判定，保留 415 优先且不消费真实正文。
     let mut probe = Request::from_parts(parts.clone(), axum::body::Body::from("null"));
     axum::extract::DefaultBodyLimit::disable().apply(&mut probe);
@@ -43,8 +47,8 @@ async fn normalized_json<S: Send + Sync>(req: Request, state: &S) -> Result<Vec<
         .map_err(json_error)?;
     let raw = bytes::Bytes::from_request(Request::from_parts(parts.clone(), body), state)
         .await
-        .map_err(|error| super::request::body_error(&error))?;
-    super::request::validate_json_depth(&raw)?;
+        .map_err(|error| crate::http::request::body_error(&error))?;
+    crate::http::request::validate_json_depth(&raw)?;
     let _ = AxumJson::<serde::de::IgnoredAny>::from_bytes(&raw).map_err(json_error)?;
     // 有界额外 buffer 只重写字符串值，数字/键/重复字段维持原始词法。
     let encoded = policy.rewrite_json(&raw)?;
@@ -141,11 +145,11 @@ where
     #[allow(clippy::unused_async_trait_impl)]
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
         let _ = state;
-        let policy = super::request::policy(parts);
-        let value = super::request::parse_query(parts.uri.query(), &policy)?;
+        let policy = crate::http::request::policy(parts);
+        let value = crate::http::request::parse_query(parts.uri.query(), &policy)?;
         #[cfg(feature = "session")]
         crate::core::error::bind_exception_input(value.clone());
-        super::request::deserialize_query(value).map(Self)
+        crate::http::request::deserialize_query(value).map(Self)
     }
 }
 
@@ -165,7 +169,7 @@ impl<T: ?Sized> Deref for Inject<T> {
 impl<S, T> FromRequestParts<S> for Inject<T>
 where
     S: Send + Sync,
-    AppState: FromRef<S>,
+    ApplicationState: FromRef<S>,
     T: ?Sized + Send + Sync + 'static,
 {
     type Rejection = Error;
@@ -174,7 +178,10 @@ where
         if let Some(scope) = parts.extensions.get::<Arc<Scope>>() {
             scope.resolve::<T>().await.map(Self)
         } else {
-            AppState::from_ref(state).resolve::<T>().await.map(Self)
+            ApplicationState::from_ref(state)
+                .resolve::<T>()
+                .await
+                .map(Self)
         }
     }
 }
@@ -200,8 +207,8 @@ where
 {
     type Rejection = Response;
     async fn from_request(req: Request, state: &S) -> std::result::Result<Self, Response> {
-        let selected = if super::precognition::confirmed(req.extensions()) {
-            super::precognition::validate_only_header(req.headers()).cloned()
+        let selected = if crate::http::precognition::confirmed(req.extensions()) {
+            crate::http::precognition::validate_only_header(req.headers()).cloned()
         } else {
             None
         };
@@ -234,8 +241,8 @@ where
         parts: &mut Parts,
         state: &S,
     ) -> std::result::Result<Self, Response> {
-        let selected = if super::precognition::confirmed(&parts.extensions) {
-            super::precognition::validate_only_header(&parts.headers).cloned()
+        let selected = if crate::http::precognition::confirmed(&parts.extensions) {
+            crate::http::precognition::validate_only_header(&parts.headers).cloned()
         } else {
             None
         };
@@ -247,7 +254,7 @@ where
                 .map_err(IntoResponse::into_response)?;
             return Err(precognition_success());
         }
-        let value = super::request::deserialize_query::<T>(raw.clone())
+        let value = crate::http::request::deserialize_query::<T>(raw.clone())
             .map_err(IntoResponse::into_response)?;
         validate_input::<T>(&raw, InputContext::Query).map_err(IntoResponse::into_response)?;
         Ok(Self(Query(value)))

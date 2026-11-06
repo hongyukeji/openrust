@@ -82,7 +82,7 @@ pub(crate) async fn dispatch_export(
 #[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
 pub(crate) async fn download_export(
     user: CurrentUser,
-    Inject(storage): Inject<openrust::storage::Storage>,
+    Inject(storage): Inject<openrust::filesystem::FilesystemManager>,
     openrust::http::Path((job_id, attempt)): openrust::http::Path<(String, u64)>,
     Query(query): Query<TransferQuery>,
 ) -> Result<Response> {
@@ -104,7 +104,7 @@ pub(crate) async fn download_export(
 pub(crate) async fn dispatch_import(
     user: CurrentUser,
     Inject(db): Inject<openrust::Db>,
-    Inject(storage): Inject<openrust::storage::Storage>,
+    Inject(storage): Inject<openrust::filesystem::FilesystemManager>,
     Inject(queue): Inject<openrust::queue::Queue>,
     Query(query): Query<TransferQuery>,
     request: Request,
@@ -132,7 +132,7 @@ pub(crate) async fn dispatch_import(
 #[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
 pub(crate) async fn import_report(
     user: CurrentUser,
-    Inject(storage): Inject<openrust::storage::Storage>,
+    Inject(storage): Inject<openrust::filesystem::FilesystemManager>,
     openrust::http::Path((import_id, job_id, attempt)): openrust::http::Path<(String, String, u64)>,
 ) -> Result<Response> {
     let reader = crate::modules::example::services::article_transfer::open_import_report(

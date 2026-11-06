@@ -5,10 +5,13 @@
 )]
 
 use figment::Figment;
-use openrust::core::{
-    BoxFuture, ProviderBuilder, ProviderId, RegisterContext, Result, ServiceProvider,
-};
+use openrust::core::Result;
 use openrust::events::{Events, EventsServiceProvider};
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::ProviderId;
+use openrust::foundation::RegisterContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust_modules::{ModuleManifest, ModuleProviderBuilderExt};
 use std::sync::{Arc, Mutex};
 use tokio::time::{Duration, Instant};

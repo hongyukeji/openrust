@@ -1,7 +1,9 @@
 //! 应用自身的 Provider；在 bootstrap 清单中显式登记。
 
-use openrust::core::{BootContext, BoxFuture, ServiceProvider};
+use openrust::foundation::BootContext;
 use openrust::prelude::*;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 
 /// 根应用路由清单与异常呈现的启动钩子。
 pub struct AppServiceProvider;
@@ -10,7 +12,7 @@ impl ServiceProvider for AppServiceProvider {
     #[cfg(feature = "auth")]
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if !app.is_bound::<openrust::auth::AuthDrivers>() {
@@ -30,17 +32,18 @@ impl ServiceProvider for AppServiceProvider {
                                 "应用账户Provider需要table",
                             )
                         })?;
-                    let db = resolver.resolve::<openrust::db::Db>().await?;
+                    let db = resolver.resolve::<openrust::database::Db>().await?;
                     let passwords = resolver.resolve::<openrust::hashing::HashManager>().await?;
                     #[cfg(feature = "auth-fortify")]
                     let state_db = (*db).clone();
                     #[cfg(feature = "auth-fortify")]
                     let state_table = table.to_owned();
                     #[cfg(feature = "auth-fortify")]
-                    let factor_encrypter =
-                        resolver.resolve::<openrust::security::Encryptor>().await?;
+                    let factor_encrypter = resolver
+                        .resolve::<openrust::encryption::Encrypter>()
+                        .await?;
                     let model_metadata =
-                        std::sync::Arc::new(openrust::db::eloquent::ModelMetadata::new(
+                        std::sync::Arc::new(openrust::database::eloquent::ModelMetadata::new(
                             table,
                             "app::models::user::User",
                         ));

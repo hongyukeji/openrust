@@ -2,7 +2,9 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::{FrameworkConfig, NoConfig};
-use openrust::core::{Application, BootContext, BoxFuture, Result, ServiceProvider};
+use openrust::core::Result;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
 use openrust::http::{
     HttpServiceProvider, RequestInfo, TrustedProxyHeaders,
     axum::{
@@ -12,6 +14,8 @@ use openrust::http::{
         http::{Request, StatusCode},
     },
 };
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use std::{net::SocketAddr, time::Duration};
 
@@ -41,12 +45,12 @@ impl ServiceProvider for ProxyRoutes {
 
 struct ProxyApplication;
 
-impl Application for ProxyApplication {
+impl ApplicationDefinition for ProxyApplication {
     type Config = NoConfig;
 
-        fn default_providers() -> openrust::core::DefaultProviders {
-            openrust::core::DefaultProviders::empty()
-        }
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
+    }
 
     fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
         vec![Box::new(HttpServiceProvider), Box::new(ProxyRoutes)]

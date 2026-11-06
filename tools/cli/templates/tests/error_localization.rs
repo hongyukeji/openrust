@@ -2,16 +2,21 @@
 //! 不复制翻译器，也不依赖认证、数据库、Cookie或生成应用的可选feature。
 
 use figment::{Figment, providers::Serialized};
-use openrust::{
-    Error,
-    config::{FrameworkConfig, HttpStatusMode},
-    core::{App, ExceptionRequest, ProviderBuilder, ResponseContext, with_response_context},
-    http::axum::{
-        body::to_bytes,
-        http::{Method, StatusCode, header},
-    },
-    i18n::{I18n, I18nServiceProvider, Locale},
-};
+use openrust::Error;
+use openrust::config::FrameworkConfig;
+use openrust::config::HttpStatusMode;
+use openrust::foundation::Application;
+use openrust::foundation::ExceptionRequest;
+use openrust::foundation::ProviderBuilder;
+use openrust::core::ResponseContext;
+use openrust::core::with_response_context;
+use openrust::http::axum::body::to_bytes;
+use openrust::http::axum::http::Method;
+use openrust::http::axum::http::StatusCode;
+use openrust::http::axum::http::header;
+use openrust::translation::Translator;
+use openrust::translation::TranslationServiceProvider;
+use openrust::translation::Locale;
 use std::time::Duration;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -25,7 +30,7 @@ enum Format {
 }
 const FORMATS: [Format; 3] = [Format::Json, Format::Html, Format::Envelope];
 
-async fn application(default_locale: &str) -> TestResult<App> {
+async fn application(default_locale: &str) -> TestResult<Application> {
     let source = Figment::from(Serialized::defaults(FrameworkConfig::default())).merge(
         Serialized::defaults(serde_json::json!({
             "app":{"env":"testing","debug":false},
@@ -33,12 +38,12 @@ async fn application(default_locale: &str) -> TestResult<App> {
         })),
     );
     let mut builder = ProviderBuilder::new();
-    builder.provider(I18nServiceProvider::default());
-    Ok(App::from_provider_runtime(builder.start(source).await?)?)
+    builder.provider(TranslationServiceProvider::default());
+    Ok(Application::from_provider_runtime(builder.start(source).await?)?)
 }
 
 async fn rendered(
-    app: &App,
+    app: &Application,
     format: Format,
     error: Error,
     expected: &str,
@@ -87,7 +92,7 @@ async fn rendered(
     Ok(())
 }
 
-async fn verify_locale(app: &App, locale: &str) -> TestResult {
+async fn verify_locale(app: &Application, locale: &str) -> TestResult {
     let (unauthorized, internal) = if locale == "zh-CN" {
         ("需要身份验证", "服务器内部错误")
     } else {
@@ -121,7 +126,7 @@ async fn explicit_locale_overrides_default_and_scope_does_not_leak() -> TestResu
     for default in ["en", "zh-CN"] {
         let app = application(default).await?;
         let outcome = async {
-            let i18n = app.state().resolve::<I18n>().await?;
+            let i18n = app.state().resolve::<Translator>().await?;
             for locale in ["en", "zh-CN"] {
                 i18n.with_locale(Locale::new(locale)?, verify_locale(&app, locale))
                     .await?;

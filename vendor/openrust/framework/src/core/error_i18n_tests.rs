@@ -1,10 +1,13 @@
 //! 默认三种错误格式共用应用翻译目录；诊断 Display/source 不随用户语言变化。
 
 use super::*;
-use crate::{
-    core::{ExceptionHandler, ExceptionRequest},
-    i18n::{I18n, I18nConfig, I18nServiceProvider, Locale, MessageCatalog},
-};
+use crate::foundation::ExceptionHandler;
+use crate::foundation::ExceptionRequest;
+use crate::translation::Locale;
+use crate::translation::MessageCatalog;
+use crate::translation::TranslationConfig;
+use crate::translation::TranslationServiceProvider;
+use crate::translation::Translator;
 
 #[derive(Clone, Copy)]
 enum Format {
@@ -14,9 +17,9 @@ enum Format {
 }
 const FORMATS: [Format; 3] = [Format::Json, Format::Html, Format::Envelope];
 
-fn service(default_locale: &str, catalog: MessageCatalog) -> Result<I18n> {
-    I18n::new(
-        I18nConfig {
+fn service(default_locale: &str, catalog: MessageCatalog) -> Result<Translator> {
+    Translator::new(
+        TranslationConfig {
             default_locale: Locale::new(default_locale)?,
             fallback_locale: Locale::new("en")?,
         },
@@ -393,8 +396,8 @@ async fn concurrent_app_catalogs_and_locales_never_share_mutable_default_state()
 
 #[tokio::test]
 async fn provider_installs_the_resolved_app_catalog_without_http_dependency() -> Result<()> {
-    let mut builder = crate::core::ProviderBuilder::new();
-    builder.provider(I18nServiceProvider::default());
+    let mut builder = crate::foundation::ProviderBuilder::new();
+    builder.provider(TranslationServiceProvider::default());
     let runtime = builder
         .start(figment::Figment::from(
             figment::providers::Serialized::defaults(
@@ -402,7 +405,7 @@ async fn provider_installs_the_resolved_app_catalog_without_http_dependency() ->
             ),
         ))
         .await?;
-    let app = crate::core::App::from_provider_runtime(runtime)?;
+    let app = crate::foundation::Application::from_provider_runtime(runtime)?;
     let outcome: Result<()> = async {
         let handler = app
             .exception_handler()
@@ -510,8 +513,8 @@ async fn language_resource_precedes_configured_fallback_and_html_escapes_transla
         "openrust.error.html_message",
         "<script>not markup</script>",
     )?;
-    let i18n = I18n::new(
-        I18nConfig {
+    let i18n = Translator::new(
+        TranslationConfig {
             default_locale: Locale::new("en-GB")?,
             fallback_locale: Locale::new("zh-CN")?,
         },

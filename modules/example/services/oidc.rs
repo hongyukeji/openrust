@@ -6,10 +6,12 @@ use openrust::auth::{
     ExternalIdentityLink, ExternalIdentityProvider, ExternalLoginHandle, ExternalLoginResult,
     ExternalLogoutRedirect, OidcProvider, Session, SessionStoreHandle,
 };
-use openrust::core::{BootContext, RegisterContext, ServiceProvider};
-use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
+use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
+use openrust::encryption::Encrypter;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
 use openrust::http::{DependencyPolicy, HttpClient, HttpClientConfig, HttpTargetPolicy};
-use openrust::security::Encryptor;
+use openrust::support::ServiceProvider;
 use openrust::{BoxFuture, Db, Error, Result};
 use sha2::{Digest, Sha256};
 use std::{sync::Arc, time::Duration};
@@ -108,7 +110,7 @@ impl ServiceProvider for ExampleOidcServiceProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.singleton::<Discovered, _>(|resolver| {
                 Box::pin(async move {
@@ -160,7 +162,7 @@ impl ServiceProvider for ExampleOidcServiceProvider {
                     let provider = resolver.resolve::<Discovered>().await?;
                     let db = resolver.resolve::<Db>().await?;
                     let auth = resolver.resolve::<AuthFlows>().await?;
-                    let encryptor = resolver.resolve::<Encryptor>().await?;
+                    let encryptor = resolver.resolve::<Encrypter>().await?;
                     let issuer = provider.0.issuer().to_owned();
                     let redirect_uri =
                         configured(resolver.section::<ExampleConfig>("example")?)?.redirect_uri;

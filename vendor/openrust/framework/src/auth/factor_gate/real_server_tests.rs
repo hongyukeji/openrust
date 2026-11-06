@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     Error, Result,
-    db::{
+    database::{
         Db,
         sea_orm::{
             ConnectionTrait, Database, DbBackend, IsolationLevel, Statement, TransactionTrait,
@@ -18,7 +18,7 @@ use crate::{
 #[ignore = "需要真实MySQL/PostgreSQL及OPENRUST_TEST_DATABASE_URL，缺少环境必须失败"]
 async fn modern_schema_absence_partial_assets_and_parent_transaction_use_real_backend() -> Result<()>
 {
-    let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+    let url = crate::test_database_environment::database_url().map_err(Error::internal)?;
     owned(TestDatabase::create::<NoMigrations>(&url).await?, |db| {
         Box::pin(schema_contract(db))
     })
@@ -39,7 +39,7 @@ async fn modern_user(db: &Db) -> Result<()> {
 #[tokio::test]
 #[ignore = "需要真实MySQL/PostgreSQL，校验已有普通快照不能绕过当前锁读"]
 async fn current_locked_factor_read_cannot_reuse_an_earlier_clear_snapshot() -> Result<()> {
-    let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+    let url = crate::test_database_environment::database_url().map_err(Error::internal)?;
     owned(TestDatabase::create::<NoMigrations>(&url).await?, |db| {
         Box::pin(async move {
             modern_user(&db).await?;
@@ -189,7 +189,7 @@ async fn restricted_probe(url: &str) -> Result<()> {
 #[ignore = "需要真实MySQL/PostgreSQL及创建/回收临时受限用户权限；不跳过ACL错误"]
 async fn real_column_acl_denial_is_not_missing_schema_and_preserves_parent_transaction()
 -> Result<()> {
-    let admin = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+    let admin = crate::test_database_environment::database_url().map_err(Error::internal)?;
     let database = TestDatabase::create::<NoMigrations>(&admin).await?;
     let raw = database.url().to_owned();
     owned(database, move |db| {

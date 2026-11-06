@@ -1,6 +1,6 @@
 //! 同一账户表的可选因子authority元数据；不复制身份。
 
-use crate::db::{
+use crate::database::{
     DatabaseTableNames, dialect,
     sea_orm::{ConnectionTrait, DbBackend, sea_query::Alias},
     sea_orm_migration::prelude::*,
@@ -63,7 +63,7 @@ impl MigrationName for FactorAuthorityMigration {
         &self.version
     }
 }
-#[crate::db::sea_orm_migration::async_trait::async_trait]
+#[crate::database::sea_orm_migration::async_trait::async_trait]
 impl MigrationTrait for FactorAuthorityMigration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let table = self.table(manager.get_database_backend())?;

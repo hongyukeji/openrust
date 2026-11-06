@@ -1,6 +1,6 @@
 //! 由模块迁移建立的文章实体。
 
-use openrust::db::sea_orm::entity::prelude::*;
+use openrust::database::sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "example_articles")]

@@ -1,7 +1,10 @@
 //! 通过 `ServiceProvider` 装配本模块业务。
 
 use openrust::Result;
-use openrust::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -11,7 +14,7 @@ use crate::modules::example::services::article_write::ArticleWriter;
 use crate::modules::example::services::upstream::ArticleSummaryService;
 use crate::modules::example::services::{ExampleConfig, ExampleMessage};
 #[cfg(feature = "auth")]
-use openrust::db::sea_orm::{EntityTrait, QuerySelect};
+use openrust::database::sea_orm::{EntityTrait, QuerySelect};
 /// 将综合示例路由接入 Provider 引导阶段。
 pub(crate) struct ExampleServiceProvider {
     root: std::path::PathBuf,
@@ -156,10 +159,10 @@ async fn overlay_example_config_and_register_resources(
             })
         })?;
     }
-    if app.is_bound::<openrust::i18n::I18n>() {
+    if app.is_bound::<openrust::translation::Translator>() {
         let source = root.join("lang");
         let published = application_root.join("resources/lang/vendor/example");
-        app.resolve::<openrust::i18n::I18n>()
+        app.resolve::<openrust::translation::Translator>()
             .await?
             .add_namespace("example", source, published)?;
     }
@@ -270,7 +273,7 @@ impl ServiceProvider for ExampleServiceProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_schema(app)?;
             #[cfg(feature = "auth-fortify")]
@@ -410,7 +413,7 @@ impl ServiceProvider for ExampleServiceProvider {
             #[cfg(not(feature = "view"))]
             let view_enabled = false;
             let cookie_enabled = app.is_bound::<openrust::http::CookieFactory>();
-            let i18n_enabled = app.is_bound::<openrust::i18n::I18n>();
+            let i18n_enabled = app.is_bound::<openrust::translation::Translator>();
             let example_config = app.section::<ExampleConfig>("example")?;
             if let Some(trusted_hosts) = example_config.trusted_hosts.clone() {
                 app.trust_hosts(trusted_hosts)?;
@@ -418,7 +421,7 @@ impl ServiceProvider for ExampleServiceProvider {
             app.exceptions(|handler| {
                 handler
                     .report::<crate::modules::example::http::controllers::example::ExampleDomainConflict, _>(
-                        |_| openrust::core::ReportDecision::Stop,
+                        |_| openrust::foundation::ReportDecision::Stop,
                     )
                     .render::<crate::modules::example::http::controllers::example::ExampleDomainConflict, _>(
                         |_, _| {

@@ -28,6 +28,12 @@ pub(super) struct OwnedDatabase {
     pub(super) migration_pool: Option<sea_orm::DatabaseConnection>,
 }
 
+#[cfg(test)]
+pub(super) fn state_root() -> Result<PathBuf> {
+    crate::test_database_environment::state_root()
+}
+
+#[cfg(not(test))]
 pub(super) fn state_root() -> Result<PathBuf> {
     match std::env::var_os("OPENRUST_TEST_DATABASE_STATE_DIR") {
         Some(path) => Ok(PathBuf::from(path)),
@@ -308,4 +314,56 @@ pub(super) async fn recover(admin_url: &str, root: &Path) -> Result<TestDatabase
         }
     }
     Ok(report)
+}
+
+#[cfg(test)]
+mod environment_tests {
+    use super::*;
+
+    #[test]
+    fn journal_root_and_url_stay_fixed_during_clear_env_and_after_jail_directory_deletion()
+    -> Result<()> {
+        let _guard = crate::lock_test_env();
+        let expected_root = state_root()?;
+        let expected_url = crate::test_database_environment::database_url();
+        let mut during = None;
+        let mut jail_directory = None;
+        figment::Jail::expect_with(
+            #[expect(
+                clippy::result_large_err,
+                reason = "Figment Jail闭包要求原生figment::Error"
+            )]
+            |jail| {
+                jail.clear_env();
+                jail_directory = Some(jail.directory().to_path_buf());
+                during = Some((
+                    state_root(),
+                    crate::test_database_environment::database_url(),
+                ));
+                Ok(())
+            },
+        );
+        let (during_root, during_url) = during
+            .ok_or_else(|| Error::custom("test_jail_capture_missing", "缺少Jail期间读取结果"))?;
+        let during_root = during_root?;
+        let deleted = jail_directory
+            .ok_or_else(|| Error::custom("test_jail_directory_missing", "缺少Jail目录"))?;
+        assert!(!deleted.exists());
+        // 旧动态实现会在clear_env期间落到此已删除目录，即使退出Jail后环境已恢复。
+        assert_eq!(during_root, expected_root);
+        assert!(!during_root.starts_with(&deleted));
+        assert!(during_url.eq(&expected_url));
+        assert_eq!(state_root()?, expected_root);
+        assert!(crate::test_database_environment::database_url().eq(&expected_url));
+        Ok(())
+    }
+
+    #[test]
+    fn original_empty_and_dot_component_roots_remain_rejected_without_creating_paths() {
+        for raw in ["", ".", "./journal", "../journal"] {
+            assert!(
+                matches!(OwnershipJournal::new(Path::new(raw)), Err(error) if error.code()=="test_database_journal_path_invalid")
+            );
+        }
+    }
 }

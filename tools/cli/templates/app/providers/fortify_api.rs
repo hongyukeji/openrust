@@ -2,7 +2,7 @@
 
 use openrust::auth::fortify::{FortifyCallbacks, FortifyConfig};
 use openrust::auth::{AuthManager, AuthUser, Credentials, UserProvider};
-use openrust::core::RegisterContext;
+use openrust::foundation::RegisterContext;
 use openrust::{Error, Result};
 use serde_json::{Map, Value};
 use std::{sync::Arc, time::Duration};

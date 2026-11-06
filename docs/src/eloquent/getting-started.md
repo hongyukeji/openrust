@@ -7,7 +7,7 @@
 `ModelMetadata` 显式声明模型表与类型标识，默认主键 `id`、类型 `int`、自增 `true`。Rust 不反射 PHP 类名，应用在模型构造时选择元数据；同一个实例用于连接选择、水合及持久身份，不从 Guard/Provider 名猜测模型类型。
 
 ```rust
-use openrust::db::eloquent::{AttributeCast, ModelAttributes, ModelMetadata};
+use openrust::database::eloquent::{AttributeCast, ModelAttributes, ModelMetadata};
 use serde_json::{Map, json};
 
 fn main() -> openrust::Result<()> {

@@ -1,6 +1,6 @@
 //! 显式JWT API生成应用的真实路由与因子流程；所有响应均禁止Set-Cookie。
 use figment::Figment;
-use openrust::core::Application;
+use openrust::foundation::ApplicationDefinition;
 use openrust::http::axum::{
     body::{Body, to_bytes},
     extract::ConnectInfo,
@@ -28,7 +28,7 @@ impl MailDriver for CaptureMail {
     fn send(
         &self,
         message: openrust::mail::lettre::Message,
-    ) -> openrust::core::BoxFuture<'_, Result<()>> {
+    ) -> openrust::support::BoxFuture<'_, Result<()>> {
         Box::pin(async move {
             let bytes = message.formatted();
             let text = String::from_utf8_lossy(&bytes);
@@ -65,11 +65,11 @@ impl Reply {
             .ok_or_else(missing)
     }
 }
-struct Client<'a, A: Application> {
+struct Client<'a, A: ApplicationDefinition> {
     app: &'a TestApp<A>,
     username: String,
 }
-impl<A: Application> Client<'_, A> {
+impl<A: ApplicationDefinition> Client<'_, A> {
     async fn send(
         &self,
         method: Method,
@@ -197,7 +197,7 @@ impl<A: Application> Client<'_, A> {
         .await
     }
 }
-async fn register<A: Application>(
+async fn register<A: ApplicationDefinition>(
     client: &Client<'_, A>,
     mail: &CaptureMail,
     email: &str,
@@ -232,7 +232,7 @@ async fn register<A: Application>(
     assert_eq!(verified.json()?["data"]["status"], "verified");
     Ok(())
 }
-async fn unbound_credentials<A: Application>(
+async fn unbound_credentials<A: ApplicationDefinition>(
     client: &Client<'_, A>,
     email: &str,
     user: i64,
@@ -263,7 +263,7 @@ async fn unbound_credentials<A: Application>(
         .await?;
     Ok(())
 }
-async fn enable_confirm<A: Application>(
+async fn enable_confirm<A: ApplicationDefinition>(
     client: &Client<'_, A>,
     email: &str,
     access: &str,
@@ -367,7 +367,7 @@ async fn enable_confirm<A: Application>(
         .await?;
     Ok((secret, codes))
 }
-async fn totp_login<A: Application>(
+async fn totp_login<A: ApplicationDefinition>(
     client: &Client<'_, A>,
     email: &str,
     secret: &str,
@@ -399,7 +399,7 @@ async fn totp_login<A: Application>(
         .status(StatusCode::UNAUTHORIZED, "挑战不可重放");
     Ok(completed)
 }
-async fn refresh_and_logout<A: Application>(
+async fn refresh_and_logout<A: ApplicationDefinition>(
     client: &Client<'_, A>,
     email: &str,
     pair: Reply,
@@ -523,7 +523,7 @@ fn totp(encoded: &str, offset: u64) -> Result<String> {
     Ok(format!("{:06}", value % 1_000_000))
 }
 /// 使用调用方自有已迁移数据库，验证显式JWT API生成应用；不创建Session或假因子证明。
-pub async fn exercise<A: Application>(input: Figment) -> Result<()> {
+pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
     let entries = input
         .extract::<BTreeMap<String, Value>>()
         .map_err(Error::internal)?;

@@ -4,12 +4,24 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use figment::providers::Format;
 use futures_util::{StreamExt, stream};
-use openrust::core::{BoxFuture, Error, ProviderBuilder, Result};
-use openrust::storage::{
-    Storage, StorageBackend, StorageDisk, StorageDriver, StorageDriverConfig, StorageMetadata,
-    StoragePath, StorageReader, StorageServiceProvider, StorageStream, StoredObject,
-    UploadCancellation, UploadOptions, Visibility,
-};
+use openrust::core::Error;
+use openrust::core::Result;
+use openrust::filesystem::FilesystemAdapter;
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::FilesystemServiceProvider;
+use openrust::filesystem::StorageBackend;
+use openrust::filesystem::StorageDriver;
+use openrust::filesystem::StorageDriverConfig;
+use openrust::filesystem::StorageMetadata;
+use openrust::filesystem::StoragePath;
+use openrust::filesystem::StorageReader;
+use openrust::filesystem::StorageStream;
+use openrust::filesystem::StoredObject;
+use openrust::filesystem::UploadCancellation;
+use openrust::filesystem::UploadOptions;
+use openrust::filesystem::Visibility;
+use openrust::foundation::ProviderBuilder;
+use openrust::support::BoxFuture;
 use std::{
     collections::BTreeMap,
     sync::{
@@ -25,9 +37,9 @@ async fn consumer_registers_custom_named_disks_without_private_framework_access(
         "[storage]\ndefault_disk = 'primary'\n[storage.disks.primary]\ndriver = 'custom-memory'\nnamespace = 'primary'\n[storage.disks.archive]\ndriver = 'custom-memory'\nnamespace = 'archive'\n",
     ));
     let mut builder = ProviderBuilder::new();
-    builder.provider(StorageServiceProvider::new().with_driver(MemoryDriver));
-    let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
-    let storage = app.state().resolve::<Storage>().await?;
+    builder.provider(FilesystemServiceProvider::new().with_driver(MemoryDriver));
+    let app = openrust::Application::from_provider_runtime(builder.start(figment).await?)?;
+    let storage = app.state().resolve::<FilesystemManager>().await?;
     let primary = storage.default_disk().await?;
     let archive = storage.disk("archive").await?;
     let key = StoragePath::new("objects/report.bin")?;
@@ -118,7 +130,7 @@ async fn consumer_registers_custom_named_disks_without_private_framework_access(
     Ok(())
 }
 
-async fn read_object(disk: &StorageDisk, path: &StoragePath) -> Result<Vec<u8>> {
+async fn read_object(disk: &FilesystemAdapter, path: &StoragePath) -> Result<Vec<u8>> {
     let mut reader = disk.open(path, None).await?;
     let mut bytes = Vec::new();
     while let Some(chunk) = reader.body.next().await {
@@ -427,13 +439,15 @@ impl StorageBackend for ControlledBackend {
     }
 }
 
-async fn controlled_disk(path: &str) -> Result<(Arc<ControlledBackend>, StorageDisk, StoragePath)> {
+async fn controlled_disk(
+    path: &str,
+) -> Result<(Arc<ControlledBackend>, FilesystemAdapter, StoragePath)> {
     let backend = Arc::new(ControlledBackend::default());
     let mut builder = ProviderBuilder::new();
     builder.provider(
-        StorageServiceProvider::new().with_driver(ControlledDriver(Arc::clone(&backend))),
+        FilesystemServiceProvider::new().with_driver(ControlledDriver(Arc::clone(&backend))),
     );
-    let app = openrust::App::from_provider_runtime(
+    let app = openrust::Application::from_provider_runtime(
         builder
             .start(
                 figment::Figment::new().merge(figment::providers::Toml::string(
@@ -444,7 +458,7 @@ async fn controlled_disk(path: &str) -> Result<(Arc<ControlledBackend>, StorageD
     )?;
     let disk = app
         .state()
-        .resolve::<Storage>()
+        .resolve::<FilesystemManager>()
         .await?
         .default_disk()
         .await?;
@@ -461,7 +475,7 @@ async fn controlled_disk(path: &str) -> Result<(Arc<ControlledBackend>, StorageD
 }
 
 fn spawn_upload(
-    disk: &StorageDisk,
+    disk: &FilesystemAdapter,
     path: &StoragePath,
     payload: Bytes,
 ) -> tokio::task::JoinHandle<Result<StoredObject>> {

@@ -14,16 +14,17 @@ mod routes;
 
 use bootstrap::__GENERATED_APPLICATION__ as Original;
 use openrust::config::{ConfigLoader, ConfigManifest, ConfigSources};
-use openrust::core::{
-    Application, BootContext, BoxFuture, DefaultProviders, RegisterContext, ServiceProvider,
-};
-use openrust::http::{
-    RouteGroup, Routes,
-    axum::{
-        body::Body,
-        http::{Request, StatusCode},
-    },
-};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
+use openrust::http::axum::body::Body;
+use openrust::http::axum::http::Request;
+use openrust::http::axum::http::StatusCode;
+use openrust::routing::RouteGroup;
+use openrust::routing::Router;
+use openrust::support::BoxFuture;
+use openrust::support::DefaultProviders;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use openrust_modules::{FileModuleActivator, Module, ModuleFile, ModuleRepository};
 use serde_json::{Value, json};
@@ -41,8 +42,8 @@ const MODULE_ROUTE: &str = "/api/module-fixture";
 
 struct ActivationApplication;
 
-impl Application for ActivationApplication {
-    type Config = <Original as Application>::Config;
+impl ApplicationDefinition for ActivationApplication {
+    type Config = <Original as ApplicationDefinition>::Config;
 
     fn config() -> ConfigManifest {
         Original::config()
@@ -72,7 +73,10 @@ impl Application for ActivationApplication {
         Original::providers(config)
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         builder.module_manifest(
             modules::manifest(
                 config
@@ -96,7 +100,7 @@ struct ActivationProvider;
 impl ServiceProvider for ActivationProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| {
+            app.routes(|routes: Router| {
                 routes.group(
                     RouteGroup::new().prefix("/api").middleware_group("api"),
                     |routes| routes.get("/module-fixture", module_response),

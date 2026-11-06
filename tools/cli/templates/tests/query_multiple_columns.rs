@@ -2,7 +2,7 @@
 
 use openrust::{
     Error, Result,
-    db::{
+    database::{
         Db,
         query::{MultiColumn, MultiComparison, MultiValue, RawSql},
         sea_orm::ConnectionTrait,

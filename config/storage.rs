@@ -1,7 +1,7 @@
 //! 文件存储 disk、可见性和上传限制的应用默认值。
 
 use openrust::config::{ConfigContext, ConfigError};
-use openrust::storage::Visibility;
+use openrust::filesystem::Visibility;
 use serde::Serialize;
 use std::collections::BTreeMap;
 

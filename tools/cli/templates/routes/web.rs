@@ -2,7 +2,7 @@
 
 use openrust::prelude::*;
 
-pub fn register(routes: Routes) -> Routes {
+pub fn register(routes: Router) -> Router {
     routes.fallback(not_found)
 }
 

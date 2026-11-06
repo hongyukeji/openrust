@@ -1,5 +1,6 @@
 //! 模块业务通过公开缓存/通信扩展及生产 `TestApp` 的调用证据；不向供应商发送。
 
+use super::config_sources::enabled_example_sources;
 use openrust_modules::ModuleTestAppBuilderExt as _;
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,7 +45,7 @@ test = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
 
 #[tokio::test]
 async fn module_named_cache_driver_preserves_default_and_rejects_unsupported_tags() -> Result<()> {
-    let mut app = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?)
+    let mut app = ServerApp::builder(enabled_example_sources(&(sources()))?)
         .build()
         .await?;
     let cache = app.app()?.state().resolve::<Cache>().await?;
@@ -96,13 +97,13 @@ async fn module_named_driver_validates_options_and_is_not_registered_when_disabl
         )),
     ] {
         assert!(
-            ServerApp::builder(crate::modules::example::test_sources(&(config))?)
+            ServerApp::builder(enabled_example_sources(&(config))?)
                 .build()
                 .await
                 .is_err()
         );
     }
-    let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
+    let mut builder = ServerApp::builder(enabled_example_sources(&(sources()))?);
     builder.remove_module("example");
     // 配置仍选择该业务 driver，但未启用其模块时必须失败，不回退到 memory/Redis。
     assert!(builder.build().await.is_err());
@@ -113,7 +114,7 @@ async fn module_named_driver_validates_options_and_is_not_registered_when_disabl
 async fn welcome_service_captures_real_business_content_only_after_explicit_call() -> Result<()> {
     let captured = CapturedDeliveries::default();
     let capture = captured.clone();
-    let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
+    let mut builder = ServerApp::builder(enabled_example_sources(&(sources()))?);
     builder.configure_after_register(move |bindings| {
         let capture = capture.clone();
         Box::pin(async move { capture.install(&bindings).await })
@@ -150,7 +151,7 @@ async fn welcome_service_captures_real_business_content_only_after_explicit_call
 async fn invalid_destinations_are_rejected_before_any_channel_sends() -> Result<()> {
     let captured = CapturedDeliveries::default();
     let capture = captured.clone();
-    let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
+    let mut builder = ServerApp::builder(enabled_example_sources(&(sources()))?);
     builder.configure_after_register(move |bindings| {
         let capture = capture.clone();
         Box::pin(async move { capture.install(&bindings).await })
@@ -189,7 +190,7 @@ async fn welcome_transport_failures_propagate_without_claiming_atomic_delivery()
     for mail_fails in [false, true] {
         let captured = CapturedDeliveries::default();
         let capture = captured.clone();
-        let mut builder = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?);
+        let mut builder = ServerApp::builder(enabled_example_sources(&(sources()))?);
         builder.configure_after_register(move |bindings| {
             let capture = capture.clone();
             Box::pin(async move {
@@ -238,7 +239,7 @@ async fn welcome_transport_failures_propagate_without_claiming_atomic_delivery()
 #[tokio::test]
 async fn capture_installation_is_explicit_and_rejects_production() -> Result<()> {
     let capture = CapturedDeliveries::default();
-    let mut builder = ServerApp::builder(crate::modules::example::test_sources(
+    let mut builder = ServerApp::builder(enabled_example_sources(
         &(sources().merge(Serialized::defaults(
             serde_json::json!({"app":{"env":"production"}}),
         ))),
@@ -249,7 +250,7 @@ async fn capture_installation_is_explicit_and_rejects_production() -> Result<()>
     });
     assert!(builder.build().await.is_err());
     // 不调用 install 时，标准 Provider 保持自身 driver；服务装配本身不会捕获或发送欢迎消息。
-    let mut unmodified = ServerApp::builder(crate::modules::example::test_sources(&(sources()))?)
+    let mut unmodified = ServerApp::builder(enabled_example_sources(&(sources()))?)
         .build()
         .await?;
     unmodified
@@ -263,10 +264,10 @@ async fn capture_installation_is_explicit_and_rejects_production() -> Result<()>
 }
 
 struct LateProduction;
-impl openrust::core::ServiceProvider for LateProduction {
+impl openrust::support::ServiceProvider for LateProduction {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.resolve::<WelcomeService>().await?;
@@ -279,7 +280,7 @@ impl openrust::core::ServiceProvider for LateProduction {
 async fn capture_rechecks_environment_after_a_later_boot_overlay() -> Result<()> {
     let captured = CapturedDeliveries::default();
     let capture = captured.clone();
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(super::services::welcome::WelcomeServiceProvider)
         .provider(LateProduction);

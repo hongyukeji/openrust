@@ -8,10 +8,10 @@ use http::{Extensions, HeaderMap, Uri};
 
 use crate::{Result, config::ServerConfig, core::Error};
 
-use super::{
-    authority, client_ip,
-    transport::{CloudIngress, RequestSecurity},
-};
+use crate::http::authority;
+use crate::http::client_ip;
+use crate::http::transport::CloudIngress;
+use crate::http::transport::RequestSecurity;
 
 /// Symfony `Request::HEADER_*` 位掩码；Laravel 默认使用全部 X-Forwarded 位。
 pub struct TrustedProxyHeaders;

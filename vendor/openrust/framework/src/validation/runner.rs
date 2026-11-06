@@ -269,7 +269,7 @@ fn message(failure: &RuleError) -> String {
                     )
                 })
                 .collect();
-            crate::i18n::translate_current(&key, &args)
+            crate::translation::translate_current(&key, &args)
                 .filter(|message| message != &key)
                 .unwrap_or_else(|| failure.code.to_string())
         },

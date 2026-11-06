@@ -10,7 +10,9 @@ use lettre::{
 use minijinja::{AutoEscape, Environment, UndefinedBehavior};
 use serde::Serialize;
 
-use crate::i18n::{I18n, Locale, MessageArgs};
+use crate::translation::Locale;
+use crate::translation::MessageArgs;
+use crate::translation::Translator;
 
 const MAX_OUTPUT_BYTES: usize = 256 * 1024;
 const MAX_SUBJECT_BYTES: usize = 998;
@@ -108,7 +110,7 @@ impl EmailTemplateCatalog {
     /// 按显式 locale 渲染主题、纯文本正文及可选 HTML 正文。
     pub fn render_email<T: Serialize>(
         &self,
-        i18n: &I18n,
+        i18n: &Translator,
         locale: &Locale,
         subject_key: &str,
         subject_args: &MessageArgs,
@@ -268,7 +270,8 @@ mod tests {
     use serde::Serialize;
 
     use super::*;
-    use crate::i18n::{I18nConfig, MessageCatalog};
+    use crate::translation::MessageCatalog;
+    use crate::translation::TranslationConfig;
 
     const TEXT: &str = "您好，{{ user }}";
     const HTML: &str = "<p>您好，{{ user }}</p>";
@@ -292,7 +295,7 @@ mod tests {
         }
     }
 
-    fn i18n() -> I18n {
+    fn i18n() -> Translator {
         let mut catalog = MessageCatalog::new();
         catalog
             .insert("zh-CN", "subject", "问候")
@@ -300,7 +303,7 @@ mod tests {
         catalog
             .insert("en", "subject", "Greeting")
             .expect("catalog entry");
-        I18n::new(I18nConfig::default(), catalog).expect("i18n")
+        Translator::new(TranslationConfig::default(), catalog).expect("i18n")
     }
 
     fn catalog() -> EmailTemplateCatalog {

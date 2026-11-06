@@ -1,17 +1,18 @@
 use figment::{Figment, providers::Serialized};
 use openrust::config::repository::ConfigRepository;
 use openrust::config::{ConfigLoader, ConfigManifest, Environment, NoConfig};
-use openrust::core::{Application, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use serde_json::json;
 use std::collections::BTreeMap;
 
 struct LateReader(&'static str);
 
-impl openrust::core::ServiceProvider for LateReader {
+impl openrust::support::ServiceProvider for LateReader {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::new(self.0)).await?;
@@ -31,9 +32,10 @@ fn external_consumer_registers_and_forces_provider_on_same_application()
                 openrust::config::FrameworkConfig::default(),
             ))
             .merge(Serialized::defaults(json!({"app": {"name": "外部读取者"}})));
-            let mut builder = openrust::core::ProviderBuilder::new();
+            let mut builder = openrust::foundation::ProviderBuilder::new();
             builder.provider(config_repository_reading_consumer::ReadingProvider);
-            let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+            let mut app =
+                openrust::Application::from_provider_runtime(builder.start(source).await?)?;
             assert_eq!(app.environment().as_str(), "production");
             assert!(app.environment_matches(["pro*"]));
             assert!(app.is_production());
@@ -247,11 +249,11 @@ fn file_discovery_reaches_external_provider_and_app() -> Result<(), Box<dyn std:
     runtime.block_on(async {
         struct ReadingApplication;
 
-        impl Application for ReadingApplication {
+        impl ApplicationDefinition for ReadingApplication {
             type Config = NoConfig;
 
-            fn default_providers() -> openrust::core::DefaultProviders {
-                openrust::core::DefaultProviders::empty()
+            fn default_providers() -> openrust::support::DefaultProviders {
+                openrust::support::DefaultProviders::empty()
             }
 
             fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -310,7 +312,7 @@ fn ordered_source_overrides_keep_original_environment_for_module_config()
     impl ServiceProvider for ModuleConfig {
         fn boot<'a>(
             &'a self,
-            app: &'a mut openrust::core::BootContext<'_>,
+            app: &'a mut openrust::foundation::BootContext<'_>,
         ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
             Box::pin(async move {
                 app.code_config(&ConfigManifest::new().section("module", |context| {
@@ -346,9 +348,10 @@ fn ordered_source_overrides_keep_original_environment_for_module_config()
             .enable_all()
             .build()?
             .block_on(async {
-                let mut builder = openrust::core::ProviderBuilder::new();
+                let mut builder = openrust::foundation::ProviderBuilder::new();
                 builder.provider(ModuleConfig);
-                let app = openrust::App::from_provider_runtime(builder.start(merged).await?)?;
+                let app =
+                    openrust::Application::from_provider_runtime(builder.start(merged).await?)?;
                 let repository = app.config_repository();
                 assert_eq!(repository.string("reader.name")?, "override");
                 assert!(repository.boolean("reader.keep")?);

@@ -1,15 +1,21 @@
 //! 通过公开 API 验证统一 Provider 宿主的注册、启动与覆盖契约。
 
 use figment::{Figment, providers::Serialized};
-use openrust::{
-    Command,
-    config::FrameworkConfig,
-    core::{
-        App, BootContext, BoxFuture, Error, ProviderBuilder, ProviderId, RegisterContext, Result,
-        ServiceProvider,
-    },
-    http::{HttpServiceProvider, Inject, axum, build_router},
-};
+use openrust::Command;
+use openrust::config::FrameworkConfig;
+use openrust::core::Error;
+use openrust::core::Result;
+use openrust::foundation::Application;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::ProviderId;
+use openrust::foundation::RegisterContext;
+use openrust::foundation::http::build_router;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Inject;
+use openrust::http::axum;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use serde::{Deserialize, Serialize};
 use std::sync::{
     Arc,
@@ -35,7 +41,7 @@ impl ServiceProvider for GreetingProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(Greeting("provided"))).await?;
             Ok(())
@@ -47,7 +53,7 @@ impl ServiceProvider for ConsumerProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.singleton::<ConsumerConfig, _>(|resolver| {
                 Box::pin(
@@ -84,7 +90,7 @@ impl Command for PingCommand {
     fn about(&self) -> &'static str {
         "标记测试命令已经执行"
     }
-    fn run<'a>(&'a self, app: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, app: &'a Application, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.state()
                 .resolve::<AtomicBool>()
@@ -97,11 +103,11 @@ impl Command for PingCommand {
 fn sources(source: Figment) -> Figment {
     Figment::from(Serialized::defaults(FrameworkConfig::default())).merge(source)
 }
-async fn start(builder: ProviderBuilder, source: Figment) -> Result<App> {
+async fn start(builder: ProviderBuilder, source: Figment) -> Result<Application> {
     builder
         .start(sources(source))
         .await
-        .and_then(App::from_provider_runtime)
+        .and_then(Application::from_provider_runtime)
 }
 #[tokio::test]
 async fn independent_provider_registers_config_services_command_and_route()
@@ -159,7 +165,7 @@ impl ServiceProvider for FirstValue {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(String::from("first"))).await?;
             Ok(())
@@ -171,7 +177,7 @@ impl ServiceProvider for SecondValue {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(String::from("second"))).await?;
             Ok(())
@@ -191,7 +197,7 @@ impl ServiceProvider for RepeatedValue {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(String::from("first"))).await?;
             app.instance(Arc::new(String::from("second"))).await?;
@@ -212,7 +218,7 @@ impl ServiceProvider for RepeatedCommand {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(AtomicBool::new(false))).await?;
             Ok(())
@@ -280,7 +286,7 @@ impl ServiceProvider for RegisteredInvalidConfigProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.config_section(
                 "consumer",
@@ -356,7 +362,7 @@ impl Command for MarkCommand {
     fn about(&self) -> &'static str {
         "测试命令替换"
     }
-    fn run<'a>(&'a self, _: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, _: &'a Application, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if self.0 {
                 Ok(())

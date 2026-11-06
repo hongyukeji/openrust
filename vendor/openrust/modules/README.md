@@ -3,13 +3,13 @@
 `openrust-modules` 对应固定 nWidart laravel-modules v13.2.0，默认集成于根应用。框架公开库名仍为 `openrust`，模块类型由 `openrust_modules` 导入；应用→模块包→框架单向依赖，同一 Container / Provider 负责全部启动与资源回收。
 
 ```rust
-use openrust::core::ProviderBuilder;
+use openrust::foundation::ProviderBuilder;
 use openrust_modules::{ModuleManifest, ModuleProviderBuilderExt};
 let mut builder = ProviderBuilder::new();
 builder.module_manifest(ModuleManifest::new());
 ```
 
-根应用在 `Application::configure_providers` 安装清单，代码配置类型为 `openrust_modules::ModulesConfig`。测试的 `ModuleTestAppBuilderExt::remove_module` 通过通用 Provider 蓝图重放，reset 不改持久状态。显式描述提前校验并绑定仓储，发现清单在 register 读取配置；模块包没有独立生命周期执行器。
+根应用在 `ApplicationDefinition::configure_providers` 安装清单，代码配置类型为 `openrust_modules::ModulesConfig`。测试的 `ModuleTestAppBuilderExt::remove_module` 通过通用 Provider 蓝图重放，reset 不改持久状态。显式描述提前校验并绑定仓储，发现清单在 register 读取配置；模块包没有独立生命周期执行器。
 
 本包尚未通过迁移后运行验收，完整模块生成器、aliases、deferred 与其余官方能力仍按唯一待办推进；不把拆包当作全量实现。
 
@@ -17,7 +17,7 @@ builder.module_manifest(ModuleManifest::new());
 
 根应用和生成应用默认选择 `registered`，使用 `ModuleManifest::new().with_application_root(root)` 的显式描述与启用名称；同一仓储仍管理路径、依赖和 Provider。库 `ModulesConfig::default()` 保留上游 `file` 默认；下列发现/文件流程是应用显式选择的可选模式。只读激活器在状态变更前返回错误，不派发前事件或在空目录 `--all` 时误报成功。第三方可写激活器须覆盖 `ModuleActivator::ensure_writable`，再实现持久动作；文件驱动已实现。
 
-`Application::configure_providers` 与 `ModuleProviderBuilderExt::module_manifest` 在一次启动中只产生一份清单。`ModuleManifest::discover_from_config` 在包 Provider 的 register 中扫描 `module.json`，读取同一 `ConfigRepository` 已发布路径；`compiled_provider` 把运行名称映射到已编译类型工厂，真实调用即时进入唯一注册器。未编译 disabled 元数据可发现并持久启用，实际加载缺失绑定时失败。重复声明不预先去重，Provider 去重仍归唯一内核；仓储同名项以后来源覆盖，lookup 先大小写不敏感精确匹配，再 Studly 回退。状态写 canonical 精确键，不运行未编译 Rust。
+`ApplicationDefinition::configure_providers` 与 `ModuleProviderBuilderExt::module_manifest` 在一次启动中只产生一份清单。`ModuleManifest::discover_from_config` 在包 Provider 的 register 中扫描 `module.json`，读取同一 `ConfigRepository` 已发布路径；`compiled_provider` 把运行名称映射到已编译类型工厂，真实调用即时进入唯一注册器。未编译 disabled 元数据可发现并持久启用，实际加载缺失绑定时失败。重复声明不预先去重，Provider 去重仍归唯一内核；仓储同名项以后来源覆盖，lookup 先大小写不敏感精确匹配，再 Studly 回退。状态写 canonical 精确键，不运行未编译 Rust。
 
 `get_path()` 动态读取配置而不重扫既有快照。`possible_nested_providers` 仅声明条件可达类型，原平面 missing/order 预检保留；候选未被选择时不能满足真实登记点的依赖。必登记的 `nested_providers` 仍在父成功后核实际登记。
 
@@ -29,7 +29,7 @@ builder.module_manifest(ModuleManifest::new());
 
 ```rust
 use openrust_modules::ModuleRepository;
-# async fn change(app: &openrust::App) -> openrust::Result<()> {
+# async fn change(app: &openrust::Application) -> openrust::Result<()> {
 let modules = app.state().resolve::<ModuleRepository>().await?;
 let module = modules.find_or_fail("example")?;
 let loaded = module.is_loaded();

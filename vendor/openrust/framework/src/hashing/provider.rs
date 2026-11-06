@@ -1,7 +1,10 @@
 //! 在应用唯一容器中登记哈希管理器与默认 Hasher 契约。
 
 use super::{HashManager, Hasher, HashingConfig, failure};
-use crate::core::{BoxFuture, RegisterContext, Result, ServiceProvider};
+use crate::core::Result;
+use crate::foundation::RegisterContext;
+use crate::support::BoxFuture;
+use crate::support::ServiceProvider;
 use std::sync::Arc;
 
 /// 应用哈希服务 Provider；独立于认证与 Passport 的启用状态。

@@ -1,6 +1,6 @@
 //! 默认认证器使用的数据库 schema。
 
-use crate::db::{
+use crate::database::{
     DatabaseTableNames, dialect,
     sea_orm::{DbBackend, sea_query::Alias},
     sea_orm_migration::prelude::*,
@@ -1144,6 +1144,6 @@ impl MigrationTrait for AuthRememberTokenMigration {
     }
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let table = migration_table("users", manager.get_database_backend())?;
-        crate::db::dialect::drop_column(manager, table, TbUsers::RememberToken).await
+        crate::database::dialect::drop_column(manager, table, TbUsers::RememberToken).await
     }
 }

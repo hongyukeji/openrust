@@ -1,4 +1,4 @@
-use openrust::core::ServiceProvider;
+use openrust::support::ServiceProvider;
 use openrust::prelude::*;
 use openrust_modules::ModuleProviderBuilderExt as _;
 
@@ -15,7 +15,7 @@ pub struct Configuration {
 
 pub struct {{type_name}};
 
-impl Application for {{type_name}} {
+impl openrust::foundation::ApplicationDefinition for {{type_name}} {
     type Config = Configuration;
 
     fn config() -> openrust::config::ConfigManifest {
@@ -26,7 +26,7 @@ impl Application for {{type_name}} {
         providers::application_providers(config)
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         builder.module_manifest(crate::modules::manifest(
             config
                 .application_root
@@ -38,7 +38,7 @@ impl Application for {{type_name}} {
 }
 
 /// 在启动装配中指定 API 前缀与无状态组，再登记应用 Web 路由和全局 fallback。
-pub(crate) fn routes(routes: Routes, prefix: &str) -> Routes {
+pub(crate) fn routes(routes: Router, prefix: &str) -> Router {
     let routes = routes.group(
         RouteGroup::new().prefix(prefix).middleware_group("api"),
         crate::routes::api::register,

@@ -5,14 +5,16 @@ use chrono::{TimeZone, Utc};
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::{App, BoxFuture, Result as FrameworkResult};
+use openrust::core::Result as FrameworkResult;
 use openrust::database::{
     DatabaseServiceProvider, Db,
     sea_orm::Statement,
     sea_orm_migration::{MigrationTrait, MigratorTrait},
 };
+use openrust::foundation::Application;
 use openrust::queue::{Job, JobContext, QueueMigration, QueueServiceProvider};
 use openrust::schedule::{CronOptions, MissedRunPolicy, Scheduler};
+use openrust::support::BoxFuture;
 use sea_orm::ConnectionTrait;
 use sha2::Digest;
 use std::process::{Command, Stdio};
@@ -43,7 +45,7 @@ async fn build_app(
     expression: &str,
     time_zone: &str,
     missed_runs: MissedRunPolicy,
-) -> FrameworkResult<App> {
+) -> FrameworkResult<Application> {
     let source = format!("[database]\nurl = {url:?}\n");
     let figment = Figment::new().merge(Toml::string(&source));
     let queue = QueueServiceProvider::new();
@@ -63,12 +65,12 @@ async fn build_app(
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider).provider(queue);
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[tokio::test]

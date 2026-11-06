@@ -1400,11 +1400,18 @@ mod tests {
     use serde::Deserialize;
     use tokio::net::TcpListener;
 
-    use super::{
-        HttpClient, HttpClientConfig, HttpClientError, HttpResponseBody, HttpTargetPolicy,
-        HttpTransport, IpNet, RestrictedResolver, RetryPolicy, TransportResponse,
-        is_public_address, retry_after_delay,
-    };
+    use super::HttpClient;
+    use super::HttpClientConfig;
+    use super::HttpClientError;
+    use super::HttpResponseBody;
+    use super::HttpTargetPolicy;
+    use super::HttpTransport;
+    use super::IpNet;
+    use super::RestrictedResolver;
+    use super::RetryPolicy;
+    use super::TransportResponse;
+    use super::is_public_address;
+    use super::retry_after_delay;
 
     struct FakeTransport {
         responses: Mutex<VecDeque<Result<http::StatusCode, HttpClientError>>>,

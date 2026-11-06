@@ -3,29 +3,43 @@
 
 use std::error::Error as StdError;
 
+use openrust::auth::AuthCredential;
+use openrust::auth::AuthLayer;
+use openrust::auth::AuthMode;
+use openrust::auth::AuthPrincipal;
+use openrust::auth::AuthServiceProvider;
+use openrust::auth::Authenticator;
+use openrust::auth::CurrentUser;
+use openrust::auth::QueryRule;
+use openrust::auth::QueryScope;
+use openrust::config::FrameworkConfig;
+use openrust::config::HttpStatusMode;
+use openrust::core::Result;
+use openrust::database::BatchDirection;
+use openrust::database::BatchOptions;
+use openrust::database::BatchReader;
+use openrust::database::Db;
+use openrust::database::sea_orm;
+use openrust::database::sea_orm::ActiveValue;
+use openrust::database::sea_orm::Condition;
+use openrust::database::sea_orm::ConnectionTrait;
+use openrust::database::sea_orm::Statement;
+use openrust::database::sea_orm_migration::MigrationTrait;
+use openrust::database::sea_orm_migration::MigratorTrait;
+use openrust::foundation::http::build_router;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Inject;
+use openrust::http::Json;
+use openrust::http::axum::body::Body;
+use openrust::http::axum::body::to_bytes;
+use openrust::http::axum::http::Request;
+use openrust::http::axum::http::StatusCode;
+use openrust::routing::Router;
+use openrust::support::BoxFuture;
+use openrust::tenant::TenantContext;
+use openrust::tenant::TenantId;
+use openrust::tenant::TenantLayer;
 use openrust::testing::TestDatabase;
-use openrust::{
-    auth::{
-        AuthCredential, AuthLayer, AuthMode, AuthPrincipal, AuthServiceProvider, Authenticator,
-        CurrentUser, QueryRule, QueryScope,
-    },
-    config::{FrameworkConfig, HttpStatusMode},
-    core::{BoxFuture, Result},
-    database::sea_orm_migration::{MigrationTrait, MigratorTrait},
-    db::{
-        BatchDirection, BatchOptions, BatchReader, Db,
-        sea_orm::{self, ActiveValue, Condition, ConnectionTrait, Statement},
-    },
-    http::{
-        HttpServiceProvider, Inject, Json, Routes,
-        axum::{
-            body::{Body, to_bytes},
-            http::{Request, StatusCode},
-        },
-        build_router,
-    },
-    tenant::{TenantContext, TenantId, TenantLayer},
-};
 use sea_orm::entity::prelude::*;
 use tower::ServiceExt;
 
@@ -464,7 +478,7 @@ async fn tenant_node(db: Db) -> Result<openrust::http::axum::Router> {
     config.api.http_status = HttpStatusMode::Semantic;
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
         .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     let tenant_layer = TenantLayer::new(|request| {
         let user = request
             .extensions()
@@ -480,7 +494,7 @@ async fn tenant_node(db: Db) -> Result<openrust::http::axum::Router> {
         .provider(HttpServiceProvider)
         .provider(AuthServiceProvider::with_authenticator(TestAuthenticator))
         .provider(TestInstance(std::sync::Arc::new(db)))
-        .provider(TestRoutes::new(move |routes: Routes| {
+        .provider(TestRoutes::new(move |routes: Router| {
             let tenant_layer = tenant_layer.clone();
             routes
                 .post("/tenant/missing", tenant_missing_context)
@@ -495,8 +509,8 @@ async fn tenant_node(db: Db) -> Result<openrust::http::axum::Router> {
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
-    openrust::http::build_router(&app)
+        .and_then(openrust::Application::from_provider_runtime)?;
+    openrust::foundation::http::build_router(&app)
 }
 
 #[tokio::test]
@@ -525,12 +539,12 @@ async fn query_scope_filters_mutations_and_relations_on_real_database() -> TestR
         FrameworkConfig::default(),
     ))
     .merge(figment::Figment::new());
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(AuthServiceProvider::with_authenticator(TestAuthenticator))
         .provider(TestInstance(std::sync::Arc::new(db)))
-        .provider(TestRoutes::new(|routes: Routes| {
+        .provider(TestRoutes::new(|routes: Router| {
             routes
                 .post("/exercise", exercise)
                 .layer(AuthLayer::required(AuthMode::PersonalAccessToken))
@@ -538,7 +552,7 @@ async fn query_scope_filters_mutations_and_relations_on_real_database() -> TestR
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let router = build_router(&app)?;
     for (token, expected) in [(
         "owner-one",
@@ -681,11 +695,11 @@ async fn tenant_scope_is_trusted_and_shared_between_real_api_nodes() -> TestResu
 }
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
-impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+impl<T: Send + Sync + 'static> openrust::support::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::clone(&self.0)).await?;
             Ok(())
@@ -694,18 +708,18 @@ impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {

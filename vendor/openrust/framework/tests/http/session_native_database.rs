@@ -13,6 +13,19 @@ use std::{
 #[cfg(feature = "db-sqlite")]
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use figment::{Figment, providers::Serialized};
+use openrust::Error;
+use openrust::Result;
+use openrust::config::FrameworkConfig;
+use openrust::config::HttpStatusMode;
+use openrust::config::NoConfig;
+use openrust::database::DatabaseServiceProvider;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::foundation::RegisterContext;
+use openrust::http::CookieServiceProvider;
+use openrust::http::HttpServiceProvider;
+use openrust::http::Inject;
+use openrust::http::Json;
 #[cfg(feature = "db-sqlite")]
 use openrust::http::axum::http::{StatusCode, header::SET_COOKIE};
 use openrust::http::axum::{
@@ -23,19 +36,18 @@ use openrust::http::axum::{
         header::{COOKIE, USER_AGENT},
     },
 };
+use openrust::routing::RouteGroup;
+use openrust::session::Session;
+use openrust::session::SessionServiceProvider;
+use openrust::session::SessionStoreGuarantees;
+use openrust::session::SessionStoreHandle;
+use openrust::support::BoxFuture;
+use openrust::support::DefaultProviders;
+use openrust::support::ServiceProvider;
+use openrust::testing::TestApp;
 #[cfg(feature = "db-sqlite")]
 use openrust::testing::TestDatabase;
-use openrust::{
-    Error, Result,
-    config::{FrameworkConfig, HttpStatusMode, NoConfig},
-    core::{
-        Application, BootContext, BoxFuture, DefaultProviders, RegisterContext, ServiceProvider,
-    },
-    db::DatabaseServiceProvider,
-    http::{CookieServiceProvider, HttpServiceProvider, Inject, Json, RouteGroup},
-    session::{Session, SessionServiceProvider, SessionStoreGuarantees, SessionStoreHandle},
-    testing::{TestApp, TestResponse},
-};
+use openrust::testing::TestResponse;
 #[cfg(feature = "db-sqlite")]
 use sea_orm::{ConnectionTrait, QueryResult, Statement};
 #[cfg(feature = "db-sqlite")]
@@ -73,8 +85,8 @@ impl MigratorTrait for GuardedMigrator {
 
 #[derive(Default)]
 struct BusinessCalls(AtomicUsize);
-struct Routes<const AUTH: bool>;
-impl<const AUTH: bool> ServiceProvider for Routes<AUTH> {
+struct Router<const AUTH: bool>;
+impl<const AUTH: bool> ServiceProvider for Router<AUTH> {
     fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move { app.instance(Arc::new(BusinessCalls::default())).await })
     }
@@ -146,12 +158,12 @@ async fn read(session: Session) -> Result<Json<Value>> {
 }
 
 struct Harness<const AUTO: bool, const AUTH: bool>;
-impl<const AUTO: bool, const AUTH: bool> Application for Harness<AUTO, AUTH> {
+impl<const AUTO: bool, const AUTH: bool> ApplicationDefinition for Harness<AUTO, AUTH> {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
         if AUTO {
             DefaultProviders::auto().replace(
-                openrust::core::ProviderId::of::<CookieServiceProvider>(),
+                openrust::foundation::ProviderId::of::<CookieServiceProvider>(),
                 Box::new(CookieServiceProvider::plain()),
             )
         } else {
@@ -175,7 +187,7 @@ impl<const AUTO: bool, const AUTH: bool> Application for Harness<AUTO, AUTH> {
                 openrust::auth::AuthServiceProvider::with_authenticator(RejectLegacyAuthenticator),
             ));
         }
-        providers.push(Box::new(Routes::<AUTH>));
+        providers.push(Box::new(Router::<AUTH>));
         providers
     }
 }

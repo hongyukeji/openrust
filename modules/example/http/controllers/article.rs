@@ -20,20 +20,27 @@ use crate::modules::example::services::telemetry::{self, ArticleOperation};
 use crate::modules::example::services::upstream::{ArticleSummary, ArticleSummaryService};
 use openrust::audit::{Audit, AuditEvent, AuditOutcome, AuditSubject};
 use openrust::auth::{CurrentUser, QueryRule, QueryScope};
-use openrust::db::SortDirection;
-use openrust::db::sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, sea_query::Expr};
+use openrust::database::SortDirection;
+use openrust::database::sea_orm::{
+    ColumnTrait, Condition, EntityTrait, QueryFilter, sea_query::Expr,
+};
+#[cfg(feature = "encryption")]
+use openrust::encryption::Encrypter;
 use openrust::events::Events;
+use openrust::http::Created;
+use openrust::http::Json;
+use openrust::http::PageParams;
+use openrust::http::Paginated;
+use openrust::http::Path;
+use openrust::http::Validated;
 #[cfg(feature = "encryption")]
 use openrust::http::axum::{
     http::{HeaderValue, header},
     response::{IntoResponse, Response},
 };
-use openrust::http::{
-    Created, Json, PageParams, Paginated, Path, Resource, ResourceActions, Validated,
-};
 use openrust::prelude::{Db, Inject};
-#[cfg(feature = "encryption")]
-use openrust::security::Encryptor;
+use openrust::routing::Resource;
+use openrust::routing::ResourceActions;
 #[cfg(feature = "signing")]
 use openrust::signing::SignedLinks;
 use openrust::{Error, Result};
@@ -245,7 +252,7 @@ pub(crate) async fn destroy(
 pub(crate) async fn put_private_note(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Inject(encryptor): Inject<Encryptor>,
+    Inject(encryptor): Inject<Encrypter>,
     Path(id): Path<i64>,
     Validated(Json(input)): Validated<Json<PrivateNoteInput>>,
 ) -> Result<Response> {
@@ -278,7 +285,7 @@ pub(crate) async fn put_private_note(
 pub(crate) async fn get_private_note(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Inject(encryptor): Inject<Encryptor>,
+    Inject(encryptor): Inject<Encrypter>,
     Path(id): Path<i64>,
 ) -> Result<Response> {
     let model = article_rule()

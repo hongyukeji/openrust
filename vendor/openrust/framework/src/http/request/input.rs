@@ -147,7 +147,7 @@ impl<S: Send + Sync> FromRequest<S> for Request {
         value::validate_limits(&all)?;
         #[cfg(feature = "session")]
         crate::core::error::bind_exception_input(all.clone());
-        crate::db::query::bind_page_input(all.clone());
+        crate::database::query::bind_page_input(all.clone());
         let combined = combine(&all, &files)?;
         Ok(Self {
             info,
@@ -180,7 +180,10 @@ async fn multipart_context(
         None
     };
     let mime_types = if is_multipart && !is_query {
-        match parts.extensions.get::<crate::core::AppState>() {
+        match parts
+            .extensions
+            .get::<crate::foundation::ApplicationState>()
+        {
             Some(state) => state.mime_types().await?,
             None => Arc::new(MimeTypes::new()),
         }
@@ -235,7 +238,7 @@ impl Request {
     }
 
     /// 取得当前实际匹配的路由。
-    pub fn route(&self) -> Result<Option<crate::http::Route>> {
+    pub fn route(&self) -> Result<Option<crate::routing::Route>> {
         self.info.route()
     }
 
@@ -260,12 +263,12 @@ impl Request {
     }
 
     /// 取得当前路由解析器。
-    pub fn get_route_resolver(&self) -> Result<crate::http::RouteResolver> {
+    pub fn get_route_resolver(&self) -> Result<crate::routing::RouteResolver> {
         self.info.get_route_resolver()
     }
 
     /// 设置当前路由解析器。
-    pub fn set_route_resolver(&self, resolver: crate::http::RouteResolver) -> Result<()> {
+    pub fn set_route_resolver(&self, resolver: crate::routing::RouteResolver) -> Result<()> {
         self.info.set_route_resolver(resolver)
     }
     /// 按当前 query bag 与新增顶层参数构造完整地址；不读取正文参数。

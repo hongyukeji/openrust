@@ -9,7 +9,7 @@ use crate::{
     auth::fortify::{
         DatabaseApiLoginAudit, FactorAuthoritySnapshot, TwoFactorAuthenticationEnabled,
     },
-    db::sea_orm::ConnectionTrait,
+    database::sea_orm::ConnectionTrait,
 };
 #[cfg(feature = "db-sqlite")]
 use std::sync::atomic::AtomicUsize;
@@ -346,7 +346,7 @@ impl CommitGate {
     fn listeners(&self, durable_table: &'static str) -> EventsServiceProvider {
         let mut listeners = EventsServiceProvider::new();
         let gate = self.clone();
-        listeners.listen::<crate::db::TransactionBeforeCommit, _>(move |_, ctx| {
+        listeners.listen::<crate::database::TransactionBeforeCommit, _>(move |_, ctx| {
             let gate = gate.clone();
             Box::pin(async move {
                 if !gate.armed.load(Ordering::SeqCst) {
@@ -354,7 +354,7 @@ impl CommitGate {
                 }
                 let tx = ctx.transaction().ok_or(Error::Unauthorized)?;
                 let statement = |sql: String| {
-                    crate::db::sea_orm::Statement::from_string(tx.get_database_backend(), sql)
+                    crate::database::sea_orm::Statement::from_string(tx.get_database_backend(), sql)
                 };
                 let audit = statement(
                     "SELECT 1 FROM audit_records WHERE action='auth.two_factor.enable'".into(),
@@ -458,7 +458,7 @@ async fn sqlite_global_listener_change_during_management_read_rolls_back_and_rej
     let change = Arc::new(AtomicUsize::new(0));
     let selected = change.clone();
     let mut listeners = EventsServiceProvider::new();
-    listeners.listen::<crate::db::TransactionBeforeCommit, _>(move |_, ctx| {
+    listeners.listen::<crate::database::TransactionBeforeCommit, _>(move |_, ctx| {
         let selected = selected.clone();
         Box::pin(async move {
             let sql = match selected.swap(0, Ordering::SeqCst) {
@@ -510,7 +510,7 @@ async fn sqlite_global_listener_cannot_release_management_material_after_grant_e
     let expires_at = Arc::new(std::sync::atomic::AtomicI64::new(0));
     let delayed = expires_at.clone();
     let mut listeners = EventsServiceProvider::new();
-    listeners.listen::<crate::db::TransactionBeforeCommit, _>(move |_, _| {
+    listeners.listen::<crate::database::TransactionBeforeCommit, _>(move |_, _| {
         let delayed = delayed.clone();
         Box::pin(async move {
             let cutoff = delayed.swap(0, Ordering::SeqCst);
@@ -556,7 +556,7 @@ async fn sqlite_global_listener_cannot_release_management_material_after_grant_e
 mod queued {
     use super::*;
     use crate::{
-        db::DatabaseBackend,
+        database::DatabaseBackend,
         queue::{Job, JobContext, QueueMigration, QueueServiceProvider},
     };
 
@@ -581,7 +581,7 @@ mod queued {
     }
 
     async fn queued_rollback(expected: DatabaseBackend) -> Result<()> {
-        let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(|_| {
+        let url = crate::test_database_environment::database_url().map_err(|_| {
             Error::custom(
                 "test_database_url_required",
                 "需提供目标后端的独占测试库连接",

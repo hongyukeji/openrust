@@ -14,28 +14,40 @@ use std::{
     time::Duration,
 };
 
+use crate::Application;
+use crate::ApplicationState;
+use crate::BoxFuture;
+use crate::Command;
+use crate::Error;
+use crate::Result;
 #[cfg(feature = "auth")]
 use crate::auth::{CurrentUser, Policy, authenticate_grpc_bearer};
-use crate::{
-    App, AppState, BoxFuture, Command, Error, Result,
-    config::{GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig},
-    core::{
-        CancelOnDrop, Cancellation, ExecutionContext, ExecutionMetadata, Readiness, shutdown_signal,
-    },
-};
+use crate::config::GrpcClientTlsConfig;
+use crate::config::GrpcConfig;
+use crate::config::GrpcServerTlsConfig;
+use crate::core::CancelOnDrop;
+use crate::core::Cancellation;
+use crate::core::ExecutionContext;
+use crate::core::ExecutionMetadata;
+use crate::core::Readiness;
+use crate::foundation::shutdown_signal;
 use http::Request;
 use http_body_util::{BodyExt, StreamBody};
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 #[cfg(feature = "auth")]
 use tonic::Code;
-use tonic::{
-    Status,
-    body::Body,
-    server::NamedService,
-    service::{Routes, RoutesBuilder},
-    transport::{Certificate, Channel, Endpoint, Identity, ServerTlsConfig, server::Router},
-};
+use tonic::Status;
+use tonic::body::Body;
+use tonic::server::NamedService;
+use tonic::service::Routes as TonicRoutes;
+use tonic::service::RoutesBuilder;
+use tonic::transport::Certificate;
+use tonic::transport::Channel;
+use tonic::transport::Endpoint;
+use tonic::transport::Identity;
+use tonic::transport::ServerTlsConfig;
+use tonic::transport::server::Router;
 use tower::Service;
 
 /// tonic / prost crate re-export；生成代码可通过 facade 访问运行时类型。
@@ -49,7 +61,8 @@ pub use tonic_prost;
 /// gRPC reflection v1 的标准 Protobuf 消息与 typed client。
 pub use tonic_reflection::pb as reflection_pb;
 
-type ServiceRegistration = Arc<dyn Fn(&AppState, &GrpcConfig, &mut RoutesBuilder) + Send + Sync>;
+type ServiceRegistration =
+    Arc<dyn Fn(&ApplicationState, &GrpcConfig, &mut RoutesBuilder) + Send + Sync>;
 
 #[cfg(feature = "metrics")]
 struct GrpcCallMetricGuard {
@@ -255,7 +268,7 @@ impl GrpcServiceRegistry {
             + 'static,
         S::Response: axum::response::IntoResponse,
         S::Future: Send + 'static,
-        F: Fn(AppState) -> S + Send + Sync + 'static,
+        F: Fn(ApplicationState) -> S + Send + Sync + 'static,
     {
         self.register_with_config::<S, _>(move |state, _| factory(state))
     }
@@ -271,7 +284,7 @@ impl GrpcServiceRegistry {
             + 'static,
         S::Response: axum::response::IntoResponse,
         S::Future: Send + 'static,
-        F: Fn(AppState, &GrpcConfig) -> S + Send + Sync + 'static,
+        F: Fn(ApplicationState, &GrpcConfig) -> S + Send + Sync + 'static,
     {
         let mut inner = self
             .inner
@@ -425,10 +438,10 @@ impl GrpcServiceRegistry {
 
     fn routes(
         &self,
-        state: &AppState,
+        state: &ApplicationState,
         config: &GrpcConfig,
         reflection_enabled: bool,
-    ) -> Result<(Routes, GrpcHealthReporter, Vec<&'static str>)> {
+    ) -> Result<(TonicRoutes, GrpcHealthReporter, Vec<&'static str>)> {
         let snapshot = self
             .inner
             .lock()
@@ -583,7 +596,7 @@ impl GrpcClientRegistry {
 /// 绑定到已组装应用的 gRPC server 路由。
 pub struct GrpcServer {
     listen_addr: SocketAddr,
-    routes: Routes,
+    routes: TonicRoutes,
     tls: Option<ServerTlsConfig>,
     health: GrpcHealthReporter,
     health_services: Vec<&'static str>,
@@ -597,7 +610,7 @@ pub struct GrpcServer {
     shutdown_timeout: Duration,
     health_drain_grace: Duration,
     #[cfg(feature = "auth")]
-    state: AppState,
+    state: ApplicationState,
 }
 
 #[derive(Clone)]
@@ -870,7 +883,7 @@ fn validate_health_drain_grace(grace_ms: u64, shutdown_timeout_secs: u64) -> Res
 
 impl GrpcServer {
     /// 从服务注册表和配置构建 server；不绑定端口或启动后台任务。
-    pub async fn from_app(app: &App) -> Result<Self> {
+    pub async fn from_app(app: &Application) -> Result<Self> {
         app.state().resolve::<GrpcPluginInstalled>().await?;
         let registry = app.extension::<GrpcServiceRegistry>().ok_or_else(|| {
             Error::custom(
@@ -1030,7 +1043,7 @@ impl GrpcServer {
                 }
             }
         };
-        crate::core::lifecycle::flush_telemetry().await;
+        crate::foundation::lifecycle::flush_telemetry().await;
         result
     }
 }
@@ -1077,7 +1090,7 @@ impl GrpcAuth {
 #[cfg(feature = "auth")]
 #[derive(Clone)]
 struct GrpcAuthLayer {
-    state: AppState,
+    state: ApplicationState,
 }
 
 #[cfg(feature = "auth")]
@@ -1096,7 +1109,7 @@ impl<S> tower::Layer<S> for GrpcAuthLayer {
 #[derive(Clone)]
 struct GrpcAuthService<S> {
     inner: S,
-    state: AppState,
+    state: ApplicationState,
 }
 
 #[cfg(feature = "auth")]
@@ -1159,7 +1172,7 @@ where
 }
 
 #[cfg(feature = "auth")]
-async fn authenticate_rpc_bearer(state: &AppState, value: &str) -> Result<CurrentUser> {
+async fn authenticate_rpc_bearer(state: &ApplicationState, value: &str) -> Result<CurrentUser> {
     #[cfg(feature = "auth-fortify")]
     if !value.starts_with("openrust_pat_")
         && state
@@ -1305,11 +1318,11 @@ impl GrpcServiceProvider {
         self
     }
 }
-impl crate::core::ServiceProvider for GrpcServiceProvider {
+impl crate::support::ServiceProvider for GrpcServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema as S;
             let path = || S::String.sensitive();
@@ -1383,7 +1396,10 @@ impl crate::core::ServiceProvider for GrpcServiceProvider {
             Ok(())
         })
     }
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let config = app.section::<GrpcConfig>("grpc")?;
             let server = app.section::<crate::config::ServerConfig>("server")?;
@@ -1431,7 +1447,7 @@ impl Command for GrpcServeCommand {
         "启动 gRPC 服务器"
     }
 
-    fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+    fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let server = GrpcServer::from_app(app).await?;
             let listener = TcpListener::bind(server.listen_addr()).await?;
@@ -1611,7 +1627,7 @@ mod tests {
 
 #[cfg(all(test, feature = "auth-fortify", feature = "db-sqlite"))]
 pub(crate) mod jwt_profile_tests {
-    use super::{AppState, GrpcAuth, GrpcAuthLayer, Policy, ensure_tls_crypto_provider};
+    use super::{ApplicationState, GrpcAuth, GrpcAuthLayer, Policy, ensure_tls_crypto_provider};
     use crate::{Error, Result};
     use std::time::Duration;
     use tonic::transport::{
@@ -1699,7 +1715,7 @@ pub(crate) mod jwt_profile_tests {
     }
 
     pub(crate) async fn verify_over_tls(
-        state: AppState,
+        state: ApplicationState,
         policy: Policy,
         valid: &str,
         denied: &[String],
@@ -1750,7 +1766,9 @@ pub(crate) mod jwt_profile_tests {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     struct InvalidOverlay;
     impl ServiceProvider for InvalidOverlay {

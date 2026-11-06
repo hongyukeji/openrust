@@ -2,7 +2,7 @@
 
 use crate::modules::example::http::requests::article::ArticleInput;
 use crate::modules::example::models::article;
-use openrust::db::sea_orm::{ActiveValue::Set, EntityTrait};
+use openrust::database::sea_orm::{ActiveValue::Set, EntityTrait};
 use openrust::{Db, Error, Result};
 
 pub(crate) const SEED_ARTICLE_IDS: [i64; 2] = [-7_301_001, -7_301_002];

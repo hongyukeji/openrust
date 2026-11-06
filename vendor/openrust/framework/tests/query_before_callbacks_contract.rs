@@ -1,9 +1,9 @@
 //! 公共 Query API 的执行前回调生命周期；每例隔离数据库并显式回收。
 #![cfg(any(feature = "db-mysql", feature = "db-postgres", feature = "db-sqlite"))]
 
-use openrust::db::query::{ColumnOperand, ExistsOrResult, RawSql};
-use openrust::db::sea_orm::{ConnectionTrait, QueryResult, TransactionTrait};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::query::{ColumnOperand, ExistsOrResult, RawSql};
+use openrust::database::sea_orm::{ConnectionTrait, QueryResult, TransactionTrait};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::testing::TestDatabase;
 use openrust::{Db, Error, Result};
 use std::sync::{
@@ -12,7 +12,7 @@ use std::sync::{
 };
 
 struct EmptyMigrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for EmptyMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         Vec::new()
@@ -798,7 +798,7 @@ case!(
     pending_database_io_rejects_projection_overlap_and_recovers_after_cancellation,
     |db| {
         use futures_util::future::{AbortHandle, Abortable};
-        use openrust::db::DbBackend;
+        use openrust::database::DbBackend;
         use std::time::Duration;
         if db.backend()? == DbBackend::Sqlite {
             eprintln!("SQLite 不适用行锁等待取消回归；该项须在真实 MySQL/PostgreSQL 执行");
@@ -843,7 +843,7 @@ case!(
         let mut identities = Vec::new();
         for connection in [&blocker, &transaction] {
             let row = connection
-                .query_one_raw(openrust::db::sea_orm::Statement::from_string(
+                .query_one_raw(openrust::database::sea_orm::Statement::from_string(
                     db.backend()?,
                     identity_sql,
                 ))
@@ -907,7 +907,7 @@ case!(
                     };
                     tokio::time::timeout(Duration::from_secs(10), async {
                         loop {
-                            let row = observer.query_one_raw(openrust::db::sea_orm::Statement::from_string(db.backend()?, sql.clone())).await.map_err(Error::internal)?
+                            let row = observer.query_one_raw(openrust::database::sea_orm::Statement::from_string(db.backend()?, sql.clone())).await.map_err(Error::internal)?
                                 .ok_or_else(|| Error::custom("missing_lock_observation", "行锁观测缺失"))?;
                             if row.try_get::<i64>("", "waiting").map_err(Error::internal)? > 0 { break Ok::<(), Error>(()); }
                             tokio::task::yield_now().await;
@@ -1120,7 +1120,7 @@ case!(empty_write_prechecks_do_not_consume_callbacks, |db| {
 });
 
 type DropTarget =
-    std::sync::Mutex<Option<Arc<openrust::db::query::QueryBuilder<'static, 'static>>>>;
+    std::sync::Mutex<Option<Arc<openrust::database::query::QueryBuilder<'static, 'static>>>>;
 struct BindingReadOnDrop {
     target: std::sync::Weak<DropTarget>,
     observed: Arc<AtomicUsize>,
@@ -1291,7 +1291,7 @@ case!(
 const MYSQL_COLD_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10);
 
 async fn mysql_cold_connection_id(connection: &impl ConnectionTrait) -> Result<u64> {
-    use openrust::db::sea_orm::{DbBackend, Statement};
+    use openrust::database::sea_orm::{DbBackend, Statement};
     let row = tokio::time::timeout(
         MYSQL_COLD_DEADLINE,
         connection.query_one_raw(Statement::from_string(
@@ -1308,7 +1308,7 @@ async fn mysql_cold_connection_id(connection: &impl ConnectionTrait) -> Result<u
 
 async fn mysql_cold_normal_prepare_error_preserves_connection(
     single: &Db,
-    connection: &openrust::db::sea_orm::DatabaseConnection,
+    connection: &openrust::database::sea_orm::DatabaseConnection,
     original_id: u64,
 ) -> Result<()> {
     // 服务端正常prepare错误可恢复，不应当作取消中的协议状态未知而废弃连接。
@@ -1332,7 +1332,7 @@ async fn mysql_cold_normal_prepare_error_preserves_connection(
 
 async fn mysql_cold_cancel_transaction_query(
     single: &Db,
-    tx: &openrust::db::sea_orm::DatabaseTransaction,
+    tx: &openrust::database::sea_orm::DatabaseTransaction,
     original_id: u64,
 ) -> Result<()> {
     use futures_util::future::{AbortHandle, Abortable};
@@ -1371,7 +1371,7 @@ async fn mysql_cold_cancel_transaction_query(
 
 async fn mysql_cold_cancel_and_rollback(
     single: &Db,
-    connection: &openrust::db::sea_orm::DatabaseConnection,
+    connection: &openrust::database::sea_orm::DatabaseConnection,
     original_id: u64,
 ) -> Result<()> {
     let transaction = tokio::time::timeout(MYSQL_COLD_DEADLINE, connection.begin())
@@ -1394,7 +1394,7 @@ async fn mysql_cold_cancel_and_rollback(
 
 async fn mysql_cold_verify_rollback_with_row_lock(
     single: &Db,
-    connection: &openrust::db::sea_orm::DatabaseConnection,
+    connection: &openrust::database::sea_orm::DatabaseConnection,
 ) -> Result<()> {
     let transaction = tokio::time::timeout(MYSQL_COLD_DEADLINE, connection.begin())
         .await
@@ -1444,7 +1444,7 @@ async fn mysql_cold_verify_rollback_with_row_lock(
 async fn mysql_cold_check_replacement_and_observer(
     single: &Db,
     observer: &Db,
-    connection: &openrust::db::sea_orm::DatabaseConnection,
+    connection: &openrust::database::sea_orm::DatabaseConnection,
     original_id: u64,
 ) -> Result<()> {
     check(
@@ -1480,7 +1480,7 @@ async fn mysql_cold_check_replacement_and_observer(
 #[tokio::test]
 async fn mysql_cold_prepare_first_poll_cancellation_retires_connection_and_rolls_back() -> Result<()>
 {
-    use openrust::db::sea_orm::{ConnectOptions, Database, DbBackend};
+    use openrust::database::sea_orm::{ConnectOptions, Database, DbBackend};
     use std::time::Duration;
     let Some(fixture) = Fixture::create().await? else {
         return Ok(());

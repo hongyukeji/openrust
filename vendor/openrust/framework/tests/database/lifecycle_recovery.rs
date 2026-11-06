@@ -1,10 +1,10 @@
 //! 真实网络数据库的永久公开API子进程回归；仅操作本例明确拥有的资源。
 #![cfg(all(unix, any(feature = "db-mysql", feature = "db-postgres")))]
 
-use openrust::db::sea_orm::{
+use openrust::database::sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
 };
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::testing::TestDatabase;
 use openrust::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ fn check(value: bool, code: &'static str) -> Result<()> {
     if value { Ok(()) } else { Err(failure(code)) }
 }
 struct EmptyMigrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for EmptyMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         Vec::new()

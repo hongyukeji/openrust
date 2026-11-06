@@ -1,8 +1,10 @@
 //! 由共享数据库时钟协调的间隔、UTC daily 与 cron 任务调度。
 
-use crate::core::{BoxFuture, Error, Result};
-use crate::db::{DatabaseTransaction, Db, DbBackend};
+use crate::core::Error;
+use crate::core::Result;
+use crate::database::{DatabaseTransaction, Db, DbBackend};
 use crate::queue::Queue;
+use crate::support::BoxFuture;
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use cron_parser::Schedule as CronSchedule;
@@ -232,10 +234,10 @@ pub struct Scheduler {
     entries: Vec<ScheduleDefinition>,
     live_contributions: Option<Arc<crate::queue::QueueContributions>>,
     config: crate::config::QueueConfig,
-    scopes: crate::core::container::ScopeFactory,
+    scopes: crate::container::ScopeFactory,
 }
 
-struct TriggerScope(Arc<crate::core::container::Scope>);
+struct TriggerScope(Arc<crate::container::Scope>);
 impl Drop for TriggerScope {
     fn drop(&mut self) {
         self.0.close();
@@ -248,7 +250,7 @@ impl Scheduler {
         queue: Queue,
         entries: Vec<ScheduleDefinition>,
         config: crate::config::QueueConfig,
-        scopes: crate::core::container::ScopeFactory,
+        scopes: crate::container::ScopeFactory,
     ) -> Self {
         Self {
             db,
@@ -594,7 +596,7 @@ async fn insert_schedule_slot(
 
 pub(crate) struct ScheduleRunCommand;
 
-impl crate::core::Command for ScheduleRunCommand {
+impl crate::console::Command for ScheduleRunCommand {
     fn name(&self) -> &'static str {
         "schedule run"
     }
@@ -609,7 +611,7 @@ impl crate::core::Command for ScheduleRunCommand {
 
     fn run<'a>(
         &'a self,
-        app: &'a crate::core::App,
+        app: &'a crate::foundation::Application,
         args: Vec<String>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -631,7 +633,7 @@ impl crate::core::Command for ScheduleRunCommand {
 
 pub(crate) struct ScheduleListCommand;
 
-impl crate::core::Command for ScheduleListCommand {
+impl crate::console::Command for ScheduleListCommand {
     fn name(&self) -> &'static str {
         "schedule list"
     }
@@ -647,7 +649,7 @@ impl crate::core::Command for ScheduleListCommand {
     #[allow(clippy::print_stdout)]
     fn run<'a>(
         &'a self,
-        app: &'a crate::core::App,
+        app: &'a crate::foundation::Application,
         _args: Vec<String>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -684,7 +686,10 @@ async fn shutdown_signal() -> Result<()> {
 #[cfg(test)]
 mod provider_command_tests {
     use super::*;
-    use crate::core::{Command, ProviderBuilder, RegisterContext, ServiceProvider};
+    use crate::console::Command;
+    use crate::foundation::ProviderBuilder;
+    use crate::foundation::RegisterContext;
+    use crate::support::ServiceProvider;
     use std::sync::Arc;
 
     #[tokio::test]
@@ -694,11 +699,11 @@ mod provider_command_tests {
             fn register<'a>(
                 &'a self,
                 app: &'a mut RegisterContext<'_>,
-            ) -> crate::core::BoxFuture<'a, Result<()>> {
+            ) -> crate::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.singleton::<Scheduler, _>(|resolver| {
                         Box::pin(async move {
-                            let db = crate::db::Db::default();
+                            let db = crate::database::Db::default();
                             Ok(Arc::new(Scheduler::new(
                                 db.clone(),
                                 crate::queue::Queue::new(db),
@@ -715,8 +720,9 @@ mod provider_command_tests {
         }
         let mut builder = ProviderBuilder::new();
         builder.provider(SchedulerProvider);
-        let app =
-            crate::core::App::from_provider_runtime(builder.start(figment::Figment::new()).await?)?;
+        let app = crate::foundation::Application::from_provider_runtime(
+            builder.start(figment::Figment::new()).await?,
+        )?;
         ScheduleListCommand.run(&app, Vec::new()).await
     }
 }

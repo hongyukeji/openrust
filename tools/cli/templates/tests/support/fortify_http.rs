@@ -1,12 +1,17 @@
 //! 生成应用经真实 `Router`、账户 `Provider` 与受保护 `Session` 完成现代 `Fortify` 管理流程。
 use figment::Figment;
-use openrust::core::{Application, BootContext, BoxFuture, RegisterContext, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::foundation::RegisterContext;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::{Body, to_bytes},
     extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
-use openrust::http::{Json, RouteGroup};
+use openrust::http::Json;
+use openrust::routing::RouteGroup;
 use openrust::mail::{MailDriver, Mailer};
 use openrust::session::Session;
 use openrust::testing::TestApp;
@@ -90,7 +95,7 @@ async fn csrf(session: Session) -> Result<Json<Value>> {
     Ok(Json(json!({"token":session.token()?})))
 }
 struct FortifyApplication<A>(std::marker::PhantomData<fn() -> A>);
-impl<A: Application> Application for FortifyApplication<A> {
+impl<A: ApplicationDefinition> ApplicationDefinition for FortifyApplication<A> {
     type Config = A::Config;
     fn config() -> openrust::config::ConfigManifest {
         A::config()
@@ -98,7 +103,7 @@ impl<A: Application> Application for FortifyApplication<A> {
     fn config_namespace() -> &'static str {
         A::config_namespace()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         A::default_providers()
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -115,7 +120,7 @@ impl<A: Application> Application for FortifyApplication<A> {
         providers.push(Box::new(HttpSupport));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
@@ -137,12 +142,12 @@ impl Reply {
         Ok(())
     }
 }
-struct Browser<'a, A: Application> {
+struct Browser<'a, A: ApplicationDefinition> {
     app: &'a TestApp<FortifyApplication<A>>,
     cookies: BTreeMap<String, String>,
     token: Option<String>,
 }
-impl<'a, A: Application> Browser<'a, A> {
+impl<'a, A: ApplicationDefinition> Browser<'a, A> {
     fn new(app: &'a TestApp<FortifyApplication<A>>) -> Self {
         Self {
             app,
@@ -251,7 +256,7 @@ impl<'a, A: Application> Browser<'a, A> {
     }
 }
 
-async fn register<A: Application>(browser: &mut Browser<'_, A>, email: &str) -> Result<()> {
+async fn register<A: ApplicationDefinition>(browser: &mut Browser<'_, A>, email: &str) -> Result<()> {
     let response = browser
         .post(
             "/api/auth/register",
@@ -274,14 +279,14 @@ async fn register<A: Application>(browser: &mut Browser<'_, A>, email: &str) -> 
     Ok(())
 }
 
-async fn confirm_password<A: Application>(browser: &mut Browser<'_, A>) -> Result<()> {
+async fn confirm_password<A: ApplicationDefinition>(browser: &mut Browser<'_, A>) -> Result<()> {
     browser
         .post("/user/confirm-password", json!({"password":PASSWORD}))
         .await?
         .empty_json(StatusCode::CREATED, "确认密码")
 }
 
-async fn enable_and_confirm<A: Application>(browser: &mut Browser<'_, A>) -> Result<()> {
+async fn enable_and_confirm<A: ApplicationDefinition>(browser: &mut Browser<'_, A>) -> Result<()> {
     let denied = browser
         .send(
             Method::POST,
@@ -320,14 +325,14 @@ async fn enable_and_confirm<A: Application>(browser: &mut Browser<'_, A>) -> Res
     Ok(())
 }
 
-async fn recovery_codes<A: Application>(browser: &mut Browser<'_, A>) -> Result<Vec<String>> {
+async fn recovery_codes<A: ApplicationDefinition>(browser: &mut Browser<'_, A>) -> Result<Vec<String>> {
     let response = browser.get("/user/two-factor-recovery-codes").await?;
     response.status(StatusCode::OK, "读取恢复码");
     let codes: Vec<String> = serde_json::from_value(response.json()?).map_err(Error::internal)?;
     assert_eq!(codes.len(), 8);
     Ok(codes)
 }
-async fn rotate_and_disable<A: Application>(
+async fn rotate_and_disable<A: ApplicationDefinition>(
     browser: &mut Browser<'_, A>,
     email: &str,
 ) -> Result<()> {
@@ -403,7 +408,7 @@ fn authenticator_code(encoded: &str) -> Result<String> {
 /// 使用调用方隔离数据库的配置，运行生成应用的现代 `Fortify` 真实 `Router` 管理闭环。
 ///
 /// 本函数不创建或销毁数据库；只增加CSRF观察路由与邮件传输捕获，保留生产认证绑定。
-pub async fn exercise<A: Application>(input: Figment) -> Result<()> {
+pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
     // TestApp默认testing会跳过CSRF；明确启用local以执行真实保护，绝不移除CSRF中间件。
     let entries = input
         .extract::<BTreeMap<String, Value>>()

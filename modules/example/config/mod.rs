@@ -120,7 +120,10 @@ fn oidc_values(oidc: super::services::oidc::ExampleOidcConfig) -> serde_json::Va
 #[cfg(test)]
 mod projection_tests {
     use openrust::config::{ConfigLoader, ConfigManifest, repository::SectionSchema};
-    use openrust::core::{BootContext, ProviderBuilder, RegisterContext, ServiceProvider};
+    use openrust::foundation::BootContext;
+    use openrust::foundation::ProviderBuilder;
+    use openrust::foundation::RegisterContext;
+    use openrust::support::ServiceProvider;
     use serde_json::{Value, json};
 
     struct PolicyProjection(Value);

@@ -4,10 +4,11 @@ use std::time::Duration;
 
 use crate::modules::example::models::article;
 use openrust::cache::Cache;
-use openrust::core::{BoxFuture, Result};
-use openrust::db::sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use openrust::core::Result;
+use openrust::database::sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use openrust::prelude::Db;
 use openrust::queue::{Job, JobContext};
+use openrust::support::BoxFuture;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

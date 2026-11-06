@@ -9,24 +9,33 @@ use figment::{
     Figment,
     providers::{Format, Toml},
 };
+use openrust::config::FrameworkConfig;
+use openrust::core::Error;
+use openrust::core::Result as FrameworkResult;
+use openrust::database::DatabaseServiceProvider;
+use openrust::database::Db;
+use openrust::database::sea_orm_migration::MigrationTrait;
+use openrust::database::sea_orm_migration::MigratorTrait;
+use openrust::foundation::Application;
+use openrust::mail::MailDriver;
+use openrust::mail::Mailer;
 #[cfg(feature = "mail-smtp")]
 use openrust::mail::MailerServiceProvider;
 use openrust::mail::lettre::Message;
+use openrust::notifications::EmailDelivery;
+use openrust::notifications::Notification;
+use openrust::notifications::NotificationsServiceProvider;
+use openrust::notifications::Notifier;
+use openrust::notifications::SmsDelivery;
+use openrust::queue::Queue;
+use openrust::queue::QueueMigration;
+use openrust::queue::QueueServiceProvider;
+use openrust::sms::SmsDriver;
+use openrust::sms::SmsMessage;
+use openrust::sms::SmsReceipt;
+use openrust::sms::SmsSender;
+use openrust::support::BoxFuture;
 use openrust::testing::TestDatabase;
-use openrust::{
-    config::FrameworkConfig,
-    core::{App, BoxFuture, Error, Result as FrameworkResult},
-    database::{
-        DatabaseServiceProvider, Db, sea_orm_migration::MigrationTrait,
-        sea_orm_migration::MigratorTrait,
-    },
-    mail::{MailDriver, Mailer},
-    notifications::{
-        EmailDelivery, Notification, NotificationsServiceProvider, Notifier, SmsDelivery,
-    },
-    queue::{Queue, QueueMigration, QueueServiceProvider},
-    sms::{SmsDriver, SmsMessage, SmsReceipt, SmsSender},
-};
 
 struct QueueMigrator;
 
@@ -70,7 +79,7 @@ impl SmsDriver for CountingSms {
     }
 }
 
-async fn build_fake_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase)> {
+async fn build_fake_app(admin_url: &str) -> FrameworkResult<(Application, TestDatabase)> {
     let test_database = TestDatabase::create::<QueueMigrator>(admin_url).await?;
     EMAIL_SENT.store(0, Ordering::SeqCst);
     SMS_SENT.store(0, Ordering::SeqCst);
@@ -82,7 +91,7 @@ async fn build_fake_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase)>
         "[database]\nurl = {:?}\n",
         test_database.url()
     ))));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(TestInstance(std::sync::Arc::new(Mailer::new(
             CountingMailer,
@@ -96,7 +105,7 @@ async fn build_fake_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase)>
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     Ok((app, test_database))
 }
 
@@ -218,7 +227,7 @@ async fn queued_notification_is_accepted_by_configured_smtp_sink()
         FrameworkConfig::default(),
     ))
     .merge(config);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(QueueServiceProvider::new())
@@ -227,7 +236,7 @@ async fn queued_notification_is_accepted_by_configured_smtp_sink()
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let queue = app.state().resolve::<Queue>().await?;
     let notifier = app.state().resolve::<Notifier>().await?;
     let queue_name = format!("smtp{}", std::process::id());
@@ -256,11 +265,11 @@ async fn queued_notification_is_accepted_by_configured_smtp_sink()
 }
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
-impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+impl<T: Send + Sync + 'static> openrust::support::ServiceProvider for TestInstance<T> {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::clone(&self.0)).await?;
             Ok(())

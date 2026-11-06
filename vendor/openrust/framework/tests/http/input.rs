@@ -1586,11 +1586,11 @@ async fn dates_read_clock_per_call_and_keep_explicit_timezone() {
 struct CalendarRoutes {
     override_clock: bool,
 }
-impl openrust::core::ServiceProvider for CalendarRoutes {
+impl openrust::support::ServiceProvider for CalendarRoutes {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             // 后继 Provider 覆盖，证明默认 context 读取最终配置。
             app.overlay("app", json!({"timezone":"Europe/Paris"}))?;
@@ -1621,12 +1621,12 @@ async fn calendar_router_uses_final_timezone_and_respects_application_extension(
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             openrust::config::FrameworkConfig::default(),
         ));
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder
             .provider(openrust::http::HttpServiceProvider)
             .provider(CalendarRoutes { override_clock });
-        let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
-        let response = openrust::http::build_router(&app)?
+        let app = openrust::Application::from_provider_runtime(builder.start(sources).await?)?;
+        let response = openrust::foundation::http::build_router(&app)?
             .oneshot(
                 Wire::get("/calendar?when=2000-01-01%2000%3A00%3A00")
                     .header("host", "localhost")
@@ -1663,7 +1663,7 @@ async fn invalid_app_timezone_fails_startup_without_exposing_original_value() {
     let mut config = openrust::config::FrameworkConfig::default();
     assert_eq!(config.app.timezone, "UTC");
     config.app.timezone = "private-invalid-zone-sentinel".to_owned();
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(openrust::http::HttpServiceProvider);
     let result = builder
         .start(figment::Figment::from(

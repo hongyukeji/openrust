@@ -1,9 +1,12 @@
 //! 固定源码的密码学、URI 与真实 Cache Repository 组合回归。
 use super::*;
-use crate::{
-    cache::{CacheBackend, CacheDriver, CacheDriverConfig, CacheScope, CacheServiceProvider},
-    core::{ProviderBuilder, ProviderRuntime},
-};
+use crate::cache::CacheBackend;
+use crate::cache::CacheDriver;
+use crate::cache::CacheDriverConfig;
+use crate::cache::CacheScope;
+use crate::cache::CacheServiceProvider;
+use crate::foundation::ProviderBuilder;
+use crate::foundation::ProviderRuntime;
 use std::{
     collections::BTreeMap,
     sync::{

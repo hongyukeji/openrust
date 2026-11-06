@@ -1,6 +1,6 @@
 //! SQLite验证码的短写事务与精确UTC判定；Argon2校验仍在此事务之外。
 use super::{EncodedPasswordHash, Error, Result, VerificationChallenge, VerificationCodePolicy};
-use crate::db::dialect::utc_value;
+use crate::database::dialect::utc_value;
 use chrono::{DateTime, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, DbBackend, Statement};
 
@@ -26,7 +26,7 @@ pub(super) async fn issue(
     policy: VerificationCodePolicy,
 ) -> Result<()> {
     policy.validate()?;
-    let transaction = crate::db::begin_for_update(connection).await?;
+    let transaction = crate::database::begin_for_update(connection).await?;
     let outcome = async {
         let row = transaction.query_one_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
             format!("SELECT challenge_id,resend_after_at FROM {table} WHERE key_hash=?"), [key.to_owned().into()]))
@@ -82,7 +82,7 @@ pub(super) async fn finish_attempt(
     challenge: &str,
     matches: bool,
 ) -> Result<bool> {
-    let transaction = crate::db::begin_for_update(connection).await?;
+    let transaction = crate::database::begin_for_update(connection).await?;
     let outcome=async{
         let row=transaction.query_one_raw(Statement::from_sql_and_values(DbBackend::Sqlite,
             format!("SELECT expires_at FROM {table} WHERE key_hash=? AND challenge_id=? AND consumed_at IS NULL AND attempt_count<max_attempts"),[key.to_owned().into(),challenge.to_owned().into()]))
@@ -103,7 +103,7 @@ pub(super) async fn finish_attempt(
 }
 
 pub(super) async fn prune(connection: &DatabaseConnection, table: &str) -> Result<()> {
-    let transaction = crate::db::begin_for_update(connection).await?;
+    let transaction = crate::database::begin_for_update(connection).await?;
     let outcome = async {
         // 按主键游标分页，既不依赖日期文本顺序，也不依赖SQLite有限的timezone解析。
         // 每页最多512行、每轮最多删除512行；大量未来项不会让后面的过期项永久饥饿。

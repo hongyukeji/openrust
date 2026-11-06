@@ -16,13 +16,19 @@ use openrust::auth::{
 };
 use openrust::auth::{AuthFlows, ExternalIdentityFlows, Session, SessionStoreHandle};
 use openrust::config::FrameworkConfig;
-use openrust::core::{
-    Application, BootContext, BoxFuture, DefaultProviders, ServiceProvider, container::Scope,
-};
+use openrust::container::Scope;
 use openrust::database::Db;
-use openrust::http::{CookieServiceProvider, HttpServiceProvider, RequestInfo, RouteGroup};
-use openrust::security::Encryptor;
+use openrust::encryption::Encrypter;
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::http::CookieServiceProvider;
+use openrust::http::HttpServiceProvider;
+use openrust::http::RequestInfo;
+use openrust::routing::RouteGroup;
 use openrust::session::SessionServiceProvider;
+use openrust::support::BoxFuture;
+use openrust::support::DefaultProviders;
+use openrust::support::ServiceProvider;
 use openrust::testing::TestApp;
 use openrust::{Error, Result};
 use serde_json::{Value, json};
@@ -38,16 +44,16 @@ pub(super) struct Parts {
     pub(super) users: Arc<DatabaseUserProvider>,
     db: Db,
     passwords: std::sync::Arc<openrust::hashing::HashManager>,
-    encryptor: Encryptor,
+    encryptor: Encrypter,
 }
 impl Parts {
     pub(super) async fn new(
         db: Db,
         passwords: std::sync::Arc<openrust::hashing::HashManager>,
-        encryptor: Encryptor,
+        encryptor: Encrypter,
         auth: AuthFlows,
     ) -> Result<Self> {
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder.provider(openrust::events::EventsServiceProvider::new());
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime
@@ -97,7 +103,7 @@ struct Services {
     external: ExternalIdentityFlows,
 }
 struct WebApplication;
-impl Application for WebApplication {
+impl ApplicationDefinition for WebApplication {
     type Config = openrust::config::NoConfig;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()

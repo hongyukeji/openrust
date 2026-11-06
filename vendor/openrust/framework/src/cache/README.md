@@ -67,7 +67,7 @@ let user = store
 
 `TaggedCacheStore::get_stale_while_revalidate(key, load_id, fresh_ttl, stale_ttl, loader)` 只对 tag store 开放。首次 miss 与超过 `fresh_ttl + stale_ttl` 的条目会等待 loader；fresh 窗口返回新值；stale 窗口立即返回旧值并安排后台刷新。后台刷新受 `[swr].max_in_flight_refreshes`（1–256，默认 64）、singleflight 在途 key 上限与 loader timeout 限制。tag generation 在返回 stale 前再次核验，刷新写入也以捕获的 generation 条件提交；tag 失效优先于旧值。到达 stale 窗口末尾后，后端 TTL 删除条目，不会继续提供陈旧值。
 
-应用持有后台刷新任务。`App::run_command` 结束、HTTP `serve` 收到停机信号或 listener 异常时会合作取消并 join；超过 `[server].shutdown_timeout_secs` 后 abort 剩余 task 并返回有界停机错误。loader future 被取消可能已产生外部副作用，仍需业务幂等。若应用显式注册 `SharedLocks`，刷新前会尝试数据库共享租约，减少多实例重复刷新；租约仅 best-effort，过期或节点暂停仍可能重复执行，不保证恰好一次。未注册共享锁时仅在当前进程合并。Redis 使用 Redis `TIME` 计算跨连接 fresh 边界；memory/custom tag driver 使用其后端时钟，分布式 custom driver 应覆盖该时钟契约。
+应用持有后台刷新任务。`Application::run_command` 结束、HTTP `serve` 收到停机信号或 listener 异常时会合作取消并 join；超过 `[server].shutdown_timeout_secs` 后 abort 剩余 task 并返回有界停机错误。loader future 被取消可能已产生外部副作用，仍需业务幂等。若应用显式注册 `SharedLocks`，刷新前会尝试数据库共享租约，减少多实例重复刷新；租约仅 best-effort，过期或节点暂停仍可能重复执行，不保证恰好一次。未注册共享锁时仅在当前进程合并。Redis 使用 Redis `TIME` 计算跨连接 fresh 边界；memory/custom tag driver 使用其后端时钟，分布式 custom driver 应覆盖该时钟契约。
 
 ```rust,ignore
 let profile = store

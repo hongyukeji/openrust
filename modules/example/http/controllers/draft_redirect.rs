@@ -5,13 +5,16 @@ use std::collections::BTreeMap;
 #[cfg(feature = "session")]
 use openrust::Error;
 use openrust::Result;
+use openrust::http::Request;
+use openrust::http::RequestInfo;
 use openrust::http::axum::http::{HeaderMap, HeaderValue, StatusCode};
 use openrust::http::axum::response::{IntoResponse, Response};
-use openrust::http::{Redirector, Request, RequestInfo, RouteUrlGenerator};
+use openrust::routing::Redirector;
+use openrust::routing::UrlGenerator;
 
 /// 为固定草稿生成临时绝对与相对签名链接，同时展示 Redirector 包装入口。
 pub(crate) async fn signed_issue(
-    urls: RouteUrlGenerator,
+    urls: UrlGenerator,
     info: RequestInfo,
 ) -> Result<openrust::http::Json<serde_json::Value>> {
     let parameters = BTreeMap::from([("id".to_owned(), "42".to_owned())]);

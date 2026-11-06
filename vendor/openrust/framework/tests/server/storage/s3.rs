@@ -3,11 +3,16 @@
 use bytes::Bytes;
 use figment::providers::Format;
 use futures_util::{StreamExt, stream};
-use openrust::storage::{
-    Storage, StoragePath, StorageServiceProvider, StorageStream, UploadInspector, UploadOptions,
-    Visibility,
-};
-use openrust::{Error, Result, core::ProviderBuilder};
+use openrust::Error;
+use openrust::Result;
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::FilesystemServiceProvider;
+use openrust::filesystem::StoragePath;
+use openrust::filesystem::StorageStream;
+use openrust::filesystem::UploadInspector;
+use openrust::filesystem::UploadOptions;
+use openrust::filesystem::Visibility;
+use openrust::foundation::ProviderBuilder;
 use std::{sync::Arc, time::Duration};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
@@ -31,15 +36,15 @@ async fn s3_visibility_copy_acl_read_and_change() -> TestResult {
         serde_json::to_string(&root)?
     );
     let mut builder = ProviderBuilder::new();
-    builder.provider(StorageServiceProvider::new());
-    let app = openrust::App::from_provider_runtime(
+    builder.provider(FilesystemServiceProvider::new());
+    let app = openrust::Application::from_provider_runtime(
         builder
             .start(figment::Figment::new().merge(figment::providers::Toml::string(&configuration)))
             .await?,
     )?;
     let disk = app
         .state()
-        .resolve::<Storage>()
+        .resolve::<FilesystemManager>()
         .await?
         .default_disk()
         .await?;
@@ -92,15 +97,15 @@ async fn s3_acl_disabled_bucket_rejects_public_copy() -> TestResult {
         serde_json::to_string(&root)?
     );
     let mut builder = ProviderBuilder::new();
-    builder.provider(StorageServiceProvider::new());
-    let app = openrust::App::from_provider_runtime(
+    builder.provider(FilesystemServiceProvider::new());
+    let app = openrust::Application::from_provider_runtime(
         builder
             .start(figment::Figment::new().merge(figment::providers::Toml::string(&configuration)))
             .await?,
     )?;
     let disk = app
         .state()
-        .resolve::<Storage>()
+        .resolve::<FilesystemManager>()
         .await?
         .default_disk()
         .await?;
@@ -156,13 +161,13 @@ async fn s3_late_copy_response_keeps_complete_target_and_cleans_staging() -> Tes
         serde_json::to_string(&root)?,
     );
     let mut builder = ProviderBuilder::new();
-    builder.provider(StorageServiceProvider::new());
-    let app = openrust::App::from_provider_runtime(
+    builder.provider(FilesystemServiceProvider::new());
+    let app = openrust::Application::from_provider_runtime(
         builder
             .start(figment::Figment::new().merge(figment::providers::Toml::string(&configuration)))
             .await?,
     )?;
-    let storage = app.state().resolve::<Storage>().await?;
+    let storage = app.state().resolve::<FilesystemManager>().await?;
     let normal = storage.disk("normal").await?;
     let slow = storage.disk("delayed").await?;
     let path = StoragePath::new("late-copy/object.bin")?;
@@ -255,9 +260,9 @@ async fn s3_streams_multipart_cancellation_and_exact_version_presigned_reads() -
         "[storage]\nmax_upload_bytes = 33554432\nmax_chunk_bytes = 1048576\ndefault_disk = 'versioned'\n[storage.disks.versioned]\ndriver = 's3'\nbucket = {versioned}\nregion = 'us-east-1'\nendpoint = {endpoint}\naccess_key_id = {access_key}\nsecret_access_key = {secret_key}\n[storage.disks.plain]\ndriver = 's3'\nbucket = {plain}\nregion = 'us-east-1'\nendpoint = {endpoint}\naccess_key_id = {access_key}\nsecret_access_key = {secret_key}\n"
     )));
     let mut builder = ProviderBuilder::new();
-    builder.provider(StorageServiceProvider::new());
-    let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
-    let storage = app.state().resolve::<Storage>().await?;
+    builder.provider(FilesystemServiceProvider::new());
+    let app = openrust::Application::from_provider_runtime(builder.start(figment).await?)?;
+    let storage = app.state().resolve::<FilesystemManager>().await?;
     let versioned = storage.disk("versioned").await?;
     let plain = storage.disk("plain").await?;
     let prefix = format!("acceptance/{}", unique_suffix());
@@ -434,7 +439,7 @@ struct RejectAfter {
 impl UploadInspector for RejectAfter {
     async fn inspect_chunk(
         &self,
-        _context: &openrust::storage::UploadContext,
+        _context: &openrust::filesystem::UploadContext,
         _chunk: &[u8],
     ) -> Result<()> {
         if self

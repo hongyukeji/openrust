@@ -1,4 +1,4 @@
-# `openrust::db`
+# `openrust::database`
 
 > 受众：AI Agent
 > 更新：2026-11-03

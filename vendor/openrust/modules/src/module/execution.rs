@@ -6,7 +6,9 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::Notify;
 
-use openrust::core::{Error, RegisterContext, Result};
+use openrust::core::Error;
+use openrust::core::Result;
+use openrust::foundation::RegisterContext;
 
 use super::ModuleFile;
 

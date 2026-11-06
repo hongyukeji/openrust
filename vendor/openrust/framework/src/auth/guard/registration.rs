@@ -5,14 +5,17 @@ use super::{
     UserProvider, UserProviderConfig,
 };
 
-use crate::{
-    Error, Result,
-    config::{AppConfig, repository::SectionSchema as S},
-    core::{RegisterContext, container::Scope},
-    db::Db,
-    http::{CookieJar, axum::http::StatusCode, cookie::CookieProtection},
-    session::Session,
-};
+use crate::Error;
+use crate::Result;
+use crate::config::AppConfig;
+use crate::config::repository::SectionSchema as S;
+use crate::container::Scope;
+use crate::database::Db;
+use crate::foundation::RegisterContext;
+use crate::http::CookieJar;
+use crate::http::axum::http::StatusCode;
+use crate::http::cookie::CookieProtection;
+use crate::session::Session;
 use serde_json::{Map, Value, json};
 use std::{
     collections::BTreeMap,
@@ -38,7 +41,7 @@ pub(crate) async fn install_request(scope: &Scope, context: AuthRequestContext) 
 }
 
 pub(in crate::auth) async fn request_info(
-    resolver: &crate::core::container::Resolver,
+    resolver: &crate::container::Resolver,
 ) -> Result<Arc<crate::http::RequestInfo>> {
     let slot = resolver.resolve::<AuthRequestSlot>().await?;
     Ok(slot
@@ -169,7 +172,7 @@ fn default_drivers(config: crate::config::repository::ConfigRepository) -> Resul
 }
 
 async fn create_database_provider(
-    resolver: crate::core::container::Resolver,
+    resolver: crate::container::Resolver,
     config: UserProviderConfig,
 ) -> Result<Arc<dyn UserProvider>> {
     let table = config
@@ -187,7 +190,7 @@ async fn create_database_provider(
         None | Some(Value::Null) => (*resolver.resolve::<Db>().await?).clone(),
         Some(Value::String(name)) if name.is_empty() => (*resolver.resolve::<Db>().await?).clone(),
         Some(Value::String(name)) => resolver
-            .resolve::<crate::db::Databases>()
+            .resolve::<crate::database::Databases>()
             .await?
             .get(name)
             .map_err(|error| match error {
@@ -228,7 +231,7 @@ fn remember_duration(config: &GuardConfig) -> Result<Option<i64>> {
 #[cfg(feature = "auth-fortify")]
 fn configure_factor_guard(
     mut guard: SessionGuard,
-    resolver: &crate::core::container::Resolver,
+    resolver: &crate::container::Resolver,
     config: crate::config::repository::ConfigRepository,
 ) -> Result<SessionGuard> {
     let required = resolver.is_bound::<crate::auth::fortify::RequireFactorAuthority>()?;

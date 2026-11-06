@@ -16,7 +16,9 @@ use tower::ServiceExt;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::config::ServerConfig;
-use crate::core::{AppState, Error, Result};
+use crate::core::Error;
+use crate::core::Result;
+use crate::foundation::ApplicationState;
 
 #[derive(Debug, Clone)]
 enum RootTarget {
@@ -171,7 +173,7 @@ fn invalid_config(key: &str, reason: &str) -> Error {
 #[cfg(feature = "view")]
 fn root_views(
     target: &RootTarget,
-    state: &AppState,
+    state: &ApplicationState,
 ) -> Result<Option<std::sync::Arc<crate::view::Views>>> {
     if let RootTarget::View(name) = target {
         let views = state.get::<crate::view::Views>().ok_or_else(|| {
@@ -194,7 +196,11 @@ fn root_views(
     }
 }
 
-pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> Result<Router> {
+pub(crate) fn mount(
+    router: Router,
+    config: &ServerConfig,
+    state: ApplicationState,
+) -> Result<Router> {
     validate_config(&config.public_dir, &config.root_target)?;
     let target = parse_target(&config.root_target)?;
     #[cfg(feature = "view")]
@@ -220,7 +226,7 @@ pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> R
                 request.extensions_mut().insert(PendingRootTarget);
             }
             let mut response = router.clone().oneshot(request).await?;
-            let Some(request) = crate::http::routes::take_unmatched(&mut response) else {
+            let Some(request) = crate::routing::router::take_unmatched(&mut response) else {
                 return Ok(response);
             };
             if request.uri().path() == "/"
@@ -244,10 +250,12 @@ pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> R
                             Err(error) => return Ok(error.into_response()),
                         };
                         let mut forwarded = router.oneshot(request).await?;
-                        return Ok(match crate::http::routes::take_unmatched(&mut forwarded) {
-                            Some(request) => fallback_response(state, request).await,
-                            None => forwarded,
-                        });
+                        return Ok(
+                            match crate::routing::router::take_unmatched(&mut forwarded) {
+                                Some(request) => fallback_response(state, request).await,
+                                None => forwarded,
+                            },
+                        );
                     }
                     RootTarget::Redirect(target) => {
                         return Ok(Redirect::temporary(&target).into_response());
@@ -329,11 +337,11 @@ fn rewrite_uri(mut request: Request, target: &str) -> Result<Request> {
     }
 }
 
-pub(crate) async fn fallback(State(state): State<AppState>, request: Request) -> Response {
+pub(crate) async fn fallback(State(state): State<ApplicationState>, request: Request) -> Response {
     fallback_response(state, request).await
 }
 
-pub(crate) async fn fallback_response(state: AppState, request: Request) -> Response {
+pub(crate) async fn fallback_response(state: ApplicationState, request: Request) -> Response {
     let path = request.uri().path();
     if is_reserved_path(path) {
         return Error::NotFound("route not found".into()).into_response();
@@ -344,7 +352,7 @@ pub(crate) async fn fallback_response(state: AppState, request: Request) -> Resp
         .unwrap_or_else(|| Error::NotFound("route not found".into()).into_response())
 }
 
-pub(crate) async fn try_static_file(state: AppState, request: Request) -> Option<Response> {
+pub(crate) async fn try_static_file(state: ApplicationState, request: Request) -> Option<Response> {
     let service =
         ServeDir::new(&state.config().server.public_dir).append_index_html_on_directories(true);
     match service.oneshot(request).await {

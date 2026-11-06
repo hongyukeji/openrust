@@ -43,7 +43,7 @@ class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件
 
 ## C04-F MIME 注册（任务分支限定验收）
 
-任务分支的 `MimeTypes` 通过同一 `Container` 解析，`App`/`AppState` 与 `RegisterContext` 的异步入口共用应用作用域注册状态；Provider工厂覆盖、晚重绑及两App隔离由外部consumer验证。默认Unix `FileBinary` 和固定Symfony v8.0.0有序扩展表在该分支经代码与真实生成/模块流程限定验收；本次任务分支限定交付的源码现已叠入未提交main候选，组合门禁待执行，不得据此声称main新API已验收。原生Fileinfo、Windows默认检测/清理和完整MIME仍开放。见[分支证据](../memory/testing.md#c04-f-request文件家族分支限定验收)。
+任务分支的 `MimeTypes` 通过同一 `Container` 解析，`Application`/`ApplicationState` 与 `RegisterContext` 的异步入口共用应用作用域注册状态；Provider工厂覆盖、晚重绑及两App隔离由外部consumer验证。默认Unix `FileBinary` 和固定Symfony v8.0.0有序扩展表在该分支经代码与真实生成/模块流程限定验收；本次任务分支限定交付的源码现已叠入未提交main候选，组合门禁待执行，不得据此声称main新API已验收。原生Fileinfo、Windows默认检测/清理和完整MIME仍开放。见[分支证据](../memory/testing.md#c04-f-request文件家族分支限定验收)。
 
 ## 边界
 
@@ -53,7 +53,7 @@ class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件
 
 | 模块 | 内容 |
 | --- | --- |
-| `app` | `Application { type Config; fn config_namespace(); fn providers(&Config) }`，默认命名空间 `APP_`；`App` 提供 `state`、`config`、`figment`、`commands`、`extension`、`run_command`、显式 `shutdown`；`AppState` 的 `resolve` 异步构造工厂，`get` 仅同步读取已就绪实例。每次命令建立独立 scope，正常返回显式等待清理，调用 future 取消时关闭 guard 交由 App 受管回收；命令可复用同一 App，顶层 CLI 退出时关闭资源。section 解码错误保留安全键路径，不回显值 |
+| `app` | `ApplicationDefinition { type Config; fn config_namespace(); fn providers(&Config) }`，默认命名空间 `APP_`；`Application` 提供 `state`、`config`、`figment`、`commands`、`extension`、`run_command`、显式 `shutdown`；`ApplicationState` 的 `resolve` 异步构造工厂，`get` 仅同步读取已就绪实例。每次命令建立独立 scope，正常返回显式等待清理，调用 future 取消时关闭 guard 交由 App 受管回收；命令可复用同一 App，顶层 CLI 退出时关闭资源。section 解码错误保留安全键路径，不回显值 |
 | `container` | 生产唯一 `ContainerBuilder`/`Container`/`Resolver`/`Scope`：bind/singleton/scoped/instance、dyn 接口、单次构造、环检测、取消和根 reset。HTTP 请求 scope 贯穿 Inject/Auth/RateLimit/响应 body 轮询；命令、Job attempt 与 scheduler trigger 各用独立 scope。`Scope::run` 仅在当前 future 安装同容器 task-local，`Scope::spawn` 在同 scope/显式 ExecutionMetadata 下构造并执行受管任务；普通 `tokio::spawn` 不继承。关闭 App 封闭根生命周期并等待受管清理 |
 | `provider` | `ProviderBuilder` 在同一容器中异步顺序执行 `ServiceProvider::register`、启动校验与 `boot`；App 后续公开 register/force 复用同一容器、原位贡献及资源 owner。Provider 依赖、普通同 ID 去重与 boot 顺序明确。资源由 `ResourceOwner` 管理，启动失败或取消后在存活 Tokio runtime 内有界回收；旧 Plugin 启动循环已删除 |
 | `module` | `ModuleDescriptor::requires` 声明已编译模块间硬依赖；启用模块的依赖必须同时编译、启用，重复/自身/循环依赖拒绝。依赖拓扑优先于升序 `priority`，相同优先级保持应用编译清单顺序；模块 Provider register/boot 共享该结果，不自动改写运行启用状态 |
@@ -115,14 +115,14 @@ R2-Q 分支 `850e1a4` 与 R2-X 分支 `d299ca4` 已完成各自限定验收；ma
 
 - 配置读取复用唯一 `ConfigRepository`：`get` / `get_or` / `has` / `get_many` / `get_many_with_defaults` / `all`。完整字面键优先，缺失与显式 null 分开；批量读取固定同一快照。原始返回值可能含秘密，调用方负责控制输出。无 schema 的来源错误仅保留可信父键；有 schema 时仅保留声明路径，动态 Map 名和来源数组段不回显。见 历史决策 086。
 
-- R2-R01 限定交付：同一仓储的 `set` / 有序 `set_many` 将原始值与 Figment 投影成对发布，`App` / `AppState` / Provider 共享句柄，`App::section` 读取当前值；`App::config` / `figment` 和既解析服务保留启动快照。启动 schema 屏障不等于禁止可信应用代码的运行期原始写入。已通过配置仓储默认/无默认各39项、App句柄1项及模块/CLI/consumer定向，双严格Clippy、工作区845/1632项、docs/features/MSRV/deny、fresh生成/MySQL8.4及真实TCP均有本簇证据；资源收尾通过，限定本地提交见Git；证据见测试基线。R2-R01的Figment入口不能恢复此前丢失的来源初始键序；R2-R02已对有序来源入口限定验收，既有Figment有损入口仍不能恢复丢失顺序，完整发现/命名映射继续见唯一todo。
+- R2-R01 限定交付：同一仓储的 `set` / 有序 `set_many` 将原始值与 Figment 投影成对发布，`Application` / `ApplicationState` / Provider 共享句柄，`Application::section` 读取当前值；`Application::config` / `figment` 和既解析服务保留启动快照。启动 schema 屏障不等于禁止可信应用代码的运行期原始写入。已通过配置仓储默认/无默认各39项、App句柄1项及模块/CLI/consumer定向，双严格Clippy、工作区845/1632项、docs/features/MSRV/deny、fresh生成/MySQL8.4及真实TCP均有本簇证据；资源收尾通过，限定本地提交见Git；证据见测试基线。R2-R01的Figment入口不能恢复此前丢失的来源初始键序；R2-R02已对有序来源入口限定验收，既有Figment有损入口仍不能恢复丢失顺序，完整发现/命名映射继续见唯一todo。
 - Container `extend` 复用现有工厂、作用域与发布流程，按顺序装饰原实例；示例 Provider 在首次解析前安装装饰器，并核 boot 与 HTTP 同一实例。可信 Session driver 装饰器通过 `SessionStoreHandle::store()` 取得原 store；该逃生口不能代替请求 Session 状态及其容量/删除检查。见 历史决策 085。
 - `modules/example` 的固定配置键路由与 Container 装饰器是公开调用示范；任意 query 不扩张允许读取的配置键。完整配置修改/动态设置、Provider 自动发现及完整 Container 对应范围继续按唯一 todo 领取，不能因本子范围关闭。
 
 ## 约束
 
 - 初始 Provider 清单由应用装配；启动后可经公开注册入口追加或 force 重注册 Provider。已服务 Router 不承诺热更新，需显式重建路由才观察新贡献。
-- `Application::Config` 不能是 `()`，用 `NoConfig`。
+- `ApplicationDefinition::Config` 不能是 `()`，用 `NoConfig`。
 - 5xx 错误只输出通用 `message`。
 
 ## 后续边界

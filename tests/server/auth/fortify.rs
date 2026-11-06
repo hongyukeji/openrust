@@ -6,19 +6,24 @@
 ))]
 
 use openrust::auth::{AuthLayer, AuthManager, OptionalUser};
-use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider, container::Scope};
-use openrust::db::{
+use openrust::container::Scope;
+use openrust::database::{
     Db,
     sea_orm::{ConnectionTrait, Statement},
 };
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::http::Json;
 use openrust::http::axum::{
     Extension,
     body::{Body, to_bytes},
     http::{Method, Request, StatusCode, header},
     response::Response,
 };
-use openrust::http::{Json, RouteGroup};
+use openrust::routing::RouteGroup;
 use openrust::session::Session;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::{TestApp, TestDatabase};
 use openrust::{Error, Result};
 use serde_json::{Value, json};
@@ -39,18 +44,18 @@ fn note(phase: &'static str, error: &Error) {
 }
 
 struct FortifyMigrations;
-impl openrust::db::sea_orm_migration::MigratorTrait for FortifyMigrations {
-    fn migrations() -> Vec<Box<dyn openrust::db::sea_orm_migration::MigrationTrait>> {
+impl openrust::database::sea_orm_migration::MigratorTrait for FortifyMigrations {
+    fn migrations() -> Vec<Box<dyn openrust::database::sea_orm_migration::MigrationTrait>> {
         #[allow(unused_mut, reason = "模块实时业务迁移仅在其feature下进入本fixture")]
-        let mut migrations = <crate::database::Migrator as openrust::db::sea_orm_migration::MigratorTrait>::migrations();
+        let mut migrations = <crate::database::Migrator as openrust::database::sea_orm_migration::MigratorTrait>::migrations();
         #[cfg(feature = "realtime")]
-        migrations.extend(<crate::modules::example::database::migrations::Migrator as openrust::db::sea_orm_migration::MigratorTrait>::migrations());
+        migrations.extend(<crate::modules::example::database::migrations::Migrator as openrust::database::sea_orm_migration::MigratorTrait>::migrations());
         migrations
     }
 }
 
 struct RootApplication;
-impl Application for RootApplication {
+impl ApplicationDefinition for RootApplication {
     type Config = crate::bootstrap::Configuration;
     fn config() -> openrust::config::ConfigManifest {
         crate::config::boot()
@@ -60,7 +65,10 @@ impl Application for RootApplication {
         providers.push(Box::new(Observe));
         providers
     }
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
@@ -410,7 +418,7 @@ fn sources(root: &std::path::Path, url: &str) -> Result<openrust::config::Config
     Ok(sources)
 }
 
-async fn seed(app: &openrust::App) -> Result<()> {
+async fn seed(app: &openrust::Application) -> Result<()> {
     let passwords = app
         .state()
         .resolve::<openrust::hashing::HashManager>()
@@ -489,7 +497,7 @@ pub(super) fn code_with_offset(secret: &str, offset: u64) -> Result<String> {
 }
 
 // 使用根应用真实登记，核单例Provider跨Scope、scoped Actions与共享配置即时读取。
-async fn provider_lifecycle_and_dynamic_window(app: &openrust::App) -> Result<()> {
+async fn provider_lifecycle_and_dynamic_window(app: &openrust::Application) -> Result<()> {
     use openrust::auth::fortify::{TwoFactorActions, TwoFactorAuthenticationProvider};
     let config = app.config_repository();
     let key = "fortify-options.two-factor-authentication.window";
@@ -1150,17 +1158,17 @@ async fn dynamic_options_and_boot_routes(fixture: &TestApp<RootApplication>) -> 
     outcome
 }
 
-async fn assert_runtime_store(app: &openrust::App) -> Result<()> {
+async fn assert_runtime_store(app: &openrust::Application) -> Result<()> {
     if let Ok(expected) = std::env::var("OPENRUST_FORTIFY_EXPECT_SQLITE_VERSION") {
         let db = app.state().resolve::<Db>().await?;
         assert_eq!(
             db.connection()?.get_database_backend(),
-            openrust::db::sea_orm::DbBackend::Sqlite
+            openrust::database::sea_orm::DbBackend::Sqlite
         );
         let row = db
             .connection()?
             .query_one_raw(Statement::from_string(
-                openrust::db::sea_orm::DbBackend::Sqlite,
+                openrust::database::sea_orm::DbBackend::Sqlite,
                 "SELECT sqlite_version() AS version, sqlite_source_id() AS source_id".to_owned(),
             ))
             .await
@@ -1278,7 +1286,7 @@ async fn mysql_root_provider_optional_accounts_fortify_and_real_web_csrf() -> Re
     let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
-        openrust::db::sea_orm::DbBackend::MySql
+        openrust::database::sea_orm::DbBackend::MySql
     );
     run(database, true).await
 }
@@ -1291,7 +1299,7 @@ async fn postgres_root_provider_optional_accounts_fortify_and_real_web_csrf() ->
     let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
-        openrust::db::sea_orm::DbBackend::Postgres
+        openrust::database::sea_orm::DbBackend::Postgres
     );
     run(database, true).await
 }
@@ -1304,7 +1312,7 @@ async fn mysql_confirm_false_keeps_setup_reads_without_publishing_resource_proof
     let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
-        openrust::db::sea_orm::DbBackend::MySql
+        openrust::database::sea_orm::DbBackend::MySql
     );
     run(database, false).await
 }
@@ -1318,7 +1326,7 @@ async fn postgres_confirm_false_keeps_setup_reads_without_publishing_resource_pr
     let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
-        openrust::db::sea_orm::DbBackend::Postgres
+        openrust::database::sea_orm::DbBackend::Postgres
     );
     run(database, false).await
 }

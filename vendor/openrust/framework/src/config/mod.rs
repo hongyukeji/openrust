@@ -202,7 +202,7 @@ pub struct FrameworkConfig {
     /// `[log]` 区段。
     pub log: LogConfig,
     /// `I18nPlugin` 使用的 `[i18n]` locale 默认值。
-    pub i18n: crate::i18n::I18nConfig,
+    pub i18n: crate::translation::TranslationConfig,
     /// `[realtime]` 区段；仅在启用 `realtime` feature 时存在。
     #[cfg(feature = "realtime")]
     pub realtime: RealtimeConfig,
@@ -1372,7 +1372,7 @@ mod tests {
             let _: Option<crate::auth::JwtConfig> = None::<auth::JwtConfig>;
             let _: Option<crate::auth::SessionConfig> = None::<SessionConfig>;
         }
-        let _: Option<crate::db::DatabaseConfig> = None::<database::DatabaseConfig>;
+        let _: Option<crate::database::DatabaseConfig> = None::<database::DatabaseConfig>;
         let _: Option<crate::mail::MailConfig> = None::<mailer::MailConfig>;
     }
 
@@ -1554,9 +1554,11 @@ mod tests {
     #[tokio::test]
     async fn exact_file_sections_keep_shallow_provider_defaults_through_boot_and_set()
     -> crate::core::Result<()> {
-        use crate::core::{
-            BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider,
-        };
+        use crate::foundation::BootContext;
+        use crate::foundation::ProviderBuilder;
+        use crate::foundation::RegisterContext;
+        use crate::support::BoxFuture;
+        use crate::support::ServiceProvider;
         use repository::SectionSchema;
 
         struct DefaultsProbe {
@@ -1764,7 +1766,11 @@ mod tests {
         Ok(())
     }
 
-    use crate::core::{BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::foundation::RegisterContext;
+    use crate::support::BoxFuture;
+    use crate::support::ServiceProvider;
     use repository::SectionSchema;
     use serde_json::{Value, json};
 
@@ -1886,9 +1892,11 @@ mod tests {
     #[tokio::test]
     async fn provider_mergeable_options_append_and_renumber_file_arrays() -> crate::core::Result<()>
     {
-        use crate::core::{
-            BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider,
-        };
+        use crate::foundation::BootContext;
+        use crate::foundation::ProviderBuilder;
+        use crate::foundation::RegisterContext;
+        use crate::support::BoxFuture;
+        use crate::support::ServiceProvider;
         use repository::SectionSchema;
 
         struct ArrayProbe {

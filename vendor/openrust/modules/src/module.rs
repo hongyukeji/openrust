@@ -4,10 +4,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use openrust::{
-    Error, Result,
-    core::{BootContext, ServiceProvider},
-};
+use openrust::Error;
+use openrust::Result;
+use openrust::foundation::BootContext;
+use openrust::support::ServiceProvider;
 
 /// 已编译模块的静态描述；只包含应用启动可选择的 Rust 代码。
 pub struct ModuleDescriptor {
@@ -789,7 +789,7 @@ mod tests {
             fn boot<'a>(
                 &'a self,
                 app: &'a mut BootContext<'_>,
-            ) -> openrust::core::BoxFuture<'a, Result<()>> {
+            ) -> openrust::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move { self.0.overlay(app) })
             }
         }
@@ -811,7 +811,7 @@ mod tests {
             temporary.path(),
             "MODULESCACHETEST_",
         )?;
-        let mut builder = openrust::core::ProviderBuilder::new();
+        let mut builder = openrust::foundation::ProviderBuilder::new();
         builder.provider(ConfigModuleProvider(files));
         let runtime = builder.start(cached).await?;
         assert!(runtime.config().is_cached());
@@ -919,8 +919,8 @@ mod tests {
         impl ServiceProvider for MarkerProvider {
             fn register<'a>(
                 &'a self,
-                app: &'a mut openrust::core::RegisterContext<'_>,
-            ) -> openrust::core::BoxFuture<'a, Result<()>> {
+                app: &'a mut openrust::foundation::RegisterContext<'_>,
+            ) -> openrust::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.instance(Arc::new(42_u32)).await?;
                     Ok(())
@@ -934,7 +934,7 @@ mod tests {
         std::fs::write(&state, r#"{"Blog":true}"#).map_err(Error::internal)?;
         let start =
             || {
-                let mut builder = openrust::core::ProviderBuilder::new();
+                let mut builder = openrust::foundation::ProviderBuilder::new();
                 builder.module_manifest(ModuleManifest::from_file(&state).module(
                     ModuleDescriptor::new("Blog", root.clone(), 0).provider(MarkerProvider),
                 ));

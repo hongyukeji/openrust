@@ -10,10 +10,9 @@ use axum::{
 };
 use tower::{Layer, Service};
 
-use crate::{
-    core::{AppState, RateLimiter},
-    http::ClientIp,
-};
+use crate::core::RateLimiter;
+use crate::foundation::ApplicationState;
+use crate::http::ClientIp;
 
 type KeyFn = dyn Fn(&Request) -> crate::Result<String> + Send + Sync;
 
@@ -97,7 +96,7 @@ impl RateLimitLayer {
         }
     }
 
-    /// 返回可与 [`crate::http::Routes::layer`] 配合使用的 Tower layer。
+    /// 返回可与 [`crate::routing::Router::layer`] 配合使用的 Tower layer。
     pub fn layer(
         &self,
     ) -> impl Layer<
@@ -115,16 +114,17 @@ impl RateLimitLayer {
     + Send
     + Sync
     + 'static {
-        middleware::from_fn_with_state::<_, _, (State<RateLimitLayer>, Extension<AppState>, Request)>(
-            self.clone(),
-            enforce,
-        )
+        middleware::from_fn_with_state::<
+            _,
+            _,
+            (State<RateLimitLayer>, Extension<ApplicationState>, Request),
+        >(self.clone(), enforce)
     }
 }
 
 async fn enforce(
     axum::extract::State(policy): axum::extract::State<RateLimitLayer>,
-    Extension(state): Extension<AppState>,
+    Extension(state): Extension<ApplicationState>,
     request: Request,
     next: Next,
 ) -> Response {
@@ -135,7 +135,7 @@ async fn enforce(
     let key = format!("{}:{identity}", policy.scope);
     let resolved = match request
         .extensions()
-        .get::<std::sync::Arc<crate::core::container::Scope>>()
+        .get::<std::sync::Arc<crate::container::Scope>>()
     {
         Some(scope) => scope.resolve::<RateLimiter>().await,
         None => state.resolve::<RateLimiter>().await,
@@ -150,7 +150,11 @@ async fn enforce(
     next.run(request).await
 }
 
-fn request_key(request: &Request, state: &AppState, key: &RateLimitKey) -> crate::Result<String> {
+fn request_key(
+    request: &Request,
+    state: &ApplicationState,
+    key: &RateLimitKey,
+) -> crate::Result<String> {
     match key {
         RateLimitKey::ClientIp => client_ip_key(request, state),
         #[cfg(feature = "auth")]
@@ -170,7 +174,7 @@ fn request_key(request: &Request, state: &AppState, key: &RateLimitKey) -> crate
     }
 }
 
-fn client_ip_key(request: &Request, state: &AppState) -> crate::Result<String> {
+fn client_ip_key(request: &Request, state: &ApplicationState) -> crate::Result<String> {
     let ip = ClientIp::from_request(request, state)?;
     Ok(format!("ip:{}", ip.ip()))
 }

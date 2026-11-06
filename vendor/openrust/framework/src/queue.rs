@@ -8,7 +8,7 @@
 //! 若数据库不可用，worker 返回错误并保留租约，任务会在租约过期后恢复。
 //!
 //! ```no_run
-//! use openrust::{db::Db, queue::Queue};
+//! use openrust::{database::Db, queue::Queue};
 //! # async fn example(db: Db) -> openrust::Result<()> {
 //! let queue = Queue::new(db);
 //! queue.dispatch("emails", "welcome.v1", &serde_json::json!({"user_id": 42})).await?;
@@ -16,11 +16,14 @@
 //! # }
 //! ```
 
-use crate::core::{
-    BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata, Result,
-    with_execution_context,
-};
-use crate::db::{DatabaseTransaction, Db, DbBackend};
+use crate::core::Cancellation;
+use crate::core::Error;
+use crate::core::ExecutionContext;
+use crate::core::ExecutionMetadata;
+use crate::core::Result;
+use crate::core::with_execution_context;
+use crate::database::{DatabaseTransaction, Db, DbBackend};
+use crate::support::BoxFuture;
 use sea_orm::{ConnectionTrait, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
 use serde::{Serialize, de::DeserializeOwned};
@@ -50,7 +53,7 @@ const EXECUTION_ENVELOPE_VERSION: &str = "v1";
 type ProgressReporter = Arc<dyn Fn(Value) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 struct AttemptScope {
-    scope: Option<Arc<crate::core::container::Scope>>,
+    scope: Option<Arc<crate::container::Scope>>,
     timeout: Duration,
 }
 impl AttemptScope {
@@ -124,8 +127,8 @@ pub struct JobContext {
     attempt: u64,
     max_attempts: u64,
     cancelled: Cancellation,
-    app_state: Option<crate::core::AppState>,
-    attempt_scope: Option<Arc<crate::core::container::Scope>>,
+    app_state: Option<crate::foundation::ApplicationState>,
+    attempt_scope: Option<Arc<crate::container::Scope>>,
     progress_reporter: Option<ProgressReporter>,
     metadata: ExecutionMetadata,
     deadline: Option<tokio::time::Instant>,
@@ -217,7 +220,7 @@ impl JobContext {
 
     /// 设置自定义 worker 正在运行的应用服务状态。
     #[must_use]
-    pub fn with_app_state(mut self, state: crate::core::AppState) -> Self {
+    pub fn with_app_state(mut self, state: crate::foundation::ApplicationState) -> Self {
         self.app_state = Some(state);
         self
     }
@@ -270,7 +273,7 @@ impl JobContext {
     }
 
     /// 当前尝试的作用域；可用于登记随本次尝试取消并回收的受管任务。
-    pub fn scope(&self) -> Result<Arc<crate::core::container::Scope>> {
+    pub fn scope(&self) -> Result<Arc<crate::container::Scope>> {
         let state = self.app_state.as_ref().ok_or_else(|| {
             Error::custom(
                 "queue_application_state_unavailable",
@@ -623,10 +626,11 @@ impl MigrationTrait for QueueMigration {
     async fn up(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
         let backend = manager.get_database_backend();
         let table = queue_table("jobs", backend)?;
-        let mut timestamp = crate::db::dialect::timestamp_utc("available_at", backend)?;
-        let mut created = crate::db::dialect::timestamp_utc("created_at", backend)?;
-        let mut reserved_until = crate::db::dialect::timestamp_utc("reserved_until", backend)?;
-        let mut failed_at = crate::db::dialect::timestamp_utc("failed_at", backend)?;
+        let mut timestamp = crate::database::dialect::timestamp_utc("available_at", backend)?;
+        let mut created = crate::database::dialect::timestamp_utc("created_at", backend)?;
+        let mut reserved_until =
+            crate::database::dialect::timestamp_utc("reserved_until", backend)?;
+        let mut failed_at = crate::database::dialect::timestamp_utc("failed_at", backend)?;
         let mut ready_index = Index::create();
         ready_index
             .name("idx_openrust_jobs_ready")
@@ -654,7 +658,7 @@ impl MigrationTrait for QueueMigration {
                     )
                     .col(ColumnDef::new(Jobs::Queue).string_len(64).not_null())
                     .col(ColumnDef::new(Jobs::JobName).string_len(128).not_null())
-                    .col(crate::db::dialect::json("payload", backend)?.not_null())
+                    .col(crate::database::dialect::json("payload", backend)?.not_null())
                     .col(
                         ColumnDef::new(Jobs::Attempts)
                             .big_integer()
@@ -671,7 +675,7 @@ impl MigrationTrait for QueueMigration {
                     .col(ColumnDef::new(Jobs::ReservedBy).string_len(64).null())
                     .col(ColumnDef::new(Jobs::OwnershipToken).string_len(32).null())
                     .col(reserved_until.null())
-                    .col(crate::db::dialect::json("progress", backend)?.null())
+                    .col(crate::database::dialect::json("progress", backend)?.null())
                     .col(ColumnDef::new(Jobs::UniqueKey).string_len(128).null())
                     .col(created.not_null())
                     .to_owned(),
@@ -697,7 +701,7 @@ impl MigrationTrait for QueueMigration {
                             .string_len(128)
                             .not_null(),
                     )
-                    .col(crate::db::dialect::json("payload", backend)?.not_null())
+                    .col(crate::database::dialect::json("payload", backend)?.not_null())
                     .col(
                         ColumnDef::new(FailedJobs::Attempts)
                             .big_integer()
@@ -717,8 +721,8 @@ impl MigrationTrait for QueueMigration {
                     .to_owned(),
             )
             .await?;
-        let mut schedule_created = crate::db::dialect::timestamp_utc("created_at", backend)?;
-        let mut scheduled_at = crate::db::dialect::timestamp_utc("scheduled_at", backend)?;
+        let mut schedule_created = crate::database::dialect::timestamp_utc("created_at", backend)?;
+        let mut scheduled_at = crate::database::dialect::timestamp_utc("scheduled_at", backend)?;
         manager
             .create_table(
                 Table::create()
@@ -784,7 +788,7 @@ impl MigrationTrait for QueueMigration {
 }
 
 fn queue_table(logical: &str, backend: DbBackend) -> std::result::Result<Alias, DbErr> {
-    let names = crate::db::DatabaseTableNames::current().ok_or_else(|| {
+    let names = crate::database::DatabaseTableNames::current().ok_or_else(|| {
         DbErr::Migration(
             "queue migration requires MigrationServiceProvider or TestDatabase scope".into(),
         )
@@ -934,7 +938,7 @@ pub trait QueueDriver: Send + Sync + 'static {
     fn run_next_with_state<'a>(
         &'a self,
         queue: &'a str,
-        _state: &'a crate::core::AppState,
+        _state: &'a crate::foundation::ApplicationState,
     ) -> BoxFuture<'a, Result<bool>> {
         self.run_next(queue)
     }
@@ -1085,7 +1089,7 @@ impl Default for DispatchOptions {
 
 type QueueCreator = Arc<
     dyn Fn(
-            crate::core::container::Resolver,
+            crate::container::Resolver,
             String,
             crate::config::QueueConnectionConfig,
             crate::config::QueueConfig,
@@ -1219,7 +1223,7 @@ impl QueueContributions {
     pub fn extend<F>(&self, name: &str, creator: F) -> Result<()>
     where
         F: Fn(
-                crate::core::container::Resolver,
+                crate::container::Resolver,
                 String,
                 crate::config::QueueConnectionConfig,
                 crate::config::QueueConfig,
@@ -1236,7 +1240,7 @@ impl QueueContributions {
     pub fn extend_validated<F, V>(&self, name: &str, validator: V, creator: F) -> Result<()>
     where
         F: Fn(
-                crate::core::container::Resolver,
+                crate::container::Resolver,
                 String,
                 crate::config::QueueConnectionConfig,
                 crate::config::QueueConfig,
@@ -1276,7 +1280,7 @@ type QueueConnections =
     std::sync::Mutex<HashMap<String, Arc<tokio::sync::OnceCell<Arc<dyn QueueDriver>>>>>;
 
 struct QueueManager {
-    resolver: crate::core::container::Resolver,
+    resolver: crate::container::Resolver,
     contributions: Arc<QueueContributions>,
     connections: QueueConnections,
     shutdown: std::sync::atomic::AtomicBool,
@@ -1300,11 +1304,11 @@ impl QueueServiceProvider {
     }
 }
 
-impl crate::core::ServiceProvider for QueueServiceProvider {
+impl crate::support::ServiceProvider for QueueServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema as S;
             app.config_section(
@@ -1370,7 +1374,10 @@ impl crate::core::ServiceProvider for QueueServiceProvider {
             Ok(())
         })
     }
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let queue = app.resolve::<Queue>().await?;
             let final_queue = Arc::clone(&queue);
@@ -1389,7 +1396,9 @@ impl crate::core::ServiceProvider for QueueServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1400,8 +1409,8 @@ mod provider_tests {
         impl ServiceProvider for FactoryProvider {
             fn register<'a>(
                 &'a self,
-                app: &'a mut crate::core::RegisterContext<'_>,
-            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                app: &'a mut crate::foundation::RegisterContext<'_>,
+            ) -> crate::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.singleton::<FactoryValue, _>(|_| {
                         Box::pin(async { Ok(Arc::new(FactoryValue(7))) })
@@ -1424,7 +1433,9 @@ mod provider_tests {
         }
         let mut builder = ProviderBuilder::new();
         builder.provider(FactoryProvider);
-        let app = crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let app = crate::foundation::Application::from_provider_runtime(
+            builder.start(Figment::new()).await?,
+        )?;
         let context =
             JobContext::new("job", 1, 1, Cancellation::new())?.with_app_state(app.state().clone());
         let mut registry = JobRegistry::default();
@@ -1452,8 +1463,8 @@ mod provider_tests {
         impl ServiceProvider for Provider {
             fn register<'a>(
                 &'a self,
-                app: &'a mut crate::core::RegisterContext<'_>,
-            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                app: &'a mut crate::foundation::RegisterContext<'_>,
+            ) -> crate::support::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.scoped::<Scoped, _>(|resolver| {
                         Box::pin(async move {
@@ -1489,7 +1500,9 @@ mod provider_tests {
         }
         let mut builder = ProviderBuilder::new();
         builder.provider(Provider);
-        let app = crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let app = crate::foundation::Application::from_provider_runtime(
+            builder.start(Figment::new()).await?,
+        )?;
         let mut registry = JobRegistry::default();
         registry.register_job::<FailingJob>()?;
         let context =
@@ -1515,10 +1528,10 @@ mod provider_tests {
                 Box::pin(async { Ok(()) })
             }
         }
-        let app_a = crate::core::App::from_provider_runtime(
+        let app_a = crate::foundation::Application::from_provider_runtime(
             ProviderBuilder::new().start(Figment::new()).await?,
         )?;
-        let app_b = crate::core::App::from_provider_runtime(
+        let app_b = crate::foundation::Application::from_provider_runtime(
             ProviderBuilder::new().start(Figment::new()).await?,
         )?;
         let attempt = JobContext::new("job", 1, 1, Cancellation::new())?
@@ -1609,7 +1622,7 @@ mod provider_tests {
     fn creator(
         count: Arc<AtomicUsize>,
     ) -> impl Fn(
-        crate::core::container::Resolver,
+        crate::container::Resolver,
         String,
         crate::config::QueueConnectionConfig,
         crate::config::QueueConfig,
@@ -1711,7 +1724,7 @@ mod provider_tests {
             .extend("custom", creator(Arc::new(AtomicUsize::new(0))))?;
         let mut builder = ProviderBuilder::new();
         builder
-            .provider(crate::db::DatabaseServiceProvider)
+            .provider(crate::database::DatabaseServiceProvider)
             .provider(EarlyScheduler)
             .provider(provider)
             .provider(LateSchedule);
@@ -1742,7 +1755,7 @@ mod provider_tests {
             .extend("custom", creator(Arc::clone(&count)))?;
         let mut builder = ProviderBuilder::new();
         builder
-            .provider(crate::db::DatabaseServiceProvider)
+            .provider(crate::database::DatabaseServiceProvider)
             .provider(provider)
             .provider(Early)
             .provider(LateDefaultConnection);
@@ -1916,8 +1929,8 @@ mod provider_tests {
     impl ServiceProvider for OverrideContributions {
         fn register<'a>(
             &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            app: &'a mut crate::foundation::RegisterContext<'_>,
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance(Arc::clone(&self.0)).await?;
                 Ok(())
@@ -2206,7 +2219,7 @@ mod provider_tests {
         for include_database_provider in [false, true] {
             let mut builder = ProviderBuilder::new();
             if include_database_provider {
-                builder.provider(crate::db::DatabaseServiceProvider);
+                builder.provider(crate::database::DatabaseServiceProvider);
             }
             builder.provider(QueueServiceProvider::new());
             let runtime = builder.start(Figment::new()).await?;
@@ -2386,7 +2399,8 @@ mod provider_tests {
         let source = Figment::from(Serialized::defaults(serde_json::json!({
             "queue":{"default":"first","connections":{"first":{"driver":"probe"},"second":{"driver":"probe","queue":"urgent"}}}
         })));
-        let app = crate::core::App::from_provider_runtime(builder.start(source).await?)?;
+        let app =
+            crate::foundation::Application::from_provider_runtime(builder.start(source).await?)?;
         assert_eq!(created.load(Ordering::SeqCst), 0);
         for arguments in [vec!["second"], vec!["second", "--queue", "explicit"]] {
             let result = app
@@ -2540,8 +2554,12 @@ async fn run_scoped_inner<'a>(
         context.cancelled.clone(),
     );
     let i18n = match context.app_state.as_ref() {
-        Some(state) if state.container().contains::<crate::i18n::I18n>() => {
-            Some(state.resolve::<crate::i18n::I18n>().await?)
+        Some(state)
+            if state
+                .container()
+                .contains::<crate::translation::Translator>() =>
+        {
+            Some(state.resolve::<crate::translation::Translator>().await?)
         }
         _ => None,
     };
@@ -2616,7 +2634,7 @@ impl DatabaseQueue {
     async fn work_once(
         &self,
         queue: &str,
-        app_state: Option<crate::core::AppState>,
+        app_state: Option<crate::foundation::ApplicationState>,
     ) -> Result<bool> {
         validate_name("queue", queue, MAX_QUEUE_NAME)?;
         if self.is_shutdown_requested() {
@@ -2689,10 +2707,14 @@ impl DatabaseQueue {
         let locale_scope = scope.clone();
         let task_future: BoxFuture<'static, Result<()>> = Box::pin(async move {
             let i18n = match app_state.as_ref() {
-                Some(state) if state.container().contains::<crate::i18n::I18n>() => {
+                Some(state)
+                    if state
+                        .container()
+                        .contains::<crate::translation::Translator>() =>
+                {
                     Some(match &locale_scope {
-                        Some(scope) => scope.resolve::<crate::i18n::I18n>().await?,
-                        None => state.resolve::<crate::i18n::I18n>().await?,
+                        Some(scope) => scope.resolve::<crate::translation::Translator>().await?,
+                        None => state.resolve::<crate::translation::Translator>().await?,
                     })
                 }
                 _ => None,
@@ -3404,7 +3426,7 @@ impl Queue {
     pub async fn run_next_with_state(
         &self,
         queue: &str,
-        state: &crate::core::AppState,
+        state: &crate::foundation::ApplicationState,
     ) -> Result<bool> {
         match self.resolve_driver().await {
             Ok(driver) => driver.run_next_with_state(queue, state).await,
@@ -3613,7 +3635,7 @@ impl QueueDriver for DatabaseQueue {
     fn run_next_with_state<'a>(
         &'a self,
         queue: &'a str,
-        state: &'a crate::core::AppState,
+        state: &'a crate::foundation::ApplicationState,
     ) -> BoxFuture<'a, Result<bool>> {
         Box::pin(async move { self.work_once(queue, Some(state.clone())).await })
     }
@@ -3797,7 +3819,7 @@ fn invalid_queue_work_command() -> Error {
 
 struct QueueWorkCommand;
 
-impl crate::core::Command for QueueWorkCommand {
+impl crate::console::Command for QueueWorkCommand {
     fn name(&self) -> &'static str {
         "queue work"
     }
@@ -3812,7 +3834,7 @@ impl crate::core::Command for QueueWorkCommand {
 
     fn run<'a>(
         &'a self,
-        app: &'a crate::core::App,
+        app: &'a crate::foundation::Application,
         args: Vec<String>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -3867,7 +3889,7 @@ impl crate::core::Command for QueueWorkCommand {
 
 async fn worker_loop(
     queue: Queue,
-    app_state: crate::core::AppState,
+    app_state: crate::foundation::ApplicationState,
     queue_name: String,
     poll_interval_millis: u64,
 ) -> Result<()> {
@@ -3898,7 +3920,7 @@ async fn join_workers(workers: &mut tokio::task::JoinSet<Result<()>>) -> Result<
 
 struct QueueRetryCommand;
 
-impl crate::core::Command for QueueRetryCommand {
+impl crate::console::Command for QueueRetryCommand {
     fn name(&self) -> &'static str {
         "queue retry"
     }
@@ -3910,7 +3932,7 @@ impl crate::core::Command for QueueRetryCommand {
     }
     fn run<'a>(
         &'a self,
-        app: &'a crate::core::App,
+        app: &'a crate::foundation::Application,
         args: Vec<String>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -4459,8 +4481,11 @@ mod tests {
         Job, JobContext, JobRegistry, QueueContributions, persist_execution_metadata,
         restore_execution_metadata,
     };
-    use crate::core::{BoxFuture, Cancellation, ExecutionContext, ExecutionMetadata};
+    use crate::core::Cancellation;
+    use crate::core::ExecutionContext;
+    use crate::core::ExecutionMetadata;
     use crate::schedule::{CronOptions, MissedRunPolicy};
+    use crate::support::BoxFuture;
     use serde::Deserialize;
     use std::time::Duration;
 
@@ -4501,7 +4526,7 @@ mod tests {
     fn execution_metadata_round_trips_and_legacy_payloads_stay_raw() -> crate::core::Result<()> {
         let metadata = crate::core::ExecutionMetadata::default()
             .with_request_id("request-42")?
-            .with_locale(crate::i18n::Locale::new("zh-CN")?)
+            .with_locale(crate::translation::Locale::new("zh-CN")?)
             .with_tenant_id(crate::tenant::TenantId::new("tenant-a")?);
         let payload = serde_json::json!({"value": 7});
         let stored = persist_execution_metadata(payload.clone(), &metadata)?;

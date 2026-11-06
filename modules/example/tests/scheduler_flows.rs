@@ -10,8 +10,8 @@ use super::jobs::{HeartbeatRun, example_heartbeat::ExampleHeartbeatJob};
 use figment::{Figment, providers::Serialized};
 use futures_util::FutureExt as _;
 use openrust::Db;
-use openrust::db::sea_orm::{ConnectionTrait, Statement};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
 use openrust::queue::{Job, Queue};
 use openrust::schedule::Scheduler;
 use openrust::testing::{TestApp, TestDatabase};
@@ -27,7 +27,7 @@ use std::{
 type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 const BUDGET: Duration = Duration::from_secs(5);
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -104,7 +104,7 @@ async fn application(
     });
     Ok(builder.build().await?)
 }
-async fn rows(db: &Db, sql: String) -> TestResult<Vec<openrust::db::sea_orm::QueryResult>> {
+async fn rows(db: &Db, sql: String) -> TestResult<Vec<openrust::database::sea_orm::QueryResult>> {
     Ok(db
         .primary_connection()?
         .query_all_raw(Statement::from_string(db.backend()?, sql))

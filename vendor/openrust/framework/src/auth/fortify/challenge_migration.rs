@@ -1,6 +1,6 @@
 //! 显式直接登录增强的统一因子挑战；官方Session挑战继续由原Guard承载。
 
-use crate::db::{
+use crate::database::{
     DatabaseTableNames, dialect,
     sea_orm::{ConnectionTrait, DbBackend, sea_query::Alias},
     sea_orm_migration::prelude::*,
@@ -33,7 +33,7 @@ fn table(name: &str, backend: DbBackend) -> Result<Alias, DbErr> {
         .map(Alias::new)
         .map_err(|error| DbErr::Migration(error.to_string()))
 }
-#[crate::db::sea_orm_migration::async_trait::async_trait]
+#[crate::database::sea_orm_migration::async_trait::async_trait]
 impl MigrationTrait for CredentialChallengeMigration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let backend = manager.get_database_backend();

@@ -11,20 +11,21 @@ use super::models::{article, attachment_cleanup};
 use super::services::attachments::ArticleAttachments;
 use figment::{Figment, providers::Serialized};
 use futures_util::StreamExt;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::StoragePath;
 use openrust::http::axum::{
     body::{Body, Bytes},
     http::{Request, StatusCode},
 };
-use openrust::storage::{Storage, StoragePath};
 use openrust::testing::{TestApp, TestDatabase};
 use openrust::{Db, Error, Result};
 use std::{sync::Arc, time::Duration};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 struct Migrator;
-#[openrust::db::sea_orm_migration::async_trait::async_trait]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         let mut migrations = super::selected_test_auth::migrations();
@@ -134,7 +135,7 @@ impl Fixture {
         StoragePath::new(format!("example/articles/1/{}/attachment.txt", self.id))
     }
     async fn assert_missing(&self) -> TestResult {
-        let storage = self.b.app()?.state().resolve::<Storage>().await?;
+        let storage = self.b.app()?.state().resolve::<FilesystemManager>().await?;
         let error = storage
             .default_disk()
             .await?
@@ -160,7 +161,7 @@ impl Fixture {
     }
     pub(super) async fn close(mut self) -> TestResult {
         self.assert_staging_cleaned().await?;
-        let storage = self.b.app()?.state().resolve::<Storage>().await?;
+        let storage = self.b.app()?.state().resolve::<FilesystemManager>().await?;
         // 仅清理本 fixture 唯一 key，绝不清空共享 bucket。
         storage
             .default_disk()
@@ -346,7 +347,7 @@ impl HttpServer {
     ) -> std::result::Result<Self, Box<dyn std::error::Error>> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let origin = format!("http://{}", listener.local_addr()?);
-        let router = openrust::http::build_router(app.app()?)?;
+        let router = openrust::foundation::http::build_router(app.app()?)?;
         let (stop, stopped) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
             openrust::http::axum::serve(
@@ -510,7 +511,7 @@ async fn s3_committed_delete_cancelled_request_is_reconciled_by_second_app() -> 
             .await?
             .is_some()
     );
-    let storage = f.b.app()?.state().resolve::<Storage>().await?;
+    let storage = f.b.app()?.state().resolve::<FilesystemManager>().await?;
     storage.default_disk().await?.stat(&f.object()?).await?;
     for _ in 0..2 {
         f.b.app()?
@@ -561,7 +562,7 @@ async fn s3_cancelled_http_upload_does_not_publish_partial_object() -> TestResul
             let disk =
                 f.b.app()?
                     .state()
-                    .resolve::<Storage>()
+                    .resolve::<FilesystemManager>()
                     .await?
                     .default_disk()
                     .await?;
@@ -608,7 +609,7 @@ async fn s3_cancelled_waiter_keeps_delete_blocked_until_publish_finishes() -> Te
     .await??;
     f.a.app()?
         .state()
-        .resolve::<Storage>()
+        .resolve::<FilesystemManager>()
         .await?
         .default_disk()
         .await?
@@ -689,7 +690,7 @@ async fn s3_inflight_copy_keeps_delete_locked_until_late_publish_is_cleaned() ->
             proxy.wait_for_successful_copy().await?,
             StatusCode::OK.as_u16()
         );
-        let storage = f.b.app()?.state().resolve::<Storage>().await?;
+        let storage = f.b.app()?.state().resolve::<FilesystemManager>().await?;
         let mut reader = storage
             .default_disk()
             .await?

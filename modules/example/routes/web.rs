@@ -1,16 +1,16 @@
 //! 示例网页路由，复用应用显式配置的 Views 服务。
 
 pub(super) fn register(
-    routes: openrust::http::Routes,
+    routes: openrust::routing::Router,
     view_enabled: bool,
-) -> openrust::http::Routes {
+) -> openrust::routing::Router {
     #[cfg(not(feature = "view"))]
     let _ = view_enabled;
     if !view_enabled {
         return routes;
     }
     routes.group(
-        openrust::http::RouteGroup::new()
+        openrust::routing::RouteGroup::new()
             .prefix("/example/pages")
             .middleware_group("web")
             .middleware_group("example.response"),

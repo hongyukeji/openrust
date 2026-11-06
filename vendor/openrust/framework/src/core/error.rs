@@ -399,7 +399,7 @@ impl Error {
 
     pub(crate) fn to_api_response_with_i18n(
         &self,
-        service: Option<&crate::i18n::I18n>,
+        service: Option<&crate::translation::Translator>,
     ) -> ApiResponse<()> {
         let errors = match self {
             Self::Validation(errors) | Self::ValidationInBag { errors, .. } => Some(errors.clone()),
@@ -415,25 +415,25 @@ impl Error {
     }
 
     // Display/source 是诊断契约，不随用户语言变化；仅响应展示使用这条统一路径。
-    pub(crate) fn user_message(&self, service: Option<&crate::i18n::I18n>) -> String {
-        let translate = |key: &str, args: &crate::i18n::MessageArgs| {
-            crate::i18n::translate_for_rendering(service, key, args)
+    pub(crate) fn user_message(&self, service: Option<&crate::translation::Translator>) -> String {
+        let translate = |key: &str, args: &crate::translation::MessageArgs| {
+            crate::translation::translate_for_rendering(service, key, args)
         };
         if self.is_server_error() {
             return translate(
                 &format!("openrust.error.{}", self.code()),
-                &crate::i18n::MessageArgs::new(),
+                &crate::translation::MessageArgs::new(),
             )
             .or_else(|| {
                 translate(
                     "openrust.error.internal_error",
-                    &crate::i18n::MessageArgs::new(),
+                    &crate::translation::MessageArgs::new(),
                 )
             })
             .or_else(|| {
-                crate::i18n::bootstrap_translation(
+                crate::translation::bootstrap_translation(
                     "openrust.error.internal_error",
-                    &crate::i18n::MessageArgs::new(),
+                    &crate::translation::MessageArgs::new(),
                 )
             })
             .unwrap_or_default();
@@ -443,7 +443,7 @@ impl Error {
             let Some(first) = messages.next() else {
                 return translate(
                     "openrust.validation.summary.empty",
-                    &crate::i18n::MessageArgs::new(),
+                    &crate::translation::MessageArgs::new(),
                 )
                 .unwrap_or_else(|| errors.summary());
             };
@@ -451,7 +451,7 @@ impl Error {
             if count == 0 {
                 return first.clone();
             }
-            let args = crate::i18n::MessageArgs::from([
+            let args = crate::translation::MessageArgs::from([
                 ("first".into(), first.clone()),
                 ("count".into(), count.to_string()),
             ]);
@@ -474,7 +474,7 @@ impl Error {
         }
         translate(
             &format!("openrust.error.{}", self.code()),
-            &crate::i18n::MessageArgs::new(),
+            &crate::translation::MessageArgs::new(),
         )
         .unwrap_or_else(|| self.to_string())
     }
@@ -527,9 +527,9 @@ pub struct ResponseContext {
     /// 已配置的 HTTP 状态码策略。
     pub http_status: HttpStatusMode,
     /// 当前应用的异常策略；命令和独立响应没有请求策略。
-    pub(crate) exception_handler: Option<Arc<super::ExceptionHandler>>,
+    pub(crate) exception_handler: Option<Arc<crate::foundation::ExceptionHandler>>,
     /// 当前 HTTP 请求的内容协商快照。
-    pub(crate) exception_request: Option<super::ExceptionRequest>,
+    pub(crate) exception_request: Option<crate::foundation::ExceptionRequest>,
 }
 
 impl ResponseContext {
@@ -594,7 +594,7 @@ pub fn current_http_status_mode() -> HttpStatusMode {
     response_context().http_status
 }
 
-fn response_i18n() -> Option<crate::i18n::I18n> {
+fn response_i18n() -> Option<crate::translation::Translator> {
     RESPONSE_CONTEXT
         .try_with(|context| {
             context
@@ -658,10 +658,10 @@ impl<T: Serialize> ApiResponse<T> {
         Self {
             success: true,
             code: "ok".to_owned(),
-            message: crate::i18n::translate_for_rendering(
+            message: crate::translation::translate_for_rendering(
                 response_i18n().as_ref(),
                 "openrust.response.ok",
-                &crate::i18n::MessageArgs::new(),
+                &crate::translation::MessageArgs::new(),
             )
             .unwrap_or_else(|| "ok".to_owned()),
             timestamp: None,

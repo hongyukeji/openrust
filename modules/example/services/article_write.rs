@@ -8,7 +8,7 @@ use crate::modules::example::models::article;
 use crate::modules::example::services::telemetry::{self, ArticleOperation};
 #[cfg(feature = "queue")]
 use crate::modules::example::services::welcome::verified_email;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseTransaction};
+use openrust::database::sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseTransaction};
 use openrust::events::Events;
 #[cfg(feature = "queue")]
 use openrust::notifications::{EmailDelivery, Notification, Notifier};

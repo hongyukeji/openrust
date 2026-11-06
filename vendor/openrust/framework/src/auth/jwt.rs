@@ -6,7 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::credential::JwtCredentialGrant;
 use crate::config::{ConfigError, JwtConfig};
-use crate::core::{BoxFuture, Error, Result};
+use crate::core::Error;
+use crate::core::Result;
+use crate::support::BoxFuture;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use jsonwebtoken::{
@@ -226,11 +228,11 @@ impl std::fmt::Debug for VerifiedAccessToken {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct JwtServiceProvider;
 
-impl crate::core::ServiceProvider for JwtServiceProvider {
+impl crate::support::ServiceProvider for JwtServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema as S;
             app.config_section(
@@ -261,7 +263,10 @@ impl crate::core::ServiceProvider for JwtServiceProvider {
             Ok(())
         })
     }
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<JwtTokens>().await?;
             Ok(())
@@ -272,7 +277,9 @@ impl crate::core::ServiceProvider for JwtServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
 

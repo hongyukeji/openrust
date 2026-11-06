@@ -12,11 +12,14 @@ use openrust::database::{
     DatabaseTableNames, Databases, Db, MigrationServiceProvider, SeedServiceProvider, dialect,
     sea_orm, sea_orm_migration,
 };
-use openrust::http::{HttpServiceProvider, RateLimitLayer, axum, build_router};
+use openrust::foundation::http::build_router;
+use openrust::http::HttpServiceProvider;
+use openrust::http::RateLimitLayer;
+use openrust::http::axum;
 #[cfg(feature = "queue")]
 use openrust::queue::QueueMigration;
 use openrust::testing::TestDatabase;
-use openrust::{App, Error, Result as FrameworkResult, config::FrameworkConfig};
+use openrust::{Application, Error, Result as FrameworkResult, config::FrameworkConfig};
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
 };
@@ -37,12 +40,12 @@ async fn framework_oidc_migrations_roundtrip_on_isolated_database()
         eprintln!("skipping framework OIDC migrations: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let database = TestDatabase::create::<openrust::db::FrameworkMigrator>(&url).await?;
+    let database = TestDatabase::create::<openrust::database::FrameworkMigrator>(&url).await?;
     let connection = database.connection()?;
     DatabaseTableNames::default()
         .scope(async {
-            openrust::db::FrameworkMigrator::down(&connection, None).await?;
-            openrust::db::FrameworkMigrator::up(&connection, None).await
+            openrust::database::FrameworkMigrator::down(&connection, None).await?;
+            openrust::database::FrameworkMigrator::up(&connection, None).await
         })
         .await?;
     let backend = connection.get_database_backend();
@@ -60,11 +63,11 @@ struct CustomConnectionProvider {
     lock_url: Option<String>,
 }
 
-impl openrust::core::ServiceProvider for CustomConnectionProvider {
+impl openrust::support::ServiceProvider for CustomConnectionProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, FrameworkResult<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, FrameworkResult<()>> {
         Box::pin(async move {
             let lock_url = self.lock_url.clone();
             app.merge_defaults(
@@ -235,7 +238,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     let sources =
         figment::Figment::from(figment::providers::Serialized::defaults(framework_config))
             .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(CustomConnectionProvider { lock_url: None })
         .provider(HttpServiceProvider)
@@ -250,7 +253,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     assert!(app.state().resolve::<RateLimiter>().await.is_ok());
     app.run_command("migrate", vec![]).await?;
     app.run_command("migrate", vec!["up".into()]).await?;
@@ -401,20 +404,20 @@ impl MigrationTrait for LockProbeMigration {
     }
 }
 
-async fn build_lock_probe_app(url: &str, timeout: Duration) -> FrameworkResult<App> {
+async fn build_lock_probe_app(url: &str, timeout: Duration) -> FrameworkResult<Application> {
     let source = format!("[database]\nurl = {url:?}\ntable_prefix = 'migration_lock_test_'\n");
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ))
     .merge(Figment::new().merge(Toml::string(&source)));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider).provider(
         MigrationServiceProvider::<LockProbeMigrator>::new().with_lock_wait_timeout(timeout),
     );
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -433,13 +436,13 @@ async fn custom_database_rejects_lock_connection_to_another_database()
         FrameworkConfig::default(),
     ))
     .merge(Toml::string(&source));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(CustomConnectionProvider {
             lock_url: Some(other.url().to_owned()),
         })
         .provider(MigrationServiceProvider::<LockProbeMigrator>::new());
-    let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(sources).await?)?;
     let error = app
         .run_command("migrate", vec!["up".into()])
         .await
@@ -589,14 +592,14 @@ async fn named_database_instances_keep_migrations_and_transactions_isolated()
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(MigrationServiceProvider::<TestMigrator>::new());
     let app = builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)?;
+        .and_then(openrust::Application::from_provider_runtime)?;
     let databases = app.state().resolve::<Databases>().await?;
     let default_db = app.state().resolve::<Db>().await?;
     let analytics_db = databases.get("analytics")?;
@@ -752,7 +755,7 @@ async fn migration_limit_probe() -> &'static str {
     "ok"
 }
 
-async fn verify_http_rate_limit_layer(app: &App) -> Result<(), Box<dyn std::error::Error>> {
+async fn verify_http_rate_limit_layer(app: &Application) -> Result<(), Box<dyn std::error::Error>> {
     let peer: std::net::SocketAddr = "192.0.2.10:443".parse()?;
     let router = build_router(app)?;
     for expected in [StatusCode::OK, StatusCode::TOO_MANY_REQUESTS] {
@@ -931,18 +934,18 @@ async fn verify_rate_limiter(
 }
 
 struct TestRoutes<F>(std::sync::Arc<F>);
-impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router> TestRoutes<F> {
     fn new(routes: F) -> Self {
         Self(std::sync::Arc::new(routes))
     }
 }
-impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+impl<F> openrust::support::ServiceProvider for TestRoutes<F>
 where
-    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+    F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + 'static,
 {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
         let routes = std::sync::Arc::clone(&self.0);
         Box::pin(async move {

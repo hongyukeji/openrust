@@ -40,7 +40,7 @@ pub(crate) async fn verify_membership(request: Request, next: Next) -> Response 
         .map_err(|_| Error::Forbidden("租户选择值无效".into()))?;
         let scope = parts
             .extensions
-            .get::<Arc<openrust::core::container::Scope>>()
+            .get::<Arc<openrust::container::Scope>>()
             .ok_or_else(|| {
                 Error::custom("example_tenant_scope_missing", "租户验证需要生产请求作用域")
             })?;

@@ -4,8 +4,8 @@ use crate::modules::example::{
     models::article_import,
     services::article_transfer::{terminal, with_import_lease},
 };
-use openrust::db::sea_orm::EntityTrait;
-use openrust::db::{
+use openrust::database::sea_orm::EntityTrait;
+use openrust::database::{
     CoordinationMigration, Db, LockAcquire, LockLease, SharedLocks,
     sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection},
     sea_orm_migration::{MigrationTrait, MigratorTrait},

@@ -1,10 +1,13 @@
 use std::{collections::BTreeSet, env, error::Error, time::Duration};
 
-use openrust::{
-    config::{FrameworkConfig, GrpcClientConfig, GrpcConfig},
-    core::ProviderBuilder,
-    grpc::{GrpcClientRegistry, GrpcServiceProvider, health_pb, tonic},
-};
+use openrust::config::FrameworkConfig;
+use openrust::config::GrpcClientConfig;
+use openrust::config::GrpcConfig;
+use openrust::foundation::ProviderBuilder;
+use openrust::grpc::GrpcClientRegistry;
+use openrust::grpc::GrpcServiceProvider;
+use openrust::grpc::health_pb;
+use openrust::grpc::tonic;
 use tonic::Request;
 
 pub mod proto {

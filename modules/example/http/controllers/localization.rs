@@ -2,7 +2,11 @@
 
 use chrono::{DateTime, Datelike, FixedOffset, SecondsFormat};
 use openrust::http::{Inject, Json, Query};
-use openrust::i18n::{DateFormatStyle, DateTimeFormatStyle, I18n, MessageArgs, RequestLocale};
+use openrust::translation::DateFormatStyle;
+use openrust::translation::DateTimeFormatStyle;
+use openrust::translation::MessageArgs;
+use openrust::translation::RequestLocale;
+use openrust::translation::Translator;
 use openrust::{Error, Result, ValidationErrors};
 
 #[derive(serde::Deserialize)]
@@ -24,14 +28,14 @@ pub(crate) struct ReadingSummary {
     time_zone: String,
     local_iso: String,
 }
-fn invalid(locale: &RequestLocale, i18n: &I18n, field: &str, key: &str) -> Error {
+fn invalid(locale: &RequestLocale, i18n: &Translator, field: &str, key: &str) -> Error {
     let mut errors = ValidationErrors::new();
     errors.add(field, locale.translate(i18n, key, &MessageArgs::new()));
     Error::validation_with_status(openrust::http::axum::http::StatusCode::BAD_REQUEST, errors)
 }
 pub(crate) async fn show(
     locale: RequestLocale,
-    Inject(i18n): Inject<I18n>,
+    Inject(i18n): Inject<Translator>,
     Query(input): Query<ReadingSummaryInput>,
 ) -> Result<Json<ReadingSummary>> {
     let mut errors = ValidationErrors::new();

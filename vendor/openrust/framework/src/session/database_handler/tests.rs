@@ -11,7 +11,7 @@ use sea_orm_migration::{MigrationTrait, MigratorTrait, SchemaManager};
 use super::{DatabaseSessionHandler, DatabaseSessionMetadata};
 use crate::{
     Error, Result,
-    db::Db,
+    database::Db,
     support::calendar::{CalendarClock, CalendarInstant, FixedClock},
     testing::TestDatabase,
 };
@@ -144,7 +144,7 @@ async fn canonical_schema(connection: &DatabaseConnection) -> Result<()> {
         );
     }
     seed(connection, "schema-retained", "c2NoZW1h", NOW).await?;
-    let names = crate::db::DatabaseTableNames::default();
+    let names = crate::database::DatabaseTableNames::default();
     names
         .scope(crate::session::SessionGcMigration.down(&schema))
         .await
@@ -526,11 +526,11 @@ async fn canonical_handler_contract_uses_owned_real_sqlite_file() -> Result<()> 
 #[tokio::test]
 #[ignore = "显式设置OPENRUST_TEST_DATABASE_URL后运行真实服务契约"]
 async fn canonical_handler_contract_uses_explicit_real_server_database() -> Result<()> {
-    let admin = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
-    let backend = crate::db::DatabaseBackend::from_url(&admin)?;
+    let admin = crate::test_database_environment::database_url().map_err(Error::internal)?;
+    let backend = crate::database::DatabaseBackend::from_url(&admin)?;
     assert!(matches!(
         backend,
-        crate::db::DatabaseBackend::PostgreSql | crate::db::DatabaseBackend::MySql
+        crate::database::DatabaseBackend::PostgreSql | crate::database::DatabaseBackend::MySql
     ));
     let fixture = TestDatabase::create::<SessionMigrator>(&admin).await?;
     let outcome = common_contract(&fixture).await;
@@ -662,8 +662,10 @@ async fn mysql_signal_insert_case(
 #[ignore = "必须设置真实MySQL OPENRUST_TEST_DATABASE_URL，验证SQLSTATE与MYSQL_ERRNO分类"]
 async fn mysql_native_handler_distinguishes_infrastructure_number_from_query_sqlstate() -> Result<()>
 {
-    let admin = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
-    if crate::db::DatabaseBackend::from_url(&admin)? != crate::db::DatabaseBackend::MySql {
+    let admin = crate::test_database_environment::database_url().map_err(Error::internal)?;
+    if crate::database::DatabaseBackend::from_url(&admin)?
+        != crate::database::DatabaseBackend::MySql
+    {
         return Err(Error::custom(
             "mysql_session_fixture_backend_required",
             "此真实契约入口必须选择 MySQL，不能跳过",

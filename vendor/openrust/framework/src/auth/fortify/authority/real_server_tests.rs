@@ -1,27 +1,29 @@
 //! 真实 MySQL/PostgreSQL 用户行读取权限、同码竞争与恢复读权限回归。
 #![cfg(any(feature = "db-mysql", feature = "db-postgres"))]
 
-use crate::{
-    Error, Result,
-    auth::{
-        AuthMigration,
-        fortify::{
-            DatabaseFactorAuthority, DatabaseTwoFactorState, FactorAuthorityMigration,
-            FactorAuthorityMutation, FactorAuthorityStatus, FortifyTwoFactorMigration,
-            TwoFactorCodeVerification, TwoFactorState,
-        },
-    },
-    config::EncryptionConfig,
-    db::{
-        Db,
-        sea_orm::{
-            ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
-        },
-        sea_orm_migration::{MigrationTrait, MigratorTrait},
-    },
-    security::Encryptor,
-    testing::TestDatabase,
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthMigration;
+use crate::auth::fortify::DatabaseFactorAuthority;
+use crate::auth::fortify::DatabaseTwoFactorState;
+use crate::auth::fortify::FactorAuthorityMigration;
+use crate::auth::fortify::FactorAuthorityMutation;
+use crate::auth::fortify::FactorAuthorityStatus;
+use crate::auth::fortify::FortifyTwoFactorMigration;
+use crate::auth::fortify::TwoFactorCodeVerification;
+use crate::auth::fortify::TwoFactorState;
+use crate::config::EncryptionConfig;
+use crate::database::Db;
+use crate::database::sea_orm::ConnectOptions;
+use crate::database::sea_orm::ConnectionTrait;
+use crate::database::sea_orm::Database;
+use crate::database::sea_orm::DatabaseConnection;
+use crate::database::sea_orm::DbBackend;
+use crate::database::sea_orm::Statement;
+use crate::database::sea_orm_migration::MigrationTrait;
+use crate::database::sea_orm_migration::MigratorTrait;
+use crate::encryption::Encrypter;
+use crate::testing::TestDatabase;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::json;
 use std::{collections::BTreeMap, time::Duration};
@@ -113,8 +115,8 @@ async fn connect(url: &str, backend: DbBackend) -> Result<DatabaseConnection> {
     let _ = backend;
     Database::connect(options).await.map_err(Error::internal)
 }
-fn encrypter() -> Result<Encryptor> {
-    Encryptor::new(EncryptionConfig::new(
+fn encrypter() -> Result<Encrypter> {
+    Encrypter::new(EncryptionConfig::new(
         "test",
         BTreeMap::from([("test".into(), STANDARD.encode([7_u8; 32]))]),
     ))
@@ -176,7 +178,7 @@ async fn assert_role_identity(
     reason = "真实ACL对照及finally清理必须保留每阶段角色与池的所有权"
 )]
 async fn account_acl_denial_cannot_hide_a_confirmed_factor_or_allow_code_replay() -> Result<()> {
-    let admin_url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
+    let admin_url = crate::test_database_environment::database_url().map_err(Error::internal)?;
     let role = format!("or_acl_{}", random_hex(8)?);
     let password = random_hex(32)?;
     let database = TestDatabase::create::<Migrator>(&admin_url).await?;

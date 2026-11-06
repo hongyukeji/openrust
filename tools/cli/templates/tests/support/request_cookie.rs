@@ -1,7 +1,10 @@
 //! 生成应用经正式 Provider、请求读取与响应中间件验证 Cookie 契约。
 use figment::Figment;
 use openrust::config::SessionConfig;
-use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider};
+use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     Extension,
     body::Body,
@@ -11,10 +14,15 @@ use openrust::http::axum::{
     },
     response::IntoResponse,
 };
-use openrust::http::{
-    Cookie, CookieJar, CookieOptions, CookieResponseExt, Json, RequestInfo, RouteGroup, Routes,
-    SameSite,
-};
+use openrust::http::Cookie;
+use openrust::http::CookieJar;
+use openrust::http::CookieOptions;
+use openrust::http::CookieResponseExt;
+use openrust::http::Json;
+use openrust::http::RequestInfo;
+use openrust::routing::RouteGroup;
+use openrust::routing::Router;
+use openrust::http::SameSite;
 use openrust::session::Session;
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
@@ -30,7 +38,7 @@ impl ServiceProvider for CookieRoutesProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             let session = app.is_bound::<openrust::session::SessionStoreHandle>();
-            app.routes(move |routes: Routes| {
+            app.routes(move |routes: Router| {
                 let group = RouteGroup::new().middleware_alias("cookies");
                 let group = if session {
                     group.middleware_alias("session")
@@ -52,13 +60,13 @@ impl ServiceProvider for CookieRoutesProvider {
 // 透传生成应用的正式服务和模块，仅追加本测试独占的路由 Provider。
 struct CookieApplication<A>(std::marker::PhantomData<fn() -> A>);
 
-impl<A: Application> Application for CookieApplication<A> {
+impl<A: ApplicationDefinition> ApplicationDefinition for CookieApplication<A> {
     type Config = A::Config;
 
     fn config() -> openrust::config::ConfigManifest {
         A::config()
     }
-    fn default_providers() -> openrust::core::DefaultProviders {
+    fn default_providers() -> openrust::support::DefaultProviders {
         A::default_providers()
     }
     fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
@@ -81,7 +89,7 @@ impl<A: Application> Application for CookieApplication<A> {
         providers
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
         A::configure_providers(config, builder);
     }
 }
@@ -133,7 +141,7 @@ async fn forget_cookies(jar: CookieJar) -> openrust::Result<impl IntoResponse> {
 }
 
 /// 在生成应用自身的正式 Provider 和中间件链路验证 Cookie；不替代真实 TCP 验收。
-pub async fn assert_request_cookie<A: Application>(
+pub async fn assert_request_cookie<A: ApplicationDefinition>(
     source: Figment,
     expect_session: bool,
 ) -> openrust::Result<()> {

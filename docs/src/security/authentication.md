@@ -279,7 +279,7 @@ MySQL 的列修改必须重述定义，因此此迁移只接受应用原有的�
 | 重建恢复码 | `generate_new_recovery_codes(user)`：替换整组恢复码。 |
 | 手动密钥 / QR | `secret_key(user)`、`qr_code_url(user, company, username)` 与 `two_factor_qr_code_svg(url)`，只在授权读取路径暴露秘密。 |
 
-根应用 `confirm=true`：用户可按需绑定，未绑定时密码正常登录；生成 secret 后尚待确认，不是已开启双因素。确认后后续登录进入挑战；关闭按管理入口要求先作必要身份确认。`confirm=false` 遵循上游 secret 非 null 的启用规则，不全局改写包回退。应用覆写加密器的优先级是 Fortify 显式设置、账户模型设置、默认容器 `Encryptor`；`with_encrypter` 和模型扩展不代表真实 Eloquent 生命周期已经实现。
+根应用 `confirm=true`：用户可按需绑定，未绑定时密码正常登录；生成 secret 后尚待确认，不是已开启双因素。确认后后续登录进入挑战；关闭按管理入口要求先作必要身份确认。`confirm=false` 遵循上游 secret 非 null 的启用规则，不全局改写包回退。应用覆写加密器的优先级是 Fortify 显式设置、账户模型设置、默认容器 `Encrypter`；`with_encrypter` 和模型扩展不代表真实 Eloquent 生命周期已经实现。
 
 `TwoFactorActions::with_recovery_code_generator`、`with_options` 与公开 Provider/响应绑定允许应用替换对应机制；扩展不得把账户秘密放进日志或调试输出。条件更新竞争失败和持久化错误会传播，不应被调用方吞为匿名成功或“已经禁用”。
 

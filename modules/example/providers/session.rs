@@ -1,15 +1,15 @@
 //! 调用方显式选择的请求绑定驱动示例；默认宿主不安装或覆盖已有 store。
 
+use openrust::Result;
+use openrust::foundation::RegisterContext;
 use openrust::http::CookieOptions;
 use openrust::session::{
     DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore, SessionId,
     SessionRecord, SessionRequestContext, SessionStore, SessionStoreHandle, SessionWriteMode,
     SessionWriteOutcome,
 };
-use openrust::{
-    Result,
-    core::{BoxFuture, RegisterContext, ServiceProvider},
-};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use serde_json::Value;
 use std::sync::Arc;
 use time::OffsetDateTime;
@@ -62,7 +62,7 @@ impl SessionStore for ExampleSessionDriver {
     fn activity_lifetime_seconds(&self) -> Option<i64> {
         self.backend.activity_lifetime_seconds()
     }
-    fn set_database_user_id(&self, user_id: openrust::db::sea_orm::Value) -> Result<bool> {
+    fn set_database_user_id(&self, user_id: openrust::database::sea_orm::Value) -> Result<bool> {
         self.backend.set_database_user_id(user_id)
     }
     fn reset_exists(&self) -> Result<()> {
@@ -162,7 +162,7 @@ impl ServiceProvider for ExampleSessionDriverProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let database = self.database;
             app.singleton::<SessionStoreHandle, _>(move |resolver| {
@@ -172,11 +172,11 @@ impl ServiceProvider for ExampleSessionDriverProvider {
                             resolver.section::<openrust::config::SessionConfig>("session")?;
                         let db = if let Some(connection) = &config.connection {
                             resolver
-                                .resolve::<openrust::db::Databases>()
+                                .resolve::<openrust::database::Databases>()
                                 .await?
                                 .get(connection)?
                         } else {
-                            (*resolver.resolve::<openrust::db::Db>().await?).clone()
+                            (*resolver.resolve::<openrust::database::Db>().await?).clone()
                         };
                         if config.driver.as_deref() == Some("database-guarded") {
                             Arc::new(GuardedDatabaseSessionStore::new(db).for_table(config.table)?)

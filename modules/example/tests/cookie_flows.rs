@@ -1,5 +1,6 @@
 //! 通过生产应用装配验证模块 Cookie 公开接口；TestApp 使用进程内 HTTP 路由。
 
+use super::config_sources::enabled_example_sources;
 use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
@@ -90,11 +91,10 @@ fn wire_cookie(response: &TestResponse) -> TestResult<String> {
 
 #[tokio::test]
 async fn module_cookie_queue_direct_forget_and_request_isolation() -> TestResult {
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
-        crate::modules::example::test_sources(&(sources()))?,
-    )
-    .build()
-    .await?;
+    let mut app =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(sources()))?)
+            .build()
+            .await?;
     let result = async {
         success(
             &get(&app, None).await?,

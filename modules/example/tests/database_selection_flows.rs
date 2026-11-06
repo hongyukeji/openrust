@@ -2,8 +2,11 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::{ConfigSources, DatabaseConfig, FrameworkConfig};
-use openrust::core::{App, DefaultProviders, ProviderBuilder, ProviderId};
+use openrust::foundation::Application;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::ProviderId;
 use openrust::http::axum::{body::Body, http::Request, http::StatusCode};
+use openrust::support::DefaultProviders;
 use openrust::{Error, Result};
 use openrust_modules::ModuleProviderBuilderExt as _;
 use openrust_modules::config::ModulesConfig;
@@ -36,6 +39,7 @@ fn deployment() -> Result<tempfile::TempDir> {
 fn sources(root: &Path, database: &Value) -> Result<ConfigSources> {
     let figment = Figment::from(Serialized::defaults(FrameworkConfig::default())).merge(
         Serialized::defaults(json!({
+            "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
             "application_root":root,"app":{"env":"testing"},
             "database":database,
             "session":{"driver":null},
@@ -59,8 +63,8 @@ fn check(condition: bool, code: &'static str, message: &'static str) -> Result<(
     }
 }
 
-async fn status(app: &App, path: &str, expected: StatusCode) -> Result<()> {
-    let response = openrust::http::build_router(app)?
+async fn status(app: &Application, path: &str, expected: StatusCode) -> Result<()> {
+    let response = openrust::foundation::http::build_router(app)?
         .oneshot(
             Request::get(path)
                 .header("host", "localhost")
@@ -77,7 +81,7 @@ async fn status(app: &App, path: &str, expected: StatusCode) -> Result<()> {
 }
 
 #[cfg(feature = "auth")]
-fn check_no_database_business(app: &App) -> Result<()> {
+fn check_no_database_business(app: &Application) -> Result<()> {
     let container = app.state().container();
     check(
         !container.contains::<super::services::account_security::AccountSecurity>()
@@ -90,8 +94,8 @@ fn check_no_database_business(app: &App) -> Result<()> {
 
 #[tokio::test]
 async fn no_url_host_registers_module_migrations_and_seed_without_running_sql() -> Result<()> {
-    use openrust::db::MigrationServiceProvider;
-    use openrust::db::sea_orm_migration::MigratorTrait;
+    use openrust::database::MigrationServiceProvider;
+    use openrust::database::sea_orm_migration::MigratorTrait;
 
     let root = deployment()?;
     let sources = sources(
@@ -103,7 +107,7 @@ async fn no_url_host_registers_module_migrations_and_seed_without_running_sql() 
         .extract::<crate::bootstrap::Configuration>()
         .map_err(Error::internal)?;
     let builder = ProviderBuilder::for_application::<crate::bootstrap::Server>(&configuration);
-    let mut app = App::from_provider_runtime(builder.start(sources).await?)?;
+    let mut app = Application::from_provider_runtime(builder.start(sources).await?)?;
     let outcome: Result<()> = async {
         let commands = app
             .commands()
@@ -176,9 +180,9 @@ async fn final_named_only_sources_do_not_select_default_database_business() -> R
     builder
         .default_providers(DefaultProviders::auto())
         // 此测试只验模块选择，不声称验证真实具名连接；正常生产仍保留 DB 驱动预检。
-        .remove_provider(ProviderId::of::<openrust::db::DatabaseServiceProvider>())
+        .remove_provider(ProviderId::of::<openrust::database::DatabaseServiceProvider>())
         .module_manifest(manifest);
-    let app = App::from_provider_runtime(builder.start(final_sources).await?)?;
+    let app = Application::from_provider_runtime(builder.start(final_sources).await?)?;
     let outcome: Result<()> = async {
         let config: DatabaseConfig = app.config_repository().section("database")?;
         check(
@@ -241,13 +245,13 @@ async fn explicit_descriptor_override_does_not_require_a_database_section() -> R
     let mut builder = ProviderBuilder::new();
     builder
         .default_providers(DefaultProviders::for_runtime(false, false))
-        .remove_provider(ProviderId::of::<openrust::db::DatabaseServiceProvider>())
+        .remove_provider(ProviderId::of::<openrust::database::DatabaseServiceProvider>())
         .module_manifest(
             ModuleManifest::new()
                 .module(super::descriptor(false, root.path().to_path_buf()))
                 .enable("example"),
         );
-    let app = App::from_provider_runtime(builder.start(source).await?)?;
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
     let outcome: Result<()> = async {
         check(
             app.config_repository().get("database")?.is_none(),
@@ -268,10 +272,10 @@ async fn explicit_descriptor_override_does_not_require_a_database_section() -> R
 struct RemoveDefaultUrl;
 
 #[cfg(feature = "auth")]
-impl openrust::core::ServiceProvider for RemoveDefaultUrl {
+impl openrust::support::ServiceProvider for RemoveDefaultUrl {
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, Result<()>> {
         Box::pin(async move { app.overlay("database", json!({"url":null})) })
     }
@@ -291,12 +295,12 @@ async fn earlier_boot_overlay_controls_routes_without_unloading_registered_busin
     let mut builder = ProviderBuilder::new();
     builder
         .default_providers(DefaultProviders::for_runtime(false, false))
-        .remove_provider(ProviderId::of::<openrust::db::DatabaseServiceProvider>())
+        .remove_provider(ProviderId::of::<openrust::database::DatabaseServiceProvider>())
         .provider(RemoveDefaultUrl)
         .provider(super::providers::ExampleServiceProvider::new(
             root.path().to_path_buf(),
         ));
-    let app = App::from_provider_runtime(builder.start(source).await?)?;
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
     let outcome: Result<()> = async {
         check(
             !app.config_repository()
@@ -323,10 +327,10 @@ async fn earlier_boot_overlay_controls_routes_without_unloading_registered_busin
 struct EnableDefaultUrl(Arc<AtomicBool>);
 struct SelectionResource(Arc<AtomicBool>);
 
-impl openrust::core::ServiceProvider for EnableDefaultUrl {
+impl openrust::support::ServiceProvider for EnableDefaultUrl {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
     ) -> openrust::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.instance(Arc::new(SelectionResource(Arc::clone(&self.0))))
@@ -336,7 +340,7 @@ impl openrust::core::ServiceProvider for EnableDefaultUrl {
 
     fn boot<'a>(
         &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
+        app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let resource = app.resolve::<SelectionResource>().await?;
@@ -364,7 +368,7 @@ async fn adding_default_url_in_earlier_boot_rejects_unregistered_business_and_cl
     builder
         // 显式清单由应用负责选择；只测模块自身的反向时序拒绝，不绕过 auto 的独立检查。
         .default_providers(DefaultProviders::for_runtime(false, false))
-        .remove_provider(ProviderId::of::<openrust::db::DatabaseServiceProvider>())
+        .remove_provider(ProviderId::of::<openrust::database::DatabaseServiceProvider>())
         .provider(EnableDefaultUrl(Arc::clone(&closed)))
         .provider(super::providers::ExampleServiceProvider::new(
             root.path().to_path_buf(),
@@ -429,7 +433,7 @@ async fn redis_module_heartbeat_runs_without_default_database() -> Result<()> {
     let started = builder
         .start(configured)
         .await
-        .and_then(App::from_provider_runtime);
+        .and_then(Application::from_provider_runtime);
     let outcome = match started {
         Ok(app) => {
             let outcome = execute_redis_module_heartbeat(&app, &mut redis, &prefix).await;
@@ -444,7 +448,7 @@ async fn redis_module_heartbeat_runs_without_default_database() -> Result<()> {
 
 #[cfg(feature = "queue-redis")]
 async fn execute_redis_module_heartbeat(
-    app: &App,
+    app: &Application,
     redis: &mut redis::aio::MultiplexedConnection,
     prefix: &str,
 ) -> Result<()> {
@@ -457,7 +461,7 @@ async fn execute_redis_module_heartbeat(
         "example_redis_database_initialized",
         "Redis 模块任务不应建立默认数据库",
     )?;
-    let response = openrust::http::build_router(app)?
+    let response = openrust::foundation::http::build_router(app)?
         .oneshot(
             Request::post("/api/example/jobs/heartbeat")
                 .header("host", "localhost")

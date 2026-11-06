@@ -63,7 +63,7 @@ impl OwnedSqliteTransaction {
     }
 
     async fn return_confirmed(self) -> Result<()> {
-        let resident = crate::db::migration::return_sqlite_connection(self.connection).await;
+        let resident = crate::database::migration::return_sqlite_connection(self.connection).await;
         if self.require_residency && !matches!(resident, Ok(true)) {
             // 提交可能已经成功；确认失败只报告不可用，绝不谎报已回滚。
             // 保守关闭本池以免重建未知最后 handle，不宣称其他共享池的 handle 均已丢失。
@@ -625,7 +625,7 @@ mod tests {
             .execute(&mut *setup)
             .await
             .map_err(|_| unavailable())?;
-        assert!(crate::db::migration::return_sqlite_connection(setup).await?);
+        assert!(crate::database::migration::return_sqlite_connection(setup).await?);
         Ok((pool, reject))
     }
 

@@ -14,19 +14,22 @@ mod attach;
 pub(crate) use attach::PreparedSessionAttachment;
 
 use super::{DatabaseFactorAuthority, DatabaseTwoFactorState};
-use crate::{
-    Error, Result,
-    auth::{
-        CredentialDomain, FactorOrigin, JwtTokens, RefreshTokens, StatefulGuard,
-        VerifiedCredential,
-        credential::{CredentialFactorContext, FactorEvidence},
-    },
-    db::{
-        Db,
-        sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, Statement},
-    },
-    security::Encryptor,
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::CredentialDomain;
+use crate::auth::FactorOrigin;
+use crate::auth::JwtTokens;
+use crate::auth::RefreshTokens;
+use crate::auth::StatefulGuard;
+use crate::auth::VerifiedCredential;
+use crate::auth::credential::CredentialFactorContext;
+use crate::auth::credential::FactorEvidence;
+use crate::database::Db;
+use crate::database::sea_orm::ConnectionTrait;
+use crate::database::sea_orm::DatabaseTransaction;
+use crate::database::sea_orm::DbBackend;
+use crate::database::sea_orm::Statement;
+use crate::encryption::Encrypter;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 
@@ -36,7 +39,7 @@ use serde_json::Value;
 #[derive(Clone)]
 pub struct CredentialAuthority {
     db: Db,
-    encrypter: Encryptor,
+    encrypter: Encrypter,
     confirm: bool,
     config: Option<crate::config::repository::ConfigRepository>,
     #[cfg(test)]
@@ -89,7 +92,7 @@ impl CredentialAuthority {
             .await
     }
     /// 选择真实共享数据库、因子加密器及当前确认策略。
-    pub fn new(db: Db, encrypter: Encryptor, confirm: bool) -> Self {
+    pub fn new(db: Db, encrypter: Encrypter, confirm: bool) -> Self {
         Self {
             db,
             encrypter,

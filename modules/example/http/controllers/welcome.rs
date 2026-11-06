@@ -7,14 +7,15 @@ use crate::modules::example::services::welcome::{WelcomeService, verified_email}
 use openrust::Result;
 use openrust::auth::CurrentUser;
 use openrust::http::Json;
-use openrust::i18n::{I18n, RequestLocale};
 use openrust::prelude::{Db, Inject};
+use openrust::translation::RequestLocale;
+use openrust::translation::Translator;
 
 pub(crate) async fn send(
     user: CurrentUser,
     Inject(db): Inject<Db>,
     Inject(welcome): Inject<WelcomeService>,
-    Inject(i18n): Inject<I18n>,
+    Inject(i18n): Inject<Translator>,
     locale: RequestLocale,
     Json(_input): Json<WelcomeInput>,
 ) -> Result<Json<BTreeMap<&'static str, &'static str>>> {

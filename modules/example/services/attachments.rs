@@ -11,16 +11,20 @@ use std::{
 
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use openrust::core::resources::ResourceRegistrar;
-use openrust::db::sea_orm::{
+use openrust::database::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter,
     QuerySelect, TransactionTrait,
 };
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::StoragePath;
+use openrust::filesystem::StorageReader;
+use openrust::filesystem::StoredObject;
+use openrust::filesystem::UploadContext;
+use openrust::filesystem::UploadInspector;
+use openrust::filesystem::UploadOptions;
+use openrust::filesystem::Visibility;
+use openrust::foundation::resources::ResourceRegistrar;
 use openrust::http::axum::{body::Body, http::StatusCode};
-use openrust::storage::{
-    Storage, StoragePath, StorageReader, StoredObject, UploadContext, UploadInspector,
-    UploadOptions, Visibility,
-};
 use openrust::tenant::{TenantContext, TenantId};
 use openrust::{Db, Error, Result};
 
@@ -37,7 +41,7 @@ const BODY_DEADLINE: u8 = 2;
 /// 每篇文章一个 UTF-8 文本附件，key 完全由已授权的业务标识构造。
 pub(crate) struct ArticleAttachments {
     db: Arc<Db>,
-    storage: Arc<Storage>,
+    storage: Arc<FilesystemManager>,
     resources: ResourceRegistrar,
     #[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
     publish_gate: Mutex<Option<Arc<PublishGate>>>,
@@ -56,7 +60,11 @@ struct PublishGate {
     release: Arc<tokio::sync::Semaphore>,
 }
 impl ArticleAttachments {
-    pub(crate) fn new(db: Arc<Db>, storage: Arc<Storage>, resources: ResourceRegistrar) -> Self {
+    pub(crate) fn new(
+        db: Arc<Db>,
+        storage: Arc<FilesystemManager>,
+        resources: ResourceRegistrar,
+    ) -> Self {
         Self {
             db,
             storage,

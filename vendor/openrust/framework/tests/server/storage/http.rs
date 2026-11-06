@@ -6,25 +6,34 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::Response;
 use figment::providers::Format;
 use openrust::config::{FrameworkConfig, HttpStatusMode};
-use openrust::core::{BootContext, BoxFuture, Error, ProviderBuilder, ServiceProvider};
-use openrust::http::{Inject, Path, build_router};
-use openrust::prelude::{Application, NoConfig};
-use openrust::storage::{Storage, StoragePath, StorageServiceProvider, UploadOptions};
+use openrust::core::Error;
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::FilesystemServiceProvider;
+use openrust::filesystem::StoragePath;
+use openrust::filesystem::UploadOptions;
+use openrust::foundation::BootContext;
+use openrust::foundation::ProviderBuilder;
+use openrust::foundation::http::build_router;
+use openrust::http::Inject;
+use openrust::http::Path;
+use openrust::prelude::{ApplicationDefinition, NoConfig};
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use std::time::Duration;
 
 struct StorageHttpApp;
 
-impl Application for StorageHttpApp {
+impl ApplicationDefinition for StorageHttpApp {
     type Config = NoConfig;
 
-    fn default_providers() -> openrust::core::DefaultProviders {
-        openrust::core::DefaultProviders::empty()
+    fn default_providers() -> openrust::support::DefaultProviders {
+        openrust::support::DefaultProviders::empty()
     }
 
     fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         vec![
             Box::new(openrust::http::HttpServiceProvider),
-            Box::new(StorageServiceProvider::new()),
+            Box::new(FilesystemServiceProvider::new()),
             Box::new(StorageHttpRoutes),
         ]
     }
@@ -46,7 +55,7 @@ impl ServiceProvider for StorageHttpRoutes {
 }
 
 async fn upload(
-    Inject(storage): Inject<Storage>,
+    Inject(storage): Inject<FilesystemManager>,
     Path(key): Path<String>,
     request: Request,
 ) -> Result<StatusCode, Error> {
@@ -71,7 +80,7 @@ async fn upload(
 }
 
 async fn download(
-    Inject(storage): Inject<Storage>,
+    Inject(storage): Inject<FilesystemManager>,
     Path(key): Path<String>,
     request: Request,
 ) -> Result<Response, Error> {
@@ -117,7 +126,7 @@ async fn assembled_server_streams_upload_and_download_over_tcp_with_authorizatio
     for provider in StorageHttpApp::providers(&NoConfig {}) {
         builder.boxed_provider(provider);
     }
-    let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
+    let app = openrust::Application::from_provider_runtime(builder.start(figment).await?)?;
     let router = build_router(&app)?;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;

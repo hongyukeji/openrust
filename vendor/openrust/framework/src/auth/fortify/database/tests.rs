@@ -1,8 +1,8 @@
 //! 真实SQLite账户来源验证三字段CAS，而不是内存读后写替身。
 use super::*;
 use crate::{
-    db::sea_orm::ConnectionTrait,
-    db::sea_orm_migration::{MigrationTrait, MigratorTrait},
+    database::sea_orm::ConnectionTrait,
+    database::sea_orm_migration::{MigrationTrait, MigratorTrait},
     testing::TestDatabase,
 };
 use chrono::TimeZone;

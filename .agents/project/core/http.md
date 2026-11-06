@@ -36,15 +36,15 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 
 `ServerConfig`的代理范围使用`Option<Vec<String>>`，缺省与显式空列表分别保留固定上游的平台自动规则与禁用语义；头集合默认62。HTTP入口发布同一请求代理快照，`RequestInfo`、`ClientIp`、域路由、重定向与签名共用客户端链、协议、主机、端口和前缀。公开请求端口为`i64`，监听端口仍为`u16`；可信proto先于物理TLS回退。Cloud仅接受受信宿主标记，普通客户端头不触发。
 
-Forwarded quoted-pair解码、IPv6双头的原文本冲突及显式端口不急切求值scheme三项已修，并获不同模型静态复审；当前默认/全特性workspace、双严格Clippy/docs、生成普通8项/MySQL认证2项与定向公开接线、真实TCP三案及资源收尾通过，不声明完整代理/TrustedHosts/云部署已完成。当前输入、失败保留与持久证据见[唯一队列](../todo.md#c04-g-trustproxies-请求上下文verify)；旧/tmp摘要不能替代本轮验收。
+Forwarded quoted-pair解码、IPv6双头的原文本冲突及显式端口不急切求值scheme三项已修，并获不同模型静态复审；当前默认/全特性workspace、双严格Clippy/docs、生成普通8项/MySQL认证2项与定向公开接线、真实TCP三案及资源收尾通过，不声明完整代理/TrustedHosts/云部署已完成。当前输入、失败保留与持久证据见[唯一队列](../todo.md#c04-g-trustproxies-请求上下文main限定子范围已验收)；旧/tmp摘要不能替代本轮验收。
 
 ## 当前实现
 
 | 模块 | 内容 |
 | --- | --- |
-| `provider` | `HttpServiceProvider` 在 register 登记 server schema，在 boot 贡献 `serve`、`/health` 与 `/ready`；启用 `metrics` feature 并配置 `[server].metrics_endpoint_enabled` 后注册 `/metrics`。应用 Provider 在 `BootContext::routes` 贡献业务路由；`build_router(&App) -> Result<Router>` 向请求扩展注入最终 `AppState` 与请求 `Scope`，供 Inject/Auth/RateLimit 使用；经应用路由组合发现的 Axum 冲突转换为 `http_route_registration_failed` 启动错误，直接调用底层 Axum API 不在转换范围 |
+| `provider` | `HttpServiceProvider` 在 register 登记 server schema，在 boot 贡献 `serve`、`/health` 与 `/ready`；启用 `metrics` feature 并配置 `[server].metrics_endpoint_enabled` 后注册 `/metrics`。应用 Provider 在 `BootContext::routes` 贡献业务路由；`build_router(&Application) -> Result<Router>` 向请求扩展注入最终 `ApplicationState` 与请求 `Scope`，供 Inject/Auth/RateLimit 使用；经应用路由组合发现的 Axum 冲突转换为 `http_route_registration_failed` 启动错误，直接调用底层 Axum API 不在转换范围 |
 | `site` | `[server].public_dir` 默认 `public`，`tower-http::ServeDir` 将站点目录映射至 URL 根；`root_target` 支持 `file:`、`forward:`、`redirect:`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:`。视图首页在 router 构建时验证模板。D10-C当前修复在所有业务候选均未命中且无方法 miss 时，先将根 GET/HEAD 交站点目标，再考虑用户 fallback/静态首页；默认 `file:/index.html` 保持已有静态优先、缺失时用户 fallback 的组合，同值显式配置不区分来源；业务 handler 的404/405仍为终态，方法 miss 仍沿既有 fallback/Allow 规则。内部转发用私有目的 URI 分派 fallback/静态资源，保留 RequestInfo 的外部 OriginalUri；HEAD站点出口只保留status/headers/extensions并置空drop正文，不poll流或补Content-Length；站点外层middleware短路不在该保证内。默认首页/fallback、内部forward与HEAD修复已通过不同模型审查；v9当前router106项、view-only6项与view-session HTTP7项及适用main门禁实际通过，HEAD元数据/流2项按等价证明复用。fresh普通7项/MySQL认证2项通过，公开consumer1项及最终no-session/MySQL8.4.13 TCP已通过，自有库/端口/敏感文件清理完成，已由 `784045c` 限定提交；默认 `/api/*` 和 `/ws/*` 未匹配请求保留框架 JSON 404，不回落到静态文件；应用显式注册 fallback 后可接管这些未匹配路径，GET/HEAD 先尝试静态资源 |
-| `routes` | `Routes`：`route(RouteMethods)` / `get` / `post` / `put` / `patch` / `delete` / `head` / `options` / `query` / `on` / `any` / `name` / `resource` / `resource_with` / `fallback` / `group(RouteGroup, f)` / `nest(prefix, f)` / `merge` / `layer` / `middleware_alias` / `middleware_group`；每层 router 仅允许一个 fallback，重复注册稳定报错；组内 fallback 限定组前缀并继承组 middleware，保留完整 `OriginalUri`。GET/HEAD 未匹配请求先尝试静态资源，miss 后将原请求完整传给 handler；显式fallback仅GET/HEAD且参与alternate判断，OPTIONS有候选时合成200、Allow及真实Route，其余方法按候选返回405。D7限定子范围已验收。`RouteGroup::domain` 支持继承/覆盖及 domain-first 候选，内部 miss 保留原请求与 body；`DomainParams<T>` 独立提取 DNS 标签，业务 404/405 不会触发二次派发。Host/URI authority 冲突失败关闭，忽略转发 Host。域 URL 使用登记模式与单标签参数，scheme/port 来源为 `app.url`。`BootContext` 可登记可复用 Tower middleware alias 与递归 group，`RouteGroup` 和 `Routes` 按名称引用，未定义/重名/循环显式报错；没有应用注册表时引用会在公开 `Routes::into_router() -> Result<_>` 或 `build_router` 失败，不静默忽略；直接 Tower Layer 入口保留。`RouteGroup` 可组合路径前缀、原样组合 `name_prefix` 并按声明顺序限定 middleware；`nest("")` 或 `"/"` 走 merge；`RouteUrlGenerator` 从 `app.url` 生成具名绝对 URL，不采信请求 Host |
+| `routes` | `Router`：`route(RouteMethods)` / `get` / `post` / `put` / `patch` / `delete` / `head` / `options` / `query` / `on` / `any` / `name` / `resource` / `resource_with` / `fallback` / `group(RouteGroup, f)` / `nest(prefix, f)` / `merge` / `layer` / `middleware_alias` / `middleware_group`；每层 router 仅允许一个 fallback，重复注册稳定报错；组内 fallback 限定组前缀并继承组 middleware，保留完整 `OriginalUri`。GET/HEAD 未匹配请求先尝试静态资源，miss 后将原请求完整传给 handler；显式fallback仅GET/HEAD且参与alternate判断，OPTIONS有候选时合成200、Allow及真实Route，其余方法按候选返回405。D7限定子范围已验收。`RouteGroup::domain` 支持继承/覆盖及 domain-first 候选，内部 miss 保留原请求与 body；`DomainParams<T>` 独立提取 DNS 标签，业务 404/405 不会触发二次派发。Host/URI authority 冲突失败关闭，忽略转发 Host。域 URL 使用登记模式与单标签参数，scheme/port 来源为 `app.url`。`BootContext` 可登记可复用 Tower middleware alias 与递归 group，`RouteGroup` 和 `Router` 按名称引用，未定义/重名/循环显式报错；没有应用注册表时引用会在公开 `Router::into_router() -> Result<_>` 或 `build_router` 失败，不静默忽略；直接 Tower Layer 入口保留。`RouteGroup` 可组合路径前缀、原样组合 `name_prefix` 并按声明顺序限定 middleware；`nest("")` 或 `"/"` 走 merge；`UrlGenerator` 从 `app.url` 生成具名绝对 URL，不采信请求 Host |
 | `route` / `routing` | D7公开`Route` owned快照、`RouteResolver`与`RouteMethods`；`RequestInfo`和`Request`读取真实名称、参数/default与名称通配。默认slot逐请求共享，应用resolver可替换；内置404/405/静态直出无业务Route，业务错误和route middleware短路保留。受管理方法包括QUERY、自定义方法及固定Laravel八种any；原生Axum入口不自动提供上述保证。D7限定子范围已通过完整门禁；可选参数、声明defaults/约束及模型/枚举绑定仍开放 |
 | `resource` | `Resource` 显式登记动作；`#[openrust::resource]` 从 controller inherent impl 的动作关联函数生成实现；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
 | `response` | `Created<T>` → 默认 201（显式 `always_ok` 时为 200），`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 成功包装并省略 `data`；无载荷的错误包装也省略 `data`，已有载荷保持原样；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
@@ -54,14 +54,14 @@ Forwarded quoted-pair解码、IPv6双头的原文本冲突及显式端口不急�
 | `request` 类型读取（C04-B2 已验收） | Request与Fluent复用下层support的data/scalar内核；Stringable、保键Collection、BackedEnum与InputNumber承载类型读取，条件结果明确区分主callback假值回自身与default直接返回。Collection JSON边界拒绝非有限浮点，标量cast仍保留；HTTP trait实现留在HTTP层，无support反向依赖。日期/区间已接公开入口，CalendarContext来自最终app.timezone与现extensions覆盖，每次date读clock；FixedClock对应Carbon test-now、SystemClock使用生产语义，两种参考分列。固定source scanner、POSIX尾规则、格式字节/错误边界与公开入口已通过本簇定向、workspace/feature/MSRV、真实双库、生成应用、TCP和不同模型复审；不代表完整Carbon工具箱或完整C04验收。 |
 | Cookie（C04-C 已验收） | 历史决策 081：独立wire解析、direct-key bag、请求隔离CookieJar、值工厂及现响应组合；队列先附加再复用Encryptor加密，旧key解密/当前key写入、叶名认证、错误与预算边界明确。最终Session配置延迟装配、原始凭据重复检查、可信transport和空domain响应identity已回归；workspace/feature/MSRV/deny/docs、根PG18/MySQL8.4各48项、三个生成项目及真实TLS均通过，证据见[testing](../memory/testing.md)。显式plain不提供保护，不代表完整Laravel web默认栈、Session/flash/CSRF已完成。 |
 | Cookie/Session保护接线（C04-D4限定范围已验收） | Cookie中间件向请求写入无密钥的私有保护事实，Session公开raw context构造不能自报可信；实际认证与最终保存核完整性。Cookie/Session机制自身的prepare/save/保护/预算错误响应统一no-store与pragma no-cache，不搬旧响应Cookie、长度或正文；正常响应不变。真实Router红绿、双库Auth与TLS终止代理/HTTP浏览器证据按[testing](../memory/testing.md)分别记录，D4完整门禁/生成在47cd7b8限定子范围已收口；完整Session仍未完成。 |
-| `extract` | `Inject<T>`（从 `AppState` 取服务，缺失 → 500 包装）；OpenRust `Json<T>` / `Path<T>` / `Query<T>`（解析失败 → 400/415/422/413 包装），`Validated<Json<T>>` / `Validated<Query<T>>`（先解析，规则失败 → 422，嵌套路径 `a.b[0].c`） |
+| `extract` | `Inject<T>`（从 `ApplicationState` 取服务，缺失 → 500 包装）；OpenRust `Json<T>` / `Path<T>` / `Query<T>`（解析失败 → 400/415/422/413 包装），`Validated<Json<T>>` / `Validated<Query<T>>`（先解析，规则失败 → 422，嵌套路径 `a.b[0].c`） |
 | `middleware` | `apply(router, &ServerConfig) -> Result<Router>`：请求 ID → 传播 → `TraceLayer` span（不记录 URI、请求 ID 或 traceparent）→ 可选 CORS → 超时 408 包装 → 可选 gzip/br 压缩 → `CatchPanic` → 500 包装；启用 `metrics` feature 时记录固定方法/状态类别、耗时和在途请求数；404 fallback、405 fallback（保留 `Allow`）、413 包装；启用 CORS 时在组层前逐项校验配置；响应上下文同时建立 request ID/locale/deadline/cancellation 的 `ExecutionContext`，非法 request ID 移除后由 middleware 生成新值 |
 | `rate_limit` | `RateLimitLayer` 显式包裹路由并调用 AppState 中注册的 `RateLimiter`；key 支持可信客户端 IP、（启用 auth 时）已验证用户/匿名回退及自定义策略；store 错误关闭，429 沿用统一错误与 `Retry-After`。未包裹路由、health/fallback 不自动限流 |
-| `fallback` | `Routes::fallback` 仅处理未匹配路由；组级 fallback 限定前缀并遵循组 middleware，GET/HEAD 先查静态资源，保留路径下默认仍返回框架 JSON 404。重复静态完整 scope 稳定报 `http_fallback_duplicate`；参数化/通配符组前缀优先报 `http_fallback_scope_unsupported`，避免 Axum catch-all panic |
+| `fallback` | `Router::fallback` 仅处理未匹配路由；组级 fallback 限定前缀并遵循组 middleware，GET/HEAD 先查静态资源，保留路径下默认仍返回框架 JSON 404。重复静态完整 scope 稳定报 `http_fallback_duplicate`；参数化/通配符组前缀优先报 `http_fallback_scope_unsupported`，避免 Axum catch-all panic |
 | `sort` | `SortParams::parse` 按 历史决策 008 `sort=-created_at,title` 语法解析，限制长度/字段数，拒绝重复、未知或格式错误字段；调用方必须提供字段 allowlist，再显式映射到 SeaORM 列。过滤器应使用 `deny_unknown_fields` 的输入 DTO 并构造显式 `Condition`，输出用响应 DTO 做字段 allowlist |
 | `health` | 独立运维路径 `GET /health` → success `ApiResponse<Health>`，`data.status = "ok"`；`GET /ready` 在 listener 可接流量且依赖探针成功时为 200，否则 503。业务 JSON API 根为 `GET /api`，子路由统一使用 `/api/*` |
 | 并发边界 | `server.max_concurrent_requests` 默认 1024、范围 1..=65536；饱和时快速返回 503，不排队。许可覆盖 response body 到 EOF、读取失败或丢弃；未消费的长流持续占用许可 |
-| `serve` | `serve(&App)` 绑定 `[server] host:port`，收到 SIGINT/SIGTERM 后停止接入并按 `shutdown_timeout_secs` drain；到期取消请求并强制 join server task，返回 `http_shutdown_timeout`；`ServeCommand` |
+| `serve` | `serve(&Application)` 绑定 `[server] host:port`，收到 SIGINT/SIGTERM 后停止接入并按 `shutdown_timeout_secs` drain；到期取消请求并强制 join server task，返回 `http_shutdown_timeout`；`ServeCommand` |
 
 `pub use axum` 供门面 re-export。
 
@@ -72,7 +72,7 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 ## 后续边界
 
 - 路由限流仅覆盖显式包裹的路由；默认不覆盖 health、fallback 或其他能力层。认证限流需确保 `AuthLayer` 在请求方向先执行。
-- `SortParams` 仅负责安全解析，不提供 ORM 字段反射、过滤 DSL 或自动授权；应用仍须按资源授权并将排序/过滤白名单映射到查询。DTO/查询与关联加载示例见 [HTTP README](../../../src/http/README.md)。
+- `SortParams` 仅负责安全解析，不提供 ORM 字段反射、过滤 DSL 或自动授权；应用仍须按资源授权并将排序/过滤白名单映射到查询。DTO/查询与关联加载示例见 [HTTP README](../../../vendor/openrust/framework/src/http/README.md)。
 - OpenAPI schema 与 `/docs`（后续里程碑）；`utoipa` / `utoipa-axum` 尚未引入，统一响应需与生成文档一致。
 - `Readiness::is_ready()` 仍只表示 listener 生命周期；`/ready` 聚合 DatabaseServiceProvider 的已连接池、CacheServiceProvider 已解析的 default/named store 和应用显式注册的依赖探针。具名 cache store 不为健康检查提前建立连接。探针最多注册 64 个、每轮最多并发 16 个、总时限 2 秒，失败只向客户端返回通用 503，并只在日志记录探针名与稳定错误码。此端点不覆盖 gRPC health、WebSocket/SSE、跨节点实时投递或任意应用原生依赖；metrics/OTel 已有专项实现，完整生产就绪验收仍待完成。
 - request ID 只作为队列 request metadata 与 worker span 的日志关联，不表示 W3C trace context/OpenTelemetry span link；gRPC G2 仍须按 历史决策 040 复验 deadline、cancel、locale 与 trace 传播。
@@ -103,9 +103,9 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 固定 framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `Illuminate/Routing/Redirector.php:152–155`：`route` 调用 URL generator 的 `route` 后交给 `to`，默认状态302、头集合为空。Rust `Redirector::route(name: &str, parameters: &BTreeMap<String, String>)` 保留该顺序；`route_with(name, parameters, status, headers)` 提供显式状态与头，最终复用 `to_with` 的校验、Location/HTML规则。
 
-`RequestInfo` 从请求 extensions 捕获可选 `RouteUrlGenerator` clone，共享同应用既有Arc，不复制索引、不引入全局当前请求；后续替换extensions不改变已捕获快照。调用方沿用 `Redirector::from_info/from_request`，返回值保留原请求借用，继续组合 `with_input/only_input/except_input/with_errors`；普通命名重定向无Session亦可用，闪存仍要求Session。缺生成器沿用 `http_route_url_unavailable`，未知名与缺必需参数沿用 `http_named_route_not_found`、`http_route_parameter_missing`，不改既有错误状态。
+`RequestInfo` 从请求 extensions 捕获可选 `UrlGenerator` clone，共享同应用既有Arc，不复制索引、不引入全局当前请求；后续替换extensions不改变已捕获快照。调用方沿用 `Redirector::from_info/from_request`，返回值保留原请求借用，继续组合 `with_input/only_input/except_input/with_errors`；普通命名重定向无Session亦可用，闪存仍要求Session。缺生成器沿用 `http_route_url_unavailable`，未知名与缺必需参数沿用 `http_named_route_not_found`、`http_route_parameter_missing`，不改既有错误状态。
 
-URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍限 `BTreeMap<String, String>`、必需域/路径段和编码后的额外query。PHP mixed/model/enum参数、可选参数与missingNamedRouteResolver未等价实现；action、guest/intended、signed及完整Redirector/L020.02仍开放，无新依赖或ADR。唯一模块与CLI模板已接真实调用，v2定向、双严格Clippy、main11项、最终构建、fresh普通7项、MySQL8.4.13认证2项及公开helper1项、无Session/MySQL真实TCP均已通过限定验收；提交见Git，见[当前验收](../memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。
+URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍限 `BTreeMap<String, String>`、必需域/路径段和编码后的额外query。PHP mixed/model/enum参数、可选参数与missingNamedRouteResolver未等价实现；action、guest/intended、signed及完整Redirector/L020.02仍开放，无新依赖或ADR。唯一模块与CLI模板已接真实调用，v2定向、双严格Clippy、main11项、最终构建、fresh普通7项、MySQL8.4.13认证2项及公开helper1项、无Session/MySQL真实TCP均已通过限定验收；提交见Git，见[当前验收](../memory/testing.md#c04-d10-d-命名路由重定向限定子范围已验收提交见git)。
 
 
 ## C04-D10-E scheme 与 intended（限定子范围已验收，提交见Git）
@@ -114,7 +114,7 @@ URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍�
 
 固定上游的生产顺序为 guest 先保存再构造响应，intended 先 pull 再转换与构造，失败不撤销既有保存或消费。GET、真实路由、非 `expects_json` 使用完整请求 URL，其余使用 previous；Session truthy previous 保留 JSON 原值，Referer/fallback 经 URL 生成，back 直接响应 previous，不再二次绝对化。缺失使用默认值，显式 null/false/零与空值保持各自语义；数组/对象在消费后返回错误。JSON 对象对应关联数组，不宣称支持任意 PHP Stringable 对象。
 
-唯一模块与生成 helper 已真实接入并验收：定向10/main11、新server/CLI构建、fresh普通7、MySQL8.4.13认证2及额外公开helper1、无Session/MySQL真实TCP4/9场景通过。独立源码/最小修复/验收驱动复审均无剩余问题，Clippy首轮与生成根URL fixture旧失败保留；最后仅模板+快照字面量修复，按固定输入证明复用不受影响运行门禁，新CLI和fresh生成实际重验。资源收尾已完成，限定提交见Git，不关闭完整Redirector/L020.02；[当前证据](../memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
+唯一模块与生成 helper 已真实接入并验收：定向10/main11、新server/CLI构建、fresh普通7、MySQL8.4.13认证2及额外公开helper1、无Session/MySQL真实TCP4/9场景通过。独立源码/最小修复/验收驱动复审均无剩余问题，Clippy首轮与生成根URL fixture旧失败保留；最后仅模板+快照字面量修复，按固定输入证明复用不受影响运行门禁，新CLI和fresh生成实际重验。资源收尾已完成，限定提交见Git，不关闭完整Redirector/L020.02；[当前证据](../memory/testing.md#c04-d10-e-scheme-与-guestintended限定子范围已验收)。
 
 
 ## C04-D10-F refresh 与 away（限定子范围已验收，提交见Git）
@@ -126,7 +126,7 @@ URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍�
 
 ## C04-D10-G 动作身份与 action URL（限定子范围已验收，提交见Git）
 
-`RouteAction`保留字符串与二元组形态；`get_action/on_action`将动作身份与真实handler同次登记，`Route::action`反映真实匹配元数据。组namespace影响声明规范化，Boot默认根namespace与生成器单实例setter影响查询；clone和已捕获请求的namespace独立，索引保持不可变共享。`RouteUrlGenerator::action`与named route复用域/路径/query渲染，匿名动作应用也装配生成器；`Redirector::action/action_with`先生成再构造响应，延续无Session普通跳转和原请求借用闪存链。
+`RouteAction`保留字符串与二元组形态；`get_action/on_action`将动作身份与真实handler同次登记，`Route::action`反映真实匹配元数据。组namespace影响声明规范化，Boot默认根namespace与生成器单实例setter影响查询；clone和已捕获请求的namespace独立，索引保持不可变共享。`UrlGenerator::action`与named route复用域/路径/query渲染，匿名动作应用也装配生成器；`Redirector::action/action_with`先生成再构造响应，延续无Session普通跳转和原请求借用闪存链。
 
 固定PHP实际集合探针7+2案只证明集合索引边界：完整原始拼接键覆盖、声明方法顺序、域优先左侧union及前导反斜线不对称。请求分派仍有结构化(domain,path)与PHP碰撞隐藏路由的差异，见历史决策 083及[todo](../todo.md)；混合/位置/模型参数、可选段、relative及完整Controller/URLGenerator未完成。字符串动作空成员边界已修并经不同模型delta复审关闭；最终核心11项在两feature组合、router117/113、双严格Clippy及main11项通过，默认824/34ignored、全特性1611/108ignored，ignored不算真实服务。新server/CLI、fresh普通7/MySQL认证2+公开helper1及真实TCP10/15均实际通过，精确专属包清理完成；原错误fixture/lint/gRPC及生成前置失败保持原记录，范围与复用见[当前证据](../memory/testing.md#c04-d10-g-动作身份与-action-url限定子范围已验收提交见git)。不据此关闭完整L020.02。
 

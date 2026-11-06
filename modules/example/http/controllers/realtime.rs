@@ -2,7 +2,7 @@
 
 use crate::modules::example::models::article;
 use openrust::auth::{CurrentUser, authenticate_access_credential};
-use openrust::db::sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use openrust::database::sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use openrust::http::Path;
 use openrust::http::axum::{
     http::{HeaderMap, header},
@@ -14,7 +14,7 @@ use openrust::{Error, Result};
 use std::time::Duration;
 
 struct ArticleAccessValidator {
-    state: openrust::core::AppState,
+    state: openrust::foundation::ApplicationState,
     db: Db,
     user_id: i64,
     article_id: i64,
@@ -32,7 +32,7 @@ impl openrust::realtime::RealtimeValidator for ArticleAccessValidator {
     }
 }
 pub(super) fn article_access_validator(
-    state: openrust::core::AppState,
+    state: openrust::foundation::ApplicationState,
     db: Db,
     user_id: i64,
     article_id: i64,
@@ -93,7 +93,7 @@ pub(crate) async fn events(
     headers: HeaderMap,
     Inject(db): Inject<Db>,
     openrust::http::axum::Extension(state): openrust::http::axum::Extension<
-        openrust::core::AppState,
+        openrust::foundation::ApplicationState,
     >,
     Inject(realtime): Inject<Realtime>,
     Path(id): Path<i64>,

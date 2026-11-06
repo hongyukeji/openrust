@@ -14,10 +14,15 @@ use super::services::{attachments::ArticleAttachments, tenant::TENANT_QUEUE};
 use futures_util::{FutureExt, StreamExt};
 use openrust::Db;
 use openrust::cache::Cache;
-use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait};
+use openrust::database::sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait,
+};
+use openrust::filesystem::FilesystemManager;
+use openrust::filesystem::StoragePath;
+use openrust::filesystem::StorageReader;
+use openrust::filesystem::UploadOptions;
 use openrust::http::axum::{body::Body, http::StatusCode};
 use openrust::queue::Queue;
-use openrust::storage::{Storage, StoragePath, StorageReader, UploadOptions};
 use openrust::tenant::{TenantContext, TenantId};
 use std::time::Duration;
 
@@ -106,7 +111,7 @@ async fn run_checks(fixture: &Fixture, a: &HttpServer, b: &HttpServer) -> TestRe
         .a
         .app()?
         .state()
-        .resolve::<Storage>()
+        .resolve::<FilesystemManager>()
         .await?
         .default_disk()
         .await?;
@@ -318,7 +323,12 @@ async fn read_object(mut reader: StorageReader) -> TestResult<Vec<u8>> {
     Ok(body)
 }
 async fn cleanup_known(fixture: &Fixture, require_control: bool) -> TestResult {
-    let storage = fixture.b.app()?.state().resolve::<Storage>().await?;
+    let storage = fixture
+        .b
+        .app()?
+        .state()
+        .resolve::<FilesystemManager>()
+        .await?;
     let disk = storage.default_disk().await?;
     let cache = fixture.b.app()?.state().resolve::<Cache>().await?;
     let cache_key = "example:tenant:record:1";

@@ -1,7 +1,7 @@
 //! 文章 API 的公开业务字段；所有者 ID 不作为响应正文泄露。
 
 use crate::modules::example::models::article;
-use openrust::db::sea_orm::QueryResult;
+use openrust::database::sea_orm::QueryResult;
 use openrust::{Error, Result};
 
 #[derive(serde::Serialize)]

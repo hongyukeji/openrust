@@ -4,14 +4,16 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::{App, BoxFuture, Result as FrameworkResult};
+use openrust::core::Result as FrameworkResult;
 use openrust::database::{
     DatabaseServiceProvider, Db,
     sea_orm::Statement,
     sea_orm_migration::{MigrationTrait, MigratorTrait},
 };
+use openrust::foundation::Application;
 use openrust::queue::{Job, JobContext, QueueMigration, QueueServiceProvider};
 use openrust::schedule::Scheduler;
+use openrust::support::BoxFuture;
 use sea_orm::ConnectionTrait;
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -35,7 +37,7 @@ impl Job for TickJob {
     }
 }
 
-async fn build_app(url: &str) -> FrameworkResult<App> {
+async fn build_app(url: &str) -> FrameworkResult<Application> {
     let source = format!("[database]\nurl = {url:?}\n");
     let figment = Figment::new().merge(Toml::string(&source));
     let queue_plugin = QueueServiceProvider::new();
@@ -51,14 +53,14 @@ async fn build_app(url: &str) -> FrameworkResult<App> {
         FrameworkConfig::default(),
     ))
     .merge(figment);
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(queue_plugin);
     builder
         .start(sources)
         .await
-        .and_then(openrust::App::from_provider_runtime)
+        .and_then(openrust::Application::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -229,7 +231,7 @@ struct TriggerObservations {
     cleaned: tokio::sync::Notify,
     ids: std::sync::Mutex<Vec<usize>>,
     queued: std::sync::Mutex<Vec<(String, serde_json::Value)>>,
-    state: std::sync::Mutex<Option<openrust::core::AppState>>,
+    state: std::sync::Mutex<Option<openrust::foundation::ApplicationState>>,
 }
 struct TriggerValue(usize);
 struct TriggerDriver(
@@ -307,7 +309,7 @@ impl openrust::queue::QueueDriver for TriggerDriver {
     fn run_next_with_state<'a>(
         &'a self,
         _: &'a str,
-        state: &'a openrust::core::AppState,
+        state: &'a openrust::foundation::ApplicationState,
     ) -> BoxFuture<'a, FrameworkResult<bool>> {
         Box::pin(async move {
             let task = self
@@ -356,11 +358,11 @@ impl Job for TriggeredJob {
     }
 }
 struct TriggerProvider(std::sync::Arc<TriggerObservations>);
-impl openrust::core::ServiceProvider for TriggerProvider {
+impl openrust::support::ServiceProvider for TriggerProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut openrust::core::RegisterContext<'_>,
-    ) -> openrust::core::BoxFuture<'a, FrameworkResult<()>> {
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, FrameworkResult<()>> {
         Box::pin(async move {
             let observations = std::sync::Arc::clone(&self.0);
             app.instance(std::sync::Arc::clone(&observations)).await?;
@@ -422,12 +424,12 @@ async fn each_due_slot_uses_and_closes_its_own_scope() -> Result<(), Box<dyn std
         "[database]\nurl = {:?}\n[queue]\ndefault = 'default'\n[queue.connections.default]\ndriver = 'trigger-test'\n",
         database.url()
     )));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(queue)
         .provider(TriggerProvider(Arc::clone(&observations)));
-    let app = App::from_provider_runtime(builder.start(source).await?)?;
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
     *observations.state.lock().map_err(|_| "test lock")? = Some(app.state().clone());
     let scheduler = app.state().resolve::<Scheduler>().await?;
     let metadata = openrust::core::ExecutionMetadata::default()
@@ -501,12 +503,12 @@ async fn failed_and_cancelled_trigger_close_scoped_resources()
         "[database]\nurl = {:?}\n[queue]\ndefault = 'default'\n[queue.connections.default]\ndriver = 'trigger-test'\n",
         database.url()
     )));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(queue)
         .provider(TriggerProvider(Arc::clone(&observations)));
-    let app = App::from_provider_runtime(builder.start(source).await?)?;
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
     *observations.state.lock().map_err(|_| "test lock")? = Some(app.state().clone());
     let scheduler = app.state().resolve::<Scheduler>().await?;
     observations.mode.store(1, Ordering::SeqCst);
@@ -568,12 +570,12 @@ async fn database_scheduled_jobs_use_distinct_attempt_scopes()
         "[database]\nurl = {:?}\n",
         database.url()
     )));
-    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
         .provider(provider)
         .provider(TriggerProvider(Arc::clone(&observations)));
-    let app = App::from_provider_runtime(builder.start(source).await?)?;
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
     let root = app.state().resolve::<TriggerValue>().await?;
     let scheduler = app.state().resolve::<Scheduler>().await?;
     let metadata = openrust::core::ExecutionMetadata::default()

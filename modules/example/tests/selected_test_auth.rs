@@ -1,8 +1,8 @@
 //! 旧协议夹具复用真实应用迁移和密码凭据；不构造或伪造因子证明。
 #[cfg(feature = "auth-fortify")]
 use openrust::Error;
-use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
-use openrust::{App, Result};
+use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+use openrust::{Application, Result};
 
 pub(super) fn migrations() -> Vec<Box<dyn MigrationTrait>> {
     #[cfg(feature = "auth-fortify")]
@@ -11,13 +11,13 @@ pub(super) fn migrations() -> Vec<Box<dyn MigrationTrait>> {
     }
     #[cfg(not(feature = "auth-fortify"))]
     {
-        openrust::db::FrameworkMigrator::migrations()
+        openrust::database::FrameworkMigrator::migrations()
     }
 }
 
 /// 为隔离协议夹具显式准备测试密码，再经正式密码登录取得受管凭据。
 /// 只供不测试密码本身的夹具使用；已有用户的非空邮箱、禁用及其它业务属性保持。
-pub(super) async fn seeded_password_access(app: &App, id: i64) -> Result<String> {
+pub(super) async fn seeded_password_access(app: &Application, id: i64) -> Result<String> {
     #[cfg(feature = "auth-fortify")]
     {
         let db = app.state().resolve::<openrust::Db>().await?;

@@ -2,7 +2,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::db::{
+use crate::database::{
     DatabaseTableNames, dialect,
     sea_orm::{DbBackend, sea_query::Alias},
     sea_orm_migration::prelude::*,
@@ -73,7 +73,7 @@ impl MigrationName for FortifyTwoFactorMigration {
     }
 }
 
-#[crate::db::sea_orm_migration::async_trait::async_trait]
+#[crate::database::sea_orm_migration::async_trait::async_trait]
 impl MigrationTrait for FortifyTwoFactorMigration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let backend = manager.get_database_backend();

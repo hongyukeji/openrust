@@ -15,10 +15,10 @@ use jsonwebtoken::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{
-    config::ConfigError,
-    core::{BoxFuture, Error, Result},
-};
+use crate::config::ConfigError;
+use crate::core::Error;
+use crate::core::Result;
+use crate::support::BoxFuture;
 
 pub use crate::config::SignedLinksConfig;
 
@@ -143,7 +143,7 @@ impl SignedLinks {
 
     /// 添加 PostgreSQL/MySQL 共享数据库撤销存储。
     #[must_use]
-    pub fn with_database_revocations(self, db: crate::db::Db) -> Self {
+    pub fn with_database_revocations(self, db: crate::database::Db) -> Self {
         self.with_revocation_store(DatabaseSignedLinkRevocationStore::new(db))
     }
     /// 为用途和主体均绑定的链接签名，并使用调用方指定的有效期。
@@ -253,7 +253,7 @@ impl SignedLinks {
 #[derive(Default)]
 pub struct SignedLinksServiceProvider {
     config: Option<SignedLinksConfig>,
-    database: Option<crate::db::Db>,
+    database: Option<crate::database::Db>,
     database_from_app: bool,
     revocations: Option<Arc<dyn SignedLinkRevocationStore>>,
 }
@@ -278,7 +278,7 @@ impl SignedLinksServiceProvider {
     }
     /// 使用指定数据库启用撤销。
     #[must_use]
-    pub fn with_database_revocations(mut self, db: crate::db::Db) -> Self {
+    pub fn with_database_revocations(mut self, db: crate::database::Db) -> Self {
         self.database = Some(db);
         self
     }
@@ -290,11 +290,11 @@ impl SignedLinksServiceProvider {
     }
 }
 
-impl crate::core::ServiceProvider for SignedLinksServiceProvider {
+impl crate::support::ServiceProvider for SignedLinksServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             use crate::config::repository::SectionSchema as S;
             if self.config.is_none() {
@@ -334,7 +334,7 @@ impl crate::core::ServiceProvider for SignedLinksServiceProvider {
                         db.backend()?;
                         service = service.with_database_revocations(db);
                     } else if database_from_app {
-                        let db = resolver.resolve::<crate::db::Db>().await?;
+                        let db = resolver.resolve::<crate::database::Db>().await?;
                         db.backend()?;
                         service = service.with_database_revocations((*db).clone());
                     }
@@ -346,7 +346,10 @@ impl crate::core::ServiceProvider for SignedLinksServiceProvider {
             Ok(())
         })
     }
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<SignedLinks>().await?;
             Ok(())
@@ -357,7 +360,9 @@ impl crate::core::ServiceProvider for SignedLinksServiceProvider {
 #[cfg(test)]
 mod provider_tests {
     use super::*;
-    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use crate::foundation::BootContext;
+    use crate::foundation::ProviderBuilder;
+    use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
     struct BadOverlay;
@@ -505,18 +510,18 @@ impl std::error::Error for SigningFailure {}
 /// 基于 PostgreSQL/MySQL 的签名链接共享撤销存储。
 #[derive(Clone)]
 pub struct DatabaseSignedLinkRevocationStore {
-    db: crate::db::Db,
+    db: crate::database::Db,
 }
 
 impl DatabaseSignedLinkRevocationStore {
     /// 使用应用的共享数据库和表名解析器创建存储。
-    pub fn new(db: crate::db::Db) -> Self {
+    pub fn new(db: crate::database::Db) -> Self {
         Self { db }
     }
 
     /// 删除最多 `limit` 条已过期的撤销记录，并返回实际删除数量。
     pub async fn purge_expired(&self, limit: u64) -> Result<u64> {
-        use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+        use crate::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
         if !(1..=1000).contains(&limit) {
             return Err(Error::BadRequest(
                 "signed-link cleanup limit must be between 1 and 1000".into(),
@@ -555,7 +560,7 @@ impl DatabaseSignedLinkRevocationStore {
 impl SignedLinkRevocationStore for DatabaseSignedLinkRevocationStore {
     fn revoke<'a>(&'a self, token_hash: &'a str, expires_at: u64) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+            use crate::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
             let connection = self.db.connection()?;
             let backend = connection.get_database_backend();
             let table = self.db.quoted_table_name("signed_link_revocations")?;
@@ -589,7 +594,7 @@ impl SignedLinkRevocationStore for DatabaseSignedLinkRevocationStore {
     }
     fn is_revoked<'a>(&'a self, token_hash: &'a str) -> BoxFuture<'a, Result<bool>> {
         Box::pin(async move {
-            use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+            use crate::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
             let connection = self.db.connection()?;
             let backend = connection.get_database_backend();
             let table = self.db.quoted_table_name("signed_link_revocations")?;
@@ -632,7 +637,8 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
 
     use super::{SignedLinkRevocationStore, SignedLinks, SignedLinksConfig};
-    use crate::core::{BoxFuture, Result};
+    use crate::core::Result;
+    use crate::support::BoxFuture;
 
     #[derive(Clone, Default)]
     struct Revocations(Arc<Mutex<Vec<String>>>);

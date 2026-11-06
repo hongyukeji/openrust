@@ -5,16 +5,18 @@ use std::{fmt, sync::Arc};
 use chrono::Utc;
 use zeroize::Zeroizing;
 
-use crate::{
-    Error, Result,
-    auth::{
-        AuthUser, FactorManagementContext, FactorReceipt, FactorVerificationMethod, UserProvider,
-    },
-    core::error::ValidationErrors,
-    db::{DatabaseTransaction, Db},
-    events::Events,
-    security::Encryptor,
-};
+use crate::Error;
+use crate::Result;
+use crate::auth::AuthUser;
+use crate::auth::FactorManagementContext;
+use crate::auth::FactorReceipt;
+use crate::auth::FactorVerificationMethod;
+use crate::auth::UserProvider;
+use crate::core::error::ValidationErrors;
+use crate::database::DatabaseTransaction;
+use crate::database::Db;
+use crate::encryption::Encrypter;
+use crate::events::Events;
 
 use super::authority::{FactorAuthorityMutation, FactorAuthoritySnapshot};
 use super::{
@@ -154,8 +156,8 @@ impl ManagementEvent {
 #[derive(Clone)]
 pub struct TwoFactorActions {
     pub(super) provider: Arc<dyn TwoFactorAuthenticationProvider>,
-    default_encrypter: Encryptor,
-    explicit_encrypter: Option<Encryptor>,
+    default_encrypter: Encrypter,
+    explicit_encrypter: Option<Encrypter>,
     management_context: Option<(FactorManagementContext, bool)>,
     management_audit: Option<Arc<dyn super::api_audit::ApiFactorManagementAuditSink>>,
     pub(super) options: TwoFactorOptions,
@@ -174,7 +176,7 @@ impl fmt::Debug for TwoFactorActions {
 }
 
 impl TwoFactorActions {
-    pub(super) fn default_encrypter(&self) -> Encryptor {
+    pub(super) fn default_encrypter(&self) -> Encrypter {
         self.explicit_encrypter
             .clone()
             .unwrap_or_else(|| self.default_encrypter.clone())
@@ -183,7 +185,7 @@ impl TwoFactorActions {
     /// 创建包回退动作；发布配置需显式传入安装选项。
     pub fn new(
         provider: Arc<dyn TwoFactorAuthenticationProvider>,
-        encrypter: Encryptor,
+        encrypter: Encrypter,
         events: Events,
     ) -> Self {
         Self {
@@ -269,7 +271,7 @@ impl TwoFactorActions {
 
     /// 对应Fortify显式加密器，优先于模型和默认Crypt。
     #[must_use]
-    pub fn with_encrypter(mut self, encrypter: Encryptor) -> Self {
+    pub fn with_encrypter(mut self, encrypter: Encrypter) -> Self {
         self.explicit_encrypter = Some(encrypter);
         self
     }
@@ -346,7 +348,7 @@ impl TwoFactorActions {
         actions
     }
 
-    pub(super) fn encrypter(&self, model: &dyn TwoFactorAuthenticatable) -> Encryptor {
+    pub(super) fn encrypter(&self, model: &dyn TwoFactorAuthenticatable) -> Encrypter {
         self.explicit_encrypter
             .clone()
             .or_else(|| model.two_factor_encrypter())
@@ -529,7 +531,7 @@ impl TwoFactorActions {
             .await
     }
 
-    fn new_recovery_codes(&self, encrypter: &Encryptor) -> Result<String> {
+    fn new_recovery_codes(&self, encrypter: &Encrypter) -> Result<String> {
         let codes = Zeroizing::new(
             (0..8)
                 .map(|_| (self.recovery_generator)())
@@ -666,7 +668,7 @@ pub(super) async fn replace(
     Ok(())
 }
 
-pub(super) fn decrypt_string(encrypter: &Encryptor, ciphertext: &str) -> Result<Zeroizing<String>> {
+pub(super) fn decrypt_string(encrypter: &Encrypter, ciphertext: &str) -> Result<Zeroizing<String>> {
     let plaintext = Zeroizing::new(encrypter.decrypt(ciphertext)?);
     String::from_utf8(plaintext.to_vec())
         .map(Zeroizing::new)

@@ -3,8 +3,8 @@
 use std::fmt;
 
 use crate::core::{Error, Result};
-use crate::db::sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, Statement};
-use crate::db::{DatabaseConnection, Db};
+use crate::database::sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, Statement};
+use crate::database::{DatabaseConnection, Db};
 
 use crate::auth::CurrentUser;
 
@@ -393,7 +393,7 @@ mod scope_tests {
     #[cfg(feature = "db-sqlite")]
     use crate::auth::{AuthMigration, AuthPolicyMigration};
     #[cfg(feature = "db-sqlite")]
-    use crate::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use crate::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
     #[cfg(feature = "db-sqlite")]
     use crate::testing::TestDatabase;
 
@@ -474,7 +474,7 @@ mod scope_tests {
         let outcome: Result<()> = async {
             let db = Db::default();
             db.initialize(database.connection()?)?;
-            let now: crate::db::sea_orm::Value = "2026-11-04 00:00:00.000000".into();
+            let now: crate::database::sea_orm::Value = "2026-11-04 00:00:00.000000".into();
             db.table("users")?
                 .insert(vec![
                     ("id", 42.into()),

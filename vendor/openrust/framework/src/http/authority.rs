@@ -1,6 +1,6 @@
 //! 域路由与请求检查共用的 Host/URI authority 校验。
 
-use crate::http::domain::DomainPattern;
+use crate::routing::domain::DomainPattern;
 use axum::http::{StatusCode, header::HOST};
 
 pub(crate) fn authority(

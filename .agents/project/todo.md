@@ -648,7 +648,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 1. 复用 R2-B 的 Container、Scope、ResourceOwner 与 ExecutionContext；HTTP 已有请求 scope/Body 关闭，只补实际缺失的后台任务与取消边界。
 2. 一次命令、一次队列 attempt、一次 scheduler 触发各建独立 scope；成功、错误、超时、取消均封闭解析并执行有界回收，App 可连续运行多个命令。
-3. `Scope::run` 仅在当前 future 安装与所属 Container 匹配的 task-local scope；`AppState::resolve` 只在匹配时取该 scope，普通 `tokio::spawn` 不继承它。
+3. `Scope::run` 仅在当前 future 安装与所属 Container 匹配的 task-local scope；`ApplicationState::resolve` 只在匹配时取该 scope，普通 `tokio::spawn` 不继承它。
 4. `Scope::spawn` 使用同一 ResourceOwner 管理任务，显式传递允许的 ExecutionMetadata、预算和取消；关闭时取消/join，禁止跨入口继承身份或已关闭 scope。
 5. Queue 的 `JobContext::service` 优先本次 attempt scope，worker 与自定义 driver 都经实际 handler 入口建 scope；retry 必须得到新实例，租约失败和超时也清理。
 6. Scheduler 每次触发才进入 scope，不把任务服务缓存进 Scheduler singleton；命令自身 scope 与任务触发 scope 分离。
@@ -660,7 +660,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 状态：生产与测试共用 Provider 构建路径、示例和生成应用已接入；默认/全特性、真实双库与 Redis 回归及 MSRV 门禁见 [R2-D 测试证据](memory/testing.md#r2-d-testapp-验收证据)。本簇完成后继续 R2-M，不把 TestApp 当模块系统或 CRUD 已交付。all-features workspace 一次 fixture 启动 `internal_error` 的原因仍未证实，保留日志及安全阶段诊断。
 
-1. 复用生产 `Application::providers` 清单、CoreCommands、应用配置绑定及唯一 `ProviderBuilder::start`；测试显式传 Figment，不修改全局环境或工作目录。
+1. 复用生产 `ApplicationDefinition::providers` 清单、CoreCommands、应用配置绑定及唯一 `ProviderBuilder::start`；测试显式传 Figment，不修改全局环境或工作目录。
 2. 在清单排序前允许按具体 ProviderId 移除；仍执行依赖检查，被移除模块不得注册、启动或贡献路由。
 3. 全体 `register` 完成后、容器封口前执行一次类型化绑定覆盖，支持 instance/singleton/scoped；任意 `boot` 都看到最终绑定，不建第二服务表。
 4. `TestApp` 持有真实 App 与 Router，`request` 走生产 build_router/oneshot；响应正文有字节上限和截止时间，断言错误不回显敏感值。
@@ -677,7 +677,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 2. 仅启用模块按 priority 升序稳定排列，模块内 Provider 保持声明顺序；不凭 priority 重排依赖图，显式 Provider 依赖继续由唯一清单检查。
 3. 全体 Provider 共用原 Container 的 register 屏障；模块配置在声明的配置 Provider boot 时点逐文件调用唯一仓储 overlay，不能统一提前，模块值胜、数字数组逐索引替换并保留尾部，前序读取不追溯。
 4. 启用模块才贡献路由、配置、资源与迁移；名称/资源/路由冲突在 Ready 前失败，已登记资源走原启动失败有界回收，不新建模块服务表或第二启动器。
-5. `Application` 与 `ProviderBuilder` 共用编译描述和启用快照入口；禁用只影响下一次 App 构建，当前 App 不热卸载、不回滚迁移或删除源码。
+5. `ApplicationDefinition` 与 `ProviderBuilder` 共用编译描述和启用快照入口；禁用只影响下一次 App 构建，当前 App 不热卸载、不回滚迁移或删除源码。
 6. 将唯一现有示例完整迁至 `modules/example/`，根只保留通用编译声明/清单；示例真实 HTTP、TestApp 替换/移除、数据库迁移及资源经公开模块入口执行。
 7. 验收模块排序/依赖/配置时序与冲突/失败、临时第二模块无需改框架 src、禁用后的真实 HTTP，以及 PostgreSQL 18/MySQL 8.4、生成应用和适用全门禁。
 8. 模块状态写入、管理命令、生成、发布与完整 B 矩阵归 R13/后继，不把静态 Rust 编译声明称为 PHP 源码热发现。
@@ -687,7 +687,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 状态：已验收并提交 `bc3fa01`；本节保留该簇规格与边界。复用唯一 `modules/example`、现有 Provider/Db/Auth/HTTP 能力，不新增框架业务内核。
 
 1. 新增有所有者的 Article 业务实体、模块迁移及 SeaORM model；仅在数据库和认证能力就绪时挂载 `/api/example/articles`。
-2. 通过公开 `CurrentUser`、`AuthLayer`、`Validated`/`Json`、`Db` 和 `Routes` 实现列表、详情、新增、更新、删除，业务数据仍只属于 `modules/example`。
+2. 通过公开 `CurrentUser`、`AuthLayer`、`Validated`/`Json`、`Db` 和 `Router` 实现列表、详情、新增、更新、删除，业务数据仍只属于 `modules/example`。
 3. 请求验证标题/正文和有界页码、每页数量；查询和写入按当前账户所有者约束，别人的记录按未找到处理，写操作走主库事务。
 4. 返回真实持久化模型的资源 DTO；列表提供稳定排序、分页总数，详情/新增/更新/删除和错误响应保持现有 API envelope 语义。
 5. PostgreSQL 18/MySQL 8.4 分别用隔离库和真实 TCP HTTP 覆盖完整 CRUD、无效输入、跨账户访问、分页、删除后 404 与事务失败不留部分状态。
@@ -735,11 +735,11 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 ## 当前 R3-C Spec：命名路由与具名 URL 生成
 
-状态：已完成适用验收并由 `801ca4e` 限定提交。对齐 Laravel 13 `Named Routes` 与 `URLs for Named Routes`；名字唯一、可跨路径调整使用，并支持路径参数和额外 query 参数。来源：[Laravel Routing](https://laravel.com/framework/docs/13.x/routing)、[Laravel URL Generation](https://laravel.com/framework/docs/13.x/urls)。
+状态：已完成适用验收并由 `801ca4e` 限定提交。对齐 Laravel 13 `Named Router` 与 `URLs for Named Router`；名字唯一、可跨路径调整使用，并支持路径参数和额外 query 参数。来源：[Laravel Routing](https://laravel.com/framework/docs/13.x/routing)、[Laravel URL Generation](https://laravel.com/framework/docs/13.x/urls)。
 
-1. 在 `Routes` 注册 API 上提供紧邻路由定义的 `.name("users.show")`，记录所属 HTTP route 与完整嵌套 prefix；group 可增加 Laravel 式 name prefix，并按 Laravel 原样字符串拼接（例如 `admin.` + `users.` + `show` → `admin.users.show`）。
+1. 在 `Router` 注册 API 上提供紧邻路由定义的 `.name("users.show")`，记录所属 HTTP route 与完整嵌套 prefix；group 可增加 Laravel 式 name prefix，并按 Laravel 原样字符串拼接（例如 `admin.` + `users.` + `show` → `admin.users.show`）。
 2. 重复名称和不受支持的路由模式（通配符、空路径段）在 router build 阶段报错；未知名称、缺失参数和无法安全编码的值返回稳定框架错误并按 Laravel URL generation exception 映射为 500，不 panic、不静默替换。
-3. 提供公开 `RouteUrlGenerator` 从名字生成绝对 URL；host/scheme 以 `app.url` 为来源，不信任请求 Host。必需 route 参数进行单段百分号编码，其余参数成为有序 query；仅支持必需 `{parameter}` 段，不声称可选参数、通配参数或模型绑定已完成。具名路径仅剥离单层首尾 `/`；空段保留并于启动时报错。
+3. 提供公开 `UrlGenerator` 从名字生成绝对 URL；host/scheme 以 `app.url` 为来源，不信任请求 Host。必需 route 参数进行单段百分号编码，其余参数成为有序 query；仅支持必需 `{parameter}` 段，不声称可选参数、通配参数或模型绑定已完成。具名路径仅剥离单层首尾 `/`；空段保留并于启动时报错。
 4. 生成器由生产 `build_router`/应用 HTTP 请求路径公开供 handler 使用，并可在 `modules/example` 的链接/响应代码演示；生成应用应可用同一 API。
 5. 黑盒测试覆盖 path 更换不影响名字调用、嵌套 name prefix 与 path prefix、参数编码/缺失、额外 query、绝对 base URL、安全 Host 边界、重复名称启动失败；更新 HTTP Rustdoc、用户 README、core/http 与完整测试记录。
 6. 按 §6.3 执行 fmt、默认/all-features workspace clippy/test/doc、deny、MSRV/no-default、生成项目 check/test 与真实 HTTP。路由变更不依赖数据库，不为无关路径重复双库验收。
@@ -749,16 +749,16 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 状态：已完成并限定本地提交。依据 Laravel 13 Middleware：应用在启动时注册 middleware alias 与 named groups，路由/路由组按名称引用；group 成员按声明顺序展开。OpenRust 使用 Provider boot API 注册，通过类型安全的 Tower `Layer` 闭包保留 Rust 扩展方式。
 
 1. `BootContext` 提供 middleware alias/group 注册入口；重复、无效名称与 alias/group 同名冲突返回稳定启动错误。定义可以由不同 Provider 声明，所有注册完成后统一用于 router 构建。
-2. `RouteGroup` 与 `Routes` 提供 named middleware 使用入口；group 可嵌套，名称递归展开，按声明顺序执行且响应逆序；现有直接 Tower Layer API 保留。
+2. `RouteGroup` 与 `Router` 提供 named middleware 使用入口；group 可嵌套，名称递归展开，按声明顺序执行且响应逆序；现有直接 Tower Layer API 保留。
 3. 未知引用、循环 group 与空 group 在 `build_router` 前明确失败，不 panic、不静默忽略；middleware 不会应用于用户未选择的路由，也不改变框架内建全局 stack。
 4. 在 `modules/example` 通过自定义 middleware alias/group 展示“业务 Provider 登记、业务路由引用”，至少一个真实 HTTP 断言证明只命中目标路由及顺序；生成项目可编译并通过 TestApp 行为测试。
-5. 更新框架 HTTP README/Rustdoc、示例文档、core/http、CHANGELOG、context/plan/progress、testing；执行默认/all-features workspace Clippy/tests/docs、fmt、deny、MSRV/no-default、生成项目检查与实际 HTTP，无数据库路径改变时不虚构双库必要性。无注册表引用会 fail closed，`Routes::into_router()` 检查路由/middleware错误；全功能已按以上要求验证。
+5. 更新框架 HTTP README/Rustdoc、示例文档、core/http、CHANGELOG、context/plan/progress、testing；执行默认/all-features workspace Clippy/tests/docs、fmt、deny、MSRV/no-default、生成项目检查与实际 HTTP，无数据库路径改变时不虚构双库必要性。无注册表引用会 fail closed，`Router::into_router()` 检查路由/middleware错误；全功能已按以上要求验证。
 
 上游依据：[Laravel Middleware](https://laravel.com/framework/docs/13.x/middleware#middleware-groups)、[Middleware Aliases](https://laravel.com/framework/docs/13.x/middleware#middleware-aliases)。
 
 ## 当前 R3-E Spec：Laravel fallback routes
 
-1. `Routes::fallback(handler)` 注册应用级未匹配请求处理器；它只处理没有匹配路由的请求，既有路径上的方法不匹配仍返回 405。
+1. `Router::fallback(handler)` 注册应用级未匹配请求处理器；它只处理没有匹配路由的请求，既有路径上的方法不匹配仍返回 405。
 2. `RouteGroup` 可限定 fallback 的静态路径前缀与 middleware；同一完整 scope 不接受多个 fallback，启动/公开 router 构建须返回稳定错误，不 panic 或静默覆盖。Axum 对参数化/通配符前缀 fallback 会产生 catch-all 冲突，当前返回稳定 `http_fallback_scope_unsupported` 并在文档公开边界。
 3. 若请求为 GET/HEAD 且没有业务路由匹配，先尝试现有 public 目录的静态资源服务；资源命中保持原响应，缺失后才进入业务 fallback。自定义 fallback 允许应用明确接管 `/api/*` 与 `/ws/*` 未匹配请求；未登记时继续保持框架 JSON 404。
 4. 静态检查使用独立空 body 请求，仅用于 ServeDir；原始请求、headers、query、body 必须完整交给 fallback handler。非 GET/HEAD 不尝试静态资源。
@@ -778,7 +778,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
    子组未声明 domain 时继承父组；显式声明新 domain 时覆盖父约束，不拼接两个域模板。
 2. 对每个请求严格解析唯一有效的 `Host`/URI authority，拒绝多值、逗号、非法端口、畸形 authority 与互相冲突的 authority；大小写规范化、去端口后按当前 HTTP method 优先查找匹配域路由，找不到才进入不限定域的普通路由。域路由 host 命中但 path/method 未命中时必须继续检查后继域和普通路由；仅当当前 method 均无匹配、但某路由 path 对其他 method 有效时才产生 405。业务 handler 主动返回 404 不能触发二次路由。
 3. 提供公开 `DomainParams<T>` extractor，使用 serde 将已验证 host pattern 捕获的完整标签参数反序列化为类型化值；未命中域路由或格式错误时稳定失败。域参数与 Axum `Path<T>` 分离，避免更改路径参数语义。
-4. 命名 domain route 的 `RouteUrlGenerator` 使用登记的域模板，以同一参数表同时替换 domain/path 参数；域名只接受单个 ASCII DNS 标签（含预先编码的 punycode），不做 Unicode IDNA 转换；缺参、非法标签和重复名称 fail closed。非 domain 路由仍以 `app.url` 的 host/scheme 为准；绝不以当前请求 Host 或未验证 `X-Forwarded-Host` 构造绝对 URL。
+4. 命名 domain route 的 `UrlGenerator` 使用登记的域模板，以同一参数表同时替换 domain/path 参数；域名只接受单个 ASCII DNS 标签（含预先编码的 punycode），不做 Unicode IDNA 转换；缺参、非法标签和重复名称 fail closed。非 domain 路由仍以 `app.url` 的 host/scheme 为准；绝不以当前请求 Host 或未验证 `X-Forwarded-Host` 构造绝对 URL。
 5. 明确 `Host` 只参与用户显式配置的路由分派，不自动改变 `app.url`、租户身份或可信代理判定。若需 `Forwarded`/`X-Forwarded-Host`，必须新增受可信 peer 约束的独立契约，不在此簇默认采信。
 6. 黑盒测试覆盖 domain-first 与注册顺序无关、精确/占位子域、大小写/端口、重叠 pattern 声明顺序、域 host 命中 path 缺失后落普通路由、域 GET/根 POST 同路径、方法回退/405、域 fallback 不抢普通路由、handler 自身 404、非法/缺失/重复 Host 与参数、Host 注入不能影响 URL 生成、named URL 域与路径参数编码；请求 body/header/query 在分派中完整保留。生成项目与 `modules/example` 展示多租户域路由，但 host 参数不得替代租户认证授权。
 7. 用户 fallback 在全部普通 domain/unrestricted route 候选之后才运行；域组 fallback 按 domain pattern 选择。业务 handler 404/405 必须是终端响应，不得回落。GET/HEAD 静态资源检查保持当前 public 路径策略，并测试域路由交互。

@@ -6,7 +6,7 @@ use crate::modules::example::jobs::article_index::{
 use crate::modules::example::models::article;
 use openrust::auth::CurrentUser;
 use openrust::cache::Cache;
-use openrust::db::sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+use openrust::database::sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use openrust::http::{Inject, Json, Path};
 use openrust::{Db, Error, Result};
 use std::time::Duration;

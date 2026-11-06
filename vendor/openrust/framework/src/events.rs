@@ -11,10 +11,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    core::{BoxFuture, Error, Result},
-    db::DatabaseTransaction,
-};
+use crate::core::Error;
+use crate::core::Result;
+use crate::database::DatabaseTransaction;
+use crate::support::BoxFuture;
 
 /// 事件监听器可访问的上下文。
 #[derive(Clone, Copy)]
@@ -316,11 +316,11 @@ impl EventsServiceProvider {
     }
 }
 
-impl crate::core::ServiceProvider for EventsServiceProvider {
+impl crate::support::ServiceProvider for EventsServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
-    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        app: &'a mut crate::foundation::RegisterContext<'_>,
+    ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let registrations = self.registrations.listeners.clone();
             app.singleton::<Events, _>(move |resolver| {
@@ -362,7 +362,10 @@ impl crate::core::ServiceProvider for EventsServiceProvider {
         })
     }
 
-    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let _ = app.resolve::<Events>().await?;
             Ok(())
@@ -375,10 +378,10 @@ impl crate::core::ServiceProvider for EventsServiceProvider {
 #[doc(hidden)]
 pub struct DefaultEventsServiceProvider;
 
-impl crate::core::ServiceProvider for DefaultEventsServiceProvider {
+impl crate::support::ServiceProvider for DefaultEventsServiceProvider {
     fn register<'a>(
         &'a self,
-        app: &'a mut crate::core::RegisterContext<'_>,
+        app: &'a mut crate::foundation::RegisterContext<'_>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if !app.is_bound::<Events>() {
@@ -564,7 +567,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::{Events, EventsServiceProvider};
-    use crate::core::ProviderBuilder;
+    use crate::foundation::ProviderBuilder;
     use figment::Figment;
 
     #[derive(Debug)]
@@ -743,7 +746,7 @@ mod provider_tests {
                 })
             });
         }
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(figment::Figment::new()).await?;
         let first = runtime.container().resolve::<Events>().await?;
@@ -774,14 +777,20 @@ mod provider_tests {
 mod queued_tests {
     use std::sync::{Arc, Mutex};
 
-    use crate::{
-        BoxFuture, Result,
-        config::QueueConfig,
-        core::{ProviderBuilder, RegisterContext, ServiceProvider},
-        db::DatabaseTransaction,
-        events::{Events, EventsServiceProvider},
-        queue::{DispatchOptions, Job, JobContext, Queue, QueueDriver},
-    };
+    use crate::BoxFuture;
+    use crate::Result;
+    use crate::config::QueueConfig;
+    use crate::database::DatabaseTransaction;
+    use crate::events::Events;
+    use crate::events::EventsServiceProvider;
+    use crate::foundation::ProviderBuilder;
+    use crate::foundation::RegisterContext;
+    use crate::queue::DispatchOptions;
+    use crate::queue::Job;
+    use crate::queue::JobContext;
+    use crate::queue::Queue;
+    use crate::queue::QueueDriver;
+    use crate::support::ServiceProvider;
     use serde_json::Value;
 
     struct QueueBinding(Queue);
@@ -789,7 +798,7 @@ mod queued_tests {
         fn register<'a>(
             &'a self,
             app: &'a mut RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance(Arc::new(self.0.clone())).await?;
                 Ok(())
@@ -873,11 +882,11 @@ mod queued_tests {
     }
 
     struct LateQueue(Queue);
-    impl crate::core::ServiceProvider for LateQueue {
+    impl crate::support::ServiceProvider for LateQueue {
         fn register<'a>(
             &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            app: &'a mut crate::foundation::RegisterContext<'_>,
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.instance(Arc::new(self.0.clone())).await?;
                 Ok(())
@@ -896,7 +905,7 @@ mod queued_tests {
             });
             provider
         }
-        let mut missing = crate::core::ProviderBuilder::new();
+        let mut missing = crate::foundation::ProviderBuilder::new();
         missing.provider(events_provider());
         let error = missing
             .start(figment::Figment::new())
@@ -917,7 +926,7 @@ mod queued_tests {
         }
         let driver = CaptureQueueDriver::default();
         let queue = Queue::with_driver(driver.clone(), &QueueConfig::default())?;
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder
             .provider(events_provider())
             .provider(LateQueue(queue));
@@ -942,11 +951,11 @@ mod queued_tests {
     }
 
     struct BrokenQueue;
-    impl crate::core::ServiceProvider for BrokenQueue {
+    impl crate::support::ServiceProvider for BrokenQueue {
         fn register<'a>(
             &'a self,
-            app: &'a mut crate::core::RegisterContext<'_>,
-        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            app: &'a mut crate::foundation::RegisterContext<'_>,
+        ) -> crate::support::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.singleton::<Queue, _>(|resolver| {
                     Box::pin(async move {
@@ -968,7 +977,7 @@ mod queued_tests {
                 account_id: event.user_id,
             })
         });
-        let mut builder = crate::core::ProviderBuilder::new();
+        let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(events).provider(BrokenQueue);
         let error = builder
             .start(figment::Figment::new())
