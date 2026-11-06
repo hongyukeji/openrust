@@ -1,5 +1,15 @@
 # 测试基线
 
+## 根应用与框架独立包限定验收
+
+AR-P01由`4463238`提交并核对origin/main，精确树`692ed33655857d804f217ca96ddac66052863eca`，1554项输入的物理SHA、规范Git blob和权限一致。根openrust仅含默认server，独立openrust-framework位于vendor/openrust/framework，库名与应用依赖别名均为openrust；默认cargo run、12消费者和新建应用均解析独立包。模块扩展拆分与Laravel命名空间完整对应不属于本簇。
+
+独立适用验收包括完整默认workspace测试、routine-mysql真实MySQL8.4及37项纯行为、queued Fortify精确1项且无忽略、默认/全特性严格Rustdoc、MSRV两配置、deny、六种精简feature严格静态检查、12消费者check、新建MySQL应用new/check/test/locked metadata，以及根默认启动的CLI/API/HTML/404/自定义前缀、SIGINT退出与端口复用。原4段Rustdoc保留，3段执行、1段原有显式ignore；唯一示例用进程内Tower验收，另有根实际TCP证据，不混为同一传输层。
+
+全target/all-feature check与严格Clippy、13份locked metadata复用v2证据；v2至v4仅两个隔离测试fixture变化，迁移及router目标分别严格复验，v4完整默认测试通过。生产默认值未为fixture求绿而更改。非MySQL及最低版本运行留发布前，不记为本次通过。初始APP_ENV故障完整日志曾被同名续跑覆盖，无法恢复；原命令、哈希、工具转录及同二进制A/B复现保留，不冒称原日志完整。收据为`tmp/independent-testing-20261106/AR-P01-RESULT.json`，17份收据/70份日志已核哈希，精确提交映射另存同目录。
+
+本簇已清理可再生产物约7.85GB，保留唯一约5.26GB依赖缓存供已批准AR-M01；完成时可用磁盘约102.2GB。其他SC/J01/Passport/翻译来源WIP保全，不纳入已验收结论。
+
 ## 插入标识与事务执行闭环
 
 DB-I01 v2独立验收回执为`tmp/independent-testing-20261106/DB-I01-RESULT.json`及同名md，绑定1528项导出组合输入SHA，最终同源。原13项main门禁全0，test-only v2修正后fmt与受影响严格Clippy复验；MySQL8.4和PG18各native/public Query/唯一example真实CRUD三项无skip通过，正常批次catalog恢复。SQLite/MySQL-auth/PG三类fresh实际new/check/test/locked metadata通过；最低SQLite3.26实际加载证明及7项定向无忽略通过。12个consumer locked metadata与两个直接相关consumer编译通过，根/consumer/fresh路径均解析受验副本。
@@ -580,7 +590,7 @@ Cookie模板与受控快照修复相对上述runtime快照只改这两个CLI生�
 | `/tmp/openrust-c04d6-generated-fresh1-verify-{plain,pg,mysql}.result.json` | 三个全新生成项目实际fmt/check/test；strict具名5/2/2，0 failed/ignored/filtered/skipped、exact guard=true，双库锚库均最终不存在 |
 | `/tmp/openrust-c04d6-final-handoff.json` | SHA256 `ec2deccceb981e0a1a085fd13965c13b525d90ad5a797a4239eeb0d29cb5ef60`；500文件guard及结果/日志哈希交接，独立审查无blocker/should-fix |
 
-实际新生成目录为`/tmp/openrust-c04d6-generated-{plain,auth-postgres,auth-mysql}`，不是旧D1/D5项目；三份request_input helper均与当前模板逐字节一致（SHA256 `43074067dcb7161c26b03937114afe2fe0f1ad1d662559956d57d4e7fae91ff9`），真实调用普通GET、JSON GET与JSON POST三类URL变更断言。两线Symfony固定源码与真实PHP8.5各198 canonical+7操作参考，Rust逐ID全对照；非法UTF-8两项单列400适配，raw NUL仅私有helper，不冒充HTTP wire允许。复跑源码与来源在[fixture](../../../tests/http/fixtures/laravel-request-url/README.md)。
+实际新生成目录为`/tmp/openrust-c04d6-generated-{plain,auth-postgres,auth-mysql}`，不是旧D1/D5项目；三份request_input helper均与当前模板逐字节一致（SHA256 `43074067dcb7161c26b03937114afe2fe0f1ad1d662559956d57d4e7fae91ff9`），真实调用普通GET、JSON GET与JSON POST三类URL变更断言。两线Symfony固定源码与真实PHP8.5各198 canonical+7操作参考，Rust逐ID全对照；非法UTF-8两项单列400适配，raw NUL仅私有helper，不冒充HTTP wire允许。复跑源码与来源在[fixture](../../../vendor/openrust/framework/tests/http/fixtures/laravel-request-url/README.md)。
 
 失败与纠正保留边界：
 
@@ -652,7 +662,7 @@ plain3-PG修后真实命令退出0，具名负例实际1 passed、0 failed/ignor
 
 认证生成PG首轮实际fmt/check通过、认证测试1 passed/1 failed，严格Cookie计数断言失败；隔离锚库已核absent、源码无漂移。模板夹具用无数据库的默认配置构建Provider，而实际figment随后才给隔离数据库，导致漏装Session。修复仅从同一figment提取`bootstrap::Configuration`并传给`ProviderBuilder::for_application`，原Cookie、HTTP、数据库与清理断言不变；不同模型窄审通过（模板SHA `9ff0d16f57703ee2dcc8aea8457505b5879278f99fe5a6738ab7b7d02b9bfb67`）。旧失败证据保留，修后已由CLI重新生成PG/MySQL应用并完成实跑，不手补生成物，不以静态审查替代实跑。
 
-四份固定官方源码哈希见[来源记录](../../../tests/http/fixtures/laravel-session/provenance.json)。PHP读取表达式探针不是完整官方类或Laravel请求链oracle；异常弱类型差异保持开放。客户端Cookie重放/无全局撤销、秒精度与浏览器容量边界分别记录，不声称整个Session能力完成。
+四份固定官方源码哈希见[来源记录](../../../vendor/openrust/framework/tests/http/fixtures/laravel-session/provenance.json)。PHP读取表达式探针不是完整官方类或Laravel请求链oracle；异常弱类型差异保持开放。客户端Cookie重放/无全局撤销、秒精度与浏览器容量边界分别记录，不声称整个Session能力完成。
 
 ## C04-D3 Session扩展生命周期（限定子范围已验收）
 
@@ -775,7 +785,7 @@ PHP8.5真实SAPI参考采集22个原始HTTP请求，均200：20个可表达单he
 
 ## C04-B2 类型便捷方法
 
-- 已通过本簇适用门禁，限定公开Request/Fluent的标量、Stringable、保键Collection、枚举、clamp、条件分支、日期/区间和上下文；不代表完整Carbon工具箱或完整C04。contract与Rust适配见历史决策 079，固定源/许可证/再生成见[SOURCES](../../../src/support/calendar/date/SOURCES.md)。
+- 已通过本簇适用门禁，限定公开Request/Fluent的标量、Stringable、保键Collection、枚举、clamp、条件分支、日期/区间和上下文；不代表完整Carbon工具箱或完整C04。contract与Rust适配见历史决策 079，固定源/许可证/再生成见[SOURCES](../../../vendor/openrust/framework/src/support/calendar/date/SOURCES.md)。
 - 最终冻结快照：`/tmp/openrust-c04b2-final2-*.result.json`共20阶段，全部actual_exit=0、source_changed=[]；driver `/tmp/openrust-c04b2-final2-driver.log`。fmt、default/all-features workspace all-target Clippy（`-D warnings`）、默认/全特性Rustdoc（`-D warnings`）、no-default all-target check、Rust 1.97 all-feature all-target check、cargo deny通过。默认workspace tests 645 passed/29 ignored；全特性1211 passed/99 ignored，均0 failed；default的29项均为Rustdoc示例；all的99项为35个Rustdoc示例与64个显式外部服务验收（20项在三target重复、Mailpit2、Keycloak1、S3版本1）。ignored与未显式提供外部条件的测试不算真实服务证据，分类记录`/tmp/openrust-c04b2-final2-ignored.json`。
 - 根真实PG18/MySQL8.4：完整`example_auth_flows`各47 passed，0 ignored/filtered/skipped；普通生成项目check/tests 2项通过；PG/MySQL生成认证项目各2具名测试通过，含同库配置的共用B2公开helper，0 ignored/skipped。四个本轮独占数据库anchor均已DROP，原认证与清理断言保留。邮件采用测试驱动，不将其记作真实供应商发送。
 - 真实TCP：根默认`cargo run`，仓内`verify-request-input.py` SHA `028e50883fa8f069d7637dcf304a679e971b9cce4844163ef38410279dc62fea`；6/6（正常/default-null 200，枚举/日期/区间错误400，区间词项超限413），健康200、工具exit0、服务优雅退出0，外层45秒有界。新证据使用final2独立路径，未覆盖第一次运行记录。

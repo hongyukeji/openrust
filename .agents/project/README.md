@@ -29,7 +29,7 @@
 | `guards/` | 本地守护看板、心跳及审计状态，忽略Git提交 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
-代码落地后按框架模块或保留工具 package 在 core/ 维护当前事实。当前根 openrust package 同时提供 src/lib.rs 框架库与 src/main.rs 默认 server；获准目标为根应用包依赖独立 vendor/openrust/framework 包，框架采用标准 src/lib.rs，迁移尚未完成；Laravel 应用职责目录直接位于根，当前唯一综合示例为 modules/example，由统一模块入口装配。最终布局、迁移和验收边界见 [ADR-001](decisions/adr-001-framework-principles.md)。CLI 模板与生成器保留用户应用生成功能，不要求另建长期源码仓库。
+代码落地后按框架模块或保留工具 package 在 core/ 维护当前事实。当前根 openrust package 仅提供 src/main.rs 默认 server，依赖独立 vendor/openrust/framework 的 openrust-framework 包；框架采用标准 src/lib.rs，公开库名仍为 openrust；独立包迁移已由4463238限定验收提交推送；Laravel 应用职责目录直接位于根，当前唯一综合示例为 modules/example，由统一模块入口装配。最终布局、迁移和验收边界见 [ADR-001](decisions/adr-001-framework-principles.md)。CLI 模板与生成器保留用户应用生成功能，不要求另建长期源码仓库。
 
 ## 维护规则
 

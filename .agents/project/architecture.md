@@ -16,11 +16,11 @@
 
 ## Workspace 与职责
 
-当前WIP已物理拆为根应用openrust与vendor/openrust/framework独立openrust-framework包，根仅保留薄src/main.rs。最新批准目标是独立根应用包与 `vendor/openrust/framework/` 框架包，采用标准 `src/lib.rs`，不是平铺 lib.rs；迁移由唯一 todo 的 AR-P01 收敛，尚未完成。根 default-members=["."]、default-run="server"，无参数 cargo run 启动唯一应用，应用继续通过 openrust:: 导入框架。
+当前已提交基线4463238已拆为根应用openrust与vendor/openrust/framework独立openrust-framework包，根仅保留薄src/main.rs。最新批准目标是独立根应用包与 `vendor/openrust/framework/` 框架包，采用标准 `src/lib.rs`，不是平铺 lib.rs；独立包迁移已通过日常适用验收，模块扩展与命名空间后继仍在唯一todo。根 default-members=["."]、default-run="server"，无参数 cargo run 启动唯一应用，应用继续通过 openrust:: 导入框架。
 
 app/bootstrap/config/database/public/resources/routes/storage/tests 是根目录职责。唯一综合示例 modules/example 由根 server 通过模块清单统一装配，贯穿框架能力；不保留独立 demo/example 应用或根 examples 目录。框架src保持通用实现，根app可承载宿主业务；不因仅保留一个综合示例而禁止根app开发。示例专属迁移、种子、模板、协议/生成脚本及测试 fixture 归模块内部；根 bootstrap/config/routes/database/resources 等仅保留通用加载与公开挂载，不含样例特判。根不因示例保留 build.rs 或新增 build 依赖。
 
-框架库领域实现已物理迁入vendor/openrust/framework/src/；新布局仍待独立验收。根项目对应laravel/laravel应用骨架，同一Git仓库维护vendor框架与扩展，不另开框架仓库。第一方扩展位于 vendor/openrust/<扩展>/，依赖方向应用→扩展→框架及应用→框架；核心国际化与 SQLite 后端归框架，可选数据库翻译来源归扩展。框架及第一方扩展参与 workspace 门禁，第三方vendor已按 Laravel/Composer 发布者/包名布局（seaql/sea-orm、seaql/sea-orm-migration、launchbadge/sqlx-mysql），同仓不同crate平级且包内保原布局，Cargo依赖解析不会自动改为vendor安装，许可证、版本、原始SHA与真实repository来源保持，不因目录拆分冒称独立上游仓库。工具保留 tools/ 独立编译边界，tests/consumers 保留公开 API 与真实拓扑验收。应用通过 openrust:: 公共 API 使用框架，框架不反向依赖业务示例。
+框架库领域实现已物理迁入vendor/openrust/framework/src/；新布局已通过独立日常适用验收。根项目对应laravel/laravel应用骨架，同一Git仓库维护vendor框架与扩展，不另开框架仓库。第一方扩展位于 vendor/openrust/<扩展>/，依赖方向应用→扩展→框架及应用→框架；核心国际化与 SQLite 后端归框架，可选数据库翻译来源归扩展。框架及第一方扩展参与 workspace 门禁，第三方vendor已按 Laravel/Composer 发布者/包名布局（seaql/sea-orm、seaql/sea-orm-migration、launchbadge/sqlx-mysql），同仓不同crate平级且包内保原布局，Cargo依赖解析不会自动改为vendor安装，许可证、版本、原始SHA与真实repository来源保持，不因目录拆分冒称独立上游仓库。工具保留 tools/ 独立编译边界，tests/consumers 保留公开 API 与真实拓扑验收。应用通过 openrust:: 公共 API 使用框架，框架不反向依赖业务示例。
 
 CLI 模板与生成器是用户应用骨架的唯一维护来源。CLI new 可生成用户指定的应用，自有 workspace/lock；本轮只在 /tmp 验证，不形成额外长期源码仓库，不改变本仓 main 的开发约束。
 
@@ -46,4 +46,4 @@ R1-S旧过渡结构以34dfb5e提交；统一 Provider 已在 R2-B 验收，modul
 | 根 openrust 的 `server` bin | 聚合入口及启动/数据库/认证集成验证，见 [core/server.md](core/server.md) |
 | cache/events/storage 等剩余能力 | 尚未完整实现；按 [当前计划](plan.md) 与 [能力矩阵](plans/laravel-rebuild-matrix-1.md) 逐簇推进 |
 
-模块化专属机制获准归vendor/openrust/modules/src（openrust-modules），默认集成仍属独立扩展。模块发现/manifest/依赖/activator/资源/模块CLI按AR-M01在当前AR-P01闭环后实际拆分；通用生命周期与公开扩展留framework，不形成framework反向依赖modules。当前代码尚未拆分，不将本目标记为已实现。
+模块化专属机制获准归vendor/openrust/modules/src（openrust-modules），默认集成仍属独立扩展。模块发现/manifest/依赖/activator/资源/模块CLI按AR-M01接续已闭环的AR-P01实际拆分；通用生命周期与公开扩展留framework，不形成framework反向依赖modules。当前代码尚未拆分，不将本目标记为已实现。
