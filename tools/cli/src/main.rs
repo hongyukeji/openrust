@@ -1179,6 +1179,16 @@ fn populate_project_with_features(
             include_str!("../templates/tests/query_insert_ids.rs")
                 .replace("    // {{database_setup}}", setup),
         ));
+        files.push((
+            "tests/query_comparisons.rs",
+            include_str!("../templates/tests/query_comparisons.rs")
+                .replace("    // {{database_setup}}", setup),
+        ));
+        files.push((
+            "tests/query_multiple_columns.rs",
+            include_str!("../templates/tests/query_multiple_columns.rs")
+                .replace("    // {{database_setup}}", setup),
+        ));
     }
     if database == Some(DatabaseBackend::Sqlite) {
         files.push((

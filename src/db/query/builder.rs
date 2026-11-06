@@ -149,7 +149,7 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
             self.lease().map(Some)
         }
     }
-    fn transform(
+    pub(super) fn transform(
         &self,
         change: impl FnOnce(QueryState<'tx, 'cap>) -> Result<QueryState<'tx, 'cap>>,
     ) -> Result<()> {

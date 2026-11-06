@@ -89,7 +89,14 @@ impl Fixture {
 fn request(
     token: Option<&str>,
 ) -> std::result::Result<Request<Body>, openrust::http::axum::http::Error> {
-    let mut request = Request::get(TIMELINE).header("host", "localhost");
+    request_uri(token, TIMELINE)
+}
+
+fn request_uri(
+    token: Option<&str>,
+    uri: &str,
+) -> std::result::Result<Request<Body>, openrust::http::axum::http::Error> {
+    let mut request = Request::get(uri).header("host", "localhost");
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
     }
@@ -154,6 +161,38 @@ async fn timeline_counts_terminal_boundaries_and_isolates_accounts_over_http() -
     assert_eq!(report["data"]["valid_count"], 1);
     assert_eq!(report["data"]["invalid_count"], 1);
     assert_eq!(report["data"]["has_unfinished_imports"], false);
+    for (query, valid, invalid, unfinished) in [
+        ("search=timeline-0&mode=any", 1, 0, false),
+        ("search=timeline-0&mode=all", 0, 0, false),
+        ("search=timeline-0&mode=none", 1, 2, true),
+        ("search=timeline-&mode=all", 2, 2, true),
+        ("search=missing&mode=none", 2, 2, true),
+        ("search=timeline-6&mode=any", 0, 0, false),
+        ("search=%27%20OR%201%3D1%20--&mode=any", 0, 0, false),
+        ("search=&mode=none", 2, 2, true),
+    ] {
+        let uri = format!("{TIMELINE}?{query}");
+        let response = fixture
+            .app
+            .request(request_uri(Some(&fixture.token), &uri)?)
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let report: serde_json::Value = response.json()?;
+        assert_eq!(report["data"]["valid_count"], valid, "{query}");
+        assert_eq!(report["data"]["invalid_count"], invalid, "{query}");
+        assert_eq!(
+            report["data"]["has_unfinished_imports"], unfinished,
+            "{query}"
+        );
+    }
+    let uri = format!("{TIMELINE}?search={}", "a".repeat(129));
+    let response = fixture
+        .app
+        .request(request_uri(Some(&fixture.token), &uri)?)
+        .await?;
+    response.assert_status(StatusCode::UNPROCESSABLE_ENTITY)?;
+    let body: serde_json::Value = response.json()?;
+    assert!(body["errors"]["search"].is_array());
     fixture
         .app
         .request(request(None)?)

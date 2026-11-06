@@ -87,9 +87,28 @@ impl<'a> DeferredChild<'a> {
         if bindings {
             Ok(self.captured.clone())
         } else {
-            self.node.prepare(apply_callbacks)
+            let current = self.node.prepare(apply_callbacks)?;
+            let backend = self.original.db.backend()?;
+            if binding_count(&current, backend)? != binding_count(&self.captured, backend)? {
+                return Err(Error::custom(
+                    "query_subquery_bindings_mismatch",
+                    "实时子查询SQL与接入时冻结绑定数量不一致",
+                ));
+            }
+            Ok(current)
         }
     }
+}
+
+// 每个节点单独核验，不能让两个兄弟的+1/-1变化在父总数中相互抵消。
+fn binding_count(select: &SelectStatement, backend: super::DbBackend) -> Result<usize> {
+    let values = match backend {
+        super::DbBackend::MySql => select.build(super::MysqlQueryBuilder).1,
+        super::DbBackend::Postgres => select.build(super::PostgresQueryBuilder).1,
+        super::DbBackend::Sqlite => select.build(super::SqliteQueryBuilder).1,
+        _ => return Err(super::unsupported_backend()),
+    };
+    Ok(values.0.len())
 }
 
 #[derive(Clone)]
@@ -104,3 +123,7 @@ pub(super) fn busy_error() -> Error {
         "查询对象正在准备，不能重入或并发编译",
     )
 }
+
+#[cfg(all(test, feature = "db-sqlite"))]
+#[path = "subqueries_contract_tests.rs"]
+mod contract_tests;

@@ -4,6 +4,10 @@
 
 OpenRust 框架的数据库模块。
 
+Query Builder 的 `r#where`／`where_compare` 及 OR／条件组入口支持默认等值与封闭操作符、绑定值／可信表达式／已有子查询、三方言 NULL 和 JSON 路径比较。左右标量子查询保留各自的准备与绑定时机；普通 where 的其它 Closure／数组重载与完整 Query 后继仍开放，示例见[查询构造器](../../docs/src/database/queries.md)。
+
+`where_any`／`where_all`／`where_none` 及 OR 变体通过 `MultiComparison` 区分省略、等值和显式比较，列闭包与可重复右值保留官方分派顺序。空 FROM 查询、逻辑表名 `from` 与受控 `select_raw` 复用同一执行及投影管线；原始 SQL 的完整会话模式与版本感知仍有明确边界。
+
 ## 通用能力、驱动与连接
 
 `openrust::db`、`openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` / `db-sqlite` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。

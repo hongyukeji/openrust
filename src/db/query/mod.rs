@@ -13,13 +13,18 @@ use std::sync::{Arc, Mutex};
 
 mod between_columns;
 mod builder;
+mod comparison;
 mod conditional;
 mod existence;
+mod factory;
 mod insert_id;
+mod multi_column;
 mod subqueries;
 pub use between_columns::ColumnOperand;
 use between_columns::{PredicateChain, QueryContext};
+pub use comparison::{WhereOperator, WhereValue};
 pub use conditional::ExistsOrResult;
+pub use multi_column::{MultiColumn, MultiComparison, MultiValue};
 
 use super::Db;
 use crate::core::{Error, Result};
@@ -40,13 +45,13 @@ type BeforeCallback<'cap> =
 #[derive(Clone)]
 struct QueryState<'tx: 'cap, 'cap> {
     db: Db,
-    table: String,
+    table: Option<String>,
     transaction: Option<&'tx DatabaseTransaction>,
     select: SelectStatement,
     predicates: PredicateChain<'cap>,
     callbacks: Vec<BeforeCallback<'cap>>,
     unions: Vec<subqueries::DeferredUnion<'cap>>,
-    projection: Option<Vec<String>>,
+    projection: Option<Vec<Expr>>,
     limit: Option<u64>,
     offset: u64,
     orders: Vec<(String, SortDirection)>,
@@ -328,6 +333,7 @@ pub struct WhereGroup<'tx: 'cap, 'cap> {
 }
 
 /// 应用明确声明的受信 SQL 片段；值仍须另行绑定。
+#[derive(Clone)]
 pub struct RawSql(String);
 
 /// 查询排序方向。
@@ -359,50 +365,24 @@ impl RawSql {
 
 impl WhereGroup<'_, '_> {
     /// 在组内追加 AND 相等条件。
-    pub fn where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
-        validate_identifier(column)?;
-        self.condition = self
-            .condition
-            .add(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
-        Ok(self)
+    pub fn where_eq(self, column: &str, value: impl Into<Value>) -> Result<Self> {
+        self.r#where(column, WhereValue::from(Into::<Value>::into(value)))
     }
 
     /// 在组内追加 OR 相等条件。
-    pub fn or_where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
-        validate_identifier(column)?;
-        self.condition = self
-            .condition
-            .or(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
-        Ok(self)
+    pub fn or_where_eq(self, column: &str, value: impl Into<Value>) -> Result<Self> {
+        self.or_where_value(column, WhereValue::from(Into::<Value>::into(value)))
     }
 }
 
 impl Db {
-    /// 从当前 Db 的逻辑表名开启查询；捕获与事务的生命周期由实际使用推断。
+    /// 从当前连接开启无FROM查询；显式选择表时调用`from`。
+    pub fn query<'tx: 'cap, 'cap>(&self) -> QueryBuilder<'tx, 'cap> {
+        QueryBuilder::from_state(QueryState::empty(self.clone(), None))
+    }
+    /// 从当前连接的逻辑表名开启查询。
     pub fn table<'tx: 'cap, 'cap>(&self, logical_name: &str) -> Result<QueryBuilder<'tx, 'cap>> {
-        let table = self.table_name(logical_name)?;
-        Ok(QueryBuilder::from_state(QueryState {
-            db: self.clone(),
-            table: table.clone(),
-            transaction: None,
-            select: Query::select()
-                .column(Asterisk)
-                .from(Alias::new(table))
-                .to_owned(),
-            predicates: PredicateChain::all(),
-            callbacks: Vec::new(),
-            unions: Vec::new(),
-            projection: None,
-            limit: None,
-            offset: 0,
-            orders: Vec::new(),
-            union_orders: Vec::new(),
-            union_limit: None,
-            union_offset: None,
-            grouped: false,
-            having: false,
-            failure: None,
-        }))
+        self.query().from(logical_name)
     }
 }
 
@@ -412,7 +392,12 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         if columns.is_empty() {
             return Err(invalid_identifier());
         }
-        self.projection = Some(columns.iter().map(|column| (*column).to_owned()).collect());
+        self.projection = Some(
+            columns
+                .iter()
+                .map(|column| Expr::col(Alias::new(*column)))
+                .collect(),
+        );
         self.select.clear_selects();
         for column in columns {
             validate_identifier(column)?;
@@ -429,38 +414,31 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     }
 
     /// `where column = value`；值由 `SeaQuery` 绑定。
-    pub fn where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
-        validate_identifier(column)?;
-        let predicate = Expr::col(Alias::new(column)).eq(Expr::val(value.into()));
-        self.predicates = self.predicates.add(predicate);
-        Ok(self)
+    pub fn where_eq(self, column: &str, value: impl Into<Value>) -> Result<Self> {
+        self.r#where(column, WhereValue::from(Into::<Value>::into(value)))
     }
 
     /// `where column > value`。
-    pub fn where_gt(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
-        validate_identifier(column)?;
-        self.predicates = self
-            .predicates
-            .add(Expr::col(Alias::new(column)).gt(Expr::val(value.into())));
-        Ok(self)
+    pub fn where_gt(self, column: &str, value: impl Into<Value>) -> Result<Self> {
+        self.where_compare(
+            column,
+            WhereOperator::Gt,
+            WhereValue::from(Into::<Value>::into(value)),
+        )
     }
 
     /// `where column < value`。
-    pub fn where_lt(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
-        validate_identifier(column)?;
-        self.predicates = self
-            .predicates
-            .add(Expr::col(Alias::new(column)).lt(Expr::val(value.into())));
-        Ok(self)
+    pub fn where_lt(self, column: &str, value: impl Into<Value>) -> Result<Self> {
+        self.where_compare(
+            column,
+            WhereOperator::Lt,
+            WhereValue::from(Into::<Value>::into(value)),
+        )
     }
 
     /// 按 SQL LIKE 语法匹配；通配符由调用方选择，字符串仍绑定为值。
-    pub fn where_like(mut self, column: &str, pattern: impl Into<String>) -> Result<Self> {
-        validate_identifier(column)?;
-        self.predicates = self
-            .predicates
-            .add(Expr::col(Alias::new(column)).like(pattern.into()));
-        Ok(self)
+    pub fn where_like(self, column: &str, pattern: impl Into<String>) -> Result<Self> {
+        self.where_compare(column, WhereOperator::Like, pattern.into())
     }
 
     /// 按 SQL NOT IN 匹配；空集合为永真。
@@ -515,12 +493,8 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     }
 
     /// 将一个 OR 条件与已有条件组合；嵌套条件保留括号。
-    pub fn or_where_eq(mut self, column: &str, value: impl Into<Value>) -> Result<Self> {
-        validate_identifier(column)?;
-        self.predicates = self
-            .predicates
-            .or(Expr::col(Alias::new(column)).eq(Expr::val(value.into())));
-        Ok(self)
+    pub fn or_where_eq(self, column: &str, value: impl Into<Value>) -> Result<Self> {
+        self.or_where_value(column, WhereValue::from(Into::<Value>::into(value)))
     }
 
     /// 以闭包生成一个有括号的嵌套 where 组。
@@ -531,7 +505,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         let group = configure(WhereGroup {
             context: QueryContext {
                 db: self.db.clone(),
-                table: self.table.clone(),
+                table: self.table.clone().unwrap_or_default(),
                 transaction: self.transaction,
             },
             condition: PredicateChain::all(),
@@ -644,7 +618,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         validate_identifier(own_column)?;
         validate_identifier(foreign_column)?;
         let joined = self.db.table_name(logical_table)?;
-        let condition = Expr::col((Alias::new(&self.table), Alias::new(own_column)))
+        let condition = Expr::col((Alias::new(self.required_table()?), Alias::new(own_column)))
             .equals((Alias::new(&joined), Alias::new(foreign_column)));
         self.select.join(
             match kind {
@@ -778,7 +752,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         returning: Option<&str>,
     ) -> Result<(String, Values)> {
         let mut statement: InsertStatement = Query::insert();
-        statement.into_table(Alias::new(&self.table));
+        statement.into_table(Alias::new(self.required_table()?));
         if values.is_empty() {
             statement.or_default_values();
         } else {
@@ -895,7 +869,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         }
         let mut statement = Query::insert();
         statement
-            .into_table(Alias::new(&self.table))
+            .into_table(Alias::new(self.required_table()?))
             .columns(columns.iter().map(|column| Alias::new(*column)));
         for row in rows {
             if row.len() != columns.len()
@@ -938,7 +912,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         let build = |bindings: bool| -> Result<(String, Values)> {
             let mut statement = Query::update();
             statement
-                .table(Alias::new(&self.table))
+                .table(Alias::new(self.required_table()?))
                 .values(pairs.clone());
             statement.cond_where(self.predicates.compile(&self.context(), bindings)?);
             match self.db.backend()? {
@@ -963,7 +937,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     pub async fn delete(&self) -> Result<u64> {
         let build = |bindings: bool| -> Result<(String, Values)> {
             let mut statement = Query::delete();
-            statement.from_table(Alias::new(&self.table));
+            statement.from_table(Alias::new(self.required_table()?));
             statement.cond_where(self.predicates.compile(&self.context(), bindings)?);
             match self.db.backend()? {
                 DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
@@ -1002,7 +976,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     fn context(&self) -> QueryContext<'tx> {
         QueryContext {
             db: self.db.clone(),
-            table: self.table.clone(),
+            table: self.table.clone().unwrap_or_default(),
             transaction: self.transaction,
         }
     }
@@ -1071,11 +1045,11 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         self.union_orders.retain(|(existing, _)| existing != column);
     }
 
-    fn restore_projection(&mut self, projection: Option<Vec<String>>) {
+    fn restore_projection(&mut self, projection: Option<Vec<Expr>>) {
         self.select.clear_selects();
         if let Some(columns) = &projection {
-            for column in columns {
-                self.select.column(Alias::new(column));
+            for expression in columns {
+                self.select.expr(expression.clone());
             }
         } else {
             self.select.column(Asterisk);

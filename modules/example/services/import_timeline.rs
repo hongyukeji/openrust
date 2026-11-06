@@ -1,7 +1,20 @@
 //! 账户导入时间线：以服务器观察时点识别正常与异常终结时间。
 
-use openrust::db::query::{ColumnOperand, ExistsOrResult, RawSql};
-use openrust::{Db, Error, Result};
+use openrust::db::query::{ColumnOperand, ExistsOrResult, MultiComparison, RawSql, WhereOperator};
+use openrust::{Db, Error, Result, ValidationErrors};
+
+/// 导入标识和来源名称的组合匹配方式。
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ImportSearchMode {
+    /// 任意字段匹配。
+    #[default]
+    Any,
+    /// 两个字段均匹配。
+    All,
+    /// 两个字段均不匹配。
+    None,
+}
 
 /// 当前账户已终结导入的时间线统计。
 #[derive(Debug, serde::Serialize)]
@@ -18,22 +31,54 @@ pub(crate) struct ImportTimeline {
 
 /// 从公开查询构造器读取当前账户；显式时点仅供服务器调用及确定性回归。
 pub(crate) async fn report(db: &Db, owner_id: i64, observed_at_ms: i64) -> Result<ImportTimeline> {
+    report_filtered(db, owner_id, observed_at_ms, None, ImportSearchMode::Any).await
+}
+
+/// 在账户范围内按导入标识与来源名称检索；模式只控制同一个括号条件组。
+pub(crate) async fn report_filtered(
+    db: &Db,
+    owner_id: i64,
+    observed_at_ms: i64,
+    search: Option<&str>,
+    mode: ImportSearchMode,
+) -> Result<ImportTimeline> {
     if observed_at_ms < 0 {
         return Err(Error::custom(
             "example_import_clock_invalid",
             "服务器观察时间不可早于 Unix 纪元",
         ));
     }
+    if search.is_some_and(|value| value.len() > 128) {
+        let mut errors = ValidationErrors::new();
+        errors.add("search", "检索词不能超过128字节");
+        return Err(Error::Validation(errors));
+    }
     // 查询克隆各自消费账户条件回调，账户范围在实际编译前追加到同一构造器。
     let owner_imports = db
         .table("example_article_imports")?
         .before_query(move |query| {
-            *query = query.clone().where_eq("owner_id", owner_id)?;
+            *query = query.clone().r#where("owner_id", owner_id)?;
             Ok(())
         });
+    let owner_imports = if let Some(search) = search.filter(|value| !value.is_empty()) {
+        let comparison = MultiComparison::compare(WhereOperator::Like, format!("%{search}%"));
+        match mode {
+            ImportSearchMode::Any => {
+                owner_imports.where_any(["import_id", "source_key"], comparison)?
+            }
+            ImportSearchMode::All => {
+                owner_imports.where_all(["import_id", "source_key"], comparison)?
+            }
+            ImportSearchMode::None => {
+                owner_imports.where_none(["import_id", "source_key"], comparison)?
+            }
+        }
+    } else {
+        owner_imports
+    };
     let has_unfinished_imports = match owner_imports
         .clone()
-        .where_eq("state", "open")?
+        .where_compare("state", WhereOperator::Eq, "open")?
         .exists_or(|| async { Ok(false) })
         .await?
     {
@@ -42,7 +87,7 @@ pub(crate) async fn report(db: &Db, owner_id: i64, observed_at_ms: i64) -> Resul
     };
     let records = owner_imports
         .where_in("state", ["completed", "failed"])?
-        .where_not_null("terminal_at_ms")?;
+        .where_compare("terminal_at_ms", WhereOperator::NotEq, Option::<i64>::None)?;
     // SQL 上界只来自校验后的服务器整数，不接收用户提供的 SQL 或时钟。
     let bounds = || {
         [

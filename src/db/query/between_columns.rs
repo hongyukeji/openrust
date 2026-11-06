@@ -114,7 +114,53 @@ impl QueryContext<'_> {
 }
 
 impl<'a> ColumnOperand<'a> {
-    fn expressions(
+    pub(super) fn ready(self, context: &QueryContext<'_>) -> Result<Self> {
+        match self.0 {
+            Operand::Scalar(scalar) => {
+                let scalar = scalar?;
+                scalar.context.validate_connection(context)?;
+                Ok(Self(Operand::Scalar(Ok(scalar))))
+            }
+            Operand::Column(name) => {
+                let field = name
+                    .split("->")
+                    .next()
+                    .ok_or_else(super::invalid_identifier)?;
+                ColumnOperand::from(field).expressions(context)?;
+                Ok(Self(Operand::Column(name)))
+            }
+            other @ Operand::Expression(_) => Ok(Self(other)),
+        }
+    }
+    pub(super) fn column_name(&self) -> Option<&str> {
+        match &self.0 {
+            Operand::Column(name) => Some(name),
+            _ => None,
+        }
+    }
+    pub(super) fn contains_json_arrow(&self, context: &QueryContext<'_>) -> Result<bool> {
+        Ok(match &self.0 {
+            Operand::Column(name) => name.contains("->"),
+            Operand::Expression(Expr::Custom(sql)) => sql.contains("->"),
+            Operand::Scalar(Ok(scalar)) => {
+                let sql = match context.db.backend()? {
+                    super::DbBackend::MySql => scalar.sql.build(super::MysqlQueryBuilder).0,
+                    super::DbBackend::Postgres => scalar.sql.build(super::PostgresQueryBuilder).0,
+                    super::DbBackend::Sqlite => scalar.sql.build(super::SqliteQueryBuilder).0,
+                    _ => return Err(super::unsupported_backend()),
+                };
+                sql.contains("->")
+            }
+            _ => false,
+        })
+    }
+    pub(super) fn raw_text(&self) -> Option<&str> {
+        match &self.0 {
+            Operand::Expression(Expr::Custom(sql)) => Some(sql),
+            _ => None,
+        }
+    }
+    pub(super) fn expressions(
         self,
         context: &QueryContext<'_>,
     ) -> Result<(Expr, Expr, Option<QueryContext<'a>>)> {
@@ -160,9 +206,17 @@ enum Term<'a> {
         bindings: Expr,
         origins: Vec<QueryContext<'a>>,
     },
+    ComparisonSub {
+        sql: Expr,
+        bindings: Expr,
+        operator: &'static str,
+        child: Box<DeferredChild<'a>>,
+        origins: Vec<QueryContext<'a>>,
+    },
     Nested {
         tree: PredicateChain<'a>,
         context: QueryContext<'a>,
+        not: bool,
     },
     Exists(Box<DeferredChild<'a>>),
 }
@@ -225,20 +279,32 @@ impl<'a> PredicateChain<'a> {
             self.push(Term::Plain(condition), false)
         }
     }
-    pub(super) fn or(self, condition: impl Into<Condition>) -> Self {
-        let condition = condition.into();
-        if condition.is_empty() {
-            self
-        } else {
-            self.push(Term::Plain(condition), true)
-        }
-    }
     pub(super) fn add_nested(self, tree: Self, context: QueryContext<'a>) -> Self {
         if tree.branches.is_empty() {
             self
         } else {
-            self.push(Term::Nested { tree, context }, false)
+            self.push(
+                Term::Nested {
+                    tree,
+                    context,
+                    not: false,
+                },
+                false,
+            )
         }
+    }
+    pub(super) fn add_group(
+        mut self,
+        tree: Self,
+        context: QueryContext<'a>,
+        or: bool,
+        not: bool,
+    ) -> Self {
+        if tree.branches.is_empty() {
+            return self;
+        }
+        self.inherit(&tree);
+        self.push(Term::Nested { tree, context, not }, or)
     }
     pub(super) fn add_exists(mut self, child: DeferredChild<'a>) -> Self {
         self.has_subquery = true;
@@ -249,14 +315,18 @@ impl<'a> PredicateChain<'a> {
         for branch in &self.branches {
             for term in branch {
                 match term {
-                    Term::Frozen { origins, .. } => {
+                    Term::Frozen { origins, .. } | Term::ComparisonSub { origins, .. } => {
                         for origin in origins {
                             origin.validate_connection(context)?;
+                        }
+                        if let Term::ComparisonSub { child, .. } = term {
+                            child.validate(context)?;
                         }
                     }
                     Term::Nested {
                         tree,
                         context: original,
+                        ..
                     } => {
                         if tree.has_subquery {
                             original.validate_same(context)?;
@@ -278,7 +348,9 @@ impl<'a> PredicateChain<'a> {
         for branch in &self.branches {
             for term in branch {
                 let reaches = match term {
-                    Term::Exists(child) => child.reaches(target, visited)?,
+                    Term::Exists(child) | Term::ComparisonSub { child, .. } => {
+                        child.reaches(target, visited)?
+                    }
                     Term::Nested { tree, .. } => tree.reaches(target, visited)?,
                     _ => false,
                 };
@@ -314,14 +386,37 @@ impl<'a> PredicateChain<'a> {
                             sql.clone()
                         })
                     }
+                    Term::ComparisonSub {
+                        sql,
+                        bindings: frozen,
+                        operator,
+                        child,
+                        origins,
+                    } => {
+                        for origin in origins {
+                            origin.validate_connection(context)?;
+                        }
+                        child.validate(context)?;
+                        let left = if bindings {
+                            frozen.clone()
+                        } else {
+                            sql.clone()
+                        };
+                        conditions.add(left.binary(
+                            sea_orm::sea_query::BinOper::Custom(operator),
+                            Expr::from(child.prepare(bindings, false)?),
+                        ))
+                    }
                     Term::Nested {
                         tree,
                         context: origin,
+                        not,
                     } => {
                         if tree.has_subquery {
                             origin.validate_same(context)?;
                         }
-                        conditions.add(tree.compile(context, bindings)?)
+                        let nested = tree.compile(context, bindings)?;
+                        conditions.add(if *not { nested.not() } else { nested })
                     }
                     Term::Exists(child) => {
                         child.validate(context)?;
@@ -332,6 +427,44 @@ impl<'a> PredicateChain<'a> {
             result = result.add(conditions);
         }
         Ok(result)
+    }
+    pub(super) fn add_comparison_sub(
+        mut self,
+        sql: Expr,
+        bindings: Expr,
+        operator: &'static str,
+        child: DeferredChild<'a>,
+        origins: Vec<QueryContext<'a>>,
+        or: bool,
+    ) -> Self {
+        self.has_subquery = true;
+        self.push(
+            Term::ComparisonSub {
+                sql,
+                bindings,
+                operator,
+                child: Box::new(child),
+                origins,
+            },
+            or,
+        )
+    }
+    pub(super) fn add_comparison(
+        mut self,
+        sql: Expr,
+        bindings: Expr,
+        origins: Vec<QueryContext<'a>>,
+        or: bool,
+    ) -> Self {
+        self.has_subquery |= !origins.is_empty();
+        self.push(
+            Term::Frozen {
+                sql,
+                bindings,
+                origins,
+            },
+            or,
+        )
     }
     fn between<'operand, C: Into<ColumnOperand<'operand>>, B: Into<ColumnOperand<'operand>>>(
         mut self,

@@ -2,6 +2,96 @@
 
 使用 `Db::table` 从逻辑表名创建查询；值通过数据库绑定传递，列名由应用代码选择。连接与表名前缀配置见[数据库连接](connections.md)。
 
+## 基本比较
+
+`where` 是 Rust 关键字，默认相等条件使用 `r#where`；三个参数的显式比较使用 `where_compare`：
+
+```rust,ignore
+use openrust::db::query::WhereOperator;
+
+let rows = db.table("users")?
+    .r#where("active", true)?
+    .where_compare("votes", WhereOperator::Ge, 100)?
+    .get().await?;
+```
+
+`or_where_value` 是默认相等条件的 OR 形式，`or_where_compare` 是显式比较的 OR 形式；四个入口也适用于 `where_nested` 条件组。AND／OR 优先级与下面的布尔组合相同。
+
+普通右值作为绑定传递，字符串不会被解释为列名或 SQL。右值也可显式使用可信 `RawSql` 或已有的标量查询构造器，后者保留原连接、事务与子查询来源约束。动态操作符通过 `parse::<WhereOperator>()` 解析固定列表；未知值明确报错，不执行 PHP 动态猜参。
+
+已有查询放在右侧时，对应 Laravel 的子查询比较：挂接时捕获绑定，父查询编译读取子查询当前 SQL，不主动执行该子查询的 `before_query`。这与左侧标量操作数在接入时准备 SQL 的行为不同；不要依赖右侧回调替你追加绑定。后续修改造成 SQL 占位符与捕获绑定数量不符时明确拒绝执行。
+
+`Option::<i64>::None` 等空值在相等比较中对应 `IS NULL`，在 `NotEq`／`NotEqBang` 中对应 `IS NOT NULL`。`NullSafeEq` 的非空比较由方言分别编译为 MySQL `<=>`、PostgreSQL `IS NOT DISTINCT FROM` 与 SQLite `IS`。不合法的操作符与 NULL 组合会在构造条件时拒绝。
+
+基础比较与以下多列入口不代表全部 PHP `where` 重载已完成；普通数组条件、Eloquent／Relation 输入仍有后续对应范围。
+
+## 多列条件与查询闭包
+
+用 `MultiComparison::eq` 指定相同的等值条件，或用 `compare` 指定操作符：
+
+```rust,ignore
+use openrust::db::query::{MultiComparison, WhereOperator};
+
+let rows = db.table("users")?
+    .where_any(["name", "email"], MultiComparison::compare(WhereOperator::Like, "%Taylor%"))?
+    .get().await?;
+```
+
+| 方法 | 组内条件 | 外层连接 |
+| --- | --- | --- |
+| `where_any`／`or_where_any` | OR | AND／OR |
+| `where_all`／`or_where_all` | AND | AND／OR |
+| `where_none`／`or_where_none` | NOT（OR） | AND／OR |
+
+六个入口也可用于条件组。None 保留 SQL 三值逻辑：含 NULL 的结果可能仍为 UNKNOWN，不是逐列不等于。重复列保留原顺序与重复绑定，空列不增加条件或执行回调；参数准备阶段已非法的操作符与 NULL 组合仍会先报错。
+
+Rust 没有 PHP 的可变实参与动态操作符猜参，`MultiComparison::Omitted` 明确表示省略操作符和值，`eq(None::<i64>)` 表示明确的 SQL NULL 等值。两者对列闭包有不同含义：
+
+```rust,ignore
+use openrust::db::query::{MultiColumn, MultiComparison};
+
+let columns = [
+    MultiColumn::callback(|query| query.r#where("name", "Taylor")),
+    MultiColumn::from("email"),
+];
+let rows = db.table("users")?
+    .where_all(columns, MultiComparison::Omitted)?
+    .get().await?;
+```
+
+省略模式把列闭包作为继承外层 FROM 的嵌套条件；明确比较模式把同一个闭包作为没有 FROM 的新标量子查询，调用方按需通过 `from` 指定表。字符串、可信 `RawSql`、已有查询与闭包可以显式转换为 `MultiColumn` 后混排。列闭包按声明顺序调用一次；`MultiValue::callback` 作为右值时，每列重新配置一个同连接、同实际事务的空子查询，不提前共享一次性闭包结果。
+
+构造失败不会接入半个条件组，用户回调自身的外部副作用不回滚。每份右侧子查询分别核对实时 SQL 与挂接绑定的数量，两份查询一增一减也不能抵消；跨数据库、事务与失效嵌套来源不会因包装成组而恢复有效。
+
+## 空查询与原始投影
+
+`Db::query()` 创建真正没有 FROM 的查询；`from` 使用与 `Db::table` 相同的逻辑表名映射。没有 FROM 的写操作明确拒绝。使用 `select_raw` 表达可信 SQL 投影，并把值单独绑定：
+
+```rust,ignore
+use openrust::db::query::RawSql;
+
+let rows = db.query()
+    .select_raw(RawSql::new("? AS amount"), vec![7_i64.into()])?
+    .get().await?;
+```
+
+投影绑定模板统一使用 `?`，按出现顺序取值；SQL 字符串、引用标识符和普通注释内的问号不消耗绑定。PostgreSQL 的 JSON 问号操作符用 `??`，其他后端在执行代码区拒绝 `??`；原生编号或命名参数不能混入这条模板。`select_raw` 追加显式投影，第一次显式投影替换缺省 `*`；普通 `select` 替换已选投影，计数和分页不会丢失原投影绑定。
+
+原始 SQL 的模式边界仍受控：PostgreSQL 普通字符串按标准字符串模式处理，跨模式反斜线内容使用绑定或独立 `E` 字符串；MySQL 无法确认字符串转义模式时明确拒绝歧义反斜线。版本门控的 MySQL 执行注释含参数时也明确拒绝，不能从测试服务器版本推断实际是否执行。完整会话模式与版本感知编译仍未完成，这些限制不作为任意原始 SQL 已等价的声明。
+
+### JSON 路径比较
+
+MySQL、PostgreSQL 与 SQLite 的 JSON 列可以使用箭头路径；字符串值仍作为绑定，布尔值按目标方言的 JSON 比较规则处理：
+
+```rust,ignore
+let rows = db.table("users")?
+    .r#where("preferences->dining->meal", "salad")?
+    .r#where("options->enabled", true)?
+    .get().await?;
+```
+
+数组路径保留目标方言对键和索引的区别，不能把所有数字外观的键都当作数组索引。MySQL 的 JSON NULL／缺失路径使用提取值与 JSON 类型的联合判定。普通路径由框架引用和转义；`RawSql` 仍只用于应用选择的可信表达式。
+
 ## 值区间与列区间
 
 `where_between` 把上下界作为值绑定。每行具有自己的上下界时，使用 `where_between_columns`：
@@ -138,6 +228,8 @@ fluent 方法按 Rust 所有权返回新的值，因此在回调内显式构造�
 ## 唯一示例
 
 认证用户可读取 `GET /api/example/article-imports/timeline`。它使用既有文章导入记录，比较 `terminal_at_ms`、该行 `created_at_ms` 与服务器观察时点，分别统计正常和异常终结时间；未终结记录不计入，另一账户的数据不可见。显式 JWT profile 使用其具名 Guard，普通 JWT 路径保留对应认证方式。
+
+可选 `search` 在导入标识与来源名称上做包含式 LIKE 检索，`mode=any/all/none` 选择同一括号组的组合方式；检索值作为绑定，`%`、`_` 保留 LIKE 通配符含义。缺省或空检索不改变原范围，非空检索最多128字节；账户范围始终约束整个检索组。
 
 时间线通过执行前回调追加当前账户条件，普通查询克隆各自消费该范围；`exists_or` 返回是否有 open 导入，另一账户的在途记录不影响标记。
 
