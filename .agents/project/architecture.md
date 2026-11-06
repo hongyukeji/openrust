@@ -16,7 +16,7 @@
 
 ## Workspace 与职责
 
-当前已提交基线4463238已拆为根应用openrust与vendor/openrust/framework独立openrust-framework包，根仅保留薄src/main.rs。最新批准目标是独立根应用包与 `vendor/openrust/framework/` 框架包，采用标准 `src/lib.rs`，不是平铺 lib.rs；独立包迁移已通过日常适用验收，模块扩展与命名空间后继仍在唯一todo。根 default-members=["."]、default-run="server"，无参数 cargo run 启动唯一应用，应用继续通过 openrust:: 导入框架。
+当前已提交基线4463238已拆为根应用openrust与vendor/openrust/framework独立openrust-framework包，根仅保留薄src/main.rs。最新批准目标是独立根应用包与 `vendor/openrust/framework/` 框架包，采用标准 `src/lib.rs`，不是平铺 lib.rs；独立包迁移已通过日常适用验收，模块扩展已由6c21bab0限定验收拆包，命名空间后继仍在唯一todo。根 default-members=["."]、default-run="server"，无参数 cargo run 启动唯一应用，应用继续通过 openrust:: 导入框架。
 
 app/bootstrap/config/database/public/resources/routes/storage/tests 是根目录职责。唯一综合示例 modules/example 由根 server 通过模块清单统一装配，贯穿框架能力；不保留独立 demo/example 应用或根 examples 目录。框架src保持通用实现，根app可承载宿主业务；不因仅保留一个综合示例而禁止根app开发。示例专属迁移、种子、模板、协议/生成脚本及测试 fixture 归模块内部；根 bootstrap/config/routes/database/resources 等仅保留通用加载与公开挂载，不含样例特判。根不因示例保留 build.rs 或新增 build 依赖。
 
@@ -46,4 +46,4 @@ R1-S旧过渡结构以34dfb5e提交；统一 Provider 已在 R2-B 验收，modul
 | 根 openrust 的 `server` bin | 聚合入口及启动/数据库/认证集成验证，见 [core/server.md](core/server.md) |
 | cache/events/storage 等剩余能力 | 尚未完整实现；按 [当前计划](plan.md) 与 [能力矩阵](plans/laravel-rebuild-matrix-1.md) 逐簇推进 |
 
-模块化专属机制获准归vendor/openrust/modules/src（openrust-modules），默认集成仍属独立扩展。模块发现/manifest/依赖/activator/资源/模块CLI按AR-M01接续已闭环的AR-P01实际拆分；通用生命周期与公开扩展留framework，不形成framework反向依赖modules。当前代码尚未拆分，不将本目标记为已实现。
+模块化专属机制已归vendor/openrust/modules/src（openrust-modules），由6c21bab0限定验收提交推送，默认集成仍属独立扩展。发现、manifest、依赖、activator、资源与模块CLI归modules；通用Container/Provider/config/routes及ProviderRegistration扩展留framework。应用通过ModuleProviderBuilderExt与Application/TestApp配置hook安装模块，共用唯一容器和生命周期；依赖方向为应用→modules→framework，framework无反向正常或build依赖。完整Modules与命名空间仍按唯一todo推进。

@@ -1,5 +1,15 @@
 # 测试基线
 
+## 模块扩展独立包限定验收
+
+AR-M01由`6c21bab07a80819cd1a1c6fffd5e8392c43c43cb`提交并核对origin/main，精确树`bde4e7845451739bddb74e366ce88a41ac9d9d45`，1565项输入的规范blob与权限一致。应用→openrust-modules→openrust-framework，模块专属机制不留核心或产生反向依赖，根装配、唯一示例、CLI、模板和consumer同步接入。
+
+v10实际通过全target/all-feature check与严格Clippy、完整默认workspace、真实MySQL8.4 routine及37项纯行为/必需Raw、queued Fortify exact、两项新清理正反回归、原cold-prepare取消exact、生命周期与受限可见性恢复、双严格Rustdoc、no-default和MSRV两配置。模块94项单元、9项集成、core prepare7项/root resolver2项及模块2段Rustdoc均逐名确认通过；ignored不计实服务验收。六精简feature、12consumer、生成MySQL应用及普通模块10项CLI动作、root no-default/deny复用未变输入v6证据，根实际TCP复用v8证据，未声称全部在v10重跑。
+
+仅正常关闭已知自有MySQL池后的首次空闲确认允许最多1秒按观测重查；持续外连接、错误归属或不可见性仍保库，恢复与DROP前最终门禁保持严格。历史失败时占用者身份未捕获，不推断自有；未声称主动lease-loss或instrumentation lost故障注入。完整Modules、命名空间、非MySQL/最低版/Windows及外部服务发布矩阵仍开放。
+
+独立回执为`tmp/independent-testing-20261106/AR-M01-RESULT.json`，23份收据/111份日志摘要及精确提交映射已核。全部历史失败与harness纠正保留。完成簇唯一私有target已原生清理约14.24GB，产物归零、可用空间约106.17GB；源码、其他WIP、生成源码和证据保留。
+
 ## 根应用与框架独立包限定验收
 
 AR-P01由`4463238`提交并核对origin/main，精确树`692ed33655857d804f217ca96ddac66052863eca`，1554项输入的物理SHA、规范Git blob和权限一致。根openrust仅含默认server，独立openrust-framework位于vendor/openrust/framework，库名与应用依赖别名均为openrust；默认cargo run、12消费者和新建应用均解析独立包。模块扩展拆分与Laravel命名空间完整对应不属于本簇。

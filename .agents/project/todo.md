@@ -78,12 +78,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 数据库运行策略以[当前数据库运行政策](memory/testing.md#当前数据库运行政策)为唯一权威：日常仅真实MySQL8.4；其他数据库与最低版本运行统一发布前验收，不增加当前Query或AR-P01的非MySQL运行门槛。
 
-最新真人顺序：MB-A01、C07-W01/W02及AR-P01均已限定验收提交推送，AR-P01提交4463238且远端SHA已核 → AR-M01模块扩展独立包。J01、SC-N01及Model日期准备保全WIP，不作为迁移的额外前置；SQLite、数据库国际化和Passport按互斥文件并行编码，公共contract、包路径、manifest和集成由root串行收敛。Lead与独立测试对话双向直接交接/失败修复/结果核树均已获真人授权，不依赖Architect中转；测试working不重复激活、不重发未知发送。
+最新真人顺序：MB-A01、C07-W01/W02及AR-P01均已限定验收提交推送，AR-P01提交4463238且远端SHA已核 → AR-M01已由6c21bab0限定验收提交推送 → AR-N01命名空间与开发流程对应。J01、SC-N01及Model日期准备保全WIP，不作为迁移的额外前置；SQLite、数据库国际化和Passport按互斥文件并行编码，公共contract、包路径、manifest和集成由root串行收敛。Lead与独立测试对话双向直接交接/失败修复/结果核树均已获真人授权，不依赖Architect中转；测试working不重复激活、不重发未知发送。
 
 
-- AR-N01（Laravel命名空间与开发流程对应）：root持公开contract，按固定Illuminate/Foundation/Container/Contracts/Support/Database/Routing/Http/Translation/Filesystem/Encryption职责逐项核当前core/db/database/i18n等入口；Rust的::/snake_case/类型/async/编译声明仅作必要适配，配置默认/参数/错误安全/Provider/CLI/生成按官方流程给行为证据。去除纯旧兼容重复体系，但真实Facade/prelude/re-export按职责判定；同步调用方/宏/模板/唯一示例/consumer/Rustdoc/指南。AR-P01已限定验收提交，本项独立排期；现API尚未全部对齐，不能因搬迁就宣称仅剩Rust语法区别。模块扩展公共hooks按AR-M01依赖收敛，不建第二内核。
+- AR-N01（Laravel命名空间与开发流程对应）：root持公开contract，按固定Illuminate/Foundation/Container/Contracts/Support/Database/Routing/Http/Translation/Filesystem/Encryption职责逐项核当前core/db/database/i18n等入口；Rust的::/snake_case/类型/async/编译声明仅作必要适配，配置默认/参数/错误安全/Provider/CLI/生成按官方流程给行为证据。去除纯旧兼容重复体系，但真实Facade/prelude/re-export按职责判定；同步调用方/宏/模板/唯一示例/consumer/Rustdoc/指南。AR-P01已限定验收提交，本项独立排期；现API尚未全部对齐，不能因搬迁就宣称仅剩Rust语法区别。模块扩展公共hooks已由AR-M01收敛，后续复用该公开机制，不建第二内核。
 
-- AR-M01（模块化扩展独立包，紧接AR-P01）：真人已批准vendor/openrust/modules/src与Cargo openrust-modules，对应固定nWidart；root收敛公共hooks/manifest，依赖AR-P01包边界闭环。发现、manifest、依赖、activator、资源与模块CLI迁扩展，通用Container/Provider/config/routes/资源与命令契约留framework；应用→modules→framework，不允许反向依赖或只套reexport。同步根装配、生成/CLI、唯一example及consumer，验收正常启用/依赖/资源/命令/生命周期与生产链后提交推送。AR-P01已提交4463238，本簇前置已满足。owner=root持通用ProviderRegistration/装配/manifest，insert_id_adapter_review迁模块专属生产与原测试，query_between_columns_impl外部调用方/CLI模板36文件已冻结；model_mutation_independent_review独审。当前已物理拆包、通用prepare与Application/TestApp配置hook编码中，锁图/运行验收未执行，不报交付；源码和有效行为保留，不能以登记或目录相似关闭。
 
 
 - I18N-S01（L041/R9数据库翻译来源）：真人已授权，沿[统一来源计划](plans/localization-sources.md)实现；owner=query_between_columns_impl（父Loader接线候选在tmp隔离编码，迁移后接新核心路径；数据库源归translation-database扩展，不抢实际父文件），root持公共contract/迁移。文件默认不变、DB显式独立/组合优先级，统一default_locale/namespace/fallback/空值/plural；批量快照/有界刷新/删除更新/故障观测，不每次翻译查库或常驻daemon。七个来源叶及12项测试代码已冻结，局部静态通过；父I18n/迁移/Provider/配置/唯一模块/生成与文档待接线。数据库来源最终归第一方扩展包，当前叶路径为待迁移WIP；root按AR-P01串行安排包归属。随后独立MySQL/PG/SQLite与并发验收，未验不报支持。
