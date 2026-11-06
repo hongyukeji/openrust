@@ -1,6 +1,6 @@
 # 认证与授权
 
-本模块提供具名 Guard、账户 Provider、密码、JWT/PAT/refresh、授权查询与可选 Fortify。完整操作见[认证指南](../../../../../docs/src/security/authentication.md)。现代 Fortify 与 JWT API profile 为本批新增组合，尚待适用行为、生成应用和集成验收；接口存在不代表完整 Laravel 认证生态已交付。
+本模块提供具名 Guard、账户 Provider、密码、JWT/PAT/refresh、授权查询与可选 Fortify。完整操作见[认证指南](../../../../../docs/src/security/authentication.md)。Fortify 官方默认 Web/Session 与显式 Bearer JWT profile 已完成一批适用行为、生成应用和集成的[限定组合验收](../../../../../.agents/project/memory/testing.md#fortify-官方默认与显式-jwt-组合验收)。完整 R7 和 Laravel 认证生态仍有缺口：Google Authenticator 真实客户端导入、UUID/字符串用户 ID 的完整 JWT 持久链及 Passport/OIDC Provider 等开放项继续按唯一待办推进。
 
 
 ## 具名 Guard 与 `UserProvider`

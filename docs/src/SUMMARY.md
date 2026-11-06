@@ -38,3 +38,7 @@
 
 - [注册与模块组织](modules/registration.md)
 - [显式文件状态与启停](modules/file-state.md)
+
+# 补充：源码应用
+
+- [源码应用与扩展指南](getting-started/source-application.md)
