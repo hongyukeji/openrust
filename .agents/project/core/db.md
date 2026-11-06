@@ -38,9 +38,13 @@ DB-I01限定实现同次执行返回ID、默认行/sequence、PHP64 Processor数
 
 SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence/期限、续约、同一事务写保护及真实导入生产边界保留；最低3.26与原本MySQL/PG协调回归均有绑定输入证据。当前只支持同机文件租约，不代表完整CacheLock/Queue/幂等。详细范围、native构建诊断与纯提交树闭合见[验收](../memory/testing.md#sqlite-同机租约方言限定验收)。
 
-## 模型属性前置（冻结待验）
+## 模型属性与认证前置（限定验收）
 
-MB-A01 已编码并经三轮不同模型静态复审：显式元数据/连接/身份、精确原始行水合、共享getter/cast/异步setter、拥有式多字段回执与认证Cookie committed读取。普通setter按同字段代次保护后继，收据按祖先状态处理双取消/ABA/poison与资源回收；根/模板User及唯一模块真实调用测试代码同步。当前只通过局部静态检查，Cargo/实库/生成及取消竞态运行仍待独立验收；完整Eloquent save/dirty/关系与PG会话格式仍开放，数据库I/O未知完成不因内存恢复关闭。公开边界见[模型基础](../../../docs/src/eloquent/getting-started.md)。
+MB-A01 已由 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8` 限定提交并核远端：显式元数据/连接/身份、原始行水合、getter/cast/异步setter、拥有式多字段回执及认证Cookie committed读取。根/模板User与唯一示例复用公开属性管线；普通setter保护同字段后继，回执处理祖先取消、ABA与资源回收。
+
+完整适用主线门禁、真实双库原始行与认证、实际SQLite3.26、三后端生成认证应用及适用consumer已通过。JSON使用局部RawValue保持数字词法，不启用全局arbitrary_precision；PHP8.5.12对照及真实HTTP getter见证通过。范围和输入绑定见[验收](../memory/testing.md#模型属性与认证前置限定验收)。
+
+完整Eloquent save/dirty/关系、日期及完整值载体、PG会话显示仍开放；内存回滚不保证未知DB提交或跨连接持久顺序。公开边界见[模型基础](../../../docs/src/eloquent/getting-started.md)。
 
 
 ## 当前实现

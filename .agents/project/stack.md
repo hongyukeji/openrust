@@ -1,6 +1,6 @@
 # 技术栈
 
-MB-A01 的模型 Array cast 改用现有同版 `serde_json` 的显式 `raw_value` feature，局部保留JSON数字词法并恢复PHP64类别；保留 `preserve_order`／`float_roundtrip`，不启用全局 `arbitrary_precision`，避免其私有Number序列化破坏通用Figment配置及scalar契约。曾启用全局feature的候选已证配置/Session与golden失败，修正后须按原有效断言和新边界集中验收，当前保持WIP；不新增依赖或升级版本。
+MB-A01模型Array使用现有同版serde_json的显式raw_value，局部保留JSON数字词法并恢复PHP64类别；preserve_order/float_roundtrip不变，禁止全局arbitrary_precision污染通用Serde与Figment来源。无新增依赖或版本升级；主线、三类生成与适用consumer的限定验收见[模型属性](memory/testing.md#模型属性与认证前置限定验收)。
 
 DB-I01固定 `sea-orm =2.0.4`，仅在仓内源码新增安全 `ExecResult::try_last_insert_id`，SQLite保留有符号rowid，MySQL保留原生u64，不支持的PG结果返回错误；Query层按各固定Processor另作PHP64位数值转换。原因与原包SHA/许可证见 [SeaORM来源](../../vendor/sea-orm/SOURCES.md)。用户已批准完整必要crate随簇提交，根patch、12个consumer与三类fresh实际metadata均解析同一修复副本；无准备脚本、外部fork或发布替代声明。上游升级时须核修复等价再移除补丁，完整来源/许可证/上游402项SHA保持，当前不为精简改变受验分发。限定验收见[插入标识](memory/testing.md#插入标识与事务执行闭环)。
 

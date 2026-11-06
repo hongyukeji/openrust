@@ -1745,3 +1745,20 @@ I18N-E01 提交 `1dff30295a2dede862632414b10c4501a84acf05`、树 `a50725fe410d73
 当前main精确1519项组合另过全目标全feature check、核心13/真实示例5/CLI全部测试与实际构建，SQLite与MySQL-auth生成应用各new/check/完整test/metadata通过，每个profile新增两项明确执行。公开 `App::exception_handler()` 读取实际应用Handler，核心与生成均不用私有registry或另建默认Handler。原SQ SQLite租约生成回归也实际执行；测试库清单恢复。
 
 旧lint、HTTP详情覆盖、配置并发与生成Handler获取失败均保留。配置合并测试的全局环境读取风险已用子进程QUEUE_DRIVER受控负例复现，显式空snapshot后同污染场景及正常并发全feature lib1609项通过；不声称历史失败的唯一变量已知。初始0项过滤/误选macros诊断不计通过。回执 `tmp/independent-testing-20261106/I18N-E01-RESULT.json`、`I18N-E01-CLEAN-TREE-RESULT.json`；不关闭数据库翻译来源、完整Loader/Localization。
+
+## 模型属性与认证前置限定验收
+
+MB-A01 提交 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8`，准确树 `f8e5800fe8721cbbc83030f754ee799481981a04`，已核origin/main。固定Laravel `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的Model/HasAttributes/Authenticatable与DatabaseUserProvider为依据；GenericUser的literal原始属性与模型有效属性分开。源码51文件、规范输入1535项；唯一物理差异是非构建Windows提交脚本的既有CRLF/LF规则，所有构建源码/模板及执行位精确核验。
+
+| 子范围 | 限定证据 |
+| --- | --- |
+| 原始行/属性/修改 | MySQL8.4环境Eloquent组76（含通用单元与实际raw行专项）、数据库认证8；PG18实际raw行1与认证8，无服务跳过且前后catalog一致。NULL/缺失/解码失败、PDO类别、getter/基础cast、异步setter/收据取消与committed读取分别保留断言。 |
+| JSON与数值 | 同版RawValue两阶段校验Unicode/深度及重复成员，再转最终可见数字；普通scalar617保持。74项PHP8.5.12参考及大指数三入口6比较归零，文档字面样例实际编译运行。512KiB线程的8场景保最终Value析构/错误清理，成本仅为本机开发证据。 |
+| 根与示例认证 | v8真实HTTP测试验证登录当场调用password getter、合法整数账户跨请求成功；同raw快照String模型正向读取与整数authority精确Unauthorized并存。原authority12/具名Guard10通过，生产typed-ID、表和连接校验未放宽。 |
+| 最低SQLite | 指定并核实际加载SQLite3.26.0动态库及SHA，Model71/数据库Guard4/示例SQLite子树7通过。明确过滤的网络raw用例由本轮双库另验。默认bundled3.51.3只有构建静态链接来源证明，不伪造运行SQL版本读数。 |
+| 主线/feature | fmt、default/all-target/all-feature strict、完整default/all workspace、两模式拒警Rustdoc、各driver/auth/hashing严格检查、Fortify无后端、MSRV1.97两模式及deny通过；default与PHP探针按不变输入映射复用。 |
+| 生成与consumer | SQLite/MySQL/PG认证应用各实际new/check/test/锁定metadata通过，无skip；test摘要41/40/40含lib/bin重复，不相加冒充独立场景。12consumer metadata全部指向隔离源，两个受影响consumer执行锁定check；不声称12项都重新编译。 |
+
+最终索引 `tmp/independent-testing-20261106/MB-A01-RESULT.json`，Root复核 `mb-a01-root-final-acceptance.json`；原失败保留。收尾回收firstparty、CLI、多feature/MSRV/native与fresh产物，仅留明确下一C07所需的一份依赖缓存，无在途命令、磁盘余量超过软线，主目录target不存在。
+
+不关闭完整Eloquent、全部casts/日期/关系/持久save、完整PHP数组键/对象身份/无效UTF8/非有限值载体、PG TimeZone/DateStyle显示及未知数据库提交/跨连接顺序；C07组合、J01及数据库翻译来源各自待验。

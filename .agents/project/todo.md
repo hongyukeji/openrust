@@ -73,7 +73,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 总控核心与并行分工（最新真人排期）
 
-短闭环顺序：已验收立即提交推送 → MB-A01当前main精确组合独立验收 → C07-W01精确候选独立验收。Model核心保持并行编码，不用小修长期替代主线；来源扩展及整包迁移按前置排期。Lead与独立测试对话双向直接交接/失败修复/结果核树均已获真人授权，不依赖Architect中转；测试working不重复激活、不重发未知发送。
+短闭环顺序：已验收立即提交推送 → MB-A01当前main精确组合独立验收 → C07-W01/W02有限组合独立验收。Model核心保持并行编码，不用小修长期替代主线；来源扩展及整包迁移按前置排期。Lead与独立测试对话双向直接交接/失败修复/结果核树均已获真人授权，不依赖Architect中转；测试working不重复激活、不重发未知发送。
 
 
 - AR-P01（框架与根应用独立包）：owner=root；先提交推送已通过 DB/CLI，收齐当前 owner 冻结交接并保全 WIP，再实施有限迁移。最终标准路径 `vendor/openrust/framework/src/lib.rs`，包根 manifest/README/tests；根薄 src/main.rs、openrust::、直接 cargo run 不变。同步 feature 转发、CLI/宏/资源路径、12 consumers、唯一示例、生成与适用门禁；第一方扩展进 workspace，第三方 vendor 按最终 Laravel/Composer 发布者/包名布局：sea-orm→vendor/seaql/sea-orm、sea-orm-migration→vendor/seaql/sea-orm-migration、sqlx-mysql→vendor/launchbadge/sqlx-mysql；即使同源仓库也按独立crate平级，包内保留上游src布局，只保必要crate，真实repository另记来源。Cargo不会自动安装到这些目录，此为项目受控源码布局约定。当前路径未迁移，根patch/internal path/消费者/生成复制及metadata须统一更新，不改旧冻结候选，不保留双实现。依[包布局计划](plans/extension-package-layout.md)，当前仅目标已批准、尚未迁移；不重跑或改动已冻结旧布局候选。
@@ -88,10 +88,13 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 最新开发节奏：有限功能簇先Spec固定上游contract→集中补齐实现、调用方、配置、生成、唯一示例、测试代码与文档→逐项Laravel映射及独立静态审查、批量闭合编码缺口→冻结并集中适用验收→失败按影响修复复验→通过后本地提交。状态区分编码中/对照缺口/冻结待验/验收失败修复/已验收已提交；最小编译或歧义诊断探针允许，静态对照不等于行为通过，当前受验批次正常收口不重来或加簇。
 
-- 总控下一核心簇 MB-A01：raw行适配、元数据/访问器/基础cast、根与生成User标识/密码、Client公共getter接线均在同簇WIP。静态审查已修User绕过属性及JSON大数/null吞错，serde_json arbitrary_precision已显式记录；真实类型/全feature与调用方回归待验。remember异步属性/拥有式收据/多receipt祖先链与committed Cookie读已编码并三轮不同模型静态复审关闭已知blocker，原真实跨Guard/取消时序保留；原核心49文件/1526SHA候选首门fmt与全目标全feature check已通过、根/vendor均真实复编；按已验E01后的main重新组成49文件/1533输入候选mb-a01-main-ready.json（树e9465016，已恢复五个vendor既有Git模式），43个原受审文件不变，仅6个共享CLI/docs组合，统一完整main矩阵与全局serde影响验收，不再跑两套完整矩阵。无Passport/W01/W02并行源码。 首轮strictClippy 35项唯一诊断已出精确v3增量；MySQL测试TIME/JSON存储边界按真实oracle修fixture，PG首连接为harness账号已纠正。配置26过/18失败及Session7失败已证为全局arbitrary_precision→Figment数值map兼容阻塞，正在收敛局部RawValue数值解析，禁止改旧配置fixture掩盖；完整矩阵待生产契约修复。未关闭完整Model/remember/PG会话格式缺口。完成此有限前置，再沿Query/Schema/迁移、Eloquent关系/Cast、分页、Factory及剩余Container/Provider/HTTP依赖推进；不因Passport有后继而把整个扩展重新排成总控主线，SQLite专项开发与验证由并行owner承担，受影响功能最终交付前仍匹配验收。
-- C07-W01 通用比较前置：query_between_columns_impl已完成比较/三方言NULL与JSON、LHS冻结与RHS延迟Sub及图来源；root已接真实时间线和生成测试/公开文档。四轮不同模型静审关闭非穷尽backend编译、路径安全、方言范围及NULL/左右回调/绑定/错误优先级缺口；精确11文件/1520输入候选c07-w01-ready.json交独立验收，排I18N/MB后，不混在途候选。当前未运行、未提交；完整where/Closure/Any/All/None仍开放。旧PG where_json_contains模板疑点保留后继待最小复现。
-- C07-W02 多列条件与Closure后继：query_between_columns_impl已完成固定六方法/官方Closure样例只读Spec，root核准六方法+显式MultiComparison省略/等值/操作符模式、延迟MultiColumn与逐列FnMut MultiValue；空FROM工厂/安全from及原投影机制内select_raw为必要前置。单一query owner连续编码，root持公共contract/例/CLI/docs，原W01归档SHA不改、提交从归档取blob。空列按参数准备与leaf分派分别验证，NOT保SQL三值；不把W01/旧测试算本簇运行通过，未验收未提交。
+- MB-A01（模型属性与认证前置）：owner=root；独立验收已闭合，准确树`f8e5800fe8721cbbc83030f754ee799481981a04`由`06b4d50c6c89001a2db0adee2ff54f13d78bffb8`限定提交推送并核远端，其他WIP原内容不变。原始行、metadata/getter/基础cast/异步setter、可逆回执与认证committed状态、根/模板/唯一示例配套通过；完整生成/适用consumer及资源收尾见[验收](memory/testing.md#模型属性与认证前置限定验收)。
+  后继仍保留完整Model、日期及值载体、PG显示与未知DB提交/跨连接顺序缺口；通用scalar大指数后继另列。当前先绑定实际提交后的C07-W01/W02有限组合验收，不夹J01、Passport或Source WIP。
+- Model日期cast后继只读预审：owner=insert_id_adapter_review；固定HasAttributes核date/datetime/immutable/custom格式的读取/赋值/序列化、时区与错误，再由root收敛必要Rust API。只产Spec和差异映射，不改MB冻结源码、不新增依赖或越过当前Query顺序启动实现；完整日期能力仍未交付。
+- C07-W01/W02 有限Query组合：比较、六个多列入口/Closure、必要空FROM与受控raw投影已编码，三轮W02独审及原W01四轮静审关闭已知blocker。每子查询独立核绑定数量、失效空组/左右错误顺序/原生参数拒绝/取消重试均有新回归代码；原W01归档与独立backport保留。root已接时间线可选search+mode及9个新HTTP场景、两个新生成query测试与文档；c07-combination-ready.json精确21文件/1530输入（v2树8ba9b66c；仅示例Validation错误构造按真实公开API修正）排MB之后一次验收，不跑两套同内核完整矩阵，不夹Model/Passport/Source。当前未运行、未提交，完整where/Query仍开放；旧PGjson_contains疑点仍待最小复现。
 - 并行扩展：insert_id_adapter_review负责Passport下一Repository/Bridge固定contract及依赖核对，已交Client/协议WIP保留；前置为统一Model/Hash/Query，下一验收为真实Client持久链与授权码/PKCE，然后OIDC OP与双RP SSO。不得另建核心替代体系。
+- C07-J01（旧PG JSON包含缺陷，后继WIP）：owner=query_between_columns_impl；固定官方PostgresGrammar的列jsonb转换及SeaQuery PG模板标记已核，旧`? @> ?`不会展开表达式/收绑定是静态确认缺口，实际最小复现待独立验收。三个私有predicate/纯AST与PG真实测试叶已编码冻结，局部fmt/静态通过但未接线未编译；精确SHA与未应用parent补丁见`tmp/query-multi-column-20261106/json-contains-source-receipt.json`，不同模型独审已关闭实现与写目标见证的已知静态blocker（报告`tmp/query-multi-column-20261106/json-contains-independent-review.md`）。parent与builder保持当前W01/W02冻结输入不变；root已补既有记录列表的可选metadata筛选、同owner分页、HTTP回归、生成PG/MySQL模板与指南，配套独审已关闭已知静态blocker；框架与CLI两补丁仍未应用，不进Model/W01/W02候选，当前组合提交后再串行接线，不能追加当前候选。范围限已有简单列入口的PG参数与cast修复、MySQL原行为；完整JSON族、路径/OR/NOT/SQLite及raw会话后继另保留，不报完成。Spec见`tmp/query-multi-column-20261106/json-contains-preflight.md`。
+- C07 raw编译后继：普通PG字符串的非标准会话模式、MySQL转义mode与版本门控执行注释的参数编译仍需真实连接能力/会话元数据闭环；现受控API明确拒绝歧义或未知版本参数，不将完整raw支持划不适用。日常MySQL8.4不等于框架最低支持版本。该后继不追加进当前已冻结C07组合。
 - root唯一调度公共contract、manifest/lock、迁移、共享文档、Cargo/服务和main索引；冻结验收期间不并入新源码。各owner当前实际产出和后继证据位于tmp/full-speed-20261106，ready任务持续复核。
 
 - 2026-11-06真人要求全速并发并取消本任务额度保留线，root已用正式read_thread核原始消息；仅本Goal普通额度覆盖，credits=false、平台硬限与原80%历史不变。Desktop正式覆盖入口适配由query_import_timeline_example负责，正式入口已由root激活，checkpoint=continue且full_budget_once=active，原account_budgets逐字值相等、credits=false；root负责来源/激活/共享集成，query_between_columns_impl修默认feature Model测试，insert_id_adapter_review复审冻结Query/唯一示例。原insert_get_id有限簇不扩大；Cargo/服务/索引串行由root负责。证据tmp/full-speed-20261106。
@@ -779,6 +782,8 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 上游依据：[Laravel 13 Routing — Subdomain Routing](https://laravel.com/framework/docs/13.x/routing#subdomain-routing)；固定源码匹配规则确认 domain routes 在 unrestricted routes 之前处理，与注册先后无关。
 
 ## 当前 C04 Spec：Request/Response 契约校准
+
+- 标量数值后继缺口：固定PHP8.5.12对显式指数绝对值截19999，大尾数与相反大指数相消时可得到与Rust直接parse不同的有限值。MB-A01仅修模型Array/Float/适用Integer路径；通用Request/Session scalar及typed JSON数值入口须另核同根因并集中对应，不因既有617项通过关闭该边界。复用已保全PHP输入及位型，保持原有效断言。
 
 1. R3-F 已提交163bb49且工作区清洁后领取；本阶段先对照固定上游 L019/L020，定位首个可独立实现的 Request/Response 行为子簇，再立即进入实现与验收。
 2. 审计现有 Json/Path/Query/Validated、ClientIp、类型化响应、统一 envelope 和原生 Axum 逃生口，不重复实现已覆盖能力，也不将类型别名或换名包装当成 Laravel 行为对应。
