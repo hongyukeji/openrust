@@ -81,11 +81,12 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 最新真人顺序：MB-A01、C07-W01/W02及AR-P01均已限定验收提交推送，AR-P01提交4463238且远端SHA已核 → AR-M01已由6c21bab0限定验收提交推送 → AR-N01命名空间与开发流程对应。J01、SC-N01及Model日期准备保全WIP，不作为迁移的额外前置；SQLite、数据库国际化和Passport按互斥文件并行编码，公共contract、包路径、manifest和集成由root串行收敛。Lead与独立测试对话双向直接交接/失败修复/结果核树均已获真人授权，不依赖Architect中转；测试working不重复激活、不重发未知发送。
 
 
-- AR-N01（Laravel命名空间与开发流程对应）：root持公开contract，按固定Illuminate/Foundation/Container/Contracts/Support/Database/Routing/Http/Translation/Filesystem/Encryption职责逐项核当前core/db/database/i18n等入口；Rust的::/snake_case/类型/async/编译声明仅作必要适配，配置默认/参数/错误安全/Provider/CLI/生成按官方流程给行为证据。去除纯旧兼容重复体系，但真实Facade/prelude/re-export按职责判定；同步调用方/宏/模板/唯一示例/consumer/Rustdoc/指南。AR-P01已限定验收提交，本项独立排期；现API尚未全部对齐，不能因搬迁就宣称仅剩Rust语法区别。模块扩展公共hooks已由AR-M01收敛，后续复用该公开机制，不建第二内核。
+- AR-N01（完整官方职责与开发流程后继）：owner=root；职责命名空间限定迁移已由`b3f6117be1fc`提交，范围与[验收证据](memory/testing.md#命名空间与开发流程限定验收)分别记录，不能以搬迁关闭完整Laravel语义。唯一Container/Support/Console/Foundation/Database/Routing/Http/Translation/Filesystem/Encryption实体、调用方、模板、示例和文档入口已收敛；继续补齐[命名空间计划](plans/laravel-namespace-alignment.md)中Contracts及Container绑定/生命周期、Console命令语义、Routing/controller/middleware、Translation默认FileLoader/choice/deferred、Filesystem完整契约/默认及Encryption官方cipher/key/payload等差距，按依赖领取独立有限簇，不建空门面或第二体系。Source、SQLite、Passport、J01、SC和Model后继WIP不计入本次验收。
+- AR-N01附属配置核对：owner=root；第三方包已位于vendor/seaql/sea-orm，但根.gitattributes的逐字行尾保护仍指旧vendor/sea-orm。后续限定修正保护路径并核实际Git属性、固定vendor源码SHA与差异，不因现有索引保留CRLF就忽略未来新增/修改文件的归一化风险；不混入Source运行证据。
 
 
 
-- I18N-S01（L041/R9数据库翻译来源）：真人已授权，沿[统一来源计划](plans/localization-sources.md)实现；owner=query_between_columns_impl（父Loader接线候选在tmp隔离编码，迁移后接新核心路径；数据库源归translation-database扩展，不抢实际父文件），root持公共contract/迁移。文件默认不变、DB显式独立/组合优先级，统一default_locale/namespace/fallback/空值/plural；批量快照/有界刷新/删除更新/故障观测，不每次翻译查库或常驻daemon。七个来源叶及12项测试代码已冻结，局部静态通过；父I18n/迁移/Provider/配置/唯一模块/生成与文档待接线。数据库来源最终归第一方扩展包，当前叶路径为待迁移WIP；root按AR-P01串行安排包归属。随后独立MySQL/PG/SQLite与并发验收，未验不报支持。
+- I18N-S01（L041/R9数据库翻译来源）：真人已授权，沿[统一来源计划](plans/localization-sources.md)实现；owner=root（v3独审后32项已串行接main独立WIP，保留v11统一测试入口；17非模板Rust已standalone格式检查，模板占位符未格式化；数据库源归translation-database扩展，Source-only manifest/lock与冻结验收待AR本批提交后收口），root持公共contract/迁移。文件默认不变、DB显式独立/组合优先级，统一default_locale/namespace/fallback/空值/plural；批量快照/有界刷新/删除更新/故障观测，不每次翻译查库或常驻daemon。来源/快照/迁移/Provider/配置/唯一模块/生成与文档已编码接线，独审关闭已知生命周期、HTTP协商/准入/超时/取消、安装fixture与CLI断言阻断；未编译运行，不能按源码测试数报通过。数据库来源最终归第一方扩展包，当前叶路径为待迁移WIP；root按AR-P01串行安排包归属。日常随后独立真实MySQL8.4与并发验收，PG/SQLite当前和最低版本及Windows运行专项保留发布前；所有features仍需适用编译/Clippy/doc，未验不报支持。 纯AR v14后继已静审重基并组装51项源码/包图隔离预览，保最终文档修正；尚未冻结交验，先由原tester正式刷新锁，再日常MySQL8.4及适用编译/Clippy/doc/生成，其他后端运行仍归发布前。
 
 当前持续交付授权：真人已明确要求已验收的完整簇及时限定规范提交并推送origin/main，不等无关WIP或全部计划结束。Lead唯一负责索引/commit/push，Architect不并发push；先fetch核远端祖先，以验收绑定的准确commit SHA安全快进推送，ls-remote核远端hash。主目录有其他WIP时保护原索引/源码，使用临时clean detached树核准确提交后显式SHA推送，再正常移除；不stash/reset/夹带未验源码。此前1a7473ba及祖先已远端，禁止按旧全本地历史重组。旧仅本地/不推送口径由本次专门授权覆盖；force、tag、release、发布与改写已推历史仍不授权。
 

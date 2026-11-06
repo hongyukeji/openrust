@@ -1,10 +1,10 @@
 # 当前交付与验证
 
-核心功能验收按[逐项清单](memory/core-functional-acceptance.md)单独统计：2026-11-06已提交基线501e4a25，188项中72项已验收、86项部分完成、30项待开发，等权验收完成率**38.3%**。覆盖71个核心相关章节，扩展另列不计分母；这是固定功能单元清单的验收比例，不是代码量、工时或全部API方法覆盖率。未提交AR-N01不计交付；复算入口为`scripts/summarize_core_acceptance.py`。
+核心功能验收按[逐项清单](memory/core-functional-acceptance.md)单独统计：2026-11-06已提交基线501e4a25，188项中72项已验收、86项部分完成、30项待开发，等权验收完成率**38.3%**。覆盖71个核心相关章节，扩展另列不计分母；这是固定功能单元清单的验收比例，不是代码量、工时或全部API方法覆盖率。AR-N01职责迁移单独计证，不因目录/API改名增加功能验收分子；复算入口为`scripts/summarize_core_acceptance.py`。
 
-模型属性与认证前置MB-A01已由`06b4d50`限定提交并核远端；主线、实库、最低SQLite与三后端生成/适用consumer验证通过，原失败和未闭合边界保留。C07-W01/W02已由ed3f608限定验收提交推送；AR-P01已由4463238完成根应用/框架独立包迁移和日常适用验收，见[根应用与框架独立包限定验收](memory/testing.md#根应用与框架独立包限定验收)；AR-M01已由6c21bab0限定验收提交推送，当前主线接续AR-N01，J01代码/配套静审完成但尚未接线或运行；不报告完整Query/Model/框架已完成。
+模型属性与认证前置MB-A01已由`06b4d50`限定提交并核远端；主线、实库、最低SQLite与三后端生成/适用consumer验证通过，原失败和未闭合边界保留。C07-W01/W02已由ed3f608限定验收提交推送；AR-P01已由4463238完成根应用/框架独立包迁移和日常适用验收，见[根应用与框架独立包限定验收](memory/testing.md#根应用与框架独立包限定验收)；AR-M01已由6c21bab0限定验收提交推送，AR-N01职责命名空间限定迁移已由`b3f6117be1fc`提交，见[限定验收](memory/testing.md#命名空间与开发流程限定验收)，完整官方contract仍开放，J01代码/配套静审完成但尚未接线或运行；不报告完整Query/Model/框架已完成。
 
-Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。下一步按唯一todo由主线推进AR-N01，Passport Client/签发/持久接线并行，不重跑已关闭范围或扩张本簇。
+Unix网络测试库生命周期与持久归属回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；非Unix ACL与专项拓扑边界保留。统一Hashing前置、认证与生成接线已收齐[限定验收](memory/testing.md#统一-hashing-与认证接线限定验收)；通用Manager表面与Model hashed cast仍开放。下一步按唯一todo由主线收口I18N-S01，AR-N01完整契约按依赖后续推进，Passport Client/签发/持久接线并行，不重跑已关闭范围或扩张本簇。
 
 当前Fortify官方Web默认/显式JWT组合已通过main12门禁、五类实际生成、正式Provider受保护gRPC TLS、Redis父凭据回滚、真实双库CI、Keycloak/独立API故障恢复、最低SQLite3.26 probe及受影响consumer。限定本地提交以Git为准，具体范围见[当前验收](memory/testing.md#fortify-官方默认与显式-jwt-组合验收)；Google真实客户端、UUID/字符串JWT持久链与完整R7/官方生态仍未闭合。
 

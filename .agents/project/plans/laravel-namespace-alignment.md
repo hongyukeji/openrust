@@ -1,0 +1,41 @@
+# Laravel 命名空间与开发流程对应
+
+本计划属于唯一待办 AR-N01。目标是公开职责、生产调用与开发流程对应，不能以搬迁完成代替 Container、Routing、Translation 等完整能力验收；完整范围继续沿原矩阵，不建立第二队列。
+
+## 固定来源与当前输入
+
+Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911155ad16326ade49c0ea5d18eda0b8`。固定来源索引、Git blob/SHA、当前源码SHA与调用清单位于 `tmp/namespace-alignment-20261106/`；它们是设计证据，不是运行验收。相关矩阵见[总基线](laravel-rebuild-baseline.md)及[完整对应规则](laravel-rebuild.md#逐项对应与差异分类)。
+
+## 公开责任与实体所有权
+
+| 官方责任 | 目标与迁移约束 | 当前状态 |
+|---|---|---|
+| Foundation Application / Configuration ApplicationBuilder | 运行中的应用及启动builder归foundation；当前Application trait是编译期宿主定义，不冒充官方Application contract。应区分编译配置声明与运行应用，保留唯一Container/Provider机制 | 运行Application、编译期ApplicationDefinition、ApplicationState及统一装配/资源/异常实现已迁到foundation，调用方/生成入口已同步；core保留错误、执行/限流/就绪与协议OTel辅助，限定迁移运行证据已收齐，v12构造器修正及剩余适用门禁已通过；完整官方契约仍开放 |
+| Container | 实体、绑定、作用域和解析归container；保持弱Resolver及取消/缓存/重绑边界，不建立第二容器 | 唯一实现及44个Rust文件入口已迁到container，限定迁移编译/运行证据已收齐；旧core::container入口移除，完整Container契约仍开放 |
+| Contracts | 官方interface应由真实可替换trait及同一容器实例承载；不能整域pub use旧实现后称已对应。Routing/Contracts的dispatcher不能误放到Contracts/Routing | 分域trait/服务绑定及缺失方法待实现；不创建空门面 |
+| Support ServiceProvider | 官方Provider基类职责归support，具体装配及运行注册机制归foundation；Rust trait/BoxFuture仅是对象模型与async必要适配 | 唯一ServiceProvider trait、DefaultProviders与BoxFuture已物理迁至support并同步源码/生成器入口；装配runtime已归foundation；Foundation/Contracts依赖与完整语义未闭合，限定迁移已编译运行 |
+| Console | 命令回调、输出及注册仓储归console；应用运行与Provider注册仍复用唯一生命周期，不新增空Console Application/Kernel | 唯一Command与注册仓储及18个Rust文件调用方已迁移，旧core入口移除；签名、交互IO、isolatable、解析/退出码等完整官方语义继续保留缺口；限定迁移已编译运行，完整命令语义仍开放 |
+| Database | database应成为唯一canonical实现，而非db别名；迁移Query/Eloquent及全部宏、driver/消费者、生成路径 | 64物理文件已迁至database、255份Rust候选及生成/当前指南同步，旧db模块与alias移除；特性/连接名/SQL/已有Db逃生口保留，限定迁移已编译运行且日常真实MySQL证据已收齐；完整Eloquent/Schema/Manager/五driver与惰性连接等仍开放 |
+| Routing / Http | 路由登记、URL生成、Redirector与dispatcher归routing；Request/Response/RedirectResponse等归http。核当前混合Provider的router与server职责后再拆 | 路由实体、URL生成、Redirector、domain与登记仓储已归routing，Request/Response与server Provider归http，应用HTTP装配归foundation；组合静审已修一处测试导入，v12生命周期整理已通过影响复验，Resource/controller/middleware完整语义仍开放 |
+| Translation | translation持Translator与加载实现，Contracts/Translation持真实Loader/Translator契约；ICU/快照/数据库来源通过同一加载与翻译机制保留 | 唯一Translator与TranslationServiceProvider及来源WIP已迁translation，数据库扩展同步同一公开服务；限定迁移已编译运行；Loader/choice/默认FileLoader/locale/deferred等仍有缺口，数据库来源后继另行交验 |
+| Filesystem | filesystem持manager、adapter/provider，Contracts/Filesystem区分Factory/Filesystem/Cloud；底层StorageBackend不能冒充完整业务contract | 唯一FilesystemManager/FilesystemAdapter/FilesystemServiceProvider及调用方已迁filesystem，安全路径/上传取消/driver扩展保留；限定迁移已编译运行；完整Contracts、默认、throw/report与按需生命周期仍开放 |
+| Encryption | encryption持Encrypter/provider与对应契约、错误；签名链接职责不随security文件名一起迁移 | 唯一Encrypter及认证/应用调用方已迁encryption，现AES-GCM-SIV/or1增强与安全语义保留；限定迁移已编译运行；官方cipher/key/payload默认和完整字符串/值及替换契约未完成 |
+| Facade / prelude | Facade需要容器寻址与替换/缓存/测试机制；prelude是Rust导入便利。真正同实体重导出可保留，纯旧命名兼容面在全部调用方迁移后删除 | 不把现prelude当Facade，也不为表面无reexport删除有效扩展 |
+
+## 实施与 WIP 保护
+
+1. root持公开contract、manifest、宏及集成；只读分域审查不自行冻结公共接口。当前Container先完成唯一实现的实际归属，其余责任按上表继续收敛，AR-N01保持开放。
+2. Foundation运行对象、宿主编译声明、Container契约不能仅因同名合并。缺少的path/environment/locale/deferred/Container alias/tag/call/解析回调保留为同一待办下的语义缺口，不划不适用；已有extend等真实能力应复用。
+3. Container当前仍携带配置/资源上下文桥；后续随Foundation/Support归属收敛通用上下文与应用资源职责，不把namespace移动说成依赖解耦已经全部完成。
+4. 同步root/bootstrap、所有第一方扩展、宏、CLI/模板、唯一example、consumer、Rustdoc与指南。固定上游及旧验收快照不移动、不重写；当前源码引用单独迁移。
+5. SC-N01/J01/Passport/I18N-S01等WIP按原字节和SHA保全。Container变换前文件副本与逐文件回执已保存；只改同一类型的路径，分离结构迁移与未验行为，后续冻结候选不能夹带无关WIP。
+6. 不保留core::container、db/database双canonical或i18n/storage/security的长期兼容壳；去除前必须同步全部实际调用方与文档，保留真实Facade及必要语言便利面。
+
+## 集中验收与退出
+
+- 每个责任使用固定官方源码和对应测试，列出Rust生产入口、默认/配置/错误及必要语言适配，关联原矩阵；未知或不等价继续为缺口。
+- Provider/Container：实际注册、单例/作用域身份、依赖解析、重绑/extend、关闭与取消及公开外部契约接入；验证新入口，不以旧路径测试报告抵扣。
+- Routing/Http：根真实TCP的API/Web、参数绑定、路由与中间件、响应/重定向；in-process Tower与真实TCP分别记录。
+- Database/Translation/Filesystem/Encryption：唯一模块实际CRUD/来源/文件/认证传输与错误负例；加密需固定官方默认与轮换、失败语义，保留授权增强；日常仅MySQL8.4，其余后端按发布前政策。
+- 真实CLI/生成项目check+test、受影响consumer、默认cargo run及关闭/端口复用，全部只解析冻结副本；完整main fmt/严格Clippy/workspace test/doc及适用门禁由独立测试对话集中运行。
+- 源码、配套、官方映射与独审收齐后冻结输入交验；通过后限定提交推送与清理可再生产物。最终受验输入为纯迁移v14（运行代码同v12），后继Source/SQLite/Passport等WIP不在输入内。限定迁移已取得默认及routine测试、拒警Rustdoc、consumer与真实生成等证据；CLI快照来自实际生成结果。默认feature构造器生命周期整理、对应复验及最小feature/MSRV/依赖门禁均通过，源码提交`b3f6117be1fc`；详见[限定验收](../memory/testing.md#命名空间与开发流程限定验收)。本子交付不关闭上表完整官方语义。

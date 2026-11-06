@@ -1785,3 +1785,23 @@ MB-A01 提交 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8`，准确树 `f8e5800fe8
 最终索引 `tmp/independent-testing-20261106/MB-A01-RESULT.json`，Root复核 `mb-a01-root-final-acceptance.json`；原失败保留。收尾回收firstparty、CLI、多feature/MSRV/native与fresh产物，仅留明确下一C07所需的一份依赖缓存，无在途命令、磁盘余量超过软线，主目录target不存在。
 
 不关闭完整Eloquent、全部casts/日期/关系/持久save、完整PHP数组键/对象身份/无效UTF8/非有限值载体、PG TimeZone/DateStyle显示及未知数据库提交/跨连接顺序；C07组合、J01及数据库翻译来源各自待验。
+
+## 命名空间与开发流程限定验收
+
+职责命名空间及调用方限定迁移，源码提交 `b3f6117be1fc3132adb010b386a74bec4517e21b`。固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911155ad16326ade49c0ea5d18eda0b8`；最终受验 v14 共1578项，manifest SHA `3cd019bd540c23d21c6ea6aa7292a31a1460ee9a92ba576994c5637b7bf8d7be`。Root提交审核 `tmp/namespace-alignment-20261106/pure-export/root-v14-acceptance.json` 绑定独立原始命令回执、日志SHA、输入与跨版本差分；独立汇总入口为 `tmp/independent-testing-20261106/AR-N01-V14-RESULT.json`，汇总写入不替代原始工具证据。
+
+| 范围 | 实际证据与边界 |
+| --- | --- |
+| 纯职责迁移 | Container、Support、Console、Foundation、Database、Routing/Http、Translation、Filesystem、Encryption唯一实体及应用/宏/模板/示例调用同步；完整官方语义不因改名关闭 |
+| 组合门禁 | v11原并发默认workspace、日常MySQL组合通过，70唯一/206次示例失败逐项闭合；framework日常组合1387 passed/23 ignored，忽略项不算实服务证据 |
+| v12单文件影响及余门禁 | fmt、默认/全feature严格Clippy、默认重定向8项及带Session配置9项、framework doctest、双拒警Rustdoc、framework/root no-default、三个数据库driver及auth/hash/Fortify最小组合严格检查、Rust1.97全feature/无默认、cargo deny通过；PostgreSQL/SQLite仅编译 |
+| 实际服务与生命周期 | 真实MySQL8.4 cold-prepare、queued Fortify、原raw/migration、Jail输入快照及persistent-foreign/busy-close/lifecycle专项通过；公开recover恢复本任务遗留记录，其他schema与基线不变 |
+| 消费者及生成 | v6实际12个公开consumer、Web认证/JWT生成项目check/test、根默认及前缀TCP、URL反代工具；后续仅测试/文档及私有构造器生命周期整理，按正式回执映射，不冒称生成项目重新运行 |
+
+测试配套显式启用example专用fixture，临时部署状态用例保持独立file配置；不恢复根生产模块状态JSON。cfg(test)在既有环境锁内、Jail前捕获原state_dir/cwd/数据库URL，保留缺失、非UTF8及非法路径语义；非cfg(test)动态机制未改变。
+
+旧负对照缓存曾被误用于正式exact，失败及二进制来源证据保全；只刷新正式编译入口mtime、核真实Cargo来源并用新Jail回归区分后，正式专项通过。此为缓存身份校正，不记作生产清理算法修复。
+
+Source、SQLite写目标、Passport/授权服务器、J01、SC及Model后继WIP不在本输入；其他数据库与最低版本实际运行、Windows及完整官方contract差距继续开放。资源回执与已明确安排的下一Source验收缓存保留由原测试对话记录；不因保留单份warm target虚报完整清零。
+
+测试根索引原始字节发生metadata漂移，stage路径、模式及blob列表与交接前相同，未强行回写索引；主工作区690项WIP字节/模式/软链均保全。独立私有Git对象库重建精确匹配提交树 `eb740f4a4d22b5a4f8422fda28346509250c837b`，不以简化行尾归一化手算替代实际Git对象。
