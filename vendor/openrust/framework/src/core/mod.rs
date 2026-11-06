@@ -11,7 +11,6 @@ pub mod error;
 pub mod exception_handler;
 pub mod execution;
 pub mod lifecycle;
-pub mod module;
 #[cfg(feature = "otel")]
 pub(crate) mod otel;
 pub mod plugin;
@@ -31,14 +30,11 @@ pub use exception_handler::{ExceptionHandler, ExceptionRequest, ReportDecision, 
 pub(crate) use execution::CancelOnDrop;
 pub use execution::{Cancellation, ExecutionContext, ExecutionMetadata, with_execution_context};
 pub use lifecycle::{bootstrap, shutdown_signal};
-pub use module::{
-    FileModuleActivator, Module, ModuleActivationSnapshot, ModuleActivator, ModuleConfigFiles,
-    ModuleDescriptor, ModuleExecution, ModuleFile, ModuleLifecycleEvent, ModuleLifecyclePhase,
-    ModuleLoadContext, ModuleManifest, ModuleRepository,
-};
+
 pub use plugin::BoxFuture;
 pub use provider::{
-    BootContext, ProviderBuilder, ProviderId, ProviderRuntime, RegisterContext, ServiceProvider,
+    BootContext, ProviderBuilder, ProviderId, ProviderPreparation, ProviderRegistration,
+    ProviderRuntime, RegisterContext, ServiceProvider,
 };
 pub use rate_limit::{
     RateLimitBucket, RateLimitFuture, RateLimitStatus, RateLimitStore, RateLimiter,

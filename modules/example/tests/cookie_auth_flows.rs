@@ -77,8 +77,8 @@ impl<const MODE: u8> Application for CookieAuthApplication<MODE> {
         }
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        crate::bootstrap::Server::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
 // 只在 MODE3 fixture 注册；固定服务端 ID 经真实 Cookie 层保护后用于数据 Cookie 攻击。

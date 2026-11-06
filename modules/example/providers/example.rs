@@ -165,7 +165,7 @@ async fn overlay_example_config_and_register_resources(
     }
     #[cfg(feature = "view")]
     if app.is_bound::<openrust::view::Views>() {
-        let files = openrust::core::ModuleConfigFiles::new("example", root)?;
+        let files = openrust_modules::ModuleConfigFiles::new("example", root)?;
         let source = files.resource("resources/views")?;
         let published = application_root.join("resources/views/vendor/example");
         app.resolve::<openrust::view::Views>()
@@ -373,7 +373,7 @@ impl ServiceProvider for ExampleServiceProvider {
             }
             register_example_middleware(app)?;
             let directory = if self.module_repository {
-                app.resolve::<openrust::core::ModuleRepository>()
+                app.resolve::<openrust_modules::ModuleRepository>()
                     .await?
                     .find_or_fail("example")?
                     .path()

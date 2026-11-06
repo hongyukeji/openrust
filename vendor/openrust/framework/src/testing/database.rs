@@ -406,6 +406,7 @@ impl TestDatabase {
                 if outcome.is_err() {
                     for resource in &mut request.resources {
                         if resource.journal.record().state != ownership::OwnershipState::Done
+                            && resource.journal.record().last_error.is_none()
                             && let Err(error) = resource.journal.record_error(
                                 ownership::OwnershipState::Ambiguous,
                                 "test_database_cleanup_unconfirmed",
@@ -558,6 +559,7 @@ async fn cleanup_network_database(
     connection: Option<DatabaseConnection>,
     resources: &mut [OwnedDatabase],
 ) -> Result<()> {
+    let pool_closed = connection.is_some();
     if let Some(connection) = connection {
         tokio::time::timeout(std::time::Duration::from_secs(2), connection.close())
             .await
@@ -566,7 +568,12 @@ async fn cleanup_network_database(
     }
     let mut failure = None;
     for resource in resources.iter_mut().rev() {
-        if let Err(error) = resource.cleanup().await
+        let cleanup = if pool_closed {
+            resource.cleanup_after_pool_close().await
+        } else {
+            resource.cleanup().await
+        };
+        if let Err(error) = cleanup
             && failure.is_none()
         {
             failure = Some(error);
@@ -895,6 +902,175 @@ mod tests {
         )
         .await?;
         recovered.close().await
+    }
+
+    #[cfg(all(unix, feature = "db-mysql"))]
+    fn mysql_cleanup_admin() -> Result<Option<String>> {
+        let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("skipping MySQL close barrier: OPENRUST_TEST_DATABASE_URL is unset");
+            return Ok(None);
+        };
+        if super::DatabaseBackend::from_url(&admin)? != super::DatabaseBackend::MySql {
+            eprintln!("skipping MySQL close barrier: test backend is not MySQL");
+            return Ok(None);
+        }
+        Ok(Some(admin))
+    }
+
+    #[cfg(all(unix, feature = "db-mysql"))]
+    async fn released_cleanup_record(
+        resource_id: &str,
+    ) -> Result<super::ownership::OwnershipRecord> {
+        let journal = super::ownership::OwnershipJournal::new(&super::resources::state_root()?)?;
+        let path = super::resources::state_root()?.join(format!("{resource_id}.json"));
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if let Some(record) = journal.open_try_locked(&path)? {
+                    return record.load();
+                }
+                // close 的结果先通知调用者；等待清理线程确实交回本机持责锁。
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .map_err(|_| super::cleanup_error("test_database_journal_release_timeout"))?
+    }
+
+    #[cfg(all(unix, feature = "db-mysql"))]
+    #[tokio::test]
+    async fn mysql_normal_cleanup_rechecks_observed_busy_until_controlled_connection_closes()
+    -> Result<()> {
+        let Some(admin) = mysql_cleanup_admin()? else {
+            return Ok(());
+        };
+        let database = TestDatabase::create_named_with_table_names::<EmptyMigrator>(
+            &admin,
+            DatabaseTableNames::default(),
+            unique_database_name(),
+        )
+        .await?;
+        let resource_id = database.resources[0].journal.record().resource_id.clone();
+        let busy = std::sync::Arc::new(tokio::sync::Notify::new());
+        assert!(
+            database.resources[0]
+                .lease()?
+                .cleanup_busy_observer
+                .set(busy.clone())
+                .is_ok()
+        );
+        let controlled = connect(database.url()).await?;
+        controlled
+            .execute_unprepared("SELECT 1")
+            .await
+            .map_err(Error::internal)?;
+        let (cleanup, release) = tokio::join!(database.close(), async {
+            // 必须先实际观察到 busy，不能以任意等待替代服务端活动屏障。
+            let observed =
+                tokio::time::timeout(std::time::Duration::from_secs(3), busy.notified()).await;
+            let closed = controlled.close().await.map_err(Error::internal);
+            observed.map_err(|_| super::cleanup_error("test_database_busy_not_observed"))?;
+            closed
+        });
+        release?;
+        cleanup?;
+        assert_eq!(
+            released_cleanup_record(&resource_id).await?.state,
+            super::ownership::OwnershipState::Done
+        );
+        Ok(())
+    }
+
+    #[cfg(all(unix, feature = "db-mysql"))]
+    #[tokio::test]
+    async fn mysql_normal_cleanup_retains_persistent_foreign_connection_and_specific_journal()
+    -> Result<()> {
+        let Some(admin) = mysql_cleanup_admin()? else {
+            return Ok(());
+        };
+        let database = TestDatabase::create_named_with_table_names::<EmptyMigrator>(
+            &admin,
+            DatabaseTableNames::default(),
+            unique_database_name(),
+        )
+        .await?;
+        let record = database.resources[0].journal.record().clone();
+        let busy = std::sync::Arc::new(tokio::sync::Notify::new());
+        assert!(
+            database.resources[0]
+                .lease()?
+                .cleanup_busy_observer
+                .set(busy.clone())
+                .is_ok()
+        );
+        let foreign = connect(database.url()).await?;
+        foreign
+            .execute_unprepared("SELECT 1")
+            .await
+            .map_err(Error::internal)?;
+        let closing = database.close();
+        let observed =
+            tokio::time::timeout(std::time::Duration::from_secs(3), busy.notified()).await;
+        let cleanup = closing.await;
+        let outcome = async {
+            observed.map_err(|_| super::cleanup_error("test_database_busy_not_observed"))?;
+            let error = cleanup.err().ok_or_else(|| {
+                super::cleanup_error("test_database_foreign_connection_was_not_retained")
+            })?;
+            assert_eq!(error.code(), "test_database_resource_in_use");
+            let retained = released_cleanup_record(&record.resource_id).await?;
+            assert_eq!(retained.state, super::ownership::OwnershipState::Ambiguous);
+            assert_eq!(
+                retained.last_error.as_deref(),
+                Some("test_database_resource_in_use")
+            );
+            assert_eq!(retained.marker_identity, record.marker_identity);
+            // 原严格恢复同样不能删除仍被外部使用的数据库。
+            TestDatabase::recover(&admin).await?;
+            let retained = released_cleanup_record(&record.resource_id).await?;
+            assert_eq!(retained.state, super::ownership::OwnershipState::Ambiguous);
+            assert_eq!(
+                retained.last_error.as_deref(),
+                Some("test_database_resource_in_use")
+            );
+            let marker = foreign
+                .query_one_raw(Statement::from_string(
+                    sea_orm::DbBackend::MySql,
+                    "SELECT CAST(COUNT(*) AS SIGNED) AS n FROM information_schema.routines WHERE ROUTINE_SCHEMA=DATABASE() AND ROUTINE_NAME='__openrust_test_database_owner' AND ROUTINE_TYPE='PROCEDURE'".to_owned(),
+                ))
+                .await
+                .map_err(Error::internal)?
+                .ok_or_else(|| super::cleanup_error("test_database_marker_missing"))?;
+            assert_eq!(marker.try_get::<i64>("", "n").map_err(Error::internal)?, 1);
+            Ok::<(), Error>(())
+        }
+        .await;
+        let closed = foreign.close().await.map_err(Error::internal);
+        outcome?;
+        closed?;
+        // 只观察已正常关闭连接的服务端退出，不赋予恢复路径重试删除权限。
+        let lease = super::lease::ServerLease::acquire(&admin, &record.database_name).await?;
+        let idle = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                match lease.require_idle(&record.database_name).await {
+                    Ok(()) => return Ok(()),
+                    Err(error) if error.code() == "test_database_resource_in_use" => {
+                        tokio::task::yield_now().await;
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        })
+        .await
+        .map_err(|_| super::cleanup_error("test_database_activity_timeout"))?;
+        let released = lease.close().await;
+        idle?;
+        released?;
+        TestDatabase::recover(&admin).await?;
+        assert_eq!(
+            released_cleanup_record(&record.resource_id).await?.state,
+            super::ownership::OwnershipState::Done
+        );
+        Ok(())
     }
 
     #[test]

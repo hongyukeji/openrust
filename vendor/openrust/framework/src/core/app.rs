@@ -13,7 +13,6 @@ use crate::core::command::Command;
 use crate::core::command_registry::CommandRegistry;
 use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
-use crate::core::module::ModuleManifest;
 use crate::core::provider::{
     ProviderId, ProviderRuntime, ServiceProvider,
     registration::{self, LiveBoot, ProviderRegistry},
@@ -76,10 +75,8 @@ pub trait Application: Send + Sync + 'static {
         Vec::new()
     }
 
-    /// 声明已编译模块及本次启动的启用来源；缺省不挂载业务模块。
-    fn modules(_config: &Self::Config) -> ModuleManifest {
-        ModuleManifest::new()
-    }
+    /// 在静态清单完成后配置外部包的公开 Provider 装配声明。
+    fn configure_providers(_config: &Self::Config, _builder: &mut super::ProviderBuilder) {}
 }
 
 /// 处理器或命令请求未注册服务时返回的错误。

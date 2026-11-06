@@ -8,7 +8,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::config::ModulesConfig;
-use crate::core::{BoxFuture, Error, ProviderId, RegisterContext, Result, ServiceProvider};
+use openrust::core::{BoxFuture, Error, ProviderId, RegisterContext, Result, ServiceProvider};
 
 use super::discovery::{DiscoveredModule, is_truthy, providers, scan};
 use super::{

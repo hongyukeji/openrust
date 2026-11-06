@@ -8,7 +8,7 @@ use serde::Serialize;
 use serde::ser::{SerializeSeq, Serializer};
 use serde_json::{Map, Value};
 
-use crate::core::{Error, Result};
+use openrust::core::{Error, Result};
 
 /// 读取普通状态文件；非空 PHP list 不是模块名称表，不能自动恢复为空表。
 pub(super) fn decode(bytes: &[u8]) -> Result<Map<String, Value>> {

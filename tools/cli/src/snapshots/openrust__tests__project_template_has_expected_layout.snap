@@ -12,6 +12,7 @@ license.workspace = true
 
 [dependencies]
 openrust = { workspace = true, features = ["cache-redis", "view", "session"] }
+openrust-modules = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -322,8 +323,10 @@ pub fn config(_ctx: &ConfigContext) -> Result<I18nConfig, ConfigError> {
 --- config/modules.rs ---
 //! 模块源码发现、激活器和独立持久状态路径。
 
-use openrust::config::{
-    ConfigContext, ConfigError, FileModuleActivatorConfig, ModuleActivatorsConfig, ModulePathsConfig, ModuleScanConfig, ModulesConfig,
+use openrust::config::{ConfigContext, ConfigError};
+use openrust_modules::config::{
+    FileModuleActivatorConfig, ModuleActivatorsConfig, ModulePathsConfig, ModuleScanConfig,
+    ModulesConfig,
 };
 
 /// 默认状态文件相对应用根解析；可选择独立相对路径或绝对路径，不自动迁移已有文件。
@@ -369,6 +372,7 @@ fn main() -> std::process::ExitCode {
 --- bootstrap/app.rs ---
 use openrust::core::ServiceProvider;
 use openrust::prelude::*;
+use openrust_modules::ModuleProviderBuilderExt as _;
 
 mod providers;
 
@@ -377,7 +381,7 @@ mod providers;
 #[serde(default)]
 pub struct Configuration {
     pub database: openrust::config::DatabaseConfig,
-    pub modules: openrust::config::ModulesConfig,
+    pub modules: openrust_modules::config::ModulesConfig,
     pub application_root: Option<std::path::PathBuf>,
 }
 
@@ -394,14 +398,14 @@ impl Application for Blog {
         providers::application_providers(config)
     }
 
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        crate::modules::manifest(
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        builder.module_manifest(crate::modules::manifest(
             config
                 .application_root
                 .as_deref()
                 .unwrap_or(std::path::Path::new(".")),
             &config.modules,
-        )
+        ));
     }
 }
 
@@ -433,12 +437,12 @@ pub(super) fn application_providers(
 --- modules/mod.rs ---
 //! 运行模块清单与显式编译绑定；元数据发现不执行未编译源码。
 
-use openrust::core::ModuleManifest;
+use openrust_modules::ModuleManifest;
 
 /// 默认只加载显式登记模块；其他激活器按配置发现 module.json 与文件状态。
 pub fn manifest(
     root: &std::path::Path,
-    config: &openrust::config::ModulesConfig,
+    config: &openrust_modules::config::ModulesConfig,
 ) -> ModuleManifest {
     if config.activator == "registered" {
         ModuleManifest::new().with_application_root(root)
@@ -884,8 +888,8 @@ impl<A: Application> Application for InputApplication<A> {
         providers
     }
 
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -1191,8 +1195,8 @@ impl<A: Application> Application for MessageBagApplication<A> {
         providers
     }
 
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -1436,8 +1440,8 @@ impl<A: Application> Application for CookieApplication<A> {
         providers
     }
 
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -1946,8 +1950,8 @@ impl<A: Application, const EXISTING: bool> Application for SessionApplication<A,
         providers.push(Box::new(SessionRoutes));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -2128,8 +2132,8 @@ impl<A: Application> Application for CookieSessionApplication<A> {
         }
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -2661,7 +2665,10 @@ impl SessionStore for ContractRequestDriver {
     fn reset_exists(&self) -> openrust::Result<()> {
         self.backend.reset_exists()
     }
-    fn set_database_user_id(&self, user_id: openrust::db::sea_orm::Value) -> openrust::Result<bool> {
+    fn set_database_user_id(
+        &self,
+        user_id: openrust::db::sea_orm::Value,
+    ) -> openrust::Result<bool> {
         self.backend.set_database_user_id(user_id)
     }
     fn accepts_request(&self) -> bool {
@@ -2904,8 +2911,8 @@ impl<A: Application> Application for OriginalHost<A> {
         providers.push(Box::new(OriginalHostRoutes));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 pub async fn assert_original_host_cookie_session<A: Application>(
@@ -3125,8 +3132,8 @@ impl<A: Application> Application for RedirectApplication<A> {
         providers.push(Box::new(RedirectRoutes));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -3740,7 +3747,7 @@ pub async fn assert_request_redirect<A: Application>(
 
 `routes/api.rs` 只声明相对路径，由 `bootstrap/app.rs` 从唯一配置仓储读取 `config/api.rs` 的 `api.prefix`（默认 `api`，最终 URL `/api`），统一装配前缀与 `api` middleware 组；需要会话的 Web 路由在 `routes/web.rs` 显式声明 `web` 组。默认 `/api` 路由使用 `app/providers/app.rs` 中公开 Handler 扩展选择统一 JSON 错误包装；错误分类读取同一个 `ApiConfig`，更改前缀不另设第二判定来源；官方 `api/admin` 示例对应最终 `/api/admin`。HTML/Web 路由保持自身异常表现。`APP_DEBUG=false` 默认关闭服务端错误详情，非法布尔值使启动失败。
 
-`modules/mod.rs` 显式编译业务代码并登记命名Provider/文件初始化绑定，默认 `MODULES_ACTIVATOR=registered`，`manifest(root, &config.modules)` 返回 `ModuleManifest::new().with_application_root(root)` 空清单，不扫描目录、不读写状态文件；显式选择 file/file-live 等激活器时委托 `ModuleManifest::discover_from_config(root, config)`；`Application::modules` 使用同一清单。包register读取当前配置的module.json，disabled元数据仍会解析，未编译disabled模块可持久启用，实际加载时缺少绑定明确失败。config/modules.rs的paths.modules默认modules、scan.enabled默认false、scan.paths默认vendor/*/*；MODULES_PATH可覆盖主目录。activators.file.statuses-file独立选择持久状态文件，显式文件激活器默认应用根modules_statuses.json，MODULES_STATUSES_FILE部署覆盖；生成器不创建该文件，已有文件保留。相对路径按application_root，不自动搬迁旧文件。metadata.module_directory只覆盖files包含目录；工厂ModuleLoadContext::directory取仓储真实模块目录，普通Provider到boot通过同一ModuleRepository读取资源；不是运行未编译Rust或自动加载crate。files经显式ModuleFile实现，真实Provider注册后、boot前按解析路径一次初始化，共用同Container。class aliases和完整deferred加载仍有明确缺口，不能以Container alias替代。
+`modules/mod.rs` 显式编译业务代码并登记命名Provider/文件初始化绑定，默认 `MODULES_ACTIVATOR=registered`，`manifest(root, &config.modules)` 返回 `ModuleManifest::new().with_application_root(root)` 空清单，不扫描目录、不读写状态文件；显式选择 file/file-live 等激活器时委托 `ModuleManifest::discover_from_config(root, config)`；`Application::configure_providers` 引入 `openrust_modules::ModuleProviderBuilderExt`，经 `builder.module_manifest(...)` 使用同一清单；模块类型来自独立 `openrust-modules` 包，框架核心不重导出。包register读取当前配置的module.json，disabled元数据仍会解析，未编译disabled模块可持久启用，实际加载时缺少绑定明确失败。config/modules.rs的paths.modules默认modules、scan.enabled默认false、scan.paths默认vendor/*/*；MODULES_PATH可覆盖主目录。activators.file.statuses-file独立选择持久状态文件，显式文件激活器默认应用根modules_statuses.json，MODULES_STATUSES_FILE部署覆盖；生成器不创建该文件，已有文件保留。相对路径按application_root，不自动搬迁旧文件。metadata.module_directory只覆盖files包含目录；工厂ModuleLoadContext::directory取仓储真实模块目录，普通Provider到boot通过同一ModuleRepository读取资源；不是运行未编译Rust或自动加载crate。files经显式ModuleFile实现，真实Provider注册后、boot前按解析路径一次初始化，共用同Container。class aliases和完整deferred加载仍有明确缺口，不能以Container alias替代。
 
 应用提供 `module:list`、`module:enable 名称…`、`module:disable 名称…`，支持启停 `--all/-a`、`--no-interaction/-n` 与 list 的 `--only` / `--direction`。先验全部名称，异常停止后项、已提交前项保留；TTY 搜索选择仍待实现。命令沿完整 bootstrap，不能绕过坏状态或依赖服务失败。显式file保实例缓存，自身写前修改内存、写失败不伪回滚，外部写盘只在新实例读取；file-live为显式实时扩展。激活器视图、写入结果与当前 `Module::is_loaded()` 快照分别观察：禁用不卸载现有 Provider/路由，启用不热挂当前未加载模块，下一 App 按新状态选择。文件 hardlink 等价和 Windows 原生行为仍待验，模块管理与并发 `shutdown` 也不保证原子提交屏障。
 

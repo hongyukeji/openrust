@@ -12,6 +12,8 @@ pub(super) struct ServerLease {
     pub(super) admin_database: String,
     session_id: i64,
     key: LeaseKey,
+    #[cfg(test)]
+    pub(super) cleanup_busy_observer: std::sync::OnceLock<std::sync::Arc<tokio::sync::Notify>>,
 }
 
 enum LeaseKey {
@@ -80,6 +82,8 @@ impl ServerLease {
             admin_database,
             session_id,
             key,
+            #[cfg(test)]
+            cleanup_busy_observer: std::sync::OnceLock::new(),
         };
         lease.verify().await?;
         Ok(lease)
@@ -174,6 +178,38 @@ impl ServerLease {
             }
         }
         Ok(())
+    }
+
+    /// 仅供本次自有 MySQL 业务池成功关闭后的第一次屏障使用。
+    /// close 不包含服务端线程退出确认；只重查真实 busy，不豁免任何归属或可见性核验。
+    pub(super) async fn require_idle_after_pool_close(&self, database_name: &str) -> Result<()> {
+        if !matches!(self.key, LeaseKey::Mysql(_)) {
+            return self.require_idle(database_name).await;
+        }
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+        let mut backoff = Duration::from_millis(5);
+        loop {
+            match tokio::time::timeout_at(deadline, self.require_idle(database_name)).await {
+                Ok(Ok(())) => return Ok(()),
+                Ok(Err(error)) if error.code() == "test_database_resource_in_use" => {
+                    #[cfg(test)]
+                    if let Some(observer) = self.cleanup_busy_observer.get() {
+                        observer.notify_one();
+                    }
+                    let now = tokio::time::Instant::now();
+                    if now >= deadline {
+                        return Err(error);
+                    }
+                    tokio::time::sleep_until((now + backoff).min(deadline)).await;
+                    if tokio::time::Instant::now() >= deadline {
+                        return Err(error);
+                    }
+                    backoff = (backoff * 2).min(Duration::from_millis(50));
+                }
+                Ok(Err(error)) => return Err(error),
+                Err(_) => return Err(failure("test_database_activity_timeout")),
+            }
+        }
     }
 
     pub(super) async fn database_exists(&self, name: &str) -> Result<bool> {

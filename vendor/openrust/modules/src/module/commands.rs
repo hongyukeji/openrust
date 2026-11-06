@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use crate::core::{App, BootContext, BoxFuture, Command, Error, Result};
+use openrust::core::{App, BootContext, BoxFuture, Command, Error, Result};
 
 use super::{Module, ModuleRepository};
 
@@ -53,7 +53,7 @@ impl Command for ChangeStatusCommand {
                 } else {
                     module.disable().await?;
                 }
-                crate::core::command::print(&format!(
+                openrust::core::command::print(&format!(
                     "模块 {} 已{}，下次启动使用新状态",
                     module.name(),
                     if self.active { "启用" } else { "禁用" }
@@ -150,7 +150,7 @@ impl Command for ListCommand {
                     super::priority::priority_label(module.priority())?
                 );
             }
-            crate::core::command::print(output.trim_end());
+            openrust::core::command::print(output.trim_end());
             Ok(())
         })
     }
@@ -199,7 +199,7 @@ mod tests {
 
     // 可选 only 的空值、紧凑短参数和 direction 不应相互吞掉。
     #[test]
-    fn list_options_preserve_optional_only_and_compact_arguments() -> crate::core::Result<()> {
+    fn list_options_preserve_optional_only_and_compact_arguments() -> openrust::core::Result<()> {
         let args = |values: &[&str]| values.iter().map(|value| (*value).to_owned()).collect();
         assert_eq!(
             list_options(Vec::new())?,

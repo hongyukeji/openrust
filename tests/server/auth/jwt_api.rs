@@ -12,6 +12,7 @@ use openrust::http::axum::{
 use openrust::session::{SessionServiceProvider, SessionStoreHandle};
 use openrust::testing::{TestApp, TestAppBuilder, TestDatabase};
 use openrust::{Db, Error, Result};
+use openrust_modules::{ModuleProviderBuilderExt as _, ModuleTestAppBuilderExt as _};
 use serde_json::{Value, json};
 use std::{net::SocketAddr, path::Path, time::Duration};
 
@@ -940,8 +941,8 @@ impl openrust::core::Application for ApiGroupApplication {
     fn providers(config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
         <Server as openrust::core::Application>::providers(config)
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        <Server as openrust::core::Application>::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        <Server as openrust::core::Application>::configure_providers(config, builder);
     }
 }
 

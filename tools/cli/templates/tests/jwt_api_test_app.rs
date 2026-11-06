@@ -75,8 +75,8 @@ impl<const SESSION: bool> Application for TestWebHost<SESSION> {
         GeneratedApplication::providers(config)
     }
 
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        GeneratedApplication::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        GeneratedApplication::configure_providers(config, builder);
     }
 }
 

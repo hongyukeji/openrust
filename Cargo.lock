@@ -3581,6 +3581,7 @@ dependencies = [
  "oauth2",
  "opendal",
  "openrust-framework",
+ "openrust-modules",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -3652,7 +3653,6 @@ dependencies = [
  "figment",
  "futures-util",
  "getrandom 0.3.4",
- "glob",
  "hmac",
  "http",
  "http-body",
@@ -3718,6 +3718,20 @@ dependencies = [
  "winapi-util",
  "zeroize",
  "zip",
+]
+
+[[package]]
+name = "openrust-modules"
+version = "0.0.0"
+dependencies = [
+ "figment",
+ "glob",
+ "openrust-framework",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]

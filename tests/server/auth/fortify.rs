@@ -60,8 +60,8 @@ impl Application for RootApplication {
         providers.push(Box::new(Observe));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        crate::bootstrap::Server::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
 

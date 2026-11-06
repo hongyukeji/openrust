@@ -79,7 +79,7 @@ use std::cmp::Ordering;
 
 use serde_json::Value;
 
-use crate::core::{Error, Result};
+use openrust::core::{Error, Result};
 
 /// 按固定 `Module::getPriority` 的 `(string)($raw ?? 0)` 生成显示值。
 ///

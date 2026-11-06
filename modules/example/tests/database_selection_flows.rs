@@ -1,10 +1,12 @@
 //! 无默认连接也保留迁移贡献；模块选择只读实际配置，不把具名库当默认库。
 
 use figment::{Figment, providers::Serialized};
-use openrust::config::{ConfigSources, DatabaseConfig, FrameworkConfig, ModulesConfig};
+use openrust::config::{ConfigSources, DatabaseConfig, FrameworkConfig};
 use openrust::core::{App, DefaultProviders, ProviderBuilder, ProviderId};
 use openrust::http::axum::{body::Body, http::Request, http::StatusCode};
 use openrust::{Error, Result};
+use openrust_modules::ModuleProviderBuilderExt as _;
+use openrust_modules::config::ModulesConfig;
 use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::{
@@ -214,7 +216,7 @@ async fn final_named_only_sources_do_not_select_default_database_business() -> R
 #[tokio::test]
 async fn explicit_descriptor_override_does_not_require_a_database_section() -> Result<()> {
     use openrust::config::{ConfigLoader, ConfigManifest};
-    use openrust::core::ModuleManifest;
+    use openrust_modules::ModuleManifest;
 
     let root = deployment()?;
     let source = ConfigLoader::application_code_sources_with_overrides(

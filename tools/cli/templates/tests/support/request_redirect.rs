@@ -153,8 +153,8 @@ impl<A: Application> Application for RedirectApplication<A> {
         providers.push(Box::new(RedirectRoutes));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 

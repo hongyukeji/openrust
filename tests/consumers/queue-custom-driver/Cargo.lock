@@ -2174,7 +2174,6 @@ dependencies = [
  "figment",
  "futures-util",
  "getrandom 0.3.4",
- "glob",
  "hmac",
  "http",
  "http-body",

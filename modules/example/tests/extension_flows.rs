@@ -1,5 +1,6 @@
 //! 模块业务通过公开缓存/通信扩展及生产 `TestApp` 的调用证据；不向供应商发送。
 
+use openrust_modules::ModuleTestAppBuilderExt as _;
 use std::sync::Arc;
 use std::time::Duration;
 

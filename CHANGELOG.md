@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 模块机制迁至独立 `openrust-modules` 包，应用使用通用 Provider 预装配与 `configure_providers` 接线；当前迁移待验，不再由框架核心导出模块类型。
+
 - MySQL 冷预处理取消后明确废弃单物理连接并有界拒绝旧事务，避免错帧/回滚挂起；独立生成应用继承驱动补丁，临时精确固定SQLx0.9.0。
 
 ### Added

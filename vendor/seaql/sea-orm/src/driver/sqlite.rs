@@ -1,3 +1,4 @@
+#[cfg(feature = "sqlite-use-returning-for-3_35")]
 use crate::error::{DbErr, RuntimeErr};
 
 #[cfg(feature = "sqlite-use-returning-for-3_35")]

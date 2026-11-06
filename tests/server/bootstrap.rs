@@ -3,6 +3,7 @@
 use super::*;
 use figment::{Figment, providers::Serialized};
 use openrust::ServiceExt;
+use openrust_modules::ModuleTestAppBuilderExt as _;
 use std::fmt::Write as _;
 
 #[tokio::test]
@@ -373,7 +374,7 @@ async fn registered_module_requires_no_json_and_initializes_after_business() -> 
             .build()
             .await?;
     let outcome: Result<()> = async {
-        let repository = app.app()?.state().resolve::<openrust::core::ModuleRepository>().await?;
+        let repository = app.app()?.state().resolve::<openrust_modules::ModuleRepository>().await?;
         assert!(repository.find_or_fail("example")?.is_enabled()?);
         assert!(repository.statuses_file_path().is_none());
         assert_eq!(repository.get_path()?, root.path().join("modules"));
@@ -527,7 +528,7 @@ async fn removing_registered_module_keeps_host_without_initialization_routes() -
         let repository = app
             .app()?
             .state()
-            .resolve::<openrust::core::ModuleRepository>()
+            .resolve::<openrust_modules::ModuleRepository>()
             .await?;
         assert!(!repository.find_or_fail("example")?.is_loaded());
         Ok(())

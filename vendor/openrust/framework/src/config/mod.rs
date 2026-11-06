@@ -22,7 +22,8 @@ mod sources;
 use sources::CapturedProvider;
 pub use sources::ConfigSources;
 pub(crate) use sources::EnvironmentSnapshot;
-pub(crate) use sources::natural_name_cmp;
+#[doc(hidden)]
+pub use sources::natural_name_cmp;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -43,7 +44,6 @@ pub mod grpc;
 pub mod hashing;
 pub mod logger;
 pub mod mailer;
-pub mod modules;
 #[cfg(feature = "queue")]
 pub mod queue;
 #[cfg(feature = "realtime")]
@@ -68,10 +68,7 @@ pub use grpc::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsC
 pub use hashing::{ArgonConfig, BcryptConfig, HashingConfig};
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
-pub use modules::{
-    FileModuleActivatorConfig, ModuleActivatorsConfig, ModulePathsConfig, ModuleScanConfig,
-    ModulesConfig,
-};
+
 #[cfg(feature = "queue")]
 pub use queue::{QueueConfig, QueueConnectionConfig};
 #[cfg(feature = "realtime")]
@@ -204,8 +201,6 @@ pub struct FrameworkConfig {
     pub api: ApiConfig,
     /// `[log]` 区段。
     pub log: LogConfig,
-    /// `[modules]` 激活器配置，状态文件与业务资源根独立。
-    pub modules: ModulesConfig,
     /// `I18nPlugin` 使用的 `[i18n]` locale 默认值。
     pub i18n: crate::i18n::I18nConfig,
     /// `[realtime]` 区段；仅在启用 `realtime` feature 时存在。
@@ -1451,11 +1446,12 @@ mod tests {
             assert_eq!(
                 raw.as_object().map(|items| items
                     .keys()
-                    .take(6)
+                    .take(5)
                     .map(String::as_str)
                     .collect::<Vec<_>>()),
-                Some(vec!["app", "server", "api", "log", "modules", "i18n"])
+                Some(vec!["app", "server", "api", "log", "i18n"])
             );
+            assert!(raw.get("modules").is_none());
             let ordered = repository
                 .get("part2")
                 .map_err(|error| figment::Error::from(error.to_string()))?

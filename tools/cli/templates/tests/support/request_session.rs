@@ -190,8 +190,8 @@ impl<A: Application, const EXISTING: bool> Application for SessionApplication<A,
         providers.push(Box::new(SessionRoutes));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -372,8 +372,8 @@ impl<A: Application> Application for CookieSessionApplication<A> {
         }
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 
@@ -905,7 +905,10 @@ impl SessionStore for ContractRequestDriver {
     fn reset_exists(&self) -> openrust::Result<()> {
         self.backend.reset_exists()
     }
-    fn set_database_user_id(&self, user_id: openrust::db::sea_orm::Value) -> openrust::Result<bool> {
+    fn set_database_user_id(
+        &self,
+        user_id: openrust::db::sea_orm::Value,
+    ) -> openrust::Result<bool> {
         self.backend.set_database_user_id(user_id)
     }
     fn accepts_request(&self) -> bool {
@@ -1148,8 +1151,8 @@ impl<A: Application> Application for OriginalHost<A> {
         providers.push(Box::new(OriginalHostRoutes));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        A::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        A::configure_providers(config, builder);
     }
 }
 pub async fn assert_original_host_cookie_session<A: Application>(

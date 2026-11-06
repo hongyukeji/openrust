@@ -2,7 +2,7 @@
 
 MB-A01模型Array使用现有同版serde_json的显式raw_value，局部保留JSON数字词法并恢复PHP64类别；preserve_order/float_roundtrip不变，禁止全局arbitrary_precision污染通用Serde与Figment来源。无新增依赖或版本升级；主线、三类生成与适用consumer的限定验收见[模型属性](memory/testing.md#模型属性与认证前置限定验收)。
 
-DB-I01固定 `sea-orm =2.0.4`，仅在仓内源码新增安全 `ExecResult::try_last_insert_id`，SQLite保留有符号rowid，MySQL保留原生u64，不支持的PG结果返回错误；Query层按各固定Processor另作PHP64位数值转换。原因与原包SHA/许可证见 [SeaORM来源](../../vendor/sea-orm/SOURCES.md)。用户已批准完整必要crate随簇提交，根patch、12个consumer与三类fresh实际metadata均解析同一修复副本；无准备脚本、外部fork或发布替代声明。上游升级时须核修复等价再移除补丁，完整来源/许可证/上游402项SHA保持，当前不为精简改变受验分发。限定验收见[插入标识](memory/testing.md#插入标识与事务执行闭环)。
+DB-I01固定 `sea-orm =2.0.4`，仅在仓内源码新增安全 `ExecResult::try_last_insert_id`，SQLite保留有符号rowid，MySQL保留原生u64，不支持的PG结果返回错误；Query层按各固定Processor另作PHP64位数值转换。原因与原包SHA/许可证见 [SeaORM来源](../../vendor/seaql/sea-orm/SOURCES.md)。用户已批准完整必要crate随簇提交，根patch、12个consumer与三类fresh实际metadata均解析同一修复副本；无准备脚本、外部fork或发布替代声明。上游升级时须核修复等价再移除补丁，完整来源/许可证/上游402项SHA保持，当前不为精简改变受验分发。限定验收见[插入标识](memory/testing.md#插入标识与事务执行闭环)。
 
 网络测试库生命周期修复新增可选`shutdown_hooks =0.1.0`（MIT，已取固定crate源码SHA审计，安全接口封装C atexit；无额外依赖）。仅显式网络TestDatabase操作首次调用时登记正常退出回调，等待本进程已派发的有限清理操作；回调只同步计数与条件变量，不执行SQL/访问Tokio/输出日志，不安装信号处理或永久后台进程。原因是async Drop阻塞caller runtime会冻住SQLx已排队的还池任务；不能为此忽略pool.close失败而删除活跃库。SIGKILL/abort等不运行退出钩子，仍需持久归属与下次显式入口补偿；Unix范围已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，非Unix私有ACL与副本/无应答服务专项仍开放。
 
@@ -54,7 +54,7 @@ Session 的原生数据库载荷复用现有 `base64` 0.22；`session` feature �
 | 配置 | `figment` + 既有 `toml` 1.1（`preserve_order`） | R2-R02启用已有TOML解析器的保序feature，在来源进入Figment前保留表声明序；复用已锁定indexmap，不在框架新增toml_edit依赖或手写解析器。功能接线与验收仍以当前todo为准，不能从feature声明推断有序来源已交付；来源错误继续按可信schema路径脱敏 |
 | 日志 / 追踪 / metrics | `tracing` + `tracing-subscriber`；可选 `metrics` feature 使用 `metrics` 0.24.6 + `metrics-exporter-prometheus` 0.18.3；可选 `otel` feature 使用 OpenTelemetry SDK 0.33.1 与 OTLP HTTP exporter | `/metrics` 仅在配置开启后注册；HTTP 指标标签为固定方法与状态类别。HTTP、gRPC 和 worker 复用已校验的 `traceparent`；配置 OTLP endpoint 后由 SDK 后台线程导出 spans，使用同步 HTTP client 适配其执行模型。真实 Collector 已验证 HTTP 与 HTTP→gRPC trace 导出；性能和完整 workspace 最终门禁仍在 M5 验收中 |
 | 时间 | `chrono` + `chrono-tz` 0.10.4（编译数据标识 IANA 2025b），日期输入与队列 cron 使用 | C04-B2将既有chrono-tz改为普通依赖，不新增crate，使请求日期不依赖queue feature；构建/产物包含静态时区数据，集群节点须运行相同构建产物。chrono-tz生成表在2099年后采用固定尾偏移，不能单独证明PHP未来时区等价；C04-B2的POSIX尾规则已实现，原始与未来时区参考、598 footer及适用真实入口验收通过；不据此声称全体日期字符串已穷举。PHP参考运行器tzdb标识2025.2与Rust数据标识分列记录，行为仍须实际差分 |
-| 日期解析来源 | 固定 PHP 8.5.0 timelib、Carbon 3.8.4 与 PHP `math.c` 的 Rust 实现 | 不增加 PHP 运行时或 Cargo 依赖；timelib/Carbon 为 MIT，移植的 `number_format` HALF_UP 分支保留 PHP License 3.01 及版权。固定源码 SHA、再生成和边界见 [SOURCES](../../src/support/calendar/date/SOURCES.md)，完整授权原文随日期源码保留；Cargo deny 不代替这些非 crate 来源的许可记录。行为验收仍按 C04-B2，不以来源记录声明完整日期等价 |
+| 日期解析来源 | 固定 PHP 8.5.0 timelib、Carbon 3.8.4 与 PHP `math.c` 的 Rust 实现 | 不增加 PHP 运行时或 Cargo 依赖；timelib/Carbon 为 MIT，移植的 `number_format` HALF_UP 分支保留 PHP License 3.01 及版权。固定源码 SHA、再生成和边界见 [SOURCES](../../vendor/openrust/framework/src/support/calendar/date/SOURCES.md)，完整授权原文随日期源码保留；Cargo deny 不代替这些非 crate 来源的许可记录。行为验收仍按 C04-B2，不以来源记录声明完整日期等价 |
 | cron 解析 | `cron-parser` 0.12（`queue` feature） | 只接受五字段表达式；可复用解析结果计算日历触发，DST gap 跳过且 fold 的两个绝对时刻有序返回，框架以本地 wall-slot 唯一键折叠重复分钟 |
 | ID | 已提供可选 UUIDv7，详见下表 `db-uuid` | 默认整数 ID；生成选项为 `--uuid-id`，不使用不存在的 `--uuid` |
 
@@ -149,3 +149,5 @@ S3b测试工具接线：tools/testing 的 db-sqlite 显式转发既有根 openru
 SQLite新应用自动迁移前的部署密钥复用CLI既有getrandom生成32字节Base64，各用途独立；不新增密码学依赖或改变缺密钥启动拒绝规则。
 
 AR-P01测试资源scope：框架测试复用同一SQLx0.9.0的sqlite类型feature，仅供不连接数据库的options断言；OpenRust的db-sqlite运行feature仍只在发布多库scope开启。纯FS测试在Unix复用rustix=1.1.5（fs/std/process）、Windows复用winapi-util=0.1.11测试依赖；不新增版本或生产默认后端。原PG NUMERIC wire与Session期限算法拆为生产/纯测试共享叶，不复制算法。
+
+AR-M01新增本地workspace包`openrust-modules`，从框架迁移模块/config/activator/命令实现，复用既有serde、serde_json、glob、tokio、toml及开发figment/tempfile依赖，无新增registry依赖版本。框架不依赖该扩展，根应用默认集成；当前仅编码待验，manifest/lock最终以独立冻结验收为准。

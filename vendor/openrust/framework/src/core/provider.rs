@@ -18,11 +18,12 @@ use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 use super::command::Command;
 use super::command_registry::CommandRegistry;
 use super::container::{Container, ContainerBuilder, Resolver};
-use super::module::{ModuleManifest, ModuleRepository, ModuleRepositorySeed};
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use super::{BoxFuture, Error, Result};
 
+mod preparation;
 pub(crate) mod registration;
+pub use preparation::{ProviderPreparation, ProviderRegistration};
 
 pub(crate) type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 
@@ -471,8 +472,8 @@ pub struct ProviderBuilder {
     testing_boot: bool,
     providers: Vec<ProviderEntry>,
     default_providers: Option<(usize, crate::core::DefaultProviders)>,
-    modules: ModuleManifest,
-    modules_configured: bool,
+    bootstrap_providers: Vec<ProviderEntry>,
+    registrations: HashMap<ProviderId, Box<dyn ProviderRegistration>>,
     removed: HashSet<ProviderId>,
     app_config: Option<AppConfigRegistration>,
     binding_overrides: Vec<BindingOverride>,
@@ -482,10 +483,6 @@ struct ProviderEntry {
     provider: Box<dyn ServiceProvider>,
     force: bool,
 }
-
-// 占用显式模块装配的清单位置；启动前换成真实包 Provider，不执行占位回调。
-struct ModuleRegistrationSlot;
-impl ServiceProvider for ModuleRegistrationSlot {}
 
 pub(crate) fn check_dependencies(
     provider: &dyn ServiceProvider,
@@ -713,30 +710,45 @@ impl ProviderBuilder {
 
     /// 在启动前从清单移除具体 Provider 类型；依赖关系随后重新校验。
     pub fn remove_provider(&mut self, id: ProviderId) -> &mut Self {
-        self.providers.retain(|entry| entry.provider.id() != id);
+        self.retain_entries(|entry| entry.provider.id() != id);
+        self.bootstrap_providers
+            .retain(|entry| entry.provider.id() != id);
         self.removed.insert(id);
         self
     }
 
-    /// 声明已编译模块和本次启动的启用来源；与应用 Provider 共用一个生命周期。
-    pub fn module_manifest(&mut self, manifest: ModuleManifest) -> &mut Self {
-        self.providers
-            .retain(|entry| entry.provider.id() != ProviderId::of::<ModuleRegistrationSlot>());
-        if manifest.has_discovery() {
-            self.providers.push(ProviderEntry {
-                provider: Box::new(ModuleRegistrationSlot),
-                force: false,
-            });
-        }
-        self.modules = manifest;
-        self.modules_configured = true;
+    /// 在默认及应用 Provider 前安装启动基础项；同类型身份仍由唯一 Registry 去重。
+    pub fn bootstrap_provider(&mut self, provider: impl ServiceProvider) -> &mut Self {
+        self.boxed_bootstrap_provider(Box::new(provider))
+    }
+
+    /// 安装已盒装的启动基础 Provider，保留登记顺序。
+    pub fn boxed_bootstrap_provider(&mut self, provider: Box<dyn ServiceProvider>) -> &mut Self {
+        self.bootstrap_providers.push(ProviderEntry {
+            provider,
+            force: false,
+        });
         self
     }
 
-    /// 仅从本次应用构建移除模块，不改写持久启用状态。
-    pub fn remove_module(&mut self, name: impl Into<String>) -> &mut Self {
-        self.modules.disable(name);
-        self
+    fn retain_entries(&mut self, mut keep: impl FnMut(&ProviderEntry) -> bool) {
+        let position = self
+            .default_providers
+            .as_ref()
+            .map(|(position, _)| *position);
+        let mut kept_before = 0;
+        let mut index = 0;
+        self.providers.retain(|entry| {
+            let retained = keep(entry);
+            if retained && position.is_some_and(|position| index < position) {
+                kept_before += 1;
+            }
+            index += 1;
+            retained
+        });
+        if let Some((position, _)) = &mut self.default_providers {
+            *position = kept_before;
+        }
     }
 
     /// 全体 Provider 注册后、boot 前覆盖类型化服务绑定。
@@ -793,33 +805,17 @@ impl ProviderBuilder {
                 });
             providers.splice(position..position, entries);
         }
-        let module_seed = Self::append_modules(self.modules, &self.removed, &mut providers)?;
-        if self.modules_configured {
-            let events = crate::events::EventsServiceProvider::new();
-            // 独立默认类型只补空服务，不占用 nested 真实 EventsServiceProvider 的去重身份。
-            if !self.removed.contains(&events.id())
-                && !providers
-                    .iter()
-                    .any(|entry| entry.provider.id() == events.id())
-            {
-                providers.insert(
-                    0,
-                    ProviderEntry {
-                        provider: Box::new(crate::events::DefaultEventsServiceProvider),
-                        force: false,
-                    },
-                );
-            }
-            if let Some(module_seed) = module_seed {
-                let module_seed = Arc::new(module_seed);
-                bindings.singleton::<ModuleRepository, _>(move |resolver| {
-                    let seed = Arc::clone(&module_seed);
-                    Box::pin(
-                        async move { Ok(Arc::new(ModuleRepository::from_seed(seed, resolver))) },
-                    )
-                });
-            }
-        }
+        let mut bootstrap = self.bootstrap_providers;
+        bootstrap.retain(|entry| !self.removed.contains(&entry.provider.id()));
+        providers = preparation::expand(
+            providers,
+            self.registrations,
+            &mut bindings,
+            &self.removed,
+            &bootstrap,
+        )?;
+        bootstrap.extend(providers);
+        let providers = bootstrap;
         ordered_providers(&providers, &self.removed)?;
         let mut resources = StartupResources::new();
         if let Some(register_config) = self.app_config {
@@ -899,47 +895,6 @@ impl ProviderBuilder {
             providers: active,
         })
     }
-
-    fn append_modules(
-        modules: ModuleManifest,
-        removed: &HashSet<ProviderId>,
-        providers: &mut Vec<ProviderEntry>,
-    ) -> Result<Option<ModuleRepositorySeed>> {
-        if modules.has_discovery() {
-            let provider = modules.into_discovery_provider().ok_or_else(|| {
-                Error::custom("module_manifest_invalid", "运行发现清单缺少编译绑定表")
-            })?;
-            if !removed.contains(&provider.id()) {
-                let position = providers
-                    .iter()
-                    .position(|entry| {
-                        entry.provider.id() == ProviderId::of::<ModuleRegistrationSlot>()
-                    })
-                    .ok_or_else(|| {
-                        Error::custom("module_manifest_slot_missing", "运行发现包缺少清单注册位置")
-                    })?;
-                providers[position] = ProviderEntry {
-                    provider: Box::new(provider),
-                    force: false,
-                };
-            }
-            return Ok(None);
-        }
-        let prepared = modules.prepare_runtime()?;
-        for module in prepared.modules {
-            for provider in module.providers {
-                let id = provider.id();
-                if removed.contains(&id) {
-                    continue;
-                }
-                providers.push(ProviderEntry {
-                    provider,
-                    force: false,
-                });
-            }
-        }
-        Ok(Some(prepared.seed))
-    }
 }
 
 async fn finalize_startup(
@@ -970,8 +925,6 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use crate::core::{ModuleConfigFiles, ModuleDescriptor, ModuleManifest};
 
     type ConsoleObservation = (Option<String>, bool);
     type ConsoleObservations = Arc<Mutex<Vec<ConsoleObservation>>>;
@@ -1230,210 +1183,6 @@ mod tests {
             .await?;
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         Ok(())
-    }
-
-    struct ModuleBefore(Arc<Mutex<Vec<String>>>);
-    struct ModuleSupport {
-        root: std::path::PathBuf,
-        reads: Arc<Mutex<Vec<String>>>,
-    }
-    struct ModuleAfter(Arc<Mutex<Vec<String>>>);
-
-    impl ServiceProvider for ModuleBefore {
-        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move {
-                app.config_section(
-                "sample",
-                serde_json::json!({"name":"Default","items":["a","b","c"],"settings":{"value":"default"}}),
-                SectionSchema::any(),
-                |_| Ok(()),
-            )
-            })
-        }
-
-        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move {
-                let value: Value = app.section("sample")?;
-                self.0
-                    .lock()
-                    .unwrap()
-                    .push(format!("before:{}", value["name"]));
-                Ok(())
-            })
-        }
-    }
-
-    impl ServiceProvider for ModuleSupport {
-        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move {
-                let before: Value = app.section("sample")?;
-                self.reads
-                    .lock()
-                    .unwrap()
-                    .push(format!("support-before:{}", before["name"]));
-                ModuleConfigFiles::new("sample", &self.root)?.overlay(app)?;
-                let after: Value = app.section("sample")?;
-                self.reads
-                    .lock()
-                    .unwrap()
-                    .push(format!("support-after:{}", after["name"]));
-                Ok(())
-            })
-        }
-    }
-
-    impl ServiceProvider for ModuleAfter {
-        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move {
-                let value: Value = app.section("sample")?;
-                assert_eq!(value["name"], "Module");
-                assert_eq!(value["items"], serde_json::json!(["x", "b", "c"]));
-                assert_eq!(value["settings"]["value"], "settings");
-                self.0.lock().unwrap().push("after".to_owned());
-                Ok(())
-            })
-        }
-    }
-
-    #[tokio::test]
-    async fn module_support_overlays_at_its_own_boot_point() -> Result<()> {
-        let temporary = tempfile::tempdir().map_err(Error::internal)?;
-        let config = temporary.path().join("config");
-        std::fs::create_dir(&config).map_err(Error::internal)?;
-        std::fs::write(
-            config.join("config.toml"),
-            "name = 'Module'\nitems = ['x']\n",
-        )
-        .map_err(Error::internal)?;
-        std::fs::write(config.join("settings.toml"), "value = 'settings'\n")
-            .map_err(Error::internal)?;
-        let reads = Arc::new(Mutex::new(Vec::new()));
-        let module = ModuleDescriptor::new("sample", temporary.path(), 0)
-            .provider(ModuleBefore(Arc::clone(&reads)))
-            .provider(ModuleSupport {
-                root: temporary.path().to_path_buf(),
-                reads: Arc::clone(&reads),
-            })
-            .provider(ModuleAfter(Arc::clone(&reads)));
-        let mut builder = ProviderBuilder::new();
-        builder.module_manifest(ModuleManifest::new().module(module).enable("sample"));
-        let source = Figment::from(figment::providers::Serialized::defaults(
-            serde_json::json!({"sample":{"name":"App","items":["a","b","c"],"settings":{"value":"app"}}}),
-        ));
-        let runtime = builder.start(source).await?;
-        assert_eq!(
-            *reads.lock().unwrap(),
-            [
-                "before:\"App\"",
-                "support-before:\"App\"",
-                "support-after:\"Module\"",
-                "after"
-            ]
-        );
-        assert!(runtime.config().version() >= 2);
-        runtime
-            .shutdown(Instant::now() + Duration::from_secs(1))
-            .await
-    }
-
-    #[tokio::test]
-    async fn module_dependency_orders_provider_register_and_boot() -> Result<()> {
-        struct Producer(Arc<Mutex<Vec<&'static str>>>);
-        struct Consumer(Arc<Mutex<Vec<&'static str>>>);
-
-        impl ServiceProvider for Producer {
-            fn register<'a>(
-                &'a self,
-                _app: &'a mut RegisterContext<'_>,
-            ) -> BoxFuture<'a, Result<()>> {
-                Box::pin(async move {
-                    self.0
-                        .lock()
-                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
-                        .push("producer.register");
-                    Ok(())
-                })
-            }
-
-            fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-                let events = Arc::clone(&self.0);
-                Box::pin(async move {
-                    events
-                        .lock()
-                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
-                        .push("producer.boot");
-                    Ok(())
-                })
-            }
-        }
-
-        impl ServiceProvider for Consumer {
-            fn register<'a>(
-                &'a self,
-                _app: &'a mut RegisterContext<'_>,
-            ) -> BoxFuture<'a, Result<()>> {
-                Box::pin(async move {
-                    self.0
-                        .lock()
-                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
-                        .push("consumer.register");
-                    Ok(())
-                })
-            }
-
-            fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-                let events = Arc::clone(&self.0);
-                Box::pin(async move {
-                    events
-                        .lock()
-                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
-                        .push("consumer.boot");
-                    Ok(())
-                })
-            }
-        }
-
-        let temporary = tempfile::tempdir().map_err(Error::internal)?;
-        let producer_root = temporary.path().join("producer");
-        let consumer_root = temporary.path().join("consumer");
-        std::fs::create_dir(&producer_root).map_err(Error::internal)?;
-        std::fs::create_dir(&consumer_root).map_err(Error::internal)?;
-        let events = Arc::new(Mutex::new(Vec::new()));
-        let mut builder = ProviderBuilder::new();
-        builder.module_manifest(
-            ModuleManifest::new()
-                .module(
-                    ModuleDescriptor::new("consumer", &consumer_root, -100)
-                        .requires("producer")
-                        .provider(Consumer(Arc::clone(&events))),
-                )
-                .module(
-                    ModuleDescriptor::new("producer", &producer_root, 100)
-                        .provider(Producer(Arc::clone(&events))),
-                )
-                .enable("consumer")
-                .enable("producer"),
-        );
-
-        let runtime = builder.start(Figment::new()).await?;
-        let observed = {
-            let events = events
-                .lock()
-                .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?;
-            events.clone()
-        };
-        assert_eq!(
-            observed,
-            vec![
-                "producer.register",
-                "consumer.register",
-                "producer.boot",
-                "consumer.boot"
-            ]
-        );
-        runtime
-            .shutdown(Instant::now() + Duration::from_secs(1))
-            .await
     }
 
     #[tokio::test]

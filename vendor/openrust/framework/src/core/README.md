@@ -130,7 +130,7 @@ match (result, cleanup) {
 
 - [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。
 - [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
-- [`ModuleManifest`](module.rs) 声明已编译模块及激活器；启用模块的 Provider 进入同一 register/boot 管线，全量 metadata（含未加载模块）与激活器由同一 Container 的 `ModuleRepository` 共享。`ModuleDescriptor::requires` 保留启用依赖校验与拓扑排序；普通启停不级联修改依赖状态，也不删除迁移历史。资源根、独立状态路径与文件边界见 [模块激活配置](../config/README.md#模块激活与运行根)，业务接线见 [`modules/example`](../../../../../modules/example/README.md)。
+- `openrust_modules::ModuleManifest` 声明已编译模块及激活器；启用模块的 Provider 进入同一 register/boot 管线，全量 metadata（含未加载模块）与激活器由同一 Container 的 `ModuleRepository` 共享。`ModuleDescriptor::requires` 保留启用依赖校验与拓扑排序；普通启停不级联修改依赖状态，也不删除迁移历史。资源根、独立状态路径与文件边界见 [模块激活配置](../../../modules/README.md#模块激活与运行根)，业务接线见 [`modules/example`](../../../../../modules/example/README.md)。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp::build/reset` 均无该上下文；受控的 `TestAppBuilder::run_command` 只引导、执行并关闭同名命令。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
@@ -140,42 +140,13 @@ match (result, cleanup) {
 - `config`：应用在根 `config/*.rs` 声明可编辑配置，经 `Application::config()` 返回显式 `ConfigManifest`。加载器先建立所选 dotenv 与外部环境快照，再求值已编译配置函数，发布到唯一 `ConfigRepository`；不运行时扫描 Rust。模块使用相同代码配置机制；需要 TOML 时显式注册可选 source，不再默认扫描 `config/*.toml`。`APP_NAME`、`APP_URL` 和命名空间读取沿公开 `ConfigContext` 与统一来源优先级；缓存命中跳过 dotenv 和配置函数，遇不可序列化 typed/factory 必须明确拒绝，不能静默丢弃。Rust 代码修改需要重新编译，环境配置修改需要重启；`src/config/` 定义框架类型与加载机制，根 `config/` 定义应用策略。
 - [`lifecycle`]：启动顺序、优雅停机信号与应用后台刷新任务回收。
 
-### 编译模块与持久启停
+### 外部包预装配
 
-根应用和生成应用默认选择 `registered`，使用 `ModuleManifest::new().with_application_root(root)` 的显式描述与启用名称；同一仓储仍管理路径、依赖和 Provider。库 `ModulesConfig::default()` 保留上游 `file` 默认；下列发现/文件流程是应用显式选择的可选模式。只读激活器在状态变更前返回错误，不派发前事件或在空目录 `--all` 时误报成功。第三方可写激活器须覆盖 `ModuleActivator::ensure_writable`，再实现持久动作；文件驱动已实现。
+外部包通过 `ProviderRegistration` 在任何 register 回调前校验声明并绑定初始服务：返回项保留清单位置，`ProviderPreparation::append_provider` 尾接已编译 Provider。同类型重新 `registration` 会替换并移动声明槽位，`registration_mut` 只修改内容；默认 Provider 的插入边界不随删除或替换错位。声明失败先于用户回调，所有实际注册、依赖、boot 和资源回收仍交唯一内核。`bootstrap_provider` 用于核心命令之后、默认与应用项之前的扩展配置和命令，用户同名命令仍后覆盖。
 
-`Application::modules` 在一次启动中只产生一份清单。`ModuleManifest::discover_from_config` 在包 Provider 的 register 中扫描 `module.json`，读取同一 `ConfigRepository` 已发布路径；`compiled_provider` 把运行名称映射到已编译类型工厂，真实调用即时进入唯一注册器。未编译 disabled 元数据可发现并持久启用，实际加载缺失绑定时失败。重复声明不预先去重，Provider 去重仍归唯一内核；仓储同名项以后来源覆盖，lookup 先大小写不敏感精确匹配，再 Studly 回退。状态写 canonical 精确键，不运行未编译 Rust。
+模块包使用这些公开契约，模块状态与发现机制见 [独立模块扩展](../../../modules/README.md)。框架库不包含模块实现或反向依赖该扩展。
 
-`get_path()` 动态读取配置而不重扫既有快照。`possible_nested_providers` 仅声明条件可达类型，原平面 missing/order 预检保留；候选未被选择时不能满足真实登记点的依赖。必登记的 `nested_providers` 仍在父成功后核实际登记。
-
-`ModuleFile` 是显式编译的初始化器，在模块 eager Provider 注册后、普通 boot 前执行，按解析路径 `include_once`；不建立文件私有生命周期。`compiled_module_file` 跟随元数据的文件包含目录覆盖，`compiled_file` 则按应用根绑定。`ModuleExecution` 默认每 App 独立，可由多个 App 共享；共享时并发等待，失败/取消明确封闭未完成文件，新会话才可重试，这是 Rust 异步安全差异。共享 Manifest 即使空也复用，空 catalog 可再扫描；不提供热卸载。PHP 类 aliases 明确未实现，非空表拒绝；完整 deferred `ProviderRepository` 亦不由 eager 注册替代。运行发现与文件初始化的使用方法见 [CLI 模块说明](../../../../../tools/cli/README.md#接入自己的业务模块)。
-
-显式程序化 `ModuleDescriptor` 清单仍保留 requires/priority 增强，与发现输入不可混用，不将增强拓扑称为上游 Manifest 排序。
-
-`Module::is_loaded()` 是本 App 的加载快照，`is_enabled()`、`is_disabled()` 和 `has_status(bool)` 读取所选激活器视图：默认 file 保构造期缓存及自身修改，不跟随其他进程；显式 file-live 扩展才读取新文件。`enable().await` / `disable().await` 派发前事件、持久化，再派发后事件；`set_active(bool)` 直接写而不派发这四事件。自身状态在写前改变，写失败保留缓存变更但不发成功事件，不能把 enabled=true 当持久化已经成功；当前写结果与磁盘字节须分别判断。已有 `ModuleManifest::enable/disable` 仍只改变当前启动输入，不是持久管理接口。
-
-```rust
-use openrust::core::ModuleRepository;
-# async fn change(app: &openrust::App) -> openrust::Result<()> {
-let modules = app.state().resolve::<ModuleRepository>().await?;
-let module = modules.find_or_fail("example")?;
-let loaded = module.is_loaded();
-module.disable().await?;
-assert!(!module.is_enabled()?);
-assert_eq!(module.is_loaded(), loaded);
-# Ok(())
-# }
-```
-
-核心命令为 `module:list`、`module:enable 名称…` 与 `module:disable 名称…`。启停支持 `--all/-a`、`--no-interaction/-n`；all 包含 disabled、覆盖显式名单，空 catalog 的 all 成功。全部名称先验证，再保留顺序和重复项执行；单项事件或写入异常停止后续项，已经提交的前项不回滚。`module:list --only enabled|disabled|priority` 按状态过滤；priority 只列 enabled，并支持 `--direction asc|desc`。TTY 搜索选择及通用批命令的 false/非零聚合仍待实现，不冒充完整上游交互。
-
-命令仍完成同一应用的完整 bootstrap，坏 JSON、缺失启用模块/依赖、资源或服务启动失败也会阻挡管理命令；修复这些启动输入后再运行，不提供第二启动器或自动绕过。停用后当前 App 继续持有原 Provider/路由和资源，下一 App 才按新状态加载；状态查询与已加载事实需要分别观察。
-
-生命周期通知沿同一 `Events` 服务派发 `ModuleLifecycleEvent`，阶段是 enabling/enabled/disabling/disabled，名称为 `modules.<声明名转小写>.<阶段>`。用 `EventsServiceProvider::listen_named::<ModuleLifecycleEvent, _>("modules.*.enabled", callback)` 登记命名/通配监听；回调返回 `EventPropagation::Stop` 只停止当前传播，不取消启停动作，返回 Err 则传播异常。前事件失败不写，写失败不发后事件，后事件失败时状态已经提交。它与原 typed/queued 监听共用注册顺序；不要另外注册空的同类型 Provider 覆盖业务监听器。
-
-模块句柄复用弱 Resolver 访问同一根事件服务；命令和资源继续沿既有生命周期回收。调用方仍需协调并发停机与管理操作，不能依赖并发 `shutdown` 提供状态文件提交的原子屏障。文件锁/替换、hardlink 等价和 Windows 原生待验边界见 [配置说明](../config/README.md#模块激活与运行根)。
-
-应用内核位于根 `openrust` package 的 `src/core/`；`config`、`http`、`db`、`auth` 和 `mail` 是同一 package 中的兄弟 Rust 模块。应用依赖公开的 `openrust` package。CLI、proc-macro 和可复用测试工具继续作为独立 workspace package，维持工具与构建边界。
+应用内核位于独立 `openrust-framework` package 的 `vendor/openrust/framework/src/core/`；`config`、`http`、`db`、`auth` 和 `mail` 是同一 package 中的兄弟 Rust 模块。根应用依赖此框架包，使用 `openrust` 库名。CLI、proc-macro 和可复用测试工具继续作为独立 workspace package，维持工具与构建边界。
 
 `ServerConfig` 包含 `[server].trusted_proxy_ranges`（默认未配置，显式空列表关闭平台自动信任）与 `trusted_proxy_headers`（默认 62）、可选 `[server.trusted_hosts]`、`[server.compression]`（默认启用）和 `[server.cors]`（默认禁用）。可信代理项接受 IP 或 CIDR，由 HTTP `ClientIp` extractor 使用；只有直接 socket peer 可信时才处理转发头，否则忽略任意转发头。可信主机可在应用或模块 Provider 的 `boot` 中用 `BootContext::trust_hosts` / `trust_hosts_with` 覆盖静态配置；请求与异常边界见 [HTTP 说明](../http/README.md#可信主机)。CORS 默认允许来源列表为空，方法为 GET/POST/PUT/PATCH/DELETE/OPTIONS，请求头为 `content-type`/`authorization`/`x-request-id`，暴露 `x-request-id`，不启用 credentials，预检缓存 600 秒。环境变量使用 `APP_SERVER_CORS_ENABLED=true`；列表采用 Figment 数组语法，例如 `APP_SERVER_CORS_ALLOWED_ORIGINS='["https://example.com", "https://other.example"]'`。
 

@@ -10,7 +10,7 @@
 
 `ServiceProvider::register` 返回 `BoxFuture`，依赖绑定使用 `RegisterContext` 的异步 `instance`、`singleton` 等方法并在登记位置 `await?`。应用启动后可用 `App::register_provider` 登记新 Provider；相同类型普通登记保留首次实例，显式 `force_register_provider` 则重新执行登记并更新后续解析的服务。已持有的 `Arc` 保留原实例。现有模块回归以 `ExampleMessage` 和 `GET /api/example` 验证同一应用中的更新；已构建的 HTTP Router 是快照，业务应在构建 Router 前完成需要反映在路由表中的登记。
 
-配置仓储的原始读写与严格类型读取语义见[配置说明](../../src/config/README.md)。模块自有的 [`config/mod.rs`](config/mod.rs) 通过统一清单写入 `example.feature`，`GET /api/example/config-feature` 通过公开配置仓储读取其固定 `enabled` 字段；模块未启用时该路由不存在。TOML 递归发现仅由显式附加的旧来源处理，不参与本模块默认引导。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
+配置仓储的原始读写与严格类型读取语义见[配置说明](../../vendor/openrust/framework/src/config/README.md)。模块自有的 [`config/mod.rs`](config/mod.rs) 通过统一清单写入 `example.feature`，`GET /api/example/config-feature` 通过公开配置仓储读取其固定 `enabled` 字段；模块未启用时该路由不存在。TOML 递归发现仅由显式附加的旧来源处理，不参与本模块默认引导。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
 
 **综合示例已贯通当前已实现的公开框架能力。** 文章 HTTP CRUD、事务事件、审计、缓存、存储、账户安全及协议调用均有业务代码和分组验证；tenant 路由通过 `RouteGroup` 演示共享路径前缀与组级认证/授权 middleware。这不表示全部 Laravel 能力已完成。
 
@@ -28,7 +28,7 @@
 
 `GET /example/pages/about` 是可选页面路由；`/example/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Routes::fallback` 的写法。
 
-模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
+模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::configure_providers 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
 账户注册、验证码和密码验证使用宿主统一 `HashManager`，默认与 `config/hashing.rs` 同源的 bcrypt12；模块不持有独立成本配置。`tests/auth_flows.rs` 在实际注册后读取数据库产物，核对算法、成本、统一服务验证与驱动别名身份。完整字节密码策略及显式 Argon 迁移见[哈希指南](../../docs/src/security/hashing.md)。
 
@@ -36,11 +36,11 @@
 
 模块的 reporting 路由通过标准 `Databases` 使用独立 SQLite 连接；对应测试在真实 Router 调用后检查同一池的 nullable/raw PRAGMA。迁移清单通过公开 Framework/模块 MigrationServiceProvider 接入，`PrivateNote` 回滚使用 `dialect::drop_column`；旧版 SQLite 在迁移所有者内重建 main 普通表，无需业务自行分支。
 
-这些连接与既有迁移清单已在 SQLite 3.26/3.51.3 验证；无 auth 根宿主另有真实 up/status/down/up。独立清单 Provider 验收不等于 Root+Auth 或全部业务已支持；认证、DB缓存/队列/调度与完整 Migrator/Schema 仍开放。数据库 Session 的原生默认与显式 Guarded 语义见 [Session 指南](../../src/session/README.md#原生-database-与显式增强)。需要浏览器实时授权截止或远程注销时显式选择 Guarded，并在同一表登记增强列/索引迁移；示例包装器转发同一 Session driver 工厂和请求元数据，不保存第二套会话。
+这些连接与既有迁移清单已在 SQLite 3.26/3.51.3 验证；无 auth 根宿主另有真实 up/status/down/up。独立清单 Provider 验收不等于 Root+Auth 或全部业务已支持；认证、DB缓存/队列/调度与完整 Migrator/Schema 仍开放。数据库 Session 的原生默认与显式 Guarded 语义见 [Session 指南](../../vendor/openrust/framework/src/session/README.md#原生-database-与显式增强)。需要浏览器实时授权截止或远程注销时显式选择 Guarded，并在同一表登记增强列/索引迁移；示例包装器转发同一 Session driver 工厂和请求元数据，不保存第二套会话。
 
 ## 统一请求输入与路由规范化
 
-`POST /api/example/input` 在 [`controllers/example.rs`](http/controllers/example.rs) 使用公开 `openrust::http::Request` 作为唯一读取正文的提取器。`request.info()` 提供方法和路径等元信息；不要在同一个 handler 中再并列 `Json<T>` 或原生 Request 消费正文。需要类型化数据时可调用 `deserialize_json`、`deserialize_query` 或 `deserialize_input`，示例用 `deserialize_query::<InputQuery>()` 把 `page=7` 转成 `Option<u32>` 并读取已去空白的 `label`。 `deserialize_json` 会经过动态 `serde_json::Value`；需要精确保留128位整数时直接使用 typed `Json<T>`，详见[HTTP 输入说明](../../src/http/README.md#统一请求输入)。
+`POST /api/example/input` 在 [`controllers/example.rs`](http/controllers/example.rs) 使用公开 `openrust::http::Request` 作为唯一读取正文的提取器。`request.info()` 提供方法和路径等元信息；不要在同一个 handler 中再并列 `Json<T>` 或原生 Request 消费正文。需要类型化数据时可调用 `deserialize_json`、`deserialize_query` 或 `deserialize_input`，示例用 `deserialize_query::<InputQuery>()` 把 `page=7` 转成 `Option<u32>` 并读取已去空白的 `label`。 `deserialize_json` 会经过动态 `serde_json::Value`；需要精确保留128位整数时直接使用 typed `Json<T>`，详见[HTTP 输入说明](../../vendor/openrust/framework/src/http/README.md#统一请求输入)。
 
 JSON 请求优先采用 JSON bag，表单请求采用 form bag，再与 query 做顶层左并集；正文中的显式 `null` 也遮住同名 query，不深合并嵌套对象。`input("profile.name")` 可读 dot 路径，`query("title")`、`post("title")` 只取直接键。处理器用 `only` 选择标题、姓名及演示数组，用 `except` 演示排除标题；`has` 计入 `null`，`filled` 对 `null` 为假。`merge` 可按 dot 写入，`merge_if_missing` 保留已有字段，`replace` 只替换当前输入 source 并保留 query fallback。代码分别记录修改后的少量业务字段；这些修改不会再次执行规范化。响应不回传密码或原始正文，只返回密码处理的布尔结果、原文长度与修改后原文是否保留。
 
@@ -72,7 +72,7 @@ curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query
 
 `GET /api/example/session/old-input` 读取上次请求闪存的输入；`POST` 接受 `{"action":"flash","name":"Ada","nickname":null,"password":"secret"}`，示例显式调用 `Request::flash_except(&["password", "action"])`，只保留非敏感的规范化输入。`action=only` 展示 `flash_only`，`action=flush` 仅清空旧输入，不删除整个 Session。显式 opt-in 的 `POST /api/example/session/old-input/preview` 带 `Precognition: true` 时只预检输入、返回 204，不执行闪存 handler，也不保存或老化当前 Session；普通路由上的同名请求头不会自动确认预检。读取保留显式 null 与缺失的区别；当前能力未合并上传文件，也未提供 redirect 自动闪存或通用错误 bag。
 
-[`controllers/session.rs`](http/controllers/session.rs) 在模块自己的 [`routes/api.rs`](routes/api.rs) 注册 `GET /api/example/session` 与 `POST /api/example/session`。启用 `session` 编译能力、宿主登记 `SessionServiceProvider` 且最终驱动未禁用时，模块才挂载这两条路由；handler 直接提取公开 `Session`。根宿主配置数据库，或显式选择 cookie、array 等非数据库驱动时，会装配唯一的通用 Session，无需额外启用认证。默认 database 驱动且无数据库时不挂载路由，不静默使用 memory；未知显式驱动由框架最终配置校验拒绝。与 `RequestInfo::session()` 取得的句柄共享同一请求状态，无需业务再建 store 或修改框架源码。存储与 Cookie 配置由宿主统一管理，默认数据库驱动；测试显式选择 memory，不代表数据库不可用时自动回退。装配、迁移及自定义 driver 见 [Session 使用说明](../../src/session/README.md)。
+[`controllers/session.rs`](http/controllers/session.rs) 在模块自己的 [`routes/api.rs`](routes/api.rs) 注册 `GET /api/example/session` 与 `POST /api/example/session`。启用 `session` 编译能力、宿主登记 `SessionServiceProvider` 且最终驱动未禁用时，模块才挂载这两条路由；handler 直接提取公开 `Session`。根宿主配置数据库，或显式选择 cookie、array 等非数据库驱动时，会装配唯一的通用 Session，无需额外启用认证。默认 database 驱动且无数据库时不挂载路由，不静默使用 memory；未知显式驱动由框架最终配置校验拒绝。与 `RequestInfo::session()` 取得的句柄共享同一请求状态，无需业务再建 store 或修改框架源码。存储与 Cookie 配置由宿主统一管理，默认数据库驱动；测试显式选择 memory，不代表数据库不可用时自动回退。装配、迁移及自定义 driver 见 [Session 使用说明](../../vendor/openrust/framework/src/session/README.md)。
 
 POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `example.session.preference`、`example.session.notice`、`example.session.memo`、`example.session.list`、`example.session.count`，不允许正文指定任意 Session 键，也不返回会话 ID、token 或认证属性：
 
@@ -129,7 +129,7 @@ python3 -B modules/example/tests/browser_cookie_session.py \
 
 ## 从真实调用链开始
 
-根 [`src/main.rs`](../../src/main.rs) 运行同一 `bootstrap::Server`；`Application::modules` 调用模块 [`manifest`](mod.rs)，将 [`module.json`](module.json) 的 `ExampleModuleServiceProvider` 绑定到已编译实现。包 register 实际发现、选择并注册父/子 Provider，随后执行已编译 [`module_init.rs`](module_init.rs)，不是手调生命周期。业务 boot 从同一 ModuleRepository 读取实际清单目录；metadata.module_directory 仅覆盖文件包含路径，发布目录仍基于 application_root。状态文件路径独立配置；禁用只影响新执行，宿主 `/api` 保留。`GET /api/example/module-initialization` 只读返回初始化及业务注册观察值，沿真实 Inject 读取同一 Container。
+根 [`src/main.rs`](../../src/main.rs) 运行同一 `bootstrap::Server`；`Application::configure_providers` 调用模块 [`manifest`](mod.rs)，将 [`module.json`](module.json) 的 `ExampleModuleServiceProvider` 绑定到已编译实现。包 register 实际发现、选择并注册父/子 Provider，随后执行已编译 [`module_init.rs`](module_init.rs)，不是手调生命周期。业务 boot 从同一 ModuleRepository 读取实际清单目录；metadata.module_directory 仅覆盖文件包含路径，发布目录仍基于 application_root。状态文件路径独立配置；禁用只影响新执行，宿主 `/api` 保留。`GET /api/example/module-initialization` 只读返回初始化及业务注册观察值，沿真实 Inject 读取同一 Container。
 
 `GET /api/example/module-state` 经公开 `Inject<ModuleRepository>` 与共享日志服务返回 `data` 中的 `name`、`enabled`、`loaded`、`events`。这是只读业务接口，持久写只通过核心命令或公开模块管理 API。`ModuleStateServiceProvider` 与父 Provider 的同一个 `EventsServiceProvider` 共享日志；命名监听 `modules.example.*` 追加生命周期事件，适用时再向该 Provider 追加原文章事务/队列监听，不另建事件 bus。
 
@@ -141,7 +141,7 @@ cargo run -- module:enable example --no-interaction
 
 默认 file 在构造时读取并缓存，独立 CLI 命令改盘不会改变既有 App 的 enabled 视图；新 App 读取新状态。事件日志仅记录本 App 内的派发，不接收其他进程的事件广播。一个已加载 App 内执行 `app.run_command("module:disable", vec!["example".to_owned()]).await?` 后，状态端点仍可返回 `enabled=false, loaded=true`；新 App 不再挂示例路由，但宿主 `/api` 继续可用。再次启用不热挂先前未加载的 App，后续新 App 才恢复示例。需要实时查看外部状态时显式选择 MODULES_ACTIVATOR=file-live；编译代码直接使用 FileModuleActivator::new(path)?.with_live_reads()，仍不热挂卸已加载资源。对应[三实例回归](tests/module_activation_flows.rs)使用临时应用根、独立状态文件和真实 `bootstrap::Server`，源码用于验证上述流程，不在真实根状态文件上操作。
 
-运行 catalog 来自 module.json，执行仍需显式编译绑定；class aliases、完整deferred加载与TTY搜索选择仍待实现。文件的 hardlink 等价及 Windows 原生行为尚未验收，启停与并发 `shutdown` 不提供原子提交屏障，详见[模块配置边界](../../src/config/README.md#模块激活与运行根)。
+运行 catalog 来自 module.json，执行仍需显式编译绑定；class aliases、完整deferred加载与TTY搜索选择仍待实现。文件的 hardlink 等价及 Windows 原生行为尚未验收，启停与并发 `shutdown` 不提供原子提交屏障，详见[模块配置边界](../../vendor/openrust/modules/README.md#模块激活与运行根)。
 
 [`ExampleServiceProvider::register`](providers/example.rs) 登记 `example` 类型化配置/schema 和业务依赖工厂；其 `boot` 调用 `BootContext::code_config` 求值模块 [`config/mod.rs`](config/mod.rs)，按显式选项读取同仓储 typed 策略，再贡献 [`routes::register`](routes/mod.rs)。后续业务工厂读取共享配置仓储，`greeting` 用于响应文字。模块配置在 Provider 的 boot 时点接入；显式 TOML overlay 的旧回归 fixture 保留在 `tests/fixtures/config/`。
 
@@ -175,7 +175,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 编译 `encryption` 时，所有者可通过 `PUT/GET /api/example/articles/{id}/private-note` 保存和读取私密备注。主库只保存 `Encryptor` 密文；认证上下文固定绑定 owner ID 与文章 ID，列表和公开文章资源均不包含备注或密文。私密备注输入最多 10,000 字符，越权与不存在返回 404；响应明确设置 `Cache-Control: private, no-store` 与 `nosniff`。双库真实 HTTP 回归还验证密文不能在另一文章上下文解密。密钥需由应用安全配置，测试密钥不适用于生产。
 
-编译 `storage-local` 时，所有者可通过 `PUT/GET/DELETE /api/example/articles/{id}/attachment` 上传、下载和删除一份 UTF-8 文本附件。所有者还可通过 `PUT /api/example/articles/{id}/attachment/visibility` 与 JSON `{"visibility":"public"}` 或 `{"visibility":"private"}` 修改当前租户附件的实际可见性；同一文章的非所有者收到 404，存储权限失败按框架错误返回。服务端构造 `example/` 前缀下 owner/文章专属对象 key，拒绝客户端文件名和其他 MIME；流大小 1 MiB、分块 16 KiB，逐块校验 UTF-8 与控制字符。下载强制固定文件名、`nosniff` 与 `private, no-store`。上传与文章删除使用同一文章行锁串行化；文章删除在数据库事务中写入持久清理意图，提交后才删除对象。上传在 App 资源所有者中受管运行并保留启动时的租户作用域；15 秒 HTTP 等待截止后发布任务继续收尾，文章删除需等该任务完成。45 秒期限约束请求体读取至 EOF；EOF 与期限由共享原子状态仲裁：期限先获胜时，流不能以正常 EOF 交给 storage，因此不会进入对象发布；EOF 先获胜时，发布任务继续持有数据库锁直到存储调用收敛，不因 HTTP 等待超时释放事务。真实 MinIO 代理暂停签名 CopyObject、确认其已向 MinIO 返回成功状态后，PostgreSQL 18 与 MySQL 8.4 各自的竞态回归验证 DELETE 等待复制完成，并在删除后确认最终 key 不存在且 staging 已清理。请求体挂起的 deadline/锁释放回归在 PostgreSQL/MySQL 也各通过 1/1。App shutdown 到达自身 deadline 后仍可能中止任务；进程被强杀、MinIO 永久无响应、网络请求永不收敛，或 CopyObject 已发送后返回 `storage_publication_uncertain` 且远端稍后完成时，不保证数据库与对象存储原子提交或自动消除孤儿。已提交文章删除的清理意图可由 `example attachments reconcile` 幂等重试；重用文章 ID 时，遗留意图会阻止新附件上传并拒绝清理，避免误删新对象。此机制不等于病毒或敏感信息扫描。本地附件回归使用生产 Router 的 `TestApp` 与真实 PostgreSQL/MySQL；S3 回归另外使用隔离 MinIO bucket，包含两独立 App 的真实 TCP 分块上传、下载与越权拒绝、挂起新对象不可见、挂起覆盖保留旧对象、复制在途时删除等待并清理、取消及持久清理意图恢复。S3 路径目前仍需同时编译 `storage-local` 与 `storage-s3`，并显式把默认 disk 配成 S3；发布与运维边界见 [存储说明](../../src/storage/README.md)。
+编译 `storage-local` 时，所有者可通过 `PUT/GET/DELETE /api/example/articles/{id}/attachment` 上传、下载和删除一份 UTF-8 文本附件。所有者还可通过 `PUT /api/example/articles/{id}/attachment/visibility` 与 JSON `{"visibility":"public"}` 或 `{"visibility":"private"}` 修改当前租户附件的实际可见性；同一文章的非所有者收到 404，存储权限失败按框架错误返回。服务端构造 `example/` 前缀下 owner/文章专属对象 key，拒绝客户端文件名和其他 MIME；流大小 1 MiB、分块 16 KiB，逐块校验 UTF-8 与控制字符。下载强制固定文件名、`nosniff` 与 `private, no-store`。上传与文章删除使用同一文章行锁串行化；文章删除在数据库事务中写入持久清理意图，提交后才删除对象。上传在 App 资源所有者中受管运行并保留启动时的租户作用域；15 秒 HTTP 等待截止后发布任务继续收尾，文章删除需等该任务完成。45 秒期限约束请求体读取至 EOF；EOF 与期限由共享原子状态仲裁：期限先获胜时，流不能以正常 EOF 交给 storage，因此不会进入对象发布；EOF 先获胜时，发布任务继续持有数据库锁直到存储调用收敛，不因 HTTP 等待超时释放事务。真实 MinIO 代理暂停签名 CopyObject、确认其已向 MinIO 返回成功状态后，PostgreSQL 18 与 MySQL 8.4 各自的竞态回归验证 DELETE 等待复制完成，并在删除后确认最终 key 不存在且 staging 已清理。请求体挂起的 deadline/锁释放回归在 PostgreSQL/MySQL 也各通过 1/1。App shutdown 到达自身 deadline 后仍可能中止任务；进程被强杀、MinIO 永久无响应、网络请求永不收敛，或 CopyObject 已发送后返回 `storage_publication_uncertain` 且远端稍后完成时，不保证数据库与对象存储原子提交或自动消除孤儿。已提交文章删除的清理意图可由 `example attachments reconcile` 幂等重试；重用文章 ID 时，遗留意图会阻止新附件上传并拒绝清理，避免误删新对象。此机制不等于病毒或敏感信息扫描。本地附件回归使用生产 Router 的 `TestApp` 与真实 PostgreSQL/MySQL；S3 回归另外使用隔离 MinIO bucket，包含两独立 App 的真实 TCP 分块上传、下载与越权拒绝、挂起新对象不可见、挂起覆盖保留旧对象、复制在途时删除等待并清理、取消及持久清理意图恢复。S3 路径目前仍需同时编译 `storage-local` 与 `storage-s3`，并显式把默认 disk 配成 S3；发布与运维边界见 [存储说明](../../vendor/openrust/framework/src/storage/README.md)。
 
 编译 `data-exchange` 时，认证用户可通过 `POST /api/example/articles/import?format=csv|xlsx` 导入、`GET /api/example/articles/export?format=csv|xlsx` 导出自己的文章。输入最多 1 MiB、100 行，先完成有界解析，再逐行调用同一 `ArticleWriter`；合法行各自提交，报告只给行号、白名单字段和稳定错误码，前序成功行不会因后续坏行回滚。导出只含 `title`、`body`，最多 100 行、2 MiB，不含 owner、私密备注或密文；CSV 公式前缀按框架策略转义，不能承诺逐字导入往返。编译 `data-exchange-tasks` 和 `storage-local` 时，还可通过 `POST /api/example/articles/export-jobs` 排队导出，并经 `GET /api/example/articles/export-jobs/{job_id}/{attempt}` 按当前账户读取本地私有对象；框架清理任务在保留期后删除对象。标准应用迁移包含此能力所需共享锁表。
 
@@ -255,7 +255,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 ## 用 TestApp 测试自己的模块
 
-[`tests/registration.rs`](tests/registration.rs) 直接使用根生产 `crate::bootstrap::Server`，复用相同 `Application::providers` 与 `Application::modules`，没有测试专用 Application 或第二容器。业务调用链是模块 descriptor → [`ExampleServiceProvider::register/boot`](providers/example.rs) → 配置驱动的 [`ExampleMessage`](services/message.rs) → [`show` 的 Inject](http/controllers/example.rs)。替换绑定不会改路由或控制器。
+[`tests/registration.rs`](tests/registration.rs) 直接使用根生产 `crate::bootstrap::Server`，复用相同 `Application::providers` 与 `Application::configure_providers`，没有测试专用 Application 或第二容器。业务调用链是模块 descriptor → [`ExampleServiceProvider::register/boot`](providers/example.rs) → 配置驱动的 [`ExampleMessage`](services/message.rs) → [`show` 的 Inject](http/controllers/example.rs)。替换绑定不会改路由或控制器。
 
 测试中的 `production_sources` 显式使用测试环境、内存缓存和测试加密密钥，不读取或修改进程环境，也不要求 Redis；这是测试夹具选择，生产缓存默认没有回退。使用公开 API 替换业务依赖的实际写法如下，完整可执行函数见同一测试文件：
 
@@ -471,7 +471,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 ## SQLite本地账户流程
 
-内置SQLite连接仍由根标准Provider和同一迁移命令装配；唯一模块的account路由复用公开AuthFlows、Session、PAT和MFA服务，不另建SQLite账户系统。模块测试覆盖原生Session登录/跨请求/CSRF、令牌撤销和密码重置，以及TOTP确认、一次性恢复码、审计失败回滚。完整R7、外部OIDC、SQLite队列/缓存锁等不能由本地账户流程推导完成；机制、错误码及单机限制见[认证边界](../../src/auth/README.md#sqlite-本地认证边界)。
+内置SQLite连接仍由根标准Provider和同一迁移命令装配；唯一模块的account路由复用公开AuthFlows、Session、PAT和MFA服务，不另建SQLite账户系统。模块测试覆盖原生Session登录/跨请求/CSRF、令牌撤销和密码重置，以及TOTP确认、一次性恢复码、审计失败回滚。完整R7、外部OIDC、SQLite队列/缓存锁等不能由本地账户流程推导完成；机制、错误码及单机限制见[认证边界](../../vendor/openrust/framework/src/auth/README.md#sqlite-本地认证边界)。
 
 ### 文章导入时间线
 

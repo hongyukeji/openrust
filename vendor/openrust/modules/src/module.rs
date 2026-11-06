@@ -4,7 +4,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use super::{BootContext, Error, Result, ServiceProvider};
+use openrust::{
+    Error, Result,
+    core::{BootContext, ServiceProvider},
+};
 
 /// 已编译模块的静态描述；只包含应用启动可选择的 Rust 代码。
 pub struct ModuleDescriptor {
@@ -699,7 +702,7 @@ impl ModuleConfigFiles {
         files.sort_by(|left, right| {
             let left_key = left.strip_prefix(&config_dir).unwrap_or(left);
             let right_key = right.strip_prefix(&config_dir).unwrap_or(right);
-            crate::config::natural_name_cmp(
+            openrust::config::natural_name_cmp(
                 &left_key.to_string_lossy(),
                 &right_key.to_string_lossy(),
             )
@@ -777,6 +780,7 @@ impl ModuleConfigFiles {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ModuleProviderBuilderExt;
 
     #[tokio::test]
     async fn cached_module_configuration_skips_invalid_toml_before_discovery() -> Result<()> {
@@ -785,7 +789,7 @@ mod tests {
             fn boot<'a>(
                 &'a self,
                 app: &'a mut BootContext<'_>,
-            ) -> super::super::BoxFuture<'a, Result<()>> {
+            ) -> openrust::core::BoxFuture<'a, Result<()>> {
                 Box::pin(async move { self.0.overlay(app) })
             }
         }
@@ -795,15 +799,24 @@ mod tests {
         let config = directory(&root, "config")?;
         std::fs::write(config.join("greeting.toml"), "invalid [").map_err(Error::internal)?;
         let files = ModuleConfigFiles::new("example", &root)?;
-        let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
+        let mut value = serde_json::to_value(openrust::config::FrameworkConfig::default())
             .map_err(Error::internal)?;
         value["example"] = serde_json::json!({ "greeting": { "text": "cached" } });
-        let cached = crate::config::ConfigSources::from_cached(value)?;
-        let mut builder = super::super::ProviderBuilder::new();
+        let cache = temporary.path().join("bootstrap/cache/config.json");
+        std::fs::create_dir_all(temporary.path().join("bootstrap/cache"))
+            .map_err(Error::internal)?;
+        std::fs::write(&cache, serde_json::to_vec(&value).map_err(Error::internal)?)
+            .map_err(Error::internal)?;
+        let cached = openrust::config::ConfigLoader::application_sources(
+            temporary.path(),
+            "MODULESCACHETEST_",
+        )?;
+        let mut builder = openrust::core::ProviderBuilder::new();
         builder.provider(ConfigModuleProvider(files));
         let runtime = builder.start(cached).await?;
+        assert!(runtime.config().is_cached());
         assert_eq!(
-            runtime.config.get("example.greeting.text")?,
+            runtime.config().get("example.greeting.text")?,
             Some(serde_json::json!("cached"))
         );
         runtime
@@ -906,8 +919,8 @@ mod tests {
         impl ServiceProvider for MarkerProvider {
             fn register<'a>(
                 &'a self,
-                app: &'a mut super::super::RegisterContext<'_>,
-            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                app: &'a mut openrust::core::RegisterContext<'_>,
+            ) -> openrust::core::BoxFuture<'a, Result<()>> {
                 Box::pin(async move {
                     app.instance(Arc::new(42_u32)).await?;
                     Ok(())
@@ -921,7 +934,7 @@ mod tests {
         std::fs::write(&state, r#"{"Blog":true}"#).map_err(Error::internal)?;
         let start =
             || {
-                let mut builder = super::super::ProviderBuilder::new();
+                let mut builder = openrust::core::ProviderBuilder::new();
                 builder.module_manifest(ModuleManifest::from_file(&state).module(
                     ModuleDescriptor::new("Blog", root.clone(), 0).provider(MarkerProvider),
                 ));

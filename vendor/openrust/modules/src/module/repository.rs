@@ -4,9 +4,9 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::core::container::Resolver;
-use crate::core::{Error, Result};
-use crate::events::Events;
+use openrust::core::container::Resolver;
+use openrust::core::{Error, Result};
+use openrust::events::Events;
 
 use super::{ModuleActivationSnapshot, ModuleMetadata, ModuleRepositorySeed, metadata_index};
 
@@ -305,10 +305,9 @@ mod tests {
     use figment::{Figment, providers::Serialized};
 
     use super::*;
-    use crate::core::{
-        BootContext, BoxFuture, ModuleDescriptor, ModuleManifest, ProviderBuilder, ServiceProvider,
-    };
-    use crate::events::{EventPropagation, EventsServiceProvider};
+    use crate::{ModuleDescriptor, ModuleManifest, ModuleProviderBuilderExt};
+    use openrust::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
+    use openrust::events::{EventPropagation, EventsServiceProvider};
 
     type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -334,16 +333,16 @@ mod tests {
     async fn build(
         manifest: ModuleManifest,
         events: Option<EventsServiceProvider>,
-    ) -> TestResult<crate::App> {
+    ) -> TestResult<openrust::App> {
         let mut builder = ProviderBuilder::new();
         builder.module_manifest(manifest).provider(Commands);
         if let Some(events) = events {
             builder.provider(events);
         }
-        Ok(crate::App::from_provider_runtime(
+        Ok(openrust::App::from_provider_runtime(
             builder
                 .start(Figment::from(Serialized::defaults(
-                    crate::config::FrameworkConfig::default(),
+                    openrust::config::FrameworkConfig::default(),
                 )))
                 .await?,
         )?)
@@ -356,7 +355,7 @@ mod tests {
             .collect()
     }
 
-    async fn close(app: &crate::App) -> Result<()> {
+    async fn close(app: &openrust::App) -> Result<()> {
         app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
             .await
     }
@@ -827,7 +826,7 @@ mod tests {
         let root = tempfile::tempdir()?;
         let original = r#"{"Blog":false}"#;
         std::fs::write(root.path().join("statuses.json"), original)?;
-        let owner = Arc::new(std::sync::OnceLock::<std::sync::Weak<crate::App>>::new());
+        let owner = Arc::new(std::sync::OnceLock::<std::sync::Weak<openrust::App>>::new());
         let observed = Arc::clone(&owner);
         let mut events = EventsServiceProvider::new();
         events.listen_named::<ModuleLifecycleEvent, _>("modules.blog.enabling", move |_, _| {

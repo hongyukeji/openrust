@@ -2,7 +2,6 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::{ConfigSources, FrameworkConfig};
-use openrust::core::ModuleRepository;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -10,6 +9,7 @@ use openrust::http::axum::{
 use openrust::i18n::{I18n, Locale, MessageArgs};
 use openrust::testing::TestApp;
 use openrust::{Error, Result};
+use openrust_modules::ModuleRepository;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::time::Duration;

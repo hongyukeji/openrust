@@ -10,7 +10,7 @@ use std::sync::Mutex;
 
 use serde_json::{Map, Value};
 
-use crate::core::{Error, Result};
+use openrust::core::{Error, Result};
 
 /// 同一次读取的模块状态；未知键和值保留，调试输出仅显示条目数。
 #[derive(Clone, Default)]

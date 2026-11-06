@@ -1,5 +1,6 @@
 //! 在真实生成应用中验证持久启停与已加载资源快照；仅追加一个已编译模块。
 
+use openrust_modules::ModuleProviderBuilderExt as _;
 #[path = "../app/mod.rs"]
 mod app;
 #[path = "../bootstrap/app.rs"]
@@ -14,8 +15,7 @@ mod routes;
 use bootstrap::__GENERATED_APPLICATION__ as Original;
 use openrust::config::{ConfigLoader, ConfigManifest, ConfigSources};
 use openrust::core::{
-    Application, BootContext, BoxFuture, DefaultProviders, FileModuleActivator, Module, ModuleFile,
-    ModuleManifest, ModuleRepository, RegisterContext, ServiceProvider,
+    Application, BootContext, BoxFuture, DefaultProviders, RegisterContext, ServiceProvider,
 };
 use openrust::http::{
     RouteGroup, Routes,
@@ -25,6 +25,7 @@ use openrust::http::{
     },
 };
 use openrust::testing::TestApp;
+use openrust_modules::{FileModuleActivator, Module, ModuleFile, ModuleRepository};
 use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -71,14 +72,22 @@ impl Application for ActivationApplication {
         Original::providers(config)
     }
 
-    fn modules(config: &Self::Config) -> ModuleManifest {
-        Original::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        builder.module_manifest(
+            modules::manifest(
+                config
+                    .application_root
+                    .as_deref()
+                    .unwrap_or(std::path::Path::new(".")),
+                &config.modules,
+            )
             .compiled_provider("ActivationProvider", |_| Ok(ActivationProvider))
             .compiled_module_file(
                 MODULE_NAME,
                 "module_init.rs",
                 ActivationFile(Arc::new(AtomicUsize::new(0))),
-            )
+            ),
+        );
     }
 }
 

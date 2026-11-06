@@ -3,9 +3,10 @@
 #![allow(clippy::unwrap_used, reason = "测试断言使用受控内存日志")]
 
 use super::*;
-use crate::config::FrameworkConfig;
-use crate::core::{BootContext, ProviderBuilder, ProviderRuntime};
+use crate::ModuleProviderBuilderExt;
 use figment::{Figment, providers::Serialized};
+use openrust::config::FrameworkConfig;
+use openrust::core::{BootContext, ProviderBuilder, ProviderRuntime};
 use serde_json::json;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};

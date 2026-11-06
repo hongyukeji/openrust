@@ -2,13 +2,13 @@
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::{ConfigLoader, ConfigManifest, ConfigSources, FrameworkConfig};
-use openrust::core::{FileModuleActivator, ModuleRepository};
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
 };
 use openrust::testing::TestApp;
 use openrust::{Error, Result};
+use openrust_modules::{FileModuleActivator, ModuleRepository};
 use serde_json::{Value, json};
 use std::path::Path;
 use std::time::Duration;

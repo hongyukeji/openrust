@@ -250,8 +250,8 @@ mod websocket_flows;
 /// 将运行声明绑定到已编译实现；普通启动不再硬编码声明为已发现模块。
 pub(crate) fn manifest(
     application_root: &std::path::Path,
-    config: &openrust::config::ModulesConfig,
-) -> openrust::core::ModuleManifest {
+    config: &openrust_modules::config::ModulesConfig,
+) -> openrust_modules::ModuleManifest {
     use openrust::core::ServiceProvider;
     let provider =
         providers::ExampleModuleServiceProvider::from_config(application_root.to_path_buf());
@@ -259,7 +259,7 @@ pub(crate) fn manifest(
         .nested_providers()
         .into_iter()
         .chain(provider.possible_nested_providers());
-    openrust::core::ModuleManifest::discover_from_config(application_root, config)
+    openrust_modules::ModuleManifest::discover_from_config(application_root, config)
         .compiled_provider::<providers::ExampleModuleServiceProvider, _>(
             "ExampleModuleServiceProvider",
             move |context| {
@@ -276,14 +276,14 @@ pub(crate) fn manifest(
 /// 普通业务模块的显式注册入口；不读取运行期元数据或持久状态文件。
 pub(crate) fn registered_descriptor(
     application_root: &std::path::Path,
-    config: &openrust::config::ModulesConfig,
-) -> openrust::core::ModuleDescriptor {
+    config: &openrust_modules::config::ModulesConfig,
+) -> openrust_modules::ModuleDescriptor {
     let modules = if config.paths.modules.is_absolute() {
         config.paths.modules.clone()
     } else {
         application_root.join(&config.paths.modules)
     };
-    openrust::core::ModuleDescriptor::new("example", modules.join("example"), 0)
+    openrust_modules::ModuleDescriptor::new("example", modules.join("example"), 0)
         .provider(
             providers::ExampleModuleServiceProvider::from_config(application_root.to_path_buf())
                 .with_module_repository(),
@@ -296,8 +296,8 @@ pub(crate) fn registered_descriptor(
 pub(crate) fn descriptor(
     uses_database: bool,
     application_root: std::path::PathBuf,
-) -> openrust::core::ModuleDescriptor {
-    openrust::core::ModuleDescriptor::new("example", application_root.join("modules/example"), 0)
+) -> openrust_modules::ModuleDescriptor {
+    openrust_modules::ModuleDescriptor::new("example", application_root.join("modules/example"), 0)
         .provider(providers::ExampleModuleServiceProvider::new(
             uses_database,
             application_root,

@@ -42,7 +42,6 @@ impl<A: Application> ServiceProvider for CoreCommandsProvider<A> {
                 marker: std::marker::PhantomData,
             });
             app.command(ConfigClearCommand);
-            super::module::register_commands(app);
             Ok(())
         })
     }
@@ -292,7 +291,7 @@ impl ProviderBuilder {
     ) -> Self {
         let mut builder = Self::new();
         builder.app_config::<A::Config>();
-        builder.provider(CoreCommandsProvider::<A> {
+        builder.bootstrap_provider(CoreCommandsProvider::<A> {
             console_environment: console_environment.map(str::to_owned),
             marker: std::marker::PhantomData,
         });
@@ -308,7 +307,7 @@ impl ProviderBuilder {
                 builder.boxed_provider(provider);
             }
         }
-        builder.module_manifest(A::modules(config));
+        A::configure_providers(config, &mut builder);
         builder
     }
 }

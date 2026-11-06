@@ -5,10 +5,10 @@ pub(crate) mod example;
 /// 默认显式注册即启用；文件发现和持久状态须由应用显式选择。
 pub(crate) fn manifest(
     root: &std::path::Path,
-    config: &openrust::config::ModulesConfig,
-) -> openrust::core::ModuleManifest {
+    config: &openrust_modules::config::ModulesConfig,
+) -> openrust_modules::ModuleManifest {
     if config.activator == "registered" {
-        openrust::core::ModuleManifest::new()
+        openrust_modules::ModuleManifest::new()
             .with_application_root(root)
             .module(example::registered_descriptor(root, config))
             .enable("example")

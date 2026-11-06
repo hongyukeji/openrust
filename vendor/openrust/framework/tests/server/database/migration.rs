@@ -771,111 +771,162 @@ async fn verify_http_rate_limit_layer(app: &App) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-async fn verify_rate_limiter(
+async fn rate_probe_epoch(
     database: &DatabaseConnection,
-    db_service: &Db,
+) -> Result<i64, Box<dyn std::error::Error>> {
+    let sql = match database.get_database_backend() {
+        DbBackend::MySql => "SELECT CAST(FLOOR(UNIX_TIMESTAMP()) AS SIGNED) AS epoch_seconds",
+        DbBackend::Postgres => {
+            "SELECT CAST(FLOOR(EXTRACT(EPOCH FROM clock_timestamp())) AS BIGINT) AS epoch_seconds"
+        }
+        DbBackend::Sqlite => "SELECT CAST(strftime('%s','now') AS INTEGER) AS epoch_seconds",
+        _ => return Err("unsupported rate-limit probe database backend".into()),
+    };
+    let row = database
+        .query_one_raw(Statement::from_string(database.get_database_backend(), sql))
+        .await?
+        .ok_or("database clock returned no row")?;
+    Ok(row.try_get("", "epoch_seconds")?)
+}
+
+async fn rate_probe_row(db: &Db, key: &str) -> Result<(i64, i64, i64), Box<dyn std::error::Error>> {
+    let hash = format!("{:x}", Sha256::digest(key.as_bytes()));
+    let row = db
+        .table("rate_limits")?
+        .where_eq("key_hash", hash)?
+        .first()
+        .await?
+        .ok_or("rate-limit row was not persisted")?;
+    Ok((
+        row.try_get("", "window_started_at")?,
+        row.try_get("", "window_seconds")?,
+        row.try_get("", "hit_count")?,
+    ))
+}
+
+async fn verify_shared_rate_quota(
+    db: &Db,
     limiter: &RateLimiter,
+    window: Duration,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // 独立 service/store 实例通过数据库行竞争，模拟不同节点之间的行为。
-    let second_node = RateLimiter::new(DatabaseRateLimitStore::new(db_service.clone()));
+    let second_node = RateLimiter::new(DatabaseRateLimitStore::new(db.clone()));
     let mut requests = tokio::task::JoinSet::new();
     for index in 0..12 {
         let limiter = if index % 2 == 0 {
-            (*limiter).clone()
+            limiter.clone()
         } else {
             second_node.clone()
         };
         requests.spawn(async move {
-            limiter
-                .check(
-                    "integration:one-client",
-                    4,
-                    std::time::Duration::from_secs(60),
-                )
-                .await
-                .is_ok()
+            match limiter.check("integration:one-client", 4, window).await {
+                Ok(_) => Ok(true),
+                Err(Error::RateLimitedWithRetryAfter(seconds)) if seconds > 0 => Ok(false),
+                Err(error) => Err(error),
+            }
         });
     }
     let mut accepted = 0;
     while let Some(result) = requests.join_next().await {
-        accepted += u64::from(result?);
+        accepted += u64::from(result??);
     }
     assert_eq!(
         accepted, 4,
         "database limiter must atomically share one quota"
     );
-
-    let key_hash = format!("{:x}", Sha256::digest(b"integration:one-client"));
-    let rate_limits_table = db_service.quoted_table_name("rate_limits")?;
-    let limiter_row = database
-        .query_one_raw(Statement::from_string(
-            database.get_database_backend(),
-            format!("SELECT hit_count FROM {rate_limits_table} WHERE key_hash = '{key_hash}'"),
-        ))
-        .await?
-        .ok_or("rate-limit row was not persisted")?;
-    assert_eq!(limiter_row.try_get::<i64>("", "hit_count")?, 12);
-    let plaintext_rows = database
-        .query_one_raw(Statement::from_string(
-            database.get_database_backend(),
-            format!("SELECT COUNT(*) AS row_count FROM {rate_limits_table} WHERE key_hash = 'integration:one-client'"),
-        ))
-        .await?
-        .ok_or("rate-limit plaintext check returned no row")?;
-    assert_eq!(plaintext_rows.try_get::<i64>("", "row_count")?, 0);
-
-    limiter
-        .check(
-            "integration:window-reset",
-            1,
-            std::time::Duration::from_secs(1),
-        )
-        .await?;
-    assert!(
-        limiter
-            .check(
-                "integration:window-reset",
-                1,
-                std::time::Duration::from_secs(1)
-            )
-            .await
-            .is_err()
+    assert_eq!(rate_probe_row(db, "integration:one-client").await?.2, 12);
+    assert_eq!(
+        db.table("rate_limits")?
+            .where_eq("key_hash", "integration:one-client")?
+            .count()
+            .await?,
+        0
     );
-    limiter
-        .check(
-            "integration:cleanup-expiring",
-            1,
-            std::time::Duration::from_secs(1),
+    Ok(())
+}
+
+async fn verify_rate_reset_and_cleanup(
+    db: &Db,
+    limiter: &RateLimiter,
+    window: Duration,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let key = "integration:window-reset";
+    limiter.check(key, 1, window).await?;
+    let initial = rate_probe_row(db, key).await?;
+    assert_eq!(
+        (initial.1, initial.2),
+        (
+            <i64 as std::convert::TryFrom<u64>>::try_from(window.as_secs())?,
+            1
         )
-        .await?;
-    tokio::time::sleep(std::time::Duration::from_millis(1_100)).await;
-    assert!(
-        limiter
-            .check(
-                "integration:window-reset",
-                1,
-                std::time::Duration::from_secs(1)
-            )
-            .await
-            .is_ok()
     );
-    let cleanup_limiter = RateLimiter::new(DatabaseRateLimitStore::new(db_service.clone()));
-    cleanup_limiter
-        .check(
-            "integration:cleanup-trigger",
-            1,
-            std::time::Duration::from_secs(60),
-        )
+    let rejected = limiter.check(key, 1, window).await;
+    assert!(matches!(rejected, Err(Error::RateLimitedWithRetryAfter(seconds)) if seconds > 0));
+    assert_eq!(rate_probe_row(db, key).await?, (initial.0, initial.1, 2));
+    limiter
+        .check("integration:cleanup-expiring", 1, window)
+        .await?;
+    // 直接改变自有行的到期状态，验证真实重置/清理，不用sleep猜测跨秒边界。
+    for expiring in [key, "integration:cleanup-expiring"] {
+        let before = rate_probe_row(db, expiring).await?;
+        let hash = format!("{:x}", Sha256::digest(expiring.as_bytes()));
+        let expired = before.0 - 2 * before.1;
+        assert_eq!(
+            db.table("rate_limits")?
+                .where_eq("key_hash", hash)?
+                .update(vec![("window_started_at", expired.into())])
+                .await?,
+            1
+        );
+        assert_eq!(
+            rate_probe_row(db, expiring).await?,
+            (expired, before.1, before.2)
+        );
+    }
+    limiter.check(key, 1, window).await?;
+    assert_eq!(rate_probe_row(db, key).await?, (initial.0, initial.1, 1));
+    let cleanup = RateLimiter::new(DatabaseRateLimitStore::new(db.clone()));
+    cleanup
+        .check("integration:cleanup-trigger", 1, window)
         .await?;
     let expired_hash = format!("{:x}", Sha256::digest(b"integration:cleanup-expiring"));
-    let expired_row_count = database
-        .query_one_raw(Statement::from_string(
-            database.get_database_backend(),
-            format!("SELECT COUNT(*) AS row_count FROM {rate_limits_table} WHERE key_hash = '{expired_hash}'"),
-        ))
-        .await?
-        .ok_or("rate-limit cleanup check returned no row")?;
-    assert_eq!(expired_row_count.try_get::<i64>("", "row_count")?, 0);
+    assert_eq!(
+        db.table("rate_limits")?
+            .where_eq("key_hash", expired_hash)?
+            .count()
+            .await?,
+        0
+    );
+    assert_eq!(rate_probe_row(db, key).await?, (initial.0, initial.1, 1));
+    Ok(())
+}
+
+async fn verify_rate_limiter(
+    database: &DatabaseConnection,
+    db_service: &Db,
+    limiter: &RateLimiter,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    tokio::time::timeout_at(deadline, async {
+        let before = rate_probe_epoch(database).await?;
+        assert!(before > 0);
+        // 用数据库自己的时间选边界余量，整个quota证明限时且末尾再次核同一窗口。
+        let seconds = (300_i64..=3600)
+            .max_by_key(|window| window - before.rem_euclid(*window))
+            .ok_or("no aligned rate-limit window")?;
+        assert!(seconds - before.rem_euclid(seconds) >= 60);
+        let window = Duration::from_secs(<u64 as std::convert::TryFrom<i64>>::try_from(seconds)?);
+        verify_shared_rate_quota(db_service, limiter, window).await?;
+        verify_rate_reset_and_cleanup(db_service, limiter, window).await?;
+        let after = rate_probe_epoch(database).await?;
+        assert!(after >= before);
+        assert_eq!(
+            before.div_euclid(seconds),
+            after.div_euclid(seconds),
+            "database time crossed the asserted quota window"
+        );
+        Ok::<(), Box<dyn std::error::Error>>(())
+    })
+    .await??;
     Ok(())
 }
 

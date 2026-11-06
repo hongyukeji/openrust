@@ -41,8 +41,8 @@ impl Application for DraftApplication {
         ));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        crate::bootstrap::Server::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
 

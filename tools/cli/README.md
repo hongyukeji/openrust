@@ -59,14 +59,16 @@ cargo run -p cli -- g migration labels slug:string
 
 ## 接入自己的业务模块
 
-新应用默认 `MODULES_ACTIVATOR=registered`，`modules/mod.rs` 返回锚定应用根的空清单，不扫描目录、不读写状态文件；显式选择其他激活器时使用 `ModuleManifest::discover_from_config(root, config)`；`Application::modules` 只装配一次清单，与应用共用唯一 Container 和 Provider 生命周期。根 app 仍支持常规应用开发，模块是可并存的业务组织。默认不复制框架示例。
+模块能力由独立 `openrust-modules` 包提供，类型通过 `openrust_modules::` 导入。应用在 `Application::configure_providers` 中引入 `ModuleProviderBuilderExt` 并调用 `builder.module_manifest(...)`，复用框架唯一 Provider/Container 管线；框架核心不再重导出模块类型。
+
+新应用默认 `MODULES_ACTIVATOR=registered`，`modules/mod.rs` 返回锚定应用根的空清单，不扫描目录、不读写状态文件；显式选择其他激活器时使用 `ModuleManifest::discover_from_config(root, config)`；`Application::configure_providers` 只装配一次清单，与应用共用唯一 Container 和 Provider 生命周期。根 app 仍支持常规应用开发，模块是可并存的业务组织。默认不复制框架示例。
 
 需要文件发现模式时设置 `MODULES_ACTIVATOR=file`（或 `file-live`），在 `modules/orders/mod.rs` 编译自己的公开 Provider，再在 `modules/mod.rs` 的文件发现分支登记 metadata 名称到 Rust 工厂的绑定：
 
 ```rust
 pub mod orders;
-use openrust::config::ModulesConfig;
-use openrust::core::ModuleManifest;
+use openrust_modules::config::ModulesConfig;
+use openrust_modules::ModuleManifest;
 pub fn manifest(root: &std::path::Path, config: &ModulesConfig) -> ModuleManifest {
     ModuleManifest::discover_from_config(root, config)
         .compiled_provider("OrdersServiceProvider", |_| Ok(orders::OrdersServiceProvider))

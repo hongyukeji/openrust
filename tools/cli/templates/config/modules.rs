@@ -1,7 +1,9 @@
 //! 模块源码发现、激活器和独立持久状态路径。
 
-use openrust::config::{
-    ConfigContext, ConfigError, FileModuleActivatorConfig, ModuleActivatorsConfig, ModulePathsConfig, ModuleScanConfig, ModulesConfig,
+use openrust::config::{ConfigContext, ConfigError};
+use openrust_modules::config::{
+    FileModuleActivatorConfig, ModuleActivatorsConfig, ModulePathsConfig, ModuleScanConfig,
+    ModulesConfig,
 };
 
 /// 默认状态文件相对应用根解析；可选择独立相对路径或绝对路径，不自动迁移已有文件。

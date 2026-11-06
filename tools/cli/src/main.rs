@@ -1685,6 +1685,9 @@ fn cargo_manifest(
         }
         manifest = manifest.replace("openrust = { workspace = true }", &dependency);
     }
+    if !manifest.contains("openrust-modules =") {
+        manifest.push_str("openrust-modules = { workspace = true }\n");
+    }
     manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n");
     manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\ntime = \"0.3\"\n");
     if auth {
@@ -3191,7 +3194,7 @@ mod tests {
         fs::create_dir_all(root.join("src")).expect("创建框架目录");
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"openrust\"\ndefault-run = \"server\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[[bin]]\nname = \"server\"\npath = \"src/main.rs\"\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"vendor/openrust/framework\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\".\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { package = \"openrust-framework\", path = \"vendor/openrust/framework\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
+            "[package]\nname = \"openrust\"\ndefault-run = \"server\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[[bin]]\nname = \"server\"\npath = \"src/main.rs\"\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"vendor/openrust/framework\", \"vendor/openrust/modules\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\".\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { package = \"openrust-framework\", path = \"vendor/openrust/framework\" }\nopenrust-modules = { path = \"vendor/openrust/modules\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
         )
         .expect("create framework workspace manifest");
         let framework = root.join("vendor/openrust/framework");
@@ -3202,6 +3205,10 @@ mod tests {
             "[package]\nname=\"openrust-framework\"\nversion.workspace=true\nedition.workspace=true\n\n[lib]\nname=\"openrust\"\n",
         )
         .expect("框架清单");
+        let modules = root.join("vendor/openrust/modules");
+        fs::create_dir_all(modules.join("src")).expect("模块扩展目录");
+        fs::write(modules.join("src/lib.rs"), "").expect("模块扩展入口");
+        fs::write(modules.join("Cargo.toml"), "[package]\nname=\"openrust-modules\"\nversion.workspace=true\nedition.workspace=true\n").expect("模块扩展清单");
         fs::write(root.join("src/main.rs"), "fn main() {} ").expect("默认应用入口");
         fs::create_dir_all(root.join("bootstrap")).expect("创建应用装配目录");
         fs::write(root.join("bootstrap/app.rs"), "").expect("应用标识文件");
@@ -3820,7 +3827,7 @@ mod tests {
         assert!(app_test.contains("../modules/mod.rs"));
         let module_manifest = fs::read_to_string(project.join("modules/mod.rs"))
             .expect("read generated module manifest");
-        assert!(module_manifest.contains("config: &openrust::config::ModulesConfig"));
+        assert!(module_manifest.contains("config: &openrust_modules::config::ModulesConfig"));
         assert!(module_manifest.contains("ModuleManifest::discover_from_config(root, config)"));
         assert!(!module_manifest.contains("CARGO_MANIFEST_DIR"));
         assert!(!module_manifest.contains("root.join(\"modules_statuses.json\")"));
@@ -3831,7 +3838,10 @@ mod tests {
         assert!(!project.join("modules/example").exists());
         let application = fs::read_to_string(project.join("bootstrap/app.rs"))
             .expect("read generated application");
-        assert!(application.contains("fn modules("));
+        assert!(application.contains("fn configure_providers("));
+        assert!(application.contains("builder.module_manifest("));
+        assert!(application.contains("use openrust_modules::ModuleProviderBuilderExt as _;"));
+        assert!(!application.contains("fn modules("));
         assert!(application.contains("crate::modules::manifest("));
         assert!(application.contains("config"));
         assert!(application.contains(".application_root"));
@@ -5446,6 +5456,17 @@ mod tests {
                 .parse::<toml_edit::DocumentMut>()
                 .expect("解析应用清单");
             assert_eq!(generated["package"]["name"].as_str(), Some(name));
+            assert_eq!(
+                generated["dependencies"]["openrust-modules"]["workspace"].as_bool(),
+                Some(true)
+            );
+            assert_eq!(
+                generated["workspace"]["dependencies"]["openrust-modules"]["path"].as_str(),
+                root.join("vendor/openrust/modules")
+                    .canonicalize()
+                    .expect("模块扩展路径")
+                    .to_str()
+            );
             assert_eq!(
                 generated["workspace"]["dependencies"]["openrust"]["package"].as_str(),
                 Some("openrust-framework")

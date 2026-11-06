@@ -238,8 +238,8 @@ impl Application for SessionApplication {
         ));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        crate::bootstrap::Server::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        crate::bootstrap::Server::configure_providers(config, builder);
     }
 }
 
@@ -964,8 +964,8 @@ impl Application for RequestDriverApplication {
         ));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        SessionApplication::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        SessionApplication::configure_providers(config, builder);
     }
 }
 
@@ -1136,8 +1136,8 @@ impl Application for CookieSessionApplication {
         ));
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        SessionApplication::modules(config)
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        SessionApplication::configure_providers(config, builder);
     }
 }
 fn merge_cookie_driver_cookies(

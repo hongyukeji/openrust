@@ -5,6 +5,8 @@ use openrust::http::{
         http::{Request, StatusCode},
     },
 };
+use openrust_modules::ModuleProviderBuilderExt as _;
+use openrust_modules::ModuleTestAppBuilderExt as _;
 use tower::ServiceExt;
 
 // 生产日志服务仍由标准Provider构造，模块路由继续使用同一启动管线。
@@ -176,7 +178,7 @@ async fn module_registration_controls_only_its_business_routes()
             .provider(openrust::db::DatabaseServiceProvider)
             .provider(openrust::cache::CacheServiceProvider::new())
             .provider(crate::app::providers::AppServiceProvider);
-        let manifest = openrust::core::ModuleManifest::new().module(super::descriptor(
+        let manifest = openrust_modules::ModuleManifest::new().module(super::descriptor(
             false,
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
         ));
@@ -287,7 +289,7 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         .provider(openrust::cache::CacheServiceProvider::new())
         .provider(crate::app::providers::AppServiceProvider)
         .module_manifest(
-            openrust::core::ModuleManifest::new()
+            openrust_modules::ModuleManifest::new()
                 .module(super::descriptor(
                     false,
                     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
@@ -469,7 +471,7 @@ async fn old_toml_fixture_remains_an_explicit_optional_source()
             Box::pin(async move {
                 let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .join("modules/example/tests/fixtures");
-                openrust::core::ModuleConfigFiles::new("example", root)?.overlay(app)
+                openrust_modules::ModuleConfigFiles::new("example", root)?.overlay(app)
             })
         }
     }
@@ -1024,9 +1026,10 @@ async fn orders_index(
 #[tokio::test]
 async fn dependent_business_module_serves_http_with_real_database()
 -> Result<(), Box<dyn std::error::Error>> {
-    use openrust::core::{ModuleDescriptor, ModuleManifest, ProviderBuilder};
+    use openrust::core::ProviderBuilder;
     use openrust::db::sea_orm::{ConnectionTrait, Statement};
     use openrust::testing::TestDatabase;
+    use openrust_modules::{ModuleDescriptor, ModuleManifest};
     use std::path::PathBuf;
     use std::time::Duration;
 

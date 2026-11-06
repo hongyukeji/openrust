@@ -2,6 +2,7 @@
 
 use openrust::core::ServiceProvider;
 use openrust::prelude::*;
+use openrust_modules::ModuleProviderBuilderExt as _;
 
 mod providers;
 
@@ -9,13 +10,13 @@ mod providers;
 #[derive(Default, serde::Deserialize)]
 #[serde(default)]
 pub(crate) struct Configuration {
-    pub modules: openrust::config::ModulesConfig,
+    pub modules: openrust_modules::config::ModulesConfig,
     // 运行时应用根锚点，供所有模块资源解析；不再兼作状态文件配置。
     application_root: Option<std::path::PathBuf>,
 }
 
 impl Configuration {
-    fn application_root(&self) -> std::path::PathBuf {
+    pub(crate) fn application_root(&self) -> std::path::PathBuf {
         self.application_root
             .clone()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -45,9 +46,9 @@ impl Application for Server {
         providers::application_providers(config)
     }
 
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
         let root = config.application_root();
-        crate::modules::manifest(&root, &config.modules)
+        builder.module_manifest(crate::modules::manifest(&root, &config.modules));
     }
 }
 

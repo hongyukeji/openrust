@@ -7,7 +7,7 @@ use std::path::{Component, Path, PathBuf};
 use glob::{MatchOptions, Pattern};
 use serde_json::{Map, Value};
 
-use crate::core::{Error, Result};
+use openrust::core::{Error, Result};
 
 /// 一份发现声明；重复路径和名称在此层原样保留。
 #[derive(Clone)]

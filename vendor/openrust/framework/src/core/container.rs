@@ -982,8 +982,21 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    // 长寿命的模块管理句柄只保留既有弱容器；事件使用当前根上下文，不续用已关闭的旧scoped代。
-    pub(crate) async fn resolve_root<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+    /// 从同一弱容器解析当前根服务，不续用已关闭的旧请求作用域。
+    ///
+    /// 供构造完成的长寿命扩展句柄触发新根操作；活跃工厂内拒绝此入口，
+    /// 避免绕过构造环与生命周期约束。不保活应用，根关闭后仍拒绝解析。
+    pub async fn resolve_root<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        if self
+            .chain
+            .iter()
+            .any(|(_, _, active)| active.load(Ordering::Acquire))
+        {
+            return Err(container_error(
+                "root_resolution_during_construction",
+                "服务构造期间不能另起根解析上下文",
+            ));
+        }
         self.container()?.resolve::<T>().await
     }
 
@@ -2623,3 +2636,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "container/root_resolver_tests.rs"]
+mod root_resolver_tests;

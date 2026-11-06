@@ -120,7 +120,22 @@ impl OwnedDatabase {
     }
 
     pub(super) async fn cleanup(&mut self) -> Result<()> {
-        let outcome = self.cleanup_inner().await;
+        self.cleanup_with_pool_close(false).await
+    }
+
+    /// 正常业务池成功关闭的专用入口；恢复、模板和初始化异常仍使用严格 cleanup。
+    pub(super) async fn cleanup_after_pool_close(&mut self) -> Result<()> {
+        let record = self.journal.record();
+        let allow_busy_recheck = self.create_confirmed
+            && record.resource_kind == ResourceKind::Target
+            && record.state == OwnershipState::Owned
+            && record.marker_identity.is_some()
+            && self.lease()?.backend() == super::ownership::Backend::Mysql;
+        self.cleanup_with_pool_close(allow_busy_recheck).await
+    }
+
+    async fn cleanup_with_pool_close(&mut self, allow_busy_recheck: bool) -> Result<()> {
+        let outcome = self.cleanup_inner(allow_busy_recheck).await;
         if let Err(error) = &outcome {
             let code = match error.code() {
                 "test_database_resource_in_use" => "test_database_resource_in_use",
@@ -135,7 +150,7 @@ impl OwnedDatabase {
         outcome
     }
 
-    async fn cleanup_inner(&mut self) -> Result<()> {
+    async fn cleanup_inner(&mut self, allow_busy_recheck: bool) -> Result<()> {
         if self.journal.record().state == OwnershipState::Done {
             return Ok(());
         }
@@ -163,7 +178,13 @@ impl OwnedDatabase {
         if self.journal.record().marker_identity.is_some() {
             self.check_marker().await?;
         }
-        self.lease()?.require_idle(self.name()).await?;
+        if allow_busy_recheck {
+            self.lease()?
+                .require_idle_after_pool_close(self.name())
+                .await?;
+        } else {
+            self.lease()?.require_idle(self.name()).await?;
+        }
         self.journal.persist(OwnershipState::DropPending)?;
         self.lease()?.verify().await?;
         // 再核标记，不能以恢复开始时的旧快照授权最终DROP。

@@ -517,7 +517,9 @@ impl EnvironmentSnapshot {
 }
 
 /// 对映射后的完整配置键使用 PHP `SORT_NATURAL` 的数字段顺序。
-pub(crate) fn natural_name_cmp(left: &str, right: &str) -> Ordering {
+/// 自然文件名排序的跨包复用入口；外部资源扩展共享同一配置排序语义。
+#[doc(hidden)]
+pub fn natural_name_cmp(left: &str, right: &str) -> Ordering {
     let mut a = left.as_bytes();
     let mut b = right.as_bytes();
     while !a.is_empty() && !b.is_empty() {

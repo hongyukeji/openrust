@@ -21,6 +21,7 @@ use super::response::TestResponse;
 
 const DEFAULT_MAX_BYTES: usize = 1024 * 1024;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+type ConfigureProviders = Arc<dyn Fn(&mut ProviderBuilder) + Send + Sync>;
 type Configure = Arc<dyn Fn(Container) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 /// 显式配置、Provider 选择及可重复执行的测试替换蓝图。
@@ -29,7 +30,7 @@ type Configure = Arc<dyn Fn(Container) -> BoxFuture<'static, Result<()>> + Send 
 pub struct TestAppBuilder<A: Application> {
     sources: ConfigSources,
     removed: Vec<ProviderId>,
-    removed_modules: Vec<String>,
+    configure_providers: Vec<ConfigureProviders>,
     configure: Vec<Configure>,
     application: PhantomData<fn() -> A>,
 }
@@ -41,9 +42,12 @@ impl<A: Application> TestAppBuilder<A> {
         self
     }
 
-    /// 仅从本次测试应用启动清单移除已编译模块。
-    pub fn remove_module(&mut self, name: impl Into<String>) -> &mut Self {
-        self.removed_modules.push(name.into());
+    /// 通过生产启动器配置外部包；reset 时重复应用同一纯装配闭包。
+    pub fn configure_providers<F>(&mut self, configure: F) -> &mut Self
+    where
+        F: Fn(&mut ProviderBuilder) + Send + Sync + 'static,
+    {
+        self.configure_providers.push(Arc::new(configure));
         self
     }
 
@@ -118,8 +122,8 @@ impl<A: Application> TestAppBuilder<A> {
         for id in &self.removed {
             builder.remove_provider(*id);
         }
-        for name in &self.removed_modules {
-            builder.remove_module(name.clone());
+        for configure in &self.configure_providers {
+            configure(&mut builder);
         }
         for configure in &self.configure {
             let configure = Arc::clone(configure);
@@ -146,7 +150,7 @@ impl<A: Application> TestApp<A> {
         TestAppBuilder {
             sources: sources.into(),
             removed: Vec::new(),
-            removed_modules: Vec::new(),
+            configure_providers: Vec::new(),
             configure: Vec::new(),
             application: PhantomData,
         }

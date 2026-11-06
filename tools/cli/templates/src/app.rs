@@ -1,5 +1,6 @@
 use openrust::core::ServiceProvider;
 use openrust::prelude::*;
+use openrust_modules::ModuleProviderBuilderExt as _;
 
 mod providers;
 
@@ -8,7 +9,7 @@ mod providers;
 #[serde(default)]
 pub struct Configuration {
     pub database: openrust::config::DatabaseConfig,
-    pub modules: openrust::config::ModulesConfig,
+    pub modules: openrust_modules::config::ModulesConfig,
     pub application_root: Option<std::path::PathBuf>,
 }
 
@@ -25,14 +26,14 @@ impl Application for {{type_name}} {
         providers::application_providers(config)
     }
 
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        crate::modules::manifest(
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
+        builder.module_manifest(crate::modules::manifest(
             config
                 .application_root
                 .as_deref()
                 .unwrap_or(std::path::Path::new(".")),
             &config.modules,
-        )
+        ));
     }
 }
 

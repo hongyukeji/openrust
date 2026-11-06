@@ -11,6 +11,7 @@ use openrust::http::axum::{
 use openrust::session::{SessionServiceProvider, SessionStoreHandle};
 use openrust::testing::TestApp;
 use openrust::{Error, Result};
+use openrust_modules::ModuleProviderBuilderExt as _;
 use serde_json::json;
 use std::time::Duration;
 
@@ -136,13 +137,15 @@ impl Application for LateDriverApp {
         }
         providers
     }
-    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+    fn configure_providers(config: &Self::Config, builder: &mut openrust::core::ProviderBuilder) {
         let driver = config.late_driver.clone();
-        Server::modules(&config.server)
-            .compiled_provider::<LateDriver, _>("LateDriverServiceProvider", move |_| {
-                Ok(LateDriver(driver.clone()))
-            })
-            .possible_providers([ProviderId::of::<LateDriver>()])
+        builder.module_manifest(
+            crate::modules::manifest(&config.server.application_root(), &config.server.modules)
+                .compiled_provider::<LateDriver, _>("LateDriverServiceProvider", move |_| {
+                    Ok(LateDriver(driver.clone()))
+                })
+                .possible_providers([ProviderId::of::<LateDriver>()]),
+        );
     }
 }
 struct LateDriver(Option<String>);

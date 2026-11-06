@@ -371,7 +371,9 @@ impl crate::core::ServiceProvider for EventsServiceProvider {
 }
 
 /// 仅补空事件服务；独立类型身份避免抢占随后嵌套登记的真实监听 Provider。
-pub(crate) struct DefaultEventsServiceProvider;
+/// 仅在尚无事件服务时登记默认总线，不占用真实事件 Provider 的身份。
+#[doc(hidden)]
+pub struct DefaultEventsServiceProvider;
 
 impl crate::core::ServiceProvider for DefaultEventsServiceProvider {
     fn register<'a>(

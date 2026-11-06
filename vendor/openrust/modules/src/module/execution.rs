@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::Notify;
 
-use crate::core::{Error, RegisterContext, Result};
+use openrust::core::{Error, RegisterContext, Result};
 
 use super::ModuleFile;
 

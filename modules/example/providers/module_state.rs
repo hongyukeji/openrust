@@ -1,11 +1,10 @@
 //! 模块持久状态与已加载快照的只读业务示例；不提供匿名管理写入端点。
 
-use openrust::core::{
-    ApiResponse, ModuleLifecycleEvent, ModuleRepository, RegisterContext, ServiceProvider,
-};
+use openrust::core::{ApiResponse, RegisterContext, ServiceProvider};
 use openrust::events::{EventPropagation, EventsServiceProvider};
 use openrust::http::Inject;
 use openrust::{BoxFuture, Error, Result};
+use openrust_modules::{ModuleLifecycleEvent, ModuleRepository};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -83,7 +82,7 @@ pub(crate) struct ModuleState {
     events: Vec<String>,
 }
 
-/// 通过公开 `ModuleRepository` 读取状态；管理写入保留在核心命令。
+/// 通过公开 `ModuleRepository` 读取状态；管理写入保留在模块扩展命令。
 pub(crate) async fn show(
     Inject(repository): Inject<ModuleRepository>,
     Inject(log): Inject<ModuleStateLog>,
