@@ -22,7 +22,6 @@ import subprocess
 import tempfile
 import threading
 import time
-import tomllib
 
 TOOL_SHA = '02f89c887a4bd5d8c044f63f4410eadc24614a807b3e2c4c5b5171b709780a93'
 PATH = '/api/example/request-url'
@@ -81,7 +80,7 @@ def resources(root):
     return {'target_bytes': sizes, 'disk_free_bytes': free, 'disk_free_fraction': free / total,
             'partial_target_total_bytes': subtotal,
             'coverage': '当前worktree目标、CARGO_TARGET_DIR及本worktree consumer目标；不含其他worktree',
-            'soft_warning': subtotal >= 50 * 1000**3 or free / total < .10}
+            'soft_warning': subtotal >= 80 * 1000**3 or free / total < .08}
 
 
 def listener_owned(port, process):
@@ -128,17 +127,22 @@ def stop(process):
     return {'pid': process.pid, 'code': process.returncode, 'forced': forced}
 
 
-def clear_sensitive(owned):
-    # 只清本 supervisor 新建的目录；不匹配旧 evidence 或其它临时目录。
-    ensure(owned.parent.resolve() == Path('/tmp').resolve()
+def validate_owned_directory(owned):
+    # 写入和清理都只接受本 supervisor 在 /tmp 中新建的私有目录。
+    ensure(not owned.is_symlink()
+           and owned.parent.resolve() == Path('/tmp').resolve()
            and owned.name.startswith('openrust-c04d6-url-network-'), 'cleanup_directory_invalid')
+    ensure(owned.is_dir() and owned.stat().st_mode & 0o777 == 0o700, 'owned_directory_mode')
+
+
+def clear_sensitive(owned):
+    validate_owned_directory(owned)
     for label in ('trusted', 'untrusted'):
         cwd = owned / label
         config = owned / label / 'config'
         if config.exists():
             shutil.rmtree(config)
         (owned / label / '.env').unlink(missing_ok=True)
-        (cwd / 'modules_statuses.json').unlink(missing_ok=True)
         module = cwd / 'modules/example'
         if module.is_symlink():
             module.unlink()
@@ -149,6 +153,7 @@ def clear_sensitive(owned):
 
 
 def prepare(root, owned, trusted):
+    validate_owned_directory(owned)
     with socket.socket() as reserved:
         reserved.bind(('127.0.0.1', 0))
         port = reserved.getsockname()[1]
@@ -156,35 +161,40 @@ def prepare(root, owned, trusted):
     config = cwd / 'config'
     config.mkdir(parents=True)
     (cwd / '.env').write_text('')
-    for source in (root / 'config').glob('*.toml'):
-        if source.name not in ('session.toml', 'database.toml'):
-            (config / source.name).write_bytes(source.read_bytes())
-    server = (config / 'server.toml').read_text()
-    ensure(server.count('port = 3000') == 1 and '[server]' not in server
-           and 'trusted_proxy_ranges' not in server, 'server_config_template_changed')
-    ranges = '["127.0.0.1/32"]' if trusted else '[]'
-    (config / 'server.toml').write_text(server.replace('port = 3000', f'port = {port}', 1)
-        .replace(f'port = {port}', f'port = {port}\ntrusted_proxy_ranges = {ranges}', 1))
-    app = (config / 'app.toml').read_text()
-    ensure(app.count('localhost:3000') == 1, 'app_config_template_changed')
-    (config / 'app.toml').write_text(app.replace('localhost:3000', f'localhost:{port}', 1))
-    (cwd / 'modules_statuses.json').write_text('{"example": true}\n')
+    # 真实宿主使用已编译代码配置；只向本次子进程提供明确环境覆盖。
+    # 默认 registered 挂载已编译示例，不制造根状态文件或依赖旧 TOML 骨架。
+    profile = {
+        'SERVER_PORT': str(port),
+        'APP_SERVER_HOST': '127.0.0.1',
+        'APP_SERVER_TRUSTED_PROXY_RANGES': '["127.0.0.1/32"]' if trusted else '[]',
+        'APP_URL': f'http://localhost:{port}',
+        'MODULES_ACTIVATOR': 'registered',
+        'CACHE_STORE': 'default',
+        'APP_CACHE_STORES_DEFAULT_DRIVER': 'memory',
+        'SESSION_DRIVER': 'null',
+        'APP_DATABASE_TABLE_PREFIX': 'tb_',
+        'APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL': KEY,
+        'APP_SECURITY_ENCRYPTION_KEYS_LOCAL': KEY,
+    }
     (cwd / 'modules').mkdir()
     (cwd / 'modules/example').symlink_to(root / 'modules/example', target_is_directory=True)
-    (config / 'database.toml').write_text('table_prefix="tb_"\n')
-    (config / 'cache.toml').write_text('default="default"\n[stores.default]\ndriver="memory"\n')
-    (config / 'security.toml').write_text(
-        f'[signed_links]\nissuer="http://localhost:{port}"\nactive_key_id="local"\n'
-        f'[signed_links.keys]\nlocal="{KEY}"\n[encryption]\nactive_key_id="local"\n'
-        f'[encryption.keys]\nlocal="{KEY}"\n')
-    tables = {p.name: tomllib.loads(p.read_text()) for p in config.glob('*.toml')}
-    ensure(json.loads((cwd / 'modules_statuses.json').read_text()) == {'example': True}
+    ensure(not (cwd / 'modules_statuses.json').exists()
            and (cwd / 'modules/example').resolve() == root / 'modules/example',
            'module_root_not_isolated')
-    ensure({name: value for name, value in tables.items() if name == 'database.toml'}
-           == {'database.toml': {'table_prefix': 'tb_'}}, 'database_not_isolated')
-    ensure(not (config / 'session.toml').exists(), 'session_not_isolated')
-    return cwd, config, port
+    ensure(profile['MODULES_ACTIVATOR'] == 'registered' and not any(config.iterdir()),
+           'registered_fixture_requires_no_file_config')
+    ensure(not any(key.startswith('DB_') or key.endswith('DATABASE_URL') for key in profile),
+           'database_not_isolated')
+    ensure(profile['SESSION_DRIVER'] == 'null', 'session_not_isolated')
+    return cwd, config, port, profile
+
+
+def server_environment(config, profile):
+    """只把受控配置交给本次服务器，不继承调用方凭据或部署开关。"""
+    inherited = {key: value for key, value in os.environ.items()
+                 if key in ('PATH', 'HOME', 'TMPDIR')}
+    return dict(inherited, APP_CONFIG_DIR=str(config), APP_ENV='test',
+                RUST_LOG='off', **profile)
 
 
 def alarm(_signal, _frame):
@@ -227,8 +237,8 @@ def worker_main(args):
         isinstance(k, str) and isinstance(v, str) and re.fullmatch('[0-9a-f]{64}', v)
         for k, v in expected.items()), 'expected_source_snapshot_invalid')
     ensure(expected == before, 'expected_source_snapshot_mismatch')
-    owned = args.owned.resolve()
-    ensure(owned.is_dir() and owned.stat().st_mode & 0o777 == 0o700, 'owned_directory_mode')
+    owned = args.owned.absolute()
+    validate_owned_directory(owned)
     report = {'owned_directory': str(owned), 'binary': str(binary), 'binary_sha256': args.binary_sha256,
               'helper_sha256': TOOL_SHA, 'build_source_snapshot_sha256': hashlib.sha256(snapshot_bytes).hexdigest(),
               'build_source_snapshot': str(args.source_snapshot.resolve()), 'cases': {}, 'accepted': False,
@@ -345,12 +355,11 @@ def worker_main(args):
     signal.setitimer(signal.ITIMER_REAL, WORKER_LIMIT)
     try:
         report['before_resources'] = resources(root)
-        env = {k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'TMPDIR')}
         origins = []
         for trusted in (True, False):
-            cwd, config, port = prepare(root, owned, trusted)
+            cwd, config, port, profile = prepare(root, owned, trusted)
             process = subprocess.Popen([str(binary)], cwd=cwd,
-                env=dict(env, APP_CONFIG_DIR=str(config), APP_ENV='test', RUST_LOG='off'),
+                env=server_environment(config, profile),
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             processes.append(process)
             ensure(os.getpgid(process.pid) == os.getpgrp(), 'owned_group_mismatch')
