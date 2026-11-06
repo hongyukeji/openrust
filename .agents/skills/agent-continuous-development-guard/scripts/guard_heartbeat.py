@@ -50,12 +50,23 @@ def read_json(path):
     return value
 
 
+def ledger_serialization(value):
+    """限长写入与读取一致，必要时仅收紧空白，不丢账本字段或值。"""
+    serialized = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n'
+    if len(serialized.encode()) <= MAX_JSON:
+        return serialized
+    serialized = json.dumps(value, ensure_ascii=False, separators=(',', ':'), allow_nan=False) + '\n'
+    if len(serialized.encode()) > MAX_JSON:
+        raise ValueError('JSON过大')
+    return serialized
+
+
 def atomic(path, value):
+    serialized = ledger_serialization(value)
     descriptor, temporary = tempfile.mkstemp(prefix=path.name + '.', suffix='.tmp', dir=path.parent)
     try:
         with os.fdopen(descriptor, 'w', encoding='utf-8') as output:
-            json.dump(value, output, ensure_ascii=False, indent=2, allow_nan=False)
-            output.write('\n')
+            output.write(serialized)
             output.flush()
             os.fsync(output.fileno())
         os.replace(temporary, path)
@@ -388,8 +399,15 @@ def resume_ledger(ledger, thread, binding, current_goal, status, home, usage_fil
     candidate['goal_status'] = 'active'
     candidate['last_check'] = {'at': now, 'mode': 'resume', 'caller_thread': thread,
                                'action': 'continue'}
+    checkpoint_required = candidate.get('goal_revision_checkpoint_required_at') is not None
+    if checkpoint_required:
+        candidate['last_check']['action'] = 'wait'
+        if not revision_ledger_fits(candidate):
+            return output(ledger, 'stop', 'goal_revision_ledger_limit', thread)
     ledger.clear()
     ledger.update(candidate)
+    if checkpoint_required:
+        return output(ledger, 'wait', 'goal_revision_checkpoint_required', thread)
     return output(ledger, 'continue', 'explicit_user_resume', thread)
 
 
@@ -478,11 +496,545 @@ def rebase_budget(ledger, thread, binding, current_goal, status, home,
         return output(ledger, 'stop', 'rebase_evidence_invalid', thread)
 
 
+
+def revision_ledger_fits(value):
+    """所有新增修订写入与下次限长读取使用同一序列化上限。"""
+    try:
+        ledger_serialization(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def poison_goal_revision_origin(ledger):
+    """污染来源收缩为不可恢复最小记录，不删预算或审计历史。"""
+    origin = ledger.get('goal_mismatch_origin')
+    if not isinstance(origin, dict) or origin.get('eligible') is not True:
+        return False
+    candidate = copy.deepcopy(ledger)
+    candidate['goal_mismatch_origin'] = {'eligible': False}
+    if not revision_ledger_fits(candidate):
+        # 极小畸形来源原本缺完整归因，不能采用；不为一个布尔值扩坏合法旧账本。
+        return False
+    ledger.clear()
+    ledger.update(candidate)
+    return True
+
+
+def accept_goal_revision(ledger, thread, binding, current_goal, status, home,
+                         evidence_file, expected_hash, authorization, now, clock=None):
+    """显式采纳同一Goal正文修订；调用Agent先核真人来源，参数不是授权证明。"""
+    if (not isinstance(authorization, str) or not authorization.strip()
+            or len(authorization) > 4096):
+        return output(ledger, 'stop', 'goal_revision_authorization_required', thread)
+    if (ledger.get('version') != 1 or ledger.get('fraction') != '0.8'
+            or ledger.get('allow_existing_credits') is not False
+            or not isinstance(ledger.get('automation_id'), str) or not ledger['automation_id'].strip()
+            or status != 'active' or ledger.get('binding') != binding):
+        return output(ledger, 'stop', 'goal_revision_state_rejected', thread)
+    old_goal = ledger.get('goal')
+    if (not isinstance(old_goal, dict) or not isinstance(current_goal, dict)
+            or set(old_goal) != {'id', 'created_at_ms', 'objective_sha256'}
+            or set(current_goal) != set(old_goal)
+            or not isinstance(old_goal['id'], str) or not old_goal['id']
+            or type(old_goal['created_at_ms']) is not int
+            or type(current_goal['created_at_ms']) is not int
+            or {k: v for k, v in old_goal.items() if k != 'objective_sha256'}
+            != {k: v for k, v in current_goal.items() if k != 'objective_sha256'}):
+        return output(ledger, 'stop', 'goal_revision_identity_rejected', thread)
+    try:
+        history = ledger.get('goal_revisions', [])
+        if not isinstance(history, list) or any(not isinstance(item, dict) for item in history):
+            raise ValueError('修订历史无效')
+        valid_hash = lambda value: (isinstance(value, str) and len(value) == 64
+                                    and all(c in '0123456789abcdef' for c in value))
+        if not all(valid_hash(value) for value in
+                   (expected_hash, old_goal['objective_sha256'], current_goal['objective_sha256'])):
+            raise ValueError('目标摘要无效')
+        # 明确拒绝已采用的同次重放，不重写账本，也不解除后来新增的其他停态。
+        if old_goal == current_goal and any(
+                item.get('previous_goal', {}).get('objective_sha256') == expected_hash
+                and item.get('accepted_goal') == current_goal for item in history
+                if isinstance(item.get('previous_goal'), dict)):
+            origin = ledger.get('goal_mismatch_origin')
+            if ((ledger.get('terminal_action') is not None or ledger.get('terminal_reason') is not None)
+                    and (ledger.get('terminal_action'), ledger.get('terminal_reason'))
+                    != ('stop', 'goal_or_binding_changed')) or (
+                    isinstance(origin, dict) and origin.get('eligible') is False):
+                return output(ledger, 'stop', 'goal_revision_state_rejected', thread)
+            return output(ledger, 'stop', 'goal_revision_already_accepted', thread)
+        if (expected_hash != old_goal['objective_sha256']
+                or current_goal['objective_sha256'] == old_goal['objective_sha256']):
+            return output(ledger, 'stop', 'goal_revision_old_hash_mismatch', thread)
+        if (ledger.get('terminal_action') != 'stop'
+                or ledger.get('terminal_reason') != 'goal_or_binding_changed'):
+            return output(ledger, 'stop', 'goal_revision_state_rejected', thread)
+        origin = ledger.get('goal_mismatch_origin')
+        if (not isinstance(origin, dict) or origin.get('eligible') is not True
+                or origin.get('observed_status') != 'active' or origin.get('previous_goal') != old_goal
+                or origin.get('binding') != binding
+                or 'previous_terminal_action' not in origin or origin['previous_terminal_action'] is not None
+                or 'previous_terminal_reason' not in origin or origin['previous_terminal_reason'] is not None
+                or type(origin.get('at')) not in (int, float) or not math.isfinite(origin['at'])):
+            return output(ledger, 'stop', 'goal_revision_origin_rejected', thread)
+        # 原始正式get_goal envelope限长只读一次；digest与验证必须来自同一份字节。
+        with Path(evidence_file).open('rb') as source:
+            raw = source.read(MAX_JSON + 1)
+        if len(raw) > MAX_JSON:
+            raise ValueError('Goal证据过大')
+        evidence = json.loads(raw, object_pairs_hook=unique_object)
+        if not isinstance(evidence, dict):
+            raise ValueError('Goal证据未知')
+        observed = evidence.get('observed_at')
+        payload = evidence.get('payload')
+        goal = payload.get('goal') if isinstance(payload, dict) else None
+        if (evidence.get('source') != 'get_goal' or evidence.get('thread') != thread
+                or type(observed) not in (int, float) or not math.isfinite(observed)
+                or not -5 <= now - observed <= USAGE_TTL
+                or not isinstance(payload, dict)
+                or not {'goal', 'remainingTokens', 'completionBudgetReport'} <= set(payload)
+                or any(key in payload for key in ('isError', 'content', 'structuredContent', 'error'))
+                or not isinstance(goal, dict) or goal.get('threadId') != thread
+                or goal.get('status') != 'active' or not isinstance(goal.get('objective'), str)
+                or any(key in goal and goal[key] != current_goal['id'] for key in ('id', 'goalId'))
+                or hashlib.sha256(goal['objective'].encode()).hexdigest() != current_goal['objective_sha256']
+                or type(goal.get('createdAt')) is not int
+                or goal['createdAt'] != current_goal['created_at_ms'] // 1000):
+            raise ValueError('Goal证据无效')
+        candidate = copy.deepcopy(ledger)
+        candidate['goal'] = copy.deepcopy(current_goal)
+        candidate['goal_status'] = 'active'
+        candidate.pop('terminal_action', None)
+        candidate.pop('terminal_reason', None)
+        candidate['goal_revisions'] = copy.deepcopy(history) + [{
+            'at': now, 'previous_goal': copy.deepcopy(old_goal),
+            'accepted_goal': copy.deepcopy(current_goal),
+            'goal_evidence_sha256': hashlib.sha256(raw).hexdigest(),
+            'authorization_sha256': hashlib.sha256(authorization.encode()).hexdigest()}]
+        candidate['last_check'] = {'at': now, 'mode': 'accept-goal-revision',
+                                   'caller_thread': thread, 'action': 'wait'}
+        candidate['goal_revision_checkpoint_required_at'] = now
+        if len((json.dumps(candidate, ensure_ascii=False, indent=2, allow_nan=False) + '\n').encode()) > MAX_JSON:
+            return output(ledger, 'stop', 'goal_revision_ledger_limit', thread)
+        try:
+            final_identity = identity(thread, home)
+        except (ValueError, TypeError):
+            final_identity = None
+        if final_identity != (binding, current_goal, 'active'):
+            # 同一active Goal再次纯正文编辑只使本次证据过时，不污染可刷新来源。
+            if (isinstance(final_identity, tuple) and len(final_identity) == 3
+                    and final_identity[0] == binding and final_identity[2] == 'active'
+                    and isinstance(final_identity[1], dict)
+                    and set(final_identity[1]) == set(current_goal)
+                    and {k: v for k, v in final_identity[1].items() if k != 'objective_sha256'}
+                    == {k: v for k, v in current_goal.items() if k != 'objective_sha256'}
+                    and valid_hash(final_identity[1].get('objective_sha256'))):
+                return output(ledger, 'stop', 'goal_revision_objective_changed', thread)
+            poison_goal_revision_origin(ledger)
+            return output(ledger, 'stop', 'goal_revision_identity_changed', thread)
+        final_now = time.time() if clock is None else clock()
+        if (type(final_now) not in (int, float) or not math.isfinite(final_now)
+                or not -5 <= final_now - observed <= USAGE_TTL):
+            raise ValueError('Goal证据已过期')
+        candidate['goal_revisions'][-1]['at'] = final_now
+        candidate['last_check']['at'] = final_now
+        candidate['goal_revision_checkpoint_required_at'] = final_now
+        # 最终时间字段也参与限长，之后才原子交回run落盘。
+        if len((json.dumps(candidate, ensure_ascii=False, indent=2, allow_nan=False) + '\n').encode()) > MAX_JSON:
+            return output(ledger, 'stop', 'goal_revision_ledger_limit', thread)
+        ledger.clear()
+        ledger.update(candidate)
+        return output(ledger, 'wait', 'goal_revision_accepted_checkpoint_required', thread)
+    except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+        return output(ledger, 'stop', 'goal_revision_evidence_invalid', thread)
+
+
+def origin_json_bytes(path):
+    """证据限长只读一次；摘要与校验使用相同字节，拒歧义及非有限JSON。"""
+    with Path(path).open('rb') as source:
+        raw = source.read(MAX_JSON + 1)
+    if len(raw) > MAX_JSON:
+        raise ValueError('来源证据过大')
+    def invalid_constant(_):
+        raise ValueError('非有限JSON')
+    value = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+    if not isinstance(value, dict):
+        raise ValueError('来源证据必须为对象')
+    return value, raw
+
+
+def origin_item_digest(item):
+    """正式item摘要采用独立审计约定的规范JSON。"""
+    return hashlib.sha256(json.dumps(item, sort_keys=True, ensure_ascii=False,
+                                    separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def recover_goal_revision_origin(path, thread, home, evidence_file, goal_file,
+                                 expected_ledger_hash, expected_objective_hash,
+                                 authorization, now, clock):
+    """锁内显式登记旧停态审计来源；不接纳新正文、不解除终态或触碰预算。"""
+    ledger = {}
+    try:
+        valid_hash = lambda x: (isinstance(x, str) and len(x) == 64
+                               and all(c in '0123456789abcdef' for c in x))
+        if not isinstance(authorization, str) or not authorization.strip() or len(authorization) > 4096:
+            return output(ledger, 'stop', 'origin_recovery_authorization_required', thread)
+        ledger, ledger_raw = origin_json_bytes(path)
+        if (not valid_hash(expected_ledger_hash)
+                or hashlib.sha256(ledger_raw).hexdigest() != expected_ledger_hash):
+            return output(ledger, 'stop', 'origin_recovery_ledger_changed', thread)
+        if (type(ledger.get('version')) is not int or ledger.get('version') != 1
+                or ledger.get('fraction') != '0.8' or ledger.get('allow_existing_credits') is not False
+                or 'goal_mismatch_origin' in ledger
+                or ledger.get('terminal_action') != 'stop'
+                or ledger.get('terminal_reason') != 'goal_or_binding_changed'):
+            return output(ledger, 'stop', 'origin_recovery_state_rejected', thread)
+        binding, current_goal, status = identity(thread, home)
+        old = ledger.get('goal')
+        if (status != 'active' or ledger.get('binding') != binding
+                or not isinstance(old, dict)
+                or set(old) != set(current_goal) or set(old) != {'id', 'created_at_ms', 'objective_sha256'}
+                or not isinstance(old['id'], str) or not old['id']
+                or type(old['created_at_ms']) is not int
+                or type(current_goal['created_at_ms']) is not int
+                or {k: v for k, v in old.items() if k != 'objective_sha256'}
+                != {k: v for k, v in current_goal.items() if k != 'objective_sha256'}
+                or not all(valid_hash(x) for x in (expected_objective_hash, old['objective_sha256'],
+                                                   current_goal['objective_sha256']))
+                or expected_objective_hash != old['objective_sha256']
+                or current_goal['objective_sha256'] == expected_objective_hash
+                or not isinstance(ledger.get('automation_id'), str) or not ledger['automation_id']):
+            return output(ledger, 'stop', 'origin_recovery_identity_rejected', thread)
+        decision, decision_raw = origin_json_bytes(evidence_file)
+        observed = decision.get('observed_at')
+        fresh = lambda stamp, moment: (type(stamp) in (int, float) and math.isfinite(stamp)
+                                       and -5 <= moment - stamp <= USAGE_TTL)
+        if (type(decision.get('version')) is not int or decision.get('version') != 1 or decision.get('kind') != 'legacy_root_origin_decision'
+                or decision.get('thread') != thread or decision.get('binding') != binding
+                or decision.get('old_goal') != old
+                or decision.get('expected_ledger_sha256') != expected_ledger_hash
+                or not fresh(observed, now)):
+            raise ValueError('来源决策不符')
+        single = decision.get('single_writer')
+        if (not isinstance(single, dict) or single.get('adjudicated_no_prior_terminal') is not True
+                or single != {'contract': 'trusted_single_root_native_ledger_writer',
+                              'thread': thread, 'automation_id': ledger['automation_id'],
+                              'adjudicated_no_prior_terminal': True,
+                              'limitation': 'not_a_full_host_write_journal'}):
+            raise ValueError('缺少明确单owner裁定')
+        refs = decision.get('evidence')
+        if not isinstance(refs, dict) or set(refs) != {'formal_thread', 'audit', 'controller_inventory'}:
+            raise ValueError('来源清单不完整')
+        documents, digests = {}, {}
+        for label, ref in refs.items():
+            if (not isinstance(ref, dict) or set(ref) != {'path', 'sha256'}
+                    or not isinstance(ref['path'], str) or not ref['path']
+                    or not valid_hash(ref['sha256'])):
+                raise ValueError('来源摘要无效')
+            doc, raw = origin_json_bytes(ref['path'])
+            digest = hashlib.sha256(raw).hexdigest()
+            if digest != ref['sha256']:
+                raise ValueError('来源内容已变')
+            documents[label], digests[label] = doc, digest
+        controllers = documents['controller_inventory']
+        if (type(controllers.get('version')) is not int or controllers.get('version') != 1 or controllers.get('source') != 'root_controller_inventory'
+                or controllers.get('thread') != thread
+                or not fresh(controllers.get('observed_at'), now)
+                or not isinstance(controllers.get('automation'), dict)
+                or controllers['automation'].get('unique') is not True
+                or controllers.get('automation') not in (
+                    {'id': ledger['automation_id'], 'target_thread_id': thread,
+                     'kind': 'heartbeat', 'status': 'ACTIVE', 'unique': True},
+                    {'id': ledger['automation_id'], 'target_thread_id': thread,
+                     'kind': 'heartbeat', 'status': 'PAUSED', 'unique': True})
+                or controllers.get('native_ledger_writers') != [{'kind': 'root_checkpoint', 'thread': thread}]
+                or controllers.get('other_guard_writers') != []
+                or not isinstance(controllers.get('cooperative'), dict)
+                or controllers['cooperative'].get('writes_native_ledger') is not False
+                or controllers['cooperative'].get('manual_stop_preserved') is not True
+                or controllers['cooperative'].get('pending_preserved') is not True
+                or controllers.get('cooperative') != {
+                    'role': 'queue_and_read_only_native_ledger', 'writes_native_ledger': False,
+                    'manual_stop_preserved': True, 'pending_preserved': True}):
+            raise ValueError('controller排他条件不符')
+        formal = documents['formal_thread']
+        content = formal.get('content')
+        if (formal.get('isError') is not False or 'structuredContent' in formal
+                or not isinstance(content, list) or len(content) != 1
+                or not isinstance(content[0], dict) or content[0].get('type') != 'text'
+                or not isinstance(content[0].get('text'), str)):
+            raise ValueError('正式线程envelope无效')
+        snapshot = json.loads(content[0]['text'], object_pairs_hook=unique_object,
+                              parse_constant=lambda _: (_ for _ in ()).throw(ValueError('非有限JSON')))
+        if (not isinstance(snapshot, dict) or snapshot.get('thread', {}).get('id') != thread
+                or snapshot['thread'].get('cwd') != binding['project']
+                or not isinstance(snapshot.get('turns'), list)):
+            raise ValueError('正式线程身份不符')
+        endpoints = decision.get('endpoints')
+        if not isinstance(endpoints, dict) or set(endpoints) != {'turn_id', 'continue_id', 'stop_id', 'receipt_id'}:
+            raise ValueError('端点无效')
+        turns = [x for x in snapshot['turns'] if isinstance(x, dict) and x.get('id') == endpoints['turn_id']]
+        if len(turns) != 1 or not isinstance(turns[0].get('items'), list):
+            raise ValueError('turn缺失或重复')
+        items = turns[0]['items']
+        ids = [x.get('id') for x in items if isinstance(x, dict)]
+        if len(ids) != len(items) or any(not isinstance(x, str) or not x for x in ids) or len(set(ids)) != len(ids):
+            raise ValueError('item缺失或重复')
+        start, end, receipt = [ids.index(endpoints[k]) for k in ('continue_id', 'stop_id', 'receipt_id')]
+        if not start < end < receipt:
+            raise ValueError('端点顺序不符')
+        if any(x.get('type') not in {'commandExecution', 'mcpToolCall', 'reasoning', 'agentMessage', 'subAgentActivity'}
+               or (x.get('type') == 'subAgentActivity' and x.get('kind') != 'completed')
+               for x in items[start:end + 1]):
+            raise ValueError('区间存在未审写事件或新派发')
+        audit = documents['audit']
+        assessment = audit.get('assessment', {})
+        if (assessment.get('root_current_turn_tool_chain_gap_closed') is not True
+                or assessment.get('root_tool_chain_has_intervening_guard_or_ledger_or_goal_write') is not False
+                or assessment.get('first_stop_in_current_turn_established') is not True
+                or assessment.get('stop_reason_confirmed_by_item78') != 'goal_or_binding_changed'
+                or assessment.get('first_stop_summary') != 'stop active usage_budget_available'
+                or assessment.get('sufficient_for_unconditional_legacy_origin_clearance') is not False
+                or assessment.get('supports_no_other_root_guard_terminal_between_item41_and_item76') is not True
+                or assessment.get('sufficient_to_prove_no_other_writer_changed_original_ledger_globally') is not False
+                or audit.get('formal_source', {}).get('sha256') != digests['formal_thread']
+                or audit.get('formal_source', {}).get('thread_id') != thread
+                or audit.get('formal_source', {}).get('turn_id') != endpoints['turn_id']):
+            raise ValueError('独立审计未闭合或夸大排他')
+        interval = audit.get('interval', {})
+        if interval.get('start_item_index') != start or interval.get('end_item_index') != end:
+            raise ValueError('审计区间不符')
+        audited = interval.get('items')
+        if not isinstance(audited, list):
+            raise ValueError('审计items缺失')
+        rows = [x for x in audited if isinstance(x, dict) and x.get('type') in ('commandExecution', 'mcpToolCall')
+                and start <= x.get('item_index_zero_based', -1) <= end]
+        actual = [(i, x) for i, x in enumerate(items) if start <= i <= end
+                  and x.get('type') in ('commandExecution', 'mcpToolCall')]
+        if len(rows) != len(actual) or not actual:
+            raise ValueError('写事件缺失')
+        interval_facts = {
+            'strict_between_command_executions': sum(x['type'] == 'commandExecution' for i, x in actual if start < i < end),
+            'strict_between_mcp_tool_calls': sum(x['type'] == 'mcpToolCall' for i, x in actual if start < i < end),
+            'command_executions_including_endpoints': sum(x['type'] == 'commandExecution' for _, x in actual),
+            'command_truncations': 0, 'output_truncations': 0}
+        if any(type(interval.get(k)) is not int or interval[k] != value
+               for k, value in interval_facts.items()):
+            raise ValueError('审计计数或截断结论矛盾')
+        missing_outputs = [i for i, x in actual if x['type'] == 'commandExecution' and 'output' not in x]
+        child_completions = [i for i in range(start, end + 1) if items[i].get('type') == 'subAgentActivity']
+        if (interval.get('missing_output_fields') != missing_outputs
+                or interval.get('subagent_completion_indices') != child_completions):
+            raise ValueError('审计缺输出或子任务元数据不符')
+        benign = decision.get('benign_failures', [])
+        if not isinstance(benign, list) or any(not isinstance(x, dict) for x in benign):
+            raise ValueError('失败裁定无效')
+        failures, used_failures = [], []
+        shell_classes = {'read_only', 'temporary_script_patch_and_scan', 'routing_script_creation_and_scan',
+                         'routing_source_move', 'usage_envelope_write'}
+        # 所有审计行都按实际类型及位置绑定角色，保留元事件也不得冒用写工具分类。
+        expected_indices = sorted([i for i, _ in actual] + child_completions + [receipt])
+        if [x.get('item_index_zero_based') for x in audited if isinstance(x, dict)] != expected_indices:
+            raise ValueError('审计事件行缺失、重复或多出')
+        for row in audited:
+            if not isinstance(row, dict) or type(row.get('item_index_zero_based')) is not int:
+                raise ValueError('审计事件索引无效')
+            index = row['item_index_zero_based']
+            item = items[index]
+            role = row.get('classification')
+            if (row.get('event_id') != item['id'] or row.get('type') != item['type']
+                    or row.get('item_sha256_canonical_json') != origin_item_digest(item)):
+                raise ValueError('审计角色与事件摘要不符')
+            if index in (start, end):
+                valid_role = item['type'] == 'commandExecution' and role == 'guard_checkpoint'
+            elif index == receipt:
+                valid_role = item['type'] == 'commandExecution' and role == 'read_receipt'
+            elif item['type'] == 'commandExecution':
+                valid_role = start < index < end and role in shell_classes
+            elif item['type'] == 'mcpToolCall':
+                valid_role = start < index < end and role == 'formal_usage_read'
+            else:
+                valid_role = (index in child_completions and role == 'subagent_completion'
+                              and item['type'] == 'subAgentActivity' and item.get('kind') == 'completed')
+            if not valid_role:
+                raise ValueError('审计分类不能跨类型或冒用端点')
+        for (index, item), row in zip(actual, rows):
+            digest = origin_item_digest(item)
+            if (row.get('event_id') != item['id'] or type(row.get('item_index_zero_based')) is not int
+                    or row.get('item_index_zero_based') != index
+                    or row.get('item_sha256_canonical_json') != digest
+                    or row.get('status') != item.get('status')
+                    or row.get('exit_code') != item.get('exitCode')
+                    or item.get('commandTruncated') is True
+                    or (isinstance(item.get('output'), dict) and item['output'].get('truncated') is True)
+                    or row.get('type') != item['type']):
+                raise ValueError('执行事件与审计不符')
+            if index in (start, end):
+                if item['type'] != 'commandExecution' or row.get('classification') != 'guard_checkpoint':
+                    raise ValueError('端点必须是原checkpoint分类')
+            elif item['type'] == 'mcpToolCall':
+                if row.get('classification') != 'formal_usage_read':
+                    raise ValueError('MCP分类与实际类型不符')
+            elif row.get('classification') not in shell_classes:
+                raise ValueError('中间shell不得冒用checkpoint或读回分类')
+            if item['type'] == 'commandExecution' and (
+                    not isinstance(item.get('command'), str) or not item['command'].strip()
+                    or type(item.get('exitCode')) is not int
+                    or ('commandTruncated' in item and item['commandTruncated'] is not False)
+                    or (item.get('output') is not None and (
+                        not isinstance(item['output'], dict)
+                        or item['output'].get('truncated') is not False
+                        or not isinstance(item['output'].get('text'), str)))):
+                raise ValueError('完整命令或输出结构缺失')
+            if item['type'] == 'mcpToolCall':
+                if item.get('server') != 'codex_app' or item.get('tool') != 'get_usage_limits' or item.get('status') != 'completed':
+                    raise ValueError('中间存在MCP写工具')
+            elif index in (start, end):
+                if item.get('status') != 'completed' or item.get('exitCode') != 0:
+                    raise ValueError('checkpoint失败')
+            elif any(token in item.get('command', '') for token in
+                     ('guard_heartbeat.py', 'native-heartbeat', '/guard.py', 'get_goal', 'update_goal')):
+                raise ValueError('中间存在守护或Goal操作')
+            elif item.get('status') != 'completed' or item.get('exitCode') != 0:
+                matches = [x for x in benign if x.get('event_id') == item['id']]
+                if (len(matches) != 1 or matches[0] != {
+                        'event_id': item['id'], 'item_sha256_canonical_json': digest,
+                        'status': item.get('status'), 'exit_code': item.get('exitCode'),
+                        'adjudication': 'benign_non_guard_failure',
+                        'classification': row['classification']}
+                        or item.get('status') != 'failed' or item.get('exitCode') != 1
+                        or row['classification'] not in {'read_only', 'temporary_script_patch_and_scan', 'routing_script_creation_and_scan'}):
+                    raise ValueError('未经逐事件裁定的失败')
+                failures.append(copy.deepcopy(matches[0])); used_failures.append(item['id'])
+        if len(used_failures) != len(benign):
+            raise ValueError('失败裁定包含未知事件')
+        for key in ('continue_id', 'stop_id', 'receipt_id'):
+            item = items[ids.index(endpoints[key])]
+            matches = [x for x in audit.get('key_items', []) if x.get('event_id') == item['id']]
+            if len(matches) != 1 or matches[0].get('item_sha256_canonical_json') != origin_item_digest(item):
+                raise ValueError('关键端点摘要不符')
+        if items[start]['command'] != items[end]['command']:
+            raise ValueError('两端checkpoint不同')
+        import shlex
+        outer = shlex.split(items[start]['command'])
+        if len(outer) != 3 or outer[1] != '-lc':
+            raise ValueError('checkpoint命令无效')
+        command = shlex.split(outer[2].splitlines()[0])
+        if (len(command) != 10 or Path(command[0]).name != 'python3' or command[1] != '-B'
+                or command[2] != '.agents/skills/agent-continuous-development-guard/scripts/guard_heartbeat.py'
+                or command[3:6] != ['--thread', thread, 'checkpoint']
+                or command[6] != '--usage-file' or command[8] != '>'):
+            raise ValueError('不是原thread checkpoint')
+        if (items[start].get('output') != {'text': 'continue active usage_budget_available\n', 'truncated': False}
+                or items[end].get('output') != {'text': 'stop active usage_budget_available\n', 'truncated': False}):
+            raise ValueError('checkpoint输出不符')
+        # 本case的stop与读回之间仅允许无写reasoning；未知工具或子任务活动都不能穿过。
+        if any(x.get('type') != 'reasoning' for x in items[end + 1:receipt]):
+            raise ValueError('stop回执前有未知或可能写入事件')
+        receipt_rows = [x for x in audited if isinstance(x, dict)
+                        and x.get('event_id') == items[receipt]['id']]
+        if (len(receipt_rows) != 1 or receipt_rows[0].get('classification') != 'read_receipt'
+                or receipt_rows[0].get('type') != 'commandExecution'
+                or type(receipt_rows[0].get('item_index_zero_based')) is not int
+                or receipt_rows[0]['item_index_zero_based'] != receipt
+                or receipt_rows[0].get('item_sha256_canonical_json') != origin_item_digest(items[receipt])):
+            raise ValueError('stop读回事件未审计')
+        response = items[receipt]
+        if (response.get('type') != 'commandExecution' or response.get('commandTruncated') is True
+                or response.get('status') != 'completed' or response.get('exitCode') != 0
+                or not isinstance(response.get('output'), dict)
+                or response['output'].get('truncated') is not False):
+            raise ValueError('stop回执不完整')
+        stop = json.loads(response['output']['text'], object_pairs_hook=unique_object)
+        if (stop.get('action') != 'stop' or stop.get('reason') != 'goal_or_binding_changed'
+                or stop.get('goal_id') != old['id'] or stop.get('automation_id') != ledger['automation_id']
+                or stop.get('thread') != thread or stop.get('last_check') != ledger.get('last_check')
+                or not isinstance(stop.get('last_check'), dict)
+                or stop['last_check'].get('mode') != 'checkpoint'
+                or stop['last_check'].get('caller_thread') != thread
+                or stop['last_check'].get('action') != 'continue'):
+            raise ValueError('原始stop字段不符')
+        goal_evidence, goal_raw = origin_json_bytes(goal_file)
+        goal_observed = goal_evidence.get('observed_at')
+        payload = goal_evidence.get('payload')
+        goal = payload.get('goal') if isinstance(payload, dict) else None
+        if (goal_evidence.get('source') != 'get_goal' or goal_evidence.get('thread') != thread
+                or not fresh(goal_observed, now) or not isinstance(payload, dict)
+                or not {'goal', 'remainingTokens', 'completionBudgetReport'} <= set(payload)
+                or any(k in payload for k in ('isError', 'content', 'structuredContent', 'error'))
+                or not isinstance(goal, dict) or goal.get('threadId') != thread
+                or goal.get('status') != 'active' or not isinstance(goal.get('objective'), str)
+                or any(k in goal and goal[k] != current_goal['id'] for k in ('id', 'goalId'))
+                or hashlib.sha256(goal['objective'].encode()).hexdigest() != current_goal['objective_sha256']
+                or type(goal.get('createdAt')) is not int
+                or goal['createdAt'] != current_goal['created_at_ms'] // 1000):
+            raise ValueError('当前正式Goal不符')
+        history = ledger.get('goal_origin_recoveries', [])
+        if not isinstance(history, list) or any(not isinstance(x, dict) for x in history):
+            raise ValueError('来源历史无效')
+        if any(x.get('legacy_ledger_sha256') == expected_ledger_hash
+               or (x.get('kind') == 'recovered_root_single_writer' and x.get('previous_goal') == old
+                   and x.get('binding') == binding) for x in history):
+            return output(ledger, 'stop', 'origin_recovery_replayed', thread)
+        record = {'kind': 'recovered_root_single_writer', 'at': now,
+                  'binding': copy.deepcopy(binding), 'previous_goal': copy.deepcopy(old),
+                  'observed_status': 'active', 'eligible': True,
+                  'previous_terminal_action': None, 'previous_terminal_reason': None,
+                  'historical_basis': 'explicit_audit_adjudication_not_live_observation',
+                  'active_basis': 'current_formal_goal_and_verified_user_control_not_cached_stop',
+                  'legacy_stop': {'terminal_action': ledger['terminal_action'],
+                                  'terminal_reason': ledger['terminal_reason'],
+                                  'cached_goal_status': ledger.get('goal_status'),
+                                  'last_check': copy.deepcopy(ledger.get('last_check'))},
+                  'legacy_ledger_sha256': expected_ledger_hash,
+                  'decision_sha256': hashlib.sha256(decision_raw).hexdigest(),
+                  'evidence_sha256': digests, 'evidence': copy.deepcopy(refs),
+                  'decision_path': str(evidence_file),
+                  'audit_method': 'formal_complete_root_toolchain_plus_explicit_single_writer_adjudication',
+                  'validated_audit_assessment': {key: copy.deepcopy(assessment[key]) for key in (
+                      'first_stop_in_current_turn_established', 'first_stop_summary',
+                      'stop_reason_confirmed_by_item78', 'root_current_turn_tool_chain_gap_closed',
+                      'root_tool_chain_has_intervening_guard_or_ledger_or_goal_write',
+                      'supports_no_other_root_guard_terminal_between_item41_and_item76',
+                      'sufficient_to_prove_no_other_writer_changed_original_ledger_globally',
+                      'sufficient_for_unconditional_legacy_origin_clearance')},
+                  'validated_interval': dict(interval_facts, missing_output_fields=missing_outputs,
+                                             subagent_completion_indices=child_completions),
+                  'endpoints': copy.deepcopy(endpoints),
+                  'benign_failures': failures,
+                  'goal_evidence_sha256': hashlib.sha256(goal_raw).hexdigest(),
+                  'authorization_sha256': hashlib.sha256(authorization.encode()).hexdigest(),
+                  'single_writer': copy.deepcopy(single)}
+        candidate = copy.deepcopy(ledger)
+        candidate['goal_mismatch_origin'] = record
+        candidate['goal_origin_recoveries'] = copy.deepcopy(history) + [copy.deepcopy(record)]
+        if not revision_ledger_fits(candidate):
+            return output(ledger, 'stop', 'origin_recovery_ledger_limit', thread)
+        if identity(thread, home) != (binding, current_goal, 'active'):
+            return output(ledger, 'stop', 'origin_recovery_identity_changed', thread)
+        final_now = clock()
+        if not all(fresh(stamp, final_now) for stamp in (observed, goal_observed, controllers['observed_at'])):
+            raise ValueError('最终来源证据过期')
+        candidate['goal_mismatch_origin']['at'] = final_now
+        candidate['goal_origin_recoveries'][-1]['at'] = final_now
+        if not revision_ledger_fits(candidate):
+            return output(ledger, 'stop', 'origin_recovery_ledger_limit', thread)
+        _, final_raw = origin_json_bytes(path)
+        if final_raw != ledger_raw or hashlib.sha256(final_raw).hexdigest() != expected_ledger_hash:
+            return output(ledger, 'stop', 'origin_recovery_ledger_changed', thread)
+        atomic(path, candidate)
+        return output(candidate, 'wait', 'origin_recovered_acceptance_required', thread)
+    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError,
+            RecursionError, OverflowError, sqlite3.Error):
+        return output(ledger, 'stop', 'origin_recovery_evidence_invalid', thread)
+
+
 def run(thread, command, usage_file=None, automation_id=None, now=None, previous_automation_id=None,
-        user_authorization=None, authorization_file=None):
+        user_authorization=None, authorization_file=None, goal_evidence_file=None,
+        expected_objective_sha256=None, origin_evidence_file=None, expected_ledger_sha256=None):
     """一次门禁检查；官方自动化的创建、暂停与删除由调用方执行。"""
     thread = str(uuid.UUID(thread))
-    if command in ('checkpoint', 'resume', 'authorize-full-budget', 'rebase-budget') and os.environ.get('CODEX_THREAD_ID') != thread:
+    if command in ('checkpoint', 'resume', 'authorize-full-budget', 'rebase-budget', 'accept-goal-revision', 'recover-goal-revision-origin') and os.environ.get('CODEX_THREAD_ID') != thread:
         return output({}, 'wait', 'checkpoint_caller_mismatch', thread)
     fixed_now = now
     now = time.time() if now is None else now
@@ -494,12 +1046,13 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
     if command != 'init' and not runtime.is_dir():
         return output({}, 'stop', 'ledger_missing', thread)
     runtime.mkdir(parents=True, exist_ok=True)
-    try:
-        # 运行账本不进入源码提交；已有项目忽略策略由宿主保留。
-        with (guards / '.gitignore').open('x', encoding='utf-8') as ignored:
-            ignored.write('*\n!.gitignore\n')
-    except FileExistsError:
-        pass
+    if command != 'recover-goal-revision-origin':
+        try:
+            # 运行账本不进入源码提交；已有项目忽略策略由宿主保留。
+            with (guards / '.gitignore').open('x', encoding='utf-8') as ignored:
+                ignored.write('*\n!.gitignore\n')
+        except FileExistsError:
+            pass
     path = runtime / 'native-heartbeat.json'
     with (runtime / 'native-heartbeat.lock').open('a') as lock:
         lock_file(lock)
@@ -509,6 +1062,11 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
         grant_file = ledger.get('full_budget_grant_file')
         if grant_file is not None and grant_file != str(runtime / 'full-budget-once.json'):
             return output({}, 'stop', 'ledger_invalid', thread)
+        if command == 'recover-goal-revision-origin':
+            return recover_goal_revision_origin(
+                path, thread, home, origin_evidence_file, goal_evidence_file,
+                expected_ledger_sha256, expected_objective_sha256, user_authorization, now,
+                time.time if fixed_now is None else lambda: now)
         try:
             binding, current_goal, status = identity(thread, home)
         except (OSError, sqlite3.Error):
@@ -517,14 +1075,65 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
                 return output(ledger, 'wait', 'identity_temporarily_unavailable', thread)
             return output({}, 'stop', 'binding_unknown', thread)
         except (ValueError, TypeError):
+            if command == 'accept-goal-revision':
+                origin = ledger.get('goal_mismatch_origin')
+                if poison_goal_revision_origin(ledger):
+                    atomic(path, ledger)
+                return output(ledger, 'stop', 'goal_revision_identity_rejected', thread)
             if ledger:
+                origin = ledger.get('goal_mismatch_origin')
+                poison_goal_revision_origin(ledger)
                 end_full_budget(ledger, 'binding_unknown')
                 ledger.update(terminal_action='stop', terminal_reason='binding_unknown')
                 atomic(path, ledger)
             return output(ledger, 'stop', 'binding_unknown', thread)
+        old_goal = ledger.get('goal')
+        same_revision_identity = (
+            ledger.get('binding') == binding and isinstance(old_goal, dict)
+            and set(old_goal) == set(current_goal) == {'id', 'created_at_ms', 'objective_sha256'}
+            and isinstance(old_goal.get('id'), str) and bool(old_goal['id'])
+            and old_goal['id'] == current_goal['id']
+            and type(old_goal.get('created_at_ms')) is int
+            and type(current_goal.get('created_at_ms')) is int
+            and old_goal['created_at_ms'] == current_goal['created_at_ms'])
+        origin = ledger.get('goal_mismatch_origin')
+        if (isinstance(origin, dict) and origin.get('eligible') is True
+                and not ledger.get('terminal_action')
+                and not {'at', 'binding', 'previous_goal', 'observed_status',
+                         'previous_terminal_action', 'previous_terminal_reason'} <= set(origin)):
+            return output(ledger, 'stop', 'goal_revision_origin_rejected', thread)
+        if (isinstance(origin, dict) and origin.get('eligible') is True
+                and (not same_revision_identity or status != 'active')):
+            # 观察到身份或控制边界后永久污染本次来源；切回原Goal也不能复活。
+            if poison_goal_revision_origin(ledger):
+                atomic(path, ledger)
+        if command == 'accept-goal-revision':
+            result = accept_goal_revision(
+                ledger, thread, binding, current_goal, status, home,
+                goal_evidence_file, expected_objective_sha256, user_authorization, now,
+                clock=time.time if fixed_now is None else lambda: now)
+            if result['reason'] in ('goal_revision_accepted_checkpoint_required',
+                                    'goal_revision_identity_changed'):
+                atomic(path, ledger)
+            return result
         if ledger and (ledger.get('binding') != binding or ledger.get('goal') != current_goal):
             end_full_budget(ledger, 'goal_or_binding_changed')
-            ledger.update(terminal_action='stop', terminal_reason='goal_or_binding_changed')
+            # 正文变化不能掩盖先前暂停、完成或额度终态；旧版无归因的mismatch也不补造来源。
+            if ledger.get('terminal_action'):
+                return output(ledger, ledger['terminal_action'], ledger['terminal_reason'], thread)
+            candidate = copy.deepcopy(ledger)
+            candidate['goal_mismatch_origin'] = {
+                'at': now, 'binding': copy.deepcopy(ledger.get('binding')),
+                'previous_goal': copy.deepcopy(ledger.get('goal')),
+                'observed_status': status,
+                'eligible': (same_revision_identity and status == 'active'
+                             and old_goal['objective_sha256'] != current_goal['objective_sha256']),
+                'previous_terminal_action': None, 'previous_terminal_reason': None}
+            candidate.update(terminal_action='stop', terminal_reason='goal_or_binding_changed')
+            if not revision_ledger_fits(candidate):
+                return output(ledger, 'stop', 'goal_revision_ledger_limit', thread)
+            ledger.clear()
+            ledger.update(candidate)
             atomic(path, ledger)
             return output(ledger, 'stop', 'goal_or_binding_changed', thread)
         if status in ('complete', 'paused'):
@@ -534,6 +1143,9 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
                 ledger.update(terminal_action=action, terminal_reason=reason, goal_status=status)
                 atomic(path, ledger)
             return output(ledger or {'goal': current_goal, 'goal_status': status}, action, reason, thread)
+        if (ledger.get('goal_revision_checkpoint_required_at') is not None
+                and not ledger.get('terminal_action') and command != 'checkpoint'):
+            return output(ledger, 'wait', 'goal_revision_checkpoint_required', thread)
         if command == 'rebase-budget':
             result = rebase_budget(ledger, thread, binding, current_goal, status, home,
                                    usage_file, authorization_file, now, user_authorization,
@@ -544,7 +1156,7 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
         if command == 'resume':
             result = resume_ledger(ledger, thread, binding, current_goal, status, home,
                                    usage_file, now, user_authorization)
-            if result['action'] == 'continue':
+            if result['action'] == 'continue' or result['reason'] == 'goal_revision_checkpoint_required':
                 atomic(path, ledger)
             return result
         if command == 'authorize-full-budget':
@@ -607,10 +1219,22 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
             return output(ledger, 'continue', 'automation_bound', thread)
         if command in ('check', 'checkpoint') and not ledger.get('automation_id'):
             return output(ledger, 'stop', 'automation_unbound', thread)
+        revision_checkpoint = ledger.get('goal_revision_checkpoint_required_at')
+        if revision_checkpoint is not None and command != 'checkpoint':
+            return output(ledger, 'wait', 'goal_revision_checkpoint_required', thread)
         available = False
         ledger.pop('usage_error', None)
         try:
-            available = budget_check(ledger, usage_snapshot(usage_file, thread, now), now)
+            if revision_checkpoint is not None:
+                envelope = read_json(usage_file)
+                response = usage_envelope(envelope, thread, now)
+                if (type(revision_checkpoint) not in (int, float)
+                        or not math.isfinite(revision_checkpoint)
+                        or envelope['observed_at'] <= revision_checkpoint):
+                    return output(ledger, 'wait', 'goal_revision_checkpoint_required', thread)
+            else:
+                response = usage_snapshot(usage_file, thread, now)
+            available = budget_check(ledger, response, now)
         except UsageSnapshotError as error:
             ledger['usage_status'] = 'usage_budget_unknown'
             ledger['usage_error'] = str(error)
@@ -633,6 +1257,7 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
                 atomic(path, ledger)
                 return output(ledger, 'stop', 'binding_changed_during_check', thread)
             ledger.pop('first_wait_at', None)
+            ledger.pop('goal_revision_checkpoint_required_at', None)
             action, reason = 'continue', 'usage_available'
         else:
             ledger.setdefault('first_wait_at', now)
@@ -667,6 +1292,18 @@ def main():
     rebase.add_argument('--authorization-file', type=Path, required=True)
     rebase.add_argument('--user-authorization', required=True,
                         help='真人明确重建百分比基线；调用者核read_thread来源，不能由额度恢复推断')
+    revision = commands.add_parser('accept-goal-revision')
+    revision.add_argument('--goal-evidence-file', type=Path, required=True)
+    revision.add_argument('--expected-objective-sha256', required=True)
+    revision.add_argument('--user-authorization', required=True,
+                          help='调用Agent先核本次真人修订同一Goal；参数本身不是授权证明，不重算预算')
+    origin = commands.add_parser('recover-goal-revision-origin')
+    origin.add_argument('--origin-evidence-file', type=Path, required=True)
+    origin.add_argument('--goal-evidence-file', type=Path, required=True)
+    origin.add_argument('--expected-ledger-sha256', required=True)
+    origin.add_argument('--expected-objective-sha256', required=True)
+    origin.add_argument('--user-authorization', required=True,
+                        help='Agent已核本次真人修订/active与单Root审计；参数本身不是授权证明')
     commands.add_parser('bind').add_argument('--automation-id', required=True)
     replacement = commands.add_parser('rebind')
     replacement.add_argument('--automation-id', required=True)
@@ -677,7 +1314,11 @@ def main():
                      getattr(args, 'automation_id', None),
                      previous_automation_id=getattr(args, 'previous_automation_id', None),
                      user_authorization=getattr(args, 'user_authorization', None),
-                     authorization_file=getattr(args, 'authorization_file', None))
+                     authorization_file=getattr(args, 'authorization_file', None),
+                     goal_evidence_file=getattr(args, 'goal_evidence_file', None),
+                     expected_objective_sha256=getattr(args, 'expected_objective_sha256', None),
+                     origin_evidence_file=getattr(args, 'origin_evidence_file', None),
+                     expected_ledger_sha256=getattr(args, 'expected_ledger_sha256', None))
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
         result = output({}, 'stop', 'local_evidence_unavailable', args.thread)
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))

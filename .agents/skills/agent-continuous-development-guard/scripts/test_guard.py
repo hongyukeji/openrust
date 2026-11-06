@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPT = Path(__file__).with_name('guard.py')
 spec = importlib.util.spec_from_file_location('recovery', SCRIPT)
@@ -1447,26 +1447,146 @@ else:
             time.sleep(.1)
         self.fail('未在期限内达到预期进程状态')
 
+    def preserve_fixture_failure(self, observation, error):
+        """仅归档当前假fixture，保存先于TemporaryDirectory退出；不放宽清理断言。"""
+        expected = self.root / '.agents/project/guards' / self.agent
+        if self.runtime != expected or not self.runtime.resolve().is_relative_to(self.root):
+            raise ValueError('fixture归属不匹配')
+        destination = Path(os.environ.get('GUARD_TEST_ARTIFACT_DIR',
+                           str(Path.cwd() / 'tmp/guard-lifecycle-evidence')))
+        destination = destination / (self.id().rsplit('.', 1)[-1] + '-' + str(time.time_ns()))
+        destination.mkdir(parents=True, exist_ok=False)
+        evidence = {'test': self.id(), 'fixture_only': True, 'fixture_root': str(self.root),
+                    'runtime': str(self.runtime), 'captured_at': time.time(),
+                    'failure_type': type(error).__name__, 'observation': observation,
+                    'files': {}, 'processes': []}
+        allowed = {
+            'supervisor.json': ('pid', 'created'), 'worker.json': ('pid', 'created'),
+            'state.json': ('status', 'reason', 'check_after', 'retry_at', 'check_failures',
+                           'last_check', 'last_seen', 'last_run', 'worker_pid'),
+            'config.json': ('backend', 'agent', 'thread', 'goal_id', 'goal_created_at_ms',
+                            'goal_objective_sha256', 'cwd', 'root', 'rollout')}
+        pids = set()
+        for name in ('watch.log', 'supervisor.json', 'worker.json', 'pid', 'state.json', 'config.json', 'disabled'):
+            path = self.runtime / name
+            item = {'exists': path.exists()}
+            evidence['files'][name] = item
+            if not item['exists']:
+                continue
+            if path.is_symlink() or not path.resolve().is_relative_to(self.root):
+                item['read'] = 'refused_outside_fixture'
+                continue
+            try:
+                stat = path.stat()
+                item.update(size=stat.st_size, mtime_ns=stat.st_mtime_ns)
+                with path.open('rb') as stream:
+                    if name == 'watch.log':
+                        stream.seek(max(0, stat.st_size - 128 * 1024))
+                    raw = stream.read(128 * 1024 + 1)
+                if len(raw) > 128 * 1024:
+                    item['read'] = 'bounded_limit'
+                    continue
+                if name == 'watch.log':
+                    (destination / 'watch.log.tail').write_bytes(raw)
+                    item['saved_tail_bytes'] = len(raw)
+                elif name in allowed:
+                    value = json.loads(raw)
+                    item['fields'] = {key: value[key] for key in allowed[name] if key in value}
+                    pid = value.get('pid')
+                    if type(pid) is int and pid > 0:
+                        pids.add(pid)
+                elif name == 'pid':
+                    pid = int(raw.strip())
+                    if pid > 0:
+                        pids.add(pid)
+                        item['pid'] = pid
+            except (OSError, ValueError, TypeError) as failure:
+                item['read_error_type'] = type(failure).__name__
+        for pid in sorted(pids):
+            process = {'pid': pid}
+            evidence['processes'].append(process)
+            try:
+                if os.name == 'nt':
+                    process['created'] = recovery.platform.process_identity(pid)
+                    continue
+                snapshot = subprocess.run(['ps', '-p', str(pid), '-o', 'pid=,ppid=,pgid=,stat=,command='],
+                                          capture_output=True, text=True, timeout=5, check=False)
+                process['ps_returncode'] = snapshot.returncode
+                process['ps_timeout_seconds'] = 5
+                process['ps_stderr'] = snapshot.stderr[-2048:]
+                columns = snapshot.stdout.strip().split(None, 4)
+                if len(columns) == 5:
+                    process.update(pid=int(columns[0]), ppid=int(columns[1]), pgid=int(columns[2]),
+                                   stat=columns[3])
+                    if str(self.script) in columns[4] and str(self.runtime) in columns[4]:
+                        process['fixture_command'] = columns[4]
+                    else:
+                        process['command'] = 'redacted_not_owned_fixture'
+            except (OSError, ValueError, subprocess.TimeoutExpired) as failure:
+                process['snapshot_error_type'] = type(failure).__name__
+                if isinstance(failure, subprocess.TimeoutExpired):
+                    process['ps_timeout_seconds'] = 5
+                    process['timed_out'] = True
+        (destination / 'fixture-evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+        sys.stderr.write('Lifecycle fixture evidence: ' + str(destination) + '\n')
+        return destination
+
     def tearDown(self):
         signalled_owned_supervisor = False
-        if self.runtime.exists():
-            (self.runtime / 'disabled').touch()
-            supervisor_path = self.runtime / 'supervisor.json'
-            if supervisor_path.exists():
-                supervisor = json.loads(supervisor_path.read_text())
-                # SIGKILL回归的监督进程有30秒重启冷却；直接通知本fixture的已验证进程退出。
-                with patch.object(recovery, 'SCRIPT', self.script):
-                    owned = recovery.supervisor_alive(supervisor, self.runtime)
-                if owned:
-                    signalled_owned_supervisor = True
+        observation = {'owned_supervisor': None, 'signal': 'not_sent', 'timeout_seconds': 45}
+        try:
+            if self.runtime.exists():
+                observation['stage'] = 'write_disabled'
+                (self.runtime / 'disabled').touch()
+                observation['disabled_touched_at'] = time.time()
+                supervisor_path = self.runtime / 'supervisor.json'
+                if supervisor_path.exists():
+                    observation['stage'] = 'read_supervisor_marker'
+                    supervisor = json.loads(supervisor_path.read_text())
+                    observation['supervisor_marker'] = {key: supervisor[key] for key in ('pid', 'created') if key in supervisor}
+                    # SIGKILL回归的监督进程有30秒重启冷却；直接通知本fixture的已验证进程退出。
+                    observation['stage'] = 'verify_supervisor_ownership'
+                    with patch.object(recovery, 'SCRIPT', self.script):
+                        owned = recovery.supervisor_alive(supervisor, self.runtime)
+                    observation['owned_supervisor'] = owned
+                    if owned:
+                        signalled_owned_supervisor = True
+                        observation['stage'] = 'signal_supervisor'
+                        try:
+                            os.kill(supervisor['pid'], signal.SIGTERM)
+                            observation['signal'] = 'SIGTERM_sent'
+                        except ProcessLookupError as signal_error:
+                            observation['signal'] = 'process_missing'
+                            observation['signal_errno'] = signal_error.errno
+                        except OSError as signal_error:
+                            observation['signal'] = 'signal_failed'
+                            observation['signal_errno'] = signal_error.errno
+                            observation['signal_error_type'] = type(signal_error).__name__
+                            raise
+                observation['stage'] = 'wait_supervisor_marker_absence'
+                self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists(), timeout=45)
+            observation['stage'] = 'assert_owned_signal'
+            if getattr(self, 'require_owned_signal', False):
+                self.assertTrue(signalled_owned_supervisor)
+        except BaseException as error:
+            destination = None
+            try:
+                destination = self.preserve_fixture_failure(observation, error)
+            except Exception as archive_error:
+                sys.stderr.write('Lifecycle fixture evidence failed: ' + type(archive_error).__name__ + '\n')
+            try:
+                self.temp.cleanup()
+            except BaseException as cleanup_error:
+                # 二次清理失败只记类型，不覆盖原45秒/归属/系统信号失败。
+                sys.stderr.write('Lifecycle fixture cleanup failed: ' + type(cleanup_error).__name__ + '\n')
+                if destination is not None:
                     try:
-                        os.kill(supervisor['pid'], signal.SIGTERM)
-                    except ProcessLookupError:
+                        (destination / 'secondary-cleanup-error.json').write_text(json.dumps(
+                            {'failure_type': type(cleanup_error).__name__}) + '\n')
+                    except Exception:
                         pass
-            self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists(), timeout=45)
+            raise
         self.temp.cleanup()
-        if getattr(self, 'require_owned_signal', False):
-            self.assertTrue(signalled_owned_supervisor)
 
     def test_binding_mismatch_cannot_enrol(self):
         value = json.loads(self.record.read_text())
@@ -2999,6 +3119,98 @@ class SupervisorCleanupOrder(unittest.TestCase):
                  patch.object(Path, 'unlink', autospec=True, side_effect=unlink):
                 recovery.supervise(runtime, 999)
             self.assertEqual(removed, ['worker.json', 'pid', 'supervisor.json'])
+
+
+class LifecycleDiagnostics(unittest.TestCase):
+    """只用假fixture和模拟进程结果验证失败保全，不启动守护。"""
+    def fixture(self, folder):
+        case = Lifecycle('test_killed_worker_is_restarted_without_second_supervisor')
+        case.root = (Path(folder) / 'fixture').resolve()
+        case.root.mkdir()
+        case.agent = '11111111-1111-4111-8111-111111111111'
+        case.runtime = case.root / '.agents/project/guards' / case.agent
+        case.runtime.mkdir(parents=True)
+        case.script = case.root / 'reusable-skill/scripts/guard.py'
+        case.temp = Mock()
+        (case.runtime / 'supervisor.json').write_text(json.dumps({'pid': 99999991, 'created': 17}))
+        (case.runtime / 'watch.log').write_text('fake fixture watch evidence')
+        (case.runtime / 'config.json').write_text(json.dumps({'agent': case.agent, 'access_token': 'private-token'}))
+        return case
+
+    def archived(self, folder):
+        return json.loads(next((Path(folder) / 'evidence').glob('*/fixture-evidence.json')).read_text())
+
+    def ps_result(self):
+        return recovery.SimpleNamespace(returncode=0, stdout='99999991 1 99999991 S unrelated-secret-argument', stderr='')
+
+    def test_timeout_archives_before_explicit_cleanup_and_keeps_original_45s_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            case = self.fixture(folder)
+            def cleanup():
+                self.assertTrue(list((Path(folder) / 'evidence').glob('*/fixture-evidence.json')))
+            case.temp.cleanup.side_effect = cleanup
+            with patch.dict(os.environ, {'GUARD_TEST_ARTIFACT_DIR': str(Path(folder) / 'evidence')}), \
+                    patch.object(recovery, 'supervisor_alive', return_value=False), \
+                    patch.object(os, 'kill') as kill, \
+                    patch.object(subprocess, 'run', return_value=self.ps_result()), \
+                    patch.object(case, 'wait_for', side_effect=AssertionError('original 45s failure')) as wait:
+                with self.assertRaisesRegex(AssertionError, 'original 45s failure'):
+                    case.tearDown()
+            self.assertEqual(wait.call_args.kwargs['timeout'], 45)
+            kill.assert_not_called()
+            case.temp.cleanup.assert_called_once()
+            evidence = self.archived(folder)
+            self.assertFalse(evidence['observation']['owned_supervisor'])
+            self.assertEqual(evidence['observation']['stage'], 'wait_supervisor_marker_absence')
+            if os.name != 'nt':
+                self.assertEqual(evidence['processes'][0]['command'], 'redacted_not_owned_fixture')
+            else:
+                self.assertNotIn('fixture_command', evidence['processes'][0])
+            self.assertNotIn('unrelated-secret-argument', json.dumps(evidence))
+            self.assertNotIn('private-token', json.dumps(evidence))
+            self.assertTrue(list((Path(folder) / 'evidence').glob('*/watch.log.tail')))
+
+    def test_secondary_cleanup_error_never_masks_original_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            case = self.fixture(folder)
+            case.temp.cleanup.side_effect = RuntimeError('private cleanup detail')
+            with patch.dict(os.environ, {'GUARD_TEST_ARTIFACT_DIR': str(Path(folder) / 'evidence')}), \
+                    patch.object(recovery, 'supervisor_alive', return_value=False), \
+                    patch.object(subprocess, 'run', return_value=self.ps_result()), \
+                    patch.object(case, 'wait_for', side_effect=AssertionError('original failure')):
+                with self.assertRaisesRegex(AssertionError, 'original failure'):
+                    case.tearDown()
+            self.assertEqual(self.archived(folder)['failure_type'], 'AssertionError')
+            secondary = json.loads(next((Path(folder) / 'evidence').glob('*/secondary-cleanup-error.json')).read_text())
+            self.assertEqual(secondary, {'failure_type': 'RuntimeError'})
+
+    def test_owned_assertion_is_archived_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            case = self.fixture(folder)
+            case.require_owned_signal = True
+            with patch.dict(os.environ, {'GUARD_TEST_ARTIFACT_DIR': str(Path(folder) / 'evidence')}), \
+                    patch.object(recovery, 'supervisor_alive', return_value=False), \
+                    patch.object(subprocess, 'run', return_value=self.ps_result()), \
+                    patch.object(case, 'wait_for'):
+                with self.assertRaises(AssertionError):
+                    case.tearDown()
+            self.assertEqual(self.archived(folder)['observation']['stage'], 'assert_owned_signal')
+            case.temp.cleanup.assert_called_once()
+
+    def test_signal_permission_error_records_errno_stage_and_is_not_swallowed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            case = self.fixture(folder)
+            with patch.dict(os.environ, {'GUARD_TEST_ARTIFACT_DIR': str(Path(folder) / 'evidence')}), \
+                    patch.object(recovery, 'supervisor_alive', return_value=True), \
+                    patch.object(subprocess, 'run', return_value=self.ps_result()), \
+                    patch.object(os, 'kill', side_effect=PermissionError(1, 'private signal detail')):
+                with self.assertRaises(PermissionError):
+                    case.tearDown()
+            evidence = self.archived(folder)
+            self.assertEqual(evidence['observation']['signal_errno'], 1)
+            self.assertEqual(evidence['observation']['stage'], 'signal_supervisor')
+            self.assertEqual(evidence['observation']['signal'], 'signal_failed')
+            case.temp.cleanup.assert_called_once()
 
 
 if __name__ == '__main__':

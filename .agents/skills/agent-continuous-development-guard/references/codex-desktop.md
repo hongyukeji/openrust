@@ -66,6 +66,32 @@ python3 -B .agents/skills/agent-continuous-development-guard/scripts/guard_heart
 
 仅同账号/limit/窗口集合/时长，原线程、原绑定、已登记automation及二次Goal核验通过才能落账。只更新当前账号百分比窗口，保存完整旧账号预算审计，credits原基线及其他账号不变；默认20%保留、credits禁用，不复活已结束的完整额度覆盖，active覆盖须先按正式流程结束。拒绝同一真人水位重放；只解除goal_paused/usage_wait_expired旧停态，随后checkpoint继续才可业务。该入口不恢复Goal、不重启自动化、不修改内部数据库。
 
+### 同一 Goal 的真人正文修订
+
+真人通过 Goal 编辑器修订原目标并明确继续同一任务时，普通 `check/checkpoint` 仍先以 `goal_or_binding_changed` 停止，不能忽略摘要差异或重新init。总控先保全原账本和停止回执，用正式工具暂停仅本任务automation，再核本次真实用户要求、原Goal ID/创建时间、线程/项目绑定及正式active状态。心跳、同名任务、单独额度恢复或参数文本都不是修订授权。
+
+确认只是同一原Goal的真人正文修订后，调用显式入口：
+
+```text
+python3 -B .agents/skills/agent-continuous-development-guard/scripts/guard_heartbeat.py --thread <原线程> accept-goal-revision --goal-evidence-file <正式Goal原始envelope> --expected-objective-sha256 <账本原目标摘要> --user-authorization '<已核本次真人修订并继续原任务的说明>'
+```
+
+Goal envelope为`{source:'get_goal',thread:<原线程>,observed_at:<本次真实time.time()>,payload:<正式get_goal完整原始JSON>}`，120秒内使用。builtin返回的Goal不含ID时，不捏造字段；helper用正式正文/状态/线程/创建秒与只读身份中的同一ID、创建毫秒交叉核验。调用前后都核当前身份，证据过期、真实暂停、创建时间/ID或绑定变化一律拒绝；回执若额外提供id/goalId也须一致。同一active Goal连续修订正文可采用最后正式值，但期间观察到不相容身份或非active状态后，不能切回旧身份复活此前可采用标记。
+
+此入口只将已核的新正文摘要登记为原Goal的新修订，并追加旧/新身份与证据审计；原账号/窗口预算、credits基线、完整额度覆盖及发送/问答历史保持，ended grant不恢复。仅首次在无旧终态、同绑定/ID/创建时间且active时观察到的纯正文修订，才登记可采用来源；普通检查保留已有终态归因，不能先覆盖成摘要变化再解除。旧版没有来源记录的停止保持拒绝，last_check=continue不能单独补造此前无停态。只有有确证来源的`goal_or_binding_changed`终态可解除；不解除其他暂停/停止，不修改宿主Goal或内部数据库，不替换automation。幂等重调不增加修订，也不授予继续资格。
+
+成功返回`wait/goal_revision_accepted_checkpoint_required`。随后重新取得时间严格晚于采用时刻的正式额度并checkpoint；resume/bind等其他路径不能越过此门禁，同秒或更早回执均拒绝。同一原Goal active且continue后，正式恢复原automation并核回执，才回唯一todo实际使用业务工具。只有观察到后续新业务工具，才能报告恢复开发；修订登记或自动化回执本身均不算业务推进。
+
+### 旧版修订停态的来源登记
+
+旧版可能把已有停止原因覆盖为`goal_or_binding_changed`，且没有登记来源。`last_check=continue`、当前active或额度恢复均不能独自证明此前无其他停态，普通采用入口保持拒绝，不能手工补写账本或重新init。
+
+仅在明确单一总控writer且证据无冲突的任务中，可以通过独立审计作一次有界来源裁定：正式未截断的原线程记录须覆盖最后continue到首次stop的完整工具区间及原始原因；逐项保存真实失败、执行时源码与作用域证明，结合当前绑定/Goal身份、真实用户修订/active要求及controller证据。此模型不声称有全宿主进程写journal，也不把旧stop回执内缓存的goal_status当历史宿主状态证明。旧合作器的manual_stop或pending属于独立控制面，不借此复活或清账。
+
+显式`recover-goal-revision-origin`维护入口须锁内CAS原账本原始字节SHA、原目标SHA及同一线程/绑定/Goal ID/创建时间/automation，核新鲜正式Goal及所有审计原始文件摘要、完整事件顺序与无截断。只有原stop为goal_or_binding_changed且完全没有origin可登记；已知其他终态、失效来源、CAS变化、证据矛盾或未知写入一律拒绝。已由审计明确裁定为无guard副作用的中间失败必须按原event/status/exit/hash逐项保留，不能伪报成功或概括放行。
+
+登记只追加`recovered_root_single_writer`来源和审计记录，原terminal、目标摘要、预算/账号/credits/完整额度覆盖及其他历史保持，返回wait。它不是修订采用或开发恢复；之后仍须单独accept-goal-revision、严格更新的正式额度checkpoint，以及正式恢复原automation回执和实际业务工具。所有新增写入同样受MAX_JSON约束并原子持久化，不能通过裁剪历史使其通过。
+
 ### 异常诊断与自动续作
 
 守护的目标是恢复原开发停点。`wait` 不是“只记录后永远不处理”，应结合结构化 `recovery` 字段行动：
