@@ -5,6 +5,7 @@
 //! `Value::Object` 在输入 bag 中表示 PHP 关联数组，不表示任意 PHP 对象。
 
 use serde_json::Value;
+use std::borrow::Cow;
 
 const TWO_TO_63: f64 = 9_223_372_036_854_775_808.0;
 
@@ -177,6 +178,25 @@ fn integer_string(text: &str) -> i64 {
         i64::MIN
     } else {
         double_integer(number)
+    }
+}
+
+// Zend先截显式指数，再处理尾数与小数位置；仅供互操作比较复用。
+pub(crate) fn decimal_text(text: &str) -> Cow<'_, str> {
+    let Some(index) = text.find(['e', 'E']) else {
+        return Cow::Borrowed(text);
+    };
+    let exponent = &text[index + 1..];
+    let magnitude = exponent
+        .strip_prefix('+')
+        .or_else(|| exponent.strip_prefix('-'))
+        .unwrap_or(exponent)
+        .trim_start_matches('0');
+    if magnitude.len() > 8 || magnitude.parse::<u32>().is_ok_and(|value| value > 19_999) {
+        let sign = if exponent.starts_with('-') { "-" } else { "" };
+        Cow::Owned(format!("{}e{sign}19999", &text[..index]))
+    } else {
+        Cow::Borrowed(text)
     }
 }
 

@@ -40,7 +40,9 @@ MB-A01 已由 `06b4d50c6c89001a2db0adee2ff54f13d78bffb8` 限定提交并核远�
 
 完整适用主线门禁、真实双库原始行与认证、实际SQLite3.26、三后端生成认证应用及适用consumer已通过。JSON使用局部RawValue保持数字词法，不启用全局arbitrary_precision；PHP8.5.12对照及真实HTTP getter见证通过。范围和输入绑定见[验收](../memory/testing.md#模型属性与认证前置限定验收)。
 
-完整Eloquent save/dirty/关系、日期及完整值载体、PG会话显示仍开放；内存回滚不保证未知DB提交或跨连接持久顺序。公开边界见[模型基础](../../../docs/src/eloquent/getting-started.md)。
+MB-P01-A 已收齐原始基线/dirty/changes/previous与单值cast、唯一账户记录无持久化预览的[限定验收](../memory/testing.md#模型属性状态与无持久预览限定验收)。水合建立original，普通赋值不自动推进基线，同步仅改内存；根/生成User及外包复用同一公开管线。
+
+完整转换后getOriginal、fill/save/事件/关系、日期和全部cast/值载体、PG会话显示仍开放；内存回滚不保证未知DB提交或跨连接持久顺序。公开边界见[模型基础](../../../docs/src/eloquent/getting-started.md)。
 
 
 ## SQLite 同机 SharedLocks

@@ -898,3 +898,50 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod attribute_snapshot_tests {
+    use super::User;
+    use openrust::{
+        Result,
+        auth::Authenticatable,
+        database::eloquent::{AttributeCast, ModelIdentity, ModelMetadata},
+    };
+    use serde_json::{Map, json};
+    use std::sync::Arc;
+
+    #[test]
+    fn public_user_attributes_keep_hydrated_original_and_explicit_changes() -> Result<()> {
+        let mut metadata = ModelMetadata::new("users", "app::models::user::User");
+        metadata
+            .casts
+            .insert("password_hash".into(), AttributeCast::Hashed);
+        let user = User::new(Map::from_iter([
+            ("id".into(), json!("00042")),
+            ("password_hash".into(), json!("hydrated-hash")),
+        ]))
+        .with_model_metadata(Arc::new(metadata));
+        let attributes = user.model_attributes();
+        assert!(attributes.is_clean(user.model_metadata(), &[])?);
+        assert_eq!(attributes.get_raw_original("id")?, Some(json!("00042")));
+        attributes.set_raw_attribute("id", json!(42))?;
+        assert!(attributes.is_clean(user.model_metadata(), &["id"])?);
+        assert_eq!(user.auth_identifier()?, json!(42));
+        attributes.set_raw_attribute("password_hash", json!("replacement-hash"))?;
+        attributes.sync_changes(user.model_metadata())?;
+        assert_eq!(
+            attributes.get_previous()?.get("password_hash"),
+            Some(&json!("hydrated-hash"))
+        );
+        assert_eq!(
+            attributes.get_changes()?.get("password_hash"),
+            Some(&json!("replacement-hash"))
+        );
+        assert_eq!(user.auth_password()?, Some("replacement-hash".into()));
+        assert_eq!(
+            attributes.get_raw_original("password_hash")?,
+            Some(json!("hydrated-hash"))
+        );
+        Ok(())
+    }
+}

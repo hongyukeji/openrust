@@ -224,3 +224,7 @@ MySQL 冷 prepare 的 Future 被取消后，未完成的物理连接明确拒绝
 ## 模型属性与身份前置
 
 `eloquent` 提供 `ModelMetadata`、`ModelAttributes`、`ModelIdentity` 和原始行水合。getter/cast读取与raw分离，普通异步setter保护同字段后继，拥有式 `AttributeMutation` 用于外部操作失败/取消时同步恢复仍归本次的多字段补丁。正常属性读取与Cookie的committed快照读取分开；完整查询/save/关系及任意PG会话日期显示仍开放。公共用法与边界见[模型基础](../../../../../docs/src/eloquent/getting-started.md)。
+
+### 属性原值与变化快照
+
+同一 `ModelAttributes` 提供水合 original、cast感知的 `get_dirty`、显式 `sync_changes`/`get_previous` 与 fluent `sync_original*`。原始查询支持完整键优先与非通配符点路径；未决或过期快照明确409拒绝，逐字段同步缺项保已写前缀。同步只确认内存基线或变化，不执行SQL，不等同模型save；完整转换getOriginal及日期/自定义cast等仍开放。用法、错误与示例预览见[模型基础](../../../../../docs/src/eloquent/getting-started.md#原始基线与变化记录)。

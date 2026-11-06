@@ -1061,6 +1061,7 @@ async fn guarded_sqlite_owned_file_gc_upgrade_subseconds_and_renewal_race() -> T
     outcome
 }
 
+#[cfg(feature = "db-sqlite")]
 async fn sqlite_gc_crosses_batch_boundary(store: &GuardedDatabaseSessionStore) -> TestResult {
     let expired = OffsetDateTime::now_utc() - Duration::hours(1);
     // 513条跨越SQLite增强GC的512条扫描批次；不能只证明单批工作。

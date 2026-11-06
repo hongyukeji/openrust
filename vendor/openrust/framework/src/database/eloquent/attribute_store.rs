@@ -1,6 +1,6 @@
 //! 模型共享原始属性与访问器管线；对应 Laravel `HasAttributes` 的访问器优先顺序。
 
-use super::{AttributeCast, ModelMetadata, attribute_cast::cast_read_value};
+use super::{AttributeCast, ModelMetadata};
 use crate::Error;
 use crate::Result;
 use crate::support::BoxFuture;
@@ -34,6 +34,10 @@ pub trait AttributeSetter: Send + Sync {
 #[derive(Default)]
 struct State {
     raw: Map<String, Value>,
+    original: Map<String, Value>,
+    changes: Map<String, Value>,
+    previous: Map<String, Value>,
+    original_revision: u64,
     getters: BTreeMap<String, Arc<dyn AttributeGetter>>,
     setters: BTreeMap<String, Arc<dyn AttributeSetter>>,
     revision: u64,
@@ -45,7 +49,11 @@ struct State {
     setter_versions: BTreeMap<String, u64>,
 }
 
-/// 唯一模型原始属性存储；水合绕过访问器与hashed cast，不向外暴露锁guard。
+/// 唯一模型原始属性存储；水合绕过访问器与 hashed cast，不向外暴露锁 guard。
+///
+/// [`Self::new`] 将输入同时作为当前原值和 original 基线。赋值不会自动同步基线；
+/// [`Self::get_dirty`] 比较稳定原始快照，显式 [`Self::sync_changes`] 发布变化及旧原值交集。
+/// 这些内存状态操作不执行 SQL、模型事件或数据库提交，也不等同完整 Eloquent `save`。
 #[derive(Default)]
 pub struct ModelAttributes {
     state: Arc<RwLock<State>>,
@@ -60,6 +68,7 @@ impl ModelAttributes {
     pub fn new(raw: Map<String, Value>) -> Self {
         Self {
             state: Arc::new(RwLock::new(State {
+                original: raw.clone(),
                 raw,
                 ..State::default()
             })),
@@ -210,10 +219,7 @@ impl ModelAttributes {
         let value = if let Some(getter) = getter {
             getter.get(snapshot.get(name), &snapshot)?
         } else {
-            match metadata.effective_cast(name)? {
-                Some(cast) => cast_read_value(cast, snapshot.get(name).cloned())?,
-                None => snapshot.get(name).cloned(),
-            }
+            metadata.read_cast_attribute(name, snapshot.get(name).cloned())?
         };
         if self.state.read().map_err(|_| state_error())?.revision != revision {
             return Err(read_conflict("model_attribute_read_conflict"));
@@ -230,10 +236,7 @@ impl ModelAttributes {
             return getter.get(snapshot.get(name), &snapshot);
         }
         let raw = snapshot.get(name).cloned();
-        match metadata.effective_cast(name)? {
-            Some(cast) => cast_read_value(cast, raw),
-            None => Ok(raw),
-        }
+        metadata.read_cast_attribute(name, raw)
     }
     /// 已登记getter优先，否则使用模型自身的默认访问器；两者都在锁外执行。
     ///
@@ -357,7 +360,7 @@ impl ModelAttributes {
         Ok(if let Some(setter) = setter {
             setter.set(value, snapshot).await?
         } else {
-            let value = match metadata.effective_cast(name)? {
+            let value = match metadata.write_cast(name)? {
                 Some(AttributeCast::Array) if !value.is_null() => {
                     Value::String(super::attribute_cast::encode_array_json(&value)?)
                 }
@@ -448,10 +451,7 @@ impl ModelAttributes {
         let current = if let Some(getter) = getter {
             getter.get(snapshot.get(name), &snapshot)?
         } else {
-            match metadata.effective_cast(name)? {
-                Some(cast) => cast_read_value(cast, snapshot.get(name).cloned())?,
-                None => snapshot.get(name).cloned(),
-            }
+            metadata.read_cast_attribute(name, snapshot.get(name).cloned())?
         };
         if !predicate(current)? {
             return Ok(None);
@@ -848,3 +848,6 @@ fn hashing_required() -> Error {
 #[cfg(test)]
 #[path = "attribute_store_tests.rs"]
 mod tests;
+
+#[path = "attribute_state.rs"]
+mod persistence_state;

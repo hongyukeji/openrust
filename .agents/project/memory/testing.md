@@ -1,5 +1,17 @@
 # 测试基线
 
+## 模型属性状态与无持久预览限定验收
+
+MB-P01-A 在原 ModelAttributes/ModelMetadata 上增加 raw original、dirty、changes、previous 及显式内存同步，公开单值 cast 复用既有读取转换。同步不执行 SQL 或模型事件；未决回执/异步 setter 与并发版本变化保留明确冲突。唯一模块按账户隔离记录修改预览并返回 persisted=false，数据库整行不变；根和生成 User、外部 consumer 使用同一公开管线。
+
+精确最终输入为 `tmp/model-persistence-20261107/runtime-assembly-v10/manifest.json`（1615项、SHA `7fa1a4b72a7401b5dfa3f02e0dbb7458de58f65ad56d360ab5decb4a3ee0736a`），运行基线6395fb81、规范31叶变更树 `a64776f6702a23d4e6e0ec344e5eb304d24627da`。独立完整回执为 `tmp/independent-testing-20261106/MODEL-ATTRIBUTES-RESULT.json`（SHA `9bd5ef3225bf82ce23e648736454a90fab2cff877b5006827255caf0bb94b210`），包含21份原始回执摘要与未变源码映射。最终交付事实文档只经静态检查，不改变该运行树的源码。
+
+实际通过默认/全feature严格Clippy、默认workspace及日常MySQL组合、拒警Rustdoc/适用doctest、文档链接、最小feature与三driver编译、Rust1.97两配置、离线cached-advisory cargo deny。Eloquent94项（含18项新状态）、service3、User1、真实MySQL8.4.13预览综合流程1项及routine三个入口通过；12个外包编译与4组实际consumer通过。三类fresh生成应用minimal19、Web/Fortify50、显式JWT95项及locked metadata实际指向精确候选framework。
+
+固定Laravel d52c3b3/13.39.0、PHP8.5.12/64bit有17个实际观测与1项Rust专属分类；12源与Reflection核对、PDO/SQL为0，不把18行称18个PHP测试或单独推成Rust全等价。最终无SQLite auth-fortify workspace全target严格检查及SQLite测试/OIDC生产辅助函数的最小类型复验通过；两处cfg只按真实调用方收紧，函数体和有效断言不变。原dead-code、fixture数值更新、pending状态期望、格式工具嵌套workspace失败与资源软线回执保留，不以旧失败字段覆盖新精确通过证据。
+
+skip/ignored不算实服务。在线advisory刷新未执行；PG/SQLite/最低版本和Windows真实运行、外部OIDC/SMTP/受控副本及文件系统环境仍按相应矩阵验收。完整转换后getOriginal、fill/save/事件/关系/SQL生命周期、全cast和任意PHP值域仍未闭合；有限提交不代表整个Model、Passport/L090或Goal完成。
+
 核心功能当前逐项验收状态与百分比统一维护于[核心功能验收清单](core-functional-acceptance.md)，扩展单列。该清单回溯本文件的实际限定证据，不将本次记录审计当作新运行测试，不修改以下历史结果或替未提交源码背书。
 
 ## 模块扩展独立包限定验收

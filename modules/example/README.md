@@ -499,3 +499,13 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 同步翻译仅访问已发布快照；HTTP `response_context` 在取得请求槽后、共享绝对期限及取消信号内核对刷新，再按原始请求头协商一次，后台任务显式刷新。批量捕获、校验和原子发布失败保留上次有效快照并记录脱敏固定错误码；通知是提示，有界修订核对负责最终收敛，不承诺全节点即时一致。外部 SQL 必须按契约推进修订或显式刷新。Windows 原子文件打开边界与完整 Laravel Loader 对应仍是公开缺口。
 
 应用安装器在唯一 `default_providers()` 清单移出原默认 Translation 后追加到默认末尾，在 package register 前首次登记来源工厂与构造链装饰；不是 application Provider 列表中晚 force 替换。合法 package register 提前解析与 boot 后解析复用同一个 Arc/Source 目录。JWT 生成继续仅有一个 default_providers 函数，保留显式 Fortify 替换与 Cookie/Session 排除。
+
+## 记录修改预览与属性状态
+
+`POST /api/example/records/{id}/preview` 使用与记录CRUD相同的JWT认证、owner筛选和 `ExampleRecordInput` 校验；异主记录仍返回404，现有更新接口不变。正文与更新相同，响应包含 `original`、`proposed`、`dirty`、`changes`、`previous`、`has_changes` 和固定的 `persisted=false`。预览不会修改数据库，确认修改仍调用原更新接口。
+
+现有 `models/example_record::Model::attribute_snapshot` 从可编辑业务字段建立预览快照，不返回owner。`services/record_preview` 通过公开 `ModelAttributes` 赋值、cast感知比较和 `sync_changes` 发布预览变化，未调用 `sync_original` 表示已保存，也未建立第二种业务Model或自造Eloquent save。metadata两侧均按现有更新接口接受的serde JSON值序列化为文本，再使用公开原始单字段写入，保留整数与整double的 `.0` 差别；其他字段继续普通setter管线。读取比较复用Array cast；原始返回值不等同解码后的显示投影。数据库可能规范化JSON键顺序，键顺序本身属于严格比较，不能用无序JSON相等替代。
+
+该示范只覆盖内存属性状态；完整Model save/事件、日期和自定义cast仍有公开缺口。框架API及409/partial-sync边界见[模型基础](../../docs/src/eloquent/getting-started.md#原始基线与变化记录)。
+
+预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。

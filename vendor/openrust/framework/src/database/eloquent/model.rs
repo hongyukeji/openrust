@@ -57,12 +57,17 @@ impl ModelMetadata {
         if name != self.key_name || !self.incrementing {
             return Ok(None);
         }
-        let cast = match self.key_type.as_str() {
+        let key_type = self
+            .key_type
+            .trim_matches([' ', '\t', '\n', '\r', '\0', '\u{b}'])
+            .to_ascii_lowercase();
+        let cast = match key_type.as_str() {
             "int" | "integer" => AttributeCast::Integer,
             "string" => AttributeCast::String,
             "bool" | "boolean" => AttributeCast::Boolean,
             "float" | "double" | "real" => AttributeCast::Float,
             "array" | "json" => AttributeCast::Array,
+            "hashed" => AttributeCast::Hashed,
             _ => {
                 return Err(crate::Error::custom_with_status(
                     http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -72,6 +77,65 @@ impl ModelMetadata {
             }
         };
         Ok(Some(cast))
+    }
+    /// 对独立原始值执行本字段已支持的读取转换及原始声明检查。
+    ///
+    /// 复用模型属性的同一 cast 管线，不创建属性存储，不运行 getter、setter 或 SQL。
+    /// 这不是完整 `getAttribute`：调用者负责访问器、字段读取和缺项策略。
+    /// primitive null 保留读取短路；非空非规范 `Hashed` 声明仍返回原有转换错误。
+    pub fn cast_attribute(&self, name: &str, raw: Option<Value>) -> Result<Option<Value>> {
+        self.read_cast_attribute(name, raw)
+    }
+    // 归一类型供读取switch使用；落入class检查的入口仍须验证原始声明。
+    pub(crate) fn read_cast_attribute(
+        &self,
+        name: &str,
+        raw: Option<Value>,
+    ) -> Result<Option<Value>> {
+        match self.effective_cast(name)? {
+            Some(cast) => {
+                if cast == AttributeCast::Hashed
+                    && raw.as_ref().is_some_and(|value| !value.is_null())
+                {
+                    self.check_raw_class_cast(name)?;
+                }
+                super::attribute_cast::cast_read_value(cast, raw)
+            }
+            None => Ok(raw),
+        }
+    }
+    // setAttribute在JSON/hashed分派及null旁路之前检查原始class声明。
+    pub(crate) fn write_cast(&self, name: &str) -> Result<Option<AttributeCast>> {
+        self.check_raw_class_cast(name)?;
+        self.effective_cast(name)
+    }
+    fn check_raw_class_cast(&self, name: &str) -> Result<()> {
+        // 显式enum声明自身即规范类型，不继承被覆盖的key_type原文。
+        if self.casts.contains_key(name) || name != self.key_name || !self.incrementing {
+            return Ok(());
+        }
+        let raw = self.key_type.split(':').next().unwrap_or(&self.key_type);
+        if matches!(
+            raw,
+            "int"
+                | "integer"
+                | "string"
+                | "bool"
+                | "boolean"
+                | "float"
+                | "double"
+                | "real"
+                | "array"
+                | "json"
+                | "hashed"
+        ) {
+            return Ok(());
+        }
+        Err(crate::Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "model_attribute_cast_unsupported",
+            "模型属性声明的转换类型无效或尚未实现",
+        ))
     }
     /// 按模型连接、领域fallback、应用默认连接的顺序选择同一个公开 Db。
     ///
@@ -253,6 +317,87 @@ mod tests {
             assert_eq!(identity.key(), &key);
             assert_eq!(identity.model_type(), &Value::from(0));
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod key_cast_state_tests {
+    use super::*;
+
+    #[test]
+    fn key_cast_uses_php_trim_ascii_case_and_existing_supported_types() -> Result<()> {
+        let mut metadata = ModelMetadata::new("records", "app::Record");
+        for (declaration, expected) in [
+            (" INT ", AttributeCast::Integer),
+            ("\0\t\n\r\u{b}HaShEd\0", AttributeCast::Hashed),
+            (" JSON ", AttributeCast::Array),
+        ] {
+            metadata.key_type = declaration.into();
+            assert_eq!(metadata.effective_cast("id")?, Some(expected));
+        }
+        for declaration in [
+            "\u{c}int",
+            "int\u{c}",
+            "\u{a0}int",
+            "int\u{2003}",
+            "json:unicode",
+            "unsupported",
+        ] {
+            metadata.key_type = declaration.into();
+            assert!(
+                matches!(metadata.effective_cast("id"), Err(error) if error.code() == "model_attribute_cast_unsupported")
+            );
+        }
+        metadata.casts.insert("id".into(), AttributeCast::String);
+        assert_eq!(metadata.effective_cast("id")?, Some(AttributeCast::String));
+        metadata.casts.clear();
+        metadata.incrementing = false;
+        assert_eq!(metadata.effective_cast("id")?, None);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod public_cast_extension_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn public_cast_extension_uses_the_same_read_declaration_and_null_rules() -> Result<()> {
+        let mut metadata = ModelMetadata::new("records", "app::Record");
+        metadata.key_type = "hashed".into();
+        assert_eq!(
+            metadata.cast_attribute("id", Some(json!("plain")))?,
+            Some(json!("plain"))
+        );
+        metadata.key_type = " HaShEd ".into();
+        assert!(
+            matches!(metadata.cast_attribute("id", Some(json!(1))), Err(error) if error.code() == "model_attribute_cast_unsupported" && error.status().as_u16() == 500)
+        );
+        assert_eq!(
+            metadata.cast_attribute("id", Some(Value::Null))?,
+            Some(Value::Null)
+        );
+        assert_eq!(metadata.cast_attribute("id", None)?, None);
+        metadata.key_type = " INT ".into();
+        assert_eq!(
+            metadata.cast_attribute("id", Some(json!("01")))?,
+            Some(json!(1))
+        );
+        metadata.key_type = "unsupported".into();
+        assert!(
+            matches!(metadata.cast_attribute("id", Some(Value::Null)), Err(error) if error.code() == "model_attribute_cast_unsupported")
+        );
+        metadata.casts.insert("id".into(), AttributeCast::Hashed);
+        assert_eq!(
+            metadata.cast_attribute("id", Some(json!("plain")))?,
+            Some(json!("plain"))
+        );
+        assert_eq!(
+            metadata.cast_attribute("unconfigured", Some(json!({})))?,
+            Some(json!({}))
+        );
         Ok(())
     }
 }

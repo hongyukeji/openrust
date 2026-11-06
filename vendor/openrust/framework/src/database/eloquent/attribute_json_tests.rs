@@ -286,3 +286,18 @@ fn bounded_deep_parse_final_value_drop_and_partial_error_cleanup_work_on_reduced
         .map_err(|_| cast_failed())?;
     worker.join().map_err(|_| cast_failed())?
 }
+
+#[test]
+fn comparison_validates_duplicate_unicode_and_depth_before_using_php_arrays() -> Result<()> {
+    assert!(equivalent("{\"n\":1e999,\"n\":1}", "{\"n\":1}")?);
+    assert!(equivalent("{\"n\":\"\\ud800\",\"n\":1}", "null")?);
+    assert!(equivalent("{\"0\":[]}", "[{}]")?);
+    assert!(!equivalent("{\"00\":[]}", "[{}]")?);
+    assert!(!equivalent("{\"a\":1,\"b\":2}", "{\"b\":2,\"a\":1}")?);
+    let accepted = format!("{}1e999{}", "[".repeat(511), "]".repeat(511));
+    let rejected = format!("[{accepted}]");
+    assert!(equivalent(&accepted, &accepted)?);
+    assert!(!equivalent(&accepted, "null")?);
+    assert!(equivalent(&rejected, "null")?);
+    Ok(())
+}

@@ -1,5 +1,7 @@
 # 活跃待办
 
+- MB-P01通用Eloquent持久生命周期前置：owner=root；original/dirty/changes/previous与公开单值cast、唯一记录预览子范围已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)，精确v10/31叶运行输入与历史失败保全；提交见Git。完整转换后getOriginal、fill/forceFill、forceCreate/save/update、可取消事件、主键/时间戳/unique-id、scopes/owner关系及SQL生命周期仍开放。下一步复用唯一ModelMetadata/Attributes/Identity与已定Events/Schema前置，不在Passport自造模型持久链；当前契约和隔离候选见tmp/model-persistence-20261107/。
+
 > 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制，runner 路径和 fixture run ID 已修正。R2-N 已由 48be854 提交；R3-A/B/C/D/E/F 已按适用范围验收，C04-A/B1/B2/C已按子簇验收，后继C04-D Session/flash与Web栈契约待领取。
 
 > 受众：AI Agent

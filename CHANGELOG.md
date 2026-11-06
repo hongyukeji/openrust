@@ -10,6 +10,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- 模型原始基线、dirty、changes 与 previous 共用现有属性存储，提供显式内存同步和无存储副作用的单值 cast。唯一示例增加账户记录修改预览，返回 `persisted=false`，保持数据库记录不变；根应用、生成 User 和外部 consumer 同步接线。完整 `save`、事件、关系、批量赋值及转换后的原值读取仍待实现。
+
 - 翻译来源通过同一Loader/Translator选择文件、显式数据库及组合来源，提供有界快照、刷新与提交后提示；数据库来源位于独立可选扩展，根应用、唯一模块和生成项目共用公开Provider装配。文件仍默认，完整Laravel默认Loader/deferred/choice及发布前后端矩阵继续保留缺口。
 
 - 根项目对应 Laravel 应用骨架，框架迁入同仓独立 `openrust-framework` 包；根应用保持默认 server 与 `openrust::` 导入，工具、测试、consumer 与第三方源码路径同步分包。

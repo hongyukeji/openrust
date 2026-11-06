@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+模型属性状态 MB-P01-A 已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)：同一属性存储的 original/dirty/changes/previous、公开单值 cast、账户记录无持久化预览及根/生成 User/外包接线；完整转换后 getOriginal、fill/save、事件/关系和完整值域仍开放。有限提交以 Git 为准，下一步沿唯一 todo 处理 Events、Schema 与模型持久生命周期。
+
 核心功能验收按[逐项清单](memory/core-functional-acceptance.md)单独统计：2026-11-06已提交基线501e4a25，188项中72项已验收、86项部分完成、30项待开发，等权验收完成率**38.3%**。覆盖71个核心相关章节，扩展另列不计分母；这是固定功能单元清单的验收比例，不是代码量、工时或全部API方法覆盖率。AR-N01职责迁移单独计证，不因目录/API改名增加功能验收分子；复算入口为`scripts/summarize_core_acceptance.py`。
 
 模型属性与认证前置MB-A01已由`06b4d50`限定提交并核远端；主线、实库、最低SQLite与三后端生成/适用consumer验证通过，原失败和未闭合边界保留。C07-W01/W02已由ed3f608限定验收提交推送；AR-P01已由4463238完成根应用/框架独立包迁移和日常适用验收，见[根应用与框架独立包限定验收](memory/testing.md#根应用与框架独立包限定验收)；AR-M01已由6c21bab0限定验收提交推送，AR-N01职责命名空间限定迁移已由`b3f6117be1fc`提交，见[限定验收](memory/testing.md#命名空间与开发流程限定验收)，完整官方contract仍开放，J01代码/配套静审完成但尚未接线或运行；不报告完整Query/Model/框架已完成。

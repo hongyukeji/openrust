@@ -75,19 +75,7 @@ pub(crate) fn cast_read_value(cast: AttributeCast, raw: Option<Value>) -> Result
             Value::Null => false,
         }),
         AttributeCast::Float => {
-            // 固定fromFloat先按字符串精确识别三种特殊值；JSON载体不能以0冒充它们。
-            if matches!(
-                scalar_string(&value)?.as_str(),
-                "Infinity" | "-Infinity" | "NaN"
-            ) {
-                return Err(cast_failed());
-            }
-            let number = if let Value::String(text) = &value {
-                crate::support::scalars::numeric_prefix(text)
-                    .map_or(Ok(0.0), model_decimal_float)?
-            } else {
-                crate::support::scalars::float(&value)
-            };
+            let number = cast_float_value(&value)?;
             Value::Number(serde_json::Number::from_f64(number).ok_or_else(cast_failed)?)
         }
         AttributeCast::Array => {
@@ -100,6 +88,26 @@ pub(crate) fn cast_read_value(cast: AttributeCast, raw: Option<Value>) -> Result
     Ok(Some(value))
 }
 
+// 比较阶段保留原生double；只有公开读取输出Value时才拒绝非有限值。
+pub(crate) fn cast_float_value(value: &Value) -> Result<f64> {
+    match scalar_string(value)?.as_str() {
+        "Infinity" => Ok(f64::INFINITY),
+        "-Infinity" => Ok(f64::NEG_INFINITY),
+        "NaN" => Ok(f64::NAN),
+        _ => {
+            if let Value::String(text) = value {
+                crate::support::scalars::numeric_prefix(text).map_or(Ok(0.0), model_decimal_float)
+            } else {
+                Ok(crate::support::scalars::float(value))
+            }
+        }
+    }
+}
+
+pub(crate) fn array_cast_equivalent(left: &Value, right: &Value) -> Result<bool> {
+    json::equivalent(&scalar_string(left)?, &scalar_string(right)?)
+}
+
 pub(crate) fn scalar_string(value: &Value) -> Result<String> {
     if value.is_array() || value.is_object() {
         return Err(cast_failed());
@@ -110,21 +118,7 @@ pub(crate) fn scalar_string(value: &Value) -> Result<String> {
 // 固定zend_strtod先忽略指数前导零；超过8位或绝对值>19999时截断，再计算小数位置。
 // 不能先约去尾数零或合并小数位，否则两者抵消时会错误绕过这条可观察规则。
 fn model_decimal_text(text: &str) -> Cow<'_, str> {
-    let Some(index) = text.find(['e', 'E']) else {
-        return Cow::Borrowed(text);
-    };
-    let exponent = &text[index + 1..];
-    let magnitude = exponent
-        .strip_prefix('+')
-        .or_else(|| exponent.strip_prefix('-'))
-        .unwrap_or(exponent)
-        .trim_start_matches('0');
-    if magnitude.len() > 8 || magnitude.parse::<u32>().is_ok_and(|value| value > 19_999) {
-        let sign = if exponent.starts_with('-') { "-" } else { "" };
-        Cow::Owned(format!("{}e{sign}19999", &text[..index]))
-    } else {
-        Cow::Borrowed(text)
-    }
+    crate::support::scalars::decimal_text(text)
 }
 
 fn model_decimal_float(text: &str) -> Result<f64> {

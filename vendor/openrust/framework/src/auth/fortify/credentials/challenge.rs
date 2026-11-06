@@ -282,7 +282,7 @@ impl CredentialAuthority {
         })
     }
 
-    #[cfg(any(test, feature = "auth-oidc"))]
+    #[cfg(any(all(test, feature = "db-sqlite"), feature = "auth-oidc"))]
     pub(crate) async fn begin_login_in_transaction(
         &self,
         transaction: &DatabaseTransaction,

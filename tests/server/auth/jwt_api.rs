@@ -12,7 +12,9 @@ use openrust::http::axum::{
 use openrust::session::{SessionServiceProvider, SessionStoreHandle};
 use openrust::testing::{TestApp, TestAppBuilder, TestDatabase};
 use openrust::{Db, Error, Result};
-use openrust_modules::{ModuleProviderBuilderExt as _, ModuleTestAppBuilderExt as _};
+#[cfg(feature = "db-sqlite")]
+use openrust_modules::ModuleProviderBuilderExt as _;
+use openrust_modules::ModuleTestAppBuilderExt as _;
 use serde_json::{Value, json};
 use std::{net::SocketAddr, path::Path, time::Duration};
 

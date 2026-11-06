@@ -31,6 +31,83 @@ pub(super) fn decode(text: &str) -> Result<Value> {
     assemble(&mut nodes)
 }
 
+// 复用完整校验IR，不把比较中间double强制输出到serde_json::Value。
+pub(super) fn equivalent(left: &str, right: &str) -> Result<bool> {
+    let left = validate(left).unwrap_or_else(|| vec![Node::Null]);
+    let right = validate(right).unwrap_or_else(|| vec![Node::Null]);
+    let mut pending = vec![(0, 0)];
+    while let Some((left_index, right_index)) = pending.pop() {
+        let left = left.get(left_index).ok_or_else(cast_failed)?;
+        let right = right.get(right_index).ok_or_else(cast_failed)?;
+        match (left, right) {
+            (Node::Null, Node::Null) => {}
+            (Node::Bool(left), Node::Bool(right)) if left == right => {}
+            (Node::String(left), Node::String(right)) if left == right => {}
+            (Node::Number(left), Node::Number(right)) => {
+                if !numbers_equal(left, right)? {
+                    return Ok(false);
+                }
+            }
+            (Node::Array(_) | Node::Object(_), Node::Array(_) | Node::Object(_)) => {
+                let left = entries(left)?;
+                let right = entries(right)?;
+                if left.len() != right.len() {
+                    return Ok(false);
+                }
+                for ((left_key, left), (right_key, right)) in left.into_iter().zip(right) {
+                    if left_key != right_key {
+                        return Ok(false);
+                    }
+                    pending.push((left, right));
+                }
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+fn entries(node: &Node<'_>) -> Result<Vec<(crate::support::ArrayKey, usize)>> {
+    use crate::support::ArrayKey;
+    match node {
+        Node::Array(children) => children
+            .iter()
+            .enumerate()
+            .map(|(index, child)| {
+                i64::try_from(index)
+                    .map(|index| (ArrayKey::Integer(index), *child))
+                    .map_err(|_| cast_failed())
+            })
+            .collect(),
+        Node::Object(children) => Ok(children
+            .iter()
+            .map(|(key, child)| (ArrayKey::from(key.as_str()), *child))
+            .collect()),
+        _ => Err(cast_failed()),
+    }
+}
+
+fn input_number(text: &str) -> Result<crate::support::InputNumber> {
+    use crate::support::InputNumber;
+    if !text.bytes().any(|byte| matches!(byte, b'.' | b'e' | b'E'))
+        && let Ok(integer) = text.parse::<i64>()
+    {
+        return Ok(InputNumber::Integer(integer));
+    }
+    model_decimal_float(text).map(InputNumber::Float)
+}
+
+fn numbers_equal(left: &str, right: &str) -> Result<bool> {
+    use crate::support::InputNumber;
+    Ok(match (input_number(left)?, input_number(right)?) {
+        (InputNumber::Integer(left), InputNumber::Integer(right)) => left == right,
+        (InputNumber::Float(left), InputNumber::Float(right)) => {
+            left.partial_cmp(&right) == Some(std::cmp::Ordering::Equal)
+        }
+        _ => false,
+    })
+}
+
 fn validate(text: &str) -> Option<Vec<Node<'_>>> {
     let raw = serde_json::from_str::<&RawValue>(text).ok()?;
     let mut nodes = vec![Node::Null];
@@ -199,15 +276,12 @@ fn assemble(nodes: &mut [Node<'_>]) -> Result<Value> {
 }
 
 fn number(text: &str) -> Result<Value> {
-    if !text.bytes().any(|byte| matches!(byte, b'.' | b'e' | b'E'))
-        && let Ok(integer) = text.parse::<i64>()
-    {
-        return Ok(Value::from(integer));
+    match input_number(text)? {
+        crate::support::InputNumber::Integer(integer) => Ok(Value::from(integer)),
+        crate::support::InputNumber::Float(value) => serde_json::Number::from_f64(value)
+            .map(Value::Number)
+            .ok_or_else(cast_failed),
     }
-    let value = model_decimal_float(text)?;
-    serde_json::Number::from_f64(value)
-        .map(Value::Number)
-        .ok_or_else(cast_failed)
 }
 
 #[cfg(test)]

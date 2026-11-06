@@ -160,6 +160,24 @@ pub(crate) async fn update(
     ))
 }
 
+/// 预览当前账户记录的拟修改字段，不执行更新。
+pub(crate) async fn preview(
+    user: CurrentUser,
+    Inject(db): Inject<Db>,
+    Path(id): Path<i64>,
+    Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
+) -> Result<Json<crate::modules::example::services::record_preview::RecordPreview>> {
+    let model = example_record::Entity::find_by_id(id)
+        .filter(example_record::Column::OwnerId.eq(user.integer_id()?))
+        .one(&db.primary_connection()?)
+        .await
+        .map_err(Error::internal)?
+        .ok_or_else(not_found)?;
+    Ok(Json(
+        crate::modules::example::services::record_preview::preview(&model, input).await?,
+    ))
+}
+
 pub(crate) async fn destroy(
     user: CurrentUser,
     Inject(db): Inject<Db>,

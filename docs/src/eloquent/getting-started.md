@@ -1,6 +1,6 @@
 # Eloquent：模型基础
 
-当前模型前置提供元数据、原始属性、水合、读取转换、访问器及持久身份。完整 Eloquent 查询、save/dirty、关系、事件、mass assignment、全局作用域与工厂仍在实现；本章不把属性容器等同于完整 ORM。
+当前模型前置提供元数据、原始属性、水合、读取转换、访问器及持久身份。原值/dirty/changes为同一属性存储的状态能力；完整 Eloquent 查询、save、关系、事件、mass assignment、全局作用域与工厂仍在实现；本章不把属性容器等同于完整 ORM。
 
 ## 定义模型
 
@@ -26,6 +26,8 @@ Ok(())
 }
 ```
 
+扩展只需转换已有原始值时，可使用 `metadata.cast_attribute(name, raw)`；它复用同一读取转换及原始声明检查，不创建属性存储，也不调用 getter/setter 或 SQL。此入口不是完整 `getAttribute`，访问器和缺项策略仍由调用方承担。
+
 只有自增主键才隐式使用 `key_type` 转换；显式 `casts` 优先。UUID 等字符串主键应明确选择非自增与字符串类型。认证默认使用模型主键名及相同属性读取；`GenericUser` 是独立的原始属性账户契约，不偷偷注入模型主键转换。应用选择 `password_hash` 是自身 schema 决定，不更改框架 GenericUser 的默认密码字段 `password`。
 
 ## 水合与读取属性
@@ -48,6 +50,42 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 认证签发 Cookie 读取已确认的原子快照，不使用另一 Guard 尚未持久化的属性值；普通读取仍能观察本次赋值，供正确的 Provider 生命周期使用。详情见[认证](../security/authentication.md)。
 
+## 原始基线与变化记录
+
+`ModelAttributes::new(raw)` 用于水合：输入同时成为当前原值与 original 基线，不执行 setter 或哈希。`Default` 则为空。后续原始或普通赋值不自动覆盖 original；可回滚赋值的 committed 视图表示已确认的内存修改，并不是上次数据库保存的 original。
+
+```rust
+use openrust::database::eloquent::{ModelAttributes, ModelMetadata};
+use serde_json::{Map, json};
+
+fn main() -> openrust::Result<()> {
+    let metadata = ModelMetadata::new("records", "app::Record");
+    let attributes = ModelAttributes::new(Map::from_iter([("id".into(), json!("00042"))]));
+    attributes.set_raw_attribute("id", json!(42))?;
+    assert!(attributes.is_clean(&metadata, &[])?); // 隐式整数cast等价。
+    attributes.set_raw_attribute("title", json!("拟修改"))?;
+    assert!(attributes.is_dirty(&metadata, &["title"])?);
+    attributes.sync_changes(&metadata)?;
+    assert!(attributes.was_changed(&["title"])?);
+    assert_eq!(attributes.get_raw_original("title")?, None);
+    assert!(attributes.get_previous()?.is_empty()); // 新增字段没有旧原值。
+    attributes.sync_original_attribute("title")?.sync_original()?;
+    assert!(attributes.is_clean(&metadata, &[])?);
+    assert!(attributes.was_changed(&["title"])?); // 同步基线不清最近变化。
+    Ok(())
+}
+```
+
+`get_dirty` 只检查当前存在的字段，按原始严格相等、null及相应 cast 规则比较；不调用 getter、setter 或哈希。Array cast 解码后遵循 PHP64 有序数组键与严格数字类型，允许空对象/数组解码等价；原始返回值仍保持自身形状。Float 比较使用四倍 epsilon 内的严格小于判断，内部浮点及 JSON 解码比较可保留非有限值；公开读取输出 `Value` 时仍拒绝非有限数，不能把这一输出限制误用为 dirty 错误。相同原始文本先严格短路，不能据此推断所有 INF/NaN 转换值等价。
+
+`get_raw_original(name)` 先找完整字面键，再按点路径查找，`*` 是字面键；`get_raw_original_attributes()` 返回整份原始映射。缺项为 `None`，显式 null 为 `Some(Value::Null)`。`get_raw_original_or(name, default)` 只在缺项时返回默认值；需要惰性默认时可在读取后使用 `unwrap_or_else`，命中和显式 null 不运行工厂。旧 `raw_attribute` 保持字面字段读取。这里提供原始原值，尚不是会重建模型并运行转换/访问器的完整 `getOriginal`。
+
+`sync_changes` 保存当前 dirty 及这些键与旧 original 的交集 previous，不把属性标 clean。`get_changes`、`get_previous` 和 `was_changed` 读取最近一次发布，空字段列表表示任意变化。`sync_original`、`sync_original_attribute`、`sync_original_attributes` 把当前值确认成内存基线，返回同一实例以便链式调用；不清已有 changes/previous。逐字段同步按输入顺序处理，后项缺失返回 `model_attribute_original_missing`，此前已同步的前缀保留；不要假设它会回滚整批。
+
+未决可回滚写入或仍运行的异步 setter 使比较/同步返回 409 `model_attribute_update_pending`。比较在锁外执行，并以原值及基线版本回验；并发变化返回 409 `model_attribute_snapshot_conflict`，不发布过期 changes。容量耗尽、无效/未支持 cast 和不能输出的转换结果明确报错。主键 `key_type` 的归一类型识别不等于所有入口都忽略原文：例如 `" INT "` 水合后可按整数比较，但普通赋值会在原文 class-cast 检查处失败；`" HaShEd "` 的非空读取会失败；dirty仅在原值不严格相等且本次要对非 null 值执行转换时才进入该拒绝。请使用规范 `int`、`hashed` 或显式 `AttributeCast` 枚举。
+
+这些同步方法只改变内存状态，不执行 SQL、提交事务或模型事件。示例模块的 `POST /api/example/records/{id}/preview` 从同一账户记录构造修改预览，返回 original/proposed/dirty/changes/previous，响应 `persisted=false`；再次读取数据库记录不变。完整保存、事件、并发保存会话、日期/自定义 cast 与完整转换原值查询仍需后续对应。
+
 ## 连接与持久身份
 
 `ModelMetadata::resolve_connection` 按模型显式连接、领域 fallback、应用默认连接选择同一 `Databases` 服务；显式空名或 `"0"` 选应用默认，未知名报错。`ModelIdentity::model_key` 由模型属性机制产生，`MorphIdentity` 不把登录 ID 或 Guard 名当作模型类型。完整 morph map、连接生命周期与持久 save 仍须独立对应。
@@ -55,3 +93,5 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 PostgreSQL 二进制时间当前使用 ISO/UTC 表示，不对应任意会话 `TimeZone`/`DateStyle` 的显示格式；这是待闭合的后端语义缺口，不作为必要 Rust 适配关闭。当前 SQLite、MySQL、PostgreSQL 的实现和验收各自取证，不由编译或单后端结果推断全后端完成。
 
 固定来源：[Laravel 13.x Eloquent](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md) 与 [属性访问器和转换](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-mutators.md)。完整官方章节仍按依赖逐项交付，当前例子仅说明可用的属性与身份前置。
+
+预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。

@@ -35,6 +35,10 @@ pub use message_bag::{
     MessageProvider, MessageValue,
 };
 pub use number::InputNumber;
+#[doc(hidden)]
+pub use number::php_loose_string_equal;
+#[doc(hidden)]
+pub use number::php_loose_string_value_equal;
 pub use service_provider::ServiceProvider;
 pub use view_error_bag::{BagHandle, BagRead, BagWrite, ViewErrorBag};
 

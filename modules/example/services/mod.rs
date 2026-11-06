@@ -29,3 +29,6 @@ pub(crate) mod draft_errors;
 
 #[cfg(feature = "translation-database")]
 pub(crate) mod translation_source;
+
+#[cfg(feature = "auth")]
+pub(crate) mod record_preview;

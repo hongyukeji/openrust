@@ -7,3 +7,5 @@
 ```sh
 cargo test --manifest-path tests/consumers/test-app/Cargo.toml
 ```
+
+`tests/model_attribute_state.rs` 只依赖公开ModelAttributes/ModelMetadata，覆盖原值点路径、cast感知dirty、changes/previous及fluent同步；并调用公开 `ModelMetadata::cast_attribute` 验证读阶段原始声明检查和null短路。无需数据库或新增feature，不将该属性状态验收等同完整Model save。

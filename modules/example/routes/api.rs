@@ -727,6 +727,10 @@ fn article_routes(routes: Router, summary_enabled: bool, session_enabled: bool) 
         .resource_with::<article::Articles>("/articles", |actions| {
             actions.except(&[openrust::routing::Action::Create])
         })
+        .post(
+            "/records/{id}/preview",
+            controllers::example_record::preview,
+        )
         .resource::<controllers::example_record::ExampleRecords>("/records")
         .layer(openrust::auth::AuthLayer::required(
             openrust::auth::AuthMode::Jwt,
