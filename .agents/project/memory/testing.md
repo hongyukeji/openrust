@@ -1737,3 +1737,11 @@ RT-A01 提交 `d9267695f9b5953cac518c5dde4760ef87188e21`、树 `4d8c77b1d936e38d
 当前 main 纯组合1516项输入绑定精确树；workspace全目标全feature check、CLI全部测试、真实启动prefix回归，以及组合CLI实际生成与六组TCP通过。1515项与提交blob逐字节一致；唯一非运行输入 `commit.cmd` 按已有CRLF检出约定，只转换行尾后内容相同。
 
 原文档缺字段及旧CLI快照失败保留；fresh初始脚本把显式文本fallback误当JSON，按生成路由及既有精确文本断言纠正后续验收，产品未改。回执 `tmp/independent-testing-20261106/RT-A01-RESULT.json`、`RT-A01-CLEAN-TREE-RESULT.json`；边界仅API前缀默认值、归一化与宿主分类，不关闭完整Routing、Sanctum或AR-P01布局。
+
+## 应用错误国际化限定验收
+
+I18N-E01 提交 `1dff30295a2dede862632414b10c4501a84acf05`、树 `a50725fe410d730a18267dfcdd2c05007f020565` 已推送并核远端。JSON、HTML及应用封装复用同一Provider目录，显式HTTP安全详情保留；5xx用户消息与诊断隔离。核心13项、唯一模块真实TCP5项、适用workspace/feature/strictdocs/MSRV/依赖门禁按版本输入映射通过；两块文档配置字面编译通过。
+
+当前main精确1519项组合另过全目标全feature check、核心13/真实示例5/CLI全部测试与实际构建，SQLite与MySQL-auth生成应用各new/check/完整test/metadata通过，每个profile新增两项明确执行。公开 `App::exception_handler()` 读取实际应用Handler，核心与生成均不用私有registry或另建默认Handler。原SQ SQLite租约生成回归也实际执行；测试库清单恢复。
+
+旧lint、HTTP详情覆盖、配置并发与生成Handler获取失败均保留。配置合并测试的全局环境读取风险已用子进程QUEUE_DRIVER受控负例复现，显式空snapshot后同污染场景及正常并发全feature lib1609项通过；不声称历史失败的唯一变量已知。初始0项过滤/误选macros诊断不计通过。回执 `tmp/independent-testing-20261106/I18N-E01-RESULT.json`、`I18N-E01-CLEAN-TREE-RESULT.json`；不关闭数据库翻译来源、完整Loader/Localization。
