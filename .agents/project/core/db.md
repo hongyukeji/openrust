@@ -45,6 +45,10 @@ MB-P01-A 已收齐原始基线/dirty/changes/previous与单值cast、唯一账�
 完整转换后getOriginal、fill/save/事件/关系、日期和全部cast/值载体、PG会话显示仍开放；内存回滚不保证未知DB提交或跨连接持久顺序。公开边界见[模型基础](../../../docs/src/eloquent/getting-started.md)。
 
 
+## HasMany 限定交付
+
+`898d6067` 增加 HasMany 批量与嵌套关系加载。关联查询按关系来源复用同一事务和模型水合，`refresh` 重载已加载的非 Pivot 关系。唯一示例验证所有者范围与表来源，Web 和 JWT 生成应用均在 MySQL 8.4.13 运行实际关系回归。默认与全特性严格 Clippy、两组 workspace 测试、Rustdoc 和依赖门禁通过。HasOne、BelongsTo 与 BelongsToMany 独立验收。
+
 ## SQLite 同机 SharedLocks
 
 SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence/期限、续约、同一事务写保护及真实导入生产边界保留；最低3.26与原本MySQL/PG协调回归均有绑定输入证据。当前只支持同机文件租约，不代表完整CacheLock/Queue/幂等。详细范围、native构建诊断与纯提交树闭合见[验收](../memory/testing.md#sqlite-同机租约方言限定验收)。
