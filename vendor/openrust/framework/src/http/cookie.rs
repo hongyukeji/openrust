@@ -10,8 +10,9 @@ mod value;
 pub use ::cookie::SameSite;
 #[cfg(feature = "session")]
 pub(crate) use crypto::CookieProtection;
+#[cfg(feature = "session")]
 pub(crate) use middleware::CookieLayer;
-pub(crate) use provider::CookieRuntime;
+pub(crate) use provider::CookieLayerPlan;
 pub use provider::CookieServiceProvider;
 pub use queue::CookieJar;
 #[cfg(feature = "session")]

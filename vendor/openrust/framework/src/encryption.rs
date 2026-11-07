@@ -193,7 +193,7 @@ impl std::fmt::Debug for Encrypter {
     }
 }
 
-/// 将加密服务注册到统一容器；密钥从当前配置读取并在启动时校验。
+/// 将加密服务注册到统一容器；首次解析时读取并校验当前密钥。
 ///
 #[derive(Debug, Default, Clone, Copy)]
 pub struct EncryptionServiceProvider;
@@ -223,19 +223,7 @@ impl crate::support::ServiceProvider for EncryptionServiceProvider {
                     Ok(Arc::new(Encrypter::new(config)?))
                 })
             })
-            .await?;
-            app.require::<Encrypter>();
-            Ok(())
-        })
-    }
-
-    fn boot<'a>(
-        &'a self,
-        app: &'a mut crate::foundation::BootContext<'_>,
-    ) -> crate::support::BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            let _ = app.resolve::<Encrypter>().await?;
-            Ok(())
+            .await
         })
     }
 }
@@ -279,27 +267,34 @@ mod provider_tests {
         let service = runtime.container().resolve::<Encrypter>().await?;
         assert!(service.encrypt(b"next")?.starts_with("or1.new."));
         assert_eq!(service.decrypt(&ciphertext)?, b"message");
+        let same = runtime.container().resolve::<Encrypter>().await?;
+        assert!(Arc::ptr_eq(&service, &same));
         runtime
             .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
             .await
     }
 
     #[tokio::test]
-    async fn provider_rejects_missing_and_invalid_keys_without_secret_output() {
+    async fn provider_rejects_missing_and_invalid_keys_without_secret_output() -> Result<()> {
         for source in [
             json!({}),
             json!({"security":{"encryption":{"active_key_id":"main","keys":{"main":"secret-sentinel"}}}}),
         ] {
             let mut providers = ProviderBuilder::new();
             providers.provider(EncryptionServiceProvider);
-            let result = providers
+            let runtime = providers
                 .start(Figment::from(Serialized::defaults(source)))
-                .await;
+                .await?;
+            let result = runtime.container().resolve::<Encrypter>().await;
             assert!(result.is_err());
             if let Err(error) = result {
                 assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
             }
+            runtime
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+                .await?;
         }
+        Ok(())
     }
 }
 

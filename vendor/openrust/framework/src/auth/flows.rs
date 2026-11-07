@@ -1957,19 +1957,7 @@ impl crate::support::ServiceProvider for AuthFlowsServiceProvider {
                     Ok(Arc::new(flows))
                 })
             })
-            .await?;
-            app.require::<AuthFlows>();
-            Ok(())
-        })
-    }
-
-    fn boot<'a>(
-        &'a self,
-        app: &'a mut crate::foundation::BootContext<'_>,
-    ) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            let _ = app.resolve::<AuthFlows>().await?;
-            Ok(())
+            .await
         })
     }
 }
@@ -2041,6 +2029,7 @@ mod provider_tests {
             .provider(AuthFlowsServiceProvider::new())
             .provider(Dependencies(Arc::clone(&calls)));
         let runtime = builder.start(figment::Figment::new()).await?;
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
         let scope = runtime.container().scope()?;
         let flows = scope.resolve::<AuthFlows>().await?;
         let jwt = scope.resolve::<JwtTokens>().await?;
@@ -2050,7 +2039,24 @@ mod provider_tests {
                 .verify_access_token(&jwt.issue_access_token(42)?)?,
             42
         );
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        let next_scope = runtime.container().scope()?;
+        let next_flows = next_scope.resolve::<AuthFlows>().await?;
+        let next_jwt = next_scope.resolve::<JwtTokens>().await?;
+        assert_eq!(
+            next_flows
+                .jwt
+                .verify_access_token(&next_jwt.issue_access_token(42)?)?,
+            42
+        );
+        assert!(
+            next_flows
+                .jwt
+                .verify_access_token(&jwt.issue_access_token(42)?)
+                .is_err()
+        );
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        next_scope.close();
         scope.close();
         runtime
             .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
@@ -2058,15 +2064,22 @@ mod provider_tests {
     }
 
     #[tokio::test]
-    async fn provider_rejects_missing_dependencies_and_invalid_lifetime() {
+    async fn provider_rejects_missing_dependencies_and_invalid_lifetime() -> Result<()> {
         let mut missing = ProviderBuilder::new();
         missing.provider(AuthFlowsServiceProvider::new());
-        assert!(missing.start(figment::Figment::new()).await.is_err());
+        let runtime = missing.start(figment::Figment::new()).await?;
+        let scope = runtime.container().scope()?;
+        assert!(scope.resolve::<AuthFlows>().await.is_err());
+        scope.close();
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
         let mut invalid = ProviderBuilder::new();
         invalid.provider(
             AuthFlowsServiceProvider::new().with_refresh_lifetime(ChronoDuration::seconds(0)),
         );
         assert!(invalid.start(figment::Figment::new()).await.is_err());
+        Ok(())
     }
 }
 

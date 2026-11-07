@@ -467,6 +467,18 @@ impl Session {
     pub fn is_started(&self) -> Result<bool> {
         Ok(self.lock()?.started)
     }
+    pub(crate) fn require_live_started(&self) -> Result<()> {
+        let state = self.lock()?;
+        state.ensure_live()?;
+        if !state.started {
+            return Err(Error::custom(
+                "csrf_session_missing",
+                "Web CSRF 要求已启动 Session",
+            ));
+        }
+        Ok(())
+    }
+
     /// 改变本请求的出站 Cookie 名称；不会自动清除旧名 Cookie 或改变 ID。
     pub fn set_name(&self, name: impl Into<String>) -> Result<&Self> {
         self.lock()?.ensure_mutable()?;

@@ -12,7 +12,7 @@ Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandle
 
 - [`HttpServiceProvider`]：在 `register` 登记 HTTP 配置与能力，在 `boot` 贡献 `serve` 命令、默认 middleware 栈、`/health` 和 `/ready`。
 - `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
-- `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
+- `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。受保护路由首次派发应在本次 HTTP 入口任务上下文中驱动，并保留入口提供的请求作用域；路由级中间件通过原 continuation 可将已准入调用交给其他任务。
 - 默认 `web` 组按 Cookie 解密/队列、Session（含共享 errors）、CSRF、受管理路由固有参数绑定的顺序执行；`api` 组仅含固有参数绑定。用 `RouteGroup::new().middleware_group("web")` 或 `middleware_group("api")` 显式给路由分组。需要 Cookie/Session 的 API 可逐组追加 `middleware_alias("cookies")`、`middleware_alias("session")`；普通 API 不创建会话。`SubstituteBindings` 已由受管理路由分发器执行，`api` 组不再追加空 Tower middleware。
 - [`Router`](crate::routing::Router)：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；`route(path, RouteMethods)` 接受 `routing::{get, post, put, patch, delete, head, options, query, on, any}` 受管理方法声明，可链式追加不同方法。`on` 校验并规范化 HTTP 方法字符串，`any` 仅包含 Laravel 固定的 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY。[`RouteGroup`](crate::routing::RouteGroup) 支持可嵌套路径前缀与组级 Tower middleware。middleware 默认按声明顺序进入请求；命名项按公开优先级调整并去重，组外路由不受影响。
 - [`Resource`](crate::routing::Resource) 与 [`ResourceActions`](crate::routing::ResourceActions)：只注册实际存在的 controller action；`Router::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
@@ -45,7 +45,7 @@ Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandle
 
 ### Web CSRF
 
-启用 `session`、`encryption` 并登记 `SessionServiceProvider`、`EncryptionServiceProvider`、`CookieServiceProvider::new()` 后，`web` 组在实际路由引用时装配。缺任一前置或使用明文 Cookie 时构建 Router 报配置错误；没有 Web 路由的 API 应用不需要这些能力。`BootContext::prevent_request_forgery(PreventRequestForgery::new().except(["webhook/*"]).allow_same_site())` 按应用设置例外和同站策略，也可选 `origin_only()` 或 `without_xsrf_cookie()`。默认只读 GET/HEAD/OPTIONS 放行；unsafe 请求先检查 `Sec-Fetch-Site: same-origin`，同站需显式允许，否则按 `_token`、`X-CSRF-TOKEN`、加密 `X-XSRF-TOKEN` 顺序比对 Session token；失败进入统一异常 Handler，token 错误为 419，纯来源策略错误为 403。成功响应发送可供前端读取的加密 `XSRF-TOKEN` cookie，按 Session 的 path/domain/secure/SameSite/lifetime/partitioned 配置。
+启用 `session`、`encryption` 并登记 `SessionServiceProvider`、`EncryptionServiceProvider`、`CookieServiceProvider::new()` 后，`web` 组在实际路由引用时装配。Router 构建时校验路由引用的 Cookie、Session、CSRF 层及其顺序和排除规则。缺少相应路由层或使用明文 Cookie 时拒绝装配；加密服务及密钥在首个受保护请求中解析。没有 Web 路由的 API 应用可按需启用这些能力。`BootContext::prevent_request_forgery(PreventRequestForgery::new().except(["webhook/*"]).allow_same_site())` 按应用设置例外和同站策略，也可选 `origin_only()` 或 `without_xsrf_cookie()`。默认只读 GET/HEAD/OPTIONS 放行；unsafe 请求先检查 `Sec-Fetch-Site: same-origin`，同站需显式允许，否则按 `_token`、`X-CSRF-TOKEN`、加密 `X-XSRF-TOKEN` 顺序比对 Session token；失败进入统一异常 Handler，token 错误为 419，纯来源策略错误为 403。成功响应发送可供前端读取的加密 `XSRF-TOKEN` cookie，按 Session 的 path/domain/secure/SameSite/lifetime/partitioned 配置。
 
 测试豁免仅由 `TestAppBuilder` 内部启动身份与最终 `Environment::Testing` 同时触发；普通命令启动、debug 配置和客户端请求头均不能伪造。Rust 没有 PHP SAPI 的 `runningInConsole`，因此以受信测试启动器替代，不从进程 argv 推断 HTTP 运行模式。CSRF 复用唯一受管 `Request` 的 `_token` 输入解析，包括 multipart 文本字段；原始正文和上传文件由共享暂存所有权保留，下游受管 Request 复用缓存，原生提取器从独立异步游标重放正文。正文、字段及文件遵循同一 `RequestBodyLimits`，取消时按原所有权回收。
 
@@ -139,7 +139,7 @@ impl Validate for CreatePost {
 
 `CookieResponseExt::with_cookie` / `with_cookies` 将 Cookie 对象附加到既有 `Json`、统一响应或其他响应；`without_cookie_named` 通过明确传入的工厂创建删除标记。业务仍使用现有响应与异常策略，不需要另一套正文协议。实际调用及路由见[唯一模块 Cookie Controller](../../../../../modules/example/http/controllers/cookie.rs)。
 
-`CookieServiceProvider::new()` 要求 `encryption` feature 与已登记的 `Encrypter`，缺失时启动失败。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
+`CookieServiceProvider::new()` 为 Router 提供保护计划。首个匹配的 Cookie 请求要求 `encryption` feature、已登记的 `Encrypter` 和有效密钥；条件不满足时拒绝请求，响应不附加 Cookie。显式替换 Provider 后，新建 Router 使用最新保护计划。已建 Router 继续使用构建时的计划。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
 
 工厂默认 path `/`、httpOnly=true、SameSite=Lax，domain 与 secure 未指定。有 Session 配置时读取最终共享配置；`with_cookie_config` 在对应 Provider boot 时覆盖，后续显式 overlay 按原 Provider 顺序生效，`with_factory` 仅覆盖 Cookie 工厂。最终配置冻结后才装配 Session 层，避免原生 Session 与 Cookie 工厂使用不同快照。当前 Session 自身默认 secure=true，不能据此声称所有 Session 默认已与上游完成对齐。
 

@@ -38,7 +38,7 @@ pub use store::{
     SessionWriteMode, SessionWriteOutcome,
 };
 
-#[cfg(feature = "auth")]
+#[cfg(any(feature = "auth", all(test, feature = "encryption")))]
 pub(crate) use provider::SessionSettings;
 pub use provider::{SessionServiceProvider, SessionStoreHandle};
 pub use request::SessionRequestContext;

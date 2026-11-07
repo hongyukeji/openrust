@@ -16,13 +16,62 @@ use tower::{Layer, Service, ServiceExt};
 use crate::foundation::ApplicationState;
 
 type HandlerFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
-type HandlerFn = Arc<dyn Fn(Request, ApplicationState) -> HandlerFuture + Send + Sync>;
+pub(crate) type HandlerFn =
+    Arc<dyn Fn(Request, ApplicationState, Invocation) -> HandlerFuture + Send + Sync>;
+
+use super::invocation::{Invocation, Retire};
+
+/// 真实内层调用捕获当次 owner，允许公开 Route 重建 Request 后仍归属于同次派发。
+#[derive(Clone)]
+pub(crate) struct ManagedNext {
+    inner: HandlerFn,
+    state: ApplicationState,
+    invocation: Invocation,
+}
+impl ManagedNext {
+    fn new(inner: HandlerFn, state: ApplicationState, parent: &Invocation) -> (Self, Retire) {
+        let (invocation, retire) = parent.child();
+        (
+            Self {
+                inner,
+                state,
+                invocation,
+            },
+            retire,
+        )
+    }
+
+    pub(crate) fn run(&self, request: Request) -> HandlerFuture {
+        // service_fn 的同步 call 内准入。未 poll 的公开 RouteFuture 尚未调用本函数。
+        let Some(admission) = self.invocation.admit() else {
+            return Box::pin(async {
+                crate::http::cookie::private_error_response(crate::Error::custom(
+                    "http_invocation_retired",
+                    "请求内层调用已关闭",
+                ))
+            });
+        };
+        let future = (self.inner)(request, self.state.clone(), self.invocation.clone());
+        Box::pin(async move {
+            let response = future.await;
+            admission.complete();
+            response
+        })
+    }
+
+    pub(crate) fn invocation(&self) -> &Invocation {
+        &self.invocation
+    }
+}
+
 type LayerFn = Arc<dyn Fn(HandlerFn) -> HandlerFn + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct MiddlewareBinding {
     pub(crate) name: Option<String>,
     apply: LayerFn,
+    #[cfg(feature = "session")]
+    role: Option<BuiltinLayer>,
 }
 
 /// 可按 Axum 参数顺序只解析提取器、而不调用业务函数的受管理处理器。
@@ -133,6 +182,8 @@ fn precognitive_success() -> Response {
 pub(crate) struct MethodEntry {
     pub(crate) methods: Vec<Method>,
     pub(crate) handler: HandlerFn,
+    #[cfg(feature = "session")]
+    pub(crate) protected_cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
     pub(crate) metadata: Option<Arc<Mutex<crate::routing::router::MatchedRouteMetadata>>>,
     pub(crate) middleware: Vec<MiddlewareBinding>,
 }
@@ -178,7 +229,7 @@ impl RouteMethods {
         let handler = Arc::new(handler);
         self.entries.push(MethodEntry {
             methods: parsed,
-            handler: Arc::new(move |request, state| {
+            handler: Arc::new(move |request, state, _invocation| {
                 let handler = Arc::clone(&handler);
                 Box::pin(async move {
                     if crate::http::precognition::confirmed(request.extensions()) {
@@ -195,6 +246,8 @@ impl RouteMethods {
                     }
                 })
             }),
+            #[cfg(feature = "session")]
+            protected_cookie: None,
             metadata: None,
             middleware: Vec::new(),
         });
@@ -343,16 +396,18 @@ where
             let layer = layer.clone();
             entry.middleware.push(MiddlewareBinding {
                 name: name.map(str::to_owned),
+                #[cfg(feature = "session")]
+                role: None,
                 apply: Arc::new(move |inner| {
                     let layer = layer.clone();
-                    Arc::new(move |request, state| {
+                    Arc::new(move |request, state, invocation| {
                         let inner = Arc::clone(&inner);
                         let layer = layer.clone();
                         Box::pin(async move {
+                            let (next, _retire) = ManagedNext::new(inner, state, &invocation);
                             let service = tower::service_fn(move |request| {
-                                let inner = Arc::clone(&inner);
-                                let state = state.clone();
-                                async move { Ok::<_, Infallible>((inner)(request, state).await) }
+                                let future = next.run(request);
+                                async move { Ok::<_, Infallible>(future.await) }
                             });
                             let routed: MethodRouter<()> =
                                 routing::any_service(service).layer(layer);
@@ -368,16 +423,137 @@ where
     }
 }
 
-pub(crate) fn finalize_layers(entries: &Arc<Mutex<Vec<MethodEntry>>>, priority: &[String]) {
+#[derive(Clone)]
+pub(crate) enum BuiltinLayer {
+    Cookie(Arc<crate::http::cookie::CookieLayerPlan>),
+    #[cfg(feature = "session")]
+    Session(crate::session::SessionLayer),
+    #[cfg(feature = "session")]
+    Csrf(crate::http::forgery::ForgeryRuntime),
+}
+
+impl BuiltinLayer {
+    async fn run(self, request: Request, next: ManagedNext) -> Response {
+        match self {
+            Self::Cookie(layer) => {
+                crate::http::cookie::middleware::handle(layer, request, next).await
+            }
+            #[cfg(feature = "session")]
+            Self::Session(layer) => crate::session::handle_session(layer, request, next).await,
+            #[cfg(feature = "session")]
+            Self::Csrf(runtime) => crate::http::forgery::handle(runtime, request, next).await,
+        }
+    }
+}
+
+pub(crate) fn builtin_entries(
+    entries: &Arc<Mutex<Vec<MethodEntry>>>,
+    layer: &BuiltinLayer,
+    name: Option<&str>,
+) {
+    if let Ok(mut entries) = entries.lock() {
+        for entry in entries.iter_mut() {
+            let layer = layer.clone();
+            entry.middleware.push(MiddlewareBinding {
+                name: name.map(str::to_owned),
+                #[cfg(feature = "session")]
+                role: Some(layer.clone()),
+                apply: Arc::new(move |inner| {
+                    let layer = layer.clone();
+                    Arc::new(move |request, state, invocation| {
+                        let inner = Arc::clone(&inner);
+                        let layer = layer.clone();
+                        Box::pin(async move {
+                            let (next, _retire) = ManagedNext::new(inner, state, &invocation);
+                            layer.run(request, next).await
+                        })
+                    })
+                }),
+            });
+        }
+    }
+}
+
+#[cfg(feature = "session")]
+fn validate_protection_order(middleware: &[MiddlewareBinding]) -> crate::Result<()> {
+    let mut cookies = None;
+    let mut session = None;
+    for (position, entry) in middleware.iter().enumerate() {
+        match &entry.role {
+            Some(BuiltinLayer::Cookie(layer)) => {
+                if cookies.is_some() {
+                    return Err(protection_order_error());
+                }
+                if session.is_some() && layer.is_protected() {
+                    return Err(protection_order_error());
+                }
+                cookies = Some(layer);
+            }
+            Some(BuiltinLayer::Session(layer)) => session = Some(layer),
+            Some(BuiltinLayer::Csrf(runtime)) => {
+                if !cookies.is_some_and(|layer| {
+                    Arc::ptr_eq(layer, &runtime.cookie)
+                        && layer.is_protected()
+                        && session.is_none_or(|session| {
+                            layer.protects_cookie(&session.settings.cookie_name)
+                        })
+                        && (!runtime.sends_xsrf_cookie() || layer.protects_cookie("XSRF-TOKEN"))
+                }) {
+                    return Err(protection_order_error());
+                }
+                if runtime.sends_xsrf_cookie()
+                    && middleware[position + 1..]
+                        .iter()
+                        .any(|entry| matches!(&entry.role, Some(BuiltinLayer::Session(_))))
+                {
+                    return Err(protection_order_error());
+                }
+            }
+            None => {}
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "session")]
+fn protection_order_error() -> crate::Error {
+    crate::Error::custom(
+        "web_cookie_encryption_missing",
+        "Web 保护要求正确排列的受保护 Cookie 与会话层",
+    )
+}
+
+#[cfg(feature = "session")]
+type LayerFinalization = crate::Result<()>;
+#[cfg(not(feature = "session"))]
+type LayerFinalization = ();
+
+pub(crate) fn finalize_layers(
+    entries: &Arc<Mutex<Vec<MethodEntry>>>,
+    priority: &[String],
+) -> LayerFinalization {
     if let Ok(mut entries) = entries.lock() {
         for entry in entries.iter_mut() {
             let mut middleware: Vec<_> = entry.middleware.drain(..).rev().collect();
             sort_middleware(&mut middleware, priority);
+            #[cfg(feature = "session")]
+            if !middleware.is_empty() {
+                validate_protection_order(&middleware)?;
+                entry.protected_cookie =
+                    middleware.iter().find_map(|binding| match &binding.role {
+                        Some(BuiltinLayer::Cookie(layer)) if layer.is_protected() => {
+                            Some(Arc::clone(layer))
+                        }
+                        _ => None,
+                    });
+            }
             for binding in middleware.into_iter().rev() {
                 entry.handler = (binding.apply)(Arc::clone(&entry.handler));
             }
         }
     }
+    #[cfg(feature = "session")]
+    Ok(())
 }
 
 fn sort_middleware(middleware: &mut Vec<MiddlewareBinding>, priority: &[String]) {
@@ -494,3 +670,7 @@ where
 {
     RouteMethods::default().any(handler)
 }
+
+#[cfg(all(test, feature = "session", feature = "encryption"))]
+#[path = "return_seal_tests.rs"]
+pub(super) mod return_seal_tests;

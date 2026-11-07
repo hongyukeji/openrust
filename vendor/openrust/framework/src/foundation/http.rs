@@ -29,6 +29,15 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
+tokio::task_local! {
+    // 只有 HTTP 入口能安装它。公开 Scope::run 的容器上下文可由应用自行替换。
+    static HTTP_ENTRY_SCOPE: Arc<crate::container::Scope>;
+}
+
+pub(crate) fn http_entry_scope() -> Option<std::sync::Weak<crate::container::Scope>> {
+    HTTP_ENTRY_SCOPE.try_with(Arc::downgrade).ok()
+}
+
 type RouterLayerBuilder = Box<dyn Fn(AxumRouter) -> Result<AxumRouter> + Send + Sync>;
 
 #[derive(Default)]
@@ -164,8 +173,9 @@ pub fn build_router(app: &Application) -> Result<AxumRouter> {
             .unwrap_or_default();
         middleware_registry.install_framework_defaults(signed_except)?;
         let cookie = app
-            .extension::<crate::http::cookie::CookieRuntime>()
-            .and_then(|runtime| runtime.0.clone());
+            .state()
+            .container()
+            .get_ready::<crate::http::cookie::CookieLayerPlan>();
         #[cfg(feature = "session")]
         let session = app
             .extension::<Option<crate::session::SessionRuntime>>()
@@ -174,23 +184,23 @@ pub fn build_router(app: &Application) -> Result<AxumRouter> {
             .transpose()?
             .flatten();
         #[cfg(feature = "session")]
-        let forgery = cookie
-            .as_ref()
-            .zip(session.as_ref())
-            .map(|(cookie, session)| crate::http::forgery::ForgeryRuntime {
-                policy: app
-                    .extension::<RouteRegistry>()
-                    .map_or_else(crate::http::PreventRequestForgery::new, |registry| {
-                        registry.forgery.clone()
-                    }),
-                cookie: cookie.clone(),
-                session: session.settings.config.clone(),
-                session_cookie_name: session.settings.cookie_name.clone(),
+        let forgery = cookie.as_ref().map(|cookie| {
+            let policy = app
+                .extension::<RouteRegistry>()
+                .map_or_else(crate::http::PreventRequestForgery::new, |registry| {
+                    registry.forgery.clone()
+                });
+            crate::http::forgery::ForgeryRuntime {
+                policy,
+                cookie: Arc::clone(cookie),
+                xsrf: session.as_ref().map(|layer| layer.settings.config.clone()),
+                repository: app.config_repository(),
                 testing_boot: app
                     .extension::<crate::foundation::provider::TestingBoot>()
                     .is_some()
                     && app.config().app.env == crate::config::Environment::Testing,
-            });
+            }
+        });
         middleware_registry.install_web_defaults(
             cookie,
             #[cfg(feature = "session")]
@@ -393,6 +403,13 @@ async fn expose_app_state(
     mut request: Request,
     next: Next,
 ) -> Response {
+    #[cfg(feature = "session")]
+    {
+        let extensions = request.extensions_mut();
+        extensions.remove::<crate::http::forgery::CsrfVerified>();
+        extensions.remove::<crate::http::cookie::CookieProtection>();
+        crate::http::cookie::middleware::clear_prepared(extensions);
+    }
     let state = runtime.state.clone();
     let trusted_hosts = match runtime.trusted_hosts.snapshot().await {
         Ok(snapshot) => snapshot,
@@ -458,11 +475,14 @@ async fn expose_app_state(
     };
     let page = page.with_path_resolver(move || info.url());
     let request = Request::from_parts(parts, body);
-    let response = scope
-        .run(crate::database::query::with_page_context(
-            page,
-            next.run(request),
-        ))
+    let response = HTTP_ENTRY_SCOPE
+        .scope(
+            Arc::clone(&scope),
+            scope.run(crate::database::query::with_page_context(
+                page,
+                next.run(request),
+            )),
+        )
         .await
         .map(|body| {
             Body::new(ScopeBody {
@@ -754,4 +774,214 @@ pub(crate) fn register_application_routes(
         .into());
     }
     Ok(())
+}
+
+#[cfg(all(test, feature = "session", feature = "encryption"))]
+mod http_scope_origin_tests {
+    use super::*;
+    use crate::container::Scope;
+    use crate::http::{CookieServiceProvider, HttpServiceProvider};
+    use crate::session::{
+        MemorySessionStore, SessionId, SessionRecord, SessionServiceProvider, SessionStore,
+        SessionWriteMode, SessionWriteOutcome,
+    };
+    use crate::support::{BoxFuture, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use tower::ServiceExt;
+
+    #[derive(Default)]
+    struct Observation {
+        source: Mutex<Option<Arc<Scope>>>,
+        loads: AtomicUsize,
+        writes: AtomicUsize,
+        handlers: AtomicUsize,
+    }
+
+    struct Store {
+        memory: MemorySessionStore,
+        observed: Arc<Observation>,
+    }
+
+    impl SessionStore for Store {
+        fn load<'a>(
+            &'a self,
+            id: &'a SessionId,
+            limit: usize,
+            expiry: time::OffsetDateTime,
+        ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+            self.observed.loads.fetch_add(1, Ordering::SeqCst);
+            self.memory.load(id, limit, expiry)
+        }
+
+        fn write<'a>(
+            &'a self,
+            record: &'a SessionRecord,
+            mode: SessionWriteMode,
+            limit: usize,
+        ) -> BoxFuture<'a, Result<SessionWriteOutcome>> {
+            self.observed.writes.fetch_add(1, Ordering::SeqCst);
+            self.memory.write(record, mode, limit)
+        }
+
+        fn delete<'a>(&'a self, id: &'a SessionId) -> BoxFuture<'a, Result<()>> {
+            self.memory.delete(id)
+        }
+    }
+
+    async fn rebuild_or_replace_scope(
+        State(observed): State<Arc<Observation>>,
+        request: Request,
+        next: Next,
+    ) -> Result<Response> {
+        let (mut parts, body) = request.into_parts();
+        let failure = || Error::custom("test_scope_unavailable", "测试作用域不可用");
+        if parts.uri.path() == "/scope-source" {
+            let scope = parts.extensions.get::<Arc<Scope>>().ok_or_else(failure)?;
+            *observed.source.lock().map_err(|_| failure())? = Some(Arc::clone(scope));
+        }
+        if parts.headers.contains_key("x-test-replace-scope") {
+            let foreign = observed
+                .source
+                .lock()
+                .map_err(|_| failure())?
+                .clone()
+                .ok_or_else(failure)?;
+            parts.extensions.insert(Arc::clone(&foreign));
+            // 即使应用同时替换公开容器上下文，HTTP 入口仍拥有另一作用域。
+            return Ok(foreign
+                .run(next.run(Request::from_parts(parts, body)))
+                .await);
+        }
+        Ok(next.run(Request::from_parts(parts, body)).await)
+    }
+
+    struct Routes(Arc<Observation>);
+
+    impl ServiceProvider for Routes {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.http_layer(axum::middleware::from_fn_with_state(
+                    Arc::clone(&self.0),
+                    rebuild_or_replace_scope,
+                ))?;
+                app.exceptions(|handler| {
+                    handler.api_envelope_when(|request, _| request.path() == "/scope-protected");
+                })?;
+                let observed = Arc::clone(&self.0);
+                app.routes(move |routes| {
+                    routes
+                        .get("/scope-source", || async { "live source" })
+                        .group(
+                            crate::routing::RouteGroup::new().middleware_group("web"),
+                            |routes| {
+                                let observed = Arc::clone(&observed);
+                                routes.get("/scope-protected", move || {
+                                    let observed = Arc::clone(&observed);
+                                    async move {
+                                        observed.handlers.fetch_add(1, Ordering::SeqCst);
+                                        "protected"
+                                    }
+                                })
+                            },
+                        )
+                })?;
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn global_layer_cannot_lease_another_live_http_scope() -> Result<()> {
+        let observed = Arc::new(Observation::default());
+        let mut providers = crate::foundation::ProviderBuilder::new();
+        providers
+            .provider(HttpServiceProvider)
+            .provider(crate::encryption::EncryptionServiceProvider)
+            .provider(CookieServiceProvider::new())
+            .provider(
+                SessionServiceProvider::with_store(Store {
+                    memory: MemorySessionStore::default(),
+                    observed: Arc::clone(&observed),
+                })
+                .with_cookie_config(crate::config::SessionConfig {
+                    driver: Some("array".into()),
+                    cookie: Some("test_session".into()),
+                    secure: Some(false),
+                    ..Default::default()
+                }),
+            )
+            .provider(Routes(Arc::clone(&observed)));
+        let mut config = crate::config::FrameworkConfig::default();
+        config.app.env = crate::config::Environment::Development;
+        let sources = Figment::from(Serialized::defaults(config)).merge((
+            "security",
+            serde_json::json!({
+                "encryption": {
+                    "active_key_id": "test",
+                    "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}
+                }
+            }),
+        ));
+        let app = Application::from_provider_runtime(providers.start(sources).await?)?;
+        let router = build_router(&app)?;
+        let source = router
+            .clone()
+            .oneshot(
+                Request::get("/scope-source")
+                    .header(http::header::HOST, "localhost")
+                    .body(Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(source.status(), StatusCode::OK);
+
+        let foreign = router
+            .clone()
+            .oneshot(
+                Request::get("/scope-protected")
+                    .header(http::header::HOST, "localhost")
+                    .header(http::header::ACCEPT, "application/json")
+                    .header("x-test-replace-scope", "1")
+                    .body(Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(foreign.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            foreign.headers().get(http::header::CACHE_CONTROL),
+            Some(&http::HeaderValue::from_static("no-store"))
+        );
+        assert!(!foreign.headers().contains_key(http::header::SET_COOKIE));
+        let body = axum::body::to_bytes(foreign.into_body(), 4 * 1024)
+            .await
+            .map_err(Error::internal)?;
+        let payload: serde_json::Value = serde_json::from_slice(&body).map_err(Error::internal)?;
+        assert_eq!(payload["code"], "cookie_scope_missing");
+        assert_eq!(observed.loads.load(Ordering::SeqCst), 0);
+        assert_eq!(observed.writes.load(Ordering::SeqCst), 0);
+        assert_eq!(observed.handlers.load(Ordering::SeqCst), 0);
+        // A 的响应 body 一直存活到 B 完成，排除因 A 已关闭而恰好拒绝的情况。
+        drop(source);
+
+        let rebuilt = router
+            .oneshot(
+                Request::get("/scope-protected")
+                    .header(http::header::HOST, "localhost")
+                    .body(Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(rebuilt.status(), StatusCode::OK);
+        assert!(rebuilt.headers().contains_key(http::header::SET_COOKIE));
+        assert_eq!(observed.writes.load(Ordering::SeqCst), 1);
+        assert_eq!(observed.handlers.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
 }

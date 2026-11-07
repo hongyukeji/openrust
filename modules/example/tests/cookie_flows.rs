@@ -152,3 +152,42 @@ async fn module_cookie_queue_direct_forget_and_request_isolation() -> TestResult
         .await?;
     result
 }
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn module_cookie_first_use_rejects_invalid_key_after_ordinary_route_succeeds() -> TestResult {
+    let config = sources().merge(Serialized::defaults(json!({
+        "security": {"encryption": {
+            "active_key_id": "test",
+            "keys": {"test": "example-invalid-key-sentinel"}
+        }}
+    })));
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?)
+        .build()
+        .await?;
+    let result: TestResult = async {
+        let ordinary = app
+            .request(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        ordinary.assert_status(StatusCode::OK)?;
+        assert!(!ordinary.headers().contains_key(header::SET_COOKIE));
+        let protected = get(&app, None).await?;
+        protected.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
+        assert!(!protected.headers().contains_key(header::SET_COOKIE));
+        assert_eq!(protected.headers()[header::CACHE_CONTROL], "no-store");
+        let payload: Value = protected.json()?;
+        assert_eq!(payload["code"], "service_initialization_failed");
+        assert!(
+            !String::from_utf8_lossy(protected.body()).contains("example-invalid-key-sentinel")
+        );
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}

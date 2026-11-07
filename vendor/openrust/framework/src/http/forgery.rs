@@ -2,14 +2,15 @@
 
 use crate::config::SessionConfig;
 use crate::http::{CookieJar, CookieOptions, RequestInfo};
+use crate::routing::{invocation::suppress_cookies, methods::ManagedNext};
 use crate::{Error, Result};
 use axum::{
     body::Body,
-    extract::{FromRequestParts, Request, State},
-    middleware::Next,
+    extract::{FromRequestParts, Request},
     response::{IntoResponse, Response},
 };
 use http::{Method, StatusCode};
+use std::sync::Arc;
 use subtle::ConstantTimeEq;
 
 /// Web CSRF 策略；应用在 Provider boot 时一次配置，不能从客户端请求修改。
@@ -70,10 +71,57 @@ impl PreventRequestForgery {
 #[derive(Clone)]
 pub(crate) struct ForgeryRuntime {
     pub(crate) policy: PreventRequestForgery,
-    pub(crate) cookie: crate::http::cookie::CookieLayer,
-    pub(crate) session: SessionConfig,
-    pub(crate) session_cookie_name: String,
+    pub(crate) cookie: Arc<crate::http::cookie::CookieLayerPlan>,
+    pub(crate) xsrf: Option<SessionConfig>,
+    pub(crate) repository: crate::config::repository::ConfigRepository,
     pub(crate) testing_boot: bool,
+}
+
+impl PreventRequestForgery {
+    pub(crate) fn sends_xsrf_cookie(&self) -> bool {
+        !self.origin_only && self.add_xsrf_cookie
+    }
+}
+impl ForgeryRuntime {
+    pub(crate) fn sends_xsrf_cookie(&self) -> bool {
+        self.policy.sends_xsrf_cookie()
+    }
+
+    fn xsrf_config(&self) -> Result<SessionConfig> {
+        if let Some(config) = &self.xsrf {
+            Ok(config.clone())
+        } else if self.repository.get("session")?.is_some() {
+            Ok(self.repository.section("session")?)
+        } else {
+            Ok(SessionConfig::default())
+        }
+    }
+
+    fn require_session(
+        &self,
+        request: &Request,
+        cookie: &crate::http::cookie::CookieLayer,
+    ) -> Result<crate::session::Session> {
+        let session = request
+            .extensions()
+            .get::<crate::session::Session>()
+            .cloned()
+            .ok_or_else(missing_session)?;
+        session.require_live_started()?;
+        let name = session.name()?;
+        let protected = if self.sends_xsrf_cookie() {
+            cookie.protects_web_cookies(&name)
+        } else {
+            cookie.protects_cookie(&name)
+        };
+        if !protected {
+            return Err(Error::custom(
+                "web_cookie_encryption_missing",
+                "Web CSRF 要求保护实际 Session Cookie",
+            ));
+        }
+        Ok(session)
+    }
 }
 
 /// 仅此 middleware 可创建，供同一请求的 Session auth 识别已完成的防护。
@@ -105,52 +153,90 @@ impl std::error::Error for OriginMismatch {}
 pub type VerifyCsrfToken = PreventRequestForgery;
 
 pub(crate) async fn handle(
-    State(runtime): State<ForgeryRuntime>,
+    runtime: ForgeryRuntime,
     mut request: Request,
-    next: Next,
+    next: ManagedNext,
 ) -> Response {
-    match verify(&runtime, &mut request).await {
-        Ok(()) => {
-            request.extensions_mut().insert(CsrfVerified);
-            let jar = request.extensions().get::<CookieJar>().cloned();
-            let session = request
-                .extensions()
-                .get::<crate::session::Session>()
-                .cloned();
-            let mut response = next.run(request).await;
-            if !runtime.policy.origin_only && runtime.policy.add_xsrf_cookie {
-                let result = (|| {
-                    let session = session.as_ref().ok_or_else(|| {
-                        Error::custom("csrf_session_missing", "Web CSRF 要求已启动 Session")
-                    })?;
-                    let token = session
-                        .token()?
-                        .and_then(|value| value.as_str().map(str::to_owned))
-                        .ok_or_else(|| {
-                            Error::custom(
-                                "csrf_session_token_missing",
-                                "Web CSRF Session token 不可用",
-                            )
-                        })?;
-                    let jar = jar.as_ref().ok_or_else(|| {
-                        Error::custom("csrf_cookie_jar_missing", "Web CSRF 要求 CookieJar")
-                    })?;
-                    add_xsrf_cookie(&runtime.session, jar, token)
-                })();
-                if let Err(error) = result {
-                    if let Some(jar) = &jar {
-                        let _ = jar.flush_queued_cookies();
-                    }
-                    response = error.into_response();
-                }
-            }
-            response
+    let invocation = next.invocation();
+    let prepared: Result<_> = async {
+        let (cookie, _) = crate::http::cookie::middleware::require_prepared(
+            &request,
+            &runtime.cookie,
+            invocation,
+        )?;
+        let outbound = if runtime.sends_xsrf_cookie() {
+            let config = runtime.xsrf_config()?;
+            let session = runtime.require_session(&request, &cookie)?;
+            config.validate()?;
+            current_token(&session)?;
+            Some((session, config))
+        } else {
+            None
+        };
+        // 普通协议拒绝只由本层的明确校验分支产生。
+        if let Some(error) = verify(&runtime, &cookie, &mut request).await? {
+            return Ok(Err(error));
         }
-        Err(error) => error.into_response(),
+        let (_, jar) = crate::http::cookie::middleware::require_prepared(
+            &request,
+            &runtime.cookie,
+            invocation,
+        )?;
+        Ok(Ok((jar, outbound)))
+    }
+    .await;
+    let (jar, outbound) = match prepared {
+        Ok(Ok(prepared)) => prepared,
+        Ok(Err(protocol)) => return protocol.into_response(),
+        Err(error) => {
+            invocation.fail();
+            return crate::http::cookie::private_error_response(error);
+        }
+    };
+    request.extensions_mut().insert(CsrfVerified);
+    let response = next.run(request).await;
+    let Some((session, config)) = outbound else {
+        return response;
+    };
+    if !invocation.seal() {
+        invocation.fail();
+        let _ = jar.flush_queued_cookies();
+        return suppress_cookies(response);
+    }
+    // 业务可能轮换 token。回程始终读取入站验证过的同一 Session。
+    let result = current_token(&session).and_then(|token| add_xsrf_cookie(&config, &jar, token));
+    match result {
+        Ok(()) => response,
+        Err(error) => {
+            invocation.fail();
+            let _ = jar.flush_queued_cookies();
+            crate::http::cookie::private_error_response(error)
+        }
     }
 }
 
-async fn verify(runtime: &ForgeryRuntime, request: &mut Request) -> Result<()> {
+fn missing_session() -> Error {
+    Error::custom("csrf_session_missing", "Web CSRF 要求已启动 Session")
+}
+
+fn current_token(session: &crate::session::Session) -> Result<String> {
+    session.require_live_started()?;
+    session
+        .token()?
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .ok_or_else(|| {
+            Error::custom(
+                "csrf_session_token_missing",
+                "Web CSRF Session token 不可用",
+            )
+        })
+}
+
+async fn verify(
+    runtime: &ForgeryRuntime,
+    cookie: &crate::http::cookie::CookieLayer,
+    request: &mut Request,
+) -> Result<Option<Error>> {
     let (mut parts, body) = std::mem::replace(request, Request::new(Body::empty())).into_parts();
     let info = RequestInfo::from_request_parts(&mut parts, &()).await?;
     *request = Request::from_parts(parts, body);
@@ -172,7 +258,7 @@ async fn verify(runtime: &ForgeryRuntime, request: &mut Request) -> Result<()> {
         }
     }
     if safe || test || excluded {
-        return Ok(());
+        return Ok(None);
     }
     let site = request
         .headers()
@@ -180,20 +266,17 @@ async fn verify(runtime: &ForgeryRuntime, request: &mut Request) -> Result<()> {
         .and_then(|value| value.to_str().ok());
     if site == Some("same-origin") || (site == Some("same-site") && runtime.policy.allow_same_site)
     {
-        return Ok(());
+        return Ok(None);
     }
     if runtime.policy.origin_only {
-        return Err(Error::http_with_source(
+        return Ok(Some(Error::http_with_source(
             StatusCode::FORBIDDEN,
             "origin_mismatch",
             "Origin Mismatch",
             OriginMismatch,
-        ));
+        )));
     }
-    let session = request
-        .extensions()
-        .get::<crate::session::Session>()
-        .ok_or_else(|| Error::custom("csrf_session_missing", "Web CSRF 要求已启动 Session"))?;
+    let session = runtime.require_session(request, cookie)?;
     let expected = session
         .token()?
         .and_then(|token| token.as_str().map(str::to_owned));
@@ -213,25 +296,35 @@ async fn verify(runtime: &ForgeryRuntime, request: &mut Request) -> Result<()> {
         .and_then(|value| value.to_str().ok())
         .filter(|value| !value.is_empty())
         .map(str::to_owned);
+    if input.is_none()
+        && header.is_none()
+        && request.headers().contains_key("x-xsrf-token")
+        && !cookie.protects_cookie("XSRF-TOKEN")
+    {
+        return Err(Error::custom(
+            "web_cookie_encryption_missing",
+            "Web CSRF 要求保护 XSRF Cookie",
+        ));
+    }
     let xsrf = request
         .headers()
         .get("x-xsrf-token")
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| runtime.cookie.decrypt_xsrf_header(value));
+        .and_then(|value| cookie.decrypt_xsrf_header(value));
     let token = input.or(header).or(xsrf);
     let valid = expected
         .as_deref()
         .zip(token.as_deref())
         .is_some_and(|(expected, supplied)| expected.as_bytes().ct_eq(supplied.as_bytes()).into());
     if valid {
-        Ok(())
+        Ok(None)
     } else {
-        Err(Error::http_with_source(
+        Ok(Some(Error::http_with_source(
             StatusCode::from_u16(419).map_err(Error::internal)?,
             "page_expired",
             "Page Expired",
             CsrfTokenMismatch,
-        ))
+        )))
     }
 }
 

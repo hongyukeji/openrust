@@ -637,3 +637,6 @@ async fn unrepresentable_json_snapshot_clears_partial_query_before_web_redirect(
     assert_eq!(body["old"], serde_json::json!([]));
     Ok(())
 }
+
+#[path = "return_protection_cases.rs"]
+mod return_protection_cases;

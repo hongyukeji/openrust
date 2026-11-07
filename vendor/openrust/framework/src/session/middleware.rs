@@ -3,13 +3,13 @@ use super::{
     Expiry, Session, SessionId, SessionRequestContext, SessionStore,
     provider::{SessionSettings, SessionSlot, missing},
 };
+use crate::routing::{invocation::suppress_cookies, methods::ManagedNext};
 use crate::{
     Result,
     http::{CookieFactory, CookieOptions, RequestInfo},
 };
 use axum::{
-    extract::{FromRequestParts, Request, State},
-    middleware::Next,
+    extract::{FromRequestParts, Request},
     response::Response,
 };
 use std::sync::Arc;
@@ -39,23 +39,42 @@ impl<S: Send + Sync> FromRequestParts<S> for Session {
     }
 }
 pub(crate) async fn handle(
-    State(layer): State<Option<SessionLayer>>,
+    layer: SessionLayer,
     mut request: Request,
-    next: Next,
+    next: ManagedNext,
 ) -> Response {
-    let Some(layer) = layer else {
-        return next.run(request).await;
+    let invocation = next.invocation();
+    if !invocation.owns_scope(&request) {
+        invocation.fail();
+        return crate::http::cookie::private_error_response(missing());
+    }
+    let protected_cookie = if let Some(expected) = invocation.protected_cookie() {
+        match crate::http::cookie::middleware::require_prepared(&request, expected, invocation) {
+            Ok((cookie, _)) => {
+                Some(cookie).filter(|cookie| cookie.protects_cookie(&layer.settings.cookie_name))
+            }
+            Err(error) => {
+                invocation.fail();
+                return crate::http::cookie::private_error_response(error);
+            }
+        }
+    } else {
+        None
     };
     let (mut parts, body) = request.into_parts();
     let info = match RequestInfo::from_request_parts(&mut parts, &()).await {
         Ok(info) => info,
-        Err(error) => return crate::http::cookie::private_error_response(error),
+        Err(error) => {
+            invocation.fail();
+            return crate::http::cookie::private_error_response(error);
+        }
     };
     request = Request::from_parts(parts, body);
     let result = prepare(&layer, &mut request, &info).await;
     let session = match result {
         Ok(session) => session,
         Err(error) => {
+            invocation.fail();
             // 请求驱动绑定或加载失败时，不发送它此前排入的 Cookie。
             if let Some(jar) = request.extensions().get::<crate::http::CookieJar>() {
                 let _ = jar.flush_queued_cookies();
@@ -73,15 +92,38 @@ pub(crate) async fn handle(
         let secure = crate::http::transport::is_secure(&request)?;
         // Route 与 Precognition 共享请求私有状态；不得在下游前猜测最终命中或确认。
         let response = next.run(request).await;
-        complete(&layer, &session, &info, secure, response).await
+        if !invocation.seal() {
+            invocation.fail();
+            // Close仍持有队列，退出时丢弃下游排入的Cookie。
+            return Ok((suppress_cookies(response), false));
+        }
+        // 同一次名称检查约束预检和最终出站。保存可轮换 ID，不能更换已校验的名称。
+        let cookie_name = session.name()?;
+        if protected_cookie
+            .as_ref()
+            .is_some_and(|cookie| !cookie.protects_cookie(&cookie_name))
+        {
+            return Err(crate::Error::custom(
+                "web_cookie_encryption_missing",
+                "出站 Session Cookie 名称必须受保护",
+            ));
+        }
+        complete(&layer, &session, &info, secure, &cookie_name, response)
+            .await
+            .map(|response| (response, true))
     }
     .await;
     match result {
-        Ok(response) => {
-            close.1 = None;
+        Ok((response, permitted)) => {
+            if permitted {
+                close.1 = None;
+            }
             response
         }
-        Err(error) => crate::http::cookie::private_error_response(error),
+        Err(error) => {
+            invocation.fail();
+            crate::http::cookie::private_error_response(error)
+        }
     }
 }
 
@@ -90,6 +132,7 @@ async fn complete(
     session: &Session,
     info: &RequestInfo,
     secure: bool,
+    cookie_name: &str,
     mut response: Response,
 ) -> Result<Response> {
     if info.method() == http::Method::GET
@@ -125,7 +168,7 @@ async fn complete(
     let make_cookie = || -> Result<_> {
         Ok(factory
             .make(
-                session.name()?,
+                cookie_name,
                 session.id()?.to_string(),
                 minutes,
                 CookieOptions {

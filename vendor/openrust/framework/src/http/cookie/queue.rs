@@ -116,6 +116,11 @@ impl std::fmt::Debug for CookieJar {
 }
 
 impl CookieJar {
+    #[cfg(feature = "session")]
+    pub(super) fn same_queue(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.state, &other.state)
+    }
+
     /// 创建独立队列，并保留不可变 Cookie 创建默认值。
     pub fn new(factory: CookieFactory) -> Self {
         Self {

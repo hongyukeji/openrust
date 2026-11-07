@@ -66,7 +66,7 @@ curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query
 
 浏览器随后向匹配路径回送 Cookie。测试将实际 `Set-Cookie` 的首个 name/value 对原样作为后续 `Cookie` 请求头，不假定 wire 值为明文，也不在业务中解密。Cookie 不经过普通输入的 trim/null 转换；读取使用直接键，数组叶子的解释由框架 wire 解析器负责。
 
-宿主必须登记 `CookieServiceProvider`；示例 Cookie API 路由显式使用 `cookies` 中间件，普通 API 不自动启用 Cookie。默认构造要求现有 Encryptor，提供受保护 Cookie 与历史密钥解密。显式 `plain()` 仅提供无加密路径，不保护 Cookie 的机密性或完整性，不能用于默认 Web 组。Session API、账户 Session 与 OIDC 浏览器绑定路由逐组显式叠加 `cookies`、`session`；其余 API 不默认创建会话。未经过 Web CSRF 验证的 Session Auth API 保留独立认证 token 校验。
+宿主必须登记 `CookieServiceProvider`；示例 Cookie API 路由显式使用 `cookies` 中间件，普通 API 不自动启用 Cookie。默认构造在示例 Cookie 路由第一次实际调用时解析宿主加密服务，提供受保护 Cookie 与历史密钥解密。密钥无效时，该请求拒绝发送 Cookie；无 Cookie 的普通示例入口仍可使用。显式 `plain()` 仅提供无加密路径，不保护 Cookie 的机密性或完整性，不能用于默认 Web 组。Session API、账户 Session 与 OIDC 浏览器绑定路由逐组显式叠加 `cookies`、`session`；其余 API 不默认创建会话。未经过 Web CSRF 验证的 Session Auth API 保留独立认证 token 校验。
 
 ## Session 偏好与一次性提示
 

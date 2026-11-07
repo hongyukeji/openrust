@@ -7,6 +7,7 @@
 
 pub mod action;
 pub(crate) mod domain;
+pub(crate) mod invocation;
 pub mod methods;
 pub mod redirector;
 pub mod registration;

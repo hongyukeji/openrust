@@ -1,8 +1,11 @@
 //! 解密在 Session 前，响应先附加队列再加密。
-use super::{CookieJar, crypto::Protection};
+use super::{CookieJar, CookieLayerPlan, crypto::Protection};
+use crate::container::Scope;
+#[cfg(feature = "session")]
+use crate::routing::invocation::Invocation;
+use crate::routing::{invocation::suppress_cookies, methods::ManagedNext};
 use axum::{
-    extract::{FromRequestParts, Request, State},
-    middleware::Next,
+    extract::{FromRequestParts, Request},
     response::Response,
 };
 use http::{HeaderValue, header::COOKIE, request::Parts};
@@ -30,10 +33,18 @@ impl<S: Send + Sync> FromRequestParts<S> for CookieJar {
 
 impl CookieLayer {
     #[cfg(feature = "session")]
-    pub(crate) fn protects_web_cookies(&self, session_cookie_name: &str) -> bool {
+    pub(crate) fn is_protected(&self) -> bool {
         !matches!(&self.protection, Protection::Plain)
-            && !self.except.iter().any(|name| name == "XSRF-TOKEN")
-            && !self.except.iter().any(|name| name == session_cookie_name)
+    }
+
+    #[cfg(feature = "session")]
+    pub(crate) fn protects_cookie(&self, name: &str) -> bool {
+        self.is_protected() && !self.except.iter().any(|except| except == name)
+    }
+
+    #[cfg(feature = "session")]
+    pub(crate) fn protects_web_cookies(&self, session_cookie_name: &str) -> bool {
+        self.protects_cookie("XSRF-TOKEN") && self.protects_cookie(session_cookie_name)
     }
 
     #[cfg(feature = "session")]
@@ -44,26 +55,99 @@ impl CookieLayer {
     }
 }
 
+#[cfg(feature = "session")]
+#[derive(Clone)]
+struct CookiePreparedContext {
+    scope: std::sync::Weak<Scope>,
+    issuer: Arc<CookieLayerPlan>,
+    layer: Arc<CookieLayer>,
+    jar: CookieJar,
+}
+
+#[cfg(feature = "session")]
+pub(crate) fn clear_prepared(extensions: &mut http::Extensions) {
+    extensions.remove::<CookiePreparedContext>();
+}
+
+#[cfg(feature = "session")]
+pub(crate) fn require_prepared(
+    request: &Request,
+    expected: &Arc<CookieLayerPlan>,
+    invocation: &Invocation,
+) -> crate::Result<(Arc<CookieLayer>, CookieJar)> {
+    let proof = request.extensions().get::<CookiePreparedContext>();
+    let jar = request.extensions().get::<CookieJar>();
+    if let Some((proof, jar)) = proof.zip(jar)
+        && invocation.owns_scope(request)
+        && proof
+            .scope
+            .upgrade()
+            .zip(request.extensions().get::<Arc<Scope>>())
+            .is_some_and(|(prepared, current)| Arc::ptr_eq(&prepared, current))
+        && Arc::ptr_eq(&proof.issuer, expected)
+        && proof.jar.same_queue(jar)
+    {
+        return Ok((Arc::clone(&proof.layer), jar.clone()));
+    }
+    Err(crate::Error::custom(
+        "cookie_preparation_required",
+        "请求缺少本次 Cookie 准备上下文",
+    ))
+}
+
 pub(crate) async fn handle(
-    State(layer): State<CookieLayer>,
+    plan: Arc<CookieLayerPlan>,
     mut request: Request,
-    next: Next,
+    next: ManagedNext,
 ) -> Response {
+    let invocation = next.invocation();
+    let Some(scope) = invocation.request_scope(&request) else {
+        invocation.fail();
+        return super::private_error_response(crate::Error::custom(
+            "cookie_scope_missing",
+            "Cookie 中间件要求受管理请求作用域",
+        ));
+    };
     let secure = match crate::http::transport::is_secure(&request) {
         Ok(secure) => secure,
-        Err(error) => return super::private_error_response(error),
+        Err(error) => {
+            invocation.fail();
+            return super::private_error_response(error);
+        }
     };
-    let result = prepare(&layer, &mut request).await;
+    let layer = match plan.resolve(&scope).await {
+        Ok(layer) => layer,
+        Err(error) => {
+            invocation.fail();
+            return super::private_error_response(error);
+        }
+    };
+    let result = prepare(&layer, &scope, &mut request).await;
     let jar = match result {
         Ok(jar) => jar,
-        Err(error) => return super::private_error_response(error),
+        Err(error) => {
+            invocation.fail();
+            return super::private_error_response(error);
+        }
     };
+    #[cfg(feature = "session")]
+    request.extensions_mut().insert(CookiePreparedContext {
+        scope: Arc::downgrade(&scope),
+        issuer: plan,
+        layer: Arc::clone(&layer),
+        jar: jar.clone(),
+    });
     let context = request
         .extensions()
         .get::<crate::support::CalendarContext>()
         .cloned()
         .unwrap_or_default();
     let mut response = next.run(request).await;
+    if !invocation.seal() {
+        invocation.fail();
+        let _ = jar.flush_queued_cookies();
+        return suppress_cookies(response);
+    }
     let result = (|| {
         let mut cookies = super::response::models_with_context(&response, &context)?;
         for cookie in jar.get_queued_cookies()? {
@@ -77,11 +161,18 @@ pub(crate) async fn handle(
     })();
     match result {
         Ok(()) => response,
-        Err(error) => super::private_error_response(error),
+        Err(error) => {
+            invocation.fail();
+            super::private_error_response(error)
+        }
     }
 }
 
-async fn prepare(layer: &CookieLayer, request: &mut Request) -> crate::Result<CookieJar> {
+async fn prepare(
+    layer: &CookieLayer,
+    scope: &Scope,
+    request: &mut Request,
+) -> crate::Result<CookieJar> {
     let mut parsed = super::parse_headers(request.headers())?;
     layer.protection.decrypt(&mut parsed.value, &layer.except);
     let mut fields = Vec::new();
@@ -103,19 +194,7 @@ async fn prepare(layer: &CookieLayer, request: &mut Request) -> crate::Result<Co
         .insert(layer.protection.authenticity(&layer.except));
     request.extensions_mut().insert(parsed.original.clone());
     request.extensions_mut().insert(parsed);
-    let scope = request
-        .extensions()
-        .get::<Arc<crate::container::Scope>>()
-        .cloned();
-    let jar = match scope {
-        Some(scope) => (*scope.resolve::<CookieJar>().await?).clone(),
-        None => {
-            return Err(crate::Error::custom(
-                "cookie_scope_missing",
-                "Cookie 中间件要求受管理请求作用域",
-            ));
-        }
-    };
+    let jar = (*scope.resolve::<CookieJar>().await?).clone();
     request.extensions_mut().insert(jar.clone());
     Ok(jar)
 }

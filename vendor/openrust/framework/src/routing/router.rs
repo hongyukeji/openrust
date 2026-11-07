@@ -213,7 +213,11 @@ pub(crate) async fn dispatch_managed(
             }
         }
     }
-    (entry.handler)(request, state).await
+    let (invocation, _retire) = super::invocation::Invocation::new(
+        #[cfg(feature = "session")]
+        entry.protected_cookie.clone(),
+    );
+    (entry.handler)(request, state, invocation).await
 }
 
 // 已由 Axum 验证完整路径；按前缀段数裁剪可同时保留静态与参数化组的原 nest URI 语义。
@@ -308,7 +312,7 @@ impl Default for MiddlewareRegistry {
 impl MiddlewareRegistry {
     pub(crate) fn install_web_defaults(
         &mut self,
-        cookie: Option<crate::http::cookie::CookieLayer>,
+        cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
         #[cfg(feature = "session")] session: Option<crate::session::SessionLayer>,
         #[cfg(feature = "session")] forgery: Option<crate::http::forgery::ForgeryRuntime>,
     ) -> crate::core::Result<()> {
@@ -317,10 +321,7 @@ impl MiddlewareRegistry {
                 "cookies".to_owned(),
                 Arc::new(move |mut routes| {
                     if let Some(layer) = &cookie {
-                        routes.layer(axum::middleware::from_fn_with_state(
-                            layer.clone(),
-                            crate::http::cookie::middleware::handle,
-                        ))
+                        routes.builtin_layer(&routing::BuiltinLayer::Cookie(layer.clone()))
                     } else {
                         routes.middleware_errors.push(crate::Error::custom(
                             "web_cookie_provider_missing",
@@ -335,10 +336,7 @@ impl MiddlewareRegistry {
             #[cfg(feature = "session")]
             let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
                 if let Some(layer) = &session {
-                    routes.layer(axum::middleware::from_fn_with_state(
-                        Some(layer.clone()),
-                        crate::session::handle_session,
-                    ))
+                    routes.builtin_layer(&routing::BuiltinLayer::Session(layer.clone()))
                 } else {
                     routes.middleware_errors.push(crate::Error::custom(
                         "web_session_provider_missing",
@@ -361,26 +359,14 @@ impl MiddlewareRegistry {
             #[cfg(feature = "session")]
             let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
                 if let Some(runtime) = &forgery {
-                    if runtime
-                        .cookie
-                        .protects_web_cookies(&runtime.session_cookie_name)
-                    {
-                        return routes.layer(axum::middleware::from_fn_with_state(
-                            runtime.clone(),
-                            crate::http::forgery::handle,
-                        ));
-                    }
-                    routes.middleware_errors.push(crate::Error::custom(
-                        "web_cookie_encryption_missing",
-                        "默认 Web 组要求受保护 Cookie 与 Encryptor",
-                    ));
+                    routes.builtin_layer(&routing::BuiltinLayer::Csrf(runtime.clone()))
                 } else {
                     routes.middleware_errors.push(crate::Error::custom(
                         "web_csrf_runtime_missing",
                         "Web CSRF 要求 Cookie 和有效 Session",
                     ));
+                    routes
                 }
-                routes
             });
             #[cfg(not(feature = "session"))]
             let builder: MiddlewareLayerBuilder = Arc::new(|mut routes| {
@@ -1249,6 +1235,17 @@ impl Router {
         self
     }
 
+    fn builtin_layer(self, layer: &routing::BuiltinLayer) -> Self {
+        for declaration in &self.declarations {
+            routing::builtin_entries(
+                &declaration.entries,
+                layer,
+                self.active_middleware_name.as_deref(),
+            );
+        }
+        self
+    }
+
     /// 将收集到的路由交给 axum。
     ///
     /// # Errors
@@ -1277,6 +1274,11 @@ impl Router {
             .as_deref()
             .map_or(&[][..], |registry| registry.priority.as_slice());
         for declaration in &self.declarations {
+            #[cfg(feature = "session")]
+            if let Err(error) = routing::finalize_layers(&declaration.entries, priority) {
+                self.middleware_errors.push(error);
+            }
+            #[cfg(not(feature = "session"))]
             routing::finalize_layers(&declaration.entries, priority);
         }
         let metadata: crate::core::Result<Vec<_>> = self
@@ -2622,6 +2624,278 @@ mod parameter_alias_tests {
             ])
         );
         assert_eq!(defaults.groups.get("api"), Some(&Vec::<String>::new()));
+        Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "session", feature = "encryption"))]
+mod return_roles_tests {
+    use super::*;
+    use crate::Application;
+    use crate::foundation::{BootContext, ProviderBuilder, http::build_router};
+    use crate::http::{CookieServiceProvider, HttpServiceProvider, PreventRequestForgery};
+    use crate::session::{Session, SessionServiceProvider};
+    use crate::support::{BoxFuture, ServiceProvider};
+    use axum::middleware::{Next, from_fn};
+    use routing::return_seal_tests::{ObservedStore, Writes};
+    use std::sync::atomic::Ordering;
+    use tokio::sync::Notify;
+
+    #[derive(Default)]
+    struct Exchange {
+        extensions: Mutex<Option<http::Extensions>>,
+        published: Notify,
+        release: Notify,
+    }
+
+    struct MultipleRoles(Arc<Exchange>);
+
+    impl ServiceProvider for MultipleRoles {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, crate::Result<()>> {
+            Box::pin(async move {
+                let cookie = app
+                    .resolve::<crate::http::cookie::CookieLayerPlan>()
+                    .await?;
+                let runtime = crate::http::forgery::ForgeryRuntime {
+                    policy: PreventRequestForgery::new().origin_only(),
+                    cookie: Arc::clone(&cookie),
+                    xsrf: None,
+                    repository: app.config_repository(),
+                    testing_boot: false,
+                };
+                let registry = &mut app
+                    .extension_mut::<crate::routing::registration::RouteRegistry>()?
+                    .middleware;
+                registry.alias(
+                    "fixture-cookie".into(),
+                    Arc::new(move |routes| {
+                        routes.builtin_layer(&routing::BuiltinLayer::Cookie(Arc::clone(&cookie)))
+                    }),
+                )?;
+                for name in ["fixture-first", "fixture-second"] {
+                    let runtime = runtime.clone();
+                    registry.alias(
+                        name.into(),
+                        Arc::new(move |routes| {
+                            routes.builtin_layer(&routing::BuiltinLayer::Csrf(runtime.clone()))
+                        }),
+                    )?;
+                }
+                app.exceptions(|handler| {
+                    handler.api_envelope_when(|request, _| request.path() == "/two-roles");
+                })?;
+                let exchange = Arc::clone(&self.0);
+                app.middleware_alias(
+                    "fixture-between",
+                    from_fn(move |mut request: Request, next: Next| {
+                        let exchange = Arc::clone(&exchange);
+                        async move {
+                            manipulate_proof(&mut request, &exchange).await?;
+                            Ok::<_, crate::Error>(next.run(request).await)
+                        }
+                    }),
+                )?;
+                app.middleware_priority([
+                    "fixture-cookie",
+                    "session",
+                    "fixture-first",
+                    "fixture-between",
+                    "fixture-second",
+                ])?;
+                app.routes(|routes| {
+                    routes.group(
+                        RouteGroup::new()
+                            .middleware_alias("fixture-cookie")
+                            .middleware_alias("session")
+                            .middleware_alias("fixture-first")
+                            .middleware_alias("fixture-between")
+                            .middleware_alias("fixture-second"),
+                        |group| group.get("/two-roles", || async { StatusCode::ACCEPTED }),
+                    )
+                })?;
+                Ok(())
+            })
+        }
+    }
+
+    async fn manipulate_proof(request: &mut Request, exchange: &Exchange) -> crate::Result<()> {
+        let mode = request
+            .headers()
+            .get("x-strip-proof")
+            .and_then(|value| value.to_str().ok());
+        match mode {
+            Some("yes") => request.extensions_mut().clear(),
+            Some("private") => {
+                assert!(
+                    request
+                        .extensions()
+                        .get::<Arc<crate::container::Scope>>()
+                        .is_some()
+                );
+                assert!(request.extensions().get::<Session>().is_some());
+                assert!(
+                    request
+                        .extensions()
+                        .get::<crate::http::CookieJar>()
+                        .is_some()
+                );
+                assert!(
+                    request
+                        .extensions()
+                        .get::<crate::http::forgery::CsrfVerified>()
+                        .is_some()
+                );
+                crate::http::cookie::middleware::clear_prepared(request.extensions_mut());
+            }
+            Some("publish") => {
+                *exchange.extensions.lock().map_err(|_| exchange_error())? =
+                    Some(request.extensions().clone());
+                exchange.published.notify_one();
+                // 保持第一个 HTTP 请求的真实入口 Scope 活跃。
+                exchange.release.notified().await;
+            }
+            Some("copy") => {
+                let copied = exchange
+                    .extensions
+                    .lock()
+                    .map_err(|_| exchange_error())?
+                    .take()
+                    .ok_or_else(exchange_error)?;
+                assert!(copied.get::<Session>().is_some());
+                assert!(copied.get::<crate::http::CookieJar>().is_some());
+                assert!(copied.get::<crate::http::forgery::CsrfVerified>().is_some());
+                let (source, current) = copied
+                    .get::<Arc<crate::container::Scope>>()
+                    .zip(request.extensions().get::<Arc<crate::container::Scope>>())
+                    .ok_or_else(exchange_error)?;
+                assert!(!Arc::ptr_eq(source, current));
+                *request.extensions_mut() = copied;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn exchange_error() -> crate::Error {
+        crate::Error::custom("fixture_scope_exchange_failed", "测试请求上下文交换失败")
+    }
+
+    fn two_roles_request(mode: Option<&'static str>) -> Request {
+        let mut request = Request::new(Body::empty());
+        *request.uri_mut() = Uri::from_static("/two-roles");
+        request
+            .headers_mut()
+            .insert("host", http::HeaderValue::from_static("localhost"));
+        request.headers_mut().insert(
+            http::header::ACCEPT,
+            http::HeaderValue::from_static("application/json"),
+        );
+        if let Some(mode) = mode {
+            request
+                .headers_mut()
+                .insert("x-strip-proof", http::HeaderValue::from_static(mode));
+        }
+        request
+    }
+
+    async fn assert_cookie_preparation_failure(response: Response) -> crate::Result<()> {
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .map_err(crate::Error::internal)?;
+        let body: serde_json::Value =
+            serde_json::from_slice(&body).map_err(crate::Error::internal)?;
+        assert_eq!(body["code"], "cookie_preparation_required");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn success_of_one_actual_csrf_does_not_authorize_another() -> crate::Result<()> {
+        let mut builder = ProviderBuilder::new();
+        let writes = Arc::new(Writes::default());
+        let exchange = Arc::new(Exchange::default());
+        builder
+            .provider(HttpServiceProvider)
+            .provider(crate::encryption::EncryptionServiceProvider)
+            .provider(CookieServiceProvider::new())
+            .provider(SessionServiceProvider::with_store(ObservedStore::new(
+                Arc::clone(&writes),
+                false,
+            )))
+            .provider(MultipleRoles(Arc::clone(&exchange)));
+        let config = figment::Figment::from(figment::providers::Serialized::defaults(
+            crate::config::FrameworkConfig::default(),
+        ))
+        .merge((
+            "security",
+            serde_json::json!({"encryption":{
+                "active_key_id":"test",
+                "keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}
+            }}),
+        ));
+        let app = Application::from_provider_runtime(builder.start(config).await?)?;
+        let router = build_router(&app)?;
+        for strip in [false, true] {
+            let request = two_roles_request(strip.then_some("yes"));
+            let before = writes.count.load(Ordering::SeqCst);
+            let response = router
+                .clone()
+                .oneshot(request)
+                .await
+                .map_err(crate::Error::internal)?;
+            let expected = if strip {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::ACCEPTED
+            };
+            assert_eq!(response.status(), expected);
+            assert_eq!(
+                response.headers().contains_key(http::header::SET_COOKIE),
+                !strip
+            );
+            assert_eq!(
+                writes.count.load(Ordering::SeqCst),
+                before + usize::from(!strip)
+            );
+        }
+
+        let stripped = router
+            .clone()
+            .oneshot(two_roles_request(Some("private")))
+            .await
+            .map_err(crate::Error::internal)?;
+        assert_eq!(stripped.status(), StatusCode::BAD_REQUEST);
+        assert!(!stripped.headers().contains_key(http::header::SET_COOKIE));
+        assert_cookie_preparation_failure(stripped).await?;
+        assert_eq!(writes.count.load(Ordering::SeqCst), 1);
+
+        let copy = async {
+            exchange.published.notified().await;
+            let response = router
+                .clone()
+                .oneshot(two_roles_request(Some("copy")))
+                .await;
+            let writes_before_release = writes.count.load(Ordering::SeqCst);
+            exchange.release.notify_one();
+            (response, writes_before_release)
+        };
+        let (source, (copied, writes_before_release)) =
+            tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                tokio::join!(
+                    router.clone().oneshot(two_roles_request(Some("publish"))),
+                    copy
+                )
+            })
+            .await
+            .map_err(crate::Error::internal)?;
+        let copied = copied.map_err(crate::Error::internal)?;
+        assert_eq!(copied.status(), StatusCode::BAD_REQUEST);
+        assert!(!copied.headers().contains_key(http::header::SET_COOKIE));
+        assert_cookie_preparation_failure(copied).await?;
+        assert_eq!(writes_before_release, 1);
+        let source = source.map_err(crate::Error::internal)?;
+        assert_eq!(source.status(), StatusCode::ACCEPTED);
+        assert!(source.headers().contains_key(http::header::SET_COOKIE));
+        assert_eq!(writes.count.load(Ordering::SeqCst), 2);
         Ok(())
     }
 }

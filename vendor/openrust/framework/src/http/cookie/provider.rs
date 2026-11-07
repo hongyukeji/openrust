@@ -1,10 +1,11 @@
 //! Cookie 服务生命周期；可变队列始终归请求作用域所有。
 use std::sync::Arc;
 
-use super::{CookieFactory, CookieJar, crypto::Protection};
+use super::{CookieFactory, CookieJar, crypto::Protection, middleware::CookieLayer};
 #[cfg(not(feature = "encryption"))]
 use crate::Error;
 use crate::Result;
+use crate::container::Scope;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
 use crate::support::BoxFuture;
@@ -25,7 +26,7 @@ impl Default for CookieServiceProvider {
     }
 }
 impl CookieServiceProvider {
-    /// 默认要求已注册的 Encryptor，缺失时启动失败。
+    /// 默认保护 Cookie，首次处理请求时解析已注册的加密服务。
     pub fn new() -> Self {
         Self {
             factory: None,
@@ -53,8 +54,63 @@ impl CookieServiceProvider {
         self
     }
 }
-#[derive(Clone, Default)]
-pub(crate) struct CookieRuntime(pub(crate) Option<super::middleware::CookieLayer>);
+#[derive(Clone)]
+pub(crate) struct CookieLayerPlan {
+    plain: bool,
+    except: Vec<String>,
+}
+
+impl From<&CookieServiceProvider> for CookieLayerPlan {
+    fn from(provider: &CookieServiceProvider) -> Self {
+        Self {
+            plain: provider.plain,
+            except: provider.except.clone(),
+        }
+    }
+}
+
+impl CookieLayerPlan {
+    #[cfg(feature = "session")]
+    pub(crate) fn is_protected(&self) -> bool {
+        !self.plain
+    }
+
+    #[cfg(feature = "session")]
+    pub(crate) fn protects_cookie(&self, name: &str) -> bool {
+        self.is_protected() && !self.except.iter().any(|except| except == name)
+    }
+
+    #[cfg(feature = "encryption")]
+    pub(crate) async fn resolve(&self, scope: &Scope) -> Result<Arc<CookieLayer>> {
+        let protection = if self.plain {
+            Protection::Plain
+        } else {
+            let encrypter = scope.resolve::<crate::encryption::Encrypter>().await?;
+            Protection::Encrypted((*encrypter).clone())
+        };
+        Ok(self.layer(protection))
+    }
+
+    #[cfg(not(feature = "encryption"))]
+    pub(crate) fn resolve(&self, _scope: &Scope) -> std::future::Ready<Result<Arc<CookieLayer>>> {
+        std::future::ready(if self.plain {
+            Ok(self.layer(Protection::Plain))
+        } else {
+            Err(Error::custom(
+                "cookie_encryption_unavailable",
+                "Cookie 保护要求 encryption feature 和 Encryptor",
+            ))
+        })
+    }
+
+    fn layer(&self, protection: Protection) -> Arc<CookieLayer> {
+        Arc::new(CookieLayer {
+            protection,
+            except: self.except.clone(),
+        })
+    }
+}
+
 impl ServiceProvider for CookieServiceProvider {
     fn register<'a>(
         &'a self,
@@ -88,7 +144,7 @@ impl ServiceProvider for CookieServiceProvider {
                 })
             })
             .await?;
-            Ok(())
+            app.instance(Arc::new(CookieLayerPlan::from(self))).await
         })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -99,27 +155,6 @@ impl ServiceProvider for CookieServiceProvider {
                     Box::pin(async move { factory_from_repository(&repository).map(|_| ()) })
                 });
             }
-            let protection = if self.plain {
-                Protection::Plain
-            } else {
-                #[cfg(feature = "encryption")]
-                {
-                    Protection::Encrypted(
-                        (*app.resolve::<crate::encryption::Encrypter>().await?).clone(),
-                    )
-                }
-                #[cfg(not(feature = "encryption"))]
-                {
-                    return Err(Error::custom(
-                        "cookie_encryption_unavailable",
-                        "Cookie 保护要求 encryption feature 和 Encryptor",
-                    ));
-                }
-            };
-            app.extension_mut::<CookieRuntime>()?.0 = Some(super::middleware::CookieLayer {
-                protection,
-                except: self.except.clone(),
-            });
             Ok(())
         })
     }

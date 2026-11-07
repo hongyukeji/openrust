@@ -85,17 +85,22 @@ impl openrust::support::ServiceProvider for CookieRoutes {
         app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
+            app.exceptions(|handler| {
+                handler.api_envelope_when(|request, _| request.path().starts_with("/queue/"));
+            })?;
             app.routes(|routes| {
-                routes.group(
-                    openrust::routing::RouteGroup::new().middleware_alias("cookies"),
-                    |routes| {
-                        routes
-                            .get("/queue/{value}", scoped_queue)
-                            .get("/inspect", empty_queue)
-                            .get("/cancel", cancel_queue)
-                            .get("/security", security_cookies)
-                    },
-                )
+                routes
+                    .get("/without-cookies", || async { StatusCode::NO_CONTENT })
+                    .group(
+                        openrust::routing::RouteGroup::new().middleware_alias("cookies"),
+                        |routes| {
+                            routes
+                                .get("/queue/{value}", scoped_queue)
+                                .get("/inspect", empty_queue)
+                                .get("/cancel", cancel_queue)
+                                .get("/security", security_cookies)
+                        },
+                    )
             })?;
             Ok(())
         })
@@ -224,12 +229,90 @@ async fn request_scope_shares_jar_but_concurrent_and_cancelled_requests_are_isol
 }
 
 #[tokio::test]
-async fn protected_provider_never_implicitly_downgrades_to_plain() {
+async fn protected_provider_never_implicitly_downgrades_to_plain() -> openrust::Result<()> {
+    use openrust::ServiceExt;
+
+    let app = cookie_app(openrust::http::CookieServiceProvider::new()).await?;
+    let router = openrust::foundation::http::build_router(&app)?;
+    let send = |path: &str| {
+        Wire::builder()
+            .uri(path)
+            .header("host", "localhost")
+            .body(Body::empty())
+            .expect("wire")
+    };
+    let ordinary = router
+        .clone()
+        .oneshot(send("/without-cookies"))
+        .await
+        .expect("ordinary response");
+    assert_eq!(ordinary.status(), StatusCode::NO_CONTENT);
+    assert!(!ordinary.headers().contains_key("set-cookie"));
+
+    let protected = router
+        .oneshot(send("/queue/protected"))
+        .await
+        .expect("protected response");
+    let (status, code) = if cfg!(feature = "encryption") {
+        (StatusCode::INTERNAL_SERVER_ERROR, "service_not_bound")
+    } else {
+        (StatusCode::BAD_REQUEST, "cookie_encryption_unavailable")
+    };
+    assert_eq!(protected.status(), status);
+    assert!(!protected.headers().contains_key("set-cookie"));
+    assert_eq!(protected.headers()["cache-control"], "no-store");
+    let body = axum::body::to_bytes(protected.into_body(), 4096)
+        .await
+        .map_err(openrust::Error::internal)?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&body).map_err(openrust::Error::internal)?;
+    assert_eq!(value["code"], code);
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await
+}
+
+#[tokio::test]
+async fn router_snapshot_keeps_cookie_plan_after_runtime_provider_replacement()
+-> openrust::Result<()> {
+    use openrust::ServiceExt;
+
+    let mut app = cookie_app(openrust::http::CookieServiceProvider::plain()).await?;
+    let old = openrust::foundation::http::build_router(&app)?;
+    app.force_register_provider(openrust::http::CookieServiceProvider::new())
+        .await?;
+    let current = openrust::foundation::http::build_router(&app)?;
+    let request = || {
+        Wire::builder()
+            .uri("/queue/value")
+            .header("host", "localhost")
+            .body(Body::empty())
+            .expect("wire")
+    };
+
+    let original = old
+        .oneshot(request())
+        .await
+        .expect("original plan response");
+    assert_eq!(original.status(), StatusCode::OK);
     assert!(
-        cookie_app(openrust::http::CookieServiceProvider::new())
-            .await
-            .is_err()
+        original.headers()["set-cookie"]
+            .to_str()
+            .expect("original plain cookie")
+            .starts_with("scoped=value;")
     );
+    let replacement = current
+        .oneshot(request())
+        .await
+        .expect("replacement plan response");
+    let expected = if cfg!(feature = "encryption") {
+        StatusCode::INTERNAL_SERVER_ERROR
+    } else {
+        StatusCode::BAD_REQUEST
+    };
+    assert_eq!(replacement.status(), expected);
+    assert!(!replacement.headers().contains_key("set-cookie"));
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await
 }
 
 #[tokio::test]
@@ -523,4 +606,123 @@ fn empty_and_absent_domains_share_response_identity_and_preserve_path_name_order
         assert!(!header.contains("domain="));
     }
     Ok(())
+}
+
+struct ReplaceWithProtectedCookies;
+
+impl openrust::support::ServiceProvider for ReplaceWithProtectedCookies {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::support::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            let mut factory = CookieFactory::default();
+            factory.set_default_path_and_domain("/child".into(), None, None, None)?;
+            app.force_register_provider(
+                openrust::http::CookieServiceProvider::new().with_factory(factory),
+            )
+            .await?;
+            let factory = app.resolve::<CookieFactory>().await?;
+            assert_eq!(
+                factory
+                    .make("probe", "value", 0, CookieOptions::default())?
+                    .path(),
+                "/child"
+            );
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn startup_forced_registration_uses_final_cookie_plan_and_factory() -> openrust::Result<()> {
+    use openrust::ServiceExt;
+
+    let mut factory = CookieFactory::default();
+    factory.set_default_path_and_domain("/final".into(), None, None, None)?;
+    let mut providers = openrust::foundation::ProviderBuilder::new();
+    providers
+        .provider(openrust::http::HttpServiceProvider)
+        .provider(openrust::http::CookieServiceProvider::plain())
+        .provider(ReplaceWithProtectedCookies)
+        .force_provider(openrust::http::CookieServiceProvider::plain().with_factory(factory))
+        .provider(CookieRoutes);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ));
+    let app = openrust::Application::from_provider_runtime(providers.start(sources).await?)?;
+    let response = openrust::foundation::http::build_router(&app)?
+        .oneshot(
+            Wire::builder()
+                .uri("/queue/value")
+                .header("host", "localhost")
+                .body(Body::empty())
+                .expect("wire"),
+        )
+        .await
+        .expect("final Cookie provider response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"]
+        .to_str()
+        .expect("final plan uses plain Cookies");
+    assert!(cookie.starts_with("scoped=value;"));
+    assert!(
+        cookie
+            .split(';')
+            .any(|attribute| attribute.trim() == "path=/final")
+    );
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await
+}
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn malformed_key_fails_at_first_protected_request_without_leaking_material()
+-> openrust::Result<()> {
+    use openrust::ServiceExt;
+
+    let mut providers = openrust::foundation::ProviderBuilder::new();
+    providers
+        .provider(openrust::http::HttpServiceProvider)
+        .provider(openrust::encryption::EncryptionServiceProvider)
+        .provider(openrust::http::CookieServiceProvider::new())
+        .provider(CookieRoutes);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge((
+        "security",
+        json!({"encryption":{"active_key_id":"test","keys":{"test":"invalid-key-sentinel"}}}),
+    ));
+    let app = openrust::Application::from_provider_runtime(providers.start(sources).await?)?;
+    let router = openrust::foundation::http::build_router(&app)?;
+    let request = |uri| {
+        Wire::builder()
+            .uri(uri)
+            .header("host", "localhost")
+            .body(Body::empty())
+            .expect("wire")
+    };
+    let ordinary = router
+        .clone()
+        .oneshot(request("/without-cookies"))
+        .await
+        .expect("ordinary response");
+    assert_eq!(ordinary.status(), StatusCode::NO_CONTENT);
+    let response = router
+        .oneshot(request("/queue/protected"))
+        .await
+        .expect("rejected protected response");
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(!response.headers().contains_key("set-cookie"));
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let bytes = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert!(!String::from_utf8_lossy(&bytes).contains("invalid-key-sentinel"));
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(openrust::Error::internal)?;
+    assert_eq!(value["code"], "service_initialization_failed");
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await
 }
