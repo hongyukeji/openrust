@@ -201,3 +201,5 @@ CTX v5正式报告与规范树、源文件和回执绑定见[限定验收](testi
 ## 调用级默认属性 setter
 
 MB-S01 v6 的 10 路径源码树和独立回执见[限定验收](testing.md#调用级默认属性-setter-限定验收)。默认/真实 MySQL 工作区、借用 Send consumer、生成项目、文档、最小编译器与离线依赖门禁分别核对。完整 Model 与 Passport 仍沿唯一 todo 验收。
+
+HA-X01 v6 源码、正式 consumer 锁与原生回执见[限定验收](testing.md#增强认证单次叶选择限定验收)。源码树和测试报告绑定后方可集成，故障与外部 skip 独立保留。

@@ -159,7 +159,7 @@ pub trait ApiLoginAuditSink: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct AuthFlows {
     db: Db,
-    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+    passwords: std::sync::Arc<crate::hashing::HashManager>,
     jwt: JwtTokens,
     refresh: RefreshTokens,
     codes: VerificationCodes,
@@ -324,7 +324,7 @@ impl AuthFlows {
     /// 使用应用所需的共享服务创建流程服务。
     pub fn new(
         db: Db,
-        passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+        passwords: std::sync::Arc<crate::hashing::HashManager>,
         jwt: JwtTokens,
         refresh: RefreshTokens,
         codes: VerificationCodes,
@@ -1566,7 +1566,9 @@ impl AuthFlows {
         email: &str,
         password: &str,
     ) -> Result<(i64, EncodedPasswordHash)> {
-        EncodedPasswordHash::validate_input(self.passwords.as_ref(), password)?;
+        super::password::validate_input(password)?;
+        let driver = self.passwords.driver_for_operation()?;
+        EncodedPasswordHash::validate_with_driver(driver.as_ref(), password)?;
         let connection = self.db.connection()?;
         let backend = connection.get_database_backend();
         let sql = match backend {
@@ -1587,7 +1589,7 @@ impl AuthFlows {
             .await
             .map_err(Error::internal)?
         else {
-            self.perform_dummy_password_work().await?;
+            Self::perform_dummy_password_work(driver.as_ref()).await?;
             return Err(Error::Unauthorized);
         };
         let user_id = row.try_get::<i64>("", "id").map_err(Error::internal)?;
@@ -1595,7 +1597,7 @@ impl AuthFlows {
             .try_get::<String>("", "password_hash")
             .map_err(Error::internal)?;
         let hash = EncodedPasswordHash::from_encoded(encoded);
-        match hash.verify(self.passwords.as_ref(), password).await {
+        match hash.verify_with_driver(driver.as_ref(), password).await {
             Ok(true) => Ok((user_id, hash)),
             Ok(false) => Err(Error::Unauthorized),
             Err(error)
@@ -1605,16 +1607,16 @@ impl AuthFlows {
                 ) =>
             {
                 // 与缺失账户采用相同的当前驱动工作，避免将旧存储策略暴露为账户存在信号。
-                self.perform_dummy_password_work().await?;
+                Self::perform_dummy_password_work(driver.as_ref()).await?;
                 Err(Error::Unauthorized)
             }
             Err(error) => Err(error),
         }
     }
 
-    async fn perform_dummy_password_work(&self) -> Result<()> {
+    async fn perform_dummy_password_work(driver: &dyn crate::hashing::Hasher) -> Result<()> {
         // make-only 字节上限不应暴露账户存在性；正上限至少允许一字节，0 与上游一样禁用限制。
-        EncodedPasswordHash::make(self.passwords.as_ref(), "x").await?;
+        EncodedPasswordHash::make_with_driver(driver, "x").await?;
         Ok(())
     }
 
@@ -1910,7 +1912,7 @@ impl crate::support::ServiceProvider for AuthFlowsServiceProvider {
             app.scoped::<AuthFlows, _>(move |resolver| {
                 Box::pin(async move {
                     let db = resolver.resolve::<Db>().await?;
-                    let passwords: std::sync::Arc<dyn crate::hashing::Hasher> =
+                    let passwords: std::sync::Arc<crate::hashing::HashManager> =
                         resolver.resolve::<crate::hashing::HashManager>().await?;
                     let jwt = resolver.resolve::<JwtTokens>().await?;
                     let refresh = resolver.resolve::<RefreshTokens>().await?;
@@ -1997,7 +1999,7 @@ mod provider_tests {
                     },
                 )?);
                 app.instance(Arc::clone(&manager)).await?;
-                let passwords: std::sync::Arc<dyn crate::hashing::Hasher> = manager;
+                let passwords: std::sync::Arc<crate::hashing::HashManager> = manager;
                 app.instance(Arc::new(db.clone())).await?;
                 app.instance(Arc::new(RefreshTokens::new(db.clone())))
                     .await?;
@@ -2355,7 +2357,7 @@ mod exact_input_login_tests {
         let outcome = async {
             let db = Db::default();
             db.initialize(database.connection()?)?;
-            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+            let hasher: Arc<crate::hashing::HashManager> = Arc::new(
                 crate::hashing::HashManager::new(crate::hashing::HashingConfig {
                     bcrypt: crate::hashing::BcryptConfig {
                         rounds: 4, verify: true, limit: None,
@@ -2410,7 +2412,7 @@ mod exact_input_login_tests {
         let outcome = async {
             let db = Db::default();
             db.initialize(database.connection()?)?;
-            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+            let hasher: Arc<crate::hashing::HashManager> = Arc::new(
                 crate::hashing::HashManager::new(crate::hashing::HashingConfig {
                     bcrypt: crate::hashing::BcryptConfig {
                         rounds: 4,
@@ -2441,7 +2443,7 @@ mod exact_input_login_tests {
                     "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
                 )]),
             ))?;
-            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+            let hasher: Arc<crate::hashing::HashManager> = Arc::new(
                 crate::hashing::HashManager::new(crate::hashing::HashingConfig {
                     driver: "argon2id".into(),
                     argon: crate::hashing::ArgonConfig {
@@ -2489,7 +2491,7 @@ mod exact_input_login_tests {
         let outcome = async {
             let db = Db::default();
             db.initialize(database.connection()?)?;
-            let hasher: Arc<dyn crate::hashing::Hasher> = Arc::new(
+            let hasher: Arc<crate::hashing::HashManager> = Arc::new(
                 crate::hashing::HashManager::new(crate::hashing::HashingConfig {
                     bcrypt: crate::hashing::BcryptConfig {
                         rounds: 4,
@@ -2545,3 +2547,7 @@ mod exact_input_login_tests {
         outcome
     }
 }
+
+#[cfg(all(test, any(feature = "db-sqlite", feature = "db-mysql")))]
+#[path = "flows_operation_tests.rs"]
+mod operation_tests;

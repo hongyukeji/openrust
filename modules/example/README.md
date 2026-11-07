@@ -515,3 +515,11 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 ## 集成秘密文件
 
 启用 `hashing` 后，模块在统一 Provider 中登记 `example secret hash <文件路径>` 命令。它读取最多1MiB原始文件字节并委派应用同一个 `HashManager`，只向 stdout 输出已编码哈希，不解析或输出明文。集成秘密采用明确业务策略：先用无参 `driver_for_operation()` 解析默认Manager链的最终具体叶，再在同一叶调用 `accepts_exact_input` 与 `make`；能力回调改变嵌套默认只影响下一次命令。不能保留完整字节时返回 `example_secret_input_ambiguous`，不再调用make且stdout为空，因此bcrypt的超过72字节/NUL输入不会静默成为另一个文件的同值秘密。例：`cargo run --features hashing -- example secret hash ./storage/integration-secret.bin`。文件中的换行和NUL不会被修剪；有NUL或需要完整字节时应按应用配置显式选择严格Argon。bcrypt限制与部署成本沿用 `config/hashing.rs`，命令不自动切算法。文本登录流程不因这个演示改成二进制HTTP协议。
+
+## 增强登录的驱动选择
+
+账户安全业务沿已有 `POST /api/example/account/login`、`Validated<CredentialsInput>`、`AccountSecurity` 与 `AuthFlows` 处理登录；密码长度仍为1–1024，原同源、Guard、2FA、Session/CSRF 和限流规则不因哈希依赖类型改变。该处理器只注入既有服务，不自行持有另一个密码驱动。
+
+增强流程用同容器的 `Arc<HashManager>`，每个秘密操作固定一次默认链的最终具体叶，能力检查和实际哈希不跨 live 默认变化；后续操作可采用新的默认驱动。已有 custom 实例经 `extend` 返回原 Arc，保原成本和并发状态。reset 的新密码与验证码是两个秘密域，各按自身注入的 manager 和原顺序工作。固定驱动不代替最后账户状态、因子或版本核验。
+
+[真实模块回归源码](tests/account_security_flows.rs)在原业务登录入口覆盖严格 Argon 的完整73字节、72字节不匹配以及下一操作对截断策略的拒绝；不新增测试专用路由或放宽输入。回归只核拒绝时不签发凭据/新增 refresh，也保留正常限流与审计行为。真实 MySQL 上的组合验收仍待完成。接口、Model binary/编码值域及隐藏 custom 边界见[增强哈希说明](../../docs/src/security/hashing.md#增强认证的单次最终叶)。

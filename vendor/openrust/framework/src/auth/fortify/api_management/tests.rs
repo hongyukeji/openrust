@@ -130,7 +130,7 @@ impl TwoFactorAuthenticatable for Account {
 struct Fixture {
     db: Db,
     manager: JwtApiFactorManagement,
-    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+    passwords: std::sync::Arc<crate::hashing::HashManager>,
 }
 #[cfg(feature = "db-sqlite")]
 async fn owned<F>(confirm: bool, callback: F) -> Result<()>
@@ -178,7 +178,7 @@ where
                 },
                 ..Default::default()
             },
-        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        )?);
         let password = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), PASSWORD).await?;
         let now = crate::database::dialect::utc_value(db.backend()?, Utc::now());
         db.table("users")?

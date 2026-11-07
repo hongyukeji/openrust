@@ -183,7 +183,7 @@ impl Fixture {
                 },
                 ..Default::default()
             },
-        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        )?);
         let hash = crate::auth::EncodedPasswordHash::make(
             passwords.as_ref(),
             "owned-lock-expiry-password",

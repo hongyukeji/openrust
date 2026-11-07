@@ -1,9 +1,11 @@
 # 项目上下文
 
+HA-X01 已收齐[增强认证限定验收](memory/testing.md#增强认证单次叶选择限定验收)。增强认证每个秘密操作保持一次已选真实叶，生产数据库和唯一模块 HTTP 路径有实际证据。Manager 其余表面、Model 值载体和完整认证对应继续按唯一 todo。
+
 MB-S01 已收齐[调用级默认属性 setter 限定验收](memory/testing.md#调用级默认属性-setter-限定验收)。下一步以已提交父树接 Passport Client 的显式默认 mutator，并按唯一 todo 交组合诊断。完整 Model 保存、关系及值载体继续开放。
 
 
-Hashing原始字节、秘密文件CLI与已知嵌套Manager单次最终叶已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)。增强AuthFlows/Codes完整单次操作选择、Model binary/hashed cast、Manager全表面与历史缓存所有权仍按唯一todo继续；本有限交付不完成原Goal。
+Hashing原始字节、秘密文件CLI与已知嵌套Manager单次最终叶已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)。Model binary/hashed cast、Manager全表面与历史缓存所有权仍按唯一todo继续；本有限交付不完成原Goal。
 
 Events身份与响应前置已完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)：同一具名/类型化选择器、保身份响应及until，普通false仅停传播。完整Events接口/多参数/defer-aftercommit、官方事务connection载荷及Model保存仍开放；后继按唯一todo继续，不以本有限簇完成原Goal。
 

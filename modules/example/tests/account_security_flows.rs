@@ -727,3 +727,287 @@ async fn selected_factor_blocks_password_only_resources_and_consumes_recovery_on
     );
     fixture.close().await
 }
+
+// 唯一模块正式登录入口：能力检查变更live默认时，本次仍使用已选最终叶。
+mod hash_operation_http {
+    use super::{EMAIL, Fixture, TestResult};
+    use futures_util::FutureExt as _;
+    use openrust::config::repository::ConfigRepository;
+    use openrust::database::Db;
+    use openrust::hashing::{ArgonConfig, ArgonHasher, HashInfo, HashManager, HashOptions, Hasher};
+    use openrust::http::axum::http::StatusCode;
+    use openrust::support::BoxFuture;
+    use openrust::{Error, Result};
+    use serde_json::json;
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[derive(Default)]
+    struct Counts {
+        capabilities: AtomicUsize,
+        makes: AtomicUsize,
+        checks: AtomicUsize,
+    }
+    impl Counts {
+        fn kdf(&self) -> (usize, usize) {
+            (
+                self.makes.load(Ordering::SeqCst),
+                self.checks.load(Ordering::SeqCst),
+            )
+        }
+    }
+    struct Driver {
+        argon: Arc<ArgonHasher>,
+        prefix_72: bool,
+        counts: Arc<Counts>,
+        switch: Mutex<Option<ConfigRepository>>,
+    }
+    impl Driver {
+        fn input<'a>(&self, value: &'a [u8]) -> &'a [u8] {
+            if self.prefix_72 {
+                &value[..value.len().min(72)]
+            } else {
+                value
+            }
+        }
+    }
+    impl Hasher for Driver {
+        fn accepts_exact_input(&self, value: &[u8]) -> Result<bool> {
+            self.counts.capabilities.fetch_add(1, Ordering::SeqCst);
+            let repository = self.switch.lock().map_err(|_| state_error())?.take();
+            if let Some(repository) = repository {
+                repository.set("hashing.driver", json!("b"))?;
+            }
+            Ok(!self.prefix_72 || value.len() <= 72)
+        }
+        fn info(&self, encoded: &str) -> Result<HashInfo> {
+            self.argon.info(encoded)
+        }
+        fn make<'a>(
+            &'a self,
+            value: &'a [u8],
+            options: &'a HashOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Box::pin(async move {
+                self.counts.makes.fetch_add(1, Ordering::SeqCst);
+                self.argon.make(self.input(value), options).await
+            })
+        }
+        fn check<'a>(
+            &'a self,
+            value: &'a [u8],
+            encoded: Option<&'a str>,
+            options: &'a HashOptions,
+        ) -> BoxFuture<'a, Result<bool>> {
+            Box::pin(async move {
+                self.counts.checks.fetch_add(1, Ordering::SeqCst);
+                self.argon.check(self.input(value), encoded, options).await
+            })
+        }
+        fn needs_rehash(&self, encoded: &str, options: &HashOptions) -> Result<bool> {
+            self.argon.needs_rehash(encoded, options)
+        }
+    }
+    fn state_error() -> Error {
+        Error::custom(
+            "example_hash_operation_fixture",
+            "模块哈希操作fixture状态无效",
+        )
+    }
+    fn install(manager: &HashManager, name: &str, driver: Arc<dyn Hasher>) -> Result<()> {
+        manager.extend(name, move || Ok(Arc::clone(&driver)))
+    }
+    struct Scenario {
+        db: Arc<Db>,
+        a: Arc<Driver>,
+        ac: Arc<Counts>,
+        bc: Arc<Counts>,
+        inner_config: ConfigRepository,
+        password: String,
+        encoded: String,
+    }
+    async fn prepare(fixture: &Fixture) -> TestResult<Scenario> {
+        let app = fixture.app.app()?;
+        let state = app.state();
+        let db = state.resolve::<Db>().await?;
+        let outer = state.resolve::<HashManager>().await?;
+        let config = app.config_repository();
+        let inner_config = ConfigRepository::new(figment::Figment::new());
+        inner_config.set("hashing.driver", json!("a"))?;
+        let inner = Arc::new(HashManager::from_repository(inner_config.clone(), 2)?);
+        let argon = Arc::new(ArgonHasher::new(ArgonConfig {
+            memory: 1024,
+            time: 1,
+            threads: 1,
+            verify: true,
+        })?);
+        let ac = Arc::new(Counts::default());
+        let bc = Arc::new(Counts::default());
+        let a = Arc::new(Driver {
+            argon: Arc::clone(&argon),
+            prefix_72: false,
+            counts: Arc::clone(&ac),
+            switch: Mutex::new(None),
+        });
+        let b = Arc::new(Driver {
+            argon,
+            prefix_72: true,
+            counts: Arc::clone(&bc),
+            switch: Mutex::new(None),
+        });
+        install(&inner, "a", a.clone())?;
+        install(&inner, "b", b)?;
+        install(&outer, "ha-module-nested", inner)?;
+        config.set("hashing.driver", json!("ha-module-nested"))?;
+        let password = "h".repeat(73);
+        let encoded = a.make(password.as_bytes(), &HashOptions::new()).await?;
+        assert!(
+            a.check(password.as_bytes(), Some(&encoded), &HashOptions::new())
+                .await?
+        );
+        assert!(
+            !a.check(
+                &password.as_bytes()[..72],
+                Some(&encoded),
+                &HashOptions::new()
+            )
+            .await?
+        );
+        assert_eq!(ac.capabilities.load(Ordering::SeqCst), 0);
+        assert_eq!(bc.kdf(), (0, 0));
+        assert_eq!(
+            db.table("users")?
+                .where_eq("email", EMAIL)?
+                .update(vec![("password_hash", encoded.as_str().into())])
+                .await?,
+            1
+        );
+        assert_eq!(stored_hash(&db).await?, encoded);
+        // seed及真实73/72比较完成后才武装切换；第一次执行必须由HTTP增强登录触发。
+        *a.switch.lock().map_err(|_| state_error())? = Some(inner_config.clone());
+        Ok(Scenario {
+            db,
+            a,
+            ac,
+            bc,
+            inner_config,
+            password,
+            encoded,
+        })
+    }
+    async fn stored_hash(db: &Db) -> Result<String> {
+        db.table("users")?
+            .where_eq("email", EMAIL)?
+            .value::<String>("password_hash")
+            .await?
+            .ok_or_else(state_error)
+    }
+    async fn exercise(fixture: &Fixture) -> TestResult {
+        let scenario = prepare(fixture).await?;
+        let baseline = scenario.ac.kdf();
+        let refresh_before = scenario.db.table("auth_refresh_tokens")?.count().await?;
+        let response = fixture
+            .post(
+                "/login",
+                &json!({"email":EMAIL,"password":scenario.password}),
+                None,
+                None,
+                None,
+            )
+            .await?;
+        response
+            .assert_status(StatusCode::OK)?
+            .assert_header("cache-control", "no-store")?;
+        let body: serde_json::Value = response.json()?;
+        assert_eq!(body["data"]["status"], "authenticated");
+        assert!(
+            body["data"]["credentials"]["access_token"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty())
+        );
+        assert!(
+            body["data"]["credentials"]["refresh_token"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty())
+        );
+        assert_eq!(scenario.ac.kdf(), (baseline.0, baseline.1 + 1));
+        assert_eq!(scenario.bc.kdf(), (0, 0));
+        assert_eq!(scenario.ac.capabilities.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            scenario.inner_config.section::<String>("hashing.driver")?,
+            "b"
+        );
+        let refresh_after_success = scenario.db.table("auth_refresh_tokens")?.count().await?;
+        assert_eq!(refresh_after_success, refresh_before + 1);
+        let a_after_success = scenario.ac.kdf();
+        let rejected = fixture
+            .post(
+                "/login",
+                &json!({"email":EMAIL,"password":scenario.password}),
+                None,
+                None,
+                None,
+            )
+            .await?;
+        rejected.assert_status(StatusCode::BAD_REQUEST)?;
+        let body: serde_json::Value = rejected.json()?;
+        assert_eq!(body["code"], "password_bcrypt_input_ambiguous");
+        assert!(body["data"].is_null());
+        assert!(!String::from_utf8_lossy(rejected.body()).contains(&scenario.password));
+        assert_eq!(scenario.ac.kdf(), a_after_success);
+        assert_eq!(scenario.bc.kdf(), (0, 0));
+        assert_eq!(scenario.bc.capabilities.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            scenario.db.table("auth_refresh_tokens")?.count().await?,
+            refresh_after_success
+        );
+        assert_eq!(stored_hash(&scenario.db).await?, scenario.encoded);
+        assert!(
+            scenario
+                .a
+                .switch
+                .lock()
+                .map_err(|_| state_error())?
+                .is_none()
+        );
+        Ok(())
+    }
+    async fn finish(mut fixture: Fixture, outcome: std::thread::Result<TestResult>) -> TestResult {
+        let shutdown = fixture
+            .app
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await;
+        let close = fixture.database.close().await;
+        if let Err(error) = &shutdown {
+            eprintln!("HA模块HTTP shutdown secondary code={}", error.code());
+        }
+        if let Err(error) = &close {
+            eprintln!("HA模块HTTP database.close secondary code={}", error.code());
+        }
+        match outcome {
+            Ok(primary) => {
+                primary?;
+                shutdown?;
+                close?;
+                Ok(())
+            }
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+    #[tokio::test]
+    #[ignore = "真实MySQL8.4模块HTTP验收：须显式配置OPENRUST_TEST_DATABASE_URL并专跑"]
+    async fn account_login_keeps_nested_selected_leaf_then_rejects_next_without_credentials()
+    -> TestResult {
+        let admin = std::env::var("OPENRUST_TEST_DATABASE_URL")?;
+        if !admin.starts_with("mysql://") {
+            return Err("HA模块HTTP需要真实MySQL URL".into());
+        }
+        let fixture = Fixture::create().await?.ok_or("真实MySQL fixture未创建")?;
+        let outcome = std::panic::AssertUnwindSafe(exercise(&fixture))
+            .catch_unwind()
+            .await;
+        finish(fixture, outcome).await
+    }
+}

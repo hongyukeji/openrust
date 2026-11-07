@@ -124,7 +124,7 @@ struct Fixture {
     policy: CredentialAuthority,
     authority: DatabaseFactorAuthority,
     flows: AuthFlows,
-    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+    passwords: std::sync::Arc<crate::hashing::HashManager>,
     encrypter: Encrypter,
 }
 impl Fixture {
@@ -147,7 +147,7 @@ impl Fixture {
                     },
                     ..Default::default()
                 },
-            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+            )?);
             let hash = crate::auth::EncodedPasswordHash::make(
                 passwords.as_ref(),
                 "attachment-owned-password",

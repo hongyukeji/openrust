@@ -144,7 +144,7 @@ mod tests {
                     },
                     ..Default::default()
                 },
-            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+            )?);
             let jwt = JwtTokens::new(JwtConfig {
                 issuer: "http://scope.test".into(),
                 audience: "scope-test".into(),

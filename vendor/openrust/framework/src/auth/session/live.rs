@@ -534,7 +534,7 @@ mod tests {
                     },
                     ..Default::default()
                 },
-            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+            )?);
             let jwt = JwtTokens::new(JwtConfig::new(
                 "redis-parent",
                 "redis-parent",

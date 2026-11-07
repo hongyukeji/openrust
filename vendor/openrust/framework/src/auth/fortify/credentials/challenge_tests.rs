@@ -1040,7 +1040,7 @@ mod flow_commit {
                     },
                     ..Default::default()
                 },
-            )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+            )?);
             let hash = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), PASSWORD).await?;
             let now = crate::database::dialect::utc_value(DbBackend::Sqlite, Utc::now());
             db.table("users")?

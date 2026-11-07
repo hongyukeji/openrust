@@ -1875,3 +1875,13 @@ Hashing 提交 `651c2971` 上的 MB-S01 v6 冻结 manifest `ab2172856a453cb89ed1
 - 默认 workspace、例行真实 MySQL workspace、拒警 Rustdoc、链接、reduced/driver 编译、实际 Rust 1.97 和离线依赖门禁通过。外部跳过和原失败边界按回执保留。离线依赖结果使用本地 advisory 快照。
 
 本批交付默认 setter 选择、借用及原 patch 规则。完整 getOriginal、fill/save/事件/关系、Model binary、Passport Client 业务组合、其他数据库与发布矩阵各自保留。
+
+## 增强认证单次叶选择限定验收
+
+HA-X01 固定 Hashing/认证父树扩展同一 `HashManager` 的操作级选择。增强 `EncodedPasswordHash`、AuthFlows 和验证码操作将同一真实驱动叶保持到能力检查和 KDF 完成。账户查询、dummy 校验、reset 的密码/验证码独立选择、条件写入和错误边界沿原生产路径。普通 UserProvider 仍消费其原 Hasher 契约。
+
+v6 精确输入 1641 项、26 路径源码树 `adb661797d78500903b7d5799606eed801f210d0`，外部 consumer 正式锁 `9a09ae04c7efce2483be9c363a67ad0ab52b9406c4fe6e172c1d9dd87de30f52`。实际 Hashing 67、密码 6、验证码 4、Flows 边界 1、真实 MySQL 8.4.13 登录重置 1、唯一模块真实 HTTP 登录 1、Session 49、Fortify 75、外部 consumer 2 通过。v5 模块测试错误和验收计数纠偏保留，v6 仅改模块 fixture 的配置仓储访问器。按字节与路径证明映射复用未受影响定向证据。
+
+同一 v6 输入通过默认工作区 63 组与日常 MySQL 83 组、最小/Web/显式 JWT 生成项目检查和 19/51/96 项测试、拒警文档、84 个本地链接、15 个文档/驱动相关命令、真实 Rust 1.97 编译与离线缓存依赖门禁。忽略项、外部 skip 和缓存 advisory 范围按正式报告分列。源、MySQL catalog 和 fixture 恢复/不变。其它数据库运行及发布最低版本矩阵仍待独立验收。
+
+正式报告 `tmp/independent-testing-20261106/HASHING-AUTH-OPERATION-RESULT.json` SHA `1ea8af88680f43f95823187a4827af2c6cab57fcaebc018229f70e5c3c34ce92`。剩余 Manager 公开表面、历史缓存所有权、Model binary/非 UTF-8 编码和全量认证对应按唯一 todo 继续。

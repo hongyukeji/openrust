@@ -1,0 +1,19 @@
+[package]
+name = "enhanced-hash-manager-consumer"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[workspace]
+
+[dependencies]
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework", default-features = false, features = ["auth"] }
+tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[patch.crates-io]
+sea-orm = { path = "../../../vendor/seaql/sea-orm" }
+sqlx-mysql = { path = "../../../vendor/launchbadge/sqlx-mysql" }

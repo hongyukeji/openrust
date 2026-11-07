@@ -372,3 +372,13 @@ fn verify_with_context<'a>(
 Provider 本身仍遵循官方非原子缓存 get/verify/put：缓存 miss 成功后再次读取时钟作为 put 的时间值，返回的验证事实保留真正校验时的计数。有限 nonce 只覆盖该次接受域；管理员之后任意扩窗、冻结或大幅回退时钟可能让历史码重新进入接受域，不承诺跨任意未来策略的永久不重放。挑战的一次性消费与当前 source/generation 核验不能由短期缓存替代。
 
 密码驱动、默认值、已有哈希迁移与bcrypt输入等价边界见[哈希](hashing.md)。
+
+## 增强密码与验证码的 manager 注入
+
+增强入口使用有类型的 manager：`EncodedPasswordHash::make(&HashManager, &str)`，实例 `verify`、`needs_rehash` 和静态 `validate_input` 也接收 `&HashManager`。`AuthFlows::new` 与 `VerificationCodes::new` 的密码依赖为 `Arc<HashManager>`，其余账户、验证码 Store、JWT、refresh 与限流参数保持各自职责。应用 Provider 应传入同一容器解析的 manager，不创建并行密码服务。
+
+每个秘密域的一次操作仅选择一次 `driver_for_operation()` 最终具体驱动，并保活到该操作的相关 await 完成。登录的能力检查、真实校验和原有 dummy 复用同一叶；另一次操作仍能采用新的 live 默认。验证码不存在或数字格式非法时保留原 false 旁路，非法格式仍扣失败尝试。reset 的新密码生成与验证码核验是两个秘密操作，按原先密码先行的顺序分别使用各自注入的 manager；公开手动构造允许不同实例，不用密码流程配置覆盖验证码配置。
+
+非空和1024 UTF-8字节边界仍先检查，bcrypt 72字节/NUL别名的增强拒绝与既有错误保持。普通 UserProvider 不因此强加增强限制；选择一次驱动不证明当前账户、权限或因子已通过，最后状态核验与版本 CAS 仍不可省略。原有 Web/Session、CSRF、remember 和显式无 Cookie JWT profile 不因 manager 类型变化而改变。
+
+已有 custom 驱动经 `HashManager::extend` 返回原 `Arc<dyn Hasher>`，保留算法、成本、容量与状态，不能为了改参数重建默认驱动。操作级选驱动的接线已实现，生产登录路径仍待组合验收。详细契约见[哈希指南](hashing.md#增强认证的单次最终叶)。Model binary setter、非 UTF-8 encoded hash 与隐藏 custom 转发仍有独立边界，不能从 manager 注入推定其已完成。

@@ -30,7 +30,7 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
     let db = Db::default();
     db.initialize(guard.connection()?)?;
     let result: Result<()> = async {
-        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..Default::default() })?);
         let hash = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "correct secret").await?;
         let table = db.quoted_table_name("guard_accounts")?;
         db.connection()?.execute_unprepared(&format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, username TEXT, password TEXT, remember_token TEXT, disabled_at TEXT)")).await.map_err(Error::internal)?;
@@ -39,7 +39,7 @@ async fn database_provider_queries_tokens_and_rehash_use_the_official_attribute_
             ("password", hash.as_str().into()), ("remember_token", "remember-value".into()),
             ("disabled_at", "2026-01-01".into()),
         ]).await?;
-        let upgraded = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 2, threads: 1, verify: true }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let upgraded = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 2, threads: 1, verify: true }, ..Default::default() })?);
         assert!(hash.needs_rehash(upgraded.as_ref())?);
         let provider = DatabaseUserProvider::new(db.clone(), upgraded.clone(), "guard_accounts")?;
         let user = provider.retrieve_by_id(&json!("tenant:42")).await?.ok_or(Error::Unauthorized)?;
@@ -97,7 +97,7 @@ async fn stale_rehash_cannot_overwrite_a_password_reset() -> Result<()> {
                 },
                 ..Default::default()
             },
-        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        )?);
         let original =
             crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "original password").await?;
         let reset =
@@ -206,7 +206,7 @@ async fn ambiguous_rehash_rolls_back_all_matching_accounts() -> Result<()> {
                 },
                 ..Default::default()
             },
-        )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        )?);
         let original =
             crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "original password").await?;
         let table = db.quoted_table_name("ambiguous_accounts")?;
@@ -348,7 +348,7 @@ async fn selected_user_factory_controls_real_retrieval_and_model_secret_columns(
     let db = Db::default();
     db.initialize(guard.connection()?)?;
     let result: Result<()> = async {
-        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+        let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { driver: "argon2id".into(), argon: crate::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..Default::default() })?);
         let hash = crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "model-password").await?;
         let table = db.quoted_table_name("model_accounts")?;
         db.connection()?.execute_unprepared(&format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, username TEXT, password TEXT, alternate_hash TEXT, remember_token TEXT, alternate_token TEXT)")).await.map_err(Error::internal)?;

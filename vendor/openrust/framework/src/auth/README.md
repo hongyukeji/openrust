@@ -89,3 +89,13 @@ SQLite支持本地账户、Session、PAT、refresh与现代Fortify，不支持OI
 `attach_refresh_credentials` 只接受当前真实raw token及匹配scope、owner、家族、上下文和期限，拒绝消费/撤销/混合数据；本身不轮换token。`begin_logout` 先撤销家族并删除同一实际Session存储中的记录，再生成IdP退出重定向；后通道退出使用签名与claim校验、墓碑及可重试清理，不能因已有墓碑跳过失败重试。Native执行实际DELETE，Cookie快照不能远程删除，跨资源不宣称原子提交。
 
 多副本应共享外部关联数据库、加密密钥和服务器端Session存储，待挑战状态不得依赖进程内存或粘性会话。应用实际退出URI、CSRF和Cookie安全域仍须显式配置。完整OIDC/Socialite、真实IdP与所有存储组合的当前验收不能从局部测试推定，见[正式指南](../../../../../docs/src/security/authentication.md#oidc-关联的当前-authority-核验)。
+
+## 增强认证的操作级驱动约定
+
+增强密码入口 `EncodedPasswordHash::validate_input`、`make`、`verify` 和 `needs_rehash` 的参数为 `&HashManager`；`AuthFlows` 与 `VerificationCodes` 构造器保存 `Arc<HashManager>`。生产 Provider 复用同一容器实例，不能把 manager 先擦除成 `Arc<dyn Hasher>`，也不能在服务构造时永久固定默认驱动。
+
+每个秘密操作在原先首次需要 Hasher 的位置调用一次 `driver_for_operation()`，将最终具体叶保活跨相关 await。登录的输入能力、账户查询后的真实校验和缺账户/旧存储策略 dummy 都复用该叶；下一次操作再读取 live 默认。非空和1024 UTF-8字节基本边界先于选择。验证码缺挑战不选驱动，格式错误仍记录失败尝试；reset 先生成新密码哈希，再校验验证码，两者各用自身注入的 manager。公开手动构造仍可给它们不同实例，生产默认注入不变。
+
+已有自定义驱动通过同一 manager 的 `extend` 返回原 `Arc<dyn Hasher>`，保原算法成本、并发容量、许可与状态，不重新构造或另持成本。标准 `DatabaseUserProvider` 的普通 check/rehash 语义不增加这套增强限制；固定驱动也不替代最后一次 await 后的账户状态、授权、因子或存储版本 CAS。框架可识别的嵌套 Manager 会解析到最终叶，第三方隐藏转发或同一对象内部故意改变政策不由此自动证明。
+
+操作级驱动已接入增强流程，真实业务组合验收待完成。JSON Model 属性的任意字节、非 UTF-8 已编码哈希及完整 Model 保存另行实现。[哈希指南](../../../../../docs/src/security/hashing.md)

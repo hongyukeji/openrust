@@ -580,7 +580,7 @@ impl crate::support::ServiceProvider for AuthServiceProvider {
                     let passwords = resolver.resolve::<crate::hashing::HashManager>().await?;
                     Ok(Arc::new(VerificationCodes::new(
                         DatabaseVerificationCodeStore::new((*db).clone()),
-                        passwords as Arc<dyn crate::hashing::Hasher>,
+                        passwords,
                     )))
                 })
             })

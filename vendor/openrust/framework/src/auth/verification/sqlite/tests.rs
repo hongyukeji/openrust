@@ -22,7 +22,7 @@ fn check(condition: bool, message: &'static str) -> Result<()> {
         Err(Error::custom("sqlite_verification_contract", message))
     }
 }
-fn passwords() -> Result<std::sync::Arc<dyn crate::hashing::Hasher>> {
+fn passwords() -> Result<std::sync::Arc<crate::hashing::HashManager>> {
     Ok(std::sync::Arc::new(crate::hashing::HashManager::new(
         crate::hashing::HashingConfig {
             driver: "argon2id".into(),
@@ -34,7 +34,7 @@ fn passwords() -> Result<std::sync::Arc<dyn crate::hashing::Hasher>> {
             },
             ..Default::default()
         },
-    )?) as std::sync::Arc<dyn crate::hashing::Hasher>)
+    )?))
 }
 fn policy() -> Result<VerificationCodePolicy> {
     VerificationCodePolicy::new(6, Duration::from_secs(60), Duration::from_secs(30), 2)

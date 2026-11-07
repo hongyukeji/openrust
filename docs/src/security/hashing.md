@@ -76,7 +76,7 @@ bcrypt 的通用语义只使用前72字节，PHP兼容 check 还在首NUL截断�
 
 显式增强的 `AuthFlows` / `EncodedPasswordHash` 额外保留非空、1024字节上限，并在查账户之前统一调用驱动的 `accepts_exact_input` 能力：bcrypt及允许bcrypt迁移的宽松Argon拒绝超过72字节和NUL，严格Argon保留完整字节。现存与不存在账户采用同一输入检查；严格Argon遇旧bcrypt存储的别名输入或算法不匹配时，执行当前驱动的dummy计算再返回统一认证失败。该策略覆盖这些已识别分支，不保证所有存储成本和外部延迟完全一致。此增强不改变通用 make/check 或标准 UserProvider；自定义驱动若会截断输入，必须在该能力中准确声明。秘密值本身不实现 Debug，也不限制存储必须是Argon格式。
 
-当前增强认证入口尚未接入 `driver_for_operation()`，能力检查与后续哈希操作的驱动选择仍待统一。若自定义驱动或嵌套管理器会动态改变默认配置，不能据上述策略宣称同次完整输入身份已经得到保证；这一已知一致性缺口由认证后继整改，本次秘密文件命令的修复不代表它已关闭。
+增强认证入口通过 `driver_for_operation()` 在每次秘密操作开始时选定最终驱动。能力检查与相关哈希操作复用该实例。已知嵌套管理器的 live 默认发生变化时，下一次操作会重新选择。生产登录路径的组合验收仍待完成。
 
 ## 扩展
 
@@ -85,3 +85,24 @@ bcrypt 的通用语义只使用前72字节，PHP兼容 check 还在首NUL截断�
 本章对应固定 Laravel13.39.0 的 HashManager、HashServiceProvider、三驱动、安装配置及HasherTest。Rust的异步计算、Result及显式执行预算是公开适配/增强，不等于 PHP 运行时或任意第三方算法已实现；当前尚未提供通用Manager的默认名/缓存枚举、清空驱动和Container访问/替换接口；这些不由本章的生成/校验与认证接线代替。
 
 通用Model属性与自定义setter目前仍使用JSON文本值。任意字节的Client秘密赋值、非UTF-8已编码哈希及其元信息/原值保留需要同一属性管线的后继支持；不能先转换为Base64、有损文本或预先哈希来绕过setter，也不能把这部分输入认作已验收。
+
+## 增强认证的单次最终叶
+
+`EncodedPasswordHash` 的 `validate_input`、`make`、`verify`、`needs_rehash` 接收 `&HashManager`；`AuthFlows` 和 `VerificationCodes` 接收 `Arc<HashManager>`。增强密码入口先执行非空与 1024 字节校验。各秘密操作在首次需要 Hasher 时选择一次 `driver_for_operation()`，能力检查与相关 KDF 复用这个最终具体叶。它不是服务寿命内冻结：下一次操作会重新读取默认名；公开 `validate_input` 后再公开 `make` 也属于两次操作。
+
+登录在查询前选择，真实账户、缺账户 dummy 和旧 bcrypt/算法不匹配 dummy 均使用同一叶。验证码缺挑战直接 false；格式错误不选驱动但仍记录失败尝试。reset 的新密码生成先于验证码核验，两个秘密域分别用各自注入的 manager；生产仍来自同一容器，公开手动构造允许不同配置。这里不新增 AuthFlows 自动 rehash，也不改变标准 UserProvider 的普通 check/make/needs_rehash 或存储 CAS。
+
+已有自定义实例可这样接入原 manager；应用在 `config/hashing.rs` 选择相应默认名，不另建配置或容量池：
+
+```rust
+use std::sync::Arc;
+use openrust::hashing::{HashManager, Hasher};
+
+fn register_custom(manager: &HashManager, original: Arc<dyn Hasher>) -> openrust::Result<()> {
+    manager.extend("application", move || Ok(Arc::clone(&original)))
+}
+```
+
+工厂返回原 Arc，算法成本、共享 permit、取消和驱动状态由原实例保留；不要用一个新默认 driver 替换它。操作选择可解析公开 hook 暴露的框架 Manager 链；普通第三方 Hasher 无需实现 hook，隐藏转发或故意自变的能力仍由其自身履约，不自动承诺可识别。
+
+固定驱动不替代认证/授权、2FA 或最后 await 后的凭据版本核验，不修改 Web/Session 与显式 JWT 的传输边界。Model 的 JSON 文本载体、任意字节 setter 和非 UTF-8 已编码哈希缺口仍按前文保留；本契约不允许预哈希、私有 JSON 标签或有损文本绕过。

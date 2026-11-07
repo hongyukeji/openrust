@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+HA-X01 增强认证真实叶选择已收齐[增强认证限定验收](memory/testing.md#增强认证单次叶选择限定验收)。登录/重置、验证码与唯一模块真实 MySQL HTTP、Web/JWT 生成已验证。
+
 MB-S01 调用级默认属性 setter 已收齐[调用级默认属性 setter 限定验收](memory/testing.md#调用级默认属性-setter-限定验收)。自定义优先、默认分支复用属性 patch，真实账户预览与借用 Send consumer 均有证据。
 
 

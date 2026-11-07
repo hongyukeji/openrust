@@ -568,7 +568,7 @@ fn family_flows(
             },
             ..Default::default()
         },
-    )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+    )?);
     let jwt = crate::auth::JwtTokens::new(
         crate::auth::JwtConfig::new(
             "https://credential.example.test",
@@ -874,7 +874,7 @@ async fn selected_auth_flows_rejects_refresh_store_from_another_database_without
                         },
                         ..Default::default()
                     },
-                )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+                )?);
                 let codes = crate::auth::VerificationCodes::new(
                     crate::auth::DatabaseVerificationCodeStore::new(fixture.db.clone()),
                     passwords.clone(),
@@ -923,7 +923,7 @@ async fn direct_login_flows(
             },
             ..Default::default()
         },
-    )?) as std::sync::Arc<dyn crate::hashing::Hasher>;
+    )?);
     let hash =
         crate::auth::EncodedPasswordHash::make(passwords.as_ref(), "direct-password").await?;
     fixture

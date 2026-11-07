@@ -205,7 +205,7 @@ pub trait VerificationCodeStore: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct VerificationCodes {
     store: Arc<dyn VerificationCodeStore>,
-    passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+    passwords: std::sync::Arc<crate::hashing::HashManager>,
 }
 
 impl fmt::Debug for VerificationCodes {
@@ -218,7 +218,7 @@ impl VerificationCodes {
     /// 使用自定义或框架提供的 store 与密码哈希器创建服务。
     pub fn new(
         store: impl VerificationCodeStore,
-        passwords: std::sync::Arc<dyn crate::hashing::Hasher>,
+        passwords: std::sync::Arc<crate::hashing::HashManager>,
     ) -> Self {
         Self {
             store: Arc::new(store),
@@ -769,7 +769,7 @@ mod tests {
         }
     }
 
-    fn fast_passwords() -> crate::Result<std::sync::Arc<dyn crate::hashing::Hasher>> {
+    fn fast_passwords() -> crate::Result<std::sync::Arc<crate::hashing::HashManager>> {
         Ok(std::sync::Arc::new(crate::hashing::HashManager::new(
             crate::hashing::HashingConfig {
                 driver: "argon2id".into(),
@@ -781,7 +781,7 @@ mod tests {
                 },
                 ..Default::default()
             },
-        )?) as std::sync::Arc<dyn crate::hashing::Hasher>)
+        )?))
     }
 
     #[tokio::test]
@@ -871,3 +871,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "verification_operation_tests.rs"]
+mod operation_tests;
