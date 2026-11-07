@@ -3,6 +3,7 @@
 [ADR-001](../decisions/adr-001-framework-principles.md) 是唯一方向决策；[todo](../todo.md) 是唯一可领取队列。本目录保存范围、对应矩阵与专项实现约束，不单独分配任务。旧 M0–M6、V1 基础方案与重复执行提示已移除；其已实现事实和测试证据仍在 Git、`core/` 与 `memory/` 中。
 
 - [Laravel 总计划](laravel-rebuild.md)：范围、差异分类、目标结构、依赖与验收。
+- [全框架执行与接手](laravel-rebuild.md#全框架执行与接手)、[小型应用本地交付](local-app-starter.md)：主线与并行分工、交验步骤和本地里程碑。
 - [固定上游基线](laravel-rebuild-baseline.md)、[官方全量交付规则](laravel-official-coverage.md)：版本和两阶段交付范围。
 - [Laravel 行为矩阵一](laravel-rebuild-matrix-1.md)、[矩阵二](laravel-rebuild-matrix-2.md)、[矩阵三](laravel-rebuild-matrix-3.md)、[Laravel Modules 矩阵](laravel-modules-matrix.md)：逐项来源、状态及差异。
 - [重构资产与回归入口](laravel-rebuild-assets.md)：旧实现与测试的迁移来源，不代表新语义验收。
