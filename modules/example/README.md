@@ -537,3 +537,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 解析固定 UTC，不读取当前时钟。负数采用 PHP `U.u` 的有符号秒与非负微秒字段规则：`-0.25` 为秒 `0`、微秒 `250000`，不是数学上向前250毫秒的时刻。六位小数按 PHP half-up 舍入，舍入到零不保留负号。大整数先转 `f64`，可能失去精度或超出有符号秒范围。错误不回显输入。
 
 此路由继续经过正常字符串裁剪与空串转 null；例如首尾 NUL 会先由输入中间件裁剪，中间 NUL 仍无法作为数值解析。直接调用 Core parser 不裁剪 NUL。完整接口、JSON 值域及阶段差异见[数值日期适配](../../docs/src/getting-started/source-application.md#数值日期适配)。这不是 Model 日期保存或 JWT 解析示例。
+
+### 应用字符串加密
+
+启用 `encryption` 后，通过应用状态解析 `openrust::encryption::LaravelEncrypter`，可对模块的原始字节执行 `encrypt_string` 与 `decrypt_string`。应用密钥由 `key:generate` 设置，示例回归从生产 Provider 解析该服务并检查字节回程。

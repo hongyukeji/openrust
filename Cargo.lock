@@ -3638,6 +3638,7 @@ dependencies = [
  "aes-gcm-siv",
  "argon2",
  "async-trait",
+ "aws-lc-rs",
  "aws-sdk-s3",
  "axum",
  "axum-core",

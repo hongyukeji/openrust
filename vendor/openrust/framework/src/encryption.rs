@@ -16,6 +16,10 @@ use crate::config::ConfigError;
 pub use crate::config::EncryptionConfig;
 use crate::core::{Error, Result};
 
+mod laravel;
+mod laravel_payload;
+pub use laravel::LaravelEncrypter;
+
 const ENVELOPE_VERSION: &str = "or1";
 const KEY_BYTES: usize = 32;
 const NONCE_BYTES: usize = 12;
@@ -217,6 +221,13 @@ impl crate::support::ServiceProvider for EncryptionServiceProvider {
                 ]),
                 |_| Ok(()),
             )?;
+            app.singleton::<LaravelEncrypter, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<crate::config::AppConfig>("app")?;
+                    Ok(Arc::new(LaravelEncrypter::from_config(config)?))
+                })
+            })
+            .await?;
             app.singleton::<Encrypter, _>(|resolver| {
                 Box::pin(async move {
                     let config = resolver.section::<EncryptionConfig>("security.encryption")?;
@@ -237,6 +248,66 @@ mod provider_tests {
     use crate::support::ServiceProvider;
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
+
+    #[tokio::test]
+    async fn laravel_provider_resolves_ordered_keys_and_rejects_invalid_history_on_first_use()
+    -> Result<()> {
+        let old_key = "0123456789abcdef";
+        let new_key = "fedcba9876543210";
+        let first_history_key = "unrelated-key-00";
+        let with_single_key = |key: &str| {
+            LaravelEncrypter::from_config(crate::config::AppConfig {
+                key: Some(key.to_owned()),
+                cipher: "AES-128-CBC".to_owned(),
+                ..crate::config::AppConfig::default()
+            })
+        };
+        let old = with_single_key(old_key)?;
+        let current_only = with_single_key(new_key)?;
+        let first_history_only = with_single_key(first_history_key)?;
+        let wire = old.encrypt_string(b"binary\0value\xff")?;
+        for (history, valid) in [
+            (
+                vec![
+                    first_history_key.to_owned(),
+                    format!("base64:%{}", STANDARD.encode(old_key)),
+                ],
+                true,
+            ),
+            (
+                vec![old_key.to_owned(), "secret-invalid-history".to_owned()],
+                false,
+            ),
+        ] {
+            let sources = Figment::from(Serialized::defaults(json!({
+                "app": {"cipher": "aes-128-cbc", "key": new_key, "previous_keys": history},
+            })));
+            let mut providers = ProviderBuilder::new();
+            providers.provider(EncryptionServiceProvider);
+            let runtime = providers.start(sources).await?;
+            let result = runtime.container().resolve::<LaravelEncrypter>().await;
+            if valid {
+                let service = result?;
+                assert_eq!(service.decrypt_string(&wire)?, b"binary\0value\xff");
+                let new_wire = service.encrypt_string(b"new")?;
+                assert!(old.decrypt_string(&new_wire).is_err());
+                assert!(first_history_only.decrypt_string(&new_wire).is_err());
+                assert_eq!(current_only.decrypt_string(&new_wire)?, b"new");
+                assert_eq!(service.decrypt_string(&new_wire)?, b"new");
+                let same = runtime.container().resolve::<LaravelEncrypter>().await?;
+                assert!(Arc::ptr_eq(&service, &same));
+            } else {
+                assert!(result.is_err());
+                if let Err(error) = result {
+                    assert!(!error.to_string().contains("secret-invalid-history"));
+                }
+            }
+            runtime
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+                .await?;
+        }
+        Ok(())
+    }
 
     struct Rotate;
     impl ServiceProvider for Rotate {

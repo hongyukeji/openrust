@@ -221,20 +221,35 @@ impl fmt::Debug for AppConfig {
     }
 }
 
-pub(crate) fn supported_app_cipher_key_size(cipher: &str) -> Option<usize> {
-    if cipher.eq_ignore_ascii_case("aes-128-cbc") || cipher.eq_ignore_ascii_case("aes-128-gcm") {
-        Some(16)
-    } else if cipher.eq_ignore_ascii_case("aes-256-cbc")
-        || cipher.eq_ignore_ascii_case("aes-256-gcm")
-    {
-        Some(32)
-    } else {
-        None
+#[derive(Clone, Copy)]
+pub(crate) enum AppCipher {
+    Aes128Cbc,
+    Aes256Cbc,
+    Aes128Gcm,
+    Aes256Gcm,
+}
+
+impl AppCipher {
+    pub(crate) fn parse(name: &str) -> Option<Self> {
+        match name.to_ascii_lowercase().as_str() {
+            "aes-128-cbc" => Some(Self::Aes128Cbc),
+            "aes-256-cbc" => Some(Self::Aes256Cbc),
+            "aes-128-gcm" => Some(Self::Aes128Gcm),
+            "aes-256-gcm" => Some(Self::Aes256Gcm),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn key_size(self) -> usize {
+        match self {
+            Self::Aes128Cbc | Self::Aes128Gcm => 16,
+            Self::Aes256Cbc | Self::Aes256Gcm => 32,
+        }
     }
 }
 
 pub(crate) fn app_cipher_key_size(cipher: &str) -> usize {
-    supported_app_cipher_key_size(cipher).unwrap_or(32)
+    AppCipher::parse(cipher).map_or(32, AppCipher::key_size)
 }
 
 fn previous_keys<'de, D: serde::Deserializer<'de>>(

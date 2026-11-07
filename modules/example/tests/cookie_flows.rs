@@ -191,3 +191,38 @@ async fn module_cookie_first_use_rejects_invalid_key_after_ordinary_route_succee
         .await?;
     result
 }
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn example_application_resolves_laravel_string_encryption_from_app_config() -> TestResult {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use openrust::encryption::LaravelEncrypter;
+    let config = sources().merge(Serialized::defaults(json!({
+        "app": {"cipher": "AES-128-GCM", "key": "0123456789abcdef"},
+    })));
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?)
+        .build()
+        .await?;
+    let result: TestResult = async {
+        let service = app.app()?.state().resolve::<LaravelEncrypter>().await?;
+        let wire = service.encrypt_string(b"example application payload")?;
+        let fields: Value = serde_json::from_slice(&STANDARD.decode(&wire)?)?;
+        let iv = fields["iv"].as_str().ok_or("Laravel payload missing IV")?;
+        let tag = fields["tag"]
+            .as_str()
+            .ok_or("Laravel payload missing tag")?;
+        assert_eq!(STANDARD.decode(iv)?.len(), 12);
+        assert_eq!(STANDARD.decode(tag)?.len(), 16);
+        assert_eq!(fields["mac"], "");
+
+        assert_eq!(
+            service.decrypt_string(&wire)?,
+            b"example application payload"
+        );
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}

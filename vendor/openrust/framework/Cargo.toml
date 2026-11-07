@@ -19,6 +19,7 @@ autotests = false
 rusqlite = { workspace = true, optional = true }
 pcre2.workspace = true
 aes-gcm-siv = { workspace = true, optional = true }
+aws-lc-rs = { workspace = true, optional = true }
 axum.workspace = true
 axum-core.workspace = true
 bytes.workspace = true
@@ -151,7 +152,7 @@ http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate"]
 auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2"]
 auth-fortify = ["auth", "encryption", "dep:sha1", "dep:md5_11", "dep:qrcode"]
 sms-twilio = ["http-client"]
-encryption = ["dep:aes-gcm-siv"]
+encryption = ["dep:aes-gcm-siv", "dep:aws-lc-rs"]
 test-util = []
 data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
 data-exchange-tasks = ["data-exchange", "queue", "dep:uuid"]
