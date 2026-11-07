@@ -55,7 +55,14 @@ impl Parts {
     ) -> Result<Self> {
         let mut builder = openrust::foundation::ProviderBuilder::new();
         builder.provider(openrust::events::EventsServiceProvider::new());
-        let runtime = builder.start(figment::Figment::new()).await?;
+        builder.provider(openrust::encryption::EncryptionServiceProvider);
+        let runtime = builder
+            .start(figment::Figment::new().merge(("app.key", "A".repeat(32))))
+            .await?;
+        let field_crypto = runtime
+            .container()
+            .resolve::<dyn openrust::encryption::ApplicationEncrypter>()
+            .await?;
         let events = (*runtime
             .container()
             .resolve::<openrust::events::Events>()
@@ -63,15 +70,14 @@ impl Parts {
             .clone();
         let actions = TwoFactorActions::new(
             Arc::new(GoogleTwoFactorAuthenticationProvider::new(None)),
-            encryptor.clone(),
+            field_crypto,
             events,
         );
-        let policy = CredentialAuthority::new(db.clone(), encryptor.clone(), false);
+        let policy = CredentialAuthority::new(db.clone(), false);
         let auth = auth
             .with_factor_authority(policy)?
             .with_factor_actions(actions.clone());
         let model_db = db.clone();
-        let model_crypto = encryptor.clone();
         let users = DatabaseUserProvider::new(db.clone(), passwords.clone(), "users")?
             .with_user_factory(move |attrs| {
                 let identifier = attrs.get("id").cloned().ok_or(Error::Unauthorized)?;
@@ -80,10 +86,7 @@ impl Parts {
                 Ok(Arc::new(
                     application_user::User::new(attrs)
                         .with_two_factor_state(store.clone())
-                        .with_factor_authority(DatabaseFactorAuthority::new(
-                            store,
-                            model_crypto.clone(),
-                        )),
+                        .with_factor_authority(DatabaseFactorAuthority::new(store)),
                 ) as openrust::auth::AuthUser)
             });
         Ok(Self {

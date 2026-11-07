@@ -18,7 +18,6 @@ use crate::auth::fortify::FactorAuthorityMutation;
 use crate::auth::fortify::FortifyTwoFactorMigration;
 use crate::auth::fortify::TwoFactorAuthenticatable;
 use crate::auth::fortify::TwoFactorState;
-use crate::config::EncryptionConfig;
 use crate::config::JwtConfig;
 use crate::core::RateLimiter;
 use crate::database::DatabaseRateLimitMigration;
@@ -26,7 +25,6 @@ use crate::database::DatabaseRateLimitStore;
 use crate::database::Db;
 use crate::database::sea_orm_migration::MigrationTrait;
 use crate::database::sea_orm_migration::MigratorTrait;
-use crate::encryption::Encrypter;
 use crate::http::CookieFactory;
 use crate::http::CookieJar;
 use crate::session::MemorySessionStore;
@@ -125,7 +123,6 @@ struct Fixture {
     authority: DatabaseFactorAuthority,
     flows: AuthFlows,
     passwords: std::sync::Arc<crate::hashing::HashManager>,
-    encrypter: Encrypter,
 }
 impl Fixture {
     async fn new() -> Result<Self> {
@@ -134,10 +131,6 @@ impl Fixture {
             let db = Db::default();
             db.initialize(database.connection()?)?;
             let key = STANDARD.encode([21_u8; 32]);
-            let encrypter = Encrypter::new(EncryptionConfig::new(
-                "owned",
-                BTreeMap::from([("owned".into(), key.clone())]),
-            ))?;
             let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
                 crate::hashing::HashingConfig {
                     bcrypt: crate::hashing::BcryptConfig {
@@ -165,11 +158,13 @@ impl Fixture {
                     ("updated_at", now),
                 ])
                 .await?;
-            let policy = CredentialAuthority::new(db.clone(), encrypter.clone(), true);
-            let authority = DatabaseFactorAuthority::new(
-                DatabaseTwoFactorState::new(db.clone(), "users", "id", Value::from(42))?,
-                encrypter.clone(),
-            );
+            let policy = CredentialAuthority::new(db.clone(), true);
+            let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+                db.clone(),
+                "users",
+                "id",
+                Value::from(42),
+            )?);
             let jwt = JwtTokens::new(JwtConfig::new(
                 "owned",
                 "attachment",
@@ -188,18 +183,17 @@ impl Fixture {
                 RateLimiter::new(DatabaseRateLimitStore::new(db.clone())),
             )
             .with_factor_authority(policy.clone())?;
-            Ok((db, policy, authority, flows, passwords, encrypter))
+            Ok((db, policy, authority, flows, passwords))
         }
         .await;
         match setup {
-            Ok((db, policy, authority, flows, passwords, encrypter)) => Ok(Self {
+            Ok((db, policy, authority, flows, passwords)) => Ok(Self {
                 database,
                 db,
                 policy,
                 authority,
                 flows,
                 passwords,
-                encrypter,
             }),
             Err(error) => {
                 database.close().await?;
@@ -209,14 +203,13 @@ impl Fixture {
     }
     async fn named(&self, session: Session) -> Result<SessionGuard> {
         let db = self.db.clone();
-        let crypto = self.encrypter.clone();
         let provider = DatabaseUserProvider::new(self.db.clone(), self.passwords.clone(), "users")?
             .with_user_factory(move |attributes| {
                 let id = attributes.get("id").cloned().ok_or(Error::Unauthorized)?;
                 let store = DatabaseTwoFactorState::new(db.clone(), "users", "id", id)?;
                 Ok(Arc::new(Account {
                     attributes: GenericUser::new(attributes),
-                    authority: DatabaseFactorAuthority::new(store.clone(), crypto.clone()),
+                    authority: DatabaseFactorAuthority::new(store.clone()),
                     store,
                 }) as AuthUser)
             });

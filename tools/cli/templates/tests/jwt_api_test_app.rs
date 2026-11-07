@@ -86,6 +86,7 @@ impl<const SESSION: bool> ApplicationDefinition for TestWebHost<SESSION> {
 fn test_configuration() -> openrust::config::FrameworkConfig {
     let mut config = openrust::config::FrameworkConfig::default();
     config.app.env = openrust::config::Environment::Testing;
+    config.app.key = Some("0123456789abcdef0123456789abcdef".into());
     config
 }
 

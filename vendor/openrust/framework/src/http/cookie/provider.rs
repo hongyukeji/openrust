@@ -110,7 +110,7 @@ impl CookieLayerPlan {
             }
             ProtectionMode::Laravel => Protection::Laravel(
                 scope
-                    .resolve::<crate::encryption::LaravelEncrypter>()
+                    .resolve::<dyn crate::encryption::ApplicationEncrypter>()
                     .await?,
             ),
         };

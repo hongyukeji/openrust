@@ -18,7 +18,10 @@ use crate::core::{Error, Result};
 
 mod laravel;
 mod laravel_payload;
-pub use laravel::LaravelEncrypter;
+#[cfg(feature = "session")]
+pub(crate) use laravel::decrypt_xsrf_header;
+pub use laravel::{ApplicationEncrypter, LaravelEncrypter};
+pub(crate) use laravel::{decrypt_cookie_value, encrypt_cookie_value};
 
 const ENVELOPE_VERSION: &str = "or1";
 const KEY_BYTES: usize = 32;
@@ -221,13 +224,16 @@ impl crate::support::ServiceProvider for EncryptionServiceProvider {
                 ]),
                 |_| Ok(()),
             )?;
-            app.singleton::<LaravelEncrypter, _>(|resolver| {
-                Box::pin(async move {
-                    let config = resolver.section::<crate::config::AppConfig>("app")?;
-                    Ok(Arc::new(LaravelEncrypter::from_config(config)?))
+            if !app.is_bound::<dyn ApplicationEncrypter>() {
+                app.singleton::<dyn ApplicationEncrypter, _>(|resolver| {
+                    Box::pin(async move {
+                        let config = resolver.section::<crate::config::AppConfig>("app")?;
+                        Ok(Arc::new(LaravelEncrypter::from_config(config)?)
+                            as Arc<dyn ApplicationEncrypter>)
+                    })
                 })
-            })
-            .await?;
+                .await?;
+            }
             app.singleton::<Encrypter, _>(|resolver| {
                 Box::pin(async move {
                     let config = resolver.section::<EncryptionConfig>("security.encryption")?;
@@ -285,7 +291,10 @@ mod provider_tests {
             let mut providers = ProviderBuilder::new();
             providers.provider(EncryptionServiceProvider);
             let runtime = providers.start(sources).await?;
-            let result = runtime.container().resolve::<LaravelEncrypter>().await;
+            let result = runtime
+                .container()
+                .resolve::<dyn ApplicationEncrypter>()
+                .await;
             if valid {
                 let service = result?;
                 assert_eq!(service.decrypt_string(&wire)?, b"binary\0value\xff");
@@ -294,7 +303,10 @@ mod provider_tests {
                 assert!(first_history_only.decrypt_string(&new_wire).is_err());
                 assert_eq!(current_only.decrypt_string(&new_wire)?, b"new");
                 assert_eq!(service.decrypt_string(&new_wire)?, b"new");
-                let same = runtime.container().resolve::<LaravelEncrypter>().await?;
+                let same = runtime
+                    .container()
+                    .resolve::<dyn ApplicationEncrypter>()
+                    .await?;
                 assert!(Arc::ptr_eq(&service, &same));
             } else {
                 assert!(result.is_err());

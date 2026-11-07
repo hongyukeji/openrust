@@ -196,15 +196,16 @@ where
             BTreeMap::from([("test".into(), KEY.into())]),
         ))?;
         let factory_db = db.clone();
-        let factory_crypto = encrypter.clone();
         let provider: Arc<dyn UserProvider> = Arc::new(
             DatabaseUserProvider::new(db.clone(), passwords.clone(), "users")?.with_user_factory(
                 move |attributes| {
                     let id = attributes.get("id").cloned().ok_or(Error::Unauthorized)?;
-                    let authority = DatabaseFactorAuthority::new(
-                        DatabaseTwoFactorState::new(factory_db.clone(), "users", "id", id)?,
-                        factory_crypto.clone(),
-                    );
+                    let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+                        factory_db.clone(),
+                        "users",
+                        "id",
+                        id,
+                    )?);
                     Ok(Arc::new(Account {
                         attributes: GenericUser::new(attributes),
                         authority,
@@ -217,7 +218,7 @@ where
             Arc::new(
                 GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_000))),
             ),
-            encrypter.clone(),
+            crate::auth::fortify::test_field_encrypter(KEY)?,
             events,
         )
         .with_options(TwoFactorOptions {
@@ -231,7 +232,7 @@ where
             BTreeMap::from([("test".into(), KEY.into())]),
         ))?;
         let manager = JwtApiFactorManagement::new(
-            CredentialAuthority::new(db.clone(), encrypter.clone(), confirm),
+            CredentialAuthority::new(db.clone(), confirm),
             actions,
             tokens,
             provider,

@@ -1139,8 +1139,6 @@ async fn install_root_model_factory(
     let state = f.app.app()?.state();
     let db = state.resolve::<openrust::Db>().await?;
     let hashing = state.resolve::<openrust::hashing::HashManager>().await?;
-    #[cfg(feature = "auth-fortify")]
-    let encryption = state.resolve::<openrust::encryption::Encrypter>().await?;
     let mut metadata =
         openrust::database::eloquent::ModelMetadata::new("users", "app::models::user::User");
     // 本模块的因子authority要求数据库原始typed ID；成功HTTP夹具不改变整数账户域。
@@ -1177,10 +1175,7 @@ async fn install_root_model_factory(
                     )?;
                     user.with_two_factor_state(factor.clone())
                         .with_factor_authority(
-                            openrust::auth::fortify::DatabaseFactorAuthority::new(
-                                factor,
-                                (*encryption).clone(),
-                            ),
+                            openrust::auth::fortify::DatabaseFactorAuthority::new(factor),
                         )
                 };
                 #[cfg(not(feature = "auth-fortify"))]

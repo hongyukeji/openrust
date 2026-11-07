@@ -19,8 +19,6 @@ use crate::auth::fortify::TwoFactorAuthenticatable;
 use crate::auth::fortify::TwoFactorState;
 use crate::database::sea_orm_migration::MigrationTrait;
 use crate::database::sea_orm_migration::MigratorTrait;
-use crate::encryption::Encrypter;
-use crate::encryption::EncryptionConfig;
 use crate::events::Events;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
@@ -135,14 +133,9 @@ async fn account(db: &Db, id: i64) -> Result<()> {
 async fn fixture(db: Db) -> Result<Fixture> {
     account(&db, 42).await?;
     account(&db, 43).await?;
-    let encrypter = Encrypter::new(EncryptionConfig::new(
-        "test",
-        std::collections::BTreeMap::from([("test".into(), STANDARD_KEY.into())]),
-    ))?;
     let state = DatabaseTwoFactorState::new(db.clone(), "users", "id", json!(42))?;
-    let authority = DatabaseFactorAuthority::new(state.clone(), encrypter.clone());
+    let authority = DatabaseFactorAuthority::new(state.clone());
     let factory_db = db.clone();
-    let factory_encrypter = encrypter.clone();
     let provider: Arc<dyn UserProvider> = Arc::new(
         DatabaseUserProvider::new(
             db.clone(),
@@ -163,7 +156,7 @@ async fn fixture(db: Db) -> Result<Fixture> {
             let state = DatabaseTwoFactorState::new(factory_db.clone(), "users", "id", identifier)?;
             Ok(Arc::new(Account {
                 attributes: GenericUser::new(attributes),
-                authority: DatabaseFactorAuthority::new(state.clone(), factory_encrypter.clone()),
+                authority: DatabaseFactorAuthority::new(state.clone()),
                 state,
             }) as AuthUser)
         }),
@@ -188,17 +181,18 @@ async fn fixture(db: Db) -> Result<Fixture> {
     builder.provider(EventsServiceProvider::new());
     let runtime = builder.start(figment::Figment::new()).await?;
     let events = (*runtime.container().resolve::<Events>().await?).clone();
+    let field_crypto = crate::auth::fortify::test_field_encrypter(STANDARD_KEY)?;
     let actions = TwoFactorActions::new(
         Arc::new(
             GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_000))),
         ),
-        encrypter.clone(),
+        field_crypto.clone(),
         events,
     );
     actions.enable(&user, false).await?;
     let before = authority.load().await?;
     let mut fixed = before.state.clone();
-    fixed.secret = Some(encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?);
+    fixed.secret = Some(field_crypto.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?);
     authority
         .replace(&before, &fixed, FactorAuthorityMutation::Enable)
         .await?;
@@ -209,7 +203,7 @@ async fn fixture(db: Db) -> Result<Fixture> {
     guard
         .login_with_factor_receipt(user, false, receipt)
         .await?;
-    let policy = CredentialAuthority::new(db.clone(), encrypter, false);
+    let policy = CredentialAuthority::new(db.clone(), false);
     let tokens = PersonalAccessTokens::new(db.clone()).with_factor_authority(policy.clone())?;
     Ok(Fixture {
         db,
@@ -722,11 +716,7 @@ async fn family_tokens_reject_factor_change_and_session_parent_from_another_stor
             let other_db = Db::default();
             let cross_store: Result<()> = async {
                 other_db.initialize(other_database.connection()?)?;
-                let encrypter = Encrypter::new(EncryptionConfig::new(
-                    "test",
-                    std::collections::BTreeMap::from([("test".into(), STANDARD_KEY.into())]),
-                ))?;
-                let other_policy = CredentialAuthority::new(other_db.clone(), encrypter, false);
+                let other_policy = CredentialAuthority::new(other_db.clone(), false);
                 let (other_flows, _) =
                     family_flows(other_db.clone(), other_policy, chrono::Duration::hours(1))?;
                 assert!(other_flows.issue_credentials_from(parent).await.is_err());
@@ -938,16 +928,12 @@ async fn direct_login_flows(
             ),
         ])
         .await?;
-    let encrypter = Encrypter::new(EncryptionConfig::new(
-        "test",
-        std::collections::BTreeMap::from([("test".into(), STANDARD_KEY.into())]),
-    ))?;
     let events = (*fixture.runtime.container().resolve::<Events>().await?).clone();
     let actions = TwoFactorActions::new(
         Arc::new(
             GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_030))),
         ),
-        encrypter,
+        crate::auth::fortify::test_field_encrypter(STANDARD_KEY)?,
         events,
     );
     let (flows, jwt) = family_flows(

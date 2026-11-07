@@ -10,11 +10,10 @@ use crate::auth::fortify::TwoFactorAuthenticatable;
 use crate::auth::fortify::TwoFactorOptions;
 use crate::auth::fortify::TwoFactorState;
 use crate::config::ConfigSources;
-use crate::config::EncryptionConfig;
 use crate::config::repository::ConfigRepository;
 use crate::container::ContainerBuilder;
 use crate::container::Scope;
-use crate::encryption::Encrypter;
+use crate::encryption::ApplicationEncrypter;
 use crate::events::Events;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
@@ -29,12 +28,9 @@ use crate::session::MemorySessionStore;
 use serde_json::{Map, json};
 #[cfg(feature = "db-sqlite")]
 use sha2::{Digest as _, Sha256};
-use std::{
-    collections::BTreeMap,
-    sync::{
-        Mutex, RwLock,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-    },
+use std::sync::{
+    Mutex, RwLock,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 const ID: &str = "tenant:user-42";
@@ -297,7 +293,7 @@ struct Fixture {
     observed: Arc<Observed>,
     request: RequestInfo,
     cookies: CookieJar,
-    encrypter: Encrypter,
+    encrypter: Arc<dyn ApplicationEncrypter>,
     _scope: Scope,
     _owner: ResourceOwner,
     _runtime: ProviderRuntime,
@@ -387,20 +383,15 @@ impl Fixture {
     ) -> Result<Self> {
         let observed = Arc::new(Observed::default());
         let (events, runtime) = events(&observed).await?;
-        let encrypter = Encrypter::new(EncryptionConfig::new(
-            "test",
-            BTreeMap::from([(
-                "test".into(),
-                "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
-            )]),
-        ))?;
+        let encrypter = crate::auth::fortify::test_field_encrypter(
+            "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+        )?;
         let state = if has_secret {
             TwoFactorState {
-                secret: Some(encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                recovery_codes: Some(
-                    encrypter
-                        .encrypt(&serde_json::to_vec(&[RECOVERY; 8]).map_err(Error::internal)?)?,
-                ),
+                secret: Some(encrypter.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?),
+                recovery_codes: Some(encrypter.encrypt_serialized_string(
+                    &serde_json::to_vec(&[RECOVERY; 8]).map_err(Error::internal)?,
+                )?),
                 confirmed_at: None,
             }
         } else {
@@ -762,7 +753,7 @@ async fn recovery_has_priority_replaces_in_place_and_emits_before_login() -> Res
     let state = fixture.user.two_factor_state().await?;
     let plaintext = fixture
         .encrypter
-        .decrypt(state.recovery_codes.as_deref().ok_or_else(fixture_error)?)?;
+        .decrypt_serialized_string(state.recovery_codes.as_deref().ok_or_else(fixture_error)?)?;
     let codes: Vec<String> = serde_json::from_slice(&plaintext).map_err(Error::internal)?;
     assert_eq!(codes.len(), 8);
     assert!(codes.iter().all(|code| code == "CCCCCCCCCC-DDDDDDDDDD"));
@@ -922,8 +913,7 @@ where
             _ => return Err(fixture_error()),
         };
         db.table("users")?.insert(vec![("id", id_value)]).await?;
-        let encrypter = Encrypter::new(EncryptionConfig::new("test", BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
-        let authority = super::super::authority::DatabaseFactorAuthority::new(super::super::DatabaseTwoFactorState::new(db.clone(), "users", "id", identifier)?, encrypter);
+        let authority = super::super::authority::DatabaseFactorAuthority::new(super::super::DatabaseTwoFactorState::new(db.clone(), "users", "id", identifier)?);
         callback(db.clone(), authority).await
     }.await;
     drop(db);
@@ -1046,7 +1036,11 @@ async fn confirm_receipt_uses_actual_committed_authority_snapshot() -> Result<()
             fixture.login.actions.enable(&user, false).await?;
             let before = authority.load().await?;
             let mut pending = before.state.clone();
-            pending.secret = Some(fixture.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?);
+            pending.secret = Some(
+                fixture
+                    .encrypter
+                    .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?,
+            );
             authority
                 .replace(
                     &before,
@@ -1203,7 +1197,11 @@ async fn concurrent_modern_code_without_cache_publishes_only_one_session_proof()
             first.login.actions.enable(&user, false).await?;
             let snapshot = authority.load().await?;
             let mut fixed = snapshot.state.clone();
-            fixed.secret = Some(first.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?);
+            fixed.secret = Some(
+                first
+                    .encrypter
+                    .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?,
+            );
             authority
                 .replace(
                     &snapshot,
@@ -1346,7 +1344,8 @@ async fn actual_provider_metadata_case(confirm: bool) -> Result<()> {
             fixture.login.actions.enable(&user, false).await?;
             let snapshot = authority.load().await?;
             let encrypted = snapshot.state.secret.as_ref().ok_or_else(fixture_error)?;
-            let secret = super::super::actions::decrypt_string(&fixture.encrypter, encrypted)?;
+            let secret =
+                super::super::actions::decrypt_string(fixture.encrypter.as_ref(), encrypted)?;
             let decoded = super::super::engine::decode_secret(&secret)?;
             let code = crate::auth::totp::totp_code(&decoded, 102, 6)?;
             let mut actions = (*fixture.login.actions).clone();
@@ -1479,8 +1478,12 @@ async fn pending_management_rechecks_confirmation_config_after_actual_provider_a
                 .replace(
                     &before,
                     &TwoFactorState {
-                        secret: Some(fixture.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                        recovery_codes: Some(fixture.encrypter.encrypt(b"[]")?),
+                        secret: Some(
+                            fixture
+                                .encrypter
+                                .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?,
+                        ),
+                        recovery_codes: Some(fixture.encrypter.encrypt_serialized_string(b"[]")?),
                         confirmed_at: None,
                     },
                     super::super::FactorAuthorityMutation::Enable,

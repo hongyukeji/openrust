@@ -15,7 +15,7 @@ use crate::auth::UserProvider;
 use crate::core::error::ValidationErrors;
 use crate::database::DatabaseTransaction;
 use crate::database::Db;
-use crate::encryption::Encrypter;
+use crate::encryption::ApplicationEncrypter;
 use crate::events::Events;
 
 use super::authority::{FactorAuthorityMutation, FactorAuthoritySnapshot};
@@ -179,14 +179,20 @@ impl ManagementEvent {
     }
 }
 
+#[derive(Clone)]
+enum FieldEncrypter {
+    Instance(Arc<dyn ApplicationEncrypter>),
+    Application(crate::container::Resolver),
+}
+
 /// 固定Fortify账户动作及同一公开加密器覆写优先级。
 ///
 /// 官方动作提交后派发事件；受控 JWT 管理在因子事务内派发事件并运行应用选定的审计。
 #[derive(Clone)]
 pub struct TwoFactorActions {
     pub(super) provider: Arc<dyn TwoFactorAuthenticationProvider>,
-    default_encrypter: Encrypter,
-    explicit_encrypter: Option<Encrypter>,
+    default_encrypter: FieldEncrypter,
+    explicit_encrypter: Option<Arc<dyn ApplicationEncrypter>>,
     management_context: Option<(FactorManagementContext, bool)>,
     management_audit: Option<Arc<dyn super::api_audit::ApiFactorManagementAuditSink>>,
     pub(super) options: TwoFactorOptions,
@@ -205,21 +211,43 @@ impl fmt::Debug for TwoFactorActions {
 }
 
 impl TwoFactorActions {
-    pub(super) fn default_encrypter(&self) -> Encrypter {
-        self.explicit_encrypter
-            .clone()
-            .unwrap_or_else(|| self.default_encrypter.clone())
+    pub(super) async fn default_encrypter(&self) -> Result<Arc<dyn ApplicationEncrypter>> {
+        if let Some(encrypter) = &self.explicit_encrypter {
+            return Ok(encrypter.clone());
+        }
+        match &self.default_encrypter {
+            FieldEncrypter::Instance(encrypter) => Ok(encrypter.clone()),
+            FieldEncrypter::Application(resolver) => {
+                resolver.resolve::<dyn ApplicationEncrypter>().await
+            }
+        }
     }
 
     /// 创建包回退动作；发布配置需显式传入安装选项。
     pub fn new(
         provider: Arc<dyn TwoFactorAuthenticationProvider>,
-        encrypter: Encrypter,
+        encrypter: Arc<dyn ApplicationEncrypter>,
+        events: Events,
+    ) -> Self {
+        Self::build(provider, FieldEncrypter::Instance(encrypter), events)
+    }
+
+    pub(super) fn from_application(
+        provider: Arc<dyn TwoFactorAuthenticationProvider>,
+        resolver: crate::container::Resolver,
+        events: Events,
+    ) -> Self {
+        Self::build(provider, FieldEncrypter::Application(resolver), events)
+    }
+
+    fn build(
+        provider: Arc<dyn TwoFactorAuthenticationProvider>,
+        default_encrypter: FieldEncrypter,
         events: Events,
     ) -> Self {
         Self {
             provider,
-            default_encrypter: encrypter,
+            default_encrypter,
             explicit_encrypter: None,
             management_context: None,
             management_audit: None,
@@ -300,7 +328,7 @@ impl TwoFactorActions {
 
     /// 对应Fortify显式加密器，优先于模型和默认Crypt。
     #[must_use]
-    pub fn with_encrypter(mut self, encrypter: Encrypter) -> Self {
+    pub fn with_encrypter(mut self, encrypter: Arc<dyn ApplicationEncrypter>) -> Self {
         self.explicit_encrypter = Some(encrypter);
         self
     }
@@ -326,7 +354,11 @@ impl TwoFactorActions {
     }
 
     pub(crate) fn for_account(&self, model: &dyn TwoFactorAuthenticatable) -> Self {
-        self.clone().with_encrypter(self.encrypter(model))
+        let mut actions = self.clone();
+        if actions.explicit_encrypter.is_none() {
+            actions.explicit_encrypter = model.two_factor_encrypter();
+        }
+        actions
     }
 
     fn api_management(&self) -> bool {
@@ -377,11 +409,18 @@ impl TwoFactorActions {
         actions
     }
 
-    pub(super) fn encrypter(&self, model: &dyn TwoFactorAuthenticatable) -> Encrypter {
-        self.explicit_encrypter
+    pub(super) async fn encrypter(
+        &self,
+        model: &dyn TwoFactorAuthenticatable,
+    ) -> Result<Arc<dyn ApplicationEncrypter>> {
+        if let Some(encrypter) = self
+            .explicit_encrypter
             .clone()
             .or_else(|| model.two_factor_encrypter())
-            .unwrap_or_else(|| self.default_encrypter.clone())
+        {
+            return Ok(encrypter);
+        }
+        self.default_encrypter().await
     }
 
     /// 有 `secret` 时默认幂等；`force` 重建密钥和恢复码，按官方保留 `confirmed_at`。
@@ -400,11 +439,11 @@ impl TwoFactorActions {
         {
             return Ok(());
         }
-        let encrypter = self.encrypter(model);
+        let encrypter = self.encrypter(model).await?;
         let secret = Zeroizing::new(self.provider.generate_secret_key(self.secret_length()?)?);
         let replacement = TwoFactorState {
-            secret: Some(encrypter.encrypt(secret.as_bytes())?),
-            recovery_codes: Some(self.new_recovery_codes(&encrypter)?),
+            secret: Some(encrypter.encrypt_serialized_string(secret.as_bytes())?),
+            recovery_codes: Some(self.new_recovery_codes(encrypter.as_ref())?),
             confirmed_at: before.confirmed_at,
         };
         self.replace_authority(
@@ -472,7 +511,7 @@ impl TwoFactorActions {
         else {
             return Err(invalid_code());
         };
-        let secret = decrypt_string(&self.encrypter(model), ciphertext)?;
+        let secret = decrypt_string(self.encrypter(model).await?.as_ref(), ciphertext)?;
         let verification = self.provider.verify_with_context(&secret, code).await?;
         if !verification.is_valid() {
             return Err(invalid_code());
@@ -547,7 +586,8 @@ impl TwoFactorActions {
             None => model.two_factor_state().await?,
         };
         let mut replacement = before.clone();
-        replacement.recovery_codes = Some(self.new_recovery_codes(&self.encrypter(model))?);
+        replacement.recovery_codes =
+            Some(self.new_recovery_codes(self.encrypter(model).await?.as_ref())?);
         self.replace_authority(
             user,
             authority.as_ref(),
@@ -560,14 +600,14 @@ impl TwoFactorActions {
             .await
     }
 
-    fn new_recovery_codes(&self, encrypter: &Encrypter) -> Result<String> {
+    fn new_recovery_codes(&self, encrypter: &dyn ApplicationEncrypter) -> Result<String> {
         let codes = Zeroizing::new(
             (0..8)
                 .map(|_| (self.recovery_generator)())
                 .collect::<Result<Vec<_>>>()?,
         );
         let json = Zeroizing::new(serde_json::to_vec(&*codes).map_err(Error::internal)?);
-        encrypter.encrypt(&json)
+        encrypter.encrypt_serialized_string(&json)
     }
 
     /// 受保护管理入口重读当前恢复码；未启用或无恢复码返回空数组。
@@ -583,7 +623,10 @@ impl TwoFactorActions {
         match state.recovery_codes.as_ref().filter(|s| !s.is_empty()) {
             None => Ok(Zeroizing::new(Vec::new())),
             Some(ciphertext) => {
-                let json = Zeroizing::new(self.encrypter(model).decrypt(ciphertext)?);
+                let json = self
+                    .encrypter(model)
+                    .await?
+                    .decrypt_serialized_string(ciphertext)?;
                 Ok(Zeroizing::new(
                     serde_json::from_slice(&json).map_err(Error::internal)?,
                 ))
@@ -601,7 +644,7 @@ impl TwoFactorActions {
         let ciphertext = state.secret.as_ref().ok_or_else(|| {
             Error::NotFound("Two factor authentication has not been enabled.".into())
         })?;
-        decrypt_string(&self.encrypter(model), ciphertext)
+        decrypt_string(self.encrypter(model).await?.as_ref(), ciphertext)
     }
 
     /// 生成本地二维码URI；尚无secret时返回None，由HTTP入口返回空数组。
@@ -619,7 +662,7 @@ impl TwoFactorActions {
         let Some(ciphertext) = state.secret.as_ref() else {
             return Ok(None);
         };
-        let secret = decrypt_string(&self.encrypter(model), ciphertext)?;
+        let secret = decrypt_string(self.encrypter(model).await?.as_ref(), ciphertext)?;
         let label = model.two_factor_account_name(username)?.unwrap_or_default();
         Ok(Some(Zeroizing::new(
             self.provider.qr_code_url(company, &label, &secret)?,
@@ -697,10 +740,13 @@ pub(super) async fn replace(
     Ok(())
 }
 
-pub(super) fn decrypt_string(encrypter: &Encrypter, ciphertext: &str) -> Result<Zeroizing<String>> {
-    let plaintext = Zeroizing::new(encrypter.decrypt(ciphertext)?);
-    String::from_utf8(plaintext.to_vec())
-        .map(Zeroizing::new)
+pub(super) fn decrypt_string(
+    encrypter: &dyn ApplicationEncrypter,
+    ciphertext: &str,
+) -> Result<Zeroizing<String>> {
+    let plaintext = encrypter.decrypt_serialized_string(ciphertext)?;
+    std::str::from_utf8(&plaintext)
+        .map(|value| Zeroizing::new(value.to_owned()))
         .map_err(|_| Error::custom("fortify_secret_encoding_invalid", "双因素密文内容不是UTF-8"))
 }
 

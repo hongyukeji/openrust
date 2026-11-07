@@ -195,11 +195,9 @@ mod tests {
     use crate::auth::fortify::FortifyTwoFactorMigration;
     use crate::auth::fortify::TwoFactorAuthenticatable;
     use crate::auth::fortify::TwoFactorState;
-    use crate::config::EncryptionConfig;
     use crate::database::Db;
     use crate::database::sea_orm_migration::MigrationTrait;
     use crate::database::sea_orm_migration::MigratorTrait;
-    use crate::encryption::Encrypter;
     use crate::http::CookieFactory;
     use crate::http::CookieJar;
     use crate::session::MemorySessionStore;
@@ -285,9 +283,8 @@ mod tests {
             string_attribute(&self.attributes, username)
         }
     }
-    async fn guard(db: &Db, encrypter: &Encrypter, session: Session) -> Result<SessionGuard> {
+    async fn guard(db: &Db, session: Session) -> Result<SessionGuard> {
         let model_db = db.clone();
-        let crypto = encrypter.clone();
         let provider = DatabaseUserProvider::new(
             db.clone(),
             std::sync::Arc::new(crate::hashing::HashManager::new(
@@ -307,7 +304,7 @@ mod tests {
             let store = DatabaseTwoFactorState::new(model_db.clone(), "users", "id", id)?;
             Ok(Arc::new(Account {
                 attributes: GenericUser::new(attributes),
-                authority: DatabaseFactorAuthority::new(store.clone(), crypto.clone()),
+                authority: DatabaseFactorAuthority::new(store.clone()),
                 store,
             }) as AuthUser)
         });
@@ -333,7 +330,6 @@ mod tests {
     struct Fixture {
         database: TestDatabase,
         db: Db,
-        encrypter: Encrypter,
         policy: CredentialAuthority,
         session: Session,
         sessions: super::super::SessionStoreHandle,
@@ -358,25 +354,20 @@ mod tests {
                         ("updated_at", now),
                     ])
                     .await?;
-                let encrypter = Encrypter::new(EncryptionConfig::new(
-                    "owned",
-                    BTreeMap::from([("owned".into(), STANDARD.encode([18_u8; 32]))]),
-                ))?;
                 let store = MemorySessionStore::default();
                 let sessions = super::super::SessionStoreHandle::new(store.clone());
                 let session = Session::new(None, Arc::new(store), None)?;
                 session.start().await?;
-                let guard = guard(&db, &encrypter, session.clone()).await?;
+                let guard = guard(&db, session.clone()).await?;
                 session.save().await?;
-                let policy = CredentialAuthority::new(db.clone(), encrypter.clone(), true);
-                Ok((db, encrypter, policy, session, sessions, guard))
+                let policy = CredentialAuthority::new(db.clone(), true);
+                Ok((db, policy, session, sessions, guard))
             }
             .await;
             match setup {
-                Ok((db, encrypter, policy, session, sessions, guard)) => Ok(Self {
+                Ok((db, policy, session, sessions, guard)) => Ok(Self {
                     database,
                     db,
-                    encrypter,
                     policy,
                     session,
                     sessions,
@@ -504,7 +495,7 @@ mod tests {
             }
         };
         let mut owned_ids = Vec::new();
-        let outcome: Result<()> = async {
+        let outcome: Result<()> = Box::pin(async {
             let db = (*runtime.container().resolve::<Db>().await?).clone();
             db.initialize(database.connection()?)?;
             let now = crate::database::dialect::utc_value(
@@ -520,11 +511,7 @@ mod tests {
                     ("updated_at", now),
                 ])
                 .await?;
-            let encrypter = Encrypter::new(EncryptionConfig::new(
-                "owned",
-                BTreeMap::from([("owned".into(), STANDARD.encode([18_u8; 32]))]),
-            ))?;
-            let policy = CredentialAuthority::new(db.clone(), encrypter.clone(), true);
+            let policy = CredentialAuthority::new(db.clone(), true);
             let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
                 crate::hashing::HashingConfig {
                     bcrypt: crate::hashing::BcryptConfig {
@@ -558,7 +545,7 @@ mod tests {
                     .start()
                     .await
                     .map_err(|error| stage("session.start", &error))?;
-                let guard = guard(&db, &encrypter, session.clone())
+                let guard = guard(&db, session.clone())
                     .await
                     .map_err(|error| stage("guard.login", &error))?;
                 session
@@ -645,7 +632,7 @@ mod tests {
                 check(db.table(table)?.count().await? == before)?;
             }
             check(hits.load(Ordering::SeqCst) == 2)
-        }
+        })
         .await;
         let mut redis_cleanup = Ok(());
         for id in owned_ids {
@@ -702,19 +689,23 @@ mod tests {
     async fn live_ticket_does_not_promote_management_attributes_to_factor_proof() -> Result<()> {
         let fixture = Fixture::new().await?;
         let outcome: Result<()> = async {
+            let field_crypto =
+                crate::auth::fortify::test_field_encrypter(&STANDARD.encode([18_u8; 32]))?;
             let ticket = fixture.ticket().await?;
             ticket.authorize(&fixture.policy).await?;
-            let authority = DatabaseFactorAuthority::new(
-                DatabaseTwoFactorState::new(fixture.db.clone(), "users", "id", Value::from(42))?,
-                fixture.encrypter.clone(),
-            );
+            let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+                fixture.db.clone(),
+                "users",
+                "id",
+                Value::from(42),
+            )?);
             let before = authority.load().await?;
             authority
                 .replace(
                     &before,
                     &TwoFactorState {
-                        secret: Some(fixture.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                        recovery_codes: Some(fixture.encrypter.encrypt(b"[]")?),
+                        secret: Some(field_crypto.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?),
+                        recovery_codes: Some(field_crypto.encrypt_serialized_string(b"[]")?),
                         confirmed_at: Some(chrono::Utc::now()),
                     },
                     FactorAuthorityMutation::Enable,
@@ -745,7 +736,7 @@ mod tests {
             let ticket = fixture.ticket().await?;
             let other = Db::default();
             other.initialize(fixture.database.connection()?)?;
-            let other_policy = CredentialAuthority::new(other, fixture.encrypter.clone(), true);
+            let other_policy = CredentialAuthority::new(other, true);
             check(matches!(
                 ticket.authorize(&other_policy).await,
                 Err(Error::Unauthorized)
@@ -775,7 +766,7 @@ mod tests {
                 None,
             )?;
             session.start().await?;
-            let guard = guard(&fixture.db, &fixture.encrypter, session.clone()).await?;
+            let guard = guard(&fixture.db, session.clone()).await?;
             session.save().await?;
             let sessions = super::super::SessionStoreHandle::new(
                 crate::session::DatabaseSessionStore::new(fixture.db.clone())
@@ -939,17 +930,20 @@ mod tests {
                 .resolve::<crate::events::Events>()
                 .await?)
                 .clone();
-            let authority = DatabaseFactorAuthority::new(
-                DatabaseTwoFactorState::new(fixture.db.clone(), "users", "id", Value::from(42))?,
-                fixture.encrypter.clone(),
-            );
+            let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+                fixture.db.clone(),
+                "users",
+                "id",
+                Value::from(42),
+            )?);
             let no_factor = fixture.ticket().await?;
             let copied = no_factor.clone();
             no_factor.authorize(&fixture.policy).await?;
-            let secret = fixture
-                .encrypter
-                .encrypt(b"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")?;
-            let recovery = fixture.encrypter.encrypt(b"[]")?;
+            let field_crypto =
+                crate::auth::fortify::test_field_encrypter(&STANDARD.encode([18_u8; 32]))?;
+            let secret =
+                field_crypto.encrypt_serialized_string(b"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")?;
+            let recovery = field_crypto.encrypt_serialized_string(b"[]")?;
             let initial = authority.load().await?;
             let pending = authority
                 .replace(
@@ -996,7 +990,7 @@ mod tests {
                     GoogleTwoFactorAuthenticationProvider::new(None)
                         .with_clock(Arc::new(|| Ok(3_000))),
                 ),
-                fixture.encrypter.clone(),
+                field_crypto,
                 events,
             );
             let code = crate::auth::totp::totp_code(b"12345678901234567890", 100, 6)?;
@@ -1047,8 +1041,7 @@ mod tests {
                 stale.authorize(&fixture.policy).await,
                 Err(Error::Unauthorized)
             ))?;
-            let unconfirmed_requires_factor =
-                CredentialAuthority::new(fixture.db.clone(), fixture.encrypter.clone(), false);
+            let unconfirmed_requires_factor = CredentialAuthority::new(fixture.db.clone(), false);
             check(matches!(
                 stale.authorize(&unconfirmed_requires_factor).await,
                 Err(Error::Unauthorized)

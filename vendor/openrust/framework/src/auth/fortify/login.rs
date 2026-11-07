@@ -391,7 +391,7 @@ impl FortifyLogin {
             Some(snapshot) => snapshot.state.clone(),
             None => model.two_factor_state().await?,
         };
-        let encrypter = self.actions.encrypter(model);
+        let encrypter = self.actions.encrypter(model).await?;
         let mut verified_authority = None;
         let mut method = FactorVerificationMethod::Totp;
         let mut matched_recovery = None;
@@ -399,7 +399,7 @@ impl FortifyLogin {
             recovery_code.filter(|s| !s.is_empty() && *s != "0"),
             before.recovery_codes.as_ref(),
         ) {
-            let json = Zeroizing::new(encrypter.decrypt(ciphertext)?);
+            let json = encrypter.decrypt_serialized_string(ciphertext)?;
             let stored: Zeroizing<Vec<String>> =
                 Zeroizing::new(serde_json::from_slice(&json).map_err(Error::internal)?);
             for stored in stored.iter() {
@@ -413,12 +413,12 @@ impl FortifyLogin {
             // 官方Request匹配即消费，后续随机源/加密/持久化失败也不保留挑战。
             self.session.remove("login.id")?;
             let original = before.recovery_codes.as_ref().ok_or(Error::Unauthorized)?;
-            let json = super::actions::decrypt_string(&encrypter, original)?;
+            let json = super::actions::decrypt_string(encrypter.as_ref(), original)?;
             let replacement_code = Zeroizing::new((self.actions.recovery_generator)()?);
             // 固定trait以str_replace作用于JSON原文；保留公开自定义生成器下的替换语义。
             let replaced = Zeroizing::new(json.replace(recovery.expose(), &replacement_code));
             let mut after = before.clone();
-            after.recovery_codes = Some(encrypter.encrypt(replaced.as_bytes())?);
+            after.recovery_codes = Some(encrypter.encrypt_serialized_string(replaced.as_bytes())?);
             if let Some(snapshot) = &authority_snapshot {
                 verified_authority = Some(
                     model
@@ -444,7 +444,7 @@ impl FortifyLogin {
                 before.secret.as_ref(),
             ) {
                 (Some(code), Some(ciphertext)) => {
-                    let secret = super::actions::decrypt_string(&encrypter, ciphertext)?;
+                    let secret = super::actions::decrypt_string(encrypter.as_ref(), ciphertext)?;
                     self.actions
                         .provider
                         .verify_with_context(&secret, code)

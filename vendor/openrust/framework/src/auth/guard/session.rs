@@ -2557,7 +2557,7 @@ mod tests {
     struct RememberAuthorityFixture {
         db: crate::database::Db,
         identifier: Value,
-        encrypter: crate::encryption::Encrypter,
+        encrypter: Arc<dyn crate::encryption::ApplicationEncrypter>,
         authority: crate::auth::fortify::DatabaseFactorAuthority,
         user: AuthUser,
         provider: Arc<dyn UserProvider>,
@@ -2577,8 +2577,8 @@ mod tests {
             db.connection()?.execute_unprepared("CREATE TABLE users (id TEXT PRIMARY KEY, two_factor_secret TEXT, two_factor_recovery_codes TEXT, two_factor_confirmed_at datetime, two_factor_authority_source TEXT, two_factor_authority_generation TEXT, two_factor_consumed_codes TEXT, two_factor_management_session_hash TEXT, two_factor_management_generation TEXT, two_factor_management_authorized_at datetime)").await.map_err(Error::internal)?;
             let identifier = json!("tenant-user-42");
             db.table("users")?.insert(vec![("id", "tenant-user-42".into())]).await?;
-            let encrypter = crate::encryption::Encrypter::new(crate::encryption::EncryptionConfig::new("test", std::collections::BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
-            let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(), "users", "id", identifier.clone())?, encrypter.clone());
+            let encrypter = crate::auth::fortify::test_field_encrypter("KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=")?;
+            let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(), "users", "id", identifier.clone())?);
             let user: AuthUser = Arc::new(ProofRememberAccount {
                 attributes: super::super::GenericUser::new(serde_json::Map::from_iter([("id".into(), identifier.clone()), ("password".into(), json!("hash"))])), authority: Some(authority.clone()),
             });
@@ -2613,8 +2613,8 @@ mod tests {
                     .replace(
                         &before,
                         &TwoFactorState {
-                            secret: Some(encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                            recovery_codes: Some(encrypter.encrypt(
+                            secret: Some(encrypter.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?),
+                            recovery_codes: Some(encrypter.encrypt_serialized_string(
                                 br#"["one","two","three","four","five","six","seven","eight"]"#,
                             )?),
                             confirmed_at: Some(chrono::Utc::now()),
@@ -2835,8 +2835,8 @@ mod tests {
                     .replace(
                         &before,
                         &TwoFactorState {
-                            secret: Some(encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                            recovery_codes: Some(encrypter.encrypt(
+                            secret: Some(encrypter.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?),
+                            recovery_codes: Some(encrypter.encrypt_serialized_string(
                                 br#"["one","two","three","four","five","six","seven","eight"]"#,
                             )?),
                             confirmed_at: None,
@@ -2875,8 +2875,12 @@ mod tests {
                     .replace(
                         &before,
                         &TwoFactorState {
-                            secret: Some(fixture.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                            recovery_codes: Some(fixture.encrypter.encrypt(
+                            secret: Some(
+                                fixture
+                                    .encrypter
+                                    .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?,
+                            ),
+                            recovery_codes: Some(fixture.encrypter.encrypt_serialized_string(
                                 br#"["one","two","three","four","five","six","seven","eight"]"#,
                             )?),
                             confirmed_at: None,
@@ -2937,8 +2941,12 @@ mod tests {
                     .replace(
                         &before,
                         &TwoFactorState {
-                            secret: Some(fixture.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                            recovery_codes: Some(fixture.encrypter.encrypt(
+                            secret: Some(
+                                fixture
+                                    .encrypter
+                                    .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?,
+                            ),
+                            recovery_codes: Some(fixture.encrypter.encrypt_serialized_string(
                                 br#"["one","two","three","four","five","six","seven","eight"]"#,
                             )?),
                             confirmed_at: None,
@@ -3010,8 +3018,12 @@ mod tests {
             .replace(
                 &before,
                 &TwoFactorState {
-                    secret: Some(fixture.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                    recovery_codes: Some(fixture.encrypter.encrypt(
+                    secret: Some(
+                        fixture
+                            .encrypter
+                            .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?,
+                    ),
+                    recovery_codes: Some(fixture.encrypter.encrypt_serialized_string(
                         br#"["one","two","three","four","five","six","seven","eight"]"#,
                     )?),
                     confirmed_at: None,
@@ -3058,17 +3070,23 @@ mod tests {
             .table("users")?
             .insert(vec![("id", "successor-user-99".into())])
             .await?;
-        let authority = DatabaseFactorAuthority::new(
-            DatabaseTwoFactorState::new(fixture.db.clone(), "users", "id", identifier.clone())?,
-            fixture.encrypter.clone(),
-        );
+        let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+            fixture.db.clone(),
+            "users",
+            "id",
+            identifier.clone(),
+        )?);
         let before = authority.load().await?;
         let current = authority
             .replace(
                 &before,
                 &TwoFactorState {
-                    secret: Some(fixture.encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                    recovery_codes: Some(fixture.encrypter.encrypt(
+                    secret: Some(
+                        fixture
+                            .encrypter
+                            .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?,
+                    ),
+                    recovery_codes: Some(fixture.encrypter.encrypt_serialized_string(
                         br#"["one","two","three","four","five","six","seven","eight"]"#,
                     )?),
                     confirmed_at: Some(chrono::Utc::now()),
@@ -3265,8 +3283,8 @@ mod tests {
                     .replace(
                         &before,
                         &crate::auth::fortify::TwoFactorState {
-                            secret: Some(encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                            recovery_codes: Some(encrypter.encrypt(
+                            secret: Some(encrypter.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?),
+                            recovery_codes: Some(encrypter.encrypt_serialized_string(
                                 br#"["one","two","three","four","five","six","seven","eight"]"#,
                             )?),
                             confirmed_at: Some(chrono::Utc::now()),

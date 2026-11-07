@@ -12,7 +12,6 @@ use crate::database::sea_orm::ConnectionTrait;
 use crate::database::sea_orm::DatabaseTransaction;
 use crate::database::sea_orm::DbBackend;
 use crate::database::sea_orm::Value as SqlValue;
-use crate::encryption::Encrypter;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -102,7 +101,7 @@ impl fmt::Debug for DatabaseFactorAuthority {
 impl DatabaseFactorAuthority {
     /// 显式选择同一账户存储。密文由 Fortify Actions 所选加密器处理。
     #[must_use]
-    pub fn new(store: DatabaseTwoFactorState, _encrypter: Encrypter) -> Self {
+    pub fn new(store: DatabaseTwoFactorState) -> Self {
         Self {
             store,
             management_event: None,

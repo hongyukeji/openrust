@@ -170,6 +170,15 @@ async fn fixture_with_cookie_provider(
     config: figment::Figment,
     cookies: CookieServiceProvider,
 ) -> Result<Application> {
+    fixture_with_application_encryption(policy, config, cookies, false).await
+}
+
+async fn fixture_with_application_encryption(
+    policy: PreventRequestForgery,
+    config: figment::Figment,
+    cookies: CookieServiceProvider,
+    decorate: bool,
+) -> Result<Application> {
     let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
@@ -186,6 +195,9 @@ async fn fixture_with_cookie_provider(
             ),
         )
         .provider(WebRoutes(policy));
+    if decorate {
+        builder.provider(DecorateApplicationEncryption);
+    }
     Application::from_provider_runtime(builder.start(config).await?)
 }
 
@@ -318,7 +330,7 @@ async fn anonymous_unsafe_web_requires_token_while_api_has_no_session_cookie() -
 
 #[tokio::test]
 async fn laravel_xsrf_header_requires_the_session_token_after_authentication() -> Result<()> {
-    use openrust::encryption::LaravelEncrypter;
+    use openrust::encryption::ApplicationEncrypter;
 
     let app = fixture_with_cookie_provider(
         PreventRequestForgery::new(),
@@ -326,7 +338,7 @@ async fn laravel_xsrf_header_requires_the_session_token_after_authentication() -
         CookieServiceProvider::new(),
     )
     .await?;
-    let encrypter = app.state().resolve::<LaravelEncrypter>().await?;
+    let encrypter = app.state().resolve::<dyn ApplicationEncrypter>().await?;
     let router = build_router(&app)?;
     let form = router
         .clone()
@@ -386,7 +398,7 @@ async fn laravel_xsrf_header_requires_the_session_token_after_authentication() -
     let xsrf = encrypter.encrypt_string(&alternate_prefix)?;
     let csrf = std::str::from_utf8(&token).map_err(openrust::Error::internal)?;
     assert_laravel_token_source_precedence(&router, &session, csrf, &xsrf).await?;
-    assert_empty_session_token_is_rejected(&router, &session, &encrypter).await?;
+    assert_empty_session_token_is_rejected(&router, &session, encrypter.as_ref()).await?;
     Ok(())
 }
 
@@ -454,7 +466,7 @@ async fn assert_laravel_token_source_precedence(
 async fn assert_empty_session_token_is_rejected(
     router: &axum::Router,
     session: &str,
-    encrypter: &openrust::encryption::LaravelEncrypter,
+    encrypter: &dyn openrust::encryption::ApplicationEncrypter,
 ) -> Result<()> {
     let empty = router
         .clone()
@@ -875,3 +887,114 @@ async fn unrepresentable_json_snapshot_clears_partial_query_before_web_redirect(
 
 #[path = "return_protection_cases.rs"]
 mod return_protection_cases;
+
+type ApplicationCipher = dyn openrust::encryption::ApplicationEncrypter;
+
+struct DecoratedApplicationEncryption(std::sync::Arc<ApplicationCipher>);
+
+impl openrust::encryption::ApplicationEncrypter for DecoratedApplicationEncryption {
+    fn encrypt_string(&self, plaintext: &[u8]) -> Result<String> {
+        Ok(format!("wrapped.{}", self.0.encrypt_string(plaintext)?))
+    }
+
+    fn decrypt_string(&self, wire: &str) -> Result<Vec<u8>> {
+        let payload = wire.strip_prefix("wrapped.").ok_or_else(|| {
+            openrust::Error::custom("test_encrypter_unwrapped", "测试载荷缺少装饰标记")
+        })?;
+        self.0.decrypt_string(payload)
+    }
+
+    fn current_key(&self) -> &[u8] {
+        self.0.current_key()
+    }
+
+    fn previous_keys(&self) -> Vec<&[u8]> {
+        self.0.previous_keys()
+    }
+}
+
+struct DecorateApplicationEncryption;
+
+impl ServiceProvider for DecorateApplicationEncryption {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.extend::<ApplicationCipher, _>(|inner, _| {
+                Box::pin(async move {
+                    Ok(std::sync::Arc::new(DecoratedApplicationEncryption(inner))
+                        as std::sync::Arc<ApplicationCipher>)
+                })
+            })
+            .await
+        })
+    }
+}
+
+#[tokio::test]
+async fn decorated_application_encryption_serves_cookie_and_xsrf() -> Result<()> {
+    let config =
+        || source(openrust::config::Environment::Development).merge(("app.key", "A".repeat(32)));
+    let app = fixture_with_application_encryption(
+        PreventRequestForgery::new(),
+        config(),
+        CookieServiceProvider::new(),
+        true,
+    )
+    .await?;
+    let router = build_router(&app)?;
+    let form = router
+        .clone()
+        .oneshot(wire("GET", "/form", None, ""))
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert_eq!(form.status(), StatusCode::OK);
+    let pairs = form
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .filter_map(|value| value.split(';').next())
+        .collect::<Vec<_>>();
+    let session = pairs
+        .iter()
+        .find(|pair| pair.starts_with("test_session=wrapped."))
+        .expect("decorated Session cookie");
+    let xsrf = pairs
+        .iter()
+        .find_map(|pair| pair.strip_prefix("XSRF-TOKEN="))
+        .expect("decorated XSRF cookie");
+    let escaped = xsrf.replace('+', "%2B");
+    let (_, header) = url::form_urlencoded::parse(format!("v={escaped}").as_bytes())
+        .next()
+        .map(|(name, value)| (name.into_owned(), value.into_owned()))
+        .expect("decoded XSRF cookie");
+    assert!(header.starts_with("wrapped."));
+    let binding = app.state().resolve::<ApplicationCipher>().await?;
+    assert!(binding.decrypt_string(&header)?.len() > 41);
+    let stripped = header.strip_prefix("wrapped.").expect("decorated payload");
+    for (value, status) in [
+        (header.as_str(), StatusCode::OK),
+        (stripped, StatusCode::from_u16(419).expect("valid status")),
+    ] {
+        let mut request = wire("POST", "/form", Some(session), "");
+        request.headers_mut().insert(
+            "x-xsrf-token",
+            value.parse().map_err(openrust::Error::internal)?,
+        );
+        let response = router
+            .clone()
+            .oneshot(request)
+            .await
+            .map_err(openrust::Error::internal)?;
+        assert_eq!(response.status(), status);
+    }
+    let plain = fixture_with_cookie_provider(
+        PreventRequestForgery::new(),
+        config(),
+        CookieServiceProvider::new(),
+    )
+    .await?;
+    let other = plain.state().resolve::<ApplicationCipher>().await?;
+    assert!(other.decrypt_string(&header).is_err());
+    assert!(other.decrypt_string(stripped)?.len() > 41);
+    Ok(())
+}

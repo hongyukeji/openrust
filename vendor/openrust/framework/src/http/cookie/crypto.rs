@@ -7,7 +7,7 @@ pub(crate) enum Protection {
     #[cfg(feature = "encryption")]
     Encrypted(crate::encryption::Encrypter),
     #[cfg(feature = "encryption")]
-    Laravel(std::sync::Arc<crate::encryption::LaravelEncrypter>),
+    Laravel(std::sync::Arc<dyn crate::encryption::ApplicationEncrypter>),
 }
 
 // 由真实 Cookie 层建立的保护事实；不包含密钥或请求对象。
@@ -63,12 +63,13 @@ impl Protection {
             #[cfg(feature = "encryption")]
             Self::Laravel(encrypter) => {
                 decrypt_roots(root, except, |name, wire| {
-                    Ok(encrypter
-                        .decrypt_cookie_value(name, wire)?
-                        .and_then(|bytes| {
-                            let bytes = zeroize::Zeroizing::new(bytes);
-                            std::str::from_utf8(&bytes).ok().map(str::to_owned)
-                        }))
+                    Ok(
+                        crate::encryption::decrypt_cookie_value(encrypter.as_ref(), name, wire)?
+                            .and_then(|bytes| {
+                                let bytes = zeroize::Zeroizing::new(bytes);
+                                std::str::from_utf8(&bytes).ok().map(str::to_owned)
+                            }),
+                    )
                 });
             }
         }
@@ -98,7 +99,8 @@ impl Protection {
             }
             #[cfg(feature = "encryption")]
             Self::Laravel(encrypter) => {
-                let wire = encrypter.encrypt_cookie_value(
+                let wire = crate::encryption::encrypt_cookie_value(
+                    encrypter.as_ref(),
                     cookie.name(),
                     cookie.value().unwrap_or_default().as_bytes(),
                 )?;
@@ -220,7 +222,7 @@ mod tests {
     #[tokio::test]
     async fn laravel_mode_uses_history_and_distinguishes_prefix_miss_from_bad_ciphertext()
     -> crate::Result<()> {
-        use crate::encryption::{EncryptionServiceProvider, LaravelEncrypter};
+        use crate::encryption::{ApplicationEncrypter, EncryptionServiceProvider};
         use crate::foundation::{ProviderBuilder, ProviderRuntime};
         use figment::{Figment, providers::Serialized};
 
@@ -236,10 +238,18 @@ mod tests {
         let previous_key = "b".repeat(32);
         let current = start(&"a".repeat(32), vec![previous_key.clone()]).await?;
         let previous = start(&previous_key, Vec::new()).await?;
-        let old_protection =
-            Protection::Laravel(previous.container().resolve::<LaravelEncrypter>().await?);
-        let protection =
-            Protection::Laravel(current.container().resolve::<LaravelEncrypter>().await?);
+        let old_protection = Protection::Laravel(
+            previous
+                .container()
+                .resolve::<dyn ApplicationEncrypter>()
+                .await?,
+        );
+        let protection = Protection::Laravel(
+            current
+                .container()
+                .resolve::<dyn ApplicationEncrypter>()
+                .await?,
+        );
         let valid = ciphertext(&old_protection, "group[a]", "valid")?;
         let foreign = ciphertext(&old_protection, "other", "hidden")?;
         let mut tree = json!({"group":{"a":valid,"b":foreign},"clear":"unchanged"});

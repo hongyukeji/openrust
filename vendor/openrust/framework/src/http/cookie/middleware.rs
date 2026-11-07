@@ -61,7 +61,7 @@ impl CookieLayer {
     pub(crate) fn decrypt_xsrf_header(&self, value: &str) -> Option<String> {
         #[cfg(feature = "encryption")]
         if let Protection::Laravel(encrypter) = &self.protection {
-            return encrypter.decrypt_xsrf_header(value);
+            return crate::encryption::decrypt_xsrf_header(encrypter.as_ref(), value);
         }
         let mut root = serde_json::json!({"XSRF-TOKEN": value});
         self.protection.decrypt(&mut root, &[]);

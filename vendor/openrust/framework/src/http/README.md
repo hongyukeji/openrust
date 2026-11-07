@@ -133,7 +133,7 @@ impl Validate for CreatePost {
 
 ## Cookie 读取、队列与响应
 
-启用 `encryption` 时，默认 `CookieServiceProvider::new()` 使用 Laravel 字符串 Cookie 载荷。部署前通过 `key:generate` 设置 `APP_KEY`。该模式在受保护请求首用时从同一容器解析 `LaravelEncrypter`，使用 `app.key` 和有序历史密钥；写入用当前密钥绑定实际 Cookie 名。读取时密文失败将整个根 Cookie 置空，认证成功但名称前缀不符仅将对应叶置空。HTTP 入口按原有 Cookie 规则做一次百分号解码，保留加号，拒绝非 UTF-8 头或解码值（400）；已认证但解出的 Cookie 正文无法表示为 UTF-8 时，当前叶置空。需要独立密钥环与上下文认证时，显式选择 `CookieServiceProvider::contextual()`。默认 Laravel 模式先验证 `X-XSRF-TOKEN` 密文，再移除 41 字节前缀，由请求伪造层比对 Session token。普通 Cookie 仍校验名称前缀。该模式按 PHP 真值规则依次选择 `_token`、`X-CSRF-TOKEN` 和加密头；`"0"` 可回退，已选中的非字符串直接拒绝。应用若写入空 Session token，受保护请求仍拒绝空值匹配，避免短密文剥前缀后产生空凭证。PHP 序列化扩展待单独对齐。
+启用 `encryption` 时，默认 `CookieServiceProvider::new()` 使用 Laravel 字符串 Cookie 载荷。部署前通过 `key:generate` 设置 `APP_KEY`。该模式在受保护请求首用时从同一容器解析 `dyn ApplicationEncrypter`，使用 `app.key` 和有序历史密钥；写入用当前密钥绑定实际 Cookie 名。读取时密文失败将整个根 Cookie 置空，认证成功但名称前缀不符仅将对应叶置空。HTTP 入口按原有 Cookie 规则做一次百分号解码，保留加号，拒绝非 UTF-8 头或解码值（400）；已认证但解出的 Cookie 正文无法表示为 UTF-8 时，当前叶置空。需要独立密钥环与上下文认证时，显式选择 `CookieServiceProvider::contextual()`。默认 Laravel 模式先验证 `X-XSRF-TOKEN` 密文，再移除 41 字节前缀，由请求伪造层比对 Session token。普通 Cookie 仍校验名称前缀。该模式按 PHP 真值规则依次选择 `_token`、`X-CSRF-TOKEN` 和加密头；`"0"` 可回退，已选中的非字符串直接拒绝。应用若写入空 Session token，受保护请求仍拒绝空值匹配，避免短密文剥前缀后产生空凭证。PHP 序列化扩展待单独对齐。
 
 宿主通过 `CookieServiceProvider` 登记能力，业务从同一请求作用域提取 `CookieJar`。`RequestInfo` 与唯一正文提取器 `Request` 共用 Cookie 视图：`cookie(name)` 读取直接键，`cookie_or(name, default)` 在缺失或解密后 null 时采用默认值；`cookies()` 读取整个快照，`has_cookie(name)` 对空串仍为真。它们不使用普通输入的 dot 查找或 trim/null 转换。业务应只选取所需 Cookie，不把整个快照或原始头回传给客户端。
 

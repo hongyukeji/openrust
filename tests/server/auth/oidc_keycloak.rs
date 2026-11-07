@@ -1963,11 +1963,7 @@ async fn create_logout_app(
     #[cfg(feature = "auth-fortify")]
     let auth = parts.auth.clone();
     #[cfg(feature = "auth-fortify")]
-    let policy = openrust::auth::fortify::CredentialAuthority::new(
-        connection.clone(),
-        encryptor.clone(),
-        false,
-    );
+    let policy = openrust::auth::fortify::CredentialAuthority::new(connection.clone(), false);
     let provider_trait: std::sync::Arc<dyn ExternalIdentityProvider> = provider;
     let flows = openrust::auth::ExternalIdentityFlows::new(
         connection.clone(),

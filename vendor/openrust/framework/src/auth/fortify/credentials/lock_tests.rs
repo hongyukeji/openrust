@@ -18,7 +18,6 @@ use crate::auth::fortify::FactorAuthorityStatus;
 use crate::auth::fortify::FortifyTwoFactorMigration;
 use crate::auth::fortify::TwoFactorAuthenticatable;
 use crate::auth::fortify::TwoFactorState;
-use crate::config::EncryptionConfig;
 use crate::config::JwtConfig;
 use crate::core::RateLimiter;
 use crate::database::DatabaseRateLimitMigration;
@@ -170,10 +169,6 @@ impl Fixture {
         let db = Db::default();
         db.initialize(database.connection()?)?;
         let key = STANDARD.encode([17_u8; 32]);
-        let encrypter = Encrypter::new(EncryptionConfig::new(
-            "owned",
-            BTreeMap::from([("owned".into(), key.clone())]),
-        ))?;
         let passwords = std::sync::Arc::new(crate::hashing::HashManager::new(
             crate::hashing::HashingConfig {
                 bcrypt: crate::hashing::BcryptConfig {
@@ -203,14 +198,13 @@ impl Fixture {
             ])
             .await?;
         let model_db = db.clone();
-        let model_encrypter = encrypter.clone();
         let provider = DatabaseUserProvider::new(db.clone(), passwords.clone(), "users")?
             .with_user_factory(move |attributes| {
                 let id = attributes.get("id").cloned().ok_or(Error::Unauthorized)?;
                 let store = DatabaseTwoFactorState::new(model_db.clone(), "users", "id", id)?;
                 Ok(Arc::new(Account {
                     attributes: GenericUser::new(attributes),
-                    authority: DatabaseFactorAuthority::new(store.clone(), model_encrypter.clone()),
+                    authority: DatabaseFactorAuthority::new(store.clone()),
                     store,
                 }) as AuthUser)
             });
@@ -233,7 +227,7 @@ impl Fixture {
             ("password".into(), Value::from("owned-lock-expiry-password")),
         ]));
         check(guard.attempt(&credentials, false).await?)?;
-        let policy = CredentialAuthority::new(db.clone(), encrypter, true);
+        let policy = CredentialAuthority::new(db.clone(), true);
         check(policy.account(42)?.load().await?.status == FactorAuthorityStatus::Disabled)?;
         let jwt = JwtTokens::new(
             JwtConfig::new(
@@ -436,19 +430,20 @@ async fn direct_challenge_outer_rollback_and_concurrent_completion_preserve_one_
 -> Result<()> {
     let fixture = Fixture::new().await?;
     let outcome: Result<()> = Box::pin(async {
-        let policy = CredentialAuthority::new(fixture.db.clone(), fixture.policy.encrypter.clone(), false);
+        let policy = CredentialAuthority::new(fixture.db.clone(), false);
         let user = fixture.guard.provider().retrieve_by_id(&serde_json::json!(42)).await?.ok_or(Error::Unauthorized)?;
         let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(crate::events::EventsServiceProvider::new());
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime.container().resolve::<crate::events::Events>().await?).clone();
+        let field_crypto = crate::auth::fortify::test_field_encrypter(&STANDARD.encode([17_u8; 32]))?;
         let actions = crate::auth::fortify::TwoFactorActions::new(
             Arc::new(crate::auth::fortify::GoogleTwoFactorAuthenticationProvider::new(None)),
-            fixture.policy.encrypter.clone(), events,
+            field_crypto.clone(), events,
         );
         actions.enable(&user, false).await?;
         let snapshot = policy.account(42)?.load().await?;
-        let secret = fixture.policy.encrypter.decrypt(snapshot.state.secret.as_ref().ok_or(Error::Unauthorized)?)?;
+        let secret = field_crypto.decrypt_serialized_string(snapshot.state.secret.as_ref().ok_or(Error::Unauthorized)?)?;
         let seed = crate::auth::fortify::engine::decode_secret(std::str::from_utf8(&secret).map_err(Error::internal)?)?;
         let step = u64::try_from(Utc::now().timestamp()).map_err(Error::internal)? / 30;
         let code = crate::auth::totp::totp_code(&seed, step, 6)?;
@@ -497,9 +492,9 @@ async fn actual_provider_window_and_clock_bind_nonce_to_one_database_family() ->
     let database = TestDatabase::create::<Migrator>(&url).await?;
     let result: Result<()> = Box::pin(async {
         let (db, policy, flows, jwt, guard) = Fixture::setup(&database).await?;
-        let crypto = policy.encrypter.clone();
+        let crypto = crate::auth::fortify::test_field_encrypter(&STANDARD.encode([17_u8; 32]))?;
         let seed = b"0123456789abcdef0123";
-        stage_window_factor(&policy).await?;
+        stage_window_factor(&policy, crypto.as_ref()).await?;
         let mut builder = crate::foundation::ProviderBuilder::new();
         builder.provider(crate::events::EventsServiceProvider::new());
         let runtime = builder.start(figment::Figment::new()).await?;
@@ -590,7 +585,10 @@ async fn actual_provider_window_and_clock_bind_nonce_to_one_database_family() ->
     cleanup
 }
 
-async fn stage_window_factor(policy: &CredentialAuthority) -> Result<()> {
+async fn stage_window_factor(
+    policy: &CredentialAuthority,
+    crypto: &dyn crate::encryption::ApplicationEncrypter,
+) -> Result<()> {
     let authority = policy.account(42)?;
     let before = authority.load().await?;
     let pending = authority
@@ -598,11 +596,9 @@ async fn stage_window_factor(policy: &CredentialAuthority) -> Result<()> {
             &before,
             &TwoFactorState {
                 secret: Some(
-                    policy
-                        .encrypter
-                        .encrypt(b"GAYTEMZUGU3DOOBZMFRGGZDFMYYDCMRT")?,
+                    crypto.encrypt_serialized_string(b"GAYTEMZUGU3DOOBZMFRGGZDFMYYDCMRT")?,
                 ),
-                recovery_codes: Some(policy.encrypter.encrypt(br#"["owned-recovery"]"#)?),
+                recovery_codes: Some(crypto.encrypt_serialized_string(br#"["owned-recovery"]"#)?),
                 confirmed_at: None,
             },
             crate::auth::fortify::FactorAuthorityMutation::Enable,

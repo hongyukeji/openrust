@@ -3,7 +3,7 @@
 use super::*;
 use crate::auth::Authenticatable;
 use crate::auth::GenericUser;
-use crate::encryption::EncryptionConfig;
+use crate::encryption::LaravelEncrypter;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::support::BoxFuture;
@@ -21,11 +21,11 @@ type ModelPause = (Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>);
 struct Model {
     state: Mutex<TwoFactorState>,
     writes: AtomicUsize,
-    encrypter: Option<Encrypter>,
+    encrypter: Option<Arc<dyn ApplicationEncrypter>>,
     load_pause: Mutex<Option<ModelPause>>,
 }
 impl Model {
-    fn new(encrypter: Option<Encrypter>) -> Self {
+    fn new(encrypter: Option<Arc<dyn ApplicationEncrypter>>) -> Self {
         Self {
             state: Mutex::new(TwoFactorState::default()),
             writes: AtomicUsize::new(0),
@@ -105,7 +105,7 @@ impl TwoFactorAuthenticatable for Model {
     fn two_factor_account_name(&self, username: &str) -> Result<Option<String>> {
         Ok(Some(format!("{username}-account")))
     }
-    fn two_factor_encrypter(&self) -> Option<Encrypter> {
+    fn two_factor_encrypter(&self) -> Option<Arc<dyn ApplicationEncrypter>> {
         self.encrypter.clone()
     }
 }
@@ -149,11 +149,13 @@ impl TwoFactorAuthenticationProvider for Provider {
         })
     }
 }
-fn encryptor(byte: u8) -> Result<Encrypter> {
-    Encrypter::new(EncryptionConfig::new(
-        "test",
-        std::collections::BTreeMap::from([("test".into(), STANDARD.encode([byte; 32]))]),
-    ))
+fn encryptor(byte: u8) -> Result<Arc<dyn ApplicationEncrypter>> {
+    Ok(Arc::new(LaravelEncrypter::from_config(
+        crate::config::AppConfig {
+            key: Some(format!("base64:{}", STANDARD.encode([byte; 32]))),
+            ..crate::config::AppConfig::default()
+        },
+    )?))
 }
 async fn events() -> Result<(Events, Arc<AtomicUsize>, Arc<AtomicUsize>)> {
     let enabled = Arc::new(AtomicUsize::new(0));
@@ -319,10 +321,13 @@ async fn encryption_priority_is_explicit_then_model_then_default() -> Result<()>
             1 => &model_key,
             _ => &explicit,
         };
-        assert_eq!(selected.decrypt(cipher)?, SECRET.as_bytes());
+        assert_eq!(
+            selected.decrypt_serialized_string(cipher)?.as_slice(),
+            SECRET.as_bytes()
+        );
         for (index, key) in [&default, &model_key, &explicit].into_iter().enumerate() {
             if index != mode {
-                assert!(key.decrypt(cipher).is_err());
+                assert!(key.decrypt_serialized_string(cipher).is_err());
             }
         }
         assert_eq!(actions.secret_key(&user).await?.as_str(), SECRET);
@@ -495,7 +500,7 @@ async fn zero_secret_is_php_empty_for_enable_and_confirmation_without_provider_o
     let state = model.snapshot();
     assert_eq!(
         crypto
-            .decrypt(state.secret.as_deref().ok_or(Error::Unauthorized)?)?
+            .decrypt_serialized_string(state.secret.as_deref().ok_or(Error::Unauthorized)?)?
             .len(),
         16
     );
@@ -668,4 +673,181 @@ async fn public_confirmation_policy_helper_does_not_parse_negative_secret_length
     repository.set("fortify.features", json!([]))?;
     assert!(!actions.confirms_two_factor_authentication()?);
     Ok(())
+}
+
+async fn field_encryption_runtime(
+    key: Option<String>,
+) -> Result<crate::foundation::ProviderRuntime> {
+    use crate::auth::fortify::FortifyServiceProvider;
+    use crate::encryption::EncryptionServiceProvider;
+    use crate::foundation::RegisterContext;
+    use crate::support::ServiceProvider;
+    use figment::{Figment, providers::Serialized};
+
+    struct TestFactorProvider;
+    impl ServiceProvider for TestFactorProvider {
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance::<dyn TwoFactorAuthenticationProvider>(Arc::new(Provider::default()))
+                    .await
+            })
+        }
+    }
+
+    let mut builder = ProviderBuilder::new();
+    builder.provider(EncryptionServiceProvider);
+    builder.provider(EventsServiceProvider::new());
+    builder.provider(TestFactorProvider);
+    builder.provider(FortifyServiceProvider::new());
+    builder
+        .start(Figment::from(Serialized::defaults(json!({
+            "app": {
+                "cipher": "AES-256-CBC",
+                "key": key,
+                "previous_keys": [format!("base64:{}", STANDARD.encode([b'B'; 32]))],
+            },
+            "fortify": {"views": false},
+        }))))
+        .await
+}
+
+fn php_field_fixture_string(value: &Value) -> Result<String> {
+    value
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| Error::custom("fortify_fixture_invalid", "缺少固定 PHP 密文或明文"))
+}
+
+#[tokio::test]
+#[ignore = "需要固定 Laravel PHP 字段密文"]
+async fn fortify_actions_use_application_encrypter_for_persisted_fields() -> Result<()> {
+    use tokio::time::{Duration, Instant};
+
+    let fixture_path = std::env::var_os("OPENRUST_LARAVEL_SERIALIZED_PHP_FIXTURE")
+        .ok_or_else(|| Error::custom("fortify_fixture_missing", "需要固定 PHP 密文"))?;
+    let fixture: Value =
+        serde_json::from_slice(&std::fs::read(fixture_path).map_err(Error::internal)?)
+            .map_err(Error::internal)?;
+    let profile = &fixture["fixtures"]["aes-256-cbc"];
+    let totp = &profile["synthetic_totp_secret"];
+    let recovery = &profile["eight_synthetic_recovery_codes"];
+    let expected: Zeroizing<Vec<String>> = Zeroizing::new(
+        serde_json::from_slice(
+            &STANDARD
+                .decode(php_field_fixture_string(&recovery["plaintext_base64"])?)
+                .map_err(Error::internal)?,
+        )
+        .map_err(Error::internal)?,
+    );
+    assert_eq!(expected.len(), 8);
+
+    let runtime =
+        field_encryption_runtime(Some(format!("base64:{}", STANDARD.encode([b'A'; 32])))).await?;
+    let result: Result<()> = async {
+        let actions = runtime.container().resolve::<TwoFactorActions>().await?;
+        let app_crypto = runtime
+            .container()
+            .resolve::<dyn ApplicationEncrypter>()
+            .await?;
+        let model = Arc::new(Model::new(None));
+        let user = account(&model);
+        let historical = TwoFactorState {
+            secret: Some(php_field_fixture_string(&totp["previous_wire"])?),
+            recovery_codes: Some(php_field_fixture_string(&recovery["current_wire"])?),
+            confirmed_at: None,
+        };
+        assert!(
+            model
+                .compare_and_set_two_factor_state(&model.snapshot(), &historical)
+                .await?
+        );
+        assert_eq!(actions.secret_key(&user).await?.as_str(), SECRET);
+        assert_eq!(&*actions.recovery_codes(&user).await?, &*expected);
+        actions.confirm(&user, "004201").await?;
+        let confirmed = model.snapshot();
+        assert_eq!(confirmed.secret, historical.secret);
+        assert!(confirmed.confirmed_at.is_some());
+        actions.generate_new_recovery_codes(&user).await?;
+        let regenerated = model.snapshot();
+        assert_eq!(regenerated.secret, confirmed.secret);
+        assert_eq!(regenerated.confirmed_at, confirmed.confirmed_at);
+        let recovery_wire = regenerated
+            .recovery_codes
+            .as_deref()
+            .ok_or(Error::Unauthorized)?;
+        let decoded: Zeroizing<Vec<String>> = Zeroizing::new(
+            serde_json::from_slice(&app_crypto.decrypt_serialized_string(recovery_wire)?)
+                .map_err(Error::internal)?,
+        );
+        assert_eq!(decoded.len(), 8);
+        assert_ne!(&*decoded, &*expected);
+
+        let obsolete =
+            crate::encryption::Encrypter::new(crate::encryption::EncryptionConfig::new(
+                "test",
+                std::collections::BTreeMap::from([("test".into(), STANDARD.encode([b'A'; 32]))]),
+            ))?;
+        for rejected in [
+            obsolete.encrypt(SECRET.as_bytes())?,
+            php_field_fixture_string(&totp["raw_string_wire"])?,
+        ] {
+            let snapshot = model.snapshot();
+            let mut invalid = snapshot.clone();
+            invalid.secret = Some(rejected);
+            assert!(
+                model
+                    .compare_and_set_two_factor_state(&snapshot, &invalid)
+                    .await?
+            );
+            assert!(actions.secret_key(&user).await.is_err());
+            assert_eq!(model.snapshot(), invalid);
+        }
+
+        let fresh = Arc::new(Model::new(None));
+        actions.enable(&account(&fresh), false).await?;
+        let enabled = fresh.snapshot();
+        let secret_wire = enabled.secret.as_deref().ok_or(Error::Unauthorized)?;
+        assert_eq!(
+            app_crypto
+                .decrypt_serialized_string(secret_wire)?
+                .as_slice(),
+            SECRET.as_bytes()
+        );
+        assert!(obsolete.decrypt(secret_wire).is_err());
+        Ok(())
+    }
+    .await;
+    runtime
+        .shutdown(Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}
+
+#[tokio::test]
+async fn application_encryption_is_needed_only_when_a_fortify_field_is_used() -> Result<()> {
+    let runtime = field_encryption_runtime(None).await?;
+    let result: Result<()> = async {
+        let actions = runtime.container().resolve::<TwoFactorActions>().await?;
+        let model = Arc::new(Model::new(None));
+        let user = account(&model);
+        assert_eq!(actions.recovery_codes(&user).await?.len(), 0);
+        let failure = actions.enable(&user, false).await;
+        assert!(
+            matches!(failure, Err(Error::ServiceInitialization { source, .. })
+            if source.code() == "laravel_app_key_missing")
+        );
+        assert_eq!(model.snapshot(), TwoFactorState::default());
+
+        let model = Arc::new(Model::new(Some(encryptor(4)?)));
+        let user = account(&model);
+        actions.enable(&user, false).await?;
+        assert_eq!(actions.secret_key(&user).await?.as_str(), SECRET);
+        assert_eq!(actions.recovery_codes(&user).await?.len(), 8);
+        Ok(())
+    }
+    .await;
+    runtime
+        .shutdown(tokio::time::Instant::now() + tokio::time::Duration::from_secs(5))
+        .await?;
+    result
 }

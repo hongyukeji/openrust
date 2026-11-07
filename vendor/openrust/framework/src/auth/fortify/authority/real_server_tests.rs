@@ -12,7 +12,6 @@ use crate::auth::fortify::FactorAuthorityStatus;
 use crate::auth::fortify::FortifyTwoFactorMigration;
 use crate::auth::fortify::TwoFactorCodeVerification;
 use crate::auth::fortify::TwoFactorState;
-use crate::config::EncryptionConfig;
 use crate::database::Db;
 use crate::database::sea_orm::ConnectOptions;
 use crate::database::sea_orm::ConnectionTrait;
@@ -22,11 +21,10 @@ use crate::database::sea_orm::DbBackend;
 use crate::database::sea_orm::Statement;
 use crate::database::sea_orm_migration::MigrationTrait;
 use crate::database::sea_orm_migration::MigratorTrait;
-use crate::encryption::Encrypter;
 use crate::testing::TestDatabase;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::json;
-use std::{collections::BTreeMap, time::Duration};
+use std::time::Duration;
 
 struct Migrator;
 impl MigratorTrait for Migrator {
@@ -115,19 +113,18 @@ async fn connect(url: &str, backend: DbBackend) -> Result<DatabaseConnection> {
     let _ = backend;
     Database::connect(options).await.map_err(Error::internal)
 }
-fn encrypter() -> Result<Encrypter> {
-    Encrypter::new(EncryptionConfig::new(
-        "test",
-        BTreeMap::from([("test".into(), STANDARD.encode([7_u8; 32]))]),
-    ))
+fn encrypter() -> Result<std::sync::Arc<dyn crate::encryption::ApplicationEncrypter>> {
+    crate::auth::fortify::test_field_encrypter(&STANDARD.encode([7_u8; 32]))
 }
 fn authority(connection: &DatabaseConnection) -> Result<DatabaseFactorAuthority> {
     let db = Db::default();
     db.initialize(connection.clone())?;
-    Ok(DatabaseFactorAuthority::new(
-        DatabaseTwoFactorState::new(db, "users", "id", json!(42))?,
-        encrypter()?,
-    ))
+    Ok(DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+        db,
+        "users",
+        "id",
+        json!(42),
+    )?))
 }
 async fn role_exists(admin: &DatabaseConnection, backend: DbBackend, role: &str) -> Result<bool> {
     let sql = match backend {
@@ -229,8 +226,8 @@ async fn account_acl_denial_cannot_hide_a_confirmed_factor_or_allow_code_replay(
         check(empty.status == FactorAuthorityStatus::Disabled, "acl_new_account_disabled")?;
         let crypto = encrypter()?;
         let pending = restricted_authority.replace(&empty, &TwoFactorState {
-            secret: Some(crypto.encrypt(b"JBSWY3DPEHPK3PXP")?),
-            recovery_codes: Some(crypto.encrypt(br#"["fixture-code"]"#)?),
+            secret: Some(crypto.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?),
+            recovery_codes: Some(crypto.encrypt_serialized_string(br#"["fixture-code"]"#)?),
             confirmed_at: None,
         }, FactorAuthorityMutation::Enable).await?;
         let mut setup = pending.state.clone();

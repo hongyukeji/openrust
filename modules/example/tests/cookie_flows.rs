@@ -200,7 +200,7 @@ async fn contextual_cookie_first_use_rejects_invalid_key_after_ordinary_route_su
 #[tokio::test]
 async fn example_application_resolves_laravel_string_encryption_from_app_config() -> TestResult {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    use openrust::encryption::LaravelEncrypter;
+    use openrust::encryption::ApplicationEncrypter;
     let config = sources().merge(Serialized::defaults(json!({
         "app": {"cipher": "AES-128-GCM", "key": "0123456789abcdef"},
     })));
@@ -208,7 +208,11 @@ async fn example_application_resolves_laravel_string_encryption_from_app_config(
         .build()
         .await?;
     let result: TestResult = async {
-        let service = app.app()?.state().resolve::<LaravelEncrypter>().await?;
+        let service = app
+            .app()?
+            .state()
+            .resolve::<dyn ApplicationEncrypter>()
+            .await?;
         let wire = service.encrypt_string(b"example application payload")?;
         let fields: Value = serde_json::from_slice(&STANDARD.decode(&wire)?)?;
         let iv = fields["iv"].as_str().ok_or("Laravel payload missing IV")?;
@@ -235,7 +239,7 @@ async fn example_application_resolves_laravel_string_encryption_from_app_config(
 #[tokio::test]
 async fn example_cookie_round_trip_uses_the_default_laravel_provider() -> TestResult {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    use openrust::encryption::LaravelEncrypter;
+    use openrust::encryption::ApplicationEncrypter;
 
     let config = sources().merge(Serialized::defaults(json!({
         "app": {"cipher": "AES-128-CBC", "key": "0123456789abcdef"},
@@ -258,7 +262,11 @@ async fn example_cookie_round_trip_uses_the_default_laravel_provider() -> TestRe
             fields["mac"].as_str().ok_or("Laravel MAC missing")?.len(),
             64
         );
-        let service = app.app()?.state().resolve::<LaravelEncrypter>().await?;
+        let service = app
+            .app()?
+            .state()
+            .resolve::<dyn ApplicationEncrypter>()
+            .await?;
         let plaintext = service.decrypt_string(&wire)?;
         assert_eq!(plaintext.get(40), Some(&b'|'));
         assert_eq!(plaintext.get(41..), Some(value.as_bytes()));

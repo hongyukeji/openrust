@@ -26,7 +26,7 @@ async fn generated_jwt_api_profile_has_real_factor_management_and_no_session_coo
     let defaults = openrust::config::FrameworkConfig::default();
     let input = figment::Figment::from(figment::providers::Serialized::defaults(defaults))
         .merge(figment::providers::Serialized::defaults(serde_json::json!({
-            "app":{"env":"local","url":"http://localhost","name":"generated-api-tests"},
+            "app":{"env":"local","url":"http://localhost","name":"generated-api-tests","key":"0123456789abcdef0123456789abcdef"},
             "database":{"url":database.url()},
             "cache":{"default":"test","stores":{"test":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://localhost","audience":"generated-api-tests","active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},

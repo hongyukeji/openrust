@@ -1081,8 +1081,6 @@ fn populate_project_with_features(
                 let state_db = (*db).clone();
                 #[cfg(feature = "auth-fortify")]
                 let state_table = table.to_owned();
-                #[cfg(feature = "auth-fortify")]
-                let factor_encrypter = resolver.resolve::<openrust::encryption::Encrypter>().await?;
                 let model_metadata = std::sync::Arc::new(openrust::database::eloquent::ModelMetadata::new(
                     table, "app::models::user::User",
                 ));
@@ -1100,7 +1098,7 @@ fn populate_project_with_features(
                                 state_db.clone(), state_table.clone(), "id", identifier,
                             )?;
                             user.with_two_factor_state(state.clone()).with_factor_authority(
-                                openrust::auth::fortify::DatabaseFactorAuthority::new(state, (*factor_encrypter).clone()),
+                                openrust::auth::fortify::DatabaseFactorAuthority::new(state),
                             )
                         };
                         Ok(std::sync::Arc::new(user))

@@ -454,7 +454,7 @@ async fn age(session: Session, Path(seconds): Path<i64>) -> Result<Json<Value>> 
 fn sources(mode: u8) -> Figment {
     let mut defaults = FrameworkConfig::default();
     defaults.api.http_status = HttpStatusMode::Semantic;
-    let mut input = json!({"app":{"env":"local","url":"http://fortify.test","name":"Fortify fixture"},"auth":{"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"http-accounts"}}},"cache":{"default":"fixture","stores":{"fixture":{"driver":"memory"}}},"fortify":{"username":"handle"},"fortify-options":{"two-factor-authentication":{"confirm":false,"confirmPassword":mode == 3 || mode == 4}},"session":{"cookie":"fortify_http_session","secure":false,"lottery":[0,100]},"security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}});
+    let mut input = json!({"app":{"env":"local","url":"http://fortify.test","name":"Fortify fixture","key":"0123456789abcdef0123456789abcdef"},"auth":{"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"http-accounts"}}},"cache":{"default":"fixture","stores":{"fixture":{"driver":"memory"}}},"fortify":{"username":"handle"},"fortify-options":{"two-factor-authentication":{"confirm":false,"confirmPassword":mode == 3 || mode == 4}},"session":{"cookie":"fortify_http_session","secure":false,"lottery":[0,100]},"security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}});
     if mode == 1 {
         input["fortify"]["views"] = json!(false);
         input["fortify"]["prefix"] = json!("security");

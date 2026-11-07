@@ -66,15 +66,17 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         let mut builder=openrust::foundation::ProviderBuilder::new();
         builder.provider(openrust::database::DatabaseServiceProvider);
         builder.provider(listeners);
-        let runtime=builder.start(figment::Figment::new()).await?;
+        builder.provider(openrust::encryption::EncryptionServiceProvider);
+        let runtime=builder.start(figment::Figment::new().merge(("app.key", "A".repeat(32)))).await?;
+        let field_crypto=runtime.container().resolve::<dyn openrust::encryption::ApplicationEncrypter>().await?;
         let db=(*runtime.container().resolve::<Db>().await?).clone();
         db.initialize(connection.clone())?;
         let passwords=std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?);
         let jwt=JwtTokens::new(JwtConfig::new("oidc-owned","oidc-owned","owned",BTreeMap::from([("owned".into(),STANDARD.encode([51_u8;32]))])))?;
         let encryptor=Encrypter::new(EncryptionConfig::new("owned",BTreeMap::from([("owned".into(),STANDARD.encode([61_u8;32]))])))?;
-        let policy=CredentialAuthority::new(db.clone(),encryptor.clone(),false);
+        let policy=CredentialAuthority::new(db.clone(),false);
         let events=(*runtime.container().resolve::<openrust::events::Events>().await?).clone();
-        let actions=TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None)),encryptor.clone(),events);
+        let actions=TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None)),field_crypto,events);
         let auth=AuthFlows::new(db.clone(),passwords.clone(),jwt.clone(),RefreshTokens::new(db.clone()),
             openrust::auth::VerificationCodes::new(DatabaseVerificationCodeStore::new(db.clone()),passwords.clone()),
             RateLimiter::new(DatabaseRateLimitStore::new(db.clone())))
@@ -92,11 +94,11 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         let user_id=issued.user_id();
         let credential=policy.authenticate_access_token(&jwt,issued.access_token()).await?;
         assert!(credential.factor_origin().is_none());
-        let model_db=db.clone();let model_encrypter=encryptor.clone();
+        let model_db=db.clone();
         let users=openrust::auth::DatabaseUserProvider::new(db.clone(),passwords,"users")?.with_user_factory(move |attrs| {
             let id=attrs.get("id").cloned().ok_or(Error::Unauthorized)?;
             let store=DatabaseTwoFactorState::new(model_db.clone(),"users","id",id)?;
-            Ok(Arc::new(application_user::User::new(attrs).with_two_factor_state(store.clone()).with_factor_authority(DatabaseFactorAuthority::new(store,model_encrypter.clone()))) as openrust::auth::AuthUser)
+            Ok(Arc::new(application_user::User::new(attrs).with_two_factor_state(store.clone()).with_factor_authority(DatabaseFactorAuthority::new(store))) as openrust::auth::AuthUser)
         });
         let user=users.retrieve_by_id(&serde_json::json!(user_id)).await?.ok_or("missing user")?;
         let session_store=SessionStoreHandle::new(openrust::session::DatabaseSessionStore::new(db.clone()));

@@ -190,8 +190,9 @@ async fn enable_factor(node: &BrowserNode, local: &str) -> TestResult<(String, S
         .resolve::<openrust::auth::fortify::CredentialAuthority>()
         .await?;
     let parent = authority.authenticate_access_token(&jwt, local).await?;
+    let scope = app.state().container().scope()?;
     let (actions, user) =
-        super::account_security_flows::setup_confirmed_factor(app, parent.user_id()).await?;
+        super::account_security_flows::setup_confirmed_factor(&scope, parent.user_id()).await?;
     let recovery = actions.recovery_codes(&user).await?;
     assert_eq!(recovery.len(), 8);
     Ok((recovery[0].clone(), recovery[1].clone()))

@@ -6,8 +6,6 @@ use crate::auth::fortify::{
 };
 use crate::database::sea_orm_migration::MigrationTrait;
 use crate::database::sea_orm_migration::MigratorTrait;
-use crate::encryption::Encrypter;
-use crate::encryption::EncryptionConfig;
 use crate::events::Events;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
@@ -39,14 +37,13 @@ where
         db.connection()?.execute_unprepared("CREATE TABLE users (id INTEGER PRIMARY KEY, disabled_at datetime, password_hash TEXT DEFAULT 'fixture-password', probe INTEGER NOT NULL DEFAULT 0, two_factor_secret TEXT, two_factor_recovery_codes TEXT, two_factor_confirmed_at datetime, two_factor_authority_source TEXT, two_factor_authority_generation TEXT, two_factor_consumed_codes TEXT, two_factor_management_session_hash TEXT, two_factor_management_generation TEXT, two_factor_management_authorized_at datetime)").await.map_err(Error::internal)?;
         db.connection()?.execute_unprepared("CREATE TABLE auth_factor_challenges (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, source_hash TEXT NOT NULL, context TEXT NOT NULL, purpose TEXT NOT NULL, password_hash_digest TEXT, attempts INTEGER NOT NULL, expires_at datetime NOT NULL, created_at datetime NOT NULL, consumed_at datetime)").await.map_err(Error::internal)?;
         db.table("users")?.insert(vec![("id", 42_i64.into())]).await?;
-        let encrypter = Encrypter::new(EncryptionConfig::new("test", std::collections::BTreeMap::from([("test".into(), "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into())])))?;
-        let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(), "users", "id", Value::from(42))?, encrypter.clone());
+        let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(), "users", "id", Value::from(42))?);
         let mut builder = ProviderBuilder::new(); builder.provider(EventsServiceProvider::new());
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime.container().resolve::<Events>().await?).clone();
-        let actions = TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_000)))), encrypter.clone(), events)
+        let actions = TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_000)))), crate::auth::fortify::test_field_encrypter("KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=")?, events)
             .with_recovery_code_generator(Arc::new(|| Ok("replacement-recovery".into())));
-        let policy = CredentialAuthority::new(db.clone(), encrypter, false);
+        let policy = CredentialAuthority::new(db.clone(), false);
         callback(Fixture { db: db.clone(), policy, authority, actions, _runtime: runtime }).await
     }.await;
     drop(db);
@@ -56,14 +53,14 @@ where
 }
 async fn enable(fixture: &Fixture) -> Result<()> {
     let before = fixture.authority.load().await?;
-    let encrypter = fixture.actions.default_encrypter();
+    let encrypter = fixture.actions.default_encrypter().await?;
     fixture
         .authority
         .replace(
             &before,
             &TwoFactorState {
-                secret: Some(encrypter.encrypt(b"JBSWY3DPEHPK3PXP")?),
-                recovery_codes: Some(encrypter.encrypt(
+                secret: Some(encrypter.encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?),
+                recovery_codes: Some(encrypter.encrypt_serialized_string(
                     br#"["first","second","third","fourth","fifth","sixth","seventh","eighth"]"#,
                 )?),
                 confirmed_at: Some(Utc::now()),
@@ -312,7 +309,11 @@ async fn recovery_precedes_code_and_generation_change_after_verify_rejects_publi
                 .recovery_codes
                 .as_ref()
                 .ok_or(Error::Unauthorized)?;
-            let decoded = fixture.actions.default_encrypter().decrypt(ciphertext)?;
+            let decoded = fixture
+                .actions
+                .default_encrypter()
+                .await?
+                .decrypt_serialized_string(ciphertext)?;
             let codes: Vec<String> = serde_json::from_slice(&decoded).map_err(Error::internal)?;
             assert!(
                 !codes.iter().any(|code| code == "first")
@@ -637,14 +638,17 @@ async fn cached_distinct_counter_cannot_reuse_the_same_consumed_code() -> Result
     owned(|mut fixture| {
         Box::pin(async move {
             let before = fixture.authority.load().await?;
-            let crypto = fixture.actions.default_encrypter();
+            let crypto = fixture.actions.default_encrypter().await?;
             fixture
                 .authority
                 .replace(
                     &before,
                     &TwoFactorState {
-                        secret: Some(crypto.encrypt(b"GAYTEMZUGU3DOOBZMFRGGZDFMYYDCMRT")?),
-                        recovery_codes: Some(crypto.encrypt(br#"["unused"]"#)?),
+                        secret: Some(
+                            crypto
+                                .encrypt_serialized_string(b"GAYTEMZUGU3DOOBZMFRGGZDFMYYDCMRT")?,
+                        ),
+                        recovery_codes: Some(crypto.encrypt_serialized_string(br#"["unused"]"#)?),
                         confirmed_at: Some(Utc::now()),
                     },
                     FactorAuthorityMutation::Enable,
@@ -1057,18 +1061,21 @@ mod flow_commit {
                 "test".into(),
                 "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=".into(),
             )]);
-            let encrypter = Encrypter::new(EncryptionConfig::new("test", keys.clone()))?;
             let jwt = JwtTokens::new(JwtConfig::new("issuer", "consumer", "test", keys))?;
-            let authority = DatabaseFactorAuthority::new(
-                DatabaseTwoFactorState::new(db.clone(), "users", "id", Value::from(42))?,
-                encrypter.clone(),
-            );
+            let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+                db.clone(),
+                "users",
+                "id",
+                Value::from(42),
+            )?);
             let actions = TwoFactorActions::new(
                 Arc::new(OneSecondTotp),
-                encrypter.clone(),
+                crate::auth::fortify::test_field_encrypter(
+                    "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+                )?,
                 (*runtime.container().resolve::<Events>().await?).clone(),
             );
-            let policy = CredentialAuthority::new(db.clone(), encrypter, false);
+            let policy = CredentialAuthority::new(db.clone(), false);
             let audit = DatabaseApiLoginAudit::new(
                 db.clone(),
                 Audit::new(DatabaseAuditSink::new(db.clone()), AuditPolicy::default()),

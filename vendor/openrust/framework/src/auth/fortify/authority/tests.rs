@@ -1,6 +1,5 @@
 //! 真实 SQLite 三字段状态、同用户并发、事务回滚与持久代际。
 use super::*;
-use crate::config::EncryptionConfig;
 use crate::config::FrameworkConfig;
 use crate::config::NoConfig;
 use crate::database::DatabaseServiceProvider;
@@ -16,7 +15,6 @@ use crate::support::ServiceProvider;
 use crate::testing::TestApp;
 use crate::testing::TestDatabase;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use std::collections::BTreeMap;
 
 struct Migrator;
 impl MigratorTrait for Migrator {
@@ -41,11 +39,8 @@ impl ApplicationDefinition for MigrationApp {
         ]
     }
 }
-fn encrypter() -> Result<Encrypter> {
-    Encrypter::new(EncryptionConfig::new(
-        "test",
-        BTreeMap::from([("test".into(), STANDARD.encode([7_u8; 32]))]),
-    ))
+fn encrypter() -> Result<std::sync::Arc<dyn crate::encryption::ApplicationEncrypter>> {
+    crate::auth::fortify::test_field_encrypter(&STANDARD.encode([7_u8; 32]))
 }
 async fn fixture() -> Result<(TestDatabase, Db, DatabaseFactorAuthority)> {
     let database = TestDatabase::sqlite_file::<Migrator>().await?;
@@ -53,16 +48,18 @@ async fn fixture() -> Result<(TestDatabase, Db, DatabaseFactorAuthority)> {
     connection.execute_unprepared("INSERT INTO users(id,email,password_hash,created_at,updated_at) VALUES(42,'authority@example.test','hash',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),(43,'other@example.test','hash',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)").await.map_err(Error::internal)?;
     let db = Db::default();
     db.initialize(connection)?;
-    let authority = DatabaseFactorAuthority::new(
-        DatabaseTwoFactorState::new(db.clone(), "users", "id", serde_json::json!(42))?,
-        encrypter()?,
-    );
+    let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+        db.clone(),
+        "users",
+        "id",
+        serde_json::json!(42),
+    )?);
     Ok((database, db, authority))
 }
 fn modern() -> Result<TwoFactorState> {
     Ok(TwoFactorState {
-        secret: Some(encrypter()?.encrypt(b"GEZDGNBVGY3TQOJQ")?),
-        recovery_codes: Some(encrypter()?.encrypt(br#"["one","two"]"#)?),
+        secret: Some(encrypter()?.encrypt_serialized_string(b"GEZDGNBVGY3TQOJQ")?),
+        recovery_codes: Some(encrypter()?.encrypt_serialized_string(br#"["one","two"]"#)?),
         confirmed_at: None,
     })
 }
@@ -108,7 +105,8 @@ async fn persistent_generation_isolates_aba_and_main_state_but_not_single_code_c
         assert_ne!(enabled.generation, confirmed.generation);
         assert!(confirmed.challenge_required(true));
         let mut replacement = confirmed.state.clone();
-        replacement.recovery_codes = Some(encrypter()?.encrypt(br#"["replacement","two"]"#)?);
+        replacement.recovery_codes =
+            Some(encrypter()?.encrypt_serialized_string(br#"["replacement","two"]"#)?);
         assert!(
             authority
                 .consume_modern(&confirmed, Some(&confirmed.state), None)
@@ -132,7 +130,9 @@ async fn persistent_generation_isolates_aba_and_main_state_but_not_single_code_c
             .where_eq("id", 42)?
             .update(vec![(
                 "two_factor_secret",
-                encrypter()?.encrypt(b"JBSWY3DPEHPK3PXP")?.into(),
+                encrypter()?
+                    .encrypt_serialized_string(b"JBSWY3DPEHPK3PXP")?
+                    .into(),
             )])
             .await?;
         let externally_changed = authority.load().await?;
@@ -172,14 +172,14 @@ async fn account_origin_and_raw_identifier_cannot_alias_another_account() -> Res
         assert!(authority.validate_account(&string_user,&provider).await.is_err());
         let other=DatabaseUserProvider::new(db.clone(),std::sync::Arc::new(crate::hashing::HashManager::new(crate::hashing::HashingConfig { bcrypt: crate::hashing::BcryptConfig { rounds: 4, verify: true, limit: None }, ..Default::default() })?) as std::sync::Arc<dyn crate::hashing::Hasher>,"other_accounts")?;
         assert!(authority.validate_account(&user,&other).await.is_err());
-        let string_authority=DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(),"users","id",serde_json::json!("42"))?,encrypter()?);
+        let string_authority=DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(),"users","id",serde_json::json!("42"))?);
         assert!(string_authority.load().await.is_err());
         db.connection()?.execute_unprepared("CREATE TABLE customers(id TEXT PRIMARY KEY,two_factor_secret TEXT,two_factor_recovery_codes TEXT,two_factor_confirmed_at datetime,two_factor_authority_source TEXT,two_factor_authority_generation TEXT,two_factor_consumed_codes TEXT,two_factor_management_session_hash TEXT,two_factor_management_generation TEXT,two_factor_management_authorized_at datetime)").await.map_err(Error::internal)?;
         db.table("customers")?.insert(vec![("id","uuid-customer".into())]).await?;
-        let custom=DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(),"customers","id",serde_json::json!("uuid-customer"))?,encrypter()?);
+        let custom=DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(),"customers","id",serde_json::json!("uuid-customer"))?);
         let snapshot=custom.load().await?;assert_eq!(snapshot.status,FactorAuthorityStatus::Disabled);
         assert_eq!(authority.load().await?.status,FactorAuthorityStatus::Pending);
-        let uppercase=DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(),"USERS","id",serde_json::json!(42))?,encrypter()?);
+        let uppercase=DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(),"USERS","id",serde_json::json!(42))?);
         assert_eq!(uppercase.load().await?.status,FactorAuthorityStatus::Pending);
         Ok(())
     }.await;
@@ -320,7 +320,7 @@ async fn modern_totp_same_code_is_atomic_and_ledger_never_changes_session_genera
             .await?;
         assert_eq!(renewed.generation, modern.generation);
         let mut new_codes = renewed.state.clone();
-        new_codes.recovery_codes = Some(crypto.encrypt(br#"["regenerated"]"#)?);
+        new_codes.recovery_codes = Some(crypto.encrypt_serialized_string(br#"["regenerated"]"#)?);
         let regenerated = authority
             .replace(&renewed, &new_codes, FactorAuthorityMutation::Regenerate)
             .await?;
@@ -497,7 +497,8 @@ async fn management_continuation_is_bound_to_one_session_and_exact_new_generatio
                 .is_err()
         );
         let mut replacement = forced.state.clone();
-        replacement.recovery_codes = Some(encrypter()?.encrypt(br#"["new-readable"]"#)?);
+        replacement.recovery_codes =
+            Some(encrypter()?.encrypt_serialized_string(br#"["new-readable"]"#)?);
         let regenerated = authority
             .replace_with_management(
                 &forced,

@@ -463,13 +463,12 @@ fn authenticator_code(encoded: &str) -> TestResult<String> {
 }
 #[cfg(feature = "auth-fortify")]
 pub(super) async fn setup_confirmed_factor(
-    app: &openrust::Application,
+    scope: &openrust::container::Scope,
     id: i64,
 ) -> TestResult<(
     std::sync::Arc<openrust::auth::fortify::TwoFactorActions>,
     openrust::auth::AuthUser,
 )> {
-    let scope = app.state().container().scope()?;
     let actions = scope
         .resolve::<openrust::auth::fortify::TwoFactorActions>()
         .await?;
@@ -564,7 +563,8 @@ async fn selected_factor_blocks_password_only_resources_and_consumes_recovery_on
     };
     let (old_session, csrf) = login_session(&fixture).await?;
     management_requires_a_current_password_confirmation(&fixture, &old_session, &csrf).await?;
-    let (actions, user) = setup_confirmed_factor(fixture.app.app()?, fixture.user_id).await?;
+    let scope = fixture.app.app()?.state().container().scope()?;
+    let (actions, user) = setup_confirmed_factor(&scope, fixture.user_id).await?;
     let codes = actions.recovery_codes(&user).await?;
     assert_eq!(codes.len(), 8);
     let first = codes.first().ok_or("missing recovery code")?;
@@ -717,6 +717,8 @@ async fn selected_factor_blocks_password_only_resources_and_consumes_recovery_on
         2
     );
     actions.disable(&user).await?;
+    drop(actions);
+    drop(scope);
     let result = fixture
         .post("/login", &credentials(), None, None, None)
         .await?;

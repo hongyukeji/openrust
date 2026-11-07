@@ -29,7 +29,6 @@ use crate::database::sea_orm::ConnectionTrait;
 use crate::database::sea_orm::DatabaseTransaction;
 use crate::database::sea_orm::DbBackend;
 use crate::database::sea_orm::Statement;
-use crate::encryption::Encrypter;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 
@@ -39,7 +38,6 @@ use serde_json::Value;
 #[derive(Clone)]
 pub struct CredentialAuthority {
     db: Db,
-    encrypter: Encrypter,
     confirm: bool,
     config: Option<crate::config::repository::ConfigRepository>,
     #[cfg(test)]
@@ -91,11 +89,10 @@ impl CredentialAuthority {
             })
             .await
     }
-    /// 选择真实共享数据库、因子加密器及当前确认策略。
-    pub fn new(db: Db, encrypter: Encrypter, confirm: bool) -> Self {
+    /// 选择真实共享数据库及当前确认策略。
+    pub fn new(db: Db, confirm: bool) -> Self {
         Self {
             db,
-            encrypter,
             confirm,
             config: None,
             #[cfg(test)]
@@ -138,10 +135,12 @@ impl CredentialAuthority {
         if user_id <= 0 {
             return Err(Error::Unauthorized);
         }
-        Ok(DatabaseFactorAuthority::new(
-            DatabaseTwoFactorState::new(self.db.clone(), "users", "id", Value::from(user_id))?,
-            self.encrypter.clone(),
-        ))
+        Ok(DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(
+            self.db.clone(),
+            "users",
+            "id",
+            Value::from(user_id),
+        )?))
     }
     pub(crate) async fn lock_active_user_in_transaction(
         &self,

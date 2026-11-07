@@ -190,11 +190,12 @@ impl PreparedCredentialChallenge {
         require_fresh(self.expires_at)?;
         let code = truthy(code);
         let recovery = truthy(recovery);
-        let encrypter = actions.default_encrypter();
+        let encrypter = actions.default_encrypter().await?;
         if let (Some(input), Some(ciphertext)) =
             (recovery, self.snapshot.state.recovery_codes.as_ref())
         {
-            let json = crate::auth::fortify::actions::decrypt_string(&encrypter, ciphertext)?;
+            let json =
+                crate::auth::fortify::actions::decrypt_string(encrypter.as_ref(), ciphertext)?;
             let codes: Zeroizing<Vec<String>> =
                 Zeroizing::new(serde_json::from_str(&json).map_err(Error::internal)?);
             if let Some(found) = codes
@@ -204,7 +205,8 @@ impl PreparedCredentialChallenge {
                 let generated = Zeroizing::new((actions.recovery_generator)()?);
                 let replaced = Zeroizing::new(json.replace(found, &generated));
                 let mut state = self.snapshot.state.clone();
-                state.recovery_codes = Some(encrypter.encrypt(replaced.as_bytes())?);
+                state.recovery_codes =
+                    Some(encrypter.encrypt_serialized_string(replaced.as_bytes())?);
                 require_fresh(self.expires_at)?;
                 return Ok(CredentialChallengeVerification {
                     owner: self.owner.clone(),
@@ -216,7 +218,7 @@ impl PreparedCredentialChallenge {
         let (code, ciphertext) = code
             .zip(self.snapshot.state.secret.as_ref())
             .ok_or(Error::Unauthorized)?;
-        let secret = crate::auth::fortify::actions::decrypt_string(&encrypter, ciphertext)?;
+        let secret = crate::auth::fortify::actions::decrypt_string(encrypter.as_ref(), ciphertext)?;
         let verification = actions.provider.verify_with_context(&secret, code).await?;
         require_fresh(self.expires_at)?;
         if !verification.is_valid() {
