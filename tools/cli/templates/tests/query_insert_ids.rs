@@ -292,7 +292,183 @@ async fn check_generated_has_many(
         }
     }
     check_generated_has_one(&related, &mut parents, context).await?;
-    check_generated_one_of_many(db, &related, &mut parents, context).await
+    check_generated_one_of_many(db, &related, &mut parents, context).await?;
+    check_generated_belongs_to(&related, &mut parents, context).await
+}
+
+async fn check_generated_belongs_to(
+    related: &GeneratedModel,
+    records: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::{
+        SortDirection,
+        eloquent::{BelongsTo, LoadedRelation},
+    };
+    use serde_json::json;
+
+    for (record, key) in records
+        .iter()
+        .zip([json!(1), json!(3), json!(1), json!(999), json!(null)])
+    {
+        record.attributes.set_raw_attribute("owner_id", key)?;
+    }
+    let observed = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&observed);
+    BelongsTo::new(related, "owner_id", None)
+        .load(records, "owner", context, move |query| {
+            Ok(query.before_query(move |_| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }))
+        })
+        .await?;
+    check(observed.load(Ordering::SeqCst) == 1)?;
+    for (record, expected) in records.iter().zip([Some(1), Some(3), Some(1), None, None]) {
+        let owner = record
+            .relations
+            .get_relation("owner")
+            .ok_or_else(|| Error::custom("generated_owner_unloaded", "所属模型关系未加载"))?;
+        if let Some(id) = expected {
+            let owner = owner
+                .downcast_ref::<Arc<GeneratedModel>>()
+                .ok_or_else(|| Error::custom("generated_owner_type", "所属模型类型不符"))?;
+            check(owner.attributes.raw_attribute("id")? == Some(json!(id)))?;
+            check(owner.metadata.connection.as_deref() == Some("other"))?;
+        } else {
+            check(matches!(owner, LoadedRelation::Null))?;
+        }
+    }
+    check_generated_belongs_to_default(related, records, context).await?;
+    let record = records
+        .first_mut()
+        .ok_or_else(|| Error::custom("generated_record_missing", "缺少测试模型"))?;
+    record.attributes.set_raw_attribute("owner_id", json!(7))?;
+    BelongsTo::new(related, "owner_id", Some("owner_id"))
+        .load(
+            std::slice::from_mut(record),
+            "custom_owner",
+            context,
+            |query| query.order_by("id", SortDirection::Asc),
+        )
+        .await?;
+    let owner = record
+        .relations
+        .get_relation("custom_owner")
+        .and_then(|value| value.downcast_ref::<Arc<GeneratedModel>>())
+        .ok_or_else(|| Error::custom("generated_custom_owner_missing", "未找到自定义所属键"))?;
+    check(owner.attributes.raw_attribute("id")? == Some(json!(2)))?;
+    let owner = Arc::clone(owner);
+    check_belongs_to_mutation(related, record, owner).await
+}
+
+async fn check_generated_belongs_to_default(
+    related: &GeneratedModel,
+    records: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{BelongsTo, HydrateModel, RelationLoad};
+    use serde_json::{Map, json};
+
+    let mut calls = 0;
+    BelongsTo::new(related, "owner_id", None)
+        .load_with_default(
+            records,
+            RelationLoad {
+                name: "owner_or_default",
+                nested: &[],
+            },
+            context,
+            None,
+            Ok,
+            |prototype, _, connection| {
+                calls += 1;
+                let raw = Map::from_iter([("label".into(), json!("默认所属模型"))]);
+                let mut owner = prototype.hydrate(raw, connection)?;
+                owner.exists = false;
+                Ok(owner)
+            },
+        )
+        .await?;
+    check(calls == records.len())?;
+    for (record, expected) in records.iter().zip([Some(1), Some(3), Some(1), None, None]) {
+        let owner = record
+            .relations
+            .get_relation("owner_or_default")
+            .and_then(|value| value.downcast_ref::<Arc<GeneratedModel>>())
+            .ok_or_else(|| Error::custom("generated_default_owner_missing", "缺少默认所属模型"))?;
+        check(owner.metadata.connection.as_deref() == Some("other"))?;
+        if let Some(id) = expected {
+            check(owner.exists && owner.attributes.raw_attribute("id")? == Some(json!(id)))?;
+            check(owner.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
+        } else {
+            check(!owner.exists && owner.attributes.raw_attribute("id")?.is_none())?;
+            check(owner.attributes.raw_attribute("owner_id")?.is_none())?;
+            check(owner.attributes.raw_attribute("label")? == Some(json!("默认所属模型")))?;
+        }
+    }
+    Ok(())
+}
+
+async fn check_belongs_to_mutation(
+    related: &GeneratedModel,
+    record: &mut GeneratedModel,
+    owner: Arc<GeneratedModel>,
+) -> Result<()> {
+    use openrust::database::eloquent::{BelongsTo, LoadedRelation};
+    use serde_json::json;
+
+    let relation = BelongsTo::new(related, "owner_id", Some("owner_id"));
+    let original = record.attributes.get_raw_original("owner_id")?;
+    relation
+        .associate(record, "owner", Arc::clone(&owner))
+        .await?;
+    check(record.attributes.raw_attribute("owner_id")? == Some(json!(7)))?;
+    check(
+        record
+            .relations
+            .get_relation("owner")
+            .and_then(LoadedRelation::downcast_ref::<Arc<GeneratedModel>>)
+            .is_some_and(|loaded| Arc::ptr_eq(loaded, &owner)),
+    )?;
+    relation.associate_key(record, "owner", json!(8)).await?;
+    check(!record.relations.relation_loaded("owner"))?;
+    check(record.attributes.raw_attribute("owner_id")? == Some(json!(8)))?;
+    relation.disassociate(record, "owner").await?;
+    check(record.attributes.raw_attribute("owner_id")? == Some(json!(null)))?;
+    check(matches!(
+        record.relations.get_relation("owner"),
+        Some(LoadedRelation::Null)
+    ))?;
+    check(record.attributes.get_raw_original("owner_id")? == original)?;
+
+    record
+        .attributes
+        .register_setter("owner_id", Arc::new(RejectOwnerKey))?;
+    let denied = relation.associate(record, "owner", owner).await;
+    check(matches!(denied, Err(error) if error.code() == "generated_owner_setter_rejected"))?;
+    check(record.attributes.raw_attribute("owner_id")? == Some(json!(null)))?;
+    check(matches!(
+        record.relations.get_relation("owner"),
+        Some(LoadedRelation::Null)
+    ))
+}
+
+struct RejectOwnerKey;
+
+impl openrust::database::eloquent::AttributeSetter for RejectOwnerKey {
+    fn set(
+        &self,
+        _value: serde_json::Value,
+        _raw_snapshot: serde_json::Map<String, serde_json::Value>,
+    ) -> openrust::support::BoxFuture<'_, Result<serde_json::Map<String, serde_json::Value>>> {
+        Box::pin(async {
+            Err(Error::custom(
+                "generated_owner_setter_rejected",
+                "测试外键 setter 拒绝赋值",
+            ))
+        })
+    }
 }
 
 async fn check_generated_one_of_many(

@@ -7,8 +7,8 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            AttributeSetter, HasMany, HasOne, HasRelationships, LoadedRelation, MassAssignment,
-            ModelAttributes, ModelMetadata, SaveContext,
+            AttributeSetter, BelongsTo, HasMany, HasOne, HasRelationships, LoadedRelation,
+            MassAssignment, ModelAttributes, ModelMetadata, SaveContext,
         },
     },
     support::BoxFuture,
@@ -36,6 +36,7 @@ pub(crate) struct RecordPreview {
 pub(crate) struct OwnerRecordRelations {
     pub(crate) owner_record_ids: Vec<i64>,
     pub(crate) owner_latest_enabled_record_id: Option<i64>,
+    pub(crate) record_category_name: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -117,6 +118,7 @@ pub(crate) async fn owner_relations(
             |query| query.select(&["id", "owner_id"]),
         )
         .await?;
+    let record_category_name = record_category_name(record, &mut parent, &db, context).await?;
     let records = parent
         .relations()
         .get_relation(RECORDS)
@@ -146,7 +148,36 @@ pub(crate) async fn owner_relations(
     Ok(OwnerRecordRelations {
         owner_record_ids,
         owner_latest_enabled_record_id,
+        record_category_name,
     })
+}
+
+async fn record_category_name(
+    record: &example_record::Model,
+    model: &mut example_record::RecordForSave,
+    db: &Db,
+    context: &SaveContext<'_>,
+) -> Result<Option<String>> {
+    const CATEGORY: &str = "category";
+    model.attributes.set_raw_attribute(
+        "category_id",
+        record.category_id.map_or(Value::Null, Value::from),
+    )?;
+    BelongsTo::new(&example_record::RecordCategory::new(), "category_id", None)
+        .load_on(std::slice::from_mut(model), CATEGORY, context, db, Ok)
+        .await?;
+    match model.relations().get_relation(CATEGORY) {
+        Some(LoadedRelation::Null) => Ok(None),
+        Some(relation) => relation
+            .downcast_ref::<Arc<example_record::RecordCategory>>()
+            .ok_or_else(|| Error::custom("example_record_relation_type", "示例分类关系类型不匹配"))?
+            .name()
+            .map(Some),
+        None => Err(Error::custom(
+            "example_record_relation_unloaded",
+            "示例分类关系未加载",
+        )),
+    }
 }
 
 pub(crate) async fn fill_record_input(

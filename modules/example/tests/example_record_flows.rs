@@ -503,6 +503,7 @@ async fn attribute_preview_contract(
     assert_eq!(clean["data"]["has_changes"], false);
     assert_eq!(clean["data"]["persisted"], false);
     assert!(clean["data"].get("owner_record_ids").is_none());
+    assert!(clean["data"].get("record_category_name").is_none());
     assert!(
         clean["data"]
             .get("owner_latest_enabled_record_id")
@@ -580,6 +581,7 @@ async fn assert_owner_record_relation(
 ) -> TestResult {
     let mut disabled = payload.clone();
     disabled["enabled"] = serde_json::Value::Bool(false);
+    disabled["category_id"] = serde_json::Value::Null;
     let sibling = app
         .request(request(
             Method::POST,
@@ -623,6 +625,8 @@ async fn assert_owner_record_relation(
     );
     assert!(sibling_id > id);
     assert_eq!(preview["data"]["owner_latest_enabled_record_id"], id);
+    assert_eq!(preview["data"]["record_category_name"], "field-types");
+    assert_no_saved_category(app, sibling_id, owner_token, payload).await?;
     let denied = app
         .request(request(
             Method::POST,
@@ -643,6 +647,30 @@ async fn assert_owner_record_relation(
         .await?
         .assert_status(StatusCode::OK)?;
     }
+    Ok(())
+}
+
+async fn assert_no_saved_category(
+    app: &TestApp<crate::bootstrap::Server>,
+    id: i64,
+    token: &str,
+    payload: &serde_json::Value,
+) -> TestResult {
+    assert!(!payload["category_id"].is_null());
+    let response = app
+        .request(request(
+            Method::POST,
+            &format!("/api/example/records/{id}/preview?include_owner_records=true"),
+            Some(token),
+            Some(payload.clone()),
+        )?)
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let response: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(
+        response["data"].get("record_category_name"),
+        Some(&serde_json::Value::Null)
+    );
     Ok(())
 }
 
@@ -678,6 +706,10 @@ async fn assert_owner_relation_uses_record_table(
     let relations = owner_relations(&record, &db, &context).await?;
     assert_eq!(relations.owner_record_ids, [id, sibling_id]);
     assert_eq!(relations.owner_latest_enabled_record_id, Some(id));
+    assert_eq!(
+        relations.record_category_name.as_deref(),
+        Some("field-types")
+    );
     Ok(())
 }
 

@@ -6,6 +6,7 @@ pub(crate) mod attribute_cast;
 mod attributes;
 pub use attribute_cast::AttributeCast;
 mod attribute_store;
+mod belongs_to;
 pub use attribute_store::{AttributeGetter, AttributeMutation, AttributeSetter, ModelAttributes};
 #[cfg(feature = "hashing")]
 pub mod casts;
@@ -20,6 +21,7 @@ mod save;
 mod timestamps;
 mod unique_ids;
 pub use attributes::attributes_from_row;
+pub use belongs_to::BelongsTo;
 pub use has_many::{HasMany, HasOne, HasRelationships};
 pub use mass_assignment::{DiscardedAttributeViolation, MassAssignment, is_unguarded, unguarded};
 

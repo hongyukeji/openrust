@@ -39,6 +39,7 @@ pub struct HasMany<'a, R> {
 enum Cardinality {
     One,
     Many,
+    BelongsTo,
 }
 
 /// 根据父模型本地键和关联模型外键加载单个关联模型。
@@ -139,35 +140,25 @@ impl<'a, R: HydrateModel> HasOne<'a, R> {
         constrain: impl FnOnce(QueryBuilder<'q, 'q>) -> Result<QueryBuilder<'q, 'q>>,
         mut make_default: impl FnMut(&R, &P, Map<String, Value>, Option<&str>) -> Result<R>,
     ) -> Result<()> {
-        let mut defaults = Vec::with_capacity(parents.len());
-        for parent in &*parents {
-            let key = parent
-                .attributes()
-                .get_attribute(parent.metadata(), self.0.local_key)?;
-            let raw = Map::from_iter([(self.0.foreign_key.to_owned(), key.unwrap_or(Value::Null))]);
-            let connection = self
-                .0
-                .related
-                .metadata()
-                .connection
-                .as_deref()
-                .or(parent.metadata().connection.as_deref());
-            defaults.push(make_default(self.0.related, parent, raw, connection)?);
-        }
-        self.load_with(parents, relation, context, transaction, constrain)
-            .await?;
-        for (parent, default) in parents.iter_mut().zip(defaults) {
-            if matches!(
-                parent.relations().get_relation(relation.name),
-                Some(LoadedRelation::Null)
-            ) {
-                parent.relations_mut().set_relation(
-                    relation.name,
-                    LoadedRelation::Related(Box::new(Arc::new(default))),
-                );
-            }
-        }
-        Ok(())
+        self.0
+            .load_defaulting(
+                parents,
+                relation,
+                context,
+                transaction,
+                constrain,
+                |related, parent, connection| {
+                    let key = parent
+                        .attributes()
+                        .get_attribute(parent.metadata(), self.0.local_key)?;
+                    let raw = Map::from_iter([(
+                        self.0.foreign_key.to_owned(),
+                        key.unwrap_or(Value::Null),
+                    )]);
+                    make_default(related, parent, raw, connection)
+                },
+            )
+            .await
     }
 
     /// 在调用者选择的连接与表名映射上批量加载单个关联结果。
@@ -212,6 +203,56 @@ impl<'a, R: HydrateModel> HasMany<'a, R> {
             aggregate: Vec::new(),
             candidate_filter: None,
         }
+    }
+
+    pub(super) const fn inverse(related: &'a R, owner_key: &'a str, foreign_key: &'a str) -> Self {
+        Self {
+            related,
+            foreign_key: owner_key,
+            local_key: foreign_key,
+            cardinality: Cardinality::BelongsTo,
+            aggregate: Vec::new(),
+            candidate_filter: None,
+        }
+    }
+
+    pub(super) const fn relation_keys(&self) -> (&str, &str) {
+        (self.local_key, self.foreign_key)
+    }
+
+    pub(super) async fn load_defaulting<'q, P: HasRelationships>(
+        &self,
+        parents: &mut [P],
+        relation: RelationLoad<'_>,
+        context: &SaveContext<'_>,
+        transaction: Option<&TransactionContext<'q>>,
+        constrain: impl FnOnce(QueryBuilder<'q, 'q>) -> Result<QueryBuilder<'q, 'q>>,
+        mut make_default: impl FnMut(&R, &P, Option<&str>) -> Result<R>,
+    ) -> Result<()> {
+        let mut defaults = Vec::with_capacity(parents.len());
+        for parent in &*parents {
+            let connection = self
+                .related
+                .metadata()
+                .connection
+                .as_deref()
+                .or(parent.metadata().connection.as_deref());
+            defaults.push(make_default(self.related, parent, connection)?);
+        }
+        self.load_with(parents, relation, context, transaction, constrain)
+            .await?;
+        for (parent, default) in parents.iter_mut().zip(defaults) {
+            if matches!(
+                parent.relations().get_relation(relation.name),
+                Some(LoadedRelation::Null)
+            ) {
+                parent.relations_mut().set_relation(
+                    relation.name,
+                    LoadedRelation::Related(Box::new(Arc::new(default))),
+                );
+            }
+        }
+        Ok(())
     }
 
     /// 批量加载指定关系，使用一条查询获取子行并按外键匹配。
@@ -411,11 +452,15 @@ impl<'a, R: HydrateModel> HasMany<'a, R> {
         for (parent, key) in parents.iter_mut().zip(keys) {
             let matches = key.as_ref().and_then(|key| children.get(key));
             let loaded = match self.cardinality {
-                Cardinality::One => matches
-                    .and_then(|items| items.first())
-                    .map_or(LoadedRelation::Null, |item| {
+                Cardinality::One | Cardinality::BelongsTo => {
+                    let item = match self.cardinality {
+                        Cardinality::BelongsTo => matches.and_then(|items| items.last()),
+                        _ => matches.and_then(|items| items.first()),
+                    };
+                    item.map_or(LoadedRelation::Null, |item| {
                         LoadedRelation::Related(Box::new(Arc::clone(item)))
-                    }),
+                    })
+                }
                 Cardinality::Many => {
                     LoadedRelation::Related(Box::new(matches.cloned().unwrap_or_default()))
                 }

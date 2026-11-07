@@ -218,6 +218,91 @@ pub(crate) fn record_query_db(db: &Db) -> ModelResult<Db> {
     Ok(query_db)
 }
 
+/// 示例记录所属的分类模型。
+pub(crate) struct RecordCategory {
+    metadata: ModelMetadata,
+    attributes: ModelAttributes,
+    relations: ModelRelations,
+    exists: bool,
+}
+
+impl RecordCategory {
+    pub(crate) fn new() -> Self {
+        let mut metadata = ModelMetadata::new(
+            "example_record_categories",
+            "modules::example::models::example_record::RecordCategory",
+        );
+        metadata.timestamps = false;
+        Self {
+            metadata,
+            attributes: ModelAttributes::default(),
+            relations: ModelRelations::default(),
+            exists: false,
+        }
+    }
+
+    pub(crate) fn name(&self) -> ModelResult<String> {
+        self.attributes
+            .raw_attribute("name")?
+            .and_then(|value| match value {
+                Value::String(name) => Some(name),
+                _ => None,
+            })
+            .ok_or_else(|| Error::custom("example_category_name_invalid", "示例分类名称类型无效"))
+    }
+}
+
+impl SaveModel for RecordCategory {
+    fn metadata(&self) -> &ModelMetadata {
+        &self.metadata
+    }
+    fn attributes(&self) -> &ModelAttributes {
+        &self.attributes
+    }
+    fn attributes_mut(&mut self) -> &mut ModelAttributes {
+        &mut self.attributes
+    }
+    fn exists(&self) -> bool {
+        self.exists
+    }
+    fn mark_created(&mut self) {
+        self.exists = true;
+    }
+
+    fn bind_attribute(&self, name: &str, value: &Value) -> ModelResult<sea_orm::Value> {
+        match name {
+            "id" => bind::<i64>(value),
+            "name" => bind::<String>(value),
+            _ => Err(Error::custom(
+                "example_category_column_invalid",
+                "无法绑定示例分类字段",
+            )),
+        }
+    }
+}
+
+impl HasRelationships for RecordCategory {
+    fn relations(&self) -> &ModelRelations {
+        &self.relations
+    }
+    fn relations_mut(&mut self) -> &mut ModelRelations {
+        &mut self.relations
+    }
+}
+
+impl HydrateModel for RecordCategory {
+    fn hydrate(&self, raw: Map<String, Value>, connection: Option<&str>) -> ModelResult<Self> {
+        let mut metadata = self.metadata.clone();
+        metadata.connection = connection.map(str::to_owned);
+        Ok(Self {
+            metadata,
+            attributes: ModelAttributes::new(raw),
+            relations: ModelRelations::default(),
+            exists: true,
+        })
+    }
+}
+
 fn bind<T: DeserializeOwned + Into<sea_orm::Value>>(value: &Value) -> ModelResult<sea_orm::Value> {
     T::deserialize(value)
         .map(Into::into)
