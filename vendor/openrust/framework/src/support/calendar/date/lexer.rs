@@ -977,5 +977,7 @@ pub(super) fn number_format_timestamp(value: f64) -> Result<String> {
         }
         integral / exponent
     };
+    // PHP number_format 将负零及舍入到零的负数输出为无符号零。
+    let rounded = if rounded == 0.0 { 0.0 } else { rounded };
     Ok(format!("{rounded:.6}"))
 }

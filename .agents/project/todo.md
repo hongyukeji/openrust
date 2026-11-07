@@ -118,6 +118,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - Client实现停点：root补通用Eloquent ModelMetadata/ModelIdentity及hashed cast并接根/生成User，worker已交Client纯模型/可替换工厂；均未验WIP。可替换自增Client需要Query.insert_get_id，发现固定SeaORM负SQLite rowid会panic，当前先闭合通用查询/最小安全访问器前置，保Model原始身份与Processor的PHP64位返回转换两个契约，不将NUMERIC经Decimal舍入或负ID划不适用。root独占vendor/manifest/lock/服务，worker独占query四文件，独审已指出numeric/sequence缺口，修复后集中门禁；Client/code/token/schema仍未接线，不报AS/OP完成。
 - PHP8.5框架异常边界后继审计：原始float越界/INF/NaN(int)会E_WARNING，默认HandleExceptions抛ErrorException；本次Query插入ID已覆盖，既有Request/scalars整数入口需按其真实生产调用链复核Result/错误边界，不把裸PHP吞warning后的modulo返回当已等价。见本次18case真实oracle与独审，不重写未受影响数值路径或丢失原证据。
 - HA-X01 已收齐[增强认证限定验收](memory/testing.md#增强认证单次叶选择限定验收)。按现有边界接续首用安全配置和认证后继。
+- NumericDate 纯 Core 与生产示例路径已收齐[数值日期限定验收](memory/testing.md#数值日期格式化与解析限定验收)。保留完整 Calendar、Model 日期、Passport/JWT 消费与发布矩阵待办。
 - Hashing后继缺口：Model binary/非UTF8 encoded与历史缓存所有权仍待完整验收。固定Manager的getDrivers/forgetDrivers/getContainer/setContainer与HashManager.getDefaultDriver尚无公开等价；须结合统一Container/Provider生命周期补contract与行为证据，不能因Rust所有权直接判不适用。Model hashed cast仍随Model依赖对应。本前置只关闭生成/校验/配置与认证共用接线，Client不依赖的Manager表面不追加到冻结批次。
 - 对应既有阶段二A Passport / 矩阵L090及R7 SSO，以下为同一条目的优先实施细化，不建立第二队列。
 - owner=insert_id_adapter_review；原Goal/main/预算历史不变，本次完整普通额度覆盖按上方真实授权回执，credits=false。扩展按核心实际前置并行领取Passport授权码+PKCE → OIDC Provider → 双RP SSO/退出簇；不占总控核心主线，不并入当前冻结批次。

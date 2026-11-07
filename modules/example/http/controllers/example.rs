@@ -221,7 +221,7 @@ fn typed_input(request: &Request) -> openrust::Result<serde_json::Value> {
     let delay_minutes = request
         .interval_with_unit("typed.delay", openrust::support::IntervalUnit::Minute)?
         .map(|interval| interval.minutes);
-    Ok(serde_json::json!({
+    let mut output = serde_json::json!({
         "title": request.string("typed.title")?.trim(),
         "quantity": request.integer("typed.quantity")?,
         "amount": request.float("typed.amount")?,
@@ -237,7 +237,26 @@ fn typed_input(request: &Request) -> openrust::Result<serde_json::Value> {
         "calendar_date": calendar_date,
         "duration": duration,
         "delay_minutes": delay_minutes,
-    }))
+    });
+    if let Some(value) = request.input("typed.numeric_timestamp")? {
+        let instant = openrust::support::calendar::parse_php_numeric_timestamp(&value)?;
+        output["numeric_timestamp"] = serde_json::json!({
+            "epoch_seconds": instant.epoch_seconds(),
+            "microseconds": instant.microseconds(),
+        });
+    }
+    if let Some(value) = request.input("typed.numeric_format")? {
+        let number = value.as_f64().ok_or_else(|| {
+            openrust::Error::custom_with_status(
+                StatusCode::BAD_REQUEST,
+                "example_numeric_format_type",
+                "数值格式化示例只接受JSON number",
+            )
+        })?;
+        output["numeric_format"] =
+            openrust::support::calendar::format_php_numeric_timestamp(number)?.into();
+    }
+    Ok(output)
 }
 
 /// 由唯一正文提取器读取动态输入；响应只展示业务白名单与凭据处理布尔值。

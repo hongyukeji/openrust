@@ -1,5 +1,7 @@
 # 项目上下文
 
+共享 Calendar 数值日期入口已收齐[数值日期限定验收](memory/testing.md#数值日期格式化与解析限定验收)。唯一示例消费公开 API，外部 consumer 无默认 feature。
+
 HA-X01 已收齐[增强认证限定验收](memory/testing.md#增强认证单次叶选择限定验收)。增强认证每个秘密操作保持一次已选真实叶，生产数据库和唯一模块 HTTP 路径有实际证据。Manager 其余表面、Model 值载体和完整认证对应继续按唯一 todo。
 
 MB-S01 已收齐[调用级默认属性 setter 限定验收](memory/testing.md#调用级默认属性-setter-限定验收)。下一步以已提交父树接 Passport Client 的显式默认 mutator，并按唯一 todo 交组合诊断。完整 Model 保存、关系及值载体继续开放。

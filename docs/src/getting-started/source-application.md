@@ -250,3 +250,27 @@ assert!(matches!(response, DataValue::Number(number) if number.as_i64() == Some(
 ```
 
 只关心成功或错误的业务可以显式丢弃普通响应；不要把普通 false 自动当作认证拒绝或事务回滚。需要业务否决的领域必须使用明确的 `until` 结果解释规则。队列监听器在到达时映射拥有型任务，成功只产生 null；worker 的后续执行结果不能成为当前请求的同步响应。
+
+## 数值日期适配
+
+需要接收 JSON NumericDate 时，使用 `openrust::support::calendar` 的两个独立接口：
+
+```rust
+use openrust::support::calendar::{format_php_numeric_timestamp, parse_php_numeric_timestamp};
+
+fn numeric_date() -> openrust::Result<(i64, u32, String)> {
+    let instant = parse_php_numeric_timestamp(&serde_json::json!(-1.25))?;
+    let formatted = format_php_numeric_timestamp(-1.25)?;
+    Ok((instant.epoch_seconds(), instant.microseconds(), formatted))
+}
+```
+
+返回秒 `-1`、微秒 `250000`、文本 `"-1.250000"`。parser 先将 JSON 数字或合法数值字符串转成 `f64`，交 formatter 生成六位小数，再按 PHP `U.u` 字段解析，使用 UTC，不读取当前时钟或应用时区。字符串首尾只接受空格、TAB、LF、CR、VT、FF 六种 ASCII 空白；不接受 NUL 或 Unicode 空白。bool、null、数组、对象、空串、非法数字及超有符号秒范围会失败，不回退到当前时刻。
+
+formatter 只处理有限 `f64`，不做 JSON 类型转换。六位小数采用 PHP half-up：`0.0000005` 得到 `"0.000001"`，`-0.0000005` 得到 `"-0.000001"`；舍入到零时输出 `"0.000000"`。负数解析按有符号秒与非负微秒分别解释，因此 `-0.25` 得到秒 `0`、微秒 `250000`；它不同于数学负数时间戳或 Carbon timestamp。
+
+大整数也先经浮点阶段，`2^53+1` 可能与 `2^53` 得到同一值，`i64::MAX` 转成浮点后已超过可解析秒范围。JSON 数字不能承载 NaN/Infinity，直接 Rust formatter 遇到这类非有限值会在格式化入口拒绝；这与 PHP mixed 值先格式化、再在 `U.u` 解析失败的阶段不同。此接口不提供完整 PHP mixed、非法 UTF-8 字节字符串或任意对象值域，字符串还受20 MiB资源限制。
+
+唯一[示例模块](../../../modules/example/README.md#数值日期输入)通过现有 `POST /api/example/input` 展示两个可选 `typed.numeric_timestamp`、`typed.numeric_format` 字段。前者接受数字或数值字符串，后者作为业务约束只收 JSON number；未传时响应不增加这两个字段。HTTP 请求仍先经过正常输入中间件，首尾 NUL 裁剪、空串转 null 与直接 Core 调用要分层理解，不能靠关闭归一来模拟 parser。
+
+这两个纯函数不改变 `Request::date` 的默认日期处理，也不实现 Model 日期属性生命周期、JWT Parser 或 ResourceServer。公开外包用法见 [calendar-numeric consumer](../../../tests/consumers/calendar-numeric/README.md)。

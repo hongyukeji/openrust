@@ -46,3 +46,5 @@ rustfmt --edition 2024 src/support/calendar/date/tail_rules.rs src/support/calen
 时区 object name 保留固定偏移中的秒；e/P/O按PHP格式显示截到分钟，Z与内部offset保留全部秒。默认文本tz/tzcorrection按源prefix消费；显式timezone构造不受该文本词法限制。特殊weekday使用唯一special类型，按输入顺序覆盖，裸weekday与amount weekday的behavior2保留规则各自对应源分支。负极值timestamp的小数正规化采用显式wrapping_sub，复现固定timelib unsigned秒归一的有限边界；其他运算继续checked且不panic。
 
 `calendar-date-overflow-golden.json` 保留 i128 MAX + 微秒进位的正/负、有/无 @ 四项真实 InvalidFormatException；Rust checked_add 后仍按原字符串fallback路径返回安全HTTP400。remaining fixture 的 `rust_error` 是单独标识的框架合同分类，不是PHP异常名改写；读取器逐项核对status/code，成功结果另核对P/O而不混淆时区身份。
+
+NumericDate 公开转换复用同一六位格式化与U.u扫描器，独立于Carbon timestamp。实际PHP8.5.12原生36项阶段参考保存在numeric_timestamp_boundary_actual.json；负零格式化输出无符号零，负小数U.u按有符号秒和非负微秒分别归一。该参考不是完整JWT Parser或宿主异常策略证明。

@@ -13,3 +13,5 @@ OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀�
 `hashing` 的统一 `HashManager` 明文入口接受文本或原始字节，公开 `Hasher` 的明文参数为 `&[u8]`；已编码哈希和元信息仍为文本。需要先检查完整输入能力再生成时，用无参 `driver_for_operation()` 一次取得默认Manager链的最终具体叶，两步复用同一叶；普通自定义 `Hasher` 不必实现Manager hook。bcrypt/Argon的输入等价关系与自定义扩展方式见[哈希指南](../../../docs/src/security/hashing.md)。
 
 模型默认写入可通过 `ModelAttributes::set_attribute_with_default_setter` 提供借用型调用级 setter；已登记的自定义 setter 优先，缺省分支自行完成转换，复用同一补丁与并发冲突检查。它不登记第二套访问器或存储，也不撤销用户 setter 的外部副作用。
+
+`support::calendar::format_php_numeric_timestamp` 将有限 `f64` 按 PHP 六位 half-up 格式化；`parse_php_numeric_timestamp` 将 JSON 数字或数值字符串按 `U.u` 秒/微秒字段解析为固定 UTC 的 `CalendarInstant`。负数、精度及类型错误边界见[数值日期适配](../../../docs/src/getting-started/source-application.md#数值日期适配)，唯一模块在现有 input 路由展示公开调用。接口不改变 `Request::date`，也不表示完整 Model 日期或 JWT 已完成。

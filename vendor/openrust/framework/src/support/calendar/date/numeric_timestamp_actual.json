@@ -1,0 +1,438 @@
+{
+  "origin": "actual PHP JWT nested raw numeric values and parsed positive dates, not native number_format boundary probe",
+  "original_stdout_sha256": "a18dc8ce523631ee35aabff3636b75654733c1392b42735701e33ea1ee9123b1",
+  "cases": [
+    {
+      "case": "none-whole-empty",
+      "field": "iat",
+      "input": 1794013606.818686,
+      "expected": "1794013606.818686"
+    },
+    {
+      "case": "none-whole-empty",
+      "field": "nbf",
+      "input": 1794013606.818687,
+      "expected": "1794013606.818687"
+    },
+    {
+      "case": "none-whole-empty",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "none-whole-two",
+      "field": "iat",
+      "input": 1794013606.821015,
+      "expected": "1794013606.821015"
+    },
+    {
+      "case": "none-whole-two",
+      "field": "nbf",
+      "input": 1794013606.821015,
+      "expected": "1794013606.821015"
+    },
+    {
+      "case": "none-whole-two",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "none-fraction-empty",
+      "field": "iat",
+      "input": 1794013606.821662,
+      "expected": "1794013606.821662"
+    },
+    {
+      "case": "none-fraction-empty",
+      "field": "nbf",
+      "input": 1794013606.821662,
+      "expected": "1794013606.821662"
+    },
+    {
+      "case": "none-fraction-empty",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "none-fraction-two",
+      "field": "iat",
+      "input": 1794013606.822291,
+      "expected": "1794013606.822291"
+    },
+    {
+      "case": "none-fraction-two",
+      "field": "nbf",
+      "input": 1794013606.822291,
+      "expected": "1794013606.822291"
+    },
+    {
+      "case": "none-fraction-two",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "none-microsecond-empty",
+      "field": "iat",
+      "input": 1794013606.822889,
+      "expected": "1794013606.822889"
+    },
+    {
+      "case": "none-microsecond-empty",
+      "field": "nbf",
+      "input": 1794013606.822889,
+      "expected": "1794013606.822889"
+    },
+    {
+      "case": "none-microsecond-empty",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    },
+    {
+      "case": "none-microsecond-two",
+      "field": "iat",
+      "input": 1794013606.823502,
+      "expected": "1794013606.823502"
+    },
+    {
+      "case": "none-microsecond-two",
+      "field": "nbf",
+      "input": 1794013606.823502,
+      "expected": "1794013606.823502"
+    },
+    {
+      "case": "none-microsecond-two",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    },
+    {
+      "case": "raw-zero-prefixed-whole-empty",
+      "field": "iat",
+      "input": 1794013606.824103,
+      "expected": "1794013606.824103"
+    },
+    {
+      "case": "raw-zero-prefixed-whole-empty",
+      "field": "nbf",
+      "input": 1794013606.824104,
+      "expected": "1794013606.824104"
+    },
+    {
+      "case": "raw-zero-prefixed-whole-empty",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "raw-zero-prefixed-whole-two",
+      "field": "iat",
+      "input": 1794013606.824688,
+      "expected": "1794013606.824688"
+    },
+    {
+      "case": "raw-zero-prefixed-whole-two",
+      "field": "nbf",
+      "input": 1794013606.824688,
+      "expected": "1794013606.824688"
+    },
+    {
+      "case": "raw-zero-prefixed-whole-two",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "raw-zero-prefixed-fraction-empty",
+      "field": "iat",
+      "input": 1794013606.82531,
+      "expected": "1794013606.825310"
+    },
+    {
+      "case": "raw-zero-prefixed-fraction-empty",
+      "field": "nbf",
+      "input": 1794013606.825311,
+      "expected": "1794013606.825311"
+    },
+    {
+      "case": "raw-zero-prefixed-fraction-empty",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "raw-zero-prefixed-fraction-two",
+      "field": "iat",
+      "input": 1794013606.825914,
+      "expected": "1794013606.825914"
+    },
+    {
+      "case": "raw-zero-prefixed-fraction-two",
+      "field": "nbf",
+      "input": 1794013606.825914,
+      "expected": "1794013606.825914"
+    },
+    {
+      "case": "raw-zero-prefixed-fraction-two",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "raw-zero-prefixed-microsecond-empty",
+      "field": "iat",
+      "input": 1794013606.826534,
+      "expected": "1794013606.826534"
+    },
+    {
+      "case": "raw-zero-prefixed-microsecond-empty",
+      "field": "nbf",
+      "input": 1794013606.826535,
+      "expected": "1794013606.826535"
+    },
+    {
+      "case": "raw-zero-prefixed-microsecond-empty",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    },
+    {
+      "case": "raw-zero-prefixed-microsecond-two",
+      "field": "iat",
+      "input": 1794013606.827154,
+      "expected": "1794013606.827154"
+    },
+    {
+      "case": "raw-zero-prefixed-microsecond-two",
+      "field": "nbf",
+      "input": 1794013606.827154,
+      "expected": "1794013606.827154"
+    },
+    {
+      "case": "raw-zero-prefixed-microsecond-two",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    },
+    {
+      "case": "uuid-whole-empty",
+      "field": "iat",
+      "input": 1794013606.827769,
+      "expected": "1794013606.827769"
+    },
+    {
+      "case": "uuid-whole-empty",
+      "field": "nbf",
+      "input": 1794013606.827769,
+      "expected": "1794013606.827769"
+    },
+    {
+      "case": "uuid-whole-empty",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "uuid-whole-two",
+      "field": "iat",
+      "input": 1794013606.828398,
+      "expected": "1794013606.828398"
+    },
+    {
+      "case": "uuid-whole-two",
+      "field": "nbf",
+      "input": 1794013606.828398,
+      "expected": "1794013606.828398"
+    },
+    {
+      "case": "uuid-whole-two",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "uuid-fraction-empty",
+      "field": "iat",
+      "input": 1794013606.829011,
+      "expected": "1794013606.829011"
+    },
+    {
+      "case": "uuid-fraction-empty",
+      "field": "nbf",
+      "input": 1794013606.829012,
+      "expected": "1794013606.829012"
+    },
+    {
+      "case": "uuid-fraction-empty",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "uuid-fraction-two",
+      "field": "iat",
+      "input": 1794013606.829621,
+      "expected": "1794013606.829621"
+    },
+    {
+      "case": "uuid-fraction-two",
+      "field": "nbf",
+      "input": 1794013606.829621,
+      "expected": "1794013606.829621"
+    },
+    {
+      "case": "uuid-fraction-two",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "uuid-microsecond-empty",
+      "field": "iat",
+      "input": 1794013606.830248,
+      "expected": "1794013606.830248"
+    },
+    {
+      "case": "uuid-microsecond-empty",
+      "field": "nbf",
+      "input": 1794013606.830248,
+      "expected": "1794013606.830248"
+    },
+    {
+      "case": "uuid-microsecond-empty",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    },
+    {
+      "case": "uuid-microsecond-two",
+      "field": "iat",
+      "input": 1794013606.830838,
+      "expected": "1794013606.830838"
+    },
+    {
+      "case": "uuid-microsecond-two",
+      "field": "nbf",
+      "input": 1794013606.830838,
+      "expected": "1794013606.830838"
+    },
+    {
+      "case": "uuid-microsecond-two",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    },
+    {
+      "case": "same-as-client-whole-empty",
+      "field": "iat",
+      "input": 1794013606.831476,
+      "expected": "1794013606.831476"
+    },
+    {
+      "case": "same-as-client-whole-empty",
+      "field": "nbf",
+      "input": 1794013606.831476,
+      "expected": "1794013606.831476"
+    },
+    {
+      "case": "same-as-client-whole-empty",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "same-as-client-whole-two",
+      "field": "iat",
+      "input": 1794013606.832087,
+      "expected": "1794013606.832087"
+    },
+    {
+      "case": "same-as-client-whole-two",
+      "field": "nbf",
+      "input": 1794013606.832088,
+      "expected": "1794013606.832088"
+    },
+    {
+      "case": "same-as-client-whole-two",
+      "field": "exp",
+      "input": 2051319845,
+      "expected": "2051319845.000000"
+    },
+    {
+      "case": "same-as-client-fraction-empty",
+      "field": "iat",
+      "input": 1794013606.832707,
+      "expected": "1794013606.832707"
+    },
+    {
+      "case": "same-as-client-fraction-empty",
+      "field": "nbf",
+      "input": 1794013606.832708,
+      "expected": "1794013606.832708"
+    },
+    {
+      "case": "same-as-client-fraction-empty",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "same-as-client-fraction-two",
+      "field": "iat",
+      "input": 1794013606.833334,
+      "expected": "1794013606.833334"
+    },
+    {
+      "case": "same-as-client-fraction-two",
+      "field": "nbf",
+      "input": 1794013606.833334,
+      "expected": "1794013606.833334"
+    },
+    {
+      "case": "same-as-client-fraction-two",
+      "field": "exp",
+      "input": 2051319845.123456,
+      "expected": "2051319845.123456"
+    },
+    {
+      "case": "same-as-client-microsecond-empty",
+      "field": "iat",
+      "input": 1794013606.834234,
+      "expected": "1794013606.834234"
+    },
+    {
+      "case": "same-as-client-microsecond-empty",
+      "field": "nbf",
+      "input": 1794013606.834235,
+      "expected": "1794013606.834235"
+    },
+    {
+      "case": "same-as-client-microsecond-empty",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    },
+    {
+      "case": "same-as-client-microsecond-two",
+      "field": "iat",
+      "input": 1794013606.834884,
+      "expected": "1794013606.834884"
+    },
+    {
+      "case": "same-as-client-microsecond-two",
+      "field": "nbf",
+      "input": 1794013606.834884,
+      "expected": "1794013606.834884"
+    },
+    {
+      "case": "same-as-client-microsecond-two",
+      "field": "exp",
+      "input": 2051319845.000001,
+      "expected": "2051319845.000001"
+    }
+  ]
+}

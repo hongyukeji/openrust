@@ -2446,3 +2446,148 @@ mod nested_manager_secret_command {
         Ok(())
     }
 }
+
+// 数值日期通过现有公开模块请求管线，不改 Request.date 默认或输入中间件。
+mod numeric_date_http {
+    use super::{enabled_example_sources, production_sources};
+    use futures_util::FutureExt as _;
+    use openrust::http::axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use openrust::testing::TestApp;
+    use serde_json::{Value, json};
+
+    type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+    type App = TestApp<crate::bootstrap::Server>;
+
+    async fn post(app: &mut App, mut typed: Value) -> TestResult<(StatusCode, Value)> {
+        typed["title"] = json!("  Numeric  ");
+        let response = app
+            .request(
+                Request::post("/api/example/input")
+                    .header("host", "localhost")
+                    .header("accept", "application/json")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        json!({"title":"  normalized  ", "typed":typed}).to_string(),
+                    ))?,
+            )
+            .await?;
+        Ok((response.status(), serde_json::from_slice(response.body())?))
+    }
+
+    async fn success_cases(app: &mut App) -> TestResult {
+        for (timestamp, format, seconds, micros, expected) in [
+            (json!(-1.25), -1.25, -1, 250_000, "-1.250000"),
+            (json!(-0.25), -0.25, 0, 250_000, "-0.250000"),
+            (json!(0.000_000_5), 0.000_000_5, 0, 1, "0.000001"),
+            (json!(-0.000_000_5), -0.000_000_5, 0, 1, "-0.000001"),
+            (json!(-0.000_000_49), -0.000_000_49, 0, 0, "0.000000"),
+            (json!(" \t+1.25e0\r\n"), 1.25, 1, 250_000, "1.250000"),
+            (json!(" \0-1.25\0 "), -1.25, -1, 250_000, "-1.250000"),
+        ] {
+            let (status, body) = post(
+                app,
+                json!({"numeric_timestamp":timestamp,"numeric_format":format}),
+            )
+            .await?;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(body["code"], "ok");
+            assert_eq!(body["data"]["title"], "normalized");
+            assert_eq!(body["data"]["typed"]["title"], "Numeric");
+            assert_eq!(
+                body["data"]["typed"]["numeric_timestamp"],
+                json!({"epoch_seconds":seconds,"microseconds":micros})
+            );
+            assert_eq!(body["data"]["typed"]["numeric_format"], expected);
+        }
+        let (status, body) = post(app, json!({})).await?;
+        assert_eq!(status, StatusCode::OK);
+        let typed = body["data"]["typed"]
+            .as_object()
+            .ok_or("typed响应缺少对象")?;
+        assert!(!typed.contains_key("numeric_timestamp"));
+        assert!(!typed.contains_key("numeric_format"));
+        Ok(())
+    }
+
+    fn invalid_timestamp_cases() -> Vec<(Value, &'static str)> {
+        vec![
+            (json!(true), "input_date_type_invalid"),
+            (Value::Null, "input_date_type_invalid"),
+            (json!(""), "input_date_type_invalid"),
+            (json!(" \t "), "input_date_type_invalid"),
+            (json!([]), "input_date_type_invalid"),
+            (json!({}), "input_date_type_invalid"),
+            (
+                json!("1\0.25numeric-private-sentinel"),
+                "input_date_format_invalid",
+            ),
+            (
+                json!("Y-m-d numeric-private-sentinel"),
+                "input_date_format_invalid",
+            ),
+            (json!(i64::MAX), "input_calendar_out_of_range"),
+            (json!("9223372036854775807"), "input_calendar_out_of_range"),
+        ]
+    }
+    async fn invalid_cases(app: &mut App) -> TestResult {
+        for (value, code) in invalid_timestamp_cases() {
+            let (status, body) = post(app, json!({"numeric_timestamp":value})).await?;
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert_eq!(body["code"], code);
+            assert!(!body.to_string().contains("numeric-private-sentinel"));
+            assert!(!body.to_string().contains("9223372036854775807"));
+            assert!(body["data"].is_null());
+        }
+        for value in [
+            json!("-1.25"),
+            json!("Y-m-d numeric-private-sentinel"),
+            json!(false),
+            Value::Null,
+        ] {
+            let (status, body) = post(app, json!({"numeric_format":value})).await?;
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert_eq!(body["code"], "example_numeric_format_type");
+            assert!(!body.to_string().contains("numeric-private-sentinel"));
+            assert!(body["data"].is_null());
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn production_input_numeric_dates_use_public_core_and_preserve_normalization()
+    -> TestResult {
+        let mut app = App::builder(enabled_example_sources(&production_sources(true))?)
+            .build()
+            .await?;
+        let outcome = std::panic::AssertUnwindSafe(async {
+            success_cases(&mut app).await?;
+            invalid_cases(&mut app).await
+        })
+        .catch_unwind()
+        .await;
+        let shutdown = app
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await;
+        match outcome {
+            Ok(result) => {
+                if result.is_err()
+                    && let Err(error) = &shutdown
+                {
+                    eprintln!("数值日期HTTP测试关闭失败 code={}", error.code());
+                }
+                result?;
+                shutdown?;
+                Ok(())
+            }
+            Err(payload) => {
+                if let Err(error) = shutdown {
+                    eprintln!("数值日期HTTP测试panic后关闭失败 code={}", error.code());
+                }
+                std::panic::resume_unwind(payload)
+            }
+        }
+    }
+}

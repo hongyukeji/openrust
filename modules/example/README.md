@@ -523,3 +523,17 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 增强流程用同容器的 `Arc<HashManager>`，每个秘密操作固定一次默认链的最终具体叶，能力检查和实际哈希不跨 live 默认变化；后续操作可采用新的默认驱动。已有 custom 实例经 `extend` 返回原 Arc，保原成本和并发状态。reset 的新密码与验证码是两个秘密域，各按自身注入的 manager 和原顺序工作。固定驱动不代替最后账户状态、因子或版本核验。
 
 [真实模块回归源码](tests/account_security_flows.rs)在原业务登录入口覆盖严格 Argon 的完整73字节、72字节不匹配以及下一操作对截断策略的拒绝；不新增测试专用路由或放宽输入。回归只核拒绝时不签发凭据/新增 refresh，也保留正常限流与审计行为。接口、Model binary/编码值域及隐藏 custom 边界见[增强哈希说明](../../docs/src/security/hashing.md#增强认证的单次最终叶)。
+
+## 数值日期输入
+
+现有 `POST /api/example/input` 可在 `typed` 中传两个可选字段：
+
+```json
+{"typed":{"numeric_timestamp":-1.25,"numeric_format":-1.25}}
+```
+
+`numeric_timestamp` 调用公开 JSON NumericDate parser，响应增加 `{"epoch_seconds":-1,"microseconds":250000}`；`numeric_format` 只接受 JSON number，响应增加六位小数文本 `"-1.250000"`。不传这两个字段时不增加响应字段，原输入行为保持。数值字符串可用于 parser；formatter 字段传字符串、bool 或 null 会失败。
+
+解析固定 UTC，不读取当前时钟。负数采用 PHP `U.u` 的有符号秒与非负微秒字段规则：`-0.25` 为秒 `0`、微秒 `250000`，不是数学上向前250毫秒的时刻。六位小数按 PHP half-up 舍入，舍入到零不保留负号。大整数先转 `f64`，可能失去精度或超出有符号秒范围。错误不回显输入。
+
+此路由继续经过正常字符串裁剪与空串转 null；例如首尾 NUL 会先由输入中间件裁剪，中间 NUL 仍无法作为数值解析。直接调用 Core parser 不裁剪 NUL。完整接口、JSON 值域及阶段差异见[数值日期适配](../../docs/src/getting-started/source-application.md#数值日期适配)。这不是 Model 日期保存或 JWT 解析示例。

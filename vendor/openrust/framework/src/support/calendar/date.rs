@@ -4,6 +4,8 @@ mod abbreviations;
 mod civil;
 mod format;
 mod lexer;
+#[cfg(test)]
+mod numeric_timestamp_tests;
 mod parse;
 mod posix;
 mod relative;
@@ -233,6 +235,57 @@ impl Serialize for InputDate {
         let output = utc.format("Y-m-d\\TH:i:s.u\\Z").map_err(S::Error::custom)?;
         serializer.serialize_str(&output)
     }
+}
+
+/// 将有限浮点时间戳按现有 PHP 六位 half-up Kernel 输出固定小数文本。
+///
+/// 输出始终含六位小数，负零归一为 `0.000000`；半数按 PHP half-up 规则舍入。
+/// 不读取时钟或时区，也不解析为时刻。需要 `U.u` 字段语义时使用
+/// [`parse_php_numeric_timestamp`]；这两个函数均不采用 Carbon timestamp 的转换流程。
+/// 原生 PHP 可将非有限数格式化为 `nan` / `inf`，本函数的有限浮点输入域明确拒绝它们。
+///
+/// # Errors
+/// NaN、正负无穷返回范围错误。
+pub fn format_php_numeric_timestamp(value: f64) -> Result<String> {
+    lexer::number_format_timestamp(value)
+}
+
+/// 按 PHP `NumericDate` 的数值、六位文本与 `U.u` 字段规则构造时刻。
+///
+/// 数字与数值字符串均先转换为 `f64`，再格式化为六位小数并由现有 `U.u` 扫描器解析。
+/// 字符串首尾允许空格、TAB、LF、CR、VT、FF 六种 ASCII 空白，不裁剪 NUL 或 Unicode 空白。
+/// 解析使用固定 UTC，不读取当前时钟或应用时区；空值不会转换为当前时刻。
+///
+/// `U.u` 按有符号秒与非负微秒分别解释：`-0.25` 得到秒 `0`、微秒 `250000`，
+/// `-1.25` 得到秒 `-1`、微秒 `250000`，不同于数学负数微秒或 Carbon timestamp。
+/// 大整数也经过浮点阶段，可能丢失精度；例如 `2^53 + 1` 按 `2^53` 解析。
+///
+/// # Errors
+/// 非数字 JSON 类型、非法数值字符串、非有限数、超出 20 MiB 的字符串或 `U.u` 秒字段超限时失败。
+/// 错误信息不包含原始输入。
+pub fn parse_php_numeric_timestamp(value: &Value) -> Result<CalendarInstant> {
+    let number = match value {
+        Value::Number(number) => number.as_f64().ok_or_else(range_error)?,
+        Value::String(text) => {
+            if text.len() > MAX_CALENDAR_BYTES {
+                return Err(limit_error());
+            }
+            let text = text.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}']);
+            if !lexer::is_numeric(text) {
+                return Err(calendar_error("input_date_format_invalid"));
+            }
+            text.parse::<f64>().map_err(|_| range_error())?
+        }
+        _ => return Err(calendar_error("input_date_type_invalid")),
+    };
+    let normalized = format_php_numeric_timestamp(number)?;
+    let parsed = format::parse(
+        &normalized,
+        "U.u",
+        civil::Civil::epoch(),
+        &ResolvedTimezone::utc(),
+    )?;
+    Ok(parsed.instant())
 }
 
 /// 从已规范化的输入值解析日期；空值返回 None，失败不回显输入内容。

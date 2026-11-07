@@ -1,5 +1,7 @@
 # 当前计划
 
+NumericDate 纯 Core 与实际示例路径已收齐[数值日期限定验收](memory/testing.md#数值日期格式化与解析限定验收)。Calendar、Model 日期和 Passport 消费按唯一 todo 接续。
+
 HA-X01 已收齐[增强认证限定验收](memory/testing.md#增强认证单次叶选择限定验收)。后续以已验收父树安排 Passport 行为、Container 与首用安全配置，按唯一 todo 和实测依赖领取。
 
 MB-S01 已收齐[调用级默认属性 setter 限定验收](memory/testing.md#调用级默认属性-setter-限定验收)。后继使用已提交父树接 Passport Client，并按唯一 todo 推进 Model 载体等独立簇。

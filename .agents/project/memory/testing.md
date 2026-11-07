@@ -1885,3 +1885,11 @@ v6 精确输入 1641 项、26 路径源码树 `adb661797d78500903b7d5799606eed80
 同一 v6 输入通过默认工作区 63 组与日常 MySQL 83 组、最小/Web/显式 JWT 生成项目检查和 19/51/96 项测试、拒警文档、84 个本地链接、15 个文档/驱动相关命令、真实 Rust 1.97 编译与离线缓存依赖门禁。忽略项、外部 skip 和缓存 advisory 范围按正式报告分列。源、MySQL catalog 和 fixture 恢复/不变。其它数据库运行及发布最低版本矩阵仍待独立验收。
 
 正式报告 `tmp/independent-testing-20261106/HASHING-AUTH-OPERATION-RESULT.json` SHA `1ea8af88680f43f95823187a4827af2c6cab57fcaebc018229f70e5c3c34ce92`。剩余 Manager 公开表面、历史缓存所有权、Model binary/非 UTF-8 编码和全量认证对应按唯一 todo 继续。
+
+## 数值日期格式化与解析限定验收
+
+NumericDate v6 通过共享 Calendar 的六位舍入和 `U.u` UTC 解析处理 JSON 数值与完整数值字符串。保留负秒与微秒字段行为，拒绝非法输入且不回显原值。唯一示例走现有生产 HTTP 输入管线，外部 consumer 禁用默认 feature。
+
+精确输入 1648 项、16 路径，源码树 `b721ceeccdfd35a5fee3d42fa5a4c45b0b332f25`。定向实际通过 6 Core（重放 72 与 36 条 PHP 参考样本）、1 根 server 生产 HTTP、2 外部 consumer，零忽略。默认工作区 63 组，日常 MySQL 8.4.13 工作区 83 组均通过。原 Calendar 33 和 Request 53 个具名回归实际覆盖。原始报告分列忽略与外部 skip。格式、严格 Clippy、拒警 Rustdoc 和 95 个本地链接通过。源码、锁、夹具与数据库目录保全。v5 严格 Clippy 诊断留存，v6 仅补一行 Rustdoc 代码标记。
+
+正式验收 `tmp/independent-testing-20261106/numeric-date-runtime-v6/NATIVE-RESULT.json` SHA `a538bbd8ecc78208cb153306161005b1fe0de72f656d31ab115b31c7107bb912`。正式外部 consumer 锁 SHA `76f5f97d369b96db728028756ac65464e25462a57341484a858ac365c36f0c28`。本簇为纯数值格式化与解析；完整 Calendar、Model 日期语义、Passport/JWT 消费与发布矩阵仍按各自待办推进。

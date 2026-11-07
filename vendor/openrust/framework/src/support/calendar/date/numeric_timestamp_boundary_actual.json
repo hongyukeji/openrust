@@ -1,0 +1,1261 @@
+{
+  "original_stdout_sha256": "ab1ef734df67ada3c5d2a9cf81f19bd6bf234f3ef6d05d3ef2163b4564906ee7",
+  "scope": "native stage observations, not original full JWT Parser acceptance",
+  "cases": [
+    {
+      "id": "zero",
+      "input_kind": "json",
+      "input_type": "int",
+      "input_literal": "0",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "0000000000000000",
+          "classification": "finite",
+          "text": "0"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "0.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "negative-zero",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-0.0",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "8000000000000000",
+          "classification": "finite",
+          "text": "-0"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "0.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "positive-zero",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "0.0",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "0000000000000000",
+          "classification": "finite",
+          "text": "0"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "0.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "minus-fraction",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-0.25",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "bfd0000000000000",
+          "classification": "finite",
+          "text": "-0.25"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-0.250000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "250000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "minus-one-fraction",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-1.25",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "bff4000000000000",
+          "classification": "finite",
+          "text": "-1.25"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-1.250000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "-1",
+          "microseconds": "250000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "positive-half-below",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "0.000000499999",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "3ea0c6f56dc2bd67",
+          "classification": "finite",
+          "text": "4.9999899999999995e-7"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "0.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "positive-half",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "0.0000005",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "3ea0c6f7a0b5ed8d",
+          "classification": "finite",
+          "text": "4.9999999999999998e-7"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "0.000001",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000001",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "positive-half-above",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "0.000000500001",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "3ea0c6f9d3a91db3",
+          "classification": "finite",
+          "text": "5.00001e-7"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "0.000001",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000001",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "negative-half-below",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-0.000000499999",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "bea0c6f56dc2bd67",
+          "classification": "finite",
+          "text": "-4.9999899999999995e-7"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "0.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "negative-half",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-0.0000005",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "bea0c6f7a0b5ed8d",
+          "classification": "finite",
+          "text": "-4.9999999999999998e-7"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-0.000001",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000001",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "negative-half-above",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-0.000000500001",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "bea0c6f9d3a91db3",
+          "classification": "finite",
+          "text": "-5.00001e-7"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-0.000001",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "0",
+          "microseconds": "000001",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "positive-carry",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "1.9999999",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "3fffffffe5280d65",
+          "classification": "finite",
+          "text": "1.9999998999999999"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "2.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "2",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "negative-carry",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-1.9999999",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "bfffffffe5280d65",
+          "classification": "finite",
+          "text": "-1.9999998999999999"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-2.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "-2",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "micro-one",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "1893553445.000001",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "41dc375549400004",
+          "classification": "finite",
+          "text": "1893553445.000001"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "1893553445.000001",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "1893553445",
+          "microseconds": "000001",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "near-2p53-minus",
+      "input_kind": "json",
+      "input_type": "int",
+      "input_literal": "9007199254740991",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "433fffffffffffff",
+          "classification": "finite",
+          "text": "9007199254740991"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "9007199254740991.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "9007199254740991",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "near-2p53",
+      "input_kind": "json",
+      "input_type": "int",
+      "input_literal": "9007199254740992",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "4340000000000000",
+          "classification": "finite",
+          "text": "9007199254740992"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "9007199254740992.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "9007199254740992",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "near-2p53-plus",
+      "input_kind": "json",
+      "input_type": "int",
+      "input_literal": "9007199254740993",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "4340000000000000",
+          "classification": "finite",
+          "text": "9007199254740992"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "9007199254740992.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "9007199254740992",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "negative-2p53-plus",
+      "input_kind": "json",
+      "input_type": "int",
+      "input_literal": "-9007199254740993",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "c340000000000000",
+          "classification": "finite",
+          "text": "-9007199254740992"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-9007199254740992.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "-9007199254740992",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "i64-max",
+      "input_kind": "json",
+      "input_type": "int",
+      "input_literal": "9223372036854775807",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "43e0000000000000",
+          "classification": "finite",
+          "text": "9.2233720368547758e+18"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "9223372036854775808.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "false",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 1,
+            "errors": [
+              "Number out of range"
+            ]
+          }
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "i64-min",
+      "input_kind": "json",
+      "input_type": "int",
+      "input_literal": "-9223372036854775808",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "c3e0000000000000",
+          "classification": "finite",
+          "text": "-9.2233720368547758e+18"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-9223372036854775808.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "-9223372036854775808",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "i64-above",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "9223372036854775808",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "43e0000000000000",
+          "classification": "finite",
+          "text": "9.2233720368547758e+18"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "9223372036854775808.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "false",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 1,
+            "errors": [
+              "Number out of range"
+            ]
+          }
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "i64-below",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-9223372036854775809",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "c3e0000000000000",
+          "classification": "finite",
+          "text": "-9.2233720368547758e+18"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-9223372036854775808.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "-9223372036854775808",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "huge-finite",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "1e308",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "7fe1ccf385ebc8a0",
+          "classification": "finite",
+          "text": "1.0e+308"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "100000000000000001097906362944045541740492309677311846336810682903157585404911491537163328978494688899061249669721172515611590283743140088328307009198146046031271664502933027185697489699588559043338384466165001178426897626212945177628091195786707458122783970171784415105291802893207873272974885715430223118336.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "false",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 3,
+            "errors": {
+              "0": "Number out of range",
+              "24": "The separation symbol could not be found",
+              "30": "Trailing data"
+            }
+          }
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "negative-huge-finite",
+      "input_kind": "json",
+      "input_type": "float",
+      "input_literal": "-1e308",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "ffe1ccf385ebc8a0",
+          "classification": "finite",
+          "text": "-1.0e+308"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "-100000000000000001097906362944045541740492309677311846336810682903157585404911491537163328978494688899061249669721172515611590283743140088328307009198146046031271664502933027185697489699588559043338384466165001178426897626212945177628091195786707458122783970171784415105291802893207873272974885715430223118336.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "false",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 3,
+            "errors": {
+              "0": "Number out of range",
+              "25": "The separation symbol could not be found",
+              "31": "Trailing data"
+            }
+          }
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "numeric-string",
+      "input_kind": "json",
+      "input_type": "string",
+      "input_literal": "\" 123.125 \"",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "405ec80000000000",
+          "classification": "finite",
+          "text": "123.125"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "123.125000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "123",
+          "microseconds": "125000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "numeric-string-exponent",
+      "input_kind": "json",
+      "input_type": "string",
+      "input_literal": "\"1e2\"",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "4059000000000000",
+          "classification": "finite",
+          "text": "100"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "100.000000",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "datetime",
+          "epoch_seconds": "100",
+          "microseconds": "000000",
+          "timezone": "+00:00",
+          "last_errors": false
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "nonnumeric-string",
+      "input_kind": "json",
+      "input_type": "string",
+      "input_literal": "\"123oops\"",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": false,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "not-invoked"
+      },
+      "number_format": {
+        "status": "not-invoked"
+      },
+      "datetime": {
+        "status": "not-invoked"
+      }
+    },
+    {
+      "id": "empty-string",
+      "input_kind": "json",
+      "input_type": "string",
+      "input_literal": "\"\"",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": false,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "not-invoked"
+      },
+      "number_format": {
+        "status": "not-invoked"
+      },
+      "datetime": {
+        "status": "not-invoked"
+      }
+    },
+    {
+      "id": "bool-true",
+      "input_kind": "json",
+      "input_type": "bool",
+      "input_literal": "true",
+      "parser_parameter_type_accepted": false,
+      "is_numeric": {
+        "status": "returned",
+        "value": false,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "not-invoked"
+      },
+      "number_format": {
+        "status": "not-invoked"
+      },
+      "datetime": {
+        "status": "not-invoked"
+      }
+    },
+    {
+      "id": "bool-false",
+      "input_kind": "json",
+      "input_type": "bool",
+      "input_literal": "false",
+      "parser_parameter_type_accepted": false,
+      "is_numeric": {
+        "status": "returned",
+        "value": false,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "not-invoked"
+      },
+      "number_format": {
+        "status": "not-invoked"
+      },
+      "datetime": {
+        "status": "not-invoked"
+      }
+    },
+    {
+      "id": "null",
+      "input_kind": "json",
+      "input_type": "null",
+      "input_literal": "null",
+      "parser_parameter_type_accepted": false,
+      "is_numeric": {
+        "status": "returned",
+        "value": false,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "not-invoked"
+      },
+      "number_format": {
+        "status": "not-invoked"
+      },
+      "datetime": {
+        "status": "not-invoked"
+      }
+    },
+    {
+      "id": "array",
+      "input_kind": "json",
+      "input_type": "array",
+      "input_literal": "[1]",
+      "parser_parameter_type_accepted": false,
+      "is_numeric": {
+        "status": "returned",
+        "value": false,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "not-invoked"
+      },
+      "number_format": {
+        "status": "not-invoked"
+      },
+      "datetime": {
+        "status": "not-invoked"
+      }
+    },
+    {
+      "id": "object",
+      "input_kind": "json",
+      "input_type": "array",
+      "input_literal": "{\"x\":1}",
+      "parser_parameter_type_accepted": false,
+      "is_numeric": {
+        "status": "returned",
+        "value": false,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "not-invoked"
+      },
+      "number_format": {
+        "status": "not-invoked"
+      },
+      "datetime": {
+        "status": "not-invoked"
+      }
+    },
+    {
+      "id": "native-nan",
+      "input_kind": "native",
+      "input_type": "float",
+      "input_literal": "nan",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "7ff8000000000000",
+          "classification": "nan",
+          "text": "NAN"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "nan",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "false",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 3,
+            "errors": {
+              "0": "Found unexpected data",
+              "3": "Not enough data available to satisfy format"
+            }
+          }
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "native-pos-inf",
+      "input_kind": "native",
+      "input_type": "float",
+      "input_literal": "inf",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "7ff0000000000000",
+          "classification": "positive-infinity",
+          "text": "INF"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "inf",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "false",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 3,
+            "errors": {
+              "0": "Found unexpected data",
+              "3": "Not enough data available to satisfy format"
+            }
+          }
+        },
+        "warning_levels": []
+      }
+    },
+    {
+      "id": "native-neg-inf",
+      "input_kind": "native",
+      "input_type": "float",
+      "input_literal": "-inf",
+      "parser_parameter_type_accepted": true,
+      "is_numeric": {
+        "status": "returned",
+        "value": true,
+        "warning_levels": []
+      },
+      "float_cast": {
+        "status": "returned",
+        "value": {
+          "ieee754_binary64_be_hex": "fff0000000000000",
+          "classification": "negative-infinity",
+          "text": "-INF"
+        },
+        "warning_levels": []
+      },
+      "number_format": {
+        "status": "returned",
+        "value": "inf",
+        "warning_levels": []
+      },
+      "datetime": {
+        "status": "returned",
+        "value": {
+          "result": "false",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 3,
+            "errors": {
+              "0": "Found unexpected data",
+              "3": "Not enough data available to satisfy format"
+            }
+          }
+        },
+        "warning_levels": []
+      }
+    }
+  ]
+}

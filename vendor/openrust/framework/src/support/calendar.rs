@@ -4,7 +4,8 @@ mod interval;
 mod unit;
 pub use date::{
     CalendarClock, CalendarContext, CalendarInstant, DateOptions, FixedClock, InputDate,
-    ResolvedTimezone, SystemClock, TimezoneInput, parse_date,
+    ResolvedTimezone, SystemClock, TimezoneInput, format_php_numeric_timestamp, parse_date,
+    parse_php_numeric_timestamp,
 };
 
 pub use interval::{InputInterval, IntervalError};
