@@ -92,6 +92,24 @@ let rows = db.table("users")?
 
 数组路径保留目标方言对键和索引的区别，不能把所有数字外观的键都当作数组索引。MySQL 的 JSON NULL／缺失路径使用提取值与 JSON 类型的联合判定。普通路径由框架引用和转义；`RawSql` 仍只用于应用选择的可信表达式。
 
+## JSON 包含
+
+`where_json_contains` 接受简单列名与 `serde_json::Value`，JSON内容作为值绑定。PostgreSQL将列转换为jsonb后使用包含操作符，MySQL使用JSON_CONTAINS；JSON null与SQL NULL不同。当前入口尚不覆盖路径、限定列、OR/NOT与SQLite包含，不能用本项代表完整JSON查询家族。
+
+```rust
+use openrust::{Db, Result};
+
+pub async fn count_tagged(db: &Db, owner_id: i64) -> Result<u64> {
+    db.table("records")?
+        .where_eq("owner_id", owner_id)?
+        .where_json_contains("metadata", serde_json::json!({"tags":["typed"]}))?
+        .count()
+        .await
+}
+```
+
+唯一示例的记录列表可用 `metadata_contains` 传入JSON文本，如 `{"tags":["typed"]}`；账户条件始终与包含条件组合，分页总数使用相同筛选。查询参数须作URL编码；缺省及按宿主规则归一化为空的文本不筛选，坏JSON或超过4096字符的文本返回字段验证错误。示例的MySQL/PG JSON列与普通列表共用同一实体和公开Query Builder；这不是独立的JSON存储接口。
+
 ## 值区间与列区间
 
 `where_between` 把上下界作为值绑定。每行具有自己的上下界时，使用 `where_between_columns`：

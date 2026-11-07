@@ -48,6 +48,104 @@ fn request(
     ))?)
 }
 
+// 检出JSON参数漏绑定、分页count丢筛选及同metadata跨账户泄漏。
+async fn metadata_filter_contract(
+    app: &TestApp<crate::bootstrap::Server>,
+    owner_token: &str,
+    other_token: &str,
+    owner_id: i64,
+    payload: &serde_json::Value,
+) -> TestResult {
+    let created = app
+        .request(request(
+            Method::POST,
+            "/api/example/records",
+            Some(other_token),
+            Some(payload.clone()),
+        )?)
+        .await?;
+    created.assert_status(StatusCode::CREATED)?;
+    let created_json: serde_json::Value = serde_json::from_slice(created.body())?;
+    let other_id = created_json["data"]["id"]
+        .as_i64()
+        .ok_or("other record id missing")?;
+    assert_ne!(owner_id, other_id);
+    let valid_limit = serde_json::to_string(&format!("中{}", "x".repeat(4093)))?;
+    let invalid_limit = serde_json::to_string(&format!("中{}", "x".repeat(4094)))?;
+    assert_eq!(valid_limit.chars().count(), 4096);
+    assert_eq!(invalid_limit.chars().count(), 4097);
+    for (token, condition, page, total, expected) in [
+        (owner_token, r#"{"tags":["typed"]}"#, 1, 1, Some(owner_id)),
+        (owner_token, "", 1, 1, Some(owner_id)),
+        (owner_token, " \t ", 1, 1, Some(owner_id)),
+        (owner_token, valid_limit.as_str(), 1, 0, None),
+        (other_token, r#"{"tags":["typed"]}"#, 1, 1, Some(other_id)),
+        (owner_token, r#"{"tags":["missing"]}"#, 1, 0, None),
+        (owner_token, r#"{"tags":["typed"]}"#, 2, 1, None),
+        (owner_token, r#"{"备注":"数据"}"#, 1, 1, Some(owner_id)),
+        (owner_token, r#"{"tags":["' OR 1=1 --"]}"#, 1, 0, None),
+    ] {
+        let response = app
+            .request(request(
+                Method::GET,
+                &metadata_uri(condition, page),
+                Some(token),
+                None,
+            )?)
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let result: serde_json::Value = serde_json::from_slice(response.body())?;
+        assert_eq!(result["meta"]["total"], total);
+        let rows = result["data"]
+            .as_array()
+            .ok_or("metadata page data missing")?;
+        match expected {
+            Some(id) => {
+                assert_eq!(rows.len(), 1);
+                assert_eq!(rows[0]["id"], id);
+            }
+            None => assert_eq!(rows.as_slice(), [] as [serde_json::Value; 0]),
+        }
+    }
+    for invalid in ["{", invalid_limit.as_str()] {
+        let response = app
+            .request(request(
+                Method::GET,
+                &metadata_uri(invalid, 1),
+                Some(owner_token),
+                None,
+            )?)
+            .await?;
+        response.assert_status(StatusCode::UNPROCESSABLE_ENTITY)?;
+        let body: serde_json::Value = serde_json::from_slice(response.body())?;
+        assert!(
+            body["errors"]["metadata_contains"]
+                .as_array()
+                .is_some_and(|messages| !messages.is_empty())
+        );
+    }
+    app.request(request(
+        Method::DELETE,
+        &format!("/api/example/records/{other_id}"),
+        Some(other_token),
+        None,
+    )?)
+    .await?
+    .assert_status(StatusCode::OK)?;
+    Ok(())
+}
+
+fn metadata_uri(condition: &str, page: u64) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::with_capacity(condition.len() * 3);
+    for byte in condition.bytes() {
+        encoded.push('%');
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 15)]));
+    }
+    format!("/api/example/records?page={page}&per_page=1&metadata_contains={encoded}")
+}
+
 #[tokio::test]
 #[allow(
     clippy::too_many_lines,
@@ -133,7 +231,7 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     let payload = serde_json::json!({
         "name":"示例记录", "description":"字段类型完整演示", "priority":7, "view_count":42,
         "enabled":true, "published_at":"2026-10-29T12:00:00Z",
-        "metadata":{"source":"modules/example","tags":["typed","crud"]},
+        "metadata":{"source":"modules/example","tags":["typed","crud"],"备注":"数据"},
         "category_id":category_id
     });
     let created = app
@@ -214,6 +312,7 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     assert_foreign_update_rejected(&app, &other_token, id, &payload).await?;
     assert_cancelled_save_does_not_write(&app, &db, &token, id, &payload).await?;
     assert_model_save_or_fail_rolls_back(&app, &db, id).await?;
+    metadata_filter_contract(&app, &token, &other_token, id, &payload).await?;
     attribute_preview_contract(&app, &token, &other_token, id, &payload).await?;
     // 新数值断言失败也先完成原CRUD及宿主/测试库回收，再传播原失败。
     let numeric_outcome =

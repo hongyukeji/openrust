@@ -8,9 +8,7 @@ use crate::modules::example::models::example_record::{self, record_query_db};
 use crate::modules::example::services::record_preview::fill_record_input;
 use openrust::auth::CurrentUser;
 use openrust::database::eloquent::{MassAssignment, SaveContext, save_with_query};
-use openrust::database::sea_orm::{
-    ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-};
+use openrust::database::sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter};
 use openrust::events::Events;
 use openrust::http::Created;
 use openrust::http::Json;
@@ -48,23 +46,36 @@ pub(crate) async fn index(
     Inject(db): Inject<Db>,
     Validated(Query(page)): Validated<Query<ExampleRecordPage>>,
 ) -> Result<Paginated<ExampleRecordResource>> {
-    let connection = db.read_connection()?;
-    let paginator = example_record::Entity::find()
-        .filter(example_record::Column::OwnerId.eq(user.integer_id()?))
-        .order_by_asc(example_record::Column::Id)
-        .paginate(&connection, page.per_page);
-    let total = paginator.num_items().await.map_err(Error::internal)?;
-    let rows = paginator
-        .fetch_page(page.page - 1)
-        .await
-        .map_err(Error::internal)?;
+    // 模块使用既有物理表名；固定原读连接，不把应用表前缀套到模块表。
+    let query_db = Db::default();
+    query_db.initialize(db.read_connection()?)?;
+    let mut query = query_db
+        .table("example_records")?
+        .where_eq("owner_id", user.integer_id()?)?;
+    if let Some(text) = page.metadata_contains.as_deref() {
+        let value = serde_json::from_str(text).map_err(|_| {
+            let mut errors = openrust::ValidationErrors::new();
+            errors.add("metadata_contains", "元数据包含条件必须是有效JSON");
+            Error::Validation(errors)
+        })?;
+        query = query.where_json_contains("metadata", value)?;
+    }
+    let result = query
+        .order_by("id", openrust::database::query::SortDirection::Asc)?
+        .paginate_on(page.per_page, "page", page.page)
+        .await?;
+    let rows = result
+        .items
+        .iter()
+        .map(|row| example_record::Model::from_query_result(row, "").map_err(Error::internal))
+        .collect::<Result<Vec<_>>>()?;
     Ok(Paginated::new(
         rows.into_iter().map(ExampleRecordResource::from).collect(),
         PageParams {
-            page: page.page,
-            per_page: page.per_page,
+            page: result.current_page,
+            per_page: result.per_page,
         },
-        total,
+        result.total,
     ))
 }
 

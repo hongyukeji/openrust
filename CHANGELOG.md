@@ -197,6 +197,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Fixed
 
+- 修正简单列JSON包含在PostgreSQL中的模板占位符与jsonb转换；保留typed JSON绑定、MySQL分支和账户查询范围，并同步示例筛选与生成回归。完整JSON查询家族仍开放。
+
 - 加密服务改为首次解析时校验密钥。受保护 Cookie 请求复用 Router 的保护计划，失败时拒绝发送 Cookie。受管 Web 回程在保存前核对本次请求作用域和出站 Session Cookie 名。共享 Tower layer 应在 HTTP 入口任务上下文驱动首次派发。
 
 - `APP_KEY` 和 `APP_PREVIOUS_KEYS` 从环境读取时保留前导零与普通空白，避免 URL 签名误用经通用配置解析改写的文本。旧签名继续按原始历史密钥验证。

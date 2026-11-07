@@ -1268,6 +1268,32 @@ fn populate_project_with_features(
             include_str!("../templates/tests/query_multiple_columns.rs")
                 .replace("    // {{database_setup}}", setup),
         ));
+        if backend != DatabaseBackend::Sqlite {
+            let mysql_setup = setup.replace(
+                "skipping generated insert ID test",
+                "跳过生成 JSON 包含测试",
+            );
+            let (json_setup, runtime_scope) = if backend == DatabaseBackend::Postgres {
+                (
+                    concat!(
+                        "    let url = std::env::var(\"OPENRUST_TEST_DATABASE_URL\")?;\n",
+                        "    if !url.starts_with(\"postgres://\") && !url.starts_with(\"postgresql://\") {\n",
+                        "        return Err(Error::custom(\"generated_json_contains_postgres_required\", \"需要 PostgreSQL 连接\").into());\n",
+                        "    }\n",
+                        "    let database = TestDatabase::create::<EmptyMigrator>(&url).await?;",
+                    ),
+                    r#"#[ignore = "PostgreSQL 实库留待发布前数据库矩阵"]"#,
+                )
+            } else {
+                (mysql_setup.as_str(), "")
+            };
+            files.push((
+                "tests/query_json_contains.rs",
+                include_str!("../templates/tests/query_json_contains.rs")
+                    .replace("    // {{database_setup}}", json_setup)
+                    .replace("// {{runtime_scope}}", runtime_scope),
+            ));
+        }
     }
     if database == Some(DatabaseBackend::Sqlite) {
         files.push((
@@ -3426,6 +3452,7 @@ mod tests {
                 true,
             )?;
             assert!(project.join("tests/sqlite_shared_locks.rs").is_file());
+            assert!(!project.join("tests/query_json_contains.rs").exists());
             let local = fs::read_to_string(project.join(".env"))?;
             let template = fs::read_to_string(project.join(".env.example"))?;
             for variable in [
@@ -4417,6 +4444,13 @@ mod tests {
             let manifest =
                 fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
             assert!(manifest.contains(feature));
+            let json_test = fs::read_to_string(project.join("tests/query_json_contains.rs"))
+                .expect("读取生成的 JSON 包含测试");
+            assert_eq!(
+                json_test.contains("#[ignore ="),
+                backend == DatabaseBackend::Postgres
+            );
+            assert!(!json_test.contains("{{runtime_scope}}"));
             assert_eq!(
                 project.join("tests/sqlite_shared_locks.rs").is_file(),
                 backend == DatabaseBackend::Sqlite

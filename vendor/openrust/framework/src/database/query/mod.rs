@@ -18,6 +18,7 @@ mod conditional;
 mod existence;
 mod factory;
 mod insert_id;
+mod json_contains;
 mod multi_column;
 mod subqueries;
 pub use between_columns::ColumnOperand;
@@ -533,23 +534,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     /// JSON 包含；PostgreSQL 使用 `@>`，MySQL 使用 `JSON_CONTAINS`。
     pub fn where_json_contains(mut self, column: &str, value: serde_json::Value) -> Result<Self> {
         validate_identifier(column)?;
-        let predicate = match self.db.backend()? {
-            DbBackend::Postgres => Expr::cust_with_exprs(
-                "? @> ?",
-                [
-                    Expr::col(Alias::new(column)),
-                    Expr::val(Value::Json(Some(Box::new(value)))),
-                ],
-            ),
-            DbBackend::MySql => Expr::cust_with_exprs(
-                "JSON_CONTAINS(?, ?)",
-                [
-                    Expr::col(Alias::new(column)),
-                    Expr::val(Value::Json(Some(Box::new(value)))),
-                ],
-            ),
-            _ => return Err(unsupported_backend()),
-        };
+        let predicate = json_contains::predicate(self.db.backend()?, column, value)?;
         self.predicates = self.predicates.add(predicate);
         Ok(self)
     }
