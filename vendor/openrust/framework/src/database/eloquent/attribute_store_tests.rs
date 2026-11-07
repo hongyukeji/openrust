@@ -123,6 +123,43 @@ async fn custom_setter_precedes_hashed_cast_and_merges_multi_field_patch_after_a
     Ok(())
 }
 
+#[tokio::test]
+async fn guardable_setter_short_circuits_schema_and_cast_validation() -> Result<()> {
+    let attributes = ModelAttributes::default();
+    let databases = Databases::new(crate::Db::default(), BTreeMap::new());
+    let mut model = ModelMetadata::new("records", "example::Record");
+    model.guard(vec!["owner_id".into()]);
+    model.connection = Some("unconfigured".into());
+    model.key_name = "virtual_key".into();
+    model.key_type = "UnknownCaster".into();
+
+    assert!(matches!(
+        attributes.is_guarded(&model, &databases, "virtual_key").await,
+        Err(error) if error.code() == "model_attribute_cast_unsupported"
+    ));
+    attributes.register_setter("virtual_key", Arc::new(FailingSetter))?;
+    assert!(
+        !attributes
+            .is_guarded(&model, &databases, "virtual_key")
+            .await?
+    );
+    assert!(
+        attributes
+            .is_fillable(&model, &databases, "virtual_key")
+            .await?
+    );
+    assert!(attributes.raw_attribute("virtual_key")?.is_none());
+
+    model
+        .casts
+        .insert("primitive".into(), AttributeCast::Hashed);
+    assert!(matches!(
+        attributes.is_guarded(&model, &databases, "primitive").await,
+        Err(error) if error.code() == "database_instance_not_found"
+    ));
+    Ok(())
+}
+
 struct FailingSetter;
 impl AttributeSetter for FailingSetter {
     fn set(
@@ -338,6 +375,75 @@ fn replaced_accessors_drop_outside_storage_lock() -> Result<()> {
     store.register_setter("field", Arc::new(FailingSetter))?;
     assert!(getter_released.load(Ordering::SeqCst));
     assert!(setter_released.load(Ordering::SeqCst));
+    Ok(())
+}
+
+#[test]
+fn current_attribute_selection_keeps_missing_keys_and_freezes_except_keys() -> Result<()> {
+    let store = Arc::new(ModelAttributes::new(Map::from_iter([
+        ("id".into(), json!("42")),
+        ("secret".into(), json!("visible to explicit reads")),
+        ("nullable".into(), Value::Null),
+    ])));
+    let mut metadata = ModelMetadata::new("records", "example::Record");
+    metadata.hidden.push("secret".into());
+    store.register_getter("id", Arc::new(ReentrantGetter(Arc::downgrade(&store))))?;
+    let excluded = store.except(&metadata, &["nullable"])?;
+    assert_eq!(excluded.get("id"), Some(&json!("custom getter")));
+    assert_eq!(
+        excluded.get("secret"),
+        Some(&json!("visible to explicit reads"))
+    );
+    assert!(!excluded.contains_key("getter_side_effect"));
+    assert!(!excluded.contains_key("nullable"));
+
+    let selected = store.only(
+        &metadata,
+        &["missing", "nullable", "getter_side_effect", "id"],
+    )?;
+    assert_eq!(selected.get("missing"), Some(&Value::Null));
+    assert_eq!(selected.get("nullable"), Some(&Value::Null));
+    assert_eq!(selected.get("getter_side_effect"), Some(&json!(true)));
+    assert_eq!(selected.get("id"), Some(&json!("custom getter")));
+
+    store.register_getter("id", Arc::new(FailingGetter))?;
+    assert!(store.only(&metadata, &["id"]).is_err());
+    assert!(store.except(&metadata, &[]).is_err());
+    assert!(store.except(&metadata, &["id"]).is_ok());
+    Ok(())
+}
+
+#[test]
+fn except_compares_integer_and_string_attribute_keys_using_php_membership() -> Result<()> {
+    let store = ModelAttributes::new(Map::from_iter([
+        (String::new(), json!(0)),
+        ("0".into(), json!(0)),
+        ("1".into(), json!(1)),
+        ("01".into(), json!(2)),
+        ("1x".into(), json!(3)),
+        ("9223372036854775807".into(), json!(4)),
+        ("9223372036854775809".into(), json!(5)),
+    ]));
+    let metadata = ModelMetadata::new("records", "example::Record");
+    store.register_getter("0", Arc::new(FailingGetter))?;
+
+    let selected = store.except(&metadata, &["1e0", "9223372036854775808"])?;
+    assert_eq!(
+        selected,
+        Map::from_iter([
+            (String::new(), Value::Null),
+            ("0".into(), Value::Null),
+            ("1x".into(), json!(3)),
+            ("9223372036854775809".into(), json!(5)),
+        ])
+    );
+
+    let selected = store.only(&metadata, &["", "0", "1", "01", "1e0"])?;
+    assert_eq!(selected.get(""), Some(&Value::Null));
+    assert_eq!(selected.get("0"), Some(&Value::Null));
+    assert_eq!(selected.get("1"), Some(&json!(1)));
+    assert_eq!(selected.get("01"), Some(&json!(2)));
+    assert_eq!(selected.get("1e0"), Some(&Value::Null));
     Ok(())
 }
 

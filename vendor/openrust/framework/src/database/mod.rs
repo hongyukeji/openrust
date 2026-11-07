@@ -16,6 +16,7 @@ use sea_orm::ConnectionTrait;
 use sea_orm::{ConnectOptions, Database, Statement, TransactionTrait};
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
+use tokio::sync::RwLock;
 
 tokio::task_local! {
     static PRIMARY_CONNECTION_SCOPE: (usize, DatabaseConnection);
@@ -172,6 +173,7 @@ impl<'tx> TransactionContext<'tx> {
 pub struct Databases {
     default: Db,
     handles: Arc<BTreeMap<String, Db>>,
+    guardable_columns: Arc<RwLock<BTreeMap<String, Arc<[String]>>>>,
 }
 
 impl Databases {
@@ -179,6 +181,7 @@ impl Databases {
         Self {
             default,
             handles: Arc::new(handles),
+            guardable_columns: Arc::default(),
         }
     }
 
@@ -199,6 +202,22 @@ impl Databases {
                 "requested database instance is not configured",
             )
         })
+    }
+
+    // 同一应用按类缓存首次成功的非空清单；Schema I/O 不持缓存锁。
+    async fn guardable_columns(&self, model: &eloquent::ModelMetadata) -> Result<Arc<[String]>> {
+        if let Some(columns) = self.guardable_columns.read().await.get(&model.class_name) {
+            return Ok(Arc::clone(columns));
+        }
+        let db = model.resolve_connection(self, None)?;
+        let columns: Arc<[String]> = db.schema().get_column_listing(&model.table).await?.into();
+        if columns.is_empty() {
+            return Ok(columns);
+        }
+        let mut cache = self.guardable_columns.write().await;
+        Ok(Arc::clone(
+            cache.entry(model.class_name.clone()).or_insert(columns),
+        ))
     }
 
     /// 返回 default 与所有具名连接的名称。

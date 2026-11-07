@@ -5,7 +5,7 @@ use crate::{
     database::{Databases, Db},
 };
 use serde_json::{Map, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use super::AttributeCast;
 
@@ -33,6 +33,8 @@ pub struct ModelMetadata {
     pub visible: Vec<String>,
     /// 显式属性转换，主键声明可覆盖隐式的递增主键转换。
     pub casts: BTreeMap<String, AttributeCast>,
+    fillable: Vec<String>,
+    guarded: Vec<String>,
 }
 impl ModelMetadata {
     /// 创建显式表名和类标识的模型定义；其余采用官方基础默认。
@@ -47,8 +49,51 @@ impl ModelMetadata {
             hidden: Vec::new(),
             visible: Vec::new(),
             casts: BTreeMap::new(),
+            fillable: Vec::new(),
+            guarded: vec!["*".into()],
         }
     }
+    /// 返回模型声明的批量赋值白名单。
+    pub fn get_fillable(&self) -> &[String] {
+        &self.fillable
+    }
+
+    /// 替换批量赋值白名单，保留原声明顺序及重复项。
+    pub fn fillable(&mut self, fields: Vec<String>) -> &mut Self {
+        self.fillable = fields;
+        self
+    }
+
+    /// 按首次出现顺序合并白名单；空输入保持现有声明。
+    pub fn merge_fillable(&mut self, fields: Vec<String>) -> &mut Self {
+        if !fields.is_empty() {
+            merge_assignment_fields(&mut self.fillable, fields);
+        }
+        self
+    }
+
+    /// 返回模型声明的批量赋值拒绝列表。
+    pub fn get_guarded(&self) -> &[String] {
+        &self.guarded
+    }
+
+    /// 替换拒绝列表；空列表关闭此模型的拒绝列表。
+    pub fn guard(&mut self, fields: Vec<String>) -> &mut Self {
+        self.guarded = fields;
+        self
+    }
+
+    /// 按首次出现顺序合并拒绝列表，空输入也会去重。
+    pub fn merge_guarded(&mut self, fields: Vec<String>) -> &mut Self {
+        merge_assignment_fields(&mut self.guarded, fields);
+        self
+    }
+
+    /// 返回模型声明是否默认保护全部字段。
+    pub fn totally_guarded(&self) -> bool {
+        self.fillable.is_empty() && self.guarded == ["*"]
+    }
+
     /// 返回读取/赋值使用的转换；只有递增主键才隐式注入 `key_type`。
     pub fn effective_cast(&self, name: &str) -> Result<Option<AttributeCast>> {
         if let Some(cast) = self.casts.get(name) {
@@ -109,7 +154,7 @@ impl ModelMetadata {
         self.check_raw_class_cast(name)?;
         self.effective_cast(name)
     }
-    fn check_raw_class_cast(&self, name: &str) -> Result<()> {
+    pub(super) fn check_raw_class_cast(&self, name: &str) -> Result<()> {
         // 显式enum声明自身即规范类型，不继承被覆盖的key_type原文。
         if self.casts.contains_key(name) || name != self.key_name || !self.incrementing {
             return Ok(());
@@ -159,6 +204,12 @@ impl ModelMetadata {
     }
 }
 
+fn merge_assignment_fields(existing: &mut Vec<String>, fields: Vec<String>) {
+    existing.extend(fields);
+    let mut seen = HashSet::with_capacity(existing.len());
+    existing.retain(|field| seen.insert(field.clone()));
+}
+
 /// 已加载模型提供的持久身份能力；允许登录标识与模型主键不同。
 ///
 /// 返回模型自身 `getKey` 的转换后原始值，未持久化模型可为 null；
@@ -204,6 +255,34 @@ impl MorphIdentity {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+    #[test]
+    fn assignment_declarations_preserve_defaults_and_merge_order() {
+        let mut metadata = ModelMetadata::new("records", "example::Record");
+        assert_eq!(metadata.get_fillable(), &[] as &[String]);
+        assert_eq!(metadata.get_guarded(), &["*"]);
+        assert!(metadata.totally_guarded());
+
+        metadata
+            .fillable(vec!["name".into(), "name".into(), "Name".into()])
+            .merge_fillable(Vec::new());
+        assert_eq!(metadata.get_fillable(), &["name", "name", "Name"]);
+        assert!(!metadata.totally_guarded());
+        metadata.merge_fillable(vec!["priority".into(), "Name".into()]);
+        assert_eq!(metadata.get_fillable(), &["name", "Name", "priority"]);
+
+        metadata
+            .fillable(Vec::new())
+            .guard(vec!["*".into(), "*".into()]);
+        assert!(!metadata.totally_guarded());
+        metadata.merge_guarded(Vec::new());
+        assert!(metadata.totally_guarded());
+        metadata.merge_guarded(vec!["owner_id".into(), "*".into(), "owner_id".into()]);
+        assert_eq!(metadata.get_guarded(), &["*", "owner_id"]);
+        assert!(!metadata.totally_guarded());
+        metadata.guard(Vec::new());
+        assert_eq!(metadata.get_guarded(), &[] as &[String]);
+    }
+
     #[test]
     fn primary_key_cast_is_injected_only_for_incrementing_and_explicit_cast_wins() -> Result<()> {
         let mut metadata = ModelMetadata::new("accounts", "Account");

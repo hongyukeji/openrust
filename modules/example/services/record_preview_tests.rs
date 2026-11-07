@@ -2,6 +2,14 @@
 use super::*;
 use serde_json::json;
 
+async fn preview(
+    model: &example_record::Model,
+    input: ExampleRecordInput,
+    discard: bool,
+) -> Result<RecordPreview> {
+    super::preview(model, input, discard, MassAssignment::default()).await
+}
+
 fn fixture() -> (example_record::Model, ExampleRecordInput) {
     let metadata = json!({"label":"数据","values":[1]});
     (
@@ -72,6 +80,26 @@ async fn actual_and_cast_type_changes_publish_only_the_preview_snapshot() -> Res
     let report = preview(&model, input, false).await?;
     assert_eq!(report.original.get("name"), Some(&json!("原记录")));
     assert_eq!(report.proposed.get("name"), Some(&json!("拟修改")));
+    assert_eq!(
+        serde_json::to_value(&report.display.summary).map_err(openrust::Error::internal)?,
+        json!({"name": "拟修改", "priority": 8, "enabled": true}),
+    );
+    assert_eq!(
+        serde_json::to_value(&report.display.details).map_err(openrust::Error::internal)?,
+        json!({
+            "description": "内容",
+            "view_count": 4,
+            "published_at": null,
+            "metadata": {"label": "数据", "values": ["1"]},
+            "category_id": null,
+        }),
+    );
+    assert!(
+        report
+            .proposed
+            .get("metadata")
+            .is_some_and(Value::is_string)
+    );
     assert_eq!(report.dirty.get("priority"), Some(&json!(8)));
     assert!(report.dirty.contains_key("metadata"));
     assert_eq!(report.changes, report.dirty);

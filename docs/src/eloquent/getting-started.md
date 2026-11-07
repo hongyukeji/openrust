@@ -30,7 +30,20 @@ Ok(())
 
 只有自增主键才隐式使用 `key_type` 转换；显式 `casts` 优先。UUID 等字符串主键应明确选择非自增与字符串类型。认证默认使用模型主键名及相同属性读取；`GenericUser` 是独立的原始属性账户契约，不偷偷注入模型主键转换。应用选择 `password_hash` 是自身 schema 决定，不更改框架 GenericUser 的默认密码字段 `password`。
 
+## 批量赋值声明
+
+`ModelMetadata::new` 默认白名单为空，拒绝列表为 `["*"]`。应用可用 `fillable` 和 `guard` 替换声明，或用 `merge_fillable` 和 `merge_guarded` 按原顺序合并。示例记录在模型中声明八个可编辑字段，预览按数据库列顺序取交集。批量赋值使用 `attributes.fill(&metadata, input, &policy).await?`，其中 `input` 是保留输入顺序的 JSON 对象，`MassAssignment::new(&databases)` 使用当前应用服务。严格模式可设置 `prevent_silent_discard`，并以 `discarded_attribute_violation` 处理被拒字段。后续字段失败时已执行的赋值保留。示例记录预览先通过账户归属校验和输入验证，再用严格 `fill` 执行模型白名单，metadata 仍由业务 setter 处理。默认策略也可用于独立快照；若字段需要检查 Schema 且未提供数据库服务，将返回 `model_mass_assignment_database_required`。
+
+`force_fill` 在当前异步调用链临时解除保护，复用同一 setter 和 cast，调用结束后恢复保护。另起的 Tokio 任务有独立作用域。启用 hashing 时，可在策略中提供应用 `HashManager`。这两个入口只修改内存属性；模型保存及更完整的自定义转换仍按后续契约交付。
+
+`attributes.is_fillable(&metadata, &databases, "name").await?` 判断白名单、拒绝列表及数据库列；显式白名单优先。拒绝列表非空且没有命中时，已登记 setter 可使虚拟字段参与赋值。其余字段使用模型选择的连接读取 Schema，首次非空结果按模型类标识缓存于当前应用的 `Databases` 服务，空结果保留上游放行语义且会重查。模型类标识需稳定且唯一。自定义 class cast 与 PHP 非默认字节 locale 的匹配仍有对应缺口。
+在临时解除赋值保护的调用链中，`is_fillable` 允许赋值，`is_guarded` 仍报告字段的保护规则。
+
 ## 水合与读取属性
+
+`attributes.only(&metadata, &["name", "priority"])?` 按指定字段依次应用 getter 和 cast，缺项保留为 `null`。`attributes.except(&metadata, &["name"])?` 先取得当前原始键集合，再排除指定字段并逐项应用同一读取逻辑。数字键按 PHP 宽松比较，空名称和 `"0"` 读取为 `null`。这两个入口接受 Rust 字符串切片，显式属性选择不应用序列化可见性。完整关系和缺项严格模式仍按 Model 后续契约交付。
+
+示例模块的记录预览将选定标题字段放入 `display.summary`，其余可编辑字段放入 `display.details`。例如详情中的 metadata 是经 cast 读取的 JSON 值，现有 `proposed.metadata` 继续展示原始属性文本。预览沿用同一账户归属校验，响应不包含内部所有者标识，也不执行保存。
 
 `attributes_from_row` 从同次查询按列序号读取原始值，不先经过模型 cast 或便利 JSON 转换。SQL NULL、缺失字段与解码失败分开：MySQL 大 unsigned 与 PostgreSQL NUMERIC 保持精确文本；SQLite 按实际 storage class 读取。原始 JSON 列保持文本，只有显式 Array cast 才解码。二进制以字节数组承载；不可表示的非有限数值明确报错，不伪装 null。
 

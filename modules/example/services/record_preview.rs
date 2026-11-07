@@ -2,8 +2,13 @@
 use crate::modules::example::{
     http::requests::example_record::ExampleRecordInput, models::example_record,
 };
-use openrust::{Result, database::eloquent::AttributeSetter, support::BoxFuture};
+use openrust::{
+    Result,
+    database::eloquent::{AttributeSetter, MassAssignment},
+    support::BoxFuture,
+};
 use serde_json::{Map, Value};
+use std::sync::Arc;
 
 #[derive(serde::Serialize)]
 pub(crate) struct RecordPreview {
@@ -11,6 +16,7 @@ pub(crate) struct RecordPreview {
     pub(crate) original: Map<String, Value>,
     pub(crate) original_transformed: Map<String, Value>,
     pub(crate) proposed: Map<String, Value>,
+    pub(crate) display: RecordPreviewDisplay,
     pub(crate) dirty: Map<String, Value>,
     pub(crate) changes: Map<String, Value>,
     pub(crate) previous: Map<String, Value>,
@@ -18,53 +24,67 @@ pub(crate) struct RecordPreview {
     pub(crate) persisted: bool,
 }
 
+#[derive(serde::Serialize)]
+pub(crate) struct RecordPreviewDisplay {
+    summary: Map<String, Value>,
+    details: Map<String, Value>,
+}
+
 pub(crate) async fn preview(
     model: &example_record::Model,
     input: ExampleRecordInput,
     discard: bool,
+    mut assignment: MassAssignment<'_>,
 ) -> Result<RecordPreview> {
     let attributes = model.attribute_snapshot()?;
     let metadata = example_record::Model::attribute_metadata();
-    for (name, value) in [
-        ("name", Value::String(input.name)),
-        ("description", Value::String(input.description)),
-        ("priority", Value::from(input.priority)),
-        ("view_count", Value::from(input.view_count)),
-        ("enabled", Value::Bool(input.enabled)),
-        (
-            "published_at",
-            serde_json::to_value(input.published_at).map_err(openrust::Error::internal)?,
-        ),
-        (
-            "category_id",
-            input.category_id.map_or(Value::Null, Value::from),
-        ),
-    ] {
-        attributes.set_attribute(&metadata, name, value).await?;
-    }
-    // 默认业务setter保留现update的JSON类型；注册的自定义setter仍优先。
-    let default_setter = MetadataPreviewSetter {
-        present: input.metadata.is_some(),
-    };
-    attributes
-        .set_attribute_with_default_setter(
-            &metadata,
-            "metadata",
-            input.metadata.unwrap_or(Value::Null),
-            &default_setter,
-        )
-        .await?;
+    assignment.prevent_silent_discard = true;
+    // 此快照的业务 setter 区分省略 metadata 与显式 JSON null。
+    attributes.register_setter(
+        "metadata",
+        Arc::new(MetadataPreviewSetter {
+            present: input.metadata.is_some(),
+        }),
+    )?;
+    let proposed = Map::from_iter(
+        [
+            ("name", Value::String(input.name)),
+            ("description", Value::String(input.description)),
+            ("priority", Value::from(input.priority)),
+            ("view_count", Value::from(input.view_count)),
+            ("enabled", Value::Bool(input.enabled)),
+            (
+                "published_at",
+                serde_json::to_value(input.published_at).map_err(openrust::Error::internal)?,
+            ),
+            (
+                "category_id",
+                input.category_id.map_or(Value::Null, Value::from),
+            ),
+            ("metadata", input.metadata.unwrap_or(Value::Null)),
+        ]
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value)),
+    );
+    attributes.fill(&metadata, proposed, &assignment).await?;
     // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
     attributes.sync_changes(&metadata)?;
     if discard {
         attributes.discard_changes()?;
     }
+    // 摘要与详情共用同一字段选择，详情读取转换后的值。
+    let summary_fields = ["name", "priority", "enabled"];
+    let display = RecordPreviewDisplay {
+        summary: attributes.only(&metadata, &summary_fields)?,
+        details: attributes.except(&metadata, &summary_fields)?,
+    };
     let dirty = attributes.get_dirty(&metadata)?;
     Ok(RecordPreview {
         editable_fields: Vec::new(),
         original: attributes.get_raw_original_attributes()?,
         original_transformed: attributes.get_original_attributes(&metadata, |_| None)?,
         proposed: attributes.raw_attributes()?,
+        display,
         dirty,
         changes: attributes.get_changes()?,
         previous: attributes.get_previous()?,
@@ -93,21 +113,10 @@ impl AttributeSetter for MetadataPreviewSetter {
 
 impl RecordPreview {
     pub(crate) fn with_schema_columns(mut self, columns: &[String]) -> Self {
+        let metadata = example_record::Model::attribute_metadata();
         self.editable_fields = columns
             .iter()
-            .filter(|name| {
-                matches!(
-                    name.as_str(),
-                    "name"
-                        | "description"
-                        | "priority"
-                        | "view_count"
-                        | "enabled"
-                        | "published_at"
-                        | "metadata"
-                        | "category_id"
-                )
-            })
+            .filter(|name| metadata.get_fillable().contains(name))
             .cloned()
             .collect();
         self

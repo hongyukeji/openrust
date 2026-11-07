@@ -6,6 +6,7 @@ use crate::modules::example::http::requests::example_record::{
 use crate::modules::example::http::resources::example_record::ExampleRecordResource;
 use crate::modules::example::models::example_record;
 use openrust::auth::CurrentUser;
+use openrust::database::eloquent::MassAssignment;
 use openrust::database::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder,
@@ -20,7 +21,7 @@ use openrust::http::Validated;
 use openrust::prelude::{Db, Inject};
 use openrust::routing::Resource;
 use openrust::routing::ResourceActions;
-use openrust::{Error, Result};
+use openrust::{Databases, Error, Result};
 
 pub(crate) struct ExampleRecords;
 
@@ -164,6 +165,7 @@ pub(crate) async fn update(
 pub(crate) async fn preview(
     user: CurrentUser,
     Inject(db): Inject<Db>,
+    Inject(databases): Inject<Databases>,
     Path(id): Path<i64>,
     Query(options): Query<ExampleRecordPreviewOptions>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
@@ -177,9 +179,14 @@ pub(crate) async fn preview(
     // 先owner筛选/404，再读真实列清单；此处不替代Validated或Model guardable。
     let columns = db.schema().get_column_listing("example_records").await?;
     Ok(Json(
-        crate::modules::example::services::record_preview::preview(&model, input, options.discard)
-            .await?
-            .with_schema_columns(&columns),
+        crate::modules::example::services::record_preview::preview(
+            &model,
+            input,
+            options.discard,
+            MassAssignment::new(&databases),
+        )
+        .await?
+        .with_schema_columns(&columns),
     ))
 }
 

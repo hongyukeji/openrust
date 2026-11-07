@@ -284,6 +284,8 @@ async fn attribute_preview_contract(
     clean.assert_status(StatusCode::OK)?;
     let clean: serde_json::Value = serde_json::from_slice(clean.body())?;
     let editable = assert_preview_schema(&db, &clean["data"]).await?;
+    let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
+    assert_model_guardable_columns(&databases).await?;
     assert_eq!(clean["data"]["dirty"], serde_json::json!({}));
     assert_eq!(clean["data"]["changes"], serde_json::json!({}));
     assert_eq!(clean["data"]["previous"], serde_json::json!({}));
@@ -315,6 +317,7 @@ async fn attribute_preview_contract(
     );
     assert!(changed["original_transformed"].get("owner_id").is_none());
     assert_eq!(changed["proposed"]["name"], "仅预览");
+    assert_preview_display(changed);
     assert_eq!(changed["dirty"]["priority"], 8);
     assert!(changed["dirty"].get("metadata").is_some());
     assert_eq!(changed["editable_fields"], editable);
@@ -346,6 +349,62 @@ async fn attribute_preview_contract(
         .await?
         .ok_or("preview removed source row")?;
     assert_eq!(after, before);
+    Ok(())
+}
+
+fn assert_preview_display(changed: &serde_json::Value) {
+    assert_eq!(changed["display"]["summary"]["name"], "仅预览");
+    assert_eq!(changed["display"]["summary"]["priority"], 8);
+    assert_eq!(
+        changed["display"]["details"]["metadata"]["tags"],
+        serde_json::json!(["changed"])
+    );
+    assert!(changed["display"]["details"].get("name").is_none());
+    assert!(changed["display"]["details"].get("owner_id").is_none());
+}
+
+async fn assert_model_guardable_columns(databases: &openrust::Databases) -> TestResult {
+    use openrust::database::eloquent::{ModelAttributes, ModelMetadata};
+
+    let attributes = ModelAttributes::default();
+    let mut model = ModelMetadata::new("example_record_guard_probe_missing", "example::GuardProbe");
+    model.guard(vec!["OWNER_ID".into(), "blocked\n".into()]);
+    assert!(attributes.is_fillable(&model, databases, "missing").await?);
+
+    model.table = "example_records".into();
+    assert!(attributes.is_fillable(&model, databases, "name").await?);
+    assert!(!attributes.is_fillable(&model, databases, "missing").await?);
+    assert!(
+        !attributes
+            .is_fillable(&model, databases, "owner_id")
+            .await?
+    );
+    assert!(attributes.is_guarded(&model, databases, "blocked").await?);
+    model.connection = Some("guard-probe-unconfigured".into());
+    assert!(attributes.is_fillable(&model, databases, "name").await?);
+
+    model.class_name = "example::UncachedGuardProbe".into();
+    assert_eq!(
+        attributes
+            .is_guarded(&model, databases, "name")
+            .await
+            .err()
+            .map(|error| error.code().to_owned()),
+        Some("database_instance_not_found".into()),
+    );
+    model.fillable(vec!["owner_id".into()]);
+    assert!(
+        attributes
+            .is_fillable(&model, databases, "owner_id")
+            .await?
+    );
+    model.fillable(Vec::new()).guard(Vec::new());
+    assert!(!attributes.is_fillable(&model, databases, "a.b").await?);
+    assert!(
+        !attributes
+            .is_fillable(&model, databases, "_private")
+            .await?
+    );
     Ok(())
 }
 
@@ -403,6 +462,7 @@ async fn assert_discarded_preview(
     let report = &body["data"];
     assert_eq!(report["proposed"], report["original"]);
     assert_eq!(report["proposed"]["name"], payload["name"]);
+    assert_eq!(report["display"]["summary"]["name"], payload["name"]);
     for field in ["dirty", "changes", "previous"] {
         assert_eq!(report[field], serde_json::json!({}));
     }

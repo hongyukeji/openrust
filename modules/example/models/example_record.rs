@@ -61,6 +61,21 @@ impl Model {
             "example_records",
             "modules::example::models::example_record::Model",
         );
+        metadata.fillable(
+            [
+                "name",
+                "description",
+                "priority",
+                "view_count",
+                "enabled",
+                "published_at",
+                "metadata",
+                "category_id",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+        );
         metadata.casts = [
             ("priority".into(), AttributeCast::Integer),
             ("view_count".into(), AttributeCast::Integer),

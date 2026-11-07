@@ -3,7 +3,8 @@
 use super::{AttributeCast, ModelMetadata};
 use crate::Error;
 use crate::Result;
-use crate::support::BoxFuture;
+use crate::database::Databases;
+use crate::support::{ArrayKey, BoxFuture, php_loose_string_equal, php_loose_string_value_equal};
 use serde_json::{Map, Value};
 use std::{
     collections::BTreeMap,
@@ -181,6 +182,100 @@ impl ModelAttributes {
         drop(previous);
         Ok(())
     }
+    /// 根据模型声明和实际 Schema 判断字段可否批量赋值。
+    ///
+    /// 显式白名单优先。默认保护规则拒绝点路径和下划线开头的字段。
+    pub async fn is_fillable(
+        &self,
+        metadata: &ModelMetadata,
+        databases: &Databases,
+        name: &str,
+    ) -> Result<bool> {
+        self.is_fillable_for_assignment(metadata, Some(databases), name)
+            .await
+    }
+
+    pub(super) async fn is_fillable_for_assignment(
+        &self,
+        metadata: &ModelMetadata,
+        databases: Option<&Databases>,
+        name: &str,
+    ) -> Result<bool> {
+        if super::is_unguarded()
+            || metadata
+                .get_fillable()
+                .iter()
+                .any(|field| php_loose_string_equal(name, field))
+        {
+            return Ok(true);
+        }
+        Ok(!self
+            .is_guarded_with_optional_database(metadata, databases, name)
+            .await?
+            && metadata.get_fillable().is_empty()
+            && !name.contains('.')
+            && !name.starts_with('_'))
+    }
+
+    /// 判断拒绝列表是否保护此字段，必要时查找模型所选连接的真实列。
+    ///
+    /// 临时解除赋值保护时仍按模型声明报告。已登记 setter 允许虚拟列参与判断。
+    /// 空 Schema 结果放行且不缓存，查询错误向上传递。
+    pub async fn is_guarded(
+        &self,
+        metadata: &ModelMetadata,
+        databases: &Databases,
+        name: &str,
+    ) -> Result<bool> {
+        self.is_guarded_with_optional_database(metadata, Some(databases), name)
+            .await
+    }
+
+    async fn is_guarded_with_optional_database(
+        &self,
+        metadata: &ModelMetadata,
+        databases: Option<&Databases>,
+        name: &str,
+    ) -> Result<bool> {
+        let guarded = metadata.get_guarded();
+        if guarded.is_empty() {
+            return Ok(false);
+        }
+        // 固定 PHP 正则使用 C locale、无 Unicode 修饰符，末尾锚点也匹配最后一个 LF 前。
+        if guarded == ["*"]
+            || guarded.iter().any(|field| {
+                field.eq_ignore_ascii_case(name)
+                    || field
+                        .strip_suffix('\n')
+                        .is_some_and(|field| field.eq_ignore_ascii_case(name))
+            })
+        {
+            return Ok(true);
+        }
+        if self
+            .state
+            .read()
+            .map_err(|_| state_error())?
+            .setters
+            .contains_key(name)
+        {
+            return Ok(false);
+        }
+        metadata.check_raw_class_cast(name)?;
+        let databases = databases.ok_or_else(|| {
+            Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "model_mass_assignment_database_required",
+                "字段保护需要当前应用的 Schema 服务",
+            )
+        })?;
+        let columns = databases.guardable_columns(metadata).await?;
+        Ok(!columns.is_empty()
+            && !columns
+                .iter()
+                .any(|column| php_loose_string_equal(name, column)))
+    }
+
     /// 原子读取指定字段的稳定原始值；拒绝当前尚未提交的收据值。
     pub fn committed_raw_attribute(&self, name: &str) -> Result<Option<Value>> {
         let state = self.state.read().map_err(|_| state_error())?;
@@ -238,6 +333,59 @@ impl ModelAttributes {
         let raw = snapshot.get(name).cloned();
         metadata.read_cast_attribute(name, raw)
     }
+    /// 按给定键读取当前属性，复用普通 getter 和 cast；缺项保留为 null。
+    ///
+    /// 重复键仍按输入顺序读取，映射保留最后一次结果。这里不应用序列化的可见性规则。
+    pub fn only(&self, metadata: &ModelMetadata, names: &[&str]) -> Result<Map<String, Value>> {
+        self.project_attributes(metadata, names.iter().copied())
+    }
+
+    /// 读取当前原始键集合中的属性，按 Laravel 的宽松比较排除指定名称，再应用 getter 或 cast。
+    ///
+    /// 访问器在锁外运行。它新增的键不会加入本次选择，后续属性读取仍观察当时的当前值。
+    pub fn except(&self, metadata: &ModelMetadata, names: &[&str]) -> Result<Map<String, Value>> {
+        let keys: Vec<_> = self
+            .state
+            .read()
+            .map_err(|_| state_error())?
+            .raw
+            .keys()
+            .cloned()
+            .collect();
+        let selected = keys
+            .iter()
+            .map(String::as_str)
+            .filter(|name| match ArrayKey::from(*name) {
+                ArrayKey::Integer(key) => {
+                    let key = Value::from(key);
+                    !names
+                        .iter()
+                        .any(|excluded| php_loose_string_value_equal(excluded, &key))
+                }
+                ArrayKey::String(_) => !names
+                    .iter()
+                    .any(|excluded| php_loose_string_equal(name, excluded)),
+            });
+        self.project_attributes(metadata, selected)
+    }
+
+    fn project_attributes<'a>(
+        &self,
+        metadata: &ModelMetadata,
+        names: impl Iterator<Item = &'a str>,
+    ) -> Result<Map<String, Value>> {
+        names
+            .map(|name| {
+                // Laravel getAttribute 对空名称及 "0" 直接返回 null。
+                let value = match name {
+                    "" | "0" => Value::Null,
+                    _ => self.get_attribute(metadata, name)?.unwrap_or(Value::Null),
+                };
+                Ok((name.to_owned(), value))
+            })
+            .collect()
+    }
+
     /// 已登记getter优先，否则使用模型自身的默认访问器；两者都在锁外执行。
     ///
     /// 默认访问器与显式getter同属属性读取层，不再叠加cast；返回null也不会回退。
@@ -320,7 +468,7 @@ impl ModelAttributes {
         )
         .await
     }
-    async fn set_attribute_inner(
+    pub(super) async fn set_attribute_inner(
         &self,
         metadata: &ModelMetadata,
         name: &str,

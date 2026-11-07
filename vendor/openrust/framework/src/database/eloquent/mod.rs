@@ -9,7 +9,9 @@ mod attribute_store;
 pub use attribute_store::{AttributeGetter, AttributeMutation, AttributeSetter, ModelAttributes};
 #[cfg(feature = "hashing")]
 pub mod casts;
+mod mass_assignment;
 mod model;
 pub use attributes::attributes_from_row;
+pub use mass_assignment::{DiscardedAttributeViolation, MassAssignment, is_unguarded, unguarded};
 
 pub use model::{ModelIdentity, ModelMetadata, MorphIdentity};

@@ -504,13 +504,13 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 `POST /api/example/records/{id}/preview` 使用与记录CRUD相同的JWT认证、owner筛选和 `ExampleRecordInput` 校验；异主记录仍返回404，现有更新接口不变。正文与更新相同，响应包含 `original`、`proposed`、`dirty`、`changes`、`previous`、`has_changes` 和固定的 `persisted=false`。预览不会修改数据库，确认修改仍调用原更新接口。附加 `?discard=true` 会在应用并记录请求修改后调用公开 `discard_changes()`，返回恢复后的原始字段，并清空 `dirty`、`changes` 和 `previous`。
 
-现有 `models/example_record::Model::attribute_snapshot` 从可编辑业务字段建立预览快照，不返回owner。`services/record_preview` 通过公开 `ModelAttributes` 赋值、cast感知比较和 `sync_changes` 发布预览变化，未调用 `sync_original` 表示已保存，也未建立第二种业务Model或自造Eloquent save。metadata两侧均按现有更新接口接受的serde JSON值序列化为文本；预览赋值通过公开 `set_attribute_with_default_setter` 使用业务默认setter，注册的自定义setter优先，默认分支不再串通用cast，保留整数与整double的 `.0` 差别；其他字段继续普通setter管线。读取比较复用Array cast；原始返回值不等同解码后的显示投影。数据库可能规范化JSON键顺序，键顺序本身属于严格比较，不能用无序JSON相等替代。
+现有 `models/example_record::Model::attribute_snapshot` 从可编辑业务字段建立预览快照，不返回owner。`services/record_preview` 通过公开 `ModelAttributes` 赋值、cast感知比较和 `sync_changes` 发布预览变化，未调用 `sync_original` 表示已保存，也未建立第二种业务Model或自造Eloquent save。metadata两侧均按现有更新接口接受的serde JSON值序列化为文本；预览通过严格 `fill` 应用模型白名单。快照为 metadata 登记业务 setter，保留字段省略与显式 JSON null 的区别，也保留整数与整 double 的 `.0` 差别。其他字段复用普通 setter 管线。读取比较复用 Array cast。`display.summary` 通过 `only` 选择标题字段，`display.details` 通过 `except` 读取其余可编辑字段，metadata 在详情中为解码后的 JSON 值。数据库可能规范化JSON键顺序，键顺序本身属于严格比较，不能用无序JSON相等替代。
 
 该示范只覆盖内存属性状态；完整Model save/事件、日期和自定义cast仍有公开缺口。框架API及409/partial-sync边界见[模型基础](../../docs/src/eloquent/getting-started.md#原始基线与变化记录)。
 
 预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。
 
-预览响应的 `editable_fields` 是真实Schema列序与当前输入DTO八字段的交集，表示此接口可编辑的字段，不暴露owner/id/内部时间列；它不替代Validated、owner过滤、Model guardable或权限规则。owner不符/记录不存在先404，随后才读Schema。此只读见证不会写记录；Schema目录错误正常传播，原预览快照/SQL不变边界继续有效。
+预览响应的 `editable_fields` 是真实 Schema 列序与模型白名单的交集，表示此接口可编辑的字段，不暴露owner/id/内部时间列；它不替代Validated、owner过滤、Model guardable或权限规则。owner不符/记录不存在先404，随后才读Schema。此只读见证不会写记录；Schema目录错误正常传播，原预览快照/SQL不变边界继续有效。
 
 文章事件由模块声明稳定身份 `Example\Events\ArticleChanged`，原事务内直接记录及队列映射共用唯一 Events。模块启停仍按 `modules.<name>.<phase>` 字符串派发；相同载荷类型不会触发其他事件名的类监听。普通响应 false 只截断传播，不使文章写入或模块启停自动失败；业务错误仍向事务传播。
 
