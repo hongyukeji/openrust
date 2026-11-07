@@ -1,6 +1,14 @@
 //! 字段类型演示实体，使用专属的 `example_records` 表。
 
-use openrust::database::sea_orm::entity::prelude::*;
+use openrust::{
+    Error, Result as ModelResult,
+    database::{
+        eloquent::{ModelAttributes, ModelMetadata, SaveModel},
+        sea_orm::{self, entity::prelude::*},
+    },
+};
+use serde::de::DeserializeOwned;
+use serde_json::{Map, Value};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "example_records")]
@@ -56,11 +64,12 @@ impl Model {
             .map(|text| text.map_or(serde_json::Value::Null, serde_json::Value::String))
     }
     pub(crate) fn attribute_metadata() -> openrust::database::eloquent::ModelMetadata {
-        use openrust::database::eloquent::{AttributeCast, ModelMetadata};
+        use openrust::database::eloquent::AttributeCast;
         let mut metadata = ModelMetadata::new(
             "example_records",
             "modules::example::models::example_record::Model",
         );
+        metadata.timestamps = false;
         metadata.fillable(
             [
                 "name",
@@ -86,4 +95,95 @@ impl Model {
         .collect();
         metadata
     }
+}
+
+/// 将示例实体的业务属性交给框架保存，保留列类型和原始基线。
+pub(crate) struct RecordForSave {
+    pub(crate) metadata: ModelMetadata,
+    pub(crate) attributes: ModelAttributes,
+    exists: bool,
+}
+
+impl RecordForSave {
+    pub(crate) fn new(owner: i64) -> Self {
+        Self {
+            metadata: Model::attribute_metadata(),
+            attributes: ModelAttributes::new(Map::from_iter([(
+                "owner_id".into(),
+                Value::from(owner),
+            )])),
+            exists: false,
+        }
+    }
+
+    pub(crate) fn from_existing(model: &Model) -> ModelResult<Self> {
+        let attributes = model.attribute_snapshot()?;
+        attributes.set_raw_attribute("id", Value::from(model.id))?;
+        attributes.sync_original()?;
+        Ok(Self {
+            metadata: Model::attribute_metadata(),
+            attributes,
+            exists: true,
+        })
+    }
+
+    pub(crate) fn id(&self) -> ModelResult<i64> {
+        self.attributes
+            .raw_attribute("id")?
+            .and_then(|value| value.as_i64())
+            .ok_or_else(|| Error::custom("example_record_id_invalid", "示例记录主键不是预期整数"))
+    }
+}
+
+impl SaveModel for RecordForSave {
+    fn metadata(&self) -> &ModelMetadata {
+        &self.metadata
+    }
+
+    fn attributes(&self) -> &ModelAttributes {
+        &self.attributes
+    }
+
+    fn attributes_mut(&mut self) -> &mut ModelAttributes {
+        &mut self.attributes
+    }
+
+    fn exists(&self) -> bool {
+        self.exists
+    }
+
+    fn mark_created(&mut self) {
+        self.exists = true;
+    }
+
+    fn bind_attribute(&self, name: &str, value: &Value) -> ModelResult<sea_orm::Value> {
+        match name {
+            "id" | "owner_id" | "view_count" => bind::<i64>(value),
+            "name" | "description" => bind::<String>(value),
+            "priority" => bind::<i32>(value),
+            "enabled" => bind::<bool>(value),
+            "published_at" => bind::<Option<DateTimeUtc>>(value),
+            "category_id" => bind::<Option<i64>>(value),
+            "metadata" => match value {
+                Value::Null => Ok(Option::<Json>::None.into()),
+                Value::String(text) => {
+                    Ok(Some(serde_json::from_str::<Json>(text).map_err(Error::internal)?).into())
+                }
+                _ => Err(Error::custom(
+                    "example_record_metadata_invalid",
+                    "示例记录 metadata 原始值无效",
+                )),
+            },
+            _ => Err(Error::custom(
+                "example_record_column_invalid",
+                "无法绑定示例记录字段",
+            )),
+        }
+    }
+}
+
+fn bind<T: DeserializeOwned + Into<sea_orm::Value>>(value: &Value) -> ModelResult<sea_orm::Value> {
+    T::deserialize(value)
+        .map(Into::into)
+        .map_err(Error::internal)
 }

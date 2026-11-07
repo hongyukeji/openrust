@@ -5,12 +5,13 @@ use crate::modules::example::http::requests::example_record::{
 };
 use crate::modules::example::http::resources::example_record::ExampleRecordResource;
 use crate::modules::example::models::example_record;
+use crate::modules::example::services::record_preview::fill_record_input;
 use openrust::auth::CurrentUser;
-use openrust::database::eloquent::MassAssignment;
+use openrust::database::eloquent::{MassAssignment, SaveContext, save_with_query};
 use openrust::database::sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder,
+    ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
 };
+use openrust::events::Events;
 use openrust::http::Created;
 use openrust::http::Json;
 use openrust::http::PageParams;
@@ -18,9 +19,11 @@ use openrust::http::Paginated;
 use openrust::http::Path;
 use openrust::http::Query;
 use openrust::http::Validated;
+use openrust::http::axum::Extension;
 use openrust::prelude::{Db, Inject};
 use openrust::routing::Resource;
 use openrust::routing::ResourceActions;
+use openrust::support::CalendarContext;
 use openrust::{Databases, Error, Result};
 
 pub(crate) struct ExampleRecords;
@@ -82,40 +85,37 @@ pub(crate) async fn show(
 pub(crate) async fn store(
     user: CurrentUser,
     Inject(db): Inject<Db>,
+    Inject(databases): Inject<Databases>,
+    Inject(events): Inject<Events>,
+    Extension(calendar): Extension<CalendarContext>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
 ) -> Result<Created<Json<ExampleRecordResource>>> {
     let owner = user.integer_id()?;
-    // 模块实体固定物理表名；复用已选主库池，不把框架表前缀施加到模块专有表。
-    let query_db = Db::default();
-    query_db.initialize(db.primary_connection()?)?;
+    let query_db = record_query_db(&db)?;
     let model = db
         .transaction(move |transaction| {
             Box::pin(async move {
-                let id = query_db
-                    .table("example_records")?
-                    .using_transaction(transaction)
-                    .insert_get_id(
-                        vec![
-                            ("owner_id", owner.into()),
-                            ("name", input.name.into()),
-                            ("description", input.description.into()),
-                            ("priority", input.priority.into()),
-                            ("view_count", input.view_count.into()),
-                            ("enabled", input.enabled.into()),
-                            ("published_at", input.published_at.into()),
-                            ("metadata", input.metadata.into()),
-                            ("category_id", input.category_id.into()),
-                        ],
-                        None,
-                    )
-                    .await?;
-                let openrust::database::sea_orm::Value::BigInt(Some(id)) = id else {
-                    return Err(Error::custom(
-                        "example_record_id_invalid",
-                        "示例记录主键不是预期整数",
-                    ));
+                let mut model = example_record::RecordForSave::new(owner);
+                fill_record_input(
+                    &model.attributes,
+                    &model.metadata,
+                    input,
+                    MassAssignment::new(&databases),
+                )
+                .await?;
+                let context = SaveContext {
+                    databases: &databases,
+                    events: Some(&events),
+                    calendar: &calendar,
+                    touch: true,
                 };
-                example_record::Entity::find_by_id(id)
+                let query = query_db
+                    .table("example_records")?
+                    .using_transaction(transaction);
+                if !save_with_query(&mut model, &context, query).await? {
+                    return Err(save_cancelled());
+                }
+                example_record::Entity::find_by_id(model.id()?)
                     .filter(example_record::Column::OwnerId.eq(owner))
                     .one(transaction)
                     .await
@@ -130,35 +130,63 @@ pub(crate) async fn store(
 pub(crate) async fn update(
     user: CurrentUser,
     Inject(db): Inject<Db>,
+    Inject(databases): Inject<Databases>,
+    Inject(events): Inject<Events>,
+    Extension(calendar): Extension<CalendarContext>,
     Path(id): Path<i64>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
 ) -> Result<Json<ExampleRecordResource>> {
     let connection = db.primary_connection()?;
-    let model = example_record::Entity::find_by_id(id)
-        .filter(example_record::Column::OwnerId.eq(user.integer_id()?))
+    let owner = user.integer_id()?;
+    let selected =
+        example_record::Entity::find_by_id(id).filter(example_record::Column::OwnerId.eq(owner));
+    let existing = selected
+        .clone()
         .one(&connection)
         .await
         .map_err(Error::internal)?
         .ok_or_else(not_found)?;
-    let active = example_record::ActiveModel {
-        id: Set(model.id),
-        owner_id: Set(model.owner_id),
-        name: Set(input.name),
-        description: Set(input.description),
-        priority: Set(input.priority),
-        view_count: Set(input.view_count),
-        enabled: Set(input.enabled),
-        published_at: Set(input.published_at),
-        metadata: Set(input.metadata),
-        category_id: Set(input.category_id),
+    let mut model = example_record::RecordForSave::from_existing(&existing)?;
+    fill_record_input(
+        &model.attributes,
+        &model.metadata,
+        input,
+        MassAssignment::new(&databases),
+    )
+    .await?;
+    let context = SaveContext {
+        databases: &databases,
+        events: Some(&events),
+        calendar: &calendar,
+        touch: true,
     };
-    Ok(Json(
-        active
-            .update(&connection)
-            .await
-            .map_err(Error::internal)?
-            .into(),
-    ))
+    let query = record_query_db(&db)?
+        .table("example_records")?
+        .where_eq("owner_id", owner)?;
+    if !save_with_query(&mut model, &context, query).await? {
+        return Err(save_cancelled());
+    }
+    let updated = selected
+        .one(&connection)
+        .await
+        .map_err(Error::internal)?
+        .ok_or_else(not_found)?;
+    Ok(Json(updated.into()))
+}
+
+fn record_query_db(db: &Db) -> Result<Db> {
+    // 模块表名固定；查询借用同一主库连接，沿用示例现有的无前缀映射。
+    let query_db = Db::default();
+    query_db.initialize(db.primary_connection()?)?;
+    Ok(query_db)
+}
+
+fn save_cancelled() -> Error {
+    Error::custom_with_status(
+        openrust::http::axum::http::StatusCode::CONFLICT,
+        "example_record_save_cancelled",
+        "示例记录保存已取消",
+    )
 }
 
 /// 预览当前账户记录的拟修改字段，不执行更新。

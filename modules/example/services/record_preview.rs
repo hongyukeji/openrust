@@ -4,7 +4,7 @@ use crate::modules::example::{
 };
 use openrust::{
     Result,
-    database::eloquent::{AttributeSetter, MassAssignment},
+    database::eloquent::{AttributeSetter, MassAssignment, ModelAttributes, ModelMetadata},
     support::BoxFuture,
 };
 use serde_json::{Map, Value};
@@ -34,10 +34,43 @@ pub(crate) async fn preview(
     model: &example_record::Model,
     input: ExampleRecordInput,
     discard: bool,
-    mut assignment: MassAssignment<'_>,
+    assignment: MassAssignment<'_>,
 ) -> Result<RecordPreview> {
     let attributes = model.attribute_snapshot()?;
     let metadata = example_record::Model::attribute_metadata();
+    fill_record_input(&attributes, &metadata, input, assignment).await?;
+    // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
+    attributes.sync_changes(&metadata)?;
+    if discard {
+        attributes.discard_changes()?;
+    }
+    // 摘要与详情共用同一字段选择，详情读取转换后的值。
+    let summary_fields = ["name", "priority", "enabled"];
+    let display = RecordPreviewDisplay {
+        summary: attributes.only(&metadata, &summary_fields)?,
+        details: attributes.except(&metadata, &summary_fields)?,
+    };
+    let dirty = attributes.get_dirty(&metadata)?;
+    Ok(RecordPreview {
+        editable_fields: Vec::new(),
+        original: attributes.get_raw_original_attributes()?,
+        original_transformed: attributes.get_original_attributes(&metadata, |_| None)?,
+        proposed: attributes.raw_attributes()?,
+        display,
+        dirty,
+        changes: attributes.get_changes()?,
+        previous: attributes.get_previous()?,
+        has_changes: attributes.was_changed(&[])?,
+        persisted: false,
+    })
+}
+
+pub(crate) async fn fill_record_input(
+    attributes: &ModelAttributes,
+    metadata: &ModelMetadata,
+    input: ExampleRecordInput,
+    mut assignment: MassAssignment<'_>,
+) -> Result<()> {
     assignment.prevent_silent_discard = true;
     // 此快照的业务 setter 区分省略 metadata 与显式 JSON null。
     attributes.register_setter(
@@ -66,31 +99,8 @@ pub(crate) async fn preview(
         .into_iter()
         .map(|(name, value)| (name.to_owned(), value)),
     );
-    attributes.fill(&metadata, proposed, &assignment).await?;
-    // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
-    attributes.sync_changes(&metadata)?;
-    if discard {
-        attributes.discard_changes()?;
-    }
-    // 摘要与详情共用同一字段选择，详情读取转换后的值。
-    let summary_fields = ["name", "priority", "enabled"];
-    let display = RecordPreviewDisplay {
-        summary: attributes.only(&metadata, &summary_fields)?,
-        details: attributes.except(&metadata, &summary_fields)?,
-    };
-    let dirty = attributes.get_dirty(&metadata)?;
-    Ok(RecordPreview {
-        editable_fields: Vec::new(),
-        original: attributes.get_raw_original_attributes()?,
-        original_transformed: attributes.get_original_attributes(&metadata, |_| None)?,
-        proposed: attributes.raw_attributes()?,
-        display,
-        dirty,
-        changes: attributes.get_changes()?,
-        previous: attributes.get_previous()?,
-        has_changes: attributes.was_changed(&[])?,
-        persisted: false,
-    })
+    attributes.fill(metadata, proposed, &assignment).await?;
+    Ok(())
 }
 
 // Option<Json>的None与显式Some(Null)沿现业务投影分别保留为null和文本"null"。

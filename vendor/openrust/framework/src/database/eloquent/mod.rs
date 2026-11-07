@@ -11,7 +11,21 @@ pub use attribute_store::{AttributeGetter, AttributeMutation, AttributeSetter, M
 pub mod casts;
 mod mass_assignment;
 mod model;
+mod model_events;
+mod save;
+mod timestamps;
+mod unique_ids;
 pub use attributes::attributes_from_row;
 pub use mass_assignment::{DiscardedAttributeViolation, MassAssignment, is_unguarded, unguarded};
 
 pub use model::{ModelIdentity, ModelMetadata, MorphIdentity};
+pub use model_events::{
+    MappedModelEvent, dispatch_mapped_model_event, fire_model_event, without_model_events,
+};
+pub use save::{
+    SaveContext, SaveModel, force_create, save, save_or_fail, save_quietly, save_with_query,
+    update, update_or_fail, update_quietly,
+};
+pub use timestamps::without_timestamps_on;
+#[cfg(feature = "db-uuid")]
+pub use unique_ids::new_uuid_v7;

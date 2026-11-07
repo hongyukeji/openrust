@@ -580,6 +580,43 @@ impl Db {
         F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
         C: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<()>> + Send,
     {
+        // 事务回调可能捕获大对象，避免把引擎的挂起状态嵌入上层 future。
+        Box::pin(self.transaction_with_state_impl(
+            &mut (),
+            |(), transaction| callback(transaction),
+            for_update,
+            final_check,
+        ))
+        .await
+    }
+
+    // 调用者的可变状态与事务借用共享同一次回调生命周期。
+    pub(crate) async fn transaction_with_state<S, T, F>(
+        &self,
+        state: &mut S,
+        callback: F,
+    ) -> Result<T>
+    where
+        S: Send,
+        T: Send,
+        F: for<'a> FnOnce(&'a mut S, &'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
+    {
+        Box::pin(self.transaction_with_state_impl(state, callback, false, NO_FINAL_CHECK)).await
+    }
+
+    async fn transaction_with_state_impl<S, T, F, C>(
+        &self,
+        state: &mut S,
+        callback: F,
+        for_update: bool,
+        final_check: Option<C>,
+    ) -> Result<T>
+    where
+        S: Send,
+        T: Send,
+        F: for<'a> FnOnce(&'a mut S, &'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
+        C: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<()>> + Send,
+    {
         let events = self.events.get().cloned();
         let connection = self.connection()?;
         let transaction = if for_update {
@@ -587,7 +624,7 @@ impl Db {
         } else {
             connection.begin().await.map_err(Error::internal)?
         };
-        let value = match callback(&transaction).await {
+        let value = match callback(state, &transaction).await {
             Ok(value) => value,
             Err(error) => {
                 transaction.rollback().await.map_err(Error::internal)?;

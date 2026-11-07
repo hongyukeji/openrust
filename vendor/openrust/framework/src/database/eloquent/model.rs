@@ -33,6 +33,18 @@ pub struct ModelMetadata {
     pub visible: Vec<String>,
     /// 显式属性转换，主键声明可覆盖隐式的递增主键转换。
     pub casts: BTreeMap<String, AttributeCast>,
+    /// 是否在模型持久化流程中自动维护时间戳。
+    pub timestamps: bool,
+    /// 创建时间列；None 关闭该列。
+    pub created_at_column: Option<String>,
+    /// 更新时间列；None 关闭该列。
+    pub updated_at_column: Option<String>,
+    /// 覆盖持久化时间使用的 PHP 日期格式。
+    pub date_format: Option<String>,
+    /// 持久化前是否调用唯一 ID 生成。
+    pub uses_unique_ids: bool,
+    /// 按声明顺序处理的唯一 ID 字段。
+    pub unique_id_columns: Vec<String>,
     fillable: Vec<String>,
     guarded: Vec<String>,
 }
@@ -49,6 +61,12 @@ impl ModelMetadata {
             hidden: Vec::new(),
             visible: Vec::new(),
             casts: BTreeMap::new(),
+            timestamps: true,
+            created_at_column: Some("created_at".into()),
+            updated_at_column: Some("updated_at".into()),
+            date_format: None,
+            uses_unique_ids: false,
+            unique_id_columns: Vec::new(),
             fillable: Vec::new(),
             guarded: vec!["*".into()],
         }

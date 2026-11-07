@@ -327,12 +327,43 @@ impl ModelAttributes {
             let state = self.state.read().map_err(|_| state_error())?;
             (state.raw.clone(), state.getters.get(name).cloned())
         };
-        if let Some(getter) = getter {
-            return getter.get(snapshot.get(name), &snapshot);
-        }
-        let raw = snapshot.get(name).cloned();
-        metadata.read_cast_attribute(name, raw)
+        Self::read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())
     }
+
+    /// 保存或重查既有记录时使用的模型主键。
+    ///
+    /// 优先返回基线中同名字面键的非 null 原始值；否则按普通 getter/cast 读取当前值。
+    /// 此方法只选择值，不执行 SQL。基线查找和当前回退取自同一次属性状态读取。
+    pub fn key_for_save_query(&self, metadata: &ModelMetadata) -> Result<Value> {
+        let name = metadata.key_name.as_str();
+        let (snapshot, getter) = {
+            let state = self.state.read().map_err(|_| state_error())?;
+            if let Some(key) = state.original.get(name).filter(|value| !value.is_null()) {
+                return Ok(key.clone());
+            }
+            if matches!(name, "" | "0") {
+                return Ok(Value::Null);
+            }
+            (state.raw.clone(), state.getters.get(name).cloned())
+        };
+        Ok(
+            Self::read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())?
+                .unwrap_or(Value::Null),
+        )
+    }
+
+    fn read_attribute_snapshot(
+        metadata: &ModelMetadata,
+        name: &str,
+        snapshot: &Map<String, Value>,
+        getter: Option<&dyn AttributeGetter>,
+    ) -> Result<Option<Value>> {
+        if let Some(getter) = getter {
+            return getter.get(snapshot.get(name), snapshot);
+        }
+        metadata.read_cast_attribute(name, snapshot.get(name).cloned())
+    }
+
     /// 按给定键读取当前属性，复用普通 getter 和 cast；缺项保留为 null。
     ///
     /// 重复键仍按输入顺序读取，映射保留最后一次结果。这里不应用序列化的可见性规则。

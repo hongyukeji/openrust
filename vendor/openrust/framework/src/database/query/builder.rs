@@ -309,6 +309,11 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
         self.snapshot()?.statement(select)
     }
 
+    // 持久化生命周期从执行查询取得事务，避免 SQL 与事件使用不同连接。
+    pub(crate) fn transaction_ref(&self) -> Result<Option<&'tx DatabaseTransaction>> {
+        Ok(self.snapshot()?.transaction)
+    }
+
     /// 借用事务并创建独立查询句柄；生命周期只能缩短，已接入父查询仍保留原句柄。
     pub fn using_transaction<'t>(
         self,

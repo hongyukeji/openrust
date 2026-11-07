@@ -447,6 +447,37 @@ fn except_compares_integer_and_string_attribute_keys_using_php_membership() -> R
     Ok(())
 }
 
+#[test]
+fn save_query_key_uses_raw_literal_original_before_current_accessor() -> Result<()> {
+    let mut model = ModelMetadata::new("records", "example::Record");
+    let attributes = ModelAttributes::new(Map::from_iter([("id".into(), json!("0042"))]));
+    attributes.set_raw_attribute("id", json!("0059"))?;
+    attributes.register_getter("id", Arc::new(FailingGetter))?;
+    assert_eq!(attributes.key_for_save_query(&model)?, json!("0042"));
+    assert!(attributes.get_attribute(&model, "id").is_err());
+
+    let null_original = ModelAttributes::new(Map::from_iter([("id".into(), Value::Null)]));
+    null_original.set_raw_attribute("id", json!("0059"))?;
+    assert_eq!(null_original.key_for_save_query(&model)?, json!(59));
+    null_original.register_getter("id", Arc::new(FailingGetter))?;
+    assert!(null_original.key_for_save_query(&model).is_err());
+
+    let dotted = ModelAttributes::new(Map::from_iter([("scope".into(), json!({"id": 42}))]));
+    model.key_name = "scope.id".into();
+    dotted.set_raw_attribute("scope.id", json!("0059"))?;
+    assert_eq!(dotted.get_raw_original("scope.id")?, Some(json!(42)));
+    assert_eq!(dotted.key_for_save_query(&model)?, json!(59));
+
+    let zero = ModelAttributes::new(Map::from_iter([("id".into(), json!(0))]));
+    model.key_name = "id".into();
+    zero.set_raw_attribute("id", json!(59))?;
+    assert_eq!(zero.key_for_save_query(&model)?, json!(0));
+    model.key_name = "0".into();
+    zero.set_raw_attribute("0", json!(59))?;
+    assert_eq!(zero.key_for_save_query(&model)?, Value::Null);
+    Ok(())
+}
+
 struct FailingGetter;
 impl AttributeGetter for FailingGetter {
     fn get(&self, _value: Option<&Value>, _snapshot: &Map<String, Value>) -> Result<Option<Value>> {

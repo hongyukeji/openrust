@@ -502,7 +502,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 ## 记录修改预览与属性状态
 
-`POST /api/example/records/{id}/preview` 使用与记录CRUD相同的JWT认证、owner筛选和 `ExampleRecordInput` 校验；异主记录仍返回404，现有更新接口不变。正文与更新相同，响应包含 `original`、`proposed`、`dirty`、`changes`、`previous`、`has_changes` 和固定的 `persisted=false`。预览不会修改数据库，确认修改仍调用原更新接口。附加 `?discard=true` 会在应用并记录请求修改后调用公开 `discard_changes()`，返回恢复后的原始字段，并清空 `dirty`、`changes` 和 `previous`。
+`POST /api/example/records/{id}/preview` 使用与记录CRUD相同的JWT认证、owner筛选和 `ExampleRecordInput` 校验；异主记录仍返回404，现有更新接口不变。正文与更新相同，响应包含 `original`、`proposed`、`dirty`、`changes`、`previous`、`has_changes` 和固定的 `persisted=false`。预览不会修改数据库。创建和更新接口通过同一 Eloquent 保存生命周期写入，创建沿用单事务写入及回读，更新仍按当前账户限定记录。附加 `?discard=true` 会在应用并记录请求修改后调用公开 `discard_changes()`，返回恢复后的原始字段，并清空 `dirty`、`changes` 和 `previous`。
 
 现有 `models/example_record::Model::attribute_snapshot` 从可编辑业务字段建立预览快照，不返回owner。`services/record_preview` 通过公开 `ModelAttributes` 赋值、cast感知比较和 `sync_changes` 发布预览变化，未调用 `sync_original` 表示已保存，也未建立第二种业务Model或自造Eloquent save。metadata两侧均按现有更新接口接受的serde JSON值序列化为文本；预览通过严格 `fill` 应用模型白名单。快照为 metadata 登记业务 setter，保留字段省略与显式 JSON null 的区别，也保留整数与整 double 的 `.0` 差别。其他字段复用普通 setter 管线。读取比较复用 Array cast。`display.summary` 通过 `only` 选择标题字段，`display.details` 通过 `except` 读取其余可编辑字段，metadata 在详情中为解码后的 JSON 值。数据库可能规范化JSON键顺序，键顺序本身属于严格比较，不能用无序JSON相等替代。
 

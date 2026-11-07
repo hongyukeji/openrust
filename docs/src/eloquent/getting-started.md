@@ -107,7 +107,31 @@ fn main() -> openrust::Result<()> {
 
 这些同步方法只改变内存状态，不执行 SQL、提交事务或模型事件。示例模块的 `POST /api/example/records/{id}/preview` 从同一账户记录构造修改预览，返回 original/proposed/dirty/changes/previous，响应 `persisted=false`；再次读取数据库记录不变。完整保存、事件、并发保存会话、日期/自定义 cast 与完整转换原值查询仍需后续对应。
 
+## 保存模型
+
+`save` 通过 `SaveModel` 读取模型是否已持久化及实际列绑定。已有记录按原始主键更新，未变更时仍触发 saving 和 saved。新记录先生成启用的唯一 ID，再派发 creating，随后处理时间戳和插入。自增 ID 来自同一次 INSERT，并经模型 setter 赋值。成功插入后，模型先更新 exists 和 recently-created，再派发 created。
+
+模型为写库与变化发布提供属性存储的独占借用。保存结束时先派发 `saved`，若模型仍有变化且 `SaveContext::touch` 启用，则执行模型的 `touch_owners`，之后同步原始基线。关联类型的自动遍历与数据库表达式回读仍在后续范围。插入已成功但主键赋值或后置监听失败时，需核对实际存储状态再重试。
+
+`save_quietly` 复用正常保存流程，在当前异步调用链内停止模型事件，其他应用事件仍可派发。`update` 只对已有模型执行普通批量赋值并保存。`update_or_fail` 在赋值后使用事务保存，`update_quietly` 则在调用链中屏蔽模型事件。`force_create` 由应用工厂构建新模型，临时解除批量赋值保护直至保存返回；若创建事件取消，可通过模型的 exists 判断结果。Builder 的 pending attributes 装配仍待接入。
+
+`save_or_fail` 使用所选模型连接的现有数据库事务执行同一个 `save`。发生错误时由事务执行器回滚 SQL；事件取消仍返回 `false`。同一查询携带的事务会传给模型监听器及关联 touch 回调，监听器可用它读取未提交的修改。模型内存状态和事务之外的监听器副作用遵循普通保存语义。
+
+## 模型保存事件前置
+
+`fire_model_event` 使用当前应用的 Events。传入模型引用供 `eloquent.saving: 模型类` 等具名监听器使用，映射事件可先通过 `dispatch_mapped_model_event` 派发。写入前的 halt 模式仅将严格 `false` 视为取消。映射派发的空结果会回退到具名事件。完整保存、观察者装配及队列或后提交生命周期仍按后续契约交付。
+
+## 插入前生成唯一 ID
+
+模型可在元数据中声明 `uses_unique_ids` 和有序的 `unique_id_columns`。插入调用方可以为启用的模型调用 `attributes.set_unique_ids(&metadata, generator).await?`。该操作通过 getter 检查 PHP 空值，再经 setter 写入生成值，保留已有的非空 ID。启用 `db-uuid` 后，`new_uuid_v7` 可作为 UUID 生成器。应用声明字符串主键时应同时关闭自增并设置主键类型。ULID 内置生成、路由绑定校验和插入流程接线仍在后续范围。
+
+## 保存时间戳前置
+
+模型默认声明 `created_at` 与 `updated_at`，可为每列换名或用 `None` 关闭。持久化调用可用 `uses_timestamps()` 判断是否自动维护时间戳，或用 `without_timestamps_on` 在当前异步调用链临时关闭指定模型。直接调用 `update_timestamps` 使用一次应用时钟，保留已手工变更的字段，创建时间只在新记录上填充。Rust 模型类由显式标识区分，PHP 类继承传播和完整日期 cast 仍有对应缺口。此入口准备内存属性，保存事件与 SQL 写入由后续生命周期接入。
+
 ## 连接与持久身份
+
+`attributes.key_for_save_query(&metadata)?` 为已有记录的保存或重查选择主键。属性基线中存在非 null 的字面主键时，保留数据库原始类型及值；基线主键缺失或为 null 时，读取当前模型主键的 getter/cast。主键声明包含点号时，仍按字面键查基线。此方法只选择值，完整保存、写入条件和事件仍按后续契约交付。
 
 `ModelMetadata::resolve_connection` 按模型显式连接、领域 fallback、应用默认连接选择同一 `Databases` 服务；显式空名或 `"0"` 选应用默认，未知名报错。`ModelIdentity::model_key` 由模型属性机制产生，`MorphIdentity` 不把登录 ID 或 Guard 名当作模型类型。完整 morph map、连接生命周期与持久 save 仍须独立对应。
 

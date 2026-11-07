@@ -68,11 +68,24 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
             "auth":{"jwt":{"issuer":"http://example.test","audience":"example-record-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+    let mut builder = TestApp::<crate::bootstrap::Server>::builder(
         crate::modules::example::test_sources(&(source))?,
-    )
-    .build()
-    .await?;
+    );
+    builder.configure_after_register(|bindings| {
+        Box::pin(async move {
+            // 此验收只替换测试应用的派发器；生产模块的监听器不受影响。
+            let mut providers = openrust::foundation::ProviderBuilder::new();
+            providers.provider(record_save_test_events());
+            let runtime = providers.start(Figment::new()).await?;
+            let events = runtime
+                .container()
+                .resolve::<openrust::events::Events>()
+                .await?;
+            bindings.instance(events).await?;
+            Ok(())
+        })
+    });
+    let mut app = builder.build().await?;
     for (method, path) in [
         (Method::POST, "/api/auth/login"),
         (Method::GET, "/api/me"),
@@ -198,6 +211,9 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         )?)
         .await?;
     foreign_detail.assert_status(StatusCode::NOT_FOUND)?;
+    assert_foreign_update_rejected(&app, &other_token, id, &payload).await?;
+    assert_cancelled_save_does_not_write(&app, &db, &token, id, &payload).await?;
+    assert_model_save_or_fail_rolls_back(&app, &db, id).await?;
     attribute_preview_contract(&app, &token, &other_token, id, &payload).await?;
     // 新数值断言失败也先完成原CRUD及宿主/测试库回收，再传播原失败。
     let numeric_outcome =
@@ -252,6 +268,186 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     }
 }
 
+fn record_save_test_events() -> openrust::events::EventsServiceProvider {
+    let mut provider = openrust::events::EventsServiceProvider::new();
+    for stage in ["creating", "updating"] {
+        provider.listen_named_reply(
+            format!("eloquent.{stage}: modules::example::models::example_record::Model"),
+            |payload, _| {
+                Box::pin(async move {
+                    use crate::modules::example::models::example_record::RecordForSave;
+                    use openrust::support::DataValue;
+                    let model = payload.downcast_ref::<RecordForSave>().ok_or_else(|| {
+                        openrust::Error::custom(
+                            "example_save_probe_payload",
+                            "保存事件模型类型不符",
+                        )
+                    })?;
+                    if model
+                        .attributes
+                        .raw_attribute("name")?
+                        .as_ref()
+                        .and_then(serde_json::Value::as_str)
+                        == Some("监听器取消")
+                    {
+                        Ok(DataValue::Bool(false))
+                    } else {
+                        Ok(DataValue::Null)
+                    }
+                })
+            },
+        );
+    }
+    provider
+}
+
+async fn assert_model_save_or_fail_rolls_back(
+    app: &TestApp<crate::bootstrap::Server>,
+    db: &openrust::Db,
+    id: i64,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::{
+        database::{
+            eloquent::{SaveContext, save_or_fail},
+            sea_orm::EntityTrait,
+        },
+        events::{Events, EventsServiceProvider},
+        support::CalendarContext,
+    };
+
+    let connection = db.primary_connection()?;
+    let original = example_record::Entity::find_by_id(id)
+        .one(&connection)
+        .await?
+        .ok_or("rollback fixture missing")?;
+    let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
+    let mut providers = openrust::foundation::ProviderBuilder::new();
+    let mut provider = EventsServiceProvider::new();
+    provider.listen_named_reply(
+        "eloquent.saved: modules::example::models::example_record::Model",
+        |payload, context| {
+            Box::pin(async move {
+                let model = payload
+                    .downcast_ref::<example_record::RecordForSave>()
+                    .ok_or_else(|| {
+                        openrust::Error::custom("model_rollback_payload", "保存事件模型类型不符")
+                    })?;
+                let transaction = context.transaction().ok_or_else(|| {
+                    openrust::Error::custom(
+                        "model_rollback_transaction_missing",
+                        "保存监听未收到实际事务",
+                    )
+                })?;
+                let row = example_record::Entity::find_by_id(model.id()?)
+                    .one(transaction)
+                    .await
+                    .map_err(openrust::Error::internal)?
+                    .ok_or_else(|| {
+                        openrust::Error::custom("model_rollback_row_missing", "事务内记录不存在")
+                    })?;
+                assert_eq!(row.name, "事务回滚");
+                Err(openrust::Error::custom(
+                    "model_rollback_probe",
+                    "回归：保存事件失败",
+                ))
+            })
+        },
+    );
+    providers.provider(provider);
+    let runtime = providers.start(Figment::new()).await?;
+    let events = runtime.container().resolve::<Events>().await?;
+    let calendar = CalendarContext::default();
+    let context = SaveContext {
+        databases: &databases,
+        events: Some(&events),
+        calendar: &calendar,
+        touch: true,
+    };
+    let mut model = example_record::RecordForSave::from_existing(&original)?;
+    model
+        .attributes
+        .set_raw_attribute("name", serde_json::json!("事务回滚"))?;
+    let error = save_or_fail(&mut model, &context)
+        .await
+        .err()
+        .ok_or("save unexpectedly succeeded")?;
+    assert_eq!(error.code(), "model_rollback_probe");
+    assert_eq!(
+        example_record::Entity::find_by_id(id)
+            .one(&connection)
+            .await?,
+        Some(original)
+    );
+    assert!(model.attributes.is_dirty(&model.metadata, &["name"])?);
+    Ok(())
+}
+
+async fn assert_cancelled_save_does_not_write(
+    app: &TestApp<crate::bootstrap::Server>,
+    db: &openrust::Db,
+    token: &str,
+    id: i64,
+    payload: &serde_json::Value,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::database::sea_orm::EntityTrait;
+
+    let connection = db.primary_connection()?;
+    let before = example_record::Entity::find_by_id(id)
+        .one(&connection)
+        .await?;
+    assert!(before.is_some());
+    let mut input = payload.clone();
+    input["name"] = serde_json::json!("监听器取消");
+    for (method, path) in [
+        (Method::POST, "/api/example/records".to_owned()),
+        (Method::PUT, format!("/api/example/records/{id}")),
+    ] {
+        let response = app
+            .request(request(method, &path, Some(token), Some(input.clone()))?)
+            .await?;
+        response.assert_status(StatusCode::CONFLICT)?;
+    }
+    assert_eq!(
+        example_record::Entity::find_by_id(id)
+            .one(&connection)
+            .await?,
+        before
+    );
+    let query_db = openrust::Db::default();
+    query_db.initialize(connection)?;
+    assert_eq!(
+        query_db
+            .table("example_records")?
+            .where_eq("name", "监听器取消")?
+            .count()
+            .await?,
+        0
+    );
+    Ok(())
+}
+
+async fn assert_foreign_update_rejected(
+    app: &TestApp<crate::bootstrap::Server>,
+    token: &str,
+    id: i64,
+    payload: &serde_json::Value,
+) -> TestResult {
+    let mut input = payload.clone();
+    input["name"] = serde_json::json!("越权修改");
+    let response = app
+        .request(request(
+            Method::PUT,
+            &format!("/api/example/records/{id}"),
+            Some(token),
+            Some(input),
+        )?)
+        .await?;
+    response.assert_status(StatusCode::NOT_FOUND)?;
+    Ok(())
+}
+
 // 检出预览误写数据库、脱离owner授权或把相同JSON编码差别当作dirty。
 async fn attribute_preview_contract(
     app: &TestApp<crate::bootstrap::Server>,
@@ -286,6 +482,7 @@ async fn attribute_preview_contract(
     let editable = assert_preview_schema(&db, &clean["data"]).await?;
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
     assert_model_guardable_columns(&databases).await?;
+    assert_model_save_query_key(&db, id).await?;
     assert_eq!(clean["data"]["dirty"], serde_json::json!({}));
     assert_eq!(clean["data"]["changes"], serde_json::json!({}));
     assert_eq!(clean["data"]["previous"], serde_json::json!({}));
@@ -361,6 +558,28 @@ fn assert_preview_display(changed: &serde_json::Value) {
     );
     assert!(changed["display"]["details"].get("name").is_none());
     assert!(changed["display"]["details"].get("owner_id").is_none());
+}
+
+async fn assert_model_save_query_key(db: &openrust::Db, id: i64) -> TestResult {
+    use openrust::database::eloquent::ModelAttributes;
+    use serde_json::{Map, json};
+
+    let model = crate::modules::example::models::example_record::Model::attribute_metadata();
+    let attributes = ModelAttributes::new(Map::from_iter([("id".into(), json!(id))]));
+    attributes.set_raw_attribute("id", json!(0))?;
+    let key = attributes
+        .key_for_save_query(&model)?
+        .as_i64()
+        .ok_or("invalid example key")?;
+    assert_eq!(key, id);
+    let row = db
+        .table(&model.table)?
+        .where_eq(&model.key_name, key)?
+        .first()
+        .await?
+        .ok_or("save predicate did not select the original record")?;
+    assert_eq!(row.try_get::<i64>("", "id")?, id);
+    Ok(())
 }
 
 async fn assert_model_guardable_columns(databases: &openrust::Databases) -> TestResult {
