@@ -7,8 +7,9 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            AttributeSetter, BelongsTo, HasMany, HasOne, HasRelationships, LoadedRelation,
-            MassAssignment, ModelAttributes, ModelMetadata, SaveContext,
+            AttributeSetter, BelongsTo, BelongsToMany, HasMany, HasOne, HasRelationships,
+            LoadedRelation, MassAssignment, ModelAttributes, ModelMetadata, Pivot, PivotKeys,
+            RelationLoad, SaveContext,
         },
     },
     support::BoxFuture,
@@ -37,6 +38,13 @@ pub(crate) struct OwnerRecordRelations {
     pub(crate) owner_record_ids: Vec<i64>,
     pub(crate) owner_latest_enabled_record_id: Option<i64>,
     pub(crate) record_category_name: Option<String>,
+    pub(crate) record_category_links: Vec<RecordCategoryLink>,
+}
+
+#[derive(serde::Serialize)]
+pub(crate) struct RecordCategoryLink {
+    name: String,
+    label: String,
 }
 
 #[derive(serde::Serialize)]
@@ -90,7 +98,11 @@ pub(crate) async fn owner_relations(
     const RECORDS: &str = "records";
     const LATEST_ENABLED: &str = "latest_enabled_record";
     let related = example_record::RecordForSave::new(record.owner_id);
-    let mut parent = example_record::RecordForSave::new(record.owner_id);
+    let mut parent = example_record::RecordForSave::from_existing(record)?;
+    // 保存快照省略所有者字段，此处使用已授权记录的所有者键加载关系。
+    parent
+        .attributes
+        .set_raw_attribute("owner_id", Value::from(record.owner_id))?;
     let db = example_record::record_query_db(db)?;
     let relation = HasMany::new(&related, "owner_id", "owner_id");
     relation
@@ -149,7 +161,71 @@ pub(crate) async fn owner_relations(
         owner_record_ids,
         owner_latest_enabled_record_id,
         record_category_name,
+        record_category_links: record_category_links(&mut parent, &db, context).await?,
     })
+}
+
+pub(crate) fn category_links(
+    category: &example_record::RecordCategory,
+) -> BelongsToMany<'_, example_record::RecordCategory> {
+    BelongsToMany::new(
+        category,
+        PivotKeys {
+            table: "example_record_category_links",
+            parent_foreign_key: "record_id",
+            related_foreign_key: "category_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .with_pivot(&["label"])
+}
+
+async fn record_category_links(
+    model: &mut example_record::RecordForSave,
+    db: &Db,
+    context: &SaveContext<'_>,
+) -> Result<Vec<RecordCategoryLink>> {
+    const CATEGORIES: &str = "supplementary_categories";
+    let category = example_record::RecordCategory::new();
+    category_links(&category)
+        .load_on(
+            std::slice::from_mut(model),
+            RelationLoad {
+                name: CATEGORIES,
+                nested: &[],
+            },
+            context,
+            db,
+            |query| query.order_by("id", SortDirection::Asc),
+        )
+        .await?;
+    let categories = model
+        .relations()
+        .get_relation(CATEGORIES)
+        .and_then(LoadedRelation::downcast_ref::<Vec<Arc<example_record::RecordCategory>>>)
+        .ok_or_else(|| Error::custom("example_category_links_unloaded", "示例补充分类未加载"))?;
+    categories
+        .iter()
+        .map(|category| {
+            let label = category
+                .relations()
+                .get_relation("pivot")
+                .and_then(LoadedRelation::downcast_ref::<Pivot>)
+                .and_then(|pivot| pivot.attributes().get("label"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    Error::custom(
+                        "example_category_link_label_missing",
+                        "示例分类连接缺少标签",
+                    )
+                })?;
+            Ok(RecordCategoryLink {
+                name: category.name()?,
+                label: label.into(),
+            })
+        })
+        .collect()
 }
 
 async fn record_category_name(

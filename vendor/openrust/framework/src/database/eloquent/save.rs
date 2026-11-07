@@ -98,6 +98,24 @@ pub async fn save_with_query<M: SaveModel>(
     context: &SaveContext<'_>,
     query: QueryBuilder<'_, '_>,
 ) -> Result<bool> {
+    save_using(model, context, query, true).await
+}
+
+// 调用方已用原始中间表键限制查询，保留相同的模型保存生命周期。
+pub(super) async fn save_scoped_pivot<M: SaveModel>(
+    model: &mut M,
+    context: &SaveContext<'_>,
+    query: QueryBuilder<'_, '_>,
+) -> Result<bool> {
+    save_using(model, context, query, false).await
+}
+
+async fn save_using<M: SaveModel>(
+    model: &mut M,
+    context: &SaveContext<'_>,
+    query: QueryBuilder<'_, '_>,
+    constrain_primary_key: bool,
+) -> Result<bool> {
     let metadata = model.metadata().clone();
     let transaction = query.transaction_ref()?;
     if cancelled(model, &metadata, context.events, "saving", transaction).await? {
@@ -105,7 +123,7 @@ pub async fn save_with_query<M: SaveModel>(
     }
     let saved = if model.exists() {
         if model.attributes().is_dirty(&metadata, &[])? {
-            persist_update(model, &metadata, context, query).await?
+            persist_update(model, &metadata, context, query, constrain_primary_key).await?
         } else {
             true
         }
@@ -220,7 +238,8 @@ async fn persist_update<M: SaveModel>(
     model: &mut M,
     metadata: &ModelMetadata,
     context: &SaveContext<'_>,
-    query: QueryBuilder<'_, '_>,
+    mut query: QueryBuilder<'_, '_>,
+    constrain_primary_key: bool,
 ) -> Result<bool> {
     let transaction = query.transaction_ref()?;
     if cancelled(model, metadata, context.events, "updating", transaction).await? {
@@ -234,14 +253,14 @@ async fn persist_update<M: SaveModel>(
     }
     let changes = model.attributes().get_dirty(metadata)?;
     if !changes.is_empty() {
-        let key = model.attributes().key_for_save_query(metadata)?;
-        let key = model.bind_attribute(&metadata.key_name, &key)?;
+        if constrain_primary_key {
+            let key = model.attributes().key_for_save_query(metadata)?;
+            let key = model.bind_attribute(&metadata.key_name, &key)?;
+            query = query.where_eq(&metadata.key_name, key)?;
+        }
         let bindings = bind_values(model, &changes)?;
         let attributes = model.attributes_mut();
-        query
-            .where_eq(&metadata.key_name, key)?
-            .update(bindings)
-            .await?;
+        query.update(bindings).await?;
         attributes.sync_changes(metadata)?;
         notify(model, metadata, context.events, "updated", transaction).await?;
     }
@@ -323,7 +342,7 @@ fn inserted_key(key: sea_orm::Value) -> Result<Value> {
     })
 }
 
-async fn cancelled<M: SaveModel>(
+pub(super) async fn cancelled<M: SaveModel>(
     model: &M,
     metadata: &ModelMetadata,
     events: Option<&Events>,
@@ -345,7 +364,7 @@ async fn cancelled<M: SaveModel>(
     ))
 }
 
-async fn notify<M: SaveModel>(
+pub(super) async fn notify<M: SaveModel>(
     model: &M,
     metadata: &ModelMetadata,
     events: Option<&Events>,

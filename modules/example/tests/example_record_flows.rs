@@ -608,6 +608,8 @@ async fn assert_owner_record_relation(
     let other_id = other["data"]["id"]
         .as_i64()
         .ok_or("foreign sibling ID missing")?;
+    attach_preview_category(app, id, "owner").await?;
+    attach_preview_category(app, other_id, "other").await?;
     let url = format!("{path}?include_owner_records=true");
     let preview = app
         .request(request(
@@ -626,6 +628,12 @@ async fn assert_owner_record_relation(
     assert!(sibling_id > id);
     assert_eq!(preview["data"]["owner_latest_enabled_record_id"], id);
     assert_eq!(preview["data"]["record_category_name"], "field-types");
+    assert_eq!(
+        preview["data"]["record_category_links"],
+        serde_json::json!([
+            {"name":"field-types","label":"owner"}
+        ])
+    );
     assert_no_saved_category(app, sibling_id, owner_token, payload).await?;
     let denied = app
         .request(request(
@@ -670,6 +678,48 @@ async fn assert_no_saved_category(
     assert_eq!(
         response["data"].get("record_category_name"),
         Some(&serde_json::Value::Null)
+    );
+    Ok(())
+}
+
+async fn attach_preview_category(
+    app: &TestApp<crate::bootstrap::Server>,
+    id: i64,
+    label: &str,
+) -> TestResult {
+    use crate::modules::example::{
+        models::example_record, services::record_preview::category_links,
+    };
+    use openrust::database::{eloquent::SaveContext, sea_orm::EntityTrait};
+    use openrust::support::CalendarContext;
+
+    let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
+    let db = databases.default_database();
+    let record = example_record::Entity::find_by_id(id)
+        .one(&db.primary_connection()?)
+        .await?
+        .ok_or("preview source record missing")?;
+    let category_id = db
+        .table("example_record_categories")?
+        .where_eq("name", "field-types")?
+        .value::<i64>("id")
+        .await?
+        .ok_or("preview category missing")?;
+    let mut model = example_record::RecordForSave::from_existing(&record)?;
+    let category = example_record::RecordCategory::new();
+    let calendar = CalendarContext::default();
+    let context = SaveContext::new(&databases, None, &calendar);
+    assert_eq!(
+        category_links(&category)
+            .attach(
+                &mut model,
+                &serde_json::json!(category_id),
+                vec![("label", label.to_owned().into())],
+                &context,
+                None,
+            )
+            .await?,
+        1
     );
     Ok(())
 }

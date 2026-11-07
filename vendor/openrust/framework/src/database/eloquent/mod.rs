@@ -7,6 +7,7 @@ mod attributes;
 pub use attribute_cast::AttributeCast;
 mod attribute_store;
 mod belongs_to;
+mod belongs_to_many;
 pub use attribute_store::{AttributeGetter, AttributeMutation, AttributeSetter, ModelAttributes};
 #[cfg(feature = "hashing")]
 pub mod casts;
@@ -22,6 +23,10 @@ mod timestamps;
 mod unique_ids;
 pub use attributes::attributes_from_row;
 pub use belongs_to::BelongsTo;
+pub use belongs_to_many::{
+    BelongsToMany, CustomPivot, Pivot, PivotAttachment, PivotChanges, PivotKeys, PivotSource,
+    PivotToggleChanges,
+};
 pub use has_many::{HasMany, HasOne, HasRelationships};
 pub use mass_assignment::{DiscardedAttributeViolation, MassAssignment, is_unguarded, unguarded};
 

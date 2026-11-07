@@ -471,7 +471,7 @@ impl<'a, R: HydrateModel> HasMany<'a, R> {
     }
 }
 
-fn relation_key(value: Option<&Value>) -> Result<Option<String>> {
+pub(super) fn relation_key(value: Option<&Value>) -> Result<Option<String>> {
     match value {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(value)) => Ok(Some(value.clone())),

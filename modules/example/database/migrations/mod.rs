@@ -16,8 +16,68 @@ impl MigratorTrait for Migrator {
             Box::new(CreateExampleOidcBindIntents),
             Box::new(CreateExampleTenantRecords),
             Box::new(CreateExampleRecordShowcase),
+            Box::new(CreateExampleRecordCategoryLinks),
         ]
     }
+}
+
+/// 示例记录与补充分类的多对多中间表。
+struct CreateExampleRecordCategoryLinks;
+
+impl MigrationName for CreateExampleRecordCategoryLinks {
+    fn name(&self) -> &'static str {
+        "m20261107_000010_example_record_category_links"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleRecordCategoryLinks {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        use ExampleRecordCategoryLinks as Links;
+        manager
+            .create_table(
+                Table::create()
+                    .table(Links::Table)
+                    .col(ColumnDef::new(Links::RecordId).big_integer().not_null())
+                    .col(ColumnDef::new(Links::CategoryId).big_integer().not_null())
+                    .col(ColumnDef::new(Links::Label).string_len(100).not_null())
+                    .primary_key(Index::create().col(Links::RecordId).col(Links::CategoryId))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_example_category_links_record")
+                            .from(Links::Table, Links::RecordId)
+                            .to(ExampleRecords::Table, ExampleRecords::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_example_category_links_category")
+                            .from(Links::Table, Links::CategoryId)
+                            .to(ExampleRecordCategories::Table, ExampleRecordCategories::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(ExampleRecordCategoryLinks::Table)
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleRecordCategoryLinks {
+    Table,
+    RecordId,
+    CategoryId,
+    Label,
 }
 
 /// 独立的字段类型示例表，不与文章、用户等框架业务实体共用。

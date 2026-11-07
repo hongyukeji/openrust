@@ -174,11 +174,48 @@ impl openrust::database::eloquent::SaveModel for GeneratedModel {
 
     fn bind_attribute(&self, name: &str, value: &serde_json::Value) -> Result<Value> {
         match name {
-            "id" | "owner_id" => value.as_i64().map(Value::from),
-            "label" => value.as_str().map(Value::from),
+            "id" | "owner_id" | "parent_id" | "item_id" => value.as_i64().map(Value::from),
+            "label" | "updated_at" | "tag" => value.as_str().map(Value::from),
             _ => None,
         }
         .ok_or_else(|| Error::custom("generated_model_binding", "生成应用模型列类型错误"))
+    }
+}
+
+impl openrust::database::eloquent::CustomPivot for GeneratedModel {
+    fn from_raw_pivot(
+        attributes: openrust::database::eloquent::ModelAttributes,
+        source: openrust::database::eloquent::PivotSource<'_>,
+        exists: bool,
+    ) -> Result<Self> {
+        use openrust::database::eloquent::ModelMetadata;
+
+        let mut metadata = ModelMetadata::new(source.keys.table, "generated::Membership");
+        metadata.connection = source.parent.connection.clone();
+        metadata.incrementing = false;
+        metadata.timestamps = false;
+        metadata.fillable(vec!["tag".into()]);
+        Ok(Self {
+            metadata,
+            attributes,
+            relations: Default::default(),
+            exists,
+        })
+    }
+
+    fn mark_pivot_deleted(&mut self) {
+        self.exists = false;
+    }
+
+    fn raw_pivot_attribute(name: &str, value: Value) -> Result<serde_json::Value> {
+        match (name, value) {
+            ("parent_id" | "item_id", Value::BigInt(Some(value))) => Ok(value.into()),
+            ("tag", Value::String(Some(value))) => Ok(value.into()),
+            _ => Err(Error::custom(
+                "generated_custom_pivot_input",
+                "生成中间表列类型错误",
+            )),
+        }
     }
 }
 
@@ -245,7 +282,7 @@ async fn check_generated_has_many(
 
     let connection = db.connection()?;
     connection
-        .execute_unprepared("CREATE TABLE relation_items (id BIGINT PRIMARY KEY, owner_id BIGINT, label VARCHAR(100), rank_value BIGINT NULL)")
+        .execute_unprepared("CREATE TABLE relation_items (id BIGINT PRIMARY KEY, owner_id BIGINT, label VARCHAR(100), rank_value BIGINT NULL, updated_at VARCHAR(25) NULL)")
         .await
         .map_err(Error::internal)?;
     connection
@@ -293,7 +330,803 @@ async fn check_generated_has_many(
     }
     check_generated_has_one(&related, &mut parents, context).await?;
     check_generated_one_of_many(db, &related, &mut parents, context).await?;
+    check_generated_belongs_to_many(db, &related, &mut parents, context).await?;
     check_generated_belongs_to(&related, &mut parents, context).await
+}
+
+async fn check_generated_belongs_to_many(
+    db: &Db,
+    related: &GeneratedModel,
+    parents: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{
+        BelongsToMany, LoadedRelation, Pivot, PivotKeys, RelationLoad,
+    };
+    use serde_json::json;
+
+    let connection = db.connection()?;
+    connection
+        .execute_unprepared(
+            "CREATE TABLE relation_links (parent_id BIGINT, item_id BIGINT, tag VARCHAR(100), linked_at VARCHAR(25) NULL, changed_at VARCHAR(25) NULL)",
+        )
+        .await
+        .map_err(Error::internal)?;
+    connection.execute_unprepared("INSERT INTO relation_links (parent_id, item_id, tag) VALUES (7, 1, 'first'), (8, 1, 'second')").await.map_err(Error::internal)?;
+    let observed = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&observed);
+    BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .with_pivot(&["tag"])
+    .with_pivot_accessor("membership")
+    .load(
+        parents,
+        RelationLoad {
+            name: "linked_items",
+            nested: &[],
+        },
+        context,
+        move |query| {
+            Ok(query.before_query(move |_| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }))
+        },
+    )
+    .await?;
+    check(observed.load(Ordering::SeqCst) == 1)?;
+    for (parent, expected) in
+        parents
+            .iter()
+            .zip([Some("first"), Some("second"), Some("first"), None, None])
+    {
+        let items = parent
+            .relations
+            .get_relation("linked_items")
+            .and_then(LoadedRelation::downcast_ref::<Vec<Arc<GeneratedModel>>>)
+            .ok_or_else(|| Error::custom("generated_pivot_relation_missing", "多对多关系未加载"))?;
+        if let Some(tag) = expected {
+            check(items.len() == 1)?;
+            let item = items
+                .first()
+                .ok_or_else(|| Error::custom("generated_pivot_model_missing", "缺少关联模型"))?;
+            check(item.attributes.raw_attribute("id")? == Some(json!(1)))?;
+            check(item.attributes.raw_attribute("pivot_tag")?.is_none())?;
+            check(item.relations.refreshable_names().next().is_none())?;
+            let pivot = item
+                .relations
+                .get_relation("membership")
+                .and_then(LoadedRelation::downcast_ref::<Pivot>)
+                .ok_or_else(|| Error::custom("generated_pivot_missing", "缺少中间表数据"))?;
+            check(pivot.attributes().get("tag") == Some(&json!(tag)))?;
+        } else {
+            check(items.is_empty())?;
+        }
+    }
+    check_generated_custom_pivot(related, parents, context).await?;
+    check_generated_pivot_transaction(db, related, context).await?;
+    check_generated_pivot_writes(db, related, context).await?;
+    check_generated_pivot_sync(db, related, context).await?;
+    check_generated_pivot_toggle(db, related, context).await?;
+    check_generated_pivot_timestamps(db, related, context).await?;
+    check_generated_pivot_touch(db, related, context).await?;
+    check_generated_pivot_parent_touch(db, related, context).await?;
+    check_generated_custom_pivot_insert(db, related, context).await?;
+    check_generated_custom_pivot_update(db, related, context).await?;
+    check_generated_custom_pivot_delete(db, related, context).await
+}
+
+async fn check_generated_custom_pivot(
+    related: &GeneratedModel,
+    parents: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{BelongsToMany, LoadedRelation, PivotKeys, RelationLoad};
+    use serde_json::json;
+
+    BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .using::<GeneratedModel>()
+    .with_pivot(&["tag"])
+    .with_pivot_accessor("membership")
+    .load(
+        parents,
+        RelationLoad {
+            name: "custom_linked_items",
+            nested: &[],
+        },
+        context,
+        Ok,
+    )
+    .await?;
+    for (parent, tag) in parents.iter().zip(["first", "second"]) {
+        let pivot = parent
+            .relations
+            .get_relation("custom_linked_items")
+            .and_then(LoadedRelation::downcast_ref::<Vec<Arc<GeneratedModel>>>)
+            .and_then(|items| items.first())
+            .and_then(|item| item.relations.get_relation("membership"))
+            .and_then(LoadedRelation::downcast_ref::<GeneratedModel>)
+            .ok_or_else(|| {
+                Error::custom("generated_custom_pivot_missing", "缺少自定义中间表模型")
+            })?;
+        check(pivot.exists && pivot.metadata.table == "relation_links")?;
+        check(pivot.metadata.connection == parent.metadata.connection)?;
+        check(pivot.attributes.raw_attribute("tag")? == Some(json!(tag)))?;
+        check(!pivot.attributes.is_dirty(&pivot.metadata, &[])?)?;
+    }
+    Ok(())
+}
+
+async fn check_generated_custom_pivot_insert(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{BelongsToMany, HydrateModel, PivotKeys};
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(6))]), None)?;
+    let relation = BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .using::<GeneratedModel>();
+    check(
+        relation
+            .attach(
+                &mut parent,
+                &json!(5),
+                vec![("tag", "reject".into())],
+                context,
+                None,
+            )
+            .await?
+            == 0,
+    )?;
+    check(
+        db.table("relation_links")?
+            .where_eq("parent_id", 6_i64)?
+            .where_eq("item_id", 5_i64)?
+            .count()
+            .await?
+            == 0,
+    )?;
+    check(
+        relation
+            .attach(
+                &mut parent,
+                &json!(2),
+                vec![("tag", "raw".into())],
+                context,
+                None,
+            )
+            .await?
+            == 1,
+    )?;
+    let row = db
+        .table("relation_links")?
+        .where_eq("parent_id", 6_i64)?
+        .where_eq("item_id", 2_i64)?;
+    check(row.value::<String>("tag").await?.as_deref() == Some("custom"))
+}
+
+async fn check_generated_custom_pivot_update(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{BelongsToMany, HydrateModel, PivotKeys};
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(6))]), None)?;
+    let relation = BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .using::<GeneratedModel>();
+    let update = |tag: &'static str| vec![("tag", tag.into())];
+    let row = |id| {
+        db.table("relation_links")?
+            .where_eq("parent_id", id)?
+            .where_eq("item_id", 2_i64)
+    };
+    let other_before = row(7_i64)?.value::<String>("tag").await?;
+    for (id, tag, expected) in [(2, "custom", 0), (5, "missing", 0), (2, "changed", 1)] {
+        check(
+            relation
+                .update_existing_pivot(&mut parent, &json!(id), update(tag), context, None)
+                .await?
+                == expected,
+        )?;
+    }
+    check(row(6_i64)?.value::<String>("tag").await?.as_deref() == Some("changed"))?;
+    check(row(7_i64)?.value::<String>("tag").await? == other_before)
+}
+
+async fn check_generated_custom_pivot_delete(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{BelongsToMany, HydrateModel, PivotKeys};
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(6))]), None)?;
+    let relation = BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .using::<GeneratedModel>();
+    relation
+        .attach(
+            &mut parent,
+            &json!(3),
+            vec![("tag", "keep".into())],
+            context,
+            None,
+        )
+        .await?;
+    let row = |parent, item| {
+        db.table("relation_links")?
+            .where_eq("parent_id", parent)?
+            .where_eq("item_id", item)
+    };
+    let other_before = row(7_i64, 2_i64)?.count().await?;
+    check(
+        relation
+            .detach(&mut parent, Some(&[json!(2), json!(3)]), context, None)
+            .await?
+            == 1,
+    )?;
+    check(row(6_i64, 2_i64)?.count().await? == 0)?;
+    check(row(6_i64, 3_i64)?.count().await? == 1)?;
+    check(row(7_i64, 2_i64)?.count().await? == other_before)?;
+    check(relation.detach(&mut parent, None, context, None).await? == 1)?;
+    check(row(6_i64, 3_i64)?.count().await? == 1)
+}
+
+async fn check_generated_pivot_writes(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{BelongsToMany, HydrateModel, PivotKeys};
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(7))]), None)?;
+    let relation = BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    );
+    let rejected = relation
+        .attach(
+            &mut parent,
+            &json!(2),
+            vec![("PARENT_ID", 8_i64.into())],
+            context,
+            None,
+        )
+        .await;
+    check(matches!(rejected, Err(error) if error.code() == "model_pivot_key_override"))?;
+    check(
+        relation
+            .attach(
+                &mut parent,
+                &json!(2),
+                vec![("tag", "added".into())],
+                context,
+                None,
+            )
+            .await?
+            == 1,
+    )?;
+    check(
+        relation
+            .update_existing_pivot(
+                &mut parent,
+                &json!(1),
+                vec![("tag", "changed".into())],
+                context,
+                None,
+            )
+            .await?
+            == 1,
+    )?;
+    let other = db
+        .table("relation_links")?
+        .where_eq("parent_id", 8_i64)?
+        .where_eq("item_id", 1_i64)?;
+    check(other.value::<String>("tag").await?.as_deref() == Some("second"))?;
+    check(
+        relation
+            .detach(&mut parent, Some(&[]), context, None)
+            .await?
+            == 0,
+    )?;
+    check(
+        relation
+            .detach(&mut parent, Some(&[json!(2)]), context, None)
+            .await?
+            == 1,
+    )?;
+    check(
+        db.table("relation_links")?
+            .where_eq("parent_id", 7_i64)?
+            .value::<String>("tag")
+            .await?
+            .as_deref()
+            == Some("changed"),
+    )?;
+    check(relation.detach(&mut parent, None, context, None).await? == 1)?;
+    check(other.count().await? == 1)
+}
+
+async fn check_generated_pivot_sync(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::{
+        database::eloquent::{
+            BelongsToMany, HydrateModel, PivotAttachment, PivotKeys, SaveContext,
+        },
+        support::CalendarContext,
+    };
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(7))]), None)?;
+    let prototype = related.hydrate(Map::new(), None)?;
+    let databases = (*context.databases).clone();
+    db.transaction_for_update_checked_context(
+        move |transaction| {
+            Box::pin(async move {
+                let calendar = CalendarContext::default();
+                let context = SaveContext::new(&databases, None, &calendar);
+                let relation = BelongsToMany::new(
+                    &prototype,
+                    PivotKeys {
+                        table: "relation_links",
+                        parent_foreign_key: "parent_id",
+                        related_foreign_key: "item_id",
+                        parent_key: "id",
+                        related_key: "id",
+                    },
+                );
+                let entry = |id, tag: &'static str| PivotAttachment {
+                    related_key: json!(id),
+                    attributes: vec![("tag", tag.into())],
+                };
+                let inserted = relation
+                    .sync(
+                        &mut parent,
+                        vec![entry(1, "first"), entry(2, "second")],
+                        true,
+                        &context,
+                        &transaction,
+                    )
+                    .await?;
+                check(inserted.attached == [json!(1), json!(2)])?;
+                let changed = relation
+                    .sync(
+                        &mut parent,
+                        vec![entry(1, "updated"), entry(3, "new"), entry(3, "last")],
+                        true,
+                        &context,
+                        &transaction,
+                    )
+                    .await?;
+                check(
+                    changed.attached == [json!(3)]
+                        && changed.detached == [json!(2)]
+                        && changed.updated == [json!(1)],
+                )?;
+                let kept = relation
+                    .sync(
+                        &mut parent,
+                        vec![PivotAttachment {
+                            related_key: json!(3),
+                            attributes: Vec::new(),
+                        }],
+                        false,
+                        &context,
+                        &transaction,
+                    )
+                    .await?;
+                check(
+                    kept.attached.is_empty() && kept.detached.is_empty() && kept.updated.is_empty(),
+                )
+            })
+        },
+        |_| Box::pin(async { Ok(()) }),
+    )
+    .await?;
+    let own = || db.table("relation_links")?.where_eq("parent_id", 7_i64);
+    check(own()?.count().await? == 2)?;
+    check(
+        own()?
+            .where_eq("item_id", 3_i64)?
+            .value::<String>("tag")
+            .await?
+            .as_deref()
+            == Some("last"),
+    )?;
+    check(
+        db.table("relation_links")?
+            .where_eq("parent_id", 8_i64)?
+            .value::<String>("tag")
+            .await?
+            .as_deref()
+            == Some("second"),
+    )
+}
+
+async fn check_generated_pivot_toggle(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::{
+        database::eloquent::{
+            BelongsToMany, HydrateModel, PivotAttachment, PivotKeys, SaveContext,
+        },
+        support::CalendarContext,
+    };
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(7))]), None)?;
+    let prototype = related.hydrate(Map::new(), None)?;
+    let databases = (*context.databases).clone();
+    db.transaction_for_update_checked_context(
+        move |transaction| {
+            Box::pin(async move {
+                let calendar = CalendarContext::default();
+                let context = SaveContext::new(&databases, None, &calendar);
+                let relation = BelongsToMany::new(
+                    &prototype,
+                    PivotKeys {
+                        table: "relation_links",
+                        parent_foreign_key: "parent_id",
+                        related_foreign_key: "item_id",
+                        parent_key: "id",
+                        related_key: "id",
+                    },
+                );
+                let entry = |id, tag: &'static str| PivotAttachment {
+                    related_key: json!(id),
+                    attributes: vec![("tag", tag.into())],
+                };
+                let changed = relation
+                    .toggle(
+                        &mut parent,
+                        vec![entry(1, "ignored"), entry(2, "earlier"), entry(2, "toggle")],
+                        &context,
+                        &transaction,
+                    )
+                    .await?;
+                check(changed.attached == [json!(2)] && changed.detached == [json!(1)])
+            })
+        },
+        |_| Box::pin(async { Ok(()) }),
+    )
+    .await?;
+    let own = || db.table("relation_links")?.where_eq("parent_id", 7_i64);
+    check(own()?.where_eq("item_id", 1_i64)?.count().await? == 0)?;
+    check(
+        own()?
+            .where_eq("item_id", 2_i64)?
+            .value::<String>("tag")
+            .await?
+            .as_deref()
+            == Some("toggle"),
+    )?;
+    check(
+        own()?
+            .where_eq("item_id", 3_i64)?
+            .value::<String>("tag")
+            .await?
+            .as_deref()
+            == Some("last"),
+    )?;
+    check(
+        db.table("relation_links")?
+            .where_eq("parent_id", 8_i64)?
+            .where_eq("item_id", 1_i64)?
+            .count()
+            .await?
+            == 1,
+    )
+}
+
+async fn check_generated_pivot_timestamps(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::{
+        database::eloquent::{BelongsToMany, HydrateModel, PivotKeys, SaveContext},
+        support::{CalendarContext, CalendarInstant, FixedClock, ResolvedTimezone},
+    };
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(7))]), None)?;
+    let relation = BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .with_timestamps("linked_at", "changed_at")?;
+    let first = CalendarContext::new(
+        ResolvedTimezone::utc(),
+        Arc::new(FixedClock::new(CalendarInstant::new(1_700_000_000, 0)?)),
+    );
+    let second = CalendarContext::new(
+        ResolvedTimezone::utc(),
+        Arc::new(FixedClock::new(CalendarInstant::new(1_700_000_060, 0)?)),
+    );
+    let create = SaveContext::new(context.databases, None, &first);
+    let update = SaveContext::new(context.databases, None, &second);
+    relation
+        .attach(
+            &mut parent,
+            &json!(4),
+            vec![("linked_at", "custom".into())],
+            &create,
+            None,
+        )
+        .await?;
+    relation
+        .attach(&mut parent, &json!(5), Vec::new(), &create, None)
+        .await?;
+    let row = |id| {
+        db.table("relation_links")?
+            .where_eq("parent_id", 7_i64)?
+            .where_eq("item_id", id)
+    };
+    check(
+        row(4_i64)?.value::<String>("changed_at").await?.as_deref() == Some("2023-11-14 22:13:20"),
+    )?;
+    check(
+        row(5_i64)?.value::<String>("linked_at").await?.as_deref() == Some("2023-11-14 22:13:20"),
+    )?;
+    check(
+        row(5_i64)?.value::<String>("changed_at").await?.as_deref() == Some("2023-11-14 22:13:20"),
+    )?;
+    relation
+        .update_existing_pivot(
+            &mut parent,
+            &json!(4),
+            vec![("changed_at", "ignored".into())],
+            &update,
+            None,
+        )
+        .await?;
+    check(row(4_i64)?.value::<String>("linked_at").await?.as_deref() == Some("custom"))?;
+    check(
+        row(4_i64)?.value::<String>("changed_at").await?.as_deref() == Some("2023-11-14 22:14:20"),
+    )?;
+    relation
+        .update_existing_pivot(&mut parent, &json!(5), Vec::new(), &update, None)
+        .await?;
+    check(
+        row(5_i64)?.value::<String>("changed_at").await?.as_deref() == Some("2023-11-14 22:14:20"),
+    )
+}
+
+async fn check_generated_pivot_touch(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::{
+        database::eloquent::{BelongsToMany, HydrateModel, PivotKeys, SaveContext},
+        support::{CalendarContext, CalendarInstant, FixedClock, ResolvedTimezone},
+    };
+    use serde_json::{Map, json};
+
+    db.table("relation_items")?
+        .insert(vec![("id", 6_i64.into())])
+        .await?;
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(7))]), None)?;
+    let mut prototype = related.hydrate(Map::new(), None)?;
+    prototype.metadata.timestamps = true;
+    let relation = BelongsToMany::new(
+        &prototype,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .with_touching_related();
+    let first = CalendarContext::new(
+        ResolvedTimezone::utc(),
+        Arc::new(FixedClock::new(CalendarInstant::new(1_700_000_000, 0)?)),
+    );
+    let second = CalendarContext::new(
+        ResolvedTimezone::utc(),
+        Arc::new(FixedClock::new(CalendarInstant::new(1_700_000_060, 0)?)),
+    );
+    let attach = SaveContext::new(context.databases, None, &first);
+    let detach = SaveContext::new(context.databases, None, &second);
+    relation
+        .attach(&mut parent, &json!(1), Vec::new(), &attach, None)
+        .await?;
+    let row = |id| db.table("relation_items")?.where_eq("id", id);
+    check(
+        row(1_i64)?.value::<String>("updated_at").await?.as_deref() == Some("2023-11-14 22:13:20"),
+    )?;
+    check(
+        row(2_i64)?.value::<String>("updated_at").await?.as_deref() == Some("2023-11-14 22:13:20"),
+    )?;
+    check(row(6_i64)?.value::<Option<String>>("updated_at").await? == Some(None))?;
+    relation
+        .detach(&mut parent, Some(&[json!(1)]), &detach, None)
+        .await?;
+    check(
+        row(1_i64)?.value::<String>("updated_at").await?.as_deref() == Some("2023-11-14 22:13:20"),
+    )?;
+    check(
+        row(2_i64)?.value::<String>("updated_at").await?.as_deref() == Some("2023-11-14 22:14:20"),
+    )
+}
+
+async fn check_generated_pivot_parent_touch(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::{
+        database::eloquent::{BelongsToMany, HydrateModel, PivotKeys, SaveContext, SaveModel},
+        support::{CalendarContext, CalendarInstant, FixedClock, ResolvedTimezone},
+    };
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(6))]), None)?;
+    parent.metadata.timestamps = true;
+    let relation = BelongsToMany::new(
+        related,
+        PivotKeys {
+            table: "relation_links",
+            parent_foreign_key: "parent_id",
+            related_foreign_key: "item_id",
+            parent_key: "id",
+            related_key: "id",
+        },
+    )
+    .with_touching_parent();
+    let clock = CalendarContext::new(
+        ResolvedTimezone::utc(),
+        Arc::new(FixedClock::new(CalendarInstant::new(1_700_000_120, 0)?)),
+    );
+    let context = SaveContext::new(context.databases, context.events, &clock);
+    let related_row = || db.table("relation_items")?.where_eq("id", 1_i64);
+    let related_before = related_row()?.value::<String>("updated_at").await?;
+    relation
+        .attach(&mut parent, &json!(1), Vec::new(), &context, None)
+        .await?;
+    let timestamp = "2023-11-14 22:15:20";
+    let parent_row = || db.table("relation_items")?.where_eq("id", 6_i64);
+    check(
+        parent_row()?
+            .value::<String>("updated_at")
+            .await?
+            .as_deref()
+            == Some(timestamp),
+    )?;
+    check(
+        parent
+            .attributes()
+            .get_attribute(parent.metadata(), "updated_at")?
+            == Some(json!(timestamp)),
+    )?;
+    check(!parent.attributes().is_dirty(parent.metadata(), &[])?)?;
+    check(related_row()?.value::<String>("updated_at").await? == related_before)
+}
+
+async fn check_generated_pivot_transaction(
+    db: &Db,
+    related: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::{
+        database::eloquent::{
+            BelongsToMany, HydrateModel, Pivot, PivotKeys, RelationLoad, SaveContext,
+        },
+        support::CalendarContext,
+    };
+    use serde_json::{Map, json};
+
+    let mut parent = related.hydrate(Map::from_iter([("id".into(), json!(7))]), Some("other"))?;
+    let prototype = related.hydrate(Map::new(), None)?;
+    let databases = (*context.databases).clone();
+    let events = context.events.cloned();
+    let result = db.transaction_for_update_checked_context(move |transaction| {
+        Box::pin(async move {
+            let calendar = CalendarContext::default();
+            let context = SaveContext::new(&databases, events.as_ref(), &calendar);
+            let relation = BelongsToMany::new(&prototype, PivotKeys {
+                table: "relation_links", parent_foreign_key: "parent_id", related_foreign_key: "item_id",
+                parent_key: "id", related_key: "id",
+            }).with_pivot(&["tag"]);
+            let load = RelationLoad { name: "linked", nested: &[] };
+            let wrong = relation.load_in_transaction(std::slice::from_mut(&mut parent), load, &context, &transaction, Ok).await;
+            check(matches!(wrong, Err(error) if error.code() == "model_relation_transaction_source_mismatch"))?;
+            check(!parent.relations.relation_loaded("linked"))?;
+            parent.metadata.connection = None;
+            databases.default_database().table("relation_links")?
+                .using_transaction(transaction.transaction())
+                .insert(vec![("parent_id", 7_i64.into()), ("item_id", 2_i64.into()), ("tag", "uncommitted".into())])
+                .await?;
+            relation.load_in_transaction(std::slice::from_mut(&mut parent), load, &context, &transaction, Ok).await?;
+            let items = parent.relations.get_relation("linked")
+                .and_then(|value| value.downcast_ref::<Vec<Arc<GeneratedModel>>>())
+                .ok_or_else(|| Error::custom("generated_pivot_not_loaded", "事务关系未加载"))?;
+            check(items.len() == 2)?;
+            let item = items.iter().find(|item| item.attributes.raw_attribute("id").is_ok_and(|id| id == Some(json!(2))))
+                .ok_or_else(|| Error::custom("generated_pivot_uncommitted_missing", "未读到事务内中间表行"))?;
+            check(item.attributes.raw_attribute("label")? == Some(json!("事务内监听器读取")))?;
+            let pivot = item.relations.get_relation("pivot").and_then(|value| value.downcast_ref::<Pivot>())
+                .ok_or_else(|| Error::custom("generated_pivot_missing", "缺少事务中间表数据"))?;
+            check(pivot.attributes().get("tag") == Some(&json!("uncommitted")))?;
+            Err::<(), _>(Error::custom("generated_pivot_rollback", "验证中间表事务回滚"))
+        })
+    }, |_| Box::pin(async { Ok(()) })).await;
+    check(matches!(result, Err(error) if error.code() == "generated_pivot_rollback"))?;
+    check(
+        db.table("relation_links")?
+            .where_eq("item_id", 2_i64)?
+            .count()
+            .await?
+            == 0,
+    )
 }
 
 async fn check_generated_belongs_to(
@@ -860,6 +1693,29 @@ fn check_locked_child(model: &GeneratedModel) -> Result<()> {
 
 fn generated_retrieved_events() -> openrust::events::EventsServiceProvider {
     let mut provider = openrust::events::EventsServiceProvider::new();
+    provider.listen_named_reply("eloquent.creating: generated::Membership", |payload, _| {
+        Box::pin(async move {
+            let pivot = payload.downcast_ref::<GeneratedModel>().ok_or_else(|| {
+                Error::custom("generated_pivot_create_type", "创建事件模型类型不符")
+            })?;
+            check(!pivot.exists)?;
+            match pivot
+                .attributes
+                .raw_attribute("tag")?
+                .as_ref()
+                .and_then(serde_json::Value::as_str)
+            {
+                Some("reject") => return Ok(openrust::support::DataValue::Bool(false)),
+                Some("raw") => {
+                    pivot
+                        .attributes
+                        .set_raw_attribute("tag", serde_json::json!("custom"))?;
+                }
+                _ => {}
+            }
+            Ok(openrust::support::DataValue::Null)
+        })
+    });
     provider.listen_named_reply(
         "eloquent.retrieved: generated::InsertItem",
         |payload, context| {
@@ -892,6 +1748,27 @@ fn generated_retrieved_events() -> openrust::events::EventsServiceProvider {
             })
         },
     );
+    provider.listen_named_reply("eloquent.deleting: generated::Membership", |payload, _| {
+        Box::pin(async move {
+            let pivot = payload.downcast_ref::<GeneratedModel>().ok_or_else(|| {
+                Error::custom("generated_pivot_delete_type", "删除事件模型类型不符")
+            })?;
+            check(pivot.exists)?;
+            if pivot.attributes.raw_attribute("tag")? == Some(serde_json::json!("keep")) {
+                return Ok(openrust::support::DataValue::Bool(false));
+            }
+            Ok(openrust::support::DataValue::Null)
+        })
+    });
+    provider.listen_named_reply("eloquent.deleted: generated::Membership", |payload, _| {
+        Box::pin(async move {
+            let pivot = payload.downcast_ref::<GeneratedModel>().ok_or_else(|| {
+                Error::custom("generated_pivot_delete_type", "删除事件模型类型不符")
+            })?;
+            check(!pivot.exists)?;
+            Ok(openrust::support::DataValue::Null)
+        })
+    });
     provider
 }
 

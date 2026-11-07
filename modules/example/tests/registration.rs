@@ -1301,6 +1301,10 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     let article_events = table("example_article_events");
     let showcase_categories = table("example_record_categories");
     let showcase_records = table("example_records");
+    let showcase_links = Statement::from_string(
+        connection.get_database_backend(),
+        "SELECT record_id FROM example_record_category_links LIMIT 1".to_owned(),
+    );
     let attachment_cleanup = Statement::from_string(
         connection.get_database_backend(),
         "SELECT article_id FROM example_attachment_cleanup LIMIT 1".to_owned(),
@@ -1323,6 +1327,7 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         .query_one_raw(showcase_categories.clone())
         .await?;
     connection.query_one_raw(showcase_records.clone()).await?;
+    connection.query_one_raw(showcase_links.clone()).await?;
     let shared_history = Statement::from_string(
         connection.get_database_backend(),
         "SELECT version FROM openrust_migrations".to_owned(),
@@ -1337,16 +1342,17 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             .position(|name| name == openrust::session::SessionGcMigration.name())
             .ok_or("Session GC迁移未登记")?;
         let gc_name = openrust::session::SessionGcMigration.name();
-        // 历史按版本排序，框架新增迁移也可能位于GC之后，不能仅跳过框架数量。
-        let mut later_framework_and_application = crate::database::Migrator::migrations()
+        // 共享历史按版本排序，框架、应用和模块都可能在 GC 之后登记迁移。
+        let mut later_migrations = crate::database::Migrator::migrations()
             .into_iter()
+            .chain(crate::modules::example::database::migrations::Migrator::migrations())
             .map(|migration| migration.name().to_owned())
             .filter(|name| name.as_str() > gc_name)
             .collect::<Vec<_>>();
-        later_framework_and_application.sort();
+        later_migrations.sort();
         assert_eq!(
             &before_history[gc_position + 1..],
-            later_framework_and_application.as_slice()
+            later_migrations.as_slice()
         );
         let gc_down_steps = before_down - gc_position;
         let db = enabled
@@ -1379,6 +1385,12 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             .query_one_raw(showcase_categories.clone())
             .await?;
         connection.query_one_raw(showcase_records.clone()).await?;
+        assert!(
+            connection
+                .query_one_raw(showcase_links.clone())
+                .await
+                .is_err()
+        );
         connection.query_one_raw(statement.clone()).await?;
         connection.query_one_raw(articles.clone()).await?;
         connection.query_one_raw(article_events.clone()).await?;
@@ -1405,6 +1417,12 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             .await,
     )?;
     eprintln!("module_migration phase=read_after_business_down");
+    assert!(
+        connection
+            .query_one_raw(showcase_links.clone())
+            .await
+            .is_err()
+    );
     connection.query_one_raw(statement.clone()).await?;
     connection.query_one_raw(articles.clone()).await?;
     connection.query_one_raw(article_events.clone()).await?;
@@ -1484,7 +1502,7 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         let remaining = before_down - migration_versions(&connection).await?.len();
         if remaining > 0 {
             migration_command(
-                "later_framework_and_application_up",
+                "later_migrations_up",
                 enabled
                     .app()?
                     .run_command("migrate", vec!["up".to_owned(), remaining.to_string()])
@@ -1492,6 +1510,7 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             )?;
         }
     }
+    connection.query_one_raw(showcase_links.clone()).await?;
     assert_eq!(migration_versions(&connection).await?, before_history);
     assert_eq!(
         connection.query_all_raw(shared_history).await?.len(),
@@ -1519,6 +1538,7 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     connection.query_one_raw(article_imports).await?;
     connection.query_one_raw(showcase_categories).await?;
     connection.query_one_raw(showcase_records).await?;
+    connection.query_one_raw(showcase_links).await?;
     disabled
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
