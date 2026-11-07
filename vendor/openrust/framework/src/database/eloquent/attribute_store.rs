@@ -280,6 +280,7 @@ impl ModelAttributes {
             metadata,
             name,
             value,
+            None,
             #[cfg(feature = "hashing")]
             None,
         )
@@ -294,14 +295,37 @@ impl ModelAttributes {
         value: Value,
         hashing: &crate::hashing::HashManager,
     ) -> Result<()> {
-        self.set_attribute_inner(metadata, name, value, Some(hashing))
+        self.set_attribute_inner(metadata, name, value, None, Some(hashing))
             .await
+    }
+    /// 使用调用级默认setter赋值；已登记的自定义setter仍优先，失败不回退。
+    ///
+    /// 两种setter均在锁外运行，返回的多字段补丁不再自动cast；默认实现自行决定转换。
+    /// 默认setter仅借用于本次future，不登记到模型中；取消或冲突不发布补丁，
+    /// 但不撤销setter已经产生的外部副作用。相交字段或登记setter的后继变化拒绝旧补丁。
+    pub async fn set_attribute_with_default_setter(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        value: Value,
+        default_setter: &dyn AttributeSetter,
+    ) -> Result<()> {
+        self.set_attribute_inner(
+            metadata,
+            name,
+            value,
+            Some(default_setter),
+            #[cfg(feature = "hashing")]
+            None,
+        )
+        .await
     }
     async fn set_attribute_inner(
         &self,
         metadata: &ModelMetadata,
         name: &str,
         value: Value,
+        default_setter: Option<&dyn AttributeSetter>,
         #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
     ) -> Result<()> {
         let (snapshot, setter, watch) = {
@@ -326,6 +350,7 @@ impl ModelAttributes {
             value,
             snapshot,
             setter,
+            default_setter,
             #[cfg(feature = "hashing")]
             hashing,
         )
@@ -355,10 +380,13 @@ impl ModelAttributes {
         value: Value,
         snapshot: Map<String, Value>,
         setter: Option<Arc<dyn AttributeSetter>>,
+        default_setter: Option<&dyn AttributeSetter>,
         #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
     ) -> Result<Map<String, Value>> {
         Ok(if let Some(setter) = setter {
             setter.set(value, snapshot).await?
+        } else if let Some(default_setter) = default_setter {
+            default_setter.set(value, snapshot).await?
         } else {
             let value = match metadata.write_cast(name)? {
                 Some(AttributeCast::Array) if !value.is_null() => {
@@ -462,6 +490,7 @@ impl ModelAttributes {
             value,
             snapshot,
             setter,
+            None,
             #[cfg(feature = "hashing")]
             hashing,
         )
@@ -851,3 +880,7 @@ mod tests;
 
 #[path = "attribute_state.rs"]
 mod persistence_state;
+
+#[cfg(test)]
+#[path = "default_setter_tests.rs"]
+mod default_setter_tests;

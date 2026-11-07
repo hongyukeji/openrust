@@ -1,7 +1,9 @@
 # 当前计划
 
+MB-S01 已收齐[调用级默认属性 setter 限定验收](memory/testing.md#调用级默认属性-setter-限定验收)。后继使用已提交父树接 Passport Client，并按唯一 todo 推进 Model 载体、增强认证等独立簇。
 
-Hashing字节与单次叶选择已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)；后继先交验MB-S01，再按唯一todo推进增强认证、Model与Manager剩余契约。隔离候选静审不等于运行，本批不扩张到HA、NumericDate、CT或Passport。
+
+Hashing字节与单次叶选择已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)。增强认证、Model与Manager剩余契约按唯一 todo 分批交验。
 
 EV-R01已完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)，提供Model保存后继需要的事件身份与响应机制。后续串行交验Hashing字节、Schema等独立冻结候选；其静审不算运行，不追加到本Events有限提交，完整Model事件/官方事务载荷仍未完成。
 

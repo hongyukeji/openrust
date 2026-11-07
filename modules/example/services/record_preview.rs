@@ -2,7 +2,7 @@
 use crate::modules::example::{
     http::requests::example_record::ExampleRecordInput, models::example_record,
 };
-use openrust::Result;
+use openrust::{Result, database::eloquent::AttributeSetter, support::BoxFuture};
 use serde_json::{Map, Value};
 
 #[derive(serde::Serialize)]
@@ -39,11 +39,18 @@ pub(crate) async fn preview(
     ] {
         attributes.set_attribute(&metadata, name, value).await?;
     }
-    // metadata预览沿现update的类型保真JSON原值，不改框架PHP Array setter语义。
-    attributes.set_raw_attribute(
-        "metadata",
-        example_record::Model::metadata_snapshot_value(input.metadata.as_ref())?,
-    )?;
+    // 默认业务setter保留现update的JSON类型；注册的自定义setter仍优先。
+    let default_setter = MetadataPreviewSetter {
+        present: input.metadata.is_some(),
+    };
+    attributes
+        .set_attribute_with_default_setter(
+            &metadata,
+            "metadata",
+            input.metadata.unwrap_or(Value::Null),
+            &default_setter,
+        )
+        .await?;
     let dirty = attributes.get_dirty(&metadata)?;
     // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
     attributes.sync_changes(&metadata)?;
@@ -56,6 +63,24 @@ pub(crate) async fn preview(
         has_changes: attributes.was_changed(&[])?,
         persisted: false,
     })
+}
+
+// Option<Json>的None与显式Some(Null)沿现业务投影分别保留为null和文本"null"。
+struct MetadataPreviewSetter {
+    present: bool,
+}
+impl AttributeSetter for MetadataPreviewSetter {
+    fn set(
+        &self,
+        value: Value,
+        _raw_snapshot: Map<String, Value>,
+    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        Box::pin(async move {
+            let projected =
+                example_record::Model::metadata_snapshot_value(self.present.then_some(&value))?;
+            Ok(Map::from_iter([("metadata".into(), projected)]))
+        })
+    }
 }
 
 #[cfg(test)]

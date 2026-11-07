@@ -1,5 +1,7 @@
 # 当前交付与验证
 
+MB-S01 调用级默认属性 setter 已收齐[调用级默认属性 setter 限定验收](memory/testing.md#调用级默认属性-setter-限定验收)。自定义优先、默认分支复用属性 patch，真实账户预览与借用 Send consumer 均有证据。
+
 
 Hashing字节、秘密文件CLI及嵌套Manager单次最终叶：已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)，有限提交/推送以Git为准。完整AuthFlows、Model与Manager剩余表面未关闭，不报整个框架完成。
 

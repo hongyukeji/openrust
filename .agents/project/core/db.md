@@ -104,3 +104,9 @@ SQLite自定义插件仍可经通用Db公开API提供连接；只有实际启用
 `transaction_for_update_checked_context(work, check)`复用唯一事务引擎：工作→提交前direct监听和队列入队→最终检查→提交，不等待worker或赋予跨库原子性。唯一文章创建在末检确认新id与owner；监听删除/改owner返回409，来源错误为500，成功仍返回插入时快照。外层事务导入入口仍由其持有者决定最终检查。
 
 源码树`5056c267888aeb3a8a14cf9319cba422113b24d0`的8路径有限验收见[测试基线](../memory/testing.md#事务来源与提交前检查限定验收)。未知提交结果、认证/同意权威与完整Model保存不由此闭合。
+
+## 调用级默认属性 setter
+
+`ModelAttributes::set_attribute_with_default_setter` 允许调用级借用 `AttributeSetter`。同一赋值快照先选已登记的自定义 setter，其次选调用级默认 setter。两类 setter 都走现有多字段 patch、watch 与冲突检查。普通赋值继续在没有自定义 setter 时走 cast。默认 setter 若需要 cast，显式调用同一公开管线。
+
+唯一示例用默认 setter 为账户记录 metadata 构造内存预览，区分字段缺省与显式 null，并保留类型、原基线和未持久化语义。外部 consumer 验证借用可跨 Send future。精确行为、真实 MySQL 与生成证据见[限定验收](../memory/testing.md#调用级默认属性-setter-限定验收)。完整 Model 保存与 Passport Client 接线另验。

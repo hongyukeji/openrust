@@ -197,3 +197,7 @@ CTX v5正式报告与规范树、源文件和回执绑定见[限定验收](testi
 ## Hashing字节与操作选择
 
 精确25源码树、原生完整有限门禁及正式报告见[Hashing限定验收](testing.md#hashing字节与单次叶选择限定验收)。已核同一默认操作真实叶、字节能力/KDF、唯一示例命令、固定PHP、公开consumer及生成Web/JWT回归；旧断言、真实MySQL、源码与fixture/catalog不变证据保留。最终提交另映射正式consumer锁与事实文档，未将增强认证后继或其他WIP混作运行通过。
+
+## 调用级默认属性 setter
+
+MB-S01 v6 的 10 路径源码树和独立回执见[限定验收](testing.md#调用级默认属性-setter-限定验收)。默认/真实 MySQL 工作区、借用 Send consumer、生成项目、文档、最小编译器与离线依赖门禁分别核对。完整 Model 与 Passport 仍沿唯一 todo 验收。

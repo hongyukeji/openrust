@@ -95,3 +95,6 @@ PostgreSQL 二进制时间当前使用 ISO/UTC 表示，不对应任意会话 `T
 固定来源：[Laravel 13.x Eloquent](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md) 与 [属性访问器和转换](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-mutators.md)。完整官方章节仍按依赖逐项交付，当前例子仅说明可用的属性与身份前置。
 
 预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。
+
+
+需要为可覆盖的模型默认写入行为提供调用级 setter 时，使用 `ModelAttributes::set_attribute_with_default_setter`。同一次快照中已注册的自定义 setter 优先；仅缺省时调用传入的 `&dyn AttributeSetter`，可借用当前服务。两者均在锁外执行，成功补丁进入同一冲突检查；默认 setter 自行决定转换，框架不会随后再运行 cast。准备期间同名 setter 改变会拒绝过期补丁。这个入口不登记长期访问器，也不回滚 setter 的外部副作用。

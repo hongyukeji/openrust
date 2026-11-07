@@ -1864,3 +1864,14 @@ EV-R01精确运行输入为已提交Context `364233ca`上的v5，manifest `0b5b3
 - 默认与全feature拒警Rustdoc、62本地链接、13组reduced/no-default/driver门禁通过。实际Rust1.97双profile fresh=false、compiler fingerprint103852…；离线deny0使用缓存advisory `309392b18f6b17022f82c701f300433126901068`（2026-11-06），未在线刷新，duplicate29与license-not-encountered1警告保留。
 
 源SHA/mode、固定PHP fixture SHA/inode/mtime与数据库catalog保持。v3/v4/v7/v8失败、私有helper修复及提前读取companion回执的时序纠正保全；不以旧通过替新输入。自然边界精确回收完成产物后，单一stable缓存约7.58GB、磁盘余量80.81GB/8.124%，无在途native命令。完整增强认证选择、Manager getDrivers/forget/container/default及历史缓存所有权、Model binary/hashed与非UTF8 encoded、其他/最低数据库、Windows、OIDC/SMTP/副本/非UTF8文件系统等专项仍开放。
+
+## 调用级默认属性 setter 限定验收
+
+Hashing 提交 `651c2971` 上的 MB-S01 v6 冻结 manifest `ab2172856a453cb89ed10a36bbe26ab128d78d0acf32ce87f8fcff611d85091e` 共 1633 个文件。10 个任务路径对应 Git 源码树 `eb6a0a0f8d39c9d13bd278dc3866ba31ce988b7e`。有限提交另含正式独立 consumer 锁与验收事实记录。独立测试报告 `tmp/independent-testing-20261106/MODEL-DEFAULT-SETTER-RESULT.json` SHA `e3470a9d777e2c9ed4f91b80430f2d9db82448148a42e403048ceaabe29deefb`。
+
+- 全特性检查和严格 Clippy、默认严格检查、精确输入 fmt 通过。v5 的恒等 `map_or` 失败保留。v6 只替换预览入口一行，仍用独立 presence 标志区分缺省和显式 null。
+- 无 Hashing setter 6 项、有 Hashing setter 7 项，Model 定向 95 项包含上述 7 项。模块预览服务 5 项、真实 MySQL 8.4 HTTP 预览 1 项、公开模型状态 2 项通过。真实 HTTP 核对 null、dirty、changes、previous 及整行未写入，数据库 catalog 恢复。
+- 新公开 consumer 通过正式锁、编译、严格检查及借用 Send 用例。生成的 minimal、Web、JWT 项目分别通过 19、51、96 项。
+- 默认 workspace、例行真实 MySQL workspace、拒警 Rustdoc、链接、reduced/driver 编译、实际 Rust 1.97 和离线依赖门禁通过。外部跳过和原失败边界按回执保留。离线依赖结果使用本地 advisory 快照。
+
+本批交付默认 setter 选择、借用及原 patch 规则。完整 getOriginal、fill/save/事件/关系、Model binary、Passport Client 业务组合、其他数据库与发布矩阵各自保留。

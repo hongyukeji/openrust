@@ -130,3 +130,42 @@ async fn metadata_business_projection_preserves_integral_double_and_strict_type_
     }
     Ok(())
 }
+
+// 防止默认setter再次串Array cast而丢失整double、null存在性或JSON文本层次。
+#[tokio::test]
+async fn metadata_default_setter_preserves_absence_and_explicit_null() -> Result<()> {
+    for (metadata, expected) in [
+        (None, Value::Null),
+        (Some(Value::Null), json!("null")),
+        (Some(json!({"n":1.0})), json!("{\"n\":1.0}")),
+    ] {
+        let (mut model, mut input) = fixture();
+        model.metadata = metadata.clone();
+        input.metadata = metadata;
+        let report = preview(&model, input).await?;
+        assert_eq!(report.proposed.get("metadata"), Some(&expected));
+        assert!(report.dirty.is_empty());
+        assert!(!report.persisted);
+    }
+    Ok(())
+}
+
+// 若仅在null输入跳过setter，旧非空快照会留下错误原值；必须观察真正的变更。
+#[tokio::test]
+async fn metadata_default_setter_replaces_non_null_with_absent_or_explicit_null() -> Result<()> {
+    for (metadata, expected) in [(None, Value::Null), (Some(Value::Null), json!("null"))] {
+        let (model, mut input) = fixture();
+        let original = example_record::Model::metadata_snapshot_value(model.metadata.as_ref())?;
+        input.metadata = metadata;
+        let report = preview(&model, input).await?;
+        assert_eq!(report.original.get("metadata"), Some(&original));
+        assert!(report.proposed.contains_key("metadata"));
+        assert_eq!(report.proposed.get("metadata"), Some(&expected));
+        assert_eq!(report.dirty.get("metadata"), Some(&expected));
+        assert_eq!(report.changes.get("metadata"), Some(&expected));
+        assert_eq!(report.previous.get("metadata"), Some(&original));
+        assert!(report.has_changes);
+        assert!(!report.persisted);
+    }
+    Ok(())
+}
