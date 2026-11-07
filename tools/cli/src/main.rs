@@ -19,6 +19,8 @@ use clap::{
 };
 use serde_json::Value;
 
+mod controller_generation;
+
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// OpenRust 框架的命令行工具。
@@ -2599,24 +2601,9 @@ fn generate_model(
 }
 
 fn generate_controller(name: &str, project_dir: &Path) -> anyhow::Result<()> {
-    let module = normalize_generator_type(name, "Controller")?;
-    let type_name = format!("{}Controller", pascal_case(&module));
-    let file = project_dir.join(format!("app/http/controllers/{module}.rs"));
-    if file.exists() {
-        bail!("controller already exists: {}", file.display());
-    }
-    let registry = project_dir.join("app/http/controllers/mod.rs");
-    let source = format!(
-        "//! 应用控制器。\n\n/// `{type_name}` 控制器；在 `routes/web.rs` 或 `routes/api.rs` 中注册其处理方法。\npub struct {type_name};\n"
-    );
-    fs::write(&file, source)?;
-    append_sorted_module(
-        &registry,
-        &format!("pub mod {module};"),
-        "//! 应用控制器。\n",
-    )?;
-    print_generated(&format!("Generated controller `{type_name}`."))?;
-    Ok(())
+    let type_name = controller_generation::generate(name, project_dir)?;
+    print_generated(&format!("Generated controller `{type_name}`."))
+        .context("controller_generated_output_failed: 控制器已生成，结果输出失败")
 }
 
 fn generate_application_model(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
@@ -4328,6 +4315,82 @@ mod tests {
         );
         assert!(Cli::try_parse_from(["openrust", "make:model", "Post"]).is_ok());
         fs::remove_dir_all(root).expect("remove temporary test directory");
+    }
+
+    #[test]
+    fn nested_controller_generation_registers_each_level_and_rejects_conflicts()
+    -> anyhow::Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-nested-controller-{}",
+            std::process::id()
+        ));
+        fs::create_dir(&root)?;
+        let result: anyhow::Result<()> = (|| {
+            let project = root.join("app-fixture");
+            populate_project(
+                &project,
+                "nested_controller",
+                "NestedController",
+                None,
+                false,
+                false,
+                false,
+                false,
+            )?;
+            let controllers = project.join("app/http/controllers");
+            generate_controller("Admin/UserController", &project)?;
+            generate_controller(r"Admin\Reports\DailyController", &project)?;
+            let leaf = controllers.join("admin/user.rs");
+            let original = fs::read_to_string(&leaf)?;
+            assert!(original.contains("pub struct UserController;"));
+            assert!(controllers.join("admin/reports/daily.rs").is_file());
+            let registry = fs::read_to_string(controllers.join("mod.rs"))?;
+            assert_eq!(
+                registry
+                    .lines()
+                    .filter(|line| *line == "pub mod admin;")
+                    .count(),
+                1
+            );
+            let nested = fs::read_to_string(controllers.join("admin/mod.rs"))?;
+            assert!(nested.contains("pub mod reports;\npub mod user;"));
+            assert!(
+                fs::read_to_string(controllers.join("admin/reports/mod.rs"))?
+                    .contains("pub mod daily;")
+            );
+            for bad in [
+                "Admin/UserController",
+                "AdminController",
+                "../OutsideController",
+                "/AbsoluteController",
+                "Broken//UserController",
+                "Gen/UserController",
+                "Admin/User/ChildController",
+            ] {
+                assert!(generate_controller(bad, &project).is_err(), "{bad}");
+            }
+            #[cfg(unix)]
+            {
+                let outside = root.join("outside");
+                fs::create_dir(&outside)?;
+                std::os::unix::fs::symlink(&outside, controllers.join("escape"))?;
+                assert!(generate_controller("Escape/UserController", &project).is_err());
+                assert!(!outside.join("user.rs").exists());
+            }
+            assert_eq!(fs::read_to_string(&leaf)?, original);
+            assert_eq!(fs::read_to_string(controllers.join("mod.rs"))?, registry);
+            assert_eq!(
+                fs::read_to_string(controllers.join("admin/mod.rs"))?,
+                nested
+            );
+            assert!(!controllers.join("broken").exists());
+            assert!(!controllers.join("outside.rs").exists());
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(root);
+        result?;
+        cleanup?;
+        Ok(())
     }
 
     #[test]

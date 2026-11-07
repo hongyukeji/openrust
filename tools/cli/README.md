@@ -113,6 +113,12 @@ cargo run -- module:enable --all --no-interaction
 
 `make:controller PostController` 在 `app/http/controllers/` 生成控制器类型并登记 Rust 模块，具体处理函数由开发者实现后在 `routes/web.rs` 或 `routes/api.rs` 注册；`make:provider CatalogServiceProvider` 在 `app/providers/` 生成 `register`/`boot` 骨架，并自动加入 `bootstrap/providers.rs`。`make:model Post` 在 `app/models/` 创建 SeaORM 模型，允许暂不声明字段，也不要求编入官方数据库驱动；它们都拒绝覆盖同名文件。原有 `generate model` 继续在 `app/models/_entities/` 生成字段驱动的 SeaORM entity；`generate migration` 在 `database/migrations/` 生成迁移并写入 registry。字段支持 `string`、`text`、`integer`、`big_integer`、`boolean`、`date_time`、`json` 和 `references`，在字段类型后加 `?` 表示可空。model 使用单数名称，表名采用简单英语复数；migration 接受表名。被引用表须在外键迁移前创建。
 
+控制器支持相对命名空间。运行 `openrust make:controller Admin/UserController` 会生成 `app/http/controllers/admin/user.rs`，并在两级 `mod.rs` 登记模块。可以在路由代码中引用 `crate::app::http::controllers::admin::user::UserController`。命名空间分隔符也可用反斜杠，shell 中请用引号包住参数。绝对路径、越界路径、保留标识符和已有同名控制器会被拒绝。自动登记支持逐行外部 `mod` 声明、行注释与单行属性；已有无条件 `pub mod admin;` 命名空间可复用。同名声明使用其他可见性、raw identifier、属性或 inline 模块时拒绝；多行属性、块注释及其他自定义 Rust item 等未支持布局也会在写入前拒绝，不猜测解析结果。新增声明按完整模块 item 插入，保留原属性和文本。
+
+控制器生成按可信、生成期间不被其他工具修改的工作区处理：预检拒绝已存在的符号链接，同命令排他锁防止两个控制器生成互相覆盖；这不提供恶意并发替换父路径的隔离。文件先写同目录暂存和原像备份，再安装；普通 I/O 失败会补偿恢复原文件并回收本次新文件/目录。恢复也失败时同时保留主错误、清理错误及恢复文件路径，需先检查并恢复残留，再重试。该机制不承诺进程崩溃或断电后的多文件原子性；遗留 `.openrust-controller.lock` 不能在另一个生成仍活跃时删除。提交后清理或终端输出失败会明确报告控制器已生成，不能按“未生成”盲目重试。
+
+本命令目前接受控制器根目录下的相对命名空间；固定 Laravel 还支持应用完整限定名、前导命名空间分隔符及更多 stub/选项，这些对应项仍待交付，不能把当前有限输入限制当作上游规则。
+
 两个数据库生成命令均支持 `--uuid-id` 与 `--soft-delete`，model 与对应迁移须使用相同选项。UUID 使用 UUIDv7，为应用及已有 migration package 启用 `db-uuid`；软删除增加可空 UTC `deleted_at`，只提供显式 `Entity::not_deleted()` scope，不改变普通 `Entity::find()`。
 
 `generate mailer <name>` 生成实现 `openrust::mail::Email` 的邮件类型；`generate policy <resource>` 生成基于 `openrust::auth::Policy` 的资源授权包装，权限名为 `<resource>:read|create|update|delete`。`generate job <name>` 需要已有迁移 package 的应用结构，不通过 manifest 中的驱动文字推断能力；它会启用队列 feature；标准迁移清单由同一 `FrameworkMigrator` 贡献一次队列迁移，不再额外登记 `QueueMigration`。生成器同时生成显式失败的 handler 骨架，并把任务注册到应用队列 Provider；请先实现 handler，再启动 worker。上述生成器会登记模块且不覆盖已有文件；policy 需要通过 `--auth` 创建项目。
