@@ -312,7 +312,7 @@ impl<const MODE: u8> ApplicationDefinition for App<MODE> {
         vec![
             Box::new(HttpServiceProvider),
             Box::new(crate::encryption::EncryptionServiceProvider),
-            Box::new(CookieServiceProvider::new()),
+            Box::new(CookieServiceProvider::contextual()),
             Box::new(SessionServiceProvider::with_store(
                 MemorySessionStore::default(),
             )),

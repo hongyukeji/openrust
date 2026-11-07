@@ -178,7 +178,7 @@ impl Fixture {
         let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
         // client_secret 的正式配置序列化会省略秘密；测试源显式传入，不输出到日志。
         let source=Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
-            "app":{"env":"test","url":origin},"database":{"url":database.url()},
+            "app":{"env":"test","url":origin,"key":"0123456789abcdef0123456789abcdef"},"database":{"url":database.url()},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"oidc-example","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},

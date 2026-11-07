@@ -685,7 +685,7 @@ async fn malformed_key_fails_at_first_protected_request_without_leaking_material
     providers
         .provider(openrust::http::HttpServiceProvider)
         .provider(openrust::encryption::EncryptionServiceProvider)
-        .provider(openrust::http::CookieServiceProvider::new())
+        .provider(openrust::http::CookieServiceProvider::contextual())
         .provider(CookieRoutes);
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         openrust::config::FrameworkConfig::default(),

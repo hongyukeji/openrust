@@ -7,3 +7,5 @@
 先配置 `.env` 的数据库与部署密钥，再运行标准迁移及测试。SQLite 安装会创建隔离数据库并执行标准迁移。`tests/auth_flows.rs` 使用真实账户和 Router 验证 Web 管理、Cookie、Session、CSRF 与账户 Provider。
 
 需要完全无 Session/Cookie 的 JWT API 应用时，创建项目时显式选择 `openrust new <应用名> --profile jwt-api`，不与 `--fortify` 共选。
+
+启用加密的 Web 项目在首次处理受保护 Cookie 时读取 `APP_KEY`。请在部署前运行 `cargo run -- key:generate`，或由部署平台注入有效的应用密钥。

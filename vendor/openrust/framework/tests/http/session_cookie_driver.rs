@@ -152,7 +152,7 @@ async fn app(
     if protected {
         builder
             .provider(openrust::encryption::EncryptionServiceProvider)
-            .provider(CookieServiceProvider::new());
+            .provider(CookieServiceProvider::contextual());
     } else {
         builder.provider(CookieServiceProvider::plain());
     }

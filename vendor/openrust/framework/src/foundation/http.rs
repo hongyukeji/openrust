@@ -901,7 +901,7 @@ mod http_scope_origin_tests {
         providers
             .provider(HttpServiceProvider)
             .provider(crate::encryption::EncryptionServiceProvider)
-            .provider(CookieServiceProvider::new())
+            .provider(CookieServiceProvider::contextual())
             .provider(
                 SessionServiceProvider::with_store(Store {
                     memory: MemorySessionStore::default(),

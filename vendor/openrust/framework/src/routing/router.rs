@@ -2816,7 +2816,7 @@ mod return_roles_tests {
         builder
             .provider(HttpServiceProvider)
             .provider(crate::encryption::EncryptionServiceProvider)
-            .provider(CookieServiceProvider::new())
+            .provider(CookieServiceProvider::contextual())
             .provider(SessionServiceProvider::with_store(ObservedStore::new(
                 Arc::clone(&writes),
                 false,

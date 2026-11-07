@@ -278,7 +278,7 @@ async fn fixture(behavior: Behavior) -> Result<(Application, Arc<Observation>)> 
     builder
         .provider(HttpServiceProvider)
         .provider(EncryptionServiceProvider)
-        .provider(CookieServiceProvider::new())
+        .provider(CookieServiceProvider::contextual())
         .provider(
             SessionServiceProvider::with_store(Store {
                 data: MemorySessionStore::default(),
@@ -485,7 +485,7 @@ async fn ordered_fixture(
     builder
         .provider(HttpServiceProvider)
         .provider(EncryptionServiceProvider)
-        .provider(CookieServiceProvider::new())
+        .provider(CookieServiceProvider::contextual())
         .provider(
             SessionServiceProvider::with_store(MemorySessionStore::default()).with_cookie_config(
                 SessionConfig {
@@ -692,7 +692,7 @@ async fn rename_fixture(
     builder
         .provider(HttpServiceProvider)
         .provider(EncryptionServiceProvider)
-        .provider(CookieServiceProvider::new().except([EXCLUDED_SESSION_NAME]))
+        .provider(CookieServiceProvider::contextual().except([EXCLUDED_SESSION_NAME]))
         .provider(
             SessionServiceProvider::with_store(Store {
                 data: MemorySessionStore::default(),

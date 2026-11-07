@@ -3,8 +3,13 @@ use figment::Figment;
 use openrust::config::SessionConfig;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::http::Cookie;
+use openrust::http::CookieJar;
+use openrust::http::CookieOptions;
+use openrust::http::CookieResponseExt;
+use openrust::http::Json;
+use openrust::http::RequestInfo;
+use openrust::http::SameSite;
 use openrust::http::axum::{
     Extension,
     body::Body,
@@ -14,16 +19,11 @@ use openrust::http::axum::{
     },
     response::IntoResponse,
 };
-use openrust::http::Cookie;
-use openrust::http::CookieJar;
-use openrust::http::CookieOptions;
-use openrust::http::CookieResponseExt;
-use openrust::http::Json;
-use openrust::http::RequestInfo;
 use openrust::routing::RouteGroup;
 use openrust::routing::Router;
-use openrust::http::SameSite;
 use openrust::session::Session;
+use openrust::support::BoxFuture;
+use openrust::support::ServiceProvider;
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -89,7 +89,10 @@ impl<A: ApplicationDefinition> ApplicationDefinition for CookieApplication<A> {
         providers
     }
 
-    fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
+    fn configure_providers(
+        config: &Self::Config,
+        builder: &mut openrust::foundation::ProviderBuilder,
+    ) {
         A::configure_providers(config, builder);
     }
 }
@@ -144,6 +147,7 @@ async fn forget_cookies(jar: CookieJar) -> openrust::Result<impl IntoResponse> {
 pub async fn assert_request_cookie<A: ApplicationDefinition>(
     source: Figment,
     expect_session: bool,
+    check_wire: impl FnOnce(&[String]) -> openrust::Result<()>,
 ) -> openrust::Result<()> {
     let mut app = TestApp::<CookieApplication<A>>::builder(source)
         .build()
@@ -169,6 +173,7 @@ pub async fn assert_request_cookie<A: ApplicationDefinition>(
             false,
             session_name.as_deref().zip(session_config.as_ref()),
         )?;
+        check_wire(&pairs)?;
         let cookie_header = pairs.join("; ");
 
         let response = app
@@ -300,7 +305,7 @@ fn check_cookie_headers(
         } else {
             ensure(expires > now && max_age > 0 && max_age <= 300)?;
         }
-        // 第一段逐字保留，既不解密 or1，也不假设当前应用采用明文保护模式。
+        // 第一段逐字保留，原样回送给应用，支持明文或经认证的载荷。
         pairs.push(pair.to_owned());
     }
     let mut total = 0;

@@ -53,10 +53,14 @@ fn sources(root: &Path, url: &str, api: bool, issuer: &str) -> Result<ConfigSour
         &crate::config::boot().with_toml(),
         overrides,
     )?;
+    let mut app = json!({"env":"local","url":"http://localhost"});
+    if !api {
+        app["key"] = json!("0123456789abcdef0123456789abcdef");
+    }
     source.merge_ordered_entries([
         ("application_root", json!(root)),
         ("modules", json!({"activator":"registered","activators":{"file":{"statuses-file":root.join("module-statuses.json")}}})),
-        ("app", json!({"env":"local","url":"http://localhost"})),
+        ("app", app),
         ("database", json!({"url":url,"max_connections":4,"min_connections":0})),
         ("session", json!({"driver":"database","secure":false,"lottery":[0,100]})),
         ("security", json!({"encryption":{"active_key_id":"test","keys":{"test":TEST_KEY}},"signed_links":{"active_key_id":"test","keys":{"test":TEST_KEY}}})),

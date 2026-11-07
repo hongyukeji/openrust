@@ -265,7 +265,7 @@ async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn s
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
-    request_cookie::assert_request_cookie::<GeneratedApplication>(source, false).await?;
+    request_cookie::assert_request_cookie::<GeneratedApplication>(source, false, |_| Ok(())).await?;
     Ok(())
 }
 

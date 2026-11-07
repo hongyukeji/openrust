@@ -128,7 +128,7 @@ impl<const MODE: u8> ApplicationDefinition for App<MODE> {
         if MODE == 2 {
             providers.push(Box::new(crate::encryption::EncryptionServiceProvider));
             providers.push(Box::new(
-                CookieServiceProvider::new().except([NAME, FORGED_ID]),
+                CookieServiceProvider::contextual().except([NAME, FORGED_ID]),
             ));
         } else {
             providers.push(Box::new(CookieServiceProvider::plain()));

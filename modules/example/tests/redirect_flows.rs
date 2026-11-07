@@ -53,7 +53,7 @@ impl ApplicationDefinition for DraftApplication {
 fn sources() -> Figment {
     Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(json!({
-            "app":{"env":"test","url":"http://localhost","key":"example-signed-test-key"},
+            "app":{"env":"test","url":"http://localhost","key":"base64:KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="},
             "session":{"driver":null},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "view":{"directory":std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("modules/example/resources/views"),"auto_reload":false},

@@ -199,7 +199,7 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
         let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
             "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
         "application_root":root.path(), "late_driver":final_driver,
-            "app":{"env":"test"}, "session":{"driver":initial,"secure":false},
+            "app":{"env":"test","key":"0123456789abcdef0123456789abcdef"}, "session":{"driver":initial,"secure":false},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })));
@@ -266,7 +266,7 @@ async fn explicit_cookie_without_database_uses_original_host_provider_and_persis
     config.api.http_status = HttpStatusMode::Semantic;
     let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
         "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
-        "application_root":root.path(), "app":{"env":"test"},
+        "application_root":root.path(), "app":{"env":"test","key":"0123456789abcdef0123456789abcdef"},
         "session":{"driver":"cookie","cookie":"host_cookie_session","secure":false},
         "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}

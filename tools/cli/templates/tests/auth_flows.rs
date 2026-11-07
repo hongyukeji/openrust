@@ -43,6 +43,7 @@ type TestResult<T = ()> = std::result::Result<T, Box<dyn StdError>>;
 fn test_configuration() -> openrust::config::FrameworkConfig {
     let mut config = openrust::config::FrameworkConfig::default();
     config.app.env = openrust::config::Environment::Testing;
+    config.app.key = Some("0123456789abcdef0123456789abcdef".into());
     config
 }
 
@@ -140,8 +141,16 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
         #[cfg(feature = "auth-fortify")]
         fortify_http::exercise::<GeneratedApplication>(input_source.clone()).await?;
         request_input::assert_request_input::<GeneratedApplication>(input_source.clone()).await?;
-        request_cookie::assert_request_cookie::<GeneratedApplication>(input_source.clone(), true)
-            .await?;
+        #[cfg(feature = "encryption")]
+        let check_cookie_wire = assert_default_cookie_wire;
+        #[cfg(not(feature = "encryption"))]
+        let check_cookie_wire = |_| Ok(());
+        request_cookie::assert_request_cookie::<GeneratedApplication>(
+            input_source.clone(),
+            true,
+            check_cookie_wire,
+        )
+        .await?;
         request_session::assert_request_session::<GeneratedApplication>(input_source, true).await?;
         let payload =
             serde_json::json!({"email": "testapp@example.test", "password": "initial-password"});
@@ -283,6 +292,40 @@ async fn assert_generated_named_user_provider(
         provider.retrieve_by_token(&identifier, token).await,
         Err(openrust::Error::Unauthorized)
     ));
+    Ok(())
+}
+
+#[cfg(feature = "encryption")]
+fn assert_default_cookie_wire(pairs: &[String]) -> openrust::Result<()> {
+    for pair in pairs {
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+        let error = || {
+            openrust::Error::custom(
+                "generated_cookie_payload_mismatch",
+                "生成 Web 应用未发出默认 Laravel CBC Cookie",
+            )
+        };
+        let (_, wire) = pair.split_once('=').ok_or_else(error)?;
+        // Cookie 编码仅转义 Base64 字母表中的三个符号。
+        let wire = wire
+            .replace("%2B", "+")
+            .replace("%2F", "/")
+            .replace("%3D", "=");
+        let json = STANDARD.decode(wire).map_err(|_| error())?;
+        let payload: serde_json::Value = serde_json::from_slice(&json).map_err(|_| error())?;
+        let iv = payload["iv"].as_str().ok_or_else(error)?;
+        let value = payload["value"].as_str().ok_or_else(error)?;
+        let mac = payload["mac"].as_str().ok_or_else(error)?;
+        if STANDARD.decode(iv).map_err(|_| error())?.len() != 16
+            || STANDARD.decode(value).map_err(|_| error())?.is_empty()
+            || mac.len() != 64
+            || !mac.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || payload["tag"] != ""
+        {
+            return Err(error());
+        }
+    }
     Ok(())
 }
 

@@ -33,11 +33,11 @@ impl Default for CookieServiceProvider {
     }
 }
 impl CookieServiceProvider {
-    /// 默认保护 Cookie，首次处理请求时解析已注册的加密服务。
+    /// 默认按 Laravel 名称前缀保护 Cookie，首次受保护请求时解析应用密钥。
     pub fn new() -> Self {
         Self {
             factory: None,
-            mode: ProtectionMode::Contextual,
+            mode: ProtectionMode::Laravel,
             except: Vec::new(),
         }
     }
@@ -48,12 +48,16 @@ impl CookieServiceProvider {
             ..Self::new()
         }
     }
-    /// 使用生效应用密钥和 Laravel 的名称前缀保护 Cookie。
-    ///
-    /// 受保护请求首次进入时解析 Laravel 加密服务。需要 `encryption` feature。
+    /// 显式选择默认的 Laravel Cookie 保护。需要 `encryption` feature。
     pub fn laravel() -> Self {
+        Self::new()
+    }
+    /// 显式使用 OpenRust 上下文认证及独立密钥环保护 Cookie。
+    ///
+    /// 此模式读取 `security.encryption`，密文与默认 Laravel Cookie 不互通。
+    pub fn contextual() -> Self {
         Self {
-            mode: ProtectionMode::Laravel,
+            mode: ProtectionMode::Contextual,
             ..Self::new()
         }
     }

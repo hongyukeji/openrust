@@ -380,7 +380,7 @@ fn sources(root: &std::path::Path, url: &str) -> Result<openrust::config::Config
     let sources = sources.merge_ordered_entries([
         ("application_root", json!(root)),
         ("modules", json!({"activator":"registered","activators":{"file":{"statuses-file":root.join("module-statuses.json")}}})),
-        ("app", json!({"env":"local","url":"http://localhost"})),
+        ("app", json!({"env":"local","url":"http://localhost","key":"0123456789abcdef0123456789abcdef"})),
         ("database", json!({"url":url,"max_connections":4,"min_connections":0})),
         ("session", json!({"driver":"database","cookie":"fortify_session","secure":false,"lottery":[0,100]})),
         ("auth", json!({"jwt":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}})),

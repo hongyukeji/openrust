@@ -113,7 +113,7 @@ impl ApplicationDefinition for WebApplication {
             Box::new(HttpServiceProvider),
             Box::new(openrust::auth::AuthServiceProvider::new()),
             Box::new(SessionServiceProvider::new()),
-            Box::new(CookieServiceProvider::new()),
+            Box::new(CookieServiceProvider::contextual()),
             Box::new(WebRoutes),
         ]
     }

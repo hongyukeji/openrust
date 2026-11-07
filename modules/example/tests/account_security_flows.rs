@@ -46,7 +46,7 @@ impl Fixture {
         framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
         let source=Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
-            "app":{"env":"test","url":ORIGIN},"database":{"url":database.url()},
+            "app":{"env":"test","url":ORIGIN,"key":"0123456789abcdef0123456789abcdef"},"database":{"url":database.url()},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"defaults":{"guard":"web","passwords":"users","provider":null},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"app-users","table":"users"}},"jwt":{"issuer":ORIGIN,"audience":"account-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":ORIGIN,"active_key_id":"test","keys":{"test":key}}},

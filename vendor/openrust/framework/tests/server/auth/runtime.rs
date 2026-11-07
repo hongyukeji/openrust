@@ -808,7 +808,7 @@ async fn protected_cookie_app() -> Result<openrust::Application> {
             ),
         )
         .provider(openrust::encryption::EncryptionServiceProvider)
-        .provider(openrust::http::CookieServiceProvider::new())
+        .provider(openrust::http::CookieServiceProvider::contextual())
         .provider(TestInstance(std::sync::Arc::new(Marker("injected"))))
         .provider(TestRoutes::with_cookies(|routes| {
             current_routes(routes)

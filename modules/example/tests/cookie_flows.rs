@@ -18,7 +18,7 @@ fn sources() -> Figment {
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Serialized::defaults(json!({
-        "app": {"env": "test"},
+        "app": {"env": "test", "key": "0123456789abcdef0123456789abcdef"},
         "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
         "security": {"encryption": {
             "active_key_id": "test",
@@ -155,16 +155,20 @@ async fn module_cookie_queue_direct_forget_and_request_isolation() -> TestResult
 
 #[cfg(feature = "encryption")]
 #[tokio::test]
-async fn module_cookie_first_use_rejects_invalid_key_after_ordinary_route_succeeds() -> TestResult {
+async fn contextual_cookie_first_use_rejects_invalid_key_after_ordinary_route_succeeds()
+-> TestResult {
     let config = sources().merge(Serialized::defaults(json!({
         "security": {"encryption": {
             "active_key_id": "test",
             "keys": {"test": "example-invalid-key-sentinel"}
         }}
     })));
-    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?)
-        .build()
-        .await?;
+    let mut builder =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?);
+    builder.configure_providers(|providers| {
+        providers.force_provider(openrust::http::CookieServiceProvider::contextual());
+    });
+    let mut app = builder.build().await?;
     let result: TestResult = async {
         let ordinary = app
             .request(
@@ -229,20 +233,16 @@ async fn example_application_resolves_laravel_string_encryption_from_app_config(
 
 #[cfg(feature = "encryption")]
 #[tokio::test]
-async fn example_cookie_round_trip_uses_the_selected_laravel_provider() -> TestResult {
+async fn example_cookie_round_trip_uses_the_default_laravel_provider() -> TestResult {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use openrust::encryption::LaravelEncrypter;
-    use openrust::http::CookieServiceProvider;
 
     let config = sources().merge(Serialized::defaults(json!({
         "app": {"cipher": "AES-128-CBC", "key": "0123456789abcdef"},
     })));
-    let mut builder =
-        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?);
-    builder.configure_providers(|providers| {
-        providers.force_provider(CookieServiceProvider::laravel());
-    });
-    let mut app = builder.build().await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?)
+        .build()
+        .await?;
     let result: TestResult = async {
         let value = "Laravel + 雪";
         let response = post(&app, "queue", value).await?;
@@ -276,17 +276,13 @@ async fn example_cookie_round_trip_uses_the_selected_laravel_provider() -> TestR
 
 #[cfg(feature = "encryption")]
 #[tokio::test]
-async fn selected_laravel_cookie_mode_requires_app_key_only_on_protected_request() -> TestResult {
-    use openrust::http::CookieServiceProvider;
+async fn default_laravel_cookie_mode_requires_app_key_only_on_protected_request() -> TestResult {
     let config = sources().merge(Serialized::defaults(json!({
         "app": {"cipher": "AES-256-CBC", "key": "example-invalid-app-key"},
     })));
-    let mut builder =
-        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?);
-    builder.configure_providers(|providers| {
-        providers.force_provider(CookieServiceProvider::laravel());
-    });
-    let mut app = builder.build().await?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?)
+        .build()
+        .await?;
     let result: TestResult = async {
         let ordinary = app
             .request(

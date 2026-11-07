@@ -162,7 +162,7 @@ async fn fixture_with_environment(
     policy: PreventRequestForgery,
     env: openrust::config::Environment,
 ) -> Result<Application> {
-    fixture_with_cookie_provider(policy, source(env), CookieServiceProvider::new()).await
+    fixture_with_cookie_provider(policy, source(env), CookieServiceProvider::contextual()).await
 }
 
 async fn fixture_with_cookie_provider(
@@ -323,7 +323,7 @@ async fn laravel_xsrf_header_requires_the_session_token_after_authentication() -
     let app = fixture_with_cookie_provider(
         PreventRequestForgery::new(),
         source(openrust::config::Environment::Development).merge(("app.key", "A".repeat(32))),
-        CookieServiceProvider::laravel(),
+        CookieServiceProvider::new(),
     )
     .await?;
     let encrypter = app.state().resolve::<LaravelEncrypter>().await?;
@@ -685,7 +685,7 @@ impl openrust::foundation::ApplicationDefinition for TestingHarness {
         vec![
             Box::new(HttpServiceProvider),
             Box::new(openrust::encryption::EncryptionServiceProvider),
-            Box::new(CookieServiceProvider::new()),
+            Box::new(CookieServiceProvider::contextual()),
             Box::new(
                 SessionServiceProvider::with_store(MemorySessionStore::default())
                     .with_cookie_config(openrust::config::SessionConfig {

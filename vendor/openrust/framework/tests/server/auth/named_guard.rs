@@ -143,7 +143,7 @@ impl ApplicationDefinition for NamedApp {
         #[cfg(feature = "encryption")]
         {
             providers.push(Box::new(openrust::encryption::EncryptionServiceProvider));
-            providers.push(Box::new(CookieServiceProvider::new()));
+            providers.push(Box::new(CookieServiceProvider::contextual()));
         }
         #[cfg(not(feature = "encryption"))]
         providers.push(Box::new(CookieServiceProvider::plain()));

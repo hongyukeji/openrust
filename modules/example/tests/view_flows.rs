@@ -131,7 +131,7 @@ impl Fixture {
         framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let source_config = Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
             "modules":{"activator":"file","activators":{"file":{"statuses-file":"modules_statuses.json"}}},
-            "app":{"env":"test"},"application_root":directory.path(),
+            "app":{"env":"test","key":"base64:KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="},"application_root":directory.path(),
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
             "view":{"directory":app_views,"auto_reload":true},

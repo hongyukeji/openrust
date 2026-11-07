@@ -1128,6 +1128,7 @@ async fn production_testapp_renders_module_namespaced_view()
     let application_views = tempfile::tempdir()?;
     let source = production_sources(false).merge(figment::providers::Serialized::defaults(
         serde_json::json!({
+            "app": {"key":"base64:KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="},
             "view": {"directory": application_views.path(), "auto_reload": false},
             "session": {"driver": "array", "secure": false}
         }),

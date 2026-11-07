@@ -55,7 +55,7 @@ impl<const SESSION: bool> ApplicationDefinition for TestWebHost<SESSION> {
 
     fn default_providers() -> openrust::support::DefaultProviders {
         let mut extra: Vec<Box<dyn ServiceProvider>> =
-            vec![Box::new(openrust::http::CookieServiceProvider::new())];
+            vec![Box::new(openrust::http::CookieServiceProvider::contextual())];
         if SESSION {
             extra.push(Box::new(openrust::session::SessionServiceProvider::new()));
         }
@@ -311,7 +311,7 @@ async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn s
     .merge(Toml::string(
         "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     )));
-    request_cookie::assert_request_cookie::<TestWebHost<false>>(source, false).await?;
+    request_cookie::assert_request_cookie::<TestWebHost<false>>(source, false, |_| Ok(())).await?;
     Ok(())
 }
 

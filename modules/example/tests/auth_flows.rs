@@ -158,6 +158,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let config = auth_fixture_config(database.url());
     let mut framework = openrust::config::FrameworkConfig::default();
     framework.app.env = openrust::config::Environment::Testing;
+    framework.app.key = Some("0123456789abcdef0123456789abcdef".into());
     framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let figment = Figment::from(Serialized::defaults(framework))
         .merge(Toml::string(&config))
@@ -199,33 +200,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let (upstream_shutdown, upstream_shutdown_signal) = oneshot::channel::<()>();
     #[cfg(feature = "http-client")]
     let upstream_server = openrust::tokio::spawn(async move {
-        let router = openrust::http::axum::Router::new().route(
-            "/articles/{id}/summary",
-            openrust::http::axum::routing::get(
-                |openrust::http::axum::extract::Path(id): openrust::http::axum::extract::Path<
-                    i64,
-                >| async move {
-                    match id.rem_euclid(3) {
-                        1 => (
-                            StatusCode::SERVICE_UNAVAILABLE,
-                            openrust::http::axum::Json(serde_json::json!({"error":"unavailable"})),
-                        ),
-                        2 => (
-                            StatusCode::OK,
-                            openrust::http::axum::Json(
-                                serde_json::json!({"summary":"x".repeat(20_000)}),
-                            ),
-                        ),
-                        _ => (
-                            StatusCode::OK,
-                            openrust::http::axum::Json(
-                                serde_json::json!({"summary":format!("Summary {id}")}),
-                            ),
-                        ),
-                    }
-                },
-            ),
-        );
+        let router = article_summary_test_router();
         openrust::http::axum::serve(upstream_listener, router)
             .with_graceful_shutdown(async {
                 let _ = upstream_shutdown_signal.await;
@@ -248,6 +223,37 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     database.close().await?;
     result?;
     extension_result
+}
+
+#[cfg(feature = "http-client")]
+fn article_summary_test_router() -> openrust::http::axum::Router {
+    openrust::http::axum::Router::new().route(
+        "/articles/{id}/summary",
+        openrust::http::axum::routing::get(
+            |openrust::http::axum::extract::Path(id): openrust::http::axum::extract::Path<
+                i64,
+            >| async move {
+                match id.rem_euclid(3) {
+                    1 => (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        openrust::http::axum::Json(serde_json::json!({"error":"unavailable"})),
+                    ),
+                    2 => (
+                        StatusCode::OK,
+                        openrust::http::axum::Json(
+                            serde_json::json!({"summary":"x".repeat(20_000)}),
+                        ),
+                    ),
+                    _ => (
+                        StatusCode::OK,
+                        openrust::http::axum::Json(
+                            serde_json::json!({"summary":format!("Summary {id}")}),
+                        ),
+                    ),
+                }
+            },
+        ),
+    )
 }
 
 // 正式宿主/模块经真实 TCP 使用默认数据库 Session；Cookie 原值仅内存往返。
