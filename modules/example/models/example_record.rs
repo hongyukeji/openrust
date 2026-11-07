@@ -3,7 +3,7 @@
 use openrust::{
     Error, Result as ModelResult,
     database::{
-        eloquent::{ModelAttributes, ModelMetadata, SaveModel},
+        eloquent::{HydrateModel, ModelAttributes, ModelMetadata, SaveModel},
         sea_orm::{self, entity::prelude::*},
     },
 };
@@ -132,6 +132,16 @@ impl RecordForSave {
             .raw_attribute("id")?
             .and_then(|value| value.as_i64())
             .ok_or_else(|| Error::custom("example_record_id_invalid", "示例记录主键不是预期整数"))
+    }
+}
+
+impl HydrateModel for RecordForSave {
+    fn hydrate(&self, raw: Map<String, Value>) -> ModelResult<Self> {
+        Ok(Self {
+            metadata: self.metadata.clone(),
+            attributes: ModelAttributes::new(raw),
+            exists: true,
+        })
     }
 }
 

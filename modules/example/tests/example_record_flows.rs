@@ -309,7 +309,7 @@ async fn assert_model_save_or_fail_rolls_back(
     use crate::modules::example::models::example_record;
     use openrust::{
         database::{
-            eloquent::{SaveContext, save_or_fail},
+            eloquent::{SaveContext, fresh, refresh, save_or_fail},
             sea_orm::EntityTrait,
         },
         events::{Events, EventsServiceProvider},
@@ -377,9 +377,23 @@ async fn assert_model_save_or_fail_rolls_back(
         example_record::Entity::find_by_id(id)
             .one(&connection)
             .await?,
-        Some(original)
+        Some(original.clone())
     );
     assert!(model.attributes.is_dirty(&model.metadata, &["name"])?);
+    let expected = Some(serde_json::Value::String(original.name));
+    let persisted = fresh(&model, &context)
+        .await?
+        .ok_or("fresh rollback row missing")?;
+    assert_eq!(persisted.id()?, id);
+    assert_eq!(persisted.attributes.get_raw_original("name")?, expected);
+    assert_eq!(
+        model.attributes.raw_attribute("name")?,
+        Some(serde_json::json!("事务回滚"))
+    );
+    refresh(&mut model, &context).await?;
+    assert_eq!(model.attributes.raw_attribute("name")?, expected);
+    assert_eq!(model.attributes.get_raw_original("name")?, expected);
+    assert!(!model.attributes.is_dirty(&model.metadata, &["name"])?);
     Ok(())
 }
 

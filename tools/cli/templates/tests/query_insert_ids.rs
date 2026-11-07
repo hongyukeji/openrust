@@ -181,23 +181,40 @@ impl openrust::database::eloquent::SaveModel for GeneratedModel {
     }
 }
 
+impl openrust::database::eloquent::HydrateModel for GeneratedModel {
+    fn hydrate(&self, raw: serde_json::Map<String, serde_json::Value>) -> Result<Self> {
+        Ok(Self {
+            metadata: self.metadata.clone(),
+            attributes: openrust::database::eloquent::ModelAttributes::new(raw),
+            exists: true,
+        })
+    }
+}
+
 async fn generated_model_save(url: &str) -> Result<()> {
     use openrust::database::{
         DatabaseServiceProvider,
-        eloquent::{MassAssignment, ModelMetadata, SaveContext, save, save_or_fail},
+        eloquent::{MassAssignment, ModelMetadata, SaveContext, refresh, save, save_or_fail},
     };
     use openrust::support::CalendarContext;
     use serde_json::{Map, json};
 
     let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider);
-    let source = figment::Figment::new().merge(("database.url", url));
+    builder.provider(generated_retrieved_events());
+    let source = figment::Figment::new()
+        .merge(("database.url", url))
+        .merge(("database.instances.other.url", url));
     let runtime = builder.start(source).await?;
     let outcome = async {
         let databases = runtime.container().resolve::<openrust::Databases>().await?;
         let db = databases.default_database();
         let calendar = CalendarContext::default();
-        let context = SaveContext::new(&databases, None, &calendar);
+        let events = runtime
+            .container()
+            .resolve::<openrust::events::Events>()
+            .await?;
+        let context = SaveContext::new(&databases, Some(&events), &calendar);
         let mut metadata = ModelMetadata::new("insert_items", "generated::InsertItem");
         metadata.timestamps = false;
         metadata.fillable(vec!["label".into()]);
@@ -246,7 +263,37 @@ async fn generated_model_save(url: &str) -> Result<()> {
                 .await?
                 .as_deref()
                 == Some("Eloquent 更新"),
-        )
+        )?;
+        let changes = model.attributes.get_changes()?;
+        model
+            .attributes
+            .set_raw_attribute("label", json!("内存草稿"))?;
+        db.table("insert_items")?
+            .where_eq("id", replacement)?
+            .update(vec![("label", "外部更新".into())])
+            .await?;
+        refresh(&mut model, &context).await?;
+        check(model.attributes.get_raw_original("label")? == Some(json!("监听器读取")))?;
+        check(model.attributes.is_clean(&model.metadata, &[])?)?;
+        check(model.attributes.get_changes()? == changes)?;
+        check_fresh_model(&model, &context).await?;
+        check_failed_refresh(&db, &mut model, &context, replacement).await?;
+        let mut absent = GeneratedModel {
+            metadata: model.metadata.clone(),
+            attributes: openrust::database::eloquent::ModelAttributes::new(Map::from_iter([
+                ("id".into(), json!(original)),
+                ("label".into(), json!("原基线")),
+            ])),
+            exists: true,
+        };
+        absent
+            .attributes
+            .set_raw_attribute("label", json!("本地草稿"))?;
+        generated_locked_model_refresh(Arc::clone(&databases), Arc::clone(&events), model).await?;
+        let missing = refresh(&mut absent, &context).await;
+        check(matches!(missing, Err(error) if error.code() == "model_not_found"))?;
+        check(absent.attributes.get_raw_original("label")? == Some(json!("原基线")))?;
+        check(absent.attributes.raw_attribute("label")? == Some(json!("本地草稿")))
     }
     .await;
     let shutdown = runtime
@@ -254,4 +301,129 @@ async fn generated_model_save(url: &str) -> Result<()> {
         .await;
     outcome?;
     shutdown
+}
+
+async fn generated_locked_model_refresh(
+    databases: Arc<openrust::Databases>,
+    events: Arc<openrust::events::Events>,
+    mut model: GeneratedModel,
+) -> Result<()> {
+    use openrust::{
+        database::eloquent::{SaveContext, refresh_for_update},
+        support::CalendarContext,
+    };
+    use serde_json::json;
+
+    let db = databases.default_database();
+    model
+        .attributes
+        .set_raw_attribute("label", json!("锁定前草稿"))?;
+    db.transaction_for_update_checked_context(
+        move |transaction| {
+            Box::pin(async move {
+                let calendar = CalendarContext::default();
+                let context = SaveContext::new(&databases, Some(&events), &calendar);
+                model.metadata.connection = Some("other".into());
+                let wrong_source = refresh_for_update(&mut model, &context, &transaction).await;
+                check(matches!(wrong_source, Err(error)
+                    if error.code() == "model_refresh_transaction_source_mismatch"))?;
+                check(model.attributes.raw_attribute("label")? == Some(json!("锁定前草稿")))?;
+                model.metadata.connection = None;
+                refresh_for_update(&mut model, &context, &transaction).await?;
+                check(
+                    model.attributes.get_raw_original("label")? == Some(json!("事务内监听器读取")),
+                )?;
+                check(model.attributes.raw_attribute("label")? == Some(json!("事务内监听器读取")))?;
+                check(model.attributes.is_clean(&model.metadata, &[])?)
+            })
+        },
+        |_| Box::pin(async { Ok(()) }),
+    )
+    .await
+}
+
+fn generated_retrieved_events() -> openrust::events::EventsServiceProvider {
+    let mut provider = openrust::events::EventsServiceProvider::new();
+    provider.listen_named_reply(
+        "eloquent.retrieved: generated::InsertItem",
+        |payload, context| {
+            Box::pin(async move {
+                let retrieved = payload.downcast_ref::<GeneratedModel>().ok_or_else(|| {
+                    Error::custom("generated_retrieved_type", "retrieved 事件模型类型不符")
+                })?;
+                let label = retrieved.attributes.get_raw_original("label")?;
+                let transaction = context.transaction().is_some();
+                if label == Some(serde_json::json!("监听器拒绝")) {
+                    retrieved
+                        .attributes
+                        .set_raw_attribute("label", serde_json::json!("失败前的临时修改"))?;
+                    return Err(Error::custom(
+                        "generated_retrieved_failed",
+                        "回读监听器失败",
+                    ));
+                }
+                check(retrieved.exists)?;
+                check(label == retrieved.attributes.raw_attribute("label")?)?;
+                let loaded = if transaction {
+                    "事务内监听器读取"
+                } else {
+                    "监听器读取"
+                };
+                retrieved
+                    .attributes
+                    .set_raw_attribute("label", serde_json::json!(loaded))?;
+                Ok(openrust::support::DataValue::Null)
+            })
+        },
+    );
+    provider
+}
+
+async fn check_failed_refresh(
+    db: &Db,
+    model: &mut GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+    key: i64,
+) -> Result<()> {
+    use openrust::database::eloquent::{fresh, refresh};
+    use serde_json::json;
+
+    let query = || db.table("insert_items")?.where_eq("id", key);
+    check(query()?.value::<String>("label").await?.as_deref() == Some("外部更新"))?;
+    query()?
+        .update(vec![("label", "监听器拒绝".into())])
+        .await?;
+    let before = model.attributes.raw_attributes()?;
+    let changes = model.attributes.get_changes()?;
+    let previous = model.attributes.get_previous()?;
+    let failed_refresh = refresh(model, context).await;
+    check(matches!(failed_refresh, Err(error) if error.code() == "generated_retrieved_failed"))?;
+    let failed_fresh = fresh(model, context).await;
+    check(matches!(failed_fresh, Err(error) if error.code() == "generated_retrieved_failed"))?;
+    check(model.attributes.raw_attributes()? == before)?;
+    check(model.attributes.get_raw_original("label")? == Some(json!("监听器读取")))?;
+    check(model.attributes.get_changes()? == changes)?;
+    check(model.attributes.get_previous()? == previous)?;
+    check(query()?.value::<String>("label").await?.as_deref() == Some("监听器拒绝"))?;
+    query()?.update(vec![("label", "外部更新".into())]).await?;
+    Ok(())
+}
+
+async fn check_fresh_model(
+    model: &GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::fresh;
+    use serde_json::json;
+
+    model
+        .attributes
+        .set_raw_attribute("label", json!("原对象草稿"))?;
+    let fresh = fresh(model, context)
+        .await?
+        .ok_or_else(|| Error::custom("generated_model_fresh_missing", "回读未找到模型"))?;
+    check(fresh.exists)?;
+    check(fresh.attributes.get_raw_original("label")? == Some(json!("外部更新")))?;
+    check(fresh.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
+    check(model.attributes.raw_attribute("label")? == Some(json!("原对象草稿")))
 }

@@ -171,6 +171,24 @@ impl ModelAttributes {
         Ok(self)
     }
 
+    // 回读完整成功后，一次更新当前属性与原始基线，保留上次保存的变化记录。
+    pub(in crate::database::eloquent) fn install_refreshed_attributes(
+        &self,
+        raw: Map<String, Value>,
+    ) -> Result<()> {
+        let retired = {
+            let mut state = self.state.write().map_err(|_| state_error())?;
+            ensure_stable(&state)?;
+            let revision = next_original_revision(&state)?;
+            replace_raw(&mut state, raw.clone())?;
+            let retired = std::mem::replace(&mut state.original, raw);
+            state.original_revision = revision;
+            retired
+        };
+        drop(retired);
+        Ok(())
+    }
+
     /// 把稳定当前原值同步为 `original`，不清 `changes`/`previous`，不改变原始属性修改版本。
     pub fn sync_original(&self) -> Result<&Self> {
         let previous = {
