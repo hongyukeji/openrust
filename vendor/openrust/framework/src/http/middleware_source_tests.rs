@@ -165,7 +165,10 @@ async fn failed_refresh_keeps_published_locale_in_metadata_and_request_locale() 
 }
 
 // 同一生产response_context负责admission；不能依赖其内层TimeoutLayer保护刷新。
-async fn pending_source_request(admitted: bool) -> Result<()> {
+async fn pending_source_request(
+    admitted: bool,
+    status_mode: crate::config::HttpStatusMode,
+) -> Result<()> {
     let source = Arc::new(Source {
         snapshot: RwLock::new(snapshot(true)?),
         fail: AtomicBool::new(false),
@@ -180,9 +183,14 @@ async fn pending_source_request(admitted: bool) -> Result<()> {
         Application::from_provider_runtime(builder.start(figment::Figment::new()).await?)?;
     let entered = Arc::new(AtomicBool::new(false));
     let handler_entered = entered.clone();
+    let mut exceptions = crate::foundation::ExceptionHandler::default();
+    exceptions.api_envelope_when(|_, _| true);
     let settings = super::ResponseSettings {
-        api: crate::config::ApiConfig::default(),
-        exceptions: Arc::new(crate::foundation::ExceptionHandler::default()),
+        api: crate::config::ApiConfig {
+            http_status: status_mode,
+            ..crate::config::ApiConfig::default()
+        },
+        exceptions: Arc::new(exceptions),
         debug: false,
         request_timeout: Duration::from_millis(20),
         request_slots: Arc::new(tokio::sync::Semaphore::new(usize::from(admitted))),
@@ -210,6 +218,7 @@ async fn pending_source_request(admitted: bool) -> Result<()> {
                 axum::http::Request::builder()
                     .uri("/")
                     .header("accept-language", "fr")
+                    .header("accept", "application/json")
                     .body(Body::empty())
                     .map_err(Error::internal)?,
             ),
@@ -219,12 +228,22 @@ async fn pending_source_request(admitted: bool) -> Result<()> {
         .map_err(Error::internal)?;
         assert_eq!(
             response.status(),
-            if admitted {
+            if matches!(status_mode, crate::config::HttpStatusMode::AlwaysOk) {
+                axum::http::StatusCode::OK
+            } else if admitted {
                 axum::http::StatusCode::REQUEST_TIMEOUT
             } else {
                 axum::http::StatusCode::SERVICE_UNAVAILABLE
             }
         );
+        if admitted {
+            let bytes = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .map_err(Error::internal)?;
+            let envelope: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(Error::internal)?;
+            assert_eq!(envelope["code"], "request_timeout");
+        }
         assert!(!entered.load(Ordering::SeqCst));
         assert_eq!(source.checks.load(Ordering::SeqCst), usize::from(admitted));
         assert_eq!(source.captures.load(Ordering::SeqCst), 1);
@@ -244,11 +263,15 @@ async fn pending_source_request(admitted: bool) -> Result<()> {
 }
 #[tokio::test]
 async fn pending_source_does_not_delay_overload_rejection() -> Result<()> {
-    pending_source_request(false).await
+    pending_source_request(false, crate::config::HttpStatusMode::Semantic).await
 }
 #[tokio::test]
 async fn pending_source_consumes_request_deadline_without_entering_handler() -> Result<()> {
-    pending_source_request(true).await
+    pending_source_request(true, crate::config::HttpStatusMode::Semantic).await
+}
+#[tokio::test]
+async fn pending_source_deadline_renders_always_ok_timeout_envelope() -> Result<()> {
+    pending_source_request(true, crate::config::HttpStatusMode::AlwaysOk).await
 }
 
 struct ReadinessService(Arc<crate::core::Readiness>);
@@ -257,6 +280,35 @@ impl ServiceProvider for ReadinessService {
         Box::pin(async move { context.instance(self.0.clone()).await })
     }
 }
+async fn check_cancelled_refresh_response(response: axum::response::Response) -> Result<()> {
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    assert_eq!(
+        response.headers()[axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN],
+        "https://example.com"
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("x-request-id")
+            .and_then(|value| value.to_str().ok()),
+        Some("source-cancel")
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("x-source-exception")
+            .and_then(|value| value.to_str().ok()),
+        Some("applied")
+    );
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .map_err(Error::internal)?;
+    let body = serde_json::from_slice::<serde_json::Value>(&body).map_err(Error::internal)?;
+    assert_eq!(body["code"], "server_draining");
+    assert_eq!(body["request_id"], "source-cancel");
+    Ok(())
+}
+
 #[tokio::test]
 async fn cancelled_refresh_renders_inside_original_exception_and_request_context() -> Result<()> {
     let source = Arc::new(Source {
@@ -294,10 +346,12 @@ async fn cancelled_refresh_renders_inside_original_exception_and_request_context
             );
             response
         });
-    let server = crate::config::ServerConfig {
+    let mut server = crate::config::ServerConfig {
         request_timeout_secs: 5,
         ..crate::config::ServerConfig::default()
     };
+    server.cors.enabled = true;
+    server.cors.allowed_origins = vec!["https://example.com".into()];
     let api = crate::config::ApiConfig {
         http_status: crate::config::HttpStatusMode::AlwaysOk,
         ..crate::config::ApiConfig::default()
@@ -315,6 +369,7 @@ async fn cancelled_refresh_renders_inside_original_exception_and_request_context
             .uri("/")
             .header("accept-language", "fr")
             .header("x-request-id", "source-cancel")
+            .header("origin", "https://example.com")
             .header("accept", "application/json")
             .body(Body::empty())
             .map_err(Error::internal)?;
@@ -329,27 +384,7 @@ async fn cancelled_refresh_renders_inside_original_exception_and_request_context
         .await
         .map_err(Error::internal)?;
         let response = response.map_err(Error::internal)?;
-        assert_eq!(response.status(), axum::http::StatusCode::OK);
-        assert_eq!(
-            response
-                .headers()
-                .get("x-request-id")
-                .and_then(|value| value.to_str().ok()),
-            Some("source-cancel")
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get("x-source-exception")
-                .and_then(|value| value.to_str().ok()),
-            Some("applied")
-        );
-        let body = axum::body::to_bytes(response.into_body(), 4096)
-            .await
-            .map_err(Error::internal)?;
-        let body = serde_json::from_slice::<serde_json::Value>(&body).map_err(Error::internal)?;
-        assert_eq!(body["code"], "server_draining");
-        assert_eq!(body["request_id"], "source-cancel");
+        check_cancelled_refresh_response(response).await?;
         assert_eq!(source.checks.load(Ordering::SeqCst), 1);
         assert_eq!(source.captures.load(Ordering::SeqCst), 1);
         Ok(())

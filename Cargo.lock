@@ -3737,6 +3737,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "openrust-passport"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "figment",
+ "getrandom 0.3.4",
+ "jsonwebtoken",
+ "openrust-framework",
+ "pcre2",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "subtle",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "openrust-translation-database"
 version = "0.0.0"
 dependencies = [

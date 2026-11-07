@@ -1388,11 +1388,20 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         indexes
     };
     let business_history = migration_versions(&connection).await?;
+    let showcase_position = business_history
+        .iter()
+        .position(|name| name == "m20261029_000009_example_record_showcase")
+        .ok_or("示例记录迁移未登记")?;
+    // workspace 成员可能为框架启用额外 feature，按实际历史回退到示例版本之前。
+    let business_steps = business_history.len() - showcase_position;
     migration_command(
         "business_down",
         enabled
             .app()?
-            .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
+            .run_command(
+                "migrate",
+                vec!["down".to_owned(), business_steps.to_string()],
+            )
             .await,
     )?;
     eprintln!("module_migration phase=read_after_business_down");
@@ -1419,18 +1428,18 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             .query_all_raw(shared_history.clone())
             .await?
             .len()
-            + 1,
+            + business_steps,
         business_history.len()
     );
     assert_eq!(
         migration_versions(&connection).await?,
-        business_history[..business_history.len() - 1]
+        business_history[..showcase_position]
     );
     migration_command(
         "business_up",
         enabled
             .app()?
-            .run_command("migrate", vec!["up".to_owned(), "1".to_owned()])
+            .run_command("migrate", vec!["up".to_owned(), business_steps.to_string()])
             .await,
     )?;
     eprintln!("module_migration phase=read_after_business_up");

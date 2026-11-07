@@ -1,0 +1,42 @@
+[package]
+name = "openrust-passport"
+description = "OpenRust 的 Laravel Passport OAuth2 对应扩展"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+readme = "README.md"
+
+[features]
+default = []
+db-mysql = ["openrust/db-mysql"]
+db-postgres = ["openrust/db-postgres", "openrust/db-uuid"]
+db-sqlite = ["openrust/db-sqlite"]
+
+[dependencies]
+tokio.workspace = true
+openrust = { workspace = true, features = ["auth", "hashing", "encryption"] }
+base64.workspace = true
+chrono.workspace = true
+getrandom.workspace = true
+jsonwebtoken.workspace = true
+pcre2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+url.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+openrust = { workspace = true, features = ["test-util"] }
+figment = { workspace = true, features = ["test"] }
+
+[lints]
+workspace = true

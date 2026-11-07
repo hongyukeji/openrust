@@ -9,6 +9,7 @@ use crate::database::Db;
 #[cfg(feature = "auth")]
 use crate::database::sea_orm::DatabaseTransaction;
 use crate::database::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
+#[cfg(feature = "auth-fortify")]
 use crate::support::BoxFuture;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;

@@ -146,6 +146,17 @@ pub fn apply(
         Duration::from_secs(server.request_timeout_secs),
     ));
     let router = router.layer(axum::middleware::map_response(envelope_status));
+    let router = router.layer(axum::middleware::from_fn_with_state(
+        ResponseSettings {
+            api: api.clone(),
+            exceptions,
+            debug,
+            request_timeout: Duration::from_secs(server.request_timeout_secs),
+            request_slots: Arc::new(tokio::sync::Semaphore::new(server.max_concurrent_requests)),
+        },
+        response_context,
+    ));
+    // CORS 也要包装刷新、admission 与绝对期限直接返回的响应。
     let router = if let Some(cors) = cors {
         router.layer(cors)
     } else {
@@ -153,18 +164,6 @@ pub fn apply(
     };
     Ok(router
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
-        .layer(axum::middleware::from_fn_with_state(
-            ResponseSettings {
-                api: api.clone(),
-                exceptions,
-                debug,
-                request_timeout: Duration::from_secs(server.request_timeout_secs),
-                request_slots: Arc::new(tokio::sync::Semaphore::new(
-                    server.max_concurrent_requests,
-                )),
-            },
-            response_context,
-        ))
         // 外层也覆盖 response_context 在调用 next 前返回的异常。
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
@@ -341,13 +340,20 @@ async fn response_context(
                 let request_permit = request_permit.ok();
                 let response = if let Some(cancelled) = refresh_response {
                     if cancelled {
-                        Error::custom_with_status(StatusCode::SERVICE_UNAVAILABLE, "server_draining", "server is shutting down").into_response()
-                    } else { StatusCode::REQUEST_TIMEOUT.into_response() }
+                        Error::custom_with_status(
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            "server_draining",
+                            "server is shutting down",
+                        )
+                        .into_response()
+                    } else {
+                        timeout_response()
+                    }
                 } else if request_permit.is_some() {
                     tokio::select! {
                         biased;
                         response = next.run(request) => response,
-                        () = tokio::time::sleep_until(deadline) => StatusCode::REQUEST_TIMEOUT.into_response(),
+                        () = tokio::time::sleep_until(deadline) => timeout_response(),
                         () = cancellation.cancelled() => Error::custom_with_status(
                             StatusCode::SERVICE_UNAVAILABLE,
                             "server_draining",
@@ -375,9 +381,7 @@ async fn response_context(
             },
         );
         match (locale_service, locale) {
-            (Some(i18n), Some(locale)) => {
-                i18n.with_locale(locale, response).await
-            }
+            (Some(i18n), Some(locale)) => i18n.with_locale(locale, response).await,
             _ => response.await,
         }
     })
@@ -424,18 +428,22 @@ impl HttpBody for RequestPermitBody {
     }
 }
 
+fn timeout_response() -> Response {
+    Error::custom_with_status(
+        StatusCode::REQUEST_TIMEOUT,
+        "request_timeout",
+        "request timed out",
+    )
+    .into_response()
+}
+
 async fn envelope_status(response: Response) -> Response {
     if response.status() == StatusCode::REQUEST_TIMEOUT
         && !response
             .headers()
             .contains_key(axum::http::header::CONTENT_TYPE)
     {
-        Error::custom_with_status(
-            StatusCode::REQUEST_TIMEOUT,
-            "request_timeout",
-            "request timed out",
-        )
-        .into_response()
+        timeout_response()
     } else if response.status() == StatusCode::PAYLOAD_TOO_LARGE
         && response.headers().get(axum::http::header::CONTENT_TYPE)
             != Some(&axum::http::HeaderValue::from_static("application/json"))
