@@ -509,3 +509,5 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 该示范只覆盖内存属性状态；完整Model save/事件、日期和自定义cast仍有公开缺口。框架API及409/partial-sync边界见[模型基础](../../docs/src/eloquent/getting-started.md#原始基线与变化记录)。
 
 预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。
+
+文章事件由模块声明稳定身份 `Example\Events\ArticleChanged`，原事务内直接记录及队列映射共用唯一 Events。模块启停仍按 `modules.<name>.<phase>` 字符串派发；相同载荷类型不会触发其他事件名的类监听。普通响应 false 只截断传播，不使文章写入或模块启停自动失败；业务错误仍向事务传播。

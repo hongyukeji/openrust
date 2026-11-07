@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Events 身份/响应切片（限定验收完成）：类事件由 owner 声明稳定 `Event::NAME`，与同名字符串共用 exact/wildcard 分组；响应经同一执行循环保留 null/false/对象身份并提供 until。移除按 payload 类型串送字符串事件和旧 flat 顺序；唯一模块、认证、事务、队列与翻译扩展同步接线。完整 Events 与 Model save 未完成。
+
 - 模块机制迁至独立 `openrust-modules` 包，应用使用通用 Provider 预装配与 `configure_providers` 接线；当前迁移待验，不再由框架核心导出模块类型。
 
 - MySQL 冷预处理取消后明确废弃单物理连接并有界拒绝旧事务，避免错帧/回滚挂起；独立生成应用继承驱动补丁，临时精确固定SQLx0.9.0。

@@ -1,6 +1,8 @@
 # 当前交付与验证
 
 
+Events身份与响应：已编码并完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)，源码树`47b1f9dd62ca7583f53117bef7e60a65bc150553`，本地提交及推送以Git为准。普通false仅停传播，所有未闭合Events/Model/发布矩阵继续保留。
+
 事务来源与文章末检：已编码并完成[日常适用限定验收](memory/testing.md#事务来源与提交前检查限定验收)，正式源码树`5056c267888aeb3a8a14cf9319cba422113b24d0`。本地提交/推送事实以Git为准；不改变完整Model/L090、其他数据库/最低版本/Windows及全部框架仍开放的状态。
 模型属性状态 MB-P01-A 已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)：同一属性存储的 original/dirty/changes/previous、公开单值 cast、账户记录无持久化预览及根/生成 User/外包接线；完整转换后 getOriginal、fill/save、事件/关系和完整值域仍开放。有限提交以 Git 为准，下一步沿唯一 todo 处理 Events、Schema 与模型持久生命周期。
 

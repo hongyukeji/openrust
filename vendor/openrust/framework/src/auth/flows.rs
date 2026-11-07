@@ -68,6 +68,10 @@ pub struct RegistrationValidating {
     email: String,
 }
 
+impl crate::events::Event for RegistrationValidating {
+    const NAME: &'static str = r"OpenRust\Auth\Events\RegistrationValidating";
+}
+
 impl RegistrationValidating {
     /// 返回规范化邮箱，供业务资格策略校验。
     pub fn email(&self) -> &str {
@@ -79,6 +83,10 @@ impl RegistrationValidating {
 #[derive(Debug, Clone, Copy)]
 pub struct RegistrationSucceeded {
     user_id: i64,
+}
+
+impl crate::events::Event for RegistrationSucceeded {
+    const NAME: &'static str = r"OpenRust\Auth\Events\RegistrationSucceeded";
 }
 
 impl RegistrationSucceeded {
@@ -94,6 +102,10 @@ pub struct LoginValidating {
     email: String,
 }
 
+impl crate::events::Event for LoginValidating {
+    const NAME: &'static str = r"OpenRust\Auth\Events\LoginValidating";
+}
+
 impl LoginValidating {
     /// 返回规范化邮箱，供业务风控策略校验。
     pub fn email(&self) -> &str {
@@ -107,6 +119,10 @@ pub struct LoginSucceeded {
     user_id: i64,
 }
 
+impl crate::events::Event for LoginSucceeded {
+    const NAME: &'static str = r"OpenRust\Auth\Events\LoginSucceeded";
+}
+
 impl LoginSucceeded {
     /// 返回已认证账户 ID。
     pub const fn user_id(&self) -> i64 {
@@ -117,6 +133,10 @@ impl LoginSucceeded {
 /// 登录失败通知不包含身份或失败原因，避免暴露账户状态差异。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LoginFailed;
+
+impl crate::events::Event for LoginFailed {
+    const NAME: &'static str = r"OpenRust\Auth\Events\LoginFailed";
+}
 
 /// API双因素登录提交前的显式事务审计扩展；不包含验证码、密钥或凭据。
 ///

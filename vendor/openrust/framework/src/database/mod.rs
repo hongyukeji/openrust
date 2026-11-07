@@ -212,9 +212,17 @@ impl Databases {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TransactionBeforeCommit;
 
+impl crate::events::Event for TransactionBeforeCommit {
+    const NAME: &'static str = r"OpenRust\Database\Events\TransactionBeforeCommit";
+}
+
 /// 仅在事务成功提交后派发的进程内通知。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TransactionCommitted;
+
+impl crate::events::Event for TransactionCommitted {
+    const NAME: &'static str = r"OpenRust\Database\Events\TransactionCommitted";
+}
 
 type FinalCheckFn = fn(&DatabaseTransaction) -> BoxFuture<'_, Result<()>>;
 const NO_FINAL_CHECK: Option<FinalCheckFn> = None;

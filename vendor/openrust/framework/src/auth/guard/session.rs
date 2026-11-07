@@ -43,7 +43,17 @@ macro_rules! user_event {
     };
 }
 user_event!(Validated, "凭据验证成功事件。");
+
+impl crate::events::Event for Validated {
+    const NAME: &'static str = r"Illuminate\Auth\Events\Validated";
+}
+
 user_event!(Authenticated, "请求内账户已确定事件。");
+
+impl crate::events::Event for Authenticated {
+    const NAME: &'static str = r"Illuminate\Auth\Events\Authenticated";
+}
+
 /// 开始尝试凭据登录。
 #[derive(Clone, Debug)]
 pub struct Attempting {
@@ -54,6 +64,11 @@ pub struct Attempting {
     /// 是否请求记住我。
     pub remember: bool,
 }
+
+impl crate::events::Event for Attempting {
+    const NAME: &'static str = r"Illuminate\Auth\Events\Attempting";
+}
+
 /// 登录成功事件。
 #[derive(Clone)]
 pub struct Login {
@@ -64,6 +79,11 @@ pub struct Login {
     /// 是否启用记住我。
     pub remember: bool,
 }
+
+impl crate::events::Event for Login {
+    const NAME: &'static str = r"Illuminate\Auth\Events\Login";
+}
+
 /// 凭据登录失败事件。
 #[derive(Clone)]
 pub struct Failed {
@@ -74,6 +94,11 @@ pub struct Failed {
     /// 原始凭据。
     pub credentials: Credentials,
 }
+
+impl crate::events::Event for Failed {
+    const NAME: &'static str = r"Illuminate\Auth\Events\Failed";
+}
+
 /// 注销事件。
 #[derive(Clone)]
 pub struct Logout {
@@ -82,6 +107,11 @@ pub struct Logout {
     /// 注销前账户，访客为 None。
     pub user: Option<AuthUser>,
 }
+
+impl crate::events::Event for Logout {
+    const NAME: &'static str = r"Illuminate\Auth\Events\Logout";
+}
+
 macro_rules! redacted_debug {
     ($($name:ident),+) => {$(impl fmt::Debug for $name {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -394,14 +424,14 @@ impl SessionGuard {
         }
         Ok(true)
     }
-    async fn emit<'a, E: Send + Sync + 'static>(
+    async fn emit<'a, E: crate::events::Event>(
         &'a self,
         operation: &mut Operation<'a>,
         event: E,
     ) -> Result<()> {
         drop(operation.permit.take());
         let result = if let Some(events) = &self.events {
-            events.dispatch(&event).await
+            events.dispatch(&event).await.map(|_| ())
         } else {
             Ok(())
         };

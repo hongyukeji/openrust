@@ -54,6 +54,11 @@ pub struct TranslationSourceChanged {
     /// 数据库已提交修订号；不是消息正文或数据库凭据。
     pub revision: u64,
 }
+
+impl openrust::events::Event for TranslationSourceChanged {
+    const NAME: &'static str = r"OpenRust\TranslationDatabase\Events\TranslationSourceChanged";
+}
+
 /// 已提交变更的回执；通知失败不改变数据库提交结果。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TranslationWriteOutcome {

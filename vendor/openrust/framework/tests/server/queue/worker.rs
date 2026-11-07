@@ -176,6 +176,10 @@ struct SignupEvent {
     user_id: i64,
 }
 
+impl openrust::events::Event for SignupEvent {
+    const NAME: &'static str = r"OpenRustTests\SignupEvent";
+}
+
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // The assertions share one isolated real database queue.
 async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
@@ -325,9 +329,21 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     db.transaction(|transaction| {
         let events = Arc::clone(&events);
         Box::pin(async move {
-            events
-                .dispatch_in_transaction(transaction, &SignupEvent { user_id: 42 })
-                .await
+            let responses = events
+                .dispatch_named_in_transaction(
+                    transaction,
+                    <SignupEvent as openrust::events::Event>::NAME,
+                    &SignupEvent { user_id: 42 },
+                )
+                .await?;
+            assert!(matches!(
+                responses.as_deref(),
+                Some([
+                    openrust::support::DataValue::Null,
+                    openrust::support::DataValue::Null
+                ])
+            ));
+            Ok(())
         })
     })
     .await?;
@@ -917,3 +933,7 @@ async fn database_worker_attempts_isolate_scoped_services_and_join_children()
     database.close().await?;
     Ok(())
 }
+
+#[cfg(feature = "db-mysql")]
+#[path = "worker_until_events.rs"]
+mod until_event_tests;

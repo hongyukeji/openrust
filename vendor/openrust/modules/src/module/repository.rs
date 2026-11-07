@@ -239,7 +239,8 @@ impl Module {
             module: self.clone(),
             phase,
         };
-        events.dispatch_named(&event.event_name(), &event).await
+        events.dispatch_named(&event.event_name(), &event).await?;
+        Ok(())
     }
 }
 
@@ -404,7 +405,7 @@ mod tests {
         events.listen_named::<ModuleLifecycleEvent, _>("modules.*", move |event, context| {
             let observed = Arc::clone(&observed);
             Box::pin(async move {
-                assert_eq!(context.event_name(), Some(event.event_name().as_str()));
+                assert_eq!(context.event_name(), event.event_name().as_str());
                 observed
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -568,11 +569,7 @@ mod tests {
             *calls
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
-            [
-                "modules.blog.enabling",
-                "modules.blog.enabled",
-                "modules.taxonomy.enabling",
-            ]
+            ["modules.blog.enabling", "modules.blog.enabled",]
         );
         assert!(repository.find_or_fail("Blog")?.is_enabled()?);
         assert!(!repository.find_or_fail("Taxonomy")?.is_enabled()?);

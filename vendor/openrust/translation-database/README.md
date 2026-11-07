@@ -24,3 +24,5 @@
 同步翻译仅访问已发布快照；HTTP `response_context` 在取得请求槽后、共享绝对期限及取消信号内核对刷新，再按原始请求头协商一次，后台任务显式刷新。批量捕获、校验和原子发布失败保留上次有效快照并记录脱敏固定错误码；通知是提示，有界修订核对负责最终收敛，不承诺全节点即时一致。外部 SQL 必须按契约推进修订或显式刷新。Windows 原子文件打开边界与完整 Laravel Loader 对应仍是公开缺口。
 
 应用安装器在唯一 `default_providers()` 清单移出原默认 Translation 后追加到默认末尾，在 package register 前首次登记来源工厂；不是 application Provider 列表中晚 force 替换。合法 package register 提前解析与 boot 后解析复用同一个 Arc/Source 目录。JWT 生成继续仅有一个 default_providers 函数，保留显式 Fortify 替换与 Cookie/Session 排除。
+
+`TranslationSourceChanged` 实现公开 `Event`，稳定名为 `OpenRust\TranslationDatabase\Events\TranslationSourceChanged`。typed 与同名字符串派发共用 exact/wildcard 选择及响应；跨类型通配回调用 `PayloadRef` 安全读取真实对象。该名字标识来源增强，不表示 Laravel 内置数据库翻译事件。

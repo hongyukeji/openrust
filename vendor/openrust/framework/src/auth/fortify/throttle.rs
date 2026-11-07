@@ -225,6 +225,11 @@ pub struct Lockout {
     /// 触发锁定的同一规范化请求。
     pub request: Request,
 }
+
+impl crate::events::Event for Lockout {
+    const NAME: &'static str = r"Illuminate\Auth\Events\Lockout";
+}
+
 impl fmt::Debug for Lockout {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Lockout([REDACTED])")

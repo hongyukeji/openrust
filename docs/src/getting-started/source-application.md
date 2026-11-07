@@ -155,9 +155,13 @@ fn main() {}
 
 ## 类型化事件
 
-`EventsServiceProvider` 按声明顺序注册应用事件监听器。`Events::dispatch` 按顺序等待匹配的监听器；遇到首个错误时立即返回，不再调用后续监听器。该派发仅在当前进程内执行，不会持久化或广播。启用 `queue` feature 后，`listen_queued` 可将事件映射为已注册的 `Job`；在业务事务中调用 `dispatch_in_transaction`，可将任务与业务变更原子地持久化。worker 仍需显式启动，任务处理器必须能够应对至少一次重试。
+`EventsServiceProvider` 在同一服务登记监听器。类型所有者实现 `Event::NAME` 声明稳定类名；同名字符串派发使用同一 exact 组。先执行 exact，再按 wildcard 模式首次登记顺序及组内顺序等待监听器；遇到首个错误时立即返回，不再调用后续监听器。该派发仅在当前进程内执行，不会持久化或广播。启用 `queue` feature 后，`listen_queued` 可将事件映射为已注册的 `Job`；在业务事务中调用 `dispatch_in_transaction`，可将任务与业务变更原子地持久化。worker 仍需显式启动，任务处理器必须能够应对至少一次重试。
 
 ```rust,ignore
+// UserRegistered 由类型所有者声明；这不是框架内建事件。
+impl openrust::events::Event for UserRegistered {
+    const NAME: &'static str = r"App\Events\UserRegistered";
+}
 let mut events = openrust::events::EventsServiceProvider::new();
 events.listen_queued::<UserRegistered, WelcomeEmailJob, _>("mail", |event| {
     Ok(WelcomeEmailJob { user_id: event.user_id })
@@ -222,3 +226,27 @@ async fn greeting(locale: RequestLocale, Inject(i18n): Inject<Translator>) -> Js
 ```
 
 启动时可将应用 JSON 对象加载至 `MessageCatalog`，例如在指定语言下配置 `{"app.greeting":"Hello, {name}!"}`，或用 `plural` / `select` 对象声明有限分支；两者都要求 `other` 回退项。在请求之外编写邮件或 SMS 时，也应显式使用同一语言设置。数字、日期结果仅用于展示，不应写回 API 机器字段或替换 UTC 存储时间。
+
+事件响应与名称匹配：
+
+- `dispatch`、`dispatch_named` 和对应事务方法返回 `Result<Option<Vec<DataValue>>>`。当前立即派发总是 `Some`；无人监听为 `Some([])`。未来真实延迟机制才可能返回 `None`，当前没有延迟派发能力。
+- `listen_reply` 接收类对象并返回 `DataValue`；`listen_named_reply` 接收 `PayloadRef`，一个 `*` 回调可安全下转不同类型。只有轮到要求具体类型的回调才检查载荷；类型不符、类名冲突或非法类声明为服务器配置错误，不作为请求输入错误。
+- 普通派发收集 null，遇严格 false 停止且不收该 false。`until`/`until_named` 返回首个非 null，包含 false、0、空数组和字符串“0”；无人响应为 null。`EventPropagation::Stop` 仅截断传播，不自动取消触发事件的业务。错误继续原样传播。
+- 类事件与同名字符串共用选择器。只因载荷类型相同不会触发别的类名监听。先 exact，后按 wildcard 模式首次登记次序执行各组；类型登记与同名字符串登记在同一个 exact 组。`EventContext::event_name()` 总是本次完整名称。
+- 当前 `DataValue` 数字为有限值、字符串为 UTF-8、对象保留共享身份且不经 JSON 投影。完整 PHP mixed、零/多参数、类接口投影、可变模型视图、广播和延迟/后提交派发仍待对应；不能用普通事件响应冒称完整模型 save 生命周期。
+
+应用可以在现有同一 Provider 登记响应监听，再通过同一个应用 `Events` 读取结果：
+
+```rust,ignore
+use openrust::support::DataValue;
+events_provider.listen_reply::<UserRegistered, _>(|event, context| {
+    Box::pin(async move {
+        audit_user(event.user_id, context.transaction()).await?;
+        Ok(DataValue::Number(0.into()))
+    })
+});
+let response = events.until(&UserRegistered { user_id: 42 }).await?;
+assert!(matches!(response, DataValue::Number(number) if number.as_i64() == Some(0)));
+```
+
+只关心成功或错误的业务可以显式丢弃普通响应；不要把普通 false 自动当作认证拒绝或事务回滚。需要业务否决的领域必须使用明确的 `until` 结果解释规则。队列监听器在到达时映射拥有型任务，成功只产生 null；worker 的后续执行结果不能成为当前请求的同步响应。

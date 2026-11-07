@@ -538,14 +538,28 @@ user_event!(
     TwoFactorAuthenticationChallenged,
     "已建立密码首因子挑战，尚未正式登录。"
 );
+
+impl crate::events::Event for TwoFactorAuthenticationChallenged {
+    const NAME: &'static str = r"Laravel\Fortify\Events\TwoFactorAuthenticationChallenged";
+}
+
 user_event!(
     TwoFactorAuthenticationFailed,
     "双因素验证码或恢复码验证失败。"
 );
+
+impl crate::events::Event for TwoFactorAuthenticationFailed {
+    const NAME: &'static str = r"Laravel\Fortify\Events\TwoFactorAuthenticationFailed";
+}
+
 user_event!(
     ValidTwoFactorAuthenticationCodeProvided,
     "双因素验证成功，即将通过同一StatefulGuard登录。"
 );
+
+impl crate::events::Event for ValidTwoFactorAuthenticationCodeProvided {
+    const NAME: &'static str = r"Laravel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided";
+}
 
 #[cfg(test)]
 mod tests;

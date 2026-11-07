@@ -38,6 +38,10 @@ fn main() {}
 ```
 
 ```rust,ignore
+// UserRegistered 由类型所有者声明；这不是框架内建事件。
+impl openrust::events::Event for UserRegistered {
+    const NAME: &'static str = r"App\Events\UserRegistered";
+}
 let mut events = openrust::events::EventsServiceProvider::new();
 events.listen_queued::<UserRegistered, WelcomeEmailJob, _>("mail", |event| {
     Ok(WelcomeEmailJob { user_id: event.user_id })

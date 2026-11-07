@@ -1841,3 +1841,14 @@ I18N-S01 的运行输入以 `0a8cb93f` 上的 Source v17 为准，1610 项源码
 - 双拒警Rustdoc、14本地链接、no-default及三driver编译、实际Rust1.97两profile和`cargo deny --offline --locked`通过。Advisory仅缓存`309392b18f6b17022f82c701f300433126901068`（2026-11-06T16:34:32+01:00），未live刷新。
 
 v4/v5原失败、夹具修正和资源自然暂停均保全；源/fixture SHA、inode/mtime与catalog恢复已核。完成产物按原生归属回收，最终共享target约9.74GB、磁盘余量约80.30GB/8.073%。这不是认证/同意证明、跨库原子性、未知提交故障注入或完整Model/L090/Passport验收；其他数据库/最低版本/Windows、外部OIDC/SMTP/副本和非UTF8文件系统等边界仍保留，ignored不算实测通过。
+
+## 事件身份与响应限定验收
+
+EV-R01精确运行输入为已提交Context `364233ca`上的v5，manifest `0b5b32f0073516a553eee539ec72ef98415308fa070868a0b60488cc824cbcdb`、1621项。Root与独立测试对话各自算得24路径规范源码树 `47b1f9dd62ca7583f53117bef7e60a65bc150553`。正式报告 `tmp/independent-testing-20261106/EVENTS-RESPONSES-RESULT.json` SHA `2d5371853fe5b9b39df3aa905a29b061447eea23441896ebd4d25a4f37bd0a6c`；Root复核49回执及86个唯一引用日志摘要（91物理日志路径），报告另计76原始命令日志，不混为用例数。
+
+- v4全target/allfeature类型检查0；唯一私有helper lifetime按原诊断省略后，v5同profile严格检查0，函数体/断言及其余1620文件不变。精确快照fmt、默认严格、默认workspace63和日常MySQL83组结果target通过；ignored/skip明确保留。
+- 响应12、跨包Modules2与Translation1、SessionGuard49、Fortify75普通项及六个原ignored的明确MySQL实际运行通过；QR导出互操作未验。真实MySQL具名until以exact+--ignored实际1pass/0ignored，原queue worker1和正常根defaults的HTTP认证/文章1通过；此前缩减profile的configuration_error保留，不改源码/断言求绿。
+- 12 consumer alltarget及4组实际通过。fresh minimal19、Web/Fortify50、JWT95实际通过，无ignored/skip，path绑定当前framework及实际CLI；三配置完整registry映射与此前相同profile一致，root共有exact key checksum相同，不称fresh锁是根锁版本子集。
+- 默认/全feature拒警Rustdoc、92本地链接、no-default/三driver检查共15 native步骤通过。实际Rust1.97两精确profile均fresh=false，编译器fingerprint103852…；离线locked cargo deny使用缓存advisory `309392b18f6b17022f82c701f300433126901068`，未在线刷新。
+
+原严格诊断、HTTP缩减profile失败、wrapper误分类、软线暂停与全部原始回执保全；source/fixture/catalog保持。完成产物按原生归属回收，最终共享target约6.70GB、磁盘余量约82.78GB/8.322%，无在途Cargo/rustc/rustdoc。固定PHP15项另记真实源参考，不是Rust或queued/事务证明；后续JWT/日期取证不混入。完整接口投影、多参/defer-aftercommit/可变Model/全部mixed、官方事务connection载荷、完整Model/L090、其他数据库/最低版本/Windows及外部OIDC/SMTP/副本/非UTF8文件系统仍开放。

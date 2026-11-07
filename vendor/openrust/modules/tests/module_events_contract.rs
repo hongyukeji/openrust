@@ -36,6 +36,11 @@ impl Trace {
 }
 
 struct EventProbe;
+
+impl openrust::events::Event for EventProbe {
+    const NAME: &'static str = r"OpenRustModulesTests\EventProbe";
+}
+
 struct NestedEvents(Trace);
 
 impl ServiceProvider for NestedEvents {

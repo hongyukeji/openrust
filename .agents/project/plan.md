@@ -1,6 +1,8 @@
 # 当前计划
 
 
+EV-R01已完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)，提供Model保存后继需要的事件身份与响应机制。后续串行交验Hashing字节、Schema等独立冻结候选；其静审不算运行，不追加到本Events有限提交，完整Model事件/官方事务载荷仍未完成。
+
 事务来源与文章末检前置已完成[限定验收](memory/testing.md#事务来源与提交前检查限定验收)，后继来源借用可依赖公开`TransactionContext`，认证权威仍须独立实现。后续按唯一todo串行交验Events/Schema等冻结候选，不把其静审当运行通过，不追加到已闭合CTX有限簇。
 模型属性状态 MB-P01-A 已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)：同一属性存储的 original/dirty/changes/previous、公开单值 cast、账户记录无持久化预览及根/生成 User/外包接线；完整转换后 getOriginal、fill/save、事件/关系和完整值域仍开放。有限提交以 Git 为准，下一步沿唯一 todo 处理 Events、Schema 与模型持久生命周期。
 

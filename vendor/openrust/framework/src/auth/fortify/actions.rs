@@ -44,9 +44,29 @@ account_event!(
     TwoFactorAuthenticationEnabled,
     "双因素密钥与恢复码已存储；不等同已确认绑定。"
 );
+
+impl crate::events::Event for TwoFactorAuthenticationEnabled {
+    const NAME: &'static str = r"Laravel\Fortify\Events\TwoFactorAuthenticationEnabled";
+}
+
 account_event!(TwoFactorAuthenticationConfirmed, "双因素绑定验证码已确认。");
+
+impl crate::events::Event for TwoFactorAuthenticationConfirmed {
+    const NAME: &'static str = r"Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed";
+}
+
 account_event!(TwoFactorAuthenticationDisabled, "双因素三项属性已清除。");
+
+impl crate::events::Event for TwoFactorAuthenticationDisabled {
+    const NAME: &'static str = r"Laravel\Fortify\Events\TwoFactorAuthenticationDisabled";
+}
+
 account_event!(RecoveryCodesGenerated, "双因素恢复码已重新生成。");
+
+impl crate::events::Event for RecoveryCodesGenerated {
+    const NAME: &'static str = r"Laravel\Fortify\Events\RecoveryCodesGenerated";
+}
+
 /// 恢复码替换事件，保留官方code字段但禁止Debug泄露。
 #[derive(Clone)]
 pub struct RecoveryCodeReplaced {
@@ -55,6 +75,11 @@ pub struct RecoveryCodeReplaced {
     /// 已被替换的恢复码；仅显式expose才读取。
     pub code: RecoveryCode,
 }
+
+impl crate::events::Event for RecoveryCodeReplaced {
+    const NAME: &'static str = r"Laravel\Fortify\Events\RecoveryCodeReplaced";
+}
+
 impl fmt::Debug for RecoveryCodeReplaced {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RecoveryCodeReplaced")
@@ -91,14 +116,18 @@ pub(super) struct ManagementEvent {
 }
 
 impl ManagementEvent {
-    async fn dispatch<E: Send + Sync + 'static>(
+    async fn dispatch<E: crate::events::Event>(
         &self,
         event: &E,
         tx: Option<&DatabaseTransaction>,
     ) -> Result<()> {
         match tx {
-            Some(tx) => self.events.dispatch_in_transaction(tx, event).await,
-            None => self.events.dispatch(event).await,
+            Some(tx) => self
+                .events
+                .dispatch_in_transaction(tx, event)
+                .await
+                .map(|_| ()),
+            None => self.events.dispatch(event).await.map(|_| ()),
         }
     }
 

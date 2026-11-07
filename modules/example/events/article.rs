@@ -12,6 +12,10 @@ pub(crate) struct ArticleChanged {
     pub(crate) action: &'static str,
 }
 
+impl openrust::events::Event for ArticleChanged {
+    const NAME: &'static str = r"Example\Events\ArticleChanged";
+}
+
 /// 供隔离 fixture 显式装配文章事件；生产 descriptor 复用 register 追加到唯一 Provider。
 #[allow(
     dead_code,

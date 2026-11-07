@@ -1,6 +1,8 @@
 # 项目上下文
 
 
+Events身份与响应前置已完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)：同一具名/类型化选择器、保身份响应及until，普通false仅停传播。完整Events接口/多参数/defer-aftercommit、官方事务connection载荷及Model保存仍开放；后继按唯一todo继续，不以本有限簇完成原Goal。
+
 事务来源与提交前最终检查前置已收齐[限定验收](memory/testing.md#事务来源与提交前检查限定验收)。`TransactionContext`只证明同Db来源；文章创建在提交前事件及队列入队后核id/owner，不代表认证、同意或具体事务身份。完整L090/Passport与Model保存、其他数据库/最低版本/Windows运行仍按唯一todo推进。
 模型属性状态 MB-P01-A 已收齐[限定验收](memory/testing.md#模型属性状态与无持久预览限定验收)：同一属性存储的 original/dirty/changes/previous、公开单值 cast、账户记录无持久化预览及根/生成 User/外包接线；完整转换后 getOriginal、fill/save、事件/关系和完整值域仍开放。有限提交以 Git 为准，下一步沿唯一 todo 处理 Events、Schema 与模型持久生命周期。
 

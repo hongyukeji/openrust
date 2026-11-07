@@ -178,7 +178,7 @@ async fn failed_listener_rolls_back_api_enable_while_web_event_observes_committe
 }
 
 #[cfg(feature = "db-sqlite")]
-fn count_event<E: Send + Sync + 'static>(
+fn count_event<E: crate::events::Event>(
     provider: &mut EventsServiceProvider,
     db: &Db,
     name: &'static str,
