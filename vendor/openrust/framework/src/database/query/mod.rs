@@ -20,6 +20,7 @@ mod factory;
 mod insert_id;
 mod json_contains;
 mod multi_column;
+mod sqlite_write_target;
 mod subqueries;
 pub use between_columns::ColumnOperand;
 use between_columns::{PredicateChain, QueryContext};
@@ -49,6 +50,8 @@ struct QueryState<'tx: 'cap, 'cap> {
     table: Option<String>,
     transaction: Option<&'tx DatabaseTransaction>,
     select: SelectStatement,
+    // SeaQuery不公开join集合；此标记只随唯一状态clone/事务转移。
+    has_joins: bool,
     predicates: PredicateChain<'cap>,
     callbacks: Vec<BeforeCallback<'cap>>,
     unions: Vec<subqueries::DeferredUnion<'cap>>,
@@ -614,6 +617,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
             Alias::new(&joined),
             condition,
         );
+        self.has_joins = true;
         Ok(self)
     }
 
@@ -895,6 +899,9 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
             pairs.push((Alias::new(column), Expr::val(value)));
         }
         let build = |bindings: bool| -> Result<(String, Values)> {
+            if self.db.backend()? == DbBackend::Sqlite {
+                return self.sqlite_compile_update(&pairs, bindings);
+            }
             let mut statement = Query::update();
             statement
                 .table(Alias::new(self.required_table()?))
@@ -921,6 +928,9 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     /// 删除满足当前 where 约束的行。
     pub async fn delete(&self) -> Result<u64> {
         let build = |bindings: bool| -> Result<(String, Values)> {
+            if self.db.backend()? == DbBackend::Sqlite {
+                return self.sqlite_compile_delete(bindings);
+            }
             let mut statement = Query::delete();
             statement.from_table(Alias::new(self.required_table()?));
             statement.cond_where(self.predicates.compile(&self.context(), bindings)?);

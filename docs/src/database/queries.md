@@ -266,6 +266,27 @@ let id = db.table("orders")?
 
 实现依赖仓内固定SeaORM安全结果访问器；手写独立consumer需继承根`[patch.crates-io] sea-orm`路径，生成项目会自动写入规范绝对路径。普通`last_insert_id`旧访问器未改，不能用它替代新路径。当前SQL列参数仍遵守Query的标识符限制，完整Eloquent、全部SQL方言和发布分发边界按支持范围验收。
 
+## SQLite 写入目标
+
+带 `join` 或显式 `limit`（包括零）的 `update` / `delete`，按原查询的 `rowid` 子查询选择目标；排序、偏移、条件和 UNION 分支保留，各 UNION 子枝的分页只作用于该枝。根查询的读取投影不参与写入目标。 联表写入只有 OFFSET 时会传播 SQLite 的语法错误。需要偏移时同时指定 LIMIT。
+
+以下写入选择该账户中 ID 最小的一条待处理记录。只传 `order_by` 会保留排序条件的直接写入语义，因此限写一行时需要显式设置 `limit`。
+
+```rust,ignore
+use openrust::database::SortDirection;
+
+let updated = db.table("orders")?
+    .where_eq("account_id", account_id)?
+    .where_eq("state", "pending")?
+    .order_by("id", SortDirection::Asc)?
+    .limit(1)
+    .update(vec![("state", "processing".into())]).await?;
+```
+
+仅排序或偏移、不带联表或 limit 时，沿固定官方的直接写入路径，不把读取分页扩展为写入限制。直接路径遇到未使用的非 select 业务绑定，返回 `query_sqlite_unused_write_bindings`；这是为阻止 SQLx 忽略多余参数而在执行前进行的 Rust 驱动适配。
+
+用户定义的 `rowid` 列可能遮蔽 SQLite 隐藏行号，多个同值行仍可能被写入；不保证物理唯一行。`WITHOUT ROWID` 表缺少该名称时传播数据库错误，不回退主键。这些写目标行为已编码，当前及最低 SQLite 版本的运行验收仍属发布前待验范围。
+
 ## SQLite 共享租约与业务事务
 
 `SharedLocks` 是框架增强的数据库租约，不等同于 Laravel 官方 Cache Lock。启用 `db-sqlite` 并迁移 `CoordinationMigration` 后，可用于同机 SQLite 文件的任务协调；调用方须显式续约，未到期的竞争返回 `Busy`，到期接管会增加 fencing generation。

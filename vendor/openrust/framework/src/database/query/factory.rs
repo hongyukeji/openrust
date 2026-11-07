@@ -12,6 +12,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
             table: None,
             transaction,
             select: Query::select().column(Asterisk).to_owned(),
+            has_joins: false,
             predicates: PredicateChain::all(),
             callbacks: Vec::new(),
             unions: Vec::new(),

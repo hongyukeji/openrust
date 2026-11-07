@@ -352,6 +352,7 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
             db: state.db,
             table: state.table,
             select: state.select,
+            has_joins: state.has_joins,
             predicates: state.predicates,
             callbacks: state.callbacks,
             unions: state.unions,

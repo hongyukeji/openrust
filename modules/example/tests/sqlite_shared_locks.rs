@@ -6,7 +6,7 @@ use crate::modules::example::{
 };
 use openrust::database::sea_orm::EntityTrait;
 use openrust::database::{
-    CoordinationMigration, Db, LockAcquire, LockLease, SharedLocks,
+    CoordinationMigration, Db, LockAcquire, LockLease, SharedLocks, SortDirection,
     sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection},
     sea_orm_migration::{MigrationTrait, MigratorTrait},
 };
@@ -44,21 +44,7 @@ impl Fixture {
             let connection = database.connection()?;
             let first = Db::default();
             first.initialize(connection)?;
-            first
-                .table("example_article_imports")?
-                .insert(vec![
-                    ("import_id", IMPORT_ID.into()),
-                    ("owner_id", OWNER.into()),
-                    (
-                        "source_key",
-                        format!("example/articles/{OWNER}/imports/{IMPORT_ID}/source").into(),
-                    ),
-                    ("format", "csv".into()),
-                    ("state", "open".into()),
-                    ("created_at_ms", 0i64.into()),
-                    ("source_removed", false.into()),
-                ])
-                .await?;
+            insert_import(&first, OWNER, IMPORT_ID, 0).await?;
             let mut options = ConnectOptions::new(database.url().to_owned());
             options
                 .max_connections(1)
@@ -98,6 +84,75 @@ impl Fixture {
         let database_result = database.close().await;
         second_result?;
         database_result
+    }
+}
+
+async fn insert_import(db: &Db, owner: i64, id: &str, created_at: i64) -> Result<()> {
+    db.table("example_article_imports")?
+        .insert(vec![
+            ("import_id", id.to_owned().into()),
+            ("owner_id", owner.into()),
+            (
+                "source_key",
+                format!("example/articles/{owner}/imports/{id}/source").into(),
+            ),
+            ("format", "csv".into()),
+            ("state", "open".into()),
+            ("created_at_ms", created_at.into()),
+            ("source_removed", false.into()),
+        ])
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "SQLite 实库留待发布前当前版与最低版本矩阵"]
+async fn limited_article_import_write_keeps_other_receipts_open() -> Result<()> {
+    let fixture = Fixture::new().await?;
+    let db = fixture.first.clone();
+    let outcome = tokio::spawn(async move {
+        insert_import(&db, OWNER, "019b531a-1010-7000-8000-000000000002", 1).await?;
+        insert_import(&db, OWNER + 1, "019b531a-1010-7000-8000-000000000003", -1).await?;
+
+        let imports = db.table("example_article_imports")?;
+        assert_eq!(
+            imports
+                .clone()
+                .where_eq("owner_id", OWNER)?
+                .where_eq("state", "open")?
+                .order_by("created_at_ms", SortDirection::Asc)?
+                .limit(1)
+                .update(vec![
+                    ("state", "failed".into()),
+                    ("error_code", "example_import_expired".into()),
+                    ("terminal_at_ms", 10_i64.into()),
+                ])
+                .await?,
+            1
+        );
+        let updated = receipt(&db).await?;
+        assert_eq!(updated.state, "failed");
+        assert_eq!(
+            updated.error_code.as_deref(),
+            Some("example_import_expired")
+        );
+        assert_eq!(updated.terminal_at_ms, Some(10));
+        let open = imports.where_eq("state", "open")?;
+        assert_eq!(open.clone().where_eq("owner_id", OWNER)?.count().await?, 1);
+        assert_eq!(open.where_eq("owner_id", OWNER + 1)?.count().await?, 1);
+        Ok::<(), Error>(())
+    })
+    .await
+    .map_err(Error::internal)
+    .and_then(std::convert::identity);
+    let cleanup = fixture.close().await;
+    match (outcome, cleanup) {
+        (Ok(()), cleanup) => cleanup,
+        (Err(error), Ok(())) => Err(error),
+        (Err(error), Err(cleanup_error)) => {
+            eprintln!("SQLite 写目标测试清理失败：{}", cleanup_error.code());
+            Err(error)
+        }
     }
 }
 
