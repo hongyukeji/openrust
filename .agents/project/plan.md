@@ -1,6 +1,8 @@
 # 当前计划
 
 
+Hashing字节与单次叶选择已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)；后继先交验MB-S01，再按唯一todo推进增强认证、Model与Manager剩余契约。隔离候选静审不等于运行，本批不扩张到HA、NumericDate、CT或Passport。
+
 EV-R01已完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)，提供Model保存后继需要的事件身份与响应机制。后续串行交验Hashing字节、Schema等独立冻结候选；其静审不算运行，不追加到本Events有限提交，完整Model事件/官方事务载荷仍未完成。
 
 事务来源与文章末检前置已完成[限定验收](memory/testing.md#事务来源与提交前检查限定验收)，后继来源借用可依赖公开`TransactionContext`，认证权威仍须独立实现。后续按唯一todo串行交验Events/Schema等冻结候选，不把其静审当运行通过，不追加到已闭合CTX有限簇。

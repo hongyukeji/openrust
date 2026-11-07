@@ -139,14 +139,10 @@ pub(super) fn inspect(encoded: &str) -> HashInfo {
     }
     info
 }
-fn verify_stored(value: &str, encoded: &str) -> bool {
+fn verify_stored(value: &[u8], encoded: &str) -> bool {
     if encoded.parse::<bcrypt::HashParts>().is_ok() {
         // PHP bcrypt校验按首个NUL截断；make路径则拒绝任何NUL。
-        let bytes = value
-            .as_bytes()
-            .split(|byte| *byte == 0)
-            .next()
-            .unwrap_or_default();
+        let bytes = value.split(|byte| *byte == 0).next().unwrap_or_default();
         if encoded.starts_with("$2x$") {
             return super::legacy_bcrypt::verify(bytes, encoded);
         }
@@ -165,10 +161,7 @@ fn verify_stored(value: &str, encoded: &str) -> bool {
             && parts.next().is_some_and(|part| part.starts_with("p="))
             && parts.next().is_none()
     });
-    ordered
-        && Argon2::default()
-            .verify_password(value.as_bytes(), &hash)
-            .is_ok()
+    ordered && Argon2::default().verify_password(value, &hash).is_ok()
 }
 fn valid_bcrypt_cost(encoded: &str) -> Option<u32> {
     let [first, second] = encoded.as_bytes().get(4..6)? else {
@@ -204,7 +197,7 @@ fn validate_stored_budget(encoded: &str, limits: &ExecutionLimits) -> Result<boo
     Ok(true)
 }
 fn verification<'a>(
-    value: &'a str,
+    value: &'a [u8],
     encoded: Option<&'a str>,
     verify: bool,
     algorithm: &'static str,
@@ -265,12 +258,12 @@ impl BcryptHasher {
         Self { config, pool }
     }
 }
-fn bcrypt_accepts_exact_input(value: &str) -> bool {
-    value.len() <= 72 && !value.as_bytes().contains(&0)
+fn bcrypt_accepts_exact_input(value: &[u8]) -> bool {
+    value.len() <= 72 && !value.contains(&0)
 }
 
 impl Hasher for BcryptHasher {
-    fn accepts_exact_input(&self, value: &str) -> Result<bool> {
+    fn accepts_exact_input(&self, value: &[u8]) -> Result<bool> {
         Ok(bcrypt_accepts_exact_input(value))
     }
     fn info(&self, encoded: &str) -> Result<HashInfo> {
@@ -278,7 +271,7 @@ impl Hasher for BcryptHasher {
     }
     fn make<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         options: &'a HashOptions,
     ) -> BoxFuture<'a, Result<String>> {
         Box::pin(async move {
@@ -292,7 +285,7 @@ impl Hasher for BcryptHasher {
                     "待哈希值超过配置字节上限",
                 ));
             }
-            if value.as_bytes().contains(&0) {
+            if value.contains(&0) {
                 return Err(failure("hashing_failed", "bcrypt无法处理此输入"));
             }
             let rounds = bcrypt_rounds(&self.config, options)?;
@@ -300,7 +293,7 @@ impl Hasher for BcryptHasher {
             let permit = self.pool.reserve()?;
             let value = value.to_owned();
             OperationPool::run_reserved(permit, move || {
-                bcrypt::hash_with_result(value.as_bytes(), rounds)
+                bcrypt::hash_with_result(&value, rounds)
                     .map(|hash| hash.format_for_version(bcrypt::Version::TwoY))
                     .map_err(|_| failure("hashing_failed", "bcrypt哈希失败"))
             })
@@ -309,7 +302,7 @@ impl Hasher for BcryptHasher {
     }
     fn check<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         encoded: Option<&'a str>,
         _options: &'a HashOptions,
     ) -> BoxFuture<'a, Result<bool>> {
@@ -338,7 +331,7 @@ struct ArgonDriver {
     pool: OperationPool,
 }
 impl ArgonDriver {
-    fn accepts_exact_input(&self, value: &str) -> bool {
+    fn accepts_exact_input(&self, value: &[u8]) -> bool {
         self.config.verify || bcrypt_accepts_exact_input(value)
     }
     fn new(config: ArgonConfig, algorithm: Algorithm, pool: OperationPool) -> Self {
@@ -356,7 +349,7 @@ impl ArgonDriver {
     }
     fn make<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         options: &'a HashOptions,
     ) -> BoxFuture<'a, Result<String>> {
         Box::pin(async move {
@@ -367,7 +360,7 @@ impl ArgonDriver {
             let value = value.to_owned();
             OperationPool::run_reserved(permit, move || {
                 Argon2::new(algorithm, Version::V0x13, params)
-                    .hash_password(value.as_bytes())
+                    .hash_password(&value)
                     .map(|hash| hash.to_string())
                     .map_err(|_| failure("hashing_failed", "Argon哈希失败"))
             })
@@ -431,7 +424,7 @@ macro_rules! argon_hasher {
             }
         }
         impl Hasher for $name {
-            fn accepts_exact_input(&self, value: &str) -> Result<bool> {
+            fn accepts_exact_input(&self, value: &[u8]) -> Result<bool> {
                 Ok(self.0.accepts_exact_input(value))
             }
             fn info(&self, encoded: &str) -> Result<HashInfo> {
@@ -439,14 +432,14 @@ macro_rules! argon_hasher {
             }
             fn make<'a>(
                 &'a self,
-                value: &'a str,
+                value: &'a [u8],
                 options: &'a HashOptions,
             ) -> BoxFuture<'a, Result<String>> {
                 self.0.make(value, options)
             }
             fn check<'a>(
                 &'a self,
-                value: &'a str,
+                value: &'a [u8],
                 encoded: Option<&'a str>,
                 _options: &'a HashOptions,
             ) -> BoxFuture<'a, Result<bool>> {

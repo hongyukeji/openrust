@@ -1852,3 +1852,15 @@ EV-R01精确运行输入为已提交Context `364233ca`上的v5，manifest `0b5b3
 - 默认/全feature拒警Rustdoc、92本地链接、no-default/三driver检查共15 native步骤通过。实际Rust1.97两精确profile均fresh=false，编译器fingerprint103852…；离线locked cargo deny使用缓存advisory `309392b18f6b17022f82c701f300433126901068`，未在线刷新。
 
 原严格诊断、HTTP缩减profile失败、wrapper误分类、软线暂停与全部原始回执保全；source/fixture/catalog保持。完成产物按原生归属回收，最终共享target约6.70GB、磁盘余量约82.78GB/8.322%，无在途Cargo/rustc/rustdoc。固定PHP15项另记真实源参考，不是Rust或queued/事务证明；后续JWT/日期取证不混入。完整接口投影、多参/defer-aftercommit/可变Model/全部mixed、官方事务connection载荷、完整Model/L090、其他数据库/最低版本/Windows及外部OIDC/SMTP/副本/非UTF8文件系统仍开放。
+
+## Hashing字节与单次叶选择限定验收
+
+精确输入为Events提交`96aced57`上的Hashing v9：manifest `f90f39a2d111c2f18fd97f0984d9f8d829ef420f2fbd30b678c35ea2c54797ac`、1629叶，25路径Git规范源码树`08ee7f1c516d806791af5f1e852212de900a9c1c`（1629叶原始冻结树为`f7b61e50243e00b61e690c80f05e9fa5663d56f5`，唯一非任务差异为commit.cmd规定的CRLF工作树行尾，Git保持原LF对象）。正式报告`tmp/independent-testing-20261106/HASHING-OPERATION-RESULT.json` SHA `a48b20f2663e9528d59817fc978dff1f39c322c1612a2754585ec5a47392c3c0`；18分项回执、84原始日志引用与11清理回执分别保全。最终提交另含测试方正式生成的新consumer锁和七份事实文档，不将最终树冒充原受验源码树。
+
+- 精确fmt、alltarget/allfeature类型与严格Clippy、默认严格检查通过；默认workspace63组、日常真实MySQL8.4.13 workspace83组通过。普通ignored与外部skip不当作实际通过。
+- Hasher67项（原56+操作选择11）通过、0ignored；旧40测试175断言、Provider11测试51断言与legacy bcrypt3测试保留。固定PHP语料232 make（182返回、26Runtime、24InvalidArgument）及408 check（248true、136false、24exception）按阶段核对；56未调用不计执行，182 Rust roundtrip通过。
+- 示例unit2、旧命令2、嵌套Manager实际parent1及明确exact-child1通过，各实际子运行0ignored。73字节原值true、72负值false，下一操作B拒绝且无额外make/stdout；两个实际CLI产物经固定PHP8.5.12核对原值true及两个负值false。Session49、Fortify75普通项通过，七个普通ignored保留。
+- 新公开consumer严格/类型及实际2项通过；既有12consumer alltarget与四组实际通过。fresh minimal19、Web51、JWT96通过，后两类包含当前模板hashing_bytes回归；准确当前CLI/源码与fresh=false来源另证。
+- 默认与全feature拒警Rustdoc、62本地链接、13组reduced/no-default/driver门禁通过。实际Rust1.97双profile fresh=false、compiler fingerprint103852…；离线deny0使用缓存advisory `309392b18f6b17022f82c701f300433126901068`（2026-11-06），未在线刷新，duplicate29与license-not-encountered1警告保留。
+
+源SHA/mode、固定PHP fixture SHA/inode/mtime与数据库catalog保持。v3/v4/v7/v8失败、私有helper修复及提前读取companion回执的时序纠正保全；不以旧通过替新输入。自然边界精确回收完成产物后，单一stable缓存约7.58GB、磁盘余量80.81GB/8.124%，无在途native命令。完整增强认证选择、Manager getDrivers/forget/container/default及历史缓存所有权、Model binary/hashed与非UTF8 encoded、其他/最低数据库、Windows、OIDC/SMTP/副本/非UTF8文件系统等专项仍开放。

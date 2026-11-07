@@ -48,7 +48,7 @@ async fn provider_reads_application_hashing_config_in_same_lifecycle() -> Result
     let runtime = builder.start(sources()).await?;
     let driver = runtime.container().resolve::<dyn Hasher>().await?;
     let options = HashOptions::new();
-    let encoded = driver.make("test-password", &options).await?;
+    let encoded = driver.make(b"test-password", &options).await?;
     assert_eq!(driver.info(&encoded)?.algo_name, "argon2id");
     assert_eq!(
         driver.info(&encoded)?.options.get("memory_cost"),
@@ -56,7 +56,7 @@ async fn provider_reads_application_hashing_config_in_same_lifecycle() -> Result
     );
     assert!(
         driver
-            .check("test-password", Some(&encoded), &options)
+            .check(b"test-password", Some(&encoded), &options)
             .await?
     );
     assert!(
@@ -226,11 +226,11 @@ async fn manager_reads_live_default_and_first_named_options_while_alias_stays_ca
         &runtime.container().resolve::<dyn Hasher>().await?
     ));
     let options = HashOptions::new();
-    let encoded = auth_reference.make("test", &options).await?;
+    let encoded = auth_reference.make(b"test", &options).await?;
     assert_eq!(manager.info(&encoded)?.algo_name, "argon2id");
     assert!(
         auth_reference
-            .check("test", Some(&encoded), &options)
+            .check(b"test", Some(&encoded), &options)
             .await?
     );
     assert!(auth_reference.verify_configuration(&encoded)?);
@@ -243,13 +243,13 @@ async fn manager_reads_live_default_and_first_named_options_while_alias_stays_ca
     );
     repository.set("hashing.argon.memory", json!(4096))?;
     assert!(Arc::ptr_eq(&selected, &manager.driver(Some(""))?));
-    let cached = selected.make("test", &options).await?;
+    let cached = selected.make(b"test", &options).await?;
     assert_eq!(
         selected.info(&cached)?.options.get("memory_cost"),
         Some(&2048.into())
     );
     let first_argon = manager.driver(Some("argon"))?;
-    let new_hash = first_argon.make("test", &options).await?;
+    let new_hash = first_argon.make(b"test", &options).await?;
     assert_eq!(
         first_argon.info(&new_hash)?.options.get("memory_cost"),
         Some(&4096.into())
@@ -298,10 +298,10 @@ async fn invalid_make_cost_can_be_configured_without_breaking_metadata_or_overri
         .await?;
     let driver = runtime.container().resolve::<dyn Hasher>().await?;
     assert_eq!(driver.info("unknown")?.algo, None);
-    assert!(driver.make("test", &HashOptions::new()).await.is_err());
+    assert!(driver.make(b"test", &HashOptions::new()).await.is_err());
     assert!(
         driver
-            .make("test", &HashOptions::from([("rounds".into(), 4.into())]))
+            .make(b"test", &HashOptions::from([("rounds".into(), 4.into())]))
             .await
             .is_ok()
     );
@@ -321,15 +321,15 @@ async fn first_driver_resolution_captures_current_execution_budget() -> Result<(
         .set("hashing.execution.max_argon_memory", json!(512))?;
     let blocked = manager.driver(None)?;
     assert!(
-        matches!(blocked.make("test", &HashOptions::new()).await, Err(error) if error.code() == "hashing_execution_limit_exceeded")
+        matches!(blocked.make(b"test", &HashOptions::new()).await, Err(error) if error.code() == "hashing_execution_limit_exceeded")
     );
     runtime
         .config()
         .set("hashing.execution.max_argon_memory", json!(1024))?;
     assert!(Arc::ptr_eq(&blocked, &manager.driver(None)?));
-    assert!(blocked.make("test", &HashOptions::new()).await.is_err());
+    assert!(blocked.make(b"test", &HashOptions::new()).await.is_err());
     let first_argon = manager.driver(Some("argon"))?;
-    assert!(first_argon.make("test", &HashOptions::new()).await.is_ok());
+    assert!(first_argon.make(b"test", &HashOptions::new()).await.is_ok());
     runtime
         .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
         .await
@@ -345,22 +345,22 @@ async fn exact_input_capability_tracks_live_default_without_changing_cached_alia
     let alias = runtime.container().resolve::<dyn Hasher>().await?;
     let long = "a".repeat(73);
     for input in ["abc\0tail", long.as_str()] {
-        assert!(!alias.accepts_exact_input(input)?);
-        assert!(!manager.accepts_exact_input(input)?);
-        assert!(!manager_trait.accepts_exact_input(input)?);
+        assert!(!alias.accepts_exact_input(input.as_bytes())?);
+        assert!(!manager.accepts_exact_input(input.as_bytes())?);
+        assert!(!manager_trait.accepts_exact_input(input.as_bytes())?);
     }
     runtime.config().set("hashing.driver", json!("argon2id"))?;
     runtime.config().set("hashing.argon.verify", json!(true))?;
     for input in ["abc\0tail", long.as_str()] {
-        assert!(manager.accepts_exact_input(input)?);
-        assert!(manager_trait.accepts_exact_input(input)?);
-        assert!(!alias.accepts_exact_input(input)?);
+        assert!(manager.accepts_exact_input(input.as_bytes())?);
+        assert!(manager_trait.accepts_exact_input(input.as_bytes())?);
+        assert!(!alias.accepts_exact_input(input.as_bytes())?);
     }
     runtime.config().set("hashing.argon.verify", json!(false))?;
     runtime.config().set("hashing.driver", json!("argon"))?;
     for input in ["abc\0tail", long.as_str()] {
-        assert!(!manager.accepts_exact_input(input)?);
-        assert!(!manager_trait.accepts_exact_input(input)?);
+        assert!(!manager.accepts_exact_input(input.as_bytes())?);
+        assert!(!manager_trait.accepts_exact_input(input.as_bytes())?);
     }
     runtime.config().set("hashing.driver", json!("argon2id"))?;
     assert!(manager.accepts_exact_input("abc\0tail")?);

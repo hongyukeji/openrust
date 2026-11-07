@@ -70,19 +70,19 @@ async fn make_checks_budget_before_entering_any_expensive_algorithm() -> Result<
             ..ExecutionLimits::default()
         },
     )?;
-    assert!(limit_error(bcrypt.make("test", &options).await));
+    assert!(limit_error(bcrypt.make("test".as_bytes(), &options).await));
     let limits = ExecutionLimits {
         max_argon_memory: 512,
         ..ExecutionLimits::default()
     };
     assert!(limit_error(
         ArgonHasher::with_execution_limits(cheap_argon(false), limits.clone())?
-            .make("test", &options)
+            .make("test".as_bytes(), &options)
             .await
     ));
     assert!(limit_error(
         Argon2IdHasher::with_execution_limits(cheap_argon(false), limits)?
-            .make("test", &options)
+            .make("test".as_bytes(), &options)
             .await
     ));
     assert!(
@@ -93,7 +93,7 @@ async fn make_checks_budget_before_entering_any_expensive_algorithm() -> Result<
                 ..ExecutionLimits::default()
             }
         )?
-        .make("test", &options)
+        .make("test".as_bytes(), &options)
         .await
         .is_ok()
     );
@@ -103,7 +103,9 @@ async fn make_checks_budget_before_entering_any_expensive_algorithm() -> Result<
 #[tokio::test]
 async fn stored_cost_budget_applies_to_strict_and_cross_algorithm_verification() -> Result<()> {
     let options = HashOptions::new();
-    let bcrypt_hash = cheap_bcrypt(false)?.make("test", &options).await?;
+    let bcrypt_hash = cheap_bcrypt(false)?
+        .make("test".as_bytes(), &options)
+        .await?;
     let bcrypt_high = bcrypt_hash.replacen("$04$", "$17$", 1);
     let drivers: Vec<Arc<dyn Hasher>> = vec![
         Arc::new(cheap_bcrypt(false)?),
@@ -112,12 +114,14 @@ async fn stored_cost_budget_applies_to_strict_and_cross_algorithm_verification()
     ];
     for driver in &drivers {
         assert!(limit_error(
-            driver.check("test", Some(&bcrypt_high), &options).await
+            driver
+                .check("test".as_bytes(), Some(&bcrypt_high), &options)
+                .await
         ));
     }
     assert!(limit_error(
         cheap_bcrypt(true)?
-            .check("test", Some(&bcrypt_high), &options)
+            .check("test".as_bytes(), Some(&bcrypt_high), &options)
             .await
     ));
     for (maker, strict) in [
@@ -130,7 +134,7 @@ async fn stored_cost_budget_applies_to_strict_and_cross_algorithm_verification()
             Arc::new(Argon2IdHasher::new(cheap_argon(true))?) as Arc<dyn Hasher>,
         ),
     ] {
-        let encoded = maker.make("test", &options).await?;
+        let encoded = maker.make("test".as_bytes(), &options).await?;
         for changed in [
             encoded.replacen("m=1024", "m=262145", 1),
             encoded.replacen("t=1", "t=11", 1),
@@ -138,11 +142,15 @@ async fn stored_cost_budget_applies_to_strict_and_cross_algorithm_verification()
         ] {
             for driver in &drivers {
                 assert!(limit_error(
-                    driver.check("test", Some(&changed), &options).await
+                    driver
+                        .check("test".as_bytes(), Some(&changed), &options)
+                        .await
                 ));
             }
             assert!(limit_error(
-                strict.check("test", Some(&changed), &options).await
+                strict
+                    .check("test".as_bytes(), Some(&changed), &options)
+                    .await
             ));
         }
     }
@@ -152,13 +160,23 @@ async fn stored_cost_budget_applies_to_strict_and_cross_algorithm_verification()
 #[tokio::test]
 async fn bcrypt_check_requires_two_ascii_cost_digits_even_when_info_recognizes_it() -> Result<()> {
     let options = HashOptions::new();
-    let hash = cheap_bcrypt(false)?.make("test", &options).await?;
+    let hash = cheap_bcrypt(false)?
+        .make("test".as_bytes(), &options)
+        .await?;
     let altered = hash.replacen("$04$", "$+4$", 1);
     for verify in [true, false] {
         let driver = cheap_bcrypt(verify)?;
         assert_eq!(driver.info(&altered)?.algo_name, "bcrypt");
-        assert!(driver.check("test", Some(&hash), &options).await?);
-        assert!(!driver.check("test", Some(&altered), &options).await?);
+        assert!(
+            driver
+                .check("test".as_bytes(), Some(&hash), &options)
+                .await?
+        );
+        assert!(
+            !driver
+                .check("test".as_bytes(), Some(&altered), &options)
+                .await?
+        );
     }
     Ok(())
 }
@@ -167,7 +185,7 @@ async fn bcrypt_check_requires_two_ascii_cost_digits_even_when_info_recognizes_i
 async fn rehash_comparison_uses_php_scalar_casts_without_make_range_checks() -> Result<()> {
     let driver = cheap_bcrypt(false)?;
     let options = HashOptions::new();
-    let hash = driver.make("test", &options).await?;
+    let hash = driver.make("test".as_bytes(), &options).await?;
     for rounds in [
         serde_json::json!(1),
         serde_json::json!("1"),
@@ -177,7 +195,7 @@ async fn rehash_comparison_uses_php_scalar_casts_without_make_range_checks() -> 
     ] {
         let changed = HashOptions::from([("rounds".into(), rounds)]);
         assert!(driver.needs_rehash(&hash, &changed)?);
-        assert!(driver.make("test", &changed).await.is_err());
+        assert!(driver.make("test".as_bytes(), &changed).await.is_err());
     }
     for rounds in [
         serde_json::json!("4"),
@@ -186,17 +204,25 @@ async fn rehash_comparison_uses_php_scalar_casts_without_make_range_checks() -> 
     ] {
         let same = HashOptions::from([("rounds".into(), rounds)]);
         assert!(!driver.needs_rehash(&hash, &same)?);
-        assert!(driver.make("test", &same).await.is_ok());
+        assert!(driver.make("test".as_bytes(), &same).await.is_ok());
     }
     let configured_invalid = BcryptHasher::new(BcryptConfig {
         rounds: 1,
         ..BcryptConfig::default()
     })?;
     assert!(configured_invalid.needs_rehash(&hash, &options)?);
-    assert!(configured_invalid.make("test", &options).await.is_err());
     assert!(
         configured_invalid
-            .make("test", &HashOptions::from([("rounds".into(), 4.into())]))
+            .make("test".as_bytes(), &options)
+            .await
+            .is_err()
+    );
+    assert!(
+        configured_invalid
+            .make(
+                "test".as_bytes(),
+                &HashOptions::from([("rounds".into(), 4.into())])
+            )
             .await
             .is_ok()
     );
@@ -215,10 +241,10 @@ async fn limit_error_precedes_invalid_make_cost_and_metadata_remains_unrestricte
         verify: false,
     })?;
     assert!(
-        matches!(driver.make("too long", &HashOptions::new()).await, Err(error) if error.code() == "hashing_value_too_long")
+        matches!(driver.make("too long".as_bytes(), &HashOptions::new()).await, Err(error) if error.code() == "hashing_value_too_long")
     );
     let hash = cheap_bcrypt(false)?
-        .make("test", &HashOptions::new())
+        .make("test".as_bytes(), &HashOptions::new())
         .await?
         .replacen("$04$", "$17$", 1);
     let bounded = cheap_bcrypt(false)?;
@@ -357,29 +383,41 @@ async fn exact_input_capability_does_not_change_official_bcrypt_alias_verificati
     let options = HashOptions::new();
     let boundary = "a".repeat(72);
     let extended = format!("{boundary}x");
-    assert!(driver.accepts_exact_input(&boundary)?);
-    assert!(!driver.accepts_exact_input(&extended)?);
-    assert!(!driver.accepts_exact_input("abc\0tail")?);
-    let long_hash = driver.make(&extended, &options).await?;
-    assert!(driver.check(&boundary, Some(&long_hash), &options).await?);
-    assert!(driver.check(&extended, Some(&long_hash), &options).await?);
-    let short_hash = driver.make("abc", &options).await?;
+    assert!(driver.accepts_exact_input(boundary.as_bytes())?);
+    assert!(!driver.accepts_exact_input(extended.as_bytes())?);
+    assert!(!driver.accepts_exact_input("abc\0tail".as_bytes())?);
+    let long_hash = driver.make(extended.as_bytes(), &options).await?;
     assert!(
         driver
-            .check("abc\0tail", Some(&short_hash), &options)
+            .check(boundary.as_bytes(), Some(&long_hash), &options)
+            .await?
+    );
+    assert!(
+        driver
+            .check(extended.as_bytes(), Some(&long_hash), &options)
+            .await?
+    );
+    let short_hash = driver.make("abc".as_bytes(), &options).await?;
+    assert!(
+        driver
+            .check("abc\0tail".as_bytes(), Some(&short_hash), &options)
             .await?
     );
     for hasher in [
         Arc::new(ArgonHasher::new(cheap_argon(false))?) as Arc<dyn Hasher>,
         Arc::new(Argon2IdHasher::new(cheap_argon(false))?) as Arc<dyn Hasher>,
     ] {
-        assert!(!hasher.accepts_exact_input(&extended)?);
-        assert!(!hasher.accepts_exact_input("abc\0tail")?);
-        assert!(hasher.accepts_exact_input(&boundary)?);
-        assert!(hasher.check(&extended, Some(&long_hash), &options).await?);
+        assert!(!hasher.accepts_exact_input(extended.as_bytes())?);
+        assert!(!hasher.accepts_exact_input("abc\0tail".as_bytes())?);
+        assert!(hasher.accepts_exact_input(boundary.as_bytes())?);
         assert!(
             hasher
-                .check("abc\0tail", Some(&short_hash), &options)
+                .check(extended.as_bytes(), Some(&long_hash), &options)
+                .await?
+        );
+        assert!(
+            hasher
+                .check("abc\0tail".as_bytes(), Some(&short_hash), &options)
                 .await?
         );
     }
@@ -392,9 +430,9 @@ fn strict_argon_capability_preserves_full_bytes_for_both_algorithms() -> Result<
         Arc::new(ArgonHasher::new(cheap_argon(true))?) as Arc<dyn Hasher>,
         Arc::new(Argon2IdHasher::new(cheap_argon(true))?) as Arc<dyn Hasher>,
     ] {
-        assert!(hasher.accepts_exact_input("abc\0tail")?);
-        assert!(hasher.accepts_exact_input(&"测".repeat(25))?);
-        assert!(hasher.accepts_exact_input(&"a".repeat(73))?);
+        assert!(hasher.accepts_exact_input("abc\0tail".as_bytes())?);
+        assert!(hasher.accepts_exact_input("测".repeat(25).as_bytes())?);
+        assert!(hasher.accepts_exact_input("a".repeat(73).as_bytes())?);
     }
     Ok(())
 }
@@ -406,14 +444,14 @@ impl Hasher for DefaultInputCapability {
     }
     fn make<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         options: &'a HashOptions,
     ) -> crate::BoxFuture<'a, Result<String>> {
         self.0.make(value, options)
     }
     fn check<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         encoded: Option<&'a str>,
         options: &'a HashOptions,
     ) -> crate::BoxFuture<'a, Result<bool>> {
@@ -427,8 +465,8 @@ impl Hasher for DefaultInputCapability {
 #[test]
 fn custom_hasher_keeps_default_input_capability_and_manager_propagates_errors() -> Result<()> {
     let custom = DefaultInputCapability(cheap_bcrypt(false)?);
-    assert!(custom.accepts_exact_input("abc\0tail")?);
-    assert!(custom.accepts_exact_input(&"a".repeat(73))?);
+    assert!(custom.accepts_exact_input("abc\0tail".as_bytes())?);
+    assert!(custom.accepts_exact_input("a".repeat(73).as_bytes())?);
     let manager = HashManager::new(HashingConfig {
         driver: "missing".into(),
         ..HashingConfig::default()
@@ -438,7 +476,7 @@ fn custom_hasher_keeps_default_input_capability_and_manager_propagates_errors() 
     );
     let manager_trait: &dyn Hasher = &manager;
     assert!(
-        matches!(manager_trait.accepts_exact_input("abc"), Err(error) if error.code() == "hashing_driver_unsupported")
+        matches!(manager_trait.accepts_exact_input("abc".as_bytes()), Err(error) if error.code() == "hashing_driver_unsupported")
     );
     Ok(())
 }

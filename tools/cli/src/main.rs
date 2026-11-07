@@ -1132,6 +1132,12 @@ fn populate_project_with_features(
         ),
     ];
 
+    if auth {
+        files.push((
+            "tests/hashing_bytes.rs",
+            include_str!("../templates/tests/hashing_bytes.rs").to_owned(),
+        ));
+    }
     if grpc {
         files.push((
             "config/grpc.rs",

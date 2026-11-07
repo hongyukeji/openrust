@@ -13,3 +13,6 @@ pub(crate) use module::ExampleModuleServiceProvider;
 #[cfg(feature = "session")]
 #[allow(dead_code)] // 显式装配示例；默认宿主有意不覆盖调用方既有 store。
 pub(crate) mod session;
+
+#[cfg(feature = "hashing")]
+mod secret_hash;

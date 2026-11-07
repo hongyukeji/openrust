@@ -49,12 +49,17 @@ where
     }
 }
 
-/// 可由同一容器管理器解析的哈希驱动；实现不得输出秘密原值。
+/// 可由同一容器管理器解析的哈希驱动；明文是原始字节，不能UTF-8替换/归一或输出秘密原值。
+/// encoded hash仍是文本；单一object-safe接口保留原 `BoxFuture` 借用生命周期。
 pub trait Hasher: Send + Sync {
+    /// 暴露框架已知管理器，供一次操作固定最终具体驱动；普通驱动无需实现。
+    fn as_hash_manager(&self) -> Option<&HashManager> {
+        None
+    }
     /// 查询增强认证策略能否保留完整输入字节；Rust 安全扩展，不改变通用 make/check 行为。
     ///
     /// 自定义驱动默认承诺完整输入；可能接受 bcrypt 迁移哈希的驱动应声明其别名边界。
-    fn accepts_exact_input(&self, _value: &str) -> Result<bool> {
+    fn accepts_exact_input(&self, _value: &[u8]) -> Result<bool> {
         Ok(true)
     }
     /// 检查已编码值的元信息；未知格式返回 unknown，驱动构造错误仍传播。
@@ -62,13 +67,13 @@ pub trait Hasher: Send + Sync {
     /// 使用当前驱动和可选覆盖参数生成随机盐哈希。
     fn make<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         options: &'a HashOptions,
     ) -> BoxFuture<'a, Result<String>>;
     /// 校验明文与可选存储值；空存储值返回 false。
     fn check<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         encoded: Option<&'a str>,
         options: &'a HashOptions,
     ) -> BoxFuture<'a, Result<bool>>;
@@ -89,3 +94,6 @@ mod tests;
 
 #[cfg(test)]
 mod regression_tests;
+
+#[cfg(test)]
+mod bytes_contract_tests;

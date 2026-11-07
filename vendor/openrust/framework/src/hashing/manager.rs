@@ -30,7 +30,7 @@ struct State {
 pub struct HashManager {
     source: Source,
     pool: OperationPool,
-    state: Mutex<State>,
+    state: Arc<Mutex<State>>,
 }
 enum Source {
     Snapshot(HashingConfig),
@@ -71,15 +71,36 @@ impl Source {
     }
 }
 
-struct Creation<'a> {
-    manager: &'a HashManager,
+struct Creation {
+    state: Arc<Mutex<State>>,
     name: String,
 }
-impl Drop for Creation<'_> {
+impl Drop for Creation {
     fn drop(&mut self) {
-        if let Ok(mut state) = self.manager.state.lock() {
+        if let Ok(mut state) = self.state.lock() {
             state.creating.remove(&self.name);
         }
+    }
+}
+/// 持有构造占位，发布或失败析构后才允许下一次同名构造。
+struct Prepared {
+    driver: Arc<dyn Hasher>,
+    creation: Option<Creation>,
+    // 实际工厂跨发布保活，最后捕获析构可在缓存可见后锁外重入。
+    _factory: Option<Factory>,
+}
+impl Prepared {
+    fn publish(self) -> Result<Arc<dyn Hasher>> {
+        if let Some(creation) = &self.creation {
+            let displaced = creation
+                .state
+                .lock()
+                .map_err(|_| failure("hashing_manager_poisoned", "哈希管理器状态锁无效"))?
+                .drivers
+                .insert(creation.name.clone(), Arc::clone(&self.driver));
+            drop(displaced);
+        }
+        Ok(Arc::clone(&self.driver))
     }
 }
 impl HashManager {
@@ -92,7 +113,7 @@ impl HashManager {
         Ok(Self {
             source: Source::Snapshot(config),
             pool: OperationPool::new(capacity)?,
-            state: Mutex::new(State::default()),
+            state: Arc::new(Mutex::new(State::default())),
         })
     }
     /// 使用应用同一活配置仓库；仅首次构造具名驱动时读取该驱动配置与预算。
@@ -103,7 +124,7 @@ impl HashManager {
         Ok(Self {
             source: Source::Live(repository),
             pool: OperationPool::new(capacity)?,
-            state: Mutex::new(State::default()),
+            state: Arc::new(Mutex::new(State::default())),
         })
     }
     /// 注册驱动工厂；首次创建时自定义工厂优先，已缓存实例保持稳定。
@@ -130,30 +151,65 @@ impl HashManager {
             Some(name) => name.to_owned(),
             None => self.source.default_driver()?,
         };
+        self.prepare(&name)?.publish()
+    }
+    /// 固定本次操作的默认最终驱动；整条已知管理器链验证成功后才发布新缓存。
+    pub fn driver_for_operation(&self) -> Result<Arc<dyn Hasher>> {
+        let mut seen = vec![Arc::clone(&self.state)];
+        let mut prepared = Vec::new();
+        let mut next = self.prepare(&self.source.default_driver()?)?;
+        loop {
+            let driver = Arc::clone(&next.driver);
+            // 每个实际候选仅投影一次，借用有效时完成下一层准备。
+            let following = if let Some(nested) = driver.as_hash_manager() {
+                if seen.iter().any(|state| Arc::ptr_eq(state, &nested.state)) {
+                    return Err(self_reference());
+                }
+                seen.push(Arc::clone(&nested.state));
+                Some(nested.prepare(&nested.source.default_driver()?)?)
+            } else {
+                None
+            };
+            prepared.push(next);
+            if let Some(following) = following {
+                next = following;
+            } else {
+                for entry in prepared.into_iter().rev() {
+                    entry.publish()?;
+                }
+                return Ok(driver);
+            }
+        }
+    }
+    fn prepare(&self, name: &str) -> Result<Prepared> {
         let factory = {
             let mut state = self
                 .state
                 .lock()
                 .map_err(|_| failure("hashing_manager_poisoned", "哈希管理器状态锁无效"))?;
-            if let Some(driver) = state.drivers.get(&name) {
-                return Ok(Arc::clone(driver));
+            if let Some(driver) = state.drivers.get(name) {
+                return Ok(Prepared {
+                    driver: Arc::clone(driver),
+                    creation: None,
+                    _factory: None,
+                });
             }
-            if !state.creating.insert(name.clone()) {
+            if !state.creating.insert(name.to_owned()) {
                 return Err(failure(
                     "hashing_driver_busy",
                     "哈希驱动正在创建，不能递归或并发解析同名驱动",
                 ));
             }
-            state.factories.get(&name).cloned()
+            state.factories.get(name).cloned()
         };
-        let _creation = Creation {
-            manager: self,
-            name: name.clone(),
+        let creation = Creation {
+            state: Arc::clone(&self.state),
+            name: name.to_owned(),
         };
         let driver: Arc<dyn Hasher> = if let Some(factory) = &factory {
             factory()?
         } else {
-            match name.as_str() {
+            match name {
                 "bcrypt" => Arc::new(BcryptHasher::with_pool(
                     self.source.bcrypt()?,
                     self.pool.limited(self.source.execution()?),
@@ -184,11 +240,11 @@ impl HashManager {
                 if factory.as_ref().is_some_and(|attempted| {
                     state
                         .factories
-                        .get(&name)
+                        .get(name)
                         .is_some_and(|current| Arc::ptr_eq(current, attempted))
                 }) {
                     let sentinel: Factory = Arc::new(|| Err(self_reference()));
-                    state.factories.insert(name.clone(), sentinel)
+                    state.factories.insert(name.to_owned(), sentinel)
                 } else {
                     None
                 }
@@ -198,29 +254,30 @@ impl HashManager {
             drop(factory);
             return Err(self_reference());
         }
-        self.state
-            .lock()
-            .map_err(|_| failure("hashing_manager_poisoned", "哈希管理器状态锁无效"))?
-            .drivers
-            .insert(name.clone(), Arc::clone(&driver));
-        Ok(driver)
+        Ok(Prepared {
+            driver,
+            creation: Some(creation),
+            _factory: factory,
+        })
     }
     /// 查询当前默认驱动的完整输入能力，不执行 KDF 或改变通用哈希行为。
-    pub fn accepts_exact_input(&self, value: &str) -> Result<bool> {
-        self.driver(None)?.accepts_exact_input(value)
+    pub fn accepts_exact_input(&self, value: impl AsRef<[u8]>) -> Result<bool> {
+        self.driver(None)?.accepts_exact_input(value.as_ref())
     }
-    /// 使用当前默认驱动生成哈希。
-    pub async fn make(&self, value: &str, options: &HashOptions) -> Result<String> {
-        self.driver(None)?.make(value, options).await
+    /// 使用当前默认驱动生成哈希；文本与byte容器都只转发原字节。
+    pub async fn make(&self, value: impl AsRef<[u8]>, options: &HashOptions) -> Result<String> {
+        self.driver(None)?.make(value.as_ref(), options).await
     }
-    /// 使用当前默认驱动验证；verify策略由该驱动配置决定。
+    /// 使用当前默认驱动验证；文本/bytes都保原文，verify策略由该驱动配置决定。
     pub async fn check(
         &self,
-        value: &str,
+        value: impl AsRef<[u8]>,
         encoded: Option<&str>,
         options: &HashOptions,
     ) -> Result<bool> {
-        self.driver(None)?.check(value, encoded, options).await
+        self.driver(None)?
+            .check(value.as_ref(), encoded, options)
+            .await
     }
     /// 通过默认驱动读取元信息；内置驱动可识别其它内置算法。
     pub fn info(&self, encoded: &str) -> Result<HashInfo> {
@@ -241,7 +298,10 @@ impl HashManager {
 }
 
 impl Hasher for HashManager {
-    fn accepts_exact_input(&self, value: &str) -> Result<bool> {
+    fn as_hash_manager(&self) -> Option<&HashManager> {
+        Some(self)
+    }
+    fn accepts_exact_input(&self, value: &[u8]) -> Result<bool> {
         HashManager::accepts_exact_input(self, value)
     }
     fn info(&self, encoded: &str) -> Result<HashInfo> {
@@ -249,14 +309,14 @@ impl Hasher for HashManager {
     }
     fn make<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         options: &'a HashOptions,
     ) -> BoxFuture<'a, Result<String>> {
         Box::pin(async move { HashManager::make(self, value, options).await })
     }
     fn check<'a>(
         &'a self,
-        value: &'a str,
+        value: &'a [u8],
         encoded: Option<&'a str>,
         options: &'a HashOptions,
     ) -> BoxFuture<'a, Result<bool>> {
@@ -269,3 +329,7 @@ impl Hasher for HashManager {
         HashManager::verify_configuration(self, encoded)
     }
 }
+
+#[cfg(test)]
+#[path = "operation_selection_tests.rs"]
+mod operation_selection_tests;

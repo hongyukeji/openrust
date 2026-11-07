@@ -350,6 +350,8 @@ impl ServiceProvider for ExampleServiceProvider {
     #[allow(clippy::too_many_lines, reason = "模块 boot 同时装配业务资源和路由")]
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            #[cfg(feature = "hashing")]
+            app.command(super::secret_hash::HashSecretFile);
             let database_enabled = match self.database_override {
                 Some(enabled) => enabled,
                 None => app

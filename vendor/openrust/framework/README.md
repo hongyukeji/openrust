@@ -9,3 +9,5 @@ OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀�
 模型属性状态通过同一 `openrust::database::eloquent::ModelAttributes` 提供原始基线、cast感知变化查询与显式快照同步。同步不等同数据库保存；完整Model生命周期仍在对应。公开用法与并发/错误边界见[模型基础](../../../docs/src/eloquent/getting-started.md#原始基线与变化记录)。
 
 事件通过唯一 `EventsServiceProvider` 登记与 `Events` 派发。类所有者声明 `Event::NAME`；类与同名字符串使用同一个 exact/wildcard 选择器。`listen_reply` 和跨类型 `listen_named_reply` 返回保身份的 `DataValue`，普通派发收集响应，`until` 取得首个非 null。普通 false 只停止传播；业务取消由领域显式解释。立即派发返回 `Some`，完整接口投影、多参数、延迟/后提交与可变模型生命周期仍待对应，详见[事件指南](../../../docs/src/getting-started/source-application.md)。
+
+`hashing` 的统一 `HashManager` 明文入口接受文本或原始字节，公开 `Hasher` 的明文参数为 `&[u8]`；已编码哈希和元信息仍为文本。需要先检查完整输入能力再生成时，用无参 `driver_for_operation()` 一次取得默认Manager链的最终具体叶，两步复用同一叶；普通自定义 `Hasher` 不必实现Manager hook。bcrypt/Argon的输入等价关系与自定义扩展方式见[哈希指南](../../../docs/src/security/hashing.md)。

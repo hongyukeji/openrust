@@ -1942,3 +1942,507 @@ async fn generic_http_host_has_no_application_information_route()
         .await?;
     Ok(())
 }
+
+#[cfg(feature = "hashing")]
+#[tokio::test]
+async fn module_secret_file_command_uses_same_configured_manager()
+-> Result<(), Box<dyn std::error::Error>> {
+    use futures_util::FutureExt as _;
+
+    let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([
+        ("hashing", serde_json::json!({"driver":"argon2id","argon":{"memory":1024,"time":1,"threads":1,"verify":true}})),
+    ])?;
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+        .build()
+        .await?;
+    // 对公开合成数据执行已登记的真实命令；不读取部署秘密或替换生产Hasher。
+    let outcome =
+        std::panic::AssertUnwindSafe(async {
+            let result: Result<(), Box<dyn std::error::Error>> = async {
+        let file = tempfile::NamedTempFile::new()?;
+        tokio::fs::write(file.path(), [0xff, 0, b'a', 0xfe]).await?;
+        app.app()?
+            .run_command(
+                "example",
+                vec![
+                    "secret".into(),
+                    "hash".into(),
+                    file.path().to_str().ok_or("fixture路径不是UTF8")?.into(),
+                ],
+            )
+            .await?;
+        let missing_args = app
+            .app()?
+            .run_command("example secret hash", Vec::new())
+            .await;
+        if !matches!(missing_args, Err(error) if error.code() == "example_secret_file_argument") {
+            return Err("秘密文件命令缺参数没有按公开边界拒绝".into());
+        }
+        Ok(())
+        }.await;
+            result
+        })
+        .catch_unwind()
+        .await;
+    let shutdown = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    match outcome {
+        Ok(result) => {
+            if result.is_err()
+                && let Err(error) = &shutdown
+            {
+                eprintln!("示例秘密文件测试关闭失败 code={}", error.code());
+            }
+            result?;
+            shutdown?;
+            Ok(())
+        }
+        Err(payload) => {
+            if let Err(error) = shutdown {
+                eprintln!("示例秘密文件测试panic后关闭失败 code={}", error.code());
+            }
+            std::panic::resume_unwind(payload)
+        }
+    }
+}
+
+// 子进程在同一测试可执行文件里调用已登记的真实命令，隔离stdout而不使用unsafe改FD。
+#[cfg(feature = "hashing")]
+#[tokio::test]
+#[ignore = "仅由具名stdout见证父测试携公开fixture环境执行"]
+async fn module_secret_file_stdout_child_probe() -> Result<(), Box<dyn std::error::Error>> {
+    use futures_util::FutureExt as _;
+    let file = std::env::var_os("OPENRUST_PUBLIC_SECRET_STDOUT_FIXTURE")
+        .ok_or("缺少公开字节fixture路径")?;
+    let reject_file = std::env::var_os("OPENRUST_PUBLIC_SECRET_STDOUT_REJECT_FIXTURE")
+        .ok_or("缺少公开拒绝fixture路径")?;
+    let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([
+        ("hashing", serde_json::json!({"driver":"argon2id","argon":{"memory":1024,"time":1,"threads":1,"verify":true}})),
+    ])?;
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+        .build()
+        .await?;
+    let outcome = std::panic::AssertUnwindSafe(async {
+        let file = file.into_string().map_err(|_| "fixture路径不是UTF8")?;
+        openrust::console::print("OPENRUST_PUBLIC_HASH_OUTPUT_BEGIN");
+        app.app()?
+            .run_command("example secret hash", vec![file])
+            .await?;
+        openrust::console::print("OPENRUST_PUBLIC_HASH_OUTPUT_END");
+        app.app()?
+            .config_repository()
+            .set("hashing.driver", serde_json::json!("bcrypt"))?;
+        let reject_file = reject_file
+            .into_string()
+            .map_err(|_| "拒绝fixture路径不是UTF8")?;
+        openrust::console::print("OPENRUST_PUBLIC_HASH_REJECT_BEGIN");
+        let refused = app
+            .app()?
+            .run_command("example secret hash", vec![reject_file])
+            .await;
+        openrust::console::print("OPENRUST_PUBLIC_HASH_REJECT_END");
+        if !matches!(refused, Err(error) if error.code() == "example_secret_input_ambiguous") {
+            return Err("命令拒绝没有保留输入歧义错误码".into());
+        }
+        Ok::<_, Box<dyn std::error::Error>>(())
+    })
+    .catch_unwind()
+    .await;
+    let shutdown = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    match outcome {
+        Ok(result) => {
+            if result.is_err()
+                && let Err(error) = &shutdown
+            {
+                eprintln!("哈希stdout子测试关闭失败 code={}", error.code());
+            }
+            result?;
+            shutdown?;
+            Ok(())
+        }
+        Err(payload) => {
+            if let Err(error) = shutdown {
+                eprintln!("哈希stdout子测试panic后关闭失败 code={}", error.code());
+            }
+            std::panic::resume_unwind(payload)
+        }
+    }
+}
+
+#[cfg(feature = "hashing")]
+#[tokio::test]
+async fn module_secret_file_stdout_is_one_real_verifiable_hash()
+-> Result<(), Box<dyn std::error::Error>> {
+    let file = tempfile::NamedTempFile::new()?;
+    let reject_file = tempfile::NamedTempFile::new()?;
+    tokio::fs::write(reject_file.path(), [b'a'; 73]).await?;
+    let bytes = [0xff, 0, b'a', 0xfe];
+    tokio::fs::write(file.path(), bytes).await?;
+    let mut command = tokio::process::Command::new(std::env::current_exe()?);
+    command
+        .args([
+            "--ignored",
+            "--exact",
+            "modules::example::tests::module_secret_file_stdout_child_probe",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("OPENRUST_PUBLIC_SECRET_STDOUT_FIXTURE", file.path())
+        .env(
+            "OPENRUST_PUBLIC_SECRET_STDOUT_REJECT_FIXTURE",
+            reject_file.path(),
+        )
+        .kill_on_drop(true);
+    let output =
+        tokio::time::timeout(std::time::Duration::from_secs(30), command.output()).await??;
+    if !output.status.success() {
+        return Err("公开哈希stdout子测试未通过".into());
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    let begin = "OPENRUST_PUBLIC_HASH_OUTPUT_BEGIN";
+    let end = "OPENRUST_PUBLIC_HASH_OUTPUT_END";
+    if stdout.matches(begin).count() != 1 || stdout.matches(end).count() != 1 {
+        return Err("哈希输出边界缺失或重复".into());
+    }
+    // 逐字消费marker本身的换行；摘要行不裁剪空白或吞掉额外空行。
+    let framed = stdout
+        .split_once(&format!("{begin}\n"))
+        .ok_or("开始marker换行错误")?
+        .1
+        .split_once(&format!("{end}\n"))
+        .ok_or("结束marker换行错误")?
+        .0;
+    let payload = framed.strip_suffix('\n').ok_or("摘要缺少唯一行尾")?;
+    if payload.is_empty()
+        || payload.contains(['\n', '\r'])
+        || payload != payload.trim()
+        || !payload.starts_with("$argon2id$")
+    {
+        return Err("命令必须逐字只输出一条已编码哈希和一个换行".into());
+    }
+    let reject_begin = "OPENRUST_PUBLIC_HASH_REJECT_BEGIN\n";
+    let reject_end = "OPENRUST_PUBLIC_HASH_REJECT_END\n";
+    if stdout.matches(reject_begin).count() != 1 || stdout.matches(reject_end).count() != 1 {
+        return Err("拒绝窗口marker缺失或重复".into());
+    }
+    let rejected = stdout
+        .split_once(reject_begin)
+        .ok_or("缺少拒绝开始marker")?
+        .1
+        .split_once(reject_end)
+        .ok_or("缺少拒绝结束marker")?
+        .0;
+    if !rejected.is_empty() {
+        return Err("命令拒绝时stdout必须为空".into());
+    }
+    let hashing = openrust::hashing::HashManager::new(openrust::hashing::HashingConfig {
+        driver: "argon2id".into(),
+        argon: openrust::hashing::ArgonConfig {
+            memory: 1024,
+            time: 1,
+            threads: 1,
+            verify: true,
+        },
+        ..Default::default()
+    })?;
+    if !hashing
+        .check(bytes, Some(payload), &openrust::hashing::HashOptions::new())
+        .await?
+    {
+        return Err("命令实际输出不能验证原始字节".into());
+    }
+    if hashing
+        .check(
+            [0xff, b'a', 0xfe],
+            Some(payload),
+            &openrust::hashing::HashOptions::new(),
+        )
+        .await?
+    {
+        return Err("命令输出丢失NUL身份".into());
+    }
+    Ok(())
+}
+
+#[cfg(feature = "hashing")]
+mod nested_manager_secret_command {
+    use super::*;
+    use futures_util::FutureExt as _;
+    use openrust::Result as FrameworkResult;
+    use openrust::config::repository::ConfigRepository;
+    use openrust::foundation::Application;
+    use openrust::hashing::{
+        Argon2IdHasher, ArgonConfig, HashInfo, HashManager, HashOptions, Hasher,
+    };
+    use openrust::support::BoxFuture;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    const OUTPUT_BEGIN: &str = "OPENRUST_NESTED_HASH_OUTPUT_BEGIN";
+    const OUTPUT_END: &str = "OPENRUST_NESTED_HASH_OUTPUT_END";
+    const REJECT_BEGIN: &str = "OPENRUST_NESTED_HASH_REJECT_BEGIN";
+    const REJECT_END: &str = "OPENRUST_NESTED_HASH_REJECT_END";
+
+    #[derive(Default)]
+    struct Calls {
+        capability: AtomicUsize,
+        make: AtomicUsize,
+    }
+    // 两对象都是普通custom叶，不实现新增manager hook；真实KDF仍由严格Argon完成。
+    struct Leaf {
+        argon: Argon2IdHasher,
+        switch: Option<ConfigRepository>,
+        prefix_72: bool,
+        calls: Arc<Calls>,
+    }
+    impl Leaf {
+        fn input<'a>(&self, value: &'a [u8]) -> &'a [u8] {
+            if self.prefix_72 {
+                &value[..value.len().min(72)]
+            } else {
+                value
+            }
+        }
+    }
+    impl Hasher for Leaf {
+        fn accepts_exact_input(&self, value: &[u8]) -> FrameworkResult<bool> {
+            self.calls.capability.fetch_add(1, Ordering::SeqCst);
+            let accepted =
+                self.argon.accepts_exact_input(value)? && (!self.prefix_72 || value.len() <= 72);
+            if let Some(repository) = &self.switch {
+                repository.set("hashing.driver", serde_json::json!("prefix-b"))?;
+            }
+            Ok(accepted)
+        }
+        fn info(&self, encoded: &str) -> FrameworkResult<HashInfo> {
+            self.argon.info(encoded)
+        }
+        fn make<'a>(
+            &'a self,
+            value: &'a [u8],
+            options: &'a HashOptions,
+        ) -> BoxFuture<'a, FrameworkResult<String>> {
+            Box::pin(async move {
+                self.calls.make.fetch_add(1, Ordering::SeqCst);
+                self.argon.make(self.input(value), options).await
+            })
+        }
+        fn check<'a>(
+            &'a self,
+            value: &'a [u8],
+            encoded: Option<&'a str>,
+            options: &'a HashOptions,
+        ) -> BoxFuture<'a, FrameworkResult<bool>> {
+            self.argon.check(self.input(value), encoded, options)
+        }
+        fn needs_rehash(&self, encoded: &str, options: &HashOptions) -> FrameworkResult<bool> {
+            self.argon.needs_rehash(encoded, options)
+        }
+        fn verify_configuration(&self, encoded: &str) -> FrameworkResult<bool> {
+            self.argon.verify_configuration(encoded)
+        }
+    }
+    fn strict_argon() -> FrameworkResult<Argon2IdHasher> {
+        // 沿用已有真实测试成本；不调低生产默认或既有测试下限。
+        Argon2IdHasher::new(ArgonConfig {
+            memory: 1024,
+            time: 1,
+            threads: 1,
+            verify: true,
+        })
+    }
+    struct Fixture {
+        inner_repository: ConfigRepository,
+        whole: Arc<Calls>,
+        prefix: Arc<Calls>,
+    }
+    impl Fixture {
+        fn counts(&self) -> [usize; 4] {
+            // A能力/A真实make委派/B能力/B真实make委派。
+            [
+                self.whole.capability.load(Ordering::SeqCst),
+                self.whole.make.load(Ordering::SeqCst),
+                self.prefix.capability.load(Ordering::SeqCst),
+                self.prefix.make.load(Ordering::SeqCst),
+            ]
+        }
+    }
+    async fn install(app: &Application) -> FrameworkResult<Fixture> {
+        let inner_repository = ConfigRepository::new(figment::Figment::from(
+            figment::providers::Serialized::defaults(
+                serde_json::json!({"hashing":{"driver":"whole-a"}}),
+            ),
+        ));
+        let inner = Arc::new(HashManager::from_repository(inner_repository.clone(), 2)?);
+        let whole = Arc::new(Calls::default());
+        let prefix = Arc::new(Calls::default());
+        let argon = strict_argon()?;
+        let a = Arc::new(Leaf {
+            argon: argon.clone(),
+            switch: Some(inner_repository.clone()),
+            prefix_72: false,
+            calls: Arc::clone(&whole),
+        });
+        let b = Arc::new(Leaf {
+            argon,
+            switch: None,
+            prefix_72: true,
+            calls: Arc::clone(&prefix),
+        });
+        inner.extend("whole-a", move || Ok(Arc::clone(&a) as Arc<dyn Hasher>))?;
+        inner.extend("prefix-b", move || Ok(Arc::clone(&b) as Arc<dyn Hasher>))?;
+        let outer = app.state().resolve::<HashManager>().await?;
+        outer.extend("cli-inner", move || {
+            Ok(Arc::clone(&inner) as Arc<dyn Hasher>)
+        })?;
+        app.config_repository()
+            .set("hashing.driver", serde_json::json!("cli-inner"))?;
+        Ok(Fixture {
+            inner_repository,
+            whole,
+            prefix,
+        })
+    }
+
+    #[tokio::test]
+    #[ignore = "仅由具名嵌套stdout见证父测试携公开fixture环境执行"]
+    async fn nested_manager_stdout_child_probe() -> Result<(), Box<dyn std::error::Error>> {
+        let file = std::env::var_os("OPENRUST_PUBLIC_NESTED_HASH_FIXTURE")
+            .ok_or("缺少公开73字节fixture路径")?
+            .into_string()
+            .map_err(|_| "fixture路径不是UTF8")?;
+        let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([
+            ("hashing", serde_json::json!({"driver":"argon2id","argon":{"memory":1024,"time":1,"threads":1,"verify":true}})),
+        ])?;
+        let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+            .build()
+            .await?;
+        let outcome = std::panic::AssertUnwindSafe(async {
+            let fixture = install(app.app()?).await?;
+            assert_eq!(fixture.counts(), [0, 0, 0, 0]);
+            openrust::console::print(OUTPUT_BEGIN);
+            app.app()?
+                .run_command("example secret hash", vec![file.clone()])
+                .await?;
+            openrust::console::print(OUTPUT_END);
+            assert_eq!(
+                fixture.inner_repository.get("hashing.driver")?,
+                Some(serde_json::json!("prefix-b"))
+            );
+            assert_eq!(fixture.counts(), [1, 1, 0, 0]);
+            let before = fixture.counts();
+            openrust::console::print(REJECT_BEGIN);
+            let refused = app
+                .app()?
+                .run_command("example secret hash", vec![file])
+                .await;
+            openrust::console::print(REJECT_END);
+            assert!(
+                matches!(refused, Err(error) if error.code() == "example_secret_input_ambiguous")
+            );
+            assert_eq!(fixture.counts(), [1, 1, 1, 0]);
+            assert_eq!(fixture.whole.make.load(Ordering::SeqCst), before[1]);
+            assert_eq!(fixture.prefix.make.load(Ordering::SeqCst), before[3]);
+            Ok::<_, Box<dyn std::error::Error>>(())
+        })
+        .catch_unwind()
+        .await;
+        let shutdown = app
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await;
+        match outcome {
+            Ok(result) => {
+                if result.is_err()
+                    && let Err(error) = &shutdown
+                {
+                    eprintln!("嵌套哈希子测试关闭失败 code={}", error.code());
+                }
+                result?;
+                shutdown?;
+                Ok(())
+            }
+            Err(payload) => {
+                if let Err(error) = shutdown {
+                    eprintln!("嵌套哈希子测试panic后关闭失败 code={}", error.code());
+                }
+                std::panic::resume_unwind(payload)
+            }
+        }
+    }
+    fn window<'a>(
+        stdout: &'a str,
+        begin: &str,
+        end: &str,
+    ) -> Result<&'a str, Box<dyn std::error::Error>> {
+        let begin = format!("{begin}\n");
+        let end = format!("{end}\n");
+        if stdout.matches(&begin).count() != 1 || stdout.matches(&end).count() != 1 {
+            return Err("嵌套命令输出marker缺失或重复".into());
+        }
+        Ok(stdout
+            .split_once(&begin)
+            .ok_or("缺少开始marker")?
+            .1
+            .split_once(&end)
+            .ok_or("缺少结束marker")?
+            .0)
+    }
+    #[tokio::test]
+    async fn actual_nested_command_keeps_complete_input_and_rejects_next_without_output_or_kdf()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let file = tempfile::NamedTempFile::new()?;
+        let bytes = [b'a'; 73];
+        tokio::fs::write(file.path(), bytes).await?;
+        let module = module_path!()
+            .split_once("::")
+            .map_or(module_path!(), |(_, module)| module);
+        let name = format!("{module}::nested_manager_stdout_child_probe");
+        let mut command = tokio::process::Command::new(std::env::current_exe()?);
+        command
+            .args([
+                "--ignored",
+                "--exact",
+                &name,
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("OPENRUST_PUBLIC_NESTED_HASH_FIXTURE", file.path())
+            .kill_on_drop(true);
+        let output =
+            tokio::time::timeout(std::time::Duration::from_secs(30), command.output()).await??;
+        assert!(
+            output.status.success(),
+            "真实嵌套命令子进程失败：{}",
+            output.status
+        );
+        let stdout = String::from_utf8(output.stdout)?;
+        assert!(stdout.contains("test result: ok. 1 passed; 0 failed; 0 ignored;"));
+        let framed = window(&stdout, OUTPUT_BEGIN, OUTPUT_END)?;
+        let encoded = framed.strip_suffix('\n').ok_or("哈希缺少唯一换行")?;
+        if encoded.is_empty()
+            || encoded.contains(['\n', '\r'])
+            || encoded != encoded.trim()
+            || !encoded.starts_with("$argon2id$")
+        {
+            return Err("真实命令必须仅输出一条Argon编码哈希和一个换行".into());
+        }
+        assert_eq!(window(&stdout, REJECT_BEGIN, REJECT_END)?, "");
+        let verifier = strict_argon()?;
+        assert!(
+            verifier
+                .check(&bytes, Some(encoded), &HashOptions::new())
+                .await?
+        );
+        assert!(
+            !verifier
+                .check(&bytes[..72], Some(encoded), &HashOptions::new())
+                .await?
+        );
+        Ok(())
+    }
+}

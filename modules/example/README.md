@@ -511,3 +511,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。
 
 文章事件由模块声明稳定身份 `Example\Events\ArticleChanged`，原事务内直接记录及队列映射共用唯一 Events。模块启停仍按 `modules.<name>.<phase>` 字符串派发；相同载荷类型不会触发其他事件名的类监听。普通响应 false 只截断传播，不使文章写入或模块启停自动失败；业务错误仍向事务传播。
+
+## 集成秘密文件
+
+启用 `hashing` 后，模块在统一 Provider 中登记 `example secret hash <文件路径>` 命令。它读取最多1MiB原始文件字节并委派应用同一个 `HashManager`，只向 stdout 输出已编码哈希，不解析或输出明文。集成秘密采用明确业务策略：先用无参 `driver_for_operation()` 解析默认Manager链的最终具体叶，再在同一叶调用 `accepts_exact_input` 与 `make`；能力回调改变嵌套默认只影响下一次命令。不能保留完整字节时返回 `example_secret_input_ambiguous`，不再调用make且stdout为空，因此bcrypt的超过72字节/NUL输入不会静默成为另一个文件的同值秘密。例：`cargo run --features hashing -- example secret hash ./storage/integration-secret.bin`。文件中的换行和NUL不会被修剪；有NUL或需要完整字节时应按应用配置显式选择严格Argon。bcrypt限制与部署成本沿用 `config/hashing.rs`，命令不自动切算法。文本登录流程不因这个演示改成二进制HTTP协议。

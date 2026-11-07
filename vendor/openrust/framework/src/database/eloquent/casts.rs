@@ -17,7 +17,10 @@ pub async fn cast_attribute_as_hashed_string(
         return Ok(None);
     };
     if !hashing.is_hashed(value)? {
-        return hashing.make(value, &HashOptions::new()).await.map(Some);
+        return hashing
+            .make(value.as_bytes(), &HashOptions::new())
+            .await
+            .map(Some);
     }
     if !hashing.verify_configuration(value)? {
         return Err(crate::Error::custom_with_status(

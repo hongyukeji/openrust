@@ -1,6 +1,8 @@
 # 当前交付与验证
 
 
+Hashing字节、秘密文件CLI及嵌套Manager单次最终叶：已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)，有限提交/推送以Git为准。完整AuthFlows、Model与Manager剩余表面未关闭，不报整个框架完成。
+
 Events身份与响应：已编码并完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)，源码树`47b1f9dd62ca7583f53117bef7e60a65bc150553`，本地提交及推送以Git为准。普通false仅停传播，所有未闭合Events/Model/发布矩阵继续保留。
 
 事务来源与文章末检：已编码并完成[日常适用限定验收](memory/testing.md#事务来源与提交前检查限定验收)，正式源码树`5056c267888aeb3a8a14cf9319cba422113b24d0`。本地提交/推送事实以Git为准；不改变完整Model/L090、其他数据库/最低版本/Windows及全部框架仍开放的状态。

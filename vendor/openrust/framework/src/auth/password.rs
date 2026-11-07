@@ -21,7 +21,7 @@ impl EncodedPasswordHash {
     /// 在检索账户前统一核验增强认证输入；不执行KDF，也不依据账户是否存在决定策略。
     pub fn validate_input(hasher: &dyn Hasher, password: &str) -> Result<()> {
         validate_input(password)?;
-        if !hasher.accepts_exact_input(password)? {
+        if !hasher.accepts_exact_input(password.as_bytes())? {
             return Err(Error::custom(
                 "password_bcrypt_input_ambiguous",
                 "增强认证输入在当前哈希或迁移策略下会发生截断；请选择完整字节算法或安全重设",
@@ -33,7 +33,9 @@ impl EncodedPasswordHash {
     /// 通过统一 Hasher 生成增强认证所需的哈希；不另建驱动或配置来源。
     pub async fn make(hasher: &dyn Hasher, password: &str) -> Result<Self> {
         Self::validate_input(hasher, password)?;
-        let encoded = hasher.make(password, &HashOptions::new()).await?;
+        let encoded = hasher
+            .make(password.as_bytes(), &HashOptions::new())
+            .await?;
         validate_representation(password, &encoded)?;
         Ok(Self(encoded))
     }
@@ -43,7 +45,7 @@ impl EncodedPasswordHash {
         Self::validate_input(hasher, password)?;
         validate_representation(password, &self.0)?;
         hasher
-            .check(password, Some(&self.0), &HashOptions::new())
+            .check(password.as_bytes(), Some(&self.0), &HashOptions::new())
             .await
     }
 

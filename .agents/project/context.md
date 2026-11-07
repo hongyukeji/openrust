@@ -1,6 +1,8 @@
 # 项目上下文
 
 
+Hashing原始字节、秘密文件CLI与已知嵌套Manager单次最终叶已完成[Hashing字节与单次叶选择限定验收](memory/testing.md#hashing字节与单次叶选择限定验收)。增强AuthFlows/Codes完整单次操作选择、Model binary/hashed cast、Manager全表面与历史缓存所有权仍按唯一todo继续；本有限交付不完成原Goal。
+
 Events身份与响应前置已完成[事件身份与响应限定验收](memory/testing.md#事件身份与响应限定验收)：同一具名/类型化选择器、保身份响应及until，普通false仅停传播。完整Events接口/多参数/defer-aftercommit、官方事务connection载荷及Model保存仍开放；后继按唯一todo继续，不以本有限簇完成原Goal。
 
 事务来源与提交前最终检查前置已收齐[限定验收](memory/testing.md#事务来源与提交前检查限定验收)。`TransactionContext`只证明同Db来源；文章创建在提交前事件及队列入队后核id/owner，不代表认证、同意或具体事务身份。完整L090/Passport与Model保存、其他数据库/最低版本/Windows运行仍按唯一todo推进。

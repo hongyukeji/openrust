@@ -193,3 +193,7 @@ CTX v5正式报告与规范树、源文件和回执绑定见[限定验收](testi
 ## 事件身份与响应
 
 精确规范24源码树、正式报告及门禁映射见[限定验收](testing.md#事件身份与响应限定验收)。Root与tester独立计算同树，源SHA/权限及49回执/86唯一日志摘要已核。具名/类型化响应、until、跨包与Guard/Fortify原流程、真实MySQL及默认/生成/文档/MSRV/离线依赖门禁通过。普通false不自动否决业务，当前立即派发返回Some；完整Events与Model/官方事务语义继续按唯一todo，未将静审或旧通过替本簇运行背书。
+
+## Hashing字节与操作选择
+
+精确25源码树、原生完整有限门禁及正式报告见[Hashing限定验收](testing.md#hashing字节与单次叶选择限定验收)。已核同一默认操作真实叶、字节能力/KDF、唯一示例命令、固定PHP、公开consumer及生成Web/JWT回归；旧断言、真实MySQL、源码与fixture/catalog不变证据保留。最终提交另映射正式consumer锁与事实文档，未将增强认证后继或其他WIP混作运行通过。

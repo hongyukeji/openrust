@@ -69,22 +69,22 @@ async fn all_algorithms_hash_random_salts_and_verify_without_rehashing_salts() -
         Arc::new(Argon2IdHasher::new(argon(false))?),
     ];
     for (driver, algorithm) in drivers.into_iter().zip(["bcrypt", "argon2i", "argon2id"]) {
-        let first = driver.make("correct password", &options).await?;
-        let second = driver.make("correct password", &options).await?;
+        let first = driver.make("correct password".as_bytes(), &options).await?;
+        let second = driver.make("correct password".as_bytes(), &options).await?;
         assert_ne!(first, second);
         assert_eq!(driver.info(&first)?.algo_name, algorithm);
         assert!(
             driver
-                .check("correct password", Some(&first), &options)
+                .check("correct password".as_bytes(), Some(&first), &options)
                 .await?
         );
         assert!(
             !driver
-                .check("wrong password", Some(&first), &options)
+                .check("wrong password".as_bytes(), Some(&first), &options)
                 .await?
         );
-        assert!(!driver.check("", None, &options).await?);
-        assert!(!driver.check("", Some(""), &options).await?);
+        assert!(!driver.check("".as_bytes(), None, &options).await?);
+        assert!(!driver.check("".as_bytes(), Some(""), &options).await?);
         assert!(!driver.needs_rehash(&first, &options)?);
         if algorithm == "bcrypt" {
             assert!(first.starts_with("$2y$04$"));
@@ -96,7 +96,7 @@ async fn all_algorithms_hash_random_salts_and_verify_without_rehashing_salts() -
 #[tokio::test]
 async fn verify_configuration_does_not_replace_needs_rehash() -> Result<()> {
     let options = HashOptions::new();
-    let low = bcrypt(false)?.make("password", &options).await?;
+    let low = bcrypt(false)?.make("password".as_bytes(), &options).await?;
     let high = BcryptHasher::new(BcryptConfig {
         rounds: 5,
         ..BcryptConfig::default()
@@ -105,7 +105,7 @@ async fn verify_configuration_does_not_replace_needs_rehash() -> Result<()> {
     assert!(high.needs_rehash(&low, &options)?);
     let changed = HashOptions::from([("rounds".into(), 5.into())]);
     assert!(!high.needs_rehash(&low, &HashOptions::from([("rounds".into(), 4.into())]))?);
-    let new = high.make("password", &changed).await?;
+    let new = high.make("password".as_bytes(), &changed).await?;
     assert!(!bcrypt(false)?.verify_configuration(&new)?);
     assert!(high.needs_rehash(&new, &HashOptions::from([("rounds".into(), 4.into())]))?);
     Ok(())
@@ -126,11 +126,15 @@ async fn permissive_drivers_verify_all_three_algorithms_and_strict_drivers_rejec
         Arc::new(Argon2IdHasher::new(argon(true))?),
     ];
     for (index, maker) in permissive.iter().enumerate() {
-        let encoded = maker.make("password", &options).await?;
+        let encoded = maker.make("password".as_bytes(), &options).await?;
         for (other, verifier) in permissive.iter().enumerate() {
-            assert!(verifier.check("password", Some(&encoded), &options).await?);
+            assert!(
+                verifier
+                    .check("password".as_bytes(), Some(&encoded), &options)
+                    .await?
+            );
             let actual = strict[other]
-                .check("password", Some(&encoded), &options)
+                .check("password".as_bytes(), Some(&encoded), &options)
                 .await;
             if index == other {
                 assert!(actual?);
@@ -150,18 +154,26 @@ async fn bcrypt_truncates_72_bytes_but_optional_limit_is_checked_before_hashing(
     let seventy_two = "a".repeat(72);
     let longer = format!("{seventy_two}b");
     let driver = bcrypt(false)?;
-    let encoded = driver.make(&longer, &options).await?;
-    assert!(driver.check(&seventy_two, Some(&encoded), &options).await?);
-    assert!(driver.check(&longer, Some(&encoded), &options).await?);
+    let encoded = driver.make(longer.as_bytes(), &options).await?;
+    assert!(
+        driver
+            .check(seventy_two.as_bytes(), Some(&encoded), &options)
+            .await?
+    );
+    assert!(
+        driver
+            .check(longer.as_bytes(), Some(&encoded), &options)
+            .await?
+    );
     let limited = BcryptHasher::new(BcryptConfig {
         rounds: 4,
         limit: Some(72),
         verify: false,
     })?;
     assert!(
-        matches!(limited.make(&longer, &options).await, Err(ref error) if error.code() == "hashing_value_too_long")
+        matches!(limited.make(longer.as_bytes(), &options).await, Err(ref error) if error.code() == "hashing_value_too_long")
     );
-    assert!(limited.make(&seventy_two, &options).await.is_ok());
+    assert!(limited.make(seventy_two.as_bytes(), &options).await.is_ok());
     Ok(())
 }
 
@@ -170,12 +182,12 @@ async fn nul_make_and_check_boundaries_follow_php_oracle() -> Result<()> {
     let options = HashOptions::new();
     let driver = bcrypt(false)?;
     for value in ["\0", "correct\0tail", "prefix\0"] {
-        assert!(driver.make(value, &options).await.is_err());
+        assert!(driver.make(value.as_bytes(), &options).await.is_err());
     }
-    let encoded = driver.make("correct", &options).await?;
+    let encoded = driver.make("correct".as_bytes(), &options).await?;
     assert!(
         driver
-            .check("correct\0tail", Some(&encoded), &options)
+            .check("correct\0tail".as_bytes(), Some(&encoded), &options)
             .await?
     );
     for driver in [
@@ -183,13 +195,17 @@ async fn nul_make_and_check_boundaries_follow_php_oracle() -> Result<()> {
         Arc::new(Argon2IdHasher::new(argon(false))?) as Arc<dyn Hasher>,
     ] {
         for value in ["", "correct\0tail"] {
-            let encoded = driver.make(value, &options).await?;
-            assert!(driver.check(value, Some(&encoded), &options).await?);
+            let encoded = driver.make(value.as_bytes(), &options).await?;
+            assert!(
+                driver
+                    .check(value.as_bytes(), Some(&encoded), &options)
+                    .await?
+            );
         }
-        let encoded = driver.make("correct", &options).await?;
+        let encoded = driver.make("correct".as_bytes(), &options).await?;
         assert!(
             !driver
-                .check("correct\0tail", Some(&encoded), &options)
+                .check("correct\0tail".as_bytes(), Some(&encoded), &options)
                 .await?
         );
     }
@@ -202,7 +218,7 @@ async fn argon_options_and_known_other_algorithm_metadata_are_available() -> Res
     let driver = Argon2IdHasher::new(argon(false))?;
     let encoded = driver
         .make(
-            "value",
+            "value".as_bytes(),
             &HashOptions::from([
                 ("memory".into(), 2048.into()),
                 ("time".into(), 2.into()),
@@ -244,7 +260,7 @@ async fn php_metadata_recognition_is_not_full_phc_validation() -> Result<()> {
         );
         assert!(
             !driver
-                .check("value", Some(encoded), &HashOptions::new())
+                .check("value".as_bytes(), Some(encoded), &HashOptions::new())
                 .await?
         );
     }
@@ -259,18 +275,18 @@ async fn bcrypt_foreign_prefixes_remain_unknown_but_permissive_ascii_verificatio
 -> Result<()> {
     let options = HashOptions::new();
     let driver = bcrypt(false)?;
-    let encoded = driver.make("ascii-password", &options).await?;
+    let encoded = driver.make("ascii-password".as_bytes(), &options).await?;
     for prefix in ["2a", "2b", "2x"] {
         let variant = encoded.replacen("2y", prefix, 1);
         assert_eq!(driver.info(&variant)?.algo, None);
         assert!(
             driver
-                .check("ascii-password", Some(&variant), &options)
+                .check("ascii-password".as_bytes(), Some(&variant), &options)
                 .await?
         );
         assert!(
             bcrypt(true)?
-                .check("ascii-password", Some(&variant), &options)
+                .check("ascii-password".as_bytes(), Some(&variant), &options)
                 .await
                 .is_err()
         );
@@ -288,12 +304,16 @@ async fn malformed_stored_values_do_not_leak_and_unknown_values_need_rehash() ->
         "$argon2d$v=19$m=1024,t=1,p=1$bad$bad",
     ] {
         assert!(driver.info(stored)?.algo.is_none());
-        assert!(!driver.check("secret", Some(stored), &options).await?);
+        assert!(
+            !driver
+                .check("secret".as_bytes(), Some(stored), &options)
+                .await?
+        );
         assert!(driver.needs_rehash(stored, &options)?);
     }
     let error = driver
         .make(
-            "secret",
+            "secret".as_bytes(),
             &HashOptions::from([("rounds".into(), "secret-invalid-option".into())]),
         )
         .await
@@ -422,7 +442,7 @@ async fn manager_delegates_hash_check_info_and_recognizes_nondefault_algorithm()
     assert!(manager.verify_configuration(&encoded)?);
     let argon = manager
         .driver(Some("argon2id"))?
-        .make("value", &options)
+        .make("value".as_bytes(), &options)
         .await?;
     assert!(manager.is_hashed(&argon)?);
     assert_eq!(manager.info(&argon)?.algo_name, "argon2id");
@@ -484,7 +504,7 @@ async fn php_oracle_make_success_failure_and_generated_hash_verification_match()
         if fixture_text(record, "case")?.starts_with("nul-") {
             assert!(value.as_bytes().contains(&0));
         }
-        let made = driver.make(value, &options).await;
+        let made = driver.make(value.as_bytes(), &options).await;
         if record["result"].get("error").is_some() {
             assert!(
                 made.is_err(),
@@ -494,7 +514,11 @@ async fn php_oracle_make_success_failure_and_generated_hash_verification_match()
             );
         } else {
             let made = made?;
-            assert!(driver.check(value, Some(&made), &options).await?);
+            assert!(
+                driver
+                    .check(value.as_bytes(), Some(&made), &options)
+                    .await?
+            );
         }
     }
     Ok(())
@@ -509,7 +533,11 @@ async fn php_oracle_all_stored_hashes_and_strict_permissive_checks_match() -> Re
         let driver = fixture_driver(fixture_text(record, "driver")?, false)?;
         assert!(
             driver
-                .check(value, Some(fixture_text(record, "hash")?), &options)
+                .check(
+                    value.as_bytes(),
+                    Some(fixture_text(record, "hash")?),
+                    &options
+                )
                 .await?,
             "{} {}",
             fixture_text(record, "driver")?,
@@ -522,7 +550,11 @@ async fn php_oracle_all_stored_hashes_and_strict_permissive_checks_match() -> Re
             .as_bool()
             .ok_or_else(|| failure("hashing_fixture_invalid", "PHP校验策略缺失"))?;
         let actual = fixture_driver(fixture_text(record, "driver")?, verify)?
-            .check(value, fixture_optional_text(record, "hash")?, &options)
+            .check(
+                value.as_bytes(),
+                fixture_optional_text(record, "hash")?,
+                &options,
+            )
             .await;
         if record["result"].get("error").is_some() {
             assert!(
@@ -600,7 +632,7 @@ async fn php_oracle_foreign_versions_and_malformed_metadata_match() -> Result<()
                 let key = format!("{name}-{}", if verify { "strict" } else { "permissive" });
                 let expected = &record["checks"][&key];
                 let actual = fixture_driver(name, verify)?
-                    .check(value, Some(hash), &options)
+                    .check(value.as_bytes(), Some(hash), &options)
                     .await;
                 if expected.get("error").is_some() {
                     assert!(
@@ -707,10 +739,10 @@ async fn manager_trait_propagates_default_driver_resolution_errors_for_all_metho
         matches!(hasher.needs_rehash("unknown", &options), Err(error) if error.code() == "hashing_driver_unsupported")
     );
     assert!(
-        matches!(hasher.make("test", &options).await, Err(error) if error.code() == "hashing_driver_unsupported")
+        matches!(hasher.make("test".as_bytes(), &options).await, Err(error) if error.code() == "hashing_driver_unsupported")
     );
     assert!(
-        matches!(hasher.check("test", Some("unknown"), &options).await, Err(error) if error.code() == "hashing_driver_unsupported")
+        matches!(hasher.check("test".as_bytes(), Some("unknown"), &options).await, Err(error) if error.code() == "hashing_driver_unsupported")
     );
     Ok(())
 }
@@ -737,8 +769,16 @@ async fn public_permissive_driver_verifies_every_php_2x_fixture_with_existing_bu
             .ok_or_else(|| failure("fixture_invalid", "测试哈希缺失"))?;
         assert_eq!(record["valid"].as_bool(), Some(true));
         assert_eq!(record["wrong"].as_bool(), Some(false));
-        assert!(driver.check(value, Some(encoded), &options).await?);
-        assert!(!driver.check("wrong", Some(encoded), &options).await?);
+        assert!(
+            driver
+                .check(value.as_bytes(), Some(encoded), &options)
+                .await?
+        );
+        assert!(
+            !driver
+                .check("wrong".as_bytes(), Some(encoded), &options)
+                .await?
+        );
         assert_eq!(driver.info(encoded)?.algo, None);
     }
     let expensive = "$2x$17$abcdefghijklmnopqrstuuCi15uRb1eH7NAlJ/TgeJertyknQpYn2";
@@ -754,7 +794,7 @@ async fn public_permissive_driver_verifies_every_php_2x_fixture_with_existing_bu
         },
     )?;
     assert!(
-        matches!(bounded.check("abc", Some(expensive), &options).await, Err(error) if error.code() == "hashing_execution_limit_exceeded")
+        matches!(bounded.check("abc".as_bytes(), Some(expensive), &options).await, Err(error) if error.code() == "hashing_execution_limit_exceeded")
     );
     Ok(())
 }

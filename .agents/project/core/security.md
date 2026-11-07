@@ -10,3 +10,11 @@
 - `openrust key generate` 将 32-byte OS 随机 key 以标准 Base64 打印到 stdout，不写文件。CLI `openrust new --encryption` 启用 feature、插件和环境变量示例。
 - 算法规范为 RFC 8452；所用 `aes-gcm-siv` crate 文档目前声明其实现本身没有完整独立安全审计。版本发布前需要复核审计/维护状态并评估目标平台性能。
 - 验收记录见 [testing](../memory/testing.md) 和 [verification](../memory/verification.md)；实现决策见 历史决策 034。
+
+## Hashing字节与操作选择
+
+唯一Hasher明文使用`&[u8]`，HashManager公开调用接受`AsRef<[u8]>`，encoded仍为文本。bcrypt在KDF前拒绝超过72字节与NUL，校验保留固定PHP的NUL/72字节别名语义；Argon消费完整明文字节。
+
+`driver_for_operation`在默认操作开始时穿透已知HashManager链，选定一次真实叶并保持该Arc至能力检查及KDF结束；已验证链逆向发布，拒绝链不发布未验证回边。普通driver保留立即发布和自定义Arc身份，回调与Factory最终释放在锁外。并发extend与已缓存叶重入有回归；不宣称解决历史缓存所有权图。
+
+唯一示例秘密文件命令按当前Container公开Manager选择真实叶，最多读取1MiB，仅stdout输出encoded。错误不暴露路径、秘密或hash；输入长度是业务约束，不绕过driver能力。生成Web/JWT项目的字节回归与外包consumer沿同一公开API。限定验收见[测试基线](../memory/testing.md#hashing字节与单次叶选择限定验收)。增强AuthFlows/Codes、Model binary与非UTF8 encoded、完整Manager表面继续开放。

@@ -177,7 +177,7 @@ impl UserProvider for DatabaseUserProvider {
                 return Ok(false);
             };
             self.passwords
-                .check(plain, Some(&encoded), &HashOptions::new())
+                .check(plain.as_bytes(), Some(&encoded), &HashOptions::new())
                 .await
         })
     }
@@ -217,7 +217,10 @@ impl UserProvider for DatabaseUserProvider {
                     ));
                 }
             };
-            let replacement = self.passwords.make(plain, &HashOptions::new()).await?;
+            let replacement = self
+                .passwords
+                .make(plain.as_bytes(), &HashOptions::new())
+                .await?;
             let db = self.db.clone();
             let table = self.table.clone();
             self.db
