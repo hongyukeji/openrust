@@ -502,6 +502,8 @@ async fn attribute_preview_contract(
     assert_eq!(clean["data"]["previous"], serde_json::json!({}));
     assert_eq!(clean["data"]["has_changes"], false);
     assert_eq!(clean["data"]["persisted"], false);
+    assert!(clean["data"].get("owner_record_ids").is_none());
+    assert_owner_record_relation(app, &path, owner_token, other_token, id, &unchanged).await?;
     let mut proposal = unchanged;
     proposal["name"] = serde_json::json!("仅预览");
     proposal["priority"] = serde_json::json!(8);
@@ -560,6 +562,114 @@ async fn attribute_preview_contract(
         .await?
         .ok_or("preview removed source row")?;
     assert_eq!(after, before);
+    Ok(())
+}
+
+async fn assert_owner_record_relation(
+    app: &TestApp<crate::bootstrap::Server>,
+    path: &str,
+    owner_token: &str,
+    other_token: &str,
+    id: i64,
+    payload: &serde_json::Value,
+) -> TestResult {
+    let sibling = app
+        .request(request(
+            Method::POST,
+            "/api/example/records",
+            Some(owner_token),
+            Some(payload.clone()),
+        )?)
+        .await?;
+    sibling.assert_status(StatusCode::CREATED)?;
+    let sibling: serde_json::Value = serde_json::from_slice(sibling.body())?;
+    let sibling_id = sibling["data"]["id"]
+        .as_i64()
+        .ok_or("owner sibling ID missing")?;
+    let other = app
+        .request(request(
+            Method::POST,
+            "/api/example/records",
+            Some(other_token),
+            Some(payload.clone()),
+        )?)
+        .await?;
+    other.assert_status(StatusCode::CREATED)?;
+    let other: serde_json::Value = serde_json::from_slice(other.body())?;
+    let other_id = other["data"]["id"]
+        .as_i64()
+        .ok_or("foreign sibling ID missing")?;
+    let url = format!("{path}?include_owner_records=true");
+    let preview = app
+        .request(request(
+            Method::POST,
+            &url,
+            Some(owner_token),
+            Some(payload.clone()),
+        )?)
+        .await?;
+    preview.assert_status(StatusCode::OK)?;
+    let preview: serde_json::Value = serde_json::from_slice(preview.body())?;
+    assert_eq!(
+        preview["data"]["owner_record_ids"],
+        serde_json::json!([id, sibling_id])
+    );
+    let denied = app
+        .request(request(
+            Method::POST,
+            &url,
+            Some(other_token),
+            Some(payload.clone()),
+        )?)
+        .await?;
+    denied.assert_status(StatusCode::NOT_FOUND)?;
+    assert_owner_relation_uses_record_table(app, id, sibling_id).await?;
+    for (token, id) in [(owner_token, sibling_id), (other_token, other_id)] {
+        app.request(request(
+            Method::DELETE,
+            &format!("/api/example/records/{id}"),
+            Some(token),
+            None,
+        )?)
+        .await?
+        .assert_status(StatusCode::OK)?;
+    }
+    Ok(())
+}
+
+async fn assert_owner_relation_uses_record_table(
+    app: &TestApp<crate::bootstrap::Server>,
+    id: i64,
+    sibling_id: i64,
+) -> TestResult {
+    use crate::modules::example::{
+        models::example_record, services::record_preview::owner_record_ids,
+    };
+    use openrust::database::{DatabaseTableNames, eloquent::SaveContext, sea_orm::EntityTrait};
+    use openrust::support::CalendarContext;
+
+    let state = app.app()?.state();
+    let databases = state.resolve::<openrust::Databases>().await?;
+    let primary = databases.default_database().primary_connection()?;
+    let record = example_record::Entity::find_by_id(id)
+        .one(&primary)
+        .await?
+        .ok_or("relation source record missing")?;
+    let db = openrust::Db::with_table_names(DatabaseTableNames::new(
+        "different_",
+        std::collections::BTreeMap::default(),
+    )?);
+    db.initialize(primary)?;
+    assert_eq!(
+        db.table_name("example_records")?,
+        "different_example_records"
+    );
+    let calendar = CalendarContext::default();
+    let context = SaveContext::new(&databases, None, &calendar);
+    assert_eq!(
+        owner_record_ids(&record, &db, &context).await?,
+        [id, sibling_id]
+    );
     Ok(())
 }
 

@@ -1,9 +1,12 @@
 //! 字段类型演示实体，使用专属的 `example_records` 表。
 
 use openrust::{
-    Error, Result as ModelResult,
+    Db, Error, Result as ModelResult,
     database::{
-        eloquent::{HydrateModel, ModelAttributes, ModelMetadata, SaveModel},
+        eloquent::{
+            HasRelationships, HydrateModel, ModelAttributes, ModelMetadata, ModelRelations,
+            SaveModel,
+        },
         sea_orm::{self, entity::prelude::*},
     },
 };
@@ -101,6 +104,7 @@ impl Model {
 pub(crate) struct RecordForSave {
     pub(crate) metadata: ModelMetadata,
     pub(crate) attributes: ModelAttributes,
+    relations: ModelRelations,
     exists: bool,
 }
 
@@ -112,6 +116,7 @@ impl RecordForSave {
                 "owner_id".into(),
                 Value::from(owner),
             )])),
+            relations: ModelRelations::default(),
             exists: false,
         }
     }
@@ -123,6 +128,7 @@ impl RecordForSave {
         Ok(Self {
             metadata: Model::attribute_metadata(),
             attributes,
+            relations: ModelRelations::default(),
             exists: true,
         })
     }
@@ -136,12 +142,25 @@ impl RecordForSave {
 }
 
 impl HydrateModel for RecordForSave {
-    fn hydrate(&self, raw: Map<String, Value>) -> ModelResult<Self> {
+    fn hydrate(&self, raw: Map<String, Value>, connection: Option<&str>) -> ModelResult<Self> {
+        let mut metadata = self.metadata.clone();
+        metadata.connection = connection.map(str::to_owned);
         Ok(Self {
-            metadata: self.metadata.clone(),
+            metadata,
             attributes: ModelAttributes::new(raw),
+            relations: ModelRelations::default(),
             exists: true,
         })
+    }
+}
+
+impl HasRelationships for RecordForSave {
+    fn relations(&self) -> &ModelRelations {
+        &self.relations
+    }
+
+    fn relations_mut(&mut self) -> &mut ModelRelations {
+        &mut self.relations
     }
 }
 
@@ -190,6 +209,13 @@ impl SaveModel for RecordForSave {
             )),
         }
     }
+}
+
+// 记录迁移和 SeaORM 实体使用固定物理表名。
+pub(crate) fn record_query_db(db: &Db) -> ModelResult<Db> {
+    let query_db = Db::default();
+    query_db.initialize(db.primary_connection()?)?;
+    Ok(query_db)
 }
 
 fn bind<T: DeserializeOwned + Into<sea_orm::Value>>(value: &Value) -> ModelResult<sea_orm::Value> {

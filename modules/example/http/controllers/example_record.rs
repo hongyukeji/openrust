@@ -4,7 +4,7 @@ use crate::modules::example::http::requests::example_record::{
     ExampleRecordInput, ExampleRecordPage, ExampleRecordPreviewOptions,
 };
 use crate::modules::example::http::resources::example_record::ExampleRecordResource;
-use crate::modules::example::models::example_record;
+use crate::modules::example::models::example_record::{self, record_query_db};
 use crate::modules::example::services::record_preview::fill_record_input;
 use openrust::auth::CurrentUser;
 use openrust::database::eloquent::{MassAssignment, SaveContext, save_with_query};
@@ -174,13 +174,6 @@ pub(crate) async fn update(
     Ok(Json(updated.into()))
 }
 
-fn record_query_db(db: &Db) -> Result<Db> {
-    // 模块表名固定；查询借用同一主库连接，沿用示例现有的无前缀映射。
-    let query_db = Db::default();
-    query_db.initialize(db.primary_connection()?)?;
-    Ok(query_db)
-}
-
 fn save_cancelled() -> Error {
     Error::custom_with_status(
         openrust::http::axum::http::StatusCode::CONFLICT,
@@ -194,6 +187,7 @@ pub(crate) async fn preview(
     user: CurrentUser,
     Inject(db): Inject<Db>,
     Inject(databases): Inject<Databases>,
+    (Inject(events), Extension(calendar)): (Inject<Events>, Extension<CalendarContext>),
     Path(id): Path<i64>,
     Query(options): Query<ExampleRecordPreviewOptions>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
@@ -206,16 +200,24 @@ pub(crate) async fn preview(
         .ok_or_else(not_found)?;
     // 先owner筛选/404，再读真实列清单；此处不替代Validated或Model guardable。
     let columns = db.schema().get_column_listing("example_records").await?;
-    Ok(Json(
-        crate::modules::example::services::record_preview::preview(
-            &model,
-            input,
-            options.discard,
-            MassAssignment::new(&databases),
-        )
-        .await?
-        .with_schema_columns(&columns),
-    ))
+    let mut preview = crate::modules::example::services::record_preview::preview(
+        &model,
+        input,
+        options.discard,
+        MassAssignment::new(&databases),
+    )
+    .await?
+    .with_schema_columns(&columns);
+    if options.include_owner_records {
+        let context = SaveContext::new(&databases, Some(&events), &calendar);
+        preview.owner_record_ids = Some(
+            crate::modules::example::services::record_preview::owner_record_ids(
+                &model, &db, &context,
+            )
+            .await?,
+        );
+    }
+    Ok(Json(preview))
 }
 
 pub(crate) async fn destroy(

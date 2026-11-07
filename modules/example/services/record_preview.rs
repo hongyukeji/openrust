@@ -3,8 +3,14 @@ use crate::modules::example::{
     http::requests::example_record::ExampleRecordInput, models::example_record,
 };
 use openrust::{
-    Result,
-    database::eloquent::{AttributeSetter, MassAssignment, ModelAttributes, ModelMetadata},
+    Db, Error, Result,
+    database::{
+        SortDirection,
+        eloquent::{
+            AttributeSetter, HasMany, HasRelationships, MassAssignment, ModelAttributes,
+            ModelMetadata, SaveContext,
+        },
+    },
     support::BoxFuture,
 };
 use serde_json::{Map, Value};
@@ -22,6 +28,8 @@ pub(crate) struct RecordPreview {
     pub(crate) previous: Map<String, Value>,
     pub(crate) has_changes: bool,
     pub(crate) persisted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) owner_record_ids: Option<Vec<i64>>,
 }
 
 #[derive(serde::Serialize)]
@@ -62,7 +70,41 @@ pub(crate) async fn preview(
         previous: attributes.get_previous()?,
         has_changes: attributes.was_changed(&[])?,
         persisted: false,
+        owner_record_ids: None,
     })
+}
+
+/// 查询已通过授权的记录所属账户下的前十条记录 ID。
+pub(crate) async fn owner_record_ids(
+    record: &example_record::Model,
+    db: &Db,
+    context: &SaveContext<'_>,
+) -> Result<Vec<i64>> {
+    const RELATION: &str = "records";
+    let related = example_record::RecordForSave::new(record.owner_id);
+    let mut parent = example_record::RecordForSave::new(record.owner_id);
+    let db = example_record::record_query_db(db)?;
+    let relation = HasMany::new(&related, "owner_id", "owner_id");
+    relation
+        .load_on(
+            std::slice::from_mut(&mut parent),
+            RELATION,
+            context,
+            &db,
+            |query| {
+                Ok(query
+                    .select(&["id", "owner_id"])?
+                    .order_by("id", SortDirection::Asc)?
+                    .limit(10))
+            },
+        )
+        .await?;
+    let records = parent
+        .relations()
+        .get_relation(RELATION)
+        .and_then(|relation| relation.downcast_ref::<Vec<Arc<example_record::RecordForSave>>>())
+        .ok_or_else(|| Error::custom("example_record_relation_unloaded", "示例账户记录未加载"))?;
+    records.iter().map(|record| record.id()).collect()
 }
 
 pub(crate) async fn fill_record_input(

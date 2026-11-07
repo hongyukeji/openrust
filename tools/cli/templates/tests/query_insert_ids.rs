@@ -147,6 +147,7 @@ async fn backend_ids(db: &Db) -> Result<()> {
 struct GeneratedModel {
     metadata: openrust::database::eloquent::ModelMetadata,
     attributes: openrust::database::eloquent::ModelAttributes,
+    relations: openrust::database::eloquent::ModelRelations,
     exists: bool,
 }
 
@@ -173,7 +174,7 @@ impl openrust::database::eloquent::SaveModel for GeneratedModel {
 
     fn bind_attribute(&self, name: &str, value: &serde_json::Value) -> Result<Value> {
         match name {
-            "id" => value.as_i64().map(Value::from),
+            "id" | "owner_id" => value.as_i64().map(Value::from),
             "label" => value.as_str().map(Value::from),
             _ => None,
         }
@@ -182,19 +183,121 @@ impl openrust::database::eloquent::SaveModel for GeneratedModel {
 }
 
 impl openrust::database::eloquent::HydrateModel for GeneratedModel {
-    fn hydrate(&self, raw: serde_json::Map<String, serde_json::Value>) -> Result<Self> {
+    fn hydrate(
+        &self,
+        raw: serde_json::Map<String, serde_json::Value>,
+        connection: Option<&str>,
+    ) -> Result<Self> {
+        let mut metadata = self.metadata.clone();
+        metadata.connection = connection.map(str::to_owned);
         Ok(Self {
-            metadata: self.metadata.clone(),
+            metadata,
             attributes: openrust::database::eloquent::ModelAttributes::new(raw),
+            relations: Default::default(),
             exists: true,
         })
     }
+
+    fn load_relation<'a>(
+        models: &'a mut [Self],
+        relation: openrust::database::eloquent::RelationLoad<'a>,
+        context: &'a openrust::database::eloquent::SaveContext<'_>,
+        transaction: Option<&'a openrust::database::TransactionContext<'_>>,
+    ) -> openrust::support::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if relation.name != "items" {
+                return Err(Error::custom(
+                    "generated_relation_unavailable",
+                    "生成夹具未声明该关系加载",
+                ));
+            }
+            let Some(model) = models.first() else {
+                return Ok(());
+            };
+            let mut related = model.hydrate(Default::default(), None)?;
+            related.metadata.table = "relation_items".into();
+            openrust::database::eloquent::HasMany::new(&related, "owner_id", "id")
+                .load_with(models, relation, context, transaction, Ok)
+                .await
+        })
+    }
+}
+
+impl openrust::database::eloquent::HasRelationships for GeneratedModel {
+    fn relations(&self) -> &openrust::database::eloquent::ModelRelations {
+        &self.relations
+    }
+
+    fn relations_mut(&mut self) -> &mut openrust::database::eloquent::ModelRelations {
+        &mut self.relations
+    }
+}
+
+async fn check_generated_has_many(
+    db: &Db,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::{
+        SortDirection,
+        eloquent::{HasMany, ModelAttributes, ModelMetadata},
+    };
+    use serde_json::{Map, json};
+
+    let connection = db.connection()?;
+    connection
+        .execute_unprepared("CREATE TABLE relation_items (id BIGINT PRIMARY KEY, owner_id BIGINT, label VARCHAR(100))")
+        .await
+        .map_err(Error::internal)?;
+    connection
+        .execute_unprepared("INSERT INTO relation_items (id, owner_id, label) VALUES (1, 7, 'a'), (2, 7, 'b'), (3, 8, 'c'), (4, 20, 'other'), (5, NULL, 'none')")
+        .await
+        .map_err(Error::internal)?;
+    let make_model = |table, class_name, key: serde_json::Value| GeneratedModel {
+        metadata: ModelMetadata::new(table, class_name),
+        attributes: ModelAttributes::new(Map::from_iter([("id".into(), key)])),
+        relations: Default::default(),
+        exists: true,
+    };
+    let related = make_model("relation_items", "generated::InsertItem", json!(null));
+    let mut parents = [json!(7), json!(8), json!(7), json!(9), json!(null)]
+        .map(|key| make_model("insert_items", "generated::Owner", key));
+    for parent in &mut parents {
+        parent.metadata.connection = Some("other".into());
+    }
+    let observed = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&observed);
+    let has_many = HasMany::new(&related, "owner_id", "id");
+    has_many
+        .load(&mut parents, "items", context, move |query| {
+            query.order_by("id", SortDirection::Desc).map(|query| {
+                query.before_query(move |_| {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+            })
+        })
+        .await?;
+    check(observed.load(Ordering::SeqCst) == 1)?;
+    for (parent, expected) in parents.iter().zip([&[2, 1][..], &[3], &[2, 1], &[], &[]]) {
+        let children = parent
+            .relations
+            .get_relation("items")
+            .and_then(|value| value.downcast_ref::<Vec<Arc<GeneratedModel>>>())
+            .ok_or_else(|| Error::custom("generated_has_many_unloaded", "关联集合未加载"))?;
+        check(children.len() == expected.len())?;
+        for (child, id) in children.iter().zip(expected) {
+            check(child.exists && child.attributes.raw_attribute("id")? == Some(json!(id)))?;
+            check(child.metadata.connection.as_deref() == Some("other"))?;
+            check(child.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
+        }
+    }
+    Ok(())
 }
 
 async fn generated_model_save(url: &str) -> Result<()> {
     use openrust::database::{
         DatabaseServiceProvider,
-        eloquent::{MassAssignment, ModelMetadata, SaveContext, refresh, save, save_or_fail},
+        eloquent::{MassAssignment, ModelMetadata, SaveContext, save, save_or_fail},
     };
     use openrust::support::CalendarContext;
     use serde_json::{Map, json};
@@ -221,6 +324,7 @@ async fn generated_model_save(url: &str) -> Result<()> {
         let mut model = GeneratedModel {
             metadata,
             attributes: Default::default(),
+            relations: Default::default(),
             exists: false,
         };
         model
@@ -264,36 +368,16 @@ async fn generated_model_save(url: &str) -> Result<()> {
                 .as_deref()
                 == Some("Eloquent 更新"),
         )?;
-        let changes = model.attributes.get_changes()?;
-        model
-            .attributes
-            .set_raw_attribute("label", json!("内存草稿"))?;
-        db.table("insert_items")?
-            .where_eq("id", replacement)?
-            .update(vec![("label", "外部更新".into())])
-            .await?;
-        refresh(&mut model, &context).await?;
-        check(model.attributes.get_raw_original("label")? == Some(json!("监听器读取")))?;
-        check(model.attributes.is_clean(&model.metadata, &[])?)?;
-        check(model.attributes.get_changes()? == changes)?;
-        check_fresh_model(&model, &context).await?;
-        check_failed_refresh(&db, &mut model, &context, replacement).await?;
-        let mut absent = GeneratedModel {
-            metadata: model.metadata.clone(),
-            attributes: openrust::database::eloquent::ModelAttributes::new(Map::from_iter([
-                ("id".into(), json!(original)),
-                ("label".into(), json!("原基线")),
-            ])),
-            exists: true,
-        };
-        absent
-            .attributes
-            .set_raw_attribute("label", json!("本地草稿"))?;
-        generated_locked_model_refresh(Arc::clone(&databases), Arc::clone(&events), model).await?;
-        let missing = refresh(&mut absent, &context).await;
-        check(matches!(missing, Err(error) if error.code() == "model_not_found"))?;
-        check(absent.attributes.get_raw_original("label")? == Some(json!("原基线")))?;
-        check(absent.attributes.raw_attribute("label")? == Some(json!("本地草稿")))
+        check_generated_has_many(&db, &context).await?;
+        check_generated_model_readback(
+            databases.clone(),
+            events.clone(),
+            &context,
+            model,
+            original,
+            replacement,
+        )
+        .await
     }
     .await;
     let shutdown = runtime
@@ -301,6 +385,54 @@ async fn generated_model_save(url: &str) -> Result<()> {
         .await;
     outcome?;
     shutdown
+}
+
+async fn check_generated_model_readback(
+    databases: Arc<openrust::Databases>,
+    events: Arc<openrust::events::Events>,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+    mut model: GeneratedModel,
+    original: i64,
+    replacement: i64,
+) -> Result<()> {
+    use openrust::database::eloquent::refresh;
+    use serde_json::{Map, json};
+
+    let db = databases.default_database();
+    let changes = model.attributes.get_changes()?;
+    model
+        .attributes
+        .set_raw_attribute("label", json!("内存草稿"))?;
+    db.table("insert_items")?
+        .where_eq("id", replacement)?
+        .update(vec![("label", "外部更新".into())])
+        .await?;
+    refresh(&mut model, context).await?;
+    check(model.attributes.get_raw_original("label")? == Some(json!("监听器读取")))?;
+    check(model.attributes.is_clean(&model.metadata, &[])?)?;
+    check(model.attributes.get_changes()? == changes)?;
+    check_model_relations(&mut model)?;
+    check_fresh_model(&model, context).await?;
+    check_failed_refresh(&db, &mut model, context, replacement).await?;
+    model.relations.unset_relation("owner");
+    check_readback_relations(&db, &mut model, context, replacement).await?;
+    let mut absent = GeneratedModel {
+        metadata: model.metadata.clone(),
+        attributes: openrust::database::eloquent::ModelAttributes::new(Map::from_iter([
+            ("id".into(), json!(original)),
+            ("label".into(), json!("原基线")),
+        ])),
+        relations: Default::default(),
+        exists: true,
+    };
+    absent
+        .attributes
+        .set_raw_attribute("label", json!("本地草稿"))?;
+    generated_locked_model_refresh(databases, events, model).await?;
+    let missing = refresh(&mut absent, context).await;
+    check(matches!(missing, Err(error) if error.code() == "model_not_found"))?;
+    check(absent.attributes.get_raw_original("label")? == Some(json!("原基线")))?;
+    check(absent.attributes.raw_attribute("label")? == Some(json!("本地草稿")))
 }
 
 async fn generated_locked_model_refresh(
@@ -318,7 +450,7 @@ async fn generated_locked_model_refresh(
     model
         .attributes
         .set_raw_attribute("label", json!("锁定前草稿"))?;
-    db.transaction_for_update_checked_context(
+    let result = db.transaction_for_update_checked_context(
         move |transaction| {
             Box::pin(async move {
                 let calendar = CalendarContext::default();
@@ -328,18 +460,66 @@ async fn generated_locked_model_refresh(
                 check(matches!(wrong_source, Err(error)
                     if error.code() == "model_refresh_transaction_source_mismatch"))?;
                 check(model.attributes.raw_attribute("label")? == Some(json!("锁定前草稿")))?;
+                let wrong_relation = <GeneratedModel as openrust::database::eloquent::HydrateModel>::load_relation(
+                    std::slice::from_mut(&mut model),
+                    openrust::database::eloquent::RelationLoad { name: "items", nested: &[] },
+                    &context,
+                    Some(&transaction),
+                ).await;
+                check(matches!(wrong_relation, Err(error)
+                    if error.code() == "model_relation_transaction_source_mismatch"))?;
                 model.metadata.connection = None;
+                let id = model.attributes.raw_attribute("id")?.and_then(|id| id.as_i64())
+                    .ok_or_else(|| Error::custom("generated_locked_key_missing", "锁定回读缺少主键"))?;
+                databases.default_database().table("relation_items")?
+                    .using_transaction(transaction.transaction())
+                    .insert(vec![("id", 99_i64.into()), ("owner_id", id.into()), ("label", "未提交子行".into())])
+                    .await?;
                 refresh_for_update(&mut model, &context, &transaction).await?;
+                check_locked_child(&model)?;
                 check(
                     model.attributes.get_raw_original("label")? == Some(json!("事务内监听器读取")),
                 )?;
                 check(model.attributes.raw_attribute("label")? == Some(json!("事务内监听器读取")))?;
-                check(model.attributes.is_clean(&model.metadata, &[])?)
+                check(model.attributes.is_clean(&model.metadata, &[])?)?;
+                Err::<(), _>(Error::custom("generated_relation_rollback", "验证关系回读后回滚"))
             })
         },
         |_| Box::pin(async { Ok(()) }),
     )
-    .await
+    .await;
+    check(matches!(result, Err(error) if error.code() == "generated_relation_rollback"))?;
+    check(
+        db.table("relation_items")?
+            .where_eq("id", 99_i64)?
+            .count()
+            .await?
+            == 0,
+    )
+}
+
+fn check_locked_child(model: &GeneratedModel) -> Result<()> {
+    use serde_json::json;
+
+    let children = model
+        .relations
+        .get_relation("items")
+        .and_then(|relation| relation.downcast_ref::<Vec<Arc<GeneratedModel>>>())
+        .ok_or_else(|| Error::custom("generated_locked_relation_missing", "锁定回读未加载关系"))?;
+    check(children.len() == 2)?;
+    let child = children
+        .iter()
+        .find(|child| {
+            child
+                .attributes
+                .raw_attribute("id")
+                .is_ok_and(|id| id == Some(json!(99)))
+        })
+        .ok_or_else(|| {
+            Error::custom("generated_uncommitted_child_missing", "未读到事务中的子行")
+        })?;
+    check(child.attributes.get_raw_original("label")? == Some(json!("未提交子行")))?;
+    check(child.attributes.raw_attribute("label")? == Some(json!("事务内监听器读取")))
 }
 
 fn generated_retrieved_events() -> openrust::events::EventsServiceProvider {
@@ -409,6 +589,120 @@ async fn check_failed_refresh(
     Ok(())
 }
 
+async fn check_readback_relations(
+    db: &Db,
+    model: &mut GeneratedModel,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+    key: i64,
+) -> Result<()> {
+    use openrust::database::eloquent::{LoadedRelation, fresh_with, refresh};
+    use serde_json::json;
+
+    db.table("relation_items")?
+        .where_eq("id", 1_i64)?
+        .update(vec![("owner_id", key.into())])
+        .await?;
+    db.table("relation_items")?
+        .insert(vec![
+            ("id", 11_i64.into()),
+            ("owner_id", 1_i64.into()),
+            ("label", "孙行".into()),
+        ])
+        .await?;
+    let fresh = fresh_with(model, context, &["items", "items.items", "items.items"])
+        .await?
+        .ok_or_else(|| Error::custom("generated_related_fresh_missing", "回读未找到模型"))?;
+    check_nested_items(&fresh)?;
+    check(!model.relations.relation_loaded("items"))?;
+
+    model.relations.set_relation(
+        "items",
+        LoadedRelation::Related(Box::new(Vec::<Arc<GeneratedModel>>::new())),
+    );
+    refresh(model, context).await?;
+    check(
+        model
+            .relations
+            .get_relation("items")
+            .and_then(LoadedRelation::downcast_ref::<Vec<Arc<GeneratedModel>>>)
+            .is_some_and(|items| items.len() == 1),
+    )?;
+    check(model.relations.relation_loaded("membership"))?;
+    model
+        .attributes
+        .set_raw_attribute("label", json!("旧基线"))?;
+    model.attributes.sync_original()?;
+    model
+        .relations
+        .set_relation("unknown", LoadedRelation::Null);
+    let failed = refresh(model, context).await;
+    check(matches!(failed, Err(error) if error.code() == "generated_relation_unavailable"))?;
+    check(model.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
+    check(model.attributes.get_raw_original("label")? == Some(json!("旧基线")))?;
+    model.relations.unset_relation("unknown");
+    Ok(())
+}
+
+fn check_nested_items(model: &GeneratedModel) -> Result<()> {
+    use serde_json::json;
+
+    let items = |model: &GeneratedModel| -> Result<Vec<Arc<GeneratedModel>>> {
+        model
+            .relations
+            .get_relation("items")
+            .and_then(|value| value.downcast_ref::<Vec<Arc<GeneratedModel>>>())
+            .cloned()
+            .ok_or_else(|| Error::custom("generated_nested_unloaded", "嵌套关系未加载"))
+    };
+    let children = items(model)?;
+    check(children.len() == 1)?;
+    let child = children
+        .first()
+        .ok_or_else(|| Error::custom("generated_child_missing", "缺少子模型"))?;
+    let grandchildren = items(child)?;
+    check(grandchildren.len() == 1)?;
+    let grandchild = grandchildren
+        .first()
+        .ok_or_else(|| Error::custom("generated_grandchild_missing", "缺少孙模型"))?;
+    check(grandchild.attributes.raw_attribute("id")? == Some(json!(11)))
+}
+
+fn check_model_relations(model: &mut GeneratedModel) -> Result<()> {
+    use openrust::database::eloquent::LoadedRelation;
+
+    let relations = &mut model.relations;
+    check(!relations.relation_loaded("owner"))?;
+    relations.set_relation("owner", LoadedRelation::Null);
+    relations.set_relation(
+        "items",
+        LoadedRelation::Related(Box::new(Vec::<i64>::new())),
+    );
+    relations.set_relation("membership", LoadedRelation::Pivot(Box::new(7_i64)));
+    check(matches!(
+        relations.get_relation("owner"),
+        Some(LoadedRelation::Null)
+    ))?;
+    check(relations.relation_loaded("items"))?;
+    check(
+        relations
+            .get_relation("items")
+            .and_then(LoadedRelation::downcast_ref::<Vec<i64>>)
+            .is_some_and(Vec::is_empty),
+    )?;
+    check(relations.refreshable_names().eq(["owner", "items"]))?;
+    relations.set_relation("owner", LoadedRelation::Related(Box::new(9_i64)));
+    check(relations.refreshable_names().eq(["owner", "items"]))?;
+    relations.unset_relation("items");
+    check(!relations.relation_loaded("items"))?;
+    check(relations.refreshable_names().eq(["owner"]))?;
+    check(
+        relations
+            .get_relation("membership")
+            .and_then(LoadedRelation::downcast_ref::<i64>)
+            == Some(&7),
+    )
+}
+
 async fn check_fresh_model(
     model: &GeneratedModel,
     context: &openrust::database::eloquent::SaveContext<'_>,
@@ -423,6 +717,8 @@ async fn check_fresh_model(
         .await?
         .ok_or_else(|| Error::custom("generated_model_fresh_missing", "回读未找到模型"))?;
     check(fresh.exists)?;
+    check(model.relations.relation_loaded("owner"))?;
+    check(!fresh.relations.relation_loaded("owner"))?;
     check(fresh.attributes.get_raw_original("label")? == Some(json!("外部更新")))?;
     check(fresh.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
     check(model.attributes.raw_attribute("label")? == Some(json!("原对象草稿")))

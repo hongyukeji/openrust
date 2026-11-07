@@ -171,7 +171,17 @@ impl ModelAttributes {
         Ok(self)
     }
 
-    // 回读完整成功后，一次更新当前属性与原始基线，保留上次保存的变化记录。
+    // 关系加载须看到回读值，但加载成功前保留原始基线。
+    pub(in crate::database::eloquent) fn install_refreshed_raw(
+        &self,
+        raw: Map<String, Value>,
+    ) -> Result<()> {
+        let mut state = self.state.write().map_err(|_| state_error())?;
+        ensure_stable(&state)?;
+        replace_raw(&mut state, raw)
+    }
+
+    // 无关系需要重载时，一次更新当前属性与原始基线，保留上次保存的变化记录。
     pub(in crate::database::eloquent) fn install_refreshed_attributes(
         &self,
         raw: Map<String, Value>,

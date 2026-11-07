@@ -161,7 +161,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 ## 隔离的字段类型示例
 
-`/api/example/records` 提供独立的列表、详情、创建、更新、删除接口，所有查询按当前登录用户隔离。它只操作 `example_records` 与 `example_record_categories`，不使用通用 `records`、`categories` 或开发者业务表。记录字段覆盖本仓生成器当前支持的可移植类型：`name`（string）、`description`（text）、`priority`（integer/i32）、`view_count`（big_integer/i64）、`enabled`（boolean）、`published_at`（nullable date_time/UTC）、`metadata`（nullable JSON）及 `category_id`（nullable references）。外键目标 `example_record_categories` 也属于示例命名空间。
+`/api/example/records` 提供独立的列表、详情、创建、更新、删除接口，所有查询按当前登录用户隔离。它只操作 `example_records` 与 `example_record_categories`，不使用通用 `records`、`categories` 或开发者业务表。修改预览可传 `include_owner_records=true`，在原记录通过账户授权后，经 Eloquent `HasMany` 返回同账户按 ID 排序的最多十条记录 ID。默认预览响应省略该字段。记录字段覆盖本仓生成器当前支持的可移植类型：`name`（string）、`description`（text）、`priority`（integer/i32）、`view_count`（big_integer/i64）、`enabled`（boolean）、`published_at`（nullable date_time/UTC）、`metadata`（nullable JSON）及 `category_id`（nullable references）。外键目标 `example_record_categories` 也属于示例命名空间。
 
 示例 API 接受完整 JSON：`{"name":"样例","description":"说明","priority":1,"view_count":0,"enabled":true,"published_at":null,"metadata":{"source":"demo"},"category_id":null}`。该接口用于查看类型映射与 CRUD 写法；不会自动种入类别数据。综合示例的 API 路由统一置于 `/api/example/*`，网页置于 `/example/pages/*`，示例对象存储 key 统一以 `example/` 开头，避免覆盖应用自己的路由与对象路径。
 

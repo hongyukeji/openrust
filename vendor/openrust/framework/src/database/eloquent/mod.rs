@@ -9,21 +9,25 @@ mod attribute_store;
 pub use attribute_store::{AttributeGetter, AttributeMutation, AttributeSetter, ModelAttributes};
 #[cfg(feature = "hashing")]
 pub mod casts;
+mod has_many;
 mod mass_assignment;
 mod model;
 mod model_events;
 mod refresh;
+mod relations;
 mod save;
 mod timestamps;
 mod unique_ids;
 pub use attributes::attributes_from_row;
+pub use has_many::{HasMany, HasRelationships};
 pub use mass_assignment::{DiscardedAttributeViolation, MassAssignment, is_unguarded, unguarded};
 
 pub use model::{ModelIdentity, ModelMetadata, MorphIdentity};
 pub use model_events::{
     MappedModelEvent, dispatch_mapped_model_event, fire_model_event, without_model_events,
 };
-pub use refresh::{HydrateModel, fresh, refresh, refresh_for_update};
+pub use refresh::{HydrateModel, fresh, fresh_with, refresh, refresh_for_update};
+pub use relations::{LoadedRelation, ModelRelations, RelationLoad};
 pub use save::{
     SaveContext, SaveModel, force_create, save, save_or_fail, save_quietly, save_with_query,
     update, update_or_fail, update_quietly,

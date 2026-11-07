@@ -21,6 +21,8 @@ pub(crate) struct ExampleRecordInput {
 pub(crate) struct ExampleRecordPreviewOptions {
     #[serde(default)]
     pub(crate) discard: bool,
+    #[serde(default)]
+    pub(crate) include_owner_records: bool,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
