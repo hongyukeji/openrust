@@ -20,9 +20,12 @@
 //!
 //! `sync_changes` 只发布变化记录，`sync_original` 只确认当前内存基线；二者均不保存数据库。
 //! 比较不调用 getter/setter/哈希；未决可回滚写入、运行中的 setter 或过期快照返回 409。
-//! 逐字段同步遇缺项报错并保留此前已同步字段，完整转换 `getOriginal` 与模型保存会话仍待对应。
+//! 逐字段同步遇缺项报错并保留此前已同步字段，模型保存会话仍待对应。
 
-use super::{AttributeCast, ModelAttributes, ModelMetadata, State, read_conflict, state_error};
+use super::{
+    AttributeCast, AttributeGetter, ModelAttributes, ModelMetadata, State, read_conflict,
+    replace_raw, state_error,
+};
 use crate::{
     Error, Result,
     database::eloquent::attribute_cast::{array_cast_equivalent, cast_float_value},
@@ -58,6 +61,49 @@ impl ModelAttributes {
             .original
             .clone())
     }
+    /// 转换原始基线中的指定属性；缺项的默认值也经过转换，显式 null 保留。
+    ///
+    /// 使用模型声明的 `metadata` 和访问器选择器。选择器及访问器在释放属性锁后执行，
+    /// 访问器收到同一份原始基线。当前实例临时注册的访问器不参与。
+    /// 此入口显式选择单键，包括空键或 `"0"`；整表读取使用
+    /// [`Self::get_original_attributes`]。
+    pub fn get_original<'a>(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        default: Option<&Value>,
+        declared_getter: impl FnOnce(&str) -> Option<&'a dyn AttributeGetter>,
+    ) -> Result<Option<Value>> {
+        let original = self.get_raw_original_attributes()?;
+        let value = original_value(&original, name).or(default);
+        transform_original(metadata, name, value, &original, declared_getter(name))
+    }
+
+    /// 用同一原始快照转换所有已存在的顶层键；访问器不会添加虚拟属性。
+    ///
+    /// 访问器返回空值时保留对应键为 JSON null。遇转换错误则返回错误，
+    /// 本方法不发布属性写入或变化记录。
+    pub fn get_original_attributes<'a>(
+        &self,
+        metadata: &ModelMetadata,
+        declared_getter: impl Fn(&str) -> Option<&'a dyn AttributeGetter>,
+    ) -> Result<Map<String, Value>> {
+        let original = self.get_raw_original_attributes()?;
+        original
+            .iter()
+            .map(|(name, value)| {
+                transform_original(
+                    metadata,
+                    name,
+                    Some(value),
+                    &original,
+                    declared_getter(name),
+                )
+                .map(|converted| (name.clone(), converted.unwrap_or(Value::Null)))
+            })
+            .collect()
+    }
+
     /// 读取最近一次显式 `sync_changes` 记录的原始变化，不重新计算 `dirty`。
     pub fn get_changes(&self) -> Result<Map<String, Value>> {
         Ok(self
@@ -106,6 +152,25 @@ impl ModelAttributes {
     pub fn was_changed(&self, names: &[&str]) -> Result<bool> {
         Ok(has_changes(&self.get_changes()?, names))
     }
+    /// 丢弃当前属性的未保存变化，恢复原始基线并清空 `changes` 和 `previous`。
+    ///
+    /// 不执行 SQL 或访问器，也不更新原始基线。存在未决可回滚写入或运行中的
+    /// setter 时返回冲突，保留全部当前状态。
+    pub fn discard_changes(&self) -> Result<&Self> {
+        let (changes, previous) = {
+            let mut state = self.state.write().map_err(|_| state_error())?;
+            ensure_stable(&state)?;
+            let original = state.original.clone();
+            replace_raw(&mut state, original)?;
+            (
+                std::mem::take(&mut state.changes),
+                std::mem::take(&mut state.previous),
+            )
+        };
+        drop((changes, previous));
+        Ok(self)
+    }
+
     /// 把稳定当前原值同步为 `original`，不清 `changes`/`previous`，不改变原始属性修改版本。
     pub fn sync_original(&self) -> Result<&Self> {
         let previous = {
@@ -278,6 +343,20 @@ fn equivalent(
             && InputNumber::from_value(original).is_some()
             && crate::support::scalars::string(current)
                 == crate::support::scalars::string(original)),
+    }
+}
+
+fn transform_original(
+    metadata: &ModelMetadata,
+    name: &str,
+    raw: Option<&Value>,
+    original: &Map<String, Value>,
+    getter: Option<&dyn AttributeGetter>,
+) -> Result<Option<Value>> {
+    if let Some(getter) = getter {
+        getter.get(raw, original)
+    } else {
+        metadata.read_cast_attribute(name, raw.cloned())
     }
 }
 

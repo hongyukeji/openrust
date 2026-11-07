@@ -23,6 +23,138 @@ fn assert_code<T>(result: Result<T>, code: &str) {
     assert!(matches!(result, Err(error) if error.code() == code));
 }
 
+struct OriginalLabel;
+
+impl AttributeGetter for OriginalLabel {
+    fn get(&self, raw: Option<&Value>, snapshot: &Map<String, Value>) -> Result<Option<Value>> {
+        Ok(Some(json!([raw, snapshot.get("prefix")])))
+    }
+}
+
+#[test]
+fn transformed_original_uses_declared_accessors_and_the_original_snapshot() -> Result<()> {
+    let store = ModelAttributes::new(raw(&[
+        ("id", json!("42")),
+        ("label", json!("old")),
+        ("prefix", json!("saved")),
+        ("meta.path", json!("literal")),
+        ("meta", json!({"path": "nested", "null": null})),
+    ]));
+    let metadata = metadata(&[("fallback", AttributeCast::Integer)]);
+    store.set_raw_attribute("label", json!("new"))?;
+    store.set_raw_attribute("prefix", json!("dirty"))?;
+    store.register_getter("label", Arc::new(ForbiddenGetter))?;
+    let getter = OriginalLabel;
+    let select = |name: &str| (name == "label").then_some(&getter as &dyn AttributeGetter);
+
+    assert_eq!(
+        store.get_original(&metadata, "label", None, select)?,
+        Some(json!(["old", "saved"]))
+    );
+    assert_eq!(
+        store.get_original(&metadata, "meta.path", None, select)?,
+        Some(json!("literal"))
+    );
+    assert_eq!(
+        store.get_original(&metadata, "meta.null", Some(&json!(9)), select)?,
+        Some(Value::Null)
+    );
+    assert_eq!(
+        store.get_original(&metadata, "fallback", Some(&json!("7")), select)?,
+        Some(json!(7))
+    );
+    let all = store.get_original_attributes(&metadata, select)?;
+    assert_eq!(all.get("id"), Some(&json!(42)));
+    assert_eq!(all.get("label"), Some(&json!(["old", "saved"])));
+    assert!(!all.contains_key("fallback"));
+    let failing = ForbiddenGetter;
+    assert_code(
+        store.get_original_attributes(&metadata, |_| Some(&failing)),
+        "getter_must_not_run",
+    );
+    assert_eq!(store.raw_attribute("label")?, Some(json!("new")));
+    assert!(store.get_changes()?.is_empty());
+    Ok(())
+}
+
+struct SyncingOriginalGetter<'a>(&'a ModelAttributes);
+
+impl AttributeGetter for SyncingOriginalGetter<'_> {
+    fn get(&self, raw: Option<&Value>, snapshot: &Map<String, Value>) -> Result<Option<Value>> {
+        self.0.set_raw_attribute("prefix", json!("resynced"))?;
+        self.0.sync_original()?;
+        Ok(Some(json!([raw, snapshot.get("prefix")])))
+    }
+}
+
+#[test]
+fn transformed_original_keeps_one_snapshot_across_reentrant_synchronization() -> Result<()> {
+    let store = ModelAttributes::new(raw(&[
+        ("label", json!("saved")),
+        ("prefix", json!("original")),
+    ]));
+    let metadata = metadata(&[]);
+    store.set_raw_attribute("label", json!("dirty"))?;
+    let getter = SyncingOriginalGetter(&store);
+    let result = store.get_original_attributes(&metadata, |name| {
+        (name == "label").then_some(&getter as &dyn AttributeGetter)
+    })?;
+
+    assert_eq!(result.get("label"), Some(&json!(["saved", "original"])));
+    assert_eq!(result.get("prefix"), Some(&json!("original")));
+    assert_eq!(store.get_raw_original("label")?, Some(json!("dirty")));
+    assert_eq!(store.get_raw_original("prefix")?, Some(json!("resynced")));
+    assert!(store.get_changes()?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn discard_changes_restores_original_and_clears_published_history() -> Result<()> {
+    let original = raw(&[("name", json!("saved")), ("nullable", Value::Null)]);
+    let store = ModelAttributes::new(original.clone());
+    let metadata = metadata(&[]);
+    store.register_getter("name", Arc::new(ForbiddenGetter))?;
+    store.set_raw_attribute("name", json!("changed"))?;
+    store.set_raw_attribute("nullable", json!("present"))?;
+    store.set_raw_attribute("added", json!(1))?;
+    store.sync_changes(&metadata)?;
+    assert_eq!(store.get_changes()?.len(), 3);
+    assert_eq!(store.get_previous()?, original);
+
+    assert!(std::ptr::eq(store.discard_changes()?, &raw const store));
+    assert_eq!(store.raw_attributes()?, original);
+    assert_eq!(store.get_raw_original_attributes()?, original);
+    assert!(store.get_changes()?.is_empty());
+    assert!(store.get_previous()?.is_empty());
+    assert!(store.is_clean(&metadata, &[])?);
+    assert_code(
+        store.get_attribute(&metadata, "name"),
+        "getter_must_not_run",
+    );
+    Ok(())
+}
+
+#[test]
+fn discard_changes_keeps_pending_mutation_and_history_until_retired() -> Result<()> {
+    let store = ModelAttributes::new(raw(&[("name", json!("saved"))]));
+    let metadata = metadata(&[]);
+    store.set_raw_attribute("name", json!("draft"))?;
+    store.sync_changes(&metadata)?;
+    let mut receipt = store
+        .set_raw_attribute_reversibly_if("name", json!("pending"), |_| Ok(true))?
+        .ok_or_else(|| persistence_error("fixture_receipt_missing"))?;
+
+    assert_code(store.discard_changes(), "model_attribute_update_pending");
+    assert_eq!(store.raw_attribute("name")?, Some(json!("pending")));
+    assert_eq!(store.get_changes()?, raw(&[("name", json!("draft"))]));
+    assert_eq!(store.get_previous()?, raw(&[("name", json!("saved"))]));
+    assert!(receipt.rollback()?);
+    store.discard_changes()?;
+    assert_eq!(store.raw_attribute("name")?, Some(json!("saved")));
+    assert!(store.get_changes()?.is_empty());
+    Ok(())
+}
+
 #[test]
 fn hydration_original_is_not_committed_mutation_view() -> Result<()> {
     let store = ModelAttributes::new(raw(&[("secret", json!("plain"))]));
@@ -289,6 +421,7 @@ async fn active_setter_cannot_be_marked_clean_and_cancellation_releases_gate() -
         tokio::spawn(async move { running.set_attribute(&metadata(&[]), "a", json!(2)).await });
     entered.notified().await;
     assert_code(store.sync_original(), "model_attribute_update_pending");
+    assert_code(store.discard_changes(), "model_attribute_update_pending");
     assert_code(
         store.sync_original_attribute("a"),
         "model_attribute_update_pending",
@@ -304,6 +437,7 @@ async fn active_setter_cannot_be_marked_clean_and_cancellation_releases_gate() -
     task.abort();
     assert!(matches!(task.await, Err(error) if error.is_cancelled()));
     assert!(store.is_clean(&metadata(&[]), &[])?);
+    store.discard_changes()?;
     Ok(())
 }
 

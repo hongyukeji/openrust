@@ -1,7 +1,7 @@
 //! 字段类型示例记录的账户隔离 CRUD。
 
 use crate::modules::example::http::requests::example_record::{
-    ExampleRecordInput, ExampleRecordPage,
+    ExampleRecordInput, ExampleRecordPage, ExampleRecordPreviewOptions,
 };
 use crate::modules::example::http::resources::example_record::ExampleRecordResource;
 use crate::modules::example::models::example_record;
@@ -165,6 +165,7 @@ pub(crate) async fn preview(
     user: CurrentUser,
     Inject(db): Inject<Db>,
     Path(id): Path<i64>,
+    Query(options): Query<ExampleRecordPreviewOptions>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
 ) -> Result<Json<crate::modules::example::services::record_preview::RecordPreview>> {
     let model = example_record::Entity::find_by_id(id)
@@ -176,7 +177,7 @@ pub(crate) async fn preview(
     // 先owner筛选/404，再读真实列清单；此处不替代Validated或Model guardable。
     let columns = db.schema().get_column_listing("example_records").await?;
     Ok(Json(
-        crate::modules::example::services::record_preview::preview(&model, input)
+        crate::modules::example::services::record_preview::preview(&model, input, options.discard)
             .await?
             .with_schema_columns(&columns),
     ))

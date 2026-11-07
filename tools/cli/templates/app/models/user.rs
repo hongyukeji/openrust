@@ -303,6 +303,29 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn user_original_projection_and_discard_preserve_the_auth_identity() -> openrust::Result<()> {
+        use openrust::{auth::Authenticatable, database::eloquent::ModelIdentity};
+
+        let user = super::User::new(serde_json::Map::from_iter([("id".into(), json!("00042"))]));
+        let attributes = user.model_attributes();
+        let metadata = user.model_metadata();
+        attributes.set_raw_attribute("id", json!("00077"))?;
+        attributes.sync_changes(metadata)?;
+        assert_eq!(user.auth_identifier()?, json!(77));
+        assert_eq!(
+            attributes.get_original(metadata, "id", None, |_| None)?,
+            Some(json!(42))
+        );
+
+        attributes.discard_changes()?;
+        assert_eq!(user.auth_identifier()?, json!(42));
+        assert_eq!(attributes.raw_attribute("id")?, Some(json!("00042")));
+        assert!(attributes.get_changes()?.is_empty());
+        assert!(attributes.get_previous()?.is_empty());
+        Ok(())
+    }
+
+    #[test]
     fn default_auth_identifier_tracks_the_selected_model_key() -> openrust::Result<()> {
         use openrust::auth::Authenticatable;
         let mut metadata = openrust::database::eloquent::ModelMetadata::new("accounts", "app::Account");

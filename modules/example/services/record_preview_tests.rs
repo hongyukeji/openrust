@@ -34,7 +34,7 @@ fn fixture() -> (example_record::Model, ExampleRecordInput) {
 async fn equal_decoded_metadata_is_clean_despite_encoding_difference() -> Result<()> {
     let (model, input) = fixture();
     let before = model.clone();
-    let report = preview(&model, input).await?;
+    let report = preview(&model, input, false).await?;
     assert!(report.dirty.is_empty());
     assert!(report.changes.is_empty());
     assert!(report.previous.is_empty());
@@ -69,7 +69,7 @@ async fn actual_and_cast_type_changes_publish_only_the_preview_snapshot() -> Res
     input.name = "拟修改".into();
     input.priority = 8;
     input.metadata = Some(json!({"label":"数据","values":["1"]}));
-    let report = preview(&model, input).await?;
+    let report = preview(&model, input, false).await?;
     assert_eq!(report.original.get("name"), Some(&json!("原记录")));
     assert_eq!(report.proposed.get("name"), Some(&json!("拟修改")));
     assert_eq!(report.dirty.get("priority"), Some(&json!(8)));
@@ -95,7 +95,7 @@ async fn metadata_business_projection_preserves_integral_double_and_strict_type_
         let (mut model, mut input) = fixture();
         model.metadata = Some(old.clone());
         input.metadata = Some(new.clone());
-        let report = preview(&model, input).await?;
+        let report = preview(&model, input, false).await?;
         let old_text = serde_json::to_string(&old).map_err(openrust::Error::internal)?;
         let new_text = serde_json::to_string(&new).map_err(openrust::Error::internal)?;
         assert_eq!(report.original.get("metadata"), Some(&json!(old_text)));
@@ -142,7 +142,7 @@ async fn metadata_default_setter_preserves_absence_and_explicit_null() -> Result
         let (mut model, mut input) = fixture();
         model.metadata = metadata.clone();
         input.metadata = metadata;
-        let report = preview(&model, input).await?;
+        let report = preview(&model, input, false).await?;
         assert_eq!(report.proposed.get("metadata"), Some(&expected));
         assert!(report.dirty.is_empty());
         assert!(!report.persisted);
@@ -157,7 +157,7 @@ async fn metadata_default_setter_replaces_non_null_with_absent_or_explicit_null(
         let (model, mut input) = fixture();
         let original = example_record::Model::metadata_snapshot_value(model.metadata.as_ref())?;
         input.metadata = metadata;
-        let report = preview(&model, input).await?;
+        let report = preview(&model, input, false).await?;
         assert_eq!(report.original.get("metadata"), Some(&original));
         assert!(report.proposed.contains_key("metadata"));
         assert_eq!(report.proposed.get("metadata"), Some(&expected));
@@ -184,7 +184,9 @@ async fn editable_fields_are_only_dto_intersection_in_catalog_order() -> Result<
         "not_a_dto_field",
     ]
     .map(str::to_owned);
-    let report = preview(&model, input).await?.with_schema_columns(&columns);
+    let report = preview(&model, input, false)
+        .await?
+        .with_schema_columns(&columns);
     assert_eq!(report.editable_fields, ["metadata", "name", "category_id"]);
     assert_eq!(model.owner_id, 9);
     assert_eq!(model.id, 7);

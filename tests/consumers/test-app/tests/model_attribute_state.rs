@@ -1,7 +1,7 @@
 //! 外部package只使用公开属性状态API；不调用数据库或内部State。
 use openrust::{
     Result,
-    database::eloquent::{AttributeCast, ModelAttributes, ModelMetadata},
+    database::eloquent::{AttributeCast, AttributeGetter, ModelAttributes, ModelMetadata},
 };
 use serde_json::{Map, Value, json};
 
@@ -65,5 +65,58 @@ fn metadata_cast_extension_is_public_and_preserves_read_phase_checks() -> Result
     assert!(
         matches!(metadata.cast_attribute("id", None), Err(error) if error.code() == "model_attribute_cast_unsupported")
     );
+    Ok(())
+}
+
+struct SavedLabel;
+
+impl AttributeGetter for SavedLabel {
+    fn get(&self, value: Option<&Value>, original: &Map<String, Value>) -> Result<Option<Value>> {
+        Ok(Some(
+            json!({"label": value, "locale": original.get("locale")}),
+        ))
+    }
+}
+
+#[test]
+fn public_original_projection_and_discard_use_the_same_baseline() -> Result<()> {
+    let metadata = ModelMetadata::new("external_records", "external::Record");
+    let attributes = ModelAttributes::new(Map::from_iter([
+        ("id".into(), json!("00042")),
+        ("label".into(), json!("saved")),
+        ("locale".into(), json!("zh-CN")),
+    ]));
+    attributes.set_raw_attribute("label", json!("draft"))?;
+    attributes.set_raw_attribute("locale", json!("en"))?;
+    attributes.set_raw_attribute("added", Value::Null)?;
+    attributes.sync_changes(&metadata)?;
+    assert_eq!(attributes.get_changes()?.len(), 3);
+    assert_eq!(
+        attributes.get_previous()?.get("locale"),
+        Some(&json!("zh-CN"))
+    );
+
+    let getter = SavedLabel;
+    let select = |name: &str| (name == "label").then_some(&getter as &dyn AttributeGetter);
+    let original = attributes.get_original_attributes(&metadata, select)?;
+    assert_eq!(original.get("id"), Some(&json!(42)));
+    assert_eq!(
+        attributes.get_original(&metadata, "label", None, select)?,
+        Some(json!({"label":"saved", "locale":"zh-CN"}))
+    );
+    assert!(!original.contains_key("added"));
+
+    let restored = attributes.discard_changes()?;
+    assert!(std::ptr::eq(restored, &attributes));
+    assert_eq!(restored.raw_attribute("id")?, Some(json!("00042")));
+    assert_eq!(restored.raw_attribute("locale")?, Some(json!("zh-CN")));
+    assert_eq!(restored.raw_attribute("added")?, None);
+    assert_eq!(
+        restored.get_original_attributes(&metadata, select)?,
+        original
+    );
+    assert!(restored.get_changes()?.is_empty());
+    assert!(restored.get_previous()?.is_empty());
+    assert!(restored.is_clean(&metadata, &[])?);
     Ok(())
 }

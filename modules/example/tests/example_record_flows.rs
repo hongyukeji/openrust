@@ -307,6 +307,13 @@ async fn attribute_preview_contract(
     let changed: serde_json::Value = serde_json::from_slice(changed.body())?;
     let changed = &changed["data"];
     assert_eq!(changed["original"]["name"], payload["name"]);
+    assert_eq!(changed["original_transformed"]["name"], payload["name"]);
+    assert!(changed["original"]["metadata"].is_string());
+    assert_eq!(
+        changed["original_transformed"]["metadata"],
+        before.metadata.clone().unwrap_or(serde_json::Value::Null)
+    );
+    assert!(changed["original_transformed"].get("owner_id").is_none());
     assert_eq!(changed["proposed"]["name"], "仅预览");
     assert_eq!(changed["dirty"]["priority"], 8);
     assert!(changed["dirty"].get("metadata").is_some());
@@ -333,6 +340,7 @@ async fn attribute_preview_contract(
     assert_eq!(changed["persisted"], false);
     assert_eq!(changed["has_changes"], true);
     assert!(changed["original"].get("owner_id").is_none());
+    assert_discarded_preview(app, &path, owner_token, payload).await?;
     let after = example_record::Entity::find_by_id(id)
         .one(&connection)
         .await?
@@ -372,6 +380,35 @@ async fn assert_preview_schema(
         ]
     );
     Ok(editable)
+}
+
+async fn assert_discarded_preview(
+    app: &TestApp<crate::bootstrap::Server>,
+    path: &str,
+    token: &str,
+    payload: &serde_json::Value,
+) -> TestResult {
+    let mut proposal = payload.clone();
+    proposal["name"] = serde_json::json!("丢弃的名称");
+    let response = app
+        .request(request(
+            Method::POST,
+            &format!("{path}?discard=true"),
+            Some(token),
+            Some(proposal),
+        )?)
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    let report = &body["data"];
+    assert_eq!(report["proposed"], report["original"]);
+    assert_eq!(report["proposed"]["name"], payload["name"]);
+    for field in ["dirty", "changes", "previous"] {
+        assert_eq!(report[field], serde_json::json!({}));
+    }
+    assert_eq!(report["has_changes"], false);
+    assert_eq!(report["persisted"], false);
+    Ok(())
 }
 
 // priority可成功反序列化为i32；仅依赖业务range规则拒绝，移除Validated会破坏断言。

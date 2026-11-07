@@ -9,6 +9,7 @@ use serde_json::{Map, Value};
 pub(crate) struct RecordPreview {
     pub(crate) editable_fields: Vec<String>,
     pub(crate) original: Map<String, Value>,
+    pub(crate) original_transformed: Map<String, Value>,
     pub(crate) proposed: Map<String, Value>,
     pub(crate) dirty: Map<String, Value>,
     pub(crate) changes: Map<String, Value>,
@@ -20,6 +21,7 @@ pub(crate) struct RecordPreview {
 pub(crate) async fn preview(
     model: &example_record::Model,
     input: ExampleRecordInput,
+    discard: bool,
 ) -> Result<RecordPreview> {
     let attributes = model.attribute_snapshot()?;
     let metadata = example_record::Model::attribute_metadata();
@@ -52,12 +54,16 @@ pub(crate) async fn preview(
             &default_setter,
         )
         .await?;
-    let dirty = attributes.get_dirty(&metadata)?;
     // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
     attributes.sync_changes(&metadata)?;
+    if discard {
+        attributes.discard_changes()?;
+    }
+    let dirty = attributes.get_dirty(&metadata)?;
     Ok(RecordPreview {
         editable_fields: Vec::new(),
         original: attributes.get_raw_original_attributes()?,
+        original_transformed: attributes.get_original_attributes(&metadata, |_| None)?,
         proposed: attributes.raw_attributes()?,
         dirty,
         changes: attributes.get_changes()?,

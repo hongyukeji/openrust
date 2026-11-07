@@ -17,6 +17,12 @@ pub(crate) struct ExampleRecordInput {
     pub(crate) category_id: Option<i64>,
 }
 
+#[derive(serde::Deserialize)]
+pub(crate) struct ExampleRecordPreviewOptions {
+    #[serde(default)]
+    pub(crate) discard: bool,
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 pub(crate) struct ExampleRecordPage {
     #[serde(default = "default_page")]

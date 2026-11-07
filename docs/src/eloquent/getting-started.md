@@ -52,6 +52,14 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 ## 原始基线与变化记录
 
+对尚未保存的属性调用 `discard_changes()`，会恢复当前原始属性并清空变化记录。
+该操作只更新模型内存。仍有未决可回滚写入或正在执行的 setter 时，返回冲突并保留状态。
+
+`get_raw_original` 保留原始值；`get_original` 选择原始字面键或点路径后，使用模型声明的
+访问器或转换。缺项默认值也经过转换。整表读取用 `get_original_attributes`，只包含原始
+基线已有键。没有声明访问器时传 `|_| None`。访问器读取同一份原始基线的其他字段，
+当前实例临时登记的访问器不参与。
+
 `ModelAttributes::new(raw)` 用于水合：输入同时成为当前原值与 original 基线，不执行 setter 或哈希。`Default` 则为空。后续原始或普通赋值不自动覆盖 original；可回滚赋值的 committed 视图表示已确认的内存修改，并不是上次数据库保存的 original。
 
 ```rust
