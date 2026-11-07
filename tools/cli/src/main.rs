@@ -1241,6 +1241,26 @@ fn populate_project_with_features(
             include_str!("../templates/tests/query_comparisons.rs")
                 .replace("    // {{database_setup}}", setup),
         ));
+        let (schema_setup, schema_reason) = match backend {
+            DatabaseBackend::Sqlite => (
+                "    let database = TestDatabase::sqlite_file::<EmptyMigrator>().await?;",
+                "发布前SQLite Schema专跑：需显式选择实SQLite矩阵",
+            ),
+            DatabaseBackend::Mysql => (
+                "    let url = std::env::var(\"OPENRUST_TEST_DATABASE_URL\").map_err(Error::internal)?;\n    if !url.starts_with(\"mysql://\") { return Err(Error::custom(\"schema_test_backend_mismatch\", \"Schema专跑需要MySQL\").into()); }\n    let database = TestDatabase::create::<EmptyMigrator>(&url).await?;",
+                "真实MySQL8.4日常Schema专跑：需测试URL与独立库权限",
+            ),
+            DatabaseBackend::Postgres => (
+                "    let url = std::env::var(\"OPENRUST_TEST_DATABASE_URL\").map_err(Error::internal)?;\n    if !(url.starts_with(\"postgres://\") || url.starts_with(\"postgresql://\")) { return Err(Error::custom(\"schema_test_backend_mismatch\", \"Schema专跑需要PostgreSQL\").into()); }\n    let database = TestDatabase::create::<EmptyMigrator>(&url).await?;",
+                "发布前PostgreSQL Schema专跑：需专用URL与独立库权限",
+            ),
+        };
+        files.push((
+            "tests/schema_column_listing.rs",
+            include_str!("../templates/tests/schema_column_listing.rs")
+                .replace("    // {{schema_database_setup}}", schema_setup)
+                .replace("{{schema_test_reason}}", schema_reason),
+        ));
         files.push((
             "tests/query_multiple_columns.rs",
             include_str!("../templates/tests/query_multiple_columns.rs")

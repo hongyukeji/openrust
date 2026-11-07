@@ -169,3 +169,25 @@ async fn metadata_default_setter_replaces_non_null_with_absent_or_explicit_null(
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn editable_fields_are_only_dto_intersection_in_catalog_order() -> Result<()> {
+    let (model, input) = fixture();
+    let columns = [
+        "owner_id",
+        "metadata",
+        "created_at",
+        "name",
+        "id",
+        "category_id",
+        "updated_at",
+        "not_a_dto_field",
+    ]
+    .map(str::to_owned);
+    let report = preview(&model, input).await?.with_schema_columns(&columns);
+    assert_eq!(report.editable_fields, ["metadata", "name", "category_id"]);
+    assert_eq!(model.owner_id, 9);
+    assert_eq!(model.id, 7);
+    assert!(!report.persisted);
+    Ok(())
+}

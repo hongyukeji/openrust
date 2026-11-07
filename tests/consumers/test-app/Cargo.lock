@@ -2251,6 +2251,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "validator",
+ "zeroize",
 ]
 
 [[package]]

@@ -188,31 +188,100 @@ impl SqlxSqlitePoolConnection {
     #[instrument(level = "trace", skip(stmt))]
     pub async fn query_one(&self, stmt: Statement) -> Result<Option<QueryResult>, DbErr> {
         debug_print!("{}", stmt);
-
         let query = sqlx_query(&stmt);
         let mut conn = self.pool.acquire().await.map_err(sqlx_conn_acquire_err)?;
-        crate::metric::metric!(self.metric_callback, &stmt, {
-            match query.fetch_one(&mut *conn).await {
+        self.fetch_one(query, &stmt, &mut conn).await
+    }
+
+    /// Get all results from a SQL query.
+    #[instrument(level = "trace", skip(stmt))]
+    pub async fn query_all(&self, stmt: Statement) -> Result<Vec<QueryResult>, DbErr> {
+        debug_print!("{}", stmt);
+        let query = sqlx_query(&stmt);
+        let mut conn = self.pool.acquire().await.map_err(sqlx_conn_acquire_err)?;
+        self.fetch_all(query, &stmt, &mut conn).await
+    }
+
+    // 上层factory已经建立标准query_all span；原pool路径与此处均只通过fetch_all记一次metric。
+    #[instrument(level = "trace", skip(stmt))]
+    pub(crate) async fn query_all_with_connection(
+        &self,
+        stmt: Statement,
+    ) -> Result<(Vec<QueryResult>, PoolConnection<Sqlite>), DbErr> {
+        debug_print!("{}", stmt);
+        let query = sqlx_query(&stmt);
+        let mut connection = self.pool.acquire().await.map_err(sqlx_conn_acquire_err)?;
+        let rows = self.fetch_all(query, &stmt, &mut connection).await?;
+        Ok((rows, connection))
+    }
+
+    /// 在调用者已取得的同一物理SQLite连接上查询一行，保留标准观察与错误机制。
+    ///
+    /// 调用者须从此pool取得连接；此方法不创建事务或再次acquire。
+    #[instrument(level = "trace", skip(connection, stmt))]
+    pub(crate) async fn query_one_on(
+        &self,
+        connection: &mut sqlx::SqliteConnection,
+        stmt: Statement,
+    ) -> Result<Option<QueryResult>, DbErr> {
+        crate::database::tracing_spans::with_db_span!(
+            "sea_orm.query_one",
+            crate::DbBackend::Sqlite,
+            stmt.sql.as_str(),
+            record_stmt = self.record_stmt_in_spans,
+            async {
+                debug_print!("{}", stmt);
+                let query = sqlx_query(&stmt);
+                self.fetch_one(query, &stmt, connection).await
+            }
+        )
+    }
+
+    /// 在已借物理连接上查询全部行；使用同一绑定、metric及QueryResult转换内核。
+    #[instrument(level = "trace", skip(connection, stmt))]
+    pub(crate) async fn query_all_on(
+        &self,
+        connection: &mut sqlx::SqliteConnection,
+        stmt: Statement,
+    ) -> Result<Vec<QueryResult>, DbErr> {
+        crate::database::tracing_spans::with_db_span!(
+            "sea_orm.query_all",
+            crate::DbBackend::Sqlite,
+            stmt.sql.as_str(),
+            record_stmt = self.record_stmt_in_spans,
+            async {
+                debug_print!("{}", stmt);
+                let query = sqlx_query(&stmt);
+                self.fetch_all(query, &stmt, connection).await
+            }
+        )
+    }
+
+    async fn fetch_one(
+        &self,
+        query: sqlx::query::Query<'_, Sqlite, SqlxValues>,
+        stmt: &Statement,
+        connection: &mut sqlx::SqliteConnection,
+    ) -> Result<Option<QueryResult>, DbErr> {
+        crate::metric::metric!(self.metric_callback, stmt, {
+            match query.fetch_one(connection).await {
                 Ok(row) => Ok(Some(row.into())),
-                Err(err) => match err {
-                    sqlx::Error::RowNotFound => Ok(None),
-                    _ => Err(sqlx_error_to_query_err(err)),
-                },
+                Err(sqlx::Error::RowNotFound) => Ok(None),
+                Err(error) => Err(sqlx_error_to_query_err(error)),
             }
         })
     }
 
-    /// Get the results of a query returning them as a Vec<[QueryResult]>
-    #[instrument(level = "trace", skip(stmt))]
-    pub async fn query_all(&self, stmt: Statement) -> Result<Vec<QueryResult>, DbErr> {
-        debug_print!("{}", stmt);
-
-        let query = sqlx_query(&stmt);
-        let mut conn = self.pool.acquire().await.map_err(sqlx_conn_acquire_err)?;
-        crate::metric::metric!(self.metric_callback, &stmt, {
-            match query.fetch_all(&mut *conn).await {
-                Ok(rows) => Ok(rows.into_iter().map(|r| r.into()).collect()),
-                Err(err) => Err(sqlx_error_to_query_err(err)),
+    async fn fetch_all(
+        &self,
+        query: sqlx::query::Query<'_, Sqlite, SqlxValues>,
+        stmt: &Statement,
+        connection: &mut sqlx::SqliteConnection,
+    ) -> Result<Vec<QueryResult>, DbErr> {
+        crate::metric::metric!(self.metric_callback, stmt, {
+            match query.fetch_all(connection).await {
+                Ok(rows) => Ok(rows.into_iter().map(Into::into).collect()),
+                Err(error) => Err(sqlx_error_to_query_err(error)),
             }
         })
     }

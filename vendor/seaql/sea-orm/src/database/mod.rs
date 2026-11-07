@@ -27,7 +27,9 @@ mod sea_schema_shim;
 mod statement;
 #[cfg(feature = "stream")]
 mod stream;
-mod tracing_spans;
+pub(crate) mod tracing_spans;
+mod read_lease;
+pub use read_lease::DatabaseReadLease;
 mod transaction;
 
 pub use connection::*;

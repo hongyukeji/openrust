@@ -157,3 +157,33 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod schema_type_contract {
+    #[test]
+    fn schema_factory_signature_exists_without_sqlite_features() {
+        use openrust::database::sea_orm::{
+            DatabaseConnection, DatabaseReadLease, DbBackend, DbErr, QueryResult, Statement,
+        };
+        fn signature<
+            F: std::future::Future<
+                    Output = Result<(Vec<QueryResult>, Option<DatabaseReadLease>), DbErr>,
+                >,
+        >(
+            future: F,
+        ) {
+            drop(future);
+        }
+        let db = openrust::database::Db::default();
+        let _: openrust::database::schema::SchemaBuilder<'static> = db.schema();
+        assert!(db.primary_connection().is_err()); // 视图与签名正控不应初始化数据库。
+        let lease: Option<DatabaseReadLease> = None;
+        assert!(lease.is_none()); // 仅类型正控，不将None伪装为Disconnected读取成功。
+        let connection = DatabaseConnection::default();
+        signature(connection.query_all_with_read_lease(Statement::from_string(
+            DbBackend::MySql,
+            "select 17 as probe".to_owned(),
+        )));
+        // 不poll无driver连接；真实Some由custom-sqlite外包、真实None由MySQL测试证明。
+    }
+}

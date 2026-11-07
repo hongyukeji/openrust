@@ -106,6 +106,7 @@ impl ServiceProvider for CustomSqliteProvider {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    schema_session_consumer().await?;
     let mut builder = ProviderBuilder::new();
     builder
         .provider(CustomSqliteProvider)
@@ -134,6 +135,30 @@ async fn main() -> Result<()> {
             .map_err(Error::internal)?,
         0
     );
+    assert_eq!(
+        db.schema().get_column_listing("plugin_probes").await?,
+        ["id", "value"]
+    );
+    assert!(db.schema().get_column_listing("missing").await?.is_empty());
+    let owner = (*db).clone();
+    db.transaction_for_update_checked_context(
+        move |context| {
+            Box::pin(async move {
+                assert_eq!(
+                    owner
+                        .schema()
+                        .using_transaction(&context)?
+                        .get_column_listing("plugin_probes")
+                        .await?,
+                    ["id", "value"]
+                );
+                Ok(())
+            })
+        },
+        |_| Box::pin(async { Ok(()) }),
+    )
+    .await?;
+
     let duplicate_initialization = db
         .initialize(connection.clone())
         .err()
@@ -257,4 +282,66 @@ async fn main() -> Result<()> {
 
     println!("自定义 SQLite Provider 连接、提交与回滚验证通过");
     Ok(())
+}
+
+// 框架未启db-sqlite，由此外包独立sea-orm feature提供实际SQLxSQLite；仍须一个物理lease。
+async fn schema_session_consumer() -> Result<()> {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let acquisitions = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&acquisitions);
+    let pool = sea_orm::sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .min_connections(1)
+        .before_acquire(move |_, _| {
+            let counter = Arc::clone(&counter);
+            Box::pin(async move {
+                counter.fetch_add(1, Ordering::SeqCst);
+                Ok(true)
+            })
+        })
+        .connect("sqlite::memory:")
+        .await
+        .map_err(Error::internal)?;
+    let mut connection: sea_orm::DatabaseConnection = pool.clone().into();
+    connection
+        .execute_unprepared("CREATE TEMP TABLE consumer_schema(z INTEGER,a TEXT)")
+        .await
+        .map_err(Error::internal)?;
+    let observations = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&observations);
+    connection.set_metric_callback(move |info| {
+        seen.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push((info.statement.sql.clone(), info.failed));
+    });
+    let db = Db::default();
+    db.initialize(connection)?;
+    acquisitions.store(0, Ordering::SeqCst);
+    let result = tokio::spawn(async move {
+        assert_eq!(
+            db.schema()
+                .get_column_listing("temp.consumer_schema")
+                .await?,
+            ["z", "a"]
+        );
+        assert_eq!(acquisitions.load(Ordering::SeqCst), 1);
+        let rows = observations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert_eq!(rows.len(), 2);
+        assert!(rows[0].0.contains("pragma_table_xinfo"));
+        assert!(rows[1].0.contains("\"temp\".sqlite_master"));
+        assert!(!rows.iter().any(|row| row.1));
+        Ok(())
+    })
+    .await;
+    pool.close().await;
+    match result {
+        Ok(result) => result,
+        Err(error) if error.is_panic() => std::panic::resume_unwind(error.into_panic()),
+        Err(error) => Err(Error::internal(error)),
+    }
 }

@@ -173,8 +173,12 @@ pub(crate) async fn preview(
         .await
         .map_err(Error::internal)?
         .ok_or_else(not_found)?;
+    // 先owner筛选/404，再读真实列清单；此处不替代Validated或Model guardable。
+    let columns = db.schema().get_column_listing("example_records").await?;
     Ok(Json(
-        crate::modules::example::services::record_preview::preview(&model, input).await?,
+        crate::modules::example::services::record_preview::preview(&model, input)
+            .await?
+            .with_schema_columns(&columns),
     ))
 }
 

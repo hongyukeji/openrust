@@ -40,6 +40,7 @@ pub(crate) fn cleanup_owned_sqlite_directory(directory: &std::path::Path) -> Res
 }
 #[cfg(all(test, feature = "db-sqlite", feature = "auth-fortify"))]
 mod final_check_tests;
+pub mod schema;
 mod table_names;
 
 pub use crate::config::database::{DatabaseConfig, DatabaseInstanceConfig};
@@ -227,6 +228,12 @@ impl crate::events::Event for TransactionCommitted {
 type FinalCheckFn = fn(&DatabaseTransaction) -> BoxFuture<'_, Result<()>>;
 const NO_FINAL_CHECK: Option<FinalCheckFn> = None;
 
+#[derive(Clone, Copy)]
+enum ReadRoute {
+    Primary,
+    Replica(usize),
+}
+
 #[derive(Clone)]
 struct DatabaseConnections {
     primary: DatabaseConnection,
@@ -397,21 +404,37 @@ impl Db {
     /// 调用方只能在此连接上执行可接受复制延迟的只读操作。此方法不会检查 SQL，也不会在查询出错后重试或回退。
     /// 在 [`with_primary`](Self::with_primary) 作用域中，此方法始终返回主库连接。
     pub fn read_connection(&self) -> Result<DatabaseConnection> {
+        self.read_route_connection(self.read_route()?)
+    }
+
+    fn read_route(&self) -> Result<ReadRoute> {
         let connections = self
             .connections
             .get()
             .ok_or_else(|| Error::internal(DatabaseNotReady))?;
         let handle_id = Arc::as_ptr(&self.connections) as usize;
-        if let Ok(Some(connection)) = PRIMARY_CONNECTION_SCOPE
-            .try_with(|(scope_id, connection)| (*scope_id == handle_id).then(|| connection.clone()))
+        if PRIMARY_CONNECTION_SCOPE
+            .try_with(|(scope_id, _)| *scope_id == handle_id)
+            .unwrap_or(false)
+            || connections.read_replicas.is_empty()
         {
-            return Ok(connection);
+            return Ok(ReadRoute::Primary);
         }
-        if connections.read_replicas.is_empty() {
-            return Ok(connections.primary.clone());
-        }
-        let index = next_replica_index(connections.read_replicas.len(), &self.next_replica);
-        Ok(connections.read_replicas[index].clone())
+        Ok(ReadRoute::Replica(next_replica_index(
+            connections.read_replicas.len(),
+            &self.next_replica,
+        )))
+    }
+
+    fn read_route_connection(&self, route: ReadRoute) -> Result<DatabaseConnection> {
+        let connections = self
+            .connections
+            .get()
+            .ok_or_else(|| Error::internal(DatabaseNotReady))?;
+        Ok(match route {
+            ReadRoute::Primary => connections.primary.clone(),
+            ReadRoute::Replica(index) => connections.read_replicas[index].clone(),
+        })
     }
 
     async fn check_readiness(&self) -> Result<()> {

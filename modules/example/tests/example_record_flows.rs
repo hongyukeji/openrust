@@ -283,6 +283,7 @@ async fn attribute_preview_contract(
         .await?;
     clean.assert_status(StatusCode::OK)?;
     let clean: serde_json::Value = serde_json::from_slice(clean.body())?;
+    let editable = assert_preview_schema(&db, &clean["data"]).await?;
     assert_eq!(clean["data"]["dirty"], serde_json::json!({}));
     assert_eq!(clean["data"]["changes"], serde_json::json!({}));
     assert_eq!(clean["data"]["previous"], serde_json::json!({}));
@@ -309,6 +310,7 @@ async fn attribute_preview_contract(
     assert_eq!(changed["proposed"]["name"], "仅预览");
     assert_eq!(changed["dirty"]["priority"], 8);
     assert!(changed["dirty"].get("metadata").is_some());
+    assert_eq!(changed["editable_fields"], editable);
     assert_eq!(changed["changes"], changed["dirty"]);
     assert!(before.published_at.is_some());
     assert!(before.category_id.is_some());
@@ -337,6 +339,39 @@ async fn attribute_preview_contract(
         .ok_or("preview removed source row")?;
     assert_eq!(after, before);
     Ok(())
+}
+
+async fn assert_preview_schema(
+    db: &openrust::Db,
+    clean: &serde_json::Value,
+) -> TestResult<serde_json::Value> {
+    let editable = serde_json::json!([
+        "name",
+        "description",
+        "priority",
+        "view_count",
+        "enabled",
+        "published_at",
+        "metadata",
+        "category_id"
+    ]);
+    assert_eq!(clean["editable_fields"], editable);
+    assert_eq!(
+        db.schema().get_column_listing("example_records").await?,
+        [
+            "id",
+            "owner_id",
+            "name",
+            "description",
+            "priority",
+            "view_count",
+            "enabled",
+            "published_at",
+            "metadata",
+            "category_id"
+        ]
+    );
+    Ok(editable)
 }
 
 // priority可成功反序列化为i32；仅依赖业务range规则拒绝，移除Validated会破坏断言。

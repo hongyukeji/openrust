@@ -236,3 +236,8 @@ MySQL 冷 prepare 的 Future 被取消后，未完成的物理连接明确拒绝
 SQLite入口取得写事务；其他后端的行锁由实际查询选择。最后校验的期限检查应放在其最后一次 await 之后。跨库、外部 Provider 或外部副作用不因此成为原子操作；提交结果未知时不可自动重试发放业务凭证。这是 Rust 跨扩展来源借用能力，不是账户认证、同意证明或完整 Laravel 事务 API 的完成声明。
 
 文章示例仅在 `ArticleWriter::create` 的最终检查时核 id 与 owner；归属变化返回 409，内部事务来源错误返回 500。成功结果仍是插入时快照，监听器修改其他字段不会自动刷新返回值。已有外层事务调用 `create_in_transaction` 的导入入口仍由该事务持有者决定最终检查。
+
+
+## 当前数据库的列清单
+
+`Db::schema()` 返回无I/O的 `database::schema::SchemaBuilder`，`get_column_listing(reference).await` 保数据库列序及原名称、不缓存。首查primary；SQLite第二标量读按同一Db路由，真实SQLxSQLite由SeaORM无条件可命名的首query+read-lease capability维持writer同物理会话（包括外包feature统一路径），不自动开事务。`using_transaction(&TransactionContext)` 校验同Db后借用原事务；另Db同pool也拒绝。目录值绑定与SQLite局部schema转义不放宽原DDL quote，特殊名字相对PHP拼接的安全差异和完整Schema/Model边界见[连接指南](../../../../../docs/src/database/connections.md#读取所选连接的列名)。

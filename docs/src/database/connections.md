@@ -57,3 +57,30 @@ nullable/原生 PRAGMA、安装器、文件跨进程互斥及既有迁移清单�
 唯一 `modules/example` 的文章创建用这一入口：写入及业务事件使用同一原始事务，提交前确认新文章仍存在且归属不变。该示例检查的是业务约束，不把来源视图当作用户认证证明。
 
 文章示例仅在 `ArticleWriter::create` 的最终检查时核 id 与 owner；归属变化返回 409，内部事务来源错误返回 500。成功结果仍是插入时快照，监听器修改其他字段不会自动刷新返回值。已有外层事务调用 `create_in_transaction` 的导入入口仍由该事务持有者决定最终检查。
+
+
+## 读取所选连接的列名
+
+`db.schema()` 无I/O，异步列清单来自当前所选 `Db`，不全局寻找默认连接，也不缓存或改写列名：
+
+```rust,ignore
+let columns = db.schema().get_column_listing("users").await?;
+let audit_columns = databases.get("audit")?.schema().get_column_listing("events").await?;
+```
+
+返回数据库列序，缺表为 `[]`。显式 `schema.table` 最多两段，不trim、lowercase或将数字列名转数字；表部分沿用该Db的同一mapping/prefix。MySQL/PG的空schema与“0”回到默认schema；SQLite只有未指定时回main。目录过滤值使用绑定，包含引号的合法名称也可安全查询；这比固定PHP grammar直接包引号更安全，特殊输入的错误形态可能不同。原Query/DDL的ASCII表名准入没有放宽。SQLite标识符schema会双引号转义；literal“*”schema和schema/table中的NUL明确以服务器参数错误拒绝，三段引用也明确拒绝。
+
+列清单首查所选primary。SQLite还实际执行CREATE定义标量查询，首组空也执行；第二失败不会返回首组列。第二步由 `Db::read_connection` 的同一私有路由决定：真实SQLxSQLite在选writer时复用同一物理lease，选replica时先释放writer再向指定读角色查询，错误不回主重试。不自动BEGIN，不改变既有轮询或隐式添加Laravel sticky。SeaORM首query工厂`query_all_with_read_lease`在标准query span内完成首读并按其实际driver feature识别SQLxSQLite，外包仅给SeaORM启SQLite时也保持同物理连接；未知proxy/rusqlite保正常查询机制，不假称具有SQLx的物理lease能力。不同API调用间不保证ATTACH/temp驻留。
+
+需要事务内未提交DDL视图时，用同源Db签发的context显式借用：
+
+```rust,ignore
+let owner = db.clone();
+db.transaction_for_update_checked_context(move |context| Box::pin(async move {
+    let columns = owner.schema().using_transaction(&context)?.get_column_listing("users").await?;
+    inspect_columns(columns)?;
+    Ok(())
+}), |_| Box::pin(async { Ok(()) })).await?;
+```
+
+同源clone允许，另Db即使同pool拒绝且不执行SQL。此来源判断不是账户授权、租户过滤或具体事务身份比较。Schema的SQL/取值错误正常传播；首查失败不查第二条。完整getColumns元数据/PG服务器版本探测、完整Schema构造与Model fill/guardable缓存仍待对应；不能用此查询冒称Model生命周期已完成。日常实库仅MySQL8.4，SQLite物理lease/temp/ATTACH/副本/取消、PG及最低版本/Windows仍需发布矩阵的真实证据，编译或源码候选不算通过。

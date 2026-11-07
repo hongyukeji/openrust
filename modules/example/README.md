@@ -510,6 +510,8 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。
 
+预览响应的 `editable_fields` 是真实Schema列序与当前输入DTO八字段的交集，表示此接口可编辑的字段，不暴露owner/id/内部时间列；它不替代Validated、owner过滤、Model guardable或权限规则。owner不符/记录不存在先404，随后才读Schema。此只读见证不会写记录；Schema目录错误正常传播，原预览快照/SQL不变边界继续有效。
+
 文章事件由模块声明稳定身份 `Example\Events\ArticleChanged`，原事务内直接记录及队列映射共用唯一 Events。模块启停仍按 `modules.<name>.<phase>` 字符串派发；相同载荷类型不会触发其他事件名的类监听。普通响应 false 只截断传播，不使文章写入或模块启停自动失败；业务错误仍向事务传播。
 
 ## 集成秘密文件

@@ -41,16 +41,20 @@ impl DatabaseTableNames {
     /// 将逻辑表名解析为完整的物理表名。
     pub fn resolve(&self, logical_name: &str) -> Result<String> {
         validate_identifier(logical_name, "logical table name")?;
-        let physical = self
-            .mappings
-            .get(logical_name)
-            .cloned()
-            .unwrap_or_else(|| format!("{}{logical_name}", self.prefix));
+        let physical = self.catalog_name(logical_name);
         validate_identifier(&physical, "physical table name")?;
         if physical.len() > 64 {
             return Err(invalid_name("physical table name exceeds 64 bytes"));
         }
         Ok(physical)
+    }
+
+    // 目录查询以绑定值接收原文；query/DDL仍由resolve在调用前后独立验证。
+    pub(super) fn catalog_name(&self, logical_name: &str) -> String {
+        self.mappings
+            .get(logical_name)
+            .cloned()
+            .unwrap_or_else(|| format!("{}{logical_name}", self.prefix))
     }
 
     /// 为 PostgreSQL、MySQL 或 SQLite 解析并引用物理表名。

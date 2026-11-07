@@ -7,6 +7,7 @@ use serde_json::{Map, Value};
 
 #[derive(serde::Serialize)]
 pub(crate) struct RecordPreview {
+    pub(crate) editable_fields: Vec<String>,
     pub(crate) original: Map<String, Value>,
     pub(crate) proposed: Map<String, Value>,
     pub(crate) dirty: Map<String, Value>,
@@ -55,6 +56,7 @@ pub(crate) async fn preview(
     // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
     attributes.sync_changes(&metadata)?;
     Ok(RecordPreview {
+        editable_fields: Vec::new(),
         original: attributes.get_raw_original_attributes()?,
         proposed: attributes.raw_attributes()?,
         dirty,
@@ -80,6 +82,29 @@ impl AttributeSetter for MetadataPreviewSetter {
                 example_record::Model::metadata_snapshot_value(self.present.then_some(&value))?;
             Ok(Map::from_iter([("metadata".into(), projected)]))
         })
+    }
+}
+
+impl RecordPreview {
+    pub(crate) fn with_schema_columns(mut self, columns: &[String]) -> Self {
+        self.editable_fields = columns
+            .iter()
+            .filter(|name| {
+                matches!(
+                    name.as_str(),
+                    "name"
+                        | "description"
+                        | "priority"
+                        | "view_count"
+                        | "enabled"
+                        | "published_at"
+                        | "metadata"
+                        | "category_id"
+                )
+            })
+            .cloned()
+            .collect();
+        self
     }
 }
 

@@ -15,3 +15,5 @@ OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀�
 模型默认写入可通过 `ModelAttributes::set_attribute_with_default_setter` 提供借用型调用级 setter；已登记的自定义 setter 优先，缺省分支自行完成转换，复用同一补丁与并发冲突检查。它不登记第二套访问器或存储，也不撤销用户 setter 的外部副作用。
 
 `support::calendar::format_php_numeric_timestamp` 将有限 `f64` 按 PHP 六位 half-up 格式化；`parse_php_numeric_timestamp` 将 JSON 数字或数值字符串按 `U.u` 秒/微秒字段解析为固定 UTC 的 `CalendarInstant`。负数、精度及类型错误边界见[数值日期适配](../../../docs/src/getting-started/source-application.md#数值日期适配)，唯一模块在现有 input 路由展示公开调用。接口不改变 `Request::date`，也不表示完整 Model 日期或 JWT 已完成。
+
+所选数据库可通过 `db.schema().get_column_listing("users").await` 读取原始列序；事务视图只接受同源Db签发的 `TransactionContext`。这是列清单切片，不代表完整Schema/getColumns或Model fill已实现，参见[连接指南](../../../docs/src/database/connections.md#读取所选连接的列名)。
