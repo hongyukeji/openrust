@@ -245,7 +245,7 @@ async fn check_generated_has_many(
 
     let connection = db.connection()?;
     connection
-        .execute_unprepared("CREATE TABLE relation_items (id BIGINT PRIMARY KEY, owner_id BIGINT, label VARCHAR(100))")
+        .execute_unprepared("CREATE TABLE relation_items (id BIGINT PRIMARY KEY, owner_id BIGINT, label VARCHAR(100), rank_value BIGINT NULL)")
         .await
         .map_err(Error::internal)?;
     connection
@@ -289,6 +289,166 @@ async fn check_generated_has_many(
             check(child.exists && child.attributes.raw_attribute("id")? == Some(json!(id)))?;
             check(child.metadata.connection.as_deref() == Some("other"))?;
             check(child.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
+        }
+    }
+    check_generated_has_one(&related, &mut parents, context).await?;
+    check_generated_one_of_many(db, &related, &mut parents, context).await
+}
+
+async fn check_generated_one_of_many(
+    db: &Db,
+    related: &GeneratedModel,
+    parents: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{HasOne, LoadedRelation, RelationAggregate};
+
+    db.table("relation_items")?
+        .where_in("id", [1_i64, 2])?
+        .update(vec![("rank_value", 10_i64.into())])
+        .await?;
+    let relation = || HasOne::new(related, "owner_id", "id");
+    for (relation, winner) in [
+        (relation().latest_of_many(Some("rank_value"))?, 2),
+        (relation().oldest_of_many(Some("rank_value"))?, 2),
+        (
+            relation()
+                .latest_of_many(Some("rank_value"))?
+                .where_candidates(|rows| rows.where_eq("label", "a")?.or_where_eq("label", "c")),
+            1,
+        ),
+        (
+            relation().of_many_by("rank_value", RelationAggregate::Min),
+            1,
+        ),
+        (
+            relation().of_many(&[
+                ("rank_value", RelationAggregate::Max),
+                ("id", RelationAggregate::Min),
+            ])?,
+            1,
+        ),
+    ] {
+        relation.load(parents, "ranked_item", context, Ok).await?;
+        for (parent, expected) in parents
+            .iter()
+            .zip([Some(winner), None, Some(winner), None, None])
+        {
+            let result = parent
+                .relations
+                .get_relation("ranked_item")
+                .ok_or_else(|| {
+                    Error::custom("generated_aggregate_relation_unloaded", "聚合关系未加载")
+                })?;
+            if let Some(id) = expected {
+                let child = result
+                    .downcast_ref::<Arc<GeneratedModel>>()
+                    .ok_or_else(|| {
+                        Error::custom("generated_aggregate_relation_type", "聚合关系类型错误")
+                    })?;
+                check(child.attributes.raw_attribute("id")? == Some(serde_json::json!(id)))?;
+            } else {
+                check(matches!(result, LoadedRelation::Null))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn check_generated_has_one(
+    related: &GeneratedModel,
+    parents: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::{
+        SortDirection,
+        eloquent::{HasOne, LoadedRelation},
+    };
+    use serde_json::json;
+
+    let observed = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&observed);
+    HasOne::new(related, "owner_id", "id")
+        .load(parents, "first_item", context, move |query| {
+            query.order_by("id", SortDirection::Desc).map(|query| {
+                query.before_query(move |_| {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+            })
+        })
+        .await?;
+    check(observed.load(Ordering::SeqCst) == 1)?;
+    for (parent, expected) in parents.iter().zip([Some(2), Some(3), Some(2), None, None]) {
+        let loaded = parent
+            .relations
+            .get_relation("first_item")
+            .ok_or_else(|| Error::custom("generated_has_one_unloaded", "单值关系未加载"))?;
+        if let Some(expected) = expected {
+            let child = loaded
+                .downcast_ref::<Arc<GeneratedModel>>()
+                .ok_or_else(|| Error::custom("generated_has_one_type", "单值关系模型类型错误"))?;
+            check(child.attributes.raw_attribute("id")? == Some(json!(expected)))?;
+            check(child.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
+        } else {
+            check(matches!(loaded, LoadedRelation::Null))?;
+        }
+    }
+    check_generated_has_one_default(related, parents, context).await
+}
+
+async fn check_generated_has_one_default(
+    related: &GeneratedModel,
+    parents: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::{
+        SortDirection,
+        eloquent::{HasOne, HydrateModel, RelationLoad},
+    };
+    use serde_json::json;
+
+    let mut default_calls = 0;
+    HasOne::new(related, "owner_id", "id")
+        .load_with_default(
+            parents,
+            RelationLoad {
+                name: "item_or_default",
+                nested: &[],
+            },
+            context,
+            None,
+            |query| query.order_by("id", SortDirection::Desc),
+            |prototype, parent, mut raw, connection| {
+                default_calls += 1;
+                check(raw.get("owner_id").cloned() == parent.attributes.raw_attribute("id")?)?;
+                raw.insert("label".into(), json!("默认子模型"));
+                let mut model = prototype.hydrate(raw, connection)?;
+                model.exists = false;
+                Ok(model)
+            },
+        )
+        .await?;
+    check(default_calls == parents.len())?;
+    for (parent, expected) in parents.iter().zip([Some(2), Some(3), Some(2), None, None]) {
+        let item = parent
+            .relations
+            .get_relation("item_or_default")
+            .and_then(|value| value.downcast_ref::<Arc<GeneratedModel>>())
+            .ok_or_else(|| {
+                Error::custom("generated_default_item_missing", "缺少单值关系默认结果")
+            })?;
+        check(item.metadata.connection.as_deref() == Some("other"))?;
+        if let Some(id) = expected {
+            check(item.exists && item.attributes.raw_attribute("id")? == Some(json!(id)))?;
+            check(item.attributes.raw_attribute("label")? == Some(json!("监听器读取")))?;
+        } else {
+            check(!item.exists && item.attributes.raw_attribute("id")?.is_none())?;
+            check(
+                item.attributes.raw_attribute("owner_id")?
+                    == parent.attributes.raw_attribute("id")?,
+            )?;
+            check(item.attributes.raw_attribute("label")? == Some(json!("默认子模型")))?;
         }
     }
     Ok(())

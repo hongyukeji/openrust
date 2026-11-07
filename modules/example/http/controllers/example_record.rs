@@ -210,8 +210,8 @@ pub(crate) async fn preview(
     .with_schema_columns(&columns);
     if options.include_owner_records {
         let context = SaveContext::new(&databases, Some(&events), &calendar);
-        preview.owner_record_ids = Some(
-            crate::modules::example::services::record_preview::owner_record_ids(
+        preview.owner_relations = Some(
+            crate::modules::example::services::record_preview::owner_relations(
                 &model, &db, &context,
             )
             .await?,

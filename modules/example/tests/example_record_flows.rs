@@ -503,6 +503,11 @@ async fn attribute_preview_contract(
     assert_eq!(clean["data"]["has_changes"], false);
     assert_eq!(clean["data"]["persisted"], false);
     assert!(clean["data"].get("owner_record_ids").is_none());
+    assert!(
+        clean["data"]
+            .get("owner_latest_enabled_record_id")
+            .is_none()
+    );
     assert_owner_record_relation(app, &path, owner_token, other_token, id, &unchanged).await?;
     let mut proposal = unchanged;
     proposal["name"] = serde_json::json!("仅预览");
@@ -573,12 +578,14 @@ async fn assert_owner_record_relation(
     id: i64,
     payload: &serde_json::Value,
 ) -> TestResult {
+    let mut disabled = payload.clone();
+    disabled["enabled"] = serde_json::Value::Bool(false);
     let sibling = app
         .request(request(
             Method::POST,
             "/api/example/records",
             Some(owner_token),
-            Some(payload.clone()),
+            Some(disabled),
         )?)
         .await?;
     sibling.assert_status(StatusCode::CREATED)?;
@@ -614,6 +621,8 @@ async fn assert_owner_record_relation(
         preview["data"]["owner_record_ids"],
         serde_json::json!([id, sibling_id])
     );
+    assert!(sibling_id > id);
+    assert_eq!(preview["data"]["owner_latest_enabled_record_id"], id);
     let denied = app
         .request(request(
             Method::POST,
@@ -643,7 +652,7 @@ async fn assert_owner_relation_uses_record_table(
     sibling_id: i64,
 ) -> TestResult {
     use crate::modules::example::{
-        models::example_record, services::record_preview::owner_record_ids,
+        models::example_record, services::record_preview::owner_relations,
     };
     use openrust::database::{DatabaseTableNames, eloquent::SaveContext, sea_orm::EntityTrait};
     use openrust::support::CalendarContext;
@@ -666,10 +675,9 @@ async fn assert_owner_relation_uses_record_table(
     );
     let calendar = CalendarContext::default();
     let context = SaveContext::new(&databases, None, &calendar);
-    assert_eq!(
-        owner_record_ids(&record, &db, &context).await?,
-        [id, sibling_id]
-    );
+    let relations = owner_relations(&record, &db, &context).await?;
+    assert_eq!(relations.owner_record_ids, [id, sibling_id]);
+    assert_eq!(relations.owner_latest_enabled_record_id, Some(id));
     Ok(())
 }
 

@@ -7,8 +7,8 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            AttributeSetter, HasMany, HasRelationships, MassAssignment, ModelAttributes,
-            ModelMetadata, SaveContext,
+            AttributeSetter, HasMany, HasOne, HasRelationships, LoadedRelation, MassAssignment,
+            ModelAttributes, ModelMetadata, SaveContext,
         },
     },
     support::BoxFuture,
@@ -28,8 +28,14 @@ pub(crate) struct RecordPreview {
     pub(crate) previous: Map<String, Value>,
     pub(crate) has_changes: bool,
     pub(crate) persisted: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) owner_record_ids: Option<Vec<i64>>,
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub(crate) owner_relations: Option<OwnerRecordRelations>,
+}
+
+#[derive(serde::Serialize)]
+pub(crate) struct OwnerRecordRelations {
+    pub(crate) owner_record_ids: Vec<i64>,
+    pub(crate) owner_latest_enabled_record_id: Option<i64>,
 }
 
 #[derive(serde::Serialize)]
@@ -70,17 +76,18 @@ pub(crate) async fn preview(
         previous: attributes.get_previous()?,
         has_changes: attributes.was_changed(&[])?,
         persisted: false,
-        owner_record_ids: None,
+        owner_relations: None,
     })
 }
 
-/// 查询已通过授权的记录所属账户下的前十条记录 ID。
-pub(crate) async fn owner_record_ids(
+/// 查询已通过授权的记录所属账户下的关系。
+pub(crate) async fn owner_relations(
     record: &example_record::Model,
     db: &Db,
     context: &SaveContext<'_>,
-) -> Result<Vec<i64>> {
-    const RELATION: &str = "records";
+) -> Result<OwnerRecordRelations> {
+    const RECORDS: &str = "records";
+    const LATEST_ENABLED: &str = "latest_enabled_record";
     let related = example_record::RecordForSave::new(record.owner_id);
     let mut parent = example_record::RecordForSave::new(record.owner_id);
     let db = example_record::record_query_db(db)?;
@@ -88,7 +95,7 @@ pub(crate) async fn owner_record_ids(
     relation
         .load_on(
             std::slice::from_mut(&mut parent),
-            RELATION,
+            RECORDS,
             context,
             &db,
             |query| {
@@ -99,12 +106,47 @@ pub(crate) async fn owner_record_ids(
             },
         )
         .await?;
+    HasOne::new(&related, "owner_id", "owner_id")
+        .latest_of_many(None)?
+        .where_candidates(|rows| rows.where_eq("enabled", true))
+        .load_on(
+            std::slice::from_mut(&mut parent),
+            LATEST_ENABLED,
+            context,
+            &db,
+            |query| query.select(&["id", "owner_id"]),
+        )
+        .await?;
     let records = parent
         .relations()
-        .get_relation(RELATION)
+        .get_relation(RECORDS)
         .and_then(|relation| relation.downcast_ref::<Vec<Arc<example_record::RecordForSave>>>())
         .ok_or_else(|| Error::custom("example_record_relation_unloaded", "示例账户记录未加载"))?;
-    records.iter().map(|record| record.id()).collect()
+    let owner_record_ids = records
+        .iter()
+        .map(|record| record.id())
+        .collect::<Result<Vec<_>>>()?;
+    let owner_latest_enabled_record_id = match parent.relations().get_relation(LATEST_ENABLED) {
+        Some(LoadedRelation::Null) => None,
+        Some(relation) => Some(
+            relation
+                .downcast_ref::<Arc<example_record::RecordForSave>>()
+                .ok_or_else(|| {
+                    Error::custom("example_record_relation_type", "示例单值关系类型不匹配")
+                })?
+                .id()?,
+        ),
+        None => {
+            return Err(Error::custom(
+                "example_record_relation_unloaded",
+                "示例单值关系未加载",
+            ));
+        }
+    };
+    Ok(OwnerRecordRelations {
+        owner_record_ids,
+        owner_latest_enabled_record_id,
+    })
 }
 
 pub(crate) async fn fill_record_input(

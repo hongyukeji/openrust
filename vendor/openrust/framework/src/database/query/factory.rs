@@ -57,6 +57,19 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
         self.transform(|state| state.from(logical_table))?;
         Ok(self)
     }
+    pub(in crate::database) fn alias_relation_table(self, alias: &str) -> Result<Self> {
+        super::validate_identifier(alias)?;
+        self.transform(|mut state| {
+            let table = state.required_table()?.to_owned();
+            state
+                .select
+                .from_clear()
+                .from_as(Alias::new(table), Alias::new(alias));
+            Ok(state)
+        })?;
+        Ok(self)
+    }
+
     /// 追加可信SQL投影；初始隐式星号被替换，后续显式select仍可重置投影。
     ///
     /// 绑定使用Laravel的`?`模板；PG问号操作符用`??`，其余后端的代码区`??`明确拒绝。
