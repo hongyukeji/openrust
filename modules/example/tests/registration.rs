@@ -1973,6 +1973,67 @@ async fn generic_http_host_has_no_application_information_route()
     Ok(())
 }
 
+/// 检出唯一模块的数字字符串转换偏离 `PHP` 指数规则的情况。
+#[tokio::test]
+async fn production_input_numeric_strings_share_php_exponent_cap()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&(production_sources(false)))?,
+    )
+    .build()
+    .await?;
+    let outcome: Result<(), Box<dyn std::error::Error>> = async {
+        for (text, amount, quantity, bounded) in [
+            (
+                format!("0.{}1e20000", "0".repeat(19_999)),
+                0.1_f64,
+                0_i64,
+                1.0_f64,
+            ),
+            (
+                format!("1{}e-20000", "0".repeat(20_000)),
+                10.0_f64,
+                10_i64,
+                10.0_f64,
+            ),
+        ] {
+            let response = app
+                .request(
+                    Request::post("/api/example/input?page=1&label=numeric")
+                        .header("host", "localhost")
+                        .header("content-type", "application/json")
+                        .body(Body::from(serde_json::to_vec(
+                            &serde_json::json!({"typed":{"quantity":text,"amount":text}}),
+                        )?))?,
+                )
+                .await?;
+            response.assert_status(StatusCode::OK)?;
+            let output: serde_json::Value = serde_json::from_slice(response.body())?;
+            let typed = &output["data"]["typed"];
+            assert_eq!(
+                typed["amount"].as_f64().map(f64::to_bits),
+                Some(amount.to_bits())
+            );
+            assert_eq!(typed["quantity"].as_i64(), Some(quantity));
+            assert_eq!(
+                typed["bounded_quantity"].as_f64().map(f64::to_bits),
+                Some(bounded.to_bits())
+            );
+        }
+        Ok(())
+    }
+    .await;
+    let cleanup = app
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await;
+    outcome?;
+    cleanup?;
+    Ok(())
+}
+
 #[cfg(feature = "hashing")]
 #[tokio::test]
 async fn module_secret_file_command_uses_same_configured_manager()

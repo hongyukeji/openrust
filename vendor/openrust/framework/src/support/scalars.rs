@@ -43,9 +43,7 @@ pub(crate) fn float(value: &Value) -> f64 {
         Value::Null | Value::Bool(false) => 0.0,
         Value::Bool(true) => 1.0,
         Value::Number(number) => number.as_f64().unwrap_or(0.0),
-        Value::String(text) => numeric_prefix(text)
-            .and_then(|prefix| prefix.parse().ok())
-            .unwrap_or(0.0),
+        Value::String(text) => numeric_prefix(text).and_then(decimal_float).unwrap_or(0.0),
         Value::Array(values) => f64::from(u8::from(!values.is_empty())),
         Value::Object(values) => f64::from(u8::from(!values.is_empty())),
     }
@@ -113,9 +111,7 @@ impl ArithmeticNumber {
                     return None;
                 }
                 prefix.parse::<i64>().map(Self::Integer).ok().or_else(|| {
-                    prefix
-                        .parse::<f64>()
-                        .ok()
+                    decimal_float(prefix)
                         .filter(|value| value.is_finite())
                         .map(Self::Double)
                 })
@@ -168,7 +164,7 @@ fn integer_string(text: &str) -> i64 {
     if let Ok(integer) = prefix.parse::<i64>() {
         return integer;
     }
-    let number = prefix.parse::<f64>().unwrap_or(0.0);
+    let number = decimal_float(prefix).unwrap_or(0.0);
     // zend_dval_to_lval_cap：非有限值为 0，有限溢出封顶，不是浮点值的取模。
     if !number.is_finite() {
         0
@@ -181,7 +177,7 @@ fn integer_string(text: &str) -> i64 {
     }
 }
 
-// Zend先截显式指数，再处理尾数与小数位置；仅供互操作比较复用。
+// Zend先截显式指数，再处理尾数/小数位置；提前抵消会令大输入得到不同有限结果。
 pub(crate) fn decimal_text(text: &str) -> Cow<'_, str> {
     let Some(index) = text.find(['e', 'E']) else {
         return Cow::Borrowed(text);
@@ -198,6 +194,10 @@ pub(crate) fn decimal_text(text: &str) -> Cow<'_, str> {
     } else {
         Cow::Borrowed(text)
     }
+}
+
+fn decimal_float(text: &str) -> Option<f64> {
+    decimal_text(text).parse().ok()
 }
 
 pub(crate) fn numeric_prefix(text: &str) -> Option<&str> {
@@ -371,6 +371,52 @@ mod tests {
         }
         assert!(float(&json!("1e400")).is_infinite());
         assert!(float(&json!("-0.0")).is_sign_negative());
+    }
+
+    /// 检出直接Rust parse在显式指数与大尾数抵消时偏离Zend的结果。
+    #[test]
+    fn decimal_exponent_is_capped_before_mantissa_cancellation() {
+        for (text, expected_float, expected_integer) in [
+            (format!("0.{}1e20000", "0".repeat(19_999)), 0.1_f64, 0_i64),
+            (format!("1{}e-20000", "0".repeat(20_000)), 10.0_f64, 10_i64),
+        ] {
+            assert_eq!(
+                float(&Value::String(text.clone())).to_bits(),
+                expected_float.to_bits()
+            );
+            assert_eq!(integer(&Value::String(text.clone())), expected_integer);
+            let prefixed = Value::String(format!(" \t{text}tail"));
+            assert_eq!(float(&prefixed).to_bits(), expected_float.to_bits());
+            assert_eq!(integer(&prefixed), expected_integer);
+            let negative = Value::String(format!("-{text}"));
+            assert_eq!(float(&negative).to_bits(), (-expected_float).to_bits());
+            assert_eq!(integer(&negative), -expected_integer);
+        }
+    }
+
+    /// 检出Session完整numeric-string绕过通用Zend指数处理或放宽尾部警告。
+    #[cfg(feature = "session")]
+    #[test]
+    fn arithmetic_uses_the_same_capped_decimal_without_accepting_suffixes() {
+        for (text, expected) in [
+            (format!("0.{}1e20000", "0".repeat(19_999)), 0.1_f64),
+            (format!("1{}e-20000", "0".repeat(20_000)), 10.0_f64),
+        ] {
+            let value = Value::String(text.clone());
+            assert_eq!(
+                add(&value, &json!(0))
+                    .and_then(|value| value.as_f64())
+                    .map(f64::to_bits),
+                Some(expected.to_bits())
+            );
+            assert_eq!(
+                negate(&value)
+                    .and_then(|value| value.as_f64())
+                    .map(f64::to_bits),
+                Some((-expected).to_bits())
+            );
+            assert!(add(&Value::String(format!("{text}tail")), &json!(0)).is_none());
+        }
     }
 
     /// 检出数值转换误用 Unicode trim；数值自身允许 form feed。

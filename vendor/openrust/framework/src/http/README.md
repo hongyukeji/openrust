@@ -179,6 +179,8 @@ multipart 使用 Axum 官方解析器；网络正文只读一次，先遵守 `De
 
 业务枚举实现`support::BackedEnum`，指定`Backing = String`或`i64`并提供`try_from_backing`。`r#enum::<E>(key)`与`enum_value::<E>(key)`共用转换，合法但未知的backing返回None，`enum_or`和惰性的`enum_or_else`提供默认值；不合法容器类型返回安全输入错误。`enums::<E>(key)`过滤不存在的case，保留原键、顺序和重复值；此集合路径另要求`Serialize`以校验有界输出，单值枚举读取不要求序列化。`when_enum`按转换成功的case决定是否调用主回调。
 
+数字字符串的浮点、整数与 Session 算术转换共用 PHP 指数处理：先约束显式指数，再与尾数、小数位组合；大尾数和反向大指数相消时仍保留 PHP 的结果。数字字符串与已经解析成浮点的 JSON 数值属于不同输入类别，不能用一次 JSON 解析结果推断原始字面量对应。
+
 `clamp`使用`support::InputNumber`区分整数和浮点数，按Laravel的`min(max(value, min), max)`选取结果；反转边界不会触发Rust panic。它要求完整数字输入，不能套用`integer`的数字前缀规则；非数字输入采用默认值，再执行相同边界运算。业务校验应独立约束范围、非有限数及响应序列化要求。
 
 可在业务 handler 中直接读取；严格业务规则仍交给校验层。下例只返回明确选择的字段：

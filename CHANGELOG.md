@@ -197,6 +197,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Fixed
 
+- Request 数值转换、Session 算术与 InputNumber 复用同一 PHP 显式指数规则，避免大尾数与反向大指数相消时误用 Rust 默认解析结果；Model 保留独立异常边界并委托共享数值内核。
+
 - 修正简单列JSON包含在PostgreSQL中的模板占位符与jsonb转换；保留typed JSON绑定、MySQL分支和账户查询范围，并同步示例筛选与生成回归。完整JSON查询家族仍开放。
 
 - SQLite 查询构造器的联表或显式限量更新、删除使用 rowid 子查询选择写入目标。保留排序、分页和绑定，直接写入遇到未消费的业务参数会在执行前拒绝。

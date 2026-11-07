@@ -1933,3 +1933,21 @@ async fn disabled_default_body_limit_accepts_large_raw_with_explicit_projection_
         json!({"length": raw.len(), "below_limit": true, "exact": raw.len()})
     );
 }
+
+/// 检出公开 `Request` 转换偏离 `PHP` 显式指数上限的情况。
+#[tokio::test]
+async fn numeric_string_exponents_use_php_mantissa_cancellation()
+-> Result<(), Box<dyn std::error::Error>> {
+    for (text, expected_float, expected_integer) in [
+        (format!("0.{}1e20000", "0".repeat(19_999)), 0.1_f64, 0_i64),
+        (format!("1{}e-20000", "0".repeat(20_000)), 10.0_f64, 10_i64),
+    ] {
+        let wire = Wire::post("/")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&json!({"number": text}))?))?;
+        let request = Request::from_request(wire, &()).await?;
+        assert_eq!(request.float("number")?.to_bits(), expected_float.to_bits());
+        assert_eq!(request.integer("number")?, expected_integer);
+    }
+    Ok(())
+}

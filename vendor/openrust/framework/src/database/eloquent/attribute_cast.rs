@@ -50,20 +50,7 @@ pub(crate) fn cast_read_value(cast: AttributeCast, raw: Option<Value>) -> Result
                     return Err(cast_failed());
                 }
             }
-            // 字符串保留通用整数的饱和/非有限规则，仅补模型显式指数的Zend上限。
-            let normalized = if let Value::String(text) = &value {
-                crate::support::scalars::numeric_prefix(text).and_then(|prefix| {
-                    match model_decimal_text(prefix) {
-                        Cow::Owned(text) => Some(Value::String(text)),
-                        Cow::Borrowed(_) => None,
-                    }
-                })
-            } else {
-                None
-            };
-            Value::from(crate::support::scalars::integer(
-                normalized.as_ref().unwrap_or(&value),
-            ))
+            Value::from(crate::support::scalars::integer(&value))
         }
         AttributeCast::String => Value::String(scalar_string(&value)?),
         AttributeCast::Boolean => Value::Bool(match &value {

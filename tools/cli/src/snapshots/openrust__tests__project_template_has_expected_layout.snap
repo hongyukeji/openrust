@@ -1064,6 +1064,23 @@ pub async fn assert_request_input<A: ApplicationDefinition>(
                 }
                 }
             }))?;
+        for (text, expected_float, expected_integer) in [
+            (format!("0.{}1e20000", "0".repeat(19_999)), 0.1_f64, 0_i64),
+            (format!("1{}e-20000", "0".repeat(20_000)), 10.0_f64, 10_i64),
+        ] {
+            let mut numeric = body.clone();
+            numeric["float"] = serde_json::Value::String(text.clone());
+            numeric["score"] = serde_json::Value::String(text.clone());
+            numeric["nil"] = serde_json::Value::String(text);
+            let response = app.request(Request::post("/test/request-input")
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&numeric)?))?).await?;
+            response.assert_status(StatusCode::OK)?;
+            let output: serde_json::Value = serde_json::from_slice(response.body())?;
+            assert_eq!(output["data"]["float"].as_f64().map(f64::to_bits), Some(expected_float.to_bits()));
+            assert_eq!(output["data"]["null_integer_default"].as_i64(), Some(expected_integer));
+            assert_eq!(output["data"]["clamped"].as_f64().map(f64::to_bits), Some(expected_float.to_bits()));
+        }
         let multipart = concat!(
             "--generated\r\nContent-Disposition: form-data; name=\"label\"\r\n\r\npublic\r\n",
             "--generated\r\nContent-Disposition: form-data; name=\"document\"; filename=\"client.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n",

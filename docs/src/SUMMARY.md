@@ -15,6 +15,7 @@
 # 基础
 
 - [路由](the-basics/routing.md)
+- [HTTP 请求](the-basics/requests.md)
 
 # 深入了解
 
