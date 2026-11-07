@@ -14,6 +14,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Eloquent 支持 `BelongsToMany` 联结加载、中间表投影及自定义 `Pivot`。支持中间表新增、更新、删除、同步、切换和时间戳。示例记录预览展示已保存的补充分类及关系标签。
+
 - Eloquent 支持 `BelongsTo` 批量反向加载、自定义所属键及默认模型。设置或解除关联经模型 setter 更新外键，并按操作同步关系缓存。
 
 - Eloquent 支持 `HasOne` 批量单值匹配、缺失时构造默认模型，以及按候选条件和聚合列选取一条关联记录。
