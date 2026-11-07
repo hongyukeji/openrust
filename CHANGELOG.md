@@ -14,6 +14,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Eloquent 支持 `BelongsTo` 批量反向加载、自定义所属键及默认模型。设置或解除关联经模型 setter 更新外键，并按操作同步关系缓存。
+
 - Eloquent 支持 `HasOne` 批量单值匹配、缺失时构造默认模型，以及按候选条件和聚合列选取一条关联记录。
 
 - Eloquent 支持通过 `HasMany` 批量预加载及嵌套加载一对多关系，并通过 `fresh_with` 和 `refresh` 回读关系。实现 `HydrateModel` 的模型接收查询选定的连接，并可按关系名称分派加载。

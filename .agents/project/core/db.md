@@ -53,6 +53,10 @@ MB-P01-A 已收齐原始基线/dirty/changes/previous与单值cast、唯一账�
 
 `8e724bc0` 复用 HasMany 的批量查询和水合，支持 HasOne 首行匹配、默认模型以及在数据库按聚合顺序选一。候选筛选复用 Query Builder 绑定，主键用于打破并列。唯一示例及 Web、JWT 生成应用通过 MySQL 8.4.13 验收，默认与全特性严格 Clippy、两组 workspace 测试、Rustdoc 和依赖门禁通过。BelongsTo、BelongsToMany 及其余关系操作单独验收。
 
+## BelongsTo 限定交付
+
+`692c6469` 复用关系批量查询与模型水合，支持主键和自定义所属键、缺失默认值，以及通过模型 setter 设置或解除关联。缓存按关联操作同步，赋值失败保留已有状态。唯一示例按所有者范围读取已保存分类。MySQL 8.4.13 示例和 Web、JWT 生成应用回归、两组 workspace 测试、严格 Clippy、Rustdoc 和依赖检查均通过。BelongsToMany 与其余关系操作继续独立验收。
+
 ## SQLite 同机 SharedLocks
 
 SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence/期限、续约、同一事务写保护及真实导入生产边界保留；最低3.26与原本MySQL/PG协调回归均有绑定输入证据。当前只支持同机文件租约，不代表完整CacheLock/Queue/幂等。详细范围、native构建诊断与纯提交树闭合见[验收](../memory/testing.md#sqlite-同机租约方言限定验收)。
