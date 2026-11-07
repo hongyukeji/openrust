@@ -177,6 +177,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
         context: &SaveContext<'_>,
         transaction: Option<&TransactionContext<'_>>,
     ) -> Result<u64> {
+        self.validate_touch_transaction(parent, context, transaction)?;
         let affected = self
             .insert_pivot(parent, related_key, attributes, context, transaction)
             .await?;
@@ -193,6 +194,19 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
         transaction: Option<&TransactionContext<'_>>,
     ) -> Result<u64> {
         self.validate_pivot_attributes(&attributes)?;
+        for filter in self
+            .pivot_equalities
+            .iter()
+            .rev()
+            .filter(|filter| filter.default_on_attach)
+        {
+            if !attributes
+                .iter()
+                .any(|(column, _)| column.eq_ignore_ascii_case(filter.column))
+            {
+                attributes.push((filter.column, filter.value.clone()));
+            }
+        }
         self.apply_pivot_timestamps(&mut attributes, parent, context, false)?;
         let metadata = parent.metadata();
         let db = self.pivot_mutation_connection(parent, context)?;
@@ -223,6 +237,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
         context: &SaveContext<'_>,
         transaction: Option<&TransactionContext<'_>>,
     ) -> Result<u64> {
+        self.validate_touch_transaction(parent, context, transaction)?;
         let custom = self.custom_pivot.is_some();
         let has_input = !attributes.is_empty();
         let affected = self
@@ -247,7 +262,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
             let metadata = parent.metadata();
             let db = metadata.resolve_connection(context.databases, None)?;
             let query = self
-                .pivot_write_query(&db, transaction)?
+                .constrain_pivot(self.pivot_write_query(&db, transaction)?)?
                 .where_eq(self.keys.parent_foreign_key, self.bind_parent_key(parent)?)?
                 .where_eq(
                     self.keys.related_foreign_key,
@@ -296,6 +311,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
         if related_keys.is_some_and(<[Value]>::is_empty) {
             return Ok(0);
         }
+        self.validate_touch_transaction(parent, context, transaction)?;
         let affected = self
             .delete_pivots(parent, related_keys, context, transaction)
             .await?;
@@ -316,7 +332,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
         let metadata = parent.metadata();
         let db = self.pivot_mutation_connection(parent, context)?;
         let parent_query = self
-            .pivot_write_query(&db, transaction)?
+            .constrain_pivot(self.pivot_write_query(&db, transaction)?)?
             .where_eq(self.keys.parent_foreign_key, self.bind_parent_key(parent)?)?;
         let query = match related_keys {
             Some(keys) => parent_query.clone().where_in(
@@ -372,6 +388,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
             .filter(|(key, _)| detaching && !requested.contains(key.as_str()))
             .map(|(_, related)| related.clone())
             .collect();
+        self.validate_touch_transaction(parent, context, Some(transaction))?;
         self.delete_pivots(parent, Some(&detached), context, Some(transaction))
             .await?;
         let mut changes = PivotChanges {
@@ -438,6 +455,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
             .filter(|(key, _)| requested.contains(key.as_str()))
             .map(|(_, related)| related.clone())
             .collect();
+        self.validate_touch_transaction(parent, context, Some(transaction))?;
         self.delete_pivots(parent, Some(&detached), context, Some(transaction))
             .await?;
         let mut changes = PivotToggleChanges {
@@ -497,7 +515,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
         transaction: &TransactionContext<'_>,
     ) -> Result<Vec<(String, Value)>> {
         let db = self.pivot_mutation_connection(parent, context)?;
-        let query = self.pivot_write_query(&db, Some(transaction))?;
+        let query = self.constrain_pivot(self.pivot_write_query(&db, Some(transaction))?)?;
         let parent_key = self.bind_parent_key(parent)?;
         let rows = query
             .where_eq(self.keys.parent_foreign_key, parent_key)?
@@ -574,6 +592,41 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
                 self.related.bind_attribute(column, &Value::String(now))?,
             )])
             .await
+    }
+
+    fn validate_touch_transaction<M: SaveModel>(
+        &self,
+        parent: &M,
+        context: &SaveContext<'_>,
+        transaction: Option<&TransactionContext<'_>>,
+    ) -> Result<()> {
+        let Some(transaction) = transaction.filter(|_| context.touch) else {
+            return Ok(());
+        };
+        let parent = parent.metadata();
+        let related = self.related.metadata();
+        if self.touch_parent_on_write
+            && parent.uses_timestamps()
+            && !transaction.is_from(&parent.resolve_connection(context.databases, None)?)
+        {
+            return Err(Error::custom(
+                "model_relation_transaction_source_mismatch",
+                "触碰父模型的事务不属于父模型连接",
+            ));
+        }
+        if self.touch_related_on_write
+            && related.uses_timestamps()
+            && related.updated_at_column.is_some()
+            && !transaction.is_from(
+                &related.resolve_connection(context.databases, parent.connection.as_deref())?,
+            )
+        {
+            return Err(Error::custom(
+                "model_relation_transaction_source_mismatch",
+                "触碰关联模型的事务不属于关联模型连接",
+            ));
+        }
+        Ok(())
     }
 
     async fn touch_after_write<M: SaveModel>(
@@ -672,9 +725,20 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
             .metadata()
             .resolve_connection(context.databases, parent.metadata().connection.as_deref())?;
         Ok((
-            self.pivot_write_query(&db, transaction)?,
+            self.constrain_pivot(self.pivot_write_query(&db, transaction)?)?,
             self.bind_parent_key(parent)?,
         ))
+    }
+
+    fn constrain_pivot<'q>(&self, mut query: QueryBuilder<'q, 'q>) -> Result<QueryBuilder<'q, 'q>> {
+        for filter in &self.pivot_equalities {
+            query = if filter.value == filter.value.as_null() {
+                query.where_null(filter.column)?
+            } else {
+                query.where_eq(filter.column, filter.value.clone())?
+            };
+        }
+        Ok(query)
     }
 
     fn pivot_write_query<'q>(
@@ -716,7 +780,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
         self.related.bind_attribute(self.keys.related_key, key)
     }
 
-    fn validate_pivot_attributes(&self, attributes: &[(&str, SqlValue)]) -> Result<()> {
+    pub(super) fn validate_pivot_attributes(&self, attributes: &[(&str, SqlValue)]) -> Result<()> {
         if attributes.iter().any(|(name, _)| {
             name.eq_ignore_ascii_case(self.keys.parent_foreign_key)
                 || name.eq_ignore_ascii_case(self.keys.related_foreign_key)

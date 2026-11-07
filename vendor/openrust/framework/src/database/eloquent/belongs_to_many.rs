@@ -7,7 +7,10 @@ use super::{
 };
 use crate::{
     Db, Error, Result,
-    database::{DatabaseTableNames, JoinKind, QueryBuilder, RawSql, TransactionContext},
+    database::{
+        DatabaseTableNames, JoinKind, QueryBuilder, RawSql, TransactionContext,
+        sea_orm::Value as SqlValue,
+    },
 };
 use serde_json::{Map, Value};
 
@@ -92,6 +95,12 @@ fn hydrate_custom_pivot<P: CustomPivot>(
     )?)))
 }
 
+struct PivotEquality<'a> {
+    column: &'a str,
+    value: SqlValue,
+    default_on_attach: bool,
+}
+
 /// 通过中间表关联多个模型。
 pub struct BelongsToMany<'a, R> {
     related: &'a R,
@@ -102,6 +111,7 @@ pub struct BelongsToMany<'a, R> {
     touch_related_on_write: bool,
     touch_parent_on_write: bool,
     custom_pivot: Option<CustomPivotOperations>,
+    pivot_equalities: Vec<PivotEquality<'a>>,
 }
 
 impl<'a, R: HydrateModel> BelongsToMany<'a, R> {
@@ -117,6 +127,7 @@ impl<'a, R: HydrateModel> BelongsToMany<'a, R> {
             touch_related_on_write: false,
             touch_parent_on_write: false,
             custom_pivot: None,
+            pivot_equalities: Vec::new(),
         }
     }
 
@@ -129,6 +140,35 @@ impl<'a, R: HydrateModel> BelongsToMany<'a, R> {
             }
         }
         self
+    }
+
+    /// 限定该关系的中间表行；不会为新增行设置默认值。
+    #[must_use]
+    pub fn where_pivot_eq(mut self, column: &'a str, value: impl Into<SqlValue>) -> Self {
+        self.pivot_equalities.push(PivotEquality {
+            column,
+            value: value.into(),
+            default_on_attach: false,
+        });
+        self
+    }
+
+    /// 限定中间表行并为新增行设置同一默认值，显式写入属性优先。
+    pub fn with_pivot_value(mut self, column: &'a str, value: impl Into<SqlValue>) -> Result<Self> {
+        let value = value.into();
+        if value == value.as_null() {
+            return Err(Error::custom(
+                "model_pivot_default_null",
+                "中间表默认约束值不能为 null",
+            ));
+        }
+        self.validate_pivot_attributes(&[(column, value.clone())])?;
+        self.pivot_equalities.push(PivotEquality {
+            column,
+            value,
+            default_on_attach: true,
+        });
+        Ok(self)
     }
 
     /// 自动维护并读取中间表时间戳，列名由中间表迁移声明。
@@ -353,6 +393,17 @@ impl<'a, R: HydrateModel> BelongsToMany<'a, R> {
                 bindings,
             )
             .select_raw(RawSql::new(format!("{related}.*")), Vec::new())?;
+        for filter in &self.pivot_equalities {
+            let column = identifiers.quote(filter.column, backend)?;
+            query = if filter.value == filter.value.as_null() {
+                query.where_raw(RawSql::new(format!("{pivot}.{column} IS NULL")), Vec::new())
+            } else {
+                query.where_raw(
+                    RawSql::new(format!("{pivot}.{column} = ?")),
+                    vec![filter.value.clone()],
+                )
+            };
+        }
         for column in &self.columns {
             let alias = identifiers.quote(&format!("pivot_{column}"), backend)?;
             let column = identifiers.quote(column, backend)?;

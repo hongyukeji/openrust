@@ -711,15 +711,23 @@ async fn attach_preview_category(
     let context = SaveContext::new(&databases, None, &calendar);
     assert_eq!(
         category_links(&category)
+            .with_pivot_value("label", label.to_owned())?
             .attach(
                 &mut model,
                 &serde_json::json!(category_id),
-                vec![("label", label.to_owned().into())],
+                Vec::new(),
                 &context,
                 None,
             )
             .await?,
         1
+    );
+    assert_eq!(
+        category_links(&category)
+            .where_pivot_eq("label", "not-a-match")
+            .detach(&mut model, None, &context, None)
+            .await?,
+        0
     );
     Ok(())
 }
