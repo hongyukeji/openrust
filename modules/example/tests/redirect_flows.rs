@@ -106,6 +106,68 @@ async fn example_signed_draft_routes_use_public_generator_request_and_middleware
     result
 }
 
+#[tokio::test]
+async fn example_signed_draft_uses_original_keys_from_selected_dotenv() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    std::fs::write(
+        directory.path().join(".env.signed"),
+        "KEYPROBE_KEY=0007\nKEYPROBE_PREVIOUS_KEYS=' 00123 ,0,,'\n",
+    )?;
+    let key_sources = openrust::config::ConfigLoader::console_application_sources(
+        directory.path(),
+        "KEYPROBE_",
+        Some("signed"),
+    )?;
+    let keys: openrust::config::AppConfig = key_sources.figment().extract_inner("app")?;
+    assert_eq!(keys.key.as_deref(), Some("0007"));
+    assert_eq!(keys.previous_keys, [" 00123 "]);
+
+    let config = sources().merge(Serialized::defaults(json!({
+        "app": {"key": keys.key, "previous_keys": keys.previous_keys},
+    })));
+    let builder = TestApp::<crate::bootstrap::Server>::builder(
+        crate::modules::example::test_sources(&config)?,
+    );
+    #[cfg(feature = "view")]
+    let builder = {
+        let mut builder = builder;
+        builder.remove_provider(openrust::foundation::ProviderId::of::<
+            openrust::view::OptionalViewServiceProvider,
+        >());
+        builder
+    };
+    let mut app = builder.build().await?;
+    let result: TestResult = async {
+        let issue = get(&app, "/api/example/draft/signed-links", None, None).await?;
+        let issued = state(&issue)?;
+        // HMAC-SHA256 固定消息是 http://localhost/api/example/draft/signed/42。
+        assert_eq!(
+            issued["redirect"],
+            "http://localhost/api/example/draft/signed/42?signature=318c751a545ccef1b5bae36be1187aceba9820401f801c05b8c40f8f8102d492"
+        );
+        let previous = get(
+            &app,
+            "/api/example/draft/signed/42?signature=f8619e7af4f8d7566bd73d2bd8c74435fc7f8aabbc0eb083ad5d0db4bb74b6f4",
+            None,
+            None,
+        )
+        .await?;
+        assert_eq!(state(&previous)?["valid"], true);
+        get(
+            &app,
+            "/api/example/draft/signed/42?signature=85e7f04c14a49a3d818599c9cc32c9fd64f015a90b041b0aab94d94944334fc8",
+            None,
+            None,
+        )
+        .await?
+        .assert_status(StatusCode::FORBIDDEN)?;
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + TIMEOUT).await?;
+    result
+}
+
 #[cfg(feature = "view")]
 async fn about<A: ApplicationDefinition>(
     app: &TestApp<A>,

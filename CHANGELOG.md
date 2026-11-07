@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 应用控制台新增 `key:generate`，按生效的 `app.cipher` 生成并设置应用密钥，支持只显示密钥及生产环境确认。
+
 - Events 身份/响应切片（限定验收完成）：类事件由 owner 声明稳定 `Event::NAME`，与同名字符串共用 exact/wildcard 分组；响应经同一执行循环保留 null/false/对象身份并提供 until。移除按 payload 类型串送字符串事件和旧 flat 顺序；唯一模块、认证、事务、队列与翻译扩展同步接线。完整 Events 与 Model save 未完成。
 
 - 模块机制迁至独立 `openrust-modules` 包，应用使用通用 Provider 预装配与 `configure_providers` 接线；当前迁移待验，不再由框架核心导出模块类型。
@@ -176,6 +178,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 ### Fixed
 
 - 加密服务改为首次解析时校验密钥。受保护 Cookie 请求复用 Router 的保护计划，失败时拒绝发送 Cookie。受管 Web 回程在保存前核对本次请求作用域和出站 Session Cookie 名。共享 Tower layer 应在 HTTP 入口任务上下文驱动首次派发。
+
+- `APP_KEY` 和 `APP_PREVIOUS_KEYS` 从环境读取时保留前导零与普通空白，避免 URL 签名误用经通用配置解析改写的文本。旧签名继续按原始历史密钥验证。
 
 - 配置来源错误仅显示可信诊断路径：未声明 schema 时保留已知父键，已声明字段才显示字段路径，动态名称与不可信数组片段不回显；来源值继续脱敏。
 

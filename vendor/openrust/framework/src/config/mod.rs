@@ -59,6 +59,7 @@ pub mod storage;
 pub mod view;
 
 pub use api::{ApiConfig, HttpStatusMode};
+pub(crate) use app::app_cipher_key_size;
 pub use app::{AppConfig, Environment};
 pub use auth::JwtConfig;
 pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig};
@@ -308,6 +309,19 @@ impl fmt::Debug for ConfigLoader {
     }
 }
 
+pub(crate) struct KeyGenerationEnvironment {
+    pub(crate) dotenv_path: PathBuf,
+    pub(crate) key_variable: String,
+    pub(crate) external_key_present: bool,
+}
+
+pub(crate) struct ApplicationSources {
+    pub(crate) sources: ConfigSources,
+    pub(crate) cache_path: PathBuf,
+    pub(crate) label: &'static str,
+    pub(crate) key_environment: KeyGenerationEnvironment,
+}
+
 impl ConfigLoader {
     /// 按应用启动时的缓存优先级读取来源。
     ///
@@ -318,7 +332,7 @@ impl ConfigLoader {
         namespace: &str,
     ) -> Result<ConfigSources, ConfigError> {
         Self::resolve_application_sources(app_dir.as_ref(), namespace, None, None)
-            .map(|(sources, _, _)| sources)
+            .map(|resolved| resolved.sources)
     }
 
     /// 为控制台启动读取配置；`console_environment` 仅选择存在的 `.env.<名称>` 文件。
@@ -330,7 +344,7 @@ impl ConfigLoader {
         console_environment: Option<&str>,
     ) -> Result<ConfigSources, ConfigError> {
         Self::resolve_application_sources(app_dir.as_ref(), namespace, console_environment, None)
-            .map(|(sources, _, _)| sources)
+            .map(|resolved| resolved.sources)
     }
 
     /// 以显式 Rust 配置清单加载应用；默认不会扫描 TOML 目录。
@@ -346,7 +360,7 @@ impl ConfigLoader {
             console_environment,
             Some(manifest),
         )
-        .map(|(sources, _, _)| sources)
+        .map(|resolved| resolved.sources)
     }
 
     /// 在代码函数求值前提供全局原始覆盖；依赖读取和最终来源均以此层为最高优先级。
@@ -370,7 +384,7 @@ impl ConfigLoader {
             Some(manifest),
             &overrides,
         )
-        .map(|(sources, _, _)| sources)
+        .map(|resolved| resolved.sources)
     }
 
     pub(crate) fn resolve_application_sources(
@@ -378,7 +392,7 @@ impl ConfigLoader {
         namespace: &str,
         console_environment: Option<&str>,
         manifest: Option<&ConfigManifest>,
-    ) -> Result<(ConfigSources, PathBuf, &'static str), ConfigError> {
+    ) -> Result<ApplicationSources, ConfigError> {
         Self::resolve_application_sources_with_overrides(
             app_dir,
             namespace,
@@ -394,9 +408,11 @@ impl ConfigLoader {
         console_environment: Option<&str>,
         manifest: Option<&ConfigManifest>,
         overrides: &[(String, serde_json::Value)],
-    ) -> Result<(ConfigSources, PathBuf, &'static str), ConfigError> {
+    ) -> Result<ApplicationSources, ConfigError> {
         validate_namespace(namespace)?;
         let external = EnvironmentSnapshot::capture();
+        let key_variable = format!("{namespace}KEY");
+        let external_key_present = external.present(&key_variable);
         let early_path = compiled::selected_path_from(app_dir, namespace, &external)?;
         if let Some(cached) = compiled::load(&early_path)? {
             if !overrides.is_empty() {
@@ -409,10 +425,24 @@ impl ConfigLoader {
                     "已编译配置含运行期 Rust 类型，不能加载配置缓存".to_owned(),
                 ));
             }
-            return Ok((cached, early_path, "cache"));
+            return Ok(ApplicationSources {
+                sources: cached,
+                cache_path: early_path,
+                label: "cache",
+                key_environment: KeyGenerationEnvironment {
+                    dotenv_path: app_dir.join(".env"),
+                    key_variable,
+                    external_key_present,
+                },
+            });
         }
         let dotenv_path = selected_dotenv_path(app_dir, namespace, &external, console_environment);
         let environment = external.with_dotenv_at(&dotenv_path)?;
+        let key_environment = KeyGenerationEnvironment {
+            dotenv_path,
+            key_variable,
+            external_key_present,
+        };
         let path = compiled::selected_path_from(app_dir, namespace, &environment)?;
         if let Some(cached) = compiled::load(&path)? {
             if !overrides.is_empty() {
@@ -425,7 +455,12 @@ impl ConfigLoader {
                     "已编译配置含运行期 Rust 类型，不能加载配置缓存".to_owned(),
                 ));
             }
-            return Ok((cached, path, "cache"));
+            return Ok(ApplicationSources {
+                sources: cached,
+                cache_path: path,
+                label: "cache",
+                key_environment,
+            });
         }
         let env = selected_environment(namespace, &environment)?;
         let mut loader = Self::from_snapshot(env, namespace, environment)?;
@@ -453,7 +488,12 @@ impl ConfigLoader {
         } else {
             loader.sources()?
         };
-        Ok((sources, path, source))
+        Ok(ApplicationSources {
+            sources,
+            cache_path: path,
+            label: source,
+            key_environment,
+        })
     }
 
     /// 使用 `APP_CONFIG_DIR`（或 [`DEFAULT_CONFIG_DIR`]）和 `APP_ENV`。

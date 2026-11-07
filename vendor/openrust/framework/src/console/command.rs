@@ -8,6 +8,8 @@ use crate::support::BoxFuture;
 
 mod environment;
 pub(crate) use environment::EnvironmentCommand;
+mod key_generate;
+pub(crate) use key_generate::KeyGenerateCommand;
 
 /// 可通过 `<app-binary> <name> [args…]` 运行的命名命令。
 ///

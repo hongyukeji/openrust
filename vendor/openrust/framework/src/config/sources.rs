@@ -493,7 +493,17 @@ impl EnvironmentSnapshot {
                 if path.split('.').any(str::is_empty) {
                     continue;
                 }
-                mapped.push((path, key.to_owned(), value.to_string_lossy().into_owned()));
+                let text = if matches!(path.as_str(), "app.key" | "app.previous_keys") {
+                    value
+                        .to_str()
+                        .ok_or_else(|| {
+                            ConfigError::Invalid("应用密钥环境配置要求 UTF-8 文本".into())
+                        })?
+                        .to_owned()
+                } else {
+                    value.to_string_lossy().into_owned()
+                };
+                mapped.push((path, key.to_owned(), text));
             }
         }
         mapped.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
@@ -502,6 +512,11 @@ impl EnvironmentSnapshot {
             if path == "app.debug" {
                 let value = super::code::parse_bool(&key, &text)?;
                 merge_order(&mut root, serde_json::json!({ "app": { "debug": value } }));
+                continue;
+            }
+            if let Some(field @ ("key" | "previous_keys")) = path.strip_prefix("app.") {
+                let value = super::code::nullable_env_string(&text);
+                merge_order(&mut root, serde_json::json!({ "app": { (field): value } }));
                 continue;
             }
             let value: figment::value::Value = text.parse().map_err(|_| {
@@ -810,6 +825,82 @@ mod tests {
             names,
             ["foo0", "foo00", "foo001", "foo01", "foo1", "foo2", "foo10"]
         );
+    }
+
+    #[test]
+    fn application_key_environment_keeps_laravel_text_and_reserved_values() -> Result<()> {
+        let map = |name: &str| super::super::namespaced_environment_path(name, "APP_");
+        for (raw, expected) in [
+            ("00123", json!("00123")),
+            (" base64:AA== ", json!(" base64:AA== ")),
+            ("[x,y]", json!("[x,y]")),
+            ("(TrUe)", json!("1")),
+            ("false", json!("")),
+            ("(empty)", json!("")),
+            ("(null)", Value::Null),
+            ("'null'", json!("null")),
+        ] {
+            let snapshot = EnvironmentSnapshot {
+                values: vec![("APP_KEY".into(), raw.into())],
+            };
+            assert_eq!(snapshot.layer(map)?["app"]["key"], expected);
+        }
+        let snapshot = EnvironmentSnapshot {
+            values: vec![(
+                "APP_PREVIOUS_KEYS".into(),
+                "00123,0,, previous ,base64:AA==".into(),
+            )],
+        };
+        let layer = snapshot.layer(map)?;
+        let config: crate::config::AppConfig =
+            serde_json::from_value(layer["app"].clone()).map_err(crate::Error::internal)?;
+        assert_eq!(config.previous_keys, ["00123", " previous ", "base64:AA=="]);
+        Ok(())
+    }
+
+    #[test]
+    fn application_key_dotenv_uses_selected_file_and_process_precedence() -> Result<()> {
+        let map = |name: &str| super::super::namespaced_environment_path(name, "SHOP_");
+        let directory = tempfile::tempdir().map_err(crate::Error::internal)?;
+        let path = directory.path().join(".env.staging");
+        std::fs::write(&path, "SHOP_KEY=0007\nSHOP_PREVIOUS_KEYS=' old ,0,00123'\n")
+            .map_err(crate::Error::internal)?;
+        let snapshot = EnvironmentSnapshot { values: Vec::new() };
+        let dotenv = snapshot.with_dotenv_at(&path)?.layer(map)?;
+        assert_eq!(dotenv["app"]["key"], "0007");
+        assert_eq!(dotenv["app"]["previous_keys"], " old ,0,00123");
+        let snapshot = EnvironmentSnapshot {
+            values: vec![("SHOP_KEY".into(), " 00123 ".into())],
+        };
+        let merged = snapshot.with_dotenv_at(&path)?.layer(map)?;
+        assert_eq!(merged["app"]["key"], " 00123 ");
+        assert_eq!(
+            merged["app"]["previous_keys"],
+            dotenv["app"]["previous_keys"]
+        );
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn application_key_rejects_non_utf8_without_disclosing_the_source() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let snapshot = EnvironmentSnapshot {
+            values: vec![(
+                "APP_KEY".into(),
+                OsString::from_vec(b"secret-sentinel\xff".to_vec()),
+            )],
+        };
+        let error = snapshot
+            .layer(|name| super::super::namespaced_environment_path(name, "APP_"))
+            .err();
+        assert!(matches!(
+            &error,
+            Some(crate::config::ConfigError::Invalid(_))
+        ));
+        assert!(!format!("{error:?}").contains("secret-sentinel"));
     }
 
     // 非 UTF-8 环境项沿 Figment 的 vars_os/有损字符策略处理，不能在一次捕获时 panic。

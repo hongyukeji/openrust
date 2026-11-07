@@ -231,6 +231,7 @@ pub struct Application {
     state: ApplicationState,
     figment: Figment,
     config_cache_path: Option<std::path::PathBuf>,
+    key_environment: Option<crate::config::KeyGenerationEnvironment>,
     commands: CommandRegistry,
     extensions: Extensions,
     providers: ProviderRegistry,
@@ -261,6 +262,7 @@ impl Application {
             },
             figment,
             config_cache_path: None,
+            key_environment: None,
             commands: runtime.commands,
             extensions: runtime.extensions,
             providers: runtime.providers,
@@ -366,6 +368,27 @@ impl Application {
         self.config_cache_path
             .as_deref()
             .ok_or_else(|| ConfigError::Invalid("应用未提供配置缓存路径".to_owned()))
+    }
+
+    pub(crate) fn set_key_generation_environment(
+        &mut self,
+        environment: crate::config::KeyGenerationEnvironment,
+    ) {
+        self.key_environment = Some(environment);
+    }
+
+    pub(crate) fn key_generation_environment(
+        &self,
+    ) -> crate::Result<(&std::path::Path, &str, bool)> {
+        let environment = self
+            .key_environment
+            .as_ref()
+            .ok_or_else(|| ConfigError::Invalid("应用未提供密钥生成的环境文件来源".to_owned()))?;
+        Ok((
+            &environment.dotenv_path,
+            &environment.key_variable,
+            environment.external_key_present,
+        ))
     }
 
     /// 从当前配置仓储提取一个区段；运行期原始写入随后可见。

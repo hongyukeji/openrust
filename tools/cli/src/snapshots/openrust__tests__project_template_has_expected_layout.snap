@@ -146,7 +146,8 @@ pub fn config(ctx: &ConfigContext) -> Result<AppConfig, ConfigError> {
         env: Environment::Production,
         debug: ctx.bool_or("APP_DEBUG", false)?,
         url,
-        // None 不提供应用签名密钥；部署可由 APP_KEY 覆写，源码不保存密钥。
+        cipher: "AES-256-CBC".to_owned(),
+        // 源码不保存密钥；可用 key:generate 写入选定的环境文件。
         key: None,
         previous_keys: Vec::new(),
         timezone: "UTC".to_owned(),

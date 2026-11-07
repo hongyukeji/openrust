@@ -179,9 +179,11 @@ pub struct AppConfig {
     pub debug: bool,
     /// 用于构造绝对链接的公开基础 URL。
     pub url: String,
-    /// URL 签名使用的原始应用密钥；不进行 Base64 解码。
+    /// Laravel 应用加密使用的 cipher；默认 AES-256-CBC。
+    pub cipher: String,
+    /// 应用密钥的原始配置值；URL 签名不解码，应用加密在使用时解析。
     pub key: Option<String>,
-    /// 仅用于验证旧 URL 签名的密钥。
+    /// 用于验证旧 URL 签名和解密历史载荷的应用密钥。
     #[serde(deserialize_with = "previous_keys")]
     pub previous_keys: Vec<String>,
     /// 日期便捷读取的应用默认时区；不修改进程全局时区。
@@ -195,6 +197,7 @@ impl Default for AppConfig {
             env: Environment::Production,
             debug: false,
             url: "http://localhost:3000".to_owned(),
+            cipher: "AES-256-CBC".to_owned(),
             key: None,
             previous_keys: Vec::new(),
             timezone: "UTC".to_owned(),
@@ -210,11 +213,28 @@ impl fmt::Debug for AppConfig {
             .field("env", &self.env)
             .field("debug", &self.debug)
             .field("url", &self.url)
+            .field("cipher", &self.cipher)
             .field("key", &self.key.as_ref().map(|_| "[REDACTED]"))
             .field("previous_keys", &"[REDACTED]")
             .field("timezone", &self.timezone)
             .finish()
     }
+}
+
+pub(crate) fn supported_app_cipher_key_size(cipher: &str) -> Option<usize> {
+    if cipher.eq_ignore_ascii_case("aes-128-cbc") || cipher.eq_ignore_ascii_case("aes-128-gcm") {
+        Some(16)
+    } else if cipher.eq_ignore_ascii_case("aes-256-cbc")
+        || cipher.eq_ignore_ascii_case("aes-256-gcm")
+    {
+        Some(32)
+    } else {
+        None
+    }
+}
+
+pub(crate) fn app_cipher_key_size(cipher: &str) -> usize {
+    supported_app_cipher_key_size(cipher).unwrap_or(32)
 }
 
 fn previous_keys<'de, D: serde::Deserializer<'de>>(

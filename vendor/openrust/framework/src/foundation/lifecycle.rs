@@ -19,6 +19,7 @@ use crate::console::command::ConfigClearCommand;
 use crate::console::command::ConfigShowCommand;
 use crate::console::command::EnvironmentCommand;
 use crate::console::command::HelpCommand;
+use crate::console::command::KeyGenerateCommand;
 use crate::core::Cancellation;
 use crate::core::error::{Error, Result};
 use crate::foundation::application::Application;
@@ -50,6 +51,7 @@ impl<A: ApplicationDefinition> ServiceProvider for CoreCommandsProvider<A> {
                 marker: std::marker::PhantomData,
             });
             app.command(ConfigClearCommand);
+            app.command(KeyGenerateCommand);
             Ok(())
         })
     }
@@ -232,7 +234,12 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
 ) -> Result<Application> {
     let namespace = A::config_namespace();
     let manifest = A::config();
-    let (sources, path, source) = if let Some(path) = forced_path {
+    let config::ApplicationSources {
+        sources,
+        cache_path,
+        label,
+        key_environment,
+    } = if let Some(path) = forced_path {
         if manifest.has_typed() {
             return Err(config::ConfigError::Invalid(
                 "已编译配置含运行期 Rust 类型，不能创建配置缓存".to_owned(),
@@ -247,7 +254,17 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
         let environment = external.with_dotenv_at(&dotenv_path)?;
         let env = config::selected_environment(namespace, &environment)?;
         let loader = ConfigLoader::from_snapshot(env, namespace, environment)?;
-        (loader.code_sources(&manifest)?, path, "configured")
+        let key_variable = format!("{namespace}KEY");
+        config::ApplicationSources {
+            sources: loader.code_sources(&manifest)?,
+            cache_path: path,
+            label: "configured",
+            key_environment: config::KeyGenerationEnvironment {
+                dotenv_path,
+                external_key_present: external.present(&key_variable),
+                key_variable,
+            },
+        }
     } else {
         let app_dir = std::env::current_dir()
             .map_err(|_| config::ConfigError::Invalid("无法定位应用根目录".into()))?;
@@ -281,9 +298,10 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
         return Err(error);
     }
     let mut app = Application::from_provider_runtime(runtime)?;
-    app.set_config_cache_path(path);
+    app.set_config_cache_path(cache_path);
+    app.set_key_generation_environment(key_environment);
     init_tracing(&app.config().log);
-    tracing::debug!(env = %app.config().app.env, config_source = source, "provider configuration loaded");
+    tracing::debug!(env = %app.config().app.env, config_source = label, "provider configuration loaded");
     Ok(app)
 }
 
@@ -650,7 +668,9 @@ mod tests {
             jail.clear_env();
             jail.set_env("SHOP_CONFIG_CACHE", "bootstrap/cache/shop.json");
             jail.set_env("SHOP_ENV", "invalid");
+            jail.set_env("SHOP_KEY", "");
             jail.create_file(".env", "invalid dotenv line")?;
+            jail.create_file(".env.local", "SHOP_NAME=ignored\n")?;
             jail.create_dir("bootstrap")?;
             jail.create_dir("bootstrap/cache")?;
             let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
@@ -666,10 +686,19 @@ mod tests {
                 .build()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             runtime.block_on(async {
-                let app = bootstrap::<ShopFixture>()
+                let app = bootstrap_for_console::<ShopFixture>("key:generate", Some("local"))
                     .await
                     .map_err(|error| figment::Error::from(error.to_string()))?;
                 assert_eq!(app.config().app.name, "shop-cached");
+                let (path, variable, external) = app
+                    .key_generation_environment()
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(
+                    path.file_name().and_then(std::ffi::OsStr::to_str),
+                    Some(".env")
+                );
+                assert_eq!(variable, "SHOP_KEY");
+                assert!(external);
                 app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
                     .await
                     .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -1060,6 +1089,15 @@ mod tests {
                     .map_err(|error| figment::Error::from(error.to_string()))?;
                 assert_eq!(app.config().app.name, "alternate-cache");
                 assert_eq!(app.environment().as_str(), "Cached-Staging");
+                let (path, variable, external) = app
+                    .key_generation_environment()
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(
+                    path.file_name().and_then(std::ffi::OsStr::to_str),
+                    Some(".env")
+                );
+                assert_eq!(variable, "APP_KEY");
+                assert!(!external);
                 app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
                     .await
                     .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -1074,7 +1112,10 @@ mod tests {
         figment::Jail::expect_with(|jail| {
             jail.clear_env();
             jail.create_file(".env", "APP_NAME=plain\n")?;
-            jail.create_file(".env.local", "APP_NAME=selected\nAPP_ENV=testing\n")?;
+            jail.create_file(
+                ".env.local",
+                "APP_NAME=selected\nAPP_ENV=testing\nNOTE=\"before\nAPP_KEY=\nafter\"\nAPP_KEY=\n",
+            )?;
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -1084,6 +1125,33 @@ mod tests {
                     .await
                     .map_err(|error| figment::Error::from(error.to_string()))?;
                 assert_eq!(app.config().app.name, "selected");
+                let (dotenv, variable, external) = app
+                    .key_generation_environment()
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(
+                    dotenv.file_name().and_then(std::ffi::OsStr::to_str),
+                    Some(".env.local")
+                );
+                assert_eq!(variable, "APP_KEY");
+                assert!(!external);
+                app.run_command("key:generate", Vec::new())
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                let key = app
+                    .section::<String>("app.key")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(key.starts_with("base64:"));
+                let selected = std::fs::read_to_string(dotenv)
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(
+                    selected
+                        .lines()
+                        .any(|line| line.strip_prefix("APP_KEY=") == Some(key.as_str()))
+                );
+                assert!(selected.contains("NOTE=\"before\nAPP_KEY=\nafter\"\n"));
+                let root = std::fs::read_to_string(".env")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(root, "APP_NAME=plain\n");
                 app.run_command("config:cache", Vec::new())
                     .await
                     .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -1249,7 +1317,14 @@ mod tests {
         let names: Vec<&str> = app.commands().map(|command| command.name()).collect();
         assert_eq!(
             names,
-            ["help", "env", "config show", "config:cache", "config:clear"]
+            [
+                "help",
+                "env",
+                "config show",
+                "config:cache",
+                "config:clear",
+                "key:generate"
+            ]
         );
         app.run_command("env", Vec::new()).await?;
         for argument in ["unexpected", "--unknown"] {

@@ -26,7 +26,7 @@ argon2 = { workspace = true, optional = true }
 bcrypt = { workspace = true, optional = true }
 shutdown_hooks = { workspace = true, optional = true }
 async-trait.workspace = true
-base64 = { workspace = true, optional = true }
+base64.workspace = true
 chrono.workspace = true
 chrono-tz = { workspace = true }
 cron-parser = { workspace = true, optional = true }
@@ -74,7 +74,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true
 validator.workspace = true
-zeroize = { workspace = true, optional = true }
+zeroize.workspace = true
 csv = { workspace = true, optional = true }
 calamine = { workspace = true, optional = true }
 rust_xlsxwriter = { workspace = true, optional = true }
@@ -108,7 +108,6 @@ tokio-stream.workspace = true
 
 axum.workspace = true
 async-trait.workspace = true
-base64.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 futures-util.workspace = true
@@ -133,11 +132,10 @@ db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:
 db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql", "dep:shutdown_hooks"]
 db-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:rusqlite", "dep:winapi-util", "dep:shutdown_hooks"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
-session = ["dep:time", "dep:base64"]
+session = ["dep:time"]
 auth = [
     "hashing",
     "session",
-    "dep:base64",
     "dep:jsonwebtoken",
     "dep:time",
     "signing",
@@ -145,15 +143,15 @@ auth = [
 hashing = ["dep:argon2", "dep:bcrypt"]
 queue = ["dep:cron-parser"]
 queue-redis = ["queue", "dep:redis"]
-signing = ["dep:base64", "dep:jsonwebtoken"]
+signing = ["dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 mail-templates = ["dep:minijinja"]
 view = ["dep:minijinja", "minijinja/loader"]
 http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate"]
 auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2"]
 auth-fortify = ["auth", "encryption", "dep:sha1", "dep:md5_11", "dep:qrcode"]
-sms-twilio = ["http-client", "dep:base64"]
-encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
+sms-twilio = ["http-client"]
+encryption = ["dep:aes-gcm-siv"]
 test-util = []
 data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
 data-exchange-tasks = ["data-exchange", "queue", "dep:uuid"]

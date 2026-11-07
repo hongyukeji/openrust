@@ -378,7 +378,7 @@ cargo deny check
 
 `GET /api/example/draft/secure` 对相对首页目标调用公开 `secure`，返回 `https://` 的 Location；示例只验证重定向响应，不跟随请求或宣称当前 HTTP 监听器已启用 TLS。显式状态、头与协议选择可使用 `secure_with` 或 `to_with_scheme`。
 
-`GET /api/example/draft/signed-links` 使用公开 `UrlGenerator` 为固定草稿 `42` 生成 5 分钟的绝对及相对签名链接，并展示 `Redirector::signed_route` 的目标；生产使用必须设置不可预测的 `APP_KEY`。`/api/example/draft/signed/{id}` 与 `/api/example/draft/signed-relative/{id}` 分别用框架 `signed`、`signed:relative` middleware 验签后才执行 handler，handler 再通过 `RequestInfo` 公共入口确认。更改草稿编号或查询内容返回 403；不使用现有 `SignedLinks` 的 JWT/撤销协议代替 URL 签名。示例仅供开发者理解路由签名，实际私密草稿仍需独立认证和授权。
+`GET /api/example/draft/signed-links` 使用公开 `UrlGenerator` 为固定草稿 `42` 生成 5 分钟的绝对及相对签名链接，并展示 `Redirector::signed_route` 的目标；生产使用必须设置不可预测的 `APP_KEY`。加载环境配置时保留密钥文本，轮换可用 `APP_PREVIOUS_KEYS` 提供逗号分隔的旧签名密钥。`/api/example/draft/signed/{id}` 与 `/api/example/draft/signed-relative/{id}` 分别用框架 `signed`、`signed:relative` middleware 验签后才执行 handler，handler 再通过 `RequestInfo` 公共入口确认。更改草稿编号或查询内容返回 403；不使用现有 `SignedLinks` 的 JWT/撤销协议代替 URL 签名。示例仅供开发者理解路由签名，实际私密草稿仍需独立认证和授权。
 
 `POST /api/example/draft/refresh?discard=once` 通过 `Redirector::from_request(&request).refresh()` 返回同路径的 302，目标不保留 query；客户端随后 GET `/api/example/draft/refresh` 会显示真实草稿内容，不再次刷新。无 Session 时同样可以完成 POST→GET；存在 Session 时，响应继续使用 `with_input` 和 `with_errors` 保存一次性的规范化标题输入与复核提示，展示一次后老化。该示例提交仅含公开草稿字段；`with_input` 闪存完整规范化输入，实际业务筛除敏感字段可沿既有 `only_input`/`except_input`。生成 helper 展示 `refresh_with` 的显式 303 和自定义头，同样验证 query 丢弃、GET 内容及闪存老化。
 

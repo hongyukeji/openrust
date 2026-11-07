@@ -826,10 +826,10 @@ impl ConfigRepository {
         self.publish(
             candidate,
             Some(candidate_raw),
-            revision,
-            (Phase::Register, Phase::Boot),
+            (revision, Phase::Register, Phase::Boot),
             true,
             Vec::new(),
+            || Ok(()),
         )
     }
 
@@ -1032,10 +1032,43 @@ impl ConfigRepository {
         self.publish(
             candidate,
             Some(raw),
-            revision,
-            (phase, phase),
+            (revision, phase, phase),
             true,
             entries,
+            || Ok(()),
+        )
+    }
+
+    // 命令先准备临时文件；只有仓储通过最后校验才替换原文件并发布同一密钥。
+    pub(crate) fn persist_application_key(
+        &self,
+        expected: &super::AppConfig,
+        key: String,
+        persist_file: impl FnOnce() -> Result<()>,
+    ) -> Result<()> {
+        let (base, raw, revision) = {
+            let state = self.lock();
+            require_phase(state.phase, Phase::Frozen)?;
+            (state.figment.clone(), state.raw.clone(), state.revision)
+        };
+        let current: super::AppConfig = base
+            .extract_inner("app")
+            .map_err(|error| Error::Config(safe_source_error(error, "app")))?;
+        if current.env != expected.env
+            || current.cipher != expected.cipher
+            || current.key != expected.key
+        {
+            return Err(invalid("app.key", "application key configuration changed"));
+        }
+        let entries = [("app.key".to_owned(), Value::String(key))];
+        let (candidate, raw) = apply_set_entries(base, raw, &entries)?;
+        self.publish(
+            candidate,
+            Some(raw),
+            (revision, Phase::Frozen, Phase::Frozen),
+            true,
+            Vec::new(),
+            persist_file,
         )
     }
 
@@ -1077,10 +1110,10 @@ impl ConfigRepository {
         self.publish(
             candidate,
             Some(raw),
-            revision,
-            (Phase::Boot, Phase::Boot),
+            (revision, Phase::Boot, Phase::Boot),
             true,
             Vec::new(),
+            || Ok(()),
         )
     }
 
@@ -1222,10 +1255,10 @@ impl ConfigRepository {
         self.publish(
             candidate,
             raw,
-            revision,
-            (Phase::Boot, Phase::Frozen),
+            (revision, Phase::Boot, Phase::Frozen),
             false,
             Vec::new(),
+            || Ok(()),
         )
     }
 
@@ -1239,12 +1272,12 @@ impl ConfigRepository {
         &self,
         candidate: Figment,
         raw: Option<Value>,
-        revision: u64,
-        transition: (Phase, Phase),
+        transition: (u64, Phase, Phase),
         changed: bool,
         register_writes: Vec<(String, Value)>,
+        before_publish: impl FnOnce() -> Result<()>,
     ) -> Result<()> {
-        let (before, after) = transition;
+        let (revision, before, after) = transition;
         let mut state = self.lock();
         require_phase(state.phase, before)?;
         if state.revision != revision {
@@ -1267,6 +1300,7 @@ impl ConfigRepository {
         } else {
             state.version
         };
+        before_publish()?;
         state.figment = candidate;
         state.raw = raw;
         state.phase = after;
@@ -3495,6 +3529,48 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn application_key_commit_checks_configuration_and_does_not_publish_failed_file_write()
+    -> Result<()> {
+        let mut repository = ConfigRepository::new(Figment::from(Serialized::defaults(
+            json!({"app": {"key": "old"}}),
+        )));
+        repository.validate_base()?;
+        repository.freeze()?;
+        let expected: crate::config::AppConfig = repository.section("app")?;
+        let version = repository.version();
+        assert!(
+            repository
+                .persist_application_key(&expected, "next".to_owned(), || {
+                    Err(invalid("app.key", "synthetic file failure"))
+                })
+                .is_err()
+        );
+        assert_eq!(repository.version(), version);
+        assert_eq!(repository.get("app.key")?, Some(json!("old")));
+
+        repository.set("app.cipher", json!("aes-128-cbc"))?;
+        let mut persisted = false;
+        assert!(
+            repository
+                .persist_application_key(&expected, "next".to_owned(), || {
+                    persisted = true;
+                    Ok(())
+                })
+                .is_err()
+        );
+        assert!(!persisted);
+        assert_eq!(repository.get("app.key")?, Some(json!("old")));
+        let current = repository.section("app")?;
+        repository.persist_application_key(&current, "next".to_owned(), || {
+            persisted = true;
+            Ok(())
+        })?;
+        assert!(persisted);
+        assert_eq!(repository.get("app.key")?, Some(json!("next")));
+        Ok(())
+    }
+
     // 版本耗尽、旧 revision 与空批次均不能发布部分 raw 或投影。
     #[test]
     fn runtime_batch_failure_and_empty_batch_preserve_one_state() -> Result<()> {
@@ -3535,10 +3611,10 @@ mod tests {
                 .publish(
                     candidate,
                     Some(raw),
-                    stale,
-                    (Phase::Register, Phase::Register),
+                    (stale, Phase::Register, Phase::Register),
                     true,
                     Vec::new(),
+                    || Ok(()),
                 )
                 .is_err()
         );
