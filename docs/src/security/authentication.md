@@ -381,4 +381,4 @@ Provider 本身仍遵循官方非原子缓存 get/verify/put：缓存 miss 成�
 
 非空和1024 UTF-8字节边界仍先检查，bcrypt 72字节/NUL别名的增强拒绝与既有错误保持。普通 UserProvider 不因此强加增强限制；选择一次驱动不证明当前账户、权限或因子已通过，最后状态核验与版本 CAS 仍不可省略。原有 Web/Session、CSRF、remember 和显式无 Cookie JWT profile 不因 manager 类型变化而改变。
 
-已有 custom 驱动经 `HashManager::extend` 返回原 `Arc<dyn Hasher>`，保留算法、成本、容量与状态，不能为了改参数重建默认驱动。操作级选驱动的接线已实现，生产登录路径仍待组合验收。详细契约见[哈希指南](hashing.md#增强认证的单次最终叶)。Model binary setter、非 UTF-8 encoded hash 与隐藏 custom 转发仍有独立边界，不能从 manager 注入推定其已完成。
+已有 custom 驱动经 `HashManager::extend` 返回原 `Arc<dyn Hasher>`，保留算法、成本、容量与状态，不能为了改参数重建默认驱动。详细契约见[哈希指南](hashing.md#增强认证的单次最终叶)。Model binary setter、非 UTF-8 encoded hash 与隐藏 custom 转发仍有独立边界，不能从 manager 注入推定其已完成。

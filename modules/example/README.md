@@ -522,4 +522,4 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 增强流程用同容器的 `Arc<HashManager>`，每个秘密操作固定一次默认链的最终具体叶，能力检查和实际哈希不跨 live 默认变化；后续操作可采用新的默认驱动。已有 custom 实例经 `extend` 返回原 Arc，保原成本和并发状态。reset 的新密码与验证码是两个秘密域，各按自身注入的 manager 和原顺序工作。固定驱动不代替最后账户状态、因子或版本核验。
 
-[真实模块回归源码](tests/account_security_flows.rs)在原业务登录入口覆盖严格 Argon 的完整73字节、72字节不匹配以及下一操作对截断策略的拒绝；不新增测试专用路由或放宽输入。回归只核拒绝时不签发凭据/新增 refresh，也保留正常限流与审计行为。真实 MySQL 上的组合验收仍待完成。接口、Model binary/编码值域及隐藏 custom 边界见[增强哈希说明](../../docs/src/security/hashing.md#增强认证的单次最终叶)。
+[真实模块回归源码](tests/account_security_flows.rs)在原业务登录入口覆盖严格 Argon 的完整73字节、72字节不匹配以及下一操作对截断策略的拒绝；不新增测试专用路由或放宽输入。回归只核拒绝时不签发凭据/新增 refresh，也保留正常限流与审计行为。接口、Model binary/编码值域及隐藏 custom 边界见[增强哈希说明](../../docs/src/security/hashing.md#增强认证的单次最终叶)。

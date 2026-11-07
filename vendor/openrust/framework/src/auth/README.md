@@ -98,4 +98,4 @@ SQLite支持本地账户、Session、PAT、refresh与现代Fortify，不支持OI
 
 已有自定义驱动通过同一 manager 的 `extend` 返回原 `Arc<dyn Hasher>`，保原算法成本、并发容量、许可与状态，不重新构造或另持成本。标准 `DatabaseUserProvider` 的普通 check/rehash 语义不增加这套增强限制；固定驱动也不替代最后一次 await 后的账户状态、授权、因子或存储版本 CAS。框架可识别的嵌套 Manager 会解析到最终叶，第三方隐藏转发或同一对象内部故意改变政策不由此自动证明。
 
-操作级驱动已接入增强流程，真实业务组合验收待完成。JSON Model 属性的任意字节、非 UTF-8 已编码哈希及完整 Model 保存另行实现。[哈希指南](../../../../../docs/src/security/hashing.md)
+JSON Model 属性的任意字节、非 UTF-8 已编码哈希及完整 Model 保存另行实现。[哈希指南](../../../../../docs/src/security/hashing.md)
