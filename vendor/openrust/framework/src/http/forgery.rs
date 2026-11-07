@@ -1,7 +1,7 @@
 //! 默认 Web 请求伪造防护，按固定 Laravel `PreventRequestForgery` 顺序执行。
 
 use crate::config::SessionConfig;
-use crate::http::{CookieJar, CookieOptions, RequestInfo};
+use crate::http::{CookieJar, CookieOptions, RequestInfo, request::InputTruthy};
 use crate::routing::{invocation::suppress_cookies, methods::ManagedNext};
 use crate::{Error, Result};
 use axum::{
@@ -279,39 +279,16 @@ async fn verify(
     let session = runtime.require_session(request, cookie)?;
     let expected = session
         .token()?
-        .and_then(|token| token.as_str().map(str::to_owned));
+        .and_then(|token| token.as_str().map(str::to_owned))
+        // 应用写入的空值不能充当请求伪造凭证。
+        .filter(|token| !cookie.uses_laravel_payload() || !token.is_empty());
     let (managed, replay) = crate::http::request::prepare_csrf_request(std::mem::replace(
         request,
         Request::new(Body::empty()),
     ))
     .await?;
     *request = replay;
-    let input = managed
-        .input("_token")?
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .filter(|value| !value.is_empty());
-    let header = request
-        .headers()
-        .get("x-csrf-token")
-        .and_then(|value| value.to_str().ok())
-        .filter(|value| !value.is_empty())
-        .map(str::to_owned);
-    if input.is_none()
-        && header.is_none()
-        && request.headers().contains_key("x-xsrf-token")
-        && !cookie.protects_cookie("XSRF-TOKEN")
-    {
-        return Err(Error::custom(
-            "web_cookie_encryption_missing",
-            "Web CSRF 要求保护 XSRF Cookie",
-        ));
-    }
-    let xsrf = request
-        .headers()
-        .get("x-xsrf-token")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| cookie.decrypt_xsrf_header(value));
-    let token = input.or(header).or(xsrf);
+    let token = csrf_token(request.headers(), managed.input("_token")?, cookie)?;
     let valid = expected
         .as_deref()
         .zip(token.as_deref())
@@ -326,6 +303,51 @@ async fn verify(
             CsrfTokenMismatch,
         )))
     }
+}
+
+fn csrf_token(
+    headers: &http::HeaderMap,
+    input: Option<serde_json::Value>,
+    cookie: &crate::http::cookie::CookieLayer,
+) -> Result<Option<String>> {
+    let laravel = cookie.uses_laravel_payload();
+    // PHP 的 ?: 先判断输入真假。真值的非字符串会在令牌比对时被拒绝。
+    if laravel && input.is_truthy() {
+        return Ok(input.and_then(|value| value.as_str().map(str::to_owned)));
+    }
+    let input = input
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .filter(|value| !value.is_empty());
+    let header = headers.get("x-csrf-token");
+    if laravel
+        && let Some(value) =
+            header.filter(|value| !value.as_bytes().is_empty() && value.as_bytes() != b"0")
+    {
+        return Ok(value.to_str().ok().map(str::to_owned));
+    }
+    let header = header.and_then(|value| value.to_str().ok());
+    if !laravel
+        && let Some(token) =
+            input.or_else(|| header.filter(|value| !value.is_empty()).map(str::to_owned))
+    {
+        return Ok(Some(token));
+    }
+    let xsrf = headers
+        .get("x-xsrf-token")
+        .filter(|value| !laravel || (!value.as_bytes().is_empty() && value.as_bytes() != b"0"));
+    let Some(xsrf) = xsrf else {
+        return Ok(header.filter(|_| laravel).map(str::to_owned));
+    };
+    if !cookie.protects_cookie("XSRF-TOKEN") {
+        return Err(Error::custom(
+            "web_cookie_encryption_missing",
+            "Web CSRF 要求保护 XSRF Cookie",
+        ));
+    }
+    Ok(xsrf
+        .to_str()
+        .ok()
+        .and_then(|value| cookie.decrypt_xsrf_header(value)))
 }
 
 fn add_xsrf_cookie(config: &SessionConfig, jar: &CookieJar, token: String) -> Result<()> {

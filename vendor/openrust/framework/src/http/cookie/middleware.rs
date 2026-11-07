@@ -48,7 +48,21 @@ impl CookieLayer {
     }
 
     #[cfg(feature = "session")]
+    pub(crate) fn uses_laravel_payload(&self) -> bool {
+        #[cfg(feature = "encryption")]
+        {
+            matches!(&self.protection, Protection::Laravel(_))
+        }
+        #[cfg(not(feature = "encryption"))]
+        false
+    }
+
+    #[cfg(feature = "session")]
     pub(crate) fn decrypt_xsrf_header(&self, value: &str) -> Option<String> {
+        #[cfg(feature = "encryption")]
+        if let Protection::Laravel(encrypter) = &self.protection {
+            return encrypter.decrypt_xsrf_header(value);
+        }
         let mut root = serde_json::json!({"XSRF-TOKEN": value});
         self.protection.decrypt(&mut root, &[]);
         root.get("XSRF-TOKEN")?.as_str().map(str::to_owned)

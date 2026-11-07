@@ -39,6 +39,10 @@ impl ServiceProvider for WebRoutes {
                 routes
                     .group(RouteGroup::new().middleware_group("web"), |web| {
                         web.get("/form", token)
+                            .get("/form/empty-token", |session: Session| async move {
+                                session.put_typed("_token", "")?;
+                                Ok::<_, openrust::Error>("empty")
+                            })
                             .post("/form", || async { "saved" })
                             .post("/validation/json", invalid_json)
                             .post("/validation/large", invalid_large_snapshot)
@@ -158,11 +162,19 @@ async fn fixture_with_environment(
     policy: PreventRequestForgery,
     env: openrust::config::Environment,
 ) -> Result<Application> {
+    fixture_with_cookie_provider(policy, source(env), CookieServiceProvider::new()).await
+}
+
+async fn fixture_with_cookie_provider(
+    policy: PreventRequestForgery,
+    config: figment::Figment,
+    cookies: CookieServiceProvider,
+) -> Result<Application> {
     let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::encryption::EncryptionServiceProvider)
-        .provider(CookieServiceProvider::new())
+        .provider(cookies)
         .provider(
             SessionServiceProvider::with_store(MemorySessionStore::default()).with_cookie_config(
                 openrust::config::SessionConfig {
@@ -174,7 +186,7 @@ async fn fixture_with_environment(
             ),
         )
         .provider(WebRoutes(policy));
-    Application::from_provider_runtime(builder.start(source(env)).await?)
+    Application::from_provider_runtime(builder.start(config).await?)
 }
 
 async fn fixture(policy: PreventRequestForgery) -> Result<Application> {
@@ -301,6 +313,229 @@ async fn anonymous_unsafe_web_requires_token_while_api_has_no_session_cookie() -
         .await
         .map_err(openrust::Error::internal)?;
     assert_eq!(accepted.status(), StatusCode::OK);
+    Ok(())
+}
+
+#[tokio::test]
+async fn laravel_xsrf_header_requires_the_session_token_after_authentication() -> Result<()> {
+    use openrust::encryption::LaravelEncrypter;
+
+    let app = fixture_with_cookie_provider(
+        PreventRequestForgery::new(),
+        source(openrust::config::Environment::Development).merge(("app.key", "A".repeat(32))),
+        CookieServiceProvider::laravel(),
+    )
+    .await?;
+    let encrypter = app.state().resolve::<LaravelEncrypter>().await?;
+    let router = build_router(&app)?;
+    let form = router
+        .clone()
+        .oneshot(wire("GET", "/form", None, ""))
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert_eq!(form.status(), StatusCode::OK);
+    let pairs = form
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .filter_map(|value| value.split(';').next())
+        .collect::<Vec<_>>();
+    let session = pairs
+        .iter()
+        .find(|pair| pair.starts_with("test_session="))
+        .expect("Session cookie present")
+        .to_string();
+    let xsrf = pairs
+        .iter()
+        .find_map(|pair| pair.strip_prefix("XSRF-TOKEN="))
+        .expect("XSRF cookie present");
+    let emitted_header = url::form_urlencoded::parse(format!("v={xsrf}").as_bytes())
+        .next()
+        .map(|(_, value)| value.into_owned())
+        .expect("decoded XSRF cookie");
+    let token = to_bytes(form.into_body(), 4096)
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert!(!token.is_empty());
+
+    // 任意 41 字节的已认证前缀只由 XSRF 请求头跳过。
+    let mut alternate_prefix = vec![b'!'; 41];
+    alternate_prefix.extend_from_slice(&token);
+    let mut incorrect_token = vec![b'!'; 41];
+    incorrect_token.extend_from_slice(b"wrong-token");
+    for (header, expected) in [
+        (emitted_header, 200),
+        (encrypter.encrypt_string(&alternate_prefix)?, 200),
+        (encrypter.encrypt_string(&incorrect_token)?, 419),
+        (encrypter.encrypt_string(b"short")?, 419),
+        ("invalid-ciphertext".to_owned(), 419),
+    ] {
+        let mut request = wire("POST", "/form", Some(&session), "");
+        request.headers_mut().insert(
+            "x-xsrf-token",
+            header.parse().map_err(openrust::Error::internal)?,
+        );
+        let response = router
+            .clone()
+            .oneshot(request)
+            .await
+            .map_err(openrust::Error::internal)?;
+        assert_eq!(response.status().as_u16(), expected);
+    }
+    let xsrf = encrypter.encrypt_string(&alternate_prefix)?;
+    let csrf = std::str::from_utf8(&token).map_err(openrust::Error::internal)?;
+    assert_laravel_token_source_precedence(&router, &session, csrf, &xsrf).await?;
+    assert_empty_session_token_is_rejected(&router, &session, &encrypter).await?;
+    Ok(())
+}
+
+async fn assert_laravel_token_source_precedence(
+    router: &axum::Router,
+    session: &str,
+    csrf: &str,
+    xsrf: &str,
+) -> Result<()> {
+    for (content_type, body, csrf_header, expected) in [
+        ("application/x-www-form-urlencoded", "_token=0", csrf, 200),
+        ("application/x-www-form-urlencoded", "_token=0", "0", 200),
+        (
+            "application/x-www-form-urlencoded",
+            "_token=incorrect",
+            csrf,
+            419,
+        ),
+        ("application/json", r#"{"_token":1}"#, csrf, 419),
+        ("application/json", r#"{"_token":0}"#, csrf, 200),
+        ("application/json", r#"{"_token":[]}"#, csrf, 200),
+        ("application/json", r#"{"_token":["value"]}"#, csrf, 419),
+    ] {
+        let request = Request::builder()
+            .method("POST")
+            .uri("/form")
+            .header("host", "localhost")
+            .header("cookie", session)
+            .header("content-type", content_type)
+            .header("x-csrf-token", csrf_header)
+            .header("x-xsrf-token", xsrf)
+            .body(Body::from(body))
+            .expect("static fixture");
+        let response = router
+            .clone()
+            .oneshot(request)
+            .await
+            .map_err(openrust::Error::internal)?;
+        assert_eq!(response.status().as_u16(), expected, "{body}");
+    }
+    for (csrf_header, xsrf_header, expected) in [
+        (b"wrong".as_slice(), xsrf, 419),
+        (csrf.as_bytes(), "invalid-ciphertext", 200),
+        (&[0xff], xsrf, 419),
+    ] {
+        let mut request = wire("POST", "/form", Some(session), "");
+        request.headers_mut().insert(
+            "x-csrf-token",
+            axum::http::HeaderValue::from_bytes(csrf_header).map_err(openrust::Error::internal)?,
+        );
+        request.headers_mut().insert(
+            "x-xsrf-token",
+            xsrf_header.parse().map_err(openrust::Error::internal)?,
+        );
+        let response = router
+            .clone()
+            .oneshot(request)
+            .await
+            .map_err(openrust::Error::internal)?;
+        assert_eq!(response.status().as_u16(), expected);
+    }
+    Ok(())
+}
+
+async fn assert_empty_session_token_is_rejected(
+    router: &axum::Router,
+    session: &str,
+    encrypter: &openrust::encryption::LaravelEncrypter,
+) -> Result<()> {
+    let empty = router
+        .clone()
+        .oneshot(wire("GET", "/form/empty-token", Some(session), ""))
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert_eq!(empty.status(), StatusCode::OK);
+    let empty_session = empty
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .filter_map(|value| value.split(';').next())
+        .find(|pair| pair.starts_with("test_session="))
+        .expect("updated Session cookie present");
+    let stored = router
+        .clone()
+        .oneshot(wire("GET", "/form", Some(empty_session), ""))
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert_eq!(stored.status(), StatusCode::OK);
+    assert!(
+        to_bytes(stored.into_body(), 4096)
+            .await
+            .map_err(openrust::Error::internal)?
+            .is_empty()
+    );
+    let empty_xsrf = empty
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .filter_map(|value| value.split(';').next())
+        .find_map(|pair| pair.strip_prefix("XSRF-TOKEN="))
+        .expect("issued empty XSRF cookie present");
+    let empty_xsrf = url::form_urlencoded::parse(format!("v={empty_xsrf}").as_bytes())
+        .next()
+        .map(|(_, value)| value.into_owned())
+        .expect("decoded empty XSRF cookie");
+    for header in [
+        empty_xsrf,
+        encrypter.encrypt_string(b"short")?,
+        encrypter.encrypt_string(&[b'!'; 41])?,
+    ] {
+        let mut request = wire("POST", "/form", Some(empty_session), "");
+        request.headers_mut().insert(
+            "x-xsrf-token",
+            header.parse().map_err(openrust::Error::internal)?,
+        );
+        let response = router
+            .clone()
+            .oneshot(request)
+            .await
+            .map_err(openrust::Error::internal)?;
+        assert_eq!(response.status().as_u16(), 419);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn laravel_falsey_xsrf_headers_do_not_require_an_excluded_cookie() -> Result<()> {
+    let app = fixture_with_cookie_provider(
+        PreventRequestForgery::new().without_xsrf_cookie(),
+        source(openrust::config::Environment::Development).merge(("app.key", "A".repeat(32))),
+        CookieServiceProvider::laravel().except(["XSRF-TOKEN"]),
+    )
+    .await?;
+    let router = build_router(&app)?;
+    for (header, status) in [("", 419), ("0", 419), ("not-protected", 400)] {
+        let mut request = wire("POST", "/form", None, "");
+        request.headers_mut().insert(
+            "x-xsrf-token",
+            header.parse().map_err(openrust::Error::internal)?,
+        );
+        let response = router
+            .clone()
+            .oneshot(request)
+            .await
+            .map_err(openrust::Error::internal)?;
+        assert_eq!(response.status().as_u16(), status);
+    }
     Ok(())
 }
 

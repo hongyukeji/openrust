@@ -226,3 +226,87 @@ async fn example_application_resolves_laravel_string_encryption_from_app_config(
         .await?;
     result
 }
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn example_cookie_round_trip_uses_the_selected_laravel_provider() -> TestResult {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use openrust::encryption::LaravelEncrypter;
+    use openrust::http::CookieServiceProvider;
+
+    let config = sources().merge(Serialized::defaults(json!({
+        "app": {"cipher": "AES-128-CBC", "key": "0123456789abcdef"},
+    })));
+    let mut builder =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?);
+    builder.configure_providers(|providers| {
+        providers.force_provider(CookieServiceProvider::laravel());
+    });
+    let mut app = builder.build().await?;
+    let result: TestResult = async {
+        let value = "Laravel + 雪";
+        let response = post(&app, "queue", value).await?;
+        success(&response, &json!({"action":"queue","queued":true}))?;
+        let cookie = wire_cookie(&response)?;
+        let escaped = cookie.replace('+', "%2B");
+        let (_, wire) = url::form_urlencoded::parse(escaped.as_bytes())
+            .next()
+            .ok_or("Laravel cookie wire missing")?;
+        let fields: Value = serde_json::from_slice(&STANDARD.decode(wire.as_bytes())?)?;
+        assert_eq!(fields["tag"], "");
+        assert_eq!(
+            fields["mac"].as_str().ok_or("Laravel MAC missing")?.len(),
+            64
+        );
+        let service = app.app()?.state().resolve::<LaravelEncrypter>().await?;
+        let plaintext = service.decrypt_string(&wire)?;
+        assert_eq!(plaintext.get(40), Some(&b'|'));
+        assert_eq!(plaintext.get(41..), Some(value.as_bytes()));
+        success(
+            &get(&app, Some(&cookie)).await?,
+            &json!({"preference":value,"present":true}),
+        )?;
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn selected_laravel_cookie_mode_requires_app_key_only_on_protected_request() -> TestResult {
+    use openrust::http::CookieServiceProvider;
+    let config = sources().merge(Serialized::defaults(json!({
+        "app": {"cipher": "AES-256-CBC", "key": "example-invalid-app-key"},
+    })));
+    let mut builder =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?);
+    builder.configure_providers(|providers| {
+        providers.force_provider(CookieServiceProvider::laravel());
+    });
+    let mut app = builder.build().await?;
+    let result: TestResult = async {
+        let ordinary = app
+            .request(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        ordinary.assert_status(StatusCode::OK)?;
+        let protected = get(&app, None).await?;
+        protected.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
+        assert!(!protected.headers().contains_key(header::SET_COOKIE));
+        assert_eq!(protected.headers()[header::CACHE_CONTROL], "no-store");
+        let payload: Value = protected.json()?;
+        assert_eq!(payload["code"], "service_initialization_failed");
+        assert!(!String::from_utf8_lossy(protected.body()).contains("example-invalid-app-key"));
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}

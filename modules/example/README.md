@@ -540,4 +540,4 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 ### 应用字符串加密
 
-启用 `encryption` 后，通过应用状态解析 `openrust::encryption::LaravelEncrypter`，可对模块的原始字节执行 `encrypt_string` 与 `decrypt_string`。应用密钥由 `key:generate` 设置，示例回归从生产 Provider 解析该服务并检查字节回程。
+启用 `encryption` 后，通过应用状态解析 `openrust::encryption::LaravelEncrypter`，可对模块的原始字节执行 `encrypt_string` 与 `decrypt_string`。应用密钥由 `key:generate` 设置，示例回归从生产 Provider 解析该服务并检查字节回程。 另一个回归通过 `CookieServiceProvider::laravel()` 选择该载荷，检查真实 `Set-Cookie` 及浏览器回送的请求值。

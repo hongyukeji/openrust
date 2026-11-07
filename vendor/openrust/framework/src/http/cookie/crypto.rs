@@ -6,6 +6,8 @@ pub(crate) enum Protection {
     Plain,
     #[cfg(feature = "encryption")]
     Encrypted(crate::encryption::Encrypter),
+    #[cfg(feature = "encryption")]
+    Laravel(std::sync::Arc<crate::encryption::LaravelEncrypter>),
 }
 
 // 由真实 Cookie 层建立的保护事实；不包含密钥或请求对象。
@@ -33,7 +35,7 @@ impl Protection {
         let encrypted = match self {
             Self::Plain => false,
             #[cfg(feature = "encryption")]
-            Self::Encrypted(_) => true,
+            Self::Encrypted(_) | Self::Laravel(_) => true,
         };
         CookieProtection {
             encrypted,
@@ -48,12 +50,25 @@ impl Protection {
             }
             #[cfg(feature = "encryption")]
             Self::Encrypted(encryptor) => {
-                visit_root(root, |name, node| {
-                    if !except.iter().any(|exception| exception == name)
-                        && !decrypt_node(encryptor, node, name)
-                    {
-                        *node = Value::Null;
-                    }
+                decrypt_roots(root, except, |name, wire| {
+                    let plaintext = zeroize::Zeroizing::new(
+                        encryptor.decrypt_with_context(wire, COOKIE_DOMAIN)?,
+                    );
+                    Ok(serde_json::from_slice::<Payload>(&plaintext)
+                        .ok()
+                        .filter(|payload| payload.version == 1 && payload.name == name)
+                        .map(|payload| payload.value))
+                });
+            }
+            #[cfg(feature = "encryption")]
+            Self::Laravel(encrypter) => {
+                decrypt_roots(root, except, |name, wire| {
+                    Ok(encrypter
+                        .decrypt_cookie_value(name, wire)?
+                        .and_then(|bytes| {
+                            let bytes = zeroize::Zeroizing::new(bytes);
+                            std::str::from_utf8(&bytes).ok().map(str::to_owned)
+                        }))
                 });
             }
         }
@@ -81,6 +96,14 @@ impl Protection {
                 let encrypted = encryptor.encrypt_with_context(&value, COOKIE_DOMAIN)?;
                 cookie.with_response_value(encrypted)
             }
+            #[cfg(feature = "encryption")]
+            Self::Laravel(encrypter) => {
+                let wire = encrypter.encrypt_cookie_value(
+                    cookie.name(),
+                    cookie.value().unwrap_or_default().as_bytes(),
+                )?;
+                cookie.with_response_value(wire)
+            }
         }
     }
 }
@@ -102,38 +125,44 @@ fn visit_root(root: &mut Value, mut visit: impl FnMut(&str, &mut Value)) {
     }
 }
 
-// false仅代表DecryptException类别，交根调用者把整个根cookie置null。
 #[cfg(feature = "encryption")]
-fn decrypt_node(encryptor: &crate::encryption::Encrypter, node: &mut Value, name: &str) -> bool {
+fn decrypt_roots(
+    root: &mut Value,
+    except: &[String],
+    decrypt: impl Fn(&str, &str) -> crate::Result<Option<String>>,
+) {
+    visit_root(root, |name, node| {
+        if !except.iter().any(|exception| exception == name) && !decrypt_node(node, name, &decrypt)
+        {
+            *node = Value::Null;
+        }
+    });
+}
+
+// false 代表密文认证或解码失败，交根调用者废弃整个根 Cookie。
+#[cfg(feature = "encryption")]
+fn decrypt_node(
+    node: &mut Value,
+    name: &str,
+    decrypt: &impl Fn(&str, &str) -> crate::Result<Option<String>>,
+) -> bool {
     match node {
         Value::String(ciphertext) => {
-            let Ok(plaintext) = encryptor.decrypt_with_context(ciphertext, COOKIE_DOMAIN) else {
+            let Ok(plaintext) = decrypt(name, ciphertext) else {
                 return false;
             };
-            let Ok(payload) = serde_json::from_slice::<Payload>(&plaintext) else {
-                *node = Value::Null;
-                return true;
-            };
-            if payload.version != 1 {
-                *node = Value::Null;
-                return true;
-            }
-            *node = if payload.name == name {
-                Value::String(payload.value)
-            } else {
-                Value::Null
-            };
+            *node = plaintext.map_or(Value::Null, Value::String);
         }
         Value::Array(values) => {
             for (index, value) in values.iter_mut().enumerate() {
-                if !decrypt_node(encryptor, value, &format!("{name}[{index}]")) {
+                if !decrypt_node(value, &format!("{name}[{index}]"), decrypt) {
                     return false;
                 }
             }
         }
         Value::Object(values) => {
-            for (key, value) in values {
-                if !decrypt_node(encryptor, value, &format!("{name}[{key}]")) {
+            for (key, value) in values.iter_mut() {
+                if !decrypt_node(value, &format!("{name}[{key}]"), decrypt) {
                     return false;
                 }
             }
@@ -188,6 +217,49 @@ mod tests {
         assert!(ciphertext(&current, "preferences", "new")?.starts_with("or1.current."));
         Ok(())
     }
+    #[tokio::test]
+    async fn laravel_mode_uses_history_and_distinguishes_prefix_miss_from_bad_ciphertext()
+    -> crate::Result<()> {
+        use crate::encryption::{EncryptionServiceProvider, LaravelEncrypter};
+        use crate::foundation::{ProviderBuilder, ProviderRuntime};
+        use figment::{Figment, providers::Serialized};
+
+        async fn start(key: &str, previous_keys: Vec<String>) -> crate::Result<ProviderRuntime> {
+            let mut builder = ProviderBuilder::new();
+            builder.provider(EncryptionServiceProvider);
+            let sources = Figment::from(Serialized::defaults(json!({
+                "app": {"key": key, "previous_keys": previous_keys},
+            })));
+            builder.start(sources).await
+        }
+
+        let previous_key = "b".repeat(32);
+        let current = start(&"a".repeat(32), vec![previous_key.clone()]).await?;
+        let previous = start(&previous_key, Vec::new()).await?;
+        let old_protection =
+            Protection::Laravel(previous.container().resolve::<LaravelEncrypter>().await?);
+        let protection =
+            Protection::Laravel(current.container().resolve::<LaravelEncrypter>().await?);
+        let valid = ciphertext(&old_protection, "group[a]", "valid")?;
+        let foreign = ciphertext(&old_protection, "other", "hidden")?;
+        let mut tree = json!({"group":{"a":valid,"b":foreign},"clear":"unchanged"});
+        protection.decrypt(&mut tree, &["clear".to_owned()]);
+        assert_eq!(
+            tree,
+            json!({"group":{"a":"valid","b":null},"clear":"unchanged"})
+        );
+        let valid = ciphertext(&old_protection, "group[a]", "valid")?;
+        let mut tree = json!({"group":{"a":valid,"b":"bad ciphertext"}});
+        protection.decrypt(&mut tree, &[]);
+        assert_eq!(tree, json!({"group":null}));
+        for runtime in [current, previous] {
+            runtime
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+                .await?;
+        }
+        Ok(())
+    }
+
     #[test]
     fn except_and_authenticated_invalid_payload_preserve_source_classification() -> crate::Result<()>
     {

@@ -11,13 +11,20 @@ use crate::foundation::RegisterContext;
 use crate::support::BoxFuture;
 use crate::support::ServiceProvider;
 
+#[derive(Clone, Copy)]
+enum ProtectionMode {
+    Plain,
+    Contextual,
+    Laravel,
+}
+
 /// 登记 Cookie 创建器和请求隔离队列。
 ///
 /// `new` 要求加密服务；仅明确选择 `plain` 才会发送未保护的 Cookie。
 #[derive(Clone)]
 pub struct CookieServiceProvider {
     factory: Option<CookieFactory>,
-    plain: bool,
+    mode: ProtectionMode,
     except: Vec<String>,
 }
 impl Default for CookieServiceProvider {
@@ -30,14 +37,23 @@ impl CookieServiceProvider {
     pub fn new() -> Self {
         Self {
             factory: None,
-            plain: false,
+            mode: ProtectionMode::Contextual,
             except: Vec::new(),
         }
     }
     /// 显式使用明文 Cookie；不提供 Laravel web 组的默认保护。
     pub fn plain() -> Self {
         Self {
-            plain: true,
+            mode: ProtectionMode::Plain,
+            ..Self::new()
+        }
+    }
+    /// 使用生效应用密钥和 Laravel 的名称前缀保护 Cookie。
+    ///
+    /// 受保护请求首次进入时解析 Laravel 加密服务。需要 `encryption` feature。
+    pub fn laravel() -> Self {
+        Self {
+            mode: ProtectionMode::Laravel,
             ..Self::new()
         }
     }
@@ -56,14 +72,14 @@ impl CookieServiceProvider {
 }
 #[derive(Clone)]
 pub(crate) struct CookieLayerPlan {
-    plain: bool,
+    mode: ProtectionMode,
     except: Vec<String>,
 }
 
 impl From<&CookieServiceProvider> for CookieLayerPlan {
     fn from(provider: &CookieServiceProvider) -> Self {
         Self {
-            plain: provider.plain,
+            mode: provider.mode,
             except: provider.except.clone(),
         }
     }
@@ -72,7 +88,7 @@ impl From<&CookieServiceProvider> for CookieLayerPlan {
 impl CookieLayerPlan {
     #[cfg(feature = "session")]
     pub(crate) fn is_protected(&self) -> bool {
-        !self.plain
+        !matches!(self.mode, ProtectionMode::Plain)
     }
 
     #[cfg(feature = "session")]
@@ -82,18 +98,24 @@ impl CookieLayerPlan {
 
     #[cfg(feature = "encryption")]
     pub(crate) async fn resolve(&self, scope: &Scope) -> Result<Arc<CookieLayer>> {
-        let protection = if self.plain {
-            Protection::Plain
-        } else {
-            let encrypter = scope.resolve::<crate::encryption::Encrypter>().await?;
-            Protection::Encrypted((*encrypter).clone())
+        let protection = match self.mode {
+            ProtectionMode::Plain => Protection::Plain,
+            ProtectionMode::Contextual => {
+                let encrypter = scope.resolve::<crate::encryption::Encrypter>().await?;
+                Protection::Encrypted((*encrypter).clone())
+            }
+            ProtectionMode::Laravel => Protection::Laravel(
+                scope
+                    .resolve::<crate::encryption::LaravelEncrypter>()
+                    .await?,
+            ),
         };
         Ok(self.layer(protection))
     }
 
     #[cfg(not(feature = "encryption"))]
     pub(crate) fn resolve(&self, _scope: &Scope) -> std::future::Ready<Result<Arc<CookieLayer>>> {
-        std::future::ready(if self.plain {
+        std::future::ready(if matches!(self.mode, ProtectionMode::Plain) {
             Ok(self.layer(Protection::Plain))
         } else {
             Err(Error::custom(

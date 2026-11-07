@@ -16,7 +16,7 @@ use zeroize::Zeroizing;
 use crate::config::app::AppCipher;
 use crate::{Error, Result};
 
-const MAX_PLAINTEXT_BYTES: usize = 1024 * 1024;
+pub(super) const MAX_PLAINTEXT_BYTES: usize = 1024 * 1024;
 const MAX_PAYLOAD_BYTES: usize = 2 * 1024 * 1024;
 const AES_BLOCK_BYTES: usize = 16;
 const GCM_TAG_BYTES: usize = 16;
