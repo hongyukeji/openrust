@@ -16,6 +16,7 @@ type Project = dyn Fn(&Case) -> Result<Value> + Send + Sync;
 pub struct EnumCase {
     value: Arc<Case>,
     storable: Value,
+    backed: bool,
 }
 
 impl EnumCase {
@@ -29,6 +30,10 @@ impl EnumCase {
         &self.storable
     }
 
+    pub(super) const fn has_backing(&self) -> bool {
+        self.backed
+    }
+
     pub(super) fn into_storable(self) -> Value {
         self.storable
     }
@@ -36,6 +41,15 @@ impl EnumCase {
     pub(super) fn same_case(&self, other: &Self) -> bool {
         self.value.as_ref().type_id() == other.value.as_ref().type_id()
             && self.storable == other.storable
+    }
+}
+
+impl serde::Serialize for EnumCase {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serde::Serialize::serialize(&self.storable, serializer)
     }
 }
 
@@ -52,6 +66,7 @@ pub struct EnumCast(Arc<Definition>);
 struct Definition {
     resolve: Box<Resolve>,
     project: Box<Project>,
+    backed: bool,
 }
 
 impl EnumCast {
@@ -62,6 +77,7 @@ impl EnumCast {
         E::Backing: Into<Value>,
     {
         Self(Arc::new(Definition {
+            backed: true,
             resolve: Box::new(|raw| {
                 let backing = E::Backing::from_input(raw).map_err(|_| invalid_value())?;
                 E::try_from_backing(backing)
@@ -83,6 +99,7 @@ impl EnumCast {
         E: Send + Sync + 'static,
     {
         Self(Arc::new(Definition {
+            backed: false,
             resolve: Box::new(move |raw| {
                 let name = scalar_string(raw).map_err(|_| invalid_value())?;
                 from_name(&name)
@@ -104,6 +121,7 @@ impl EnumCast {
         Ok(EnumCase {
             value: Arc::new(value),
             storable,
+            backed: self.0.backed,
         })
     }
 
@@ -115,9 +133,18 @@ impl EnumCast {
             (self.0.project)(&*case.value)?;
             return Ok(raw);
         }
-        let value = (self.0.resolve)(raw.as_json().map_err(|_| wrong_type())?)?;
+        self.resolve_case(raw.as_json().map_err(|_| wrong_type())?)
+            .map(AttributeValue::from)
+    }
+
+    pub(super) fn resolve_case(&self, raw: &Value) -> Result<EnumCase> {
+        let value = (self.0.resolve)(raw)?;
         let storable = (self.0.project)(&*value)?;
-        Ok(EnumCase { value, storable }.into())
+        Ok(EnumCase {
+            value,
+            storable,
+            backed: self.0.backed,
+        })
     }
 
     pub(super) fn write(&self, value: AttributeValue) -> Result<AttributeValue> {

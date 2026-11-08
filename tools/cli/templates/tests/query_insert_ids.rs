@@ -244,7 +244,10 @@ async fn check_generated_encrypted_collection() -> Result<()> {
 }
 
 async fn check_generated_enum_cast() -> Result<()> {
-    use openrust::database::eloquent::{AttributeCast, EnumCast, ModelAttributes, ModelMetadata};
+    use openrust::database::eloquent::{
+        AsEnumArrayObject, AsEnumCollection, AttributeCast, EnumCast, ModelAttributes,
+        ModelMetadata,
+    };
     use serde_json::json;
 
     #[derive(PartialEq, Eq)]
@@ -279,7 +282,19 @@ async fn check_generated_enum_cast() -> Result<()> {
             .and_then(|case| case.downcast_ref::<Visibility>())
             == Some(&Visibility::Private),
     )?;
-    check(attrs.attributes_to_json(&model)?["visibility"] == json!("Private"))
+    check(attrs.attributes_to_json(&model)?["visibility"] == json!("Private"))?;
+    for (declaration, expected) in [
+        (AsEnumArrayObject::of(cast.clone()), json!(r#"["Private"]"#)),
+        (AsEnumCollection::of(cast), json!(r#"{"key":"Private"}"#)),
+    ] {
+        let attributes = ModelAttributes::default();
+        model.casts.insert("options".into(), declaration);
+        attributes
+            .set_attribute(&model, "options", json!({"key":"Private"}))
+            .await?;
+        check(attributes.raw_attribute("options")? == Some(expected))?;
+    }
+    Ok(())
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

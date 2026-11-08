@@ -647,6 +647,10 @@ async fn attribute_preview_contract(
         published
     );
     assert_eq!(clean["data"]["display"]["details"]["is_published"], true);
+    assert_eq!(
+        clean["data"]["display"]["details"]["status_flags"],
+        serde_json::json!(["Enabled", "Published"])
+    );
     assert!(clean["data"]["proposed"].get("is_published").is_none());
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
     assert_model_guardable_columns(&databases).await?;
@@ -1049,11 +1053,84 @@ async fn assert_cached_collection_save(
                 return Err("collection writeback did not reach the database".into());
             }
         }
+        assert_enum_collection_save(&record, &db, &transaction, &context).await?;
         Ok(())
     }
     .await;
     transaction.rollback().await?;
     outcome
+}
+
+async fn assert_enum_collection_save(
+    record: &crate::modules::example::models::example_record::Model,
+    db: &openrust::Db,
+    transaction: &openrust::database::sea_orm::DatabaseTransaction,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> TestResult {
+    use crate::modules::example::{
+        models::example_record,
+        services::record_preview::{RecordFlag, record_flag_cast},
+    };
+    use openrust::{
+        database::{
+            eloquent::{
+                AsEnumArrayObject, AsEnumCollection, EnumArrayObject, EnumCase, save_with_query,
+            },
+            sea_orm::EntityTrait,
+        },
+        support::Collection,
+    };
+    use serde_json::json;
+
+    let cases = record_flag_cast();
+    for (cast, expected) in [
+        (
+            AsEnumArrayObject::of(cases.clone()),
+            json!(["Enabled", "Published"]),
+        ),
+        (
+            AsEnumCollection::of(cases.clone()),
+            json!({"2":"Enabled","extra":"Published"}),
+        ),
+    ] {
+        let mut model = example_record::RecordForSave::from_existing(record)?;
+        model.metadata.casts.insert("metadata".into(), cast);
+        model
+            .attributes
+            .set_raw_attribute("metadata", json!(r#"{"2":"Enabled"}"#))?;
+        model.attributes.sync_original()?;
+        let value = model
+            .attributes
+            .get_attribute_value(&model.metadata, "metadata")?
+            .ok_or("缺少枚举集合属性")?;
+        let object = value.as_object().ok_or("缺少枚举集合对象")?;
+        let published = cases.case(RecordFlag::Published)?;
+        if expected.is_array() {
+            object.modify(|current: &EnumArrayObject| {
+                let mut next = current.clone();
+                next.as_collection_mut().try_put("extra", published)?;
+                Ok(next)
+            })?;
+        } else {
+            object.modify(|current: &Collection<EnumCase>| {
+                let mut next = current.clone();
+                next.try_put("extra", published)?;
+                Ok(next)
+            })?;
+        }
+        let query = db
+            .table(&model.metadata.table)?
+            .using_transaction(transaction);
+        if !save_with_query(&mut model, context, query).await? {
+            return Err("枚举集合保存已取消".into());
+        }
+        let saved = example_record::Entity::find_by_id(record.id)
+            .one(transaction)
+            .await?
+            .ok_or("枚举集合数据库行缺失")?;
+        assert_eq!(saved.metadata, Some(expected));
+    }
+    Ok(())
 }
 
 #[cfg(feature = "encryption")]

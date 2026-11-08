@@ -7,10 +7,10 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            ArrayObject, AsArrayObject, AsCollection, AttributeMap, AttributeSetter,
-            AttributeValue, BelongsTo, BelongsToMany, HasMany, HasOne, HasRelationships,
-            LoadedRelation, MassAssignment, ModelAttribute, ModelAttributes, ModelDateContext,
-            ModelMetadata, PivotKeys, RelationLoad, SaveContext,
+            ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AttributeMap,
+            AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, EnumCast, HasMany, HasOne,
+            HasRelationships, LoadedRelation, MassAssignment, ModelAttribute, ModelAttributes,
+            ModelDateContext, ModelMetadata, PivotKeys, RelationLoad, SaveContext,
         },
     },
     support::{BoxFuture, Collection},
@@ -97,6 +97,8 @@ pub(crate) async fn preview(
         "metadata_tag_count".into(),
         Value::from(metadata_tag_count(&attributes)?),
     );
+    let status_flags = record_status_flags(&details)?;
+    details.insert("status_flags".into(), status_flags);
     let summary = summary_fields
         .into_iter()
         .map(|name| {
@@ -123,6 +125,47 @@ pub(crate) async fn preview(
         persisted: false,
         owner_relations: None,
     })
+}
+
+pub(crate) enum RecordFlag {
+    Enabled,
+    Published,
+}
+
+pub(crate) fn record_flag_cast() -> EnumCast {
+    EnumCast::unit(
+        |name| match name {
+            "Enabled" => Some(RecordFlag::Enabled),
+            "Published" => Some(RecordFlag::Published),
+            _ => None,
+        },
+        |case| match case {
+            RecordFlag::Enabled => "Enabled",
+            RecordFlag::Published => "Published",
+        },
+    )
+}
+
+fn record_status_flags(details: &Map<String, Value>) -> Result<Value> {
+    let flags: Vec<_> = [("enabled", "Enabled"), ("is_published", "Published")]
+        .into_iter()
+        .filter_map(|(field, name)| {
+            (details.get(field).and_then(Value::as_bool) == Some(true)).then_some(name)
+        })
+        .collect();
+    let attributes = ModelAttributes::new(Map::from_iter([(
+        "status_flags".into(),
+        Value::String(serde_json::to_string(&flags).map_err(Error::internal)?),
+    )]));
+    let mut metadata = ModelMetadata::new("example_records", "RecordStatusFlags");
+    metadata.casts.insert(
+        "status_flags".into(),
+        AsEnumCollection::of(record_flag_cast()),
+    );
+    attributes
+        .attributes_to_json(&metadata)?
+        .shift_remove("status_flags")
+        .ok_or_else(|| Error::custom("example_status_flags_missing", "示例记录缺少状态标记"))
 }
 
 fn metadata_tag_count(attributes: &ModelAttributes) -> Result<usize> {

@@ -103,6 +103,21 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 原始列与模型 JSON 输出使用 backing 或 case 名。null 保持 null，无法解析的值和不匹配的枚举类型
 返回错误。脏值判定沿用 Laravel 的原始值比较。唯一示例的文章导入收据用该转换读写任务状态。
 
+### 枚举数组对象与集合
+
+用 `AsEnumArrayObject::of(cast)` 或 `AsEnumCollection::of(cast)` 声明枚举集合字段。
+两者读取时保留稀疏键，元素可通过 `EnumCase::downcast_ref` 取得具体类型。使用
+`ModelObject::modify` 修改 `EnumArrayObject` 或 `Collection<EnumCase>`，
+保存前会回写缓存。数组对象写回时按遍历顺序重编号，集合写回时保留键。
+模型数组和 JSON 输出都保留当前对象的键。
+普通转换输出 backing 或 case 名。同名追加字段或 getter 的数组投影保留枚举 case，
+其中无 backing 的 case 会使 JSON 输出返回错误。
+
+根 null 存为 SQL NULL，坏 JSON 和非数组的原值读为 null。写入时原始 JSON 元素会照常保存，
+读取时再按声明的枚举校验。数组对象要求可迭代的输入，集合可将标量包装为单元素。
+单个 Rust case 没有 PHP 枚举对象可遍历的公开属性。需要按字段写入时，请提供键值对象。
+唯一示例的记录预览使用枚举集合输出 `status_flags`。
+
 ### 原生加密属性
 
 启用 `encryption`，从应用状态解析 `dyn ApplicationEncrypter`，然后在模型的

@@ -92,12 +92,19 @@ enum Comparison {
     JsonArray,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ArrayProjection {
+    None,
+    Json,
+    EnumCases,
+}
+
 /// 模型声明的自定义转换工厂。声明克隆共享同一个工厂。
 #[derive(Clone)]
 pub struct ClassCast {
     resolver: Arc<Resolver>,
     serialization: bool,
-    arrayable: bool,
+    array_projection: ArrayProjection,
     comparison: Comparison,
     #[cfg(feature = "encryption")]
     encrypter: Option<Arc<dyn crate::encryption::ApplicationEncrypter>>,
@@ -112,7 +119,7 @@ impl ClassCast {
         Self {
             resolver: Arc::new(move || Ok(Box::new(resolve()?))),
             serialization: false,
-            arrayable: false,
+            array_projection: ArrayProjection::None,
             comparison: Comparison::Default,
             #[cfg(feature = "encryption")]
             encrypter: None,
@@ -196,15 +203,20 @@ impl ClassCast {
     }
 
     pub(super) const fn with_arrayable_projection(mut self) -> Self {
-        self.arrayable = true;
+        self.array_projection = ArrayProjection::Json;
+        self
+    }
+
+    pub(super) const fn with_enum_array_projection(mut self) -> Self {
+        self.array_projection = ArrayProjection::EnumCases;
         self
     }
 
     pub(super) fn project_arrayable(&self, value: AttributeValue) -> Result<AttributeValue> {
-        if self.arrayable {
-            value.into_model_array_value().map(AttributeValue::from)
-        } else {
-            Ok(value)
+        match self.array_projection {
+            ArrayProjection::None => Ok(value),
+            ArrayProjection::Json => value.into_model_array_value().map(AttributeValue::from),
+            ArrayProjection::EnumCases => super::enum_collection_cast::project_enum_array(value),
         }
     }
 
@@ -263,7 +275,7 @@ impl PartialEq for ClassCast {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.resolver, &other.resolver)
             && self.serialization == other.serialization
-            && self.arrayable == other.arrayable
+            && self.array_projection == other.array_projection
             && self.comparison == other.comparison
             && self.object_cache == other.object_cache
     }
