@@ -1,5 +1,6 @@
 //! 基础属性读取转换；原始值与模型读取值分开，Query Processor 不复用此规则。
 
+use super::{AttributeValue, ModelDateContext, ModelMetadata};
 use crate::{Error, Result};
 use serde_json::Value;
 use std::borrow::Cow;
@@ -7,8 +8,8 @@ use std::borrow::Cow;
 #[path = "attribute_json.rs"]
 mod json;
 
-/// 当前基础属性管线支持的显式转换；日期、枚举和自定义 cast 仍需各自实现。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Eloquent 的内置属性转换。
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AttributeCast {
     /// PHP64 整数转换，接受字符串数值前缀。
     Integer,
@@ -22,16 +23,58 @@ pub enum AttributeCast {
     Array,
     /// 赋值时使用同一 `HashManager`；读取及水合不重新哈希。
     Hashed,
+    /// 日期对象，读取时取本地午夜。
+    Date,
+    /// 保留时分秒和微秒的日期对象。
+    DateTime,
+    /// 本地午夜的不可变日期对象。
+    ImmutableDate,
+    /// 保留完整时间的不可变日期对象。
+    ImmutableDateTime,
+    /// 带序列化格式的 `date:…` 或 `datetime:…`。
+    CustomDateTime(String),
+    /// 带序列化格式的不可变日期。
+    ImmutableCustomDateTime(String),
+    /// 读取 Unix 秒整数。
+    Timestamp,
 }
 
 impl AttributeCast {
     /// 对独立原始值执行读取转换；不运行模型访问器，也不执行赋值哈希。
-    pub fn read(self, value: Option<Value>) -> Result<Option<Value>> {
+    pub fn read(&self, value: Option<Value>) -> Result<Option<Value>> {
+        if self.is_date_read() {
+            return value
+                .map(|value| {
+                    ModelDateContext::default().read(
+                        &ModelMetadata::new("", ""),
+                        self,
+                        value.into(),
+                    )
+                })
+                .transpose()?
+                .map(AttributeValue::try_into_json)
+                .transpose();
+        }
         cast_read_value(self, value)
+    }
+
+    pub(super) fn is_date_read(&self) -> bool {
+        self.is_date_storage()
+            || matches!(
+                self,
+                Self::Timestamp | Self::CustomDateTime(_) | Self::ImmutableCustomDateTime(_)
+            )
+    }
+
+    pub(super) fn is_date_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::Date | Self::DateTime | Self::ImmutableDate | Self::ImmutableDateTime
+        )
     }
 }
 
-pub(crate) fn cast_read_value(cast: AttributeCast, raw: Option<Value>) -> Result<Option<Value>> {
+pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Result<Option<Value>> {
     let Some(value) = raw else { return Ok(None) };
     if value.is_null() {
         return Ok(Some(Value::Null));
@@ -71,6 +114,7 @@ pub(crate) fn cast_read_value(cast: AttributeCast, raw: Option<Value>) -> Result
             decode_array_json(&text)?
         }
         AttributeCast::Hashed => value,
+        _ => return Err(cast_failed()),
     };
     Ok(Some(value))
 }
@@ -248,13 +292,13 @@ mod tests {
             (json!(null), json!(null)),
         ] {
             assert_eq!(
-                cast_read_value(AttributeCast::Integer, Some(raw))?,
+                cast_read_value(&AttributeCast::Integer, Some(raw))?,
                 Some(expected)
             );
         }
-        assert_eq!(cast_read_value(AttributeCast::Integer, None)?, None);
+        assert_eq!(cast_read_value(&AttributeCast::Integer, None)?, None);
         let error = cast_read_value(
-            AttributeCast::Integer,
+            &AttributeCast::Integer,
             Some(json!(9_223_372_036_854_775_808.0)),
         )
         .err()
@@ -267,29 +311,29 @@ mod tests {
     #[test]
     fn bool_json_and_string_casts_keep_distinct_php_rules() -> Result<()> {
         assert_eq!(
-            cast_read_value(AttributeCast::Boolean, Some(json!("false")))?,
+            cast_read_value(&AttributeCast::Boolean, Some(json!("false")))?,
             Some(json!(true))
         );
         assert_eq!(
-            cast_read_value(AttributeCast::Boolean, Some(json!("0")))?,
+            cast_read_value(&AttributeCast::Boolean, Some(json!("0")))?,
             Some(json!(false))
         );
         assert_eq!(
-            cast_read_value(AttributeCast::Array, Some(json!("{\"id\":42}")))?,
+            cast_read_value(&AttributeCast::Array, Some(json!("{\"id\":42}")))?,
             Some(json!({"id":42}))
         );
         assert_eq!(
-            cast_read_value(AttributeCast::Array, Some(json!("broken")))?,
+            cast_read_value(&AttributeCast::Array, Some(json!("broken")))?,
             Some(Value::Null)
         );
         assert_eq!(
-            cast_read_value(AttributeCast::String, Some(json!(true)))?,
+            cast_read_value(&AttributeCast::String, Some(json!(true)))?,
             Some(json!("1"))
         );
-        assert!(cast_read_value(AttributeCast::String, Some(json!([1]))).is_err());
-        assert!(cast_read_value(AttributeCast::Float, Some(json!("1e9999"))).is_err());
+        assert!(cast_read_value(&AttributeCast::String, Some(json!([1]))).is_err());
+        assert!(cast_read_value(&AttributeCast::Float, Some(json!("1e9999"))).is_err());
         assert_eq!(
-            cast_read_value(AttributeCast::Hashed, Some(json!("already-encoded")))?,
+            cast_read_value(&AttributeCast::Hashed, Some(json!("already-encoded")))?,
             Some(json!("already-encoded"))
         );
         Ok(())
@@ -299,7 +343,7 @@ mod tests {
     fn float_cast_recognizes_only_exact_from_float_special_strings() -> Result<()> {
         for text in ["Infinity", "-Infinity", "NaN"] {
             assert!(
-                matches!(cast_read_value(AttributeCast::Float, Some(json!(text))), Err(error)
+                matches!(cast_read_value(&AttributeCast::Float, Some(json!(text))), Err(error)
                 if error.code() == "model_attribute_cast_failed" && error.status().as_u16() == 500)
             );
             // 普通PHP(float)仍是0；Model特殊转换不能改变通用scalar的有效golden语义。
@@ -322,7 +366,7 @@ mod tests {
             "普通文本",
             "",
         ] {
-            let value = cast_read_value(AttributeCast::Float, Some(json!(text)))?
+            let value = cast_read_value(&AttributeCast::Float, Some(json!(text)))?
                 .ok_or_else(cast_failed)?;
             assert!(value.as_number().is_some_and(serde_json::Number::is_f64));
             assert_eq!(value.as_f64().ok_or_else(cast_failed)?.to_bits(), 0);
@@ -343,7 +387,7 @@ mod tests {
             (json!("-0.0"), 0x8000_0000_0000_0000),
         ] {
             let actual =
-                cast_read_value(AttributeCast::Float, Some(value))?.ok_or_else(cast_failed)?;
+                cast_read_value(&AttributeCast::Float, Some(value))?.ok_or_else(cast_failed)?;
             assert_eq!(actual.as_f64().ok_or_else(cast_failed)?.to_bits(), bits);
         }
         for value in [
@@ -356,13 +400,13 @@ mod tests {
             json!("-1e400"),
         ] {
             assert!(
-                matches!(cast_read_value(AttributeCast::Float, Some(value)), Err(error)
+                matches!(cast_read_value(&AttributeCast::Float, Some(value)), Err(error)
                 if error.code() == "model_attribute_cast_failed" && error.status().as_u16() == 500)
             );
         }
-        assert_eq!(cast_read_value(AttributeCast::Float, None)?, None);
+        assert_eq!(cast_read_value(&AttributeCast::Float, None)?, None);
         assert_eq!(
-            cast_read_value(AttributeCast::Float, Some(Value::Null))?,
+            cast_read_value(&AttributeCast::Float, Some(Value::Null))?,
             Some(Value::Null)
         );
         Ok(())
@@ -418,7 +462,7 @@ mod tests {
             (format!("\t+{small}e20000suffix"), 0x3fb9_9999_9999_999a),
             (format!("  -{large}e-20000tail"), 0xc024_0000_0000_0000),
         ] {
-            let value = cast_read_value(AttributeCast::Float, Some(Value::String(text)))?
+            let value = cast_read_value(&AttributeCast::Float, Some(Value::String(text)))?
                 .ok_or_else(cast_failed)?;
             assert_eq!(value.as_f64().ok_or_else(cast_failed)?.to_bits(), bits);
         }
@@ -443,7 +487,7 @@ mod tests {
             ("-9223372036854775809".into(), i64::MIN),
         ] {
             assert_eq!(
-                cast_read_value(AttributeCast::Integer, Some(Value::String(text)))?,
+                cast_read_value(&AttributeCast::Integer, Some(Value::String(text)))?,
                 Some(Value::from(expected)),
             );
         }

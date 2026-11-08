@@ -325,8 +325,8 @@ fn default_consent_is_required_and_custom_model_can_select_explicit_scopes() -> 
 
 struct ConstantGetter(Value);
 impl AttributeGetter for ConstantGetter {
-    fn get(&self, _: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
-        Ok(Some(self.0.clone()))
+    fn get(&self, _: Option<&AttributeValue>, _: &AttributeMap) -> Result<Option<AttributeValue>> {
+        Ok(Some(self.0.clone().into()))
     }
 }
 fn getter(model: &Client, name: &str, value: Value) -> Result<()> {
@@ -339,6 +339,31 @@ fn concrete_client(value: Value) -> Result<Client> {
         Arc::new(ClientFactory::default().metadata().clone()),
         attributes(value)?,
     ))
+}
+
+#[test]
+fn legacy_redirect_and_grant_read_only_the_fields_they_use() -> Result<()> {
+    use openrust::{
+        database::eloquent::ModelDate,
+        support::{CalendarInstant, InputDate, ResolvedTimezone},
+    };
+
+    let model = concrete_client(json!({"redirect":"https://app.test/cb","secret":"stored"}))?;
+    let date = ModelDate::new(
+        InputDate::new(CalendarInstant::new(10, 0)?, ResolvedTimezone::utc()),
+        false,
+    );
+    model
+        .model_attributes()
+        .set_raw_attribute_value("created_at", date.into())?;
+    assert_eq!(
+        model.redirect_uris()?.as_value(),
+        &json!(["https://app.test/cb"])
+    );
+    let grants = model.grant_types()?;
+    assert!(grants.contains_loose("authorization_code"));
+    assert!(grants.contains_loose("client_credentials"));
+    Ok(())
 }
 
 #[test]
@@ -467,13 +492,13 @@ fn explicit_empty_getters_override_builtins_while_null_is_not_a_fallback_signal(
 struct FailingGetter;
 struct CountingLegacyRedirect(std::sync::atomic::AtomicUsize);
 impl AttributeGetter for CountingLegacyRedirect {
-    fn get(&self, _: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(&self, _: Option<&AttributeValue>, _: &AttributeMap) -> Result<Option<AttributeValue>> {
         self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Err(invalid_attribute())
     }
 }
 impl AttributeGetter for FailingGetter {
-    fn get(&self, _: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(&self, _: Option<&AttributeValue>, _: &AttributeMap) -> Result<Option<AttributeValue>> {
         Err(Error::custom_with_status(
             openrust::http::axum::http::StatusCode::CONFLICT,
             "client_getter_fixture",
@@ -661,13 +686,14 @@ fn client_metadata_casts_and_external_default_read_hook_keep_one_model_identity(
 
 struct AlternatingRedirectGetter(std::sync::atomic::AtomicUsize);
 impl AttributeGetter for AlternatingRedirectGetter {
-    fn get(&self, _: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(&self, _: Option<&AttributeValue>, _: &AttributeMap) -> Result<Option<AttributeValue>> {
         let call = self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(Some(if call == 0 {
+        let value = if call == 0 {
             json!(["first"])
         } else {
             json!([])
-        }))
+        };
+        Ok(Some(value.into()))
     }
 }
 #[test]
@@ -757,23 +783,23 @@ struct SecretOverride {
 impl AttributeSetter for SecretOverride {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             self.seen
                 .lock()
                 .map_err(|_| state_error())?
-                .push(value.clone());
+                .push(value.as_json()?.clone());
             if self.fail {
                 return Err(Error::custom(
                     "client_fixture_custom_setter_failed",
                     "合成custom setter拒绝",
                 ));
             }
-            Ok(Map::from_iter([
+            Ok(AttributeMap::from_iter([
                 ("secret".to_owned(), value),
-                ("custom_applied".to_owned(), Value::Bool(true)),
+                ("custom_applied".to_owned(), Value::Bool(true).into()),
             ]))
         })
     }

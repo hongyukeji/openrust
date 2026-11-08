@@ -112,6 +112,65 @@ impl CalendarClock for FixedClock {
 pub struct CalendarContext {
     timezone: ResolvedTimezone,
     clock: Arc<dyn CalendarClock>,
+    date_factory: Option<Arc<DateFactory>>,
+}
+
+type DateFactory = dyn for<'a> Fn(DateConstruction<'a>, &CalendarContext) -> Result<Option<InputDate>>
+    + Send
+    + Sync;
+
+/// 由应用日期工厂处理的构造操作。
+#[derive(Clone, Copy, Debug)]
+pub enum DateConstruction<'a> {
+    /// 从应用时钟取得当前日期。
+    Now,
+    /// 从已有日期取得值，保留时刻及原时区。
+    Instance(&'a InputDate),
+    /// 按应用时区从 Unix 时间戳构造，保留传入工厂的原始参数。
+    FromTimestamp {
+        /// 原始数值或数值字符串。
+        source: &'a Value,
+        /// 依 Carbon 数值规则解析的时刻。
+        instant: CalendarInstant,
+    },
+    /// 按指定的 PHP 格式解析。
+    FromFormat {
+        /// 要解析的原值。
+        value: &'a Value,
+        /// PHP 日期格式。
+        format: &'a str,
+    },
+    /// 按 Carbon 的宽松规则解析，空字符串取应用当前时刻。
+    Parse(&'a Value),
+}
+
+impl DateConstruction<'_> {
+    /// 执行默认构造，可供自定义工厂装饰。此入口直接使用 Calendar 解析内核。
+    pub fn default_date(self, context: &CalendarContext) -> Result<Option<InputDate>> {
+        match self {
+            Self::Now => Ok(Some(InputDate::new(
+                context.now()?,
+                context.timezone().clone(),
+            ))),
+            Self::Instance(date) => Ok(Some(date.clone())),
+            Self::FromTimestamp { instant, .. } => {
+                Ok(Some(InputDate::new(instant, context.timezone().clone())))
+            }
+            Self::FromFormat { value, format } => parse_date(
+                value,
+                DateOptions {
+                    format: Some(format),
+                    timezone: None,
+                },
+                context,
+            ),
+            Self::Parse(Value::String(text)) if text.is_empty() => Ok(Some(InputDate::new(
+                context.now()?,
+                context.timezone().clone(),
+            ))),
+            Self::Parse(value) => parse_date(value, DateOptions::default(), context),
+        }
+    }
 }
 impl fmt::Debug for CalendarContext {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -129,7 +188,30 @@ impl Default for CalendarContext {
 impl CalendarContext {
     /// 使用明确的默认时区和时钟构造上下文。
     pub fn new(timezone: ResolvedTimezone, clock: Arc<dyn CalendarClock>) -> Self {
-        Self { timezone, clock }
+        Self {
+            timezone,
+            clock,
+            date_factory: None,
+        }
+    }
+    /// 为当前应用上下文替换日期构造。可调用 [`DateConstruction::default_date`] 后调整结果。
+    #[must_use]
+    pub fn with_date_factory(
+        mut self,
+        factory: impl for<'a> Fn(DateConstruction<'a>, &CalendarContext) -> Result<Option<InputDate>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.date_factory = Some(Arc::new(factory));
+        self
+    }
+    /// 经应用工厂执行日期构造，未配置时使用默认规则。
+    pub fn make_date(&self, operation: DateConstruction<'_>) -> Result<Option<InputDate>> {
+        match &self.date_factory {
+            Some(factory) => factory(operation, self),
+            None => operation.default_date(self),
+        }
     }
     /// 返回默认时区。
     pub const fn timezone(&self) -> &ResolvedTimezone {
@@ -223,6 +305,15 @@ impl InputDate {
     pub fn format(&self, pattern: &str) -> Result<String> {
         format::display(self, pattern)
     }
+    /// 解析该日期在自身时区中的本地午夜。
+    pub fn start_of_day(&self) -> Result<Self> {
+        let midnight = self.timezone.civil(self.instant)?.midnight();
+        Ok(Self::new(
+            self.timezone.resolve(midnight)?,
+            self.timezone.clone(),
+        ))
+    }
+
     /// 输出包含时区偏移的 ISO 8601 字符串。
     pub fn to_iso8601_string(&self) -> Result<String> {
         self.format("Y-m-d\\TH:i:sP")
@@ -343,6 +434,26 @@ pub fn parse_date(
         parse::parse(value, now, &timezone, is_test)?
     };
     Ok(Some(date))
+}
+
+// Eloquent 的 is_numeric 分支包含短数字字符串，且采用应用时区。
+pub(crate) fn model_numeric_date(value: &Value) -> Result<Option<CalendarInstant>> {
+    let text = match value {
+        Value::Number(number) if number.is_f64() => {
+            lexer::number_format_timestamp(number.as_f64().ok_or_else(range_error)?)?
+        }
+        Value::Number(number) => number.to_string(),
+        Value::String(text)
+            if lexer::is_numeric(text.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}'])) =>
+        {
+            if text.len() > MAX_CALENDAR_BYTES {
+                return Err(limit_error());
+            }
+            return lexer::carbon_timestamp(text).map(Some);
+        }
+        _ => return Ok(None),
+    };
+    lexer::carbon_timestamp(&text).map(Some)
 }
 
 fn calendar_error(code: &'static str) -> Error {

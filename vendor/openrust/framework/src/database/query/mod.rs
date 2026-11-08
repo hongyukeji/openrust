@@ -1131,7 +1131,7 @@ fn invalid_identifier() -> Error {
 fn empty_values() -> Error {
     Error::custom("query_values_empty", "query values must not be empty")
 }
-fn unsupported_backend() -> Error {
+pub(super) fn unsupported_backend() -> Error {
     Error::custom(
         "query_backend_unsupported",
         "query backend is not supported",

@@ -7,9 +7,9 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            AttributeSetter, BelongsTo, BelongsToMany, HasMany, HasOne, HasRelationships,
-            LoadedRelation, MassAssignment, ModelAttributes, ModelMetadata, Pivot, PivotKeys,
-            RelationLoad, SaveContext,
+            AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, HasMany,
+            HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttributes,
+            ModelDateContext, ModelMetadata, Pivot, PivotKeys, RelationLoad, SaveContext,
         },
     },
     support::BoxFuture,
@@ -58,8 +58,9 @@ pub(crate) async fn preview(
     input: ExampleRecordInput,
     discard: bool,
     assignment: MassAssignment<'_>,
+    dates: ModelDateContext,
 ) -> Result<RecordPreview> {
-    let attributes = model.attribute_snapshot()?;
+    let attributes = model.attribute_snapshot()?.with_date_context(dates);
     let metadata = example_record::Model::attribute_metadata();
     fill_record_input(&attributes, &metadata, input, assignment).await?;
     // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
@@ -69,15 +70,34 @@ pub(crate) async fn preview(
     }
     // 摘要与详情共用同一字段选择，详情读取转换后的值。
     let summary_fields = ["name", "priority", "enabled"];
-    let display = RecordPreviewDisplay {
-        summary: attributes.only(&metadata, &summary_fields)?,
-        details: attributes.except(&metadata, &summary_fields)?,
-    };
+    let project =
+        |values: openrust::database::eloquent::AttributeMap| -> Result<Map<String, Value>> {
+            values
+                .into_iter()
+                .map(|(name, value)| {
+                    let value = attributes.project_attribute_json(&metadata, &name, value)?;
+                    Ok((name, value))
+                })
+                .collect()
+        };
+    let mut details = attributes.attributes_to_json(&metadata)?;
+    let summary = summary_fields
+        .into_iter()
+        .map(|name| {
+            (
+                name.to_owned(),
+                details.shift_remove(name).unwrap_or(Value::Null),
+            )
+        })
+        .collect();
+    let display = RecordPreviewDisplay { summary, details };
     let dirty = attributes.get_dirty(&metadata)?;
     Ok(RecordPreview {
         editable_fields: Vec::new(),
         original: attributes.get_raw_original_attributes()?,
-        original_transformed: attributes.get_original_attributes(&metadata, |_| None)?,
+        original_transformed: project(
+            attributes.get_original_attribute_values(&metadata, |_| None)?,
+        )?,
         proposed: attributes.raw_attributes()?,
         display,
         dirty,
@@ -301,13 +321,17 @@ struct MetadataPreviewSetter {
 impl AttributeSetter for MetadataPreviewSetter {
     fn set(
         &self,
-        value: Value,
-        _raw_snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _raw_snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
-            let projected =
-                example_record::Model::metadata_snapshot_value(self.present.then_some(&value))?;
-            Ok(Map::from_iter([("metadata".into(), projected)]))
+            let projected = example_record::Model::metadata_snapshot_value(
+                self.present.then(|| value.as_json()).transpose()?,
+            )?;
+            Ok(AttributeMap::from_iter([(
+                "metadata".into(),
+                projected.into(),
+            )]))
         })
     }
 }

@@ -2,7 +2,7 @@
 
 use super::{
     Alias, Arc, Asterisk, CURRENT_PAGE_CONTEXT, ColumnOperand, ConnectionTrait,
-    DatabaseTransaction, Error, Expr, Func, Future, JoinKind, Mutex, PageContext, Query,
+    DatabaseTransaction, DbBackend, Error, Expr, Func, Future, JoinKind, Mutex, PageContext, Query,
     QueryBuilder, QueryContext, QueryInner, QueryPage, QueryResult, QueryState, RawSql, Result,
     SelectStatement, SimplePage, SortDirection, TryGetable, Value, WhereGroup, empty_values,
     subqueries, validate_identifier,
@@ -312,6 +312,28 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
     // 持久化生命周期从执行查询取得事务，避免 SQL 与事件使用不同连接。
     pub(crate) fn transaction_ref(&self) -> Result<Option<&'tx DatabaseTransaction>> {
         Ok(self.snapshot()?.transaction)
+    }
+
+    pub(crate) fn bind_model_date(&self, date: &crate::support::InputDate) -> Result<Value> {
+        let db = &self.snapshot()?.db;
+        if db.backend()? != DbBackend::Postgres {
+            return date.format(db.query_date_format()?).map(Value::from);
+        }
+        // PostgreSQL 的驱动会把字符串声明为 TEXT。用无时区时间参数保留
+        // grammar 的本地墙钟值，目标为 timestamptz 时仍由会话时区解释。
+        let out_of_range = || {
+            Error::custom(
+                "model_postgres_date_binding_out_of_range",
+                "模型日期超出 PostgreSQL 驱动的时间戳绑定范围",
+            )
+        };
+        let datetime = date.try_chrono().map_err(|_| out_of_range())?;
+        let local = datetime
+            .naive_utc()
+            .checked_add_offset(*datetime.offset())
+            .ok_or_else(out_of_range)?;
+        let whole_second = chrono::Timelike::with_nanosecond(&local, 0).ok_or_else(out_of_range)?;
+        Ok(whole_second.into())
     }
 
     /// 借用事务并创建独立查询句柄；生命周期只能缩短，已接入父查询仍保留原句柄。

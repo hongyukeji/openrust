@@ -3,10 +3,12 @@
 mod tests {
     use openrust::{
         Result,
-        database::eloquent::{AttributeSetter, ModelAttributes, ModelMetadata},
+        database::eloquent::{
+            AttributeMap, AttributeSetter, AttributeValue, ModelAttributes, ModelMetadata,
+        },
         support::BoxFuture,
     };
-    use serde_json::{Map, Value, json};
+    use serde_json::{Map, json};
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -19,19 +21,20 @@ mod tests {
     impl AttributeSetter for BorrowedSetter<'_> {
         fn set(
             &self,
-            value: Value,
-            _raw: Map<String, Value>,
-        ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+            value: AttributeValue,
+            _raw: AttributeMap,
+        ) -> BoxFuture<'_, Result<AttributeMap>> {
             Box::pin(async move {
                 self.calls.fetch_add(1, Ordering::SeqCst);
                 tokio::task::yield_now().await;
-                Ok(Map::from_iter([(
+                Ok(AttributeMap::from_iter([(
                     "name".into(),
                     json!(format!(
                         "{}:{}",
                         self.prefix,
-                        value.as_str().unwrap_or_default()
-                    )),
+                        value.as_json()?.as_str().unwrap_or_default()
+                    ))
+                    .into(),
                 )]))
             })
         }
@@ -40,9 +43,9 @@ mod tests {
     impl AttributeSetter for Reject {
         fn set(
             &self,
-            _value: Value,
-            _raw: Map<String, Value>,
-        ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+            _value: AttributeValue,
+            _raw: AttributeMap,
+        ) -> BoxFuture<'_, Result<AttributeMap>> {
             Box::pin(async {
                 Err(openrust::Error::custom(
                     "consumer_rejected",

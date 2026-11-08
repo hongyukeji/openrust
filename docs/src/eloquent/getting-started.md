@@ -55,6 +55,28 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 启用 `hashing` 后，Hashed 赋值使用同一公开 `HashManager`：通过 `set_attribute_with_hashing` 提供应用已解析的服务。null 旁路，明文哈希，已有合法且配置匹配的哈希保持原值；驱动配置错误不覆盖原属性。水合和读取不重新哈希。
 
+## 日期属性
+
+在 `ModelMetadata::casts` 中声明 `AttributeCast::DateTime`、`Date` 或其不可变变体。使用 `get_attribute_value` 读取日期对象，使用 `snapshot` 读取其时刻、时区与微秒。`Date` 将时间调整到本地午夜，`Timestamp` 返回 Unix 秒。带格式的 `CustomDateTime` 和 `ImmutableCustomDateTime` 保留时间，并在调用 `project_attribute_json` 时按给定 PHP 格式输出。普通日期的 JSON 投影使用 UTC 和六位微秒。
+
+使用 `with_date_context(ModelDateContext::for_connection(calendar, &db)?)` 将应用 Calendar 和已选连接的查询语法交给模型。独立模型可用 `ModelDateContext::new` 显式指定语法格式。应用可在 `CalendarContext::with_date_factory` 安装构造回调，替换或调用 `DateConstruction::default_date` 装饰默认结果。HTTP Provider 在 `boot` 中通过 `BootContext::extension_mut::<CalendarContext>()` 登记包含应用时区的上下文。
+
+显式 `date_format` 优先用于普通日期赋值。自定义 cast 的格式用于输出，单独声明它时原始赋值保持原样。日期对象走 `set_attribute_value`，普通 JSON 输入仍走 `set_attribute`。
+
+自动时间戳从应用工厂的 `DateConstruction::Now` 取一次时刻。新模型的创建和更新时间共享该时刻，已经手工改动的列保持原值。可用 `ModelDateContext::with_serializer` 覆写普通日期和有类型 getter 返回日期的输出，调用 `ModelAttributes::project_attribute_json` 使用该规则。带自定义格式的 cast 仍按其格式投影，写库仍使用模型存储格式或连接的绑定格式。
+
+整组属性可用 `ModelAttributes::attributes_to_array` 投影。它先按 `visible` 和 `hidden` 选列，再处理日期名单、访问器和 cast。日期名单的输出传给访问器作当前值，访问器的原始快照仍保留存储值。使用 `attributes_to_json` 可继续转换尚未投影的原始日期对象。
+
+`AttributeGetter` 和 `AttributeSetter` 接收 `AttributeValue` 与 `AttributeMap`，可以从同一快照读取 JSON 值和日期对象。只处理 JSON 的访问器可对实际使用的字段调用 `as_json`。旧式 getter 返回的日期在属性数组中保留对象身份，进入 JSON 时采用日期对象的默认输出；标记访问器返回的日期仍使用模型序列化覆写。
+
+### 有类型的访问器
+
+用 `ModelAttributes::register_attribute` 登记 `ModelAttribute`。它的同步 getter 接收原始属性值和快照，setter 返回有序的多字段补丁。日期对象默认按字段缓存。再次读取该字段时会调用配置的 setter，同步对象的当前值。读取全部原值、同步原始基线或计算 dirty 时会同步全部适用的缓存。
+
+调用 `without_object_caching` 可让 getter 每次产生新值，`should_cache` 可同时缓存普通值。访问器在属性锁外运行，回写提交前会检查快照和日期对象的版本。替换原始快照会清除对象缓存。
+
+保存期间已绑定到 SQL 的可变日期可以读取。此时修改会返回 `model_date_binding_pending`，查询结束或取消后可再次修改。模型的更新回执使用本次实际绑定的列。
+
 ## 异步修改与取消
 
 同步短锁只保护原始状态，访问器及异步哈希不跨锁执行。需要在外部操作失败或 future 取消时恢复内存属性，可使用 `set_attribute_reversibly_if` 取得拥有式 `AttributeMutation`：条件不成立返回 None；成功返回前已原子安装整个补丁，确认后调用 commit，否则 Drop 同步恢复仍归本次修改的字段。
@@ -151,7 +173,7 @@ fn main() -> openrust::Result<()> {
 
 `ModelMetadata::resolve_connection` 按模型显式连接、领域 fallback、应用默认连接选择同一 `Databases` 服务；显式空名或 `"0"` 选应用默认，未知名报错。`ModelIdentity::model_key` 由模型属性机制产生，`MorphIdentity` 不把登录 ID 或 Guard 名当作模型类型。完整 morph map、连接生命周期与持久 save 仍须独立对应。
 
-PostgreSQL 二进制时间当前使用 ISO/UTC 表示，不对应任意会话 `TimeZone`/`DateStyle` 的显示格式；这是待闭合的后端语义缺口，不作为必要 Rust 适配关闭。当前 SQLite、MySQL、PostgreSQL 的实现和验收各自取证，不由编译或单后端结果推断全后端完成。
+PostgreSQL 写入原始日期对象时，将查询语法格式化后的本地时间绑定为无时区 `timestamp` 参数。目标是 `timestamptz` 时，由数据库使用会话 `TimeZone` 解释。日期超出驱动可编码范围时返回 `model_postgres_date_binding_out_of_range`。PostgreSQL 二进制时间回读当前使用 ISO/UTC 表示，会话 `TimeZone` 和 `DateStyle` 对显示格式的影响仍待对应。各后端的运行验收分别取证。
 
 固定来源：[Laravel 13.x Eloquent](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md) 与 [属性访问器和转换](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-mutators.md)。完整官方章节仍按依赖逐项交付，当前例子仅说明可用的属性与身份前置。
 

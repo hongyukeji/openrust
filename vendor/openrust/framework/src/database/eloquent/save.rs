@@ -1,9 +1,10 @@
 //! 模型的保存流程，沿用 Query Builder、属性状态和模型事件。
 
+use super::attribute_value::DateBinding;
 use super::model_events::fire_model_event_in_context;
 use super::{
-    MappedModelEvent, MassAssignment, ModelAttributes, ModelMetadata, unguarded,
-    without_model_events,
+    AttributeMap, AttributeValue, MappedModelEvent, MassAssignment, ModelAttributes, ModelMetadata,
+    unguarded, without_model_events,
 };
 use crate::{
     Databases, Error, Result,
@@ -251,17 +252,19 @@ async fn persist_update<M: SaveModel>(
             .update_timestamps(metadata, true, context.calendar)
             .await?;
     }
-    let changes = model.attributes().get_dirty(metadata)?;
+    let changes = model.attributes().get_dirty_values(metadata)?;
     if !changes.is_empty() {
+        let mut date_bindings = Vec::new();
         if constrain_primary_key {
-            let key = model.attributes().key_for_save_query(metadata)?;
-            let key = model.bind_attribute(&metadata.key_name, &key)?;
+            let key = model.attributes().key_value_for_save_query(metadata)?;
+            let key = bind_value(model, &metadata.key_name, &key, &query, &mut date_bindings)?;
             query = query.where_eq(&metadata.key_name, key)?;
         }
-        let bindings = bind_values(model, &changes)?;
+        let bindings = bind_values(model, &changes, &query, &mut date_bindings)?;
         let attributes = model.attributes_mut();
         query.update(bindings).await?;
-        attributes.sync_changes(metadata)?;
+        attributes.sync_written_changes(changes)?;
+        drop(date_bindings);
         notify(model, metadata, context.events, "updated", transaction).await?;
     }
     Ok(true)
@@ -289,8 +292,9 @@ async fn insert<M: SaveModel>(
             .update_timestamps(metadata, false, context.calendar)
             .await?;
     }
-    let raw = model.attributes().raw_attributes()?;
-    let bindings = bind_values(model, &raw)?;
+    let raw = model.attributes().raw_attribute_values()?;
+    let mut date_bindings = Vec::new();
+    let bindings = bind_values(model, &raw, &query, &mut date_bindings)?;
     if metadata.incrementing {
         let attributes = model.attributes_mut();
         let key = query
@@ -304,6 +308,7 @@ async fn insert<M: SaveModel>(
     } else {
         query.insert(bindings).await?;
     }
+    drop(date_bindings);
     model.mark_created();
     notify(model, metadata, context.events, "created", transaction).await?;
     Ok(true)
@@ -311,16 +316,33 @@ async fn insert<M: SaveModel>(
 
 fn bind_values<'a, M: SaveModel>(
     model: &M,
-    values: &'a Map<String, Value>,
+    values: &'a AttributeMap,
+    query: &QueryBuilder<'_, '_>,
+    date_bindings: &mut Vec<DateBinding>,
 ) -> Result<Vec<(&'a str, sea_orm::Value)>> {
     values
         .iter()
         .map(|(name, value)| {
-            model
-                .bind_attribute(name, value)
-                .map(|bound| (name.as_str(), bound))
+            bind_value(model, name, value, query, date_bindings).map(|bound| (name.as_str(), bound))
         })
         .collect()
+}
+
+fn bind_value<M: SaveModel>(
+    model: &M,
+    name: &str,
+    value: &AttributeValue,
+    query: &QueryBuilder<'_, '_>,
+    date_bindings: &mut Vec<DateBinding>,
+) -> Result<sea_orm::Value> {
+    match value {
+        AttributeValue::Json(value) => model.bind_attribute(name, value),
+        AttributeValue::Date(date) => {
+            date_bindings.extend(date.pin_for_binding()?);
+            // 连接格式化尚未经过模型存储格式转换的日期对象。
+            query.bind_model_date(&date.snapshot()?)
+        }
+    }
 }
 
 fn inserted_key(key: sea_orm::Value) -> Result<Value> {

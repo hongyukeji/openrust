@@ -5,6 +5,7 @@ use crate::{ClientFactory, ClientModel, ClientModelFactory, ClientRecord};
 use openrust::container::{Container, ContainerBuilder};
 use openrust::{
     Error,
+    database::eloquent::{AttributeMap, AttributeValue},
     hashing::{ArgonConfig, BcryptConfig, HashingConfig},
     support::BoxFuture,
 };
@@ -74,14 +75,22 @@ fn lookup(secret: Option<&str>, revoked: bool) -> Result<Arc<SelectedClient>> {
 
 struct SecretGetter(Value);
 impl openrust::database::eloquent::AttributeGetter for SecretGetter {
-    fn get(&self, _raw: Option<&Value>, _attributes: &Map<String, Value>) -> Result<Option<Value>> {
-        Ok(Some(self.0.clone()))
+    fn get(
+        &self,
+        _raw: Option<&AttributeValue>,
+        _attributes: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
+        Ok(Some(self.0.clone().into()))
     }
 }
 
 struct FailedSecretGetter;
 impl openrust::database::eloquent::AttributeGetter for FailedSecretGetter {
-    fn get(&self, _raw: Option<&Value>, _attributes: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(
+        &self,
+        _raw: Option<&AttributeValue>,
+        _attributes: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
         Err(Error::custom_with_status(
             openrust::http::axum::http::StatusCode::CONFLICT,
             "test_secret_getter_failed",

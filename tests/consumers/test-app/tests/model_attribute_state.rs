@@ -1,7 +1,10 @@
 //! 外部package只使用公开属性状态API；不调用数据库或内部State。
 use openrust::{
     Result,
-    database::eloquent::{AttributeCast, AttributeGetter, ModelAttributes, ModelMetadata},
+    database::eloquent::{
+        AttributeCast, AttributeGetter, AttributeMap, AttributeValue, ModelAttributes,
+        ModelMetadata,
+    },
 };
 use serde_json::{Map, Value, json};
 
@@ -71,10 +74,17 @@ fn metadata_cast_extension_is_public_and_preserves_read_phase_checks() -> Result
 struct SavedLabel;
 
 impl AttributeGetter for SavedLabel {
-    fn get(&self, value: Option<&Value>, original: &Map<String, Value>) -> Result<Option<Value>> {
-        Ok(Some(
-            json!({"label": value, "locale": original.get("locale")}),
-        ))
+    fn get(
+        &self,
+        value: Option<&AttributeValue>,
+        original: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
+        let label = value.map(AttributeValue::as_json).transpose()?;
+        let locale = original
+            .get("locale")
+            .map(AttributeValue::as_json)
+            .transpose()?;
+        Ok(Some(json!({"label": label, "locale": locale}).into()))
     }
 }
 

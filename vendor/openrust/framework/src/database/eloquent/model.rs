@@ -7,7 +7,7 @@ use crate::{
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashSet};
 
-use super::AttributeCast;
+use super::{AttributeCast, AttributeValue, ModelDateContext};
 
 /// Rust 模型显式声明的数据库元数据；不从 Guard/Provider 名推导类型或主键。
 ///
@@ -41,6 +41,8 @@ pub struct ModelMetadata {
     pub updated_at_column: Option<String>,
     /// 覆盖持久化时间使用的 PHP 日期格式。
     pub date_format: Option<String>,
+    /// 模型额外声明为日期的原始字段。
+    pub date_attributes: Vec<String>,
     /// 持久化前是否调用唯一 ID 生成。
     pub uses_unique_ids: bool,
     /// 按声明顺序处理的唯一 ID 字段。
@@ -65,6 +67,7 @@ impl ModelMetadata {
             created_at_column: Some("created_at".into()),
             updated_at_column: Some("updated_at".into()),
             date_format: None,
+            date_attributes: Vec::new(),
             uses_unique_ids: false,
             unique_id_columns: Vec::new(),
             fillable: Vec::new(),
@@ -115,7 +118,7 @@ impl ModelMetadata {
     /// 返回读取/赋值使用的转换；只有递增主键才隐式注入 `key_type`。
     pub fn effective_cast(&self, name: &str) -> Result<Option<AttributeCast>> {
         if let Some(cast) = self.casts.get(name) {
-            return Ok(Some(*cast));
+            return Ok(Some(cast.clone()));
         }
         if name != self.key_name || !self.incrementing {
             return Ok(None);
@@ -155,18 +158,84 @@ impl ModelMetadata {
         name: &str,
         raw: Option<Value>,
     ) -> Result<Option<Value>> {
+        self.cast_attribute_value(
+            name,
+            raw.map(AttributeValue::from),
+            &ModelDateContext::default(),
+        )?
+        .map(AttributeValue::try_into_json)
+        .transpose()
+    }
+
+    /// 对独立属性执行模型 cast，保留日期对象和缺省值类别。
+    pub fn cast_attribute_value(
+        &self,
+        name: &str,
+        raw: Option<AttributeValue>,
+        dates: &ModelDateContext,
+    ) -> Result<Option<AttributeValue>> {
+        let cast = self.effective_cast(name)?;
+        let Some(raw) = raw else { return Ok(None) };
+        let Some(cast) = cast else {
+            return if !raw.is_null() && self.is_implicit_date(name) {
+                dates.read(self, &AttributeCast::DateTime, raw).map(Some)
+            } else {
+                Ok(Some(raw))
+            };
+        };
+        if cast.is_date_read() {
+            return dates.read(self, &cast, raw).map(Some);
+        }
+        if cast == AttributeCast::Hashed && !raw.is_null() {
+            self.check_raw_class_cast(name)?;
+        }
+        super::attribute_cast::cast_read_value(&cast, Some(raw.try_into_json()?))
+            .map(|value| value.map(AttributeValue::from))
+    }
+
+    /// 显式将属性读值投影为 JSON，日期使用默认 UTC 或 cast 的自定义格式。
+    pub fn project_attribute_json(&self, name: &str, value: AttributeValue) -> Result<Value> {
+        self.project_date_value(name, value, &ModelDateContext::default(), false)
+    }
+
+    pub(super) fn project_date_value(
+        &self,
+        name: &str,
+        value: AttributeValue,
+        dates: &ModelDateContext,
+        from_accessor: bool,
+    ) -> Result<Value> {
+        let AttributeValue::Date(date) = value else {
+            return value.try_into_json();
+        };
+        let date = date.snapshot()?;
+        if from_accessor {
+            return dates.serialize(&date);
+        }
         match self.effective_cast(name)? {
-            Some(cast) => {
-                if cast == AttributeCast::Hashed
-                    && raw.as_ref().is_some_and(|value| !value.is_null())
-                {
-                    self.check_raw_class_cast(name)?;
-                }
-                super::attribute_cast::cast_read_value(cast, raw)
-            }
-            None => Ok(raw),
+            Some(
+                AttributeCast::CustomDateTime(format)
+                | AttributeCast::ImmutableCustomDateTime(format),
+            ) => date.format(&format).map(Value::String),
+            _ => dates.serialize(&date),
         }
     }
+
+    pub(super) fn is_implicit_date(&self, name: &str) -> bool {
+        self.date_attribute_names().any(|field| field == name)
+    }
+
+    pub(super) fn date_attribute_names(&self) -> impl Iterator<Item = &str> {
+        [
+            self.created_at_column.as_deref(),
+            self.updated_at_column.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|_| self.uses_timestamps())
+        .chain(self.date_attributes.iter().map(String::as_str))
+    }
+
     // setAttribute在JSON/hashed分派及null旁路之前检查原始class声明。
     pub(crate) fn write_cast(&self, name: &str) -> Result<Option<AttributeCast>> {
         self.check_raw_class_cast(name)?;
@@ -213,12 +282,14 @@ impl ModelMetadata {
     pub fn arrayable_attributes(&self, attributes: &Map<String, Value>) -> Map<String, Value> {
         attributes
             .iter()
-            .filter(|(key, _)| {
-                (self.visible.is_empty() || self.visible.contains(key))
-                    && !self.hidden.contains(key)
-            })
+            .filter(|(key, _)| self.attribute_is_arrayable(key))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect()
+    }
+
+    pub(super) fn attribute_is_arrayable(&self, name: &str) -> bool {
+        (self.visible.is_empty() || self.visible.iter().any(|field| field == name))
+            && !self.hidden.iter().any(|field| field == name)
     }
 }
 

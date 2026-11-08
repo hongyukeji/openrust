@@ -7,7 +7,14 @@ async fn preview(
     input: ExampleRecordInput,
     discard: bool,
 ) -> Result<RecordPreview> {
-    super::preview(model, input, discard, MassAssignment::default()).await
+    super::preview(
+        model,
+        input,
+        discard,
+        MassAssignment::default(),
+        openrust::database::eloquent::ModelDateContext::default(),
+    )
+    .await
 }
 
 fn fixture() -> (example_record::Model, ExampleRecordInput) {

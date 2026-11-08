@@ -1120,10 +1120,14 @@ struct ModelPasswordGetter {
     calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 impl openrust::database::eloquent::AttributeGetter for ModelPasswordGetter {
-    fn get(&self, _: Option<&Value>, _: &serde_json::Map<String, Value>) -> Result<Option<Value>> {
+    fn get(
+        &self,
+        _: Option<&openrust::database::eloquent::AttributeValue>,
+        _: &openrust::database::eloquent::AttributeMap,
+    ) -> Result<Option<openrust::database::eloquent::AttributeValue>> {
         self.calls
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        Ok(Some(json!(self.encoded)))
+        Ok(Some(json!(self.encoded).into()))
     }
 }
 

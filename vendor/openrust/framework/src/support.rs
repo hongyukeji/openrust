@@ -22,8 +22,9 @@ mod view_error_bag;
 
 pub use backed_enum::{BackedEnum, EnumBacking};
 pub use calendar::{
-    CalendarClock, CalendarContext, CalendarInstant, DateOptions, FixedClock, InputDate,
-    InputInterval, IntervalError, IntervalUnit, ResolvedTimezone, SystemClock, TimezoneInput,
+    CalendarClock, CalendarContext, CalendarInstant, DateConstruction, DateOptions, FixedClock,
+    InputDate, InputInterval, IntervalError, IntervalUnit, ResolvedTimezone, SystemClock,
+    TimezoneInput,
 };
 pub use collection::{ArrayKey, Collection};
 pub use data_value::{DataObject, DataValue, ObjectEncoding};

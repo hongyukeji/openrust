@@ -92,6 +92,10 @@ impl Model {
             ("priority".into(), AttributeCast::Integer),
             ("view_count".into(), AttributeCast::Integer),
             ("enabled".into(), AttributeCast::Boolean),
+            (
+                "published_at".into(),
+                AttributeCast::ImmutableCustomDateTime("Y-m-d\\TH:i:s.uP".into()),
+            ),
             ("metadata".into(), AttributeCast::Array),
         ]
         .into_iter()

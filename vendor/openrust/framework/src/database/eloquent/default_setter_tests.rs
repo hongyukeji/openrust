@@ -1,12 +1,15 @@
 //! 调用级默认setter的优先级、借用、冲突及取消反证；复用真实属性状态。
 
 use super::{AttributeSetter, ModelAttributes};
+use crate::database::eloquent::{AttributeMap, AttributeValue};
 use crate::{
     Error, Result,
     database::eloquent::{AttributeCast, ModelMetadata},
     support::BoxFuture,
 };
-use serde_json::{Map, Value, json};
+#[cfg(feature = "hashing")]
+use serde_json::Value;
+use serde_json::{Map, json};
 use std::{
     future::Future,
     sync::{
@@ -40,19 +43,25 @@ struct RecordingSetter {
 impl AttributeSetter for RecordingSetter {
     fn set(
         &self,
-        value: Value,
-        snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
-            assert_eq!(snapshot.get("secret"), Some(&json!("original")));
+            assert_eq!(
+                snapshot
+                    .get("secret")
+                    .map(AttributeValue::as_json)
+                    .transpose()?,
+                Some(&json!("original"))
+            );
             tokio::task::yield_now().await;
             if self.fail {
                 return Err(failure());
             }
-            Ok(Map::from_iter([
+            Ok(AttributeMap::from_iter([
                 ("secret".into(), value),
-                ("derived".into(), json!(true)),
+                ("derived".into(), json!(true).into()),
             ]))
         })
     }
@@ -61,9 +70,9 @@ struct BorrowedSetter<'a>(&'a dyn AttributeSetter);
 impl AttributeSetter for BorrowedSetter<'_> {
     fn set(
         &self,
-        value: Value,
-        snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         self.0.set(value, snapshot)
     }
 }
@@ -175,9 +184,9 @@ struct GatedSetter {
 impl AttributeSetter for GatedSetter {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.entered.add_permits(1);
@@ -186,9 +195,9 @@ impl AttributeSetter for GatedSetter {
                 .await
                 .map_err(|_| failure())?
                 .forget();
-            Ok(Map::from_iter([
+            Ok(AttributeMap::from_iter([
                 ("secret".into(), value),
-                ("derived".into(), json!(true)),
+                ("derived".into(), json!(true).into()),
             ]))
         })
     }
@@ -324,12 +333,12 @@ struct BorrowedHashingSetter<'a> {
 impl AttributeSetter for BorrowedHashingSetter<'_> {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
-            let plain = match &value {
+            let plain = match value.as_json()? {
                 Value::Null => None,
                 Value::String(plain) => Some(plain.as_str()),
                 _ => return Err(failure()),
@@ -339,9 +348,9 @@ impl AttributeSetter for BorrowedHashingSetter<'_> {
                 plain,
             )
             .await?;
-            Ok(Map::from_iter([(
+            Ok(AttributeMap::from_iter([(
                 "secret".into(),
-                encoded.map_or(Value::Null, Value::String),
+                encoded.map_or(Value::Null, Value::String).into(),
             )]))
         })
     }
@@ -399,9 +408,9 @@ struct ReentrantDefault<'a>(&'a ModelAttributes);
 impl AttributeSetter for ReentrantDefault<'_> {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         // 同步进入trait回调时就必须无锁；try_write使错误实现明确失败而非把测试阻死。
         let unlocked = self.0.state.try_write().is_ok();
         Box::pin(async move {
@@ -410,7 +419,7 @@ impl AttributeSetter for ReentrantDefault<'_> {
             }
             self.0.set_raw_attribute("other", json!(7))?;
             tokio::task::yield_now().await;
-            Ok(Map::from_iter([("secret".into(), value)]))
+            Ok(AttributeMap::from_iter([("secret".into(), value)]))
         })
     }
 }

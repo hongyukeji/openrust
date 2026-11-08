@@ -7,7 +7,9 @@ use crate::modules::example::http::resources::example_record::ExampleRecordResou
 use crate::modules::example::models::example_record::{self, record_query_db};
 use crate::modules::example::services::record_preview::fill_record_input;
 use openrust::auth::CurrentUser;
-use openrust::database::eloquent::{MassAssignment, SaveContext, save_with_query};
+use openrust::database::eloquent::{
+    MassAssignment, ModelDateContext, SaveContext, save_with_query,
+};
 use openrust::database::sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter};
 use openrust::events::Events;
 use openrust::http::Created;
@@ -107,6 +109,13 @@ pub(crate) async fn store(
         .transaction(move |transaction| {
             Box::pin(async move {
                 let mut model = example_record::RecordForSave::new(owner);
+                model.attributes =
+                    model
+                        .attributes
+                        .with_date_context(ModelDateContext::for_connection(
+                            calendar.clone(),
+                            &query_db,
+                        )?);
                 fill_record_input(
                     &model.attributes,
                     &model.metadata,
@@ -158,6 +167,9 @@ pub(crate) async fn update(
         .map_err(Error::internal)?
         .ok_or_else(not_found)?;
     let mut model = example_record::RecordForSave::from_existing(&existing)?;
+    model.attributes = model
+        .attributes
+        .with_date_context(ModelDateContext::for_connection(calendar.clone(), &db)?);
     fill_record_input(
         &model.attributes,
         &model.metadata,
@@ -216,6 +228,7 @@ pub(crate) async fn preview(
         input,
         options.discard,
         MassAssignment::new(&databases),
+        ModelDateContext::for_connection(calendar.clone(), &db)?,
     )
     .await?
     .with_schema_columns(&columns);

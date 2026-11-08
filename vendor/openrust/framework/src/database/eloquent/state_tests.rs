@@ -15,7 +15,7 @@ fn metadata(casts: &[(&str, AttributeCast)]) -> ModelMetadata {
     let mut metadata = ModelMetadata::new("records", "app::Record");
     metadata.casts = casts
         .iter()
-        .map(|(key, cast)| ((*key).into(), *cast))
+        .map(|(key, cast)| ((*key).into(), cast.clone()))
         .collect();
     metadata
 }
@@ -26,8 +26,21 @@ fn assert_code<T>(result: Result<T>, code: &str) {
 struct OriginalLabel;
 
 impl AttributeGetter for OriginalLabel {
-    fn get(&self, raw: Option<&Value>, snapshot: &Map<String, Value>) -> Result<Option<Value>> {
-        Ok(Some(json!([raw, snapshot.get("prefix")])))
+    fn get(
+        &self,
+        raw: Option<&AttributeValue>,
+        snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
+        Ok(Some(
+            json!([
+                raw.map(AttributeValue::as_json).transpose()?,
+                snapshot
+                    .get("prefix")
+                    .map(AttributeValue::as_json)
+                    .transpose()?
+            ])
+            .into(),
+        ))
     }
 }
 
@@ -80,10 +93,23 @@ fn transformed_original_uses_declared_accessors_and_the_original_snapshot() -> R
 struct SyncingOriginalGetter<'a>(&'a ModelAttributes);
 
 impl AttributeGetter for SyncingOriginalGetter<'_> {
-    fn get(&self, raw: Option<&Value>, snapshot: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(
+        &self,
+        raw: Option<&AttributeValue>,
+        snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
         self.0.set_raw_attribute("prefix", json!("resynced"))?;
         self.0.sync_original()?;
-        Ok(Some(json!([raw, snapshot.get("prefix")])))
+        Ok(Some(
+            json!([
+                raw.map(AttributeValue::as_json).transpose()?,
+                snapshot
+                    .get("prefix")
+                    .map(AttributeValue::as_json)
+                    .transpose()?
+            ])
+            .into(),
+        ))
     }
 }
 
@@ -290,14 +316,22 @@ fn stale_raw_or_original_snapshot_cannot_publish_changes() -> Result<()> {
     let snapshot = store.persistence_snapshot()?;
     store.set_raw_attribute("a", json!(2))?;
     assert_code(
-        store.publish_changes(&snapshot, raw(&[("a", json!(1))]), Map::new()),
+        store.publish_changes(
+            &snapshot,
+            from_json(raw(&[("a", json!(1))])),
+            AttributeMap::new(),
+        ),
         "model_attribute_snapshot_conflict",
     );
     assert!(store.get_changes()?.is_empty());
     let snapshot = store.persistence_snapshot()?;
     store.sync_original_attribute("a")?;
     assert_code(
-        store.publish_changes(&snapshot, raw(&[("a", json!(2))]), Map::new()),
+        store.publish_changes(
+            &snapshot,
+            from_json(raw(&[("a", json!(2))])),
+            AttributeMap::new(),
+        ),
         "model_attribute_snapshot_conflict",
     );
     assert!(store.get_changes()?.is_empty());
@@ -388,7 +422,7 @@ fn only_decoded_array_cast_normalizes_php_keys_and_empty_shape() -> Result<()> {
 
 struct ForbiddenGetter;
 impl AttributeGetter for ForbiddenGetter {
-    fn get(&self, _: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(&self, _: Option<&AttributeValue>, _: &AttributeMap) -> Result<Option<AttributeValue>> {
         Err(persistence_error("getter_must_not_run"))
     }
 }
@@ -404,7 +438,7 @@ fn comparison_bypasses_registered_getter() -> Result<()> {
 
 struct WaitingSetter(Arc<tokio::sync::Notify>);
 impl AttributeSetter for WaitingSetter {
-    fn set(&self, _: Value, _: Map<String, Value>) -> BoxFuture<'_, Result<Map<String, Value>>> {
+    fn set(&self, _: AttributeValue, _: AttributeMap) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             self.0.notify_one();
             std::future::pending().await
@@ -724,12 +758,8 @@ async fn raw_cast_write_checks_precede_null_json_and_hash_dispatch() -> Result<(
 
 struct IdentitySetter;
 impl AttributeSetter for IdentitySetter {
-    fn set(
-        &self,
-        value: Value,
-        _: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
-        Box::pin(async move { Ok(raw(&[("id", value)])) })
+    fn set(&self, value: AttributeValue, _: AttributeMap) -> BoxFuture<'_, Result<AttributeMap>> {
+        Box::pin(async move { Ok(AttributeMap::from_iter([("id".into(), value)])) })
     }
 }
 #[tokio::test]

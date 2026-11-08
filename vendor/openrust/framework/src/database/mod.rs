@@ -401,6 +401,13 @@ impl Db {
         Ok(self.primary_connection()?.get_database_backend())
     }
 
+    pub(crate) fn query_date_format(&self) -> Result<&'static str> {
+        match self.backend()? {
+            DbBackend::MySql | DbBackend::Postgres | DbBackend::Sqlite => Ok("Y-m-d H:i:s"),
+            _ => Err(query::unsupported_backend()),
+        }
+    }
+
     /// 返回已初始化 SeaORM 连接池的克隆。
     ///
     /// # Errors

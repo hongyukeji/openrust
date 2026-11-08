@@ -17,6 +17,71 @@ fn generated_key_preserves_supported_return_value_types() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn mutable_sql_dates_reject_updates_until_every_binding_is_released() -> Result<()> {
+    use crate::database::eloquent::ModelDate;
+    use crate::support::{CalendarInstant, InputDate, ResolvedTimezone};
+    let date = ModelDate::new(
+        InputDate::new(CalendarInstant::new(0, 0)?, ResolvedTimezone::utc()),
+        false,
+    );
+    let first = date.pin_for_binding()?;
+    let second = date.pin_for_binding()?;
+    drop(first);
+    let code = date.modify(Ok).err().map(|error| error.code().to_owned());
+    assert_eq!(code.as_deref(), Some("model_date_binding_pending"));
+    drop(second);
+    let mut overlap = None;
+    let code = date
+        .modify(|value| {
+            overlap = date.pin_for_binding()?;
+            Ok(value)
+        })
+        .err()
+        .map(|error| error.code().to_owned());
+    assert_eq!(code.as_deref(), Some("model_date_binding_pending"));
+    drop(overlap);
+    assert!(date.modify(Ok)?.same_object(&date));
+    Ok(())
+}
+
+#[cfg(feature = "db-postgres")]
+#[tokio::test]
+async fn postgres_model_date_binding_uses_local_whole_seconds_as_timestamp() -> Result<()> {
+    use crate::support::{CalendarInstant, InputDate, ResolvedTimezone};
+
+    let mut options = sea_orm::ConnectOptions::new("postgres://fixture@127.0.0.1:1/openrust");
+    options.connect_lazy(true).min_connections(0);
+    let db = crate::Db::default();
+    db.initialize(
+        sea_orm::Database::connect(options)
+            .await
+            .map_err(crate::Error::internal)?,
+    )?;
+    let query = db.table("records")?;
+    let date = InputDate::new(
+        CalendarInstant::new(0, 654_321)?,
+        ResolvedTimezone::parse("+08:00")?,
+    );
+    let bound = query.bind_model_date(&date)?;
+    let expected = chrono::NaiveDate::from_ymd_opt(1970, 1, 1)
+        .and_then(|date| date.and_hms_opt(8, 0, 0))
+        .ok_or_else(|| crate::Error::custom("test_date_fixture_invalid", "测试日期无效"))?;
+    assert_eq!(bound, sea_orm::Value::from(expected));
+    let wide_year = chrono::NaiveDate::from_ymd_opt(10_000, 1, 1)
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .ok_or_else(|| crate::Error::custom("test_date_fixture_invalid", "测试日期无效"))?;
+    let date = InputDate::new(
+        CalendarInstant::new(wide_year.and_utc().timestamp(), 0)?,
+        ResolvedTimezone::utc(),
+    );
+    assert_eq!(
+        query.bind_model_date(&date)?,
+        sea_orm::Value::from(wide_year)
+    );
+    Ok(())
+}
+
 #[cfg(any(feature = "db-mysql", feature = "db-postgres", feature = "db-sqlite"))]
 mod configured_connection {
     use super::*;

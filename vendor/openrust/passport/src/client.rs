@@ -5,8 +5,8 @@ use openrust::{
     Error, Result,
     auth::Authenticatable,
     database::eloquent::{
-        AttributeCast, AttributeGetter, AttributeSetter, ModelAttributes, ModelIdentity,
-        ModelMetadata, casts::cast_attribute_as_hashed_string,
+        AttributeCast, AttributeGetter, AttributeMap, AttributeSetter, AttributeValue,
+        ModelAttributes, ModelIdentity, ModelMetadata, casts::cast_attribute_as_hashed_string,
     },
     hashing::HashManager,
     support::BoxFuture,
@@ -26,7 +26,7 @@ pub trait ClientModel: ModelIdentity {
         let attributes = self.attributes()?;
         let raw = attributes.get(name);
         match name {
-            "redirect_uris" => redirect_attribute(raw, &attributes),
+            "redirect_uris" => redirect_attribute(raw, || Ok(attributes.get("redirect"))),
             "grant_types" => grant_attribute(self, raw),
             "plain_secret" => self
                 .plain_secret()
@@ -186,6 +186,17 @@ impl ClientModel for Client {
     fn set_raw_attributes(&self, attributes: Map<String, Value>) -> Result<()> {
         self.attributes.set_raw_attributes(attributes)
     }
+    fn first_party(&self) -> Result<bool> {
+        let field = if self.attributes.raw_attribute_value("user_id")?.is_some() {
+            "user_id"
+        } else {
+            "owner_id"
+        };
+        Ok(!truthy(self.get_attribute(field)?.as_ref()))
+    }
+    fn confidential(&self) -> Result<bool> {
+        Ok(truthy(self.attributes.raw_attribute("secret")?.as_ref()))
+    }
     fn plain_secret(&self) -> Result<Option<String>> {
         Ok(self.plain_secret.read().map_err(|_| state_error())?.clone())
     }
@@ -218,11 +229,11 @@ struct ClientSecretSetter<'a> {
 impl AttributeSetter for ClientSecretSetter<'_> {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
-            let plain = optional_string(Some(&value))?;
+            let plain = optional_string(Some(value.as_json()?))?;
             {
                 let mut temporary = self
                     .client
@@ -233,9 +244,9 @@ impl AttributeSetter for ClientSecretSetter<'_> {
             }
             // 固定默认mutator显式hashed；失败保临时明文副作用，但不发布raw patch。
             let encoded = cast_attribute_as_hashed_string(self.hashing, plain.as_deref()).await?;
-            Ok(Map::from_iter([(
+            Ok(AttributeMap::from_iter([(
                 "secret".to_owned(),
-                encoded.map_or(Value::Null, Value::String),
+                encoded.map_or(Value::Null, Value::String).into(),
             )]))
         })
     }
@@ -415,36 +426,50 @@ struct ClientGetter<'a> {
     name: &'a str,
 }
 impl AttributeGetter for ClientGetter<'_> {
-    fn get(&self, raw: Option<&Value>, attributes: &Map<String, Value>) -> Result<Option<Value>> {
-        match self.name {
-            "redirect_uris" => redirect_attribute(raw, attributes),
-            "grant_types" => grant_attribute(self.client, raw),
+    fn get(
+        &self,
+        raw: Option<&AttributeValue>,
+        attributes: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
+        let raw_json = || raw.map(AttributeValue::as_json).transpose();
+        let value = match self.name {
+            "redirect_uris" => redirect_attribute(raw_json()?, || {
+                attributes
+                    .get("redirect")
+                    .map(AttributeValue::as_json)
+                    .transpose()
+            }),
+            "grant_types" => grant_attribute(self.client, raw_json()?),
             "plain_secret" => self
                 .client
                 .plain_secret()
                 .map(|value| Some(value.map_or(Value::Null, Value::String))),
             _ => Err(invalid_attribute()),
-        }
+        }?;
+        Ok(value.map(AttributeValue::from))
     }
 }
-fn redirect_attribute(
+fn redirect_attribute<'a>(
     raw: Option<&Value>,
-    attributes: &Map<String, Value>,
+    legacy_redirect: impl FnOnce() -> Result<Option<&'a Value>>,
 ) -> Result<Option<Value>> {
     // typed空数组/对象代表已解码的非empty JSON文本，不能按PHP空值恢复legacy名单。
     let redirects = if let Some(value) = raw
         .filter(|value| matches!(value, Value::Array(_) | Value::Object(_)) || truthy(Some(value)))
     {
         raw_array(value)?
-    } else if truthy(attributes.get("redirect")) {
-        optional_string(attributes.get("redirect"))?
-            .ok_or_else(invalid_attribute)?
-            .split(',')
-            .map(str::to_owned)
-            .collect::<Vec<_>>()
-            .into()
     } else {
-        PhpArray::default()
+        let legacy = legacy_redirect()?;
+        if truthy(legacy) {
+            optional_string(legacy)?
+                .ok_or_else(invalid_attribute)?
+                .split(',')
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+                .into()
+        } else {
+            PhpArray::default()
+        }
     };
     Ok(Some(redirects.into()))
 }

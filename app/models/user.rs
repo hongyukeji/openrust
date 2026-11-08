@@ -7,15 +7,12 @@ use openrust::{
 use serde_json::{Map, Value};
 
 #[cfg(feature = "auth-fortify")]
-use openrust::auth::fortify::DatabaseFactorAuthority;
-#[cfg(feature = "auth-fortify")]
-use openrust::auth::fortify::DatabaseTwoFactorState;
-#[cfg(feature = "auth-fortify")]
-use openrust::auth::fortify::TwoFactorAuthenticatable;
-#[cfg(feature = "auth-fortify")]
-use openrust::auth::fortify::TwoFactorState;
-#[cfg(feature = "auth-fortify")]
-use openrust::support::BoxFuture;
+use openrust::{
+    auth::fortify::{
+        DatabaseFactorAuthority, DatabaseTwoFactorState, TwoFactorAuthenticatable, TwoFactorState,
+    },
+    support::BoxFuture,
+};
 
 /// 当前应用账户模型；密码列沿用已有存储字段，其他应用可实现自己的 `Authenticatable`。
 pub struct User {
@@ -268,6 +265,7 @@ impl TwoFactorAuthenticatable for User {
 
 #[cfg(test)]
 mod tests {
+    use openrust::database::eloquent::{AttributeMap, AttributeValue};
     #[test]
     fn default_model_key_cast_preserves_raw_attributes_and_allows_accessor_override()
     -> openrust::Result<()> {
@@ -280,12 +278,14 @@ mod tests {
         impl AttributeGetter for PrefixedKey {
             fn get(
                 &self,
-                raw: Option<&Value>,
-                _: &Map<String, Value>,
-            ) -> openrust::Result<Option<Value>> {
+                raw: Option<&AttributeValue>,
+                _: &AttributeMap,
+            ) -> openrust::Result<Option<AttributeValue>> {
                 Ok(raw
+                    .map(AttributeValue::as_json)
+                    .transpose()?
                     .and_then(Value::as_str)
-                    .map(|value| json!(format!("account:{value}"))))
+                    .map(|value| json!(format!("account:{value}")).into()))
             }
         }
         let user = super::User::new(Map::from_iter([("id".into(), json!("00042"))]));
@@ -412,10 +412,16 @@ mod tests {
         };
         struct LoginGetter;
         impl AttributeGetter for LoginGetter {
-            fn get(&self, raw: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+            fn get(
+                &self,
+                raw: Option<&AttributeValue>,
+                _: &AttributeMap,
+            ) -> Result<Option<AttributeValue>> {
                 Ok(raw
+                    .map(AttributeValue::as_json)
+                    .transpose()?
                     .and_then(Value::as_str)
-                    .map(|value| json!(format!("login:{value}"))))
+                    .map(|value| json!(format!("login:{value}")).into()))
             }
         }
         let mut metadata = ModelMetadata::new("accounts", "app::Account");
@@ -472,24 +478,30 @@ mod tests {
         };
         struct PasswordGetter;
         impl AttributeGetter for PasswordGetter {
-            fn get(&self, raw: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+            fn get(
+                &self,
+                raw: Option<&AttributeValue>,
+                _: &AttributeMap,
+            ) -> Result<Option<AttributeValue>> {
                 Ok(raw
+                    .map(AttributeValue::as_json)
+                    .transpose()?
                     .and_then(Value::as_str)
                     .and_then(|value| value.strip_prefix("stored:"))
-                    .map(|value| json!(value)))
+                    .map(|value| json!(value).into()))
             }
         }
         struct PasswordSetter;
         impl AttributeSetter for PasswordSetter {
             fn set(
                 &self,
-                value: Value,
-                _: Map<String, Value>,
-            ) -> openrust::support::BoxFuture<'_, Result<Map<String, Value>>> {
+                value: AttributeValue,
+                _: AttributeMap,
+            ) -> openrust::support::BoxFuture<'_, Result<AttributeMap>> {
                 Box::pin(async move {
-                    Ok(Map::from_iter([
+                    Ok(AttributeMap::from_iter([
                         ("password_hash".into(), value),
-                        ("secret_set".into(), json!(true)),
+                        ("secret_set".into(), json!(true).into()),
                     ]))
                 })
             }
@@ -558,24 +570,30 @@ mod tests {
 
     struct RememberGetter;
     impl openrust::database::eloquent::AttributeGetter for RememberGetter {
-        fn get(&self, value: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+        fn get(
+            &self,
+            value: Option<&AttributeValue>,
+            _: &AttributeMap,
+        ) -> Result<Option<AttributeValue>> {
             Ok(value
+                .map(AttributeValue::as_json)
+                .transpose()?
                 .and_then(Value::as_str)
                 .and_then(|value| value.strip_prefix("stored:"))
-                .map(|value| json!(value)))
+                .map(|value| json!(value).into()))
         }
     }
     struct RememberSetter(std::sync::Arc<std::sync::atomic::AtomicUsize>);
     impl openrust::database::eloquent::AttributeSetter for RememberSetter {
         fn set(
             &self,
-            value: Value,
-            _: Map<String, Value>,
-        ) -> openrust::support::BoxFuture<'_, Result<Map<String, Value>>> {
+            value: AttributeValue,
+            _: AttributeMap,
+        ) -> openrust::support::BoxFuture<'_, Result<AttributeMap>> {
             Box::pin(async move {
                 tokio::task::yield_now().await;
                 let generation = self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                let value = match value {
+                let value = match value.try_into_json()? {
                     Value::String(value) => json!(format!("stored:{value}")),
                     Value::Null => Value::Null,
                     _ => {
@@ -585,9 +603,9 @@ mod tests {
                         ));
                     }
                 };
-                Ok(Map::from_iter([
-                    ("remember_token".into(), value),
-                    ("remember_generation".into(), json!(generation)),
+                Ok(AttributeMap::from_iter([
+                    ("remember_token".into(), value.into()),
+                    ("remember_generation".into(), json!(generation).into()),
                 ]))
             })
         }
@@ -700,7 +718,11 @@ mod tests {
 
     struct DependentRememberGetter;
     impl openrust::database::eloquent::AttributeGetter for DependentRememberGetter {
-        fn get(&self, _: Option<&Value>, raw: &Map<String, Value>) -> Result<Option<Value>> {
+        fn get(
+            &self,
+            _: Option<&AttributeValue>,
+            raw: &AttributeMap,
+        ) -> Result<Option<AttributeValue>> {
             Ok(raw.get("other_token").cloned())
         }
     }
@@ -755,15 +777,15 @@ mod tests {
     impl openrust::database::eloquent::AttributeSetter for PausedRememberSetter {
         fn set(
             &self,
-            value: Value,
-            _: Map<String, Value>,
-        ) -> openrust::support::BoxFuture<'_, Result<Map<String, Value>>> {
+            value: AttributeValue,
+            _: AttributeMap,
+        ) -> openrust::support::BoxFuture<'_, Result<AttributeMap>> {
             Box::pin(async move {
                 self.entered.notify_one();
                 self.release.notified().await;
-                Ok(Map::from_iter([
+                Ok(AttributeMap::from_iter([
                     ("remember_token".into(), value),
-                    ("cancelled_side_effect".into(), json!(true)),
+                    ("cancelled_side_effect".into(), json!(true).into()),
                 ]))
             })
         }

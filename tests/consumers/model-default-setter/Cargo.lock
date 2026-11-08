@@ -2086,6 +2086,7 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-core",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "chrono-tz",
@@ -2102,6 +2103,7 @@ dependencies = [
  "icu_decimal",
  "icu_locale",
  "icu_plurals",
+ "indexmap",
  "lettre",
  "macros",
  "pcre2",
@@ -2123,6 +2125,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "validator",
+ "zeroize",
 ]
 
 [[package]]

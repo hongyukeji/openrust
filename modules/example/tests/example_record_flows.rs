@@ -10,12 +10,38 @@ use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode},
 };
+use openrust::support::{BoxFuture, CalendarContext, ServiceProvider};
 use openrust::testing::{TestApp, TestDatabase};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 use std::time::Duration;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 struct Migrator;
+
+struct ModelDateFactoryProbe(Arc<AtomicUsize>);
+
+impl ServiceProvider for ModelDateFactoryProbe {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            let calendar = app.extension_mut::<CalendarContext>()?;
+            let calls = self.0.clone();
+            *calendar = calendar
+                .clone()
+                .with_date_factory(move |operation, calendar| {
+                    calls.fetch_add(1, Ordering::Relaxed);
+                    operation.default_date(calendar)
+                });
+            Ok(())
+        })
+    }
+}
 
 #[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
@@ -169,6 +195,13 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     let mut builder = TestApp::<crate::bootstrap::Server>::builder(
         crate::modules::example::test_sources(&(source))?,
     );
+    let date_calls = Arc::new(AtomicUsize::new(0));
+    builder.configure_providers({
+        let date_calls = date_calls.clone();
+        move |providers| {
+            providers.provider(ModelDateFactoryProbe(date_calls.clone()));
+        }
+    });
     builder.configure_after_register(|bindings| {
         Box::pin(async move {
             // 此验收只替换测试应用的派发器；生产模块的监听器不受影响。
@@ -313,12 +346,16 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     assert_cancelled_save_does_not_write(&app, &db, &token, id, &payload).await?;
     assert_model_save_or_fail_rolls_back(&app, &db, id).await?;
     metadata_filter_contract(&app, &token, &other_token, id, &payload).await?;
-    attribute_preview_contract(&app, &token, &other_token, id, &payload).await?;
-    // 新数值断言失败也先完成原CRUD及宿主/测试库回收，再传播原失败。
-    let numeric_outcome =
-        std::panic::AssertUnwindSafe(numeric_preview_contract(&app, &token, &payload))
-            .catch_unwind()
-            .await;
+    // 扩展断言失败时先完成原 CRUD 及测试库回收，再传播失败。
+    let attribute_outcome = std::panic::AssertUnwindSafe(async {
+        let calls_before = date_calls.load(Ordering::Relaxed);
+        attribute_preview_contract(&app, &token, &other_token, id, &payload).await?;
+        assert!(date_calls.load(Ordering::Relaxed) > calls_before);
+        numeric_preview_contract(&app, &token, &payload).await?;
+        assert_cached_date_save(&app, id).await
+    })
+    .catch_unwind()
+    .await;
 
     let update = serde_json::json!({
         "name":"更新记录", "description":"已更新", "priority":-3, "view_count":0,
@@ -361,7 +398,7 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(10))
         .await?;
     database.close().await?;
-    match numeric_outcome {
+    match attribute_outcome {
         Ok(result) => result,
         Err(panic_payload) => std::panic::resume_unwind(panic_payload),
     }
@@ -593,6 +630,15 @@ async fn attribute_preview_contract(
     clean.assert_status(StatusCode::OK)?;
     let clean: serde_json::Value = serde_json::from_slice(clean.body())?;
     let editable = assert_preview_schema(&db, &clean["data"]).await?;
+    let published = "2026-10-29T12:00:00.000000+00:00";
+    assert_eq!(
+        clean["data"]["original_transformed"]["published_at"],
+        published
+    );
+    assert_eq!(
+        clean["data"]["display"]["details"]["published_at"],
+        published
+    );
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
     assert_model_guardable_columns(&databases).await?;
     assert_model_save_query_key(&db, id).await?;
@@ -778,6 +824,128 @@ async fn assert_no_saved_category(
         response["data"].get("record_category_name"),
         Some(&serde_json::Value::Null)
     );
+    Ok(())
+}
+
+async fn assert_cached_date_save(app: &TestApp<crate::bootstrap::Server>, id: i64) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::{
+        database::{
+            eloquent::{
+                AttributeMap, ModelAttribute, ModelDate, ModelDateContext, SaveContext,
+                save_with_query,
+            },
+            sea_orm::{EntityTrait, TransactionTrait},
+        },
+        support::{CalendarContext, CalendarInstant, InputDate, ResolvedTimezone},
+    };
+
+    let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
+    let db = databases.default_database();
+    let connection = db.primary_connection()?;
+    let record = example_record::Entity::find_by_id(id)
+        .one(&connection)
+        .await?
+        .ok_or("cached date source record missing")?;
+    let mut model = example_record::RecordForSave::from_existing(&record)?;
+    model.metadata.date_format = Some("U.u".into());
+    let calendar = CalendarContext::default();
+    model.attributes = model.attributes.with_date_context(
+        ModelDateContext::for_connection(calendar.clone(), &db)?
+            .with_serializer(|date| date.format("Y-m-d H:i:s.u P")),
+    );
+    let original = record
+        .published_at
+        .ok_or("source publication time missing")?;
+    let date = InputDate::new(
+        CalendarInstant::new(original.timestamp(), 0)?,
+        ResolvedTimezone::parse("UTC")?,
+    );
+    model.attributes.register_attribute(
+        "published_at",
+        ModelAttribute::new()
+            .get(move |_, _| Ok(ModelDate::new(date.clone(), false).into()))
+            .set(|value, _| {
+                Ok(AttributeMap::from_iter([
+                    ("published_at".into(), value),
+                    ("view_count".into(), serde_json::json!(43).into()),
+                ]))
+            }),
+    )?;
+    let cached = model
+        .attributes
+        .get_attribute_value(&model.metadata, "published_at")?
+        .ok_or("cached date missing")?;
+    cached
+        .as_date()
+        .ok_or("expected date object")?
+        .modify(|_| {
+            Ok(InputDate::new(
+                CalendarInstant::new(original.timestamp() + 3_600, 654_321)?,
+                ResolvedTimezone::parse("Asia/Shanghai")?,
+            ))
+        })?;
+
+    assert_eq!(
+        model
+            .attributes
+            .project_attribute_json(&model.metadata, "published_at", cached.clone(),)?,
+        serde_json::json!("2026-10-29 21:00:00.654321 +08:00"),
+    );
+    let context = SaveContext::new(&databases, None, &calendar);
+    let cached_date = cached.as_date().ok_or("expected cached date")?.clone();
+    let attempted = Arc::new(AtomicUsize::new(0));
+    let query = db.table(&model.metadata.table)?.before_query({
+        let attempted = attempted.clone();
+        let date = cached_date.clone();
+        move |_| {
+            let conflict = date.modify(Ok).err().map(|error| error.code().to_owned());
+            assert_eq!(conflict.as_deref(), Some("model_date_binding_pending"));
+            attempted.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+    });
+    assert!(save_with_query(&mut model, &context, query).await?);
+    assert_eq!(attempted.load(Ordering::Relaxed), 1);
+    assert!(cached_date.modify(Ok)?.same_object(&cached_date));
+    let changes = model.attributes.get_changes_values()?;
+    assert!(changes["published_at"].as_date().is_some());
+    assert_eq!(changes["view_count"].as_json()?, &serde_json::json!(43));
+    let persisted = example_record::Entity::find_by_id(id)
+        .one(&connection)
+        .await?
+        .ok_or("saved record missing")?;
+    let published = persisted
+        .published_at
+        .ok_or("saved publication time missing")?;
+    assert_eq!(published.timestamp(), original.timestamp() + 9 * 3_600);
+    assert_eq!(published.timestamp_subsec_micros(), 0);
+    assert_eq!(persisted.view_count, 43);
+
+    let mut new = example_record::RecordForSave::new(record.owner_id);
+    for (name, value) in [
+        ("name", serde_json::json!("日期写入")),
+        ("description", serde_json::json!("验证有类型的日期列")),
+        ("priority", serde_json::json!(0)),
+        ("view_count", serde_json::json!(0)),
+        ("enabled", serde_json::json!(true)),
+    ] {
+        new.attributes.set_raw_attribute(name, value)?;
+    }
+    new.metadata.date_format = model.metadata.date_format.clone();
+    new.attributes
+        .set_raw_attribute_value("published_at", cached)?;
+    let transaction = connection.begin().await?;
+    let query = db
+        .table(&new.metadata.table)?
+        .using_transaction(&transaction);
+    assert!(save_with_query(&mut new, &context, query).await?);
+    let inserted = example_record::Entity::find_by_id(new.id()?)
+        .one(&transaction)
+        .await?
+        .ok_or("inserted record missing")?;
+    transaction.rollback().await?;
+    assert_eq!(inserted.published_at, Some(published));
     Ok(())
 }
 

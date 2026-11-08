@@ -3664,6 +3664,7 @@ dependencies = [
  "icu_decimal",
  "icu_locale",
  "icu_plurals",
+ "indexmap",
  "ipnet",
  "jsonwebtoken",
  "lettre",

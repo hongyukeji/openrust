@@ -1,6 +1,9 @@
 //! 模型共享原始属性与访问器管线；对应 Laravel `HasAttributes` 的访问器优先顺序。
 
-use super::{AttributeCast, ModelMetadata};
+use super::{
+    AttributeCast, AttributeMap, AttributeValue, ModelDateContext, ModelMetadata,
+    attribute_value::{from_json, into_json},
+};
 use crate::Error;
 use crate::Result;
 use crate::database::Databases;
@@ -15,10 +18,19 @@ use std::{
     },
 };
 
+#[path = "marked_attribute.rs"]
+mod marked_attribute;
+use marked_attribute::CallbackNames;
+pub use marked_attribute::ModelAttribute;
+
 /// 同步属性读取扩展；原始值与完整快照均借自锁外的独立快照。
 pub trait AttributeGetter: Send + Sync {
     /// 读取转换后值；None表示不存在，不修改持久原始属性。
-    fn get(&self, raw: Option<&Value>, raw_snapshot: &Map<String, Value>) -> Result<Option<Value>>;
+    fn get(
+        &self,
+        raw: Option<&AttributeValue>,
+        raw_snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>>;
 }
 
 /// 异步属性写入扩展；成功返回需合并的多字段patch。
@@ -27,20 +39,22 @@ pub trait AttributeSetter: Send + Sync {
     /// 不重叠字段仍合并，不以全局版本变化拒绝正常重入。
     fn set(
         &self,
-        value: Value,
-        raw_snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>>;
+        value: AttributeValue,
+        raw_snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>>;
 }
 
 #[derive(Default)]
 struct State {
-    raw: Map<String, Value>,
-    original: Map<String, Value>,
-    changes: Map<String, Value>,
-    previous: Map<String, Value>,
+    raw: AttributeMap,
+    original: AttributeMap,
+    changes: AttributeMap,
+    previous: AttributeMap,
     original_revision: u64,
     getters: BTreeMap<String, Arc<dyn AttributeGetter>>,
     setters: BTreeMap<String, Arc<dyn AttributeSetter>>,
+    marked: BTreeMap<String, Arc<ModelAttribute>>,
+    marked_cache: AttributeMap,
     revision: u64,
     fields: BTreeMap<String, u64>,
     pending_count: u64,
@@ -58,6 +72,8 @@ struct State {
 #[derive(Default)]
 pub struct ModelAttributes {
     state: Arc<RwLock<State>>,
+    pub(super) dates: ModelDateContext,
+    marked_callbacks: CallbackNames,
 }
 impl fmt::Debug for ModelAttributes {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -67,16 +83,59 @@ impl fmt::Debug for ModelAttributes {
 impl ModelAttributes {
     /// 从原始数据库快照创建存储，不运行setter、cast或哈希。
     pub fn new(raw: Map<String, Value>) -> Self {
+        Self::from_attribute_values(from_json(raw))
+    }
+
+    /// 从有序原值水合，原始基线保留日期对象的同一身份。
+    pub fn from_attribute_values(raw: AttributeMap) -> Self {
         Self {
             state: Arc::new(RwLock::new(State {
                 original: raw.clone(),
                 raw,
                 ..State::default()
             })),
+            dates: ModelDateContext::default(),
+            marked_callbacks: CallbackNames::default(),
         }
     }
+    /// 为该模型绑定应用 Calendar 与已选连接的日期格式。
+    #[must_use]
+    pub fn with_date_context(mut self, dates: ModelDateContext) -> Self {
+        self.dates = dates;
+        self
+    }
+
+    /// 将此模型读取的属性投影为 JSON，使用模型日期序列化规则。
+    /// 有类型 getter 返回的日期由模型序列化，优先于同字段的 cast 格式。
+    pub fn project_attribute_json(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        value: AttributeValue,
+    ) -> Result<Value> {
+        let from_accessor = if value.as_date().is_some() {
+            let state = self.state.read().map_err(|_| state_error())?;
+            !state.getters.contains_key(name)
+                && state
+                    .marked
+                    .get(name)
+                    .is_some_and(|descriptor| descriptor.has_getter())
+        } else {
+            false
+        };
+        metadata.project_date_value(name, value, &self.dates, from_accessor)
+    }
+
     /// 读取单个原始值的独立副本。
     pub fn raw_attribute(&self, name: &str) -> Result<Option<Value>> {
+        self.raw_attribute_value(name)?
+            .map(AttributeValue::try_into_json)
+            .transpose()
+    }
+
+    /// 读取原始值，保留日期对象身份。
+    pub fn raw_attribute_value(&self, name: &str) -> Result<Option<AttributeValue>> {
+        self.flush_marked(Some(name))?;
         Ok(self
             .state
             .read()
@@ -85,23 +144,46 @@ impl ModelAttributes {
             .get(name)
             .cloned())
     }
-    /// 读取完整原始快照；不会触发getter或cast。
+
+    /// 读取完整 JSON 原始快照。日期对象需要显式投影。
     pub fn raw_attributes(&self) -> Result<Map<String, Value>> {
+        into_json(self.raw_attribute_values()?)
+    }
+
+    /// 读取完整有序原始快照。
+    pub fn raw_attribute_values(&self) -> Result<AttributeMap> {
+        self.flush_marked(None)?;
         Ok(self.state.read().map_err(|_| state_error())?.raw.clone())
     }
+
     /// 原始单字段赋值；用于水合及成功持久化回写，不运行访问器。
     pub fn set_raw_attribute(&self, name: impl Into<String>, value: Value) -> Result<()> {
+        self.set_raw_attribute_value(name, value.into())
+    }
+
+    /// 以原始属性值更新单字段，不运行访问器或 cast。
+    pub fn set_raw_attribute_value(
+        &self,
+        name: impl Into<String>,
+        value: AttributeValue,
+    ) -> Result<()> {
         let name = name.into();
         let mut state = self.state.write().map_err(|_| state_error())?;
         let revision = next_revision(&state)?;
         state.owners.remove(&name);
         state.fields.insert(name.clone(), revision);
+        state.marked_cache.shift_remove(&name);
         state.raw.insert(name, value);
         state.revision = revision;
         Ok(())
     }
     /// 替换完整原始快照，保留已注册访问器；不运行cast或哈希。
     pub fn set_raw_attributes(&self, raw: Map<String, Value>) -> Result<()> {
+        self.set_raw_attribute_values(from_json(raw))
+    }
+
+    /// 替换完整有序原始属性，保留已注册访问器。
+    pub fn set_raw_attribute_values(&self, raw: AttributeMap) -> Result<()> {
         let mut state = self.state.write().map_err(|_| state_error())?;
         replace_raw(&mut state, raw)?;
         Ok(())
@@ -115,6 +197,7 @@ impl ModelAttributes {
         &self,
         update: impl FnOnce(&mut Map<String, Value>) -> Result<T>,
     ) -> Result<T> {
+        self.flush_marked(None)?;
         // 预检拒绝时保留F至guard释放；已调用FnOnce内部的析构仍须遵守锁内CAS限制。
         let mut update = Some(update);
         let mut state = self.state.write().map_err(|_| state_error())?;
@@ -129,14 +212,20 @@ impl ModelAttributes {
                 return Err(error);
             }
         };
-        let mut candidate = state.raw.clone();
+        let mut candidate = match into_json(state.raw.clone()) {
+            Ok(candidate) => candidate,
+            Err(error) => {
+                drop(state);
+                return Err(error);
+            }
+        };
         let Some(update_fn) = update.take() else {
             return Err(state_error());
         };
         let result = update_fn(&mut candidate);
         match result {
             Ok(result) => {
-                replace_raw_at(&mut state, candidate, revision);
+                replace_raw_at(&mut state, from_json(candidate), revision);
                 drop(state);
                 Ok(result)
             }
@@ -157,6 +246,7 @@ impl ModelAttributes {
         let previous = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             let revision = next_revision(&state)?;
+            state.marked_cache.shift_remove(&name);
             let previous = state.getters.insert(name, getter);
             state.revision = revision;
             previous
@@ -174,6 +264,7 @@ impl ModelAttributes {
         let previous = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             let revision = next_revision(&state)?;
+            state.marked_cache.shift_remove(&name);
             state.setter_versions.insert(name.clone(), revision);
             let previous = state.setters.insert(name, setter);
             state.revision = revision;
@@ -278,6 +369,14 @@ impl ModelAttributes {
 
     /// 原子读取指定字段的稳定原始值；拒绝当前尚未提交的收据值。
     pub fn committed_raw_attribute(&self, name: &str) -> Result<Option<Value>> {
+        self.committed_raw_attribute_value(name)?
+            .map(AttributeValue::try_into_json)
+            .transpose()
+    }
+
+    /// 原子读取稳定原值，保留日期对象身份。
+    pub fn committed_raw_attribute_value(&self, name: &str) -> Result<Option<AttributeValue>> {
+        self.flush_marked(Some(name))?;
         let state = self.state.read().map_err(|_| state_error())?;
         if state
             .owners
@@ -296,38 +395,86 @@ impl ModelAttributes {
         metadata: &ModelMetadata,
         name: &str,
     ) -> Result<Option<Value>> {
-        let (snapshot, getter, revision) = {
+        self.read_current_attribute(metadata, name, true, None)?
+            .map(AttributeValue::try_into_json)
+            .transpose()
+    }
+
+    /// 自定义getter优先；其余读取按共同元数据cast，不改动原始快照。
+    pub fn get_attribute(&self, metadata: &ModelMetadata, name: &str) -> Result<Option<Value>> {
+        self.get_attribute_value(metadata, name)?
+            .map(AttributeValue::try_into_json)
+            .transpose()
+    }
+
+    /// 通过同一属性读取入口获取原始对象或转换后的值。
+    pub fn get_attribute_value(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+    ) -> Result<Option<AttributeValue>> {
+        self.read_current_attribute(metadata, name, false, None)
+    }
+
+    fn read_current_attribute(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        committed: bool,
+        default: Option<&dyn AttributeGetter>,
+    ) -> Result<Option<AttributeValue>> {
+        self.flush_marked(Some(name))?;
+        let uncached_marked = {
             let state = self.state.read().map_err(|_| state_error())?;
-            if state
-                .owners
-                .values()
-                .any(|owner| owner.status.load(Ordering::Acquire) != COMMITTED)
+            !state.getters.contains_key(name)
+                && !state.marked_cache.contains_key(name)
+                && state
+                    .marked
+                    .get(name)
+                    .is_some_and(|descriptor| descriptor.has_getter())
+        };
+        if uncached_marked {
+            self.flush_marked(None)?;
+        }
+        let (snapshot, getter, marked, cached, revision) = {
+            let state = self.state.read().map_err(|_| state_error())?;
+            if committed
+                && state
+                    .owners
+                    .values()
+                    .any(|owner| owner.status.load(Ordering::Acquire) != COMMITTED)
             {
                 return Err(read_conflict("model_attribute_update_pending"));
             }
+            let marked = state
+                .marked
+                .get(name)
+                .filter(|descriptor| descriptor.has_getter())
+                .cloned();
             (
                 state.raw.clone(),
                 state.getters.get(name).cloned(),
+                marked,
+                state.marked_cache.get(name).cloned(),
                 state.revision,
             )
         };
-        let value = if let Some(getter) = getter {
-            getter.get(snapshot.get(name), &snapshot)?
+        let value = if let (None, Some(descriptor)) = (&getter, marked) {
+            Some(self.get_marked(
+                name,
+                &descriptor,
+                (snapshot.get(name), &snapshot),
+                cached,
+                revision,
+                committed,
+            )?)
         } else {
-            metadata.read_cast_attribute(name, snapshot.get(name).cloned())?
+            self.read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref().or(default))?
         };
-        if self.state.read().map_err(|_| state_error())?.revision != revision {
+        if committed && self.state.read().map_err(|_| state_error())?.revision != revision {
             return Err(read_conflict("model_attribute_read_conflict"));
         }
         Ok(value)
-    }
-    /// 自定义getter优先；其余读取按共同元数据cast，不改动原始快照。
-    pub fn get_attribute(&self, metadata: &ModelMetadata, name: &str) -> Result<Option<Value>> {
-        let (snapshot, getter) = {
-            let state = self.state.read().map_err(|_| state_error())?;
-            (state.raw.clone(), state.getters.get(name).cloned())
-        };
-        Self::read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())
     }
 
     /// 保存或重查既有记录时使用的模型主键。
@@ -335,46 +482,171 @@ impl ModelAttributes {
     /// 优先返回基线中同名字面键的非 null 原始值；否则按普通 getter/cast 读取当前值。
     /// 此方法只选择值，不执行 SQL。基线查找和当前回退取自同一次属性状态读取。
     pub fn key_for_save_query(&self, metadata: &ModelMetadata) -> Result<Value> {
+        self.key_value_for_save_query(metadata)?.try_into_json()
+    }
+
+    pub(super) fn key_value_for_save_query(
+        &self,
+        metadata: &ModelMetadata,
+    ) -> Result<AttributeValue> {
         let name = metadata.key_name.as_str();
-        let (snapshot, getter) = {
+        self.flush_marked(Some(name))?;
+        let (snapshot, getter, marked, cached, revision) = {
             let state = self.state.read().map_err(|_| state_error())?;
             if let Some(key) = state.original.get(name).filter(|value| !value.is_null()) {
                 return Ok(key.clone());
             }
             if matches!(name, "" | "0") {
-                return Ok(Value::Null);
+                return Ok(Value::Null.into());
             }
-            (state.raw.clone(), state.getters.get(name).cloned())
+            (
+                state.raw.clone(),
+                state.getters.get(name).cloned(),
+                state
+                    .marked
+                    .get(name)
+                    .filter(|descriptor| descriptor.has_getter())
+                    .cloned(),
+                state.marked_cache.get(name).cloned(),
+                state.revision,
+            )
         };
-        Ok(
-            Self::read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())?
-                .unwrap_or(Value::Null),
-        )
+        let value = if let (None, Some(descriptor)) = (&getter, marked) {
+            Some(self.get_marked(
+                name,
+                &descriptor,
+                (snapshot.get(name), &snapshot),
+                cached,
+                revision,
+                true,
+            )?)
+        } else {
+            self.read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())?
+        };
+        Ok(value.unwrap_or_else(|| Value::Null.into()))
     }
 
     fn read_attribute_snapshot(
+        &self,
         metadata: &ModelMetadata,
         name: &str,
-        snapshot: &Map<String, Value>,
+        snapshot: &AttributeMap,
         getter: Option<&dyn AttributeGetter>,
-    ) -> Result<Option<Value>> {
+    ) -> Result<Option<AttributeValue>> {
         if let Some(getter) = getter {
             return getter.get(snapshot.get(name), snapshot);
         }
-        metadata.read_cast_attribute(name, snapshot.get(name).cloned())
+        metadata.cast_attribute_value(name, snapshot.get(name).cloned(), &self.dates)
+    }
+
+    /// 将可见原始属性依次经过日期名单、访问器及声明的 cast 投影。
+    /// 此入口处理属性本身，关联和追加字段由各自的序列化入口处理。
+    pub fn attributes_to_array(&self, metadata: &ModelMetadata) -> Result<AttributeMap> {
+        self.flush_marked(None)?;
+        let (mut values, getters, marked) = {
+            let state = self.state.read().map_err(|_| state_error())?;
+            let values: AttributeMap = state
+                .raw
+                .iter()
+                .filter(|(name, _)| metadata.attribute_is_arrayable(name))
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect();
+            (values, state.getters.clone(), state.marked.clone())
+        };
+        for name in metadata.date_attribute_names() {
+            if let Some(value) = values.get_mut(name).filter(|value| !value.is_null()) {
+                *value = self.dates.serialize_date_attribute(metadata, value)?;
+            }
+        }
+        let has_marked = |name: &str| {
+            marked
+                .get(name)
+                .is_some_and(|attribute| attribute.has_getter())
+        };
+        for (name, getter) in &getters {
+            if let Some(value) = values.get_mut(name).filter(|_| !has_marked(name)) {
+                let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
+                *value = getter
+                    .get(Some(value), &raw)?
+                    .unwrap_or_else(|| Value::Null.into());
+            }
+        }
+        for (name, descriptor) in &marked {
+            if let Some(value) = values.get_mut(name).filter(|_| descriptor.has_getter()) {
+                let (raw, cached, revision) = {
+                    let state = self.state.read().map_err(|_| state_error())?;
+                    (
+                        state.raw.clone(),
+                        state.marked_cache.get(name).cloned(),
+                        state.revision,
+                    )
+                };
+                let output = self.get_marked(
+                    name,
+                    descriptor,
+                    (Some(value), &raw),
+                    cached,
+                    revision,
+                    false,
+                )?;
+                *value = metadata
+                    .project_date_value(name, output, &self.dates, true)?
+                    .into();
+            }
+        }
+        for (name, value) in &mut values {
+            if getters.contains_key(name)
+                || has_marked(name)
+                || metadata.effective_cast(name)?.is_none()
+            {
+                continue;
+            }
+            let output = metadata
+                .cast_attribute_value(name, Some(value.clone()), &self.dates)?
+                .unwrap_or_else(|| Value::Null.into());
+            *value = metadata
+                .project_date_value(name, output, &self.dates, false)?
+                .into();
+        }
+        Ok(values)
+    }
+
+    /// 将数组化后的属性投影为 JSON。未被模型规则转换的日期对象采用自身的默认输出。
+    pub fn attributes_to_json(&self, metadata: &ModelMetadata) -> Result<Map<String, Value>> {
+        self.attributes_to_array(metadata)?
+            .into_iter()
+            .map(|(name, value)| {
+                let value = match value {
+                    AttributeValue::Json(value) => value,
+                    AttributeValue::Date(date) => {
+                        serde_json::to_value(date.snapshot()?).map_err(Error::internal)?
+                    }
+                };
+                Ok((name, value))
+            })
+            .collect()
     }
 
     /// 按给定键读取当前属性，复用普通 getter 和 cast；缺项保留为 null。
     ///
     /// 重复键仍按输入顺序读取，映射保留最后一次结果。这里不应用序列化的可见性规则。
     pub fn only(&self, metadata: &ModelMetadata, names: &[&str]) -> Result<Map<String, Value>> {
-        self.project_attributes(metadata, names.iter().copied())
+        into_json(self.select_attribute_values(metadata, names.iter().copied())?)
     }
 
     /// 读取当前原始键集合中的属性，按 Laravel 的宽松比较排除指定名称，再应用 getter 或 cast。
     ///
     /// 访问器在锁外运行。它新增的键不会加入本次选择，后续属性读取仍观察当时的当前值。
     pub fn except(&self, metadata: &ModelMetadata, names: &[&str]) -> Result<Map<String, Value>> {
+        into_json(self.except_attribute_values(metadata, names)?)
+    }
+
+    /// 排除指定键后通过 getter 或 cast 读取其余属性，保留对象身份。
+    pub fn except_attribute_values(
+        &self,
+        metadata: &ModelMetadata,
+        names: &[&str],
+    ) -> Result<AttributeMap> {
         let keys: Vec<_> = self
             .state
             .read()
@@ -397,20 +669,22 @@ impl ModelAttributes {
                     .iter()
                     .any(|excluded| php_loose_string_equal(name, excluded)),
             });
-        self.project_attributes(metadata, selected)
+        self.select_attribute_values(metadata, selected)
     }
 
-    fn project_attributes<'a>(
+    fn select_attribute_values<'a>(
         &self,
         metadata: &ModelMetadata,
         names: impl Iterator<Item = &'a str>,
-    ) -> Result<Map<String, Value>> {
+    ) -> Result<AttributeMap> {
         names
             .map(|name| {
                 // Laravel getAttribute 对空名称及 "0" 直接返回 null。
                 let value = match name {
-                    "" | "0" => Value::Null,
-                    _ => self.get_attribute(metadata, name)?.unwrap_or(Value::Null),
+                    "" | "0" => Value::Null.into(),
+                    _ => self
+                        .get_attribute_value(metadata, name)?
+                        .unwrap_or_else(|| Value::Null.into()),
                 };
                 Ok((name.to_owned(), value))
             })
@@ -422,19 +696,13 @@ impl ModelAttributes {
     /// 默认访问器与显式getter同属属性读取层，不再叠加cast；返回null也不会回退。
     pub fn get_attribute_with_default_getter(
         &self,
-        _metadata: &ModelMetadata,
+        metadata: &ModelMetadata,
         name: &str,
         default: &dyn AttributeGetter,
     ) -> Result<Option<Value>> {
-        let (snapshot, getter) = {
-            let state = self.state.read().map_err(|_| state_error())?;
-            (state.raw.clone(), state.getters.get(name).cloned())
-        };
-        if let Some(getter) = getter {
-            getter.get(snapshot.get(name), &snapshot)
-        } else {
-            default.get(snapshot.get(name), &snapshot)
-        }
+        self.read_current_attribute(metadata, name, false, Some(default))?
+            .map(AttributeValue::try_into_json)
+            .transpose()
     }
     /// 经同一getter/cast读取标量字符串；缺失与null保持None，数组和对象明确拒绝。
     pub fn get_string_attribute(
@@ -507,12 +775,70 @@ impl ModelAttributes {
         default_setter: Option<&dyn AttributeSetter>,
         #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
     ) -> Result<()> {
+        self.set_attribute_value_inner(
+            metadata,
+            name,
+            value.into(),
+            default_setter,
+            #[cfg(feature = "hashing")]
+            hashing,
+        )
+        .await
+    }
+
+    /// 经同一赋值与冲突校验管线写入有类型的模型属性。
+    pub async fn set_attribute_value(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        value: AttributeValue,
+    ) -> Result<()> {
+        self.set_attribute_value_inner(
+            metadata,
+            name,
+            value,
+            None,
+            #[cfg(feature = "hashing")]
+            None,
+        )
+        .await
+    }
+
+    async fn set_attribute_value_inner(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        value: AttributeValue,
+        default_setter: Option<&dyn AttributeSetter>,
+        #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
+    ) -> Result<()> {
+        self.flush_marked(None)?;
+        let marked = {
+            let state = self.state.read().map_err(|_| state_error())?;
+            state
+                .marked
+                .get(name)
+                .filter(|descriptor| descriptor.has_setter() && !state.setters.contains_key(name))
+                .map(|descriptor| (Arc::clone(descriptor), state.raw.clone(), state.revision))
+        };
+        if let Some((descriptor, raw, revision)) = marked {
+            return self.set_marked(name, &descriptor, value, &raw, revision);
+        }
         let (snapshot, setter, watch) = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             state.active_setters = state
                 .active_setters
                 .checked_add(1)
                 .ok_or_else(state_error)?;
+            if !state.setters.contains_key(name)
+                && state
+                    .marked
+                    .get(name)
+                    .is_some_and(|descriptor| descriptor.has_setter())
+            {
+                state.active_setters -= 1;
+                return Err(read_conflict("model_attribute_mutation_conflict"));
+            }
             let setter = state.setters.get(name).cloned();
             let watch = SetterWatch {
                 state: Arc::clone(&self.state),
@@ -523,17 +849,17 @@ impl ModelAttributes {
             };
             (state.raw.clone(), setter, watch)
         };
-        let patch = Self::prepare_patch(
-            metadata,
-            name,
-            value,
-            snapshot,
-            setter,
-            default_setter,
-            #[cfg(feature = "hashing")]
-            hashing,
-        )
-        .await?;
+        let patch = self
+            .prepare_patch(
+                metadata,
+                name,
+                value,
+                snapshot,
+                setter.as_deref().or(default_setter),
+                #[cfg(feature = "hashing")]
+                hashing,
+            )
+            .await?;
         let mut state = self.state.write().map_err(|_| state_error())?;
         let same_setter = match (&watch.setter, state.setters.get(&watch.name)) {
             (None, None) => true,
@@ -549,30 +875,38 @@ impl ModelAttributes {
             return Err(mutation_error("model_attribute_mutation_conflict"));
         }
         apply_patch(&mut state, patch)?;
+        state.marked_cache.shift_remove(name);
         drop(state);
         drop(watch);
         Ok(())
     }
     async fn prepare_patch(
+        &self,
         metadata: &ModelMetadata,
         name: &str,
-        value: Value,
-        snapshot: Map<String, Value>,
-        setter: Option<Arc<dyn AttributeSetter>>,
-        default_setter: Option<&dyn AttributeSetter>,
+        value: AttributeValue,
+        snapshot: AttributeMap,
+        setter: Option<&dyn AttributeSetter>,
         #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
-    ) -> Result<Map<String, Value>> {
+    ) -> Result<AttributeMap> {
         Ok(if let Some(setter) = setter {
             setter.set(value, snapshot).await?
-        } else if let Some(default_setter) = default_setter {
-            default_setter.set(value, snapshot).await?
         } else {
-            let value = match metadata.write_cast(name)? {
+            let cast = metadata.write_cast(name)?;
+            let value = if metadata.is_implicit_date(name)
+                || cast.as_ref().is_some_and(AttributeCast::is_date_storage)
+            {
+                self.dates.store(metadata, value)?
+            } else {
+                value
+            };
+            let value = match cast {
                 Some(AttributeCast::Array) if !value.is_null() => {
-                    Value::String(super::attribute_cast::encode_array_json(&value)?)
+                    Value::String(super::attribute_cast::encode_array_json(value.as_json()?)?)
+                        .into()
                 }
                 // 固定hashed cast先旁路null，不解析HashManager或驱动配置。
-                Some(AttributeCast::Hashed) if value.is_null() => Value::Null,
+                Some(AttributeCast::Hashed) if value.is_null() => value,
                 Some(AttributeCast::Hashed) => {
                     #[cfg(feature = "hashing")]
                     {
@@ -580,11 +914,12 @@ impl ModelAttributes {
                         let plain = if value.is_null() {
                             None
                         } else {
-                            Some(super::attribute_cast::scalar_string(&value)?)
+                            Some(super::attribute_cast::scalar_string(value.as_json()?)?)
                         };
                         super::casts::cast_attribute_as_hashed_string(hashing, plain.as_deref())
                             .await?
                             .map_or(Value::Null, Value::String)
+                            .into()
                     }
                     #[cfg(not(feature = "hashing"))]
                     {
@@ -593,7 +928,7 @@ impl ModelAttributes {
                 }
                 _ => value,
             };
-            Map::from_iter([(name.to_owned(), value)])
+            AttributeMap::from_iter([(name.to_owned(), value)])
         })
     }
     /// 条件成立后准备同一属性补丁并返回拥有式收据；取消准备不会修改原始值。
@@ -648,33 +983,50 @@ impl ModelAttributes {
     where
         F: FnOnce(Option<Value>) -> Result<bool> + Send,
     {
+        self.flush_marked(None)?;
         let MutationPreparation {
             snapshot,
             getter,
             setter,
+            marked,
+            cached,
             revision,
             receipt,
         } = self.begin_mutation(name)?;
-        let current = if let Some(getter) = getter {
-            getter.get(snapshot.get(name), &snapshot)?
+        let current = if let (None, Some(descriptor)) = (
+            &getter,
+            marked.as_deref().filter(|value| value.has_getter()),
+        ) {
+            Some(match cached {
+                Some(value) => value,
+                None => self.read_marked(name, descriptor, &snapshot)?,
+            })
         } else {
-            metadata.read_cast_attribute(name, snapshot.get(name).cloned())?
+            self.read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())?
         };
+        let current = current.map(AttributeValue::try_into_json).transpose()?;
         if !predicate(current)? {
             return Ok(None);
         }
-        let patch = Self::prepare_patch(
-            metadata,
-            name,
-            value,
-            snapshot,
-            setter,
-            None,
-            #[cfg(feature = "hashing")]
-            hashing,
-        )
-        .await?;
-        self.finish_mutation(receipt, revision, patch).map(Some)
+        let patch = if let (None, Some(descriptor)) = (
+            &setter,
+            marked.as_deref().filter(|value| value.has_setter()),
+        ) {
+            self.write_marked(name, descriptor, value.into(), &snapshot)?
+        } else {
+            self.prepare_patch(
+                metadata,
+                name,
+                value.into(),
+                snapshot,
+                setter.as_deref(),
+                #[cfg(feature = "hashing")]
+                hashing,
+            )
+            .await?
+        };
+        self.finish_mutation(name, receipt, revision, patch)
+            .map(Some)
     }
 
     /// 仅按原始字段条件执行同步可回滚赋值，绕过所有访问器及cast。
@@ -689,14 +1041,30 @@ impl ModelAttributes {
     where
         F: FnOnce(Option<Value>) -> Result<bool>,
     {
+        self.set_raw_attribute_value_reversibly_if(name, value.into(), |current| {
+            predicate(current.map(AttributeValue::try_into_json).transpose()?)
+        })
+    }
+
+    /// 条件成立时写入有类型的原值，收据保留对象身份和字段所有权。
+    pub fn set_raw_attribute_value_reversibly_if<F>(
+        &self,
+        name: &str,
+        value: AttributeValue,
+        predicate: F,
+    ) -> Result<Option<AttributeMutation>>
+    where
+        F: FnOnce(Option<AttributeValue>) -> Result<bool>,
+    {
         let preparation = self.begin_mutation(name)?;
         if !predicate(preparation.snapshot.get(name).cloned())? {
             return Ok(None);
         }
         self.finish_mutation(
+            name,
             preparation.receipt,
             preparation.revision,
-            Map::from_iter([(name.to_owned(), value)]),
+            AttributeMap::from_iter([(name.to_owned(), value)]),
         )
         .map(Some)
     }
@@ -713,6 +1081,8 @@ impl ModelAttributes {
             snapshot: state.raw.clone(),
             getter: state.getters.get(name).cloned(),
             setter: state.setters.get(name).cloned(),
+            marked: state.marked.get(name).cloned(),
+            cached: state.marked_cache.get(name).cloned(),
             revision: state.revision,
             receipt: AttributeMutation {
                 state: Arc::clone(&self.state),
@@ -726,9 +1096,10 @@ impl ModelAttributes {
 
     fn finish_mutation(
         &self,
+        name: &str,
         mut receipt: AttributeMutation,
         revision: u64,
-        patch: Map<String, Value>,
+        patch: AttributeMap,
     ) -> Result<AttributeMutation> {
         {
             let mut state = self.state.write().map_err(|_| state_error())?;
@@ -736,6 +1107,7 @@ impl ModelAttributes {
                 return Err(mutation_error("model_attribute_mutation_conflict"));
             }
             let applied_revision = next_revision(&state)?;
+            state.marked_cache.shift_remove(name);
             for (key, value) in patch {
                 let node = Arc::new(MutationNode {
                     value: value.clone(),
@@ -745,6 +1117,7 @@ impl ModelAttributes {
                     }),
                     status: Arc::clone(&receipt.status),
                 });
+                state.marked_cache.shift_remove(&key);
                 state.raw.insert(key.clone(), value);
                 state.fields.insert(key.clone(), applied_revision);
                 state.owners.insert(key.clone(), Arc::clone(&node));
@@ -760,9 +1133,11 @@ impl ModelAttributes {
     }
 }
 struct MutationPreparation {
-    snapshot: Map<String, Value>,
+    snapshot: AttributeMap,
     getter: Option<Arc<dyn AttributeGetter>>,
     setter: Option<Arc<dyn AttributeSetter>>,
+    marked: Option<Arc<ModelAttribute>>,
+    cached: Option<AttributeValue>,
     revision: u64,
     receipt: AttributeMutation,
 }
@@ -772,13 +1147,13 @@ const COMMITTED: u8 = 1;
 const CANCELLED: u8 = 2;
 
 struct MutationNode {
-    value: Value,
+    value: AttributeValue,
     history: Mutex<NodeHistory>,
     status: Arc<AtomicU8>,
 }
 
 struct NodeHistory {
-    original: Option<Value>,
+    original: Option<AttributeValue>,
     predecessor: Option<Arc<MutationNode>>,
 }
 impl Drop for MutationNode {
@@ -895,7 +1270,7 @@ impl AttributeMutation {
                 if let Some(value) = value {
                     state.raw.insert(key.clone(), value);
                 } else {
-                    state.raw.remove(key);
+                    state.raw.shift_remove(key);
                 }
                 if let Some(predecessor) = predecessor {
                     state.owners.insert(key.clone(), predecessor);
@@ -921,7 +1296,7 @@ impl Drop for AttributeMutation {
         let _ = self.rollback();
     }
 }
-fn rollback_target(node: &MutationNode) -> (Option<Value>, Option<Arc<MutationNode>>) {
+fn rollback_target(node: &MutationNode) -> (Option<AttributeValue>, Option<Arc<MutationNode>>) {
     compress_node(node);
     let history = node
         .history
@@ -1002,10 +1377,20 @@ fn next_revision(state: &State) -> Result<u64> {
         .ok_or_else(|| mutation_error("model_attribute_revision_exhausted"))?;
     Ok(revision)
 }
-fn apply_patch(state: &mut State, patch: Map<String, Value>) -> Result<()> {
+fn apply_patch(state: &mut State, patch: AttributeMap) -> Result<()> {
+    apply_attribute_patch(state, patch, false)
+}
+fn apply_attribute_patch(
+    state: &mut State,
+    patch: AttributeMap,
+    preserve_cache: bool,
+) -> Result<()> {
     let revision = next_revision(state)?;
     for (key, value) in patch {
         state.owners.remove(&key);
+        if !preserve_cache {
+            state.marked_cache.shift_remove(&key);
+        }
         state.fields.insert(key.clone(), revision);
         state.raw.insert(key, value);
     }
@@ -1013,21 +1398,22 @@ fn apply_patch(state: &mut State, patch: Map<String, Value>) -> Result<()> {
     prune_fields(state);
     Ok(())
 }
-fn replace_raw(state: &mut State, raw: Map<String, Value>) -> Result<()> {
+fn replace_raw(state: &mut State, raw: AttributeMap) -> Result<()> {
     let revision = next_revision(state)?;
     replace_raw_at(state, raw, revision);
     Ok(())
 }
-fn replace_raw_at(state: &mut State, raw: Map<String, Value>, revision: u64) {
+fn replace_raw_at(state: &mut State, raw: AttributeMap, revision: u64) {
     for key in state.raw.keys().chain(raw.keys()) {
         state.fields.insert(key.clone(), revision);
     }
     state.owners.clear();
+    state.marked_cache.clear();
     state.raw = raw;
     state.revision = revision;
     prune_fields(state);
 }
-fn read_conflict(code: &'static str) -> Error {
+pub(super) fn read_conflict(code: &'static str) -> Error {
     Error::custom_with_status(http::StatusCode::CONFLICT, code, "模型属性当前不能稳定读取")
 }
 fn mutation_error(code: &'static str) -> Error {
@@ -1038,7 +1424,7 @@ fn mutation_error(code: &'static str) -> Error {
     )
 }
 
-fn state_error() -> Error {
+pub(super) fn state_error() -> Error {
     Error::custom_with_status(
         http::StatusCode::INTERNAL_SERVER_ERROR,
         "model_attribute_state_unavailable",

@@ -1,6 +1,6 @@
 use super::*;
 use crate::support::{CalendarClock, CalendarInstant, ResolvedTimezone};
-use serde_json::{Map, json};
+use serde_json::{Map, Value, json};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -56,6 +56,39 @@ async fn timestamp_updates_use_one_instant_and_preserve_manually_changed_columns
     assert_eq!(
         custom.raw_attributes()?,
         Map::from_iter([("changed_on".into(), json!("0.123456"))])
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn timestamp_factory_uses_one_result_and_model_storage_format() -> Result<()> {
+    let model = ModelMetadata::new("records", "example::Record");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calendar = CalendarContext::default().with_date_factory({
+        let calls = calls.clone();
+        move |operation, calendar| {
+            if matches!(operation, DateConstruction::Now) {
+                calls.fetch_add(1, Ordering::Relaxed);
+                return Ok(Some(InputDate::new(
+                    CalendarInstant::new(90, 123_456)?,
+                    ResolvedTimezone::utc(),
+                )));
+            }
+            operation.default_date(calendar)
+        }
+    });
+    let record = ModelAttributes::default().with_date_context(
+        crate::database::eloquent::ModelDateContext::new(calendar.clone(), "U.u"),
+    );
+    record.update_timestamps(&model, false, &calendar).await?;
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        record.raw_attribute("updated_at")?,
+        Some(json!("90.123456"))
+    );
+    assert_eq!(
+        record.raw_attribute("created_at")?,
+        Some(json!("90.123456"))
     );
     Ok(())
 }

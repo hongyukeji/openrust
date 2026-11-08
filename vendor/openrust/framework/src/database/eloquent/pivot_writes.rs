@@ -3,12 +3,12 @@
 use super::super::{
     MassAssignment,
     save::{cancelled, notify, save_scoped_pivot},
+    timestamps::fresh_timestamp,
 };
 use super::{
     BelongsToMany, CustomPivot, HydrateModel, ModelAttributes, PivotSource, SaveContext,
     relation_key,
 };
-use crate::support::InputDate;
 use crate::{
     Db, Error, Result,
     database::{
@@ -578,7 +578,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
 
         let format = metadata.date_format.as_deref().unwrap_or("Y-m-d H:i:s");
         let calendar = context.calendar;
-        let now = InputDate::new(calendar.now()?, calendar.timezone().clone()).format(format)?;
+        let now = fresh_timestamp(calendar)?.format(format)?;
         let query = db
             .table(&metadata.table)?
             .where_in(self.keys.related_key, keys)?;
@@ -682,7 +682,7 @@ impl<R: HydrateModel> BelongsToMany<'_, R> {
             .as_deref()
             .unwrap_or("Y-m-d H:i:s");
         let calendar = context.calendar;
-        let value = InputDate::new(calendar.now()?, calendar.timezone().clone()).format(format)?;
+        let value = fresh_timestamp(calendar)?.format(format)?;
         if exists {
             attributes.retain(|(name, _)| !name.eq_ignore_ascii_case(updated_at));
             attributes.push((updated_at, value.into()));

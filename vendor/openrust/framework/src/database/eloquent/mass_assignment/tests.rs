@@ -1,5 +1,6 @@
 use super::*;
 use crate::database::eloquent::AttributeSetter;
+use crate::database::eloquent::{AttributeMap, AttributeValue};
 use crate::support::BoxFuture;
 use serde_json::json;
 use std::{
@@ -95,9 +96,9 @@ struct Failure;
 impl AttributeSetter for Failure {
     fn set(
         &self,
-        _value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        _value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async {
             assert!(is_unguarded());
             assert!(unguarded(async { is_unguarded() }).await);

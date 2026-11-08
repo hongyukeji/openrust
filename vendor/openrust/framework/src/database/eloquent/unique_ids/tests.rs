@@ -1,5 +1,6 @@
 use super::*;
 use crate::database::eloquent::AttributeGetter;
+use crate::database::eloquent::{AttributeMap, AttributeValue};
 use serde_json::{Map, json};
 use std::sync::{
     Arc,
@@ -10,7 +11,11 @@ use std::sync::{
 struct CountingGetter(AtomicUsize);
 
 impl AttributeGetter for CountingGetter {
-    fn get(&self, raw: Option<&Value>, _snapshot: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(
+        &self,
+        raw: Option<&AttributeValue>,
+        _snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
         self.0.fetch_add(1, Ordering::Relaxed);
         Ok(raw.cloned())
     }

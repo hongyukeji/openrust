@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 日期 cast 支持应用日期工厂、模型序列化覆写和对象缓存回写。自定义 `AttributeGetter`、`AttributeSetter` 及调用级默认访问器使用 `AttributeValue` 和 `AttributeMap`；JSON 业务在实际消费的字段上显式转换。
+
 - 应用控制台新增 `key:generate`，按生效的 `app.cipher` 生成并设置应用密钥，支持只显示密钥及生产环境确认。
 
 - Events 身份/响应切片（限定验收完成）：类事件由 owner 声明稳定 `Event::NAME`，与同名字符串共用 exact/wildcard 分组；响应经同一执行循环保留 null/false/对象身份并提供 until。移除按 payload 类型串送字符串事件和旧 flat 顺序；唯一模块、认证、事务、队列与翻译扩展同步接线。完整 Events 与 Model save 未完成。

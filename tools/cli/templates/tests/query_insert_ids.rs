@@ -1166,8 +1166,13 @@ async fn check_generated_pivot_parent_touch(
     check(
         parent
             .attributes()
-            .get_attribute(parent.metadata(), "updated_at")?
-            == Some(json!(timestamp)),
+            .get_attribute_value(parent.metadata(), "updated_at")?
+            .as_ref()
+            .and_then(openrust::database::eloquent::AttributeValue::as_date)
+            .map(|date| date.snapshot()?.format("Y-m-d H:i:s"))
+            .transpose()?
+            .as_deref()
+            == Some(timestamp),
     )?;
     check(!parent.attributes().is_dirty(parent.metadata(), &[])?)?;
     check(related_row()?.value::<String>("updated_at").await? == related_before)
@@ -1394,9 +1399,9 @@ struct RejectOwnerKey;
 impl openrust::database::eloquent::AttributeSetter for RejectOwnerKey {
     fn set(
         &self,
-        _value: serde_json::Value,
-        _raw_snapshot: serde_json::Map<String, serde_json::Value>,
-    ) -> openrust::support::BoxFuture<'_, Result<serde_json::Map<String, serde_json::Value>>> {
+        _value: openrust::database::eloquent::AttributeValue,
+        _raw_snapshot: openrust::database::eloquent::AttributeMap,
+    ) -> openrust::support::BoxFuture<'_, Result<openrust::database::eloquent::AttributeMap>> {
         Box::pin(async {
             Err(Error::custom(
                 "generated_owner_setter_rejected",

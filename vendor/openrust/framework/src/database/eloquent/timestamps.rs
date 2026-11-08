@@ -1,15 +1,23 @@
 //! 模型时间戳更新及异步调用链内的临时禁用。
 
-use super::{ModelAttributes, ModelMetadata};
+use super::{ModelAttributes, ModelDate, ModelMetadata};
 use crate::{
     Result,
-    support::{CalendarContext, InputDate},
+    support::{CalendarContext, DateConstruction, InputDate},
 };
-use serde_json::Value;
 use std::future::Future;
 
 tokio::task_local! {
     static SUPPRESSED_TIMESTAMP_MODELS: Vec<String>;
+}
+
+pub(super) fn fresh_timestamp(calendar: &CalendarContext) -> Result<InputDate> {
+    calendar.make_date(DateConstruction::Now)?.ok_or_else(|| {
+        crate::Error::custom(
+            "model_timestamp_unavailable",
+            "应用日期工厂没有返回当前时刻",
+        )
+    })
 }
 
 /// 在当前异步调用链禁用给定模型类的自动时间戳；嵌套范围累加，结束或取消后恢复。
@@ -42,8 +50,7 @@ impl ModelAttributes {
         exists: bool,
         calendar: &CalendarContext,
     ) -> Result<&Self> {
-        let time = InputDate::new(calendar.now()?, calendar.timezone().clone());
-        let format = metadata.date_format.as_deref().unwrap_or("Y-m-d H:i:s");
+        let time = ModelDate::new(fresh_timestamp(calendar)?, false);
         for name in [
             metadata.updated_at_column.as_deref(),
             metadata.created_at_column.as_deref().filter(|_| !exists),
@@ -52,7 +59,7 @@ impl ModelAttributes {
         .flatten()
         {
             if !self.is_dirty(metadata, &[name])? {
-                self.set_attribute(metadata, name, Value::String(time.format(format)?))
+                self.set_attribute_value(metadata, name, time.clone().into())
                     .await?;
             }
         }

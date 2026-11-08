@@ -4,11 +4,71 @@ use super::*;
 use serde_json::json;
 use std::sync::Weak;
 
+struct DateSnapshotAccessor;
+
+impl AttributeGetter for DateSnapshotAccessor {
+    fn get(
+        &self,
+        _raw: Option<&AttributeValue>,
+        snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
+        Ok(snapshot.get("hidden_date").cloned())
+    }
+}
+
+impl AttributeSetter for DateSnapshotAccessor {
+    fn set(
+        &self,
+        value: AttributeValue,
+        snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
+        Box::pin(async move {
+            assert!(snapshot["hidden_date"].as_date().is_some());
+            Ok(AttributeMap::from_iter([("label".into(), value)]))
+        })
+    }
+}
+
+#[tokio::test]
+async fn legacy_accessors_share_typed_dates_without_projecting_the_snapshot() -> Result<()> {
+    use crate::support::{CalendarInstant, InputDate, ResolvedTimezone};
+
+    let date = super::super::ModelDate::new(
+        InputDate::new(CalendarInstant::new(20, 0)?, ResolvedTimezone::utc()),
+        false,
+    );
+    let mut metadata = metadata(&[]);
+    metadata.hidden.push("hidden_date".into());
+    let store = ModelAttributes::new(raw(&[("label", json!("original"))])).with_date_context(
+        ModelDateContext::default().with_serializer(|_| Ok("model override".into())),
+    );
+    store.set_raw_attribute_value("hidden_date", date.clone().into())?;
+    store.register_getter("label", Arc::new(DateSnapshotAccessor))?;
+    store.register_setter("label", Arc::new(DateSnapshotAccessor))?;
+    store
+        .set_attribute(&metadata, "label", json!("updated"))
+        .await?;
+    assert_eq!(store.raw_attribute("label")?, Some(json!("updated")));
+    let projected = store.attributes_to_array(&metadata)?;
+    assert!(!projected.contains_key("hidden_date"));
+    assert!(
+        projected["label"]
+            .as_date()
+            .ok_or_else(failure)?
+            .same_object(&date)
+    );
+    assert_eq!(
+        store.attributes_to_json(&metadata)?["label"],
+        json!("1970-01-01T00:00:20.000000Z")
+    );
+    Ok(())
+}
+
 fn metadata(casts: &[(&str, AttributeCast)]) -> ModelMetadata {
     let mut metadata = ModelMetadata::new("records", "app::Record");
     metadata.casts = casts
         .iter()
-        .map(|(name, cast)| ((*name).into(), *cast))
+        .map(|(name, cast)| ((*name).into(), cast.clone()))
         .collect();
     metadata
 }
@@ -55,11 +115,22 @@ fn hydration_and_reads_leave_raw_unchanged_and_debug_redacts() -> Result<()> {
 
 struct ReentrantGetter(Weak<ModelAttributes>);
 impl AttributeGetter for ReentrantGetter {
-    fn get(&self, value: Option<&Value>, snapshot: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(
+        &self,
+        value: Option<&AttributeValue>,
+        snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
         let store = self.0.upgrade().ok_or_else(failure)?;
-        assert_eq!(store.raw_attribute("id")?, snapshot.get("id").cloned());
+        assert_eq!(
+            store.raw_attribute("id")?,
+            snapshot
+                .get("id")
+                .map(AttributeValue::as_json)
+                .transpose()?
+                .cloned()
+        );
         store.set_raw_attribute("getter_side_effect", json!(true))?;
-        Ok(value.map(|_| json!("custom getter")))
+        Ok(value.map(|_| json!("custom getter").into()))
     }
 }
 #[test]
@@ -84,18 +155,25 @@ struct ReentrantSetter(Weak<ModelAttributes>);
 impl AttributeSetter for ReentrantSetter {
     fn set(
         &self,
-        value: Value,
-        snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             let store = self.0.upgrade().ok_or_else(failure)?;
             assert_eq!(
                 store.raw_attribute("untouched")?,
-                snapshot.get("untouched").cloned()
+                snapshot
+                    .get("untouched")
+                    .map(AttributeValue::as_json)
+                    .transpose()?
+                    .cloned()
             );
             store.set_raw_attribute("during_await", json!("preserved"))?;
             tokio::task::yield_now().await;
-            Ok(raw(&[("secret", value), ("derived", json!(true))]))
+            Ok(AttributeMap::from_iter([
+                ("secret".into(), value),
+                ("derived".into(), json!(true).into()),
+            ]))
         })
     }
 }
@@ -164,11 +242,11 @@ struct FailingSetter;
 impl AttributeSetter for FailingSetter {
     fn set(
         &self,
-        _value: Value,
-        mut snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        _value: AttributeValue,
+        mut snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
-            snapshot.insert("partial".into(), json!(true));
+            snapshot.insert("partial".into(), json!(true).into());
             tokio::task::yield_now().await;
             Err(failure())
         })
@@ -338,17 +416,21 @@ impl Drop for DropAccessor {
     }
 }
 impl AttributeGetter for DropAccessor {
-    fn get(&self, raw: Option<&Value>, _snapshot: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(
+        &self,
+        raw: Option<&AttributeValue>,
+        _snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
         Ok(raw.cloned())
     }
 }
 impl AttributeSetter for DropAccessor {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
-        Box::pin(async move { Ok(raw(&[("field", value)])) })
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
+        Box::pin(async move { Ok(AttributeMap::from_iter([("field".into(), value)])) })
     }
 }
 #[test]
@@ -480,7 +562,11 @@ fn save_query_key_uses_raw_literal_original_before_current_accessor() -> Result<
 
 struct FailingGetter;
 impl AttributeGetter for FailingGetter {
-    fn get(&self, _value: Option<&Value>, _snapshot: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(
+        &self,
+        _value: Option<&AttributeValue>,
+        _snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
         Err(failure())
     }
 }
@@ -559,8 +645,12 @@ fn model_state_faults_are_server_errors() {
 
 struct NullDefaultGetter;
 impl AttributeGetter for NullDefaultGetter {
-    fn get(&self, _raw: Option<&Value>, _snapshot: &Map<String, Value>) -> Result<Option<Value>> {
-        Ok(Some(Value::Null))
+    fn get(
+        &self,
+        _raw: Option<&AttributeValue>,
+        _snapshot: &AttributeMap,
+    ) -> Result<Option<AttributeValue>> {
+        Ok(Some(Value::Null.into()))
     }
 }
 
@@ -620,14 +710,14 @@ struct PatchSetter;
 impl AttributeSetter for PatchSetter {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
-            Ok(raw(&[
-                ("token", value),
-                ("missing", Value::Null),
-                ("null", json!("new")),
+            Ok(AttributeMap::from_iter([
+                ("token".into(), value),
+                ("missing".into(), Value::Null.into()),
+                ("null".into(), json!("new").into()),
             ]))
         })
     }
@@ -691,13 +781,13 @@ struct WaitingSetter(Arc<tokio::sync::Notify>);
 impl AttributeSetter for WaitingSetter {
     fn set(
         &self,
-        value: Value,
-        _snapshot: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+        value: AttributeValue,
+        _snapshot: AttributeMap,
+    ) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             self.0.notify_one();
             std::future::pending::<()>().await;
-            Ok(raw(&[("token", value)]))
+            Ok(AttributeMap::from_iter([("token".into(), value)]))
         })
     }
 }
@@ -779,7 +869,14 @@ async fn poisoned_state_drop_restores_only_owned_raw_fields_and_keeps_public_fau
         .state
         .read()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    assert_eq!(state.raw.get("token"), Some(&json!("old")));
+    assert_eq!(
+        state
+            .raw
+            .get("token")
+            .map(AttributeValue::as_json)
+            .transpose()?,
+        Some(&json!("old"))
+    );
     assert_eq!(state.pending_count, 0);
     Ok(())
 }
@@ -839,7 +936,7 @@ impl AttributeGetter for ForbiddenRawAccessor {
         clippy::panic,
         reason = "以不可信getter的异常对抗用例验证raw模式不会调用访问器"
     )]
-    fn get(&self, _: Option<&Value>, _: &Map<String, Value>) -> Result<Option<Value>> {
+    fn get(&self, _: Option<&AttributeValue>, _: &AttributeMap) -> Result<Option<AttributeValue>> {
         panic!("raw mode must not invoke getter");
     }
 }
@@ -848,7 +945,7 @@ impl AttributeSetter for ForbiddenRawAccessor {
         clippy::panic,
         reason = "以不可信setter的异常对抗用例验证raw模式不会调用访问器"
     )]
-    fn set(&self, _: Value, _: Map<String, Value>) -> BoxFuture<'_, Result<Map<String, Value>>> {
+    fn set(&self, _: AttributeValue, _: AttributeMap) -> BoxFuture<'_, Result<AttributeMap>> {
         panic!("raw mode must not invoke setter");
     }
 }
@@ -990,11 +1087,7 @@ struct ConcurrentPrepareSetter {
     release: Arc<tokio::sync::Semaphore>,
 }
 impl AttributeSetter for ConcurrentPrepareSetter {
-    fn set(
-        &self,
-        value: Value,
-        _: Map<String, Value>,
-    ) -> BoxFuture<'_, Result<Map<String, Value>>> {
+    fn set(&self, value: AttributeValue, _: AttributeMap) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async move {
             self.entered.add_permits(1);
             self.release
@@ -1002,7 +1095,7 @@ impl AttributeSetter for ConcurrentPrepareSetter {
                 .await
                 .map_err(|_| failure())?
                 .forget();
-            Ok(raw(&[("token", value)]))
+            Ok(AttributeMap::from_iter([("token".into(), value)]))
         })
     }
 }
@@ -1285,7 +1378,7 @@ fn node_last_owner_drops_very_long_chain_iteratively_on_small_stack() -> Result<
             let mut head = None;
             for _ in 0..20_000 {
                 head = Some(Arc::new(super::MutationNode {
-                    value: json!("token"),
+                    value: json!("token").into(),
                     status: Arc::clone(&status),
                     history: std::sync::Mutex::new(super::NodeHistory {
                         original: None,
@@ -1326,10 +1419,15 @@ fn committed_reads_also_reject_cancelled_owner_before_raw_cleanup() -> Result<()
 
 struct LargePatchSetter;
 impl AttributeSetter for LargePatchSetter {
-    fn set(&self, _: Value, _: Map<String, Value>) -> BoxFuture<'_, Result<Map<String, Value>>> {
+    fn set(&self, _: AttributeValue, _: AttributeMap) -> BoxFuture<'_, Result<AttributeMap>> {
         Box::pin(async {
             Ok((0..2048)
-                .map(|index| (format!("field_{index}"), json!("secret")))
+                .map(|index| {
+                    (
+                        format!("field_{index}"),
+                        AttributeValue::from(json!("secret")),
+                    )
+                })
                 .collect())
         })
     }
@@ -1364,5 +1462,261 @@ async fn final_large_patch_terminal_releases_weak_capacity_and_explicit_rollback
         assert!(state.fields.is_empty());
         assert!(weak_nodes.iter().all(|node| node.upgrade().is_none()));
     }
+    Ok(())
+}
+
+#[test]
+fn date_carrier_preserves_identity_through_original_and_rollback() -> Result<()> {
+    use super::super::ModelDate;
+    use crate::support::{CalendarInstant, InputDate, ResolvedTimezone};
+
+    let date = ModelDate::new(
+        InputDate::new(
+            CalendarInstant::new(10, 123_456)?,
+            ResolvedTimezone::parse("Asia/Kolkata")?,
+        ),
+        false,
+    );
+    let next = date.copy()?;
+    let store = ModelAttributes::from_attribute_values(AttributeMap::from_iter([
+        ("before".into(), json!({}).into()),
+        ("stamp".into(), date.clone().into()),
+        ("after".into(), json!([]).into()),
+    ]));
+    let metadata = ModelMetadata::new("events", "app::Event");
+    let original = store.get_raw_original_value("stamp")?.ok_or_else(failure)?;
+    assert!(
+        original
+            .as_date()
+            .is_some_and(|value| value.same_object(&date))
+    );
+    assert_eq!(store.raw_attribute("before")?, Some(json!({})));
+    assert_eq!(store.raw_attribute("after")?, Some(json!([])));
+    assert_eq!(
+        store.raw_attributes().err().ok_or_else(failure)?.code(),
+        "model_attribute_object_projection_required"
+    );
+    let mut receipt = store
+        .set_raw_attribute_value_reversibly_if("stamp", next.clone().into(), |current| {
+            Ok(current
+                .as_ref()
+                .and_then(AttributeValue::as_date)
+                .is_some_and(|value| value.same_object(&date)))
+        })?
+        .ok_or_else(failure)?;
+    assert_eq!(
+        store
+            .committed_raw_attribute_value("stamp")
+            .err()
+            .ok_or_else(failure)?
+            .code(),
+        "model_attribute_update_pending"
+    );
+    assert!(
+        store
+            .get_attribute_value(&metadata, "stamp")?
+            .as_ref()
+            .and_then(AttributeValue::as_date)
+            .is_some_and(|value| value.same_object(&next))
+    );
+    assert!(receipt.rollback()?);
+    assert!(store.is_clean(&metadata, &[])?);
+    assert!(
+        store
+            .raw_attribute_value("stamp")?
+            .as_ref()
+            .and_then(AttributeValue::as_date)
+            .is_some_and(|value| value.same_object(&date))
+    );
+    assert_eq!(
+        store
+            .raw_attribute_values()?
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["before", "stamp", "after"],
+    );
+    store.set_raw_attribute_value("stamp", next.clone().into())?;
+    store.sync_changes(&metadata)?;
+    let changes = store.get_changes_values()?;
+    let previous = store.get_previous_values()?;
+    assert!(
+        changes["stamp"]
+            .as_date()
+            .is_some_and(|value| value.same_object(&next))
+    );
+    assert!(
+        previous["stamp"]
+            .as_date()
+            .is_some_and(|value| value.same_object(&date))
+    );
+    assert!(store.was_changed(&["stamp"])?);
+    store.discard_changes()?;
+    assert!(store.is_clean(&metadata, &[])?);
+    Ok(())
+}
+
+#[test]
+fn model_date_keeps_mutable_aliases_and_rejects_outdated_updates() -> Result<()> {
+    use super::super::ModelDate;
+    use crate::support::{CalendarInstant, InputDate, ResolvedTimezone};
+
+    let input = InputDate::new(CalendarInstant::new(10, 123_456)?, ResolvedTimezone::utc());
+    let replacement = InputDate::new(
+        CalendarInstant::new(11, 654_321)?,
+        ResolvedTimezone::parse("+05:30")?,
+    );
+    let date = ModelDate::new(input.clone(), false);
+    let alias = date.clone();
+    let stale = date.modify(|previous| {
+        let updated = alias.modify(|_| Ok(replacement.clone()))?;
+        assert!(updated.same_object(&date));
+        Ok(previous)
+    });
+    assert_eq!(
+        stale.err().ok_or_else(failure)?.code(),
+        "model_date_update_conflict"
+    );
+    assert_eq!(date.snapshot()?.instant(), replacement.instant());
+    assert_eq!(date.snapshot()?.format("P")?, "+05:30");
+
+    let immutable = ModelDate::new(input, true);
+    let updated = immutable.modify(|_| Ok(replacement.clone()))?;
+    assert!(updated.is_immutable());
+    assert!(!updated.same_object(&immutable));
+    assert_eq!(immutable.snapshot()?.timestamp(), 10);
+    assert_eq!(updated.snapshot()?.instant(), replacement.instant());
+    Ok(())
+}
+
+#[tokio::test]
+async fn marked_date_accessor_reuses_identity_and_writes_back_multiple_fields() -> Result<()> {
+    use super::super::ModelDate;
+    use crate::support::{CalendarInstant, InputDate, ResolvedTimezone};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let reads = Arc::new(AtomicUsize::new(0));
+    let writes = Arc::new(AtomicUsize::new(0));
+    let read_count = Arc::clone(&reads);
+    let write_count = Arc::clone(&writes);
+    let store = ModelAttributes::new(raw(&[("stamp", json!(1_710_057_600_i64))]));
+    let metadata = ModelMetadata::new("events", "Event");
+    store.register_attribute(
+        "stamp",
+        ModelAttribute::new()
+            .get(move |raw, _| {
+                read_count.fetch_add(1, Ordering::Relaxed);
+                let seconds = raw
+                    .ok_or_else(failure)?
+                    .as_json()?
+                    .as_i64()
+                    .ok_or_else(failure)?;
+                Ok(ModelDate::new(
+                    InputDate::new(
+                        CalendarInstant::new(seconds, 123_456)?,
+                        ResolvedTimezone::utc(),
+                    ),
+                    false,
+                )
+                .into())
+            })
+            .set(move |date, _| {
+                write_count.fetch_add(1, Ordering::Relaxed);
+                let stamp = date.as_date().ok_or_else(failure)?.snapshot()?.timestamp();
+                Ok(AttributeMap::from_iter([
+                    ("stamp".into(), json!(stamp).into()),
+                    ("epoch".into(), json!(stamp).into()),
+                ]))
+            }),
+    )?;
+    let first = store
+        .get_attribute_value(&metadata, "stamp")?
+        .ok_or_else(failure)?;
+    assert_eq!(writes.load(Ordering::Relaxed), 0);
+    let second = store
+        .get_attribute_value(&metadata, "stamp")?
+        .ok_or_else(failure)?;
+    let first = first.as_date().ok_or_else(failure)?;
+    assert!(
+        second
+            .as_date()
+            .is_some_and(|value| value.same_object(first))
+    );
+    assert_eq!(reads.load(Ordering::Relaxed), 1);
+    assert_eq!(writes.load(Ordering::Relaxed), 1);
+    first.modify(|date| {
+        Ok(InputDate::new(
+            CalendarInstant::new(date.timestamp() + 86_400, date.microseconds())?,
+            date.timezone().clone(),
+        ))
+    })?;
+    assert_eq!(
+        store.get_dirty(&metadata)?,
+        raw(&[
+            ("stamp", json!(1_710_144_000_i64)),
+            ("epoch", json!(1_710_144_000_i64))
+        ]),
+    );
+    assert_eq!(writes.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        store.get_raw_original("stamp")?,
+        Some(json!(1_710_057_600_i64))
+    );
+    let explicit = first.copy()?;
+    store
+        .set_attribute_value(&metadata, "stamp", explicit.clone().into())
+        .await?;
+    let cached = store
+        .get_attribute_value(&metadata, "stamp")?
+        .ok_or_else(failure)?;
+    assert!(
+        cached
+            .as_date()
+            .is_some_and(|value| value.same_object(&explicit))
+    );
+
+    store.set_raw_attributes(raw(&[("stamp", json!(10))]))?;
+    let after = store
+        .get_attribute_value(&metadata, "stamp")?
+        .ok_or_else(failure)?;
+    assert!(!after.as_date().ok_or_else(failure)?.same_object(&explicit));
+    assert_eq!(reads.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[test]
+fn marked_cache_writeback_does_not_override_reentrant_raw_changes() -> Result<()> {
+    use super::super::ModelDate;
+    use crate::support::{CalendarInstant, InputDate, ResolvedTimezone};
+
+    let store = Arc::new(ModelAttributes::new(raw(&[("stamp", json!(10))])));
+    let weak = Arc::downgrade(&store);
+    let metadata = ModelMetadata::new("events", "Event");
+    store.register_attribute(
+        "stamp",
+        ModelAttribute::new()
+            .get(|_, _| {
+                Ok(ModelDate::new(
+                    InputDate::new(CalendarInstant::new(10, 0)?, ResolvedTimezone::utc()),
+                    false,
+                )
+                .into())
+            })
+            .set(move |_, _| {
+                let store = weak.upgrade().ok_or_else(failure)?;
+                store.set_raw_attribute("stamp", json!(30))?;
+                Ok(AttributeMap::from_iter([
+                    ("stamp".into(), json!(20).into()),
+                    ("epoch".into(), json!(20).into()),
+                ]))
+            }),
+    )?;
+    assert!(store.get_attribute_value(&metadata, "stamp")?.is_some());
+    assert_eq!(
+        store.get_dirty(&metadata).err().ok_or_else(failure)?.code(),
+        "model_attribute_mutation_conflict"
+    );
+    assert_eq!(store.raw_attribute("stamp")?, Some(json!(30)));
+    assert_eq!(store.raw_attribute("epoch")?, None);
     Ok(())
 }

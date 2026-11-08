@@ -1893,3 +1893,12 @@ NumericDate v6 通过共享 Calendar 的六位舍入和 `U.u` UTC 解析处理 J
 精确输入 1648 项、16 路径，源码树 `b721ceeccdfd35a5fee3d42fa5a4c45b0b332f25`。定向实际通过 6 Core（重放 72 与 36 条 PHP 参考样本）、1 根 server 生产 HTTP、2 外部 consumer，零忽略。默认工作区 63 组，日常 MySQL 8.4.13 工作区 83 组均通过。原 Calendar 33 和 Request 53 个具名回归实际覆盖。原始报告分列忽略与外部 skip。格式、严格 Clippy、拒警 Rustdoc 和 95 个本地链接通过。源码、锁、夹具与数据库目录保全。v5 严格 Clippy 诊断留存，v6 仅补一行 Rustdoc 代码标记。
 
 正式验收 `tmp/independent-testing-20261106/numeric-date-runtime-v6/NATIVE-RESULT.json` SHA `a538bbd8ecc78208cb153306161005b1fe0de72f656d31ab115b31c7107bb912`。正式外部 consumer 锁 SHA `76f5f97d369b96db728028756ac65464e25462a57341484a858ac365c36f0c28`。本簇为纯数值格式化与解析；完整 Calendar、Model 日期语义、Passport/JWT 消费与发布矩阵仍按各自待办推进。
+
+
+## Eloquent 模型日期转换限定验收
+
+固定 Laravel `HasAttributes`、`HasTimestamps` 与 `DateFactory` 的日期读取、写入、数组化和缓存对象行为，按固定 PHP 8.5.12 探针与 Rust 回归对照。根应用、示例、生成模板及 Passport 使用有序属性载体和有类型访问器。普通日期投影、存储格式及查询参数格式分别验证。
+
+验收绑定源码树 `a5e36797b3ea042e28eb29699c637dae760097a6`。隔离 Workspace 测试、格式检查、严格 Clippy、Rustdoc 与离线依赖门禁通过。两文件复审修订只移动示例断言到清理保护段并恢复原 import 布局，随后重验严格 Clippy、格式、真实 MySQL 8.4.13 示例及 fresh MySQL Web/Fortify 项目。生成应用通过 check 和 55 项测试，Schema 专跑 1 项保留 ignored。测试库及账号目录恢复，验收见 `tmp/model-date-final-20261108/acceptance.json`。
+
+PostgreSQL 日期绑定类型、秒精度与本地时间经过定向验证；实际 PostgreSQL、其他最低版本、追加字段及关联序列化按各自矩阵推进。

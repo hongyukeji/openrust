@@ -22,9 +22,10 @@
 //! 比较不调用 getter/setter/哈希；未决可回滚写入、运行中的 setter 或过期快照返回 409。
 //! 逐字段同步遇缺项报错并保留此前已同步字段，模型保存会话仍待对应。
 
+use super::ModelDateContext;
 use super::{
-    AttributeCast, AttributeGetter, ModelAttributes, ModelMetadata, State, read_conflict,
-    replace_raw, state_error,
+    AttributeCast, AttributeGetter, AttributeMap, AttributeValue, ModelAttributes, ModelMetadata,
+    State, from_json, into_json, read_conflict, replace_raw, state_error,
 };
 use crate::{
     Error, Result,
@@ -32,10 +33,11 @@ use crate::{
     support::{ArrayKey, InputNumber},
 };
 use serde_json::{Map, Value};
+use std::borrow::Cow;
 
 struct Snapshot {
-    raw: Map<String, Value>,
-    original: Map<String, Value>,
+    raw: AttributeMap,
+    original: AttributeMap,
     revision: u64,
     original_revision: u64,
 }
@@ -45,8 +47,15 @@ impl ModelAttributes {
     ///
     /// 缺项返回 `None`，显式 null 返回 `Some(Value::Null)`，保留选中值的原始形状。
     pub fn get_raw_original(&self, name: &str) -> Result<Option<Value>> {
+        self.get_raw_original_value(name)?
+            .map(AttributeValue::try_into_json)
+            .transpose()
+    }
+
+    /// 读取有类型的原始基线值；日期对象保留身份。
+    pub fn get_raw_original_value(&self, name: &str) -> Result<Option<AttributeValue>> {
         let state = self.state.read().map_err(|_| state_error())?;
-        Ok(original_value(&state.original, name).cloned())
+        Ok(original_value(&state.original, name).map(Cow::into_owned))
     }
     /// 按原值点路径读取，只有缺项才返回默认值；显式 null 不使用默认值。
     pub fn get_raw_original_or(&self, name: &str, default: Value) -> Result<Value> {
@@ -54,12 +63,13 @@ impl ModelAttributes {
     }
     /// 读取完整数据库原始基线；Rust显式拆分PHP可选key的不同返回类型。
     pub fn get_raw_original_attributes(&self) -> Result<Map<String, Value>> {
-        Ok(self
-            .state
-            .read()
-            .map_err(|_| state_error())?
-            .original
-            .clone())
+        into_json(
+            self.state
+                .read()
+                .map_err(|_| state_error())?
+                .original
+                .clone(),
+        )
     }
     /// 转换原始基线中的指定属性；缺项的默认值也经过转换，显式 null 保留。
     ///
@@ -74,38 +84,76 @@ impl ModelAttributes {
         default: Option<&Value>,
         declared_getter: impl FnOnce(&str) -> Option<&'a dyn AttributeGetter>,
     ) -> Result<Option<Value>> {
-        let original = self.get_raw_original_attributes()?;
-        let value = original_value(&original, name).or(default);
-        transform_original(metadata, name, value, &original, declared_getter(name))
+        let original = self
+            .state
+            .read()
+            .map_err(|_| state_error())?
+            .original
+            .clone();
+        let value = original_value(&original, name)
+            .map(Cow::into_owned)
+            .or_else(|| default.cloned().map(AttributeValue::from));
+        transform_original(
+            metadata,
+            name,
+            value,
+            &original,
+            declared_getter(name),
+            &self.dates,
+        )?
+        .map(AttributeValue::try_into_json)
+        .transpose()
     }
 
-    /// 用同一原始快照转换所有已存在的顶层键；访问器不会添加虚拟属性。
-    ///
-    /// 访问器返回空值时保留对应键为 JSON null。遇转换错误则返回错误，
-    /// 本方法不发布属性写入或变化记录。
+    /// 转换所有原始属性后显式读取 JSON 值。
     pub fn get_original_attributes<'a>(
         &self,
         metadata: &ModelMetadata,
         declared_getter: impl Fn(&str) -> Option<&'a dyn AttributeGetter>,
     ) -> Result<Map<String, Value>> {
-        let original = self.get_raw_original_attributes()?;
+        into_json(self.get_original_attribute_values(metadata, declared_getter)?)
+    }
+
+    /// 用同一原始快照转换所有已存在的顶层键，并保留日期对象。
+    pub fn get_original_attribute_values<'a>(
+        &self,
+        metadata: &ModelMetadata,
+        declared_getter: impl Fn(&str) -> Option<&'a dyn AttributeGetter>,
+    ) -> Result<AttributeMap> {
+        let original = self
+            .state
+            .read()
+            .map_err(|_| state_error())?
+            .original
+            .clone();
         original
             .iter()
             .map(|(name, value)| {
                 transform_original(
                     metadata,
                     name,
-                    Some(value),
+                    Some(value.clone()),
                     &original,
                     declared_getter(name),
+                    &self.dates,
                 )
-                .map(|converted| (name.clone(), converted.unwrap_or(Value::Null)))
+                .map(|converted| {
+                    (
+                        name.clone(),
+                        converted.unwrap_or_else(|| Value::Null.into()),
+                    )
+                })
             })
             .collect()
     }
 
     /// 读取最近一次显式 `sync_changes` 记录的原始变化，不重新计算 `dirty`。
     pub fn get_changes(&self) -> Result<Map<String, Value>> {
+        into_json(self.get_changes_values()?)
+    }
+
+    /// 读取最近记录的有类型属性变化，保留对象身份。
+    pub fn get_changes_values(&self) -> Result<AttributeMap> {
         Ok(self
             .state
             .read()
@@ -115,6 +163,11 @@ impl ModelAttributes {
     }
     /// 读取最近 `sync_changes` 变化字段对应的旧 `original` 交集。
     pub fn get_previous(&self) -> Result<Map<String, Value>> {
+        into_json(self.get_previous_values()?)
+    }
+
+    /// 读取最近记录的有类型旧原值，保留对象身份。
+    pub fn get_previous_values(&self) -> Result<AttributeMap> {
         Ok(self
             .state
             .read()
@@ -126,8 +179,13 @@ impl ModelAttributes {
     ///
     /// 未完成的可回滚赋值/异步setter或比较期间版本变化返回409，不报告伪 `clean`。
     pub fn get_dirty(&self, metadata: &ModelMetadata) -> Result<Map<String, Value>> {
+        into_json(self.get_dirty_values(metadata)?)
+    }
+
+    /// 读取尚未保存的有类型原值，保留日期对象。
+    pub fn get_dirty_values(&self, metadata: &ModelMetadata) -> Result<AttributeMap> {
         let snapshot = self.persistence_snapshot()?;
-        let dirty = dirty(&snapshot, metadata)?;
+        let dirty = dirty(&snapshot, metadata, &self.dates)?;
         let state = self.state.read().map_err(|_| state_error())?;
         snapshot.check(&state)?;
         Ok(dirty)
@@ -135,14 +193,20 @@ impl ModelAttributes {
     /// 判断指定原始字段是否与original等价；缺 `original`字段不等价。
     pub fn original_is_equivalent(&self, metadata: &ModelMetadata, name: &str) -> Result<bool> {
         let snapshot = self.persistence_snapshot()?;
-        let equivalent = equivalent(metadata, name, &snapshot.raw, &snapshot.original)?;
+        let equivalent = equivalent(
+            metadata,
+            name,
+            &snapshot.raw,
+            &snapshot.original,
+            &self.dates,
+        )?;
         let state = self.state.read().map_err(|_| state_error())?;
         snapshot.check(&state)?;
         Ok(equivalent)
     }
     /// 判断全部或指定字段是否 `dirty`；空字段列表表示全部。
     pub fn is_dirty(&self, metadata: &ModelMetadata, names: &[&str]) -> Result<bool> {
-        Ok(has_changes(&self.get_dirty(metadata)?, names))
+        Ok(has_changes(&self.get_dirty_values(metadata)?, names))
     }
     /// 判断全部或指定字段是否 `clean`；不稳定状态仍返回错误。
     pub fn is_clean(&self, metadata: &ModelMetadata, names: &[&str]) -> Result<bool> {
@@ -150,7 +214,8 @@ impl ModelAttributes {
     }
     /// 判断最近显式 `sync_changes` 是否包含全部或指定字段，空列表表示任意变化。
     pub fn was_changed(&self, names: &[&str]) -> Result<bool> {
-        Ok(has_changes(&self.get_changes()?, names))
+        let state = self.state.read().map_err(|_| state_error())?;
+        Ok(has_changes(&state.changes, names))
     }
     /// 丢弃当前属性的未保存变化，恢复原始基线并清空 `changes` 和 `previous`。
     ///
@@ -178,7 +243,7 @@ impl ModelAttributes {
     ) -> Result<()> {
         let mut state = self.state.write().map_err(|_| state_error())?;
         ensure_stable(&state)?;
-        replace_raw(&mut state, raw)
+        replace_raw(&mut state, from_json(raw))
     }
 
     // 无关系需要重载时，一次更新当前属性与原始基线，保留上次保存的变化记录。
@@ -186,6 +251,7 @@ impl ModelAttributes {
         &self,
         raw: Map<String, Value>,
     ) -> Result<()> {
+        let raw = from_json(raw);
         let retired = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             ensure_stable(&state)?;
@@ -201,6 +267,7 @@ impl ModelAttributes {
 
     /// 把稳定当前原值同步为 `original`，不清 `changes`/`previous`，不改变原始属性修改版本。
     pub fn sync_original(&self) -> Result<&Self> {
+        self.flush_marked(None)?;
         let previous = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             ensure_stable(&state)?;
@@ -219,6 +286,7 @@ impl ModelAttributes {
     }
     /// 按输入顺序同步字段；后项缺失保留已同步前缀，重复键按输入处理。
     pub fn sync_original_attributes(&self, names: &[&str]) -> Result<&Self> {
+        self.flush_marked(None)?;
         let mut retired = Vec::new();
         let mut state = self.state.write().map_err(|_| state_error())?;
         ensure_stable(&state)?;
@@ -246,21 +314,33 @@ impl ModelAttributes {
     /// 发布当前`dirty` 与旧 `original`交集；不把当前属性标为 `clean`。
     pub fn sync_changes(&self, metadata: &ModelMetadata) -> Result<&Self> {
         let snapshot = self.persistence_snapshot()?;
-        let changes = dirty(&snapshot, metadata)?;
+        let changes = dirty(&snapshot, metadata, &self.dates)?;
+        self.publish_change_set(&snapshot, changes)
+    }
+
+    // SQL 使用已绑定的变更；写后发布不能再次执行访问器或扩展这批列。
+    pub(in crate::database::eloquent) fn sync_written_changes(
+        &self,
+        changes: AttributeMap,
+    ) -> Result<&Self> {
+        self.publish_change_set(&self.stable_snapshot()?, changes)
+    }
+
+    fn publish_change_set(&self, snapshot: &Snapshot, changes: AttributeMap) -> Result<&Self> {
         let previous = snapshot
             .original
             .iter()
             .filter(|(key, _)| changes.contains_key(*key))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
-        self.publish_changes(&snapshot, changes, previous)?;
+        self.publish_changes(snapshot, changes, previous)?;
         Ok(self)
     }
     fn publish_changes(
         &self,
         snapshot: &Snapshot,
-        changes: Map<String, Value>,
-        previous: Map<String, Value>,
+        changes: AttributeMap,
+        previous: AttributeMap,
     ) -> Result<()> {
         let retired = {
             let mut state = self.state.write().map_err(|_| state_error())?;
@@ -274,6 +354,11 @@ impl ModelAttributes {
         Ok(())
     }
     fn persistence_snapshot(&self) -> Result<Snapshot> {
+        self.flush_marked(None)?;
+        self.stable_snapshot()
+    }
+
+    fn stable_snapshot(&self) -> Result<Snapshot> {
         let state = self.state.read().map_err(|_| state_error())?;
         ensure_stable(&state)?;
         Ok(Snapshot {
@@ -313,17 +398,21 @@ fn persistence_error(code: &'static str) -> Error {
         "模型持久属性快照无法完成",
     )
 }
-fn has_changes(changes: &Map<String, Value>, names: &[&str]) -> bool {
+fn has_changes(changes: &AttributeMap, names: &[&str]) -> bool {
     if names.is_empty() {
         !changes.is_empty()
     } else {
         names.iter().any(|name| changes.contains_key(*name))
     }
 }
-fn dirty(snapshot: &Snapshot, metadata: &ModelMetadata) -> Result<Map<String, Value>> {
-    let mut changes = Map::new();
+fn dirty(
+    snapshot: &Snapshot,
+    metadata: &ModelMetadata,
+    dates: &ModelDateContext,
+) -> Result<AttributeMap> {
+    let mut changes = AttributeMap::new();
     for (key, value) in &snapshot.raw {
-        if !equivalent(metadata, key, &snapshot.raw, &snapshot.original)? {
+        if !equivalent(metadata, key, &snapshot.raw, &snapshot.original, dates)? {
             changes.insert(key.clone(), value.clone());
         }
     }
@@ -332,8 +421,9 @@ fn dirty(snapshot: &Snapshot, metadata: &ModelMetadata) -> Result<Map<String, Va
 fn equivalent(
     metadata: &ModelMetadata,
     name: &str,
-    current: &Map<String, Value>,
-    original: &Map<String, Value>,
+    current: &AttributeMap,
+    original: &AttributeMap,
+    dates: &ModelDateContext,
 ) -> Result<bool> {
     if !original.contains_key(name) {
         return Ok(false);
@@ -341,14 +431,29 @@ fn equivalent(
     let Some(original) = original_value(original, name) else {
         return Ok(false);
     };
-    let current = original_value(current, name).unwrap_or(&Value::Null);
-    if strict_equal(current, original) {
+    let current =
+        original_value(current, name).unwrap_or(Cow::Borrowed(&AttributeValue::Json(Value::Null)));
+    if strict_attribute_equal(&current, &original) {
         return Ok(true);
     }
     if current.is_null() {
         return Ok(false);
     }
-    match metadata.effective_cast(name)? {
+    let cast = metadata.effective_cast(name)?;
+    if metadata.is_implicit_date(name)
+        || cast
+            .as_ref()
+            .is_some_and(|cast| cast.is_date_read() && *cast != AttributeCast::Timestamp)
+    {
+        return Ok(strict_attribute_equal(
+            &dates.store(metadata, current.into_owned())?,
+            &dates.store(metadata, original.into_owned())?,
+        ));
+    }
+    let (Ok(current), Ok(original)) = (current.as_json(), original.as_json()) else {
+        return Ok(false);
+    };
+    match cast {
         Some(AttributeCast::Float) => {
             if original.is_null() {
                 return Ok(false);
@@ -374,31 +479,43 @@ fn equivalent(
     }
 }
 
-fn transform_original(
-    metadata: &ModelMetadata,
-    name: &str,
-    raw: Option<&Value>,
-    original: &Map<String, Value>,
-    getter: Option<&dyn AttributeGetter>,
-) -> Result<Option<Value>> {
-    if let Some(getter) = getter {
-        getter.get(raw, original)
-    } else {
-        metadata.read_cast_attribute(name, raw.cloned())
+fn strict_attribute_equal(left: &AttributeValue, right: &AttributeValue) -> bool {
+    match (left, right) {
+        (AttributeValue::Date(left), AttributeValue::Date(right)) => left.same_object(right),
+        (AttributeValue::Json(left), AttributeValue::Json(right)) => strict_equal(left, right),
+        _ => false,
     }
 }
 
+fn transform_original(
+    metadata: &ModelMetadata,
+    name: &str,
+    raw: Option<AttributeValue>,
+    original: &AttributeMap,
+    getter: Option<&dyn AttributeGetter>,
+    dates: &ModelDateContext,
+) -> Result<Option<AttributeValue>> {
+    if let Some(getter) = getter {
+        return getter.get(raw.as_ref(), original);
+    }
+    metadata.cast_attribute_value(name, raw, dates)
+}
+
 // Arr::get只在根尝试完整键；逐段查找不解释通配符，不转换被选值。
-fn original_value<'a>(values: &'a Map<String, Value>, name: &str) -> Option<&'a Value> {
+fn original_value<'a>(values: &'a AttributeMap, name: &str) -> Option<Cow<'a, AttributeValue>> {
     if let Some(value) = values.get(name) {
-        return Some(value);
+        return Some(Cow::Borrowed(value));
     }
-    if !name.contains('.') {
-        return None;
-    }
-    let mut segments = name.split('.');
-    let mut value = values.get(segments.next()?)?;
-    for segment in segments {
+    let (first, rest) = name.split_once('.')?;
+    let value = values.get(first)?.as_json().ok()?;
+    nested_value(value, rest)
+        .cloned()
+        .map(AttributeValue::from)
+        .map(Cow::Owned)
+}
+
+fn nested_value<'a>(mut value: &'a Value, path: &str) -> Option<&'a Value> {
+    for segment in path.split('.') {
         value = match value {
             Value::Object(values) => values.get(segment)?,
             Value::Array(values) => {
