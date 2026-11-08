@@ -2,8 +2,6 @@
 use figment::Figment;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -14,6 +12,7 @@ use openrust::support::{
     ArrayKey, Collection, MessageBag, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
     MessageValue, ViewErrorBag,
 };
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use serde_json::{Value, json};
 use std::time::Duration;

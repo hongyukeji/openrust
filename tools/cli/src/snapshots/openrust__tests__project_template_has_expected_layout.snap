@@ -806,8 +806,6 @@ async fn generated_original_host_supports_explicit_cookie_session_without_databa
 use figment::Figment;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode, header::CONTENT_TYPE},
@@ -818,6 +816,7 @@ use openrust::http::Request as InputRequest;
 use openrust::routing::Router;
 use openrust::http::UploadedFile;
 use openrust::support::{ArrayKey, BackedEnum, DateOptions, InputNumber, TimezoneInput};
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use std::time::Duration;
 
@@ -1181,8 +1180,6 @@ pub async fn assert_request_input<A: ApplicationDefinition>(
 use figment::Figment;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -1193,6 +1190,7 @@ use openrust::support::{
     ArrayKey, Collection, MessageBag, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
     MessageValue, ViewErrorBag,
 };
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -1407,13 +1405,6 @@ use figment::Figment;
 use openrust::config::SessionConfig;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::http::Cookie;
-use openrust::http::CookieJar;
-use openrust::http::CookieOptions;
-use openrust::http::CookieResponseExt;
-use openrust::http::Json;
-use openrust::http::RequestInfo;
-use openrust::http::SameSite;
 use openrust::http::axum::{
     Extension,
     body::Body,
@@ -1423,11 +1414,17 @@ use openrust::http::axum::{
     },
     response::IntoResponse,
 };
+use openrust::http::Cookie;
+use openrust::http::CookieJar;
+use openrust::http::CookieOptions;
+use openrust::http::CookieResponseExt;
+use openrust::http::Json;
+use openrust::http::RequestInfo;
 use openrust::routing::RouteGroup;
 use openrust::routing::Router;
+use openrust::http::SameSite;
 use openrust::session::Session;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -1821,9 +1818,7 @@ use figment::Figment;
 use openrust::config::SessionConfig;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
 use openrust::foundation::RegisterContext;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{
@@ -1844,6 +1839,7 @@ use openrust::session::{
     Session, SessionId, SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore,
     SessionStoreHandle, SessionWriteMode, SessionWriteOutcome,
 };
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::support::{DataObject, DataValue, ObjectEncoding};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
@@ -3049,9 +3045,7 @@ use figment::Figment;
 use openrust::config::SessionConfig;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
 use openrust::foundation::RegisterContext;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{HeaderMap, HeaderValue, Request, StatusCode, header},
@@ -3070,6 +3064,7 @@ use openrust::support::{
     ArrayKey, Collection, MessageBag, MessageBagContract, MessageKeys, MessageLookup,
     MessageProvider, MessageValue,
 };
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};

@@ -3,9 +3,7 @@ use figment::Figment;
 use openrust::config::SessionConfig;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
 use openrust::foundation::RegisterContext;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{
@@ -26,6 +24,7 @@ use openrust::session::{
     Session, SessionId, SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore,
     SessionStoreHandle, SessionWriteMode, SessionWriteOutcome,
 };
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::support::{DataObject, DataValue, ObjectEncoding};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};

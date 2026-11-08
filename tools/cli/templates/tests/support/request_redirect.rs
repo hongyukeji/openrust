@@ -3,9 +3,7 @@ use figment::Figment;
 use openrust::config::SessionConfig;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
 use openrust::foundation::RegisterContext;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{HeaderMap, HeaderValue, Request, StatusCode, header},
@@ -24,6 +22,7 @@ use openrust::support::{
     ArrayKey, Collection, MessageBag, MessageBagContract, MessageKeys, MessageLookup,
     MessageProvider, MessageValue,
 };
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};

@@ -2,8 +2,6 @@
 use figment::Figment;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::Body,
     http::{Method, Request, StatusCode, header::CONTENT_TYPE},
@@ -14,6 +12,7 @@ use openrust::http::Request as InputRequest;
 use openrust::routing::Router;
 use openrust::http::UploadedFile;
 use openrust::support::{ArrayKey, BackedEnum, DateOptions, InputNumber, TimezoneInput};
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use std::time::Duration;
 

@@ -2,9 +2,7 @@
 use figment::Figment;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
 use openrust::foundation::RegisterContext;
-use openrust::support::ServiceProvider;
 use openrust::http::axum::{
     body::{Body, to_bytes},
     extract::ConnectInfo,
@@ -14,6 +12,7 @@ use openrust::http::Json;
 use openrust::routing::RouteGroup;
 use openrust::mail::{MailDriver, Mailer};
 use openrust::session::Session;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use openrust::{Error, Result};
 use serde_json::{Value, json};

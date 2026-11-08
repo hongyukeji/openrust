@@ -3,13 +3,6 @@ use figment::Figment;
 use openrust::config::SessionConfig;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
-use openrust::http::Cookie;
-use openrust::http::CookieJar;
-use openrust::http::CookieOptions;
-use openrust::http::CookieResponseExt;
-use openrust::http::Json;
-use openrust::http::RequestInfo;
-use openrust::http::SameSite;
 use openrust::http::axum::{
     Extension,
     body::Body,
@@ -19,11 +12,17 @@ use openrust::http::axum::{
     },
     response::IntoResponse,
 };
+use openrust::http::Cookie;
+use openrust::http::CookieJar;
+use openrust::http::CookieOptions;
+use openrust::http::CookieResponseExt;
+use openrust::http::Json;
+use openrust::http::RequestInfo;
 use openrust::routing::RouteGroup;
 use openrust::routing::Router;
+use openrust::http::SameSite;
 use openrust::session::Session;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

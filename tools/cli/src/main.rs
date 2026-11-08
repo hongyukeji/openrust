@@ -2369,7 +2369,7 @@ fn register_queue_config(source: &str) -> anyhow::Result<String> {
 
 fn render_job(type_name: &str, module: &str) -> String {
     format!(
-        "//! 可由数据库队列执行的应用任务。\n\nuse openrust::support::BoxFuture;\nuse openrust::core::Error;\nuse openrust::core::Result;\nuse openrust::queue::{{Job, JobContext}};\nuse serde::{{Deserialize, Serialize}};\n\n/// `{module}` 后台任务。\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct {type_name};\n\nimpl Job for {type_name} {{\n    const NAME: &'static str = \"{module}.v1\";\n\n    fn handle(&self, _context: JobContext) -> BoxFuture<'_, Result<()>> {{\n        Box::pin(async {{\n            Err(Error::custom(\n                \"job_not_implemented\",\n                \"请先实现此任务的业务逻辑，再启动 worker\",\n            ))\n        }})\n    }}\n}}\n"
+        "//! 可由数据库队列执行的应用任务。\n\nuse openrust::core::{{Error, Result}};\nuse openrust::support::BoxFuture;\nuse openrust::queue::{{Job, JobContext}};\nuse serde::{{Deserialize, Serialize}};\n\n/// `{module}` 后台任务。\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct {type_name};\n\nimpl Job for {type_name} {{\n    const NAME: &'static str = \"{module}.v1\";\n\n    fn handle(&self, _context: JobContext) -> BoxFuture<'_, Result<()>> {{\n        Box::pin(async {{\n            Err(Error::custom(\n                \"job_not_implemented\",\n                \"请先实现此任务的业务逻辑，再启动 worker\",\n            ))\n        }})\n    }}\n}}\n"
     )
 }
 
@@ -2699,7 +2699,7 @@ fn generate_provider(name: &str, project_dir: &Path) -> anyhow::Result<()> {
         bail!("bootstrap/providers.rs has an unsupported provider registry layout");
     }
     let source = format!(
-        "//! 应用服务 Provider。\n\nuse openrust::foundation::BootContext;\nuse openrust::support::BoxFuture;\nuse openrust::foundation::RegisterContext;\nuse openrust::support::ServiceProvider;\nuse openrust::prelude::*;\n\n/// `{type_name}` 的注册与启动钩子。\npub struct {type_name};\n\nimpl ServiceProvider for {type_name} {{\n    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n\n    fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n}}\n"
+        "//! 应用服务 Provider。\n\nuse openrust::foundation::BootContext;\nuse openrust::foundation::RegisterContext;\nuse openrust::support::{{BoxFuture, ServiceProvider}};\nuse openrust::prelude::*;\n\n/// `{type_name}` 的注册与启动钩子。\npub struct {type_name};\n\nimpl ServiceProvider for {type_name} {{\n    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n\n    fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {{\n        Box::pin(async {{ Ok(()) }})\n    }}\n}}\n"
     );
     fs::write(&file, source)?;
     append_sorted_module(
