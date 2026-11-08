@@ -160,6 +160,11 @@ SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象�
 相对引用、点段及空查询和空片段保持原有语义。`path_segments()` 使用有界 Support Collection。
 示例预览的 `record_uri` 使用此转换。URI 值本身不进行 HTTP 跳转目的地校验。
 
+可用 `with_scheme()`、`with_host()`、`with_user()`、`with_port()`、`with_path()` 和
+`with_fragment()` 构造新 URI，原值保持不变。切换协议会校验已有组件并省略新协议的默认端口。
+`with_path()` 保留一个前导斜线，路径中的 `?`、`#` 按路径字节编码。
+`with_fragment("")` 保留空片段，`without_fragment()` 移除片段分隔符。
+
 `uri.query()` 保留编码原文，`to_array()` 解析括号索引，保留点号键和字面 `+`。
 `get("filter.name")` 按点路径读取，`all_keys(&["filter.name"])` 选择参数，
 `has()` 和 `missing()` 可检查完整键及嵌套路径。

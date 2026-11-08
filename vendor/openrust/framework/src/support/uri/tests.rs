@@ -335,3 +335,56 @@ fn uri_query_rejects_input_and_output_beyond_shared_limits() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn uri_component_edits_match_fixed_laravel_and_league() -> Result<()> {
+    // 固定 Laravel SupportUriTest 与 League be89e2382e37acdef232259071ade5180821397b。
+    let oracle: serde_json::Value = serde_json::from_str(include_str!("components_oracle.json"))
+        .map_err(|error| Error::custom("uri_component_fixture", error.to_string()))?;
+    for (label, row) in oracle["rows"].as_object().ok_or_else(fixture_error)? {
+        let uri = Uri::of(row["input"].as_str().ok_or_else(fixture_error)?)?;
+        let edited = apply_component_edit(&uri, row);
+        if row["error"].is_string() {
+            assert_eq!(
+                edited.err().as_ref().map(Error::code),
+                Some("support_uri_invalid"),
+                "{label}"
+            );
+        } else {
+            let edited = edited?;
+            assert_eq!(edited.value(), row["value"], "{label}");
+            assert_eq!(json!(edited.authority()), row["authority"], "{label}");
+            assert_eq!(json!(edited.user()), row["user"], "{label}");
+            assert_eq!(json!(edited.user_info()), row["user_info"], "{label}");
+            assert_eq!(json!(edited.path()), row["path"], "{label}");
+            assert_eq!(json!(edited.port()), row["port"], "{label}");
+            assert_eq!(json!(edited.fragment()), row["fragment"], "{label}");
+        }
+        assert_eq!(uri.value(), row["original"], "{label}");
+    }
+    let composed = Uri::of("")?
+        .with_host("laravel.com")?
+        .with_scheme("https")?
+        .with_user(Some("taylor"), Some("password"))?
+        .with_path("/docs/installation")?
+        .with_port(Some(80))?
+        .with_query(&json!({"version": 1}))?
+        .with_fragment("hello")?;
+    assert_eq!(composed.value(), oracle["chain"]);
+    Ok(())
+}
+
+fn apply_component_edit(uri: &Uri, row: &serde_json::Value) -> Result<Uri> {
+    let first = &row["args"][0];
+    let required = || first.as_str().ok_or_else(fixture_error);
+    match row["method"].as_str() {
+        Some("withScheme") => uri.with_scheme(required()?),
+        Some("withHost") => uri.with_host(required()?),
+        Some("withUser") => uri.with_user(first.as_str(), row["args"][1].as_str()),
+        Some("withPort") => uri.with_port(first.as_i64()),
+        Some("withPath") => uri.with_path(required()?),
+        Some("withFragment") => uri.with_fragment(required()?),
+        Some("withoutFragment") => uri.without_fragment(),
+        _ => Err(fixture_error()),
+    }
+}

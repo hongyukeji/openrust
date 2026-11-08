@@ -98,7 +98,8 @@ pub(crate) async fn preview(
         };
     let mut details = attributes.attributes_to_json(&metadata)?;
     details.extend(record_display_casts(&attributes, &metadata, model.id)?);
-    let preview_uri = Uri::of(&format!("/api/example/records/{}/preview", model.id))?
+    let preview_uri = Uri::of("")?
+        .with_path(&format!("api/example/records/{}/preview", model.id))?
         .with_query(&serde_json::json!({"discard": discard.to_string()}))?;
     details.insert(
         "record_preview_uri".into(),

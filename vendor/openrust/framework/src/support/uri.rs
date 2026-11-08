@@ -1,4 +1,4 @@
-//! Laravel 的 URI 值、组件读取和字符串投影。
+//! Laravel 的 URI 值、组件读取、不可变变更和字符串投影。
 
 mod parse;
 mod query;
@@ -34,11 +34,19 @@ impl Uri {
         parse::parse(input).map(Self::from_parts)
     }
 
+    fn checked_parts(parts: Components) -> Result<Self> {
+        if parse::validate_state(&parts) {
+            Ok(Self::from_parts(parts))
+        } else {
+            Err(invalid_uri())
+        }
+    }
+
     fn from_parts(parts: Components) -> Self {
         let authority = parts.host.as_ref().map(|host| {
             let mut authority = String::new();
-            if let Some(user) = &parts.user {
-                authority.push_str(user);
+            if parts.user.is_some() || parts.password.is_some() {
+                authority.push_str(parts.user.as_deref().unwrap_or_default());
                 if let Some(password) = &parts.password {
                     authority.push(':');
                     authority.push_str(password);
@@ -156,6 +164,69 @@ impl Uri {
     /// 取得编码后的片段，区分缺失与显式空片段。
     pub fn fragment(&self) -> Option<&str> {
         self.parts.fragment.as_deref()
+    }
+
+    /// 设置协议，并按新协议重新校验路径、默认端口和其余组件。
+    pub fn with_scheme(&self, scheme: &str) -> Result<Self> {
+        let mut parts = self.parts.clone();
+        parts.scheme = Some(parse::normalize_scheme(scheme)?);
+        parts.port = parse::format_port(parts.port, parts.scheme.as_deref())?;
+        parts.path = parse::format_path(&parts.path, &parts)?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置主机，按 URI 规则规范化主机名并为相对路径补齐 authority 分隔。
+    pub fn with_host(&self, host: &str) -> Result<Self> {
+        parse::validate_component(host)?;
+        let mut parts = self.parts.clone();
+        parts.host = Some(parse::normalize_host(host)?);
+        parts.path = parse::format_path(&parts.path, &parts)?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置或清除用户信息。密码会进入 URI，调用方应避免将它写入日志。
+    pub fn with_user(&self, user: Option<&str>, password: Option<&str>) -> Result<Self> {
+        if let Some(user) = user {
+            parse::validate_component(user)?;
+        }
+        if let Some(password) = password {
+            parse::validate_component(password)?;
+        }
+        let mut parts = self.parts.clone();
+        parts.user = user.map(parse::encode_user);
+        parts.password = password.map(parse::encode_password);
+        Self::checked_parts(parts)
+    }
+
+    /// 设置或清除端口，省略与当前协议默认值相同的端口。
+    pub fn with_port(&self, port: Option<i64>) -> Result<Self> {
+        let mut parts = self.parts.clone();
+        parts.port = parse::format_port(port, parts.scheme.as_deref())?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置绝对路径组件，按 Laravel 规则折叠重复的前导斜线。
+    pub fn with_path(&self, path: &str) -> Result<Self> {
+        parse::validate_component(path)?;
+        let mut parts = self.parts.clone();
+        let path = format!("/{}", path.trim_start_matches('/'));
+        parts.path = parse::format_path(&path, &parts)?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置编码后的片段，空字符串保留显式的 `#` 分隔符。
+    pub fn with_fragment(&self, fragment: &str) -> Result<Self> {
+        parse::validate_component(fragment)?;
+        let mut parts = self.parts.clone();
+        parts.fragment = Some(parse::encode_query_or_fragment(fragment));
+        Self::checked_parts(parts)
+    }
+
+    /// 移除片段及其分隔符。
+    pub fn without_fragment(&self) -> Result<Self> {
+        let mut parts = self.parts.clone();
+        parts.fragment = None;
+        Self::checked_parts(parts)
     }
 
     /// 转为 Support 的链式字符串。

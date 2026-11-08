@@ -1,6 +1,6 @@
 //! 查询字符串的非改名解码与 Laravel 点路径变更。
 
-use super::{Uri, invalid_uri, parse};
+use super::{Uri, parse};
 use crate::{
     Error, Result,
     support::{data, php_variables::VariableBag, query_encoding, scalars},
@@ -183,10 +183,7 @@ impl Uri {
         let encoded = query_encoding::encode(query)?;
         let mut parts = self.parts.clone();
         parts.query = (!encoded.is_empty()).then_some(encoded);
-        if !parse::validate_state(&parts) {
-            return Err(invalid_uri());
-        }
-        Ok(Self::from_parts(parts))
+        Self::checked_parts(parts)
     }
 }
 

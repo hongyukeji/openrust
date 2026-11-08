@@ -18,17 +18,17 @@ pub(super) struct Components {
 }
 
 pub(super) fn parse(input: &str) -> Result<Components> {
-    if input.starts_with(' ') || input.ends_with(' ') || input.bytes().any(|b| b.is_ascii_control())
-    {
+    if input.starts_with(' ') || input.ends_with(' ') {
         return Err(invalid_uri());
     }
+    validate_component(input)?;
     let (without_fragment, fragment) = split_delimiter(input, '#');
     let (hierarchy, query) = split_delimiter(without_fragment, '?');
     let (scheme, hierarchy) = split_scheme(hierarchy)?;
     let mut uri = Components {
         scheme,
-        query: query.map(|s| encode(s, b":@/?")),
-        fragment: fragment.map(|s| encode(s, b":@/?")),
+        query: query.map(encode_query_or_fragment),
+        fragment: fragment.map(encode_query_or_fragment),
         ..Components::default()
     };
     let path = if let Some(rest) = hierarchy.strip_prefix("//") {
@@ -38,11 +38,7 @@ pub(super) fn parse(input: &str) -> Result<Components> {
     } else {
         hierarchy
     };
-    uri.path = match uri.scheme.as_deref() {
-        Some("data") => encode(&data_path(path)?, b":@/"),
-        Some("file") => file_path(encode(path, b":@/")),
-        _ => encode(path, b":@/"),
-    };
+    uri.path = format_path(path, &uri)?;
     if validate_state(&uri) {
         Ok(uri)
     } else {
@@ -60,20 +56,24 @@ fn split_scheme(input: &str) -> Result<(Option<String>, &str)> {
     let Some((scheme, rest)) = input.split_once(':').filter(|(s, _)| !s.contains('/')) else {
         return Ok((None, input));
     };
+    Ok((Some(normalize_scheme(scheme)?), rest))
+}
+
+pub(super) fn normalize_scheme(scheme: &str) -> Result<String> {
     let mut bytes = scheme.bytes();
     if !bytes.next().is_some_and(|b| b.is_ascii_alphabetic())
         || !bytes.all(|b| b.is_ascii_alphanumeric() || b"+.-".contains(&b))
     {
         return Err(invalid_uri());
     }
-    Ok((Some(scheme.to_ascii_lowercase()), rest))
+    Ok(scheme.to_ascii_lowercase())
 }
 
 fn parse_authority(input: &str, uri: &mut Components) -> Result<()> {
     let host_and_port = if let Some((user_info, host_and_port)) = input.split_once('@') {
         let (user, password) = split_delimiter(user_info, ':');
-        uri.user = Some(encode(user, b""));
-        uri.password = password.map(|s| encode(s, b":"));
+        uri.user = Some(encode_user(user));
+        uri.password = password.map(encode_password);
         host_and_port
     } else {
         input
@@ -95,8 +95,15 @@ fn parse_authority(input: &str, uri: &mut Components) -> Result<()> {
         .filter(|value| !value.is_empty())
         .map(parse_port)
         .transpose()?;
-    uri.port = port.filter(|port| default_port(uri.scheme.as_deref()) != Some(*port));
+    uri.port = format_port(port, uri.scheme.as_deref())?;
     Ok(())
+}
+
+pub(super) fn format_port(port: Option<i64>, scheme: Option<&str>) -> Result<Option<i64>> {
+    if port.is_some_and(|value| value < 0) {
+        return Err(invalid_uri());
+    }
+    Ok(port.filter(|port| default_port(scheme) != Some(*port)))
 }
 
 fn parse_port(port: &str) -> Result<i64> {
@@ -162,7 +169,7 @@ fn default_port(scheme: Option<&str>) -> Option<i64> {
     })
 }
 
-fn normalize_host(host: &str) -> Result<String> {
+pub(super) fn normalize_host(host: &str) -> Result<String> {
     if let Some(ip) = host
         .strip_prefix('[')
         .and_then(|host| host.strip_suffix(']'))
@@ -237,6 +244,26 @@ fn valid_ip_literal(input: &str) -> bool {
     })
 }
 
+pub(super) fn validate_component(input: &str) -> Result<()> {
+    if input.bytes().any(|byte| byte.is_ascii_control()) {
+        Err(invalid_uri())
+    } else {
+        Ok(())
+    }
+}
+
+pub(super) fn encode_user(input: &str) -> String {
+    encode(input, b"")
+}
+
+pub(super) fn encode_password(input: &str) -> String {
+    encode(input, b":")
+}
+
+pub(super) fn encode_query_or_fragment(input: &str) -> String {
+    encode(input, b":@/?")
+}
+
 fn encode(input: &str, extra: &[u8]) -> String {
     let bytes = input.as_bytes();
     let mut output = String::with_capacity(bytes.len());
@@ -299,6 +326,29 @@ fn push_escape(output: &mut String, byte: u8) {
     output.push('%');
     output.push(char::from(HEX[usize::from(byte >> 4)]));
     output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+}
+
+pub(super) fn format_path(input: &str, uri: &Components) -> Result<String> {
+    let mut path = match uri.scheme.as_deref() {
+        Some("data") => encode(&data_path(input)?, b":@/"),
+        Some("file") => file_path(encode(input, b":@/")),
+        _ => encode(input, b":@/"),
+    };
+    if uri.host.is_some() {
+        if !path.is_empty() && !path.starts_with('/') {
+            path.insert(0, '/');
+        }
+    } else if path.starts_with("//") {
+        path.insert_str(0, "/.");
+    } else if uri.scheme.is_none()
+        && path
+            .split('/')
+            .next()
+            .is_some_and(|first| first.contains(':'))
+    {
+        return Err(invalid_uri());
+    }
+    Ok(path)
 }
 
 fn file_path(path: String) -> String {
@@ -366,6 +416,9 @@ fn data_path(path: &str) -> Result<String> {
 }
 
 pub(super) fn validate_state(uri: &Components) -> bool {
+    if uri.host.is_none() && (uri.user.is_some() || uri.password.is_some() || uri.port.is_some()) {
+        return false;
+    }
     let Some(scheme) = uri.scheme.as_deref() else {
         return true;
     };

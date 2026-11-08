@@ -526,8 +526,15 @@ async fn check_generated_as_uri() -> Result<()> {
     attrs.set_attribute_value(&metadata, "label", uri.clone().into()).await?;
     check(attrs.attributes_to_array(&metadata)?["label"].as_object().is_some_and(|object| object.same_object(&uri)))?;
     check(attrs.attributes_to_json(&metadata)?["label"] == json!("https://xn--mnich-kva.example/a/../%E8%B5%84%E6%BA%90?#"))?;
-    uri.modify::<Uri>(|value| value.with_query(&json!({"filter.label": "中文 +"})))?;
-    check(attrs.attributes_to_json(&metadata)?["label"] == json!("https://xn--mnich-kva.example/a/../%E8%B5%84%E6%BA%90?filter%5Blabel%5D=%E4%B8%AD%E6%96%87%20%2B#"))?;
+    uri.modify::<Uri>(|value| {
+        value.with_host("EXAMPLE.test")?
+            .with_scheme("HTTP")?
+            .with_port(Some(80))?
+            .with_path("//资源")?
+            .with_query(&json!({"filter.label": "中文 +"}))?
+            .without_fragment()
+    })?;
+    check(attrs.attributes_to_json(&metadata)?["label"] == json!("http://example.test/%E8%B5%84%E6%BA%90?filter%5Blabel%5D=%E4%B8%AD%E6%96%87%20%2B"))?;
     let query_uri = Uri::of("/a?dot.key=a+b&list[]=x")?;
     check(query_uri.query().all_keys(&["dot.key"])? == json!({"dot":{"key":"a+b"}}))?;
     let changed = query_uri.push_onto_query("list", json!(["x", "y"]))?;

@@ -1338,7 +1338,10 @@ async fn assert_uri_cast_save(
         .set_attribute_value(&model.metadata, "description", link.clone().into())
         .await?;
     link.modify::<Uri>(|_| {
-        Uri::of("//EXAMPLE.test:081/资源?#")?
+        Uri::of("//EXAMPLE.test?#old")?
+            .with_port(Some(81))?
+            .with_path("资源")?
+            .with_fragment("")?
             .with_query(&serde_json::json!({"filter.name": "中文 +"}))
     })?;
     let query = db
