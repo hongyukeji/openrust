@@ -10,6 +10,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     set -eu; \
     cargo build --release --locked --bin "$APP_BINARY" --features "$APP_FEATURES"; \
     install -D -m 755 "target/release/$APP_BINARY" /out/app; \
+    install -m 755 artisan /out/artisan; \
     cp -a .env.example public resources lang /out/; \
     mkdir -p /out/modules; \
     for module in modules/*; do \

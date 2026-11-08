@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+CDPATH='' cd -P "$(dirname -- "$0")"
+export OPENRUST_ARTISAN=1
+
+if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
+    if ! command -v cargo >/dev/null 2>&1; then
+        printf '%s\n' 'artisan: 源码应用需要 Cargo' >&2
+        exit 127
+    fi
+    exec cargo run --quiet -- "$@"
+fi
+
+if [ ! -f ./app ]; then
+    printf '%s\n' 'artisan: 部署目录缺少应用二进制 ./app' >&2
+    exit 127
+fi
+if [ ! -x ./app ]; then
+    printf '%s\n' 'artisan: 应用二进制 ./app 不可执行' >&2
+    exit 126
+fi
+exec ./app "$@"

@@ -51,6 +51,7 @@ services:
 
   migrate:
     <<: *openrust
+    entrypoint: ["/app/artisan"]
     command: [migrate]
     depends_on:
       mysql:

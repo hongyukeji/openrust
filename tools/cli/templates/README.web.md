@@ -4,8 +4,19 @@
 
 应用账户、Provider、配置和迁移均在本项目内编辑。登录、密码确认、双因素挑战与管理路由由 Fortify Provider 登记；业务无状态注册、邮件验证及密码重置示例位于 `routes/api.rs`。本模式不默认提供 JWT 登录与刷新接口。
 
-先配置 `.env` 的数据库与部署密钥，再运行标准迁移及测试。SQLite 安装会创建隔离数据库并执行标准迁移。`tests/auth_flows.rs` 使用真实账户和 Router 验证 Web 管理、Cookie、Session、CSRF 与账户 Provider。
+先配置 `.env` 的数据库与部署密钥，再运行应用命令和测试。SQLite 安装会创建隔离数据库并执行标准迁移。
+
+```bash
+./artisan list
+./artisan help migrate
+./artisan migrate
+cargo test
+```
+
+`tests/auth_flows.rs` 使用真实账户和 Router 验证 Web 管理、Cookie、Session、CSRF 与账户 Provider。
 
 需要完全无 Session/Cookie 的 JWT API 应用时，创建项目时显式选择 `openrust new <应用名> --profile jwt-api`，不与 `--fortify` 共选。
 
-启用加密的 Web 项目在首次处理受保护 Cookie 时读取 `APP_KEY`。请在部署前运行 `cargo run -- key:generate`，或由部署平台注入有效的应用密钥。
+启用加密的 Web 项目在首次处理受保护 Cookie 时读取 `APP_KEY`。请在部署前运行 `./artisan key:generate`，或由部署平台注入有效的应用密钥。`./artisan key:generate --show` 会输出密钥，请只在私有终端运行并避免记录到日志。
+
+源码开发用 `cargo run` 启动应用。发布时将 Cargo 按包名构建的二进制安装为 `app`，并将可执行的 `artisan` 放在同一目录。用 `./app` 启动常驻进程，用 `./artisan` 执行应用命令。直接运行 `./artisan` 默认列出命令。

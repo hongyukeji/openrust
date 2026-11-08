@@ -10,7 +10,16 @@
 
 ## 查找应用命令
 
-在源码应用或生成项目根目录运行 `cargo run -- list`，查看框架、应用和已启用模块实际登记的命令。`cargo run -- help migrate` 显示迁移命令用法，`cargo run -- module:list --help` 查看模块列表的筛选选项。带空格的命令名也可以逐词输入，例如 `cargo run -- help config show`。
+源码应用和生成项目都提供 POSIX `artisan` 脚本。它先切换到脚本所在目录，再执行应用入口。源码目录由 Cargo 运行，发布目录由脚本执行同目录的 `app`。脚本用 `exec` 交接进程，透传参数、信号和退出码。入口职责参照固定 Laravel 13.x 应用骨架的薄脚本。[Laravel artisan](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/artisan)
+
+```bash
+./artisan list
+./artisan help migrate
+./artisan module:list --help
+./artisan help config show
+```
+
+`list` 显示框架、应用和已启用模块实际登记的命令。直接运行 `./artisan` 默认执行 `list`。仅传全局环境选项时也默认执行 `list`，例如 `./artisan --env=local`。带空格的命令名可逐词输入。
 
 自定义命令由 Provider 注册。实现 `Command::about` 提供描述，实现 `Command::usage` 描述接受的参数和选项。帮助读取这些信息并沿用正常应用引导流程。
 
@@ -38,7 +47,7 @@ SERVER_PORT=4000 cargo run
 
 根 `default-members = ["."]`、`default-run = "app"`，无参数 `cargo run` 启动 `app`。`app/` 编写应用代码，`modules/` 可选组织业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
 
-发布根应用时，在目标平台构建 `cargo build --release --locked --bin app`，按需启用应用 feature。部署产物为 `target/release/app`，在部署目录用 `./app migrate` 执行迁移，再用 `./app` 启动。
+发布根应用时，在目标平台构建 `cargo build --release --locked --bin app`，按需启用应用 feature。将 `target/release/app` 和可执行的 `artisan` 放在同一个部署目录。使用数据库时在部署目录先运行 `./artisan migrate`，再用 `./app` 启动常驻进程。
 
 当前综合示例 [`modules/example`](../../../modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；开发者可直接在根 `app/` 编写业务；需要模块组织时，在 `modules/<业务>/` 定义模块，经模块清单与统一 Provider 接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
 
@@ -53,7 +62,7 @@ cargo test --workspace
 
 ## 用 Docker Compose 运行
 
-从 OpenRust 源码仓库根目录运行以下命令。Compose 会在 MySQL 8.4 和 Redis 就绪后执行迁移，迁移成功才启动应用。应用容器直接运行 `app`，队列和适用的调度与 Web 共用一个进程。
+从 OpenRust 源码仓库根目录运行以下命令。镜像包含同目录的 `app` 和 `artisan`。MySQL 8.4 和 Redis 就绪后，Compose 的一次性 `migrate` 服务执行 `./artisan migrate`。迁移成功后，应用容器直接运行 `app`，队列和适用的调度与 Web 共用一个进程。
 
 ```bash
 docker compose up --build -d --wait
@@ -65,7 +74,7 @@ docker compose logs -f app
 
 Dockerfile 使用 Cargo 默认 feature。需编译登录、视图和 WebSocket 时，可在 `.env` 设置 `OPENRUST_BUILD_FEATURES=auth-fortify,view,realtime`，并按应用配置填写认证密钥和允许的 WebSocket Origin。
 
-在 Mac 上也可以用同一个 Dockerfile 导出 Linux 应用文件。下面的命令目标是 x86_64，ARM64 对应 `linux/arm64`。导出的二进制使用构建镜像的 Linux ABI，直接部署前应在目标系统检查依赖并实际启动。
+在 Mac 上也可以用同一个 Dockerfile 导出 Linux 应用文件，导出目录中包含同级的 `app` 和 `artisan`。下面的命令目标是 x86_64，ARM64 对应 `linux/arm64`。导出的二进制使用构建镜像的 Linux ABI，直接部署前应在目标系统检查依赖并实际启动。
 
 ```bash
 docker buildx build --platform linux/amd64 --target artifacts \
@@ -122,10 +131,13 @@ cargo run -p cli -- new /tmp/my-application
 cd /tmp/my-application
 cargo check
 cargo test
+./artisan list
 cargo run
 ```
 
 生成应用可使用自己的名称、workspace 和 Cargo.lock，本地框架/tool 依赖须保持可达；不修改本仓 workspace，也不要求维护额外源码仓库。标准生成应用默认使用 Redis，运行前准备服务或显式选择其他 cache store。
+
+生成项目的默认二进制按 Cargo 包名构建。例如 `blog` 执行 `cargo build --release --locked` 后得到 `target/release/blog`。发布时将该二进制安装为 `app`，并在同一目录安装可执行的 `artisan`。
 
 未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](../../../vendor/openrust/framework/src/foundation/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `ApplicationDefinition` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](../../../modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
 
@@ -134,7 +146,7 @@ cargo run
 应用通过已编译的 `config/*.rs` 与显式 `ConfigManifest` 定义配置，在所选 dotenv 与环境快照就绪后求值到同一仓储；不是运行时扫描执行 Rust 文件。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `ApplicationDefinition::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于独立 `vendor/openrust/framework/` 包，其 `src/` 下包含 audit、config、container、console、foundation、support、core、database、http、translation、mail、sms 等能力模块，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。应用可编辑配置保存在根 `config/*.rs`；TOML 仅通过显式可选 source 接入，不是默认应用配置。根应用同时承担综合示例与集成验收。
 
 网站静态文件位于应用公开目录，默认是工作目录下的 `public/`。在 `config/server.rs` 配置 `public_dir` 和 `root_target`；可按需选择 `view:index.html`、`file:/index.html`、`forward:/api` 或外部 redirect，视图目标须启用 `view` 并提供实际模板。公开环境覆盖仍经同一配置来源处理；默认欢迎页的完整对应尚未交付，不能以可选视图能力代替该工作流。视图配置与 API 示例见[视图指南](../../../vendor/openrust/framework/src/view/README.md)。
-在应用目录复制 `.env.example` 为 `.env`，保留 `APP_KEY=`，然后运行 `openrust key:generate`。命令把新密钥写入本次启动选定的环境文件；使用 `--show` 可仅输出密钥。生产环境已有密钥时会要求确认，自动化应显式传入 `--force` 才执行替换。使用配置缓存时，命令不会重建该缓存。环境文件应只有一条未加引号的原始密钥赋值，写入需要普通文件。进程环境中的 `APP_KEY` 仍优先于文件值，替换后应在部署环境同步更新该值。
+在应用目录复制 `.env.example` 为 `.env`，保留 `APP_KEY=`，然后运行 `./artisan key:generate`。命令把新密钥写入本次启动选定的环境文件。`./artisan key:generate --show` 会把密钥写到标准输出，请只在私有终端运行并避免记录到日志。生产环境已有密钥时会要求确认，自动化应显式传入 `--force` 才执行替换。使用配置缓存时，命令不会重建该缓存。环境文件应只有一条未加引号的原始密钥赋值，写入需要普通文件。进程环境中的 `APP_KEY` 仍优先于文件值，替换后应在部署环境同步更新该值。
 
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::encryption::EncryptionServiceProvider`，在 `[security.encryption]` 下配置 32 字节密钥环，并运行 `openrust key generate` 将独立密钥材料输出到标准输出，再由部署配置将其加入密钥环。该命令不写入 `APP_KEY`。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。Provider 注册加密服务，首次解析服务时读取并校验密钥环。未使用加密的命令和路由可以运行；首次受保护请求遇到缺失或无效密钥会被拒绝。密钥应保存在版本控制之外。
 
@@ -144,7 +156,7 @@ cargo run
 
 `signing` feature 和 `openrust::signing::SignedLinks` 提供绑定用途并会过期的链接。它们使用 `[security.signed_links]` 下独立的密钥环；若需跨实例撤销单条链接，请添加 `SignedLinkRevocationMigration` 并配置共享数据库存储。详见[签名链接指南](../../../vendor/openrust/framework/src/signing/README.md)。
 
-可选 `grpc` feature 使用 tonic 提供 gRPC server/client、具名共享 channel、标准 health、显式 reflection 与 Protobuf 运行时。`GrpcServiceProvider` 注册 `grpc serve` 命令但不会自动监听；服务端默认要求 TLS，明文必须显式设置 `allow_insecure_server = true`，只适用于本机开发或可信 TLS 终止代理。调用预算覆盖流式响应，连接、metadata、消息和全局并发均有上限，停机先报告 `NOT_SERVING` 并限时 drain。reflection 默认关闭，开启时必须显式注册 descriptor set 和服务白名单。具名 HTTPS 客户端绑定显式 CA 与可选客户端身份。CLI 可通过 `openrust new <name> --grpc` 为应用生成独立 proto、build.rs、typed Echo 服务及 Provider；生成编译使用 vendored protoc，不依赖开发机全局安装。生成应用先配置 TLS 证书和私钥，再用 `cargo run -- serve all` 启动真实 HTTP 与 TLS gRPC 两个监听端口，生成测试通过实际二进制验证 Echo、证书拒绝和信号停机。普通无参数启动仍只运行 HTTP。启用 `auth` feature 后，gRPC server 可验证 JWT/PAT Bearer；方法使用 `GrpcAuth::authorize` 复用 Policy 与 PAT abilities，Cookie Session 不用于 RPC。应用同时安装 `HttpServiceProvider`、`GrpcServiceProvider`、`HttpGrpcServiceProvider` 后可运行 `serve all`；两个 listener 先绑定，仅全部就绪时报告 ready，并共享信号、停机期限和后台任务收尾。嵌入式宿主可用 `runtime::serve_http_and_grpc_with_listeners_until` 交入两个已绑定的 `TcpListener`；先以端口 `0` 绑定并读取实际地址，两个 listener 的所有权会一并交给联合生命周期，准备失败时释放。此入口以传入 listener 的 `local_addr` 决定实际监听范围，`server.bind_addr` 与 `grpc.listen_addr` 不参与绑定或地址匹配校验；TLS 等其他安全与生命周期配置照常生效。普通 `serve all` 继续按配置绑定。该入口不代表多节点路由或集群验收已通过。真实 loopback 四类调用与运行治理见 [`tests/consumers/grpc/`](../../../tests/consumers/grpc/README.md)。
+可选 `grpc` feature 使用 tonic 提供 gRPC server/client、具名共享 channel、标准 health、显式 reflection 与 Protobuf 运行时。`GrpcServiceProvider` 注册 `grpc serve` 命令但不会自动监听；服务端默认要求 TLS，明文必须显式设置 `allow_insecure_server = true`，只适用于本机开发或可信 TLS 终止代理。调用预算覆盖流式响应，连接、metadata、消息和全局并发均有上限，停机先报告 `NOT_SERVING` 并限时 drain。reflection 默认关闭，开启时必须显式注册 descriptor set 和服务白名单。具名 HTTPS 客户端绑定显式 CA 与可选客户端身份。CLI 可通过 `openrust new <name> --grpc` 为应用生成独立 proto、build.rs、typed Echo 服务及 Provider；生成编译使用 vendored protoc，不依赖开发机全局安装。生成应用先配置 TLS 证书和私钥，再用 `./artisan serve all` 启动真实 HTTP 与 TLS gRPC 两个监听端口，生成测试通过实际二进制验证 Echo、证书拒绝和信号停机。普通无参数启动仍只运行 HTTP。启用 `auth` feature 后，gRPC server 可验证 JWT/PAT Bearer；方法使用 `GrpcAuth::authorize` 复用 Policy 与 PAT abilities，Cookie Session 不用于 RPC。应用同时安装 `HttpServiceProvider`、`GrpcServiceProvider`、`HttpGrpcServiceProvider` 后可运行 `serve all`；两个 listener 先绑定，仅全部就绪时报告 ready，并共享信号、停机期限和后台任务收尾。嵌入式宿主可用 `runtime::serve_http_and_grpc_with_listeners_until` 交入两个已绑定的 `TcpListener`；先以端口 `0` 绑定并读取实际地址，两个 listener 的所有权会一并交给联合生命周期，准备失败时释放。此入口以传入 listener 的 `local_addr` 决定实际监听范围，`server.bind_addr` 与 `grpc.listen_addr` 不参与绑定或地址匹配校验；TLS 等其他安全与生命周期配置照常生效。普通 `serve all` 继续按配置绑定。该入口不代表多节点路由或集群验收已通过。真实 loopback 四类调用与运行治理见 [`tests/consumers/grpc/`](../../../tests/consumers/grpc/README.md)。
 
 显式审计记录通过 `openrust::audit::Audit` 与数据库 sink 或自定义 `AuditSink` 写入。请将 `DatabaseAuditMigration` 加入应用迁移器；既有数据库另加入 `DatabaseAuditTenantMigration`。默认不接收详情；如需记录，必须配置允许列表，敏感字段名会被脱敏。关键数据库变更可在同一事务中写入经过校验的审计记录，详见[审计模块指南](../../../vendor/openrust/framework/src/audit/README.md)。
 
@@ -154,9 +166,9 @@ cargo run
 
 队列由可编辑 `config/queue.rs` 的 `default` 与 `connections` 唯一配置，默认连接名为 `database`，Redis 连接名为 `redis`。`QUEUE_CONNECTION=redis` 选择 Redis，旧 `QUEUE_DRIVER` 明确报迁移错误；不是第二个连接选择入口。Redis 默认读取同次有效缓存 Redis URL，可用 `QUEUE_REDIS_URL` 独立覆盖，`QUEUE_REDIS_NAMESPACE` 隔离任务键。标准依赖已包含内置 driver，不需为切换连接临时编辑 Cargo 或 Provider。未选连接不创建资源或执行自定义 validator；未知、未编译或无效的具名条目在实际选择时明确失败，不回退数据库、内存或同步执行。当前启动仍检查 `queue.default` 名称及其条目存在，Queue Provider 的完整延迟注册也尚未实现；默认连接错误时点尚未与 Laravel 完全对齐。
 
-先配置所需服务并显式执行 `cargo run -- migrate`。随后 `cargo run` 消费默认连接的默认队列以及 `config/queue.rs` 的 `embedded_queues`，这些队列共享 `worker_concurrency`。没有默认数据库的应用只有选择 Redis 等可用连接时才启动 worker。使用数据库队列且已登记任务时同进程运行调度器。选用 Redis 队列时，应用会提示已登记的事务型定时任务需要数据库队列。停机时 Web 停止接收新请求，调度器停止扫描新时段，worker 停止领取新任务，并在配置期限内收尾。
+先配置所需服务并显式执行 `./artisan migrate`。随后 `cargo run` 消费默认连接的默认队列以及 `config/queue.rs` 的 `embedded_queues`，这些队列共享 `worker_concurrency`。没有默认数据库的应用只有选择 Redis 等可用连接时才启动 worker。使用数据库队列且已登记任务时同进程运行调度器。选用 Redis 队列时，应用会提示已登记的事务型定时任务需要数据库队列。停机时 Web 停止接收新请求，调度器停止扫描新时段，worker 停止领取新任务，并在配置期限内收尾。
 
-分开部署时用 `cargo run -- serve` 启动 Web，用 `cargo run -- queue work redis --queue example` 单独消费 Redis 的 `example` 队列。省略连接取 `queue.default`，省略 `--queue` 取该连接的 `queue`（默认 `default`）。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；数据库事务派发与任务组仍明确不支持。语义为至少一次，handler 必须幂等；Redis 持久性和故障切换取决于部署。详见 [`modules/example/`](../../../modules/example/README.md)。
+分开部署时用 `./artisan serve` 启动 Web，用 `./artisan queue work redis --queue example` 单独消费 Redis 的 `example` 队列。省略连接取 `queue.default`，省略 `--queue` 取该连接的 `queue`（默认 `default`）。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；数据库事务派发与任务组仍明确不支持。语义为至少一次，handler 必须幂等；Redis 持久性和故障切换取决于部署。详见 [`modules/example/`](../../../modules/example/README.md)。
 外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](../../../tests/consumers/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
 
 统一 Provider 装配使用 `QueueServiceProvider` 与容器中的 `QueueContributions`：所有 register 完成后读取最终绑定，任务目录在克隆间共享，后续 boot 注册的任务对已经构造的 driver 可见。`QueueContributions::extend_validated` 将 creator 与最终配置校验器作为同一条目替换；仅 `extend` 时，自定义选项的合法性由实现者负责，框架不会推断第三方配置。最终校验检查管理器全局参数、默认连接名及其存在和已登记任务/调度引用；具名条目保留原始值，只有实际选择时才解码并执行对应 validator。内置 Redis URL/命名空间校验不建立网络连接。worker 停机先封闭整个 manager，所有已构造连接收到停止请求，尚未构造的名称不能在停止后首次初始化；显式重启使用新代缓存，旧代在途结果不能重新发布。
@@ -242,6 +254,7 @@ git clone https://github.com/hongyukeji/openrust.git
 cd openrust
 cargo run -p cli -- new blog --db postgres
 cd blog
+./artisan list
 cargo run
 ```
 

@@ -55,6 +55,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 5. 每个可验簇同改消费者/模板/快照/文档/脚本及唯一example；真实CLI/生成check+test，核路径/内容/登记/重复冲突/失败不破坏文件、错误退出码，独审和适用集中门禁后限定本地提交。完整CLI开放范围继续保留，不只help快照宣称完成。
 6. R13 的嵌套 `make:controller` 已在 `3b4c4a524a7b` 限定交付，支持相对命名空间、逐层登记与失败补偿。应用命令目录和用法按 Laravel Artisan 介绍接入 `list`、`help <命令>`。命令签名、统一命名、额外列表格式、模型与 Provider 生成器继续按依赖领取。
 
+7. 统一 `./artisan` 已验收源码根、minimal 与 Fortify Web 生成项目、Linux ARM64 根应用 Compose 和 Buildx 产物。源码实测 `list`、`help`、环境选择、密钥生成、迁移和停机；Compose 经脚本迁移，真实 MySQL 8.4/Redis 验证登录、写入、队列消费、查询与重启。Ubuntu x86_64、其他平台及生成项目 Compose 随后验收；其他冒号命令按现有依赖继续分批。
+
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
 | 稳定项 | owner／依赖与范围 | 验收与排期 |

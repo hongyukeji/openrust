@@ -1301,6 +1301,13 @@ fn populate_project_with_features(
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
     }
+    let artisan = project_dir.join("artisan");
+    fs::write(&artisan, include_str!("../../../artisan"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(&artisan, fs::Permissions::from_mode(0o755))?;
+    }
     if fortify {
         install_fortify_scaffold(project_dir)?;
         fs::write(
@@ -3240,6 +3247,10 @@ fn exit_code(status: std::process::ExitStatus) -> ExitCode {
 #[cfg(test)]
 #[path = "../tests/unit/workspace_entry.rs"]
 mod workspace_entry_tests;
+
+#[cfg(all(test, unix))]
+#[path = "../tests/unit/artisan_entry.rs"]
+mod artisan_entry_tests;
 
 #[cfg(test)]
 #[allow(

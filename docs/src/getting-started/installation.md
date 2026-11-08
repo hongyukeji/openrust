@@ -18,4 +18,17 @@ SERVER_PORT=4000 cargo run
 
 不要把运行中的进程当作源码热加载器。编辑 Rust 源码或代码配置后需重新编译，调整部署变量后需重启。
 
+## 执行应用命令
+
+源码仓库和生成项目均提供 `./artisan`。在 POSIX shell 中运行以下命令查看实际登记的命令和用法。
+
+```bash
+./artisan list
+./artisan help migrate
+```
+
+需要设置应用密钥时执行 `./artisan key:generate`。使用数据库前先配置连接，再执行 `./artisan migrate`。仅在私有终端使用 `./artisan key:generate --show`，避免密钥进入日志。
+
+直接运行 `./artisan` 默认执行 `list`，只传 `--env=local` 时也会列出命令。发布时将 `artisan` 与应用二进制 `app` 安装在同一目录，使用 `./app` 启动常驻进程。[源码与发布用法](source-application.md#查找应用命令)
+
 对应固定 Laravel 13.x 官方章节：[installation](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/installation.md)。本章仅说明已落地的当前入口及边界，尚未覆盖该官方章节全部能力。
