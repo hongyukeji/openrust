@@ -228,8 +228,7 @@ async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 ```rust,ignore
 use std::time::Duration;
-use openrust::http::AuthLayer;
-use openrust::http::AuthMode;
+use openrust::auth::{AuthLayer, AuthMode};
 use openrust::http::RateLimitLayer;
 use openrust::routing::Router;
 

@@ -40,7 +40,7 @@ Fortify单体系替换及官方Web默认/显式JWT组合已由 `54f4a087` 限定
 
 ## 当前状态
 
-最新批准的架构目标为根应用包依赖 `vendor/openrust/framework/` 独立框架包，标准 `src/lib.rs`，第一方扩展位于 `vendor/openrust/<扩展>/`。公开 `openrust::`、根薄 server 与直接 `cargo run` 保持；AR-P01 已由4463238完成独立框架包迁移及日常适用验收；根同package框架库是历史布局。先闭合已通过有限簇的提交推送，保护其他 WIP 与旧冻结快照。当前正式普通额度覆盖有效，原 80% 账本及 credits=false 不变；提交与推送按最新真人持续授权由 Lead 独占。
+最新批准的架构目标为根应用包依赖 `vendor/openrust/framework/` 独立框架包，标准 `src/lib.rs`，第一方扩展位于 `vendor/openrust/<扩展>/`。公开 `openrust::`、根薄 server 与直接 `cargo run` 保持；AR-P01 已由4463238完成独立框架包迁移及日常适用验收；根同package框架库是历史布局。先闭合已通过有限簇的提交推送，保护其他 WIP 与旧冻结快照。当前正式额度按真人授权重新建立百分比基线100、保留20，原账号历史及credits=false保留；一次性完整额度覆盖inactive且不重放；提交与推送按最新真人持续授权由 Lead 独占。
 
 SQLite连接基础已完成[限定验收](memory/testing.md#sqlite-连接基础限定验收)：主10门禁/deny、SQLite-only严格Clippy/文档、fresh11、真实MySQL3与根进程HTTP通过，固定输入补丁影响经独审映射。实际引擎3.51.3；此为S1当时范围；最低/配置/迁移子范围由上述S2补证，完整取消/故障边界仍开放。迁移/CLI安装/现有业务SQL继续按唯一todo推进，本地提交以Git为准；不称全量SQLite完成。
 

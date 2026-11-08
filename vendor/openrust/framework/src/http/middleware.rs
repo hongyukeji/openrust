@@ -1,7 +1,7 @@
 //! 默认 middleware stack。
 //!
-//! 从最外层到最内层依次为：规范化并设置 `x-request-id` → 将 ID 写入响应 → 响应上下文 → tracing span →
-//! CORS → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Routes::layer`](crate::routing::Router::layer) 添加的应用 layer
+//! 从最外层到最内层依次为：规范化并设置 `x-request-id` → 将 ID 写入响应 → tracing span →
+//! CORS → 响应上下文 → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Router::layer`](crate::routing::Router::layer) 添加的应用 layer
 //! 在此 stack 内运行。
 
 use std::any::Any;

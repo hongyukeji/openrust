@@ -8,9 +8,11 @@ Query Builder 的 `r#where`／`where_compare` 及 OR／条件组入口支持默�
 
 `where_any`／`where_all`／`where_none` 及 OR 变体通过 `MultiComparison` 区分省略、等值和显式比较，列闭包与可重复右值保留官方分派顺序。空 FROM 查询、逻辑表名 `from` 与受控 `select_raw` 复用同一执行及投影管线；原始 SQL 的完整会话模式与版本感知仍有明确边界。
 
+`where_json_contains` 对简单列使用有类型的 JSON 参数。PostgreSQL 将列转换为 `jsonb`，MySQL 使用 `JSON_CONTAINS`。JSON `null` 与 SQL `NULL` 分别处理。示例记录列表可按 `metadata` 包含筛选，保留所有者条件与分页总数。路径、否定组合与 SQLite 包含仍有未闭合范围。
+
 ## 通用能力、驱动与连接
 
-`openrust::database`、`openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` / `db-sqlite` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。
+`openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` / `db-sqlite` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。
 
 `DatabaseConfig::has_default_connection()` 仅表示默认 `url` 已配置，不是健康检查。具名实例仍由数据库 Provider 独立初始化；仅配置具名实例不自动启用绑定默认库的 Auth、数据库 Session 或示例数据库业务。Queue Provider 与连接选择独立，实际使用数据库队列时才要求默认 Db，Redis 队列可无默认库运行。默认 Provider 自动选择在启动装配读取配置；模块在真实 register 读同一仓储，自动默认清单选定后，register或boot改变默认URL有无将明确拒绝启动，要求按最终配置重新引导；显式清单仍由应用管理。示例已在register跳过业务后，boot若反向启用则明确拒绝，不能开放缺依赖路由；有变无只关闭路由，不卸载已有绑定。后续任意覆盖不承诺重新选择或热卸载服务。非法、未知或未编译的 URL/副本配置继续由驱动预检拒绝，不能回退为无数据库。
 
@@ -20,6 +22,8 @@ Query Builder 的 `r#where`／`where_compare` 及 OR／条件组入口支持默�
 ## SQLite 内置连接
 
 启用 `db-sqlite` 后使用同一标准 Provider，按固定 SQLite 3.26.0+ 最低目标接入文件、URI 与内存连接；连接、既有迁移清单与所有者边界已在 3.26.0/3.51.3 验证，全部业务最低版本矩阵仍开放。外键默认开启，PDO 默认忙等待 60000ms；PRAGMA 随每条物理连接执行。普通文件必须先存在；内存池保留数据至关闭。配置与 owned 测试库流程见[数据库连接指南](../../../../../docs/src/database/connections.md)。nullable/raw PRAGMA、CLI 安装迁移、单机文件互斥、既有 FrameworkMigrator/示例清单和 main 普通表删列重建已有对应证据。原生/Guarded Session已完成限定验收；本地认证/MFA与固定窗口限流沿同一Db适配，详见[认证边界](../auth/README.md#sqlite-本地认证边界)。完整Migrator/Schema、OIDC、队列与调度业务SQL仍未交付；旧自定义 consumer 不能替代这些验收。固定迁移依赖的局部 feature 修正见[来源与许可](../../../../seaql/sea-orm-migration/SOURCES.md)。
+
+SQLite 联表或显式 limit 写入目标已编码为 rowid 子查询，UNION 子枝保留独立分页；直接写入未使用的业务绑定在执行前拒绝。日常适用验收见 `9fb58bb3`。当前及最低 SQLite 版本的实库验证留待发布，详见[写入目标边界](../../../../../docs/src/database/queries.md#sqlite-写入目标)。
 
 ## Query Builder 限定实现
 

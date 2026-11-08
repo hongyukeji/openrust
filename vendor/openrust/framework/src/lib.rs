@@ -9,6 +9,7 @@ pub mod audit;
 pub mod cache;
 pub mod config;
 pub mod console;
+/// 类型化服务容器及请求作用域；应用与扩展共用同一内核。
 pub mod container;
 pub mod core;
 #[cfg(feature = "data-exchange")]

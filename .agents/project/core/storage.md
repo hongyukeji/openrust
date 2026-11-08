@@ -1,6 +1,6 @@
 # 存储
 
-公共实现位于独立框架 package 的 `openrust::filesystem`，配置位于 `vendor/openrust/framework/src/config/storage.rs`，用户用法见 [文件存储指南](../../../vendor/openrust/framework/src/filesystem/README.md)。
+公共实现位于独立框架包的 `openrust::filesystem`，配置位于 `vendor/openrust/framework/src/config/storage.rs`。AR-N01 的命名空间迁移已由 `b3f6117b` 限定验收。应用用法见[文件存储指南](../../../vendor/openrust/framework/src/filesystem/README.md)，完整官方契约与发布验收按各自待办跟踪。
 
 - `FilesystemServiceProvider` 在 register 提供完整 manager singleton，boot 预解析默认 disk；具名 disk 按名异步懒构造并缓存，`extend` 更新 creator，`forget`/`purge` 后可重建。缺少该配置区时使用 local disk、`storage/app` 和默认上传限制；最终配置 validator 检查已登记 driver 与无 I/O 选项，默认 backend 初始化失败阻止启动，未解析具名 disk 不提前访问外部存储。第三方 driver 不提供专属 validator 时只能保证通用结构。
 - 默认 builtin driver 名为 `fs`，由 `storage-local` feature 提供；`s3` 由 `storage-s3` 提供。关闭 feature 时相应 driver 名仍注册为明确失败的占位项，避免错误悄悄落到另一个 disk。

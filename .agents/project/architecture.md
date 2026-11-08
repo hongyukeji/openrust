@@ -32,8 +32,9 @@ R1-S旧过渡结构以34dfb5e提交；统一 Provider 已在 R2-B 验收，modul
 
 | 边界 | 当前实现与事实 |
 | --- | --- |
-| `openrust::core`、`openrust::config` | Application/AppBuilder/AppState/Plugin/Command、错误与生命周期、分层配置；见 [core/core.md](core/core.md) |
-| `openrust::http`、`openrust::translation` | 路由、提取器、响应、中间件、health/serve、可选出站 HTTP 与请求级国际化；通用 HTTP 限流层、OpenAPI、ready 和实时通信仍待补；见 [core/http.md](core/http.md)、[core/i18n.md](core/i18n.md) |
+| `openrust::foundation`、`openrust::container`、`openrust::support`、`openrust::console` | 运行 `Application`、编译期 `ApplicationDefinition`、`ApplicationState` 及统一 Provider 装配归 Foundation。容器、Provider trait 与命令分别公开，命名空间迁移由 `b3f6117b` 限定验收。见[对应计划](plans/laravel-namespace-alignment.md) |
+| `openrust::core`、`openrust::config` | 当前错误/响应、执行上下文、限流/就绪与协议OTel辅助，以及分层配置；其余领域归属继续整改，见[核心事实](core/core.md) |
+| `openrust::routing`、`openrust::http`、`openrust::translation` | 路由、URL 与重定向归 routing，HTTP 提取器、响应、中间件和监听入口归 http，翻译归 translation。各领域的现有能力与验收边界见 [core/http.md](core/http.md)、[core/i18n.md](core/i18n.md) |
 | `openrust::database` | SeaORM 双库、连接池、事务、migration/seed、方言与表名解析；显式只读副本路由和 task-local 主库 scope 已实现，完整集群验收仍未完成；见 [core/db.md](core/db.md) |
 | `openrust::audit` | 显式事件、详情白名单/脱敏、数据库与自定义 sink、事务内写入和有界清理；见 [core/audit.md](core/audit.md) |
 | `openrust::auth` | JWT-first、可选 Session、refresh、PAT、验证码、AuthFlows、Policy/RBAC；现有运行时双库及生成 HTTP 验收有记录，流程扩展与其余补交项另行验收；见 [core/auth.md](core/auth.md) |

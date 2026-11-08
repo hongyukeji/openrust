@@ -1,6 +1,6 @@
 # 源码应用与扩展指南
 
-本页保留源码应用的运行、生成及公开扩展用法。各能力的适用条件与验收边界以专题指南为准。
+本页保留源码应用的运行、生成及公开扩展用法。命名空间调整与未闭合能力仍以各专题指南和实际验收为准。
 
 ## 当前实现与目标结构
 
@@ -98,7 +98,7 @@ cargo run
 
 宿主 JSON API 前缀由 `config/api.rs` 的 `prefix`（部署变量 `API_PREFIX`）选择，配置默认值为 `api`，最终 URI 为 `/api`；挂载和异常范围读取同一配置。模块可以保留自己的 API 路径及响应策略；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](../../../vendor/openrust/framework/src/http/README.md)。
 
-应用通过已编译的 `config/*.rs` 与显式 `ConfigManifest` 定义配置，在所选 dotenv 与环境快照就绪后求值到同一仓储；不是运行时扫描执行 Rust 文件。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `ApplicationDefinition::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于独立 `vendor/openrust/framework/` 包，其 `src/` 下包含 audit、config、core、database、http、translation、mail、sms 等能力模块，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。应用可编辑配置保存在根 `config/*.rs`；TOML 仅通过显式可选 source 接入，不是默认应用配置。根唯一 server 同时承担综合示例与集成验收。
+应用通过已编译的 `config/*.rs` 与显式 `ConfigManifest` 定义配置，在所选 dotenv 与环境快照就绪后求值到同一仓储；不是运行时扫描执行 Rust 文件。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `ApplicationDefinition::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于独立 `vendor/openrust/framework/` 包，其 `src/` 下包含 audit、config、container、console、foundation、support、core、database、http、translation、mail、sms 等能力模块，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。应用可编辑配置保存在根 `config/*.rs`；TOML 仅通过显式可选 source 接入，不是默认应用配置。根唯一 server 同时承担综合示例与集成验收。
 
 网站静态文件位于应用公开目录，默认是工作目录下的 `public/`。在 `config/server.rs` 配置 `public_dir` 和 `root_target`；可按需选择 `view:index.html`、`file:/index.html`、`forward:/api` 或外部 redirect，视图目标须启用 `view` 并提供实际模板。公开环境覆盖仍经同一配置来源处理；默认欢迎页的完整对应尚未交付，不能以可选视图能力代替该工作流。视图配置与 API 示例见[视图指南](../../../vendor/openrust/framework/src/view/README.md)。
 在应用目录复制 `.env.example` 为 `.env`，保留 `APP_KEY=`，然后运行 `openrust key:generate`。命令把新密钥写入本次启动选定的环境文件；使用 `--show` 可仅输出密钥。生产环境已有密钥时会要求确认，自动化应显式传入 `--force` 才执行替换。使用配置缓存时，命令不会重建该缓存。环境文件应只有一条未加引号的原始密钥赋值，写入需要普通文件。进程环境中的 `APP_KEY` 仍优先于文件值，替换后应在部署环境同步更新该值。

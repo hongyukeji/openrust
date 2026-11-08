@@ -28,7 +28,7 @@
 
 `GET /example/pages/about` 是可选页面路由；`/example/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Router::fallback` 的写法。
 
-模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::configure_providers 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
+模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，固定模块源码为 59714840708a2aece19e810764473f53227c35fe，当前只按逐项证据交付子范围。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 ApplicationDefinition::configure_providers 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 `ServiceProvider` 与 `Router`；Rust 模块编译期声明，无运行时源码扫描。
 
 账户注册、验证码和密码验证使用宿主统一 `HashManager`，默认与 `config/hashing.rs` 同源的 bcrypt12；模块不持有独立成本配置。`tests/auth_flows.rs` 在实际注册后读取数据库产物，核对算法、成本、统一服务验证与驱动别名身份。完整字节密码策略及显式 Argon 迁移见[哈希指南](../../docs/src/security/hashing.md)。
 
@@ -407,7 +407,7 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 | 缓存、tag/SWR、并发加载 | `ArticleIndexJob` 与授权后 `cached-title` 路由使用同一 named store，MISS 主库重建；模块默认 Prefix driver，可显式选择 Redis | 缓存不是授权来源，旧标题最多按单次写入 TTL 缓存且队列延迟另计 | PostgreSQL/MySQL 各 4 项业务回归含真实 Redis 双 App 共享、owner 拒绝、tenant 分区与失效；另默认 Redis tag/SWR 业务双库各6项通过；跨进程拓扑不由此验收 |
 | 本地/S3 存储与流式上传下载 | `ArticleAttachments` 按 owner+文章固定 key 调用公开 `FilesystemManager` 流式上传/下载/删除；主库授权、UTF-8/大小限制与安全响应头 | `storage-local`、`auth`、数据库能力；S3 需额外 `storage-s3` 与显式默认 disk 配置 | 本地双库测试及真实 MinIO+PG/MySQL S3 回归通过，含真实 CopyObject 成功响应被暂停、并发 DELETE 等待及最终 key/staging 清理；版本化 S3 multipart/取消/确切版本另1项。跨 DB/对象存储不原子；进程强杀或远端永久无响应仍不保证自动收敛 |
 | 服务端视图 | `http/controllers/pages.rs::about_page` 注入 `Views` | `view`；模块 `example::` 命名空间及发布优先/源回退 | 生产 TestApp 与真实 TCP 各自覆盖；真实 TCP 2项通过，含发布副本优先/缺失回退及转义/错误边界 |
-| i18n 与地区格式化 | heartbeat-label 从 `RequestLocale` 读取请求语言，翻译模块消息并调用精确十进制格式化；欢迎邮件用 `LocalizedEmail` 和明确语言 key | 根 I18nServiceProvider 与模块 lang 目录 | 生产 TestApp 验证 en/zh-CN，真实 TCP 捕获邮件验证两种语言；复数与固定偏移长日期业务真实 TCP 2项通过；不包含 IANA/DST 时区 |
+| i18n 与地区格式化 | heartbeat-label 从 `RequestLocale` 读取请求语言，翻译模块消息并调用精确十进制格式化；欢迎邮件用 `LocalizedEmail` 和明确语言 key | 根 TranslationServiceProvider 与模块 lang 目录 | 生产 TestApp 验证 en/zh-CN，真实 TCP 捕获邮件验证两种语言；复数与固定偏移长日期业务真实 TCP 2项通过；不包含 IANA/DST 时区 |
 | 加密与签名链接 | 文章短期分享调用 `SignedLinks::issue/verify/revoke`；私密备注调用 `Encrypter` 以 owner+文章上下文加密入库、授权解密 | `signing`/`encryption` feature、根密钥及数据库 | 双库真实 HTTP 覆盖签发/撤销、越权备注拒绝、明文不落库及密文跨文章交换失效；生产密钥运维另行负责 |
 | 审计、租户、权限边界 | Article 详情成功后经 `Audit` 落 actor/object/outcome；`QueryRule` 与写 SQL 同时限制 owner | 通用数据库配置、模块业务迁移，公开 API | 双库审计与租户各3项通过；真实 Redis+MinIO 租户跨 App/worker/附件快照清理双库各1项通过，非多进程证明 |
 | HTTP 出站与上下文 | 文章摘要服务经公开 `HttpClient` 请求运营固定目标；按 owner 授权且限制连接/总时间与正文大小 | `http-client` feature 与显式 `example.article_summary_origin` | 双库真实 HTTP+本地上游覆盖成功、越权、503 和超大响应；另真实上游 TCP 头/体超时及取消 EOF 双库定向通过；取消的 RP 入口为 TestApp oneshot，metadata allowlist 不据此完整验收 |
@@ -445,7 +445,7 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 
 ### 请求的路由上下文
 
-`GET` / `POST /api/example/route-context/named/{id}` 由公开 `http::routing::get(...).post(...)` 受管理声明注册，路由名为 `example.route-context.show`；`GET /api/example/route-context/anonymous/{id}` 是匿名路由。响应展示 `RequestInfo::route()` 的最终 URI、方法、路径参数、`route_name()`、`route_is()` 和缺参数默认值。查询或 JSON 正文中的 `id` 不覆盖路径参数，匿名路由的名称为空。所有第一方受管理 `Router::route` 调用须传 `http::routing` 的 `RouteMethods`；原生 Axum Router 是独立逃生口，不提供此匹配上下文契约。
+`GET` / `POST /api/example/route-context/named/{id}` 由公开 `openrust::routing::methods::get(...).post(...)` 受管理声明注册，路由名为 `example.route-context.show`；`GET /api/example/route-context/anonymous/{id}` 是匿名路由。响应展示 `RequestInfo::route()` 的最终 URI、方法、路径参数、`route_name()`、`route_is()` 和缺参数默认值。查询或 JSON 正文中的 `id` 不覆盖路径参数，匿名路由的名称为空。所有第一方受管理 `Router::route` 调用须传 `openrust::routing::RouteMethods`；原生 Axum Router 是独立逃生口，不提供此匹配上下文契约。
 
 将 `{id}` 换为 `missing` 可触发业务 404，换为 `blocked` 可触发路由 middleware 的 403 短路；具名响应仍带 `x-example-route-before` / `x-example-route-after`，证明上下文在路由 middleware 之前发布并跨错误保留。参数当前是 JSON 字符串值，不表示模型或枚举绑定已经实现。出站 `UrlGenerator` 继续负责生成链接，不提供当前请求的命中事实。
 
@@ -507,6 +507,8 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 现有 `models/example_record::Model::attribute_snapshot` 从可编辑业务字段建立预览快照，不返回owner。`services/record_preview` 通过公开 `ModelAttributes` 赋值、cast感知比较和 `sync_changes` 发布预览变化，未调用 `sync_original` 表示已保存，也未建立第二种业务Model或自造Eloquent save。metadata两侧均按现有更新接口接受的serde JSON值序列化为文本；预览通过严格 `fill` 应用模型白名单。快照为 metadata 登记业务 setter，保留字段省略与显式 JSON null 的区别，也保留整数与整 double 的 `.0` 差别。其他字段复用普通 setter 管线。读取比较复用 Array cast。`display.summary` 通过 `only` 选择标题字段，`display.details` 通过 `except` 读取其余可编辑字段，metadata 在详情中为解码后的 JSON 值。数据库可能规范化JSON键顺序，键顺序本身属于严格比较，不能用无序JSON相等替代。
 
 该示范只覆盖内存属性状态；完整Model save/事件、日期和自定义cast仍有公开缺口。框架API及409/partial-sync边界见[模型基础](../../docs/src/eloquent/getting-started.md#原始基线与变化记录)。
+
+预览在 `original_transformed` 和 `display.details` 中用模型的不可变自定义日期 cast 投影 `published_at`。输出保留六位微秒和时区偏移，原始预览与已有数据库列绑定保留其原始值格式。
 
 预览的 original 是现有类型化实体可编辑字段的投影，不是数据库原始行字节水合。JSON比较沿PHP64：超出有符号64位整数范围的数会归为double，可能舍入相等；dirty不能充当任意精度大整数差异检测。预览不改变随后实际更新提交的Value，完整数值/后端对应仍须按范围验收。
 

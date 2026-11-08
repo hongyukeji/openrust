@@ -1,4 +1,6 @@
-//! 应用二进制公开的运行时命令。
+//! Console领域的异步命令回调及应用内置命令。
+//!
+//! `Command` 是 Rust callback/async 的必要表达；本入口不代表完整 Laravel Console 或 Kernel 已对应。
 
 use std::{any::Any, fmt::Write as _};
 

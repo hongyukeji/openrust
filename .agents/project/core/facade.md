@@ -4,7 +4,7 @@
 > 摘要：openrust package 是框架唯一公共 facade 与实现 package；能力模块位于根 `src/`，包括 `openrust::audit`、`openrust::mail`、`openrust::sms`、可选 `openrust::encryption` 与 `openrust::signing`。
 
 - `src/lib.rs` 声明框架 modules 与 feature-gated 能力；根 `src/main.rs` 提供 `server` bin。对外主路径继续是 `openrust::...`。
-- `openrust::testing::{TestApp, TestAppBuilder, TestResponse}` 由框架库直接公开，不依赖数据库 feature；同一 `ApplicationDefinition`/Provider/Router 路径支持测试覆盖与移除、完整重建和有界响应断言。独立 workspace `testing` package 仍提供隔离数据库工具，不是第二个应用启动内核。进程内 HTTP 请求不替代 TCP 验收；关闭后新解析拒绝，已持有 `Arc` 由调用方管理。
+- `openrust::testing::{TestApp, TestAppBuilder, TestResponse}` 由框架库直接公开，不依赖数据库 feature；同一 `Application`、Provider 与 Router 装配路径支持测试覆盖与移除、完整重建和有界响应断言。独立 workspace `testing` package 仍提供隔离数据库工具，不是第二个应用启动内核。进程内 HTTP 请求不替代 TCP 验收；关闭后新解析拒绝，已持有 `Arc` 由调用方管理。
 - 库直接 re-export `ApiResponse<T>`、`PageMeta`、`#[openrust::resource]`、`ServiceExt` 与 Tokio。`openrust::prelude` 提供常用 HTTP、core、mail、db、auth 类型；Axum 类型由 `openrust::http::axum` 公开。
 - `openrust::validation::{Validate, validate}` 复用 validator 与统一字段错误；`ExecutionContext` / `ExecutionMetadata` / `Cancellation` 提供单次请求、命令及 Job attempt 的显式作用域，细节见 [core](core.md) 与 历史决策 044。
 - `db-postgres` / `db-mysql` 启用 SeaORM 对应 backend，并提供 `openrust::database` 别名与常用 DB 类型；默认 feature 不含具体数据库 driver。
