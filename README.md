@@ -10,7 +10,7 @@ OpenRust 使用 Rust 实现 Laravel 的框架能力与开发体验。目录、�
 
 常用能力的使用入口包括：
 
-- [路由](docs/src/the-basics/routing.md)。
+- [路由](docs/src/the-basics/routing.md)与 [HTTP 请求](docs/src/the-basics/requests.md)。
 - [服务容器与 Service Provider 生命周期](docs/src/architecture-concepts/lifecycle.md)。
 - [应用配置](docs/src/getting-started/configuration.md)与[本地化](docs/src/digging-deeper/localization.md)。
 - [数据库查询](docs/src/database/queries.md)与 [ORM](docs/src/eloquent/getting-started.md)。
