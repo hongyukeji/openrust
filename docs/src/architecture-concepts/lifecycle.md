@@ -4,6 +4,8 @@
 
 启动先选择 dotenv 和部署环境，再求值配置函数，向同一 `ConfigRepository` 发布配置。框架、应用和模块 Provider 进入同一个 Container：`register` 登记服务，`boot` 使用已登记服务挂载路由和资源。模块不是第二套容器或独立子应用。
 
+服务工厂失败时，日志会转义控制字符，并将每个服务类型名限制在 128 字节以内。`Error::ServiceInitialization` 的 `service.name()` 仍返回完整类型名，内部错误链可供诊断。HTTP 响应使用 `service_initialization_failed` 和通用错误消息。
+
 应用 Controller 放在 `app/http/controllers/`，通过 `routes/api.rs` 或 `routes/web.rs` 声明访问路径；应用 Provider 类型放在 `app/providers/`，由 `bootstrap/providers.rs` 登记。不要把这些应用职责放入框架 `src/`。
 
 API 请求匹配当前配置前缀的无状态路由组，再进入处理函数。异常经公开 Handler 扩展渲染；根应用对配置的 API 范围选择 JSON 包装，Web 请求继续使用其内容协商与异常渲染流程。

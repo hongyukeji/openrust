@@ -15,7 +15,7 @@ use crate::config::ConfigError;
 /// use openrust::core::error::ServiceIdentity;
 /// let _ = ServiceIdentity { name: "credential_password" };
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct ServiceIdentity {
     name: &'static str,
 }
@@ -33,7 +33,40 @@ impl ServiceIdentity {
 
 impl std::fmt::Display for ServiceIdentity {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.name)
+        const LIMIT: usize = 128;
+        const ELLIPSIS: &str = "…";
+
+        if self.name.len() <= LIMIT && !self.name.chars().any(char::is_control) {
+            return formatter.write_str(self.name);
+        }
+
+        let mut rendered = String::with_capacity(LIMIT);
+        let mut truncation_point = 0;
+        for character in self.name.chars() {
+            if character.is_control() {
+                rendered.extend(character.escape_debug());
+            } else {
+                rendered.push(character);
+            }
+            if rendered.len() > LIMIT {
+                rendered.truncate(truncation_point);
+                rendered.push_str(ELLIPSIS);
+                return formatter.write_str(&rendered);
+            }
+            if rendered.len() <= LIMIT - ELLIPSIS.len() {
+                truncation_point = rendered.len();
+            }
+        }
+        formatter.write_str(&rendered)
+    }
+}
+
+impl std::fmt::Debug for ServiceIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ServiceIdentity")
+            .field("name", &self.to_string())
+            .finish()
     }
 }
 
@@ -234,7 +267,7 @@ impl Error {
             match current {
                 Self::ServiceInitialization { service, source } => {
                     output.push_str("dependency `");
-                    output.push_str(service.name());
+                    output.push_str(&service.to_string());
                     output.push_str("` -> ");
                     current = source;
                 }

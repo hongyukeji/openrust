@@ -126,3 +126,49 @@ fn initialization_http_response_keeps_status_and_code_without_private_details() 
     );
     Ok(())
 }
+
+#[test]
+fn long_service_identity_is_bounded_in_top_level_and_dependency_diagnostics() {
+    const PREFIX: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const NAME: &str = concat!(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "\n名称",
+    );
+
+    let service = ServiceIdentity::from_type_name(NAME);
+    assert_eq!(
+        ServiceIdentity::from_type_name("worker\n任务").to_string(),
+        "worker\\n任务"
+    );
+    assert_eq!(service.name(), NAME);
+    let rendered = service.to_string();
+    assert!(rendered.starts_with(PREFIX));
+    assert!(rendered.ends_with("…"));
+    assert!(!rendered.contains('\n'));
+    assert!(rendered.len() <= 128);
+
+    let dependency = Error::ServiceInitialization {
+        service,
+        source: Arc::new(Error::internal(std::io::Error::other(SECRET))),
+    };
+    for rendered in [dependency.to_string(), format!("{dependency:?}")] {
+        assert!(rendered.len() < 512);
+        assert!(!rendered.contains('\n'));
+        assert_redacted(&rendered);
+    }
+
+    let mut error = dependency;
+    for _ in 0..16 {
+        error = Error::ServiceInitialization {
+            service,
+            source: Arc::new(error),
+        };
+    }
+    for rendered in [error.to_string(), format!("{error:?}")] {
+        assert!(rendered.len() < 4096);
+        assert!(!rendered.contains(NAME));
+        assert!(rendered.contains("cause_chain_truncated"));
+        assert_redacted(&rendered);
+    }
+}

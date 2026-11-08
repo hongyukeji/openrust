@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 容器工厂失败的日志限制服务类型名的输出长度，结构化错误保留完整类型名和原始错误链。
+
 - 应用二进制通过 `list` 列出已登记命令，`help <命令>` 和 `--help` 显示命令用法。外部命令可以通过 `Command::usage` 提供参数说明。
 
 - 移除数据交换的根级重导出，公开入口统一为 `openrust::data::exchange`。

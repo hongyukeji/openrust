@@ -75,6 +75,10 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 
 固定 Laravel Console Kernel 先持有 InputInterface 再 bootstrap 的流程是对应依据；Rust 用明确候选上下文与最终命令类型绑定保护既有启动检查，非全局 argv/env 开关。真实 MySQL 8.4 私有库已验证空库 status、up 1、down 1、命名库 status、全量 up，以及删自有 MFA 表后普通 serve 缺表拒绝；库已精确清理。原迁移失败历史/重启恢复测试本轮没有实际数据库连接，不在上述证据内。见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。
 
+## 服务初始化诊断
+
+容器工厂的初始化错误保留完整 Rust 服务类型名及原始错误链。日志的顶层和依赖服务名都限制为 128 字节，并转义控制字符。HTTP 仍输出稳定的 `service_initialization_failed` 与通用消息。
+
 ## 公共 Support 错误包
 
 `openrust::support` 的 `MessageBag`、`ViewErrorBag` 不依赖 Session 或应用容器；核心装配不持有请求错误。`MessageBagContract` 与 `MessageProvider` 为公开扩展契约，命名包以原对象借用派发；`ViewErrorBag` 的默认代理只读取 `default`，缺失包是临时空值，不插入共享状态。
