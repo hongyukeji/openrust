@@ -49,6 +49,20 @@ impl AsRef<str> for Stringable {
     }
 }
 
+impl super::DataObject for Stringable {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn json_projection(&self) -> Option<serde_json::Value> {
+        Some(serde_json::Value::String(self.0.clone()))
+    }
+
+    fn string_projection(&self) -> Option<String> {
+        Some(self.0.clone())
+    }
+}
+
 impl Deref for Stringable {
     type Target = str;
 

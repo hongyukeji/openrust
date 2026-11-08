@@ -50,6 +50,8 @@ mod one_of_many;
 mod refresh;
 mod relations;
 mod save;
+mod stringable_cast;
+pub use stringable_cast::AsStringable;
 mod timestamps;
 mod unique_ids;
 pub use attributes::attributes_from_row;

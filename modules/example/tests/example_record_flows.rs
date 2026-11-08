@@ -1205,11 +1205,51 @@ async fn assert_cached_collection_save(
             }
         }
         assert_enum_collection_save(&record, &db, &transaction, &context).await?;
+        assert_stringable_save(&record, &db, &transaction, &context).await?;
         Ok(())
     }
     .await;
     transaction.rollback().await?;
     outcome
+}
+
+async fn assert_stringable_save(
+    record: &crate::modules::example::models::example_record::Model,
+    db: &openrust::Db,
+    transaction: &openrust::database::sea_orm::DatabaseTransaction,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::{
+        database::{
+            eloquent::{AsStringable, ModelObject, save_with_query},
+            sea_orm::EntityTrait,
+        },
+        support::Stringable,
+    };
+    let mut model = example_record::RecordForSave::from_existing(record)?;
+    model
+        .metadata
+        .casts
+        .insert("description".into(), AsStringable::cast());
+    let object = ModelObject::new(Stringable::from("  字符串对象  "));
+    model
+        .attributes
+        .set_attribute_value(&model.metadata, "description", object.clone().into())
+        .await?;
+    object.modify::<Stringable>(|value| Ok(value.clone().trim()))?;
+    let query = db
+        .table(&model.metadata.table)?
+        .using_transaction(transaction);
+    if !save_with_query(&mut model, context, query).await? {
+        return Err("字符串对象保存已取消".into());
+    }
+    let saved = example_record::Entity::find_by_id(record.id)
+        .one(transaction)
+        .await?
+        .ok_or("字符串对象保存后的记录缺失")?;
+    assert_eq!(saved.description, "字符串对象");
+    Ok(())
 }
 
 async fn assert_enum_collection_save(

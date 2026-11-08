@@ -64,6 +64,10 @@ pub(crate) async fn preview(
 ) -> Result<RecordPreview> {
     let attributes = model.attribute_snapshot()?.with_date_context(dates);
     let mut metadata = example_record::Model::attribute_metadata();
+    metadata.casts.insert(
+        "description".into(),
+        openrust::database::eloquent::AsStringable::cast(),
+    );
     metadata.append("is_published");
     attributes.register_attribute(
         "is_published",

@@ -77,6 +77,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_decimal_cast().await?;
         check_generated_primitive_json_casts().await?;
         check_generated_as_fluent().await?;
+        check_generated_as_stringable().await?;
         check_generated_json_codec().await?;
         check_generated_json_flags()?;
         check(query.count().await? == 3)?;
@@ -400,6 +401,30 @@ async fn check_generated_as_fluent() -> Result<()> {
     attrs.set_attribute(&model, "data->path", json!(true)).await?;
     check(attrs.attributes_to_json(&model)?["data"] == json!({"x":2,"path":true}))?;
     check(attrs.raw_attribute("data")? == Some(json!(r#"{"x":2,"path":true}"#)))
+}
+
+async fn check_generated_as_stringable() -> Result<()> {
+    use openrust::{
+        database::eloquent::{AsStringable, ModelAttributes, ModelMetadata, ModelObject},
+        support::{DataObject, Stringable},
+    };
+    use serde_json::json;
+    struct Label;
+    impl DataObject for Label {
+        fn as_any(&self) -> &dyn std::any::Any { self }
+        fn string_projection(&self) -> Option<String> { Some("custom".into()) }
+    }
+    let mut model = ModelMetadata::new("insert_items", "StringableRecord");
+    model.casts.insert("label".into(), AsStringable::cast());
+    let attrs = ModelAttributes::default();
+    attrs.set_attribute_value(&model, "label", ModelObject::new(Label).into()).await?;
+    check(attrs.raw_attribute("label")? == Some(json!("custom")))?;
+    let value = ModelObject::new(Stringable::from("  generated  "));
+    attrs.set_attribute_value(&model, "label", value.clone().into()).await?;
+    check(attrs.attributes_to_array(&model)?["label"].as_object().is_some_and(|read| read.same_object(&value)))?;
+    value.modify::<Stringable>(|text| Ok(text.clone().trim()))?;
+    check(attrs.attributes_to_json(&model)?["label"] == json!("generated"))?;
+    check(attrs.raw_attribute("label")? == Some(json!("generated")))
 }
 
 async fn check_generated_json_codec() -> Result<()> {

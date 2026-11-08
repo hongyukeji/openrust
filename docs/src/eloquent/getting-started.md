@@ -113,6 +113,16 @@ SQL NULL 始终读取为 null。集合遇到 JSON null、空文本或无效 JSON
 赋值分别按完整路径和基础字段的声明编码。唯一示例的记录预览在
 `metadata_projections` 展示对象、集合和编码文本。
 
+#### Stringable 模型属性
+
+用 `AsStringable::cast()` 声明字段，通过 `get_attribute_value` 取得可下转为
+`openrust::support::Stringable` 的对象。模型数组保留对象及缓存身份，JSON 输出投影为字符串。
+修改时用 `ModelObject::modify` 发布新的字符串快照，再由模型缓存写回持久文本。
+
+SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象可实现
+`DataObject::string_projection`。JSON 数组、普通 JSON 对象及无字符串投影的类型拒绝转换。
+自定义对象的 JSON 输出仍由其 JSON 投影决定。
+
 #### Fluent 模型属性
 
 在模型的 `casts` 中声明 `AsFluent::cast()`，通过 `get_attribute_value` 取得

@@ -18,6 +18,11 @@ pub trait DataObject: Any + Send + Sync {
         None
     }
 
+    /// 显式字符串转换，对应对象的字符串协议。
+    fn string_projection(&self) -> Option<String> {
+        None
+    }
+
     /// 显式模型数组投影，默认复用 JSON 投影。
     fn array_projection(&self) -> Option<Value> {
         self.json_projection()
