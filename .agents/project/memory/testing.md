@@ -1701,7 +1701,11 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 
 `tmp/lead-compose-onELY4Bk/runtime-receipt.json` 记录冻结输入及 Docker Desktop Linux ARM64 Release 镜像。隔离项目确认外部数据库和 Redis URL 留在宿主配置，构建上下文排除 `.env` 与本地 SQLite 文件。真实 MySQL 8.4.13 与 Redis 上完成 15 项迁移，`/health`、`/ready`、`/api`、`/api/example` 均返回 200。HTTP 派发的任务已消费，调度产生记录，非 root 的 `/app/app` 能写入存储且 SIGTERM 退出 0，重启后迁移记录仍在。Buildx 导出的 ARM64 Linux ELF 与应用资源通过实际 `app list` 验证。验收容器、卷、镜像与临时导出已清理。验收使用源码根应用默认 feature。
 
-宿主机挂载的验收位于 `tmp/lead-compose-binds-OQ2Zy3j0/`。Docker Desktop 的 Linux ARM64 镜像启用 Fortify JWT 与本地存储，真实 MySQL 8.4.13、Redis 8.10.3 和 27 项迁移通过。用公开 HTTP 上传的附件实际写入宿主 `storage`，重建容器后同一附件、MySQL 记录与 Redis 键仍可读。默认与自定义 `public` 均从宿主读取，容器写入被拒绝。缺失目录的补验由 Docker 引擎拒绝并确认宿主未创建目录。构建上下文实际排除了默认数据根和自定义根下的三类数据目录。以 Docker 的 Linux 原生测试卷验证数据库初始化拒绝不可写的非空根，接受空根并只调整根属主。Ubuntu x86_64 与 Linux 主机旧卷的物理迁移留待目标主机验收。
+宿主机挂载的验收位于 `tmp/lead-compose-binds-OQ2Zy3j0/`。Docker Desktop 的 Linux ARM64 镜像启用 Fortify JWT 与本地存储，真实 MySQL 8.4.13、Redis 8.10.3 和 27 项迁移通过。用公开 HTTP 上传的附件实际写入宿主 `storage`，重建容器后同一附件、MySQL 记录与 Redis 键仍可读。默认与自定义 `public` 均从宿主读取，容器写入被拒绝。缺失目录的补验由 Docker 引擎拒绝并确认宿主未创建目录。构建上下文实际排除了默认数据根和自定义根下的三类数据目录。以 Docker 的 Linux 原生测试卷验证数据库初始化拒绝不可写的非空根，接受空根并只调整根属主。
+
+Mac ARM64 的 amd64 模拟证据位于 `tmp/lead-class-lifetime-U5c8kV7e/next-compose-x64/`。`emulated-03/receipt.json` 记录从 `1557bdad` 的旧命名卷切换至 `e77bfaf0` 的宿主机挂载。大小写敏感的隔离卷中重新应用归档数字属主，三份归档均通过 GNU tar 比较。MySQL 8.4.13、Redis 8.10.3 与应用附件在重建后仍可读取，原卷回退保留切换前数据。`ubuntu-artifact-receipt.json` 记录 Ubuntu 24.04 amd64 容器运行 Buildx 导出的 Linux ELF，验证了非 root 的 Artisan、HTTP 与 SIGTERM。两项均使用 Docker Desktop 模拟 amd64。
+
+原生 Ubuntu 24.04.5 LTS x86_64 的[验收运行](https://github.com/hongyukeji/openrust/actions/runs/42520350003)以 `e99ccb15` 为输入，Docker 28.0.4 服务端为 `linux/x86_64`。隔离项目用真实 MySQL 8.4.13、Redis 8.10.3、27 项迁移和合成业务数据验证旧命名卷归档、空宿主目录恢复、只读 `public`、非 root 服务及 Artisan 迁移。三份归档均直接通过 GNU tar 数字属主和内容比较。重建保留 MySQL 行、Redis 键和 HTTP 附件，回退重新挂载三个原卷并核对旧数据及新写入隔离。运行回执保存于上述证据目录的 `native-42520350003/`。
 
 ## 标准依赖与队列开箱限定验收
 

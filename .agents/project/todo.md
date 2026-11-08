@@ -55,7 +55,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 5. 每个可验簇同改消费者/模板/快照/文档/脚本及唯一example；真实CLI/生成check+test，核路径/内容/登记/重复冲突/失败不破坏文件、错误退出码，独审和适用集中门禁后限定本地提交。完整CLI开放范围继续保留，不只help快照宣称完成。
 6. R13 的嵌套 `make:controller` 已在 `3b4c4a524a7b` 限定交付，支持相对命名空间、逐层登记与失败补偿。应用命令目录和用法按 Laravel Artisan 介绍接入 `list`、`help <命令>`。命令签名、统一命名、额外列表格式、模型与 Provider 生成器继续按依赖领取。
 
-7. 统一 `./artisan` 已验收源码根、minimal 与 Fortify Web 生成项目、Linux ARM64 根应用 Compose 和 Buildx 产物。源码实测 `list`、`help`、环境选择、密钥生成、迁移和停机；Compose 经脚本迁移，真实 MySQL 8.4/Redis 验证登录、写入、队列消费、查询与重启。Ubuntu x86_64、其他平台及生成项目 Compose 随后验收；其他冒号命令按现有依赖继续分批。
+7. 统一 `./artisan` 已验收源码根、minimal 与 Fortify Web 生成项目、Linux ARM64 和原生 Ubuntu x86_64 根应用 Compose，以及 Buildx 产物。源码实测 `list`、`help`、环境选择、密钥生成、迁移和停机；根 Compose 以真实 MySQL 8.4 与 Redis 验证。生成项目 Compose 与其他平台继续跟踪，其他冒号命令按现有依赖分批。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
@@ -225,15 +225,13 @@ S3a已完成限定验收：基线 `f9e831a`，root独占main/索引/Cargo/公共
 
 用户批准小型应用默认用一个进程运行 HTTP、队列和适用调度。WebSocket 随已启用的 HTTP 路由提供。根应用、新项目和 `openrust dev` 接线已完成，`serve`、`queue work` 和 `schedule run` 可独立运行。真实链路、生成项目和工作区验收见[同进程启动证据](memory/testing.md#应用同进程启动)。提交见 Git。
 
-根应用 Dockerfile、Compose 宿主机数据目录与只读 `public` 已通过 Linux ARM64 限定验收。Ubuntu x86_64 实机、Linux 旧卷物理迁移演练、生成项目容器构建上下文继续跟踪。验收见[根应用 Docker Compose](memory/testing.md#根应用-docker-compose)。
+根应用 Dockerfile、Compose 宿主机数据目录与只读 `public` 已通过 Linux ARM64 与原生 Ubuntu x86_64 限定验收，旧命名卷物理迁移、重建和回退均已实测。证据见[根应用 Docker Compose](memory/testing.md#根应用-docker-compose)。
 
 ### R13 部署与开发重载后继（真人已定顺序）
 
-1. 当前冻结的 CT-B01 共享声明先完成验收与提交。随后优先验证根 Compose 在 Ubuntu x86_64 的真实 MySQL 8.4、Redis、宿主机目录、只读 public 及旧命名卷迁移。记录宿主 `uname -m`、Ubuntu 版本和 Docker 服务端架构。本地 ARM64 或 amd64 模拟单独标注。仓库已核为公开，优先复用标准 `ubuntu-24.04` x64 runner，现有 CI 未执行此部署场景。验收工具本地预检后独立提交，保留现有 CI 门禁。
-2. 在隔离 Compose 项目用旧配置写入应用文件、MySQL 行和 Redis 键。停止写入、保存 Redis、正常停库，按数字 UID/GID 归档并恢复到空宿主目录，再用新版验证权限、业务数据与重建。核旧卷可回退，整个验收只使用合成数据。当前无已确认的自托管 x64 runner。
-3. 根部署验收后，补 `openrust new` 生成应用可直接使用的 Dockerfile 和 Compose。核 Cargo 本地路径依赖的构建上下文、镜像部署、MySQL/Redis 预置、迁移、持久化与公开资源。覆盖 minimal 和 Fortify Web 的适用配置，按生成器门禁与真实部署验收。
-4. 部署后实现 Go Air 式两阶段重载。优先接入开发态 `./artisan dev`，复用 `openrust dev` 现有项目发现和适用 Redis 准备，Watchexec 通过 `--only-emit-events` 传递文件事件。协调器使用独立构建与运行产物，编译失败时旧接口继续服务，成功后以 SIGTERM 收尾并切换。复用应用原有配置和启动机制。
-5. 重载首版覆盖根应用、路由、Rust 配置、模块、框架路径依赖及 Cargo 清单和锁文件。显式监听选定的 `.env`，排除构建和运行产物，合并保存风暴。实测编译失败与修复、优雅切换、端口和子进程回收。根应用通过后，同一簇同步生成模板并用生成项目复验。
+1. 补 `openrust new` 生成应用可直接使用的 Dockerfile 和 Compose。以 Compose 文件为基准声明构建上下文、框架源码、数据与 `public` 的相对路径。本机 Cargo 继续解析同一套框架和驱动补丁，镜像构建复现相对布局。覆盖 minimal 和 Fortify Web 的适用配置，实际复制应用与框架到含空格的新父目录后执行生成项目 check/test、Compose 构建、启动与重建。核 MySQL、Redis、Artisan 迁移、持久化与公开资源。
+2. 部署后实现 Go Air 式两阶段重载。优先接入开发态 `./artisan dev`，复用 `openrust dev` 现有项目发现和适用 Redis 准备，Watchexec 通过 `--only-emit-events` 传递文件事件。协调器使用独立构建与运行产物，编译失败时旧接口继续服务，成功后以 SIGTERM 收尾并切换。复用应用原有配置和启动机制。
+3. 重载首版覆盖根应用、路由、Rust 配置、模块、框架路径依赖及 Cargo 清单和锁文件。显式监听选定的 `.env`，排除构建和运行产物，合并保存风暴。实测编译失败与修复、优雅切换、端口和子进程回收。根应用通过后，同一簇同步生成模板并用生成项目复验。
 
 ### DB 通用能力与驱动门控（限定验收）
 

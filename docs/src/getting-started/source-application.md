@@ -167,7 +167,7 @@ docker buildx build --platform linux/amd64 --target artifacts \
   --output type=local,dest=dist/linux-amd64 .
 ```
 
-这里的 Compose 文件用于根应用。`openrust new` 生成的独立项目通过本地路径依赖框架，容器构建需要将对应框架源码纳入构建上下文。生成项目的 Compose 工作流及 Ubuntu x86_64 实机运行仍待验收。
+这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。根应用已在原生 Ubuntu 24.04 x86_64 上实测部署、旧命名卷迁移和回退。`openrust new` 生成的独立项目通过本地路径依赖框架，容器构建需要将对应框架源码纳入构建上下文，生成项目的 Compose 工作流另行验收。
 
 ## 编写业务与扩展
 
