@@ -159,8 +159,18 @@ SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象�
 `Uri::of()` 也可独立解析 URI。可读取 authority、scheme、主机、端口、路径、查询原文和片段。
 相对引用、点段及空查询和空片段保持原有语义。`path_segments()` 使用有界 Support Collection。
 示例预览的 `record_uri` 使用此转换。URI 值本身不进行 HTTP 跳转目的地校验。
-输入使用 Rust UTF-8 字符串，国际化主机复用 Rust IDNA 实现。极端 IDNA 映射及
-`mailto` 的完整 PHP 地址过滤规则仍有对标差距。结构化查询变更和命名路由构造另有待办。
+
+`uri.query()` 保留编码原文，`to_array()` 解析括号索引，保留点号键和字面 `+`。
+`get("filter.name")` 按点路径读取，`all_keys(&["filter.name"])` 选择参数，
+`has()` 和 `missing()` 可检查完整键及嵌套路径。
+`with_query(&serde_json::json!({"filter.name": "中文 +"}))?` 返回新 URI，并将参数编码为
+`filter%5Bname%5D=%E4%B8%AD%E6%96%87%20%2B`。也可以整体替换、仅补缺失项、移除或追加。
+示例预览的 `record_preview_uri` 使用此入口构造查询。
+
+输入使用 Rust UTF-8 字符串。查询中的非 UTF-8 百分号序列可通过 `query().decode_bytes()` 读取，
+结构化读取和 UTF-8 解码遇到这类字节会报错。结构化操作有输入和展开大小限制。
+传入的模型路由参数需先取路由键。命名路由构造、响应构造和其余 `InteractsWithData` 辅助方法另有待办。
+国际化主机复用 Rust IDNA 实现，极端 IDNA 映射及 `mailto` 的完整 PHP 地址过滤规则仍有对标差距。
 
 #### Fluent 模型属性
 

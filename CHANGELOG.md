@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Support UriQueryString 支持结构化查询读取和不可变变更，保留 RFC 3986 键名与稀疏索引语义。
+
 - Support Uri 支持组件解析和文本投影，Eloquent AsUri 支持模型对象读取、缓存和写回。
 
 - Eloquent AsStringable 接受日期对象，水合保留文本快照，直接赋值按日期当前格式写回。

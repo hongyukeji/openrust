@@ -719,6 +719,10 @@ fn assert_clean_preview_display(clean: &serde_json::Value, id: i64) {
         clean["display"]["details"]["record_uri"],
         format!("/api/example/records/{id}")
     );
+    assert_eq!(
+        clean["display"]["details"]["record_preview_uri"],
+        format!("/api/example/records/{id}/preview?discard=false")
+    );
     let published = "2026-10-29T12:00:00.000000+00:00";
     assert_eq!(clean["original_transformed"]["published_at"], published);
     assert_eq!(clean["display"]["details"]["published_at"], published);
@@ -1333,7 +1337,10 @@ async fn assert_uri_cast_save(
         .attributes
         .set_attribute_value(&model.metadata, "description", link.clone().into())
         .await?;
-    link.modify::<Uri>(|_| Uri::of("//EXAMPLE.test:081/资源?#"))?;
+    link.modify::<Uri>(|_| {
+        Uri::of("//EXAMPLE.test:081/资源?#")?
+            .with_query(&serde_json::json!({"filter.name": "中文 +"}))
+    })?;
     let query = db
         .table(&model.metadata.table)?
         .using_transaction(transaction);
@@ -1342,7 +1349,10 @@ async fn assert_uri_cast_save(
         .one(transaction)
         .await?
         .ok_or("缺少保存 URI 的记录")?;
-    assert_eq!(saved.description, "//example.test:81/%E8%B5%84%E6%BA%90?#");
+    assert_eq!(
+        saved.description,
+        "//example.test:81/%E8%B5%84%E6%BA%90?filter%5Bname%5D=%E4%B8%AD%E6%96%87%20%2B#"
+    );
     assert_eq!(
         saved
             .attribute_snapshot()?
@@ -2067,6 +2077,10 @@ async fn assert_discarded_preview(
     response.assert_status(StatusCode::OK)?;
     let body: serde_json::Value = serde_json::from_slice(response.body())?;
     let report = &body["data"];
+    assert_eq!(
+        report["display"]["details"]["record_preview_uri"],
+        format!("{path}?discard=true")
+    );
     assert_eq!(report["proposed"], report["original"]);
     assert_eq!(report["proposed"]["name"], payload["name"]);
     assert_eq!(report["display"]["summary"]["name"], payload["name"]);

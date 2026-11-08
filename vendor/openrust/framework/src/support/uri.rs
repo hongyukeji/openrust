@@ -1,6 +1,8 @@
 //! Laravel 的 URI 值、组件读取和字符串投影。
 
 mod parse;
+mod query;
+pub use query::UriQueryString;
 
 use super::{Collection, DataObject, Htmlable, Stringable};
 use crate::{Error, Result};
@@ -29,7 +31,10 @@ pub struct Uri {
 impl Uri {
     /// 解析并规范化各 URI 组件。
     pub fn of(input: &str) -> Result<Self> {
-        let parts = parse::parse(input)?;
+        parse::parse(input).map(Self::from_parts)
+    }
+
+    fn from_parts(parts: Components) -> Self {
         let authority = parts.host.as_ref().map(|host| {
             let mut authority = String::new();
             if let Some(user) = &parts.user {
@@ -65,11 +70,11 @@ impl Uri {
             value.push('#');
             value.push_str(fragment);
         }
-        Ok(Self {
+        Self {
             parts,
             authority,
             value,
-        })
+        }
     }
 
     /// 借用规范化后的 URI 文本。

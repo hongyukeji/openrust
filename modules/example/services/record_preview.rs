@@ -14,7 +14,7 @@ use openrust::{
             PivotKeys, RelationLoad, SaveContext,
         },
     },
-    support::{BoxFuture, Collection, DateStringFormat},
+    support::{BoxFuture, Collection, DateStringFormat, Uri},
 };
 use serde_json::{Map, Value};
 use std::sync::Arc;
@@ -98,6 +98,12 @@ pub(crate) async fn preview(
         };
     let mut details = attributes.attributes_to_json(&metadata)?;
     details.extend(record_display_casts(&attributes, &metadata, model.id)?);
+    let preview_uri = Uri::of(&format!("/api/example/records/{}/preview", model.id))?
+        .with_query(&serde_json::json!({"discard": discard.to_string()}))?;
+    details.insert(
+        "record_preview_uri".into(),
+        Value::from(preview_uri.value()),
+    );
     details.insert(
         "metadata_tag_count".into(),
         Value::from(metadata_tag_count(&attributes)?),

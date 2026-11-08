@@ -16,6 +16,7 @@ mod html_string;
 mod message_bag;
 mod number;
 pub(crate) mod php_variables;
+pub(crate) mod query_encoding;
 pub(crate) mod scalars;
 pub(crate) mod stringable;
 pub(crate) mod typed;
@@ -44,7 +45,7 @@ pub use number::php_loose_string_equal;
 #[doc(hidden)]
 pub use number::php_loose_string_value_equal;
 pub use service_provider::ServiceProvider;
-pub use uri::Uri;
+pub use uri::{Uri, UriQueryString};
 pub use view_error_bag::{BagHandle, BagRead, BagWrite, ViewErrorBag};
 
 pub use stringable::Stringable;

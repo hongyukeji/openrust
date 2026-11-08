@@ -258,6 +258,10 @@ fn encode(input: &str, extra: &[u8]) -> String {
 }
 
 fn decode(input: &str) -> String {
+    String::from_utf8_lossy(&decode_bytes(input)).into_owned()
+}
+
+pub(super) fn decode_bytes(input: &str) -> Vec<u8> {
     let bytes = input.as_bytes();
     let mut output = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -270,7 +274,7 @@ fn decode(input: &str) -> String {
             index += 1;
         }
     }
-    String::from_utf8_lossy(&output).into_owned()
+    output
 }
 
 fn unreserved(byte: u8) -> bool {
@@ -361,7 +365,7 @@ fn data_path(path: &str) -> Result<String> {
     Ok(format!("{mime};{params},{data}"))
 }
 
-fn validate_state(uri: &Components) -> bool {
+pub(super) fn validate_state(uri: &Components) -> bool {
     let Some(scheme) = uri.scheme.as_deref() else {
         return true;
     };

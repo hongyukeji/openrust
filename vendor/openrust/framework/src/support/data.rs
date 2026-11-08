@@ -103,6 +103,11 @@ fn direct<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     }
 }
 
+// Arr::get 在点路径之前先检查完整字面键，且不展开通配符。
+pub(super) fn arr_get<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
+    direct(value, key).or_else(|| key.split('.').try_fold(value, direct))
+}
+
 /// 仅供输入 bag：`Arr::set` 的 dot 写入，星号为字面键；超限不修改原值。
 pub(crate) fn set(target: &mut Value, key: &str, value: Value) -> crate::Result<()> {
     if key.len() > MAX_EXPANDED_KEYS || key.split('.').take(MAX_DEPTH + 1).count() > MAX_DEPTH {

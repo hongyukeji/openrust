@@ -1,0 +1,199 @@
+{
+    "league": "be89e2382e37acdef232259071ade5180821397b",
+    "rows": {
+        "keys": {
+            "input": "\/a?dot.key=v&space%20key=x&+lead=plus&%00key=n&blank&empty=",
+            "raw": "dot.key=v&space%20key=x&+lead=plus&%00key=n&blank&empty=",
+            "array": {
+                "dot.key": "v",
+                "space key": "x",
+                "+lead": "plus",
+                "\u0000key": "n",
+                "blank": "",
+                "empty": ""
+            },
+            "decode": "dot.key=v&space key=x&+lead=plus&\u0000key=n&blank&empty=",
+            "uri_decode": "\/a?dot.key=v&space key=x&+lead=plus&\u0000key=n&blank&empty=",
+            "get": [
+                null,
+                null,
+                null
+            ],
+            "all": {
+                "dot": {
+                    "key": "v"
+                },
+                "x": null,
+                "missing": null
+            }
+        },
+        "duplicates": {
+            "input": "\/a?x=first&x=last&list[]=a&list[]=b&nested[a]=v&nested[b]=w",
+            "raw": "x=first&x=last&list%5B%5D=a&list%5B%5D=b&nested%5Ba%5D=v&nested%5Bb%5D=w",
+            "array": {
+                "x": "last",
+                "list": [
+                    "a",
+                    "b"
+                ],
+                "nested": {
+                    "a": "v",
+                    "b": "w"
+                }
+            },
+            "decode": "x=first&x=last&list[]=a&list[]=b&nested[a]=v&nested[b]=w",
+            "uri_decode": "\/a?x=first&x=last&list[]=a&list[]=b&nested[a]=v&nested[b]=w",
+            "get": [
+                null,
+                "v",
+                [
+                    "a",
+                    "b"
+                ]
+            ],
+            "all": {
+                "dot": {
+                    "key": null
+                },
+                "x": "last",
+                "missing": null
+            }
+        },
+        "conflicts": {
+            "input": "\/a?x=scalar&x[]=list&y[a]=object&y=scalar&map[03]=lead&map[3]=int",
+            "raw": "x=scalar&x%5B%5D=list&y%5Ba%5D=object&y=scalar&map%5B03%5D=lead&map%5B3%5D=int",
+            "array": {
+                "x": [
+                    "list"
+                ],
+                "y": "scalar",
+                "map": {
+                    "03": "lead",
+                    "3": "int"
+                }
+            },
+            "decode": "x=scalar&x[]=list&y[a]=object&y=scalar&map[03]=lead&map[3]=int",
+            "uri_decode": "\/a?x=scalar&x[]=list&y[a]=object&y=scalar&map[03]=lead&map[3]=int",
+            "get": [
+                null,
+                null,
+                null
+            ],
+            "all": {
+                "dot": {
+                    "key": null
+                },
+                "x": [
+                    "list"
+                ],
+                "missing": null
+            }
+        },
+        "raw_plus": {
+            "input": "\/a?one=a+b&two=a%20b&escaped=%26%3D%2B",
+            "raw": "one=a+b&two=a%20b&escaped=%26%3D%2B",
+            "array": {
+                "one": "a+b",
+                "two": "a b",
+                "escaped": "&=+"
+            },
+            "decode": "one=a+b&two=a b&escaped=&=+",
+            "uri_decode": "\/a?one=a+b&two=a b&escaped=&=+",
+            "get": [
+                null,
+                null,
+                null
+            ],
+            "all": {
+                "dot": {
+                    "key": null
+                },
+                "x": null,
+                "missing": null
+            }
+        },
+        "null": {
+            "input": "\/a?",
+            "raw": "",
+            "array": [],
+            "decode": "",
+            "uri_decode": "\/a?",
+            "get": [
+                null,
+                null,
+                null
+            ],
+            "all": {
+                "dot": {
+                    "key": null
+                },
+                "x": null,
+                "missing": null
+            }
+        },
+        "separators": {
+            "input": "\/a?a=1&&;b=2&foo[broken=3&0=zero",
+            "raw": "a=1&&;b=2&foo%5Bbroken=3&0=zero",
+            "array": {
+                "a": "1",
+                ";b": "2",
+                "foo[broken": "3",
+                "0": "zero"
+            },
+            "decode": "a=1&&;b=2&foo[broken=3&0=zero",
+            "uri_decode": "\/a?a=1&&;b=2&foo[broken=3&0=zero",
+            "get": [
+                null,
+                null,
+                null
+            ],
+            "all": {
+                "dot": {
+                    "key": null
+                },
+                "x": null,
+                "missing": null
+            }
+        },
+        "sparse": {
+            "input": "\/a?list[1]=x&list[4]=y&list[]=z#frag",
+            "raw": "list%5B1%5D=x&list%5B4%5D=y&list%5B%5D=z",
+            "array": {
+                "list": {
+                    "1": "x",
+                    "4": "y",
+                    "5": "z"
+                }
+            },
+            "decode": "list[1]=x&list[4]=y&list[]=z",
+            "uri_decode": "\/a?list[1]=x&list[4]=y&list[]=z#frag",
+            "get": [
+                null,
+                null,
+                [
+                    "x",
+                    "y",
+                    "z"
+                ]
+            ],
+            "all": {
+                "dot": {
+                    "key": null
+                },
+                "x": null,
+                "missing": null
+            }
+        }
+    },
+    "mutate": {
+        "merge": "\/a?nested%5Ba%5D=new&nested%5Bb%5D=add&x=first&list%5B0%5D=a&list%5B1%5D=a&map%5Bz%5D=b&scalar=one#fragment",
+        "replace": "\/a?nested%5Ba%5D=new&bool=0#fragment",
+        "missing": "\/a?nested%5Ba%5D=old&nested%5Bb%5D=added&x=first&list%5B0%5D=a&list%5B1%5D=a&map%5Bz%5D=b&scalar=one&blank=0#fragment",
+        "push_list": "\/a?nested%5Ba%5D=old&x=first&list%5B0%5D=a&list%5B1%5D=b&map%5Bz%5D=b&scalar=one#fragment",
+        "push_assoc": "\/a?nested%5Ba%5D=old&x=first&list%5B0%5D=a&list%5B1%5D=a&map%5Bz%5D=new&map%5Bextra%5D=c&scalar=one#fragment",
+        "push_scalar": "\/a?nested%5Ba%5D=old&x=first&list%5B0%5D=a&list%5B1%5D=a&map%5Bz%5D=b&scalar%5B0%5D=one&scalar%5B1%5D=two#fragment",
+        "without": "\/a?map%5Bz%5D=b&scalar=one#fragment",
+        "clear": "\/a#fragment",
+        "original": "\/a?nested%5Ba%5D=old&x=first&list%5B%5D=a&list%5B%5D=a&map%5Bz%5D=b&scalar=one#fragment"
+    }
+}

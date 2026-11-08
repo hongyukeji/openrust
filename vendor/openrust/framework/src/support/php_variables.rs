@@ -1,5 +1,6 @@
-//! Query、表单及 Cookie 共用的 PHP 变量名注册树；wire 解码由各调用入口负责。
+//! URI Query、请求输入及 Cookie 共用的 PHP 变量注册树；解码由各入口负责。
 use serde_json::{Map, Value};
+use std::borrow::Cow;
 pub(crate) const MAX_DEPTH: usize = 64;
 fn limits_error() -> crate::Error {
     crate::Error::custom_with_status(
@@ -84,6 +85,35 @@ fn path(name: &str) -> crate::core::Result<Option<Vec<Option<Key>>>> {
     Ok(Some(path))
 }
 
+fn unmangled_path(name: &str) -> crate::Result<Vec<Option<Key>>> {
+    let mut path = Vec::new();
+    let mut name = Cow::Borrowed(name);
+    loop {
+        let Some((key, index, suffix)) = name.split_once('[').and_then(|(key, rest)| {
+            rest.split_once(']')
+                .map(|(index, suffix)| (key, index, suffix))
+        }) else {
+            path.push(Some(Key::named(&name)));
+            return Ok(path);
+        };
+        if path.len() >= MAX_DEPTH {
+            return Err(limits_error());
+        }
+        path.push(Some(Key::named(if key.is_empty() { "0" } else { key })));
+        // League 将下标拼回完整后缀再解析。比如 a[][b] 的空中间键成为整数 0。
+        let suffix = if suffix.starts_with('[') && suffix.contains(']') {
+            suffix
+        } else {
+            ""
+        };
+        if suffix.is_empty() {
+            path.push((!index.is_empty()).then(|| Key::named(index)));
+            return Ok(path);
+        }
+        name = Cow::Owned([index, suffix].concat());
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct VariableBag {
     entries: Vec<(Key, Node)>,
@@ -120,15 +150,35 @@ impl VariableBag {
         {
             return Ok(root_name);
         }
-        self.insert_path(&path, value, name);
+        self.insert_path(&path, value, Some(name))?;
         Ok(root_name)
     }
-    fn insert_path(&mut self, path: &[Option<Key>], value: String, original: &str) {
+
+    /// 插入已解码的 URI 查询参数，保留名称的原字节和 League 的括号规则。
+    pub(crate) fn insert_unmangled(&mut self, name: &str, value: String) -> crate::Result<()> {
+        if name.is_empty() {
+            return Ok(());
+        }
+        let path = unmangled_path(name)?;
+        self.insert_path(&path, value, None)
+    }
+
+    fn insert_path(
+        &mut self,
+        path: &[Option<Key>],
+        value: String,
+        original: Option<&str>,
+    ) -> crate::Result<()> {
         let Some((head, tail)) = path.split_first() else {
-            return;
+            return Ok(());
         };
         let key = match head {
-            Some(Key::String(name)) if forbidden(name, original.trim_start_matches(' ')) => return,
+            Some(Key::String(name))
+                if original
+                    .is_some_and(|original| forbidden(name, original.trim_start_matches(' '))) =>
+            {
+                return Ok(());
+            }
             Some(key) => key.clone(),
             None => {
                 let next = self.next.unwrap_or(0);
@@ -138,7 +188,11 @@ impl VariableBag {
                     .iter()
                     .any(|(key, _)| *key == Key::Integer(next))
                 {
-                    return;
+                    return if original.is_some() {
+                        Ok(())
+                    } else {
+                        Err(limits_error())
+                    };
                 }
                 Key::Integer(next)
             }
@@ -165,9 +219,10 @@ impl VariableBag {
                 self.entries[position].1 = Node::Array(Self::default());
             }
             if let Node::Array(bag) = &mut self.entries[position].1 {
-                bag.insert_path(tail, value, original);
+                bag.insert_path(tail, value, original)?;
             }
         }
+        Ok(())
     }
 
     pub(crate) fn into_value(self) -> Value {
@@ -199,5 +254,72 @@ impl Node {
             Self::Scalar(value) => Value::String(value),
             Self::Array(bag) => bag.into_value(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_DEPTH, Registration, VariableBag};
+    use serde_json::json;
+
+    #[test]
+    fn unmangled_variables_keep_literal_names_and_league_nested_brackets() -> crate::Result<()> {
+        let mut bag = VariableBag::default();
+        for (key, value) in [
+            ("", "ignored"),
+            (" dot.key", "literal"),
+            ("\0key", "nul"),
+            ("x[broken", "literal bracket"),
+            ("a[b][broken", "tail discarded"),
+            ("a[][c]", "first"),
+            ("a[][c]", "last"),
+            ("[a]", "empty root"),
+            ("[]", "append on root zero"),
+            ("neg[-3]", "negative"),
+            ("neg[]", "successor"),
+            ("mixed[[b][c]]", "retained interior bracket"),
+            ("x[__Host-a]", "exact prefix"),
+        ] {
+            bag.insert_unmangled(key, value.into())?;
+        }
+        assert_eq!(
+            bag.into_value(),
+            json!({
+                " dot.key": "literal",
+                "\0key": "nul",
+                "x[broken": "literal bracket",
+                "a": {"b": "tail discarded", "0": {"c": "last"}},
+                "0": {"a": "empty root", "0": "append on root zero"},
+                "neg": {"-3": "negative", "-2": "successor"},
+                "mixed": [{"b[c": "retained interior bracket"}],
+                "x": {"__Host-a": "exact prefix"}
+            })
+        );
+        let mut input = VariableBag::default();
+        input.insert(" dot.key", "normalized".into(), Registration::Input)?;
+        input.insert("x[__Host-a]", "filtered".into(), Registration::Cookie)?;
+        assert_eq!(
+            input.into_value(),
+            json!({"dot_key": "normalized", "x": []})
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unmangled_limits_reject_oversized_paths_and_exhausted_appends() -> crate::Result<()> {
+        let mut bag = VariableBag::default();
+        let accepted = format!("deep{}", "[a]".repeat(MAX_DEPTH));
+        bag.insert_unmangled(&accepted, "accepted".into())?;
+        let rejected = format!("{accepted}[a]");
+        assert!(bag.insert_unmangled(&rejected, "rejected".into()).is_err());
+
+        let mut bag = VariableBag::default();
+        bag.insert_unmangled("list[9223372036854775807]", "last".into())?;
+        assert!(bag.insert_unmangled("list[]", "rejected".into()).is_err());
+        assert_eq!(
+            bag.into_value(),
+            json!({"list": {"9223372036854775807": "last"}})
+        );
+        Ok(())
     }
 }

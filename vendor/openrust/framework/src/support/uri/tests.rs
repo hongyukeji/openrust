@@ -1,5 +1,5 @@
 use super::Uri;
-use crate::{Result, support::Htmlable};
+use crate::{Error, Result, support::Htmlable};
 use serde_json::json;
 
 #[test]
@@ -192,5 +192,146 @@ fn uri_components_keep_empty_delimiters_and_credentials_out_of_debug() -> Result
     assert_eq!(empty.path(), "/");
     assert_eq!(empty.query_string(), None);
     assert_eq!(empty.fragment(), None);
+    Ok(())
+}
+
+// 固定 Laravel Support\\Uri 和 league/uri be89e2382e37acdef232259071ade5180821397b，PHP 8.5.12。
+fn query_oracle() -> Result<serde_json::Value> {
+    serde_json::from_str(include_str!("query_oracle.json"))
+        .map_err(|error| Error::custom("uri_query_fixture", error.to_string()))
+}
+
+fn fixture_error() -> Error {
+    Error::custom("uri_query_fixture", "固定 PHP 探针缺少用例")
+}
+
+#[test]
+fn uri_query_matches_fixed_league_reading() -> Result<()> {
+    let oracle = query_oracle()?;
+    for (label, row) in oracle["rows"].as_object().ok_or_else(fixture_error)? {
+        let uri = Uri::of(row["input"].as_str().ok_or_else(fixture_error)?)?;
+        let query = uri.query();
+        assert_eq!(query.value(), row["raw"], "{label}");
+        assert_eq!(query.to_array()?, row["array"], "{label}");
+        assert_eq!(query.decode()?, row["decode"], "{label}");
+        assert_eq!(uri.decode()?, row["uri_decode"], "{label}");
+        assert_eq!(
+            json!([
+                query.get("dot.key")?,
+                query.get("nested.a")?,
+                query.get("list.*")?
+            ]),
+            row["get"],
+            "{label}"
+        );
+        assert_eq!(
+            query.all_keys(&["dot.key", "x", "missing"])?,
+            row["all"],
+            "{label}"
+        );
+        assert_eq!(query.has("dot.key")?, label == "keys");
+        assert!(query.missing("missing")?);
+    }
+    Ok(())
+}
+
+#[test]
+fn uri_query_matches_fixed_laravel_mutation() -> Result<()> {
+    let oracle = query_oracle()?;
+    let expected = &oracle["mutate"];
+    let uri = Uri::of(expected["original"].as_str().ok_or_else(fixture_error)?)?;
+    for (operation, updated) in [
+        (
+            "merge",
+            uri.with_query(&json!({"nested.a":"new","nested.b":"add","missing":null}))?,
+        ),
+        (
+            "replace",
+            uri.replace_query(&json!({"nested.a":"new","empty":null,"bool":false}))?,
+        ),
+        (
+            "missing",
+            uri.with_query_if_missing(
+                &json!({"nested.a":"ignored","nested.b":"added","x":"ignored","blank":0}),
+            )?,
+        ),
+        ("push_list", uri.push_onto_query("list", json!(["a", "b"]))?),
+        (
+            "push_assoc",
+            uri.push_onto_query("map", json!({"z":"new","extra":"c"}))?,
+        ),
+        ("push_scalar", uri.push_onto_query("scalar", json!("two"))?),
+        ("without", uri.without_query(&["nested.a", "x", "list"])?),
+        ("clear", uri.replace_query(&json!([]))?),
+    ] {
+        assert_eq!(updated.value(), expected[operation], "{operation}");
+    }
+    assert_eq!(uri.value(), expected["original"]);
+    Ok(())
+}
+
+#[test]
+fn uri_query_covers_php_list_and_decode_edges() -> Result<()> {
+    let uri = Uri::of("/a?existing[]=one&list[]=1&d.key=x&nested[a]=v&bool=")?;
+    assert!(
+        uri.push_onto_query("existing", json!([["nested"]]))
+            .is_err()
+    );
+    assert_eq!(
+        uri.push_onto_query("list", json!([true, 1, "1", null, false, ""]))?
+            .value(),
+        "/a?existing%5B0%5D=one&list%5B0%5D=1&d.key=x&nested%5Ba%5D=v&bool="
+    );
+    assert_eq!(
+        Uri::of("/a")?
+            .push_onto_query("list", json!([["nested"]]))?
+            .value(),
+        "/a?list%5B0%5D%5B0%5D=nested"
+    );
+    assert_eq!(
+        uri.with_query_if_missing(
+            &json!({"d.key":"replace","nested.a":"replace","nested.b":"add"})
+        )?
+        .value(),
+        "/a?existing%5B0%5D=one&list%5B0%5D=1&d.key=x&nested%5Ba%5D=v&nested%5Bb%5D=add&bool="
+    );
+    assert_eq!(
+        Uri::of("/a?d.key=x&z=v")?.without_query(&["z"])?.value(),
+        "/a?d%5Bkey%5D=x"
+    );
+    assert!(
+        Uri::of("ftp://example.test/a")?
+            .with_query(&json!({"x": 1}))
+            .is_err()
+    );
+
+    let raw = Uri::of("/a?q=%FF")?;
+    assert_eq!(raw.query().decode_bytes(), b"q=\xff");
+    assert!(raw.query().decode().is_err());
+    assert!(raw.query().to_array().is_err());
+    assert_eq!(
+        Uri::of("/q=hello%20world?q=hello%20world#q=hello%20world")?.decode()?,
+        "/q=hello world?q=hello world#q=hello world"
+    );
+    Ok(())
+}
+
+#[test]
+fn uri_query_rejects_input_and_output_beyond_shared_limits() -> Result<()> {
+    let fields = (0..1025)
+        .map(|i| format!("a{i}=v"))
+        .collect::<Vec<_>>()
+        .join("&");
+    assert!(
+        Uri::of(&format!("/a?{fields}"))?
+            .query()
+            .to_array()
+            .is_err()
+    );
+    assert!(
+        Uri::of("/a")?
+            .with_query(&json!({"key": " ".repeat(45000)}))
+            .is_err()
+    );
     Ok(())
 }
