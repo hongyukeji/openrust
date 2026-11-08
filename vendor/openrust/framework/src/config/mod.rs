@@ -1597,8 +1597,7 @@ mod tests {
         use crate::foundation::BootContext;
         use crate::foundation::ProviderBuilder;
         use crate::foundation::RegisterContext;
-        use crate::support::BoxFuture;
-        use crate::support::ServiceProvider;
+        use crate::support::{BoxFuture, ServiceProvider};
         use repository::SectionSchema;
 
         struct DefaultsProbe {
@@ -1809,8 +1808,7 @@ mod tests {
     use crate::foundation::BootContext;
     use crate::foundation::ProviderBuilder;
     use crate::foundation::RegisterContext;
-    use crate::support::BoxFuture;
-    use crate::support::ServiceProvider;
+    use crate::support::{BoxFuture, ServiceProvider};
     use repository::SectionSchema;
     use serde_json::{Value, json};
 
@@ -1935,8 +1933,7 @@ mod tests {
         use crate::foundation::BootContext;
         use crate::foundation::ProviderBuilder;
         use crate::foundation::RegisterContext;
-        use crate::support::BoxFuture;
-        use crate::support::ServiceProvider;
+        use crate::support::{BoxFuture, ServiceProvider};
         use repository::SectionSchema;
 
         struct ArrayProbe {

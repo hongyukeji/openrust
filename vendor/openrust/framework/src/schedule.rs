@@ -1,7 +1,6 @@
 //! 由共享数据库时钟协调的间隔、UTC daily 与 cron 任务调度。
 
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::database::{DatabaseTransaction, Db, DbBackend};
 use crate::queue::Queue;
 use crate::support::BoxFuture;

@@ -17,8 +17,7 @@ use openrust::http::{
         http::{Request, StatusCode},
     },
 };
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use openrust::tokio::io::AsyncReadExt;
 use std::{future::Future, pin::Pin, sync::Arc, time::Duration};

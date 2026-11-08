@@ -10,8 +10,7 @@ use openrust::grpc::GrpcServer;
 use openrust::grpc::GrpcServiceProvider;
 use openrust::grpc::GrpcServiceRegistry;
 use openrust::grpc::tonic;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use tokio::net::TcpListener;
 use tonic::{Request, Response, Status};
 

@@ -30,8 +30,7 @@ use sha2::{Digest, Sha256, Sha384, Sha512};
 
 use crate::audit::{Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, DatabaseAuditSink};
 use crate::auth::{AuthFlows, LoginAttempt, Session, SessionStoreHandle};
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::database::{DatabaseTransaction, Db};
 use crate::encryption::Encrypter;
 use crate::http::{DependencyClient, HttpBody};

@@ -20,8 +20,7 @@ use openrust::http::{
         response::IntoResponse,
     },
 };
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 
 #[derive(Debug)]

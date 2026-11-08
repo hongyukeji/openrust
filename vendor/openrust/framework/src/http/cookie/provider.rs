@@ -8,8 +8,7 @@ use crate::Result;
 use crate::container::Scope;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 
 #[derive(Clone, Copy)]
 enum ProtectionMode {

@@ -12,8 +12,7 @@ use openrust::core::Error;
 use openrust::core::Result;
 use openrust::foundation::ProviderId;
 use openrust::foundation::RegisterContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 
 use super::discovery::{DiscoveredModule, is_truthy, providers, scan};
 use super::{

@@ -4,8 +4,7 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::Error;
-use openrust::core::Result as FrameworkResult;
+use openrust::core::{Error, Result as FrameworkResult};
 use openrust::database::sea_orm_migration::MigrationTrait;
 use openrust::database::{DatabaseServiceProvider, Db, sea_orm_migration::MigratorTrait};
 use openrust::events::{Events, EventsServiceProvider};

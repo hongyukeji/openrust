@@ -19,8 +19,7 @@ use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
 
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
 pub use crate::config::{StorageConfig, StorageDiskConfig};

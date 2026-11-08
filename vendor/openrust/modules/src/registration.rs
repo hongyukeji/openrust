@@ -10,8 +10,7 @@ use openrust::foundation::ProviderId;
 use openrust::foundation::ProviderPreparation;
 use openrust::foundation::ProviderRegistration;
 use openrust::foundation::RegisterContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use std::sync::Arc;
 
 /// 已编译模块清单的预装配声明，展开时点早于所有 Provider 回调。

@@ -4,9 +4,7 @@ use std::{fmt, sync::Arc};
 
 use serde_json::{Map, Value};
 
-use crate::Error;
-use crate::Result;
-use crate::support::BoxFuture;
+use crate::{Error, Result, support::BoxFuture};
 
 /// Provider 返回的共享账户；缓存必须属于请求，不能放入进程级已登录状态。
 pub type AuthUser = Arc<dyn Authenticatable>;

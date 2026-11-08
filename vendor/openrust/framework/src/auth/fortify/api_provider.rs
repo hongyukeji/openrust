@@ -16,8 +16,7 @@ use crate::auth::GuardConfig;
 use crate::config::repository::SectionSchema as S;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 use std::{
     collections::BTreeMap,
     sync::{

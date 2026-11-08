@@ -22,8 +22,7 @@ use openrust::http::axum::{
 };
 use openrust::routing::RouteGroup;
 use openrust::session::Session;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::{TestApp, TestDatabase};
 use openrust::{Error, Result};
 use serde_json::{Value, json};

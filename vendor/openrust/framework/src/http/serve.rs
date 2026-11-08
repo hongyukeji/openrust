@@ -168,8 +168,7 @@ mod tests {
     use crate::foundation::http::build_router;
     use crate::http::HttpServiceProvider;
     use crate::http::health::ServerReadiness;
-    use crate::support::BoxFuture;
-    use crate::support::ServiceProvider;
+    use crate::support::{BoxFuture, ServiceProvider};
     use axum::{body::Body, http::Request};
     use figment::{Figment, providers::Serialized};
     use std::{io, net::SocketAddr, sync::Arc, time::Duration};

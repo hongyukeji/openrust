@@ -14,9 +14,7 @@ use super::{
     DatabaseSessionHandler, DatabaseSessionMetadata, SessionId, SessionRecord, SessionStore,
     SessionStoreGuarantees, SessionStoreSemantics, SessionWriteMode, SessionWriteOutcome,
 };
-use crate::Result;
-use crate::database::Db;
-use crate::support::BoxFuture;
+use crate::{Result, database::Db, support::BoxFuture};
 
 /// Laravel database driver 的属性适配器；每个受管 Session 独占 handler exists 状态。
 ///

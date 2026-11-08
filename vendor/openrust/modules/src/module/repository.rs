@@ -310,8 +310,7 @@ mod tests {
     use openrust::events::{EventPropagation, EventsServiceProvider};
     use openrust::foundation::BootContext;
     use openrust::foundation::ProviderBuilder;
-    use openrust::support::BoxFuture;
-    use openrust::support::ServiceProvider;
+    use openrust::support::{BoxFuture, ServiceProvider};
 
     type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 

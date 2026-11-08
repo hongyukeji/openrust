@@ -1,11 +1,8 @@
 //! 配置具名 driver 的请求级解析；注册表可共享，已登录状态不可共享。
 
 use super::contracts::{Guard, UserProvider};
-use crate::Error;
-use crate::Result;
 use crate::container::Resolver;
-use crate::http::axum::http::StatusCode;
-use crate::support::BoxFuture;
+use crate::{Error, Result, http::axum::http::StatusCode, support::BoxFuture};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{

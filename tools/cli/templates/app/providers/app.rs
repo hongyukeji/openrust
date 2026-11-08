@@ -1,8 +1,7 @@
 //! 应用自身的 Provider；由 bootstrap/providers.rs 登记。
 
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::prelude::*;
 
 /// 默认应用路由与异常呈现的启动钩子。

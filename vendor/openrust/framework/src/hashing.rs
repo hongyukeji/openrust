@@ -14,8 +14,7 @@ pub use drivers::{Argon2IdHasher, ArgonHasher, BcryptHasher};
 pub use manager::HashManager;
 pub use provider::HashServiceProvider;
 
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 use std::collections::BTreeMap;
 

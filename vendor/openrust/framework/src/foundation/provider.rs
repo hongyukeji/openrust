@@ -19,11 +19,8 @@ use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
-use crate::container::Container;
-use crate::container::ContainerBuilder;
-use crate::container::Resolver;
-use crate::core::Error;
-use crate::core::Result;
+use crate::container::{Container, ContainerBuilder, Resolver};
+use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
 mod preparation;

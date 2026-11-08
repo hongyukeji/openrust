@@ -11,8 +11,7 @@ use openrust::core::Result;
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
 use openrust::queue::{Job, QueueContributions};
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 
 /// 使用共享队列贡献目录登记示例任务与调度。
 pub struct JobsServiceProvider;

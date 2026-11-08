@@ -8,8 +8,7 @@ use subtle::ConstantTimeEq;
 
 use crate::core::{Error, Result};
 use crate::routing::domain::DomainPattern;
-use crate::routing::router::ActionRouteDefinition;
-use crate::routing::router::NamedRouteDefinition;
+use crate::routing::router::{ActionRouteDefinition, NamedRouteDefinition};
 use axum::extract::FromRequestParts;
 use axum::http::{StatusCode, request::Parts};
 

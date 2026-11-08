@@ -827,8 +827,7 @@ fn unsupported_backend() -> Error {
 mod sqlite_tests {
     use super::*;
     use crate::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
-    use crate::support::BoxFuture;
-    use crate::testing::TestDatabase;
+    use crate::{support::BoxFuture, testing::TestDatabase};
 
     struct RefreshMigrator;
     impl MigratorTrait for RefreshMigrator {

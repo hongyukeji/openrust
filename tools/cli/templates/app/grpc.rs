@@ -6,9 +6,8 @@ pub mod echo {
 
 use openrust::Result;
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
 use openrust::grpc::{GrpcServiceRegistry, tonic};
+use openrust::support::{BoxFuture, ServiceProvider};
 
 /// 将示例 Echo 服务贡献到应用的 gRPC 服务目录。
 pub struct EchoServiceProvider;

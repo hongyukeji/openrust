@@ -20,8 +20,7 @@ use std::{
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
 pub use crate::config::cache::{

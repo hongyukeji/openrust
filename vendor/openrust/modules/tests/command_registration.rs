@@ -9,9 +9,7 @@ use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
 use openrust::foundation::RegisterContext;
-use openrust::support::BoxFuture;
-use openrust::support::DefaultProviders;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, DefaultProviders, ServiceProvider};
 use openrust_modules::{
     ModuleDescriptor, ModuleManifest, ModuleProviderBuilderExt, ModuleRepository,
     ModuleTestAppBuilderExt, ModulesConfig,

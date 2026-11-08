@@ -17,8 +17,7 @@ use openrust::http::{
         http::{Request, StatusCode},
     },
 };
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use std::{
     net::SocketAddr,

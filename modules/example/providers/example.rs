@@ -3,8 +3,7 @@
 use openrust::Result;
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 

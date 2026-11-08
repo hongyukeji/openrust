@@ -6,8 +6,7 @@ use openrust::Result;
 use openrust::config::DatabaseConfig;
 use openrust::foundation::ProviderId;
 use openrust::foundation::RegisterContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use std::path::PathBuf;
 use std::sync::Arc;
 

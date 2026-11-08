@@ -9,8 +9,7 @@ use crate::Result;
 use crate::config::SessionConfig;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 use std::sync::{Arc, OnceLock};
 
 /// 共享store撤销句柄；所有认证和普通Session使用同一driver。

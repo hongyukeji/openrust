@@ -19,8 +19,7 @@ use openrust::http::{
     RequestInfo, RequestSecurity, SameSite,
 };
 use openrust::session::{MemorySessionStore, Session, SessionServiceProvider};
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::{TestApp, TestResponse};
 use openrust::{Error, Result};
 use serde::{Deserialize, Serialize};

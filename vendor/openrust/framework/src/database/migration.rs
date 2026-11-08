@@ -20,8 +20,7 @@ use crate::core::Error;
 use crate::core::Result;
 use crate::foundation::Application;
 use crate::foundation::BootContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 use sea_orm_migration::sea_orm::{
     ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait,
 };

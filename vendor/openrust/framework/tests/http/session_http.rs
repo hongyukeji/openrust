@@ -40,8 +40,7 @@ use openrust::session::{
     MemorySessionStore, Session, SessionId, SessionRecord, SessionServiceProvider, SessionStore,
     SessionWriteMode, SessionWriteOutcome,
 };
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 use tokio::sync::{Notify, oneshot};

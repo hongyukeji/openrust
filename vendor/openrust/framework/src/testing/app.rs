@@ -280,8 +280,7 @@ mod tests {
     use crate::foundation::BootContext;
     use crate::foundation::RegisterContext;
     use crate::http::{HttpServiceProvider, Inject};
-    use crate::support::BoxFuture;
-    use crate::support::ServiceProvider;
+    use crate::support::{BoxFuture, ServiceProvider};
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
     use std::sync::atomic::AtomicUsize;

@@ -12,8 +12,7 @@ use crate::foundation::BootContext;
 use crate::foundation::ProviderBuilder;
 use crate::foundation::ProviderId;
 use crate::foundation::RegisterContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 
 #[derive(Clone, Default)]
 struct Trace(Arc<Mutex<Vec<String>>>);

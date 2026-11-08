@@ -6,8 +6,7 @@ use crate::console::Command;
 use crate::core::Result;
 use crate::foundation::Application;
 use crate::foundation::BootContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 
 use crate::database::Db;
 

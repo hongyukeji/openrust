@@ -2,8 +2,7 @@
 
 use openrust::foundation::BootContext;
 use openrust::prelude::*;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 
 /// 根应用路由清单与异常呈现的启动钩子。
 pub struct AppServiceProvider;

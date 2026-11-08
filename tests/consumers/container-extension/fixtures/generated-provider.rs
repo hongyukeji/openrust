@@ -4,8 +4,7 @@ use openrust::Result;
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
 use openrust::http::{Inject, Json};
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},

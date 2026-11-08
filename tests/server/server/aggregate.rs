@@ -29,8 +29,7 @@ use openrust::foundation::http::build_router;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::prelude::{ApplicationDefinition, Json};
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 #[cfg(unix)]
 use openrust::tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[cfg(unix)]

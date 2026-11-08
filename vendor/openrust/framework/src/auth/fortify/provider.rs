@@ -8,8 +8,7 @@ use crate::config::repository::SectionSchema as S;
 use crate::events::Events;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 
 use super::{
     FortifyConfig, GoogleTwoFactorAuthenticationProvider, TwoFactorActions,

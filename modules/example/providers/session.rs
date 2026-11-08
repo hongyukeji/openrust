@@ -8,8 +8,7 @@ use openrust::session::{
     SessionRecord, SessionRequestContext, SessionStore, SessionStoreHandle, SessionWriteMode,
     SessionWriteOutcome,
 };
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde_json::Value;
 use std::sync::Arc;
 use time::OffsetDateTime;

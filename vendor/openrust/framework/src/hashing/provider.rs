@@ -3,8 +3,7 @@
 use super::{HashManager, Hasher, HashingConfig, failure};
 use crate::core::Result;
 use crate::foundation::RegisterContext;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 use std::sync::Arc;
 
 /// 应用哈希服务 Provider；独立于认证与 Passport 的启用状态。

@@ -15,10 +15,7 @@ use super::{
     SessionWriteMode, SessionWriteOutcome,
     store::{guard_json_depth, limit_error, unavailable},
 };
-use crate::Error;
-use crate::Result;
-use crate::http::CookieOptions;
-use crate::support::BoxFuture;
+use crate::{Error, Result, http::CookieOptions, support::BoxFuture};
 
 const MAX_IDS: usize = 1024;
 const MAX_COOKIE_BYTES: usize = 64 * 1024;

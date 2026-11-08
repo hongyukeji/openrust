@@ -104,8 +104,7 @@ mod tests {
         use crate::foundation::BootContext;
         use crate::foundation::ProviderBuilder;
         use crate::foundation::http::build_router;
-        use crate::support::BoxFuture;
-        use crate::support::ServiceProvider;
+        use crate::support::{BoxFuture, ServiceProvider};
         use axum::{body::Body, http::Request};
         use figment::{Figment, providers::Serialized};
         use tower::ServiceExt;

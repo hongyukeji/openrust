@@ -13,8 +13,7 @@ use lettre::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::database::DatabaseTransaction;
 use crate::mail::{Email, Mailer};
 use crate::queue::{Job, JobContext, Queue};

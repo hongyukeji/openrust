@@ -250,8 +250,7 @@ mod provider_tests {
     use super::*;
     use crate::foundation::BootContext;
     use crate::foundation::ProviderBuilder;
-    use crate::support::BoxFuture;
-    use crate::support::ServiceProvider;
+    use crate::support::{BoxFuture, ServiceProvider};
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
 

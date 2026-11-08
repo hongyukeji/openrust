@@ -41,9 +41,7 @@ use openrust::session::Session;
 use openrust::session::SessionServiceProvider;
 use openrust::session::SessionStoreGuarantees;
 use openrust::session::SessionStoreHandle;
-use openrust::support::BoxFuture;
-use openrust::support::DefaultProviders;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, DefaultProviders, ServiceProvider};
 use openrust::testing::TestApp;
 #[cfg(feature = "db-sqlite")]
 use openrust::testing::TestDatabase;

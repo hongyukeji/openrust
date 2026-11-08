@@ -21,8 +21,7 @@ use openrust::session::{
     SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreGuarantees,
     SessionStoreHandle, SessionWriteMode, SessionWriteOutcome,
 };
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use time::{Duration, OffsetDateTime};

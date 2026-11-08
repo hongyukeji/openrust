@@ -7,17 +7,14 @@ use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::FrameworkConfig;
-use openrust::container::ContainerBuilder;
-use openrust::container::Resolver;
-use openrust::container::ScopeFactory;
+use openrust::container::{ContainerBuilder, Resolver, ScopeFactory};
 use openrust::core::Error;
 use openrust::core::Result;
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
 use openrust::foundation::RegisterContext;
 use openrust::foundation::resources::ResourceOwner;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use tokio::sync::{Barrier, Notify};
 use tokio::time::Instant;
 

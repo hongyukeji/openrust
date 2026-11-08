@@ -29,9 +29,8 @@ use figment::{
 };
 use openrust::config::ConfigSources;
 use openrust::foundation::ApplicationDefinition;
-use openrust::support::BoxFuture;
 use openrust::foundation::RegisterContext;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},

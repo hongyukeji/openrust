@@ -8,9 +8,7 @@ use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 
 use super::SessionId;
-use crate::Error;
-use crate::Result;
-use crate::support::BoxFuture;
+use crate::{Error, Result, support::BoxFuture};
 
 /// 默认整个持久记录（含身份绑定与属性）的字节上限。
 pub const DEFAULT_MAX_BYTES: usize = crate::config::SessionConfig::MAX_BYTES;

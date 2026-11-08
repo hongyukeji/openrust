@@ -23,8 +23,7 @@ use openrust::http::RequestInfo;
 use openrust::http::Validated;
 use openrust::routing::RouteGroup;
 use openrust::session::{MemorySessionStore, Session, SessionServiceProvider};
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use tokio::io::AsyncReadExt;
 
 struct WebRoutes(PreventRequestForgery);

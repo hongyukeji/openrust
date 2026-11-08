@@ -26,9 +26,7 @@ use crate::routing::RouteGroup;
 use crate::session::MemorySessionStore;
 use crate::session::Session;
 use crate::session::SessionServiceProvider;
-use crate::support::BoxFuture;
-use crate::support::DefaultProviders;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, DefaultProviders, ServiceProvider};
 use crate::testing::TestApp;
 use crate::testing::TestResponse;
 use axum::{

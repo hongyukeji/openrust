@@ -7,8 +7,7 @@ use crate::foundation::BootContext;
 use crate::http::HttpServiceProvider;
 use crate::session::MemorySessionStore;
 use crate::session::Session;
-use crate::support::DefaultProviders;
-use crate::support::ServiceProvider;
+use crate::support::{DefaultProviders, ServiceProvider};
 use crate::testing::TestApp;
 use axum::{
     body::{Body, to_bytes},

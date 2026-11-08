@@ -8,8 +8,7 @@ use std::sync::Arc;
 
 use crate::config::ConfigError;
 pub use crate::config::SmsConfig;
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 use crate::translation::Locale;
 use crate::translation::Translator;

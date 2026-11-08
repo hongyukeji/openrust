@@ -10,8 +10,7 @@ use openrust::Result;
 use openrust::foundation::ApplicationState;
 use openrust::foundation::BootContext;
 use openrust::grpc::{GrpcServiceRegistry, tonic};
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 
 /// 在模块启用时把实际业务问候服务贡献到同一 gRPC 服务目录。
 pub(crate) struct ExampleGrpcServiceProvider;

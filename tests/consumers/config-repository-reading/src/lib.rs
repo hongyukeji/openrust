@@ -2,8 +2,7 @@
 
 use openrust::config::{ConfigError, repository::ConfigRepository};
 use openrust::foundation::BootContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde_json::{Value, json};
 
 /// 只向业务展示预先选定的名称；不接受客户端提供的配置路径。

@@ -38,8 +38,7 @@ use openrust::session::SessionStoreGuarantees;
 use openrust::session::SessionStoreHandle;
 use openrust::session::SessionWriteMode;
 use openrust::session::SessionWriteOutcome;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 

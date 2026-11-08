@@ -11,8 +11,7 @@ use openrust::core::Result;
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
 use openrust::foundation::RegisterContext;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust_modules::{
     ModuleConfigFiles, ModuleDescriptor, ModuleManifest, ModuleProviderBuilderExt,
 };

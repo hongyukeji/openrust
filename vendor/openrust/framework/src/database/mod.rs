@@ -8,9 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crate::config::ConfigError;
-use crate::core::Error;
-use crate::core::RateLimiter;
-use crate::core::Result;
+use crate::core::{Error, RateLimiter, Result};
 use crate::support::BoxFuture;
 use sea_orm::ConnectionTrait;
 use sea_orm::{ConnectOptions, Database, Statement, TransactionTrait};

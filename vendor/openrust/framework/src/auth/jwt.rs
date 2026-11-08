@@ -6,8 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::credential::JwtCredentialGrant;
 use crate::config::{ConfigError, JwtConfig};
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;

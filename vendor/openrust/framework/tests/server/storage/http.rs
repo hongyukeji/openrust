@@ -17,8 +17,7 @@ use openrust::foundation::http::build_router;
 use openrust::http::Inject;
 use openrust::http::Path;
 use openrust::prelude::{ApplicationDefinition, NoConfig};
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use std::time::Duration;
 
 struct StorageHttpApp;

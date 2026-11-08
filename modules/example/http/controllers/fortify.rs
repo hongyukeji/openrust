@@ -208,9 +208,8 @@ mod tests {
     use openrust::http::Path;
     use openrust::routing::RouteGroup;
     use openrust::session::{MemorySessionStore, SessionServiceProvider};
-    use openrust::support::DefaultProviders;
     use openrust::support::MessageBag;
-    use openrust::support::ServiceProvider;
+    use openrust::support::{DefaultProviders, ServiceProvider};
     use openrust::testing::TestApp;
     use std::time::Duration;
 

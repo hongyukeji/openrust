@@ -12,9 +12,7 @@ use tokio::sync::Notify;
 use tokio::time::Instant;
 
 use super::lifecycle::{BackgroundTaskHandle, BackgroundTasks};
-use crate::core::Cancellation;
-use crate::core::Error;
-use crate::core::Result;
+use crate::core::{Cancellation, Error, Result};
 use crate::support::BoxFuture;
 
 type Cleanup = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;

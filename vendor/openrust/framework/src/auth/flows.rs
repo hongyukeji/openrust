@@ -2,9 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use crate::core::Error;
-use crate::core::RateLimiter;
-use crate::core::Result;
+use crate::core::{Error, RateLimiter, Result};
 use crate::database::Db;
 #[cfg(feature = "auth")]
 use crate::database::sea_orm::DatabaseTransaction;

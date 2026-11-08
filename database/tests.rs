@@ -4,8 +4,7 @@ use openrust::config::{FrameworkConfig, NoConfig};
 use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
 use openrust::database::{DatabaseServiceProvider, FrameworkMigrator, MigrationServiceProvider};
 use openrust::foundation::ApplicationDefinition;
-use openrust::support::DefaultProviders;
-use openrust::support::ServiceProvider;
+use openrust::support::{DefaultProviders, ServiceProvider};
 use openrust::testing::{TestApp, TestDatabase};
 use openrust::{Error, Result};
 

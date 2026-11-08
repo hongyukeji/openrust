@@ -14,8 +14,7 @@ use openrust::foundation::http::build_router;
 use openrust::http::HttpServiceProvider;
 use openrust::http::Inject;
 use openrust::http::axum;
-use openrust::support::BoxFuture;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde::{Deserialize, Serialize};
 use std::sync::{
     Arc,
