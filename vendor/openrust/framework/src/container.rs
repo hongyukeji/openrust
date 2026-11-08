@@ -535,11 +535,11 @@ impl State {
 
     fn record_success(&mut self, key: &CacheKey) {
         self.extensions.resolved.insert(key.clone());
-        if self
-            .bindings
-            .get(&key.service)
-            .is_some_and(|binding| binding.instance.is_none() && binding.factory.is_some())
-        {
+        let binding = self.bindings.get(&key.service);
+        if binding.map_or_else(
+            || self.service_lifetime(&key.service, None) != Lifetime::Bind,
+            |binding| binding.instance.is_none() && binding.factory.is_some(),
+        ) {
             self.resolved_history.insert(key.service.clone());
         }
     }
@@ -1037,7 +1037,7 @@ impl Container {
         binding.instance.as_ref()?;
         #[cfg(test)]
         binding_event_tests::observe_instance_read();
-        Self::ready_value(&state, &service, binding, state.root_scope)
+        Self::ready_value(&state, &service, Some(binding), state.root_scope)
     }
 
     /// 同步读取成功发布的缓存；未完成的构造或装饰返回 `None`。
@@ -1047,7 +1047,7 @@ impl Container {
         Self::ready_value(
             &state,
             &service,
-            state.bindings.get(&service)?,
+            state.bindings.get(&service),
             state.root_scope,
         )
     }
@@ -1061,19 +1061,19 @@ impl Container {
             None => state.root_scope,
         };
         let service = state.alias_key(&ServiceKey::typed::<T>()).ok()?;
-        Self::ready_value(&state, &service, state.bindings.get(&service)?, scope)
+        Self::ready_value(&state, &service, state.bindings.get(&service), scope)
     }
 
     fn ready_value<T: ?Sized + Send + Sync + 'static>(
         state: &State,
         service: &ServiceKey,
-        binding: &Binding,
+        binding: Option<&Binding>,
         scope: u64,
     ) -> Option<Arc<T>> {
         if state.terminated {
             return None;
         }
-        let scope = match binding.effective_lifetime() {
+        let scope = match state.service_lifetime(service, binding) {
             Lifetime::Bind => return None,
             Lifetime::Singleton => u64::MAX,
             Lifetime::Scoped => scope,
@@ -1083,9 +1083,11 @@ impl Container {
             scope,
         };
         if state.extensions.pending_operation(&key)
-            || !state
-                .extensions
-                .instance_complete(service, binding.pending.len())
+            || binding.is_some_and(|binding| {
+                !state
+                    .extensions
+                    .instance_complete(service, binding.pending.len())
+            })
         {
             return None;
         }
@@ -1097,6 +1099,7 @@ impl Container {
                 .downcast_ref::<Arc<T>>()
                 .cloned();
         }
+        let binding = binding?;
         if !binding.pending.is_empty() {
             return None;
         }
@@ -1766,7 +1769,10 @@ impl Resolver {
     }
     /// 检查同一容器是否声明服务，不执行工厂；容器已释放时返回错误。
     pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> Result<bool> {
-        Ok(self.container()?.contains::<T>())
+        let container = self.container()?;
+        let state = lock(&container.inner.state);
+        self.check_open(&state)?;
+        Ok(state.bound_key_at(&ServiceKey::typed::<T>(), self.scope))
     }
 
     /// 从同一应用的已发布配置视图读取区段；boot overlay 后首次解析可见新版本。
@@ -2041,20 +2047,31 @@ impl Resolver {
         let key = aliases
             .as_ref()
             .map_or(canonical, |path| path.terminal.clone());
-        let entry = state.bindings.get(&key);
-        if expected.is_some() && entry.map(|binding| binding.generation) != expected {
-            return Err(container_error(
-                "binding_replaced",
-                "重绑定事件对应的服务已被替换",
-            ));
+        if let Some(generation) = expected {
+            let entry = state.bindings.get(&key);
+            if entry.is_none()
+                && let Some(binding) = state.implicit_class_binding(&key)
+                && binding.generation == generation
+            {
+                return Ok(ConstructionSource::Binding(BindingSource::implicit(
+                    key, binding, None,
+                )));
+            }
+            if entry.map(|binding| binding.generation) != expected {
+                return Err(container_error(
+                    "binding_replaced",
+                    "重绑定事件对应的服务已被替换",
+                ));
+            }
         }
         Ok(
-            match entry.and_then(|binding| binding.for_resolution(self.parameters.is_some())) {
+            match state.resolution_binding(&key, self.parameters.is_some()) {
                 Some(binding) => ConstructionSource::Binding(BindingSource {
                     key,
                     binding,
                     aliases,
                     contextual: None,
+                    implicit: false,
                 }),
                 None => ConstructionSource::Missing(key),
             },
@@ -2093,10 +2110,7 @@ impl Resolver {
                 }
                 let selected = match contextual {
                     Some(source) => source,
-                    None if expected.is_none()
-                        && request.target().is_some()
-                        && state.classes.has_descriptors() =>
-                    {
+                    None if expected.is_none() && state.classes.has_descriptors() => {
                         state.construction_source(requested, self, pinned.is_some())?
                     }
                     None => self.binding_source(&state, requested, expected, pinned.is_some())?,
@@ -3962,3 +3976,7 @@ mod environment_binding_tests;
 #[cfg(test)]
 #[path = "../tests/unit/container/conditional_binding.rs"]
 mod conditional_binding_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/container/class_lifetime.rs"]
+mod class_lifetime_tests;

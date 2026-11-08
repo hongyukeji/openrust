@@ -42,7 +42,7 @@ impl Rebound {
         let mut resolver = caller.clone();
         resolver.chain.clear();
         resolver.constructing = None;
-        if binding.effective_lifetime() == Lifetime::Singleton {
+        if state.service_lifetime(service, Some(binding)) == Lifetime::Singleton {
             resolver.captive = true;
             resolver.scope = u64::MAX;
             resolver.resources.clone_from(&inner.resources);
@@ -1078,8 +1078,7 @@ impl Resolver {
                         "装饰准入期间服务绑定已更换",
                     ));
                 }
-                let singleton = binding
-                    .is_some_and(|binding| binding.effective_lifetime() == Lifetime::Singleton);
+                let singleton = state.service_lifetime(service, binding) == Lifetime::Singleton;
                 let key = CacheKey {
                     service: service.clone(),
                     scope: if singleton { u64::MAX } else { self.scope },
@@ -1259,7 +1258,14 @@ impl Resolver {
             let mut state = lock(&guard.inner.state);
             guard.check(&state)?;
             let id = state.id()?;
-            let event = state.bindings.get(&guard.key.service).and_then(|binding| {
+            let implicit;
+            let binding = if let Some(binding) = state.bindings.get(&guard.key.service) {
+                Some(binding)
+            } else {
+                implicit = state.implicit_class_binding(&guard.key.service);
+                implicit.as_ref()
+            };
+            let event = binding.and_then(|binding| {
                 Rebound::capture(
                     &state,
                     &guard.inner,
@@ -1316,11 +1322,15 @@ impl Resolver {
                 state.resolved_history.contains(&guard.key.service)
             };
             guard.operation.published.store(true, Ordering::Release);
-            state
-                .bindings
-                .get(&guard.key.service)
-                .filter(|_| resolved)
-                .and_then(|binding| {
+            resolved
+                .then(|| {
+                    let implicit;
+                    let binding = if let Some(binding) = state.bindings.get(&guard.key.service) {
+                        Some(binding)
+                    } else {
+                        implicit = state.implicit_class_binding(&guard.key.service);
+                        implicit.as_ref()
+                    }?;
                     Rebound::capture(
                         &state,
                         &guard.inner,
@@ -1330,6 +1340,7 @@ impl Resolver {
                         None,
                     )
                 })
+                .flatten()
         };
         guard.operation.attempt.changed.notify_waiters();
         if let Some(event) = event {

@@ -1,11 +1,14 @@
-//! 展示环境匹配如何在首次解析时选择编译类。
+//! 展示环境绑定及声明式应用、请求生命周期。
 
 use openrust::config::AppConfig;
 use openrust::container::attributes::{Bind, BindWhen};
 use openrust::container::{ClassDescriptor, Resolver, ServiceKey};
 use openrust::core::ApiResponse;
 use openrust::http::Inject;
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 pub(crate) trait EnvironmentBinding: Send + Sync {
     fn implementation(&self) -> &'static str;
@@ -35,7 +38,13 @@ impl EnvironmentBinding for ConditionalBinding {
     }
 }
 
-pub(crate) fn descriptors() -> [ClassDescriptor; 4] {
+#[derive(Default)]
+pub(crate) struct ApplicationVisits(AtomicUsize);
+
+#[derive(Default)]
+pub(crate) struct RequestVisits(AtomicUsize);
+
+pub(crate) fn descriptors() -> [ClassDescriptor; 6] {
     [
         ClassDescriptor::interface::<dyn EnvironmentBinding>("Modules/Example/EnvironmentBinding")
             .with_bind(Bind::new(ServiceKey::typed::<DefaultBinding>()))
@@ -67,18 +76,38 @@ pub(crate) fn descriptors() -> [ClassDescriptor; 4] {
             |_| Ok(Arc::new(ConditionalBinding)),
         )
         .with_projection(openrust::class_projection!(ConditionalBinding => dyn EnvironmentBinding)),
+        ClassDescriptor::concrete::<ApplicationVisits>(
+            "Modules/Example/ApplicationVisits",
+            vec![],
+            |_| Ok(Arc::new(ApplicationVisits::default())),
+        )
+        .with_singleton(),
+        ClassDescriptor::concrete::<RequestVisits>("Modules/Example/RequestVisits", vec![], |_| {
+            Ok(Arc::new(RequestVisits::default()))
+        })
+        .with_scoped(),
     ]
 }
 
 #[derive(serde::Serialize)]
 pub(crate) struct BindingSelection {
     implementation: &'static str,
+    application_visits: usize,
+    request_visits: [usize; 2],
 }
 
 pub(crate) async fn show(
     Inject(binding): Inject<dyn EnvironmentBinding>,
+    Inject(application): Inject<ApplicationVisits>,
+    Inject(first): Inject<RequestVisits>,
+    Inject(second): Inject<RequestVisits>,
 ) -> ApiResponse<BindingSelection> {
     ApiResponse::success(BindingSelection {
         implementation: binding.implementation(),
+        application_visits: application.0.fetch_add(1, Ordering::Relaxed) + 1,
+        request_visits: [
+            first.0.fetch_add(1, Ordering::Relaxed) + 1,
+            second.0.fetch_add(1, Ordering::Relaxed) + 1,
+        ],
     })
 }

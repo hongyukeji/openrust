@@ -141,6 +141,31 @@ async fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
 
 条件中请使用传入的解析器。若在条件内通过外部持有的容器显式登记同一个键，已发布工厂优先。示例模块的 `/api/example/environment-binding` 在 `conditional` 环境演示条件命中。 [Laravel BindWhen](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/BindWhen.php)
 
+#### 声明共享生命周期
+
+在编译类描述符上调用 `.with_singleton()` 或 `.with_scoped()`，分别对应 Laravel 的 `Singleton` 和 `Scoped` 类属性。两者都声明时采用单例。单例归应用容器，作用域实例归当前请求、任务或显式作用域。一次关闭或重置只移除其管理的作用域实例。
+
+```rust
+use openrust::container::ClassDescriptor;
+use std::sync::Arc;
+
+struct CurrencyTable;
+struct RequestAudit;
+
+let descriptors = [
+    ClassDescriptor::concrete::<CurrencyTable>("App/CurrencyTable", vec![], |_| {
+        Ok(Arc::new(CurrencyTable))
+    }).with_singleton(),
+    ClassDescriptor::concrete::<RequestAudit>("App/RequestAudit", vec![], |_| {
+        Ok(Arc::new(RequestAudit))
+    }).with_scoped(),
+];
+```
+
+通过 Provider 的类描述目录登记这些定义。直接解析具体类时，容器通过普通构造生成共享实例，`get_bindings()` 中只列实际登记的工厂。若接口通过 `Bind` 或 `BindWhen` 选中实现，容器按接口上的生命周期登记工厂。选中的具体类也可以独立声明自己的生命周期。
+
+调用级参数和上下文覆盖使用当前构造，绕过该服务键的共享缓存。显式登记的共享工厂或实例沿自己的规则处理。普通显式工厂可以由具体类或抽象类的声明补足共享生命周期。示例模块的 `/api/example/environment-binding` 通过应用与请求计数展示两个生命周期。 [Laravel 容器](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L255-L315)
+
 ### 在解析阶段登记回调
 
 Provider 的 `register` 可用 `before_resolving`、`resolving` 和 `after_resolving` 追加回调。传入 `None` 选择全局阶段，传入 `Some(ServiceKey)` 选择服务。登记时将别名展开为当前目标。每个阶段先执行全局回调，再按首次登记各个键的顺序执行匹配的分组。同一个键内按追加顺序执行。

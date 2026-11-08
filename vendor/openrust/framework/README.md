@@ -14,6 +14,8 @@
 
 接口描述符可通过 `Bind` 或 `BindWhen` 按应用环境和运行条件登记编译实现。详见[按应用环境声明绑定](../../../docs/src/architecture-concepts/lifecycle.md#按应用环境声明绑定)。
 
+编译类可声明应用单例或作用域共享实例。详见[声明共享生命周期](../../../docs/src/architecture-concepts/lifecycle.md#声明共享生命周期)。
+
 内置 `Config`、`Give` 和 `Tag` 使用同一解析流程，支持类型化配置、指定实现和惰性标签迭代。详见[内置通用属性](../../../docs/src/architecture-concepts/lifecycle.md#内置通用属性)。
 
 `Database`、`DB` 和 `Storage` 使用应用现有管理器注入默认或具名数据库和文件系统句柄。详见[数据库与文件系统属性](../../../docs/src/architecture-concepts/lifecycle.md#数据库与文件系统属性)。

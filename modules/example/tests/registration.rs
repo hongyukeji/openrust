@@ -272,15 +272,21 @@ async fn production_environment_bind_is_registered_by_the_first_http_resolution(
                 .any(|binding| binding.key == key)
         );
 
-        let request = Request::get("/api/example/environment-binding")
-            .header("host", "localhost")
-            .body(Body::empty())?;
-        let response = app.request(request).await?;
+        let request = || {
+            Request::get("/api/example/environment-binding")
+                .header("host", "localhost")
+                .body(Body::empty())
+        };
+        let response = app.request(request()?).await?;
         response.assert_status(StatusCode::OK)?;
         let json: serde_json::Value = response.json()?;
         assert_eq!(
             json["data"],
-            serde_json::json!({"implementation": implementation}),
+            serde_json::json!({
+                "implementation": implementation,
+                "application_visits": 1,
+                "request_visits": [1, 2],
+            }),
         );
         assert!(container.contains_key(&key));
         assert!(container.resolved_key(&key)?);
@@ -290,6 +296,18 @@ async fn production_environment_bind_is_registered_by_the_first_http_resolution(
             .find(|binding| binding.key == key)
             .ok_or("首次请求未登记环境绑定工厂")?;
         assert!(!registered.shared);
+
+        let response = app.request(request()?).await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(
+            json["data"],
+            serde_json::json!({
+                "implementation": implementation,
+                "application_visits": 2,
+                "request_visits": [1, 2],
+            }),
+        );
         app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
             .await?;
     }

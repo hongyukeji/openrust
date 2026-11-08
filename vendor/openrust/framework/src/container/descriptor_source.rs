@@ -2,8 +2,11 @@
 
 use super::{
     Binding, ClassRegistry, Factory, Lifetime, ResolveRequest, Resolver, ResourceRegistrar,
-    ScopeStatus, ServiceKey, State, class_descriptor::PreparedConstructor, container_error,
-    contextual::ContextualImplementation, directory::AliasWitness,
+    ScopeStatus, ServiceKey, State,
+    class_descriptor::{ClassKind, PreparedConstructor},
+    container_error,
+    contextual::ContextualImplementation,
+    directory::AliasWitness,
 };
 use crate::Result;
 use std::{any::TypeId, sync::Arc};
@@ -19,6 +22,7 @@ pub(super) struct BindingSource {
     pub(super) binding: Binding,
     pub(super) aliases: Option<AliasWitness>,
     pub(super) contextual: Option<ContextualSource>,
+    pub(super) implicit: bool,
 }
 
 impl BindingSource {
@@ -29,6 +33,21 @@ impl BindingSource {
             binding,
             aliases: None,
             contextual: None,
+            implicit: false,
+        }
+    }
+
+    pub(super) fn implicit(
+        key: ServiceKey,
+        binding: Binding,
+        aliases: Option<AliasWitness>,
+    ) -> Self {
+        Self {
+            key,
+            binding,
+            aliases,
+            contextual: None,
+            implicit: true,
         }
     }
 
@@ -38,6 +57,10 @@ impl BindingSource {
             .is_none_or(|aliases| state.aliases.accepts(aliases))
             && self.contextual.as_ref().map_or_else(
                 || {
+                    if self.implicit {
+                        return !state.bindings.contains_key(&self.key)
+                            && state.class_revision(&self.key) == self.binding.generation;
+                    }
                     state
                         .bindings
                         .get(&self.key)
@@ -83,6 +106,42 @@ pub(super) struct DescriptorSource {
 }
 
 impl State {
+    fn class_revision(&self, key: &ServiceKey) -> u64 {
+        self.class_source_revisions.get(key).copied().unwrap_or(0)
+    }
+
+    fn class_lifetime(&self, key: &ServiceKey) -> Lifetime {
+        self.classes
+            .class(key)
+            .filter(|class| class.kind() != ClassKind::Interface)
+            .map_or(Lifetime::Bind, |class| class.lifetime)
+    }
+
+    pub(super) fn implicit_class_binding(&self, key: &ServiceKey) -> Option<Binding> {
+        let mut binding = self.classes.class(key)?.implicit_binding.clone()?;
+        binding.generation = self.class_revision(key);
+        Some(binding)
+    }
+
+    pub(super) fn service_lifetime(&self, key: &ServiceKey, binding: Option<&Binding>) -> Lifetime {
+        match binding.map_or(Lifetime::Bind, Binding::effective_lifetime) {
+            Lifetime::Bind => self.class_lifetime(key),
+            lifetime => lifetime,
+        }
+    }
+
+    pub(super) fn resolution_binding(
+        &self,
+        key: &ServiceKey,
+        with_parameters: bool,
+    ) -> Option<Binding> {
+        let mut binding = self.bindings.get(key)?.for_resolution(with_parameters)?;
+        if !with_parameters {
+            binding.lifetime = self.service_lifetime(key, Some(&binding));
+        }
+        Some(binding)
+    }
+
     pub(super) fn contextual_implementation(
         &self,
         consumer: &ServiceKey,
@@ -185,6 +244,7 @@ impl State {
             },
             aliases: Some(aliases),
             contextual: Some(contextual),
+            implicit: false,
         })))
     }
 
@@ -236,17 +296,21 @@ impl State {
             .lookup_witness(&self.classes.canonical_key(requested), pinned)?;
         let key = &aliases.terminal;
         let with_parameters = resolver.parameters.is_some();
-        if let Some(binding) = self
-            .bindings
-            .get(key)
-            .and_then(|binding| binding.for_resolution(with_parameters))
-        {
+        if let Some(binding) = self.resolution_binding(key, with_parameters) {
             return Ok(ConstructionSource::Binding(BindingSource {
                 key: key.clone(),
                 binding,
                 aliases: Some(aliases),
                 contextual: None,
+                implicit: false,
             }));
+        }
+        if !with_parameters && let Some(binding) = self.implicit_class_binding(key) {
+            return Ok(ConstructionSource::Binding(BindingSource::implicit(
+                key.clone(),
+                binding,
+                Some(aliases),
+            )));
         }
         if self.classes.class(key).is_none() {
             return Ok(ConstructionSource::Missing(key.clone()));
@@ -261,11 +325,7 @@ impl State {
         resolver: &Resolver,
         contextual: Option<ContextualSource>,
     ) -> Result<DescriptorSource> {
-        let revision = self
-            .class_source_revisions
-            .get(&aliases.terminal)
-            .copied()
-            .unwrap_or(0);
+        let revision = self.class_revision(&aliases.terminal);
         self.make_descriptor_source(
             DescriptorEntry::Resolution {
                 aliases,
@@ -361,12 +421,7 @@ impl DescriptorSource {
                 },
                 |source| source.is_current(state, self.key()),
             )
-            && state
-                .class_source_revisions
-                .get(self.key())
-                .copied()
-                .unwrap_or(0)
-                == self.revision
+            && state.class_revision(self.key()) == self.revision
     }
 
     /// State→owner 下仅核验来源并认领框架阶段。禁止在 commit 中调用用户代码。

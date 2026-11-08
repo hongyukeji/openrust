@@ -27,6 +27,7 @@ pub(super) struct InFlightBinding {
     closed: Arc<ScopeStatus>,
     consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
     with_parameters: bool,
+    scope: u64,
 }
 
 impl InFlightBinding {
@@ -39,7 +40,7 @@ impl InFlightBinding {
             && !self.closed.closed.load(Ordering::Acquire)
             && state.binding_environment == self.environment
             && state.aliases.accepts(&self.aliases)
-            && state.can_discover_binding(key, self.with_parameters)
+            && state.can_discover_binding(key, self.with_parameters, self.scope)
             && self.consumer.as_ref().is_none_or(|(consumer, active)| {
                 !active.load(Ordering::Acquire)
                     || state.contextual_implementation(consumer, key).is_none()
@@ -113,8 +114,11 @@ impl BindingDiscovery {
                     resolver.check_open(&state)?;
                     if !flight.is_current(&state)
                         || !state.aliases.accepts(&aliases)
-                        || !state
-                            .can_discover_binding(&aliases.terminal, resolver.parameters.is_some())
+                        || !state.can_discover_binding(
+                            &aliases.terminal,
+                            resolver.parameters.is_some(),
+                            resolver.scope,
+                        )
                         || resolver
                             .active_consumer_frame()
                             .is_some_and(|(consumer, _)| {
@@ -175,7 +179,7 @@ impl DeclarationCheck {
             &self.classes,
             key,
             concrete,
-            Lifetime::Bind,
+            class.lifetime,
             key.clone(),
             class.output,
         );
@@ -258,13 +262,14 @@ impl State {
         changed
     }
 
-    fn can_discover_binding(&self, key: &ServiceKey, with_parameters: bool) -> bool {
+    fn can_discover_binding(&self, key: &ServiceKey, with_parameters: bool, scope: u64) -> bool {
         !self.aliases.contains(key)
             && !self.checked_binding_declarations.contains(key)
             && self
                 .bindings
                 .get(key)
                 .is_none_or(|binding| with_parameters && binding.factory.is_none())
+            && (with_parameters || self.shared_attempt_at(key, scope).is_none())
     }
 }
 
@@ -283,7 +288,7 @@ impl Resolver {
             .lookup_witness(&state.classes.canonical_key(requested), pinned)?;
         let key = &aliases.terminal;
         if checked == Some(key)
-            || !state.can_discover_binding(key, self.parameters.is_some())
+            || !state.can_discover_binding(key, self.parameters.is_some(), self.scope)
             || self
                 .binding_checks
                 .iter()
@@ -323,6 +328,7 @@ impl Resolver {
             closed: Arc::clone(&self.closed),
             consumer: self.active_consumer_frame().cloned(),
             with_parameters: self.parameters.is_some(),
+            scope: self.scope,
         });
         let edge = self.wait_edge(inner, state, &record.attempt)?;
         state
@@ -378,10 +384,23 @@ impl ClassFactory {
         output: TypeId,
     ) -> Binding {
         let abstract_key = classes.canonical_key(key);
-        let class_factory = Arc::new(Self {
+        Self {
             direct: abstract_key == classes.canonical_key(&concrete),
             concrete,
-        });
+        }
+        .into_binding(lifetime, target, output)
+    }
+
+    pub(super) fn direct_binding(key: &ServiceKey, lifetime: Lifetime, output: TypeId) -> Binding {
+        Self {
+            direct: true,
+            concrete: key.clone(),
+        }
+        .into_binding(lifetime, key.clone(), output)
+    }
+
+    fn into_binding(self, lifetime: Lifetime, target: ServiceKey, output: TypeId) -> Binding {
+        let class_factory = Arc::new(self);
         Binding {
             generation: 0,
             pending: Vec::new(),

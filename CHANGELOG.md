@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 容器类描述支持声明应用单例和作用域共享，并沿环境与条件绑定登记工厂。
 - 根应用的 Docker Compose 将应用存储、MySQL 和 Redis 持久化到宿主机目录，并只读挂载可配置的 `public` 目录。
 - 根应用、新项目和 Linux 部署包提供统一的 `./artisan` 应用命令入口。
 - 容器支持与环境 `Bind` 按声明顺序执行的异步 `BindWhen` 条件。

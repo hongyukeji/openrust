@@ -1,13 +1,15 @@
 //! 编译类目录与构造参数。Resolver 负责依赖选择、求值、所有权和发布。
 pub use self::php_scalar::{PhpBytes, PhpIntBool, PhpStringable, PhpTarget, ScalarDiagnostic};
 use super::attributes::{Bind, BindWhen, BindingDeclaration};
+use super::class_binding::ClassFactory;
 use super::class_identity::{ClassIdentities, ClassIdentity};
 use super::class_projection::ClassProjection;
 use super::parameters::ParameterValue;
 #[cfg(test)]
 use super::parameters::{ParameterKey, ParameterOverrides};
 use super::{
-    BoxFuture, ClassAttribute, Resolver, SelfBuilding, ServiceKey, Value, container_error,
+    Binding, BoxFuture, ClassAttribute, Lifetime, Resolver, SelfBuilding, ServiceKey, Value,
+    container_error,
 };
 use crate::{Error, Result};
 use std::any::TypeId;
@@ -442,6 +444,7 @@ pub struct ClassDescriptor {
     projections: Vec<ClassProjection>,
     attributes: Vec<ClassAttribute>,
     binds: Vec<BindingDeclaration>,
+    lifetime: Lifetime,
 }
 impl ClassDescriptor {
     fn declare<T: ?Sized + 'static>(
@@ -458,6 +461,7 @@ impl ClassDescriptor {
             projections: Vec::new(),
             attributes: Vec::new(),
             binds: Vec::new(),
+            lifetime: Lifetime::Bind,
         }
     }
 
@@ -535,12 +539,31 @@ impl ClassDescriptor {
         self.binds.push(BindingDeclaration::Conditional(bind));
         self
     }
+
+    /// 声明应用级单例。带调用参数的构造不读取或填充共享实例。
+    /// 同时声明两种生命周期时，单例优先。
+    #[must_use]
+    pub fn with_singleton(mut self) -> Self {
+        self.lifetime = Lifetime::Singleton;
+        self
+    }
+
+    /// 声明每个作用域各自共享实例。已声明单例时保留单例。
+    #[must_use]
+    pub fn with_scoped(mut self) -> Self {
+        if self.lifetime == Lifetime::Bind {
+            self.lifetime = Lifetime::Scoped;
+        }
+        self
+    }
 }
 
 pub(super) struct ClassRecord {
     key: ServiceKey,
     pub(super) output: TypeId,
     pub(super) binds: Vec<BindingDeclaration>,
+    pub(super) lifetime: Lifetime,
+    pub(super) implicit_binding: Option<Binding>,
     kind: ClassKind,
     constructor: Option<Constructor>,
     projections: HashMap<ServiceKey, ClassProjection>,
@@ -593,6 +616,7 @@ impl ClassRegistry {
             projections,
             attributes,
             binds,
+            lifetime,
         } in descriptors
         {
             identities.push(identity);
@@ -604,12 +628,13 @@ impl ClassRegistry {
                 projections,
                 attributes,
                 binds,
+                lifetime,
             ));
         }
         let identities = ClassIdentities::from_entries(identities)?;
         let mut by_type = HashMap::with_capacity(drafts.len());
         let mut projection_sources = HashMap::new();
-        for (key, output, kind, constructor, projections, attributes, binds) in drafts {
+        for (key, output, kind, constructor, projections, attributes, binds, lifetime) in drafts {
             let id = key.type_id().ok_or_else(|| {
                 container_error(
                     "container_class_identity_duplicate",
@@ -641,12 +666,16 @@ impl ClassRegistry {
             {
                 projection_sources.insert(constructor.output, id);
             }
+            let implicit_binding = (kind == ClassKind::Concrete && lifetime != Lifetime::Bind)
+                .then(|| ClassFactory::direct_binding(&key, lifetime, output));
             by_type.insert(
                 id,
                 ClassRecord {
                     key,
                     output,
                     binds,
+                    lifetime,
+                    implicit_binding,
                     kind,
                     constructor,
                     projections: by_target,

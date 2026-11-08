@@ -462,8 +462,33 @@ impl State {
     }
 
     pub(super) fn bound_key(&self, key: &ServiceKey) -> bool {
+        self.bound_key_at(key, self.root_scope)
+    }
+
+    pub(super) fn bound_key_at(&self, key: &ServiceKey, scope: u64) -> bool {
         let key = self.classes.canonical_key(key);
-        self.bindings.contains_key(&key) || self.aliases.contains(&key)
+        self.bindings.contains_key(&key)
+            || self.aliases.contains(&key)
+            || self.shared_attempt_at(&key, scope).is_some_and(|attempt| {
+                lock(&attempt.outcome)
+                    .as_ref()
+                    .is_some_and(std::result::Result::is_ok)
+            })
+    }
+
+    pub(super) fn shared_attempt_at(
+        &self,
+        key: &ServiceKey,
+        scope: u64,
+    ) -> Option<&Arc<super::Attempt>> {
+        let mut cache = super::CacheKey {
+            service: key.clone(),
+            scope: u64::MAX,
+        };
+        self.slots.get(&cache).or_else(|| {
+            cache.scope = scope;
+            self.slots.get(&cache)
+        })
     }
 
     pub(super) fn resolved_key(&self, key: &ServiceKey) -> Result<bool> {
@@ -484,9 +509,7 @@ impl State {
 
     pub(super) fn shared_key(&self, key: &ServiceKey) -> bool {
         let key = self.classes.canonical_key(key);
-        self.bindings
-            .get(&key)
-            .is_some_and(|binding| binding.effective_lifetime() != Lifetime::Bind)
+        self.service_lifetime(&key, self.bindings.get(&key)) != Lifetime::Bind
     }
 }
 
@@ -539,7 +562,7 @@ impl Container {
         lock(&self.inner.state).resolved_key(key)
     }
 
-    /// 检查原键是否已登记实例、单例或作用域共享工厂，不跟随别名。
+    /// 检查原键是否共享实例、工厂或具体类声明，不跟随别名。
     pub fn is_shared_key(&self, key: &ServiceKey) -> bool {
         lock(&self.inner.state).shared_key(key)
     }

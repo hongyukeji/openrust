@@ -805,6 +805,7 @@ async fn generated_application_installs_conditional_bind_on_first_use()
         openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
     builder.class_descriptors([
         ClassDescriptor::interface::<dyn EnvironmentGreeting>("App/EnvironmentGreeting")
+            .with_scoped()
             .with_bind(Bind::for_environments(ServiceKey::typed::<LocalGreeting>(), ["testing"]))
             .with_bind_when(BindWhen::new(ServiceKey::typed::<LocalGreeting>(), |resolver| async move {
                 Ok(resolver.section::<openrust::config::AppConfig>("app")?.env.is_local())
@@ -814,9 +815,27 @@ async fn generated_application_installs_conditional_bind_on_first_use()
     ]);
     let app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
     let state = app.state();
-    assert!(!state.container().contains::<dyn EnvironmentGreeting>());
-    assert_eq!(state.resolve::<dyn EnvironmentGreeting>().await?.text(), "本地");
-    assert!(state.container().contains::<dyn EnvironmentGreeting>());
+    let container = state.container();
+    let key = ServiceKey::typed::<dyn EnvironmentGreeting>();
+    assert!(!container.contains_key(&key));
+    let first = container.scope()?;
+    let second = container.scope()?;
+    let local = first.resolve::<dyn EnvironmentGreeting>().await?;
+    assert_eq!(local.text(), "本地");
+    assert!(container.contains_key(&key));
+    let registered = container
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == key)
+        .ok_or("首次解析未登记条件绑定")?;
+    assert!(registered.shared);
+    let repeated = first.resolve::<dyn EnvironmentGreeting>().await?;
+    assert!(Arc::ptr_eq(&local, &repeated));
+    let other = second.resolve::<dyn EnvironmentGreeting>().await?;
+    assert_eq!(other.text(), "本地");
+    assert!(!Arc::ptr_eq(&local, &other));
+    first.close();
+    second.close();
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
     Ok(())
 }

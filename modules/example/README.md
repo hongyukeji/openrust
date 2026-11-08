@@ -321,6 +321,8 @@ Web/Session 模式下的 `GET /api/example/account/session/status` 通过 `Auth`
 
 [`tests/registration.rs`](tests/registration.rs) 直接使用根生产 `crate::bootstrap::Server`，复用相同 `ApplicationDefinition::providers` 与 `ApplicationDefinition::configure_providers`，没有测试专用 Application 或第二容器。业务调用链是模块 descriptor → [`ExampleServiceProvider::register/boot`](providers/example.rs) → 配置驱动的 [`ExampleMessage`](services/message.rs) → [`show` 的 Inject](http/controllers/example.rs)。替换绑定不会改路由或控制器。
 
+`GET /api/example/environment-binding` 通过 [编译描述符](http/controllers/environment_binding.rs) 在首次解析时按应用环境选择实现，并演示共享实例的生命周期。在新启动的应用中，前两次请求的 `application_visits` 依次为 1 和 2。每次请求对同一作用域实例计数两次，`request_visits` 都是 `[1, 2]`。
+
 测试中的 `production_sources` 显式使用测试环境、内存缓存和测试加密密钥，不读取或修改进程环境，也不要求 Redis；这是测试夹具选择，生产缓存默认没有回退。使用公开 API 替换业务依赖的实际写法如下，完整可执行函数见同一测试文件：
 
 ```rust

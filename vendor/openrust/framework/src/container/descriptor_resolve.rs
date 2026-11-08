@@ -494,7 +494,9 @@ impl DescriptorRun<'_> {
         key: &ServiceKey,
         erased_output: std::any::TypeId,
     ) -> Result<SelectedArgument> {
-        if parameter.has_default() && !self.claim(|state| state.bound_key(key))? {
+        if parameter.has_default()
+            && !self.claim(|state| state.bound_key_at(key, consumer.scope))?
+        {
             return self.default_value(parameter);
         }
         self.start()?;
@@ -632,16 +634,17 @@ impl DescriptorRun<'_> {
                 key, erased_output, ..
             } => {
                 let (use_default, services, missing) = self.claim(|state| {
-                    let consumer = self.source.key();
-                    let direct = state.contextual.get_service(consumer, key);
-                    let use_default =
-                        parameter.has_default() && !state.bound_key(key) && direct.is_none();
+                    let class = self.source.key();
+                    let direct = state.contextual.get_service(class, key);
+                    let use_default = parameter.has_default()
+                        && !state.bound_key_at(key, consumer.scope)
+                        && direct.is_none();
                     if !parameter.is_variadic() {
                         return Ok::<_, Error>((use_default, None, false));
                     }
                     let lookup = state.aliases.resolve(&state.classes.canonical_key(key))?;
-                    let contextual = state.contextual_implementation(consumer, &lookup);
-                    let missing = !state.bound_key(&lookup)
+                    let contextual = state.contextual_implementation(class, &lookup);
+                    let missing = !state.bound_key_at(&lookup, consumer.scope)
                         && contextual.is_none()
                         && state
                             .classes
