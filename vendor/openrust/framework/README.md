@@ -12,7 +12,7 @@
 
 编译类和构造参数可以声明属性，通过 Provider 自定义属性选值与后置回调。`SelfBuilding` 支持独立的方法注入与同类重入回退。详见[构造属性与自构造](../../../docs/src/architecture-concepts/lifecycle.md#构造属性与自构造)。
 
-接口描述符可通过 `Bind` 按应用环境登记编译实现。详见[按应用环境声明绑定](../../../docs/src/architecture-concepts/lifecycle.md#按应用环境声明绑定)。
+接口描述符可通过 `Bind` 或 `BindWhen` 按应用环境和运行条件登记编译实现。详见[按应用环境声明绑定](../../../docs/src/architecture-concepts/lifecycle.md#按应用环境声明绑定)。
 
 内置 `Config`、`Give` 和 `Tag` 使用同一解析流程，支持类型化配置、指定实现和惰性标签迭代。详见[内置通用属性](../../../docs/src/architecture-concepts/lifecycle.md#内置通用属性)。
 

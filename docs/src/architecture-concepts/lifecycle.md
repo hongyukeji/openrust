@@ -133,6 +133,14 @@ async fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
 
 首次匹配后，`get_bindings()` 可看到该绑定，后续解析沿已登记工厂运行。构造失败后仍可重试同一工厂。未安装环境时可在安装后重试。已配置环境的一次无匹配查找会记住结果。示例模块的 `/api/example/environment-binding` 演示测试环境和兜底实现。 [Laravel Bind](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Bind.php) · [Laravel 容器](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L978-L1068)
 
+#### 按条件声明绑定
+
+在同一个接口描述符上附加 `BindWhen::new(ServiceKey::typed::<LocalStore>(), |resolver| async move { resolver.is_bound::<LocalFlag>() })`，并用 `.with_bind_when(...)` 登记。条件拿到当前作用域的 `Resolver`，可读取配置和异步解析其他服务。条件与普通环境 `Bind` 按声明顺序执行，首个命中项生效，通配兜底最后考虑。即使裸容器尚未安装环境，条件仍可执行。
+
+条件全部未命中时，下一次独立解析可以重新判断。条件返回错误时，本次原样返回错误并记住已检查状态。条件内部用同一解析器重入当前服务时，继续查找普通构造来源。登记成功后，后续解析沿用真实工厂。并发首次求值共享一次在途检查，取消后等待者可以重新检查。
+
+条件中请使用传入的解析器。若在条件内通过外部持有的容器显式登记同一个键，已发布工厂优先。示例模块的 `/api/example/environment-binding` 在 `conditional` 环境演示条件命中。 [Laravel BindWhen](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/BindWhen.php)
+
 ### 在解析阶段登记回调
 
 Provider 的 `register` 可用 `before_resolving`、`resolving` 和 `after_resolving` 追加回调。传入 `None` 选择全局阶段，传入 `Some(ServiceKey)` 选择服务。登记时将别名展开为当前目标。每个阶段先执行全局回调，再按首次登记各个键的顺序执行匹配的分组。同一个键内按追加顺序执行。

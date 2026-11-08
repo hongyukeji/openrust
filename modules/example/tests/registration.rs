@@ -252,7 +252,11 @@ async fn production_environment_bind_is_registered_by_the_first_http_resolution(
     use super::http::controllers::environment_binding::EnvironmentBinding;
 
     let key = ServiceKey::typed::<dyn EnvironmentBinding>();
-    for (environment, implementation) in [("testing", "testing"), ("production", "fallback")] {
+    for (environment, implementation) in [
+        ("conditional", "conditional"),
+        ("testing", "testing"),
+        ("production", "fallback"),
+    ] {
         let source = enabled_example_sources(&production_sources(true))?
             .merge_ordered_entries([("app", serde_json::json!({"env": environment}))])?;
         let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)

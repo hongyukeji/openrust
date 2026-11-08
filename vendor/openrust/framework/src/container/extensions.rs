@@ -524,17 +524,27 @@ impl Resolver {
             let names = path
                 .into_iter()
                 .filter_map(|id| {
-                    let attempts = state.slots.values();
+                    let attempts = state.slots.values().map(Arc::as_ref);
                     #[cfg(test)]
-                    let attempts =
-                        attempts.chain(state.raw_attempts.values().map(|record| &record.attempt));
+                    let attempts = attempts.chain(
+                        state
+                            .raw_attempts
+                            .values()
+                            .map(|record| record.attempt.as_ref()),
+                    );
                     attempts
+                        .chain(
+                            state
+                                .binding_discoveries
+                                .values()
+                                .map(|flight| &flight.attempt),
+                        )
                         .chain(
                             state
                                 .extensions
                                 .operations
                                 .values()
-                                .map(|operation| &operation.attempt),
+                                .map(|operation| operation.attempt.as_ref()),
                         )
                         .chain(
                             state
@@ -542,7 +552,7 @@ impl Resolver {
                                 .transients
                                 .values()
                                 .flatten()
-                                .map(|record| &record.attempt),
+                                .map(|record| record.attempt.as_ref()),
                         )
                         .find(|slot| slot.id == id)
                         .map(|slot| slot.service.to_string())

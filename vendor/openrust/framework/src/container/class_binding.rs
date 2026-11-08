@@ -1,115 +1,345 @@
 //! 显式类名绑定的原工厂，沿同一 Resolver 执行直接构造或具体服务解析。
 
+use super::attributes::BindingDeclaration;
 use super::directory::AliasWitness;
 use super::{
-    Arc, Binding, BindingChange, ClassRegistry, Container, Factory, Lifetime, ParameterFrame,
-    ResolveRequest, Resolver, Result, ServiceKey, State, TypeId, Value, container_error,
-    descriptor_source::ConstructionSource, lock,
+    Arc, Attempt, Binding, BindingChange, ClassRegistry, Container, Factory, Inner, Lifetime,
+    ParameterFrame, ResolveRequest, Resolver, Result, ScopeStatus, ServiceKey, State, TypeId,
+    Value, WaitEdge, container_error, descriptor_source::ConstructionSource, erase, lock,
 };
 use crate::config::Environment;
+use crate::foundation::lifecycle::callback_future;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-pub(super) struct DeclaredBinding {
-    aliases: AliasWitness,
-    environment: Environment,
-    binding: Binding,
+pub(super) enum BindingDiscovery {
+    Owner(DeclarationCheck),
+    Wait {
+        flight: Arc<InFlightBinding>,
+        aliases: AliasWitness,
+        edge: Option<WaitEdge>,
+    },
 }
 
-impl DeclaredBinding {
-    pub(super) async fn install(self, container: &Container, resolver: &Resolver) -> Result<()> {
-        let Self {
-            aliases,
-            environment,
-            binding,
-        } = self;
+pub(super) struct InFlightBinding {
+    pub(super) attempt: Attempt,
+    aliases: AliasWitness,
+    environment: Option<Environment>,
+    closed: Arc<ScopeStatus>,
+    consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
+    with_parameters: bool,
+}
+
+impl InFlightBinding {
+    fn is_current(&self, state: &State) -> bool {
+        let key = &self.attempt.service;
+        state
+            .binding_discoveries
+            .get(key)
+            .is_some_and(|current| std::ptr::eq(current.as_ref(), self))
+            && !self.closed.closed.load(Ordering::Acquire)
+            && state.binding_environment == self.environment
+            && state.aliases.accepts(&self.aliases)
+            && state.can_discover_binding(key, self.with_parameters)
+            && self.consumer.as_ref().is_none_or(|(consumer, active)| {
+                !active.load(Ordering::Acquire)
+                    || state.contextual_implementation(consumer, key).is_none()
+            })
+    }
+}
+
+pub(super) struct DeclarationCheck {
+    flight: DiscoveryFlight,
+    classes: Arc<ClassRegistry>,
+    termination: Arc<ScopeStatus>,
+    conditional: bool,
+    _edge: Option<WaitEdge>,
+}
+
+struct DiscoveryFlight {
+    inner: Arc<Inner>,
+    record: Arc<InFlightBinding>,
+    active: Arc<AtomicBool>,
+}
+
+impl DiscoveryFlight {
+    async fn invalidated(&self) {
+        loop {
+            let changed = {
+                let state = lock(&self.inner.state);
+                if !self.record.is_current(&state) {
+                    return;
+                }
+                state.listen_for_binding_change()
+            };
+            changed.await;
+        }
+    }
+}
+
+impl Drop for DiscoveryFlight {
+    fn drop(&mut self) {
+        self.active.store(false, Ordering::Release);
+        let attempt = &self.record.attempt;
+        let mut state = lock(&self.inner.state);
+        if state
+            .binding_discoveries
+            .get(&attempt.service)
+            .is_some_and(|current| Arc::ptr_eq(current, &self.record))
+        {
+            state.binding_discoveries.remove(&attempt.service);
+        }
+        state.edges.retain(|(from, _), _| *from != attempt.id);
+        *lock(&attempt.outcome) = Some(Ok(erase(Arc::new(()))));
+        drop(state);
+        attempt.changed.notify_waiters();
+    }
+}
+
+impl BindingDiscovery {
+    pub(super) async fn resolve(
+        self,
+        inner: &Arc<Inner>,
+        resolver: &Resolver,
+    ) -> Result<Option<ServiceKey>> {
+        match self {
+            Self::Owner(check) => check.resolve(resolver).await,
+            Self::Wait {
+                flight,
+                aliases,
+                edge: _edge,
+            } => {
+                let (termination, changed) = {
+                    let state = lock(&inner.state);
+                    resolver.check_open(&state)?;
+                    if !flight.is_current(&state)
+                        || !state.aliases.accepts(&aliases)
+                        || !state
+                            .can_discover_binding(&aliases.terminal, resolver.parameters.is_some())
+                        || resolver
+                            .active_consumer_frame()
+                            .is_some_and(|(consumer, _)| {
+                                state
+                                    .contextual_implementation(consumer, &aliases.terminal)
+                                    .is_some()
+                            })
+                    {
+                        return Ok(None);
+                    }
+                    (
+                        Arc::clone(&state.termination),
+                        state.listen_for_binding_change(),
+                    )
+                };
+                tokio::select! {
+                    _ = flight.attempt.wait() => Ok(None),
+                    () = changed => Ok(None),
+                    () = flight.closed.wait_closed() => Ok(None),
+                    () = termination.wait_closed() => Err(container_error("container_closed", "容器已关闭")),
+                    () = resolver.closed.wait_closed() => Err(lock(&inner.state).resolution_closure_error()),
+                }
+            }
+        }
+    }
+}
+
+impl DeclarationCheck {
+    async fn resolve(self, resolver: &Resolver) -> Result<Option<ServiceKey>> {
+        let key = &self.flight.record.attempt.service;
+        let class = self
+            .classes
+            .class(key)
+            .ok_or_else(|| resolver.missing_service(key))?;
+        let selection = tokio::select! {
+            biased;
+            () = self.flight.invalidated() => return Ok(None),
+            selection = self.select(resolver, &class.binds) => selection,
+        };
+        let concrete = match selection {
+            Ok(Some(concrete)) => concrete,
+            selection => {
+                let mut state = lock(&self.flight.inner.state);
+                resolver.check_open(&state)?;
+                if !self.flight.record.is_current(&state) {
+                    return Ok(None);
+                }
+                if selection.is_err() || !self.conditional {
+                    state.checked_binding_declarations.insert(key.clone());
+                }
+                return selection.map(|_| Some(key.clone()));
+            }
+        };
+        let container = Container {
+            inner: Arc::clone(&self.flight.inner),
+        };
+        let binding = ClassFactory::binding_erased(
+            &self.classes,
+            key,
+            concrete,
+            Lifetime::Bind,
+            key.clone(),
+            class.output,
+        );
         let (_, rebound) = container.commit_binding_change_when(
-            aliases.terminal.clone(),
+            key.clone(),
             BindingChange::Factory(binding),
-            |state, key| {
+            |state, _| {
                 resolver.check_open(state)?;
-                Ok(state.binding_environment.as_ref() == Some(&environment)
-                    && state.aliases.accepts(&aliases)
-                    && state.can_discover_environment_binding(key, resolver.parameters.is_some())
-                    && resolver
-                        .active_consumer_frame()
-                        .is_none_or(|(consumer, _)| {
-                            state.contextual_implementation(consumer, key).is_none()
-                        }))
+                Ok(self.flight.record.is_current(state))
             },
         )?;
+        // 工厂已经发布，重绑回调可直接解析同一服务，不必等待声明求值。
+        drop(self);
         if let Some(rebound) = rebound {
             rebound.dispatch().await?;
         }
-        Ok(())
+        Ok(None)
+    }
+
+    async fn select(
+        &self,
+        resolver: &Resolver,
+        declarations: &[BindingDeclaration],
+    ) -> Result<Option<ServiceKey>> {
+        let mut fallback = None;
+        for declaration in declarations {
+            match declaration {
+                BindingDeclaration::Environment(bind) => {
+                    let Some(environment) = &self.flight.record.environment else {
+                        continue;
+                    };
+                    if bind.environments().is_empty() {
+                        return Err(container_error(
+                            "container_bind_environment_empty",
+                            "环境绑定至少需要一个有效环境",
+                        ));
+                    }
+                    if bind.is_fallback() {
+                        fallback.get_or_insert_with(|| bind.concrete().clone());
+                    } else if bind.matches(environment) {
+                        return Ok(Some(bind.concrete().clone()));
+                    }
+                }
+                BindingDeclaration::Conditional(bind) => {
+                    let mut child = resolver.clone();
+                    let active = &self.flight.active;
+                    let attempt = &self.flight.record.attempt;
+                    child
+                        .binding_checks
+                        .push((attempt.service.clone(), Arc::clone(active)));
+                    child.constructing = Some((attempt.id, Arc::clone(active)));
+                    let callback = callback_future(
+                        resolver.callback_disposal(),
+                        bind.condition(),
+                        child,
+                        Ok(()),
+                        None,
+                        |condition, resolver, ()| (condition.0)(resolver),
+                    );
+                    let matched = tokio::select! {
+                        biased;
+                        () = self.termination.wait_closed() => Err(container_error("container_closed", "容器已关闭")),
+                        () = resolver.closed.wait_closed() => Err(lock(&self.flight.inner.state).resolution_closure_error()),
+                        result = callback => result,
+                    }?;
+                    if matched {
+                        return Ok(Some(bind.concrete().clone()));
+                    }
+                }
+            }
+        }
+        Ok(fallback)
     }
 }
 
 impl State {
-    fn can_discover_environment_binding(&self, key: &ServiceKey, with_parameters: bool) -> bool {
+    fn listen_for_binding_change(&self) -> std::pin::Pin<Box<tokio::sync::futures::OwnedNotified>> {
+        let mut changed = Box::pin(Arc::clone(&self.binding_changes).notified_owned());
+        changed.as_mut().enable();
+        changed
+    }
+
+    fn can_discover_binding(&self, key: &ServiceKey, with_parameters: bool) -> bool {
         !self.aliases.contains(key)
-            && !self.checked_environment_bindings.contains(key)
+            && !self.checked_binding_declarations.contains(key)
             && self
                 .bindings
                 .get(key)
                 .is_none_or(|binding| with_parameters && binding.factory.is_none())
     }
+}
 
-    pub(super) fn discover_environment_binding(
-        &mut self,
+impl Resolver {
+    pub(super) fn begin_binding_discovery(
+        &self,
+        inner: &Arc<Inner>,
+        state: &mut State,
         requested: &ServiceKey,
-        resolver: &Resolver,
         pinned: bool,
-    ) -> Result<Option<DeclaredBinding>> {
-        resolver.check_open(self)?;
-        let Some(environment) = &self.binding_environment else {
-            return Ok(None);
-        };
-        let aliases = self
+        checked: Option<&ServiceKey>,
+    ) -> Result<Option<BindingDiscovery>> {
+        self.check_open(state)?;
+        let aliases = state
             .aliases
-            .lookup_witness(&self.classes.canonical_key(requested), pinned)?;
+            .lookup_witness(&state.classes.canonical_key(requested), pinned)?;
         let key = &aliases.terminal;
-        if !self.can_discover_environment_binding(key, resolver.parameters.is_some()) {
+        if checked == Some(key)
+            || !state.can_discover_binding(key, self.parameters.is_some())
+            || self
+                .binding_checks
+                .iter()
+                .any(|(service, active)| service == key && active.load(Ordering::Acquire))
+        {
             return Ok(None);
         }
-        let Some(class) = self.classes.class(key) else {
+        let Some(class) = state.classes.class(key) else {
             return Ok(None);
         };
-        if class.binds.is_empty() {
+        let conditional = class
+            .binds
+            .iter()
+            .any(|bind| matches!(bind, BindingDeclaration::Conditional(_)));
+        if class.binds.is_empty() || (!conditional && state.binding_environment.is_none()) {
             return Ok(None);
         }
-        let mut fallback = None;
-        let mut concrete = None;
-        for bind in &class.binds {
-            if bind.environments().is_empty() {
-                self.checked_environment_bindings.insert(key.clone());
-                return Err(container_error(
-                    "container_bind_environment_empty",
-                    "环境绑定至少需要一个有效环境",
-                ));
-            }
-            if bind.is_fallback() {
-                fallback = fallback.or(Some(bind.concrete()));
-            } else if bind.matches(environment) {
-                concrete = Some(bind.concrete());
-                break;
-            }
+        if let Some(flight) = state.binding_discoveries.get(key).cloned()
+            && flight.is_current(state)
+        {
+            let edge = self.wait_edge(inner, state, &flight.attempt)?;
+            return Ok(Some(BindingDiscovery::Wait {
+                flight,
+                aliases,
+                edge,
+            }));
         }
-        let Some(concrete) = concrete.or(fallback) else {
-            self.checked_environment_bindings.insert(key.clone());
-            return Ok(None);
-        };
-        let binding = ClassFactory::binding_erased(
-            &self.classes,
-            key,
-            concrete.clone(),
-            Lifetime::Bind,
-            key.clone(),
-            class.output,
-        );
-        Ok(Some(DeclaredBinding {
+        let record = Arc::new(InFlightBinding {
+            attempt: Attempt {
+                id: state.id()?,
+                service: key.clone(),
+                outcome: std::sync::Mutex::new(None),
+                changed: tokio::sync::Notify::new(),
+            },
             aliases,
-            environment: environment.clone(),
-            binding,
-        }))
+            environment: state.binding_environment.clone(),
+            closed: Arc::clone(&self.closed),
+            consumer: self.active_consumer_frame().cloned(),
+            with_parameters: self.parameters.is_some(),
+        });
+        let edge = self.wait_edge(inner, state, &record.attempt)?;
+        state
+            .binding_discoveries
+            .insert(record.attempt.service.clone(), Arc::clone(&record));
+        let flight = DiscoveryFlight {
+            inner: Arc::clone(inner),
+            record,
+            active: Arc::new(AtomicBool::new(true)),
+        };
+        Ok(Some(BindingDiscovery::Owner(DeclarationCheck {
+            flight,
+            classes: Arc::clone(&state.classes),
+            termination: Arc::clone(&state.termination),
+            conditional,
+            _edge: edge,
+        })))
     }
 }
 

@@ -507,6 +507,9 @@ impl Container {
         let revision = state.next_source_revision()?;
         state.aliases.insert_at(target, alias, revision);
         state.next_generation = revision;
+        let changes = Arc::clone(&state.binding_changes);
+        drop(state);
+        changes.notify_waiters();
         Ok(())
     }
 

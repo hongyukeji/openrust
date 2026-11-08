@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 容器支持与环境 `Bind` 按声明顺序执行的异步 `BindWhen` 条件。
 - 容器支持按应用环境惰性登记 `Bind` 类绑定。
 - 默认应用按作用域提供日志 Context，并支持构造属性与独立的日志 `extra` 字段。
 - 根应用与生成项目默认同进程启动 Web、已配置的队列和调度，并保留独立角色命令。

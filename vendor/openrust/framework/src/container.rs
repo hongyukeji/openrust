@@ -471,7 +471,9 @@ struct RootRawClose {
 struct State {
     bindings: HashMap<ServiceKey, Binding>,
     binding_environment: Option<Environment>,
-    checked_environment_bindings: HashSet<ServiceKey>,
+    checked_binding_declarations: HashSet<ServiceKey>,
+    binding_discoveries: HashMap<ServiceKey, Arc<class_binding::InFlightBinding>>,
+    binding_changes: Arc<Notify>,
     binding_order: Vec<ServiceKey>,
     resolved_history: HashSet<ServiceKey>,
     aliases: directory::AliasState,
@@ -820,7 +822,7 @@ impl Container {
         change: BindingChange,
         admit: impl FnOnce(&State, &ServiceKey) -> Result<bool>,
     ) -> Result<(directory::RegistrationOutcome, Option<Rebound>)> {
-        let (previous, removed, operations, event) = {
+        let (previous, removed, operations, event, binding_changes) = {
             let mut state = lock(&self.inner.state);
             if state.terminated {
                 return Err(container_error("container_closed", "容器已关闭"));
@@ -902,8 +904,15 @@ impl Container {
                 Some(binding) => state.bindings.insert(service, binding),
                 None => state.bindings.remove(&service),
             };
-            (previous, removed, operations, event)
+            (
+                previous,
+                removed,
+                operations,
+                event,
+                Arc::clone(&state.binding_changes),
+            )
         };
+        binding_changes.notify_waiters();
         for operation in &operations {
             operation.release();
         }
@@ -919,7 +928,12 @@ impl Container {
         if state.terminated {
             return Err(container_error("container_closed", "容器已关闭"));
         }
-        state.binding_environment = Some(environment);
+        if state.binding_environment.as_ref() != Some(&environment) {
+            state.binding_environment = Some(environment);
+            let changes = Arc::clone(&state.binding_changes);
+            drop(state);
+            changes.notify_waiters();
+        }
         Ok(())
     }
 
@@ -1378,6 +1392,7 @@ impl Container {
             previous_parameters: None,
             build_consumer: None,
             class_builds: Vec::new(),
+            binding_checks: Vec::new(),
             factory_parameters: Arc::new(FactoryParameters::empty()),
             factory_completion: None,
         }
@@ -1701,6 +1716,7 @@ pub struct Resolver {
     previous_parameters: Option<ParameterView>,
     build_consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
     class_builds: Vec<ClassBuildFrame>,
+    binding_checks: Vec<(ServiceKey, Arc<AtomicBool>)>,
     factory_parameters: Arc<FactoryParameters>,
     factory_completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
 }
@@ -2053,6 +2069,7 @@ impl Resolver {
         pinned: Option<&ServiceKey>,
     ) -> Result<std::ops::ControlFlow<Value, BindingSource>> {
         let requested = pinned.unwrap_or_else(|| request.lookup_key());
+        let mut checked = None;
         loop {
             use descriptor_source::ConstructionSource;
             let choice = 'select: {
@@ -2064,8 +2081,13 @@ impl Resolver {
                 };
                 if contextual.is_none()
                     && expected.is_none()
-                    && let Some(declared) =
-                        state.discover_environment_binding(requested, self, pinned.is_some())?
+                    && let Some(declared) = self.begin_binding_discovery(
+                        inner,
+                        &mut state,
+                        requested,
+                        pinned.is_some(),
+                        checked.as_ref(),
+                    )?
                 {
                     break 'select std::ops::ControlFlow::Break(declared);
                 }
@@ -2088,10 +2110,7 @@ impl Resolver {
             let source = match choice {
                 std::ops::ControlFlow::Continue(source) => source,
                 std::ops::ControlFlow::Break(declared) => {
-                    let container = Container {
-                        inner: Arc::clone(inner),
-                    };
-                    declared.install(&container, self).await?;
+                    checked = declared.resolve(inner, self).await?;
                     continue;
                 }
             };
@@ -3939,3 +3958,7 @@ mod selection_tests;
 #[cfg(test)]
 #[path = "../tests/unit/container/environment_binding.rs"]
 mod environment_binding_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/container/conditional_binding.rs"]
+mod conditional_binding_tests;

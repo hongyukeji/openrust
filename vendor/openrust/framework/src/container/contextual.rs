@@ -168,9 +168,14 @@ impl<'a> ContextualBindingBuilder<'a> {
                 if let ContextualNeed::Service(key) = &mut need {
                     *key = state.aliases.resolve(&state.classes.canonical_key(key))?;
                 }
-                state
-                    .contextual
-                    .replace(self.consumers, &need, implementation.as_ref())
+                let retired =
+                    state
+                        .contextual
+                        .replace(self.consumers, &need, implementation.as_ref());
+                let changes = Arc::clone(&state.binding_changes);
+                drop(state);
+                changes.notify_waiters();
+                retired
             }
         };
         // 被替换的闭包和值可以重入容器，须在 State 锁释放后退役。

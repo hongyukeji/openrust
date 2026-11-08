@@ -1,5 +1,6 @@
 //! 编译类目录与构造参数。Resolver 负责依赖选择、求值、所有权和发布。
 pub use self::php_scalar::{PhpBytes, PhpIntBool, PhpStringable, PhpTarget, ScalarDiagnostic};
+use super::attributes::{Bind, BindWhen, BindingDeclaration};
 use super::class_identity::{ClassIdentities, ClassIdentity};
 use super::class_projection::ClassProjection;
 use super::parameters::ParameterValue;
@@ -440,7 +441,7 @@ pub struct ClassDescriptor {
     constructor: Option<Constructor>,
     projections: Vec<ClassProjection>,
     attributes: Vec<ClassAttribute>,
-    binds: Vec<super::attributes::Bind>,
+    binds: Vec<BindingDeclaration>,
 }
 impl ClassDescriptor {
     fn declare<T: ?Sized + 'static>(
@@ -523,8 +524,15 @@ impl ClassDescriptor {
 
     /// 附加一条环境绑定声明，首次解析按声明顺序选择实现。
     #[must_use]
-    pub fn with_bind(mut self, bind: super::attributes::Bind) -> Self {
-        self.binds.push(bind);
+    pub fn with_bind(mut self, bind: Bind) -> Self {
+        self.binds.push(BindingDeclaration::Environment(bind));
+        self
+    }
+
+    /// 附加一条条件绑定声明，与环境绑定共用同一声明顺序。
+    #[must_use]
+    pub fn with_bind_when(mut self, bind: BindWhen) -> Self {
+        self.binds.push(BindingDeclaration::Conditional(bind));
         self
     }
 }
@@ -532,7 +540,7 @@ impl ClassDescriptor {
 pub(super) struct ClassRecord {
     key: ServiceKey,
     pub(super) output: TypeId,
-    pub(super) binds: Vec<super::attributes::Bind>,
+    pub(super) binds: Vec<BindingDeclaration>,
     kind: ClassKind,
     constructor: Option<Constructor>,
     projections: HashMap<ServiceKey, ClassProjection>,
@@ -685,7 +693,12 @@ impl ClassRegistry {
     }
 
     pub(super) fn has_environment_bindings(&self) -> bool {
-        self.by_type.values().any(|class| !class.binds.is_empty())
+        self.by_type.values().any(|class| {
+            class
+                .binds
+                .iter()
+                .any(|bind| matches!(bind, BindingDeclaration::Environment(_)))
+        })
     }
 
     pub(super) fn class(&self, key: &ServiceKey) -> Option<&ClassRecord> {

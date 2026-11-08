@@ -688,7 +688,8 @@ use figment::{
 use openrust::cache::{Cache, CacheStore};
 use openrust::config::ConfigSources;
 use openrust::container::attributes::{
-    Bind, Cache as CacheAttribute, Config, Context, Give, Log, RequestAttribute, RouteParameter,
+    Bind, BindWhen, Cache as CacheAttribute, Config, Context, Give, Log, RequestAttribute,
+    RouteParameter,
 };
 use openrust::container::{
     AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam, ParameterKey,
@@ -792,7 +793,7 @@ impl EnvironmentGreeting for LocalGreeting {
 }
 
 #[tokio::test]
-async fn generated_application_installs_environment_bind_on_first_use()
+async fn generated_application_installs_conditional_bind_on_first_use()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut config = test_configuration();
     config.app.env = openrust::config::Environment::Local;
@@ -804,7 +805,10 @@ async fn generated_application_installs_environment_bind_on_first_use()
         openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
     builder.class_descriptors([
         ClassDescriptor::interface::<dyn EnvironmentGreeting>("App/EnvironmentGreeting")
-            .with_bind(Bind::for_environments(ServiceKey::typed::<LocalGreeting>(), ["local"])),
+            .with_bind(Bind::for_environments(ServiceKey::typed::<LocalGreeting>(), ["testing"]))
+            .with_bind_when(BindWhen::new(ServiceKey::typed::<LocalGreeting>(), |resolver| async move {
+                Ok(resolver.section::<openrust::config::AppConfig>("app")?.env.is_local())
+            })),
         ClassDescriptor::concrete::<LocalGreeting>("App/LocalGreeting", vec![], |_| Ok(Arc::new(LocalGreeting)))
             .with_projection(openrust::class_projection!(LocalGreeting => dyn EnvironmentGreeting)),
     ]);

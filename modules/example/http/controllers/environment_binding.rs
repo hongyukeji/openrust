@@ -1,7 +1,8 @@
 //! 展示环境匹配如何在首次解析时选择编译类。
 
-use openrust::container::attributes::Bind;
-use openrust::container::{ClassDescriptor, ServiceKey};
+use openrust::config::AppConfig;
+use openrust::container::attributes::{Bind, BindWhen};
+use openrust::container::{ClassDescriptor, Resolver, ServiceKey};
 use openrust::core::ApiResponse;
 use openrust::http::Inject;
 use std::sync::Arc;
@@ -26,10 +27,24 @@ impl EnvironmentBinding for TestingBinding {
     }
 }
 
-pub(crate) fn descriptors() -> [ClassDescriptor; 3] {
+struct ConditionalBinding;
+
+impl EnvironmentBinding for ConditionalBinding {
+    fn implementation(&self) -> &'static str {
+        "conditional"
+    }
+}
+
+pub(crate) fn descriptors() -> [ClassDescriptor; 4] {
     [
         ClassDescriptor::interface::<dyn EnvironmentBinding>("Modules/Example/EnvironmentBinding")
             .with_bind(Bind::new(ServiceKey::typed::<DefaultBinding>()))
+            .with_bind_when(BindWhen::new(
+                ServiceKey::typed::<ConditionalBinding>(),
+                |resolver: Resolver| async move {
+                    Ok(resolver.section::<AppConfig>("app")?.env.as_str() == "conditional")
+                },
+            ))
             .with_bind(Bind::for_environments(
                 ServiceKey::typed::<TestingBinding>(),
                 ["testing"],
@@ -46,6 +61,12 @@ pub(crate) fn descriptors() -> [ClassDescriptor; 3] {
             |_| Ok(Arc::new(TestingBinding)),
         )
         .with_projection(openrust::class_projection!(TestingBinding => dyn EnvironmentBinding)),
+        ClassDescriptor::concrete::<ConditionalBinding>(
+            "Modules/Example/EnvironmentBindingConditional",
+            vec![],
+            |_| Ok(Arc::new(ConditionalBinding)),
+        )
+        .with_projection(openrust::class_projection!(ConditionalBinding => dyn EnvironmentBinding)),
     ]
 }
 
