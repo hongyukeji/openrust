@@ -12,7 +12,7 @@
 
 收到需求、审计或回执先判定补充/纠正/明确替代；未明确取消的原任务继续有效，重复内容合并、过期结论标明替代关系。每次处理消息后恢复原owner停点，记录范围、实际状态、下一动作与未闭合验证/提交/清理；切簇、压缩恢复和最终提交前核唯一todo，不用最新聊天或已派发代替完成证据。仅源码、匹配验证、本地提交与必要资源交接齐备才关闭对应范围；已编码待验、已提交未集成、外部缺口分别保留。全量审计归并本页/既有矩阵，不覆盖已确认后继、不新建平行队列。
 
-本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留；构建产物合计80GB软/100GB硬、磁盘剩余8%软/5%硬，取更严格条件。
+本轮最新顺序：先收齐当前已在途 main 组合源码、调用方、模板、唯一示例和说明，冻结后一次集中适用验收，修复失败并通过后本地提交；不再追加新簇延长本批，也不以全计划最后测试无限推迟提交。随后处理今日尚未吸收的整改，再按 ADR-001 持续推进。未验证源码保持 WIP，旧证据不冒充本批通过；默认20%额度保留；构建产物合计 40 GB 软告警、50 GB 硬上限。磁盘可用空间 5% 软告警、3% 硬停线，取更严格条件。
 
 后续默认同一 OpenRust 项目、同一 main 物理工作目录，多个对话框或 workspace 标签页按不重叠文件分工；不再默认创建任务分支/worktree。产品不支持共享目录标签页时复用既有 main workspace 的多个对话框，不新建源码副本或修改内部数据库。同文件串行交接，公共 API 先收敛；manifest/lock、共享文档、Git索引/MERGE/提交、target/Cargo和真实服务由总控唯一调度。冻结受验文件禁止并发修改。
 
@@ -173,7 +173,7 @@ owner=root统一contract、Cargo/lock、迁移、共享文档、索引、构建�
 - 组合：新calamine0.38输入833项的final-gates-2十项全部通过：严格全特性Clippy、全特性workspace2272/0/124、默认/全特性warnings-denied文档、deny、CLI构建、三精简feature和MSRV1.97。默认1339/0/40证据按未变路径限定复用；最新模板修复在此输入之后，须补验CLI与fresh，不宣称旧快照覆盖新模板。
 - 最低SQLite：真实3.26.0动态库执行remember迁移标准up/down/up通过30断言（sqlite326.log），含数据/索引/FK/完整性与自有库/锁清理；当前3.51.3旧28断言按输入单列。
 - fresh：新输入r7-freeze-template-source-3.json在fresh-r7-5四类sqlite-auth/sqlite-mfa/mysql-mfa/postgres-auth实际new/check/test十二命令全部0，每类3测试、0跳过、双库差异0。生成测试漏Application::config、装饰器漏Guard元数据转发、Global profile导致fixture lottery覆盖失效均仅修测试模板；旧失败副本/日志保留，未降生产failclosed。CLI39测试、严格Clippy、fmt及更新后的正式快照均通过；输入/日志SHA见template-source-final-evidence.json，尚待consumer与最终独审。
-- 资源/服务：旧受验target经dry-run及Cargo原生锁正常clean；当前受控使用根target、fresh共享target及最低SQLite probe target；总量按实际du核算。专属Keycloak容器、管理trigger进程及管理员凭据已清理；共享MySQL/PG/Redis、源/证据/依赖源码保留。新target前按50GB软/100GB硬与磁盘10%/5%预算估算，源码不随缓存清理。
+- 资源/服务：旧受验target经dry-run及Cargo原生锁正常clean；当前受控使用根target、fresh共享target及最低SQLite probe target；总量按实际du核算。专属Keycloak容器、管理trigger进程及管理员凭据已清理；共享MySQL/PG/Redis、源/证据/依赖源码保留。该阶段估算采用 50 GB / 100 GB 和 10% / 5%，后续新 target 按现行预算预检，源码不随缓存清理。
 
 R7上述门禁为已提交5ad34b9的限定历史基线；不再重启旧R7冻结/生成批次。Fortify当前新源码、测试与安全优先停点以本页「当前批次与Fortify优先例外」为准，旧Guard证据不覆盖新行为。
 
@@ -422,7 +422,7 @@ B003/T03后继实例快照整改已按上节限定验收；旧7f60560热读证�
 ### 上轮收尾执行窗口（已完成）
 
 - main Provider/S-DV源码与集中验证已收口，本轮仅同步Agent事实文档；ST-V main门禁、真实尾链和确认归属的产物清理均已结束；旧owner与分支已安全退役，后续新阶段仍须独立预检资源。
-- ST-V默认945/34 ignored与全特性1756/111 ignored、双严格Clippy/docs、MSRV、deny、公开consumer及真实MySQL/生成/TCP已有本次main证据；真实S3 ACL、迟到CopyObject与`throw=false`继续开放。50GB/10%软与100GB/5%硬阈值、未知缓存归属保护不变。
+- ST-V默认945/34 ignored与全特性1756/111 ignored、双严格Clippy/docs、MSRV、deny、公开consumer及真实MySQL/生成/TCP已有本次main证据；真实S3 ACL、迟到CopyObject与`throw=false`继续开放。当时阈值为 50 GB / 10% 软、100 GB / 5% 硬，后续按现行规范并保护未知缓存。
 - 本次清理回执`/tmp/openrust-stv-main-cleanup/receipt.json`：根target已正常`cargo clean` exit0，登记3个现存target合计67,485,491,200B→65,982,464B，磁盘可用126,622,199,808B→193,684,373,504B。小生成源码与166个文件哈希保留，外置65,982,464B归属不足未删；两guard工作区和服务/数据库卷未碰。
 
 ### 本轮组合产物回收（已完成）
@@ -433,7 +433,7 @@ B003/T03后继实例快照整改已按上节限定验收；旧7f60560热读证�
 
 - 资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 独占清理窗口，driver先保存；root已通知S-DV/ST-V/driver禁止新增构建，源码修复与caller迁移继续。root当次核cargo/rustc/rustdoc均无进程；main与两历史target顶层为标准Cargo结构、非symlink。owner已按锁/占用/归属复核后集中清理，非仅几百MB精准删。
 - 清单基于既有resource_paths、main/worktree/consumer与外置目标去重；共享main target获准完整清后按需重建，未知root-site/M5集中核一次来源后明确清/留理由，不盲删、不无限搁置。保护未合分支源码/WIP、依赖源码、PHP来源、数据库/卷与证据。现已完整清13个确认OpenRust target（含主target、root-site/M5及consumer），逐项实测共93,855,621,120B产物归零，登记剩余Cargo缓存65,982,464B；磁盘可用约101.17→193.60GB。PHP参考源码/证据244.76MB单列保留，不算Cargo cache。回执 `/tmp/openrust-concentrated-cache-retirement/RESULT.json`；root实核13路径已无、caller冻结35文件无漂移。auth-pg一项第二轮同basename覆盖两份原始日志，原预期SHA/退出码/字节记录保留且明确不可恢复；其余24份日志SHA核对一致。原失败ROOT-AUDIT及RESULT.log_integrity_audit保留，不改expected hash或重跑伪造历史。
-- 下一唯一构建目录 `/Users/Home/Codes/Rust/openrust/target`；该S-DV重建窗口属历史阶段，现S-DV已完成main组合并安全退役；当前target归属以本页收尾窗口和ST-V owner实际交接为准。跨簇只留下一已安排步骤明确需要的一份缓存，不为历史feature持续堆积；50GB软/100GB硬不变。
+- 下一唯一构建目录 `/Users/Home/Codes/Rust/openrust/target`；该S-DV重建窗口属历史阶段，现S-DV已完成main组合并安全退役；当前target归属以本页收尾窗口和ST-V owner实际交接为准。跨簇只留下一已安排步骤明确需要的一份缓存，不为历史feature持续堆积；当时采用 50 GB / 100 GB，后续按现行规范。
 
 执行节奏：先按依赖完成全部已授权源码及配套调用方、示例、模板和测试代码，ready_for_verify仅登记待最终统一验收，不逐簇启动常规验证；最终通过前不提交交付。不得继续按每个方法/小改动重复跑测试或Clippy；当前在途命令自然结束，已有有效证据按实际影响复用，规则见[集中验证](conventions.md#功能簇提交前集中验证)。
 
@@ -570,7 +570,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 默认workspace check已实际exit0（140.593秒），前后50SHA无漂移；默认feature仅cache-redis，不证明Session gated源码通过。核心3并发/预算blocker、caller原对象读取及Cookie未排响应/old_or断言均已静态闭合，36 caller最终清单 `/tmp/openrust-session-data-values-callers-ready-final.json`。
 - 严格Clippy已通过；lib首次557通过/2失败已修，第二次559通过/1失败，剩同句柄并发named errors误报busy。同步准入方案独审发现跨线程析构join死锁；已按真实PHP5案与回收顺序Spec完成state.rs整批修复：先释放Operation再析构候选/旧树/输入，成功回调写入保留，失败候选原子回滚，原并发与投影busy断言不弱化。当前仅静态通过，不宣称运行时修复；terra原reviewer已静态复审无blocker（`/tmp/openrust-session-data-values-retirement-independent-review.md`），unwind/返回值及真实I/O取消/poison保留后续验证缺口。原attempt3/4失败保留；attempt5第三次lib已563通过/0失败/0忽略，50输入无漂移；HTTP首轮5项configuration_error已定位并补Provider封闭schema serializer；attempt7严格Clippy通过、HTTP五target共82项全过、模块session_flows8项通过，consumer5项/CLI精确快照1项也通过，attempt7链全部通过。服务链在session+auth+db-mysql严格Clippy因account_security Density→DataValue漏迁移停止，生成/MySQL/TCP未运行；原caller已补公开put_typed写入，旧36caller无漂移，root核新增37th caller；新458输入attempt2服务driver已通过：普通生成check/test7项、MySQL生成check与真实auth2项无skip，状态passed_with_root_tcp_pending；根server新构建已过；首次TCP在启动前因freeze漏modules_statuses.json失败，未发业务请求；root补459输入后build成功，TCP第二次在ready前退出；静态定位runner误用未合R03的领域相对格式，第3次TCP六业务步骤全过且SIGINT exit0，但即时端口重绑失败，总结果仍failed；用户已明确授权先受控socket探针核重用选项再单次严格重验，受控probe已复现plain bind失败/reuseaddr成功并拒绝活监听，root差异复核候选不改六业务断言；此为候选解释非历史唯一根因。新真实buildreceipt绑定runtime-final459，用户获准单次TCP已passed6/6、SIGINT exit0、无残留、重绑1次0.558秒成功；原三失败保留。allfeatures check另暴露runtime.rs四标量调用已显式Into修复，旧37caller无漂移；allfeature第二次又定位database.rs三标量，caller连同Keycloak三处同批修完且其余36caller无漂移；新459最终feature freeze后第3次allfeature类型检查与严格Clippy已过，服务owner续组合lib/view/MySQL/条件Redis批次，失败停，TCP证据按生产未变范围复用，不重跑已过服务driver，core冻结。caller未降断言；schema与测试lint差异分别绑定新freeze。证据 `/tmp/openrust-session-data-values-attempt5-verify-manifest.json`。
 - 分支最终459输入及运行失败历史保留于 `/tmp/openrust-session-data-values-final-feature-freeze.json` 等原证据；Session对象身份/native拒绝/JSON显式投影与caller迁移已在三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 的组合门禁重新验证。原MySQL认证/迁移与上游超时失败及后续定向修复不回填旧回执；main最终默认943/全特性1748、真实MySQL/TCP与consumer/生成证据见[最终记录](memory/testing.md#r2-p-s-dv-main-limited)。源worktree/branch已安全退役（`/tmp/openrust-session-data-values-safe-retirement.json`），完整Session/Web仍开放。
-- 资源：只在已清理的 `/Users/Home/Codes/Rust/openrust/target` 按需重建，jobs2；不占端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
+- 资源：只在已清理的 `/Users/Home/Codes/Rust/openrust/target` 按需重建，jobs2；不占端口/库。构建前重测所有登记缓存和预计增量。当时采用 50 GB / 100 GB 和 10% / 5%，后续按现行规范；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
 
 ## R2-P Provider 完整注册生命周期（main限定组合已交付）
 
@@ -583,7 +583,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 生成首轮view遗漏await已修；第二轮确认共享target旧CLI复用，未误改正确异步模板。attempt3 `/tmp/openrust-r2p-generated-acceptance-attempt3/` 实际强制重编当前CLI并绑定97输入，13阶段通过：普通生成/Provider/TCP/公开fixture、MySQL认证2项无skip；root独立SQL审计前后61库集合摘要一致。前两轮失败保留。其后Cookie生产修复已用保留生成项目补验3项plain及2项真实MySQL auth具名测试，均通过/无skip，97源与生成锁无漂移、前后61库集合一致。`/tmp/openrust-r2p-cookie-generated-supplement/result.json` 与root五日志核验留证，不重跑未受影响生成/CLI/Marker TCP。
 - Cookie当前节读取改has(session)，保留已解析singleton快照；固定PHP真实CookieServiceProvider探针确认早解析不热建，新增身份回归后cookie9、默认workspace lib/tests862、全feature1650/68ignored、doctest22/34ignored及24/40ignored、双warnings-denied docs、no-default/MSRV/deny均有新回执。`/tmp/openrust-r2p-cookie-matrix-handoff.json` 关联10日志，root逐哈希核对全匹配；ignored不计真实服务，严格Clippy按用户授权单次重验通过；本行数字仍只属分支证据，main新结果见顶部组合记录。
 - 资源补验中的unregistered_count79已确证是对unknown字符串按字符计数，不是79target，原result保留且resource-audit.md纠正；限定main/worktree/tmp扫描无新增target，登记15路径约94.30GB仍为覆盖有界的小计。P补验已收尾8个确证自有测试二进制，释放379,628,016B；root逐项核缺失状态、来源/.d/日志SHA，97源与224保护项由owner前后核不变，生成源码/锁/证据/共享依赖保留，回执 `/tmp/openrust-r2p-generated-cleanup/result.json` 和root-audit.json。
-- 分支当时owner回执主target76,380,396KiB、磁盘可用101.3GB；其他登记target仍需合计，不能冒称全量已核。后续构建均重新预检合计及预计增长，50GB/10%仅软告警、100GB/5%硬线保持；未知缓存不清。派发/停止ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard、不推送、不提前退役未合分支。
+- 分支当时owner回执主target76,380,396KiB、磁盘可用101.3GB；其他登记target仍需合计，不能冒称全量已核。后续构建按现行规范预检合计与预计增长。当时采用 50 GB / 10% 软、100 GB / 5% 硬；未知缓存不清。派发/停止ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard、不推送、不提前退役未合分支。
 
 ## R2-CC 配置缓存家族（分支提交7be446d；main组合见本页顶部）
 
@@ -898,7 +898,7 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 
 ### 当前构建缓存与回收
 
-- 全项目十进制50GB软/100GB硬与磁盘10%/5%保护；D9验收结束样本49.344GB、空闲约17.04%，12个去重target。下次构建前重测并按实际输入估增长，不把100GB当剩余可用量。
+- D9 当时采用十进制 50 GB / 100 GB 和磁盘 10% / 5%，后续按现行规范；D9验收结束样本49.344GB、空闲约17.04%，12个去重target。下次构建前重测并按实际输入估增长，不把100GB当剩余可用量。
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
@@ -922,7 +922,7 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 两种feature组合的新单入口41项均已实跑通过，首次/暖缓存名单与原26+15精确映射，extensions仅增加模块前缀；集中workspace门禁均已通过，限定提交见Git。
 - 集中验收覆盖全部41个用例的前后名字映射、session-only/all-features及适用workspace门禁；生产/模板/后端未变的H证据须明确输入影响后才能复用，不冒称新服务测试。
 - 审计依据 `/tmp/openrust-test-entry-pilot-audit.md`；真实计时、删并理由、保留隔离、门禁及资源写入本节/测试记录后限定提交，本试点已验收，完整范围及计时限制见testing。
-- 本地免费执行器只读目录查询失败：默认49374端口被占，显式连接亦无兼容V2 health（502）；未改端口/服务/系统配置，按当前可用能力回退 `gpt-6-sol` medium执行此局部已定任务。全项目缓存50GB软/100GB硬、磁盘10%/5%，共享main缓存保留。
+- 本地免费执行器只读目录查询失败：默认49374端口被占，显式连接亦无兼容V2 health（502）；未改端口/服务/系统配置，按当前可用能力回退 `gpt-6-sol` medium执行此局部已定任务。当时采用 50 GB / 100 GB 和磁盘 10% / 5%，共享 main 缓存保留。
 
 ## R2-R01 核心配置运行期原始写入（限定验收完成，本地提交见Git）
 
@@ -943,7 +943,7 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 最终源码绑定566项、门禁19项，root另核25项范围输入；stage2 attempt4 RESULT SHA `c4166e03738c4e506f25c7df9617c371613c6f76551373cb21f051b45e7a267b`。服务驱动v4独审与自有子进程夹具通过，PLAN已ready；只按root逐阶段核回执启动，静态审不代替运行。
 - 普通fresh生成原7项+fixture1项通过，真实TCP已验证生产reader.toml的z_label/a_label声明顺序与GET→POST→GET、exit0及43188释放。回执在`/tmp/openrust-config-source-order-services/`；plain-result SHA `1cfc318371e633428248efe00a1807024f8e7f834e22151005bde4492e0f6c06`，plain-tcp-result SHA `a29731630a2bf6e29e4d5cb486b553daf6f77d0f06d61c24cb3a2468bcc93f38`。
 - 测试专属18文件已回收155316224B；postflight空列表误调用lsof的读取器失败保留，root及独立后验核96保护/42生成/566源码一致。plain包剩余产物已退役；MySQL8.4.13 fresh生成fmt/check及2auth HTTP实际通过，测试库集合前后56项一致，root核4命令/44生成输入与保存的脱敏日志SHA，回执mysql-result SHA `0ec3e72db5815ca11a7a777a16d8ce3834221ce05cad170094927a314af7bd9d`。mysql/migration专属包已退役，shared保护/源码不变；root TCP两实例已通过（初始→写后读及第二进程初始值、exit0/端口释放）。最终STAGE3 SHA `887e49d2c4610ce5adec6204ca1debf31e707a18b0424f82cb91ee8af01f08cc`，root核17日志/8清理回执/566源码/42+44生成输入、3PID退出及两端口释放。限定本地提交见Git，不关闭完整Config。
-- 50GB软/100GB硬与磁盘10%/5%保持。保留活跃main缓存，不删无完整归属的root-site/m5-final历史target。一次性生成包须有同名全范围归属/dry-run/保护项证据；不凭Cargo忽略的path/version限定冒称隔离。
+- 该阶段采用 50 GB / 100 GB 和磁盘 10% / 5%，后续按现行规范。保留活跃main缓存，不删无完整归属的root-site/m5-final历史target。一次性生成包须有同名全范围归属/dry-run/保护项证据；不凭Cargo忽略的path/version限定冒称隔离。
 - 完整Config继续开放：平层TOML顺序不等于Laravel递归配置发现或文件名/目录namespace映射，PHP对象/Closure/资源等表示差异亦未关闭；不重建客户端、不以此替代历史决策 080动态Settings或完整signed。
 
 ## R2-ENV 端口与缓存环境命名统一（已提交2187b6b）

@@ -47,7 +47,7 @@
 | R18 | 总控标题改名 | 11-06；U144 | 已完成 | 正式标题OpenRust · 核心开发总控；[plan.md](../plan.md) | — | 对话元数据 |
 | R19 | 删除roasted-spider源码及Codex项目记录 | 11-04；U070,U072,U075 | 已完成（本机索引范围） | 正式项目列表无此项、原路径不存在、两份Codex目录/扫描索引计数均0；[deletion-receipt-1793791901383570000.json](../../../tmp/roasted-spider-catalog-repair/deletion-receipt-1793791901383570000.json) | 手机端UI未现场检查，不能声称移动端缓存也已验 | 项目清理 |
 | R20 | 清理主/测试构建产物 | 11-06；U146,U147 | 已完成多批，持续执行 | AR-P01约7.85GB、AR-M01约14.24GB真实清理及73文件生成归档退役；[AR-P01-RESULT.json](../../../tmp/independent-testing-20261106/AR-P01-RESULT.json)；[AR-M01-RESULT.json](../../../tmp/independent-testing-20261106/AR-M01-RESULT.json) | 没有本轮全路径新水位，历史回收不能证明此刻总量；活跃/必要缓存不可盲删 | 构建产物与临时资源 |
-| R21 | 磁盘和构建产物软硬阈值 | 11-06；U211,U212,U213,U214 | 已落实最终规则 | 最终80GB/8%软、100GB/5%硬已写规范；6%是被最终决定替代的中间值；[conventions.md](../conventions.md) | 当前全路径总量需总控下一资源检查提供，不以旧测量保证未来状态 | 构建产物与临时资源 |
+| R21 | 磁盘和构建产物软硬阈值 | 11-06；U211,U212,U213,U214；11-08 | 以现行规则为准 | 11-08 更新为构建产物 40 GB 软告警、50 GB 硬上限，磁盘可用 5% 软告警、3% 硬停线。[当前规范](../conventions.md#构建产物与临时资源) |
 | R22 | 已验代码及时提交并安全推送 | 11-06；U148,U149,U150 | 已完成多批，持续执行 | 远端main实核501e4a25，与本地HEAD一致，Query/Model/拆包均已有提交；[todo.md](../todo.md)；[testing.md](testing.md) | AR-N01/Passport等未验WIP不能为清空目录而提交；本次文档待交接提交 | Lead唯一索引/推送 |
 | R23 | 尽快完成SQLite支持 | 11-02/11-04/11-05/11-06；U017,U026,U028,U036,U046,U121,U132,U201 | 部分完成 | 20cea6c9/f9e831a5/45a10972/c3ba63b4/5c26fd04分范围已验收；[testing.md](testing.md)；[todo.md](../todo.md) | UPDATE/DELETE join/order/limit、Queue/CacheLock、完整Schema及故障/发布矩阵未闭合 | SQLite并行后继 |
 | R24 | 数据库最低兼容基线与Laravel一致 | 11-06；U203,U204,U205,U207,U209 | 部分完成；发布矩阵后置 | 目标MariaDB10.3/MySQL5.7/PG10/SQLite3.26/SQLServer2017已记录；SQLite最低版多个限定实测；[database-compatibility-baseline.md](../plans/database-compatibility-baseline.md)；[todo.md](../todo.md) | PG14/MySQL8拒绝阈值、MariaDB/SQLServer及旧SQL差异未闭合；发布前完整矩阵尚未执行 | DB-COMPAT |
@@ -102,7 +102,7 @@
 | vendor组织/仓库/子crate多层布局 | 最终Laravel/Composer式publisher/package；不按旧GitHub仓库层级返工 |
 | Modules塞入framework/modules | 独立vendor/openrust/modules/src，应用→扩展→框架 |
 | 每次日常多后端或受影响最低SQLite运行 | 日常仅真实MySQL8.4；全部承诺后端/最低版本运行发布前验证 |
-| 6%磁盘软线或旧50GB/10% | 最终构建产物80GB软/100GB硬，磁盘8%软/5%硬 |
+| 6% 磁盘软线或旧 50 GB / 10% | 11-06 采用 80 GB / 100 GB 与 8% / 5%。11-08 起适用现行 40 GB / 50 GB 与 5% / 3% |
 | 本地只提交不push | 已验有限簇按最新持续授权安全推送并核远端；不force/tag/release |
 | 全部长期使用100%预算 | 完整普通额度只按具体真实授权生命周期；最新基线/20%及历史以正式回执为准，credits=false |
 
