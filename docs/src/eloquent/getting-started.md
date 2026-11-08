@@ -123,6 +123,10 @@ SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象�
 `DataObject::string_projection`。JSON 数组、普通 JSON 对象及无字符串投影的类型拒绝转换。
 自定义对象的 JSON 输出仍由其 JSON 投影决定。
 
+水合的日期值按 `InputDate::to_string_value()` 生成 `Stringable` 文本快照。
+向属性直接赋值 `ModelDate` 时，类缓存保留日期身份，写回按当前字符串格式求值；
+模型数组和 JSON 继续使用日期序列化规则。示例预览的 `published_at_label` 使用此转换。
+
 #### HtmlString 模型属性
 
 使用 `AsHtmlString::cast()` 声明保存 HTML 的文本列。`get_attribute_value`

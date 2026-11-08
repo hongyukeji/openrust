@@ -7,9 +7,9 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AsFluent, AttributeCast,
-            AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, EnumCast,
-            HasMany, HasOne, HasRelationships, Json, LoadedRelation, MassAssignment,
+            ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AsFluent, AsStringable,
+            AttributeCast, AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany,
+            EnumCast, HasMany, HasOne, HasRelationships, Json, LoadedRelation, MassAssignment,
             ModelAttribute, ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys,
             RelationLoad, SaveContext,
         },
@@ -64,10 +64,9 @@ pub(crate) async fn preview(
 ) -> Result<RecordPreview> {
     let attributes = model.attribute_snapshot()?.with_date_context(dates);
     let mut metadata = example_record::Model::attribute_metadata();
-    metadata.casts.insert(
-        "description".into(),
-        openrust::database::eloquent::AsStringable::cast(),
-    );
+    metadata
+        .casts
+        .insert("description".into(), AsStringable::cast());
     metadata.append("is_published");
     attributes.register_attribute(
         "is_published",
@@ -149,11 +148,21 @@ fn published_at_label(attributes: &ModelAttributes, metadata: &ModelMetadata) ->
     let Some(date) = value.as_ref().and_then(AttributeValue::as_date) else {
         return Ok(Value::Null);
     };
-    Ok(Value::String(
-        date.snapshot()?
-            .with_string_format(Some(DateStringFormat::pattern("Y/m/d H:i")))
-            .to_string_value()?,
-    ))
+    let label = date.copy()?.modify(|value| {
+        Ok(value.with_string_format(Some(DateStringFormat::pattern("Y/m/d H:i"))))
+    })?;
+    let projected = ModelAttributes::from_attribute_values(AttributeMap::from_iter([(
+        "published_at".into(),
+        label.into(),
+    )]));
+    let mut label_metadata = ModelMetadata::new(metadata.table.as_str(), "RecordPreviewLabel");
+    label_metadata
+        .casts
+        .insert("published_at".into(), AsStringable::cast());
+    Ok(projected
+        .attributes_to_json(&label_metadata)?
+        .shift_remove("published_at")
+        .unwrap_or(Value::Null))
 }
 
 pub(crate) enum RecordFlag {

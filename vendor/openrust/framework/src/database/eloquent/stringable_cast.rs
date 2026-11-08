@@ -45,8 +45,9 @@ impl ClassCaster for StringableCast {
 fn cast_string(value: &AttributeValue) -> Result<String> {
     match value {
         AttributeValue::Json(value) => return scalar_string(value),
+        AttributeValue::Date(date) => return date.snapshot()?.to_string_value(),
         AttributeValue::Object(object) => object.snapshot()?.string_projection(),
-        AttributeValue::Date(_) | AttributeValue::Enum(_) => None,
+        AttributeValue::Enum(_) => None,
     }
     .ok_or_else(|| Error::custom("model_stringable_conversion", "模型对象未提供字符串转换"))
 }
@@ -54,13 +55,104 @@ fn cast_string(value: &AttributeValue) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::eloquent::{ModelAttributes, ModelMetadata};
+    use crate::{
+        database::eloquent::{ModelAttributes, ModelDate, ModelMetadata},
+        support::{CalendarInstant, DateStringFormat, InputDate, ResolvedTimezone},
+    };
     use serde_json::{Map, json};
 
     fn metadata() -> ModelMetadata {
         let mut metadata = ModelMetadata::new("records", "StringableRecord");
         metadata.casts.insert("text".into(), AsStringable::cast());
         metadata
+    }
+
+    fn date_with_format(format: DateStringFormat) -> Result<ModelDate> {
+        Ok(ModelDate::new(
+            InputDate::new(
+                CalendarInstant::new(1_794_114_000, 123_456)?,
+                ResolvedTimezone::parse("Asia/Shanghai")?,
+            )
+            .with_string_format(Some(format)),
+            false,
+        ))
+    }
+
+    #[tokio::test]
+    async fn stringable_dates_capture_hydrated_text_and_keep_assigned_identity() -> Result<()> {
+        let metadata = metadata();
+        let date = date_with_format(DateStringFormat::pattern("Y/m/d H:i"))?;
+        let attrs = ModelAttributes::from_attribute_values(AttributeMap::from_iter([(
+            "text".into(),
+            date.clone().into(),
+        )]));
+        assert_eq!(
+            attrs.attributes_to_json(&metadata)?["text"],
+            "2026/11/08 13:00"
+        );
+        date.modify(|value| {
+            Ok(value.with_string_format(Some(DateStringFormat::pattern("d-m-Y H:i"))))
+        })?;
+        assert_eq!(
+            attrs.attributes_to_json(&metadata)?["text"],
+            "2026/11/08 13:00"
+        );
+
+        attrs
+            .set_attribute_value(&metadata, "text", date.clone().into())
+            .await?;
+        let typed = attrs.get_attribute_value(&metadata, "text")?;
+        assert!(
+            typed
+                .as_ref()
+                .and_then(AttributeValue::as_date)
+                .is_some_and(|value| value.same_object(&date))
+        );
+        assert_eq!(
+            attrs.raw_attribute("text")?,
+            Some(json!("08-11-2026 13:00"))
+        );
+        let array = attrs.attributes_to_array(&metadata)?;
+        assert_eq!(
+            array["text"].as_json()?,
+            &json!("2026-11-08T05:00:00.123456Z")
+        );
+        assert_eq!(
+            attrs.attributes_to_json(&metadata)?["text"],
+            "2026-11-08T05:00:00.123456Z"
+        );
+        date.modify(|value| {
+            Ok(value.with_string_format(Some(DateStringFormat::pattern("H:i:s.u"))))
+        })?;
+        assert_eq!(attrs.raw_attribute("text")?, Some(json!("13:00:00.123456")));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stringable_rejects_a_failing_date_formatter_before_writing() -> Result<()> {
+        let metadata = metadata();
+        let attrs = ModelAttributes::new(Map::from_iter([("text".into(), json!("previous"))]));
+        let invalid = date_with_format(DateStringFormat::using(|_| {
+            Err(Error::custom("test_date_format_failed", "日期测试格式失败"))
+        }))?;
+        assert!(matches!(
+            attrs.set_attribute_value(&metadata, "text", invalid.clone().into()).await,
+            Err(error) if error.code() == "test_date_format_failed"
+        ));
+        assert_eq!(attrs.raw_attribute("text")?, Some(json!("previous")));
+        attrs.set_raw_attribute_value("text", invalid.into())?;
+        assert!(matches!(
+            attrs.get_attribute_value(&metadata, "text"),
+            Err(error) if error.code() == "test_date_format_failed"
+        ));
+        assert!(
+            attrs
+                .raw_attribute_value("text")?
+                .as_ref()
+                .and_then(AttributeValue::as_date)
+                .is_some()
+        );
+        Ok(())
     }
 
     #[tokio::test]

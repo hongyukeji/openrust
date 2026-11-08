@@ -1300,7 +1300,8 @@ async fn assert_stringable_save(
         .await?
         .ok_or("字符串对象保存后的记录缺失")?;
     assert_eq!(saved.description, "字符串对象");
-    Ok(())
+    assert_class_cast_saves_configured_date(&saved, db, transaction, context, AsStringable::cast())
+        .await
 }
 
 async fn assert_html_string_save(
@@ -1348,28 +1349,27 @@ async fn assert_html_string_save(
     );
     assert_eq!(saved.description, html);
     assert_html_cast_preserves_mysql_raw_types(&saved)?;
-    assert_html_cast_saves_configured_date(&saved, db, transaction, context).await
+    assert_class_cast_saves_configured_date(&saved, db, transaction, context, AsHtmlString::cast())
+        .await
 }
 
-async fn assert_html_cast_saves_configured_date(
+async fn assert_class_cast_saves_configured_date(
     record: &crate::modules::example::models::example_record::Model,
     db: &openrust::Db,
     transaction: &openrust::database::sea_orm::DatabaseTransaction,
     context: &openrust::database::eloquent::SaveContext<'_>,
+    cast: openrust::database::eloquent::AttributeCast,
 ) -> TestResult {
     use crate::modules::example::models::example_record;
     use openrust::{
         database::{
-            eloquent::{AsHtmlString, AttributeValue, save_with_query},
+            eloquent::{AttributeValue, ModelDate, save_with_query},
             sea_orm::EntityTrait,
         },
         support::DateStringFormat,
     };
     let mut model = example_record::RecordForSave::from_existing(record)?;
-    model
-        .metadata
-        .casts
-        .insert("description".into(), AsHtmlString::cast());
+    model.metadata.casts.insert("description".into(), cast);
     let date = model
         .attributes
         .get_attribute_value(&model.metadata, "published_at")?;
@@ -1377,15 +1377,14 @@ async fn assert_html_cast_saves_configured_date(
         .as_ref()
         .and_then(AttributeValue::as_date)
         .ok_or("缺少 MySQL 读回日期")?;
-    let pattern = "Y/m/d H:i:s.u";
-    let expected = date.snapshot()?.format(pattern)?;
-    let date = date
-        .copy()?
-        .modify(|value| Ok(value.with_string_format(Some(DateStringFormat::pattern(pattern)))))?;
+    let date = ModelDate::new(date.snapshot()?, false);
     model
         .attributes
-        .set_attribute_value(&model.metadata, "description", date.into())
+        .set_attribute_value(&model.metadata, "description", date.clone().into())
         .await?;
+    let pattern = "Y/m/d H:i:s.u";
+    let expected = date.snapshot()?.format(pattern)?;
+    date.modify(|value| Ok(value.with_string_format(Some(DateStringFormat::pattern(pattern)))))?;
     let query = db
         .table(&model.metadata.table)?
         .using_transaction(transaction);

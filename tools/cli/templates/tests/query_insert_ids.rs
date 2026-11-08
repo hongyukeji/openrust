@@ -78,6 +78,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_primitive_json_casts().await?;
         check_generated_as_fluent().await?;
         check_generated_as_stringable().await?;
+        check_generated_as_stringable_date().await?;
         check_generated_as_html_string().await?;
         check_generated_date_string_format().await?;
         check_generated_json_codec().await?;
@@ -484,6 +485,31 @@ async fn check_generated_as_stringable() -> Result<()> {
     value.modify::<Stringable>(|text| Ok(text.clone().trim()))?;
     check(attrs.attributes_to_json(&model)?["label"] == json!("generated"))?;
     check(attrs.raw_attribute("label")? == Some(json!("generated")))
+}
+
+async fn check_generated_as_stringable_date() -> Result<()> {
+    use openrust::{
+        database::eloquent::{AsStringable, AttributeValue, ModelAttributes, ModelDate, ModelMetadata},
+        support::{CalendarContext, DateConstruction, DateStringFormat},
+    };
+    use serde_json::json;
+
+    let context = CalendarContext::default();
+    context.set_date_string_format(Some(DateStringFormat::pattern("Y/m/d H:i")))?;
+    let date = context.make_date(DateConstruction::Parse(&json!("2026-11-08T13:00:00.123456+08:00")))?
+        .ok_or_else(|| Error::custom("generated_date_string_missing", "缺少生成应用日期"))?;
+    let date = ModelDate::new(date, false);
+    let attrs = ModelAttributes::default();
+    let mut model = ModelMetadata::new("insert_items", "StringableDateLabel");
+    model.casts.insert("label".into(), AsStringable::cast());
+    attrs.set_raw_attribute_value("label", date.clone().into())?;
+    check(attrs.attributes_to_json(&model)?["label"] == json!("2026/11/08 13:00"))?;
+    attrs.set_attribute_value(&model, "label", date.clone().into()).await?;
+    let typed = attrs.get_attribute_value(&model, "label")?;
+    check(typed.as_ref().and_then(AttributeValue::as_date).is_some_and(|value| value.same_object(&date)))?;
+    date.modify(|value| Ok(value.with_string_format(Some(DateStringFormat::pattern("H:i:s.u")))))?;
+    check(attrs.raw_attribute("label")? == Some(json!("13:00:00.123456")))?;
+    check(attrs.attributes_to_json(&model)?["label"] == json!("2026-11-08T05:00:00.123456Z"))
 }
 
 async fn check_generated_json_codec() -> Result<()> {
