@@ -6,6 +6,7 @@ pub(super) fn application_providers(
     _config: &super::Configuration,
 ) -> Vec<Box<dyn ServiceProvider>> {
     let mut providers: Vec<Box<dyn ServiceProvider>> = Vec::new();
-    providers.push(Box::new(crate::app::providers::AppServiceProvider));{{application_providers}}
+    providers.push(Box::new(crate::app::providers::AppServiceProvider));
+{{application_providers}}
     providers
 }

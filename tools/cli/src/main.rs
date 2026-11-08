@@ -1820,9 +1820,9 @@ fn app_source(crate_name: &str) -> String {
 fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
     let mut additions = String::new();
     if database.is_some() {
-        additions.push_str("\n    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust_migration::Migrator,\n    >::new()));\n    providers.push(Box::new(openrust::database::SeedServiceProvider::new(crate::seed::run)));");
+        additions.push_str("    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust_migration::Migrator,\n    >::new()));\n    providers.push(Box::new(openrust::database::SeedServiceProvider::new(crate::seed::run)));");
     } else {
-        additions.push_str("\n    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust::database::FrameworkMigrator,\n    >::new()));");
+        additions.push_str("    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust::database::FrameworkMigrator,\n    >::new()));");
     }
     if grpc {
         additions.push_str("\n    providers.push(Box::new(openrust::grpc::GrpcServiceProvider::new()));\n    providers.push(Box::new(crate::grpc::EchoServiceProvider));\n    providers.push(Box::new(openrust::runtime::HttpGrpcServiceProvider));");
