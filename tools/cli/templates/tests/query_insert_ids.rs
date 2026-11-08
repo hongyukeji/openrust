@@ -66,6 +66,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         rollback_insert(&db).await?;
         check_generated_enum_cast().await?;
         check_generated_decimal_cast().await?;
+        check_generated_primitive_json_casts().await?;
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
         check_generated_class_cast().await?;
@@ -316,6 +317,25 @@ async fn check_generated_decimal_cast() -> Result<()> {
         .set_attribute(&model, "amount", json!("-0.129"))
         .await?;
     check(attributes.is_clean(&model, &["amount"])?)
+}
+
+async fn check_generated_primitive_json_casts() -> Result<()> {
+    use openrust::database::eloquent::{AttributeCast, ModelAttributes, ModelMetadata};
+    use serde_json::json;
+
+    let mut model = ModelMetadata::new("insert_items", "GeneratedRecord");
+    let attrs = ModelAttributes::default();
+    let input = json!({"标签":{"0":"中文😀/"},"空":{}});
+    model.casts.insert("settings".into(), AttributeCast::JsonUnicode);
+    attrs.set_attribute(&model, "settings", input.clone()).await?;
+    check(attrs.raw_attribute("settings")? == Some(json!(r#"{"标签":{"0":"中文😀\/"},"空":{}}"#)))?;
+    let associative = json!({"标签":["中文😀/"],"空":[]});
+    check(attrs.attributes_to_json(&model)?["settings"] == associative)?;
+    model.casts.insert("settings".into(), AttributeCast::Object);
+    check(attrs.attributes_to_json(&model)?["settings"] == input)?;
+    model.casts.insert("settings".into(), AttributeCast::Collection);
+    check(attrs.get_attribute_value(&model, "settings")?.is_some_and(|v| v.as_object().is_some()))?;
+    check(attrs.attributes_to_json(&model)?["settings"] == associative)
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

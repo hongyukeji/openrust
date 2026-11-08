@@ -2,7 +2,7 @@
 use super::{
     AttributeValue, ModelObject,
     attribute_cast::{
-        associative_json_equivalent, decode_associative_json, decode_encrypted_object_json,
+        associative_json_equivalent, collection_items, decode_associative_json, decode_object_json,
         encode_array_json, scalar_string,
     },
 };
@@ -63,18 +63,13 @@ impl EncryptedCast {
                     )
                 }),
             EncryptedCastKind::Object => {
-                decode_encrypted_object_json(text.unwrap_or_default()).map(AttributeValue::from)
+                decode_object_json(text.unwrap_or_default()).map(AttributeValue::from)
             }
             EncryptedCastKind::Array | EncryptedCastKind::Json => {
                 decode_associative_json(text.unwrap_or_default()).map(AttributeValue::from)
             }
             EncryptedCastKind::Collection => {
-                let value = decode_associative_json(text.unwrap_or_default())?;
-                let array = match value {
-                    value @ (Value::Array(_) | Value::Object(_)) => value,
-                    Value::Null => Value::Array(Vec::new()),
-                    value => Value::Array(vec![value]),
-                };
+                let array = collection_items(decode_associative_json(text.unwrap_or_default())?);
                 Collection::from_stored_array(array)
                     .map(ModelObject::new)
                     .map(AttributeValue::from)

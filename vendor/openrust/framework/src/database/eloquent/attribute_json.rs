@@ -31,7 +31,6 @@ pub(super) fn decode(text: &str) -> Result<Value> {
     assemble(&mut nodes, false)
 }
 
-#[cfg(feature = "encryption")]
 pub(super) fn decode_object(text: &str) -> Result<Value> {
     let Some(mut nodes) = validate(text) else {
         return Ok(Value::Null);

@@ -91,6 +91,24 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 `AsCollection::default().cast()` 使用标准 `Collection`。`AsCollection::using(factory)` 可提供实现 `CollectionCastValue` 的类型化集合工厂，`AsCollection::of(map)` 接收值与键并保留原键。`of_objects` 保留元素类型，并分别应用其模型数组和持久 JSON 投影。工厂或映射以 Rust 函数表示，替代 PHP 的运行时类名。示例记录预览用这两个 cast 计算元数据标签数量。默认赋值 null 写 JSON 文本 `null`，`AsArrayObject::nullable()` 与集合声明的 `nullable()` 改写 SQL NULL。
 
+### 原生 JSON 对象与集合
+
+在 `ModelMetadata::casts` 中使用 `AttributeCast::Object`、`AttributeCast::Collection`
+和 `AttributeCast::JsonUnicode`，分别对应 Laravel 的 `object`、`collection` 和
+`json:unicode`。对象以 JSON 对象值保留嵌套形状。集合通过 `get_attribute_value`
+读取为新的 `Collection` 对象，数组和 JSON 输出使用集合的元素。只返回原始 JSON
+值的 `get_attribute` 对非空集合仍要求显式投影。修改读到的集合后，
+显式赋值才会改变原始属性。
+
+SQL NULL 始终读取为 null。集合遇到 JSON null、空文本或无效 JSON 时读取为空集合，
+遇到标量时读取为单元素集合。三个转换均以关联数组的键顺序和值类型比较脏值。
+
+`JsonUnicode` 赋值保留 Unicode 字符，继续转义斜线与 U+2028/U+2029。嵌套 JSON
+赋值分别按完整路径和基础字段的声明编码。唯一示例的记录预览在
+`metadata_projections` 展示对象、集合和编码文本。
+
+Laravel 的全局 JSON 编解码回调仍待对应。
+
 ### 十进制定标
 
 `AttributeCast::decimal(2)` 对应 Laravel 的 `decimal:2`。读取和模型 JSON 输出返回

@@ -23,6 +23,12 @@ pub enum AttributeCast {
     Decimal(Option<String>),
     /// 持久值为 JSON 文本，读取时解码为数组或其他 JSON 值。
     Array,
+    /// 使用 JSON 对象语义读取，保留对象键和嵌套对象形状。
+    Object,
+    /// 使用关联数组解码，每次模型读取构造一个新的集合。
+    Collection,
+    /// 使用关联数组解码，赋值时保留可直接输出的 Unicode 字符。
+    JsonUnicode,
     /// 赋值时使用同一 `HashManager`；读取及水合不重新哈希。
     Hashed,
     /// 日期对象，读取时取本地午夜。
@@ -86,6 +92,13 @@ impl AttributeCast {
             )
     }
 
+    pub(super) const fn is_json_projection(&self) -> bool {
+        matches!(
+            self,
+            Self::Array | Self::Object | Self::Collection | Self::JsonUnicode
+        )
+    }
+
     pub(super) fn is_date_storage(&self) -> bool {
         matches!(
             self,
@@ -136,6 +149,9 @@ pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Resul
             // 固定 HasAttributes::fromJson 使用默认 json_decode，坏 JSON/空串返回 null。
             decode_array_json(&text)?
         }
+        AttributeCast::Object => decode_object_json(&scalar_string(&value)?)?,
+        AttributeCast::Collection => collection_items(decode_object_cast_json(&value)?),
+        AttributeCast::JsonUnicode => decode_object_cast_json(&value)?,
         AttributeCast::Hashed => value,
         AttributeCast::Decimal(scale) => super::decimal_cast::read(&value, scale.as_deref())?,
         _ => return Err(cast_failed()),
@@ -195,9 +211,16 @@ pub(super) fn associative_json_equivalent(left: &str, right: &str) -> Result<boo
     json::equivalent(left, right)
 }
 
-#[cfg(feature = "encryption")]
-pub(super) fn decode_encrypted_object_json(text: &str) -> Result<Value> {
+pub(super) fn decode_object_json(text: &str) -> Result<Value> {
     json::decode_object(text)
+}
+
+pub(super) fn collection_items(value: Value) -> Value {
+    match value {
+        value @ (Value::Array(_) | Value::Object(_)) => value,
+        Value::Null => Value::Array(Vec::new()),
+        value => Value::Array(vec![value]),
+    }
 }
 
 fn decode_array_json(text: &str) -> Result<Value> {
@@ -206,8 +229,18 @@ fn decode_array_json(text: &str) -> Result<Value> {
 
 /// 使用 PHP 默认 `flags=0` 的文本转义；`Value` 不承载无效 UTF8 或非有限浮点。
 pub(super) fn encode_array_json(value: &Value) -> Result<String> {
+    encode_projection_json(value, None)
+}
+
+pub(super) fn encode_projection_json(
+    value: &Value,
+    cast: Option<&AttributeCast>,
+) -> Result<String> {
     let mut output = Vec::new();
-    let mut serializer = serde_json::Serializer::with_formatter(&mut output, PhpJsonFormatter);
+    let formatter = PhpJsonFormatter {
+        unescaped_unicode: matches!(cast, Some(AttributeCast::JsonUnicode)),
+    };
+    let mut serializer = serde_json::Serializer::with_formatter(&mut output, formatter);
     serde::Serialize::serialize(&PhpJson(value), &mut serializer).map_err(|_| cast_failed())?;
     String::from_utf8(output).map_err(|_| cast_failed())
 }
@@ -252,7 +285,9 @@ impl serde::Serialize for PhpJson<'_> {
     }
 }
 
-struct PhpJsonFormatter;
+struct PhpJsonFormatter {
+    unescaped_unicode: bool,
+}
 impl serde_json::ser::Formatter for PhpJsonFormatter {
     fn write_string_fragment<W: ?Sized + std::io::Write>(
         &mut self,
@@ -262,7 +297,9 @@ impl serde_json::ser::Formatter for PhpJsonFormatter {
         for character in fragment.chars() {
             if character == '/' {
                 writer.write_all(b"\\/")?;
-            } else if character.is_ascii() {
+            } else if character.is_ascii()
+                || (self.unescaped_unicode && !matches!(character, '\u{2028}' | '\u{2029}'))
+            {
                 write!(writer, "{character}")?;
             } else {
                 for unit in character.encode_utf16(&mut [0; 2]) {

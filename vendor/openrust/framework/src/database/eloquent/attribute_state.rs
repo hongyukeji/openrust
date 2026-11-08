@@ -475,7 +475,7 @@ fn equivalent(
             let right = cast_float_value(original)?;
             Ok((left - right).abs() < f64::EPSILON * 4.0)
         }
-        Some(AttributeCast::Array) => array_cast_equivalent(current, original),
+        Some(cast) if cast.is_json_projection() => array_cast_equivalent(current, original),
         None | Some(AttributeCast::Class(_) | AttributeCast::Enum(_)) => {
             Ok(InputNumber::from_value(current).is_some()
                 && InputNumber::from_value(original).is_some()

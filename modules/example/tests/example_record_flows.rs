@@ -356,6 +356,8 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         assert_cached_collection_save(&app, id).await?;
         #[cfg(feature = "db-mysql")]
         assert_mysql_decimal_hydration(&db).await?;
+        #[cfg(feature = "db-mysql")]
+        assert_mysql_json_projection_hydration(&db).await?;
         #[cfg(feature = "encryption")]
         {
             assert_encrypted_collection_save(&app, id).await?;
@@ -1020,6 +1022,64 @@ async fn assert_mysql_decimal_hydration(db: &openrust::Db) -> TestResult {
     Ok(())
 }
 
+#[cfg(feature = "db-mysql")]
+async fn assert_mysql_json_projection_hydration(db: &openrust::Db) -> TestResult {
+    use openrust::database::{
+        eloquent::{AttributeCast, ModelAttributes, ModelMetadata, attributes_from_row},
+        sea_orm::{DbBackend, Statement},
+    };
+    use serde_json::json;
+
+    let connection = db.primary_connection()?;
+    if connection.get_database_backend() != DbBackend::MySql {
+        return Ok(());
+    }
+    let mut metadata = ModelMetadata::new("example_records", "JsonProjectionReadback");
+    metadata
+        .casts
+        .insert("payload".into(), AttributeCast::JsonUnicode);
+    let input = ModelAttributes::default();
+    let document = json!({"nested":{"0":"中文😀/"},"empty":{}});
+    input
+        .set_attribute(&metadata, "payload", document.clone())
+        .await?;
+    let raw = input
+        .raw_attribute("payload")?
+        .ok_or("缺少 JSON 赋值文本")?;
+    let raw = raw.as_str().ok_or("JSON 赋值未编码为文本")?;
+    assert!(raw.contains(r#"中文😀\/"#));
+    let row = connection
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::MySql,
+            "SELECT CAST(? AS JSON) AS payload",
+            [raw.into()],
+        ))
+        .await?
+        .ok_or("缺少 MySQL JSON 行")?;
+    let hydrated = ModelAttributes::new(attributes_from_row(&row)?);
+    let associative = json!({"nested":["中文😀/"],"empty":[]});
+    assert_eq!(
+        hydrated.attributes_to_json(&metadata)?["payload"],
+        associative
+    );
+    metadata
+        .casts
+        .insert("payload".into(), AttributeCast::Object);
+    assert_eq!(hydrated.attributes_to_json(&metadata)?["payload"], document);
+    metadata
+        .casts
+        .insert("payload".into(), AttributeCast::Collection);
+    let value = hydrated
+        .get_attribute_value(&metadata, "payload")?
+        .ok_or("缺少集合")?;
+    assert!(value.as_object().is_some());
+    assert_eq!(
+        hydrated.attributes_to_json(&metadata)?["payload"],
+        associative
+    );
+    Ok(())
+}
+
 async fn assert_cached_collection_save(
     app: &TestApp<crate::bootstrap::Server>,
     id: i64,
@@ -1541,6 +1601,17 @@ fn assert_preview_display(changed: &serde_json::Value) {
         serde_json::json!(["changed"])
     );
     assert_eq!(changed["display"]["details"]["metadata_tag_count"], 1);
+    let projections = &changed["display"]["details"]["metadata_projections"];
+    assert_eq!(
+        projections["object"]["tags"],
+        serde_json::json!(["changed"])
+    );
+    assert_eq!(
+        projections["collection"]["tags"],
+        serde_json::json!(["changed"])
+    );
+    let raw = projections["unicode"].as_str().unwrap_or_default();
+    assert!(raw.contains(r#""tags":["changed"]"#));
     assert!(changed["display"]["details"].get("name").is_none());
     assert!(changed["display"]["details"].get("owner_id").is_none());
 }

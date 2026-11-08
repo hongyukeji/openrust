@@ -1076,9 +1076,13 @@ impl ModelAttributes {
                 }
                 #[cfg(feature = "encryption")]
                 Some(AttributeCast::Encrypted(cast)) => cast.write(value)?,
-                Some(AttributeCast::Array) if !value.is_null() => {
-                    Value::String(super::attribute_cast::encode_array_json(value.as_json()?)?)
-                        .into()
+                Some(cast) if cast.is_json_projection() && !value.is_null() => {
+                    let value = value.into_array_json()?;
+                    Value::String(super::attribute_cast::encode_projection_json(
+                        &value,
+                        Some(&cast),
+                    )?)
+                    .into()
                 }
                 // 固定hashed cast先旁路null，不解析HashManager或驱动配置。
                 Some(AttributeCast::Hashed) if value.is_null() => value,

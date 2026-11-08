@@ -201,6 +201,9 @@ impl ModelMetadata {
             "bool" | "boolean" => AttributeCast::Boolean,
             "float" | "double" | "real" => AttributeCast::Float,
             "array" | "json" => AttributeCast::Array,
+            "object" => AttributeCast::Object,
+            "collection" => AttributeCast::Collection,
+            "json:unicode" => AttributeCast::JsonUnicode,
             "hashed" => AttributeCast::Hashed,
             "decimal" => AttributeCast::Decimal(None),
             _ => {
@@ -227,6 +230,9 @@ impl ModelMetadata {
         name: &str,
         raw: Option<Value>,
     ) -> Result<Option<Value>> {
+        if self.effective_cast(name)? == Some(AttributeCast::Collection) {
+            return AttributeCast::Collection.read(raw);
+        }
         self.cast_attribute_value(
             name,
             raw.map(AttributeValue::from),
@@ -277,6 +283,18 @@ impl ModelMetadata {
         }
         if let AttributeCast::Enum(cast) = &cast {
             return cast.read(raw).map(Some);
+        }
+        if cast == AttributeCast::Collection && !raw.is_null() {
+            use super::{
+                ModelObject,
+                attribute_cast::{collection_items, decode_object_cast_json},
+            };
+            let items = collection_items(decode_object_cast_json(raw.as_json()?)?);
+            let collection =
+                crate::support::Collection::from_stored_array(items).ok_or_else(|| {
+                    crate::Error::custom("model_collection_shape", "集合的数组形状无效")
+                })?;
+            return Ok(Some(ModelObject::new(collection).into()));
         }
         if cast.is_date_read() {
             return dates.read(self, &cast, raw).map(Some);
@@ -354,6 +372,8 @@ impl ModelMetadata {
                 | "real"
                 | "array"
                 | "json"
+                | "object"
+                | "collection"
                 | "hashed"
                 | "decimal"
         ) {
@@ -525,6 +545,80 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn primitive_json_casts_separate_shape_identity_encoding_and_dirty() -> Result<()> {
+        use crate::database::eloquent::ModelAttributes;
+        use serde_json::{Map, json};
+
+        let mut model = ModelMetadata::new("records", "Record");
+        model.casts.insert("object".into(), AttributeCast::Object);
+        model
+            .casts
+            .insert("collection".into(), AttributeCast::Collection);
+        model
+            .casts
+            .insert("unicode".into(), AttributeCast::JsonUnicode);
+        let raw = json!(r#"{"nested":{"0":"x"},"empty":{}}"#);
+        let attrs = ModelAttributes::new(Map::from_iter([
+            ("object".into(), raw.clone()),
+            ("collection".into(), raw.clone()),
+            ("unicode".into(), raw),
+        ]));
+        let shown = attrs.attributes_to_json(&model)?;
+        assert_eq!(shown["object"], json!({"nested":{"0":"x"},"empty":{}}));
+        for name in ["collection", "unicode"] {
+            assert_eq!(shown[name], json!({"nested":["x"],"empty":[]}));
+        }
+        let read = || {
+            attrs
+                .get_attribute_value(&model, "collection")?
+                .and_then(|v| v.as_object().cloned())
+                .ok_or_else(|| {
+                    crate::Error::custom("test_collection_missing", "集合读取未返回对象")
+                })
+        };
+        let first = read()?;
+        let second = read()?;
+        assert!(!first.same_object(&second));
+        for name in ["object", "collection", "unicode"] {
+            attrs.set_raw_attribute(name, json!(r#"{"nested":["x"],"empty":[]}"#))?;
+            assert!(attrs.is_clean(&model, &[name])?);
+            attrs.set_raw_attribute(name, json!(r#"{"empty":[],"nested":["x"]}"#))?;
+            assert!(attrs.is_dirty(&model, &[name])?);
+        }
+        attrs.set_raw_attribute("collection", json!("false"))?;
+        assert_eq!(
+            attrs.attributes_to_json(&model)?["collection"],
+            json!([false])
+        );
+        attrs.set_raw_attribute("collection", json!("bad"))?;
+        assert_eq!(attrs.attributes_to_json(&model)?["collection"], json!([]));
+        attrs.set_raw_attribute("collection", Value::Null)?;
+        assert_eq!(
+            attrs.get_attribute(&model, "collection")?,
+            Some(Value::Null)
+        );
+        assert_eq!(
+            AttributeCast::Object.read(Some(json!(r#"{"\u0000x":1}"#)))?,
+            Some(Value::Null)
+        );
+
+        let text = json!({"中文": "😀/é\u{2028}\u{2029}"});
+        attrs.set_attribute(&model, "unicode", text.clone()).await?;
+        assert_eq!(
+            attrs.raw_attribute("unicode")?,
+            Some(json!(r#"{"中文":"😀\/é\u2028\u2029"}"#))
+        );
+        attrs.set_attribute(&model, "object", text).await?;
+        assert_eq!(
+            attrs.raw_attribute("object")?,
+            Some(json!(
+                r#"{"\u4e2d\u6587":"\ud83d\ude00\/\u00e9\u2028\u2029"}"#
+            ))
+        );
+        Ok(())
+    }
+
     #[test]
     fn primary_key_cast_is_injected_only_for_incrementing_and_explicit_cast_wins() -> Result<()> {
         let mut metadata = ModelMetadata::new("accounts", "Account");
@@ -653,6 +747,9 @@ mod key_cast_state_tests {
             (" INT ", AttributeCast::Integer),
             ("\0\t\n\r\u{b}HaShEd\0", AttributeCast::Hashed),
             (" JSON ", AttributeCast::Array),
+            (" OBJECT ", AttributeCast::Object),
+            ("collection", AttributeCast::Collection),
+            ("json:unicode", AttributeCast::JsonUnicode),
         ] {
             metadata.key_type = declaration.into();
             assert_eq!(metadata.effective_cast("id")?, Some(expected));
@@ -662,7 +759,7 @@ mod key_cast_state_tests {
             "int\u{c}",
             "\u{a0}int",
             "int\u{2003}",
-            "json:unicode",
+            "json:unknown",
             "unsupported",
         ] {
             metadata.key_type = declaration.into();

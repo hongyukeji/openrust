@@ -97,6 +97,10 @@ pub(crate) async fn preview(
         "metadata_tag_count".into(),
         Value::from(metadata_tag_count(&attributes)?),
     );
+    details.insert(
+        "metadata_projections".into(),
+        metadata_projections(&attributes).await?,
+    );
     let priority_decimal = AttributeCast::decimal(2)
         .read(details.get("priority").cloned())?
         .unwrap_or(Value::Null);
@@ -212,6 +216,33 @@ fn metadata_tag_count(attributes: &ModelAttributes) -> Result<usize> {
             .downcast_ref::<Collection>()
             .map_or(0, |tags| tags.all().len()))
     })
+}
+
+async fn metadata_projections(attributes: &ModelAttributes) -> Result<Value> {
+    let raw = attributes.raw_attribute("metadata")?.unwrap_or(Value::Null);
+    let projection = ModelAttributes::new(Map::from_iter([
+        ("object".into(), raw.clone()),
+        ("collection".into(), raw),
+    ]));
+    let mut metadata = ModelMetadata::new("example_records", "RecordMetadataProjections");
+    metadata
+        .casts
+        .insert("object".into(), AttributeCast::Object);
+    metadata
+        .casts
+        .insert("collection".into(), AttributeCast::Collection);
+    metadata
+        .casts
+        .insert("unicode".into(), AttributeCast::JsonUnicode);
+    let mut values = projection.attributes_to_json(&metadata)?;
+    projection
+        .set_attribute(&metadata, "unicode", values["object"].clone())
+        .await?;
+    values.insert(
+        "unicode".into(),
+        projection.raw_attribute("unicode")?.unwrap_or(Value::Null),
+    );
+    Ok(Value::Object(values))
 }
 
 /// 查询已通过授权的记录所属账户下的关系。

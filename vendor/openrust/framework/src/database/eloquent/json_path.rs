@@ -1,7 +1,7 @@
 //! Eloquent 属性赋值中的 PHP 有序数组路径。
 use super::{
     AttributeCast, AttributeValue, ModelMetadata,
-    attribute_cast::{decode_associative_json, encode_array_json, scalar_string},
+    attribute_cast::{decode_associative_json, encode_projection_json, scalar_string},
 };
 use crate::{Error, Result};
 use serde_json::{Map, Value};
@@ -17,7 +17,7 @@ pub(super) fn write(
     let value = value.into_array_json()?;
     let value = if !value.is_null() && encodes_json(full_cast) {
         check_depth(&value)?;
-        Value::String(encode_array_json(&value)?)
+        Value::String(encode_projection_json(&value, full_cast)?)
     } else {
         value
     };
@@ -28,9 +28,6 @@ pub(super) fn write(
         Some(AttributeCast::Class(cast)) => cast.encrypter(),
         _ => None,
     };
-    #[cfg(not(feature = "encryption"))]
-    drop(base_cast);
-
     let root = match raw.filter(|raw| !raw.is_null()) {
         None => Value::Null,
         #[cfg(feature = "encryption")]
@@ -42,7 +39,7 @@ pub(super) fn write(
     };
     let document = update(root, path, value)?;
     check_depth(&document)?;
-    let json = encode_array_json(&document)?;
+    let json = encode_projection_json(&document, base_cast.as_ref())?;
     #[cfg(feature = "encryption")]
     if let Some(encrypter) = encrypter {
         let json = zeroize::Zeroizing::new(json);
@@ -55,10 +52,10 @@ pub(super) fn write(
 
 fn encodes_json(cast: Option<&AttributeCast>) -> bool {
     match cast {
-        Some(AttributeCast::Array) => true,
         #[cfg(feature = "encryption")]
         Some(AttributeCast::Encrypted(cast)) => cast.encodes_json(),
-        _ => false,
+        Some(cast) => cast.is_json_projection(),
+        None => false,
     }
 }
 
@@ -286,6 +283,41 @@ mod tests {
                 .set_attribute(&model, "bag->999999999999", json!("x"))
                 .await
                 .is_err()
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unicode_path_applies_full_key_and_base_flags_independently() -> Result<()> {
+        let mut model = model();
+        let attrs = raw(r#"{"old":"中文"}"#);
+        model.casts.insert("bag".into(), AttributeCast::JsonUnicode);
+        attrs
+            .set_attribute(&model, "bag->value", json!("汉字😀/"))
+            .await?;
+        assert_eq!(
+            attrs.raw_attribute("bag")?,
+            Some(json!(r#"{"old":"中文","value":"汉字😀\/"}"#))
+        );
+
+        model.casts.insert("bag".into(), AttributeCast::Object);
+        model
+            .casts
+            .insert("bag->value".into(), AttributeCast::JsonUnicode);
+        attrs
+            .set_attribute(&model, "bag->value", json!("汉字😀/"))
+            .await?;
+        assert_eq!(
+            attrs.raw_attribute("bag")?,
+            Some(json!(
+                r#"{"old":"\u4e2d\u6587","value":"\"\u6c49\u5b57\ud83d\ude00\\\/\""}"#
+            ))
+        );
+        assert_eq!(
+            attrs
+                .get_attribute(&model, "bag")?
+                .and_then(|bag| bag.get("value").cloned()),
+            Some(json!(r#""汉字😀\/""#))
         );
         Ok(())
     }
