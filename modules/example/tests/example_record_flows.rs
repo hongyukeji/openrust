@@ -1339,6 +1339,55 @@ async fn assert_html_string_save(
         html
     );
     assert_eq!(saved.description, html);
+    assert_html_cast_preserves_mysql_raw_types(&saved)?;
+    Ok(())
+}
+
+fn assert_html_cast_preserves_mysql_raw_types(
+    saved: &crate::modules::example::models::example_record::Model,
+) -> TestResult {
+    use openrust::{
+        database::eloquent::{AsHtmlString, AttributeValue, ModelHtmlString, ModelObject},
+        support::Htmlable,
+    };
+    let mut metadata = crate::modules::example::models::example_record::Model::attribute_metadata();
+    metadata
+        .casts
+        .insert("priority".into(), AsHtmlString::cast());
+    metadata
+        .casts
+        .insert("metadata".into(), AsHtmlString::cast());
+    let attrs = saved.attribute_snapshot()?;
+    let json = saved.metadata.clone().ok_or("缺少 MySQL JSON 列内容")?;
+    // 使用驱动读回的已解码 JSON，保留与普通预览文本桥不同的输入形状。
+    attrs.set_raw_attribute("metadata", json.clone())?;
+    let snapshot = |name| -> Result<_, Box<dyn std::error::Error>> {
+        Ok(attrs
+            .get_attribute_value(&metadata, name)?
+            .as_ref()
+            .and_then(AttributeValue::as_object)
+            .map(ModelObject::snapshot)
+            .transpose()?
+            .ok_or("缺少 HTML 模型对象")?)
+    };
+    let priority = snapshot("priority")?;
+    let priority = priority
+        .as_any()
+        .downcast_ref::<ModelHtmlString>()
+        .ok_or("优先级类型错误")?;
+    assert_eq!(
+        priority.to_html().as_json()?,
+        &serde_json::json!(saved.priority)
+    );
+    assert_eq!(priority.to_html_text()?, saved.priority.to_string());
+    let stored = snapshot("metadata")?;
+    let stored = stored
+        .as_any()
+        .downcast_ref::<ModelHtmlString>()
+        .ok_or("JSON 列类型错误")?;
+    assert_eq!(stored.to_html().as_json()?, &json);
+    assert!(stored.to_html_text().is_err());
+    assert!(attrs.attributes_to_array(&metadata).is_err());
     Ok(())
 }
 

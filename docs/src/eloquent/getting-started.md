@@ -126,14 +126,19 @@ SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象�
 #### HtmlString 模型属性
 
 使用 `AsHtmlString::cast()` 声明保存 HTML 的文本列。`get_attribute_value`
-读取缓存中的 `ModelObject`，可将其快照下转为 `openrust::support::HtmlString`。
-赋值接受字符串或提供字符串投影的对象。模型数组和 JSON 输出普通字符串，SQL NULL 保持 null。
+读取缓存中的 `ModelObject`，可将其快照下转为 `openrust::database::eloquent::ModelHtmlString`。
+它使用 `HtmlString<AttributeValue>` 保留水合原值，应用直接创建的 `HtmlString::new(text)`
+持有文本。SQL NULL 保持 null。
 
-`Htmlable::to_html()` 借用标记。启用 `view` 后，可通过
+`Htmlable::to_html()` 借用原值。模型数组、JSON、写回及 `to_html_text()`
+按 PHP 字符串规则转换标量、带字符串投影的对象及应用时区中的日期。
+数组、普通对象和原生枚举可通过原值入口读取，要求字符串时返回错误。
+重复读取会先处理此前缓存的写回，因此非法原值可能在第二次读取时报错。
+框架日期使用固定 Laravel 日期对象默认的本地秒精度格式。
+
+启用 `view` 后，可通过
 `Htmlable::to_view_value()` 将可信标记传给模板的 HTML 文本位置。
 应用应先验证内容来源或进行净化，普通字符串继续由模板自动转义。
-Rust 的 `HtmlString` 持有 UTF-8 文本，水合时将布尔和数值按 PHP 规则转为字符串。
-无法转为字符串的水合值在读取时返回错误。
 
 #### Fluent 模型属性
 

@@ -406,7 +406,9 @@ async fn check_generated_as_fluent() -> Result<()> {
 
 async fn check_generated_as_html_string() -> Result<()> {
     use openrust::{
-        database::eloquent::{AsHtmlString, ModelAttributes, ModelMetadata, ModelObject},
+        database::eloquent::{
+            AsHtmlString, AttributeValue, ModelAttributes, ModelHtmlString, ModelMetadata, ModelObject,
+        },
         support::{HtmlString, Htmlable},
     };
     use serde_json::json;
@@ -421,7 +423,21 @@ async fn check_generated_as_html_string() -> Result<()> {
     check(typed.as_ref().and_then(|field| field.as_object()).is_some_and(|field| field.same_object(&value)))?;
     check(Htmlable::to_html(&HtmlString::new(html)) == html)?;
     check(attrs.attributes_to_array(&metadata)?["label"].as_json()? == &json!(html))?;
-    check(attrs.attributes_to_json(&metadata)?["label"] == json!(html))
+    check(attrs.attributes_to_json(&metadata)?["label"] == json!(html))?;
+    for raw in [json!(false), json!({"nested":[]})] {
+        attrs.set_raw_attribute("label", raw.clone())?;
+        let typed = attrs.get_attribute_value(&metadata, "label")?;
+        let snapshot = typed.as_ref().and_then(AttributeValue::as_object).map(ModelObject::snapshot).transpose()?;
+        let model_html = snapshot.as_deref().and_then(|value| value.as_any().downcast_ref::<ModelHtmlString>());
+        check(model_html.is_some_and(|value| value.to_html().as_json().ok() == Some(&raw)))?;
+        if raw.is_object() {
+            check(attrs.attributes_to_array(&metadata).is_err())?;
+            check(attrs.get_attribute_value(&metadata, "label").is_err())?;
+        } else {
+            check(attrs.attributes_to_json(&metadata)?["label"] == json!(""))?;
+        }
+    }
+    Ok(())
 }
 
 async fn check_generated_as_stringable() -> Result<()> {

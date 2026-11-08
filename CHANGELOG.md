@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent AsHtmlString 读取保留非文本原值，写回、序列化和渲染时再转换。
+
 - Eloquent 支持 AsHtmlString 对象读取和字符串序列化，可信 HTML 可显式传入视图。
 
 - Eloquent 支持 AsStringable 类转换、缓存写回及字符串投影。

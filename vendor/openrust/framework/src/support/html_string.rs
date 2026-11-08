@@ -1,16 +1,25 @@
 //! Laravel 的可信 HTML 内容契约。
 
-use std::{any::Any, fmt};
+use crate::Result;
+use std::{any::Any, borrow::Cow, fmt};
 
 /// 提供可直接用于 HTML 文本位置的可信标记。
 pub trait Htmlable {
-    /// 借用 HTML 标记。
-    fn to_html(&self) -> &str;
+    /// HTML 内容的原始类型。
+    type Raw: ?Sized;
+
+    /// 借用原始 HTML 内容，保留其类型。
+    fn to_html(&self) -> &Self::Raw;
+
+    /// 将原始内容转换成 HTML 文本。
+    fn to_html_text(&self) -> Result<Cow<'_, str>>;
 
     /// 保留 HTML 标记进入模板。调用方负责确保内容可信且用于 HTML 文本位置。
     #[cfg(feature = "view")]
-    fn to_view_value(&self) -> minijinja::Value {
-        minijinja::Value::from_safe_string(self.to_html().to_owned())
+    fn to_view_value(&self) -> Result<minijinja::Value> {
+        Ok(minijinja::Value::from_safe_string(
+            self.to_html_text()?.into_owned(),
+        ))
     }
 }
 
@@ -24,7 +33,17 @@ pub trait Htmlable {
 /// assert!(html.is_not_empty());
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct HtmlString(String);
+pub struct HtmlString<T = String>(T);
+
+impl<T> HtmlString<T> {
+    pub(crate) fn from_raw(value: T) -> Self {
+        Self(value)
+    }
+
+    pub(crate) const fn raw(&self) -> &T {
+        &self.0
+    }
+}
 
 impl HtmlString {
     /// 将可信标记保存为字符串。
@@ -44,8 +63,14 @@ impl HtmlString {
 }
 
 impl Htmlable for HtmlString {
+    type Raw = str;
+
     fn to_html(&self) -> &str {
         &self.0
+    }
+
+    fn to_html_text(&self) -> Result<Cow<'_, str>> {
+        Ok(Cow::Borrowed(self.to_html()))
     }
 }
 
@@ -70,13 +95,13 @@ mod tests {
     use super::{HtmlString, Htmlable};
 
     #[test]
-    fn htmlable_preserves_only_explicitly_trusted_template_content() -> Result<(), minijinja::Error>
-    {
+    fn htmlable_preserves_only_explicitly_trusted_template_content()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut views = minijinja::Environment::new();
         views.set_auto_escape_callback(|_| minijinja::AutoEscape::Html);
         let html = "<strong>HTML &amp; 内容</strong>";
         let context = minijinja::context! {
-            trusted => HtmlString::new(html).to_view_value(),
+            trusted => HtmlString::new(html).to_view_value()?,
             plain => html,
         };
         let output = views.render_str("{{ trusted }}\n{{ plain }}", context)?;

@@ -42,7 +42,7 @@ impl ClassCaster for StringableCast {
     }
 }
 
-pub(super) fn cast_string(value: &AttributeValue) -> Result<String> {
+fn cast_string(value: &AttributeValue) -> Result<String> {
     match value {
         AttributeValue::Json(value) => return scalar_string(value),
         AttributeValue::Object(object) => object.snapshot()?.string_projection(),

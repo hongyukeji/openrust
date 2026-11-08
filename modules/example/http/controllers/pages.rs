@@ -3,10 +3,10 @@
 use super::super::resources::about::AboutPageContext;
 use openrust::{
     database::eloquent::{
-        AsHtmlString, AttributeValue, ModelAttributes, ModelMetadata, ModelObject,
+        AsHtmlString, AttributeValue, ModelAttributes, ModelHtmlString, ModelMetadata, ModelObject,
     },
     prelude::*,
-    support::{HtmlString, Htmlable},
+    support::Htmlable,
 };
 
 pub(crate) async fn about_page(
@@ -20,12 +20,12 @@ pub(crate) async fn about_page(
         &AboutPageContext {
             app_name: env!("CARGO_PKG_NAME"),
             title: "关于示例应用",
-            description: description.to_view_value(),
+            description: description.to_view_value()?,
         },
     )
 }
 
-fn about_description() -> openrust::Result<HtmlString> {
+fn about_description() -> openrust::Result<ModelHtmlString> {
     let mut metadata = ModelMetadata::new("pages", "AboutPage");
     metadata
         .casts
@@ -43,7 +43,7 @@ fn about_description() -> openrust::Result<HtmlString> {
     let snapshot = object.map(ModelObject::snapshot).transpose()?;
     snapshot
         .as_deref()
-        .and_then(|value| value.as_any().downcast_ref::<HtmlString>())
+        .and_then(|value| value.as_any().downcast_ref::<ModelHtmlString>())
         .cloned()
         .ok_or_else(|| openrust::Error::custom("example_about_description", "缺少关于页 HTML 内容"))
 }
