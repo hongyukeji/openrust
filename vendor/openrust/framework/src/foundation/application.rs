@@ -13,13 +13,13 @@ use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
 use crate::container::{Container, ParameterOverrides, Scope, ServiceKey};
 use crate::core::error::{Error, Result};
-use crate::foundation::provider::ProviderId;
 use crate::foundation::provider::ProviderRuntime;
 use crate::foundation::provider::registration;
 use crate::foundation::provider::registration::LiveBoot;
 use crate::foundation::provider::registration::ProviderRegistry;
+use crate::foundation::provider::{BootContext, ProviderId};
 use crate::foundation::resources::ResourceOwner;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 
 /// 每个项目实现一次，返回统一 Provider 清单。
 ///
@@ -273,9 +273,13 @@ impl Application {
         use crate::foundation::lifecycle::disposal;
         let container = self.state.inner.services.detach_for_application_flush()?;
         let providers = self.providers.take_active();
+        let startup_callbacks = self.providers.startup_callbacks.take();
         let commands = self.commands.take_entries();
         let extensions = std::mem::take(&mut self.extensions);
         let mut failed = container.dispose();
+        for callback in startup_callbacks {
+            failed |= disposal::dispose(callback, None).seen;
+        }
         for provider in providers {
             failed |= disposal::dispose(provider, None).seen;
         }
@@ -292,6 +296,43 @@ impl Application {
             ));
         }
         Ok(())
+    }
+
+    /// 登记应用 booting 回调。已经启动的应用不会重跑启动阶段。
+    pub fn booting(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.providers
+            .startup_callbacks
+            .booting
+            .push(Arc::new(callback));
+    }
+
+    /// 登记并立即运行已启动应用的 booted 回调。
+    pub async fn booted(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        let mut config = self.state.config_repository();
+        LiveBoot {
+            resources: self.state.inner.provider_resources.registrar(),
+            extensions: &mut self.extensions,
+            commands: &self.commands,
+        }
+        .booted(
+            &self.state.inner.services,
+            &mut config,
+            &mut self.providers.startup_callbacks,
+            Arc::new(callback),
+        )
+        .await
     }
 
     /// 同步封闭新解析和资源登记；异步回收仍须调用 `shutdown`。

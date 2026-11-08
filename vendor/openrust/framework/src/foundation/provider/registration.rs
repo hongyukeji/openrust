@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use super::{
-    BootContext, ConfigRepository, Container, Extensions, Finalizer, ProviderId, RegisterContext,
-    Required, ResourceRegistrar, check_dependencies,
+    BootContext, BootHook, ConfigRepository, Container, Extensions, Finalizer, ProviderId,
+    RegisterContext, Required, ResourceRegistrar, StartupCallbacks, check_dependencies,
 };
 use crate::console::command_registry::CommandRegistry;
 use crate::core::{Error, Result};
@@ -18,6 +18,7 @@ pub(crate) struct ProviderRegistry {
     providers: Vec<Box<dyn ServiceProvider>>,
     registering: Arc<Mutex<HashSet<TypeId>>>,
     removed: HashSet<ProviderId>,
+    pub(crate) startup_callbacks: StartupCallbacks,
 }
 
 impl ProviderRegistry {
@@ -26,11 +27,12 @@ impl ProviderRegistry {
             providers: Vec::new(),
             registering: Arc::default(),
             removed,
+            startup_callbacks: StartupCallbacks::default(),
         }
     }
 
-    pub(crate) fn iter(&self) -> std::slice::Iter<'_, Box<dyn ServiceProvider>> {
-        self.providers.iter()
+    pub(super) fn boot_parts(&mut self) -> (&[Box<dyn ServiceProvider>], &mut StartupCallbacks) {
+        (&self.providers, &mut self.startup_callbacks)
     }
 
     pub(crate) fn take_active(&mut self) -> Vec<Box<dyn ServiceProvider>> {
@@ -77,6 +79,48 @@ impl LiveBoot<'_> {
             commands: self.commands,
         }
     }
+
+    pub(crate) async fn booted(
+        &mut self,
+        container: &Container,
+        config: &mut ConfigRepository,
+        startup_callbacks: &mut StartupCallbacks,
+        callback: Arc<BootHook>,
+    ) -> Result<()> {
+        if container.is_terminated() {
+            return Err(Error::custom("container_closed", "容器已关闭"));
+        }
+        let mut required = Vec::new();
+        let mut finalizers = Vec::new();
+        BootContext {
+            console_command: None,
+            container,
+            config,
+            resources: self.resources.clone(),
+            required: &mut required,
+            extensions: self.extensions,
+            commands: self.commands,
+            finalizers: &mut finalizers,
+            startup_callbacks,
+        }
+        .add_booted(callback)
+        .await?;
+        finish_boot(container, finalizers, required).await
+    }
+}
+
+async fn finish_boot(
+    container: &Container,
+    finalizers: Vec<Finalizer>,
+    required: Vec<Required>,
+) -> Result<()> {
+    for finalize in finalizers {
+        finalize().await?;
+    }
+    for resolve in required {
+        resolve(container).await?;
+    }
+    Ok(())
 }
 
 struct RegistrationGuard {
@@ -181,14 +225,10 @@ pub(crate) fn register<'a>(
                     extensions: live.extensions,
                     commands: live.commands,
                     finalizers: &mut finalizers,
+                    startup_callbacks: &mut registry.startup_callbacks,
                 })
                 .await?;
-            for finalize in finalizers {
-                finalize().await?;
-            }
-            for resolve in required {
-                resolve(container).await?;
-            }
+            finish_boot(container, finalizers, required).await?;
         } else {
             // 嵌套 required 在父回调原调用位置合并，最终仍在统一启动校验中解析。
             deferred_required.extend(required);

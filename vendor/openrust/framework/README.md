@@ -18,6 +18,8 @@
 
 `Container::flush` 清除绑定与共享实例。`Application::flush` 还撤销已登记的 Provider 和宿主贡献。两种入口适用于隔离测试和重新装配。详见[清空容器绑定](../../../docs/src/architecture-concepts/lifecycle.md#清空容器绑定)。
 
+应用可在 Provider 启动前后登记回调，详见[应用启动回调](../../../docs/src/architecture-concepts/lifecycle.md#应用启动回调)。
+
 内置 `Config`、`Give` 和 `Tag` 使用同一解析流程，支持类型化配置、指定实现和惰性标签迭代。详见[内置通用属性](../../../docs/src/architecture-concepts/lifecycle.md#内置通用属性)。
 
 `Database`、`DB` 和 `Storage` 使用应用现有管理器注入默认或具名数据库和文件系统句柄。详见[数据库与文件系统属性](../../../docs/src/architecture-concepts/lifecycle.md#数据库与文件系统属性)。

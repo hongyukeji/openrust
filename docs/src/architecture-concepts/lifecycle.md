@@ -166,6 +166,12 @@ let descriptors = [
 
 调用级参数和上下文覆盖使用当前构造，绕过该服务键的共享缓存。显式登记的共享工厂或实例沿自己的规则处理。普通显式工厂可以由具体类或抽象类的声明补足共享生命周期。示例模块的 `/api/example/environment-binding` 通过应用与请求计数展示两个生命周期。 [Laravel 容器](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L255-L315)
 
+### 应用启动回调
+
+在 `ApplicationDefinition::configure_providers` 中用 `builder.booting` 或 `builder.booted` 登记应用回调。所有 Provider 完成 `register` 后运行 `booting`，所有 Provider 完成 `boot` 后运行 `booted`。回调通过 `BootContext` 访问已登记服务、贡献命令及登记最终校验。`booted` 回调先于最终配置冻结和依赖验证。 [Laravel Application::boot](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L1128-L1206)
+
+`booting` 阶段追加的同阶段回调继续按顺序执行。`booted` 阶段追加的回调立即执行一次，随后按队列顺序再执行一次。阶段结束后，通过 `app.booted(...).await` 登记的回调只立即执行一次。`app.flush()` 清除已登记的启动回调，应用保留已启动状态。
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

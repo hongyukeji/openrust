@@ -904,7 +904,15 @@ ConfigLoader::figment现在返回Result，全部第一方loader调用同步传�
 
 Rust 验证 Provider 和宿主贡献撤销、同类型 Provider 重新启动、解析和重绑回调清理、多个析构异常后仍完成清空，以及最终关闭回收旧资源。综合示例从实际 Provider 清单启动，清空后重新发现环境绑定并构造新单例。工作区格式、严格 Clippy、带隔离 MySQL 8.4.13 的测试、拒警 Rustdoc、依赖检查、实际生成项目 check/test 和公开 API 探针均通过。源码指纹与日志位于 `tmp/lead-app-flush.ZnbrXy6T/`。
 
-独立 deferred Provider 映射与 Laravel 应用级 `booting`、`booted`、`terminating` 回调仍待对应。Rust 受管资源关闭回调随原资源所有者保留。
+独立 deferred Provider 映射与应用级 `terminating` 仍待对应。Rust 受管资源关闭回调随原资源所有者保留。
+
+## 应用启动回调限定验收
+
+固定 Laravel `d52c3b3` 在 PHP 8.5 的执行序列验证了应用 `booting`、Provider boot、应用 `booted`、阶段内追加、启动后登记及清空后即时执行。`booted` 阶段新登记的回调依固定实现执行两次。
+
+Rust 回归验证动态队列、运行时 Provider 登记、`Application::flush` 释放回调，以及启动回调失败后的资源回收。综合示例在实际应用清单的 `booted` 阶段登记环境绑定的最终解析校验。生成项目验证配置覆盖与晚登记。工作区格式、严格 Clippy、带隔离 MySQL 8.4.13 的测试、拒警 Rustdoc、依赖检查及生成 check/test 均通过。日志和源码指纹见 `tmp/lead-app-lifecycle.z1NIwwzU/`。
+
+Provider 自身的启动回调、应用 `terminating` 的请求和命令接线及 deferred Provider 映射仍待对应。
 
 ## R2-A 类型化容器基元
 

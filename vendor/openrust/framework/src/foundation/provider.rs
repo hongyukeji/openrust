@@ -39,6 +39,33 @@ pub(crate) type Finalizer = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> +
 type AppConfigRegistration = Box<dyn FnOnce(&mut ContainerBuilder, ConfigRepository) + Send>;
 type BindingOverride = Box<dyn FnOnce(Container) -> BoxFuture<'static, Result<()>> + Send>;
 type DeferredBootValidator = Box<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
+pub(crate) type BootHook =
+    dyn for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>> + Send + Sync;
+
+#[derive(Default)]
+pub(crate) struct StartupCallbacks {
+    pub(crate) booting: Vec<Arc<BootHook>>,
+    pub(crate) booted: Vec<Arc<BootHook>>,
+    is_booted: bool,
+}
+
+impl StartupCallbacks {
+    pub(crate) fn take(&mut self) -> impl Iterator<Item = Arc<BootHook>> + use<> {
+        std::mem::take(&mut self.booting)
+            .into_iter()
+            .chain(std::mem::take(&mut self.booted))
+    }
+}
+
+impl Drop for StartupCallbacks {
+    fn drop(&mut self) {
+        for callback in self.take() {
+            if super::lifecycle::disposal::dispose(callback, None).seen {
+                tracing::error!("application startup callback disposal failed");
+            }
+        }
+    }
+}
 
 pub(crate) struct DeferredBootCheck {
     pub(crate) permitted_command: TypeId,
@@ -104,6 +131,43 @@ impl<'a> RegisterContext<'a> {
 }
 
 impl RegisterContext<'_> {
+    /// 登记在所有 Provider 完成 register 后、开始 boot 前执行的应用回调。
+    pub fn booting(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.registry
+            .startup_callbacks
+            .booting
+            .push(Arc::new(callback));
+    }
+
+    /// 登记在所有 Provider boot 后执行的应用回调。应用已经启动时立即执行。
+    pub async fn booted(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        let callback: Arc<BootHook> = Arc::new(callback);
+        if let Some(live) = self.live_boot.as_mut() {
+            live.booted(
+                self.container,
+                self.config,
+                &mut self.registry.startup_callbacks,
+                callback,
+            )
+            .await
+        } else {
+            self.registry.startup_callbacks.booted.push(callback);
+            Ok(())
+        }
+    }
+
     /// 绑定编译类的 `new_instance` 方法并替换该方法参数的注入。
     pub fn bind_new_instance<T: crate::container::SelfBuilding>(
         &self,
@@ -557,9 +621,56 @@ pub struct BootContext<'a> {
     pub(crate) extensions: &'a mut Extensions,
     pub(crate) commands: &'a CommandRegistry,
     pub(crate) finalizers: &'a mut Vec<Finalizer>,
+    pub(crate) startup_callbacks: &'a mut StartupCallbacks,
 }
 
 impl BootContext<'_> {
+    /// 登记应用 booting 回调。若此阶段仍在执行，按队列顺序运行新增回调。
+    pub fn booting(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.startup_callbacks.booting.push(Arc::new(callback));
+    }
+
+    /// 登记应用 booted 回调。标记已启动后，登记时立即执行回调。
+    pub fn booted(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> BoxFuture<'_, Result<()>> {
+        Box::pin(self.add_booted(Arc::new(callback)))
+    }
+
+    pub(super) async fn add_booted(&mut self, callback: Arc<BootHook>) -> Result<()> {
+        self.startup_callbacks.booted.push(Arc::clone(&callback));
+        if self.startup_callbacks.is_booted {
+            callback(self).await?;
+        }
+        Ok(())
+    }
+
+    async fn fire_startup_callbacks(&mut self) -> Result<()> {
+        let mut index = 0;
+        loop {
+            let queue = if self.startup_callbacks.is_booted {
+                &self.startup_callbacks.booted
+            } else {
+                &self.startup_callbacks.booting
+            };
+            let Some(callback) = queue.get(index).cloned() else {
+                return Ok(());
+            };
+            callback(self).await?;
+            index += 1;
+        }
+    }
+
     /// 返回本次启动显式指定的控制台命令；普通应用引导与测试默认为 `None`。
     pub fn console_command(&self) -> Option<&str> {
         self.console_command
@@ -763,6 +874,7 @@ pub struct ProviderBuilder {
     app_config: Option<AppConfigRegistration>,
     binding_overrides: Vec<BindingOverride>,
     class_descriptors: Vec<ClassDescriptor>,
+    startup_callbacks: StartupCallbacks,
 }
 
 struct ProviderEntry {
@@ -940,6 +1052,30 @@ impl ProviderBuilder {
     /// 创建空清单。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 登记应用回调，在所有 Provider 注册后和第一个 Provider boot 前执行。
+    pub fn booting(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.startup_callbacks.booting.push(Arc::new(callback));
+        self
+    }
+
+    /// 登记应用回调，在所有 Provider boot 完成后按顺序执行。
+    pub fn booted(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.startup_callbacks.booted.push(Arc::new(callback));
+        self
     }
 
     /// 将编译类加入应用的启动目录。多次调用按清单顺序追加。
@@ -1126,6 +1262,7 @@ impl ProviderBuilder {
         resources.attach_container(&container);
         let mut required = Vec::new();
         let mut active = registration::ProviderRegistry::new(self.removed.clone());
+        active.startup_callbacks = self.startup_callbacks;
         let mut extensions = Extensions::new();
         if self.testing_boot {
             extensions.insert(TypeId::of::<TestingBoot>(), Box::new(TestingBoot));
@@ -1155,24 +1292,38 @@ impl ProviderBuilder {
             )?;
             config.validate_base()?;
             container.initialize_extensions().await?;
-            for provider in active.iter() {
-                provider
-                    .boot(&mut BootContext {
-                        console_command: console_command.as_deref(),
-                        container: &container,
-                        config: &mut config,
-                        resources: resources.owner()?.registrar(),
-                        required: &mut required,
-                        extensions: &mut extensions,
-                        commands: &commands,
-                        finalizers: &mut finalizers,
-                    })
-                    .await?;
+            {
+                let (providers, startup_callbacks) = active.boot_parts();
+                let mut context = BootContext {
+                    console_command: console_command.as_deref(),
+                    container: &container,
+                    config: &mut config,
+                    resources: resources.owner()?.registrar(),
+                    required: &mut required,
+                    extensions: &mut extensions,
+                    commands: &commands,
+                    finalizers: &mut finalizers,
+                    startup_callbacks,
+                };
+                context.fire_startup_callbacks().await?;
                 crate::support::default_providers::validate_database_selection(
-                    &config,
+                    context.config,
                     automatic_database,
                 )?;
+                for provider in providers {
+                    provider.boot(&mut context).await?;
+                    crate::support::default_providers::validate_database_selection(
+                        context.config,
+                        automatic_database,
+                    )?;
+                }
+                context.startup_callbacks.is_booted = true;
+                context.fire_startup_callbacks().await?;
             }
+            crate::support::default_providers::validate_database_selection(
+                &config,
+                automatic_database,
+            )?;
             finalize_startup(&mut config, finalizers, required, &container).await
         }
         .await;
@@ -1224,6 +1375,10 @@ async fn finalize_startup(
     }
     Ok(framework)
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/foundation/application_startup_callbacks.rs"]
+mod application_startup_callbacks_tests;
 
 #[cfg(test)]
 mod tests {
