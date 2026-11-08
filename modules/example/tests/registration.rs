@@ -314,6 +314,49 @@ async fn production_environment_bind_is_registered_by_the_first_http_resolution(
     Ok(())
 }
 
+#[tokio::test]
+async fn disposable_example_application_rediscovers_classes_after_flush()
+-> Result<(), Box<dyn std::error::Error>> {
+    use super::http::controllers::environment_binding::{ApplicationVisits, EnvironmentBinding};
+    use std::sync::Arc;
+
+    let source = enabled_example_sources(&production_sources(true))?
+        .merge_ordered_entries([("app", serde_json::json!({"env": "testing"}))])?;
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+        .build()
+        .await?;
+    let container = app.app()?.state().container().clone();
+    let key = ServiceKey::typed::<dyn EnvironmentBinding>();
+    assert_eq!(
+        container
+            .resolve::<dyn EnvironmentBinding>()
+            .await?
+            .implementation(),
+        "testing"
+    );
+    let previous = container.resolve::<ApplicationVisits>().await?;
+    assert!(container.contains_key(&key));
+
+    container.flush()?;
+    assert!(!container.contains_key(&key));
+    assert!(!container.resolved_key(&key)?);
+    assert_eq!(
+        container
+            .resolve::<dyn EnvironmentBinding>()
+            .await?
+            .implementation(),
+        "testing"
+    );
+    assert!(container.contains_key(&key));
+    assert!(!Arc::ptr_eq(
+        &previous,
+        &container.resolve::<ApplicationVisits>().await?
+    ));
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
 async fn assert_raw_greeting_presenter(
     container: &openrust::container::Container,
     parameters: ParameterOverrides,

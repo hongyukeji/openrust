@@ -166,6 +166,12 @@ let descriptors = [
 
 调用级参数和上下文覆盖使用当前构造，绕过该服务键的共享缓存。显式登记的共享工厂或实例沿自己的规则处理。普通显式工厂可以由具体类或抽象类的声明补足共享生命周期。示例模块的 `/api/example/environment-binding` 通过应用与请求计数展示两个生命周期。 [Laravel 容器](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L255-L315)
 
+### 清空容器绑定
+
+在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)
+
+已取得的 `Arc` 和原工厂快照仍可使用。清空前已准入的普通工厂可以完成，结果只交给当时的调用方。新解析使用清空后的目录。作用域和受管任务仍由各自的生命周期关闭。运行中的应用依赖 Provider 登记的绑定，应在隔离测试或独立容器上使用 `flush`。
+
 ### 在解析阶段登记回调
 
 Provider 的 `register` 可用 `before_resolving`、`resolving` 和 `after_resolving` 追加回调。传入 `None` 选择全局阶段，传入 `Some(ServiceKey)` 选择服务。登记时将别名展开为当前目标。每个阶段先执行全局回调，再按首次登记各个键的顺序执行匹配的分组。同一个键内按追加顺序执行。

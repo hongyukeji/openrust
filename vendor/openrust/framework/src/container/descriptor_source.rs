@@ -76,11 +76,13 @@ pub(super) struct ContextualSource {
     consumer: ServiceKey,
     active: Arc<super::AtomicBool>,
     implementation: Arc<ContextualImplementation>,
+    flush_revision: u64,
 }
 
 impl ContextualSource {
     fn is_current(&self, state: &State, key: &ServiceKey) -> bool {
-        self.active.load(super::Ordering::Acquire)
+        self.flush_revision == state.flush_revision
+            && self.active.load(super::Ordering::Acquire)
             && state
                 .contextual_implementation(&self.consumer, key)
                 .is_some_and(|current| Arc::ptr_eq(current, &self.implementation))
@@ -106,8 +108,11 @@ pub(super) struct DescriptorSource {
 }
 
 impl State {
-    fn class_revision(&self, key: &ServiceKey) -> u64 {
-        self.class_source_revisions.get(key).copied().unwrap_or(0)
+    pub(super) fn class_revision(&self, key: &ServiceKey) -> u64 {
+        self.class_source_revisions
+            .get(key)
+            .copied()
+            .unwrap_or(self.flush_revision)
     }
 
     fn class_lifetime(&self, key: &ServiceKey) -> Lifetime {
@@ -177,6 +182,7 @@ impl State {
             consumer: consumer.clone(),
             active: Arc::clone(active),
             implementation: Arc::clone(implementation),
+            flush_revision: self.flush_revision,
         };
         let (factory, factory_output) = match implementation.as_ref() {
             ContextualImplementation::Factory { factory, output } => {

@@ -89,6 +89,39 @@ fn assert_not_instantiable(result: Result<Arc<dyn View>>) {
 }
 
 #[tokio::test]
+async fn flush_restarts_pending_discovery_and_discards_its_old_selection() -> Result<()> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&calls);
+    let container = fixture(
+        view()
+            .with_bind(Bind::new(key::<Concrete<2>>()))
+            .with_bind_when(BindWhen::new(key::<Concrete<1>>(), move |_| {
+                let observed = Arc::clone(&observed);
+                async move {
+                    if observed.fetch_add(1, Ordering::Relaxed) == 0 {
+                        std::future::pending::<()>().await;
+                        return Ok(true);
+                    }
+                    Ok(false)
+                }
+            })),
+    )?;
+    container.set_binding_environment(Environment::Production)?;
+    let mut old = Box::pin(resolve(&container));
+    assert!(futures_util::poll!(old.as_mut()).is_pending());
+    let mut waiter = Box::pin(resolve(&container));
+    assert!(futures_util::poll!(waiter.as_mut()).is_pending());
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+    container.flush()?;
+    assert_eq!(waiter.await?.selected(), 2);
+    assert_eq!(old.await?.selected(), 2);
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+    assert_eq!(resolve(&container).await?.selected(), 2);
+    Ok(())
+}
+
+#[tokio::test]
 async fn first_matching_condition_works_without_environment_and_precedes_wildcard() -> Result<()> {
     for environment in [None, Some(Environment::Production)] {
         let calls = Arc::new(AtomicUsize::new(0));

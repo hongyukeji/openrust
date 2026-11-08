@@ -892,6 +892,14 @@ ConfigLoader::figment现在返回Result，全部第一方loader调用同步传�
 
 独立于A2，随后确认的容器缓存发布竞态归R2-A3；该修复与新增回归见本文件A3节，不以A2配置门禁覆盖该行为。
 
+## 容器清空绑定限定验收
+
+固定 Laravel `d52c3b3` 的 `Container::flush` 与 `ContainerTest` 为基线。PHP 8.5 隔离对照 9 项通过，覆盖绑定、别名、实例和解析记录清除，以及环境、上下文、标签、扩展和回调保留。
+
+框架新回归覆盖根和已有子作用域、原工厂快照、在途共享构造、条件绑定重新发现、旧扩展拒绝发布及用户析构重入。唯一示例在隔离 `TestApp` 复用真实启动装配，清空后重新发现环境绑定并构造新单例。实际生成的 minimal 项目通过 `cargo check`、`cargo test` 及公开 API 探针。工作区格式、严格 Clippy、带隔离 MySQL 8.4.13 的测试、拒警 Rustdoc 和依赖检查均通过。原始日志和源码指纹位于 `tmp/lead-core-next.oA3a9Ud8/`。
+
+本次覆盖 `Container::flush`。Foundation `Application::flush` 的额外宿主状态仍待对应。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

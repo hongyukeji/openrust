@@ -130,6 +130,14 @@ pub(super) struct ExtensionState {
 }
 
 impl ExtensionState {
+    pub(super) fn flush_resolved(&mut self) -> HashMap<CacheKey, Arc<Operation>> {
+        self.resolved.clear();
+        self.pending_cursor.clear();
+        self.pending_order.clear();
+        // 在途构造的完成票据继续由原调用退役；只撤销旧装饰操作的发布资格。
+        std::mem::take(&mut self.operations)
+    }
+
     pub(super) fn discard_operations(&mut self, service: &ServiceKey) -> Vec<Arc<Operation>> {
         let keys: Vec<_> = self
             .operations
@@ -418,11 +426,10 @@ struct OperationGuard {
 impl OperationGuard {
     fn check(&self, state: &State) -> Result<()> {
         self.owner.check_open(state)?;
-        if state
-            .bindings
-            .get(&self.key.service)
-            .map_or(0, |binding| binding.generation)
-            == self.generation
+        if state.bindings.get(&self.key.service).map_or_else(
+            || state.class_revision(&self.key.service),
+            |binding| binding.generation,
+        ) == self.generation
             && state
                 .extensions
                 .operations
@@ -1071,7 +1078,10 @@ impl Resolver {
                 let mut state = lock(&inner.state);
                 self.check_open(&state)?;
                 let binding = state.bindings.get(service);
-                let generation = binding.map_or(0, |binding| binding.generation);
+                let generation = binding.map_or_else(
+                    || state.class_revision(service),
+                    |binding| binding.generation,
+                );
                 if expected.is_some_and(|source| !source.is_current(&state)) {
                     return Err(container_error(
                         "binding_replaced",

@@ -486,7 +486,8 @@ struct State {
     root_raw_close: Option<RootRawClose>,
     termination: Arc<ScopeStatus>,
     next_generation: u64,
-    // 只记录冻结目录中实际变更过的类；初始冻结版本为0。
+    flush_revision: u64,
+    // 只记录本轮目录中实际变更过的类；其余类沿用最近一次 flush 的版本。
     class_source_revisions: HashMap<ServiceKey, u64>,
     next_id: u64,
     terminated: bool,
@@ -1177,6 +1178,60 @@ impl Container {
             Arc::clone(&state.root_closed),
             state.root_resources.registrar(),
         ))
+    }
+
+    /// 清空绑定、别名、共享实例及解析历史，使编译类的绑定声明可重新发现。
+    ///
+    /// 保留环境、上下文规则、标签、持久装饰器及回调。现有作用域保持开放，
+    /// 已取得的实例、原工厂快照及已准入的普通构造仍有效，旧构造不会填入新缓存。
+    /// 用户值的析构在状态提交后运行。析构失败时返回错误，清空操作不会回滚。
+    pub fn flush(&self) -> Result<()> {
+        use crate::foundation::lifecycle::disposal;
+        let (bindings, slots, discoveries, operations, changes) = {
+            let mut state = lock(&self.inner.state);
+            if state.terminated {
+                return Err(container_error("container_closed", "容器已关闭"));
+            }
+            let revision = state.next_source_revision()?;
+            state.next_generation = revision;
+            state.flush_revision = revision;
+            state.aliases = directory::AliasState::default();
+            state.binding_order.clear();
+            state.checked_binding_declarations.clear();
+            state.class_source_revisions.clear();
+            state.resolved_history.clear();
+            (
+                std::mem::take(&mut state.bindings),
+                std::mem::take(&mut state.slots),
+                std::mem::take(&mut state.binding_discoveries),
+                state.extensions.flush_resolved(),
+                Arc::clone(&state.binding_changes),
+            )
+        };
+        changes.notify_waiters();
+        for operation in operations.into_values() {
+            operation.release();
+        }
+        drop(discoveries);
+        let mut failed = false;
+        for binding in bindings.into_values() {
+            // 同一绑定的工厂、实例与待初始化装饰器可能分别拥有用户析构。
+            failed |= disposal::dispose(binding.factory, None).seen;
+            failed |= disposal::dispose(binding.instance, None).seen;
+            for extender in binding.pending {
+                failed |= disposal::dispose(extender, None).seen;
+            }
+        }
+        for slot in slots.into_values() {
+            failed |= disposal::dispose(slot, None).seen;
+        }
+        if failed {
+            return Err(container_error(
+                "resource_task_interrupted",
+                "容器目录已清空，但旧绑定或实例析构异常",
+            ));
+        }
+        Ok(())
     }
 
     /// 关闭根 scoped 旧代，等待资源回收后才发布可解析的新代。
@@ -2096,6 +2151,11 @@ impl Resolver {
                 } else {
                     None
                 };
+                let revision = state.flush_revision;
+                let checked_here = checked
+                    .as_ref()
+                    .filter(|(checked_revision, _)| *checked_revision == revision)
+                    .map(|(_, key)| key);
                 if contextual.is_none()
                     && expected.is_none()
                     && let Some(declared) = self.begin_binding_discovery(
@@ -2103,10 +2163,10 @@ impl Resolver {
                         &mut state,
                         requested,
                         pinned.is_some(),
-                        checked.as_ref(),
+                        checked_here,
                     )?
                 {
-                    break 'select std::ops::ControlFlow::Break(declared);
+                    break 'select std::ops::ControlFlow::Break((revision, declared));
                 }
                 let selected = match contextual {
                     Some(source) => source,
@@ -2123,8 +2183,11 @@ impl Resolver {
             };
             let source = match choice {
                 std::ops::ControlFlow::Continue(source) => source,
-                std::ops::ControlFlow::Break(declared) => {
-                    checked = declared.resolve(inner, self).await?;
+                std::ops::ControlFlow::Break((revision, declared)) => {
+                    checked = declared
+                        .resolve(inner, self)
+                        .await?
+                        .map(|key| (revision, key));
                     continue;
                 }
             };
@@ -3933,6 +3996,10 @@ mod binding_event_tests;
 #[cfg(test)]
 #[path = "container/binding_admission_tests.rs"]
 mod binding_admission_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/container/flush.rs"]
+mod flush_tests;
 
 #[cfg(test)]
 #[path = "container/directory_tests.rs"]
