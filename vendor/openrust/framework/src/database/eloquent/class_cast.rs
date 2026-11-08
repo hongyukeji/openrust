@@ -6,7 +6,7 @@ use std::{fmt, sync::Arc};
 
 /// 自定义类转换，读取与比较使用模型原始值，写入返回原始列补丁。
 ///
-/// 默认读取透传，适用于仅入站转换。当前读取输出为 JSON 值，数组和映射按值返回。
+/// 默认读取透传，适用于仅入站转换。对象转换可覆写 `get_value`。
 pub trait ClassCaster {
     /// 读取已水合的原始值；缺少字段时传入 None。
     fn get(
@@ -20,12 +20,32 @@ pub trait ClassCaster {
             .map_or(Ok(Value::Null), AttributeValue::try_into_json)
     }
 
+    /// 读取有类型的值。默认调用仅返回 JSON 值的 `get`。
+    fn get_value(
+        &self,
+        name: &str,
+        value: Option<&AttributeValue>,
+        raw: &AttributeMap,
+    ) -> Result<AttributeValue> {
+        self.get(name, value, raw).map(AttributeValue::from)
+    }
+
     /// 将输入转换为一个或多个原始列值。
     fn set(&self, name: &str, value: AttributeValue, raw: &AttributeMap) -> Result<ClassCastWrite>;
 
     /// 投影非 null 的转换值。默认保留读取结果。
     fn serialize(&self, _name: &str, value: Value, _raw: &AttributeMap) -> Result<Value> {
         Ok(value)
+    }
+
+    /// 序列化有类型的值。默认先应用对象自身的显式投影，再调用 `serialize`。
+    fn serialize_value(
+        &self,
+        name: &str,
+        value: AttributeValue,
+        raw: &AttributeMap,
+    ) -> Result<Value> {
+        self.serialize(name, value.into_array_json()?, raw)
     }
 
     /// 比较原始基线与当前值。None 使用模型的默认等价规则。
@@ -58,12 +78,20 @@ impl ClassCastWrite {
 
 type Resolver = dyn Fn() -> Result<Box<dyn ClassCaster>> + Send + Sync;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ObjectCache {
+    Enabled,
+    Disabled,
+    Inbound,
+}
+
 /// 模型声明的自定义转换工厂。声明克隆共享同一个工厂。
 #[derive(Clone)]
 pub struct ClassCast {
     resolver: Arc<Resolver>,
     serialization: bool,
     comparison: bool,
+    object_cache: ObjectCache,
 }
 
 impl ClassCast {
@@ -75,6 +103,30 @@ impl ClassCast {
             resolver: Arc::new(move || Ok(Box::new(resolve()?))),
             serialization: false,
             comparison: false,
+            object_cache: ObjectCache::Enabled,
+        }
+    }
+
+    /// 登记仅入站转换，读取透传原值，对象输入也不进入缓存。
+    pub fn inbound<T: ClassCaster + 'static>(
+        resolve: impl Fn() -> Result<T> + Send + Sync + 'static,
+    ) -> Self {
+        let mut cast = Self::new(resolve);
+        cast.object_cache = ObjectCache::Inbound;
+        cast
+    }
+
+    pub(super) fn read(
+        &self,
+        caster: &dyn ClassCaster,
+        name: &str,
+        value: Option<&AttributeValue>,
+        raw: &AttributeMap,
+    ) -> Result<AttributeValue> {
+        if self.object_cache == ObjectCache::Inbound {
+            Ok(value.cloned().unwrap_or_else(|| Value::Null.into()))
+        } else {
+            caster.get_value(name, value, raw)
         }
     }
 
@@ -92,18 +144,39 @@ impl ClassCast {
         self
     }
 
+    /// 禁用对象缓存，读取与赋值后均不保留对象句柄。
+    #[must_use]
+    pub const fn without_object_caching(mut self) -> Self {
+        if !matches!(self.object_cache, ObjectCache::Inbound) {
+            self.object_cache = ObjectCache::Disabled;
+        }
+        self
+    }
+
+    pub(super) fn caches(&self, value: &AttributeValue) -> bool {
+        matches!(self.object_cache, ObjectCache::Enabled)
+            && (value.as_object().is_some() || value.as_date().is_some())
+    }
+
     pub(super) fn resolve(&self) -> Result<Box<dyn ClassCaster>> {
         (self.resolver)()
     }
 
-    pub(super) fn serialize(&self, name: &str, value: Value, raw: &AttributeMap) -> Result<Value> {
+    pub(super) fn serialize(
+        &self,
+        name: &str,
+        value: AttributeValue,
+        raw: &AttributeMap,
+    ) -> Result<AttributeValue> {
         if value.is_null() {
             return Ok(value);
         }
         // Laravel 分别解析能力检查和实际方法调用。
         drop(self.resolve()?);
         if self.serialization {
-            self.resolve()?.serialize(name, value, raw)
+            self.resolve()?
+                .serialize_value(name, value, raw)
+                .map(AttributeValue::from)
         } else {
             Ok(value)
         }
@@ -135,6 +208,7 @@ impl PartialEq for ClassCast {
         Arc::ptr_eq(&self.resolver, &other.resolver)
             && self.serialization == other.serialization
             && self.comparison == other.comparison
+            && self.object_cache == other.object_cache
     }
 }
 
@@ -221,7 +295,7 @@ mod tests {
         model.casts.insert("computed".into(), caster);
         model.casts.insert(
             "inbound".into(),
-            AttributeCast::Class(ClassCast::new(|| Ok(Inbound))),
+            AttributeCast::Class(ClassCast::inbound(|| Ok(Inbound))),
         );
         let attributes = ModelAttributes::new(Map::from_iter([
             ("amount".into(), json!(2)),

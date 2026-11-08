@@ -18,6 +18,10 @@ use std::{
     },
 };
 
+#[path = "class_cast_cache.rs"]
+mod class_cast_cache;
+use class_cast_cache::ClassCacheEntry;
+
 #[path = "marked_attribute.rs"]
 mod marked_attribute;
 use marked_attribute::CallbackNames;
@@ -55,6 +59,7 @@ struct State {
     setters: BTreeMap<String, Arc<dyn AttributeSetter>>,
     marked: BTreeMap<String, Arc<ModelAttribute>>,
     marked_cache: AttributeMap,
+    class_cache: indexmap::IndexMap<String, ClassCacheEntry>,
     revision: u64,
     fields: BTreeMap<String, u64>,
     pending_count: u64,
@@ -135,7 +140,7 @@ impl ModelAttributes {
 
     /// 读取原始值，保留日期对象身份。
     pub fn raw_attribute_value(&self, name: &str) -> Result<Option<AttributeValue>> {
-        self.flush_marked(Some(name))?;
+        self.flush_casts(Some(name))?;
         Ok(self
             .state
             .read()
@@ -152,7 +157,7 @@ impl ModelAttributes {
 
     /// 读取完整有序原始快照。
     pub fn raw_attribute_values(&self) -> Result<AttributeMap> {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         Ok(self.state.read().map_err(|_| state_error())?.raw.clone())
     }
 
@@ -172,9 +177,12 @@ impl ModelAttributes {
         let revision = next_revision(&state)?;
         state.owners.remove(&name);
         state.fields.insert(name.clone(), revision);
-        state.marked_cache.shift_remove(&name);
-        state.raw.insert(name, value);
+        let mut retired = RetiredAttributes::default();
+        retired.take_cache(&mut state, &name);
+        retired.values.extend(state.raw.insert(name, value));
         state.revision = revision;
+        drop(state);
+        drop(retired);
         Ok(())
     }
     /// 替换完整原始快照，保留已注册访问器；不运行cast或哈希。
@@ -185,7 +193,9 @@ impl ModelAttributes {
     /// 替换完整有序原始属性，保留已注册访问器。
     pub fn set_raw_attribute_values(&self, raw: AttributeMap) -> Result<()> {
         let mut state = self.state.write().map_err(|_| state_error())?;
-        replace_raw(&mut state, raw)?;
+        let retired = replace_raw(&mut state, raw)?;
+        drop(state);
+        drop(retired);
         Ok(())
     }
     /// 同步原子修改原始属性，用于比较并交换；仅Ok时提交候选快照。
@@ -197,7 +207,7 @@ impl ModelAttributes {
         &self,
         update: impl FnOnce(&mut Map<String, Value>) -> Result<T>,
     ) -> Result<T> {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         // 预检拒绝时保留F至guard释放；已调用FnOnce内部的析构仍须遵守锁内CAS限制。
         let mut update = Some(update);
         let mut state = self.state.write().map_err(|_| state_error())?;
@@ -225,8 +235,9 @@ impl ModelAttributes {
         let result = update_fn(&mut candidate);
         match result {
             Ok(result) => {
-                replace_raw_at(&mut state, from_json(candidate), revision);
+                let retired = replace_raw_at(&mut state, from_json(candidate), revision);
                 drop(state);
+                drop(retired);
                 Ok(result)
             }
             Err(error) => {
@@ -246,10 +257,11 @@ impl ModelAttributes {
         let previous = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             let revision = next_revision(&state)?;
-            state.marked_cache.shift_remove(&name);
+            let mut retired = RetiredAttributes::default();
+            retired.take_cache(&mut state, &name);
             let previous = state.getters.insert(name, getter);
             state.revision = revision;
-            previous
+            (previous, retired)
         };
         drop(previous);
         Ok(())
@@ -264,11 +276,12 @@ impl ModelAttributes {
         let previous = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             let revision = next_revision(&state)?;
-            state.marked_cache.shift_remove(&name);
+            let mut retired = RetiredAttributes::default();
+            retired.take_cache(&mut state, &name);
             state.setter_versions.insert(name.clone(), revision);
             let previous = state.setters.insert(name, setter);
             state.revision = revision;
-            previous
+            (previous, retired)
         };
         drop(previous);
         Ok(())
@@ -379,7 +392,7 @@ impl ModelAttributes {
 
     /// 原子读取稳定原值，保留日期对象身份。
     pub fn committed_raw_attribute_value(&self, name: &str) -> Result<Option<AttributeValue>> {
-        self.flush_marked(Some(name))?;
+        self.flush_casts(Some(name))?;
         let state = self.state.read().map_err(|_| state_error())?;
         if state
             .owners
@@ -426,7 +439,7 @@ impl ModelAttributes {
         committed: bool,
         default: Option<&dyn AttributeGetter>,
     ) -> Result<Option<AttributeValue>> {
-        self.flush_marked(Some(name))?;
+        self.flush_casts(Some(name))?;
         let uncached_marked = {
             let state = self.state.read().map_err(|_| state_error())?;
             !state.getters.contains_key(name)
@@ -437,7 +450,7 @@ impl ModelAttributes {
                     .is_some_and(|descriptor| descriptor.has_getter())
         };
         if uncached_marked {
-            self.flush_marked(None)?;
+            self.flush_casts(None)?;
         }
         let (snapshot, getter, marked, cached, revision) = {
             let state = self.state.read().map_err(|_| state_error())?;
@@ -471,6 +484,17 @@ impl ModelAttributes {
                 revision,
                 committed,
             )?)
+        } else if getter.is_none()
+            && default.is_none()
+            && let Some(AttributeCast::Class(cast)) = metadata.casts.get(name)
+        {
+            Some(self.read_class_cast(
+                cast,
+                name,
+                (snapshot.get(name), &snapshot),
+                revision,
+                !committed,
+            )?)
         } else {
             self.read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref().or(default))?
         };
@@ -493,7 +517,7 @@ impl ModelAttributes {
         metadata: &ModelMetadata,
     ) -> Result<AttributeValue> {
         let name = metadata.key_name.as_str();
-        self.flush_marked(Some(name))?;
+        self.flush_casts(Some(name))?;
         let (snapshot, getter, marked, cached, revision) = {
             let state = self.state.read().map_err(|_| state_error())?;
             if let Some(key) = state.original.get(name).filter(|value| !value.is_null()) {
@@ -523,6 +547,16 @@ impl ModelAttributes {
                 revision,
                 true,
             )?)
+        } else if getter.is_none()
+            && let Some(AttributeCast::Class(cast)) = metadata.casts.get(name)
+        {
+            Some(self.read_class_cast(
+                cast,
+                name,
+                (snapshot.get(name), &snapshot),
+                revision,
+                false,
+            )?)
         } else {
             self.read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())?
         };
@@ -545,7 +579,7 @@ impl ModelAttributes {
     /// 将可见属性依次经过日期名单、访问器、cast 和追加字段投影。
     /// 此入口处理属性本身，关联由关系序列化入口处理。
     pub fn attributes_to_array(&self, metadata: &ModelMetadata) -> Result<AttributeMap> {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         let (mut values, getters, marked) = {
             let state = self.state.read().map_err(|_| state_error())?;
             let values: AttributeMap = state
@@ -569,7 +603,7 @@ impl ModelAttributes {
         for (name, getter) in &getters {
             if let Some(value) = values.get_mut(name).filter(|_| !has_marked(name)) {
                 *value = if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
-                    self.project_class_for_array(caster, name, Some(value), false)?
+                    self.project_class_for_array(caster, name, Some(value), None)?
                 } else {
                     let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
                     getter
@@ -581,7 +615,7 @@ impl ModelAttributes {
         for (name, descriptor) in &marked {
             if let Some(value) = values.get_mut(name).filter(|_| descriptor.has_getter()) {
                 *value = if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
-                    self.project_class_for_array(caster, name, Some(value), false)?
+                    self.project_class_for_array(caster, name, Some(value), None)?
                 } else {
                     self.project_marked_for_array(metadata, name, descriptor, Some(value))?
                 };
@@ -604,7 +638,7 @@ impl ModelAttributes {
             let raw_value = self.raw_attribute_value(name)?;
             metadata.check_raw_class_cast(name)?;
             let value = if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
-                self.project_class_for_array(caster, name, raw_value.as_ref(), false)?
+                self.project_class_for_array(caster, name, raw_value.as_ref(), None)?
             } else if let Some(descriptor) = marked.get(name).filter(|value| value.has_getter()) {
                 let cached = self
                     .state
@@ -613,11 +647,11 @@ impl ModelAttributes {
                     .marked_cache
                     .contains_key(name);
                 if !cached {
-                    self.flush_marked(None)?;
+                    self.flush_casts(None)?;
                 }
                 self.project_marked_for_array(metadata, name, descriptor, raw_value.as_ref())?
             } else if let Some(getter) = getters.get(name) {
-                self.flush_marked(None)?;
+                self.flush_casts(None)?;
                 let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
                 getter
                     .get(raw_value.as_ref(), &raw)?
@@ -640,7 +674,7 @@ impl ModelAttributes {
         value: &AttributeValue,
     ) -> Result<AttributeValue> {
         if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
-            return self.project_class_for_array(caster, name, Some(value), true);
+            return self.project_class_for_array(caster, name, Some(value), Some(metadata));
         }
         let output = metadata
             .cast_attribute_value(name, Some(value.clone()), &self.dates)?
@@ -655,16 +689,24 @@ impl ModelAttributes {
         caster: &ClassCast,
         name: &str,
         value: Option<&AttributeValue>,
-        serialize: bool,
+        serialize: Option<&ModelMetadata>,
     ) -> Result<AttributeValue> {
-        let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
-        let output = caster.resolve()?.get(name, value, &raw)?;
-        if serialize {
-            caster
-                .serialize(name, output, &raw)
-                .map(AttributeValue::from)
+        let (raw, revision) = {
+            let state = self.state.read().map_err(|_| state_error())?;
+            (state.raw.clone(), state.revision)
+        };
+        let output = self.read_class_cast(caster, name, (value, &raw), revision, true)?;
+        if let Some(metadata) = serialize {
+            let output = if output.as_date().is_some() {
+                metadata
+                    .project_date_value(name, output, &self.dates, true)?
+                    .into()
+            } else {
+                output
+            };
+            caster.serialize(name, output, &raw)
         } else {
-            Ok(output.into())
+            Ok(output)
         }
     }
 
@@ -889,7 +931,7 @@ impl ModelAttributes {
         default_setter: Option<&dyn AttributeSetter>,
         #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
     ) -> Result<()> {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         let marked = {
             let state = self.state.read().map_err(|_| state_error())?;
             state
@@ -926,7 +968,7 @@ impl ModelAttributes {
             };
             (state.raw.clone(), setter, watch)
         };
-        let patch = self
+        let (patch, retention, cache) = self
             .prepare_patch(
                 metadata,
                 name,
@@ -951,9 +993,22 @@ impl ModelAttributes {
         {
             return Err(mutation_error("model_attribute_mutation_conflict"));
         }
-        apply_patch(&mut state, patch)?;
-        state.marked_cache.shift_remove(name);
+        if let Some((entry, revision)) = &cache
+            && entry.value.object_revision()? != *revision
+        {
+            return Err(mutation_error("model_attribute_mutation_conflict"));
+        }
+        let mut retired = apply_attribute_patch(&mut state, patch, retention)?;
+        retired.values.extend(state.marked_cache.shift_remove(name));
+        if let Some((entry, _)) = cache {
+            retired
+                .casts
+                .extend(state.class_cache.insert(name.to_owned(), entry));
+        } else {
+            retired.casts.extend(state.class_cache.shift_remove(name));
+        }
         drop(state);
+        drop(retired);
         drop(watch);
         Ok(())
     }
@@ -965,8 +1020,8 @@ impl ModelAttributes {
         snapshot: AttributeMap,
         setter: Option<&dyn AttributeSetter>,
         #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
-    ) -> Result<AttributeMap> {
-        Ok(if let Some(setter) = setter {
+    ) -> Result<PreparedPatch> {
+        let patch = if let Some(setter) = setter {
             setter.set(value, snapshot).await?
         } else {
             let cast = metadata.write_cast(name)?;
@@ -979,10 +1034,24 @@ impl ModelAttributes {
             };
             let value = match cast {
                 Some(AttributeCast::Class(caster)) => {
-                    return Ok(caster
+                    let cache = if caster.caches(&value) {
+                        let revision = value.object_revision()?;
+                        Some((
+                            ClassCacheEntry {
+                                cast: caster.clone(),
+                                value: value.clone(),
+                            },
+                            revision,
+                        ))
+                    } else {
+                        None
+                    };
+                    let _callback = self.enter_attribute_callback(name)?;
+                    let patch = caster
                         .resolve()?
                         .set(name, value, &snapshot)?
-                        .into_patch(name));
+                        .into_patch(name);
+                    return Ok((patch, CacheRetention::KeepClasses, cache));
                 }
                 Some(AttributeCast::Array) if !value.is_null() => {
                     Value::String(super::attribute_cast::encode_array_json(value.as_json()?)?)
@@ -1012,7 +1081,8 @@ impl ModelAttributes {
                 _ => value,
             };
             AttributeMap::from_iter([(name.to_owned(), value)])
-        })
+        };
+        Ok((patch, CacheRetention::Invalidate, None))
     }
     /// 条件成立后准备同一属性补丁并返回拥有式收据；取消准备不会修改原始值。
     ///
@@ -1066,7 +1136,7 @@ impl ModelAttributes {
     where
         F: FnOnce(Option<Value>) -> Result<bool> + Send,
     {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         let MutationPreparation {
             snapshot,
             getter,
@@ -1084,6 +1154,16 @@ impl ModelAttributes {
                 Some(value) => value,
                 None => self.read_marked(name, descriptor, &snapshot)?,
             })
+        } else if getter.is_none()
+            && let Some(AttributeCast::Class(cast)) = metadata.casts.get(name)
+        {
+            Some(self.read_class_cast(
+                cast,
+                name,
+                (snapshot.get(name), &snapshot),
+                revision,
+                false,
+            )?)
         } else {
             self.read_attribute_snapshot(metadata, name, &snapshot, getter.as_deref())?
         };
@@ -1091,11 +1171,15 @@ impl ModelAttributes {
         if !predicate(current)? {
             return Ok(None);
         }
-        let patch = if let (None, Some(descriptor)) = (
+        let (patch, retention, _) = if let (None, Some(descriptor)) = (
             &setter,
             marked.as_deref().filter(|value| value.has_setter()),
         ) {
-            self.write_marked(name, descriptor, value.into(), &snapshot)?
+            (
+                self.write_marked(name, descriptor, value.into(), &snapshot)?,
+                CacheRetention::Invalidate,
+                None,
+            )
         } else {
             self.prepare_patch(
                 metadata,
@@ -1108,7 +1192,7 @@ impl ModelAttributes {
             )
             .await?
         };
-        self.finish_mutation(name, receipt, revision, patch)
+        self.finish_mutation(name, receipt, revision, patch, retention)
             .map(Some)
     }
 
@@ -1148,6 +1232,7 @@ impl ModelAttributes {
             preparation.receipt,
             preparation.revision,
             AttributeMap::from_iter([(name.to_owned(), value)]),
+            CacheRetention::Invalidate,
         )
         .map(Some)
     }
@@ -1183,14 +1268,16 @@ impl ModelAttributes {
         mut receipt: AttributeMutation,
         revision: u64,
         patch: AttributeMap,
+        retention: CacheRetention,
     ) -> Result<AttributeMutation> {
-        {
+        let retired = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             if state.revision != revision {
                 return Err(mutation_error("model_attribute_mutation_conflict"));
             }
             let applied_revision = next_revision(&state)?;
-            state.marked_cache.shift_remove(name);
+            let mut retired = RetiredAttributes::default();
+            retired.take_cache(&mut state, name);
             for (key, value) in patch {
                 let node = Arc::new(MutationNode {
                     value: value.clone(),
@@ -1200,8 +1287,8 @@ impl ModelAttributes {
                     }),
                     status: Arc::clone(&receipt.status),
                 });
-                state.marked_cache.shift_remove(&key);
-                state.raw.insert(key.clone(), value);
+                retired.take_patch_cache(&mut state, &key, retention);
+                retired.values.extend(state.raw.insert(key.clone(), value));
                 state.fields.insert(key.clone(), applied_revision);
                 state.owners.insert(key.clone(), Arc::clone(&node));
                 state.nodes.push(Arc::downgrade(&node));
@@ -1211,10 +1298,18 @@ impl ModelAttributes {
             receipt.applied = true;
             compress_histories(&mut state);
             prune_fields(&mut state);
-        }
+            retired
+        };
+        drop(retired);
         Ok(receipt)
     }
 }
+type PreparedPatch = (
+    AttributeMap,
+    CacheRetention,
+    Option<(ClassCacheEntry, Option<u64>)>,
+);
+
 struct MutationPreparation {
     snapshot: AttributeMap,
     getter: Option<Arc<dyn AttributeGetter>>,
@@ -1460,41 +1555,77 @@ fn next_revision(state: &State) -> Result<u64> {
         .ok_or_else(|| mutation_error("model_attribute_revision_exhausted"))?;
     Ok(revision)
 }
-fn apply_patch(state: &mut State, patch: AttributeMap) -> Result<()> {
-    apply_attribute_patch(state, patch, false)
+#[derive(Clone, Copy)]
+enum CacheRetention {
+    Invalidate,
+    KeepClasses,
+    KeepAll,
+}
+
+#[derive(Default)]
+struct RetiredAttributes {
+    values: Vec<AttributeValue>,
+    casts: Vec<ClassCacheEntry>,
+}
+
+impl RetiredAttributes {
+    fn take_cache(&mut self, state: &mut State, name: &str) {
+        self.take_patch_cache(state, name, CacheRetention::Invalidate);
+    }
+
+    fn take_patch_cache(&mut self, state: &mut State, name: &str, retention: CacheRetention) {
+        if !matches!(retention, CacheRetention::KeepAll) {
+            self.values.extend(state.marked_cache.shift_remove(name));
+        }
+        if matches!(retention, CacheRetention::Invalidate) {
+            self.casts.extend(state.class_cache.shift_remove(name));
+        }
+    }
+}
+
+fn apply_patch(state: &mut State, patch: AttributeMap) -> Result<RetiredAttributes> {
+    apply_attribute_patch(state, patch, CacheRetention::Invalidate)
 }
 fn apply_attribute_patch(
     state: &mut State,
     patch: AttributeMap,
-    preserve_cache: bool,
-) -> Result<()> {
+    retention: CacheRetention,
+) -> Result<RetiredAttributes> {
     let revision = next_revision(state)?;
+    let mut retired = RetiredAttributes::default();
     for (key, value) in patch {
         state.owners.remove(&key);
-        if !preserve_cache {
-            state.marked_cache.shift_remove(&key);
-        }
+        retired.take_patch_cache(state, &key, retention);
         state.fields.insert(key.clone(), revision);
-        state.raw.insert(key, value);
+        retired.values.extend(state.raw.insert(key, value));
     }
     state.revision = revision;
     prune_fields(state);
-    Ok(())
+    Ok(retired)
 }
-fn replace_raw(state: &mut State, raw: AttributeMap) -> Result<()> {
+fn replace_raw(state: &mut State, raw: AttributeMap) -> Result<RetiredAttributes> {
     let revision = next_revision(state)?;
-    replace_raw_at(state, raw, revision);
-    Ok(())
+    Ok(replace_raw_at(state, raw, revision))
 }
-fn replace_raw_at(state: &mut State, raw: AttributeMap, revision: u64) {
+fn replace_raw_at(state: &mut State, raw: AttributeMap, revision: u64) -> RetiredAttributes {
     for key in state.raw.keys().chain(raw.keys()) {
         state.fields.insert(key.clone(), revision);
     }
     state.owners.clear();
-    state.marked_cache.clear();
-    state.raw = raw;
+    let mut retired = RetiredAttributes {
+        values: std::mem::replace(&mut state.raw, raw)
+            .into_values()
+            .collect(),
+        casts: std::mem::take(&mut state.class_cache)
+            .into_values()
+            .collect(),
+    };
+    retired
+        .values
+        .extend(std::mem::take(&mut state.marked_cache).into_values());
     state.revision = revision;
     prune_fields(state);
+    retired
 }
 pub(super) fn read_conflict(code: &'static str) -> Error {
     Error::custom_with_status(http::StatusCode::CONFLICT, code, "模型属性当前不能稳定读取")

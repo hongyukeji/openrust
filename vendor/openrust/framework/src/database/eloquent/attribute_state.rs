@@ -222,17 +222,18 @@ impl ModelAttributes {
     /// 不执行 SQL 或访问器，也不更新原始基线。存在未决可回滚写入或运行中的
     /// setter 时返回冲突，保留全部当前状态。
     pub fn discard_changes(&self) -> Result<&Self> {
-        let (changes, previous) = {
+        let (changes, previous, retired) = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             ensure_stable(&state)?;
             let original = state.original.clone();
-            replace_raw(&mut state, original)?;
+            let retired = replace_raw(&mut state, original)?;
             (
                 std::mem::take(&mut state.changes),
                 std::mem::take(&mut state.previous),
+                retired,
             )
         };
-        drop((changes, previous));
+        drop((changes, previous, retired));
         Ok(self)
     }
 
@@ -243,7 +244,10 @@ impl ModelAttributes {
     ) -> Result<()> {
         let mut state = self.state.write().map_err(|_| state_error())?;
         ensure_stable(&state)?;
-        replace_raw(&mut state, from_json(raw))
+        let retired = replace_raw(&mut state, from_json(raw))?;
+        drop(state);
+        drop(retired);
+        Ok(())
     }
 
     // 无关系需要重载时，一次更新当前属性与原始基线，保留上次保存的变化记录。
@@ -256,8 +260,8 @@ impl ModelAttributes {
             let mut state = self.state.write().map_err(|_| state_error())?;
             ensure_stable(&state)?;
             let revision = next_original_revision(&state)?;
-            replace_raw(&mut state, raw.clone())?;
-            let retired = std::mem::replace(&mut state.original, raw);
+            let retired_raw = replace_raw(&mut state, raw.clone())?;
+            let retired = (std::mem::replace(&mut state.original, raw), retired_raw);
             state.original_revision = revision;
             retired
         };
@@ -267,7 +271,7 @@ impl ModelAttributes {
 
     /// 把稳定当前原值同步为 `original`，不清 `changes`/`previous`，不改变原始属性修改版本。
     pub fn sync_original(&self) -> Result<&Self> {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         let previous = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             ensure_stable(&state)?;
@@ -286,7 +290,7 @@ impl ModelAttributes {
     }
     /// 按输入顺序同步字段；后项缺失保留已同步前缀，重复键按输入处理。
     pub fn sync_original_attributes(&self, names: &[&str]) -> Result<&Self> {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         let mut retired = Vec::new();
         let mut state = self.state.write().map_err(|_| state_error())?;
         ensure_stable(&state)?;
@@ -354,7 +358,7 @@ impl ModelAttributes {
         Ok(())
     }
     fn persistence_snapshot(&self) -> Result<Snapshot> {
-        self.flush_marked(None)?;
+        self.flush_casts(None)?;
         self.stable_snapshot()
     }
 
@@ -487,6 +491,7 @@ fn equivalent(
 fn strict_attribute_equal(left: &AttributeValue, right: &AttributeValue) -> bool {
     match (left, right) {
         (AttributeValue::Date(left), AttributeValue::Date(right)) => left.same_object(right),
+        (AttributeValue::Object(left), AttributeValue::Object(right)) => left.same_object(right),
         (AttributeValue::Json(left), AttributeValue::Json(right)) => strict_equal(left, right),
         _ => false,
     }

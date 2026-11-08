@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 类转换可保留共享对象身份，支持对象缓存、可选禁用和保存前回写。
+
 - Eloquent 新增显式自定义类转换，支持仅入站、读写补丁、数组输出及原始值比较。
 
 - Eloquent 模型数组和 JSON 递归输出已加载的可见关系，支持关系键名、循环截断和中间表。

@@ -77,14 +77,45 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
 async fn check_generated_class_cast() -> Result<()> {
     use openrust::database::eloquent::{
         AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,
-        ModelAttributes, ModelMetadata,
+        ModelAttributes, ModelMetadata, ModelObject,
     };
     use serde_json::json;
 
+    struct Label(String);
+    impl openrust::support::DataObject for Label {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn json_projection(&self) -> Option<serde_json::Value> {
+            Some(json!(self.0))
+        }
+    }
     struct Normalize;
     impl ClassCaster for Normalize {
+        fn get_value(
+            &self,
+            _: &str,
+            raw: Option<&AttributeValue>,
+            _: &AttributeMap,
+        ) -> Result<AttributeValue> {
+            let text = raw
+                .map(AttributeValue::as_json)
+                .transpose()?
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            Ok(ModelObject::new(Label(text.into())).into())
+        }
+
         fn set(&self, _: &str, input: AttributeValue, _: &AttributeMap) -> Result<ClassCastWrite> {
-            let text = input.as_json()?.as_str().ok_or_else(|| {
+            let projected = if let Some(object) = input.as_object() {
+                object
+                    .snapshot()?
+                    .json_projection()
+                    .unwrap_or(serde_json::Value::Null)
+            } else {
+                input.try_into_json()?
+            };
+            let text = projected.as_str().ok_or_else(|| {
                 Error::custom("generated_class_cast_input", "测试类转换要求字符串")
             })?;
             Ok(ClassCastWrite::Value(json!(text.trim()).into()))
@@ -100,7 +131,13 @@ async fn check_generated_class_cast() -> Result<()> {
     attributes
         .set_attribute(&metadata, "label", json!("  value  "))
         .await?;
-    check(attributes.attributes_to_json(&metadata)?["label"] == json!("value"))
+    check(attributes.attributes_to_json(&metadata)?["label"] == json!("value"))?;
+    let object = attributes
+        .get_attribute_value(&metadata, "label")?
+        .and_then(|value| value.as_object().cloned())
+        .ok_or_else(|| Error::custom("generated_class_cast_object", "缺少类转换对象"))?;
+    object.modify(|_: &Label| Ok(Label("updated".into())))?;
+    check(attributes.raw_attribute("label")? == Some(json!("updated")))
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

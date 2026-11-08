@@ -1,10 +1,9 @@
 //! 有类型的 Eloquent 属性访问器及对象缓存。
 
 use super::{
-    AttributeMap, AttributeValue, ModelAttributes, Result, apply_attribute_patch, apply_patch,
-    next_revision, read_conflict, state_error,
+    AttributeMap, AttributeValue, ModelAttributes, Result, RetiredAttributes,
+    apply_attribute_patch, apply_patch, next_revision, read_conflict, state_error,
 };
-use crate::database::eloquent::ModelDate;
 use serde_json::Value;
 use std::{
     collections::BTreeSet,
@@ -78,7 +77,8 @@ impl ModelAttribute {
     }
 
     fn caches(&self, value: &AttributeValue) -> bool {
-        self.cache_scalars || self.cache_objects && value.as_date().is_some()
+        self.cache_scalars
+            || self.cache_objects && (value.as_date().is_some() || value.as_object().is_some())
     }
 
     pub(super) fn has_getter(&self) -> bool {
@@ -114,7 +114,7 @@ impl ModelAttribute {
     }
 }
 
-struct CallbackScope<'a> {
+pub(super) struct CallbackScope<'a> {
     store: &'a ModelAttributes,
     name: &'a str,
 }
@@ -142,16 +142,20 @@ impl ModelAttributes {
         let old = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             let revision = next_revision(&state)?;
-            state.marked_cache.shift_remove(&name);
+            let mut retired = RetiredAttributes::default();
+            retired.take_cache(&mut state, &name);
             state.setter_versions.insert(name.clone(), revision);
             state.revision = revision;
-            state.marked.insert(name, Arc::new(descriptor))
+            (state.marked.insert(name, Arc::new(descriptor)), retired)
         };
         drop(old);
         Ok(())
     }
 
-    fn enter_attribute_callback<'a>(&'a self, name: &'a str) -> Result<CallbackScope<'a>> {
+    pub(super) fn enter_attribute_callback<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> Result<CallbackScope<'a>> {
         if !self
             .marked_callbacks
             .lock()
@@ -231,11 +235,13 @@ impl ModelAttributes {
         if state.revision != revision || date_revision != self::date_revision(&value)? {
             return Err(read_conflict("model_attribute_mutation_conflict"));
         }
-        apply_patch(&mut state, patch)?;
-        state.marked_cache.shift_remove(name);
+        let mut retired = apply_patch(&mut state, patch)?;
+        retired.take_cache(&mut state, name);
         if descriptor.caches(&value) {
             state.marked_cache.insert(name.to_owned(), value);
         }
+        drop(state);
+        drop(retired);
         Ok(())
     }
 
@@ -282,10 +288,13 @@ impl ModelAttributes {
             }
         }
         // 缓存回写同步存储值，继续保留同一访问器对象。
-        apply_attribute_patch(&mut state, patch, true)
+        let retired = apply_attribute_patch(&mut state, patch, super::CacheRetention::KeepAll)?;
+        drop(state);
+        drop(retired);
+        Ok(())
     }
 }
 
 fn date_revision(value: &AttributeValue) -> Result<Option<u64>> {
-    value.as_date().map(ModelDate::revision).transpose()
+    value.object_revision()
 }

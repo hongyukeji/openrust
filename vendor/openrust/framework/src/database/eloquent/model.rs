@@ -256,9 +256,7 @@ impl ModelMetadata {
         let cast = self.effective_cast(name)?;
         if let Some(AttributeCast::Class(caster)) = &cast {
             return caster
-                .resolve()?
-                .get(name, raw.as_ref(), snapshot)
-                .map(AttributeValue::from)
+                .read(caster.resolve()?.as_ref(), name, raw.as_ref(), snapshot)
                 .map(Some);
         }
         let Some(raw) = raw else { return Ok(None) };
@@ -292,7 +290,7 @@ impl ModelMetadata {
         from_accessor: bool,
     ) -> Result<Value> {
         let AttributeValue::Date(date) = value else {
-            return value.try_into_json();
+            return value.into_array_json();
         };
         let date = date.snapshot()?;
         if from_accessor {

@@ -81,9 +81,9 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 ### 自定义类转换
 
-在 `ModelMetadata::casts` 使用 `AttributeCast::Class(ClassCast::new(factory))`。工厂返回实现 `ClassCaster` 的转换器，可捕获构造参数。转换器的 `get` 读取模型原始快照，默认透传原值，适用于仅入站转换。用 `ClassCastWrite::Value` 写入当前字段，用 `ClassCastWrite::Patch` 一次提交多列补丁。正常读取和赋值保留已有访问器优先级。
+在 `ModelMetadata::casts` 使用 `AttributeCast::Class(ClassCast::new(factory))`。工厂返回实现 `ClassCaster` 的转换器，可捕获构造参数。转换器的 `get` 读取模型原始快照，默认透传原值。仅入站转换使用 `ClassCast::inbound(factory)`，对象赋值也不会进入缓存。用 `ClassCastWrite::Value` 写入当前字段，用 `ClassCastWrite::Patch` 一次提交多列补丁。正常读取和赋值保留已有访问器优先级。
 
-用 `with_serialization` 启用 `serialize` 以定义非 null 的数组输出。用 `with_comparison` 启用 `compare` 以比较持久化基线与当前原值。数组化保留 Laravel 的分派顺序，带访问器或追加声明的类转换直接使用读取结果。示例记录的 `view_count` 通过公开类转换完成写入、回读与预览。本入口当前返回 JSON 值，对象身份和缓存回写另行交付。
+用 `with_serialization` 启用 `serialize` 以定义非 null 的数组输出。用 `with_comparison` 启用 `compare` 以比较持久化基线与当前原值。数组化保留 Laravel 的分派顺序，带访问器或追加声明的类转换直接使用读取结果。示例记录的 `view_count` 通过公开类转换完成写入、回读与预览。覆写 `get_value` 可返回 `ModelObject`。同一模型重复读取共享对象句柄，`modify` 更新有类型快照，保存前由转换器的 `set` 回写原始列。用 `without_object_caching` 关闭对象缓存。模型数组保留对象身份，JSON 使用对象的显式投影或 `serialize_value`。
 
 ### 有类型的访问器
 

@@ -5,11 +5,12 @@ use openrust::{
     database::{
         eloquent::{
             AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,
-            HasRelationships, HydrateModel, ModelAttributes, ModelMetadata, ModelRelations,
-            SaveModel,
+            HasRelationships, HydrateModel, ModelAttributes, ModelMetadata, ModelObject,
+            ModelRelations, SaveModel,
         },
         sea_orm::{self, entity::prelude::*},
     },
+    support::DataObject,
 };
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
@@ -111,22 +112,47 @@ static VIEW_COUNT_CAST: std::sync::LazyLock<ClassCast> =
     std::sync::LazyLock::new(|| ClassCast::new(|| Ok(ViewCountCast)));
 
 struct ViewCountCast;
+struct ViewCountValue(i64);
 
-impl ClassCaster for ViewCountCast {
-    fn get(&self, _: &str, raw: Option<&AttributeValue>, _: &AttributeMap) -> ModelResult<Value> {
-        AttributeCast::Integer
-            .read(raw.map(AttributeValue::as_json).transpose()?.cloned())
-            .map(|value| value.unwrap_or(Value::Null))
+impl DataObject for ViewCountValue {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 
-    fn set(
+    fn json_projection(&self) -> Option<Value> {
+        Some(Value::from(self.0))
+    }
+}
+
+impl ClassCaster for ViewCountCast {
+    fn get_value(
         &self,
-        name: &str,
-        value: AttributeValue,
-        raw: &AttributeMap,
-    ) -> ModelResult<ClassCastWrite> {
-        self.get(name, Some(&value), raw)
-            .map(|value| ClassCastWrite::Value(value.into()))
+        _: &str,
+        raw: Option<&AttributeValue>,
+        _: &AttributeMap,
+    ) -> ModelResult<AttributeValue> {
+        let value =
+            AttributeCast::Integer.read(raw.map(AttributeValue::as_json).transpose()?.cloned())?;
+        Ok(value.and_then(|value| value.as_i64()).map_or_else(
+            || Value::Null.into(),
+            |value| ModelObject::new(ViewCountValue(value)).into(),
+        ))
+    }
+
+    fn set(&self, _: &str, value: AttributeValue, _: &AttributeMap) -> ModelResult<ClassCastWrite> {
+        let value = if let Some(object) = value.as_object() {
+            object
+                .snapshot()?
+                .as_any()
+                .downcast_ref::<ViewCountValue>()
+                .map(|value| Value::from(value.0))
+                .ok_or_else(|| Error::custom("example_view_count_type", "浏览量对象类型无效"))?
+        } else {
+            AttributeCast::Integer
+                .read(Some(value.try_into_json()?))?
+                .unwrap_or(Value::Null)
+        };
+        Ok(ClassCastWrite::Value(value.into()))
     }
 }
 

@@ -337,6 +337,7 @@ fn bind_value<M: SaveModel>(
 ) -> Result<sea_orm::Value> {
     match value {
         AttributeValue::Json(value) => model.bind_attribute(name, value),
+        AttributeValue::Object(_) => Err(super::attribute_value::object_projection_required()),
         AttributeValue::Date(date) => {
             date_bindings.extend(date.pin_for_binding()?);
             // 连接格式化尚未经过模型存储格式转换的日期对象。
