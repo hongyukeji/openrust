@@ -66,9 +66,7 @@ db.transaction(|transaction| {
 
 ```rust
 use openrust::http::{Inject, Json};
-use openrust::translation::Translator;
-use openrust::translation::MessageArgs;
-use openrust::translation::RequestLocale;
+use openrust::translation::{Translator, MessageArgs, RequestLocale};
 
 async fn greeting(locale: RequestLocale, Inject(i18n): Inject<Translator>) -> Json<String> {
     let args = MessageArgs::from([("name".to_owned(), "Ada".to_owned())]);

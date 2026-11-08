@@ -10,8 +10,7 @@
 
 ```rust
 use openrust::config::{ConfigContext, ConfigError};
-use openrust::translation::TranslationConfig;
-use openrust::translation::Locale;
+use openrust::translation::{TranslationConfig, Locale};
 
 pub fn config(_ctx: &ConfigContext) -> Result<TranslationConfig, ConfigError> {
     Ok(TranslationConfig {
