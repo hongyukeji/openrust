@@ -521,7 +521,7 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 
 Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测条件在 R0 盘点。遇到外部缺口继续无依赖工作，但不能标记真实发送、支付、完整生态或全部验收完成。
 
-## 当前 R1-S 结构子簇 Spec
+## R1-S 结构子簇历史 Spec
 
 1. 框架与应用保持同仓、main集成；后续默认共享main目录按文件分工，既有worktree安全交接退役；根 package 为 openrust，src/lib.rs 提供框架，薄 src/main.rs 提供默认 server。
 2. default-members=["."]、default-run="server"；根无参数 cargo run 启动唯一应用，不需要选择 package/bin。

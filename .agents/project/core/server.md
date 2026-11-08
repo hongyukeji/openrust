@@ -4,7 +4,7 @@
 > 更新：2026-10-28
 > 摘要：根 Laravel 应用与唯一业务模块已落地；R1-S 结构子步骤已提交，modules/example 经当前 R2-M 模块清单接入；综合 CRUD/能力贯通仍未完成。
 
-根 package openrust 同时提供 src/lib.rs 框架库与默认 server 薄入口 src/main.rs。default-members=["."]、default-run="server"，根无参数 cargo run 启动唯一应用；app/bootstrap/config/database/public/resources/routes/storage/tests 直接位于根，按根工作目录读取配置和资源。
+根应用 package `openrust` 依赖独立框架包，由薄入口 `src/main.rs` 提供二进制 `app`。`default-members = ["."]`、`default-run = "app"`，根无参数 `cargo run` 启动唯一应用；app/bootstrap/config/database/public/resources/routes/storage/tests 直接位于根，按根工作目录读取配置和资源。
 
 唯一综合示例 modules/example 的薄 provider 使用当前公开 ServiceProvider，由根 bootstrap 调用 modules/mod.rs 编译清单和状态激活器统一接入；模块自有 routes/api.rs、routes/web.rs 贡献业务路由，根 routes 承担普通应用Web/API路由，与模块共用公开Routes及Provider。模块内部 providers/http/database/resources/tests 按实际业务规范组织，未有实现不建空models/services。它是贯穿框架能力的目标示例，目前仅已有认证/队列/页面与基本模块路由，完整 CRUD/能力覆盖仍待交付；不保留独立示例 bin/package。示例有效业务、迁移、种子、资源、协议/生成脚本和专属 fixture 全部归 modules/example；根app及职责目录支持普通应用代码，不存示例专有 build.rs/build 依赖或样例特判；tests/server 承担真实进程与服务回归，tests/consumers 承担公开 API/独立拓扑验收。
 

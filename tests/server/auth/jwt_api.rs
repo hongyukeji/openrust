@@ -53,10 +53,12 @@ fn sources(root: &Path, url: &str, api: bool, issuer: &str) -> Result<ConfigSour
         &crate::config::boot().with_toml(),
         overrides,
     )?;
-    let mut app = json!({"env":"local","url":"http://localhost"});
-    if !api {
-        app["key"] = json!("0123456789abcdef0123456789abcdef");
-    }
+    // JWT 与 Web 共用 Fortify 字段加密，Cookie 和 Session 由各自的 Provider 配置决定。
+    let app = json!({
+        "env": "local",
+        "url": "http://localhost",
+        "key": "0123456789abcdef0123456789abcdef",
+    });
     source.merge_ordered_entries([
         ("application_root", json!(root)),
         ("modules", json!({"activator":"registered","activators":{"file":{"statuses-file":root.join("module-statuses.json")}}})),

@@ -104,7 +104,7 @@ MySQL+Redis标准宿主/生成路径与默认database队列已由 `3703939e` 限
 
 - 除 modules/example 外均为框架通用结构与代码；示例专有迁移/种子/资源/协议/生成脚本/测试 fixture 均归模块内，根只保留通用加载与公开挂载，不因示例新增 build.rs/build 依赖。
 
-- 当前已提交根应用openrust依赖vendor/openrust/framework包，框架公开openrust::与默认server保留，独立包迁移限定验收见测试基线；default-members=["."]、default-run="server"，根默认启动，modules/example 是唯一综合示例；生成应用与真实 HTTP 验证继续执行。
+- 当前已提交根应用openrust依赖vendor/openrust/framework包，框架公开 `openrust::`，独立包迁移限定验收见测试基线。根应用 `default-members = ["."]`、`default-run = "app"`，根默认启动，modules/example 是唯一综合示例；生成应用与真实 HTTP 验证继续执行。
 
 必要Rust差异、用户约定和授权增强按[差异分类](plans/laravel-rebuild.md#逐项对应与差异分类)公开；单仓main、根结构、modules/<模块>、模块专属资源、Vue/uni-app与Redis策略不被字面1:1覆盖。核心全量，模块包独立来源但同内核，生态/商业/外部授权边界保持。
 

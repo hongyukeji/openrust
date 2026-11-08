@@ -416,7 +416,7 @@ cargo test -p openrust-framework --features db-postgres --lib \
 # 为每个实际链接的 SQLite 引擎设置对应版本前缀后分别执行。
 cargo test -p openrust-framework --features db-sqlite --lib \
   database::query::sqlite_write_target::tests:: -- --ignored --nocapture
-cargo test -p openrust --features 'auth,data-exchange-tasks,storage-local,db-sqlite' --bin server \
+cargo test -p openrust --features 'auth,data-exchange-tasks,storage-local,db-sqlite' --bin app \
   limited_article_import_write_keeps_other_receipts_open -- --ignored
 ```
 

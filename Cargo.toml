@@ -4,7 +4,7 @@ publish = false
 description = "OpenRust：Laravel 的 Rust 实现，默认集成优秀第三方扩展，延续熟悉的框架开发体验（重构进行中）。"
 readme = "README.md"
 autobins = false
-default-run = "server"
+default-run = "app"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -306,7 +306,7 @@ storage-s3 = ["dep:aws-sdk-s3", "storage-local", "opendal/services-s3", "opendal
 workspace = true
 
 [[bin]]
-name = "server"
+name = "app"
 path = "src/main.rs"
 
 [[test]]

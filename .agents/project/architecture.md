@@ -16,7 +16,7 @@
 
 ## Workspace 与职责
 
-当前已提交基线4463238已拆为根应用openrust与vendor/openrust/framework独立openrust-framework包，根仅保留薄src/main.rs。最新批准目标是独立根应用包与 `vendor/openrust/framework/` 框架包，采用标准 `src/lib.rs`，不是平铺 lib.rs；独立包迁移已通过日常适用验收，模块扩展已由6c21bab0限定验收拆包，命名空间后继仍在唯一todo。根 default-members=["."]、default-run="server"，无参数 cargo run 启动唯一应用，应用继续通过 openrust:: 导入框架。
+当前已提交基线4463238已拆为根应用openrust与vendor/openrust/framework独立openrust-framework包，根仅保留薄src/main.rs。最新批准目标是独立根应用包与 `vendor/openrust/framework/` 框架包，采用标准 `src/lib.rs`，不是平铺 lib.rs；独立包迁移已通过日常适用验收，模块扩展已由6c21bab0限定验收拆包，命名空间后继仍在唯一todo。根 `default-members = ["."]`、`default-run = "app"`，无参数 cargo run 启动唯一应用，应用继续通过 openrust:: 导入框架。
 
 app/bootstrap/config/database/public/resources/routes/storage/tests 是根目录职责。唯一综合示例 modules/example 由根 server 通过模块清单统一装配，贯穿框架能力；不保留独立 demo/example 应用或根 examples 目录。框架src保持通用实现，根app可承载宿主业务；不因仅保留一个综合示例而禁止根app开发。示例专属迁移、种子、模板、协议/生成脚本及测试 fixture 归模块内部；根 bootstrap/config/routes/database/resources 等仅保留通用加载与公开挂载，不含样例特判。根不因示例保留 build.rs 或新增 build 依赖。
 

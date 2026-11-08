@@ -78,7 +78,7 @@ async fn launch(
     let address = reservation.local_addr()?;
     drop(reservation);
     let mut child = ChildGuard(
-        Command::new(env!("CARGO_BIN_EXE_server"))
+        Command::new(env!("CARGO_BIN_EXE_app"))
             .args(args)
             .current_dir(root)
             .env_clear()

@@ -173,7 +173,7 @@ R0 为已有增强记录对应 Laravel 职责及上游扩展机制、Rust 公开
 
 ### 3.1 最终工程边界与模块目录
 
-目标以 [ADR-001](../decisions/adr-001-framework-principles.md) 为准。根 app 与可选 modules 均须具备不修改框架 src 的开发及生成流程；`make controller/model/provider` 等按固定 Laravel 生成命令、默认命名空间与真实 stub 对应，Rust 仅作必要模块导出适配。`new` 生成布局与根宿主同一职责。以下是目标树，不把目录存在当成能力验收。根 openrust package 保留 src/lib.rs 与唯一默认 server；default-members=["."]、default-run="server"，根 cargo run 启动应用。
+目标以 [ADR-001](../decisions/adr-001-framework-principles.md) 为准。根 app 与可选 modules 均须具备不修改框架 src 的开发及生成流程；`make controller/model/provider` 等按固定 Laravel 生成命令、默认命名空间与真实 stub 对应，Rust 仅作必要模块导出适配。`new` 生成布局与根宿主同一职责。以下是目标树，不把目录存在当成能力验收。根 `openrust` package 通过 `src/main.rs` 提供唯一默认二进制 `app`。`default-members = ["."]`、`default-run = "app"`，根 `cargo run` 启动应用。
 
 ```text
 openrust/
@@ -188,8 +188,8 @@ openrust/
 ├── modules/
 │   └── example/          # 唯一综合业务模块
 ├── tests/                # 框架、集成与公开 consumer 验收
-├── src/lib.rs            # 框架核心
-├── src/main.rs           # 唯一 server 薄入口
+├── src/main.rs           # 应用二进制 app 的薄入口
+├── vendor/openrust/framework/src/lib.rs  # 独立框架包入口
 ├── tools/                # CLI、宏、测试/性能工具
 ├── .env.example
 ├── Cargo.lock

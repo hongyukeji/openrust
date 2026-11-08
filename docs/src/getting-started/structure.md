@@ -16,7 +16,7 @@
 | `vendor/openrust/framework/tests/` | 框架公共契约与集成测试 |
 | `modules/` | 可选并存的模块化业务组织 |
 | `vendor/openrust/framework/src/lib.rs` | 独立框架库，公开 `openrust::` |
-| `src/main.rs` | 根应用默认 server 薄入口 |
+| `src/main.rs` | 根应用二进制 `app` 的薄入口 |
 
 普通业务可直接写在 `app/`，无需先建模块。`modules/example/` 是唯一综合示例，示例自己的路由、迁移、语言和视图留在该模块；它不是另一份完整应用骨架。
 

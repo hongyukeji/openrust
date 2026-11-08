@@ -302,7 +302,7 @@ fn serve_process_exits_successfully_after_sigterm() -> TestResult {
         let port = reservation.local_addr()?.port();
         drop(reservation);
         let mut child = ChildGuard(
-            Command::new(env!("CARGO_BIN_EXE_server"))
+            Command::new(env!("CARGO_BIN_EXE_app"))
                 .current_dir(env!("CARGO_MANIFEST_DIR"))
                 .env("APP_ENV", "local")
                 .env("APP_SERVER_HOST", "127.0.0.1")
@@ -385,7 +385,7 @@ fn metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled() -> TestResul
         drop(reservation);
         let stderr = tempfile::NamedTempFile::new()?;
         let mut child = ChildGuard(
-            Command::new(env!("CARGO_BIN_EXE_server"))
+            Command::new(env!("CARGO_BIN_EXE_app"))
                 .current_dir(env!("CARGO_MANIFEST_DIR"))
                 .env("APP_ENV", "local")
                 .env("APP_SERVER_HOST", "127.0.0.1")
@@ -659,7 +659,7 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
 #[test]
 fn console_lists_registered_commands_and_reads_help_without_running_target() -> TestResult {
     let run = |args: &[&str]| {
-        std::process::Command::new(env!("CARGO_BIN_EXE_server"))
+        std::process::Command::new(env!("CARGO_BIN_EXE_app"))
             .args(args)
             .current_dir(env!("CARGO_MANIFEST_DIR"))
             .env_remove("DATABASE_URL")
@@ -718,7 +718,7 @@ fn config_show_runs_and_redacts_secrets() -> TestResult {
             std::fs::copy(&path, selected.path().join(name))?;
         }
     }
-    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_server"));
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_app"));
     command
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
@@ -756,7 +756,7 @@ fn configured_missing_directory_fails_before_application_boot() -> TestResult {
         std::process::id()
     ));
     assert!(!missing.exists());
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_server"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_app"))
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .env("APP_ENV", "local")

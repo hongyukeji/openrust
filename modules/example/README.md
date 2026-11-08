@@ -348,14 +348,14 @@ app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5)).aw
 第二项测试用 `remove_module("example")` 从本次启动清单移除业务模块，确认 `/api/example` 不存在而 `/health` 保留。默认语义状态直接返回 HTTP 404，响应正文 `code = "not_found"`；另有显式 `always_ok` 模式回归保护可选覆盖。
 
 ```bash
-cargo test -p openrust --bin server production_testapp_
+cargo test -p openrust --bin app production_testapp_
 ```
 
 这些请求经生产 Router 和 scope 的 Tower oneshot 执行，属于进程内行为测试，不是 TCP 网络证据。默认响应收集限制为 1 MiB/5 秒，可用 `request_with_limits` 指定；流式响应使用 `raw_response`，由调用方消费或丢弃 body。上述新增测试的实际通过情况以本簇验收记录为准，代码存在不代表已执行。
 
 ## 使用业务自己的第三方依赖
 
-`modules/example` 是普通 Rust 模块，不是 Cargo package；在其子目录放 Cargo.toml 不会自动产生独立依赖边界。当前根 openrust package 同时构建框架 lib 和 server，业务依赖声明写在根应用 Cargo.toml，lib/server 的依赖解析与 feature 选择存在共享影响。“无需改框架源码”允许修改应用依赖与模块注册清单，不能解释成依赖图完全不变。
+`modules/example` 是普通 Rust 模块，不是 Cargo package；在其子目录放 Cargo.toml 不会自动产生独立依赖边界。根应用 package `openrust` 提供二进制 `app` 并依赖独立框架包。业务依赖声明写在根应用的 `Cargo.toml`，应用与框架仍在同一 Cargo 工作区解析依赖和 feature。“无需改框架源码”允许修改应用依赖与模块注册清单，不能解释成依赖图完全不变。
 
 例如仓库已经登记并直接继承 serde、serde_json 和 chrono：
 
