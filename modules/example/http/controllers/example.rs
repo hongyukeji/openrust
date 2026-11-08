@@ -2,6 +2,8 @@
 
 use super::super::resources::example::ExampleInfo;
 use crate::modules::example::services::{ExampleMessage, GreetingPresenter};
+use openrust::container::attributes::{RequestAttribute, RouteParameter};
+use openrust::container::{ClassAttribute, ClassDescriptor, ConstructorParam, ParameterValue};
 use openrust::foundation::ApplicationState;
 use openrust::http::axum::{
     extract::State,
@@ -12,6 +14,7 @@ use openrust::http::{DomainParams, Inject, Json, Path, Request, RequestInfo};
 use openrust::routing::UrlGenerator;
 use openrust::support::{MessageBag, MessageJsonOptions, MessageKeys, ViewErrorBag};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// 只由综合示例的公开 Handler 扩展处理的业务异常。
 #[derive(Debug, thiserror::Error)]
@@ -448,6 +451,66 @@ pub(crate) async fn route_context(
         "default": request.route_parameter_or("absent", serde_json::json!("public-default"))?,
         "parameters": route.parameters(),
     })))
+}
+
+const REQUEST_CONTEXT_ATTRIBUTE: &str = "x-example-request-context";
+
+struct MiddlewareContext(&'static str);
+
+pub(crate) struct RouteContextAttributes {
+    id: Arc<String>,
+    context: Arc<MiddlewareContext>,
+    revision: Arc<u32>,
+}
+
+pub(crate) fn route_context_attribute_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete::<RouteContextAttributes>(
+        "Modules/Example/RouteContextAttributes",
+        vec![
+            ConstructorParam::scalar::<String>("id")
+                .with_attribute(ClassAttribute::contextual(|| Ok(RouteParameter::default()))),
+            ConstructorParam::scalar::<MiddlewareContext>("context").with_attribute(
+                ClassAttribute::contextual(|| Ok(RequestAttribute::new(REQUEST_CONTEXT_ATTRIBUTE))),
+            ),
+            ConstructorParam::scalar::<u32>("version").with_attribute(ClassAttribute::contextual(
+                || Ok(RouteParameter::new("revision")),
+            )),
+        ],
+        |args| {
+            Ok(Arc::new(RouteContextAttributes {
+                id: args.value(0)?.downcast()?,
+                context: args.value(1)?.downcast()?,
+                revision: args.value(2)?.downcast()?,
+            }))
+        },
+    )
+}
+
+pub(crate) async fn route_context_attributes(
+    Inject(attributes): Inject<RouteContextAttributes>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "id": attributes.id.as_str(),
+        "context": attributes.context.0,
+        "revision": *attributes.revision,
+    }))
+}
+
+pub(crate) async fn route_context_attribute_middleware(
+    info: RequestInfo,
+    request: openrust::http::axum::extract::Request,
+    next: openrust::http::axum::middleware::Next,
+) -> openrust::Result<Response> {
+    info.attributes().insert(
+        REQUEST_CONTEXT_ATTRIBUTE,
+        ParameterValue::new(MiddlewareContext("route-middleware")),
+    )?;
+    let original = info.get_route_resolver()?;
+    info.set_route_resolver(Arc::new(move || {
+        Ok(original()?
+            .map(|route| route.with_bound_parameter("revision", ParameterValue::new(7_u32))))
+    }))?;
+    Ok(next.run(request).await)
 }
 
 /// 在业务 middleware 前后读取同一个请求的匹配快照，短路也保留命中。

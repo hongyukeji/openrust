@@ -687,7 +687,9 @@ use figment::{
 };
 use openrust::cache::{Cache, CacheStore};
 use openrust::config::ConfigSources;
-use openrust::container::attributes::{Cache as CacheAttribute, Config, Give, Log};
+use openrust::container::attributes::{
+    Cache as CacheAttribute, Config, Give, Log, RequestAttribute, RouteParameter,
+};
 use openrust::container::{
     AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam, ParameterKey,
     ParameterOverrides, ParameterValue, ServiceKey,
@@ -710,6 +712,68 @@ fn test_configuration() -> openrust::config::FrameworkConfig {
     let mut config = openrust::config::FrameworkConfig::default();
     config.app.env = openrust::config::Environment::Testing;
     config
+}
+
+struct GeneratedRequestValues {
+    id: Arc<String>,
+    source: Arc<String>,
+}
+
+struct RequestAttributesProvider;
+
+impl ServiceProvider for RequestAttributesProvider {
+    fn boot<'a>(&'a self, app: &'a mut openrust::foundation::BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        use openrust::http::axum::{extract::Request, middleware::{Next, from_fn}, response::Response};
+        use openrust::http::{Inject, Json, RequestInfo};
+        Box::pin(async move {
+            async fn attach(info: RequestInfo, request: Request, next: Next) -> openrust::Result<Response> {
+                info.attributes().insert("source", ParameterValue::new("服务端".to_owned()))?;
+                Ok(next.run(request).await)
+            }
+            async fn show(Inject(values): Inject<GeneratedRequestValues>) -> Json<serde_json::Value> {
+                Json(serde_json::json!({"id": &*values.id, "source": &*values.source}))
+            }
+            app.routes(|routes| {
+                routes.group(openrust::routing::RouteGroup::new().middleware(from_fn(attach)), |routes| {
+                    routes.get("/test-request-attributes/{id}", show)
+                })
+            })?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn generated_application_injects_request_attributes() -> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(test_configuration())).merge(Toml::string(
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    let mut builder = TestApp::<GeneratedApplication>::builder(source);
+    builder.configure_providers(|builder| {
+        builder.provider(RequestAttributesProvider);
+        builder.class_descriptors([ClassDescriptor::concrete::<GeneratedRequestValues>(
+            "App/GeneratedRequestValues",
+            vec![
+                ConstructorParam::scalar::<String>("id")
+                    .with_attribute(ClassAttribute::contextual(|| Ok(RouteParameter::default()))),
+                ConstructorParam::scalar::<String>("source")
+                    .with_attribute(ClassAttribute::contextual(|| Ok(RequestAttribute::new("source")))),
+            ],
+            |args| Ok(Arc::new(GeneratedRequestValues {
+                id: args.value(0)?.downcast()?,
+                source: args.value(1)?.downcast()?,
+            })),
+        )]);
+    });
+    let mut app = builder.build().await?;
+    let response = app.request(Request::get("/test-request-attributes/%E6%96%87?source=external")
+        .header("source", "external")
+        .body(Body::empty())?).await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["data"], serde_json::json!({"id": "文", "source": "服务端"}));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
+    Ok(())
 }
 
 struct ScopedCache(Arc<CacheStore>);

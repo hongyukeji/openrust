@@ -58,7 +58,8 @@ pub use redirect_response::RedirectResponse;
 pub use request::{
     FileBinaryMimeTypeGuesser, InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy,
     MimeFile, MimeFileReader, MimeGuess, MimeTypeGuesser, MimeTypes, RawBodyReader, Request,
-    RequestBodyLimits, RequestInfo, Truthy, UploadedFile, UploadedFileReader, VaporRawQueryString,
+    RequestAttributes, RequestBodyLimits, RequestInfo, Truthy, UploadedFile, UploadedFileReader,
+    VaporRawQueryString,
 };
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use serve::{ServeCommand, serve};

@@ -186,6 +186,14 @@ let greeting = ConstructorParam::scalar::<String>("greeting").with_attribute(
 
 Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在每轮沿用创建它时的 Resolver 和作用域。固定来源见 [Config](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Config.php)、[Give](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Give.php) 和 [Tag](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Tag.php)。
 
+#### 请求属性与路由参数
+
+在 middleware 中通过 `RequestInfo::attributes().insert("source", ParameterValue::new(value))` 写入本次请求的服务端属性，再用 `RequestAttribute::new("source")` 注入构造参数。属性名按完整字符串匹配。类型化服务使用 `ParameterValue::service(arc)` 保存对象身份。查询参数、请求头和正文仍由各自的提取器读取。 [Laravel RequestAttribute](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/RequestAttribute.php)
+
+`RouteParameter::default()` 读取同名构造参数的路由值，`RouteParameter::new("article")` 显式选择名称。属性使用当前匹配路由和可信 resolver，支持已解码的域名及路径捕获。可通过 `Route::with_bound_parameter` 提供已绑定对象，`bound_parameter` 读取该绑定，`parameter` 和 `parameters` 仍提供原始 JSON 捕获。 [Laravel RouteParameter](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/RouteParameter.php)
+
+两种属性在实际 HTTP 请求的容器作用域中取值，响应体生成期间沿用同一作用域。缺少属性、参数或 HTTP 作用域时返回空值，由容器继续处理默认值或可空参数。
+
 #### 日志属性
 
 默认 Provider 在应用容器中登记 `LogManager`。用 `Log::default()` 注入默认频道的 `Logger`，用 `Log::new("single").named("orders")` 选择具名频道并为本次注入重命名。重命名复用相同输出目标和级别过滤，原频道仍使用自己的名称。把属性附到 `ConstructorParam::class::<Logger>("logger")` 即可。 [Laravel Log 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Log.php)

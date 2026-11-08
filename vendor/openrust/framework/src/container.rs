@@ -1653,6 +1653,13 @@ struct ClassBuildFrame {
 }
 
 impl Resolver {
+    pub(crate) fn belongs_to_http_scope(&self, scope: &Scope) -> bool {
+        !self.captive
+            && self.scope == scope.id
+            && Arc::ptr_eq(&self.closed, &scope.closed)
+            && !self.closed.closed.load(Ordering::Acquire)
+    }
+
     /// 从同一弱容器解析当前根服务，不续用已关闭的旧请求作用域。
     ///
     /// 供构造完成的长寿命扩展句柄触发新根操作；活跃工厂内拒绝此入口，

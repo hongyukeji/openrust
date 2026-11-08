@@ -455,6 +455,8 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 
 将 `{id}` 换为 `missing` 可触发业务 404，换为 `blocked` 可触发路由 middleware 的 403 短路；具名响应仍带 `x-example-route-before` / `x-example-route-after`，证明上下文在路由 middleware 之前发布并跨错误保留。参数当前是 JSON 字符串值，不表示模型或枚举绑定已经实现。出站 `UrlGenerator` 继续负责生成链接，不提供当前请求的命中事实。
 
+`GET` 或 `POST /api/example/route-context/attributes/{id}` 通过构造属性注入同一请求的上下文。`RouteParameter::default()` 按参数名取得解码后的路径字符串，`RouteParameter::new("revision")` 取得可信路由解析器设置的类型化修订号。`RequestAttribute::new("x-example-request-context")` 读取 middleware 写入的类型化值。查询、请求头和 JSON 正文中的同名值都无法替换这些来源。[模块回归](tests/registration.rs)通过实际路由覆盖路径解码、可信绑定和请求输入伪造。
+
 [`tests/tools/verify-route-context.py`](tests/tools/verify-route-context.py)接收与 D6 工具相同的 `--binary`、`--binary-sha256`、`--source-snapshot` 和可选 `--root`。它复用 D6 的配置隔离、来源快照、资源门限、有界请求、进程组守护和任务专有清理，真实启动一个加载唯一模块的 server，检查具名/匿名、参数/default、输入伪造、业务 404、middleware 403、HEAD 与方法 miss。PG/MySQL feature 的二进制分别运行，但工具不连接数据库，不能据此声称数据库或 TLS 等价验收；临时目录沿用共享 supervisor 的 D6 前缀。
 
 D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响应头并确认没有额外正文，且路由 before/after 两个标记均正确；方法 miss 只证明路由 middleware 未执行，不据此推断私有共享 slot。来源快照与二进制 SHA256 分别证明检查对象未变化，二者本身不能证明该二进制由该快照构建；验收须附记录构建命令、来源快照摘要及产物摘要的实际构建记录，将构建与后续网络结果关联。

@@ -91,6 +91,14 @@ impl ParameterValue {
         })
     }
 
+    pub(crate) fn shares_payload(&self, other: &Self) -> bool {
+        match (self.erased(), other.erased()) {
+            (Some(value), Some(other)) => Arc::ptr_eq(value, other),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
     /// 判断值是否为显式 null。
     #[must_use]
     pub const fn is_null(&self) -> bool {

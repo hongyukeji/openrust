@@ -104,7 +104,7 @@ fn direct<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
 }
 
 // Arr::get 在点路径之前先检查完整字面键，且不展开通配符。
-pub(super) fn arr_get<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
+pub(crate) fn arr_get<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     direct(value, key).or_else(|| key.split('.').try_fold(value, direct))
 }
 

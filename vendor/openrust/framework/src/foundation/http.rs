@@ -1,5 +1,6 @@
 //! 应用HTTP装配、请求作用域、URL快照和异常收尾。
 
+use crate::container::{ParameterValue, Resolver, Scope};
 use crate::core::{Error, Result};
 use crate::foundation::exceptions::ExceptionRegistry;
 use crate::foundation::{
@@ -10,7 +11,8 @@ use crate::http::client_ip::validate_trusted_proxy_ranges;
 #[cfg(test)]
 use crate::http::server_provider::HttpServiceProvider;
 use crate::http::trusted_hosts::TrustedHostsSnapshot;
-use crate::http::{health, middleware};
+use crate::http::{RequestAttributes, health, middleware};
+use crate::routing::route::RouteSlot;
 use crate::routing::router::assemble;
 use crate::routing::{RouteRegistry, Router, UrlGenerator};
 use axum::Router as AxumRouter;
@@ -31,11 +33,52 @@ use tower::{Layer, Service};
 
 tokio::task_local! {
     // 只有 HTTP 入口能安装它。公开 Scope::run 的容器上下文可由应用自行替换。
-    static HTTP_ENTRY_SCOPE: Arc<crate::container::Scope>;
+    static HTTP_ENTRY_SCOPE: Arc<HttpEntry>;
 }
 
-pub(crate) fn http_entry_scope() -> Option<std::sync::Weak<crate::container::Scope>> {
-    HTTP_ENTRY_SCOPE.try_with(Arc::downgrade).ok()
+struct HttpEntry {
+    scope: Arc<Scope>,
+    attributes: RequestAttributes,
+    route: RouteSlot,
+}
+
+pub(crate) fn http_entry_scope() -> Option<std::sync::Weak<Scope>> {
+    HTTP_ENTRY_SCOPE
+        .try_with(|entry| Arc::downgrade(&entry.scope))
+        .ok()
+}
+
+pub(crate) fn current_request_attribute(
+    resolver: &Resolver,
+    name: &str,
+) -> Result<Option<ParameterValue>> {
+    HTTP_ENTRY_SCOPE
+        .try_with(|entry| {
+            if resolver.belongs_to_http_scope(&entry.scope) {
+                entry.attributes.get(name)
+            } else {
+                Ok(None)
+            }
+        })
+        .unwrap_or(Ok(None))
+}
+
+pub(crate) fn current_route_parameter(
+    resolver: &Resolver,
+    name: &str,
+) -> Result<Option<ParameterValue>> {
+    HTTP_ENTRY_SCOPE
+        .try_with(|entry| {
+            if resolver.belongs_to_http_scope(&entry.scope) {
+                Ok(entry
+                    .route
+                    .route()?
+                    .and_then(|route| route.bound_parameter(name)))
+            } else {
+                Ok(None)
+            }
+        })
+        .unwrap_or(Ok(None))
 }
 
 type RouterLayerBuilder = Box<dyn Fn(AxumRouter) -> Result<AxumRouter> + Send + Sync>;
@@ -453,17 +496,8 @@ async fn expose_app_state(
         Err(error) => return render_early_error(&runtime, &request, error),
     };
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
+    let entry = Arc::new(install_http_entry(request.extensions_mut(), scope));
     request.extensions_mut().insert(state);
-    if request
-        .extensions()
-        .get::<crate::routing::route::RouteSlot>()
-        .is_none()
-    {
-        request
-            .extensions_mut()
-            .insert(crate::routing::route::RouteSlot::default());
-    }
-    request.extensions_mut().insert(Arc::clone(&scope));
     let page = crate::database::query::PageContext::from_uri(request.uri());
     let (mut parts, body) = request.into_parts();
     let info = match crate::http::RequestInfo::from_request_parts(&mut parts, &()).await {
@@ -477,22 +511,43 @@ async fn expose_app_state(
     let request = Request::from_parts(parts, body);
     let response = HTTP_ENTRY_SCOPE
         .scope(
-            Arc::clone(&scope),
-            scope.run(crate::database::query::with_page_context(
+            Arc::clone(&entry),
+            entry.scope.run(crate::database::query::with_page_context(
                 page,
                 next.run(request),
             )),
         )
         .await
-        .map(|body| {
+        .map(move |body| {
             Body::new(ScopeBody {
                 inner: body,
-                scope: Some(Arc::clone(&scope)),
+                entry: Some(entry),
             })
         });
     // 响应 body 已接管关闭责任；handler future 取消时 guard 仍会同步封闭 scope。
     close_on_cancel.0.take();
     response
+}
+
+fn install_http_entry(extensions: &mut http::Extensions, scope: Arc<Scope>) -> HttpEntry {
+    let route = extensions
+        .get::<RouteSlot>()
+        .filter(|route| route.claim_http_entry())
+        .cloned()
+        .unwrap_or_else(|| {
+            let route = RouteSlot::default();
+            let _ = route.claim_http_entry();
+            route
+        });
+    let attributes = RequestAttributes::default();
+    extensions.insert(route.clone());
+    extensions.insert(attributes.clone());
+    extensions.insert(Arc::clone(&scope));
+    HttpEntry {
+        scope,
+        attributes,
+        route,
+    }
 }
 
 fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Error) -> Response {
@@ -508,7 +563,7 @@ fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Erro
     runtime.exceptions.render_for_request(error, &view)
 }
 
-struct ScopeCloseGuard(Option<Arc<crate::container::Scope>>);
+struct ScopeCloseGuard(Option<Arc<Scope>>);
 
 impl Drop for ScopeCloseGuard {
     fn drop(&mut self) {
@@ -520,13 +575,13 @@ impl Drop for ScopeCloseGuard {
 
 struct ScopeBody {
     inner: Body,
-    scope: Option<Arc<crate::container::Scope>>,
+    entry: Option<Arc<HttpEntry>>,
 }
 
 impl ScopeBody {
     fn close(&mut self) {
-        if let Some(scope) = self.scope.take() {
-            scope.close();
+        if let Some(entry) = self.entry.take() {
+            entry.scope.close();
         }
     }
 }
@@ -540,10 +595,13 @@ impl HttpBody for ScopeBody {
         context: &mut Context<'_>,
     ) -> Poll<Option<std::result::Result<Frame<Self::Data>, Self::Error>>> {
         let this = self.get_mut();
-        let result = if let Some(scope) = &this.scope {
-            let mut scoped = std::pin::pin!(scope.run(std::future::poll_fn(|cx| {
-                Pin::new(&mut this.inner).poll_frame(cx)
-            })));
+        let result = if let Some(entry) = &this.entry {
+            let mut scoped = std::pin::pin!(HTTP_ENTRY_SCOPE.scope(
+                Arc::clone(entry),
+                entry.scope.run(std::future::poll_fn(|cx| {
+                    Pin::new(&mut this.inner).poll_frame(cx)
+                })),
+            ));
             scoped.as_mut().poll(context)
         } else {
             Pin::new(&mut this.inner).poll_frame(context)
@@ -571,9 +629,16 @@ impl Drop for ScopeBody {
 
 #[cfg(test)]
 mod tests {
-    use super::HttpServiceProvider;
+    use super::{
+        HttpServiceProvider, ScopeBody, current_request_attribute, current_route_parameter,
+        http_entry_scope, install_http_entry,
+    };
+    use crate::container::{ContainerBuilder, ParameterValue};
     use crate::foundation::ProviderBuilder;
+    use crate::{Error, Result};
+    use axum::body::{Body, Bytes, to_bytes};
     use figment::{Figment, providers::Serialized};
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn invalid_shutdown_timeout_fails_during_provider_boot() {
@@ -584,6 +649,63 @@ mod tests {
         })));
         let result = providers.start(sources).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn response_body_poll_restores_only_its_physical_request_context() -> Result<()> {
+        let container = ContainerBuilder::new().build();
+        let scope = Arc::new(container.scope()?);
+        let resolver = scope.factory_resolver()?;
+        let root = container.factory_resolver()?;
+        let manual_scope = Arc::new(container.scope()?);
+        let manual = manual_scope.factory_resolver()?;
+        let mut extensions = http::Extensions::new();
+        let entry = install_http_entry(&mut extensions, Arc::clone(&scope));
+        let _ = entry.attributes.insert("item", ParameterValue::new(7_u8))?;
+        entry.route.publish(
+            crate::routing::Route::new(
+                None,
+                "stream/{item}",
+                None,
+                vec!["GET".to_owned()],
+                Vec::new(),
+            )
+            .with_bound_parameter("item", ParameterValue::new(9_u8)),
+        )?;
+        assert!(current_request_attribute(&resolver, "item")?.is_none());
+
+        let inner = Body::from_stream(futures_util::stream::once(async move {
+            assert!(http_entry_scope().is_some());
+            let attribute = current_request_attribute(&resolver, "item")?.ok_or_else(|| {
+                Error::custom("test_stream_attribute_missing", "响应体未恢复请求属性")
+            })?;
+            let route = current_route_parameter(&resolver, "item")?.ok_or_else(|| {
+                Error::custom("test_stream_route_missing", "响应体未恢复绑定的路由参数")
+            })?;
+            assert!(current_request_attribute(&root, "item")?.is_none());
+            manual_scope
+                .run(async {
+                    assert!(current_request_attribute(&manual, "item")?.is_none());
+                    assert!(current_route_parameter(&manual, "item")?.is_none());
+                    Ok::<(), Error>(())
+                })
+                .await?;
+            Ok::<Bytes, Error>(Bytes::copy_from_slice(&[
+                *attribute.downcast::<u8>()?,
+                *route.downcast::<u8>()?,
+            ]))
+        }));
+        let body = Body::new(ScopeBody {
+            inner,
+            entry: Some(Arc::new(entry)),
+        });
+        assert_eq!(
+            to_bytes(body, 2).await.map_err(Error::internal)?.as_ref(),
+            [7, 9]
+        );
+        assert!(http_entry_scope().is_none());
+        assert!(matches!(scope.factory_resolver(), Err(error) if error.code() == "scope_closed"));
+        Ok(())
     }
 }
 

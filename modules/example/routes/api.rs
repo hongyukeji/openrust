@@ -386,6 +386,22 @@ fn route_context_routes(routes: Router) -> Router {
                 )
                 .name("example.route-context.show")
                 .get("/anonymous/{id}", controllers::example::route_context)
+                .group(
+                    RouteGroup::new().middleware(openrust::http::axum::middleware::from_fn(
+                        controllers::example::route_context_attribute_middleware,
+                    )),
+                    |routes| {
+                        routes
+                            .route(
+                                "/attributes/{id}",
+                                openrust::routing::methods::get(
+                                    controllers::example::route_context_attributes,
+                                )
+                                .post(controllers::example::route_context_attributes),
+                            )
+                            .name("example.route-context.attributes")
+                    },
+                )
         },
     )
 }

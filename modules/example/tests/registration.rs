@@ -361,6 +361,10 @@ async fn production_greeting_attributes_supply_time_and_preserve_explicit_overri
         }
     }
 
+    if std::env::var_os(GREETING_TRACE_CHILD).is_none() {
+        return run_greeting_trace_in_isolation();
+    }
+
     let constructed = Arc::new(AtomicUsize::new(0));
     let subscriber = tracing_subscriber::registry().with(GreetingTrace(Arc::clone(&constructed)));
     let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(
@@ -426,6 +430,29 @@ async fn production_greeting_attributes_supply_time_and_preserve_explicit_overri
         .await;
     outcome?;
     cleanup?;
+    Ok(())
+}
+
+const GREETING_TRACE_CHILD: &str = "OPENRUST_TEST_ISOLATED_GREETING_TRACE";
+
+fn run_greeting_trace_in_isolation() -> Result<(), Box<dyn std::error::Error>> {
+    // tracing 调用点兴趣在进程内共享，其他请求不能参与本测试的计数。
+    let output = std::process::Command::new(std::env::current_exe()?)
+        .args([
+            "--exact",
+            "modules::example::tests::production_greeting_attributes_supply_time_and_preserve_explicit_override",
+            "--nocapture",
+        ])
+        .env(GREETING_TRACE_CHILD, "1")
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !output.status.success() || !stdout.contains("1 passed; 0 failed") {
+        return Err(format!(
+            "隔离日志回归失败：{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
     Ok(())
 }
 
@@ -2340,6 +2367,77 @@ async fn production_route_context_keeps_matched_identity_across_business_boundar
     let json: serde_json::Value = serde_json::from_slice(response.body())?;
     assert_eq!(json["data"]["id"], "43");
     assert_eq!(json["data"]["default"], "public-default");
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_request_attributes_use_decoded_path_and_trusted_values()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::http::axum::http::Method;
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(
+        &production_sources(false),
+    )?)
+    .build()
+    .await?;
+    let uri = "/api/example/route-context/attributes/caf%C3%A9%20%2B%2520?id=query&revision=99&x-example-request-context=query";
+    let requests = [
+        (Method::GET, Body::empty()),
+        (
+            Method::POST,
+            Body::from(r#"{"id":"body","revision":99,"x-example-request-context":"body"}"#),
+        ),
+    ];
+    for (method, body) in requests {
+        let response = app
+            .request(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .header("host", "localhost")
+                    .header("x-example-request-context", "header")
+                    .header("content-type", "application/json")
+                    .body(body)?,
+            )
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(
+            json["data"],
+            serde_json::json!({"id": "café +%20", "context": "route-middleware", "revision": 7}),
+        );
+        for header in ["x-example-route-before", "x-example-route-after"] {
+            assert_eq!(
+                response.headers()[header],
+                "example.route-context.attributes"
+            );
+        }
+    }
+    for (method, uri, status) in [
+        (Method::PUT, uri, StatusCode::METHOD_NOT_ALLOWED),
+        (
+            Method::GET,
+            "/api/example/route-context/attributes",
+            StatusCode::NOT_FOUND,
+        ),
+    ] {
+        let response = app
+            .request(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        response.assert_status(status)?;
+        assert!(!response.headers().contains_key("x-example-route-before"));
+        assert!(!response.headers().contains_key("x-example-route-after"));
+    }
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
     Ok(())

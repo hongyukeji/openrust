@@ -1,5 +1,6 @@
 //! 有界请求输入、独立元信息与 Laravel 风格内容协商。
 
+mod attributes;
 mod conditional;
 #[cfg(feature = "session")]
 mod csrf_replay;
@@ -21,6 +22,7 @@ pub(crate) fn deserialize_query<T: serde::de::DeserializeOwned>(
 ) -> crate::Result<T> {
     deserialize::query(value)
 }
+pub use attributes::RequestAttributes;
 pub use conditional::{InputOutcome, InputOutcomeMut, InputTruthy, Truthy};
 #[cfg(feature = "session")]
 pub(crate) use csrf_replay::prepare as prepare_csrf_request;
@@ -81,7 +83,7 @@ impl fmt::Debug for VaporRawQueryString {
     }
 }
 
-/// 请求的只读快照；可与正文提取器同时使用。
+/// 请求元信息快照和共享属性句柄；可与正文提取器同时使用。
 ///
 /// 快照限制为 64 KiB / 128 个头值，Accept 另限制为 16 KiB / 128 项；
 /// 超限以 431 拒绝。Debug 隐藏头、令牌及 URI。
@@ -104,6 +106,7 @@ pub struct RequestInfo {
     headers: HeaderMap,
     acceptable: Vec<String>,
     cookies: serde_json::Value,
+    attributes: RequestAttributes,
     route: crate::routing::route::RouteSlot,
     route_urls: Option<crate::routing::UrlGenerator>,
     precognition: crate::http::precognition::PrecognitionState,
@@ -146,6 +149,10 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
                 headers.append(http::header::COOKIE, value.clone());
             }
         }
+        let attributes = parts
+            .extensions
+            .get_or_insert_default::<RequestAttributes>()
+            .clone();
         let route = parts
             .extensions
             .get::<crate::routing::route::RouteSlot>()
@@ -204,6 +211,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             headers,
             acceptable,
             cookies: parsed.value,
+            attributes,
             route,
             route_urls: parts
                 .extensions
@@ -219,6 +227,11 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
 }
 
 impl RequestInfo {
+    /// 返回此请求共享的类型化属性袋。
+    pub const fn attributes(&self) -> &RequestAttributes {
+        &self.attributes
+    }
+
     pub(crate) fn signing_raw_query(&self) -> Option<&str> {
         self.vapor_raw_query
             .as_ref()
