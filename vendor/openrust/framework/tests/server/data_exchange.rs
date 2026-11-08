@@ -1,6 +1,6 @@
 //! 验证集成宿主可通过 feature 使用公开的数据交换 API。
 
-use openrust::data_exchange::{CellType, ImportColumn, ImportLimits, ImportSchema, for_each_csv};
+use openrust::data::exchange::{CellType, ImportColumn, ImportLimits, ImportSchema, for_each_csv};
 use serde_json::json;
 
 #[test]

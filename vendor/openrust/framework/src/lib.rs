@@ -13,9 +13,6 @@ pub mod container;
 pub mod core;
 #[cfg(feature = "data-exchange")]
 pub mod data;
-/// 数据交换能力的兼容入口；新代码可使用 [`data::exchange`]。
-#[cfg(feature = "data-exchange")]
-pub use data::exchange as data_exchange;
 pub mod database;
 #[cfg(feature = "encryption")]
 pub mod encryption;

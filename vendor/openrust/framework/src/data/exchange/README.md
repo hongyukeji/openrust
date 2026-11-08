@@ -1,13 +1,13 @@
 # CSV/XLSX 数据交换
 
-`openrust::data_exchange` 在显式启用 `data-exchange` feature 后提供有界 CSV/XLSX 解析、类型转换和导出。解析器不写数据库，也不管理事务；调用方通过逐行 callback 决定验证通过后的保存边界。
+`openrust::data::exchange` 在显式启用 `data-exchange` feature 后提供有界 CSV/XLSX 解析、类型转换和导出。解析器不写数据库，也不管理事务；调用方通过逐行 callback 决定验证通过后的保存边界。
 
 ## 导入
 
 用 `ImportSchema` 显式映射来源表头、目标字段和 `CellConverter`。可选字段、框架 `Validate` 校验器及每行错误上限都由 schema/limits 指定。格式错误、公式、超限输入和 callback 错误会立即停止；字段转换错误进入有界 `ImportReport`。
 
 ```rust,ignore
-use openrust::data_exchange::{CellType, ImportColumn, ImportLimits, ImportSchema, for_each_csv};
+use openrust::data::exchange::{CellType, ImportColumn, ImportLimits, ImportSchema, for_each_csv};
 
 let schema = ImportSchema::new(vec![
     ImportColumn::new("email", "email", CellType::Text),
@@ -36,7 +36,7 @@ let report = for_each_csv(input, &schema, &ImportLimits::default(), |row| {
 `import_storage_task` 接收应用已授权的源对象、稳定 `import_id`、格式和 `ImportSchema`，再通过有界流复制到自动回收的临时文件。每个有效批次由框架单独开启数据库事务，应用 callback 在事务内写入业务数据；业务写入和批次幂等完成记录原子提交。重试会跳过已提交批次；批次失败会保留此前提交的数据并保存有界错误报告。幂等记录保留 24 小时，安全的自动恢复窗口也为 24 小时；超过窗口后，应用须使用业务唯一约束或人工核对防止重复写入。`import_id` 应绑定输入、schema 和业务写入语义。`ImportTaskOptions.report_path` 是基础路径，框架按 job ID、attempt 和 import ID 生成唯一报告对象路径，并在成功返回的报告中给出路径；错误报告路径可用 `report_path_for_attempt` 确定。报告默认保留 7 天且最多 30 天。队列取消会保存报告并返回 `queue_job_cancelled`，由现有队列重试策略接管。
 
 ```rust,ignore
-use openrust::data_exchange::tasks::{
+use openrust::data::exchange::tasks::{
     ExchangeFormat, ImportTaskInput, ImportTaskOptions, import_storage_task,
 };
 

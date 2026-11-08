@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 移除数据交换的根级重导出，公开入口统一为 `openrust::data::exchange`。
+
 - Support Uri 支持显式重定向和作为路由处理器返回值直接转换为 302 响应。
 
 - Support Uri 支持不可变的协议、主机、凭据、端口、路径和片段变更。

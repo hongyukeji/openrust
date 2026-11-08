@@ -10,7 +10,7 @@ use crate::modules::example::{
     models::article,
     services::article_write::ArticleWriter,
 };
-use openrust::data_exchange::{
+use openrust::data::exchange::{
     CellType, CsvFormulaPolicy, ExportLimits, ExportOptions, ImportColumn, ImportLimits,
     ImportSchema, XlsxImportOptions, for_each_csv, for_each_xlsx, typed_validator, write_csv,
     write_xlsx,
@@ -205,7 +205,7 @@ fn prepare_import(format: ArticleFormat, bytes: Vec<u8>) -> Result<PreparedImpor
         return Err(too_large());
     }
     let mut rows = Vec::new();
-    let accept = |row: openrust::data_exchange::ImportRow| {
+    let accept = |row: openrust::data::exchange::ImportRow| {
         if row.errors.is_empty() {
             let input = serde_json::from_value::<ArticleInput>(Value::Object(row.values))
                 .map_err(|_| invalid("example_transfer_row_invalid", "文章字段映射失败"))?;
@@ -326,7 +326,7 @@ pub(crate) fn encode_export(
 mod tasks {
     #[allow(clippy::wildcard_imports)] // 子模块复用同文件的私有业务 helper 与界限常量。
     use super::*;
-    use openrust::data_exchange::tasks::{ExchangeFormat, ExportTaskOptions, export_storage_task};
+    use openrust::data::exchange::tasks::{ExchangeFormat, ExportTaskOptions, export_storage_task};
     use openrust::filesystem::FilesystemManager;
     use openrust::filesystem::StoragePath;
     use openrust::filesystem::StorageReader;
@@ -415,7 +415,7 @@ mod tasks {
                         let created = receipt.created_at_ms;
                         let batch_locks = locks.clone();
                         let batch_lease = lease.clone();
-                        let input = openrust::data_exchange::tasks::ImportTaskInput {
+                        let input = openrust::data::exchange::tasks::ImportTaskInput {
                             disk: "local".into(),
                             path: import_source(owner_id, &self.import_id)?,
                             version: None,
@@ -423,7 +423,7 @@ mod tasks {
                             format: task_format(self.format),
                             schema: schema()?,
                         };
-                        let result = openrust::data_exchange::tasks::import_storage_task(
+                        let result = openrust::data::exchange::tasks::import_storage_task(
                             &context,
                             input,
                             &import_options(owner_id, &self.import_id)?,
@@ -857,9 +857,9 @@ mod tasks {
     fn import_options(
         owner_id: i64,
         import_id: &str,
-    ) -> Result<openrust::data_exchange::tasks::ImportTaskOptions> {
+    ) -> Result<openrust::data::exchange::tasks::ImportTaskOptions> {
         let source = import_source(owner_id, import_id)?;
-        Ok(openrust::data_exchange::tasks::ImportTaskOptions {
+        Ok(openrust::data::exchange::tasks::ImportTaskOptions {
             batch_size: 2,
             max_batch_bytes: 128 * 1024,
             limits: import_limits(),
