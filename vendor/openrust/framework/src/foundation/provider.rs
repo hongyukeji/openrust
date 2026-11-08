@@ -270,6 +270,62 @@ impl RegisterContext<'_> {
         self.container.scoped_key(key, factory).await
     }
 
+    /// 在原键登记临时类工厂，替换该键已有的绑定或别名。
+    ///
+    /// 类的编译符号与类型键等价。异键实现沿其自身的绑定和生命周期解析。
+    pub async fn bind_class<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<()> {
+        self.container.bind_class::<T>(key, concrete).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记临时类工厂，返回是否完成登记。
+    pub async fn bind_class_if<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<bool> {
+        self.container.bind_class_if::<T>(key, concrete).await
+    }
+
+    /// 在原键登记应用共享类工厂，替换该键已有的绑定或别名。
+    pub async fn singleton_class<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<()> {
+        self.container.singleton_class::<T>(key, concrete).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记应用共享类工厂，返回是否完成登记。
+    pub async fn singleton_class_if<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<bool> {
+        self.container.singleton_class_if::<T>(key, concrete).await
+    }
+
+    /// 在原键登记作用域共享类工厂，替换该键已有的绑定或别名。
+    pub async fn scoped_class<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<()> {
+        self.container.scoped_class::<T>(key, concrete).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记作用域共享类工厂，返回是否完成登记。
+    pub async fn scoped_class_if<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<bool> {
+        self.container.scoped_class_if::<T>(key, concrete).await
+    }
+
     /// 仅在类型键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
     pub async fn bind_if<T, F>(&mut self, factory: F) -> Result<bool>
     where

@@ -64,12 +64,19 @@ impl ContextualSource {
     }
 }
 
+enum DescriptorEntry {
+    Resolution {
+        aliases: AliasWitness,
+        with_parameters: bool,
+        contextual: Option<ContextualSource>,
+    },
+    Build(ServiceKey),
+}
+
 pub(super) struct DescriptorSource {
-    aliases: AliasWitness,
+    entry: DescriptorEntry,
     registry: Arc<ClassRegistry>,
     pub(super) revision: u64,
-    with_parameters: bool,
-    pub(super) contextual: Option<ContextualSource>,
     scope: u64,
     closed: Arc<ScopeStatus>,
     pub(super) owner: ResourceRegistrar,
@@ -172,6 +179,7 @@ impl State {
                 lifetime: Lifetime::Bind,
                 factory: Some(factory),
                 factory_output,
+                class_factory: None,
                 instance: None,
             },
             aliases: Some(aliases),
@@ -256,12 +264,37 @@ impl State {
             .get(&aliases.terminal)
             .copied()
             .unwrap_or(0);
+        self.make_descriptor_source(
+            DescriptorEntry::Resolution {
+                aliases,
+                with_parameters: resolver.parameters.is_some(),
+                contextual,
+            },
+            revision,
+            resolver,
+        )
+    }
+
+    pub(super) fn direct_class_source(
+        &self,
+        key: ServiceKey,
+        resolver: &Resolver,
+    ) -> Result<DescriptorSource> {
+        resolver.check_open(self)?;
+        let key = self.classes.canonical_key_owned(key);
+        self.make_descriptor_source(DescriptorEntry::Build(key), 0, resolver)
+    }
+
+    fn make_descriptor_source(
+        &self,
+        entry: DescriptorEntry,
+        revision: u64,
+        resolver: &Resolver,
+    ) -> Result<DescriptorSource> {
         Ok(DescriptorSource {
-            aliases,
+            entry,
             registry: Arc::clone(&self.classes),
             revision,
-            with_parameters: resolver.parameters.is_some(),
-            contextual,
             scope: resolver.scope,
             closed: Arc::clone(&resolver.closed),
             owner: resolver.resources()?,
@@ -271,7 +304,25 @@ impl State {
 
 impl DescriptorSource {
     pub(super) fn key(&self) -> &ServiceKey {
-        &self.aliases.terminal
+        match &self.entry {
+            DescriptorEntry::Resolution { aliases, .. } => &aliases.terminal,
+            DescriptorEntry::Build(key) => key,
+        }
+    }
+
+    pub(super) fn decorates(&self) -> bool {
+        matches!(self.entry, DescriptorEntry::Resolution { .. })
+    }
+
+    pub(super) fn records_history(&self) -> bool {
+        matches!(
+            self.entry,
+            DescriptorEntry::Resolution {
+                with_parameters: false,
+                contextual: None,
+                ..
+            }
+        )
     }
 
     /// 锁外纯预检，借用同一次选择保留的已冻结目录。
@@ -287,14 +338,24 @@ impl DescriptorSource {
     }
 
     pub(super) fn is_current(&self, state: &State) -> bool {
-        Arc::ptr_eq(&self.registry, &state.classes)
-            && state.aliases.accepts(&self.aliases)
-            && self.contextual.as_ref().map_or_else(
+        if !Arc::ptr_eq(&self.registry, &state.classes) {
+            return false;
+        }
+        let DescriptorEntry::Resolution {
+            aliases,
+            with_parameters,
+            contextual,
+        } = &self.entry
+        else {
+            return true;
+        };
+        state.aliases.accepts(aliases)
+            && contextual.as_ref().map_or_else(
                 || {
                     state
                         .bindings
                         .get(self.key())
-                        .is_none_or(|binding| self.with_parameters && binding.factory.is_none())
+                        .is_none_or(|binding| *with_parameters && binding.factory.is_none())
                 },
                 |source| source.is_current(state, self.key()),
             )

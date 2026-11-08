@@ -209,7 +209,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         .await?;
     let state = app.app()?.state().clone();
     assert!(!state.container().contains::<HomePresenter>());
-    assert!(!state.container().contains::<dyn HomeResponse>());
+    assert!(state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);
     assert!(!state.container().resolved_key(&symbol)?);
     let keys = app.app()?.config_repository().all()?["template_order"]
@@ -230,6 +230,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             "data": {"name": "configured-application"}
         }))?;
     assert!(!state.container().resolved_key(&symbol)?);
+    assert_generated_class_factories(&state).await?;
     let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
     let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
     assert!(!Arc::ptr_eq(&first, &second));
@@ -301,6 +302,58 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     Ok(())
 }
 
+async fn assert_generated_class_factories(
+    state: &openrust::foundation::ApplicationState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let container = state.container();
+    let abstract_key = ServiceKey::typed::<dyn HomeResponse>();
+    let concrete_key = ServiceKey::typed::<HomePresenter>();
+    let symbol = ServiceKey::named(HomePresenter::SYMBOL);
+    let scope = container.scope()?;
+    let mut arguments = ParameterOverrides::new();
+    arguments.insert(
+        ParameterKey::name(HomePresenter::NAME_PARAMETER),
+        ParameterValue::new(String::from("原工厂实参")),
+    );
+    let wrapper = container
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == abstract_key)
+        .ok_or("生成应用缺少异键类工厂")?;
+    let redirected = wrapper
+        .concrete
+        .invoke_with::<dyn HomeResponse>(scope.factory_resolver()?, arguments.clone())
+        .await?;
+    assert_eq!(
+        redirected.response().data.ok_or("缺少应用名称")?["name"],
+        "原工厂实参"
+    );
+    assert!(!container.resolved_key(&abstract_key)?);
+    assert!(!container.resolved_key(&concrete_key)?);
+
+    container
+        .bind_class::<HomePresenter>(concrete_key.clone(), symbol)
+        .await?;
+    let same = container
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == concrete_key)
+        .ok_or("生成应用缺少同键类工厂")?;
+    let direct = same
+        .concrete
+        .invoke_with::<HomePresenter>(scope.factory_resolver()?, arguments)
+        .await?;
+    assert_eq!(
+        direct.response().data.ok_or("缺少应用名称")?["name"],
+        "configured-application"
+    );
+    assert!(!container.resolved_key(&concrete_key)?);
+    scope
+        .shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
 async fn assert_parameterized_home_factory_preserves_scope(
     app: &TestApp<GeneratedApplication>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -311,27 +364,12 @@ async fn assert_parameterized_home_factory_preserves_scope(
     // 根缓存与带参构造分离。工厂的普通依赖仍在实际请求作用域构造。
     let scope_constructions = Arc::new(AtomicUsize::new(0));
     let factory_constructions = Arc::clone(&scope_constructions);
-    state
-        .container()
-        .scoped::<HomeRequestScope, _>(move |_| {
-            factory_constructions.fetch_add(1, Ordering::Relaxed);
-            Box::pin(async { Ok(Arc::new(HomeRequestScope)) })
-        })
-        .await?;
     assert!(
         state
             .container()
-            .scoped_if::<HomePresenter, _>(|resolver| {
-                Box::pin(async move {
-                    resolver.resolve::<HomeRequestScope>().await?;
-                    let name = resolver
-                        .parameters()
-                        .get(&ParameterKey::name(HomePresenter::NAME_PARAMETER))
-                        .map(ParameterValue::downcast::<String>)
-                        .transpose()?
-                        .unwrap_or_default();
-                    Ok(Arc::new(HomePresenter::new(name)))
-                })
+            .scoped_if::<HomeRequestScope, _>(move |_| {
+                factory_constructions.fetch_add(1, Ordering::Relaxed);
+                Box::pin(async { Ok(Arc::new(HomeRequestScope)) })
             })
             .await?
     );
@@ -348,6 +386,21 @@ async fn assert_parameterized_home_factory_preserves_scope(
             })
             .await?
     );
+    state
+        .container()
+        .scoped::<HomePresenter, _>(|resolver| {
+            Box::pin(async move {
+                resolver.resolve::<HomeRequestScope>().await?;
+                let name = resolver
+                    .parameters()
+                    .get(&ParameterKey::name(HomePresenter::NAME_PARAMETER))
+                    .map(ParameterValue::downcast::<String>)
+                    .transpose()?
+                    .unwrap_or_default();
+                Ok(Arc::new(HomePresenter::new(name)))
+            })
+        })
+        .await?;
     let typed_root: Arc<dyn HomeResponse> = state.resolve::<HomePresenter>().await?;
     let projected_root = state
         .resolve_key::<dyn HomeResponse>(symbol.clone())

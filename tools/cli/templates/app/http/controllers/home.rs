@@ -2,7 +2,7 @@
 
 use openrust::Result;
 use openrust::container::{
-    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue,
 };
 use openrust::core::ApiResponse;
 use openrust::foundation::ApplicationState;
@@ -53,8 +53,6 @@ pub(crate) async fn index(
         ParameterKey::name(HomePresenter::NAME_PARAMETER),
         ParameterValue::new(state.config().app.name.clone()),
     );
-    let presenter = state
-        .resolve_key_with::<dyn HomeResponse>(ServiceKey::named(HomePresenter::SYMBOL), parameters)
-        .await?;
+    let presenter = state.resolve_with::<dyn HomeResponse>(parameters).await?;
     Ok(presenter.response())
 }

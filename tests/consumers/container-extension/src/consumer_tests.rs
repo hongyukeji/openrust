@@ -5,7 +5,10 @@ use openrust::container::{
     ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey, ParameterOverrides,
     ParameterValue, ServiceKey,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicUsize, Ordering},
+};
 use tokio::sync::Barrier;
 
 trait Greeting: Send + Sync {
@@ -18,6 +21,206 @@ impl Greeting for BaseGreeting {
     fn value(&self) -> String {
         "hello".to_owned()
     }
+}
+
+const CLASS_GREETING_SYMBOL: &str = "consumer::ClassGreeting";
+
+struct ClassGreeting(String);
+
+impl Greeting for ClassGreeting {
+    fn value(&self) -> String {
+        self.0.clone()
+    }
+}
+
+fn class_greeting_descriptor(constructions: Arc<AtomicUsize>) -> ClassDescriptor {
+    ClassDescriptor::concrete::<ClassGreeting>(
+        CLASS_GREETING_SYMBOL,
+        vec![
+            ConstructorParam::scalar::<String>("title")
+                .with_default(|| Ok(ParameterValue::new(String::from("描述符默认值")))),
+        ],
+        move |args| {
+            constructions.fetch_add(1, Ordering::Relaxed);
+            Ok(Arc::new(ClassGreeting(
+                args.value(0)?.downcast::<String>()?.as_ref().clone(),
+            )))
+        },
+    )
+    .with_projection(class_projection!(ClassGreeting => dyn Greeting))
+}
+
+fn class_greeting_parameters(title: &str) -> ParameterOverrides {
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(
+        ParameterKey::name("title"),
+        ParameterValue::new(title.to_owned()),
+    );
+    parameters
+}
+
+struct AmbientGreeting(Arc<dyn Greeting>);
+
+#[tokio::test]
+async fn same_class_factory_builds_with_ambient_parameters_and_no_inner_publication()
+-> openrust::Result<()> {
+    let constructions = Arc::new(AtomicUsize::new(0));
+    let extensions = Arc::new(AtomicUsize::new(0));
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![class_greeting_descriptor(
+        Arc::clone(&constructions),
+    )])?;
+    let key = ServiceKey::typed::<ClassGreeting>();
+    let symbol = ServiceKey::named(CLASS_GREETING_SYMBOL);
+    builder.singleton_class::<ClassGreeting>(symbol, key.clone());
+    let extension_calls = Arc::clone(&extensions);
+    builder.extend::<ClassGreeting, _>(move |value, _| {
+        extension_calls.fetch_add(1, Ordering::Relaxed);
+        Box::pin(async move { Ok(Arc::new(ClassGreeting(format!("{}（装饰）", value.0)))) })
+    })?;
+    let container = builder.build();
+    let binding = container
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == key)
+        .ok_or_else(|| openrust::Error::custom("test_binding_missing", "缺少同键类工厂"))?;
+    assert!(binding.shared);
+    let factory = binding.concrete;
+    assert!(matches!(
+        factory.invoke::<bool>(container.factory_resolver()?).await,
+        Err(error) if error.code() == "service_type_mismatch"
+    ));
+    assert_eq!(constructions.load(Ordering::Relaxed), 0);
+    let raw = factory
+        .invoke_with::<ClassGreeting>(
+            container.factory_resolver()?,
+            class_greeting_parameters("原工厂的显式实参"),
+        )
+        .await?;
+    assert_eq!(raw.value(), "描述符默认值");
+    assert!(!container.resolved_key(&key)?);
+    assert_eq!(extensions.load(Ordering::Relaxed), 0);
+
+    container
+        .bind::<AmbientGreeting, _>(move |resolver| {
+            let factory = factory.clone();
+            Box::pin(async move {
+                let greeting = factory
+                    .invoke_with::<dyn Greeting>(
+                        resolver,
+                        class_greeting_parameters("原工厂的显式实参"),
+                    )
+                    .await?;
+                Ok(Arc::new(AmbientGreeting(greeting)))
+            })
+        })
+        .await?;
+    let ambient = container
+        .resolve_with::<AmbientGreeting>(class_greeting_parameters("外层参数"))
+        .await?;
+    assert_eq!(ambient.0.value(), "外层参数");
+    assert!(!container.resolved_key(&key)?);
+
+    let explicit = container
+        .resolve_with::<ClassGreeting>(class_greeting_parameters("普通调用参数"))
+        .await?;
+    assert_eq!(explicit.value(), "普通调用参数（装饰）");
+    assert!(!container.resolved_key(&key)?);
+    let shared = container.resolve::<ClassGreeting>().await?;
+    assert_eq!(shared.value(), "描述符默认值（装饰）");
+    assert!(Arc::ptr_eq(
+        &shared,
+        &container.resolve::<ClassGreeting>().await?
+    ));
+    assert!(container.resolved_key(&key)?);
+    assert_eq!(constructions.load(Ordering::Relaxed), 4);
+    assert_eq!(extensions.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn different_class_factory_uses_supplied_container_and_only_publishes_inner_resolution()
+-> openrust::Result<()> {
+    let source_constructions = Arc::new(AtomicUsize::new(0));
+    let target_constructions = Arc::new(AtomicUsize::new(0));
+    let abstract_key = ServiceKey::typed::<dyn Greeting>();
+    let concrete_key = ServiceKey::typed::<ClassGreeting>();
+    let concrete_symbol = ServiceKey::named(CLASS_GREETING_SYMBOL);
+
+    let mut source = ContainerBuilder::with_class_descriptors(vec![class_greeting_descriptor(
+        Arc::clone(&source_constructions),
+    )])?;
+    source.singleton_class::<dyn Greeting>(abstract_key.clone(), concrete_symbol.clone());
+    let source = source.build();
+    let snapshot = source
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == abstract_key)
+        .ok_or_else(|| openrust::Error::custom("test_binding_missing", "缺少异键类工厂"))?;
+    assert!(snapshot.shared);
+    let factory = snapshot.concrete;
+
+    let mut target = ContainerBuilder::with_class_descriptors(vec![class_greeting_descriptor(
+        Arc::clone(&target_constructions),
+    )])?;
+    target.singleton_class::<ClassGreeting>(concrete_key.clone(), concrete_symbol);
+    target.bind::<dyn Greeting, _>(|_| {
+        Box::pin(async { Ok(Arc::new(BaseGreeting) as Arc<dyn Greeting>) })
+    });
+    target
+        .when(concrete_key.clone())?
+        .needs_parameter("title")
+        .give_value(ParameterValue::new(String::from("调用方容器")))?;
+    target.extend::<ClassGreeting, _>(|value, _| {
+        Box::pin(async move { Ok(Arc::new(ClassGreeting(format!("{}（内层装饰）", value.0)))) })
+    })?;
+    let target = target.build();
+
+    assert!(matches!(
+        factory.invoke::<bool>(target.factory_resolver()?).await,
+        Err(error) if error.code() == "service_type_mismatch"
+    ));
+    assert_eq!(target_constructions.load(Ordering::Relaxed), 0);
+
+    source
+        .bind::<dyn Greeting, _>(|_| {
+            Box::pin(async { Ok(Arc::new(BaseGreeting) as Arc<dyn Greeting>) })
+        })
+        .await?;
+    let rebound = source
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == abstract_key)
+        .ok_or_else(|| openrust::Error::custom("test_binding_missing", "缺少重绑工厂"))?;
+    assert!(!rebound.concrete.same_factory(&factory));
+
+    let explicit = factory
+        .invoke_with::<dyn Greeting>(
+            target.factory_resolver()?,
+            class_greeting_parameters("原工厂实参"),
+        )
+        .await?;
+    assert_eq!(explicit.value(), "原工厂实参（内层装饰）");
+    assert!(!target.resolved_key(&concrete_key)?);
+    let shared = factory
+        .invoke::<dyn Greeting>(target.factory_resolver()?)
+        .await?;
+    let shared_concrete = factory
+        .invoke::<ClassGreeting>(target.factory_resolver()?)
+        .await?;
+    assert_eq!(shared.value(), "调用方容器（内层装饰）");
+    let projected: Arc<dyn Greeting> = Arc::<ClassGreeting>::clone(&shared_concrete);
+    assert!(Arc::ptr_eq(&shared, &projected));
+    assert!(Arc::ptr_eq(
+        &shared_concrete,
+        &target.resolve::<ClassGreeting>().await?
+    ));
+    assert!(target.resolved_key(&concrete_key)?);
+    assert!(!target.resolved_key(&abstract_key)?);
+    assert!(!source.resolved_key(&abstract_key)?);
+    assert_eq!(source_constructions.load(Ordering::Relaxed), 0);
+    assert_eq!(target_constructions.load(Ordering::Relaxed), 2);
+    assert_eq!(source.resolve::<dyn Greeting>().await?.value(), "hello");
+    Ok(())
 }
 
 #[tokio::test]

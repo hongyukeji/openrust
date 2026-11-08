@@ -4,7 +4,7 @@
 
 应用可在 Provider 启动清单中声明具体类型与构造依赖，普通解析会使用同一 Container 解析依赖。用法见[声明可构造的具体类型](../../../docs/src/architecture-concepts/lifecycle.md#声明可构造的具体类型)。
 
-构造依赖可使用 `when` 登记上下文规则。显式闭包绑定也可通过 `get_bindings` 取得原工厂快照，按指定作用域直接调用。详见[应用启动](../../../docs/src/architecture-concepts/lifecycle.md)。
+构造依赖可使用 `when` 登记上下文规则。显式闭包和类名绑定可通过 `get_bindings` 取得原工厂快照，按指定作用域直接调用。详见[应用启动](../../../docs/src/architecture-concepts/lifecycle.md)。
 
 OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀第三方扩展。框架库公开路径为 `openrust::`，根应用通过统一 Container、Provider 和配置生命周期接入。
 

@@ -14,6 +14,7 @@ use crate::modules::example::services::article_write::ArticleWriter;
 use crate::modules::example::services::upstream::ArticleSummaryService;
 use crate::modules::example::services::{
     EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig, ExampleMessage,
+    GreetingPresenter,
 };
 #[cfg(feature = "auth")]
 use openrust::database::sea_orm::{EntityTrait, QuerySelect};
@@ -282,6 +283,11 @@ impl ServiceProvider for ExampleServiceProvider {
                 ServiceKey::named(EXAMPLE_PRESENTER_CLASS),
                 ServiceKey::named(EXAMPLE_PRESENTER_ALIAS),
             )?;
+            app.bind_class::<dyn GreetingPresenter>(
+                ServiceKey::typed::<dyn GreetingPresenter>(),
+                ServiceKey::named(EXAMPLE_PRESENTER_CLASS),
+            )
+            .await?;
             app.when(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))?
                 .needs_parameter("served_at")
                 .give_parameter_factory(|_| {

@@ -10,6 +10,7 @@ use std::{
 
 use tokio::sync::Notify;
 
+use super::super::class_binding::ClassFactory;
 use super::super::{
     Attempt, CacheKey, Container, ENTRY_SCOPE, Factory, Inner, Lifetime, ParameterOverrides,
     Resolver, Scope, ScopeStatus, ServiceKey, Value, WaitEdge, container_error, extensions, lock,
@@ -19,13 +20,14 @@ use crate::core::{Cancellation, ExecutionContext};
 use crate::foundation::resources::{ResourceRegistrar, ResourceTaskCompletion};
 use crate::{BoxFuture, Error, Result};
 
-/// 显式登记的原工厂闭包快照。绑定替换后，已有句柄仍调用取得时的闭包。
+/// 显式登记的原工厂快照，支持用户闭包和类名包装工厂。绑定替换后，已有句柄仍调用取得时的工厂。
 ///
 /// 调用者提供实际的 [Resolver]。直接调用使用该解析器的容器与资源作用域，
 /// 跳过原键的实例、共享缓存、装饰和解析历史。闭包内部显式解析的服务仍走通常流程。
 #[derive(Clone)]
 pub struct FactoryHandle {
     factory: Factory,
+    class_factory: Option<Arc<ClassFactory>>,
     output: TypeId,
     service: ServiceKey,
 }
@@ -58,15 +60,26 @@ impl FactoryHandle {
     /// 执行原工厂，显式实参由 [`Resolver::parameters`] 提供。
     ///
     /// 轮询需要 `Tokio` 运行时。作用域关闭、执行取消或声明输出类型不匹配时返回错误。
-    /// 输出类型不匹配会在工厂运行前拒绝。本入口支持登记时声明的具体类型或 trait 对象。
+    /// 输出类型不匹配会在工厂运行前拒绝。类名包装工厂也支持调用容器声明的同对象视图。
     pub fn invoke_with<T: ?Sized + Send + Sync + 'static>(
         &self,
         mut resolver: Resolver,
         parameters: ParameterOverrides,
     ) -> BoxFuture<'static, Result<Arc<T>>> {
+        let requested = TypeId::of::<Arc<T>>();
+        let with_parameters = !parameters.is_empty();
+        let target = ServiceKey::typed::<T>();
+        let factory = self
+            .class_factory
+            .as_ref()
+            .filter(|_| self.output != requested)
+            .map_or_else(
+                || Arc::clone(&self.factory),
+                |class| class.factory(target, requested),
+            );
         let previous = resolver.take_factory_inputs();
         let caller = CallerFrame(CallFrame::new(
-            Arc::clone(&self.factory),
+            factory,
             parameters,
             resolver.resources.clone(),
         ));
@@ -76,6 +89,8 @@ impl FactoryHandle {
         let key = RawKey {
             service: self.service.clone(),
             output: self.output,
+            class_factory: self.class_factory.clone(),
+            with_parameters,
         };
         Box::pin(async move {
             let result = key
@@ -97,6 +112,8 @@ impl FactoryHandle {
 struct RawKey {
     service: ServiceKey,
     output: TypeId,
+    class_factory: Option<Arc<ClassFactory>>,
+    with_parameters: bool,
 }
 impl RawKey {
     async fn invoke_admitted<T: ?Sized + Send + Sync + 'static>(
@@ -108,7 +125,20 @@ impl RawKey {
         {
             let state = lock(&inner.state);
             resolver.check_open(&state)?;
-            if self.output != TypeId::of::<Arc<T>>() {
+            let supported = if self.output == TypeId::of::<Arc<T>>() {
+                true
+            } else if let Some(class) = &self.class_factory {
+                class.supports_view(
+                    &state,
+                    &resolver,
+                    ServiceKey::typed::<T>(),
+                    TypeId::of::<Arc<T>>(),
+                    self.with_parameters,
+                )?
+            } else {
+                false
+            };
+            if !supported {
                 return Err(container_error(
                     "service_type_mismatch",
                     "原工厂声明输出与请求类型不同",
@@ -706,6 +736,7 @@ impl Container {
                         key: key.clone(),
                         concrete: FactoryHandle {
                             factory: Arc::clone(factory),
+                            class_factory: binding.class_factory.clone(),
                             output,
                             service: key.clone(),
                         },

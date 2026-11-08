@@ -1,10 +1,7 @@
 //! 最小业务 API，直接调用第三方包 chrono 并通过框架 Json 返回。
 
 use super::super::resources::example::ExampleInfo;
-use crate::modules::example::services::{
-    EXAMPLE_PRESENTER_ALIAS, ExampleMessage, GreetingPresenter,
-};
-use openrust::container::ServiceKey;
+use crate::modules::example::services::{ExampleMessage, GreetingPresenter};
 use openrust::foundation::ApplicationState;
 use openrust::http::axum::{
     extract::State,
@@ -33,9 +30,7 @@ pub(crate) struct ExampleDomainParams {
 pub(crate) async fn show(
     State(app): State<ApplicationState>,
 ) -> openrust::Result<Json<ExampleInfo>> {
-    let presenter = app
-        .resolve_key::<dyn GreetingPresenter>(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))
-        .await?;
+    let presenter = app.resolve::<dyn GreetingPresenter>().await?;
     Ok(Json(ExampleInfo {
         message: presenter.text().to_owned(),
         served_at: presenter.served_at(),

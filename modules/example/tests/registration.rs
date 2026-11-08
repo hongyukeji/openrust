@@ -48,7 +48,9 @@ async fn production_log_services_coexist_with_normal_module_routes()
             ServiceKey::typed::<ExamplePresenter>()
         );
         assert!(!state.container().contains::<ExamplePresenter>());
-        assert!(!state.container().contains::<dyn GreetingPresenter>());
+        let abstract_key = ServiceKey::typed::<dyn GreetingPresenter>();
+        assert!(state.container().contains_key(&abstract_key));
+        assert!(!state.container().resolved_key(&abstract_key)?);
         assert!(!state.container().resolved_key(&alias)?);
         let message_binding = state
             .container()
@@ -72,6 +74,15 @@ async fn production_log_services_coexist_with_normal_module_routes()
             ParameterKey::name("served_at"),
             ParameterValue::new(served_at),
         );
+        assert_raw_greeting_presenter(
+            state.container(),
+            parameters.clone(),
+            served_at,
+            decorated.text(),
+        )
+        .await?;
+        assert!(!state.container().resolved_key(&abstract_key)?);
+        assert!(!state.container().resolved_key(&alias)?);
         let named = state
             .resolve_key_with::<dyn GreetingPresenter>(alias.clone(), parameters)
             .await?;
@@ -107,6 +118,26 @@ async fn production_log_services_coexist_with_normal_module_routes()
     Ok(())
 }
 
+async fn assert_raw_greeting_presenter(
+    container: &openrust::container::Container,
+    parameters: ParameterOverrides,
+    served_at: chrono::DateTime<chrono::Utc>,
+    expected_text: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let binding = container
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == ServiceKey::typed::<dyn GreetingPresenter>())
+        .ok_or("示例问候呈现器缺少类绑定工厂")?;
+    let presenter = binding
+        .concrete
+        .invoke_with::<dyn GreetingPresenter>(container.factory_resolver()?, parameters)
+        .await?;
+    assert_eq!(presenter.served_at(), served_at);
+    assert_eq!(presenter.text(), expected_text);
+    Ok(())
+}
+
 #[tokio::test]
 async fn production_named_greeting_uses_each_request_scope()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -132,9 +163,7 @@ async fn production_named_greeting_uses_each_request_scope()
             })
         })
         .await?;
-    let root_presenter = state
-        .resolve_key::<dyn GreetingPresenter>(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))
-        .await?;
+    let root_presenter = state.resolve::<dyn GreetingPresenter>().await?;
     assert_eq!(root_presenter.text(), "问候 0");
     for expected in ["问候 1", "问候 2"] {
         let response = app

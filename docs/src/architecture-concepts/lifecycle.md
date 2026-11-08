@@ -85,9 +85,30 @@ fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
 
 构造参数先使用调用级覆盖，随后检查消费类的上下文规则，再决定是否采用参数默认值。用 `give_config::<T>` 可从当前配置仓储按声明类型读取值，缺失时使用显式默认值。用 `give_many` 为类变参提供按顺序解析的服务键，对应 Laravel 的类数组实现。也可使用 `give_tagged` 或 `give_variadic_factory`。容器无法构造成员时，变参回退为空序列。工厂返回的业务错误仍会传给调用者。Rust 构造描述通过 `ConstructorParam::variadic` 声明变参，并在构造回调中通过 `ResolvedArgs::values` 按顺序读取。普通服务工厂内部的解析有自己的构造上下文，避免套用外层消费类的规则。
 
+### 将服务键绑定到编译类
+
+在 Provider 中使用 `bind_class` 登记类绑定，用 `singleton_class` 或 `scoped_class` 选择共享生命周期。构造器和可返回的 trait 视图来自已登记的编译类描述。下面将业务接口指向具体类的符号。
+
+```rust
+use openrust::container::ServiceKey;
+use openrust::foundation::RegisterContext;
+
+trait ReportStore: Send + Sync {}
+
+async fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
+    app.bind_class::<dyn ReportStore>(
+        ServiceKey::typed::<dyn ReportStore>(),
+        ServiceKey::named("app::ArchiveStore"),
+    )
+    .await
+}
+```
+
+编译类符号与其类型键视为同一个类。同键绑定直接构造该类并读取当前构造参数帧，普通解析在外层应用所选生命周期和装饰器。异键绑定将本次工厂参数传给具体键的解析流程，具体键继续使用自己的生命周期、装饰器和解析历史。构造器的普通依赖各自使用空参数帧。
+
 ### 读取与调用原始绑定工厂
 
-`Container::get_bindings()` 按登记顺序返回显式工厂条目的键、共享声明和 `FactoryHandle`。实例覆盖保留原工厂，绑定替换后已取得的句柄仍调用快照里的闭包。
+`Container::get_bindings()` 按登记顺序返回显式工厂条目的键、共享声明和 `FactoryHandle`。实例覆盖保留原工厂，绑定替换后已取得的句柄仍调用快照里的闭包或类绑定包装器。
 
 ```rust
 use openrust::container::{Container, ServiceKey};
@@ -102,7 +123,9 @@ async fn invoke(container: &Container) -> openrust::Result<Option<Arc<String>>> 
 }
 ```
 
-在已持有的 `Scope` 中可用 `scope.factory_resolver()` 取得该作用域的解析器。`invoke_with` 把实参交给原闭包的 `Resolver::parameters()`。句柄在执行前按登记的输出类型校验请求类型，跳过原键的装饰、共享实例和普通解析记录。闭包内主动解析的依赖继续走通常的容器流程。
+在已持有的 `Scope` 中可用 `scope.factory_resolver()` 取得该作用域的解析器。直接调用使用所传解析器的容器和资源作用域，跳过原绑定键的装饰、共享实例和普通解析记录。请求类型须匹配工厂声明或类描述的可用视图，容器在运行工厂或构造器前检查。
+
+`invoke_with` 把实参交给原用户闭包的 `Resolver::parameters()`。同键类包装器直接构造，只读调用时已有的构造参数帧。异键包装器把实参交给具体键的解析，仍可能复用该键的共享实例或写入该键的解析历史。构造器或闭包主动解析的依赖继续走通常流程。
 
 应用 Controller 放在 `app/http/controllers/`，通过 `routes/api.rs` 或 `routes/web.rs` 声明访问路径；应用 Provider 类型放在 `app/providers/`，由 `bootstrap/providers.rs` 登记。不要把这些应用职责放入框架 `src/`。
 

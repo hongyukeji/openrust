@@ -70,8 +70,12 @@ impl Resolver {
             return Ok(None);
         }
         let prepared = prepared?;
-        if self
-            .chain
+        let cycle_frames = if source.decorates() {
+            &self.chain
+        } else {
+            &self.class_builds
+        };
+        if cycle_frames
             .iter()
             .any(|(key, active)| key == source.key() && active.load(Ordering::Acquire))
         {
@@ -419,7 +423,12 @@ impl DescriptorRun<'_> {
             let active = Arc::new(std::sync::atomic::AtomicBool::new(true));
             let _frame = ActiveFactory(Arc::clone(&active));
             let mut consumer = self.child.clone();
-            consumer.build_consumer = Some((self.source.key().clone(), active));
+            let frame = (self.source.key().clone(), active);
+            consumer
+                .class_builds
+                .retain(|(_, active)| active.load(Ordering::Acquire));
+            consumer.class_builds.push(frame.clone());
+            consumer.build_consumer = Some(frame);
             for parameter in prepared.parameters() {
                 self.claim(|_| ())?;
                 arguments.push(self.select_argument(&consumer, parameter).await?);
@@ -435,7 +444,11 @@ impl DescriptorRun<'_> {
             prepared.construct(&views)
         })??)?;
 
-        let chain = self.claim(|state| state.extensions.chain(&self.attempt.key))?;
+        let chain = if self.source.decorates() {
+            self.claim(|state| state.extensions.chain(&self.attempt.key))?
+        } else {
+            Vec::new()
+        };
         let mut chain = chain.into_iter();
         let mut extenders = Vec::new();
         while let Some(extender) = chain.next() {
@@ -483,7 +496,7 @@ impl DescriptorRun<'_> {
         self.claim(|state| {
             owner.check_cleanup()?;
             let value = result.take().ok_or_else(missing_slot)?;
-            if self.caller.parameters.is_none() && self.source.contextual.is_none() {
+            if self.source.records_history() {
                 state.resolved_history.insert(self.source.key().clone());
                 state.extensions.resolved.insert(self.attempt.key.clone());
             }

@@ -4,7 +4,7 @@ use super::ParameterOverrides;
 use super::{
     Arc, Binding, BindingChange, BoxFuture, ClassDescriptor, ClassRegistry, Container,
     ContainerBuilder, HashMap, HashSet, Lifetime, Resolver, Result, ServiceKey, State, TypeId,
-    Value, container_error, lock,
+    Value, class_binding::ClassFactory, container_error, lock,
 };
 mod raw;
 mod raw_delivery;
@@ -156,6 +156,7 @@ where
         pending: Vec::new(),
         lifetime,
         factory_output: Some(TypeId::of::<Arc<T>>()),
+        class_factory: None,
         factory: Some(Arc::new(move |resolver| {
             let guarded = crate::foundation::lifecycle::callback_future(
                 resolver.callback_disposal(),
@@ -243,6 +244,68 @@ impl ContainerBuilder {
         self
     }
 
+    /// 在原键登记临时类工厂，替换该键已有的绑定或别名。
+    ///
+    /// 类的编译符号与类型键等价。异键实现沿其自身的绑定和生命周期解析。
+    pub fn bind_class<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> &mut Self {
+        self.register_class::<T>(key, concrete, Lifetime::Bind, false);
+        self
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记临时类工厂，返回是否完成登记。
+    pub fn bind_class_if<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> bool {
+        self.register_class::<T>(key, concrete, Lifetime::Bind, true)
+            .was_registered()
+    }
+
+    /// 在原键登记应用共享类工厂，替换该键已有的绑定或别名。
+    pub fn singleton_class<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> &mut Self {
+        self.register_class::<T>(key, concrete, Lifetime::Singleton, false);
+        self
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记应用共享类工厂，返回是否完成登记。
+    pub fn singleton_class_if<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> bool {
+        self.register_class::<T>(key, concrete, Lifetime::Singleton, true)
+            .was_registered()
+    }
+
+    /// 在原键登记作用域共享类工厂，替换该键已有的绑定或别名。
+    pub fn scoped_class<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> &mut Self {
+        self.register_class::<T>(key, concrete, Lifetime::Scoped, false);
+        self
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记作用域共享类工厂，返回是否完成登记。
+    pub fn scoped_class_if<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> bool {
+        self.register_class::<T>(key, concrete, Lifetime::Scoped, true)
+            .was_registered()
+    }
+
     /// 仅在类型键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
     pub fn bind_if<T, F>(&mut self, factory: F) -> bool
     where
@@ -317,6 +380,29 @@ impl ContainerBuilder {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
+        self.register_binding(key, only_if_unbound, |_, _| {
+            binding::<T, F>(lifetime, factory)
+        })
+    }
+
+    fn register_class<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+        lifetime: Lifetime,
+        only_if_unbound: bool,
+    ) -> RegistrationOutcome {
+        self.register_binding(key, only_if_unbound, |classes, key| {
+            ClassFactory::binding::<T>(classes, key, concrete, lifetime)
+        })
+    }
+
+    fn register_binding(
+        &mut self,
+        key: ServiceKey,
+        only_if_unbound: bool,
+        make_binding: impl FnOnce(&ClassRegistry, &ServiceKey) -> Binding,
+    ) -> RegistrationOutcome {
         let key = self.classes.canonical_key_owned(key);
         if only_if_unbound && self.bound_key(&key) {
             return RegistrationOutcome::AlreadyBound;
@@ -330,8 +416,8 @@ impl ContainerBuilder {
         {
             self.binding_order.push(key.clone());
         }
-        self.bindings
-            .insert(key, binding::<T, F>(lifetime, factory));
+        let binding = make_binding(&self.classes, &key);
+        self.bindings.insert(key, binding);
         RegistrationOutcome::Registered
     }
 
@@ -473,6 +559,74 @@ impl Container {
             .map(|_| ())
     }
 
+    /// 在原键登记临时类工厂，替换该键已有的绑定或别名。
+    ///
+    /// 类的编译符号与类型键等价。异键实现沿其自身的绑定和生命周期解析。
+    pub async fn bind_class<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<()> {
+        self.register_class::<T>(key, concrete, Lifetime::Bind, false)
+            .await
+            .map(|_| ())
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记临时类工厂，返回是否完成登记。
+    pub async fn bind_class_if<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<bool> {
+        self.register_class::<T>(key, concrete, Lifetime::Bind, true)
+            .await
+            .map(RegistrationOutcome::was_registered)
+    }
+
+    /// 在原键登记应用共享类工厂，替换该键已有的绑定或别名。
+    pub async fn singleton_class<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<()> {
+        self.register_class::<T>(key, concrete, Lifetime::Singleton, false)
+            .await
+            .map(|_| ())
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记应用共享类工厂，返回是否完成登记。
+    pub async fn singleton_class_if<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<bool> {
+        self.register_class::<T>(key, concrete, Lifetime::Singleton, true)
+            .await
+            .map(RegistrationOutcome::was_registered)
+    }
+
+    /// 在原键登记作用域共享类工厂，替换该键已有的绑定或别名。
+    pub async fn scoped_class<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<()> {
+        self.register_class::<T>(key, concrete, Lifetime::Scoped, false)
+            .await
+            .map(|_| ())
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记作用域共享类工厂，返回是否完成登记。
+    pub async fn scoped_class_if<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+    ) -> Result<bool> {
+        self.register_class::<T>(key, concrete, Lifetime::Scoped, true)
+            .await
+            .map(RegistrationOutcome::was_registered)
+    }
+
     /// 仅在类型键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
     pub async fn bind_if<T, F>(&self, factory: F) -> Result<bool>
     where
@@ -551,11 +705,30 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        let (outcome, event) = self.commit_binding_change_if(
-            key,
-            BindingChange::Factory(binding::<T, F>(lifetime, factory)),
-            only_if_unbound,
-        )?;
+        self.register_binding(key, binding::<T, F>(lifetime, factory), only_if_unbound)
+            .await
+    }
+
+    async fn register_class<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        concrete: ServiceKey,
+        lifetime: Lifetime,
+        only_if_unbound: bool,
+    ) -> Result<RegistrationOutcome> {
+        let classes = Arc::clone(&lock(&self.inner.state).classes);
+        let binding = ClassFactory::binding::<T>(&classes, &key, concrete, lifetime);
+        self.register_binding(key, binding, only_if_unbound).await
+    }
+
+    async fn register_binding(
+        &self,
+        key: ServiceKey,
+        binding: Binding,
+        only_if_unbound: bool,
+    ) -> Result<RegistrationOutcome> {
+        let (outcome, event) =
+            self.commit_binding_change_if(key, BindingChange::Factory(binding), only_if_unbound)?;
         if let Some(event) = event {
             event.dispatch().await?;
         }

@@ -40,6 +40,7 @@ type Factory = Arc<dyn Fn(Resolver) -> BoxFuture<'static, Result<Value>> + Send 
 mod service_key;
 pub use service_key::ServiceKey;
 
+mod class_binding;
 mod class_identity;
 use class_descriptor::ClassRegistry;
 pub use class_descriptor::{ClassDescriptor, ConstructorParam, ResolvedArgs};
@@ -187,6 +188,7 @@ struct Binding {
     lifetime: Lifetime,
     factory: Option<Factory>,
     factory_output: Option<TypeId>,
+    class_factory: Option<Arc<class_binding::ClassFactory>>,
     instance: Option<Value>,
 }
 
@@ -241,6 +243,7 @@ impl Binding {
             lifetime: Lifetime::Singleton,
             factory: None,
             factory_output: None,
+            class_factory: None,
             instance: Some(value),
         }
     }
@@ -363,6 +366,11 @@ impl ContainerBuilder {
 
     /// 封闭定义集合，创建根生命周期；没有进程全局容器。
     pub fn build(self) -> Container {
+        // 未装配 Application 的容器也有应用级单例，根 scoped 重置不能回收它们。
+        let standalone_resources = self.resources.is_none().then(ResourceOwner::new);
+        let resources = self
+            .resources
+            .or_else(|| standalone_resources.as_ref().map(ResourceOwner::registrar));
         Container {
             inner: Arc::new(Inner {
                 state: Mutex::new(State {
@@ -376,7 +384,8 @@ impl ContainerBuilder {
                 }),
                 reset: tokio::sync::Mutex::new(()),
                 config: self.config,
-                resources: self.resources,
+                resources,
+                standalone_resources,
             }),
         }
     }
@@ -518,6 +527,7 @@ struct Inner {
     reset: tokio::sync::Mutex<()>,
     config: Option<ConfigRepository>,
     resources: Option<ResourceRegistrar>,
+    standalone_resources: Option<ResourceOwner>,
 }
 
 #[derive(Clone)]
@@ -1083,6 +1093,10 @@ impl Container {
         };
         let resources = Arc::clone(&lock(&self.inner.state).root_resources);
         let root_result = resources.shutdown(deadline).await;
+        let standalone_result = match &self.inner.standalone_resources {
+            Some(owner) => owner.shutdown(deadline).await,
+            None => Ok(()),
+        };
         let mut first_error = lock(&self.inner.state)
             .root_raw_close
             .as_ref()
@@ -1104,6 +1118,7 @@ impl Container {
         }
         self.compact_root_raw_close();
         root_result?;
+        standalone_result?;
         match first_error {
             Some(error) => Err(error),
             None => Ok(()),
@@ -1153,6 +1168,9 @@ impl Container {
         }
         dispose_scope(removed);
         resources.seal();
+        if let Some(owner) = &self.inner.standalone_resources {
+            owner.seal();
+        }
         fences
     }
 
@@ -1231,6 +1249,7 @@ impl Container {
             resources: Some(resources),
             parameters: None,
             build_consumer: None,
+            class_builds: Vec::new(),
             factory_parameters: Arc::new(FactoryParameters::empty()),
             factory_completion: None,
         }
@@ -1501,6 +1520,13 @@ enum ResolveRequest {
         target: ServiceKey,
         erased_output: TypeId,
     },
+    // Laravel getClosure 使用 raiseEvents=false。这个请求只约束具体服务的本层；
+    // 类构造器内部另发 Typed 请求，照常参与独立的解析事件。
+    Wrapped {
+        concrete: ServiceKey,
+        target: ServiceKey,
+        erased_output: TypeId,
+    },
     Erased(ServiceKey),
 }
 
@@ -1508,20 +1534,22 @@ impl ResolveRequest {
     fn lookup_key(&self) -> &ServiceKey {
         match self {
             Self::Typed { lookup, target, .. } => lookup.as_ref().unwrap_or(target),
-            Self::Erased(key) => key,
+            Self::Wrapped { concrete, .. } | Self::Erased(concrete) => concrete,
         }
     }
 
     fn target(&self) -> Option<&ServiceKey> {
         match self {
-            Self::Typed { target, .. } => Some(target),
+            Self::Typed { target, .. } | Self::Wrapped { target, .. } => Some(target),
             Self::Erased(_) => None,
         }
     }
 
     fn expected_output(&self) -> Option<TypeId> {
         match self {
-            Self::Typed { erased_output, .. } => Some(*erased_output),
+            Self::Typed { erased_output, .. } | Self::Wrapped { erased_output, .. } => {
+                Some(*erased_output)
+            }
             Self::Erased(_) => None,
         }
     }
@@ -1539,6 +1567,7 @@ pub struct Resolver {
     resources: Option<ResourceRegistrar>,
     parameters: Option<ParameterView>,
     build_consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
+    class_builds: Vec<(ServiceKey, Arc<AtomicBool>)>,
     factory_parameters: Arc<FactoryParameters>,
     factory_completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
 }
@@ -1700,7 +1729,7 @@ impl Resolver {
         use crate::foundation::lifecycle::CallbackDisposal;
 
         // 未轮询的调用尚未选定作用域，仍持有可受控退役的参数。
-        let mut frame = (!parameters.is_empty())
+        let frame = (!parameters.is_empty())
             .then(|| ParameterFrame::new(parameters, CallbackDisposal::new(None, None)));
         let request = ResolveRequest::Typed {
             lookup,
@@ -1710,7 +1739,7 @@ impl Resolver {
         Box::pin(async move {
             // 选择器可交回强持有者，保证延迟轮询的根容器活到结果交付。
             let (selected, _keepalive) = resolver();
-            let mut resolver = match selected {
+            let resolver = match selected {
                 Ok(resolver) => resolver.for_new_lookup(),
                 Err(error) => {
                     return match frame {
@@ -1719,19 +1748,27 @@ impl Resolver {
                     };
                 }
             };
-            if let Some(frame) = &mut frame {
-                frame.set_disposal(resolver.callback_disposal());
-                resolver.parameters = Some(frame.view());
-            }
-            let result = resolver.resolve_projected(request, None).await;
-            let value = match frame {
-                Some(frame) => resolver.deliver_after_parameters(frame.finish(result)?)?,
-                None => result?,
-            };
+            let value = resolver.resolve_with_frame(request, frame).await?;
             value.downcast_ref::<Arc<T>>().cloned().ok_or_else(|| {
                 container_error("service_type_mismatch", "服务的实际输出不符合声明类型")
             })
         })
+    }
+
+    async fn resolve_with_frame(
+        mut self,
+        request: ResolveRequest,
+        mut frame: Option<ParameterFrame>,
+    ) -> Result<Value> {
+        if let Some(frame) = &mut frame {
+            frame.set_disposal(self.callback_disposal());
+            self.parameters = Some(frame.view());
+        }
+        let result = self.resolve_projected(request, None).await;
+        match frame {
+            Some(frame) => self.deliver_after_parameters(frame.finish(result)?),
+            None => result,
+        }
     }
 
     fn deliver_after_parameters(&self, value: Value) -> Result<Value> {
