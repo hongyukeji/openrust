@@ -1,7 +1,7 @@
 //! 示例问候内容，展示模块配置与同一容器中的业务依赖替换。
 
 use chrono::{DateTime, Utc};
-use openrust::container::{ClassDescriptor, ConstructorParam};
+use openrust::container::{ClassDescriptor, ConstructorParam, PhpBytes, PhpTarget};
 use std::sync::Arc;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -124,12 +124,24 @@ pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
         EXAMPLE_PRESENTER_CLASS,
         vec![
             ConstructorParam::class::<ExampleMessage>("message"),
-            ConstructorParam::scalar::<DateTime<Utc>>("served_at"),
+            ConstructorParam::php("served_at", PhpTarget::Bytes),
         ],
         |args| {
+            let served_at = args.value(1)?.downcast::<PhpBytes>()?;
+            let invalid_timestamp = || {
+                openrust::Error::custom(
+                    "example_presenter_time_invalid",
+                    "问候呈现器需要 RFC 3339 时间",
+                )
+            };
+            let timestamp =
+                std::str::from_utf8(served_at.as_bytes()).map_err(|_| invalid_timestamp())?;
+            let served_at = DateTime::parse_from_rfc3339(timestamp)
+                .map_err(|_| invalid_timestamp())?
+                .with_timezone(&Utc);
             Ok(Arc::new(ExamplePresenter {
                 message: args.service::<ExampleMessage>(0)?,
-                served_at: args.value(1)?.downcast::<DateTime<Utc>>()?,
+                served_at: Arc::new(served_at),
             }))
         },
     )

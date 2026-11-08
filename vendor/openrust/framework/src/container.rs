@@ -43,8 +43,13 @@ pub use service_key::ServiceKey;
 mod class_binding;
 mod class_identity;
 use class_descriptor::ClassRegistry;
-pub use class_descriptor::{ClassDescriptor, ConstructorParam, ResolvedArgs};
+pub use class_descriptor::{
+    ClassDescriptor, ConstructorParam, PhpBytes, PhpIntBool, PhpStringable, PhpTarget,
+    ResolvedArgs, ScalarDiagnostic,
+};
+pub(crate) mod scalar_diagnostics;
 pub use class_projection::ClassProjection;
+pub use scalar_diagnostics::ScalarDiagnostics;
 
 #[cfg(test)]
 #[path = "container/descriptor_race_tests.rs"]
@@ -292,6 +297,7 @@ pub struct ContainerBuilder {
     extensions: ExtensionState,
     config: Option<ConfigRepository>,
     resources: Option<ResourceRegistrar>,
+    scalar_diagnostics: ScalarDiagnostics,
 }
 
 impl ContainerBuilder {
@@ -364,6 +370,12 @@ impl ContainerBuilder {
         self
     }
 
+    /// 为显式弱标量构造参数安装同步诊断处理。处理失败会阻止构造。
+    pub fn scalar_diagnostics(&mut self, policy: ScalarDiagnostics) -> &mut Self {
+        self.scalar_diagnostics = policy;
+        self
+    }
+
     /// 封闭定义集合，创建根生命周期；没有进程全局容器。
     pub fn build(self) -> Container {
         // 未装配 Application 的容器也有应用级单例，根 scoped 重置不能回收它们。
@@ -386,6 +398,7 @@ impl ContainerBuilder {
                 config: self.config,
                 resources,
                 standalone_resources,
+                scalar_diagnostics: self.scalar_diagnostics,
             }),
         }
     }
@@ -528,6 +541,7 @@ struct Inner {
     config: Option<ConfigRepository>,
     resources: Option<ResourceRegistrar>,
     standalone_resources: Option<ResourceOwner>,
+    scalar_diagnostics: ScalarDiagnostics,
 }
 
 #[derive(Clone)]

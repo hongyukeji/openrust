@@ -67,7 +67,6 @@ impl ParameterValue {
         self.value.is_none()
     }
 
-    #[cfg(test)]
     pub(super) fn downcast_ref<T: Any + Send + Sync>(&self) -> Option<&T> {
         self.value.as_deref()?.downcast_ref()
     }

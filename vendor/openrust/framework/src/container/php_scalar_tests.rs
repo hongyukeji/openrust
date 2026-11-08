@@ -2,7 +2,9 @@
 use super::super::class_descriptor::ParameterKey;
 use super::php_scalar::{PhpBytes, PhpIntBool, PhpStringable, PhpTarget, ScalarDiagnostic};
 use super::{Argument, ClassDescriptor, ClassRegistry, ConstructorParam, ParameterValue};
-use crate::container::{ParameterOverrides, ServiceKey, container_error};
+use crate::container::{
+    ContainerBuilder, ParameterOverrides, ScalarDiagnostics, ServiceKey, container_error, lock,
+};
 use crate::support::InputNumber;
 use crate::{Error, Result};
 use base64::Engine;
@@ -213,34 +215,39 @@ fn expected_diagnostic(
     })
 }
 
-#[test]
-fn fixed_php_scalar_matrix_uses_actual_prepared_constructor_with_two_test_policies() -> Result<()> {
+#[tokio::test]
+async fn fixed_php_scalar_matrix_runs_through_resolver_with_both_diagnostic_policies() -> Result<()>
+{
     let rows: Vec<Observation> =
         serde_json::from_str(include_str!("php_scalar_oracle.json")).map_err(fixture)?;
     assert_eq!(rows.len(), 231);
     for Observation(id, input, expected, severity, framework_throws) in rows {
         let (name, _) = id.split_once('/').ok_or_else(|| fixture(&id))?;
         let (target, nullable) = target(name)?;
-        let mut param = ConstructorParam::php("value", target);
-        if nullable {
-            param = param.nullable();
-        }
-        let constructor_calls = Arc::new(AtomicUsize::new(0));
-        let calls = Arc::clone(&constructor_calls);
-        let registry = captured(vec![param], move |args| {
-            calls.fetch_add(1, Ordering::Relaxed);
-            args.value(0).cloned()
-        })?;
-        let key = ServiceKey::typed::<ParameterValue>();
-        let prepared = registry.prepare(&key, &key)?;
-        let stringable_calls = Arc::new(AtomicUsize::new(0));
-        let selected = [Argument::One(input.input(&stringable_calls)?)];
         let expected_event = expected_diagnostic(&input, target, severity)?;
-        let mut events = Vec::new();
-        for policy_raises_warning in [false, true] {
-            let result = prepared.construct_selected(&selected, &mut |event| {
-                events.push(event);
-                if policy_raises_warning
+        for raises_warning in [false, true] {
+            let mut param = ConstructorParam::php("value", target);
+            if nullable {
+                param = param.nullable();
+            }
+            let constructor_calls = Arc::new(AtomicUsize::new(0));
+            let calls = Arc::clone(&constructor_calls);
+            let mut builder =
+                ContainerBuilder::with_class_descriptors(vec![ClassDescriptor::concrete::<
+                    ParameterValue,
+                >(
+                    "Test/Coerced",
+                    vec![param],
+                    move |args| {
+                        calls.fetch_add(1, Ordering::Relaxed);
+                        args.value(0).cloned().map(Arc::new)
+                    },
+                )])?;
+            let events = Arc::new(Mutex::new(Vec::new()));
+            let observed = Arc::clone(&events);
+            builder.scalar_diagnostics(ScalarDiagnostics::new(move |event| {
+                lock(&observed).push(event);
+                if raises_warning
                     && matches!(
                         event,
                         ScalarDiagnostic::NanToBytes | ScalarDiagnostic::NanToBool
@@ -249,17 +256,22 @@ fn fixed_php_scalar_matrix_uses_actual_prepared_constructor_with_two_test_polici
                     return Err(container_error("fixture_warning", "测试诊断处理器升级警告"));
                 }
                 Ok(())
-            });
+            }));
+            let container = builder.build();
+            let stringable_calls = Arc::new(AtomicUsize::new(0));
+            let mut parameters = ParameterOverrides::new();
+            parameters.insert(ParameterKey::name("value"), input.input(&stringable_calls)?);
+            let result = container.resolve_with::<ParameterValue>(parameters).await;
+            let events = lock(&events);
             assert!(
                 events.iter().copied().eq(expected_event),
                 "{id}: {events:?}"
             );
-            events.clear();
-            let constructed = if policy_raises_warning && framework_throws {
+            let constructed = if raises_warning && framework_throws {
                 fail(result, "fixture_warning");
                 false
             } else if let Some(expected) = &expected {
-                expected.verify(&id, target, read_result(result?)?.as_ref())?;
+                expected.verify(&id, target, result?.as_ref())?;
                 true
             } else {
                 let code = if matches!(input, Encoded::Null) {
@@ -271,14 +283,14 @@ fn fixed_php_scalar_matrix_uses_actual_prepared_constructor_with_two_test_polici
                 false
             };
             assert_eq!(
-                constructor_calls.swap(0, Ordering::Relaxed),
+                constructor_calls.load(Ordering::Relaxed),
                 usize::from(constructed),
                 "{id}"
             );
             let stringified =
                 matches!(input, Encoded::Stringable) && matches!(target, PhpTarget::Bytes);
             assert_eq!(
-                stringable_calls.swap(0, Ordering::Relaxed),
+                stringable_calls.load(Ordering::Relaxed),
                 usize::from(stringified),
                 "{id}"
             );

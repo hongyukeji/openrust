@@ -72,7 +72,7 @@ async fn production_log_services_coexist_with_normal_module_routes()
         let mut parameters = ParameterOverrides::new();
         let _ = parameters.insert(
             ParameterKey::name("served_at"),
-            ParameterValue::new(served_at),
+            ParameterValue::new(served_at.to_rfc3339()),
         );
         assert_raw_greeting_presenter(
             state.container(),

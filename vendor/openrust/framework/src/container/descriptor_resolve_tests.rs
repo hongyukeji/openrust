@@ -246,3 +246,61 @@ async fn class_variadic_empty_for_unbound_interface_preserves_same_code_business
     assert_eq!(calls.load(Ordering::Relaxed), 1);
     Ok(())
 }
+
+#[tokio::test]
+async fn scalar_diagnostic_scope_close_stops_later_conversion_and_constructor() -> Result<()> {
+    use super::{
+        ParameterKey, ParameterOverrides, PhpBytes, PhpStringable, PhpTarget, ScalarDiagnostics,
+        Scope,
+    };
+    use std::sync::{Mutex, Weak};
+
+    struct DiagnosticConsumer;
+
+    let conversions = Arc::new(AtomicUsize::new(0));
+    let constructed = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&constructed);
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![ClassDescriptor::concrete::<
+        DiagnosticConsumer,
+    >(
+        "App/DiagnosticConsumer",
+        vec![
+            ConstructorParam::php("first", PhpTarget::Int),
+            ConstructorParam::php("later", PhpTarget::Bytes),
+        ],
+        move |_| {
+            calls.fetch_add(1, Ordering::Relaxed);
+            Ok(Arc::new(DiagnosticConsumer))
+        },
+    )])?;
+    let scope_slot = Arc::new(Mutex::new(Weak::<Scope>::new()));
+    let close = Arc::clone(&scope_slot);
+    builder.scalar_diagnostics(ScalarDiagnostics::new(move |_| {
+        let scope = lock(&close)
+            .upgrade()
+            .ok_or_else(|| Error::custom("test_scope_missing", "缺少待关闭的作用域"))?;
+        scope.close();
+        Ok(())
+    }));
+    let container = builder.build();
+    let scope = Arc::new(container.scope()?);
+    *lock(&scope_slot) = Arc::downgrade(&scope);
+
+    let later = Arc::clone(&conversions);
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("first"), ParameterValue::new(2.5_f64));
+    parameters.insert(
+        ParameterKey::name("later"),
+        ParameterValue::new(PhpStringable::new(move || {
+            later.fetch_add(1, Ordering::Relaxed);
+            Ok(PhpBytes::new(&b"skipped"[..]))
+        })),
+    );
+    assert!(matches!(
+        scope.resolve_with::<DiagnosticConsumer>(parameters).await,
+        Err(error) if error.code() == "scope_closed"
+    ));
+    assert_eq!(conversions.load(Ordering::Relaxed), 0);
+    assert_eq!(constructed.load(Ordering::Relaxed), 0);
+    Ok(())
+}

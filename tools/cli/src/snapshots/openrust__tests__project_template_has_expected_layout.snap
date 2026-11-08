@@ -108,6 +108,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("app", app::config)
         .section("api", api::config)
         .section("log", log::config)
+        .section("logging", log::diagnostics)
         .section("cache", cache::config)
         .section("database", database::config)
         .section("i18n", i18n::config)
@@ -456,7 +457,8 @@ pub(super) fn application_providers(
 
 use openrust::Result;
 use openrust::container::{
-    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue,
+    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue, PhpBytes,
+    PhpTarget,
 };
 use openrust::core::ApiResponse;
 use openrust::foundation::ApplicationState;
@@ -483,10 +485,16 @@ impl HomePresenter {
         ClassDescriptor::concrete::<Self>(
             Self::SYMBOL,
             vec![
-                ConstructorParam::scalar::<String>(Self::NAME_PARAMETER)
+                ConstructorParam::php(Self::NAME_PARAMETER, PhpTarget::Bytes)
                     .with_default(|| Ok(ParameterValue::new(String::new()))),
             ],
-            |args| Ok(Arc::new(Self::new(args.value(0)?.downcast::<String>()?))),
+            |args| {
+                let name = args.value(0)?.downcast::<PhpBytes>()?;
+                let name = std::str::from_utf8(name.as_bytes()).map_err(|_| {
+                    openrust::Error::custom("home_name_invalid_utf8", "应用名称需要有效的 UTF-8")
+                })?;
+                Ok(Arc::new(Self::new(Arc::new(name.to_owned()))))
+            },
         )
         .with_projection(openrust::class_projection!(HomePresenter => dyn HomeResponse))
     }
@@ -832,7 +840,7 @@ async fn assert_generated_class_factories(
     let mut arguments = ParameterOverrides::new();
     arguments.insert(
         ParameterKey::name(HomePresenter::NAME_PARAMETER),
-        ParameterValue::new(String::from("原工厂实参")),
+        ParameterValue::new(42_i64),
     );
     let wrapper = container
         .get_bindings()?
@@ -845,8 +853,16 @@ async fn assert_generated_class_factories(
         .await?;
     assert_eq!(
         redirected.response().data.ok_or("缺少应用名称")?["name"],
-        "原工厂实参"
+        "42"
     );
+    arguments.insert(
+        ParameterKey::name(HomePresenter::NAME_PARAMETER),
+        ParameterValue::new(f64::NAN),
+    );
+    assert!(matches!(
+        wrapper.concrete.invoke_with::<dyn HomeResponse>(scope.factory_resolver()?, arguments.clone()).await,
+        Err(error) if error.code() == "container_scalar_warning"
+    ));
     assert!(!container.resolved_key(&abstract_key)?);
     assert!(!container.resolved_key(&concrete_key)?);
 

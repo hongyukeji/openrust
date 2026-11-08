@@ -266,7 +266,7 @@ async fn assert_generated_class_factories(
     let mut arguments = ParameterOverrides::new();
     arguments.insert(
         ParameterKey::name(HomePresenter::NAME_PARAMETER),
-        ParameterValue::new(String::from("原工厂实参")),
+        ParameterValue::new(42_i64),
     );
     let wrapper = container
         .get_bindings()?
@@ -279,8 +279,16 @@ async fn assert_generated_class_factories(
         .await?;
     assert_eq!(
         redirected.response().data.ok_or("缺少应用名称")?["name"],
-        "原工厂实参"
+        "42"
     );
+    arguments.insert(
+        ParameterKey::name(HomePresenter::NAME_PARAMETER),
+        ParameterValue::new(f64::NAN),
+    );
+    assert!(matches!(
+        wrapper.concrete.invoke_with::<dyn HomeResponse>(scope.factory_resolver()?, arguments.clone()).await,
+        Err(error) if error.code() == "container_scalar_warning"
+    ));
     assert!(!container.resolved_key(&abstract_key)?);
     assert!(!container.resolved_key(&concrete_key)?);
 

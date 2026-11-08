@@ -1,6 +1,5 @@
 //! 编译类目录与构造参数。Resolver 负责依赖选择、求值、所有权和发布。
-#[cfg(test)]
-use self::php_scalar::{PhpTarget, ScalarDiagnostic};
+pub use self::php_scalar::{PhpBytes, PhpIntBool, PhpStringable, PhpTarget, ScalarDiagnostic};
 use super::class_identity::{ClassIdentities, ClassIdentity};
 use super::class_projection::ClassProjection;
 use super::parameters::ParameterValue;
@@ -30,7 +29,6 @@ pub(super) enum ParameterKind {
         rust_type: TypeId,
         check: CheckValue,
     },
-    #[cfg(test)]
     Php(PhpTarget),
     #[cfg(test)]
     Untyped,
@@ -73,8 +71,11 @@ impl ConstructorParam {
         )
     }
 
-    #[cfg(test)]
-    fn php(name: &'static str, target: PhpTarget) -> Self {
+    /// 声明按指定 PHP 标量规则物化的构造参数。
+    ///
+    /// 整批参数完成选择后才转换。读取时使用 [`PhpTarget`] 对应的输出类型。
+    #[must_use]
+    pub fn php(name: &'static str, target: PhpTarget) -> Self {
         Self::new(name, ParameterKind::Php(target))
     }
 
@@ -151,11 +152,7 @@ impl ConstructorParam {
             return Ok(None);
         };
         let value = default()?;
-        #[cfg(test)]
-        if matches!(&self.kind, ParameterKind::Php(_)) {
-            return Ok(Some(value));
-        }
-        if let Err(primary) = self.validate_value(&value) {
+        if let Err(primary) = self.validate_selected(&value) {
             let report = crate::foundation::lifecycle::disposal::dispose(value, None);
             return Err(if report.seen {
                 crate::foundation::lifecycle::TaskExecutionFailure::error(
@@ -169,9 +166,17 @@ impl ConstructorParam {
         Ok(Some(value))
     }
 
-    pub(super) fn validate_value(&self, value: &ParameterValue) -> Result<()> {
+    /// 严格参数保持选参时校验，弱标量在整批参数选定后物化。
+    pub(super) fn validate_selected(&self, value: &ParameterValue) -> Result<()> {
+        if matches!(&self.kind, ParameterKind::Php(_)) {
+            Ok(())
+        } else {
+            self.validate_value(value)
+        }
+    }
+
+    fn validate_value(&self, value: &ParameterValue) -> Result<()> {
         match &self.kind {
-            #[cfg(test)]
             ParameterKind::Php(_) => Err(container_error(
                 "container_constructor_weak_frame_required",
                 "弱标量声明需要已选参数帧和诊断处理入口",
@@ -200,7 +205,6 @@ impl ConstructorParam {
         }
     }
 
-    #[cfg(test)]
     fn materialize_value(
         &self,
         value: &ParameterValue,
@@ -249,11 +253,11 @@ impl<'a> ResolvedArgs<'a> {
         })
     }
 
-    #[cfg(test)]
     fn materialize_selected(
         parameters: &[ConstructorParam],
         selected: &[Argument],
         diagnostic: &mut impl FnMut(ScalarDiagnostic) -> Result<()>,
+        check: &mut impl FnMut() -> Result<()>,
     ) -> Result<Vec<Argument>> {
         validate_argument_count(parameters, selected)?;
         if parameters
@@ -265,16 +269,18 @@ impl<'a> ResolvedArgs<'a> {
         {
             return Err(argument_shape());
         }
+        let mut materialize = |parameter: &ConstructorParam, value: &ParameterValue| {
+            check()?;
+            parameter.materialize_value(value, diagnostic)
+        };
         parameters
             .iter()
             .zip(selected)
             .map(|(parameter, argument)| match argument {
-                Argument::One(value) => parameter
-                    .materialize_value(value, diagnostic)
-                    .map(Argument::One),
+                Argument::One(value) => materialize(parameter, value).map(Argument::One),
                 Argument::Many(values) => values
                     .iter()
-                    .map(|value| parameter.materialize_value(value, diagnostic))
+                    .map(|value| materialize(parameter, value))
                     .collect::<Result<Vec<_>>>()
                     .map(Argument::Many),
             })
@@ -605,20 +611,37 @@ impl PreparedConstructor<'_> {
         &self.constructor.parameters
     }
 
+    pub(super) fn has_weak_parameters(&self) -> bool {
+        self.parameters()
+            .iter()
+            .any(|parameter| matches!(parameter.kind(), ParameterKind::Php(_)))
+    }
+
     pub(super) fn construct(&self, arguments: &[Argument]) -> Result<Value> {
         let resolved = ResolvedArgs::validate(self.parameters(), arguments)?;
         self.invoke_constructor(resolved)
     }
 
-    /// 选参方完成整批选择并持有源帧。本入口只在借用源帧期间物化并构造。
     #[cfg(test)]
     fn construct_selected(
         &self,
         selected: &[Argument],
         diagnostic: &mut impl FnMut(ScalarDiagnostic) -> Result<()>,
     ) -> Result<Value> {
+        self.construct_selected_checked(selected, diagnostic, &mut || Ok(()))
+    }
+
+    /// 借用整批已选源帧。每次物化或构造前核对来源与资源归属。
+    pub(super) fn construct_selected_checked(
+        &self,
+        selected: &[Argument],
+        diagnostic: &mut impl FnMut(ScalarDiagnostic) -> Result<()>,
+        check: &mut impl FnMut() -> Result<()>,
+    ) -> Result<Value> {
         let parameters = self.parameters();
-        let arguments = ResolvedArgs::materialize_selected(parameters, selected, diagnostic)?;
+        let arguments =
+            ResolvedArgs::materialize_selected(parameters, selected, diagnostic, check)?;
+        check()?;
         self.invoke_constructor(ResolvedArgs {
             parameters,
             arguments: &arguments,
@@ -655,7 +678,6 @@ type ClassDirectory = ClassRegistry;
 #[path = "class_descriptor_tests.rs"]
 mod tests;
 
-#[cfg(test)]
 #[path = "php_scalar.rs"]
 mod php_scalar;
 

@@ -30,6 +30,25 @@ let classes = [
 
 普通 `resolve::<Greeting>()` 在当前作用域递归解析依赖，再调用构造回调。描述符提供的是编译期类型和构造信息，因此只支持主动声明的类型。单独登记描述符不会令 `contains::<Greeting>()` 成立。显式绑定优先，可沿用 `bind`、`singleton`、`scoped` 或 `instance` 控制生命周期。
 
+### 构造参数的弱标量转换
+
+构造描述默认以 `ConstructorParam::scalar::<T>` 校验精确的 Rust 类型。需要与 Laravel 构造调用的弱标量行为对应时，显式选择 `ConstructorParam::php`。例如 `ConstructorParam::php("retries", PhpTarget::Int)` 可把完整数字字符串 `" 8 "` 转换成 `i64`。非空调用覆盖、上下文值和默认值共用同一转换规则。
+
+| 目标 | 构造回调读取的类型 |
+| --- | --- |
+| `PhpTarget::Int` | `i64` |
+| `PhpTarget::Float` | `f64` |
+| `PhpTarget::Bytes` | `PhpBytes` |
+| `PhpTarget::Bool` | `bool` |
+| `PhpTarget::Number` | `InputNumber`，保留整数或浮点种类 |
+| `PhpTarget::IntBool` | `PhpIntBool` |
+
+`PhpBytes` 保留原始字节。业务接口需要文本时可用 `std::str::from_utf8(bytes.as_bytes())` 验证编码。显式 `PhpStringable::new` 可为字节目标提供字符串回调。可空槽接受明确传入的 `ParameterValue::null()`，变参通过 `ResolvedArgs::values` 读取有序槽值。
+
+容器完成整批依赖和参数选择后，按声明顺序转换弱标量。选参失败时，转换和构造器都不会执行。转换发出的诊断会同步交给策略，策略拒绝时把错误返回调用者。独立使用 `ContainerBuilder` 时，可用 `scalar_diagnostics(ScalarDiagnostics::new(handler))` 指定处理函数。
+
+由 Provider 启动的应用默认把弱转换警告作为构造错误返回。应用可通过 `logging.error_reporting` 设置报告掩码，默认值为 `-1`。清除位值 `2` 会让警告级转换继续。精度丢失是弃用诊断。应用装配配置后即可报告，包括 Provider 的注册与启动阶段。配置 `logging.deprecations` 可指定 `channel`、`trace` 与 `while_testing`。默认不写弃用日志，测试环境可通过 `while_testing: true` 启用。当前可用通道由 `tracing` 提供，读取当前应用配置。通道注册、缓存和其他 Laravel 日志驱动仍归日志模块。设置 `trace: true` 会附上 Rust 回溯。根应用和生成项目也从 dotenv 读取 `LOG_DEPRECATIONS_CHANNEL`、`LOG_DEPRECATIONS_TRACE` 和 `LOG_DEPRECATIONS_WHILE_TESTING`。
+
 ### 具名键、别名与 trait 视图
 
 `ServiceKey::named("app::Greeting")` 使用登记时的类符号，与该类的类型键共用绑定和缓存。其他字符串是独立键，保留原样并区分大小写。可用 `bind_key`、`singleton_key`、`scoped_key` 或 `instance_key` 在这些键上登记服务。

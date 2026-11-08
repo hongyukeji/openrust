@@ -4,28 +4,67 @@ use crate::Result;
 use crate::support::{InputNumber, scalars};
 use std::sync::Arc;
 
+/// 构造参数显式采用的 PHP 弱标量目标。
+///
+/// 输入可为 `i64`、`f64`、`bool`、`String` 或 [`PhpBytes`]。
+/// 可空参数额外接受显式空值，字节串目标额外接受 [`PhpStringable`]。
 #[derive(Clone, Copy)]
-pub(in crate::container) enum PhpTarget {
+pub enum PhpTarget {
+    /// 对应 PHP `int`，输出 `i64`。
     Int,
+    /// 对应 PHP `float`，输出 `f64`。
     Float,
+    /// 对应 PHP `string`，输出 [`PhpBytes`]，保留非 UTF-8 字节。
     Bytes,
+    /// 对应 PHP `bool`，输出 `bool`。
     Bool,
+    /// 对应 PHP `int|float`，输出 [`InputNumber`]。
     Number,
+    /// 对应 PHP `int|bool`，输出 [`PhpIntBool`]。
     IntBool,
 }
 
-pub(super) struct PhpBytes(pub(super) Arc<[u8]>);
+/// PHP 字符串的原始字节，可包含空字节和非 UTF-8 字节。
+pub struct PhpBytes(pub(super) Arc<[u8]>);
 
+impl PhpBytes {
+    /// 从原始字节构造字符串。已有的共享字节可直接传入。
+    #[must_use]
+    pub fn new(bytes: impl Into<Arc<[u8]>>) -> Self {
+        Self(bytes.into())
+    }
+
+    /// 借用原始字节，不执行编码转换。
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// PHP `int|bool` 转换后实际选中的类型和值。
 #[derive(Debug, Eq, PartialEq)]
-pub(super) enum PhpIntBool {
+pub enum PhpIntBool {
+    /// 整数分支。
     Int(i64),
+    /// 布尔分支。
     Bool(bool),
 }
 
-pub(super) struct PhpStringable(pub(super) Box<dyn Fn() -> Result<PhpBytes> + Send + Sync>);
+/// 显式提供 PHP 字符串转换回调。
+///
+/// 构造参数选择完成后，只有 [`PhpTarget::Bytes`] 会调用此回调。
+pub struct PhpStringable(pub(super) Box<dyn Fn() -> Result<PhpBytes> + Send + Sync>);
 
+impl PhpStringable {
+    /// 登记同步转换回调。转换错误会终止本次构造。
+    pub fn new(convert: impl Fn() -> Result<PhpBytes> + Send + Sync + 'static) -> Self {
+        Self(Box::new(convert))
+    }
+}
+
+/// 在构造参数物化时同步交给应用策略的诊断，不包含实参值。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ScalarDiagnostic {
+pub enum ScalarDiagnostic {
     /// `E_DEPRECATED`，原实参为浮点数。
     FloatLosesPrecision,
     /// `E_DEPRECATED`，原实参为 numeric string。

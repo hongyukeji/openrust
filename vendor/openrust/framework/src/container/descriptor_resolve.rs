@@ -239,7 +239,7 @@ impl DescriptorRun<'_> {
             .and_then(|frame| frame.get_named(parameter.name()))
         {
             let mut value = owner.slot(value)?;
-            parameter.validate_value(value.get_mut().ok_or_else(missing_slot)?)?;
+            parameter.validate_selected(value.get_mut().ok_or_else(missing_slot)?)?;
             return Ok(SelectedArgument::Value(value));
         }
         match parameter.kind() {
@@ -291,14 +291,11 @@ impl DescriptorRun<'_> {
                     _ => selected,
                 }
             }
-            ParameterKind::Scalar { .. } => self.select_parameter(consumer, parameter).await,
+            ParameterKind::Scalar { .. } | ParameterKind::Php(_) => {
+                self.select_parameter(consumer, parameter).await
+            }
             #[cfg(test)]
             ParameterKind::Untyped => self.select_parameter(consumer, parameter).await,
-            #[cfg(test)]
-            ParameterKind::Php(_) => Err(container_error(
-                "container_constructor_weak_frame_required",
-                "弱标量需要已选参数帧和诊断入口",
-            )),
         }
     }
 
@@ -406,7 +403,7 @@ impl DescriptorRun<'_> {
                 ));
             }
         };
-        parameter.validate_value(value.get_mut().ok_or_else(missing_slot)?)?;
+        parameter.validate_selected(value.get_mut().ok_or_else(missing_slot)?)?;
         implementation.clear();
         owner.check_cleanup()?;
         Ok(SelectedArgument::Value(value))
@@ -441,7 +438,15 @@ impl DescriptorRun<'_> {
                 .iter_mut()
                 .map(SelectedArgument::view)
                 .collect::<Result<Vec<_>>>()?;
-            prepared.construct(&views)
+            if prepared.has_weak_parameters() {
+                prepared.construct_selected_checked(
+                    &views,
+                    &mut |event| self.inner.scalar_diagnostics.report(event),
+                    &mut || self.claim(|_| ()),
+                )
+            } else {
+                prepared.construct(&views)
+            }
         })??)?;
 
         let chain = if self.source.decorates() {

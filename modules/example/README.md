@@ -145,7 +145,7 @@ cargo run -- module:enable example --no-interaction
 
 [`ExampleServiceProvider::register`](providers/example.rs) 登记 `example` 类型化配置/schema 和业务依赖工厂；其 `boot` 调用 `BootContext::code_config` 求值模块 [`config/mod.rs`](config/mod.rs)，按显式选项读取同仓储 typed 策略，再贡献 [`routes::register`](routes/mod.rs)。后续业务工厂读取共享配置仓储，`greeting` 用于响应文字。模块配置在 Provider 的 boot 时点接入；显式 TOML overlay 的旧回归 fixture 保留在 `tests/fixtures/config/`。
 
-模块 `GET /api/example` 在当前请求作用域通过 `ApplicationState::resolve_key_with::<dyn GreetingPresenter>` 解析 `example.greeting.presenter`，并传入本次请求生成的 UTC 时间 `served_at`。宿主在 `configure_providers` 将模块的 `class_descriptors()` 交给 `ProviderBuilder`，模块启用后由 Provider 将别名指向 `Modules/Example/ExamplePresenter`。Provider 使用 `singleton_if` 登记默认 `ExampleMessage`，因此宿主可以提前登记自己的问候语。容器先解析 `ExampleMessage`，再用它和本次调用的时间构造呈现器，并通过 `class_projection!` 将同一个 `Arc` 转成控制器使用的 trait 视图。控制器返回包含 `message` 和 `served_at` 的 `Json<ExampleInfo>`。
+模块 `GET /api/example` 在当前请求作用域解析 `dyn GreetingPresenter`。宿主在 `configure_providers` 提供 `class_descriptors()`，模块 Provider 将接口与 `example.greeting.presenter` 别名接到 `Modules/Example/ExamplePresenter`。Provider 用 `singleton_if` 登记默认 `ExampleMessage`，宿主可提前登记自己的问候语。Provider 提供 RFC 3339 时间字符串，调用也可通过同名参数覆盖。构造描述用 `PhpTarget::Bytes` 接收选中的字符串，再按领域规则解析为 UTC 时间。容器通过 `class_projection!` 提供同一个 `Arc` 的接口视图，控制器仍返回包含 `message` 和 `served_at` 的 `Json<ExampleInfo>`。
 从仓库根启动，在另一终端请求默认端口：
 
 ```bash

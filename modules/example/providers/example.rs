@@ -291,7 +291,7 @@ impl ServiceProvider for ExampleServiceProvider {
             app.when(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))?
                 .needs_parameter("served_at")
                 .give_parameter_factory(|_| {
-                    Box::pin(async { Ok(ParameterValue::new(chrono::Utc::now())) })
+                    Box::pin(async { Ok(ParameterValue::new(chrono::Utc::now().to_rfc3339())) })
                 })?;
             #[cfg(feature = "auth-fortify")]
             register_fortify_views(app).await?;

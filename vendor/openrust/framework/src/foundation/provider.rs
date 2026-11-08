@@ -20,7 +20,8 @@ use super::resources::{ResourceOwner, ResourceRegistrar};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
 use crate::container::{
-    ClassDescriptor, Container, ContainerBuilder, ParameterOverrides, Resolver, ServiceKey,
+    ClassDescriptor, Container, ContainerBuilder, ParameterOverrides, Resolver, ScalarDiagnostics,
+    ServiceKey,
 };
 use crate::core::{Error, Result};
 use crate::support::BoxFuture;
@@ -1043,7 +1044,10 @@ impl ProviderBuilder {
         if let Some(register_config) = self.app_config {
             register_config(&mut bindings, config.clone());
         }
-        bindings.context(config.clone(), resources.owner()?.registrar());
+        // 配置装配后先启用诊断，Provider 的 register 和 boot 都使用应用策略。
+        bindings
+            .context(config.clone(), resources.owner()?.registrar())
+            .scalar_diagnostics(ScalarDiagnostics::application(config.clone()));
         let container = bindings.build();
         resources.attach_container(&container);
         let mut required = Vec::new();

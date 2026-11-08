@@ -2,7 +2,8 @@
 
 use openrust::Result;
 use openrust::container::{
-    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue,
+    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue, PhpBytes,
+    PhpTarget,
 };
 use openrust::core::ApiResponse;
 use openrust::foundation::ApplicationState;
@@ -29,10 +30,16 @@ impl HomePresenter {
         ClassDescriptor::concrete::<Self>(
             Self::SYMBOL,
             vec![
-                ConstructorParam::scalar::<String>(Self::NAME_PARAMETER)
+                ConstructorParam::php(Self::NAME_PARAMETER, PhpTarget::Bytes)
                     .with_default(|| Ok(ParameterValue::new(String::new()))),
             ],
-            |args| Ok(Arc::new(Self::new(args.value(0)?.downcast::<String>()?))),
+            |args| {
+                let name = args.value(0)?.downcast::<PhpBytes>()?;
+                let name = std::str::from_utf8(name.as_bytes()).map_err(|_| {
+                    openrust::Error::custom("home_name_invalid_utf8", "应用名称需要有效的 UTF-8")
+                })?;
+                Ok(Arc::new(Self::new(Arc::new(name.to_owned()))))
+            },
         )
         .with_projection(openrust::class_projection!(HomePresenter => dyn HomeResponse))
     }

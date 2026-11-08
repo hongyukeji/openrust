@@ -3,7 +3,8 @@
 use openrust::class_projection;
 use openrust::container::{
     ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey, ParameterOverrides,
-    ParameterValue, ServiceKey,
+    ParameterValue, PhpBytes, PhpStringable, PhpTarget, ScalarDiagnostic, ScalarDiagnostics,
+    ServiceKey,
 };
 use std::sync::{
     Arc, Mutex,
@@ -858,5 +859,181 @@ async fn local_scope_extension_does_not_change_sibling_or_future_scope() -> open
     assert_eq!(third.resolve::<dyn ScopeLabel>().await?.value(), "base");
     second.close();
     third.close();
+    Ok(())
+}
+
+struct SelectedScalars {
+    text: Vec<u8>,
+    integer: i64,
+}
+
+#[tokio::test]
+async fn weak_scalars_finish_selecting_before_materializing_any_argument() -> openrust::Result<()> {
+    let string_calls = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&string_calls);
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let recorded = Arc::clone(&events);
+    let constructions = Arc::new(AtomicUsize::new(0));
+    let constructed = Arc::clone(&constructions);
+    let descriptor = ClassDescriptor::concrete::<SelectedScalars>(
+        "consumer::SelectedScalars",
+        vec![
+            ConstructorParam::php("text", PhpTarget::Bytes),
+            ConstructorParam::php("integer", PhpTarget::Int),
+            ConstructorParam::scalar::<String>("required"),
+        ],
+        move |args| {
+            let text = args.value(0)?.downcast::<PhpBytes>()?.as_bytes().to_vec();
+            let integer = *args.value(1)?.downcast::<i64>()?;
+            constructed.fetch_add(1, Ordering::Relaxed);
+            Ok(Arc::new(SelectedScalars { text, integer }))
+        },
+    );
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![descriptor])?;
+    builder.scalar_diagnostics(ScalarDiagnostics::new(move |event| {
+        recorded
+            .lock()
+            .map_err(|_| openrust::Error::custom("test_diagnostic_lock", "无法记录构造诊断"))?
+            .push(event);
+        Ok(())
+    }));
+    let container = builder.build();
+    let mut arguments = ParameterOverrides::new();
+    arguments.insert(
+        ParameterKey::name("text"),
+        ParameterValue::new(PhpStringable::new(move || {
+            calls.fetch_add(1, Ordering::Relaxed);
+            Ok(PhpBytes::new(Arc::<[u8]>::from(&b"a\0\xff"[..])))
+        })),
+    );
+    arguments.insert(ParameterKey::name("integer"), ParameterValue::new(3.75_f64));
+    assert!(matches!(
+        container.resolve_with::<SelectedScalars>(arguments.clone()).await,
+        Err(error) if error.code() == "container_parameter_missing"
+    ));
+    assert_eq!(string_calls.load(Ordering::Relaxed), 0);
+    assert_eq!(constructions.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        *events
+            .lock()
+            .map_err(|_| openrust::Error::custom("test_diagnostic_lock", "无法读取构造诊断"))?,
+        []
+    );
+
+    arguments.insert(
+        ParameterKey::name("required"),
+        ParameterValue::new(String::from("严格输入")),
+    );
+    let result = container.resolve_with::<SelectedScalars>(arguments).await?;
+    assert_eq!(result.text, b"a\0\xff");
+    assert_eq!(result.integer, 3);
+    assert_eq!(string_calls.load(Ordering::Relaxed), 1);
+    assert_eq!(constructions.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        *events
+            .lock()
+            .map_err(|_| openrust::Error::custom("test_diagnostic_lock", "无法读取构造诊断"))?,
+        [ScalarDiagnostic::FloatLosesPrecision]
+    );
+    Ok(())
+}
+
+struct WeakVariadic {
+    default_or_null: Option<i64>,
+    items: Vec<i64>,
+}
+
+#[tokio::test]
+async fn weak_scalars_keep_nullable_and_variadic_shape_and_leave_exact_types_strict()
+-> openrust::Result<()> {
+    let mut builder =
+        ContainerBuilder::with_class_descriptors(vec![ClassDescriptor::concrete::<WeakVariadic>(
+            "consumer::WeakVariadic",
+            vec![
+                ConstructorParam::php("limit", PhpTarget::Int)
+                    .nullable()
+                    .with_default(|| Ok(ParameterValue::new(String::from(" 8 ")))),
+                ConstructorParam::scalar::<i64>("strict")
+                    .with_default(|| Ok(ParameterValue::new(1_i64))),
+                ConstructorParam::php("items", PhpTarget::Int).variadic(),
+            ],
+            |args| {
+                let first = args.value(0)?;
+                let default_or_null = if first.is_null() {
+                    None
+                } else {
+                    Some(*first.downcast::<i64>()?)
+                };
+                let items = args
+                    .values(2)?
+                    .iter()
+                    .map(|item| item.downcast::<i64>().map(|value| *value))
+                    .collect::<openrust::Result<Vec<_>>>()?;
+                Ok(Arc::new(WeakVariadic {
+                    default_or_null,
+                    items,
+                }))
+            },
+        )])?;
+    builder.scalar_diagnostics(ScalarDiagnostics::new(|_| Ok(())));
+    let container = builder.build();
+    let default = container.resolve::<WeakVariadic>().await?;
+    assert_eq!(default.default_or_null, Some(8));
+    assert!(default.items.is_empty());
+
+    let mut arguments = ParameterOverrides::new();
+    arguments.insert(ParameterKey::name("limit"), ParameterValue::null());
+    arguments.insert(
+        ParameterKey::name("items"),
+        ParameterValue::new(String::from(" 2.75 ")),
+    );
+    let explicit = container
+        .resolve_with::<WeakVariadic>(arguments.clone())
+        .await?;
+    assert_eq!(explicit.default_or_null, None);
+    assert_eq!(explicit.items, [2]);
+
+    arguments.insert(
+        ParameterKey::name("strict"),
+        ParameterValue::new(String::from("1")),
+    );
+    assert!(matches!(
+        container.resolve_with::<WeakVariadic>(arguments).await,
+        Err(error) if error.code() == "container_parameter_type_mismatch"
+    ));
+    Ok(())
+}
+
+struct RejectedUnion;
+
+#[tokio::test]
+async fn weak_scalar_diagnostic_rejection_stops_union_and_constructor() -> openrust::Result<()> {
+    let constructions = Arc::new(AtomicUsize::new(0));
+    let constructed = Arc::clone(&constructions);
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![ClassDescriptor::concrete::<
+        RejectedUnion,
+    >(
+        "consumer::RejectedUnion",
+        vec![ConstructorParam::php("value", PhpTarget::IntBool)],
+        move |_| {
+            constructed.fetch_add(1, Ordering::Relaxed);
+            Ok(Arc::new(RejectedUnion))
+        },
+    )])?;
+    builder.scalar_diagnostics(ScalarDiagnostics::new(|event| {
+        assert_eq!(event, ScalarDiagnostic::FloatLosesPrecision);
+        Err(openrust::Error::custom(
+            "test_precision_rejected",
+            "诊断策略拒绝精度丢失",
+        ))
+    }));
+    let container = builder.build();
+    let mut arguments = ParameterOverrides::new();
+    arguments.insert(ParameterKey::name("value"), ParameterValue::new(7.25_f64));
+    assert!(matches!(
+        container.resolve_with::<RejectedUnion>(arguments).await,
+        Err(error) if error.code() == "test_precision_rejected"
+    ));
+    assert_eq!(constructions.load(Ordering::Relaxed), 0);
     Ok(())
 }
