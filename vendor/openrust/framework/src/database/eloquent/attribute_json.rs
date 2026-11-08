@@ -28,7 +28,14 @@ pub(super) fn decode(text: &str) -> Result<Value> {
     let Some(mut nodes) = validate(text) else {
         return Ok(Value::Null);
     };
-    assemble(&mut nodes)
+    assemble(&mut nodes, false)
+}
+
+pub(super) fn decode_associative(text: &str) -> Result<Value> {
+    let Some(mut nodes) = validate(text) else {
+        return Ok(Value::Null);
+    };
+    assemble(&mut nodes, true)
 }
 
 // 复用完整校验IR，不把比较中间double强制输出到serde_json::Value。
@@ -235,7 +242,7 @@ impl Drop for Values {
     }
 }
 
-fn assemble(nodes: &mut [Node<'_>]) -> Result<Value> {
+fn assemble(nodes: &mut [Node<'_>], associative: bool) -> Result<Value> {
     let mut pending = vec![Build::Node(0)];
     let mut values = Values::default();
     while let Some(task) = pending.pop() {
@@ -264,8 +271,17 @@ fn assemble(nodes: &mut [Node<'_>]) -> Result<Value> {
             }
             Build::Object(keys) => {
                 let children = values.take_tail(keys.len())?;
-                let object: Map<String, Value> = keys.into_iter().zip(children).collect();
-                values.0.push(Value::Object(object));
+                if associative
+                    && keys
+                        .iter()
+                        .enumerate()
+                        .all(|(index, key)| *key == index.to_string())
+                {
+                    values.0.push(Value::Array(children));
+                } else {
+                    let object: Map<String, Value> = keys.into_iter().zip(children).collect();
+                    values.0.push(Value::Object(object));
+                }
             }
         }
     }

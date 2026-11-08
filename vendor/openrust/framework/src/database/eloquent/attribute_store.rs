@@ -704,9 +704,9 @@ impl ModelAttributes {
             } else {
                 output
             };
-            caster.serialize(name, output, &raw)
+            caster.project_arrayable(caster.serialize(name, output, &raw)?)
         } else {
-            Ok(output)
+            caster.project_arrayable(output)
         }
     }
 

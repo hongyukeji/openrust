@@ -352,7 +352,8 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         attribute_preview_contract(&app, &token, &other_token, id, &payload).await?;
         assert!(date_calls.load(Ordering::Relaxed) > calls_before);
         numeric_preview_contract(&app, &token, &payload).await?;
-        assert_cached_date_save(&app, id).await
+        assert_cached_date_save(&app, id).await?;
+        assert_cached_collection_save(&app, id).await
     })
     .catch_unwind()
     .await;
@@ -952,6 +953,80 @@ async fn assert_cached_date_save(app: &TestApp<crate::bootstrap::Server>, id: i6
     Ok(())
 }
 
+async fn assert_cached_collection_save(
+    app: &TestApp<crate::bootstrap::Server>,
+    id: i64,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::database::{
+        eloquent::{ArrayObject, AsArrayObject, AsCollection, SaveContext, save_with_query},
+        sea_orm::{EntityTrait, TransactionTrait},
+    };
+    use openrust::support::Collection;
+    use serde_json::json;
+
+    let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
+    let db = databases.default_database();
+    let connection = db.primary_connection()?;
+    let record = example_record::Entity::find_by_id(id)
+        .one(&connection)
+        .await?
+        .ok_or("collection source record missing")?;
+    let calendar = CalendarContext::default();
+    let context = SaveContext::new(&databases, None, &calendar);
+    let transaction = connection.begin().await?;
+    let outcome: TestResult = async {
+        for cast in [AsArrayObject::cast(), AsCollection::default().cast()] {
+            let mut model = example_record::RecordForSave::from_existing(&record)?;
+            model.metadata.casts.insert("metadata".into(), cast);
+            model
+                .attributes
+                .set_attribute(&model.metadata, "metadata", json!({"name":"initial"}))
+                .await?;
+            let value = model
+                .attributes
+                .get_attribute_value(&model.metadata, "metadata")?
+                .ok_or("collection attribute missing")?;
+            let object = value.as_object().ok_or("collection object missing")?;
+            if object.snapshot()?.as_any().is::<ArrayObject>() {
+                object.modify(|value: &ArrayObject| {
+                    let mut next = value.clone();
+                    next.as_collection_mut()
+                        .try_put("name", json!("array object"))?;
+                    Ok(next)
+                })?;
+            } else {
+                object.modify(|value: &Collection| {
+                    let mut next = value.clone();
+                    next.try_put("name", json!("collection"))?;
+                    Ok(next)
+                })?;
+            }
+            let expected = object
+                .snapshot()?
+                .json_projection()
+                .ok_or("projection missing")?;
+            let query = db
+                .table(&model.metadata.table)?
+                .using_transaction(&transaction);
+            if !save_with_query(&mut model, &context, query).await? {
+                return Err("collection save cancelled".into());
+            }
+            let saved = example_record::Entity::find_by_id(id)
+                .one(&transaction)
+                .await?
+                .ok_or("collection row missing after save")?;
+            if saved.metadata.as_ref() != Some(&expected) {
+                return Err("collection writeback did not reach the database".into());
+            }
+        }
+        Ok(())
+    }
+    .await;
+    transaction.rollback().await?;
+    outcome
+}
+
 async fn attach_preview_category(
     app: &TestApp<crate::bootstrap::Server>,
     id: i64,
@@ -1048,6 +1123,7 @@ fn assert_preview_display(changed: &serde_json::Value) {
         changed["display"]["details"]["metadata"]["tags"],
         serde_json::json!(["changed"])
     );
+    assert_eq!(changed["display"]["details"]["metadata_tag_count"], 1);
     assert!(changed["display"]["details"].get("name").is_none());
     assert!(changed["display"]["details"].get("owner_id").is_none());
 }

@@ -67,6 +67,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
         check_generated_class_cast().await?;
+        check_generated_collection_cast().await?;
         generated_model_save(database.url()).await
     }.await;
     database.close().await?;
@@ -138,6 +139,45 @@ async fn check_generated_class_cast() -> Result<()> {
         .ok_or_else(|| Error::custom("generated_class_cast_object", "缺少类转换对象"))?;
     object.modify(|_: &Label| Ok(Label("updated".into())))?;
     check(attributes.raw_attribute("label")? == Some(json!("updated")))
+}
+
+async fn check_generated_collection_cast() -> Result<()> {
+    use openrust::database::eloquent::{
+        ArrayObject, AsArrayObject, AsCollection, ModelAttributes, ModelMetadata,
+    };
+    use serde_json::{Value, json};
+
+    let mut metadata = ModelMetadata::new("insert_items", "GeneratedRecord");
+    metadata
+        .casts
+        .insert("data".into(), AsArrayObject::nullable());
+    let attributes = ModelAttributes::default();
+    attributes
+        .set_attribute(&metadata, "data", json!({"tag":"initial"}))
+        .await?;
+    let object = attributes
+        .get_attribute_value(&metadata, "data")?
+        .and_then(|value| value.as_object().cloned())
+        .ok_or_else(|| Error::custom("generated_array_object_missing", "缺少数组对象"))?;
+    object.modify(|value: &ArrayObject| {
+        let mut next = value.clone();
+        next.as_collection_mut().try_put("tag", json!("updated"))?;
+        Ok(next)
+    })?;
+    check(attributes.attributes_to_json(&metadata)?["data"] == json!({"tag":"updated"}))?;
+    attributes
+        .set_attribute(&metadata, "data", Value::Null)
+        .await?;
+    check(attributes.raw_attribute("data")? == Some(Value::Null))?;
+    metadata.casts.insert(
+        "data".into(),
+        AsCollection::of(|value, key| Ok((key.to_string(), value))).cast(),
+    );
+    attributes.set_raw_attribute("data", json!(r#"{"label":"test"}"#))?;
+    check(
+        attributes.attributes_to_array(&metadata)?["data"].as_json()?
+            == &json!({"label":["label","test"]}),
+    )
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

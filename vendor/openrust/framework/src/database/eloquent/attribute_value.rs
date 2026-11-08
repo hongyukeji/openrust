@@ -60,6 +60,16 @@ impl AttributeValue {
         }
     }
 
+    pub(super) fn into_model_array_value(self) -> Result<Value> {
+        match self {
+            Self::Object(value) => value
+                .snapshot()?
+                .array_projection()
+                .ok_or_else(object_projection_required),
+            value => value.into_array_json(),
+        }
+    }
+
     /// 借用属性中的日期对象。
     pub const fn as_date(&self) -> Option<&ModelDate> {
         match self {

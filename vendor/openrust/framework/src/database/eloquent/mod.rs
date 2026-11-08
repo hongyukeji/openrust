@@ -17,6 +17,10 @@ pub use attribute_store::{
 pub mod casts;
 mod class_cast;
 pub use class_cast::{ClassCast, ClassCastWrite, ClassCaster};
+mod collection_cast;
+pub use collection_cast::{
+    ArrayObject, AsArrayObject, AsCollection, CollectionCastValue, ObjectCollection,
+};
 mod has_many;
 mod mass_assignment;
 mod model;

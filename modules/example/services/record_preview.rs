@@ -7,12 +7,13 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, HasMany,
-            HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttribute,
-            ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys, RelationLoad, SaveContext,
+            ArrayObject, AsArrayObject, AsCollection, AttributeMap, AttributeSetter,
+            AttributeValue, BelongsTo, BelongsToMany, HasMany, HasOne, HasRelationships,
+            LoadedRelation, MassAssignment, ModelAttribute, ModelAttributes, ModelDateContext,
+            ModelMetadata, PivotKeys, RelationLoad, SaveContext,
         },
     },
-    support::BoxFuture,
+    support::{BoxFuture, Collection},
 };
 use serde_json::{Map, Value};
 use std::sync::Arc;
@@ -92,6 +93,10 @@ pub(crate) async fn preview(
                 .collect()
         };
     let mut details = attributes.attributes_to_json(&metadata)?;
+    details.insert(
+        "metadata_tag_count".into(),
+        Value::from(metadata_tag_count(&attributes)?),
+    );
     let summary = summary_fields
         .into_iter()
         .map(|name| {
@@ -117,6 +122,48 @@ pub(crate) async fn preview(
         has_changes: attributes.was_changed(&[])?,
         persisted: false,
         owner_relations: None,
+    })
+}
+
+fn metadata_tag_count(attributes: &ModelAttributes) -> Result<usize> {
+    let Some(raw) = attributes.raw_attribute("metadata")? else {
+        return Ok(0);
+    };
+    let projected = ModelAttributes::new(Map::from_iter([("metadata".into(), raw)]));
+    let mut metadata = ModelMetadata::new("example_records", "RecordMetadataPreview");
+    metadata
+        .casts
+        .insert("metadata".into(), AsArrayObject::cast());
+    metadata
+        .casts
+        .insert("tags".into(), AsCollection::default().cast());
+    let Some(value) = projected.get_attribute_value(&metadata, "metadata")? else {
+        return Ok(0);
+    };
+    let Some(object) = value.as_object() else {
+        return Ok(0);
+    };
+    let snapshot = object.snapshot()?;
+    let tags = snapshot
+        .as_any()
+        .downcast_ref::<ArrayObject>()
+        .and_then(|metadata| metadata.as_collection().get("tags"));
+    let Some(tags) = tags else {
+        return Ok(0);
+    };
+    projected.set_raw_attribute(
+        "tags",
+        Value::String(serde_json::to_string(tags).map_err(Error::internal)?),
+    )?;
+    let Some(value) = projected.get_attribute_value(&metadata, "tags")? else {
+        return Ok(0);
+    };
+    value.as_object().map_or(Ok(0), |object| {
+        Ok(object
+            .snapshot()?
+            .as_any()
+            .downcast_ref::<Collection>()
+            .map_or(0, |tags| tags.all().len()))
     })
 }
 

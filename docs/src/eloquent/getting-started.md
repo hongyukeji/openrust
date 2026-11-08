@@ -85,6 +85,12 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 用 `with_serialization` 启用 `serialize` 以定义非 null 的数组输出。用 `with_comparison` 启用 `compare` 以比较持久化基线与当前原值。数组化保留 Laravel 的分派顺序，带访问器或追加声明的类转换直接使用读取结果。示例记录的 `view_count` 通过公开类转换完成写入、回读与预览。覆写 `get_value` 可返回 `ModelObject`。同一模型重复读取共享对象句柄，`modify` 更新有类型快照，保存前由转换器的 `set` 回写原始列。用 `without_object_caching` 关闭对象缓存。模型数组保留对象身份，JSON 使用对象的显式投影或 `serialize_value`。
 
+### 数组对象与集合转换
+
+`AsArrayObject::cast()` 把已存 JSON 数组读取为 `ArrayObject`。通过 `ModelObject::modify` 修改对象时，可用 `as_collection_mut` 更新底层键值，保存前会将同一对象回写到原始列。读取和序列化保留关联键和稀疏数字键。无效 JSON、标量及缺项读取为 null。
+
+`AsCollection::default().cast()` 使用标准 `Collection`。`AsCollection::using(factory)` 可提供实现 `CollectionCastValue` 的类型化集合工厂，`AsCollection::of(map)` 接收值与键并保留原键。`of_objects` 保留元素类型，并分别应用其模型数组和持久 JSON 投影。工厂或映射以 Rust 函数表示，替代 PHP 的运行时类名。示例记录预览用这两个 cast 计算元数据标签数量。默认赋值 null 写 JSON 文本 `null`，`AsArrayObject::nullable()` 与集合声明的 `nullable()` 改写 SQL NULL。
+
 ### 有类型的访问器
 
 用 `ModelAttributes::register_attribute` 登记 `ModelAttribute`。它的同步 getter 接收原始属性值和快照，setter 返回有序的多字段补丁。日期对象默认按字段缓存。再次读取该字段时会调用配置的 setter，同步对象的当前值。读取全部原值、同步原始基线或计算 dirty 时会同步全部适用的缓存。

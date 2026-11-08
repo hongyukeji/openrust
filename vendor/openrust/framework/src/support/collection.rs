@@ -94,6 +94,18 @@ impl<T> Collection<T> {
     pub fn iter(&self) -> std::slice::Iter<'_, (ArrayKey, T)> {
         self.entries.iter()
     }
+    pub(crate) fn project_stored<U>(
+        &self,
+        mut project: impl FnMut(&T, &ArrayKey) -> Result<U>,
+    ) -> Result<Collection<U>> {
+        let entries = self
+            .entries
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), project(value, key)?)))
+            .collect::<Result<_>>()?;
+        Ok(Collection { entries })
+    }
+
     /// 判断是否没有条目。
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
@@ -202,6 +214,21 @@ impl<T: Serialize> Collection<T> {
             (key, mapped)
         }))
     }
+    pub(crate) fn map_stored<U>(
+        self,
+        mut callback: impl FnMut(T, &ArrayKey) -> Result<U>,
+    ) -> Result<Collection<U>> {
+        let entries = self
+            .entries
+            .into_iter()
+            .map(|(key, value)| {
+                let mapped = callback(value, &key)?;
+                Ok((key, mapped))
+            })
+            .collect::<Result<_>>()?;
+        Ok(Collection { entries })
+    }
+
     /// 过滤值但保留原键，只有 `values` 会重新编号。
     pub fn filter(self, mut callback: impl FnMut(&T, &ArrayKey) -> bool) -> Result<Self> {
         Self::try_from_entries(
@@ -221,8 +248,13 @@ impl<T: Serialize> Collection<T> {
     }
 }
 impl Collection<Value> {
-    /// 已存配置专用包装：只接收数组表示，不应用请求输入 bag 的展开预算。
+    /// 已存配置专用包装。
     pub(crate) fn from_config_array(value: Value) -> Option<Self> {
+        Self::from_stored_array(value)
+    }
+
+    /// 数据库和配置的已存数组不使用请求输入预算。
+    pub(crate) fn from_stored_array(value: Value) -> Option<Self> {
         if !matches!(value, Value::Array(_) | Value::Object(_)) {
             return None;
         }

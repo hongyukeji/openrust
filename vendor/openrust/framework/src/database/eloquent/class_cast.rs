@@ -85,12 +85,20 @@ enum ObjectCache {
     Inbound,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Comparison {
+    Default,
+    Custom,
+    JsonArray,
+}
+
 /// 模型声明的自定义转换工厂。声明克隆共享同一个工厂。
 #[derive(Clone)]
 pub struct ClassCast {
     resolver: Arc<Resolver>,
     serialization: bool,
-    comparison: bool,
+    arrayable: bool,
+    comparison: Comparison,
     object_cache: ObjectCache,
 }
 
@@ -102,7 +110,8 @@ impl ClassCast {
         Self {
             resolver: Arc::new(move || Ok(Box::new(resolve()?))),
             serialization: false,
-            comparison: false,
+            arrayable: false,
+            comparison: Comparison::Default,
             object_cache: ObjectCache::Enabled,
         }
     }
@@ -140,7 +149,7 @@ impl ClassCast {
     /// 启用转换器的原值比较方法。
     #[must_use]
     pub const fn with_comparison(mut self) -> Self {
-        self.comparison = true;
+        self.comparison = Comparison::Custom;
         self
     }
 
@@ -182,14 +191,39 @@ impl ClassCast {
         }
     }
 
+    pub(super) const fn with_arrayable_projection(mut self) -> Self {
+        self.arrayable = true;
+        self
+    }
+
+    pub(super) fn project_arrayable(&self, value: AttributeValue) -> Result<AttributeValue> {
+        if self.arrayable {
+            value.into_model_array_value().map(AttributeValue::from)
+        } else {
+            Ok(value)
+        }
+    }
+
+    pub(super) const fn with_json_array_comparison(mut self) -> Self {
+        self.comparison = Comparison::JsonArray;
+        self
+    }
+
     pub(super) fn compare(
         &self,
         name: &str,
         original: &AttributeValue,
         current: &AttributeValue,
     ) -> Result<Option<bool>> {
+        if self.comparison == Comparison::JsonArray {
+            return super::attribute_cast::array_cast_equivalent(
+                current.as_json()?,
+                original.as_json()?,
+            )
+            .map(Some);
+        }
         drop(self.resolve()?);
-        if self.comparison {
+        if self.comparison == Comparison::Custom {
             self.resolve()?.compare(name, original, current)
         } else {
             Ok(None)
@@ -207,6 +241,7 @@ impl PartialEq for ClassCast {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.resolver, &other.resolver)
             && self.serialization == other.serialization
+            && self.arrayable == other.arrayable
             && self.comparison == other.comparison
             && self.object_cache == other.object_cache
     }

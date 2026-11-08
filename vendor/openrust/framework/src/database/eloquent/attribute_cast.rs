@@ -166,6 +166,10 @@ fn model_decimal_float(text: &str) -> Result<f64> {
         .map_err(|_| cast_failed())
 }
 
+pub(super) fn decode_object_cast_json(value: &Value) -> Result<Value> {
+    json::decode_associative(&scalar_string(value)?)
+}
+
 fn decode_array_json(text: &str) -> Result<Value> {
     json::decode(text)
 }

@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 新增 AsArrayObject 与 AsCollection，支持对象写回、键保留、集合映射和可选 SQL NULL。
+
 - Eloquent 类转换可保留共享对象身份，支持对象缓存、可选禁用和保存前回写。
 
 - Eloquent 新增显式自定义类转换，支持仅入站、读写补丁、数组输出及原始值比较。
