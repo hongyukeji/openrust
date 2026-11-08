@@ -25,6 +25,8 @@ OpenRust 使用 Rust 实现 Laravel 的框架能力与开发体验。目录、�
 
 [源码应用与扩展指南](docs/src/getting-started/source-application.md)保留运行、生成应用、事件与执行作用域等详细用法；[唯一综合示例](modules/example/README.md)展示业务模块和公开扩展的实际接入。各专题说明会标明适用条件与尚未完成的边界。
 
+在仓库根目录运行 `docker compose up --build -d --wait` 可启动应用、MySQL 和 Redis。[Docker Compose 使用说明](docs/src/getting-started/source-application.md#用-docker-compose-运行)
+
 ## AI 辅助开发
 
 使用 AI 编程工具参与开发前，请阅读 [AGENTS.md](AGENTS.md)。仓库提供[项目技能](.agents/skills/README.md)，用于接口设计、功能实现、故障定位和验证；按任务选择适用技能，并遵守文件归属与验证约定。

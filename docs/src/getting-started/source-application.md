@@ -51,6 +51,29 @@ cargo test --workspace
 
 公开扩展及拓扑验收见 [consumers](../../../tests/consumers/README.md)，完整门禁见 [贡献说明](../../../CONTRIBUTING.md)。
 
+## 用 Docker Compose 运行
+
+从 OpenRust 源码仓库根目录运行以下命令。Compose 会在 MySQL 8.4 和 Redis 就绪后执行迁移，迁移成功才启动应用。应用容器直接运行 `app`，队列和适用的调度与 Web 共用一个进程。
+
+```bash
+docker compose up --build -d --wait
+curl --fail http://127.0.0.1:3000/ready
+docker compose logs -f app
+```
+
+默认只将应用端口发布到宿主机的 `127.0.0.1:3000`。`SERVER_PORT` 修改宿主机端口。Compose 从根 `.env` 读取 `docker-compose.yml` 列明的部署变量，应用和迁移容器均使用 Compose 网络内的 MySQL 和 Redis。镜像构建时排除 `.env`、本地 `storage/` 和 SQLite 文件。部署前设置独立的 `DB_PASSWORD`、正确的 `APP_URL` 和业务需要的密钥。MySQL、Redis 和应用存储使用命名卷，`docker compose down` 停止容器并保留数据。
+
+Dockerfile 使用 Cargo 默认 feature。需编译登录、视图和 WebSocket 时，可在 `.env` 设置 `OPENRUST_BUILD_FEATURES=auth-fortify,view,realtime`，并按应用配置填写认证密钥和允许的 WebSocket Origin。
+
+在 Mac 上也可以用同一个 Dockerfile 导出 Linux 应用文件。下面的命令目标是 x86_64，ARM64 对应 `linux/arm64`。导出的二进制使用构建镜像的 Linux ABI，直接部署前应在目标系统检查依赖并实际启动。
+
+```bash
+docker buildx build --platform linux/amd64 --target artifacts \
+  --output type=local,dest=dist/linux-amd64 .
+```
+
+这里的 Compose 文件用于源码根应用。`openrust new` 生成的独立项目通过本地路径依赖框架，容器构建需要将对应框架源码纳入构建上下文。
+
 ## 编写业务与扩展
 
 真实参考链为 `src/main.rs` → `bootstrap::Server::modules` → `modules::manifest` → 同一模块仓储与 Provider → 模块路由和 handler。根应用与新生成应用默认使用 `registered`：在 `modules/mod.rs` 显式登记模块即启用，移除登记即不挂载，Rust `mod` 本身只负责编译。默认不依赖状态 JSON；需要持久启停时显式选择 `file` 或 `file-live`。业务接入不修改框架 `src/`，详见[模块注册指南](../../../docs/src/modules/registration.md)和[唯一综合示例](../../../modules/example/README.md#新建自己的业务模块)。

@@ -5,3 +5,12 @@ target
 .env
 .env.*
 !.env.example
+**/.env
+**/.env.*
+!**/.env.example
+tmp
+dist
+storage
+bootstrap/cache
+database/*.sqlite
+database/*.sqlite-*

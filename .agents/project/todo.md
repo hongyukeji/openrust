@@ -223,6 +223,8 @@ S3a已完成限定验收：基线 `f9e831a`，root独占main/索引/Cargo/公共
 
 用户批准小型应用默认用一个进程运行 HTTP、队列和适用调度。WebSocket 随已启用的 HTTP 路由提供。根应用、新项目和 `openrust dev` 接线已完成，`serve`、`queue work` 和 `schedule run` 可独立运行。真实链路、生成项目和工作区验收见[同进程启动证据](memory/testing.md#应用同进程启动)。提交见 Git。
 
+根应用 Dockerfile 和 Compose 已通过 Linux ARM64 限定验收。Ubuntu x86_64 产物需在对应架构实测，生成项目容器构建上下文沿 R13。验收见[根应用 Docker Compose](memory/testing.md#根应用-docker-compose)。
+
 ### DB 通用能力与驱动门控（限定验收）
 
 1. 固定Laravel d52c3b3 DefaultProviders/DatabaseServiceProvider/MigrationServiceProvider与ModelMakeCommand；通用DB/ORM/迁移注册不取决于某个连接driver，Rust编译驱动与运行配置分别判断。

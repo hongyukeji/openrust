@@ -1,0 +1,91 @@
+x-openrust: &openrust
+  image: ${COMPOSE_PROJECT_NAME:-openrust}-app:local
+  build:
+    context: .
+    args:
+      APP_FEATURES: ${OPENRUST_BUILD_FEATURES:-}
+  environment:
+    APP_ENV: ${APP_ENV:-production}
+    APP_DEBUG: ${APP_DEBUG:-false}
+    APP_URL: ${APP_URL:-http://localhost:${SERVER_PORT:-3000}}
+    APP_NAME:
+    APP_KEY:
+    APP_PREVIOUS_KEYS:
+    AUTH_PROFILE:
+    APP_AUTH_JWT_KEYS_LOCAL:
+    APP_SECURITY_ENCRYPTION_KEYS_LOCAL:
+    APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL:
+    APP_REALTIME_ALLOWED_ORIGINS:
+    APP_SERVER_HOST: 0.0.0.0
+    SERVER_PORT: "3000"
+    DB_CONNECTION: mysql
+    DB_HOST: mysql
+    DB_PORT: "3306"
+    DB_DATABASE: ${DB_DATABASE:-openrust}
+    DB_USERNAME: ${DB_USERNAME:-openrust}
+    DB_PASSWORD: ${DB_PASSWORD:-openrust}
+    CACHE_STORE: ${CACHE_STORE:-redis}
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    REDIS_DB: ${REDIS_DB:-0}
+    QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
+    QUEUE_REDIS_NAMESPACE:
+  volumes:
+    - storage:/app/storage
+
+services:
+  app:
+    <<: *openrust
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${OPENRUST_HTTP_BIND:-127.0.0.1}:${SERVER_PORT:-3000}:3000"
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:3000/ready]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    stop_grace_period: 45s
+
+  migrate:
+    <<: *openrust
+    command: [migrate]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: ${DB_DATABASE:-openrust}
+      MYSQL_USER: ${DB_USERNAME:-openrust}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-openrust}
+    volumes:
+      - mysql:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1"']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped
+
+  redis:
+    image: redis:8
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  storage:
+  mysql:
+  redis:

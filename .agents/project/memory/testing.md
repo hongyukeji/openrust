@@ -1697,6 +1697,10 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 
 `tmp/default-app-runtime/` 保留 `live-receipt.log`、`redis-regression-final.log`、默认工作区 `workspace-tests-mysql.log`、严格 `clippy-final.log`、`doc.log` 和新生成 MySQL 项目的 `fresh-check.log` / `fresh-test.log`。配置后端或未编译功能的范围见[应用启动说明](../../../docs/src/getting-started/source-application.md)。
 
+## 根应用 Docker Compose
+
+`tmp/lead-compose-onELY4Bk/runtime-receipt.json` 记录冻结输入及 Docker Desktop Linux ARM64 Release 镜像。隔离项目确认外部数据库和 Redis URL 留在宿主配置，构建上下文排除 `.env` 与本地 SQLite 文件。真实 MySQL 8.4.13 与 Redis 上完成 15 项迁移，`/health`、`/ready`、`/api`、`/api/example` 均返回 200。HTTP 派发的任务已消费，调度产生记录，非 root 的 `/app/app` 能写入存储且 SIGTERM 退出 0，重启后迁移记录仍在。Buildx 导出的 ARM64 Linux ELF 与应用资源通过实际 `app list` 验证。验收容器、卷、镜像与临时导出已清理。验收使用源码根应用默认 feature。
+
 ## 标准依赖与队列开箱限定验收
 
 范围为标准根应用与 `new` 的 MySQL/Redis 依赖、`queue.default`/原始具名连接、实际使用时构造 driver、显式 worker、同一模块 Jobs 与生成迁移目录；固定上游 framework `d52c3b3` 的 `config/queue.php`、`QueueManager::connection/resolve`、`QueueServiceProvider`，不把现有独立队列扩展等同完整 Laravel Queue。
