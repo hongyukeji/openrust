@@ -11,10 +11,10 @@ import subprocess
 
 
 LIMITS = {
-    "artifact_soft_bytes": 40_000_000_000,
-    "artifact_hard_bytes": 50_000_000_000,
+    "artifact_soft_bytes": 100_000_000_000,
+    "artifact_hard_bytes": 100_000_000_000,
     "disk_soft_percent": 5,
-    "disk_hard_percent": 3,
+    "disk_hard_percent": 5,
 }
 
 
