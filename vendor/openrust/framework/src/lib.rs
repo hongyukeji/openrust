@@ -243,13 +243,14 @@ fn run_with_default<A: ApplicationDefinition>(
         Err(error) => return fail(&format!("cannot start tokio runtime: {error}")),
     };
     runtime.block_on(async {
+        let started = foundation::EntryStarted::now();
         let app = match lifecycle::bootstrap_for_console::<A>(&name, console_environment.as_deref())
             .await
         {
             Ok(app) => app,
             Err(error) => return fail(&format!("bootstrap failed: {error}")),
         };
-        let result = app.run_command(&name, command_args).await;
+        let result = app.run_command_since(&name, command_args, started).await;
         let shutdown = app
             .shutdown(
                 tokio::time::Instant::now()

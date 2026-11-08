@@ -1,10 +1,10 @@
 //! 应用HTTP装配、请求作用域、URL快照和异常收尾。
 
-use crate::container::{ParameterValue, Resolver, Scope};
+use crate::container::{Container, ParameterValue, Resolver, Scope};
 use crate::core::{Error, Result};
 use crate::foundation::exceptions::ExceptionRegistry;
 use crate::foundation::{
-    Application, ApplicationState, BootContext, ExceptionHandler, ExceptionRequest,
+    Application, ApplicationState, BootContext, EntryStarted, ExceptionHandler, ExceptionRequest,
 };
 use crate::http::authority::authority;
 use crate::http::client_ip::validate_trusted_proxy_ranges;
@@ -41,10 +41,19 @@ tokio::task_local! {
 
 struct HttpEntry {
     scope: Arc<Scope>,
+    started: EntryStarted,
     attributes: RequestAttributes,
     route: RouteSlot,
     #[cfg(feature = "auth")]
     request: Option<Arc<crate::http::RequestInfo>>,
+}
+
+pub(crate) fn request_started_at(container: &Container) -> Option<chrono::DateTime<chrono::Utc>> {
+    let scope = container.current_entry_scope()?;
+    HTTP_ENTRY_SCOPE
+        .try_with(|entry| Arc::ptr_eq(&scope, &entry.scope).then_some(entry.started.at))
+        .ok()
+        .flatten()
 }
 
 pub(crate) fn http_entry_scope() -> Option<std::sync::Weak<Scope>> {
@@ -418,10 +427,6 @@ pub(crate) fn build_router_with_middleware(
             exceptions,
             debug: app.config().app.debug,
             global_terminating,
-            terminable_routes: middleware_enabled
-                && app
-                    .extension::<RouteRegistry>()
-                    .is_some_and(|registry| !registry.middleware.terminable_types.is_empty()),
             trusted_hosts: TrustedHostsRuntime {
                 app: app.state().clone(),
                 source,
@@ -516,7 +521,6 @@ struct ExceptionRuntime {
     debug: bool,
     trusted_hosts: TrustedHostsRuntime,
     global_terminating: Arc<[TerminateMiddleware]>,
-    terminable_routes: bool,
 }
 
 async fn expose_app_state(
@@ -524,6 +528,7 @@ async fn expose_app_state(
     mut request: Request,
     next: Next,
 ) -> Response {
+    let started = EntryStarted::now();
     #[cfg(feature = "session")]
     {
         let extensions = request.extensions_mut();
@@ -534,13 +539,13 @@ async fn expose_app_state(
     let state = runtime.state.clone();
     let trusted_hosts = match runtime.trusted_hosts.snapshot().await {
         Ok(snapshot) => snapshot,
-        Err(error) => return render_early_error(&runtime, &request, error),
+        Err(error) => return render_early_error(&runtime, &request, started, error),
     };
     // 物理 Host 必须先通过 authority 语法与重复头检查；模式匹配使用可信代理后的有效 Host。
     let physical_host = if runtime.trusted_hosts.source.is_some() {
         match authority(request.headers(), request.uri()) {
             Ok(host) => Some(host),
-            Err(error) => return render_early_error(&runtime, &request, error),
+            Err(error) => return render_early_error(&runtime, &request, started, error),
         }
     } else {
         None
@@ -561,30 +566,28 @@ async fn expose_app_state(
         {
             Ok(Some((host, _))) => host,
             Ok(None) => physical_host,
-            Err(error) => return render_early_error(&runtime, &request, error),
+            Err(error) => return render_early_error(&runtime, &request, started, error),
         };
         if let Err(error) = trusted_hosts.check(&effective_host) {
-            return render_early_error(&runtime, &request, error);
+            return render_early_error(&runtime, &request, started, error);
         }
     }
     request.extensions_mut().insert(trusted_hosts);
     request.extensions_mut().insert(proxy);
     let scope = match state.container().scope() {
         Ok(scope) => Arc::new(scope),
-        Err(error) => return render_early_error(&runtime, &request, error),
+        Err(error) => return render_early_error(&runtime, &request, started, error),
     };
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
-    let entry = install_http_entry(request.extensions_mut(), scope);
+    let entry = install_http_entry(request.extensions_mut(), scope, started);
     request.extensions_mut().insert(state.clone());
-    let method = request.method().clone();
-    let version = request.version();
     let page = crate::database::query::PageContext::from_uri(request.uri());
     let (mut parts, body) = request.into_parts();
     let info = match crate::http::RequestInfo::from_request_parts(&mut parts, &()).await {
         Ok(info) => info,
         Err(error) => {
             let request = Request::from_parts(parts, body);
-            return render_early_error(&runtime, &request, error);
+            return render_early_error(&runtime, &request, started, error);
         }
     };
     #[cfg(feature = "auth")]
@@ -595,8 +598,7 @@ async fn expose_app_state(
     let entry = Arc::new(entry);
     let page = page.with_path_resolver(move || info.url());
     let request = Request::from_parts(parts, body);
-    let request_head = (runtime.terminable_routes || !runtime.global_terminating.is_empty())
-        .then(|| termination_request(&request, &entry));
+    let request_head = termination_request(&request, &entry);
     let response = HTTP_ENTRY_SCOPE
         .scope(
             Arc::clone(&entry),
@@ -608,8 +610,6 @@ async fn expose_app_state(
         .await;
     let response = finish_response(
         response,
-        &method,
-        version,
         entry,
         state,
         request_head,
@@ -620,7 +620,11 @@ async fn expose_app_state(
     response
 }
 
-fn install_http_entry(extensions: &mut http::Extensions, scope: Arc<Scope>) -> HttpEntry {
+fn install_http_entry(
+    extensions: &mut http::Extensions,
+    scope: Arc<Scope>,
+    started: EntryStarted,
+) -> HttpEntry {
     let route = extensions
         .get::<RouteSlot>()
         .filter(|route| route.claim_http_entry())
@@ -636,6 +640,7 @@ fn install_http_entry(extensions: &mut http::Extensions, scope: Arc<Scope>) -> H
     extensions.insert(Arc::clone(&scope));
     HttpEntry {
         scope,
+        started,
         attributes,
         route,
         #[cfg(feature = "auth")]
@@ -643,7 +648,12 @@ fn install_http_entry(extensions: &mut http::Extensions, scope: Arc<Scope>) -> H
     }
 }
 
-fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Error) -> Response {
+fn render_early_error(
+    runtime: &ExceptionRuntime,
+    request: &Request,
+    started: EntryStarted,
+    error: Error,
+) -> Response {
     let view = ExceptionRequest::new(
         request.method().clone(),
         request.uri().path(),
@@ -660,13 +670,10 @@ fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Erro
     let Ok(scope) = runtime.state.container().scope() else {
         return response;
     };
-    let entry = install_http_entry(&mut http::Extensions::new(), Arc::new(scope));
-    let request_head =
-        (!runtime.global_terminating.is_empty()).then(|| termination_request(request, &entry));
+    let entry = install_http_entry(&mut http::Extensions::new(), Arc::new(scope), started);
+    let request_head = termination_request(request, &entry);
     finish_response(
         response,
-        request.method(),
-        request.version(),
         Arc::new(entry),
         runtime.state.clone(),
         request_head,
@@ -676,14 +683,13 @@ fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Erro
 
 fn finish_response(
     response: Response,
-    method: &Method,
-    version: Version,
     entry: Arc<HttpEntry>,
     state: ApplicationState,
-    request_head: Option<http::Request<()>>,
+    request_head: http::Request<()>,
     global_terminating: &Arc<[TerminateMiddleware]>,
 ) -> Response {
     let status = response.status();
+    let method = request_head.method();
     let body_suppressed = method == Method::HEAD
         || status.is_informational()
         || matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
@@ -696,22 +702,24 @@ fn finish_response(
         response.body().size_hint().exact()
     };
     // HTTP/2 的正文长度不会终止 stream，仍可能发送 trailers。
-    let fixed_length_ends_stream = matches!(version, Version::HTTP_10 | Version::HTTP_11);
+    let fixed_length_ends_stream =
+        matches!(request_head.version(), Version::HTTP_10 | Version::HTTP_11);
     let complete = body_suppressed
         || (remaining.is_none_or(|remaining| remaining == 0)
             && (response.body().is_end_stream()
                 || (fixed_length_ends_stream && remaining == Some(0))));
-    let middleware = request_head
-        .and_then(|request| {
-            MiddlewareTermination::new(request, &response, &entry, global_terminating)
-        })
-        .map(Box::new);
+    let termination = Box::new(HttpTermination::new(
+        request_head,
+        &response,
+        &entry,
+        global_terminating,
+    ));
     response.map(|inner| {
         Body::new(ScopeBody {
             inner,
             entry: Some(entry),
             state: Some(state),
-            middleware,
+            termination: Some(termination),
             remaining,
             complete,
             fixed_length_ends_stream,
@@ -729,44 +737,54 @@ fn termination_request(request: &Request, entry: &HttpEntry) -> http::Request<()
     head
 }
 
-struct MiddlewareTermination {
+struct HttpTermination {
     request: http::Request<()>,
     response: http::Response<()>,
     route: Result<Arc<[TerminateMiddleware]>>,
     global: Arc<[TerminateMiddleware]>,
 }
 
-impl MiddlewareTermination {
+impl HttpTermination {
     fn new(
         request: http::Request<()>,
         response: &Response,
         entry: &HttpEntry,
         global: &Arc<[TerminateMiddleware]>,
-    ) -> Option<Self> {
-        let route = entry.route.terminating();
-        if global.is_empty() && route.as_ref().is_ok_and(|route| route.is_empty()) {
-            return None;
-        }
+    ) -> Self {
         let mut head = http::Response::new(());
         *head.status_mut() = response.status();
         *head.version_mut() = response.version();
         *head.headers_mut() = response.headers().clone();
-        Some(Self {
+        Self {
             request,
             response: head,
-            route,
+            route: entry.route.terminating(),
             global: Arc::clone(global),
-        })
+        }
     }
 
-    async fn run(mut self, state: &ApplicationState, entry: &HttpEntry) -> Result<()> {
+    fn has_middleware(&self) -> bool {
+        !self.global.is_empty() || !self.route.as_ref().is_ok_and(|route| route.is_empty())
+    }
+
+    async fn run(self, state: &ApplicationState, entry: &HttpEntry) -> Result<()> {
+        let Self {
+            mut request,
+            response,
+            route,
+            global,
+        } = self;
+        state.dispatch_terminating().await?;
         if let Some(route) = entry.route.route()? {
-            self.request.extensions_mut().insert(route);
+            request.extensions_mut().insert(route);
         }
-        for terminate in self.route?.iter().chain(self.global.iter()) {
-            terminate(state, &self.request, &self.response).await?;
+        for terminate in route?.iter().chain(global.iter()) {
+            terminate(state, &request, &response).await?;
         }
-        Ok(())
+        state.run_terminating().await?;
+        state
+            .run_request_duration_handlers(entry.started, &request, &response)
+            .await
     }
 }
 
@@ -784,7 +802,7 @@ struct ScopeBody {
     inner: Body,
     entry: Option<Arc<HttpEntry>>,
     state: Option<ApplicationState>,
-    middleware: Option<Box<MiddlewareTermination>>,
+    termination: Option<Box<HttpTermination>>,
     remaining: Option<u64>,
     complete: bool,
     fixed_length_ends_stream: bool,
@@ -796,13 +814,21 @@ impl ScopeBody {
             return;
         };
         let Some(state) = self.state.take().filter(|state| {
-            self.complete && (self.middleware.is_some() || state.has_kernel_termination())
+            self.complete
+                && (self
+                    .termination
+                    .as_ref()
+                    .is_some_and(|entry| entry.has_middleware())
+                    || state.has_kernel_termination())
         }) else {
             entry.scope.close();
             return;
         };
         let scope = Arc::clone(&entry.scope);
-        let middleware = self.middleware.take();
+        let Some(termination) = self.termination.take() else {
+            entry.scope.close();
+            return;
+        };
         let close = ScopeCloseGuard(Some(Arc::clone(&scope)));
         if let Err(error) = scope.spawn(
             crate::core::ExecutionMetadata::default(),
@@ -812,14 +838,7 @@ impl ScopeBody {
                 let _close = close;
                 HTTP_ENTRY_SCOPE
                     .scope(Arc::clone(&entry), async move {
-                        let termination = async {
-                            state.dispatch_terminating().await?;
-                            if let Some(middleware) = middleware {
-                                middleware.run(&state, &entry).await?;
-                            }
-                            state.run_terminating().await
-                        };
-                        if let Err(error) = termination.await {
+                        if let Err(error) = termination.run(&state, &entry).await {
                             tracing::error!(code = error.code(), "HTTP entry termination failed");
                         }
                     })
@@ -903,8 +922,8 @@ mod terminable_middleware_tests;
 #[cfg(test)]
 mod tests {
     use super::{
-        HttpServiceProvider, ScopeBody, current_request_attribute, current_route_parameter,
-        http_entry_scope, install_http_entry,
+        EntryStarted, HttpServiceProvider, ScopeBody, current_request_attribute,
+        current_route_parameter, http_entry_scope, install_http_entry,
     };
     use crate::container::{ContainerBuilder, ParameterValue};
     use crate::foundation::ProviderBuilder;
@@ -933,7 +952,7 @@ mod tests {
         let manual_scope = Arc::new(container.scope()?);
         let manual = manual_scope.factory_resolver()?;
         let mut extensions = http::Extensions::new();
-        let entry = install_http_entry(&mut extensions, Arc::clone(&scope));
+        let entry = install_http_entry(&mut extensions, Arc::clone(&scope), EntryStarted::now());
         let _ = entry.attributes.insert("item", ParameterValue::new(7_u8))?;
         entry.route.publish(
             crate::routing::Route::new(
@@ -972,7 +991,7 @@ mod tests {
             inner,
             entry: Some(Arc::new(entry)),
             state: None,
-            middleware: None,
+            termination: None,
             remaining: None,
             complete: false,
             fixed_length_ends_stream: false,

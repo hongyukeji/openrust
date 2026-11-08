@@ -198,6 +198,23 @@ HTTP 和控制台在应用回调前派发同一个 `openrust::foundation::events
 
 `terminate` 接收请求和最终响应头。请求扩展包含 `RequestAttributes`，已匹配时包含 `Route`。正文按 Axum 的所有权模型交给传输层。全局项沿共享 HTTP layer 的执行顺序，后登记的层在外。示例模块的响应标记中间件保留原标记头，并在终止时记录方法与状态。
 
+### 生命周期时长处理器
+
+在 Provider 的 `boot` 中调用 `when_request_lifecycle_is_longer_than` 或 `when_command_lifecycle_is_longer_than` 登记处理器。也可在运行期通过 `ApplicationState` 登记。阈值接受 `std::time::Duration`、`LifecycleThreshold::Milliseconds` 或 `LifecycleThreshold::At`。绝对时刻按登记时距目标的 Unix 整秒差折算。
+
+内核在终止事件、中间件和应用回调结束后采样一次耗时。超过各自阈值的处理器依登记顺序执行，首个错误中止后续处理器。开始时间按应用时区显示，耗时由单调时钟计量。请求处理器借用已交付的请求和响应头。命令处理器可读取入口命令名、参数与运行状态。两者执行时仍可解析入口作用域服务。显式调用 `app.terminate()` 只运行应用回调。
+
+```rust,ignore
+app.when_request_lifecycle_is_longer_than(std::time::Duration::from_secs(1), |_, request| {
+    Box::pin(async move {
+        tracing::debug!(status = request.response.status().as_u16(), elapsed = ?request.elapsed);
+        Ok(())
+    })
+});
+```
+
+在活跃入口可用 `ApplicationState::request_started_at` 或 `command_started_at` 读取 UTC 开始时刻。并行入口各自计时，取消的请求或中断的响应流沿用资源回收路径。 [Laravel HTTP 内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Kernel.php#L198-L278) [Laravel 控制台内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Console/Kernel.php#L207-L258)
+
 ### 排除中间件
 
 用 `Router::without_middleware("audit")` 排除最近声明路由的中间件，或用 `RouteGroup::without_middleware("audit")` 排除组内各路由。裸别名匹配所有参数版本，`audit:read` 只匹配该版本。排除命名组时会展开其成员。排除同时作用于处理与终止阶段，全局层继续运行。示例路由 `/api/example/middleware/without-marker` 排除了组内的响应标记。 [Laravel 路由中间件排除](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/middleware.md#excluding-middleware)

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use figment::Figment;
 use serde::de::DeserializeOwned;
 
+use super::{CommandLifecycle, LifecycleThreshold, RequestLifecycle};
 use crate::config::repository::ConfigRepository;
 use crate::config::{ConfigError, Environment, FrameworkConfig};
 use crate::console::command::Command;
@@ -15,6 +16,7 @@ use crate::container::{Container, ParameterOverrides, Scope, ServiceKey};
 use crate::core::error::{Error, Result};
 use crate::events::Events;
 use crate::foundation::events::Terminating;
+use crate::foundation::lifecycle_duration::{EntryStarted, KernelDurationHandlers};
 use crate::foundation::provider::ProviderRuntime;
 use crate::foundation::provider::registration;
 use crate::foundation::provider::registration::LiveBoot;
@@ -98,6 +100,11 @@ struct StateInner {
     services: Container,
     provider_resources: Arc<ResourceOwner>,
     terminating: TerminationCallbacks,
+    durations: Arc<KernelDurationHandlers>,
+}
+
+tokio::task_local! {
+    static COMMAND_ENTRY: (ApplicationState, chrono::DateTime<chrono::Utc>);
 }
 
 struct CommandScopeGuard(Arc<Scope>);
@@ -124,12 +131,102 @@ impl ApplicationState {
     }
 
     pub(crate) fn has_kernel_termination(&self) -> bool {
-        !self.inner.terminating.is_empty() || self.container().contains::<Events>()
+        !self.inner.terminating.is_empty()
+            || self.container().contains::<Events>()
+            || !self.inner.durations.requests.is_empty()
     }
 
-    pub(crate) async fn terminate_entry(&self) -> Result<()> {
+    /// 在当前应用登记请求生命周期时长处理器，后续终止阶段按登记顺序执行。
+    pub fn when_request_lifecycle_is_longer_than(
+        &self,
+        threshold: impl Into<LifecycleThreshold>,
+        handler: impl for<'a> Fn(Self, RequestLifecycle<'a>) -> BoxFuture<'a, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.inner
+            .durations
+            .requests
+            .push(threshold.into(), Arc::new(handler));
+    }
+
+    /// 在当前应用登记命令生命周期时长处理器，后续终止阶段按登记顺序执行。
+    pub fn when_command_lifecycle_is_longer_than(
+        &self,
+        threshold: impl Into<LifecycleThreshold>,
+        handler: impl for<'a> Fn(Self, CommandLifecycle<'a>) -> BoxFuture<'a, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.inner
+            .durations
+            .commands
+            .push(threshold.into(), Arc::new(handler));
+    }
+
+    /// 返回当前 HTTP 入口的 UTC 开始时刻。入口以外返回 `None`。
+    pub fn request_started_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        super::http::request_started_at(self.container())
+    }
+
+    /// 返回当前命令入口的 UTC 开始时刻。入口以外返回 `None`。
+    pub fn command_started_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        COMMAND_ENTRY
+            .try_with(|(app, at)| Arc::ptr_eq(&self.inner, &app.inner).then_some(*at))
+            .ok()
+            .flatten()
+    }
+
+    pub(crate) async fn run_request_duration_handlers(
+        &self,
+        started: EntryStarted,
+        request: &http::Request<()>,
+        response: &http::Response<()>,
+    ) -> Result<()> {
+        let started_at = started.local(self)?;
+        let elapsed = started.elapsed();
+        for handler in self.inner.durations.requests.matching(elapsed) {
+            handler(
+                self.clone(),
+                RequestLifecycle {
+                    started_at: &started_at,
+                    elapsed,
+                    request,
+                    response,
+                },
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    async fn terminate_command(
+        &self,
+        started: EntryStarted,
+        name: &str,
+        arguments: &[String],
+        status: i32,
+    ) -> Result<()> {
         self.dispatch_terminating().await?;
-        self.run_terminating().await
+        self.run_terminating().await?;
+        let started_at = started.local(self)?;
+        let elapsed = started.elapsed();
+        for handler in self.inner.durations.commands.matching(elapsed) {
+            handler(
+                self.clone(),
+                CommandLifecycle {
+                    started_at: &started_at,
+                    elapsed,
+                    name,
+                    arguments,
+                    status,
+                },
+            )
+            .await?;
+        }
+        Ok(())
     }
 
     pub(crate) async fn dispatch_terminating(&self) -> Result<()> {
@@ -310,6 +407,8 @@ impl Application {
         let providers = self.providers.take_active();
         let startup_callbacks = self.providers.startup_callbacks.take();
         let termination_callbacks = self.state.inner.terminating.take();
+        let request_durations = self.state.inner.durations.requests.take();
+        let command_durations = self.state.inner.durations.commands.take();
         let commands = self.commands.take_entries();
         let extensions = std::mem::take(&mut self.extensions);
         let mut failed = container.dispose();
@@ -317,6 +416,12 @@ impl Application {
             failed |= disposal::dispose(callback, None).seen;
         }
         for callback in termination_callbacks {
+            failed |= disposal::dispose(callback, None).seen;
+        }
+        for callback in request_durations {
+            failed |= disposal::dispose(callback, None).seen;
+        }
+        for callback in command_durations {
             failed |= disposal::dispose(callback, None).seen;
         }
         for provider in providers {
@@ -411,6 +516,7 @@ impl Application {
                     services: runtime.container,
                     provider_resources: Arc::new(runtime.resources),
                     terminating: runtime.providers.startup_callbacks.terminating.clone(),
+                    durations: Arc::clone(&runtime.providers.startup_callbacks.durations),
                 }),
             },
             figment,
@@ -563,25 +669,41 @@ impl Application {
 
     /// 使用 `args` 运行名为 `name` 的命令；调用方可继续复用应用，最后显式关闭。
     pub async fn run_command(&self, name: &str, args: Vec<String>) -> Result<()> {
+        self.run_command_since(name, args, EntryStarted::now())
+            .await
+    }
+
+    pub(crate) async fn run_command_since(
+        &self,
+        name: &str,
+        args: Vec<String>,
+        started: EntryStarted,
+    ) -> Result<()> {
         let scope = Arc::new(self.state().container().scope()?);
         let _scope_guard = CommandScopeGuard(Arc::clone(&scope));
-        let result = scope
-            .run(async {
-                let command = self.run_command_inner(name, args).await;
-                let termination = self.state.terminate_entry().await;
-                match (command, termination) {
-                    (Ok(()), termination) => termination,
-                    (Err(error), termination) => {
-                        if let Err(termination_error) = termination {
-                            tracing::error!(
-                                code = termination_error.code(),
-                                "command termination also failed"
-                            );
+        let result = COMMAND_ENTRY
+            .scope(
+                (self.state.clone(), started.at),
+                scope.run(async move {
+                    let command = self.run_command_inner(name, &args).await;
+                    let termination = self
+                        .state
+                        .terminate_command(started, name, &args, i32::from(command.is_err()))
+                        .await;
+                    match (command, termination) {
+                        (Ok(()), termination) => termination,
+                        (Err(error), termination) => {
+                            if let Err(termination_error) = termination {
+                                tracing::error!(
+                                    code = termination_error.code(),
+                                    "command termination also failed"
+                                );
+                            }
+                            Err(error)
                         }
-                        Err(error)
                     }
-                }
-            })
+                }),
+            )
             .await;
         let deadline = tokio::time::Instant::now()
             + std::time::Duration::from_secs(self.config().server.shutdown_timeout_secs);
@@ -638,8 +760,8 @@ impl Application {
         Ok(command)
     }
 
-    async fn run_command_inner(&self, name: &str, args: Vec<String>) -> Result<()> {
-        let command = self.find_command(name, &args)?;
+    async fn run_command_inner(&self, name: &str, args: &[String]) -> Result<()> {
+        let command = self.find_command(name, args)?;
         if let Some(checks) = self.extension::<super::provider::DeferredBootChecks>() {
             for check in &checks.0 {
                 if command.as_ref().type_id() != check.permitted_command {
@@ -652,8 +774,8 @@ impl Application {
         } else {
             command.name().split_whitespace().count() - 1
         };
-        let remaining: Vec<String> = args.into_iter().skip(consumed).collect();
-        if let [flag] = remaining.as_slice()
+        let remaining = &args[consumed..];
+        if let [flag] = remaining
             && matches!(flag.as_str(), "--help" | "-h")
         {
             crate::console::command::print_help(command.as_ref());
@@ -691,6 +813,7 @@ impl Application {
         }
         let execution =
             crate::core::ExecutionContext::new(metadata, None, crate::core::Cancellation::new());
+        let remaining = remaining.to_vec();
         crate::core::with_execution_context(execution, async move {
             if let (Some(i18n), Some(locale)) = (i18n, locale) {
                 i18n.with_locale(locale, command.run(self, remaining)).await

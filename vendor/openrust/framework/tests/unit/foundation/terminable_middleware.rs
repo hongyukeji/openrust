@@ -189,6 +189,32 @@ impl ServiceProvider for Routes {
                 let result = record(&sender, "app", 0, 0);
                 Box::pin(async { result })
             });
+            let sender = self.0.clone();
+            app.when_request_lifecycle_is_longer_than(Duration::ZERO, move |state, lifecycle| {
+                let sender = sender.clone();
+                Box::pin(async move {
+                    assert_eq!(
+                        state
+                            .request_started_at()
+                            .map(|time| time.timestamp_micros()),
+                        Some(lifecycle.started_at.try_chrono()?.timestamp_micros()),
+                    );
+                    assert_eq!(state.command_started_at(), None);
+                    let path = lifecycle.request.uri().path();
+                    assert_eq!(
+                        lifecycle
+                            .response
+                            .headers()
+                            .contains_key("x-termination-probe"),
+                        path != "/disabled-unresolved",
+                    );
+                    assert_eq!(
+                        lifecycle.request.extensions().get::<Route>().is_none(),
+                        path == "/missing"
+                    );
+                    record(&sender, "duration", 0, 0)
+                })
+            });
             Ok(())
         })
     }
@@ -211,6 +237,7 @@ const CASES: &[(&str, &str, Trace)] = &[
             ("terminate", 3),
             ("terminate", 0),
             ("app", 0),
+            ("duration", 0),
         ],
     ),
     (
@@ -225,6 +252,7 @@ const CASES: &[(&str, &str, Trace)] = &[
             ("terminate", 3),
             ("terminate", 0),
             ("app", 0),
+            ("duration", 0),
         ],
     ),
     (
@@ -240,6 +268,7 @@ const CASES: &[(&str, &str, Trace)] = &[
             ("terminate", 3),
             ("terminate", 0),
             ("app", 0),
+            ("duration", 0),
         ],
     ),
     (
@@ -252,6 +281,7 @@ const CASES: &[(&str, &str, Trace)] = &[
             ("terminate", 3),
             ("terminate", 0),
             ("app", 0),
+            ("duration", 0),
         ],
     ),
     (
@@ -399,7 +429,7 @@ async fn test_app_disables_middleware_but_retains_kernel_event_and_app_callback(
     let response = fixture.request(request).await?;
     assert_eq!(response.status(), StatusCode::OK);
     assert!(response.headers().get("x-termination-probe").is_none());
-    for expected in ["event", "app"] {
+    for expected in ["event", "app", "duration"] {
         let mark = tokio::time::timeout(Duration::from_secs(2), records.recv())
             .await
             .map_err(Error::internal)?

@@ -109,6 +109,23 @@ fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
     Ok(())
 }
 
+fn register_lifecycle_diagnostics(app: &mut BootContext<'_>) {
+    use std::time::Duration;
+
+    app.when_request_lifecycle_is_longer_than(Duration::from_secs(1), |_, request| {
+        Box::pin(async move {
+            tracing::debug!(status = request.response.status().as_u16(), ?request.elapsed, "示例慢请求");
+            Ok(())
+        })
+    });
+    app.when_command_lifecycle_is_longer_than(Duration::from_secs(5), |_, command| {
+        Box::pin(async move {
+            tracing::debug!(status = command.status, ?command.elapsed, "示例慢命令");
+            Ok(())
+        })
+    });
+}
+
 async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<()> {
     let boot_message = app.resolve::<ExampleMessage>().await?;
     app.routes(move |routes| {
@@ -430,6 +447,7 @@ impl ServiceProvider for ExampleServiceProvider {
                 app.routes(crate::modules::example::routes::reporting_connection)?;
             }
             register_example_middleware(app)?;
+            register_lifecycle_diagnostics(app);
             app.terminating(|state| {
                 Box::pin(async move {
                     tracing::trace!(

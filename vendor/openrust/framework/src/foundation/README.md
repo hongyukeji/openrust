@@ -70,6 +70,8 @@ impl ServiceProvider for FeatureProvider {
 - 队列：每次 job attempt 使用新 scope，成功、失败、超时或取消都会关闭；重试不会复用上一次的 scoped 实例。`JobContext::service` 从该 attempt 解析。直接调用没有应用状态的 `Queue::run_next` 时，不提供应用服务上下文。
 - 调度：每个到期时段的事务派发使用独立 scope，后续 worker 执行时再创建 job attempt scope。当前全局调度不继承调用者的租户、请求 ID 或其他执行元数据；调度项目前不声明租户。
 
+`BootContext` 和 `ApplicationState` 都可登记请求与命令的生命周期时长处理器。内核在终止事件、中间件及应用回调之后，按登记顺序运行耗时严格超过阈值的处理器。处理器在原入口作用域内运行，可读取以应用时区显示的开始时间。命令状态随 `Command::run` 的结果映射为成功 0 或失败 1。HTTP 处理器在响应正常完成后借用请求和响应头。
+
 `Scope::run` 为当前 future 安装 scope，让同一容器的 `ApplicationState::resolve` 使用它。普通 `tokio::spawn` 不继承 task-local scope 或执行上下文；需要共享本次生命周期的后台工作时，用 `Scope::spawn` 登记受管任务，显式传入允许传播的元数据和 deadline。scope 关闭时会请求取消并等待受管任务；任务仍需合作检查取消信号。例如，在已取得 `Arc<Scope>` 的代码中：
 
 ```rust,ignore

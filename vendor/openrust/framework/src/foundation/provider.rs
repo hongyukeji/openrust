@@ -75,6 +75,7 @@ pub(crate) struct StartupCallbacks {
     pub(crate) booting: Vec<Arc<BootHook>>,
     pub(crate) booted: Vec<Arc<BootHook>>,
     pub(crate) terminating: TerminationCallbacks,
+    pub(crate) durations: Arc<super::lifecycle_duration::KernelDurationHandlers>,
     is_booted: bool,
 }
 
@@ -762,6 +763,42 @@ impl BootContext<'_> {
         + 'static,
     ) {
         self.startup_callbacks.terminating.push(Arc::new(callback));
+    }
+
+    /// 登记请求生命周期时长处理器。终止回调完成后，耗时超过阈值才执行。
+    pub fn when_request_lifecycle_is_longer_than(
+        &mut self,
+        threshold: impl Into<super::LifecycleThreshold>,
+        handler: impl for<'b> Fn(
+            super::ApplicationState,
+            super::RequestLifecycle<'b>,
+        ) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.startup_callbacks
+            .durations
+            .requests
+            .push(threshold.into(), Arc::new(handler));
+    }
+
+    /// 登记命令生命周期时长处理器。终止回调完成后，耗时超过阈值才执行。
+    pub fn when_command_lifecycle_is_longer_than(
+        &mut self,
+        threshold: impl Into<super::LifecycleThreshold>,
+        handler: impl for<'b> Fn(
+            super::ApplicationState,
+            super::CommandLifecycle<'b>,
+        ) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.startup_callbacks
+            .durations
+            .commands
+            .push(threshold.into(), Arc::new(handler));
     }
 
     /// 登记应用 booting 回调。若此阶段仍在执行，按队列顺序运行新增回调。

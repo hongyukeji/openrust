@@ -4,6 +4,7 @@ use crate::foundation::{ProviderBuilder, RegisterContext};
 use figment::providers::Serialized;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::Duration;
 use tokio::sync::Notify;
 
 type Trace = Arc<Mutex<Vec<&'static str>>>;
@@ -134,6 +135,245 @@ async fn terminating_console_keeps_scope_order_and_primary_error() -> Result<()>
             "boot"
         ]
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn console_duration_handlers_observe_completion_snapshot_and_primary_error() -> Result<()> {
+    let mut builder = ProviderBuilder::new();
+    let trace = Trace::default();
+    builder.provider(Probe(Arc::clone(&trace)));
+    let mut app = build(builder).await?;
+    assert!(app.state().command_started_at().is_none());
+    app.config_repository()
+        .set("app.timezone", serde_json::json!("Asia/Shanghai"))?;
+
+    let probe_trace = Arc::clone(&trace);
+    let first_elapsed = Arc::new(Mutex::new(None));
+    let elapsed = Arc::clone(&first_elapsed);
+    app.state()
+        .when_command_lifecycle_is_longer_than(Duration::ZERO, move |state, command| {
+            let trace = Arc::clone(&probe_trace);
+            let elapsed = Arc::clone(&elapsed);
+            Box::pin(async move {
+                assert_eq!(command.name, "terminating-probe");
+                assert_eq!(command.status, i32::from(command.arguments == ["bad"]));
+                assert_eq!(state.request_started_at(), None);
+                assert_eq!(
+                    state
+                        .command_started_at()
+                        .map(|time| time.timestamp_micros()),
+                    Some(command.started_at.try_chrono()?.timestamp_micros()),
+                );
+                assert_eq!(command.started_at.format("e")?, "Asia/Shanghai");
+                assert_eq!(lock(&trace).last(), Some(&"boot"));
+                assert_eq!(
+                    state.resolve::<AtomicBool>().await?.load(Ordering::Relaxed),
+                    command.arguments.is_empty()
+                );
+                *elapsed.lock().unwrap_or_else(PoisonError::into_inner) = Some(command.elapsed);
+                tokio::task::yield_now().await;
+                lock(&trace).push("first-duration");
+                Ok(())
+            })
+        });
+    let probe_trace = Arc::clone(&trace);
+    app.state()
+        .when_command_lifecycle_is_longer_than(Duration::MAX, |_, _| {
+            Box::pin(async { Err(Error::custom("test_threshold", "不应触发该阈值")) })
+        });
+    app.state()
+        .when_command_lifecycle_is_longer_than(Duration::ZERO, move |_, command| {
+            let trace = Arc::clone(&probe_trace);
+            let elapsed = Arc::clone(&first_elapsed);
+            Box::pin(async move {
+                assert_eq!(
+                    Some(command.elapsed),
+                    *elapsed.lock().unwrap_or_else(PoisonError::into_inner)
+                );
+                lock(&trace).push("second-duration");
+                if command.status != 0 {
+                    return Err(Error::custom("test_duration_error", "时长处理器失败"));
+                }
+                Ok(())
+            })
+        });
+    let probe_trace = Arc::clone(&trace);
+    app.state()
+        .when_command_lifecycle_is_longer_than(Duration::ZERO, move |_, _| {
+            lock(&probe_trace).push("third-duration");
+            Box::pin(async { Ok(()) })
+        });
+    app.run_command("terminating-probe", Vec::new()).await?;
+    app.run_command("terminating-probe", vec!["--help".into()])
+        .await?;
+    let invalid = app
+        .run_command("terminating-probe", vec!["bad".into()])
+        .await;
+    assert!(matches!(invalid, Err(error) if error.code() == "unexpected_argument"));
+    assert!(app.state().command_started_at().is_none());
+    assert_eq!(
+        *lock(&trace),
+        [
+            "command-ran",
+            "boot",
+            "first-duration",
+            "second-duration",
+            "third-duration",
+            "no-command",
+            "boot",
+            "first-duration",
+            "second-duration",
+            "third-duration",
+            "no-command",
+            "boot",
+            "first-duration",
+            "second-duration",
+        ]
+    );
+    app.terminate().await?;
+    assert_eq!(&lock(&trace)[14..], ["no-command", "boot"]);
+    app.flush()?;
+    assert!(
+        app.run_command("terminating-probe", Vec::new())
+            .await
+            .is_err()
+    );
+    assert_eq!(lock(&trace).len(), 16);
+    Ok(())
+}
+
+struct ConcurrentCommand(Arc<tokio::sync::Barrier>);
+
+impl Command for ConcurrentCommand {
+    fn name(&self) -> &'static str {
+        "concurrent-timing"
+    }
+
+    fn about(&self) -> &'static str {
+        "验证并行命令的入口计时隔离"
+    }
+
+    fn accepts_args(&self) -> bool {
+        true
+    }
+
+    fn run<'a>(&'a self, app: &'a Application, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let before = app.state().command_started_at();
+            assert!(before.is_some());
+            self.0.wait().await;
+            assert_eq!(app.state().command_started_at(), before);
+            Ok(())
+        })
+    }
+}
+
+impl ServiceProvider for ConcurrentCommand {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        app.command(Self(Arc::clone(&self.0)));
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[tokio::test]
+async fn simultaneous_commands_keep_their_own_started_at() -> Result<()> {
+    let mut builder = ProviderBuilder::new();
+    builder.provider(ConcurrentCommand(Arc::new(tokio::sync::Barrier::new(2))));
+    let app = build(builder).await?;
+    let first = EntryStarted::now();
+    let mut second = first;
+    second.at += chrono::TimeDelta::seconds(1);
+    app.state()
+        .when_command_lifecycle_is_longer_than(Duration::ZERO, move |state, command| {
+            Box::pin(async move {
+                let expected = if command.arguments == ["first"] {
+                    first.at
+                } else {
+                    second.at
+                };
+                assert_eq!(state.command_started_at(), Some(expected));
+                assert_eq!(
+                    command.started_at.try_chrono()?.timestamp_micros(),
+                    expected.timestamp_micros()
+                );
+                Ok(())
+            })
+        });
+    let (one, two) = tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::join!(
+            app.run_command_since("concurrent-timing", vec!["first".into()], first),
+            app.run_command_since("concurrent-timing", vec!["second".into()], second),
+        )
+    })
+    .await
+    .map_err(Error::internal)?;
+    one?;
+    two?;
+    assert!(app.state().command_started_at().is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn duration_snapshot_includes_app_registrations_and_defers_handler_registrations()
+-> Result<()> {
+    let mut builder = ProviderBuilder::new();
+    let trace = Trace::default();
+    builder.provider(Probe(Arc::clone(&trace)));
+    let app = build(builder).await?;
+    let appended = AtomicBool::new(false);
+    let captured = Arc::clone(&trace);
+    app.terminating(move |state| {
+        let captured = Arc::clone(&captured);
+        if !appended.swap(true, Ordering::Relaxed) {
+            let late = Arc::clone(&captured);
+            let registered = AtomicBool::new(false);
+            state.when_command_lifecycle_is_longer_than(Duration::ZERO, move |state, _| {
+                lock(&captured).push("during-termination");
+                let late = Arc::clone(&late);
+                if !registered.swap(true, Ordering::Relaxed) {
+                    state.when_command_lifecycle_is_longer_than(Duration::ZERO, move |_, _| {
+                        lock(&late).push("during-duration");
+                        Box::pin(async { Ok(()) })
+                    });
+                }
+                Box::pin(async { Ok(()) })
+            });
+        }
+        Box::pin(async { Ok(()) })
+    });
+    app.run_command("terminating-probe", Vec::new()).await?;
+    assert_eq!(*lock(&trace), ["command-ran", "boot", "during-termination"]);
+    app.run_command("terminating-probe", Vec::new()).await?;
+    assert_eq!(
+        &lock(&trace)[3..],
+        [
+            "command-ran",
+            "boot",
+            "during-termination",
+            "during-duration"
+        ]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn duration_termination_validates_timezone_before_threshold_filtering() -> Result<()> {
+    let mut builder = ProviderBuilder::new();
+    let trace = Trace::default();
+    builder.provider(Probe(Arc::clone(&trace)));
+    let app = build(builder).await?;
+    app.state()
+        .when_command_lifecycle_is_longer_than(Duration::MAX, |_, _| {
+            Box::pin(async {
+                Err(Error::custom("test_unreachable", "超出测试可等待时长"))
+            })
+        });
+    app.config_repository()
+        .set("app.timezone", serde_json::json!("Invalid/Timezone"))?;
+    let result = app.run_command("terminating-probe", Vec::new()).await;
+    assert!(matches!(result, Err(error) if error.code() == "invalid_config"));
+    assert_eq!(*lock(&trace), ["command-ran", "boot"]);
     Ok(())
 }
 

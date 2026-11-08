@@ -97,6 +97,7 @@ impl<A: ApplicationDefinition> TestAppBuilder<A> {
     /// 普通 [`Self::build`] 与 [`TestApp::reset`] 始终执行完整启动校验。
     /// 命令失败时仍等待关闭；若命令与关闭均失败，返回命令错误并记录关闭错误码。
     pub async fn run_command(self, name: &str, args: Vec<String>) -> Result<()> {
+        let started = crate::foundation::EntryStarted::now();
         let app = self.start_with_command(Some(name)).await?;
         // 复用 TestApp 的 Drop：执行 future 被取消时立即封口，并在运行时兜底回收。
         let mut fixture = TestApp {
@@ -109,7 +110,7 @@ impl<A: ApplicationDefinition> TestAppBuilder<A> {
             .app
             .as_ref()
             .ok_or_else(|| Error::custom("test_app_closed", "测试应用尚未启动"))?
-            .run_command(name, args)
+            .run_command_since(name, args, started)
             .await;
         let cleanup = fixture.shutdown(Instant::now() + DEFAULT_TIMEOUT).await;
         match (result, cleanup) {

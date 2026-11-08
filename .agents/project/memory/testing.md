@@ -934,7 +934,7 @@ PHP 8.5.12 执行固定 Laravel `d52c3b3` 的 HTTP 与控制台 `Kernel::termina
 
 控制台回归覆盖成功、帮助、错误优先级和显式 `Application::terminate`。HTTP/1.1 真实连接验证事件先于应用回调，进程内回归覆盖无应用回调、事件失败保留响应、流中断和已缓存空事件总线的 `before_resolving` 钩子。示例模块登记同一类型监听。生成应用实际执行 `list`，输出内核事件再输出应用回调。
 
-格式、严格 Clippy、拒警 Rustdoc、依赖检查与生成项目检查通过。隔离 MySQL 8.4.13 工作区测试 2,849 项通过、54 项忽略，生成项目 23 项通过。证据在 `tmp/lead-kernel-termination.rTtVv1zt/acceptance.json`。Rust 的 HTTP 终止 middleware 和两个内核的生命周期时长处理器继续按待办推进。
+格式、严格 Clippy、拒警 Rustdoc、依赖检查与生成项目检查通过。隔离 MySQL 8.4.13 工作区测试 2,849 项通过、54 项忽略，生成项目 23 项通过。证据在 `tmp/lead-kernel-termination.rTtVv1zt/acceptance.json`。后续的 HTTP 终止中间件与两个内核的生命周期时长处理器各有独立验收。
 
 ## HTTP 终止中间件限定验收
 
@@ -949,6 +949,14 @@ PHP 8.5.12 执行固定 Laravel `d52c3b3` 的路由中间件解析、Pipeline �
 Rust 回归验证排除项的工厂不执行、保留链的未知名称仍报错、路由排除后全局终止项仍执行。测试夹具禁用应用中间件后仍派发终止事件并运行应用回调。唯一示例对照响应标记的有无。生成应用真实 HTTP 返回 200，分别验证启用与排除时的响应标记和终止记录，收到 SIGTERM 后正常退出。
 
 格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。使用隔离 MySQL 8.4.13 的工作区测试 2,853 项通过、54 项忽略，生成项目 23 项通过。证据见 `tmp/lead-middleware-exclusions.4BpygBFC/acceptance.json`。运行时容器开关与测试按类型替换仍待对应。
+
+## 内核生命周期时长处理器限定验收
+
+PHP 8.5.12 运行固定 Laravel `d52c3b3` 的 HTTP 与控制台 Kernel，8 个场景验证严格阈值、结束时间快照、时区、错误中止和动态登记。业务路由与 Artisan 执行体使用受控替身。Rust 采用每入口独立的单调计时，按当前应用时区投影开始时刻。
+
+真实 HTTP 回归在终止事件、路由和全局中间件、应用回调之后观察响应及路由。控制台回归覆盖帮助、参数错误、错误优先级、并行入口隔离、动态登记和无效时区。唯一示例登记慢请求与慢命令处理器。新生成应用经真实 TCP 返回 HTTP 200，收到 SIGTERM 后退出 0，控制台实测成功与失败退出码分别为 0 和 1。
+
+格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 的工作区测试 2,857 项通过、54 项忽略，生成项目 23 项通过。证据在 `tmp/lead-kernel-duration.ykRF2YC6/acceptance.json`。HTTP 使用无正文快照，控制台状态沿用当前 Rust 命令的结果类型。
 
 ## R2-A 类型化容器基元
 

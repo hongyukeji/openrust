@@ -47,7 +47,9 @@ Provider 实例可在 `RegisterContext` 或该实例的 `BootContext` 登记自�
 
 应用 `terminating` 共用一份异步队列。控制台退出和 HTTP 响应正常完成后使用原入口作用域执行。`flush` 清空队列并隔离旧遍历，进程资源仍由 `shutdown` 回收。[限定验收](../memory/testing.md#应用终止回调限定验收)
 
-HTTP 与控制台在原入口作用域内解析同一 Events 服务，并在应用回调前派发 `foundation::events::Terminating`。派发失败中止后续回调，停止传播只终止本次监听器链。HTTP 在事件与应用回调之间执行[终止中间件](http.md#http-终止中间件)。生命周期时长处理器与通用 `Container::call` 仍按待办推进。[限定验收](../memory/testing.md#内核终止事件限定验收)
+HTTP 与控制台在原入口作用域内解析同一 Events 服务，并在应用回调前派发 `foundation::events::Terminating`。派发失败中止后续回调，停止传播只终止本次监听器链。HTTP 在事件与应用回调之间执行[终止中间件](http.md#http-终止中间件)。[终止事件限定验收](../memory/testing.md#内核终止事件限定验收)
+
+HTTP 与控制台分别登记生命周期时长处理器。两者在应用回调之后采样单调耗时，按顺序执行严格超过阈值的处理器。入口开始时刻在原作用域可读。应用终止时使用当前配置时区，控制台处理器取得原始参数及成功 0 或失败 1。应用直接 `terminate` 只执行应用回调。[时长处理器限定验收](../memory/testing.md#内核生命周期时长处理器限定验收)
 
 同一 `Container` 在首个 Provider 的异步 `register` 前建立；`RegisterContext` 的绑定、实例、`extend` 与 `rebinding` 在声明位置 `await`，`configure_after_register` 仍在全部初始 register 后、boot 前操作共享容器。普通重复 Provider ID 保留首个；force 重新执行 register，新有效项沿首槽 boot 顺序；App 启动后仍可登记 Provider。register 失败不替换旧索引，boot 失败保留新索引，已发布贡献不伪装成全局事务回滚；失败或取消依受管 deadline 回收资源。
 
