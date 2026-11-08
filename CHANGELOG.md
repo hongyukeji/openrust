@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 应用二进制通过 `list` 列出已登记命令，`help <命令>` 和 `--help` 显示命令用法。外部命令可以通过 `Command::usage` 提供参数说明。
+
 - 移除数据交换的根级重导出，公开入口统一为 `openrust::data::exchange`。
 
 - Support Uri 支持显式重定向和作为路由处理器返回值直接转换为 302 响应。

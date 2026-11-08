@@ -42,6 +42,10 @@ impl Command for ChangeStatusCommand {
         }
     }
 
+    fn usage(&self) -> Option<&'static str> {
+        Some("<module>… | --all [-n]")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }
@@ -109,6 +113,10 @@ impl Command for ListCommand {
     fn about(&self) -> &'static str {
         "显示模块状态、名称、路径与优先级"
     }
+    fn usage(&self) -> Option<&'static str> {
+        Some("[--only[=enabled|disabled|priority]] [--direction <asc|desc>]")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }

@@ -21,8 +21,13 @@ pub trait Command: Any + Send + Sync + 'static {
     /// 在命令行中输入的命令名称。
     fn name(&self) -> &'static str;
 
-    /// `help` 显示的单行说明。
+    /// `list` 和 `help` 显示的单行说明。
     fn about(&self) -> &'static str;
+
+    /// `help` 显示的参数和选项写法，省略命令名。
+    fn usage(&self) -> Option<&'static str> {
+        None
+    }
 
     /// 命令名后是否可接收参数；默认不接收参数。
     fn accepts_args(&self) -> bool {
@@ -34,15 +39,15 @@ pub trait Command: Any + Send + Sync + 'static {
 }
 
 /// 列出已注册的命令。
-pub(crate) struct HelpCommand;
+pub(crate) struct ListCommand;
 
-impl Command for HelpCommand {
+impl Command for ListCommand {
     fn name(&self) -> &'static str {
-        "help"
+        "list"
     }
 
     fn about(&self) -> &'static str {
-        "List available commands"
+        "列出可用命令"
     }
 
     fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
@@ -50,7 +55,7 @@ impl Command for HelpCommand {
             let mut commands: Vec<_> = app.commands().collect();
             commands.sort_by_key(|c| c.name());
             let width = commands.iter().map(|c| c.name().len()).max().unwrap_or(0);
-            let mut out = format!("{} commands:\n", app.config().app.name);
+            let mut out = format!("{} 命令列表\n", app.config().app.name);
             for command in commands {
                 // 写入 String 不会失败。
                 let _ = writeln!(out, "  {:<width$}  {}", command.name(), command.about());
@@ -59,6 +64,59 @@ impl Command for HelpCommand {
             Ok(())
         })
     }
+}
+
+/// 显示指定命令的元数据。
+pub(crate) struct HelpCommand;
+
+impl Command for HelpCommand {
+    fn name(&self) -> &'static str {
+        "help"
+    }
+
+    fn about(&self) -> &'static str {
+        "显示指定命令的用法"
+    }
+
+    fn usage(&self) -> Option<&'static str> {
+        Some("[command_name]")
+    }
+
+    fn accepts_args(&self) -> bool {
+        true
+    }
+
+    fn run<'a>(&'a self, app: &'a Application, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let name = if args.is_empty() {
+                self.name().to_owned()
+            } else {
+                args.join(" ")
+            };
+            let command = app
+                .commands()
+                .find(|command| command.name() == name)
+                .ok_or_else(|| {
+                    crate::core::Error::custom(
+                        "unknown_command",
+                        "找不到命令，请运行 list 查看命令列表",
+                    )
+                })?;
+            print_help(command.as_ref());
+            Ok(())
+        })
+    }
+}
+
+pub(crate) fn print_help(command: &dyn Command) {
+    let mut out = format!("{}\n\n用法\n  {}", command.about(), command.name());
+    if let Some(usage) = command.usage() {
+        out.push(' ');
+        out.push_str(usage);
+    } else if command.accepts_args() {
+        out.push_str(" [args…]");
+    }
+    print(&out);
 }
 
 /// 输出合并后的配置，并隐藏敏感值。

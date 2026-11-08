@@ -8,6 +8,12 @@
 
 业务示例代码现位于 `modules/example/`，通过模块清单和默认 registered 激活器接入统一 Provider 内核。模块管理命令、完整 CRUD 与全部能力示例仍在实施，当前闭环不代表 laravel-modules 全矩阵已完成。目标与边界见 [ADR-001](../../../.agents/project/decisions/adr-001-framework-principles.md)。
 
+## 查找应用命令
+
+在源码应用或生成项目根目录运行 `cargo run -- list`，查看框架、应用和已启用模块实际登记的命令。`cargo run -- help migrate` 显示迁移命令用法，`cargo run -- module:list --help` 查看模块列表的筛选选项。带空格的命令名也可以逐词输入，例如 `cargo run -- help config show`。
+
+自定义命令由 Provider 注册。实现 `Command::about` 提供描述，实现 `Command::usage` 描述接受的参数和选项。帮助读取这些信息并沿用正常应用引导流程。直接运行 `cargo run` 仍启动 HTTP 服务。
+
 ## 设计目标
 
 缓存使用 [`openrust::cache`](../../../vendor/openrust/framework/src/cache/README.md) 的统一 API，标准生成应用通过 `cache-redis` 使用 Redis；memory/file 与自定义 driver 均需显式选择。开发期 `openrust dev` 会复用或启动本地 Compose Redis。

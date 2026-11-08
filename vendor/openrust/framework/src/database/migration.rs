@@ -250,6 +250,10 @@ impl Command for MigrationCommand {
         "执行、回滚或查看数据库迁移"
     }
 
+    fn usage(&self) -> Option<&'static str> {
+        Some("[--database <name>] [up [steps | --step] | --step | down [steps] | status]")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }

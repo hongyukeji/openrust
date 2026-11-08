@@ -16,7 +16,7 @@ use crate::config::Environment;
 use crate::config::{self, ConfigLoader, LogConfig, LogFormat};
 use crate::console::command::{
     ConfigCacheCommand, ConfigClearCommand, ConfigShowCommand, EnvironmentCommand, HelpCommand,
-    KeyGenerateCommand,
+    KeyGenerateCommand, ListCommand,
 };
 use crate::core::Cancellation;
 use crate::core::error::{Error, Result};
@@ -42,6 +42,7 @@ impl<A: ApplicationDefinition> ServiceProvider for CoreCommandsProvider<A> {
     ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.command(HelpCommand);
+            app.command(ListCommand);
             app.command(EnvironmentCommand);
             app.command(ConfigShowCommand);
             app.command(ConfigCacheCommand::<A> {
@@ -1317,6 +1318,7 @@ mod tests {
             names,
             [
                 "help",
+                "list",
                 "env",
                 "config show",
                 "config:cache",
@@ -1338,7 +1340,7 @@ mod tests {
                 .as_ref()
                 .map(ToString::to_string)
                 .as_deref(),
-            Some("unknown command `serve`; run `help` to list commands")
+            Some("unknown command `serve`; run `list` to list commands")
         );
         Ok(())
     }

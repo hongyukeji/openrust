@@ -3825,6 +3825,10 @@ impl crate::console::Command for QueueWorkCommand {
         "运行所选连接的队列 worker"
     }
 
+    fn usage(&self) -> Option<&'static str> {
+        Some("[connection] [--queue <queue>]")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }
@@ -3924,6 +3928,10 @@ impl crate::console::Command for QueueRetryCommand {
     fn about(&self) -> &'static str {
         "Retry a failed database job"
     }
+    fn usage(&self) -> Option<&'static str> {
+        Some("<failed-job-id>")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }

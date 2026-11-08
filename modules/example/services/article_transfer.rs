@@ -72,6 +72,10 @@ impl openrust::console::Command for ReconcileImportSources {
         "Retry bounded example article import source cleanup"
     }
 
+    fn usage(&self) -> Option<&'static str> {
+        Some("[cursor]")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }

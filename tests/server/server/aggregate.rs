@@ -654,6 +654,53 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
 }
 
 #[test]
+fn console_lists_registered_commands_and_reads_help_without_running_target() -> TestResult {
+    let run = |args: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_server"))
+            .args(args)
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .env_remove("DATABASE_URL")
+            .env_remove("CACHE_STORE")
+            .env("APP_ENV", "testing")
+            .output()
+    };
+    let list = run(&["list"])?;
+    assert!(
+        list.status.success(),
+        "{}",
+        String::from_utf8_lossy(&list.stderr)
+    );
+    let list = String::from_utf8(list.stdout)?;
+    let help_position = list.find("  help").ok_or("目录缺少 help")?;
+    let list_position = list.find("  list").ok_or("目录缺少 list")?;
+    assert!(help_position < list_position);
+    assert!(list.contains("  module:list"));
+    assert!(list.contains("  serve"));
+
+    let help = run(&["help", "module:list"])?;
+    let flag = run(&["module:list", "--help"])?;
+    assert!(help.status.success());
+    assert!(flag.status.success());
+    assert_eq!(help.stdout, flag.stdout);
+    assert!(String::from_utf8(help.stdout)?.contains("module:list [--only"));
+
+    let own_help = run(&["--help"])?;
+    assert!(own_help.status.success());
+    assert!(String::from_utf8(own_help.stdout)?.contains("help [command_name]"));
+    let spaced = run(&["help", "config", "show"])?;
+    assert!(spaced.status.success());
+    assert!(String::from_utf8(spaced.stdout)?.contains("  config show"));
+
+    let key_help = run(&["help", "key:generate"])?;
+    assert!(key_help.status.success());
+    assert!(String::from_utf8(key_help.stdout)?.contains("key:generate [--show]"));
+    let unknown = run(&["help", "unknown-command"])?;
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(String::from_utf8(unknown.stderr)?.contains("list"));
+    Ok(())
+}
+
+#[test]
 fn config_show_runs_and_redacts_secrets() -> TestResult {
     let selected = tempfile::Builder::new()
         .prefix("SECRET_CONFIG_DIRECTORY_SENTINEL")

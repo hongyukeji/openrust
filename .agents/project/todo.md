@@ -53,7 +53,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 3. 已确认待对齐：queue work→queue:work、queue retry→queue:retry、schedule run→schedule:run、db seed→db:seed、config show→config:show、key generate→key:generate；generate迁移/mail/policy/job等对应真实make:*，mail不是机械make:mailer。make:controller/model/provider现名已存在，行为/选项仍核。
 4. 安装器new与应用命令职责明确，Rust入口openrust可保留。静态CLI与应用Command解析复用唯一规范；Provider/Command/Container扩展、发现/help/list、未知选项/有效参数及退出码/自动登记须一致，无历史兼容义务不等于吞参数。
 5. 每个可验簇同改消费者/模板/快照/文档/脚本及唯一example；真实CLI/生成check+test，核路径/内容/登记/重复冲突/失败不破坏文件、错误退出码，独审和适用集中门禁后限定本地提交。完整CLI开放范围继续保留，不只help快照宣称完成。
-6. R13 的嵌套 `make:controller` 已在 `3b4c4a524a7b` 限定验收、提交并核验远端 main。支持相对命名空间、逐层登记与失败补偿。后继继续核对模型、Provider 命名及其余 CLI 生成器，按依赖领取。此子簇验收见 `tmp/local-closeout-20261107/cli-nested-controller-v4-after-passport-v9/COMMIT-RESULT.json`。
+6. R13 的嵌套 `make:controller` 已在 `3b4c4a524a7b` 限定交付，支持相对命名空间、逐层登记与失败补偿。应用命令目录和用法按 Laravel Artisan 介绍接入 `list`、`help <命令>`。命令签名、统一命名、额外列表格式、模型与 Provider 生成器继续按依赖领取。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 

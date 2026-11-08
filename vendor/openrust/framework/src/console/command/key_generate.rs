@@ -68,6 +68,10 @@ impl Command for KeyGenerateCommand {
         "生成并设置应用密钥"
     }
 
+    fn usage(&self) -> Option<&'static str> {
+        Some("[--show] [--force] [--no-interaction|-n]")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }
@@ -76,7 +80,7 @@ impl Command for KeyGenerateCommand {
         Box::pin(async move {
             let options = Options::parse(&args)?;
             if options.action == Action::Help {
-                super::print("key:generate [--show] [--force] [--no-interaction]");
+                super::print_help(self);
                 return Ok(());
             }
             let repository = app.config_repository();

@@ -25,6 +25,7 @@
 
 - package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 历史决策 039 已完成。
 - `openrust --help` 及子命令帮助使用简体中文标题、选项说明和帮助/版本说明；命令、参数、配置键和协议值保留技术原名。
+- 应用二进制的 `list` 和 `help <命令>` 使用同一 Provider 命令目录。`Command::usage` 提供可选参数说明，帮助入口不执行目标命令；生成项目复用同一入口。
 - 新应用的 `AGENTS.md`、`.env.example` 注释、模块入口 Rustdoc，以及 Model/Migration/Mailer/Policy 生成 Rustdoc 使用简体中文；模板说明不改变应用邮件等运行时语言策略。
 
 - `openrust generate model` 生成 SeaORM entity 并注册 module；`openrust generate migration` 生成建表迁移并注册到 `Migrator`，支持基础标量、UTC 时间、JSON、nullable 与 references 字段 DSL。两者可一致启用 `--uuid-id`（UUIDv7）和 `--soft-delete`（显式 `Entity::not_deleted()` scope，非全局过滤）。`generate mailer` 生成实现 `Email` 的纯文本类型并注册邮件模块；`generate policy` 生成基于既有 `auth::Policy` 的资源 CRUD 授权包装，要求项目启用 `auth`。

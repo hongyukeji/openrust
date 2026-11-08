@@ -435,7 +435,7 @@ impl Application {
                     .collect::<Vec<_>>()
                     .join(" ");
                 let hint = if available.is_empty() {
-                    "run `help` to list commands".to_owned()
+                    "run `list` to list commands".to_owned()
                 } else {
                     format!("available: {}", available.join(", "))
                 };
@@ -463,6 +463,12 @@ impl Application {
             command.name().split_whitespace().count() - 1
         };
         let remaining: Vec<String> = args.into_iter().skip(consumed).collect();
+        if let [flag] = remaining.as_slice()
+            && matches!(flag.as_str(), "--help" | "-h")
+        {
+            crate::console::command::print_help(command.as_ref());
+            return Ok(());
+        }
         if !command.accepts_args()
             && let Some(argument) = remaining.first()
         {
@@ -470,7 +476,7 @@ impl Application {
                 http::StatusCode::BAD_REQUEST,
                 "unexpected_argument",
                 format!(
-                    "unexpected argument `{argument}` for `{}`; run `help` to list commands",
+                    "unexpected argument `{argument}` for `{}`; run `list` to list commands",
                     command.name()
                 ),
             ));
@@ -896,7 +902,7 @@ mod tests {
         assert_eq!(error.as_ref().map(Error::code), Some("unknown_command"));
         assert_eq!(
             error.as_ref().map(ToString::to_string).as_deref(),
-            Some("unknown command `nope`; run `help` to list commands")
+            Some("unknown command `nope`; run `list` to list commands")
         );
         Ok(())
     }
@@ -1281,7 +1287,7 @@ mod tests {
         assert_eq!(error.as_ref().map(Error::code), Some("unknown_command"));
         assert_eq!(
             error.as_ref().map(ToString::to_string).as_deref(),
-            Some("unknown command `serve`; run `help` to list commands")
+            Some("unknown command `serve`; run `list` to list commands")
         );
         Ok(())
     }
@@ -1289,6 +1295,9 @@ mod tests {
     #[tokio::test]
     async fn nested_command_consumes_its_name_words() -> Result<()> {
         let app = start(TestCommand::Nested).await?;
+        // NestedCommand 只接收 --json。帮助必须在调用命令体前返回。
+        app.run_command("config", vec!["show".into(), "--help".into()])
+            .await?;
         app.run_command("config", vec!["show".into(), "--json".into()])
             .await?;
         assert_eq!(
@@ -1326,7 +1335,7 @@ mod tests {
         assert_eq!(error.as_ref().map(Error::code), Some("unexpected_argument"));
         assert_eq!(
             error.as_ref().map(ToString::to_string).as_deref(),
-            Some("unexpected argument `--typo` for `config show`; run `help` to list commands")
+            Some("unexpected argument `--typo` for `config show`; run `list` to list commands")
         );
         Ok(())
     }

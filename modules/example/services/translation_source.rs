@@ -121,6 +121,10 @@ impl Command for TranslationSourceCommand {
     fn about(&self) -> &'static str {
         "管理示例Source文案并查看当前统一翻译结果"
     }
+    fn usage(&self) -> Option<&'static str> {
+        Some("show [locale] | set <locale> <text> | disable <locale> | delete <locale> | refresh")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }

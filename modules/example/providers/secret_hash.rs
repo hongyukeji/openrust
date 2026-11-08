@@ -22,6 +22,10 @@ impl Command for HashSecretFile {
         "按应用统一哈希配置处理秘密文件，只输出已编码哈希"
     }
 
+    fn usage(&self) -> Option<&'static str> {
+        Some("<path>")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }

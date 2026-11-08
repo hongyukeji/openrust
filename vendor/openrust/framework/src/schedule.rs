@@ -604,6 +604,10 @@ impl crate::console::Command for ScheduleRunCommand {
         "Dispatch due schedule entries"
     }
 
+    fn usage(&self) -> Option<&'static str> {
+        Some("[--once]")
+    }
+
     fn accepts_args(&self) -> bool {
         true
     }

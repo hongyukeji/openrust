@@ -271,7 +271,11 @@ fn parse_console_args(
         }
     }
     let mut command = command.into_iter();
-    let name = command.next().unwrap_or_else(|| "serve".to_owned());
+    let name = match command.next() {
+        Some(name) if matches!(name.as_str(), "--help" | "-h") => "help".to_owned(),
+        Some(name) => name,
+        None => "serve".to_owned(),
+    };
     (name, command.collect(), environment)
 }
 
