@@ -412,13 +412,14 @@ def resume_ledger(ledger, thread, binding, current_goal, status, home, usage_fil
 
 
 def rebase_budget(ledger, thread, binding, current_goal, status, home,
-                  usage_file, evidence_file, now, authorization, clock=None):
+                  usage_file, evidence_file, now, authorization, clock=None,
+                  end_full_budget_once=False):
     """真人显式重建百分比基线；完整历史与credits基线不变。"""
     if (status != 'active' or ledger.get('version') != 1
             or ledger.get('fraction') != '0.8' or ledger.get('allow_existing_credits') is not False
             or not ledger.get('automation_id')
             or ledger.get('terminal_reason') not in (None, 'goal_paused', 'usage_wait_expired')
-            or full_budget_state(ledger) == 'active'):
+            or (full_budget_state(ledger) == 'active' and not end_full_budget_once)):
         return output(ledger, 'stop', 'rebase_state_rejected', thread)
     try:
         evidence = read_json(evidence_file)
@@ -451,6 +452,15 @@ def rebase_budget(ledger, thread, binding, current_goal, status, home,
         if key != ledger.get('active_budget_key') or key not in ledger['account_budgets']:
             raise ValueError('账号不匹配')
         old = ledger['account_budgets'][key]
+        active_grant_key = grants.get('active')
+        active_grant = grants.get('grants', {}).get(active_grant_key)
+        if active_grant_key is not None and (
+                not isinstance(active_grant, dict) or active_grant.get('status') != 'active'
+                or active_grant.get('thread') != thread
+                or active_grant.get('goal') != current_goal
+                or active_grant.get('account_id') != fresh['account_id']
+                or active_grant.get('limit_id') != fresh['limit_id']):
+            raise ValueError('额度覆盖身份变化')
         if (set(fresh['windows']) != set(old['windows'])
                 or any(x['duration_mins'] != old['windows'][name]['duration_mins']
                        for name, x in fresh['windows'].items())):
@@ -462,7 +472,11 @@ def rebase_budget(ledger, thread, binding, current_goal, status, home,
         budget['windows'] = fresh['windows']
         budget['baseline_at'] = fresh['baseline_at']
         candidate['account_budgets'][key] = budget
-        if not budget_check(candidate, response, now):
+        grant_file = candidate.pop('full_budget_grant_file', None)
+        available = budget_check(candidate, response, now)
+        if grant_file is not None:
+            candidate['full_budget_grant_file'] = grant_file
+        if not available:
             return output(candidate, 'wait', candidate.get('usage_status', 'usage_budget_unknown'), thread)
         candidate['percentage_rebases'] = copy.deepcopy(history) + [{
             'at': now, 'authorization': provenance,
@@ -485,6 +499,8 @@ def rebase_budget(ledger, thread, binding, current_goal, status, home,
         if not -5 <= final_now - observed <= USAGE_TTL:
             raise ValueError('授权已过期')
         usage_envelope(envelope, thread, final_now)
+        if active_grant is not None:
+            end_full_budget(ledger, 'explicit_revoke')
         ledger.clear()
         ledger.update(candidate)
         return output(ledger, 'wait', 'budget_rebased_checkpoint_required', thread)
@@ -1031,7 +1047,8 @@ def recover_goal_revision_origin(path, thread, home, evidence_file, goal_file,
 
 def run(thread, command, usage_file=None, automation_id=None, now=None, previous_automation_id=None,
         user_authorization=None, authorization_file=None, goal_evidence_file=None,
-        expected_objective_sha256=None, origin_evidence_file=None, expected_ledger_sha256=None):
+        expected_objective_sha256=None, origin_evidence_file=None, expected_ledger_sha256=None,
+        end_full_budget_once=False):
     """一次门禁检查；官方自动化的创建、暂停与删除由调用方执行。"""
     thread = str(uuid.UUID(thread))
     if command in ('checkpoint', 'resume', 'authorize-full-budget', 'rebase-budget', 'accept-goal-revision', 'recover-goal-revision-origin') and os.environ.get('CODEX_THREAD_ID') != thread:
@@ -1149,7 +1166,8 @@ def run(thread, command, usage_file=None, automation_id=None, now=None, previous
         if command == 'rebase-budget':
             result = rebase_budget(ledger, thread, binding, current_goal, status, home,
                                    usage_file, authorization_file, now, user_authorization,
-                                   clock=time.time if fixed_now is None else None)
+                                   clock=time.time if fixed_now is None else None,
+                                   end_full_budget_once=end_full_budget_once)
             if result['reason'] == 'budget_rebased_checkpoint_required':
                 atomic(path, ledger)
             return result
@@ -1292,6 +1310,8 @@ def main():
     rebase.add_argument('--authorization-file', type=Path, required=True)
     rebase.add_argument('--user-authorization', required=True,
                         help='真人明确重建百分比基线；调用者核read_thread来源，不能由额度恢复推断')
+    rebase.add_argument('--end-full-budget-once', action='store_true',
+                        help='仅在同一真人授权明确结束旧覆盖时启用')
     revision = commands.add_parser('accept-goal-revision')
     revision.add_argument('--goal-evidence-file', type=Path, required=True)
     revision.add_argument('--expected-objective-sha256', required=True)
@@ -1318,7 +1338,8 @@ def main():
                      goal_evidence_file=getattr(args, 'goal_evidence_file', None),
                      expected_objective_sha256=getattr(args, 'expected_objective_sha256', None),
                      origin_evidence_file=getattr(args, 'origin_evidence_file', None),
-                     expected_ledger_sha256=getattr(args, 'expected_ledger_sha256', None))
+                     expected_ledger_sha256=getattr(args, 'expected_ledger_sha256', None),
+                     end_full_budget_once=getattr(args, 'end_full_budget_once', False))
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
         result = output({}, 'stop', 'local_evidence_unavailable', args.thread)
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))

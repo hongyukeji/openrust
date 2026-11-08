@@ -64,7 +64,7 @@ python3 -B .agents/skills/agent-continuous-development-guard/scripts/guard_heart
 
 官方提前重置或同周期额度上涨不会自动重建预算。仅真人明确授权重建本Goal基线后，总控核正式read_thread原文和原Goal active，用新鲜额度执行 `guard_heartbeat.py --thread <原线程> rebase-budget --usage-file <原始envelope> --authorization-file <授权证据> --user-authorization '<真人原文>'`。授权证据沿用完整额度登记的source/target_thread/observed_at/source_thread/turn_id/user_message_id/user_text格式；调用者负责核验语义，普通恢复通知不能代填。
 
-仅同账号/limit/窗口集合/时长，原线程、原绑定、已登记automation及二次Goal核验通过才能落账。只更新当前账号百分比窗口，保存完整旧账号预算审计，credits原基线及其他账号不变；默认20%保留、credits禁用，不复活已结束的完整额度覆盖，active覆盖须先按正式流程结束。拒绝同一真人水位重放；只解除goal_paused/usage_wait_expired旧停态，随后checkpoint继续才可业务。该入口不恢复Goal、不重启自动化、不修改内部数据库。
+仅同账号/limit/窗口集合/时长，原线程、原绑定、已登记automation及二次Goal核验通过才能落账。只更新当前账号百分比窗口，保存完整旧账号预算审计，credits原基线及其他账号不变；默认20%保留、credits禁用，不复活已结束的完整额度覆盖。真人同次明确授权结束现有覆盖及重建基线时，为 `rebase-budget` 加 `--end-full-budget-once`；确认正式额度与默认预算可用后才结束旧覆盖并保存重建结果。拒绝同一真人水位重放；只解除goal_paused/usage_wait_expired旧停态，随后checkpoint继续才可业务。该入口不恢复Goal、不重启自动化、不修改内部数据库。
 
 ### 同一 Goal 的真人正文修订
 

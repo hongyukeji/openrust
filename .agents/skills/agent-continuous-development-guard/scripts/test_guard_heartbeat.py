@@ -733,14 +733,14 @@ class HeartbeatTests(unittest.TestCase):
             return heartbeat.run(self.thread, 'authorize-full-budget', self.usage_file, now=now,
                                  user_authorization=text, authorization_file=evidence)
 
-    def rebase_gate(self, evidence=None, now=1000):
+    def rebase_gate(self, evidence=None, now=1000, end_full_budget_once=False):
         if evidence is None:
             evidence, _ = self.full_budget_evidence(user_text='允许重建百分比预算，保留历史和20%，禁用credits')
         self.write_usage(now)
         with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
             return heartbeat.run(self.thread, 'rebase-budget', self.usage_file, now=now,
                                  user_authorization=json.loads(evidence.read_text())['user_text'],
-                                 authorization_file=evidence)
+                                 authorization_file=evidence, end_full_budget_once=end_full_budget_once)
 
     def test_rebase_early_reset_preserves_all_history_credits_and_default_reserve(self):
         self.paused_then_active()
@@ -804,6 +804,33 @@ class HeartbeatTests(unittest.TestCase):
         heartbeat.end_full_budget(self.ledger(), 'actual_quota_exhausted')
         self.assertEqual(self.rebase_gate()['reason'], 'budget_rebased_checkpoint_required')
         self.assertEqual(self.run_gate()['budget']['full_budget_once'], 'inactive')
+
+    def test_rebase_with_explicit_revoke_preserves_grant_and_budget_history(self):
+        self.prepared()
+        self.authorize_full()
+        before = self.ledger()
+        path, grants = heartbeat.grant_document(before)
+        key = grants['active']
+        evidence, _ = self.full_budget_evidence(user_text='明确结束旧覆盖并重建预算，保留20%')
+        self.snapshot = usage(used=100, reset=5000)
+        self.assertEqual(self.rebase_gate(evidence, end_full_budget_once=True)['reason'],
+                         'rebase_official_usage_unavailable')
+        self.assertEqual(heartbeat.grant_document(before)[1], grants)
+        self.assertEqual(self.ledger(), before)
+        self.snapshot = usage(used=0, reset=5000)
+        self.assertEqual(self.rebase_gate(evidence, end_full_budget_once=True)['reason'],
+                         'budget_rebased_checkpoint_required')
+        after = self.ledger()
+        ended = json.loads(path.read_text())
+        self.assertIsNone(ended['active'])
+        self.assertEqual(ended['grants'][key]['reason'], 'explicit_revoke')
+        self.assertEqual(ended['grants'][key]['authorization'], grants['grants'][key]['authorization'])
+        self.assertEqual(after['percentage_rebases'][0]['previous_account_budgets'], before['account_budgets'])
+        with mock.patch.dict(os.environ, {'CODEX_THREAD_ID': self.thread}):
+            result = self.run_gate('checkpoint')
+        self.assertEqual(result['action'], 'continue')
+        self.assertEqual(result['budget']['full_budget_once'], 'inactive')
+        self.assertEqual(result['budget']['windows']['primary']['reserve'], '20.0')
 
     def test_rebase_rejects_goal_race_and_wrong_caller(self):
         self.prepared()
