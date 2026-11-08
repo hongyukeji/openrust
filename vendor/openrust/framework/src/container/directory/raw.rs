@@ -654,10 +654,10 @@ fn complete_raw(inner: &Weak<Inner>, attempt: &Arc<Attempt>) {
         let mut state = lock(&inner.state);
         state.edges.retain(|(from, _), _| *from != attempt.id);
         let removed = state.raw_attempts.remove(&attempt.id);
-        *lock(&attempt.outcome) = Some(Ok(Arc::new(())));
+        *lock(&attempt.outcome) = Some(Ok(super::super::plain(())));
         removed
     } else {
-        *lock(&attempt.outcome) = Some(Ok(Arc::new(())));
+        *lock(&attempt.outcome) = Some(Ok(super::super::plain(())));
         None
     };
     drop(removed);

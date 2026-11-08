@@ -101,6 +101,7 @@ impl State {
         requested: &ServiceKey,
         resolver: &Resolver,
         request: &ResolveRequest,
+        pinned: bool,
     ) -> Result<Option<ConstructionSource>> {
         resolver.check_open(self)?;
         let Some((consumer, active)) = resolver.active_consumer_frame() else {
@@ -108,7 +109,7 @@ impl State {
         };
         let aliases = self
             .aliases
-            .witness(&self.classes.canonical_key(requested))?;
+            .lookup_witness(&self.classes.canonical_key(requested), pinned)?;
         let key = &aliases.terminal;
         let Some(implementation) = self.contextual_implementation(consumer, key) else {
             return Ok(None);
@@ -227,11 +228,12 @@ impl State {
         &self,
         requested: &ServiceKey,
         resolver: &Resolver,
+        pinned: bool,
     ) -> Result<ConstructionSource> {
         resolver.check_open(self)?;
         let aliases = self
             .aliases
-            .witness(&self.classes.canonical_key(requested))?;
+            .lookup_witness(&self.classes.canonical_key(requested), pinned)?;
         let key = &aliases.terminal;
         let with_parameters = resolver.parameters.is_some();
         if let Some(binding) = self
@@ -422,7 +424,7 @@ mod tests {
         key: &ServiceKey,
         resolver: &Resolver,
     ) -> Result<DescriptorSource> {
-        let choice = lock(&container.inner.state).construction_source(key, resolver)?;
+        let choice = lock(&container.inner.state).construction_source(key, resolver, false)?;
         match choice {
             ConstructionSource::Descriptor(ticket) => Ok(ticket),
             _ => Err(container_error(
@@ -454,7 +456,7 @@ mod tests {
         );
 
         container.instance(Arc::new(9_usize)).await?;
-        let actual = lock(&container.inner.state).construction_source(&alias, &resolver)?;
+        let actual = lock(&container.inner.state).construction_source(&alias, &resolver, false)?;
         assert!(matches!(actual, ConstructionSource::Binding(selected)
             if selected.key == key && selected.binding.instance.is_some()));
         container.forget_instance::<usize>().await?;
@@ -465,7 +467,7 @@ mod tests {
         );
         let ticket = choose(&container, &alias, &resolver)?;
         container.alias_key(ServiceKey::typed::<String>(), alias.clone())?;
-        let missing = lock(&container.inner.state).construction_source(&alias, &resolver)?;
+        let missing = lock(&container.inner.state).construction_source(&alias, &resolver, false)?;
         assert!(matches!(missing, ConstructionSource::Missing(target)
             if target == ServiceKey::typed::<String>()));
         container.alias_key(key, alias)?;

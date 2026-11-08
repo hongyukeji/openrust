@@ -125,6 +125,35 @@ async fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
 
 编译类符号与其类型键视为同一个类。同键绑定直接构造该类并读取当前构造参数帧，普通解析在外层应用所选生命周期和装饰器。异键绑定将本次工厂参数传给具体键的解析流程，具体键继续使用自己的生命周期、装饰器和解析历史。构造器的普通依赖各自使用空参数帧。
 
+### 在解析阶段登记回调
+
+Provider 的 `register` 可用 `before_resolving`、`resolving` 和 `after_resolving` 追加回调。传入 `None` 选择全局阶段，传入 `Some(ServiceKey)` 选择服务。登记时将别名展开为当前目标。每个阶段先执行全局回调，再按首次登记各个键的顺序执行匹配的分组。同一个键内按追加顺序执行。
+
+`before_resolving` 在选择工厂和读取共享缓存之前执行。回调通过 `event.key()` 读取规范服务键，通过 `event.parameters()` 读取当前实参，也可通过 `event.container()` 在选择来源前登记绑定。回调中改写别名影响后续解析，本次查找继续使用进入回调前确定的目标。构造和装饰完成后依次执行 `resolving` 与 `after_resolving`。共享缓存命中仍执行前置回调。两个后置阶段由实际完成构造的解析执行一次。
+
+```rust
+use openrust::container::ServiceKey;
+use openrust::foundation::RegisterContext;
+
+struct Report;
+
+fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
+    app.after_resolving(Some(ServiceKey::typed::<Report>()), |event, _| {
+        Box::pin(async move {
+            if let Some(report) = event.value::<Report>()? {
+                // 在交付前读取已构造的 Report。
+                let _ = report;
+            }
+            Ok(())
+        })
+    })
+}
+```
+
+后置回调可以匹配抽象服务键，也可以匹配对象的具体类型和编译期声明的 trait 视图。`event.value::<T>()` 返回同一个对象的可用视图。要在接口绑定的回调中读取具体类型，请为具体类登记构造描述和对应的 trait 投影。仅提供已擦除的 trait 对象时，可读取该对象声明的视图。回调返回错误时，当前解析返回该错误。
+
+异键类包装器只静默具体服务这一层的三个解析阶段，外层和普通构造依赖仍运行各自的回调。直接调用原始工厂时也跳过原绑定键的解析回调，工厂主动解析的依赖仍使用普通阶段。[固定 Laravel 解析回调行为](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Container/ResolvingCallbackTest.php)
+
 ### 读取与调用原始绑定工厂
 
 `Container::get_bindings()` 按登记顺序返回显式工厂条目的键、共享声明和 `FactoryHandle`。实例覆盖保留原工厂，绑定替换后已取得的句柄仍调用快照里的闭包或类绑定包装器。

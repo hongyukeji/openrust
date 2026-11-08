@@ -288,6 +288,14 @@ impl ServiceProvider for ExampleServiceProvider {
                 ServiceKey::named(EXAMPLE_PRESENTER_CLASS),
             )
             .await?;
+            app.after_resolving(Some(ServiceKey::typed::<dyn GreetingPresenter>()), |event, _| {
+                Box::pin(async move {
+                    if let Some(presenter) = event.value::<dyn GreetingPresenter>()? {
+                        tracing::debug!(served_at = %presenter.served_at(), "示例问候呈现器已解析");
+                    }
+                    Ok(())
+                })
+            })?;
             app.when(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))?
                 .needs_parameter("served_at")
                 .give_parameter_factory(|_| {

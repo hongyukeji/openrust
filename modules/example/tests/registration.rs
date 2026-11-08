@@ -163,6 +163,21 @@ async fn production_named_greeting_uses_each_request_scope()
             })
         })
         .await?;
+    let resolved_presenters = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_presenters);
+    state.container().after_resolving(
+        Some(ServiceKey::typed::<ExamplePresenter>()),
+        move |event, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                assert_eq!(event.key(), &ServiceKey::typed::<dyn GreetingPresenter>());
+                assert!(event.value::<ExamplePresenter>()?.is_some());
+                assert!(event.value::<dyn GreetingPresenter>()?.is_some());
+                seen.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        },
+    )?;
     let root_presenter = state.resolve::<dyn GreetingPresenter>().await?;
     assert_eq!(root_presenter.text(), "问候 0");
     for expected in ["问候 1", "问候 2"] {
@@ -177,6 +192,7 @@ async fn production_named_greeting_uses_each_request_scope()
         let json: serde_json::Value = response.json()?;
         assert_eq!(json["data"]["message"], expected);
     }
+    assert_eq!(resolved_presenters.load(Ordering::Relaxed), 3);
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await?;
     Ok(())

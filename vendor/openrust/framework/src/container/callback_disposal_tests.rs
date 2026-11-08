@@ -3,7 +3,7 @@ use super::super::directory::FactoryHandle;
 use super::super::directory_tests_v10::signal_send;
 use super::super::{ParameterOverrides, ResourceOwner, parameters};
 use super::{
-    Container, ContainerBuilder, Error, Resolver, Result, ServiceKey, Value, container_error,
+    Container, ContainerBuilder, Error, Resolver, Result, ServiceKey, container_error,
     erase_extender, lock,
 };
 use crate::BoxFuture;
@@ -408,7 +408,7 @@ async fn early_erased_input_rejection_preserves_primary_and_cleans_input() -> Re
         observed.fetch_add(1, Ordering::AcqRel);
         Box::pin(async move { Ok(value) })
     });
-    let input: Value = Arc::new(HeldResolver {
+    let input = super::super::plain(HeldResolver {
         _resolver: resolver,
     });
     let error = failure((erased.0)(input, current).await)?;
@@ -575,5 +575,32 @@ async fn successful_ordinary_result_transfers_external_late_drop_without_rewriti
     counts.assert_cleared();
     assert_closed(&owner, 0).await;
     old.assert_unchanged().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn projected_extender_retires_old_and_rejected_new_values_separately() -> Result<()> {
+    trait View: Send + Sync {}
+    struct PanickingView(Arc<AtomicUsize>);
+    impl View for PanickingView {}
+    impl Drop for PanickingView {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            std::panic::resume_unwind(Box::new("测试投影视图析构"));
+        }
+    }
+    let drops = Arc::new(AtomicUsize::new(0));
+    let original = super::super::erase(Arc::new(PanickingView(Arc::clone(&drops))));
+    let view = crate::class_projection!(PanickingView => dyn View).project(&original)?;
+    drop(original);
+    let replacement = Arc::clone(&drops);
+    let extender = erase_extender::<dyn View, _>(move |_, _| {
+        let replacement = Arc::clone(&replacement);
+        Box::pin(async move { Ok(Arc::new(PanickingView(replacement)) as Arc<dyn View>) })
+    });
+    let container = ContainerBuilder::new().build();
+    let result = (extender.0)(view, container.factory_resolver()?).await;
+    assert!(matches!(result, Err(error) if error.code() == "resource_task_interrupted"));
+    assert_eq!(drops.load(Ordering::SeqCst), 2);
     Ok(())
 }

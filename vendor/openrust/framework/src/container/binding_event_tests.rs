@@ -173,13 +173,13 @@ async fn delayed_instance_events_use_their_committed_value_and_callback_list() -
     let key = ServiceKey::typed::<usize>();
     let event_b = required_event(container.commit_binding_change(
         key.clone(),
-        BindingChange::Instance(Arc::new(Arc::new(2_usize))),
+        BindingChange::Instance(super::erase(Arc::new(2_usize))),
     )?)?;
     let second_listener = observe_values(&container).await?;
-    let event_c = required_event(
-        container
-            .commit_binding_change(key, BindingChange::Instance(Arc::new(Arc::new(3_usize))))?,
-    )?;
+    let event_c = required_event(container.commit_binding_change(
+        key,
+        BindingChange::Instance(super::erase(Arc::new(3_usize))),
+    )?)?;
     container.forget_instance::<usize>().await?;
     event_c.dispatch().await?;
     event_b.dispatch().await?;

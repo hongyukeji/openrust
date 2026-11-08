@@ -1,12 +1,11 @@
 //! 编译期生成的同实例Arc投影；不执行服务查找或新建缓存。
 
-use super::ServiceKey;
+use super::{ServiceKey, Value, resolved_value::projected};
 use crate::core::Error;
 use crate::core::Result;
 use std::{any::Any, sync::Arc};
 
-type ErasedValue = Arc<dyn Any + Send + Sync>;
-type Project = dyn Fn(&ErasedValue) -> Result<ErasedValue> + Send + Sync;
+type Project = dyn Fn(&Value) -> Result<Value> + Send + Sync;
 
 /// 由 [`crate::class_projection!`] 声明的同对象输出视图。
 ///
@@ -48,17 +47,17 @@ impl ClassProjection {
                 let concrete = erased
                     .downcast_ref::<Arc<C>>()
                     .ok_or_else(invalid_projection)?;
-                let projected = convert(Arc::clone(concrete));
-                if Arc::as_ptr(concrete).cast::<()>() != Arc::as_ptr(&projected).cast::<()>() {
+                let view = convert(Arc::clone(concrete));
+                if Arc::as_ptr(concrete).cast::<()>() != Arc::as_ptr(&view).cast::<()>() {
                     return Err(invalid_projection());
                 }
-                Ok(Arc::new(projected))
+                Ok(projected(erased, view))
             }),
         }
     }
 
     /// 在同一Resolver构造流程中产生视图，不创建新服务身份。
-    pub(super) fn project(&self, source: &ErasedValue) -> Result<ErasedValue> {
+    pub(super) fn project(&self, source: &Value) -> Result<Value> {
         (self.project)(source)
     }
 }
@@ -98,7 +97,7 @@ macro_rules! class_projection {
 
 #[cfg(test)]
 mod tests {
-    use super::{ClassProjection, ErasedValue};
+    use super::{super::resolved_value::erase, ClassProjection};
     use crate::{Result, container::ServiceKey};
     use std::sync::{
         Arc,
@@ -119,7 +118,7 @@ mod tests {
     fn coercion_preserves_pointer_mutations_and_metadata() -> Result<()> {
         let calls = Arc::new(AtomicUsize::new(3));
         let concrete = Arc::new(Concrete(Arc::clone(&calls)));
-        let erased: ErasedValue = Arc::new(Arc::clone(&concrete));
+        let erased = erase(Arc::clone(&concrete));
         let projection = class_projection!(Concrete => dyn View);
         assert_eq!(projection.source_key(), &ServiceKey::typed::<Concrete>());
         assert_eq!(projection.target_key(), &ServiceKey::typed::<dyn View>());
@@ -138,7 +137,7 @@ mod tests {
     #[test]
     fn hidden_bridge_cannot_replace_the_concrete_object() {
         let original = Arc::new(Concrete(Arc::new(AtomicUsize::new(3))));
-        let erased: ErasedValue = Arc::new(original);
+        let erased = erase(original);
         let projection = ClassProjection::__from_coercion::<Concrete, dyn View>(|_| {
             Arc::new(Concrete(Arc::new(AtomicUsize::new(99))))
         });
@@ -155,7 +154,7 @@ mod tests {
             CALLS.fetch_add(1, Ordering::SeqCst);
             source
         });
-        let wrong: ErasedValue = Arc::new(Arc::new(String::from("wrong")));
+        let wrong = erase(Arc::new(String::from("wrong")));
         assert!(projection.project(&wrong).is_err());
         assert_eq!(CALLS.load(Ordering::SeqCst), 0);
     }

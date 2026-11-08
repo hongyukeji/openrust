@@ -195,7 +195,7 @@ impl ContextualServiceBinding<'_> {
     {
         let factory: Factory = Arc::new(move |resolver| {
             let future = factory(resolver);
-            Box::pin(async move { future.await.map(|value| Arc::new(value) as Value) })
+            Box::pin(async move { future.await.map(super::erase) })
         });
         self.install(ContextualImplementation::Factory {
             factory,
@@ -220,10 +220,7 @@ impl ContextualServiceBinding<'_> {
             let future = factory(resolver);
             Box::pin(async move {
                 let values = future.await?;
-                Ok(values
-                    .into_iter()
-                    .map(|value| Arc::new(value) as Value)
-                    .collect())
+                Ok(values.into_iter().map(super::erase).collect())
             })
         });
         self.install(ContextualImplementation::FactoryMany {

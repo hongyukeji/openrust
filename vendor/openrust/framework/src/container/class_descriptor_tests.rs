@@ -438,7 +438,7 @@ fn preflight_and_same_arc_projection_preserve_canonical_value_and_business_failu
         .prepare(&key::<First>(), &key::<First>())?
         .project(&canonical)?;
     assert!(Arc::ptr_eq(&canonical, &canonical_view));
-    let wrong: Value = Arc::new(Arc::new(Second));
+    let wrong = super::super::erase(Arc::new(Second));
     error(prepared.project(&wrong), "service_type_mismatch");
     error(
         directory

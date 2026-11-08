@@ -64,7 +64,7 @@ impl ClassFactory {
         let target = request
             .target()
             .ok_or_else(|| container_error("service_type_mismatch", "类名包装工厂缺少输出类型"))?;
-        if let Some(source) = state.contextual_source(&concrete, resolver, &request)? {
+        if let Some(source) = state.contextual_source(&concrete, resolver, &request, false)? {
             return Ok(match source {
                 ConstructionSource::Binding(source) => source
                     .binding
@@ -107,7 +107,7 @@ impl ClassFactory {
         let inner = resolver.container()?.inner;
         let source = lock(&inner.state).direct_class_source(self.concrete.clone(), &resolver)?;
         resolver
-            .resolve_descriptor(&inner, &source, &target, output)
+            .resolve_descriptor(&inner, &source, &target, output, false)
             .await?
             .ok_or_else(|| container_error("binding_replaced", "类构造来源已更换"))
     }

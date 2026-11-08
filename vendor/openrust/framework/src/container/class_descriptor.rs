@@ -402,9 +402,7 @@ impl ClassDescriptor {
             Some(Constructor {
                 parameters,
                 output: TypeId::of::<Arc<T>>(),
-                construct: Some(Box::new(move |args| {
-                    new(args).map(|value| Arc::new(value) as Value)
-                })),
+                construct: Some(Box::new(move |args| new(args).map(super::erase))),
             }),
         )
     }
@@ -528,6 +526,12 @@ impl ClassRegistry {
             by_type,
             projection_sources,
         })
+    }
+
+    pub(super) fn projects_type(&self, source: &ServiceKey, target: &ServiceKey) -> bool {
+        let target = self.canonical_key(target);
+        self.class(source)
+            .is_some_and(|class| class.projections.contains_key(&target))
     }
 
     pub(super) fn canonical_key(&self, key: &ServiceKey) -> ServiceKey {

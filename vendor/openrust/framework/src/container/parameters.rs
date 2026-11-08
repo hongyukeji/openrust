@@ -58,7 +58,9 @@ impl ParameterValue {
     }
 
     pub(super) fn from_erased(value: super::Value) -> Self {
-        Self { value: Some(value) }
+        Self {
+            value: Some(Arc::unwrap_or_clone(value).into_erased()),
+        }
     }
 
     /// 判断值是否为显式 null。

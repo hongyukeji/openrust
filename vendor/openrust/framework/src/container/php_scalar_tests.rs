@@ -177,7 +177,8 @@ fn captured(
 }
 
 fn read_result(value: super::Value) -> Result<Arc<ParameterValue>> {
-    let typed = value
+    let typed = Arc::unwrap_or_clone(value)
+        .into_erased()
         .downcast::<Arc<ParameterValue>>()
         .map_err(|_| fixture("缺少构造输出"))?;
     Ok(Arc::clone(typed.as_ref()))

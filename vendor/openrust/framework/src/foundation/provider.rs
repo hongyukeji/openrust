@@ -104,6 +104,42 @@ impl<'a> RegisterContext<'a> {
 }
 
 impl RegisterContext<'_> {
+    /// 在本应用构造服务或读取共享缓存前登记解析回调。
+    pub fn before_resolving(
+        &self,
+        selector: Option<crate::container::ServiceKey>,
+        hook: impl Fn(crate::container::ResolutionEvent, Resolver) -> BoxFuture<'static, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.container.before_resolving(selector, hook)
+    }
+
+    /// 在本应用完成服务构造与装饰后登记解析回调。
+    pub fn resolving(
+        &self,
+        selector: Option<crate::container::ServiceKey>,
+        hook: impl Fn(crate::container::ResolutionEvent, Resolver) -> BoxFuture<'static, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.container.resolving(selector, hook)
+    }
+
+    /// 在本应用完成当前服务的解析回调后登记后置回调。
+    pub fn after_resolving(
+        &self,
+        selector: Option<crate::container::ServiceKey>,
+        hook: impl Fn(crate::container::ResolutionEvent, Resolver) -> BoxFuture<'static, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.container.after_resolving(selector, hook)
+    }
+
     /// 为指定消费类声明只在其构造参数期间使用的绑定。
     pub fn when(
         &self,

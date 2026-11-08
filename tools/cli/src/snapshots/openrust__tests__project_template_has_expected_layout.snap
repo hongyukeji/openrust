@@ -739,6 +739,22 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert!(state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);
     assert!(!state.container().resolved_key(&symbol)?);
+    let resolved_home = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_home);
+    state.container().after_resolving(
+        Some(ServiceKey::typed::<HomePresenter>()),
+        move |event, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                if event.key() == &ServiceKey::typed::<dyn HomeResponse>() {
+                    assert!(event.value::<HomePresenter>()?.is_some());
+                    assert!(event.value::<dyn HomeResponse>()?.is_some());
+                    seen.fetch_add(1, Ordering::Relaxed);
+                }
+                Ok(())
+            })
+        },
+    )?;
     let keys = app.app()?.config_repository().all()?["template_order"]
         .as_object()
         .ok_or("有序测试区段必须是对象")?
@@ -757,7 +773,9 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             "data": {"name": "configured-application"}
         }))?;
     assert!(!state.container().resolved_key(&symbol)?);
+    assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
     assert_generated_class_factories(&state).await?;
+    assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
     let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
     let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
     assert!(!Arc::ptr_eq(&first, &second));

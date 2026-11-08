@@ -3,8 +3,8 @@
 use openrust::class_projection;
 use openrust::container::{
     ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey, ParameterOverrides,
-    ParameterValue, PhpBytes, PhpStringable, PhpTarget, ScalarDiagnostic, ScalarDiagnostics,
-    ServiceKey,
+    ParameterValue, PhpBytes, PhpStringable, PhpTarget, ResolutionEvent, Resolver,
+    ScalarDiagnostic, ScalarDiagnostics, ServiceKey,
 };
 use std::sync::{
     Arc, Mutex,
@@ -1035,5 +1035,295 @@ async fn weak_scalar_diagnostic_rejection_stops_union_and_constructor() -> openr
         Err(error) if error.code() == "test_precision_rejected"
     ));
     assert_eq!(constructions.load(Ordering::Relaxed), 0);
+    Ok(())
+}
+
+type HookLog = Arc<Mutex<Vec<&'static str>>>;
+
+fn record_resolution_hook(
+    events: HookLog,
+    label: &'static str,
+) -> impl Fn(ResolutionEvent, Resolver) -> openrust::support::BoxFuture<'static, openrust::Result<()>>
+{
+    move |_, _| {
+        let events = Arc::clone(&events);
+        Box::pin(async move {
+            events
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(label);
+            Ok(())
+        })
+    }
+}
+
+fn take_resolution_hooks(events: &HookLog) -> Vec<&'static str> {
+    std::mem::take(
+        &mut *events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    )
+}
+
+#[tokio::test]
+async fn resolving_hooks_order_alias_groups_and_observe_shared_hits() -> openrust::Result<()> {
+    let key = ServiceKey::named("consumer.hooks.message");
+    let alias = ServiceKey::named("consumer.hooks.message.alias");
+    let mut builder = ContainerBuilder::new();
+    builder.singleton_key::<String, _>(key.clone(), |resolver| {
+        Box::pin(async move {
+            let parameters = resolver.parameters();
+            parameters.get(&ParameterKey::name("text")).map_or_else(
+                || Ok(Arc::new(String::from("默认"))),
+                ParameterValue::downcast,
+            )
+        })
+    });
+    builder.alias(key.clone(), alias.clone())?;
+
+    let events = HookLog::default();
+    let observe = |label| record_resolution_hook(Arc::clone(&events), label);
+    let parameters_seen = Arc::new(Mutex::new(Vec::<Option<String>>::new()));
+    let observed_parameters = Arc::clone(&parameters_seen);
+    let expected_key = key.clone();
+    builder.before_resolving(Some(alias.clone()), move |event, _| {
+        let expected_key = expected_key.clone();
+        let observed_parameters = Arc::clone(&observed_parameters);
+        Box::pin(async move {
+            assert_eq!(event.key(), &expected_key);
+            assert!(event.value::<String>()?.is_none());
+            let parameters = event.parameters();
+            let text = parameters
+                .get(&ParameterKey::name("text"))
+                .map(ParameterValue::downcast::<String>)
+                .transpose()?
+                .map(|value| value.as_ref().clone());
+            observed_parameters
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(text);
+            Ok(())
+        })
+    })?;
+    builder.before_resolving(Some(alias.clone()), observe("指定键解析前"))?;
+    builder.before_resolving(None, observe("全局解析前"))?;
+    builder.resolving(Some(ServiceKey::typed::<String>()), observe("类型解析一"))?;
+    builder.resolving(Some(alias.clone()), observe("别名解析"))?;
+    builder.resolving(Some(ServiceKey::typed::<String>()), observe("类型解析二"))?;
+    builder.resolving(None, observe("全局解析"))?;
+    builder.after_resolving(Some(alias.clone()), observe("别名解析后"))?;
+    builder.after_resolving(None, observe("全局解析后"))?;
+
+    let container = builder.build();
+    let phases = [
+        "全局解析前",
+        "指定键解析前",
+        "全局解析",
+        "类型解析一",
+        "类型解析二",
+        "别名解析",
+        "全局解析后",
+        "别名解析后",
+    ];
+    let first = container.resolve_key::<String>(alias.clone()).await?;
+    assert_eq!(first.as_str(), "默认");
+    assert_eq!(take_resolution_hooks(&events), phases);
+    let hit = container.resolve_key::<String>(key.clone()).await?;
+    assert!(Arc::ptr_eq(&first, &hit));
+    assert_eq!(
+        take_resolution_hooks(&events),
+        ["全局解析前", "指定键解析前"]
+    );
+
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(
+        ParameterKey::name("text"),
+        ParameterValue::new(String::from("带参")),
+    );
+    let overridden = container
+        .resolve_key_with::<String>(alias, parameters)
+        .await?;
+    assert_eq!(overridden.as_str(), "带参");
+    assert!(!Arc::ptr_eq(&first, &overridden));
+    assert_eq!(take_resolution_hooks(&events), phases);
+    assert_eq!(
+        *parameters_seen
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+        [None, None, Some(String::from("带参"))],
+    );
+    Ok(())
+}
+
+struct HookDependency(&'static str);
+struct HookGreeting(Arc<HookDependency>);
+
+impl Greeting for HookGreeting {
+    fn value(&self) -> String {
+        self.0.0.to_owned()
+    }
+}
+
+#[tokio::test]
+async fn resolving_hooks_keep_wrapped_dependencies_and_skip_raw_outer_callbacks()
+-> openrust::Result<()> {
+    let abstract_key = ServiceKey::typed::<dyn Greeting>();
+    let concrete_key = ServiceKey::typed::<HookGreeting>();
+    let dependency_key = ServiceKey::typed::<HookDependency>();
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<HookDependency>("consumer::HookDependency", vec![], |_| {
+            Ok(Arc::new(HookDependency("依赖已构造")))
+        }),
+        ClassDescriptor::concrete::<HookGreeting>(
+            "consumer::HookGreeting",
+            vec![ConstructorParam::class::<HookDependency>("dependency")],
+            |args| Ok(Arc::new(HookGreeting(args.service(0)?))),
+        )
+        .with_projection(class_projection!(HookGreeting => dyn Greeting)),
+    ])?;
+    builder.bind_class::<dyn Greeting>(abstract_key.clone(), concrete_key.clone());
+
+    let events = HookLog::default();
+    let observe = |label| record_resolution_hook(Arc::clone(&events), label);
+    builder.before_resolving(Some(abstract_key.clone()), observe("外层解析前"))?;
+    builder.before_resolving(Some(concrete_key.clone()), observe("内层误触发"))?;
+    builder.before_resolving(Some(dependency_key.clone()), observe("依赖解析前"))?;
+    builder.resolving(Some(dependency_key.clone()), observe("依赖解析"))?;
+    builder.after_resolving(Some(dependency_key), observe("依赖解析后"))?;
+    let projected = Arc::clone(&events);
+    let expected_key = abstract_key.clone();
+    builder.resolving(Some(concrete_key), move |event, _| {
+        let projected = Arc::clone(&projected);
+        let expected_key = expected_key.clone();
+        Box::pin(async move {
+            assert_eq!(event.key(), &expected_key);
+            let concrete = event.value::<HookGreeting>()?.ok_or_else(|| {
+                openrust::Error::custom("hook_concrete_missing", "解析事件缺少具体类型视图")
+            })?;
+            let actual = event.value::<dyn Greeting>()?.ok_or_else(|| {
+                openrust::Error::custom("hook_trait_missing", "解析事件缺少接口视图")
+            })?;
+            let expected: Arc<dyn Greeting> = concrete;
+            assert!(Arc::ptr_eq(&expected, &actual));
+            projected
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push("外层具体类型");
+            Ok(())
+        })
+    })?;
+    builder.resolving(Some(abstract_key.clone()), observe("外层接口类型"))?;
+    builder.after_resolving(Some(abstract_key.clone()), observe("外层解析后"))?;
+
+    let container = builder.build();
+    let first = container.resolve::<dyn Greeting>().await?;
+    assert_eq!(first.value(), "依赖已构造");
+    assert_eq!(
+        take_resolution_hooks(&events),
+        [
+            "外层解析前",
+            "依赖解析前",
+            "依赖解析",
+            "依赖解析后",
+            "外层具体类型",
+            "外层接口类型",
+            "外层解析后"
+        ],
+    );
+
+    let wrapper = container
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == abstract_key)
+        .ok_or_else(|| openrust::Error::custom("hook_binding_missing", "缺少类绑定包装器"))?;
+    let raw = wrapper
+        .concrete
+        .invoke::<dyn Greeting>(container.factory_resolver()?)
+        .await?;
+    assert_eq!(raw.value(), "依赖已构造");
+    assert!(!Arc::ptr_eq(&first, &raw));
+    assert_eq!(
+        take_resolution_hooks(&events),
+        ["依赖解析前", "依赖解析", "依赖解析后"]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn before_resolving_can_bind_the_service_and_keeps_the_current_alias_target()
+-> openrust::Result<()> {
+    let original = ServiceKey::named("consumer.hooks.original");
+    let alternate = ServiceKey::named("consumer.hooks.alternate");
+    let alias = ServiceKey::named("consumer.hooks.repoint");
+    let mut builder = ContainerBuilder::new();
+    builder.bind_key::<String, _>(alternate.clone(), |_| {
+        Box::pin(async { Ok(Arc::new(String::from("下一次解析"))) })
+    });
+    builder.alias(original.clone(), alias.clone())?;
+
+    let alias_for_hook = alias.clone();
+    builder.before_resolving(Some(alias.clone()), move |event, _| {
+        let alias = alias_for_hook.clone();
+        let alternate = alternate.clone();
+        Box::pin(async move {
+            let container = event.container()?;
+            container.alias(alternate, alias)?;
+            container
+                .bind_key::<String, _>(event.key().clone(), |_| {
+                    Box::pin(async { Ok(Arc::new(String::from("本次解析"))) })
+                })
+                .await
+        })
+    })?;
+
+    let container = builder.build();
+    assert_eq!(
+        container
+            .resolve_key::<String>(alias.clone())
+            .await?
+            .as_str(),
+        "本次解析"
+    );
+    assert_eq!(
+        container.resolve_key::<String>(alias).await?.as_str(),
+        "下一次解析"
+    );
+    assert!(container.resolved_key(&original)?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn resolving_callback_can_read_the_current_published_singleton() -> openrust::Result<()> {
+    let mut builder = ContainerBuilder::new();
+    builder.singleton::<String, _>(|_| Box::pin(async { Ok(Arc::new(String::from("共享"))) }));
+    let observed = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&observed);
+    builder.resolving(
+        Some(ServiceKey::typed::<String>()),
+        move |event, resolver| {
+            let calls = Arc::clone(&calls);
+            Box::pin(async move {
+                let cached = resolver.resolve::<String>().await?;
+                let current = event.value::<String>()?.ok_or_else(|| {
+                    openrust::Error::custom("hook_shared_missing", "解析事件缺少共享对象")
+                })?;
+                assert!(Arc::ptr_eq(&cached, &current));
+                calls.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        },
+    )?;
+    let container = builder.build();
+    let first = openrust::tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        container.resolve::<String>(),
+    )
+    .await
+    .map_err(|_| {
+        openrust::Error::custom("hook_shared_wait_timeout", "解析回调等待当前共享对象超时")
+    })??;
+    let second = container.resolve::<String>().await?;
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(observed.load(Ordering::Relaxed), 1);
     Ok(())
 }

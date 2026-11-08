@@ -4,7 +4,7 @@ use super::ParameterOverrides;
 use super::{
     Arc, Binding, BindingChange, BoxFuture, ClassDescriptor, ClassRegistry, Container,
     ContainerBuilder, HashMap, HashSet, Lifetime, Resolver, Result, ServiceKey, State, TypeId,
-    Value, class_binding::ClassFactory, container_error, lock,
+    class_binding::ClassFactory, container_error, lock,
 };
 mod raw;
 mod raw_delivery;
@@ -104,7 +104,20 @@ impl AliasState {
             edges,
             terminal,
             terminal_revision,
+            pinned: false,
         })
+    }
+
+    pub(super) fn lookup_witness(&self, key: &ServiceKey, pinned: bool) -> Result<AliasWitness> {
+        if pinned {
+            return Ok(AliasWitness {
+                edges: Vec::new(),
+                terminal: key.clone(),
+                terminal_revision: 0,
+                pinned: true,
+            });
+        }
+        self.witness(key)
     }
 
     pub(super) fn direct_aliases(&self, target: &ServiceKey) -> &[ServiceKey] {
@@ -116,11 +129,12 @@ impl AliasState {
     }
 
     pub(super) fn accepts(&self, witness: &AliasWitness) -> bool {
-        !self.contains(&witness.terminal)
-            && self.revision(&witness.terminal) == witness.terminal_revision
-            && witness.edges.iter().all(|(alias, target, revision)| {
-                self.aliases.get(alias) == Some(target) && self.revision(alias) == *revision
-            })
+        witness.pinned
+            || (!self.contains(&witness.terminal)
+                && self.revision(&witness.terminal) == witness.terminal_revision
+                && witness.edges.iter().all(|(alias, target, revision)| {
+                    self.aliases.get(alias) == Some(target) && self.revision(alias) == *revision
+                }))
     }
 }
 
@@ -128,6 +142,7 @@ pub(super) struct AliasWitness {
     edges: Vec<(ServiceKey, ServiceKey, u64)>,
     pub(super) terminal: ServiceKey,
     terminal_revision: u64,
+    pinned: bool,
 }
 
 /// 条件登记的原子结果；no-op 不执行工厂、通知或清理已有状态。
@@ -166,7 +181,7 @@ where
                 None,
                 |factory, resolver, ()| factory(resolver),
             );
-            Box::pin(async move { Ok(Arc::new(guarded.await?) as Value) })
+            Box::pin(async move { Ok(super::erase(guarded.await?)) })
         })),
         instance: None,
     }
@@ -430,7 +445,7 @@ impl ContainerBuilder {
         let key = self.classes.canonical_key_owned(key);
         self.aliases.remove(&key);
         self.extensions.discard_pending(&key);
-        let value: Value = Arc::new(value);
+        let value = super::erase(value);
         if let Some(binding) = self.bindings.get_mut(&key) {
             binding.pending.clear();
             binding.instance = Some(value);
@@ -741,7 +756,7 @@ impl Container {
         key: ServiceKey,
         value: Arc<T>,
     ) -> Result<()> {
-        self.apply_binding_change(key, BindingChange::Instance(Arc::new(value)))
+        self.apply_binding_change(key, BindingChange::Instance(super::erase(value)))
             .await
     }
 

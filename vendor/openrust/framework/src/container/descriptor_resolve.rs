@@ -49,6 +49,7 @@ struct DescriptorRun<'a> {
     source: &'a DescriptorSource,
     attempt: &'a DescriptorAttempt,
     child: Resolver,
+    events: bool,
     started: std::sync::atomic::AtomicBool,
 }
 
@@ -59,6 +60,7 @@ impl Resolver {
         source: &DescriptorSource,
         output: &ServiceKey,
         erased_output: std::any::TypeId,
+        events: bool,
     ) -> Result<Option<Value>> {
         let prepared = source.prepare(output);
         #[cfg(test)]
@@ -93,6 +95,7 @@ impl Resolver {
             source,
             attempt: &attempt,
             child: attempt.child(self)?,
+            events,
             started: std::sync::atomic::AtomicBool::new(false),
         };
         let owner = attempt.owner()?;
@@ -409,6 +412,22 @@ impl DescriptorRun<'_> {
         Ok(SelectedArgument::Value(value))
     }
 
+    async fn dispatch_completed(&self, value: &mut ResourceInlineSlot<Value>) -> Result<()> {
+        if self.events && lock(&self.inner.state).hooks.has_completed() {
+            self.start()?;
+            let mut stage = self
+                .poll_stage(self.child.fire_completed(
+                    self.inner,
+                    self.source.key(),
+                    value.get_mut().ok_or_else(missing_slot)?,
+                ))
+                .await?;
+            stage.clear();
+            self.owner()?.check_cleanup()?;
+        }
+        Ok(())
+    }
+
     async fn execute(
         &self,
         prepared: PreparedConstructor<'_>,
@@ -477,6 +496,8 @@ impl DescriptorRun<'_> {
             extender.clear();
             value = next;
         }
+
+        self.dispatch_completed(&mut value).await?;
 
         self.start()?;
         let mut result = owner

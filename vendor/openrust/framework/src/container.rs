@@ -16,7 +16,9 @@
 //! # }
 //! ```
 
-use std::any::{Any, TypeId};
+#[cfg(test)]
+use std::any::Any;
+use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,7 +36,7 @@ use crate::foundation::resources::ResourceRegistrar;
 
 use crate::{BoxFuture, Error, Result};
 
-type Value = Arc<dyn Any + Send + Sync>;
+type Value = Arc<resolved_value::ResolvedValue>;
 type Factory = Arc<dyn Fn(Resolver) -> BoxFuture<'static, Result<Value>> + Send + Sync>;
 
 mod service_key;
@@ -61,7 +63,12 @@ mod descriptor_resolve_tests;
 mod descriptor_source;
 use descriptor_source::BindingSource;
 mod directory;
+mod resolved_value;
+use resolved_value::{erase, plain};
+mod resolving_hooks;
 pub use directory::{BindingSnapshot, FactoryHandle};
+pub use resolving_hooks::ResolutionEvent;
+use resolving_hooks::ResolveHooks;
 mod contextual;
 use contextual::ContextualBindings;
 pub use contextual::{
@@ -293,6 +300,7 @@ pub struct ContainerBuilder {
     binding_order: Vec<ServiceKey>,
     aliases: directory::AliasState,
     contextual: ContextualBindings,
+    hooks: ResolveHooks,
     classes: Arc<ClassRegistry>,
     extensions: ExtensionState,
     config: Option<ConfigRepository>,
@@ -390,6 +398,7 @@ impl ContainerBuilder {
                     binding_order: self.binding_order,
                     aliases: self.aliases,
                     contextual: self.contextual,
+                    hooks: self.hooks,
                     classes: self.classes,
                     extensions: self.extensions,
                     ..State::default()
@@ -449,6 +458,7 @@ struct State {
     resolved_history: HashSet<ServiceKey>,
     aliases: directory::AliasState,
     contextual: ContextualBindings,
+    hooks: ResolveHooks,
     classes: Arc<ClassRegistry>,
     raw_attempts: HashMap<u64, directory::RawRecord>,
     root_raw_close: Option<RootRawClose>,
@@ -638,6 +648,10 @@ struct Construction {
 
 impl Construction {
     fn finish(&mut self, result: std::result::Result<Value, Failure>) {
+        self.publish(result, true);
+    }
+
+    fn publish(&mut self, result: std::result::Result<Value, Failure>, record_history: bool) {
         // 发布结果前结束构造帧；通知可以同步唤醒并重新进入保存的 Resolver。
         self.activity.store(false, Ordering::Release);
         let mut unclaimed = Some(result);
@@ -656,7 +670,9 @@ impl Construction {
                 if current {
                     if outcome.as_ref().is_some_and(std::result::Result::is_ok) && !state.terminated
                     {
-                        state.record_success(&self.key);
+                        if record_history {
+                            state.record_success(&self.key);
+                        }
                     } else {
                         state.slots.remove(&self.key);
                     }
@@ -667,6 +683,17 @@ impl Construction {
         drop(unclaimed);
         self.finished = true;
         self.attempt.changed.notify_waiters();
+    }
+    fn record_success_if_current(&self, resolver: &Resolver) {
+        let mut state = lock(&self.inner.state);
+        if resolver.check_open(&state).is_ok()
+            && state
+                .slots
+                .get(&self.key)
+                .is_some_and(|slot| slot.id == self.attempt.id)
+        {
+            state.record_success(&self.key);
+        }
     }
 }
 
@@ -1262,6 +1289,7 @@ impl Container {
             closed,
             resources: Some(resources),
             parameters: None,
+            previous_parameters: None,
             build_consumer: None,
             class_builds: Vec::new(),
             factory_parameters: Arc::new(FactoryParameters::empty()),
@@ -1545,6 +1573,10 @@ enum ResolveRequest {
 }
 
 impl ResolveRequest {
+    fn raises_events(&self) -> bool {
+        !matches!(self, Self::Wrapped { .. })
+    }
+
     fn lookup_key(&self) -> &ServiceKey {
         match self {
             Self::Typed { lookup, target, .. } => lookup.as_ref().unwrap_or(target),
@@ -1580,6 +1612,7 @@ pub struct Resolver {
     closed: Arc<ScopeStatus>,
     resources: Option<ResourceRegistrar>,
     parameters: Option<ParameterView>,
+    previous_parameters: Option<ParameterView>,
     build_consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
     class_builds: Vec<(ServiceKey, Arc<AtomicBool>)>,
     factory_parameters: Arc<FactoryParameters>,
@@ -1729,7 +1762,7 @@ impl Resolver {
     }
 
     fn for_new_lookup(mut self) -> Self {
-        self.parameters = None;
+        self.previous_parameters = self.parameters.take();
         self.factory_parameters = Arc::new(FactoryParameters::empty());
         self.factory_completion = None;
         self
@@ -1832,12 +1865,13 @@ impl Resolver {
         state: &State,
         requested: &ServiceKey,
         expected: Option<u64>,
+        pinned: bool,
     ) -> Result<descriptor_source::ConstructionSource> {
         use descriptor_source::ConstructionSource;
         self.check_open(state)?;
         let canonical = state.classes.canonical_key(requested);
         let aliases = if expected.is_none() {
-            Some(state.aliases.witness(&canonical)?)
+            Some(state.aliases.lookup_witness(&canonical, pinned)?)
         } else {
             None
         };
@@ -1869,14 +1903,15 @@ impl Resolver {
         inner: &Arc<Inner>,
         request: &ResolveRequest,
         expected: Option<u64>,
+        pinned: Option<&ServiceKey>,
     ) -> Result<std::ops::ControlFlow<Value, BindingSource>> {
-        let requested = request.lookup_key();
+        let requested = pinned.unwrap_or_else(|| request.lookup_key());
         loop {
             use descriptor_source::ConstructionSource;
             let source = {
                 let state = lock(&inner.state);
                 let contextual = if expected.is_none() && self.active_consumer_frame().is_some() {
-                    state.contextual_source(requested, self, request)?
+                    state.contextual_source(requested, self, request, pinned.is_some())?
                 } else {
                     None
                 };
@@ -1886,9 +1921,9 @@ impl Resolver {
                         && request.target().is_some()
                         && state.classes.has_descriptors() =>
                     {
-                        state.construction_source(requested, self)?
+                        state.construction_source(requested, self, pinned.is_some())?
                     }
-                    None => self.binding_source(&state, requested, expected)?,
+                    None => self.binding_source(&state, requested, expected, pinned.is_some())?,
                 };
                 #[cfg(test)]
                 if matches!(&selected, ConstructionSource::Binding(_)) {
@@ -1909,7 +1944,13 @@ impl Resolver {
                         .expected_output()
                         .ok_or_else(|| self.missing_service(source.key()))?;
                     if let Some(value) = self
-                        .resolve_descriptor(inner, &source, output, erased_output)
+                        .resolve_descriptor(
+                            inner,
+                            &source,
+                            output,
+                            erased_output,
+                            request.raises_events(),
+                        )
                         .await?
                     {
                         return Ok(std::ops::ControlFlow::Break(value));
@@ -1953,6 +1994,47 @@ impl Resolver {
         Ok(projection)
     }
 
+    async fn before_resolution(
+        &self,
+        inner: &Arc<Inner>,
+        request: &ResolveRequest,
+        expected: Option<u64>,
+    ) -> Result<Option<ServiceKey>> {
+        if !request.raises_events() {
+            return Ok(None);
+        }
+        let key = {
+            let state = lock(&inner.state);
+            self.check_open(&state)?;
+            if !state.hooks.has_before() {
+                return Ok(None);
+            }
+            let key = state.classes.canonical_key(request.lookup_key());
+            if expected.is_some() {
+                key
+            } else {
+                state.aliases.resolve(&key)?
+            }
+        };
+        if self
+            .chain
+            .iter()
+            .any(|(parent, active)| parent == &key && active.load(Ordering::Acquire))
+        {
+            return Err(container_error("service_cycle", self.dependency_path(&key)));
+        }
+        let mut child = self.clone();
+        let active = Arc::new(AtomicBool::new(true));
+        let _guard = ActiveFactory(Arc::clone(&active));
+        child.chain.push((key.clone(), active));
+        // Laravel 先把本次显式实参交给 before，再压入构造覆盖栈。
+        child.parameters = child.previous_parameters.take();
+        let fired = child
+            .fire_before(inner, &key, self.parameters.clone())
+            .await?;
+        Ok(fired.then_some(key))
+    }
+
     fn resolve_projected(
         &self,
         request: ResolveRequest,
@@ -1960,9 +2042,12 @@ impl Resolver {
     ) -> BoxFuture<'_, Result<Value>> {
         Box::pin(async move {
             let container = self.container()?;
+            let pinned = self
+                .before_resolution(&container.inner, &request, expected)
+                .await?;
             loop {
                 let mut source = match self
-                    .select_resolution(&container.inner, &request, expected)
+                    .select_resolution(&container.inner, &request, expected, pinned.as_ref())
                     .await?
                 {
                     std::ops::ControlFlow::Continue(binding) => binding,
@@ -2001,9 +2086,11 @@ impl Resolver {
                     child.resources = container.inner.resources.clone();
                 }
                 let value = if lifetime == Lifetime::Bind {
-                    self.transient(&source, child, activity).await?
+                    self.transient(&source, child, activity, request.raises_events())
+                        .await?
                 } else {
-                    self.cached(&source, child, activity).await?
+                    self.cached(&source, child, activity, request.raises_events())
+                        .await?
                 };
                 if let Some(value) = value {
                     return self.deliver_output(&container.inner, value, projection.as_ref());
@@ -2084,6 +2171,7 @@ impl Resolver {
         source: &BindingSource,
         mut child: Self,
         activity: Arc<AtomicBool>,
+        events: bool,
     ) -> Result<Option<Value>> {
         let container = self.container()?;
         let service = &source.key;
@@ -2129,8 +2217,11 @@ impl Resolver {
         };
         match outcome {
             Ok(value) => {
-                guard.finish(Ok(Arc::clone(&value)));
-                let value = match attempt.wait().await {
+                let run_hooks = events
+                    && binding.instance.is_none()
+                    && lock(&container.inner.state).hooks.has_completed();
+                guard.publish(Ok(Arc::clone(&value)), !run_hooks);
+                let mut value = match attempt.wait().await {
                     Ok(published) => published,
                     Err(primary) => {
                         return self
@@ -2138,6 +2229,15 @@ impl Resolver {
                             .run(|| Err(Self::retire_rejected_output(value, primary, false)));
                     }
                 };
+                if run_hooks {
+                    // 完成回调可以读刚发布的共享对象。单例仍使用应用资源与捕获保护，
+                    // 同时监听发起解析的作用域关闭。
+                    child.closed.clone_from(&self.closed);
+                    value = child
+                        .complete_hook_output(&container.inner, service, value)
+                        .await?;
+                    guard.record_success_if_current(self);
+                }
                 if !binding.pending.is_empty() {
                     let event = {
                         let state = lock(&container.inner.state);
@@ -2209,6 +2309,7 @@ mod tests {
                 &BindingSource::pinned(ServiceKey::typed::<usize>(), old),
                 resolver.clone(),
                 Arc::new(AtomicBool::new(true)),
+                true,
             )
             .await?;
         assert!(stale.is_none());

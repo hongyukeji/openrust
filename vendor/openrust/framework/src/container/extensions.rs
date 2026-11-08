@@ -58,7 +58,11 @@ impl Rebound {
 
     pub(super) async fn dispatch(self) -> Result<()> {
         let value = match self.value {
-            Some(value) => value,
+            Some(value) => {
+                self.resolver
+                    .observe_published_rebound(&self.service, self.generation, value)
+                    .await?
+            }
             None => {
                 self.resolver
                     .resolve_at_generation(self.service, Some(self.generation))
@@ -190,6 +194,43 @@ impl ExtensionState {
     }
 }
 
+struct ExtenderProvenance {
+    previous: Option<Value>,
+    disposal: crate::foundation::lifecycle::CallbackDisposal,
+}
+
+impl ExtenderProvenance {
+    fn finish(mut self, result: Result<Value>) -> Result<Value> {
+        use crate::foundation::lifecycle::{TaskExecutionFailure, disposal};
+        let Some(previous) = self.previous.take() else {
+            return result;
+        };
+        self.disposal.run(|| {
+            let result = result.map(|next| super::resolved_value::after_extension(&previous, next));
+            if !disposal::dispose(previous, None).seen {
+                return result;
+            }
+            let cleanup = container_error("resource_task_interrupted", "旧投影视图清理异常");
+            match result {
+                Ok(value) => {
+                    disposal::dispose(value, None);
+                    Err(cleanup)
+                }
+                Err(primary) => Err(TaskExecutionFailure::error(primary, cleanup)),
+            }
+        })
+    }
+}
+
+impl Drop for ExtenderProvenance {
+    fn drop(&mut self) {
+        if let Some(previous) = self.previous.take() {
+            self.disposal
+                .run(|| crate::foundation::lifecycle::disposal::dispose(previous, None));
+        }
+    }
+}
+
 fn erase_extender<T, F>(extender: F) -> Extender
 where
     T: ?Sized + Send + Sync + 'static,
@@ -201,18 +242,23 @@ where
             .downcast_ref::<Arc<T>>()
             .cloned()
             .ok_or_else(|| container_error("service_type_mismatch", "装饰器输入类型不匹配"));
+        let disposal = resolver.callback_disposal();
+        let provenance = ExtenderProvenance {
+            previous: value.origin().map(|_| Arc::clone(&value)),
+            disposal: disposal.clone(),
+        };
+        // 直接交用户 Future 给守卫。额外 async 层只包已隔离的轮询结果。
         let guarded = crate::foundation::lifecycle::callback_future(
-            resolver.callback_disposal(),
+            disposal,
             Arc::clone(&extender),
             resolver,
             typed,
             Some(value),
             |extender, resolver, value| extender(value, resolver),
         );
-        Box::pin(async move { Ok(Arc::new(guarded.await?) as Value) })
+        Box::pin(async move { provenance.finish(guarded.await.map(super::erase)) })
     }))
 }
-
 fn erase_rebinding<T, F>(callback: F) -> Rebinding
 where
     T: ?Sized + Send + Sync + 'static,
@@ -412,7 +458,7 @@ impl Drop for OperationGuard {
         };
         let mut outcome = lock(&self.operation.attempt.outcome);
         if outcome.is_none() {
-            *outcome = Some(Ok(Arc::new(())));
+            *outcome = Some(Ok(super::plain(())));
         }
         drop(outcome);
         self.operation.attempt.changed.notify_waiters();
@@ -604,6 +650,7 @@ impl Resolver {
         source: &BindingSource,
         mut child: Self,
         activity: Arc<AtomicBool>,
+        events: bool,
     ) -> Result<Option<Value>> {
         let inner = self.container()?.inner;
         let service = &source.key;
@@ -667,8 +714,16 @@ impl Resolver {
             finished: false,
         };
         child.constructing = Some((attempt.id, Arc::clone(&guard.activity)));
+        let work = async {
+            let value = child.construct_value(binding, chain).await?;
+            if events {
+                child.complete_hook_output(&inner, service, value).await
+            } else {
+                Ok(value)
+            }
+        };
         let result = tokio::select! {
-            result = child.construct_value(binding, chain) => result,
+            result = work => result,
             () = self.closed.wait_closed() => Err(container_error("scope_closed", "生命周期已关闭")),
         };
         guard.finish(result.as_ref().map(Arc::clone).map_err(|error| {
@@ -1461,7 +1516,7 @@ mod service_key_tests {
             .cloned()
             .ok_or_else(|| container_error("test_binding_missing", "缺少测试绑定"))?;
         replacement.factory = Some(Arc::new(|_| {
-            Box::pin(async { Ok(Arc::new(Arc::new(99_usize)) as Value) })
+            Box::pin(async { Ok(super::super::erase(Arc::new(99_usize))) })
         }));
         container.replace_binding(key.clone(), replacement).await?;
         assert_eq!(integer(&resolver.resolve_value(key.clone()).await?)?, 99);
