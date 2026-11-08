@@ -70,8 +70,9 @@ struct EncryptedCollectionCast {
 
 impl EncryptedCollectionCast {
     fn declaration(self) -> ClassCast {
+        let encrypter = self.encrypter.clone();
         ClassCast::new(move || Ok(self.clone()))
-            .with_builtin_encrypted_comparison()
+            .with_builtin_encrypter(encrypter)
             .with_arrayable_projection()
     }
 }

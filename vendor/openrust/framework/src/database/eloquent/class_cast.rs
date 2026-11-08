@@ -90,8 +90,6 @@ enum Comparison {
     Default,
     Custom,
     JsonArray,
-    #[cfg(feature = "encryption")]
-    BuiltinEncrypted,
 }
 
 /// 模型声明的自定义转换工厂。声明克隆共享同一个工厂。
@@ -101,6 +99,8 @@ pub struct ClassCast {
     serialization: bool,
     arrayable: bool,
     comparison: Comparison,
+    #[cfg(feature = "encryption")]
+    encrypter: Option<Arc<dyn crate::encryption::ApplicationEncrypter>>,
     object_cache: ObjectCache,
 }
 
@@ -114,6 +114,8 @@ impl ClassCast {
             serialization: false,
             arrayable: false,
             comparison: Comparison::Default,
+            #[cfg(feature = "encryption")]
+            encrypter: None,
             object_cache: ObjectCache::Enabled,
         }
     }
@@ -212,9 +214,17 @@ impl ClassCast {
     }
 
     #[cfg(feature = "encryption")]
-    pub(super) const fn with_builtin_encrypted_comparison(mut self) -> Self {
-        self.comparison = Comparison::BuiltinEncrypted;
+    pub(super) fn with_builtin_encrypter(
+        mut self,
+        encrypter: Arc<dyn crate::encryption::ApplicationEncrypter>,
+    ) -> Self {
+        self.encrypter = Some(encrypter);
         self
+    }
+
+    #[cfg(feature = "encryption")]
+    pub(super) fn encrypter(&self) -> Option<&dyn crate::encryption::ApplicationEncrypter> {
+        self.encrypter.as_deref()
     }
 
     pub(super) fn compare(
@@ -231,7 +241,7 @@ impl ClassCast {
             .map(Some);
         }
         #[cfg(feature = "encryption")]
-        if self.comparison == Comparison::BuiltinEncrypted {
+        if self.encrypter.is_some() {
             return self.resolve()?.compare(name, original, current);
         }
         drop(self.resolve()?);

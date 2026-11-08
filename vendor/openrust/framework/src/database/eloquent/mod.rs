@@ -24,6 +24,7 @@ pub use collection_cast::{
 #[cfg(feature = "encryption")]
 pub use collection_cast::{AsEncryptedArrayObject, AsEncryptedCollection};
 mod has_many;
+mod json_path;
 mod mass_assignment;
 mod model;
 mod model_date_cast;

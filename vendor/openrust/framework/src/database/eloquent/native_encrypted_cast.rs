@@ -39,6 +39,14 @@ impl EncryptedCast {
         Self { kind, encrypter }
     }
 
+    pub(super) fn encrypter(&self) -> &dyn ApplicationEncrypter {
+        &*self.encrypter
+    }
+
+    pub(super) fn encodes_json(&self) -> bool {
+        self.kind != EncryptedCastKind::String
+    }
+
     pub(super) fn read(&self, raw: AttributeValue) -> Result<AttributeValue> {
         if raw.is_null() {
             return Ok(raw);

@@ -146,6 +146,75 @@ pub(crate) async fn put_private_metadata(
 }
 
 #[cfg(feature = "encryption")]
+#[derive(serde::Deserialize)]
+pub(crate) struct PrivateMetadataPath {
+    path: String,
+    value: serde_json::Value,
+}
+
+#[cfg(feature = "encryption")]
+pub(crate) async fn patch_private_metadata(
+    user: CurrentUser,
+    Inject(db): Inject<Db>,
+    Inject(encrypter): Inject<dyn openrust::encryption::ApplicationEncrypter>,
+    Path(id): Path<i64>,
+    Json(input): Json<PrivateMetadataPath>,
+) -> Result<http::StatusCode> {
+    use openrust::database::{eloquent::ModelAttributes, sea_orm::Value};
+    use serde_json::{Map, Value as JsonValue};
+
+    let owner = user.integer_id()?;
+    let model = private_metadata_model(encrypter);
+    let query_db = record_query_db(&db)?;
+    db.transaction_for_update_checked(
+        move |transaction| {
+            Box::pin(async move {
+                let query = query_db
+                    .table(&model.table)?
+                    .using_transaction(transaction)
+                    .where_eq("id", id)?
+                    .where_eq("owner_id", owner)?
+                    .lock_for_update()?;
+                let raw = query
+                    .value::<Option<String>>(PRIVATE_METADATA)
+                    .await?
+                    .ok_or_else(not_found)?;
+                let attributes = ModelAttributes::new(Map::from_iter([(
+                    PRIVATE_METADATA.into(),
+                    raw.map_or(JsonValue::Null, JsonValue::String),
+                )]));
+                let path = format!("{PRIVATE_METADATA}->{}", input.path);
+                attributes
+                    .set_attribute(&model, &path, input.value)
+                    .await
+                    .map_err(|error| match error.code() {
+                        "laravel_payload_invalid"
+                        | "laravel_payload_mac_invalid"
+                        | "laravel_payload_tag_for_cbc"
+                        | "laravel_payload_decrypt_failed" => {
+                            Error::internal(std::io::Error::other("示例私有元数据的密文无效"))
+                        }
+                        _ => error,
+                    })?;
+                let ciphertext = attributes
+                    .raw_attribute(PRIVATE_METADATA)?
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .ok_or_else(|| {
+                        Error::custom("example_private_metadata_missing", "示例私有元数据缺少密文")
+                    })?;
+                query
+                    .update(vec![(PRIVATE_METADATA, Value::from(ciphertext))])
+                    .await?;
+                Ok(())
+            })
+        },
+        |_| Box::pin(async { Ok(()) }),
+    )
+    .await?;
+    Ok(http::StatusCode::NO_CONTENT)
+}
+
+#[cfg(feature = "encryption")]
 pub(crate) async fn get_private_metadata(
     user: CurrentUser,
     Inject(db): Inject<Db>,

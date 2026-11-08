@@ -716,6 +716,10 @@ fn article_routes(routes: Router, summary_enabled: bool, session_enabled: bool) 
             .get(
                 "/records/{id}/private-metadata",
                 controllers::example_record::get_private_metadata,
+            )
+            .patch(
+                "/records/{id}/private-metadata",
+                controllers::example_record::patch_private_metadata,
             );
         #[cfg(feature = "signing")]
         let api = api

@@ -102,9 +102,14 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 建议使用 TEXT 列保存密文，空值仍存为 SQL NULL。读取可用历史密钥，赋值总用当前密钥。
 有历史密钥时，重新加密产生的不同密文视为已变更。无历史密钥时，标量比较明文，
 JSON 变体比较解码后的有序关联数组。Rust 标量字符串要求明文为有效 UTF-8。
-更新嵌套 JSON 时，先读取并修改完整值，再将完整值赋回属性。
-唯一示例的 `/api/example/records/{id}/private-metadata` 使用原生 JSON 加密转换读写专用列，
-按当前账户过滤记录，读取响应禁用缓存。
+使用 `set_attribute(&metadata, "private_metadata->preferences->locale", json!("zh-CN"))`
+更新嵌套值。路径也接受点分隔，数字键按 PHP 有序数组处理。底层列使用原生或内置类加密
+转换时，模型先解密整个 JSON，再以当前密钥保存更新后的值。赋值成功后会清除底层列的对象缓存。
+使用批量赋值时，应将完整路径列入 `fillable`。
+
+唯一示例的 `/api/example/records/{id}/private-metadata` 使用原生 JSON 加密转换读写专用列。
+`PATCH` 接受 `path` 和 `value`，在事务中锁定当前账户的记录后更新。读取响应禁用缓存。
+字符串根支持数字字节偏移，结果须是有效 UTF-8。为避免小输入产生大分配，单次偏移最多补齐 1 MiB。
 
 ### 加密数组对象与集合
 

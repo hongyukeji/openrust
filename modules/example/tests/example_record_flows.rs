@@ -982,6 +982,29 @@ async fn assert_cached_collection_save(
     let context = SaveContext::new(&databases, None, &calendar);
     let transaction = connection.begin().await?;
     let outcome: TestResult = async {
+        let mut plain = example_record::RecordForSave::from_existing(&record)?;
+        plain
+            .attributes
+            .set_attribute(&plain.metadata, "metadata", json!({"before":1}))
+            .await?;
+        plain
+            .attributes
+            .set_attribute(&plain.metadata, "metadata->nested->2", json!(true))
+            .await?;
+        let query = db
+            .table(&plain.metadata.table)?
+            .using_transaction(&transaction);
+        if !save_with_query(&mut plain, &context, query).await? {
+            return Err("普通 JSON 路径赋值的保存已取消".into());
+        }
+        let saved = example_record::Entity::find_by_id(id)
+            .one(&transaction)
+            .await?
+            .ok_or("普通 JSON 路径赋值的记录缺失")?;
+        assert_eq!(
+            saved.metadata,
+            Some(json!({"before":1,"nested":{"2":true}}))
+        );
         for cast in [AsArrayObject::cast(), AsCollection::default().cast()] {
             let mut model = example_record::RecordForSave::from_existing(&record)?;
             model.metadata.casts.insert("metadata".into(), cast);
@@ -1083,6 +1106,19 @@ async fn assert_private_metadata(
     let body: serde_json::Value = serde_json::from_slice(response.body())?;
     assert_eq!(body["data"], input);
 
+    let patch = json!({"path":"labels->2","value":"sparse"});
+    app.request(request(
+        Method::PATCH,
+        &path,
+        Some(other_token),
+        Some(patch.clone()),
+    )?)
+    .await?
+    .assert_status(StatusCode::NOT_FOUND)?;
+    app.request(request(Method::PATCH, &path, Some(token), Some(patch))?)
+        .await?
+        .assert_status(StatusCode::NO_CONTENT)?;
+    let input = json!({"label":"仅所有者可见","enabled":true,"labels":{"2":"sparse"}});
     let db = record_query_db(db)?;
     let query = db.table("example_records")?.where_eq("id", id)?;
     let raw = query
@@ -1106,6 +1142,18 @@ async fn assert_private_metadata(
         .await?;
     response.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
     assert!(!String::from_utf8_lossy(response.body()).contains("invalid payload"));
+    app.request(request(
+        Method::PATCH,
+        &path,
+        Some(token),
+        Some(json!({"path":"labels->0","value":"no overwrite"})),
+    )?)
+    .await?
+    .assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
+    assert_eq!(
+        query.value::<String>("private_metadata").await?.as_deref(),
+        Some("invalid payload")
+    );
     Ok(())
 }
 
@@ -1180,6 +1228,10 @@ async fn assert_encrypted_collection_save(
                     Ok(next)
                 })?;
             }
+            model
+                .attributes
+                .set_attribute(&model.metadata, "description->path->applied", json!(true))
+                .await?;
             let query = db
                 .table(&model.metadata.table)?
                 .using_transaction(&transaction);
@@ -1190,7 +1242,7 @@ async fn assert_encrypted_collection_save(
                 .one(&transaction)
                 .await?
                 .ok_or("encrypted collection row missing")?;
-            let expected = serde_json::to_vec(&json!({"status":status}))?;
+            let expected = serde_json::to_vec(&json!({"status":status,"path":{"applied":true}}))?;
             if encrypter.decrypt_string(&saved.description)? != expected {
                 return Err("encrypted collection writeback did not reach the database".into());
             }

@@ -221,7 +221,11 @@ async fn check_generated_encrypted_collection() -> Result<()> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| Error::custom("generated_encrypted_cast_missing", "缺少加密数组对象密文"))?;
     check(encrypter.decrypt_string(raw)? == br#"{"tag":"encrypted"}"#)?;
-    check(attributes.attributes_to_json(&metadata)?["data"] == json!({"tag":"encrypted"}))?;
+    attributes
+        .set_attribute(&metadata, "data->settings->enabled", json!(true))
+        .await?;
+    let expected = json!({"tag":"encrypted","settings":{"enabled":true}});
+    check(attributes.attributes_to_json(&metadata)?["data"] == expected)?;
     metadata.casts.insert(
         "native_data".into(),
         AttributeCast::Encrypted(EncryptedCast::new(EncryptedCastKind::Collection, encrypter)),

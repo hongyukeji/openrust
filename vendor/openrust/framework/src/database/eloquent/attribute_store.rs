@@ -931,7 +931,7 @@ impl ModelAttributes {
         default_setter: Option<&dyn AttributeSetter>,
         #[cfg(feature = "hashing")] hashing: Option<&crate::hashing::HashManager>,
     ) -> Result<()> {
-        self.flush_casts(None)?;
+        let path_objects = self.flush_assignment_casts(metadata, name, default_setter.is_some())?;
         let marked = {
             let state = self.state.read().map_err(|_| state_error())?;
             state
@@ -998,6 +998,11 @@ impl ModelAttributes {
         {
             return Err(mutation_error("model_attribute_mutation_conflict"));
         }
+        if let Some(watch) = &path_objects
+            && patch.contains_key(watch.base)
+        {
+            watch.check(&state)?;
+        }
         let mut retired = apply_attribute_patch(&mut state, patch, retention)?;
         retired.values.extend(state.marked_cache.shift_remove(name));
         if let Some((entry, _)) = cache {
@@ -1052,6 +1057,21 @@ impl ModelAttributes {
                         .set(name, value, &snapshot)?
                         .into_patch(name);
                     return Ok((patch, CacheRetention::KeepClasses, cache));
+                }
+                _ if let Some((base, path)) = name.split_once("->") => {
+                    let value = super::json_path::write(
+                        metadata,
+                        base,
+                        path,
+                        value,
+                        snapshot.get(base),
+                        cast.as_ref(),
+                    )?;
+                    return Ok((
+                        AttributeMap::from_iter([(base.to_owned(), value)]),
+                        CacheRetention::Invalidate,
+                        None,
+                    ));
                 }
                 #[cfg(feature = "encryption")]
                 Some(AttributeCast::Encrypted(cast)) => cast.write(value)?,
@@ -1138,7 +1158,7 @@ impl ModelAttributes {
     where
         F: FnOnce(Option<Value>) -> Result<bool> + Send,
     {
-        self.flush_casts(None)?;
+        let path_objects = self.flush_assignment_casts(metadata, name, false)?;
         let MutationPreparation {
             snapshot,
             getter,
@@ -1194,8 +1214,15 @@ impl ModelAttributes {
             )
             .await?
         };
-        self.finish_mutation(name, receipt, revision, patch, retention)
-            .map(Some)
+        self.finish_mutation(
+            name,
+            receipt,
+            revision,
+            patch,
+            retention,
+            path_objects.as_ref(),
+        )
+        .map(Some)
     }
 
     /// 仅按原始字段条件执行同步可回滚赋值，绕过所有访问器及cast。
@@ -1235,8 +1262,43 @@ impl ModelAttributes {
             preparation.revision,
             AttributeMap::from_iter([(name.to_owned(), value)]),
             CacheRetention::Invalidate,
+            None,
         )
         .map(Some)
+    }
+
+    fn flush_assignment_casts<'a>(
+        &self,
+        metadata: &ModelMetadata,
+        name: &'a str,
+        has_default_setter: bool,
+    ) -> Result<Option<PathObjects<'a>>> {
+        let Some((base, _)) = name.split_once("->") else {
+            self.flush_casts(None)?;
+            return Ok(None);
+        };
+        let watch = {
+            let state = self.state.read().map_err(|_| state_error())?;
+            if has_default_setter
+                || state.setters.contains_key(name)
+                || state
+                    .marked
+                    .get(name)
+                    .is_some_and(|descriptor| descriptor.has_setter())
+                || matches!(metadata.casts.get(name), Some(AttributeCast::Class(_)))
+            {
+                None
+            } else {
+                Some(PathObjects {
+                    base,
+                    versions: PathObjects::versions(&state, base)?,
+                })
+            }
+        };
+        if let Some(watch) = &watch {
+            self.flush_casts(Some(watch.base))?;
+        }
+        Ok(watch)
     }
 
     fn begin_mutation(&self, name: &str) -> Result<MutationPreparation> {
@@ -1271,11 +1333,17 @@ impl ModelAttributes {
         revision: u64,
         patch: AttributeMap,
         retention: CacheRetention,
+        path_objects: Option<&PathObjects<'_>>,
     ) -> Result<AttributeMutation> {
         let retired = {
             let mut state = self.state.write().map_err(|_| state_error())?;
             if state.revision != revision {
                 return Err(mutation_error("model_attribute_mutation_conflict"));
+            }
+            if let Some(watch) = path_objects
+                && patch.contains_key(watch.base)
+            {
+                watch.check(&state)?;
             }
             let applied_revision = next_revision(&state)?;
             let mut retired = RetiredAttributes::default();
@@ -1306,6 +1374,51 @@ impl ModelAttributes {
         Ok(receipt)
     }
 }
+struct PathObjects<'a> {
+    base: &'a str,
+    versions: [Option<(AttributeValue, u64)>; 2],
+}
+
+impl PathObjects<'_> {
+    fn versions(state: &State, base: &str) -> Result<[Option<(AttributeValue, u64)>; 2]> {
+        let version = |value: Option<&AttributeValue>| -> Result<_> {
+            let Some(value) = value else { return Ok(None) };
+            Ok(value
+                .object_revision()?
+                .map(|revision| (value.clone(), revision)))
+        };
+        Ok([
+            version(state.class_cache.get(base).map(|entry| &entry.value))?,
+            version(state.marked_cache.get(base))?,
+        ])
+    }
+
+    fn check(&self, state: &State) -> Result<()> {
+        let current = Self::versions(state, self.base)?;
+        if !self
+            .versions
+            .iter()
+            .zip(&current)
+            .all(|(expected, current)| match (expected, current) {
+                (None, None) => true,
+                (Some((left, lv)), Some((right, rv))) if lv == rv => {
+                    left.as_object()
+                        .zip(right.as_object())
+                        .is_some_and(|(a, b)| a.same_object(b))
+                        || left
+                            .as_date()
+                            .zip(right.as_date())
+                            .is_some_and(|(a, b)| a.same_object(b))
+                }
+                _ => false,
+            })
+        {
+            return Err(mutation_error("model_attribute_mutation_conflict"));
+        }
+        Ok(())
+    }
+}
+
 type PreparedPatch = (
     AttributeMap,
     CacheRetention,
