@@ -318,14 +318,17 @@ async fn production_environment_bind_is_registered_by_the_first_http_resolution(
 async fn disposable_example_application_rediscovers_classes_after_flush()
 -> Result<(), Box<dyn std::error::Error>> {
     use super::http::controllers::environment_binding::{ApplicationVisits, EnvironmentBinding};
+    use openrust::foundation::{Application, ProviderBuilder};
     use std::sync::Arc;
 
     let source = enabled_example_sources(&production_sources(true))?
         .merge_ordered_entries([("app", serde_json::json!({"env": "testing"}))])?;
-    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
-        .build()
+    let configuration = source.figment().extract()?;
+    let runtime = ProviderBuilder::for_application::<crate::bootstrap::Server>(&configuration)
+        .start(source)
         .await?;
-    let container = app.app()?.state().container().clone();
+    let mut app = Application::from_provider_runtime(runtime)?;
+    let container = app.state().container().clone();
     let key = ServiceKey::typed::<dyn EnvironmentBinding>();
     assert_eq!(
         container
@@ -337,7 +340,9 @@ async fn disposable_example_application_rediscovers_classes_after_flush()
     let previous = container.resolve::<ApplicationVisits>().await?;
     assert!(container.contains_key(&key));
 
-    container.flush()?;
+    assert!(app.commands().any(|command| command.name() == "list"));
+    app.flush()?;
+    assert!(app.commands().next().is_none());
     assert!(!container.contains_key(&key));
     assert!(!container.resolved_key(&key)?);
     assert_eq!(

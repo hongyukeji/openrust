@@ -130,6 +130,10 @@ pub(super) struct ExtensionState {
 }
 
 impl ExtensionState {
+    pub(super) fn take_listeners(&mut self) -> HashMap<ServiceKey, Vec<Rebinding>> {
+        std::mem::take(&mut self.listeners)
+    }
+
     pub(super) fn flush_resolved(&mut self) -> HashMap<CacheKey, Arc<Operation>> {
         self.resolved.clear();
         self.pending_cursor.clear();

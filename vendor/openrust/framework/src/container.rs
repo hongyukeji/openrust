@@ -764,6 +764,45 @@ pub struct Container {
     inner: Arc<Inner>,
 }
 
+/// 已离开容器目录的对象。应用先撤销自己的注册，再释放这些对象。
+#[must_use]
+pub(crate) struct FlushedContainer {
+    bindings: HashMap<ServiceKey, Binding>,
+    slots: HashMap<CacheKey, Arc<Attempt>>,
+    discoveries: HashMap<ServiceKey, Arc<class_binding::InFlightBinding>>,
+    operations: HashMap<CacheKey, Arc<extensions::Operation>>,
+    changes: Arc<Notify>,
+    hooks: ResolveHooks,
+    listeners: HashMap<ServiceKey, Vec<extensions::Rebinding>>,
+}
+
+impl FlushedContainer {
+    pub(crate) fn dispose(self) -> bool {
+        use crate::foundation::lifecycle::disposal;
+        self.changes.notify_waiters();
+        for operation in self.operations.into_values() {
+            operation.release();
+        }
+        drop(self.discoveries);
+        let mut failed = self.hooks.dispose();
+        for listener in self.listeners.into_values().flatten() {
+            failed |= disposal::dispose(listener, None).seen;
+        }
+        for binding in self.bindings.into_values() {
+            // 同一绑定的工厂、实例与待初始化装饰器可能分别拥有用户析构。
+            failed |= disposal::dispose(binding.factory, None).seen;
+            failed |= disposal::dispose(binding.instance, None).seen;
+            for extender in binding.pending {
+                failed |= disposal::dispose(extender, None).seen;
+            }
+        }
+        for slot in self.slots.into_values() {
+            failed |= disposal::dispose(slot, None).seen;
+        }
+        failed
+    }
+}
+
 /// 弱引用同一容器的入口 scope 创建句柄；长寿命 singleton 持有它不会形成引用环。
 #[derive(Clone)]
 pub struct ScopeFactory {
@@ -1186,52 +1225,50 @@ impl Container {
     /// 已取得的实例、原工厂快照及已准入的普通构造仍有效，旧构造不会填入新缓存。
     /// 用户值的析构在状态提交后运行。析构失败时返回错误，清空操作不会回滚。
     pub fn flush(&self) -> Result<()> {
-        use crate::foundation::lifecycle::disposal;
-        let (bindings, slots, discoveries, operations, changes) = {
-            let mut state = lock(&self.inner.state);
-            if state.terminated {
-                return Err(container_error("container_closed", "容器已关闭"));
-            }
-            let revision = state.next_source_revision()?;
-            state.next_generation = revision;
-            state.flush_revision = revision;
-            state.aliases = directory::AliasState::default();
-            state.binding_order.clear();
-            state.checked_binding_declarations.clear();
-            state.class_source_revisions.clear();
-            state.resolved_history.clear();
-            (
-                std::mem::take(&mut state.bindings),
-                std::mem::take(&mut state.slots),
-                std::mem::take(&mut state.binding_discoveries),
-                state.extensions.flush_resolved(),
-                Arc::clone(&state.binding_changes),
-            )
-        };
-        changes.notify_waiters();
-        for operation in operations.into_values() {
-            operation.release();
-        }
-        drop(discoveries);
-        let mut failed = false;
-        for binding in bindings.into_values() {
-            // 同一绑定的工厂、实例与待初始化装饰器可能分别拥有用户析构。
-            failed |= disposal::dispose(binding.factory, None).seen;
-            failed |= disposal::dispose(binding.instance, None).seen;
-            for extender in binding.pending {
-                failed |= disposal::dispose(extender, None).seen;
-            }
-        }
-        for slot in slots.into_values() {
-            failed |= disposal::dispose(slot, None).seen;
-        }
-        if failed {
+        if self.detach_for_flush(false)?.dispose() {
             return Err(container_error(
                 "resource_task_interrupted",
                 "容器目录已清空，但旧绑定或实例析构异常",
             ));
         }
         Ok(())
+    }
+
+    /// Application 的普通解析回调与重绑监听随目录一起撤销。
+    pub(crate) fn detach_for_application_flush(&self) -> Result<FlushedContainer> {
+        self.detach_for_flush(true)
+    }
+
+    fn detach_for_flush(&self, remove_callbacks: bool) -> Result<FlushedContainer> {
+        let mut state = lock(&self.inner.state);
+        if state.terminated {
+            return Err(container_error("container_closed", "容器已关闭"));
+        }
+        let revision = state.next_source_revision()?;
+        state.next_generation = revision;
+        state.flush_revision = revision;
+        state.aliases = directory::AliasState::default();
+        state.binding_order.clear();
+        state.checked_binding_declarations.clear();
+        state.class_source_revisions.clear();
+        state.resolved_history.clear();
+        let (hooks, listeners) = if remove_callbacks {
+            (
+                std::mem::take(&mut state.hooks),
+                state.extensions.take_listeners(),
+            )
+        } else {
+            (ResolveHooks::default(), HashMap::new())
+        };
+        Ok(FlushedContainer {
+            bindings: std::mem::take(&mut state.bindings),
+            slots: std::mem::take(&mut state.slots),
+            discoveries: std::mem::take(&mut state.binding_discoveries),
+            operations: state.extensions.flush_resolved(),
+            changes: Arc::clone(&state.binding_changes),
+            hooks,
+            listeners,
+        })
     }
 
     /// 关闭根 scoped 旧代，等待资源回收后才发布可解析的新代。

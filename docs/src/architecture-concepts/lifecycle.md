@@ -172,6 +172,8 @@ let descriptors = [
 
 已取得的 `Arc` 和原工厂快照仍可使用。清空前已准入的普通工厂可以完成，结果只交给当时的调用方。新解析使用清空后的目录。作用域和受管任务仍由各自的生命周期关闭。运行中的应用依赖 Provider 登记的绑定，应在隔离测试或独立容器上使用 `flush`。
 
+在可独占访问的应用上，`app.flush()?` 还会撤销有效的 Provider、普通解析和重绑回调，以及这些 Provider 贡献的命令和宿主扩展。应用保留已启动状态、配置快照和异步资源的所有权。可以显式重新登记 Provider 来执行 `register` 和 `boot`，旧的命令快照或路由器仍由原持有者管理，异步资源通过 `app.shutdown(deadline).await` 回收。 [Laravel Application::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L1699-L1717)
+
 ### 在解析阶段登记回调
 
 Provider 的 `register` 可用 `before_resolving`、`resolving` 和 `after_resolving` 追加回调。传入 `None` 选择全局阶段，传入 `Some(ServiceKey)` 选择服务。登记时将别名展开为当前目标。每个阶段先执行全局回调，再按首次登记各个键的顺序执行匹配的分组。同一个键内按追加顺序执行。

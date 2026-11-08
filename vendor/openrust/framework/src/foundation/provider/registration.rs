@@ -33,6 +33,10 @@ impl ProviderRegistry {
         self.providers.iter()
     }
 
+    pub(crate) fn take_active(&mut self) -> Vec<Box<dyn ServiceProvider>> {
+        std::mem::take(&mut self.providers)
+    }
+
     fn verify_nested(
         &self,
         parent: ProviderId,

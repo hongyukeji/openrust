@@ -66,6 +66,16 @@ impl CommandRegistry {
             .entries
             .clone()
     }
+
+    /// 撤销所有命令登记，把旧对象交给调用方在锁外释放。
+    pub(crate) fn take_entries(&self) -> Vec<Arc<dyn Command>> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.revision = Arc::new(());
+        std::mem::take(&mut state.entries)
+    }
 }
 
 #[cfg(test)]

@@ -39,6 +39,8 @@ class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件
 
 `Container::flush` 清空运行期绑定、别名、解析历史和所有作用域的共享槽。保留编译类、环境、持久装饰器和注册规则，旧实例及已取得的原工厂快照继续可用。旧构造无法回填已清除的缓存，用户析构在锁外运行。[限定验收](../memory/testing.md#容器清空绑定限定验收)
 
+`Application::flush` 在同一次容器清空中撤销普通解析与重绑回调，并清空应用的有效 Provider、命令和宿主扩展。显式重新登记 Provider 后立即启动。保留配置快照及原受管资源，关闭仍沿 `Application::shutdown` 执行。[限定验收](../memory/testing.md#应用清空注册限定验收)
+
 同一 `Container` 在首个 Provider 的异步 `register` 前建立；`RegisterContext` 的绑定、实例、`extend` 与 `rebinding` 在声明位置 `await`，`configure_after_register` 仍在全部初始 register 后、boot 前操作共享容器。普通重复 Provider ID 保留首个；force 重新执行 register，新有效项沿首槽 boot 顺序；App 启动后仍可登记 Provider。register 失败不替换旧索引，boot 失败保留新索引，已发布贡献不伪装成全局事务回滚；失败或取消依受管 deadline 回收资源。
 
 已绑定服务登记 `rebinding` 时立即解析并返回当前实例；登记本身不调用新回调，后续真实重绑在原位执行回调，错误阻止后续 register 语句。绑定 generation 与缓存槽同步准入；旧 `Arc` 可继续使用，后续解析不让旧工厂或等待者填入新槽。配置登记即时可读，来源值优先于默认值；后到 Provider 默认值不回滚先前成功发布的 `merge_defaults` 数组贡献和显式 `set`，启动仍保留校验与缓存屏障。Cookie 已解析单例保持首次快照，晚首次解析可读取新配置。当前只证明重建 Router 可见新贡献；已服务 Router 热更新、Provider 自动发现、完整 Facade/Container 仍开放。来源 `4ac8099`、S-DV来源 `6ffb5c8` 与三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 的实际门禁见[组合记录](../memory/testing.md#r2-p-s-dv-main-limited)。

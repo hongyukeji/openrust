@@ -264,6 +264,36 @@ pub struct Application {
 }
 
 impl Application {
+    /// 清空容器绑定、解析与重绑回调，并撤销应用已登记的 Provider、命令和宿主扩展。
+    ///
+    /// 应用仍处于启动完成状态，可显式重新登记 Provider。配置快照、既有作用域及
+    /// 受管资源保留，资源仍由 [`Self::shutdown`] 回收。已取得的命令等快照继续有效。
+    /// 析构失败时返回错误，已提交的清空操作不会回滚。
+    pub fn flush(&mut self) -> Result<()> {
+        use crate::foundation::lifecycle::disposal;
+        let container = self.state.inner.services.detach_for_application_flush()?;
+        let providers = self.providers.take_active();
+        let commands = self.commands.take_entries();
+        let extensions = std::mem::take(&mut self.extensions);
+        let mut failed = container.dispose();
+        for provider in providers {
+            failed |= disposal::dispose(provider, None).seen;
+        }
+        for command in commands {
+            failed |= disposal::dispose(command, None).seen;
+        }
+        for extension in extensions.into_values() {
+            failed |= disposal::dispose(extension, None).seen;
+        }
+        if failed {
+            return Err(Error::custom(
+                "resource_task_interrupted",
+                "应用注册已清空，但旧对象析构异常",
+            ));
+        }
+        Ok(())
+    }
+
     /// 同步封闭新解析和资源登记；异步回收仍须调用 `shutdown`。
     pub(crate) fn begin_close(&self) {
         self.state.begin_close();
@@ -564,6 +594,10 @@ impl Application {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/foundation/application_flush.rs"]
+mod application_flush_tests;
 
 #[cfg(test)]
 mod tests {

@@ -898,7 +898,13 @@ ConfigLoader::figment现在返回Result，全部第一方loader调用同步传�
 
 框架新回归覆盖根和已有子作用域、原工厂快照、在途共享构造、条件绑定重新发现、旧扩展拒绝发布及用户析构重入。唯一示例在隔离 `TestApp` 复用真实启动装配，清空后重新发现环境绑定并构造新单例。实际生成的 minimal 项目通过 `cargo check`、`cargo test` 及公开 API 探针。工作区格式、严格 Clippy、带隔离 MySQL 8.4.13 的测试、拒警 Rustdoc 和依赖检查均通过。原始日志和源码指纹位于 `tmp/lead-core-next.oA3a9Ud8/`。
 
-本次覆盖 `Container::flush`。Foundation `Application::flush` 的额外宿主状态仍待对应。
+## 应用清空注册限定验收
+
+固定 Laravel `d52c3b3` 的 `Application::flush` 使用 PHP 8.5 隔离子类注入状态，对照 6 项通过。实测父容器目录、已加载及延迟 Provider 状态、指定回调被清空，启动标记、路径和持久规则保留。
+
+Rust 验证 Provider 和宿主贡献撤销、同类型 Provider 重新启动、解析和重绑回调清理、多个析构异常后仍完成清空，以及最终关闭回收旧资源。综合示例从实际 Provider 清单启动，清空后重新发现环境绑定并构造新单例。工作区格式、严格 Clippy、带隔离 MySQL 8.4.13 的测试、拒警 Rustdoc、依赖检查、实际生成项目 check/test 和公开 API 探针均通过。源码指纹与日志位于 `tmp/lead-app-flush.ZnbrXy6T/`。
+
+独立 deferred Provider 映射与 Laravel 应用级 `booting`、`booted`、`terminating` 回调仍待对应。Rust 受管资源关闭回调随原资源所有者保留。
 
 ## R2-A 类型化容器基元
 

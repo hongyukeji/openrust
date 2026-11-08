@@ -132,6 +132,20 @@ pub(super) struct ResolveHooks {
 }
 
 impl ResolveHooks {
+    pub(super) fn dispose(self) -> bool {
+        let mut failed = false;
+        for group in [self.before, self.resolving, self.after] {
+            for hook in group
+                .global
+                .into_iter()
+                .chain(group.keyed.into_iter().flat_map(|(_, hooks)| hooks))
+            {
+                failed |= disposal::dispose(hook, None).seen;
+            }
+        }
+        failed
+    }
+
     pub(super) fn has_before(&self) -> bool {
         !self.before.is_empty()
     }
