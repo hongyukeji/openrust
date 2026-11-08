@@ -455,30 +455,46 @@ pub(super) fn application_providers(
 //! 默认应用控制器；可从 `routes/api.rs` 直接注册。
 
 use openrust::Result;
-use openrust::container::{ClassDescriptor, ServiceKey};
+use openrust::container::{
+    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+};
 use openrust::core::ApiResponse;
 use openrust::foundation::ApplicationState;
 use openrust::http::axum::extract::State;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(crate) trait HomeResponse: Send + Sync {
-    fn response(&self, name: &str) -> ApiResponse<BTreeMap<&'static str, String>>;
+    fn response(&self) -> ApiResponse<BTreeMap<&'static str, String>>;
 }
 
-pub(crate) struct HomePresenter;
+pub(crate) struct HomePresenter {
+    name: Arc<String>,
+}
 
 impl HomePresenter {
     pub(crate) const SYMBOL: &'static str = concat!(module_path!(), "::HomePresenter");
+    pub(crate) const NAME_PARAMETER: &'static str = "name";
+
+    pub(crate) fn new(name: Arc<String>) -> Self {
+        Self { name }
+    }
 
     pub(crate) fn descriptor() -> ClassDescriptor {
-        ClassDescriptor::concrete::<Self>(Self::SYMBOL, vec![], |_| Ok(Arc::new(Self)))
-            .with_projection(openrust::class_projection!(HomePresenter => dyn HomeResponse))
+        ClassDescriptor::concrete::<Self>(
+            Self::SYMBOL,
+            vec![
+                ConstructorParam::scalar::<String>(Self::NAME_PARAMETER)
+                    .with_default(|| Ok(ParameterValue::new(String::new()))),
+            ],
+            |args| Ok(Arc::new(Self::new(args.value(0)?.downcast::<String>()?))),
+        )
+        .with_projection(openrust::class_projection!(HomePresenter => dyn HomeResponse))
     }
 }
 
 impl HomeResponse for HomePresenter {
-    fn response(&self, name: &str) -> ApiResponse<BTreeMap<&'static str, String>> {
-        ApiResponse::success(BTreeMap::from([("name", name.to_owned())]))
+    fn response(&self) -> ApiResponse<BTreeMap<&'static str, String>> {
+        ApiResponse::success(BTreeMap::from([("name", self.name.as_ref().clone())]))
     }
 }
 
@@ -486,10 +502,15 @@ impl HomeResponse for HomePresenter {
 pub(crate) async fn index(
     State(state): State<ApplicationState>,
 ) -> Result<ApiResponse<BTreeMap<&'static str, String>>> {
+    let mut parameters = ParameterOverrides::new();
+    let _ = parameters.insert(
+        ParameterKey::name(HomePresenter::NAME_PARAMETER),
+        ParameterValue::new(state.config().app.name.clone()),
+    );
     let presenter = state
-        .resolve_key::<dyn HomeResponse>(ServiceKey::named(HomePresenter::SYMBOL))
+        .resolve_key_with::<dyn HomeResponse>(ServiceKey::named(HomePresenter::SYMBOL), parameters)
         .await?;
-    Ok(presenter.response(&state.config().app.name))
+    Ok(presenter.response())
 }
 
 --- modules/mod.rs ---
@@ -575,7 +596,7 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
-use openrust::container::ServiceKey;
+use openrust::container::{ParameterKey, ParameterValue, ServiceKey};
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
@@ -711,9 +732,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert!(!state.container().contains::<HomePresenter>());
     assert!(!state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);
-    let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
-    let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
-    assert!(!Arc::ptr_eq(&first, &second));
+    assert!(!state.container().resolved_key(&symbol)?);
     let keys = app.app()?.config_repository().all()?["template_order"]
         .as_object()
         .ok_or("有序测试区段必须是对象")?
@@ -731,6 +750,10 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             "message": "ok",
             "data": {"name": "configured-application"}
         }))?;
+    assert!(!state.container().resolved_key(&symbol)?);
+    let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
+    let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
+    assert!(!Arc::ptr_eq(&first, &second));
     let startup_name = app.app()?.config().app.name.clone();
     app.app()?
         .config_repository()
@@ -760,26 +783,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         "message": "ok",
         "data": {"name": "configured-application"}
     }))?;
-    // 先在根作用域构造一次，再验证每个真实路由请求都使用各自的作用域。
-    let constructions = Arc::new(AtomicUsize::new(0));
-    let factory_constructions = Arc::clone(&constructions);
-    state
-        .container()
-        .scoped::<HomePresenter, _>(move |_| {
-            factory_constructions.fetch_add(1, Ordering::Relaxed);
-            Box::pin(async { Ok(Arc::new(HomePresenter)) })
-        })
-        .await?;
-    let typed_root: Arc<dyn HomeResponse> = state.resolve::<HomePresenter>().await?;
-    let projected_root = state.resolve_key::<dyn HomeResponse>(symbol).await?;
-    assert!(Arc::ptr_eq(&typed_root, &projected_root));
-    assert_eq!(constructions.load(Ordering::Relaxed), 1);
-    for expected_count in [2, 3] {
-        let response = app.request(Request::get("/api").body(Body::empty())?).await?;
-        response.assert_status(StatusCode::OK)?;
-        assert!(response.headers().get("set-cookie").is_none());
-        assert_eq!(constructions.load(Ordering::Relaxed), expected_count);
-    }
+    assert_parameterized_home_factory_preserves_scope(&app).await?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
     let page = app
@@ -796,6 +800,74 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert_eq!(fallback.body(), "未找到路由：/api/missing".as_bytes());
     app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
+    Ok(())
+}
+
+async fn assert_parameterized_home_factory_preserves_scope(
+    app: &TestApp<GeneratedApplication>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    struct HomeRequestScope;
+
+    let state = app.app()?.state();
+    let symbol = ServiceKey::named(HomePresenter::SYMBOL);
+    // 根缓存与带参构造分离。工厂的普通依赖仍在实际请求作用域构造。
+    let scope_constructions = Arc::new(AtomicUsize::new(0));
+    let factory_constructions = Arc::clone(&scope_constructions);
+    state
+        .container()
+        .scoped::<HomeRequestScope, _>(move |_| {
+            factory_constructions.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async { Ok(Arc::new(HomeRequestScope)) })
+        })
+        .await?;
+    assert!(
+        state
+            .container()
+            .scoped_if::<HomePresenter, _>(|resolver| {
+                Box::pin(async move {
+                    resolver.resolve::<HomeRequestScope>().await?;
+                    let name = resolver
+                        .parameters()
+                        .get(&ParameterKey::name(HomePresenter::NAME_PARAMETER))
+                        .map(ParameterValue::downcast::<String>)
+                        .transpose()?
+                        .unwrap_or_default();
+                    Ok(Arc::new(HomePresenter::new(name)))
+                })
+            })
+            .await?
+    );
+    assert!(
+        !state
+            .container()
+            .scoped_if::<HomePresenter, _>(|_| {
+                Box::pin(async {
+                    Err(openrust::Error::custom(
+                        "unexpected_home_factory",
+                        "已有工厂被替换",
+                    ))
+                })
+            })
+            .await?
+    );
+    let typed_root: Arc<dyn HomeResponse> = state.resolve::<HomePresenter>().await?;
+    let projected_root = state
+        .resolve_key::<dyn HomeResponse>(symbol.clone())
+        .await?;
+    assert!(Arc::ptr_eq(&typed_root, &projected_root));
+    assert_eq!(scope_constructions.load(Ordering::Relaxed), 1);
+    for expected_count in [2, 3] {
+        let response = app
+            .request(Request::get("/api").body(Body::empty())?)
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        assert!(response.headers().get("set-cookie").is_none());
+        let body: serde_json::Value = response.json()?;
+        assert_eq!(body["data"]["name"], "configured-application");
+        assert_eq!(scope_constructions.load(Ordering::Relaxed), expected_count);
+    }
+    let after_requests = state.resolve_key::<dyn HomeResponse>(symbol).await?;
+    assert!(Arc::ptr_eq(&projected_root, &after_requests));
     Ok(())
 }
 
@@ -3908,7 +3980,7 @@ pub async fn assert_request_redirect<A: ApplicationDefinition>(
 
 `routes/api.rs` 只声明相对路径，由 `bootstrap/app.rs` 从唯一配置仓储读取 `config/api.rs` 的 `api.prefix`（默认 `api`，最终 URL `/api`），统一装配前缀与 `api` middleware 组；需要会话的 Web 路由在 `routes/web.rs` 显式声明 `web` 组。默认 `/api` 路由使用 `app/providers/app.rs` 中公开 Handler 扩展选择统一 JSON 错误包装；错误分类读取同一个 `ApiConfig`，更改前缀不另设第二判定来源；官方 `api/admin` 示例对应最终 `/api/admin`。HTML/Web 路由保持自身异常表现。`APP_DEBUG=false` 默认关闭服务端错误详情，非法布尔值使启动失败。
 
-`bootstrap/app.rs` 的 `configure_providers` 为 `HomePresenter` 提供编译类描述符。默认 `/api` 的控制器按编译类符号从当前请求作用域解析 `dyn HomeResponse`，由 `HomePresenter` 提供同对象投影。
+`bootstrap/app.rs` 的 `configure_providers` 为 `HomePresenter` 提供编译类描述符。默认 `/api` 的控制器将启动配置中的应用名称作为本次构造参数，按编译类符号从当前请求作用域解析 `dyn HomeResponse`，由 `HomePresenter` 提供同对象投影。
 
 `modules/mod.rs` 显式编译业务代码并登记命名Provider/文件初始化绑定，默认 `MODULES_ACTIVATOR=registered`，`manifest(root, &config.modules)` 返回 `ModuleManifest::new().with_application_root(root)` 空清单，不扫描目录、不读写状态文件；显式选择 file/file-live 等激活器时委托 `ModuleManifest::discover_from_config(root, config)`；`ApplicationDefinition::configure_providers` 引入 `openrust_modules::ModuleProviderBuilderExt`，经 `builder.module_manifest(...)` 使用同一清单；模块类型来自独立 `openrust-modules` 包，框架核心不重导出。包register读取当前配置的module.json，disabled元数据仍会解析，未编译disabled模块可持久启用，实际加载时缺少绑定明确失败。config/modules.rs的paths.modules默认modules、scan.enabled默认false、scan.paths默认vendor/*/*；MODULES_PATH可覆盖主目录。activators.file.statuses-file独立选择持久状态文件，显式文件激活器默认应用根modules_statuses.json，MODULES_STATUSES_FILE部署覆盖；生成器不创建该文件，已有文件保留。相对路径按application_root，不自动搬迁旧文件。metadata.module_directory只覆盖files包含目录；工厂ModuleLoadContext::directory取仓储真实模块目录，普通Provider到boot通过同一ModuleRepository读取资源；不是运行未编译Rust或自动加载crate。files经显式ModuleFile实现，真实Provider注册后、boot前按解析路径一次初始化，共用同Container。class aliases和完整deferred加载仍有明确缺口，不能以Container alias替代。
 

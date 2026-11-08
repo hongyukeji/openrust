@@ -1,11 +1,10 @@
 //! 原键目录、方法特定别名与用户 Closure 的原始调用；类目录规范化由装配前置提供。
 
-#[cfg(test)]
 use super::ParameterOverrides;
 use super::{
     Arc, Binding, BindingChange, BoxFuture, ClassDescriptor, ClassRegistry, Container,
-    ContainerBuilder, HashMap, HashSet, Lifetime, ResolveRequest, Resolver, Result, ServiceKey,
-    State, TypeId, Value, container_error, lock,
+    ContainerBuilder, HashMap, HashSet, Lifetime, Resolver, Result, ServiceKey, State, TypeId,
+    Value, container_error, lock,
 };
 #[cfg(test)]
 mod raw;
@@ -138,6 +137,12 @@ pub(super) enum RegistrationOutcome {
     AlreadyBound,
 }
 
+impl RegistrationOutcome {
+    fn was_registered(self) -> bool {
+        self == Self::Registered
+    }
+}
+
 fn binding<T, F>(lifetime: Lifetime, factory: F) -> Binding
 where
     T: ?Sized + Send + Sync + 'static,
@@ -234,6 +239,69 @@ impl ContainerBuilder {
     {
         self.register_key::<T, F>(key, Lifetime::Scoped, factory, false);
         self
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
+    pub fn bind_if<T, F>(&mut self, factory: F) -> bool
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.bind_key_if(ServiceKey::typed::<T>(), factory)
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
+    ///
+    /// 类声明本身不占用原键。已有绑定时跳过登记，保留当前状态。
+    pub fn bind_key_if<T, F>(&mut self, key: ServiceKey, factory: F) -> bool
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Bind, factory, true)
+            .was_registered()
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记应用内共享工厂，返回是否完成登记。
+    pub fn singleton_if<T, F>(&mut self, factory: F) -> bool
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.singleton_key_if(ServiceKey::typed::<T>(), factory)
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记应用内共享工厂，返回是否完成登记。
+    ///
+    /// 类声明本身不占用原键。已有绑定时跳过登记，保留当前状态。
+    pub fn singleton_key_if<T, F>(&mut self, key: ServiceKey, factory: F) -> bool
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Singleton, factory, true)
+            .was_registered()
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记作用域内共享工厂，返回是否完成登记。
+    pub fn scoped_if<T, F>(&mut self, factory: F) -> bool
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.scoped_key_if(ServiceKey::typed::<T>(), factory)
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记作用域内共享工厂，返回是否完成登记。
+    ///
+    /// 类声明本身不占用原键。已有绑定时跳过登记，保留当前状态。
+    pub fn scoped_key_if<T, F>(&mut self, key: ServiceKey, factory: F) -> bool
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Scoped, factory, true)
+            .was_registered()
     }
 
     pub(super) fn register_key<T, F>(
@@ -403,6 +471,73 @@ impl Container {
             .map(|_| ())
     }
 
+    /// 仅在类型键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
+    pub async fn bind_if<T, F>(&self, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.bind_key_if(ServiceKey::typed::<T>(), factory).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
+    ///
+    /// 类声明本身不占用原键。已有绑定时跳过登记，保留当前状态。
+    pub async fn bind_key_if<T, F>(&self, key: ServiceKey, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Bind, factory, true)
+            .await
+            .map(RegistrationOutcome::was_registered)
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记应用内共享工厂，返回是否完成登记。
+    pub async fn singleton_if<T, F>(&self, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.singleton_key_if(ServiceKey::typed::<T>(), factory)
+            .await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记应用内共享工厂，返回是否完成登记。
+    ///
+    /// 类声明本身不占用原键。已有绑定时跳过登记，保留当前状态。
+    pub async fn singleton_key_if<T, F>(&self, key: ServiceKey, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Singleton, factory, true)
+            .await
+            .map(RegistrationOutcome::was_registered)
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记作用域内共享工厂，返回是否完成登记。
+    pub async fn scoped_if<T, F>(&self, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.scoped_key_if(ServiceKey::typed::<T>(), factory).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记作用域内共享工厂，返回是否完成登记。
+    ///
+    /// 类声明本身不占用原键。已有绑定时跳过登记，保留当前状态。
+    pub async fn scoped_key_if<T, F>(&self, key: ServiceKey, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Scoped, factory, true)
+            .await
+            .map(RegistrationOutcome::was_registered)
+    }
+
     pub(super) async fn register_key<T, F>(
         &self,
         key: ServiceKey,
@@ -455,23 +590,12 @@ impl Resolver {
         &self,
         lookup: Option<ServiceKey>,
     ) -> BoxFuture<'_, Result<Arc<T>>> {
-        let request = ResolveRequest::Typed {
+        let resolver = self.clone();
+        Self::resolve_from(
+            move || (Ok(resolver), ()),
             lookup,
-            target: ServiceKey::typed::<T>(),
-            erased_output: TypeId::of::<Arc<T>>(),
-        };
-        let mut child = self.clone();
-        #[cfg(test)]
-        {
-            child.factory_parameters = Arc::new(super::FactoryParameters::empty());
-        }
-        child.factory_completion = None;
-        Box::pin(async move {
-            let value = child.resolve_projected(request, None).await?;
-            value.downcast_ref::<Arc<T>>().cloned().ok_or_else(|| {
-                container_error("service_type_mismatch", "服务的实际输出不符合声明类型")
-            })
-        })
+            ParameterOverrides::new(),
+        )
     }
 
     /// 本次原工厂显式实参的只读视图；不表示 ambient constructor 覆盖帧。

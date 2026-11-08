@@ -657,6 +657,7 @@ impl Resolver {
             generation: binding.generation,
             activity,
             closed: Arc::clone(&self.closed),
+            record_history: self.parameters.is_none(),
             finished: false,
         };
         child.constructing = Some((attempt.id, Arc::clone(&guard.activity)));
@@ -810,6 +811,7 @@ struct TransientGuard {
     generation: u64,
     activity: Arc<AtomicBool>,
     closed: Arc<ScopeStatus>,
+    record_history: bool,
     finished: bool,
 }
 
@@ -822,7 +824,8 @@ impl TransientGuard {
             let mut outcome = lock(&self.attempt.outcome);
             if outcome.is_none() {
                 *outcome = unclaimed.take();
-                if outcome.as_ref().is_some_and(std::result::Result::is_ok)
+                if self.record_history
+                    && outcome.as_ref().is_some_and(std::result::Result::is_ok)
                     && !state.terminated
                     && !self.closed.closed.load(Ordering::Acquire)
                     && state

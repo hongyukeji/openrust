@@ -40,6 +40,25 @@ let classes = [
 
 HTTP 处理器可通过 `State<ApplicationState>` 调用 `state.resolve_key::<T>(key)`，使用当前请求作用域。
 
+### 条件绑定与调用参数
+
+Provider 可用 `bind_if`、`singleton_if` 或 `scoped_if` 安装默认工厂，对具名键使用相应的 `*_key_if` 方法。容器原子检查原键。实例、工厂或别名已占用该键时返回 `false`。仅有类描述时仍可登记默认工厂。
+
+```rust
+use openrust::container::{Container, ParameterKey, ParameterOverrides, ParameterValue};
+use std::sync::Arc;
+
+# async fn example(container: &Container) -> openrust::Result<Arc<String>> {
+let mut parameters = ParameterOverrides::new();
+parameters.insert(ParameterKey::name("title"), ParameterValue::new(String::from("月报")));
+container.resolve_with::<String>(parameters).await
+# }
+```
+
+类构造器按精确参数名读取覆盖值。用 `ParameterValue::null()` 为允许空值的槽明确传空，用 `ParameterValue::new(Arc<T>)` 覆盖类依赖。类型不符会在业务构造器执行前报错。显式工厂可通过 `Resolver::parameters()` 读取整个集合，包括整数键。
+
+非空参数集合会为这次调用独立构造对象，绕过共享实例与缓存，并且不登记普通解析历史。普通嵌套解析使用独立的空参数集合。参数帧在调用结束或取消时失效。可通过 `resolve_key_with` 将同一规则用于具名键、别名和 trait 视图。
+
 应用 Controller 放在 `app/http/controllers/`，通过 `routes/api.rs` 或 `routes/web.rs` 声明访问路径；应用 Provider 类型放在 `app/providers/`，由 `bootstrap/providers.rs` 登记。不要把这些应用职责放入框架 `src/`。
 
 API 请求匹配当前配置前缀的无状态路由组，再进入处理函数。异常经公开 Handler 扩展渲染；根应用对配置的 API 范围选择 JSON 包装，Web 请求继续使用其内容协商与异常渲染流程。

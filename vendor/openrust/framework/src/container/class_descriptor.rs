@@ -168,7 +168,7 @@ impl ConstructorParam {
         Ok(Some(value))
     }
 
-    fn validate_value(&self, value: &ParameterValue) -> Result<()> {
+    pub(super) fn validate_value(&self, value: &ParameterValue) -> Result<()> {
         match &self.kind {
             #[cfg(test)]
             ParameterKind::Php(_) => Err(container_error(

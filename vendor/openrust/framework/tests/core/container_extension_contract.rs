@@ -8,8 +8,8 @@ use std::time::Duration;
 use figment::{Figment, providers::Serialized};
 use openrust::config::FrameworkConfig;
 use openrust::container::{
-    ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterValue, Resolver, Scope,
-    ScopeFactory, ServiceKey,
+    ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey, ParameterOverrides,
+    ParameterValue, Resolver, Scope, ScopeFactory, ServiceKey,
 };
 use openrust::core::Error;
 use openrust::core::Result;
@@ -49,6 +49,268 @@ impl ReportView for Report {
     fn sequence(&self) -> usize {
         self.0
     }
+}
+
+struct CallLabel(Option<Arc<String>>, Arc<DefaultLabel>);
+struct DefaultLabel(Arc<String>);
+
+#[tokio::test]
+async fn call_parameters_distinguish_null_and_ignore_indexes_for_constructor_names() -> Result<()> {
+    let constructors = Arc::new(AtomicUsize::new(0));
+    let called = Arc::clone(&constructors);
+    let builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<CallLabel>(
+            "app::CallLabel",
+            vec![
+                ConstructorParam::scalar::<String>("label")
+                    .nullable()
+                    .with_default(|| Ok(ParameterValue::new(String::from("默认")))),
+                ConstructorParam::class::<DefaultLabel>("child"),
+            ],
+            move |args| {
+                called.fetch_add(1, Ordering::SeqCst);
+                let label = args.value(0)?;
+                Ok(Arc::new(CallLabel(
+                    (!label.is_null())
+                        .then(|| label.downcast::<String>())
+                        .transpose()?,
+                    args.service::<DefaultLabel>(1)?,
+                )))
+            },
+        ),
+        ClassDescriptor::concrete::<DefaultLabel>(
+            "app::DefaultLabel",
+            vec![
+                ConstructorParam::scalar::<String>("label")
+                    .with_default(|| Ok(ParameterValue::new(String::from("默认")))),
+            ],
+            |args| Ok(Arc::new(DefaultLabel(args.value(0)?.downcast::<String>()?))),
+        ),
+    ])?;
+    let container = builder.build();
+    let key = ServiceKey::named("app::CallLabel");
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("label"), ParameterValue::null());
+    let value = container
+        .resolve_key_with::<CallLabel>(key.clone(), parameters)
+        .await?;
+    assert!(value.0.is_none());
+    assert_eq!(value.1.0.as_str(), "默认");
+    assert!(!container.resolved_key(&key)?);
+
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::Index(0), ParameterValue::new(22usize));
+    let value = container.resolve_with::<CallLabel>(parameters).await?;
+    assert_eq!(value.0.as_deref().map(String::as_str), Some("默认"));
+    assert!(!container.resolved_key(&key)?);
+
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("label"), ParameterValue::new(22usize));
+    assert!(
+        matches!(container.resolve_with::<CallLabel>(parameters).await,
+        Err(error) if error.code() == "container_parameter_type_mismatch")
+    );
+    assert_eq!(constructors.load(Ordering::SeqCst), 2);
+    container
+        .resolve_with::<CallLabel>(ParameterOverrides::new())
+        .await?;
+    assert!(container.resolved_key(&key)?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn framed_factory_bypasses_shared_instance_and_saved_resolver_retires_parameters()
+-> Result<()> {
+    let retained = Arc::new(Mutex::new(None::<Resolver>));
+    let captured = Arc::clone(&retained);
+    let mut builder = ContainerBuilder::new();
+    builder.singleton::<u16, _>(move |resolver| {
+        let captured = Arc::clone(&captured);
+        Box::pin(async move {
+            let number = resolver
+                .parameters()
+                .get(&ParameterKey::Index(0))
+                .map(ParameterValue::downcast::<u16>)
+                .transpose()?;
+            *captured
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(resolver);
+            Ok(number.unwrap_or_else(|| Arc::new(6)))
+        })
+    });
+    let container = builder.build();
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::Index(0), ParameterValue::new(17u16));
+    let first = container.resolve_with::<u16>(parameters.clone()).await?;
+    assert_eq!(*first, 17);
+    assert!(!container.resolved_key(&ServiceKey::typed::<u16>())?);
+    assert!(
+        retained
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|saved| saved.parameters().is_empty())
+    );
+    let shared = container.resolve::<u16>().await?;
+    assert_eq!(*shared, 6);
+    assert!(Arc::ptr_eq(&shared, &container.resolve::<u16>().await?));
+    let installed = Arc::new(9u16);
+    container.instance(Arc::clone(&installed)).await?;
+    assert_eq!(*container.resolve_with::<u16>(parameters).await?, 17);
+    assert!(Arc::ptr_eq(&installed, &container.resolve::<u16>().await?));
+    Ok(())
+}
+
+#[tokio::test]
+async fn framed_instance_only_resolves_concrete_descriptor_when_available() -> Result<()> {
+    let mut builder =
+        ContainerBuilder::with_class_descriptors(vec![ClassDescriptor::concrete::<Report>(
+            "app::Report",
+            vec![],
+            |_| Ok(Arc::new(Report(7))),
+        )])?;
+    let installed = Arc::new(Report(9));
+    builder.instance(Arc::clone(&installed));
+    builder.instance(Arc::new(42u8));
+    let container = builder.build();
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("unrecognized"), ParameterValue::null());
+    assert_eq!(
+        container
+            .resolve_with::<Report>(parameters.clone())
+            .await?
+            .0,
+        7
+    );
+    assert!(Arc::ptr_eq(
+        &installed,
+        &container.resolve::<Report>().await?
+    ));
+    assert!(matches!(container.resolve_with::<u8>(parameters).await,
+        Err(error) if error.code() == "service_not_bound"));
+    Ok(())
+}
+
+struct CloseOnParameterDrop(Weak<Scope>);
+impl Drop for CloseOnParameterDrop {
+    fn drop(&mut self) {
+        if let Some(scope) = self.0.upgrade() {
+            scope.close();
+        }
+    }
+}
+
+#[tokio::test]
+async fn frame_retirement_rechecks_scope_before_delivering_a_result() -> Result<()> {
+    let mut builder = ContainerBuilder::new();
+    builder.bind::<u32, _>(|_| Box::pin(async { Ok(Arc::new(7)) }));
+    let container = builder.build();
+    let scope = Arc::new(container.scope()?);
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(
+        ParameterKey::Index(0),
+        ParameterValue::new(CloseOnParameterDrop(Arc::downgrade(&scope))),
+    );
+    assert!(matches!(scope.resolve_with::<u32>(parameters).await,
+        Err(error) if error.code() == "scope_closed"));
+    assert!(!container.resolved_key(&ServiceKey::typed::<u32>())?);
+    Ok(())
+}
+
+struct ParameterDropCount(Arc<AtomicUsize>);
+impl Drop for ParameterDropCount {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+#[tokio::test]
+async fn cancelled_and_unpolled_resolution_retire_call_parameters() -> Result<()> {
+    let retained = Arc::new(Mutex::new(None::<Resolver>));
+    let captured = Arc::clone(&retained);
+    let mut builder = ContainerBuilder::new();
+    builder.bind::<u32, _>(move |resolver| {
+        let captured = Arc::clone(&captured);
+        Box::pin(async move {
+            *captured
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(resolver);
+            std::future::pending::<Result<Arc<u32>>>().await
+        })
+    });
+    let container = builder.build();
+    let drops = Arc::new(AtomicUsize::new(0));
+    let parameters = || {
+        let mut values = ParameterOverrides::new();
+        values.insert(
+            ParameterKey::Index(0),
+            ParameterValue::new(ParameterDropCount(Arc::clone(&drops))),
+        );
+        values
+    };
+    drop(container.resolve_with::<u32>(parameters()));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    let mut active = container.resolve_with::<u32>(parameters());
+    assert!(futures_util::poll!(active.as_mut()).is_pending());
+    let saved = retained
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .take()
+        .ok_or_else(|| Error::custom("test_resolver_missing", "工厂尚未接收解析上下文"))?;
+    assert_eq!(saved.parameters().len(), 1);
+    drop(active);
+    assert!(saved.parameters().is_empty());
+    assert_eq!(drops.load(Ordering::SeqCst), 2);
+    assert!(!container.resolved_key(&ServiceKey::typed::<u32>())?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn queued_parameter_resolution_uses_root_scope_at_first_poll() -> Result<()> {
+    let mut builder = ContainerBuilder::new();
+    builder.scoped::<u32, _>(|resolver| {
+        Box::pin(async move {
+            let value = resolver
+                .parameters()
+                .get(&ParameterKey::Index(0))
+                .map(ParameterValue::downcast::<u32>)
+                .transpose()?;
+            Ok(value.unwrap_or_else(|| Arc::new(2)))
+        })
+    });
+    let container = builder.build();
+    let empty = container.resolve_with::<u32>(ParameterOverrides::new());
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::Index(0), ParameterValue::new(19u32));
+    let overridden = container.resolve_with::<u32>(parameters);
+    container
+        .forget_scoped_instances(Instant::now() + Duration::from_secs(2))
+        .await?;
+    assert_eq!(*overridden.await?, 19);
+    assert_eq!(*empty.await?, 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn queued_parameter_resolution_keeps_its_container_alive_until_delivery() -> Result<()> {
+    let mut builder = ContainerBuilder::new();
+    builder.bind::<u32, _>(|resolver| {
+        Box::pin(async move {
+            tokio::task::yield_now().await;
+            resolver
+                .parameters()
+                .get(&ParameterKey::Index(0))
+                .ok_or_else(|| Error::custom("test_parameter_missing", "工厂缺少调用参数"))?
+                .downcast::<u32>()
+        })
+    });
+    let container = builder.build();
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::Index(0), ParameterValue::new(11u32));
+    let request = container.resolve_with::<u32>(parameters);
+    drop(container);
+    assert_eq!(*request.await?, 11);
+    Ok(())
 }
 
 struct InterruptedReport(Arc<AtomicUsize>);

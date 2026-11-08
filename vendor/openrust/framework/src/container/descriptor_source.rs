@@ -45,6 +45,7 @@ pub(super) struct DescriptorSource {
     aliases: AliasWitness,
     registry: Arc<ClassRegistry>,
     pub(super) revision: u64,
+    with_parameters: bool,
     scope: u64,
     closed: Arc<ScopeStatus>,
     pub(super) owner: ResourceRegistrar,
@@ -62,10 +63,15 @@ impl State {
             .aliases
             .witness(&self.classes.canonical_key(requested))?;
         let key = &aliases.terminal;
-        if let Some(binding) = self.bindings.get(key) {
+        let with_parameters = resolver.parameters.is_some();
+        if let Some(binding) = self
+            .bindings
+            .get(key)
+            .and_then(|binding| binding.for_resolution(with_parameters))
+        {
             return Ok(ConstructionSource::Binding(BindingSource {
                 key: key.clone(),
-                binding: binding.clone(),
+                binding,
                 aliases: Some(aliases),
             }));
         }
@@ -77,6 +83,7 @@ impl State {
             aliases,
             registry: Arc::clone(&self.classes),
             revision,
+            with_parameters,
             scope: resolver.scope,
             closed: Arc::clone(&resolver.closed),
             owner: resolver.resources()?,
@@ -104,7 +111,10 @@ impl DescriptorSource {
     pub(super) fn is_current(&self, state: &State) -> bool {
         Arc::ptr_eq(&self.registry, &state.classes)
             && state.aliases.accepts(&self.aliases)
-            && !state.bindings.contains_key(self.key())
+            && state
+                .bindings
+                .get(self.key())
+                .is_none_or(|binding| self.with_parameters && binding.factory.is_none())
             && state
                 .class_source_revisions
                 .get(self.key())

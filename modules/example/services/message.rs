@@ -1,6 +1,7 @@
 //! 示例问候内容，展示模块配置与同一容器中的业务依赖替换。
 
-use openrust::container::{ClassDescriptor, ConstructorParam};
+use chrono::{DateTime, Utc};
+use openrust::container::{ClassDescriptor, ConstructorParam, ParameterValue};
 use std::sync::Arc;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -95,6 +96,7 @@ impl ExampleMessage {
 
 pub(crate) struct ExamplePresenter {
     message: Arc<ExampleMessage>,
+    served_at: Arc<DateTime<Utc>>,
 }
 
 pub(crate) const EXAMPLE_PRESENTER_CLASS: &str = "Modules/Example/ExamplePresenter";
@@ -103,11 +105,16 @@ pub(crate) const EXAMPLE_PRESENTER_ALIAS: &str = "example.greeting.presenter";
 /// 控制器读取问候语所需的呈现视图。
 pub(crate) trait GreetingPresenter: Send + Sync {
     fn text(&self) -> &str;
+    fn served_at(&self) -> DateTime<Utc>;
 }
 
 impl GreetingPresenter for ExamplePresenter {
     fn text(&self) -> &str {
         self.message.text()
+    }
+
+    fn served_at(&self) -> DateTime<Utc> {
+        *self.served_at
     }
 }
 
@@ -115,10 +122,15 @@ impl GreetingPresenter for ExamplePresenter {
 pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
     [ClassDescriptor::concrete::<ExamplePresenter>(
         EXAMPLE_PRESENTER_CLASS,
-        vec![ConstructorParam::class::<ExampleMessage>("message")],
+        vec![
+            ConstructorParam::class::<ExampleMessage>("message"),
+            ConstructorParam::scalar::<DateTime<Utc>>("served_at")
+                .with_default(|| Ok(ParameterValue::new(Utc::now()))),
+        ],
         |args| {
             Ok(Arc::new(ExamplePresenter {
                 message: args.service::<ExampleMessage>(0)?,
+                served_at: args.value(1)?.downcast::<DateTime<Utc>>()?,
             }))
         },
     )

@@ -104,13 +104,7 @@ impl Resolver {
         key: ServiceKey,
         erased_output: std::any::TypeId,
     ) -> BoxFuture<'_, Result<Value>> {
-        let mut child = self.clone();
-        // 父 Resolver 保有其原快照。类依赖的普通解析使用空的覆盖帧。
-        #[cfg(test)]
-        {
-            child.factory_parameters = Arc::new(super::FactoryParameters::empty());
-        }
-        child.factory_completion = None;
+        let child = self.clone().for_new_lookup();
         Box::pin(async move {
             child
                 .resolve_projected(
@@ -219,6 +213,16 @@ impl DescriptorRun<'_> {
 
     async fn select_argument(&self, parameter: &ConstructorParam) -> Result<SelectedArgument> {
         let owner = self.owner()?;
+        if let Some(value) = self
+            .caller
+            .parameters
+            .as_ref()
+            .and_then(|frame| frame.get_named(parameter.name()))
+        {
+            let mut value = owner.slot(value)?;
+            parameter.validate_value(value.get_mut().ok_or_else(missing_slot)?)?;
+            return Ok(SelectedArgument::Value(value));
+        }
         match parameter.kind() {
             ParameterKind::Class {
                 key, erased_output, ..
@@ -336,8 +340,10 @@ impl DescriptorRun<'_> {
         self.claim(|state| {
             owner.check_cleanup()?;
             let value = result.take().ok_or_else(missing_slot)?;
-            state.resolved_history.insert(self.source.key().clone());
-            state.extensions.resolved.insert(self.attempt.key.clone());
+            if self.caller.parameters.is_none() {
+                state.resolved_history.insert(self.source.key().clone());
+                state.extensions.resolved.insert(self.attempt.key.clone());
+            }
             Ok(value)
         })?
     }

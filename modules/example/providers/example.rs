@@ -284,7 +284,7 @@ impl ServiceProvider for ExampleServiceProvider {
             )?;
             #[cfg(feature = "auth-fortify")]
             register_fortify_views(app).await?;
-            app.singleton::<ExampleMessage, _>(|resolver| {
+            app.singleton_if::<ExampleMessage, _>(|resolver| {
                 Box::pin(async move {
                     let config = resolver.section::<ExampleConfig>("example")?;
                     Ok(Arc::new(ExampleMessage::new(config.greeting)))

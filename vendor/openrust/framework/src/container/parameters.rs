@@ -2,27 +2,28 @@
 
 #![forbid(unsafe_code)]
 
-use std::{any::Any, fmt, sync::Arc};
+use std::{
+    any::Any,
+    fmt,
+    sync::{Arc, Mutex},
+};
 
+use super::{container_error, lock};
+use crate::foundation::lifecycle::{CallbackDisposal, TaskExecutionFailure, disposal};
 use crate::{Error, Result};
 
 /// 调用者显式选择的参数键，不执行 PHP 的隐式键类型转换。
-#[cfg(test)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ParameterKey {
     /// 构造参数或工厂参数的精确名称。
-    #[cfg(test)]
     Name(Arc<str>),
     /// 工厂可观察的整数索引；不隐式作为构造参数名称的替代。
-    #[cfg(test)]
     Index(i64),
 }
 
-#[cfg(test)]
 impl ParameterKey {
     /// 创建精确名称，不裁剪空白或转换数字文本。
     #[must_use]
-    #[cfg(test)]
     pub fn name(name: impl Into<Arc<str>>) -> Self {
         Self::Name(name.into())
     }
@@ -102,16 +103,14 @@ impl fmt::Debug for ParameterValue {
 
 /// 保留位置及异构值的调用参数快照。
 ///
+///
 /// 同一精确键后写覆盖值并保留原位置。克隆共享参数对象，集合修改彼此隔离。
-/// 原始工厂调用与正常 make 的构造覆盖帧可以共用该载体，但须由 Resolver
-/// 显式选择各自的帧；创建此集合不会隐式改变任何容器状态。
-#[cfg(test)]
+/// 创建参数集合不会改变容器状态。
 #[derive(Clone, Debug, Default)]
 pub struct ParameterOverrides {
     pub(super) entries: Vec<(ParameterKey, ParameterValue)>,
 }
 
-#[cfg(test)]
 impl ParameterOverrides {
     /// 创建空实参集合。
     #[must_use]
@@ -120,7 +119,6 @@ impl ParameterOverrides {
     }
 
     /// 覆盖同键值或追加新项；旧值交还调用方，避免隐藏的提前析构。
-    #[cfg(test)]
     pub fn insert(&mut self, key: ParameterKey, value: ParameterValue) -> Option<ParameterValue> {
         if let Some((_, previous)) = self
             .entries
@@ -133,9 +131,8 @@ impl ParameterOverrides {
         None
     }
 
-    /// 读取精确键；None 仅表示缺项，显式 null 仍返回 Some。
+    /// 读取精确键。缺项返回 `None`，显式 null 返回 `Some`。
     #[must_use]
-    #[cfg(test)]
     pub fn get(&self, key: &ParameterKey) -> Option<&ParameterValue> {
         self.entries
             .iter()
@@ -144,31 +141,179 @@ impl ParameterOverrides {
     }
 
     /// 按输入位置借用全部键值，不暴露可变内部集合。
-    #[cfg(test)]
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (&ParameterKey, &ParameterValue)> {
         self.entries.iter().map(|(key, value)| (key, value))
     }
 
     /// 返回不同精确键的数量。
     #[must_use]
-    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
     /// 判断集合是否没有参数。
     #[must_use]
-    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 }
 
+/// 解析器克隆只持有读取能力。调用结束时，仍存活的解析器不再读取原调用参数。
+#[derive(Clone)]
+pub(super) struct ParameterView(Arc<Mutex<Option<ParameterOverrides>>>);
+
+impl ParameterView {
+    pub(super) fn get_named(&self, name: &str) -> Option<ParameterValue> {
+        lock(&self.0)
+            .as_ref()?
+            .iter()
+            .find_map(|(key, value)| match key {
+                ParameterKey::Name(key) if key.as_ref() == name => Some(value.clone()),
+                _ => None,
+            })
+    }
+
+    pub(super) fn snapshot(&self) -> ParameterOverrides {
+        lock(&self.0).clone().unwrap_or_default()
+    }
+}
+
+/// 单次调用拥有帧的退役责任，完成或取消时都会先关闭读取，再锁外逐值释放。
+pub(super) struct ParameterFrame {
+    view: ParameterView,
+    disposal: CallbackDisposal,
+}
+
+impl ParameterFrame {
+    pub(super) fn new(values: ParameterOverrides, disposal: CallbackDisposal) -> Self {
+        Self {
+            view: ParameterView(Arc::new(Mutex::new(Some(values)))),
+            disposal,
+        }
+    }
+
+    pub(super) fn set_disposal(&mut self, disposal: CallbackDisposal) {
+        self.disposal = disposal;
+    }
+
+    pub(super) fn view(&self) -> ParameterView {
+        self.view.clone()
+    }
+
+    pub(super) fn finish<T>(self, result: Result<T>) -> Result<T> {
+        let Some(values) = self.take() else {
+            return result;
+        };
+        self.disposal.run(|| {
+            Self::dispose_values(values);
+            if !disposal::seen() {
+                return result;
+            }
+            let cleanup = container_error("resource_task_interrupted", "调用参数退役包含异常");
+            match result {
+                Err(primary) => Err(TaskExecutionFailure::error(primary, cleanup)),
+                Ok(value) => {
+                    disposal::dispose(value, None);
+                    Err(cleanup)
+                }
+            }
+        })
+    }
+
+    fn take(&self) -> Option<ParameterOverrides> {
+        lock(&self.view.0).take()
+    }
+
+    fn dispose_values(values: ParameterOverrides) {
+        for (_, value) in values.entries {
+            disposal::dispose(value, None);
+        }
+    }
+}
+
+impl Drop for ParameterFrame {
+    fn drop(&mut self) {
+        if let Some(values) = self.take() {
+            self.disposal.run(|| Self::dispose_values(values));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ParameterKey, ParameterOverrides, ParameterValue};
-    use crate::Result;
-    use std::sync::Arc;
+    use super::{ParameterFrame, ParameterKey, ParameterOverrides, ParameterValue, ParameterView};
+    use crate::foundation::lifecycle::{CallbackDisposal, TaskExecutionFailure};
+    use crate::{Error, Result};
+    use std::error::Error as _;
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[test]
+    fn frame_retirement_closes_views_before_each_value_drop() -> Result<()> {
+        struct ObserveClose {
+            reader: Arc<Mutex<Option<ParameterView>>>,
+            drops: Arc<AtomicUsize>,
+            interrupt: bool,
+        }
+
+        impl Drop for ObserveClose {
+            fn drop(&mut self) {
+                let view = super::lock(&self.reader);
+                if view
+                    .as_ref()
+                    .is_some_and(|view| view.0.try_lock().is_ok_and(|values| values.is_none()))
+                {
+                    self.drops.fetch_add(1, Ordering::AcqRel);
+                }
+                if self.interrupt {
+                    std::panic::resume_unwind(Box::new("参数析构探针"));
+                }
+            }
+        }
+
+        for finish_with_error in [false, true] {
+            let reader = Arc::new(Mutex::new(None));
+            let drops = Arc::new(AtomicUsize::new(0));
+            let mut values = ParameterOverrides::new();
+            for (name, interrupt) in [("first", true), ("second", false)] {
+                values.insert(
+                    ParameterKey::name(name),
+                    ParameterValue::new(ObserveClose {
+                        reader: Arc::clone(&reader),
+                        drops: Arc::clone(&drops),
+                        interrupt,
+                    }),
+                );
+            }
+            let frame = ParameterFrame::new(values, CallbackDisposal::new(None, None));
+            let view = frame.view();
+            *super::lock(&reader) = Some(view.clone());
+            assert!(view.get_named("first").is_some());
+            if finish_with_error {
+                let Err(error) = frame.finish::<()>(Err(Error::custom("test_primary", "原始错误")))
+                else {
+                    return Err(Error::custom(
+                        "test_primary_missing",
+                        "清理失败必须保留原始错误",
+                    ));
+                };
+                let cause = error
+                    .source()
+                    .and_then(|source| source.downcast_ref::<TaskExecutionFailure>());
+                assert!(
+                    cause.is_some_and(|cause| cause.primary.code() == "test_primary"
+                        && cause.cleanup.code() == "resource_task_interrupted")
+                );
+            } else {
+                drop(frame);
+            }
+            assert_eq!(drops.load(Ordering::Acquire), 2);
+            assert!(view.snapshot().is_empty());
+        }
+        Ok(())
+    }
 
     #[test]
     fn explicit_null_is_present_without_default_or_index_fallback() {

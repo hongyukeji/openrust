@@ -11,7 +11,7 @@ use crate::config::repository::ConfigRepository;
 use crate::config::{ConfigError, Environment, FrameworkConfig};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
-use crate::container::{Container, Scope, ServiceKey};
+use crate::container::{Container, ParameterOverrides, Scope, ServiceKey};
 use crate::core::error::{Error, Result};
 use crate::foundation::provider::ProviderId;
 use crate::foundation::provider::ProviderRuntime;
@@ -140,6 +140,23 @@ impl ApplicationState {
         } else {
             self.inner.services.resolve_key(key).await
         }
+    }
+
+    /// 在本应用的当前入口作用域或根生命周期用调用级参数解析类型。
+    pub fn resolve_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> crate::BoxFuture<'static, Result<Arc<T>>> {
+        self.inner.services.resolve_in(None, parameters, true)
+    }
+
+    /// 在本应用的当前入口作用域或根生命周期按键应用调用级参数。
+    pub fn resolve_key_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        parameters: ParameterOverrides,
+    ) -> crate::BoxFuture<'static, Result<Arc<T>>> {
+        self.inner.services.resolve_in(Some(key), parameters, true)
     }
 
     /// 启动时解析的框架配置快照；运行期原始写入不重建其中的服务配置。

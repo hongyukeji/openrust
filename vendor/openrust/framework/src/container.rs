@@ -56,9 +56,8 @@ mod descriptor_source;
 use descriptor_source::BindingSource;
 mod directory;
 mod parameters;
-#[cfg(test)]
-use parameters::ParameterOverrides;
-pub use parameters::ParameterValue;
+use parameters::{ParameterFrame, ParameterView};
+pub use parameters::{ParameterKey, ParameterOverrides, ParameterValue};
 
 mod extensions;
 use extensions::{CachedAdmission, Extender, ExtensionState, Rebound};
@@ -170,6 +169,19 @@ struct Binding {
 }
 
 impl Binding {
+    fn for_resolution(&self, with_parameters: bool) -> Option<Self> {
+        if with_parameters && self.factory.is_none() {
+            return None;
+        }
+        let mut binding = self.clone();
+        if with_parameters {
+            binding.instance = None;
+            binding.pending.clear();
+            binding.lifetime = Lifetime::Bind;
+        }
+        Some(binding)
+    }
+
     fn output_projection(
         &self,
         classes: &ClassRegistry,
@@ -930,6 +942,44 @@ impl Container {
         self.root_resolver()?.resolve_key(key).await
     }
 
+    /// 在根生命周期用调用级参数解析类型。非空参数构造独立实例。
+    pub fn resolve_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.resolve_in(None, parameters, false)
+    }
+
+    /// 在根生命周期按具名键或别名进行调用级参数解析。
+    pub fn resolve_key_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.resolve_in(Some(key), parameters, false)
+    }
+
+    pub(crate) fn resolve_in<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        lookup: Option<ServiceKey>,
+        parameters: ParameterOverrides,
+        entry_scope: bool,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        let container = self.clone();
+        Resolver::resolve_from(
+            move || {
+                let selected = if entry_scope && let Some(scope) = container.current_entry_scope() {
+                    Ok(scope.resolver())
+                } else {
+                    container.root_resolver()
+                };
+                (selected, container)
+            },
+            lookup,
+            parameters,
+        )
+    }
+
     fn root_resolver(&self) -> Result<Resolver> {
         let state = lock(&self.inner.state);
         if state.terminated {
@@ -1147,6 +1197,7 @@ impl Container {
             captive: false,
             closed,
             resources: Some(resources),
+            parameters: None,
             #[cfg(test)]
             factory_parameters: Arc::new(FactoryParameters::empty()),
             factory_completion: None,
@@ -1231,6 +1282,23 @@ impl Scope {
         key: ServiceKey,
     ) -> Result<Arc<T>> {
         self.resolver().resolve_key(key).await
+    }
+
+    /// 在当前作用域用调用级参数解析类型。
+    pub fn resolve_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.resolver().resolve_with(parameters)
+    }
+
+    /// 在当前作用域按键进行调用级参数解析。
+    pub fn resolve_key_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.resolver().resolve_key_with(key, parameters)
     }
 
     fn resolver(&self) -> Resolver {
@@ -1436,6 +1504,7 @@ pub struct Resolver {
     captive: bool,
     closed: Arc<ScopeStatus>,
     resources: Option<ResourceRegistrar>,
+    parameters: Option<ParameterView>,
     #[cfg(test)]
     factory_parameters: Arc<FactoryParameters>,
     factory_completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
@@ -1533,6 +1602,93 @@ impl Resolver {
         self.resolve_lookup::<T>(None)
     }
 
+    /// 用调用级参数解析类型。普通嵌套解析使用自己的空参数集合。
+    pub fn resolve_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        let resolver = self.clone();
+        Self::resolve_from(move || (Ok(resolver), ()), None, parameters)
+    }
+
+    /// 按键用调用级参数解析服务，输出类型与查找键分别指定。
+    pub fn resolve_key_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        let resolver = self.clone();
+        Self::resolve_from(move || (Ok(resolver), ()), Some(key), parameters)
+    }
+
+    /// 复制本次工厂或装饰器可见的显式参数。调用结束后的上下文返回空集合。
+    pub fn parameters(&self) -> ParameterOverrides {
+        self.parameters
+            .as_ref()
+            .map_or_else(ParameterOverrides::new, ParameterView::snapshot)
+    }
+
+    fn for_new_lookup(mut self) -> Self {
+        self.parameters = None;
+        #[cfg(test)]
+        {
+            self.factory_parameters = Arc::new(FactoryParameters::empty());
+        }
+        self.factory_completion = None;
+        self
+    }
+
+    fn resolve_from<T: ?Sized + Send + Sync + 'static, K: Send + 'static>(
+        resolver: impl FnOnce() -> (Result<Self>, K) + Send + 'static,
+        lookup: Option<ServiceKey>,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        use crate::foundation::lifecycle::CallbackDisposal;
+
+        // 未轮询的调用尚未选定作用域，仍持有可受控退役的参数。
+        let mut frame = (!parameters.is_empty())
+            .then(|| ParameterFrame::new(parameters, CallbackDisposal::new(None, None)));
+        let request = ResolveRequest::Typed {
+            lookup,
+            target: ServiceKey::typed::<T>(),
+            erased_output: TypeId::of::<Arc<T>>(),
+        };
+        Box::pin(async move {
+            // 选择器可交回强持有者，保证延迟轮询的根容器活到结果交付。
+            let (selected, _keepalive) = resolver();
+            let mut resolver = match selected {
+                Ok(resolver) => resolver.for_new_lookup(),
+                Err(error) => {
+                    return match frame {
+                        Some(frame) => frame.finish(Err(error)),
+                        None => Err(error),
+                    };
+                }
+            };
+            if let Some(frame) = &mut frame {
+                frame.set_disposal(resolver.callback_disposal());
+                resolver.parameters = Some(frame.view());
+            }
+            let result = resolver.resolve_projected(request, None).await;
+            let value = match frame {
+                Some(frame) => resolver.deliver_after_parameters(frame.finish(result)?)?,
+                None => result?,
+            };
+            value.downcast_ref::<Arc<T>>().cloned().ok_or_else(|| {
+                container_error("service_type_mismatch", "服务的实际输出不符合声明类型")
+            })
+        })
+    }
+
+    fn deliver_after_parameters(&self, value: Value) -> Result<Value> {
+        if let Some(inner) = self.container.upgrade() {
+            return self.deliver_output(&inner, value, None);
+        }
+        let primary = container_error("container_closed", "容器已释放");
+        self.callback_disposal()
+            .run(|| Err(Self::retire_rejected_output(value, primary, false)))
+    }
+
     #[cfg(test)]
     fn resolve_value(&self, key: ServiceKey) -> BoxFuture<'_, Result<Value>> {
         let mut child = self.clone();
@@ -1590,14 +1746,16 @@ impl Resolver {
                 "重绑定事件对应的服务已被替换",
             ));
         }
-        Ok(match entry {
-            Some(binding) => ConstructionSource::Binding(BindingSource {
-                key,
-                binding: binding.clone(),
-                aliases,
-            }),
-            None => ConstructionSource::Missing(key),
-        })
+        Ok(
+            match entry.and_then(|binding| binding.for_resolution(self.parameters.is_some())) {
+                Some(binding) => ConstructionSource::Binding(BindingSource {
+                    key,
+                    binding,
+                    aliases,
+                }),
+                None => ConstructionSource::Missing(key),
+            },
+        )
     }
 
     async fn select_resolution(

@@ -2,7 +2,7 @@ use super::config_sources::enabled_example_sources;
 use super::services::{
     EXAMPLE_PRESENTER_ALIAS, ExampleMessage, ExamplePresenter, GreetingPresenter,
 };
-use openrust::container::ServiceKey;
+use openrust::container::{ParameterKey, ParameterOverrides, ParameterValue, ServiceKey};
 use openrust::http::{
     HttpServiceProvider,
     axum::{
@@ -49,11 +49,24 @@ async fn production_log_services_coexist_with_normal_module_routes()
         );
         assert!(!state.container().contains::<ExamplePresenter>());
         assert!(!state.container().contains::<dyn GreetingPresenter>());
+        assert!(!state.container().resolved_key(&alias)?);
+        let served_at =
+            chrono::DateTime::from_timestamp(946_684_800, 0).ok_or("无法构造固定时间")?;
+        let mut parameters = ParameterOverrides::new();
+        let _ = parameters.insert(
+            ParameterKey::name("served_at"),
+            ParameterValue::new(served_at),
+        );
+        let named = state
+            .resolve_key_with::<dyn GreetingPresenter>(alias.clone(), parameters)
+            .await?;
+        assert_eq!(named.served_at(), served_at);
+        assert!(!state.container().resolved_key(&alias)?);
         let first = state.resolve::<ExamplePresenter>().await?;
         let second = state.resolve::<ExamplePresenter>().await?;
         assert!(!std::sync::Arc::ptr_eq(&first, &second));
-        let named = state.resolve_key::<dyn GreetingPresenter>(alias).await?;
         assert_eq!(named.text(), first.text());
+        assert!(state.container().resolved_key(&alias)?);
         let response = app
             .request(
                 Request::get("/api/example")
@@ -345,6 +358,17 @@ impl openrust::support::ServiceProvider for LateExampleMessage {
     }
 }
 
+struct StartupExampleMessage(LateExampleMessage);
+
+impl openrust::support::ServiceProvider for StartupExampleMessage {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::foundation::RegisterContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        openrust::support::ServiceProvider::register(&self.0, app)
+    }
+}
+
 #[tokio::test]
 async fn module_business_uses_runtime_provider_rebinding_after_boot()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -357,6 +381,9 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
         .provider(crate::app::providers::AppServiceProvider)
+        .provider(StartupExampleMessage(LateExampleMessage(
+            "宿主预先登记的问候",
+        )))
         .class_descriptors(super::class_descriptors())
         .module_manifest(
             openrust_modules::ModuleManifest::new()
@@ -383,7 +410,8 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         .state()
         .resolve::<super::services::ExampleMessage>()
         .await?;
-    assert_eq!(original.text(), "Hello from modules/example");
+    assert_eq!(original.text(), "宿主预先登记的问候");
+    assert_eq!(original.binding_extension(), Some("module-provider"));
     let original_presenter = app
         .state()
         .resolve_key::<dyn GreetingPresenter>(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))
@@ -409,8 +437,8 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         app.force_register_provider(LateExampleMessage("强制更新消息"))
             .await?
     );
-    assert_eq!(original_presenter.text(), "Hello from modules/example");
-    assert_eq!(original.text(), "Hello from modules/example");
+    assert_eq!(original_presenter.text(), "宿主预先登记的问候");
+    assert_eq!(original.text(), "宿主预先登记的问候");
     assert_eq!(
         app.state()
             .resolve::<super::services::ExampleMessage>()

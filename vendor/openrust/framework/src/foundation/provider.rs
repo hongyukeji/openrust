@@ -19,7 +19,9 @@ use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
-use crate::container::{ClassDescriptor, Container, ContainerBuilder, Resolver, ServiceKey};
+use crate::container::{
+    ClassDescriptor, Container, ContainerBuilder, ParameterOverrides, Resolver, ServiceKey,
+};
 use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
@@ -166,6 +168,23 @@ impl RegisterContext<'_> {
         self.container.resolve_key(key).await
     }
 
+    /// 在启动阶段以调用级参数解析类型。
+    pub fn resolve_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.container.resolve_with(parameters)
+    }
+
+    /// 在启动阶段按键应用调用级参数。
+    pub fn resolve_key_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.container.resolve_key_with(key, parameters)
+    }
+
     /// 在当前应用的容器中使 `alias` 指向 `target`。
     pub fn alias(&mut self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
         self.container.alias(target, alias)
@@ -233,6 +252,60 @@ impl RegisterContext<'_> {
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
         self.container.scoped_key(key, factory).await
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
+    pub async fn bind_if<T, F>(&mut self, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.bind_if(factory).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记临时工厂，返回是否完成登记。
+    pub async fn bind_key_if<T, F>(&mut self, key: ServiceKey, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.bind_key_if(key, factory).await
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记应用内共享工厂，返回是否完成登记。
+    pub async fn singleton_if<T, F>(&mut self, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.singleton_if(factory).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记应用内共享工厂，返回是否完成登记。
+    pub async fn singleton_key_if<T, F>(&mut self, key: ServiceKey, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.singleton_key_if(key, factory).await
+    }
+
+    /// 仅在类型键没有绑定、实例或别名时登记作用域内共享工厂，返回是否完成登记。
+    pub async fn scoped_if<T, F>(&mut self, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.scoped_if(factory).await
+    }
+
+    /// 仅在原键没有绑定、实例或别名时登记作用域内共享工厂，返回是否完成登记。
+    pub async fn scoped_key_if<T, F>(&mut self, key: ServiceKey, factory: F) -> Result<bool>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.scoped_key_if(key, factory).await
     }
 
     /// 登记已存在的共享实例。
@@ -405,6 +478,23 @@ impl BootContext<'_> {
         key: ServiceKey,
     ) -> Result<Arc<T>> {
         self.container.resolve_key(key).await
+    }
+
+    /// 在启动阶段以调用级参数解析类型。
+    pub fn resolve_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.container.resolve_with(parameters)
+    }
+
+    /// 在启动阶段按键应用调用级参数。
+    pub fn resolve_key_with<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.container.resolve_key_with(key, parameters)
     }
 
     /// 等待当前缓存装饰成功后返回；失败不替换旧缓存。

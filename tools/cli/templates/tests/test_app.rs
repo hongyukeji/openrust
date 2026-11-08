@@ -28,7 +28,7 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
-use openrust::container::ServiceKey;
+use openrust::container::{ParameterKey, ParameterValue, ServiceKey};
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
@@ -164,9 +164,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert!(!state.container().contains::<HomePresenter>());
     assert!(!state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);
-    let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
-    let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
-    assert!(!Arc::ptr_eq(&first, &second));
+    assert!(!state.container().resolved_key(&symbol)?);
     let keys = app.app()?.config_repository().all()?["template_order"]
         .as_object()
         .ok_or("有序测试区段必须是对象")?
@@ -184,6 +182,10 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             "message": "ok",
             "data": {"name": "configured-application"}
         }))?;
+    assert!(!state.container().resolved_key(&symbol)?);
+    let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
+    let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
+    assert!(!Arc::ptr_eq(&first, &second));
     let startup_name = app.app()?.config().app.name.clone();
     app.app()?
         .config_repository()
@@ -213,26 +215,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         "message": "ok",
         "data": {"name": "configured-application"}
     }))?;
-    // 先在根作用域构造一次，再验证每个真实路由请求都使用各自的作用域。
-    let constructions = Arc::new(AtomicUsize::new(0));
-    let factory_constructions = Arc::clone(&constructions);
-    state
-        .container()
-        .scoped::<HomePresenter, _>(move |_| {
-            factory_constructions.fetch_add(1, Ordering::Relaxed);
-            Box::pin(async { Ok(Arc::new(HomePresenter)) })
-        })
-        .await?;
-    let typed_root: Arc<dyn HomeResponse> = state.resolve::<HomePresenter>().await?;
-    let projected_root = state.resolve_key::<dyn HomeResponse>(symbol).await?;
-    assert!(Arc::ptr_eq(&typed_root, &projected_root));
-    assert_eq!(constructions.load(Ordering::Relaxed), 1);
-    for expected_count in [2, 3] {
-        let response = app.request(Request::get("/api").body(Body::empty())?).await?;
-        response.assert_status(StatusCode::OK)?;
-        assert!(response.headers().get("set-cookie").is_none());
-        assert_eq!(constructions.load(Ordering::Relaxed), expected_count);
-    }
+    assert_parameterized_home_factory_preserves_scope(&app).await?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
     let page = app
@@ -249,6 +232,74 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert_eq!(fallback.body(), "未找到路由：/api/missing".as_bytes());
     app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
+    Ok(())
+}
+
+async fn assert_parameterized_home_factory_preserves_scope(
+    app: &TestApp<GeneratedApplication>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    struct HomeRequestScope;
+
+    let state = app.app()?.state();
+    let symbol = ServiceKey::named(HomePresenter::SYMBOL);
+    // 根缓存与带参构造分离。工厂的普通依赖仍在实际请求作用域构造。
+    let scope_constructions = Arc::new(AtomicUsize::new(0));
+    let factory_constructions = Arc::clone(&scope_constructions);
+    state
+        .container()
+        .scoped::<HomeRequestScope, _>(move |_| {
+            factory_constructions.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async { Ok(Arc::new(HomeRequestScope)) })
+        })
+        .await?;
+    assert!(
+        state
+            .container()
+            .scoped_if::<HomePresenter, _>(|resolver| {
+                Box::pin(async move {
+                    resolver.resolve::<HomeRequestScope>().await?;
+                    let name = resolver
+                        .parameters()
+                        .get(&ParameterKey::name(HomePresenter::NAME_PARAMETER))
+                        .map(ParameterValue::downcast::<String>)
+                        .transpose()?
+                        .unwrap_or_default();
+                    Ok(Arc::new(HomePresenter::new(name)))
+                })
+            })
+            .await?
+    );
+    assert!(
+        !state
+            .container()
+            .scoped_if::<HomePresenter, _>(|_| {
+                Box::pin(async {
+                    Err(openrust::Error::custom(
+                        "unexpected_home_factory",
+                        "已有工厂被替换",
+                    ))
+                })
+            })
+            .await?
+    );
+    let typed_root: Arc<dyn HomeResponse> = state.resolve::<HomePresenter>().await?;
+    let projected_root = state
+        .resolve_key::<dyn HomeResponse>(symbol.clone())
+        .await?;
+    assert!(Arc::ptr_eq(&typed_root, &projected_root));
+    assert_eq!(scope_constructions.load(Ordering::Relaxed), 1);
+    for expected_count in [2, 3] {
+        let response = app
+            .request(Request::get("/api").body(Body::empty())?)
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        assert!(response.headers().get("set-cookie").is_none());
+        let body: serde_json::Value = response.json()?;
+        assert_eq!(body["data"]["name"], "configured-application");
+        assert_eq!(scope_constructions.load(Ordering::Relaxed), expected_count);
+    }
+    let after_requests = state.resolve_key::<dyn HomeResponse>(symbol).await?;
+    assert!(Arc::ptr_eq(&projected_root, &after_requests));
     Ok(())
 }
 
