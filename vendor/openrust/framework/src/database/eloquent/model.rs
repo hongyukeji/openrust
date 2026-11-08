@@ -188,6 +188,9 @@ impl ModelMetadata {
         if name != self.key_name || !self.incrementing {
             return Ok(None);
         }
+        if let Some(scale) = self.key_type.strip_prefix("decimal:") {
+            return Ok(Some(AttributeCast::Decimal(Some(scale.into()))));
+        }
         let key_type = self
             .key_type
             .trim_matches([' ', '\t', '\n', '\r', '\0', '\u{b}'])
@@ -199,6 +202,7 @@ impl ModelMetadata {
             "float" | "double" | "real" => AttributeCast::Float,
             "array" | "json" => AttributeCast::Array,
             "hashed" => AttributeCast::Hashed,
+            "decimal" => AttributeCast::Decimal(None),
             _ => {
                 return Err(crate::Error::custom_with_status(
                     http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -351,6 +355,7 @@ impl ModelMetadata {
                 | "array"
                 | "json"
                 | "hashed"
+                | "decimal"
         ) {
             return Ok(());
         }
@@ -461,6 +466,63 @@ mod tests {
         assert!(!metadata.totally_guarded());
         metadata.guard(Vec::new());
         assert_eq!(metadata.get_guarded(), &[] as &[String]);
+    }
+
+    #[tokio::test]
+    async fn decimal_declarations_preserve_assignment_and_compare_rounded_values() -> Result<()> {
+        use crate::database::eloquent::ModelAttributes;
+        use serde_json::{Map, json};
+
+        let mut metadata = ModelMetadata::new("records", "Record");
+        let attrs = ModelAttributes::new(Map::from_iter([("id".into(), json!("1.234"))]));
+        metadata.key_type = "decimal: +2e0 ".into();
+        assert_eq!(attrs.get_attribute(&metadata, "id")?, Some(json!("1.23")));
+        attrs.set_attribute(&metadata, "id", json!("1.232")).await?;
+        assert_eq!(attrs.raw_attribute("id")?, Some(json!("1.232")));
+        assert!(attrs.is_clean(&metadata, &["id"])?);
+        attrs.set_attribute(&metadata, "id", json!("1.235")).await?;
+        assert!(attrs.is_dirty(&metadata, &["id"])?);
+
+        attrs.set_raw_attribute("id", json!("bad"))?;
+        attrs.sync_original()?;
+        assert!(attrs.is_clean(&metadata, &["id"])?);
+        attrs
+            .set_attribute(&metadata, "id", json!("also bad"))
+            .await?;
+        assert!(attrs.is_dirty(&metadata, &["id"]).is_err());
+
+        metadata.key_type = "decimal".into();
+        attrs.set_attribute(&metadata, "id", json!("1.235")).await?;
+        assert!(
+            matches!(attrs.get_attribute(&metadata, "id"), Err(error) if error.code() == "model_decimal_scale_missing")
+        );
+        attrs.set_attribute(&metadata, "id", Value::Null).await?;
+        assert_eq!(attrs.get_attribute(&metadata, "id")?, Some(Value::Null));
+        metadata.key_type = " Decimal ".into();
+        assert_eq!(attrs.get_attribute(&metadata, "id")?, Some(Value::Null));
+        assert!(
+            attrs
+                .set_attribute(&metadata, "id", Value::Null)
+                .await
+                .is_err()
+        );
+
+        for invalid in ["Decimal:2", "DECIMAL:2", " decimal:2"] {
+            metadata.key_type = invalid.into();
+            assert!(attrs.get_attribute(&metadata, "id").is_err());
+            assert!(
+                attrs
+                    .set_attribute(&metadata, "id", Value::Null)
+                    .await
+                    .is_err()
+            );
+        }
+        metadata.key_type = "decimal:2:3".into();
+        attrs.set_attribute(&metadata, "id", json!("1.235")).await?;
+        assert!(
+            matches!(attrs.get_attribute(&metadata, "id"), Err(error) if error.code() == "model_decimal_scale_invalid")
+        );
+        Ok(())
     }
 
     #[test]

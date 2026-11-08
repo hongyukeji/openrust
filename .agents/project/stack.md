@@ -51,6 +51,7 @@ Session 的原生数据库载荷复用现有 `base64` 0.22。默认 Console 的 
 | 外部 OIDC 客户端 | `oauth2` 5.0（禁用 crate 默认 feature）+ 现有 `jsonwebtoken` 11.1（aws-lc-rs） | 可选 `auth-oidc` feature 依赖 `auth`、`http-client`、`encryption`；授权码/PKCE/令牌交换由 oauth2 提供，OIDC Discovery/JWKS 与 ID Token 必需声明校验由框架 glue 完成并通过受限命名 `DependencyClient` 出站；避免引入 `openidconnect` 的受影响 `rsa` 依赖，见 历史决策 053 |
 | 模块路径匹配 | `glob` 0.3.3 | 固定laravel-modules对每个显式扫描位置执行POSIX风格glob；保路径顺序、匹配排序及重复来源，不自行实现不完整通配符解析。仅发现module.json，不加载未编译Rust源码。 |
 | 序列化 | `serde` + `serde_json`（`preserve_order`、`float_roundtrip`、`raw_value`） | R2 包配置合并需要保留 JSON 对象的插入顺序以对应 PHP 数组键顺序；`indexmap` 已在锁图中。C04-B1 typed JSON 规范化保留原始数值词法以支持Rust u128/i128；不启用全局`arbitrary_precision`；模型Array通过局部`RawValue`保数字词法，保持通用Serde数值与Figment来源表示。修正后仍须覆盖配置、typed请求/scalar/JSON/JWT及无DB feature图。模块JSON发现启用float_roundtrip以对应固定PHP strtod的有限浮点最近舍入，原始整数-0与大整数的PHP类型转换另在发现解析层处理；非有限JSON数值仍明确拒绝并保表示缺口。根集成测试用 `serde_json` 比对包装字段与请求 ID |
+| Eloquent 十进制定标 | 复用锁定的 `bigdecimal` 0.4.11 | 固定 Laravel 的 decimal cast 需要任意精度和 HalfUp。复用其大整数实现检查有限十进制分数，保留 MySQL DECIMAL 文本的精度。 |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
 | 国际化 | `openrust::translation`、`serde_json` 与 ICU4X `icu_datetime`/`icu_decimal`/`icu_locale`/`icu_plurals` 2.3.x | 同一 catalog 支持字符串插值、CLDR plural/select；编译数据用于 locale 数字与公历日期格式化。仅启用所需组件；数据随二进制构建，不使用运行时网络。日期时区转换由调用方显式完成；最终二进制尺寸增量纳入 M6 构建基线测量 |
 | 配置 | `figment` + 既有 `toml` 1.1（`preserve_order`） | R2-R02启用已有TOML解析器的保序feature，在来源进入Figment前保留表声明序；复用已锁定indexmap，不在框架新增toml_edit依赖或手写解析器。功能接线与验收仍以当前todo为准，不能从feature声明推断有序来源已交付；来源错误继续按可信schema路径脱敏 |

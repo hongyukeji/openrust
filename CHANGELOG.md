@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 支持十进制定标、HalfUp 与原值感知的脏值比较。
+
 - Eloquent 支持枚举数组对象和集合，按声明处理键、类型化读取与缓存回写。
 
 - Eloquent 支持原生枚举属性、类型化读取与 backing 或 case 名持久化。

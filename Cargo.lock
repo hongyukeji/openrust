@@ -3644,6 +3644,7 @@ dependencies = [
  "axum-core",
  "base64 0.22.1",
  "bcrypt",
+ "bigdecimal",
  "bytes",
  "calamine",
  "chrono",

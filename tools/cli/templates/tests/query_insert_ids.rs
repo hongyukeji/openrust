@@ -65,6 +65,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check(calls.load(Ordering::SeqCst) == 1)?;
         rollback_insert(&db).await?;
         check_generated_enum_cast().await?;
+        check_generated_decimal_cast().await?;
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
         check_generated_class_cast().await?;
@@ -295,6 +296,26 @@ async fn check_generated_enum_cast() -> Result<()> {
         check(attributes.raw_attribute("options")? == Some(expected))?;
     }
     Ok(())
+}
+
+async fn check_generated_decimal_cast() -> Result<()> {
+    use openrust::database::eloquent::{AttributeCast, ModelAttributes, ModelMetadata};
+    use serde_json::json;
+    let mut model = ModelMetadata::new("insert_items", "GeneratedRecord");
+    model
+        .casts
+        .insert("amount".into(), AttributeCast::decimal(2));
+    let attributes = ModelAttributes::default();
+    attributes
+        .set_attribute(&model, "amount", json!("-1/8"))
+        .await?;
+    check(attributes.raw_attribute("amount")? == Some(json!("-1/8")))?;
+    check(attributes.attributes_to_json(&model)?["amount"] == json!("-0.13"))?;
+    attributes.sync_original()?;
+    attributes
+        .set_attribute(&model, "amount", json!("-0.129"))
+        .await?;
+    check(attributes.is_clean(&model, &["amount"])?)
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

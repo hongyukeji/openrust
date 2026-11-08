@@ -28,6 +28,7 @@ bcrypt = { workspace = true, optional = true }
 shutdown_hooks = { workspace = true, optional = true }
 async-trait.workspace = true
 base64.workspace = true
+bigdecimal = "=0.4.11"
 chrono.workspace = true
 chrono-tz = { workspace = true }
 cron-parser = { workspace = true, optional = true }

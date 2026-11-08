@@ -7,10 +7,10 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AttributeMap,
-            AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, EnumCast, HasMany, HasOne,
-            HasRelationships, LoadedRelation, MassAssignment, ModelAttribute, ModelAttributes,
-            ModelDateContext, ModelMetadata, PivotKeys, RelationLoad, SaveContext,
+            ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AttributeCast,
+            AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, EnumCast,
+            HasMany, HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttribute,
+            ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys, RelationLoad, SaveContext,
         },
     },
     support::{BoxFuture, Collection},
@@ -97,6 +97,10 @@ pub(crate) async fn preview(
         "metadata_tag_count".into(),
         Value::from(metadata_tag_count(&attributes)?),
     );
+    let priority_decimal = AttributeCast::decimal(2)
+        .read(details.get("priority").cloned())?
+        .unwrap_or(Value::Null);
+    details.insert("priority_decimal".into(), priority_decimal);
     let status_flags = record_status_flags(&details)?;
     details.insert("status_flags".into(), status_flags);
     let summary = summary_fields

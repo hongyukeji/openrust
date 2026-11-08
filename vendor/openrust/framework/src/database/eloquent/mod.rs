@@ -25,6 +25,7 @@ pub use collection_cast::{
 pub use collection_cast::{AsEncryptedArrayObject, AsEncryptedCollection};
 mod enum_collection_cast;
 pub use enum_collection_cast::{AsEnumArrayObject, AsEnumCollection, EnumArrayObject};
+mod decimal_cast;
 mod enum_cast;
 pub use enum_cast::{EnumCase, EnumCast};
 mod has_many;

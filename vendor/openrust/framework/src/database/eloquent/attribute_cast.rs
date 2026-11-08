@@ -19,6 +19,8 @@ pub enum AttributeCast {
     Boolean,
     /// PHP 浮点转换；JSON 属性载体无法表示非有限结果时明确拒绝。
     Float,
+    /// 读取时按十进制位数定标。参数保留声明的原始文本，缺省参数仅允许 null 读取。
+    Decimal(Option<String>),
     /// 持久值为 JSON 文本，读取时解码为数组或其他 JSON 值。
     Array,
     /// 赋值时使用同一 `HashManager`；读取及水合不重新哈希。
@@ -47,6 +49,11 @@ pub enum AttributeCast {
 }
 
 impl AttributeCast {
+    /// 声明读取时按十进制位数定标的属性，赋值保留原始值。
+    pub fn decimal(scale: u32) -> Self {
+        Self::Decimal(Some(scale.to_string()))
+    }
+
     /// 对独立原始值执行读取转换；不运行模型访问器，也不执行赋值哈希。
     pub fn read(&self, value: Option<Value>) -> Result<Option<Value>> {
         if matches!(self, Self::Class(_)) {
@@ -130,6 +137,7 @@ pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Resul
             decode_array_json(&text)?
         }
         AttributeCast::Hashed => value,
+        AttributeCast::Decimal(scale) => super::decimal_cast::read(&value, scale.as_deref())?,
         _ => return Err(cast_failed()),
     };
     Ok(Some(value))

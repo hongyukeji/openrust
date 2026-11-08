@@ -91,6 +91,16 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 `AsCollection::default().cast()` 使用标准 `Collection`。`AsCollection::using(factory)` 可提供实现 `CollectionCastValue` 的类型化集合工厂，`AsCollection::of(map)` 接收值与键并保留原键。`of_objects` 保留元素类型，并分别应用其模型数组和持久 JSON 投影。工厂或映射以 Rust 函数表示，替代 PHP 的运行时类名。示例记录预览用这两个 cast 计算元数据标签数量。默认赋值 null 写 JSON 文本 `null`，`AsArrayObject::nullable()` 与集合声明的 `nullable()` 改写 SQL NULL。
 
+### 十进制定标
+
+`AttributeCast::decimal(2)` 对应 Laravel 的 `decimal:2`。读取和模型 JSON 输出返回
+固定小数位的字符串，舍入采用 HalfUp，中点远离零。赋值保留原值，SQL NULL 保持 null。
+脏值判定先比较原值，再比较定标结果。不同原值舍入相同时，属性仍为 clean。
+
+十进制文本、科学计数和能精确展开的分数都可读取。例如 `-1/8` 定标为 `"-0.13"`，
+而 `2/3` 因无法精确展开而返回错误。输入文本、指数绝对值、定标位数和输出有 16,384 的
+处理上限，以限制单个属性的内存和运算开销。唯一示例的记录预览以 `priority_decimal` 展示定标结果。
+
 ### 原生枚举转换
 
 声明 `AttributeCast::Enum(EnumCast::backed(backing))` 可复用实现 `BackedEnum` 的 Rust 枚举。

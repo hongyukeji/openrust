@@ -354,6 +354,8 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         numeric_preview_contract(&app, &token, &payload).await?;
         assert_cached_date_save(&app, id).await?;
         assert_cached_collection_save(&app, id).await?;
+        #[cfg(feature = "db-mysql")]
+        assert_mysql_decimal_hydration(&db).await?;
         #[cfg(feature = "encryption")]
         {
             assert_encrypted_collection_save(&app, id).await?;
@@ -647,6 +649,10 @@ async fn attribute_preview_contract(
         published
     );
     assert_eq!(clean["data"]["display"]["details"]["is_published"], true);
+    assert_eq!(
+        clean["data"]["display"]["details"]["priority_decimal"],
+        "7.00"
+    );
     assert_eq!(
         clean["data"]["display"]["details"]["status_flags"],
         serde_json::json!(["Enabled", "Published"])
@@ -960,6 +966,57 @@ async fn assert_cached_date_save(app: &TestApp<crate::bootstrap::Server>, id: i6
         .ok_or("inserted record missing")?;
     transaction.rollback().await?;
     assert_eq!(inserted.published_at, Some(published));
+    Ok(())
+}
+
+#[cfg(feature = "db-mysql")]
+async fn assert_mysql_decimal_hydration(db: &openrust::Db) -> TestResult {
+    use openrust::database::{
+        eloquent::{AttributeCast, ModelAttributes, ModelMetadata, attributes_from_row},
+        sea_orm::{DbBackend, Statement},
+    };
+    use serde_json::json;
+
+    let connection = db.primary_connection()?;
+    if connection.get_database_backend() != DbBackend::MySql {
+        return Ok(());
+    }
+    let mut metadata = ModelMetadata::new("example_records", "DecimalReadback");
+    metadata
+        .casts
+        .insert("amount".into(), AttributeCast::decimal(2));
+    let input = ModelAttributes::default();
+    input
+        .set_attribute(&metadata, "amount", json!("99999999999999999999.005"))
+        .await?;
+    let raw = input.raw_attribute("amount")?.ok_or("缺少定标前的赋值")?;
+    let raw = raw.as_str().ok_or("定标前原值不是文本")?;
+    assert_eq!(raw, "99999999999999999999.005");
+    let row = connection
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::MySql,
+            "SELECT CAST(? AS DECIMAL(65, 25)) AS amount",
+            [raw.into()],
+        ))
+        .await?
+        .ok_or("缺少 MySQL DECIMAL 行")?;
+    let hydrated = ModelAttributes::new(attributes_from_row(&row)?);
+    assert_eq!(
+        hydrated.raw_attribute("amount")?,
+        Some(json!("99999999999999999999.0050000000000000000000000"))
+    );
+    assert_eq!(
+        hydrated.attributes_to_json(&metadata)?["amount"],
+        json!("99999999999999999999.01")
+    );
+    hydrated
+        .set_attribute(&metadata, "amount", json!("99999999999999999999.010"))
+        .await?;
+    assert!(hydrated.is_clean(&metadata, &["amount"])?);
+    hydrated
+        .set_attribute(&metadata, "amount", json!("99999999999999999999.015"))
+        .await?;
+    assert!(hydrated.is_dirty(&metadata, &["amount"])?);
     Ok(())
 }
 
