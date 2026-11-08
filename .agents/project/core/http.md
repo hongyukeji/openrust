@@ -36,7 +36,7 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 
 `ServerConfig`的代理范围使用`Option<Vec<String>>`，缺省与显式空列表分别保留固定上游的平台自动规则与禁用语义；头集合默认62。HTTP入口发布同一请求代理快照，`RequestInfo`、`ClientIp`、域路由、重定向与签名共用客户端链、协议、主机、端口和前缀。公开请求端口为`i64`，监听端口仍为`u16`；可信proto先于物理TLS回退。Cloud仅接受受信宿主标记，普通客户端头不触发。
 
-Forwarded quoted-pair解码、IPv6双头的原文本冲突及显式端口不急切求值scheme三项已修，并获不同模型静态复审；当前默认/全特性workspace、双严格Clippy/docs、生成普通8项/MySQL认证2项与定向公开接线、真实TCP三案及资源收尾通过，不声明完整代理/TrustedHosts/云部署已完成。当前输入、失败保留与持久证据见[唯一队列](../todo.md#c04-g-trustproxies-请求上下文main限定子范围已验收)；旧/tmp摘要不能替代本轮验收。
+Forwarded quoted-pair解码、IPv6双头的原文本冲突及显式端口不急切求值scheme三项已修，并获不同模型静态复审；当前默认/全特性workspace、双严格Clippy/docs、生成普通8项/MySQL认证2项与定向公开接线、真实TCP三案及资源收尾通过，不声明完整代理/TrustedHosts/云部署已完成。当前输入、失败保留与持久证据见[唯一队列](../todo.md#c04-g-trustproxies-请求上下文verify)；旧/tmp摘要不能替代本轮验收。
 
 ## 当前实现
 
@@ -95,6 +95,8 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 `Redirector::from_info(&RequestInfo)` 借用请求来源并构建普通 `to/back` 响应；`Redirector::from_request(&Request)` 另可读取同一规范化输入。`RedirectResponse` 经 `IntoResponse` 输出目标 `Location`、HTML 正文和文本类型，默认 302；允许状态、目标与 HTTP 头失败通过 `Result` 传播。`back` 按有效 Referer、Session previous、有效 fallback、请求根选择；目标解析不使用响应状态推断路由命中。普通重定向不依赖 Session；需要闪存时 `with_input/only_input/except_input` 以及 `with_errors` 使用当前 Session，缺 Session 返回错误。
 
+`380fd0d3` 支持 HTTP 处理器返回 `Uri`，默认 302 且保持相对 Location。显式 `redirect()` / `redirect_with()` 复用同一响应并独立于请求闪存。
+
 `with_errors` 支持 `RedirectErrors::Text/Entries/Provider`，将命名包写入 Session `errors`，下一请求经 `RequestInfo::session()?.read_errors()?` 读取；同一请求的旧输入使用 `old_all/old`。手动输入闪存不应用异常处理器 `dontFlash`，敏感字段由业务显式排除；main中该旧描述仍成立；C04-F任务分支新增文件与输入混合树及纯输入闪存分流，现叠入未提交main候选，组合门禁待执行。Session codec 在属性锁外执行，写入候选须通过类型、格式与单次预算校验后才发布；自定义类型通过 Provider 的公开 `ErrorBagCodecs` 扩展登记，内置包无需配置。唯一模块的 `draft_redirect` 路由与 `draft_errors` 服务展示业务调用和跨请求恢复，生成测试在 CLI 模板中提供同类公开消费。
 
 本簇当前源码通过严格默认/全特性门禁、无Session真实TCP、MySQL8.4私有库TCP与缺MFA表启动拒绝；普通生成应用7项含重定向公开helper，MySQL生成2项仅认证回归，PG常规验收保留发布矩阵。证据与旧失败见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。不据此关闭完整 Redirector、异常 `dontFlash` 或验证失败自动重定向；D10-C请求局部视图共享已另行限定验收并提交 `784045c`，见[view](view.md)。
@@ -105,7 +107,7 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 `RequestInfo` 从请求 extensions 捕获可选 `UrlGenerator` clone，共享同应用既有Arc，不复制索引、不引入全局当前请求；后续替换extensions不改变已捕获快照。调用方沿用 `Redirector::from_info/from_request`，返回值保留原请求借用，继续组合 `with_input/only_input/except_input/with_errors`；普通命名重定向无Session亦可用，闪存仍要求Session。缺生成器沿用 `http_route_url_unavailable`，未知名与缺必需参数沿用 `http_named_route_not_found`、`http_route_parameter_missing`，不改既有错误状态。
 
-URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍限 `BTreeMap<String, String>`、必需域/路径段和编码后的额外query。PHP mixed/model/enum参数、可选参数与missingNamedRouteResolver未等价实现；action、guest/intended、signed及完整Redirector/L020.02仍开放，无新依赖或ADR。唯一模块与CLI模板已接真实调用，v2定向、双严格Clippy、main11项、最终构建、fresh普通7项、MySQL8.4.13认证2项及公开helper1项、无Session/MySQL真实TCP均已通过限定验收；提交见Git，见[当前验收](../memory/testing.md#c04-d10-d-命名路由重定向限定子范围已验收提交见git)。
+URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍限 `BTreeMap<String, String>`、必需域/路径段和编码后的额外query。PHP mixed/model/enum参数、可选参数与missingNamedRouteResolver未等价实现；action、guest/intended、signed及完整Redirector/L020.02仍开放，无新依赖或ADR。唯一模块与CLI模板已接真实调用，v2定向、双严格Clippy、main11项、最终构建、fresh普通7项、MySQL8.4.13认证2项及公开helper1项、无Session/MySQL真实TCP均已通过限定验收；提交见Git，见[当前验收](../memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。
 
 
 ## C04-D10-E scheme 与 intended（限定子范围已验收，提交见Git）
@@ -114,7 +116,7 @@ URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍�
 
 固定上游的生产顺序为 guest 先保存再构造响应，intended 先 pull 再转换与构造，失败不撤销既有保存或消费。GET、真实路由、非 `expects_json` 使用完整请求 URL，其余使用 previous；Session truthy previous 保留 JSON 原值，Referer/fallback 经 URL 生成，back 直接响应 previous，不再二次绝对化。缺失使用默认值，显式 null/false/零与空值保持各自语义；数组/对象在消费后返回错误。JSON 对象对应关联数组，不宣称支持任意 PHP Stringable 对象。
 
-唯一模块与生成 helper 已真实接入并验收：定向10/main11、新server/CLI构建、fresh普通7、MySQL8.4.13认证2及额外公开helper1、无Session/MySQL真实TCP4/9场景通过。独立源码/最小修复/验收驱动复审均无剩余问题，Clippy首轮与生成根URL fixture旧失败保留；最后仅模板+快照字面量修复，按固定输入证明复用不受影响运行门禁，新CLI和fresh生成实际重验。资源收尾已完成，限定提交见Git，不关闭完整Redirector/L020.02；[当前证据](../memory/testing.md#c04-d10-e-scheme-与-guestintended限定子范围已验收)。
+唯一模块与生成 helper 已真实接入并验收：定向10/main11、新server/CLI构建、fresh普通7、MySQL8.4.13认证2及额外公开helper1、无Session/MySQL真实TCP4/9场景通过。独立源码/最小修复/验收驱动复审均无剩余问题，Clippy首轮与生成根URL fixture旧失败保留；最后仅模板+快照字面量修复，按固定输入证明复用不受影响运行门禁，新CLI和fresh生成实际重验。资源收尾已完成，限定提交见Git，不关闭完整Redirector/L020.02；[当前证据](../memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
 
 
 ## C04-D10-F refresh 与 away（限定子范围已验收，提交见Git）

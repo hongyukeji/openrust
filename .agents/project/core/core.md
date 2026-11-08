@@ -155,3 +155,5 @@ R2-A3：缓存工厂结束帧/出向等待边先于结果发布；完成slot不�
 当前配置依赖簇已限定验收：ConfigContext有序get/require、根键求值前覆盖、默认字段/单一来源及模块递归候选/CAS沿同一仓储。每个函数只求值一次，前向/自依赖拒绝，过期/跨线程上下文安全失败；typed/factory与缓存拒绝保留。根/生成清单server→app→auth/security，所属默认改变沿最终配置传播，运行期写入/晚merge仍为快照。配置119、模块投影2、公开consumer11、CLI27及完整适用门禁、fresh/缓存/MySQL/TCP通过，见[配置证据](../memory/testing.md#配置可编辑默认值与有序依赖限定验收)。完整配置、动态Settings和默认driver体验仍按唯一todo继续。
 
 Calendar 公开纯数值格式化与 `U.u` UTC 解析复用同一内核，保留负秒字段及边界错误。见[数值日期限定验收](../memory/testing.md#数值日期格式化与解析限定验收)。
+
+日期的隐式字符串转换由 `InputDate::to_string_value` 统一，局部设置优先于所属工厂。显式格式、JSON 与 SQL 使用各自规则。

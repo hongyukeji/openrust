@@ -404,6 +404,24 @@ P分支默认严格Clippy曾连续三次失败，按§5暂停并获用户明确�
 - 发布前完整验证全部承诺后端、对应最低/当前版本及生产、Schema、迁移、事务、数据安全、认证、队列、生成等适用矩阵；目标基线见[数据库兼容计划](../plans/database-compatibility-baseline.md)。未实现、未执行或失败项保持发布阻塞，日常MySQL通过不能外推五数据库兼容。
 - 最低版动态库证据核实际加载version、source_id与路径，bundled新版不冒充最低版；必要驱动限制须诊断记录，不悄然提高最低版本。CI日常为MySQL，手动release-backends只是发布子矩阵，不代表完整发布验收。发布积压见[todo](../todo.md#发布前全后端兼容性验收)。
 
+## Query JSON 包含与 SQLite 写目标的发布运行入口
+
+C07-J01 的 PostgreSQL `json`、`jsonb` 及 SQLite 写目标专项仍待发布验收。日常保留全特性编译检查和 J01 的 MySQL 8.4 生成项目运行。以下专项需要显式执行忽略测试，普通 workspace 结果不能替代。
+
+```bash
+# 从 OpenRust 根目录执行，测试 URL 由验收环境提供。
+cargo test -p openrust-framework --features db-postgres --lib \
+  postgres_json_contains_preserves_json_types_unicode_empty_null_and_write_ranges -- --ignored
+
+# 为每个实际链接的 SQLite 引擎设置对应版本前缀后分别执行。
+cargo test -p openrust-framework --features db-sqlite --lib \
+  database::query::sqlite_write_target::tests:: -- --ignored --nocapture
+cargo test -p openrust --features 'auth,data-exchange-tasks,storage-local,db-sqlite' --bin server \
+  limited_article_import_write_keeps_other_receipts_open -- --ignored
+```
+
+从相应生成项目根目录执行 PostgreSQL 的 `cargo test --test query_json_contains -- --ignored`，以及 SQLite 的 `cargo test --test sqlite_write_targets -- --ignored`。确认 PostgreSQL URL 指向专用测试库。SQLite 的当前版和 3.26.0 分别记录实际链接来源及版本，框架用 `OPENRUST_EXPECT_SQLITE_VERSION_PREFIX` 核对运行时报告。每条命令记录实际选中并执行的测试数。
+
 ## R2-ENV 环境命名（限定验收通过）
 
 输入为main的R2-ENV工作区，不以R02旧证据替代。当前CLI SHA `4c8bbbde8289ddd7d2a24128893e163af073e4daa7131447f7143509e82ae28d`、config/mod.rs SHA `e5354b2220c4d7acc8a18a468e92db7a6c56c3ebe94682e2d0a8fc587a9d366e`。
