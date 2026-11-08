@@ -1715,6 +1715,14 @@ Docker Desktop Linux ARM64 实测 minimal 无锁文件构建和 Fortify Web 锁�
 
 `tmp/lead-class-lifetime-U5c8kV7e/next-compose-x64/` 的 `generated-relocation-live-02/`、`generated-relocation-live-04/` 保存搬迁、构建与重建回执，`generated-workspace-*.log` 保存 fmt、严格 Clippy、带隔离 MySQL 的工作区测试、Rustdoc 与依赖门禁证据。PostgreSQL 生成配置通过静态 Compose 解析与 Shell 语法检查。SQLite 和 PostgreSQL 的 Compose 运行及生成部署的原生 x86_64 仍需相应环境验收。
 
+## 开发态两阶段重载
+
+macOS ARM64 使用 Watchexec 2.8.0、隔离 MySQL 8.4.13 与 Redis 8，通过根应用和 `openrust new --minimal` 生成应用的真实 HTTP 验收。根应用完成实际迁移，编译失败期间原进程持续响应，修复后收到 SIGTERM 并切换。选定的 `.env` 变更触发重载，其他环境文件和运行目录写入被忽略。
+
+生成应用在框架路径依赖连续保存八次后只构建一次，真实 `/health` 返回新代码结果。在下一次 Cargo 构建尚未完成时，旧应用持续响应。终止监督进程后，应用、Watchexec、Cargo、构建脚本均已退出，监听端口已释放。进程组专项测试覆盖组首进程先退出且后代忽略 SIGTERM 的情形。
+
+冻结源码摘要和实际运行回执位于 `tmp/dev-watch-20261109/live-03/`。工作区格式、严格 Clippy、带隔离 MySQL 的测试、Rustdoc、依赖检查以及生成项目的 `cargo check --locked` 和 `cargo test --locked` 均通过。使用自定义 Cargo runner 或依赖 Cargo 注入动态库路径的应用可使用单次运行入口 `openrust dev`。Linux 原生运行留待对应宿主验收。
+
 ## 标准依赖与队列开箱限定验收
 
 范围为标准根应用与 `new` 的 MySQL/Redis 依赖、`queue.default`/原始具名连接、实际使用时构造 driver、显式 worker、同一模块 Jobs 与生成迁移目录；固定上游 framework `d52c3b3` 的 `config/queue.php`、`QueueManager::connection/resolve`、`QueueServiceProvider`，不把现有独立队列扩展等同完整 Laravel Queue。

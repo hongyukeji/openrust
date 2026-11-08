@@ -21,7 +21,7 @@
 
 - `openrust new <目标目录>` 从源码 workspace 创建独立应用，支持相对与绝对目标，保留独立 Cargo.lock。应用清单以相对路径解析同一框架、工具与驱动补丁，Compose 用相对构建上下文复现目录关系。两份源码可一起迁移。限定证据见[生成应用 Docker Compose](../memory/testing.md#生成应用-docker-compose)。
 - C04-C普通与认证模板均接入CookieServiceProvider和`tests/support/request_cookie.rs`，由正式Provider/Router测试读取、队列、直接响应及删除，使用opaque wire回送；加密缺失仅显式plain选择，不暗降级。普通项目fmt/check/3项测试、认证PG18/MySQL8.4项目各2项及完整CLI20项已实际通过，证据见[testing](../memory/testing.md)。
-- `dev`/`serve` 通过 metadata 找到含 bootstrap/app.rs 的当前应用，再从其目录运行普通 cargo run；dev 设置 APP_ENV=development，复用/准备缓存服务，不提供 watch。
+- `openrust dev` 和 `serve` 通过 Cargo metadata 找到当前应用，再从其目录运行 `cargo run`。开发入口复用或准备适用的 Redis 服务。根应用和生成应用的 `./artisan dev` 调用 `openrust dev --watch`，在 macOS 和 Linux 上通过 Watchexec 监听应用和本地 Cargo 依赖。成功构建的独立产物在旧进程收到 SIGTERM 并退出后启动，编译失败期间旧应用继续服务。开发配置沿用应用的 `--env` 和 dotenv 选择规则。
 
 - package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 历史决策 039 已完成。
 - `openrust --help` 及子命令帮助使用简体中文标题、选项说明和帮助/版本说明；命令、参数、配置键和协议值保留技术原名。

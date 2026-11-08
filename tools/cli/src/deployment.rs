@@ -48,6 +48,15 @@ impl SourceLayout {
         portable_path(&self.context.join(relative))
     }
 
+    pub(crate) fn artisan_source(&self) -> anyhow::Result<String> {
+        let manifest = portable_path(&self.context.join("tools/cli/Cargo.toml"))?;
+        let literal = manifest.replace('\'', "'\\''");
+        Ok(include_str!("../../../artisan").replace(
+            "cli_manifest='tools/cli/Cargo.toml'",
+            &format!("cli_manifest='{literal}'"),
+        ))
+    }
+
     pub(crate) fn write_templates(
         &self,
         project: &Path,

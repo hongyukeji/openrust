@@ -21,6 +21,8 @@ use serde_json::Value;
 
 mod controller_generation;
 mod deployment;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod dev_watch;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -77,6 +79,12 @@ enum Builtin {
         /// 应用的配置环境变量命名空间；须与 `ApplicationDefinition::config_namespace` 一致。
         #[arg(long, default_value = "APP_")]
         config_namespace: String,
+        /// 按应用控制台规则选择存在的 `.env.<名称>` 文件。
+        #[arg(long)]
+        env: Option<String>,
+        /// 监听源码，构建成功后重载运行中的应用。
+        #[arg(long)]
+        watch: bool,
     },
     /// 运行应用的 server 命令。
     Serve,
@@ -468,8 +476,12 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::Dev { config_namespace }) => run_application(&[], true, &config_namespace),
-        Some(Builtin::Serve) => run_project(&["serve".to_owned()], false),
+        Some(Builtin::Dev {
+            config_namespace,
+            env,
+            watch,
+        }) => run_development(&config_namespace, env.as_deref(), watch),
+        Some(Builtin::Serve) => run_project(&["serve".to_owned()]),
         Some(Builtin::Generate {
             kind,
             values,
@@ -511,7 +523,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             writeln!(std::io::stdout().lock(), "{}", generate_key()?)?;
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::Forward(args)) => run_project(&args, false),
+        Some(Builtin::Forward(args)) => run_project(&args),
     }
 }
 
@@ -746,7 +758,10 @@ fn create_project_with_selected_profile(
     }
     let deployment = standalone_manifest(&workspace.root, &project_dir, database.is_some())
         .context("无法配置独立应用的本地依赖")
-        .and_then(|layout| layout.write_templates(&project_dir, project_name, database));
+        .and_then(|layout| {
+            fs::write(project_dir.join("artisan"), layout.artisan_source()?)?;
+            layout.write_templates(&project_dir, project_name, database)
+        });
     if let Err(error) = deployment {
         let _ = fs::remove_dir_all(&project_dir);
         return Err(error);
@@ -3115,27 +3130,37 @@ fn print_generated(message: &str) -> anyhow::Result<()> {
 }
 
 /// 执行项目二进制并返回其退出码。
-fn run_project(args: &[String], development: bool) -> anyhow::Result<ExitCode> {
-    run_application(args, development, openrust::config::ENV_PREFIX)
+fn run_project(args: &[String]) -> anyhow::Result<ExitCode> {
+    let current_dir = std::env::current_dir()?;
+    let workspace = framework_workspace(&current_dir)?;
+    let (app_dir, _) = application_directory(&workspace, &current_dir)?;
+    run_application(&app_dir, args)
 }
 
-fn run_application(
-    args: &[String],
-    development: bool,
+fn run_development(
     config_namespace: &str,
+    environment: Option<&str>,
+    watch: bool,
 ) -> anyhow::Result<ExitCode> {
     let current_dir = std::env::current_dir()?;
     let workspace = framework_workspace(&current_dir)?;
-    let (app_dir, _package_name) = application_directory(&workspace, &current_dir)?;
-    let mut command = Process::new("cargo");
-    command
-        .current_dir(&app_dir)
-        .args(["run", "--quiet", "--"])
-        .args(args);
-    if development {
-        prepare_development_redis(&workspace.root, &app_dir, config_namespace)?;
+    let (app_dir, _) = application_directory(&workspace, &current_dir)?;
+    if watch {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        return dev_watch::run(&workspace.root, &app_dir, config_namespace, environment);
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        bail!("开发重载目前支持 macOS 和 Linux");
     }
-    command
+    prepare_development_redis(&workspace.root, &app_dir, config_namespace, environment)?;
+    let args = environment.map_or_else(Vec::new, |value| vec!["--env".into(), value.into()]);
+    run_application(&app_dir, &args)
+}
+
+fn run_application(app_dir: &Path, args: &[String]) -> anyhow::Result<ExitCode> {
+    Process::new("cargo")
+        .current_dir(app_dir)
+        .args(["run", "--quiet", "--"])
+        .args(args)
         .status()
         .context("failed to start `cargo run`")
         .map(exit_code)
@@ -3145,14 +3170,31 @@ fn prepare_development_redis(
     workspace_root: &Path,
     app_dir: &Path,
     config_namespace: &str,
+    environment: Option<&str>,
 ) -> anyhow::Result<()> {
-    let Some((host, port)) = development_redis_endpoint(app_dir, config_namespace)? else {
+    let Some((host, port)) = development_redis_endpoint(app_dir, config_namespace, environment)?
+    else {
         return Ok(());
     };
     if redis_ping(&host, port) {
         return Ok(());
     }
+    let status = development_redis_compose(workspace_root, port)?
+        .status()
+        .context("failed to start Redis with Docker Compose; start a Redis service or install Docker Compose")?;
+    if !status.success() {
+        bail!("Docker Compose could not start the configured Redis development service");
+    }
+    for _ in 0..100 {
+        if redis_ping(&host, port) {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    bail!("Redis development service did not become ready within 10 seconds")
+}
 
+fn development_redis_compose(workspace_root: &Path, port: u16) -> anyhow::Result<Process> {
     let compose_file = workspace_root.join("compose.ci.yaml");
     if !compose_file.is_file() {
         bail!(
@@ -3172,30 +3214,30 @@ fn prepare_development_redis(
             }
         })
         .collect::<String>();
-    let status = Process::new("docker")
-        .args(["compose", "--project-name", &format!("openrust-dev-{project}"), "-f"])
+    let mut command = Process::new("docker");
+    command
+        .args([
+            "compose",
+            "--project-name",
+            &format!("openrust-dev-{project}"),
+            "-f",
+        ])
         .arg(compose_file)
         .args(["up", "-d", "redis"])
-        .env("OPENRUST_TEST_REDIS_PORT", port.to_string())
-        .status()
-        .context("failed to start Redis with Docker Compose; start a Redis service or install Docker Compose")?;
-    if !status.success() {
-        bail!("Docker Compose could not start the configured Redis development service");
-    }
-    for _ in 0..100 {
-        if redis_ping(&host, port) {
-            return Ok(());
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    bail!("Redis development service did not become ready within 10 seconds")
+        .env("OPENRUST_TEST_REDIS_PORT", port.to_string());
+    Ok(command)
 }
 
 fn development_redis_endpoint(
     app_dir: &Path,
     config_namespace: &str,
+    environment: Option<&str>,
 ) -> anyhow::Result<Option<(String, u16)>> {
-    let sources = openrust::config::ConfigLoader::application_sources(app_dir, config_namespace)?;
+    let sources = openrust::config::ConfigLoader::console_application_sources(
+        app_dir,
+        config_namespace,
+        environment,
+    )?;
     let repository = openrust::config::repository::ConfigRepository::new(sources);
     if repository.get("cache")?.is_none() {
         return Ok(None);
@@ -3500,7 +3542,7 @@ mod tests {
             "default = 'default'\n[stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
         )
         .expect("write app config");
-        prepare_development_redis(&root, &app, "APP_").expect("reuse existing Redis");
+        prepare_development_redis(&root, &app, "APP_", None).expect("reuse existing Redis");
         let _ = fs::remove_dir_all(root);
     }
 
@@ -3610,7 +3652,10 @@ mod tests {
             ),
         ] {
             let cli = Cli::try_parse_from(args).expect("解析开发命令");
-            let Some(Builtin::Dev { config_namespace }) = cli.command else {
+            let Some(Builtin::Dev {
+                config_namespace, ..
+            }) = cli.command
+            else {
                 return Err("预期开发命令".into());
             };
             assert_eq!(config_namespace, expected);
@@ -3631,7 +3676,7 @@ mod tests {
                 "APP_"
             };
             let actual =
-                development_redis_endpoint(&app, namespace).expect("加载应用的有效缓存配置");
+                development_redis_endpoint(&app, namespace, None).expect("加载应用的有效缓存配置");
             let expected = match case.to_str().expect("用例标识") {
                 "nested-memory" | "nested-remote" | "env-memory" | "env-driver" | "env-dsn" => None,
                 "nested-redis"
@@ -3674,7 +3719,7 @@ mod tests {
             );
             let environment_before = std::env::var_os("APP_ENV");
             let cache_path_before = std::env::var_os("APP_CONFIG_CACHE");
-            let actual = development_redis_endpoint(&app, "APP_").expect("读取启动缓存");
+            let actual = development_redis_endpoint(&app, "APP_", None).expect("读取启动缓存");
             assert_eq!(std::env::var_os("APP_ENV"), environment_before);
             assert_eq!(std::env::var_os("APP_CONFIG_CACHE"), cache_path_before);
             let expected = match case.to_str().expect("用例名") {

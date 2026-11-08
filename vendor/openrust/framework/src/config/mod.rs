@@ -347,6 +347,23 @@ impl ConfigLoader {
             .map(|resolved| resolved.sources)
     }
 
+    /// 返回控制台按当前进程环境和 `--env` 选择的 dotenv 路径，供开发工具监听。
+    ///
+    /// 未找到对应的专用文件时返回应用根的 `.env`，即使该文件尚未创建。
+    pub fn application_dotenv_path(
+        app_dir: impl AsRef<Path>,
+        namespace: &str,
+        console_environment: Option<&str>,
+    ) -> Result<PathBuf, ConfigError> {
+        validate_namespace(namespace)?;
+        Ok(selected_dotenv_path(
+            app_dir.as_ref(),
+            namespace,
+            &EnvironmentSnapshot::capture(),
+            console_environment,
+        ))
+    }
+
     /// 以显式 Rust 配置清单加载应用；默认不会扫描 TOML 目录。
     pub fn application_code_sources(
         app_dir: impl AsRef<Path>,

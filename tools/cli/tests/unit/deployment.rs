@@ -176,6 +176,10 @@ fn relocated_project_keeps_cargo_and_compose_source_paths() -> anyhow::Result<()
     assert!(!compose.contains("  migrate:"));
     assert!(app.join("Dockerfile").is_file());
     assert!(app.join(".dockerignore").is_file());
+    assert!(
+        fs::read_to_string(app.join("artisan"))?
+            .contains("cli_manifest='../framework source/tools/cli/Cargo.toml'")
+    );
 
     fs::remove_dir_all(root)?;
     Ok(())

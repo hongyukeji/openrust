@@ -189,6 +189,16 @@ curl --fail http://localhost:3000/ready
 
 Fortify 提供 Web 认证动作。登录页等浏览器视图由应用通过 Fortify 的视图扩展点绑定。
 
+### 开发重载
+
+源码应用在 macOS 或 Linux 上使用 `./artisan dev`。根应用和 `openrust new` 生成的应用都可以从各自目录运行。开发环境需要支持 `--only-emit-events` 的 Watchexec，并将它放在 PATH。 [Watchexec 文档](https://github.com/watchexec/watchexec/blob/main/doc/watchexec.1.md)
+
+```bash
+./artisan dev --env local
+```
+
+保存源文件后，Cargo 先构建新版本，旧应用继续处理请求。成功构建后，重载器等待旧应用按正常 SIGTERM 生命周期退出，再启动新版本。监听范围包括路由、Rust 配置、模块、资源、Cargo 清单、锁文件、当前 dotenv 与本地路径依赖。构建和运行产物不会触发重载。普通启动仍可使用 `cargo run`。
+
 ## 编写业务与扩展
 
 真实参考链为 `src/main.rs` → `bootstrap::Server::modules` → `modules::manifest` → 同一模块仓储与 Provider → 模块路由和 handler。根应用与新生成应用默认使用 `registered`：在 `modules/mod.rs` 显式登记模块即启用，移除登记即不挂载，Rust `mod` 本身只负责编译。默认不依赖状态 JSON；需要持久启停时显式选择 `file` 或 `file-live`。业务接入不修改框架 `src/`，详见[模块注册指南](../../../docs/src/modules/registration.md)和[唯一综合示例](../../../modules/example/README.md#新建自己的业务模块)。

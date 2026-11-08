@@ -55,7 +55,9 @@ cargo run -p cli -- g migration labels slug:string
 
 `openrust env` 转发给所选应用，输出其本次启动选定的环境，例如 `The application environment is [production].`。该命令没有本地参数，沿应用统一启动与关闭流程执行；它不重新读取父进程环境或把运行期配置修改当成新的启动环境。
 
-`dev` 沿用已配置的应用运行环境并运行 `serve`；需要 development 时可在进程环境或应用 `.env` 中设置对应命名空间的 `ENV`，`serve` 同样保留当前环境。`dev` 默认使用 `APP_`；若应用的 `ApplicationDefinition::config_namespace()` 返回 `SHOP_`，请运行 `openrust dev --config-namespace SHOP_`。CLI 与应用处于不同进程，无法读取该 Rust 类型常量，因此自定义命名空间须显式传入。`dev` 的 Redis 启动预检目前只对显式 TOML 来源与可由环境确定的配置使用 `ConfigLoader`；CLI 进程不能静态求值应用的 Rust 配置函数，因此代码配置的最终依赖由实际应用启动校验。配置缓存命中时跳过实时 TOML；未命中时按应用根读取 `.env` 与显式文件来源。外部环境优先，CLI 不改写父进程环境；缺省 `config/` 不存在时仍读取环境来源。若有效配置指向 loopback Redis，会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听或就绪等待；仅 `new --db sqlite` 安装阶段自动执行默认迁移。
+`./artisan dev` 和 `openrust dev --watch` 在 macOS、Linux 上使用 PATH 中的 Watchexec。快速连续保存会合并，编译失败时旧进程继续服务。每次成功构建先复制运行产物，再以 SIGTERM 结束旧应用，等待退出后启动新进程。旧应用有 30 秒收尾时间，Ctrl-C 会回收开发子进程。重载运行宿主可直接执行的产物。使用自定义 Cargo runner 或依赖 Cargo 注入的动态库路径时，`openrust dev` 仍可通过 Cargo 单次启动。 [Watchexec 发行包](https://github.com/watchexec/watchexec/releases)
+
+可用 `./artisan dev --env local` 选择存在的 `.env.local`，也可在应用自己的命名空间设置环境。文件监听覆盖当前选中的 dotenv、路由、模块、配置、Cargo 清单与锁文件和已解析的本地依赖。应用配置与 Redis 预检保持现有优先级，可用 `--config-namespace SHOP_` 指定自定义命名空间。CLI 的 Redis 预检读取显式文件与环境来源，实际应用仍按编译期配置清单启动。已有可用的本地 Redis 会被复用，缺少时按源码仓库的 `compose.ci.yaml` 准备。其他命令按原应用入口执行并保留退出码。
 
 `config/api.rs` 通过 `API_PREFIX` 配置 API 路由前缀（默认 `api`，实际URL前缀为 `/api`）；应用 Provider 从同一 `ApiConfig` 规范化前缀并选择异常响应格式，前缀调整同时作用于路由与异常呈现。
 

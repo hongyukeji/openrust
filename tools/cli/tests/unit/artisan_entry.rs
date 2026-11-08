@@ -126,6 +126,42 @@ fn generated_artisan_is_executable_and_runs_source_through_cargo() -> Result<()>
 }
 
 #[test]
+fn source_artisan_dev_execs_cli_with_selected_environment() -> Result<()> {
+    let fixture = Fixture::new()?;
+    let project = fixture.root.join("source project");
+    populate_project(
+        &project,
+        "artisan-dev-fixture",
+        "ArtisanDevFixture",
+        None,
+        false,
+        false,
+        false,
+        false,
+    )?;
+    fs::create_dir_all(project.join("tools/cli"))?;
+    fs::write(project.join("tools/cli/Cargo.toml"), "")?;
+    fixture.assert_exec(
+        &project,
+        &["--env", "local", "dev"],
+        "cargo",
+        &[
+            "run",
+            "--quiet",
+            "--manifest-path",
+            "tools/cli/Cargo.toml",
+            "--bin",
+            "openrust",
+            "--",
+            "dev",
+            "--watch",
+            "--env",
+            "local",
+        ],
+    )
+}
+
+#[test]
 fn deployed_artisan_execs_adjacent_app_without_cargo() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("deployed project");
