@@ -4,6 +4,70 @@
 > 更新：2026-11-03
 > 摘要：M2 数据层当前实现边界。
 
+## Eloquent 计算追加字段
+
+`ModelMetadata` 的追加声明由 `ModelAttributes` 在原有属性投影后处理，按可见性、声明顺序和原始值分派读取访问器。唯一示例的记录预览以 `is_published` 验证计算输出与原始属性分离。`1752e681` 为已验收限定交付，公开入口见[模型指南](../../../docs/src/eloquent/getting-started.md)。自定义类 cast 继续按唯一待办推进。
+
+## Eloquent 已加载关联序列化
+
+`HasRelationships` 通过现有关系状态投影可见模型、集合与 Pivot，按模型配置转换名称并合并属性。公开入口共享同一同步调用链的循环保护。`2df0d941` 已完成限定验收，见[模型指南](../../../docs/src/eloquent/getting-started.md)。任意手动 Arrayable 适配继续开放。
+
+## Eloquent 自定义类转换
+
+`AttributeCast::Class` 使用显式工厂接入同一模型属性读写管线，支持仅入站、写入补丁、数组输出与原值比较。cast 按声明顺序求值，数组输出保持属性顺序。`238025ea` 是非对象值的限定交付，见[模型指南](../../../docs/src/eloquent/getting-started.md)。`b50e4bc7` 增加对象身份、缓存与写回。原始 JSON 和 SQL 边界要求显式投影。`e44b7845` 交付 `AsArrayObject` 与 `AsCollection` 的键保留、可空策略、缓存写回和映射元素独立投影，正式示例预览已使用。`b3dee133` 交付 `AsEncryptedArrayObject` 与 `AsEncryptedCollection`，使用应用 Encrypter、支持历史密钥读取及当前密钥写回，并按固定上游的原始明文字节判定等价。`290169f7` 交付原生加密标量和四种 JSON 变体，JSON 脏值按关联解码比较。唯一示例使用可空专用列和账户限定请求，固定 PHP 与真实 MySQL 已验；`58daa96b` 交付普通与加密 JSON 路径赋值，复用目标列缓存、字段冲突检查及应用 Encrypter；唯一示例事务锁定所属记录后更新。`0c476534` 增加原生 EnumCast 与不可变 EnumCase，复用 BackedEnum 的弱参数转换；原值、SQL 和模型 JSON 保留 backing 或 case 名。示例文章导入收据用该转换读写状态。`29207852` 交付 AsEnumArrayObject 与 AsEnumCollection，读取保留键，数组对象重编号回写，集合保键回写；普通数组序列化输出 backing 或名称，同名追加与访问器保留 case。
+
+## Eloquent 十进制定标
+
+`6f4515e4` 交付 `AttributeCast::decimal(scale)`。读取、模型 JSON 与脏值比较复用精确 HalfUp 定标，保留赋值原值。真实 MySQL DECIMAL 文本经过水合后定标，生成应用覆盖内存行为。处理上限见[模型指南](../../../docs/src/eloquent/getting-started.md#十进制定标)。
+
+## Eloquent 原生 JSON 对象与集合
+
+`f4fdadb1` 支持 `AttributeCast::Object`、`Collection` 与 `JsonUnicode`。对象保留 JSON 形状，集合从关联数组投影并按读重建。嵌套 JSON 路径对完整键和基础字段分别编码。入口见[模型指南](../../../docs/src/eloquent/getting-started.md#原生-json-对象与集合)。
+
+## Eloquent array/json 关联解码
+
+`78b27270` 统一 `array` 与 `json` 的关联解码。读取、原值和模型 JSON 递归投影空对象、连续数字键，原始持久文本、Object 形状及关联 IR 脏值规则保留。公开入口见[模型指南](../../../docs/src/eloquent/getting-started.md#原生-json-对象与集合)。
+
+## Eloquent 全局 JSON 编解码
+
+`37da26b0` 交付进程级 `Json::encode_using` 和 `Json::decode_using`。已有普通和类转换、嵌套路径及适用脏值比较走共享回调。加密集合类继续按明文比较。入口见[模型指南](../../../docs/src/eloquent/getting-started.md#全局-json-编解码回调)。
+
+## Eloquent AsFluent
+
+`764ac9ad` 交付 `AsFluent::cast()`，复用 Support Fluent、类转换缓存与全局 JSON。对象修改经标准保存路径写回，JSON 路径合并缓存后失效，脏值维持原值比较。已验真实 MySQL 事务写回及重读，入口见[模型指南](../../../docs/src/eloquent/getting-started.md#fluent-模型属性)。
+
+## Eloquent PHP JSON 编码 flags
+
+`864d1b88` 扩展内置 `Json::encode_default` 的格式、转义、数字转换和深度错误策略。四空格格式、未知位忽略及部分输出优先经过固定 PHP 字节/深度对照；边界见[模型指南](../../../docs/src/eloquent/getting-started.md#全局-json-编解码回调)。
+
+## Eloquent AsStringable
+
+`f38d3581` 交付 `AsStringable::cast()`。模型数组保留类型化对象，JSON 走字符串投影；共享缓存将修改后的对象写回，脏值比较仍按原值。已验真实 MySQL 描述字段的事务保存及重读。公开入口见[模型指南](../../../docs/src/eloquent/getting-started.md#stringable-模型属性)。
+
+## Eloquent AsHtmlString
+
+`d7eb2e38` 交付 `AsHtmlString::cast()`。读取保留 `HtmlString` 缓存对象，模型数组及 JSON 显式输出字符串。视图用 `Htmlable::to_view_value()` 传递可信文本标记，已验证示例 HTTP、普通文本转义和 MySQL 事务保存重读。见[模型指南](../../../docs/src/eloquent/getting-started.md#htmlstring-模型属性)。
+
+## Eloquent AsHtmlString 原值
+
+`8f6ce734` 交付 `ModelHtmlString` 原值读取。布尔、数值、JSON 子树、日期、枚举与应用对象保持类型，要求文本时转换。通过固定 PHP 验证失败时点、日期默认格式和对象身份，真实 MySQL 验证数值及 JSON 读回。见[模型指南](../../../docs/src/eloquent/getting-started.md#htmlstring-模型属性)。
+
+## Carbon 日期字符串格式
+
+`abf3fe61` 支持 `InputDate::to_string_value`、局部格式/回调和应用工厂设置。已验证工厂作用域、实例复制和 SQL/JSON 独立，AsHtmlString 共用该转换。见[模型指南](../../../docs/src/eloquent/getting-started.md#htmlstring-模型属性)。
+
+## Eloquent AsStringable 日期输入
+
+`57764e1a` 支持日期的字符串转换。水合读取捕获格式后的文本，直接赋值保留日期对象并在写回时重新取值。日期对象的模型数组和 JSON 继续用日期投影。真实 MySQL 已验缓存日期格式变更后保存与重读。见[模型指南](../../../docs/src/eloquent/getting-started.md#stringable-模型属性)。
+
+## Eloquent AsUri
+
+`f78a7d33` 交付 `AsUri::cast()` 与 Support Uri。读取解析成缓存对象，直接赋字符串保留原值，模型数组保留对象并在 JSON 输出 URI 文本。真实 MySQL 已验对象修改后的事务保存与读回。见[模型指南](../../../docs/src/eloquent/getting-started.md#uri-模型属性)。
+
+`aa90b71a` 增加 `UriQueryString` 读取与不可变查询变更。示例使用查询构造预览链接，真实 MySQL 已验变更后的 `AsUri` 保存与重读。
+
+`79fcb2f9` 增加协议、主机、凭据、端口、路径和片段的不可变变更。真实 MySQL 已验变更后的 `AsUri` 保存与重读。
+
 ## 插入标识返回限定交付
 
 `QueryBuilder::insert_get_id` 的同次执行结果、默认空行插入、sequence、回调次数与失败、主库/事务及原始标识转换已由 `960aca43` 提交并推送。PostgreSQL RETURNING 保持精确文本，SQLite 负 rowid 经保留完整来源的最小 SeaORM 安全访问器读取；Query Processor 的数值转换与 Model 属性 cast 是不同契约。完整 Eloquent 与 SQLite 其他能力不因此完成。精确组合及干净提交树证据见[验收基线](../memory/testing.md#插入标识返回与事务执行限定验收)。
