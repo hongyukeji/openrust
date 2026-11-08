@@ -22,6 +22,8 @@
 
 `RequestAttribute` 和 `RouteParameter` 从当前 HTTP 请求作用域读取服务端属性和已绑定路由参数。详见[请求属性与路由参数](../../../docs/src/architecture-concepts/lifecycle.md#请求属性与路由参数)。
 
+`auth` feature 提供 `Auth`、`Authenticated` 和 `CurrentUser` 构造属性。详见[认证属性](../../../docs/src/architecture-concepts/lifecycle.md#认证属性)。
+
 OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀第三方扩展。框架库公开路径为 `openrust::`，根应用通过统一 Container、Provider 和配置生命周期接入。
 
 框架源码位于 `src/lib.rs`；宿主应用、bootstrap 和唯一综合示例保留在仓库根目录。默认启动在根执行 `cargo run`。

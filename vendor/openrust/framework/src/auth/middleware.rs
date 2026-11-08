@@ -95,13 +95,10 @@ async fn check(
             };
             let mut found = false;
             for guard in guards {
-                if manager.guard(guard).await?.check().await? {
+                if manager.guard_for_attribute(guard).await?.check().await? {
                     found = true;
                     if matches!(options, GuardMiddleware::Auth(_)) {
-                        let name = guard
-                            .filter(|name| !name.is_empty())
-                            .map(str::to_owned)
-                            .unwrap_or(manager.default_driver()?);
+                        let name = manager.guard_name(guard)?;
                         // 与既有具名AuthLayer共用完整原始ID/Provider投影，不伪造ID fallback。
                         let request = super::project_named_user(
                             &super::NamedAuthLayerConfig {
@@ -250,4 +247,5 @@ pub(crate) fn password(arguments: Vec<String>) -> Result<GuardMiddleware> {
 }
 
 #[cfg(test)]
+#[path = "../../tests/unit/auth/middleware.rs"]
 mod tests;

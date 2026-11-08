@@ -16,20 +16,32 @@ use std::{
 use tokio::sync::Notify;
 
 #[derive(Default)]
-struct TestGuard(Mutex<Option<AuthUser>>);
+struct TestGuard {
+    user: Mutex<Option<AuthUser>>,
+    fail_user_read: bool,
+}
 impl Guard for TestGuard {
     fn user(&self) -> BoxFuture<'_, Result<Option<AuthUser>>> {
-        Box::pin(async move { Ok(self.0.lock().map_err(|_| state_error())?.clone()) })
+        Box::pin(async move {
+            if self.fail_user_read {
+                return Err(Error::custom_with_status(
+                    http::StatusCode::SERVICE_UNAVAILABLE,
+                    "test_guard_user_unavailable",
+                    "无法读取测试认证账户",
+                ));
+            }
+            Ok(self.user.lock().map_err(|_| state_error())?.clone())
+        })
     }
     fn validate<'a>(&'a self, _: &'a Credentials) -> BoxFuture<'a, Result<bool>> {
         Box::pin(async { Ok(false) })
     }
     fn has_user(&self) -> Result<bool> {
-        Ok(self.0.lock().map_err(|_| state_error())?.is_some())
+        Ok(self.user.lock().map_err(|_| state_error())?.is_some())
     }
     fn set_user(&self, user: AuthUser) -> BoxFuture<'_, Result<()>> {
         Box::pin(async move {
-            *self.0.lock().map_err(|_| state_error())? = Some(user);
+            *self.user.lock().map_err(|_| state_error())? = Some(user);
             Ok(())
         })
     }
@@ -171,6 +183,165 @@ async fn concurrent_resolution_is_once_and_names_and_scopes_isolate_users() -> R
     assert!(rebuilt.guest().await?);
     assert_eq!(a.id().await?, Some(json!("first-user")));
     assert!(Arc::ptr_eq(&other_web, &other.guard(None).await?));
+    Ok(())
+}
+
+fn test_user(id: &str) -> AuthUser {
+    Arc::new(GenericUser::new(Map::from_iter([("id".into(), json!(id))])))
+}
+
+async fn assert_user_is(
+    manager: &AuthManager,
+    selector: Option<&str>,
+    expected: &AuthUser,
+) -> Result<()> {
+    assert!(
+        manager
+            .user(selector)
+            .await?
+            .is_some_and(|user| Arc::ptr_eq(&user, expected))
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn default_user_uses_the_same_cached_guard_and_request_account() -> Result<()> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (container, _owner) = container(drivers(Arc::clone(&calls))?, None)?;
+    let scope = container.scope()?;
+    let other_scope = container.scope()?;
+    let manager = scope.resolve::<AuthManager>().await?;
+    let other = other_scope.resolve::<AuthManager>().await?;
+    assert!(manager.user(None).await?.is_none());
+
+    let web = manager.guard(Some("web")).await?;
+    let web_user = test_user("same-request-web");
+    web.set_user(Arc::clone(&web_user)).await?;
+    for selector in [None, Some(""), Some("0"), Some("web")] {
+        assert!(Arc::ptr_eq(
+            &web,
+            &manager.guard_for_attribute(selector).await?
+        ));
+        assert_user_is(&manager, selector, &web_user).await?;
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert!(manager.user(Some("admin")).await?.is_none());
+    assert!(other.user(Some("0")).await?.is_none());
+    assert!(!Arc::ptr_eq(&web, &other.guard(None).await?));
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    Ok(())
+}
+
+#[tokio::test]
+async fn custom_user_receives_exact_selector_and_should_use_restores_the_default() -> Result<()> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (container, _owner) = container(drivers(Arc::clone(&calls))?, None)?;
+    let scope = container.scope()?;
+    let other_scope = container.scope()?;
+    let manager = scope.resolve::<AuthManager>().await?;
+    let other = other_scope.resolve::<AuthManager>().await?;
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let custom = test_user("custom-account");
+    manager.resolve_users_using({
+        let observed = Arc::clone(&observed);
+        let custom = Arc::clone(&custom);
+        move |manager, selector| {
+            let observed = Arc::clone(&observed);
+            let custom = Arc::clone(&custom);
+            Box::pin(async move {
+                assert_eq!(manager.default_driver()?, "web");
+                observed
+                    .lock()
+                    .map_err(|_| state_error())?
+                    .push(selector.map(str::to_owned));
+                match selector {
+                    Some("guest") => Ok(None),
+                    Some("failed") => Err(Error::custom(
+                        "test_user_resolver_failed",
+                        "自定义账户解析失败",
+                    )),
+                    _ => Ok(Some(custom)),
+                }
+            })
+        }
+    })?;
+
+    for selector in [None, Some(""), Some("0"), Some(" web ")] {
+        assert_user_is(&manager, selector, &custom).await?;
+    }
+    assert!(manager.user(Some("guest")).await?.is_none());
+    assert!(
+        matches!(manager.user(Some("failed")).await, Err(error) if error.code() == "test_user_resolver_failed")
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert!(other.user(None).await?.is_none());
+
+    let admin = manager.guard(Some("admin")).await?;
+    let admin_user = test_user("same-request-admin");
+    admin.set_user(Arc::clone(&admin_user)).await?;
+    manager.should_use("admin")?;
+    assert_eq!(manager.default_driver()?, "admin");
+    assert_user_is(&manager, None, &admin_user).await?;
+    for selector in ["", "0"] {
+        manager.resolve_users_using(|_, _| Box::pin(async { Ok(None) }))?;
+        assert!(manager.user(None).await?.is_none());
+        manager.should_use(selector)?;
+        assert_eq!(manager.default_driver()?, "admin");
+        assert_user_is(&manager, Some(selector), &admin_user).await?;
+    }
+    assert!(Arc::ptr_eq(&admin, &manager.guard(None).await?));
+    assert_eq!(other.default_driver()?, "web");
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        *observed.lock().map_err(|_| state_error())?,
+        [
+            None,
+            Some(String::new()),
+            Some("0".into()),
+            Some(" web ".into()),
+            Some("guest".into()),
+            Some("failed".into())
+        ],
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn default_user_preserves_guard_lookup_and_user_read_errors() -> Result<()> {
+    let drivers = AuthDrivers::default();
+    drivers.extend("test", |context| {
+        Box::pin(async move {
+            Ok(Arc::new(TestGuard {
+                fail_user_read: context.name == "admin",
+                ..TestGuard::default()
+            }) as Arc<dyn Guard>)
+        })
+    })?;
+    let (container, _owner) = container(drivers, None)?;
+    let scope = container.scope()?;
+    let manager = scope.resolve::<AuthManager>().await?;
+    assert!(manager.user(None).await?.is_none());
+    for (guard, code, status) in [
+        (
+            "unknown",
+            "auth_guard_undefined",
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+        ),
+        (
+            "broken",
+            "auth_guard_driver_undefined",
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+        ),
+        (
+            "admin",
+            "test_guard_user_unavailable",
+            http::StatusCode::SERVICE_UNAVAILABLE,
+        ),
+    ] {
+        assert!(
+            matches!(manager.user(Some(guard)).await, Err(error) if error.code() == code && error.status() == status)
+        );
+    }
     Ok(())
 }
 

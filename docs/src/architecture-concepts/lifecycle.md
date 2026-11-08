@@ -216,6 +216,16 @@ Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在�
 
 数据库名称的 `::read`、`::write` 和 `::direct` 路由属于数据库管理器的后续对应项。当前属性使用已配置的普通连接名。 [Laravel Database 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Database.php) · [Laravel DB 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/DB.php) · [Laravel Storage 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Storage.php)
 
+#### 认证属性
+
+启用 `auth` feature 并注册 `AuthServiceProvider` 后，可将 `Auth::default()` 或 `Auth::new("web")` 附到 `ConstructorParam::class::<dyn Guard>("guard")`。同一请求内按名复用 Guard，可通过 `Guard::as_stateful` 获取有状态能力。
+
+`Authenticated` 和 `CurrentUser` 将 `Arc<dyn Authenticatable>` 注入类参数。`::default()` 省略 Guard 名称，`::new("web")` 显式传入名称。两种属性调用同一个请求级用户解析器，但各自可以登记上下文处理器和后置回调。访客返回 null，构造器按普通依赖和默认值继续解析。可空账户参数可声明 `.nullable().with_default(|| Ok(ParameterValue::null()))`。未知 Guard 或读取错误沿解析器传播。
+
+`AuthManager::resolve_users_using` 接收属性声明中的原始选择值。内置属性选择将省略、空字符串和字符串 `0` 交给默认 Guard，`should_use` 同时恢复内置解析器。显式配置名由 `AuthLayer::guard` 按原名选择。自定义无状态 Guard 可直接读取当前 HTTP 请求。Session Guard 需要路由实际启用 Web/Session 中间件。示例模块的 `/api/example/account/session/status` 在 Web profile 展示三种属性。 [Laravel Auth](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Auth.php) · [Laravel Authenticated](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Authenticated.php) · [Laravel CurrentUser](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/CurrentUser.php)
+
+Laravel 的 `AuthServiceProvider` 还默认绑定可空的 `Authenticatable` 接口。OpenRust 的容器服务绑定返回 `Arc<T>`，这项可空接口绑定仍待对应。Rust 枚举选择由调用方显式转为名称。
+
 ### 读取与调用原始绑定工厂
 
 `Container::get_bindings()` 按登记顺序返回显式工厂条目的键、共享声明和 `FactoryHandle`。实例覆盖保留原工厂，绑定替换后已取得的句柄仍调用快照里的闭包或类绑定包装器。

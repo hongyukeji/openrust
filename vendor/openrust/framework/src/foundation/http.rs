@@ -40,12 +40,28 @@ struct HttpEntry {
     scope: Arc<Scope>,
     attributes: RequestAttributes,
     route: RouteSlot,
+    #[cfg(feature = "auth")]
+    request: Option<Arc<crate::http::RequestInfo>>,
 }
 
 pub(crate) fn http_entry_scope() -> Option<std::sync::Weak<Scope>> {
     HTTP_ENTRY_SCOPE
         .try_with(|entry| Arc::downgrade(&entry.scope))
         .ok()
+}
+
+#[cfg(feature = "auth")]
+pub(crate) fn current_request_info(resolver: &Resolver) -> Option<Arc<crate::http::RequestInfo>> {
+    HTTP_ENTRY_SCOPE
+        .try_with(|entry| {
+            if resolver.belongs_to_http_scope(&entry.scope) {
+                entry.request.clone()
+            } else {
+                None
+            }
+        })
+        .ok()
+        .flatten()
 }
 
 pub(crate) fn current_request_attribute(
@@ -496,7 +512,7 @@ async fn expose_app_state(
         Err(error) => return render_early_error(&runtime, &request, error),
     };
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
-    let entry = Arc::new(install_http_entry(request.extensions_mut(), scope));
+    let entry = install_http_entry(request.extensions_mut(), scope);
     request.extensions_mut().insert(state);
     let page = crate::database::query::PageContext::from_uri(request.uri());
     let (mut parts, body) = request.into_parts();
@@ -507,6 +523,12 @@ async fn expose_app_state(
             return render_early_error(&runtime, &request, error);
         }
     };
+    #[cfg(feature = "auth")]
+    let entry = HttpEntry {
+        request: Some(Arc::new(info.clone().without_session())),
+        ..entry
+    };
+    let entry = Arc::new(entry);
     let page = page.with_path_resolver(move || info.url());
     let request = Request::from_parts(parts, body);
     let response = HTTP_ENTRY_SCOPE
@@ -547,6 +569,8 @@ fn install_http_entry(extensions: &mut http::Extensions, scope: Arc<Scope>) -> H
         scope,
         attributes,
         route,
+        #[cfg(feature = "auth")]
+        request: None,
     }
 }
 

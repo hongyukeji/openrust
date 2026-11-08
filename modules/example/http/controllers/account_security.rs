@@ -7,13 +7,18 @@ use crate::modules::example::http::requests::account_security::{
 };
 use crate::modules::example::http::resources::credentials::CredentialsResponse;
 use crate::modules::example::services::account_security::AccountSecurity;
-use openrust::auth::{AuthCredentials, CurrentUser, LoginAttempt, Session};
+use openrust::auth::{
+    AuthCredentials, AuthUser, Authenticatable, CurrentUser, Guard, LoginAttempt, Session,
+};
+use openrust::container::attributes::{Auth, Authenticated, CurrentUser as CurrentUserAttribute};
+use openrust::container::{ClassAttribute, ClassDescriptor, ConstructorParam, ParameterValue};
 use openrust::http::axum::{
     http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Response},
 };
 use openrust::http::{ClientIp, Inject, Json, Validated};
 use openrust::{Error, Result};
+use std::sync::Arc;
 
 fn private<T: serde::Serialize>(value: T) -> Response {
     let mut response = Json(value).into_response();
@@ -80,6 +85,57 @@ pub(crate) async fn session_login(
         serde_json::json!({"user_id":value.user_id(),"csrf_token":value.csrf_token()}),
     ))
 }
+
+pub(crate) struct SessionAuthAttributes {
+    guard: Arc<dyn Guard>,
+    authenticated: Option<AuthUser>,
+    current_user: Option<AuthUser>,
+}
+
+pub(crate) fn session_auth_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete::<SessionAuthAttributes>(
+        "Modules/Example/SessionAuthAttributes",
+        vec![
+            ConstructorParam::class::<dyn Guard>("guard")
+                .with_attribute(ClassAttribute::contextual(|| Ok(Auth::default()))),
+            ConstructorParam::class::<dyn Authenticatable>("authenticated")
+                .nullable()
+                .with_default(|| Ok(ParameterValue::null()))
+                .with_attribute(ClassAttribute::contextual(|| Ok(Authenticated::new("web")))),
+            ConstructorParam::class::<dyn Authenticatable>("current_user")
+                .nullable()
+                .with_default(|| Ok(ParameterValue::null()))
+                .with_attribute(ClassAttribute::contextual(|| {
+                    Ok(CurrentUserAttribute::default())
+                })),
+        ],
+        |args| {
+            let account = |index| {
+                if args.value(index)?.is_null() {
+                    Ok(None)
+                } else {
+                    args.service::<dyn Authenticatable>(index).map(Some)
+                }
+            };
+            Ok(Arc::new(SessionAuthAttributes {
+                guard: args.service::<dyn Guard>(0)?,
+                authenticated: account(1)?,
+                current_user: account(2)?,
+            }))
+        },
+    )
+}
+
+pub(crate) async fn session_status(
+    Inject(attributes): Inject<SessionAuthAttributes>,
+) -> Result<Response> {
+    Ok(private(serde_json::json!({
+        "guard_authenticated": attributes.guard.check().await?,
+        "authenticated": attributes.authenticated.is_some(),
+        "current_user": attributes.current_user.is_some(),
+    })))
+}
+
 pub(crate) async fn session_logout(
     _user: CurrentUser,
     Inject(service): Inject<AccountSecurity>,

@@ -13,6 +13,8 @@
 
 `AuthDrivers::extend` / `provider` 是公开扩展入口。Guard 工厂按需调用 `GuardContext::user_provider()`，准确报告 `provider_name()`。`AuthLayer::guard(name)` / `optional_guard(name)` 将实际身份投影为 `CurrentUser`；`id()` 保留原类型，`integer_id()` 是正整数业务表的显式适配，不能截断 UUID 或转换字符串数字。业务授权还须绑定相同 Guard/Provider，不能借相同数字 ID 跨来源授权。
 
+`AuthManager::user` 使用当前用户解析器，默认调用选中的 Guard。`resolve_users_using` 可为同一请求覆盖解析器，`should_use` 切换默认 Guard 并恢复内置解析器。容器的 `Authenticated` 与 `CurrentUser` 属性通过该入口取得完整账户对象。`GuardContext::request` 在无认证 middleware 的 HTTP 请求中也能读取物理入口的请求快照；Session Guard 仍要求由 Web 中间件建立的受信任上下文。
+
 `StatefulGuard` 提供 `attempt`、`login`、`login_using_id`、`once`、`once_using_id`、`logout`。`validate`、`once`、`set_user` 不建立持久登录。Session 登录使用同一请求句柄并轮换 ID；Guard 注销移除自身身份并轮换适用 remember token，不自动 invalidate 整份 Session。remember 默认576000分钟，凭据失败时间保护200000微秒，`hashing.rehash_on_login=true`。
 
 记住我 Cookie 必须加密且不在 except 名单。账户 `set_remember_token` 为异步属性赋值；Guard 通过 `begin_remember_token_update` 条件安装并取得拥有式 `RememberTokenUpdate`，成功后commit，失败或取消时同步恢复仍属于本次修改的原始字段。未实现返回 `auth_token_atomic_update_unsupported`，不回退为先读再写。签发Cookie只用 `remember_token_for_cookie` 原子确认的快照，不能读取另一Guard未持久化的候选。此内存恢复不承诺撤回已发出的数据库 I/O，也不能掩盖未知提交结果或跨连接更新逆序。Rust 名称后缀承担 Laravel 类名 SHA-1 的隔离职责，不承诺 PHP Cookie/Session 字节互通。

@@ -1,6 +1,6 @@
 //! 配置具名 driver 的请求级解析；注册表可共享，已登录状态不可共享。
 
-use super::contracts::{Guard, UserProvider};
+use super::contracts::{AuthUser, Guard, UserProvider};
 use crate::container::Resolver;
 use crate::{Error, Result, http::axum::http::StatusCode, support::BoxFuture};
 use serde::{Deserialize, Serialize};
@@ -279,13 +279,24 @@ impl Drop for ResolutionWait<'_> {
     }
 }
 
+/// 当前请求的用户解析回调，收到属性或调用方提供的原始 Guard 选择。
+pub type UserResolver = dyn for<'a> Fn(&'a AuthManager, Option<&'a str>) -> BoxFuture<'a, Result<Option<AuthUser>>>
+    + Send
+    + Sync;
+
+#[derive(Default)]
+struct UserSelection {
+    default_guard: Option<String>,
+    resolver: Option<Arc<UserResolver>>,
+}
+
 /// 当前请求的具名 Guard 缓存；必须通过容器 scoped 绑定创建。
 ///
 /// 共享应用只保存 `AuthDrivers`；`should_use`、`forget_guards` 与已解析 Guard 均不影响其他请求。
 pub struct AuthManager {
     resolver: Resolver,
     drivers: AuthDrivers,
-    default_guard: RwLock<Option<String>>,
+    selection: RwLock<UserSelection>,
     guards: Mutex<BTreeMap<String, GuardCell>>,
     waits: Mutex<WaitGraph>,
     identity: Arc<()>,
@@ -297,7 +308,7 @@ impl AuthManager {
         Self {
             resolver,
             drivers,
-            default_guard: RwLock::new(None),
+            selection: RwLock::new(UserSelection::default()),
             guards: Mutex::new(BTreeMap::new()),
             waits: Mutex::new(WaitGraph::default()),
             identity: Arc::new(()),
@@ -306,37 +317,112 @@ impl AuthManager {
     /// 返回当前请求默认名；未覆写时读同一 auth.defaults 配置。
     pub fn default_driver(&self) -> Result<String> {
         if let Some(name) = self
-            .default_guard
+            .selection
             .read()
             .map_err(|_| state_error())?
+            .default_guard
             .clone()
         {
             return Ok(name);
         }
+        self.configured_default_driver()
+    }
+
+    fn configured_default_driver(&self) -> Result<String> {
         Ok(self
             .resolver
             .section::<AuthDefaults>("auth.defaults")?
             .guard)
     }
-    /// 将当前请求后续默认用户解析切换到指定 Guard，不写全局配置。
+
+    pub(in crate::auth) fn guard_name(&self, name: Option<&str>) -> Result<String> {
+        match name {
+            None | Some("" | "0") => self.default_driver(),
+            Some(name) => Ok(name.to_owned()),
+        }
+    }
+
+    /// 选择当前请求的默认 Guard 并恢复内置用户解析器。
+    /// 空字符串或 `"0"` 沿用当前默认名。
     pub fn should_use(&self, name: impl Into<String>) -> Result<()> {
-        *self.default_guard.write().map_err(|_| state_error())? = Some(name.into());
+        self.select_guard(name.into(), false)
+    }
+
+    pub(in crate::auth) fn use_configured_guard(&self, name: String) -> Result<()> {
+        self.select_guard(name, true)
+    }
+
+    fn select_guard(&self, name: String, configured: bool) -> Result<()> {
+        let retired = {
+            let mut selection = self.selection.write().map_err(|_| state_error())?;
+            let name = match name.as_str() {
+                "" | "0" if !configured => match &selection.default_guard {
+                    Some(current) => current.clone(),
+                    None => self.configured_default_driver()?,
+                },
+                _ => name,
+            };
+            selection.default_guard = Some(name);
+            selection.resolver.take()
+        };
+        drop(retired);
         Ok(())
+    }
+
+    /// 替换当前请求的用户解析器，供 `Authenticated`、`CurrentUser` 及 `user` 使用。
+    pub fn resolve_users_using(
+        &self,
+        resolver: impl for<'a> Fn(
+            &'a AuthManager,
+            Option<&'a str>,
+        ) -> BoxFuture<'a, Result<Option<AuthUser>>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        let retired = self
+            .selection
+            .write()
+            .map_err(|_| state_error())?
+            .resolver
+            .replace(Arc::new(resolver));
+        drop(retired);
+        Ok(())
+    }
+
+    /// 返回当前用户解析回调；默认回调读取选中 Guard 的用户。
+    pub fn user_resolver(&self) -> Result<Arc<UserResolver>> {
+        Ok(self
+            .selection
+            .read()
+            .map_err(|_| state_error())?
+            .resolver
+            .clone()
+            .unwrap_or_else(|| Arc::new(default_user)))
+    }
+
+    /// 通过当前回调读取账户；访客返回 `None`，解析错误原样传播。
+    pub async fn user(&self, guard: Option<&str>) -> Result<Option<AuthUser>> {
+        (self.user_resolver()?)(self, guard).await
     }
     /// 清除当前请求的 Guard 缓存；已有外部句柄仍代表其原实例。
     pub fn forget_guards(&self) -> Result<()> {
         self.guards.lock().map_err(|_| state_error())?.clear();
         Ok(())
     }
-    /// 按名解析，None或空名使用当前默认；同请求并发解析复用同一个实例。
+    /// 按配置名精确解析；`None` 或空名使用默认 Guard。同请求复用 Guard 实例。
     pub fn guard<'a>(&'a self, name: Option<&'a str>) -> BoxFuture<'a, Result<Arc<dyn Guard>>> {
         Box::pin(async move {
-            let name = match name.filter(|value| !value.is_empty()) {
+            let name = match name.filter(|name| !name.is_empty()) {
                 Some(name) => name.to_owned(),
                 None => self.default_driver()?,
             };
             self.resolve_guard(name).await
         })
+    }
+
+    pub(crate) async fn guard_for_attribute(&self, name: Option<&str>) -> Result<Arc<dyn Guard>> {
+        self.resolve_guard(self.guard_name(name)?).await
     }
     async fn resolve_guard(&self, name: String) -> Result<Arc<dyn Guard>> {
         let manager = Arc::as_ptr(&self.identity) as usize;
@@ -422,6 +508,13 @@ impl AuthManager {
     }
 }
 
+fn default_user<'a>(
+    manager: &'a AuthManager,
+    guard: Option<&'a str>,
+) -> BoxFuture<'a, Result<Option<AuthUser>>> {
+    Box::pin(async move { manager.guard_for_attribute(guard).await?.user().await })
+}
+
 fn cycle_error() -> Error {
     Error::custom(
         "auth_guard_resolution_cycle",
@@ -433,6 +526,7 @@ fn state_error() -> Error {
 }
 
 #[cfg(test)]
+#[path = "../../../tests/unit/auth/guard_manager.rs"]
 mod tests;
 
 async fn create_user_provider(

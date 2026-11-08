@@ -9,6 +9,10 @@ use crate::foundation::lifecycle::{
 };
 use std::collections::VecDeque;
 
+#[cfg(feature = "auth")]
+mod auth;
+#[cfg(feature = "auth")]
+pub use auth::{Auth, Authenticated, CurrentUser};
 mod builtin;
 pub use builtin::{Config, Give, Tag, Tagged};
 mod managers;

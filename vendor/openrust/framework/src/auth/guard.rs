@@ -14,6 +14,7 @@ pub use contracts::{
 pub use database::DatabaseUserProvider;
 pub use manager::{
     AuthDefaults, AuthDrivers, AuthManager, GuardConfig, GuardContext, UserProviderConfig,
+    UserResolver,
 };
 pub use proof::{
     FactorManagementContext, FactorReceipt, FactorVerificationMethod, SessionFactorProof,

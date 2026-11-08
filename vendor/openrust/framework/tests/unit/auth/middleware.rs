@@ -5,6 +5,7 @@ use crate::auth::AuthDrivers;
 use crate::auth::AuthPrincipal;
 use crate::auth::AuthServiceProvider;
 use crate::auth::AuthUser;
+use crate::auth::Authenticatable;
 use crate::auth::Authenticator;
 use crate::auth::Credentials;
 use crate::auth::CurrentUser;
@@ -14,7 +15,10 @@ use crate::config::FrameworkConfig;
 use crate::config::HttpStatusMode;
 use crate::config::NoConfig;
 use crate::container::Scope;
+use crate::container::attributes::{Auth, Authenticated, CurrentUser as CurrentUserAttribute};
+use crate::container::{ClassAttribute, ClassDescriptor, ConstructorParam, ParameterValue};
 use crate::foundation::ApplicationDefinition;
+use crate::foundation::ApplicationState;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
 use crate::http::CookieFactory;
@@ -89,6 +93,7 @@ struct Calls {
     profiles: AtomicUsize,
     protected: AtomicUsize,
     request_contexts: Mutex<Vec<(String, bool)>>,
+    current_user_attributes: AtomicUsize,
 }
 struct NullGuestRedirect;
 impl ServiceProvider for NullGuestRedirect {
@@ -102,6 +107,47 @@ impl ServiceProvider for NullGuestRedirect {
     }
 }
 struct App<const MODE: u8>;
+
+struct ContainerIdentity {
+    guard: Arc<dyn Guard>,
+    explicit: Option<AuthUser>,
+    current: Option<AuthUser>,
+}
+
+fn container_identity_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete::<ContainerIdentity>(
+        "test::auth::ContainerIdentity",
+        vec![
+            ConstructorParam::class::<dyn Guard>("guard")
+                .with_attribute(ClassAttribute::contextual(|| Ok(Auth::new("api")))),
+            ConstructorParam::class::<dyn Authenticatable>("explicit")
+                .nullable()
+                .with_default(|| Ok(ParameterValue::null()))
+                .with_attribute(ClassAttribute::contextual(|| Ok(Authenticated::new("api")))),
+            ConstructorParam::class::<dyn Authenticatable>("current")
+                .nullable()
+                .with_default(|| Ok(ParameterValue::null()))
+                .with_attribute(ClassAttribute::contextual(|| {
+                    Ok(CurrentUserAttribute::default())
+                })),
+        ],
+        |args| {
+            let user = |index| {
+                if args.value(index)?.is_null() {
+                    Ok(None)
+                } else {
+                    args.service::<dyn Authenticatable>(index).map(Some)
+                }
+            };
+            Ok(Arc::new(ContainerIdentity {
+                guard: args.service::<dyn Guard>(0)?,
+                explicit: user(1)?,
+                current: user(2)?,
+            }))
+        },
+    )
+}
+
 impl<const MODE: u8> ApplicationDefinition for App<MODE> {
     type Config = NoConfig;
     fn default_providers() -> DefaultProviders {
@@ -136,18 +182,36 @@ impl<const MODE: u8> ApplicationDefinition for App<MODE> {
         providers.push(Box::new(Router));
         providers
     }
+
+    fn configure_providers(_: &NoConfig, builder: &mut crate::foundation::ProviderBuilder) {
+        builder.class_descriptors([container_identity_descriptor()]);
+    }
 }
 struct Router;
 impl ServiceProvider for Router {
     fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move { app.instance(Arc::new(Calls::default())).await })
+        Box::pin(async move {
+            app.instance(Arc::new(Calls::default())).await?;
+            app.after_resolving_attribute::<CurrentUserAttribute>(|event, resolver| {
+                Box::pin(async move {
+                    let attribute = event.attribute().downcast::<CurrentUserAttribute>()?;
+                    assert_eq!(attribute.guard_name(), None);
+                    resolver
+                        .resolve::<Calls>()
+                        .await?
+                        .current_user_attributes
+                        .fetch_add(1, Ordering::Relaxed);
+                    Ok(())
+                })
+            })
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let drivers = app.resolve::<AuthDrivers>().await?;
             drivers.extend("header", |context| {
                 Box::pin(async move {
-                    // 这条正式公开扩展必须由auth alias准备上下文，不能依赖Session层兜底。
+                    // 未经 Session 的请求也沿同一公开扩展读取当前 HTTP 元数据。
                     let info = context.request().await?;
                     let calls = context.resolver.resolve::<Calls>().await?;
                     calls
@@ -178,6 +242,13 @@ impl ServiceProvider for Router {
                     .group(RouteGroup::new().middleware_alias("auth:"), |r| {
                         r.get("/empty-auth", current)
                     })
+                    .group(RouteGroup::new().middleware_alias("auth:0"), |r| {
+                        r.get("/zero-alias", current)
+                    })
+                    .group(
+                        RouteGroup::new().middleware(crate::auth::AuthLayer::guard("0")),
+                        |r| r.get("/zero-configured", current),
+                    )
                     .group(RouteGroup::new().middleware_alias("auth:,api"), |r| {
                         r.get("/fallback-auth", current)
                     })
@@ -205,11 +276,105 @@ impl ServiceProvider for Router {
                     .group(RouteGroup::new().domain("other.example.test"), |r| {
                         r.get("/dashboard", public)
                     })
+                    .get("/container-identity", container_identity)
                     .get("/home", public)
             })?;
             Ok(())
         })
     }
+}
+
+async fn container_identity(
+    axum::extract::State(state): axum::extract::State<ApplicationState>,
+    Extension(scope): Extension<Arc<Scope>>,
+) -> Result<Json<Value>> {
+    let manager = scope.resolve::<AuthManager>().await?;
+    let values = scope.resolve::<ContainerIdentity>().await?;
+    assert!(Arc::ptr_eq(
+        &values.guard,
+        &manager.guard(Some("api")).await?
+    ));
+    if let Some(explicit) = &values.explicit {
+        let expected = values.guard.user().await?.ok_or_else(fixture_error)?;
+        assert!(Arc::ptr_eq(explicit, &expected));
+    }
+    let detached = state.container().scope()?;
+    assert!(
+        matches!(detached.resolve::<ContainerIdentity>().await, Err(error) if error.code() == "auth_request_missing")
+    );
+
+    let current_id = values
+        .current
+        .as_deref()
+        .map(Authenticatable::auth_identifier)
+        .transpose()?;
+    manager.resolve_users_using(|_, name| {
+        Box::pin(async move {
+            let id = name.unwrap_or("custom-default");
+            let user = GenericUser::new(Map::from_iter([("id".into(), json!(id))]));
+            Ok(Some(Arc::new(user) as AuthUser))
+        })
+    })?;
+    let overridden = scope.resolve::<ContainerIdentity>().await?;
+    let user_id =
+        |user: Option<&dyn Authenticatable>| user.map(Authenticatable::auth_identifier).transpose();
+    Ok(Json(json!({
+        "explicit": user_id(values.explicit.as_deref())?,
+        "current": current_id,
+        "explicit_override": user_id(overridden.explicit.as_deref())?,
+        "current_override": user_id(overridden.current.as_deref())?,
+        "same_guard": Arc::ptr_eq(&values.guard, &overridden.guard),
+    })))
+}
+
+#[tokio::test]
+async fn authentication_attributes_resolve_current_physical_request_without_auth_middleware()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut app = TestApp::<App<0>>::builder(sources(0)).build().await?;
+    for (api, web) in [(Some("api-account"), Some("web-account")), (None, None)] {
+        let mut request = Request::get("/container-identity")
+            .header("host", "middleware.test")
+            .header("accept", "application/json");
+        if let (Some(api), Some(web)) = (api, web) {
+            request = request.header("x-api-user", api).header("x-web-user", web);
+        }
+        let stale_session = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
+        let response = app
+            .request(request.extension(stale_session).body(Body::empty())?)
+            .await?;
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{}",
+            String::from_utf8_lossy(response.body())
+        );
+        let response: Value = serde_json::from_slice(response.body())?;
+        assert_eq!(
+            response,
+            json!({
+                "explicit": api, "current": web,
+                "explicit_override": "api", "current_override": "custom-default",
+                "same_guard": true,
+            })
+        );
+    }
+    let calls = app.app()?.state().resolve::<Calls>().await?;
+    assert_eq!(calls.current_user_attributes.load(Ordering::Relaxed), 4);
+    assert_eq!(
+        calls
+            .request_contexts
+            .lock()
+            .map_err(|_| fixture_error())?
+            .as_slice(),
+        [
+            ("api".to_owned(), false),
+            ("web".to_owned(), false),
+            ("api".to_owned(), false),
+            ("web".to_owned(), false)
+        ]
+    );
+    app.shutdown(tokio::time::Instant::now() + TIMEOUT).await?;
+    Ok(())
 }
 async fn current(
     user: CurrentUser,
@@ -255,7 +420,7 @@ fn sources(mode: u8) -> Figment {
     defaults.api.http_status = HttpStatusMode::Semantic;
     Figment::from(Serialized::defaults(defaults)).merge(Serialized::defaults(json!({
         "app":{"env":"test","url":"http://middleware.test"},
-        "auth":{"defaults":{"guard":"web","passwords":"users","provider":null},"guards":{"web":{"driver":"header","provider":null},"api":{"driver":"header","provider":null}},"password_timeout":10800},
+        "auth":{"defaults":{"guard":"web","passwords":"users","provider":null},"guards":{"web":{"driver":"header","provider":null},"api":{"driver":"header","provider":null},"0":{"driver":"header","provider":null}},"password_timeout":10800},
         "session":{"driver":if mode == 1 || mode == 2 { "cookie" } else { "array" },"cookie":NAME,"secure":false,"lifetime":120,"lottery":[0,100]},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
     })))
@@ -326,6 +491,16 @@ async fn empty_guard_aliases_fall_back_and_guest_ignores_dashboard_on_another_do
         let response = get(&app, "/empty-auth", &[("x-web-user", "web-42")], true).await?;
         response.assert_status(StatusCode::OK)?;
         assert_eq!(response.json::<Value>()?["guard"], "web");
+        let headers = &[("x-web-user", "web-42"), ("x-api-user", "zero-42")];
+        let alias = get(&app, "/zero-alias", headers, true).await?;
+        alias.assert_status(StatusCode::OK)?;
+        assert_eq!(alias.json::<Value>()?["id"], "web-42");
+        let configured = get(&app, "/zero-configured", headers, true).await?;
+        configured.assert_status(StatusCode::OK)?;
+        let configured = configured.json::<Value>()?;
+        assert_eq!(configured["id"], "zero-42");
+        assert_eq!(configured["guard"], "0");
+        assert_eq!(configured["default"], "0");
         let response = get(&app, "/fallback-auth", &[("x-api-user", "api-42")], true).await?;
         response.assert_status(StatusCode::OK)?;
         assert_eq!(response.json::<Value>()?["default"], "api");

@@ -522,6 +522,7 @@ fn account_routes(routes: Router, capabilities: &RouteCapabilities) -> Router {
                 |routes| {
                     routes
                         .post("/session/login", account::session_login)
+                        .get("/session/status", account::session_status)
                         .layer(AuthLayer::optional_guard("web"))
                 },
             )

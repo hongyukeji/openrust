@@ -227,6 +227,13 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
 }
 
 impl RequestInfo {
+    // 物理入口的认证快照早于路由的 Session middleware，外部扩展不是该快照的认证上下文。
+    #[cfg(feature = "auth")]
+    pub(crate) fn without_session(mut self) -> Self {
+        self.session = None;
+        self
+    }
+
     /// 返回此请求共享的类型化属性袋。
     pub const fn attributes(&self) -> &RequestAttributes {
         &self.attributes

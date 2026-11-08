@@ -44,18 +44,17 @@ pub(in crate::auth) async fn request_info(
     resolver: &crate::container::Resolver,
 ) -> Result<Arc<crate::http::RequestInfo>> {
     let slot = resolver.resolve::<AuthRequestSlot>().await?;
-    Ok(slot
-        .0
+    slot.0
         .get()
+        .map(|request| Arc::clone(&request.info))
+        .or_else(|| crate::foundation::http::current_request_info(resolver))
         .ok_or_else(|| {
             Error::custom_with_status(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "auth_request_missing",
                 "认证driver需要当前请求上下文",
             )
-        })?
-        .info
-        .clone())
+        })
 }
 
 pub(crate) async fn session_user_id(scope: &Scope) -> Result<Option<sea_orm::Value>> {

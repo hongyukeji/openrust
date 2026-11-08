@@ -1,12 +1,19 @@
 //! 显式JWT API生成应用的真实路由与因子流程；所有响应均禁止Set-Cookie。
 use figment::Figment;
+use openrust::auth::{AuthLayer, AuthUser, Authenticatable, Guard, fortify::FortifyJwtApiConfig};
+use openrust::container::attributes::{Auth, Authenticated, CurrentUser};
+use openrust::container::{ClassAttribute, ClassDescriptor, ConstructorParam};
 use openrust::foundation::ApplicationDefinition;
+use openrust::foundation::BootContext;
 use openrust::http::axum::{
     body::{Body, to_bytes},
     extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
+use openrust::http::{Inject, Json, RequestInfo};
 use openrust::mail::{MailDriver, Mailer};
+use openrust::routing::RouteGroup;
+use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::testing::TestApp;
 use openrust::{Error, Result};
 use serde_json::{Value, json};
@@ -21,6 +28,58 @@ const PREFIX: &str = "/api/auth";
 const BUDGET: Duration = Duration::from_secs(10);
 fn missing() -> Error {
     Error::custom("generated_jwt_api_fixture", "生成JWT API测试状态不匹配")
+}
+
+struct JwtIdentity(Arc<dyn Guard>, AuthUser, AuthUser);
+
+struct IdentityRoutes;
+impl ServiceProvider for IdentityRoutes {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let profile = app
+                .config_repository()
+                .section::<FortifyJwtApiConfig>("fortify-api")?;
+            app.routes(move |routes| {
+                routes.group(
+                    RouteGroup::new().middleware(AuthLayer::guard(&profile.guard)),
+                    |routes| routes.get("/api/auth/container-identity", identity),
+                )
+            })?;
+            Ok(())
+        })
+    }
+}
+
+fn identity_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete::<JwtIdentity>(
+        "test::JwtIdentity",
+        vec![
+            ConstructorParam::class::<dyn Guard>("guard")
+                .with_attribute(ClassAttribute::contextual(|| Ok(Auth::default()))),
+            ConstructorParam::class::<dyn Authenticatable>("authenticated")
+                .with_attribute(ClassAttribute::contextual(|| Ok(Authenticated::default()))),
+            ConstructorParam::class::<dyn Authenticatable>("current_user")
+                .with_attribute(ClassAttribute::contextual(|| Ok(CurrentUser::default()))),
+        ],
+        |args| {
+            Ok(Arc::new(JwtIdentity(
+                args.service(0)?,
+                args.service(1)?,
+                args.service(2)?,
+            )))
+        },
+    )
+}
+
+async fn identity(Inject(identity): Inject<JwtIdentity>, info: RequestInfo) -> Result<Json<Value>> {
+    let user = identity.0.user().await?.ok_or_else(missing)?;
+    Ok(Json(json!({
+        "id": user.auth_identifier()?,
+        "authenticated_id": identity.1.auth_identifier()?,
+        "current_user_id": identity.2.auth_identifier()?,
+        "session": info.has_session(),
+        "stateful_guard": identity.0.as_stateful().is_some(),
+    })))
 }
 #[derive(Clone, Default)]
 struct CaptureMail(Arc<Mutex<Option<String>>>);
@@ -535,6 +594,10 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         entries,
     )?;
     let mut builder = TestApp::<A>::builder(sources);
+    builder.configure_providers(|builder| {
+        builder.provider(IdentityRoutes);
+        builder.class_descriptors([identity_descriptor()]);
+    });
     let mail = CaptureMail::default();
     let captured = mail.clone();
     builder.configure_after_register(move |bindings| {
@@ -583,6 +646,11 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         let access = initial.text("access_token")?;
         let user = initial.json()?["user_id"].as_i64().ok_or_else(missing)?;
         client.user(&access, StatusCode::OK).await?;
+        let identity = client.call(Method::GET, "/container-identity", None, Some(&access), None).await?;
+        identity.status(StatusCode::OK, "Bearer 注入构造属性");
+        assert_eq!(identity.json()?["data"], json!({"id":user,"authenticated_id":user,"current_user_id":user,"session":false,"stateful_guard":false}));
+        client.call(Method::GET, "/container-identity", None, None, None).await?
+            .status(StatusCode::UNAUTHORIZED, "构造属性不会绕过 Bearer 校验");
         let resource = client.business_user(&access, StatusCode::OK).await?;
         assert_eq!(resource.json()?["data"]["user_id"].as_i64(), Some(user));
         unbound_credentials(&client, &email, user).await?;

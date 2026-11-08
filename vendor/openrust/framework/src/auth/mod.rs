@@ -64,7 +64,7 @@ pub use guard::{
     AuthDefaults, AuthDrivers, AuthManager, AuthUser, Authenticatable, Credentials,
     DatabaseUserProvider, FactorManagementContext, FactorReceipt, FactorVerificationMethod,
     GenericUser, Guard, GuardConfig, GuardContext, RememberTokenMutation, RememberTokenUpdate,
-    SessionFactorProof, StatefulGuard, UserProvider, UserProviderConfig,
+    SessionFactorProof, StatefulGuard, UserProvider, UserProviderConfig, UserResolver,
 };
 pub use jwt::{JwtServiceProvider, JwtTokens};
 pub use migration::{
@@ -798,13 +798,14 @@ async fn project_named_user(
     let (mut parts, body) = request.into_parts();
     let (scope, _info) = prepare_named_request(&mut parts, state).await?;
     let manager = scope.resolve::<AuthManager>().await?;
+    // 显式 Layer 使用已经配置的精确 Guard 名，包含 JWT profile 的具名 driver。
     let name = if config.name.is_empty() {
         manager.default_driver()?
     } else {
         config.name.clone()
     };
     let selected = manager.guard(Some(&name)).await?;
-    manager.should_use(name.clone())?;
+    manager.use_configured_guard(name.clone())?;
     let user = match selected.user().await? {
         Some(account) => {
             let id = account.auth_identifier()?;

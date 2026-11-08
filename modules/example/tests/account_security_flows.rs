@@ -209,6 +209,37 @@ async fn login_session(fixture: &Fixture) -> TestResult<(String, String)> {
     ))
 }
 
+async fn assert_session_auth_attributes(
+    fixture: &Fixture,
+    session: Option<&str>,
+    authenticated: bool,
+) -> TestResult {
+    let response = fixture
+        .app
+        .request(request(
+            "GET",
+            "/session/status",
+            &serde_json::Value::Null,
+            None,
+            session,
+            None,
+        )?)
+        .await?;
+    response
+        .assert_status(StatusCode::OK)?
+        .assert_header("cache-control", "no-store")?;
+    let body: serde_json::Value = response.json()?;
+    assert_eq!(
+        body["data"],
+        serde_json::json!({
+            "guard_authenticated": authenticated,
+            "authenticated": authenticated,
+            "current_user": authenticated,
+        })
+    );
+    Ok(())
+}
+
 #[tokio::test]
 #[allow(
     clippy::too_many_lines,
@@ -259,7 +290,9 @@ async fn session_login_csrf_preferences_logout_and_origin_are_enforced() -> Test
         .await?;
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     response.assert_header("cache-control", "no-store")?;
+    assert_session_auth_attributes(&fixture, None, false).await?;
     let (session, csrf) = login_session(&fixture).await?;
+    assert_session_auth_attributes(&fixture, Some(&session), true).await?;
     let response = fixture
         .post(
             "/session/preference",
@@ -319,6 +352,7 @@ async fn session_login_csrf_preferences_logout_and_origin_are_enforced() -> Test
         .await?;
     assert_eq!(response.status(), StatusCode::OK, "session logout");
     let logged_out_session = cookie(&response)?;
+    assert_session_auth_attributes(&fixture, Some(&logged_out_session), false).await?;
     let response = fixture
         .app
         .request(request(

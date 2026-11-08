@@ -27,6 +27,9 @@ R7具名认证核心已由 `5ad34b9` 限定验收提交；官方Web默认与显�
 
 ✅ R7具名认证限定基线（5ad34b9）：AuthServiceProvider注册AuthDrivers与scoped AuthManager，Session/Web请求共享真实上下文；Guard/Provider按配置和请求缓存、CurrentUser保留数字/字符串ID及来源。DatabaseUserProvider走同一Db查询/工厂，根app-users适配password_hash并拒绝disabled_at，真实Eloquent仍未实现。StatefulGuard提供Session/remember/once/事件语义；GenericUser原子CAS用于Rust取消恢复，未实现能力前置拒绝，既有AuthFlows/OIDC桥接核同一数据库句柄和账户表，不按相同整数ID跨域。唯一模块账户/浏览器实时/OIDC Session调用方、CLI生成模型/配置/测试与正式指南已编码；主11门禁、当前默认workspace、7consumer、四fresh、真实双库各33及最低3.26迁移30断言已通过；最终证据独审与提交状态见唯一todo。详见唯一todo与Fortify计划的R7前置边界。
 
+容器认证属性复用 scoped AuthManager。Auth 返回同一具名 Guard，Authenticated 与 CurrentUser 调用当前用户解析器；自定义解析器收到原始选择，should_use 恢复内置逻辑。Session Guard 沿用已安装的可信请求上下文，无状态 driver 可读取当前物理 HTTP 入口。显式 JWT profile 通过已选择的具名无状态 Guard 注入账户并重验凭据。Laravel 可空 Authenticatable 默认绑定仍开放。
+
+
 - 认证配置经同一配置仓储读取；JWT密钥使用受保护的 `.env` 或部署环境，不写入生成源码。当前公开路径以独立框架包及正在进行的命名空间迁移为准，不把旧配置re-export作为兼容使用指引。
 
 - `AuthServiceProvider::new()` 注册共享密码服务与数据库认证器的同容器异步工厂；boot 解析当前最终绑定的认证服务，并检查当前已支持的 PostgreSQL、MySQL 或 SQLite 后端。`AuthServiceProvider::with_authenticator` 使用应用或第三方实现，不依赖 `Db`；后序 Provider 可按容器覆盖契约提供完整自定义服务。
