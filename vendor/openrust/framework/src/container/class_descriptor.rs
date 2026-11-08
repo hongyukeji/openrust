@@ -19,9 +19,7 @@ type Construct = dyn for<'a> Fn(ResolvedArgs<'a>) -> Result<Value> + Send + Sync
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ClassKind {
     Concrete,
-    #[cfg(test)]
     Interface,
-    #[cfg(test)]
     Abstract,
 }
 
@@ -404,18 +402,19 @@ impl ClassDescriptor {
         )
     }
 
-    #[cfg(test)]
-    pub(super) fn interface<T: ?Sized + Send + Sync + 'static>(symbol: &'static str) -> Self {
+    /// 声明接口的符号与类型。解析需要显式绑定或别名。
+    pub fn interface<T: ?Sized + Send + Sync + 'static>(symbol: &'static str) -> Self {
         Self::declare::<T>(symbol, ClassKind::Interface, None)
     }
 
-    #[cfg(test)]
-    pub(super) fn abstract_class<T: ?Sized + Send + Sync + 'static>(symbol: &'static str) -> Self {
+    /// 声明不具备普通构造入口的抽象类型。
+    pub fn abstract_class<T: ?Sized + Send + Sync + 'static>(symbol: &'static str) -> Self {
         Self::declare::<T>(symbol, ClassKind::Abstract, None)
     }
 
-    #[cfg(test)]
-    pub(super) fn with_projection(mut self, projection: ClassProjection) -> Self {
+    /// 增加由 [`crate::class_projection!`] 声明的同对象视图。
+    #[must_use]
+    pub fn with_projection(mut self, projection: ClassProjection) -> Self {
         self.projections.push(projection);
         self
     }
@@ -458,6 +457,7 @@ impl ClassRecord {
 pub(super) struct ClassRegistry {
     identities: ClassIdentities,
     by_type: HashMap<TypeId, ClassRecord>,
+    projection_sources: HashMap<TypeId, TypeId>,
 }
 impl ClassRegistry {
     pub(super) fn from_descriptors(descriptors: Vec<ClassDescriptor>) -> Result<Self> {
@@ -476,6 +476,7 @@ impl ClassRegistry {
         }
         let identities = ClassIdentities::from_entries(identities)?;
         let mut by_type = HashMap::with_capacity(drafts.len());
+        let mut projection_sources = HashMap::new();
         for (key, kind, constructor, projections) in drafts {
             let id = key.type_id().ok_or_else(|| {
                 container_error(
@@ -500,6 +501,11 @@ impl ClassRegistry {
                 }
                 by_target.insert(projection.target_key().clone(), projection);
             }
+            if !by_target.is_empty()
+                && let Some(constructor) = &constructor
+            {
+                projection_sources.insert(constructor.output, id);
+            }
             by_type.insert(
                 id,
                 ClassRecord {
@@ -513,6 +519,7 @@ impl ClassRegistry {
         Ok(Self {
             identities,
             by_type,
+            projection_sources,
         })
     }
 
@@ -528,7 +535,7 @@ impl ClassRegistry {
     pub(super) fn identity_only(identities: ClassIdentities) -> Self {
         Self {
             identities,
-            by_type: HashMap::new(),
+            ..Self::default()
         }
     }
 
@@ -544,6 +551,15 @@ impl ClassRegistry {
     pub(super) fn class(&self, key: &ServiceKey) -> Option<&ClassRecord> {
         let id = self.identities.canonical_key(key).type_id()?;
         self.by_type.get(&id)
+    }
+
+    pub(super) fn output_projection(
+        &self,
+        declared_output: TypeId,
+        target: &ServiceKey,
+    ) -> Option<&ClassProjection> {
+        let id = self.projection_sources.get(&declared_output)?;
+        self.by_type.get(id)?.projections.get(target)
     }
 
     /// 先选中一个具体源，再检查该源的声明输出。目录不反向查找 trait 实现。

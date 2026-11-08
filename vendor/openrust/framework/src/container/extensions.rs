@@ -7,7 +7,7 @@ use super::{
     lock,
 };
 
-use super::descriptor_source::DescriptorSource;
+use super::descriptor_source::{BindingSource, DescriptorSource};
 use crate::foundation::resources::{ResourceInlineOwner, ResourceTaskCompletion};
 
 type ExtensionFn = dyn Fn(Value, Resolver) -> BoxFuture<'static, Result<Value>> + Send + Sync;
@@ -249,9 +249,16 @@ impl ContainerBuilder {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        let key = self
-            .aliases
-            .resolve(&self.classes.canonical_key(&ServiceKey::typed::<T>()))?;
+        self.extend_key(&ServiceKey::typed::<T>(), extender)
+    }
+
+    /// 沿别名链装饰服务。回调类型必须匹配服务的声明输出。
+    pub fn extend_key<T, F>(&mut self, key: &ServiceKey, extender: F) -> Result<&mut Self>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        let key = self.aliases.resolve(&self.classes.canonical_key(key))?;
         let extender = erase_extender::<T, F>(extender);
         if let Some(binding) = self
             .bindings
@@ -278,9 +285,12 @@ impl ContainerBuilder {
     ///
     /// 别名链成环时返回 `service_alias_cycle`，不移除任何链。
     pub fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&mut self) -> Result<&mut Self> {
-        let key = self
-            .aliases
-            .resolve(&self.classes.canonical_key(&ServiceKey::typed::<T>()))?;
+        self.forget_extenders_key(&ServiceKey::typed::<T>())
+    }
+
+    /// 沿别名链清除未来解析使用的持久装饰链。
+    pub fn forget_extenders_key(&mut self, key: &ServiceKey) -> Result<&mut Self> {
+        let key = self.aliases.resolve(&self.classes.canonical_key(key))?;
         self.extensions.global.remove(&key);
         Ok(self)
     }
@@ -295,9 +305,16 @@ impl ContainerBuilder {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
     {
-        let key = self
-            .aliases
-            .resolve(&self.classes.canonical_key(&ServiceKey::typed::<T>()))?;
+        self.rebinding_key(&ServiceKey::typed::<T>(), callback)
+    }
+
+    /// 沿别名链登记重绑定通知。回调类型必须匹配服务的声明输出。
+    pub fn rebinding_key<T, F>(&mut self, key: &ServiceKey, callback: F) -> Result<&mut Self>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+    {
+        let key = self.aliases.resolve(&self.classes.canonical_key(key))?;
         self.extensions
             .listeners
             .entry(key)
@@ -508,18 +525,13 @@ impl Resolver {
         &self,
         inner: &Arc<Inner>,
         key: &CacheKey,
-        binding: &Binding,
+        source: &BindingSource,
     ) -> Result<Option<CachedAdmission>> {
         loop {
             let waiting = {
                 let mut state = lock(&inner.state);
                 self.check_open(&state)?;
-                if state
-                    .bindings
-                    .get(&key.service)
-                    .map(|binding| binding.generation)
-                    != Some(binding.generation)
-                {
+                if !source.is_current(&state) {
                     return Ok(None);
                 }
                 if let Some(operation) = state
@@ -542,7 +554,7 @@ impl Resolver {
                             changed: Notify::new(),
                         });
                         state.slots.insert(key.clone(), Arc::clone(&attempt));
-                        let chain = if binding.instance.is_some() {
+                        let chain = if source.binding.instance.is_some() {
                             Vec::new()
                         } else {
                             state.extensions.chain(key)
@@ -587,12 +599,13 @@ impl Resolver {
 
     pub(super) async fn transient(
         &self,
-        binding: &Binding,
+        source: &BindingSource,
         mut child: Self,
-        service: &ServiceKey,
         activity: Arc<AtomicBool>,
     ) -> Result<Option<Value>> {
         let inner = self.container()?.inner;
+        let service = &source.key;
+        let binding = &source.binding;
         let key = CacheKey {
             service: service.clone(),
             scope: self.scope,
@@ -601,12 +614,7 @@ impl Resolver {
             let waiting = {
                 let mut state = lock(&inner.state);
                 self.check_open(&state)?;
-                if state
-                    .bindings
-                    .get(service)
-                    .map(|current| current.generation)
-                    != Some(binding.generation)
-                {
+                if !source.is_current(&state) {
                     return Ok(None);
                 }
                 if let Some(operation) = state
@@ -861,11 +869,9 @@ impl Container {
         self.rebinding_key(ServiceKey::typed::<T>(), callback).await
     }
 
-    pub(super) async fn rebinding_key<T, F>(
-        &self,
-        key: ServiceKey,
-        callback: F,
-    ) -> Result<Option<Arc<T>>>
+    /// 沿别名链登记重绑定通知，已绑定时立即解析当前值。
+    /// 回调类型必须匹配服务的声明输出。
+    pub async fn rebinding_key<T, F>(&self, key: ServiceKey, callback: F) -> Result<Option<Arc<T>>>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
@@ -892,18 +898,6 @@ impl Container {
         }
     }
 
-    fn root_resolver(&self) -> Result<Resolver> {
-        let state = lock(&self.inner.state);
-        if state.terminated {
-            return Err(container_error("container_closed", "容器已关闭"));
-        }
-        Ok(self.resolver(
-            state.root_scope,
-            Arc::clone(&state.root_closed),
-            state.root_resources.registrar(),
-        ))
-    }
-
     /// 装饰当前共享缓存；未缓存时保留持久链供未来构造，现有兄弟 scope 不广播替换。
     ///
     /// 失败或取消不替换旧缓存；已发布后的 rebinding 错误不会回滚新值。
@@ -912,20 +906,28 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
+        self.extend_key(&ServiceKey::typed::<T>(), extender).await
+    }
+
+    /// 沿别名链装饰根服务。回调类型必须匹配服务的声明输出。
+    pub async fn extend_key<T, F>(&self, key: &ServiceKey, extender: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
         self.root_resolver()?
-            .extend_value(
-                &ServiceKey::typed::<T>(),
-                erase_extender::<T, F>(extender),
-                false,
-            )
+            .extend_value(key, erase_extender::<T, F>(extender), false)
             .await
     }
 
     /// 清除未来构造的持久链；不撤销当前缓存或 instance 的即时变换。
     pub async fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&self) -> Result<()> {
-        self.root_resolver()?
-            .forget_chain(&ServiceKey::typed::<T>(), false)
-            .await
+        self.forget_extenders_key(&ServiceKey::typed::<T>()).await
+    }
+
+    /// 沿别名链清除根服务的持久装饰链。
+    pub async fn forget_extenders_key(&self, key: &ServiceKey) -> Result<()> {
+        self.root_resolver()?.forget_chain(key, false).await
     }
 
     pub(crate) async fn initialize_extensions(&self) -> Result<()> {
@@ -935,7 +937,11 @@ impl Container {
             let binding = lock(&self.inner.state).bindings.get(&service).cloned();
             if let Some(binding) = binding {
                 self.root_resolver()?
-                    .initialize_instance_until(&self.inner, &service, &binding, through)
+                    .initialize_instance_until(
+                        &self.inner,
+                        &BindingSource::pinned(service, binding),
+                        through,
+                    )
                     .await?;
             }
         }
@@ -950,30 +956,28 @@ impl Scope {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        let resolver = self.container.resolver(
-            self.id,
-            Arc::clone(&self.closed),
-            self.resources.registrar(),
-        );
-        resolver
-            .extend_value(
-                &ServiceKey::typed::<T>(),
-                erase_extender::<T, F>(extender),
-                true,
-            )
+        self.extend_key(&ServiceKey::typed::<T>(), extender).await
+    }
+
+    /// 沿别名链装饰本作用域的服务。回调类型必须匹配服务的声明输出。
+    pub async fn extend_key<T, F>(&self, key: &ServiceKey, extender: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.resolver()
+            .extend_value(key, erase_extender::<T, F>(extender), true)
             .await
     }
 
     /// 仅清除本 scope 的持久装饰；singleton 的持久链由应用清除。
     pub async fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&self) -> Result<()> {
-        self.container
-            .resolver(
-                self.id,
-                Arc::clone(&self.closed),
-                self.resources.registrar(),
-            )
-            .forget_chain(&ServiceKey::typed::<T>(), true)
-            .await
+        self.forget_extenders_key(&ServiceKey::typed::<T>()).await
+    }
+
+    /// 沿别名链清除本作用域的持久装饰链。
+    pub async fn forget_extenders_key(&self, key: &ServiceKey) -> Result<()> {
+        self.resolver().forget_chain(key, true).await
     }
 }
 
@@ -983,7 +987,7 @@ impl Resolver {
         inner: &Arc<Inner>,
         service: &ServiceKey,
         local: bool,
-        expected: Option<u64>,
+        expected: Option<&BindingSource>,
     ) -> Result<OperationGuard> {
         loop {
             let waiting = {
@@ -991,7 +995,7 @@ impl Resolver {
                 self.check_open(&state)?;
                 let binding = state.bindings.get(service);
                 let generation = binding.map_or(0, |binding| binding.generation);
-                if expected.is_some_and(|prior| prior != generation) {
+                if expected.is_some_and(|source| !source.is_current(&state)) {
                     return Err(container_error(
                         "binding_replaced",
                         "装饰准入期间服务绑定已更换",
@@ -1135,7 +1139,8 @@ impl Resolver {
         let service = &service;
         let binding = lock(&inner.state).bindings.get(service).cloned();
         if let Some(binding) = binding.filter(|binding| !binding.pending.is_empty()) {
-            self.initialize_instance(&inner, service, &binding).await?;
+            self.initialize_instance(&inner, &BindingSource::pinned(service.clone(), binding))
+                .await?;
         }
         let guard = self.operation(&inner, service, local, None).await?;
         let owner = &guard.owner;
@@ -1281,20 +1286,19 @@ impl Resolver {
     pub(super) async fn initialize_instance(
         &self,
         inner: &Arc<Inner>,
-        service: &ServiceKey,
-        binding: &Binding,
-    ) -> Result<()> {
-        self.initialize_instance_until(inner, service, binding, binding.pending.len())
+        source: &BindingSource,
+    ) -> Result<bool> {
+        self.initialize_instance_until(inner, source, source.binding.pending.len())
             .await
     }
 
     async fn initialize_instance_until(
         &self,
         inner: &Arc<Inner>,
-        service: &ServiceKey,
-        binding: &Binding,
+        source: &BindingSource,
         through: usize,
-    ) -> Result<()> {
+    ) -> Result<bool> {
+        let service = &source.key;
         let key = CacheKey {
             service: service.clone(),
             scope: u64::MAX,
@@ -1302,19 +1306,14 @@ impl Resolver {
         {
             let state = lock(&inner.state);
             self.check_open(&state)?;
-            if state
-                .bindings
-                .get(service)
-                .map(|current| current.generation)
-                != Some(binding.generation)
-            {
+            if !source.is_current(&state) {
                 return Err(container_error(
                     "binding_replaced",
                     "初始化期间服务绑定已更换",
                 ));
             }
             if state.extensions.instance_complete(service, through) {
-                return Ok(());
+                return Ok(false);
             }
             // 同一操作的通知读取已经发布的中间值，不再次驱动剩余队列。
             if recursive_extension(inner, &key)
@@ -1324,17 +1323,16 @@ impl Resolver {
                     .get(&key)
                     .is_some_and(|operation| operation.published.load(Ordering::Acquire))
             {
-                return Ok(());
+                return Ok(false);
             }
         }
-        let guard = self
-            .operation(inner, service, false, Some(binding.generation))
-            .await?;
+        let guard = self.operation(inner, service, false, Some(source)).await?;
         let mut stack = EXTENDING.try_with(Clone::clone).unwrap_or_default();
         stack.push((address(inner), key.clone(), guard.operation.attempt.id));
         EXTENDING
-            .scope(stack, self.run_pending(&guard, binding, through))
-            .await
+            .scope(stack, self.run_pending(&guard, &source.binding, through))
+            .await?;
+        Ok(true)
     }
 
     async fn run_pending(

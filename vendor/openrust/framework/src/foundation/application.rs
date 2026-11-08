@@ -11,7 +11,7 @@ use crate::config::repository::ConfigRepository;
 use crate::config::{ConfigError, Environment, FrameworkConfig};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
-use crate::container::{Container, Scope};
+use crate::container::{Container, Scope, ServiceKey};
 use crate::core::error::{Error, Result};
 use crate::foundation::provider::ProviderId;
 use crate::foundation::provider::ProviderRuntime;
@@ -129,6 +129,19 @@ impl ApplicationState {
             self.inner.services.resolve::<T>().await
         }
     }
+
+    /// 在当前应用的入口作用域或根生命周期按键解析服务并跟随别名。
+    pub async fn resolve_key<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+    ) -> Result<Arc<T>> {
+        if let Some(scope) = self.inner.services.current_entry_scope() {
+            scope.resolve_key(key).await
+        } else {
+            self.inner.services.resolve_key(key).await
+        }
+    }
+
     /// 启动时解析的框架配置快照；运行期原始写入不重建其中的服务配置。
     pub fn config(&self) -> &FrameworkConfig {
         &self.inner.framework

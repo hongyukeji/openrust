@@ -23,7 +23,12 @@ pub(crate) mod upstream;
 #[cfg(any(test, feature = "auth"))]
 pub(crate) mod welcome;
 
-pub(crate) use message::{ExampleConfig, ExampleMessage, ExamplePresenter, class_descriptors};
+#[cfg(test)]
+pub(crate) use message::ExamplePresenter;
+pub(crate) use message::{
+    EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig, ExampleMessage,
+    GreetingPresenter, class_descriptors,
+};
 #[cfg(feature = "session")]
 pub(crate) mod draft_errors;
 

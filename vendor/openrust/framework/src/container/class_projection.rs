@@ -1,7 +1,6 @@
 //! 编译期生成的同实例Arc投影；不执行服务查找或新建缓存。
 
 use super::ServiceKey;
-#[cfg(test)]
 use crate::core::Error;
 use crate::core::Result;
 use std::{any::Any, sync::Arc};
@@ -9,11 +8,11 @@ use std::{any::Any, sync::Arc};
 type ErasedValue = Arc<dyn Any + Send + Sync>;
 type Project = dyn Fn(&ErasedValue) -> Result<ErasedValue> + Send + Sync;
 
-/// 已编译类的一种同对象输出视图，由内部 `class_projection!` 声明。
+/// 由 [`crate::class_projection!`] 声明的同对象输出视图。
 ///
-/// 本身不登记trait绑定，也不按某个trait自动选择实现类。
+/// 容器先选择服务来源，再使用该来源声明的视图。视图不登记 trait 绑定。
 #[derive(Clone)]
-pub(super) struct ClassProjection {
+pub struct ClassProjection {
     source: ServiceKey,
     target: ServiceKey,
     project: Arc<Project>,
@@ -36,8 +35,8 @@ impl ClassProjection {
     ///
     /// `convert` 正常路径仅作直接Arc coercion；替换对象会在发布视图前失败。
     /// 不将此隐藏桥作为任意业务转换的公开扩展契约。
-    #[cfg(test)]
-    pub(super) fn __from_coercion<C, T>(convert: fn(Arc<C>) -> Arc<T>) -> Self
+    #[doc(hidden)]
+    pub fn __from_coercion<C, T>(convert: fn(Arc<C>) -> Arc<T>) -> Self
     where
         C: Any + Send + Sync,
         T: ?Sized + Send + Sync + 'static,
@@ -64,7 +63,6 @@ impl ClassProjection {
     }
 }
 
-#[cfg(test)]
 fn invalid_projection() -> Error {
     Error::custom_with_status(
         http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -73,11 +71,23 @@ fn invalid_projection() -> Error {
     )
 }
 
-/// 为同一具体对象声明trait视图；仅生成Rust直接Arc coercion。
-#[cfg(test)]
+/// 为具体类型声明 trait 视图，由编译器验证 `Arc` 的直接转换。
+///
+/// ```
+/// use openrust::{class_projection, container::ClassDescriptor};
+/// use std::sync::Arc;
+///
+/// trait Greeting: Send + Sync {}
+/// struct Message;
+/// impl Greeting for Message {}
+///
+/// let _ = ClassDescriptor::concrete::<Message>("app::Message", vec![], |_| Ok(Arc::new(Message)))
+///     .with_projection(class_projection!(Message => dyn Greeting));
+/// ```
+#[macro_export]
 macro_rules! class_projection {
     ($concrete:ty => $view:ty) => {
-        $crate::container::class_projection::ClassProjection::__from_coercion::<$concrete, $view>(
+        $crate::container::ClassProjection::__from_coercion::<$concrete, $view>(
             |source: ::std::sync::Arc<$concrete>| {
                 let projected: ::std::sync::Arc<$view> = source;
                 projected
@@ -85,9 +95,6 @@ macro_rules! class_projection {
         )
     };
 }
-
-#[cfg(test)]
-pub(super) use class_projection;
 
 #[cfg(test)]
 mod tests {

@@ -19,7 +19,7 @@ use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
-use crate::container::{ClassDescriptor, Container, ContainerBuilder, Resolver};
+use crate::container::{ClassDescriptor, Container, ContainerBuilder, Resolver, ServiceKey};
 use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
@@ -148,9 +148,27 @@ impl RegisterContext<'_> {
         self.container.contains::<T>()
     }
 
+    /// 检查原键是否已登记绑定、实例或别名。
+    pub fn is_bound_key(&self, key: &ServiceKey) -> bool {
+        self.container.contains_key(key)
+    }
+
     /// 从同一容器显式解析服务；提前构造的资源仍由当前应用统一回收。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         self.container.resolve::<T>().await
+    }
+
+    /// 从同一容器按键解析服务并跟随别名。
+    pub async fn resolve_key<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+    ) -> Result<Arc<T>> {
+        self.container.resolve_key(key).await
+    }
+
+    /// 在当前应用的容器中使 `alias` 指向 `target`。
+    pub fn alias(&mut self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+        self.container.alias(target, alias)
     }
 
     /// 当前应用的MIME检测登记器；Provider晚注册的后续请求立即可见。
@@ -172,6 +190,15 @@ impl RegisterContext<'_> {
         self.container.bind(factory).await
     }
 
+    /// 在原键登记每次解析均调用的工厂。
+    pub async fn bind_key<T, F>(&mut self, key: ServiceKey, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.bind_key(key, factory).await
+    }
+
     /// 在应用内共享成功构造的实例。
     pub async fn singleton<T, F>(&mut self, factory: F) -> Result<()>
     where
@@ -179,6 +206,15 @@ impl RegisterContext<'_> {
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
         self.container.singleton(factory).await
+    }
+
+    /// 在原键登记应用内共享的工厂。
+    pub async fn singleton_key<T, F>(&mut self, key: ServiceKey, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.singleton_key(key, factory).await
     }
 
     /// 在一个请求、任务或命令 scope 内共享实例。
@@ -190,12 +226,30 @@ impl RegisterContext<'_> {
         self.container.scoped(factory).await
     }
 
+    /// 在原键登记每个作用域独立共享的工厂。
+    pub async fn scoped_key<T, F>(&mut self, key: ServiceKey, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.scoped_key(key, factory).await
+    }
+
     /// 登记已存在的共享实例。
     pub async fn instance<T: ?Sized + Send + Sync + 'static>(
         &mut self,
         value: Arc<T>,
     ) -> Result<()> {
         self.container.instance(value).await
+    }
+
+    /// 在原键登记现有的共享实例。
+    pub async fn instance_key<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+        value: Arc<T>,
+    ) -> Result<()> {
+        self.container.instance_key(key, value).await
     }
 
     /// 保留原 factory 并登记装饰；显式 instance 的异步链在所有 register 后、boot 前执行。
@@ -205,6 +259,15 @@ impl RegisterContext<'_> {
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
         self.container.extend::<T, F>(extender).await
+    }
+
+    /// 沿别名链装饰服务。回调类型必须匹配服务的声明输出。
+    pub async fn extend_key<T, F>(&mut self, key: &ServiceKey, extender: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.extend_key(key, extender).await
     }
 
     /// 登记新缓存发布后的通知；通知可解析同型服务。
@@ -326,9 +389,22 @@ impl BootContext<'_> {
         self.container.contains::<T>()
     }
 
+    /// 检查原键在注册阶段是否获得了绑定、实例或别名。
+    pub fn is_bound_key(&self, key: &ServiceKey) -> bool {
+        self.container.contains_key(key)
+    }
+
     /// 解析已封口的服务绑定。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&mut self) -> Result<Arc<T>> {
         self.container.resolve::<T>().await
+    }
+
+    /// 在启动阶段按键解析服务并跟随别名。
+    pub async fn resolve_key<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        key: ServiceKey,
+    ) -> Result<Arc<T>> {
+        self.container.resolve_key(key).await
     }
 
     /// 等待当前缓存装饰成功后返回；失败不替换旧缓存。
@@ -338,6 +414,15 @@ impl BootContext<'_> {
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
         self.container.extend::<T, F>(extender).await
+    }
+
+    /// 沿别名链装饰服务。回调类型必须匹配服务的声明输出。
+    pub async fn extend_key<T, F>(&mut self, key: &ServiceKey, extender: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.extend_key(key, extender).await
     }
 
     /// 清除未来构造的持久装饰链，不撤销当前缓存。

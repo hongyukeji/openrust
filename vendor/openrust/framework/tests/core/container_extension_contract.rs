@@ -2,13 +2,14 @@
 
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::FrameworkConfig;
 use openrust::container::{
-    ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterValue, Resolver, ScopeFactory,
+    ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterValue, Resolver, Scope,
+    ScopeFactory, ServiceKey,
 };
 use openrust::core::Error;
 use openrust::core::Result;
@@ -37,6 +38,217 @@ fn add(
     amount: usize,
 ) -> impl Fn(Arc<usize>, Resolver) -> BoxFuture<'static, Result<Arc<usize>>> + Send + Sync {
     move |value, _| Box::pin(async move { Ok(Arc::new(*value + amount)) })
+}
+
+trait ReportView: Send + Sync {
+    fn sequence(&self) -> usize;
+}
+
+struct Report(usize);
+impl ReportView for Report {
+    fn sequence(&self) -> usize {
+        self.0
+    }
+}
+
+struct InterruptedReport(Arc<AtomicUsize>);
+impl ReportView for InterruptedReport {
+    fn sequence(&self) -> usize {
+        0
+    }
+}
+impl Drop for InterruptedReport {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        std::panic::resume_unwind(Box::new("projection_drop_probe"));
+    }
+}
+
+#[tokio::test]
+async fn projected_binding_scope_close_contains_rejected_value_drop_panic() -> Result<()> {
+    for scoped in [false, true] {
+        check_projected_scope_close_drop(scoped).await?;
+    }
+    Ok(())
+}
+
+async fn check_projected_scope_close_drop(scoped: bool) -> Result<()> {
+    use std::error::Error as _;
+
+    let key = ServiceKey::named("report.interrupted");
+    let closed_scope = Arc::new(OnceLock::<Weak<Scope>>::new());
+    let drops = Arc::new(AtomicUsize::new(0));
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<InterruptedReport>("app::InterruptedReport", vec![], |_| {
+            Err(Error::custom(
+                "unexpected_constructor",
+                "必须先选择显式工厂",
+            ))
+        })
+        .with_projection(openrust::class_projection!(InterruptedReport => dyn ReportView)),
+    ])?;
+    let factory = {
+        let closed_scope = Arc::clone(&closed_scope);
+        let drops = Arc::clone(&drops);
+        move |_| -> BoxFuture<'static, Result<Arc<InterruptedReport>>> {
+            let closed_scope = Arc::clone(&closed_scope);
+            let drops = Arc::clone(&drops);
+            Box::pin(async move {
+                let scope = closed_scope
+                    .get()
+                    .and_then(Weak::upgrade)
+                    .ok_or_else(|| Error::custom("test_scope_missing", "未安装作用域"))?;
+                scope.close();
+                Ok(Arc::new(InterruptedReport(drops)))
+            })
+        }
+    };
+    if scoped {
+        builder.scoped_key(key.clone(), factory);
+    } else {
+        builder.bind_key(key.clone(), factory);
+    }
+    let container = builder.build();
+    let scope = Arc::new(container.scope()?);
+    assert!(closed_scope.set(Arc::downgrade(&scope)).is_ok());
+    let Err(error) = scope.resolve_key::<dyn ReportView>(key.clone()).await else {
+        return Err(Error::custom(
+            "test_result_delivered",
+            "已关闭作用域交付了视图",
+        ));
+    };
+    assert_eq!(error.code(), "resource_task_interrupted");
+    let mut source = error.source();
+    let mut scope_closed = false;
+    while let Some(current) = source {
+        scope_closed |= current
+            .downcast_ref::<Error>()
+            .is_some_and(|primary| primary.code() == "scope_closed");
+        source = current.source();
+    }
+    assert!(scope_closed);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert!(!container.resolved_key(&key)?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn detached_scope_cannot_deliver_a_projected_value_after_root_shutdown() -> Result<()> {
+    let key = ServiceKey::named("report.detached");
+    let release = Arc::new(Notify::new());
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<Report>("app::Report", vec![], |_| {
+            Err(Error::custom(
+                "unexpected_constructor",
+                "必须先选择显式工厂",
+            ))
+        })
+        .with_projection(openrust::class_projection!(Report => dyn ReportView)),
+    ])?;
+    builder.bind_key(key.clone(), {
+        let release = Arc::clone(&release);
+        move |_| {
+            let release = Arc::clone(&release);
+            Box::pin(async move {
+                release.notified().await;
+                Ok(Arc::new(Report(5)))
+            })
+        }
+    });
+    let container = builder.build();
+    let scope = container.scope()?;
+    let mut request = Box::pin(scope.resolve_key::<dyn ReportView>(key));
+    assert!(futures_util::poll!(request.as_mut()).is_pending());
+    container
+        .shutdown_root(Instant::now() + Duration::from_secs(2))
+        .await?;
+    release.notify_one();
+    assert!(matches!(request.await, Err(error) if error.code() == "container_closed"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_scoped_factory_projects_after_preflight_and_reuses_its_concrete_cache() -> Result<()>
+{
+    let key = ServiceKey::named("report.source");
+    let alias = ServiceKey::named("report.view");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<Report>("app::Report", vec![], |_| {
+            Err(Error::custom(
+                "unexpected_constructor",
+                "必须先选择显式工厂",
+            ))
+        })
+        .with_projection(openrust::class_projection!(Report => dyn ReportView)),
+    ])?;
+    builder.alias(key.clone(), alias.clone())?;
+    builder.extend_key::<Report, _>(&alias, |report, _| {
+        Box::pin(async move { Ok(Arc::new(Report(report.0 + 10))) })
+    })?;
+    builder.scoped_key(key.clone(), {
+        let calls = Arc::clone(&calls);
+        move |_| {
+            let sequence = calls.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move { Ok(Arc::new(Report(sequence))) })
+        }
+    });
+    let container = builder.build();
+    let first = container.scope()?;
+    let second = container.scope()?;
+    assert!(matches!(
+        first.resolve_key::<String>(alias.clone()).await,
+        Err(error) if error.code() == "service_type_mismatch"
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let first_view = first.resolve_key::<dyn ReportView>(alias.clone()).await?;
+    let first_concrete: Arc<dyn ReportView> = first.resolve_key::<Report>(key).await?;
+    assert!(Arc::ptr_eq(&first_view, &first_concrete));
+    assert_eq!(first_view.sequence(), 10);
+    let second_view = second.resolve_key::<dyn ReportView>(alias).await?;
+    assert_ne!(first_view.sequence(), second_view.sequence());
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    first
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await?;
+    second
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await
+}
+
+#[tokio::test]
+async fn alias_cycles_fail_on_traversal_and_original_key_registration_can_repair_them() -> Result<()>
+{
+    let first = ServiceKey::named("ports.alpha");
+    let second = ServiceKey::named("ports.beta");
+    let fallback = ServiceKey::named("Ports.Alpha");
+    let container = ContainerBuilder::new().build();
+    assert!(matches!(
+        container.alias(first.clone(), first.clone()),
+        Err(error) if error.code() == "service_alias_self"
+    ));
+    container.alias(second.clone(), first.clone())?;
+    container.alias(first.clone(), second.clone())?;
+    assert!(container.contains_key(&first));
+    assert!(container.is_alias(&second));
+    assert!(!container.is_shared_key(&first));
+    assert!(matches!(
+        container.resolved_key(&second),
+        Err(error) if error.code() == "service_alias_cycle"
+    ));
+    assert!(matches!(
+        container.resolve_key::<u16>(first.clone()).await,
+        Err(error) if error.code() == "service_alias_cycle"
+    ));
+
+    container
+        .instance_key(first.clone(), Arc::new(443u16))
+        .await?;
+    assert!(!container.is_alias(&first));
+    assert_eq!(container.get_alias(&second)?, first);
+    assert_eq!(*container.resolve_key::<u16>(second).await?, 443);
+    assert!(!container.contains_key(&fallback));
+    Ok(())
 }
 
 trait Driver: Send + Sync {

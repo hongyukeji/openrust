@@ -30,6 +30,16 @@ let classes = [
 
 普通 `resolve::<Greeting>()` 在当前作用域递归解析依赖，再调用构造回调。描述符提供的是编译期类型和构造信息，因此只支持主动声明的类型。单独登记描述符不会令 `contains::<Greeting>()` 成立。显式绑定优先，可沿用 `bind`、`singleton`、`scoped` 或 `instance` 控制生命周期。
 
+### 具名键、别名与 trait 视图
+
+`ServiceKey::named("app::Greeting")` 使用登记时的类符号，与该类的类型键共用绑定和缓存。其他字符串是独立键，保留原样并区分大小写。可用 `bind_key`、`singleton_key`、`scoped_key` 或 `instance_key` 在这些键上登记服务。
+
+使用 `alias(target, alias)` 添加别名。按键解析、`get_alias` 和 `resolved_key` 跟随别名链，出现环时返回 `service_alias_cycle`。 `contains_key` 把别名本身计为已登记，`is_shared_key` 查询原键。写入绑定或实例会替换原键上的别名。`extend_key` 沿别名链装饰所选服务，回调接收该服务的声明类型。
+
+为类描述添加 `with_projection(openrust::class_projection!(Greeting => dyn GreetingView))` 后，可用 `resolve_key::<dyn GreetingView>(key)` 获取同一个对象的 trait 视图。查找先选定绑定或描述符，再在调用工厂前检查声明输出。视图与具体类型共享实例和作用域缓存。需要以接口类型直接解析时，可以显式登记该接口的别名或绑定。
+
+HTTP 处理器可通过 `State<ApplicationState>` 调用 `state.resolve_key::<T>(key)`，使用当前请求作用域。
+
 应用 Controller 放在 `app/http/controllers/`，通过 `routes/api.rs` 或 `routes/web.rs` 声明访问路径；应用 Provider 类型放在 `app/providers/`，由 `bootstrap/providers.rs` 登记。不要把这些应用职责放入框架 `src/`。
 
 API 请求匹配当前配置前缀的无状态路由组，再进入处理函数。异常经公开 Handler 扩展渲染；根应用对配置的 API 范围选择 JSON 包装，Web 请求继续使用其内容协商与异常渲染流程。

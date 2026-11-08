@@ -27,7 +27,7 @@ impl CallbackDisposal {
         Self { completion, owner }
     }
 
-    fn run<T>(&self, action: impl FnOnce() -> T) -> T {
+    pub(crate) fn run<T>(&self, action: impl FnOnce() -> T) -> T {
         let mut cleanup = if self.completion.is_none() {
             self.owner
                 .as_ref()

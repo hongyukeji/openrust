@@ -43,6 +43,7 @@ pub use service_key::ServiceKey;
 mod class_identity;
 use class_descriptor::ClassRegistry;
 pub use class_descriptor::{ClassDescriptor, ConstructorParam, ResolvedArgs};
+pub use class_projection::ClassProjection;
 
 #[cfg(test)]
 #[path = "container/descriptor_race_tests.rs"]
@@ -52,6 +53,7 @@ mod descriptor_resolve;
 #[path = "container/descriptor_resolve_tests.rs"]
 mod descriptor_resolve_tests;
 mod descriptor_source;
+use descriptor_source::BindingSource;
 mod directory;
 mod parameters;
 #[cfg(test)]
@@ -168,6 +170,28 @@ struct Binding {
 }
 
 impl Binding {
+    fn output_projection(
+        &self,
+        classes: &ClassRegistry,
+        request: &ResolveRequest,
+    ) -> Result<Option<ClassProjection>> {
+        let (Some(expected), Some(target)) = (request.expected_output(), request.target()) else {
+            return Ok(None);
+        };
+        let declared = self
+            .instance
+            .as_ref()
+            .map(|value| value.as_ref().type_id())
+            .or(self.factory_output);
+        if declared == Some(expected) {
+            return Ok(None);
+        }
+        declared
+            .and_then(|declared| classes.output_projection(declared, target).cloned())
+            .map(Some)
+            .ok_or_else(|| container_error("service_type_mismatch", "服务声明输出与请求类型不同"))
+    }
+
     fn effective_lifetime(&self) -> Lifetime {
         if self.instance.is_some() {
             Lifetime::Singleton
@@ -895,18 +919,27 @@ impl Container {
 
     /// 在根生命周期解析；`scoped` 在根也会共享，符合 Laravel 行为。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
-        let (scope, closed, resources) = {
-            let state = lock(&self.inner.state);
-            if state.terminated {
-                return Err(container_error("container_closed", "容器已关闭"));
-            }
-            (
-                state.root_scope,
-                Arc::clone(&state.root_closed),
-                state.root_resources.registrar(),
-            )
-        };
-        self.resolver(scope, closed, resources).resolve().await
+        self.root_resolver()?.resolve().await
+    }
+
+    /// 在根生命周期按键解析。查找键和请求的 Rust 输出类型分别指定。
+    pub async fn resolve_key<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+    ) -> Result<Arc<T>> {
+        self.root_resolver()?.resolve_key(key).await
+    }
+
+    fn root_resolver(&self) -> Result<Resolver> {
+        let state = lock(&self.inner.state);
+        if state.terminated {
+            return Err(container_error("container_closed", "容器已关闭"));
+        }
+        Ok(self.resolver(
+            state.root_scope,
+            Arc::clone(&state.root_closed),
+            state.root_resources.registrar(),
+        ))
     }
 
     /// 关闭根 scoped 旧代，等待资源回收后才发布可解析的新代。
@@ -1189,14 +1222,23 @@ impl Scope {
 
     /// 在本生命周期解析服务。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
-        self.container
-            .resolver(
-                self.id,
-                Arc::clone(&self.closed),
-                self.resources.registrar(),
-            )
-            .resolve()
-            .await
+        self.resolver().resolve().await
+    }
+
+    /// 在本生命周期按键解析。别名与类型化入口共享相同的作用域缓存。
+    pub async fn resolve_key<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+    ) -> Result<Arc<T>> {
+        self.resolver().resolve_key(key).await
+    }
+
+    fn resolver(&self) -> Resolver {
+        self.container.resolver(
+            self.id,
+            Arc::clone(&self.closed),
+            self.resources.registrar(),
+        )
     }
 
     /// 封闭解析并显式等待本 scope 的资源回收。
@@ -1488,7 +1530,7 @@ impl Resolver {
 
     /// 解析具体类型或 `dyn Trait`；缺失、环和构造失败返回错误。
     pub fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> BoxFuture<'_, Result<Arc<T>>> {
-        self.resolve_key::<T>(None::<ServiceKey>)
+        self.resolve_lookup::<T>(None)
     }
 
     #[cfg(test)]
@@ -1532,11 +1574,15 @@ impl Resolver {
     ) -> Result<descriptor_source::ConstructionSource> {
         use descriptor_source::ConstructionSource;
         self.check_open(state)?;
-        let key = if expected.is_some() {
-            state.classes.canonical_key(requested)
+        let canonical = state.classes.canonical_key(requested);
+        let aliases = if expected.is_none() {
+            Some(state.aliases.witness(&canonical)?)
         } else {
-            state.alias_key(requested)?
+            None
         };
+        let key = aliases
+            .as_ref()
+            .map_or(canonical, |path| path.terminal.clone());
         let entry = state.bindings.get(&key);
         if expected.is_some() && entry.map(|binding| binding.generation) != expected {
             return Err(container_error(
@@ -1545,10 +1591,11 @@ impl Resolver {
             ));
         }
         Ok(match entry {
-            Some(binding) => ConstructionSource::Binding {
+            Some(binding) => ConstructionSource::Binding(BindingSource {
                 key,
                 binding: binding.clone(),
-            },
+                aliases,
+            }),
             None => ConstructionSource::Missing(key),
         })
     }
@@ -1558,7 +1605,7 @@ impl Resolver {
         inner: &Arc<Inner>,
         request: &ResolveRequest,
         expected: Option<u64>,
-    ) -> Result<std::ops::ControlFlow<Value, (ServiceKey, Binding)>> {
+    ) -> Result<std::ops::ControlFlow<Value, BindingSource>> {
         let requested = request.lookup_key();
         loop {
             use descriptor_source::ConstructionSource;
@@ -1573,14 +1620,14 @@ impl Resolver {
                     self.binding_source(&state, requested, expected)?
                 };
                 #[cfg(test)]
-                if matches!(&selected, ConstructionSource::Binding { .. }) {
+                if matches!(&selected, ConstructionSource::Binding(_)) {
                     directory_tests_v2::observe_selected();
                 }
                 selected
             };
             match source {
-                ConstructionSource::Binding { key, binding } => {
-                    return Ok(std::ops::ControlFlow::Continue((key, binding)));
+                ConstructionSource::Binding(source) => {
+                    return Ok(std::ops::ControlFlow::Continue(source));
                 }
                 ConstructionSource::Missing(key) => return Err(self.missing_service(&key)),
                 ConstructionSource::Descriptor(source) => {
@@ -1601,6 +1648,40 @@ impl Resolver {
         }
     }
 
+    fn binding_projection(
+        &self,
+        inner: &Inner,
+        source: &BindingSource,
+        request: &ResolveRequest,
+    ) -> Result<Option<ClassProjection>> {
+        let state = lock(&inner.state);
+        self.check_open(&state)?;
+        if !source.is_current(&state) {
+            return Err(container_error(
+                "binding_replaced",
+                "解析准入前服务来源已更换",
+            ));
+        }
+        if self
+            .chain
+            .iter()
+            .any(|(id, active)| *id == source.key && active.load(Ordering::Acquire))
+        {
+            return Err(container_error(
+                "service_cycle",
+                self.dependency_path(&source.key),
+            ));
+        }
+        let projection = source.binding.output_projection(&state.classes, request)?;
+        if source.binding.effective_lifetime() == Lifetime::Scoped && self.captive {
+            return Err(container_error(
+                "captive_scope_dependency",
+                format!("singleton 不能捕获 scoped 服务 `{}`", source.key),
+            ));
+        }
+        Ok(projection)
+    }
+
     fn resolve_projected(
         &self,
         request: ResolveRequest,
@@ -1608,103 +1689,134 @@ impl Resolver {
     ) -> BoxFuture<'_, Result<Value>> {
         Box::pin(async move {
             let container = self.container()?;
-            let (key, binding) = match self
-                .select_resolution(&container.inner, &request, expected)
-                .await?
-            {
-                std::ops::ControlFlow::Continue(binding) => binding,
-                std::ops::ControlFlow::Break(value) => return Ok(value),
-            };
-            if self
-                .chain
-                .iter()
-                .any(|(id, active)| *id == key && active.load(Ordering::Acquire))
-            {
-                return Err(container_error("service_cycle", self.dependency_path(&key)));
-            }
-            #[cfg(test)]
-            directory_tests_v2::after_binding_selection().await;
-            let output = binding
-                .instance
-                .as_ref()
-                .map(|value| value.as_ref().type_id())
-                .or(binding.factory_output);
-            if request
-                .expected_output()
-                .is_some_and(|expected| output != Some(expected))
-            {
-                return Err(container_error(
-                    "service_type_mismatch",
-                    "服务声明输出与请求类型不同",
-                ));
-            }
-            if !binding.pending.is_empty()
-                && let Err(error) = self
-                    .initialize_instance(&container.inner, &key, &binding)
-                    .await
-            {
-                if error.code() == "binding_replaced" {
-                    return self.resolve_projected(request, expected).await;
-                }
-                return Err(error);
-            }
-            if binding.effective_lifetime() == Lifetime::Scoped && self.captive {
-                let stale = lock(&container.inner.state)
-                    .bindings
-                    .get(&key)
-                    .map(|current| current.generation)
-                    != Some(binding.generation);
-                if stale {
-                    return self.resolve_projected(request, expected).await;
-                }
-                return Err(container_error(
-                    "captive_scope_dependency",
-                    format!("singleton 不能捕获 scoped 服务 `{key}`"),
-                ));
-            }
-            let mut child = self.clone();
-            child
-                .chain
-                .retain(|(_, active)| active.load(Ordering::Acquire));
-            let activity = Arc::new(AtomicBool::new(true));
-            let _activity = ActiveFactory(Arc::clone(&activity));
-            child.chain.push((key.clone(), Arc::clone(&activity)));
-            if binding.effective_lifetime() == Lifetime::Singleton {
-                child.captive = true;
-                child.scope = u64::MAX;
-                child.closed = Arc::new(ScopeStatus::default());
-                child.resources = container.inner.resources.clone();
-            }
-            let value = if binding.effective_lifetime() == Lifetime::Bind {
-                match self.transient(&binding, child, &key, activity).await? {
-                    Some(value) => value,
-                    None => {
-                        return self.resolve_projected(request, expected).await;
+            loop {
+                let mut source = match self
+                    .select_resolution(&container.inner, &request, expected)
+                    .await?
+                {
+                    std::ops::ControlFlow::Continue(binding) => binding,
+                    std::ops::ControlFlow::Break(value) => return Ok(value),
+                };
+                #[cfg(test)]
+                directory_tests_v2::after_binding_selection().await;
+                let projection = match self.binding_projection(&container.inner, &source, &request)
+                {
+                    Ok(projection) => projection,
+                    Err(error) if error.code() == "binding_replaced" => continue,
+                    Err(error) => return Err(error),
+                };
+                if !source.binding.pending.is_empty() {
+                    match self.initialize_instance(&container.inner, &source).await {
+                        Ok(true) => source.aliases = None,
+                        Ok(false) => {}
+                        Err(error) if error.code() == "binding_replaced" => continue,
+                        Err(error) => return Err(error),
                     }
                 }
-            } else {
-                match self.cached(&binding, child, &key, activity).await? {
-                    Some(value) => value,
-                    None => {
-                        return self.resolve_projected(request, expected).await;
-                    }
+                let mut child = self.clone();
+                child
+                    .chain
+                    .retain(|(_, active)| active.load(Ordering::Acquire));
+                let activity = Arc::new(AtomicBool::new(true));
+                let _activity = ActiveFactory(Arc::clone(&activity));
+                child
+                    .chain
+                    .push((source.key.clone(), Arc::clone(&activity)));
+                let lifetime = source.binding.effective_lifetime();
+                if lifetime == Lifetime::Singleton {
+                    child.captive = true;
+                    child.scope = u64::MAX;
+                    child.closed = Arc::new(ScopeStatus::default());
+                    child.resources = container.inner.resources.clone();
                 }
-            };
-            if self.closed.closed.load(Ordering::Acquire) {
-                return Err(container_error("scope_closed", "生命周期已关闭"));
+                let value = if lifetime == Lifetime::Bind {
+                    self.transient(&source, child, activity).await?
+                } else {
+                    self.cached(&source, child, activity).await?
+                };
+                if let Some(value) = value {
+                    return self.deliver_output(&container.inner, value, projection.as_ref());
+                }
             }
-            Ok(value)
         })
+    }
+
+    fn deliver_output(
+        &self,
+        inner: &Inner,
+        value: Value,
+        projection: Option<&ClassProjection>,
+    ) -> Result<Value> {
+        use crate::foundation::lifecycle::{TaskExecutionFailure, catch_isolated, disposal};
+        let open = self.check_open(&lock(&inner.state));
+        if let Err(primary) = open {
+            return self
+                .callback_disposal()
+                .run(|| Err(Self::retire_rejected_output(value, primary, false)));
+        }
+        let Some(projection) = projection else {
+            return Ok(value);
+        };
+        self.callback_disposal().run(|| {
+            let open = self.check_open(&lock(&inner.state));
+            if let Err(primary) = open {
+                return Err(Self::retire_rejected_output(value, primary, false));
+            }
+            let result = if let Ok(result) = catch_isolated(|| projection.project(&value)) {
+                result
+            } else {
+                disposal::failure(None);
+                Err(container_error(
+                    "resource_task_interrupted",
+                    "输出视图转换异常",
+                ))
+            };
+
+            let cleanup_failed = disposal::dispose(value, None).seen;
+            let open = self.check_open(&lock(&inner.state));
+            if let Err(primary) = open {
+                return Err(Self::retire_rejected_output(
+                    result,
+                    primary,
+                    cleanup_failed,
+                ));
+            }
+            if !cleanup_failed {
+                return result;
+            }
+            let cleanup = container_error("resource_task_interrupted", "输出视图清理异常");
+            match result {
+                Ok(value) => {
+                    disposal::dispose(value, None);
+                    Err(cleanup)
+                }
+                Err(primary) => Err(TaskExecutionFailure::error(primary, cleanup)),
+            }
+        })
+    }
+
+    fn retire_rejected_output<T>(output: T, primary: Error, cleanup_failed: bool) -> Error {
+        use crate::foundation::lifecycle::{TaskExecutionFailure, disposal};
+        let rejected_cleanup_failed = disposal::dispose(output, None).seen;
+        if cleanup_failed || rejected_cleanup_failed {
+            TaskExecutionFailure::error(
+                primary,
+                container_error("resource_task_interrupted", "拒绝交付的输出清理异常"),
+            )
+        } else {
+            primary
+        }
     }
 
     async fn cached(
         &self,
-        binding: &Binding,
+        source: &BindingSource,
         mut child: Self,
-        service: &ServiceKey,
         activity: Arc<AtomicBool>,
     ) -> Result<Option<Value>> {
         let container = self.container()?;
+        let service = &source.key;
+        let binding = &source.binding;
         // singleton 不能和 root scoped 共用一个缓存键。
         let key = CacheKey {
             service: service.clone(),
@@ -1718,7 +1830,7 @@ impl Resolver {
             attempt,
             owner_chain,
             edge: _edge,
-        }) = self.admit_cached(&container.inner, &key, binding).await?
+        }) = self.admit_cached(&container.inner, &key, source).await?
         else {
             return Ok(None);
         };
@@ -1747,7 +1859,14 @@ impl Resolver {
         match outcome {
             Ok(value) => {
                 guard.finish(Ok(Arc::clone(&value)));
-                let value = attempt.wait().await?;
+                let value = match attempt.wait().await {
+                    Ok(published) => published,
+                    Err(primary) => {
+                        return self
+                            .callback_disposal()
+                            .run(|| Err(Self::retire_rejected_output(value, primary, false)));
+                    }
+                };
                 if !binding.pending.is_empty() {
                     let event = {
                         let state = lock(&container.inner.state);
@@ -1816,9 +1935,8 @@ mod tests {
             .await?;
         let stale = resolver
             .cached(
-                &old,
+                &BindingSource::pinned(ServiceKey::typed::<usize>(), old),
                 resolver.clone(),
-                &ServiceKey::typed::<usize>(),
                 Arc::new(AtomicBool::new(true)),
             )
             .await?;

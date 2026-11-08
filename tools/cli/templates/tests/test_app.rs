@@ -20,7 +20,7 @@ mod request_session;
 #[path = "../routes/mod.rs"]
 mod routes;
 
-use app::http::controllers::home::HomePresenter;
+use app::http::controllers::home::{HomePresenter, HomeResponse};
 use bootstrap::OpenRustGeneratedApplication as GeneratedApplication;
 
 use figment::{
@@ -28,6 +28,7 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
+use openrust::container::ServiceKey;
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
@@ -35,6 +36,10 @@ use openrust::http::axum::{
     http::{Request, StatusCode},
 };
 use openrust::testing::TestApp;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 use std::time::Duration;
 
 fn test_configuration() -> openrust::config::FrameworkConfig {
@@ -155,11 +160,13 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     let mut app = TestApp::<GeneratedApplication>::builder(sources)
         .build()
         .await?;
-    let state = app.app()?.state();
+    let state = app.app()?.state().clone();
     assert!(!state.container().contains::<HomePresenter>());
-    let first = state.resolve::<HomePresenter>().await?;
-    let second = state.resolve::<HomePresenter>().await?;
-    assert!(!std::sync::Arc::ptr_eq(&first, &second));
+    assert!(!state.container().contains::<dyn HomeResponse>());
+    let symbol = ServiceKey::named(HomePresenter::SYMBOL);
+    let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
+    let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
+    assert!(!Arc::ptr_eq(&first, &second));
     let keys = app.app()?.config_repository().all()?["template_order"]
         .as_object()
         .ok_or("有序测试区段必须是对象")?
@@ -206,6 +213,26 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         "message": "ok",
         "data": {"name": "configured-application"}
     }))?;
+    // 先在根作用域构造一次，再验证每个真实路由请求都使用各自的作用域。
+    let constructions = Arc::new(AtomicUsize::new(0));
+    let factory_constructions = Arc::clone(&constructions);
+    state
+        .container()
+        .scoped::<HomePresenter, _>(move |_| {
+            factory_constructions.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async { Ok(Arc::new(HomePresenter)) })
+        })
+        .await?;
+    let typed_root: Arc<dyn HomeResponse> = state.resolve::<HomePresenter>().await?;
+    let projected_root = state.resolve_key::<dyn HomeResponse>(symbol).await?;
+    assert!(Arc::ptr_eq(&typed_root, &projected_root));
+    assert_eq!(constructions.load(Ordering::Relaxed), 1);
+    for expected_count in [2, 3] {
+        let response = app.request(Request::get("/api").body(Body::empty())?).await?;
+        response.assert_status(StatusCode::OK)?;
+        assert!(response.headers().get("set-cookie").is_none());
+        assert_eq!(constructions.load(Ordering::Relaxed), expected_count);
+    }
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
     let page = app

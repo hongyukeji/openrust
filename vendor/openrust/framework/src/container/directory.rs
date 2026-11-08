@@ -1,12 +1,12 @@
 //! 原键目录、方法特定别名与用户 Closure 的原始调用；类目录规范化由装配前置提供。
 
+#[cfg(test)]
+use super::ParameterOverrides;
 use super::{
     Arc, Binding, BindingChange, BoxFuture, ClassDescriptor, ClassRegistry, Container,
     ContainerBuilder, HashMap, HashSet, Lifetime, ResolveRequest, Resolver, Result, ServiceKey,
-    State, TypeId, Value, container_error,
+    State, TypeId, Value, container_error, lock,
 };
-#[cfg(test)]
-use super::{ParameterOverrides, lock};
 #[cfg(test)]
 mod raw;
 #[cfg(test)]
@@ -26,7 +26,6 @@ impl AliasState {
         self.aliases.contains_key(key)
     }
 
-    #[cfg(test)]
     pub(super) fn change_needed(&self, target: &ServiceKey, alias: &ServiceKey) -> Result<bool> {
         if target == alias {
             return Err(container_error(
@@ -37,7 +36,6 @@ impl AliasState {
         Ok(self.aliases.get(alias) != Some(target))
     }
 
-    #[cfg(test)]
     pub(super) fn insert(&mut self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
         if self.change_needed(&target, &alias)? {
             // Builder尚未发布，无读票据，不消耗State运行代次。
@@ -46,13 +44,11 @@ impl AliasState {
         Ok(())
     }
 
-    #[cfg(test)]
     pub(super) fn insert_at(&mut self, target: ServiceKey, alias: ServiceKey, revision: u64) {
         self.revisions.insert(alias.clone(), revision);
         self.replace(target, alias);
     }
 
-    #[cfg(test)]
     fn replace(&mut self, target: ServiceKey, alias: ServiceKey) {
         self.remove(&alias);
         self.aliases.insert(alias.clone(), target.clone());
@@ -192,12 +188,52 @@ impl ContainerBuilder {
         self.bindings.contains_key(&key) || self.aliases.contains(&key)
     }
 
-    #[cfg(test)]
-    pub(super) fn alias_key(&mut self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+    /// 检查原键是否有绑定、实例或别名。类声明本身不算绑定。
+    pub fn contains_key(&self, key: &ServiceKey) -> bool {
+        self.bound_key(key)
+    }
+
+    /// 使 `alias` 指向 `target`。相同规范键不能互为别名，链式循环在查找时返回错误。
+    pub fn alias(&mut self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
         self.aliases.insert(
             self.classes.canonical_key_owned(target),
             self.classes.canonical_key_owned(alias),
         )
+    }
+
+    #[cfg(test)]
+    pub(super) fn alias_key(&mut self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+        self.alias(target, alias)
+    }
+
+    /// 在原键登记每次解析均调用的工厂，替换该键已有的绑定或别名。
+    pub fn bind_key<T, F>(&mut self, key: ServiceKey, factory: F) -> &mut Self
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Bind, factory, false);
+        self
+    }
+
+    /// 在原键登记应用内共享的工厂，替换该键已有的绑定或别名。
+    pub fn singleton_key<T, F>(&mut self, key: ServiceKey, factory: F) -> &mut Self
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Singleton, factory, false);
+        self
+    }
+
+    /// 在原键登记每个作用域独立共享的工厂，替换该键已有的绑定或别名。
+    pub fn scoped_key<T, F>(&mut self, key: ServiceKey, factory: F) -> &mut Self
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Scoped, factory, false);
+        self
     }
 
     pub(super) fn register_key<T, F>(
@@ -229,11 +265,12 @@ impl ContainerBuilder {
         RegistrationOutcome::Registered
     }
 
-    pub(super) fn instance_key<T: ?Sized + Send + Sync + 'static>(
+    /// 在原键登记共享实例，移除该键的别名并保留其原有工厂。
+    pub fn instance_key<T: ?Sized + Send + Sync + 'static>(
         &mut self,
         key: ServiceKey,
         value: Arc<T>,
-    ) {
+    ) -> &mut Self {
         let key = self.classes.canonical_key_owned(key);
         self.aliases.remove(&key);
         self.extensions.discard_pending(&key);
@@ -244,6 +281,7 @@ impl ContainerBuilder {
         } else {
             self.bindings.insert(key, Binding::instance_only(value));
         }
+        self
     }
 }
 
@@ -257,7 +295,6 @@ impl State {
         self.bindings.contains_key(&key) || self.aliases.contains(&key)
     }
 
-    #[cfg(test)]
     pub(super) fn resolved_key(&self, key: &ServiceKey) -> Result<bool> {
         let key = self.alias_key(key)?;
         Ok(self.resolved_history.contains(&key)
@@ -274,7 +311,6 @@ impl State {
             }))
     }
 
-    #[cfg(test)]
     pub(super) fn shared_key(&self, key: &ServiceKey) -> bool {
         let key = self.classes.canonical_key(key);
         self.bindings
@@ -284,8 +320,10 @@ impl State {
 }
 
 impl Container {
-    #[cfg(test)]
-    pub(super) fn alias_key(&self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+    /// 使 `alias` 指向 `target`，后续查找使用新目标。
+    ///
+    /// 拒绝指向同一个规范键。已登记的别名链出现循环时，跟随别名的操作返回错误。
+    pub fn alias(&self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
         let mut state = lock(&self.inner.state);
         if state.terminated {
             return Err(container_error("container_closed", "容器已关闭"));
@@ -299,6 +337,70 @@ impl Container {
         state.aliases.insert_at(target, alias, revision);
         state.next_generation = revision;
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn alias_key(&self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+        self.alias(target, alias)
+    }
+
+    /// 检查原键是否有绑定、实例或别名。类声明本身不算绑定。
+    pub fn contains_key(&self, key: &ServiceKey) -> bool {
+        lock(&self.inner.state).bound_key(key)
+    }
+
+    /// 检查原键是否已登记为别名，无须查找目标。
+    pub fn is_alias(&self, key: &ServiceKey) -> bool {
+        let state = lock(&self.inner.state);
+        state.aliases.contains(&state.classes.canonical_key(key))
+    }
+
+    /// 返回别名链末端的规范键。未登记别名时返回该键的规范形式。
+    pub fn get_alias(&self, key: &ServiceKey) -> Result<ServiceKey> {
+        lock(&self.inner.state).alias_key(key)
+    }
+
+    /// 跟随别名，检查目标是否有现存实例或成功解析记录。
+    pub fn resolved_key(&self, key: &ServiceKey) -> Result<bool> {
+        lock(&self.inner.state).resolved_key(key)
+    }
+
+    /// 检查原键是否已登记实例、单例或作用域共享工厂，不跟随别名。
+    pub fn is_shared_key(&self, key: &ServiceKey) -> bool {
+        lock(&self.inner.state).shared_key(key)
+    }
+
+    /// 在原键动态登记每次解析均调用的工厂，替换该键已有的绑定或别名。
+    pub async fn bind_key<T, F>(&self, key: ServiceKey, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Bind, factory, false)
+            .await
+            .map(|_| ())
+    }
+
+    /// 在原键动态登记应用内共享的工厂，替换该键已有的绑定或别名。
+    pub async fn singleton_key<T, F>(&self, key: ServiceKey, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Singleton, factory, false)
+            .await
+            .map(|_| ())
+    }
+
+    /// 在原键动态登记每个作用域独立共享的工厂，替换该键已有的绑定或别名。
+    pub async fn scoped_key<T, F>(&self, key: ServiceKey, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register_key::<T, F>(key, Lifetime::Scoped, factory, false)
+            .await
+            .map(|_| ())
     }
 
     pub(super) async fn register_key<T, F>(
@@ -323,7 +425,8 @@ impl Container {
         Ok(outcome)
     }
 
-    pub(super) async fn instance_key<T: ?Sized + Send + Sync + 'static>(
+    /// 在原键动态登记共享实例，移除该键的别名并保留其原有工厂。
+    pub async fn instance_key<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: ServiceKey,
         value: Arc<T>,
@@ -332,19 +435,28 @@ impl Container {
             .await
     }
 
-    pub(super) async fn forget_instance_key(&self, key: ServiceKey) -> Result<()> {
+    /// 忘记原键的实例与缓存，保留原工厂及解析记录，不跟随别名。
+    pub async fn forget_instance_key(&self, key: ServiceKey) -> Result<()> {
         self.apply_binding_change(key, BindingChange::ForgetInstance)
             .await
     }
 }
 
 impl Resolver {
-    pub(super) fn resolve_key<T: ?Sized + Send + Sync + 'static>(
+    /// 在当前构造链和作用域内跟随别名，解析指定键的 `T` 输出。
+    pub fn resolve_key<T: ?Sized + Send + Sync + 'static>(
         &self,
-        lookup: impl Into<Option<ServiceKey>>,
+        key: ServiceKey,
+    ) -> BoxFuture<'_, Result<Arc<T>>> {
+        self.resolve_lookup(Some(key))
+    }
+
+    pub(super) fn resolve_lookup<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        lookup: Option<ServiceKey>,
     ) -> BoxFuture<'_, Result<Arc<T>>> {
         let request = ResolveRequest::Typed {
-            lookup: lookup.into(),
+            lookup,
             target: ServiceKey::typed::<T>(),
             erased_output: TypeId::of::<Arc<T>>(),
         };

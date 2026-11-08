@@ -1,6 +1,7 @@
 //! 通过 `ServiceProvider` 装配本模块业务。
 
 use openrust::Result;
+use openrust::container::ServiceKey;
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
@@ -11,7 +12,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::modules::example::services::article_write::ArticleWriter;
 #[cfg(feature = "http-client")]
 use crate::modules::example::services::upstream::ArticleSummaryService;
-use crate::modules::example::services::{ExampleConfig, ExampleMessage};
+use crate::modules::example::services::{
+    EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig, ExampleMessage,
+};
 #[cfg(feature = "auth")]
 use openrust::database::sea_orm::{EntityTrait, QuerySelect};
 /// 将综合示例路由接入 Provider 引导阶段。
@@ -275,6 +278,10 @@ impl ServiceProvider for ExampleServiceProvider {
     ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_schema(app)?;
+            app.alias(
+                ServiceKey::named(EXAMPLE_PRESENTER_CLASS),
+                ServiceKey::named(EXAMPLE_PRESENTER_ALIAS),
+            )?;
             #[cfg(feature = "auth-fortify")]
             register_fortify_views(app).await?;
             app.singleton::<ExampleMessage, _>(|resolver| {

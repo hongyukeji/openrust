@@ -8,9 +8,37 @@ use crate::Result;
 use std::sync::Arc;
 
 pub(super) enum ConstructionSource {
-    Binding { key: ServiceKey, binding: Binding },
+    Binding(BindingSource),
     Descriptor(DescriptorSource),
     Missing(ServiceKey),
+}
+
+pub(super) struct BindingSource {
+    pub(super) key: ServiceKey,
+    pub(super) binding: Binding,
+    pub(super) aliases: Option<AliasWitness>,
+}
+
+impl BindingSource {
+    /// 已认领的操作和特定代次重绑定只使用规范键。
+    pub(super) fn pinned(key: ServiceKey, binding: Binding) -> Self {
+        Self {
+            key,
+            binding,
+            aliases: None,
+        }
+    }
+
+    pub(super) fn is_current(&self, state: &State) -> bool {
+        self.aliases
+            .as_ref()
+            .is_none_or(|aliases| state.aliases.accepts(aliases))
+            && state
+                .bindings
+                .get(&self.key)
+                .map(|current| current.generation)
+                == Some(self.binding.generation)
+    }
 }
 
 pub(super) struct DescriptorSource {
@@ -35,10 +63,11 @@ impl State {
             .witness(&self.classes.canonical_key(requested))?;
         let key = &aliases.terminal;
         if let Some(binding) = self.bindings.get(key) {
-            return Ok(ConstructionSource::Binding {
+            return Ok(ConstructionSource::Binding(BindingSource {
                 key: key.clone(),
                 binding: binding.clone(),
-            });
+                aliases: Some(aliases),
+            }));
         }
         if self.classes.class(key).is_none() {
             return Ok(ConstructionSource::Missing(key.clone()));
@@ -172,10 +201,8 @@ mod tests {
 
         container.instance(Arc::new(9_usize)).await?;
         let actual = lock(&container.inner.state).construction_source(&alias, &resolver)?;
-        assert!(
-            matches!(actual, ConstructionSource::Binding { key: selected, binding }
-            if selected == key && binding.instance.is_some())
-        );
+        assert!(matches!(actual, ConstructionSource::Binding(selected)
+            if selected.key == key && selected.binding.instance.is_some()));
         container.forget_instance::<usize>().await?;
         assert!(
             ticket

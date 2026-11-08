@@ -188,6 +188,50 @@ async fn alias_and_binding_are_selected_under_one_lock_and_retry_preserves_reque
 }
 
 #[tokio::test]
+async fn alias_only_retarget_reselects_before_transient_and_cached_admission() -> Result<()> {
+    for lifetime in [Lifetime::Bind, Lifetime::Singleton, Lifetime::Scoped] {
+        let left = ServiceKey::named("left");
+        let right = ServiceKey::named("right");
+        let alias = ServiceKey::named("selected");
+        let old_calls = Arc::new(AtomicUsize::new(0));
+        let mut builder = ContainerBuilder::new();
+        builder.register_key(
+            left.clone(),
+            lifetime,
+            {
+                let old_calls = Arc::clone(&old_calls);
+                move |_| {
+                    old_calls.fetch_add(1, Ordering::SeqCst);
+                    Box::pin(async { Ok(Arc::new(1usize)) })
+                }
+            },
+            false,
+        );
+        builder.register_key(
+            right.clone(),
+            lifetime,
+            |_| Box::pin(async { Ok(Arc::new(2usize)) }),
+            false,
+        );
+        builder.alias(left, alias.clone())?;
+        let container = builder.build();
+        let scope = container.scope()?;
+        let pause = Arc::new(SelectionPause::default());
+        let mut pending = Box::pin(PAUSE.scope(
+            Arc::clone(&pause),
+            scope.resolve_key::<usize>(alias.clone()),
+        ));
+        assert!(futures_util::poll!(pending.as_mut()).is_pending());
+        assert!(pause.entered.load(Ordering::Acquire));
+        container.alias(right, alias)?;
+        pause.resume.notify_one();
+        assert_eq!(*pending.await?, 2);
+        assert_eq!(old_calls.load(Ordering::SeqCst), 0);
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn raw_entry_scope_must_match_inner_scope_id_and_scope_status_of_explicit_owner() -> Result<()>
 {
     let target = ContainerBuilder::new().build();

@@ -145,7 +145,7 @@ cargo run -- module:enable example --no-interaction
 
 [`ExampleServiceProvider::register`](providers/example.rs) 登记 `example` 类型化配置/schema 和业务依赖工厂；其 `boot` 调用 `BootContext::code_config` 求值模块 [`config/mod.rs`](config/mod.rs)，按显式选项读取同仓储 typed 策略，再贡献 [`routes::register`](routes/mod.rs)。后续业务工厂读取共享配置仓储，`greeting` 用于响应文字。模块配置在 Provider 的 boot 时点接入；显式 TOML overlay 的旧回归 fixture 保留在 `tests/fixtures/config/`。
 
-模块 `GET /api/example` 通过 `Inject<ExamplePresenter>` 构造问候呈现器。宿主在 `configure_providers` 把模块的 `class_descriptors()` 交给 `ProviderBuilder`。每次解析呈现器时，容器先取得模块 Provider 登记的 `ExampleMessage`，再调用呈现器构造函数。呈现器无需工厂绑定，模块是否启用仍由模块清单决定。控制器返回的 `Json<ExampleInfo>` 继续包含 `message` 和由 `chrono::Utc::now()` 生成的 `served_at`。
+模块 `GET /api/example` 在当前请求作用域通过 `ApplicationState::resolve_key::<dyn GreetingPresenter>` 解析 `example.greeting.presenter`。宿主在 `configure_providers` 将模块的 `class_descriptors()` 交给 `ProviderBuilder`，模块启用后由 Provider 将别名指向 `Modules/Example/ExamplePresenter`。容器先取得 Provider 登记的 `ExampleMessage`，再构造呈现器，并通过 `class_projection!` 将同一个 `Arc` 转成控制器使用的 trait 视图。直接请求 `dyn GreetingPresenter` 仍需要显式绑定。控制器返回的 `Json<ExampleInfo>` 包含 `message` 和由 `chrono::Utc::now()` 生成的 `served_at`。
 从仓库根启动，在另一终端请求默认端口：
 
 ```bash

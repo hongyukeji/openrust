@@ -1,8 +1,8 @@
 //! 从真实 Resolver 验证描述符构造、类型预检与选参。
 use super::class_descriptor::{ClassDescriptor, ConstructorParam};
-use super::class_projection::class_projection;
 use super::parameters::ParameterValue;
 use super::{ContainerBuilder, Error, Lifetime, Result, ServiceKey, lock};
+use crate::class_projection;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -148,7 +148,7 @@ async fn wrong_requested_projection_and_dependency_output_execute_no_user_code()
     let resolver = container.factory_resolver_internal()?;
 
     assert!(
-        matches!(resolver.resolve_key::<String>(Some(ServiceKey::named("App/Consumer"))).await,
+        matches!(resolver.resolve_key::<String>(ServiceKey::named("App/Consumer")).await,
             Err(error) if error.code() == "service_type_mismatch")
     );
     assert!(
@@ -182,7 +182,7 @@ async fn named_descriptor_projection_returns_the_same_object_as_a_trait() -> Res
     let resolver = container.factory_resolver_internal()?;
 
     let view = resolver
-        .resolve_key::<dyn DependencyView>(Some(ServiceKey::named("App/Dependency")))
+        .resolve_key::<dyn DependencyView>(ServiceKey::named("App/Dependency"))
         .await?;
     let expected: Arc<dyn DependencyView> = concrete;
     assert_eq!(view.number(), 23);

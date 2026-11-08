@@ -97,8 +97,16 @@ pub(crate) struct ExamplePresenter {
     message: Arc<ExampleMessage>,
 }
 
-impl ExamplePresenter {
-    pub(crate) fn text(&self) -> &str {
+pub(crate) const EXAMPLE_PRESENTER_CLASS: &str = "Modules/Example/ExamplePresenter";
+pub(crate) const EXAMPLE_PRESENTER_ALIAS: &str = "example.greeting.presenter";
+
+/// 控制器读取问候语所需的呈现视图。
+pub(crate) trait GreetingPresenter: Send + Sync {
+    fn text(&self) -> &str;
+}
+
+impl GreetingPresenter for ExamplePresenter {
+    fn text(&self) -> &str {
         self.message.text()
     }
 }
@@ -106,14 +114,15 @@ impl ExamplePresenter {
 /// 提供问候呈现器的编译类描述。实际问候语仍来自模块 Provider 的绑定。
 pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
     [ClassDescriptor::concrete::<ExamplePresenter>(
-        "Modules/Example/ExamplePresenter",
+        EXAMPLE_PRESENTER_CLASS,
         vec![ConstructorParam::class::<ExampleMessage>("message")],
         |args| {
             Ok(Arc::new(ExamplePresenter {
                 message: args.service::<ExampleMessage>(0)?,
             }))
         },
-    )]
+    )
+    .with_projection(openrust::class_projection!(ExamplePresenter => dyn GreetingPresenter))]
 }
 
 #[cfg(test)]

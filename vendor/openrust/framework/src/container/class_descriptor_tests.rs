@@ -1,6 +1,6 @@
 //! 编译目录、预检和具名参数的负例。参数求值策略及生产 Resolver 留给后继。
 use super::*;
-use crate::container::class_projection::class_projection;
+use crate::class_projection;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 trait View: Send + Sync {

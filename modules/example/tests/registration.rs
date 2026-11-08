@@ -1,4 +1,8 @@
 use super::config_sources::enabled_example_sources;
+use super::services::{
+    EXAMPLE_PRESENTER_ALIAS, ExampleMessage, ExamplePresenter, GreetingPresenter,
+};
+use openrust::container::ServiceKey;
 use openrust::http::{
     HttpServiceProvider,
     axum::{
@@ -37,14 +41,19 @@ async fn production_log_services_coexist_with_normal_module_routes()
             .resolve::<openrust::sms::SmsSender>()
             .await?;
         let state = app.app()?.state();
-        assert!(
-            !state
-                .container()
-                .contains::<super::services::ExamplePresenter>()
+        let alias = ServiceKey::named(EXAMPLE_PRESENTER_ALIAS);
+        assert!(state.container().contains_key(&alias));
+        assert_eq!(
+            state.container().get_alias(&alias)?,
+            ServiceKey::typed::<ExamplePresenter>()
         );
-        let first = state.resolve::<super::services::ExamplePresenter>().await?;
-        let second = state.resolve::<super::services::ExamplePresenter>().await?;
+        assert!(!state.container().contains::<ExamplePresenter>());
+        assert!(!state.container().contains::<dyn GreetingPresenter>());
+        let first = state.resolve::<ExamplePresenter>().await?;
+        let second = state.resolve::<ExamplePresenter>().await?;
         assert!(!std::sync::Arc::ptr_eq(&first, &second));
+        let named = state.resolve_key::<dyn GreetingPresenter>(alias).await?;
+        assert_eq!(named.text(), first.text());
         let response = app
             .request(
                 Request::get("/api/example")
@@ -64,6 +73,52 @@ async fn production_log_services_coexist_with_normal_module_routes()
         .await;
     outcome?;
     cleanup?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_named_greeting_uses_each_request_scope()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(
+        enabled_example_sources(&production_sources(true))?,
+    )
+    .build()
+    .await?;
+    let state = app.app()?.state();
+    let next_message = Arc::new(AtomicUsize::new(0));
+    state
+        .container()
+        .scoped::<ExampleMessage, _>(move |_| {
+            let next_message = Arc::clone(&next_message);
+            Box::pin(async move {
+                let index = next_message.fetch_add(1, Ordering::Relaxed);
+                Ok(Arc::new(ExampleMessage::new(format!("问候 {index}"))))
+            })
+        })
+        .await?;
+    let root_presenter = state
+        .resolve_key::<dyn GreetingPresenter>(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))
+        .await?;
+    assert_eq!(root_presenter.text(), "问候 0");
+    for expected in ["问候 1", "问候 2"] {
+        let response = app
+            .request(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(json["data"]["message"], expected);
+    }
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await?;
     Ok(())
 }
 
@@ -331,7 +386,7 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
     assert_eq!(original.text(), "Hello from modules/example");
     let original_presenter = app
         .state()
-        .resolve::<super::services::ExamplePresenter>()
+        .resolve_key::<dyn GreetingPresenter>(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))
         .await?;
     assert_eq!(original_presenter.text(), original.text());
     let first = app
@@ -363,6 +418,11 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
             .text(),
         "强制更新消息"
     );
+    let updated_presenter = app
+        .state()
+        .resolve_key::<dyn GreetingPresenter>(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))
+        .await?;
+    assert_eq!(updated_presenter.text(), "强制更新消息");
     let response = openrust::foundation::http::build_router(&app)?
         .oneshot(
             Request::get("/api/example")
@@ -999,6 +1059,13 @@ async fn production_testapp_can_disable_only_the_business_module()
     )?);
     fixture.remove_module("example");
     let mut app = fixture.build().await?;
+    let state = app.app()?.state();
+    let alias = ServiceKey::named(EXAMPLE_PRESENTER_ALIAS);
+    assert!(!state.container().contains_key(&alias));
+    assert!(matches!(
+        state.resolve_key::<dyn GreetingPresenter>(alias).await,
+        Err(error) if error.code() == "service_not_bound"
+    ));
     app.request(
         Request::get("/api/example")
             .header("host", "localhost")
