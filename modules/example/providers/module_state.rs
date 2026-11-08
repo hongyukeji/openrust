@@ -3,6 +3,7 @@
 use openrust::core::ApiResponse;
 use openrust::events::{EventPropagation, EventsServiceProvider};
 use openrust::foundation::RegisterContext;
+use openrust::foundation::events::Terminating;
 use openrust::http::Inject;
 use openrust::support::ServiceProvider;
 use openrust::{BoxFuture, Error, Result};
@@ -65,6 +66,12 @@ impl ServiceProvider for ModuleStateServiceProvider {
 /// 创建唯一模块事件 Provider；descriptor 随后向同一实例追加适用的文章监听器。
 pub(crate) fn events_provider(log: Arc<ModuleStateLog>) -> EventsServiceProvider {
     let mut events = EventsServiceProvider::new();
+    events.listen::<Terminating, _>(|_, context| {
+        Box::pin(async move {
+            tracing::trace!(event = context.event_name(), "示例内核开始终止入口");
+            Ok(())
+        })
+    });
     events.listen_named::<ModuleLifecycleEvent, _>("modules.example.*", move |event, _| {
         let log = Arc::clone(&log);
         Box::pin(async move {

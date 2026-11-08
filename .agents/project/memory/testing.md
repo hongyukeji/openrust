@@ -928,6 +928,14 @@ HTTP/1.1 真实连接覆盖定长、HEAD、204、trailers 和 404。进程内回
 
 工作区格式、严格 Clippy、MySQL 8.4.13 工作区测试、拒警 Rustdoc、依赖检查及生成项目检查和测试均通过。工作区 2,843 项通过、54 项忽略，生成项目 24 项通过。证据在 `tmp/lead-terminating.UVmUAi0g/acceptance.json`。完整内核终止事件、终止 middleware 与通用 `Container::call` 继续按待办推进。
 
+## 内核终止事件限定验收
+
+PHP 8.5.12 执行固定 Laravel `d52c3b3` 的 HTTP 与控制台 `Kernel::terminate`，共 6 个场景。两个入口派发同一类事件，停止传播返回后继续终止流程，派发抛错时中止。记录型派发替身用于观察顺序，Rust 则通过现有事件总线验证类型、通配监听和传播边界。
+
+控制台回归覆盖成功、帮助、错误优先级和显式 `Application::terminate`。HTTP/1.1 真实连接验证事件先于应用回调，进程内回归覆盖无应用回调、事件失败保留响应、流中断和已缓存空事件总线的 `before_resolving` 钩子。示例模块登记同一类型监听。生成应用实际执行 `list`，输出内核事件再输出应用回调。
+
+格式、严格 Clippy、拒警 Rustdoc、依赖检查与生成项目检查通过。隔离 MySQL 8.4.13 工作区测试 2,849 项通过、54 项忽略，生成项目 23 项通过。证据在 `tmp/lead-kernel-termination.rTtVv1zt/acceptance.json`。Rust 的 HTTP 终止 middleware 和两个内核的生命周期时长处理器继续按待办推进。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

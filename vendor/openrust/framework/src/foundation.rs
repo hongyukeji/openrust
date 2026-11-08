@@ -3,6 +3,7 @@
 #![deny(missing_docs)]
 
 pub mod application;
+pub mod events;
 pub mod exceptions;
 pub mod http;
 pub mod lifecycle;

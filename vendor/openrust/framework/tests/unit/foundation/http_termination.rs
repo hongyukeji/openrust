@@ -1,5 +1,7 @@
 use super::*;
 use crate::config::FrameworkConfig;
+use crate::events::EventsServiceProvider;
+use crate::foundation::events::Terminating;
 use crate::foundation::{ProviderBuilder, RegisterContext};
 use crate::http::Inject;
 use crate::support::{BoxFuture, ServiceProvider};
@@ -66,21 +68,51 @@ impl ServiceProvider for Routes {
     }
 }
 
-async fn app() -> Result<(Application, mpsc::UnboundedReceiver<bool>)> {
+#[derive(Debug, Eq, PartialEq)]
+enum Completion {
+    Event,
+    Callback(bool),
+}
+
+async fn app(
+    callbacks: bool,
+    listener_fails: bool,
+) -> Result<(Application, mpsc::UnboundedReceiver<Completion>)> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = crate::config::HttpStatusMode::Semantic;
     let mut builder = ProviderBuilder::new();
     builder.provider(HttpServiceProvider).provider(Routes);
     let (sender, receiver) = mpsc::unbounded_channel();
-    builder.terminating(move |state| {
-        let sender = sender.clone();
+    let listener = sender.clone();
+    let mut events = EventsServiceProvider::new();
+    events.listen::<Terminating, _>(move |_, _| {
+        let listener = listener.clone();
         Box::pin(async move {
             assert!(http_entry_scope().is_some());
-            let flag = state.resolve::<AtomicBool>().await?.load(Ordering::Relaxed);
-            sender.send(flag).map_err(Error::internal)?;
+            listener.send(Completion::Event).map_err(Error::internal)?;
+            if listener_fails {
+                return Err(Error::custom(
+                    "test_http_listener_failed",
+                    "HTTP 终止事件失败",
+                ));
+            }
             Ok(())
         })
     });
+    builder.provider(events);
+    if callbacks {
+        builder.terminating(move |state| {
+            let sender = sender.clone();
+            Box::pin(async move {
+                assert!(http_entry_scope().is_some());
+                let flag = state.resolve::<AtomicBool>().await?.load(Ordering::Relaxed);
+                sender
+                    .send(Completion::Callback(flag))
+                    .map_err(Error::internal)?;
+                Ok(())
+            })
+        });
+    }
     let app = Application::from_provider_runtime(
         builder
             .start(Figment::from(Serialized::defaults(config)))
@@ -104,7 +136,7 @@ async fn read_response(address: std::net::SocketAddr, method: &str, path: &str) 
 
 #[tokio::test]
 async fn terminating_http_handles_fixed_head_empty_trailers_and_not_found() -> Result<()> {
-    let (app, mut events) = app().await?;
+    let (app, mut events) = app(true, false).await?;
     let router = build_router(&app)?;
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -137,12 +169,14 @@ async fn terminating_http_handles_fixed_head_empty_trailers_and_not_found() -> R
         } else if path == "/trailers" {
             assert!(response.contains("x-probe: ok\r\n"), "{response}");
         }
-        assert_eq!(
-            tokio::time::timeout(Duration::from_secs(2), events.recv())
-                .await
-                .map_err(Error::internal)?,
-            Some(expected),
-        );
+        for expected in [Completion::Event, Completion::Callback(expected)] {
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(2), events.recv())
+                    .await
+                    .map_err(Error::internal)?,
+                Some(expected),
+            );
+        }
     }
     shutdown
         .send(())
@@ -160,7 +194,7 @@ async fn terminating_http_handles_fixed_head_empty_trailers_and_not_found() -> R
 #[tokio::test]
 async fn terminating_http_releases_failed_or_abandoned_body_without_running_callbacks() -> Result<()>
 {
-    let (app, mut events) = app().await?;
+    let (app, mut events) = app(true, false).await?;
     let router = build_router(&app)?;
     for (path, version) in [
         ("/stream", Version::HTTP_11),
@@ -187,8 +221,97 @@ async fn terminating_http_releases_failed_or_abandoned_body_without_running_call
         }
         drop(body);
     }
+    assert!(
+        tokio::time::timeout(Duration::from_millis(30), events.recv())
+            .await
+            .is_err()
+    );
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
         .await?;
     assert!(events.try_recv().is_err());
     Ok(())
+}
+
+#[tokio::test]
+async fn kernel_terminating_runs_without_app_callbacks_and_keeps_sent_response_on_error()
+-> Result<()> {
+    for (callbacks, listener_fails) in [(false, false), (true, true)] {
+        let (app, mut events) = app(callbacks, listener_fails).await?;
+        let router = build_router(&app)?;
+        let request = Request::builder()
+            .uri("/complete")
+            .body(Body::empty())
+            .map_err(Error::internal)?;
+        let response = router.oneshot(request).await.map_err(Error::internal)?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 64)
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(body.as_ref(), b"payload");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), events.recv())
+                .await
+                .map_err(Error::internal)?,
+            Some(Completion::Event)
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(30), events.recv())
+                .await
+                .is_err()
+        );
+        app.shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+            .await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn kernel_terminating_resolves_an_empty_cached_dispatcher_through_container_hooks()
+-> Result<()> {
+    use crate::container::ServiceKey;
+    use crate::events::Events;
+    use tokio::sync::Notify;
+
+    let mut builder = ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(EventsServiceProvider::new())
+        .provider(Routes);
+    let app = Application::from_provider_runtime(
+        builder
+            .start(Figment::from(Serialized::defaults(
+                FrameworkConfig::default(),
+            )))
+            .await?,
+    )?;
+    let _ = app.state().resolve::<Events>().await?;
+    let called = Arc::new(Notify::new());
+    let seen = Arc::clone(&called);
+    app.state().container().before_resolving(
+        Some(ServiceKey::typed::<Events>()),
+        move |_, _| {
+            assert!(http_entry_scope().is_some());
+            seen.notify_one();
+            Box::pin(async { Ok(()) })
+        },
+    )?;
+
+    let request = Request::builder()
+        .uri("/complete")
+        .body(Body::empty())
+        .map_err(Error::internal)?;
+    let response = build_router(&app)?
+        .oneshot(request)
+        .await
+        .map_err(Error::internal)?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 64)
+        .await
+        .map_err(Error::internal)?;
+    assert_eq!(body.as_ref(), b"payload");
+    tokio::time::timeout(Duration::from_secs(2), called.notified())
+        .await
+        .map_err(Error::internal)?;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await
 }

@@ -186,6 +186,10 @@ let descriptors = [
 
 控制台在成功、帮助或错误退出后等待回调，命令本身已有的错误优先返回。HTTP 响应体交给传输层后，在原请求作用域启动受管回调，失败记入日志。流提前截断或报错时直接回收请求作用域。进程资源通过 `app.shutdown(...)` 回收。 [Laravel 请求和命令入口](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L1224-L1251)
 
+### 内核终止事件
+
+HTTP 和控制台在应用回调前派发同一个 `openrust::foundation::events::Terminating`。可以用 `EventsServiceProvider::listen::<Terminating, _>` 监听，也可以用完整名称 `Illuminate\Foundation\Events\Terminating` 或通配模式监听。监听器报错会中止本轮终止流程。停止事件传播只影响后续监听器，应用回调仍会执行。显式调用 `app.terminate()` 直接运行应用回调。 [Laravel HTTP 内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Kernel.php#L211-L218) [Laravel 控制台内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Console/Kernel.php#L222-L228)
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

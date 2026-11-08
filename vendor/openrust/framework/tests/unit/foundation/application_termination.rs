@@ -1,4 +1,5 @@
 use super::*;
+use crate::events::{EventPropagation, EventsServiceProvider};
 use crate::foundation::{ProviderBuilder, RegisterContext};
 use figment::providers::Serialized;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -196,5 +197,75 @@ async fn terminating_flush_during_callback_keeps_new_generation_for_next_pass() 
     assert!(lock(&trace).is_empty());
     app.terminate().await?;
     assert_eq!(*lock(&trace), ["new-first", "new-second"]);
+    Ok(())
+}
+
+#[tokio::test]
+async fn kernel_terminating_dispatches_shared_event_before_console_callbacks() -> Result<()> {
+    let trace = Trace::default();
+    let mut events = EventsServiceProvider::new();
+    let typed = Arc::clone(&trace);
+    events.listen::<Terminating, _>(move |_, context| {
+        assert_eq!(
+            context.event_name(),
+            r"Illuminate\Foundation\Events\Terminating"
+        );
+        lock(&typed).push("typed");
+        Box::pin(async { Ok(()) })
+    });
+    let wildcard = Arc::clone(&trace);
+    events.listen_named::<Terminating, _>(r"Illuminate\Foundation\Events\*", move |_, _| {
+        lock(&wildcard).push("wildcard");
+        Box::pin(async { Ok(EventPropagation::Stop) })
+    });
+    events.listen_named::<Terminating, _>("*", |_, _| {
+        Box::pin(async { Err(Error::custom("test_unexpected_listener", "传播本应已停止")) })
+    });
+    let mut builder = ProviderBuilder::new();
+    builder.provider(events).provider(Probe(Arc::clone(&trace)));
+    let app = build(builder).await?;
+    app.run_command("terminating-probe", Vec::new()).await?;
+    app.run_command("terminating-probe", vec!["--help".into()])
+        .await?;
+    let unknown = app.run_command("missing", Vec::new()).await;
+    assert!(matches!(unknown, Err(error) if error.code() == "unknown_command"));
+    assert_eq!(
+        *lock(&trace),
+        [
+            "typed",
+            "wildcard",
+            "command-ran",
+            "boot",
+            "typed",
+            "wildcard",
+            "no-command",
+            "boot",
+            "typed",
+            "wildcard",
+            "no-command",
+            "boot",
+        ]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn kernel_terminating_listener_error_skips_callbacks_but_manual_terminate_still_runs()
+-> Result<()> {
+    let trace = Trace::default();
+    let mut events = EventsServiceProvider::new();
+    events.listen::<Terminating, _>(|_, _| {
+        Box::pin(async { Err(Error::custom("test_listener_failed", "终止事件监听失败")) })
+    });
+    let mut builder = ProviderBuilder::new();
+    builder.provider(events).provider(Probe(Arc::clone(&trace)));
+    let app = build(builder).await?;
+    let success = app.run_command("terminating-probe", Vec::new()).await;
+    assert!(matches!(success, Err(error) if error.code() == "test_listener_failed"));
+    let unknown = app.run_command("missing", Vec::new()).await;
+    assert!(matches!(unknown, Err(error) if error.code() == "unknown_command"));
+    assert!(lock(&trace).is_empty());
+    app.terminate().await?;
+    assert_eq!(*lock(&trace), ["no-command", "boot"]);
     Ok(())
 }

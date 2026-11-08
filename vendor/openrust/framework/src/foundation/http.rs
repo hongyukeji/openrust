@@ -582,7 +582,7 @@ fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Erro
     #[cfg(feature = "view")]
     let view = view.with_views(runtime.state.get::<crate::view::Views>());
     let response = runtime.exceptions.render_for_request(error, &view);
-    if !runtime.state.has_terminating_callbacks() {
+    if !runtime.state.has_kernel_termination() {
         return response;
     }
     let Ok(scope) = runtime.state.container().scope() else {
@@ -662,7 +662,7 @@ impl ScopeBody {
         let Some(state) = self
             .state
             .take()
-            .filter(|state| self.complete && state.has_terminating_callbacks())
+            .filter(|state| self.complete && state.has_kernel_termination())
         else {
             entry.scope.close();
             return;
@@ -677,11 +677,8 @@ impl ScopeBody {
                 let _close = close;
                 HTTP_ENTRY_SCOPE
                     .scope(entry, async move {
-                        if let Err(error) = state.run_terminating().await {
-                            tracing::error!(
-                                code = error.code(),
-                                "HTTP termination callback failed"
-                            );
+                        if let Err(error) = state.terminate_entry().await {
+                            tracing::error!(code = error.code(), "HTTP entry termination failed");
                         }
                     })
                     .await;

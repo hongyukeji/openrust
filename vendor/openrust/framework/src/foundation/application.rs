@@ -13,6 +13,8 @@ use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
 use crate::container::{Container, ParameterOverrides, Scope, ServiceKey};
 use crate::core::error::{Error, Result};
+use crate::events::Events;
+use crate::foundation::events::Terminating;
 use crate::foundation::provider::ProviderRuntime;
 use crate::foundation::provider::registration;
 use crate::foundation::provider::registration::LiveBoot;
@@ -121,8 +123,18 @@ impl ApplicationState {
         self.inner.terminating.push(Arc::new(callback));
     }
 
-    pub(crate) fn has_terminating_callbacks(&self) -> bool {
-        !self.inner.terminating.is_empty()
+    pub(crate) fn has_kernel_termination(&self) -> bool {
+        !self.inner.terminating.is_empty() || self.container().contains::<Events>()
+    }
+
+    pub(crate) async fn terminate_entry(&self) -> Result<()> {
+        if self.container().contains::<Events>() {
+            self.resolve::<Events>()
+                .await?
+                .dispatch(&Terminating)
+                .await?;
+        }
+        self.run_terminating().await
     }
 
     pub(crate) async fn run_terminating(&self) -> Result<()> {
@@ -368,6 +380,7 @@ impl Application {
     /// 在当前入口作用域或根生命周期执行终止回调。
     ///
     /// 按登记顺序运行，同轮追加可见。遇到错误立即返回，后续调用仍从队首开始。
+    /// HTTP 和控制台入口另行派发内核 [`Terminating`] 事件。
     pub async fn terminate(&self) -> Result<()> {
         self.state.run_terminating().await
     }
@@ -550,7 +563,7 @@ impl Application {
         let result = scope
             .run(async {
                 let command = self.run_command_inner(name, args).await;
-                let termination = self.terminate().await;
+                let termination = self.state.terminate_entry().await;
                 match (command, termination) {
                     (Ok(()), termination) => termination,
                     (Err(error), termination) => {

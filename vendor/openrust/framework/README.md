@@ -22,6 +22,8 @@
 
 应用也可登记在 HTTP 响应或控制台入口完成后执行的[终止回调](../../../docs/src/architecture-concepts/lifecycle.md#应用终止回调)。
 
+HTTP 和控制台共用回调前派发的[内核终止事件](../../../docs/src/architecture-concepts/lifecycle.md#内核终止事件)。
+
 Provider 可为自身实例登记[启动前后回调](../../../docs/src/architecture-concepts/lifecycle.md#provider-实例启动回调)。
 
 内置 `Config`、`Give` 和 `Tag` 使用同一解析流程，支持类型化配置、指定实现和惰性标签迭代。详见[内置通用属性](../../../docs/src/architecture-concepts/lifecycle.md#内置通用属性)。
