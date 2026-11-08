@@ -78,6 +78,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_primitive_json_casts().await?;
         check_generated_as_fluent().await?;
         check_generated_as_stringable().await?;
+        check_generated_as_html_string().await?;
         check_generated_json_codec().await?;
         check_generated_json_flags()?;
         check(query.count().await? == 3)?;
@@ -401,6 +402,26 @@ async fn check_generated_as_fluent() -> Result<()> {
     attrs.set_attribute(&model, "data->path", json!(true)).await?;
     check(attrs.attributes_to_json(&model)?["data"] == json!({"x":2,"path":true}))?;
     check(attrs.raw_attribute("data")? == Some(json!(r#"{"x":2,"path":true}"#)))
+}
+
+async fn check_generated_as_html_string() -> Result<()> {
+    use openrust::{
+        database::eloquent::{AsHtmlString, ModelAttributes, ModelMetadata, ModelObject},
+        support::{HtmlString, Htmlable},
+    };
+    use serde_json::json;
+
+    let mut metadata = ModelMetadata::new("insert_items", "HtmlItem");
+    metadata.casts.insert("label".into(), AsHtmlString::cast());
+    let attrs = ModelAttributes::default();
+    let html = "<strong>标签</strong>";
+    let value = ModelObject::new(HtmlString::new(html));
+    attrs.set_attribute_value(&metadata, "label", value.clone().into()).await?;
+    let typed = attrs.get_attribute_value(&metadata, "label")?;
+    check(typed.as_ref().and_then(|field| field.as_object()).is_some_and(|field| field.same_object(&value)))?;
+    check(Htmlable::to_html(&HtmlString::new(html)) == html)?;
+    check(attrs.attributes_to_array(&metadata)?["label"].as_json()? == &json!(html))?;
+    check(attrs.attributes_to_json(&metadata)?["label"] == json!(html))
 }
 
 async fn check_generated_as_stringable() -> Result<()> {

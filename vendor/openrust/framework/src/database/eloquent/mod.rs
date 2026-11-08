@@ -31,6 +31,8 @@ pub use enum_cast::{EnumCase, EnumCast};
 mod fluent_cast;
 pub use fluent_cast::AsFluent;
 mod has_many;
+mod html_string_cast;
+pub use html_string_cast::AsHtmlString;
 mod json_codec;
 mod json_encoding;
 mod json_path;

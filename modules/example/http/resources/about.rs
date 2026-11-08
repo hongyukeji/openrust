@@ -4,4 +4,5 @@
 pub(crate) struct AboutPageContext {
     pub(crate) app_name: &'static str,
     pub(crate) title: &'static str,
+    pub(crate) description: minijinja::Value,
 }

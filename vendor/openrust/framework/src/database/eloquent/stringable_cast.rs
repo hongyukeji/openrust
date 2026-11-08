@@ -29,18 +29,20 @@ impl ClassCaster for StringableCast {
         let Some(value) = value.filter(|value| !value.is_null()) else {
             return Ok(Value::Null.into());
         };
-        Ok(ModelObject::new(Stringable::from(text(value)?)).into())
+        Ok(ModelObject::new(Stringable::from(cast_string(value)?)).into())
     }
 
     fn set(&self, _: &str, value: AttributeValue, _: &AttributeMap) -> Result<ClassCastWrite> {
         if value.is_null() {
             return Ok(ClassCastWrite::Value(value));
         }
-        Ok(ClassCastWrite::Value(Value::String(text(&value)?).into()))
+        Ok(ClassCastWrite::Value(
+            Value::String(cast_string(&value)?).into(),
+        ))
     }
 }
 
-fn text(value: &AttributeValue) -> Result<String> {
+pub(super) fn cast_string(value: &AttributeValue) -> Result<String> {
     match value {
         AttributeValue::Json(value) => return scalar_string(value),
         AttributeValue::Object(object) => object.snapshot()?.string_projection(),

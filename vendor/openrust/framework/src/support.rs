@@ -12,6 +12,7 @@ mod service_provider;
 #[cfg(feature = "session")]
 pub(crate) use finite::Finite;
 mod fluent;
+mod html_string;
 mod message_bag;
 mod number;
 pub(crate) mod php_variables;
@@ -31,6 +32,7 @@ pub use data_value::{DataObject, DataValue, ObjectEncoding};
 pub use default_providers::DefaultProviders;
 pub use fluent::Fluent;
 pub use future::BoxFuture;
+pub use html_string::{HtmlString, Htmlable};
 pub use message_bag::{
     MessageBag, MessageBagContract, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
     MessageProvider, MessageValue,

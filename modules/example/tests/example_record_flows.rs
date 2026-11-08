@@ -641,40 +641,11 @@ async fn attribute_preview_contract(
     clean.assert_status(StatusCode::OK)?;
     let clean: serde_json::Value = serde_json::from_slice(clean.body())?;
     let editable = assert_preview_schema(&db, &clean["data"]).await?;
-    let published = "2026-10-29T12:00:00.000000+00:00";
-    assert_eq!(
-        clean["data"]["original_transformed"]["published_at"],
-        published
-    );
-    assert_eq!(
-        clean["data"]["display"]["details"]["published_at"],
-        published
-    );
-    assert_eq!(clean["data"]["display"]["details"]["is_published"], true);
-    assert_eq!(
-        clean["data"]["display"]["details"]["priority_decimal"],
-        "7.00"
-    );
-    assert_eq!(
-        clean["data"]["display"]["details"]["status_flags"],
-        serde_json::json!(["Enabled", "Published"])
-    );
-    assert!(clean["data"]["proposed"].get("is_published").is_none());
+    assert_clean_preview_display(&clean["data"]);
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
     assert_model_guardable_columns(&databases).await?;
     assert_model_save_query_key(&db, id).await?;
-    assert_eq!(clean["data"]["dirty"], serde_json::json!({}));
-    assert_eq!(clean["data"]["changes"], serde_json::json!({}));
-    assert_eq!(clean["data"]["previous"], serde_json::json!({}));
-    assert_eq!(clean["data"]["has_changes"], false);
-    assert_eq!(clean["data"]["persisted"], false);
-    assert!(clean["data"].get("owner_record_ids").is_none());
-    assert!(clean["data"].get("record_category_name").is_none());
-    assert!(
-        clean["data"]
-            .get("owner_latest_enabled_record_id")
-            .is_none()
-    );
+    assert_preview_unchanged(&clean["data"]);
     assert_owner_record_relation(app, &path, owner_token, other_token, id, &unchanged).await?;
     let mut proposal = unchanged;
     proposal["name"] = serde_json::json!("仅预览");
@@ -737,6 +708,30 @@ async fn attribute_preview_contract(
         .ok_or("preview removed source row")?;
     assert_eq!(after, before);
     Ok(())
+}
+
+fn assert_clean_preview_display(clean: &serde_json::Value) {
+    let published = "2026-10-29T12:00:00.000000+00:00";
+    assert_eq!(clean["original_transformed"]["published_at"], published);
+    assert_eq!(clean["display"]["details"]["published_at"], published);
+    assert_eq!(clean["display"]["details"]["is_published"], true);
+    assert_eq!(clean["display"]["details"]["priority_decimal"], "7.00");
+    assert_eq!(
+        clean["display"]["details"]["status_flags"],
+        serde_json::json!(["Enabled", "Published"])
+    );
+    assert!(clean["proposed"].get("is_published").is_none());
+}
+
+fn assert_preview_unchanged(clean: &serde_json::Value) {
+    assert_eq!(clean["dirty"], serde_json::json!({}));
+    assert_eq!(clean["changes"], serde_json::json!({}));
+    assert_eq!(clean["previous"], serde_json::json!({}));
+    assert_eq!(clean["has_changes"], false);
+    assert_eq!(clean["persisted"], false);
+    assert!(clean.get("owner_record_ids").is_none());
+    assert!(clean.get("record_category_name").is_none());
+    assert!(clean.get("owner_latest_enabled_record_id").is_none());
 }
 
 async fn assert_owner_record_relation(
@@ -858,7 +853,7 @@ async fn assert_cached_date_save(app: &TestApp<crate::bootstrap::Server>, id: i6
                 AttributeMap, ModelAttribute, ModelDate, ModelDateContext, SaveContext,
                 save_with_query,
             },
-            sea_orm::{EntityTrait, TransactionTrait},
+            sea_orm::EntityTrait,
         },
         support::{CalendarContext, CalendarInstant, InputDate, ResolvedTimezone},
     };
@@ -938,6 +933,24 @@ async fn assert_cached_date_save(app: &TestApp<crate::bootstrap::Server>, id: i6
         .one(&connection)
         .await?
         .ok_or("saved record missing")?;
+    let published = assert_saved_cached_date(&persisted, original)?;
+    let inserted = insert_with_cached_date(
+        &db,
+        &connection,
+        &context,
+        record.owner_id,
+        model.metadata.date_format.clone(),
+        cached,
+    )
+    .await?;
+    assert_eq!(inserted.published_at, Some(published));
+    Ok(())
+}
+
+fn assert_saved_cached_date(
+    persisted: &crate::modules::example::models::example_record::Model,
+    original: openrust::database::sea_orm::prelude::DateTimeUtc,
+) -> Result<openrust::database::sea_orm::prelude::DateTimeUtc, Box<dyn std::error::Error>> {
     let published = persisted
         .published_at
         .ok_or("saved publication time missing")?;
@@ -945,7 +958,23 @@ async fn assert_cached_date_save(app: &TestApp<crate::bootstrap::Server>, id: i6
     assert_eq!(published.timestamp_subsec_micros(), 0);
     assert_eq!(persisted.view_count, 43);
 
-    let mut new = example_record::RecordForSave::new(record.owner_id);
+    Ok(published)
+}
+
+async fn insert_with_cached_date(
+    db: &openrust::Db,
+    connection: &openrust::database::sea_orm::DatabaseConnection,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+    owner_id: i64,
+    date_format: Option<String>,
+    cached: openrust::database::eloquent::AttributeValue,
+) -> Result<crate::modules::example::models::example_record::Model, Box<dyn std::error::Error>> {
+    use crate::modules::example::models::example_record;
+    use openrust::database::{
+        eloquent::save_with_query,
+        sea_orm::{EntityTrait, TransactionTrait},
+    };
+    let mut new = example_record::RecordForSave::new(owner_id);
     for (name, value) in [
         ("name", serde_json::json!("日期写入")),
         ("description", serde_json::json!("验证有类型的日期列")),
@@ -955,21 +984,20 @@ async fn assert_cached_date_save(app: &TestApp<crate::bootstrap::Server>, id: i6
     ] {
         new.attributes.set_raw_attribute(name, value)?;
     }
-    new.metadata.date_format = model.metadata.date_format.clone();
+    new.metadata.date_format = date_format;
     new.attributes
         .set_raw_attribute_value("published_at", cached)?;
     let transaction = connection.begin().await?;
     let query = db
         .table(&new.metadata.table)?
         .using_transaction(&transaction);
-    assert!(save_with_query(&mut new, &context, query).await?);
+    assert!(save_with_query(&mut new, context, query).await?);
     let inserted = example_record::Entity::find_by_id(new.id()?)
         .one(&transaction)
         .await?
         .ok_or("inserted record missing")?;
     transaction.rollback().await?;
-    assert_eq!(inserted.published_at, Some(published));
-    Ok(())
+    Ok(inserted)
 }
 
 #[cfg(feature = "db-mysql")]
@@ -1048,7 +1076,7 @@ async fn assert_mysql_json_projection_hydration(db: &openrust::Db) -> TestResult
         .raw_attribute("payload")?
         .ok_or("缺少 JSON 赋值文本")?;
     let raw = raw.as_str().ok_or("JSON 赋值未编码为文本")?;
-    assert!(raw.contains(r#"中文😀\/"#));
+    assert!(raw.contains(r"中文😀\/"));
     let row = connection
         .query_one_raw(Statement::from_sql_and_values(
             DbBackend::MySql,
@@ -1126,29 +1154,7 @@ async fn assert_cached_collection_save(
     let context = SaveContext::new(&databases, None, &calendar);
     let transaction = connection.begin().await?;
     let outcome: TestResult = async {
-        let mut plain = example_record::RecordForSave::from_existing(&record)?;
-        plain
-            .attributes
-            .set_attribute(&plain.metadata, "metadata", json!({"before":1}))
-            .await?;
-        plain
-            .attributes
-            .set_attribute(&plain.metadata, "metadata->nested->2", json!(true))
-            .await?;
-        let query = db
-            .table(&plain.metadata.table)?
-            .using_transaction(&transaction);
-        if !save_with_query(&mut plain, &context, query).await? {
-            return Err("普通 JSON 路径赋值的保存已取消".into());
-        }
-        let saved = example_record::Entity::find_by_id(id)
-            .one(&transaction)
-            .await?
-            .ok_or("普通 JSON 路径赋值的记录缺失")?;
-        assert_eq!(
-            saved.metadata,
-            Some(json!({"before":1,"nested":{"2":true}}))
-        );
+        assert_plain_json_path_save(&record, &db, &transaction, &context).await?;
         for cast in [
             AsArrayObject::cast(),
             AsCollection::default().cast(),
@@ -1206,11 +1212,48 @@ async fn assert_cached_collection_save(
         }
         assert_enum_collection_save(&record, &db, &transaction, &context).await?;
         assert_stringable_save(&record, &db, &transaction, &context).await?;
+        assert_html_string_save(&record, &db, &transaction, &context).await?;
         Ok(())
     }
     .await;
     transaction.rollback().await?;
     outcome
+}
+
+async fn assert_plain_json_path_save(
+    record: &crate::modules::example::models::example_record::Model,
+    db: &openrust::Db,
+    transaction: &openrust::database::sea_orm::DatabaseTransaction,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::database::{eloquent::save_with_query, sea_orm::EntityTrait};
+    use serde_json::json;
+
+    let mut plain = example_record::RecordForSave::from_existing(record)?;
+    plain
+        .attributes
+        .set_attribute(&plain.metadata, "metadata", json!({"before":1}))
+        .await?;
+    plain
+        .attributes
+        .set_attribute(&plain.metadata, "metadata->nested->2", json!(true))
+        .await?;
+    let query = db
+        .table(&plain.metadata.table)?
+        .using_transaction(transaction);
+    if !save_with_query(&mut plain, context, query).await? {
+        return Err("普通 JSON 路径赋值的保存已取消".into());
+    }
+    let saved = example_record::Entity::find_by_id(record.id)
+        .one(transaction)
+        .await?
+        .ok_or("普通 JSON 路径赋值的记录缺失")?;
+    assert_eq!(
+        saved.metadata,
+        Some(json!({"before":1,"nested":{"2":true}}))
+    );
+    Ok(())
 }
 
 async fn assert_stringable_save(
@@ -1249,6 +1292,53 @@ async fn assert_stringable_save(
         .await?
         .ok_or("字符串对象保存后的记录缺失")?;
     assert_eq!(saved.description, "字符串对象");
+    Ok(())
+}
+
+async fn assert_html_string_save(
+    record: &crate::modules::example::models::example_record::Model,
+    db: &openrust::Db,
+    transaction: &openrust::database::sea_orm::DatabaseTransaction,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::{
+        database::{
+            eloquent::{AsHtmlString, ModelObject, save_with_query},
+            sea_orm::EntityTrait,
+        },
+        support::HtmlString,
+    };
+    let mut model = example_record::RecordForSave::from_existing(record)?;
+    model
+        .metadata
+        .casts
+        .insert("description".into(), AsHtmlString::cast());
+    let html = "<p>审核记录 &amp; 摘要</p>";
+    model
+        .attributes
+        .set_attribute_value(
+            &model.metadata,
+            "description",
+            ModelObject::new(HtmlString::new(html)).into(),
+        )
+        .await?;
+    let query = db
+        .table(&model.metadata.table)?
+        .using_transaction(transaction);
+    if !save_with_query(&mut model, context, query).await? {
+        return Err("HTML 字符串保存已取消".into());
+    }
+    let saved = example_record::Entity::find_by_id(record.id)
+        .one(transaction)
+        .await?
+        .ok_or("HTML 字符串保存后的记录缺失")?;
+    let attrs = saved.attribute_snapshot()?;
+    assert_eq!(
+        attrs.attributes_to_array(&model.metadata)?["description"].as_json()?,
+        html
+    );
+    assert_eq!(saved.description, html);
     Ok(())
 }
 
@@ -1374,16 +1464,16 @@ async fn assert_private_metadata(
     let body: serde_json::Value = serde_json::from_slice(response.body())?;
     assert_eq!(body["data"], input);
 
-    let patch = json!({"path":"labels->2","value":"sparse"});
+    let update = json!({"path":"labels->2","value":"sparse"});
     app.request(request(
         Method::PATCH,
         &path,
         Some(other_token),
-        Some(patch.clone()),
+        Some(update.clone()),
     )?)
     .await?
     .assert_status(StatusCode::NOT_FOUND)?;
-    app.request(request(Method::PATCH, &path, Some(token), Some(patch))?)
+    app.request(request(Method::PATCH, &path, Some(token), Some(update))?)
         .await?
         .assert_status(StatusCode::NO_CONTENT)?;
     let input = json!({"label":"仅所有者可见","enabled":true,"labels":{"2":"sparse"}});
