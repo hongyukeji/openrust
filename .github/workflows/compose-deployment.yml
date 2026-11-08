@@ -1,0 +1,50 @@
+name: Compose deployment acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration:
+    name: Ubuntu x86_64 Compose and named-volume migration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify native Ubuntu and Docker
+        shell: bash
+        run: |
+          {
+            cat /etc/os-release
+            uname -sm
+            docker info --format '{{.OSType}}/{{.Architecture}}'
+            docker compose version
+            df -h .
+            git rev-parse HEAD
+          } | tee "$RUNNER_TEMP/openrust-compose-runner.txt"
+          . /etc/os-release
+          [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]]
+          [[ "$(uname -sm)" == 'Linux x86_64' ]]
+          case "$(docker info --format '{{.OSType}}/{{.Architecture}}')" in
+            linux/x86_64|linux/amd64) ;;
+            *) exit 1 ;;
+          esac
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+      - name: Verify deployment, migration and rollback
+        run: |
+          python3 -B .agents/project/scripts/test-compose-migration.py --repo "$GITHUB_WORKSPACE" \
+            --source-ref "$GITHUB_SHA" --output "$RUNNER_TEMP/openrust-compose-evidence" --require-native
+      - name: Upload acceptance receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-x86-64-compose-evidence
+          path: |
+            ${{ runner.temp }}/openrust-compose-runner.txt
+            ${{ runner.temp }}/openrust-compose-evidence/receipt.json
+          retention-days: 7
