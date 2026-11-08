@@ -3,7 +3,6 @@
 use std::{future::Future, time::Duration};
 
 use crate::Application;
-use crate::BoxFuture;
 use crate::Command;
 use crate::Error;
 use crate::Result;
@@ -12,6 +11,7 @@ use crate::foundation::http::build_router;
 use crate::foundation::shutdown_signal;
 use crate::grpc::GrpcServer;
 use crate::http::serve::serve_listener_for_supervisor;
+use crate::support::BoxFuture;
 use tokio::{
     net::TcpListener,
     task::{JoinError, JoinSet},

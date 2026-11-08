@@ -16,7 +16,6 @@ use std::{
 
 use crate::Application;
 use crate::ApplicationState;
-use crate::BoxFuture;
 use crate::Command;
 use crate::Error;
 use crate::Result;
@@ -31,6 +30,7 @@ use crate::core::ExecutionContext;
 use crate::core::ExecutionMetadata;
 use crate::core::Readiness;
 use crate::foundation::shutdown_signal;
+use crate::support::BoxFuture;
 use http::Request;
 use http_body_util::{BodyExt, StreamBody};
 use tokio::net::TcpListener;
