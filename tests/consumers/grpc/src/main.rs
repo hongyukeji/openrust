@@ -12,6 +12,7 @@ use futures_util::{Stream, StreamExt, TryStreamExt, stream};
 use openrust::config::FrameworkConfig;
 use openrust::config::GrpcConfig;
 use openrust::foundation::Application;
+#[cfg(test)]
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
 use openrust::foundation::RegisterContext;
@@ -20,13 +21,16 @@ use openrust::grpc::GrpcServer;
 use openrust::grpc::GrpcServiceProvider;
 use openrust::grpc::GrpcServiceRegistry;
 use openrust::grpc::tonic;
+#[cfg(test)]
 use openrust::support::BoxFuture;
 use openrust::support::ServiceProvider;
 use tokio::{net::TcpListener, sync::oneshot};
 use tokio_stream::iter;
 use tonic::{Request, Response, Status};
 
+#[cfg(test)]
 struct TokensProvider(openrust::auth::JwtTokens);
+#[cfg(test)]
 impl ServiceProvider for TokensProvider {
     fn register<'a>(
         &'a self,
@@ -50,7 +54,9 @@ impl ServiceProvider for RegistryProvider {
         })
     }
 }
+#[cfg(test)]
 struct RouteProvider<F>(F);
+#[cfg(test)]
 impl<F: Fn(openrust::routing::Router) -> openrust::routing::Router + Send + Sync + Clone + 'static>
     ServiceProvider for RouteProvider<F>
 {
@@ -623,15 +629,15 @@ mod tls_tests {
 #[cfg(test)]
 mod auth_tests {
     use super::*;
-    use openrust::auth::AuthCredential;
-    use openrust::auth::AuthPrincipal;
-    use openrust::auth::AuthServiceProvider;
-    use openrust::auth::AuthSource;
-    use openrust::auth::Authenticator;
-    use openrust::auth::JwtTokens;
-    use openrust::config::JwtConfig;
-    use openrust::core::Error;
     use openrust::support::BoxFuture;
+    use openrust::{
+        auth::{
+            AuthCredential, AuthPrincipal, AuthServiceProvider, AuthSource, Authenticator,
+            JwtTokens,
+        },
+        config::JwtConfig,
+        core::Error,
+    };
     use tonic::{Code, metadata::MetadataValue, transport::Channel};
 
     struct FakePatAuthenticator;
