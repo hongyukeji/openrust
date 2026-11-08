@@ -28,6 +28,8 @@ pub use enum_collection_cast::{AsEnumArrayObject, AsEnumCollection, EnumArrayObj
 mod decimal_cast;
 mod enum_cast;
 pub use enum_cast::{EnumCase, EnumCast};
+mod fluent_cast;
+pub use fluent_cast::AsFluent;
 mod has_many;
 mod json_codec;
 mod json_path;

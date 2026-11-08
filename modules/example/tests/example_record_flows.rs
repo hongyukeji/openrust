@@ -1107,10 +1107,12 @@ async fn assert_cached_collection_save(
 ) -> TestResult {
     use crate::modules::example::models::example_record;
     use openrust::database::{
-        eloquent::{ArrayObject, AsArrayObject, AsCollection, SaveContext, save_with_query},
+        eloquent::{
+            ArrayObject, AsArrayObject, AsCollection, AsFluent, SaveContext, save_with_query,
+        },
         sea_orm::{EntityTrait, TransactionTrait},
     };
-    use openrust::support::Collection;
+    use openrust::support::{Collection, Fluent};
     use serde_json::json;
 
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
@@ -1147,7 +1149,11 @@ async fn assert_cached_collection_save(
             saved.metadata,
             Some(json!({"before":1,"nested":{"2":true}}))
         );
-        for cast in [AsArrayObject::cast(), AsCollection::default().cast()] {
+        for cast in [
+            AsArrayObject::cast(),
+            AsCollection::default().cast(),
+            AsFluent::cast(),
+        ] {
             let mut model = example_record::RecordForSave::from_existing(&record)?;
             model.metadata.casts.insert("metadata".into(), cast);
             model
@@ -1159,11 +1165,18 @@ async fn assert_cached_collection_save(
                 .get_attribute_value(&model.metadata, "metadata")?
                 .ok_or("collection attribute missing")?;
             let object = value.as_object().ok_or("collection object missing")?;
-            if object.snapshot()?.as_any().is::<ArrayObject>() {
+            let snapshot = object.snapshot()?;
+            if snapshot.as_any().is::<ArrayObject>() {
                 object.modify(|value: &ArrayObject| {
                     let mut next = value.clone();
                     next.as_collection_mut()
                         .try_put("name", json!("array object"))?;
+                    Ok(next)
+                })?;
+            } else if snapshot.as_any().is::<Fluent>() {
+                object.modify(|value: &Fluent| {
+                    let mut next = value.clone();
+                    next.set("name", json!("fluent"))?;
                     Ok(next)
                 })?;
             } else {
@@ -1630,6 +1643,10 @@ fn assert_preview_display(changed: &serde_json::Value) {
     assert_eq!(
         projections["object"]["shape"],
         serde_json::json!({"empty":{},"list":{"0":"首"}})
+    );
+    assert_eq!(
+        projections["fluent"]["shape"],
+        serde_json::json!({"empty":[],"list":["首"]})
     );
     assert_eq!(
         projections["object"]["tags"],

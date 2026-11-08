@@ -37,6 +37,19 @@ impl Fluent {
             calendar: super::CalendarContext::default(),
         })
     }
+
+    pub(crate) fn from_stored_attributes(value: Value) -> Option<Self> {
+        // 持久属性已经过 cast 解码。构造 Fluent 只重建外层 PHP 数组。
+        let attributes = match value {
+            value @ Value::Array(_) => value,
+            Value::Object(values) => super::data::packed(values),
+            _ => return None,
+        };
+        Some(Self {
+            attributes,
+            calendar: super::CalendarContext::default(),
+        })
+    }
     pub(crate) fn with_calendar(mut self, calendar: super::CalendarContext) -> Self {
         self.calendar = calendar;
         self
@@ -128,4 +141,14 @@ impl Fluent {
     }
     super::typed::typed_methods!(attributes);
     super::typed::bag_methods!(attributes);
+}
+
+impl super::DataObject for Fluent {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn json_projection(&self) -> Option<Value> {
+        Some(self.to_value())
+    }
 }

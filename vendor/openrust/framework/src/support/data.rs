@@ -226,7 +226,7 @@ fn entries(value: Value) -> Map<String, Value> {
     }
 }
 
-fn packed(values: Map<String, Value>) -> Value {
+pub(super) fn packed(values: Map<String, Value>) -> Value {
     if values
         .keys()
         .enumerate()

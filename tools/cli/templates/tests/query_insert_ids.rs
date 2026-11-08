@@ -76,6 +76,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_enum_cast().await?;
         check_generated_decimal_cast().await?;
         check_generated_primitive_json_casts().await?;
+        check_generated_as_fluent().await?;
         check_generated_json_codec().await?;
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
@@ -376,9 +377,33 @@ async fn check_generated_primitive_json_casts() -> Result<()> {
     check(attrs.attributes_to_json(&model)?["settings"] == associative)
 }
 
+async fn check_generated_as_fluent() -> Result<()> {
+    use openrust::{
+        database::eloquent::{AsFluent, ModelAttributes, ModelMetadata, ModelObject},
+        support::Fluent,
+    };
+    use serde_json::json;
+
+    let mut model = ModelMetadata::new("insert_items", "GeneratedFluentRecord");
+    model.casts.insert("data".into(), AsFluent::cast());
+    let attrs = ModelAttributes::default();
+    let value = ModelObject::new(Fluent::from_value(json!({"x":1}))?);
+    attrs.set_attribute_value(&model, "data", value.clone().into()).await?;
+    check(attrs.get_attribute_value(&model, "data")?.and_then(|read| read.as_object().cloned())
+        .is_some_and(|read| read.same_object(&value)))?;
+    value.modify::<Fluent>(|value| {
+        let mut next = value.clone();
+        next.set("x", json!(2))?;
+        Ok(next)
+    })?;
+    attrs.set_attribute(&model, "data->path", json!(true)).await?;
+    check(attrs.attributes_to_json(&model)?["data"] == json!({"x":2,"path":true}))?;
+    check(attrs.raw_attribute("data")? == Some(json!(r#"{"x":2,"path":true}"#)))
+}
+
 async fn check_generated_json_codec() -> Result<()> {
     use openrust::database::eloquent::{
-        AsArrayObject, AsEnumArrayObject, AttributeCast, EnumCast, Json, ModelAttributes,
+        AsArrayObject, AsEnumArrayObject, AsFluent, AttributeCast, EnumCast, Json, ModelAttributes,
         ModelMetadata,
     };
     use serde_json::{Value as JsonValue, json};
@@ -418,6 +443,12 @@ async fn check_generated_json_codec() -> Result<()> {
     check(attrs.get_attribute(&model, "data")? == Some(JsonValue::Null))?;
     model.casts.insert("data".into(), AsArrayObject::cast());
     check(attrs.get_attribute_value(&model, "data")?.is_some_and(|v| v.as_object().is_some()))?;
+    check(calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).last() == Some(&json!(["decode","",true])))?;
+
+    model.casts.insert("data".into(), AsFluent::cast());
+    let fluent = ModelAttributes::default();
+    fluent.set_raw_attribute("data", json!(""))?;
+    check(fluent.attributes_to_json(&model)?["data"] == json!({"seed":true}))?;
     check(calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).last() == Some(&json!(["decode","",true])))?;
 
     Json::encode_using(Some(Arc::new(|_, _| Ok(JsonValue::Bool(false)))));

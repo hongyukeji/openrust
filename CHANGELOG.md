@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 支持 AsFluent 类转换、对象缓存及 JSON 路径写回。
+
 - Eloquent 属性 JSON 支持进程级 encoder 和 decoder 回调。
 
 - Eloquent 的 array/json 属性读取递归采用 PHP 关联数组形状。

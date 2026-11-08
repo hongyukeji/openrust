@@ -113,6 +113,19 @@ SQL NULL 始终读取为 null。集合遇到 JSON null、空文本或无效 JSON
 赋值分别按完整路径和基础字段的声明编码。唯一示例的记录预览在
 `metadata_projections` 展示对象、集合和编码文本。
 
+#### Fluent 模型属性
+
+在模型的 `casts` 中声明 `AsFluent::cast()`，通过 `get_attribute_value` 取得
+`ModelObject`，下转为 `openrust::support::Fluent`。同一字段的重复读取复用对象。
+用 `ModelObject::modify` 修改后，模型会在读取原始属性、比较脏值或保存时写回 JSON。
+嵌套路径赋值合并此前的对象变更，并使旧缓存失效。模型数组及 JSON 输出使用
+`Fluent` 的属性投影。
+
+SQL NULL 读取及赋值都保持 null。非空原值经全局 decoder 解码后必须得到数组或对象。
+脏值沿用默认原始值比较，JSON 空白或键序变化可以使属性变脏。持久值水合不经过请求
+输入的字段限制，`Fluent` 的有界路径操作继续使用 Support 的限制。
+唯一示例的记录预览在 `metadata_projections.fluent` 展示结构化元数据。
+
 #### 全局 JSON 编解码回调
 
 在应用 Provider 启动阶段可用 `openrust::database::eloquent::Json::encode_using`

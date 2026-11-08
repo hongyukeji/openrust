@@ -7,7 +7,7 @@ use openrust::{
     database::{
         SortDirection,
         eloquent::{
-            ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AttributeCast,
+            ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AsFluent, AttributeCast,
             AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, EnumCast,
             HasMany, HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttribute,
             ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys, RelationLoad, SaveContext,
@@ -222,7 +222,7 @@ async fn metadata_projections(attributes: &ModelAttributes) -> Result<Value> {
     let raw = attributes.raw_attribute("metadata")?.unwrap_or(Value::Null);
     let projection = ModelAttributes::new(Map::from_iter([
         ("object".into(), raw.clone()),
-        ("collection".into(), raw),
+        ("collection".into(), raw.clone()),
     ]));
     let mut metadata = ModelMetadata::new("example_records", "RecordMetadataProjections");
     metadata
@@ -235,6 +235,16 @@ async fn metadata_projections(attributes: &ModelAttributes) -> Result<Value> {
         .casts
         .insert("unicode".into(), AttributeCast::JsonUnicode);
     let mut values = projection.attributes_to_json(&metadata)?;
+    if values["object"].is_array() || values["object"].is_object() {
+        projection.set_raw_attribute("fluent", raw)?;
+        metadata.casts.insert("fluent".into(), AsFluent::cast());
+        if let Some(value) = projection.get_attribute_value(&metadata, "fluent")? {
+            values.insert(
+                "fluent".into(),
+                metadata.project_attribute_json("fluent", value)?,
+            );
+        }
+    }
     projection
         .set_attribute(&metadata, "unicode", values["object"].clone())
         .await?;
