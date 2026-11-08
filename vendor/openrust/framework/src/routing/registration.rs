@@ -3,6 +3,7 @@
 use crate::core::Result;
 use crate::foundation::BootContext;
 use crate::routing::Router;
+use crate::routing::methods;
 use crate::routing::router::{MiddlewareLayerBuilder, MiddlewareRegistry};
 use axum::extract::Request;
 use axum::response::IntoResponse;
@@ -97,7 +98,8 @@ impl BootContext<'_> {
         <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
         <L::Service as Service<Request>>::Future: Send + 'static,
     {
-        let builder: MiddlewareLayerBuilder = Arc::new(move |routes| routes.layer(layer.clone()));
+        let builder: MiddlewareLayerBuilder =
+            Arc::new(move |name| Ok(methods::tower_binding(layer.clone(), Some(name), None)));
         self.extension_mut::<RouteRegistry>()?
             .middleware
             .alias(name.into(), builder)?;
@@ -127,8 +129,9 @@ impl BootContext<'_> {
                 name.into(),
                 Arc::new(move |parameters| {
                     let layer = factory(parameters)?;
-                    let builder: MiddlewareLayerBuilder =
-                        Arc::new(move |routes| routes.layer(layer.clone()));
+                    let builder: MiddlewareLayerBuilder = Arc::new(move |name| {
+                        Ok(methods::tower_binding(layer.clone(), Some(name), None))
+                    });
                     Ok(builder)
                 }),
             )?;
@@ -141,17 +144,30 @@ impl BootContext<'_> {
         &mut self,
         name: impl Into<String>,
     ) -> Result<&mut Self> {
+        use crate::http::middleware::{handle_terminable, terminate_middleware};
         let registry = &mut self.extension_mut::<RouteRegistry>()?.middleware;
+        let name = name.into();
+        let identity = std::any::TypeId::of::<M>();
         registry.parameter_alias(
-            name.into(),
-            Arc::new(|arguments| {
+            name.clone(),
+            Arc::new(move |arguments| {
                 let arguments: Arc<[String]> = arguments.into();
-                Ok(Arc::new(move |routes| {
-                    routes.terminable_layer::<M>(Arc::clone(&arguments))
+                Ok(Arc::new(move |name| {
+                    Ok(methods::tower_binding(
+                        axum::middleware::from_fn_with_state(
+                            Arc::clone(&arguments),
+                            handle_terminable::<M>,
+                        ),
+                        Some(name),
+                        Some(methods::TerminableBinding {
+                            identity: (identity, Arc::clone(&arguments)),
+                            callback: terminate_middleware::<M>,
+                        }),
+                    ))
                 }))
             }),
         )?;
-        registry.has_terminable = true;
+        registry.terminable_types.insert(name, identity);
         Ok(self)
     }
 

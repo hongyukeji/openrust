@@ -155,6 +155,7 @@ impl ServiceProvider for Routes {
             app.http_middleware_terminable::<Probe<3>>()?;
             app.middleware_alias_terminable::<Probe<1>>("probe-first")?;
             app.middleware_alias_terminable::<Probe<2>>("probe-last")?;
+            app.middleware_alias_terminable::<Probe<2>>("probe-last-equivalent")?;
             app.middleware_group(
                 "probe-group",
                 [
@@ -171,6 +172,8 @@ impl ServiceProvider for Routes {
                         |routes| {
                             routes
                                 .get("/normal/{item}", || async { "normal" })
+                                .get("/excluded/{item}", || async { "excluded" })
+                                .without_middleware("probe-last-equivalent")
                                 .get("/failed/{item}", || async { "failed" })
                         },
                     )
@@ -205,6 +208,20 @@ const CASES: &[(&str, &str, Trace)] = &[
             ("event", 0),
             ("terminate", 1),
             ("terminate", 2),
+            ("terminate", 3),
+            ("terminate", 0),
+            ("app", 0),
+        ],
+    ),
+    (
+        "/excluded/42",
+        "200",
+        &[
+            ("handle", 3),
+            ("handle", 0),
+            ("handle", 1),
+            ("event", 0),
+            ("terminate", 1),
             ("terminate", 3),
             ("terminate", 0),
             ("app", 0),
@@ -321,5 +338,80 @@ async fn terminable_middleware_uses_the_selected_route_and_container_lifetimes()
         .map_err(Error::internal)?
         .map_err(Error::internal)?;
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await
+}
+
+struct DisabledApp;
+
+impl crate::foundation::ApplicationDefinition for DisabledApp {
+    type Config = crate::config::NoConfig;
+
+    fn default_providers() -> crate::support::DefaultProviders {
+        crate::support::DefaultProviders::empty()
+    }
+
+    fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        Vec::new()
+    }
+}
+
+struct DisabledOnlyRoute;
+
+impl ServiceProvider for DisabledOnlyRoute {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| {
+                routes.group(
+                    RouteGroup::new().middleware_alias("missing-for-disabled-test"),
+                    |routes| routes.get("/disabled-unresolved", || async { "ok" }),
+                )
+            })?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn test_app_disables_middleware_but_retains_kernel_event_and_app_callback() -> Result<()> {
+    use crate::testing::TestApp;
+
+    let (sender, mut records) = mpsc::unbounded_channel();
+    let mut builder = TestApp::<DisabledApp>::builder(Figment::new());
+    builder.configure_providers(move |providers| {
+        let mut events = EventsServiceProvider::new();
+        let event = sender.clone();
+        events.listen::<Terminating, _>(move |_, _| {
+            let result = record(&event, "event", 0, 0);
+            Box::pin(async { result })
+        });
+        providers
+            .provider(HttpServiceProvider)
+            .provider(events)
+            .provider(Routes(sender.clone(), Arc::default()))
+            .provider(DisabledOnlyRoute);
+    });
+    builder.with_middleware().without_middleware();
+    let mut fixture = builder.build().await?;
+    let request = Request::builder()
+        .uri("/disabled-unresolved")
+        .body(Body::empty())
+        .map_err(Error::internal)?;
+    let response = fixture.request(request).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers().get("x-termination-probe").is_none());
+    for expected in ["event", "app"] {
+        let mark = tokio::time::timeout(Duration::from_secs(2), records.recv())
+            .await
+            .map_err(Error::internal)?
+            .ok_or_else(|| Error::custom("test_record_missing", "缺少内核执行记录"))?;
+        assert_eq!(mark.phase, expected);
+    }
+    assert!(
+        tokio::time::timeout(Duration::from_millis(30), records.recv())
+            .await
+            .is_err()
+    );
+    fixture
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
         .await
 }

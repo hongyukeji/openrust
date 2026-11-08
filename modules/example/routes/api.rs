@@ -65,7 +65,7 @@ pub(super) fn register(
         )
         .group(
             RouteGroup::new().middleware_group("example.response"),
-            |routes| routes.get("/api/example/middleware", controllers::example::middleware),
+            response_marker_routes,
         );
     #[cfg(feature = "session")]
     let routes = draft_session_routes(routes, capabilities.session);
@@ -420,6 +420,16 @@ fn request_url_routes(routes: Router) -> Router {
             "/api/example/request-url",
             controllers::example::request_url,
         )
+}
+
+fn response_marker_routes(routes: Router) -> Router {
+    routes
+        .get("/api/example/middleware", controllers::example::middleware)
+        .get(
+            "/api/example/middleware/without-marker",
+            controllers::example::middleware,
+        )
+        .without_middleware("example.response")
 }
 
 pub(crate) struct ExampleResponseMarker;

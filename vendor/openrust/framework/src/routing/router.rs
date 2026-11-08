@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::foundation::ApplicationState;
 use axum::Router as AxumRouter;
@@ -25,6 +25,8 @@ type ManagedEntries = Arc<Mutex<Vec<MethodEntry>>>;
 struct RouteDeclaration {
     metadata: Arc<Mutex<MatchedRouteMetadata>>,
     entries: ManagedEntries,
+    middleware: Vec<RouteMiddleware>,
+    excluded_middleware: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -254,7 +256,58 @@ fn decode_route_capture(input: &str) -> Option<String> {
 
 type GroupMiddleware = Box<dyn FnOnce(Router, Option<&MiddlewareRegistry>) -> Router + Send + Sync>;
 
-pub(crate) type MiddlewareLayerBuilder = Arc<dyn Fn(Router) -> Router + Send + Sync>;
+pub(crate) type MiddlewareLayerBuilder =
+    Arc<dyn Fn(&str) -> crate::Result<methods::MiddlewareBinding> + Send + Sync>;
+
+#[derive(Clone)]
+struct MiddlewareSelector {
+    reference: String,
+    concrete: Option<std::any::TypeId>,
+}
+
+impl MiddlewareSelector {
+    fn split(&self) -> (&str, Option<&str>) {
+        self.reference
+            .split_once(':')
+            .map_or((self.reference.as_str(), None), |(alias, parameters)| {
+                (alias, Some(parameters))
+            })
+    }
+
+    fn excludes(&self, candidate: &Self) -> bool {
+        let (alias, parameters) = self.split();
+        let (candidate_alias, candidate_parameters) = candidate.split();
+        let same_type = self.concrete.is_some() && self.concrete == candidate.concrete;
+        (alias == candidate_alias || same_type)
+            && parameters.is_none_or(|parameters| Some(parameters) == candidate_parameters)
+    }
+}
+
+struct NamedMiddleware {
+    selector: MiddlewareSelector,
+    builder: MiddlewareLayerBuilder,
+    binding: OnceLock<Arc<methods::MiddlewareBinding>>,
+}
+
+impl NamedMiddleware {
+    fn resolve(&self) -> crate::Result<Arc<methods::MiddlewareBinding>> {
+        if let Some(binding) = self.binding.get() {
+            return Ok(Arc::clone(binding));
+        }
+        let mut binding = (self.builder)(self.selector.split().0)?;
+        binding.reference = Some(self.selector.reference.clone());
+        let binding = Arc::new(binding);
+        let _ = self.binding.set(Arc::clone(&binding));
+        Ok(binding)
+    }
+}
+
+#[derive(Clone)]
+enum RouteMiddleware {
+    Layer(Arc<methods::MiddlewareBinding>),
+    Named(Arc<NamedMiddleware>),
+}
+
 pub(crate) struct ActionRouteDefinition {
     pub(crate) action: String,
     pub(crate) path: String,
@@ -288,7 +341,7 @@ pub(crate) struct MiddlewareRegistry {
     groups: HashMap<String, Vec<String>>,
     priority: Vec<String>,
     signed_except: Vec<String>,
-    pub(crate) has_terminable: bool,
+    pub(crate) terminable_types: HashMap<String, std::any::TypeId>,
 }
 
 impl Default for MiddlewareRegistry {
@@ -302,7 +355,7 @@ impl Default for MiddlewareRegistry {
                 .map(str::to_owned)
                 .collect(),
             signed_except: Vec::new(),
-            has_terminable: false,
+            terminable_types: HashMap::new(),
         }
     }
 }
@@ -317,62 +370,66 @@ impl MiddlewareRegistry {
         if !self.contains_name("cookies") {
             self.alias(
                 "cookies".to_owned(),
-                Arc::new(move |mut routes| {
+                Arc::new(move |name| {
                     if let Some(layer) = &cookie {
-                        routes.builtin_layer(&methods::BuiltinLayer::Cookie(layer.clone()))
+                        Ok(methods::builtin_binding(
+                            methods::BuiltinLayer::Cookie(layer.clone()),
+                            name,
+                        ))
                     } else {
-                        routes.middleware_errors.push(crate::Error::custom(
+                        Err(crate::Error::custom(
                             "web_cookie_provider_missing",
                             "Cookie 路由层要求 CookieServiceProvider",
-                        ));
-                        routes
+                        ))
                     }
                 }),
             )?;
         }
         if !self.contains_name("session") {
             #[cfg(feature = "session")]
-            let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
+            let builder: MiddlewareLayerBuilder = Arc::new(move |name| {
                 if let Some(layer) = &session {
-                    routes.builtin_layer(&methods::BuiltinLayer::Session(layer.clone()))
+                    Ok(methods::builtin_binding(
+                        methods::BuiltinLayer::Session(layer.clone()),
+                        name,
+                    ))
                 } else {
-                    routes.middleware_errors.push(crate::Error::custom(
+                    Err(crate::Error::custom(
                         "web_session_provider_missing",
                         "Session 路由层要求已启用的 SessionServiceProvider",
-                    ));
-                    routes
+                    ))
                 }
             });
             #[cfg(not(feature = "session"))]
-            let builder: MiddlewareLayerBuilder = Arc::new(|mut routes| {
-                routes.middleware_errors.push(crate::Error::custom(
+            let builder: MiddlewareLayerBuilder = Arc::new(|_| {
+                Err(crate::Error::custom(
                     "web_session_feature_missing",
                     "Web 路由组要求 session feature",
-                ));
-                routes
+                ))
             });
             self.alias("session".to_owned(), builder)?;
         }
         if !self.contains_name("csrf") {
             #[cfg(feature = "session")]
-            let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
+            let builder: MiddlewareLayerBuilder = Arc::new(move |name| {
                 if let Some(runtime) = &forgery {
-                    routes.builtin_layer(&methods::BuiltinLayer::Csrf(runtime.clone()))
+                    Ok(methods::builtin_binding(
+                        methods::BuiltinLayer::Csrf(runtime.clone()),
+                        name,
+                    ))
                 } else {
-                    routes.middleware_errors.push(crate::Error::custom(
+                    Err(crate::Error::custom(
                         "web_csrf_runtime_missing",
                         "Web CSRF 要求 Cookie 和有效 Session",
-                    ));
-                    routes
+                    ))
                 }
             });
             #[cfg(not(feature = "session"))]
-            let builder: MiddlewareLayerBuilder = Arc::new(|mut routes| {
-                routes.middleware_errors.push(crate::Error::custom(
+            let builder: MiddlewareLayerBuilder = Arc::new(|_| {
+                Err(crate::Error::custom(
                     "web_session_feature_missing",
                     "Web CSRF 要求 session feature",
-                ));
-                routes
+                ))
             });
             self.alias("csrf".to_owned(), builder)?;
         }
@@ -405,10 +462,14 @@ impl MiddlewareRegistry {
                         name.into(),
                         Arc::new(move |arguments| {
                             let options = crate::auth::middleware::guards(arguments, guest);
-                            Ok(Arc::new(move |routes: Router| {
-                                routes.layer(axum::middleware::from_fn_with_state(
-                                    options.clone(),
-                                    crate::auth::middleware::handle,
+                            Ok(Arc::new(move |name| {
+                                Ok(methods::tower_binding(
+                                    axum::middleware::from_fn_with_state(
+                                        options.clone(),
+                                        crate::auth::middleware::handle,
+                                    ),
+                                    Some(name),
+                                    None,
                                 ))
                             }))
                         }),
@@ -420,10 +481,14 @@ impl MiddlewareRegistry {
                     "password.confirm".into(),
                     Arc::new(|arguments| {
                         let options = crate::auth::middleware::password(arguments)?;
-                        Ok(Arc::new(move |routes: Router| {
-                            routes.layer(axum::middleware::from_fn_with_state(
-                                options.clone(),
-                                crate::auth::middleware::handle,
+                        Ok(Arc::new(move |name| {
+                            Ok(methods::tower_binding(
+                                axum::middleware::from_fn_with_state(
+                                    options.clone(),
+                                    crate::auth::middleware::handle,
+                                ),
+                                Some(name),
+                                None,
                             ))
                         }))
                     }),
@@ -436,10 +501,14 @@ impl MiddlewareRegistry {
                 .except(self.signed_except.clone());
             self.alias(
                 "signed".to_owned(),
-                Arc::new(move |routes| {
-                    routes.layer(axum::middleware::from_fn_with_state(
-                        options.clone(),
-                        crate::http::middleware::validate_signature_with_options,
+                Arc::new(move |name| {
+                    Ok(methods::tower_binding(
+                        axum::middleware::from_fn_with_state(
+                            options.clone(),
+                            crate::http::middleware::validate_signature_with_options,
+                        ),
+                        Some(name),
+                        None,
                     ))
                 }),
             )?;
@@ -447,9 +516,13 @@ impl MiddlewareRegistry {
         if !self.contains_name("precognitive") {
             self.alias(
                 "precognitive".to_owned(),
-                Arc::new(|routes| {
-                    routes.layer(axum::middleware::from_fn(
-                        crate::http::precognition::handle_precognitive_requests,
+                Arc::new(|name| {
+                    Ok(methods::tower_binding(
+                        axum::middleware::from_fn(
+                            crate::http::precognition::handle_precognitive_requests,
+                        ),
+                        Some(name),
+                        None,
                     ))
                 }),
             )?;
@@ -559,62 +632,39 @@ impl MiddlewareRegistry {
         &self,
         name: &str,
         stack: &mut HashSet<String>,
-    ) -> crate::core::Result<Vec<(String, MiddlewareLayerBuilder)>> {
+    ) -> crate::Result<Vec<Arc<NamedMiddleware>>> {
         if !valid_middleware_reference(name) {
-            return Err(crate::core::Error::custom(
+            return Err(crate::Error::custom(
                 "http_middleware_name_invalid",
                 "HTTP middleware 引用名称或参数包含无效字符",
             ));
         }
-        let (base, arguments) = match name.split_once(':') {
-            Some((base, arguments)) => (base, arguments.split(',').map(str::to_owned).collect()),
-            None => (name, Vec::new()),
-        };
-        if let Some(factory) = self.parameter_aliases.get(base) {
-            return Ok(vec![(base.to_owned(), factory(arguments)?)]);
-        }
-        if let Some(alias) = self.aliases.get(name) {
-            return Ok(vec![(name.to_owned(), Arc::clone(alias))]);
-        }
-        if let Some(arguments) = name.strip_prefix("signed:") {
-            let mut arguments = arguments.split(',');
-            let first = arguments.next().unwrap_or_default();
-            let relative = first == "relative";
-            let ignore = if relative {
-                arguments.map(str::to_owned).collect::<Vec<_>>()
-            } else {
-                std::iter::once(first)
-                    .chain(arguments)
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            };
-            if ignore.iter().any(String::is_empty) || (!relative && first.is_empty()) {
-                return Err(crate::core::Error::custom(
-                    "http_middleware_name_invalid",
-                    "signed middleware 参数不能为空",
-                ));
-            }
-            let options = if relative {
-                crate::http::middleware::ValidateSignature::new()
-                    .relative()
-                    .ignoring(ignore)
-            } else {
-                crate::http::middleware::ValidateSignature::new().ignoring(ignore)
-            }
-            .except(self.signed_except.clone());
-            let builder: MiddlewareLayerBuilder = Arc::new(move |routes| {
-                routes.layer(axum::middleware::from_fn_with_state(
-                    options.clone(),
-                    crate::http::middleware::validate_signature_with_options,
-                ))
-            });
-            return Ok(vec![("signed".to_owned(), builder)]);
+        let base = name.split(':').next().unwrap_or(name);
+        if let Some(builder) = self.named_builder(name, base) {
+            return Ok(vec![Arc::new(NamedMiddleware {
+                selector: MiddlewareSelector {
+                    reference: name.to_owned(),
+                    concrete: self.terminable_types.get(base).copied(),
+                },
+                builder,
+                binding: OnceLock::new(),
+            })]);
         }
         let Some(members) = self.groups.get(name) else {
-            return Err(crate::core::Error::custom(
-                "http_middleware_name_unknown",
-                format!("HTTP middleware alias or group `{base}` is not registered"),
-            ));
+            // 先保留身份，只有仍在执行链的引用才要求可解析的实现。
+            return Ok(vec![Arc::new(NamedMiddleware {
+                selector: MiddlewareSelector {
+                    reference: name.to_owned(),
+                    concrete: None,
+                },
+                builder: Arc::new(|name| {
+                    Err(crate::Error::custom(
+                        "http_middleware_name_unknown",
+                        format!("HTTP middleware alias or group `{name}` is not registered"),
+                    ))
+                }),
+                binding: OnceLock::new(),
+            })]);
         };
         if !stack.insert(name.to_owned()) {
             return Err(crate::core::Error::custom(
@@ -630,12 +680,91 @@ impl MiddlewareRegistry {
         Ok(expanded)
     }
 
+    fn named_builder(&self, name: &str, base: &str) -> Option<MiddlewareLayerBuilder> {
+        if let Some(factory) = self.parameter_aliases.get(base) {
+            let factory = Arc::clone(factory);
+            let arguments: Vec<String> = name
+                .split_once(':')
+                .map_or_else(Vec::new, |(_, arguments)| {
+                    arguments.split(',').map(str::to_owned).collect()
+                });
+            return Some(Arc::new(move |name| factory(arguments.clone())?(name)));
+        }
+        if let Some(alias) = self.aliases.get(name) {
+            return Some(Arc::clone(alias));
+        }
+        let arguments = name.strip_prefix("signed:")?.to_owned();
+        let except = self.signed_except.clone();
+        Some(Arc::new(move |name| {
+            signed_binding(name, &arguments, &except)
+        }))
+    }
+
+    fn exclusions(&self, references: &[String]) -> crate::Result<Vec<MiddlewareSelector>> {
+        let mut exclusions = Vec::new();
+        for reference in references {
+            if self.groups.contains_key(reference) {
+                exclusions.extend(
+                    self.expand(reference, &mut HashSet::new())?
+                        .into_iter()
+                        .map(|named| named.selector.clone()),
+                );
+            } else {
+                let base = reference.split(':').next().unwrap_or(reference);
+                exclusions.push(MiddlewareSelector {
+                    reference: reference.clone(),
+                    concrete: self.terminable_types.get(base).copied(),
+                });
+            }
+        }
+        Ok(exclusions)
+    }
+
     pub(crate) fn validate(&self) -> crate::core::Result<()> {
         for name in self.groups.keys() {
             let _ = self.expand(name, &mut HashSet::new())?;
         }
         Ok(())
     }
+}
+
+fn signed_binding(
+    name: &str,
+    arguments: &str,
+    except: &[String],
+) -> crate::Result<methods::MiddlewareBinding> {
+    let mut arguments = arguments.split(',');
+    let first = arguments.next().unwrap_or_default();
+    let relative = first == "relative";
+    let ignore: Vec<_> = if relative {
+        arguments.map(str::to_owned).collect()
+    } else {
+        std::iter::once(first)
+            .chain(arguments)
+            .map(str::to_owned)
+            .collect()
+    };
+    if ignore.iter().any(String::is_empty) {
+        return Err(crate::Error::custom(
+            "http_middleware_name_invalid",
+            "signed middleware 参数不能为空",
+        ));
+    }
+    let options = if relative {
+        crate::http::middleware::ValidateSignature::new().relative()
+    } else {
+        crate::http::middleware::ValidateSignature::new()
+    }
+    .ignoring(ignore)
+    .except(except.to_vec());
+    Ok(methods::tower_binding(
+        axum::middleware::from_fn_with_state(
+            options,
+            crate::http::middleware::validate_signature_with_options,
+        ),
+        Some(name),
+        None,
+    ))
 }
 
 fn valid_middleware_name(name: &str) -> bool {
@@ -673,6 +802,7 @@ pub struct RouteGroup {
     namespace: Option<String>,
     domain: Option<String>,
     middleware: Vec<GroupMiddleware>,
+    excluded_middleware: Vec<String>,
 }
 
 impl RouteGroup {
@@ -750,9 +880,21 @@ impl RouteGroup {
         self.middleware_alias(name)
     }
 
+    /// 排除组内各路由的指定别名、带参数引用或命名中间件组。
+    #[must_use]
+    pub fn without_middleware(mut self, name: impl Into<String>) -> Self {
+        self.excluded_middleware.push(name.into());
+        self
+    }
+
     fn apply(self, mut routes: Router, registry: Option<&MiddlewareRegistry>) -> Router {
         for middleware in self.middleware.into_iter().rev() {
             routes = middleware(routes, registry);
+        }
+        for declaration in &mut routes.declarations {
+            declaration
+                .excluded_middleware
+                .extend(self.excluded_middleware.iter().cloned());
         }
         routes
     }
@@ -787,7 +929,6 @@ pub struct Router {
     active_namespace: Option<String>,
     route_name_errors: Vec<String>,
     middleware_registry: Option<Arc<MiddlewareRegistry>>,
-    active_middleware_name: Option<String>,
     middleware_errors: Vec<crate::core::Error>,
     route_errors: Vec<crate::core::Error>,
     fallback_registered: bool,
@@ -840,6 +981,8 @@ impl Router {
         self.declarations.push(RouteDeclaration {
             metadata: Arc::clone(&metadata),
             entries,
+            middleware: Vec::new(),
+            excluded_middleware: Vec::new(),
         });
         self.last_metadata = Some(metadata);
         self.last_route = Some((
@@ -1190,8 +1333,12 @@ impl Router {
         ));
         self.last_metadata = Some(Arc::clone(&metadata));
         let (_, entries) = methods::get(handler).materialize(&metadata);
-        self.declarations
-            .push(RouteDeclaration { metadata, entries });
+        self.declarations.push(RouteDeclaration {
+            metadata,
+            entries,
+            middleware: Vec::new(),
+            excluded_middleware: Vec::new(),
+        });
         self
     }
 
@@ -1213,59 +1360,41 @@ impl Router {
         self.middleware_alias(name)
     }
 
-    /// 为截至当前已注册的所有路由应用 `tower` layer。
+    /// 排除最近声明路由的指定别名、带参数引用或命名中间件组。
+    /// 裸别名排除其所有参数版本，带参数引用只排除完全匹配项。
     #[must_use]
-    pub fn layer<L>(self, layer: L) -> Self
-    where
-        L: Layer<Route> + Clone + Send + Sync + 'static,
-        L::Service: Service<Request> + Clone + Send + Sync + 'static,
-        <L::Service as Service<Request>>::Response: IntoResponse + 'static,
-        <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
-        <L::Service as Service<Request>>::Future: Send + 'static,
-    {
-        self.attach_layer(layer, None)
-    }
-
-    pub(crate) fn terminable_layer<M: crate::http::middleware::TerminableMiddleware>(
-        self,
-        arguments: Arc<[String]>,
-    ) -> Self {
-        use crate::http::middleware::{handle_terminable, terminate_middleware};
-        self.attach_layer(
-            axum::middleware::from_fn_with_state(Arc::clone(&arguments), handle_terminable::<M>),
-            Some(&methods::TerminableBinding {
-                identity: (std::any::TypeId::of::<M>(), arguments),
-                callback: terminate_middleware::<M>,
-            }),
-        )
-    }
-
-    fn attach_layer<L>(self, layer: L, terminate: Option<&methods::TerminableBinding>) -> Self
-    where
-        L: Layer<Route> + Clone + Send + Sync + 'static,
-        L::Service: Service<Request> + Clone + Send + Sync + 'static,
-        <L::Service as Service<Request>>::Response: IntoResponse + 'static,
-        <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
-        <L::Service as Service<Request>>::Future: Send + 'static,
-    {
-        for declaration in &self.declarations {
-            methods::layer_entries(
-                &declaration.entries,
-                layer.clone(),
-                self.active_middleware_name.as_deref(),
-                terminate,
-            );
+    pub fn without_middleware(mut self, name: impl Into<String>) -> Self {
+        if let Some(declaration) = self.declarations.last_mut()
+            && self
+                .last_metadata
+                .as_ref()
+                .is_some_and(|last| Arc::ptr_eq(last, &declaration.metadata))
+        {
+            declaration.excluded_middleware.push(name.into());
+        } else {
+            self.middleware_errors.push(crate::Error::custom(
+                "http_middleware_without_route",
+                "排除中间件前须声明路由",
+            ));
         }
         self
     }
 
-    fn builtin_layer(self, layer: &methods::BuiltinLayer) -> Self {
-        for declaration in &self.declarations {
-            methods::builtin_entries(
-                &declaration.entries,
-                layer,
-                self.active_middleware_name.as_deref(),
-            );
+    /// 为截至当前已注册的所有路由应用 `tower` layer。
+    #[must_use]
+    pub fn layer<L>(mut self, layer: L) -> Self
+    where
+        L: Layer<Route> + Clone + Send + Sync + 'static,
+        L::Service: Service<Request> + Clone + Send + Sync + 'static,
+        <L::Service as Service<Request>>::Response: IntoResponse + 'static,
+        <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
+        <L::Service as Service<Request>>::Future: Send + 'static,
+    {
+        let binding = Arc::new(methods::tower_binding(layer, None, None));
+        for declaration in &mut self.declarations {
+            declaration
+                .middleware
+                .push(RouteMiddleware::Layer(Arc::clone(&binding)));
         }
         self
     }
@@ -1292,18 +1421,24 @@ impl Router {
         Ok(assemble(parts))
     }
 
-    pub(crate) fn into_parts(mut self) -> RouteParts {
-        let priority = self
-            .middleware_registry
-            .as_deref()
-            .map_or(&[][..], |registry| registry.priority.as_slice());
+    pub(crate) fn into_parts(self) -> RouteParts {
+        self.into_parts_with_middleware(true)
+    }
+
+    pub(crate) fn into_parts_with_middleware(mut self, enabled: bool) -> RouteParts {
+        let registry = self.middleware_registry.as_deref();
+        let priority = registry.map_or(&[][..], |registry| registry.priority.as_slice());
         for declaration in &self.declarations {
-            #[cfg(feature = "session")]
-            if let Err(error) = methods::finalize_layers(&declaration.entries, priority) {
+            if let Err(error) =
+                declaration
+                    .resolve_middleware(registry, enabled)
+                    .and_then(|middleware| {
+                        methods::finalize_layers(&declaration.entries, priority, middleware)
+                    })
+            {
                 self.middleware_errors.push(error);
+                break;
             }
-            #[cfg(not(feature = "session"))]
-            methods::finalize_layers(&declaration.entries, priority);
         }
         let metadata: crate::core::Result<Vec<_>> = self
             .declarations
@@ -1542,24 +1677,80 @@ fn apply_named_middleware(
     registry: Option<&MiddlewareRegistry>,
     name: &str,
 ) -> Router {
-    let Some(registry) = registry else {
-        routes.middleware_errors.push(crate::core::Error::custom(
-            "http_middleware_registry_unavailable",
-            "named HTTP middleware requires an application middleware registry",
-        ));
-        return routes;
+    let bindings = match registry {
+        Some(registry) => registry.expand(name, &mut HashSet::new()),
+        None => Ok(vec![Arc::new(NamedMiddleware {
+            selector: MiddlewareSelector {
+                reference: name.to_owned(),
+                concrete: None,
+            },
+            builder: Arc::new(|_| {
+                Err(crate::Error::custom(
+                    "http_middleware_registry_unavailable",
+                    "named HTTP middleware requires an application middleware registry",
+                ))
+            }),
+            binding: OnceLock::new(),
+        })]),
     };
-    match registry.expand(name, &mut HashSet::new()) {
-        Ok(builders) => {
-            for (alias, builder) in builders.into_iter().rev() {
-                routes.active_middleware_name = Some(alias);
-                routes = builder(routes);
-                routes.active_middleware_name = None;
+    match bindings {
+        Ok(bindings) => {
+            for declaration in &mut routes.declarations {
+                declaration
+                    .middleware
+                    .extend(bindings.iter().rev().cloned().map(RouteMiddleware::Named));
             }
         }
         Err(error) => routes.middleware_errors.push(error),
     }
     routes
+}
+
+impl RouteDeclaration {
+    fn resolve_middleware(
+        &self,
+        registry: Option<&MiddlewareRegistry>,
+        enabled: bool,
+    ) -> crate::Result<Vec<Arc<methods::MiddlewareBinding>>> {
+        if self
+            .excluded_middleware
+            .iter()
+            .any(|name| !valid_middleware_reference(name))
+        {
+            return Err(crate::Error::custom(
+                "http_middleware_name_invalid",
+                "排除的 HTTP middleware 引用无效",
+            ));
+        }
+        if !enabled {
+            return Ok(Vec::new());
+        }
+        let excluded = match registry {
+            Some(registry) => registry.exclusions(&self.excluded_middleware)?,
+            None => self
+                .excluded_middleware
+                .iter()
+                .cloned()
+                .map(|reference| MiddlewareSelector {
+                    reference,
+                    concrete: None,
+                })
+                .collect(),
+        };
+        self.middleware
+            .iter()
+            .rev()
+            .filter_map(|entry| match entry {
+                RouteMiddleware::Layer(binding) => Some(Ok(Arc::clone(binding))),
+                RouteMiddleware::Named(named)
+                    if excluded.iter().any(|item| item.excludes(&named.selector)) =>
+                {
+                    None
+                }
+                RouteMiddleware::Named(named) => Some(named.resolve()),
+            })
+            .collect()
+    }
 }
 
 fn join_route_path(prefix: &str, path: &str) -> String {
@@ -2496,7 +2687,13 @@ mod parameter_alias_tests {
     use crate::Result;
 
     fn identity() -> MiddlewareLayerBuilder {
-        Arc::new(|routes| routes)
+        Arc::new(|name| {
+            Ok(methods::tower_binding(
+                tower::layer::util::Identity::new(),
+                Some(name),
+                None,
+            ))
+        })
     }
 
     #[test]
@@ -2517,7 +2714,8 @@ mod parameter_alias_tests {
         for reference in ["auth", "auth:", "auth:staff,,api"] {
             let expanded = registry.expand(reference, &mut HashSet::new())?;
             assert_eq!(expanded.len(), 1);
-            assert_eq!(expanded[0].0, "auth");
+            assert_eq!(expanded[0].selector.split().0, "auth");
+            let _ = expanded[0].resolve()?;
         }
         assert_eq!(
             *observed
@@ -2554,7 +2752,8 @@ mod parameter_alias_tests {
                 .is_err()
         );
         for name in ["auth:staff", "auth:", "auth"] {
-            assert!(registry.expand(name, &mut HashSet::new()).is_err());
+            let expanded = registry.expand(name, &mut HashSet::new())?;
+            assert!(expanded[0].resolve().is_err());
         }
         for name in [":staff", "bad name:staff", "auth:staff\n", "auth:\u{0085}"] {
             assert!(!valid_middleware_reference(name));
@@ -2567,6 +2766,58 @@ mod parameter_alias_tests {
                 .parameter_alias("auth".into(), Arc::new(|_| Ok(identity())))
                 .is_err()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn exclusions_filter_nested_groups_and_exact_parameters_before_factory_resolution() -> Result<()>
+    {
+        let mut registry = MiddlewareRegistry::default();
+        registry.parameter_alias(
+            "probe".into(),
+            Arc::new(|arguments| {
+                assert_ne!(arguments, ["invalid"]);
+                assert_ne!(arguments, ["skipped"]);
+                Ok(identity())
+            }),
+        )?;
+        registry.group("outer".into(), vec!["inner".into(), "probe:kept".into()])?;
+        registry.group("inner".into(), vec!["probe:invalid".into()])?;
+        registry.validate()?;
+        let routes = Router::with_middleware_registry(Arc::new(registry)).group(
+            RouteGroup::new()
+                .middleware_group("outer")
+                .without_middleware("inner"),
+            |routes| {
+                routes.group(
+                    RouteGroup::new().middleware_alias("probe:skipped"),
+                    |routes| {
+                        routes
+                            .get("/kept", || async { "ok" })
+                            .without_middleware("probe:skipped")
+                    },
+                )
+            },
+        );
+        let _ = routes.into_router()?;
+        Ok(())
+    }
+
+    #[test]
+    fn excluded_unknown_names_do_not_require_a_registration() -> Result<()> {
+        let mut registry = MiddlewareRegistry::default();
+        registry.group("legacy".into(), vec!["missing:old".into()])?;
+        registry.validate()?;
+        let routes = Router::with_middleware_registry(Arc::new(registry))
+            .get("/enabled", || async { "ok" })
+            .middleware_group("legacy")
+            .without_middleware("missing");
+        let _ = routes.into_router()?;
+        let routes = Router::new()
+            .get("/standalone", || async { "ok" })
+            .middleware_alias("missing")
+            .without_middleware("missing");
+        let _ = routes.into_router()?;
         Ok(())
     }
 
@@ -2634,7 +2885,8 @@ mod parameter_alias_tests {
                 .expand("signed:relative,tracking", &mut HashSet::new())
                 .is_ok()
         );
-        assert!(defaults.expand("signed:", &mut HashSet::new()).is_err());
+        let invalid = defaults.expand("signed:", &mut HashSet::new())?;
+        assert!(invalid[0].resolve().is_err());
         #[cfg(feature = "session")]
         defaults.install_web_defaults(None, None, None)?;
         #[cfg(not(feature = "session"))]
@@ -2692,16 +2944,22 @@ mod return_roles_tests {
                     .middleware;
                 registry.alias(
                     "fixture-cookie".into(),
-                    Arc::new(move |routes| {
-                        routes.builtin_layer(&methods::BuiltinLayer::Cookie(Arc::clone(&cookie)))
+                    Arc::new(move |name| {
+                        Ok(methods::builtin_binding(
+                            methods::BuiltinLayer::Cookie(Arc::clone(&cookie)),
+                            name,
+                        ))
                     }),
                 )?;
                 for name in ["fixture-first", "fixture-second"] {
                     let runtime = runtime.clone();
                     registry.alias(
                         name.into(),
-                        Arc::new(move |routes| {
-                            routes.builtin_layer(&methods::BuiltinLayer::Csrf(runtime.clone()))
+                        Arc::new(move |name| {
+                            Ok(methods::builtin_binding(
+                                methods::BuiltinLayer::Csrf(runtime.clone()),
+                                name,
+                            ))
                         }),
                     )?;
                 }

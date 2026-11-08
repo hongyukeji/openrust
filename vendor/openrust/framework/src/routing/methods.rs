@@ -70,6 +70,7 @@ type LayerFn = Arc<dyn Fn(HandlerFn) -> HandlerFn + Send + Sync>;
 #[derive(Clone)]
 pub(crate) struct MiddlewareBinding {
     pub(crate) name: Option<String>,
+    pub(crate) reference: Option<String>,
     apply: LayerFn,
     terminate: Option<TerminableBinding>,
     #[cfg(feature = "session")]
@@ -193,7 +194,6 @@ pub(crate) struct MethodEntry {
     #[cfg(feature = "session")]
     pub(crate) protected_cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
     pub(crate) metadata: Option<Arc<Mutex<crate::routing::router::MatchedRouteMetadata>>>,
-    pub(crate) middleware: Vec<MiddlewareBinding>,
     pub(crate) terminating: Arc<[crate::http::middleware::TerminateMiddleware]>,
 }
 
@@ -258,7 +258,6 @@ impl RouteMethods {
             #[cfg(feature = "session")]
             protected_cookie: None,
             metadata: None,
-            middleware: Vec::new(),
             terminating: Arc::default(),
         });
         self
@@ -393,48 +392,43 @@ fn require_send<F: Future + Send>(future: F) -> F {
     future
 }
 
-pub(crate) fn layer_entries<L>(
-    entries: &Arc<Mutex<Vec<MethodEntry>>>,
+pub(crate) fn tower_binding<L>(
     layer: L,
     name: Option<&str>,
-    terminate: Option<&TerminableBinding>,
-) where
+    terminate: Option<TerminableBinding>,
+) -> MiddlewareBinding
+where
     L: Layer<Route> + Clone + Send + Sync + 'static,
     L::Service: Service<Request> + Clone + Send + Sync + 'static,
     <L::Service as Service<Request>>::Response: IntoResponse + 'static,
     <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
     <L::Service as Service<Request>>::Future: Send + 'static,
 {
-    if let Ok(mut entries) = entries.lock() {
-        for entry in entries.iter_mut() {
+    MiddlewareBinding {
+        name: name.map(str::to_owned),
+        reference: None,
+        terminate,
+        #[cfg(feature = "session")]
+        role: None,
+        apply: Arc::new(move |inner| {
             let layer = layer.clone();
-            entry.middleware.push(MiddlewareBinding {
-                name: name.map(str::to_owned),
-                terminate: terminate.cloned(),
-                #[cfg(feature = "session")]
-                role: None,
-                apply: Arc::new(move |inner| {
-                    let layer = layer.clone();
-                    Arc::new(move |request, state, invocation| {
-                        let inner = Arc::clone(&inner);
-                        let layer = layer.clone();
-                        Box::pin(async move {
-                            let (next, _retire) = ManagedNext::new(inner, state, &invocation);
-                            let service = tower::service_fn(move |request| {
-                                let future = next.run(request);
-                                async move { Ok::<_, Infallible>(future.await) }
-                            });
-                            let routed: MethodRouter<()> =
-                                axum_routing::any_service(service).layer(layer);
-                            match routed.oneshot(request).await {
-                                Ok(response) => response.into_response(),
-                                Err(error) => match error {},
-                            }
-                        })
-                    })
-                }),
-            });
-        }
+            Arc::new(move |request, state, invocation| {
+                let inner = Arc::clone(&inner);
+                let layer = layer.clone();
+                Box::pin(async move {
+                    let (next, _retire) = ManagedNext::new(inner, state, &invocation);
+                    let service = tower::service_fn(move |request| {
+                        let future = next.run(request);
+                        async move { Ok::<_, Infallible>(future.await) }
+                    });
+                    let routed: MethodRouter<()> = axum_routing::any_service(service).layer(layer);
+                    match routed.oneshot(request).await {
+                        Ok(response) => response.into_response(),
+                        Err(error) => match error {},
+                    }
+                })
+            })
+        }),
     }
 }
 
@@ -461,37 +455,29 @@ impl BuiltinLayer {
     }
 }
 
-pub(crate) fn builtin_entries(
-    entries: &Arc<Mutex<Vec<MethodEntry>>>,
-    layer: &BuiltinLayer,
-    name: Option<&str>,
-) {
-    if let Ok(mut entries) = entries.lock() {
-        for entry in entries.iter_mut() {
+pub(crate) fn builtin_binding(layer: BuiltinLayer, name: &str) -> MiddlewareBinding {
+    MiddlewareBinding {
+        name: Some(name.to_owned()),
+        reference: None,
+        terminate: None,
+        #[cfg(feature = "session")]
+        role: Some(layer.clone()),
+        apply: Arc::new(move |inner| {
             let layer = layer.clone();
-            entry.middleware.push(MiddlewareBinding {
-                name: name.map(str::to_owned),
-                terminate: None,
-                #[cfg(feature = "session")]
-                role: Some(layer.clone()),
-                apply: Arc::new(move |inner| {
-                    let layer = layer.clone();
-                    Arc::new(move |request, state, invocation| {
-                        let inner = Arc::clone(&inner);
-                        let layer = layer.clone();
-                        Box::pin(async move {
-                            let (next, _retire) = ManagedNext::new(inner, state, &invocation);
-                            layer.run(request, next).await
-                        })
-                    })
-                }),
-            });
-        }
+            Arc::new(move |request, state, invocation| {
+                let inner = Arc::clone(&inner);
+                let layer = layer.clone();
+                Box::pin(async move {
+                    let (next, _retire) = ManagedNext::new(inner, state, &invocation);
+                    layer.run(request, next).await
+                })
+            })
+        }),
     }
 }
 
 #[cfg(feature = "session")]
-fn validate_protection_order(middleware: &[MiddlewareBinding]) -> crate::Result<()> {
+fn validate_protection_order(middleware: &[Arc<MiddlewareBinding>]) -> crate::Result<()> {
     let mut cookies = None;
     let mut session = None;
     for (position, entry) in middleware.iter().enumerate() {
@@ -539,49 +525,44 @@ fn protection_order_error() -> crate::Error {
     )
 }
 
-#[cfg(feature = "session")]
-type LayerFinalization = crate::Result<()>;
-#[cfg(not(feature = "session"))]
-type LayerFinalization = ();
-
 pub(crate) fn finalize_layers(
     entries: &Arc<Mutex<Vec<MethodEntry>>>,
     priority: &[String],
-) -> LayerFinalization {
+    mut middleware: Vec<Arc<MiddlewareBinding>>,
+) -> crate::Result<()> {
+    sort_middleware(&mut middleware, priority);
+    #[cfg(feature = "session")]
+    validate_protection_order(&middleware)?;
+    let terminating: Arc<[_]> = middleware
+        .iter()
+        .filter_map(|binding| {
+            binding
+                .terminate
+                .as_ref()
+                .map(|termination| termination.callback)
+        })
+        .collect();
+    #[cfg(feature = "session")]
+    let protected_cookie = middleware.iter().find_map(|binding| match &binding.role {
+        Some(BuiltinLayer::Cookie(layer)) if layer.is_protected() => Some(Arc::clone(layer)),
+        _ => None,
+    });
     if let Ok(mut entries) = entries.lock() {
         for entry in entries.iter_mut() {
-            let mut middleware: Vec<_> = entry.middleware.drain(..).rev().collect();
-            sort_middleware(&mut middleware, priority);
-            entry.terminating = middleware
-                .iter()
-                .filter_map(|binding| {
-                    binding
-                        .terminate
-                        .as_ref()
-                        .map(|termination| termination.callback)
-                })
-                .collect();
+            entry.terminating = Arc::clone(&terminating);
             #[cfg(feature = "session")]
-            if !middleware.is_empty() {
-                validate_protection_order(&middleware)?;
-                entry.protected_cookie =
-                    middleware.iter().find_map(|binding| match &binding.role {
-                        Some(BuiltinLayer::Cookie(layer)) if layer.is_protected() => {
-                            Some(Arc::clone(layer))
-                        }
-                        _ => None,
-                    });
+            {
+                entry.protected_cookie.clone_from(&protected_cookie);
             }
-            for binding in middleware.into_iter().rev() {
+            for binding in middleware.iter().rev() {
                 entry.handler = (binding.apply)(Arc::clone(&entry.handler));
             }
         }
     }
-    #[cfg(feature = "session")]
     Ok(())
 }
 
-fn sort_middleware(middleware: &mut Vec<MiddlewareBinding>, priority: &[String]) {
+fn sort_middleware(middleware: &mut Vec<Arc<MiddlewareBinding>>, priority: &[String]) {
     loop {
         let mut previous: Option<(usize, usize)> = None;
         let mut moved = false;
@@ -613,8 +594,9 @@ fn sort_middleware(middleware: &mut Vec<MiddlewareBinding>, priority: &[String])
             return terminable_seen.insert(termination.identity.clone());
         }
         binding
-            .name
+            .reference
             .as_ref()
+            .or(binding.name.as_ref())
             .is_none_or(|name| seen.insert(name.clone()))
     });
 }

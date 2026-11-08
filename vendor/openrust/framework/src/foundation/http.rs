@@ -252,6 +252,17 @@ impl BootContext<'_> {
     reason = "路由装配在同一入口保持 Provider、协议及中间件顺序"
 )]
 pub fn build_router(app: &Application) -> Result<AxumRouter> {
+    build_router_with_middleware(app, true)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "保持 HTTP 装配及 middleware 的统一顺序"
+)]
+pub(crate) fn build_router_with_middleware(
+    app: &Application,
+    middleware_enabled: bool,
+) -> Result<AxumRouter> {
     validate_trusted_proxy_ranges(app.config().server.trusted_proxy_ranges.as_deref())?;
     crate::http::proxy::validate_headers(app.config().server.trusted_proxy_headers)?;
     let mut route_urls = None;
@@ -308,7 +319,7 @@ pub fn build_router(app: &Application) -> Result<AxumRouter> {
                 routes = builder(routes);
             }
         }
-        let mut parts = routes.into_parts();
+        let mut parts = routes.into_parts_with_middleware(middleware_enabled);
         if !parts.name_errors.is_empty() {
             return Err(Error::custom(
                 "http_route_name_without_route",
@@ -332,19 +343,20 @@ pub fn build_router(app: &Application) -> Result<AxumRouter> {
             "HTTP route registration failed; check route paths and duplicate registrations",
         )
     })??;
-    let global_terminating = if let Some(layers) = app.extension::<RouterLayerRegistry>() {
-        for layer in &layers.builders {
-            stateful = (layer.build)(stateful)?;
-        }
-        layers
-            .builders
-            .iter()
-            .rev()
-            .filter_map(|layer| layer.terminate.map(|(_, callback)| callback))
-            .collect()
-    } else {
-        Arc::default()
-    };
+    let global_terminating =
+        if middleware_enabled && let Some(layers) = app.extension::<RouterLayerRegistry>() {
+            for layer in &layers.builders {
+                stateful = (layer.build)(stateful)?;
+            }
+            layers
+                .builders
+                .iter()
+                .rev()
+                .filter_map(|layer| layer.terminate.map(|(_, callback)| callback))
+                .collect()
+        } else {
+            Arc::default()
+        };
     let calendar = app
         .extension::<crate::support::CalendarContext>()
         .cloned()
@@ -368,12 +380,13 @@ pub fn build_router(app: &Application) -> Result<AxumRouter> {
             .map(|registry| registry.0.clone())
             .unwrap_or_default(),
     );
-    let app_router = middleware::apply(
+    let app_router = middleware::apply_with_middleware(
         stateful,
         &app.config().server,
         &app.config().api,
         Arc::clone(&exceptions),
         app.config().app.debug,
+        middleware_enabled,
     )?;
     let app_router = app_router.layer(axum::middleware::from_fn_with_state(
         route_urls.ok_or_else(|| {
@@ -405,9 +418,10 @@ pub fn build_router(app: &Application) -> Result<AxumRouter> {
             exceptions,
             debug: app.config().app.debug,
             global_terminating,
-            terminable_routes: app
-                .extension::<RouteRegistry>()
-                .is_some_and(|registry| registry.middleware.has_terminable),
+            terminable_routes: middleware_enabled
+                && app
+                    .extension::<RouteRegistry>()
+                    .is_some_and(|registry| !registry.middleware.terminable_types.is_empty()),
             trusted_hosts: TrustedHostsRuntime {
                 app: app.state().clone(),
                 source,

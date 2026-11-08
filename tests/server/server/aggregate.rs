@@ -518,6 +518,7 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
         assert_eq!(json["data"]["url"], "http://localhost:3000/api/example");
 
         let response = router
+            .clone()
             .oneshot(
                 Request::get("/api/example/middleware")
                     .header("host", "localhost")
@@ -526,6 +527,15 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["x-example-middleware"], "named-group");
+        let response = router
+            .oneshot(
+                Request::get("/api/example/middleware/without-marker")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers().get("x-example-middleware").is_none());
         Ok(())
     })
 }

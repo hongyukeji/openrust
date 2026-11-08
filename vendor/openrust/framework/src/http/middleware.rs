@@ -193,7 +193,18 @@ pub fn apply(
     exceptions: Arc<ExceptionHandler>,
     debug: bool,
 ) -> Result<Router> {
-    let cors = if server.cors.enabled {
+    apply_with_middleware(router, server, api, exceptions, debug, true)
+}
+
+pub(crate) fn apply_with_middleware(
+    router: Router,
+    server: &ServerConfig,
+    api: &ApiConfig,
+    exceptions: Arc<ExceptionHandler>,
+    debug: bool,
+    middleware_enabled: bool,
+) -> Result<Router> {
+    let cors = if middleware_enabled && server.cors.enabled {
         Some(cors_layer(&server.cors)?)
     } else {
         None

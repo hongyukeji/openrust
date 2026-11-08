@@ -37,10 +37,23 @@ pub struct TestAppBuilder<A: ApplicationDefinition> {
     removed: Vec<ProviderId>,
     configure_providers: Vec<ConfigureProviders>,
     configure: Vec<Configure>,
+    middleware_enabled: bool,
     application: PhantomData<fn() -> A>,
 }
 
 impl<A: ApplicationDefinition> TestAppBuilder<A> {
+    /// 为此测试蓝图跳过路由和应用全局中间件及 CORS，保留 HTTP 内核的协议保护。
+    pub fn without_middleware(&mut self) -> &mut Self {
+        self.middleware_enabled = false;
+        self
+    }
+
+    /// 恢复此测试蓝图的完整中间件链。
+    pub fn with_middleware(&mut self) -> &mut Self {
+        self.middleware_enabled = true;
+        self
+    }
+
     /// 从应用 Provider 清单移除具体类型；不修改框架实现。
     pub fn remove_provider(&mut self, id: ProviderId) -> &mut Self {
         self.removed.push(id);
@@ -157,6 +170,7 @@ impl<A: ApplicationDefinition> TestApp<A> {
             removed: Vec::new(),
             configure_providers: Vec::new(),
             configure: Vec::new(),
+            middleware_enabled: true,
             application: PhantomData,
         }
     }
@@ -174,7 +188,10 @@ impl<A: ApplicationDefinition> TestApp<A> {
             .app
             .as_ref()
             .ok_or_else(|| Error::custom("test_app_closed", "测试应用尚未启动"))?;
-        match crate::foundation::http::build_router(app) {
+        match crate::foundation::http::build_router_with_middleware(
+            app,
+            self.blueprint.middleware_enabled,
+        ) {
             Ok(router) => {
                 self.router = Some(router);
                 self.active.store(true, Ordering::Release);

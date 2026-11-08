@@ -198,6 +198,12 @@ HTTP 和控制台在应用回调前派发同一个 `openrust::foundation::events
 
 `terminate` 接收请求和最终响应头。请求扩展包含 `RequestAttributes`，已匹配时包含 `Route`。正文按 Axum 的所有权模型交给传输层。全局项沿共享 HTTP layer 的执行顺序，后登记的层在外。示例模块的响应标记中间件保留原标记头，并在终止时记录方法与状态。
 
+### 排除中间件
+
+用 `Router::without_middleware("audit")` 排除最近声明路由的中间件，或用 `RouteGroup::without_middleware("audit")` 排除组内各路由。裸别名匹配所有参数版本，`audit:read` 只匹配该版本。排除命名组时会展开其成员。排除同时作用于处理与终止阶段，全局层继续运行。示例路由 `/api/example/middleware/without-marker` 排除了组内的响应标记。 [Laravel 路由中间件排除](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/middleware.md#excluding-middleware)
+
+隔离测试可在构建前调用 `TestAppBuilder::without_middleware()`，跳过路由中间件、应用全局层和 CORS。`with_middleware()` 恢复默认链。两种模式都保留协议校验、作用域回收、`Terminating` 事件和应用终止回调。
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)
