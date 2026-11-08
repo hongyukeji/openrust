@@ -14,12 +14,10 @@ use tracing_subscriber::util::SubscriberInitExt as _;
 #[cfg(test)]
 use crate::config::Environment;
 use crate::config::{self, ConfigLoader, LogConfig, LogFormat};
-use crate::console::command::ConfigCacheCommand;
-use crate::console::command::ConfigClearCommand;
-use crate::console::command::ConfigShowCommand;
-use crate::console::command::EnvironmentCommand;
-use crate::console::command::HelpCommand;
-use crate::console::command::KeyGenerateCommand;
+use crate::console::command::{
+    ConfigCacheCommand, ConfigClearCommand, ConfigShowCommand, EnvironmentCommand, HelpCommand,
+    KeyGenerateCommand,
+};
 use crate::core::Cancellation;
 use crate::core::error::{Error, Result};
 use crate::foundation::application::Application;

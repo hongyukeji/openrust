@@ -1,12 +1,12 @@
 //! 受控凭据的真实数据库回归；普通旧schema路径由原测试继续覆盖。
 
 use super::*;
-use crate::auth::credential::CredentialFactorContext;
-use crate::auth::fortify::CredentialFactorMigration;
-use crate::database::sea_orm_migration::MigrationTrait;
-use crate::database::sea_orm_migration::MigratorTrait;
-use crate::support::BoxFuture;
-use crate::testing::TestDatabase;
+use crate::{
+    auth::{credential::CredentialFactorContext, fortify::CredentialFactorMigration},
+    database::sea_orm_migration::{MigrationTrait, MigratorTrait},
+    support::BoxFuture,
+    testing::TestDatabase,
+};
 
 struct Migrator;
 impl MigratorTrait for Migrator {

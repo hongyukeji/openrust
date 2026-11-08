@@ -185,14 +185,14 @@ async fn require_gate_user(db: &Db, transaction: &DatabaseTransaction, user_id: 
 ))]
 mod tests {
     use super::*;
-    use crate::database::sea_orm_migration::MigrationTrait;
-    use crate::database::sea_orm_migration::MigratorTrait;
-    use crate::database::sea_orm_migration::SchemaManager;
-    use crate::database::sea_orm_migration::prelude::Alias;
-    use crate::database::sea_orm_migration::prelude::ColumnDef;
-    use crate::database::sea_orm_migration::prelude::Table;
-    use crate::support::BoxFuture;
-    use crate::testing::TestDatabase;
+    use crate::{
+        database::sea_orm_migration::{
+            MigrationTrait, MigratorTrait, SchemaManager,
+            prelude::{Alias, ColumnDef, Table},
+        },
+        support::BoxFuture,
+        testing::TestDatabase,
+    };
     pub(super) struct NoMigrations;
     impl MigratorTrait for NoMigrations {
         fn migrations() -> Vec<Box<dyn MigrationTrait>> {

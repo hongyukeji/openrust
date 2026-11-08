@@ -6,15 +6,15 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 use super::state::TwoFactorState;
-use crate::Error;
-use crate::Result;
-use crate::database::Db;
-use crate::database::query::QueryBuilder;
-use crate::database::query::RawSql;
-use crate::database::sea_orm::DbBackend;
-use crate::database::sea_orm::QueryResult;
-use crate::database::sea_orm::Value as SqlValue;
-use crate::support::BoxFuture;
+use crate::{
+    Error, Result,
+    database::{
+        Db,
+        query::{QueryBuilder, RawSql},
+        sea_orm::{DbBackend, QueryResult, Value as SqlValue},
+    },
+    support::BoxFuture,
+};
 
 const SECRET: &str = "two_factor_secret";
 const RECOVERY: &str = "two_factor_recovery_codes";

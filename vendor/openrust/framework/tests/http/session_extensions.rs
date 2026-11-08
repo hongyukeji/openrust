@@ -1,14 +1,12 @@
 //! 公开 Session 扩展的身份归属、转移与请求隔离；受控 driver 不替代真实服务证据。
 #![cfg(feature = "session")]
 
-use openrust::Error;
-use openrust::Result;
 use openrust::http::{CookieFactory, CookieJar, CookieOptions};
 use openrust::session::{
     DEFAULT_MAX_BYTES, MemorySessionStore, Session, SessionId, SessionRecord,
     SessionRequestContext, SessionStore, SessionWriteMode, SessionWriteOutcome,
 };
-use openrust::support::BoxFuture;
+use openrust::{Error, Result, support::BoxFuture};
 use serde_json::{Value, json};
 use std::sync::{
     Arc, Mutex,

@@ -2,36 +2,27 @@
 #![cfg(any(feature = "db-mysql", feature = "db-postgres"))]
 
 use super::*;
-use crate::auth::AuthFlows;
-use crate::auth::AuthUser;
-use crate::auth::Authenticatable;
-use crate::auth::Credentials;
-use crate::auth::DatabaseUserProvider;
-use crate::auth::DatabaseVerificationCodeStore;
-use crate::auth::GenericUser;
-use crate::auth::SessionGuard;
-use crate::auth::UserProvider;
-use crate::auth::VerificationCodes;
-use crate::auth::fortify::CredentialFactorMigration;
-use crate::auth::fortify::FactorAuthorityMigration;
-use crate::auth::fortify::FactorAuthorityStatus;
-use crate::auth::fortify::FortifyTwoFactorMigration;
-use crate::auth::fortify::TwoFactorAuthenticatable;
-use crate::auth::fortify::TwoFactorState;
-use crate::config::JwtConfig;
-use crate::core::RateLimiter;
-use crate::database::DatabaseRateLimitMigration;
-use crate::database::DatabaseRateLimitStore;
-use crate::database::sea_orm::QueryResult;
-use crate::database::sea_orm::TransactionTrait;
-use crate::database::sea_orm_migration::MigrationTrait;
-use crate::database::sea_orm_migration::MigratorTrait;
-use crate::http::CookieFactory;
-use crate::http::CookieJar;
-use crate::session::MemorySessionStore;
-use crate::session::Session;
 use crate::support::BoxFuture;
-use crate::testing::TestDatabase;
+use crate::{
+    auth::fortify::{
+        CredentialFactorMigration, FactorAuthorityMigration, FactorAuthorityStatus,
+        FortifyTwoFactorMigration, TwoFactorAuthenticatable, TwoFactorState,
+    },
+    auth::{
+        AuthFlows, AuthUser, Authenticatable, Credentials, DatabaseUserProvider,
+        DatabaseVerificationCodeStore, GenericUser, SessionGuard, UserProvider, VerificationCodes,
+    },
+    config::JwtConfig,
+    core::RateLimiter,
+    database::{
+        DatabaseRateLimitMigration, DatabaseRateLimitStore,
+        sea_orm::{QueryResult, TransactionTrait},
+        sea_orm_migration::{MigrationTrait, MigratorTrait},
+    },
+    http::{CookieFactory, CookieJar},
+    session::{MemorySessionStore, Session},
+    testing::TestDatabase,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use sha2::Digest as _;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};

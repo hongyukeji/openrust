@@ -53,22 +53,22 @@ pub mod view;
 pub mod auth;
 
 pub use crate::console::Command;
-pub use crate::core::ApiResponse;
-pub use crate::core::Cancellation;
-pub use crate::core::Error;
-pub use crate::core::ExecutionContext;
-pub use crate::core::ExecutionMetadata;
-pub use crate::core::NoConfig;
-pub use crate::core::PageMeta;
-pub use crate::core::Result;
-pub use crate::core::ValidationErrors;
-pub use crate::core::with_execution_context;
-pub use crate::foundation::Application;
-pub use crate::foundation::ApplicationDefinition;
-pub use crate::foundation::ApplicationState;
-pub use crate::foundation::MissingServiceError;
-pub use crate::foundation::lifecycle;
 pub use crate::support::BoxFuture;
+pub use core::ApiResponse;
+pub use core::Cancellation;
+pub use core::Error;
+pub use core::ExecutionContext;
+pub use core::ExecutionMetadata;
+pub use core::NoConfig;
+pub use core::PageMeta;
+pub use core::Result;
+pub use core::ValidationErrors;
+pub use core::with_execution_context;
+pub use foundation::Application;
+pub use foundation::ApplicationDefinition;
+pub use foundation::ApplicationState;
+pub use foundation::MissingServiceError;
+pub use foundation::lifecycle;
 pub use macros::resource;
 
 #[cfg(test)]
@@ -88,7 +88,7 @@ pub(crate) fn lock_test_env() -> std::sync::MutexGuard<'static, ()> {
 }
 
 /// 通用数据库模块；具体连接器由 `db-postgres` / `db-mysql` feature 选择。
-pub use crate::database::{DatabaseConfig, DatabaseInstanceConfig, Databases, Db};
+pub use database::{DatabaseConfig, DatabaseInstanceConfig, Databases, Db};
 
 /// 扩展方法，用于在不绑定监听器的情况下测试 HTTP router。
 pub use tower::ServiceExt;

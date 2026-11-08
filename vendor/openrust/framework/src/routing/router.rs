@@ -16,12 +16,8 @@ use tower::{Layer, Service};
 
 use crate::http::authority::authority;
 use crate::routing::domain::DomainPattern;
-use crate::routing::methods as routing;
-use crate::routing::methods::ManagedHandler;
-use crate::routing::methods::MethodEntry;
-use crate::routing::methods::RouteMethods;
-use crate::routing::resource::Resource;
-use crate::routing::resource::ResourceActions;
+use crate::routing::methods::{self, ManagedHandler, MethodEntry, RouteMethods};
+use crate::routing::{Resource, ResourceActions};
 
 type ManagedEntries = Arc<Mutex<Vec<MethodEntry>>>;
 
@@ -321,7 +317,7 @@ impl MiddlewareRegistry {
                 "cookies".to_owned(),
                 Arc::new(move |mut routes| {
                     if let Some(layer) = &cookie {
-                        routes.builtin_layer(&routing::BuiltinLayer::Cookie(layer.clone()))
+                        routes.builtin_layer(&methods::BuiltinLayer::Cookie(layer.clone()))
                     } else {
                         routes.middleware_errors.push(crate::Error::custom(
                             "web_cookie_provider_missing",
@@ -336,7 +332,7 @@ impl MiddlewareRegistry {
             #[cfg(feature = "session")]
             let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
                 if let Some(layer) = &session {
-                    routes.builtin_layer(&routing::BuiltinLayer::Session(layer.clone()))
+                    routes.builtin_layer(&methods::BuiltinLayer::Session(layer.clone()))
                 } else {
                     routes.middleware_errors.push(crate::Error::custom(
                         "web_session_provider_missing",
@@ -359,7 +355,7 @@ impl MiddlewareRegistry {
             #[cfg(feature = "session")]
             let builder: MiddlewareLayerBuilder = Arc::new(move |mut routes| {
                 if let Some(runtime) = &forgery {
-                    routes.builtin_layer(&routing::BuiltinLayer::Csrf(runtime.clone()))
+                    routes.builtin_layer(&methods::BuiltinLayer::Csrf(runtime.clone()))
                 } else {
                     routes.middleware_errors.push(crate::Error::custom(
                         "web_csrf_runtime_missing",
@@ -882,7 +878,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::get(handler))
+        self.route(path, methods::get(handler))
     }
 
     /// 将动作身份与真实 GET/HEAD handler 同次登记。
@@ -940,7 +936,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::post(handler))
+        self.route(path, methods::post(handler))
     }
 
     /// 注册 `PUT` 路由。
@@ -950,7 +946,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::put(handler))
+        self.route(path, methods::put(handler))
     }
 
     /// 注册 `PATCH` 路由。
@@ -960,7 +956,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::patch(handler))
+        self.route(path, methods::patch(handler))
     }
 
     /// 注册 `DELETE` 路由。
@@ -970,7 +966,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::delete(handler))
+        self.route(path, methods::delete(handler))
     }
 
     /// 注册 `HEAD` 路由。
@@ -980,7 +976,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::head(handler))
+        self.route(path, methods::head(handler))
     }
 
     /// 注册 `OPTIONS` 路由。
@@ -990,7 +986,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::options(handler))
+        self.route(path, methods::options(handler))
     }
 
     /// 注册 `QUERY` 路由。
@@ -1000,7 +996,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::query(handler))
+        self.route(path, methods::query(handler))
     }
 
     /// 注册一个或多个合法 HTTP 方法，包括自定义方法。
@@ -1010,7 +1006,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::on(methods, handler))
+        self.route(path, methods::on(methods, handler))
     }
 
     /// 注册固定 Laravel 八种方法。
@@ -1020,7 +1016,7 @@ impl Router {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.route(path, routing::any(handler))
+        self.route(path, methods::any(handler))
     }
 
     /// 注册资源控制器显式提供的操作。
@@ -1191,7 +1187,7 @@ impl Router {
                 .map(|domain| domain.as_str().to_owned()),
         ));
         self.last_metadata = Some(Arc::clone(&metadata));
-        let (_, entries) = routing::get(handler).materialize(&metadata);
+        let (_, entries) = methods::get(handler).materialize(&metadata);
         self.declarations
             .push(RouteDeclaration { metadata, entries });
         self
@@ -1226,7 +1222,7 @@ impl Router {
         <L::Service as Service<Request>>::Future: Send + 'static,
     {
         for declaration in &self.declarations {
-            routing::layer_entries(
+            methods::layer_entries(
                 &declaration.entries,
                 layer.clone(),
                 self.active_middleware_name.as_deref(),
@@ -1235,9 +1231,9 @@ impl Router {
         self
     }
 
-    fn builtin_layer(self, layer: &routing::BuiltinLayer) -> Self {
+    fn builtin_layer(self, layer: &methods::BuiltinLayer) -> Self {
         for declaration in &self.declarations {
-            routing::builtin_entries(
+            methods::builtin_entries(
                 &declaration.entries,
                 layer,
                 self.active_middleware_name.as_deref(),
@@ -1275,11 +1271,11 @@ impl Router {
             .map_or(&[][..], |registry| registry.priority.as_slice());
         for declaration in &self.declarations {
             #[cfg(feature = "session")]
-            if let Err(error) = routing::finalize_layers(&declaration.entries, priority) {
+            if let Err(error) = methods::finalize_layers(&declaration.entries, priority) {
                 self.middleware_errors.push(error);
             }
             #[cfg(not(feature = "session"))]
-            routing::finalize_layers(&declaration.entries, priority);
+            methods::finalize_layers(&declaration.entries, priority);
         }
         let metadata: crate::core::Result<Vec<_>> = self
             .declarations
@@ -1435,7 +1431,7 @@ fn compile_candidates(
                 fallback_router(entries)
             } else {
                 candidate(
-                    AxumRouter::new().route(&route.path, routing::materialize_shared(entries)),
+                    AxumRouter::new().route(&route.path, methods::materialize_shared(entries)),
                 )
             };
             let probe = candidate(AxumRouter::new().route(
@@ -2637,7 +2633,7 @@ mod return_roles_tests {
     use crate::session::{Session, SessionServiceProvider};
     use crate::support::{BoxFuture, ServiceProvider};
     use axum::middleware::{Next, from_fn};
-    use routing::return_seal_tests::{ObservedStore, Writes};
+    use methods::return_seal_tests::{ObservedStore, Writes};
     use std::sync::atomic::Ordering;
     use tokio::sync::Notify;
 
@@ -2669,7 +2665,7 @@ mod return_roles_tests {
                 registry.alias(
                     "fixture-cookie".into(),
                     Arc::new(move |routes| {
-                        routes.builtin_layer(&routing::BuiltinLayer::Cookie(Arc::clone(&cookie)))
+                        routes.builtin_layer(&methods::BuiltinLayer::Cookie(Arc::clone(&cookie)))
                     }),
                 )?;
                 for name in ["fixture-first", "fixture-second"] {
@@ -2677,7 +2673,7 @@ mod return_roles_tests {
                     registry.alias(
                         name.into(),
                         Arc::new(move |routes| {
-                            routes.builtin_layer(&routing::BuiltinLayer::Csrf(runtime.clone()))
+                            routes.builtin_layer(&methods::BuiltinLayer::Csrf(runtime.clone()))
                         }),
                     )?;
                 }

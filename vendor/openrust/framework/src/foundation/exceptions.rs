@@ -7,10 +7,8 @@ use std::time::{Duration, Instant};
 use axum_core::response::{IntoResponse, Response};
 use http::{HeaderValue, Method, header};
 
-use crate::core::Error;
-use crate::core::Result;
-use crate::foundation::Application;
-use crate::foundation::BootContext;
+use super::{Application, BootContext};
+use crate::core::{Error, Result};
 
 type Matcher = Arc<dyn Fn(&Error) -> bool + Send + Sync>;
 type Mapper = Arc<dyn Fn(&Error) -> Option<Error> + Send + Sync>;

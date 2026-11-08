@@ -4,13 +4,9 @@ use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use super::ProviderEntry;
+use super::{ProviderBuilder, ProviderEntry, ProviderId, Result};
 use crate::container::{ContainerBuilder, Resolver};
-use crate::core::Result;
-use crate::foundation::ProviderBuilder;
-use crate::foundation::ProviderId;
-use crate::support::BoxFuture;
-use crate::support::ServiceProvider;
+use crate::support::{BoxFuture, ServiceProvider};
 
 /// 在任何 Provider 回调前展开外部包的装配声明。
 ///

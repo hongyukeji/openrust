@@ -3,13 +3,13 @@
 use super::proof::session_factor_key;
 use super::{AuthUser, Credentials, Guard, StatefulGuard, UserProvider};
 use super::{FactorManagementContext, FactorReceipt, SessionFactorProof};
-use crate::Error;
-use crate::Result;
-use crate::events::Events;
-use crate::http::cookie::CookieJar;
-use crate::http::cookie::CookieOptions;
-use crate::session::Session;
-use crate::support::BoxFuture;
+use crate::{
+    Error, Result,
+    events::Events,
+    http::cookie::{CookieJar, CookieOptions},
+    session::Session,
+    support::BoxFuture,
+};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, KeyInit, Mac};
 use serde_json::Value;

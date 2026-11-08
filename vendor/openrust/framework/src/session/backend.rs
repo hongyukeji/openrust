@@ -15,13 +15,14 @@ mod sqlite_deadline;
 #[path = "sqlite_guarded.rs"]
 mod sqlite_guarded;
 
-use crate::Result;
-use crate::database::Db;
-use crate::database::sea_orm::ConnectionTrait;
-use crate::database::sea_orm::DbBackend;
-use crate::database::sea_orm::SqlErr;
-use crate::database::sea_orm::Statement;
-use crate::support::BoxFuture;
+use crate::{
+    Result,
+    database::{
+        Db,
+        sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement},
+    },
+    support::BoxFuture,
+};
 
 /// 显式增强数据库 driver；哈希身份、受限 JSON envelope 与绝对截止复用原生表。
 ///

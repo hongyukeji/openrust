@@ -29,9 +29,10 @@ tokio::task_local! {
 }
 
 use crate::config::{ConfigError, ServerConfig, repository::ConfigRepository};
-use crate::foundation::resources::{ResourceOwner, ResourceRegistrar};
+use crate::foundation::resources::ResourceOwner;
+use crate::foundation::resources::ResourceRegistrar;
 
-use super::{BoxFuture, Error, Result};
+use crate::{BoxFuture, Error, Result};
 
 type Value = Arc<dyn Any + Send + Sync>;
 type Factory = Arc<dyn Fn(Resolver) -> BoxFuture<'static, Result<Value>> + Send + Sync>;

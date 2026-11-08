@@ -1268,25 +1268,17 @@ mod event_tests;
 #[cfg(feature = "db-sqlite")]
 mod custom_parent_contract {
     use super::{Fixture, Migrator, PASSWORD, auth_flows, owned, session_parent_guard};
-    use crate::Error;
-    use crate::Result;
-    use crate::auth::AuthUser;
-    use crate::auth::Credentials;
-    use crate::auth::Guard;
-    use crate::auth::StatefulGuard;
-    use crate::auth::UserProvider;
-    use crate::database::Db;
-    use crate::session::DatabaseSessionStore;
-    use crate::session::GuardedDatabaseSessionStore;
-    use crate::session::MemorySessionStore;
-    use crate::session::Session;
-    use crate::session::SessionId;
-    use crate::session::SessionRecord;
-    use crate::session::SessionStore;
-    use crate::session::SessionWriteMode;
-    use crate::session::SessionWriteOutcome;
-    use crate::support::BoxFuture;
-    use crate::testing::TestDatabase;
+    use crate::{
+        Error, Result,
+        auth::{AuthUser, Credentials, Guard, StatefulGuard, UserProvider},
+        database::Db,
+        session::{
+            DatabaseSessionStore, GuardedDatabaseSessionStore, MemorySessionStore, Session,
+            SessionId, SessionRecord, SessionStore, SessionWriteMode, SessionWriteOutcome,
+        },
+        support::BoxFuture,
+        testing::TestDatabase,
+    };
     use serde_json::{Map, Value};
     use std::sync::Arc;
     use time::OffsetDateTime;

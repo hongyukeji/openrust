@@ -7,18 +7,14 @@ use subtle::ConstantTimeEq;
 use tokio::time::Instant;
 use zeroize::Zeroizing;
 
-use crate::Error;
-use crate::Result;
-use crate::auth::AuthManager;
-use crate::auth::AuthUser;
-use crate::auth::Credentials;
-use crate::auth::FactorReceipt;
-use crate::auth::FactorVerificationMethod;
-use crate::auth::Guard;
-use crate::core::error::ValidationErrors;
-use crate::http::RequestInfo;
-use crate::session::Session;
 use crate::support::BoxFuture;
+use crate::{
+    Error, Result,
+    auth::{AuthManager, AuthUser, Credentials, FactorReceipt, FactorVerificationMethod, Guard},
+    core::error::ValidationErrors,
+    http::RequestInfo,
+    session::Session,
+};
 
 use super::authority::FactorAuthoritySnapshot;
 use super::{

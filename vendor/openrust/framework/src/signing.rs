@@ -15,10 +15,11 @@ use jsonwebtoken::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::config::ConfigError;
-use crate::core::Error;
-use crate::core::Result;
 use crate::support::BoxFuture;
+use crate::{
+    config::ConfigError,
+    core::{Error, Result},
+};
 
 pub use crate::config::SignedLinksConfig;
 

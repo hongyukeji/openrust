@@ -9,7 +9,7 @@ impl ServiceProvider for ReadinessProvider {
     fn register<'a>(
         &'a self,
         app: &'a mut crate::foundation::RegisterContext<'_>,
-    ) -> crate::support::BoxFuture<'a, crate::core::Result<()>> {
+    ) -> crate::support::BoxFuture<'a, crate::Result<()>> {
         Box::pin(async move {
             app.instance(std::sync::Arc::new(crate::core::Readiness::default()))
                 .await?;
@@ -193,7 +193,7 @@ impl DefaultProviders {
 
 fn has_default_database(
     config: &crate::config::repository::ConfigRepository,
-) -> crate::core::Result<bool> {
+) -> crate::Result<bool> {
     let database = if config.get("database")?.is_some() {
         config.section::<crate::config::DatabaseConfig>("database")?
     } else {
@@ -205,11 +205,11 @@ fn has_default_database(
 pub(crate) fn validate_database_selection(
     config: &crate::config::repository::ConfigRepository,
     selected: Option<bool>,
-) -> crate::core::Result<()> {
+) -> crate::Result<()> {
     if let Some(selected) = selected
         && selected != has_default_database(config)?
     {
-        return Err(crate::core::Error::custom(
+        return Err(crate::Error::custom(
             "database_selection_changed",
             "自动 Provider 选择后默认数据库启用状态发生变化，请以最终配置重新引导应用",
         ));
@@ -226,8 +226,8 @@ mod tests {
     impl ServiceProvider for Replacement {}
 
     #[test]
-    fn default_list_can_replace_except_and_merge_without_changing_other_slots()
-    -> crate::core::Result<()> {
+    fn default_list_can_replace_except_and_merge_without_changing_other_slots() -> crate::Result<()>
+    {
         let repository = crate::config::repository::ConfigRepository::new(
             crate::config::ConfigSources::from_ordered_entries([("app", json!({"name": "test"}))])?,
         );
@@ -268,7 +268,7 @@ mod tests {
         fn register<'a>(
             &'a self,
             app: &'a mut crate::foundation::RegisterContext<'_>,
-        ) -> crate::support::BoxFuture<'a, crate::core::Result<()>> {
+        ) -> crate::support::BoxFuture<'a, crate::Result<()>> {
             Box::pin(async move {
                 if self.during_register {
                     app.config_repository()
@@ -281,7 +281,7 @@ mod tests {
         fn boot<'a>(
             &'a self,
             app: &'a mut crate::foundation::BootContext<'_>,
-        ) -> crate::support::BoxFuture<'a, crate::core::Result<()>> {
+        ) -> crate::support::BoxFuture<'a, crate::Result<()>> {
             Box::pin(async move {
                 if !self.during_register {
                     app.config_repository()
@@ -295,7 +295,7 @@ mod tests {
     async fn changed_database_selection_fails(
         initial: serde_json::Value,
         next: serde_json::Value,
-    ) -> crate::core::Result<()> {
+    ) -> crate::Result<()> {
         for during_register in [true, false] {
             let mut builder = crate::foundation::ProviderBuilder::new();
             // 前序业务 Provider 使用同仓储 set；自动默认清单仍在任何 register 前选择。
@@ -327,7 +327,7 @@ mod tests {
                     runtime
                         .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
                         .await?;
-                    return Err(crate::core::Error::custom(
+                    return Err(crate::Error::custom(
                         "test_selection_change_accepted",
                         "自动清单接受了默认连接选择变化",
                     ));
@@ -340,7 +340,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn auto_selection_rejects_none_to_some_in_register_and_boot() -> crate::core::Result<()> {
+    async fn auto_selection_rejects_none_to_some_in_register_and_boot() -> crate::Result<()> {
         changed_database_selection_fails(
             serde_json::Value::Null,
             json!("unknown://private.invalid/db"),
@@ -350,8 +350,7 @@ mod tests {
 
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
     #[tokio::test]
-    async fn auto_selection_rejects_some_to_none_before_opening_a_pool() -> crate::core::Result<()>
-    {
+    async fn auto_selection_rejects_some_to_none_before_opening_a_pool() -> crate::Result<()> {
         let url = if cfg!(feature = "db-postgres") {
             "postgres://private.invalid/db"
         } else {
@@ -362,7 +361,7 @@ mod tests {
 
     #[test]
     fn automatic_selection_rejects_invalid_database_types_without_echoing_values()
-    -> crate::core::Result<()> {
+    -> crate::Result<()> {
         let repository = crate::config::repository::ConfigRepository::new(
             crate::config::ConfigSources::from_ordered_entries([(
                 "database",
@@ -375,7 +374,7 @@ mod tests {
             .resolve(&repository)
             .err()
             .ok_or_else(|| {
-                crate::core::Error::custom("test_expected_config_error", "非法数据库类型没有拒绝")
+                crate::Error::custom("test_expected_config_error", "非法数据库类型没有拒绝")
             })?;
         assert!(!error.to_string().contains("private-key"));
         assert!(!error.to_string().contains("private-value"));
@@ -383,8 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn named_only_database_keeps_auth_gate_and_selects_configured_session()
-    -> crate::core::Result<()> {
+    fn named_only_database_keeps_auth_gate_and_selects_configured_session() -> crate::Result<()> {
         let repository = crate::config::repository::ConfigRepository::new(
             crate::config::ConfigSources::from_ordered_entries([
                 (
@@ -413,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn automatic_selection_uses_loaded_database_and_session_values() -> crate::core::Result<()> {
+    fn automatic_selection_uses_loaded_database_and_session_values() -> crate::Result<()> {
         let repository = crate::config::repository::ConfigRepository::new(
             crate::config::ConfigSources::from_ordered_entries([
                 ("database", json!({"url": "postgres://example.invalid/db"})),
@@ -447,12 +445,12 @@ mod ordering_tests {
                 fn register<'a>(
                     &'a self,
                     _app: &'a mut crate::foundation::RegisterContext<'_>,
-                ) -> crate::support::BoxFuture<'a, crate::core::Result<()>> {
+                ) -> crate::support::BoxFuture<'a, crate::Result<()>> {
                     Box::pin(async move {
                         self.0
                             .lock()
                             .map_err(|_| {
-                                crate::core::Error::internal(std::io::Error::other("trace lock"))
+                                crate::Error::internal(std::io::Error::other("trace lock"))
                             })?
                             .push($label);
                         Ok(())
@@ -466,7 +464,7 @@ mod ordering_tests {
     trace_provider!(ApplicationTrace, "application");
 
     #[tokio::test]
-    async fn default_package_application_register_in_order() -> crate::core::Result<()> {
+    async fn default_package_application_register_in_order() -> crate::Result<()> {
         let trace = Arc::new(Mutex::new(Vec::new()));
         let mut builder = crate::foundation::ProviderBuilder::new();
         builder.default_providers(
@@ -481,7 +479,7 @@ mod ordering_tests {
         let runtime = builder.start(source).await?;
         let observed = trace
             .lock()
-            .map_err(|_| crate::core::Error::internal(std::io::Error::other("trace lock")))?
+            .map_err(|_| crate::Error::internal(std::io::Error::other("trace lock")))?
             .clone();
         assert_eq!(observed, ["framework", "package", "application"]);
         runtime

@@ -16,12 +16,9 @@
 //! # }
 //! ```
 
-use crate::core::Cancellation;
-use crate::core::Error;
-use crate::core::ExecutionContext;
-use crate::core::ExecutionMetadata;
-use crate::core::Result;
-use crate::core::with_execution_context;
+use crate::core::{
+    Cancellation, Error, ExecutionContext, ExecutionMetadata, Result, with_execution_context,
+};
 use crate::database::{DatabaseTransaction, Db, DbBackend};
 use crate::support::BoxFuture;
 use sea_orm::{ConnectionTrait, Statement, TransactionTrait};
@@ -4481,9 +4478,7 @@ mod tests {
         Job, JobContext, JobRegistry, QueueContributions, persist_execution_metadata,
         restore_execution_metadata,
     };
-    use crate::core::Cancellation;
-    use crate::core::ExecutionContext;
-    use crate::core::ExecutionMetadata;
+    use crate::core::{Cancellation, ExecutionContext, ExecutionMetadata};
     use crate::schedule::{CronOptions, MissedRunPolicy};
     use crate::support::BoxFuture;
     use serde::Deserialize;

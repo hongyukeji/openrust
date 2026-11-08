@@ -2,24 +2,20 @@
 #![cfg(feature = "db-sqlite")]
 
 use super::DatabaseSessionStore;
-use crate::Error;
-use crate::Result;
-use crate::database::Db;
-use crate::database::sea_orm::ConnectionTrait;
-use crate::database::sea_orm::DbBackend;
-use crate::database::sea_orm::QueryResult;
-use crate::database::sea_orm::Statement;
-use crate::database::sea_orm_migration::MigrationTrait;
-use crate::database::sea_orm_migration::MigratorTrait;
-use crate::session::DatabaseSessionHandler;
-use crate::session::Expiry;
-use crate::session::MemorySessionStore;
-use crate::session::Session;
-use crate::session::SessionId;
-use crate::session::SessionMigration;
-use crate::session::SessionStore;
-use crate::support::BoxFuture;
-use crate::testing::TestDatabase;
+use crate::{
+    Error, Result,
+    database::{
+        Db,
+        sea_orm::{ConnectionTrait, DbBackend, QueryResult, Statement},
+        sea_orm_migration::{MigrationTrait, MigratorTrait},
+    },
+    session::{
+        DatabaseSessionHandler, Expiry, MemorySessionStore, Session, SessionId, SessionMigration,
+        SessionStore,
+    },
+    support::BoxFuture,
+    testing::TestDatabase,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};

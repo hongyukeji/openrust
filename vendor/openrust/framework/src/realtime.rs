@@ -22,12 +22,12 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, mpsc, watch};
 use uuid::Uuid;
 
-use crate::auth::CurrentUser;
-use crate::config::RealtimeConfig;
-use crate::core::Cancellation;
-use crate::core::Error;
-use crate::core::Result;
 use crate::support::BoxFuture;
+use crate::{
+    auth::CurrentUser,
+    config::RealtimeConfig,
+    core::{Cancellation, Error, Result},
+};
 
 const ENVELOPE_VERSION: u8 = 1;
 const REVOKE_CHANNEL: &str = "__openrust_revoke__";

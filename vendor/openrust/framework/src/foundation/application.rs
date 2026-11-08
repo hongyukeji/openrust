@@ -11,8 +11,7 @@ use crate::config::repository::ConfigRepository;
 use crate::config::{ConfigError, Environment, FrameworkConfig};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
-use crate::container::Container;
-use crate::container::Scope;
+use crate::container::{Container, Scope};
 use crate::core::error::{Error, Result};
 use crate::foundation::provider::ProviderId;
 use crate::foundation::provider::ProviderRuntime;
@@ -25,7 +24,8 @@ use crate::support::ServiceProvider;
 /// 每个项目实现一次，返回统一 Provider 清单。
 ///
 /// ```
-/// use openrust::{foundation::ApplicationDefinition, support::ServiceProvider};
+/// use openrust::foundation::ApplicationDefinition;
+/// use openrust::support::ServiceProvider;
 /// use openrust::config::NoConfig;
 ///
 /// struct Server;
@@ -79,11 +79,7 @@ pub trait ApplicationDefinition: Send + Sync + 'static {
     }
 
     /// 在静态清单完成后配置外部包的公开 Provider 装配声明。
-    fn configure_providers(
-        _config: &Self::Config,
-        _builder: &mut crate::foundation::ProviderBuilder,
-    ) {
-    }
+    fn configure_providers(_config: &Self::Config, _builder: &mut super::ProviderBuilder) {}
 }
 
 /// 处理器或命令请求未注册服务时返回的错误。

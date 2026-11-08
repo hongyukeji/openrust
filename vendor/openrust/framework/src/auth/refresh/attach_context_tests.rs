@@ -1,11 +1,11 @@
 //! 真实SQLite只读attach授权：当前raw与完整家族一致，失败也不得暗中撤销。
 use super::*;
-use crate::auth::credential::CredentialFactorContext;
-use crate::auth::fortify::CredentialFactorMigration;
-use crate::database::sea_orm_migration::MigrationTrait;
-use crate::database::sea_orm_migration::MigratorTrait;
-use crate::support::BoxFuture;
-use crate::testing::TestDatabase;
+use crate::{
+    auth::{credential::CredentialFactorContext, fortify::CredentialFactorMigration},
+    database::sea_orm_migration::{MigrationTrait, MigratorTrait},
+    support::BoxFuture,
+    testing::TestDatabase,
+};
 
 struct Migrator;
 impl MigratorTrait for Migrator {

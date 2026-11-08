@@ -9,7 +9,8 @@ use axum::extract::{FromRequest, FromRequestParts, Request};
 use axum::handler::Handler;
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{self, MethodRouter, Route};
+use axum::routing as axum_routing;
+use axum::routing::{MethodRouter, Route};
 use std::convert::Infallible;
 use tower::{Layer, Service, ServiceExt};
 
@@ -356,7 +357,7 @@ pub(crate) fn materialize_shared(
     entries: &Arc<Mutex<Vec<MethodEntry>>>,
 ) -> MethodRouter<ApplicationState> {
     let captured = Arc::clone(entries);
-    routing::any(
+    axum_routing::any(
         move |axum::extract::State(state): axum::extract::State<ApplicationState>,
               request: Request| {
             let entries = captured
@@ -410,7 +411,7 @@ where
                                 async move { Ok::<_, Infallible>(future.await) }
                             });
                             let routed: MethodRouter<()> =
-                                routing::any_service(service).layer(layer);
+                                axum_routing::any_service(service).layer(layer);
                             match routed.oneshot(request).await {
                                 Ok(response) => response.into_response(),
                                 Err(error) => match error {},

@@ -1,11 +1,9 @@
 //! 根据显式注册的控制器操作生成约定式资源路由。
 
 use crate::foundation::ApplicationState;
-use crate::routing::methods as routing;
-use crate::routing::methods::ManagedHandler;
-use crate::routing::methods::RouteMethods;
+use crate::routing::methods::{self, ManagedHandler, RouteMethods};
 
-use crate::routing::router::Router;
+use crate::routing::Router;
 
 /// 约定式资源操作。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -49,7 +47,7 @@ impl ResourceActions {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.list = Some(routing::get(handler));
+        self.list = Some(methods::get(handler));
         self
     }
 
@@ -60,7 +58,7 @@ impl ResourceActions {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.get = Some(routing::get(handler));
+        self.get = Some(methods::get(handler));
         self
     }
 
@@ -71,7 +69,7 @@ impl ResourceActions {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.create = Some(routing::post(handler));
+        self.create = Some(methods::post(handler));
         self
     }
 
@@ -82,7 +80,7 @@ impl ResourceActions {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.update = Some(routing::put(handler.clone()).patch(handler));
+        self.update = Some(methods::put(handler.clone()).patch(handler));
         self
     }
 
@@ -93,7 +91,7 @@ impl ResourceActions {
         H: ManagedHandler<T, ApplicationState>,
         T: 'static,
     {
-        self.delete = Some(routing::delete(handler));
+        self.delete = Some(methods::delete(handler));
         self
     }
 

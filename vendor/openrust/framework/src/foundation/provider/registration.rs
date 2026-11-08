@@ -4,19 +4,12 @@ use std::any::TypeId;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use super::ConfigRepository;
-use super::Container;
-use super::Extensions;
-use super::Finalizer;
-use super::Required;
-use super::ResourceRegistrar;
-use super::check_dependencies;
+use super::{
+    BootContext, ConfigRepository, Container, Extensions, Finalizer, ProviderId, RegisterContext,
+    Required, ResourceRegistrar, check_dependencies,
+};
 use crate::console::command_registry::CommandRegistry;
-use crate::core::Error;
-use crate::core::Result;
-use crate::foundation::BootContext;
-use crate::foundation::ProviderId;
-use crate::foundation::RegisterContext;
+use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 use crate::support::ServiceProvider;
 
