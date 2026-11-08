@@ -450,6 +450,11 @@ fn equivalent(
             &dates.store(metadata, original.into_owned())?,
         ));
     }
+    if let Some(AttributeCast::Class(caster)) = &cast
+        && let Some(equal) = caster.compare(name, &original, &current)?
+    {
+        return Ok(equal);
+    }
     let (Ok(current), Ok(original)) = (current.as_json(), original.as_json()) else {
         return Ok(false);
     };
@@ -463,6 +468,10 @@ fn equivalent(
             Ok((left - right).abs() < f64::EPSILON * 4.0)
         }
         Some(AttributeCast::Array) => array_cast_equivalent(current, original),
+        None | Some(AttributeCast::Class(_)) => Ok(InputNumber::from_value(current).is_some()
+            && InputNumber::from_value(original).is_some()
+            && crate::support::scalars::string(current)
+                == crate::support::scalars::string(original)),
         Some(_) => {
             let left = metadata
                 .read_cast_attribute(name, Some(current.clone()))?
@@ -472,10 +481,6 @@ fn equivalent(
                 .unwrap_or(Value::Null);
             Ok(strict_equal(&left, &right))
         }
-        None => Ok(InputNumber::from_value(current).is_some()
-            && InputNumber::from_value(original).is_some()
-            && crate::support::scalars::string(current)
-                == crate::support::scalars::string(original)),
     }
 }
 
@@ -498,7 +503,7 @@ fn transform_original(
     if let Some(getter) = getter {
         return getter.get(raw.as_ref(), original);
     }
-    metadata.cast_attribute_value(name, raw, dates)
+    metadata.cast_value_with_snapshot(name, raw, original, dates)
 }
 
 // Arr::get只在根尝试完整键；逐段查找不解释通配符，不转换被选值。

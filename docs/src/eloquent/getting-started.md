@@ -79,6 +79,12 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 手动安装关系可用 `ModelRelations::set_model` 或 `set_collection`，保留已加载模型的类型和实例身份。通过 `set_relation` 存放的其他类型擦除值仍可下转，模型序列化略过这类值。
 
+### 自定义类转换
+
+在 `ModelMetadata::casts` 使用 `AttributeCast::Class(ClassCast::new(factory))`。工厂返回实现 `ClassCaster` 的转换器，可捕获构造参数。转换器的 `get` 读取模型原始快照，默认透传原值，适用于仅入站转换。用 `ClassCastWrite::Value` 写入当前字段，用 `ClassCastWrite::Patch` 一次提交多列补丁。正常读取和赋值保留已有访问器优先级。
+
+用 `with_serialization` 启用 `serialize` 以定义非 null 的数组输出。用 `with_comparison` 启用 `compare` 以比较持久化基线与当前原值。数组化保留 Laravel 的分派顺序，带访问器或追加声明的类转换直接使用读取结果。示例记录的 `view_count` 通过公开类转换完成写入、回读与预览。本入口当前返回 JSON 值，对象身份和缓存回写另行交付。
+
 ### 有类型的访问器
 
 用 `ModelAttributes::register_attribute` 登记 `ModelAttribute`。它的同步 getter 接收原始属性值和快照，setter 返回有序的多字段补丁。日期对象默认按字段缓存。再次读取该字段时会调用配置的 setter，同步对象的当前值。读取全部原值、同步原始基线或计算 dirty 时会同步全部适用的缓存。

@@ -1,7 +1,7 @@
 //! 模型共享原始属性与访问器管线；对应 Laravel `HasAttributes` 的访问器优先顺序。
 
 use super::{
-    AttributeCast, AttributeMap, AttributeValue, ModelDateContext, ModelMetadata,
+    AttributeCast, AttributeMap, AttributeValue, ClassCast, ModelDateContext, ModelMetadata,
     attribute_value::{from_json, into_json},
 };
 use crate::Error;
@@ -353,6 +353,9 @@ impl ModelAttributes {
             return Ok(false);
         }
         metadata.check_raw_class_cast(name)?;
+        if matches!(metadata.casts.get(name), Some(AttributeCast::Class(_))) {
+            return Ok(false);
+        }
         let databases = databases.ok_or_else(|| {
             Error::custom_with_status(
                 http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -536,7 +539,7 @@ impl ModelAttributes {
         if let Some(getter) = getter {
             return getter.get(snapshot.get(name), snapshot);
         }
-        metadata.cast_attribute_value(name, snapshot.get(name).cloned(), &self.dates)
+        metadata.cast_value_with_snapshot(name, snapshot.get(name).cloned(), snapshot, &self.dates)
     }
 
     /// 将可见属性依次经过日期名单、访问器、cast 和追加字段投影。
@@ -565,30 +568,33 @@ impl ModelAttributes {
         };
         for (name, getter) in &getters {
             if let Some(value) = values.get_mut(name).filter(|_| !has_marked(name)) {
-                let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
-                *value = getter
-                    .get(Some(value), &raw)?
-                    .unwrap_or_else(|| Value::Null.into());
+                *value = if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
+                    self.project_class_for_array(caster, name, Some(value), false)?
+                } else {
+                    let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
+                    getter
+                        .get(Some(value), &raw)?
+                        .unwrap_or_else(|| Value::Null.into())
+                };
             }
         }
         for (name, descriptor) in &marked {
             if let Some(value) = values.get_mut(name).filter(|_| descriptor.has_getter()) {
-                *value = self.project_marked_for_array(metadata, name, descriptor, Some(value))?;
+                *value = if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
+                    self.project_class_for_array(caster, name, Some(value), false)?
+                } else {
+                    self.project_marked_for_array(metadata, name, descriptor, Some(value))?
+                };
             }
         }
-        for (name, value) in &mut values {
-            if getters.contains_key(name)
-                || has_marked(name)
-                || metadata.effective_cast(name)?.is_none()
-            {
+        for name in metadata.cast_names() {
+            let Some(value) = values
+                .get_mut(name)
+                .filter(|_| !getters.contains_key(name) && !has_marked(name))
+            else {
                 continue;
-            }
-            let output = metadata
-                .cast_attribute_value(name, Some(value.clone()), &self.dates)?
-                .unwrap_or_else(|| Value::Null.into());
-            *value = metadata
-                .project_date_value(name, output, &self.dates, false)?
-                .into();
+            };
+            *value = self.project_cast_for_array(metadata, name, value)?;
         }
         let mut seen = std::collections::HashSet::new();
         for name in metadata.get_appends() {
@@ -597,33 +603,69 @@ impl ModelAttributes {
             }
             let raw_value = self.raw_attribute_value(name)?;
             metadata.check_raw_class_cast(name)?;
-            let value =
-                if let Some(descriptor) = marked.get(name).filter(|value| value.has_getter()) {
-                    let cached = self
-                        .state
-                        .read()
-                        .map_err(|_| state_error())?
-                        .marked_cache
-                        .contains_key(name);
-                    if !cached {
-                        self.flush_marked(None)?;
-                    }
-                    self.project_marked_for_array(metadata, name, descriptor, raw_value.as_ref())?
-                } else if let Some(getter) = getters.get(name) {
+            let value = if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
+                self.project_class_for_array(caster, name, raw_value.as_ref(), false)?
+            } else if let Some(descriptor) = marked.get(name).filter(|value| value.has_getter()) {
+                let cached = self
+                    .state
+                    .read()
+                    .map_err(|_| state_error())?
+                    .marked_cache
+                    .contains_key(name);
+                if !cached {
                     self.flush_marked(None)?;
-                    let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
-                    getter
-                        .get(raw_value.as_ref(), &raw)?
-                        .unwrap_or_else(|| Value::Null.into())
-                } else {
-                    return Err(Error::custom(
-                        "model_appended_accessor_missing",
-                        format!("追加字段 {name} 未登记读取访问器"),
-                    ));
-                };
+                }
+                self.project_marked_for_array(metadata, name, descriptor, raw_value.as_ref())?
+            } else if let Some(getter) = getters.get(name) {
+                self.flush_marked(None)?;
+                let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
+                getter
+                    .get(raw_value.as_ref(), &raw)?
+                    .unwrap_or_else(|| Value::Null.into())
+            } else {
+                return Err(Error::custom(
+                    "model_appended_accessor_missing",
+                    format!("追加字段 {name} 未登记读取访问器"),
+                ));
+            };
             values.insert(name.clone(), value);
         }
         Ok(values)
+    }
+
+    fn project_cast_for_array(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        value: &AttributeValue,
+    ) -> Result<AttributeValue> {
+        if let Some(AttributeCast::Class(caster)) = metadata.casts.get(name) {
+            return self.project_class_for_array(caster, name, Some(value), true);
+        }
+        let output = metadata
+            .cast_attribute_value(name, Some(value.clone()), &self.dates)?
+            .unwrap_or_else(|| Value::Null.into());
+        metadata
+            .project_date_value(name, output, &self.dates, false)
+            .map(AttributeValue::from)
+    }
+
+    fn project_class_for_array(
+        &self,
+        caster: &ClassCast,
+        name: &str,
+        value: Option<&AttributeValue>,
+        serialize: bool,
+    ) -> Result<AttributeValue> {
+        let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
+        let output = caster.resolve()?.get(name, value, &raw)?;
+        if serialize {
+            caster
+                .serialize(name, output, &raw)
+                .map(AttributeValue::from)
+        } else {
+            Ok(output.into())
+        }
     }
 
     fn project_marked_for_array(
@@ -936,6 +978,12 @@ impl ModelAttributes {
                 value
             };
             let value = match cast {
+                Some(AttributeCast::Class(caster)) => {
+                    return Ok(caster
+                        .resolve()?
+                        .set(name, value, &snapshot)?
+                        .into_patch(name));
+                }
                 Some(AttributeCast::Array) if !value.is_null() => {
                     Value::String(super::attribute_cast::encode_array_json(value.as_json()?)?)
                         .into()

@@ -66,11 +66,41 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         rollback_insert(&db).await?;
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
+        check_generated_class_cast().await?;
         generated_model_save(database.url()).await
     }.await;
     database.close().await?;
     outcome?;
     Ok(())
+}
+
+async fn check_generated_class_cast() -> Result<()> {
+    use openrust::database::eloquent::{
+        AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,
+        ModelAttributes, ModelMetadata,
+    };
+    use serde_json::json;
+
+    struct Normalize;
+    impl ClassCaster for Normalize {
+        fn set(&self, _: &str, input: AttributeValue, _: &AttributeMap) -> Result<ClassCastWrite> {
+            let text = input.as_json()?.as_str().ok_or_else(|| {
+                Error::custom("generated_class_cast_input", "测试类转换要求字符串")
+            })?;
+            Ok(ClassCastWrite::Value(json!(text.trim()).into()))
+        }
+    }
+
+    let mut metadata = ModelMetadata::new("insert_items", "GeneratedRecord");
+    metadata.casts.insert(
+        "label".into(),
+        AttributeCast::Class(ClassCast::new(|| Ok(Normalize))),
+    );
+    let attributes = ModelAttributes::default();
+    attributes
+        .set_attribute(&metadata, "label", json!("  value  "))
+        .await?;
+    check(attributes.attributes_to_json(&metadata)?["label"] == json!("value"))
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

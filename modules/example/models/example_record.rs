@@ -4,6 +4,7 @@ use openrust::{
     Db, Error, Result as ModelResult,
     database::{
         eloquent::{
+            AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,
             HasRelationships, HydrateModel, ModelAttributes, ModelMetadata, ModelRelations,
             SaveModel,
         },
@@ -67,7 +68,6 @@ impl Model {
             .map(|text| text.map_or(serde_json::Value::Null, serde_json::Value::String))
     }
     pub(crate) fn attribute_metadata() -> openrust::database::eloquent::ModelMetadata {
-        use openrust::database::eloquent::AttributeCast;
         let mut metadata = ModelMetadata::new(
             "example_records",
             "modules::example::models::example_record::Model",
@@ -90,7 +90,10 @@ impl Model {
         );
         metadata.casts = [
             ("priority".into(), AttributeCast::Integer),
-            ("view_count".into(), AttributeCast::Integer),
+            (
+                "view_count".into(),
+                AttributeCast::Class(VIEW_COUNT_CAST.clone()),
+            ),
             ("enabled".into(), AttributeCast::Boolean),
             (
                 "published_at".into(),
@@ -101,6 +104,29 @@ impl Model {
         .into_iter()
         .collect();
         metadata
+    }
+}
+
+static VIEW_COUNT_CAST: std::sync::LazyLock<ClassCast> =
+    std::sync::LazyLock::new(|| ClassCast::new(|| Ok(ViewCountCast)));
+
+struct ViewCountCast;
+
+impl ClassCaster for ViewCountCast {
+    fn get(&self, _: &str, raw: Option<&AttributeValue>, _: &AttributeMap) -> ModelResult<Value> {
+        AttributeCast::Integer
+            .read(raw.map(AttributeValue::as_json).transpose()?.cloned())
+            .map(|value| value.unwrap_or(Value::Null))
+    }
+
+    fn set(
+        &self,
+        name: &str,
+        value: AttributeValue,
+        raw: &AttributeMap,
+    ) -> ModelResult<ClassCastWrite> {
+        self.get(name, Some(&value), raw)
+            .map(|value| ClassCastWrite::Value(value.into()))
     }
 }
 

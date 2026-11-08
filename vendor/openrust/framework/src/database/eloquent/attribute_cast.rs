@@ -1,6 +1,6 @@
 //! 基础属性读取转换；原始值与模型读取值分开，Query Processor 不复用此规则。
 
-use super::{AttributeValue, ModelDateContext, ModelMetadata};
+use super::{AttributeValue, ClassCast, ModelDateContext, ModelMetadata};
 use crate::{Error, Result};
 use serde_json::Value;
 use std::borrow::Cow;
@@ -8,7 +8,7 @@ use std::borrow::Cow;
 #[path = "attribute_json.rs"]
 mod json;
 
-/// Eloquent 的内置属性转换。
+/// Eloquent 的属性转换声明。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AttributeCast {
     /// PHP64 整数转换，接受字符串数值前缀。
@@ -37,11 +37,19 @@ pub enum AttributeCast {
     ImmutableCustomDateTime(String),
     /// 读取 Unix 秒整数。
     Timestamp,
+    /// 由模型显式声明的自定义类转换。
+    Class(ClassCast),
 }
 
 impl AttributeCast {
     /// 对独立原始值执行读取转换；不运行模型访问器，也不执行赋值哈希。
     pub fn read(&self, value: Option<Value>) -> Result<Option<Value>> {
+        if matches!(self, Self::Class(_)) {
+            return Err(Error::custom(
+                "model_class_cast_context_required",
+                "类转换读取需要模型字段和原始属性",
+            ));
+        }
         if self.is_date_read() {
             return value
                 .map(|value| {

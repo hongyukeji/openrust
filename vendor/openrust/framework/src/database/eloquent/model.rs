@@ -4,8 +4,9 @@ use crate::{
     Result,
     database::{Databases, Db},
 };
+use indexmap::IndexMap;
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use super::{AttributeCast, AttributeValue, ModelDateContext};
 
@@ -44,7 +45,7 @@ pub struct ModelMetadata {
     /// 默认将已加载关系的输出名称转换为蛇形命名。
     pub relation_naming: RelationNaming,
     /// 显式属性转换，主键声明可覆盖隐式的递增主键转换。
-    pub casts: BTreeMap<String, AttributeCast>,
+    pub casts: IndexMap<String, AttributeCast>,
     /// 是否在模型持久化流程中自动维护时间戳。
     pub timestamps: bool,
     /// 创建时间列；None 关闭该列。
@@ -76,7 +77,7 @@ impl ModelMetadata {
             hidden: Vec::new(),
             visible: Vec::new(),
             relation_naming: RelationNaming::Snake,
-            casts: BTreeMap::new(),
+            casts: IndexMap::new(),
             timestamps: true,
             created_at_column: Some("created_at".into()),
             updated_at_column: Some("updated_at".into()),
@@ -167,6 +168,18 @@ impl ModelMetadata {
         self.fillable.is_empty() && self.guarded == ["*"]
     }
 
+    pub(super) fn cast_names(&self) -> impl Iterator<Item = &str> {
+        self.incrementing
+            .then_some(self.key_name.as_str())
+            .into_iter()
+            .chain(
+                self.casts
+                    .keys()
+                    .map(String::as_str)
+                    .filter(|name| !self.incrementing || *name != self.key_name),
+            )
+    }
+
     /// 返回读取/赋值使用的转换；只有递增主键才隐式注入 `key_type`。
     pub fn effective_cast(&self, name: &str) -> Result<Option<AttributeCast>> {
         if let Some(cast) = self.casts.get(name) {
@@ -226,7 +239,28 @@ impl ModelMetadata {
         raw: Option<AttributeValue>,
         dates: &ModelDateContext,
     ) -> Result<Option<AttributeValue>> {
+        let snapshot = raw
+            .iter()
+            .map(|value| (name.to_owned(), value.clone()))
+            .collect();
+        self.cast_value_with_snapshot(name, raw, &snapshot, dates)
+    }
+
+    pub(super) fn cast_value_with_snapshot(
+        &self,
+        name: &str,
+        raw: Option<AttributeValue>,
+        snapshot: &super::AttributeMap,
+        dates: &ModelDateContext,
+    ) -> Result<Option<AttributeValue>> {
         let cast = self.effective_cast(name)?;
+        if let Some(AttributeCast::Class(caster)) = &cast {
+            return caster
+                .resolve()?
+                .get(name, raw.as_ref(), snapshot)
+                .map(AttributeValue::from)
+                .map(Some);
+        }
         let Some(raw) = raw else { return Ok(None) };
         let Some(cast) = cast else {
             return if !raw.is_null() && self.is_implicit_date(name) {

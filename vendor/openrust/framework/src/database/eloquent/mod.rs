@@ -15,6 +15,8 @@ pub use attribute_store::{
 };
 #[cfg(feature = "hashing")]
 pub mod casts;
+mod class_cast;
+pub use class_cast::{ClassCast, ClassCastWrite, ClassCaster};
 mod has_many;
 mod mass_assignment;
 mod model;
