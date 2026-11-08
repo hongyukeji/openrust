@@ -3,7 +3,6 @@
 use std::time::{Duration, SystemTime};
 
 use openrust::ApplicationDefinition;
-use openrust::BoxFuture;
 use openrust::Error;
 use openrust::NoConfig;
 use openrust::Result;
@@ -26,7 +25,7 @@ use openrust::prelude::Inject;
 use openrust::prelude::Json;
 use openrust::prelude::Realtime;
 use openrust::realtime::RealtimeServiceProvider;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde_json::{Value, json};
 
 struct RealtimeNode;

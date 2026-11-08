@@ -8,7 +8,6 @@ use std::{
 
 use async_trait::async_trait;
 use figment::providers::Format;
-use openrust::BoxFuture;
 use openrust::Error;
 use openrust::Result;
 use openrust::cache::Cache;
@@ -18,6 +17,7 @@ use openrust::cache::CacheDriverConfig;
 use openrust::cache::CacheScope;
 use openrust::cache::CacheServiceProvider;
 use openrust::foundation::ProviderBuilder;
+use openrust::support::BoxFuture;
 use tokio::sync::Mutex;
 
 struct PrefixDriver;
@@ -42,9 +42,11 @@ impl CacheDriver for PrefixDriver {
     }
 }
 
+type StoredValue = (Vec<u8>, Option<Instant>);
+
 struct PrefixBackend {
     prefix: String,
-    values: Mutex<HashMap<String, (Vec<u8>, Option<Instant>)>>,
+    values: Mutex<HashMap<String, StoredValue>>,
 }
 
 #[async_trait]

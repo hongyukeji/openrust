@@ -3,7 +3,6 @@
 use std::sync::{Arc, Mutex};
 
 use figment::providers::Format;
-use openrust::BoxFuture;
 use openrust::Error;
 use openrust::Result;
 use openrust::foundation::Application;
@@ -17,7 +16,7 @@ use openrust::sms::SmsDriver;
 use openrust::sms::SmsMessage;
 use openrust::sms::SmsReceipt;
 use openrust::sms::SmsSender;
-use openrust::support::ServiceProvider;
+use openrust::support::{BoxFuture, ServiceProvider};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
