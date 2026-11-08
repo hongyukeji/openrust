@@ -1,0 +1,14 @@
+.git
+.agents
+**/target
+**/.env
+**/.env.*
+!**/.env.example
+docker-data
+**/storage
+**/mysql
+**/postgres
+**/redis
+bootstrap/cache
+**/database/*.sqlite
+**/database/*.sqlite-*

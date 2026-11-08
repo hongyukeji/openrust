@@ -1,0 +1,53 @@
+
+  postgres-init:
+    <<: *data-init
+    image: postgres:18
+    command: [/var/lib/postgresql, "postgres:postgres"]
+    volumes:
+      - &postgres-data
+        type: bind
+        source: ${OPENRUST_DATA_DIR:-./docker-data}/postgres
+        target: /var/lib/postgresql
+        bind:
+          create_host_path: true
+
+  postgres:
+    image: postgres:18
+    user: "postgres:postgres"
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-openrust}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-}
+      OPENRUST_DB_USER: ${DB_USERNAME:-openrust}
+      OPENRUST_DB_PASSWORD: ${DB_PASSWORD:-openrust}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        case "$$OPENRUST_DB_USER" in
+          postgres|pg_*) printf '%s\n' '应用须使用独立的 PostgreSQL 账号。' >&2; exit 1 ;;
+        esac
+        case "$$POSTGRES_DB" in
+          postgres|template0|template1) printf '%s\n' '应用须使用独立的 PostgreSQL 数据库。' >&2; exit 1 ;;
+        esac
+        if [ -z "$$POSTGRES_PASSWORD" ]; then
+          export POSTGRES_PASSWORD="$$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+        fi
+        exec docker-entrypoint.sh postgres
+    volumes:
+      - *postgres-data
+      - type: bind
+        source: ./.docker/postgres-bootstrap.sh
+        target: /docker-entrypoint-initdb.d/10-openrust.sh
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: [CMD-SHELL, 'PGPASSWORD="$$OPENRUST_DB_PASSWORD" psql --no-password -h 127.0.0.1 -U "$$OPENRUST_DB_USER" -d "$$POSTGRES_DB" -c "SELECT 1"']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped

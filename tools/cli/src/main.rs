@@ -20,6 +20,7 @@ use clap::{
 use serde_json::Value;
 
 mod controller_generation;
+mod deployment;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -277,7 +278,12 @@ fn application_directory(
     Ok((app.0.to_path_buf(), app.1.to_owned()))
 }
 
-fn standalone_manifest(source: &Path, project: &Path, database: bool) -> anyhow::Result<()> {
+fn standalone_manifest(
+    source: &Path,
+    project: &Path,
+    database: bool,
+) -> anyhow::Result<deployment::SourceLayout> {
+    let layout = deployment::SourceLayout::new(source, project)?;
     let source_manifest =
         fs::read_to_string(source.join("Cargo.toml"))?.parse::<toml_edit::DocumentMut>()?;
     let mut app =
@@ -314,8 +320,7 @@ fn standalone_manifest(source: &Path, project: &Path, database: bool) -> anyhow:
         dependencies.retain(|name, _| required.contains(name));
         for (_, dependency) in dependencies.iter_mut() {
             if let Some(path) = dependency.get("path").and_then(toml_edit::Item::as_str) {
-                let path = source.join(path).canonicalize()?;
-                dependency["path"] = toml_edit::value(path.to_string_lossy().as_ref());
+                dependency["path"] = toml_edit::value(layout.dependency_path(path)?);
             }
         }
     }
@@ -328,8 +333,7 @@ fn standalone_manifest(source: &Path, project: &Path, database: bool) -> anyhow:
                     for (_, dependency) in dependencies.iter_mut() {
                         if let Some(path) = dependency.get("path").and_then(toml_edit::Item::as_str)
                         {
-                            let path = source.join(path).canonicalize()?;
-                            dependency["path"] = toml_edit::value(path.to_string_lossy().as_ref());
+                            dependency["path"] = toml_edit::value(layout.dependency_path(path)?);
                         }
                     }
                 }
@@ -337,7 +341,7 @@ fn standalone_manifest(source: &Path, project: &Path, database: bool) -> anyhow:
         }
     }
     fs::write(project.join("Cargo.toml"), app.to_string())?;
-    Ok(())
+    Ok(layout)
 }
 
 impl DatabaseBackend {
@@ -740,9 +744,12 @@ fn create_project_with_selected_profile(
     if jwt_api {
         install_jwt_api_profile(&project_dir, &type_name, database, grpc)?;
     }
-    if let Err(error) = standalone_manifest(&workspace.root, &project_dir, database.is_some()) {
+    let deployment = standalone_manifest(&workspace.root, &project_dir, database.is_some())
+        .context("无法配置独立应用的本地依赖")
+        .and_then(|layout| layout.write_templates(&project_dir, project_name, database));
+    if let Err(error) = deployment {
         let _ = fs::remove_dir_all(&project_dir);
-        return Err(error).context("无法配置独立应用的本地依赖");
+        return Err(error);
     }
     let mut stdout = std::io::stdout().lock();
     writeln!(
@@ -752,8 +759,7 @@ fn create_project_with_selected_profile(
     )?;
     writeln!(
         stdout,
-        "Next steps: cd {} && openrust dev",
-        project_dir.display()
+        "进入应用目录后运行 openrust dev，或执行 docker compose up --build -d --wait。"
     )?;
     Ok(())
 }
@@ -1307,6 +1313,14 @@ fn populate_project_with_features(
     {
         use std::os::unix::fs::PermissionsExt as _;
         fs::set_permissions(&artisan, fs::Permissions::from_mode(0o755))?;
+        fs::set_permissions(
+            project_dir.join("public"),
+            fs::Permissions::from_mode(0o755),
+        )?;
+        fs::set_permissions(
+            project_dir.join("public/index.html"),
+            fs::Permissions::from_mode(0o644),
+        )?;
     }
     if fortify {
         install_fortify_scaffold(project_dir)?;
@@ -3251,6 +3265,10 @@ mod workspace_entry_tests;
 #[cfg(all(test, unix))]
 #[path = "../tests/unit/artisan_entry.rs"]
 mod artisan_entry_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/deployment.rs"]
+mod deployment_tests;
 
 #[cfg(test)]
 #[allow(
@@ -5573,120 +5591,6 @@ mod tests {
         source.packages[1].library_name = Some("openrust".into());
         source.packages[1].has_library = false;
         assert!(validate_framework_source(&source).is_err());
-    }
-
-    #[test]
-    fn standalone_apps_inherit_canonical_driver_patches_without_changing_source() {
-        let root =
-            std::env::temp_dir().join(format!("openrust-cli-driver-patch-{}", std::process::id()));
-        fs::create_dir_all(&root).expect("创建独立测试目录");
-        create_framework_fixture(&root);
-        let driver = root.join("vendor/launchbadge/sqlx-mysql");
-        fs::create_dir_all(&driver).expect("创建补丁目录");
-        let orm = root.join("vendor/seaql/sea-orm");
-        fs::create_dir_all(&orm).expect("创建ORM补丁目录");
-        let source_path = root.join("Cargo.toml");
-        let mut source = fs::read_to_string(&source_path).expect("读取源清单");
-        source.push_str("\n[patch.crates-io]\nsqlx-mysql = { path = \"vendor/launchbadge/sqlx-mysql\" }\nsea-orm = { path = \"vendor/seaql/sea-orm\" }\n");
-        fs::write(&source_path, &source).expect("登记驱动补丁");
-        let app = root.join("application");
-        fs::create_dir_all(&app).expect("创建应用目录");
-        fs::write(app.join("Cargo.toml"), "[package]\nname=\"application\"\nversion=\"0.0.0\"\n[dependencies]\nopenrust.workspace=true\n").expect("写应用清单");
-        standalone_manifest(&root, &app, false).expect("独立化清单");
-        let generated = fs::read_to_string(app.join("Cargo.toml"))
-            .expect("读取生成清单")
-            .parse::<toml_edit::DocumentMut>()
-            .expect("解析生成清单");
-        assert_eq!(
-            generated["patch"]["crates-io"]["sqlx-mysql"]["path"].as_str(),
-            driver.canonicalize().expect("补丁绝对路径").to_str()
-        );
-        assert_eq!(
-            generated["patch"]["crates-io"]["sea-orm"]["path"].as_str(),
-            orm.canonicalize().expect("ORM补丁绝对路径").to_str()
-        );
-        assert_eq!(fs::read_to_string(&source_path).expect("源清单"), source);
-        fs::remove_dir_all(root).expect("清理本测试目录");
-    }
-
-    #[test]
-    fn creates_independent_apps_without_changing_source_workspace() {
-        let root =
-            std::env::temp_dir().join(format!("openrust-cli-independent-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("创建临时目录");
-        create_framework_fixture(&root);
-        let source = framework_workspace(&root).expect("解析源码 workspace");
-        assert!(source.packages.iter().any(|package| {
-            package.name == "openrust-framework"
-                && package.manifest_path
-                    == root
-                        .join("vendor/openrust/framework/Cargo.toml")
-                        .canonicalize()
-                        .expect("源码路径")
-        }));
-        let original = fs::read_to_string(root.join("Cargo.toml")).expect("读取源配置");
-        for (name, backend) in [
-            ("blog", DatabaseBackend::Postgres),
-            ("shop", DatabaseBackend::Mysql),
-        ] {
-            create_project(name, Some(backend), false, false, false, false, &root)
-                .expect("生成独立应用");
-            let app = root.join(name);
-            let manifest = fs::read_to_string(app.join("Cargo.toml")).expect("读取应用配置");
-            assert!(manifest.contains("[workspace]"));
-            assert!(manifest.contains("database/migrations"));
-            assert!(!manifest.contains("modules/example"));
-            assert!(!manifest.contains("source-only"));
-            let generated = manifest
-                .parse::<toml_edit::DocumentMut>()
-                .expect("解析应用清单");
-            assert_eq!(generated["package"]["name"].as_str(), Some(name));
-            assert_eq!(
-                generated["dependencies"]["openrust-modules"]["workspace"].as_bool(),
-                Some(true)
-            );
-            assert_eq!(
-                generated["workspace"]["dependencies"]["openrust-modules"]["path"].as_str(),
-                root.join("vendor/openrust/modules")
-                    .canonicalize()
-                    .expect("模块扩展路径")
-                    .to_str()
-            );
-            assert_eq!(
-                generated["workspace"]["dependencies"]["openrust"]["package"].as_str(),
-                Some("openrust-framework")
-            );
-            assert_eq!(
-                generated["workspace"]["dependencies"]["openrust"]["path"].as_str(),
-                root.join("vendor/openrust/framework")
-                    .canonicalize()
-                    .expect("独立框架路径")
-                    .to_str()
-            );
-            assert_eq!(
-                generated["workspace"]["default-members"]
-                    .as_array()
-                    .expect("默认成员")
-                    .iter()
-                    .filter_map(toml_edit::Value::as_str)
-                    .collect::<Vec<_>>(),
-                vec!["."]
-            );
-            let metadata = framework_workspace(&app).expect("独立应用 metadata");
-            assert_eq!(
-                metadata.root,
-                app.canonicalize().expect("独立 workspace 根")
-            );
-            let (resolved, package) = application_directory(&metadata, &app).expect("解析当前应用");
-            assert_eq!(resolved, app.canonicalize().expect("应用路径"));
-            assert_eq!(package, name);
-        }
-        assert_eq!(
-            fs::read_to_string(root.join("Cargo.toml")).expect("源配置"),
-            original
-        );
-        fs::remove_dir_all(root).expect("清理本测试目录");
     }
 
     #[test]

@@ -1707,6 +1707,14 @@ Mac ARM64 的 amd64 模拟证据位于 `tmp/lead-class-lifetime-U5c8kV7e/next-co
 
 原生 Ubuntu 24.04.5 LTS x86_64 的[验收运行](https://github.com/hongyukeji/openrust/actions/runs/42520350003)以 `e99ccb15` 为输入，Docker 28.0.4 服务端为 `linux/x86_64`。隔离项目用真实 MySQL 8.4.13、Redis 8.10.3、27 项迁移和合成业务数据验证旧命名卷归档、空宿主目录恢复、只读 `public`、非 root 服务及 Artisan 迁移。三份归档均直接通过 GNU tar 数字属主和内容比较。重建保留 MySQL 行、Redis 键和 HTTP 附件，回退重新挂载三个原卷并核对旧数据及新写入隔离。运行回执保存于上述证据目录的 `native-42520350003/`。
 
+## 生成应用 Docker Compose
+
+从实际 `openrust new` 生成 minimal 和 Fortify Web，将应用及框架复制到含空格的新父目录后移开原目录。宿主 Cargo 解析搬迁后的 framework、工具及驱动补丁，BuildKit 在镜像内复现相对布局。两类项目均通过 Cargo check/test，Fortify 的登录及会话测试使用隔离 MySQL 8.4.13。
+
+Docker Desktop Linux ARM64 实测 minimal 无锁文件构建和 Fortify Web 锁定构建。两个应用以 UID 10001 启动并通过 `/ready`、Artisan 命令及只读 `public` 验证。Fortify 执行 16 项迁移，真实 HTTP 无 CSRF 登录请求返回 419。重建保留应用存储、Redis 8.10.3 键和 Fortify 的 MySQL 记录。隔离夹具中无效的外部数据库和 Redis URL 未传入容器。应用与框架上下文均通过真实 BuildKit 探针，排除了合成密钥、嵌套 SQLite 和自定义数据目录。
+
+`tmp/lead-class-lifetime-U5c8kV7e/next-compose-x64/` 的 `generated-relocation-live-02/`、`generated-relocation-live-04/` 保存搬迁、构建与重建回执，`generated-workspace-*.log` 保存 fmt、严格 Clippy、带隔离 MySQL 的工作区测试、Rustdoc 与依赖门禁证据。PostgreSQL 生成配置通过静态 Compose 解析与 Shell 语法检查。SQLite 和 PostgreSQL 的 Compose 运行及生成部署的原生 x86_64 仍需相应环境验收。
+
 ## 标准依赖与队列开箱限定验收
 
 范围为标准根应用与 `new` 的 MySQL/Redis 依赖、`queue.default`/原始具名连接、实际使用时构造 driver、显式 worker、同一模块 Jobs 与生成迁移目录；固定上游 framework `d52c3b3` 的 `config/queue.php`、`QueueManager::connection/resolve`、`QueueServiceProvider`，不把现有独立队列扩展等同完整 Laravel Queue。

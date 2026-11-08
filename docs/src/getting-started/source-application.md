@@ -167,7 +167,27 @@ docker buildx build --platform linux/amd64 --target artifacts \
   --output type=local,dest=dist/linux-amd64 .
 ```
 
-这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。根应用已在原生 Ubuntu 24.04 x86_64 上实测部署、旧命名卷迁移和回退。`openrust new` 生成的独立项目通过本地路径依赖框架，容器构建需要将对应框架源码纳入构建上下文，生成项目的 Compose 工作流另行验收。
+这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。根应用已在原生 Ubuntu 24.04 x86_64 上实测部署、旧命名卷迁移和回退。
+
+### 生成应用的容器部署
+
+`openrust new` 生成应用自己的 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。需要支持 `additional_contexts` 的 Docker Compose 与 BuildKit。应用的 `Cargo.toml` 和 Compose 文件通过相对路径使用生成时对应的 OpenRust 源码。复制或移动到另一台构建机时，保留应用与框架的相对目录关系。容器运行只需要构建产物、公开资源和运行配置。
+
+在生成的应用目录中启动服务并检查就绪状态。
+
+```bash
+docker compose up --build -d --wait
+docker compose exec app ./artisan list
+curl --fail http://localhost:3000/ready
+```
+
+默认应用启动 MySQL 8.4 和 Redis，Artisan 完成数据库迁移后再启动 HTTP 服务。`--minimal` 仅启动应用和 Redis。`--db postgres` 使用 PostgreSQL 18。`--db sqlite` 在应用的持久化存储中创建容器专用的 SQLite 文件，并运行迁移。
+
+应用容器以非 root 账号运行，数据目录默认为 `./docker-data`，`./public` 只读挂载，并须对应用账号可读。两者可通过 `OPENRUST_DATA_DIR` 和 `OPENRUST_PUBLIC_DIR` 配置。自定义数据目录时，将它放在应用与框架两个构建上下文之外，或在相应的 `.dockerignore` 排除该目录。服务默认绑定宿主的 `127.0.0.1:3000`，可用 `OPENRUST_HTTP_BIND` 和 `SERVER_PORT` 修改。数据库与 Redis 通过 Compose 内部网络访问。
+
+部署 Fortify Web 前，从 `.env.example` 配置应用自己的 `.env`，设置生产环境、应用 URL 和数据库凭据。可在源码目录运行 `./artisan key:generate` 写入 `APP_KEY`，并用 `openrust key generate` 为模板声明的 JWT、签名链接和加密密钥项各生成独立值。Compose 只向容器传递 `environment` 中明确列出的变量，应用、迁移与后台任务使用同一套内部连接。构建上下文排除实际密钥文件。需要固定发布依赖时，将生成项目自己的 `Cargo.lock` 一并纳入版本控制，镜像会按该锁文件构建。
+
+Fortify 提供 Web 认证动作。登录页等浏览器视图由应用通过 Fortify 的视图扩展点绑定。
 
 ## 编写业务与扩展
 

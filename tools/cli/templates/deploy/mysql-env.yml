@@ -1,0 +1,9 @@
+    DB_CONNECTION: mysql
+    DB_HOST: mysql
+    DB_PORT: "3306"
+    DB_DATABASE: ${DB_DATABASE:-openrust}
+    DB_USERNAME: ${DB_USERNAME:-openrust}
+    DB_PASSWORD: ${DB_PASSWORD:-openrust}
+    DB_TABLE_PREFIX:
+    QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
+    QUEUE_REDIS_NAMESPACE:

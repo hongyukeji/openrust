@@ -1,0 +1,138 @@
+x-image: &app-image ${OPENRUST_IMAGE:-${COMPOSE_PROJECT_NAME:-openrust}-app:local}
+
+x-storage: &storage
+  type: bind
+  source: ${OPENRUST_DATA_DIR:-./docker-data}/storage
+  target: /app/storage
+  bind:
+    create_host_path: true
+
+x-redis: &redis-data
+  type: bind
+  source: ${OPENRUST_DATA_DIR:-./docker-data}/redis
+  target: /data
+  bind:
+    create_host_path: true
+
+# 仅为空挂载根初始化属主，已有数据目录由部署者维护。
+x-data-init: &data-init
+  user: "0:0"
+  read_only: true
+  network_mode: none
+  cap_drop: [ALL]
+  cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+  security_opt: [no-new-privileges:true]
+  entrypoint:
+    - /bin/sh
+    - -ec
+    - |
+      directory="$$1"
+      owner="$$2"
+      writable() {
+        if [ "$$owner" = mysql:mysql ] || [ "$$owner" = postgres:postgres ]; then
+          gosu "$$owner" /bin/sh -ec 'test -w "$$1" && test -x "$$1"' check-data "$$directory"
+        else
+          setpriv --reuid="$${owner%:*}" --regid="$${owner#*:}" --clear-groups \
+            /bin/sh -ec 'test -w "$$1" && test -x "$$1"' check-data "$$directory"
+        fi
+      }
+      if writable; then exit 0; fi
+      contents="$$(find "$$directory" -mindepth 1 -maxdepth 1 -print -quit)"
+      if [ -z "$$contents" ] \
+        && [ "$$(stat -c %u:%g "$$directory")" = 0:0 ]; then
+        chown --no-dereference "$$owner" "$$directory"
+        if writable; then exit 0; fi
+      fi
+      printf '数据目录 %s 对账号 %s 不可写，请检查挂载权限。\n' "$$directory" "$$owner" >&2
+      exit 1
+    - prepare-data
+
+x-app: &app
+  image: *app-image
+  user: "10001:10001"
+  environment:
+    # 只传递列出的变量，宿主的连接 URL 不能覆盖本栈的迁移与队列连接。
+    APP_ENV: ${APP_ENV:-production}
+    APP_DEBUG: ${APP_DEBUG:-false}
+    APP_URL: ${APP_URL:-http://localhost:${SERVER_PORT:-3000}}
+    APP_NAME:
+    APP_KEY:
+    APP_PREVIOUS_KEYS:
+    APP_AUTH_JWT_KEYS_LOCAL:
+    APP_SECURITY_ENCRYPTION_ACTIVE_KEY_ID:
+    APP_SECURITY_ENCRYPTION_KEYS_LOCAL:
+    APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL:
+    APP_SESSION_SECURE:
+    APP_LOG_LEVEL:
+    APP_REALTIME_ALLOWED_ORIGINS:
+    APP_SERVER_HOST: 0.0.0.0
+    SERVER_PORT: "3000"
+    CACHE_STORE: ${CACHE_STORE:-redis}
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    REDIS_DB: ${REDIS_DB:-0}
+{{environment}}
+  volumes:
+    - *storage
+
+services:
+  app:
+    <<: *app
+    build:
+      context: .
+      additional_contexts:
+        openrust-source: {{framework_context}}
+      args:
+        OPENRUST_APP_LAYOUT: {{application_layout}}
+        OPENRUST_FRAMEWORK_LAYOUT: {{framework_layout}}
+    depends_on:
+{{application_dependency}}
+    volumes:
+      - *storage
+      - type: bind
+        source: ${OPENRUST_PUBLIC_DIR:-./public}
+        target: /app/public
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "${OPENRUST_HTTP_BIND:-127.0.0.1}:${SERVER_PORT:-3000}:3000"
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:3000/ready]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    stop_grace_period: 45s
+
+  storage-init:
+    <<: *data-init
+    image: *app-image
+    pull_policy: never
+    command: [/app/storage, "10001:10001"]
+    volumes:
+      - *storage
+
+  redis-init:
+    <<: *data-init
+    image: redis:8
+    command: [/data, "redis:redis"]
+    volumes:
+      - *redis-data
+
+  redis:
+    image: redis:8
+    user: "redis:redis"
+    depends_on:
+      redis-init:
+        condition: service_completed_successfully
+    volumes:
+      - *redis-data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+{{migration}}
+{{database}}

@@ -21,6 +21,8 @@ cargo run -p cli -- dev
 
 `openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，通用路由在 `routes/web.rs`，应用控制器、模型和 Provider 可直接在 `app/` 开发，业务模块可选放在 `modules/<业务>/`，资源在 `resources/`，迁移与种子在 `database/`。
 
+生成项目附带 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。从应用目录运行 `docker compose up --build -d --wait`。Compose 用应用目录和相对框架目录作为 BuildKit 上下文，宿主机 Cargo 和容器使用相同的相对依赖布局。移动应用和框架时保留两者的相对位置。配置、端口与持久化见[生成应用的容器部署](../../docs/src/getting-started/source-application.md#生成应用的容器部署)。
+
 根/生成 `config/*.rs` 显式展示已实现策略，按 `server → app → auth/security` 声明依赖。APP_NAME/APP_URL只在app配置求值，缺省URL取同次有效server.port；auth/security缺省身份读取最终app值，显式独立来源仍优先。标准生成项目默认启用queue及queue-redis，realtime仍按需选择；--minimal省略queue装配，生成Job时会保留已有queue.rs并安全登记queue代码配置，发现冲突先拒绝而不覆盖源码。根View的常量只控制默认声明，生成项目默认声明View，均不强制屏蔽显式来源。
 
 队列统一由 `config/queue.rs` 的 `default` 与 `connections` 配置；`QUEUE_CONNECTION` 默认 `database`，可选择 `redis`，不再使用 `QUEUE_DRIVER`。先完成实际服务配置与迁移，再显式运行 `openrust queue work` 或 `openrust queue work redis --queue example`。编译内置 driver 与登记 Provider 不自动启动 worker，也不连接未选队列。`--minimal` 与 `--db`、`--auth`、`--fortify`、`--profile jwt-api` 互斥。

@@ -19,7 +19,7 @@
 
 - 应用端口使用中性的 `SERVER_PORT`，生成 `.env.example` 在 `APP_URL="http://localhost:${SERVER_PORT}"` 前声明 `SERVER_PORT=3000`；内部字段仍为 `server.port`，自定义应用命名空间不改变该环境键。缓存选择使用 `CACHE_STORE`/`cache.default`，默认具名 redis；开发服务发现须使用所选 store 的实际连接，其他具名 Redis store 不套用全局 `REDIS_*`。R2-ENV已通过生成、真实HTTP/Redis与适用工作区门禁，限定证据见memory/testing.md；完整CLI范围仍按todo验收。
 
-- `openrust new <目标目录>` 从源码 workspace 创建独立应用，支持相对/绝对目标，不修改源 workspace；应用拥有自己的 Cargo.lock，本地 framework/tool 路径明确解析。
+- `openrust new <目标目录>` 从源码 workspace 创建独立应用，支持相对与绝对目标，保留独立 Cargo.lock。应用清单以相对路径解析同一框架、工具与驱动补丁，Compose 用相对构建上下文复现目录关系。两份源码可一起迁移。限定证据见[生成应用 Docker Compose](../memory/testing.md#生成应用-docker-compose)。
 - C04-C普通与认证模板均接入CookieServiceProvider和`tests/support/request_cookie.rs`，由正式Provider/Router测试读取、队列、直接响应及删除，使用opaque wire回送；加密缺失仅显式plain选择，不暗降级。普通项目fmt/check/3项测试、认证PG18/MySQL8.4项目各2项及完整CLI20项已实际通过，证据见[testing](../memory/testing.md)。
 - `dev`/`serve` 通过 metadata 找到含 bootstrap/app.rs 的当前应用，再从其目录运行普通 cargo run；dev 设置 APP_ENV=development，复用/准备缓存服务，不提供 watch。
 

@@ -29,6 +29,7 @@ translation-database = ["dep:openrust-translation-database"]
 --- .gitignore ---
 /target/
 /storage/
+/docker-data/
 /database/*.sqlite
 /database/*.sqlite-*
 **/.openrust-migration-*.lock

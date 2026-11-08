@@ -1,0 +1,32 @@
+
+  mysql-init:
+    <<: *data-init
+    image: mysql:8.4
+    command: [/var/lib/mysql, "mysql:mysql"]
+    volumes:
+      - &mysql-data
+        type: bind
+        source: ${OPENRUST_DATA_DIR:-./docker-data}/mysql
+        target: /var/lib/mysql
+        bind:
+          create_host_path: true
+
+  mysql:
+    image: mysql:8.4
+    user: "mysql:mysql"
+    depends_on:
+      mysql-init:
+        condition: service_completed_successfully
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: ${DB_DATABASE:-openrust}
+      MYSQL_USER: ${DB_USERNAME:-openrust}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-openrust}
+    volumes:
+      - *mysql-data
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1"']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped

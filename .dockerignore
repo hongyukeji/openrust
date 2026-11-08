@@ -14,7 +14,8 @@ docker-data
 # 数据根可覆盖，三种实际持久化目录名在任意层级都排除。
 **/storage
 **/mysql
+**/postgres
 **/redis
 bootstrap/cache
-database/*.sqlite
-database/*.sqlite-*
+**/database/*.sqlite
+**/database/*.sqlite-*

@@ -1,0 +1,11 @@
+
+  migrate:
+    <<: *app
+    pull_policy: never
+{{command}}
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+{{database_dependency}}

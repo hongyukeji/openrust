@@ -1,0 +1,9 @@
+    DB_CONNECTION: postgres
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    DB_DATABASE: ${DB_DATABASE:-openrust}
+    DB_USERNAME: ${DB_USERNAME:-openrust}
+    DB_PASSWORD: ${DB_PASSWORD:-openrust}
+    DB_TABLE_PREFIX:
+    QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
+    QUEUE_REDIS_NAMESPACE:
