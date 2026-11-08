@@ -128,13 +128,18 @@ impl ApplicationState {
     }
 
     pub(crate) async fn terminate_entry(&self) -> Result<()> {
+        self.dispatch_terminating().await?;
+        self.run_terminating().await
+    }
+
+    pub(crate) async fn dispatch_terminating(&self) -> Result<()> {
         if self.container().contains::<Events>() {
             self.resolve::<Events>()
                 .await?
                 .dispatch(&Terminating)
                 .await?;
         }
-        self.run_terminating().await
+        Ok(())
     }
 
     pub(crate) async fn run_terminating(&self) -> Result<()> {

@@ -190,6 +190,14 @@ let descriptors = [
 
 HTTP 和控制台在应用回调前派发同一个 `openrust::foundation::events::Terminating`。可以用 `EventsServiceProvider::listen::<Terminating, _>` 监听，也可以用完整名称 `Illuminate\Foundation\Events\Terminating` 或通配模式监听。监听器报错会中止本轮终止流程。停止事件传播只影响后续监听器，应用回调仍会执行。显式调用 `app.terminate()` 直接运行应用回调。 [Laravel HTTP 内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Kernel.php#L211-L218) [Laravel 控制台内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Console/Kernel.php#L222-L228)
 
+### HTTP 终止中间件
+
+实现 `openrust::http::middleware::TerminableMiddleware`，在 Provider 的 `register` 阶段绑定类型。用 `BootContext::middleware_alias_terminable::<M>` 登记路由别名，或用 `BootContext::http_middleware_terminable::<M>` 登记全局中间件。别名参数只传给 `handle`。`terminate` 再次通过容器解析实例，普通绑定重新构造，单例沿用原实例。 [Laravel 终止中间件](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/middleware.md#terminable-middleware)
+
+响应正常完成后，内核依次派发 `Terminating`、执行选中路由的终止中间件、执行全局终止中间件，最后运行应用回调。选中路由的中间件即使在请求阶段被前一层短路，仍会进入终止阶段。未匹配路由时只执行全局项。任一步失败都会中止本轮，已完成的响应保留。 [Laravel HTTP 内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Kernel.php#L211-L262)
+
+`terminate` 接收请求和最终响应头。请求扩展包含 `RequestAttributes`，已匹配时包含 `Route`。正文按 Axum 的所有权模型交给传输层。全局项沿共享 HTTP layer 的执行顺序，后登记的层在外。示例模块的响应标记中间件保留原标记头，并在终止时记录方法与状态。
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

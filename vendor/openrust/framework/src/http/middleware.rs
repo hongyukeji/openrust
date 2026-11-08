@@ -22,8 +22,10 @@ use crate::core::ResponseContext;
 use crate::core::Result;
 use crate::core::with_execution_context;
 use crate::core::with_response_context;
+use crate::foundation::ApplicationState;
 use crate::foundation::ExceptionHandler;
 use crate::foundation::ExceptionRequest;
+use crate::support::BoxFuture;
 use crate::translation::Translator;
 use axum::Router;
 use axum::body::Body;
@@ -121,6 +123,67 @@ use tower_http::cors::{Any as AnyOrigin, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
+
+/// 容器解析的 HTTP 中间件，在正常响应完成后执行终止阶段。
+///
+/// `handle` 与 `terminate` 分别解析实例。普通绑定会创建新实例，共享绑定遵循
+/// 容器的生命周期。终止阶段只借用头部及请求元数据，HTTP 正文沿流式传输交付。
+pub trait TerminableMiddleware: Send + Sync + 'static {
+    /// 处理请求。别名参数按声明顺序传入，可以调用 `next` 或直接返回响应。
+    fn handle<'a>(
+        &'a self,
+        request: Request,
+        next: axum::middleware::Next,
+        parameters: &'a [String],
+    ) -> BoxFuture<'a, Result<Response>>;
+
+    /// 响应完成后处理请求和响应头。请求扩展含共享 `RequestAttributes`，已匹配时含 `Route`。
+    fn terminate<'a>(
+        &'a self,
+        request: &'a http::Request<()>,
+        response: &'a http::Response<()>,
+    ) -> BoxFuture<'a, Result<()>>;
+}
+
+pub(crate) type TerminateMiddleware = for<'a> fn(
+    &'a ApplicationState,
+    &'a http::Request<()>,
+    &'a http::Response<()>,
+) -> BoxFuture<'a, Result<()>>;
+
+pub(crate) async fn handle_terminable<M: TerminableMiddleware>(
+    State(parameters): State<Arc<[String]>>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> Result<Response> {
+    let scope = crate::foundation::http::http_entry_scope()
+        .and_then(|scope| scope.upgrade())
+        .ok_or_else(|| {
+            Error::custom(
+                "http_middleware_scope_unavailable",
+                "终止中间件需要 HTTP 入口作用域",
+            )
+        })?;
+    scope
+        .resolve::<M>()
+        .await?
+        .handle(request, next, &parameters)
+        .await
+}
+
+pub(crate) fn terminate_middleware<'a, M: TerminableMiddleware>(
+    state: &'a ApplicationState,
+    request: &'a http::Request<()>,
+    response: &'a http::Response<()>,
+) -> BoxFuture<'a, Result<()>> {
+    Box::pin(async move {
+        state
+            .resolve::<M>()
+            .await?
+            .terminate(request, response)
+            .await
+    })
+}
 
 /// 使用默认 middleware stack 包装 `router`。
 pub fn apply(

@@ -71,8 +71,15 @@ type LayerFn = Arc<dyn Fn(HandlerFn) -> HandlerFn + Send + Sync>;
 pub(crate) struct MiddlewareBinding {
     pub(crate) name: Option<String>,
     apply: LayerFn,
+    terminate: Option<TerminableBinding>,
     #[cfg(feature = "session")]
     role: Option<BuiltinLayer>,
+}
+
+#[derive(Clone)]
+pub(crate) struct TerminableBinding {
+    pub(crate) identity: (std::any::TypeId, Arc<[String]>),
+    pub(crate) callback: crate::http::middleware::TerminateMiddleware,
 }
 
 /// 可按 Axum 参数顺序只解析提取器、而不调用业务函数的受管理处理器。
@@ -187,6 +194,7 @@ pub(crate) struct MethodEntry {
     pub(crate) protected_cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
     pub(crate) metadata: Option<Arc<Mutex<crate::routing::router::MatchedRouteMetadata>>>,
     pub(crate) middleware: Vec<MiddlewareBinding>,
+    pub(crate) terminating: Arc<[crate::http::middleware::TerminateMiddleware]>,
 }
 
 /// 一条路径的受管理方法和处理器声明；最终仍由 Axum 匹配路径。
@@ -251,6 +259,7 @@ impl RouteMethods {
             protected_cookie: None,
             metadata: None,
             middleware: Vec::new(),
+            terminating: Arc::default(),
         });
         self
     }
@@ -384,8 +393,12 @@ fn require_send<F: Future + Send>(future: F) -> F {
     future
 }
 
-pub(crate) fn layer_entries<L>(entries: &Arc<Mutex<Vec<MethodEntry>>>, layer: L, name: Option<&str>)
-where
+pub(crate) fn layer_entries<L>(
+    entries: &Arc<Mutex<Vec<MethodEntry>>>,
+    layer: L,
+    name: Option<&str>,
+    terminate: Option<&TerminableBinding>,
+) where
     L: Layer<Route> + Clone + Send + Sync + 'static,
     L::Service: Service<Request> + Clone + Send + Sync + 'static,
     <L::Service as Service<Request>>::Response: IntoResponse + 'static,
@@ -397,6 +410,7 @@ where
             let layer = layer.clone();
             entry.middleware.push(MiddlewareBinding {
                 name: name.map(str::to_owned),
+                terminate: terminate.cloned(),
                 #[cfg(feature = "session")]
                 role: None,
                 apply: Arc::new(move |inner| {
@@ -457,6 +471,7 @@ pub(crate) fn builtin_entries(
             let layer = layer.clone();
             entry.middleware.push(MiddlewareBinding {
                 name: name.map(str::to_owned),
+                terminate: None,
                 #[cfg(feature = "session")]
                 role: Some(layer.clone()),
                 apply: Arc::new(move |inner| {
@@ -537,6 +552,15 @@ pub(crate) fn finalize_layers(
         for entry in entries.iter_mut() {
             let mut middleware: Vec<_> = entry.middleware.drain(..).rev().collect();
             sort_middleware(&mut middleware, priority);
+            entry.terminating = middleware
+                .iter()
+                .filter_map(|binding| {
+                    binding
+                        .terminate
+                        .as_ref()
+                        .map(|termination| termination.callback)
+                })
+                .collect();
             #[cfg(feature = "session")]
             if !middleware.is_empty() {
                 validate_protection_order(&middleware)?;
@@ -583,7 +607,11 @@ fn sort_middleware(middleware: &mut Vec<MiddlewareBinding>, priority: &[String])
         }
     }
     let mut seen = std::collections::HashSet::new();
+    let mut terminable_seen = std::collections::HashSet::new();
     middleware.retain(|binding| {
+        if let Some(termination) = &binding.terminate {
+            return terminable_seen.insert(termination.identity.clone());
+        }
         binding
             .name
             .as_ref()

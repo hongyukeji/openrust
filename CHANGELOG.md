@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- HTTP 支持通过容器登记路由和全局终止中间件，在响应完成后依次执行。
 - HTTP 和控制台入口通过同一事件总线派发 `Terminating`，然后执行应用终止回调。
 - 应用支持在 HTTP 响应和控制台入口完成后运行 `terminating` 回调，并在回调期间保留入口作用域。
 - Provider 实例支持 `provider_booting` 和 `provider_booted`，启动和运行时登记沿用同一顺序。

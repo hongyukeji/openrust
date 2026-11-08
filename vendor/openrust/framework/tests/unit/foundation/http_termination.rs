@@ -121,7 +121,11 @@ async fn app(
     Ok((app, receiver))
 }
 
-async fn read_response(address: std::net::SocketAddr, method: &str, path: &str) -> Result<String> {
+pub(super) async fn read_response(
+    address: std::net::SocketAddr,
+    method: &str,
+    path: &str,
+) -> Result<String> {
     let mut stream = TcpStream::connect(address).await.map_err(Error::internal)?;
     stream.write_all(
         format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nTE: trailers\r\n\r\n").as_bytes(),

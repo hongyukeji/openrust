@@ -135,6 +135,26 @@ impl BootContext<'_> {
         Ok(self)
     }
 
+    /// 登记由容器解析的终止中间件别名，可在路由组中引用并附带参数。
+    /// 在 `register` 阶段绑定 `M`，`handle` 与 `terminate` 分别解析同一绑定。
+    pub fn middleware_alias_terminable<M: crate::http::middleware::TerminableMiddleware>(
+        &mut self,
+        name: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let registry = &mut self.extension_mut::<RouteRegistry>()?.middleware;
+        registry.parameter_alias(
+            name.into(),
+            Arc::new(|arguments| {
+                let arguments: Arc<[String]> = arguments.into();
+                Ok(Arc::new(move |routes| {
+                    routes.terminable_layer::<M>(Arc::clone(&arguments))
+                }))
+            }),
+        )?;
+        registry.has_terminable = true;
+        Ok(self)
+    }
+
     /// 在 Provider boot 阶段登记由 alias 或其他 group 组成的 middleware group。
     pub fn middleware_group<I, S>(
         &mut self,

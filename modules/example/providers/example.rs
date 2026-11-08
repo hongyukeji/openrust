@@ -8,6 +8,7 @@ use openrust::support::{BoxFuture, ServiceProvider};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::modules::example::routes::ExampleResponseMarker;
 #[cfg(feature = "auth")]
 use crate::modules::example::services::article_write::ArticleWriter;
 #[cfg(feature = "http-client")]
@@ -94,12 +95,7 @@ async fn register_fortify_views(app: &mut RegisterContext<'_>) -> Result<()> {
 }
 
 fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
-    app.middleware_alias(
-        "example.response-marker",
-        openrust::http::axum::middleware::from_fn(
-            crate::modules::example::routes::response_marker_middleware,
-        ),
-    )?;
+    app.middleware_alias_terminable::<ExampleResponseMarker>("example.response-marker")?;
     app.middleware_group("example.response", ["example.response-marker"])?;
     #[cfg(feature = "auth")]
     {
@@ -311,6 +307,7 @@ impl ServiceProvider for ExampleServiceProvider {
         Box::pin(async move {
             register_example_schema(app)?;
             register_greeting_attributes(app)?;
+            app.instance(Arc::new(ExampleResponseMarker)).await?;
             app.alias(
                 ServiceKey::named(EXAMPLE_PRESENTER_CLASS),
                 ServiceKey::named(EXAMPLE_PRESENTER_ALIAS),

@@ -422,16 +422,35 @@ fn request_url_routes(routes: Router) -> Router {
         )
 }
 
-pub(crate) async fn response_marker_middleware(
-    request: openrust::http::axum::extract::Request,
-    next: openrust::http::axum::middleware::Next,
-) -> openrust::http::axum::response::Response {
-    let mut response = next.run(request).await;
-    response.headers_mut().insert(
-        "x-example-middleware",
-        openrust::http::axum::http::HeaderValue::from_static("named-group"),
-    );
-    response
+pub(crate) struct ExampleResponseMarker;
+
+impl openrust::http::middleware::TerminableMiddleware for ExampleResponseMarker {
+    fn handle<'a>(
+        &'a self,
+        request: openrust::http::axum::extract::Request,
+        next: openrust::http::axum::middleware::Next,
+        _: &'a [String],
+    ) -> openrust::BoxFuture<'a, openrust::Result<openrust::http::axum::response::Response>> {
+        Box::pin(async move {
+            let mut response = next.run(request).await;
+            response.headers_mut().insert(
+                "x-example-middleware",
+                openrust::http::axum::http::HeaderValue::from_static("named-group"),
+            );
+            Ok(response)
+        })
+    }
+
+    fn terminate<'a>(
+        &'a self,
+        request: &'a openrust::http::axum::http::Request<()>,
+        response: &'a openrust::http::axum::http::Response<()>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            tracing::trace!(method = %request.method(), status = %response.status(), "示例响应标记中间件已完成");
+            Ok(())
+        })
+    }
 }
 
 #[cfg(feature = "auth")]

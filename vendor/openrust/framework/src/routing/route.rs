@@ -212,6 +212,7 @@ fn wildcard_match(pattern: &str, value: &str) -> bool {
 #[derive(Default)]
 struct RouteState {
     matched: Option<Route>,
+    terminating: Arc<[crate::http::middleware::TerminateMiddleware]>,
     resolver: Option<RouteResolver>,
     http_entry_claimed: bool,
 }
@@ -228,20 +229,39 @@ impl RouteSlot {
     }
 
     pub(crate) fn publish(&self, route: Route) -> Result<()> {
-        let previous = self
-            .0
-            .lock()
-            .map_err(|_| poisoned())?
-            .matched
-            .replace(route);
+        self.publish_terminable(route, Arc::default())
+    }
+
+    pub(crate) fn publish_terminable(
+        &self,
+        route: Route,
+        terminating: Arc<[crate::http::middleware::TerminateMiddleware]>,
+    ) -> Result<()> {
+        let previous = {
+            let mut state = self.0.lock().map_err(|_| poisoned())?;
+            state.terminating = terminating;
+            state.matched.replace(route)
+        };
         drop(previous);
         Ok(())
     }
 
     pub(crate) fn clear(&self) -> Result<()> {
-        let previous = self.0.lock().map_err(|_| poisoned())?.matched.take();
+        let previous = {
+            let mut state = self.0.lock().map_err(|_| poisoned())?;
+            state.terminating = Arc::default();
+            state.matched.take()
+        };
         drop(previous);
         Ok(())
+    }
+
+    pub(crate) fn terminating(
+        &self,
+    ) -> Result<Arc<[crate::http::middleware::TerminateMiddleware]>> {
+        Ok(Arc::clone(
+            &self.0.lock().map_err(|_| poisoned())?.terminating,
+        ))
     }
 
     pub(crate) fn route(&self) -> Result<Option<Route>> {

@@ -936,6 +936,12 @@ PHP 8.5.12 执行固定 Laravel `d52c3b3` 的 HTTP 与控制台 `Kernel::termina
 
 格式、严格 Clippy、拒警 Rustdoc、依赖检查与生成项目检查通过。隔离 MySQL 8.4.13 工作区测试 2,849 项通过、54 项忽略，生成项目 23 项通过。证据在 `tmp/lead-kernel-termination.rTtVv1zt/acceptance.json`。Rust 的 HTTP 终止 middleware 和两个内核的生命周期时长处理器继续按待办推进。
 
+## HTTP 终止中间件限定验收
+
+PHP 8.5.12 执行固定 Laravel `d52c3b3` 的 HTTP 内核终止流程和容器解析，7 个场景对照了路由与全局次序、参数剥离、短路、未匹配、禁用、实例生命周期及错误中止。PHP 请求和路由选择由替身构造。Rust 真实 TCP 覆盖路由组展开与优先级、相同声明去重、短路、404、错误中止、瞬态重建和单例复用，并核对最终响应头、匹配路由及请求属性。综合示例使用原有响应标记路由，生成应用用公开 API 登记后实际取得 HTTP 200 和终止记录，SIGTERM 退出码为 0。
+
+格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 工作区测试 2,849 项通过、54 项忽略，生成项目 23 项通过。证据在 `tmp/lead-terminable-middleware.amnKmfCr/acceptance.json`。Rust 的框架级中间件禁用及路由排除仍待接入，PHP 对照结果保留为后继验收输入。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

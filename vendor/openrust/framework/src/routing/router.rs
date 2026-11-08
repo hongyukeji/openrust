@@ -189,7 +189,7 @@ pub(crate) async fn dispatch_managed(
     if let Some(slot) = request
         .extensions()
         .get::<crate::routing::route::RouteSlot>()
-        && let Err(error) = slot.publish(route)
+        && let Err(error) = slot.publish_terminable(route, Arc::clone(&entry.terminating))
     {
         return error.into_response();
     }
@@ -288,6 +288,7 @@ pub(crate) struct MiddlewareRegistry {
     groups: HashMap<String, Vec<String>>,
     priority: Vec<String>,
     signed_except: Vec<String>,
+    pub(crate) has_terminable: bool,
 }
 
 impl Default for MiddlewareRegistry {
@@ -301,6 +302,7 @@ impl Default for MiddlewareRegistry {
                 .map(str::to_owned)
                 .collect(),
             signed_except: Vec::new(),
+            has_terminable: false,
         }
     }
 }
@@ -1221,11 +1223,37 @@ impl Router {
         <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
         <L::Service as Service<Request>>::Future: Send + 'static,
     {
+        self.attach_layer(layer, None)
+    }
+
+    pub(crate) fn terminable_layer<M: crate::http::middleware::TerminableMiddleware>(
+        self,
+        arguments: Arc<[String]>,
+    ) -> Self {
+        use crate::http::middleware::{handle_terminable, terminate_middleware};
+        self.attach_layer(
+            axum::middleware::from_fn_with_state(Arc::clone(&arguments), handle_terminable::<M>),
+            Some(&methods::TerminableBinding {
+                identity: (std::any::TypeId::of::<M>(), arguments),
+                callback: terminate_middleware::<M>,
+            }),
+        )
+    }
+
+    fn attach_layer<L>(self, layer: L, terminate: Option<&methods::TerminableBinding>) -> Self
+    where
+        L: Layer<Route> + Clone + Send + Sync + 'static,
+        L::Service: Service<Request> + Clone + Send + Sync + 'static,
+        <L::Service as Service<Request>>::Response: IntoResponse + 'static,
+        <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
+        <L::Service as Service<Request>>::Future: Send + 'static,
+    {
         for declaration in &self.declarations {
             methods::layer_entries(
                 &declaration.entries,
                 layer.clone(),
                 self.active_middleware_name.as_deref(),
+                terminate,
             );
         }
         self
