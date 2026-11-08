@@ -195,7 +195,21 @@ mod scheduler_flows;
 #[path = "tests/seed_flows.rs"]
 mod seed_flows;
 mod services;
-pub(crate) use services::class_descriptors;
+
+pub(crate) fn class_descriptors() -> impl IntoIterator<Item = openrust::container::ClassDescriptor>
+{
+    [
+        services::presenter_descriptor(),
+        http::controllers::database_connection::reporting_descriptor(),
+        #[cfg(all(
+            feature = "auth",
+            feature = "data-exchange-tasks",
+            feature = "storage-local"
+        ))]
+        services::article_transfer::article_import_disk_descriptor(),
+    ]
+}
+
 #[cfg(test)]
 #[path = "tests/telemetry_flows.rs"]
 mod telemetry_flows;

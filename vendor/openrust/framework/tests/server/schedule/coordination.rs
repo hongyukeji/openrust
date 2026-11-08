@@ -146,7 +146,8 @@ async fn independent_scheduler_processes_dispatch_one_job_per_slot()
 
     drop(scheduler);
     drop(db);
-    drop(app);
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     database.close().await?;
     Ok(())
 }
@@ -462,7 +463,8 @@ async fn each_due_slot_uses_and_closes_its_own_scope() -> Result<(), Box<dyn std
     drop(queue);
     *observations.state.lock().map_err(|_| "test lock")? = None;
     drop(scheduler);
-    drop(app);
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     database.close().await?;
     Ok(())
 }
@@ -537,7 +539,8 @@ async fn failed_and_cancelled_trigger_close_scoped_resources()
     );
     *observations.state.lock().map_err(|_| "test lock")? = None;
     drop(scheduler);
-    drop(app);
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     database.close().await?;
     Ok(())
 }
@@ -609,7 +612,8 @@ async fn database_scheduled_jobs_use_distinct_attempt_scopes()
     drop(queue);
     drop(scheduler);
     drop(root);
-    drop(app);
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     database.close().await?;
     Ok(())
 }

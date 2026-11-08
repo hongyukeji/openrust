@@ -2,11 +2,16 @@
 
 use openrust::{
     Error, Result,
+    container::{
+        ClassAttribute, ClassDescriptor, ConstructorParam,
+        attributes::{DB, Database, Storage},
+    },
     database::{
         Db,
         sea_orm::{ConnectionTrait, DbBackend, TransactionTrait, Value},
         sea_orm_migration::{MigrationTrait, MigratorTrait},
     },
+    filesystem::{FilesystemAdapter, FilesystemServiceProvider, StoragePath, UploadOptions},
     testing::TestDatabase,
 };
 use std::sync::{
@@ -2144,13 +2149,45 @@ async fn generated_model_save(url: &str) -> Result<()> {
     let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider);
     builder.provider(generated_retrieved_events());
+    builder.class_descriptors([ClassDescriptor::concrete::<GeneratedDatabaseHandles>(
+        "generated::DatabaseHandles",
+        vec![
+            ConstructorParam::class::<Db>("default")
+                .with_attribute(ClassAttribute::contextual(|| Ok(Database::default()))),
+            ConstructorParam::class::<Db>("other")
+                .with_attribute(ClassAttribute::contextual(|| Ok(DB::new("other")))),
+        ],
+        |args| {
+            Ok(Arc::new(GeneratedDatabaseHandles {
+                default: args.service(0)?,
+                other: args.service(1)?,
+            }))
+        },
+    )]);
     let source = figment::Figment::new()
         .merge(("database.url", url))
         .merge(("database.instances.other.url", url));
     let runtime = builder.start(source).await?;
     let outcome = async {
         let databases = runtime.container().resolve::<openrust::Databases>().await?;
-        let db = databases.default_database();
+        let handles = runtime
+            .container()
+            .resolve::<GeneratedDatabaseHandles>()
+            .await?;
+        let other = databases.get("other")?;
+        let default = Arc::clone(&handles.default);
+        handles
+            .other
+            .transaction_for_update_checked_context(
+                |context| {
+                    Box::pin(
+                        async move { check(context.is_from(&other) && !context.is_from(&default)) },
+                    )
+                },
+                |_| Box::pin(async { Ok(()) }),
+            )
+            .await?;
+        let db = handles.default.as_ref().clone();
         let calendar = CalendarContext::default();
         let events = runtime
             .container()
@@ -2224,6 +2261,78 @@ async fn generated_model_save(url: &str) -> Result<()> {
         .await;
     outcome?;
     shutdown
+}
+
+struct GeneratedDatabaseHandles {
+    default: Arc<Db>,
+    other: Arc<Db>,
+}
+
+struct GeneratedStorageDisks {
+    default: Arc<FilesystemAdapter>,
+    assets: Arc<FilesystemAdapter>,
+}
+
+#[tokio::test]
+#[ignore = "需在生成项目显式启用 openrust/storage-local"]
+async fn generated_storage_attribute_uses_local_disks()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let local = tempfile::tempdir()?;
+    let assets = tempfile::tempdir()?;
+    let mut builder = openrust::foundation::ProviderBuilder::new();
+    builder.provider(FilesystemServiceProvider::new());
+    builder.class_descriptors([ClassDescriptor::concrete::<GeneratedStorageDisks>(
+        "generated::StorageDisks",
+        vec![
+            ConstructorParam::class::<FilesystemAdapter>("default")
+                .with_attribute(ClassAttribute::contextual(|| Ok(Storage::default()))),
+            ConstructorParam::class::<FilesystemAdapter>("assets")
+                .with_attribute(ClassAttribute::contextual(|| Ok(Storage::new("assets")))),
+        ],
+        |args| {
+            Ok(Arc::new(GeneratedStorageDisks {
+                default: args.service(0)?,
+                assets: args.service(1)?,
+            }))
+        },
+    )]);
+    let source = figment::Figment::new()
+        .merge(("storage.default_disk", "local"))
+        .merge(("storage.disks.local.driver", "fs"))
+        .merge(("storage.disks.local.root", local.path()))
+        .merge(("storage.disks.assets.driver", "fs"))
+        .merge(("storage.disks.assets.root", assets.path()));
+    let runtime = builder.start(source).await?;
+    let outcome: std::result::Result<(), Box<dyn std::error::Error>> = async {
+        let scope = runtime.container().scope()?;
+        let disks = scope.resolve::<GeneratedStorageDisks>().await?;
+        assert_eq!(disks.default.name(), "local");
+        assert_eq!(disks.assets.name(), "assets");
+        let path = StoragePath::new("container-attribute.txt")?;
+        for (disk, root, text) in [
+            (&disks.default, local.path(), "默认磁盘"),
+            (&disks.assets, assets.path(), "具名磁盘"),
+        ] {
+            disk.put_body(
+                path.clone(),
+                None,
+                openrust::http::axum::body::Body::from(text),
+                UploadOptions::default(),
+                None,
+            )
+            .await?;
+            assert_eq!(std::fs::read_to_string(root.join(path.as_str()))?, text);
+        }
+        scope.close();
+        Ok(())
+    }
+    .await;
+    let shutdown = runtime
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome?;
+    shutdown?;
+    Ok(())
 }
 
 async fn check_generated_model_readback(

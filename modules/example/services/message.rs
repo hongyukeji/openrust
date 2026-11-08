@@ -171,8 +171,8 @@ impl ContextualAttribute for ExampleServedAt {}
 pub(crate) struct ExampleGreetingConstructed;
 
 /// 提供问候呈现器的编译类描述。实际问候语仍来自模块 Provider 的绑定。
-pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
-    [ClassDescriptor::concrete::<ExamplePresenter>(
+pub(crate) fn presenter_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete::<ExamplePresenter>(
         EXAMPLE_PRESENTER_CLASS,
         vec![
             ConstructorParam::class::<ExampleMessage>("message")
@@ -215,7 +215,7 @@ pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
         },
     )
     .with_projection(openrust::class_projection!(ExamplePresenter => dyn GreetingPresenter))
-    .with_attribute(ClassAttribute::marker(|| Ok(ExampleGreetingConstructed)))]
+    .with_attribute(ClassAttribute::marker(|| Ok(ExampleGreetingConstructed)))
 }
 
 #[cfg(test)]

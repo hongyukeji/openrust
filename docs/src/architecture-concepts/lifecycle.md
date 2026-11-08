@@ -186,6 +186,14 @@ let greeting = ConstructorParam::scalar::<String>("greeting").with_attribute(
 
 Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在每轮沿用创建它时的 Resolver 和作用域。固定来源见 [Config](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Config.php)、[Give](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Give.php) 和 [Tag](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Tag.php)。
 
+#### 数据库与文件系统属性
+
+`Database` 和 `DB` 注入由 `Databases` 管理的 `Db`，`Storage` 注入由 `FilesystemManager` 管理的 `FilesystemAdapter`。在应用中启用对应 Provider，然后把属性附到 `ConstructorParam::class::<Db>` 或 `ConstructorParam::class::<FilesystemAdapter>` 上。`Database` 与 `DB` 可分别登记属性处理器和后置回调。
+
+`::default()` 选择当前管理器的默认连接或磁盘。`::new("reporting")`、`::new("local")` 选择具名资源。空字符串和字符串 `0` 也会选择默认项，其他名称原样传给管理器。未知名称沿管理器原错误返回。注入的 Rust 句柄共享已有连接池或磁盘 backend。Rust 枚举由调用方转换为名称。
+
+数据库名称的 `::read`、`::write` 和 `::direct` 路由属于数据库管理器的后续对应项。当前属性使用已配置的普通连接名。 [Laravel Database 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Database.php) · [Laravel DB 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/DB.php) · [Laravel Storage 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Storage.php)
+
 ### 读取与调用原始绑定工厂
 
 `Container::get_bindings()` 按登记顺序返回显式工厂条目的键、共享声明和 `FactoryHandle`。实例覆盖保留原工厂，绑定替换后已取得的句柄仍调用快照里的闭包或类绑定包装器。

@@ -13,6 +13,8 @@ use openrust::http::axum::{
     response::Response,
 };
 use openrust::http::{Inject, Json, Query};
+#[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
+use openrust::{foundation::ApplicationState, http::axum::extract::State};
 
 pub(crate) async fn import(
     user: CurrentUser,
@@ -103,8 +105,8 @@ pub(crate) async fn download_export(
 #[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
 pub(crate) async fn dispatch_import(
     user: CurrentUser,
+    State(app): State<ApplicationState>,
     Inject(db): Inject<openrust::Db>,
-    Inject(storage): Inject<openrust::filesystem::FilesystemManager>,
     Inject(queue): Inject<openrust::queue::Queue>,
     Query(query): Query<TransferQuery>,
     request: Request,
@@ -113,19 +115,15 @@ pub(crate) async fn dispatch_import(
         Json<crate::modules::example::services::article_transfer::ImportQueued>,
     >,
 > {
+    use crate::modules::example::services::article_transfer::{ArticleImportDisk, upload_import};
+
     query.format.validate_headers(request.headers())?;
     let bytes = to_bytes(request.into_body(), MAX_TRANSFER_BYTES)
         .await
         .map_err(|_| too_large())?;
-    let queued = crate::modules::example::services::article_transfer::upload_import(
-        &db,
-        &storage,
-        &queue,
-        user.integer_id()?,
-        query.format,
-        bytes.to_vec(),
-    )
-    .await?;
+    let owner_id = user.integer_id()?;
+    let disk = app.resolve::<ArticleImportDisk>().await?;
+    let queued = upload_import(&db, &disk, &queue, owner_id, query.format, bytes.to_vec()).await?;
     Ok(openrust::http::Created(Json(queued)))
 }
 

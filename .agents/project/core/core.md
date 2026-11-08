@@ -95,6 +95,8 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 
 通用内置属性 `Config`、`Give`、`Tag` 复用现有配置解码、调用级参数帧和标签目录。`Give` 保留解析对象的编译视图，`Tagged` 固定取得时计数并在每轮首 poll 读取当前标签列表。
 
+数据库与文件系统属性在当前 Resolver 上使用 `Databases` 和 `FilesystemManager`。`Database` 与 `DB` 的类型身份独立，返回的句柄共享现有池和磁盘 backend。数据库路由限定连接仍随管理器能力推进。
+
 ## 服务初始化诊断
 
 容器工厂的初始化错误保留完整 Rust 服务类型名及原始错误链。日志的顶层和依赖服务名都限制为 128 字节，并转义控制字符。HTTP 仍输出稳定的 `service_initialization_failed` 与通用消息。

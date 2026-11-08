@@ -49,12 +49,13 @@ impl CookieLayer {
 
     #[cfg(feature = "session")]
     pub(crate) fn uses_laravel_payload(&self) -> bool {
-        #[cfg(feature = "encryption")]
-        {
-            matches!(&self.protection, Protection::Laravel(_))
+        match &self.protection {
+            Protection::Plain => false,
+            #[cfg(feature = "encryption")]
+            Protection::Encrypted(_) => false,
+            #[cfg(feature = "encryption")]
+            Protection::Laravel(_) => true,
         }
-        #[cfg(not(feature = "encryption"))]
-        false
     }
 
     #[cfg(feature = "session")]

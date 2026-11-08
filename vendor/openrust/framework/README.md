@@ -14,6 +14,8 @@
 
 内置 `Config`、`Give` 和 `Tag` 使用同一解析流程，支持类型化配置、指定实现和惰性标签迭代。详见[内置通用属性](../../../docs/src/architecture-concepts/lifecycle.md#内置通用属性)。
 
+`Database`、`DB` 和 `Storage` 使用应用现有管理器注入默认或具名数据库和文件系统句柄。详见[数据库与文件系统属性](../../../docs/src/architecture-concepts/lifecycle.md#数据库与文件系统属性)。
+
 OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀第三方扩展。框架库公开路径为 `openrust::`，根应用通过统一 Container、Provider 和配置生命周期接入。
 
 框架源码位于 `src/lib.rs`；宿主应用、bootstrap 和唯一综合示例保留在仓库根目录。默认启动在根执行 `cargo run`。

@@ -181,7 +181,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 编译 `data-exchange` 时，认证用户可通过 `POST /api/example/articles/import?format=csv|xlsx` 导入、`GET /api/example/articles/export?format=csv|xlsx` 导出自己的文章。输入最多 1 MiB、100 行，先完成有界解析，再逐行调用同一 `ArticleWriter`；合法行各自提交，报告只给行号、白名单字段和稳定错误码，前序成功行不会因后续坏行回滚。导出只含 `title`、`body`，最多 100 行、2 MiB，不含 owner、私密备注或密文；CSV 公式前缀按框架策略转义，不能承诺逐字导入往返。编译 `data-exchange-tasks` 和 `storage-local` 时，还可通过 `POST /api/example/articles/export-jobs` 排队导出，并经 `GET /api/example/articles/export-jobs/{job_id}/{attempt}` 按当前账户读取本地私有对象；框架清理任务在保留期后删除对象。标准应用迁移包含此能力所需共享锁表。
 
-同样的 feature 组合提供 `POST /api/example/articles/import-jobs?format=csv|xlsx`，将服务端生成的 owner 专属导入来源写入私有本地存储并排队；所有者可读取 `/api/example/articles/import-jobs/{import_id}/status` 与 `/api/example/articles/import-jobs/{import_id}/{job_id}/{attempt}` 报告。每批最多两行，在同一数据库事务中复用文章写入、事件与通知规则；失败批次回滚，已提交批次保留，重试通过现有任务幂等记录避免重复提交。恢复窗口为 24 小时，超过窗口的未完成导入转为可见的 expired 终态，不把来源过期删除误报为成功；终态收据永久保存以拒绝旧 payload 重放，会持续占用数据库行，需要按业务保留政策人工规划容量。来源清理任务仅在终态或安全过期后删除对象；租约忙或未完成时有界延期。首次清理入队失败或延期耗尽时，可在迁移完成后运行 `example imports reconcile`，每次按导入 ID 升序最多检查 100 条未回收收据，输出安全计数与下一游标；下一页运行 `example imports reconcile <游标>`，直到输出 `next cursor none`。单条失败会计数并继续本页，命令返回失败；完成翻页后从首页重跑处理先前失败项。必须实际调度该维护命令。外部 worker 强制停止后租约最长需等待 5 分钟过期，24 小时后旧任务不能继续写入；存储与队列不是跨系统原子提交，报告和外部邮件交付也不宣称永久 exactly-once。
+同样的 feature 组合提供 `POST /api/example/articles/import-jobs?format=csv|xlsx`。上传验证通过后，容器用 `Storage::new("local")` 注入导入专用的具名磁盘，服务将生成的 owner 专属来源写入该私有磁盘并排队。切换应用默认磁盘后，此路径仍与 worker 使用同一个 `local` 盘。所有者可读取 `/api/example/articles/import-jobs/{import_id}/status` 与 `/api/example/articles/import-jobs/{import_id}/{job_id}/{attempt}` 报告。每批最多两行，在同一数据库事务中复用文章写入、事件与通知规则；失败批次回滚，已提交批次保留，重试通过现有任务幂等记录避免重复提交。恢复窗口为 24 小时，超过窗口的未完成导入转为可见的 expired 终态，不把来源过期删除误报为成功；终态收据永久保存以拒绝旧 payload 重放，会持续占用数据库行，需要按业务保留政策人工规划容量。来源清理任务仅在终态或安全过期后删除对象；租约忙或未完成时有界延期。首次清理入队失败或延期耗尽时，可在迁移完成后运行 `example imports reconcile`，每次按导入 ID 升序最多检查 100 条未回收收据，输出安全计数与下一游标；下一页运行 `example imports reconcile <游标>`，直到输出 `next cursor none`。单条失败会计数并继续本页，命令返回失败；完成翻页后从首页重跑处理先前失败项。必须实际调度该维护命令。外部 worker 强制停止后租约最长需等待 5 分钟过期，24 小时后旧任务不能继续写入；存储与队列不是跨系统原子提交，报告和外部邮件交付也不宣称永久 exactly-once。
 
 编译 `realtime` 时，当前文章所有者可经 JWT Bearer 请求 `GET /api/example/articles/{id}/events` 建立 SSE，或升级 `GET /api/example/articles/{id}/socket` 为只读 WebSocket；通过 `POST /api/example/articles/{id}/announce` 向自己在该文章频道的在线连接发布事件。两类连接要求 `[realtime].allowed_origins` 精确允许请求 Origin；缺省空列表拒绝浏览器来源。模块重新校验同一签名 token，并使用其实际 `exp` 截止连接，不自行延长凭据；文章权限在连接和发布时分别查询。`/socket` 握手采用 `Authorization: Bearer`，适用于能设置该头的原生或服务客户端。浏览器原生 `WebSocket` 使用独立的 `/browser-socket` 路由，以同请求已认证 Cookie Session 和精确 Origin 校验，不接受 Authorization 或 URL query 凭据；`SessionStoreHandle::authorized_until` 读取持久记录中的账户与原截止时间，不续期。两种入口都先查主库文章所有权；Session 登录和 CSRF 仍经账户公开入口。协议级真实 TCP 回归已覆盖 Session 路径；Chromium 153 原生浏览器的 PostgreSQL/MySQL 定向场景各1项已验证。浏览器用例与握手拒绝的精确 HTTP 状态分别验证，不能外推到所有浏览器。已建连接按握手时的截止时间结束，不承诺另一个请求登出后立即关闭已有 WebSocket。发布成功表示本机队列已接受，不能保证远端客户端收到；双库回归验证真实 TCP 升级和两个独立 App 经真实 Redis 传输，不等于两 OS 进程集群。
 
@@ -469,7 +469,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 ## 独立数据库连接
 
-配置 `database.instances.reporting` 后，`GET /api/example/reporting-connection` 从同一 Container 注入 `Databases`，探测固定 reporting 连接；响应只包含 backend 与 reachable。此路由可使用内置 SQLite，不依赖默认库业务，也不允许请求指定连接名或暴露 URL。回归在 `tests/sqlite_connection_flows.rs`；完整 SQLite 认证、迁移和队列仍待后续。
+配置 `database.instances.reporting` 后，`GET /api/example/reporting-connection` 使用 `Database::new("reporting")` 注入具名连接，响应只包含 backend 与 reachable。连接名固定在构造描述中，请求不能选择连接。回归通过真实模块路由验证仅配置 reporting 时可探测 MySQL/PostgreSQL 或内置 SQLite，默认连接保持未初始化。
 
 ## SQLite本地账户流程
 

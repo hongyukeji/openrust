@@ -1,8 +1,25 @@
 //! 显式具名 reporting 连接的连通性演示；不暴露部署地址或凭据。
 
+use openrust::container::attributes::Database;
+use openrust::container::{ClassAttribute, ClassDescriptor, ConstructorParam};
 use openrust::core::ApiResponse;
-use openrust::database::{Databases, DbBackend};
+use openrust::database::{Db, DbBackend};
 use openrust::http::Inject;
+use std::sync::Arc;
+
+pub(crate) struct ReportingDatabase(Arc<Db>);
+
+pub(crate) fn reporting_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete::<ReportingDatabase>(
+        "Modules/Example/ReportingDatabase",
+        vec![
+            ConstructorParam::class::<Db>("database").with_attribute(ClassAttribute::contextual(
+                || Ok(Database::new("reporting")),
+            )),
+        ],
+        |args| Ok(Arc::new(ReportingDatabase(args.service::<Db>(0)?))),
+    )
+}
 
 #[derive(serde::Serialize)]
 pub(crate) struct ReportingConnection {
@@ -11,9 +28,9 @@ pub(crate) struct ReportingConnection {
 }
 
 pub(crate) async fn show(
-    Inject(databases): Inject<Databases>,
+    Inject(reporting): Inject<ReportingDatabase>,
 ) -> openrust::Result<ApiResponse<ReportingConnection>> {
-    let db = databases.get("reporting")?;
+    let db = &reporting.0;
     db.primary_connection()?
         .ping()
         .await

@@ -218,6 +218,65 @@ async fn final_named_only_sources_do_not_select_default_database_business() -> R
     outcome.and(shutdown)
 }
 
+#[cfg(any(feature = "db-mysql", feature = "db-postgres"))]
+#[tokio::test]
+async fn reporting_route_probes_configured_real_database_without_default_connection() -> Result<()>
+{
+    use openrust::database::sea_orm::DbBackend;
+    use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
+    use openrust::testing::{TestApp, TestDatabase};
+
+    struct ProbeMigrator;
+
+    #[openrust::database::sea_orm_migration::async_trait::async_trait]
+    impl MigratorTrait for ProbeMigrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            Vec::new()
+        }
+    }
+
+    let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("跳过 reporting 真实数据库探测，未设置 OPENRUST_TEST_DATABASE_URL");
+        return Ok(());
+    };
+    let root = deployment()?;
+    let database = TestDatabase::create::<ProbeMigrator>(&admin).await?;
+    let outcome: Result<()> = async {
+        let backend = match database.connection()?.get_database_backend() {
+            DbBackend::MySql => "mysql",
+            DbBackend::Postgres => "postgres",
+            _ => return Err(Error::custom("example_reporting_backend", "探测 fixture 需要 MySQL 或 PostgreSQL")),
+        };
+        let source = sources(
+            root.path(),
+            &json!({"url":null,"instances":{"reporting":{"url":database.url()}}}),
+        )?;
+        let mut app = TestApp::<crate::bootstrap::Server>::builder(source).build().await?;
+        let outcome: Result<()> = async {
+            app.request(
+                Request::get("/api/example/reporting-connection")
+                    .header("host", "localhost")
+                    .body(Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await?
+            .assert_status(StatusCode::OK)?
+            .assert_json(&json!({"success":true,"code":"ok","message":"ok","data":{"reachable":true,"backend":backend}}))?;
+            check(
+                app.app()?.state().resolve::<openrust::Db>().await?.backend().is_err(),
+                "example_reporting_default_connection",
+                "具名 reporting 成功时默认连接应保持未初始化",
+            )
+        }
+        .await;
+        let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+        outcome.and(shutdown)
+    }
+    .await;
+    let cleanup = database.close().await;
+    outcome.and(cleanup)
+}
+
 #[tokio::test]
 async fn explicit_descriptor_override_does_not_require_a_database_section() -> Result<()> {
     use openrust::config::{ConfigLoader, ConfigManifest};

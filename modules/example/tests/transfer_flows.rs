@@ -71,6 +71,12 @@ struct Fixture {
 }
 impl Fixture {
     async fn create() -> std::result::Result<Option<Self>, Box<dyn std::error::Error>> {
+        Self::create_with_default_disk("local").await
+    }
+
+    async fn create_with_default_disk(
+        default_disk: &str,
+    ) -> std::result::Result<Option<Self>, Box<dyn std::error::Error>> {
         let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
             eprintln!("skipping article transfer DB test: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(None);
@@ -85,7 +91,10 @@ impl Fixture {
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"transfer-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
-            "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":directory.path()}}}
+            "storage":{"default_disk":default_disk,"disks":{
+                "local":{"driver":"fs","root":directory.path()},
+                "alternate":{"driver":"fs","root":directory.path().join("alternate")}
+            }}
         })));
         let app = TestApp::<crate::bootstrap::Server>::builder(
             crate::modules::example::test_sources(&(source))?,
@@ -402,14 +411,29 @@ async fn queued_csv_xlsx_import_reports_are_private_and_completed_retries_do_not
     use super::services::article_transfer::ArticleImportJob;
     use openrust::core::Cancellation;
     use openrust::queue::{Job, JobContext, JobRegistry, Queue};
-    let Some(fixture) = Fixture::create().await? else {
+    let Some(fixture) = Fixture::create_with_default_disk("alternate").await? else {
         return Ok(());
     };
-    let queue = fixture.app.app()?.state().resolve::<Queue>().await?;
+    let state = fixture.app.app()?.state();
+    let storage = state
+        .resolve::<openrust::filesystem::FilesystemManager>()
+        .await?;
+    assert_eq!(storage.default_disk().await?.name(), "alternate");
+    let queue = state.resolve::<Queue>().await?;
     let mut jobs = JobRegistry::default();
     jobs.register_job::<ArticleImportJob>()?;
     for format in [ArticleFormat::Csv, ArticleFormat::Xlsx] {
-        let (import_id, job_id) = queue_import(&fixture, input_file(format)?, format).await?;
+        let bytes = input_file(format)?;
+        let (import_id, job_id) = queue_import(&fixture, bytes.clone(), format).await?;
+        let source_key = format!("example/articles/1/imports/{import_id}/source");
+        assert_eq!(
+            tokio::fs::read(fixture.directory.path().join(&source_key)).await?,
+            bytes
+        );
+        assert!(
+            !tokio::fs::try_exists(fixture.directory.path().join("alternate").join(&source_key))
+                .await?
+        );
         assert!(
             queue
                 .run_next_with_state("example-import", fixture.app.app()?.state())

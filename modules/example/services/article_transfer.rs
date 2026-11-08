@@ -330,10 +330,12 @@ pub(crate) fn encode_export(
 mod tasks {
     #[allow(clippy::wildcard_imports)] // 子模块复用同文件的私有业务 helper 与界限常量。
     use super::*;
+    use openrust::container::attributes::Storage;
+    use openrust::container::{ClassAttribute, ClassDescriptor, ConstructorParam};
     use openrust::data::exchange::tasks::{ExchangeFormat, ExportTaskOptions, export_storage_task};
-    use openrust::filesystem::FilesystemManager;
     use openrust::filesystem::StoragePath;
     use openrust::filesystem::StorageReader;
+    use openrust::filesystem::{FilesystemAdapter, FilesystemManager};
     use openrust::queue::{Job, JobContext, Queue};
 
     /// 只由认证 HTTP 入口构造；owner 不接受请求 JSON 覆盖。
@@ -878,9 +880,26 @@ mod tasks {
         pub(crate) job_id: String,
     }
 
+    pub(crate) struct ArticleImportDisk(Arc<FilesystemAdapter>);
+
+    pub(crate) fn article_import_disk_descriptor() -> ClassDescriptor {
+        ClassDescriptor::concrete::<ArticleImportDisk>(
+            "Modules/Example/ArticleImportDisk",
+            vec![
+                ConstructorParam::class::<FilesystemAdapter>("disk")
+                    .with_attribute(ClassAttribute::contextual(|| Ok(Storage::new("local")))),
+            ],
+            |args| {
+                Ok(Arc::new(ArticleImportDisk(
+                    args.service::<FilesystemAdapter>(0)?,
+                )))
+            },
+        )
+    }
+
     pub(crate) async fn upload_import(
         db: &Db,
-        storage: &FilesystemManager,
+        import_disk: &ArticleImportDisk,
         queue: &Queue,
         owner_id: i64,
         format: ArticleFormat,
@@ -890,6 +909,7 @@ mod tasks {
         if bytes.len() > MAX_TRANSFER_BYTES {
             return Err(too_large());
         }
+        let disk = &import_disk.0;
         let import_id = uuid::Uuid::now_v7().to_string();
         let path = import_source(owner_id, &import_id)?;
         article_import::ActiveModel {
@@ -909,7 +929,6 @@ mod tasks {
         schedule_cleanup(queue, owner_id, &import_id, 0, 24 * 3600).await?;
         with_import_lease(Arc::new(db.clone()), owner_id, &import_id, |_, _| async {
             ensure_fresh(receipt(db, owner_id, &import_id).await?.created_at_ms)?;
-            let disk = storage.disk("local").await?;
             let chunks = futures_util::stream::unfold(
                 openrust::http::axum::body::Bytes::from(bytes),
                 |mut bytes| async move {
@@ -1034,8 +1053,9 @@ mod tasks {
 }
 #[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
 pub(crate) use tasks::{
-    ArticleExportJob, ArticleImportJob, ImportQueued, ImportStatus, dispatch as dispatch_export,
-    import_status, open as open_export, open_import_report, upload_import,
+    ArticleExportJob, ArticleImportDisk, ArticleImportJob, ImportQueued, ImportStatus,
+    article_import_disk_descriptor, dispatch as dispatch_export, import_status,
+    open as open_export, open_import_report, upload_import,
 };
 
 #[cfg(all(
