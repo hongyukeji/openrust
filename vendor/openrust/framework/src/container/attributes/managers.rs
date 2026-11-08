@@ -1,10 +1,10 @@
-//! 通过应用服务管理器解析缓存、数据库和文件系统属性。
+//! 通过应用服务管理器解析缓存、日志、数据库和文件系统属性。
 
 use super::{
     Arc, AttributeParameter, AttributeValue, BoxFuture, ContextualAttribute, ParameterValue,
     Resolver, Result,
 };
-use crate::{database::Databases, filesystem::FilesystemManager};
+use crate::{database::Databases, filesystem::FilesystemManager, logging::LogManager};
 
 /// 从应用缓存管理器注入默认或具名的 [`crate::cache::CacheStore`]。
 #[derive(Default)]
@@ -55,6 +55,58 @@ impl ContextualAttribute for Cache {
                 Arc::new(store)
             };
             Ok(AttributeValue::One(ParameterValue::service(store)))
+        })
+    }
+}
+
+/// 从应用日志管理器注入默认或具名的 [`crate::logging::Logger`]。
+#[derive(Default)]
+pub struct Log {
+    channel: Option<Arc<str>>,
+    name: Option<Arc<str>>,
+}
+
+impl Log {
+    /// 按频道名选择日志输出目标。
+    pub fn new(channel: impl Into<Arc<str>>) -> Self {
+        Self {
+            channel: Some(channel.into()),
+            name: None,
+        }
+    }
+
+    /// 为注入的句柄设置独立 logger 名称。
+    #[must_use]
+    pub fn named(mut self, name: impl Into<Arc<str>>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// 借用声明的频道名称。未指定时由管理器选默认频道。
+    pub fn channel_name(&self) -> Option<&str> {
+        self.channel.as_deref()
+    }
+
+    /// 借用声明的重命名值。未指定时保留频道自己的 logger 名称。
+    pub fn logger_name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+}
+
+impl ContextualAttribute for Log {
+    fn resolve(
+        self: Arc<Self>,
+        _parameter: AttributeParameter,
+        resolver: Resolver,
+    ) -> BoxFuture<'static, Result<AttributeValue>> {
+        Box::pin(async move {
+            let manager = resolver.resolve::<LogManager>().await?;
+            let logger = manager.channel(self.channel_name()).await?;
+            let logger = match self.logger_name() {
+                Some(name) => Arc::new(logger.with_name(name)),
+                None => logger,
+            };
+            Ok(AttributeValue::One(ParameterValue::service(logger)))
         })
     }
 }

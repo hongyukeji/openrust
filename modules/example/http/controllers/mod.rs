@@ -28,6 +28,7 @@ pub(crate) mod import_timeline;
 #[cfg(feature = "queue")]
 pub(crate) mod jobs;
 pub(crate) mod localization;
+pub(crate) mod logging;
 #[cfg(feature = "auth-oidc")]
 pub(crate) mod oidc;
 #[cfg(feature = "view")]

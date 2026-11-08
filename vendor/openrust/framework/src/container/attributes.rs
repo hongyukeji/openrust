@@ -12,7 +12,7 @@ use std::collections::VecDeque;
 mod builtin;
 pub use builtin::{Config, Give, Tag, Tagged};
 mod managers;
-pub use managers::{Cache, Database, DbAttribute as DB, Storage};
+pub use managers::{Cache, Database, DbAttribute as DB, Log, Storage};
 
 /// 当前构造参数的属性解析信息。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

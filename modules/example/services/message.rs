@@ -17,6 +17,7 @@ pub(crate) struct ExampleConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     greeting_suffix: Option<String>,
     pub(crate) article_summary_origin: Option<String>,
+    pub(crate) logging_demo: bool,
     pub(crate) feature: ExampleFeatureConfig,
     pub(crate) trusted_hosts: Option<openrust::config::TrustedHostsConfig>,
     #[cfg(feature = "auth-oidc")]
@@ -29,6 +30,7 @@ impl Default for ExampleConfig {
             greeting: "Hello from modules/example".to_owned(),
             greeting_suffix: None,
             article_summary_origin: None,
+            logging_demo: false,
             feature: ExampleFeatureConfig::default(),
             trusted_hosts: None,
             #[cfg(feature = "auth-oidc")]

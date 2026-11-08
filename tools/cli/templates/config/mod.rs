@@ -28,7 +28,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("app", app::config)
         .section("api", api::config)
         .section("log", log::config)
-        .section("logging", log::diagnostics)
+        .section("logging", log::channels)
         .section("cache", cache::config)
         .section("database", database::config)
         .section("i18n", i18n::config)

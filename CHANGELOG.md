@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 应用日志支持默认和具名频道、单文件及组合输出、应急回退与 `Log` 构造属性。
 - 容器增加 `Cache` 属性，支持默认和具名缓存 store，以及按作用域复用的 memo 视图。
 - 容器增加 `Database`、`DB` 和 `Storage` 属性，支持从现有管理器注入默认或具名资源。
 

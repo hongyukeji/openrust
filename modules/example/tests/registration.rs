@@ -120,6 +120,67 @@ async fn production_log_services_coexist_with_normal_module_routes()
     Ok(())
 }
 
+#[tokio::test]
+async fn production_log_attribute_writes_only_to_the_named_channel()
+-> Result<(), Box<dyn std::error::Error>> {
+    const MESSAGE: &str = "示例日志请求已处理";
+    let directory = tempfile::tempdir()?;
+    let selected = directory.path().join("selected.log");
+    let default = directory.path().join("default.log");
+    let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([
+        ("example", serde_json::json!({"logging_demo": true})),
+        (
+            "logging",
+            serde_json::json!({
+                "default": "stack",
+                "channels": {
+                    "stack": {"driver": "stack", "channels": ["default_file"]},
+                    "default_file": {"driver": "single", "path": default, "level": "debug"},
+                    "single": {"driver": "single", "path": selected, "level": "debug"},
+                    "null": {"driver": "null"}
+                }
+            }),
+        ),
+    ])?;
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+        .build()
+        .await?;
+    let outcome: Result<(), Box<dyn std::error::Error>> = async {
+        let greeting = Request::get("/api/example")
+            .header("host", "localhost")
+            .body(Body::empty())?;
+        app.request(greeting).await?.assert_status(StatusCode::OK)?;
+        if selected.exists() {
+            assert!(!std::fs::read_to_string(&selected)?.contains(MESSAGE));
+        }
+        let record = Request::post("/api/example/logging")
+            .header("host", "localhost")
+            .body(Body::empty())?;
+        let response = app.request(record).await?;
+        response.assert_status(StatusCode::NO_CONTENT)?;
+        assert_eq!(response.body(), b"");
+        let logged = std::fs::read_to_string(&selected)?;
+        let mut lines = logged.lines().filter(|line| line.contains(MESSAGE));
+        assert!(
+            lines
+                .next()
+                .is_some_and(|line| line.contains("example.request"))
+        );
+        assert!(lines.next().is_none());
+        if default.exists() {
+            assert!(!std::fs::read_to_string(&default)?.contains(MESSAGE));
+        }
+        Ok(())
+    }
+    .await;
+    let cleanup = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome?;
+    cleanup?;
+    Ok(())
+}
+
 async fn assert_raw_greeting_presenter(
     container: &openrust::container::Container,
     parameters: ParameterOverrides,

@@ -15,6 +15,11 @@ pub(super) fn register(
     repository: openrust::config::repository::ConfigRepository,
 ) -> Router {
     let routes = example_routes(routes);
+    let routes = if capabilities.logging_demo {
+        routes.post("/api/example/logging", controllers::logging::record)
+    } else {
+        routes
+    };
     let routes = config_greeting_routes(routes, repository)
         .get("/api/example/route-url", controllers::example::route_url);
     let routes = route_context_routes(request_url_routes(routes))

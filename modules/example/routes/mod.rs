@@ -15,6 +15,7 @@ pub(crate) struct RouteCapabilities {
     pub(crate) session: bool,
     pub(crate) view: bool,
     pub(crate) i18n: bool,
+    pub(crate) logging_demo: bool,
     pub(crate) summary_origin: Option<String>,
     #[cfg(feature = "auth-oidc")]
     pub(crate) oidc: bool,

@@ -31,12 +31,13 @@ use figment::{
 };
 use openrust::cache::{Cache, CacheStore};
 use openrust::config::ConfigSources;
-use openrust::container::attributes::{Cache as CacheAttribute, Config, Give};
+use openrust::container::attributes::{Cache as CacheAttribute, Config, Give, Log};
 use openrust::container::{
     AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam, ParameterKey,
     ParameterOverrides, ParameterValue, ServiceKey,
 };
 use openrust::foundation::RegisterContext;
+use openrust::logging::{LogLevel, Logger};
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
@@ -56,6 +57,36 @@ fn test_configuration() -> openrust::config::FrameworkConfig {
 }
 
 struct ScopedCache(Arc<CacheStore>);
+
+struct NamedLogger(Arc<Logger>);
+
+#[tokio::test]
+async fn generated_application_injects_named_logger() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("preview.log");
+    let source = Figment::from(Serialized::defaults(test_configuration()))
+        .merge(Serialized::defaults(serde_json::json!({
+            "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
+            "logging": {"channels": {"preview": {"driver": "single", "path": path}}},
+            "view": {"directory": "resources/views"}
+        })));
+    let configuration: bootstrap::Configuration = source.extract()?;
+    let mut builder =
+        openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
+    builder.class_descriptors([ClassDescriptor::concrete::<NamedLogger>(
+        "App/NamedLogger",
+        vec![ConstructorParam::class::<Logger>("logger").with_attribute(
+            ClassAttribute::contextual(|| Ok(Log::new("preview").named("generated.preview"))),
+        )],
+        |args| Ok(Arc::new(NamedLogger(args.service(0)?))),
+    )]);
+    let app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
+    let logger = app.state().resolve::<NamedLogger>().await?;
+    logger.0.log(LogLevel::Notice, "生成项目日志", serde_json::Map::new()).await?;
+    assert!(std::fs::read_to_string(path)?.contains("generated.preview.NOTICE: 生成项目日志"));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn generated_application_injects_scoped_cache_store() -> Result<(), Box<dyn std::error::Error>> {

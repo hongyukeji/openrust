@@ -186,6 +186,14 @@ let greeting = ConstructorParam::scalar::<String>("greeting").with_attribute(
 
 Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在每轮沿用创建它时的 Resolver 和作用域。固定来源见 [Config](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Config.php)、[Give](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Give.php) 和 [Tag](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Tag.php)。
 
+#### 日志属性
+
+默认 Provider 在应用容器中登记 `LogManager`。用 `Log::default()` 注入默认频道的 `Logger`，用 `Log::new("single").named("orders")` 选择具名频道并为本次注入重命名。重命名复用相同输出目标和级别过滤，原频道仍使用自己的名称。把属性附到 `ConstructorParam::class::<Logger>("logger")` 即可。 [Laravel Log 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Log.php)
+
+`config/log.rs` 通过 `logging` 区段配置频道。`LOG_CHANNEL` 默认选择 `stack`，`LOG_STACK` 默认包含 `single`，`LOG_LEVEL` 默认是 `debug`。已支持 `single`、`stderr`、`null` 和顺序写入的 `stack`。默认文件为应用根的 `storage/logs/laravel.log`。频道创建失败会写入应急文件，并返回应急 logger；应急文件也无法写入时会返回错误。
+
+日志通过 `Logger::log(level, message, context).await` 写入。文件按行记录时间、logger 名称、级别和消息，结构化上下文以 JSON 附在末尾。第三方通过 `LogManager::extend` 为频道配置提供 `LogSink`。框架诊断和遥测仍由 `tracing` 收集，受 `RUST_LOG` 控制。
+
 #### 缓存属性
 
 `container::attributes::Cache` 将应用缓存管理器中的 `CacheStore` 注入构造参数。在 `ConstructorParam::class::<CacheStore>("cache")` 上附加 `ClassAttribute::contextual(|| Ok(Cache::default()))` 使用默认 store，`Cache::new("local")` 则按配置的精确名称选择。空字符串和未知名称沿缓存管理器报错。

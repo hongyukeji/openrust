@@ -18,6 +18,8 @@
 
 `Cache` 属性通过同一缓存管理器注入 `CacheStore`，也可在当前容器作用域内复用 memo 视图。详见[缓存属性](../../../docs/src/architecture-concepts/lifecycle.md#缓存属性)。
 
+`Log` 属性从 `LogManager` 注入应用 logger，支持频道选择和独立重命名。详见[日志属性](../../../docs/src/architecture-concepts/lifecycle.md#日志属性)。
+
 OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀第三方扩展。框架库公开路径为 `openrust::`，根应用通过统一 Container、Provider 和配置生命周期接入。
 
 框架源码位于 `src/lib.rs`；宿主应用、bootstrap 和唯一综合示例保留在仓库根目录。默认启动在根执行 `cargo run`。

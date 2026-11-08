@@ -219,6 +219,10 @@ fn register_example_schema(app: &mut RegisterContext<'_>) -> Result<()> {
                 openrust::config::repository::SectionSchema::String.nullable(),
             ),
             (
+                "logging_demo",
+                openrust::config::repository::SectionSchema::Boolean,
+            ),
+            (
                 "feature",
                 openrust::config::repository::SectionSchema::object([(
                     "enabled",
@@ -496,6 +500,7 @@ impl ServiceProvider for ExampleServiceProvider {
                     });
             })?;
             let summary_origin = example_config.article_summary_origin;
+            let logging_demo = example_config.logging_demo;
             #[cfg(feature = "session")]
             let session_enabled = session_capability(app);
             #[cfg(feature = "auth-oidc")]
@@ -542,6 +547,7 @@ impl ServiceProvider for ExampleServiceProvider {
                         session: session_enabled.load(Ordering::Acquire),
                         view: view_enabled,
                         i18n: i18n_enabled,
+                        logging_demo,
                         summary_origin: summary_origin.clone(),
                         #[cfg(feature = "auth-oidc")]
                         oidc: oidc_enabled,
