@@ -171,6 +171,8 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 数据库启用且编译 `auth` 时，`/api/example/articles` 使用公开 `ResourceActions` 注册列表、详情、创建、更新和删除。处理器用 `Validated` 校验标题与正文，页码限定 1–1,000,000、每页 1–100；列表通过公开 `Paginated` 返回 `data` 和 `meta`。`CurrentUser` 与 `QueryRule` 将读取限制为本人文章，更新和删除 SQL 同时筛选文章 ID 与 owner ID。缺失或他人文章均返回 `not_found`，写入在主库事务中完成。
 
+文章标题缓存路由在主库授权后，才通过构造属性解析具名缓存与请求作用域的 memo 视图。
+
 文章创建、更新和删除在同一事务中调用 `Events::dispatch_in_transaction`，模块监听器写入 `example_article_events`，并把幂等的 `ArticleIndexJob` 插入同一持久队列事务；监听或入队失败会回滚文章写入。创建还从同一事务读取作者已验证邮箱，用公开 `Notifier::dispatch_in_transaction` 排入仅发给作者的确认邮件；入队失败同样回滚文章，测试 worker 使用捕获邮件驱动，不向真实供应商发送。显式 worker 在提交后按 owner/文章 ID 维护 `example-prefix` 命名 store 中 TTL 600 秒的派生标题，删除时移除对应键。`GET /api/example/articles/{id}/cached-title` 每次先在主库检查 owner，缓存 MISS 才从主库重建；默认 store 不受模块设置影响，应用可显式把该 named store 设为 Redis。标题是 eventual 派生值：异步 job 未消费或旧快照与新 job 交错时可能读到旧标题，单个写入的 TTL 为 600 秒，队列长期故障时不承诺端到端 600 秒内最新；授权与普通 CRUD 始终由主库决定。详情成功读取经公开 `Audit` 记录 actor、文章与结果，越权读取不会产生成功审计。
 
 文章 HTTP 创建、更新和删除的完整事务结果使用既有 tracing span 记录固定操作与结果；启用 `metrics` 时产生 `example_article_operations_total` 与 `example_article_operation_duration_seconds`。标签仅有 `operation`、`outcome`，不包含账户、文章 ID、邮件地址、正文或错误内容。取消记为未完成的 `cancelled`，不推断数据库回滚；批量导入事务内的单次 `create_in_transaction` 不提前记作已提交。`/metrics` 仍须按框架配置显式开放并限制采集网络。

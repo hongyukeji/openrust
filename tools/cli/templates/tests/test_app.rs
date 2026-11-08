@@ -29,10 +29,12 @@ use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
 };
+use openrust::cache::{Cache, CacheStore};
 use openrust::config::ConfigSources;
-use openrust::container::attributes::{Config, Give};
+use openrust::container::attributes::{Cache as CacheAttribute, Config, Give};
 use openrust::container::{
-    AttributeValue, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+    AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam, ParameterKey,
+    ParameterOverrides, ParameterValue, ServiceKey,
 };
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
@@ -51,6 +53,45 @@ fn test_configuration() -> openrust::config::FrameworkConfig {
     let mut config = openrust::config::FrameworkConfig::default();
     config.app.env = openrust::config::Environment::Testing;
     config
+}
+
+struct ScopedCache(Arc<CacheStore>);
+
+#[tokio::test]
+async fn generated_application_injects_scoped_cache_store() -> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(test_configuration())).merge(Toml::string(
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[cache.stores.preview]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    let configuration: bootstrap::Configuration = source.extract()?;
+    let mut builder =
+        openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
+    builder.class_descriptors([ClassDescriptor::concrete::<ScopedCache>(
+        "App/ScopedCache",
+        vec![
+            ConstructorParam::class::<CacheStore>("cache").with_attribute(
+                ClassAttribute::contextual(|| Ok(CacheAttribute::new("preview").memoized())),
+            ),
+        ],
+        |args| Ok(Arc::new(ScopedCache(args.service(0)?))),
+    )]);
+    let app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
+    let container = app.state().container();
+    let cache = container.resolve::<Cache>().await?;
+    let preview = cache.store("preview").await?;
+    let scope = container.scope()?;
+    let handle = scope.resolve::<ScopedCache>().await?;
+    assert_eq!(handle.0.get::<i32>("title").await?, None);
+    preview.set("title", &17, None).await?;
+    assert_eq!(handle.0.get::<i32>("title").await?, None);
+    assert_eq!(cache.default_store().await?.get::<i32>("title").await?, None);
+    let other_scope = container.scope()?;
+    let other = other_scope.resolve::<ScopedCache>().await?;
+    assert_eq!(other.0.get::<i32>("title").await?, Some(17));
+    handle.0.set("title", &18, None).await?;
+    assert_eq!(handle.0.get::<i32>("title").await?, Some(18));
+    assert_eq!(preview.get::<i32>("title").await?, Some(18));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
+    Ok(())
 }
 
 // 生成应用在公开 server 配置上按精确环境启用主机信任列表。

@@ -186,6 +186,12 @@ let greeting = ConstructorParam::scalar::<String>("greeting").with_attribute(
 
 Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在每轮沿用创建它时的 Resolver 和作用域。固定来源见 [Config](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Config.php)、[Give](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Give.php) 和 [Tag](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Tag.php)。
 
+#### 缓存属性
+
+`container::attributes::Cache` 将应用缓存管理器中的 `CacheStore` 注入构造参数。在 `ConstructorParam::class::<CacheStore>("cache")` 上附加 `ClassAttribute::contextual(|| Ok(Cache::default()))` 使用默认 store，`Cache::new("local")` 则按配置的精确名称选择。空字符串和未知名称沿缓存管理器报错。
+
+在属性上调用 `.memoized()` 后，同一作用域内对同一 store 的注入共享命中与未命中。通过该视图写入或删除时，下一次读取重新访问后端。HTTP 请求、队列任务和显式容器作用域各自解析自己的 memo 实例。显式使用解析器时也可调用 `openrust::cache::Cache::memo(&resolver, Some("local"))`。[Laravel Cache 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Cache.php)
+
 #### 数据库与文件系统属性
 
 `Database` 和 `DB` 注入由 `Databases` 管理的 `Db`，`Storage` 注入由 `FilesystemManager` 管理的 `FilesystemAdapter`。在应用中启用对应 Provider，然后把属性附到 `ConstructorParam::class::<Db>` 或 `ConstructorParam::class::<FilesystemAdapter>` 上。`Database` 与 `DB` 可分别登记属性处理器和后置回调。

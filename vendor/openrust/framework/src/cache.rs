@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod memo;
 mod tags;
 pub use tags::{CacheTagBackend, TaggedCacheEntry, TaggedCacheStore};
 
@@ -467,8 +468,48 @@ impl Cache {
 
     /// 返回当前配置选定的默认 store。
     pub async fn default_store(&self) -> Result<CacheStore> {
-        let config = self.manager.resolver.section::<CacheConfig>("cache")?;
-        self.store(&config.default).await
+        self.store(&self.default_store_name()?).await
+    }
+
+    fn default_store_name(&self) -> Result<String> {
+        Ok(self
+            .manager
+            .resolver
+            .section::<CacheConfig>("cache")?
+            .default)
+    }
+
+    /// 从当前容器作用域取得按 store 隔离的缓存快照。
+    ///
+    /// `None` 选择当前配置的默认 store。此方法与构造参数的 Cache 属性
+    /// 共用一个作用域实例。读命中和未命中都保留到本作用域结束，
+    /// 通过此实例修改键时会使对应的本地读取失效。
+    pub async fn memo(
+        resolver: &crate::container::Resolver,
+        name: Option<&str>,
+    ) -> Result<Arc<CacheStore>> {
+        use crate::container::ServiceKey;
+
+        let cache = resolver.resolve::<Self>().await?;
+        let name = match name {
+            Some(name) => name.to_owned(),
+            None => cache.default_store_name()?,
+        };
+        validate_store_name(&name)?;
+        let key = ServiceKey::named(format!("cache.__memoized:{name}"));
+        resolver
+            .container()?
+            .scoped_key_if(key.clone(), move |_| {
+                let name = name.clone();
+                let cache = Arc::clone(&cache);
+                Box::pin(async move {
+                    let mut store = cache.store(&name).await?;
+                    store.memo = Some(Arc::default());
+                    Ok(Arc::new(store))
+                })
+            })
+            .await?;
+        resolver.resolve_key(key).await
     }
 
     /// 按名称异步构造并缓存 store；未知名称不会回退。
@@ -547,6 +588,7 @@ impl Cache {
                     background_tasks,
                     refresh_limiter,
                     shared_locks,
+                    memo: None,
                 })
             })
             .await?;
@@ -664,6 +706,7 @@ pub struct CacheStore {
     background_tasks: crate::foundation::lifecycle::BackgroundTaskHandle,
     refresh_limiter: Arc<RefreshLimiter>,
     shared_locks: Option<crate::database::SharedLocks>,
+    memo: Option<Arc<memo::MemoizedValues>>,
 }
 
 impl CacheStore {
@@ -692,9 +735,15 @@ impl CacheStore {
     }
 
     async fn get_at<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
-        self.backend
-            .get(key)
-            .await?
+        let value = match &self.memo {
+            Some(memo) => memo.get(self.backend.as_ref(), key).await?,
+            None => self.backend.get(key).await?,
+        };
+        Self::decode(value)
+    }
+
+    fn decode<T: DeserializeOwned>(value: Option<Vec<u8>>) -> Result<Option<T>> {
+        value
             .map(|bytes| {
                 serde_json::from_slice(&bytes).map_err(|_| {
                     Error::custom(
@@ -729,12 +778,18 @@ impl CacheStore {
                 "cache value could not be encoded",
             )
         })?;
+        let _write = self.memo.as_ref().map(|memo| memo.begin_write(key));
         self.backend.set(key, bytes, ttl).await
     }
 
     /// 删除 JSON 值。
     pub async fn remove(&self, key: &str) -> Result<()> {
-        self.backend.remove(&self.key(key)?).await
+        self.remove_at(&self.key(key)?).await
+    }
+
+    async fn remove_at(&self, key: &str) -> Result<()> {
+        let _write = self.memo.as_ref().map(|memo| memo.begin_write(key));
+        self.backend.remove(key).await
     }
 
     /// 缓存未命中时，在本进程合并同 key、同类型与同 load ID 的加载。
@@ -1851,6 +1906,7 @@ mod tests {
                 maximum: 64,
             }),
             shared_locks: None,
+            memo: None,
         }
     }
 
@@ -1984,6 +2040,7 @@ mod tests {
             background_tasks: cache_store.background_tasks.clone(),
             refresh_limiter: Arc::clone(&cache_store.refresh_limiter),
             shared_locks: None,
+            memo: None,
         };
         for key in [
             "__cache_tag_meta_v1:reserved",

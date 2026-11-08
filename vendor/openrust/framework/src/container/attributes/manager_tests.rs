@@ -1,3 +1,161 @@
+mod cache {
+    use crate::{
+        Result,
+        cache::{Cache, CacheServiceProvider, CacheStore},
+        container::{
+            ClassAttribute, ClassDescriptor, ConstructorParam, ServiceKey,
+            attributes::Cache as Attribute,
+        },
+        foundation::ProviderBuilder,
+    };
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+    use std::{sync::Arc, time::Duration};
+
+    struct Stores {
+        default: Arc<CacheStore>,
+        named: Arc<CacheStore>,
+        memo: Arc<CacheStore>,
+        same_memo: Arc<CacheStore>,
+        named_memo: Arc<CacheStore>,
+    }
+
+    fn store_param(
+        name: &'static str,
+        factory: impl Fn() -> Attribute + Send + Sync + 'static,
+    ) -> ConstructorParam {
+        ConstructorParam::class::<CacheStore>(name)
+            .with_attribute(ClassAttribute::contextual(move || Ok(factory())))
+    }
+
+    #[tokio::test]
+    async fn cache_attribute_selects_stores_and_memoizes_in_current_scope() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheServiceProvider::new());
+        builder.class_descriptors([ClassDescriptor::concrete::<Stores>(
+            "test::CacheAttributeStores",
+            vec![
+                store_param("default", Attribute::default),
+                store_param("named", || Attribute::new("0")),
+                store_param("memo", || Attribute::default().memoized()),
+                store_param("same_memo", || Attribute::new("local").memoized()),
+                store_param("named_memo", || Attribute::new("0").memoized()),
+            ],
+            |args| {
+                Ok(Arc::new(Stores {
+                    default: args.service(0)?,
+                    named: args.service(1)?,
+                    memo: args.service(2)?,
+                    same_memo: args.service(3)?,
+                    named_memo: args.service(4)?,
+                }))
+            },
+        )]);
+        let runtime = builder
+            .start(Figment::from(Serialized::defaults(json!({
+                "cache": {"default": "local", "stores": {
+                    "local": {"driver": "memory"}, "0": {"driver": "memory"}
+                }}
+            }))))
+            .await?;
+        let container = runtime.container();
+        let cache = container.resolve::<Cache>().await?;
+        let first = container.scope()?;
+        let second = container.scope()?;
+        let a = first.resolve::<Stores>().await?;
+        let b = second.resolve::<Stores>().await?;
+        let ttl = Duration::from_secs(30);
+        cache.default_store().await?.set("key", &1, None).await?;
+        cache.store("0").await?.set("key", &9, None).await?;
+        assert!(Arc::ptr_eq(&a.memo, &a.same_memo));
+        assert!(!Arc::ptr_eq(&a.memo, &b.memo));
+        assert_eq!(a.memo.get::<i32>("key").await?, Some(1));
+        assert_eq!(a.named_memo.get::<i32>("key").await?, Some(9));
+        assert_eq!(a.named.get::<i32>("key").await?, Some(9));
+        assert_eq!(a.memo.get::<i32>("miss").await?, None);
+        a.default.set("key", &2, None).await?;
+        a.default.set("miss", &7, None).await?;
+        assert_eq!(a.memo.get::<i32>("key").await?, Some(1));
+        assert_eq!(a.memo.get::<i32>("miss").await?, None);
+        assert_eq!(b.memo.get::<i32>("key").await?, Some(2));
+        assert_eq!(b.memo.get::<i32>("miss").await?, Some(7));
+        a.memo.set("key", &3, None).await?;
+        assert_eq!(a.same_memo.get::<i32>("key").await?, Some(3));
+        a.memo.remove("key").await?;
+        assert_eq!(a.memo.get::<i32>("key").await?, None);
+        assert_eq!(b.memo.get::<i32>("key").await?, Some(2));
+
+        let plain_tagged = a.default.tagged(&["article"])?;
+        let memo_tagged = a.memo.tagged(&["article"])?;
+        plain_tagged.set("title", &1, ttl).await?;
+        assert_eq!(memo_tagged.get::<i32>("title").await?, Some(1));
+        plain_tagged.set("title", &2, ttl).await?;
+        assert_eq!(memo_tagged.get::<i32>("title").await?, Some(1));
+        memo_tagged.set("title", &3, ttl).await?;
+        assert_eq!(memo_tagged.get::<i32>("title").await?, Some(3));
+        a.default.invalidate_tags(&["article"]).await?;
+        assert_eq!(memo_tagged.get::<i32>("title").await?, None);
+        assert_eq!(memo_tagged.get::<serde_json::Value>("swr").await?, None);
+        assert_eq!(
+            memo_tagged
+                .get_stale_while_revalidate("swr", "title-test", ttl, ttl, || async { Ok(17) })
+                .await?,
+            17
+        );
+        assert_eq!(
+            memo_tagged
+                .get::<serde_json::Value>("swr")
+                .await?
+                .and_then(|entry| entry.get("value").and_then(serde_json::Value::as_i64)),
+            Some(17)
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+            .await
+    }
+
+    struct AlternateStore(Arc<CacheStore>);
+
+    #[tokio::test]
+    async fn memo_attribute_uses_the_contextually_selected_manager() -> Result<()> {
+        let configuration = |name: &str| {
+            Figment::from(Serialized::defaults(json!({
+                "cache": {"default": name, "stores": {(name): {"driver": "memory"}}}
+            })))
+        };
+        let mut alternate = ProviderBuilder::new();
+        alternate.provider(CacheServiceProvider::new());
+        let alternate = alternate.start(configuration("alternate")).await?;
+        let cache = alternate.container().resolve::<Cache>().await?;
+        cache.default_store().await?.set("key", &17, None).await?;
+
+        let mut host = ProviderBuilder::new();
+        host.provider(CacheServiceProvider::new());
+        host.class_descriptors([ClassDescriptor::concrete::<AlternateStore>(
+            "test::ContextualCache",
+            vec![store_param("memo", || {
+                Attribute::new("alternate").memoized()
+            })],
+            |args| Ok(Arc::new(AlternateStore(args.service(0)?))),
+        )]);
+        let host = host.start(configuration("local")).await?;
+        let container = host.container();
+        container
+            .when(ServiceKey::typed::<AlternateStore>())?
+            .needs(ServiceKey::typed::<Cache>())
+            .give_factory(move |_| {
+                let cache = Arc::clone(&cache);
+                Box::pin(async move { Ok(cache) })
+            })?;
+        let store = container.scope()?.resolve::<AlternateStore>().await?;
+        assert_eq!(store.0.get::<i32>("key").await?, Some(17));
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        host.shutdown(deadline).await?;
+        alternate.shutdown(deadline).await
+    }
+}
+
 #[cfg(feature = "db-mysql")]
 mod database {
     use crate::database::sea_orm::{ConnectionTrait, DbBackend, Statement};

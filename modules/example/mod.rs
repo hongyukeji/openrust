@@ -201,6 +201,8 @@ pub(crate) fn class_descriptors() -> impl IntoIterator<Item = openrust::containe
     [
         services::presenter_descriptor(),
         http::controllers::database_connection::reporting_descriptor(),
+        #[cfg(all(feature = "auth", feature = "queue"))]
+        http::controllers::article_cache::title_cache_descriptor(),
         #[cfg(all(
             feature = "auth",
             feature = "data-exchange-tasks",

@@ -5,11 +5,29 @@ use crate::modules::example::jobs::article_index::{
 };
 use crate::modules::example::models::article;
 use openrust::auth::CurrentUser;
-use openrust::cache::Cache;
+use openrust::cache::{Cache, CacheStore};
+use openrust::container::attributes::Cache as CacheAttribute;
+use openrust::container::{ClassAttribute, ClassDescriptor, ConstructorParam};
 use openrust::database::sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+use openrust::foundation::ApplicationState;
+use openrust::http::axum::extract::State;
 use openrust::http::{Inject, Json, Path};
 use openrust::{Db, Error, Result};
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
+pub(crate) struct ArticleTitleCache(Arc<CacheStore>);
+
+pub(crate) fn title_cache_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete::<ArticleTitleCache>(
+        "Modules/Example/ArticleTitleCache",
+        vec![
+            ConstructorParam::class::<CacheStore>("store").with_attribute(
+                ClassAttribute::contextual(|| Ok(CacheAttribute::new(ARTICLE_STORE).memoized())),
+            ),
+        ],
+        |args| Ok(Arc::new(ArticleTitleCache(args.service(0)?))),
+    )
+}
 
 #[derive(serde::Serialize)]
 pub(crate) struct ArticleTitle {
@@ -25,7 +43,7 @@ pub(crate) struct ArticleSWRTitle {
 pub(crate) async fn show(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Inject(cache): Inject<Cache>,
+    State(state): State<ApplicationState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ArticleTitle>> {
     let authorized = article::Entity::find_by_id(id)
@@ -39,7 +57,8 @@ pub(crate) async fn show(
     if authorized.is_none() {
         return Err(Error::NotFound("article not found".into()));
     }
-    let store = cache.store(ARTICLE_STORE).await?;
+    let cache = state.resolve::<ArticleTitleCache>().await?;
+    let store = &cache.0;
     let key = cache_key(user.integer_id()?, id);
     let (entry, cache_hit) = if let Some(entry) = store.get::<ArticleIndexEntry>(&key).await? {
         (entry, true)

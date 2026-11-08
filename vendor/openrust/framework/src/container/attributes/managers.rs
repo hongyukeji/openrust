@@ -1,10 +1,63 @@
-//! 通过应用服务管理器解析数据库和文件系统属性。
+//! 通过应用服务管理器解析缓存、数据库和文件系统属性。
 
 use super::{
     Arc, AttributeParameter, AttributeValue, BoxFuture, ContextualAttribute, ParameterValue,
     Resolver, Result,
 };
 use crate::{database::Databases, filesystem::FilesystemManager};
+
+/// 从应用缓存管理器注入默认或具名的 [`crate::cache::CacheStore`]。
+#[derive(Default)]
+pub struct Cache {
+    store: Option<Arc<str>>,
+    memo: bool,
+}
+
+impl Cache {
+    /// 按配置中的精确名称选择 store。
+    pub fn new(store: impl Into<Arc<str>>) -> Self {
+        Self {
+            store: Some(store.into()),
+            memo: false,
+        }
+    }
+
+    /// 在当前容器作用域内共享缓存读取结果。
+    #[must_use]
+    pub fn memoized(mut self) -> Self {
+        self.memo = true;
+        self
+    }
+
+    /// 借用声明的原始名称。未指定名称时返回 `None`。
+    #[must_use]
+    pub fn store_name(&self) -> Option<&str> {
+        self.store.as_deref()
+    }
+}
+
+impl ContextualAttribute for Cache {
+    fn resolve(
+        self: Arc<Self>,
+        _parameter: AttributeParameter,
+        resolver: Resolver,
+    ) -> BoxFuture<'static, Result<AttributeValue>> {
+        Box::pin(async move {
+            let name = self.store_name();
+            let store = if self.memo {
+                crate::cache::Cache::memo(&resolver, name).await?
+            } else {
+                let cache = resolver.resolve::<crate::cache::Cache>().await?;
+                let store = match name {
+                    Some(name) => cache.store(name).await?,
+                    None => cache.default_store().await?,
+                };
+                Arc::new(store)
+            };
+            Ok(AttributeValue::One(ParameterValue::service(store)))
+        })
+    }
+}
 
 /// 从应用的数据库管理器注入默认或具名 [`crate::database::Db`]。
 #[derive(Default)]

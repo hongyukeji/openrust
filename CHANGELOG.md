@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 容器增加 `Cache` 属性，支持默认和具名缓存 store，以及按作用域复用的 memo 视图。
 - 容器增加 `Database`、`DB` 和 `Storage` 属性，支持从现有管理器注入默认或具名资源。
 
 - 容器增加 `Config`、`Give` 和 `Tag` 通用上下文属性，标签服务按当前作用域延迟解析。

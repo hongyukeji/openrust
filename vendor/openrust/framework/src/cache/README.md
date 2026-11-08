@@ -4,6 +4,8 @@ Provider 装配的缓存 store 按名称异步构造并缓存；`store/default_s
 
 `CacheServiceProvider` 支持在统一容器中装配内置和自定义 driver。
 
+`Cache::memo(&resolver, name)` 返回当前容器作用域和 store 名称共享的视图。用 `None` 选择默认 store。命中和未命中在本作用域中可重复读取，普通后端或其他作用域的写入不会更新这份读取结果。经该视图写入或删除会使对应键失效。Tagged 读取按租户和 tag generation 隔离。SWR 从后端读取新鲜度，并在写入时使该视图中对应键失效。构造参数也可以使用 `container::attributes::Cache` 和 `.memoized()` 取得同一视图。应用持有的旧句柄仍引用原视图，跨请求时应在新作用域重新解析。
+
 `CacheServiceProvider` 按 `config/cache.toml` 配置启动默认 store 并按需初始化命名 store。缓存能力为可选项：不安装 Provider 时不会连接 Redis；安装后必须显式配置 store，未配置、driver 不支持、初始化失败或缓存 I/O 失败均返回错误，不会回退到本地内存。容器中注册了共享 `Readiness` 时，每个已解析 store 会注册只读依赖探针；其 I/O 失败会令 `/ready` 返回 503，错误细节不会出现在健康响应中。
 
 ```toml

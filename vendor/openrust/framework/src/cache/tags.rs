@@ -102,12 +102,12 @@ impl TaggedCacheStore {
                 "SWR fresh TTL exceeds supported limits",
             )
         })?;
-        let store = self.store.clone();
+        let store = &self.store;
         let flight_key = store.flight_key::<T>(key, load_id);
 
         loop {
             let entry = self.entry(key).await?;
-            if let Some(cached) = entry.get::<SwrValue<T>>().await?
+            if let Some(cached) = entry.get_backend::<SwrValue<T>>().await?
                 && entry.is_current().await?
             {
                 if entry.now_millis().await? < cached.fresh_until_ms {
@@ -119,7 +119,7 @@ impl TaggedCacheStore {
 
             match store.singleflight.begin(flight_key.clone())? {
                 super::FlightRole::Leader(guard) => {
-                    return load_swr_leader(&entry, guard, &store, fresh_ms, total_ttl, &loader)
+                    return load_swr_leader(&entry, guard, store, fresh_ms, total_ttl, &loader)
                         .await;
                 }
                 super::FlightRole::Waiter(waiter) => {
@@ -216,7 +216,7 @@ where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T>>,
 {
-    if let Some(cached) = entry.get::<SwrValue<T>>().await?
+    if let Some(cached) = entry.get_backend::<SwrValue<T>>().await?
         && entry.is_current().await?
     {
         let bytes = encode_swr(&cached)?;
@@ -382,7 +382,7 @@ where
 {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        if let Some(value) = entry.get::<SwrValue<T>>().await.ok().flatten()
+        if let Some(value) = entry.get_backend::<SwrValue<T>>().await.ok().flatten()
             && entry.is_current().await.ok() == Some(true)
             && entry
                 .now_millis()
@@ -411,20 +411,12 @@ pub struct TaggedCacheEntry {
 impl TaggedCacheEntry {
     /// 读取捕获 generation 对应的 JSON 值。
     pub async fn get<T: DeserializeOwned>(&self) -> Result<Option<T>> {
-        let key = self.physical_key()?;
-        self.store
-            .backend
-            .get(&key)
-            .await?
-            .map(|bytes| {
-                serde_json::from_slice(&bytes).map_err(|_| {
-                    Error::custom(
-                        "cache_deserialization_failed",
-                        "cached value could not be decoded",
-                    )
-                })
-            })
-            .transpose()
+        self.store.get_at(&self.physical_key()?).await
+    }
+
+    // SWR 依据后端时钟判断新鲜度，写入仍走同一条 memo 失效路径。
+    async fn get_backend<T: DeserializeOwned>(&self) -> Result<Option<T>> {
+        CacheStore::decode(self.store.backend.get(&self.physical_key()?).await?)
     }
 
     /// 仅在捕获的 tag generation 未变化时写入，TTL 必须大于零且有限。
@@ -438,6 +430,7 @@ impl TaggedCacheEntry {
         })?;
         let key = self.physical_key()?;
         let backend = tag_backend(self.store.backend.as_ref())?;
+        let _write = self.store.memo.as_ref().map(|memo| memo.begin_write(&key));
         if backend
             .set_if_generations_match(&key, bytes, ttl, &self.generations)
             .await?
@@ -453,7 +446,7 @@ impl TaggedCacheEntry {
 
     /// 删除该 generation 下的值。
     pub async fn remove(&self) -> Result<()> {
-        self.store.backend.remove(&self.physical_key()?).await
+        self.store.remove_at(&self.physical_key()?).await
     }
 
     async fn is_current(&self) -> Result<bool> {

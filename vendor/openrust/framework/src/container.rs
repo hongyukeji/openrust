@@ -1730,7 +1730,7 @@ impl Resolver {
             .ok_or_else(|| container_error("resources_unavailable", "服务容器未配置资源所有者"))
     }
 
-    fn container(&self) -> Result<Container> {
+    pub(crate) fn container(&self) -> Result<Container> {
         let container = self
             .container
             .upgrade()
