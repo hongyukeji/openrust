@@ -3150,6 +3150,7 @@ impl ServiceProvider for RedirectRoutes {
                             })
                             .get(&format!("{PREFIX}/secure"), secure)
                             .get(&format!("{PREFIX}/guide"), guide)
+                            .get(&format!("{PREFIX}/guide-shortcut"), guide_shortcut)
                             .get(&format!("{PREFIX}/refresh"), refresh_page)
                             .post(&format!("{PREFIX}/refresh"), refresh_submit)
                             .get(&format!("{PREFIX}/preview"), preview)
@@ -3289,10 +3290,11 @@ async fn signed_show(info: RequestInfo) -> openrust::Result<Json<Value>> {
 async fn secure(info: RequestInfo) -> openrust::Result<Response> {
     Ok(Redirector::from_info(&info).secure("/api")?.into_response())
 }
-async fn guide(info: RequestInfo) -> openrust::Result<Response> {
-    Ok(Redirector::from_info(&info)
-        .away(DRAFT_GUIDE)?
-        .into_response())
+async fn guide() -> openrust::Result<Response> {
+    Ok(openrust::support::Uri::of(DRAFT_GUIDE)?.redirect()?.into_response())
+}
+async fn guide_shortcut() -> openrust::Result<openrust::support::Uri> {
+    openrust::support::Uri::of("guide?from=shortcut&view=summary#intro")
 }
 async fn refresh_submit(request: InputRequest) -> openrust::Result<Response> {
     let mut headers = HeaderMap::new();
@@ -3573,6 +3575,10 @@ async fn assert_navigation<A: ApplicationDefinition>(
 async fn assert_refresh_and_away<A: ApplicationDefinition>(
     app: &TestApp<A>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let shortcut = get(app, &format!("{PREFIX}/guide-shortcut"), None).await?;
+    shortcut.assert_status(StatusCode::FOUND)?;
+    assert_eq!(shortcut.headers()[header::LOCATION], "guide?from=shortcut&view=summary#intro");
+    assert!(std::str::from_utf8(shortcut.body())?.contains("from=shortcut&amp;view=summary"));
     let guide = get(
         app,
         &format!("{PREFIX}/guide?url=https://untrusted.example.test"),

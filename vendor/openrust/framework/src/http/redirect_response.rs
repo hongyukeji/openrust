@@ -12,10 +12,10 @@ use crate::http::RequestInfo;
 use crate::support::{ArrayKey, MessageBag, MessageInput, MessageProvider};
 use crate::{Error, Result};
 
-/// 保留对当前请求的只读借用；最终转换为独立 HTTP 响应。
+/// HTTP 重定向响应。经 Redirector 构造时保留当前请求的闪存借用。
 pub struct RedirectResponse<'r> {
     #[cfg(feature = "session")]
-    info: &'r RequestInfo,
+    info: Option<&'r RequestInfo>,
     #[cfg(feature = "session")]
     request: Option<&'r Request>,
     #[cfg(not(feature = "session"))]
@@ -31,7 +31,7 @@ impl RedirectResponse<'_> {
         location: String,
         status: StatusCode,
         mut headers: HeaderMap,
-        #[cfg(feature = "session")] info: &'r RequestInfo,
+        #[cfg(feature = "session")] info: Option<&'r RequestInfo>,
         #[cfg(feature = "session")] request: Option<&'r Request>,
     ) -> Result<RedirectResponse<'r>> {
         // 对齐Symfony构造顺序：HTTP范围、空目标、重定向状态，再建立安全头值。
@@ -55,10 +55,14 @@ impl RedirectResponse<'_> {
             HeaderValue::from_static("text/html; charset=utf-8"),
         );
         if status != StatusCode::MOVED_PERMANENTLY && !headers.contains_key(header::CACHE_CONTROL) {
-            headers.insert(
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("no-cache, private"),
-            );
+            let policy = if headers.contains_key(header::EXPIRES)
+                || headers.contains_key(header::LAST_MODIFIED)
+            {
+                "private, must-revalidate"
+            } else {
+                "no-cache, private"
+            };
+            headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(policy));
         }
         Ok(RedirectResponse {
             #[cfg(feature = "session")]
@@ -75,7 +79,7 @@ impl RedirectResponse<'_> {
 }
 
 impl RedirectResponse<'_> {
-    /// 已校验的绝对或上游接受的特殊目标。
+    /// 已通过响应头校验的重定向目标。
     pub fn target_url(&self) -> &str {
         &self.location
     }
@@ -89,9 +93,7 @@ impl RedirectResponse<'_> {
                 "需要完整 Request 才能 flash 输入",
             )
         })?;
-        self.info
-            .session()?
-            .flash_input_typed(request.input_all())?;
+        self.session()?.flash_input_typed(request.input_all())?;
         Ok(self)
     }
 
@@ -104,8 +106,7 @@ impl RedirectResponse<'_> {
                 "需要完整 Request 才能 flash 输入",
             )
         })?;
-        self.info
-            .session()?
+        self.session()?
             .flash_input_typed(request.input_only_for_redirect(keys)?)?;
         Ok(self)
     }
@@ -119,8 +120,7 @@ impl RedirectResponse<'_> {
                 "需要完整 Request 才能 flash 输入",
             )
         })?;
-        self.info
-            .session()?
+        self.session()?
             .flash_input_typed(request.input_except_for_redirect(keys)?)?;
         Ok(self)
     }
@@ -132,7 +132,7 @@ impl RedirectResponse<'_> {
         source: RedirectErrors<'_>,
         name: impl Into<ArrayKey>,
     ) -> Result<&mut Self> {
-        let session = self.info.session()?;
+        let session = self.session()?;
         match source {
             RedirectErrors::Provider(provider) => {
                 session.flash_errors(name, provider.message_bag())?;
@@ -150,6 +150,13 @@ impl RedirectResponse<'_> {
             }
         }
         Ok(self)
+    }
+
+    #[cfg(feature = "session")]
+    fn session(&self) -> Result<crate::session::Session> {
+        self.info
+            .ok_or_else(|| Error::custom("redirect_request_missing", "重定向未绑定请求"))?
+            .session()
     }
 }
 

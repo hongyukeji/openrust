@@ -187,7 +187,7 @@ impl<'r> Redirector<'r> {
             status,
             headers,
             #[cfg(feature = "session")]
-            self.info,
+            Some(self.info),
             #[cfg(feature = "session")]
             self.request,
         )
@@ -210,7 +210,7 @@ impl<'r> Redirector<'r> {
             status,
             headers,
             #[cfg(feature = "session")]
-            self.info,
+            Some(self.info),
             #[cfg(feature = "session")]
             self.request,
         )
@@ -247,7 +247,7 @@ impl<'r> Redirector<'r> {
             StatusCode::FOUND,
             HeaderMap::new(),
             #[cfg(feature = "session")]
-            self.info,
+            Some(self.info),
             #[cfg(feature = "session")]
             self.request,
         )

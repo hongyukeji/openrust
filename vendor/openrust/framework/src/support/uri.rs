@@ -2,6 +2,7 @@
 
 mod parse;
 mod query;
+mod response;
 pub use query::UriQueryString;
 
 use super::{Collection, DataObject, Htmlable, Stringable};

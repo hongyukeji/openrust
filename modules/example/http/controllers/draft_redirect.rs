@@ -11,6 +11,7 @@ use openrust::http::axum::http::{HeaderMap, HeaderValue, StatusCode};
 use openrust::http::axum::response::{IntoResponse, Response};
 use openrust::routing::Redirector;
 use openrust::routing::UrlGenerator;
+use openrust::support::Uri;
 
 /// 为固定草稿生成临时绝对与相对签名链接，同时展示 Redirector 包装入口。
 pub(crate) async fn signed_issue(
@@ -170,12 +171,17 @@ pub(crate) async fn action_submit(request: Request) -> Result<Response> {
 const DRAFT_GUIDE: &str = "https://laravel.com/docs/11.x/redirects?source=openrust&section=draft#redirecting-to-external-domains";
 
 /// 目标由业务常量指定，不读取请求中的任意外链地址。
-pub(crate) async fn guide(info: RequestInfo) -> Result<Response> {
+pub(crate) async fn guide() -> Result<Response> {
     let mut headers = HeaderMap::new();
     headers.insert("x-example-guide", HeaderValue::from_static("official"));
-    Ok(Redirector::from_info(&info)
-        .away_with(DRAFT_GUIDE, StatusCode::SEE_OTHER, headers)?
+    Ok(Uri::of(DRAFT_GUIDE)?
+        .redirect_with(StatusCode::SEE_OTHER, headers)?
         .into_response())
+}
+
+/// 直接返回 URI，按相对路径跳转到同模块指南。
+pub(crate) async fn guide_shortcut() -> Result<Uri> {
+    Uri::of("guide?from=shortcut&view=summary#intro")
 }
 
 /// 提交后刷新到同路径的 GET；刷新目标不携带本次 query。

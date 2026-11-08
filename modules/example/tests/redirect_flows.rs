@@ -600,6 +600,14 @@ async fn assert_action_flash<A: ApplicationDefinition>(app: &TestApp<A>) -> Test
 }
 
 async fn assert_public_refresh_and_guide<A: ApplicationDefinition>(app: &TestApp<A>) -> TestResult {
+    let shortcut = get(app, "/api/example/draft/guide-shortcut", None, None).await?;
+    shortcut.assert_status(StatusCode::FOUND)?;
+    assert_eq!(
+        shortcut.headers()[header::LOCATION],
+        "guide?from=shortcut&view=summary#intro"
+    );
+    assert!(!shortcut.headers().contains_key(header::SET_COOKIE));
+    assert!(std::str::from_utf8(shortcut.body())?.contains("from=shortcut&amp;view=summary"));
     let refreshed = post_refresh(app, None).await?;
     redirect(&refreshed, "/api/example/draft/refresh")?;
     let page = get(app, "/api/example/draft/refresh", None, None).await?;

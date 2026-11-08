@@ -234,6 +234,10 @@ fn draft_redirect_routes(routes: Router, capabilities: &RouteCapabilities) -> Ro
             "/api/example/draft/guide",
             controllers::draft_redirect::guide,
         )
+        .get(
+            "/api/example/draft/guide-shortcut",
+            controllers::draft_redirect::guide_shortcut,
+        )
         .group(draft_session_group(capabilities), |routes| {
             routes
                 .get(

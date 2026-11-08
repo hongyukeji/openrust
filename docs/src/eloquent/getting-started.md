@@ -172,9 +172,15 @@ SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象�
 `filter%5Bname%5D=%E4%B8%AD%E6%96%87%20%2B`。也可以整体替换、仅补缺失项、移除或追加。
 示例预览的 `record_preview_uri` 使用此入口构造查询。
 
+从 HTTP 处理器返回 `Uri` 会产生 302 重定向，原 URI 文本写入 `Location`，包括相对引用。
+`redirect()` 可显式取得响应，`redirect_with(status, headers)` 还能指定状态和响应头。
+这两种响应均不绑定请求或 Session。需要闪存时可从当前请求取得 `Redirector`。
+空 URI 无法作为重定向目标，直接从处理器返回空 URI 会产生服务器错误。
+自定义 `Cache-Control` 保留 `HeaderMap` 中的原值，Symfony 的指令重排另行对标。
+
 输入使用 Rust UTF-8 字符串。查询中的非 UTF-8 百分号序列可通过 `query().decode_bytes()` 读取，
 结构化读取和 UTF-8 解码遇到这类字节会报错。结构化操作有输入和展开大小限制。
-传入的模型路由参数需先取路由键。命名路由构造、响应构造和其余 `InteractsWithData` 辅助方法另有待办。
+传入的模型路由参数需先取路由键。命名路由构造和其余 `InteractsWithData` 辅助方法另有待办。
 国际化主机复用 Rust IDNA 实现，极端 IDNA 映射及 `mailto` 的完整 PHP 地址过滤规则仍有对标差距。
 
 #### Fluent 模型属性

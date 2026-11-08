@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Support Uri 支持显式重定向和作为路由处理器返回值直接转换为 302 响应。
+
 - Support Uri 支持不可变的协议、主机、凭据、端口、路径和片段变更。
 
 - Support UriQueryString 支持结构化查询读取和不可变变更，保留 RFC 3986 键名与稀疏索引语义。
