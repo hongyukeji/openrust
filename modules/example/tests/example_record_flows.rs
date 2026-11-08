@@ -355,7 +355,10 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         assert_cached_date_save(&app, id).await?;
         assert_cached_collection_save(&app, id).await?;
         #[cfg(feature = "encryption")]
-        assert_encrypted_collection_save(&app, id).await?;
+        {
+            assert_encrypted_collection_save(&app, id).await?;
+            assert_private_metadata(&app, &db, &token, &other_token, id).await?;
+        }
         Ok::<(), Box<dyn std::error::Error>>(())
     })
     .catch_unwind()
@@ -1031,6 +1034,82 @@ async fn assert_cached_collection_save(
 }
 
 #[cfg(feature = "encryption")]
+async fn assert_private_metadata(
+    app: &TestApp<crate::bootstrap::Server>,
+    db: &openrust::Db,
+    token: &str,
+    other_token: &str,
+    id: i64,
+) -> TestResult {
+    use crate::modules::example::models::example_record::record_query_db;
+    use openrust::database::sea_orm::Value;
+    use serde_json::json;
+
+    let path = format!("/api/example/records/{id}/private-metadata");
+    let input = json!({"label":"仅所有者可见","enabled":true});
+    app.request(request(Method::GET, &path, None, None)?)
+        .await?
+        .assert_status(StatusCode::UNAUTHORIZED)?;
+    app.request(request(Method::GET, &path, Some(token), None)?)
+        .await?
+        .assert_status(StatusCode::NOT_FOUND)?;
+    app.request(request(
+        Method::PUT,
+        &path,
+        Some(other_token),
+        Some(input.clone()),
+    )?)
+    .await?
+    .assert_status(StatusCode::NOT_FOUND)?;
+    app.request(request(
+        Method::PUT,
+        &path,
+        Some(token),
+        Some(input.clone()),
+    )?)
+    .await?
+    .assert_status(StatusCode::NO_CONTENT)?;
+    app.request(request(Method::GET, &path, Some(other_token), None)?)
+        .await?
+        .assert_status(StatusCode::NOT_FOUND)?;
+    let response = app
+        .request(request(Method::GET, &path, Some(token), None)?)
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    assert_eq!(
+        response.headers()[http::header::CACHE_CONTROL],
+        "private, no-store"
+    );
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["data"], input);
+
+    let db = record_query_db(db)?;
+    let query = db.table("example_records")?.where_eq("id", id)?;
+    let raw = query
+        .value::<String>("private_metadata")
+        .await?
+        .ok_or("缺少私有元数据密文")?;
+    let encrypter = app
+        .app()?
+        .state()
+        .resolve::<dyn openrust::encryption::ApplicationEncrypter>()
+        .await?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&encrypter.decrypt_string(&raw)?)?,
+        input
+    );
+    query
+        .update(vec![("private_metadata", Value::from("invalid payload"))])
+        .await?;
+    let response = app
+        .request(request(Method::GET, &path, Some(token), None)?)
+        .await?;
+    response.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
+    assert!(!String::from_utf8_lossy(response.body()).contains("invalid payload"));
+    Ok(())
+}
+
+#[cfg(feature = "encryption")]
 async fn assert_encrypted_collection_save(
     app: &TestApp<crate::bootstrap::Server>,
     id: i64,
@@ -1116,11 +1195,67 @@ async fn assert_encrypted_collection_save(
                 return Err("encrypted collection writeback did not reach the database".into());
             }
         }
+        assert_native_encrypted_save(&record, &db, &transaction, &context, &encrypter).await?;
         Ok(())
     }
     .await;
     transaction.rollback().await?;
     outcome
+}
+
+#[cfg(feature = "encryption")]
+async fn assert_native_encrypted_save(
+    record: &crate::modules::example::models::example_record::Model,
+    db: &openrust::Db,
+    transaction: &openrust::database::sea_orm::DatabaseTransaction,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+    encrypter: &std::sync::Arc<dyn openrust::encryption::ApplicationEncrypter>,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::database::{
+        eloquent::{AttributeCast, EncryptedCast, EncryptedCastKind, save_with_query},
+        sea_orm::EntityTrait,
+    };
+    use serde_json::json;
+
+    let id = record.id;
+    for (kind, value, expected) in [
+        (EncryptedCastKind::String, json!(true), "1"),
+        (
+            EncryptedCastKind::Json,
+            json!({"status":"native"}),
+            r#"{"status":"native"}"#,
+        ),
+    ] {
+        let mut model = example_record::RecordForSave::from_existing(record)?;
+        model.metadata.casts.insert(
+            "description".into(),
+            AttributeCast::Encrypted(EncryptedCast::new(kind, encrypter.clone())),
+        );
+        model.attributes.set_raw_attribute(
+            "description",
+            json!(encrypter.encrypt_string(br#""previous""#)?),
+        )?;
+        model.attributes.sync_original()?;
+        model
+            .attributes
+            .set_attribute(&model.metadata, "description", value)
+            .await?;
+        let query = db
+            .table(&model.metadata.table)?
+            .using_transaction(transaction);
+        if !save_with_query(&mut model, context, query).await? {
+            return Err("原生加密属性保存已取消".into());
+        }
+        let saved = example_record::Entity::find_by_id(id)
+            .one(transaction)
+            .await?
+            .ok_or("原生加密属性的数据库行缺失")?;
+        if encrypter.decrypt_string(&saved.description)? != expected.as_bytes() {
+            return Err("原生加密属性的保存结果与预期明文不符".into());
+        }
+    }
+    Ok(())
 }
 
 async fn attach_preview_category(
@@ -1318,7 +1453,8 @@ async fn assert_preview_schema(
             "enabled",
             "published_at",
             "metadata",
-            "category_id"
+            "category_id",
+            "private_metadata"
         ]
     );
     Ok(editable)

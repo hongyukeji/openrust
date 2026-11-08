@@ -17,7 +17,41 @@ impl MigratorTrait for Migrator {
             Box::new(CreateExampleTenantRecords),
             Box::new(CreateExampleRecordShowcase),
             Box::new(CreateExampleRecordCategoryLinks),
+            Box::new(AddExampleRecordPrivateMetadata),
         ]
+    }
+}
+
+struct AddExampleRecordPrivateMetadata;
+
+impl MigrationName for AddExampleRecordPrivateMetadata {
+    fn name(&self) -> &'static str {
+        "m20261108_000011_example_record_private_metadata"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for AddExampleRecordPrivateMetadata {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(ExampleRecords::Table)
+                    .add_column(ColumnDef::new(ExampleRecords::PrivateMetadata).text())
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(ExampleRecords::Table)
+                    .drop_column(ExampleRecords::PrivateMetadata)
+                    .to_owned(),
+            )
+            .await
     }
 }
 
@@ -226,6 +260,7 @@ enum ExampleRecords {
     Enabled,
     PublishedAt,
     Metadata,
+    PrivateMetadata,
     CategoryId,
 }
 

@@ -5,6 +5,7 @@ use crate::{
     database::eloquent::{
         AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,
         attribute_cast::{decode_associative_json, encode_array_json},
+        native_encrypted_cast::{decrypt, json_text},
     },
     encryption::ApplicationEncrypter,
     support::Collection,
@@ -73,18 +74,6 @@ impl EncryptedCollectionCast {
             .with_builtin_encrypted_comparison()
             .with_arrayable_projection()
     }
-
-    fn decrypt(&self, raw: &AttributeValue) -> Result<Zeroizing<Vec<u8>>> {
-        let ciphertext = raw.as_json()?.as_str().ok_or_else(|| {
-            Error::custom(
-                "model_encrypted_attribute_payload",
-                "加密属性原值必须为密文字符串",
-            )
-        })?;
-        self.encrypter
-            .decrypt_string(ciphertext)
-            .map(Zeroizing::new)
-    }
 }
 
 impl ClassCaster for EncryptedCollectionCast {
@@ -97,7 +86,7 @@ impl ClassCaster for EncryptedCollectionCast {
         let Some(raw) = raw.get(name).filter(|value| !value.is_null()) else {
             return Ok(Value::Null.into());
         };
-        let plaintext = self.decrypt(raw)?;
+        let plaintext = decrypt(&*self.encrypter, raw)?;
         let value = decode_associative_json(json_text(&plaintext))?;
         let value = match (self.shape, value) {
             (_, value @ (Value::Array(_) | Value::Object(_))) => value,
@@ -135,15 +124,10 @@ impl ClassCaster for EncryptedCollectionCast {
         if original.is_null() || !self.encrypter.previous_keys().is_empty() {
             return Ok(Some(false));
         }
-        let current = self.decrypt(current)?;
-        let original = self.decrypt(original)?;
+        let current = decrypt(&*self.encrypter, current)?;
+        let original = decrypt(&*self.encrypter, original)?;
         Ok(Some(current.as_slice() == original.as_slice()))
     }
-}
-
-fn json_text(plaintext: &[u8]) -> &str {
-    // PHP json_decode 对无效 UTF-8 返回 null。
-    std::str::from_utf8(plaintext).unwrap_or_default()
 }
 
 #[cfg(test)]

@@ -186,7 +186,10 @@ async fn check_generated_collection_cast() -> Result<()> {
 async fn check_generated_encrypted_collection() -> Result<()> {
     use figment::{Figment, providers::Serialized};
     use openrust::{
-        database::eloquent::{AsEncryptedArrayObject, ModelAttributes, ModelMetadata},
+        database::eloquent::{
+            AsEncryptedArrayObject, AttributeCast, EncryptedCast, EncryptedCastKind,
+            ModelAttributes, ModelMetadata,
+        },
         encryption::{ApplicationEncrypter, EncryptionServiceProvider},
         foundation::ProviderBuilder,
     };
@@ -218,7 +221,21 @@ async fn check_generated_encrypted_collection() -> Result<()> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| Error::custom("generated_encrypted_cast_missing", "缺少加密数组对象密文"))?;
     check(encrypter.decrypt_string(raw)? == br#"{"tag":"encrypted"}"#)?;
-    check(attributes.attributes_to_json(&metadata)?["data"] == json!({"tag":"encrypted"}))
+    check(attributes.attributes_to_json(&metadata)?["data"] == json!({"tag":"encrypted"}))?;
+    metadata.casts.insert(
+        "native_data".into(),
+        AttributeCast::Encrypted(EncryptedCast::new(EncryptedCastKind::Collection, encrypter)),
+    );
+    attributes
+        .set_attribute(&metadata, "native_data", json!(["native"]))
+        .await?;
+    attributes.sync_original()?;
+    attributes
+        .set_attribute(&metadata, "native_data", json!(["native"]))
+        .await?;
+    check(attributes.is_clean(&metadata, &["native_data"])?).and_then(|()| {
+        check(attributes.attributes_to_json(&metadata)?["native_data"] == json!(["native"]))
+    })
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

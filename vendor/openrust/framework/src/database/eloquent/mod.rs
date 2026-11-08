@@ -29,6 +29,10 @@ mod model;
 mod model_date_cast;
 pub use model_date_cast::ModelDateContext;
 mod model_events;
+#[cfg(feature = "encryption")]
+mod native_encrypted_cast;
+#[cfg(feature = "encryption")]
+pub use native_encrypted_cast::{EncryptedCast, EncryptedCastKind};
 mod model_object;
 pub use model_object::ModelObject;
 mod one_of_many;

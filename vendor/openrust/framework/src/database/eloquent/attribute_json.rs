@@ -31,6 +31,20 @@ pub(super) fn decode(text: &str) -> Result<Value> {
     assemble(&mut nodes, false)
 }
 
+#[cfg(feature = "encryption")]
+pub(super) fn decode_object(text: &str) -> Result<Value> {
+    let Some(mut nodes) = validate(text) else {
+        return Ok(Value::Null);
+    };
+    // PHP 对象属性不能以 NUL 开头，关联数组键仍允许。
+    if nodes.iter().any(|node| {
+        matches!(node, Node::Object(keys) if keys.iter().any(|(key, _)| key.starts_with('\0')))
+    }) {
+        return Ok(Value::Null);
+    }
+    assemble(&mut nodes, false)
+}
+
 pub(super) fn decode_associative(text: &str) -> Result<Value> {
     let Some(mut nodes) = validate(text) else {
         return Ok(Value::Null);

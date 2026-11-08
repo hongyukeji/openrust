@@ -95,6 +95,87 @@ pub(crate) async fn show(
     Ok(Json(model.into()))
 }
 
+#[cfg(feature = "encryption")]
+const PRIVATE_METADATA: &str = "private_metadata";
+
+#[cfg(feature = "encryption")]
+fn private_metadata_model(
+    encrypter: std::sync::Arc<dyn openrust::encryption::ApplicationEncrypter>,
+) -> openrust::database::eloquent::ModelMetadata {
+    use openrust::database::eloquent::{
+        AttributeCast, EncryptedCast, EncryptedCastKind, ModelMetadata,
+    };
+    let mut model = ModelMetadata::new("example_records", "RecordPrivateMetadata");
+    model.casts.insert(
+        PRIVATE_METADATA.into(),
+        AttributeCast::Encrypted(EncryptedCast::new(EncryptedCastKind::Json, encrypter)),
+    );
+    model
+}
+
+#[cfg(feature = "encryption")]
+pub(crate) async fn put_private_metadata(
+    user: CurrentUser,
+    Inject(db): Inject<Db>,
+    Inject(encrypter): Inject<dyn openrust::encryption::ApplicationEncrypter>,
+    Path(id): Path<i64>,
+    Json(input): Json<serde_json::Map<String, serde_json::Value>>,
+) -> Result<http::StatusCode> {
+    use openrust::database::{eloquent::ModelAttributes, sea_orm::Value};
+    let model = private_metadata_model(encrypter);
+    let attributes = ModelAttributes::default();
+    attributes
+        .set_attribute(&model, PRIVATE_METADATA, serde_json::Value::Object(input))
+        .await?;
+    let ciphertext = attributes
+        .raw_attribute(PRIVATE_METADATA)?
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .ok_or_else(|| {
+            Error::custom("example_private_metadata_missing", "示例私有元数据缺少密文")
+        })?;
+    let updated = record_query_db(&db)?
+        .table(&model.table)?
+        .where_eq("id", id)?
+        .where_eq("owner_id", user.integer_id()?)?
+        .update(vec![(PRIVATE_METADATA, Value::from(ciphertext))])
+        .await?;
+    if updated == 0 {
+        return Err(not_found());
+    }
+    Ok(http::StatusCode::NO_CONTENT)
+}
+
+#[cfg(feature = "encryption")]
+pub(crate) async fn get_private_metadata(
+    user: CurrentUser,
+    Inject(db): Inject<Db>,
+    Inject(encrypter): Inject<dyn openrust::encryption::ApplicationEncrypter>,
+    Path(id): Path<i64>,
+) -> Result<openrust::http::axum::response::Response> {
+    use openrust::http::axum::{
+        http::{HeaderValue, header},
+        response::IntoResponse,
+    };
+    let model = private_metadata_model(encrypter);
+    let raw = record_query_db(&db)?
+        .table(&model.table)?
+        .where_eq("id", id)?
+        .where_eq("owner_id", user.integer_id()?)?
+        .value::<Option<String>>(PRIVATE_METADATA)
+        .await?
+        .flatten()
+        .ok_or_else(not_found)?;
+    let value = model
+        .cast_attribute(PRIVATE_METADATA, Some(serde_json::Value::String(raw)))
+        .map_err(|_| Error::internal(std::io::Error::other("示例私有元数据的密文无效")))?;
+    let mut response = Json(value).into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
+}
+
 pub(crate) async fn store(
     user: CurrentUser,
     Inject(db): Inject<Db>,

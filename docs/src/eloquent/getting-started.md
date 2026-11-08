@@ -91,6 +91,21 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 `AsCollection::default().cast()` 使用标准 `Collection`。`AsCollection::using(factory)` 可提供实现 `CollectionCastValue` 的类型化集合工厂，`AsCollection::of(map)` 接收值与键并保留原键。`of_objects` 保留元素类型，并分别应用其模型数组和持久 JSON 投影。工厂或映射以 Rust 函数表示，替代 PHP 的运行时类名。示例记录预览用这两个 cast 计算元数据标签数量。默认赋值 null 写 JSON 文本 `null`，`AsArrayObject::nullable()` 与集合声明的 `nullable()` 改写 SQL NULL。
 
+### 原生加密属性
+
+启用 `encryption`，从应用状态解析 `dyn ApplicationEncrypter`，然后在模型的
+`metadata.casts` 声明 `AttributeCast::Encrypted(EncryptedCast::new(kind, encrypter))`。
+`EncryptedCastKind::String` 对应 Laravel 的 `encrypted`，其余
+`Array`、`Json`、`Object`、`Collection` 分别对应四种 `encrypted:…` JSON 转换。
+`Collection` 通过 `get_attribute_value` 返回独立集合，模型序列化会输出集合内容。
+
+建议使用 TEXT 列保存密文，空值仍存为 SQL NULL。读取可用历史密钥，赋值总用当前密钥。
+有历史密钥时，重新加密产生的不同密文视为已变更。无历史密钥时，标量比较明文，
+JSON 变体比较解码后的有序关联数组。Rust 标量字符串要求明文为有效 UTF-8。
+更新嵌套 JSON 时，先读取并修改完整值，再将完整值赋回属性。
+唯一示例的 `/api/example/records/{id}/private-metadata` 使用原生 JSON 加密转换读写专用列，
+按当前账户过滤记录，读取响应禁用缓存。
+
 ### 加密数组对象与集合
 
 启用 `encryption` 后从应用状态解析 `dyn ApplicationEncrypter`，交给 `AsEncryptedArrayObject::cast` 或 `AsEncryptedCollection::cast`。用 `AsEncryptedCollection::using` 可复用 `AsCollection` 的类型化工厂与映射。两者用 Laravel 字符串载荷保存 JSON，null 保持 SQL NULL。已加载对象按现有缓存规则回写。

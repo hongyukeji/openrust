@@ -707,6 +707,16 @@ fn article_routes(routes: Router, summary_enabled: bool, session_enabled: bool) 
         let api = api
             .put("/articles/{id}/private-note", article::put_private_note)
             .get("/articles/{id}/private-note", article::get_private_note);
+        #[cfg(feature = "encryption")]
+        let api = api
+            .put(
+                "/records/{id}/private-metadata",
+                controllers::example_record::put_private_metadata,
+            )
+            .get(
+                "/records/{id}/private-metadata",
+                controllers::example_record::get_private_metadata,
+            );
         #[cfg(feature = "signing")]
         let api = api
             .post("/articles/{id}/share", article::issue_share)

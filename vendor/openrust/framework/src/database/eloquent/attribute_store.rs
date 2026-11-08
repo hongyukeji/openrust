@@ -1053,6 +1053,8 @@ impl ModelAttributes {
                         .into_patch(name);
                     return Ok((patch, CacheRetention::KeepClasses, cache));
                 }
+                #[cfg(feature = "encryption")]
+                Some(AttributeCast::Encrypted(cast)) => cast.write(value)?,
                 Some(AttributeCast::Array) if !value.is_null() => {
                     Value::String(super::attribute_cast::encode_array_json(value.as_json()?)?)
                         .into()

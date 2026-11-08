@@ -39,6 +39,9 @@ pub enum AttributeCast {
     Timestamp,
     /// 由模型显式声明的自定义类转换。
     Class(ClassCast),
+    /// 原生加密属性；使用应用 Encrypter 处理持久密文。
+    #[cfg(feature = "encryption")]
+    Encrypted(super::EncryptedCast),
 }
 
 impl AttributeCast {
@@ -88,6 +91,8 @@ pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Resul
         return Ok(Some(Value::Null));
     }
     let value = match cast {
+        #[cfg(feature = "encryption")]
+        AttributeCast::Encrypted(cast) => cast.read(value.into())?.into_array_json()?,
         AttributeCast::Integer => {
             if let Value::Number(number) = &value
                 && number.as_i64().is_none()
@@ -172,6 +177,16 @@ pub(super) fn decode_object_cast_json(value: &Value) -> Result<Value> {
 
 pub(super) fn decode_associative_json(text: &str) -> Result<Value> {
     json::decode_associative(text)
+}
+
+#[cfg(feature = "encryption")]
+pub(super) fn associative_json_equivalent(left: &str, right: &str) -> Result<bool> {
+    json::equivalent(left, right)
+}
+
+#[cfg(feature = "encryption")]
+pub(super) fn decode_encrypted_object_json(text: &str) -> Result<Value> {
+    json::decode_object(text)
 }
 
 fn decode_array_json(text: &str) -> Result<Value> {

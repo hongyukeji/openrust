@@ -459,6 +459,10 @@ fn equivalent(
     {
         return Ok(equal);
     }
+    #[cfg(feature = "encryption")]
+    if let Some(AttributeCast::Encrypted(cast)) = &cast {
+        return cast.equivalent(&current, &original);
+    }
     let (Ok(current), Ok(original)) = (current.as_json(), original.as_json()) else {
         return Ok(false);
     };

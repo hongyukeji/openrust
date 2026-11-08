@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 新增原生加密标量及四种 JSON 转换，使用应用密钥与 Laravel 脏值语义。
+
 - Eloquent 新增加密数组对象与集合转换，复用应用加密器及密钥轮换语义。
 
 - Eloquent 新增 AsArrayObject 与 AsCollection，支持对象写回、键保留、集合映射和可选 SQL NULL。
