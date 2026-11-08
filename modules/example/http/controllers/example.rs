@@ -4,7 +4,7 @@ use super::super::resources::example::ExampleInfo;
 use crate::modules::example::services::{
     EXAMPLE_PRESENTER_ALIAS, ExampleMessage, GreetingPresenter,
 };
-use openrust::container::{ParameterKey, ParameterOverrides, ParameterValue, ServiceKey};
+use openrust::container::ServiceKey;
 use openrust::foundation::ApplicationState;
 use openrust::http::axum::{
     extract::State,
@@ -33,16 +33,8 @@ pub(crate) struct ExampleDomainParams {
 pub(crate) async fn show(
     State(app): State<ApplicationState>,
 ) -> openrust::Result<Json<ExampleInfo>> {
-    let mut parameters = ParameterOverrides::new();
-    let _ = parameters.insert(
-        ParameterKey::name("served_at"),
-        ParameterValue::new(chrono::Utc::now()),
-    );
     let presenter = app
-        .resolve_key_with::<dyn GreetingPresenter>(
-            ServiceKey::named(EXAMPLE_PRESENTER_ALIAS),
-            parameters,
-        )
+        .resolve_key::<dyn GreetingPresenter>(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))
         .await?;
     Ok(Json(ExampleInfo {
         message: presenter.text().to_owned(),

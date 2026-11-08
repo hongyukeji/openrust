@@ -103,6 +103,22 @@ impl<'a> RegisterContext<'a> {
 }
 
 impl RegisterContext<'_> {
+    /// 为指定消费类声明只在其构造参数期间使用的绑定。
+    pub fn when(
+        &self,
+        consumer: crate::container::ServiceKey,
+    ) -> Result<crate::container::ContextualBindingBuilder<'_>> {
+        self.container.when(consumer)
+    }
+
+    /// 为多个消费类声明同一上下文绑定。
+    pub fn when_many(
+        &self,
+        consumers: impl IntoIterator<Item = crate::container::ServiceKey>,
+    ) -> Result<crate::container::ContextualBindingBuilder<'_>> {
+        self.container.when_many(consumers)
+    }
+
     /// 即时注册子 Provider；返回前完成其 register，启动阶段不提前 boot。
     pub async fn register_provider<P: ServiceProvider>(
         &mut self,

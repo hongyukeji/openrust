@@ -6,12 +6,10 @@ use super::{
     ContainerBuilder, HashMap, HashSet, Lifetime, Resolver, Result, ServiceKey, State, TypeId,
     Value, container_error, lock,
 };
-#[cfg(test)]
 mod raw;
-#[cfg(test)]
 mod raw_delivery;
-#[cfg(test)]
-pub(super) use raw::{FactoryHandle, RawRecord};
+pub(super) use raw::RawRecord;
+pub use raw::{BindingSnapshot, FactoryHandle};
 
 #[derive(Default)]
 pub(super) struct AliasState {
@@ -107,6 +105,10 @@ impl AliasState {
             terminal,
             terminal_revision,
         })
+    }
+
+    pub(super) fn direct_aliases(&self, target: &ServiceKey) -> &[ServiceKey] {
+        self.reverse.get(target).map_or(&[], Vec::as_slice)
     }
 
     fn revision(&self, key: &ServiceKey) -> u64 {

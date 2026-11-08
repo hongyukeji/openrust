@@ -50,6 +50,21 @@ async fn production_log_services_coexist_with_normal_module_routes()
         assert!(!state.container().contains::<ExamplePresenter>());
         assert!(!state.container().contains::<dyn GreetingPresenter>());
         assert!(!state.container().resolved_key(&alias)?);
+        let message_binding = state
+            .container()
+            .get_bindings()?
+            .into_iter()
+            .find(|binding| binding.key == ServiceKey::typed::<ExampleMessage>())
+            .ok_or("示例问候语缺少原工厂")?;
+        assert!(message_binding.shared);
+        let original = message_binding
+            .concrete
+            .invoke::<ExampleMessage>(state.container().factory_resolver()?)
+            .await?;
+        let decorated = state.resolve::<ExampleMessage>().await?;
+        assert_eq!(original.text(), decorated.text());
+        assert_eq!(original.binding_extension(), None);
+        assert_eq!(decorated.binding_extension(), Some("module-provider"));
         let served_at =
             chrono::DateTime::from_timestamp(946_684_800, 0).ok_or("无法构造固定时间")?;
         let mut parameters = ParameterOverrides::new();
@@ -77,7 +92,10 @@ async fn production_log_services_coexist_with_normal_module_routes()
         response.assert_status(StatusCode::OK)?;
         let json: serde_json::Value = response.json()?;
         assert_eq!(json["data"]["message"], first.text());
-        assert!(json["data"]["served_at"].is_string());
+        let served = json["data"]["served_at"]
+            .as_str()
+            .ok_or("响应缺少呈现器时间")?;
+        assert_ne!(chrono::DateTime::parse_from_rfc3339(served)?, served_at);
         Ok(())
     }
     .await;

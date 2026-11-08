@@ -774,12 +774,10 @@ impl ResourceTaskCompletion {
     }
 }
 
-#[cfg(test)]
 struct ObservedTask<F> {
     task: Option<tokio::sync::oneshot::Receiver<F>>,
     completion: Option<ResourceTaskCompletion>,
 }
-#[cfg(test)]
 impl<F> Drop for ObservedTask<F> {
     fn drop(&mut self) {
         let credential = self.completion.as_ref().map(|completion| {
@@ -794,7 +792,6 @@ impl<F> Drop for ObservedTask<F> {
         }
     }
 }
-#[cfg(test)]
 impl<F> ObservedTask<F> {
     fn start<Fut>(mut self, cancel: Cancellation) -> ObservedFuture<impl Future<Output = ()>>
     where
@@ -818,13 +815,11 @@ impl<F> ObservedTask<F> {
         }
     }
 }
-#[cfg(test)]
 struct ObservedFuture<Fut> {
     future: Option<Pin<Box<Fut>>>,
     completion: Option<ResourceTaskCompletion>,
     interrupted: Arc<AtomicUsize>,
 }
-#[cfg(test)]
 impl<Fut> ObservedFuture<Fut> {
     fn finish(&mut self, interrupted: bool) {
         // 用户析构异常也不能把已经发入 channel 的候选结果当成成功。
@@ -843,13 +838,11 @@ impl<Fut> ObservedFuture<Fut> {
         }
     }
 }
-#[cfg(test)]
 impl<Fut> Drop for ObservedFuture<Fut> {
     fn drop(&mut self) {
         self.finish(false);
     }
 }
-#[cfg(test)]
 impl<Fut: Future<Output = ()>> Future for ObservedFuture<Fut> {
     type Output = ();
     fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<()> {
@@ -1007,7 +1000,6 @@ impl ResourceRegistrar {
     }
 
     /// raw交付引用的退役责任；sealed只可清理、不可执行新业务，take callbacks后拒绝登记。
-    #[cfg(test)]
     pub(crate) fn begin_reclaim(
         &self,
         reclaim: impl FnOnce(ResourceDisposalTicket) + Send + 'static,
@@ -1106,7 +1098,6 @@ impl ResourceRegistrar {
     }
 
     /// 登记受管任务并在 future/捕获已析构后完成框架清理栅栏。
-    #[cfg(test)]
     pub(crate) fn spawn_observed<F, Fut>(
         &self,
         completion: ResourceTaskCompletion,

@@ -1,14 +1,16 @@
 //! 描述符缺项沿真实 Resolver 构造，并由原 transient 索引跟踪。
 
 use super::{
-    Arc, BoxFuture, Error, Inner, Ordering, ResolveRequest, Resolver, Result, ServiceKey, State,
-    Value,
+    ActiveFactory, Arc, BoxFuture, Error, Inner, Ordering, ResolveRequest, Resolver, Result,
+    ServiceKey, State, Value,
     class_descriptor::{Argument, ClassKind, ConstructorParam, ParameterKind, PreparedConstructor},
     container_error,
+    contextual::ContextualImplementation,
     descriptor_source::DescriptorSource,
     extensions::DescriptorAttempt,
-    lock,
+    is_unresolvable_dependency, lock,
     parameters::ParameterValue,
+    unresolvable_dependency,
 };
 use crate::foundation::resources::{ResourceInlineOwner, ResourceInlineSlot, ResourceTaskFailure};
 use std::{
@@ -18,7 +20,7 @@ use std::{
 
 enum SelectedArgument {
     Value(ResourceInlineSlot<ParameterValue>),
-    EmptyVariadic,
+    Many(Vec<ResourceInlineSlot<ParameterValue>>),
 }
 
 impl SelectedArgument {
@@ -28,7 +30,15 @@ impl SelectedArgument {
                 .get_mut()
                 .map(|value| Argument::One(value.clone()))
                 .ok_or_else(missing_slot),
-            Self::EmptyVariadic => Ok(Argument::Many(Vec::new())),
+            Self::Many(slots) => slots
+                .iter_mut()
+                .map(|slot| {
+                    slot.get_mut()
+                        .map(|value| value.clone())
+                        .ok_or_else(missing_slot)
+                })
+                .collect::<Result<Vec<_>>>()
+                .map(Argument::Many),
         }
     }
 }
@@ -101,7 +111,8 @@ impl Resolver {
 
     fn descriptor_dependency(
         &self,
-        key: ServiceKey,
+        lookup: ServiceKey,
+        target: ServiceKey,
         erased_output: std::any::TypeId,
     ) -> BoxFuture<'_, Result<Value>> {
         let child = self.clone().for_new_lookup();
@@ -109,8 +120,8 @@ impl Resolver {
             child
                 .resolve_projected(
                     ResolveRequest::Typed {
-                        lookup: None,
-                        target: key,
+                        lookup: Some(lookup),
+                        target,
                         erased_output,
                     },
                     None,
@@ -189,13 +200,13 @@ impl DescriptorRun<'_> {
         if parameter.has_default() {
             self.default_value(parameter)
         } else if parameter.is_variadic() {
-            Ok(SelectedArgument::EmptyVariadic)
+            Ok(SelectedArgument::Many(Vec::new()))
         } else if parameter.allows_null() {
             self.owner()?
                 .slot(ParameterValue::null())
                 .map(SelectedArgument::Value)
         } else {
-            Err(container_error(
+            Err(unresolvable_dependency(
                 "container_parameter_missing",
                 format!("无法解析构造参数 `{}`", parameter.name()),
             ))
@@ -211,7 +222,11 @@ impl DescriptorRun<'_> {
         owner.slot(value).map(SelectedArgument::Value)
     }
 
-    async fn select_argument(&self, parameter: &ConstructorParam) -> Result<SelectedArgument> {
+    async fn select_argument(
+        &self,
+        consumer: &Resolver,
+        parameter: &ConstructorParam,
+    ) -> Result<SelectedArgument> {
         let owner = self.owner()?;
         if let Some(value) = self
             .caller
@@ -227,48 +242,170 @@ impl DescriptorRun<'_> {
             ParameterKind::Class {
                 key, erased_output, ..
             } => {
-                let (bound, missing) = self.claim(|state| {
-                    let bound = state.bound_key(key);
-                    let concrete = state
-                        .classes
-                        .class(key)
-                        .is_some_and(|class| class.kind() == ClassKind::Concrete);
-                    (bound, !bound && !concrete)
-                })?;
-                if parameter.has_default() && !bound {
+                let (use_default, services, missing) = self.claim(|state| {
+                    let consumer = self.source.key();
+                    let direct = state.contextual.get_service(consumer, key);
+                    let use_default =
+                        parameter.has_default() && !state.bound_key(key) && direct.is_none();
+                    if !parameter.is_variadic() {
+                        return Ok::<_, Error>((use_default, None, false));
+                    }
+                    let lookup = state.aliases.resolve(&state.classes.canonical_key(key))?;
+                    let contextual = state.contextual_implementation(consumer, &lookup);
+                    let missing = !state.bound_key(&lookup)
+                        && contextual.is_none()
+                        && state
+                            .classes
+                            .class(&lookup)
+                            .is_none_or(|class| class.kind() != ClassKind::Concrete);
+                    Ok((use_default, contextual.cloned(), missing))
+                })??;
+                if use_default {
                     return self.default_value(parameter);
                 }
-                if parameter.is_variadic() && missing {
-                    return Ok(SelectedArgument::EmptyVariadic);
+                if missing {
+                    return Ok(SelectedArgument::Many(Vec::new()));
                 }
                 self.start()?;
-                let mut value = self
-                    .poll_stage(
-                        self.child
-                            .descriptor_dependency(key.clone(), *erased_output),
-                    )
-                    .await?;
-                if parameter.is_variadic() {
-                    return Err(container_error(
-                        "container_constructor_variadic_invalid",
-                        "类变参需要有序依赖集合，单个解析值不能展开",
-                    ));
+                let selected = async {
+                    if let Some(implementation) = services
+                        && let Some(values) = self
+                            .resolve_many(consumer, implementation, key, *erased_output)
+                            .await?
+                    {
+                        return Ok(SelectedArgument::Many(values));
+                    }
+                    self.resolve_argument(consumer, key.clone(), key, *erased_output)
+                        .await
+                        .map(SelectedArgument::Value)
                 }
-                owner
-                    .slot(ParameterValue::from_erased(
-                        value.take().ok_or_else(missing_slot)?,
-                    ))
-                    .map(SelectedArgument::Value)
+                .await;
+                match selected {
+                    Err(error) if parameter.is_variadic() && is_unresolvable_dependency(&error) => {
+                        Ok(SelectedArgument::Many(Vec::new()))
+                    }
+                    _ => selected,
+                }
             }
-            ParameterKind::Scalar { .. } => self.select_ordinary_value(parameter),
+            ParameterKind::Scalar { .. } => self.select_parameter(consumer, parameter).await,
             #[cfg(test)]
-            ParameterKind::Untyped => self.select_ordinary_value(parameter),
+            ParameterKind::Untyped => self.select_parameter(consumer, parameter).await,
             #[cfg(test)]
             ParameterKind::Php(_) => Err(container_error(
                 "container_constructor_weak_frame_required",
                 "弱标量需要已选参数帧和诊断入口",
             )),
         }
+    }
+
+    async fn resolve_many(
+        &self,
+        consumer: &Resolver,
+        implementation: Arc<ContextualImplementation>,
+        target: &ServiceKey,
+        erased_output: std::any::TypeId,
+    ) -> Result<Option<Vec<ResourceInlineSlot<ParameterValue>>>> {
+        let owner = self.owner()?;
+        let mut implementation = owner.slot(implementation)?;
+        let mut closure = consumer.clone();
+        closure.build_consumer = None;
+        let (context, services) = match implementation.get_mut().ok_or_else(missing_slot)?.as_ref()
+        {
+            ContextualImplementation::Services(services) => (consumer, services.clone()),
+            ContextualImplementation::Tagged(tag) => {
+                let services = self.claim(|state| state.contextual.tagged_keys(tag).to_vec())?;
+                (&closure, services)
+            }
+            ContextualImplementation::FactoryMany { factory, output } => {
+                let projection = if *output == erased_output {
+                    None
+                } else {
+                    Some(
+                        self.claim(|state| {
+                            state.classes.output_projection(*output, target).cloned()
+                        })?
+                        .ok_or_else(|| {
+                            container_error(
+                                "service_type_mismatch",
+                                "上下文变参工厂声明输出与请求类型不同",
+                            )
+                        })?,
+                    )
+                };
+                let future = owner.run(|| factory(closure))?;
+                let mut values = self.poll_stage(future).await?;
+                let values = values.take().ok_or_else(missing_slot)?;
+                let mut slots = Vec::with_capacity(values.len());
+                let mut values = owner.slot(values.into_iter())?;
+                while let Some(value) = values.get_mut().and_then(Iterator::next) {
+                    let output = owner.run(|| {
+                        consumer.deliver_output(self.inner, value, projection.as_ref())
+                    })??;
+                    slots.push(owner.slot(ParameterValue::from_erased(output))?);
+                }
+                return Ok(Some(slots));
+            }
+            _ => return Ok(None),
+        };
+        let mut values = Vec::with_capacity(services.len());
+        for service in services {
+            values.push(
+                self.resolve_argument(context, service, target, erased_output)
+                    .await?,
+            );
+        }
+        Ok(Some(values))
+    }
+
+    async fn resolve_argument(
+        &self,
+        consumer: &Resolver,
+        lookup: ServiceKey,
+        target: &ServiceKey,
+        erased_output: std::any::TypeId,
+    ) -> Result<ResourceInlineSlot<ParameterValue>> {
+        let mut value = self
+            .poll_stage(consumer.descriptor_dependency(lookup, target.clone(), erased_output))
+            .await?;
+        self.owner()?.slot(ParameterValue::from_erased(
+            value.take().ok_or_else(missing_slot)?,
+        ))
+    }
+
+    async fn select_parameter(
+        &self,
+        consumer: &Resolver,
+        parameter: &ConstructorParam,
+    ) -> Result<SelectedArgument> {
+        let implementation = self.claim(|state| {
+            state
+                .contextual
+                .get_parameter(self.source.key(), parameter.name())
+                .cloned()
+        })?;
+        let Some(implementation) = implementation else {
+            return self.select_ordinary_value(parameter);
+        };
+        self.start()?;
+        let owner = self.owner()?;
+        let mut implementation = owner.slot(implementation)?;
+        let mut value = match implementation.get_mut().ok_or_else(missing_slot)?.as_ref() {
+            ContextualImplementation::Parameter(value) => owner.slot(value.clone())?,
+            ContextualImplementation::ParameterFactory(factory) => {
+                let future = owner.run(|| factory(consumer.clone()))?;
+                self.poll_stage(future).await?
+            }
+            _ => {
+                return Err(container_error(
+                    "container_contextual_need_invalid",
+                    "普通参数需要值来源",
+                ));
+            }
+        };
+        parameter.validate_value(value.get_mut().ok_or_else(missing_slot)?)?;
+        implementation.clear();
+        owner.check_cleanup()?;
+        Ok(SelectedArgument::Value(value))
     }
 
     async fn execute(
@@ -278,9 +415,15 @@ impl DescriptorRun<'_> {
     ) -> Result<Value> {
         let owner = self.owner()?;
         let mut arguments = Vec::new();
-        for parameter in prepared.parameters() {
-            self.claim(|_| ())?;
-            arguments.push(self.select_argument(parameter).await?);
+        {
+            let active = Arc::new(std::sync::atomic::AtomicBool::new(true));
+            let _frame = ActiveFactory(Arc::clone(&active));
+            let mut consumer = self.child.clone();
+            consumer.build_consumer = Some((self.source.key().clone(), active));
+            for parameter in prepared.parameters() {
+                self.claim(|_| ())?;
+                arguments.push(self.select_argument(&consumer, parameter).await?);
+            }
         }
         self.start()?;
         let mut value = owner.slot(owner.run(|| {
@@ -340,7 +483,7 @@ impl DescriptorRun<'_> {
         self.claim(|state| {
             owner.check_cleanup()?;
             let value = result.take().ok_or_else(missing_slot)?;
-            if self.caller.parameters.is_none() {
+            if self.caller.parameters.is_none() && self.source.contextual.is_none() {
                 state.resolved_history.insert(self.source.key().clone());
                 state.extensions.resolved.insert(self.attempt.key.clone());
             }

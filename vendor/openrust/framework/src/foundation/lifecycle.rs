@@ -259,12 +259,10 @@ where
 
 /// raw交付的单次诊断通知，不授予清理资格或给owner重复归账。
 #[derive(Clone)]
-#[cfg(test)]
 pub(crate) struct FutureFailure {
     failed: Arc<std::sync::atomic::AtomicBool>,
     observer: Arc<dyn Fn() + Send + Sync>,
 }
-#[cfg(test)]
 impl FutureFailure {
     pub(crate) fn new(observer: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
@@ -380,7 +378,6 @@ pub(crate) fn drop_isolated<T>(value: T) -> bool {
 }
 
 /// 框架持有的标准集合按原迭代次序逐项析构；有限独立异常不会展开剩余集合。
-#[cfg(test)]
 pub(crate) fn drop_all_isolated<T>(values: impl IntoIterator<Item = T>) -> usize {
     let mut failures = 0;
     for value in values {

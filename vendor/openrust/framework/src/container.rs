@@ -55,6 +55,12 @@ mod descriptor_resolve_tests;
 mod descriptor_source;
 use descriptor_source::BindingSource;
 mod directory;
+pub use directory::{BindingSnapshot, FactoryHandle};
+mod contextual;
+use contextual::ContextualBindings;
+pub use contextual::{
+    ContextualBindingBuilder, ContextualParameterBinding, ContextualServiceBinding,
+};
 mod parameters;
 use parameters::{ParameterFrame, ParameterView};
 pub use parameters::{ParameterKey, ParameterOverrides, ParameterValue};
@@ -66,6 +72,27 @@ fn container_error(code: &str, message: impl Into<String>) -> Error {
     Error::custom_with_status(http::StatusCode::INTERNAL_SERVER_ERROR, code, message)
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("容器依赖缺失或无法构造")]
+struct UnresolvableDependency;
+
+fn unresolvable_dependency(code: &str, message: impl Into<String>) -> Error {
+    Error::http_with_source(
+        http::StatusCode::INTERNAL_SERVER_ERROR,
+        code,
+        message,
+        UnresolvableDependency,
+    )
+}
+
+fn is_unresolvable_dependency(error: &Error) -> bool {
+    match error {
+        Error::HttpWithSource { source, .. } => source.is::<UnresolvableDependency>(),
+        Error::ServiceInitialization { source, .. } => is_unresolvable_dependency(source),
+        _ => false,
+    }
+}
+
 fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value
         .lock()
@@ -73,13 +100,11 @@ fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 /// raw入参仅由本持有者交给Resolver；已知独立entries在任何退役路径均逐项释放。
-#[cfg(test)]
 struct FactoryParameters {
     overrides: ParameterOverrides,
     owner: Option<ResourceRegistrar>,
     completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
 }
-#[cfg(test)]
 impl FactoryParameters {
     fn empty() -> Self {
         Self {
@@ -89,7 +114,6 @@ impl FactoryParameters {
         }
     }
 }
-#[cfg(test)]
 impl Drop for FactoryParameters {
     fn drop(&mut self) {
         use crate::foundation::lifecycle::disposal::{self, Credential};
@@ -129,12 +153,10 @@ impl Drop for FactoryParameters {
     }
 }
 
-#[cfg(test)]
 struct PreviousFactoryInputs {
     parameters: Arc<FactoryParameters>,
     completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
 }
-#[cfg(test)]
 impl PreviousFactoryInputs {
     fn dispose(
         self,
@@ -262,6 +284,7 @@ pub struct ContainerBuilder {
     bindings: HashMap<ServiceKey, Binding>,
     binding_order: Vec<ServiceKey>,
     aliases: directory::AliasState,
+    contextual: ContextualBindings,
     classes: Arc<ClassRegistry>,
     extensions: ExtensionState,
     config: Option<ConfigRepository>,
@@ -346,6 +369,7 @@ impl ContainerBuilder {
                     bindings: self.bindings,
                     binding_order: self.binding_order,
                     aliases: self.aliases,
+                    contextual: self.contextual,
                     classes: self.classes,
                     extensions: self.extensions,
                     ..State::default()
@@ -402,8 +426,8 @@ struct State {
     binding_order: Vec<ServiceKey>,
     resolved_history: HashSet<ServiceKey>,
     aliases: directory::AliasState,
+    contextual: ContextualBindings,
     classes: Arc<ClassRegistry>,
-    #[cfg(test)]
     raw_attempts: HashMap<u64, directory::RawRecord>,
     root_raw_close: Option<RootRawClose>,
     termination: Arc<ScopeStatus>,
@@ -501,6 +525,7 @@ struct Failure {
     code: &'static str,
     message: String,
     source: Option<(ServiceKey, Arc<Error>)>,
+    unresolvable: bool,
 }
 
 impl Failure {
@@ -510,26 +535,31 @@ impl Failure {
                 code: "service_not_bound",
                 message: error.to_string(),
                 source: None,
+                unresolvable: is_unresolvable_dependency(&error),
             },
             "service_cycle" => Failure {
                 code: "service_cycle",
                 message: error.to_string(),
                 source: None,
+                unresolvable: false,
             },
             "captive_scope_dependency" => Failure {
                 code: "captive_scope_dependency",
                 message: error.to_string(),
                 source: None,
+                unresolvable: false,
             },
             "scope_closed" => Failure {
                 code: "scope_closed",
                 message: error.to_string(),
                 source: None,
+                unresolvable: false,
             },
             _ => Failure {
                 code: "service_initialization_failed",
                 message: String::new(),
                 source: Some((service.clone(), Arc::new(error))),
+                unresolvable: false,
             },
         }
     }
@@ -540,6 +570,8 @@ impl Failure {
                 service: crate::core::error::ServiceIdentity::from_name(service.identity()),
                 source: Arc::clone(source),
             }
+        } else if self.unresolvable {
+            unresolvable_dependency(self.code, self.message.clone())
         } else {
             Error::custom_with_status(
                 http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -621,6 +653,7 @@ impl Drop for Construction {
                 code: "service_initialization_cancelled",
                 message: "服务构造已取消；后续独立解析可重试".into(),
                 source: None,
+                unresolvable: false,
             }));
         }
     }
@@ -1093,7 +1126,6 @@ impl Container {
             let termination = Arc::clone(&state.termination);
             if state.root_raw_close.is_none() {
                 let pending = state.extensions.descriptor_completions();
-                #[cfg(test)]
                 let pending = state
                     .raw_attempts
                     .values()
@@ -1198,7 +1230,7 @@ impl Container {
             closed,
             resources: Some(resources),
             parameters: None,
-            #[cfg(test)]
+            build_consumer: None,
             factory_parameters: Arc::new(FactoryParameters::empty()),
             factory_completion: None,
         }
@@ -1442,6 +1474,7 @@ fn close_scope(state: &mut State, scope: u64, resources: &ResourceRegistrar) -> 
                 code: "scope_closed",
                 message: "生命周期已关闭".into(),
                 source: None,
+                unresolvable: false,
             }));
         }
     }
@@ -1505,7 +1538,7 @@ pub struct Resolver {
     closed: Arc<ScopeStatus>,
     resources: Option<ResourceRegistrar>,
     parameters: Option<ParameterView>,
-    #[cfg(test)]
+    build_consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
     factory_parameters: Arc<FactoryParameters>,
     factory_completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
 }
@@ -1517,9 +1550,13 @@ impl Resolver {
     /// 避免绕过构造环与生命周期约束。不保活应用，根关闭后仍拒绝解析。
     pub async fn resolve_root<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         if self
-            .chain
-            .iter()
-            .any(|(_, active)| active.load(Ordering::Acquire))
+            .constructing
+            .as_ref()
+            .is_some_and(|(_, active)| active.load(Ordering::Acquire))
+            || self
+                .chain
+                .iter()
+                .any(|(_, active)| active.load(Ordering::Acquire))
         {
             return Err(container_error(
                 "root_resolution_during_construction",
@@ -1557,7 +1594,6 @@ impl Resolver {
     }
 
     /// 先从新调用的Resolver取走旧引用，交给已登记frame的构造清理责任后实际释放。
-    #[cfg(test)]
     fn take_factory_inputs(&mut self) -> PreviousFactoryInputs {
         PreviousFactoryInputs {
             parameters: std::mem::replace(
@@ -1623,17 +1659,35 @@ impl Resolver {
 
     /// 复制本次工厂或装饰器可见的显式参数。调用结束后的上下文返回空集合。
     pub fn parameters(&self) -> ParameterOverrides {
+        if self.factory_parameters.owner.is_some() {
+            return if self
+                .factory_parameters
+                .completion
+                .as_ref()
+                .and_then(
+                    crate::foundation::resources::ResourceTaskCompletion::finished_interrupted,
+                )
+                .is_some()
+            {
+                ParameterOverrides::new()
+            } else {
+                self.factory_parameters.overrides.clone()
+            };
+        }
         self.parameters
             .as_ref()
             .map_or_else(ParameterOverrides::new, ParameterView::snapshot)
     }
 
+    fn active_consumer_frame(&self) -> Option<&(ServiceKey, Arc<AtomicBool>)> {
+        self.build_consumer
+            .as_ref()
+            .filter(|(_, active)| active.load(Ordering::Acquire))
+    }
+
     fn for_new_lookup(mut self) -> Self {
         self.parameters = None;
-        #[cfg(test)]
-        {
-            self.factory_parameters = Arc::new(FactoryParameters::empty());
-        }
+        self.factory_parameters = Arc::new(FactoryParameters::empty());
         self.factory_completion = None;
         self
     }
@@ -1716,7 +1770,7 @@ impl Resolver {
     }
 
     fn missing_service(&self, key: &ServiceKey) -> Error {
-        container_error(
+        unresolvable_dependency(
             "service_not_bound",
             format!("未绑定服务：{}", self.dependency_path(key)),
         )
@@ -1752,6 +1806,7 @@ impl Resolver {
                     key,
                     binding,
                     aliases,
+                    contextual: None,
                 }),
                 None => ConstructionSource::Missing(key),
             },
@@ -1769,13 +1824,20 @@ impl Resolver {
             use descriptor_source::ConstructionSource;
             let source = {
                 let state = lock(&inner.state);
-                let selected = if expected.is_none()
-                    && request.target().is_some()
-                    && state.classes.has_descriptors()
-                {
-                    state.construction_source(requested, self)?
+                let contextual = if expected.is_none() && self.active_consumer_frame().is_some() {
+                    state.contextual_source(requested, self, request)?
                 } else {
-                    self.binding_source(&state, requested, expected)?
+                    None
+                };
+                let selected = match contextual {
+                    Some(source) => source,
+                    None if expected.is_none()
+                        && request.target().is_some()
+                        && state.classes.has_descriptors() =>
+                    {
+                        state.construction_source(requested, self)?
+                    }
+                    None => self.binding_source(&state, requested, expected)?,
                 };
                 #[cfg(test)]
                 if matches!(&selected, ConstructionSource::Binding(_)) {

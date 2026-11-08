@@ -1,7 +1,7 @@
 //! 通过 `ServiceProvider` 装配本模块业务。
 
 use openrust::Result;
-use openrust::container::ServiceKey;
+use openrust::container::{ParameterValue, ServiceKey};
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
@@ -282,6 +282,11 @@ impl ServiceProvider for ExampleServiceProvider {
                 ServiceKey::named(EXAMPLE_PRESENTER_CLASS),
                 ServiceKey::named(EXAMPLE_PRESENTER_ALIAS),
             )?;
+            app.when(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))?
+                .needs_parameter("served_at")
+                .give_parameter_factory(|_| {
+                    Box::pin(async { Ok(ParameterValue::new(chrono::Utc::now())) })
+                })?;
             #[cfg(feature = "auth-fortify")]
             register_fortify_views(app).await?;
             app.singleton_if::<ExampleMessage, _>(|resolver| {

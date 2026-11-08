@@ -102,8 +102,9 @@ impl ConstructorParam {
         self
     }
 
-    #[cfg(test)]
-    pub(super) fn variadic(mut self) -> Self {
+    /// 声明构造器末尾接收零项或多项的同类型实参。
+    #[must_use]
+    pub fn variadic(mut self) -> Self {
         self.variadic = true;
         self
     }
@@ -297,8 +298,8 @@ impl<'a> ResolvedArgs<'a> {
         }
     }
 
-    #[cfg(test)]
-    pub(super) fn values(&self, index: usize) -> Result<&[ParameterValue]> {
+    /// 借用变参槽的有序实参。显式单值覆盖视为一项。
+    pub fn values(&self, index: usize) -> Result<&[ParameterValue]> {
         let (parameter, argument) = self.slot(index)?;
         if !parameter.variadic {
             return Err(argument_shape());
@@ -433,7 +434,7 @@ impl ClassRecord {
 
     fn prepare(&self, output: &ServiceKey) -> Result<PreparedConstructor<'_>> {
         let constructor = self.constructor.as_ref().ok_or_else(|| {
-            container_error(
+            super::unresolvable_dependency(
                 "container_class_not_instantiable",
                 "抽象类或接口不能直接构造",
             )
@@ -569,7 +570,7 @@ impl ClassRegistry {
         output: &ServiceKey,
     ) -> Result<PreparedConstructor<'_>> {
         let class = self.class(key).ok_or_else(|| {
-            container_error("container_class_missing", "类未在本次编译目录中声明")
+            super::unresolvable_dependency("container_class_missing", "类未在本次编译目录中声明")
         })?;
         class.prepare(&self.identities.canonical_key(output))
     }

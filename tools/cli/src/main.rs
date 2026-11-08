@@ -1071,9 +1071,7 @@ fn populate_project_with_features(
         ),
         (
             "app/providers/app.rs",
-            include_str!("../templates/app/providers/app.rs").replace("{{auth_register}}", if auth { r#"    fn register<'a>(&'a self, app: &'a mut openrust::foundation::RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            if !app.is_bound::<openrust::auth::AuthDrivers>() { return Ok(()); }
+            include_str!("../templates/app/providers/app.rs").replace("{{auth_register}}", if auth { r#"            if !app.is_bound::<openrust::auth::AuthDrivers>() { return Ok(()); }
             let drivers = app.resolve::<openrust::auth::AuthDrivers>().await?;
             drivers.provider("app-users", |resolver, config| Box::pin(async move {
                 let table = config.options.get("table").and_then(serde_json::Value::as_str).ok_or_else(|| openrust::Error::custom_with_status(openrust::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR, "app_user_table_required", "应用账户Provider需要table"))?;
@@ -1107,10 +1105,6 @@ fn populate_project_with_features(
                     });
                 Ok(std::sync::Arc::new(provider) as std::sync::Arc<dyn openrust::auth::UserProvider>)
             }))?;
-            Ok(())
-        })
-    }
-
 "# } else { "" }),
         ),
         ("app/services/mod.rs", "//! 应用服务。\n".to_owned()),

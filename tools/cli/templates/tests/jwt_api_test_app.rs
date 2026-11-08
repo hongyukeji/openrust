@@ -29,7 +29,7 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
-use openrust::container::{ParameterKey, ParameterValue, ServiceKey};
+use openrust::container::{ParameterKey, ParameterOverrides, ParameterValue, ServiceKey};
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
@@ -233,6 +233,15 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
     let second = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
     assert!(!Arc::ptr_eq(&first, &second));
+    assert_eq!(
+        first
+            .response()
+            .data
+            .as_ref()
+            .and_then(|data| data.get("name"))
+            .map(String::as_str),
+        Some("configured-application"),
+    );
     let startup_name = app.app()?.config().app.name.clone();
     app.app()?
         .config_repository()
@@ -252,6 +261,16 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         "运行期名称"
     );
     assert_eq!(app.app()?.config().app.name, startup_name);
+    let live_presenter = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
+    assert_eq!(
+        live_presenter
+            .response()
+            .data
+            .as_ref()
+            .and_then(|data| data.get("name"))
+            .map(String::as_str),
+        Some("运行期名称"),
+    );
     let api = app
         .request(Request::get("/api").body(Body::empty())?)
         .await?;
@@ -347,6 +366,37 @@ async fn assert_parameterized_home_factory_preserves_scope(
     }
     let after_requests = state.resolve_key::<dyn HomeResponse>(symbol).await?;
     assert!(Arc::ptr_eq(&projected_root, &after_requests));
+
+    let container = state.container();
+    let binding = container
+        .get_bindings()?
+        .into_iter()
+        .find(|binding| binding.key == ServiceKey::typed::<HomePresenter>())
+        .ok_or("生成应用缺少呈现器的原工厂")?;
+    assert!(binding.shared);
+    let scope = container.scope()?;
+    let mut arguments = ParameterOverrides::new();
+    let _ = arguments.insert(
+        ParameterKey::name(HomePresenter::NAME_PARAMETER),
+        ParameterValue::new(String::from("直接调用")),
+    );
+    let raw = binding
+        .concrete
+        .invoke_with::<HomePresenter>(scope.factory_resolver()?, arguments)
+        .await?;
+    assert_eq!(
+        raw
+            .response()
+            .data
+            .as_ref()
+            .and_then(|data| data.get("name"))
+            .map(String::as_str),
+        Some("直接调用"),
+    );
+    assert_eq!(scope_constructions.load(Ordering::Relaxed), 4);
+    scope
+        .shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     Ok(())
 }
 

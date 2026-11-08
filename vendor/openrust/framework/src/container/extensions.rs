@@ -81,12 +81,10 @@ tokio::task_local! {
 }
 
 // raw Closure 的受管执行仍携带本容器的装饰上下文，避免跨 task 丢失递归边界。
-#[cfg(test)]
 pub(super) fn extension_context() -> Vec<(usize, CacheKey, u64)> {
     EXTENDING.try_with(Clone::clone).unwrap_or_default()
 }
 
-#[cfg(test)]
 pub(super) async fn with_extension_context<F: std::future::Future>(
     stack: Vec<(usize, CacheKey, u64)>,
     future: F,
@@ -96,6 +94,7 @@ pub(super) async fn with_extension_context<F: std::future::Future>(
 
 enum TransientSource {
     Binding(u64),
+    Contextual,
     Descriptor {
         revision: u64,
         completion: ResourceTaskCompletion,
@@ -175,7 +174,7 @@ impl ExtensionState {
             .values()
             .flatten()
             .filter_map(|record| match &record.source {
-                TransientSource::Binding(_) => None,
+                TransientSource::Binding(_) | TransientSource::Contextual => None,
                 TransientSource::Descriptor { completion, .. } => Some(completion.clone()),
             })
     }
@@ -341,6 +340,7 @@ impl Operation {
                 code: "binding_replaced",
                 message: "服务绑定已更换；等待操作重新准入".into(),
                 source: None,
+                unresolvable: false,
             }));
         }
         drop(outcome);
@@ -589,7 +589,9 @@ impl Resolver {
                 .factory
                 .as_ref()
                 .ok_or_else(|| container_error("service_not_bound", "服务没有工厂或实例"))?;
-            factory(self.clone()).await?
+            let mut closure = self.clone();
+            closure.build_consumer = None;
+            factory(closure).await?
         };
         for extender in chain {
             value = (extender.0)(value, self.clone()).await?;
@@ -639,7 +641,11 @@ impl Resolver {
                         .entry(key.clone())
                         .or_default()
                         .push(TransientAttempt {
-                            source: TransientSource::Binding(binding.generation),
+                            source: if source.contextual.is_some() {
+                                TransientSource::Contextual
+                            } else {
+                                TransientSource::Binding(binding.generation)
+                            },
                             attempt: Arc::clone(&attempt),
                         });
                     let edge = self.wait_edge(&inner, &mut state, &attempt)?;
@@ -657,7 +663,7 @@ impl Resolver {
             generation: binding.generation,
             activity,
             closed: Arc::clone(&self.closed),
-            record_history: self.parameters.is_none(),
+            record_history: self.parameters.is_none() && source.contextual.is_none(),
             finished: false,
         };
         child.constructing = Some((attempt.id, Arc::clone(&guard.activity)));
@@ -857,6 +863,7 @@ impl Drop for TransientGuard {
                 code: "service_initialization_cancelled",
                 message: "服务构造已取消".into(),
                 source: None,
+                unresolvable: false,
             }));
         }
     }

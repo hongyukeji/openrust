@@ -1,7 +1,7 @@
 //! 示例问候内容，展示模块配置与同一容器中的业务依赖替换。
 
 use chrono::{DateTime, Utc};
-use openrust::container::{ClassDescriptor, ConstructorParam, ParameterValue};
+use openrust::container::{ClassDescriptor, ConstructorParam};
 use std::sync::Arc;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -124,8 +124,7 @@ pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
         EXAMPLE_PRESENTER_CLASS,
         vec![
             ConstructorParam::class::<ExampleMessage>("message"),
-            ConstructorParam::scalar::<DateTime<Utc>>("served_at")
-                .with_default(|| Ok(ParameterValue::new(Utc::now()))),
+            ConstructorParam::scalar::<DateTime<Utc>>("served_at"),
         ],
         |args| {
             Ok(Arc::new(ExamplePresenter {

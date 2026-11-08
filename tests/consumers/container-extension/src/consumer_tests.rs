@@ -2,7 +2,8 @@
 
 use openrust::class_projection;
 use openrust::container::{
-    ClassDescriptor, ContainerBuilder, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+    ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey, ParameterOverrides,
+    ParameterValue, ServiceKey,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::Barrier;
@@ -52,6 +53,341 @@ async fn external_conditional_factory_receives_only_current_named_parameters()
         &shared,
         &container.resolve_key::<String>(key).await?
     ));
+    Ok(())
+}
+
+struct ContextualGreeting;
+
+impl Greeting for ContextualGreeting {
+    fn value(&self) -> String {
+        "当前消费者".to_owned()
+    }
+}
+
+struct FactoryDependency(Arc<dyn Greeting>);
+struct Report {
+    selected: Arc<dyn Greeting>,
+    nested: Arc<dyn Greeting>,
+}
+
+#[tokio::test]
+async fn contextual_redirect_uses_projected_alias_and_bypasses_shared_abstract()
+-> openrust::Result<()> {
+    let abstract_key = ServiceKey::typed::<dyn Greeting>();
+    let abstract_alias = ServiceKey::named("consumer.greeting.need");
+    let concrete = ServiceKey::typed::<ContextualGreeting>();
+    let concrete_alias = ServiceKey::named("consumer.greeting.contextual");
+    let consumer_alias = ServiceKey::named("consumer.report");
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<ContextualGreeting>(
+            "consumer::ContextualGreeting",
+            vec![],
+            |_| Ok(Arc::new(ContextualGreeting)),
+        )
+        .with_projection(class_projection!(ContextualGreeting => dyn Greeting)),
+        ClassDescriptor::concrete::<Report>(
+            "consumer::Report",
+            vec![
+                ConstructorParam::class::<dyn Greeting>("selected"),
+                ConstructorParam::class::<FactoryDependency>("nested"),
+            ],
+            |args| {
+                Ok(Arc::new(Report {
+                    selected: args.service::<dyn Greeting>(0)?,
+                    nested: Arc::clone(&args.service::<FactoryDependency>(1)?.0),
+                }))
+            },
+        ),
+    ])?;
+    builder.alias(abstract_key.clone(), abstract_alias.clone())?;
+    builder.alias(concrete, concrete_alias.clone())?;
+    builder.alias(ServiceKey::typed::<Report>(), consumer_alias.clone())?;
+    builder.singleton::<ContextualGreeting, _>(|_| {
+        Box::pin(async { Ok(Arc::new(ContextualGreeting)) })
+    });
+    builder.singleton::<dyn Greeting, _>(|_| {
+        Box::pin(async { Ok(Arc::new(BaseGreeting) as Arc<dyn Greeting>) })
+    });
+    builder.bind::<FactoryDependency, _>(|resolver| {
+        Box::pin(async move {
+            Ok(Arc::new(FactoryDependency(
+                resolver.resolve::<dyn Greeting>().await?,
+            )))
+        })
+    });
+    builder
+        .when(consumer_alias.clone())?
+        .needs(abstract_alias)
+        .give(concrete_alias.clone())?;
+    let container = builder.build();
+    let ordinary = container.resolve::<dyn Greeting>().await?;
+    let selected: Arc<dyn Greeting> = container.resolve::<ContextualGreeting>().await?;
+    for _ in 0..2 {
+        let report = container
+            .resolve_key::<Report>(consumer_alias.clone())
+            .await?;
+        assert_eq!(report.selected.value(), "当前消费者");
+        assert!(Arc::ptr_eq(&report.selected, &selected));
+        assert!(Arc::ptr_eq(&report.nested, &ordinary));
+    }
+    assert!(Arc::ptr_eq(
+        &ordinary,
+        &container.resolve::<dyn Greeting>().await?
+    ));
+    Ok(())
+}
+
+struct ConfiguredReport(Option<Arc<String>>, Arc<dyn Greeting>);
+
+#[tokio::test]
+async fn contextual_rules_precede_defaults_but_explicit_null_precedes_context()
+-> openrust::Result<()> {
+    let consumer = ServiceKey::typed::<ConfiguredReport>();
+    let abstract_key = ServiceKey::typed::<dyn Greeting>();
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![ClassDescriptor::concrete::<
+        ConfiguredReport,
+    >(
+        "consumer::ConfiguredReport",
+        vec![
+            ConstructorParam::scalar::<String>("title")
+                .nullable()
+                .with_default(|| Ok(ParameterValue::new(String::from("默认标题")))),
+            ConstructorParam::class::<dyn Greeting>("message").with_default(|| {
+                Ok(ParameterValue::new(
+                    Arc::new(BaseGreeting) as Arc<dyn Greeting>
+                ))
+            }),
+        ],
+        |args| {
+            let title = args.value(0)?;
+            let title = if title.is_null() {
+                None
+            } else {
+                Some(title.downcast::<String>()?)
+            };
+            Ok(Arc::new(ConfiguredReport(
+                title,
+                args.service::<dyn Greeting>(1)?,
+            )))
+        },
+    )])?;
+    builder
+        .when(consumer.clone())?
+        .needs(abstract_key.clone())
+        .give_factory::<dyn Greeting, _>(|_| {
+            Box::pin(async { Ok(Arc::new(ContextualGreeting) as Arc<dyn Greeting>) })
+        })?;
+    builder
+        .when(consumer)?
+        .needs_parameter("title")
+        .give_value(ParameterValue::new(String::from("上下文标题")))?;
+    let container = builder.build();
+    let contextual = container.resolve::<ConfiguredReport>().await?;
+    assert_eq!(
+        contextual.0.as_deref().map(String::as_str),
+        Some("上下文标题")
+    );
+    assert_eq!(contextual.1.value(), "当前消费者");
+    assert!(!container.resolved_key(&abstract_key)?);
+
+    let mut parameters = ParameterOverrides::new();
+    let _ = parameters.insert(ParameterKey::name("title"), ParameterValue::null());
+    let explicit = container
+        .resolve_with::<ConfiguredReport>(parameters)
+        .await?;
+    assert!(explicit.0.is_none());
+    assert_eq!(explicit.1.value(), "当前消费者");
+    assert!(!container.resolved_key(&abstract_key)?);
+    Ok(())
+}
+
+struct Channels(Vec<Arc<dyn Greeting>>);
+
+#[tokio::test]
+async fn contextual_variadic_resolves_every_key_in_declared_order() -> openrust::Result<()> {
+    let first = ServiceKey::named("consumer.channel.first");
+    let second = ServiceKey::named("consumer.channel.second");
+    let consumer = ServiceKey::typed::<Channels>();
+    let dependency = ServiceKey::typed::<dyn Greeting>();
+    let mut builder =
+        ContainerBuilder::with_class_descriptors(vec![ClassDescriptor::concrete::<Channels>(
+            "consumer::Channels",
+            vec![ConstructorParam::class::<dyn Greeting>("channels").variadic()],
+            |args| {
+                let channels = args
+                    .values(0)?
+                    .iter()
+                    .map(|value| {
+                        value
+                            .downcast::<Arc<dyn Greeting>>()
+                            .map(|arc| Arc::clone(arc.as_ref()))
+                    })
+                    .collect::<openrust::Result<Vec<_>>>()?;
+                Ok(Arc::new(Channels(channels)))
+            },
+        )])?;
+    builder.bind_key::<dyn Greeting, _>(first.clone(), |_| {
+        Box::pin(async { Ok(Arc::new(BaseGreeting) as Arc<dyn Greeting>) })
+    });
+    builder.bind_key::<dyn Greeting, _>(second.clone(), |_| {
+        Box::pin(async { Ok(Arc::new(ContextualGreeting) as Arc<dyn Greeting>) })
+    });
+    builder
+        .when(consumer.clone())?
+        .needs(dependency.clone())
+        .give_many([second.clone(), first.clone(), second.clone()])?;
+    let container = builder.build();
+    let channels = container.resolve::<Channels>().await?;
+    assert_eq!(
+        channels
+            .0
+            .iter()
+            .map(|channel| channel.value())
+            .collect::<Vec<_>>(),
+        ["当前消费者", "hello", "当前消费者"]
+    );
+    container.tag([first, second], ["channels"])?;
+    container
+        .when(consumer.clone())?
+        .needs(dependency.clone())
+        .give_tagged("channels")?;
+    let channels = container.resolve::<Channels>().await?;
+    assert_eq!(
+        channels
+            .0
+            .iter()
+            .map(|channel| channel.value())
+            .collect::<Vec<_>>(),
+        ["hello", "当前消费者"]
+    );
+    container
+        .when(consumer.clone())?
+        .needs(dependency.clone())
+        .give_variadic_factory::<dyn Greeting, _>(|_| {
+            Box::pin(async {
+                Ok(vec![
+                    Arc::new(ContextualGreeting) as Arc<dyn Greeting>,
+                    Arc::new(BaseGreeting),
+                ])
+            })
+        })?;
+    let channels = container.resolve::<Channels>().await?;
+    assert_eq!(
+        channels
+            .0
+            .iter()
+            .map(|channel| channel.value())
+            .collect::<Vec<_>>(),
+        ["当前消费者", "hello"]
+    );
+    container
+        .when(consumer.clone())?
+        .needs(dependency.clone())
+        .give_many([ServiceKey::named("consumer.channel.missing")])?;
+    assert!(container.resolve::<Channels>().await?.0.is_empty());
+    let failing = ServiceKey::named("consumer.channel.business-failure");
+    container
+        .bind_key::<dyn Greeting, _>(failing.clone(), |_| {
+            Box::pin(async {
+                Err(openrust::Error::custom("service_not_bound", "业务主动拒绝"))
+            })
+        })
+        .await?;
+    container
+        .when(consumer.clone())?
+        .needs(dependency.clone())
+        .give_many([failing])?;
+    let Err(error) = container.resolve::<Channels>().await else {
+        return Err(openrust::Error::custom(
+            "test_missing_failure",
+            "业务错误必须保留",
+        ));
+    };
+    assert_eq!(error.to_string(), "业务主动拒绝");
+    container.when(consumer)?.needs(dependency).give_many([])?;
+    assert!(container.resolve::<Channels>().await?.0.is_empty());
+    Ok(())
+}
+
+struct SameClassConsumer(Arc<String>);
+
+#[tokio::test]
+async fn contextual_same_class_symbol_bypasses_normal_instance() -> openrust::Result<()> {
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<String>("consumer::String", vec![], |_| {
+            Ok(Arc::new(String::from("新构造")))
+        }),
+        ClassDescriptor::concrete::<SameClassConsumer>(
+            "consumer::SameClassConsumer",
+            vec![ConstructorParam::class::<String>("dependency")],
+            |args| Ok(Arc::new(SameClassConsumer(args.service::<String>(0)?))),
+        ),
+    ])?;
+    builder.instance(Arc::new(String::from("普通实例")));
+    builder
+        .when(ServiceKey::typed::<SameClassConsumer>())?
+        .needs(ServiceKey::typed::<String>())
+        .give(ServiceKey::named("consumer::String"))?;
+    let container = builder.build();
+    assert_eq!(
+        container.resolve::<SameClassConsumer>().await?.0.as_str(),
+        "新构造"
+    );
+    assert_eq!(container.resolve::<String>().await?.as_str(), "普通实例");
+    Ok(())
+}
+
+#[tokio::test]
+async fn external_original_factory_snapshot_survives_instance_override() -> openrust::Result<()> {
+    let key = ServiceKey::named("consumer.raw");
+    let alias = ServiceKey::named("consumer.raw.alias");
+    let mut builder = ContainerBuilder::new();
+    builder.singleton_key::<String, _>(key.clone(), |resolver| {
+        Box::pin(async move {
+            let arguments = resolver.parameters();
+            arguments.get(&ParameterKey::Index(0)).map_or_else(
+                || Ok(Arc::new(String::from("原始"))),
+                ParameterValue::downcast::<String>,
+            )
+        })
+    });
+    builder.alias(key.clone(), alias.clone())?;
+    builder.extend_key::<String, _>(&key, |original, _| {
+        Box::pin(async move { Ok(Arc::new(format!("{}已装饰", original))) })
+    })?;
+    let container = builder.build();
+    let mut bindings = container.get_bindings()?;
+    assert_eq!(bindings.len(), 1);
+    let binding = bindings.remove(0);
+    assert_eq!(binding.key, key);
+    assert!(binding.shared);
+    let mut arguments = ParameterOverrides::new();
+    let _ = arguments.insert(
+        ParameterKey::Index(0),
+        ParameterValue::new(String::from("实参")),
+    );
+    let raw = binding
+        .concrete
+        .invoke_with::<String>(container.factory_resolver()?, arguments)
+        .await?;
+    assert_eq!(raw.as_str(), "实参");
+    assert!(!container.resolved_key(&key)?);
+
+    let shared = container.resolve_key::<String>(alias.clone()).await?;
+    assert_eq!(shared.as_str(), "原始已装饰");
+    container
+        .instance_key(key.clone(), Arc::new(String::from("覆盖")))
+        .await?;
+    let scope = container.scope()?;
+    let raw = binding
+        .concrete
+        .invoke::<String>(scope.factory_resolver()?)
+        .await?;
+    assert_eq!(raw.as_str(), "原始");
+    assert_eq!(
+        container.resolve_key::<String>(alias).await?.as_str(),
+        "覆盖"
+    );
     Ok(())
 }
 

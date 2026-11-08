@@ -1,36 +1,65 @@
-//! 尚未公开的原工厂调用与交付原型，由容器内部契约测试覆盖。
+//! 真实绑定快照与由调用方作用域管理的原工厂执行。
 
-use super::super::*;
+use std::{
+    any::TypeId,
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
+};
+
+use tokio::sync::Notify;
+
+use super::super::{
+    Attempt, CacheKey, Container, ENTRY_SCOPE, Factory, Inner, Lifetime, ParameterOverrides,
+    Resolver, Scope, ScopeStatus, ServiceKey, Value, WaitEdge, container_error, extensions, lock,
+};
 use super::raw_delivery::{CallFrame, CallerFrame, RawResult};
 use crate::core::{Cancellation, ExecutionContext};
-use crate::foundation::resources::ResourceTaskCompletion;
+use crate::foundation::resources::{ResourceRegistrar, ResourceTaskCompletion};
+use crate::{BoxFuture, Error, Result};
 
-// 仅用户 Closure 纯内核快照；不公开未完成的 class 包装器/constructor API。
-/// 原用户 Closure 的可调用稳定快照；调用者显式提供真实 Resolver owner。
+/// 显式登记的原工厂闭包快照。绑定替换后，已有句柄仍调用取得时的闭包。
+///
+/// 调用者提供实际的 [Resolver]。直接调用使用该解析器的容器与资源作用域，
+/// 跳过原键的实例、共享缓存、装饰和解析历史。闭包内部显式解析的服务仍走通常流程。
 #[derive(Clone)]
-pub(in crate::container) struct FactoryHandle {
+pub struct FactoryHandle {
     factory: Factory,
     output: TypeId,
     service: ServiceKey,
 }
 
-/// 不执行用户代码取得的真实 binding 目录条目；instance-only/alias-only 不入目录。
-pub(in crate::container) struct BindingSnapshot {
-    /// 规范原键，不包含本次期望返回类型或临时 alias 展开结果。
-    pub(in crate::container) key: ServiceKey,
-    /// 登记时的原 factory，instance 覆盖不会改写此快照。
-    pub(in crate::container) concrete: FactoryHandle,
-    /// 原 binding 的共享位，不取 instance 覆盖后的 effective lifetime。
-    pub(in crate::container) shared: bool,
+/// 绑定目录中显式登记了工厂的条目。
+pub struct BindingSnapshot {
+    /// 绑定登记时的原服务键。
+    pub key: ServiceKey,
+    /// 原工厂句柄。实例覆盖保留原工厂。
+    pub concrete: FactoryHandle,
+    /// 绑定声明为单例或作用域共享时为真。
+    pub shared: bool,
 }
 
 impl FactoryHandle {
-    /// 比较两个句柄是否持有同一原工厂 Arc，不公开内存地址。
-    pub(in crate::container) fn same_factory(&self, other: &Self) -> bool {
+    /// 判断两个句柄是否指向同一个已登记工厂。
+    #[must_use]
+    pub fn same_factory(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.factory, &other.factory)
     }
 
-    pub(in crate::container) fn invoke_internal<T: ?Sized + Send + Sync + 'static>(
+    /// 使用空参数集合执行原工厂。
+    pub fn invoke<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        resolver: Resolver,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.invoke_with(resolver, ParameterOverrides::new())
+    }
+
+    /// 执行原工厂，显式实参由 [`Resolver::parameters`] 提供。
+    ///
+    /// 轮询需要 `Tokio` 运行时。作用域关闭、执行取消或声明输出类型不匹配时返回错误。
+    /// 输出类型不匹配会在工厂运行前拒绝。本入口支持登记时声明的具体类型或 trait 对象。
+    pub fn invoke_with<T: ?Sized + Send + Sync + 'static>(
         &self,
         mut resolver: Resolver,
         parameters: ParameterOverrides,
@@ -54,6 +83,15 @@ impl FactoryHandle {
                 .await;
             caller.finish(result).await
         })
+    }
+
+    #[cfg(test)]
+    pub(in crate::container) fn invoke_internal<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        resolver: Resolver,
+        parameters: ParameterOverrides,
+    ) -> BoxFuture<'static, Result<Arc<T>>> {
+        self.invoke_with(resolver, parameters)
     }
 }
 struct RawKey {
@@ -215,6 +253,7 @@ impl RawKey {
             state.raw_attempts.insert(
                 attempt.id,
                 RawRecord {
+                    #[cfg(test)]
                     attempt,
                     completion: completion.clone(),
                     result_committed: false,
@@ -344,6 +383,7 @@ impl Drop for CancelRawOnDrop {
 }
 
 pub(in crate::container) struct RawRecord {
+    #[cfg(test)]
     pub(in crate::container) attempt: Arc<Attempt>,
     pub(in crate::container) completion: ResourceTaskCompletion,
     result_committed: bool,
@@ -527,48 +567,50 @@ impl RawInvocation {
 
     fn finish(&self, mut result: RawResult, cancellation: &Cancellation) -> RawResult {
         self.activity.store(false, Ordering::Release);
-        let accepted = (|| {
-            if let Some(inner) = self.inner.upgrade() {
-                let mut state = lock(&inner.state);
-                if state.terminated {
-                    Err(container_error("container_closed", "容器已关闭"))
-                } else if self.closed.closed.load(Ordering::Acquire) {
-                    Err(container_error("scope_closed", "生命周期已关闭"))
-                } else {
-                    #[cfg(test)]
-                    super::super::directory_tests_v3::before_owner_commit(&self.owner)?;
-                    self.owner
-                        .with_open_owner(|| {
-                            if cancellation.is_cancelled() {
-                                Err(container_error("scope_closed", "资源任务已取消"))
-                            } else if let Some(record) = state.raw_attempts.get_mut(&self.id) {
-                                if record.result_committed {
-                                    Err(container_error(
-                                        "service_initialization_cancelled",
-                                        "原工厂结果已提交",
-                                    ))
-                                } else {
-                                    record.result_committed = true;
-                                    Ok(())
-                                }
-                            } else {
-                                Err(container_error(
-                                    "service_initialization_cancelled",
-                                    "原工厂调用已结束",
-                                ))
-                            }
-                        })
-                        .and_then(std::convert::identity)
-                }
-            } else {
-                Err(container_error("container_closed", "容器已释放"))
-            }
-        })();
+        let accepted = self.accept_result(cancellation);
         // 用户结果/错误的最后析构均在State与owner闸门之外，原拒绝码先保存。
         if let Err(error) = accepted {
             result.reject_lifecycle(error);
         }
         result
+    }
+
+    fn accept_result(&self, cancellation: &Cancellation) -> Result<()> {
+        if let Some(inner) = self.inner.upgrade() {
+            let mut state = lock(&inner.state);
+            if state.terminated {
+                Err(container_error("container_closed", "容器已关闭"))
+            } else if self.closed.closed.load(Ordering::Acquire) {
+                Err(container_error("scope_closed", "生命周期已关闭"))
+            } else {
+                #[cfg(test)]
+                super::super::directory_tests_v3::before_owner_commit(&self.owner)?;
+                self.owner
+                    .with_open_owner(|| {
+                        if cancellation.is_cancelled() {
+                            Err(container_error("scope_closed", "资源任务已取消"))
+                        } else if let Some(record) = state.raw_attempts.get_mut(&self.id) {
+                            if record.result_committed {
+                                Err(container_error(
+                                    "service_initialization_cancelled",
+                                    "原工厂结果已提交",
+                                ))
+                            } else {
+                                record.result_committed = true;
+                                Ok(())
+                            }
+                        } else {
+                            Err(container_error(
+                                "service_initialization_cancelled",
+                                "原工厂调用已结束",
+                            ))
+                        }
+                    })
+                    .and_then(std::convert::identity)
+            }
+        } else {
+            Err(container_error("container_closed", "容器已释放"))
+        }
     }
 }
 impl Drop for RawInvocation {
@@ -593,7 +635,10 @@ fn complete_raw(inner: &Weak<Inner>, attempt: &Arc<Attempt>) {
 }
 
 impl Container {
-    pub(in crate::container) fn factory_resolver_internal(&self) -> Result<Resolver> {
+    /// 取得当前根作用域的解析器，用于直接调用原工厂。
+    ///
+    /// 解析器持有弱容器引用。根作用域关闭后须重新从仍开放的容器取得解析器。
+    pub fn factory_resolver(&self) -> Result<Resolver> {
         let state = lock(&self.inner.state);
         if state.terminated {
             return Err(container_error("container_closed", "容器已关闭"));
@@ -607,10 +652,18 @@ impl Container {
             state.root_resources.registrar(),
         ))
     }
+
+    #[cfg(test)]
+    pub(in crate::container) fn factory_resolver_internal(&self) -> Result<Resolver> {
+        self.factory_resolver()
+    }
 }
 
 impl Scope {
-    pub(in crate::container) fn factory_resolver_internal(&self) -> Result<Resolver> {
+    /// 取得当前作用域的解析器，用于直接调用原工厂。
+    ///
+    /// 工厂登记的资源随本作用域关闭，作用域关闭后返回错误。
+    pub fn factory_resolver(&self) -> Result<Resolver> {
         let state = lock(&self.container.inner.state);
         if state.terminated {
             return Err(container_error("container_closed", "容器已关闭"));
@@ -624,10 +677,18 @@ impl Scope {
             self.resources.registrar(),
         ))
     }
+
+    #[cfg(test)]
+    pub(in crate::container) fn factory_resolver_internal(&self) -> Result<Resolver> {
+        self.factory_resolver()
+    }
 }
 
 impl Container {
-    pub(in crate::container) fn bindings_snapshot(&self) -> Result<Vec<BindingSnapshot>> {
+    /// 按登记顺序返回显式工厂快照，无需执行用户工厂。
+    ///
+    /// 仅有实例、别名或编译构造描述的键由各自目录管理。
+    pub fn get_bindings(&self) -> Result<Vec<BindingSnapshot>> {
         let state = lock(&self.inner.state);
         if state.terminated {
             return Err(container_error("container_closed", "容器已关闭"));
@@ -653,5 +714,101 @@ impl Container {
                 })
             })
             .collect()
+    }
+
+    #[cfg(test)]
+    pub(in crate::container) fn bindings_snapshot(&self) -> Result<Vec<BindingSnapshot>> {
+        self.get_bindings()
+    }
+}
+
+#[cfg(test)]
+mod public_contract_tests {
+    use crate::{
+        Error, Result,
+        container::{
+            BindingSnapshot, ContainerBuilder, FactoryHandle, ParameterKey, ParameterOverrides,
+            ParameterValue, ServiceKey,
+        },
+    };
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        time::Duration,
+    };
+
+    #[tokio::test]
+    async fn raw_public_api_uses_supplied_owner_and_rejects_wrong_output_before_call() -> Result<()>
+    {
+        let called = Arc::new(AtomicUsize::new(0));
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let original_calls = Arc::clone(&called);
+        let original_cleanup = Arc::clone(&cleaned);
+        let key = ServiceKey::named("original");
+        let parameter = ParameterKey::name("answer");
+        let mut builder = ContainerBuilder::new();
+        builder.singleton_key::<usize, _>(key.clone(), move |resolver| {
+            original_calls.fetch_add(1, Ordering::SeqCst);
+            let cleanup = Arc::clone(&original_cleanup);
+            Box::pin(async move {
+                resolver.resources()?.on_shutdown(move || {
+                    Box::pin(async move {
+                        cleanup.fetch_add(1, Ordering::SeqCst);
+                        Ok(())
+                    })
+                })?;
+                let root_error = resolver
+                    .resolve_root::<usize>()
+                    .await
+                    .err()
+                    .ok_or_else(|| {
+                        Error::custom("test_error_missing", "原工厂活跃时不能切换根作用域")
+                    })?;
+                assert_eq!(root_error.code(), "root_resolution_during_construction");
+                let parameters = resolver.parameters();
+                parameters
+                    .get(&ParameterKey::name("answer"))
+                    .map_or_else(|| Ok(Arc::new(0)), ParameterValue::downcast::<usize>)
+            })
+        });
+        let source = builder.build();
+        let entries: Vec<BindingSnapshot> = source.get_bindings()?;
+        let entry = entries
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::custom("test_binding_missing", "缺少原工厂快照"))?;
+        assert_eq!(entry.key, key);
+        assert!(entry.shared);
+        let factory: FactoryHandle = entry.concrete;
+        assert_eq!(called.load(Ordering::SeqCst), 0);
+        drop(source);
+
+        let target = ContainerBuilder::new().build();
+        let scope = target.scope()?;
+        let root = target.factory_resolver()?;
+        let scoped = scope.factory_resolver()?;
+        let mismatch = factory
+            .invoke::<String>(scoped.clone())
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("test_error_missing", "错型不能运行工厂"))?;
+        assert_eq!(mismatch.code(), "service_type_mismatch");
+        assert_eq!(called.load(Ordering::SeqCst), 0);
+
+        let mut parameters = ParameterOverrides::new();
+        parameters.insert(parameter, ParameterValue::new(42_usize));
+        assert_eq!(*factory.invoke_with::<usize>(scoped, parameters).await?, 42);
+        assert_eq!(*factory.invoke::<usize>(root).await?, 0);
+        assert!(!target.resolved_key(&key)?);
+        assert_eq!(called.load(Ordering::SeqCst), 2);
+        assert_eq!(cleaned.load(Ordering::SeqCst), 0);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+        scope.shutdown(deadline).await?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+        target.shutdown_root(deadline).await?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 2);
+        Ok(())
     }
 }
