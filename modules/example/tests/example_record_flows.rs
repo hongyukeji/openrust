@@ -680,6 +680,7 @@ async fn attribute_preview_contract(
     proposal["name"] = serde_json::json!("仅预览");
     proposal["priority"] = serde_json::json!(8);
     proposal["metadata"]["tags"] = serde_json::json!(["changed"]);
+    proposal["metadata"]["shape"] = serde_json::json!({"empty":{},"list":{"0":"首"}});
     proposal["published_at"] = serde_json::Value::Null;
     proposal["category_id"] = serde_json::Value::Null;
     let changed = app
@@ -1066,6 +1067,13 @@ async fn assert_mysql_json_projection_hydration(db: &openrust::Db) -> TestResult
         .casts
         .insert("payload".into(), AttributeCast::Object);
     assert_eq!(hydrated.attributes_to_json(&metadata)?["payload"], document);
+    metadata
+        .casts
+        .insert("payload".into(), AttributeCast::Array);
+    assert_eq!(
+        hydrated.attributes_to_json(&metadata)?["payload"],
+        associative
+    );
     metadata
         .casts
         .insert("payload".into(), AttributeCast::Collection);
@@ -1602,6 +1610,14 @@ fn assert_preview_display(changed: &serde_json::Value) {
     );
     assert_eq!(changed["display"]["details"]["metadata_tag_count"], 1);
     let projections = &changed["display"]["details"]["metadata_projections"];
+    assert_eq!(
+        changed["display"]["details"]["metadata"]["shape"],
+        serde_json::json!({"empty":[],"list":["首"]})
+    );
+    assert_eq!(
+        projections["object"]["shape"],
+        serde_json::json!({"empty":{},"list":{"0":"首"}})
+    );
     assert_eq!(
         projections["object"]["tags"],
         serde_json::json!(["changed"])

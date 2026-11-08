@@ -333,6 +333,8 @@ async fn check_generated_primitive_json_casts() -> Result<()> {
     check(attrs.attributes_to_json(&model)?["settings"] == associative)?;
     model.casts.insert("settings".into(), AttributeCast::Object);
     check(attrs.attributes_to_json(&model)?["settings"] == input)?;
+    model.casts.insert("settings".into(), AttributeCast::Array);
+    check(attrs.get_attribute(&model, "settings")? == Some(associative.clone()))?;
     model.casts.insert("settings".into(), AttributeCast::Collection);
     check(attrs.get_attribute_value(&model, "settings")?.is_some_and(|v| v.as_object().is_some()))?;
     check(attrs.attributes_to_json(&model)?["settings"] == associative)

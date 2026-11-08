@@ -13,7 +13,7 @@ fn php64_integer_lexemes_include_negative_zero_without_creating_unsigned_values(
         ("9223372036854775807", i64::MAX),
         ("-9223372036854775808", i64::MIN),
     ] {
-        let value = decode(text)?;
+        let value = decode_associative(text)?;
         assert_eq!(value.as_i64(), Some(expected));
         assert!(value.as_number().is_some_and(serde_json::Number::is_i64));
     }
@@ -52,7 +52,7 @@ fn floating_lexemes_keep_category_signed_zero_and_nearest_even_bits() -> Result<
         ("1.7976931348623157e308", 0x7fef_ffff_ffff_ffff),
         ("1.7976931348623158e308", 0x7fef_ffff_ffff_ffff),
     ] {
-        let value = decode(text)?;
+        let value = decode_associative(text)?;
         assert!(value.as_number().is_some_and(serde_json::Number::is_f64));
         assert_eq!(value.as_f64().ok_or_else(cast_failed)?.to_bits(), bits);
     }
@@ -80,12 +80,12 @@ fn large_explicit_exponents_follow_zend_before_fractional_scale() -> Result<()> 
         (format!("{large}e-4294967296"), 0x4024_0000_0000_0000),
         (format!("-{large}e-20000"), 0xc024_0000_0000_0000),
     ] {
-        let value = decode(&text)?;
+        let value = decode_associative(&text)?;
         assert!(value.as_number().is_some_and(serde_json::Number::is_f64));
         assert_eq!(value.as_f64().ok_or_else(cast_failed)?.to_bits(), bits);
     }
     // JSON不接受后缀；Model Float只转换数值前缀，两条路径不能混用校验规则。
-    assert!(decode(&format!("{small}e20000suffix"))?.is_null());
+    assert!(decode_associative(&format!("{small}e20000suffix"))?.is_null());
     Ok(())
 }
 
@@ -112,17 +112,17 @@ fn complete_syntax_and_unicode_validation_precedes_any_number_conversion() -> Re
         "[1,]",
         r#"{"a":true} false"#,
     ] {
-        assert_eq!(decode(text)?, Value::Null, "{text}");
+        assert_eq!(decode_associative(text)?, Value::Null, "{text}");
     }
-    assert_eq!(decode(r#""\uD83D\uDE00""#)?, json!("😀"));
-    assert_eq!(decode(r#""Infinity""#)?, json!("Infinity"));
-    assert_eq!(decode("null")?, Value::Null);
-    assert_eq!(decode("true")?, json!(true));
-    assert_eq!(decode("false")?, json!(false));
-    assert_eq!(decode("[]")?, json!([]));
-    assert_eq!(decode("{}")?, json!({}));
+    assert_eq!(decode_associative(r#""\uD83D\uDE00""#)?, json!("😀"));
+    assert_eq!(decode_associative(r#""Infinity""#)?, json!("Infinity"));
+    assert_eq!(decode_associative("null")?, Value::Null);
+    assert_eq!(decode_associative("true")?, json!(true));
+    assert_eq!(decode_associative("false")?, json!(false));
+    assert_eq!(decode_associative("[]")?, json!([]));
+    assert_eq!(decode_associative("{}")?, json!([]));
     assert_eq!(
-        decode(r#"{"$serde_json::private::Number":"1e400"}"#)?,
+        decode_associative(r#"{"$serde_json::private::Number":"1e400"}"#)?,
         json!({"$serde_json::private::Number":"1e400"})
     );
     Ok(())
@@ -136,9 +136,9 @@ fn duplicate_members_keep_first_position_last_value_and_validate_discarded_membe
         (r#"{"n":[1e400],"n":[1]}"#, json!({"n":[1]})),
         (r#"{"a":1,"b":2,"a":3}"#, json!({"a":3,"b":2})),
     ] {
-        assert_eq!(decode(text)?, expected);
+        assert_eq!(decode_associative(text)?, expected);
     }
-    let value = decode(r#"{"a":1,"b":2,"\u0061":3}"#)?;
+    let value = decode_associative(r#"{"a":1,"b":2,"\u0061":3}"#)?;
     let keys = value
         .as_object()
         .ok_or_else(cast_failed)?
@@ -146,7 +146,7 @@ fn duplicate_members_keep_first_position_last_value_and_validate_discarded_membe
         .map(String::as_str)
         .collect::<Vec<_>>();
     assert_eq!(keys, ["a", "b"]);
-    let value = decode(r#"{"z":1,"a":2,"\u007a":3}"#)?;
+    let value = decode_associative(r#"{"z":1,"a":2,"\u007a":3}"#)?;
     let keys = value
         .as_object()
         .ok_or_else(cast_failed)?
@@ -155,10 +155,10 @@ fn duplicate_members_keep_first_position_last_value_and_validate_discarded_membe
         .collect::<Vec<_>>();
     assert_eq!(keys, ["z", "a"]);
     // 同名早先成员不能借折叠跳过key/value/深度校验。
-    assert!(decode(r#"{"s":"\uD800","s":"ok"}"#)?.is_null());
-    assert!(decode(r#"{"\uD800":0,"a":1}"#)?.is_null());
+    assert!(decode_associative(r#"{"s":"\uD800","s":"ok"}"#)?.is_null());
+    assert!(decode_associative(r#"{"\uD800":0,"a":1}"#)?.is_null());
     let too_deep = nested(512, true);
-    assert!(decode(&format!("{{\"a\":{too_deep},\"a\":0}}"))?.is_null());
+    assert!(decode_associative(&format!("{{\"a\":{too_deep},\"a\":0}}"))?.is_null());
     Ok(())
 }
 
@@ -171,7 +171,7 @@ fn valid_final_nonfinite_numbers_are_explicit_carrier_errors() {
         r#"{"nested":[1e400]}"#,
         "1.7976931348623159e308",
     ] {
-        assert!(matches!(decode(text), Err(error)
+        assert!(matches!(decode_associative(text), Err(error)
             if error.code() == "model_attribute_cast_failed" && error.status().as_u16() == 500));
     }
 }
@@ -197,7 +197,7 @@ fn depth_511_is_valid_and_512_is_null_for_arrays_and_objects() -> Result<()> {
     // 与独立PHP oracle的14个深度输入相同，明确越过Serde原128层限制。
     for depth in [127, 128, 129, 510, 511, 512, 513] {
         for object in [false, true] {
-            let value = decode(&nested(depth, object))?;
+            let value = decode_associative(&nested(depth, object))?;
             if depth < PHP_JSON_DEPTH {
                 check_nested(&value, depth, object)?;
             } else {
@@ -214,7 +214,7 @@ fn depth_511_is_valid_and_512_is_null_for_arrays_and_objects() -> Result<()> {
                 format!("{{\"x\":{text}}}")
             };
         }
-        let value = decode(&text)?;
+        let value = decode_associative(&text)?;
         if depth == 511 {
             let mut current = &value;
             for index in 0..depth {
@@ -238,7 +238,7 @@ fn wide_arrays_objects_and_long_strings_are_not_silently_size_capped() -> Result
     let numbers = std::iter::repeat_n("18446744073709551615", 20_000)
         .collect::<Vec<_>>()
         .join(",");
-    let array = decode(&format!("[{numbers}]"))?;
+    let array = decode_associative(&format!("[{numbers}]"))?;
     let values = array.as_array().ok_or_else(cast_failed)?;
     assert_eq!(values.len(), 20_000);
     assert!(
@@ -250,7 +250,7 @@ fn wide_arrays_objects_and_long_strings_are_not_silently_size_capped() -> Result
         .map(|index| format!("\"key{index}\":{index}"))
         .collect::<Vec<_>>()
         .join(",");
-    let object = decode(&format!("{{{fields}}}"))?;
+    let object = decode_associative(&format!("{{{fields}}}"))?;
     let members = object.as_object().ok_or_else(cast_failed)?;
     assert_eq!(members.len(), 8_192);
     assert_eq!(members.keys().next().map(String::as_str), Some("key0"));
@@ -261,7 +261,7 @@ fn wide_arrays_objects_and_long_strings_are_not_silently_size_capped() -> Result
     assert_eq!(members.get("key8191"), Some(&json!(8_191)));
     let text = "中".repeat(120_000);
     let encoded = serde_json::to_string(&text).map_err(|_| cast_failed())?;
-    assert_eq!(decode(&encoded)?, Value::String(text));
+    assert_eq!(decode_associative(&encoded)?, Value::String(text));
     Ok(())
 }
 
@@ -272,14 +272,16 @@ fn bounded_deep_parse_final_value_drop_and_partial_error_cleanup_work_on_reduced
         .stack_size(512 * 1024)
         .spawn(|| -> Result<()> {
             for object in [false, true] {
-                let value = decode(&nested(511, object))?;
+                let value = decode_associative(&nested(511, object))?;
                 check_nested(&value, 511, object)?;
                 // 有意执行最终公开Value自身的标准析构，不用测试helper规避该边界。
                 drop(value);
                 let deep = nested(510, object);
-                assert!(matches!(decode(&format!("[{deep},1e400]")), Err(error)
-                    if error.code() == "model_attribute_cast_failed"));
-                assert!(decode(&format!("[{deep},\"\\uD800\"]"))?.is_null());
+                assert!(
+                    matches!(decode_associative(&format!("[{deep},1e400]")), Err(error)
+                    if error.code() == "model_attribute_cast_failed")
+                );
+                assert!(decode_associative(&format!("[{deep},\"\\uD800\"]"))?.is_null());
             }
             Ok(())
         })

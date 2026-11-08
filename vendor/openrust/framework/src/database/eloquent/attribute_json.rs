@@ -24,13 +24,6 @@ struct Pending<'a> {
     depth: usize,
 }
 
-pub(super) fn decode(text: &str) -> Result<Value> {
-    let Some(mut nodes) = validate(text) else {
-        return Ok(Value::Null);
-    };
-    assemble(&mut nodes, false)
-}
-
 pub(super) fn decode_object(text: &str) -> Result<Value> {
     let Some(mut nodes) = validate(text) else {
         return Ok(Value::Null);

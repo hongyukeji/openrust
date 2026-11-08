@@ -420,6 +420,47 @@ fn only_decoded_array_cast_normalizes_php_keys_and_empty_shape() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn array_cast_reads_and_reassigns_php_associative_shapes_without_changing_raw_values()
+-> Result<()> {
+    let metadata = metadata(&[("array", AttributeCast::Array)]);
+    let text = r#"{"empty":{},"list":{"0":"old","1":{"0":"x"},"\u0030":"new"},"sparse":{"0":"a","2":"b"},"reverse":{"1":"b","0":"a"},"literal":{"00":1,"+1":2,"-0":3,"9223372036854775808":4}}"#;
+    let expected = json!({
+        "empty": [],
+        "list": ["new", ["x"]],
+        "sparse": {"0":"a","2":"b"},
+        "reverse": {"1":"b","0":"a"},
+        "literal": {"00":1,"+1":2,"-0":3,"9223372036854775808":4},
+    });
+    let store = ModelAttributes::new(raw(&[("array", json!(text))]));
+    assert_eq!(
+        store.get_attribute(&metadata, "array")?,
+        Some(expected.clone())
+    );
+    assert_eq!(
+        store.get_original(&metadata, "array", None, |_| None)?,
+        Some(expected.clone())
+    );
+    assert_eq!(store.attributes_to_json(&metadata)?["array"], expected);
+    assert_eq!(store.raw_attribute("array")?, Some(json!(text)));
+    let projected = store
+        .get_attribute(&metadata, "array")?
+        .unwrap_or(Value::Null);
+    store.set_attribute(&metadata, "array", projected).await?;
+    assert_eq!(
+        store.raw_attribute("array")?,
+        Some(json!(
+            r#"{"empty":[],"list":["new",["x"]],"sparse":{"0":"a","2":"b"},"reverse":{"1":"b","0":"a"},"literal":{"00":1,"+1":2,"-0":3,"9223372036854775808":4}}"#
+        ))
+    );
+    assert!(store.is_clean(&metadata, &["array"])?);
+    assert_eq!(
+        AttributeCast::Array.read(Some(json!(r#"{"0":"\uD800","0":"x"}"#)))?,
+        Some(Value::Null)
+    );
+    Ok(())
+}
+
 struct ForbiddenGetter;
 impl AttributeGetter for ForbiddenGetter {
     fn get(&self, _: Option<&AttributeValue>, _: &AttributeMap) -> Result<Option<AttributeValue>> {

@@ -21,7 +21,7 @@ pub enum AttributeCast {
     Float,
     /// 读取时按十进制位数定标。参数保留声明的原始文本，缺省参数仅允许 null 读取。
     Decimal(Option<String>),
-    /// 持久值为 JSON 文本，读取时解码为数组或其他 JSON 值。
+    /// `array` 与 `json` 按 PHP 关联数组规则读取持久 JSON。
     Array,
     /// 使用 JSON 对象语义读取，保留对象键和嵌套对象形状。
     Object,
@@ -144,14 +144,11 @@ pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Resul
             let number = cast_float_value(&value)?;
             Value::Number(serde_json::Number::from_f64(number).ok_or_else(cast_failed)?)
         }
-        AttributeCast::Array => {
-            let text = scalar_string(&value)?;
-            // 固定 HasAttributes::fromJson 使用默认 json_decode，坏 JSON/空串返回 null。
-            decode_array_json(&text)?
+        AttributeCast::Array | AttributeCast::JsonUnicode => {
+            decode_associative_json(&scalar_string(&value)?)?
         }
         AttributeCast::Object => decode_object_json(&scalar_string(&value)?)?,
         AttributeCast::Collection => collection_items(decode_object_cast_json(&value)?),
-        AttributeCast::JsonUnicode => decode_object_cast_json(&value)?,
         AttributeCast::Hashed => value,
         AttributeCast::Decimal(scale) => super::decimal_cast::read(&value, scale.as_deref())?,
         _ => return Err(cast_failed()),
@@ -221,10 +218,6 @@ pub(super) fn collection_items(value: Value) -> Value {
         Value::Null => Value::Array(Vec::new()),
         value => Value::Array(vec![value]),
     }
-}
-
-fn decode_array_json(text: &str) -> Result<Value> {
-    json::decode(text)
 }
 
 /// 使用 PHP 默认 `flags=0` 的文本转义；`Value` 不承载无效 UTF8 或非有限浮点。

@@ -103,6 +103,12 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 SQL NULL 始终读取为 null。集合遇到 JSON null、空文本或无效 JSON 时读取为空集合，
 遇到标量时读取为单元素集合。三个转换均以关联数组的键顺序和值类型比较脏值。
 
+`AttributeCast::Array` 对应 `array` 和 `json`。读取时递归应用 PHP 关联数组形状，
+例如 `{"empty":{},"list":{"0":"首"}}` 读作 `{"empty":[],"list":["首"]}`。
+只有按顺序排列的连续键 `0, 1, …` 投影为列表。稀疏键、倒序键和 `"00"` 等文本键
+保留原顺序。模型读取、原值投影和 JSON 输出使用此规则，原始属性仍保留持久文本。
+需要保留嵌套对象形状时使用 `AttributeCast::Object`。
+
 `JsonUnicode` 赋值保留 Unicode 字符，继续转义斜线与 U+2028/U+2029。嵌套 JSON
 赋值分别按完整路径和基础字段的声明编码。唯一示例的记录预览在
 `metadata_projections` 展示对象、集合和编码文本。
