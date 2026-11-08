@@ -357,7 +357,7 @@ cargo deny check
 
 示例实际迁移/种子在 database/migrations/mod.rs 与 database/seeders/mod.rs，模板在 resources/views，语言资源在 lang/，测试在 tests/ 下；这些均位于本模块内。协议输入为 proto/echo.proto，显式生成脚本为 proto/generate.py，工具清单与锁固定在 proto/generator.toml 和 proto/generator.lock，已生成类型为 generated/echo.rs；脚本在 /tmp 临时目录执行 cargo run --offline --locked，根没有为示例保留 build.rs/build 依赖。当前源码的默认/全特性 workspace、双库业务、生成项目及独立 consumer 门禁已执行并于 R1-E 提交 `bc3fa01`；各项真实证据见 [R1-E 验收记录](../../.agents/project/memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)。
 
-模块之间的硬依赖在应用清单通过 `ModuleDescriptor::requires("shared")` 声明。依赖模块必须同时编译并启用，否则应用构建会报错；依赖图决定必须先启动的模块，`priority` 只用于当前可启动模块之间排序。框架不会自动更改 `modules_statuses.json`，不会因启用业务模块而静默启用其依赖；本契约不提供包版本求解或热加载。
+模块之间的硬依赖在应用清单通过 `ModuleDescriptor::requires("shared")` 声明。依赖模块必须同时编译并启用，否则应用构建会报错；依赖图决定必须先启动的模块，`priority` 只用于当前可启动模块之间排序。默认 `registered` 模式通过编译清单启用模块，不读写状态文件。需要持久启停时，请显式选择[文件状态模式](../../docs/src/modules/file-state.md)。启用模块不会自动启用其依赖，模块机制也不提供包版本求解或热加载。
 数据库、认证、队列等按现有 Cargo feature 和根配置启用。根应用检查显式数据库声明后装配数据库基础设施；没有声明表示未启用数据库业务，配置已声明但依赖不可用时必须报错，不回退到内存或空实现。模板通过 `view` 与应用显式视图目录启用；模块 Provider 在 boot 登记 `example::` 命名空间，优先读取 `resources/views/vendor/example` 的发布副本，缺失时回退模块 `resources/views`。`APP_VIEW_DIRECTORY=modules/example/resources/views` 仍可作为应用基础目录，但模块命名模板无需依赖该值；Protobuf 已生成类型按 `grpc` 编译，修改 proto 后显式运行 `python3 modules/example/proto/generate.py`，通过 `python3 modules/example/proto/generate.py --check` 比较重生字节；启用 feature 本身不等于已注册服务或实际监听端口。
 
 ## 当前能力覆盖与缺口

@@ -103,7 +103,7 @@ cargo run
 网站静态文件位于应用公开目录，默认是工作目录下的 `public/`。在 `config/server.rs` 配置 `public_dir` 和 `root_target`；可按需选择 `view:index.html`、`file:/index.html`、`forward:/api` 或外部 redirect，视图目标须启用 `view` 并提供实际模板。公开环境覆盖仍经同一配置来源处理；默认欢迎页的完整对应尚未交付，不能以可选视图能力代替该工作流。视图配置与 API 示例见[视图指南](../../../vendor/openrust/framework/src/view/README.md)。
 在应用目录复制 `.env.example` 为 `.env`，保留 `APP_KEY=`，然后运行 `openrust key:generate`。命令把新密钥写入本次启动选定的环境文件；使用 `--show` 可仅输出密钥。生产环境已有密钥时会要求确认，自动化应显式传入 `--force` 才执行替换。使用配置缓存时，命令不会重建该缓存。环境文件应只有一条未加引号的原始密钥赋值，写入需要普通文件。进程环境中的 `APP_KEY` 仍优先于文件值，替换后应在部署环境同步更新该值。
 
-应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::encryption::EncryptionServiceProvider`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。Provider 注册加密服务，首次解析服务时读取并校验密钥环。未使用加密的命令和路由可以运行；首次受保护请求遇到缺失或无效密钥会被拒绝。密钥应保存在版本控制之外。
+应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::encryption::EncryptionServiceProvider`，在 `[security.encryption]` 下配置 32 字节密钥环，并运行 `openrust key generate` 将独立密钥材料输出到标准输出，再由部署配置将其加入密钥环。该命令不写入 `APP_KEY`。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。Provider 注册加密服务，首次解析服务时读取并校验密钥环。未使用加密的命令和路由可以运行；首次受保护请求遇到缺失或无效密钥会被拒绝。密钥应保存在版本控制之外。
 
 文件存储由可选 `storage-local` 与 `storage-s3` feature 提供，使用 `FilesystemServiceProvider` 装配 `FilesystemManager` 的 default/named disks。上传与下载都使用有界流，应用须先执行身份和资源授权；本地 disk 仅在当前节点可见。配置、安全边界与 `StorageBackend` 扩展方法见[文件存储指南](../../../vendor/openrust/framework/src/filesystem/README.md)。
 
