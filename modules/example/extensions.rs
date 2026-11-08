@@ -10,7 +10,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use openrust::BoxFuture;
 use openrust::Error;
 use openrust::Result;
 use openrust::cache::Cache;
@@ -18,28 +17,15 @@ use openrust::cache::CacheBackend;
 use openrust::cache::CacheDriver;
 use openrust::cache::CacheDriverConfig;
 use openrust::cache::CacheScope;
-#[cfg(test)]
-use openrust::config::Environment;
-#[cfg(test)]
-use openrust::container::Container;
-#[cfg(test)]
-use openrust::container::Resolver;
 use openrust::foundation::BootContext;
+use openrust::support::{BoxFuture, ServiceProvider};
 #[cfg(test)]
-use openrust::mail::MailDriver;
-#[cfg(test)]
-use openrust::mail::Mailer;
-#[cfg(test)]
-use openrust::mail::lettre::Message;
-#[cfg(test)]
-use openrust::sms::SmsDriver;
-#[cfg(test)]
-use openrust::sms::SmsMessage;
-#[cfg(test)]
-use openrust::sms::SmsReceipt;
-#[cfg(test)]
-use openrust::sms::SmsSender;
-use openrust::support::ServiceProvider;
+use openrust::{
+    config::Environment,
+    container::{Container, Resolver},
+    mail::{MailDriver, Mailer, lettre::Message},
+    sms::{SmsDriver, SmsMessage, SmsReceipt, SmsSender},
+};
 use tokio::sync::Mutex;
 
 /// 注册业务缓存 driver；仅配置选择 `example-prefix` 的 store 才会实例化它。

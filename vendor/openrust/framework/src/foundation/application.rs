@@ -215,7 +215,7 @@ impl ApplicationState {
 
 impl std::fmt::Debug for ApplicationState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AppState")
+        f.debug_struct("ApplicationState")
             .field("app", &self.inner.framework.app.name)
             .field("services", &self.inner.services.len())
             .finish()

@@ -1,19 +1,23 @@
 //! 数据库翻译来源：有界MVCC物化、同事务修订与提交后尽力失效通知。
 
-use openrust::{
-    Error, Result,
-    cache::CacheStore,
-    database::{
-        DatabaseTransaction, Db,
-        sea_orm::{ConnectionTrait, DbBackend, QueryResult, Statement},
-    },
-    events::Events,
-    support::BoxFuture,
-    translation::{
-        Locale, TranslationLines, TranslationLoadSession, TranslationLoader, TranslationResource,
-        parse_translation_lines, translation_session,
-    },
-};
+use openrust::Error;
+use openrust::Result;
+use openrust::cache::CacheStore;
+use openrust::database::DatabaseTransaction;
+use openrust::database::Db;
+use openrust::database::sea_orm::ConnectionTrait;
+use openrust::database::sea_orm::DbBackend;
+use openrust::database::sea_orm::QueryResult;
+use openrust::database::sea_orm::Statement;
+use openrust::events::Events;
+use openrust::support::BoxFuture;
+use openrust::translation::Locale;
+use openrust::translation::TranslationLines;
+use openrust::translation::TranslationLoadSession;
+use openrust::translation::TranslationLoader;
+use openrust::translation::TranslationResource;
+use openrust::translation::parse_translation_lines;
+use openrust::translation::translation_session;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
