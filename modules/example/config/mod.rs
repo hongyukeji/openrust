@@ -34,6 +34,9 @@ pub(crate) fn config(ctx: &ConfigContext) -> Result<serde_json::Value, ConfigErr
         "greeting": ctx.env_or("EXAMPLE_GREETING", "Hello from modules/example"),
         "feature": {"enabled": ctx.bool_or("EXAMPLE_FEATURE_ENABLED", true)?},
     });
+    if let Some(suffix) = ctx.env("EXAMPLE_GREETING_SUFFIX") {
+        values["greeting_suffix"] = serde_json::Value::String(suffix);
+    }
     if let Some(origin) = article_summary_origin {
         values["article_summary_origin"] = serde_json::Value::String(origin);
     }

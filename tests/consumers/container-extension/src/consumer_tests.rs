@@ -1,11 +1,13 @@
 //! 验证外部 package 可沿公开 API 装饰 dyn trait 与隔离 scope。
 
 use openrust::class_projection;
+use openrust::container::attributes::{Tag, Tagged};
 use openrust::container::{
     ClassAttribute, ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey,
     ParameterOverrides, ParameterValue, PhpBytes, PhpStringable, PhpTarget, ResolutionEvent,
     ResolvedArgs, Resolver, ScalarDiagnostic, ScalarDiagnostics, SelfBuilding, ServiceKey,
 };
+use std::future::poll_fn;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -1426,5 +1428,158 @@ async fn resolving_callback_can_read_the_current_published_singleton() -> openru
     let second = container.resolve::<String>().await?;
     assert!(Arc::ptr_eq(&first, &second));
     assert_eq!(observed.load(Ordering::Relaxed), 1);
+    Ok(())
+}
+
+const ACTIVE_GREETINGS: &str = "consumer.greetings.active";
+const EMPTY_GREETINGS: &str = "consumer.greetings.empty";
+const MISSING_GREETINGS: &str = "consumer.greetings.missing";
+
+struct TaggedGreetings {
+    active: Arc<Tagged<dyn Greeting>>,
+    empty: Arc<Tagged<dyn Greeting>>,
+    missing: Arc<Tagged<dyn Greeting>>,
+}
+
+#[tokio::test]
+async fn tagged_attribute_reads_each_round_lazily_in_its_original_scope() -> openrust::Result<()> {
+    let descriptor = ClassDescriptor::concrete::<TaggedGreetings>(
+        "consumer::TaggedGreetings",
+        vec![
+            ConstructorParam::scalar::<Tagged<dyn Greeting>>("active").with_attribute(
+                ClassAttribute::contextual(|| Ok(Tag::<dyn Greeting>::new(ACTIVE_GREETINGS))),
+            ),
+            ConstructorParam::scalar::<Tagged<dyn Greeting>>("empty").with_attribute(
+                ClassAttribute::contextual(|| Ok(Tag::<dyn Greeting>::new(EMPTY_GREETINGS))),
+            ),
+            ConstructorParam::scalar::<Tagged<dyn Greeting>>("missing").with_attribute(
+                ClassAttribute::contextual(|| Ok(Tag::<dyn Greeting>::new(MISSING_GREETINGS))),
+            ),
+        ],
+        |args| {
+            Ok(Arc::new(TaggedGreetings {
+                active: args.value(0)?.downcast()?,
+                empty: args.value(1)?.downcast()?,
+                missing: args.value(2)?.downcast()?,
+            }))
+        },
+    );
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![descriptor])?;
+    let scoped = ServiceKey::typed::<dyn Greeting>();
+    let middle = ServiceKey::named("consumer.greeting.middle");
+    let late = ServiceKey::named("consumer.greeting.late");
+    let failing = ServiceKey::named("consumer.greeting.failing");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let factory = |name: &'static str| {
+        let calls = Arc::clone(&calls);
+        move |_| -> openrust::support::BoxFuture<'static, openrust::Result<Arc<dyn Greeting>>> {
+            let calls = Arc::clone(&calls);
+            Box::pin(async move {
+                calls.fetch_add(1, Ordering::Relaxed);
+                Ok(Arc::new(ClassGreeting(name.into())) as Arc<dyn Greeting>)
+            })
+        }
+    };
+    builder.scoped::<dyn Greeting, _>(factory("作用域"));
+    builder.bind_key::<dyn Greeting, _>(middle.clone(), factory("中间"));
+    builder.bind_key::<dyn Greeting, _>(late.clone(), factory("晚登记"));
+    builder.bind_key::<dyn Greeting, _>(failing.clone(), |_| {
+        Box::pin(async {
+            Err(openrust::Error::custom(
+                "tagged_greeting_failed",
+                "问候服务失败",
+            ))
+        })
+    });
+    builder.tag(
+        [scoped.clone(), middle.clone(), scoped.clone()],
+        [ACTIVE_GREETINGS],
+    );
+    builder.tag(std::iter::empty::<ServiceKey>(), [EMPTY_GREETINGS]);
+    let container = builder.build();
+    let scope = container.scope()?;
+    let greetings = scope.resolve::<TaggedGreetings>().await?;
+    assert_eq!(greetings.active.len(), 3);
+    assert!(!greetings.active.is_empty());
+    assert!(greetings.empty.is_empty());
+    assert!(greetings.missing.is_empty());
+    let mut first = greetings.active.stream();
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+
+    // 第一轮在首次 poll 时取快照，之后登记的键留给下一轮。
+    container.tag([late], [ACTIVE_GREETINGS])?;
+    container.tag([scoped.clone()], [EMPTY_GREETINGS, MISSING_GREETINGS])?;
+    let first_item = poll_fn(|cx| first.as_mut().poll_next(cx))
+        .await
+        .transpose()?
+        .ok_or_else(|| openrust::Error::custom("tagged_greeting_missing", "缺少第一个标签服务"))?;
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    container.tag([failing, middle], [ACTIVE_GREETINGS])?;
+    let mut first_items = vec![first_item];
+    while let Some(item) = poll_fn(|cx| first.as_mut().poll_next(cx)).await {
+        first_items.push(item?);
+    }
+    let labels =
+        |items: &[Arc<dyn Greeting>]| items.iter().map(|item| item.value()).collect::<Vec<_>>();
+    assert_eq!(labels(&first_items), ["作用域", "中间", "作用域", "晚登记"]);
+    assert_eq!(calls.load(Ordering::Relaxed), 3);
+    assert!(Arc::ptr_eq(&first_items[0], &first_items[2]));
+    assert!(Arc::ptr_eq(
+        &first_items[0],
+        &scope.resolve::<dyn Greeting>().await?
+    ));
+
+    let mut second = greetings.active.stream();
+    let mut second_items = Vec::new();
+    for _ in 0..first_items.len() {
+        let item = poll_fn(|cx| second.as_mut().poll_next(cx))
+            .await
+            .transpose()?
+            .ok_or_else(|| {
+                openrust::Error::custom("tagged_greeting_missing", "第二轮缺少标签服务")
+            })?;
+        second_items.push(item);
+    }
+    assert_eq!(labels(&second_items), labels(&first_items));
+    assert!(Arc::ptr_eq(&first_items[0], &second_items[0]));
+    assert!(matches!(
+        poll_fn(|cx| second.as_mut().poll_next(cx)).await,
+        Some(Err(error)) if error.code() == "tagged_greeting_failed"
+    ));
+    assert!(poll_fn(|cx| second.as_mut().poll_next(cx)).await.is_none());
+    assert_eq!(calls.load(Ordering::Relaxed), 5);
+
+    // 已登记空标签的长度仍是旧快照，缺失标签的旧序列则一直为空。
+    assert_eq!(greetings.active.len(), 3);
+    assert!(greetings.empty.is_empty());
+    let mut formerly_empty = greetings.empty.stream();
+    assert!(matches!(
+        poll_fn(|cx| formerly_empty.as_mut().poll_next(cx)).await,
+        Some(Ok(item)) if Arc::ptr_eq(&item, &first_items[0])
+    ));
+    assert!(
+        poll_fn(|cx| formerly_empty.as_mut().poll_next(cx))
+            .await
+            .is_none()
+    );
+    let mut formerly_missing = greetings.missing.stream();
+    assert!(
+        poll_fn(|cx| formerly_missing.as_mut().poll_next(cx))
+            .await
+            .is_none()
+    );
+    let latest = scope.resolve::<TaggedGreetings>().await?;
+    assert_eq!(latest.active.len(), 6);
+    assert_eq!(latest.empty.len(), 1);
+    assert_eq!(latest.missing.len(), 1);
+    assert_eq!(calls.load(Ordering::Relaxed), 5);
+
+    let mut after_close = greetings.active.stream();
+    scope.close();
+    assert!(matches!(
+        poll_fn(|cx| after_close.as_mut().poll_next(cx)).await,
+        Some(Err(error)) if error.code() == "scope_closed"
+    ));
+    assert_eq!(calls.load(Ordering::Relaxed), 5);
     Ok(())
 }

@@ -1,9 +1,11 @@
 //! 默认应用控制器；可从 `routes/api.rs` 直接注册。
 
 use openrust::Result;
+use openrust::container::attributes::{Config, Give};
 use openrust::container::{
     ClassAttribute, ClassDescriptor, ConstructorParam, ContextualAttribute, ParameterKey,
     ParameterOverrides, ParameterValue, PhpBytes, PhpTarget, ResolvedArgs, Resolver, SelfBuilding,
+    ServiceKey,
 };
 use openrust::core::ApiResponse;
 use openrust::foundation::ApplicationState;
@@ -33,11 +35,12 @@ pub(crate) struct HomeConstruction {
 }
 
 impl HomeConstruction {
+    const SYMBOL: &'static str = concat!(module_path!(), "::HomeConstruction");
     pub(crate) const INPUT_PARAMETER: &'static str = "ready";
 
     pub(crate) fn descriptor() -> ClassDescriptor {
         ClassDescriptor::self_building::<Self>(
-            concat!(module_path!(), "::HomeConstruction"),
+            Self::SYMBOL,
             Vec::new(),
             |_| Ok(Arc::new(Self::new(false))),
             vec![
@@ -97,9 +100,18 @@ impl HomePresenter {
         ClassDescriptor::concrete::<Self>(
             Self::SYMBOL,
             vec![
-                ConstructorParam::php(Self::NAME_PARAMETER, PhpTarget::Bytes)
-                    .with_default(|| Ok(ParameterValue::new(String::new()))),
-                ConstructorParam::class::<HomeConstruction>("construction"),
+                ConstructorParam::php(Self::NAME_PARAMETER, PhpTarget::Bytes).with_attribute(
+                    ClassAttribute::contextual(|| {
+                        Ok(Config::<String>::new("app.name").with_default(String::new()))
+                    }),
+                ),
+                ConstructorParam::class::<HomeConstruction>("construction").with_attribute(
+                    ClassAttribute::contextual(|| {
+                        Ok(Give::<HomeConstruction>::new(ServiceKey::named(
+                            HomeConstruction::SYMBOL,
+                        )))
+                    }),
+                ),
             ],
             |args| {
                 args.service::<HomeConstruction>(1)?.verify()?;

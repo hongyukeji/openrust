@@ -457,9 +457,11 @@ pub(super) fn application_providers(
 //! 默认应用控制器；可从 `routes/api.rs` 直接注册。
 
 use openrust::Result;
+use openrust::container::attributes::{Config, Give};
 use openrust::container::{
     ClassAttribute, ClassDescriptor, ConstructorParam, ContextualAttribute, ParameterKey,
     ParameterOverrides, ParameterValue, PhpBytes, PhpTarget, ResolvedArgs, Resolver, SelfBuilding,
+    ServiceKey,
 };
 use openrust::core::ApiResponse;
 use openrust::foundation::ApplicationState;
@@ -489,11 +491,12 @@ pub(crate) struct HomeConstruction {
 }
 
 impl HomeConstruction {
+    const SYMBOL: &'static str = concat!(module_path!(), "::HomeConstruction");
     pub(crate) const INPUT_PARAMETER: &'static str = "ready";
 
     pub(crate) fn descriptor() -> ClassDescriptor {
         ClassDescriptor::self_building::<Self>(
-            concat!(module_path!(), "::HomeConstruction"),
+            Self::SYMBOL,
             Vec::new(),
             |_| Ok(Arc::new(Self::new(false))),
             vec![
@@ -553,9 +556,18 @@ impl HomePresenter {
         ClassDescriptor::concrete::<Self>(
             Self::SYMBOL,
             vec![
-                ConstructorParam::php(Self::NAME_PARAMETER, PhpTarget::Bytes)
-                    .with_default(|| Ok(ParameterValue::new(String::new()))),
-                ConstructorParam::class::<HomeConstruction>("construction"),
+                ConstructorParam::php(Self::NAME_PARAMETER, PhpTarget::Bytes).with_attribute(
+                    ClassAttribute::contextual(|| {
+                        Ok(Config::<String>::new("app.name").with_default(String::new()))
+                    }),
+                ),
+                ConstructorParam::class::<HomeConstruction>("construction").with_attribute(
+                    ClassAttribute::contextual(|| {
+                        Ok(Give::<HomeConstruction>::new(ServiceKey::named(
+                            HomeConstruction::SYMBOL,
+                        )))
+                    }),
+                ),
             ],
             |args| {
                 args.service::<HomeConstruction>(1)?.verify()?;
@@ -674,6 +686,7 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
+use openrust::container::attributes::{Config, Give};
 use openrust::container::{
     AttributeValue, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
 };
@@ -813,6 +826,35 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert!(state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);
     assert!(!state.container().resolved_key(&symbol)?);
+    let resolved_config = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_config);
+    state
+        .container()
+        .after_resolving_attribute::<Config<String>>(move |_, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                seen.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        })?;
+    let resolved_give = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_give);
+    state
+        .container()
+        .after_resolving_attribute::<Give<HomeConstruction>>(move |event, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                let construction = event.service::<HomeConstruction>()?.ok_or_else(|| {
+                    openrust::Error::custom(
+                        "home_construction_view_missing",
+                        "Give 回调缺少构造对象",
+                    )
+                })?;
+                construction.verify()?;
+                seen.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        })?;
     let resolved_input = Arc::new(AtomicUsize::new(0));
     let seen = Arc::clone(&resolved_input);
     state
@@ -877,6 +919,8 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
     assert_eq!(resolved_input.load(Ordering::Relaxed), 1);
     assert_eq!(resolved_construction.load(Ordering::Relaxed), 1);
+    assert_eq!(resolved_give.load(Ordering::Relaxed), 1);
+    assert_eq!(resolved_config.load(Ordering::Relaxed), 0);
     assert_generated_class_factories(&state).await?;
     assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
     let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
@@ -920,6 +964,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             .map(String::as_str),
         Some("运行期名称"),
     );
+    assert_eq!(resolved_config.load(Ordering::Relaxed), 4);
     let api = app
         .request(Request::get("/api").body(Body::empty())?)
         .await?;
@@ -930,6 +975,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         "message": "ok",
         "data": {"name": "configured-application"}
     }))?;
+    assert_eq!(resolved_config.load(Ordering::Relaxed), 4);
     assert_parameterized_home_factory_preserves_scope(&app).await?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
@@ -4221,6 +4267,8 @@ pub async fn assert_request_redirect<A: ApplicationDefinition>(
 `bootstrap/app.rs` 的 `configure_providers` 为 `HomePresenter` 提供编译类描述符。`AppServiceProvider` 使用 `bind_class` 将 `dyn HomeResponse` 绑定到该类的符号。默认 `/api` 的控制器从当前请求作用域解析接口，将启动配置中的应用名称交给内层构造器。类描述符为同一个 `HomePresenter` 对象提供 trait 视图。
 
 `HomePresenter` 的构造依赖 `HomeConstruction` 使用 `SelfBuilding`。Provider 为 `new_instance` 的参数属性登记处理器，并通过类标记属性回调观察构造完成的对象。
+
+没有调用级名称实参时，`Config<String>` 从当前配置仓储读取 `app.name`。`Give<HomeConstruction>` 按具名类描述符解析构造依赖，并沿用当前请求作用域。
 
 `modules/mod.rs` 显式编译业务代码并登记命名Provider/文件初始化绑定，默认 `MODULES_ACTIVATOR=registered`，`manifest(root, &config.modules)` 返回 `ModuleManifest::new().with_application_root(root)` 空清单，不扫描目录、不读写状态文件；显式选择 file/file-live 等激活器时委托 `ModuleManifest::discover_from_config(root, config)`；`ApplicationDefinition::configure_providers` 引入 `openrust_modules::ModuleProviderBuilderExt`，经 `builder.module_manifest(...)` 使用同一清单；模块类型来自独立 `openrust-modules` 包，框架核心不重导出。包register读取当前配置的module.json，disabled元数据仍会解析，未编译disabled模块可持久启用，实际加载时缺少绑定明确失败。config/modules.rs的paths.modules默认modules、scan.enabled默认false、scan.paths默认vendor/*/*；MODULES_PATH可覆盖主目录。activators.file.statuses-file独立选择持久状态文件，显式文件激活器默认应用根modules_statuses.json，MODULES_STATUSES_FILE部署覆盖；生成器不创建该文件，已有文件保留。相对路径按application_root，不自动搬迁旧文件。metadata.module_directory只覆盖files包含目录；工厂ModuleLoadContext::directory取仓储真实模块目录，普通Provider到boot通过同一ModuleRepository读取资源；不是运行未编译Rust或自动加载crate。files经显式ModuleFile实现，真实Provider注册后、boot前按解析路径一次初始化，共用同Container。class aliases和完整deferred加载仍有明确缺口，不能以Container alias替代。
 

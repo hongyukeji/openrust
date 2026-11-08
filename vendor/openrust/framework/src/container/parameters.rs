@@ -185,6 +185,12 @@ impl ParameterOverrides {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    pub(super) fn dispose_values(self) {
+        for (_, value) in self.entries {
+            disposal::dispose(value, None);
+        }
+    }
 }
 
 /// 解析器克隆只持有读取能力。调用结束时，仍存活的解析器不再读取原调用参数。
@@ -234,7 +240,7 @@ impl ParameterFrame {
             return result;
         };
         self.disposal.run(|| {
-            Self::dispose_values(values);
+            values.dispose_values();
             if !disposal::seen() {
                 return result;
             }
@@ -252,18 +258,12 @@ impl ParameterFrame {
     fn take(&self) -> Option<ParameterOverrides> {
         lock(&self.view.0).take()
     }
-
-    fn dispose_values(values: ParameterOverrides) {
-        for (_, value) in values.entries {
-            disposal::dispose(value, None);
-        }
-    }
 }
 
 impl Drop for ParameterFrame {
     fn drop(&mut self) {
         if let Some(values) = self.take() {
-            self.disposal.run(|| Self::dispose_values(values));
+            self.disposal.run(|| values.dispose_values());
         }
     }
 }

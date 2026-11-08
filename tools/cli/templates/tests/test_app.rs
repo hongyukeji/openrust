@@ -30,6 +30,7 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
+use openrust::container::attributes::{Config, Give};
 use openrust::container::{
     AttributeValue, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
 };
@@ -169,6 +170,35 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert!(state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);
     assert!(!state.container().resolved_key(&symbol)?);
+    let resolved_config = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_config);
+    state
+        .container()
+        .after_resolving_attribute::<Config<String>>(move |_, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                seen.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        })?;
+    let resolved_give = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_give);
+    state
+        .container()
+        .after_resolving_attribute::<Give<HomeConstruction>>(move |event, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                let construction = event.service::<HomeConstruction>()?.ok_or_else(|| {
+                    openrust::Error::custom(
+                        "home_construction_view_missing",
+                        "Give 回调缺少构造对象",
+                    )
+                })?;
+                construction.verify()?;
+                seen.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        })?;
     let resolved_input = Arc::new(AtomicUsize::new(0));
     let seen = Arc::clone(&resolved_input);
     state
@@ -233,6 +263,8 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
     assert_eq!(resolved_input.load(Ordering::Relaxed), 1);
     assert_eq!(resolved_construction.load(Ordering::Relaxed), 1);
+    assert_eq!(resolved_give.load(Ordering::Relaxed), 1);
+    assert_eq!(resolved_config.load(Ordering::Relaxed), 0);
     assert_generated_class_factories(&state).await?;
     assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
     let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;
@@ -276,6 +308,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             .map(String::as_str),
         Some("运行期名称"),
     );
+    assert_eq!(resolved_config.load(Ordering::Relaxed), 4);
     let api = app
         .request(Request::get("/api").body(Body::empty())?)
         .await?;
@@ -286,6 +319,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         "message": "ok",
         "data": {"name": "configured-application"}
     }))?;
+    assert_eq!(resolved_config.load(Ordering::Relaxed), 4);
     assert_parameterized_home_factory_preserves_scope(&app).await?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;

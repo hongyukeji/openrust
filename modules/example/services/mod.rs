@@ -23,9 +23,12 @@ pub(crate) mod upstream;
 #[cfg(any(test, feature = "auth"))]
 pub(crate) mod welcome;
 
+#[cfg(test)]
+pub(crate) use message::{EXAMPLE_GREETING_SUFFIXES, GreetingSuffix};
 pub(crate) use message::{
-    EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig, ExampleGreetingConstructed,
-    ExampleMessage, ExamplePresenter, ExampleServedAt, GreetingPresenter, class_descriptors,
+    EXAMPLE_MESSAGE_ALIAS, EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig,
+    ExampleGreetingConstructed, ExampleMessage, ExamplePresenter, ExampleServedAt,
+    GreetingPresenter, class_descriptors,
 };
 #[cfg(feature = "session")]
 pub(crate) mod draft_errors;

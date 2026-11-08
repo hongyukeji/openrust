@@ -42,9 +42,6 @@ impl ServiceProvider for AppServiceProvider {
                     }
                 })
             })?;
-            app.when(ServiceKey::typed::<HomePresenter>())?
-                .needs_parameter(HomePresenter::NAME_PARAMETER)
-                .give_config::<String>("app.name", Some(String::new()))?;
             app.when_has_attribute::<HomeConstructionInput>(|_, parameter, _| {
                 Box::pin(async move {
                     if parameter.name() != HomeConstruction::INPUT_PARAMETER

@@ -63,7 +63,11 @@ impl ContextualBindings {
     }
 
     pub(super) fn tagged_keys(&self, tag: &str) -> &[ServiceKey] {
-        self.tags.get(tag).map_or(&[], Vec::as_slice)
+        self.tag_entry(tag).unwrap_or_default()
+    }
+
+    pub(super) fn tag_entry(&self, tag: &str) -> Option<&[ServiceKey]> {
+        self.tags.get(tag).map(Vec::as_slice)
     }
 
     fn replace(
@@ -280,26 +284,7 @@ impl ContextualParameterBinding<'_> {
         self.give_parameter_factory(move |resolver| {
             let key = Arc::clone(&key);
             let default = default.clone();
-            Box::pin(async move {
-                let container = resolver.container()?;
-                let config = container
-                    .inner
-                    .config
-                    .as_ref()
-                    .ok_or_else(|| ConfigError::Invalid("服务容器未配置配置仓储".into()))?;
-                match config.get(&key)? {
-                    None => Ok(default),
-                    Some(serde_json::Value::Null) => Ok(ParameterValue::null()),
-                    Some(value) => serde_json::from_value::<T>(value)
-                        .map(ParameterValue::new)
-                        .map_err(|_| {
-                            container_error(
-                                "container_contextual_config_type_mismatch",
-                                "配置值与构造参数的声明类型不符",
-                            )
-                        }),
-                }
-            })
+            Box::pin(async move { resolver.contextual_config::<T>(&key, &default) })
         })
     }
 
@@ -325,6 +310,33 @@ impl ContextualParameterBinding<'_> {
                 Ok(ParameterValue::new(values))
             })
         })
+    }
+}
+
+impl Resolver {
+    pub(super) fn contextual_config<T: DeserializeOwned + Send + Sync + 'static>(
+        &self,
+        key: &str,
+        default: &ParameterValue,
+    ) -> Result<ParameterValue> {
+        let container = self.container()?;
+        let config = container
+            .inner
+            .config
+            .as_ref()
+            .ok_or_else(|| ConfigError::Invalid("服务容器未配置配置仓储".into()))?;
+        match config.get(key)? {
+            None => Ok(default.clone()),
+            Some(serde_json::Value::Null) => Ok(ParameterValue::null()),
+            Some(value) => serde_json::from_value::<T>(value)
+                .map(ParameterValue::new)
+                .map_err(|_| {
+                    container_error(
+                        "container_contextual_config_type_mismatch",
+                        "配置值与构造参数的声明类型不符",
+                    )
+                }),
+        }
     }
 }
 

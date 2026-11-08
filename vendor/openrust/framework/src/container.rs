@@ -72,7 +72,7 @@ use resolving_hooks::ResolveHooks;
 #[cfg(test)]
 #[path = "container/attribute_resolution_tests.rs"]
 mod attribute_resolution_tests;
-mod attributes;
+pub mod attributes;
 use attributes::AttributeRegistry;
 pub use attributes::{
     AttributeArguments, AttributeEvent, AttributeParameter, AttributeValue, ClassAttribute,
@@ -1829,9 +1829,13 @@ impl Resolver {
 
     fn for_new_lookup(mut self) -> Self {
         self.previous_parameters = self.parameters.take();
+        self.clear_factory_inputs();
+        self
+    }
+
+    fn clear_factory_inputs(&mut self) {
         self.factory_parameters = Arc::new(FactoryParameters::empty());
         self.factory_completion = None;
-        self
     }
 
     fn resolve_from<T: ?Sized + Send + Sync + 'static, K: Send + 'static>(
@@ -1839,16 +1843,29 @@ impl Resolver {
         lookup: Option<ServiceKey>,
         parameters: ParameterOverrides,
     ) -> BoxFuture<'static, Result<Arc<T>>> {
-        use crate::foundation::lifecycle::CallbackDisposal;
-
-        // 未轮询的调用尚未选定作用域，仍持有可受控退役的参数。
-        let frame = (!parameters.is_empty())
-            .then(|| ParameterFrame::new(parameters, CallbackDisposal::new(None, None)));
         let request = ResolveRequest::Typed {
             lookup,
             target: ServiceKey::typed::<T>(),
             erased_output: TypeId::of::<Arc<T>>(),
         };
+        Self::resolve_mapped(resolver, request, parameters, |value| {
+            value.downcast_ref::<Arc<T>>().cloned().ok_or_else(|| {
+                container_error("service_type_mismatch", "服务的实际输出不符合声明类型")
+            })
+        })
+    }
+
+    fn resolve_mapped<T: Send + 'static, K: Send + 'static>(
+        resolver: impl FnOnce() -> (Result<Self>, K) + Send + 'static,
+        request: ResolveRequest,
+        parameters: ParameterOverrides,
+        deliver: fn(Value) -> Result<T>,
+    ) -> BoxFuture<'static, Result<T>> {
+        use crate::foundation::lifecycle::CallbackDisposal;
+
+        // 未轮询的调用尚未选定作用域，仍持有可受控退役的参数。
+        let frame = (!parameters.is_empty())
+            .then(|| ParameterFrame::new(parameters, CallbackDisposal::new(None, None)));
         Box::pin(async move {
             // 选择器可交回强持有者，保证延迟轮询的根容器活到结果交付。
             let (selected, _keepalive) = resolver();
@@ -1861,10 +1878,7 @@ impl Resolver {
                     };
                 }
             };
-            let value = resolver.resolve_with_frame(request, frame).await?;
-            value.downcast_ref::<Arc<T>>().cloned().ok_or_else(|| {
-                container_error("service_type_mismatch", "服务的实际输出不符合声明类型")
-            })
+            deliver(resolver.resolve_with_frame(request, frame).await?)
         })
     }
 

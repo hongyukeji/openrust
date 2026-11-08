@@ -166,6 +166,26 @@ fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
 
 活动的 `new_instance` 再次解析同一类时回退普通构造。若该调用会等到自己的祖先共享构造，内层直接构造一次，由外层持有的共享尝试统一发布。`Resolver::build_class` 在当前作用域直接构造编译类，跳过显式绑定和共享缓存，仍执行类属性。属性身份和实参类型来自 Rust 编译声明。 [Laravel 构造与属性源码](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php) · [Laravel 方法参数注入](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/BoundMethod.php)
 
+#### 内置通用属性
+
+从 `openrust::container::attributes` 导入 `Config`、`Give` 和 `Tag`，再通过 `ClassAttribute::contextual` 附到参数声明。Provider 的 `when_has_attribute::<A>` 仍可为指定类型覆盖内置处理器。
+
+- `Config::<T>::new(key).with_default(value)` 从当前配置仓储读取配置，并按 `T` 解码。只有缺失键才使用属性默认值。显式 null 继续遵循构造参数或 `new_instance` 的选参规则。
+- `Give::<T>::new(key).with_parameters(overrides)` 按服务键或别名解析实现。仅该属性的实参传给实现，非空实参独立构造。声明的同对象 trait 视图可作为 `T` 注入，后置回调仍可观察具体对象。
+- `Tag::<T>::new(tag)` 注入 `Tagged<T>`。`len()` 返回取得时的计数。每次调用 `stream()` 都返回独立的异步流，首次轮询时读取标签列表，再按登记顺序逐个解析，重复项保留。取得时不存在的标签固定为空，已登记的标签可以在新一轮看到追加。服务错误会结束当前一轮，重试可重新调用 `stream()`。
+
+下面声明一个从 `example.greeting` 读取的参数。
+
+```rust
+use openrust::container::{ClassAttribute, ConstructorParam, attributes::Config};
+
+let greeting = ConstructorParam::scalar::<String>("greeting").with_attribute(
+    ClassAttribute::contextual(|| Ok(Config::<String>::new("example.greeting"))),
+);
+```
+
+Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在每轮沿用创建它时的 Resolver 和作用域。固定来源见 [Config](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Config.php)、[Give](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Give.php) 和 [Tag](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Tag.php)。
+
 ### 读取与调用原始绑定工厂
 
 `Container::get_bindings()` 按登记顺序返回显式工厂条目的键、共享声明和 `FactoryHandle`。实例覆盖保留原工厂，绑定替换后已取得的句柄仍调用快照里的闭包或类绑定包装器。

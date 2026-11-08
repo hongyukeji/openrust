@@ -32,7 +32,7 @@ pub(crate) async fn show(
 ) -> openrust::Result<Json<ExampleInfo>> {
     let presenter = app.resolve::<dyn GreetingPresenter>().await?;
     Ok(Json(ExampleInfo {
-        message: presenter.text().to_owned(),
+        message: presenter.rendered_text().await?,
         served_at: presenter.served_at(),
     }))
 }

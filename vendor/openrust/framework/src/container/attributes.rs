@@ -9,6 +9,9 @@ use crate::foundation::lifecycle::{
 };
 use std::collections::VecDeque;
 
+mod builtin;
+pub use builtin::{Config, Give, Tag, Tagged};
+
 /// 当前构造参数的属性解析信息。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AttributeParameter {

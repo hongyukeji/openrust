@@ -13,8 +13,9 @@ use crate::modules::example::services::article_write::ArticleWriter;
 #[cfg(feature = "http-client")]
 use crate::modules::example::services::upstream::ArticleSummaryService;
 use crate::modules::example::services::{
-    EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig, ExampleGreetingConstructed,
-    ExampleMessage, ExamplePresenter, ExampleServedAt, GreetingPresenter,
+    EXAMPLE_MESSAGE_ALIAS, EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig,
+    ExampleGreetingConstructed, ExampleMessage, ExamplePresenter, ExampleServedAt,
+    GreetingPresenter,
 };
 #[cfg(feature = "auth")]
 use openrust::database::sea_orm::{EntityTrait, QuerySelect};
@@ -210,6 +211,10 @@ fn register_example_schema(app: &mut RegisterContext<'_>) -> Result<()> {
                 openrust::config::repository::SectionSchema::String,
             ),
             (
+                "greeting_suffix",
+                openrust::config::repository::SectionSchema::String,
+            ),
+            (
                 "article_summary_origin",
                 openrust::config::repository::SectionSchema::String.nullable(),
             ),
@@ -328,6 +333,10 @@ impl ServiceProvider for ExampleServiceProvider {
                 })
             })
             .await?;
+            app.alias(
+                ServiceKey::typed::<ExampleMessage>(),
+                ServiceKey::named(EXAMPLE_MESSAGE_ALIAS),
+            )?;
             app.extend::<ExampleMessage, _>(|original, _resolver| {
                 Box::pin(async move { Ok(Arc::new(original.with_binding_extension())) })
             })

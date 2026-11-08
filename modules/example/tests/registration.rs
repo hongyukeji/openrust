@@ -201,6 +201,82 @@ async fn production_named_greeting_uses_each_request_scope()
 }
 
 #[tokio::test]
+async fn production_greeting_uses_config_named_message_and_lazy_tagged_suffixes()
+-> Result<(), Box<dyn std::error::Error>> {
+    use super::services::{EXAMPLE_GREETING_SUFFIXES, EXAMPLE_MESSAGE_ALIAS, GreetingSuffix};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([(
+        "example",
+        serde_json::json!({"greeting_suffix": "【配置】"}),
+    )])?;
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+        .build()
+        .await?;
+    let state = app.app()?.state();
+    let base = state.resolve::<ExampleMessage>().await?;
+    assert_eq!(
+        app.app()?
+            .config_repository()
+            .get("example.greeting_suffix")?,
+        Some(serde_json::json!("【配置】"))
+    );
+    let request = || {
+        Request::get("/api/example")
+            .header("host", "localhost")
+            .body(Body::empty())
+    };
+    let response = app.request(request()?).await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = response.json()?;
+    assert_eq!(json["data"]["message"], format!("{}【配置】", base.text()));
+
+    let container = state.container();
+    container
+        .instance_key(
+            ServiceKey::named(EXAMPLE_MESSAGE_ALIAS),
+            Arc::new(ExampleMessage::new("命名问候")),
+        )
+        .await?;
+    let suffix_resolutions = Arc::new(AtomicUsize::new(0));
+    let first = ServiceKey::named("example.suffix.z");
+    let second = ServiceKey::named("example.suffix.a");
+    for (key, suffix) in [(first.clone(), "，你好"), (second.clone(), "！")] {
+        let suffix_resolutions = Arc::clone(&suffix_resolutions);
+        container
+            .bind_key::<GreetingSuffix, _>(key, move |_| {
+                let suffix_resolutions = Arc::clone(&suffix_resolutions);
+                Box::pin(async move {
+                    suffix_resolutions.fetch_add(1, Ordering::Relaxed);
+                    Ok(Arc::new(GreetingSuffix(suffix)))
+                })
+            })
+            .await?;
+    }
+    container.tag([first, second], [EXAMPLE_GREETING_SUFFIXES])?;
+
+    let presenter = state.resolve::<dyn GreetingPresenter>().await?;
+    assert_eq!(presenter.text(), "命名问候");
+    assert!(Arc::ptr_eq(
+        &base,
+        &state.resolve::<ExampleMessage>().await?
+    ));
+    assert_eq!(suffix_resolutions.load(Ordering::Relaxed), 0);
+    let response = app.request(request()?).await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = response.json()?;
+    assert_eq!(json["data"]["message"], "命名问候【配置】，你好！");
+    assert_eq!(suffix_resolutions.load(Ordering::Relaxed), 2);
+
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn production_greeting_attributes_supply_time_and_preserve_explicit_override()
 -> Result<(), Box<dyn std::error::Error>> {
     use std::sync::{
