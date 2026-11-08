@@ -1,4 +1,4 @@
-//! 具名队列连接与显式 worker；标准项目已编译数据库和 Redis 驱动。
+//! 具名队列连接与 worker；标准项目已编译数据库和 Redis 驱动。
 
 use openrust::config::{ConfigContext, ConfigError, QueueConfig};
 use std::collections::HashMap;
@@ -55,6 +55,7 @@ pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
         lease_secs: 60,
         job_timeout_secs: 300,
         worker_concurrency: 1,
+        embedded_queues: Vec::new(),
         shutdown_timeout_secs: 10,
     })
 }

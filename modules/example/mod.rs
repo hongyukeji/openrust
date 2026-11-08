@@ -214,6 +214,8 @@ pub(crate) fn class_descriptors() -> impl IntoIterator<Item = openrust::containe
         ))]
         services::article_transfer::article_import_disk_descriptor(),
     ]
+    .into_iter()
+    .chain(http::controllers::environment_binding::descriptors())
 }
 
 #[cfg(test)]

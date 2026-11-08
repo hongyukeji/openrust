@@ -1,4 +1,4 @@
-//! 标准应用具名队列连接与显式 worker 的默认值。
+//! 标准应用具名队列连接与 worker 的默认值。
 
 use openrust::config::{ConfigContext, ConfigError, QueueConfig};
 use std::collections::HashMap;
@@ -35,6 +35,7 @@ pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
         lease_secs: 60,
         job_timeout_secs: 300,
         worker_concurrency: 1,
+        embedded_queues: vec!["example".into(), "notifications".into()],
         shutdown_timeout_secs: 10,
     })
 }

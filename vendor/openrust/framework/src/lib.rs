@@ -211,11 +211,24 @@ pub fn run<A: ApplicationDefinition>() -> ExitCode {
     run_with_args::<A>(std::env::args().skip(1))
 }
 
+/// 启动应用。未指定命令时，同进程运行 HTTP 与已配置的后台角色。
+/// 显式指定 `serve`、队列或调度命令时，只运行对应入口。
+pub fn run_application<A: ApplicationDefinition>() -> ExitCode {
+    run_with_default::<A>(std::env::args().skip(1), "start")
+}
+
 /// 使用显式控制台参数启动应用；`--env name` 和 `--env=name` 只选择存在的环境文件。
 ///
 /// 嵌入式调用方传入自己的参数，普通 [`lifecycle::bootstrap`] 不观察进程参数。
 pub fn run_with_args<A: ApplicationDefinition>(args: impl IntoIterator<Item = String>) -> ExitCode {
-    let (name, command_args, console_environment) = parse_console_args(args);
+    run_with_default::<A>(args, "serve")
+}
+
+fn run_with_default<A: ApplicationDefinition>(
+    args: impl IntoIterator<Item = String>,
+    default_command: &str,
+) -> ExitCode {
+    let (name, command_args, console_environment) = parse_console_args(args, default_command);
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -252,6 +265,7 @@ pub fn run_with_args<A: ApplicationDefinition>(args: impl IntoIterator<Item = St
 
 fn parse_console_args(
     args: impl IntoIterator<Item = String>,
+    default_command: &str,
 ) -> (String, Vec<String>, Option<String>) {
     let mut command = Vec::new();
     let mut environment = None;
@@ -275,7 +289,7 @@ fn parse_console_args(
     let name = match command.next() {
         Some(name) if matches!(name.as_str(), "--help" | "-h") => "help".to_owned(),
         Some(name) => name,
-        None => "serve".to_owned(),
+        None => default_command.to_owned(),
     };
     (name, command.collect(), environment)
 }
@@ -287,31 +301,5 @@ fn fail(message: &str) -> ExitCode {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::parse_console_args;
-    use super::prelude::*;
-
-    #[test]
-    fn prelude_json_is_a_response() {
-        let response = Json("ok").into_response();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["content-type"], "application/json");
-    }
-
-    #[test]
-    fn console_environment_argument_is_removed_before_command_dispatch() {
-        let parse = |args: &[&str]| parse_console_args(args.iter().map(|arg| (*arg).to_owned()));
-        assert_eq!(
-            parse(&["--env", "local", "config:cache"]),
-            ("config:cache".into(), Vec::new(), Some("local".into()))
-        );
-        assert_eq!(
-            parse(&["help", "--env=staging", "detail"]),
-            ("help".into(), vec!["detail".into()], Some("staging".into()))
-        );
-        assert_eq!(
-            parse(&["--envelope=mail", "--env"]),
-            ("--envelope=mail".into(), Vec::new(), None)
-        );
-    }
-}
+#[path = "../tests/unit/application_entry.rs"]
+mod tests;

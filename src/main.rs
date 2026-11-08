@@ -15,5 +15,5 @@ mod modules;
 mod routes;
 
 fn main() -> std::process::ExitCode {
-    openrust::run::<bootstrap::Server>()
+    openrust::run_application::<bootstrap::Server>()
 }

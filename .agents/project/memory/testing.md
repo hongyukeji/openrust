@@ -1691,6 +1691,12 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 
 本机CLI为0.159.3，正式experimental JSON schema与proxy参数已核查；`codex app-server daemon version`实测默认共享控制socket不存在，未启动/重启服务，未改真人线程、Goal、额度或问答账本。当前Desktop真实恢复及proxy断连后的工具推进未验收，原生精确问答、可信真人控制水位与预算自动恢复仍保缺口；Windows跳过项不计原生通过。最后读取与queue/start没有CAS，仍有竞态，不能声称原子遵守其间的真人暂停。接入条件与最小路径见[平台说明](../../skills/agent-continuous-development-guard/references/platforms.md#原生接入条件与最小路径)。本簇仅skill和验收事实，不替代任何Rust业务源码门禁。
 
+## 应用同进程启动
+
+根应用用无参数入口运行 HTTP、队列和调度。MySQL 8.4 隔离库验证登录、文章写入及索引刷新、调度记录、同端口的 WebSocket 101 和 `SIGTERM` 关闭连接后退出 0。独立 `serve` 保留队列任务，单独 `queue work` 消费该任务，`schedule run --once` 独立完成。真实 Redis 回归验证无默认数据库时，默认启动消费 `example`，而 `serve` 留下待处理任务。
+
+`tmp/default-app-runtime/` 保留 `live-receipt.log`、`redis-regression-final.log`、默认工作区 `workspace-tests-mysql.log`、严格 `clippy-final.log`、`doc.log` 和新生成 MySQL 项目的 `fresh-check.log` / `fresh-test.log`。配置后端或未编译功能的范围见[应用启动说明](../../../docs/src/getting-started/source-application.md)。
+
 ## 标准依赖与队列开箱限定验收
 
 范围为标准根应用与 `new` 的 MySQL/Redis 依赖、`queue.default`/原始具名连接、实际使用时构造 driver、显式 worker、同一模块 Jobs 与生成迁移目录；固定上游 framework `d52c3b3` 的 `config/queue.php`、`QueueManager::connection/resolve`、`QueueServiceProvider`，不把现有独立队列扩展等同完整 Laravel Queue。

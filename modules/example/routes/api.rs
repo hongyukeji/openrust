@@ -119,6 +119,10 @@ fn example_routes(routes: Router) -> Router {
         .get("/api/example", controllers::example::show)
         .name("example.index")
         .get(
+            "/api/example/environment-binding",
+            controllers::environment_binding::show,
+        )
+        .get(
             "/api/example/module-initialization",
             crate::modules::example::module_init::show,
         )

@@ -43,6 +43,9 @@ use std::time::Duration;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[cfg(all(unix, feature = "queue-redis"))]
+mod embedded;
+
 #[test]
 fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {

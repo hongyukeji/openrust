@@ -361,15 +361,23 @@ impl Scheduler {
 
     /// 持续扫描调度，直到收到 Ctrl-C 或 SIGTERM；当前扫描完成后退出。
     pub async fn run(&self) -> Result<()> {
+        self.run_until(shutdown_signal()).await
+    }
+
+    pub(crate) async fn run_until(
+        &self,
+        shutdown: impl std::future::Future<Output = Result<()>>,
+    ) -> Result<()> {
+        tokio::pin!(shutdown);
+        let mut delay = Duration::ZERO;
         loop {
-            self.tick().await?;
             tokio::select! {
-                signal = shutdown_signal() => {
-                    signal?;
-                    return Ok(());
-                }
-                () = tokio::time::sleep(Duration::from_millis(self.config.poll_interval_millis)) => {}
+                biased;
+                signal = &mut shutdown => return signal,
+                () = tokio::time::sleep(delay) => {}
             }
+            self.tick().await?;
+            delay = Duration::from_millis(self.config.poll_interval_millis);
         }
     }
 }

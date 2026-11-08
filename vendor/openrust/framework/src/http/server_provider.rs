@@ -4,7 +4,7 @@ use crate::core::Result;
 use crate::foundation::BootContext;
 use crate::http::client_ip::validate_trusted_proxy_ranges;
 use crate::http::health;
-use crate::http::serve::ServeCommand;
+use crate::http::serve::{ServeCommand, StartCommand};
 #[cfg(test)]
 use crate::routing::RouteRegistry;
 use std::sync::Arc;
@@ -80,6 +80,7 @@ impl crate::support::ServiceProvider for HttpServiceProvider {
             crate::http::proxy::validate_headers(config.trusted_proxy_headers)?;
             let _ = app.resolve::<health::ServerReadiness>().await?;
             app.command(ServeCommand);
+            app.command(StartCommand);
             crate::foundation::http::register_application_routes(
                 app,
                 config.metrics_endpoint_enabled,

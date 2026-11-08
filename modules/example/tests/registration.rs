@@ -246,6 +246,52 @@ async fn assert_log_context_placeholders(
     Ok(())
 }
 
+#[tokio::test]
+async fn production_environment_bind_is_registered_by_the_first_http_resolution()
+-> Result<(), Box<dyn std::error::Error>> {
+    use super::http::controllers::environment_binding::EnvironmentBinding;
+
+    let key = ServiceKey::typed::<dyn EnvironmentBinding>();
+    for (environment, implementation) in [("testing", "testing"), ("production", "fallback")] {
+        let source = enabled_example_sources(&production_sources(true))?
+            .merge_ordered_entries([("app", serde_json::json!({"env": environment}))])?;
+        let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(source)
+            .build()
+            .await?;
+        assert_eq!(app.app()?.environment().as_str(), environment);
+        let container = app.app()?.state().container().clone();
+        assert!(!container.contains_key(&key));
+        assert!(
+            !container
+                .get_bindings()?
+                .iter()
+                .any(|binding| binding.key == key)
+        );
+
+        let request = Request::get("/api/example/environment-binding")
+            .header("host", "localhost")
+            .body(Body::empty())?;
+        let response = app.request(request).await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(
+            json["data"],
+            serde_json::json!({"implementation": implementation}),
+        );
+        assert!(container.contains_key(&key));
+        assert!(container.resolved_key(&key)?);
+        let registered = container
+            .get_bindings()?
+            .into_iter()
+            .find(|binding| binding.key == key)
+            .ok_or("首次请求未登记环境绑定工厂")?;
+        assert!(!registered.shared);
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await?;
+    }
+    Ok(())
+}
+
 async fn assert_raw_greeting_presenter(
     container: &openrust::container::Container,
     parameters: ParameterOverrides,

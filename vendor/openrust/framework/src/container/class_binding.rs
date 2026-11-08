@@ -1,10 +1,117 @@
 //! 显式类名绑定的原工厂，沿同一 Resolver 执行直接构造或具体服务解析。
 
+use super::directory::AliasWitness;
 use super::{
-    Arc, Binding, ClassRegistry, Factory, Lifetime, ParameterFrame, ResolveRequest, Resolver,
-    Result, ServiceKey, State, TypeId, Value, container_error,
+    Arc, Binding, BindingChange, ClassRegistry, Container, Factory, Lifetime, ParameterFrame,
+    ResolveRequest, Resolver, Result, ServiceKey, State, TypeId, Value, container_error,
     descriptor_source::ConstructionSource, lock,
 };
+use crate::config::Environment;
+
+pub(super) struct DeclaredBinding {
+    aliases: AliasWitness,
+    environment: Environment,
+    binding: Binding,
+}
+
+impl DeclaredBinding {
+    pub(super) async fn install(self, container: &Container, resolver: &Resolver) -> Result<()> {
+        let Self {
+            aliases,
+            environment,
+            binding,
+        } = self;
+        let (_, rebound) = container.commit_binding_change_when(
+            aliases.terminal.clone(),
+            BindingChange::Factory(binding),
+            |state, key| {
+                resolver.check_open(state)?;
+                Ok(state.binding_environment.as_ref() == Some(&environment)
+                    && state.aliases.accepts(&aliases)
+                    && state.can_discover_environment_binding(key, resolver.parameters.is_some())
+                    && resolver
+                        .active_consumer_frame()
+                        .is_none_or(|(consumer, _)| {
+                            state.contextual_implementation(consumer, key).is_none()
+                        }))
+            },
+        )?;
+        if let Some(rebound) = rebound {
+            rebound.dispatch().await?;
+        }
+        Ok(())
+    }
+}
+
+impl State {
+    fn can_discover_environment_binding(&self, key: &ServiceKey, with_parameters: bool) -> bool {
+        !self.aliases.contains(key)
+            && !self.checked_environment_bindings.contains(key)
+            && self
+                .bindings
+                .get(key)
+                .is_none_or(|binding| with_parameters && binding.factory.is_none())
+    }
+
+    pub(super) fn discover_environment_binding(
+        &mut self,
+        requested: &ServiceKey,
+        resolver: &Resolver,
+        pinned: bool,
+    ) -> Result<Option<DeclaredBinding>> {
+        resolver.check_open(self)?;
+        let Some(environment) = &self.binding_environment else {
+            return Ok(None);
+        };
+        let aliases = self
+            .aliases
+            .lookup_witness(&self.classes.canonical_key(requested), pinned)?;
+        let key = &aliases.terminal;
+        if !self.can_discover_environment_binding(key, resolver.parameters.is_some()) {
+            return Ok(None);
+        }
+        let Some(class) = self.classes.class(key) else {
+            return Ok(None);
+        };
+        if class.binds.is_empty() {
+            return Ok(None);
+        }
+        let mut fallback = None;
+        let mut concrete = None;
+        for bind in &class.binds {
+            if bind.environments().is_empty() {
+                self.checked_environment_bindings.insert(key.clone());
+                return Err(container_error(
+                    "container_bind_environment_empty",
+                    "环境绑定至少需要一个有效环境",
+                ));
+            }
+            if bind.is_fallback() {
+                fallback = fallback.or(Some(bind.concrete()));
+            } else if bind.matches(environment) {
+                concrete = Some(bind.concrete());
+                break;
+            }
+        }
+        let Some(concrete) = concrete.or(fallback) else {
+            self.checked_environment_bindings.insert(key.clone());
+            return Ok(None);
+        };
+        let binding = ClassFactory::binding_erased(
+            &self.classes,
+            key,
+            concrete.clone(),
+            Lifetime::Bind,
+            key.clone(),
+            class.output,
+        );
+        Ok(Some(DeclaredBinding {
+            aliases,
+            environment: environment.clone(),
+            binding,
+        }))
+    }
+}
 
 pub(super) struct ClassFactory {
     concrete: ServiceKey,
@@ -22,17 +129,34 @@ impl ClassFactory {
         concrete: ServiceKey,
         lifetime: Lifetime,
     ) -> Binding {
+        Self::binding_erased(
+            classes,
+            key,
+            concrete,
+            lifetime,
+            ServiceKey::typed::<T>(),
+            TypeId::of::<Arc<T>>(),
+        )
+    }
+
+    pub(super) fn binding_erased(
+        classes: &ClassRegistry,
+        key: &ServiceKey,
+        concrete: ServiceKey,
+        lifetime: Lifetime,
+        target: ServiceKey,
+        output: TypeId,
+    ) -> Binding {
         let abstract_key = classes.canonical_key(key);
         let class_factory = Arc::new(Self {
             direct: abstract_key == classes.canonical_key(&concrete),
             concrete,
         });
-        let output = TypeId::of::<Arc<T>>();
         Binding {
             generation: 0,
             pending: Vec::new(),
             lifetime,
-            factory: Some(class_factory.factory(ServiceKey::typed::<T>(), output)),
+            factory: Some(class_factory.factory(target, output)),
             factory_output: Some(output),
             class_factory: Some(class_factory),
             instance: None,

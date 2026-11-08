@@ -1133,6 +1133,7 @@ impl ProviderBuilder {
         let commands = CommandRegistry::default();
         let mut finalizers = Vec::new();
         let result = async {
+            container.use_application_binding_environment(&config)?;
             for entry in providers {
                 registration::register(
                     &mut active,

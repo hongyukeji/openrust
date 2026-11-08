@@ -30,7 +30,7 @@ tokio::task_local! {
     static ENTRY_SCOPE: Arc<Scope>;
 }
 
-use crate::config::{ConfigError, ServerConfig, repository::ConfigRepository};
+use crate::config::{ConfigError, Environment, ServerConfig, repository::ConfigRepository};
 use crate::foundation::resources::ResourceOwner;
 use crate::foundation::resources::ResourceRegistrar;
 
@@ -470,6 +470,8 @@ struct RootRawClose {
 #[derive(Default)]
 struct State {
     bindings: HashMap<ServiceKey, Binding>,
+    binding_environment: Option<Environment>,
+    checked_environment_bindings: HashSet<ServiceKey>,
     binding_order: Vec<ServiceKey>,
     resolved_history: HashSet<ServiceKey>,
     aliases: directory::AliasState,
@@ -807,6 +809,17 @@ impl Container {
         change: BindingChange,
         only_if_unbound: bool,
     ) -> Result<(directory::RegistrationOutcome, Option<Rebound>)> {
+        self.commit_binding_change_when(service, change, |state, service| {
+            Ok(!only_if_unbound || !state.bound_key(service))
+        })
+    }
+
+    fn commit_binding_change_when(
+        &self,
+        service: ServiceKey,
+        change: BindingChange,
+        admit: impl FnOnce(&State, &ServiceKey) -> Result<bool>,
+    ) -> Result<(directory::RegistrationOutcome, Option<Rebound>)> {
         let (previous, removed, operations, event) = {
             let mut state = lock(&self.inner.state);
             if state.terminated {
@@ -814,7 +827,7 @@ impl Container {
             }
             let service = state.classes.canonical_key_owned(service);
             let was_bound = state.bound_key(&service);
-            if only_if_unbound && was_bound {
+            if !admit(&state, &service)? {
                 return Ok((directory::RegistrationOutcome::AlreadyBound, None));
             }
             let forgetting = matches!(change, BindingChange::ForgetInstance);
@@ -898,6 +911,33 @@ impl Container {
         drop(removed);
         drop(operations);
         Ok((directory::RegistrationOutcome::Registered, event))
+    }
+
+    /// 安装用于声明式 `Bind` 的环境。已完成的声明查找保留原有结果。
+    pub fn set_binding_environment(&self, environment: Environment) -> Result<()> {
+        let mut state = lock(&self.inner.state);
+        if state.terminated {
+            return Err(container_error("container_closed", "容器已关闭"));
+        }
+        state.binding_environment = Some(environment);
+        Ok(())
+    }
+
+    pub(crate) fn use_application_binding_environment(
+        &self,
+        config: &ConfigRepository,
+    ) -> Result<()> {
+        if lock(&self.inner.state).classes.has_environment_bindings() {
+            let app = config.get("app")?;
+            let environment = app
+                .as_ref()
+                .and_then(|app| app.get("env"))
+                .and_then(serde_json::Value::as_str)
+                .map(|name| Environment::from(name.to_owned()))
+                .unwrap_or_default();
+            self.set_binding_environment(environment)?;
+        }
+        Ok(())
     }
 
     async fn register<T, F>(&self, lifetime: Lifetime, factory: F) -> Result<()>
@@ -2015,13 +2055,20 @@ impl Resolver {
         let requested = pinned.unwrap_or_else(|| request.lookup_key());
         loop {
             use descriptor_source::ConstructionSource;
-            let source = {
-                let state = lock(&inner.state);
+            let choice = 'select: {
+                let mut state = lock(&inner.state);
                 let contextual = if expected.is_none() && self.active_consumer_frame().is_some() {
                     state.contextual_source(requested, self, request, pinned.is_some())?
                 } else {
                     None
                 };
+                if contextual.is_none()
+                    && expected.is_none()
+                    && let Some(declared) =
+                        state.discover_environment_binding(requested, self, pinned.is_some())?
+                {
+                    break 'select std::ops::ControlFlow::Break(declared);
+                }
                 let selected = match contextual {
                     Some(source) => source,
                     None if expected.is_none()
@@ -2036,7 +2083,17 @@ impl Resolver {
                 if matches!(&selected, ConstructionSource::Binding(_)) {
                     directory_tests_v2::observe_selected();
                 }
-                selected
+                std::ops::ControlFlow::Continue(selected)
+            };
+            let source = match choice {
+                std::ops::ControlFlow::Continue(source) => source,
+                std::ops::ControlFlow::Break(declared) => {
+                    let container = Container {
+                        inner: Arc::clone(inner),
+                    };
+                    declared.install(&container, self).await?;
+                    continue;
+                }
             };
             match source {
                 ConstructionSource::Binding(source) => {
@@ -3878,3 +3935,7 @@ mod class_projection;
 
 #[cfg(test)]
 mod selection_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/container/environment_binding.rs"]
+mod environment_binding_tests;

@@ -1092,7 +1092,38 @@ async fn run_article_flow(
     assert_eq!(after_rollback.body["meta"]["total"], 2);
     assert_eq!(after_rollback.body["data"][0]["title"], "Article 2");
     #[cfg(feature = "queue")]
-    drain_article_index_jobs(app, owner_id, &ids).await?;
+    {
+        let cached_title = format!("{path}/{}/cached-title", ids[1]);
+        let before_worker = get(address, &cached_title, owner_token).await?;
+        assert_eq!(before_worker.status, StatusCode::OK);
+        assert_eq!(before_worker.body["data"]["title"], "Article 2");
+        assert_eq!(before_worker.body["data"]["cache_hit"], false);
+
+        let article_path = format!("{path}/{}", ids[1]);
+        let indexed_title = "Title updated by the worker";
+        let updated = request(
+            address,
+            "PUT",
+            &article_path,
+            Some(serde_json::json!({"title": indexed_title, "body": "Body 2"}).to_string()),
+            Some(owner_token),
+            None,
+        )
+        .await?;
+        assert_eq!(updated.status, StatusCode::OK);
+        let saved = get(address, &article_path, owner_token).await?;
+        assert_eq!(saved.body["data"]["title"], indexed_title);
+        let pending = get(address, &cached_title, owner_token).await?;
+        assert_eq!(pending.body["data"]["title"], "Article 2");
+
+        drain_article_index_jobs(app, owner_id, &ids, indexed_title).await?;
+        let indexed = get(address, &cached_title, owner_token).await?;
+        assert_eq!(indexed.status, StatusCode::OK);
+        assert_eq!(indexed.body["data"]["title"], indexed_title);
+        assert_eq!(indexed.body["data"]["cache_hit"], true);
+        let denied = get(address, &cached_title, other_token).await?;
+        assert_eq!(denied.status, StatusCode::NOT_FOUND);
+    }
     #[cfg(feature = "queue")]
     drain_article_notifications(app, mail, owner_email).await?;
     let events = db
@@ -1104,7 +1135,7 @@ async fn run_article_flow(
         .await?
         .ok_or("article event count missing")?
         .try_get::<i64>("", "count")?;
-    assert_eq!(events, 5);
+    assert_eq!(events, if cfg!(feature = "queue") { 6 } else { 5 });
     db.connection()?
         .execute_raw(Statement::from_string(
             backend,
@@ -1362,6 +1393,7 @@ async fn drain_article_index_jobs(
     app: &openrust::Application,
     owner_id: i64,
     ids: &[i64],
+    updated_title: &str,
 ) -> TestResult {
     use modules::example::jobs::article_index::{ARTICLE_STORE, ArticleIndexEntry, cache_key};
     let queue = app.state().resolve::<openrust::queue::Queue>().await?;
@@ -1370,7 +1402,7 @@ async fn drain_article_index_jobs(
         processed += 1;
         assert!(processed <= 16, "unexpected number of queued example jobs");
     }
-    assert_eq!(processed, 6);
+    assert_eq!(processed, 7);
     let cache = app.state().resolve::<openrust::cache::Cache>().await?;
     let store = cache.store(ARTICLE_STORE).await?;
     assert!(
@@ -1379,7 +1411,7 @@ async fn drain_article_index_jobs(
             .await?
             .is_none()
     );
-    for (id, title) in [(ids[1], "Article 2"), (ids[2], "Article 3")] {
+    for (id, title) in [(ids[1], updated_title), (ids[2], "Article 3")] {
         assert_eq!(
             store
                 .get::<ArticleIndexEntry>(&cache_key(owner_id, id))

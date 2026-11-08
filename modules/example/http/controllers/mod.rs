@@ -18,6 +18,7 @@ pub(crate) mod config_reading;
 pub(crate) mod cookie;
 pub(crate) mod database_connection;
 pub(crate) mod draft_redirect;
+pub(crate) mod environment_binding;
 pub(crate) mod example;
 #[cfg(feature = "auth")]
 pub(crate) mod example_record;

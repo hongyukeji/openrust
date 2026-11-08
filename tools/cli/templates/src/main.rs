@@ -12,5 +12,5 @@ mod modules;
 mod routes;
 {{database_module}}
 fn main() -> std::process::ExitCode {
-    openrust::run::<bootstrap::{{type_name}}>()
+    openrust::run_application::<bootstrap::{{type_name}}>()
 }

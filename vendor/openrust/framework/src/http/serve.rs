@@ -14,6 +14,9 @@ use tokio::net::TcpListener;
 
 use crate::foundation::http::build_router;
 
+#[cfg(feature = "queue")]
+mod embedded;
+
 /// 绑定 `[server] host:port` 并持续提供服务，直到收到关闭信号。
 pub async fn serve(app: &Application) -> Result<()> {
     let router = build_router(app)?;
@@ -45,7 +48,7 @@ where
 }
 
 /// 在联合 supervisor 下运行 HTTP listener，由外层统一收尾应用后台任务。
-#[cfg(feature = "grpc")]
+#[cfg(any(feature = "grpc", feature = "queue"))]
 pub(crate) async fn serve_listener_for_supervisor<F>(
     state: ApplicationState,
     timeout: Duration,
@@ -141,7 +144,7 @@ where
     result
 }
 
-/// `serve`：启动 HTTP 服务器。它是每个应用二进制的默认命令。
+/// `serve`：仅启动 HTTP 服务器。
 pub struct ServeCommand;
 
 impl Command for ServeCommand {
@@ -154,6 +157,25 @@ impl Command for ServeCommand {
     }
 
     fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(serve(app))
+    }
+}
+
+pub(crate) struct StartCommand;
+
+impl Command for StartCommand {
+    fn name(&self) -> &'static str {
+        "start"
+    }
+
+    fn about(&self) -> &'static str {
+        "同进程启动 HTTP 和已配置的后台任务"
+    }
+
+    fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        #[cfg(feature = "queue")]
+        return Box::pin(embedded::start(app));
+        #[cfg(not(feature = "queue"))]
         Box::pin(serve(app))
     }
 }

@@ -1318,6 +1318,7 @@ impl crate::support::ServiceProvider for QueueServiceProvider {
                     ("lease_secs", S::Integer),
                     ("job_timeout_secs", S::Integer),
                     ("worker_concurrency", S::Integer),
+                    ("embedded_queues", S::array(S::String)),
                     ("shutdown_timeout_secs", S::Integer),
                 ]),
                 validate_config,
@@ -2942,7 +2943,7 @@ impl DatabaseQueue {
 }
 
 impl Queue {
-    fn connection_config(
+    pub(crate) fn connection_config(
         config: &crate::config::QueueConfig,
         name: &str,
     ) -> Result<crate::config::QueueConnectionConfig> {
@@ -3841,36 +3842,76 @@ impl crate::console::Command for QueueWorkCommand {
         Box::pin(async move {
             let config = app.section::<crate::config::QueueConfig>("queue")?;
             let (connection_name, queue_name) = queue_work_options(&config, &args)?;
-            let manager = app.state().resolve::<Queue>().await?;
-            manager.reset_shutdown();
-            let queue = manager.connection(&connection_name).await?;
-            let app_state = app.state().clone();
-            queue.reset_shutdown();
-            let mut workers = tokio::task::JoinSet::new();
-            for _ in 0..config.worker_concurrency {
-                let queue = queue.clone();
-                let app_state = app_state.clone();
-                let queue_name = queue_name.clone();
-                let poll_interval = config.poll_interval_millis;
-                workers.spawn(async move {
-                    worker_loop(queue, app_state, queue_name, poll_interval).await
-                });
-            }
-            let cause = tokio::select! {
-                    signal = shutdown_signal() => signal.err(),
-                    result = workers.join_next() => {
-                        Some(match result {
-                            Some(Ok(Ok(()))) => Error::custom("queue_worker_stopped", "queue worker exited unexpectedly"),
-                            Some(Ok(Err(error))) => error,
-                            Some(Err(error)) => Error::internal(error),
-                            None => Error::custom("queue_worker_stopped", "all queue workers exited unexpectedly"),
-                        })
-                    }
-            };
-            manager.request_shutdown();
-            let drain = join_workers(&mut workers);
-            let grace = Duration::from_secs(config.shutdown_timeout_secs.saturating_add(2));
-            let drain_result = if let Ok(result) = tokio::time::timeout(grace, drain).await {
+            QueueWorker::prepare(app, config, &connection_name, vec![queue_name])
+                .await?
+                .run_until(shutdown_signal(), true)
+                .await
+        })
+    }
+}
+
+pub(crate) struct QueueWorker {
+    manager: Arc<Queue>,
+    queue: Queue,
+    queues: Arc<[String]>,
+    state: crate::foundation::ApplicationState,
+    config: crate::config::QueueConfig,
+}
+
+impl QueueWorker {
+    pub(crate) async fn prepare(
+        app: &crate::foundation::Application,
+        config: crate::config::QueueConfig,
+        connection: &str,
+        queues: Vec<String>,
+    ) -> Result<Self> {
+        for name in &queues {
+            validate_name("queue", name, MAX_QUEUE_NAME)?;
+        }
+        let manager = app.state().resolve::<Queue>().await?;
+        manager.reset_shutdown();
+        let queue = manager.connection(connection).await?;
+        queue.reset_shutdown();
+        Ok(Self {
+            manager,
+            queue,
+            queues: queues.into(),
+            state: app.state().clone(),
+            config,
+        })
+    }
+
+    pub(crate) async fn run_until(
+        self,
+        shutdown: impl std::future::Future<Output = Result<()>>,
+        standalone: bool,
+    ) -> Result<()> {
+        let mut workers = tokio::task::JoinSet::new();
+        for _ in 0..self.config.worker_concurrency {
+            workers.spawn(worker_loop(
+                self.queue.clone(),
+                self.state.clone(),
+                Arc::clone(&self.queues),
+                self.config.poll_interval_millis,
+            ));
+        }
+        let cause = tokio::select! {
+            signal = shutdown => signal.err(),
+            result = workers.join_next() => Some(match result {
+                Some(Ok(Err(error))) => error,
+                Some(Err(error)) => Error::internal(error),
+                _ => Error::custom("queue_worker_stopped", "queue worker exited unexpectedly"),
+            }),
+        };
+        if standalone {
+            self.manager.request_shutdown();
+        } else {
+            // HTTP 与调度器可能仍在完成派发，保留 manager 的连接解析能力。
+            self.queue.request_shutdown();
+        }
+        let grace = Duration::from_secs(self.config.shutdown_timeout_secs.saturating_add(2));
+        let drain =
+            if let Ok(result) = tokio::time::timeout(grace, join_workers(&mut workers)).await {
                 result
             } else {
                 workers.abort_all();
@@ -3880,25 +3921,25 @@ impl crate::console::Command for QueueWorkCommand {
                     "queue workers did not join before the supervisor deadline",
                 ))
             };
-            if let Some(error) = cause {
-                return Err(error);
-            }
-            drain_result
-        })
+        cause.map_or(drain, Err)
     }
 }
 
 async fn worker_loop(
     queue: Queue,
     app_state: crate::foundation::ApplicationState,
-    queue_name: String,
+    queues: Arc<[String]>,
     poll_interval_millis: u64,
 ) -> Result<()> {
     loop {
-        if queue.is_shutdown_requested() {
-            return Ok(());
+        let mut worked = false;
+        for name in queues.iter() {
+            if queue.is_shutdown_requested() {
+                return Ok(());
+            }
+            worked |= queue.run_next_with_state(name, &app_state).await?;
         }
-        if !queue.run_next_with_state(&queue_name, &app_state).await? {
+        if !worked {
             tokio::time::sleep(Duration::from_millis(poll_interval_millis)).await;
         }
     }

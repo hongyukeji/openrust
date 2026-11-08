@@ -464,9 +464,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::Dev { config_namespace }) => {
-            run_application(&["serve".to_owned()], true, &config_namespace)
-        }
+        Some(Builtin::Dev { config_namespace }) => run_application(&[], true, &config_namespace),
         Some(Builtin::Serve) => run_project(&["serve".to_owned()], false),
         Some(Builtin::Generate {
             kind,
@@ -1895,7 +1893,7 @@ fn env_example(
     contents.push_str("\n# 统一哈希默认；成本和完整策略见config/hashing.rs。\nHASH_DRIVER=bcrypt\nBCRYPT_ROUNDS=12\nHASH_VERIFY=true\nBCRYPT_LIMIT=null\nARGON_MEMORY=65536\nARGON_TIME=4\nARGON_THREADS=1\n");
     if database.is_some() {
         contents.push_str(
-            "\n# 默认数据库队列；可选择已预置的 Redis 连接，URL 默认继承有效缓存 dsn。\nQUEUE_CONNECTION=database\n# QUEUE_CONNECTION=redis\n# 独立 Redis 队列连接和命名空间可按需覆盖：\n# QUEUE_REDIS_URL=redis://127.0.0.1:6379/\n# QUEUE_REDIS_NAMESPACE=app_queue\n# 先执行 openrust migrate，再显式运行 openrust queue work database --queue default。\n# Redis worker：openrust queue work redis --queue default；serve 不会自动启动 worker。\n",
+            "\n# 默认数据库队列；可选择已预置的 Redis 连接，URL 默认继承有效缓存 dsn。\nQUEUE_CONNECTION=database\n# QUEUE_CONNECTION=redis\n# 独立 Redis 队列连接和命名空间可按需覆盖：\n# QUEUE_REDIS_URL=redis://127.0.0.1:6379/\n# QUEUE_REDIS_NAMESPACE=app_queue\n# 先执行 cargo run -- migrate，再用 cargo run 在同一进程启动 Web 与后台任务。\n# 分开部署：cargo run -- serve、cargo run -- queue work、cargo run -- schedule run。\n",
         );
     } else {
         contents.push_str(

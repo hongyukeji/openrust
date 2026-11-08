@@ -15,6 +15,8 @@ mod auth;
 pub use auth::{Auth, Authenticated, CurrentUser};
 mod builtin;
 pub use builtin::{Config, Give, Tag, Tagged};
+mod binding;
+pub use binding::Bind;
 mod log_context;
 pub use log_context::Context;
 mod managers;

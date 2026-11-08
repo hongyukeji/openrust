@@ -435,10 +435,12 @@ impl Drop for Constructor {
 pub struct ClassDescriptor {
     identity: ClassIdentity,
     key: ServiceKey,
+    output: TypeId,
     kind: ClassKind,
     constructor: Option<Constructor>,
     projections: Vec<ClassProjection>,
     attributes: Vec<ClassAttribute>,
+    binds: Vec<super::attributes::Bind>,
 }
 impl ClassDescriptor {
     fn declare<T: ?Sized + 'static>(
@@ -449,10 +451,12 @@ impl ClassDescriptor {
         Self {
             identity: ClassIdentity::of::<T>(symbol),
             key: ServiceKey::typed::<T>(),
+            output: TypeId::of::<Arc<T>>(),
             kind,
             constructor,
             projections: Vec::new(),
             attributes: Vec::new(),
+            binds: Vec::new(),
         }
     }
 
@@ -493,7 +497,7 @@ impl ClassDescriptor {
         descriptor
     }
 
-    /// 声明接口的符号与类型。解析需要显式绑定或别名。
+    /// 声明接口的符号与类型。可通过显式绑定、别名或环境绑定解析。
     pub fn interface<T: ?Sized + Send + Sync + 'static>(symbol: &'static str) -> Self {
         Self::declare::<T>(symbol, ClassKind::Interface, None)
     }
@@ -516,10 +520,19 @@ impl ClassDescriptor {
         self.attributes.push(attribute);
         self
     }
+
+    /// 附加一条环境绑定声明，首次解析按声明顺序选择实现。
+    #[must_use]
+    pub fn with_bind(mut self, bind: super::attributes::Bind) -> Self {
+        self.binds.push(bind);
+        self
+    }
 }
 
 pub(super) struct ClassRecord {
     key: ServiceKey,
+    pub(super) output: TypeId,
+    pub(super) binds: Vec<super::attributes::Bind>,
     kind: ClassKind,
     constructor: Option<Constructor>,
     projections: HashMap<ServiceKey, ClassProjection>,
@@ -566,19 +579,29 @@ impl ClassRegistry {
         for ClassDescriptor {
             identity,
             key,
+            output,
             kind,
             constructor,
             projections,
             attributes,
+            binds,
         } in descriptors
         {
             identities.push(identity);
-            drafts.push((key, kind, constructor, projections, attributes));
+            drafts.push((
+                key,
+                output,
+                kind,
+                constructor,
+                projections,
+                attributes,
+                binds,
+            ));
         }
         let identities = ClassIdentities::from_entries(identities)?;
         let mut by_type = HashMap::with_capacity(drafts.len());
         let mut projection_sources = HashMap::new();
-        for (key, kind, constructor, projections, attributes) in drafts {
+        for (key, output, kind, constructor, projections, attributes, binds) in drafts {
             let id = key.type_id().ok_or_else(|| {
                 container_error(
                     "container_class_identity_duplicate",
@@ -614,6 +637,8 @@ impl ClassRegistry {
                 id,
                 ClassRecord {
                     key,
+                    output,
+                    binds,
                     kind,
                     constructor,
                     projections: by_target,
@@ -657,6 +682,10 @@ impl ClassRegistry {
 
     pub(super) fn has_descriptors(&self) -> bool {
         !self.by_type.is_empty()
+    }
+
+    pub(super) fn has_environment_bindings(&self) -> bool {
+        self.by_type.values().any(|class| !class.binds.is_empty())
     }
 
     pub(super) fn class(&self, key: &ServiceKey) -> Option<&ClassRecord> {

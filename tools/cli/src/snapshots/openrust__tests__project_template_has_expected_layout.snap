@@ -376,7 +376,7 @@ mod modules;
 mod routes;
 
 fn main() -> std::process::ExitCode {
-    openrust::run::<bootstrap::Blog>()
+    openrust::run_application::<bootstrap::Blog>()
 }
 
 --- bootstrap/app.rs ---
@@ -688,7 +688,7 @@ use figment::{
 use openrust::cache::{Cache, CacheStore};
 use openrust::config::ConfigSources;
 use openrust::container::attributes::{
-    Cache as CacheAttribute, Config, Context, Give, Log, RequestAttribute, RouteParameter,
+    Bind, Cache as CacheAttribute, Config, Context, Give, Log, RequestAttribute, RouteParameter,
 };
 use openrust::container::{
     AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam, ParameterKey,
@@ -779,6 +779,43 @@ async fn generated_application_injects_request_attributes() -> Result<(), Box<dy
 struct ScopedCache(Arc<CacheStore>);
 
 struct NamedLogger(Arc<Logger>, Arc<String>);
+
+trait EnvironmentGreeting: Send + Sync {
+    fn text(&self) -> &'static str;
+}
+
+struct LocalGreeting;
+impl EnvironmentGreeting for LocalGreeting {
+    fn text(&self) -> &'static str {
+        "本地"
+    }
+}
+
+#[tokio::test]
+async fn generated_application_installs_environment_bind_on_first_use()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut config = test_configuration();
+    config.app.env = openrust::config::Environment::Local;
+    let source = Figment::from(Serialized::defaults(config)).merge(Toml::string(
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    let configuration: bootstrap::Configuration = source.extract()?;
+    let mut builder =
+        openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
+    builder.class_descriptors([
+        ClassDescriptor::interface::<dyn EnvironmentGreeting>("App/EnvironmentGreeting")
+            .with_bind(Bind::for_environments(ServiceKey::typed::<LocalGreeting>(), ["local"])),
+        ClassDescriptor::concrete::<LocalGreeting>("App/LocalGreeting", vec![], |_| Ok(Arc::new(LocalGreeting)))
+            .with_projection(openrust::class_projection!(LocalGreeting => dyn EnvironmentGreeting)),
+    ]);
+    let app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
+    let state = app.state();
+    assert!(!state.container().contains::<dyn EnvironmentGreeting>());
+    assert_eq!(state.resolve::<dyn EnvironmentGreeting>().await?.text(), "本地");
+    assert!(state.container().contains::<dyn EnvironmentGreeting>());
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn generated_application_injects_named_logger() -> Result<(), Box<dyn std::error::Error>> {

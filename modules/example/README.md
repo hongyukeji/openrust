@@ -177,6 +177,62 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 文章创建、更新和删除在同一事务中调用 `Events::dispatch_in_transaction`，模块监听器写入 `example_article_events`，并把幂等的 `ArticleIndexJob` 插入同一持久队列事务；监听或入队失败会回滚文章写入。创建还从同一事务读取作者已验证邮箱，用公开 `Notifier::dispatch_in_transaction` 排入仅发给作者的确认邮件；入队失败同样回滚文章，测试 worker 使用捕获邮件驱动，不向真实供应商发送。显式 worker 在提交后按 owner/文章 ID 维护 `example-prefix` 命名 store 中 TTL 600 秒的派生标题，删除时移除对应键。`GET /api/example/articles/{id}/cached-title` 每次先在主库检查 owner，缓存 MISS 才从主库重建；默认 store 不受模块设置影响，应用可显式把该 named store 设为 Redis。标题是 eventual 派生值：异步 job 未消费或旧快照与新 job 交错时可能读到旧标题，单个写入的 TTL 为 600 秒，队列长期故障时不承诺端到端 600 秒内最新；授权与普通 CRUD 始终由主库决定。详情成功读取经公开 `Audit` 记录 actor、文章与结果，越权读取不会产生成功审计。
 
+### 登录、保存文章与 worker 更新标题
+
+这条参考流程使用 MySQL 保存文章和队列记录，Redis 缓存派生标题。请求处理见 [Articles](http/controllers/article.rs)，事务写入和派发分别见 [ArticleWriter](services/article_write.rs) 与 [文章监听器](events/article.rs)，后台处理见 [ArticleIndexJob](jobs/article_index.rs)，查询见 [标题接口](http/controllers/article_cache.rs)。
+
+1. 使用隔离的 MySQL 8.4 示例库，配置数据库、Redis、应用密钥、JWT 密钥及邮件驱动，并准备一个邮箱已验证的示例账户。按 [认证指南](../../docs/src/security/authentication.md#显式-jwt-api-profile) 设置 `AUTH_PROFILE=jwt-api`。设置 `QUEUE_CONNECTION=database`，让文章和入队记录使用同一个 MySQL 事务。
+2. 在应用的 `config/cache.rs` 中为 `example-prefix` 配置 Redis。将下列代码加到既有 `stores` 的配置中，Web 和 worker 使用相同配置。每个独立示例环境使用自己的命名空间。
+
+   ```rust
+   stores.insert(
+       "example-prefix".into(),
+       CacheStoreConfig {
+           driver: "redis".into(),
+           namespace: "article-worker-demo".into(),
+           options: BTreeMap::from([(
+               "dsn".into(),
+               serde_json::Value::String(ctx.env_or("REDIS_URL", "redis://127.0.0.1:6379/")),
+           )]),
+       },
+   );
+   ```
+
+3. 迁移并启动应用。默认同进程运行 Web、调度器以及 `default`、`example`、`notifications` 队列的 worker。
+
+   ```sh
+   cargo run --features auth-fortify,queue,view,encryption -- migrate
+   cargo run --features auth-fortify,queue,view,encryption
+   ```
+
+4. 在另一个终端用示例账户登录并创建文章。以下命令使用 `jq`，从环境变量 `DEMO_ACCOUNT`、`DEMO_PASSWORD` 读示例凭据，且假设该账户未启用 TOTP。
+
+   ```sh
+   base=http://127.0.0.1:3000
+   token=$(jq -nc '{account: env.DEMO_ACCOUNT, password: env.DEMO_PASSWORD}' |
+     curl -fsS -H 'Content-Type: application/json' --data-binary @- "$base/api/auth/login" |
+     jq -er '.access_token')
+
+   id=$(curl -fsS -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+     -d '{"title":"初始标题","body":"示例正文"}' "$base/api/example/articles" | jq -er '.data.id')
+   article="$base/api/example/articles/$id"
+   curl -fsS -H "Authorization: Bearer $token" "$article/cached-title" | jq '.data'
+   curl -fsS -X PUT -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+     -d '{"title":"更新后的标题","body":"示例正文"}' "$article" | jq '.data.title'
+   curl -fsS -H "Authorization: Bearer $token" "$article/cached-title" | jq '.data'
+   ```
+
+   首次查缓存会从 MySQL 回填初始标题。更新请求成功后，文章详情立即可读，后台 worker 随后刷新派生标题。
+
+5. 待后台处理完成后查询派生标题。
+
+   ```sh
+   curl -fsS -H "Authorization: Bearer $token" "$article/cached-title" |
+     jq -e '.data | .title == "更新后的标题" and .cache_hit'
+   ```
+
+   等 worker 消费后，查询返回新标题并命中 Redis。分开部署时，应用用 `cargo run -- serve` 启动 Web，各队列用 `cargo run -- queue work database --queue example` 等命令启动 worker，运行相同的应用 feature。启用 `realtime` 并允许应用的 Origin 后，文章 WebSocket 路由也通过 Web 服务的端口连接。自动回归使用真实 HTTP 和队列消费者验证写入前后结果，见 [文章流程测试](tests/auth_flows.rs)。
+
 文章 HTTP 创建、更新和删除的完整事务结果使用既有 tracing span 记录固定操作与结果；启用 `metrics` 时产生 `example_article_operations_total` 与 `example_article_operation_duration_seconds`。标签仅有 `operation`、`outcome`，不包含账户、文章 ID、邮件地址、正文或错误内容。取消记为未完成的 `cancelled`，不推断数据库回滚；批量导入事务内的单次 `create_in_transaction` 不提前记作已提交。`/metrics` 仍须按框架配置显式开放并限制采集网络。
 
 编译 `encryption` 时，所有者可通过 `PUT/GET /api/example/articles/{id}/private-note` 保存和读取私密备注。主库只保存 `Encrypter` 密文；认证上下文固定绑定 owner ID 与文章 ID，列表和公开文章资源均不包含备注或密文。私密备注输入最多 10,000 字符，越权与不存在返回 404；响应明确设置 `Cache-Control: private, no-store` 与 `nosniff`。双库真实 HTTP 回归还验证密文不能在另一文章上下文解密。密钥需由应用安全配置，测试密钥不适用于生产。
