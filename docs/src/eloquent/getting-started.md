@@ -144,8 +144,15 @@ Json::decode_using(Some(Arc::new(|value, associative| {
 encoder 收到编码 flags，decoder 收到原始 JSON 值及关联解码标记。普通属性和集合类的
 空值规则各自生效。路径赋值保留完整键编码、基础字段解码、基础字段编码的顺序。
 回调应返回 `serde_json::Value`，也可以通过 `Result` 传播应用错误。
-内置 encoder 支持 Eloquent 使用的默认 flags 和 `UNESCAPED_UNICODE`，
-其余 PHP 编码 flags 仍待对应。回调状态在同一进程共享，测试可在独立进程中注册。
+内置 encoder 支持 PHP 的十六进制转义、数值字符串、强制对象、四空格缩进、Unicode
+及斜线选项、保留浮点小数位和错误策略。多个 flags 使用按位或组合，未知位会被忽略。
+默认深度为 512，超出时返回布尔 false，`THROW_ON_ERROR` 改为返回错误。
+`PARTIAL_OUTPUT_ON_ERROR` 优先，深层 JSON 值继续输出。
+
+Rust 的 JSON 值已保证字符串是有效 UTF-8，且没有 PHP 的资源、循环引用和非有限浮点，
+因此对应输入的 PHP 错误路径无法通过此 API 构造。回调状态在同一进程共享，
+测试可在独立进程中注册。示例预览的 `metadata_projections.formatted` 使用默认编码器
+输出格式化 JSON。
 
 ### 十进制定标
 

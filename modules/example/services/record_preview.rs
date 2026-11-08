@@ -9,8 +9,9 @@ use openrust::{
         eloquent::{
             ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AsFluent, AttributeCast,
             AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, EnumCast,
-            HasMany, HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttribute,
-            ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys, RelationLoad, SaveContext,
+            HasMany, HasOne, HasRelationships, Json, LoadedRelation, MassAssignment,
+            ModelAttribute, ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys,
+            RelationLoad, SaveContext,
         },
     },
     support::{BoxFuture, Collection},
@@ -236,6 +237,9 @@ async fn metadata_projections(attributes: &ModelAttributes) -> Result<Value> {
         .insert("unicode".into(), AttributeCast::JsonUnicode);
     let mut values = projection.attributes_to_json(&metadata)?;
     if values["object"].is_array() || values["object"].is_object() {
+        let flags = Json::PRETTY_PRINT | Json::UNESCAPED_UNICODE | Json::UNESCAPED_SLASHES;
+        let formatted = Json::encode_default(&values["object"], flags)?;
+        values.insert("formatted".into(), formatted);
         projection.set_raw_attribute("fluent", raw)?;
         metadata.casts.insert("fluent".into(), AsFluent::cast());
         if let Some(value) = projection.get_attribute_value(&metadata, "fluent")? {

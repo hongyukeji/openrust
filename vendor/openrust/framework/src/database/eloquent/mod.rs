@@ -32,6 +32,7 @@ mod fluent_cast;
 pub use fluent_cast::AsFluent;
 mod has_many;
 mod json_codec;
+mod json_encoding;
 mod json_path;
 pub use json_codec::{Json, JsonDecoder, JsonEncoder};
 mod mass_assignment;

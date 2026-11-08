@@ -1648,6 +1648,9 @@ fn assert_preview_display(changed: &serde_json::Value) {
         projections["fluent"]["shape"],
         serde_json::json!({"empty":[],"list":["首"]})
     );
+    let formatted = projections["formatted"].as_str().unwrap_or_default();
+    assert!(formatted.starts_with("{\n    "));
+    assert!(formatted.contains("\"0\": \"首\""));
     assert_eq!(
         projections["object"]["tags"],
         serde_json::json!(["changed"])

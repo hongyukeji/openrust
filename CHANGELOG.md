@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 默认 JSON 编码器支持 PHP 格式、转义、数字转换和深度错误 flags。
+
 - Eloquent 支持 AsFluent 类转换、对象缓存及 JSON 路径写回。
 
 - Eloquent 属性 JSON 支持进程级 encoder 和 decoder 回调。

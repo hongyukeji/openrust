@@ -78,6 +78,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_primitive_json_casts().await?;
         check_generated_as_fluent().await?;
         check_generated_json_codec().await?;
+        check_generated_json_flags()?;
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
         check_generated_class_cast().await?;
@@ -469,6 +470,27 @@ async fn check_generated_json_codec() -> Result<()> {
     check(Json::decode(&json!(r#""default""#), Some(true))? == json!("first"))?;
     check(Json::decode(&json!(r#""default""#), Some(true))? == json!("default"))?;
     Ok(())
+}
+
+fn check_generated_json_flags() -> Result<()> {
+    use openrust::database::eloquent::Json;
+    use serde_json::json;
+
+    let _reset = ResetJsonCodec;
+    Json::encode_using(Some(Arc::new(Json::encode_default)));
+    let value = json!({"01":["0042","/中文"," \" ",1.0]});
+    let flags = Json::FORCE_OBJECT | Json::NUMERIC_CHECK | Json::PRETTY_PRINT
+        | Json::UNESCAPED_UNICODE | Json::UNESCAPED_SLASHES | Json::PRESERVE_ZERO_FRACTION
+        | Json::HEX_QUOT;
+    let expected = r#"{
+    "01": {
+        "0": 42,
+        "1": "/中文",
+        "2": " \u0022 ",
+        "3": 1.0
+    }
+}"#;
+    check(Json::encode(&value, flags)? == json!(expected))
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {
