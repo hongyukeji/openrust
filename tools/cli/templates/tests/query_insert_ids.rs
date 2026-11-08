@@ -68,6 +68,8 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         backend_ids(&db).await?;
         check_generated_class_cast().await?;
         check_generated_collection_cast().await?;
+        #[cfg(feature = "encryption")]
+        check_generated_encrypted_collection().await?;
         generated_model_save(database.url()).await
     }.await;
     database.close().await?;
@@ -178,6 +180,45 @@ async fn check_generated_collection_cast() -> Result<()> {
         attributes.attributes_to_array(&metadata)?["data"].as_json()?
             == &json!({"label":["label","test"]}),
     )
+}
+
+#[cfg(feature = "encryption")]
+async fn check_generated_encrypted_collection() -> Result<()> {
+    use figment::{Figment, providers::Serialized};
+    use openrust::{
+        database::eloquent::{AsEncryptedArrayObject, ModelAttributes, ModelMetadata},
+        encryption::{ApplicationEncrypter, EncryptionServiceProvider},
+        foundation::ProviderBuilder,
+    };
+    use serde_json::json;
+
+    let mut providers = ProviderBuilder::new();
+    providers.provider(EncryptionServiceProvider);
+    let runtime = providers
+        .start(Figment::from(Serialized::defaults(json!({
+            "app":{"key":"0123456789abcdef0123456789abcdef"}
+        }))))
+        .await?;
+    let encrypter = runtime
+        .container()
+        .resolve::<dyn ApplicationEncrypter>()
+        .await?;
+    let mut metadata = ModelMetadata::new("insert_items", "GeneratedRecord");
+    metadata.casts.insert(
+        "data".into(),
+        AsEncryptedArrayObject::cast(encrypter.clone()),
+    );
+    let attributes = ModelAttributes::default();
+    attributes
+        .set_attribute(&metadata, "data", json!({"tag":"encrypted"}))
+        .await?;
+    let raw = attributes.raw_attribute("data")?;
+    let raw = raw
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| Error::custom("generated_encrypted_cast_missing", "缺少加密数组对象密文"))?;
+    check(encrypter.decrypt_string(raw)? == br#"{"tag":"encrypted"}"#)?;
+    check(attributes.attributes_to_json(&metadata)?["data"] == json!({"tag":"encrypted"}))
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

@@ -186,7 +186,7 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
     let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(serde_json::json!({
-            "app":{"env":"test"},
+            "app":{"env":"test","key":"0123456789abcdef0123456789abcdef"},
             "database":{"url":database.url()},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"example-record-tests","active_key_id":"test","keys":{"test":key}}},
@@ -353,7 +353,10 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         assert!(date_calls.load(Ordering::Relaxed) > calls_before);
         numeric_preview_contract(&app, &token, &payload).await?;
         assert_cached_date_save(&app, id).await?;
-        assert_cached_collection_save(&app, id).await
+        assert_cached_collection_save(&app, id).await?;
+        #[cfg(feature = "encryption")]
+        assert_encrypted_collection_save(&app, id).await?;
+        Ok::<(), Box<dyn std::error::Error>>(())
     })
     .catch_unwind()
     .await;
@@ -1018,6 +1021,99 @@ async fn assert_cached_collection_save(
                 .ok_or("collection row missing after save")?;
             if saved.metadata.as_ref() != Some(&expected) {
                 return Err("collection writeback did not reach the database".into());
+            }
+        }
+        Ok(())
+    }
+    .await;
+    transaction.rollback().await?;
+    outcome
+}
+
+#[cfg(feature = "encryption")]
+async fn assert_encrypted_collection_save(
+    app: &TestApp<crate::bootstrap::Server>,
+    id: i64,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::{
+        database::{
+            eloquent::{
+                ArrayObject, AsEncryptedArrayObject, AsEncryptedCollection, SaveContext,
+                save_with_query,
+            },
+            sea_orm::{EntityTrait, TransactionTrait},
+        },
+        encryption::ApplicationEncrypter,
+        support::Collection,
+    };
+    use serde_json::json;
+
+    let state = app.app()?.state();
+    let databases = state.resolve::<openrust::Databases>().await?;
+    let encrypter = state.resolve::<dyn ApplicationEncrypter>().await?;
+    let db = databases.default_database();
+    let connection = db.primary_connection()?;
+    let record = example_record::Entity::find_by_id(id)
+        .one(&connection)
+        .await?
+        .ok_or("encrypted source record missing")?;
+    let calendar = CalendarContext::default();
+    let context = SaveContext::new(&databases, None, &calendar);
+    let transaction = connection.begin().await?;
+    let outcome: TestResult = async {
+        for (cast, status, array_object) in [
+            (
+                AsEncryptedArrayObject::cast(encrypter.clone()),
+                "array object",
+                true,
+            ),
+            (
+                AsEncryptedCollection::cast(encrypter.clone()),
+                "collection",
+                false,
+            ),
+        ] {
+            let mut model = example_record::RecordForSave::from_existing(&record)?;
+            model.metadata.casts.insert("description".into(), cast);
+            model.attributes.set_raw_attribute(
+                "description",
+                json!(encrypter.encrypt_string(br#"{"status":"initial"}"#)?),
+            )?;
+            model.attributes.sync_original()?;
+            let value = model
+                .attributes
+                .get_attribute_value(&model.metadata, "description")?
+                .ok_or("encrypted collection missing")?;
+            let object = value
+                .as_object()
+                .ok_or("encrypted collection object missing")?;
+            if array_object {
+                object.modify(|value: &ArrayObject| {
+                    let mut next = value.clone();
+                    next.as_collection_mut().try_put("status", json!(status))?;
+                    Ok(next)
+                })?;
+            } else {
+                object.modify(|value: &Collection| {
+                    let mut next = value.clone();
+                    next.try_put("status", json!(status))?;
+                    Ok(next)
+                })?;
+            }
+            let query = db
+                .table(&model.metadata.table)?
+                .using_transaction(&transaction);
+            if !save_with_query(&mut model, &context, query).await? {
+                return Err("encrypted collection save cancelled".into());
+            }
+            let saved = example_record::Entity::find_by_id(id)
+                .one(&transaction)
+                .await?
+                .ok_or("encrypted collection row missing")?;
+            let expected = serde_json::to_vec(&json!({"status":status}))?;
+            if encrypter.decrypt_string(&saved.description)? != expected {
+                return Err("encrypted collection writeback did not reach the database".into());
             }
         }
         Ok(())

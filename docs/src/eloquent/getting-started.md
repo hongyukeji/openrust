@@ -91,6 +91,25 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 `AsCollection::default().cast()` 使用标准 `Collection`。`AsCollection::using(factory)` 可提供实现 `CollectionCastValue` 的类型化集合工厂，`AsCollection::of(map)` 接收值与键并保留原键。`of_objects` 保留元素类型，并分别应用其模型数组和持久 JSON 投影。工厂或映射以 Rust 函数表示，替代 PHP 的运行时类名。示例记录预览用这两个 cast 计算元数据标签数量。默认赋值 null 写 JSON 文本 `null`，`AsArrayObject::nullable()` 与集合声明的 `nullable()` 改写 SQL NULL。
 
+### 加密数组对象与集合
+
+启用 `encryption` 后从应用状态解析 `dyn ApplicationEncrypter`，交给 `AsEncryptedArrayObject::cast` 或 `AsEncryptedCollection::cast`。用 `AsEncryptedCollection::using` 可复用 `AsCollection` 的类型化工厂与映射。两者用 Laravel 字符串载荷保存 JSON，null 保持 SQL NULL。已加载对象按现有缓存规则回写。
+
+```rust,ignore
+use openrust::{
+    database::eloquent::AsEncryptedCollection,
+    encryption::ApplicationEncrypter,
+};
+
+let encrypter = app.state().resolve::<dyn ApplicationEncrypter>().await?;
+metadata.casts.insert(
+    "private_notes".into(),
+    AsEncryptedCollection::cast(encrypter),
+);
+```
+
+加密数组对象要求解密后的 JSON 为数组。加密集合将解码 null 转为空集合，标量转为单元素集合。认证或解密错误会返回错误。无历史密钥时，原值比较使用解密后的原始字符串；配置历史密钥后，原始密文发生变化就会保持 dirty，保存使用当前密钥。
+
 ### 有类型的访问器
 
 用 `ModelAttributes::register_attribute` 登记 `ModelAttribute`。它的同步 getter 接收原始属性值和快照，setter 返回有序的多字段补丁。日期对象默认按字段缓存。再次读取该字段时会调用配置的 setter，同步对象的当前值。读取全部原值、同步原始基线或计算 dirty 时会同步全部适用的缓存。

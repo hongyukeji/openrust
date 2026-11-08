@@ -90,6 +90,8 @@ enum Comparison {
     Default,
     Custom,
     JsonArray,
+    #[cfg(feature = "encryption")]
+    BuiltinEncrypted,
 }
 
 /// 模型声明的自定义转换工厂。声明克隆共享同一个工厂。
@@ -209,6 +211,12 @@ impl ClassCast {
         self
     }
 
+    #[cfg(feature = "encryption")]
+    pub(super) const fn with_builtin_encrypted_comparison(mut self) -> Self {
+        self.comparison = Comparison::BuiltinEncrypted;
+        self
+    }
+
     pub(super) fn compare(
         &self,
         name: &str,
@@ -221,6 +229,10 @@ impl ClassCast {
                 original.as_json()?,
             )
             .map(Some);
+        }
+        #[cfg(feature = "encryption")]
+        if self.comparison == Comparison::BuiltinEncrypted {
+            return self.resolve()?.compare(name, original, current);
         }
         drop(self.resolve()?);
         if self.comparison == Comparison::Custom {

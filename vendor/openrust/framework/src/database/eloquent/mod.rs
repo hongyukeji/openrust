@@ -21,6 +21,8 @@ mod collection_cast;
 pub use collection_cast::{
     ArrayObject, AsArrayObject, AsCollection, CollectionCastValue, ObjectCollection,
 };
+#[cfg(feature = "encryption")]
+pub use collection_cast::{AsEncryptedArrayObject, AsEncryptedCollection};
 mod has_many;
 mod mass_assignment;
 mod model;

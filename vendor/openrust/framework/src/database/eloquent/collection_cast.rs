@@ -12,6 +12,12 @@ use serde::Serialize;
 use serde_json::Value;
 use std::{any::Any, sync::Arc};
 
+#[cfg(feature = "encryption")]
+#[path = "encrypted_collection_cast.rs"]
+mod encrypted;
+#[cfg(feature = "encryption")]
+pub use encrypted::{AsEncryptedArrayObject, AsEncryptedCollection};
+
 /// Eloquent 的可变数组对象。模型句柄中的修改通过 `ModelObject::modify` 发布。
 #[derive(Clone)]
 pub struct ArrayObject(Collection);
