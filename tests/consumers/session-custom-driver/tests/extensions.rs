@@ -1,11 +1,10 @@
 //! 外部 crate 实现请求绑定 hook；只用公开构造与同一外部持久 driver。
-use openrust::Result;
 use openrust::http::{CookieFactory, CookieJar, CookieOptions};
 use openrust::session::{
     Session, SessionId, SessionRecord, SessionRequestContext, SessionStore, SessionWriteMode,
     SessionWriteOutcome,
 };
-use openrust::support::BoxFuture;
+use openrust::{Result, support::BoxFuture};
 use serde_json::json;
 use session_custom_driver_consumer::ExternalSessionStore;
 use std::sync::Arc;
