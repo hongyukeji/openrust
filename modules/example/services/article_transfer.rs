@@ -385,11 +385,10 @@ mod tasks {
                         if receipt.format != format_name(self.format) {
                             return Err(binding_error());
                         }
-                        match receipt.state.as_str() {
-                            "completed" => return Ok(()),
-                            "failed" => return Err(closed_error()),
-                            "open" => {}
-                            _ => return Err(binding_error()),
+                        match receipt.state_case().map_err(|_| binding_error())? {
+                            article_import::ImportState::Completed => return Ok(()),
+                            article_import::ImportState::Failed => return Err(closed_error()),
+                            article_import::ImportState::Open => {}
                         }
                         if expired(receipt.created_at_ms, now_ms()?) {
                             terminal(
@@ -586,7 +585,7 @@ mod tasks {
                     .assert_current_in_transaction(transaction, &lease)
                     .await?;
                 let mut row = row.into_active_model();
-                row.state = Set(state.into());
+                row.state = Set(article_import::state_for_storage(state).await?);
                 row.error_code = Set(error.map(str::to_owned));
                 row.terminal_at_ms = Set(Some(now));
                 row.update(transaction).await.map_err(Error::internal)?;
@@ -894,7 +893,7 @@ mod tasks {
             owner_id: Set(owner_id),
             source_key: Set(path.as_str().into()),
             format: Set(format_name(format).into()),
-            state: Set("open".into()),
+            state: Set(article_import::state_for_storage("open").await?),
             error_code: Set(None),
             created_at_ms: Set(now_ms()?),
             terminal_at_ms: Set(None),

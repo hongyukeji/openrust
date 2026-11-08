@@ -39,6 +39,8 @@ pub enum AttributeCast {
     Timestamp,
     /// 由模型显式声明的自定义类转换。
     Class(ClassCast),
+    /// 声明模型的原生枚举。
+    Enum(super::EnumCast),
     /// 原生加密属性；使用应用 Encrypter 处理持久密文。
     #[cfg(feature = "encryption")]
     Encrypted(super::EncryptedCast),
@@ -91,6 +93,7 @@ pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Resul
         return Ok(Some(Value::Null));
     }
     let value = match cast {
+        AttributeCast::Enum(cast) => cast.read(value.into())?.try_into_json()?,
         #[cfg(feature = "encryption")]
         AttributeCast::Encrypted(cast) => cast.read(value.into())?.into_array_json()?,
         AttributeCast::Integer => {

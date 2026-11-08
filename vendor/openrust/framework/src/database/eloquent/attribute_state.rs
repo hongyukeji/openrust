@@ -476,10 +476,12 @@ fn equivalent(
             Ok((left - right).abs() < f64::EPSILON * 4.0)
         }
         Some(AttributeCast::Array) => array_cast_equivalent(current, original),
-        None | Some(AttributeCast::Class(_)) => Ok(InputNumber::from_value(current).is_some()
-            && InputNumber::from_value(original).is_some()
-            && crate::support::scalars::string(current)
-                == crate::support::scalars::string(original)),
+        None | Some(AttributeCast::Class(_) | AttributeCast::Enum(_)) => {
+            Ok(InputNumber::from_value(current).is_some()
+                && InputNumber::from_value(original).is_some()
+                && crate::support::scalars::string(current)
+                    == crate::support::scalars::string(original))
+        }
         Some(_) => {
             let left = metadata
                 .read_cast_attribute(name, Some(current.clone()))?
@@ -494,6 +496,7 @@ fn equivalent(
 
 fn strict_attribute_equal(left: &AttributeValue, right: &AttributeValue) -> bool {
     match (left, right) {
+        (AttributeValue::Enum(left), AttributeValue::Enum(right)) => left.same_case(right),
         (AttributeValue::Date(left), AttributeValue::Date(right)) => left.same_object(right),
         (AttributeValue::Object(left), AttributeValue::Object(right)) => left.same_object(right),
         (AttributeValue::Json(left), AttributeValue::Json(right)) => strict_equal(left, right),

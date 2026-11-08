@@ -1,6 +1,6 @@
 //! 模型属性的原值及日期对象身份。
 
-use super::ModelObject;
+use super::{EnumCase, ModelObject};
 use crate::{Error, Result, support::InputDate};
 use serde_json::{Map, Value};
 use std::{
@@ -21,6 +21,8 @@ pub enum AttributeValue {
     Json(Value),
     /// 具有共享身份的日期对象。
     Date(ModelDate),
+    /// 由原生枚举转换持有的不可变 case。
+    Enum(EnumCase),
     /// 由自定义类转换持有的共享对象。
     Object(ModelObject),
 }
@@ -30,6 +32,7 @@ impl fmt::Debug for AttributeValue {
         match self {
             Self::Json(_) => f.write_str("Json([REDACTED])"),
             Self::Date(value) => value.fmt(f),
+            Self::Enum(value) => value.fmt(f),
             Self::Object(value) => value.fmt(f),
         }
     }
@@ -40,7 +43,7 @@ impl AttributeValue {
     pub fn as_json(&self) -> Result<&Value> {
         match self {
             Self::Json(value) => Ok(value),
-            Self::Date(_) | Self::Object(_) => Err(object_projection_required()),
+            Self::Date(_) | Self::Object(_) | Self::Enum(_) => Err(object_projection_required()),
         }
     }
 
@@ -48,6 +51,7 @@ impl AttributeValue {
     pub fn try_into_json(self) -> Result<Value> {
         match self {
             Self::Json(value) => Ok(value),
+            Self::Enum(case) => Ok(case.into_storable()),
             Self::Date(_) | Self::Object(_) => Err(object_projection_required()),
         }
     }
@@ -56,6 +60,7 @@ impl AttributeValue {
         match self {
             Self::Json(value) => Ok(value),
             Self::Date(date) => serde_json::to_value(date.snapshot()?).map_err(Error::internal),
+            Self::Enum(case) => Ok(case.into_storable()),
             Self::Object(value) => value.project_json(),
         }
     }
@@ -74,7 +79,7 @@ impl AttributeValue {
     pub const fn as_date(&self) -> Option<&ModelDate> {
         match self {
             Self::Date(value) => Some(value),
-            Self::Json(_) | Self::Object(_) => None,
+            Self::Json(_) | Self::Object(_) | Self::Enum(_) => None,
         }
     }
 
@@ -86,11 +91,19 @@ impl AttributeValue {
         }
     }
 
+    /// 借用原生枚举转换返回的 case。
+    pub const fn as_enum(&self) -> Option<&EnumCase> {
+        match self {
+            Self::Enum(value) => Some(value),
+            _ => None,
+        }
+    }
+
     pub(super) fn object_revision(&self) -> Result<Option<u64>> {
         match self {
             Self::Date(value) => value.revision().map(Some),
             Self::Object(value) => value.revision().map(Some),
-            Self::Json(_) => Ok(None),
+            Self::Json(_) | Self::Enum(_) => Ok(None),
         }
     }
 
@@ -109,6 +122,12 @@ impl From<Value> for AttributeValue {
 impl From<ModelDate> for AttributeValue {
     fn from(value: ModelDate) -> Self {
         Self::Date(value)
+    }
+}
+
+impl From<EnumCase> for AttributeValue {
+    fn from(value: EnumCase) -> Self {
+        Self::Enum(value)
     }
 }
 

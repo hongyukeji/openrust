@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 支持原生枚举属性、类型化读取与 backing 或 case 名持久化。
+
 - Eloquent 支持按路径赋值 JSON 属性，覆盖普通列、原生加密和内置类加密。
 
 - Eloquent 新增原生加密标量及四种 JSON 转换，使用应用密钥与 Laravel 脏值语义。

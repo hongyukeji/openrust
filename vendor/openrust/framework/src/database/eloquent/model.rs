@@ -271,6 +271,9 @@ impl ModelMetadata {
         if let AttributeCast::Encrypted(cast) = &cast {
             return cast.read(raw).map(Some);
         }
+        if let AttributeCast::Enum(cast) = &cast {
+            return cast.read(raw).map(Some);
+        }
         if cast.is_date_read() {
             return dates.read(self, &cast, raw).map(Some);
         }

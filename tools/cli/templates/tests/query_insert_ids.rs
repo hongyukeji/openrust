@@ -64,6 +64,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check(query.insert_get_id(Vec::new(), Some("0")).await? == Value::BigInt(Some(3)))?;
         check(calls.load(Ordering::SeqCst) == 1)?;
         rollback_insert(&db).await?;
+        check_generated_enum_cast().await?;
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
         check_generated_class_cast().await?;
@@ -240,6 +241,45 @@ async fn check_generated_encrypted_collection() -> Result<()> {
     check(attributes.is_clean(&metadata, &["native_data"])?).and_then(|()| {
         check(attributes.attributes_to_json(&metadata)?["native_data"] == json!(["native"]))
     })
+}
+
+async fn check_generated_enum_cast() -> Result<()> {
+    use openrust::database::eloquent::{AttributeCast, EnumCast, ModelAttributes, ModelMetadata};
+    use serde_json::json;
+
+    #[derive(PartialEq, Eq)]
+    enum Visibility {
+        Public,
+        Private,
+    }
+    let cast = EnumCast::unit(
+        |name| match name {
+            "Public" => Some(Visibility::Public),
+            "Private" => Some(Visibility::Private),
+            _ => None,
+        },
+        |case| match case {
+            Visibility::Public => "Public",
+            Visibility::Private => "Private",
+        },
+    );
+    let mut model = ModelMetadata::new("insert_items", "GeneratedRecord");
+    model
+        .casts
+        .insert("visibility".into(), AttributeCast::Enum(cast.clone()));
+    let attrs = ModelAttributes::default();
+    attrs
+        .set_attribute_value(&model, "visibility", cast.case(Visibility::Private)?.into())
+        .await?;
+    let typed = attrs.get_attribute_value(&model, "visibility")?;
+    check(
+        typed
+            .as_ref()
+            .and_then(|value| value.as_enum())
+            .and_then(|case| case.downcast_ref::<Visibility>())
+            == Some(&Visibility::Private),
+    )?;
+    check(attrs.attributes_to_json(&model)?["visibility"] == json!("Private"))
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

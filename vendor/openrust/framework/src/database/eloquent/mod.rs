@@ -23,6 +23,8 @@ pub use collection_cast::{
 };
 #[cfg(feature = "encryption")]
 pub use collection_cast::{AsEncryptedArrayObject, AsEncryptedCollection};
+mod enum_cast;
+pub use enum_cast::{EnumCase, EnumCast};
 mod has_many;
 mod json_path;
 mod mass_assignment;

@@ -1058,6 +1058,7 @@ impl ModelAttributes {
                         .into_patch(name);
                     return Ok((patch, CacheRetention::KeepClasses, cache));
                 }
+                Some(AttributeCast::Enum(cast)) => cast.write(value)?,
                 _ if let Some((base, path)) = name.split_once("->") => {
                     let value = super::json_path::write(
                         metadata,
@@ -1273,29 +1274,38 @@ impl ModelAttributes {
         name: &'a str,
         has_default_setter: bool,
     ) -> Result<Option<PathObjects<'a>>> {
-        let Some((base, _)) = name.split_once("->") else {
+        let path_base = name.split_once("->").map(|(base, _)| base);
+        let cast = metadata.casts.get(name);
+        let is_enum = matches!(cast, Some(AttributeCast::Enum(_)));
+        if !is_enum && path_base.is_none() {
             self.flush_casts(None)?;
             return Ok(None);
-        };
-        let watch = {
+        }
+        let (has_setter, watch) = {
             let state = self.state.read().map_err(|_| state_error())?;
-            if has_default_setter
+            let has_setter = has_default_setter
                 || state.setters.contains_key(name)
                 || state
                     .marked
                     .get(name)
-                    .is_some_and(|descriptor| descriptor.has_setter())
-                || matches!(metadata.casts.get(name), Some(AttributeCast::Class(_)))
+                    .is_some_and(|descriptor| descriptor.has_setter());
+            let watch = if let Some(base) = path_base
+                && !has_setter
+                && !is_enum
+                && !matches!(cast, Some(AttributeCast::Class(_)))
             {
-                None
-            } else {
                 Some(PathObjects {
                     base,
                     versions: PathObjects::versions(&state, base)?,
                 })
-            }
+            } else {
+                None
+            };
+            (has_setter, watch)
         };
-        if let Some(watch) = &watch {
+        if has_setter {
+            self.flush_casts(None)?;
+        } else if let Some(watch) = &watch {
             self.flush_casts(Some(watch.base))?;
         }
         Ok(watch)

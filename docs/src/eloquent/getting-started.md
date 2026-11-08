@@ -91,6 +91,18 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 `AsCollection::default().cast()` 使用标准 `Collection`。`AsCollection::using(factory)` 可提供实现 `CollectionCastValue` 的类型化集合工厂，`AsCollection::of(map)` 接收值与键并保留原键。`of_objects` 保留元素类型，并分别应用其模型数组和持久 JSON 投影。工厂或映射以 Rust 函数表示，替代 PHP 的运行时类名。示例记录预览用这两个 cast 计算元数据标签数量。默认赋值 null 写 JSON 文本 `null`，`AsArrayObject::nullable()` 与集合声明的 `nullable()` 改写 SQL NULL。
 
+### 原生枚举转换
+
+声明 `AttributeCast::Enum(EnumCast::backed(backing))` 可复用实现 `BackedEnum` 的 Rust 枚举。
+`backing` 提供 case 到 `String` 或 `i64` 的反向映射。无 backing 的枚举使用
+`EnumCast::unit(from_name, name)`，由应用声明 case 名和可接受的别名。Rust 枚举的查找范围
+是已注册的 case 名，PHP 枚举类上的普通常量没有对应的模型 case。
+
+通过 `get_attribute_value` 读取后，使用 `as_enum` 和 `downcast_ref::<Status>()` 获取枚举。
+通过 `set_attribute_value` 赋值时，传入 `cast.case(Status::Pending)?.into()`。
+原始列与模型 JSON 输出使用 backing 或 case 名。null 保持 null，无法解析的值和不匹配的枚举类型
+返回错误。脏值判定沿用 Laravel 的原始值比较。唯一示例的文章导入收据用该转换读写任务状态。
+
 ### 原生加密属性
 
 启用 `encryption`，从应用状态解析 `dyn ApplicationEncrypter`，然后在模型的
