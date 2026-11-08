@@ -920,6 +920,14 @@ Rust 回归验证动态队列、运行时 Provider 登记、`Application::flush`
 
 工作区回归验证实例隔离、普通去重、注册失败退役候选回调、强制成功替换旧实例、运行时 `booted` 失败后保留已登记实例，以及应用清空。示例缓存 Provider 在 `boot` 安装驱动，在实例 `booted` 阶段补充缺省 store。严格 Clippy、工作区测试、拒警 Rustdoc、依赖检查及生成项目 check/test 均通过。最终测试单独区分候选和旧实例的析构计数，对受影响检查和两个回归完成复验。证据位于 `tmp/lead-provider-boot.yTtO3qMy/`。
 
+## 应用终止回调限定验收
+
+固定 Laravel `d52c3b3` 在 PHP 8.5.12 验证依赖注入、同轮追加、每轮重放、错误中止和 `flush` 清空。Rust 通过 `ApplicationState` 解析服务，回归覆盖命令成功、帮助、参数错误和未知命令，以及清空时隔离旧遍历。
+
+HTTP/1.1 真实连接覆盖定长、HEAD、204、trailers 和 404。进程内回归覆盖正文报错、流中断，以及 HTTP/2 标记下长度耗尽但尚未结束的流。生成项目实际执行 `serve` 并收到 SIGTERM，HTTP 和控制台回调分别解析到启动及关闭状态，进程退出码为 0。综合示例在 Provider 中登记入口完成 trace。
+
+工作区格式、严格 Clippy、MySQL 8.4.13 工作区测试、拒警 Rustdoc、依赖检查及生成项目检查和测试均通过。工作区 2,843 项通过、54 项忽略，生成项目 24 项通过。证据在 `tmp/lead-terminating.UVmUAi0g/acceptance.json`。完整内核终止事件、终止 middleware 与通用 `Container::call` 继续按待办推进。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

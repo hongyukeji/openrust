@@ -17,6 +17,7 @@ use crate::config::repository::{ConfigRepository, SectionSchema};
 use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 
 use super::resources::{ResourceOwner, ResourceRegistrar};
+use super::termination::TerminationCallbacks;
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
 use crate::container::{
@@ -73,6 +74,7 @@ impl Drop for ProviderBootCallbacks {
 pub(crate) struct StartupCallbacks {
     pub(crate) booting: Vec<Arc<BootHook>>,
     pub(crate) booted: Vec<Arc<BootHook>>,
+    pub(crate) terminating: TerminationCallbacks,
     is_booted: bool,
 }
 
@@ -157,6 +159,20 @@ impl RegisterContext<'_> {
         + 'static,
     ) {
         self.provider_callbacks.booted.push(Arc::new(callback));
+    }
+
+    /// 登记在请求或控制台入口完成后执行的应用回调。
+    pub fn terminating(
+        &mut self,
+        callback: impl Fn(super::ApplicationState) -> BoxFuture<'static, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.registry
+            .startup_callbacks
+            .terminating
+            .push(Arc::new(callback));
     }
 
     /// 登记在所有 Provider 完成 register 后、开始 boot 前执行的应用回调。
@@ -737,6 +753,17 @@ impl BootContext<'_> {
         }
     }
 
+    /// 登记在请求或控制台入口完成后执行的应用回调。
+    pub fn terminating(
+        &mut self,
+        callback: impl Fn(super::ApplicationState) -> BoxFuture<'static, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.startup_callbacks.terminating.push(Arc::new(callback));
+    }
+
     /// 登记应用 booting 回调。若此阶段仍在执行，按队列顺序运行新增回调。
     pub fn booting(
         &mut self,
@@ -1164,6 +1191,18 @@ impl ProviderBuilder {
     /// 创建空清单。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 登记在请求或控制台入口完成后执行的应用回调。
+    pub fn terminating(
+        &mut self,
+        callback: impl Fn(super::ApplicationState) -> BoxFuture<'static, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.startup_callbacks.terminating.push(Arc::new(callback));
+        self
     }
 
     /// 登记应用回调，在所有 Provider 注册后和第一个 Provider boot 前执行。

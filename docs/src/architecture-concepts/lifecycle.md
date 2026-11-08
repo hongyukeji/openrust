@@ -178,6 +178,14 @@ let descriptors = [
 
 回调接收 `BootContext`，可用 `context.resolve::<T>().await?` 从同一容器获取依赖。示例模块先在 `boot` 登记缓存驱动，再用 `provider_booted` 补充可选的默认 store。
 
+### 应用终止回调
+
+用 `builder.terminating`、Provider 上下文的 `terminating` 或 `app.terminating` 登记应用回调。异步回调接收 `ApplicationState`，用 `state.resolve::<T>().await?` 访问当前入口的服务。示例模块在 `boot` 登记回调，并在入口完成时写入 trace。 [Laravel Application::terminating 与 terminate](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L1457-L1478)
+
+回调按登记顺序执行，本轮中新登记的回调追加到队尾。首个错误中止该轮。显式 `app.terminate().await` 每次从队首执行，`app.flush()` 清空队列。
+
+控制台在成功、帮助或错误退出后等待回调，命令本身已有的错误优先返回。HTTP 响应体交给传输层后，在原请求作用域启动受管回调，失败记入日志。流提前截断或报错时直接回收请求作用域。进程资源通过 `app.shutdown(...)` 回收。 [Laravel 请求和命令入口](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L1224-L1251)
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

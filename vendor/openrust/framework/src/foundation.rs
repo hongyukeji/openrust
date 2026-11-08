@@ -8,6 +8,7 @@ pub mod http;
 pub mod lifecycle;
 pub mod provider;
 pub mod resources;
+mod termination;
 
 pub use application::{Application, ApplicationDefinition, ApplicationState, MissingServiceError};
 pub use exceptions::{ExceptionHandler, ExceptionRequest, ReportDecision, ReportThrottle};

@@ -433,6 +433,15 @@ impl ServiceProvider for ExampleServiceProvider {
                 app.routes(crate::modules::example::routes::reporting_connection)?;
             }
             register_example_middleware(app)?;
+            app.terminating(|state| {
+                Box::pin(async move {
+                    tracing::trace!(
+                        environment = state.environment().as_str(),
+                        "示例应用入口已完成"
+                    );
+                    Ok(())
+                })
+            });
             let directory = if self.module_repository {
                 app.resolve::<openrust_modules::ModuleRepository>()
                     .await?

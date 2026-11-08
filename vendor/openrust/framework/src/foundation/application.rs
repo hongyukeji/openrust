@@ -19,6 +19,7 @@ use crate::foundation::provider::registration::LiveBoot;
 use crate::foundation::provider::registration::ProviderRegistry;
 use crate::foundation::provider::{BootContext, ProviderId};
 use crate::foundation::resources::ResourceOwner;
+use crate::foundation::termination::TerminationCallbacks;
 use crate::support::{BoxFuture, ServiceProvider};
 
 /// 每个项目实现一次，返回统一 Provider 清单。
@@ -94,6 +95,7 @@ struct StateInner {
     config_repository: ConfigRepository,
     services: Container,
     provider_resources: Arc<ResourceOwner>,
+    terminating: TerminationCallbacks,
 }
 
 struct CommandScopeGuard(Arc<Scope>);
@@ -111,6 +113,22 @@ pub struct ApplicationState {
 }
 
 impl ApplicationState {
+    /// 将异步回调追加到应用终止队列，可在另一终止回调中继续登记。
+    pub fn terminating(
+        &self,
+        callback: impl Fn(Self) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+    ) {
+        self.inner.terminating.push(Arc::new(callback));
+    }
+
+    pub(crate) fn has_terminating_callbacks(&self) -> bool {
+        !self.inner.terminating.is_empty()
+    }
+
+    pub(crate) async fn run_terminating(&self) -> Result<()> {
+        self.inner.terminating.run(self).await
+    }
+
     pub(crate) fn begin_close(&self) {
         self.inner.services.seal_root();
         self.inner.provider_resources.seal();
@@ -264,7 +282,7 @@ pub struct Application {
 }
 
 impl Application {
-    /// 清空容器绑定、解析与重绑回调，并撤销应用已登记的 Provider、命令和宿主扩展。
+    /// 清空容器绑定、解析与重绑回调、应用生命周期回调、Provider、命令和宿主扩展。
     ///
     /// 应用仍处于启动完成状态，可显式重新登记 Provider。配置快照、既有作用域及
     /// 受管资源保留，资源仍由 [`Self::shutdown`] 回收。已取得的命令等快照继续有效。
@@ -274,10 +292,14 @@ impl Application {
         let container = self.state.inner.services.detach_for_application_flush()?;
         let providers = self.providers.take_active();
         let startup_callbacks = self.providers.startup_callbacks.take();
+        let termination_callbacks = self.state.inner.terminating.take();
         let commands = self.commands.take_entries();
         let extensions = std::mem::take(&mut self.extensions);
         let mut failed = container.dispose();
         for callback in startup_callbacks {
+            failed |= disposal::dispose(callback, None).seen;
+        }
+        for callback in termination_callbacks {
             failed |= disposal::dispose(callback, None).seen;
         }
         for provider in providers {
@@ -335,6 +357,21 @@ impl Application {
         .await
     }
 
+    /// 登记在 HTTP 或控制台入口完成后执行的应用回调。
+    pub fn terminating(
+        &self,
+        callback: impl Fn(ApplicationState) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+    ) {
+        self.state.terminating(callback);
+    }
+
+    /// 在当前入口作用域或根生命周期执行终止回调。
+    ///
+    /// 按登记顺序运行，同轮追加可见。遇到错误立即返回，后续调用仍从队首开始。
+    pub async fn terminate(&self) -> Result<()> {
+        self.state.run_terminating().await
+    }
+
     /// 同步封闭新解析和资源登记；异步回收仍须调用 `shutdown`。
     pub(crate) fn begin_close(&self) {
         self.state.begin_close();
@@ -355,6 +392,7 @@ impl Application {
                     config_repository: runtime.config,
                     services: runtime.container,
                     provider_resources: Arc::new(runtime.resources),
+                    terminating: runtime.providers.startup_callbacks.terminating.clone(),
                 }),
             },
             figment,
@@ -507,7 +545,40 @@ impl Application {
 
     /// 使用 `args` 运行名为 `name` 的命令；调用方可继续复用应用，最后显式关闭。
     pub async fn run_command(&self, name: &str, args: Vec<String>) -> Result<()> {
-        self.run_command_inner(name, args).await
+        let scope = Arc::new(self.state().container().scope()?);
+        let _scope_guard = CommandScopeGuard(Arc::clone(&scope));
+        let result = scope
+            .run(async {
+                let command = self.run_command_inner(name, args).await;
+                let termination = self.terminate().await;
+                match (command, termination) {
+                    (Ok(()), termination) => termination,
+                    (Err(error), termination) => {
+                        if let Err(termination_error) = termination {
+                            tracing::error!(
+                                code = termination_error.code(),
+                                "command termination also failed"
+                            );
+                        }
+                        Err(error)
+                    }
+                }
+            })
+            .await;
+        let deadline = tokio::time::Instant::now()
+            + std::time::Duration::from_secs(self.config().server.shutdown_timeout_secs);
+        let cleanup = scope.shutdown(deadline).await;
+        match (result, cleanup) {
+            (Err(error), Err(cleanup_error)) => {
+                tracing::error!(
+                    code = cleanup_error.code(),
+                    "command scope cleanup also failed"
+                );
+                Err(error)
+            }
+            (Err(error), Ok(())) => Err(error),
+            (Ok(()), cleanup) => cleanup,
+        }
     }
 
     fn find_command(&self, name: &str, args: &[String]) -> Result<Arc<dyn Command>> {
@@ -582,63 +653,44 @@ impl Application {
                 ),
             ));
         }
-        let scope = Arc::new(self.state().container().scope()?);
-        let _scope_guard = CommandScopeGuard(Arc::clone(&scope));
-        let result = scope
-            .run(async {
-                let i18n = if self
-                    .state()
-                    .container()
-                    .contains::<crate::translation::Translator>()
-                {
-                    Some(
-                        self.state()
-                            .resolve::<crate::translation::Translator>()
-                            .await?,
-                    )
-                } else {
-                    None
-                };
-                let mut metadata = crate::core::ExecutionMetadata::default();
-                let locale = i18n.as_ref().map(|service| service.select(None));
-                if let Some(locale) = &locale {
-                    metadata = metadata.with_locale(locale.clone());
-                }
-                let execution = crate::core::ExecutionContext::new(
-                    metadata,
-                    None,
-                    crate::core::Cancellation::new(),
-                );
-                crate::core::with_execution_context(execution, async move {
-                    if let (Some(i18n), Some(locale)) = (i18n, locale) {
-                        i18n.with_locale(locale, command.run(self, remaining)).await
-                    } else {
-                        command.run(self, remaining).await
-                    }
-                })
-                .await
-            })
-            .await;
-        let deadline = tokio::time::Instant::now()
-            + std::time::Duration::from_secs(self.config().server.shutdown_timeout_secs);
-        let cleanup = scope.shutdown(deadline).await;
-        match (result, cleanup) {
-            (Err(error), Err(cleanup_error)) => {
-                tracing::error!(
-                    code = cleanup_error.code(),
-                    "command scope cleanup also failed"
-                );
-                Err(error)
-            }
-            (Err(error), Ok(())) => Err(error),
-            (Ok(()), cleanup) => cleanup,
+        let i18n = if self
+            .state()
+            .container()
+            .contains::<crate::translation::Translator>()
+        {
+            Some(
+                self.state()
+                    .resolve::<crate::translation::Translator>()
+                    .await?,
+            )
+        } else {
+            None
+        };
+        let mut metadata = crate::core::ExecutionMetadata::default();
+        let locale = i18n.as_ref().map(|service| service.select(None));
+        if let Some(locale) = &locale {
+            metadata = metadata.with_locale(locale.clone());
         }
+        let execution =
+            crate::core::ExecutionContext::new(metadata, None, crate::core::Cancellation::new());
+        crate::core::with_execution_context(execution, async move {
+            if let (Some(i18n), Some(locale)) = (i18n, locale) {
+                i18n.with_locale(locale, command.run(self, remaining)).await
+            } else {
+                command.run(self, remaining).await
+            }
+        })
+        .await
     }
 }
 
 #[cfg(test)]
 #[path = "../../tests/unit/foundation/application_flush.rs"]
 mod application_flush_tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/foundation/application_termination.rs"]
+mod application_termination_tests;
 
 #[cfg(test)]
 mod tests {

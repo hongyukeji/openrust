@@ -18,7 +18,7 @@ use crate::routing::{RouteRegistry, Router, UrlGenerator};
 use axum::Router as AxumRouter;
 use axum::body::Body;
 use axum::extract::{FromRequestParts, Request, State};
-use axum::http::StatusCode;
+use axum::http::{Method, StatusCode, Version, header};
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::Route as AxumRoute;
@@ -513,7 +513,9 @@ async fn expose_app_state(
     };
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
     let entry = install_http_entry(request.extensions_mut(), scope);
-    request.extensions_mut().insert(state);
+    request.extensions_mut().insert(state.clone());
+    let method = request.method().clone();
+    let version = request.version();
     let page = crate::database::query::PageContext::from_uri(request.uri());
     let (mut parts, body) = request.into_parts();
     let info = match crate::http::RequestInfo::from_request_parts(&mut parts, &()).await {
@@ -539,13 +541,8 @@ async fn expose_app_state(
                 next.run(request),
             )),
         )
-        .await
-        .map(move |body| {
-            Body::new(ScopeBody {
-                inner: body,
-                entry: Some(entry),
-            })
-        });
+        .await;
+    let response = finish_response(response, &method, version, entry, state);
     // 响应 body 已接管关闭责任；handler future 取消时 guard 仍会同步封闭 scope。
     close_on_cancel.0.take();
     response
@@ -584,7 +581,58 @@ fn render_early_error(runtime: &ExceptionRuntime, request: &Request, error: Erro
     );
     #[cfg(feature = "view")]
     let view = view.with_views(runtime.state.get::<crate::view::Views>());
-    runtime.exceptions.render_for_request(error, &view)
+    let response = runtime.exceptions.render_for_request(error, &view);
+    if !runtime.state.has_terminating_callbacks() {
+        return response;
+    }
+    let Ok(scope) = runtime.state.container().scope() else {
+        return response;
+    };
+    let entry = install_http_entry(&mut http::Extensions::new(), Arc::new(scope));
+    finish_response(
+        response,
+        request.method(),
+        request.version(),
+        Arc::new(entry),
+        runtime.state.clone(),
+    )
+}
+
+fn finish_response(
+    response: Response,
+    method: &Method,
+    version: Version,
+    entry: Arc<HttpEntry>,
+    state: ApplicationState,
+) -> Response {
+    let status = response.status();
+    let body_suppressed = method == Method::HEAD
+        || status.is_informational()
+        || matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
+        || (method == Method::CONNECT && status.is_success());
+    let remaining = if response.headers().contains_key(header::TRANSFER_ENCODING) {
+        None
+    } else if let Some(length) = response.headers().get(header::CONTENT_LENGTH) {
+        length.to_str().ok().and_then(|length| length.parse().ok())
+    } else {
+        response.body().size_hint().exact()
+    };
+    // HTTP/2 的正文长度不会终止 stream，仍可能发送 trailers。
+    let fixed_length_ends_stream = matches!(version, Version::HTTP_10 | Version::HTTP_11);
+    let complete = body_suppressed
+        || (remaining.is_none_or(|remaining| remaining == 0)
+            && (response.body().is_end_stream()
+                || (fixed_length_ends_stream && remaining == Some(0))));
+    response.map(|inner| {
+        Body::new(ScopeBody {
+            inner,
+            entry: Some(entry),
+            state: Some(state),
+            remaining,
+            complete,
+            fixed_length_ends_stream,
+        })
+    })
 }
 
 struct ScopeCloseGuard(Option<Arc<Scope>>);
@@ -600,12 +648,46 @@ impl Drop for ScopeCloseGuard {
 struct ScopeBody {
     inner: Body,
     entry: Option<Arc<HttpEntry>>,
+    state: Option<ApplicationState>,
+    remaining: Option<u64>,
+    complete: bool,
+    fixed_length_ends_stream: bool,
 }
 
 impl ScopeBody {
-    fn close(&mut self) {
-        if let Some(entry) = self.entry.take() {
+    fn finish(&mut self) {
+        let Some(entry) = self.entry.take() else {
+            return;
+        };
+        let Some(state) = self
+            .state
+            .take()
+            .filter(|state| self.complete && state.has_terminating_callbacks())
+        else {
             entry.scope.close();
+            return;
+        };
+        let scope = Arc::clone(&entry.scope);
+        let close = ScopeCloseGuard(Some(Arc::clone(&scope)));
+        if let Err(error) = scope.spawn(
+            crate::core::ExecutionMetadata::default(),
+            None,
+            move |_| async move {
+                // 任务仍属于请求 scope，结束时只封闭 scope，由父所有者等待回收。
+                let _close = close;
+                HTTP_ENTRY_SCOPE
+                    .scope(entry, async move {
+                        if let Err(error) = state.run_terminating().await {
+                            tracing::error!(
+                                code = error.code(),
+                                "HTTP termination callback failed"
+                            );
+                        }
+                    })
+                    .await;
+            },
+        ) {
+            tracing::error!(code = error.code(), "HTTP termination submission failed");
         }
     }
 }
@@ -630,8 +712,28 @@ impl HttpBody for ScopeBody {
         } else {
             Pin::new(&mut this.inner).poll_frame(context)
         };
-        if matches!(&result, Poll::Ready(None | Some(Err(_)))) {
-            this.close();
+        match &result {
+            Poll::Ready(Some(Ok(frame))) => {
+                if let Some(remaining) = &mut this.remaining
+                    && let Some(data) = frame.data_ref()
+                {
+                    *remaining = remaining.saturating_sub(data.len() as u64);
+                }
+                // Hyper 可在最后一帧或 trailers 后直接释放 body，无需再轮询 EOF。
+                this.complete |= this.remaining.is_none_or(|remaining| remaining == 0)
+                    && (frame.is_trailers()
+                        || this.inner.is_end_stream()
+                        || (this.fixed_length_ends_stream && this.remaining == Some(0)));
+            }
+            Poll::Ready(None) => {
+                this.complete |= this.remaining.is_none_or(|remaining| remaining == 0);
+                this.finish();
+            }
+            Poll::Ready(Some(Err(_))) => {
+                this.complete = false;
+                this.finish();
+            }
+            Poll::Pending => {}
         }
         result
     }
@@ -647,9 +749,13 @@ impl HttpBody for ScopeBody {
 
 impl Drop for ScopeBody {
     fn drop(&mut self) {
-        self.close();
+        self.finish();
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/foundation/http_termination.rs"]
+mod http_termination_tests;
 
 #[cfg(test)]
 mod tests {
@@ -722,6 +828,10 @@ mod tests {
         let body = Body::new(ScopeBody {
             inner,
             entry: Some(Arc::new(entry)),
+            state: None,
+            remaining: None,
+            complete: false,
+            fixed_length_ends_stream: false,
         });
         assert_eq!(
             to_bytes(body, 2).await.map_err(Error::internal)?.as_ref(),

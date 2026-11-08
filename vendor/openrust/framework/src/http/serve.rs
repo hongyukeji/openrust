@@ -19,12 +19,23 @@ mod embedded;
 
 /// 绑定 `[server] host:port` 并持续提供服务，直到收到关闭信号。
 pub async fn serve(app: &Application) -> Result<()> {
+    serve_http(app, true).await
+}
+
+async fn serve_http(app: &Application, stop_background_tasks: bool) -> Result<()> {
     let router = build_router(app)?;
     let addr = app.config().server.bind_addr();
     let listener = TcpListener::bind(&addr).await?;
     let local = listener.local_addr()?;
     tracing::info!(app = %app.config().app.name, env = %app.config().app.env, "listening on http://{local}");
-    serve_listener(app, listener, router, shutdown_signal()).await
+    serve_listener(
+        app,
+        listener,
+        router,
+        shutdown_signal(),
+        stop_background_tasks,
+    )
+    .await
 }
 
 async fn serve_listener<F>(
@@ -32,6 +43,7 @@ async fn serve_listener<F>(
     listener: TcpListener,
     router: Router,
     shutdown: F,
+    stop_background_tasks: bool,
 ) -> Result<()>
 where
     F: Future<Output = ()>,
@@ -42,7 +54,7 @@ where
         listener,
         router,
         shutdown,
-        true,
+        stop_background_tasks,
     )
     .await
 }
@@ -157,7 +169,8 @@ impl Command for ServeCommand {
     }
 
     fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(serve(app))
+        // 控制台入口先执行终止回调，进程入口随后关闭应用资源。
+        Box::pin(serve_http(app, false))
     }
 }
 
@@ -176,7 +189,7 @@ impl Command for StartCommand {
         #[cfg(feature = "queue")]
         return Box::pin(embedded::start(app));
         #[cfg(not(feature = "queue"))]
-        Box::pin(serve(app))
+        Box::pin(serve_http(app, false))
     }
 }
 
@@ -321,9 +334,15 @@ mod tests {
         let address = listener.local_addr().map_err(Error::internal)?;
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let serve = tokio::spawn(async move {
-            serve_listener(&app, listener, router, async {
-                let _ = shutdown_rx.await;
-            })
+            serve_listener(
+                &app,
+                listener,
+                router,
+                async {
+                    let _ = shutdown_rx.await;
+                },
+                true,
+            )
             .await
         });
 
@@ -397,9 +416,15 @@ mod tests {
         let address = listener.local_addr().map_err(Error::internal)?;
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let serve = tokio::spawn(async move {
-            serve_listener(&app, listener, router, async {
-                let _ = shutdown_rx.await;
-            })
+            serve_listener(
+                &app,
+                listener,
+                router,
+                async {
+                    let _ = shutdown_rx.await;
+                },
+                true,
+            )
             .await
         });
         tokio::time::timeout(Duration::from_secs(2), async {

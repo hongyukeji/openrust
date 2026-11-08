@@ -1,6 +1,6 @@
 //! 默认应用的 HTTP、队列与调度角色共用一次引导与关闭信号。
 
-use super::{serve, serve_listener_for_supervisor};
+use super::{serve_http, serve_listener_for_supervisor};
 use crate::config::{DatabaseConfig, QueueConfig};
 use crate::core::Cancellation;
 use crate::database::{Db, DbBackend};
@@ -15,7 +15,7 @@ use tokio::{net::TcpListener, task::JoinSet};
 
 pub(super) async fn start(app: &Application) -> Result<()> {
     let Some((worker, scheduler, queue_grace)) = prepare(app).await? else {
-        return serve(app).await;
+        return serve_http(app, false).await;
     };
     let router = build_router(app)?;
     let listener = TcpListener::bind(app.config().server.bind_addr()).await?;
