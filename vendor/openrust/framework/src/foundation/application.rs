@@ -281,7 +281,7 @@ impl Application {
             failed |= disposal::dispose(callback, None).seen;
         }
         for provider in providers {
-            failed |= disposal::dispose(provider, None).seen;
+            failed |= provider.dispose();
         }
         for command in commands {
             failed |= disposal::dispose(command, None).seen;

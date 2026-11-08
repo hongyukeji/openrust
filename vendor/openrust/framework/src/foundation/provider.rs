@@ -43,6 +43,33 @@ pub(crate) type BootHook =
     dyn for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>> + Send + Sync;
 
 #[derive(Default)]
+pub(crate) struct ProviderBootCallbacks {
+    booting: Vec<Arc<BootHook>>,
+    booted: Vec<Arc<BootHook>>,
+}
+
+impl ProviderBootCallbacks {
+    pub(crate) fn dispose(&mut self) -> bool {
+        let mut failed = false;
+        for callback in std::mem::take(&mut self.booting)
+            .into_iter()
+            .chain(std::mem::take(&mut self.booted))
+        {
+            failed |= super::lifecycle::disposal::dispose(callback, None).seen;
+        }
+        failed
+    }
+}
+
+impl Drop for ProviderBootCallbacks {
+    fn drop(&mut self) {
+        if self.dispose() {
+            tracing::error!("provider boot callback disposal failed");
+        }
+    }
+}
+
+#[derive(Default)]
 pub(crate) struct StartupCallbacks {
     pub(crate) booting: Vec<Arc<BootHook>>,
     pub(crate) booted: Vec<Arc<BootHook>>,
@@ -106,31 +133,32 @@ pub struct RegisterContext<'a> {
     force: bool,
     registry: &'a mut registration::ProviderRegistry,
     live_boot: Option<registration::LiveBoot<'a>>,
-}
-
-impl<'a> RegisterContext<'a> {
-    pub(crate) fn live(
-        container: &'a Container,
-        config: &'a mut ConfigRepository,
-        required: &'a mut Vec<Required>,
-        owner: ProviderId,
-        force: bool,
-        registry: &'a mut registration::ProviderRegistry,
-        live_boot: Option<registration::LiveBoot<'a>>,
-    ) -> Self {
-        Self {
-            container,
-            config,
-            required,
-            owner,
-            force,
-            registry,
-            live_boot,
-        }
-    }
+    provider_callbacks: &'a mut ProviderBootCallbacks,
 }
 
 impl RegisterContext<'_> {
+    /// 在当前 Provider 实例的 `boot` 之前按登记顺序执行回调。
+    pub fn provider_booting(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.provider_callbacks.booting.push(Arc::new(callback));
+    }
+
+    /// 在当前 Provider 实例的 `boot` 之后按登记顺序执行回调。
+    pub fn provider_booted(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.provider_callbacks.booted.push(Arc::new(callback));
+    }
+
     /// 登记在所有 Provider 完成 register 后、开始 boot 前执行的应用回调。
     pub fn booting(
         &mut self,
@@ -622,9 +650,93 @@ pub struct BootContext<'a> {
     pub(crate) commands: &'a CommandRegistry,
     pub(crate) finalizers: &'a mut Vec<Finalizer>,
     pub(crate) startup_callbacks: &'a mut StartupCallbacks,
+    pub(super) provider_callbacks: Option<&'a mut ProviderBootCallbacks>,
 }
 
 impl BootContext<'_> {
+    /// 为当前 Provider 追加 booting 回调。此阶段结束后追加的回调不追溯执行。
+    pub fn provider_booting(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.provider_callbacks_mut()?
+            .booting
+            .push(Arc::new(callback));
+        Ok(())
+    }
+
+    /// 为当前 Provider 追加 booted 回调。正在执行的队列会按顺序访问新增项。
+    pub fn provider_booted(
+        &mut self,
+        callback: impl for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.provider_callbacks_mut()?
+            .booted
+            .push(Arc::new(callback));
+        Ok(())
+    }
+
+    fn provider_callbacks_mut(&mut self) -> Result<&mut ProviderBootCallbacks> {
+        self.provider_callbacks.as_deref_mut().ok_or_else(|| {
+            Error::custom(
+                "provider_boot_context_missing",
+                "应用回调没有当前 Provider 实例",
+            )
+        })
+    }
+
+    fn reborrow<'a>(
+        &'a mut self,
+        callbacks: Option<&'a mut ProviderBootCallbacks>,
+    ) -> BootContext<'a> {
+        BootContext {
+            console_command: self.console_command,
+            container: self.container,
+            config: self.config,
+            resources: self.resources.clone(),
+            required: self.required,
+            extensions: self.extensions,
+            commands: self.commands,
+            finalizers: self.finalizers,
+            startup_callbacks: self.startup_callbacks,
+            provider_callbacks: callbacks,
+        }
+    }
+
+    pub(super) async fn boot_provider(
+        &mut self,
+        provider: &dyn ServiceProvider,
+        callbacks: &mut ProviderBootCallbacks,
+    ) -> Result<()> {
+        let mut context = self.reborrow(Some(callbacks));
+        context.fire_provider_callbacks(false).await?;
+        provider.boot(&mut context).await?;
+        context.fire_provider_callbacks(true).await
+    }
+
+    async fn fire_provider_callbacks(&mut self, booted: bool) -> Result<()> {
+        let mut index = 0;
+        loop {
+            let callbacks = self.provider_callbacks_mut()?;
+            let queue = if booted {
+                &callbacks.booted
+            } else {
+                &callbacks.booting
+            };
+            let Some(callback) = queue.get(index).cloned() else {
+                return Ok(());
+            };
+            callback(self).await?;
+            index += 1;
+        }
+    }
+
     /// 登记应用 booting 回调。若此阶段仍在执行，按队列顺序运行新增回调。
     pub fn booting(
         &mut self,
@@ -650,7 +762,7 @@ impl BootContext<'_> {
     pub(super) async fn add_booted(&mut self, callback: Arc<BootHook>) -> Result<()> {
         self.startup_callbacks.booted.push(Arc::clone(&callback));
         if self.startup_callbacks.is_booted {
-            callback(self).await?;
+            callback(&mut self.reborrow(None)).await?;
         }
         Ok(())
     }
@@ -1304,6 +1416,7 @@ impl ProviderBuilder {
                     commands: &commands,
                     finalizers: &mut finalizers,
                     startup_callbacks,
+                    provider_callbacks: None,
                 };
                 context.fire_startup_callbacks().await?;
                 crate::support::default_providers::validate_database_selection(
@@ -1379,6 +1492,10 @@ async fn finalize_startup(
 #[cfg(test)]
 #[path = "../../tests/unit/foundation/application_startup_callbacks.rs"]
 mod application_startup_callbacks_tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/foundation/provider_boot_callbacks.rs"]
+mod provider_boot_callbacks_tests;
 
 #[cfg(test)]
 mod tests {

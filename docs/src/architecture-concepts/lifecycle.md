@@ -172,6 +172,12 @@ let descriptors = [
 
 `booting` 阶段追加的同阶段回调继续按顺序执行。`booted` 阶段追加的回调立即执行一次，随后按队列顺序再执行一次。阶段结束后，通过 `app.booted(...).await` 登记的回调只立即执行一次。`app.flush()` 清除已登记的启动回调，应用保留已启动状态。
 
+### Provider 实例启动回调
+
+在 `RegisterContext` 或当前 Provider 的 `BootContext` 上使用 `provider_booting`、`provider_booted`。每个实例依次执行自己的 `provider_booting` 队列、`boot` 和 `provider_booted` 队列。阶段内追加的回调排在队列末尾。强制重新登记使用新实例自己的回调。启动阶段与运行时登记遵循同一顺序。 [Laravel ServiceProvider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Support/ServiceProvider.php#L103-L154)
+
+回调接收 `BootContext`，可用 `context.resolve::<T>().await?` 从同一容器获取依赖。示例模块先在 `boot` 登记缓存驱动，再用 `provider_booted` 补充可选的默认 store。
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

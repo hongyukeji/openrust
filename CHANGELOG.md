@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Provider 实例支持 `provider_booting` 和 `provider_booted`，启动和运行时登记沿用同一顺序。
 - 应用支持在 Provider 启动前后登记 `booting` 和 `booted` 回调，支持阶段内追加与启动后即时登记。
 - 应用可清除已加载的 Provider、命令、宿主扩展及解析回调，并显式重新登记 Provider。受管资源继续由应用关闭流程回收。
 - 容器支持清空绑定、别名、共享实例和解析记录，保留后续重新装配所需的声明、装饰器和回调。

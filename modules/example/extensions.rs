@@ -34,20 +34,25 @@ impl ServiceProvider for PrefixCacheServiceProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.resolve::<Cache>().await?.extend(PrefixDriver)?;
-            // 显式同名配置（包括 Redis）归应用所有，不被示例默认覆盖。
-            let config = app.section::<openrust::config::CacheConfig>("cache")?;
-            if !config.stores.contains_key("example-prefix") {
-                let store = openrust::config::CacheStoreConfig {
-                    driver: "example-prefix".into(),
-                    namespace: "example-articles".into(),
-                    options: [("key_prefix".into(), serde_json::Value::from("article"))].into(),
-                };
-                app.overlay(
-                    "cache",
-                    serde_json::json!({"stores":{"example-prefix":store}}),
-                )?;
-            }
-            Ok(())
+            app.provider_booted(|app| {
+                Box::pin(async move {
+                    // 先注册驱动，再提供默认 store，显式同名配置继续由应用所有。
+                    let config = app.section::<openrust::config::CacheConfig>("cache")?;
+                    if !config.stores.contains_key("example-prefix") {
+                        let store = openrust::config::CacheStoreConfig {
+                            driver: "example-prefix".into(),
+                            namespace: "example-articles".into(),
+                            options: [("key_prefix".into(), serde_json::Value::from("article"))]
+                                .into(),
+                        };
+                        app.overlay(
+                            "cache",
+                            serde_json::json!({"stores":{"example-prefix":store}}),
+                        )?;
+                    }
+                    Ok(())
+                })
+            })
         })
     }
 }

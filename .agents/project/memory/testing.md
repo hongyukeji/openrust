@@ -912,7 +912,13 @@ Rust 验证 Provider 和宿主贡献撤销、同类型 Provider 重新启动、�
 
 Rust 回归验证动态队列、运行时 Provider 登记、`Application::flush` 释放回调，以及启动回调失败后的资源回收。综合示例在实际应用清单的 `booted` 阶段登记环境绑定的最终解析校验。生成项目验证配置覆盖与晚登记。工作区格式、严格 Clippy、带隔离 MySQL 8.4.13 的测试、拒警 Rustdoc、依赖检查及生成 check/test 均通过。日志和源码指纹见 `tmp/lead-app-lifecycle.z1NIwwzU/`。
 
-Provider 自身的启动回调、应用 `terminating` 的请求和命令接线及 deferred Provider 映射仍待对应。
+应用 `terminating` 的请求和命令接线及 deferred Provider 映射仍待对应。
+
+## Provider 实例回调限定验收
+
+固定 Laravel `d52c3b3` 的 PHP 8.5 对照覆盖依赖注入、两组实例队列、动态追加、强制替换与注册失败。Rust 沿 `BootContext` 显式解析依赖，使用同一容器。
+
+工作区回归验证实例隔离、普通去重、注册失败退役候选回调、强制成功替换旧实例、运行时 `booted` 失败后保留已登记实例，以及应用清空。示例缓存 Provider 在 `boot` 安装驱动，在实例 `booted` 阶段补充缺省 store。严格 Clippy、工作区测试、拒警 Rustdoc、依赖检查及生成项目 check/test 均通过。最终测试单独区分候选和旧实例的析构计数，对受影响检查和两个回归完成复验。证据位于 `tmp/lead-provider-boot.yTtO3qMy/`。
 
 ## R2-A 类型化容器基元
 

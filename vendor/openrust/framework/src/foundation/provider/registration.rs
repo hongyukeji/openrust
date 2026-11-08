@@ -5,8 +5,9 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use super::{
-    BootContext, BootHook, ConfigRepository, Container, Extensions, Finalizer, ProviderId,
-    RegisterContext, Required, ResourceRegistrar, StartupCallbacks, check_dependencies,
+    BootContext, BootHook, ConfigRepository, Container, Extensions, Finalizer,
+    ProviderBootCallbacks, ProviderId, RegisterContext, Required, ResourceRegistrar,
+    StartupCallbacks, check_dependencies,
 };
 use crate::console::command_registry::CommandRegistry;
 use crate::core::{Error, Result};
@@ -15,10 +16,30 @@ use crate::support::ServiceProvider;
 
 /// 有效实例及启动移除规则；用户回调不在正在注册身份的锁内执行。
 pub(crate) struct ProviderRegistry {
-    providers: Vec<Box<dyn ServiceProvider>>,
+    providers: Vec<ActiveProvider>,
     registering: Arc<Mutex<HashSet<TypeId>>>,
     removed: HashSet<ProviderId>,
     pub(crate) startup_callbacks: StartupCallbacks,
+}
+
+pub(crate) struct ActiveProvider {
+    provider: Box<dyn ServiceProvider>,
+    callbacks: ProviderBootCallbacks,
+}
+
+impl ActiveProvider {
+    pub(super) async fn boot(&mut self, context: &mut BootContext<'_>) -> Result<()> {
+        context
+            .boot_provider(self.provider.as_ref(), &mut self.callbacks)
+            .await
+    }
+
+    pub(crate) fn dispose(mut self) -> bool {
+        let callbacks_failed = self.callbacks.dispose();
+        let provider_failed =
+            crate::foundation::lifecycle::disposal::dispose(self.provider, None).seen;
+        callbacks_failed || provider_failed
+    }
 }
 
 impl ProviderRegistry {
@@ -31,11 +52,11 @@ impl ProviderRegistry {
         }
     }
 
-    pub(super) fn boot_parts(&mut self) -> (&[Box<dyn ServiceProvider>], &mut StartupCallbacks) {
-        (&self.providers, &mut self.startup_callbacks)
+    pub(super) fn boot_parts(&mut self) -> (&mut [ActiveProvider], &mut StartupCallbacks) {
+        (&mut self.providers, &mut self.startup_callbacks)
     }
 
-    pub(crate) fn take_active(&mut self) -> Vec<Box<dyn ServiceProvider>> {
+    pub(crate) fn take_active(&mut self) -> Vec<ActiveProvider> {
         std::mem::take(&mut self.providers)
     }
 
@@ -49,7 +70,11 @@ impl ProviderRegistry {
             if startup && self.removed.contains(child) {
                 continue;
             }
-            if !self.providers.iter().any(|active| active.id() == *child) {
+            if !self
+                .providers
+                .iter()
+                .any(|active| active.provider.id() == *child)
+            {
                 return Err(Error::custom(
                     "provider_nested_not_registered",
                     format!(
@@ -102,6 +127,7 @@ impl LiveBoot<'_> {
             commands: self.commands,
             finalizers: &mut finalizers,
             startup_callbacks,
+            provider_callbacks: None,
         }
         .add_booted(callback)
         .await?;
@@ -179,38 +205,50 @@ pub(crate) fn register<'a>(
         let previous = registry
             .providers
             .iter()
-            .position(|active| active.id() == id);
+            .position(|active| active.provider.id() == id);
         if previous.is_some() && !force {
             return Ok(id);
         }
         let ready = registry
             .providers
             .iter()
-            .map(|active| active.id().type_id)
+            .map(|active| active.provider.id().type_id)
             .collect();
         check_dependencies(provider.as_ref(), &ready)?;
         let nested = provider.nested_providers();
         let guard = RegistrationGuard::enter(registry, id)?;
         let mut required = Vec::new();
+        let mut callbacks = ProviderBootCallbacks::default();
         provider
-            .register(&mut RegisterContext::live(
+            .register(&mut RegisterContext {
                 container,
                 config,
-                &mut required,
-                id,
+                required: &mut required,
+                owner: id,
                 force,
                 registry,
-                live.as_mut().map(LiveBoot::reborrow),
-            ))
+                live_boot: live.as_mut().map(LiveBoot::reborrow),
+                provider_callbacks: &mut callbacks,
+            })
             .await?;
         registry.verify_nested(id, &nested, live.is_none())?;
         drop(guard);
+        let entry = ActiveProvider {
+            provider,
+            callbacks,
+        };
         let index = if let Some(index) = previous {
-            registry.providers[index] = provider;
+            let old = std::mem::replace(&mut registry.providers[index], entry);
+            if old.dispose() {
+                return Err(Error::custom(
+                    "resource_task_interrupted",
+                    "Provider 已替换，但原实例或启动回调析构异常",
+                ));
+            }
             index
         } else {
             let index = registry.providers.len();
-            registry.providers.push(provider);
+            registry.providers.push(entry);
             index
         };
         if let Some(live) = live {
@@ -226,6 +264,7 @@ pub(crate) fn register<'a>(
                     commands: live.commands,
                     finalizers: &mut finalizers,
                     startup_callbacks: &mut registry.startup_callbacks,
+                    provider_callbacks: None,
                 })
                 .await?;
             finish_boot(container, finalizers, required).await?;
