@@ -28,6 +28,10 @@ use crate::support::ServiceProvider;
 use std::sync::{Arc, Mutex, Weak};
 use tokio::{task::JoinSet, time::Instant};
 
+mod callback;
+pub(crate) use callback::{CallbackDisposal, callback_future};
+pub(crate) mod disposal;
+
 pub(crate) const MAX_BACKGROUND_TASKS: usize = 256;
 
 struct CoreCommandsProvider<A> {
@@ -65,12 +69,14 @@ pub(crate) struct BackgroundTasks {
 #[derive(Clone)]
 pub(crate) struct BackgroundTaskHandle {
     inner: Weak<BackgroundTaskState>,
+    resources: Option<super::resources::ResourceRegistrar>,
 }
 
 #[derive(Default)]
 struct BackgroundTaskState {
     state: Mutex<BackgroundTaskSet>,
     cancellation: Cancellation,
+    failures: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 #[derive(Default)]
@@ -83,9 +89,21 @@ impl BackgroundTasks {
     pub(crate) fn cancel(&self) {
         self.inner.cancellation.cancel();
     }
+    pub(crate) fn is_cancelled(&self) -> bool {
+        self.inner.cancellation.is_cancelled()
+    }
+    pub(crate) fn failure_counter(&self) -> Arc<std::sync::atomic::AtomicUsize> {
+        Arc::clone(&self.inner.failures)
+    }
+    pub(crate) fn take_failures(&self) -> usize {
+        self.inner
+            .failures
+            .swap(0, std::sync::atomic::Ordering::AcqRel)
+    }
     pub(crate) fn handle(&self) -> BackgroundTaskHandle {
         BackgroundTaskHandle {
             inner: Arc::downgrade(&self.inner),
+            resources: None,
         }
     }
 
@@ -111,7 +129,7 @@ impl BackgroundTasks {
             let mut failed = false;
             while let Some(result) = tasks.join_next().await {
                 if let Err(error) = result {
-                    let _ = error;
+                    drop_isolated(error);
                     tracing::error!("application background task failed");
                     failed = true;
                 }
@@ -138,63 +156,489 @@ impl BackgroundTasks {
     }
 }
 
+/// 与ObservedFuture同一受控poll/Drop规则，普通任务不把用户payload交回Tokio输出。
+/// 原owner只有一个失败计数；不新增调度器或任务登记表。
+struct ControlledTask<F, Fut: std::future::Future<Output = ()>> {
+    task: Option<Box<F>>,
+    future: Option<std::pin::Pin<Box<Fut>>>,
+    cancellation: Cancellation,
+    failures: Arc<std::sync::atomic::AtomicUsize>,
+    finished: bool,
+    disposal: disposal::TaskTicket,
+}
+impl<F, Fut: std::future::Future<Output = ()>> ControlledTask<F, Fut> {
+    fn finish(&mut self, interrupted: bool) {
+        if self.finished {
+            return;
+        }
+        disposal::scope(
+            Some(disposal::Credential::Task(self.disposal.clone())),
+            || {
+                if interrupted {
+                    disposal::failure(None);
+                }
+                disposal::dispose(self.task.take(), None);
+                disposal::dispose(self.future.take(), None);
+            },
+        );
+        // 对应同步上下文已恢复后，才结束任务归责并提交原聚合计数。
+        if self.disposal.finish() {
+            self.failures
+                .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        }
+        self.finished = true;
+    }
+}
+impl<F, Fut: std::future::Future<Output = ()>> Drop for ControlledTask<F, Fut> {
+    fn drop(&mut self) {
+        self.finish(false);
+    }
+}
+impl<F, Fut> std::future::Future for ControlledTask<F, Fut>
+where
+    F: FnOnce(Cancellation) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    type Output = ();
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<()> {
+        let this = self.get_mut();
+        let (polled, _) = disposal::scope(
+            Some(disposal::Credential::Task(this.disposal.clone())),
+            || {
+                if let Some(task) = this.task.take() {
+                    let Ok(future) = catch_isolated(|| task(this.cancellation.clone())) else {
+                        disposal::failure(None);
+                        return Err(());
+                    };
+                    this.future = Some(Box::pin(future));
+                }
+                let polled = catch_isolated(|| {
+                    this.future
+                        .as_mut()
+                        .map_or(std::task::Poll::Ready(()), |future| {
+                            future.as_mut().poll(context)
+                        })
+                });
+                if polled.is_err() {
+                    disposal::failure(None);
+                }
+                polled
+            },
+        );
+        if let Ok(std::task::Poll::Pending) = polled {
+            std::task::Poll::Pending
+        } else {
+            this.finish(false);
+            std::task::Poll::Ready(())
+        }
+    }
+}
+
+/// 接收后直接持有并poll真正用户Fut；框架await的操作数是此安全持有者。
+pub(crate) fn controlled_task<F, Fut>(
+    task: F,
+    cancellation: Cancellation,
+    failures: Arc<std::sync::atomic::AtomicUsize>,
+) -> impl std::future::Future<Output = ()>
+where
+    F: FnOnce(Cancellation) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    ControlledTask::<F, Fut> {
+        task: Some(Box::new(task)),
+        future: None,
+        cancellation,
+        failures,
+        finished: false,
+        disposal: disposal::TaskTicket::admitted(),
+    }
+}
+
+/// raw交付的单次诊断通知，不授予清理资格或给owner重复归账。
+#[derive(Clone)]
+#[cfg(test)]
+pub(crate) struct FutureFailure {
+    failed: Arc<std::sync::atomic::AtomicBool>,
+    observer: Arc<dyn Fn() + Send + Sync>,
+}
+#[cfg(test)]
+impl FutureFailure {
+    pub(crate) fn new(observer: impl Fn() + Send + Sync + 'static) -> Self {
+        Self {
+            failed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            observer: Arc::new(observer),
+        }
+    }
+    pub(crate) fn note_diagnostic(&self) {
+        if !self.failed.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            (self.observer)();
+        }
+    }
+}
+
+/// 执行原错和清理未知同时保留，格式仅含稳定码。
+pub(crate) struct TaskExecutionFailure {
+    pub(crate) primary: Error,
+    pub(crate) cleanup: Error,
+}
+impl std::fmt::Debug for TaskExecutionFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TaskExecutionFailure")
+            .field("primary", &self.primary.code())
+            .field("cleanup", &self.cleanup.code())
+            .finish()
+    }
+}
+impl std::fmt::Display for TaskExecutionFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "task failed ({}) with interrupted cleanup ({})",
+            self.primary.code(),
+            self.cleanup.code()
+        )
+    }
+}
+impl std::error::Error for TaskExecutionFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.primary)
+    }
+}
+impl TaskExecutionFailure {
+    pub(crate) fn error(primary: Error, cleanup: Error) -> Error {
+        Error::http_with_source(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "resource_task_interrupted",
+            "执行与完成清理包含异常",
+            Self { primary, cleanup },
+        )
+    }
+}
+
+/// 内部登记结果；调用方释放外层资源锁后才可 finish。
+pub(crate) struct TaskSubmission<F> {
+    result: Result<()>,
+    rejected: Option<F>,
+    completed: Vec<tokio::task::JoinError>,
+}
+/// 登记结论与清理未知是两个独立维度，任意回收前已经拆开保存。
+pub(crate) struct TaskSubmissionOutcome {
+    pub(crate) registration: Result<()>,
+    pub(crate) cleanup_interrupted: bool,
+}
+impl TaskSubmissionOutcome {
+    /// 只在锁外交付用户F；已知无人接收不能转成Ok。
+    pub(crate) fn handoff<F>(mut self, sender: tokio::sync::oneshot::Sender<F>, task: F) -> Self {
+        let abandoned = if self.registration.is_ok() && !self.cleanup_interrupted {
+            match sender.send(task) {
+                Ok(()) => None,
+                Err(task) => {
+                    self.registration = Err(Error::custom(
+                        "background_task_handoff_failed",
+                        "后台任务未收到用户闭包，未执行本次请求",
+                    ));
+                    Some(task)
+                }
+            }
+        } else {
+            drop(sender);
+            Some(task)
+        };
+        self.cleanup_interrupted |= disposal::dispose(abandoned, None).seen;
+        self
+    }
+    pub(crate) fn into_result(self) -> Result<()> {
+        match (self.registration, self.cleanup_interrupted) {
+            (Err(registration), true) => Err(TaskSubmissionFailure::error(
+                registration,
+                task_cleanup_interrupted(),
+            )),
+            (result, false) => result,
+            (Ok(()), true) => Err(task_cleanup_interrupted()),
+        }
+    }
+}
+pub(crate) fn task_cleanup_interrupted() -> Error {
+    Error::custom(
+        "background_task_cleanup_interrupted",
+        "后台任务回收异常，不能确认正常清理",
+    )
+}
+
+/// 每个独立值单独析构；捕获到的panic payload也逐次在非unwind状态下释放。
+/// 单个用户Drop内部自行双panic/abort或不返回不在可恢复边界内。
+pub(crate) fn drop_isolated<T>(value: T) -> bool {
+    let mut failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(value))).err();
+    let interrupted = failure.is_some();
+    while let Some(payload) = failure {
+        failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(payload))).err();
+    }
+    interrupted
+}
+
+/// 框架持有的标准集合按原迭代次序逐项析构；有限独立异常不会展开剩余集合。
+#[cfg(test)]
+pub(crate) fn drop_all_isolated<T>(values: impl IntoIterator<Item = T>) -> usize {
+    let mut failures = 0;
+    for value in values {
+        failures += usize::from(drop_isolated(value));
+    }
+    failures
+}
+
+/// 捕获后先完整处置panic payload，再返回无payload的稳定未知标记。
+pub(crate) fn catch_isolated<T>(action: impl FnOnce() -> T) -> std::result::Result<T, ()> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(action)) {
+        Ok(value) => Ok(value),
+        Err(payload) => {
+            drop_isolated(payload);
+            Err(())
+        }
+    }
+}
+
+impl<F> TaskSubmission<F> {
+    /// 无外层锁；不让一个值的unwind携带其余Vec元素进入析构。
+    pub(crate) fn finish(self) -> TaskSubmissionOutcome {
+        let Self {
+            result: registration,
+            rejected,
+            mut completed,
+        } = self;
+        let completed_count = completed.len();
+        let mut cleanup_interrupted = disposal::dispose(rejected, None).seen;
+        while let Some(error) = completed.pop() {
+            cleanup_interrupted |= disposal::dispose(error, None).seen;
+        }
+        if completed_count != 0 {
+            tracing::error!(
+                failures = completed_count,
+                "application background task failed"
+            );
+        }
+        TaskSubmissionOutcome {
+            registration,
+            cleanup_interrupted,
+        }
+    }
+}
+
+/// 拒绝登记与其清理未知的双诊断；Display/Debug只公开稳定码。
+pub(crate) struct TaskSubmissionFailure {
+    pub(crate) registration: Error,
+    pub(crate) cleanup: Error,
+}
+impl std::fmt::Debug for TaskSubmissionFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TaskSubmissionFailure")
+            .field("registration", &self.registration.code())
+            .field("cleanup", &self.cleanup.code())
+            .finish()
+    }
+}
+impl std::fmt::Display for TaskSubmissionFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "task registration failed ({}) and cleanup failed ({})",
+            self.registration.code(),
+            self.cleanup.code()
+        )
+    }
+}
+impl std::error::Error for TaskSubmissionFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.cleanup)
+    }
+}
+impl TaskSubmissionFailure {
+    pub(crate) fn error(registration: Error, cleanup: Error) -> Error {
+        Error::http_with_source(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "resource_task_interrupted",
+            "任务拒绝后的清理异常，不能确认完成",
+            Self {
+                registration,
+                cleanup,
+            },
+        )
+    }
+}
+
+#[cfg(test)]
+std::thread_local! { static TEST_TASK_LIMIT: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) }; }
+#[cfg(test)]
+pub(crate) fn with_test_task_limit<T>(limit: usize, action: impl FnOnce() -> T) -> T {
+    struct Restore(Option<usize>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            TEST_TASK_LIMIT.set(self.0);
+        }
+    }
+    let _restore = Restore(TEST_TASK_LIMIT.replace(Some(limit)));
+    action()
+}
+
 impl BackgroundTaskHandle {
+    pub(crate) fn with_resources(mut self, resources: super::resources::ResourceRegistrar) -> Self {
+        self.resources = Some(resources);
+        self
+    }
+
     pub(crate) fn spawn<F, Fut>(&self, task: F) -> Result<()>
     where
         F: FnOnce(Cancellation) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
-        self.spawn_with_limit(MAX_BACKGROUND_TASKS, task)
-    }
-
-    /// 给父资源所有者的单一子清理驱动保留一个内部任务槽。
-    pub(crate) fn spawn_cleanup_driver<F, Fut>(&self, task: F) -> Result<()>
-    where
-        F: FnOnce(Cancellation) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        self.spawn_with_limit(MAX_BACKGROUND_TASKS + 1, task)
-    }
-
-    fn spawn_with_limit<F, Fut>(&self, limit: usize, task: F) -> Result<()>
-    where
-        F: FnOnce(Cancellation) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        let inner = self.inner.upgrade().ok_or_else(|| {
-            Error::custom(
-                "background_tasks_stopped",
-                "application background tasks have stopped",
-            )
-        })?;
-        let mut state = inner.state.lock().map_err(|_| {
-            Error::custom(
-                "background_tasks_unavailable",
-                "background task registry is unavailable",
-            )
-        })?;
-        if state.closed {
-            return Err(Error::custom(
-                "background_tasks_stopping",
-                "application background tasks are stopping",
-            ));
-        }
-        let tasks = state.tasks.get_or_insert_with(JoinSet::new);
-        while let Some(result) = tasks.try_join_next() {
-            if let Err(error) = result {
-                let _ = error;
-                tracing::error!("application background task failed");
+        let mut cleanup = self
+            .resources
+            .as_ref()
+            .and_then(super::resources::ResourceRegistrar::begin_cleanup);
+        let credential = cleanup
+            .as_ref()
+            .map(|cleanup| disposal::Credential::Cleanup(cleanup.disposal_ticket()));
+        let failures = self.inner.upgrade().map_or_else(
+            || Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            |inner| Arc::clone(&inner.failures),
+        );
+        let (sender, receiver) = tokio::sync::oneshot::channel::<F>();
+        let submission = self.submit(move |cancel| async move {
+            if let Ok(task) = receiver.await {
+                controlled_task(task, cancel, failures).await;
             }
+        });
+        let (outcome, _) =
+            disposal::scope(credential, || submission.finish().handoff(sender, task));
+        if let Some(cleanup) = &mut cleanup {
+            cleanup.finish(0);
         }
-        if tasks.len() >= limit {
-            return Err(Error::custom(
-                "background_task_capacity",
-                "application background task capacity is exhausted",
-            ));
+        outcome.into_result()
+    }
+
+    pub(crate) fn submit<F, Fut>(&self, task: F) -> TaskSubmission<F>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        #[cfg(test)]
+        let limit = TEST_TASK_LIMIT.get().unwrap_or(MAX_BACKGROUND_TASKS);
+        #[cfg(not(test))]
+        let limit = MAX_BACKGROUND_TASKS;
+        self.submit_with_limit(limit, task)
+    }
+
+    /// 父资源所有者的子清理驱动仍使用原保留槽，不新增dispatcher。
+    pub(crate) fn submit_cleanup_driver<F, Fut>(&self, task: F) -> TaskSubmission<F>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        #[cfg(test)]
+        let limit = TEST_TASK_LIMIT.get().unwrap_or(MAX_BACKGROUND_TASKS) + 1;
+        #[cfg(not(test))]
+        let limit = MAX_BACKGROUND_TASKS + 1;
+        self.submit_with_limit(limit, task)
+    }
+
+    fn submit_with_limit<F, Fut>(&self, limit: usize, task: F) -> TaskSubmission<F>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let mut submission = TaskSubmission {
+            result: Ok(()),
+            rejected: Some(task),
+            completed: Vec::new(),
+        };
+        submission.result = (|| {
+            let inner = self.inner.upgrade().ok_or_else(|| {
+                Error::custom(
+                    "background_tasks_stopped",
+                    "application background tasks have stopped",
+                )
+            })?;
+            let mut state = inner.state.lock().map_err(|_| {
+                Error::custom(
+                    "background_tasks_unavailable",
+                    "background task registry is unavailable",
+                )
+            })?;
+            if state.closed {
+                return Err(Error::custom(
+                    "background_tasks_stopping",
+                    "application background tasks are stopping",
+                ));
+            }
+            tokio::runtime::Handle::try_current().map_err(|_| {
+                Error::custom("resource_runtime_missing", "受管任务需要 Tokio 运行时")
+            })?;
+            let tasks = state.tasks.get_or_insert_with(JoinSet::new);
+            while let Some(result) = tasks.try_join_next() {
+                if let Err(error) = result {
+                    submission.completed.push(error);
+                }
+            }
+            if tasks.len() >= limit {
+                return Err(Error::custom(
+                    "background_task_capacity",
+                    "application background task capacity is exhausted",
+                ));
+            }
+            let task = submission.rejected.take().ok_or_else(|| {
+                Error::custom(
+                    "background_tasks_unavailable",
+                    "background task submission is unavailable",
+                )
+            })?;
+            let cancellation = inner.cancellation.clone();
+            tasks.spawn(ControlledTask::<F, Fut> {
+                task: Some(Box::new(task)),
+                future: None,
+                cancellation,
+                failures: Arc::clone(&inner.failures),
+                finished: false,
+                disposal: disposal::TaskTicket::admitted(),
+            });
+            Ok(())
+        })();
+        submission
+    }
+
+    /// 仅旧JoinError回收边界的fixture；生产准入全部使用ControlledTask。
+    #[cfg(test)]
+    pub(crate) fn test_legacy_spawn<F, Fut>(&self, task: F) -> Result<()>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let inner = self
+            .inner
+            .upgrade()
+            .ok_or_else(|| Error::custom("test_owner_missing", "缺少测试任务owner"))?;
+        let mut state = inner
+            .state
+            .lock()
+            .map_err(|_| Error::custom("test_tasks_unavailable", "测试任务锁不可用"))?;
+        if state.closed {
+            return Err(Error::custom("test_tasks_closed", "测试任务已关闭"));
         }
         let cancellation = inner.cancellation.clone();
-        tasks.spawn(async move { task(cancellation).await });
+        state
+            .tasks
+            .get_or_insert_with(JoinSet::new)
+            .spawn(async move { task(cancellation).await });
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_lock_available(&self) -> bool {
+        self.inner
+            .upgrade()
+            .is_some_and(|inner| inner.state.try_lock().is_ok())
     }
 }
 

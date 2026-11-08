@@ -7,7 +7,9 @@ use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
 use openrust::config::FrameworkConfig;
-use openrust::container::{ContainerBuilder, Resolver, ScopeFactory};
+use openrust::container::{
+    ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterValue, Resolver, ScopeFactory,
+};
 use openrust::core::Error;
 use openrust::core::Result;
 use openrust::foundation::BootContext;
@@ -61,7 +63,7 @@ async fn typed_trait_extenders_preserve_factory_override_dependencies_and_order(
         Box::pin(async move {
             Ok(Arc::new(Wrapper(old, *resolver.resolve::<usize>().await?)) as Arc<dyn Driver>)
         })
-    });
+    })?;
     assert!(!builder.contains::<dyn Driver>());
     builder.bind::<dyn Driver, _>(|_| {
         Box::pin(async { Err(Error::custom("stale_factory", "必须覆盖")) })
@@ -79,7 +81,7 @@ async fn typed_trait_extenders_preserve_factory_override_dependencies_and_order(
     });
     builder.extend::<dyn Driver, _>(|old, _| {
         Box::pin(async move { Ok(Arc::new(Wrapper(old, 9)) as Arc<dyn Driver>) })
-    });
+    })?;
     builder.instance(Arc::new(7usize));
     let container = builder.build();
     assert_eq!(container.len(), 2);
@@ -100,28 +102,28 @@ async fn typed_trait_extenders_preserve_factory_override_dependencies_and_order(
 async fn explicit_instances_skip_persistent_extenders_and_overrides_drop_pending_operations()
 -> Result<()> {
     let mut builder = ContainerBuilder::new();
-    builder.extend::<usize, _>(add(10));
+    builder.extend::<usize, _>(add(10))?;
     builder.instance(Arc::new(1usize));
-    builder.extend::<usize, _>(add(100));
+    builder.extend::<usize, _>(add(100))?;
     assert!(builder.get_instance::<usize>().is_none());
     builder.instance(Arc::new(2usize));
     assert_eq!(builder.get_instance::<usize>().as_deref(), Some(&2));
     assert_eq!(*builder.build().resolve::<usize>().await?, 2);
     let mut builder = ContainerBuilder::new();
-    builder.extend::<usize, _>(add(10));
+    builder.extend::<usize, _>(add(10))?;
     builder.instance(Arc::new(1usize));
-    builder.extend::<usize, _>(add(100));
+    builder.extend::<usize, _>(add(100))?;
     builder.singleton::<usize, _>(|_| Box::pin(async { Ok(Arc::new(3)) }));
     assert_eq!(*builder.build().resolve::<usize>().await?, 13);
     let mut builder = ContainerBuilder::new();
-    builder.extend::<usize, _>(add(10));
+    builder.extend::<usize, _>(add(10))?;
     builder
         .instance(Arc::new(1usize))
-        .extend::<usize, _>(add(100));
-    builder.forget_extenders::<usize>();
+        .extend::<usize, _>(add(100))?;
+    builder.forget_extenders::<usize>()?;
     assert_eq!(*builder.build().resolve::<usize>().await?, 101);
     let mut missing = ContainerBuilder::new();
-    missing.extend::<usize, _>(add(1));
+    missing.extend::<usize, _>(add(1))?;
     let container = missing.build();
     assert!(container.is_empty());
     assert_eq!(
@@ -156,10 +158,10 @@ async fn pending_instance_operations_publish_each_value_before_each_rebinding_ca
                 Ok(())
             })
         }
-    });
+    })?;
     builder
-        .extend::<usize, _>(add(1))
-        .extend::<usize, _>(add(10));
+        .extend::<usize, _>(add(1))?
+        .extend::<usize, _>(add(10))?;
     let container = builder.build();
     assert!(container.get_instance::<usize>().is_none());
     assert!(container.get_ready::<usize>().is_none());
@@ -179,7 +181,7 @@ async fn pending_instance_failure_retries_only_uncommitted_operation() -> Result
     let mut builder = ContainerBuilder::new();
     builder
         .instance(Arc::new(1usize))
-        .extend::<usize, _>(add(1));
+        .extend::<usize, _>(add(1))?;
     builder.extend::<usize, _>({
         let attempts = Arc::clone(&attempts);
         move |old, _| {
@@ -191,7 +193,7 @@ async fn pending_instance_failure_retries_only_uncommitted_operation() -> Result
                 Ok(Arc::new(*old + 10))
             })
         }
-    });
+    })?;
     builder.rebinding::<usize, _>({
         let callbacks = Arc::clone(&callbacks);
         move |_, value| {
@@ -204,7 +206,7 @@ async fn pending_instance_failure_retries_only_uncommitted_operation() -> Result
                 Ok(())
             })
         }
-    });
+    })?;
     let container = builder.build();
     let error = container.resolve::<usize>().await.err();
     assert_eq!(
@@ -265,6 +267,99 @@ impl ServiceProvider for RegisterLater {
             Ok(())
         })
     }
+}
+
+struct DescriptorService(Arc<usize>, Arc<u8>);
+
+fn descriptor_service() -> ClassDescriptor {
+    ClassDescriptor::concrete::<DescriptorService>(
+        "contract::DescriptorService",
+        vec![
+            ConstructorParam::class::<usize>("value"),
+            ConstructorParam::scalar::<u8>("limit").with_default(|| Ok(ParameterValue::new(3u8))),
+        ],
+        |args| {
+            Ok(Arc::new(DescriptorService(
+                args.service::<usize>(0)?,
+                args.value(1)?.downcast::<u8>()?,
+            )))
+        },
+    )
+}
+
+struct ReadDescriptorDuringRegister(Arc<AtomicUsize>);
+
+impl ServiceProvider for ReadDescriptorDuringRegister {
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            assert!(!app.is_bound::<DescriptorService>());
+            let first = app.resolve::<DescriptorService>().await?;
+            let second = app.resolve::<DescriptorService>().await?;
+            assert!(!Arc::ptr_eq(&first, &second));
+            assert_eq!((*first.0, *second.0), (9, 9));
+            assert_eq!((*first.1, *second.1), (3, 3));
+            assert!(!app.is_bound::<usize>());
+            assert!(!app.is_bound::<DescriptorService>());
+            app.instance(Arc::new(DescriptorService(Arc::new(19), Arc::new(8))))
+                .await
+        })
+    }
+}
+
+#[tokio::test]
+async fn provider_can_resolve_declared_concrete_during_register_and_override_it() -> Result<()> {
+    let registrations = Arc::new(AtomicUsize::new(0));
+    let mut builder = ProviderBuilder::new();
+    builder
+        .provider(ReadDescriptorDuringRegister(Arc::clone(&registrations)))
+        .class_descriptors([ClassDescriptor::concrete::<usize>(
+            "contract::Value",
+            vec![],
+            |_| Ok(Arc::new(9)),
+        )])
+        .class_descriptors([descriptor_service()]);
+    let runtime = builder
+        .start(Figment::from(Serialized::defaults(
+            FrameworkConfig::default(),
+        )))
+        .await?;
+    assert_eq!(registrations.load(Ordering::SeqCst), 1);
+    assert!(runtime.container().contains::<DescriptorService>());
+    assert_eq!(
+        *runtime.container().resolve::<DescriptorService>().await?.0,
+        19
+    );
+    runtime
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await
+}
+
+#[tokio::test]
+async fn duplicate_descriptors_fail_before_provider_register_or_constructor() -> Result<()> {
+    let registrations = Arc::new(AtomicUsize::new(0));
+    let mut builder = ProviderBuilder::new();
+    builder
+        .class_descriptors([descriptor_service()])
+        .provider(ReadDescriptorDuringRegister(Arc::clone(&registrations)))
+        .class_descriptors([ClassDescriptor::concrete::<DescriptorService>(
+            "contract::DuplicateService",
+            vec![],
+            |_| {
+                Err(Error::custom(
+                    "unexpected_constructor",
+                    "重复清单不得执行构造器",
+                ))
+            },
+        )]);
+    let result = builder
+        .start(Figment::from(Serialized::defaults(
+            FrameworkConfig::default(),
+        )))
+        .await;
+    assert!(matches!(result, Err(error) if error.code() == "container_class_identity_duplicate"));
+    assert_eq!(registrations.load(Ordering::SeqCst), 0);
+    Ok(())
 }
 
 // Provider 的 live extend 会当场装饰已绑定 instance；依赖必须先登记，失败时不得 boot。
@@ -488,7 +583,7 @@ async fn transient_rebinding_is_lazy_and_forget_extenders_only_affects_future_co
                 Ok(())
             })
         }
-    });
+    })?;
     let container = builder.build();
     container.extend::<usize, _>(add(10)).await?;
     assert_eq!(calls.load(Ordering::SeqCst), 0);
@@ -503,7 +598,7 @@ async fn transient_rebinding_is_lazy_and_forget_extenders_only_affects_future_co
     let mut builder = ContainerBuilder::new();
     builder
         .singleton::<usize, _>(|_| Box::pin(async { Ok(Arc::new(1)) }))
-        .extend::<usize, _>(add(10));
+        .extend::<usize, _>(add(10))?;
     let singleton = builder.build();
     assert_eq!(*singleton.resolve::<usize>().await?, 11);
     singleton.forget_extenders::<usize>().await?;
@@ -522,7 +617,7 @@ async fn rebinding_failure_keeps_published_value_and_recursive_extension_has_cyc
             assert_eq!(*resolver.resolve::<usize>().await?, *value);
             Err(Error::custom("callback_failed", "通知失败"))
         })
-    });
+    })?;
     let container = builder.build();
     assert_eq!(
         bounded(container.extend::<usize, _>(add(1)))
@@ -549,7 +644,7 @@ async fn rebinding_failure_keeps_published_value_and_recursive_extension_has_cyc
                 container.extend::<usize, _>(add(10)).await
             })
         }
-    });
+    })?;
     let container = builder.build();
     *target
         .lock()
@@ -577,7 +672,7 @@ async fn extenders_preserve_self_cycle_and_captive_dependency_errors() -> Result
     builder.singleton::<usize, _>(|_| Box::pin(async { Ok(Arc::new(1)) }));
     builder.extend::<usize, _>(|_, resolver| {
         Box::pin(async move { resolver.resolve::<usize>().await })
-    });
+    })?;
     assert_eq!(
         bounded(builder.build().resolve::<usize>())
             .await?
@@ -765,7 +860,7 @@ async fn transient_factories_remain_concurrent_with_extender_coordination() -> R
             Ok(Arc::new(next.fetch_add(1, Ordering::SeqCst)))
         })
     });
-    builder.extend::<usize, _>(add(10));
+    builder.extend::<usize, _>(add(10))?;
     let container = builder.build();
     let (first, second) =
         bounded(async { tokio::join!(container.resolve::<usize>(), container.resolve::<usize>()) })
@@ -983,7 +1078,7 @@ async fn lazy_extension_failure_restarts_factory_and_entire_chain_without_partia
                 Ok(Arc::new(*old + 1))
             })
         }
-    });
+    })?;
     builder.extend::<usize, _>({
         let second = Arc::clone(&second);
         move |old, _| {
@@ -995,7 +1090,7 @@ async fn lazy_extension_failure_restarts_factory_and_entire_chain_without_partia
                 Ok(Arc::new(*old + 10))
             })
         }
-    });
+    })?;
     let container = builder.build();
     assert_eq!(
         container
@@ -1035,7 +1130,7 @@ async fn cancelled_lazy_extension_wakes_waiters_and_allows_clean_retry() -> Resu
                 Ok(Arc::new(*old + 1))
             })
         }
-    });
+    })?;
     let container = builder.build();
     let owner = tokio::spawn({
         let container = container.clone();

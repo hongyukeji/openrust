@@ -1,4 +1,4 @@
-//! 示例业务依赖；由模块 Provider 登记，通过框架容器注入控制器。
+//! 示例业务依赖，通过框架容器构造并注入控制器。
 
 #[cfg(feature = "auth")]
 pub(crate) mod account_security;
@@ -23,7 +23,7 @@ pub(crate) mod upstream;
 #[cfg(any(test, feature = "auth"))]
 pub(crate) mod welcome;
 
-pub(crate) use message::{ExampleConfig, ExampleMessage};
+pub(crate) use message::{ExampleConfig, ExampleMessage, ExamplePresenter, class_descriptors};
 #[cfg(feature = "session")]
 pub(crate) mod draft_errors;
 

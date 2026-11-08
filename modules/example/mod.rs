@@ -195,6 +195,7 @@ mod scheduler_flows;
 #[path = "tests/seed_flows.rs"]
 mod seed_flows;
 mod services;
+pub(crate) use services::class_descriptors;
 #[cfg(test)]
 #[path = "tests/telemetry_flows.rs"]
 mod telemetry_flows;

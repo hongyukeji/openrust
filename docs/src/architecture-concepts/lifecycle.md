@@ -6,6 +6,30 @@
 
 服务工厂失败时，日志会转义控制字符，并将每个服务类型名限制在 128 字节以内。`Error::ServiceInitialization` 的 `service.name()` 仍返回完整类型名，内部错误链可供诊断。HTTP 响应使用 `service_initialization_failed` 和通用错误消息。
 
+### 声明可构造的具体类型
+
+应用在 `ApplicationDefinition::configure_providers` 中调用 `builder.class_descriptors(...)`，把应用或扩展提供的类描述加入启动清单。框架在任何 Provider 准备或注册之前检查重复类型、重复符号和构造参数声明。登记清单时不会执行构造器。
+
+```rust
+use std::sync::Arc;
+use openrust::container::{ClassDescriptor, ConstructorParam};
+
+struct Greeting(Arc<Locale>);
+struct Locale;
+
+let classes = [
+    ClassDescriptor::concrete::<Locale>("app::Locale", vec![], |_| Ok(Arc::new(Locale))),
+    ClassDescriptor::concrete::<Greeting>(
+        "app::Greeting",
+        vec![ConstructorParam::class::<Locale>("locale")],
+        |args| Ok(Arc::new(Greeting(args.service::<Locale>(0)?))),
+    ),
+];
+// 在 configure_providers 内将 classes 传给 builder.class_descriptors(classes)。
+```
+
+普通 `resolve::<Greeting>()` 在当前作用域递归解析依赖，再调用构造回调。描述符提供的是编译期类型和构造信息，因此只支持主动声明的类型。单独登记描述符不会令 `contains::<Greeting>()` 成立。显式绑定优先，可沿用 `bind`、`singleton`、`scoped` 或 `instance` 控制生命周期。
+
 应用 Controller 放在 `app/http/controllers/`，通过 `routes/api.rs` 或 `routes/web.rs` 声明访问路径；应用 Provider 类型放在 `app/providers/`，由 `bootstrap/providers.rs` 登记。不要把这些应用职责放入框架 `src/`。
 
 API 请求匹配当前配置前缀的无状态路由组，再进入处理函数。异常经公开 Handler 扩展渲染；根应用对配置的 API 范围选择 JSON 包装，Web 请求继续使用其内容协商与异常渲染流程。

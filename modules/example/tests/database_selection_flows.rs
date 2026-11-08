@@ -181,6 +181,7 @@ async fn final_named_only_sources_do_not_select_default_database_business() -> R
         .default_providers(DefaultProviders::auto())
         // 此测试只验模块选择，不声称验证真实具名连接；正常生产仍保留 DB 驱动预检。
         .remove_provider(ProviderId::of::<openrust::database::DatabaseServiceProvider>())
+        .class_descriptors(super::class_descriptors())
         .module_manifest(manifest);
     let app = Application::from_provider_runtime(builder.start(final_sources).await?)?;
     let outcome: Result<()> = async {
@@ -246,6 +247,7 @@ async fn explicit_descriptor_override_does_not_require_a_database_section() -> R
     builder
         .default_providers(DefaultProviders::for_runtime(false, false))
         .remove_provider(ProviderId::of::<openrust::database::DatabaseServiceProvider>())
+        .class_descriptors(super::class_descriptors())
         .module_manifest(
             ModuleManifest::new()
                 .module(super::descriptor(false, root.path().to_path_buf()))
@@ -297,6 +299,7 @@ async fn earlier_boot_overlay_controls_routes_without_unloading_registered_busin
         .default_providers(DefaultProviders::for_runtime(false, false))
         .remove_provider(ProviderId::of::<openrust::database::DatabaseServiceProvider>())
         .provider(RemoveDefaultUrl)
+        .class_descriptors(super::class_descriptors())
         .provider(super::providers::ExampleServiceProvider::new(
             root.path().to_path_buf(),
         ));

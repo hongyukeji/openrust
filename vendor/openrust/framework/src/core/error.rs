@@ -9,24 +9,29 @@ use std::sync::Arc;
 
 use crate::config::ConfigError;
 
-/// 由框架类型信息构造的服务身份；不可从部署值或任意来源字符串创建。
+/// 由框架登记的服务键或 Rust 类型信息构造的身份；不采用底层错误来源文本。
 ///
 /// ```compile_fail
 /// use openrust::core::error::ServiceIdentity;
-/// let _ = ServiceIdentity { name: "credential_password" };
+/// let _ = ServiceIdentity { name: std::sync::Arc::<str>::from("credential_password") };
 /// ```
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ServiceIdentity {
-    name: &'static str,
+    name: Arc<str>,
 }
 
 impl ServiceIdentity {
-    /// 已注册服务的 Rust 类型名。
-    pub fn name(self) -> &'static str {
-        self.name
+    /// 已登记服务键的完整身份；诊断格式化会另行限制长度与转义控制字符。
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub(crate) fn from_type_name(name: &'static str) -> Self {
+        Self::from_name(Arc::from(name))
+    }
+
+    pub(crate) fn from_name(name: Arc<str>) -> Self {
         Self { name }
     }
 }
@@ -37,7 +42,7 @@ impl std::fmt::Display for ServiceIdentity {
         const ELLIPSIS: &str = "…";
 
         if self.name.len() <= LIMIT && !self.name.chars().any(char::is_control) {
-            return formatter.write_str(self.name);
+            return formatter.write_str(&self.name);
         }
 
         let mut rendered = String::with_capacity(LIMIT);
@@ -217,7 +222,7 @@ pub enum Error {
     /// 容器工厂失败；公开详情不包含底层配置值，source 保留原始错误链。
     #[error("service `{service}` initialization failed (cause: {})", source.initialization_cause())]
     ServiceInitialization {
-        /// 构造失败的 Rust 服务类型。
+        /// 构造失败的已登记服务身份。
         service: ServiceIdentity,
         /// 内部错误链；不得直接作为 HTTP 响应输出。
         #[source]

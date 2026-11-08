@@ -19,7 +19,7 @@ use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
-use crate::container::{Container, ContainerBuilder, Resolver};
+use crate::container::{ClassDescriptor, Container, ContainerBuilder, Resolver};
 use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
@@ -440,6 +440,7 @@ pub struct ProviderBuilder {
     removed: HashSet<ProviderId>,
     app_config: Option<AppConfigRegistration>,
     binding_overrides: Vec<BindingOverride>,
+    class_descriptors: Vec<ClassDescriptor>,
 }
 
 struct ProviderEntry {
@@ -619,6 +620,17 @@ impl ProviderBuilder {
         Self::default()
     }
 
+    /// 将编译类加入应用的启动目录。多次调用按清单顺序追加。
+    ///
+    /// 完整目录在 Provider 准备和注册前验证，注册阶段可以解析已声明的具体类型。
+    pub fn class_descriptors(
+        &mut self,
+        descriptors: impl IntoIterator<Item = ClassDescriptor>,
+    ) -> &mut Self {
+        self.class_descriptors.extend(descriptors);
+        self
+    }
+
     /// 在当前清单槽位安装框架默认 Provider，启动时从同一配置仓储求值。
     pub fn default_providers(&mut self, defaults: crate::support::DefaultProviders) -> &mut Self {
         self.default_providers = Some((self.providers.len(), defaults));
@@ -751,7 +763,7 @@ impl ProviderBuilder {
         let console_command = self.console_command;
         let mut providers = self.providers;
         let defaults = self.default_providers;
-        let mut bindings = ContainerBuilder::new();
+        let mut bindings = ContainerBuilder::with_class_descriptors(self.class_descriptors)?;
         bindings.instance(Arc::new(crate::http::MimeTypes::new()));
         let mut config = ConfigRepository::new(sources);
         let mut automatic_database = None;

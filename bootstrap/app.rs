@@ -59,7 +59,9 @@ impl ApplicationDefinition for Server {
         builder: &mut openrust::foundation::ProviderBuilder,
     ) {
         let root = config.application_root();
-        builder.module_manifest(crate::modules::manifest(&root, &config.modules));
+        builder
+            .class_descriptors(crate::modules::example::class_descriptors())
+            .module_manifest(crate::modules::manifest(&root, &config.modules));
     }
 }
 

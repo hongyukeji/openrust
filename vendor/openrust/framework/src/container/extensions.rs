@@ -3,65 +3,154 @@
 use super::{
     ActiveFactory, Arc, AtomicBool, Attempt, Binding, BoxFuture, CacheKey, Container,
     ContainerBuilder, Error, Failure, HashMap, HashSet, Inner, Lifetime, Mutex, Notify, Ordering,
-    Resolver, Result, Scope, ScopeStatus, State, TypeId, Value, WaitEdge, container_error, lock,
-    type_name,
+    Resolver, Result, Scope, ScopeStatus, ServiceKey, State, Value, WaitEdge, container_error,
+    lock,
 };
+
+use super::descriptor_source::DescriptorSource;
+use crate::foundation::resources::{ResourceInlineOwner, ResourceTaskCompletion};
 
 type ExtensionFn = dyn Fn(Value, Resolver) -> BoxFuture<'static, Result<Value>> + Send + Sync;
 #[derive(Clone)]
-pub(super) struct Extender(Arc<ExtensionFn>);
+pub(super) struct Extender(pub(super) Arc<ExtensionFn>);
 type RebindingFn = dyn Fn(Resolver, Value) -> BoxFuture<'static, Result<()>> + Send + Sync;
 #[derive(Clone)]
 pub(super) struct Rebinding(Arc<RebindingFn>);
+
+// 一个已提交事件只交付该次值；后继目录和回调登记不会改变此快照。
+pub(super) struct Rebound {
+    resolver: Resolver,
+    service: ServiceKey,
+    generation: u64,
+    callbacks: Vec<Rebinding>,
+    value: Option<Value>,
+}
+
+impl Rebound {
+    pub(super) fn capture(
+        state: &State,
+        inner: &Inner,
+        caller: &Resolver,
+        service: &ServiceKey,
+        binding: &Binding,
+        value: Option<Value>,
+    ) -> Option<Self> {
+        let callbacks = state.extensions.listeners.get(service)?;
+        if callbacks.is_empty() {
+            return None;
+        }
+        let mut resolver = caller.clone();
+        resolver.chain.clear();
+        resolver.constructing = None;
+        if binding.effective_lifetime() == Lifetime::Singleton {
+            resolver.captive = true;
+            resolver.scope = u64::MAX;
+            resolver.resources.clone_from(&inner.resources);
+        }
+        Some(Self {
+            resolver,
+            service: service.clone(),
+            generation: binding.generation,
+            callbacks: callbacks.clone(),
+            value,
+        })
+    }
+
+    pub(super) async fn dispatch(self) -> Result<()> {
+        let value = match self.value {
+            Some(value) => value,
+            None => {
+                self.resolver
+                    .resolve_at_generation(self.service, Some(self.generation))
+                    .await?
+            }
+        };
+        for callback in self.callbacks {
+            tokio::select! {
+                result = (callback.0)(self.resolver.clone(), Arc::clone(&value)) => result?,
+                () = self.resolver.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
+            }
+        }
+        Ok(())
+    }
+}
 
 tokio::task_local! {
     // 回调在发布后允许同型 resolve，但仍不得递归 extend 自己。
     static EXTENDING: Vec<(usize, CacheKey, u64)>;
 }
 
+// raw Closure 的受管执行仍携带本容器的装饰上下文，避免跨 task 丢失递归边界。
+#[cfg(test)]
+pub(super) fn extension_context() -> Vec<(usize, CacheKey, u64)> {
+    EXTENDING.try_with(Clone::clone).unwrap_or_default()
+}
+
+#[cfg(test)]
+pub(super) async fn with_extension_context<F: std::future::Future>(
+    stack: Vec<(usize, CacheKey, u64)>,
+    future: F,
+) -> F::Output {
+    EXTENDING.scope(stack, future).await
+}
+
+enum TransientSource {
+    Binding(u64),
+    Descriptor {
+        revision: u64,
+        completion: ResourceTaskCompletion,
+    },
+}
+
+struct TransientAttempt {
+    source: TransientSource,
+    attempt: Arc<Attempt>,
+}
+
+pub(super) struct CachedAdmission {
+    pub(super) attempt: Arc<Attempt>,
+    // None 表示跟随已有 owner；空向量仍是有权构造的 owner。
+    pub(super) owner_chain: Option<Vec<Extender>>,
+    pub(super) edge: Option<WaitEdge>,
+}
+
 #[derive(Default)]
 pub(super) struct ExtensionState {
-    global: HashMap<TypeId, Vec<Extender>>,
+    global: HashMap<ServiceKey, Vec<Extender>>,
     local: HashMap<CacheKey, Vec<Extender>>,
-    listeners: HashMap<TypeId, Vec<Rebinding>>,
+    listeners: HashMap<ServiceKey, Vec<Rebinding>>,
     pub(super) resolved: HashSet<CacheKey>,
-    pending_cursor: HashMap<TypeId, usize>,
-    pending_order: Vec<(TypeId, usize)>,
+    pending_cursor: HashMap<ServiceKey, usize>,
+    pending_order: Vec<(ServiceKey, usize)>,
     operations: HashMap<CacheKey, Arc<Operation>>,
-    transients: HashMap<CacheKey, Vec<Arc<Attempt>>>,
+    transients: HashMap<CacheKey, Vec<TransientAttempt>>,
 }
 
 impl ExtensionState {
-    pub(super) fn has_rebinding_listeners(&self, service: TypeId) -> bool {
-        self.listeners
-            .get(&service)
-            .is_some_and(|listeners| !listeners.is_empty())
-    }
-
-    pub(super) fn discard_operations(&mut self, service: TypeId) -> Vec<Arc<Operation>> {
+    pub(super) fn discard_operations(&mut self, service: &ServiceKey) -> Vec<Arc<Operation>> {
         let keys: Vec<_> = self
             .operations
             .keys()
-            .filter(|key| key.service == service)
-            .copied()
+            .filter(|key| &key.service == service)
+            .cloned()
             .collect();
         keys.into_iter()
             .filter_map(|key| self.operations.remove(&key))
             .collect()
     }
-    pub(super) fn discard_pending(&mut self, service: TypeId) {
+    pub(super) fn discard_pending(&mut self, service: &ServiceKey) {
         self.pending_order
-            .retain(|(registered, _)| *registered != service);
-        self.pending_cursor.remove(&service);
+            .retain(|(registered, _)| registered != service);
+        self.pending_cursor.remove(service);
     }
 
-    pub(super) fn instance_complete(&self, service: TypeId, total: usize) -> bool {
-        self.pending_cursor.get(&service).copied().unwrap_or(0) >= total
+    pub(super) fn instance_complete(&self, service: &ServiceKey, total: usize) -> bool {
+        self.pending_cursor.get(service).copied().unwrap_or(0) >= total
     }
 
-    pub(super) fn pending_operation(&self, key: CacheKey) -> bool {
+    pub(super) fn pending_operation(&self, key: &CacheKey) -> bool {
         self.operations
-            .get(&key)
+            .get(key)
             .is_some_and(|operation| !operation.published.load(Ordering::Acquire))
     }
 
@@ -71,7 +160,7 @@ impl ExtensionState {
             .local
             .keys()
             .filter(|key| key.scope == scope)
-            .copied()
+            .cloned()
             .collect();
         keys.into_iter()
             .filter_map(|key| self.local.remove(&key))
@@ -79,12 +168,24 @@ impl ExtensionState {
             .collect()
     }
 
-    fn chain(&self, key: CacheKey) -> Vec<Extender> {
+    pub(super) fn descriptor_completions(
+        &self,
+    ) -> impl Iterator<Item = ResourceTaskCompletion> + '_ {
+        self.transients
+            .values()
+            .flatten()
+            .filter_map(|record| match &record.source {
+                TransientSource::Binding(_) => None,
+                TransientSource::Descriptor { completion, .. } => Some(completion.clone()),
+            })
+    }
+
+    pub(super) fn chain(&self, key: &CacheKey) -> Vec<Extender> {
         self.global
             .get(&key.service)
             .into_iter()
             .flatten()
-            .chain(self.local.get(&key).into_iter().flatten())
+            .chain(self.local.get(key).into_iter().flatten())
             .cloned()
             .collect()
     }
@@ -97,13 +198,19 @@ where
 {
     let extender = Arc::new(extender);
     Extender(Arc::new(move |value, resolver| {
-        let value = value.downcast_ref::<Arc<T>>().cloned();
-        let extender = Arc::clone(&extender);
-        Box::pin(async move {
-            let value = value
-                .ok_or_else(|| container_error("service_type_mismatch", "装饰器输入类型不匹配"))?;
-            Ok(Arc::new(extender(value, resolver).await?) as Value)
-        })
+        let typed = value
+            .downcast_ref::<Arc<T>>()
+            .cloned()
+            .ok_or_else(|| container_error("service_type_mismatch", "装饰器输入类型不匹配"));
+        let guarded = crate::foundation::lifecycle::callback_future(
+            resolver.callback_disposal(),
+            Arc::clone(&extender),
+            resolver,
+            typed,
+            Some(value),
+            |extender, resolver, value| extender(value, resolver),
+        );
+        Box::pin(async move { Ok(Arc::new(guarded.await?) as Value) })
     }))
 }
 
@@ -114,13 +221,18 @@ where
 {
     let callback = Arc::new(callback);
     Rebinding(Arc::new(move |resolver, value| {
-        let value = value.downcast_ref::<Arc<T>>().cloned();
-        let callback = Arc::clone(&callback);
-        Box::pin(async move {
-            let value = value
-                .ok_or_else(|| container_error("service_type_mismatch", "重绑定通知类型不匹配"))?;
-            callback(resolver, value).await
-        })
+        let typed = value
+            .downcast_ref::<Arc<T>>()
+            .cloned()
+            .ok_or_else(|| container_error("service_type_mismatch", "重绑定通知类型不匹配"));
+        Box::pin(crate::foundation::lifecycle::callback_future(
+            resolver.callback_disposal(),
+            Arc::clone(&callback),
+            resolver,
+            typed,
+            Some(value),
+            |callback, resolver, value| callback(resolver, value),
+        ))
     }))
 }
 
@@ -128,49 +240,70 @@ impl ContainerBuilder {
     /// 装饰原 factory；显式 instance 的异步变换延至 Provider boot 前或首次解析。
     ///
     /// 未绑定类型也能登记；factory 覆盖保留持久链，instance 覆盖丢弃旧即时链。
-    pub fn extend<T, F>(&mut self, extender: F) -> &mut Self
+    ///
+    /// # Errors
+    ///
+    /// 规范原键的别名链成环时返回 `service_alias_cycle`，不登记装饰器。
+    pub fn extend<T, F>(&mut self, extender: F) -> Result<&mut Self>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
+        let key = self
+            .aliases
+            .resolve(&self.classes.canonical_key(&ServiceKey::typed::<T>()))?;
         let extender = erase_extender::<T, F>(extender);
         if let Some(binding) = self
             .bindings
-            .get_mut(&TypeId::of::<T>())
+            .get_mut(&key)
             .filter(|binding| binding.instance.is_some())
         {
             binding.pending.push(extender);
             self.extensions
                 .pending_order
-                .push((TypeId::of::<T>(), binding.pending.len()));
+                .push((key.clone(), binding.pending.len()));
         } else {
             self.extensions
                 .global
-                .entry(TypeId::of::<T>())
+                .entry(key)
                 .or_default()
                 .push(extender);
         }
-        self
+        Ok(self)
     }
 
     /// 清除持久装饰链，不撤销当前 instance 或其待执行即时装饰。
-    pub fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&mut self) -> &mut Self {
-        self.extensions.global.remove(&TypeId::of::<T>());
-        self
+    ///
+    /// # Errors
+    ///
+    /// 别名链成环时返回 `service_alias_cycle`，不移除任何链。
+    pub fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&mut self) -> Result<&mut Self> {
+        let key = self
+            .aliases
+            .resolve(&self.classes.canonical_key(&ServiceKey::typed::<T>()))?;
+        self.extensions.global.remove(&key);
+        Ok(self)
     }
 
     /// 登记装饰成功后的异步通知；新缓存发布后按登记顺序执行。
-    pub fn rebinding<T, F>(&mut self, callback: F) -> &mut Self
+    ///
+    /// # Errors
+    ///
+    /// 别名链成环时返回 `service_alias_cycle`，不登记监听器。
+    pub fn rebinding<T, F>(&mut self, callback: F) -> Result<&mut Self>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
     {
+        let key = self
+            .aliases
+            .resolve(&self.classes.canonical_key(&ServiceKey::typed::<T>()))?;
         self.extensions
             .listeners
-            .entry(TypeId::of::<T>())
+            .entry(key)
             .or_default()
             .push(erase_rebinding::<T, F>(callback));
-        self
+        Ok(self)
     }
 }
 
@@ -215,6 +348,31 @@ struct OperationGuard {
     key: CacheKey,
     operation: Arc<Operation>,
     generation: u64,
+    owner: Resolver,
+    local: bool,
+}
+
+impl OperationGuard {
+    fn check(&self, state: &State) -> Result<()> {
+        self.owner.check_open(state)?;
+        if state
+            .bindings
+            .get(&self.key.service)
+            .map_or(0, |binding| binding.generation)
+            == self.generation
+            && state
+                .extensions
+                .operations
+                .get(&self.key)
+                .is_some_and(|current| Arc::ptr_eq(current, &self.operation))
+        {
+            return Ok(());
+        }
+        Err(container_error(
+            "binding_replaced",
+            "装饰期间服务绑定已更换",
+        ))
+    }
 }
 
 impl Drop for OperationGuard {
@@ -262,18 +420,18 @@ fn extension_parent(inner: &Arc<Inner>) -> Option<u64> {
         .flatten()
 }
 
-fn recursive_extension(inner: &Arc<Inner>, key: CacheKey) -> bool {
+fn recursive_extension(inner: &Arc<Inner>, key: &CacheKey) -> bool {
     EXTENDING
         .try_with(|stack| {
             stack
                 .iter()
-                .any(|(owner, active, _)| *owner == address(inner) && *active == key)
+                .any(|(owner, active, _)| *owner == address(inner) && active == key)
         })
         .unwrap_or(false)
 }
 
 impl Resolver {
-    fn check_open(&self, state: &State) -> Result<()> {
+    pub(super) fn check_open(&self, state: &State) -> Result<()> {
         if state.terminated {
             return Err(container_error("container_closed", "容器已关闭"));
         }
@@ -283,7 +441,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn wait_edge(
+    pub(super) fn wait_edge(
         &self,
         inner: &Arc<Inner>,
         state: &mut State,
@@ -306,9 +464,11 @@ impl Resolver {
             let names = path
                 .into_iter()
                 .filter_map(|id| {
-                    state
-                        .slots
-                        .values()
+                    let attempts = state.slots.values();
+                    #[cfg(test)]
+                    let attempts =
+                        attempts.chain(state.raw_attempts.values().map(|record| &record.attempt));
+                    attempts
                         .chain(
                             state
                                 .extensions
@@ -316,9 +476,16 @@ impl Resolver {
                                 .values()
                                 .map(|operation| &operation.attempt),
                         )
-                        .chain(state.extensions.transients.values().flatten())
+                        .chain(
+                            state
+                                .extensions
+                                .transients
+                                .values()
+                                .flatten()
+                                .map(|record| &record.attempt),
+                        )
                         .find(|slot| slot.id == id)
-                        .map(|slot| slot.name)
+                        .map(|slot| slot.service.to_string())
                 })
                 .collect::<Vec<_>>();
             return Err(container_error("service_cycle", names.join(" → ")));
@@ -340,10 +507,9 @@ impl Resolver {
     pub(super) async fn admit_cached(
         &self,
         inner: &Arc<Inner>,
-        key: CacheKey,
-        name: &'static str,
-        generation: u64,
-    ) -> Result<Option<(Arc<Attempt>, bool, Option<WaitEdge>)>> {
+        key: &CacheKey,
+        binding: &Binding,
+    ) -> Result<Option<CachedAdmission>> {
         loop {
             let waiting = {
                 let mut state = lock(&inner.state);
@@ -352,34 +518,43 @@ impl Resolver {
                     .bindings
                     .get(&key.service)
                     .map(|binding| binding.generation)
-                    != Some(generation)
+                    != Some(binding.generation)
                 {
                     return Ok(None);
                 }
                 if let Some(operation) = state
                     .extensions
                     .operations
-                    .get(&key)
+                    .get(key)
                     .filter(|op| !op.published.load(Ordering::Acquire))
                     .cloned()
                 {
                     let edge = self.wait_edge(inner, &mut state, &operation.attempt)?;
                     Some((operation, edge))
                 } else {
-                    let (attempt, owner) = if let Some(attempt) = state.slots.get(&key) {
-                        (Arc::clone(attempt), false)
+                    let (attempt, owner_chain) = if let Some(attempt) = state.slots.get(key) {
+                        (Arc::clone(attempt), None)
                     } else {
                         let attempt = Arc::new(Attempt {
                             id: state.id()?,
-                            name,
+                            service: key.service.clone(),
                             outcome: Mutex::new(None),
                             changed: Notify::new(),
                         });
-                        state.slots.insert(key, Arc::clone(&attempt));
-                        (attempt, true)
+                        state.slots.insert(key.clone(), Arc::clone(&attempt));
+                        let chain = if binding.instance.is_some() {
+                            Vec::new()
+                        } else {
+                            state.extensions.chain(key)
+                        };
+                        (attempt, Some(chain))
                     };
                     let edge = self.wait_edge(inner, &mut state, &attempt)?;
-                    return Ok(Some((attempt, owner, edge)));
+                    return Ok(Some(CachedAdmission {
+                        attempt,
+                        owner_chain,
+                        edge,
+                    }));
                 }
             };
             if let Some((operation, _edge)) = waiting {
@@ -388,15 +563,22 @@ impl Resolver {
         }
     }
 
-    pub(super) async fn construct_value(&self, binding: &Binding, key: CacheKey) -> Result<Value> {
-        let container = self.container()?;
-        // 显式 instance 跳过持久链；它只运行其后登记的即时链。
-        let chain = if binding.instance.is_some() {
-            Vec::new()
+    pub(super) async fn construct_value(
+        &self,
+        binding: &Binding,
+        chain: Vec<Extender>,
+    ) -> Result<Value> {
+        #[cfg(test)]
+        super::binding_admission_tests::after_owner_admission().await;
+        let mut value = if let Some(instance) = &binding.instance {
+            Arc::clone(instance)
         } else {
-            lock(&container.inner.state).extensions.chain(key)
+            let factory = binding
+                .factory
+                .as_ref()
+                .ok_or_else(|| container_error("service_not_bound", "服务没有工厂或实例"))?;
+            factory(self.clone()).await?
         };
-        let mut value = (binding.factory)(self.clone()).await?;
         for extender in chain {
             value = (extender.0)(value, self.clone()).await?;
         }
@@ -407,22 +589,21 @@ impl Resolver {
         &self,
         binding: &Binding,
         mut child: Self,
-        service: TypeId,
-        name: &'static str,
+        service: &ServiceKey,
         activity: Arc<AtomicBool>,
     ) -> Result<Option<Value>> {
         let inner = self.container()?.inner;
         let key = CacheKey {
-            service,
+            service: service.clone(),
             scope: self.scope,
         };
-        let (attempt, _edge) = loop {
+        let (attempt, chain, _edge) = loop {
             let waiting = {
                 let mut state = lock(&inner.state);
                 self.check_open(&state)?;
                 if state
                     .bindings
-                    .get(&service)
+                    .get(service)
                     .map(|current| current.generation)
                     != Some(binding.generation)
                 {
@@ -440,18 +621,21 @@ impl Resolver {
                 } else {
                     let attempt = Arc::new(Attempt {
                         id: state.id()?,
-                        name,
+                        service: key.service.clone(),
                         outcome: Mutex::new(None),
                         changed: Notify::new(),
                     });
                     state
                         .extensions
                         .transients
-                        .entry(key)
+                        .entry(key.clone())
                         .or_default()
-                        .push(Arc::clone(&attempt));
+                        .push(TransientAttempt {
+                            source: TransientSource::Binding(binding.generation),
+                            attempt: Arc::clone(&attempt),
+                        });
                     let edge = self.wait_edge(&inner, &mut state, &attempt)?;
-                    break (attempt, edge);
+                    break (attempt, state.extensions.chain(&key), edge);
                 }
             };
             if let Some((operation, _edge)) = waiting {
@@ -460,7 +644,7 @@ impl Resolver {
         };
         let mut guard = TransientGuard {
             inner: Arc::clone(&inner),
-            key,
+            key: key.clone(),
             attempt: Arc::clone(&attempt),
             generation: binding.generation,
             activity,
@@ -469,13 +653,145 @@ impl Resolver {
         };
         child.constructing = Some((attempt.id, Arc::clone(&guard.activity)));
         let result = tokio::select! {
-            result = child.construct_value(binding, key) => result,
+            result = child.construct_value(binding, chain) => result,
             () = self.closed.wait_closed() => Err(container_error("scope_closed", "生命周期已关闭")),
         };
         guard.finish(result.as_ref().map(Arc::clone).map_err(|error| {
-            Failure::initialization(name, Error::custom(error.code(), error.to_string()))
+            Failure::initialization(service, Error::custom(error.code(), error.to_string()))
         }));
         result.map(Some)
+    }
+}
+
+impl ExtensionState {
+    fn retire_transient(&mut self, key: &CacheKey, id: u64) -> Option<TransientAttempt> {
+        let records = self.transients.get_mut(key)?;
+        let removed = records
+            .iter()
+            .position(|record| record.attempt.id == id)
+            .map(|position| records.remove(position));
+        if records.is_empty() {
+            self.transients.remove(key);
+        }
+        removed
+    }
+}
+
+pub(super) struct DescriptorAttempt {
+    inner: Arc<Inner>,
+    pub(super) key: CacheKey,
+    attempt: Arc<Attempt>,
+    edge: Option<WaitEdge>,
+    activity: Arc<AtomicBool>,
+    pub(super) termination: Arc<ScopeStatus>,
+    owner: Option<ResourceInlineOwner>,
+}
+
+impl DescriptorAttempt {
+    pub(super) fn admit(
+        inner: &Arc<Inner>,
+        resolver: &Resolver,
+        source: &DescriptorSource,
+    ) -> Result<Option<Self>> {
+        let mut owner = ResourceInlineOwner::new();
+        let completion = owner.completion();
+        let key = CacheKey {
+            service: source.key().clone(),
+            scope: resolver.scope,
+        };
+        let reserved = {
+            let mut state = lock(&inner.state);
+            if !source.same_scope(&state, resolver)? {
+                return Ok(None);
+            }
+            if !source.is_current(&state) {
+                source.owner.with_open_owner(|| ())?;
+                return Ok(None);
+            }
+            owner.reserve(&source.owner, || {
+                let attempt = Arc::new(Attempt {
+                    id: state.id()?,
+                    service: key.service.clone(),
+                    outcome: Mutex::new(None),
+                    changed: Notify::new(),
+                });
+                let edge = resolver.wait_edge(inner, &mut state, &attempt)?;
+                state
+                    .extensions
+                    .transients
+                    .entry(key.clone())
+                    .or_default()
+                    .push(TransientAttempt {
+                        source: TransientSource::Descriptor {
+                            revision: source.revision,
+                            completion,
+                        },
+                        attempt: Arc::clone(&attempt),
+                    });
+                Ok((attempt, edge, Arc::clone(&state.termination)))
+            })?
+        };
+        let (attempt, edge, termination) = reserved;
+        let mut admitted = Self {
+            inner: Arc::clone(inner),
+            key,
+            attempt,
+            edge,
+            termination,
+            activity: Arc::new(AtomicBool::new(true)),
+            owner: Some(owner),
+        };
+        if let Some(owner) = &mut admitted.owner {
+            owner.register()?;
+        }
+        Ok(Some(admitted))
+    }
+
+    pub(super) fn owner(&self) -> Result<&ResourceInlineOwner> {
+        self.owner
+            .as_ref()
+            .ok_or_else(|| container_error("resource_inline_state_invalid", "描述符构造已退役"))
+    }
+
+    pub(super) fn child(&self, resolver: &Resolver) -> Result<Resolver> {
+        let mut child = resolver.clone();
+        child
+            .chain
+            .retain(|(_, active)| active.load(Ordering::Acquire));
+        child
+            .chain
+            .push((self.key.service.clone(), Arc::clone(&self.activity)));
+        child.constructing = Some((self.attempt.id, Arc::clone(&self.activity)));
+        child.factory_completion = Some(self.owner()?.completion());
+        Ok(child)
+    }
+
+    pub(super) fn active(&self, state: &State, source: &DescriptorSource) -> bool {
+        state.extensions.transients.get(&self.key).is_some_and(|records| records.iter().any(|record| {
+            record.attempt.id == self.attempt.id &&
+                matches!(record.source, TransientSource::Descriptor { revision, .. } if revision == source.revision)
+        }))
+    }
+}
+
+impl Drop for DescriptorAttempt {
+    fn drop(&mut self) {
+        self.activity.store(false, Ordering::Release);
+        let removed = {
+            let mut state = lock(&self.inner.state);
+            state
+                .edges
+                .retain(|(from, to), _| *from != self.attempt.id && *to != self.attempt.id);
+            state
+                .extensions
+                .retire_transient(&self.key, self.attempt.id)
+        };
+        drop(removed);
+        drop(self.edge.take());
+        self.attempt.changed.notify_waiters();
+        if let Some(owner) = self.owner.take() {
+            owner.finish();
+        }
     }
 }
 
@@ -492,42 +808,31 @@ struct TransientGuard {
 impl TransientGuard {
     fn finish(&mut self, result: std::result::Result<Value, Failure>) {
         self.activity.store(false, Ordering::Release);
+        let mut unclaimed = Some(result);
         let removed = {
             let mut state = lock(&self.inner.state);
-            if result.is_ok()
-                && !state.terminated
-                && !self.closed.closed.load(Ordering::Acquire)
-                && state
-                    .bindings
-                    .get(&self.key.service)
-                    .map(|binding| binding.generation)
-                    == Some(self.generation)
-            {
-                state.extensions.resolved.insert(self.key);
+            let mut outcome = lock(&self.attempt.outcome);
+            if outcome.is_none() {
+                *outcome = unclaimed.take();
+                if outcome.as_ref().is_some_and(std::result::Result::is_ok)
+                    && !state.terminated
+                    && !self.closed.closed.load(Ordering::Acquire)
+                    && state
+                        .bindings
+                        .get(&self.key.service)
+                        .map(|binding| binding.generation)
+                        == Some(self.generation)
+                {
+                    state.record_success(&self.key);
+                }
             }
             state.edges.retain(|(from, _), _| *from != self.attempt.id);
             // 保留 guard 的 Arc，确保最后一个用户 Value 不会在内部锁内释放。
-            let removed = state
+            state
                 .extensions
-                .transients
-                .get_mut(&self.key)
-                .and_then(|items| {
-                    items
-                        .iter()
-                        .position(|item| item.id == self.attempt.id)
-                        .map(|index| items.remove(index))
-                });
-            if state
-                .extensions
-                .transients
-                .get(&self.key)
-                .is_some_and(Vec::is_empty)
-            {
-                state.extensions.transients.remove(&self.key);
-            }
-            removed
+                .retire_transient(&self.key, self.attempt.id)
         };
-        *lock(&self.attempt.outcome) = Some(result);
+        drop(unclaimed);
         self.finished = true;
         self.attempt.changed.notify_waiters();
         drop(removed);
@@ -553,21 +858,35 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
     {
-        let bound = {
+        self.rebinding_key(ServiceKey::typed::<T>(), callback).await
+    }
+
+    pub(super) async fn rebinding_key<T, F>(
+        &self,
+        key: ServiceKey,
+        callback: F,
+    ) -> Result<Option<Arc<T>>>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+    {
+        let (key, bound) = {
             let mut state = lock(&self.inner.state);
             if state.terminated {
                 return Err(container_error("container_closed", "容器已关闭"));
             }
+            let key = state.alias_key(&key)?;
             state
                 .extensions
                 .listeners
-                .entry(TypeId::of::<T>())
+                .entry(key.clone())
                 .or_default()
                 .push(erase_rebinding::<T, F>(callback));
-            state.bindings.contains_key(&TypeId::of::<T>())
+            let bound = state.bound_key(&key);
+            (key, bound)
         };
         if bound {
-            self.resolve::<T>().await.map(Some)
+            self.root_resolver()?.resolve_key::<T>(key).await.map(Some)
         } else {
             Ok(None)
         }
@@ -595,8 +914,7 @@ impl Container {
     {
         self.root_resolver()?
             .extend_value(
-                TypeId::of::<T>(),
-                type_name::<T>(),
+                &ServiceKey::typed::<T>(),
                 erase_extender::<T, F>(extender),
                 false,
             )
@@ -606,7 +924,7 @@ impl Container {
     /// 清除未来构造的持久链；不撤销当前缓存或 instance 的即时变换。
     pub async fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&self) -> Result<()> {
         self.root_resolver()?
-            .forget_chain(TypeId::of::<T>(), type_name::<T>(), false)
+            .forget_chain(&ServiceKey::typed::<T>(), false)
             .await
     }
 
@@ -617,7 +935,7 @@ impl Container {
             let binding = lock(&self.inner.state).bindings.get(&service).cloned();
             if let Some(binding) = binding {
                 self.root_resolver()?
-                    .initialize_instance_until(&self.inner, service, &binding, through)
+                    .initialize_instance_until(&self.inner, &service, &binding, through)
                     .await?;
             }
         }
@@ -632,16 +950,6 @@ impl Scope {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        if self.closed.closed.load(Ordering::Acquire) {
-            return Err(container_error("scope_closed", "生命周期已关闭"));
-        }
-        let singleton = lock(&self.container.inner.state)
-            .bindings
-            .get(&TypeId::of::<T>())
-            .is_some_and(|binding| binding.lifetime == Lifetime::Singleton);
-        if singleton {
-            return self.container.extend::<T, F>(extender).await;
-        }
         let resolver = self.container.resolver(
             self.id,
             Arc::clone(&self.closed),
@@ -649,8 +957,7 @@ impl Scope {
         );
         resolver
             .extend_value(
-                TypeId::of::<T>(),
-                type_name::<T>(),
+                &ServiceKey::typed::<T>(),
                 erase_extender::<T, F>(extender),
                 true,
             )
@@ -659,55 +966,49 @@ impl Scope {
 
     /// 仅清除本 scope 的持久装饰；singleton 的持久链由应用清除。
     pub async fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&self) -> Result<()> {
-        if self.closed.closed.load(Ordering::Acquire) {
-            return Err(container_error("scope_closed", "生命周期已关闭"));
-        }
-        let singleton = lock(&self.container.inner.state)
-            .bindings
-            .get(&TypeId::of::<T>())
-            .is_some_and(|binding| binding.lifetime == Lifetime::Singleton);
-        if singleton {
-            return self.container.forget_extenders::<T>().await;
-        }
         self.container
             .resolver(
                 self.id,
                 Arc::clone(&self.closed),
                 self.resources.registrar(),
             )
-            .forget_chain(TypeId::of::<T>(), type_name::<T>(), true)
+            .forget_chain(&ServiceKey::typed::<T>(), true)
             .await
     }
 }
 
 impl Resolver {
-    fn extension_key(&self, inner: &Inner, service: TypeId) -> CacheKey {
-        let singleton = lock(&inner.state)
-            .bindings
-            .get(&service)
-            .is_some_and(|binding| binding.lifetime == Lifetime::Singleton);
-        CacheKey {
-            service,
-            scope: if singleton { u64::MAX } else { self.scope },
-        }
-    }
-
     async fn operation(
         &self,
         inner: &Arc<Inner>,
-        key: CacheKey,
-        name: &'static str,
+        service: &ServiceKey,
+        local: bool,
+        expected: Option<u64>,
     ) -> Result<OperationGuard> {
-        if recursive_extension(inner, key) {
-            return Err(container_error(
-                "service_cycle",
-                format!("服务 `{name}` 不能递归装饰自己"),
-            ));
-        }
         loop {
             let waiting = {
                 let mut state = lock(&inner.state);
                 self.check_open(&state)?;
+                let binding = state.bindings.get(service);
+                let generation = binding.map_or(0, |binding| binding.generation);
+                if expected.is_some_and(|prior| prior != generation) {
+                    return Err(container_error(
+                        "binding_replaced",
+                        "装饰准入期间服务绑定已更换",
+                    ));
+                }
+                let singleton = binding
+                    .is_some_and(|binding| binding.effective_lifetime() == Lifetime::Singleton);
+                let key = CacheKey {
+                    service: service.clone(),
+                    scope: if singleton { u64::MAX } else { self.scope },
+                };
+                if recursive_extension(inner, &key) {
+                    return Err(container_error(
+                        "service_cycle",
+                        format!("服务 `{service}` 不能递归装饰自己"),
+                    ));
+                }
                 if let Some(operation) = state.extensions.operations.get(&key).cloned() {
                     let edge = self.wait_edge(inner, &mut state, &operation.attempt)?;
                     Some((operation, edge))
@@ -715,7 +1016,7 @@ impl Resolver {
                     let operation = Arc::new(Operation {
                         attempt: Arc::new(Attempt {
                             id: state.id()?,
-                            name,
+                            service: key.service.clone(),
                             outcome: Mutex::new(None),
                             changed: Notify::new(),
                         }),
@@ -724,15 +1025,26 @@ impl Resolver {
                     state
                         .extensions
                         .operations
-                        .insert(key, Arc::clone(&operation));
+                        .insert(key.clone(), Arc::clone(&operation));
+                    let owner = if singleton && local {
+                        Container {
+                            inner: Arc::clone(inner),
+                        }
+                        .resolver(
+                            state.root_scope,
+                            Arc::clone(&state.root_closed),
+                            state.root_resources.registrar(),
+                        )
+                    } else {
+                        self.clone()
+                    };
                     return Ok(OperationGuard {
                         inner: Arc::clone(inner),
                         key,
+                        owner,
+                        local: local && !singleton,
                         operation,
-                        generation: state
-                            .bindings
-                            .get(&key.service)
-                            .map_or(0, |binding| binding.generation),
+                        generation,
                     });
                 }
             };
@@ -748,7 +1060,7 @@ impl Resolver {
     async fn wait_constructions(&self, guard: &OperationGuard) -> Result<()> {
         let waiting = {
             let mut state = lock(&guard.inner.state);
-            self.check_open(&state)?;
+            guard.check(&state)?;
             let mut attempts = state
                 .slots
                 .get(&guard.key)
@@ -762,7 +1074,8 @@ impl Resolver {
                     .get(&guard.key)
                     .into_iter()
                     .flatten()
-                    .cloned(),
+                    .filter(|record| matches!(record.source, TransientSource::Binding(generation) if generation == guard.generation))
+                    .map(|record| Arc::clone(&record.attempt)),
             );
             let mut waiting = Vec::new();
             let mut resolver = self.clone();
@@ -786,73 +1099,70 @@ impl Resolver {
             tokio::select! {
                 // 原构造失败后回到无缓存分支；它不属于本次装饰器失败。
                 _ = attempt.wait() => {},
+                _ = guard.operation.attempt.wait() => return Err(container_error("binding_replaced", "等待构造期间服务绑定已更换")),
                 () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
             }
         }
         Ok(())
     }
 
-    fn extension_resolver(
-        &self,
-        inner: &Arc<Inner>,
-        service: TypeId,
-        name: &'static str,
-        id: u64,
-    ) -> (Self, ActiveFactory) {
+    fn extension_resolver(&self, guard: &OperationGuard) -> (Self, ActiveFactory) {
         let mut child = self.clone();
         child
             .chain
-            .retain(|(_, _, active)| active.load(Ordering::Acquire));
+            .retain(|(_, active)| active.load(Ordering::Acquire));
         let active = Arc::new(AtomicBool::new(true));
-        child.chain.push((service, name, Arc::clone(&active)));
-        child.constructing = Some((id, Arc::clone(&active)));
-        if lock(&inner.state)
-            .bindings
-            .get(&service)
-            .is_some_and(|binding| binding.lifetime == Lifetime::Singleton)
-        {
+        child
+            .chain
+            .push((guard.key.service.clone(), Arc::clone(&active)));
+        child.constructing = Some((guard.operation.attempt.id, Arc::clone(&active)));
+        if guard.key.scope == u64::MAX {
             child.captive = true;
             child.scope = u64::MAX;
-            child.resources.clone_from(&inner.resources);
+            child.resources.clone_from(&guard.inner.resources);
         }
         (child, ActiveFactory(active))
     }
 
-    async fn extend_value(
+    pub(super) async fn extend_value(
         &self,
-        service: TypeId,
-        name: &'static str,
+        service: &ServiceKey,
         extender: Extender,
         local: bool,
     ) -> Result<()> {
         let inner = self.container()?.inner;
-        let pending = lock(&inner.state).bindings.get(&service).cloned();
-        if let Some(binding) = pending.filter(|binding| !binding.pending.is_empty()) {
+        let service = lock(&inner.state).alias_key(service)?;
+        let service = &service;
+        let binding = lock(&inner.state).bindings.get(service).cloned();
+        if let Some(binding) = binding.filter(|binding| !binding.pending.is_empty()) {
             self.initialize_instance(&inner, service, &binding).await?;
         }
-        let key = self.extension_key(&inner, service);
-        let guard = self.operation(&inner, key, name).await?;
+        let guard = self.operation(&inner, service, local, None).await?;
+        let owner = &guard.owner;
+        let key = &guard.key;
         let mut stack = EXTENDING.try_with(Clone::clone).unwrap_or_default();
-        stack.push((address(&inner), key, guard.operation.attempt.id));
+        stack.push((address(&inner), key.clone(), guard.operation.attempt.id));
         EXTENDING.scope(stack, async {
-            self.wait_constructions(&guard).await?;
+            owner.wait_constructions(&guard).await?;
             let old = {
                 let state = lock(&inner.state);
-                self.check_open(&state)?;
-                state.slots.get(&key).and_then(|slot| lock(&slot.outcome).as_ref().and_then(|value| value.as_ref().ok().cloned()))
-                    .or_else(|| state.bindings.get(&service).filter(|binding| binding.pending.is_empty()).and_then(|binding| binding.instance.clone()))
+                guard.check(&state)?;
+                state.slots.get(key).and_then(|slot| lock(&slot.outcome).as_ref().and_then(|value| value.as_ref().ok().cloned()))
+                    .or_else(|| state.bindings.get(service).filter(|binding| binding.pending.is_empty()).and_then(|binding| binding.instance.clone()))
             };
             if let Some(old) = old {
-                let (child, active) = self.extension_resolver(&inner, service, name, guard.operation.attempt.id);
+                let (child, active) = owner.extension_resolver(&guard);
                 let value = tokio::select! {
-                    result = (extender.0)(old, child) => result.map_err(|error| Failure::initialization(name, error).error())?,
-                    () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
+                    result = (extender.0)(old, child) => result.map_err(|error| Failure::initialization(service, error).error())?,
+                    () = owner.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
                 };
                 drop(active);
-                self.publish_extension(&guard, Arc::clone(&value), name, None)?;
-                self.notify_rebinding(&inner, service, value).await
+                if let Some(event) = owner.publish_extension(&guard, value, None)? {
+                    event.dispatch().await?;
+                }
+                Ok(())
             } else {
-                self.append_extension(&guard, extender, local, name).await
+                owner.append_extension(&guard, extender).await
             }
         }).await
     }
@@ -861,153 +1171,104 @@ impl Resolver {
         &self,
         guard: &OperationGuard,
         value: Value,
-        name: &'static str,
         pending_cursor: Option<usize>,
-    ) -> Result<()> {
-        let previous = {
+    ) -> Result<Option<Rebound>> {
+        let (previous, event) = {
             let mut state = lock(&guard.inner.state);
-            self.check_open(&state)?;
-            if state
-                .bindings
-                .get(&guard.key.service)
-                .map_or(0, |binding| binding.generation)
-                != guard.generation
-            {
-                return Err(container_error(
-                    "binding_replaced",
-                    "装饰期间服务绑定已更换",
-                ));
-            }
+            guard.check(&state)?;
+            let id = state.id()?;
+            let event = state.bindings.get(&guard.key.service).and_then(|binding| {
+                Rebound::capture(
+                    &state,
+                    &guard.inner,
+                    self,
+                    &guard.key.service,
+                    binding,
+                    Some(Arc::clone(&value)),
+                )
+            });
             let attempt = Arc::new(Attempt {
-                id: state.id()?,
-                name,
+                id,
+                service: guard.key.service.clone(),
                 outcome: Mutex::new(Some(Ok(value))),
                 changed: Notify::new(),
             });
-            state.extensions.resolved.insert(guard.key);
+            state.extensions.resolved.insert(guard.key.clone());
             if let Some(cursor) = pending_cursor {
                 state
                     .extensions
                     .pending_cursor
-                    .insert(guard.key.service, cursor);
+                    .insert(guard.key.service.clone(), cursor);
             }
-            let previous = state.slots.insert(guard.key, attempt);
+            let previous = state.slots.insert(guard.key.clone(), attempt);
             guard.operation.published.store(true, Ordering::Release);
-            previous
+            (previous, event)
         };
         guard.operation.attempt.changed.notify_waiters();
         drop(previous);
-        Ok(())
+        Ok(event)
     }
 
-    async fn append_extension(
-        &self,
-        guard: &OperationGuard,
-        extender: Extender,
-        local: bool,
-        name: &'static str,
-    ) -> Result<()> {
-        let remake = {
+    async fn append_extension(&self, guard: &OperationGuard, extender: Extender) -> Result<()> {
+        let event = {
             let mut state = lock(&guard.inner.state);
-            self.check_open(&state)?;
-            if state
-                .bindings
-                .get(&guard.key.service)
-                .map_or(0, |binding| binding.generation)
-                != guard.generation
-            {
-                return Err(container_error(
-                    "binding_replaced",
-                    "装饰期间服务绑定已更换",
-                ));
-            }
-            if local && guard.key.scope != u64::MAX {
+            guard.check(&state)?;
+            if guard.local {
                 state
                     .extensions
                     .local
-                    .entry(guard.key)
+                    .entry(guard.key.clone())
                     .or_default()
                     .push(extender);
             } else {
                 state
                     .extensions
                     .global
-                    .entry(guard.key.service)
+                    .entry(guard.key.service.clone())
                     .or_default()
                     .push(extender);
             }
-            let resolved = if local && guard.key.scope != u64::MAX {
+            let resolved = if guard.local {
                 state.extensions.resolved.contains(&guard.key)
             } else {
-                state
-                    .extensions
-                    .resolved
-                    .iter()
-                    .any(|key| key.service == guard.key.service)
+                state.resolved_history.contains(&guard.key.service)
             };
-            let remake = resolved
-                && state
-                    .extensions
-                    .listeners
-                    .get(&guard.key.service)
-                    .is_some_and(|listeners| !listeners.is_empty());
             guard.operation.published.store(true, Ordering::Release);
-            remake
+            state
+                .bindings
+                .get(&guard.key.service)
+                .filter(|_| resolved)
+                .and_then(|binding| {
+                    Rebound::capture(
+                        &state,
+                        &guard.inner,
+                        self,
+                        &guard.key.service,
+                        binding,
+                        None,
+                    )
+                })
         };
         guard.operation.attempt.changed.notify_waiters();
-        if remake {
-            let value = self.resolve_value(guard.key.service, name).await?;
-            self.notify_rebinding(&guard.inner, guard.key.service, value)
-                .await?;
+        if let Some(event) = event {
+            event.dispatch().await?;
         }
         Ok(())
     }
 
-    pub(super) async fn notify_rebinding(
-        &self,
-        inner: &Arc<Inner>,
-        service: TypeId,
-        value: Value,
-    ) -> Result<()> {
-        let callbacks = lock(&inner.state)
-            .extensions
-            .listeners
-            .get(&service)
-            .cloned()
-            .unwrap_or_default();
-        let mut resolver = self.clone();
-        resolver.chain.clear();
-        resolver.constructing = None;
-        if lock(&inner.state)
-            .bindings
-            .get(&service)
-            .is_some_and(|binding| binding.lifetime == Lifetime::Singleton)
-        {
-            resolver.captive = true;
-            resolver.scope = u64::MAX;
-            resolver.resources = inner.resources.clone();
-        }
-        for callback in callbacks {
-            tokio::select! {
-                result = (callback.0)(resolver.clone(), Arc::clone(&value)) => result?,
-                () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
-            }
-        }
-        Ok(())
-    }
-
-    async fn forget_chain(&self, service: TypeId, name: &'static str, local: bool) -> Result<()> {
+    pub(super) async fn forget_chain(&self, service: &ServiceKey, local: bool) -> Result<()> {
         let inner = self.container()?.inner;
-        let key = self.extension_key(&inner, service);
-        let guard = self.operation(&inner, key, name).await?;
-        self.wait_constructions(&guard).await?;
+        let service = lock(&inner.state).alias_key(service)?;
+        let service = &service;
+        let guard = self.operation(&inner, service, local, None).await?;
+        guard.owner.wait_constructions(&guard).await?;
         let removed = {
             let mut state = lock(&inner.state);
-            self.check_open(&state)?;
-            if local && key.scope != u64::MAX {
-                state.extensions.local.remove(&key)
+            guard.check(&state)?;
+            if guard.local {
+                state.extensions.local.remove(&guard.key)
             } else {
-                state.extensions.global.remove(&service)
+                state.extensions.global.remove(service)
             }
         };
         drop(removed);
@@ -1020,7 +1281,7 @@ impl Resolver {
     pub(super) async fn initialize_instance(
         &self,
         inner: &Arc<Inner>,
-        service: TypeId,
+        service: &ServiceKey,
         binding: &Binding,
     ) -> Result<()> {
         self.initialize_instance_until(inner, service, binding, binding.pending.len())
@@ -1030,12 +1291,12 @@ impl Resolver {
     async fn initialize_instance_until(
         &self,
         inner: &Arc<Inner>,
-        service: TypeId,
+        service: &ServiceKey,
         binding: &Binding,
         through: usize,
     ) -> Result<()> {
         let key = CacheKey {
-            service,
+            service: service.clone(),
             scope: u64::MAX,
         };
         {
@@ -1043,7 +1304,7 @@ impl Resolver {
             self.check_open(&state)?;
             if state
                 .bindings
-                .get(&service)
+                .get(service)
                 .map(|current| current.generation)
                 != Some(binding.generation)
             {
@@ -1056,7 +1317,7 @@ impl Resolver {
                 return Ok(());
             }
             // 同一操作的通知读取已经发布的中间值，不再次驱动剩余队列。
-            if recursive_extension(inner, key)
+            if recursive_extension(inner, &key)
                 && state
                     .extensions
                     .operations
@@ -1066,15 +1327,11 @@ impl Resolver {
                 return Ok(());
             }
         }
-        let guard = self.operation(inner, key, binding.name).await?;
-        if guard.generation != binding.generation {
-            return Err(container_error(
-                "binding_replaced",
-                "初始化期间服务绑定已更换",
-            ));
-        }
+        let guard = self
+            .operation(inner, service, false, Some(binding.generation))
+            .await?;
         let mut stack = EXTENDING.try_with(Clone::clone).unwrap_or_default();
-        stack.push((address(inner), key, guard.operation.attempt.id));
+        stack.push((address(inner), key.clone(), guard.operation.attempt.id));
         EXTENDING
             .scope(stack, self.run_pending(&guard, binding, through))
             .await
@@ -1089,7 +1346,7 @@ impl Resolver {
         loop {
             let (index, old) = {
                 let state = lock(&guard.inner.state);
-                self.check_open(&state)?;
+                guard.check(&state)?;
                 let index = state
                     .extensions
                     .pending_cursor
@@ -1114,20 +1371,194 @@ impl Resolver {
                 guard.operation.published.store(false, Ordering::Release);
                 (index, value)
             };
-            let (child, active) = self.extension_resolver(
-                &guard.inner,
-                guard.key.service,
-                binding.name,
-                guard.operation.attempt.id,
-            );
+            let (child, active) = self.extension_resolver(guard);
             let value = tokio::select! {
-                result = (binding.pending[index].0)(old, child) => result.map_err(|error| Failure::initialization(binding.name, error).error())?,
+                result = (binding.pending[index].0)(old, child) => result.map_err(|error| Failure::initialization(&guard.key.service, error).error())?,
                 () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
             };
             drop(active);
-            self.publish_extension(guard, Arc::clone(&value), binding.name, Some(index + 1))?;
-            self.notify_rebinding(&guard.inner, guard.key.service, value)
-                .await?;
+            if let Some(event) = self.publish_extension(guard, value, Some(index + 1))? {
+                event.dispatch().await?;
+            }
         }
     }
 }
+
+#[cfg(test)]
+mod service_key_tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    fn named_container(name: String) -> Result<(Container, ServiceKey)> {
+        let key = ServiceKey::named(name);
+        let mut builder = ContainerBuilder::new();
+        builder.singleton::<usize, _>(|_| Box::pin(async { Ok(Arc::new(7)) }));
+        let binding = builder
+            .bindings
+            .remove(&ServiceKey::typed::<usize>())
+            .ok_or_else(|| container_error("test_binding_missing", "缺少测试绑定"))?;
+        builder.bindings.insert(key.clone(), binding);
+        Ok((builder.build(), key))
+    }
+
+    fn integer(value: &Value) -> Result<usize> {
+        value
+            .downcast_ref::<Arc<usize>>()
+            .map(|value| **value)
+            .ok_or_else(|| container_error("test_value_type", "测试值类型不符"))
+    }
+
+    #[tokio::test]
+    async fn owned_named_identity_reuses_cache_extension_and_rebinding_generation() -> Result<()> {
+        let (container, key) = named_container(String::from("mail.transport"))?;
+        let resolver = container.root_resolver()?;
+        let first = resolver.resolve_value(key.clone()).await?;
+        let second = resolver.resolve_value(key.clone()).await?;
+        assert!(Arc::ptr_eq(&first, &second));
+        assert!(!container.contains::<usize>());
+        container.instance(Arc::new(123_usize)).await?;
+        assert_eq!(*container.resolve::<usize>().await?, 123);
+        assert!(Arc::ptr_eq(
+            &first,
+            &resolver.resolve_value(key.clone()).await?
+        ));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::clone(&calls);
+        lock(&container.inner.state)
+            .extensions
+            .listeners
+            .entry(key.clone())
+            .or_default()
+            .push(erase_rebinding::<usize, _>(move |_, _| {
+                let calls = Arc::clone(&observed);
+                Box::pin(async move {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+            }));
+        resolver
+            .extend_value(
+                &key,
+                erase_extender::<usize, _>(|value, _| {
+                    Box::pin(async move { Ok(Arc::new(*value + 1)) })
+                }),
+                false,
+            )
+            .await?;
+        assert_eq!(integer(&resolver.resolve_value(key.clone()).await?)?, 8);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let mut replacement = lock(&container.inner.state)
+            .bindings
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| container_error("test_binding_missing", "缺少测试绑定"))?;
+        replacement.factory = Some(Arc::new(|_| {
+            Box::pin(async { Ok(Arc::new(Arc::new(99_usize)) as Value) })
+        }));
+        container.replace_binding(key.clone(), replacement).await?;
+        assert_eq!(integer(&resolver.resolve_value(key.clone()).await?)?, 99);
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(integer(&first)?, 7);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn named_pending_instance_uses_the_same_order_and_cursor_directory() -> Result<()> {
+        let key = ServiceKey::named(String::from("scoped.instance"));
+        let mut builder = ContainerBuilder::new();
+        builder.instance(Arc::new(4_usize));
+        let mut binding = builder
+            .bindings
+            .remove(&ServiceKey::typed::<usize>())
+            .ok_or_else(|| container_error("test_binding_missing", "缺少测试绑定"))?;
+        binding.pending.push(erase_extender::<usize, _>(|value, _| {
+            Box::pin(async move { Ok(Arc::new(*value + 3)) })
+        }));
+        builder.bindings.insert(key.clone(), binding);
+        builder.extensions.pending_order.push((key.clone(), 1));
+        let container = builder.build();
+        container.initialize_extensions().await?;
+        let resolver = container.root_resolver()?;
+        assert_eq!(integer(&resolver.resolve_value(key.clone()).await?)?, 7);
+        assert!(
+            lock(&container.inner.state)
+                .extensions
+                .instance_complete(&key, 1)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dynamic_named_cycle_retains_owned_service_chain() -> Result<()> {
+        let original = format!("cycle.named\n{}", "x".repeat(256));
+        let (container, key) = named_container(original.clone())?;
+        assert_eq!(key.name(), original);
+        let nested = key.clone();
+        let mut replacement = lock(&container.inner.state)
+            .bindings
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| container_error("test_binding_missing", "缺少测试绑定"))?;
+        replacement.factory = Some(Arc::new(move |resolver| {
+            let nested = nested.clone();
+            Box::pin(async move { resolver.resolve_value(nested).await })
+        }));
+        container.replace_binding(key.clone(), replacement).await?;
+        let error = container
+            .root_resolver()?
+            .resolve_value(key)
+            .await
+            .err()
+            .ok_or_else(|| container_error("test_cycle_missing", "命名环应失败"))?;
+        assert_eq!(error.code(), "service_cycle");
+        let visible = error.to_string();
+        assert!(visible.contains("cycle.named"));
+        assert!(visible.contains("\\n"));
+        assert!(!visible.contains('\n'));
+        assert!(!visible.contains(&"x".repeat(129)));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn named_factory_failure_keeps_exact_structured_identity_and_source() -> Result<()> {
+        let name = format!("failed.named\n{}", "x".repeat(256));
+        let (container, key) = named_container(name.clone())?;
+        let mut replacement = lock(&container.inner.state)
+            .bindings
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| container_error("test_binding_missing", "缺少测试绑定"))?;
+        replacement.factory = Some(Arc::new(|_| {
+            Box::pin(async {
+                Err(Error::custom(
+                    "private_factory_fixture",
+                    "private-source-sentinel",
+                ))
+            })
+        }));
+        container.replace_binding(key.clone(), replacement).await?;
+        let error = container
+            .root_resolver()?
+            .resolve_value(key)
+            .await
+            .err()
+            .ok_or_else(|| container_error("test_factory_error_missing", "命名工厂应失败"))?;
+        let Error::ServiceInitialization { service, source } = &error else {
+            return Err(container_error(
+                "test_structured_error_missing",
+                "应保留结构化错误",
+            ));
+        };
+        assert_eq!(service.name(), name);
+        assert_eq!(source.code(), "private_factory_fixture");
+        let visible = format!("{error} {error:?}");
+        assert!(!visible.contains("private-source-sentinel"));
+        assert!(!visible.contains('\n'));
+        assert!(!visible.contains(&"x".repeat(129)));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[path = "callback_disposal_tests.rs"]
+mod callback_disposal_tests;

@@ -21,6 +21,7 @@ mod request_session;
 #[path = "../routes/mod.rs"]
 mod routes;
 
+use app::http::controllers::home::HomePresenter;
 use bootstrap::OpenRustGeneratedApplication as GeneratedApplication;
 
 use figment::{
@@ -201,6 +202,11 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     let mut app = TestApp::<GeneratedApplication>::builder(sources)
         .build()
         .await?;
+    let state = app.app()?.state();
+    assert!(!state.container().contains::<HomePresenter>());
+    let first = state.resolve::<HomePresenter>().await?;
+    let second = state.resolve::<HomePresenter>().await?;
+    assert!(!std::sync::Arc::ptr_eq(&first, &second));
     let keys = app.app()?.config_repository().all()?["template_order"]
         .as_object()
         .ok_or("有序测试区段必须是对象")?

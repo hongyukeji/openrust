@@ -1,5 +1,8 @@
 //! 示例问候内容，展示模块配置与同一容器中的业务依赖替换。
 
+use openrust::container::{ClassDescriptor, ConstructorParam};
+use std::sync::Arc;
+
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub(crate) struct ExampleConfig {
@@ -88,6 +91,29 @@ impl ExampleMessage {
     pub(crate) fn binding_extension(&self) -> Option<&'static str> {
         self.binding_extension
     }
+}
+
+pub(crate) struct ExamplePresenter {
+    message: Arc<ExampleMessage>,
+}
+
+impl ExamplePresenter {
+    pub(crate) fn text(&self) -> &str {
+        self.message.text()
+    }
+}
+
+/// 提供问候呈现器的编译类描述。实际问候语仍来自模块 Provider 的绑定。
+pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
+    [ClassDescriptor::concrete::<ExamplePresenter>(
+        "Modules/Example/ExamplePresenter",
+        vec![ConstructorParam::class::<ExampleMessage>("message")],
+        |args| {
+            Ok(Arc::new(ExamplePresenter {
+                message: args.service::<ExampleMessage>(0)?,
+            }))
+        },
+    )]
 }
 
 #[cfg(test)]

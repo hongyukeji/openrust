@@ -16,7 +16,7 @@
 //! # }
 //! ```
 
-use std::any::{Any, TypeId, type_name};
+use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,8 +37,29 @@ use crate::{BoxFuture, Error, Result};
 type Value = Arc<dyn Any + Send + Sync>;
 type Factory = Arc<dyn Fn(Resolver) -> BoxFuture<'static, Result<Value>> + Send + Sync>;
 
+mod service_key;
+pub use service_key::ServiceKey;
+
+mod class_identity;
+use class_descriptor::ClassRegistry;
+pub use class_descriptor::{ClassDescriptor, ConstructorParam, ResolvedArgs};
+
+#[cfg(test)]
+#[path = "container/descriptor_race_tests.rs"]
+mod descriptor_race_tests;
+mod descriptor_resolve;
+#[cfg(test)]
+#[path = "container/descriptor_resolve_tests.rs"]
+mod descriptor_resolve_tests;
+mod descriptor_source;
+mod directory;
+mod parameters;
+#[cfg(test)]
+use parameters::ParameterOverrides;
+pub use parameters::ParameterValue;
+
 mod extensions;
-use extensions::{Extender, ExtensionState};
+use extensions::{CachedAdmission, Extender, ExtensionState, Rebound};
 
 fn container_error(code: &str, message: impl Into<String>) -> Error {
     Error::custom_with_status(http::StatusCode::INTERNAL_SERVER_ERROR, code, message)
@@ -48,6 +69,85 @@ fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// raw入参仅由本持有者交给Resolver；已知独立entries在任何退役路径均逐项释放。
+#[cfg(test)]
+struct FactoryParameters {
+    overrides: ParameterOverrides,
+    owner: Option<ResourceRegistrar>,
+    completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
+}
+#[cfg(test)]
+impl FactoryParameters {
+    fn empty() -> Self {
+        Self {
+            overrides: ParameterOverrides::new(),
+            owner: None,
+            completion: None,
+        }
+    }
+}
+#[cfg(test)]
+impl Drop for FactoryParameters {
+    fn drop(&mut self) {
+        use crate::foundation::lifecycle::disposal::{self, Credential};
+        let mut cleanup = if self.completion.is_none() {
+            self.owner
+                .as_ref()
+                .and_then(ResourceRegistrar::begin_cleanup)
+        } else {
+            None
+        };
+        let original = self
+            .completion
+            .as_ref()
+            .map(|completion| Credential::Completion(completion.clone()))
+            .or_else(|| {
+                cleanup
+                    .as_ref()
+                    .map(|cleanup| Credential::Cleanup(cleanup.disposal_ticket()))
+            });
+        let ((), report) = disposal::scope(original.clone(), || {
+            let failures = crate::foundation::lifecycle::drop_all_isolated(std::mem::take(
+                &mut self.overrides.entries,
+            ));
+            if failures != 0 {
+                disposal::failure(original.as_ref());
+            }
+        });
+        if report.seen
+            && let Some(completion) = &self.completion
+        {
+            completion.note_diagnostic();
+        }
+        // 本次TLS已恢复，才完成真实原清理票据；没有共享终态供别的Arc观察者归责。
+        if let Some(cleanup) = &mut cleanup {
+            cleanup.finish(0);
+        }
+    }
+}
+
+#[cfg(test)]
+struct PreviousFactoryInputs {
+    parameters: Arc<FactoryParameters>,
+    completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
+}
+#[cfg(test)]
+impl PreviousFactoryInputs {
+    fn dispose(
+        self,
+        credential: Option<crate::foundation::lifecycle::disposal::Credential>,
+    ) -> bool {
+        use crate::foundation::lifecycle::disposal;
+        let ((), report) = disposal::scope(credential, || {
+            disposal::dispose(self.parameters, None);
+            #[cfg(test)]
+            directory_tests_v10::after_previous_release();
+            disposal::dispose(self.completion, None);
+        });
+        report.seen
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -60,17 +160,73 @@ enum Lifetime {
 #[derive(Clone)]
 struct Binding {
     generation: u64,
-    name: &'static str,
     pending: Vec<Extender>,
     lifetime: Lifetime,
-    factory: Factory,
+    factory: Option<Factory>,
+    factory_output: Option<TypeId>,
     instance: Option<Value>,
+}
+
+impl Binding {
+    fn effective_lifetime(&self) -> Lifetime {
+        if self.instance.is_some() {
+            Lifetime::Singleton
+        } else {
+            self.lifetime
+        }
+    }
+
+    fn instance_only(value: Value) -> Self {
+        Self {
+            generation: 0,
+            pending: Vec::new(),
+            lifetime: Lifetime::Singleton,
+            factory: None,
+            factory_output: None,
+            instance: Some(value),
+        }
+    }
+}
+
+enum BindingChange {
+    Factory(Binding),
+    Instance(Value),
+    ForgetInstance,
+}
+
+impl BindingChange {
+    // 无失败出口；调用者先完成所有容量/关闭检查，再在同锁内选择新条目。
+    // 克隆覆盖里的值仍由原条目持有，最后的用户Drop交给锁外的previous。
+    fn replacement(self, existing: Option<&Binding>) -> Option<Binding> {
+        match self {
+            BindingChange::Factory(binding) => Some(binding),
+            BindingChange::Instance(value) => {
+                let mut binding = existing
+                    .cloned()
+                    .unwrap_or_else(|| Binding::instance_only(Arc::clone(&value)));
+                binding.pending.clear();
+                binding.instance = Some(value);
+                Some(binding)
+            }
+            BindingChange::ForgetInstance => existing
+                .filter(|binding| binding.factory.is_some())
+                .cloned()
+                .map(|mut binding| {
+                    binding.instance = None;
+                    binding.pending.clear();
+                    binding
+                }),
+        }
+    }
 }
 
 /// 注册启动阶段服务定义；消费 builder 后得到可动态重绑的同一容器。
 #[derive(Default)]
 pub struct ContainerBuilder {
-    bindings: HashMap<TypeId, Binding>,
+    bindings: HashMap<ServiceKey, Binding>,
+    binding_order: Vec<ServiceKey>,
+    aliases: directory::AliasState,
+    classes: Arc<ClassRegistry>,
     extensions: ExtensionState,
     config: Option<ConfigRepository>,
     resources: Option<ResourceRegistrar>,
@@ -79,7 +235,7 @@ pub struct ContainerBuilder {
 impl ContainerBuilder {
     /// 创建空定义集合。
     pub fn new() -> Self {
-        Self::default()
+        Self::with_class_registry(ClassRegistry::default())
     }
 
     /// 给所有工厂共享启动配置视图和应用级资源登记入口。
@@ -118,29 +274,14 @@ impl ContainerBuilder {
 
     /// 注册调用者已创建的共享实例，允许绑定 `dyn Trait`。
     pub fn instance<T: ?Sized + Send + Sync + 'static>(&mut self, value: Arc<T>) -> &mut Self {
-        let stored: Value = Arc::new(Arc::clone(&value));
-        self.extensions.discard_pending(TypeId::of::<T>());
-        self.bindings.insert(
-            TypeId::of::<T>(),
-            Binding {
-                generation: 0,
-                name: type_name::<T>(),
-                pending: Vec::new(),
-                lifetime: Lifetime::Singleton,
-                factory: Arc::new(move |_| {
-                    let value = Arc::clone(&stored);
-                    Box::pin(async move { Ok(value) })
-                }),
-                instance: Some(Arc::new(value)),
-            },
-        );
+        self.instance_key(ServiceKey::typed::<T>(), value);
         self
     }
 
     /// 同步读取已登记实例；异步 factory 必须通过 `resolve` 构造。
     pub fn get_instance<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
         self.bindings
-            .get(&TypeId::of::<T>())
+            .get(&ServiceKey::typed::<T>())
             .filter(|binding| binding.pending.is_empty())
             .and_then(|binding| binding.instance.as_ref())
             .and_then(|value| value.downcast_ref::<Arc<T>>())
@@ -149,7 +290,7 @@ impl ContainerBuilder {
 
     /// 检查类型是否已绑定，无论其构造方式。
     pub fn contains<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
-        self.bindings.contains_key(&TypeId::of::<T>())
+        self.bound_key(&ServiceKey::typed::<T>())
     }
 
     fn register<T, F>(&mut self, lifetime: Lifetime, factory: F) -> &mut Self
@@ -157,22 +298,7 @@ impl ContainerBuilder {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        let factory = Arc::new(factory);
-        self.extensions.discard_pending(TypeId::of::<T>());
-        self.bindings.insert(
-            TypeId::of::<T>(),
-            Binding {
-                generation: 0,
-                name: type_name::<T>(),
-                pending: Vec::new(),
-                lifetime,
-                factory: Arc::new(move |resolver| {
-                    let factory = Arc::clone(&factory);
-                    Box::pin(async move { Ok(Arc::new(factory(resolver).await?) as Value) })
-                }),
-                instance: None,
-            },
-        );
+        self.register_key::<T, F>(ServiceKey::typed::<T>(), lifetime, factory, false);
         self
     }
 
@@ -182,6 +308,9 @@ impl ContainerBuilder {
             inner: Arc::new(Inner {
                 state: Mutex::new(State {
                     bindings: self.bindings,
+                    binding_order: self.binding_order,
+                    aliases: self.aliases,
+                    classes: self.classes,
                     extensions: self.extensions,
                     ..State::default()
                 }),
@@ -193,9 +322,9 @@ impl ContainerBuilder {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 struct CacheKey {
-    service: TypeId,
+    service: ServiceKey,
     scope: u64,
 }
 
@@ -223,10 +352,28 @@ impl ScopeStatus {
     }
 }
 
+/// 首次根封闭的清理证据，复用现有解析记录的完成票据。
+#[derive(Default)]
+struct RootRawClose {
+    deadline: Option<tokio::time::Instant>,
+    pending: Vec<crate::foundation::resources::ResourceTaskCompletion>,
+    interrupted: bool,
+}
+
 #[derive(Default)]
 struct State {
-    bindings: HashMap<TypeId, Binding>,
+    bindings: HashMap<ServiceKey, Binding>,
+    binding_order: Vec<ServiceKey>,
+    resolved_history: HashSet<ServiceKey>,
+    aliases: directory::AliasState,
+    classes: Arc<ClassRegistry>,
+    #[cfg(test)]
+    raw_attempts: HashMap<u64, directory::RawRecord>,
+    root_raw_close: Option<RootRawClose>,
+    termination: Arc<ScopeStatus>,
     next_generation: u64,
+    // 只记录冻结目录中实际变更过的类；初始冻结版本为0。
+    class_source_revisions: HashMap<ServiceKey, u64>,
     next_id: u64,
     terminated: bool,
     root_scope: u64,
@@ -238,6 +385,43 @@ struct State {
 }
 
 impl State {
+    fn next_source_revision(&self) -> Result<u64> {
+        self.next_generation
+            .checked_add(1)
+            .ok_or_else(|| container_error("container_capacity_exceeded", "服务绑定版本已耗尽"))
+    }
+
+    fn publish_source_revision(&mut self, service: &ServiceKey, revision: u64) {
+        self.next_generation = revision;
+        if self.classes.class(service).is_some() {
+            self.class_source_revisions
+                .insert(service.clone(), revision);
+        }
+    }
+
+    fn has_published_instance(&self, service: &ServiceKey) -> bool {
+        self.bindings
+            .get(service)
+            .is_some_and(|binding| binding.instance.is_some())
+            || self.slots.iter().any(|(key, attempt)| {
+                &key.service == service
+                    && lock(&attempt.outcome)
+                        .as_ref()
+                        .is_some_and(std::result::Result::is_ok)
+            })
+    }
+
+    fn record_success(&mut self, key: &CacheKey) {
+        self.extensions.resolved.insert(key.clone());
+        if self
+            .bindings
+            .get(&key.service)
+            .is_some_and(|binding| binding.instance.is_none() && binding.factory.is_some())
+        {
+            self.resolved_history.insert(key.service.clone());
+        }
+    }
+
     fn id(&mut self) -> Result<u64> {
         self.next_id = self
             .next_id
@@ -280,11 +464,11 @@ struct Inner {
 struct Failure {
     code: &'static str,
     message: String,
-    source: Option<(&'static str, Arc<Error>)>,
+    source: Option<(ServiceKey, Arc<Error>)>,
 }
 
 impl Failure {
-    fn initialization(name: &'static str, error: Error) -> Self {
+    fn initialization(service: &ServiceKey, error: Error) -> Self {
         match error.code() {
             "service_not_bound" => Failure {
                 code: "service_not_bound",
@@ -308,8 +492,8 @@ impl Failure {
             },
             _ => Failure {
                 code: "service_initialization_failed",
-                message: format!("服务 `{name}` 构造失败（原始值未公开）"),
-                source: Some((name, Arc::new(error))),
+                message: String::new(),
+                source: Some((service.clone(), Arc::new(error))),
             },
         }
     }
@@ -317,7 +501,7 @@ impl Failure {
     fn error(&self) -> Error {
         if let Some((service, source)) = &self.source {
             Error::ServiceInitialization {
-                service: crate::core::error::ServiceIdentity::from_type_name(service),
+                service: crate::core::error::ServiceIdentity::from_name(service.identity()),
                 source: Arc::clone(source),
             }
         } else {
@@ -332,7 +516,7 @@ impl Failure {
 
 struct Attempt {
     id: u64,
-    name: &'static str,
+    service: ServiceKey,
     outcome: Mutex<Option<std::result::Result<Value, Failure>>>,
     changed: Notify,
 }
@@ -364,35 +548,31 @@ impl Construction {
     fn finish(&mut self, result: std::result::Result<Value, Failure>) {
         // 发布结果前结束构造帧；通知可以同步唤醒并重新进入保存的 Resolver。
         self.activity.store(false, Ordering::Release);
+        let mut unclaimed = Some(result);
         {
             let mut state = lock(&self.inner.state);
+            let mut outcome = lock(&self.attempt.outcome);
             state.edges.retain(|(from, _), _| *from != self.attempt.id);
-            if result.is_ok()
-                && !state.terminated
-                && state
-                    .slots
-                    .get(&self.key)
-                    .is_some_and(|slot| slot.id == self.attempt.id)
-            {
-                state.extensions.resolved.insert(self.key);
-            }
-        }
-        let failed = result.is_err();
-        let mut outcome = lock(&self.attempt.outcome);
-        if outcome.is_none() {
-            *outcome = Some(result);
-        }
-        drop(outcome);
-        if failed {
-            let mut state = lock(&self.inner.state);
-            if state
+            let current = state
                 .slots
                 .get(&self.key)
-                .is_some_and(|a| a.id == self.attempt.id)
-            {
-                state.slots.remove(&self.key);
+                .is_some_and(|slot| slot.id == self.attempt.id);
+            #[cfg(test)]
+            binding_event_tests::observe_publication();
+            if outcome.is_none() {
+                *outcome = unclaimed.take();
+                if current {
+                    if outcome.as_ref().is_some_and(std::result::Result::is_ok) && !state.terminated
+                    {
+                        state.record_success(&self.key);
+                    } else {
+                        state.slots.remove(&self.key);
+                    }
+                }
             }
         }
+        // 关闭可能已决定 outcome；输掉发布的值及任意用户析构都留在锁外。
+        drop(unclaimed);
         self.finished = true;
         self.attempt.changed.notify_waiters();
     }
@@ -451,29 +631,86 @@ impl ScopeFactory {
 }
 
 impl Container {
-    async fn replace_binding(&self, service: TypeId, mut binding: Binding) -> Result<()> {
-        let name = binding.name;
-        let (previous, removed, operations, notify) = {
+    #[cfg(test)]
+    async fn replace_binding(&self, service: ServiceKey, binding: Binding) -> Result<()> {
+        self.apply_binding_change(service, BindingChange::Factory(binding))
+            .await
+    }
+
+    async fn apply_binding_change(&self, service: ServiceKey, change: BindingChange) -> Result<()> {
+        if let Some(event) = self.commit_binding_change(service, change)? {
+            event.dispatch().await?;
+        }
+        Ok(())
+    }
+
+    fn commit_binding_change(
+        &self,
+        service: ServiceKey,
+        change: BindingChange,
+    ) -> Result<Option<Rebound>> {
+        self.commit_binding_change_if(service, change, false)
+            .map(|(_, event)| event)
+    }
+
+    fn commit_binding_change_if(
+        &self,
+        service: ServiceKey,
+        change: BindingChange,
+        only_if_unbound: bool,
+    ) -> Result<(directory::RegistrationOutcome, Option<Rebound>)> {
+        let (previous, removed, operations, event) = {
             let mut state = lock(&self.inner.state);
             if state.terminated {
                 return Err(container_error("container_closed", "容器已关闭"));
             }
-            state.next_generation = state.next_generation.checked_add(1).ok_or_else(|| {
-                container_error("container_capacity_exceeded", "服务绑定版本已耗尽")
-            })?;
-            binding.generation = state.next_generation;
-            let notify = state
-                .extensions
-                .resolved
-                .iter()
-                .any(|key| key.service == service)
-                && state.extensions.has_rebinding_listeners(service);
-            state.extensions.discard_pending(service);
+            let service = state.classes.canonical_key_owned(service);
+            let was_bound = state.bound_key(&service);
+            if only_if_unbound && was_bound {
+                return Ok((directory::RegistrationOutcome::AlreadyBound, None));
+            }
+            let forgetting = matches!(change, BindingChange::ForgetInstance);
+            if forgetting && !state.has_published_instance(&service) {
+                return Ok((directory::RegistrationOutcome::Registered, None));
+            }
+            let revision = state.next_source_revision()?;
+            let installing_instance = matches!(change, BindingChange::Instance(_));
+            let mut replacement = change.replacement(state.bindings.get(&service));
+            if let Some(binding) = &mut replacement {
+                binding.generation = revision;
+            }
+            let previously_resolved = state.resolved_history.contains(&service);
+            let notify = !forgetting
+                && (if installing_instance {
+                    was_bound
+                } else {
+                    previously_resolved
+                });
+            let event = replacement.as_ref().filter(|_| notify).and_then(|binding| {
+                let root = self.resolver(
+                    state.root_scope,
+                    Arc::clone(&state.root_closed),
+                    state.root_resources.registrar(),
+                );
+                Rebound::capture(
+                    &state,
+                    &self.inner,
+                    &root,
+                    &service,
+                    binding,
+                    binding.instance.clone(),
+                )
+            });
+            if !forgetting {
+                state.aliases.remove_at(&service, revision);
+            }
+            state.publish_source_revision(&service, revision);
+            state.extensions.discard_pending(&service);
             state
                 .extensions
                 .resolved
                 .retain(|key| key.service != service);
-            let operations = state.extensions.discard_operations(service);
+            let operations = state.extensions.discard_operations(&service);
             state.edges.retain(|(from, to), _| {
                 !operations.iter().any(|operation| {
                     let id = operation.attempt_id();
@@ -484,14 +721,27 @@ impl Container {
                 .slots
                 .keys()
                 .filter(|key| key.service == service)
-                .copied()
+                .cloned()
                 .collect();
             let removed: Vec<_> = keys
                 .into_iter()
                 .filter_map(|key| state.slots.remove(&key))
                 .collect();
-            let previous = state.bindings.insert(service, binding);
-            (previous, removed, operations, notify)
+            if replacement
+                .as_ref()
+                .is_some_and(|binding| binding.factory.is_some())
+                && state
+                    .bindings
+                    .get(&service)
+                    .is_none_or(|binding| binding.factory.is_none())
+            {
+                state.binding_order.push(service.clone());
+            }
+            let previous = match replacement {
+                Some(binding) => state.bindings.insert(service, binding),
+                None => state.bindings.remove(&service),
+            };
+            (previous, removed, operations, event)
         };
         for operation in &operations {
             operation.release();
@@ -499,21 +749,7 @@ impl Container {
         drop(previous);
         drop(removed);
         drop(operations);
-        if notify {
-            let resolver = {
-                let state = lock(&self.inner.state);
-                self.resolver(
-                    state.root_scope,
-                    Arc::clone(&state.root_closed),
-                    state.root_resources.registrar(),
-                )
-            };
-            let value = resolver.resolve_value(service, name).await?;
-            resolver
-                .notify_rebinding(&self.inner, service, value)
-                .await?;
-        }
-        Ok(())
+        Ok((directory::RegistrationOutcome::Registered, event))
     }
 
     async fn register<T, F>(&self, lifetime: Lifetime, factory: F) -> Result<()>
@@ -521,25 +757,15 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        let factory = Arc::new(factory);
-        self.replace_binding(
-            TypeId::of::<T>(),
-            Binding {
-                generation: 0,
-                name: type_name::<T>(),
-                pending: Vec::new(),
-                lifetime,
-                factory: Arc::new(move |resolver| {
-                    let factory = Arc::clone(&factory);
-                    Box::pin(async move { Ok(Arc::new(factory(resolver).await?) as Value) })
-                }),
-                instance: None,
-            },
-        )
-        .await
+        self.register_key::<T, F>(ServiceKey::typed::<T>(), lifetime, factory, false)
+            .await
+            .map(|_| ())
     }
 
     /// 动态注册每次解析均调用的工厂；覆盖后新解析使用新定义。
+    ///
+    /// 工厂重绑定通知按提交的代次准入；准入前被替换将返回 `binding_replaced`。
+    /// 登记已经提交；通知错误不会回滚，已准入的旧构造只向该次事件交付结果。
     pub async fn bind<T, F>(&self, factory: F) -> Result<()>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -568,22 +794,14 @@ impl Container {
 
     /// 动态登记现成实例；旧引用继续有效，新解析取得此实例。
     pub async fn instance<T: ?Sized + Send + Sync + 'static>(&self, value: Arc<T>) -> Result<()> {
-        let stored: Value = Arc::new(Arc::clone(&value));
-        self.replace_binding(
-            TypeId::of::<T>(),
-            Binding {
-                generation: 0,
-                name: type_name::<T>(),
-                pending: Vec::new(),
-                lifetime: Lifetime::Singleton,
-                factory: Arc::new(move |_| {
-                    let value = Arc::clone(&stored);
-                    Box::pin(async move { Ok(value) })
-                }),
-                instance: Some(Arc::new(value)),
-            },
-        )
-        .await
+        self.instance_key(ServiceKey::typed::<T>(), value).await
+    }
+
+    /// 忘记此原始类型键的实例与缓存，保留原工厂及成功构造历史。
+    ///
+    /// 不触发重绑定回调，不关闭仍由调用方持有的`Arc`或其资源owner。
+    pub async fn forget_instance<T: ?Sized + Send + Sync + 'static>(&self) -> Result<()> {
+        self.forget_instance_key(ServiceKey::typed::<T>()).await
     }
 
     /// 创建可由长寿命服务持有、但不延长容器寿命的 scope 工厂。
@@ -602,9 +820,7 @@ impl Container {
     }
     /// 检查实例或工厂绑定是否存在，不执行构造。
     pub fn contains<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
-        lock(&self.inner.state)
-            .bindings
-            .contains_key(&TypeId::of::<T>())
+        lock(&self.inner.state).bound_key(&ServiceKey::typed::<T>())
     }
 
     pub(crate) fn is_terminated(&self) -> bool {
@@ -613,29 +829,40 @@ impl Container {
 
     /// 同步读取显式登记实例；待执行或正在执行的装饰不会泄漏旧值。
     pub fn get_instance<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
-        lock(&self.inner.state)
-            .bindings
-            .get(&TypeId::of::<T>())?
-            .instance
-            .as_ref()?;
-        self.get_ready::<T>()
+        let state = lock(&self.inner.state);
+        let service = ServiceKey::typed::<T>();
+        let binding = state.bindings.get(&service)?;
+        binding.instance.as_ref()?;
+        #[cfg(test)]
+        binding_event_tests::observe_instance_read();
+        Self::ready_value(&state, &service, binding)
     }
 
     /// 同步读取成功发布的缓存；未完成的构造或装饰返回 `None`。
     pub fn get_ready<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
         let state = lock(&self.inner.state);
+        let service = ServiceKey::typed::<T>();
+        Self::ready_value(&state, &service, state.bindings.get(&service)?)
+    }
+
+    fn ready_value<T: ?Sized + Send + Sync + 'static>(
+        state: &State,
+        service: &ServiceKey,
+        binding: &Binding,
+    ) -> Option<Arc<T>> {
         if state.terminated {
             return None;
         }
-        let service = TypeId::of::<T>();
-        let binding = state.bindings.get(&service)?;
-        let scope = match binding.lifetime {
+        let scope = match binding.effective_lifetime() {
             Lifetime::Bind => return None,
             Lifetime::Singleton => u64::MAX,
             Lifetime::Scoped => state.root_scope,
         };
-        let key = CacheKey { service, scope };
-        if state.extensions.pending_operation(key)
+        let key = CacheKey {
+            service: service.clone(),
+            scope,
+        };
+        if state.extensions.pending_operation(&key)
             || !state
                 .extensions
                 .instance_complete(service, binding.pending.len())
@@ -696,15 +923,15 @@ impl Container {
             closed.mark_closed();
             let old = state.root_scope;
             let resources = Arc::clone(&state.root_resources);
-            let removed = close_scope(&mut state, old);
+            let removed = close_scope(&mut state, old, &resources.registrar());
             (closed, resources, removed)
         };
         // Waker 和用户服务的 Drop 都可能同步重入容器，必须先释放内部锁。
         closed.changed.notify_waiters();
-        for attempt in &removed.0 {
+        for attempt in &removed.attempts {
             attempt.changed.notify_waiters();
         }
-        drop(removed);
+        dispose_scope(removed);
         resources.shutdown(deadline).await?;
         let mut state = lock(&self.inner.state);
         if state.terminated {
@@ -717,38 +944,123 @@ impl Container {
     }
 
     /// 永久关闭根生命周期并回收其资源；之后不发布新代。
+    ///
+    /// 首次封闭保留当时在途原工厂的清理证据，分步关闭和取消重试不会丢失失败。
+    /// 首次异步关闭的期限跨重试共用；同步用户析构若不返回，无法强制中断。
     pub async fn shutdown_root(&self, deadline: tokio::time::Instant) -> Result<()> {
+        let deadline = lock(&self.inner.state)
+            .root_raw_close
+            .as_ref()
+            .and_then(|close| close.deadline)
+            .unwrap_or(deadline);
         let _reset = tokio::time::timeout_at(deadline, self.inner.reset.lock())
             .await
             .map_err(|_| container_error("scope_shutdown_timeout", "等待根生命周期关闭超过期限"))?;
-        self.seal_root();
-        let resources = {
-            let state = lock(&self.inner.state);
-            Arc::clone(&state.root_resources)
+        let fences = self.seal_root_snapshot();
+        self.compact_root_raw_close();
+        let deadline = {
+            let mut state = lock(&self.inner.state);
+            state
+                .root_raw_close
+                .as_mut()
+                .map_or(deadline, |close| *close.deadline.get_or_insert(deadline))
         };
-        resources.shutdown(deadline).await
+        let resources = Arc::clone(&lock(&self.inner.state).root_resources);
+        let root_result = resources.shutdown(deadline).await;
+        let mut first_error = lock(&self.inner.state)
+            .root_raw_close
+            .as_ref()
+            .is_some_and(|close| close.interrupted)
+            .then(|| container_error("resource_task_interrupted", "首次根封闭中的原工厂清理异常"));
+        for fence in fences {
+            let result = tokio::time::timeout_at(deadline, fence.wait())
+                .await
+                .map_err(|_| {
+                    container_error("factory_shutdown_timeout", "等待原工厂调用关闭超过共同期限")
+                })
+                .and_then(std::convert::identity);
+            if let Err(error) = result {
+                tracing::error!(code = error.code(), "raw factory shutdown fence failed");
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
+        }
+        self.compact_root_raw_close();
+        root_result?;
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 
-    /// 同步封闭根与当前子生命周期，供 Drop 在无运行时的场景拒绝新解析。
+    /// 同步封闭根与当前子生命周期；Drop 无法证明异步回收完成。
     pub(crate) fn seal_root(&self) {
-        let (closed, resources, removed) = {
+        drop(self.seal_root_snapshot());
+    }
+
+    fn seal_root_snapshot(&self) -> Vec<crate::foundation::resources::ResourceTaskCompletion> {
+        let (closed, resources, removed, termination, fences) = {
             let mut state = lock(&self.inner.state);
             state.terminated = true;
+            state.termination.mark_closed();
             let closed = Arc::clone(&state.root_closed);
             closed.mark_closed();
             let resources = Arc::clone(&state.root_resources);
+            let termination = Arc::clone(&state.termination);
+            if state.root_raw_close.is_none() {
+                let pending = state.extensions.descriptor_completions();
+                #[cfg(test)]
+                let pending = state
+                    .raw_attempts
+                    .values()
+                    .map(|record| record.completion.clone())
+                    .chain(pending);
+                state.root_raw_close = Some(RootRawClose {
+                    pending: pending.collect(),
+                    interrupted: false,
+                    deadline: None,
+                });
+            }
+            let fences = state
+                .root_raw_close
+                .as_ref()
+                .map(|close| close.pending.clone())
+                .unwrap_or_default();
             let root_scope = state.root_scope;
-            let removed = close_scope(&mut state, root_scope);
-            (closed, resources, removed)
+            let removed = close_scope(&mut state, root_scope, &resources.registrar());
+            (closed, resources, removed, termination, fences)
         };
         closed.changed.notify_waiters();
-        for attempt in &removed.0 {
+        termination.changed.notify_waiters();
+        for attempt in &removed.attempts {
             attempt.changed.notify_waiters();
         }
-        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(removed))).is_err() {
-            resources.record_close_failure();
-        }
+        dispose_scope(removed);
         resources.seal();
+        fences
+    }
+
+    fn compact_root_raw_close(&self) {
+        let removed = {
+            let mut state = lock(&self.inner.state);
+            let Some(close) = state.root_raw_close.as_mut() else {
+                return;
+            };
+            let mut removed = Vec::new();
+            let mut pending = Vec::new();
+            for fence in close.pending.drain(..) {
+                if let Some(interrupted) = fence.finished_interrupted() {
+                    close.interrupted |= interrupted;
+                    removed.push(fence);
+                } else {
+                    pending.push(fence);
+                }
+            }
+            close.pending = pending;
+            removed
+        };
+        drop(removed); // 最后Arc释放不进入State锁。
     }
 
     /// 创建独立生命周期，不继承根或其他 scope 的 scoped 实例。
@@ -769,10 +1081,11 @@ impl Container {
             .map(|registrar| {
                 let inner = Arc::downgrade(&self.inner);
                 let on_close = Arc::clone(&closed);
+                let on_resources = resources.registrar();
                 registrar
                     .track_child(Arc::clone(&resources), move || {
                         if let Some(inner) = inner.upgrade() {
-                            close_scope_status(&inner, id, &on_close);
+                            close_scope_status(&inner, id, &on_close, &on_resources);
                         }
                     })
                     .map(|child_id| (registrar.clone(), child_id))
@@ -801,6 +1114,9 @@ impl Container {
             captive: false,
             closed,
             resources: Some(resources),
+            #[cfg(test)]
+            factory_parameters: Arc::new(FactoryParameters::empty()),
+            factory_completion: None,
         }
     }
 }
@@ -836,19 +1152,37 @@ impl Scope {
         F: FnOnce(super::Cancellation) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
+        use crate::foundation::lifecycle::disposal::{self, Credential};
         if self.closed.closed.load(Ordering::Acquire) {
-            return Err(container_error("scope_closed", "生命周期已关闭"));
+            let error = container_error("scope_closed", "生命周期已关闭");
+            let mut cleanup = self.resources.registrar().begin_cleanup();
+            let credential = cleanup
+                .as_ref()
+                .map(|cleanup| Credential::Cleanup(cleanup.disposal_ticket()));
+            let report = disposal::dispose(task, credential);
+            if let Some(cleanup) = &mut cleanup {
+                cleanup.finish(0);
+            }
+            if report.seen {
+                return Err(crate::foundation::resources::ResourceTaskRejection::error(
+                    error,
+                    crate::foundation::lifecycle::task_cleanup_interrupted(),
+                ));
+            }
+            return Err(error);
         }
         let scope = Arc::clone(self);
+        let failures = self.resources.registrar().task_failures();
         self.resources
             .registrar()
             .spawn(move |cancellation| async move {
                 let execution =
                     super::ExecutionContext::new(metadata, deadline, cancellation.clone());
                 scope
-                    .run(super::with_execution_context(execution, async move {
-                        task(cancellation).await;
-                    }))
+                    .run(super::with_execution_context(
+                        execution,
+                        crate::foundation::lifecycle::controlled_task(task, cancellation, failures),
+                    ))
                     .await;
             })
     }
@@ -911,7 +1245,12 @@ impl Scope {
     }
 
     fn close_cache(&self) -> bool {
-        close_scope_status(&self.container.inner, self.id, &self.closed)
+        close_scope_status(
+            &self.container.inner,
+            self.id,
+            &self.closed,
+            &self.resources.registrar(),
+        )
     }
 }
 
@@ -921,28 +1260,66 @@ impl Drop for Scope {
     }
 }
 
-fn close_scope_status(inner: &Arc<Inner>, id: u64, closed: &Arc<ScopeStatus>) -> bool {
+fn close_scope_status(
+    inner: &Arc<Inner>,
+    id: u64,
+    closed: &Arc<ScopeStatus>,
+    resources: &ResourceRegistrar,
+) -> bool {
     let mut state = lock(&inner.state);
     if closed.closed.swap(true, Ordering::AcqRel) {
         return false;
     }
     closed.mark_closed();
-    let removed = close_scope(&mut state, id);
+    let removed = close_scope(&mut state, id, resources);
     drop(state);
     closed.changed.notify_waiters();
-    for attempt in &removed.0 {
+    for attempt in &removed.attempts {
         attempt.changed.notify_waiters();
     }
-    drop(removed);
+    dispose_scope(removed);
     true
 }
 
-fn close_scope(state: &mut State, scope: u64) -> (Vec<Arc<Attempt>>, Vec<Extender>) {
+/// State移出的两组与其退役fence共同持有；即使外层提前退出也先处置数据再发布。
+struct RemovedScope {
+    attempts: Vec<Arc<Attempt>>,
+    extenders: Vec<Extender>,
+    cleanup: Option<crate::foundation::resources::ResourceCleanup>,
+}
+impl Drop for RemovedScope {
+    fn drop(&mut self) {
+        use crate::foundation::lifecycle::disposal::{self, Credential};
+        let credential = self
+            .cleanup
+            .as_ref()
+            .map(|cleanup| Credential::Cleanup(cleanup.disposal_ticket()));
+        let (failures, _) = disposal::scope(credential, || {
+            let mut failures = 0;
+            for value in std::mem::take(&mut self.attempts) {
+                failures += usize::from(disposal::dispose(value, None).owned);
+            }
+            for value in std::mem::take(&mut self.extenders) {
+                failures += usize::from(disposal::dispose(value, None).owned);
+            }
+            failures
+        });
+        if let Some(mut cleanup) = self.cleanup.take() {
+            cleanup.finish(failures);
+        }
+    }
+}
+fn dispose_scope(removed: RemovedScope) {
+    drop(removed);
+}
+
+fn close_scope(state: &mut State, scope: u64, resources: &ResourceRegistrar) -> RemovedScope {
+    let cleanup = resources.begin_cleanup();
     let keys: Vec<_> = state
         .slots
         .keys()
         .filter(|key| key.scope == scope)
-        .copied()
+        .cloned()
         .collect();
     let removed: Vec<_> = keys
         .into_iter()
@@ -959,7 +1336,11 @@ fn close_scope(state: &mut State, scope: u64) -> (Vec<Arc<Attempt>>, Vec<Extende
         }
     }
     let extenders = state.extensions.discard_scope(scope);
-    (removed, extenders)
+    RemovedScope {
+        attempts: removed,
+        extenders,
+        cleanup,
+    }
 }
 
 struct ActiveFactory(Arc<AtomicBool>);
@@ -970,16 +1351,52 @@ impl Drop for ActiveFactory {
     }
 }
 
+/// 显式查找键用于 alias 路径；输出键和擦除类型描述调用方期望。
+enum ResolveRequest {
+    Typed {
+        lookup: Option<ServiceKey>,
+        target: ServiceKey,
+        erased_output: TypeId,
+    },
+    Erased(ServiceKey),
+}
+
+impl ResolveRequest {
+    fn lookup_key(&self) -> &ServiceKey {
+        match self {
+            Self::Typed { lookup, target, .. } => lookup.as_ref().unwrap_or(target),
+            Self::Erased(key) => key,
+        }
+    }
+
+    fn target(&self) -> Option<&ServiceKey> {
+        match self {
+            Self::Typed { target, .. } => Some(target),
+            Self::Erased(_) => None,
+        }
+    }
+
+    fn expected_output(&self) -> Option<TypeId> {
+        match self {
+            Self::Typed { erased_output, .. } => Some(*erased_output),
+            Self::Erased(_) => None,
+        }
+    }
+}
+
 /// 工厂收到的解析上下文；仅活跃构造帧参与环检测，已结束的工厂不会污染延迟解析。
 #[derive(Clone)]
 pub struct Resolver {
     container: Weak<Inner>,
     scope: u64,
-    chain: Vec<(TypeId, &'static str, Arc<AtomicBool>)>,
+    chain: Vec<(ServiceKey, Arc<AtomicBool>)>,
     constructing: Option<(u64, Arc<AtomicBool>)>,
     captive: bool,
     closed: Arc<ScopeStatus>,
     resources: Option<ResourceRegistrar>,
+    #[cfg(test)]
+    factory_parameters: Arc<FactoryParameters>,
+    factory_completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
 }
 
 impl Resolver {
@@ -991,7 +1408,7 @@ impl Resolver {
         if self
             .chain
             .iter()
-            .any(|(_, _, active)| active.load(Ordering::Acquire))
+            .any(|(_, active)| active.load(Ordering::Acquire))
         {
             return Err(container_error(
                 "root_resolution_during_construction",
@@ -1028,6 +1445,25 @@ impl Resolver {
             .section(key)
     }
 
+    /// 先从新调用的Resolver取走旧引用，交给已登记frame的构造清理责任后实际释放。
+    #[cfg(test)]
+    fn take_factory_inputs(&mut self) -> PreviousFactoryInputs {
+        PreviousFactoryInputs {
+            parameters: std::mem::replace(
+                &mut self.factory_parameters,
+                Arc::new(FactoryParameters::empty()),
+            ),
+            completion: self.factory_completion.take(),
+        }
+    }
+
+    fn callback_disposal(&self) -> crate::foundation::lifecycle::CallbackDisposal {
+        crate::foundation::lifecycle::CallbackDisposal::new(
+            self.factory_completion.clone(),
+            self.resources.clone(),
+        )
+    }
+
     /// 当前服务生命周期的资源登记句柄；singleton 归应用，scoped 归请求或根 scope。
     pub fn resources(&self) -> Result<ResourceRegistrar> {
         if self.closed.closed.load(Ordering::Acquire) {
@@ -1052,103 +1488,206 @@ impl Resolver {
 
     /// 解析具体类型或 `dyn Trait`；缺失、环和构造失败返回错误。
     pub fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> BoxFuture<'_, Result<Arc<T>>> {
-        Box::pin(async move {
-            let value = self
-                .resolve_value(TypeId::of::<T>(), type_name::<T>())
-                .await?;
-            value.downcast_ref::<Arc<T>>().cloned().ok_or_else(|| {
-                container_error(
-                    "service_type_mismatch",
-                    format!("服务 `{}` 内部类型不匹配", type_name::<T>()),
-                )
-            })
+        self.resolve_key::<T>(None::<ServiceKey>)
+    }
+
+    #[cfg(test)]
+    fn resolve_value(&self, key: ServiceKey) -> BoxFuture<'_, Result<Value>> {
+        let mut child = self.clone();
+        child.factory_parameters = Arc::new(FactoryParameters::empty());
+        child.factory_completion = None;
+        Box::pin(async move { child.resolve_at_generation(key, None).await })
+    }
+
+    fn dependency_path(&self, key: &ServiceKey) -> String {
+        self.chain
+            .iter()
+            .filter(|(_, active)| active.load(Ordering::Acquire))
+            .map(|(parent, _)| parent.to_string())
+            .chain(std::iter::once(key.to_string()))
+            .collect::<Vec<_>>()
+            .join(" → ")
+    }
+
+    fn resolve_at_generation(
+        &self,
+        key: ServiceKey,
+        expected: Option<u64>,
+    ) -> BoxFuture<'_, Result<Value>> {
+        self.resolve_projected(ResolveRequest::Erased(key), expected)
+    }
+
+    fn missing_service(&self, key: &ServiceKey) -> Error {
+        container_error(
+            "service_not_bound",
+            format!("未绑定服务：{}", self.dependency_path(key)),
+        )
+    }
+
+    fn binding_source(
+        &self,
+        state: &State,
+        requested: &ServiceKey,
+        expected: Option<u64>,
+    ) -> Result<descriptor_source::ConstructionSource> {
+        use descriptor_source::ConstructionSource;
+        self.check_open(state)?;
+        let key = if expected.is_some() {
+            state.classes.canonical_key(requested)
+        } else {
+            state.alias_key(requested)?
+        };
+        let entry = state.bindings.get(&key);
+        if expected.is_some() && entry.map(|binding| binding.generation) != expected {
+            return Err(container_error(
+                "binding_replaced",
+                "重绑定事件对应的服务已被替换",
+            ));
+        }
+        Ok(match entry {
+            Some(binding) => ConstructionSource::Binding {
+                key,
+                binding: binding.clone(),
+            },
+            None => ConstructionSource::Missing(key),
         })
     }
 
-    fn resolve_value(&self, key: TypeId, name: &'static str) -> BoxFuture<'_, Result<Value>> {
+    async fn select_resolution(
+        &self,
+        inner: &Arc<Inner>,
+        request: &ResolveRequest,
+        expected: Option<u64>,
+    ) -> Result<std::ops::ControlFlow<Value, (ServiceKey, Binding)>> {
+        let requested = request.lookup_key();
+        loop {
+            use descriptor_source::ConstructionSource;
+            let source = {
+                let state = lock(&inner.state);
+                let selected = if expected.is_none()
+                    && request.target().is_some()
+                    && state.classes.has_descriptors()
+                {
+                    state.construction_source(requested, self)?
+                } else {
+                    self.binding_source(&state, requested, expected)?
+                };
+                #[cfg(test)]
+                if matches!(&selected, ConstructionSource::Binding { .. }) {
+                    directory_tests_v2::observe_selected();
+                }
+                selected
+            };
+            match source {
+                ConstructionSource::Binding { key, binding } => {
+                    return Ok(std::ops::ControlFlow::Continue((key, binding)));
+                }
+                ConstructionSource::Missing(key) => return Err(self.missing_service(&key)),
+                ConstructionSource::Descriptor(source) => {
+                    let output = request
+                        .target()
+                        .ok_or_else(|| self.missing_service(source.key()))?;
+                    let erased_output = request
+                        .expected_output()
+                        .ok_or_else(|| self.missing_service(source.key()))?;
+                    if let Some(value) = self
+                        .resolve_descriptor(inner, &source, output, erased_output)
+                        .await?
+                    {
+                        return Ok(std::ops::ControlFlow::Break(value));
+                    }
+                }
+            }
+        }
+    }
+
+    fn resolve_projected(
+        &self,
+        request: ResolveRequest,
+        expected: Option<u64>,
+    ) -> BoxFuture<'_, Result<Value>> {
         Box::pin(async move {
             let container = self.container()?;
-            if self.closed.closed.load(Ordering::Acquire) {
-                return Err(container_error("scope_closed", "生命周期已关闭"));
-            }
+            let (key, binding) = match self
+                .select_resolution(&container.inner, &request, expected)
+                .await?
+            {
+                std::ops::ControlFlow::Continue(binding) => binding,
+                std::ops::ControlFlow::Break(value) => return Ok(value),
+            };
             if self
                 .chain
                 .iter()
-                .any(|(id, _, active)| *id == key && active.load(Ordering::Acquire))
+                .any(|(id, active)| *id == key && active.load(Ordering::Acquire))
             {
-                let mut chain: Vec<_> = self
-                    .chain
-                    .iter()
-                    .filter(|(_, _, active)| active.load(Ordering::Acquire))
-                    .map(|(_, name, _)| *name)
-                    .collect();
-                chain.push(name);
-                return Err(container_error("service_cycle", chain.join(" → ")));
+                return Err(container_error("service_cycle", self.dependency_path(&key)));
             }
-            let binding = {
-                let state = lock(&container.inner.state);
-                state.bindings.get(&key).cloned().ok_or_else(|| {
-                    container_error(
-                        "service_not_bound",
-                        format!(
-                            "未绑定服务：{}",
-                            self.chain
-                                .iter()
-                                .filter(|(_, _, active)| active.load(Ordering::Acquire))
-                                .map(|(_, n, _)| *n)
-                                .chain(std::iter::once(name))
-                                .collect::<Vec<_>>()
-                                .join(" → ")
-                        ),
-                    )
-                })?
-            };
+            #[cfg(test)]
+            directory_tests_v2::after_binding_selection().await;
+            let output = binding
+                .instance
+                .as_ref()
+                .map(|value| value.as_ref().type_id())
+                .or(binding.factory_output);
+            if request
+                .expected_output()
+                .is_some_and(|expected| output != Some(expected))
+            {
+                return Err(container_error(
+                    "service_type_mismatch",
+                    "服务声明输出与请求类型不同",
+                ));
+            }
             if !binding.pending.is_empty()
                 && let Err(error) = self
-                    .initialize_instance(&container.inner, key, &binding)
+                    .initialize_instance(&container.inner, &key, &binding)
                     .await
             {
                 if error.code() == "binding_replaced" {
-                    return self.resolve_value(key, name).await;
+                    return self.resolve_projected(request, expected).await;
                 }
                 return Err(error);
             }
-            if binding.lifetime == Lifetime::Scoped && self.captive {
+            if binding.effective_lifetime() == Lifetime::Scoped && self.captive {
                 let stale = lock(&container.inner.state)
                     .bindings
                     .get(&key)
                     .map(|current| current.generation)
                     != Some(binding.generation);
                 if stale {
-                    return self.resolve_value(key, name).await;
+                    return self.resolve_projected(request, expected).await;
                 }
                 return Err(container_error(
                     "captive_scope_dependency",
-                    format!("singleton 不能捕获 scoped 服务 `{name}`"),
+                    format!("singleton 不能捕获 scoped 服务 `{key}`"),
                 ));
             }
             let mut child = self.clone();
             child
                 .chain
-                .retain(|(_, _, active)| active.load(Ordering::Acquire));
+                .retain(|(_, active)| active.load(Ordering::Acquire));
             let activity = Arc::new(AtomicBool::new(true));
             let _activity = ActiveFactory(Arc::clone(&activity));
-            child.chain.push((key, name, Arc::clone(&activity)));
-            if binding.lifetime == Lifetime::Singleton {
+            child.chain.push((key.clone(), Arc::clone(&activity)));
+            if binding.effective_lifetime() == Lifetime::Singleton {
                 child.captive = true;
                 child.scope = u64::MAX;
                 child.closed = Arc::new(ScopeStatus::default());
                 child.resources = container.inner.resources.clone();
             }
-            let value = if binding.lifetime == Lifetime::Bind {
-                match self.transient(&binding, child, key, name, activity).await? {
+            let value = if binding.effective_lifetime() == Lifetime::Bind {
+                match self.transient(&binding, child, &key, activity).await? {
                     Some(value) => value,
-                    None => return self.resolve_value(key, name).await,
+                    None => {
+                        return self.resolve_projected(request, expected).await;
+                    }
                 }
             } else {
-                match self.cached(&binding, child, key, name, activity).await? {
+                match self.cached(&binding, child, &key, activity).await? {
                     Some(value) => value,
-                    None => return self.resolve_value(key, name).await,
+                    None => {
+                        return self.resolve_projected(request, expected).await;
+                    }
                 }
             };
             if self.closed.closed.load(Ordering::Acquire) {
@@ -1162,35 +1701,36 @@ impl Resolver {
         &self,
         binding: &Binding,
         mut child: Self,
-        service: TypeId,
-        name: &'static str,
+        service: &ServiceKey,
         activity: Arc<AtomicBool>,
     ) -> Result<Option<Value>> {
         let container = self.container()?;
         // singleton 不能和 root scoped 共用一个缓存键。
         let key = CacheKey {
-            service,
-            scope: if binding.lifetime == Lifetime::Singleton {
+            service: service.clone(),
+            scope: if binding.effective_lifetime() == Lifetime::Singleton {
                 u64::MAX
             } else {
                 self.scope
             },
         };
-        let Some((attempt, owner, _edge)) = self
-            .admit_cached(&container.inner, key, name, binding.generation)
-            .await?
+        let Some(CachedAdmission {
+            attempt,
+            owner_chain,
+            edge: _edge,
+        }) = self.admit_cached(&container.inner, &key, binding).await?
         else {
             return Ok(None);
         };
-        if !owner {
+        let Some(chain) = owner_chain else {
             return tokio::select! {
                 result = attempt.wait() => result.map(Some),
                 () = self.closed.wait_closed() => Err(container_error("scope_closed", "生命周期已关闭")),
             };
-        }
+        };
         let mut guard = Construction {
             inner: Arc::clone(&container.inner),
-            key,
+            key: key.clone(),
             attempt: Arc::clone(&attempt),
             activity,
             finished: false,
@@ -1198,9 +1738,9 @@ impl Resolver {
         child.constructing = child
             .chain
             .last()
-            .map(|(_, _, active)| (attempt.id, Arc::clone(active)));
+            .map(|(_, active)| (attempt.id, Arc::clone(active)));
         let outcome = tokio::select! {
-            result = child.construct_value(binding, key) => result,
+            result = child.construct_value(binding, chain) => result,
             closed = attempt.wait() => return closed.map(Some),
             () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
         };
@@ -1209,13 +1749,31 @@ impl Resolver {
                 guard.finish(Ok(Arc::clone(&value)));
                 let value = attempt.wait().await?;
                 if !binding.pending.is_empty() {
-                    self.notify_rebinding(&container.inner, service, Arc::clone(&value))
-                        .await?;
+                    let event = {
+                        let state = lock(&container.inner.state);
+                        state
+                            .bindings
+                            .get(service)
+                            .filter(|current| current.generation == binding.generation)
+                            .and_then(|current| {
+                                Rebound::capture(
+                                    &state,
+                                    &container.inner,
+                                    self,
+                                    service,
+                                    current,
+                                    Some(Arc::clone(&value)),
+                                )
+                            })
+                    };
+                    if let Some(event) = event {
+                        event.dispatch().await?;
+                    }
                 }
                 Ok(Some(value))
             }
             Err(error) => {
-                let failure = Failure::initialization(name, error);
+                let failure = Failure::initialization(service, error);
                 guard.finish(Err(failure));
                 attempt.wait().await.map(Some)
             }
@@ -1242,7 +1800,7 @@ mod tests {
         let container = builder.build();
         let old = lock(&container.inner.state)
             .bindings
-            .get(&TypeId::of::<usize>())
+            .get(&ServiceKey::typed::<usize>())
             .cloned()
             .unwrap();
         let resolver = {
@@ -1260,8 +1818,7 @@ mod tests {
             .cached(
                 &old,
                 resolver.clone(),
-                TypeId::of::<usize>(),
-                type_name::<usize>(),
+                &ServiceKey::typed::<usize>(),
                 Arc::new(AtomicBool::new(true)),
             )
             .await?;
@@ -2422,7 +2979,7 @@ mod tests {
                     let attempt = state
                         .slots
                         .get(&CacheKey {
-                            service: TypeId::of::<Lazy>(),
+                            service: ServiceKey::typed::<Lazy>(),
                             scope: u64::MAX,
                         })
                         .unwrap();
@@ -2466,7 +3023,7 @@ mod tests {
             lock(&container.inner.state)
                 .slots
                 .get(&CacheKey {
-                    service: TypeId::of::<Lazy>(),
+                    service: ServiceKey::typed::<Lazy>(),
                     scope: u64::MAX,
                 })
                 .unwrap(),
@@ -2520,7 +3077,7 @@ mod tests {
         let owner = tokio::spawn(async move { root.resolve::<usize>().await });
         started.notified().await;
         let attempt = Arc::clone(lock(&container.inner.state).slots.values().next().unwrap());
-        let activity = Arc::clone(&lock(&saved).as_ref().unwrap().chain.last().unwrap().2);
+        let activity = Arc::clone(&lock(&saved).as_ref().unwrap().chain.last().unwrap().1);
         let observer = Arc::new(Observer {
             activity,
             outcome: AtomicUsize::new(0),
@@ -2641,3 +3198,50 @@ mod tests {
 #[cfg(test)]
 #[path = "container/root_resolver_tests.rs"]
 mod root_resolver_tests;
+
+#[cfg(test)]
+#[path = "container/binding_state_tests.rs"]
+mod binding_state_tests;
+
+#[cfg(test)]
+#[path = "container/binding_event_tests.rs"]
+mod binding_event_tests;
+
+#[cfg(test)]
+#[path = "container/binding_admission_tests.rs"]
+mod binding_admission_tests;
+
+#[cfg(test)]
+#[path = "container/directory_tests.rs"]
+mod directory_tests;
+
+#[cfg(test)]
+#[path = "container/directory_tests_v2.rs"]
+mod directory_tests_v2;
+
+#[cfg(test)]
+#[path = "container/directory_tests_v3.rs"]
+mod directory_tests_v3;
+#[cfg(test)]
+mod directory_tests_v4;
+#[cfg(test)]
+mod directory_tests_v5;
+#[cfg(test)]
+mod directory_tests_v6;
+#[cfg(test)]
+mod directory_tests_v7;
+
+#[cfg(test)]
+mod directory_tests_v8;
+
+#[cfg(test)]
+mod directory_tests_v9;
+
+#[cfg(test)]
+mod directory_tests_v10;
+
+mod class_descriptor;
+mod class_projection;
+
+#[cfg(test)]
+mod selection_tests;

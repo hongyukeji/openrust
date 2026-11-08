@@ -52,7 +52,7 @@ async fn external_trait_factory_survives_ordered_async_extensions_and_rebinding(
                 suffix: format!("-{suffix}"),
             }) as Arc<dyn Greeting>)
         })
-    });
+    })?;
     bindings.singleton::<dyn Greeting, _>(|_| {
         Box::pin(async { Ok(Arc::new(BaseGreeting) as Arc<dyn Greeting>) })
     });
@@ -66,7 +66,7 @@ async fn external_trait_factory_survives_ordered_async_extensions_and_rebinding(
                 .push(current.value());
             Ok(())
         })
-    });
+    })?;
     let container = bindings.build();
     assert_eq!(
         container.resolve::<dyn Greeting>().await?.value(),

@@ -27,7 +27,7 @@ cargo run -p cli -- dev
 
 生成应用的 `tests/support/request_input.rs` 通过公开 Provider 挂载 multipart 业务测试路由，验证 `Request::file`、`has_file`、`only` 的对象身份、纯文本输入及异步服务端 MIME/扩展名；该测试路由不进入生产应用。
 
-默认应用控制器通过公开 `ApiResponse` 返回带 `data` 的成功响应。生成测试的 Cookie、Session 和重定向专属路由按需显式选用 `cookies`、`session` 中间件；Provider 注册服务不代表全部路由自动启动 Session。原宿主测试保留框架默认清单与应用清单合成后的唯一 Session Provider 和真实 Cookie 往返断言。
+默认 `/api` 控制器用 `Inject<HomePresenter>` 从请求容器解析响应组装类，再通过公开 `ApiResponse` 返回带 `data` 的成功响应。类描述符由 `bootstrap/app.rs` 在 Provider 注册前加入应用容器。生成测试的 Cookie、Session 和重定向专属路由按需显式选用 `cookies`、`session` 中间件；Provider 注册服务不代表全部路由自动启动 Session。原宿主测试保留框架默认清单与应用清单合成后的唯一 Session Provider 和真实 Cookie 往返断言。
 
 生成项目默认启用可选 `view` feature、注册 `ViewServiceProvider`，并以 `resources/views/index.html` 渲染 `/`。应用级 HTML 页面模板放在 `resources/views/`，CSS、图片等静态资源放在 `public/`；`root_target` 可切换为静态文件、应用内转发或重定向。需要纯 API 应用时，可在生成后的 `Cargo.toml` 移除 `view` feature 和 Provider 注册，再将 `root_target` 设为其他模式。
 

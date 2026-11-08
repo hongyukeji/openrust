@@ -75,6 +75,10 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 
 固定 Laravel Console Kernel 先持有 InputInterface 再 bootstrap 的流程是对应依据；Rust 用明确候选上下文与最终命令类型绑定保护既有启动检查，非全局 argv/env 开关。真实 MySQL 8.4 私有库已验证空库 status、up 1、down 1、命名库 status、全量 up，以及删自有 MFA 表后普通 serve 缺表拒绝；库已精确清理。原迁移失败历史/重启恢复测试本轮没有实际数据库连接，不在上述证据内。见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。
 
+## 具体类型构造
+
+应用的 `configure_providers` 可向 `ProviderBuilder` 追加编译类描述。完整类目录在 Provider 准备前验证，普通 typed 解析可按声明构造实例及依赖，显式绑定优先。根示例与生成应用的 HTTP 注入均复用同一容器。公开入口支持类依赖和严格类型默认值。
+
 ## 服务初始化诊断
 
 容器工厂的初始化错误保留完整 Rust 服务类型名及原始错误链。日志的顶层和依赖服务名都限制为 128 字节，并转义控制字符。HTTP 仍输出稳定的 `service_initialization_failed` 与通用消息。

@@ -1,7 +1,7 @@
 //! 最小业务 API，直接调用第三方包 chrono 并通过框架 Json 返回。
 
 use super::super::resources::example::ExampleInfo;
-use crate::modules::example::services::ExampleMessage;
+use crate::modules::example::services::{ExampleMessage, ExamplePresenter};
 use openrust::http::axum::{
     http::{HeaderValue, StatusCode, header},
     response::{Html, IntoResponse, Response},
@@ -25,9 +25,9 @@ pub(crate) struct ExampleDomainParams {
     account: String,
 }
 
-pub(crate) async fn show(Inject(message): Inject<ExampleMessage>) -> Json<ExampleInfo> {
+pub(crate) async fn show(Inject(presenter): Inject<ExamplePresenter>) -> Json<ExampleInfo> {
     Json(ExampleInfo {
-        message: message.text().to_owned(),
+        message: presenter.text().to_owned(),
         served_at: chrono::Utc::now(),
     })
 }

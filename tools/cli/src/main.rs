@@ -4254,6 +4254,7 @@ mod tests {
             "src/main.rs",
             "bootstrap/app.rs",
             "bootstrap/providers.rs",
+            "app/http/controllers/home.rs",
             "modules/mod.rs",
             "routes/mod.rs",
             "routes/api.rs",

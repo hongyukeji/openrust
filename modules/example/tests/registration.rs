@@ -36,13 +36,26 @@ async fn production_log_services_coexist_with_normal_module_routes()
             .state()
             .resolve::<openrust::sms::SmsSender>()
             .await?;
-        app.request(
-            Request::get("/api/example")
-                .header("host", "localhost")
-                .body(Body::empty())?,
-        )
-        .await?
-        .assert_status(StatusCode::OK)?;
+        let state = app.app()?.state();
+        assert!(
+            !state
+                .container()
+                .contains::<super::services::ExamplePresenter>()
+        );
+        let first = state.resolve::<super::services::ExamplePresenter>().await?;
+        let second = state.resolve::<super::services::ExamplePresenter>().await?;
+        assert!(!std::sync::Arc::ptr_eq(&first, &second));
+        let response = app
+            .request(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(json["data"]["message"], first.text());
+        assert!(json["data"]["served_at"].is_string());
         Ok(())
     }
     .await;
@@ -182,6 +195,7 @@ async fn module_registration_controls_only_its_business_routes()
             false,
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
         ));
+        builder.class_descriptors(super::class_descriptors());
         builder.module_manifest(if registered {
             manifest.enable("example")
         } else {
@@ -288,6 +302,7 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
         .provider(crate::app::providers::AppServiceProvider)
+        .class_descriptors(super::class_descriptors())
         .module_manifest(
             openrust_modules::ModuleManifest::new()
                 .module(super::descriptor(
@@ -314,6 +329,11 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         .resolve::<super::services::ExampleMessage>()
         .await?;
     assert_eq!(original.text(), "Hello from modules/example");
+    let original_presenter = app
+        .state()
+        .resolve::<super::services::ExamplePresenter>()
+        .await?;
+    assert_eq!(original_presenter.text(), original.text());
     let first = app
         .register_provider(LateExampleMessage("已登记业务消息"))
         .await?;
@@ -334,6 +354,7 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         app.force_register_provider(LateExampleMessage("强制更新消息"))
             .await?
     );
+    assert_eq!(original_presenter.text(), "Hello from modules/example");
     assert_eq!(original.text(), "Hello from modules/example");
     assert_eq!(
         app.state()
@@ -1051,6 +1072,7 @@ async fn dependent_business_module_serves_http_with_real_database()
         .provider(openrust::http::CookieServiceProvider::plain())
         .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
+        .class_descriptors(super::class_descriptors())
         .module_manifest(
             ModuleManifest::new()
                 .module(super::descriptor(false, application_root))

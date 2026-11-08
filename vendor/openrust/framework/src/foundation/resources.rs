@@ -2,11 +2,10 @@
 
 use std::collections::HashMap;
 use std::future::Future;
-use std::panic::AssertUnwindSafe;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
-
-use futures_util::FutureExt as _;
+use std::task::{Context, Poll};
 
 use tokio::sync::Notify;
 use tokio::time::Instant;
@@ -60,6 +59,7 @@ struct Inner {
     callbacks: Mutex<Option<Vec<Cleanup>>>,
     sealed: AtomicBool,
     tasks: BackgroundTasks,
+    observed_tasks: Mutex<Vec<Weak<TaskCompletionInner>>>,
     outcome: OnceLock<Outcome>,
     finished: Notify,
     deadline: OnceLock<Instant>,
@@ -67,6 +67,158 @@ struct Inner {
     child_requested: Arc<Notify>,
     next_child: AtomicU64,
     child_failures: AtomicUsize,
+}
+
+/// 取消清理driver时，剩余独立回调也逐项处置，避免Vec隐式unwind清理。
+struct CleanupQueue(Vec<Cleanup>);
+impl CleanupQueue {
+    fn discard(&mut self) -> usize {
+        let mut failures = 0;
+        while let Some(mut item) = self.pop() {
+            failures += usize::from(item.discard());
+        }
+        failures
+    }
+    fn pop(&mut self) -> Option<CleanupItem> {
+        self.0.pop().map(|cleanup| CleanupItem {
+            value: Some(cleanup),
+            // 来自已登记callback的实际槽；不是owner open状态推断出的新任务。
+            ticket: ResourceDisposalTicket::admitted(),
+            transferred: false,
+        })
+    }
+}
+impl Drop for CleanupQueue {
+    fn drop(&mut self) {
+        self.discard();
+    }
+}
+struct CleanupItem {
+    value: Option<Cleanup>,
+    ticket: ResourceDisposalTicket,
+    transferred: bool,
+}
+impl CleanupItem {
+    fn credential(&self) -> super::lifecycle::disposal::Credential {
+        super::lifecycle::disposal::Credential::Cleanup(self.ticket.clone())
+    }
+    fn discard(&mut self) -> bool {
+        super::lifecycle::disposal::dispose(self.value.take(), Some(self.credential()));
+        self.ticket.account.finish()
+    }
+}
+impl Drop for CleanupItem {
+    fn drop(&mut self) {
+        if !self.transferred {
+            self.discard();
+        }
+    }
+}
+
+/// 只保存原callback槽的票据；恢复同步上下文后才结束该槽。
+struct CleanupRun {
+    future: Option<BoxFuture<'static, Result<()>>>,
+    ticket: ResourceDisposalTicket,
+}
+impl CleanupRun {
+    fn clear(&mut self) {
+        super::lifecycle::disposal::dispose(
+            self.future.take(),
+            Some(super::lifecycle::disposal::Credential::Cleanup(
+                self.ticket.clone(),
+            )),
+        );
+    }
+    fn finish(&mut self) -> bool {
+        self.clear();
+        self.ticket.account.finish()
+    }
+}
+impl Drop for CleanupRun {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+impl Future for CleanupRun {
+    type Output = std::result::Result<Result<()>, ()>;
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        let (polled, _) = super::lifecycle::disposal::scope(
+            Some(super::lifecycle::disposal::Credential::Cleanup(
+                this.ticket.clone(),
+            )),
+            || {
+                let result = super::lifecycle::catch_isolated(|| {
+                    this.future
+                        .as_mut()
+                        .map_or(Poll::Ready(Ok(())), |future| future.as_mut().poll(context))
+                });
+                if result.is_err() {
+                    super::lifecycle::disposal::failure(None);
+                }
+                result
+            },
+        );
+        match polled {
+            Ok(Poll::Pending) => Poll::Pending,
+            Ok(Poll::Ready(result)) => Poll::Ready(Ok(result)),
+            Err(()) => Poll::Ready(Err(())),
+        }
+    }
+}
+
+/// 认领时已登记child退役责任；票据离开父锁后才执行关闭钩子。
+struct CloseClaim {
+    owner: Arc<ResourceOwner>,
+    close: Option<Box<dyn FnOnce() + Send>>,
+    cleanup: Option<ResourceCleanup>,
+    parent: ResourceRegistrar,
+}
+impl CloseClaim {
+    fn take(child: &mut ChildEntry, parent: &ResourceRegistrar) -> Option<Self> {
+        child.close.as_ref()?;
+        let cleanup = child.owner.registrar().begin_cleanup();
+        Some(Self {
+            owner: Arc::clone(&child.owner),
+            close: child.close.take(),
+            cleanup,
+            parent: parent.clone(),
+        })
+    }
+    fn invoke(&mut self) -> bool {
+        let credential = self.cleanup.as_ref().map(|cleanup| {
+            super::lifecycle::disposal::Credential::Cleanup(cleanup.disposal_ticket())
+        });
+        let (failed, _) = super::lifecycle::disposal::scope(credential, || {
+            let failed = self
+                .close
+                .take()
+                .is_some_and(|close| super::lifecycle::catch_isolated(close).is_err());
+            if failed {
+                super::lifecycle::disposal::failure(None);
+            }
+            failed
+        });
+        failed
+    }
+    fn finish(&mut self, failed: bool) {
+        if let Some(mut cleanup) = self.cleanup.take() {
+            cleanup.finish(usize::from(failed));
+        } else if failed {
+            self.parent.record_cleanup_failures(1);
+        }
+    }
+}
+impl Drop for CloseClaim {
+    fn drop(&mut self) {
+        if self.close.is_some() {
+            let failed = self.invoke();
+            self.owner.seal();
+            self.finish(failed);
+        } else {
+            self.finish(false);
+        }
+    }
 }
 
 struct Completion {
@@ -85,6 +237,67 @@ struct ChildEntry {
 struct Children {
     entries: HashMap<u64, ChildEntry>,
     driver_running: bool,
+    driver_starting: bool,
+    driver_life: Weak<DriverLife>,
+    driver_child: Option<u64>,
+}
+
+/// 只记录同一Children中当前driver的生命期，不是另一调度器/任务表。
+struct DriverLife {
+    owner: Weak<Inner>,
+    ended: AtomicBool,
+    submitting: AtomicBool,
+}
+impl Children {
+    fn clear_driver(&mut self) {
+        self.driver_running = false;
+        self.driver_starting = false;
+        self.driver_life = Weak::new();
+        if let Some(id) = self.driver_child.take()
+            && let Some(child) = self.entries.get_mut(&id)
+        {
+            child.started = false;
+        }
+    }
+    fn reconcile_driver(&mut self) {
+        let valid = self.driver_life.upgrade().is_some_and(|life| {
+            if self.driver_running {
+                !life.ended.load(Ordering::Acquire)
+            } else {
+                self.driver_starting && life.submitting.load(Ordering::Acquire)
+            }
+        });
+        if !valid {
+            self.clear_driver();
+        }
+    }
+}
+struct DriverGuard(Arc<DriverLife>);
+impl Drop for DriverGuard {
+    fn drop(&mut self) {
+        self.0.ended.store(true, Ordering::Release);
+        if let Some(owner) = self.0.owner.upgrade() {
+            let mut children = lock(&owner.children);
+            if Weak::ptr_eq(&children.driver_life, &Arc::downgrade(&self.0))
+                && (children.driver_running || !self.0.submitting.load(Ordering::Acquire))
+            {
+                children.clear_driver();
+            }
+        }
+    }
+}
+/// 同步提交者拥有 `Starting`，panic 退出也释放预备责任；驱动守卫单独拥有 `Running`。
+struct DriverSubmission(Arc<DriverLife>);
+impl Drop for DriverSubmission {
+    fn drop(&mut self) {
+        self.0.submitting.store(false, Ordering::Release);
+        if let Some(owner) = self.0.owner.upgrade() {
+            let mut children = lock(&owner.children);
+            if Weak::ptr_eq(&children.driver_life, &Arc::downgrade(&self.0)) {
+                children.reconcile_driver();
+            }
+        }
+    }
 }
 
 impl Completion {
@@ -127,35 +340,116 @@ impl ResourceOwner {
         self.inner.tasks.cancel();
     }
 
-    pub(crate) fn record_close_failure(&self) {
-        self.inner.child_failures.fetch_add(1, Ordering::AcqRel);
-    }
-
     /// 同步封闭新登记和全部子 scope，异步 join/回调仍由 shutdown 完成。
     pub(crate) fn seal(&self) {
         let callbacks = lock(&self.inner.callbacks);
         self.inner.sealed.store(true, Ordering::Release);
+        let parent = self.registrar();
         let children: Vec<_> = {
             let mut children = lock(&self.inner.children);
             children
                 .entries
                 .values_mut()
-                .map(|child| (Arc::clone(&child.owner), child.close.take()))
+                .map(|child| {
+                    let claim = CloseClaim::take(child, &parent);
+                    (Arc::clone(&child.owner), claim)
+                })
                 .collect()
         };
         drop(callbacks);
+        Self::reclaim_observed(&self.inner);
         self.inner.tasks.cancel();
-        for (owner, close) in children {
-            if let Some(close) = close
-                && std::panic::catch_unwind(AssertUnwindSafe(close)).is_err()
-            {
-                self.record_close_failure();
-            }
+        #[cfg(test)]
+        task_completion_tests_v7::after_claim(&self.inner);
+        for (owner, mut claim) in children {
+            let failed = claim.as_mut().is_some_and(CloseClaim::invoke);
             owner.seal();
+            if let Some(claim) = &mut claim {
+                claim.finish(failed);
+            }
         }
     }
     fn shutdown_child(child: Arc<Self>, deadline: Instant) -> BoxFuture<'static, Result<()>> {
         Box::pin(async move { child.shutdown(deadline).await })
+    }
+
+    fn reclaim_observed(inner: &Inner) {
+        let observed: Vec<_> = lock(&inner.observed_tasks)
+            .iter()
+            .filter_map(Weak::upgrade)
+            .collect();
+        for completion in observed {
+            let reclaim = lock(&completion.state).reclaim.take();
+            if let Some(reclaim) = reclaim {
+                // 回调只认领框架frame；其已知值在此锁外逐项处置，不poll/销毁producer Fut。
+                if super::lifecycle::catch_isolated(reclaim).is_err() {
+                    ResourceTaskCompletion { inner: completion }.note_unknown();
+                }
+            }
+        }
+    }
+
+    async fn wait_observed(inner: &Inner, deadline: Instant, outcome: &mut Outcome) {
+        let observed: Vec<_> = lock(&inner.observed_tasks)
+            .iter()
+            .filter_map(Weak::upgrade)
+            .collect();
+        #[cfg(test)]
+        task_completion_tests_v7::after_observed_snapshot(inner);
+        for completion in observed {
+            let completion = ResourceTaskCompletion { inner: completion };
+            // 完成后的未知失败已记入 child_failures；这里只计入等待超时。
+            if tokio::time::timeout_at(deadline, completion.wait())
+                .await
+                .is_err()
+            {
+                if !outcome.timed_out {
+                    outcome.failures += 1;
+                }
+                outcome.timed_out = true;
+            }
+        }
+    }
+
+    async fn run_cleanup(mut cleanup: CleanupItem, deadline: Instant) -> Outcome {
+        let Some(callback) = cleanup.value.take() else {
+            return Outcome::default();
+        };
+        let (future, _) = super::lifecycle::disposal::scope(Some(cleanup.credential()), || {
+            let result = super::lifecycle::catch_isolated(callback);
+            if result.is_err() {
+                super::lifecycle::disposal::failure(None);
+            }
+            result
+        });
+        let Ok(future) = future else {
+            cleanup.discard();
+            return Outcome {
+                failures: 1,
+                ..Outcome::default()
+            };
+        };
+        let mut future = CleanupRun {
+            future: Some(future),
+            ticket: cleanup.ticket.clone(),
+        };
+        // 空Item不再结束同一ticket；取消时由真正持有Fut的CleanupRun收口。
+        cleanup.transferred = true;
+        let ticket = cleanup.ticket.clone();
+        let result = tokio::time::timeout_at(deadline, &mut future).await;
+        future.clear();
+        let timed_out = result.is_err();
+        let failed = !matches!(&result, Ok(Ok(Ok(()))));
+        super::lifecycle::disposal::dispose(
+            result,
+            Some(super::lifecycle::disposal::Credential::Cleanup(ticket)),
+        );
+        let unknown = future.finish();
+        Outcome {
+            failures: usize::from(failed || unknown),
+            timed_out,
+            interrupted: false,
+        }
     }
 
     /// 创建尚未封口的资源所有者。
@@ -190,32 +484,40 @@ impl ResourceOwner {
             if callbacks.is_some() {
                 let _ = self.inner.deadline.set(deadline);
             }
-            callbacks.take()
+            let parent = self.registrar();
+            let children: Vec<_> = if callbacks.is_some() {
+                lock(&self.inner.children)
+                    .entries
+                    .drain()
+                    .map(|(_, mut child)| {
+                        let claim = CloseClaim::take(&mut child, &parent);
+                        (child.owner, claim)
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            (callbacks.take().map(CleanupQueue), children)
         };
         let deadline = *self.inner.deadline.get().unwrap_or(&deadline);
-        if let Some(callbacks) = callbacks {
+        if let (Some(mut callbacks), children) = callbacks {
             // 在任何用户代码（包括关闭 scope 缓存时的 Drop）执行前建立完成保护。
             let completion = Completion {
                 inner: Arc::clone(&self.inner),
                 completed: false,
             };
-            let children: Vec<_> = lock(&self.inner.children)
-                .entries
-                .drain()
-                .map(|(_, child)| child)
-                .collect();
-            let mut close_failures = 0;
+            let close_failures = 0;
             let children: Vec<_> = children
                 .into_iter()
-                .map(|mut child| {
-                    if let Some(close) = child.close.take()
-                        && std::panic::catch_unwind(AssertUnwindSafe(close)).is_err()
-                    {
-                        close_failures += 1;
+                .map(|(owner, mut claim)| {
+                    if let Some(claim) = &mut claim {
+                        let failed = claim.invoke();
+                        claim.finish(failed);
                     }
-                    child.owner
+                    owner
                 })
                 .collect();
+            Self::reclaim_observed(&self.inner);
             let tasks = self.inner.tasks.stop();
             let inner = Arc::clone(&self.inner);
             runtime.spawn(async move {
@@ -239,28 +541,18 @@ impl ResourceOwner {
                         outcome.timed_out = true;
                     }
                 }
+                outcome.failures += inner.tasks.take_failures();
+                Self::wait_observed(&inner, deadline, &mut outcome).await;
                 for child in children {
                     if Self::shutdown_child(child, deadline).await.is_err() {
                         outcome.failures += 1;
                     }
                 }
                 outcome.failures += inner.child_failures.swap(0, Ordering::AcqRel);
-                for cleanup in callbacks.into_iter().rev() {
-                    // 用户同步构造与 future poll 都可能 unwind，不能让一个坏回调遗失后续回收。
-                    let Ok(future) = std::panic::catch_unwind(AssertUnwindSafe(cleanup)) else {
-                        outcome.failures += 1;
-                        continue;
-                    };
-                    match tokio::time::timeout_at(deadline, AssertUnwindSafe(future).catch_unwind())
-                        .await
-                    {
-                        Ok(Ok(Ok(()))) => {}
-                        Ok(Ok(Err(_)) | Err(_)) => outcome.failures += 1,
-                        Err(_) => {
-                            outcome.failures += 1;
-                            outcome.timed_out = true;
-                        }
-                    }
+                while let Some(cleanup) = callbacks.pop() {
+                    let cleaned = Self::run_cleanup(cleanup, deadline).await;
+                    outcome.failures += cleaned.failures;
+                    outcome.timed_out |= cleaned.timed_out;
                 }
                 completion.finish(outcome);
             });
@@ -286,10 +578,366 @@ impl ResourceOwner {
 
 impl Drop for ResourceOwner {
     fn drop(&mut self) {
-        let callbacks = lock(&self.inner.callbacks).take();
-        drop(callbacks);
+        let callbacks = lock(&self.inner.callbacks).take().map(CleanupQueue);
+        Self::reclaim_observed(&self.inner);
+        if let Some(mut callbacks) = callbacks {
+            let failures = callbacks.discard();
+            self.inner
+                .child_failures
+                .fetch_add(failures, Ordering::AcqRel);
+        }
         // 已开始的 shutdown 自己持有 JoinSet；未显式关闭时 Drop 只负责中止所有者的任务。
         drop(self.inner.tasks.stop());
+        self.inner
+            .child_failures
+            .fetch_add(self.inner.tasks.take_failures(), Ordering::AcqRel);
+    }
+}
+
+// 只接受框架清理钩子；不作为用户资源回调接口。
+type TaskFinished = Box<dyn FnOnce() + Send>;
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum CompletionProgress {
+    #[default]
+    AwaitingRegistrationAndDrop,
+    AwaitingRegistration,
+    AwaitingDrop,
+    Ready,
+    Claimed,
+}
+
+impl CompletionProgress {
+    fn mark(&mut self, registered: bool) {
+        *self = match (*self, registered) {
+            (Self::AwaitingRegistrationAndDrop, true) => Self::AwaitingDrop,
+            (Self::AwaitingRegistrationAndDrop, false) => Self::AwaitingRegistration,
+            (Self::AwaitingRegistration, true) | (Self::AwaitingDrop, false) => Self::Ready,
+            (progress, _) => progress,
+        };
+    }
+}
+
+#[derive(Default)]
+struct TaskCompletionState {
+    progress: CompletionProgress,
+    interrupted: bool,
+    failure_recorded: bool,
+    owner: Option<Weak<Inner>>,
+    observed: bool,
+    callback: Option<TaskFinished>,
+    reclaim: Option<TaskFinished>,
+    inline: Option<inline_owner::InlineState>,
+}
+
+impl TaskCompletionState {
+    fn record_failure(&mut self) -> Option<Arc<Inner>> {
+        self.interrupted = true;
+        if self.failure_recorded {
+            return None;
+        }
+        self.failure_recorded = true;
+        let owner = self
+            .observed
+            .then(|| self.owner.as_ref().and_then(Weak::upgrade))
+            .flatten();
+        if let Some(owner) = &owner {
+            owner.child_failures.fetch_add(1, Ordering::AcqRel);
+        }
+        owner
+    }
+}
+
+struct TaskCompletionInner {
+    state: Mutex<TaskCompletionState>,
+    finished: AtomicBool,
+    interrupted: AtomicBool,
+    changed: Notify,
+}
+
+pub(crate) use super::lifecycle::TaskSubmissionFailure as ResourceTaskRejection;
+
+pub(crate) use super::lifecycle::TaskExecutionFailure as ResourceTaskFailure;
+
+/// 受管 future 及其全部捕获析构后的完成栅栏；不代表业务结果成功。
+#[derive(Clone)]
+pub(crate) struct ResourceTaskCompletion {
+    inner: Arc<TaskCompletionInner>,
+}
+
+impl ResourceTaskCompletion {
+    /// 钩子只能清框架索引/等待边；禁止执行用户代码或持有用户值。
+    pub(crate) fn new(callback: impl FnOnce() + Send + 'static) -> Self {
+        Self {
+            inner: Arc::new(TaskCompletionInner {
+                state: Mutex::new(TaskCompletionState {
+                    callback: Some(Box::new(callback)),
+                    ..TaskCompletionState::default()
+                }),
+                finished: AtomicBool::new(false),
+                interrupted: AtomicBool::new(false),
+                changed: Notify::new(),
+            }),
+        }
+    }
+
+    pub(crate) fn note_unknown(&self) {
+        self.try_note_unknown();
+    }
+
+    /// 只向尚未认领完成的原责任报告；计数先于同一短锁下的完成认领。
+    pub(crate) fn try_note_unknown(&self) -> bool {
+        let owner = {
+            let mut state = lock(&self.inner.state);
+            if state.progress == CompletionProgress::Claimed || !state.observed {
+                return false;
+            }
+            state.record_failure()
+        };
+        // 保活Arc的最后析构不能留在completion锁内。
+        drop(owner);
+        true
+    }
+
+    /// 只影响本调用诊断，不重复计入已由原责任接收的owner失败。
+    pub(crate) fn note_diagnostic(&self) {
+        let mut state = lock(&self.inner.state);
+        if state.progress != CompletionProgress::Claimed {
+            state.interrupted = true;
+        }
+    }
+
+    fn mark(&self, registered: bool, interrupted: bool) {
+        let (action, failed_owner) = {
+            let mut state = lock(&self.inner.state);
+            let failed_owner = if interrupted {
+                state.record_failure()
+            } else {
+                None
+            };
+            state.progress.mark(registered);
+            let inline_retired = state
+                .inline
+                .as_ref()
+                .is_none_or(|inline| inline.released && inline.slots == 0);
+            let action = if state.progress == CompletionProgress::Ready && inline_retired {
+                state.progress = CompletionProgress::Claimed;
+                Some((state.callback.take(), state.interrupted))
+            } else {
+                None
+            };
+            (action, failed_owner)
+        };
+        // 原子计数已在短事务中完成；只在锁外释放保活owner引用。
+        drop(failed_owner);
+        if let Some((callback, interrupted)) = action {
+            // 登记失败也先离开 owner/task-set 锁，再进入框架索引锁。
+            let callback_interrupted = callback
+                .is_some_and(|callback| super::lifecycle::catch_isolated(callback).is_err());
+            if callback_interrupted {
+                self.mark(false, true);
+            }
+            self.inner
+                .interrupted
+                .store(interrupted || callback_interrupted, Ordering::Release);
+            self.inner.finished.store(true, Ordering::Release);
+            self.inner.changed.notify_waiters();
+        }
+    }
+
+    /// 仅供根关闭在State中压缩已经完成的框架证据；不执行回调。
+    pub(crate) fn finished_interrupted(&self) -> Option<bool> {
+        self.inner
+            .finished
+            .load(Ordering::Acquire)
+            .then(|| self.inner.interrupted.load(Ordering::Acquire))
+    }
+
+    /// 等待用户 future 与捕获已销毁，且框架索引清理已经完成。
+    pub(crate) async fn wait(&self) -> Result<()> {
+        loop {
+            let notified = self.inner.changed.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if self.inner.finished.load(Ordering::Acquire) {
+                return if self.inner.interrupted.load(Ordering::Acquire) {
+                    Err(Error::custom(
+                        "resource_task_interrupted",
+                        "受管任务或其捕获析构异常，不能确认业务成功",
+                    ))
+                } else {
+                    Ok(())
+                };
+            }
+            notified.await;
+        }
+    }
+}
+
+#[cfg(test)]
+struct ObservedTask<F> {
+    task: Option<tokio::sync::oneshot::Receiver<F>>,
+    completion: Option<ResourceTaskCompletion>,
+}
+#[cfg(test)]
+impl<F> Drop for ObservedTask<F> {
+    fn drop(&mut self) {
+        let credential = self.completion.as_ref().map(|completion| {
+            super::lifecycle::disposal::Credential::Completion(completion.clone())
+        });
+        let report = super::lifecycle::disposal::dispose(self.task.take(), credential);
+        if let Some(completion) = self.completion.take() {
+            if report.seen {
+                completion.note_diagnostic();
+            }
+            completion.mark(false, report.owned);
+        }
+    }
+}
+#[cfg(test)]
+impl<F> ObservedTask<F> {
+    fn start<Fut>(mut self, cancel: Cancellation) -> ObservedFuture<impl Future<Output = ()>>
+    where
+        F: FnOnce(Cancellation) -> Fut,
+        Fut: Future<Output = ()>,
+    {
+        let task = self.task.take();
+        let completion = self.completion.take();
+        let interrupted = Arc::new(AtomicUsize::new(0));
+        let signal = Arc::clone(&interrupted);
+        ObservedFuture {
+            future: Some(Box::pin(async move {
+                if let Some(receiver) = task
+                    && let Ok(task) = receiver.await
+                {
+                    super::lifecycle::controlled_task(task, cancel, signal).await;
+                }
+            })),
+            completion,
+            interrupted,
+        }
+    }
+}
+#[cfg(test)]
+struct ObservedFuture<Fut> {
+    future: Option<Pin<Box<Fut>>>,
+    completion: Option<ResourceTaskCompletion>,
+    interrupted: Arc<AtomicUsize>,
+}
+#[cfg(test)]
+impl<Fut> ObservedFuture<Fut> {
+    fn finish(&mut self, interrupted: bool) {
+        // 用户析构异常也不能把已经发入 channel 的候选结果当成成功。
+        let credential = self.completion.as_ref().map(|completion| {
+            super::lifecycle::disposal::Credential::Completion(completion.clone())
+        });
+        let report = super::lifecycle::disposal::dispose(self.future.take(), credential);
+        if let Some(completion) = self.completion.take() {
+            if report.seen {
+                completion.note_diagnostic();
+            }
+            completion.mark(
+                false,
+                interrupted || report.owned || self.interrupted.load(Ordering::Acquire) != 0,
+            );
+        }
+    }
+}
+#[cfg(test)]
+impl<Fut> Drop for ObservedFuture<Fut> {
+    fn drop(&mut self) {
+        self.finish(false);
+    }
+}
+#[cfg(test)]
+impl<Fut: Future<Output = ()>> Future for ObservedFuture<Fut> {
+    type Output = ();
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<()> {
+        let this = self.get_mut();
+        let credential = this.completion.as_ref().map(|completion| {
+            super::lifecycle::disposal::Credential::Completion(completion.clone())
+        });
+        let (polled, report) = super::lifecycle::disposal::scope(credential, || {
+            let polled = super::lifecycle::catch_isolated(|| {
+                this.future
+                    .as_mut()
+                    .map_or(Poll::Ready(()), |future| future.as_mut().poll(context))
+            });
+            if polled.is_err() {
+                super::lifecycle::disposal::failure(None);
+            }
+            polled
+        });
+        if report.seen
+            && let Some(completion) = &this.completion
+        {
+            completion.note_diagnostic();
+        }
+        match polled {
+            Ok(Poll::Pending) => Poll::Pending,
+            Ok(Poll::Ready(())) => {
+                this.finish(false);
+                Poll::Ready(())
+            }
+            Err(()) => {
+                this.finish(report.owned);
+                Poll::Ready(())
+            }
+        }
+    }
+}
+
+/// 不保存用户值；资格来自实际ResourceCleanup或已登记callback槽，到finish才结束。
+#[derive(Clone)]
+pub(crate) struct ResourceDisposalTicket {
+    account: super::lifecycle::disposal::Account,
+}
+impl ResourceDisposalTicket {
+    fn admitted() -> Self {
+        Self {
+            account: super::lifecycle::disposal::Account::admitted(),
+        }
+    }
+    pub(crate) fn record(&self) -> bool {
+        self.account.record()
+    }
+}
+
+/// 仅框架已有数据的同步退役；复用同一owner的observed弱索引，不执行任务。
+pub(crate) struct ResourceCleanup {
+    completion: ResourceTaskCompletion,
+    owner: ResourceRegistrar,
+    finished: bool,
+    disposal: ResourceDisposalTicket,
+}
+impl ResourceCleanup {
+    fn admitted(completion: ResourceTaskCompletion, owner: ResourceRegistrar) -> Self {
+        Self {
+            completion,
+            owner,
+            finished: false,
+            disposal: ResourceDisposalTicket::admitted(),
+        }
+    }
+    pub(crate) fn disposal_ticket(&self) -> ResourceDisposalTicket {
+        self.disposal.clone()
+    }
+    pub(crate) fn finish(&mut self, failures: usize) {
+        if self.finished {
+            return;
+        }
+        let failures = failures.max(usize::from(self.disposal.account.finish()));
+        self.owner.record_cleanup_failures(failures);
+        // completion自身不设owner，避免与上述逐项计数重复。
+        self.completion.mark(false, failures != 0);
+        self.finished = true;
+    }
+}
+impl Drop for ResourceCleanup {
+    fn drop(&mut self) {
+        if !self.finished {
+            self.finish(1);
+        }
     }
 }
 
@@ -300,45 +948,325 @@ pub struct ResourceRegistrar {
 }
 
 impl ResourceRegistrar {
+    pub(crate) fn task_failures(&self) -> Arc<AtomicUsize> {
+        self.inner.upgrade().map_or_else(
+            || Arc::new(AtomicUsize::new(0)),
+            |inner| inner.tasks.failure_counter(),
+        )
+    }
+
+    /// 只给旧deferred JoinError边界构造fixture，不是普通spawn的替代验收。
+    #[cfg(test)]
+    pub(crate) fn test_legacy_spawn<F, Fut>(&self, task: F) -> Result<()>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.inner
+            .upgrade()
+            .ok_or_else(resources_closed)?
+            .tasks
+            .handle()
+            .test_legacy_spawn(task)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_outcome_failures(&self) -> Option<usize> {
+        self.inner
+            .upgrade()
+            .and_then(|inner| inner.outcome.get().map(|outcome| outcome.failures))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_locks_available(&self) -> bool {
+        self.inner.upgrade().is_some_and(|inner| {
+            let callbacks_free = inner.callbacks.try_lock().is_ok();
+            callbacks_free && inner.tasks.handle().test_lock_available()
+        })
+    }
+
+    /// State→callbacks短登记已有cache的退役；sealed后仍可清理，但不越过shutdown接管。
+    pub(crate) fn begin_cleanup(&self) -> Option<ResourceCleanup> {
+        let inner = self.inner.upgrade()?;
+        let callbacks = lock(&inner.callbacks);
+        if callbacks.is_none() {
+            return None;
+        }
+        let completion = ResourceTaskCompletion::new(|| {});
+        let mut observed = lock(&inner.observed_tasks);
+        observed.retain(|entry| {
+            entry
+                .upgrade()
+                .is_some_and(|entry| !entry.finished.load(Ordering::Acquire))
+        });
+        lock(&completion.inner.state).observed = true;
+        observed.push(Arc::downgrade(&completion.inner));
+        drop(observed);
+        completion.mark(true, false);
+        Some(ResourceCleanup::admitted(completion, self.clone()))
+    }
+
+    /// raw交付引用的退役责任；sealed只可清理、不可执行新业务，take callbacks后拒绝登记。
+    #[cfg(test)]
+    pub(crate) fn begin_reclaim(
+        &self,
+        reclaim: impl FnOnce(ResourceDisposalTicket) + Send + 'static,
+    ) -> Option<(ResourceCleanup, bool)> {
+        let inner = self.inner.upgrade()?;
+        let callbacks = lock(&inner.callbacks);
+        if callbacks.is_none() {
+            return None;
+        }
+        let completion = ResourceTaskCompletion::new(|| {});
+        let cleanup = ResourceCleanup::admitted(completion.clone(), self.clone());
+        let ticket = cleanup.disposal_ticket();
+        {
+            let mut state = lock(&completion.inner.state);
+            state.observed = true;
+            state.reclaim = Some(Box::new(move || reclaim(ticket)));
+        }
+        let mut observed = lock(&inner.observed_tasks);
+        observed.retain(|entry| {
+            entry
+                .upgrade()
+                .is_some_and(|entry| !entry.finished.load(Ordering::Acquire))
+        });
+        observed.push(Arc::downgrade(&completion.inner));
+        drop(observed);
+        completion.mark(true, false);
+        let open = !inner.sealed.load(Ordering::Acquire);
+        Some((cleanup, open))
+    }
+
+    /// 只累计实际owner的锁外析构未知，不运行用户代码或取得owner闸门。
+    pub(crate) fn record_cleanup_failures(&self, failures: usize) {
+        if failures != 0
+            && let Some(inner) = self.inner.upgrade()
+        {
+            inner.child_failures.fetch_add(failures, Ordering::AcqRel);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_after_seal_claim(&self, action: impl FnOnce() + Send + 'static) {
+        task_completion_tests_v7::install_claim_hook(self.inner.clone(), Box::new(action));
+    }
+    #[cfg(test)]
+    pub(crate) fn test_after_observed_snapshot(&self, action: impl FnOnce() + Send + 'static) {
+        task_completion_tests_v7::install_snapshot_hook(self.inner.clone(), Box::new(action));
+    }
+
+    /// 比较真实资源 owner 身份，不公开地址，也不创建/延长 owner。
+    pub(crate) fn same_owner(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.inner, &other.inner)
+    }
+
+    /// 在实际 owner 关闭闸门下作框架短提交；不得执行用户代码/析构或跨 await。
+    ///
+    /// 调用方持 State 时按 State→callbacks 次序；seal/shutdown 在调用子 scope
+    /// 关闭钩子前释放 callbacks，因此不建立 callbacks→State 的反向依赖。
+    pub(crate) fn with_open_owner<T>(&self, commit: impl FnOnce() -> T) -> Result<T> {
+        let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
+        let callbacks = lock(&inner.callbacks);
+        if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
+            return Err(resources_closed());
+        }
+        Ok(commit())
+    }
+
+    /// 原producer跨锁外交接前先保完成责任；commit只移动框架持有权，不执行用户代码。
+    pub(crate) fn reserve_observed<T>(
+        &self,
+        completion: &ResourceTaskCompletion,
+        commit: impl FnOnce() -> Result<T>,
+    ) -> Result<T> {
+        let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
+        let callbacks = lock(&inner.callbacks);
+        if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
+            return Err(resources_closed());
+        }
+        let value = commit()?;
+        {
+            let mut state = lock(&completion.inner.state);
+            state.owner = Some(self.inner.clone());
+            state.observed = true;
+        }
+        let mut observed = lock(&inner.observed_tasks);
+        // inline 不经过 spawn；每次准入也压缩原索引，pending 仍由同一栅栏保留。
+        // 已完成的未知失败已计入 owner.child_failures，不依赖弱条目的长期保留。
+        observed.retain(|entry| {
+            entry
+                .upgrade()
+                .is_some_and(|entry| !entry.finished.load(Ordering::Acquire))
+        });
+        observed.push(Arc::downgrade(&completion.inner));
+        drop(observed);
+        // 只占原索引；正式handoff/拒绝F清完才登记最终registered。
+        Ok(value)
+    }
+
+    /// 登记受管任务并在 future/捕获已析构后完成框架清理栅栏。
+    #[cfg(test)]
+    pub(crate) fn spawn_observed<F, Fut>(
+        &self,
+        completion: ResourceTaskCompletion,
+        task: F,
+    ) -> Result<()>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        lock(&completion.inner.state).owner = Some(self.inner.clone());
+        let (sender, receiver) = tokio::sync::oneshot::channel::<F>();
+        // 用户 F 此时仍在本栈，不进入 owner/task-set 锁内的失败析构路径。
+        let submission_completion = completion.clone();
+        let observed = ObservedTask {
+            task: Some(receiver),
+            completion: Some(completion),
+        };
+        let completion = submission_completion;
+        let result = (|| {
+            let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
+            tokio::runtime::Handle::try_current().map_err(|_| {
+                Error::custom("resource_runtime_missing", "受管任务需要 Tokio 运行时")
+            })?;
+            let callbacks = lock(&inner.callbacks);
+            if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
+                return Err(resources_closed());
+            }
+            lock(&completion.inner.state).observed = true;
+            let mut observations = lock(&inner.observed_tasks);
+            observations.retain(|entry| {
+                entry
+                    .upgrade()
+                    .is_some_and(|entry| !entry.finished.load(Ordering::Acquire))
+            });
+            let weak = Arc::downgrade(&completion.inner);
+            if !observations.iter().any(|entry| Weak::ptr_eq(entry, &weak)) {
+                observations.push(weak);
+            }
+            drop(observations);
+            Ok(inner
+                .tasks
+                .handle()
+                .submit(move |cancel| observed.start(cancel)))
+        })();
+        let (outcome, report) = super::lifecycle::disposal::scope(
+            Some(super::lifecycle::disposal::Credential::Completion(
+                completion.clone(),
+            )),
+            || {
+                match result {
+                    Ok(submission) => submission.finish(),
+                    Err(error) => super::lifecycle::TaskSubmissionOutcome {
+                        registration: Err(error),
+                        cleanup_interrupted: false,
+                    },
+                }
+                .handoff(sender, task)
+            },
+        );
+        if report.seen {
+            completion.note_diagnostic();
+        }
+        completion.mark(true, report.owned);
+        match outcome.registration {
+            Err(error) => Err(error),
+            Ok(()) if outcome.cleanup_interrupted => {
+                Err(super::lifecycle::task_cleanup_interrupted())
+            }
+            Ok(()) => Ok(()),
+        }
+    }
+
     /// 提交子 scope 回收请求；同一父所有者至多运行一个回收驱动。
     pub(crate) fn request_child_cleanup(&self, id: u64, deadline: Instant) -> Result<()> {
         let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
         let callbacks = lock(&inner.callbacks);
         if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
-            // 父 shutdown 已接管全部仍跟踪的子 scope。
-            return Ok(());
+            return Ok(()); // 已封闭的父负责全部仍跟踪的子资源。
         }
-        let should_spawn = {
+        if inner.tasks.is_cancelled() {
+            return Err(Error::custom(
+                "resource_cleanup_cancelled",
+                "父任务已取消，清理请求未取得驱动责任；需原owner关闭接管",
+            ));
+        }
+        let life = Arc::new(DriverLife {
+            owner: Arc::downgrade(&inner),
+            ended: AtomicBool::new(false),
+            submitting: AtomicBool::new(true),
+        });
+        {
             let mut children = lock(&inner.children);
-            if let Some(child) = children.entries.get_mut(&id) {
-                child.requested = Some(deadline);
-            } else {
+            children.reconcile_driver();
+            let Some(child) = children.entries.get_mut(&id) else {
+                return Ok(());
+            };
+            child.requested = Some(deadline);
+            if children.driver_running {
+                inner.child_requested.notify_one();
                 return Ok(());
             }
-            if children.driver_running {
-                false
-            } else {
-                children.driver_running = true;
-                true
+            if children.driver_starting {
+                return Err(Error::custom(
+                    "resource_cleanup_starting",
+                    "子清理驱动尚在准入，当前请求未取得运行责任",
+                ));
             }
-        };
-        if should_spawn {
-            let weak = Arc::downgrade(&inner);
-            let notify = Arc::clone(&inner.child_requested);
-            if let Err(error) =
-                inner
-                    .tasks
-                    .handle()
-                    .spawn_cleanup_driver(move |cancel| async move {
-                        Self::drive_child_cleanup(weak, notify, cancel).await;
-                    })
-            {
-                lock(&inner.children).driver_running = false;
-                return Err(error);
-            }
+            children.driver_starting = true;
+            children.driver_life = Arc::downgrade(&life);
         }
-        inner.child_requested.notify_one();
+        let _submission = DriverSubmission(Arc::clone(&life));
+        let guard = DriverGuard(Arc::clone(&life));
+        let weak = Arc::downgrade(&inner);
+        let notify = Arc::clone(&inner.child_requested);
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let submission = inner
+            .tasks
+            .handle()
+            .submit_cleanup_driver(move |cancel| async move {
+                let _guard = guard;
+                if receiver.await.is_ok() {
+                    Self::drive_child_cleanup(weak, notify, cancel).await;
+                }
+            });
         drop(callbacks);
+        let outcome = submission.finish();
+        if outcome.cleanup_interrupted {
+            inner.child_failures.fetch_add(1, Ordering::AcqRel);
+        }
+        outcome.into_result()?;
+        // 单位启动信号与Running同一短提交；这里没有用户F/析构，也不跨await。
+        let callbacks = lock(&inner.callbacks);
+        let parent_closed = callbacks.is_none() || inner.sealed.load(Ordering::Acquire);
+        let mut children = lock(&inner.children);
+        children.driver_starting = false;
+        if parent_closed {
+            return Ok(());
+        }
+        let unavailable = || {
+            Error::custom(
+                "resource_cleanup_driver_unavailable",
+                "子清理驱动未收到启动交接，当前请求未取得运行责任",
+            )
+        };
+        if life.ended.load(Ordering::Acquire) {
+            return Err(unavailable());
+        }
+        if inner.tasks.is_cancelled() {
+            return Err(Error::custom(
+                "resource_cleanup_cancelled",
+                "父任务已取消，未交付清理驱动；需原owner关闭接管",
+            ));
+        }
+        if sender.send(()).is_err() {
+            return Err(unavailable());
+        }
+        children.driver_running = true;
+        drop(children);
+        drop(callbacks);
+        inner.child_requested.notify_one();
         Ok(())
     }
 
@@ -357,7 +1285,6 @@ impl ResourceRegistrar {
             let next = {
                 let mut children = lock(&owner.children);
                 if cancellation.is_cancelled() {
-                    children.driver_running = false;
                     None
                 } else if let Some((id, child)) = children
                     .entries
@@ -365,7 +1292,9 @@ impl ResourceRegistrar {
                     .find(|(_, child)| child.requested.is_some() && !child.started)
                 {
                     child.started = true;
-                    Some((*id, Arc::clone(&child.owner), child.requested))
+                    let next = (*id, Arc::clone(&child.owner), child.requested);
+                    children.driver_child = Some(next.0);
+                    Some(next)
                 } else {
                     None
                 }
@@ -429,10 +1358,25 @@ impl ResourceRegistrar {
     /// 子生命周期完成后移出活跃表，失败由父关闭结果聚合。
     pub(crate) fn finish_child(&self, id: u64, failed: bool) {
         if let Some(inner) = self.inner.upgrade() {
-            let mut children = lock(&inner.children);
-            if children.entries.remove(&id).is_some() && failed {
-                inner.child_failures.fetch_add(1, Ordering::AcqRel);
-            }
+            let removed = {
+                let mut children = lock(&inner.children);
+                if children.driver_child == Some(id) {
+                    children.driver_child = None;
+                }
+                let removed = children.entries.remove(&id);
+                if removed.is_some() && failed {
+                    inner.child_failures.fetch_add(1, Ordering::AcqRel);
+                }
+                removed
+            };
+            let child = removed.as_ref().map(|entry| Arc::clone(&entry.owner.inner));
+            let interrupted = super::lifecycle::drop_isolated(removed);
+            let discarded = child
+                .as_ref()
+                .map_or(0, |child| child.child_failures.load(Ordering::Acquire));
+            inner
+                .child_failures
+                .fetch_add(discarded + usize::from(interrupted), Ordering::AcqRel);
         }
     }
 
@@ -442,7 +1386,7 @@ impl ResourceRegistrar {
         if lock(&inner.callbacks).is_none() || inner.sealed.load(Ordering::Acquire) {
             return Err(resources_closed());
         }
-        Ok(inner.tasks.handle())
+        Ok(inner.tasks.handle().with_resources(self.clone()))
     }
 
     /// 登记一个异步关闭回调；调用顺序与登记顺序相反。
@@ -461,19 +1405,53 @@ impl ResourceRegistrar {
     }
 
     /// 创建复用框架取消协议的受管异步任务；关闭后不能再登记。
+    ///
+    /// 登记拒绝与捕获/旧任务回收异常分别保留；清理未知不会作为成功返回。
+    /// 已准入任务的执行/析构异常累计到同一owner，由shutdown报告失败。
     pub fn spawn<F, Fut>(&self, task: F) -> Result<()>
     where
         F: FnOnce(Cancellation) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
-        tokio::runtime::Handle::try_current()
-            .map_err(|_| Error::custom("resource_runtime_missing", "受管任务需要 Tokio 运行时"))?;
-        let callbacks = lock(&inner.callbacks);
-        if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
-            return Err(resources_closed());
+        let mut cleanup = self.begin_cleanup();
+        let credential = cleanup.as_ref().map(|cleanup| {
+            super::lifecycle::disposal::Credential::Cleanup(cleanup.disposal_ticket())
+        });
+        let inner = self.inner.upgrade();
+        let failures = inner.as_ref().map_or_else(
+            || Arc::new(AtomicUsize::new(0)),
+            |inner| inner.tasks.failure_counter(),
+        );
+        let (sender, receiver) = tokio::sync::oneshot::channel::<F>();
+        let submission = (|| {
+            let inner = inner.as_ref().ok_or_else(resources_closed)?;
+            tokio::runtime::Handle::try_current().map_err(|_| {
+                Error::custom("resource_runtime_missing", "受管任务需要 Tokio 运行时")
+            })?;
+            let callbacks = lock(&inner.callbacks);
+            if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
+                return Err(resources_closed());
+            }
+            Ok(inner.tasks.handle().submit(move |cancel| async move {
+                if let Ok(task) = receiver.await {
+                    super::lifecycle::controlled_task(task, cancel, failures).await;
+                }
+            }))
+        })();
+        let (outcome, _) = super::lifecycle::disposal::scope(credential, || {
+            match submission {
+                Ok(submission) => submission.finish(),
+                Err(error) => super::lifecycle::TaskSubmissionOutcome {
+                    registration: Err(error),
+                    cleanup_interrupted: false,
+                },
+            }
+            .handoff(sender, task)
+        });
+        if let Some(cleanup) = &mut cleanup {
+            cleanup.finish(0);
         }
-        inner.tasks.handle().spawn(task)
+        outcome.into_result()
     }
 }
 
@@ -956,3 +1934,24 @@ mod tests {
         assert!(started.elapsed() < Duration::from_millis(200));
     }
 }
+
+#[cfg(test)]
+#[path = "resources/task_completion_tests.rs"]
+mod task_completion_tests;
+
+#[cfg(test)]
+#[path = "resources/task_completion_tests_v5.rs"]
+mod task_completion_tests_v5;
+
+#[cfg(test)]
+#[path = "resources/task_completion_tests_v6.rs"]
+mod task_completion_tests_v6;
+
+#[cfg(test)]
+#[path = "resources/task_completion_tests_v7.rs"]
+mod task_completion_tests_v7;
+
+#[path = "resources/inline_owner.rs"]
+mod inline_owner;
+
+pub(crate) use inline_owner::{ResourceInlineOwner, ResourceInlineSlot};

@@ -128,6 +128,89 @@ fn initialization_http_response_keeps_status_and_code_without_private_details() 
 }
 
 #[test]
+fn named_service_identity_owns_exact_key_and_bounds_redacted_diagnostics() {
+    let key = format!("mail\ntransport{}", "名".repeat(2048));
+    let identity = ServiceIdentity::from_name(Arc::from(key.as_str()));
+    assert_eq!(identity.name(), key);
+    let retained = identity.clone();
+    drop(identity);
+    drop(key);
+    assert!(retained.name().len() > 4096);
+    let error = Error::ServiceInitialization {
+        service: retained,
+        source: Arc::new(Error::internal(std::io::Error::other(SECRET))),
+    };
+    for rendered in [error.to_string(), format!("{error:?}")] {
+        assert!(rendered.len() < 512);
+        assert!(!rendered.contains('\n'));
+        assert!(rendered.contains("\\n"));
+        assert_redacted(&rendered);
+    }
+}
+
+#[test]
+fn long_named_dependency_chain_keeps_bounded_diagnostic_and_full_structured_identity() -> Result<()>
+{
+    let key: Arc<str> = Arc::from("long.named.service".repeat(2048));
+    let mut error = Error::internal(std::io::Error::other(SECRET));
+    for _ in 0..32 {
+        error = Error::ServiceInitialization {
+            service: ServiceIdentity::from_name(Arc::clone(&key)),
+            source: Arc::new(error),
+        };
+    }
+    if let Error::ServiceInitialization { service, .. } = &error {
+        assert_eq!(service.name(), key.as_ref());
+    } else {
+        return Err(Error::custom(
+            "test_service_identity_required",
+            "测试应保留结构化服务初始化错误",
+        ));
+    }
+    let display = error.to_string();
+    assert!(display.len() < 4096);
+    assert!(display.contains("long.named.service"));
+    assert_redacted(&display);
+    assert_redacted(&format!("{error:?}"));
+    Ok(())
+}
+
+#[test]
+fn diagnostic_budget_counts_ellipsis_and_preserves_complete_escaped_characters() {
+    for (name, expected) in [
+        ("a".repeat(127), "a".repeat(127)),
+        ("a".repeat(128), "a".repeat(128)),
+        ("a".repeat(129), format!("{}…", "a".repeat(125))),
+        (
+            format!("{}名", "a".repeat(125)),
+            format!("{}名", "a".repeat(125)),
+        ),
+        (
+            format!("{}名名", "a".repeat(123)),
+            format!("{}…", "a".repeat(123)),
+        ),
+        (
+            format!("{}\n", "a".repeat(126)),
+            format!("{}\\n", "a".repeat(126)),
+        ),
+        (
+            format!("{}\n", "a".repeat(127)),
+            format!("{}…", "a".repeat(125)),
+        ),
+        (
+            format!("{}\u{1b}x", "a".repeat(122)),
+            format!("{}…", "a".repeat(122)),
+        ),
+    ] {
+        let service = ServiceIdentity::from_name(Arc::from(name.as_str()));
+        assert_eq!(service.name(), name);
+        let text = service.to_string();
+        assert_eq!(text, expected);
+        assert!(text.len() <= 128);
+    }
+}
+
+#[test]
 fn long_service_identity_is_bounded_in_top_level_and_dependency_diagnostics() {
     const PREFIX: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const NAME: &str = concat!(
@@ -149,7 +232,7 @@ fn long_service_identity_is_bounded_in_top_level_and_dependency_diagnostics() {
     assert!(rendered.len() <= 128);
 
     let dependency = Error::ServiceInitialization {
-        service,
+        service: service.clone(),
         source: Arc::new(Error::internal(std::io::Error::other(SECRET))),
     };
     for rendered in [dependency.to_string(), format!("{dependency:?}")] {
@@ -161,7 +244,7 @@ fn long_service_identity_is_bounded_in_top_level_and_dependency_diagnostics() {
     let mut error = dependency;
     for _ in 0..16 {
         error = Error::ServiceInitialization {
-            service,
+            service: service.clone(),
             source: Arc::new(error),
         };
     }
