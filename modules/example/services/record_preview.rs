@@ -14,7 +14,7 @@ use openrust::{
             RelationLoad, SaveContext,
         },
     },
-    support::{BoxFuture, Collection},
+    support::{BoxFuture, Collection, DateStringFormat},
 };
 use serde_json::{Map, Value};
 use std::sync::Arc;
@@ -99,6 +99,10 @@ pub(crate) async fn preview(
         };
     let mut details = attributes.attributes_to_json(&metadata)?;
     details.insert(
+        "published_at_label".into(),
+        published_at_label(&attributes, &metadata)?,
+    );
+    details.insert(
         "metadata_tag_count".into(),
         Value::from(metadata_tag_count(&attributes)?),
     );
@@ -138,6 +142,18 @@ pub(crate) async fn preview(
         persisted: false,
         owner_relations: None,
     })
+}
+
+fn published_at_label(attributes: &ModelAttributes, metadata: &ModelMetadata) -> Result<Value> {
+    let value = attributes.get_attribute_value(metadata, "published_at")?;
+    let Some(date) = value.as_ref().and_then(AttributeValue::as_date) else {
+        return Ok(Value::Null);
+    };
+    Ok(Value::String(
+        date.snapshot()?
+            .with_string_format(Some(DateStringFormat::pattern("Y/m/d H:i")))
+            .to_string_value()?,
+    ))
 }
 
 pub(crate) enum RecordFlag {

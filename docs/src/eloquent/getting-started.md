@@ -134,7 +134,13 @@ SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象�
 按 PHP 字符串规则转换标量、带字符串投影的对象及应用时区中的日期。
 数组、普通对象和原生枚举可通过原值入口读取，要求字符串时返回错误。
 重复读取会先处理此前缓存的写回，因此非法原值可能在第二次读取时报错。
-框架日期使用固定 Laravel 日期对象默认的本地秒精度格式。
+日期使用 `InputDate::to_string_value()`。默认按日期自身时区输出到秒，
+可用 `with_string_format(Some(DateStringFormat::pattern("Y/m/d H:i")))` 选择 PHP 格式，
+或用 `DateStringFormat::using` 注册返回 `Result<String>` 的回调。
+`CalendarContext::set_date_string_format` 设置该应用工厂的格式。
+新日期采用创建时的设置，清除实例设置后读取工厂当前值。
+复制已有日期时保留其所属工厂，目标工厂显式设置可覆写副本的实例格式。
+显式的空格式或 `"0"` 采用内置默认格式。日期字段的 JSON 和 SQL 格式分别保持原规则。
 
 启用 `view` 后，可通过
 `Htmlable::to_view_value()` 将可信标记传给模板的 HTML 文本位置。

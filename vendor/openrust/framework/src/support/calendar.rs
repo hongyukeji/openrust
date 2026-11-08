@@ -4,9 +4,9 @@ mod interval;
 mod unit;
 pub(crate) use date::model_numeric_date;
 pub use date::{
-    CalendarClock, CalendarContext, CalendarInstant, DateConstruction, DateOptions, FixedClock,
-    InputDate, ResolvedTimezone, SystemClock, TimezoneInput, format_php_numeric_timestamp,
-    parse_date, parse_php_numeric_timestamp,
+    CalendarClock, CalendarContext, CalendarInstant, DateConstruction, DateOptions,
+    DateStringFormat, FixedClock, InputDate, ResolvedTimezone, SystemClock, TimezoneInput,
+    format_php_numeric_timestamp, parse_date, parse_php_numeric_timestamp,
 };
 
 pub use interval::{InputInterval, IntervalError};

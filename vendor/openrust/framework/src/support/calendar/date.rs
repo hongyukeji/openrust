@@ -10,6 +10,7 @@ mod parse;
 mod posix;
 mod relative;
 mod state;
+mod string_format;
 mod tail_rules;
 mod zone;
 
@@ -21,6 +22,8 @@ use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
+pub use string_format::DateStringFormat;
+use string_format::{FactoryStringFormat, StringFormatSettings};
 pub use zone::ResolvedTimezone;
 
 // calendar 的独立字符串工作预算；输入 bag 的 expanded-key 限额不覆盖字符串值。
@@ -113,6 +116,7 @@ pub struct CalendarContext {
     timezone: ResolvedTimezone,
     clock: Arc<dyn CalendarClock>,
     date_factory: Option<Arc<DateFactory>>,
+    string_formats: StringFormatSettings,
 }
 
 type DateFactory = dyn for<'a> Fn(DateConstruction<'a>, &CalendarContext) -> Result<Option<InputDate>>
@@ -156,7 +160,7 @@ impl DateConstruction<'_> {
             Self::FromTimestamp { instant, .. } => {
                 Ok(Some(InputDate::new(instant, context.timezone().clone())))
             }
-            Self::FromFormat { value, format } => parse_date(
+            Self::FromFormat { value, format } => parse_date_value(
                 value,
                 DateOptions {
                     format: Some(format),
@@ -168,7 +172,7 @@ impl DateConstruction<'_> {
                 context.now()?,
                 context.timezone().clone(),
             ))),
-            Self::Parse(value) => parse_date(value, DateOptions::default(), context),
+            Self::Parse(value) => parse_date_value(value, DateOptions::default(), context),
         }
     }
 }
@@ -192,6 +196,7 @@ impl CalendarContext {
             timezone,
             clock,
             date_factory: None,
+            string_formats: StringFormatSettings::default(),
         }
     }
     /// 为当前应用上下文替换日期构造。可调用 [`DateConstruction::default_date`] 后调整结果。
@@ -208,10 +213,21 @@ impl CalendarContext {
     }
     /// 经应用工厂执行日期构造，未配置时使用默认规则。
     pub fn make_date(&self, operation: DateConstruction<'_>) -> Result<Option<InputDate>> {
-        match &self.date_factory {
+        let format = self.string_formats.snapshot()?;
+        let date = match &self.date_factory {
             Some(factory) => factory(operation, self),
             None => operation.default_date(self),
-        }
+        }?;
+        // Carbon 的 instance() 复制原对象的工厂归属，再应用目标工厂的局部设置。
+        let settings =
+            (!matches!(operation, DateConstruction::Instance(_))).then_some(&self.string_formats);
+        Ok(date.map(|date| date.with_factory_format(settings, format)))
+    }
+    /// 设置本应用日期工厂的字符串格式。传入 None 恢复内置默认格式。
+    ///
+    /// 新日期保留创建时的工厂设置；已清除实例设置的日期读取本工厂当前值。
+    pub fn set_date_string_format(&self, format: Option<DateStringFormat>) -> Result<()> {
+        self.string_formats.set(format)
     }
     /// 返回默认时区。
     pub const fn timezone(&self) -> &ResolvedTimezone {
@@ -255,6 +271,8 @@ pub struct DateOptions<'a> {
 pub struct InputDate {
     instant: CalendarInstant,
     timezone: ResolvedTimezone,
+    string_format: Option<DateStringFormat>,
+    string_formats: Option<StringFormatSettings>,
 }
 impl PartialEq for InputDate {
     fn eq(&self, other: &Self) -> bool {
@@ -265,7 +283,12 @@ impl Eq for InputDate {}
 impl InputDate {
     /// 将已解析的时刻关联到时区，不改变时刻。
     pub fn new(instant: CalendarInstant, timezone: ResolvedTimezone) -> Self {
-        Self { instant, timezone }
+        Self {
+            instant,
+            timezone,
+            string_format: None,
+            string_formats: None,
+        }
     }
     /// 返回 Unix 时刻。
     pub const fn instant(&self) -> CalendarInstant {
@@ -305,13 +328,47 @@ impl InputDate {
     pub fn format(&self, pattern: &str) -> Result<String> {
         format::display(self, pattern)
     }
+    /// 覆写实例的字符串转换。传入 None 后重新采用所属工厂的设置。
+    #[must_use]
+    pub fn with_string_format(mut self, format: Option<DateStringFormat>) -> Self {
+        self.string_format = format;
+        self
+    }
+
+    /// 按 Carbon 的字符串转换规则求值，保留日期的原时区。
+    ///
+    /// 字符串格式及回调只影响此转换，日期 JSON 与 SQL 继续使用各自的格式。
+    pub fn to_string_value(&self) -> Result<String> {
+        if let Some(format) = &self.string_format {
+            return format.render(self);
+        }
+        if let Some(settings) = &self.string_formats
+            && let FactoryStringFormat::Configured(Some(format)) = settings.snapshot()?
+        {
+            return format.render(self);
+        }
+        self.format(string_format::DEFAULT_STRING_FORMAT)
+    }
+
+    fn with_factory_format(
+        mut self,
+        settings: Option<&StringFormatSettings>,
+        format: FactoryStringFormat,
+    ) -> Self {
+        if let Some(settings) = settings {
+            self.string_formats = Some(settings.clone());
+        }
+        if let FactoryStringFormat::Configured(format) = format {
+            self.string_format = format;
+        }
+        self
+    }
     /// 解析该日期在自身时区中的本地午夜。
     pub fn start_of_day(&self) -> Result<Self> {
         let midnight = self.timezone.civil(self.instant)?.midnight();
-        Ok(Self::new(
-            self.timezone.resolve(midnight)?,
-            self.timezone.clone(),
-        ))
+        let mut date = self.clone();
+        date.instant = self.timezone.resolve(midnight)?;
+        Ok(date)
     }
 
     /// 输出包含时区偏移的 ISO 8601 字符串。
@@ -381,6 +438,16 @@ pub fn parse_php_numeric_timestamp(value: &Value) -> Result<CalendarInstant> {
 
 /// 从已规范化的输入值解析日期；空值返回 None，失败不回显输入内容。
 pub fn parse_date(
+    value: &Value,
+    options: DateOptions<'_>,
+    context: &CalendarContext,
+) -> Result<Option<InputDate>> {
+    let format = context.string_formats.snapshot()?;
+    let date = parse_date_value(value, options, context)?;
+    Ok(date.map(|date| date.with_factory_format(Some(&context.string_formats), format)))
+}
+
+fn parse_date_value(
     value: &Value,
     options: DateOptions<'_>,
     context: &CalendarContext,

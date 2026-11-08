@@ -96,7 +96,7 @@ fn render_html_text(value: &AttributeValue, depth: usize) -> Result<Cow<'_, str>
         AttributeValue::Json(value) => scalar_string(value)
             .map(Cow::Owned)
             .map_err(|_| invalid_html_source()),
-        AttributeValue::Date(date) => date.snapshot()?.format("Y-m-d H:i:s").map(Cow::Owned),
+        AttributeValue::Date(date) => date.snapshot()?.to_string_value().map(Cow::Owned),
         AttributeValue::Enum(_) => Err(invalid_html_source()),
         AttributeValue::Object(object) => {
             // 版本化对象可以在水合后形成自引用。限制内置 HTML 包装的递归转换。
@@ -127,7 +127,7 @@ mod tests {
     use super::*;
     use crate::{
         database::eloquent::{EnumCast, ModelAttributes, ModelDate, ModelMetadata},
-        support::{CalendarInstant, InputDate, ResolvedTimezone, Stringable},
+        support::{CalendarInstant, DateStringFormat, InputDate, ResolvedTimezone, Stringable},
     };
     use serde_json::{Map, json};
 
@@ -293,12 +293,16 @@ mod tests {
                 .is_some_and(|value| value.same_object(&date))
         );
         assert_eq!(html.to_html_text()?, "2026-11-08 13:00:00");
+        date.modify(|value| {
+            Ok(value.with_string_format(Some(DateStringFormat::pattern("Y/m/d H:i"))))
+        })?;
+        assert_eq!(html.to_html_text()?, "2026/11/08 13:00");
         attrs
             .set_attribute_value(&metadata, "body", date.into())
             .await?;
         assert_eq!(
             attrs.raw_attribute("body")?,
-            Some(json!("2026-11-08 13:00:00"))
+            Some(json!("2026/11/08 13:00"))
         );
         Ok(())
     }

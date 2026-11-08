@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 日期对象支持 Carbon 字符串格式、实例覆写和应用工厂设置，AsHtmlString 复用同一转换。
+
 - Eloquent AsHtmlString 读取保留非文本原值，写回、序列化和渲染时再转换。
 
 - Eloquent 支持 AsHtmlString 对象读取和字符串序列化，可信 HTML 可显式传入视图。

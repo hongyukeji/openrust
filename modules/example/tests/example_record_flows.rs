@@ -675,6 +675,10 @@ async fn attribute_preview_contract(
     assert!(changed["original_transformed"].get("owner_id").is_none());
     assert_eq!(changed["proposed"]["name"], "仅预览");
     assert_eq!(changed["display"]["details"]["is_published"], false);
+    assert_eq!(
+        changed["display"]["details"]["published_at_label"],
+        serde_json::Value::Null
+    );
     assert_preview_display(changed);
     assert_eq!(changed["dirty"]["priority"], 8);
     assert!(changed["dirty"].get("metadata").is_some());
@@ -714,6 +718,10 @@ fn assert_clean_preview_display(clean: &serde_json::Value) {
     let published = "2026-10-29T12:00:00.000000+00:00";
     assert_eq!(clean["original_transformed"]["published_at"], published);
     assert_eq!(clean["display"]["details"]["published_at"], published);
+    assert_eq!(
+        clean["display"]["details"]["published_at_label"],
+        "2026/10/29 12:00"
+    );
     assert_eq!(clean["display"]["details"]["is_published"], true);
     assert_eq!(clean["display"]["details"]["priority_decimal"], "7.00");
     assert_eq!(
@@ -1340,6 +1348,54 @@ async fn assert_html_string_save(
     );
     assert_eq!(saved.description, html);
     assert_html_cast_preserves_mysql_raw_types(&saved)?;
+    assert_html_cast_saves_configured_date(&saved, db, transaction, context).await
+}
+
+async fn assert_html_cast_saves_configured_date(
+    record: &crate::modules::example::models::example_record::Model,
+    db: &openrust::Db,
+    transaction: &openrust::database::sea_orm::DatabaseTransaction,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::{
+        database::{
+            eloquent::{AsHtmlString, AttributeValue, save_with_query},
+            sea_orm::EntityTrait,
+        },
+        support::DateStringFormat,
+    };
+    let mut model = example_record::RecordForSave::from_existing(record)?;
+    model
+        .metadata
+        .casts
+        .insert("description".into(), AsHtmlString::cast());
+    let date = model
+        .attributes
+        .get_attribute_value(&model.metadata, "published_at")?;
+    let date = date
+        .as_ref()
+        .and_then(AttributeValue::as_date)
+        .ok_or("缺少 MySQL 读回日期")?;
+    let pattern = "Y/m/d H:i:s.u";
+    let expected = date.snapshot()?.format(pattern)?;
+    let date = date
+        .copy()?
+        .modify(|value| Ok(value.with_string_format(Some(DateStringFormat::pattern(pattern)))))?;
+    model
+        .attributes
+        .set_attribute_value(&model.metadata, "description", date.into())
+        .await?;
+    let query = db
+        .table(&model.metadata.table)?
+        .using_transaction(transaction);
+    assert!(save_with_query(&mut model, context, query).await?);
+    let saved = example_record::Entity::find_by_id(record.id)
+        .one(transaction)
+        .await?
+        .ok_or("缺少保存日期字符串的记录")?;
+    assert_eq!(saved.description, expected);
+    assert_eq!(saved.published_at, record.published_at);
     Ok(())
 }
 

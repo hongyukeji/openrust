@@ -79,6 +79,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_as_fluent().await?;
         check_generated_as_stringable().await?;
         check_generated_as_html_string().await?;
+        check_generated_date_string_format().await?;
         check_generated_json_codec().await?;
         check_generated_json_flags()?;
         check(query.count().await? == 3)?;
@@ -438,6 +439,27 @@ async fn check_generated_as_html_string() -> Result<()> {
         }
     }
     Ok(())
+}
+
+async fn check_generated_date_string_format() -> Result<()> {
+    use openrust::{
+        database::eloquent::{AsHtmlString, ModelAttributes, ModelDate, ModelMetadata},
+        support::{CalendarContext, DateConstruction, DateStringFormat},
+    };
+    use serde_json::json;
+
+    let context = CalendarContext::default();
+    context.set_date_string_format(Some(DateStringFormat::pattern("Y/m/d H:i")))?;
+    let date = context.make_date(DateConstruction::Parse(&json!("2026-11-08T13:00:00+08:00")))?
+        .ok_or_else(|| Error::custom("generated_date_string_missing", "缺少生成应用日期"))?;
+    context.set_date_string_format(Some(DateStringFormat::pattern("d-m-Y H:i")))?;
+    check(date.to_string_value()? == "2026/11/08 13:00")?;
+    let date = date.with_string_format(None);
+    let attrs = ModelAttributes::default();
+    let mut metadata = ModelMetadata::new("insert_items", "DateLabel");
+    metadata.casts.insert("label".into(), AsHtmlString::cast());
+    attrs.set_raw_attribute_value("label", ModelDate::new(date, true).into())?;
+    check(attrs.attributes_to_json(&metadata)?["label"] == json!("08-11-2026 13:00"))
 }
 
 async fn check_generated_as_stringable() -> Result<()> {
