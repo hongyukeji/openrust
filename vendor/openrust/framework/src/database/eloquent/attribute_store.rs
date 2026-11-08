@@ -539,8 +539,8 @@ impl ModelAttributes {
         metadata.cast_attribute_value(name, snapshot.get(name).cloned(), &self.dates)
     }
 
-    /// 将可见原始属性依次经过日期名单、访问器及声明的 cast 投影。
-    /// 此入口处理属性本身，关联和追加字段由各自的序列化入口处理。
+    /// 将可见属性依次经过日期名单、访问器、cast 和追加字段投影。
+    /// 此入口处理属性本身，关联由关系序列化入口处理。
     pub fn attributes_to_array(&self, metadata: &ModelMetadata) -> Result<AttributeMap> {
         self.flush_marked(None)?;
         let (mut values, getters, marked) = {
@@ -573,25 +573,7 @@ impl ModelAttributes {
         }
         for (name, descriptor) in &marked {
             if let Some(value) = values.get_mut(name).filter(|_| descriptor.has_getter()) {
-                let (raw, cached, revision) = {
-                    let state = self.state.read().map_err(|_| state_error())?;
-                    (
-                        state.raw.clone(),
-                        state.marked_cache.get(name).cloned(),
-                        state.revision,
-                    )
-                };
-                let output = self.get_marked(
-                    name,
-                    descriptor,
-                    (Some(value), &raw),
-                    cached,
-                    revision,
-                    false,
-                )?;
-                *value = metadata
-                    .project_date_value(name, output, &self.dates, true)?
-                    .into();
+                *value = self.project_marked_for_array(metadata, name, descriptor, Some(value))?;
             }
         }
         for (name, value) in &mut values {
@@ -608,7 +590,68 @@ impl ModelAttributes {
                 .project_date_value(name, output, &self.dates, false)?
                 .into();
         }
+        let mut seen = std::collections::HashSet::new();
+        for name in metadata.get_appends() {
+            if !metadata.attribute_is_arrayable(name) || !seen.insert(name.as_str()) {
+                continue;
+            }
+            let raw_value = self.raw_attribute_value(name)?;
+            metadata.check_raw_class_cast(name)?;
+            let value =
+                if let Some(descriptor) = marked.get(name).filter(|value| value.has_getter()) {
+                    let cached = self
+                        .state
+                        .read()
+                        .map_err(|_| state_error())?
+                        .marked_cache
+                        .contains_key(name);
+                    if !cached {
+                        self.flush_marked(None)?;
+                    }
+                    self.project_marked_for_array(metadata, name, descriptor, raw_value.as_ref())?
+                } else if let Some(getter) = getters.get(name) {
+                    self.flush_marked(None)?;
+                    let raw = self.state.read().map_err(|_| state_error())?.raw.clone();
+                    getter
+                        .get(raw_value.as_ref(), &raw)?
+                        .unwrap_or_else(|| Value::Null.into())
+                } else {
+                    return Err(Error::custom(
+                        "model_appended_accessor_missing",
+                        format!("追加字段 {name} 未登记读取访问器"),
+                    ));
+                };
+            values.insert(name.clone(), value);
+        }
         Ok(values)
+    }
+
+    fn project_marked_for_array(
+        &self,
+        metadata: &ModelMetadata,
+        name: &str,
+        descriptor: &ModelAttribute,
+        array_value: Option<&AttributeValue>,
+    ) -> Result<AttributeValue> {
+        let (raw, cached, revision) = {
+            let state = self.state.read().map_err(|_| state_error())?;
+            (
+                state.raw.clone(),
+                state.marked_cache.get(name).cloned(),
+                state.revision,
+            )
+        };
+        let value = self.get_marked(
+            name,
+            descriptor,
+            (array_value, &raw),
+            cached,
+            revision,
+            false,
+        )?;
+        metadata
+            .project_date_value(name, value, &self.dates, true)
+            .map(AttributeValue::from)
     }
 
     /// 将数组化后的属性投影为 JSON。未被模型规则转换的日期对象采用自身的默认输出。

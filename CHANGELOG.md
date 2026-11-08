@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 属性数组和 JSON 支持追加计算访问器，遵守模型可见性并保留原始属性。示例记录预览展示 `is_published`。
+
 - Eloquent 日期 cast 支持应用日期工厂、模型序列化覆写和对象缓存回写。自定义 `AttributeGetter`、`AttributeSetter` 及调用级默认访问器使用 `AttributeValue` 和 `AttributeMap`；JSON 业务在实际消费的字段上显式转换。
 
 - 应用控制台新增 `key:generate`，按生效的 `app.cipher` 生成并设置应用密钥，支持只显示密钥及生产环境确认。

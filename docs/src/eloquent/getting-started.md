@@ -69,6 +69,8 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 `AttributeGetter` 和 `AttributeSetter` 接收 `AttributeValue` 与 `AttributeMap`，可以从同一快照读取 JSON 值和日期对象。只处理 JSON 的访问器可对实际使用的字段调用 `as_json`。旧式 getter 返回的日期在属性数组中保留对象身份，进入 JSON 时采用日期对象的默认输出；标记访问器返回的日期仍使用模型序列化覆写。
 
+用 `ModelMetadata::append`、`merge_appends` 或 `set_appends` 声明数组输出需要的计算字段，并登记对应的读取访问器。追加字段在日期、访问器和 cast 处理后求值，使用原始属性，遵守 `visible` 与 `hidden`。未登记访问器的可见追加字段返回 `model_appended_accessor_missing`。示例记录预览用这一机制输出 `is_published`，原始属性和数据库列保持独立。
+
 ### 有类型的访问器
 
 用 `ModelAttributes::register_attribute` 登记 `ModelAttribute`。它的同步 getter 接收原始属性值和快照，setter 返回有序的多字段补丁。日期对象默认按字段缓存。再次读取该字段时会调用配置的 setter，同步对象的当前值。读取全部原值、同步原始基线或计算 dirty 时会同步全部适用的缓存。

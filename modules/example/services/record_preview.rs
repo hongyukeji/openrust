@@ -8,8 +8,9 @@ use openrust::{
         SortDirection,
         eloquent::{
             AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, HasMany,
-            HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttributes,
-            ModelDateContext, ModelMetadata, Pivot, PivotKeys, RelationLoad, SaveContext,
+            HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttribute,
+            ModelAttributes, ModelDateContext, ModelMetadata, Pivot, PivotKeys, RelationLoad,
+            SaveContext,
         },
     },
     support::BoxFuture,
@@ -61,7 +62,18 @@ pub(crate) async fn preview(
     dates: ModelDateContext,
 ) -> Result<RecordPreview> {
     let attributes = model.attribute_snapshot()?.with_date_context(dates);
-    let metadata = example_record::Model::attribute_metadata();
+    let mut metadata = example_record::Model::attribute_metadata();
+    metadata.append("is_published");
+    attributes.register_attribute(
+        "is_published",
+        ModelAttribute::new().get(|_, raw| {
+            Ok(Value::Bool(
+                raw.get("published_at")
+                    .is_some_and(|value| !value.is_null()),
+            )
+            .into())
+        }),
+    )?;
     fill_record_input(&attributes, &metadata, input, assignment).await?;
     // 发布的是此次预览的属性变化；没有SQL成功或sync_original的含义。
     attributes.sync_changes(&metadata)?;

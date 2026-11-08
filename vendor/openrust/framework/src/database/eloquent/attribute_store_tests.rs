@@ -4,6 +4,77 @@ use super::*;
 use serde_json::json;
 use std::sync::Weak;
 
+#[test]
+fn appended_accessors_follow_visibility_order_and_raw_input() -> Result<()> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let store = ModelAttributes::new(raw(&[("stored", json!(10))]));
+    let mut metadata = metadata(&[("stored", AttributeCast::String)]);
+    metadata
+        .set_appends(vec!["computed".into(), "computed".into(), "hidden".into()])
+        .merge_appends(vec!["stored".into()]);
+    metadata.hidden.push("hidden".into());
+    assert!(metadata.has_appended("computed"));
+    let calls = Arc::new(AtomicUsize::new(0));
+    store.register_attribute(
+        "computed",
+        ModelAttribute::new().get({
+            let calls = calls.clone();
+            move |value, snapshot| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                assert!(value.is_none());
+                Ok(snapshot["stored"].clone())
+            }
+        }),
+    )?;
+    store.register_attribute(
+        "stored",
+        ModelAttribute::new().get(|value, _| {
+            assert_eq!(value.ok_or_else(failure)?.as_json()?, &json!(10));
+            Ok(json!("accessor").into())
+        }),
+    )?;
+    let values = store.attributes_to_array(&metadata)?;
+    assert_eq!(
+        values.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["stored", "computed"]
+    );
+    assert_eq!(values["computed"].as_json()?, &json!(10));
+    assert_eq!(values["stored"].as_json()?, &json!("accessor"));
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert!(store.raw_attribute("computed")?.is_none());
+    metadata.visible = vec!["stored".into()];
+    assert!(
+        !store
+            .attributes_to_array(&metadata)?
+            .contains_key("computed")
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    metadata.visible.clear();
+    metadata.append("missing");
+    assert_eq!(
+        store
+            .attributes_to_array(&metadata)
+            .err()
+            .map(|error| error.code().to_owned())
+            .as_deref(),
+        Some("model_appended_accessor_missing"),
+    );
+    metadata.without_appends();
+    assert_eq!(metadata.get_appends(), Vec::<String>::new());
+    assert_eq!(store.attributes_to_array(&metadata)?.len(), 1);
+    metadata.key_name = "computed".into();
+    metadata.key_type = " INT ".into();
+    metadata.append("computed");
+    let calls_before = calls.load(Ordering::Relaxed);
+    assert!(matches!(
+        store.attributes_to_array(&metadata),
+        Err(error) if error.code() == "model_attribute_cast_unsupported"
+    ));
+    assert_eq!(calls.load(Ordering::Relaxed), calls_before);
+    Ok(())
+}
+
 struct DateSnapshotAccessor;
 
 impl AttributeGetter for DateSnapshotAccessor {

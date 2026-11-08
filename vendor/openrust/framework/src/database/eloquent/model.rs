@@ -49,6 +49,7 @@ pub struct ModelMetadata {
     pub unique_id_columns: Vec<String>,
     fillable: Vec<String>,
     guarded: Vec<String>,
+    appends: Vec<String>,
 }
 impl ModelMetadata {
     /// 创建显式表名和类标识的模型定义；其余采用官方基础默认。
@@ -72,7 +73,45 @@ impl ModelMetadata {
             unique_id_columns: Vec::new(),
             fillable: Vec::new(),
             guarded: vec!["*".into()],
+            appends: Vec::new(),
         }
+    }
+
+    /// 返回模型数组中需要追加的访问器名称。
+    pub fn get_appends(&self) -> &[String] {
+        &self.appends
+    }
+
+    /// 替换追加字段声明，保留传入的顺序。
+    pub fn set_appends(&mut self, appends: Vec<String>) -> &mut Self {
+        self.appends = appends;
+        self
+    }
+
+    /// 按首次出现顺序合并追加字段。
+    pub fn merge_appends(&mut self, appends: Vec<String>) -> &mut Self {
+        if !appends.is_empty() {
+            merge_assignment_fields(&mut self.appends, appends);
+        }
+        self
+    }
+
+    /// 追加一个访问器名称。
+    pub fn append(&mut self, name: impl Into<String>) -> &mut Self {
+        self.merge_appends(vec![name.into()])
+    }
+
+    /// 判断模型是否声明了此追加字段。
+    pub fn has_appended(&self, name: &str) -> bool {
+        self.appends
+            .iter()
+            .any(|key| crate::support::php_loose_string_equal(key, name))
+    }
+
+    /// 清除所有追加字段。
+    pub fn without_appends(&mut self) -> &mut Self {
+        self.appends.clear();
+        self
     }
     /// 返回模型声明的批量赋值白名单。
     pub fn get_fillable(&self) -> &[String] {

@@ -639,6 +639,8 @@ async fn attribute_preview_contract(
         clean["data"]["display"]["details"]["published_at"],
         published
     );
+    assert_eq!(clean["data"]["display"]["details"]["is_published"], true);
+    assert!(clean["data"]["proposed"].get("is_published").is_none());
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
     assert_model_guardable_columns(&databases).await?;
     assert_model_save_query_key(&db, id).await?;
@@ -681,6 +683,7 @@ async fn attribute_preview_contract(
     );
     assert!(changed["original_transformed"].get("owner_id").is_none());
     assert_eq!(changed["proposed"]["name"], "仅预览");
+    assert_eq!(changed["display"]["details"]["is_published"], false);
     assert_preview_display(changed);
     assert_eq!(changed["dirty"]["priority"], 8);
     assert!(changed["dirty"].get("metadata").is_some());
