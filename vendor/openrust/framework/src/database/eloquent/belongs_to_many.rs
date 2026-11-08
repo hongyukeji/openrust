@@ -1,7 +1,7 @@
 //! 通过中间表批量加载关联模型和各自的 Pivot 数据。
 
 use super::{
-    HasRelationships, HydrateModel, LoadedRelation, ModelAttributes, ModelMetadata, RelationLoad,
+    HasRelationships, HydrateModel, ModelAttributes, ModelMetadata, ModelRelations, RelationLoad,
     SaveContext, SaveModel, has_many::relation_key, refresh::hydrate_retrieved,
     relations::load_requested,
 };
@@ -74,9 +74,14 @@ pub trait CustomPivot: SaveModel + Sized {
 
     /// 将自定义模型标为已删除，在 deleted 事件派发前调用。
     fn mark_pivot_deleted(&mut self);
+
+    /// 返回自定义中间表模型的已加载关联；默认只有模型属性。
+    fn pivot_relations(&self) -> Option<&ModelRelations> {
+        None
+    }
 }
 
-type PivotHydrator = fn(ModelAttributes, PivotSource<'_>) -> Result<LoadedRelation>;
+type PivotHydrator = fn(&mut ModelRelations, &str, ModelAttributes, PivotSource<'_>) -> Result<()>;
 
 #[derive(Clone, Copy)]
 struct CustomPivotOperations {
@@ -87,12 +92,13 @@ struct CustomPivotOperations {
 }
 
 fn hydrate_custom_pivot<P: CustomPivot>(
+    relations: &mut ModelRelations,
+    name: &str,
     attributes: ModelAttributes,
     source: PivotSource<'_>,
-) -> Result<LoadedRelation> {
-    Ok(LoadedRelation::Pivot(Box::new(P::from_raw_pivot(
-        attributes, source, true,
-    )?)))
+) -> Result<()> {
+    relations.set_custom_pivot(name, P::from_raw_pivot(attributes, source, true)?);
+    Ok(())
 }
 
 struct PivotEquality<'a> {
@@ -359,9 +365,7 @@ impl<'a, R: HydrateModel> BelongsToMany<'a, R> {
                 .and_then(|key| grouped.get(key))
                 .cloned()
                 .unwrap_or_default();
-            parent
-                .relations_mut()
-                .set_relation(relation.name, LoadedRelation::Related(Box::new(models)));
+            parent.relations_mut().set_collection(relation.name, models);
         }
         Ok(())
     }
@@ -431,22 +435,24 @@ impl<'a, R: HydrateModel> BelongsToMany<'a, R> {
         let key = relation_key(pivot.get(self.keys.parent_foreign_key))?
             .ok_or_else(|| Error::custom("model_pivot_key_missing", "查询缺少中间表父键"))?;
         model.attributes().set_raw_attributes(raw)?;
-        let pivot = if let Some(custom) = self.custom_pivot {
+        let relations = model.relations_mut();
+        if let Some(custom) = self.custom_pivot {
             let parent = parents.get(&key).ok_or_else(|| {
                 Error::custom("model_pivot_parent_missing", "找不到中间表记录对应的父模型")
             })?;
             (custom.hydrate)(
+                relations,
+                self.accessor,
                 ModelAttributes::new(pivot),
                 PivotSource {
                     keys: &self.keys,
                     parent,
                     timestamps: self.timestamps,
                 },
-            )?
+            )?;
         } else {
-            LoadedRelation::Pivot(Box::new(Pivot(pivot)))
-        };
-        model.relations_mut().set_relation(self.accessor, pivot);
+            relations.set_pivot(self.accessor, Pivot(pivot));
+        }
         Ok(key)
     }
 }

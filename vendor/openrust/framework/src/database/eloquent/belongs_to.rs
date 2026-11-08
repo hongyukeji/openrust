@@ -33,9 +33,7 @@ impl<'a, R: HydrateModel> BelongsTo<'a, R> {
             .get_attribute(owner.metadata(), owner_key)?
             .unwrap_or(Value::Null);
         self.set_foreign_key(model, key).await?;
-        model
-            .relations_mut()
-            .set_relation(name, LoadedRelation::Related(Box::new(owner)));
+        model.relations_mut().set_model(name, Some(owner));
         Ok(model)
     }
 

@@ -658,15 +658,7 @@ impl ModelAttributes {
     pub fn attributes_to_json(&self, metadata: &ModelMetadata) -> Result<Map<String, Value>> {
         self.attributes_to_array(metadata)?
             .into_iter()
-            .map(|(name, value)| {
-                let value = match value {
-                    AttributeValue::Json(value) => value,
-                    AttributeValue::Date(date) => {
-                        serde_json::to_value(date.snapshot()?).map_err(Error::internal)?
-                    }
-                };
-                Ok((name, value))
-            })
+            .map(|(name, value)| Ok((name, value.into_array_json()?)))
             .collect()
     }
 

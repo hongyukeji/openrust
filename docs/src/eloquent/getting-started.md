@@ -71,6 +71,14 @@ Array cast 遵循默认 JSON 数值和编码规则：PHP64 大整数按 double �
 
 用 `ModelMetadata::append`、`merge_appends` 或 `set_appends` 声明数组输出需要的计算字段，并登记对应的读取访问器。追加字段在日期、访问器和 cast 处理后求值，使用原始属性，遵守 `visible` 与 `hidden`。未登记访问器的可见追加字段返回 `model_appended_accessor_missing`。示例记录预览用这一机制输出 `is_published`，原始属性和数据库列保持独立。
 
+### 序列化模型与已加载关联
+
+实现 `HasRelationships` 的模型通过 `relations_to_array` 单独投影已加载关系，通过 `to_array` 返回有序模型数组，通过 `json_serialize` 返回 JSON 值，或通过 `to_json` 返回 JSON 文本。先转换属性与计算追加字段，再合并已加载的关系。关系可以覆盖同名属性。单值关系加载后无匹配时为 `null`，空集合为 `[]`。序列化不查询未加载关系。
+
+`visible` 与 `hidden` 使用加载时的关系名称。默认输出蛇形键名，可将 `ModelMetadata::relation_naming` 设为 `RelationNaming::Original`。子模型各自应用属性、可见性和追加字段规则。多对多模型包含已加载的中间表模型。同一实例在当前递归路径内重复出现时只输出其属性。
+
+手动安装关系可用 `ModelRelations::set_model` 或 `set_collection`，保留已加载模型的类型和实例身份。通过 `set_relation` 存放的其他类型擦除值仍可下转，模型序列化略过这类值。
+
 ### 有类型的访问器
 
 用 `ModelAttributes::register_attribute` 登记 `ModelAttribute`。它的同步 getter 接收原始属性值和快照，setter 返回有序的多字段补丁。日期对象默认按字段缓存。再次读取该字段时会调用配置的 setter，同步对象的当前值。读取全部原值、同步原始基线或计算 dirty 时会同步全部适用的缓存。

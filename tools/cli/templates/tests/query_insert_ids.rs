@@ -1915,7 +1915,7 @@ async fn check_readback_relations(
     context: &openrust::database::eloquent::SaveContext<'_>,
     key: i64,
 ) -> Result<()> {
-    use openrust::database::eloquent::{LoadedRelation, fresh_with, refresh};
+    use openrust::database::eloquent::{HasRelationships, LoadedRelation, fresh_with, refresh};
     use serde_json::json;
 
     db.table("relation_items")?
@@ -1933,6 +1933,8 @@ async fn check_readback_relations(
         .await?
         .ok_or_else(|| Error::custom("generated_related_fresh_missing", "回读未找到模型"))?;
     check_nested_items(&fresh)?;
+    let serialized = fresh.json_serialize()?;
+    check(serialized["items"][0]["items"][0]["id"] == json!(11))?;
     check(!model.relations.relation_loaded("items"))?;
 
     model.relations.set_relation(

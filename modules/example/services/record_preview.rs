@@ -9,8 +9,7 @@ use openrust::{
         eloquent::{
             AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany, HasMany,
             HasOne, HasRelationships, LoadedRelation, MassAssignment, ModelAttribute,
-            ModelAttributes, ModelDateContext, ModelMetadata, Pivot, PivotKeys, RelationLoad,
-            SaveContext,
+            ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys, RelationLoad, SaveContext,
         },
     },
     support::BoxFuture,
@@ -232,28 +231,30 @@ async fn record_category_links(
             |query| query.order_by("id", SortDirection::Asc),
         )
         .await?;
-    let categories = model
-        .relations()
-        .get_relation(CATEGORIES)
-        .and_then(LoadedRelation::downcast_ref::<Vec<Arc<example_record::RecordCategory>>>)
-        .ok_or_else(|| Error::custom("example_category_links_unloaded", "示例补充分类未加载"))?;
+    let mut serialized = model.json_serialize()?;
+    let Some(Value::Array(categories)) = serialized
+        .as_object_mut()
+        .and_then(|fields| fields.remove(CATEGORIES))
+    else {
+        return Err(Error::custom(
+            "example_category_links_unloaded",
+            "示例补充分类未加载",
+        ));
+    };
     categories
         .iter()
         .map(|category| {
-            let label = category
-                .relations()
-                .get_relation("pivot")
-                .and_then(LoadedRelation::downcast_ref::<Pivot>)
-                .and_then(|pivot| pivot.attributes().get("label"))
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    Error::custom(
-                        "example_category_link_label_missing",
-                        "示例分类连接缺少标签",
-                    )
-                })?;
+            let name = category["name"].as_str().ok_or_else(|| {
+                Error::custom("example_category_name_invalid", "示例分类名称类型无效")
+            })?;
+            let label = category["pivot"]["label"].as_str().ok_or_else(|| {
+                Error::custom(
+                    "example_category_link_label_missing",
+                    "示例分类连接缺少标签",
+                )
+            })?;
             Ok(RecordCategoryLink {
-                name: category.name()?,
+                name: name.into(),
                 label: label.into(),
             })
         })

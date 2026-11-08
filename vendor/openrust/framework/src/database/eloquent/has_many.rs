@@ -23,6 +23,26 @@ pub trait HasRelationships: SaveModel {
 
     /// 更新本实例的关系加载状态。
     fn relations_mut(&mut self) -> &mut ModelRelations;
+
+    /// 只输出已加载的可见关联。
+    fn relations_to_array(&self) -> Result<super::ModelArray> {
+        self.relations().relations_to_array(self.metadata())
+    }
+
+    /// 输出可见属性和已加载关联，保留日期对象。循环内的重复实例只输出属性。
+    fn to_array(&self) -> Result<super::ModelArray> {
+        super::relations::model_to_array(self)
+    }
+
+    /// 将模型数组投影为可嵌入其他响应的 JSON 值。连续数字键或空数组输出 JSON 数组。
+    fn json_serialize(&self) -> Result<Value> {
+        super::relations::model_to_json_value(self)
+    }
+
+    /// 将属性和已加载关联编码为 JSON 文本。
+    fn to_json(&self) -> Result<String> {
+        serde_json::to_string(&self.json_serialize()?).map_err(Error::internal)
+    }
 }
 
 /// 根据父模型本地键和关联模型外键加载一对多关系。
@@ -246,10 +266,9 @@ impl<'a, R: HydrateModel> HasMany<'a, R> {
                 parent.relations().get_relation(relation.name),
                 Some(LoadedRelation::Null)
             ) {
-                parent.relations_mut().set_relation(
-                    relation.name,
-                    LoadedRelation::Related(Box::new(Arc::new(default))),
-                );
+                parent
+                    .relations_mut()
+                    .set_model(relation.name, Some(Arc::new(default)));
             }
         }
         Ok(())
@@ -451,21 +470,19 @@ impl<'a, R: HydrateModel> HasMany<'a, R> {
 
         for (parent, key) in parents.iter_mut().zip(keys) {
             let matches = key.as_ref().and_then(|key| children.get(key));
-            let loaded = match self.cardinality {
+            let relations = parent.relations_mut();
+            match self.cardinality {
                 Cardinality::One | Cardinality::BelongsTo => {
                     let item = match self.cardinality {
                         Cardinality::BelongsTo => matches.and_then(|items| items.last()),
                         _ => matches.and_then(|items| items.first()),
                     };
-                    item.map_or(LoadedRelation::Null, |item| {
-                        LoadedRelation::Related(Box::new(Arc::clone(item)))
-                    })
+                    relations.set_model(relation.name, item.cloned());
                 }
                 Cardinality::Many => {
-                    LoadedRelation::Related(Box::new(matches.cloned().unwrap_or_default()))
+                    relations.set_collection(relation.name, matches.cloned().unwrap_or_default());
                 }
-            };
-            parent.relations_mut().set_relation(relation.name, loaded);
+            }
         }
         Ok(())
     }

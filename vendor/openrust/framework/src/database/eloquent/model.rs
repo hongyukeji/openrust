@@ -9,6 +9,16 @@ use std::collections::{BTreeMap, HashSet};
 
 use super::{AttributeCast, AttributeValue, ModelDateContext};
 
+/// 模型已加载关系的输出名称规则。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RelationNaming {
+    /// Laravel 默认的蛇形名称。
+    #[default]
+    Snake,
+    /// 保留加载时的名称。
+    Original,
+}
+
 /// Rust 模型显式声明的数据库元数据；不从 Guard/Provider 名推导类型或主键。
 ///
 /// 表名和模型类标识须由应用声明，因为 Rust 不提供 PHP 的运行期类模型反射。
@@ -31,6 +41,8 @@ pub struct ModelMetadata {
     pub hidden: Vec<String>,
     /// 非空时只序列化这些字段，默认空表示不额外筛选。
     pub visible: Vec<String>,
+    /// 默认将已加载关系的输出名称转换为蛇形命名。
+    pub relation_naming: RelationNaming,
     /// 显式属性转换，主键声明可覆盖隐式的递增主键转换。
     pub casts: BTreeMap<String, AttributeCast>,
     /// 是否在模型持久化流程中自动维护时间戳。
@@ -63,6 +75,7 @@ impl ModelMetadata {
             connection: None,
             hidden: Vec::new(),
             visible: Vec::new(),
+            relation_naming: RelationNaming::Snake,
             casts: BTreeMap::new(),
             timestamps: true,
             created_at_column: Some("created_at".into()),

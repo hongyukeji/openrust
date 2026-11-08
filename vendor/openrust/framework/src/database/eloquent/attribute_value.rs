@@ -48,6 +48,13 @@ impl AttributeValue {
         }
     }
 
+    pub(super) fn into_array_json(self) -> Result<Value> {
+        match self {
+            Self::Json(value) => Ok(value),
+            Self::Date(date) => serde_json::to_value(date.snapshot()?).map_err(Error::internal),
+        }
+    }
+
     /// 借用属性中的日期对象。
     pub const fn as_date(&self) -> Option<&ModelDate> {
         match self {
