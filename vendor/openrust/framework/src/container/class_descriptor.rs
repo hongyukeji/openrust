@@ -5,7 +5,9 @@ use super::class_projection::ClassProjection;
 use super::parameters::ParameterValue;
 #[cfg(test)]
 use super::parameters::{ParameterKey, ParameterOverrides};
-use super::{ServiceKey, Value, container_error};
+use super::{
+    BoxFuture, ClassAttribute, Resolver, SelfBuilding, ServiceKey, Value, container_error,
+};
 use crate::{Error, Result};
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
@@ -14,6 +16,7 @@ use std::sync::Arc;
 type CheckValue = fn(&ParameterValue) -> Result<()>;
 type DefaultValue = fn() -> Result<ParameterValue>;
 type Construct = dyn for<'a> Fn(ResolvedArgs<'a>) -> Result<Value> + Send + Sync;
+type NewInstance = for<'a> fn(ResolvedArgs<'a>, Resolver) -> BoxFuture<'static, Result<Value>>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ClassKind {
@@ -46,6 +49,7 @@ pub struct ConstructorParam {
     nullable: bool,
     variadic: bool,
     default: Option<DefaultValue>,
+    attributes: Vec<ClassAttribute>,
 }
 
 impl ConstructorParam {
@@ -56,6 +60,7 @@ impl ConstructorParam {
             nullable: false,
             variadic: false,
             default: None,
+            attributes: Vec::new(),
         }
     }
 
@@ -115,6 +120,17 @@ impl ConstructorParam {
     pub fn with_default(mut self, default: fn() -> Result<ParameterValue>) -> Self {
         self.default = Some(default);
         self
+    }
+
+    /// 按声明顺序附加属性。首个上下文属性可为本参数选值。
+    #[must_use]
+    pub fn with_attribute(mut self, attribute: ClassAttribute) -> Self {
+        self.attributes.push(attribute);
+        self
+    }
+
+    pub(super) fn attributes(&self) -> &[ClassAttribute] {
+        &self.attributes
     }
 
     pub(super) fn name(&self) -> &'static str {
@@ -354,6 +370,56 @@ struct Constructor {
     parameters: Vec<ConstructorParam>,
     output: TypeId,
     construct: Option<Box<Construct>>,
+    new_instance: Option<SelfBuildingMethod>,
+}
+
+pub(super) struct SelfBuildingMethod {
+    parameters: Vec<ConstructorParam>,
+    invoke: NewInstance,
+}
+
+impl SelfBuildingMethod {
+    pub(super) fn parameters(&self) -> &[ConstructorParam] {
+        &self.parameters
+    }
+
+    pub(super) fn call(
+        &self,
+        selected: &[Argument],
+        resolver: Resolver,
+        diagnostic: &mut impl FnMut(ScalarDiagnostic) -> Result<()>,
+        check: &mut impl FnMut() -> Result<()>,
+    ) -> Result<BoxFuture<'static, Result<Value>>> {
+        let parameters = self.parameters();
+        let arguments =
+            ResolvedArgs::materialize_selected(parameters, selected, diagnostic, check)?;
+        check()?;
+        Ok((self.invoke)(
+            ResolvedArgs {
+                parameters,
+                arguments: &arguments,
+            },
+            resolver,
+        ))
+    }
+}
+
+fn invoke_new_instance<T: SelfBuilding>(
+    args: ResolvedArgs<'_>,
+    resolver: Resolver,
+) -> BoxFuture<'static, Result<Value>> {
+    use crate::foundation::lifecycle::callback_future;
+    let disposal = resolver.callback_disposal();
+    let future = T::new_instance(args, resolver);
+    let guarded = callback_future(
+        disposal,
+        Arc::new(()),
+        (),
+        Ok(future),
+        None,
+        |(), (), future| future,
+    );
+    Box::pin(async move { guarded.await.map(super::erase) })
 }
 
 impl Drop for Constructor {
@@ -372,6 +438,7 @@ pub struct ClassDescriptor {
     kind: ClassKind,
     constructor: Option<Constructor>,
     projections: Vec<ClassProjection>,
+    attributes: Vec<ClassAttribute>,
 }
 impl ClassDescriptor {
     fn declare<T: ?Sized + 'static>(
@@ -385,6 +452,7 @@ impl ClassDescriptor {
             kind,
             constructor,
             projections: Vec::new(),
+            attributes: Vec::new(),
         }
     }
 
@@ -403,8 +471,26 @@ impl ClassDescriptor {
                 parameters,
                 output: TypeId::of::<Arc<T>>(),
                 construct: Some(Box::new(move |args| new(args).map(super::erase))),
+                new_instance: None,
             }),
         )
+    }
+
+    /// 声明普通构造入口及 `SelfBuilding::new_instance` 的独立方法参数。
+    pub fn self_building<T: SelfBuilding>(
+        symbol: &'static str,
+        parameters: Vec<ConstructorParam>,
+        new: impl for<'a> Fn(ResolvedArgs<'a>) -> Result<Arc<T>> + Send + Sync + 'static,
+        method_parameters: Vec<ConstructorParam>,
+    ) -> Self {
+        let mut descriptor = Self::concrete::<T>(symbol, parameters, new);
+        if let Some(constructor) = &mut descriptor.constructor {
+            constructor.new_instance = Some(SelfBuildingMethod {
+                parameters: method_parameters,
+                invoke: invoke_new_instance::<T>,
+            });
+        }
+        descriptor
     }
 
     /// 声明接口的符号与类型。解析需要显式绑定或别名。
@@ -423,6 +509,13 @@ impl ClassDescriptor {
         self.projections.push(projection);
         self
     }
+
+    /// 按声明顺序附加类属性。实例构造后、装饰和普通解析回调前派发。
+    #[must_use]
+    pub fn with_attribute(mut self, attribute: ClassAttribute) -> Self {
+        self.attributes.push(attribute);
+        self
+    }
 }
 
 pub(super) struct ClassRecord {
@@ -430,6 +523,7 @@ pub(super) struct ClassRecord {
     kind: ClassKind,
     constructor: Option<Constructor>,
     projections: HashMap<ServiceKey, ClassProjection>,
+    attributes: Vec<ClassAttribute>,
 }
 impl ClassRecord {
     pub(super) fn kind(&self) -> ClassKind {
@@ -453,6 +547,7 @@ impl ClassRecord {
         Ok(PreparedConstructor {
             constructor,
             projection,
+            attributes: &self.attributes,
         })
     }
 }
@@ -474,15 +569,16 @@ impl ClassRegistry {
             kind,
             constructor,
             projections,
+            attributes,
         } in descriptors
         {
             identities.push(identity);
-            drafts.push((key, kind, constructor, projections));
+            drafts.push((key, kind, constructor, projections, attributes));
         }
         let identities = ClassIdentities::from_entries(identities)?;
         let mut by_type = HashMap::with_capacity(drafts.len());
         let mut projection_sources = HashMap::new();
-        for (key, kind, constructor, projections) in drafts {
+        for (key, kind, constructor, projections, attributes) in drafts {
             let id = key.type_id().ok_or_else(|| {
                 container_error(
                     "container_class_identity_duplicate",
@@ -491,6 +587,9 @@ impl ClassRegistry {
             })?;
             if let Some(constructor) = &constructor {
                 validate_parameters(&constructor.parameters)?;
+                if let Some(method) = &constructor.new_instance {
+                    validate_parameters(method.parameters())?;
+                }
             }
             let mut by_target = HashMap::with_capacity(projections.len());
             for projection in projections {
@@ -518,6 +617,7 @@ impl ClassRegistry {
                     kind,
                     constructor,
                     projections: by_target,
+                    attributes,
                 },
             );
         }
@@ -609,8 +709,17 @@ fn validate_parameters(parameters: &[ConstructorParam]) -> Result<()> {
 pub(super) struct PreparedConstructor<'a> {
     constructor: &'a Constructor,
     projection: Option<&'a ClassProjection>,
+    attributes: &'a [ClassAttribute],
 }
 impl PreparedConstructor<'_> {
+    pub(super) fn self_building(&self) -> Option<&SelfBuildingMethod> {
+        self.constructor.new_instance.as_ref()
+    }
+
+    pub(super) fn attributes(&self) -> &[ClassAttribute] {
+        self.attributes
+    }
+
     pub(super) fn parameters(&self) -> &[ConstructorParam] {
         &self.constructor.parameters
     }

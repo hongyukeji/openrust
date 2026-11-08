@@ -10,6 +10,8 @@
 
 可在 Provider 登记解析前、构造后和解析后回调，并按服务键或已编译类型视图匹配。详见[容器解析回调](../../../docs/src/architecture-concepts/lifecycle.md)。
 
+编译类和构造参数可以声明属性，通过 Provider 自定义属性选值与后置回调。`SelfBuilding` 支持独立的方法注入与同类重入回退。详见[构造属性与自构造](../../../docs/src/architecture-concepts/lifecycle.md#构造属性与自构造)。
+
 OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀第三方扩展。框架库公开路径为 `openrust::`，根应用通过统一 Container、Provider 和配置生命周期接入。
 
 框架源码位于 `src/lib.rs`；宿主应用、bootstrap 和唯一综合示例保留在仓库根目录。默认启动在根执行 `cargo run`。

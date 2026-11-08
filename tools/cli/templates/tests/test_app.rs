@@ -20,7 +20,9 @@ mod request_session;
 #[path = "../routes/mod.rs"]
 mod routes;
 
-use app::http::controllers::home::{HomePresenter, HomeResponse};
+use app::http::controllers::home::{
+    HomeConstruction, HomeConstructionInput, HomePresenter, HomeResponse,
+};
 use bootstrap::OpenRustGeneratedApplication as GeneratedApplication;
 
 use figment::{
@@ -28,7 +30,9 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
-use openrust::container::{ParameterKey, ParameterOverrides, ParameterValue, ServiceKey};
+use openrust::container::{
+    AttributeValue, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+};
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
@@ -165,6 +169,33 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     assert!(state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);
     assert!(!state.container().resolved_key(&symbol)?);
+    let resolved_input = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_input);
+    state
+        .container()
+        .after_resolving_attribute::<HomeConstructionInput>(move |event, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                assert!(matches!(event.value(), AttributeValue::One(value) if *value.downcast::<bool>()?));
+                seen.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        })?;
+    let resolved_construction = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&resolved_construction);
+    state.container().resolving(
+        Some(ServiceKey::typed::<HomeConstruction>()),
+        move |event, _| {
+            let seen = Arc::clone(&seen);
+            Box::pin(async move {
+                if let Some(construction) = event.value::<HomeConstruction>()? {
+                    construction.verify()?;
+                    seen.fetch_add(1, Ordering::Relaxed);
+                }
+                Ok(())
+            })
+        },
+    )?;
     let resolved_home = Arc::new(AtomicUsize::new(0));
     let seen = Arc::clone(&resolved_home);
     state.container().after_resolving(
@@ -200,6 +231,8 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         }))?;
     assert!(!state.container().resolved_key(&symbol)?);
     assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
+    assert_eq!(resolved_input.load(Ordering::Relaxed), 1);
+    assert_eq!(resolved_construction.load(Ordering::Relaxed), 1);
     assert_generated_class_factories(&state).await?;
     assert_eq!(resolved_home.load(Ordering::Relaxed), 1);
     let first = state.resolve_key::<dyn HomeResponse>(symbol.clone()).await?;

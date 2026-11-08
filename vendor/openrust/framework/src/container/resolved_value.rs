@@ -21,6 +21,11 @@ impl std::fmt::Debug for ResolvedValue {
 }
 
 impl ResolvedValue {
+    pub(super) fn erased(&self) -> &Arc<dyn Any + Send + Sync> {
+        &self.erased
+    }
+
+    #[cfg(test)]
     pub(super) fn into_erased(self) -> Arc<dyn Any + Send + Sync> {
         self.erased
     }

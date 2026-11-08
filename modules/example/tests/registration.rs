@@ -1,8 +1,10 @@
 use super::config_sources::enabled_example_sources;
 use super::services::{
-    EXAMPLE_PRESENTER_ALIAS, ExampleMessage, ExamplePresenter, GreetingPresenter,
+    EXAMPLE_PRESENTER_ALIAS, ExampleMessage, ExamplePresenter, ExampleServedAt, GreetingPresenter,
 };
-use openrust::container::{ParameterKey, ParameterOverrides, ParameterValue, ServiceKey};
+use openrust::container::{
+    AttributeValue, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+};
 use openrust::http::{
     HttpServiceProvider,
     axum::{
@@ -195,6 +197,98 @@ async fn production_named_greeting_uses_each_request_scope()
     assert_eq!(resolved_presenters.load(Ordering::Relaxed), 3);
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_greeting_attributes_supply_time_and_preserve_explicit_override()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use tracing::instrument::WithSubscriber as _;
+    use tracing_subscriber::{Layer, layer::SubscriberExt as _};
+
+    struct GreetingTrace(Arc<AtomicUsize>);
+
+    impl<S: tracing::Subscriber> Layer<S> for GreetingTrace {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            if event.metadata().target() == "openrust.example.greeting.attribute" {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    let constructed = Arc::new(AtomicUsize::new(0));
+    let subscriber = tracing_subscriber::registry().with(GreetingTrace(Arc::clone(&constructed)));
+    let mut app = openrust::testing::TestApp::<crate::bootstrap::Server>::builder(
+        enabled_example_sources(&production_sources(true))?,
+    )
+    .build()
+    .await?;
+    let outcome = async {
+        let state = app.app()?.state();
+        let handler_calls = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::clone(&handler_calls);
+        let selected = chrono::DateTime::from_timestamp(946_684_800, 0).ok_or("无效的固定时间")?;
+        let supplied =
+            chrono::DateTime::from_timestamp(1_000_000_000, 0).ok_or("无效的覆盖时间")?;
+        state
+            .container()
+            .when_has_attribute::<ExampleServedAt>(move |_, parameter, _| {
+                let seen = Arc::clone(&seen);
+                Box::pin(async move {
+                    assert_eq!(parameter.name(), "served_at");
+                    assert!(!parameter.is_variadic());
+                    seen.fetch_add(1, Ordering::Relaxed);
+                    Ok(AttributeValue::One(ParameterValue::new(
+                        selected.to_rfc3339(),
+                    )))
+                })
+            })?;
+
+        let mut parameters = ParameterOverrides::new();
+        let _ = parameters.insert(
+            ParameterKey::name("served_at"),
+            ParameterValue::new(supplied.to_rfc3339()),
+        );
+        let presenter = state
+            .resolve_with::<dyn GreetingPresenter>(parameters)
+            .await?;
+        assert_eq!(presenter.served_at(), supplied);
+        assert_eq!(handler_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(constructed.load(Ordering::Relaxed), 1);
+
+        let response = app
+            .request(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(json["data"]["message"], presenter.text());
+        let rendered = json["data"]["served_at"]
+            .as_str()
+            .ok_or("响应缺少呈现器时间")?;
+        assert_eq!(chrono::DateTime::parse_from_rfc3339(rendered)?, selected);
+        assert_eq!(handler_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(constructed.load(Ordering::Relaxed), 2);
+        Ok::<_, Box<dyn std::error::Error>>(())
+    }
+    .with_subscriber(subscriber)
+    .await;
+    let cleanup = app
+        .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome?;
+    cleanup?;
     Ok(())
 }
 

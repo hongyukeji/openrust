@@ -1,15 +1,20 @@
 //! 描述符缺项沿真实 Resolver 构造，并由原 transient 索引跟踪。
 
 use super::{
-    ActiveFactory, Arc, BoxFuture, Error, Inner, Ordering, ResolveRequest, Resolver, Result,
+    ActiveFactory, Arc, AttributeEvent, AttributeParameter, AttributeValue, BoxFuture,
+    ClassAttribute, ClassBuildFrame, Error, Inner, Ordering, ResolveRequest, Resolver, Result,
     ServiceKey, State, Value,
-    class_descriptor::{Argument, ClassKind, ConstructorParam, ParameterKind, PreparedConstructor},
+    class_descriptor::{
+        Argument, ClassKind, ConstructorParam, ParameterKind, PreparedConstructor,
+        SelfBuildingMethod,
+    },
     container_error,
     contextual::ContextualImplementation,
     descriptor_source::DescriptorSource,
     extensions::DescriptorAttempt,
     is_unresolvable_dependency, lock,
     parameters::ParameterValue,
+    resolving_hooks::object_matches,
     unresolvable_dependency,
 };
 use crate::foundation::resources::{ResourceInlineOwner, ResourceInlineSlot, ResourceTaskFailure};
@@ -41,6 +46,30 @@ impl SelectedArgument {
                 .map(Argument::Many),
         }
     }
+
+    fn from_attribute(owner: &ResourceInlineOwner, value: AttributeValue) -> Result<Self> {
+        match value {
+            AttributeValue::One(value) => owner.slot(value).map(Self::Value),
+            AttributeValue::Many(values) => {
+                let mut values = owner.slot(values)?;
+                let mut selected = Vec::new();
+                while let Some(value) = values
+                    .get_mut()
+                    .and_then(super::AttributeArguments::pop_front)
+                {
+                    selected.push(owner.slot(value)?);
+                }
+                Ok(Self::Many(selected))
+            }
+        }
+    }
+
+    fn attribute_view(&mut self) -> Result<AttributeValue> {
+        self.view().map(|value| match value {
+            Argument::One(value) => AttributeValue::One(value),
+            Argument::Many(values) => AttributeValue::many(values),
+        })
+    }
 }
 
 struct DescriptorRun<'a> {
@@ -50,10 +79,36 @@ struct DescriptorRun<'a> {
     attempt: &'a DescriptorAttempt,
     child: Resolver,
     events: bool,
+    ordinary_reentry: bool,
     started: std::sync::atomic::AtomicBool,
 }
 
 impl Resolver {
+    /// 直接构造具体编译类，沿当前作用域和构造覆盖栈解析依赖。
+    ///
+    /// 不查找类的显式绑定或共享缓存。类属性照常运行。
+    pub async fn build_class<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        let container = self.container()?;
+        let key = ServiceKey::typed::<T>();
+        let source = lock(&container.inner.state).direct_class_source(key.clone(), self)?;
+        let value = self
+            .resolve_descriptor(
+                &container.inner,
+                &source,
+                &key,
+                std::any::TypeId::of::<Arc<T>>(),
+                false,
+            )
+            .await?
+            .ok_or_else(replaced)?;
+        value.downcast_ref::<Arc<T>>().cloned().ok_or_else(|| {
+            container_error(
+                "service_type_mismatch",
+                "编译类直接构造的输出不符合声明类型",
+            )
+        })
+    }
+
     pub(super) async fn resolve_descriptor(
         &self,
         inner: &Arc<Inner>,
@@ -72,15 +127,16 @@ impl Resolver {
             return Ok(None);
         }
         let prepared = prepared?;
-        let cycle_frames = if source.decorates() {
-            &self.chain
+        let same_class = self.class_build(source.key());
+        let cyclic = if source.decorates() {
+            self.chain
+                .iter()
+                .any(|(key, active)| key == source.key() && active.load(Ordering::Acquire))
         } else {
-            &self.class_builds
+            same_class.is_some()
         };
-        if cycle_frames
-            .iter()
-            .any(|(key, active)| key == source.key() && active.load(Ordering::Acquire))
-        {
+        let ordinary_reentry = same_class.is_some_and(|frame| frame.self_building);
+        if cyclic && !ordinary_reentry {
             return Err(container_error(
                 "service_cycle",
                 self.dependency_path(source.key()),
@@ -89,13 +145,18 @@ impl Resolver {
         let Some(attempt) = DescriptorAttempt::admit(inner, self, source)? else {
             return Ok(None);
         };
+        let mut child = attempt.child(self)?;
+        if ordinary_reentry {
+            child.suppress_self_building_reentry(source.key());
+        }
         let run = DescriptorRun {
             caller: self,
             inner,
             source,
             attempt: &attempt,
-            child: attempt.child(self)?,
+            child,
             events,
+            ordinary_reentry,
             started: std::sync::atomic::AtomicBool::new(false),
         };
         let owner = attempt.owner()?;
@@ -192,7 +253,7 @@ impl DescriptorRun<'_> {
         });
         let output = tokio::select! {
             result = polled => result,
-            () = self.caller.closed.wait_closed() => Err(container_error("scope_closed", "生命周期已关闭")),
+            () = self.caller.closed.wait_closed() => Err(lock(&self.inner.state).resolution_closure_error()),
             () = self.attempt.termination.wait_closed() => Err(container_error("container_closed", "容器已关闭")),
         };
         // Ready 值须先入自己的槽，原 Future 的清理失败时仍有真实退役责任。
@@ -245,6 +306,327 @@ impl DescriptorRun<'_> {
             parameter.validate_selected(value.get_mut().ok_or_else(missing_slot)?)?;
             return Ok(SelectedArgument::Value(value));
         }
+        let selected = self.select_attribute(consumer, parameter, false).await?;
+        let from_attribute = selected.is_some();
+        let scalar_variadic =
+            parameter.is_variadic() && matches!(&selected, Some(SelectedArgument::Value(_)));
+        let mut selected = match selected {
+            Some(selected) => selected,
+            None => self.select_ordinary_argument(consumer, parameter).await?,
+        };
+        if !parameter.attributes().is_empty() {
+            self.dispatch_attributes(consumer, parameter.attributes(), selected.attribute_view()?)
+                .await?;
+        }
+        if scalar_variadic {
+            return Err(container_error(
+                "container_constructor_argument_shape",
+                "构造变参的属性必须返回参数列表",
+            ));
+        }
+        if from_attribute {
+            self.adapt_attribute_argument(parameter, &mut selected)?;
+        }
+        Ok(selected)
+    }
+
+    async fn select_attribute(
+        &self,
+        consumer: &Resolver,
+        parameter: &ConstructorParam,
+        method: bool,
+    ) -> Result<Option<SelectedArgument>> {
+        let Some(attribute) = parameter
+            .attributes()
+            .iter()
+            .find(|attribute| attribute.is_contextual())
+        else {
+            return Ok(None);
+        };
+        self.start()?;
+        let owner = self.owner()?;
+        let handler = self
+            .claim(|state| state.attributes.handler(attribute.key()))?
+            .or_else(|| attribute.resolver())
+            .ok_or_else(|| {
+                container_error(
+                    "container_attribute_handler_missing",
+                    "上下文属性没有处理器",
+                )
+            })?;
+        let mut handler = owner.slot(handler)?;
+        let mut instance = owner.slot(owner.run(|| attribute.instantiate())??)?;
+        let stage = owner.run(|| {
+            Ok::<_, Error>(
+                Arc::clone(handler.get_mut().ok_or_else(missing_slot)?).invoke(
+                    instance.get_mut().ok_or_else(missing_slot)?.clone(),
+                    AttributeParameter::new(parameter.name(), parameter.is_variadic(), method),
+                    consumer.clone(),
+                ),
+            )
+        })??;
+        let mut value = self.poll_stage(stage).await?;
+        instance.clear();
+        handler.clear();
+        owner.check_cleanup()?;
+        match value.take().ok_or_else(missing_slot)? {
+            AttributeValue::One(value) if value.is_null() && !method => Ok(None),
+            AttributeValue::Many(_) if method => Err(container_error(
+                "container_constructor_argument_shape",
+                "方法属性返回数组时应作为一个参数值声明",
+            )),
+            value => SelectedArgument::from_attribute(owner, value).map(Some),
+        }
+    }
+
+    async fn select_method_argument(
+        &self,
+        consumer: &Resolver,
+        parameter: &ConstructorParam,
+    ) -> Result<SelectedArgument> {
+        let attribute = self.select_attribute(consumer, parameter, true).await?;
+        let from_attribute = attribute.is_some();
+        let mut selected = if let Some(value) = attribute {
+            value
+        } else if let ParameterKind::Class {
+            key, erased_output, ..
+        } = parameter.kind()
+        {
+            self.select_method_class(consumer, parameter, key, *erased_output)
+                .await?
+        } else if parameter.has_default() {
+            self.default_value(parameter)?
+        } else if parameter.is_variadic() {
+            SelectedArgument::Many(Vec::new())
+        } else {
+            return Err(unresolvable_dependency(
+                "container_parameter_missing",
+                format!("无法解析方法参数 `{}`", parameter.name()),
+            ));
+        };
+        if !parameter.attributes().is_empty() {
+            match selected.attribute_view()? {
+                AttributeValue::One(value) => {
+                    self.dispatch_attributes(
+                        consumer,
+                        parameter.attributes(),
+                        AttributeValue::One(value),
+                    )
+                    .await?;
+                }
+                AttributeValue::Many(values) => {
+                    let mut values = self.owner()?.slot(values)?;
+                    while let Some(value) = values
+                        .get_mut()
+                        .and_then(super::AttributeArguments::pop_front)
+                    {
+                        self.dispatch_attributes(
+                            consumer,
+                            parameter.attributes(),
+                            AttributeValue::One(value),
+                        )
+                        .await?;
+                    }
+                }
+            }
+        }
+        if from_attribute {
+            self.adapt_attribute_argument(parameter, &mut selected)?;
+        }
+        Ok(selected)
+    }
+
+    fn adapt_attribute_argument(
+        &self,
+        parameter: &ConstructorParam,
+        argument: &mut SelectedArgument,
+    ) -> Result<()> {
+        let ParameterKind::Class {
+            key, erased_output, ..
+        } = parameter.kind()
+        else {
+            return Ok(());
+        };
+        match argument {
+            SelectedArgument::Value(value) => {
+                self.project_attribute_service(value, key, *erased_output)
+            }
+            SelectedArgument::Many(values) => values
+                .iter_mut()
+                .try_for_each(|value| self.project_attribute_service(value, key, *erased_output)),
+        }
+    }
+
+    fn project_attribute_service(
+        &self,
+        slot: &mut ResourceInlineSlot<ParameterValue>,
+        target: &ServiceKey,
+        erased_output: std::any::TypeId,
+    ) -> Result<()> {
+        let owner = self.owner()?;
+        let mut candidate = slot.get_mut().ok_or_else(missing_slot)?.service_value();
+        while let Some(value) = candidate {
+            if value.as_ref().type_id() == erased_output {
+                let projected = owner.slot(ParameterValue::from_erased(Arc::clone(value)))?;
+                *slot = projected;
+                return owner.check_cleanup();
+            }
+            if let Some(projection) = self.claim(|state| {
+                state
+                    .classes
+                    .output_projection(value.as_ref().type_id(), target)
+                    .cloned()
+            })? {
+                let projected = owner.run(|| projection.project(value))??;
+                let projected = owner.slot(ParameterValue::from_erased(projected))?;
+                *slot = projected;
+                return owner.check_cleanup();
+            }
+            candidate = value.origin();
+        }
+        Ok(())
+    }
+
+    async fn select_method_class(
+        &self,
+        consumer: &Resolver,
+        parameter: &ConstructorParam,
+        key: &ServiceKey,
+        erased_output: std::any::TypeId,
+    ) -> Result<SelectedArgument> {
+        if parameter.has_default() && !self.claim(|state| state.bound_key(key))? {
+            return self.default_value(parameter);
+        }
+        self.start()?;
+        if parameter.is_variadic() {
+            let contextual = self.claim(|state| {
+                let key = state.aliases.resolve(&state.classes.canonical_key(key))?;
+                Ok::<_, Error>(
+                    state
+                        .contextual_implementation(self.source.key(), &key)
+                        .cloned(),
+                )
+            })??;
+            if let Some(contextual) = contextual
+                && let Some(values) = self
+                    .resolve_many(consumer, contextual, key, erased_output)
+                    .await?
+            {
+                return Ok(SelectedArgument::Many(values));
+            }
+        }
+        self.resolve_argument(consumer, key.clone(), key, erased_output)
+            .await
+            .map(SelectedArgument::Value)
+    }
+
+    async fn call_self_building(
+        &self,
+        consumer: Resolver,
+        method: &SelfBuildingMethod,
+    ) -> Result<ResourceInlineSlot<Value>> {
+        let owner = self.owner()?;
+        self.start()?;
+        let binding = self.claim(|state| state.self_building.get(self.source.key()).cloned())?;
+        if let Some(binding) = binding {
+            let mut binding = owner.slot(binding)?;
+            let factory = binding.get_mut().ok_or_else(missing_slot)?;
+            let future = owner.run(|| factory(consumer))?;
+            let result = self.poll_stage(future).await?;
+            binding.clear();
+            owner.check_cleanup()?;
+            return Ok(result);
+        }
+        let mut arguments = Vec::new();
+        for parameter in method.parameters() {
+            self.claim(|_| ())?;
+            arguments.push(self.select_method_argument(&consumer, parameter).await?);
+        }
+        let future = owner.run(|| {
+            let views = arguments
+                .iter_mut()
+                .map(SelectedArgument::view)
+                .collect::<Result<Vec<_>>>()?;
+            method.call(
+                &views,
+                consumer,
+                &mut |event| self.inner.scalar_diagnostics.report(event),
+                &mut || self.claim(|_| ()),
+            )
+        })??;
+        let value = self.poll_stage(future).await?;
+        drop(arguments);
+        owner.check_cleanup()?;
+        Ok(value)
+    }
+
+    async fn dispatch_attributes(
+        &self,
+        resolver: &Resolver,
+        attributes: &[ClassAttribute],
+        value: AttributeValue,
+    ) -> Result<()> {
+        let owner = self.owner()?;
+        let mut value = owner.slot(value)?;
+        for attribute in attributes {
+            if let Some(callback) = attribute.after() {
+                self.invoke_attribute_after(resolver, attribute, &mut value, callback)
+                    .await?;
+            }
+            let object = match value.get_mut().ok_or_else(missing_slot)? {
+                AttributeValue::One(value) => value.service_value(),
+                AttributeValue::Many(_) => None,
+            };
+            let callbacks = self.claim(|state| {
+                state.attributes.matching(attribute.key(), |key| {
+                    object_matches(&state.classes, object, key)
+                })
+            })?;
+            let mut callbacks = owner.slot(callbacks.into_iter())?;
+            while let Some(callback) = callbacks.get_mut().and_then(Iterator::next) {
+                self.invoke_attribute_after(resolver, attribute, &mut value, callback)
+                    .await?;
+            }
+        }
+        value.clear();
+        owner.check_cleanup()
+    }
+
+    async fn invoke_attribute_after(
+        &self,
+        resolver: &Resolver,
+        attribute: &ClassAttribute,
+        value: &mut ResourceInlineSlot<AttributeValue>,
+        callback: Arc<super::attributes::AttributeAfter>,
+    ) -> Result<()> {
+        let owner = self.owner()?;
+        let mut callback = owner.slot(callback)?;
+        self.start()?;
+        let mut instance = owner.slot(owner.run(|| attribute.instantiate())??)?;
+        let stage = owner.run(|| {
+            let value = value.get_mut().ok_or_else(missing_slot)?.clone();
+            let event = AttributeEvent::new(
+                instance.get_mut().ok_or_else(missing_slot)?.clone(),
+                value,
+                self.inner,
+            );
+            Ok::<_, Error>(
+                Arc::clone(callback.get_mut().ok_or_else(missing_slot)?)
+                    .invoke(event, resolver.clone()),
+            )
+        })??;
+        let mut finished = self.poll_stage(stage).await?;
+        finished.clear();
+        instance.clear();
+        callback.clear();
+        owner.check_cleanup()
+    }
+
+    async fn select_ordinary_argument(
+        &self,
+        consumer: &Resolver,
+        parameter: &ConstructorParam,
+    ) -> Result<SelectedArgument> {
         match parameter.kind() {
             ParameterKind::Class {
                 key, erased_output, ..
@@ -428,30 +810,40 @@ impl DescriptorRun<'_> {
         Ok(())
     }
 
-    async fn execute(
+    async fn instantiate(
         &self,
-        prepared: PreparedConstructor<'_>,
-        erased_output: std::any::TypeId,
-    ) -> Result<Value> {
+        prepared: &PreparedConstructor<'_>,
+    ) -> Result<(ResourceInlineSlot<Value>, Vec<SelectedArgument>)> {
         let owner = self.owner()?;
         let mut arguments = Vec::new();
+        let self_building = prepared.self_building().filter(|_| !self.ordinary_reentry);
         {
             let active = Arc::new(std::sync::atomic::AtomicBool::new(true));
             let _frame = ActiveFactory(Arc::clone(&active));
             let mut consumer = self.child.clone();
-            let frame = (self.source.key().clone(), active);
+            let key = self.source.key().clone();
             consumer
                 .class_builds
-                .retain(|(_, active)| active.load(Ordering::Acquire));
-            consumer.class_builds.push(frame.clone());
-            consumer.build_consumer = Some(frame);
+                .retain(|frame| frame.active.load(Ordering::Acquire));
+            consumer.class_builds.push(ClassBuildFrame {
+                key: key.clone(),
+                active: Arc::clone(&active),
+                self_building: self_building.is_some(),
+            });
+            consumer.build_consumer = Some((key, active));
+            if let Some(method) = self_building {
+                return self
+                    .call_self_building(consumer, method)
+                    .await
+                    .map(|value| (value, arguments));
+            }
             for parameter in prepared.parameters() {
                 self.claim(|_| ())?;
                 arguments.push(self.select_argument(&consumer, parameter).await?);
             }
         }
         self.start()?;
-        let mut value = owner.slot(owner.run(|| {
+        let value = owner.slot(owner.run(|| {
             // 每个临时视图仍有独立槽保有底层值，构造阶段不会成为其最后一次引用。
             let views = arguments
                 .iter_mut()
@@ -467,6 +859,26 @@ impl DescriptorRun<'_> {
                 prepared.construct(&views)
             }
         })??)?;
+        Ok((value, arguments))
+    }
+
+    async fn execute(
+        &self,
+        prepared: PreparedConstructor<'_>,
+        erased_output: std::any::TypeId,
+    ) -> Result<Value> {
+        let owner = self.owner()?;
+        let (mut value, arguments) = self.instantiate(&prepared).await?;
+
+        if !prepared.attributes().is_empty() {
+            let object = value.get_mut().ok_or_else(missing_slot)?.clone();
+            self.dispatch_attributes(
+                &self.child,
+                prepared.attributes(),
+                AttributeValue::One(ParameterValue::from_erased(object)),
+            )
+            .await?;
+        }
 
         let chain = if self.source.decorates() {
             self.claim(|state| state.extensions.chain(&self.attempt.key))?

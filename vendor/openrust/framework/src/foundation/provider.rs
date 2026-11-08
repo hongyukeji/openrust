@@ -104,6 +104,40 @@ impl<'a> RegisterContext<'a> {
 }
 
 impl RegisterContext<'_> {
+    /// 绑定编译类的 `new_instance` 方法并替换该方法参数的注入。
+    pub fn bind_new_instance<T: crate::container::SelfBuilding>(
+        &self,
+        binding: impl Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    ) -> Result<()> {
+        self.container.bind_new_instance(binding)
+    }
+
+    /// 为当前应用登记属性类型的上下文处理器。同类型后登记的处理器优先。
+    pub fn when_has_attribute<A: Send + Sync + 'static>(
+        &self,
+        handler: impl Fn(
+            Arc<A>,
+            crate::container::AttributeParameter,
+            Resolver,
+        ) -> BoxFuture<'static, Result<crate::container::AttributeValue>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.container.when_has_attribute::<A>(handler)
+    }
+
+    /// 为当前应用按属性类型或已解析对象的编译类型登记后置回调。
+    pub fn after_resolving_attribute<A: ?Sized + 'static>(
+        &self,
+        callback: impl Fn(crate::container::AttributeEvent, Resolver) -> BoxFuture<'static, Result<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.container.after_resolving_attribute::<A>(callback)
+    }
+
     /// 在本应用构造服务或读取共享缓存前登记解析回调。
     pub fn before_resolving(
         &self,

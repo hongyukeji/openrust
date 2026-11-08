@@ -35,7 +35,13 @@ impl ParameterKey {
 /// `Arc<dyn Trait>` 类型读取；本载体不执行运行期 trait 投影。
 #[derive(Clone)]
 pub struct ParameterValue {
-    value: Option<Arc<dyn Any + Send + Sync>>,
+    value: Option<ParameterPayload>,
+}
+
+#[derive(Clone)]
+enum ParameterPayload {
+    Ordinary(Arc<dyn Any + Send + Sync>),
+    Service(super::Value),
 }
 
 impl ParameterValue {
@@ -54,13 +60,35 @@ impl ParameterValue {
     /// 复用已有具体类型 Arc，不复制其内部对象。
     #[must_use]
     pub fn from_arc<T: Any + Send + Sync>(value: Arc<T>) -> Self {
-        Self { value: Some(value) }
+        Self {
+            value: Some(ParameterPayload::Ordinary(value)),
+        }
+    }
+
+    /// 用作类实参，保留可供属性回调匹配的服务类型。
+    #[must_use]
+    pub fn service<T: ?Sized + Send + Sync + 'static>(value: Arc<T>) -> Self {
+        Self::from_erased(super::erase(value))
     }
 
     pub(super) fn from_erased(value: super::Value) -> Self {
         Self {
-            value: Some(Arc::unwrap_or_clone(value).into_erased()),
+            value: Some(ParameterPayload::Service(value)),
         }
+    }
+
+    pub(super) fn service_value(&self) -> Option<&super::Value> {
+        match self.value.as_ref()? {
+            ParameterPayload::Service(value) => Some(value),
+            ParameterPayload::Ordinary(_) => None,
+        }
+    }
+
+    fn erased(&self) -> Option<&Arc<dyn Any + Send + Sync>> {
+        Some(match self.value.as_ref()? {
+            ParameterPayload::Ordinary(value) => value,
+            ParameterPayload::Service(value) => value.erased(),
+        })
     }
 
     /// 判断值是否为显式 null。
@@ -70,14 +98,14 @@ impl ParameterValue {
     }
 
     pub(super) fn downcast_ref<T: Any + Send + Sync>(&self) -> Option<&T> {
-        self.value.as_deref()?.downcast_ref()
+        self.erased()?.downcast_ref()
     }
 
     /// 按声明类型读取同一对象；null 与错误类型分别返回明确错误。
     ///
     /// 不执行转换、默认值、依赖解析或输出对象的调试内容。
     pub fn downcast<T: Any + Send + Sync>(&self) -> Result<Arc<T>> {
-        let Some(value) = &self.value else {
+        let Some(value) = self.erased() else {
             return Err(Error::custom(
                 "container_parameter_null",
                 "显式 null 参数不能读取为非空对象",

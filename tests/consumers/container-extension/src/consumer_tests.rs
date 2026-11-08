@@ -2,9 +2,9 @@
 
 use openrust::class_projection;
 use openrust::container::{
-    ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey, ParameterOverrides,
-    ParameterValue, PhpBytes, PhpStringable, PhpTarget, ResolutionEvent, Resolver,
-    ScalarDiagnostic, ScalarDiagnostics, ServiceKey,
+    ClassAttribute, ClassDescriptor, ConstructorParam, ContainerBuilder, ParameterKey,
+    ParameterOverrides, ParameterValue, PhpBytes, PhpStringable, PhpTarget, ResolutionEvent,
+    ResolvedArgs, Resolver, ScalarDiagnostic, ScalarDiagnostics, SelfBuilding, ServiceKey,
 };
 use std::sync::{
     Arc, Mutex,
@@ -406,6 +406,107 @@ async fn contextual_rules_precede_defaults_but_explicit_null_precedes_context()
 }
 
 struct Channels(Vec<Arc<dyn Greeting>>);
+
+struct ObserveChannel;
+
+struct AttributedChannels(Vec<Arc<dyn Greeting>>);
+
+impl SelfBuilding for AttributedChannels {
+    fn new_instance(
+        args: ResolvedArgs<'_>,
+        _: Resolver,
+    ) -> openrust::support::BoxFuture<'static, openrust::Result<Arc<Self>>> {
+        let channels = args.values(0).and_then(|values| {
+            values
+                .iter()
+                .map(|value| {
+                    value
+                        .downcast::<Arc<dyn Greeting>>()
+                        .map(|greeting| Arc::clone(greeting.as_ref()))
+                })
+                .collect()
+        });
+        Box::pin(async move { channels.map(|channels| Arc::new(Self(channels))) })
+    }
+}
+
+#[tokio::test]
+async fn self_building_variadic_attributes_follow_projected_services_in_order()
+-> openrust::Result<()> {
+    let first = ServiceKey::named("consumer.attribute.first");
+    let second = ServiceKey::named("consumer.attribute.second");
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        class_greeting_descriptor(Arc::new(AtomicUsize::new(0))),
+        ClassDescriptor::self_building::<AttributedChannels>(
+            "consumer::AttributedChannels",
+            vec![],
+            |_| {
+                Err(openrust::Error::custom(
+                    "test_unexpected_constructor",
+                    "应调用自构造方法",
+                ))
+            },
+            vec![
+                ConstructorParam::class::<dyn Greeting>("channels")
+                    .variadic()
+                    .with_attribute(ClassAttribute::marker(|| Ok(ObserveChannel))),
+            ],
+        ),
+    ])?;
+    builder.bind_key::<ClassGreeting, _>(first.clone(), |_| {
+        Box::pin(async { Ok(Arc::new(ClassGreeting("第一项".to_owned()))) })
+    });
+    builder.bind_key::<ClassGreeting, _>(second.clone(), |_| {
+        Box::pin(async { Ok(Arc::new(ClassGreeting("第二项".to_owned()))) })
+    });
+    builder
+        .when(ServiceKey::typed::<AttributedChannels>())?
+        .needs(ServiceKey::typed::<dyn Greeting>())
+        .give_many([first.clone(), second, first])?;
+
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let capture = Arc::clone(&observed);
+    builder.after_resolving_attribute::<ClassGreeting>(move |event, _| {
+        let capture = Arc::clone(&capture);
+        Box::pin(async move {
+            event.attribute().downcast::<ObserveChannel>()?;
+            let concrete = event.service::<ClassGreeting>()?.ok_or_else(|| {
+                openrust::Error::custom("test_concrete_missing", "缺少参数具体类型")
+            })?;
+            let view = event
+                .service::<dyn Greeting>()?
+                .ok_or_else(|| openrust::Error::custom("test_view_missing", "缺少参数接口视图"))?;
+            let expected: Arc<dyn Greeting> = concrete;
+            assert!(Arc::ptr_eq(&view, &expected));
+            capture
+                .lock()
+                .map_err(|error| openrust::Error::custom("test_lock_failed", error.to_string()))?
+                .push(view);
+            Ok(())
+        })
+    })?;
+    let container = builder.build();
+    let channels = container.resolve::<AttributedChannels>().await?;
+    assert_eq!(
+        channels
+            .0
+            .iter()
+            .map(|channel| channel.value())
+            .collect::<Vec<_>>(),
+        ["第一项", "第二项", "第一项"]
+    );
+    let observed = observed
+        .lock()
+        .map_err(|error| openrust::Error::custom("test_lock_failed", error.to_string()))?;
+    assert_eq!(observed.len(), channels.0.len());
+    assert!(
+        observed
+            .iter()
+            .zip(&channels.0)
+            .all(|(left, right)| Arc::ptr_eq(left, right))
+    );
+    Ok(())
+}
 
 #[tokio::test]
 async fn contextual_variadic_resolves_every_key_in_declared_order() -> openrust::Result<()> {

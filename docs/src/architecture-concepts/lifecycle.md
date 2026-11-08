@@ -154,6 +154,18 @@ fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
 
 异键类包装器只静默具体服务这一层的三个解析阶段，外层和普通构造依赖仍运行各自的回调。直接调用原始工厂时也跳过原绑定键的解析回调，工厂主动解析的依赖仍使用普通阶段。[固定 Laravel 解析回调行为](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Container/ResolvingCallbackTest.php)
 
+### 构造属性与自构造
+
+通过 `ConstructorParam::with_attribute` 将属性附在编译参数上。`ClassAttribute::contextual` 接受创建新属性实例的函数，属性实现 `ContextualAttribute`。Provider 可用 `when_has_attribute::<A>` 覆盖 `A` 的 `resolve` 方法。`ClassAttribute::marker` 适合只参与后置回调的属性。
+
+- 显式具名参数优先，并跳过该参数的属性。普通构造只调用首个上下文属性的处理器，返回 `AttributeValue::One(ParameterValue::null())` 时继续从上下文绑定、依赖和默认值选取。
+- 选值后按声明顺序执行属性自身的 `after`，再执行 Provider 通过 `after_resolving_attribute::<A>` 登记的回调。构造变参作为一组传入 `after`。处理器使用 `AttributeValue::many` 返回多项。类属性使用 `ClassDescriptor::with_attribute`，在构造栈退出后、装饰和普通解析回调前执行。
+- 回调可按属性类型或值的已编译服务视图匹配。读取属性用 `event.attribute().downcast::<A>()`，读取对象用 `event.service::<T>()`。处理器提供类对象时用 `ParameterValue::service(arc)` 保留对象的编译类型。回调可通过同一 `Resolver` 解析当前作用域内的服务。
+
+类型实现 `SelfBuilding` 后，使用 `ClassDescriptor::self_building` 分别声明普通构造参数和 `new_instance` 方法参数。外层 `resolve_with` 的具名覆盖不参与方法参数选择。方法属性返回的显式 null 作为实参传入，方法类变参逐项执行 `after`。`AttributeParameter::is_new_instance()` 可区分两个入口。需要替换整个方法时，可用 `bind_new_instance::<T>`，该绑定接管方法及其参数注入，类属性仍照常派发。
+
+活动的 `new_instance` 再次解析同一类时回退普通构造。若该调用会等到自己的祖先共享构造，内层直接构造一次，由外层持有的共享尝试统一发布。`Resolver::build_class` 在当前作用域直接构造编译类，跳过显式绑定和共享缓存，仍执行类属性。属性身份和实参类型来自 Rust 编译声明。 [Laravel 构造与属性源码](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php) · [Laravel 方法参数注入](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/BoundMethod.php)
+
 ### 读取与调用原始绑定工厂
 
 `Container::get_bindings()` 按登记顺序返回显式工厂条目的键、共享声明和 `FactoryHandle`。实例覆盖保留原工厂，绑定替换后已取得的句柄仍调用快照里的闭包或类绑定包装器。

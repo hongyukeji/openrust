@@ -33,7 +33,9 @@ impl openrust::foundation::ApplicationDefinition for {{type_name}} {
     }
 
     fn configure_providers(config: &Self::Config, builder: &mut openrust::foundation::ProviderBuilder) {
-        builder.class_descriptors([crate::app::http::controllers::home::HomePresenter::descriptor()]);
+        use crate::app::http::controllers::home::{HomeConstruction, HomePresenter};
+
+        builder.class_descriptors([HomePresenter::descriptor(), HomeConstruction::descriptor()]);
         builder.module_manifest(crate::modules::manifest(
             config
                 .application_root

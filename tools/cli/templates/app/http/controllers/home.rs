@@ -2,16 +2,83 @@
 
 use openrust::Result;
 use openrust::container::{
-    ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue, PhpBytes,
-    PhpTarget,
+    ClassAttribute, ClassDescriptor, ConstructorParam, ContextualAttribute, ParameterKey,
+    ParameterOverrides, ParameterValue, PhpBytes, PhpTarget, ResolvedArgs, Resolver, SelfBuilding,
 };
 use openrust::core::ApiResponse;
 use openrust::foundation::ApplicationState;
 use openrust::http::axum::extract::State;
-use std::{collections::BTreeMap, sync::Arc};
+use openrust::support::BoxFuture;
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 pub(crate) trait HomeResponse: Send + Sync {
     fn response(&self) -> ApiResponse<BTreeMap<&'static str, String>>;
+}
+
+pub(crate) struct HomeConstructionInput;
+
+impl ContextualAttribute for HomeConstructionInput {}
+
+pub(crate) struct HomeConstructionMarker;
+
+pub(crate) struct HomeConstruction {
+    ready: bool,
+    attribute_observed: AtomicBool,
+}
+
+impl HomeConstruction {
+    pub(crate) const INPUT_PARAMETER: &'static str = "ready";
+
+    pub(crate) fn descriptor() -> ClassDescriptor {
+        ClassDescriptor::self_building::<Self>(
+            concat!(module_path!(), "::HomeConstruction"),
+            Vec::new(),
+            |_| Ok(Arc::new(Self::new(false))),
+            vec![
+                ConstructorParam::scalar::<bool>(Self::INPUT_PARAMETER)
+                    .with_attribute(ClassAttribute::contextual(|| Ok(HomeConstructionInput))),
+            ],
+        )
+        .with_attribute(ClassAttribute::marker(|| Ok(HomeConstructionMarker)))
+    }
+
+    fn new(ready: bool) -> Self {
+        Self {
+            ready,
+            attribute_observed: AtomicBool::new(false),
+        }
+    }
+
+    pub(crate) fn observe_attribute(&self) {
+        self.attribute_observed.store(true, Ordering::Relaxed);
+    }
+
+    pub(crate) fn verify(&self) -> Result<()> {
+        if self.ready && self.attribute_observed.load(Ordering::Relaxed) {
+            Ok(())
+        } else {
+            Err(openrust::Error::custom(
+                "home_construction_incomplete",
+                "首页构造依赖未完成属性处理",
+            ))
+        }
+    }
+}
+
+impl SelfBuilding for HomeConstruction {
+    fn new_instance(
+        args: ResolvedArgs<'_>,
+        _resolver: Resolver,
+    ) -> BoxFuture<'static, Result<Arc<Self>>> {
+        let ready = args.value(0).and_then(|value| value.downcast::<bool>());
+        Box::pin(async move { Ok(Arc::new(Self::new(*ready?))) })
+    }
 }
 
 pub(crate) struct HomePresenter {
@@ -32,8 +99,10 @@ impl HomePresenter {
             vec![
                 ConstructorParam::php(Self::NAME_PARAMETER, PhpTarget::Bytes)
                     .with_default(|| Ok(ParameterValue::new(String::new()))),
+                ConstructorParam::class::<HomeConstruction>("construction"),
             ],
             |args| {
+                args.service::<HomeConstruction>(1)?.verify()?;
                 let name = args.value(0)?.downcast::<PhpBytes>()?;
                 let name = std::str::from_utf8(name.as_bytes()).map_err(|_| {
                     openrust::Error::custom("home_name_invalid_utf8", "应用名称需要有效的 UTF-8")

@@ -69,6 +69,18 @@ mod resolving_hooks;
 pub use directory::{BindingSnapshot, FactoryHandle};
 pub use resolving_hooks::ResolutionEvent;
 use resolving_hooks::ResolveHooks;
+#[cfg(test)]
+#[path = "container/attribute_resolution_tests.rs"]
+mod attribute_resolution_tests;
+mod attributes;
+use attributes::AttributeRegistry;
+pub use attributes::{
+    AttributeArguments, AttributeEvent, AttributeParameter, AttributeValue, ClassAttribute,
+    ContextualAttribute,
+};
+mod self_building;
+pub use self_building::SelfBuilding;
+use self_building::SelfBuildingBindings;
 mod contextual;
 use contextual::ContextualBindings;
 pub use contextual::{
@@ -301,6 +313,8 @@ pub struct ContainerBuilder {
     aliases: directory::AliasState,
     contextual: ContextualBindings,
     hooks: ResolveHooks,
+    attributes: AttributeRegistry,
+    self_building: SelfBuildingBindings,
     classes: Arc<ClassRegistry>,
     extensions: ExtensionState,
     config: Option<ConfigRepository>,
@@ -399,6 +413,8 @@ impl ContainerBuilder {
                     aliases: self.aliases,
                     contextual: self.contextual,
                     hooks: self.hooks,
+                    attributes: self.attributes,
+                    self_building: self.self_building,
                     classes: self.classes,
                     extensions: self.extensions,
                     ..State::default()
@@ -459,6 +475,8 @@ struct State {
     aliases: directory::AliasState,
     contextual: ContextualBindings,
     hooks: ResolveHooks,
+    attributes: AttributeRegistry,
+    self_building: SelfBuildingBindings,
     classes: Arc<ClassRegistry>,
     raw_attempts: HashMap<u64, directory::RawRecord>,
     root_raw_close: Option<RootRawClose>,
@@ -477,6 +495,14 @@ struct State {
 }
 
 impl State {
+    fn resolution_closure_error(&self) -> Error {
+        if self.terminated {
+            container_error("container_closed", "容器已关闭")
+        } else {
+            container_error("scope_closed", "生命周期已关闭")
+        }
+    }
+
     fn next_source_revision(&self) -> Result<u64> {
         self.next_generation
             .checked_add(1)
@@ -1614,9 +1640,16 @@ pub struct Resolver {
     parameters: Option<ParameterView>,
     previous_parameters: Option<ParameterView>,
     build_consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
-    class_builds: Vec<(ServiceKey, Arc<AtomicBool>)>,
+    class_builds: Vec<ClassBuildFrame>,
     factory_parameters: Arc<FactoryParameters>,
     factory_completion: Option<crate::foundation::resources::ResourceTaskCompletion>,
+}
+
+#[derive(Clone)]
+struct ClassBuildFrame {
+    key: ServiceKey,
+    active: Arc<AtomicBool>,
+    self_building: bool,
 }
 
 impl Resolver {
@@ -1753,6 +1786,39 @@ impl Resolver {
         self.parameters
             .as_ref()
             .map_or_else(ParameterOverrides::new, ParameterView::snapshot)
+    }
+
+    /// 返回当前仍在选参的编译类。类属性的后置回调发生在本类退出构造栈之后。
+    #[must_use]
+    pub fn currently_resolving(&self) -> Option<&ServiceKey> {
+        self.class_builds
+            .iter()
+            .rev()
+            .find(|frame| frame.active.load(Ordering::Acquire))
+            .map(|frame| &frame.key)
+    }
+
+    fn class_build(&self, key: &ServiceKey) -> Option<&ClassBuildFrame> {
+        self.class_builds
+            .iter()
+            .rev()
+            .find(|frame| &frame.key == key && frame.active.load(Ordering::Acquire))
+    }
+
+    fn is_self_building(&self, key: &ServiceKey) -> bool {
+        self.class_build(key)
+            .is_some_and(|frame| frame.self_building)
+    }
+
+    fn suppress_self_building_reentry(&mut self, key: &ServiceKey) {
+        if let Some(frame) = self
+            .class_builds
+            .iter_mut()
+            .rev()
+            .find(|frame| &frame.key == key && frame.active.load(Ordering::Acquire))
+        {
+            frame.self_building = false;
+        }
     }
 
     fn active_consumer_frame(&self) -> Option<&(ServiceKey, Arc<AtomicBool>)> {
@@ -1965,7 +2031,7 @@ impl Resolver {
         inner: &Inner,
         source: &BindingSource,
         request: &ResolveRequest,
-    ) -> Result<Option<ClassProjection>> {
+    ) -> Result<(Option<ClassProjection>, bool)> {
         let state = lock(&inner.state);
         self.check_open(&state)?;
         if !source.is_current(&state) {
@@ -1974,10 +2040,17 @@ impl Resolver {
                 "解析准入前服务来源已更换",
             ));
         }
-        if self
-            .chain
-            .iter()
-            .any(|(id, active)| *id == source.key && active.load(Ordering::Acquire))
+        let reentry = self.is_self_building(&source.key)
+            && source
+                .binding
+                .class_factory
+                .as_ref()
+                .is_some_and(|factory| factory.builds_directly());
+        if !reentry
+            && self
+                .chain
+                .iter()
+                .any(|(id, active)| *id == source.key && active.load(Ordering::Acquire))
         {
             return Err(container_error(
                 "service_cycle",
@@ -1991,7 +2064,31 @@ impl Resolver {
                 format!("singleton 不能捕获 scoped 服务 `{}`", source.key),
             ));
         }
-        Ok(projection)
+        let nested_uncached = reentry
+            && source.binding.instance.is_none()
+            && match source.binding.effective_lifetime() {
+                Lifetime::Bind => true,
+                lifetime => {
+                    let scope = if lifetime == Lifetime::Singleton {
+                        u64::MAX
+                    } else {
+                        self.scope
+                    };
+                    let key = CacheKey {
+                        service: source.key.clone(),
+                        scope,
+                    };
+                    state.slots.get(&key).is_some_and(|attempt| {
+                        lock(&attempt.outcome).is_none()
+                            && self.constructing.as_ref().is_some_and(|(current, active)| {
+                                active.load(Ordering::Acquire)
+                                    && (*current == attempt.id
+                                        || state.path(attempt.id, *current).is_some())
+                            })
+                    })
+                }
+            };
+        Ok((projection, nested_uncached))
     }
 
     async fn before_resolution(
@@ -2020,6 +2117,7 @@ impl Resolver {
             .chain
             .iter()
             .any(|(parent, active)| parent == &key && active.load(Ordering::Acquire))
+            && !self.is_self_building(&key)
         {
             return Err(container_error("service_cycle", self.dependency_path(&key)));
         }
@@ -2027,6 +2125,8 @@ impl Resolver {
         let active = Arc::new(AtomicBool::new(true));
         let _guard = ActiveFactory(Arc::clone(&active));
         child.chain.push((key.clone(), active));
+        // 同键 before 回调不能再次使用外层自构造的重入许可。
+        child.suppress_self_building_reentry(&key);
         // Laravel 先把本次显式实参交给 before，再压入构造覆盖栈。
         child.parameters = child.previous_parameters.take();
         let fired = child
@@ -2055,12 +2155,12 @@ impl Resolver {
                 };
                 #[cfg(test)]
                 directory_tests_v2::after_binding_selection().await;
-                let projection = match self.binding_projection(&container.inner, &source, &request)
-                {
-                    Ok(projection) => projection,
-                    Err(error) if error.code() == "binding_replaced" => continue,
-                    Err(error) => return Err(error),
-                };
+                let (projection, nested_uncached) =
+                    match self.binding_projection(&container.inner, &source, &request) {
+                        Ok(projection) => projection,
+                        Err(error) if error.code() == "binding_replaced" => continue,
+                        Err(error) => return Err(error),
+                    };
                 if !source.binding.pending.is_empty() {
                     match self.initialize_instance(&container.inner, &source).await {
                         Ok(true) => source.aliases = None,
@@ -2085,7 +2185,8 @@ impl Resolver {
                     child.closed = Arc::new(ScopeStatus::default());
                     child.resources = container.inner.resources.clone();
                 }
-                let value = if lifetime == Lifetime::Bind {
+                // 自构造的重入使用普通构造。外层在途共享尝试仍负责最终发布。
+                let value = if lifetime == Lifetime::Bind || nested_uncached {
                     self.transient(&source, child, activity, request.raises_events())
                         .await?
                 } else {
@@ -2233,6 +2334,7 @@ impl Resolver {
                     // 完成回调可以读刚发布的共享对象。单例仍使用应用资源与捕获保护，
                     // 同时监听发起解析的作用域关闭。
                     child.closed.clone_from(&self.closed);
+                    child.suppress_self_building_reentry(service);
                     value = child
                         .complete_hook_output(&container.inner, service, value)
                         .await?;

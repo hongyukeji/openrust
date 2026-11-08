@@ -1,7 +1,7 @@
 //! 通过 `ServiceProvider` 装配本模块业务。
 
 use openrust::Result;
-use openrust::container::{ParameterValue, ServiceKey};
+use openrust::container::{AttributeValue, ParameterValue, ServiceKey};
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
 use openrust::support::{BoxFuture, ServiceProvider};
@@ -13,8 +13,8 @@ use crate::modules::example::services::article_write::ArticleWriter;
 #[cfg(feature = "http-client")]
 use crate::modules::example::services::upstream::ArticleSummaryService;
 use crate::modules::example::services::{
-    EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig, ExampleMessage,
-    GreetingPresenter,
+    EXAMPLE_PRESENTER_ALIAS, EXAMPLE_PRESENTER_CLASS, ExampleConfig, ExampleGreetingConstructed,
+    ExampleMessage, ExamplePresenter, ExampleServedAt, GreetingPresenter,
 };
 #[cfg(feature = "auth")]
 use openrust::database::sea_orm::{EntityTrait, QuerySelect};
@@ -272,6 +272,28 @@ fn register_example_schema(app: &mut RegisterContext<'_>) -> Result<()> {
     Ok(())
 }
 
+fn register_greeting_attributes(app: &RegisterContext<'_>) -> Result<()> {
+    app.when_has_attribute::<ExampleServedAt>(|_, _, _| {
+        Box::pin(async {
+            Ok(AttributeValue::One(ParameterValue::new(
+                chrono::Utc::now().to_rfc3339(),
+            )))
+        })
+    })?;
+    app.after_resolving_attribute::<ExampleGreetingConstructed>(|event, _| {
+        Box::pin(async move {
+            if let AttributeValue::One(value) = event.value() {
+                let _ = value.downcast::<Arc<ExamplePresenter>>()?;
+                tracing::debug!(
+                    target: "openrust.example.greeting.attribute",
+                    "示例呈现器已完成构造"
+                );
+            }
+            Ok(())
+        })
+    })
+}
+
 impl ServiceProvider for ExampleServiceProvider {
     fn register<'a>(
         &'a self,
@@ -279,6 +301,7 @@ impl ServiceProvider for ExampleServiceProvider {
     ) -> openrust::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_schema(app)?;
+            register_greeting_attributes(app)?;
             app.alias(
                 ServiceKey::named(EXAMPLE_PRESENTER_CLASS),
                 ServiceKey::named(EXAMPLE_PRESENTER_ALIAS),
@@ -296,11 +319,6 @@ impl ServiceProvider for ExampleServiceProvider {
                     Ok(())
                 })
             })?;
-            app.when(ServiceKey::named(EXAMPLE_PRESENTER_ALIAS))?
-                .needs_parameter("served_at")
-                .give_parameter_factory(|_| {
-                    Box::pin(async { Ok(ParameterValue::new(chrono::Utc::now().to_rfc3339())) })
-                })?;
             #[cfg(feature = "auth-fortify")]
             register_fortify_views(app).await?;
             app.singleton_if::<ExampleMessage, _>(|resolver| {

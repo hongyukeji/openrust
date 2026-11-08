@@ -12,6 +12,10 @@ pub(super) struct ClassFactory {
 }
 
 impl ClassFactory {
+    pub(super) fn builds_directly(&self) -> bool {
+        self.direct
+    }
+
     pub(super) fn binding<T: ?Sized + Send + Sync + 'static>(
         classes: &ClassRegistry,
         key: &ServiceKey,

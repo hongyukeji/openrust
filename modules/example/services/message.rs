@@ -1,7 +1,11 @@
 //! 示例问候内容，展示模块配置与同一容器中的业务依赖替换。
 
 use chrono::{DateTime, Utc};
-use openrust::container::{ClassDescriptor, ConstructorParam, PhpBytes, PhpTarget};
+use openrust::container::{
+    AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam,
+    ContextualAttribute, ParameterValue, PhpBytes, PhpTarget, Resolver,
+};
+use openrust::support::BoxFuture;
 use std::sync::Arc;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -118,13 +122,38 @@ impl GreetingPresenter for ExamplePresenter {
     }
 }
 
+struct GreetingMessage;
+
+impl ContextualAttribute for GreetingMessage {
+    fn resolve(
+        self: Arc<Self>,
+        _parameter: AttributeParameter,
+        resolver: Resolver,
+    ) -> BoxFuture<'static, openrust::Result<AttributeValue>> {
+        Box::pin(async move {
+            let message = resolver.resolve::<ExampleMessage>().await?;
+            Ok(AttributeValue::One(ParameterValue::service(message)))
+        })
+    }
+}
+
+/// 由示例 Provider 提供时间的参数属性。
+pub(crate) struct ExampleServedAt;
+
+impl ContextualAttribute for ExampleServedAt {}
+
+/// 在具体呈现器构造后触发的类属性。
+pub(crate) struct ExampleGreetingConstructed;
+
 /// 提供问候呈现器的编译类描述。实际问候语仍来自模块 Provider 的绑定。
 pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
     [ClassDescriptor::concrete::<ExamplePresenter>(
         EXAMPLE_PRESENTER_CLASS,
         vec![
-            ConstructorParam::class::<ExampleMessage>("message"),
-            ConstructorParam::php("served_at", PhpTarget::Bytes),
+            ConstructorParam::class::<ExampleMessage>("message")
+                .with_attribute(ClassAttribute::contextual(|| Ok(GreetingMessage))),
+            ConstructorParam::php("served_at", PhpTarget::Bytes)
+                .with_attribute(ClassAttribute::contextual(|| Ok(ExampleServedAt))),
         ],
         |args| {
             let served_at = args.value(1)?.downcast::<PhpBytes>()?;
@@ -145,7 +174,8 @@ pub(crate) fn class_descriptors() -> [ClassDescriptor; 1] {
             }))
         },
     )
-    .with_projection(openrust::class_projection!(ExamplePresenter => dyn GreetingPresenter))]
+    .with_projection(openrust::class_projection!(ExamplePresenter => dyn GreetingPresenter))
+    .with_attribute(ClassAttribute::marker(|| Ok(ExampleGreetingConstructed)))]
 }
 
 #[cfg(test)]

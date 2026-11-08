@@ -1,7 +1,9 @@
 //! 应用自身的 Provider；由 bootstrap/providers.rs 登记。
 
-use crate::app::http::controllers::home::{HomePresenter, HomeResponse};
-use openrust::container::ServiceKey;
+use crate::app::http::controllers::home::{
+    HomeConstruction, HomeConstructionInput, HomeConstructionMarker, HomePresenter, HomeResponse,
+};
+use openrust::container::{AttributeValue, ParameterValue, ServiceKey};
 use openrust::foundation::{BootContext, RegisterContext};
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::prelude::*;
@@ -43,6 +45,31 @@ impl ServiceProvider for AppServiceProvider {
             app.when(ServiceKey::typed::<HomePresenter>())?
                 .needs_parameter(HomePresenter::NAME_PARAMETER)
                 .give_config::<String>("app.name", Some(String::new()))?;
+            app.when_has_attribute::<HomeConstructionInput>(|_, parameter, _| {
+                Box::pin(async move {
+                    if parameter.name() != HomeConstruction::INPUT_PARAMETER
+                        || parameter.is_variadic()
+                    {
+                        return Err(openrust::Error::custom(
+                            "home_construction_parameter_invalid",
+                            "首页构造属性需要单个 ready 参数",
+                        ));
+                    }
+                    Ok(AttributeValue::One(ParameterValue::new(true)))
+                })
+            })?;
+            app.after_resolving_attribute::<HomeConstructionMarker>(|event, _| {
+                Box::pin(async move {
+                    let construction = event.service::<HomeConstruction>()?.ok_or_else(|| {
+                        openrust::Error::custom(
+                            "home_construction_view_missing",
+                            "首页构造属性缺少构造对象",
+                        )
+                    })?;
+                    construction.observe_attribute();
+                    Ok(())
+                })
+            })?;
 {{auth_register}}            Ok(())
         })
     }

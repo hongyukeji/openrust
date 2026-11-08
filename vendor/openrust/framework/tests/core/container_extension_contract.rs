@@ -425,7 +425,11 @@ async fn detached_scope_cannot_deliver_a_projected_value_after_root_shutdown() -
         .shutdown_root(Instant::now() + Duration::from_secs(2))
         .await?;
     release.notify_one();
-    assert!(matches!(request.await, Err(error) if error.code() == "container_closed"));
+    let outcome = request.await;
+    assert_eq!(
+        outcome.as_ref().err().map(Error::code),
+        Some("container_closed")
+    );
     Ok(())
 }
 

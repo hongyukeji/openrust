@@ -495,11 +495,8 @@ fn recursive_extension(inner: &Arc<Inner>, key: &CacheKey) -> bool {
 
 impl Resolver {
     pub(super) fn check_open(&self, state: &State) -> Result<()> {
-        if state.terminated {
-            return Err(container_error("container_closed", "容器已关闭"));
-        }
-        if self.closed.closed.load(Ordering::Acquire) {
-            return Err(container_error("scope_closed", "生命周期已关闭"));
+        if state.terminated || self.closed.closed.load(Ordering::Acquire) {
+            return Err(state.resolution_closure_error());
         }
         Ok(())
     }
@@ -640,7 +637,11 @@ impl Resolver {
             factory(closure).await?
         };
         for extender in chain {
-            value = (extender.0)(value, self.clone()).await?;
+            let mut resolver = self.clone();
+            if let Some((service, _)) = self.chain.last() {
+                resolver.suppress_self_building_reentry(service);
+            }
+            value = (extender.0)(value, resolver).await?;
         }
         Ok(value)
     }
@@ -717,6 +718,7 @@ impl Resolver {
         let work = async {
             let value = child.construct_value(binding, chain).await?;
             if events {
+                child.suppress_self_building_reentry(service);
                 child.complete_hook_output(&inner, service, value).await
             } else {
                 Ok(value)
@@ -724,7 +726,7 @@ impl Resolver {
         };
         let result = tokio::select! {
             result = work => result,
-            () = self.closed.wait_closed() => Err(container_error("scope_closed", "生命周期已关闭")),
+            () = self.closed.wait_closed() => Err(lock(&inner.state).resolution_closure_error()),
         };
         guard.finish(result.as_ref().map(Arc::clone).map_err(|error| {
             Failure::initialization(service, Error::custom(error.code(), error.to_string()))

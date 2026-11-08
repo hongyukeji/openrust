@@ -52,29 +52,32 @@ impl ResolutionEvent {
     ///
     /// 尚未构造对象或对象未声明该视图时返回 `None`。视图投影错误原样返回。
     pub fn value<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Option<Arc<T>>> {
-        let target = ServiceKey::typed::<T>();
-        let mut cursor = self.value.as_ref();
-        while let Some(value) = cursor {
-            if let Some(typed) = value.downcast_ref::<Arc<T>>() {
-                return Ok(Some(Arc::clone(typed)));
-            }
-            if let Some(projection) = self
-                .classes
-                .output_projection(value.as_ref().type_id(), &target)
-            {
-                let projected = projection.project(value)?;
-                return projected
-                    .downcast_ref::<Arc<T>>()
-                    .cloned()
-                    .map(Some)
-                    .ok_or_else(|| {
-                        container_error("service_type_mismatch", "解析回调的对象投影类型不匹配")
-                    });
-            }
-            cursor = value.origin();
-        }
-        Ok(None)
+        object_view(&self.classes, self.value.as_ref())
     }
+}
+
+pub(super) fn object_view<T: ?Sized + Send + Sync + 'static>(
+    classes: &ClassRegistry,
+    mut cursor: Option<&Value>,
+) -> Result<Option<Arc<T>>> {
+    let target = ServiceKey::typed::<T>();
+    while let Some(value) = cursor {
+        if let Some(typed) = value.downcast_ref::<Arc<T>>() {
+            return Ok(Some(Arc::clone(typed)));
+        }
+        if let Some(projection) = classes.output_projection(value.as_ref().type_id(), &target) {
+            let projected = projection.project(value)?;
+            return projected
+                .downcast_ref::<Arc<T>>()
+                .cloned()
+                .map(Some)
+                .ok_or_else(|| {
+                    container_error("service_type_mismatch", "解析回调的对象投影类型不匹配")
+                });
+        }
+        cursor = value.origin();
+    }
+    Ok(None)
 }
 
 type ResolveCallback =
@@ -259,7 +262,7 @@ impl Container {
     }
 }
 
-fn object_matches(
+pub(super) fn object_matches(
     classes: &ClassRegistry,
     mut cursor: Option<&Value>,
     target: &ServiceKey,
@@ -459,7 +462,7 @@ impl Resolver {
         tokio::select! {
             biased;
             () = termination.wait_closed() => Err(container_error("container_closed", "容器已关闭")),
-            () = self.closed.wait_closed() => Err(container_error("scope_closed", "生命周期已关闭")),
+            () = self.closed.wait_closed() => Err(lock(&inner.state).resolution_closure_error()),
             result = callback => result,
         }?;
         self.check_open(&lock(&inner.state))
