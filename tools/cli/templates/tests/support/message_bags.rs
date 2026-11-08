@@ -128,6 +128,14 @@ async fn inspect_message_bags() -> openrust::Result<Json<Value>> {
         ])?),
     )])?;
     let numeric_json = numeric.to_json(MessageJsonOptions::NUMERIC_CHECK)?;
+    let mut numeric_add = MessageBag::new();
+    for message in [
+        "9223372036854775808",
+        "9223372036854775809",
+        "9223372036854775808",
+    ] {
+        numeric_add.add("reference", message)?;
+    }
 
     let mut errors = ViewErrorBag::new();
     errors.put("sign.in", Box::new(bag))?;
@@ -160,6 +168,7 @@ async fn inspect_message_bags() -> openrust::Result<Json<Value>> {
         "nested_first": nested_first,
         "nested_all_error": nested_all_error,
         "numeric_json": numeric_json,
+        "numeric_add": numeric_add.messages().to_value()?,
         "missing_is_empty": missing,
         "named_exists": errors.has_bag("sign.in"),
         "count_without_default": count_without_default,
@@ -203,6 +212,7 @@ pub async fn assert_message_bags<A: ApplicationDefinition>(
                 "nested_first": "x",
                 "nested_all_error": true,
                 "numeric_json": "{\"numeric\":[\"1e1000\",0,1]}",
+                "numeric_add": {"reference": ["9223372036854775808", "9223372036854775809"]},
                 "missing_is_empty": true,
                 "named_exists": true,
                 "count_without_default": 0,

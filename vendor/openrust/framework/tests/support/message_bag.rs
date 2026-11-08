@@ -617,6 +617,21 @@ fn add_uses_php_loose_numeric_string_equality_but_constructor_and_unique_use_str
 }
 
 #[test]
+fn add_preserves_distinct_numeric_messages_beyond_php_integer_and_float_bounds() {
+    for (first, second, expected) in [
+        ("9223372036854775808", "9223372036854775809", 2),
+        ("-9223372036854775809", "-9223372036854775810", 2),
+        ("1e9999", "2e9999", 2),
+        ("1e9999", "1e9999", 1),
+    ] {
+        let mut bag = MessageBag::new();
+        bag.add("number", first).expect("first message");
+        bag.add("number", second).expect("second message");
+        assert_eq!(bag.count(), expected, "{first:?} and {second:?}");
+    }
+}
+
+#[test]
 fn merge_numeric_outer_keys_appends_instead_of_merging_by_same_key() {
     let mut target = MessageBag::try_from_messages([(0.into(), MessageInput::One("first".into()))])
         .expect("target");

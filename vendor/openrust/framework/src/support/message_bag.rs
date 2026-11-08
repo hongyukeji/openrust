@@ -1,6 +1,6 @@
 //! Laravel `MessageBag` 的保键错误消息集合。
 
-use super::{ArrayKey, Collection, InputNumber};
+use super::{ArrayKey, Collection, InputNumber, php_loose_string_equal};
 use crate::Result;
 use serde::Serialize;
 use serde_json::Value;
@@ -340,7 +340,8 @@ impl MessageBag {
         &self.messages
     }
 
-    /// 同键消息仅添加一次；容量错误保持原包不变。
+    /// 同键消息按 PHP 宽松字符串比较去重，遵循整数溢出与无穷值的文本比较边界。
+    /// 容量错误保持原包不变。
     pub fn add(&mut self, key: impl Into<ArrayKey>, message: impl Into<String>) -> Result<()> {
         let key = key.into();
         let message = message.into();
@@ -636,18 +637,6 @@ fn wildcard_matches(pattern: &str, text: &str) -> bool {
         previous = next;
     }
     previous[text.len()]
-}
-
-#[allow(clippy::float_cmp, reason = "PHP 数值字符串宽松比较要求精确浮点相等")]
-fn php_loose_string_equal(left: &str, right: &str) -> bool {
-    match (
-        InputNumber::numeric_string(left),
-        InputNumber::numeric_string(right),
-    ) {
-        (Some(InputNumber::Integer(left)), Some(InputNumber::Integer(right))) => left == right,
-        (Some(left), Some(right)) => left.as_float() == right.as_float(),
-        _ => left == right,
-    }
 }
 
 fn encode_json(

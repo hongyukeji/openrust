@@ -64,7 +64,7 @@ fn business_errors() -> openrust::Result<String> {
 }
 ```
 
-`add` 对数值字符串按上游宽松规则判断重复；构造去重和 `unique` 使用字符串规则，`merge` 保留重复。底层 `Collection` 保留插入顺序和稀疏键，因此 JSON 不总是连续数组。递归合并可能产生 `MessageValue::Nested`；原始读取与 JSON 保留该结构，无法按上游规则展平的形状通过 `Result` 返回错误。不要用 `all` 替代原始消息读取。
+`add` 对数值字符串按 PHP 宽松规则判断重复。例如 `"1e2"` 和 `"100"` 去重，而 `"9223372036854775808"` 和 `"9223372036854775809"` 保留为两条消息。构造去重和 `unique` 使用字符串规则，`merge` 保留重复。底层 `Collection` 保留插入顺序和稀疏键，因此 JSON 不总是连续数组。递归合并可能产生 `MessageValue::Nested`；原始读取与 JSON 保留该结构，无法按上游规则展平的形状通过 `Result` 返回错误。不要用 `all` 替代原始消息读取。
 
 `ViewErrorBag` 按名称保存实现 `MessageBagContract` 的包。`count`、`any` 和 `default_*` 代理只读取 `default` 包；读取缺失包返回临时空包，不隐式插入。业务自定义包通过公开契约接入，已存包的借用与修改保留原实例。
 

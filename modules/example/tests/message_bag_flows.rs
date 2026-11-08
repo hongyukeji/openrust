@@ -13,6 +13,27 @@ use serde_json::{Value, json};
 
 type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+#[cfg(feature = "session")]
+#[test]
+fn draft_error_provider_preserves_distinct_numeric_messages() -> TestResult {
+    use super::services::draft_errors::DraftErrors;
+    use openrust::support::MessageBagContract;
+
+    let mut errors = DraftErrors::new("请核对导入记录")?;
+    for message in [
+        "9223372036854775808",
+        "9223372036854775809",
+        "9223372036854775808",
+    ] {
+        errors.add("reference".into(), message.to_owned())?;
+    }
+    assert_eq!(
+        errors.messages().to_value()?["reference"],
+        json!(["9223372036854775808", "9223372036854775809"])
+    );
+    Ok(())
+}
+
 fn sources() -> Figment {
     Figment::from(Serialized::defaults(
         openrust::config::FrameworkConfig::default(),
