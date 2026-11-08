@@ -29,6 +29,7 @@ type ResolvedChannel = Arc<OnceCell<Arc<Logger>>>;
 /// `forget_channel` 即可按当前配置重建。
 pub struct LogManager {
     config: ConfigRepository,
+    scope_factory: crate::container::ScopeFactory,
     drivers: Mutex<HashMap<String, Arc<Factory>>>,
     channels: Mutex<ChannelDirectory>,
 }
@@ -40,9 +41,10 @@ struct ChannelDirectory {
 }
 
 impl LogManager {
-    fn new(config: ConfigRepository) -> Self {
+    fn new(config: ConfigRepository, scope_factory: crate::container::ScopeFactory) -> Self {
         Self {
             config,
+            scope_factory,
             drivers: Mutex::default(),
             channels: Mutex::default(),
         }
@@ -199,6 +201,7 @@ impl LogManager {
                         name: Arc::from(label),
                         sink,
                         handlers,
+                        scope_factory: Some(self.scope_factory.clone()),
                     }))
                 })
                 .await?;
@@ -300,6 +303,7 @@ async fn emergency(settings: &Settings, cause: &Error) -> Result<Arc<Logger>> {
         name: Arc::from("laravel"),
         sink: sinks::single(settings.path(Path::new(path)), LogLevel::Debug, false),
         handlers: None,
+        scope_factory: None,
     });
     logger
         .log(
@@ -363,8 +367,11 @@ impl ServiceProvider for LogServiceProvider {
     fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.replace_defaults_recursively("logging", defaults())?;
-            app.instance(Arc::new(LogManager::new(app.config_repository())))
-                .await
+            app.instance(Arc::new(LogManager::new(
+                app.config_repository(),
+                app.scope_factory(),
+            )))
+            .await
         })
     }
 }

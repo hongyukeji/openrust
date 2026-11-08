@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 默认应用按作用域提供日志 Context，并支持构造属性与独立的日志 `extra` 字段。
 - 容器支持注入具名 Guard 和当前账户，应用可按请求覆盖账户解析器。
 - 容器增加 `RequestAttribute` 和 `RouteParameter`，支持注入服务端请求属性、已解码捕获及可信路由绑定。
 - 应用日志支持默认和具名频道、单文件及组合输出、应急回退与 `Log` 构造属性。

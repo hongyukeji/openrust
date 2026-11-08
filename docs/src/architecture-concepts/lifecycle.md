@@ -202,6 +202,14 @@ Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在�
 
 日志通过 `Logger::log(level, message, context).await` 写入。文件按行记录时间、logger 名称、级别和消息，结构化上下文以 JSON 附在末尾。第三方通过 `LogManager::extend` 为频道配置提供 `LogSink`。框架诊断和遥测仍由 `tracing` 收集，受 `RUST_LOG` 控制。
 
+#### 日志上下文属性
+
+默认 `ContextServiceProvider` 在容器中按作用域登记 `openrust::logging::context::Repository`。用 `add` 写入普通 JSON 字段，用 `add_hidden` 写入隐藏字段。在构造参数上附加 `Context::<String>::new("request.trace")` 可按完整键读取普通字段，加 `.hidden()` 可改读隐藏字段。缺失值和 JSON `null` 使用 `with_default` 或 `with_default_using` 提供的默认值。`false`、`0` 和空字符串按声明类型读取。JSON 无法转换为声明类型时，容器返回类型错误。
+
+日志记录的 `extra()` 读取同一应用当前入口已初始化的普通字段，独立于 `context()` 接收的单次日志参数。占位符使用单次日志参数。单文件和标准错误频道分别序列化两组非空字段，连续数字键的 `extra` 写为 JSON 数组。隐藏字段可通过仓储和属性显式读取。 [Laravel Context](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Context.php) · [Laravel ContextLogProcessor](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Log/Context/ContextLogProcessor.php)
+
+Rust 接口使用 JSON 表示可序列化值。规范数字键按 Laravel 合并规则重新编号，其他字符串键按字面保存。队列与命令传播、生命周期事件、栈操作和完整仓储方法仍待对应。
+
 #### 缓存属性
 
 `container::attributes::Cache` 将应用缓存管理器中的 `CacheStore` 注入构造参数。在 `ConstructorParam::class::<CacheStore>("cache")` 上附加 `ClassAttribute::contextual(|| Ok(Cache::default()))` 使用默认 store，`Cache::new("local")` 则按配置的精确名称选择。空字符串和未知名称沿缓存管理器报错。

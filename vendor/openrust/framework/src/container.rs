@@ -766,13 +766,15 @@ pub struct ScopeFactory {
 }
 
 impl ScopeFactory {
+    pub(crate) fn container(&self) -> Option<Container> {
+        self.inner.upgrade().map(|inner| Container { inner })
+    }
+
     /// 为一次独立入口创建新 scope；容器已释放或关闭时返回错误。
     pub fn scope(&self) -> Result<Scope> {
-        let inner = self
-            .inner
-            .upgrade()
-            .ok_or_else(|| container_error("container_closed", "容器已关闭"))?;
-        Container { inner }.scope()
+        self.container()
+            .ok_or_else(|| container_error("container_closed", "容器已关闭"))?
+            .scope()
     }
 }
 
@@ -981,20 +983,38 @@ impl Container {
         binding.instance.as_ref()?;
         #[cfg(test)]
         binding_event_tests::observe_instance_read();
-        Self::ready_value(&state, &service, binding)
+        Self::ready_value(&state, &service, binding, state.root_scope)
     }
 
     /// 同步读取成功发布的缓存；未完成的构造或装饰返回 `None`。
     pub fn get_ready<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
         let state = lock(&self.inner.state);
         let service = ServiceKey::typed::<T>();
-        Self::ready_value(&state, &service, state.bindings.get(&service)?)
+        Self::ready_value(
+            &state,
+            &service,
+            state.bindings.get(&service)?,
+            state.root_scope,
+        )
+    }
+
+    pub(crate) fn get_entry_ready<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        let scope = self.current_entry_scope();
+        let state = lock(&self.inner.state);
+        let scope = match &scope {
+            Some(scope) if scope.closed.closed.load(Ordering::Acquire) => return None,
+            Some(scope) => scope.id,
+            None => state.root_scope,
+        };
+        let service = state.alias_key(&ServiceKey::typed::<T>()).ok()?;
+        Self::ready_value(&state, &service, state.bindings.get(&service)?, scope)
     }
 
     fn ready_value<T: ?Sized + Send + Sync + 'static>(
         state: &State,
         service: &ServiceKey,
         binding: &Binding,
+        scope: u64,
     ) -> Option<Arc<T>> {
         if state.terminated {
             return None;
@@ -1002,7 +1022,7 @@ impl Container {
         let scope = match binding.effective_lifetime() {
             Lifetime::Bind => return None,
             Lifetime::Singleton => u64::MAX,
-            Lifetime::Scoped => state.root_scope,
+            Lifetime::Scoped => scope,
         };
         let key = CacheKey {
             service: service.clone(),

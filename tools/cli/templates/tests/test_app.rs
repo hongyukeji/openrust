@@ -32,14 +32,14 @@ use figment::{
 use openrust::cache::{Cache, CacheStore};
 use openrust::config::ConfigSources;
 use openrust::container::attributes::{
-    Cache as CacheAttribute, Config, Give, Log, RequestAttribute, RouteParameter,
+    Cache as CacheAttribute, Config, Context, Give, Log, RequestAttribute, RouteParameter,
 };
 use openrust::container::{
     AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam, ParameterKey,
     ParameterOverrides, ParameterValue, ServiceKey,
 };
 use openrust::foundation::RegisterContext;
-use openrust::logging::{LogLevel, Logger};
+use openrust::logging::{LogLevel, Logger, context::Repository as LogContext};
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
@@ -122,7 +122,7 @@ async fn generated_application_injects_request_attributes() -> Result<(), Box<dy
 
 struct ScopedCache(Arc<CacheStore>);
 
-struct NamedLogger(Arc<Logger>);
+struct NamedLogger(Arc<Logger>, Arc<String>);
 
 #[tokio::test]
 async fn generated_application_injects_named_logger() -> Result<(), Box<dyn std::error::Error>> {
@@ -139,15 +139,26 @@ async fn generated_application_injects_named_logger() -> Result<(), Box<dyn std:
         openrust::foundation::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
     builder.class_descriptors([ClassDescriptor::concrete::<NamedLogger>(
         "App/NamedLogger",
-        vec![ConstructorParam::class::<Logger>("logger").with_attribute(
-            ClassAttribute::contextual(|| Ok(Log::new("preview").named("generated.preview"))),
-        )],
-        |args| Ok(Arc::new(NamedLogger(args.service(0)?))),
+        vec![
+            ConstructorParam::class::<Logger>("logger").with_attribute(
+                ClassAttribute::contextual(|| Ok(Log::new("preview").named("generated.preview"))),
+            ),
+            ConstructorParam::scalar::<String>("entry").with_attribute(
+                ClassAttribute::contextual(|| Ok(Context::<String>::new("entry.name"))),
+            ),
+        ],
+        |args| Ok(Arc::new(NamedLogger(args.service(0)?, args.value(1)?.downcast()?))),
     )]);
     let app = openrust::Application::from_provider_runtime(builder.start(source).await?)?;
+    let context = app.state().resolve::<LogContext>().await?;
+    context.add("entry.name", serde_json::json!("generated"));
+    context.add_hidden("private", serde_json::json!("example-secret"));
     let logger = app.state().resolve::<NamedLogger>().await?;
+    assert_eq!(logger.1.as_str(), "generated");
     logger.0.log(LogLevel::Notice, "生成项目日志", serde_json::Map::new()).await?;
-    assert!(std::fs::read_to_string(path)?.contains("generated.preview.NOTICE: 生成项目日志"));
+    let log = std::fs::read_to_string(path)?;
+    assert!(log.contains("generated.preview.NOTICE: 生成项目日志 {\"entry.name\":\"generated\"}"));
+    assert!(!log.contains("example-secret"));
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
     Ok(())
 }

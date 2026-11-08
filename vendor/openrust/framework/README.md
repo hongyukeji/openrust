@@ -20,6 +20,8 @@
 
 `Log` 属性从 `LogManager` 注入应用 logger，支持频道选择和独立重命名。详见[日志属性](../../../docs/src/architecture-concepts/lifecycle.md#日志属性)。
 
+`Context` 属性从当前容器作用域的日志上下文读取普通或隐藏值。详见[日志上下文属性](../../../docs/src/architecture-concepts/lifecycle.md#日志上下文属性)。
+
 `RequestAttribute` 和 `RouteParameter` 从当前 HTTP 请求作用域读取服务端属性和已绑定路由参数。详见[请求属性与路由参数](../../../docs/src/architecture-concepts/lifecycle.md#请求属性与路由参数)。
 
 `auth` feature 提供 `Auth`、`Authenticated` 和 `CurrentUser` 构造属性。详见[认证属性](../../../docs/src/architecture-concepts/lifecycle.md#认证属性)。

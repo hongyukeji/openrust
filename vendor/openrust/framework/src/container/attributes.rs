@@ -15,6 +15,8 @@ mod auth;
 pub use auth::{Auth, Authenticated, CurrentUser};
 mod builtin;
 pub use builtin::{Config, Give, Tag, Tagged};
+mod log_context;
+pub use log_context::Context;
 mod managers;
 pub use managers::{Cache, Database, DbAttribute as DB, Log, Storage};
 mod request;

@@ -136,7 +136,12 @@ async fn production_log_attribute_writes_only_to_the_named_channel()
                 "channels": {
                     "stack": {"driver": "stack", "channels": ["default_file"]},
                     "default_file": {"driver": "single", "path": default, "level": "debug"},
-                    "single": {"driver": "single", "path": selected, "level": "debug"},
+                    "single": {
+                        "driver": "single",
+                        "path": selected,
+                        "level": "debug",
+                        "replace_placeholders": true
+                    },
                     "null": {"driver": "null"}
                 }
             }),
@@ -161,15 +166,20 @@ async fn production_log_attribute_writes_only_to_the_named_channel()
         assert_eq!(response.body(), b"");
         let logged = std::fs::read_to_string(&selected)?;
         let mut lines = logged.lines().filter(|line| line.contains(MESSAGE));
-        assert!(
-            lines
-                .next()
-                .is_some_and(|line| line.contains("example.request"))
+        let line = lines.next().ok_or("示例请求没有写入日志")?;
+        assert!(line.contains("example.request"));
+        let (_, extra) = line.split_once(MESSAGE).ok_or("缺少示例日志文案")?;
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(extra.trim())?,
+            serde_json::json!({"example_operation": "logging-demo"}),
         );
         assert!(lines.next().is_none());
+        assert!(!logged.contains("example_internal_marker"));
+        assert!(!logged.contains("example-private-marker"));
         if default.exists() {
             assert!(!std::fs::read_to_string(&default)?.contains(MESSAGE));
         }
+        assert_log_context_placeholders(app.app()?.state().container(), &selected).await?;
         Ok(())
     }
     .await;
@@ -178,6 +188,61 @@ async fn production_log_attribute_writes_only_to_the_named_channel()
         .await;
     outcome?;
     cleanup?;
+    Ok(())
+}
+
+async fn assert_log_context_placeholders(
+    container: &openrust::container::Container,
+    selected: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use openrust::logging::{LogLevel, LogManager, context::Repository};
+
+    let scope = std::sync::Arc::new(container.scope()?);
+    let result = scope
+        .run(async {
+            let context = scope.resolve::<Repository>().await?;
+            context.add("example_operation", serde_json::json!("ordinary-probe"));
+            context.add_hidden("probe_hidden", serde_json::json!("hidden-probe"));
+            let channel = scope
+                .resolve::<LogManager>()
+                .await?
+                .channel(Some("single"))
+                .await?;
+            channel
+                .log(
+                    LogLevel::Info,
+                    "示例占位检查 {example_operation} {local}",
+                    serde_json::Map::from_iter([(
+                        "local".into(),
+                        serde_json::json!("explicit-probe"),
+                    )]),
+                )
+                .await
+        })
+        .await;
+    scope.close();
+    result?;
+
+    let logged = std::fs::read_to_string(selected)?;
+    let line = logged
+        .lines()
+        .find(|line| line.contains("示例占位检查"))
+        .ok_or("缺少示例占位检查日志")?;
+    let (_, fields) = line
+        .split_once("示例占位检查 {example_operation} explicit-probe ")
+        .ok_or("日志占位应由显式上下文替换")?;
+    let fields = serde_json::Deserializer::from_str(fields)
+        .into_iter::<serde_json::Value>()
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(
+        fields,
+        [
+            serde_json::json!({"local": "explicit-probe"}),
+            serde_json::json!({"example_operation": "ordinary-probe"}),
+        ],
+    );
+    assert!(!logged.contains("probe_hidden"));
+    assert!(!logged.contains("hidden-probe"));
     Ok(())
 }
 

@@ -232,6 +232,10 @@ impl RegisterContext<'_> {
         self.config.clone()
     }
 
+    pub(crate) fn scope_factory(&self) -> crate::container::ScopeFactory {
+        self.container.scope_factory()
+    }
+
     /// 判断已有 Provider 是否已登记服务，供默认绑定遵循应用覆盖顺序。
     pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.container.contains::<T>()

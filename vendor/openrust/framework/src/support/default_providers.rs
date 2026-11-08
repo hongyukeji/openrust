@@ -76,6 +76,7 @@ impl DefaultProviders {
             Box::new(crate::mail::MailerServiceProvider),
             Box::new(crate::sms::SmsServiceProvider),
             Box::new(crate::cache::CacheServiceProvider::new()),
+            Box::new(crate::logging::context::ContextServiceProvider),
             Box::new(crate::logging::LogServiceProvider),
         ];
         #[cfg(feature = "hashing")]

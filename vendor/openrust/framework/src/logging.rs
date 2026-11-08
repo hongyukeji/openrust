@@ -3,6 +3,9 @@
 mod manager;
 mod sinks;
 
+/// 当前作用域内的公开与隐藏日志上下文。
+pub mod context;
+
 pub use manager::{LogManager, LogServiceProvider, configuration};
 
 use std::{fmt, sync::Arc};
@@ -58,6 +61,7 @@ pub struct LogRecord {
     level: LogLevel,
     message: String,
     context: Map<String, Value>,
+    extra: Map<String, Value>,
 }
 
 impl LogRecord {
@@ -85,6 +89,11 @@ impl LogRecord {
     pub fn context(&self) -> &Map<String, Value> {
         &self.context
     }
+
+    /// 当前作用域的公开上下文字段，与本次调用的 `context` 分开。
+    pub fn extra(&self) -> &Map<String, Value> {
+        &self.extra
+    }
 }
 
 /// 日志 driver 产出的异步写入目标。
@@ -99,6 +108,7 @@ pub struct Logger {
     name: Arc<str>,
     sink: Arc<dyn LogSink>,
     handlers: Option<Arc<[Arc<dyn LogSink>]>>,
+    scope_factory: Option<crate::container::ScopeFactory>,
 }
 
 impl Logger {
@@ -114,6 +124,7 @@ impl Logger {
             name: name.into(),
             sink: Arc::clone(&self.sink),
             handlers: self.handlers.clone(),
+            scope_factory: self.scope_factory.clone(),
         }
     }
 
@@ -131,6 +142,10 @@ impl Logger {
                 level,
                 message: message.into(),
                 context,
+                extra: self
+                    .scope_factory
+                    .as_ref()
+                    .map_or_else(Map::new, context::log_extra),
             })
             .await
     }
