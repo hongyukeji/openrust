@@ -1,15 +1,16 @@
 //! Eloquent 原生加密属性的读取、存储和 dirty 比较。
 use super::{
-    AttributeValue, ModelObject,
+    AttributeValue, Json, ModelObject,
     attribute_cast::{
-        associative_json_equivalent, collection_items, decode_associative_json, decode_object_json,
-        encode_array_json, scalar_string,
+        collection_items, decode_default_text, default_json_equivalent, encode_array_json,
+        scalar_string,
     },
+    attribute_store::strict_equal,
 };
 use crate::{Error, Result, encryption::ApplicationEncrypter, support::Collection};
 use serde_json::Value;
 use std::{fmt, sync::Arc};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 /// Laravel 原生加密属性的明文表示。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,13 +64,13 @@ impl EncryptedCast {
                     )
                 }),
             EncryptedCastKind::Object => {
-                decode_object_json(text.unwrap_or_default()).map(AttributeValue::from)
+                decode_plain_json(&plain, false, true).map(AttributeValue::from)
             }
             EncryptedCastKind::Array | EncryptedCastKind::Json => {
-                decode_associative_json(text.unwrap_or_default()).map(AttributeValue::from)
+                decode_plain_json(&plain, true, true).map(AttributeValue::from)
             }
             EncryptedCastKind::Collection => {
-                let array = collection_items(decode_associative_json(text.unwrap_or_default())?);
+                let array = collection_items(decode_plain_json(&plain, true, true)?);
                 Collection::from_stored_array(array)
                     .map(ModelObject::new)
                     .map(AttributeValue::from)
@@ -84,10 +85,15 @@ impl EncryptedCast {
         if value.is_null() {
             return Ok(value);
         }
-        let plain = Zeroizing::new(match self.kind {
-            EncryptedCastKind::String => scalar_string(value.as_json()?)?,
-            _ => encode_array_json(&value.into_array_json()?)?,
-        });
+        let plain = if self.kind == EncryptedCastKind::String {
+            Zeroizing::new(scalar_string(value.as_json()?)?)
+        } else {
+            let encoded = encode_array_json(&value.into_array_json()?)?;
+            if encoded.is_null() {
+                return Ok(encoded.into());
+            }
+            encoded_plaintext(encoded)?
+        };
         self.encrypter
             .encrypt_string(plain.as_bytes())
             .map(|value| Value::String(value).into())
@@ -103,15 +109,25 @@ impl EncryptedCast {
         }
         let current = decrypt(&*self.encrypter, current)?;
         if original.is_null() {
+            if self.kind != EncryptedCastKind::String && Json::decoder().is_some() {
+                let value =
+                    decode_plain_json(&current, self.kind != EncryptedCastKind::Object, true)?;
+                return Ok(self.kind != EncryptedCastKind::Collection && value.is_null());
+            }
             return match self.kind {
                 EncryptedCastKind::String | EncryptedCastKind::Collection => Ok(false),
-                _ => associative_json_equivalent(json_text(&current), ""),
+                _ => default_json_equivalent(json_text(&current), ""),
             };
         }
         let original = decrypt(&*self.encrypter, original)?;
         match self.kind {
             EncryptedCastKind::String => Ok(current.as_slice() == original.as_slice()),
-            _ => associative_json_equivalent(json_text(&current), json_text(&original)),
+            _ if Json::decoder().is_some() => {
+                let current = decode_plain_json(&current, true, true)?;
+                let original = decode_plain_json(&original, true, true)?;
+                Ok(strict_equal(&current, &original))
+            }
+            _ => default_json_equivalent(json_text(&current), json_text(&original)),
         }
     }
 }
@@ -146,9 +162,51 @@ pub(super) fn decrypt(
     encrypter.decrypt_string(ciphertext).map(Zeroizing::new)
 }
 
-pub(super) fn json_text(plaintext: &[u8]) -> &str {
+fn json_text(plaintext: &[u8]) -> &str {
     // PHP json_decode 对无效 UTF-8 返回 null。
     std::str::from_utf8(plaintext).unwrap_or_default()
+}
+
+struct DecoderPlaintext(Value);
+
+impl Drop for DecoderPlaintext {
+    fn drop(&mut self) {
+        if let Value::String(text) = &mut self.0 {
+            text.zeroize();
+        }
+    }
+}
+
+pub(super) fn decode_plain_json(
+    plaintext: &[u8],
+    associative: bool,
+    skip_empty: bool,
+) -> Result<Value> {
+    let Ok(text) = std::str::from_utf8(plaintext) else {
+        return Ok(Value::Null);
+    };
+    if skip_empty && text.is_empty() {
+        return Ok(Value::Null);
+    }
+    if let Some(decoder) = Json::decoder() {
+        let input = DecoderPlaintext(Value::String(text.to_owned()));
+        decoder(&input.0, Some(associative))
+    } else {
+        decode_default_text(text, associative)
+    }
+}
+
+pub(super) fn encoded_plaintext(value: Value) -> Result<Zeroizing<String>> {
+    if value.is_null() {
+        return Err(Error::custom(
+            "model_json_encryption_value",
+            "加密 JSON 编码结果必须可转换为文本",
+        ));
+    }
+    match value {
+        Value::String(text) => Ok(Zeroizing::new(text)),
+        value => scalar_string(&value).map(Zeroizing::new),
+    }
 }
 
 #[cfg(test)]

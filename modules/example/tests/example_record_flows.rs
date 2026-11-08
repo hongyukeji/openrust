@@ -1026,7 +1026,7 @@ async fn assert_mysql_decimal_hydration(db: &openrust::Db) -> TestResult {
 #[cfg(feature = "db-mysql")]
 async fn assert_mysql_json_projection_hydration(db: &openrust::Db) -> TestResult {
     use openrust::database::{
-        eloquent::{AttributeCast, ModelAttributes, ModelMetadata, attributes_from_row},
+        eloquent::{AttributeCast, Json, ModelAttributes, ModelMetadata, attributes_from_row},
         sea_orm::{DbBackend, Statement},
     };
     use serde_json::json;
@@ -1085,6 +1085,19 @@ async fn assert_mysql_json_projection_hydration(db: &openrust::Db) -> TestResult
         hydrated.attributes_to_json(&metadata)?["payload"],
         associative
     );
+    let marker = hydrated
+        .raw_attribute("payload")?
+        .ok_or("缺少 JSON 原始值")?;
+    Json::decode_using(Some(std::sync::Arc::new(move |value, associative| {
+        if value == &marker && associative == Some(true) {
+            Ok(json!({"codec":"mysql"}))
+        } else {
+            Json::decode_default(value, associative)
+        }
+    })));
+    let projected = hydrated.attributes_to_json(&metadata);
+    Json::decode_using(None);
+    assert_eq!(projected?["payload"], json!({"codec":"mysql"}));
     Ok(())
 }
 

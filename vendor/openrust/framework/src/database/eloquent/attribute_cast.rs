@@ -1,6 +1,6 @@
 //! 基础属性读取转换；原始值与模型读取值分开，Query Processor 不复用此规则。
 
-use super::{AttributeValue, ClassCast, ModelDateContext, ModelMetadata};
+use super::{AttributeValue, ClassCast, Json, ModelDateContext, ModelMetadata};
 use crate::{Error, Result};
 use serde_json::Value;
 use std::borrow::Cow;
@@ -144,11 +144,9 @@ pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Resul
             let number = cast_float_value(&value)?;
             Value::Number(serde_json::Number::from_f64(number).ok_or_else(cast_failed)?)
         }
-        AttributeCast::Array | AttributeCast::JsonUnicode => {
-            decode_associative_json(&scalar_string(&value)?)?
-        }
-        AttributeCast::Object => decode_object_json(&scalar_string(&value)?)?,
-        AttributeCast::Collection => collection_items(decode_object_cast_json(&value)?),
+        AttributeCast::Array | AttributeCast::JsonUnicode => from_json(&value, true)?,
+        AttributeCast::Object => from_json(&value, false)?,
+        AttributeCast::Collection => collection_items(from_json(&value, true)?),
         AttributeCast::Hashed => value,
         AttributeCast::Decimal(scale) => super::decimal_cast::read(&value, scale.as_deref())?,
         _ => return Err(cast_failed()),
@@ -173,6 +171,15 @@ pub(crate) fn cast_float_value(value: &Value) -> Result<f64> {
 }
 
 pub(crate) fn array_cast_equivalent(left: &Value, right: &Value) -> Result<bool> {
+    if let Some(decoder) = Json::decoder() {
+        let left = if skips_decode(left) {
+            Value::Null
+        } else {
+            decoder(left, Some(true))?
+        };
+        let right = from_json(right, true)?;
+        return Ok(super::attribute_store::strict_equal(&left, &right));
+    }
     json::equivalent(&scalar_string(left)?, &scalar_string(right)?)
 }
 
@@ -195,21 +202,33 @@ fn model_decimal_float(text: &str) -> Result<f64> {
         .map_err(|_| cast_failed())
 }
 
-pub(super) fn decode_object_cast_json(value: &Value) -> Result<Value> {
-    decode_associative_json(&scalar_string(value)?)
+fn skips_decode(value: &Value) -> bool {
+    value.is_null() || value.as_str() == Some("")
 }
 
-pub(super) fn decode_associative_json(text: &str) -> Result<Value> {
-    json::decode_associative(text)
+pub(super) fn from_json(value: &Value, associative: bool) -> Result<Value> {
+    if skips_decode(value) {
+        return Ok(Value::Null);
+    }
+    Json::decode(value, Some(associative))
+}
+
+pub(super) fn decode_default_json(value: &Value, associative: bool) -> Result<Value> {
+    let text = scalar_string(value)?;
+    decode_default_text(&text, associative)
+}
+
+pub(super) fn decode_default_text(text: &str, associative: bool) -> Result<Value> {
+    if associative {
+        json::decode_associative(text)
+    } else {
+        json::decode_object(text)
+    }
 }
 
 #[cfg(feature = "encryption")]
-pub(super) fn associative_json_equivalent(left: &str, right: &str) -> Result<bool> {
+pub(super) fn default_json_equivalent(left: &str, right: &str) -> Result<bool> {
     json::equivalent(left, right)
-}
-
-pub(super) fn decode_object_json(text: &str) -> Result<Value> {
-    json::decode_object(text)
 }
 
 pub(super) fn collection_items(value: Value) -> Value {
@@ -220,18 +239,36 @@ pub(super) fn collection_items(value: Value) -> Value {
     }
 }
 
-/// 使用 PHP 默认 `flags=0` 的文本转义；`Value` 不承载无效 UTF8 或非有限浮点。
-pub(super) fn encode_array_json(value: &Value) -> Result<String> {
+pub(super) fn encode_array_json(value: &Value) -> Result<Value> {
     encode_projection_json(value, None)
 }
 
-pub(super) fn encode_projection_json(
-    value: &Value,
-    cast: Option<&AttributeCast>,
-) -> Result<String> {
+pub(super) fn encode_projection_json(value: &Value, cast: Option<&AttributeCast>) -> Result<Value> {
+    let flags = if matches!(cast, Some(AttributeCast::JsonUnicode)) {
+        Json::UNESCAPED_UNICODE
+    } else {
+        0
+    };
+    let encoded = Json::encode(value, flags)?;
+    if encoded == Value::Bool(false) {
+        return Err(Error::custom(
+            "model_json_encoding_failed",
+            "模型属性 JSON 编码失败",
+        ));
+    }
+    Ok(encoded)
+}
+
+pub(super) fn encode_default_json(value: &Value, flags: u32) -> Result<String> {
+    if flags & !Json::UNESCAPED_UNICODE != 0 {
+        return Err(Error::custom(
+            "model_json_flags_unsupported",
+            "模型 JSON 编码 flags 尚不受支持",
+        ));
+    }
     let mut output = Vec::new();
     let formatter = PhpJsonFormatter {
-        unescaped_unicode: matches!(cast, Some(AttributeCast::JsonUnicode)),
+        unescaped_unicode: flags != 0,
     };
     let mut serializer = serde_json::Serializer::with_formatter(&mut output, formatter);
     serde::Serialize::serialize(&PhpJson(value), &mut serializer).map_err(|_| cast_failed())?;

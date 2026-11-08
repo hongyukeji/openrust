@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Eloquent 属性 JSON 支持进程级 encoder 和 decoder 回调。
+
 - Eloquent 的 array/json 属性读取递归采用 PHP 关联数组形状。
 
 - Eloquent 支持原生 JSON 对象、集合与 Unicode 赋值。

@@ -287,9 +287,9 @@ impl ModelMetadata {
         if cast == AttributeCast::Collection && !raw.is_null() {
             use super::{
                 ModelObject,
-                attribute_cast::{collection_items, decode_object_cast_json},
+                attribute_cast::{collection_items, from_json},
             };
-            let items = collection_items(decode_object_cast_json(raw.as_json()?)?);
+            let items = collection_items(from_json(raw.as_json()?, true)?);
             let collection =
                 crate::support::Collection::from_stored_array(items).ok_or_else(|| {
                     crate::Error::custom("model_collection_shape", "集合的数组形状无效")

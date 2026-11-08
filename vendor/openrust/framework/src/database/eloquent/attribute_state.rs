@@ -561,7 +561,7 @@ fn strict_number_equal(left: &Value, right: &Value) -> bool {
 }
 
 // 未解码raw对象/数组不互换；数字先按现有PHP64载体分类。
-fn strict_equal(left: &Value, right: &Value) -> bool {
+pub(in crate::database::eloquent) fn strict_equal(left: &Value, right: &Value) -> bool {
     let mut pending = vec![(left, right)];
     while let Some((left, right)) = pending.pop() {
         match (left, right) {

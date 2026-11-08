@@ -1,8 +1,7 @@
 //! 模型的枚举数组对象和集合转换。
 use super::{
     AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster, EnumCase,
-    EnumCast, ModelObject,
-    attribute_cast::{decode_object_cast_json, encode_array_json},
+    EnumCast, Json, ModelObject,
 };
 use crate::{
     Error, Result,
@@ -134,7 +133,7 @@ impl ClassCaster for EnumCollectionCast {
         let Some(raw) = raw.get(name).filter(|value| !value.is_null()) else {
             return Ok(Value::Null.into());
         };
-        let Some(values) = Collection::from_stored_array(decode_object_cast_json(raw.as_json()?)?)
+        let Some(values) = Collection::from_stored_array(Json::decode(raw.as_json()?, Some(true))?)
         else {
             return Ok(Value::Null.into());
         };
@@ -172,9 +171,7 @@ impl ClassCaster for EnumCollectionCast {
                 ));
             }
         };
-        Ok(ClassCastWrite::Value(
-            Value::String(encode_array_json(&value)?).into(),
-        ))
+        Ok(ClassCastWrite::Value(Json::encode(&value, 0)?.into()))
     }
 }
 

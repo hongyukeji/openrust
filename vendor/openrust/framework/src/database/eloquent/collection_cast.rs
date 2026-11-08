@@ -1,8 +1,7 @@
 //! Laravel 的 JSON 数组对象和集合转换。
 use super::{
-    AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,
-    ModelObject,
-    attribute_cast::{decode_object_cast_json, encode_array_json},
+    AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster, Json,
+    ModelObject, attribute_cast::encode_array_json,
 };
 use crate::{
     Result,
@@ -254,7 +253,7 @@ impl ClassCaster for JsonCollectionCast {
         let Some(raw) = raw.get(name).filter(|value| !value.is_null()) else {
             return Ok(Value::Null.into());
         };
-        let Some(values) = Collection::from_stored_array(decode_object_cast_json(raw.as_json()?)?)
+        let Some(values) = Collection::from_stored_array(Json::decode(raw.as_json()?, Some(true))?)
         else {
             return Ok(Value::Null.into());
         };
@@ -266,9 +265,7 @@ impl ClassCaster for JsonCollectionCast {
             return Ok(ClassCastWrite::Value(value));
         }
         let value = value.into_array_json()?;
-        Ok(ClassCastWrite::Value(
-            Value::String(encode_array_json(&value)?).into(),
-        ))
+        Ok(ClassCastWrite::Value(encode_array_json(&value)?.into()))
     }
 }
 

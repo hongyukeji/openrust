@@ -32,6 +32,15 @@ fn check(condition: bool) -> Result<()> {
     }
 }
 
+struct ResetJsonCodec;
+impl Drop for ResetJsonCodec {
+    fn drop(&mut self) {
+        use openrust::database::eloquent::Json;
+        Json::encode_using(None);
+        Json::decode_using(None);
+    }
+}
+
 #[tokio::test]
 async fn generated_application_insert_ids_preserve_execution_and_backend_contracts()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -67,6 +76,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_enum_cast().await?;
         check_generated_decimal_cast().await?;
         check_generated_primitive_json_casts().await?;
+        check_generated_json_codec().await?;
         check(query.count().await? == 3)?;
         backend_ids(&db).await?;
         check_generated_class_cast().await?;
@@ -190,7 +200,7 @@ async fn check_generated_encrypted_collection() -> Result<()> {
     use figment::{Figment, providers::Serialized};
     use openrust::{
         database::eloquent::{
-            AsEncryptedArrayObject, AttributeCast, EncryptedCast, EncryptedCastKind,
+            AsEncryptedArrayObject, AttributeCast, EncryptedCast, EncryptedCastKind, Json,
             ModelAttributes, ModelMetadata,
         },
         encryption::{ApplicationEncrypter, EncryptionServiceProvider},
@@ -231,7 +241,7 @@ async fn check_generated_encrypted_collection() -> Result<()> {
     check(attributes.attributes_to_json(&metadata)?["data"] == expected)?;
     metadata.casts.insert(
         "native_data".into(),
-        AttributeCast::Encrypted(EncryptedCast::new(EncryptedCastKind::Collection, encrypter)),
+        AttributeCast::Encrypted(EncryptedCast::new(EncryptedCastKind::Collection, encrypter.clone())),
     );
     attributes
         .set_attribute(&metadata, "native_data", json!(["native"]))
@@ -240,9 +250,35 @@ async fn check_generated_encrypted_collection() -> Result<()> {
     attributes
         .set_attribute(&metadata, "native_data", json!(["native"]))
         .await?;
-    check(attributes.is_clean(&metadata, &["native_data"])?).and_then(|()| {
-        check(attributes.attributes_to_json(&metadata)?["native_data"] == json!(["native"]))
-    })
+    check(attributes.is_clean(&metadata, &["native_data"])?)?;
+    check(attributes.attributes_to_json(&metadata)?["native_data"] == json!(["native"]))?;
+
+    let _reset = ResetJsonCodec;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let reads = Arc::clone(&calls);
+    Json::decode_using(Some(Arc::new(move |_, _| {
+        reads.fetch_add(1, Ordering::Relaxed);
+        Ok(json!({"hook":true}))
+    })));
+    let codec = ModelAttributes::new(serde_json::Map::from_iter([
+        ("data".into(), json!(encrypter.encrypt_string(b"old")?)),
+        ("native_data".into(), json!(encrypter.encrypt_string(b"old")?)),
+    ]));
+    codec.set_raw_attribute("data", json!(encrypter.encrypt_string(b"new")?))?;
+    codec.set_raw_attribute("native_data", json!(encrypter.encrypt_string(b"new")?))?;
+    check(!codec.original_is_equivalent(&metadata, "data")?)?;
+    check(calls.load(Ordering::Relaxed) == 0)?;
+    check(codec.original_is_equivalent(&metadata, "native_data")?)?;
+    check(calls.load(Ordering::Relaxed) == 2)?;
+    codec.set_raw_attribute("data", json!(encrypter.encrypt_string(b"")?))?;
+    check(codec.attributes_to_json(&metadata)?["data"] == json!({"hook":true}))?;
+
+    Json::encode_using(Some(Arc::new(|_, _| Ok(serde_json::Value::Null))));
+    let codec = ModelAttributes::default();
+    codec.set_attribute(&metadata, "native_data", json!(["new"])).await?;
+    check(codec.raw_attribute("native_data")? == Some(serde_json::Value::Null))?;
+    let result = codec.set_attribute(&metadata, "data", json!(["new"])).await;
+    check(matches!(result, Err(error) if error.code() == "model_json_encryption_value"))
 }
 
 async fn check_generated_enum_cast() -> Result<()> {
@@ -338,6 +374,70 @@ async fn check_generated_primitive_json_casts() -> Result<()> {
     model.casts.insert("settings".into(), AttributeCast::Collection);
     check(attrs.get_attribute_value(&model, "settings")?.is_some_and(|v| v.as_object().is_some()))?;
     check(attrs.attributes_to_json(&model)?["settings"] == associative)
+}
+
+async fn check_generated_json_codec() -> Result<()> {
+    use openrust::database::eloquent::{
+        AsArrayObject, AsEnumArrayObject, AttributeCast, EnumCast, Json, ModelAttributes,
+        ModelMetadata,
+    };
+    use serde_json::{Value as JsonValue, json};
+    use std::sync::Mutex;
+
+    let _reset = ResetJsonCodec;
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let writes = Arc::clone(&calls);
+    Json::encode_using(Some(Arc::new(move |value, flags| {
+        writes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(json!(["encode", flags]));
+        Json::encode_default(value, flags)
+    })));
+    let reads = Arc::clone(&calls);
+    Json::decode_using(Some(Arc::new(move |value, associative| {
+        reads.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(json!(["decode", value, associative]));
+        Ok(json!({"seed":true}))
+    })));
+    let mut model = ModelMetadata::new("insert_items", "CodecRecord");
+    model.casts.insert("data".into(), AttributeCast::JsonUnicode);
+    model.casts.insert("data->label".into(), AttributeCast::Array);
+    let attrs = ModelAttributes::default();
+    attrs.set_raw_attribute("data", json!(r#"{"persisted":1}"#))?;
+    attrs.set_attribute(&model, "data->label", json!("中文")).await?;
+    check(attrs.raw_attribute("data")? == Some(json!(r#"{"seed":true,"label":"\"\\u4e2d\\u6587\""}"#)))?;
+    check(calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_slice() == [
+        json!(["encode", 0]), json!(["decode", r#"{"persisted":1}"#, true]), json!(["encode",256]),
+    ])?;
+
+    model.casts.insert("data".into(), AttributeCast::Object);
+    attrs.set_raw_attribute("data", json!(true))?;
+    check(attrs.get_attribute(&model, "data")? == Some(json!({"seed":true})))?;
+    check(calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).last() == Some(&json!(["decode",true,false])))?;
+    attrs.sync_original()?;
+    attrs.set_raw_attribute("data", json!("different"))?;
+    check(attrs.is_clean(&model, &["data"])?)?;
+    attrs.set_raw_attribute("data", json!(""))?;
+    check(attrs.get_attribute(&model, "data")? == Some(JsonValue::Null))?;
+    model.casts.insert("data".into(), AsArrayObject::cast());
+    check(attrs.get_attribute_value(&model, "data")?.is_some_and(|v| v.as_object().is_some()))?;
+    check(calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).last() == Some(&json!(["decode","",true])))?;
+
+    Json::encode_using(Some(Arc::new(|_, _| Ok(JsonValue::Bool(false)))));
+    let attrs = ModelAttributes::default();
+    let result = attrs.set_attribute(&model, "data", json!([1])).await;
+    check(matches!(result, Err(error) if error.code() == "model_json_encoding_failed"))?;
+    let cases = EnumCast::unit(
+        |name| (name == "Ready").then_some(()),
+        |()| "Ready",
+    );
+    model.casts.insert("data".into(), AsEnumArrayObject::of(cases));
+    attrs.set_attribute(&model, "data", json!(["Ready"])).await?;
+    check(attrs.raw_attribute("data")? == Some(JsonValue::Bool(false)))?;
+    Json::decode_using(Some(Arc::new(|_, _| {
+        Json::decode_using(None);
+        Ok(json!("first"))
+    })));
+    check(Json::decode(&json!(r#""default""#), Some(true))? == json!("first"))?;
+    check(Json::decode(&json!(r#""default""#), Some(true))? == json!("default"))?;
+    Ok(())
 }
 
 async fn rollback_insert(db: &Db) -> Result<()> {

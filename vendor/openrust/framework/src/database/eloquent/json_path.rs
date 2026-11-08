@@ -1,7 +1,7 @@
 //! Eloquent 属性赋值中的 PHP 有序数组路径。
 use super::{
     AttributeCast, AttributeValue, ModelMetadata,
-    attribute_cast::{decode_associative_json, encode_projection_json, scalar_string},
+    attribute_cast::{encode_projection_json, from_json, scalar_string},
 };
 use crate::{Error, Result};
 use serde_json::{Map, Value};
@@ -17,7 +17,7 @@ pub(super) fn write(
     let value = value.into_array_json()?;
     let value = if !value.is_null() && encodes_json(full_cast) {
         check_depth(&value)?;
-        Value::String(encode_projection_json(&value, full_cast)?)
+        encode_projection_json(&value, full_cast)?
     } else {
         value
     };
@@ -33,21 +33,21 @@ pub(super) fn write(
         #[cfg(feature = "encryption")]
         Some(raw) if let Some(encrypter) = encrypter => {
             let plain = super::native_encrypted_cast::decrypt(encrypter, raw)?;
-            decode_associative_json(super::native_encrypted_cast::json_text(&plain))?
+            super::native_encrypted_cast::decode_plain_json(&plain, true, true)?
         }
-        Some(raw) => decode_associative_json(&scalar_string(raw.as_json()?)?)?,
+        Some(raw) => from_json(raw.as_json()?, true)?,
     };
     let document = update(root, path, value)?;
     check_depth(&document)?;
     let json = encode_projection_json(&document, base_cast.as_ref())?;
     #[cfg(feature = "encryption")]
     if let Some(encrypter) = encrypter {
-        let json = zeroize::Zeroizing::new(json);
+        let json = super::native_encrypted_cast::encoded_plaintext(json)?;
         return encrypter
             .encrypt_string(json.as_bytes())
             .map(|value| Value::String(value).into());
     }
-    Ok(Value::String(json).into())
+    Ok(json.into())
 }
 
 fn encodes_json(cast: Option<&AttributeCast>) -> bool {

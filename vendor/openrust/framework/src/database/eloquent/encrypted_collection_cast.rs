@@ -4,15 +4,14 @@ use crate::{
     Error, Result,
     database::eloquent::{
         AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,
-        attribute_cast::{decode_associative_json, encode_array_json},
-        native_encrypted_cast::{decrypt, json_text},
+        attribute_cast::encode_array_json,
+        native_encrypted_cast::{decode_plain_json, decrypt, encoded_plaintext},
     },
     encryption::ApplicationEncrypter,
     support::Collection,
 };
 use serde_json::Value;
 use std::sync::Arc;
-use zeroize::Zeroizing;
 
 /// Laravel 加密数组对象转换。
 pub struct AsEncryptedArrayObject;
@@ -88,7 +87,7 @@ impl ClassCaster for EncryptedCollectionCast {
             return Ok(Value::Null.into());
         };
         let plaintext = decrypt(&*self.encrypter, raw)?;
-        let value = decode_associative_json(json_text(&plaintext))?;
+        let value = decode_plain_json(&plaintext, true, false)?;
         let value = match (self.shape, value) {
             (_, value @ (Value::Array(_) | Value::Object(_))) => value,
             (Shape::Collection, Value::Null) => Value::Array(Vec::new()),
@@ -111,7 +110,7 @@ impl ClassCaster for EncryptedCollectionCast {
             return Ok(ClassCastWrite::Value(value));
         }
         let value = value.into_array_json()?;
-        let json = Zeroizing::new(encode_array_json(&value)?);
+        let json = encoded_plaintext(encode_array_json(&value)?)?;
         let ciphertext = self.encrypter.encrypt_string(json.as_bytes())?;
         Ok(ClassCastWrite::Value(Value::String(ciphertext).into()))
     }

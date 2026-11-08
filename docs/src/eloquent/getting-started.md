@@ -113,7 +113,26 @@ SQL NULL 始终读取为 null。集合遇到 JSON null、空文本或无效 JSON
 赋值分别按完整路径和基础字段的声明编码。唯一示例的记录预览在
 `metadata_projections` 展示对象、集合和编码文本。
 
-Laravel 的全局 JSON 编解码回调仍待对应。
+#### 全局 JSON 编解码回调
+
+在应用 Provider 启动阶段可用 `openrust::database::eloquent::Json::encode_using`
+和 `Json::decode_using` 分别替换进程内的回调。传入 `None` 恢复对应默认实现。
+回调可以调用 `Json::encode_default` 或 `Json::decode_default` 处理其余输入。
+
+```rust
+use openrust::database::eloquent::Json;
+use std::sync::Arc;
+
+Json::decode_using(Some(Arc::new(|value, associative| {
+    Json::decode_default(value, associative)
+})));
+```
+
+encoder 收到编码 flags，decoder 收到原始 JSON 值及关联解码标记。普通属性和集合类的
+空值规则各自生效。路径赋值保留完整键编码、基础字段解码、基础字段编码的顺序。
+回调应返回 `serde_json::Value`，也可以通过 `Result` 传播应用错误。
+内置 encoder 支持 Eloquent 使用的默认 flags 和 `UNESCAPED_UNICODE`，
+其余 PHP 编码 flags 仍待对应。回调状态在同一进程共享，测试可在独立进程中注册。
 
 ### 十进制定标
 
