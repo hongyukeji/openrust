@@ -150,6 +150,18 @@ SQL NULL 保持 null。标量使用 PHP 字符串转换，自定义模型对象�
 `Htmlable::to_view_value()` 将可信标记传给模板的 HTML 文本位置。
 应用应先验证内容来源或进行净化，普通字符串继续由模板自动转义。
 
+#### Uri 模型属性
+
+使用 `AsUri::cast()` 声明 URI 属性。读取时解析为 `openrust::support::Uri`，
+可通过 `get_attribute_value` 获取缓存对象。模型数组保留对象，JSON 输出规范化后的 URI 文本。
+直接赋 URI 对象保留其身份，赋字符串时原文进入属性存储，读取时才检查 URI 语法。SQL NULL 保持 null。
+
+`Uri::of()` 也可独立解析 URI。可读取 authority、scheme、主机、端口、路径、查询原文和片段。
+相对引用、点段及空查询和空片段保持原有语义。`path_segments()` 使用有界 Support Collection。
+示例预览的 `record_uri` 使用此转换。URI 值本身不进行 HTTP 跳转目的地校验。
+输入使用 Rust UTF-8 字符串，国际化主机复用 Rust IDNA 实现。极端 IDNA 映射及
+`mailto` 的完整 PHP 地址过滤规则仍有对标差距。结构化查询变更和命名路由构造另有待办。
+
 #### Fluent 模型属性
 
 在模型的 `casts` 中声明 `AsFluent::cast()`，通过 `get_attribute_value` 取得

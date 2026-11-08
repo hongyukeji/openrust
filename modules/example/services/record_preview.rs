@@ -8,10 +8,10 @@ use openrust::{
         SortDirection,
         eloquent::{
             ArrayObject, AsArrayObject, AsCollection, AsEnumCollection, AsFluent, AsStringable,
-            AttributeCast, AttributeMap, AttributeSetter, AttributeValue, BelongsTo, BelongsToMany,
-            EnumCast, HasMany, HasOne, HasRelationships, Json, LoadedRelation, MassAssignment,
-            ModelAttribute, ModelAttributes, ModelDateContext, ModelMetadata, PivotKeys,
-            RelationLoad, SaveContext,
+            AsUri, AttributeCast, AttributeMap, AttributeSetter, AttributeValue, BelongsTo,
+            BelongsToMany, EnumCast, HasMany, HasOne, HasRelationships, Json, LoadedRelation,
+            MassAssignment, ModelAttribute, ModelAttributes, ModelDateContext, ModelMetadata,
+            PivotKeys, RelationLoad, SaveContext,
         },
     },
     support::{BoxFuture, Collection, DateStringFormat},
@@ -97,10 +97,7 @@ pub(crate) async fn preview(
                 .collect()
         };
     let mut details = attributes.attributes_to_json(&metadata)?;
-    details.insert(
-        "published_at_label".into(),
-        published_at_label(&attributes, &metadata)?,
-    );
+    details.extend(record_display_casts(&attributes, &metadata, model.id)?);
     details.insert(
         "metadata_tag_count".into(),
         Value::from(metadata_tag_count(&attributes)?),
@@ -143,26 +140,39 @@ pub(crate) async fn preview(
     })
 }
 
-fn published_at_label(attributes: &ModelAttributes, metadata: &ModelMetadata) -> Result<Value> {
+fn record_display_casts(
+    attributes: &ModelAttributes,
+    metadata: &ModelMetadata,
+    id: i64,
+) -> Result<Map<String, Value>> {
     let value = attributes.get_attribute_value(metadata, "published_at")?;
-    let Some(date) = value.as_ref().and_then(AttributeValue::as_date) else {
-        return Ok(Value::Null);
-    };
-    let label = date.copy()?.modify(|value| {
-        Ok(value.with_string_format(Some(DateStringFormat::pattern("Y/m/d H:i"))))
-    })?;
-    let projected = ModelAttributes::from_attribute_values(AttributeMap::from_iter([(
-        "published_at".into(),
-        label.into(),
-    )]));
+    let label = value
+        .as_ref()
+        .and_then(AttributeValue::as_date)
+        .map(|date| {
+            date.copy()?.modify(|value| {
+                Ok(value.with_string_format(Some(DateStringFormat::pattern("Y/m/d H:i"))))
+            })
+        })
+        .transpose()?;
+    let projected = ModelAttributes::from_attribute_values(AttributeMap::from_iter([
+        (
+            "published_at_label".into(),
+            label.map_or(Value::Null.into(), AttributeValue::from),
+        ),
+        (
+            "record_uri".into(),
+            Value::String(format!("/api/example/records/{id}")).into(),
+        ),
+    ]));
     let mut label_metadata = ModelMetadata::new(metadata.table.as_str(), "RecordPreviewLabel");
     label_metadata
         .casts
-        .insert("published_at".into(), AsStringable::cast());
-    Ok(projected
-        .attributes_to_json(&label_metadata)?
-        .shift_remove("published_at")
-        .unwrap_or(Value::Null))
+        .insert("published_at_label".into(), AsStringable::cast());
+    label_metadata
+        .casts
+        .insert("record_uri".into(), AsUri::cast());
+    projected.attributes_to_json(&label_metadata)
 }
 
 pub(crate) enum RecordFlag {

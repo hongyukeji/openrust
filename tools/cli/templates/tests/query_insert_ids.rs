@@ -79,6 +79,7 @@ async fn generated_application_insert_ids_preserve_execution_and_backend_contrac
         check_generated_as_fluent().await?;
         check_generated_as_stringable().await?;
         check_generated_as_stringable_date().await?;
+        check_generated_as_uri().await?;
         check_generated_as_html_string().await?;
         check_generated_date_string_format().await?;
         check_generated_json_codec().await?;
@@ -510,6 +511,24 @@ async fn check_generated_as_stringable_date() -> Result<()> {
     date.modify(|value| Ok(value.with_string_format(Some(DateStringFormat::pattern("H:i:s.u")))))?;
     check(attrs.raw_attribute("label")? == Some(json!("13:00:00.123456")))?;
     check(attrs.attributes_to_json(&model)?["label"] == json!("2026-11-08T05:00:00.123456Z"))
+}
+
+async fn check_generated_as_uri() -> Result<()> {
+    use openrust::{
+        database::eloquent::{AsUri, ModelAttributes, ModelMetadata, ModelObject},
+        support::Uri,
+    };
+    use serde_json::json;
+    let mut metadata = ModelMetadata::new("insert_items", "UriRecord");
+    metadata.casts.insert("label".into(), AsUri::cast());
+    let attrs = ModelAttributes::default();
+    let uri = ModelObject::new(Uri::of("https://MÜNICH.example:443/a/../资源?#")?);
+    attrs.set_attribute_value(&metadata, "label", uri.clone().into()).await?;
+    check(attrs.attributes_to_array(&metadata)?["label"].as_object().is_some_and(|object| object.same_object(&uri)))?;
+    check(attrs.attributes_to_json(&metadata)?["label"] == json!("https://xn--mnich-kva.example/a/../%E8%B5%84%E6%BA%90?#"))?;
+    attrs.set_attribute(&metadata, "label", json!("http://")).await?;
+    check(attrs.raw_attribute("label")? == Some(json!("http://")))?;
+    check(attrs.get_attribute_value(&metadata, "label").is_err())
 }
 
 async fn check_generated_json_codec() -> Result<()> {

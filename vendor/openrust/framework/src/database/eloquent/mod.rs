@@ -54,6 +54,8 @@ mod relations;
 mod save;
 mod stringable_cast;
 pub use stringable_cast::AsStringable;
+mod uri_cast;
+pub use uri_cast::AsUri;
 mod timestamps;
 mod unique_ids;
 pub use attributes::attributes_from_row;

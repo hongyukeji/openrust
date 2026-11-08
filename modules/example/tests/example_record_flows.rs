@@ -641,7 +641,7 @@ async fn attribute_preview_contract(
     clean.assert_status(StatusCode::OK)?;
     let clean: serde_json::Value = serde_json::from_slice(clean.body())?;
     let editable = assert_preview_schema(&db, &clean["data"]).await?;
-    assert_clean_preview_display(&clean["data"]);
+    assert_clean_preview_display(&clean["data"], id);
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
     assert_model_guardable_columns(&databases).await?;
     assert_model_save_query_key(&db, id).await?;
@@ -714,7 +714,11 @@ async fn attribute_preview_contract(
     Ok(())
 }
 
-fn assert_clean_preview_display(clean: &serde_json::Value) {
+fn assert_clean_preview_display(clean: &serde_json::Value, id: i64) {
+    assert_eq!(
+        clean["display"]["details"]["record_uri"],
+        format!("/api/example/records/{id}")
+    );
     let published = "2026-10-29T12:00:00.000000+00:00";
     assert_eq!(clean["original_transformed"]["published_at"], published);
     assert_eq!(clean["display"]["details"]["published_at"], published);
@@ -1221,6 +1225,7 @@ async fn assert_cached_collection_save(
         assert_enum_collection_save(&record, &db, &transaction, &context).await?;
         assert_stringable_save(&record, &db, &transaction, &context).await?;
         assert_html_string_save(&record, &db, &transaction, &context).await?;
+        assert_uri_cast_save(&record, &db, &transaction, &context).await?;
         Ok(())
     }
     .await;
@@ -1302,6 +1307,49 @@ async fn assert_stringable_save(
     assert_eq!(saved.description, "字符串对象");
     assert_class_cast_saves_configured_date(&saved, db, transaction, context, AsStringable::cast())
         .await
+}
+
+async fn assert_uri_cast_save(
+    record: &crate::modules::example::models::example_record::Model,
+    db: &openrust::Db,
+    transaction: &openrust::database::sea_orm::DatabaseTransaction,
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> TestResult {
+    use crate::modules::example::models::example_record;
+    use openrust::{
+        database::{
+            eloquent::{AsUri, ModelObject, save_with_query},
+            sea_orm::EntityTrait,
+        },
+        support::Uri,
+    };
+    let mut model = example_record::RecordForSave::from_existing(record)?;
+    model
+        .metadata
+        .casts
+        .insert("description".into(), AsUri::cast());
+    let link = ModelObject::new(Uri::of("../records")?);
+    model
+        .attributes
+        .set_attribute_value(&model.metadata, "description", link.clone().into())
+        .await?;
+    link.modify::<Uri>(|_| Uri::of("//EXAMPLE.test:081/资源?#"))?;
+    let query = db
+        .table(&model.metadata.table)?
+        .using_transaction(transaction);
+    assert!(save_with_query(&mut model, context, query).await?);
+    let saved = example_record::Entity::find_by_id(record.id)
+        .one(transaction)
+        .await?
+        .ok_or("缺少保存 URI 的记录")?;
+    assert_eq!(saved.description, "//example.test:81/%E8%B5%84%E6%BA%90?#");
+    assert_eq!(
+        saved
+            .attribute_snapshot()?
+            .attributes_to_json(&model.metadata)?["description"],
+        saved.description
+    );
+    Ok(())
 }
 
 async fn assert_html_string_save(
