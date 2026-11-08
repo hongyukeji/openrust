@@ -27,7 +27,7 @@ OpenRust 使用 Rust 实现 Laravel 的框架能力与开发体验。目录、�
 
 在源码目录用 `cargo run` 启动应用，用 `./artisan list` 查看应用命令。发布目录用 `./app` 启动，同目录的 `./artisan` 继续提供命令入口。[Artisan 使用说明](docs/src/getting-started/source-application.md#查找应用命令)
 
-在仓库根目录运行 `docker compose up --build -d --wait` 可启动应用、MySQL 和 Redis。Compose 通过 Artisan 执行一次迁移，成功后启动应用。[Docker Compose 使用说明](docs/src/getting-started/source-application.md#用-docker-compose-运行)
+在仓库根目录运行 `docker compose up --build -d --wait` 可启动应用、MySQL 和 Redis。Compose 通过 Artisan 执行一次迁移。持久数据默认写入宿主机的 `./docker-data/`，`./public/` 默认以只读方式挂载。[Docker Compose 部署与旧卷迁移](docs/src/getting-started/source-application.md#用-docker-compose-运行)
 
 ## AI 辅助开发
 

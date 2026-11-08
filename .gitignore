@@ -4,6 +4,7 @@
 Cargo.lock.bak
 /storage/*
 !/storage/README.md
+/docker-data/
 /bootstrap/cache/*.json
 **/.modules_statuses.json.lock
 /database/*.sqlite

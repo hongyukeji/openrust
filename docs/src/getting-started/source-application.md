@@ -70,9 +70,95 @@ curl --fail http://127.0.0.1:3000/ready
 docker compose logs -f app
 ```
 
-默认只将应用端口发布到宿主机的 `127.0.0.1:3000`。`SERVER_PORT` 修改宿主机端口。Compose 从根 `.env` 读取 `docker-compose.yml` 列明的部署变量，应用和迁移容器均使用 Compose 网络内的 MySQL 和 Redis。镜像构建时排除 `.env`、本地 `storage/` 和 SQLite 文件。部署前设置独立的 `DB_PASSWORD`、正确的 `APP_URL` 和业务需要的密钥。MySQL、Redis 和应用存储使用命名卷，`docker compose down` 停止容器并保留数据。
+默认将应用端口发布到宿主机的 `127.0.0.1:3000`。`SERVER_PORT` 修改宿主机端口。Compose 从部署目录的 `.env` 读取 `docker-compose.yml` 列明的部署变量，应用和迁移容器均使用 Compose 网络内的 MySQL 和 Redis。部署前设置独立的 `DB_PASSWORD`、正确的 `APP_URL` 和业务需要的密钥。
 
 Dockerfile 使用 Cargo 默认 feature。需编译登录、视图和 WebSocket 时，可在 `.env` 设置 `OPENRUST_BUILD_FEATURES=auth-fortify,view,realtime`，并按应用配置填写认证密钥和允许的 WebSocket Origin。
+
+### 宿主机数据与公开资源
+
+相对路径以 Compose 文件所在目录为基准。每套部署使用自己的数据根。
+
+| 宿主机路径 | 容器路径 | 用途 |
+| --- | --- | --- |
+| `${OPENRUST_DATA_DIR:-./docker-data}/storage` | `/app/storage` | 应用与迁移服务共享读写 |
+| `${OPENRUST_DATA_DIR:-./docker-data}/mysql` | `/var/lib/mysql` | MySQL 数据 |
+| `${OPENRUST_DATA_DIR:-./docker-data}/redis` | `/data` | Redis 持久文件 |
+| `${OPENRUST_PUBLIC_DIR:-./public}` | `/app/public` | 应用公开资源，只读 |
+
+启动时创建缺失的数据子目录。`app` 与 `migrate` 以 UID/GID `10001:10001` 运行。MySQL 和 Redis 分别使用其镜像内的 `mysql` 和 `redis` 账号。初始化会检查对应账号能否写入目录。只有不可写、为空且属主为 `0:0` 的挂载根会调整属主。迁入已有数据时，请保留各服务的数字 UID/GID，并确保目录对相应服务可写。`docker compose down` 移除容器和网络，宿主机数据目录可在下次启动时继续使用。
+
+`OPENRUST_PUBLIC_DIR` 必须指向已有目录。挂载覆盖镜像的整个 `/app/public`，因此部署时需带上所需的 `index.html` 和公开资源。宿主机可更新这些文件，容器只能读取。该目录会通过应用公开访问，请只放可公开的内容。[Docker Compose 挂载说明](https://docs.docker.com/reference/compose-file/services/#volumes)
+
+构建上下文排除 `.env`、SQLite 文件、默认的 `docker-data/`，以及任意层级名为 `storage`、`mysql` 或 `redis` 的目录。自定义数据根请使用构建上下文外的真实目录，三个数据子目录均应是实际目录。备份和迁移归档也应放在构建上下文外，避免随源码发送给构建器。[Docker 构建上下文](https://docs.docker.com/build/concepts/context/#dockerignore-files)
+
+### 用现成镜像部署
+
+在源码机选择一个与部署目标架构匹配的镜像标签。可用镜像仓库分发，也可构建后导出。
+
+```bash
+OPENRUST_IMAGE=openrust-app:deploy docker compose build app
+docker image save --output ../openrust-app.tar openrust-app:deploy
+```
+
+将 `docker-compose.yml`、镜像归档及 `public/` 复制到部署主机。在部署目录创建 `.env`，设置 `OPENRUST_IMAGE=openrust-app:deploy` 和部署所需配置。使用镜像仓库时，直接拉取 `.env` 指定的镜像，可省略加载归档。
+
+```bash
+docker image load --input openrust-app.tar
+```
+
+如未随部署携带 `public/`，可在部署目录从同一镜像提取默认资源。提取后再启动服务。
+
+```bash
+(
+  set -eu -o pipefail
+  mkdir public
+  docker run --rm --entrypoint tar openrust-app:deploy -C /app/public -cf - . |
+    tar -xf - -C public
+  test -r public/index.html
+)
+```
+
+```bash
+docker compose up --no-build -d --wait
+```
+
+### 从命名卷迁移
+
+旧 Compose 使用 `storage`、`mysql`、`redis` 三个命名卷。切换前保留旧 Compose 文件、环境配置和镜像。先停外部流量和其他写入进程，正常停止应用，在 Redis 保存数据后正常停止 Redis 与 MySQL。确认旧容器使用的实际卷名及镜像版本。物理复制应沿用相同的 MySQL 与 Redis 镜像版本，跨版本迁移遵循相应数据库的升级流程。
+
+```bash
+project=openrust
+old_compose=./docker-compose.named-volumes.yml
+docker compose -p "$project" -f "$old_compose" stop app &&
+  docker compose -p "$project" -f "$old_compose" exec -T redis redis-cli SAVE &&
+  docker compose -p "$project" -f "$old_compose" stop --timeout 120 mysql redis
+docker volume ls --filter "label=com.docker.compose.project=$project"
+```
+
+确认 Redis 返回 `OK`，且所有旧服务已正常停止后，再归档卷。以下 Linux 示例假定实际卷名沿用 Compose 的 `<项目>_<卷名>`。按部署填写备份目录和新的数据根，两者的上级目录须已存在，数据根须尚未使用。
+
+```bash
+backup=/srv/openrust-backups/volume-migration
+data=/srv/openrust/data
+mkdir -m 0700 "$backup" "$data" || exit 1
+for name in storage mysql redis; do
+  volume="${project}_${name}"
+  docker volume inspect "$volume" >/dev/null || exit 1
+  docker run --rm --mount "type=volume,src=$volume,dst=/source,readonly" \
+    debian:bookworm-slim tar --numeric-owner -C /source -cf - . \
+    > "$backup/$name.tar" || exit 1
+  tar -tf "$backup/$name.tar" >/dev/null || exit 1
+  mkdir "$data/$name" || exit 1
+  sudo tar --numeric-owner --same-owner -xpf "$backup/$name.tar" \
+    -C "$data/$name" || exit 1
+done
+```
+
+核对归档和恢复目录的内容及数字属主。在新部署的 `.env` 设置 `OPENRUST_DATA_DIR=/srv/openrust/data`，沿用原数据库名和凭据，再用新版 Compose 启动。恢复流量前检查 `/ready`、业务记录、应用存储和 Redis 持久数据。保留归档和原命名卷，回退时先停止新版，再用旧配置启动原卷。若新版已接收写入，先确认如何保留这些新增数据。[Docker 命名卷备份与恢复](https://docs.docker.com/engine/storage/volumes/#back-up-restore-or-migrate-data-volumes)
+
+在 macOS 的 Docker Desktop 上，应在实际部署的 Linux 主机执行上述物理恢复，或使用各服务支持的逻辑导出和导入流程。恢复后以容器中的实际运行账号核对文件属主和读写权限。
+
+### 导出应用文件
 
 在 Mac 上也可以用同一个 Dockerfile 导出 Linux 应用文件，导出目录中包含同级的 `app` 和 `artisan`。下面的命令目标是 x86_64，ARM64 对应 `linux/arm64`。导出的二进制使用构建镜像的 Linux ABI，直接部署前应在目标系统检查依赖并实际启动。
 
@@ -81,7 +167,7 @@ docker buildx build --platform linux/amd64 --target artifacts \
   --output type=local,dest=dist/linux-amd64 .
 ```
 
-这里的 Compose 文件用于源码根应用。`openrust new` 生成的独立项目通过本地路径依赖框架，容器构建需要将对应框架源码纳入构建上下文。
+这里的 Compose 文件用于根应用。`openrust new` 生成的独立项目通过本地路径依赖框架，容器构建需要将对应框架源码纳入构建上下文。生成项目的 Compose 工作流及 Ubuntu x86_64 实机运行仍待验收。
 
 ## 编写业务与扩展
 

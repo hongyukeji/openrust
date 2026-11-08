@@ -1,9 +1,67 @@
+x-openrust-image: &openrust-image ${OPENRUST_IMAGE:-${COMPOSE_PROJECT_NAME:-openrust}-app:local}
+
+x-storage-mount: &storage-mount
+  type: bind
+  source: ${OPENRUST_DATA_DIR:-./docker-data}/storage
+  target: /app/storage
+  bind:
+    create_host_path: true
+
+x-mysql-mount: &mysql-mount
+  type: bind
+  source: ${OPENRUST_DATA_DIR:-./docker-data}/mysql
+  target: /var/lib/mysql
+  bind:
+    create_host_path: true
+
+x-redis-mount: &redis-mount
+  type: bind
+  source: ${OPENRUST_DATA_DIR:-./docker-data}/redis
+  target: /data
+  bind:
+    create_host_path: true
+
+# 只允许修改空目录的挂载根。已迁移数据和自选权限由部署者保留。
+x-data-init: &data-init
+  user: "0:0"
+  read_only: true
+  network_mode: none
+  cap_drop: [ALL]
+  cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+  security_opt: [no-new-privileges:true]
+  entrypoint:
+    - /bin/sh
+    - -ec
+    - |
+      directory="$$1"
+      owner="$$2"
+      check_access() {
+        if [ "$$owner" = mysql:mysql ]; then
+          gosu "$$owner" "$$@"
+        else
+          setpriv --reuid="$${owner%:*}" --regid="$${owner#*:}" --clear-groups "$$@"
+        fi
+      }
+      writable() {
+        check_access /bin/sh -ec 'test -w "$$1" && test -x "$$1"' check-data "$$directory"
+      }
+      if writable; then
+        exit 0
+      fi
+      contents="$$(find "$$directory" -mindepth 1 -maxdepth 1 -print -quit)"
+      if [ -z "$$contents" ] && [ "$$(stat -c %u:%g "$$directory")" = 0:0 ]; then
+        chown --no-dereference "$$owner" "$$directory"
+        if writable; then
+          exit 0
+        fi
+      fi
+      printf '数据目录 %s 对账号 %s 不可写，请在宿主机检查挂载目录权限。\n' "$$directory" "$$owner" >&2
+      exit 1
+    - prepare-data
+
 x-openrust: &openrust
-  image: ${COMPOSE_PROJECT_NAME:-openrust}-app:local
-  build:
-    context: .
-    args:
-      APP_FEATURES: ${OPENRUST_BUILD_FEATURES:-}
+  image: *openrust-image
+  user: "10001:10001"
   environment:
     APP_ENV: ${APP_ENV:-production}
     APP_DEBUG: ${APP_DEBUG:-false}
@@ -30,15 +88,24 @@ x-openrust: &openrust
     REDIS_DB: ${REDIS_DB:-0}
     QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
     QUEUE_REDIS_NAMESPACE:
-  volumes:
-    - storage:/app/storage
-
 services:
   app:
     <<: *openrust
+    build:
+      context: .
+      args:
+        APP_FEATURES: ${OPENRUST_BUILD_FEATURES:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
+    volumes:
+      - *storage-mount
+      - type: bind
+        source: ${OPENRUST_PUBLIC_DIR:-./public}
+        target: /app/public
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "${OPENRUST_HTTP_BIND:-127.0.0.1}:${SERVER_PORT:-3000}:3000"
     healthcheck:
@@ -51,23 +118,47 @@ services:
 
   migrate:
     <<: *openrust
+    pull_policy: never
     entrypoint: ["/app/artisan"]
     command: [migrate]
+    volumes:
+      - *storage-mount
     depends_on:
+      storage-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  storage-init:
+    <<: *data-init
+    image: *openrust-image
+    pull_policy: never
+    command: [/app/storage, "10001:10001"]
+    volumes:
+      - *storage-mount
+
+  mysql-init:
+    <<: *data-init
+    image: mysql:8.4
+    command: [/var/lib/mysql, "mysql:mysql"]
+    volumes:
+      - *mysql-mount
+
   mysql:
     image: mysql:8.4
+    user: "mysql:mysql"
+    depends_on:
+      mysql-init:
+        condition: service_completed_successfully
     environment:
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
       MYSQL_DATABASE: ${DB_DATABASE:-openrust}
       MYSQL_USER: ${DB_USERNAME:-openrust}
       MYSQL_PASSWORD: ${DB_PASSWORD:-openrust}
     volumes:
-      - mysql:/var/lib/mysql
+      - *mysql-mount
     healthcheck:
       test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1"']
       interval: 5s
@@ -75,18 +166,24 @@ services:
       retries: 24
     restart: unless-stopped
 
+  redis-init:
+    <<: *data-init
+    image: redis:8
+    command: [/data, "redis:redis"]
+    volumes:
+      - *redis-mount
+
   redis:
     image: redis:8
+    user: "redis:redis"
+    depends_on:
+      redis-init:
+        condition: service_completed_successfully
     volumes:
-      - redis:/data
+      - *redis-mount
     healthcheck:
       test: [CMD, redis-cli, ping]
       interval: 5s
       timeout: 3s
       retries: 12
     restart: unless-stopped
-
-volumes:
-  storage:
-  mysql:
-  redis:
