@@ -78,7 +78,8 @@ pub(in crate::container) struct BindingCondition(pub Box<Condition>);
 /// 按声明顺序求值的条件绑定。条件为真时登记指定的具体实现。
 ///
 /// 条件通过当前的 [`Resolver`] 读取配置、检查绑定或异步解析依赖。
-/// 条件全部未命中时，下一次独立解析会再次求值。
+/// 条件可登记工厂。若条件写入当前键，命中的声明覆盖该工厂；未命中或失败时保留该工厂。
+/// 条件全部未命中且当前键仍无工厂时，下一次独立解析会再次求值。
 #[derive(Clone)]
 pub struct BindWhen {
     concrete: ServiceKey,

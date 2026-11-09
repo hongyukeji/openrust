@@ -12,7 +12,7 @@
 
 编译类和构造参数可以声明属性，通过 Provider 自定义属性选值与后置回调。`SelfBuilding` 支持独立的方法注入与同类重入回退。详见[构造属性与自构造](../../../docs/src/architecture-concepts/lifecycle.md#构造属性与自构造)。
 
-接口描述符可通过 `Bind` 或 `BindWhen` 按应用环境和运行条件登记编译实现。详见[按应用环境声明绑定](../../../docs/src/architecture-concepts/lifecycle.md#按应用环境声明绑定)。
+接口描述符可通过 `Bind` 或 `BindWhen` 按应用环境和运行条件登记编译实现。条件可通过 `Resolver::bind` 登记同一容器的工厂，随后按声明完成选择。详见[按条件声明绑定](../../../docs/src/architecture-concepts/lifecycle.md#按条件声明绑定)。
 
 编译类可声明应用单例或作用域共享实例。详见[声明共享生命周期](../../../docs/src/architecture-concepts/lifecycle.md#声明共享生命周期)。
 

@@ -51,7 +51,15 @@ pub(crate) fn descriptors() -> [ClassDescriptor; 6] {
             .with_bind_when(BindWhen::new(
                 ServiceKey::typed::<ConditionalBinding>(),
                 |resolver: Resolver| async move {
-                    Ok(resolver.section::<AppConfig>("app")?.env.as_str() == "conditional")
+                    if resolver.section::<AppConfig>("app")?.env.as_str() != "conditional" {
+                        return Ok(false);
+                    }
+                    resolver
+                        .bind::<dyn EnvironmentBinding, _>(|_| {
+                            Box::pin(async { Ok(Arc::new(DefaultBinding) as _) })
+                        })
+                        .await?;
+                    Ok(true)
                 },
             ))
             .with_bind(Bind::for_environments(

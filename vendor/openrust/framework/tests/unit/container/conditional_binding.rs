@@ -292,6 +292,162 @@ async fn concurrent_first_resolutions_share_one_successful_evaluation() -> Resul
     Ok(())
 }
 
+#[tokio::test]
+async fn same_key_write_keeps_the_condition_result_for_the_current_resolution() -> Result<()> {
+    for decision in [Some(true), Some(false), None] {
+        let container = fixture(view().with_bind_when(BindWhen::new(
+            key::<Concrete<1>>(),
+            move |resolver: Resolver| async move {
+                resolver
+                    .bind::<dyn View, _>(|_| Box::pin(async { Ok(Arc::new(Concrete::<2>) as _) }))
+                    .await?;
+                assert_eq!(resolver.resolve::<dyn View>().await?.selected(), 2);
+                decision.ok_or_else(|| Error::custom("test_condition_failed", "登记后失败"))
+            },
+        )))?;
+        let first = resolve(&container).await;
+        match decision {
+            Some(true) => assert_eq!(first?.selected(), 1),
+            Some(false) => assert_not_instantiable(first),
+            None => assert!(matches!(first, Err(error) if error.code() == "test_condition_failed")),
+        }
+        assert_eq!(
+            resolve(&container).await?.selected(),
+            if decision == Some(true) { 1 } else { 2 }
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn concrete_condition_miss_uses_the_original_constructor_before_the_new_factory() -> Result<()>
+{
+    struct Original(u8);
+    let container = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<Original>("Test/Original", vec![], |_| {
+            Ok(Arc::new(Original(1)))
+        })
+        .with_bind_when(BindWhen::new(
+            key::<Original>(),
+            |resolver: Resolver| async move {
+                resolver
+                    .bind(|_| Box::pin(async { Ok(Arc::new(Original(2))) }))
+                    .await?;
+                Ok(false)
+            },
+        )),
+    ])?
+    .build();
+    assert_eq!(container.resolve::<Original>().await?.0, 1);
+    assert_eq!(container.resolve::<Original>().await?.0, 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn shared_condition_miss_replaces_the_callback_cache_before_releasing_waiters() -> Result<()>
+{
+    struct Original(u8);
+    struct Dependency;
+    let container_slot = Arc::new(std::sync::OnceLock::<std::sync::Weak<Container>>::new());
+    let slot = Arc::clone(&container_slot);
+    let release_condition = Arc::new(Notify::new());
+    let condition_gate = Arc::clone(&release_condition);
+    let release_constructor = Arc::new(Notify::new());
+    let constructor_gate = Arc::clone(&release_constructor);
+    let mut builder = ContainerBuilder::with_class_descriptors(vec![
+        ClassDescriptor::concrete::<Original>(
+            "Test/Original",
+            vec![crate::container::ConstructorParam::class::<Dependency>(
+                "dependency",
+            )],
+            |_| Ok(Arc::new(Original(1))),
+        )
+        .with_bind_when(BindWhen::new(
+            key::<Original>(),
+            move |resolver: Resolver| {
+                let slot = Arc::clone(&slot);
+                let gate = Arc::clone(&condition_gate);
+                async move {
+                    let container = slot
+                        .get()
+                        .and_then(std::sync::Weak::upgrade)
+                        .ok_or_else(|| Error::custom("test_container_unavailable", "容器已释放"))?;
+                    container
+                        .singleton(|_| Box::pin(async { Ok(Arc::new(Original(2))) }))
+                        .await?;
+                    assert_eq!(resolver.resolve::<Original>().await?.0, 2);
+                    gate.notified().await;
+                    Ok(false)
+                }
+            },
+        )),
+    ])?;
+    builder.bind::<Dependency, _>(move |_| {
+        let gate = Arc::clone(&constructor_gate);
+        Box::pin(async move {
+            gate.notified().await;
+            Ok(Arc::new(Dependency))
+        })
+    });
+    let container = Arc::new(builder.build());
+    assert!(container_slot.set(Arc::downgrade(&container)).is_ok());
+    let mut first = Box::pin(container.resolve::<Original>());
+    let mut waiter = Box::pin(container.resolve::<Original>());
+    assert!(futures_util::poll!(first.as_mut()).is_pending());
+    assert!(futures_util::poll!(waiter.as_mut()).is_pending());
+    release_condition.notify_waiters();
+    assert!(futures_util::poll!(first.as_mut()).is_pending());
+    assert!(futures_util::poll!(waiter.as_mut()).is_pending());
+    release_constructor.notify_waiters();
+
+    let (first, waiter) = tokio::time::timeout(LIMIT, async { tokio::try_join!(first, waiter) })
+        .await
+        .map_err(Error::internal)??;
+    assert_eq!(first.0, 1);
+    assert!(Arc::ptr_eq(&first, &waiter));
+    assert!(Arc::ptr_eq(&first, &container.resolve::<Original>().await?));
+    Ok(())
+}
+
+#[tokio::test]
+async fn waiters_use_the_finished_declaration_or_the_new_external_binding() -> Result<()> {
+    for external in [false, true] {
+        let release = Arc::new(Notify::new());
+        let gate = Arc::clone(&release);
+        let container = fixture(view().with_bind_when(BindWhen::new(
+            key::<Concrete<1>>(),
+            move |resolver: Resolver| {
+                let gate = Arc::clone(&gate);
+                async move {
+                    resolver
+                        .bind::<dyn View, _>(|_| {
+                            Box::pin(async { Ok(Arc::new(Concrete::<2>) as _) })
+                        })
+                        .await?;
+                    gate.notified().await;
+                    Ok(true)
+                }
+            },
+        )))?;
+        let mut owner = Box::pin(resolve(&container));
+        assert!(futures_util::poll!(owner.as_mut()).is_pending());
+        let shared = container.clone();
+        let waiter = start_waiting(async move { shared.resolve::<dyn View>().await }).await?;
+        let selected = if external {
+            container
+                .bind::<dyn View, _>(|_| Box::pin(async { Ok(Arc::new(Concrete::<3>) as _) }))
+                .await?;
+            3
+        } else {
+            release.notify_waiters();
+            1
+        };
+        assert_eq!(owner.await?.selected(), selected);
+        assert_eq!(finish_waiting(waiter).await?.selected(), selected);
+    }
+    Ok(())
+}
+
 fn fixture_with_pending_first_condition() -> Result<(Container, Arc<AtomicUsize>)> {
     let calls = Arc::new(AtomicUsize::new(0));
     let evaluations = Arc::clone(&calls);

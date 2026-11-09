@@ -956,6 +956,12 @@ PHP 8.5.12 对照固定 Laravel 的按类直通、别名参数、终止、恢复
 
 隔离工作区格式、严格 Clippy、拒警 Rustdoc 和依赖门禁通过。使用真实 MySQL 8.4.13 的工作区测试 2,907 项通过、54 项忽略。生成应用 24 项通过，独立测试使用公开类型替换 API，普通服务器真实 TCP 执行原中间件并返回 HTTP 200，SIGTERM 正常退出。证据见 `tmp/lead-typed-middleware.VLJnB9pR/independent-result.json`。
 
+## BindWhen 条件内同键重绑限定验收
+
+PHP 8.5.12 执行固定 Laravel `d52c3b3` 的真实容器，验证条件同键登记后命中覆盖、未命中继续构造原类、抛错保留已登记工厂，以及条件内缓存的共享值由原类替换。Rust 回归覆盖同一行为，另外验证并发解析等待共享槽、独立重绑取消旧选择。唯一示例以 conditional 环境走 HTTP 注入。
+
+隔离工作区通过格式、严格 Clippy、拒警 Rustdoc 和依赖检查，真实 MySQL 8.4.13 工作区测试 2,911 项通过、54 项忽略。生成应用 24 项通过，真实 TCP 返回声明实现和 HTTP 200，SIGTERM 正常退出。验收输入、固定 PHP 对照和门禁日志见 `tmp/lead-bindwhen-write.eLUaFXPj/delivery-receipt.json`。
+
 ## 内核生命周期时长处理器限定验收
 
 PHP 8.5.12 运行固定 Laravel `d52c3b3` 的 HTTP 与控制台 Kernel，8 个场景验证严格阈值、结束时间快照、时区、错误中止和动态登记。业务路由与 Artisan 执行体使用受控替身。Rust 采用每入口独立的单调计时，按当前应用时区投影开始时刻。

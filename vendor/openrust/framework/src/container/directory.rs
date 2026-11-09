@@ -798,6 +798,29 @@ impl Container {
 }
 
 impl Resolver {
+    /// 在当前容器登记工厂。此登记适用于整个应用，调用作用域须仍开放。
+    ///
+    /// 在 `BindWhen` 条件中登记当前键时，命中的声明可以覆盖该工厂。
+    pub async fn bind<T, F>(&self, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        let container = self.container()?;
+        let (_, event) = container.commit_binding_change_when(
+            ServiceKey::typed::<T>(),
+            BindingChange::Factory(binding::<T, F>(Lifetime::Bind, factory)),
+            |state, _| {
+                self.check_open(state)?;
+                Ok(true)
+            },
+        )?;
+        if let Some(event) = event {
+            event.dispatch().await?;
+        }
+        Ok(())
+    }
+
     /// 在当前构造链和作用域内跟随别名，解析指定键的 `T` 输出。
     pub fn resolve_key<T: ?Sized + Send + Sync + 'static>(
         &self,

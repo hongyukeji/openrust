@@ -1206,7 +1206,7 @@ async fn concurrent_cross_service_extensions_use_existing_wait_graph() -> Result
             Ok(old)
         })
     });
-    let (first, second) = bounded(async { tokio::join!(first, second) }).await?;
+    let (first, second) = Box::pin(bounded(async { tokio::join!(first, second) })).await?;
     assert!(
         first
             .as_ref()

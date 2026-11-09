@@ -115,6 +115,7 @@ pub(super) struct CachedAdmission {
     // None 表示跟随已有 owner；空向量仍是有权构造的 owner。
     pub(super) owner_chain: Option<Vec<Extender>>,
     pub(super) edge: Option<WaitEdge>,
+    pub(super) retired: Option<Arc<Attempt>>,
 }
 
 #[derive(Default)]
@@ -605,11 +606,16 @@ impl Resolver {
                     .filter(|op| !op.published.load(Ordering::Acquire))
                     .cloned()
                 {
-                    let edge = self.wait_edge(inner, &mut state, &operation.attempt)?;
+                    let edge = match &source.shared_condition_miss {
+                        Some(flight) => flight.wait_for(self, &mut state, &operation.attempt),
+                        None => self.wait_edge(inner, &mut state, &operation.attempt),
+                    }?;
                     Some((operation, edge))
                 } else {
-                    let (attempt, owner_chain) = if let Some(attempt) = state.slots.get(key) {
-                        (Arc::clone(attempt), None)
+                    let (attempt, owner_chain, retired) = if source.shared_condition_miss.is_none()
+                        && let Some(attempt) = state.slots.get(key)
+                    {
+                        (Arc::clone(attempt), None, None)
                     } else {
                         let attempt = Arc::new(Attempt {
                             id: state.id()?,
@@ -617,19 +623,21 @@ impl Resolver {
                             outcome: Mutex::new(None),
                             changed: Notify::new(),
                         });
-                        state.slots.insert(key.clone(), Arc::clone(&attempt));
+                        let retired = state.slots.insert(key.clone(), Arc::clone(&attempt));
                         let chain = if source.binding.instance.is_some() {
                             Vec::new()
                         } else {
                             state.extensions.chain(key)
                         };
-                        (attempt, Some(chain))
+                        (attempt, Some(chain), retired)
                     };
-                    let edge = self.wait_edge(inner, &mut state, &attempt)?;
+                    let edge = self.wait_edge(inner, &mut state, &attempt);
+                    drop(state);
                     return Ok(Some(CachedAdmission {
                         attempt,
                         owner_chain,
-                        edge,
+                        edge: edge?,
+                        retired,
                     }));
                 }
             };

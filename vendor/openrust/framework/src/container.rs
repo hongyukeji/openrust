@@ -687,6 +687,23 @@ struct Construction {
 }
 
 impl Construction {
+    fn retire_replaced_attempt(
+        &mut self,
+        resolver: &Resolver,
+        retired: Option<Arc<Attempt>>,
+    ) -> bool {
+        let failed = retired.is_some_and(|attempt| {
+            resolver
+                .callback_disposal()
+                .run(|| crate::foundation::lifecycle::disposal::dispose(attempt, None).seen)
+        });
+        if failed {
+            let error = container_error("resource_task_interrupted", "旧共享实例析构异常");
+            self.finish(Err(Failure::initialization(&self.key.service, error)));
+        }
+        failed
+    }
+
     fn finish(&mut self, result: std::result::Result<Value, Failure>) {
         self.publish(result, true);
     }
@@ -891,6 +908,7 @@ impl Container {
             if let Some(binding) = &mut replacement {
                 binding.generation = revision;
             }
+            state.record_condition_write(&service, revision);
             let previously_resolved = state.resolved_history.contains(&service);
             let notify = !forgetting
                 && (if installing_instance {
@@ -2207,6 +2225,7 @@ impl Resolver {
                     aliases,
                     contextual: None,
                     implicit: false,
+                    shared_condition_miss: None,
                 }),
                 None => ConstructionSource::Missing(key),
             },
@@ -2221,7 +2240,7 @@ impl Resolver {
         pinned: Option<&ServiceKey>,
     ) -> Result<std::ops::ControlFlow<Value, BindingSource>> {
         let requested = pinned.unwrap_or_else(|| request.lookup_key());
-        let mut checked = None;
+        let mut checked: Option<(u64, class_binding::CheckedBinding)> = None;
         loop {
             use descriptor_source::ConstructionSource;
             let choice = 'select: {
@@ -2233,9 +2252,9 @@ impl Resolver {
                 };
                 let revision = state.flush_revision;
                 let checked_here = checked
-                    .as_ref()
+                    .as_mut()
                     .filter(|(checked_revision, _)| *checked_revision == revision)
-                    .map(|(_, key)| key);
+                    .map(|(_, checked)| checked);
                 if contextual.is_none()
                     && expected.is_none()
                     && let Some(declared) = self.begin_binding_discovery(
@@ -2243,16 +2262,15 @@ impl Resolver {
                         &mut state,
                         requested,
                         pinned.is_some(),
-                        checked_here,
+                        checked_here.as_deref().map(|checked| &checked.key),
                     )?
                 {
                     break 'select std::ops::ControlFlow::Break((revision, declared));
                 }
                 let selected = match contextual {
                     Some(source) => source,
-                    None if expected.is_none() && state.classes.has_descriptors() => {
-                        state.construction_source(requested, self, pinned.is_some())?
-                    }
+                    None if expected.is_none() && state.classes.has_descriptors() => state
+                        .construction_source(requested, self, pinned.is_some(), checked_here)?,
                     None => self.binding_source(&state, requested, expected, pinned.is_some())?,
                 };
                 #[cfg(test)]
@@ -2471,7 +2489,7 @@ impl Resolver {
                     self.transient(&source, child, activity, request.raises_events())
                         .await?
                 } else {
-                    self.cached(&source, child, activity, request.raises_events())
+                    self.cached(&mut source, child, activity, request.raises_events())
                         .await?
                 };
                 if let Some(value) = value {
@@ -2590,7 +2608,7 @@ impl Resolver {
 
     async fn cached(
         &self,
-        source: &BindingSource,
+        source: &mut BindingSource,
         mut child: Self,
         activity: Arc<AtomicBool>,
         events: bool,
@@ -2611,10 +2629,13 @@ impl Resolver {
             attempt,
             owner_chain,
             edge: _edge,
+            retired,
         }) = self.admit_cached(&container.inner, &key, source).await?
         else {
             return Ok(None);
         };
+        // 已预留原类的共享槽。其他解析可沿登记的工厂取得同一共享结果。
+        drop(source.shared_condition_miss.take());
         let Some(chain) = owner_chain else {
             return tokio::select! {
                 result = attempt.wait() => result.map(Some),
@@ -2628,6 +2649,9 @@ impl Resolver {
             activity,
             finished: false,
         };
+        if guard.retire_replaced_attempt(self, retired) {
+            return attempt.wait().await.map(Some);
+        }
         child.constructing = child
             .chain
             .last()
@@ -2729,7 +2753,7 @@ mod tests {
             .await?;
         let stale = resolver
             .cached(
-                &BindingSource::pinned(ServiceKey::typed::<usize>(), old),
+                &mut BindingSource::pinned(ServiceKey::typed::<usize>(), old),
                 resolver.clone(),
                 Arc::new(AtomicBool::new(true)),
                 true,

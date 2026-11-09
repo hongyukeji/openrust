@@ -139,7 +139,7 @@ async fn register(app: &RegisterContext<'_>) -> openrust::Result<()> {
 
 条件全部未命中时，下一次独立解析可以重新判断。条件返回错误时，本次原样返回错误并记住已检查状态。条件内部用同一解析器重入当前服务时，继续查找普通构造来源。登记成功后，后续解析沿用真实工厂。并发首次求值共享一次在途检查，取消后等待者可以重新检查。
 
-条件中请使用传入的解析器。若在条件内通过外部持有的容器显式登记同一个键，已发布工厂优先。示例模块的 `/api/example/environment-binding` 在 `conditional` 环境演示条件命中。 [Laravel BindWhen](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/BindWhen.php)
+可调用 `resolver.bind::<T, _>(factory).await?` 在同一容器登记工厂。条件登记当前键后，回调内的普通解析可读取新工厂。若声明最终命中，以声明工厂为准。若未命中，本次尝试构造原抽象，后续解析可使用条件登记的工厂。若条件失败，本次返回原错误，已经登记的工厂仍可用。独立任务重绑会使旧条件结果失效。示例模块的 `/api/example/environment-binding` 在 `conditional` 环境演示同键登记后由命中声明选定实现。 [Laravel 容器](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L995-L1066)
 
 #### 声明共享生命周期
 

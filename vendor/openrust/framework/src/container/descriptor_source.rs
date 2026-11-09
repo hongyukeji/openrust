@@ -23,6 +23,7 @@ pub(super) struct BindingSource {
     pub(super) aliases: Option<AliasWitness>,
     pub(super) contextual: Option<ContextualSource>,
     pub(super) implicit: bool,
+    pub(super) shared_condition_miss: Option<Box<super::class_binding::DiscoveryFlight>>,
 }
 
 impl BindingSource {
@@ -34,6 +35,7 @@ impl BindingSource {
             aliases: None,
             contextual: None,
             implicit: false,
+            shared_condition_miss: None,
         }
     }
 
@@ -48,6 +50,7 @@ impl BindingSource {
             aliases,
             contextual: None,
             implicit: true,
+            shared_condition_miss: None,
         }
     }
 
@@ -94,6 +97,7 @@ enum DescriptorEntry {
         aliases: AliasWitness,
         with_parameters: bool,
         contextual: Option<ContextualSource>,
+        after_condition_write: bool,
     },
     Build(ServiceKey),
 }
@@ -194,7 +198,8 @@ impl State {
                 if self.classes.class(key).is_none() {
                     return Ok(Some(ConstructionSource::Missing(key.clone())));
                 }
-                let descriptor = self.descriptor_source(aliases, resolver, Some(contextual))?;
+                let descriptor =
+                    self.descriptor_source(aliases, resolver, Some(contextual), false)?;
                 return Ok(Some(ConstructionSource::Descriptor(descriptor)));
             }
             ContextualImplementation::Service(implementation) => {
@@ -251,6 +256,7 @@ impl State {
             aliases: Some(aliases),
             contextual: Some(contextual),
             implicit: false,
+            shared_condition_miss: None,
         })))
     }
 
@@ -295,6 +301,7 @@ impl State {
         requested: &ServiceKey,
         resolver: &Resolver,
         pinned: bool,
+        checked: Option<&mut super::class_binding::CheckedBinding>,
     ) -> Result<ConstructionSource> {
         resolver.check_open(self)?;
         let aliases = self
@@ -302,6 +309,31 @@ impl State {
             .lookup_witness(&self.classes.canonical_key(requested), pinned)?;
         let key = &aliases.terminal;
         let with_parameters = resolver.parameters.is_some();
+        if let Some(checked) = checked.filter(|checked| {
+            &checked.key == key && checked.mutation == Some(self.class_revision(key))
+        }) {
+            // 条件未命中时，本次仍构造原类。它登记的工厂供后续解析使用。
+            if let Some(class) = self.classes.class(key)
+                && let Some(published) = self.bindings.get(key)
+                && let Some(flight) = checked.shared_flight.take()
+            {
+                let lifetime = self.service_lifetime(key, Some(published));
+                let mut binding =
+                    super::class_binding::ClassFactory::direct_binding(key, lifetime, class.output);
+                binding.generation = published.generation;
+                return Ok(ConstructionSource::Binding(BindingSource {
+                    key: key.clone(),
+                    binding,
+                    aliases: Some(aliases),
+                    contextual: None,
+                    implicit: false,
+                    shared_condition_miss: Some(flight),
+                }));
+            }
+            return self
+                .descriptor_source(aliases, resolver, None, true)
+                .map(ConstructionSource::Descriptor);
+        }
         if let Some(binding) = self.resolution_binding(key, with_parameters) {
             return Ok(ConstructionSource::Binding(BindingSource {
                 key: key.clone(),
@@ -309,6 +341,7 @@ impl State {
                 aliases: Some(aliases),
                 contextual: None,
                 implicit: false,
+                shared_condition_miss: None,
             }));
         }
         if !with_parameters && let Some(binding) = self.implicit_class_binding(key) {
@@ -321,7 +354,7 @@ impl State {
         if self.classes.class(key).is_none() {
             return Ok(ConstructionSource::Missing(key.clone()));
         }
-        self.descriptor_source(aliases, resolver, None)
+        self.descriptor_source(aliases, resolver, None, false)
             .map(ConstructionSource::Descriptor)
     }
 
@@ -330,6 +363,7 @@ impl State {
         aliases: AliasWitness,
         resolver: &Resolver,
         contextual: Option<ContextualSource>,
+        after_condition_write: bool,
     ) -> Result<DescriptorSource> {
         let revision = self.class_revision(&aliases.terminal);
         self.make_descriptor_source(
@@ -337,6 +371,7 @@ impl State {
                 aliases,
                 with_parameters: resolver.parameters.is_some(),
                 contextual,
+                after_condition_write,
             },
             revision,
             resolver,
@@ -413,6 +448,7 @@ impl DescriptorSource {
             aliases,
             with_parameters,
             contextual,
+            after_condition_write,
         } = &self.entry
         else {
             return true;
@@ -420,10 +456,11 @@ impl DescriptorSource {
         state.aliases.accepts(aliases)
             && contextual.as_ref().map_or_else(
                 || {
-                    state
-                        .bindings
-                        .get(self.key())
-                        .is_none_or(|binding| *with_parameters && binding.factory.is_none())
+                    *after_condition_write
+                        || state
+                            .bindings
+                            .get(self.key())
+                            .is_none_or(|binding| *with_parameters && binding.factory.is_none())
                 },
                 |source| source.is_current(state, self.key()),
             )
@@ -485,7 +522,8 @@ mod tests {
         key: &ServiceKey,
         resolver: &Resolver,
     ) -> Result<DescriptorSource> {
-        let choice = lock(&container.inner.state).construction_source(key, resolver, false)?;
+        let choice =
+            lock(&container.inner.state).construction_source(key, resolver, false, None)?;
         match choice {
             ConstructionSource::Descriptor(ticket) => Ok(ticket),
             _ => Err(container_error(
@@ -517,7 +555,8 @@ mod tests {
         );
 
         container.instance(Arc::new(9_usize)).await?;
-        let actual = lock(&container.inner.state).construction_source(&alias, &resolver, false)?;
+        let actual =
+            lock(&container.inner.state).construction_source(&alias, &resolver, false, None)?;
         assert!(matches!(actual, ConstructionSource::Binding(selected)
             if selected.key == key && selected.binding.instance.is_some()));
         container.forget_instance::<usize>().await?;
@@ -528,7 +567,8 @@ mod tests {
         );
         let ticket = choose(&container, &alias, &resolver)?;
         container.alias_key(ServiceKey::typed::<String>(), alias.clone())?;
-        let missing = lock(&container.inner.state).construction_source(&alias, &resolver, false)?;
+        let missing =
+            lock(&container.inner.state).construction_source(&alias, &resolver, false, None)?;
         assert!(matches!(missing, ConstructionSource::Missing(target)
             if target == ServiceKey::typed::<String>()));
         container.alias_key(key, alias)?;

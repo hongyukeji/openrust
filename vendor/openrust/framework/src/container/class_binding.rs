@@ -9,7 +9,11 @@ use super::{
 };
 use crate::config::Environment;
 use crate::foundation::lifecycle::callback_future;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+tokio::task_local! {
+    static BINDING_CONDITIONS: Vec<Arc<InFlightBinding>>;
+}
 
 pub(super) enum BindingDiscovery {
     Owner(DeclarationCheck),
@@ -28,11 +32,19 @@ pub(super) struct InFlightBinding {
     consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
     with_parameters: bool,
     scope: u64,
+    initial_revision: u64,
+    condition_write: AtomicU64,
 }
 
 impl InFlightBinding {
+    fn mutation_revision(&self) -> Option<u64> {
+        let revision = self.condition_write.load(Ordering::Relaxed);
+        (revision != 0).then_some(revision)
+    }
+
     fn is_current(&self, state: &State) -> bool {
         let key = &self.attempt.service;
+        let mutation = self.mutation_revision();
         state
             .binding_discoveries
             .get(key)
@@ -40,12 +52,29 @@ impl InFlightBinding {
             && !self.closed.closed.load(Ordering::Acquire)
             && state.binding_environment == self.environment
             && state.aliases.accepts(&self.aliases)
-            && state.can_discover_binding(key, self.with_parameters, self.scope)
+            && state.class_revision(key) == mutation.unwrap_or(self.initial_revision)
+            && (mutation.is_some()
+                || state.can_discover_binding(key, self.with_parameters, self.scope))
             && self.consumer.as_ref().is_none_or(|(consumer, active)| {
                 !active.load(Ordering::Acquire)
                     || state.contextual_implementation(consumer, key).is_none()
             })
     }
+
+    fn admits_waiter(&self, state: &State, resolver: &Resolver) -> bool {
+        self.mutation_revision().is_some()
+            || state.can_discover_binding(
+                &self.attempt.service,
+                resolver.parameters.is_some(),
+                resolver.scope,
+            )
+    }
+}
+
+pub(super) struct CheckedBinding {
+    pub(super) key: ServiceKey,
+    pub(super) mutation: Option<u64>,
+    pub(super) shared_flight: Option<Box<DiscoveryFlight>>,
 }
 
 pub(super) struct DeclarationCheck {
@@ -53,16 +82,27 @@ pub(super) struct DeclarationCheck {
     classes: Arc<ClassRegistry>,
     termination: Arc<ScopeStatus>,
     conditional: bool,
-    _edge: Option<WaitEdge>,
 }
 
-struct DiscoveryFlight {
+pub(super) struct DiscoveryFlight {
     inner: Arc<Inner>,
     record: Arc<InFlightBinding>,
     active: Arc<AtomicBool>,
+    _edge: Option<WaitEdge>,
 }
 
 impl DiscoveryFlight {
+    pub(super) fn wait_for(
+        &self,
+        resolver: &Resolver,
+        state: &mut State,
+        attempt: &Attempt,
+    ) -> Result<Option<WaitEdge>> {
+        let mut child = resolver.clone();
+        child.constructing = Some((self.record.attempt.id, Arc::clone(&self.active)));
+        child.wait_edge(&self.inner, state, attempt)
+    }
+
     async fn invalidated(&self) {
         loop {
             let changed = {
@@ -101,7 +141,7 @@ impl BindingDiscovery {
         self,
         inner: &Arc<Inner>,
         resolver: &Resolver,
-    ) -> Result<Option<ServiceKey>> {
+    ) -> Result<Option<CheckedBinding>> {
         match self {
             Self::Owner(check) => check.resolve(resolver).await,
             Self::Wait {
@@ -114,11 +154,7 @@ impl BindingDiscovery {
                     resolver.check_open(&state)?;
                     if !flight.is_current(&state)
                         || !state.aliases.accepts(&aliases)
-                        || !state.can_discover_binding(
-                            &aliases.terminal,
-                            resolver.parameters.is_some(),
-                            resolver.scope,
-                        )
+                        || !flight.admits_waiter(&state, resolver)
                         || resolver
                             .active_consumer_frame()
                             .is_some_and(|(consumer, _)| {
@@ -147,7 +183,7 @@ impl BindingDiscovery {
 }
 
 impl DeclarationCheck {
-    async fn resolve(self, resolver: &Resolver) -> Result<Option<ServiceKey>> {
+    async fn resolve(self, resolver: &Resolver) -> Result<Option<CheckedBinding>> {
         let key = &self.flight.record.attempt.service;
         let class = self
             .classes
@@ -169,7 +205,21 @@ impl DeclarationCheck {
                 if selection.is_err() || !self.conditional {
                     state.checked_binding_declarations.insert(key.clone());
                 }
-                return selection.map(|_| Some(key.clone()));
+                selection?;
+                let mutation = self.flight.record.mutation_revision();
+                let shares_original = mutation.is_some()
+                    && !self.flight.record.with_parameters
+                    && class.kind() != super::class_descriptor::ClassKind::Interface
+                    && state.bindings.get(key).is_some_and(|binding| {
+                        state.service_lifetime(key, Some(binding)) != Lifetime::Bind
+                    });
+                let key = key.clone();
+                drop(state);
+                return Ok(Some(CheckedBinding {
+                    key,
+                    mutation,
+                    shared_flight: shares_original.then(|| Box::new(self.flight)),
+                }));
             }
         };
         let container = Container {
@@ -239,11 +289,15 @@ impl DeclarationCheck {
                         None,
                         |condition, resolver, ()| (condition.0)(resolver),
                     );
+                    let mut conditions = BINDING_CONDITIONS
+                        .try_with(Clone::clone)
+                        .unwrap_or_default();
+                    conditions.push(Arc::clone(&self.flight.record));
                     let matched = tokio::select! {
                         biased;
                         () = self.termination.wait_closed() => Err(container_error("container_closed", "容器已关闭")),
                         () = resolver.closed.wait_closed() => Err(lock(&self.flight.inner.state).resolution_closure_error()),
-                        result = callback => result,
+                        result = BINDING_CONDITIONS.scope(conditions, callback) => result,
                     }?;
                     if matched {
                         return Ok(Some(bind.concrete().clone()));
@@ -256,6 +310,21 @@ impl DeclarationCheck {
 }
 
 impl State {
+    pub(super) fn record_condition_write(&self, key: &ServiceKey, revision: u64) {
+        let Some(flight) = self.binding_discoveries.get(key) else {
+            return;
+        };
+        if Self::condition_is_active(flight) && flight.is_current(self) {
+            flight.condition_write.store(revision, Ordering::Relaxed);
+        }
+    }
+
+    fn condition_is_active(flight: &Arc<InFlightBinding>) -> bool {
+        BINDING_CONDITIONS
+            .try_with(|conditions| conditions.iter().any(|active| Arc::ptr_eq(active, flight)))
+            .unwrap_or(false)
+    }
+
     fn listen_for_binding_change(&self) -> std::pin::Pin<Box<tokio::sync::futures::OwnedNotified>> {
         let mut changed = Box::pin(Arc::clone(&self.binding_changes).notified_owned());
         changed.as_mut().enable();
@@ -288,12 +357,28 @@ impl Resolver {
             .lookup_witness(&state.classes.canonical_key(requested), pinned)?;
         let key = &aliases.terminal;
         if checked == Some(key)
-            || !state.can_discover_binding(key, self.parameters.is_some(), self.scope)
             || self
                 .binding_checks
                 .iter()
                 .any(|(service, active)| service == key && active.load(Ordering::Acquire))
         {
+            return Ok(None);
+        }
+        if let Some(flight) = state.binding_discoveries.get(key)
+            && flight.is_current(state)
+        {
+            if State::condition_is_active(flight) || !flight.admits_waiter(state, self) {
+                return Ok(None);
+            }
+            let flight = Arc::clone(flight);
+            let edge = self.wait_edge(inner, state, &flight.attempt)?;
+            return Ok(Some(BindingDiscovery::Wait {
+                flight,
+                aliases,
+                edge,
+            }));
+        }
+        if !state.can_discover_binding(key, self.parameters.is_some(), self.scope) {
             return Ok(None);
         }
         let Some(class) = state.classes.class(key) else {
@@ -306,16 +391,7 @@ impl Resolver {
         if class.binds.is_empty() || (!conditional && state.binding_environment.is_none()) {
             return Ok(None);
         }
-        if let Some(flight) = state.binding_discoveries.get(key).cloned()
-            && flight.is_current(state)
-        {
-            let edge = self.wait_edge(inner, state, &flight.attempt)?;
-            return Ok(Some(BindingDiscovery::Wait {
-                flight,
-                aliases,
-                edge,
-            }));
-        }
+        let initial_revision = state.class_revision(key);
         let record = Arc::new(InFlightBinding {
             attempt: Attempt {
                 id: state.id()?,
@@ -329,6 +405,8 @@ impl Resolver {
             consumer: self.active_consumer_frame().cloned(),
             with_parameters: self.parameters.is_some(),
             scope: self.scope,
+            initial_revision,
+            condition_write: AtomicU64::new(0),
         });
         let edge = self.wait_edge(inner, state, &record.attempt)?;
         state
@@ -338,13 +416,13 @@ impl Resolver {
             inner: Arc::clone(inner),
             record,
             active: Arc::new(AtomicBool::new(true)),
+            _edge: edge,
         };
         Ok(Some(BindingDiscovery::Owner(DeclarationCheck {
             flight,
             classes: Arc::clone(&state.classes),
             termination: Arc::clone(&state.termination),
             conditional,
-            _edge: edge,
         })))
     }
 }
