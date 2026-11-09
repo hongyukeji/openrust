@@ -1,4 +1,4 @@
-//! Laravel PRAGMA 标量插值与 PDO SQLite 的首语句边界。
+//! SQLite PRAGMA 标量插值和 PDO 的首语句边界。
 //!
 //! 扫描仅覆盖 PRAGMA 输入域的引号、注释和首句边界，不是完整 SQLite lexer。
 //! PRAGMA grammar 不接受 VARIABLE；`$name(...)` 的内部词法未作通用建模，

@@ -20,7 +20,7 @@ impl ServiceProvider for ReadinessProvider {
 
 /// 框架默认 Provider 集合；顺序即注册与启动顺序。
 ///
-/// 与 Laravel `DefaultProviders` 一样，应用可在启动前追加、替换或排除具体项。
+/// 应用可在启动前追加、替换或排除具体 Provider。
 /// `ProviderBuilder::new()` 保持空清单，测试可显式选取所需服务。
 pub struct DefaultProviders {
     selection: Selection,

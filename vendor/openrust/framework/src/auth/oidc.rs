@@ -2648,7 +2648,7 @@ async fn delete_external_session(
     let session_id =
         encryptor.decrypt_with_context(encrypted_session_id, association_hash.as_bytes())?;
     let session_id = String::from_utf8(session_id).map_err(Error::internal)?;
-    // 原生Laravel数据库driver允许当前DELETE，仍不提供并发INSERT防复活保证。
+    // 原生数据库 driver 允许当前 DELETE，仍不能阻止并发 INSERT 重建记录。
     // 仅服务端已加密关联的ID使用底层handler；客户端快照仍明确拒绝。
     if sessions.guarantees() == crate::session::SessionStoreGuarantees::NativeDatabase {
         sessions

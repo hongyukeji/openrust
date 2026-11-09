@@ -303,7 +303,7 @@ mod tests {
                 "仅持久键校验应能给出有效期限",
             )?;
 
-            // 保留 Laravel SessionGuard.id 的原行为：账户不存在时仍可返回 Session ID。
+            // 账户不存在时仍可返回 Session 中保存的账户标识。
             require(
                 guard.user().await?.is_none(),
                 "缺失账户的 Guard 必须仍为 guest",

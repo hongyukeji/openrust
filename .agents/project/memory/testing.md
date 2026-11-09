@@ -2253,3 +2253,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 八个 Fortify 运行事件使用 `OpenRust\Auth\TwoFactor\Events\` 前缀。类型、载荷、派发和事务边界沿用原行为。新单测固定所有事件名及类型、具名、通配符的同次派发顺序，旧前缀不触发订阅。真实 MySQL 事务测试验证新具名监听收到同一事务，事务末检拒绝后因子、审计与队列写入全部回滚。
 
 冻结树 `2ce2410abb56f32ceaed8ff20f8dc269705323fa` 通过 fmt、默认和启用 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。唯一示例验证因子流程与一次性恢复码，fresh Web/Fortify、JWT API 生成应用通过 check 和真实 MySQL 测试。
+
+## 第一方源码与生成模板命名收尾
+
+普通实现注释和生成说明使用职责名称，整数校验私有实现使用 `valid_integer_value`。固定上游对照、许可、项目定位及示例实际调用的官方指南 URL 保留。分类扫描覆盖 Git 跟踪文本和文件名，并覆盖 fresh minimal、Web/Fortify、JWT API 三个生成目录的文本和文件名，未发现未分类生产残留。
+
+冻结树 `64014794c56405188a21ef04bbe40dcd75a789b4` 通过默认及 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。整数校验原回归和生成布局快照通过；三个 fresh 项目均通过 check/test。最终验收树 `dc0edba86c2141e346429b031c7f5212b2305f89` 较运行测试树仅三个文件四行普通 Rust 注释勘误，行数和可执行代码相同，并重新通过格式、差异及名称扫描。

@@ -1,4 +1,4 @@
-//! 固定 Laravel 数据库 Session 表；增强的绝对截止由显式迁移扩展登记。
+//! 原生数据库 Session 表；增强的绝对截止由显式迁移扩展登记。
 
 use crate::database::{
     DatabaseTableNames,

@@ -1,7 +1,7 @@
 //! 请求 URL 的查询串规则；不修改受管理请求的输入 bag。
 //!
 //! canonical 对照 Symfony `HttpFoundation` 7.4.0/8.0.0 的 `HeaderUtils::parseQuery`
-//! 与 `Request::normalizeQueryString`；增删参数对照固定 Laravel `Arr::query/forget`。
+//! 与 `Request::normalizeQueryString`；增删参数使用 `Arr::query/forget` 的对应语义。
 
 use std::cmp::Ordering;
 

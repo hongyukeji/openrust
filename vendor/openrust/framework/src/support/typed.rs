@@ -65,7 +65,7 @@ macro_rules! typed_methods {
         /// 读取保留原键、顺序与重复值的 enum 集合。
         ///
         /// 此集合输出路径要求 Serialize，以验证转换后资源预算；单值 enum 不受此约束。
-        /// 这是当前有界集合实现的约束，不是 Laravel 或 Rust 枚举本身的限制。
+        /// 这是有界集合实现的容量约束。
         pub fn enums<E: crate::support::BackedEnum + serde::Serialize>(
             &self,
             key: &str,

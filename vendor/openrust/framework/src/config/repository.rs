@@ -370,7 +370,7 @@ impl State {
             .map(String::as_str)
     }
 
-    // 注册时立即发布给下一个 Provider，同时保持递归文件的 Laravel 浅合并边界。
+    // 注册时立即发布给下一个 Provider，同时保持文件来源的浅合并边界。
     fn section_candidate(
         &self,
         key: &str,
@@ -543,10 +543,10 @@ impl ConfigRepository {
     }
 
     /// 登记类型化默认值、结构与校验器；文件内区段沿所属文件的浅合并边界，
-    /// 仅有子文件时按 Laravel 剩余 base 根写入覆盖，文件后来源仍优先。
+    /// 仅有子文件时先将剩余默认值写入根；文件之后的来源仍优先。
     ///
     /// 同名登记一律拒绝，避免忽略后来登记的校验器。
-    /// 本操作仅补齐区段默认值，不代表 Laravel 包的浅合并或递归替换操作。
+    /// 本操作只补齐区段默认值。包配置可另外选择浅层合并或递归替换。
     pub fn register_section<T>(
         &mut self,
         owner: TypeId,
@@ -633,7 +633,7 @@ impl ConfigRepository {
         Ok(())
     }
 
-    /// 登记 Laravel 包的浅层默认合并；已有对象键整体获胜，数组连接并重新编号。
+    /// 登记包的浅层默认合并；已有对象键整体获胜，数组连接并重新编号。
     ///
     /// Register 阶段立即发布，`validate_base` 只校验已发布视图。
     pub fn merge_defaults(&mut self, key: &'static str, defaults: Value) -> Result<()> {
@@ -996,7 +996,7 @@ impl ConfigRepository {
         self.lock().version
     }
 
-    /// 按 Laravel `Arr::set` 的点路径写入一项原始配置。
+    /// 沿点分隔的路径写入一项原始配置。
     ///
     /// 可信应用代码可在注册、启动及运行期调用；运行期不会重新校验启动 schema，
     /// 已解析的服务也不会自动重建。失败时原始值、类型化投影及版本均不改变。
@@ -1385,7 +1385,7 @@ fn config_collection(
         .ok_or_else(|| ConfigError::Invalid(format!("{key}: expected array")))
 }
 
-// Laravel 只在整个输入 key 上优先查字面键；之后逐段遍历，不查剩余点串。
+// 仅对完整输入优先查字面键；之后逐段遍历，不查剩余点串。
 fn read_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
     if let Some(value) = read_entry(values, key) {
         return Some(value);
@@ -1493,7 +1493,7 @@ pub(crate) fn reorder_like(previous: &Value, candidate: Value) -> Value {
     }
 }
 
-// Laravel 写入只将完整 key 拆段；即使根上已有字面 "a.b"，也写入 a -> b。
+// 写入将完整 key 拆段；即使根上已有字面 "a.b"，也写入 a -> b。
 pub(crate) fn set_dot_value(current: &mut Value, key: &str, value: Value) {
     let parts: Vec<_> = key.split('.').collect();
     let Some((leaf, ancestors)) = parts.split_last() else {
@@ -1964,7 +1964,7 @@ fn preview_register_operation(
     Ok((candidate, preview))
 }
 
-// 精确文件区段沿 Laravel base→file 的顶层浅合并；只给 Figment 缺失键打补丁，
+// 文件区段对基线作顶层浅合并；只给 Figment 缺失键打补丁，
 // 避免 join 整个 typed 默认对象把普通嵌套旧项递归补回。
 fn file_default_patch(key: &str, defaults: &Value, current: &Value) -> (Value, Value) {
     if defaults.is_array() && current.is_array() {

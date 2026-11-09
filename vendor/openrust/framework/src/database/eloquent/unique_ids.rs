@@ -4,7 +4,7 @@ use super::{AttributeCast, ModelAttributes, ModelMetadata};
 use crate::Result;
 use serde_json::Value;
 
-/// 生成 Laravel `HasUuids` 对应的 UUID v7 字符串。
+/// 生成符合 `HasUuids` 契约的 UUID v7 字符串。
 #[cfg(feature = "db-uuid")]
 pub fn new_uuid_v7() -> String {
     uuid::Uuid::now_v7().to_string()

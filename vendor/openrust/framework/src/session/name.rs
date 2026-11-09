@@ -1,4 +1,4 @@
-//! 仅为 Session 默认 Cookie 名推导固定 Laravel slug，不公开通用转写 API。
+//! 只为默认 Session Cookie 推导名称，不公开通用转写 API。
 //!
 //! Laravel framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181：
 //! `Support/Str.php` 142–144、1661–1683，`config/session.php`。

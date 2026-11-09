@@ -1,4 +1,4 @@
-//! SQLite受限写目标；复用固定Laravel的rowid子查询及现有双绑定执行计划。
+//! SQLite 受限写目标，使用 rowid 子查询和现有双绑定执行计划。
 
 use super::{Alias, Expr, ExprTrait, Query, QueryState, Result, SelectStatement, Values};
 

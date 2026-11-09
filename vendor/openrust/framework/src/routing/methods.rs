@@ -1,4 +1,4 @@
-//! Laravel 式受管理 HTTP 方法声明。
+//! 受管理的 HTTP 方法声明。
 
 use std::future::Future;
 use std::pin::Pin;
@@ -337,7 +337,7 @@ impl RouteMethods {
     {
         self.append(methods, handler)
     }
-    /// 在同一路径追加固定 Laravel 八种方法。
+    /// 在同一路径追加框架默认的八种 HTTP 方法。
     pub fn any<H, T>(self, handler: H) -> Self
     where
         H: ManagedHandler<T, ApplicationState>,
@@ -680,7 +680,7 @@ where
 {
     RouteMethods::default().match_methods(methods, handler)
 }
-/// 创建固定 Laravel 八种方法声明。
+/// 创建框架默认的八种 HTTP 方法声明。
 pub fn any<H, T>(handler: H) -> RouteMethods
 where
     H: ManagedHandler<T, ApplicationState>,

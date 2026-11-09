@@ -13,7 +13,7 @@ use crate::http::client_ip;
 use crate::http::transport::CloudIngress;
 use crate::http::transport::RequestSecurity;
 
-/// Symfony `Request::HEADER_*` 位掩码；Laravel 默认使用全部 X-Forwarded 位。
+/// Symfony `Request::HEADER_*` 位掩码；默认使用全部 X-Forwarded 位。
 pub struct TrustedProxyHeaders;
 impl TrustedProxyHeaders {
     /// RFC 7239 `Forwarded`。
@@ -30,7 +30,7 @@ impl TrustedProxyHeaders {
     pub const PREFIX: u8 = 0b10_0000;
     /// AWS ELB 子集，不包含 Host 和 Prefix。
     pub const AWS_ELB: u8 = Self::FOR | Self::PROTO | Self::PORT;
-    /// Laravel 默认掩码，数值 62。
+    /// 默认掩码，数值 62。
     pub const DEFAULT: u8 = Self::FOR | Self::HOST | Self::PROTO | Self::PORT | Self::PREFIX;
 }
 

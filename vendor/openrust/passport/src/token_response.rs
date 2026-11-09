@@ -8,9 +8,9 @@ use openrust::http::axum::{
 
 /// OAuth 令牌成功响应，令牌字段仅供显式序列化或读取，不实现调试输出。
 ///
-/// 固定 League 默认提供 Bearer 类型与顶层令牌字段。HTTP 缓存头采用 Laravel
+/// 固定 League 默认提供 Bearer 类型与顶层令牌字段。HTTP 缓存头采用应用
 /// Passport 路径的最终 `no-store, private`：League 原始响应为 `no-store`，
-/// `private` 对应 Laravel HTTP 响应层的缓存控制补充。
+/// `private` 由响应层补充。
 #[derive(serde::Serialize)]
 pub struct TokenResponse {
     token_type: &'static str,

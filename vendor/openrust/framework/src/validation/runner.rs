@@ -92,7 +92,7 @@ fn evaluate(rule: &Rule, rules: &[Rule], field: Field<'_>) -> std::result::Resul
     let Some(value) = field.value else {
         return Ok(());
     };
-    // Length/Range 保留既有 validator 对显式字符串的检查；其余普通规则沿 Laravel
+    // Length/Range 保留显式字符串检查；其余普通规则沿默认
     // 空串短路。Typed 与原始 Json/Query 共用规则，不在此偷偷 trim 或补 required。
     if !matches!(rule.0, Kind::Length(..) | Kind::Range(..))
         && value.as_str().is_some_and(empty_string)
@@ -114,7 +114,7 @@ fn evaluate_present(
     let failure = match &rule.0 {
         Kind::Required | Kind::Present | Kind::Nullable => None,
         Kind::String => (!value.is_string()).then(|| RuleError::new("string")),
-        Kind::Integer => (!laravel_integer(value)).then(|| RuleError::new("integer")),
+        Kind::Integer => (!valid_integer_value(value)).then(|| RuleError::new("integer")),
         Kind::Boolean => (!boolean(value)).then(|| RuleError::new("boolean")),
         Kind::Array => (!value.is_array() && !value.is_object()).then(|| RuleError::new("array")),
         Kind::Email => (!value.as_str().is_some_and(|value| value.validate_email()))
@@ -149,7 +149,7 @@ fn integer(value: &Value, context: InputContext) -> Option<i128> {
             }
         })
 }
-fn laravel_integer(value: &Value) -> bool {
+fn valid_integer_value(value: &Value) -> bool {
     let text = match value {
         Value::String(value) => value.trim_ascii().to_owned(),
         Value::Number(value) => {

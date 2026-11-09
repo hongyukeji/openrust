@@ -12,7 +12,7 @@ use crate::translation::Locale;
 /// 应用环境的精确名称；自定义名称、大小写与空字符串均予以保留。
 #[derive(Debug, Clone, Default)]
 pub enum Environment {
-    /// Laravel `local`。
+    /// 本地开发环境（`local`）。
     Local,
     /// 旧应用骨架显式使用的 `development`。
     Development,
@@ -20,9 +20,9 @@ pub enum Environment {
     Dev,
     /// 精确的 `test`。
     Test,
-    /// Laravel `testing`。
+    /// 自动化测试环境（`testing`）。
     Testing,
-    /// Laravel `production`。
+    /// 正式运行环境（`production`）。
     #[default]
     Production,
     /// 精确的 `prod`。
@@ -74,7 +74,7 @@ impl Environment {
         }
     }
 
-    /// 按 Laravel `Str::is` 的 `*` 通配规则匹配任一大小写敏感模式。
+    /// 用区分大小写的 `*` 通配规则匹配任一模式。
     pub fn matches<'a>(&self, patterns: impl IntoIterator<Item = &'a str>) -> bool {
         patterns
             .into_iter()
@@ -93,7 +93,7 @@ impl Environment {
 
     /// 保留框架原有生产安全限制；仅用于拒绝危险开发驱动与本地绕行。
     ///
-    /// 与 Laravel 精确 `isProduction` 不同：历史输入中的 `prod`、大小写及首尾空白仍按生产保护。
+    /// 生产保护也识别历史别名 `prod`，并忽略大小写及首尾空白。
     pub fn enforces_production_safety(&self) -> bool {
         matches!(
             self.as_str().trim().to_ascii_lowercase().as_str(),

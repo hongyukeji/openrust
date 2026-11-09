@@ -81,7 +81,7 @@ impl fmt::Display for ScalarDiagnostic {
 impl std::error::Error for ScalarDiagnostic {}
 
 fn warning_enabled(config: &ConfigRepository) -> bool {
-    // 固定 Laravel 应用启动启用全部级别。Rust 的覆盖限定在当前应用。
+    // 默认应用启动启用全部级别，覆盖限定在当前应用。
     let mask = config
         .get("logging.error_reporting")
         .ok()
@@ -111,7 +111,7 @@ fn report_deprecation(config: &ConfigRepository, event: ScalarDiagnostic) {
         .as_str()
         .or_else(|| options.get("channel").and_then(Value::as_str))
         .unwrap_or("null");
-    // 当前统一日志的可用输出是 tracing。缺失或不支持的通道沿 Laravel 的日志失败路径继续。
+    // 当前统一日志的可用输出是 tracing。缺失或不支持的通道仍执行日志失败路径。
     let dedicated = channels
         .get("deprecations")
         .filter(|channel| channel.as_object().is_some_and(|object| !object.is_empty()));

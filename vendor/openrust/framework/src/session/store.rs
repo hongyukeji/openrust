@@ -20,7 +20,7 @@ pub enum SessionStoreGuarantees {
     ServerSide,
     /// 浏览器快照与本请求观察；旧副本可重放，响应接收顺序决定最终 Cookie。
     ClientSideSnapshot,
-    /// 原生数据库 handler；DELETE 后的并发 INSERT 回退遵循 Laravel，不提供防复活承诺。
+    /// 原生数据库 handler 在 DELETE 后仍可能用迟到的 INSERT 重建记录。
     NativeDatabase,
 }
 
@@ -45,7 +45,7 @@ pub enum SessionWriteMode {
 /// driver 原子写入的结果。
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SessionWriteOutcome {
-    /// 驱动已处理写入；原生数据库遵循 Laravel，UPDATE 零行也可成功。
+    /// 驱动已处理写入；原生数据库 UPDATE 零行也可成功。
     Written,
     /// Insert碰撞或driver检测到不相容的写入状态。
     Conflict,

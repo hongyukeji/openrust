@@ -156,7 +156,7 @@ async fn sqlite_owner(
     cancellation: MigrationCancellation,
     work: crate::support::BoxFuture<'static, Result<()>>,
 ) -> Result<()> {
-    // 限制被取消入口留下的原生执行线程；属于内部资源上限，不是 Laravel 配置默认值。
+    // 限制被取消入口留下的原生执行线程，避免累积无界资源。
     const MAX_NATIVE_OWNERS: usize = 4;
     static OWNERS: std::sync::OnceLock<std::sync::Arc<tokio::sync::Semaphore>> =
         std::sync::OnceLock::new();

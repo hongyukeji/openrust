@@ -78,7 +78,7 @@ pub(super) fn project_enum_array(value: AttributeValue) -> Result<AttributeValue
     }
 }
 
-/// Laravel 的枚举数组对象转换。
+/// 枚举数组对象转换。
 pub struct AsEnumArrayObject;
 
 impl AsEnumArrayObject {
@@ -92,7 +92,7 @@ impl AsEnumArrayObject {
     }
 }
 
-/// Laravel 的枚举集合转换。
+/// 枚举集合转换。
 pub struct AsEnumCollection;
 
 impl AsEnumCollection {

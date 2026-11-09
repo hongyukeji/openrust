@@ -1,4 +1,4 @@
-//! 有界请求输入、独立元信息与 Laravel 风格内容协商。
+//! 有界请求输入、独立元信息与内容协商。
 
 mod attributes;
 mod conditional;
@@ -321,7 +321,7 @@ impl RequestInfo {
             .and_then(|route| route.name().map(str::to_owned)))
     }
 
-    /// 判断当前路由名是否匹配任一 Laravel 通配符模式。
+    /// 判断当前路由名是否匹配任一星号通配模式。
     pub fn route_is(&self, patterns: &[&str]) -> Result<bool> {
         Ok(self.route()?.is_some_and(|route| route.named(patterns)))
     }
@@ -541,7 +541,7 @@ impl RequestInfo {
         &self.acceptable
     }
 
-    /// 按 Laravel `accepts` 的方向检查任一候选类型。
+    /// 按当前请求的可接受类型检查任一候选类型。
     pub fn accepts(&self, content_types: &[&str]) -> bool {
         if self.acceptable.is_empty() {
             return true;
@@ -619,7 +619,7 @@ impl RequestInfo {
         Ok((self.ajax()? && !self.pjax()? && self.accepts_any_content_type()) || self.wants_json())
     }
 
-    /// 按 Laravel 的大小写敏感内容类型检查 JSON 正文。
+    /// 用区分大小写的内容类型匹配检查 JSON 正文。
     pub fn is_json(&self) -> Result<bool> {
         Ok(self
             .header("content-type")?

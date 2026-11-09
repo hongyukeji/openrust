@@ -48,7 +48,7 @@ fn attempting(headers: &HeaderMap) -> bool {
         .is_some_and(|value| value.as_bytes() == b"true")
 }
 
-/// 可选的 Laravel Precognition middleware；只确认精确 `Precognition: true`。
+/// 可选预检 middleware；只确认精确的 `Precognition: true`。
 ///
 /// 普通请求仍追加 `Vary: Precognition`。已确认请求在下游返回后追加
 /// `Precognition: true`；成功头由受管理 dispatcher 或验证阶段产生，

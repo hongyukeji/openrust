@@ -1,4 +1,4 @@
-//! Laravel 的 Stringable 类转换。
+//! Stringable 属性转换。
 
 use super::{
     AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,

@@ -13,7 +13,7 @@ use super::{AttributeCast, AttributeValue, ModelDateContext};
 /// 模型已加载关系的输出名称规则。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RelationNaming {
-    /// Laravel 默认的蛇形名称。
+    /// 使用蛇形名称。
     #[default]
     Snake,
     /// 保留加载时的名称。
@@ -23,7 +23,7 @@ pub enum RelationNaming {
 /// Rust 模型显式声明的数据库元数据；不从 Guard/Provider 名推导类型或主键。
 ///
 /// 表名和模型类标识须由应用声明，因为 Rust 不提供 PHP 的运行期类模型反射。
-/// 默认主键、类型、递增及可见性对应 Laravel Model；不自动执行数据库 I/O。
+/// 声明默认主键、类型、递增及可见性。不会自动执行数据库 I/O。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModelMetadata {
     /// 模型逻辑表名；最终物理表名仍由同一连接解析器处理。

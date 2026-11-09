@@ -1,4 +1,4 @@
-//! Laravel 的 URI 值、组件读取、不可变变更和字符串投影。
+//! URI 值、组件读取、不可变变更和字符串投影。
 
 mod parse;
 mod query;
@@ -206,7 +206,7 @@ impl Uri {
         Self::checked_parts(parts)
     }
 
-    /// 设置绝对路径组件，按 Laravel 规则折叠重复的前导斜线。
+    /// 设置绝对路径组件并折叠重复的前导斜线。
     pub fn with_path(&self, path: &str) -> Result<Self> {
         parse::validate_component(path)?;
         let mut parts = self.parts.clone();

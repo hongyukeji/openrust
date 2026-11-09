@@ -1,4 +1,4 @@
-//! Laravel `DatabaseUserProvider` 对应：使用宿主 Db、逻辑表与原始类型标识。
+//! 从宿主 Db 的逻辑表读取账户并保留标识原始类型。
 
 use super::contracts::{AuthUser, Authenticatable, Credentials, GenericUser, UserProvider};
 use crate::{
@@ -52,7 +52,7 @@ impl DatabaseUserProvider {
         })
     }
 
-    /// 通过宿主已编译的账户模型解释数据库属性；默认仍创建 Laravel `GenericUser`。
+    /// 通过宿主已编译的账户模型解释数据库属性；默认创建 `GenericUser`。
     ///
     /// 工厂在完整行转换和漏列检查后调用，其错误原样传播。此扩展不提供
     /// Eloquent 模型生命周期，也不会改变数据库 Provider 按 `id` 检索的默认规则。

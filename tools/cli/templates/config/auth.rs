@@ -27,7 +27,7 @@ pub struct Auth {
 }
 
 /// 缺省继承最终应用身份；领域专属显式来源仍可独立覆写。
-/// 这是现有 JWT 增强策略，不是 Laravel 核心的 JWT 默认。
+/// JWT 签发策略独立于默认 Guard 的选择。
 pub fn config(ctx: &ConfigContext) -> Result<Auth, ConfigError> {
     Ok(Auth {
         defaults: serde_json::json!({"guard":"web", "passwords":"users", "provider":null}),

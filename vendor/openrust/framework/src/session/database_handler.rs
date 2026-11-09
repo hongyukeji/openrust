@@ -1,4 +1,4 @@
-//! 固定 Laravel `DatabaseSessionHandler` 的原生数据库处理边界。
+//! 原生数据库 Session handler 的处理边界。
 //!
 //! 来源：laravel/framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181，
 //! Illuminate/Session/DatabaseSessionHandler.php:105-303；opaque 字节以 Base64 存储，

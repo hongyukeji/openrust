@@ -187,7 +187,7 @@ impl ExceptionRequest {
 type ThrottleState =
     Arc<std::sync::Mutex<std::collections::HashMap<String, (Instant, u32, Duration)>>>;
 
-/// 应用内的异常策略；登记顺序与 Laravel Handler 相同。
+/// 按登记顺序应用异常处理策略。
 #[derive(Clone, Default)]
 pub struct ExceptionHandler {
     i18n: Option<crate::translation::Translator>,

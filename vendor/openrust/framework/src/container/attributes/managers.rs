@@ -155,7 +155,7 @@ impl ContextualAttribute for Database {
     }
 }
 
-/// Laravel 的 `DB` 属性。与 [`Database`] 共用解析逻辑，拥有独立属性身份。
+/// `DB` 注入属性。与 [`Database`] 共用解析逻辑，拥有独立属性身份。
 #[derive(Default)]
 pub struct DbAttribute(Database);
 

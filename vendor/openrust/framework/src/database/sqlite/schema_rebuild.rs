@@ -1,4 +1,4 @@
-//! 旧版 SQLite 的删列与放宽非空表重建；对应固定 Laravel `SQLiteGrammar::compileAlter`。
+//! 旧版 SQLite 的删列及放宽非空限制通过表重建执行。
 
 use sea_orm::DbErr;
 #[cfg(feature = "db-sqlite")]

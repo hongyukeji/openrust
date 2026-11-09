@@ -1,4 +1,4 @@
-//! Laravel 的 URI 类转换。
+//! URI 属性转换。
 
 use super::{
     AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,

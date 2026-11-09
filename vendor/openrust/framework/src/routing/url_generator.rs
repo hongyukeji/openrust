@@ -18,7 +18,7 @@ struct NamedRoute {
     domain: Option<String>,
 }
 
-/// 根据 Laravel 式命名路由或动作身份生成绝对 URL。
+/// 根据路由名或动作身份生成绝对 URL。
 ///
 /// 在 HTTP handler 中可直接提取。域参数按单个 DNS 标签校验，路径参数按路径段编码；
 /// 未用于域或路径的参数成为 query 参数。scheme 和端口来自 `app.url`；

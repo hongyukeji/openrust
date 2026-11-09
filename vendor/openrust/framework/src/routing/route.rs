@@ -124,7 +124,7 @@ impl Route {
         })
     }
 
-    /// 按 Laravel 通配符名称模式匹配任一候选。
+    /// 按星号通配符名称模式匹配任一候选。
     pub fn named(&self, patterns: &[&str]) -> bool {
         self.name
             .as_deref()

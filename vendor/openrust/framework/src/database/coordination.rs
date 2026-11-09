@@ -171,7 +171,7 @@ fn migration_table_alias(name: &str, backend: DbBackend) -> std::result::Result<
 
 /// 使用数据库时钟协调多个应用实例的短期租约。
 ///
-/// SQLite 仅支持同机共享文件；此增强租约并不等同于完整 Laravel 数据库缓存锁。
+/// SQLite 增强租约仅支持同机共享文件。
 #[derive(Clone)]
 pub struct SharedLocks {
     db: Db,

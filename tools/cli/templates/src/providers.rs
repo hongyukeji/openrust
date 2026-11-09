@@ -1,4 +1,4 @@
-//! 应用 Provider 清单，对应 Laravel 的 `bootstrap/providers.php`。
+//! 应用启动时加载的 Provider 清单。
 
 use openrust::support::ServiceProvider;
 

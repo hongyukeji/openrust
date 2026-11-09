@@ -1,4 +1,4 @@
-//! 模型共享原始属性与访问器管线；对应 Laravel `HasAttributes` 的访问器优先顺序。
+//! 模型共享的原始属性与访问器管线，保留访问器的优先顺序。
 
 use super::{
     AttributeCast, AttributeMap, AttributeValue, ClassCast, ModelDateContext, ModelMetadata,
@@ -753,7 +753,7 @@ impl ModelAttributes {
         into_json(self.select_attribute_values(metadata, names.iter().copied())?)
     }
 
-    /// 读取当前原始键集合中的属性，按 Laravel 的宽松比较排除指定名称，再应用 getter 或 cast。
+    /// 读取当前原始键集合中的属性，按宽松比较排除指定名称，再应用 getter 或 cast。
     ///
     /// 访问器在锁外运行。它新增的键不会加入本次选择，后续属性读取仍观察当时的当前值。
     pub fn except(&self, metadata: &ModelMetadata, names: &[&str]) -> Result<Map<String, Value>> {
@@ -798,7 +798,7 @@ impl ModelAttributes {
     ) -> Result<AttributeMap> {
         names
             .map(|name| {
-                // Laravel getAttribute 对空名称及 "0" 直接返回 null。
+                // 空名称及 "0" 直接返回 null。
                 let value = match name {
                     "" | "0" => Value::Null.into(),
                     _ => self

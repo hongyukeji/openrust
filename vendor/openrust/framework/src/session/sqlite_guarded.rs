@@ -1,6 +1,6 @@
 //! 显式增强 Session driver 的 SQLite 精确截止与写入所有权。
 //!
-//! 不是原生 Laravel database handler；沿用统一 `SessionStore` 的条件写入与绝对期限。
+//! 沿用统一 `SessionStore` 的条件写入与绝对期限。
 //! BEGIN IMMEDIATE 仅取得数据库写入所有权，不宣称 SQLite 提供行级锁。
 
 use super::sqlite_deadline::to_offset;

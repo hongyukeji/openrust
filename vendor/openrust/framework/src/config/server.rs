@@ -28,9 +28,9 @@ pub struct ServerConfig {
     /// `None` 为官方未配置；显式空列表禁止 Forge/Vapor/Cloud 自动信任。
     /// 普通 Host 未配置时仍只采用 socket 对端地址。
     pub trusted_proxy_ranges: Option<Vec<String>>,
-    /// 可信代理可提供的转发头位掩码；默认使用 Laravel 的 X-Forwarded 集合。
+    /// 可信代理可提供的转发头位掩码；默认使用 X-Forwarded 集合。
     pub trusted_proxy_headers: u8,
-    /// Laravel `TrustHosts` 模式；`None` 表示不启用主机信任列表。
+    /// 可信主机模式；`None` 表示不启用主机信任列表。
     pub trusted_hosts: Option<TrustedHostsConfig>,
     /// 响应压缩设置。
     pub compression: CompressionConfig,

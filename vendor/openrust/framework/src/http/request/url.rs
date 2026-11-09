@@ -1,4 +1,4 @@
-//! 请求地址快照与 Laravel 星号匹配。
+//! 请求地址快照与星号通配匹配。
 
 use super::{Error, RequestInfo, Result, StatusCode, url_query};
 
@@ -136,12 +136,12 @@ impl RequestInfo {
             .cloned())
     }
 
-    /// 以区分大小写的 Laravel 星号模式匹配解码路径。
+    /// 以区分大小写的星号模式匹配解码路径。
     pub fn is(&self, patterns: &[&str]) -> Result<bool> {
         matches_any(&self.decoded_path()?, patterns)
     }
 
-    /// 以区分大小写的 Laravel 星号模式匹配规范完整 URL。
+    /// 以区分大小写的星号模式匹配规范完整 URL。
     pub fn full_url_is(&self, patterns: &[&str]) -> Result<bool> {
         matches_any(&self.full_url()?, patterns)
     }

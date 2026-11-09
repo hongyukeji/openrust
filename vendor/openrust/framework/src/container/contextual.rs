@@ -134,7 +134,7 @@ impl<'a> ContextualBindingBuilder<'a> {
         }
     }
 
-    /// 选择构造参数的精确名称，例如 `timeout` 对应 Laravel 的 `$timeout`。
+    /// 按构造函数声明的精确名称选择参数，例如 `timeout`。
     #[must_use]
     pub fn needs_parameter(self, name: impl Into<Arc<str>>) -> ContextualParameterBinding<'a> {
         ContextualParameterBinding {
@@ -256,7 +256,7 @@ pub struct ContextualParameterBinding<'a> {
 }
 
 impl ContextualParameterBinding<'_> {
-    /// 登记类型化值。与 Laravel 的 `give(null)` 一致，直接传入 null 会移除本项规则。
+    /// 登记类型化值。显式传入 null 会移除本项规则。
     pub fn give_value(self, value: ParameterValue) -> Result<()> {
         let implementation =
             (!value.is_null()).then_some(ContextualImplementation::Parameter(value));

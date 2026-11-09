@@ -1,4 +1,4 @@
-//! 请求输入 bag 专用的 PHP 数组与 Laravel 路径语义。
+//! 请求输入 bag 专用的 PHP 数组与点路径语义。
 
 use serde_json::{Map, Value};
 

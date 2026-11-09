@@ -103,7 +103,7 @@ impl InputInterval {
                 // number_format(INF, 10) 得到 inf；fromString 没有数字片段，返回零区间。
                 return Ok(Some(Self::default()));
             }
-            // Laravel 固定源码先 number_format(..., 10, '.', '')，再交给 Carbon。
+            // 先按 10 位小数格式化，再交给 Carbon。
             // 先作十位 half-up，再转定点，避免 Rust ties-even 格式化改变中点。
             let formatted = format!("{:.10}", php_round(value, 10_000_000_000.0));
             let mut result = Self::default();

@@ -1,4 +1,4 @@
-//! Laravel 的 Fluent 类转换。
+//! Fluent 属性转换。
 
 use super::{
     AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster, Json,

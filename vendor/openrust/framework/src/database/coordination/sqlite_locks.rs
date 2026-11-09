@@ -1,4 +1,4 @@
-//! 既有 `SharedLocks` 的单机 SQLite 方言，不是 Laravel `DatabaseLock` 的独立替代体系。
+//! 既有 `SharedLocks` 的单机 SQLite 方言。
 //!
 //! SQLite 3.26 已支持条件 UPSERT；首先写入取得数据库写锁，再在同一事务读回。
 //! 事务内持有者校验使用条件无变化 UPDATE，不能通过删掉 `FOR UPDATE` 改为无锁读取。

@@ -20,6 +20,8 @@ float／integer 的数字字符串解析与对应 Model 读取、Session 数值�
 
 `clamp` 使用 `support::InputNumber` 保留整数与浮点类别，并按 `min(max(value, min), max)` 选择结果。它要求完整数字字符串，不接受整数转换的尾缀规则。`clamp_or` 在缺失、null 或无法作为完整数值读取时采用默认值，再执行相同夹界运算；不能把它的默认规则与 `integer_or` 混用。唯一模块的 `/api/example/input` 使用这些公开方法读取 `typed.quantity`、`typed.amount` 并约束数量。
 
+整数验证的固定对照为 `validateInteger`，普通规则沿 PHP `FILTER_VALIDATE_INT` 的值边界。 [Laravel ValidatesAttributes](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Validation/Concerns/ValidatesAttributes.php)
+
 ## 输入类别与当前边界
 
 JSON 中的字符串仍可保留完整数字文本；已经解码为 JSON Number 的值则已历经解析。不能由字符串转换的一致性推断任意超精度原始 JSON 数字也与 PHP 解码完全一致。字段校验、金额等领域精度要求和数据库类型需要各自显式建模。

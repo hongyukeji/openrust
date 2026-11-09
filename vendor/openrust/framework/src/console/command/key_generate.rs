@@ -1,4 +1,4 @@
-//! 固定 Laravel `KeyGenerateCommand` 的应用级密钥生成入口。
+//! 应用密钥生成和配置写入入口。
 
 use std::io::{self, IsTerminal as _};
 

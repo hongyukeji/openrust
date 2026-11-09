@@ -1,4 +1,4 @@
-//! Laravel `MessageBag` 的保键错误消息集合。
+//! 保留键的错误消息集合。
 
 use super::{ArrayKey, Collection, InputNumber, php_loose_string_equal};
 use crate::Result;

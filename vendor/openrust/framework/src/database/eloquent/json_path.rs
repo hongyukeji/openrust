@@ -62,7 +62,7 @@ fn encodes_json(cast: Option<&AttributeCast>) -> bool {
 fn update(root: Value, path: &str, mut value: Value) -> Result<Value> {
     let path = path.replace("->", ".");
     let keys = path.split('.');
-    // Laravel JSON 编码默认深度为 512，路径超过该边界无法发布。
+    // JSON 编码默认深度为 512，超过该边界的路径无法发布。
     if keys.clone().count() > 512 {
         return Err(path_error());
     }
@@ -125,7 +125,7 @@ fn update_string_offset(text: String, offset: &str, value: &Value) -> Result<Val
         return Err(path_error());
     }
     let value = scalar_string(value)?;
-    // Laravel 的默认异常处理器会抛出空字符串及多字节赋值的 PHP 警告。
+    // 默认异常处理器会将空字符串及多字节赋值的 PHP 警告提升为错误。
     let [first] = value.as_bytes() else {
         return Err(path_error());
     };

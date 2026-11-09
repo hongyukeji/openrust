@@ -1,4 +1,4 @@
-//! Laravel 风格的拥有所有权的字符串包装。
+//! 拥有所有权的字符串包装。
 
 use std::fmt;
 use std::ops::Deref;
@@ -30,7 +30,7 @@ impl Stringable {
         self.0
     }
 
-    /// 按 Laravel 固定字符集合裁剪首尾空白和不可见字符。
+    /// 用固定 Unicode 字符集合裁剪首尾空白和不可见字符。
     ///
     /// 包括 Unicode 空白、BOM、零宽字符和 NUL；内部字符保持原样。
     /// 空结果仍是字符串，不应用请求密码排除或空字符串转 null 的策略。
@@ -98,7 +98,7 @@ pub(crate) fn trim_character(value: char) -> bool {
 mod tests {
     use super::Stringable;
 
-    // 防止误用 Rust trim 或漏掉 Laravel 固定集合中的不可见字符。
+    // 使用固定字符集合，避免普通 Rust trim 漏掉额外不可见字符。
     #[test]
     fn trim_matches_fixed_unicode_and_invisible_character_set() {
         let characters = "\0\t\n\u{b}\u{c}\r \u{85}\u{a0}\u{ad}\u{34f}\u{61c}\u{115f}\u{1160}\u{1680}\u{17b4}\u{17b5}\u{180e}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200a}\u{200b}\u{200c}\u{200d}\u{200e}\u{200f}\u{2028}\u{2029}\u{202f}\u{205f}\u{2060}\u{2061}\u{2062}\u{2063}\u{2064}\u{2065}\u{206a}\u{206b}\u{206c}\u{206d}\u{206e}\u{206f}\u{2800}\u{3000}\u{3164}\u{feff}\u{ffa0}\u{1d159}\u{1d173}\u{1d174}\u{1d175}\u{1d176}\u{1d177}\u{1d178}\u{1d179}\u{1d17a}\u{e0020}";

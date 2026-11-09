@@ -136,7 +136,7 @@ impl PassportServiceProvider {
 
     /// 对应官方静态权限开关，默认启用；仅关闭文件mode检查。
     ///
-    /// 默认Laravel宿主将League权限notice提升为异常，本Provider返回脱敏错误。
+    /// 应用将 League 权限 notice 提升为脱敏错误。
     /// 合法inline密钥及Windows不检查文件mode，读取/PEM校验始终保留；配对仅由显式预检执行。
     #[must_use]
     pub fn with_key_permissions_check(mut self, enabled: bool) -> Self {
@@ -622,7 +622,7 @@ async fn check_file_permissions(file: &tokio::fs::File, kind: KeyKind) -> Result
     if key_mode_allowed(mode) {
         Ok(())
     } else {
-        // 默认Laravel HandleExceptions提升E_USER_NOTICE；不向外回显上游包含的路径。
+        // 将 E_USER_NOTICE 提升为错误，不向外回显上游包含的路径。
         Err(failure(
             "passport_key_permissions_invalid",
             "OAuth密钥文件权限不符合默认宿主要求",

@@ -1,4 +1,4 @@
-//! Laravel `TrustHosts` 的请求局部模式快照与 PHP PCRE 分隔符边界。
+//! 可信主机的请求局部模式快照与 PHP PCRE 分隔符边界。
 
 use axum::http::StatusCode;
 use pcre2::bytes::RegexBuilder;
@@ -30,7 +30,7 @@ impl TrustedHostsSnapshot {
         if subdomains && let Some(pattern) = default_pattern(app_url) {
             resolved.push(pattern);
         }
-        // Laravel middleware 将列表送入 array_filter；字符串 "0" 也属于 PHP falsey。
+        // 列表按 PHP array_filter 规则过滤，字符串 "0" 也属于 PHP falsey。
         resolved.retain(|pattern| !pattern.is_empty() && pattern != "0");
         Self(Some(resolved))
     }

@@ -115,7 +115,7 @@ impl ConfigContext {
         self.env(key).unwrap_or_else(|| default.to_owned())
     }
 
-    /// 读取 Laravel env 保留字和成对引号后的可空字符串；布尔值按 PHP 字符串转换。
+    /// 读取部署环境的可空字符串，解释保留值与成对引号；布尔值按 PHP 字符串转换。
     pub fn nullable_string_or(&self, key: &str, default: Option<&str>) -> Option<String> {
         self.env(key).map_or_else(
             || default.map(str::to_owned),
@@ -137,7 +137,7 @@ impl ConfigContext {
         parse_bool(key, &value)
     }
 
-    /// 按 Laravel env 保留 null，并按 PHP 布尔转换读取部署值；仅缺失时使用默认值。
+    /// 保留显式 null，并按 PHP 布尔转换读取部署值；仅缺失时使用默认值。
     ///
     /// 支持保留字及其括号形式。其他字符串仅空串或 `0` 为 false，成对引号先去除。
     pub fn nullable_bool_or(&self, key: &str, default: Option<bool>) -> Option<bool> {

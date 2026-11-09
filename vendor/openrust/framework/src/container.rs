@@ -1196,7 +1196,7 @@ impl Container {
         lock(&self.inner.state).bindings.is_empty()
     }
 
-    /// 在根生命周期解析；`scoped` 在根也会共享，符合 Laravel 行为。
+    /// 在根生命周期解析；同一根作用域内也会复用 `scoped` 服务。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         self.root_resolver()?.resolve().await
     }
@@ -1811,7 +1811,7 @@ enum ResolveRequest {
         target: ServiceKey,
         erased_output: TypeId,
     },
-    // Laravel getClosure 使用 raiseEvents=false。这个请求只约束具体服务的本层；
+    // 不派发当前服务的解析事件，只约束该服务本层；
     // 类构造器内部另发 Typed 请求，照常参与独立的解析事件。
     Wrapped {
         concrete: ServiceKey,
@@ -2419,7 +2419,7 @@ impl Resolver {
         child.chain.push((key.clone(), active));
         // 同键 before 回调不能再次使用外层自构造的重入许可。
         child.suppress_self_building_reentry(&key);
-        // Laravel 先把本次显式实参交给 before，再压入构造覆盖栈。
+        // 先把本次显式实参交给 before 回调，再压入构造覆盖栈。
         child.parameters = child.previous_parameters.take();
         let fired = child
             .fire_before(inner, &key, self.parameters.clone())

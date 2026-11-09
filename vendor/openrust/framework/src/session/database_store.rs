@@ -16,7 +16,7 @@ use super::{
 };
 use crate::{Result, database::Db, support::BoxFuture};
 
-/// Laravel database driver 的属性适配器；每个受管 Session 独占 handler exists 状态。
+/// 原生数据库 driver 的属性适配器；每个受管 Session 独占 handler exists 状态。
 ///
 /// 属性以有界 JSON 编码而非 PHP serialize；表内 Base64、ID、活动时间和写入行为由
 /// `DatabaseSessionHandler` 决定。绝对截止与防复活能力由 `GuardedDatabaseSessionStore` 提供。

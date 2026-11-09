@@ -420,7 +420,7 @@ fn absolute_target(info: &RequestInfo, target: &str, secure: Option<bool>) -> Re
     Ok(result)
 }
 
-// Laravel UrlGenerator::isValidUrl 的 FILTER_VALIDATE_URL 分支要求完整 URL。
+// FILTER_VALIDATE_URL 分支要求完整 URL。
 // `foo:bar` 虽可由 URL crate 解析，却不是固定 PHP filter 的有效目标。
 fn filter_valid_absolute_url(target: &str) -> bool {
     if target.bytes().any(|byte| byte.is_ascii_whitespace()) {

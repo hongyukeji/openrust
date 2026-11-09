@@ -6,7 +6,7 @@ use sea_orm_migration::sea_orm::{DbBackend, DbErr, sea_query::ColumnDef};
 /// 为受支持的数据库后端创建非空 UTC 时间戳列。
 ///
 /// PostgreSQL 使用 `TIMESTAMP WITH TIME ZONE`；MySQL 使用 `DATETIME(6)` 保留微秒精度，避免 `TIMESTAMP`
-/// 的 2038 年上限。SQLite 按固定 Laravel 默认使用 `datetime`，UTC 编码由现连接层负责。`DatabaseServiceProvider` 会将每个 MySQL 连接的 session 时区设为 `+00:00`，因此 MySQL 值均为 UTC。
+/// 的 2038 年上限。SQLite 默认使用 `datetime`，UTC 编码由连接层负责。`DatabaseServiceProvider` 将每个 MySQL 连接的会话时区设为 `+00:00`，因此 MySQL 值均为 UTC。
 pub fn timestamp_utc(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDef, DbErr> {
     let mut column = ColumnDef::new(name);
     match backend {
@@ -33,7 +33,7 @@ pub fn json(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDef, DbErr>
 /// 删除列；SQLite 通过重建表保留最低 3.26 版本，而非要求原生 DROP COLUMN。
 ///
 /// SQLite 必须由标准 `MigrationServiceProvider` 执行，且不能放在用户显式事务中：
-/// 外键开关必须作用于同一物理连接、位于重建事务之外。完整 Laravel Schema API 仍待实现。
+/// 外键开关必须作用于同一物理连接、位于重建事务之外。
 pub async fn drop_column(
     manager: &sea_orm_migration::SchemaManager<'_>,
     table: impl IntoIden,
@@ -74,7 +74,7 @@ pub async fn drop_column(
         .await
 }
 
-/// 按调用方声明的列定义修改可空性；MySQL 必须像 Laravel `change` 一样重述所需类型与修饰符。
+/// 按声明修改列的可空性。MySQL 必须重述所需列类型与修饰符。
 ///
 /// PostgreSQL 只更改 `NOT NULL`；SQLite 沿标准迁移所有者的同连接重建，复制全部列并
 /// 验证外键。收紧约束时现存 `NULL` 会明确失败，不能为迁移成功删数据或填哨兵。

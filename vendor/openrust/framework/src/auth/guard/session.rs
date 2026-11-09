@@ -1407,7 +1407,7 @@ fn recaller_identifier(value: Value) -> Result<String> {
             "记住我 ID 超过长度限制",
         ));
     }
-    // 常规标识保留 Laravel 格式；分隔符与保留前缀使用有界、带类型的版本编码。
+    // 常规标识保留原记住我格式；分隔符与保留前缀使用有界、带类型的版本编码。
     if identifier.contains('|') || identifier.starts_with("~or1~") {
         Ok(format!(
             "{IDENTIFIER_PREFIX}{}",

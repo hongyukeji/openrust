@@ -1,4 +1,4 @@
-//! 通用 Eloquent 属性转换；对照固定 Laravel `HasAttributes::castAttributeAsHashedString`。
+//! 通用 Eloquent 属性转换，含密码哈希转换。
 
 use crate::{
     Result,
@@ -7,7 +7,7 @@ use crate::{
 
 /// 将属性转换为哈希字符串；空值旁路，已有合法哈希保持原值，不因成本较低而重新计算。
 ///
-/// 对应固定 Laravel `HasAttributes.php` 的 hashed cast；只检查驱动配置，
+/// hashed cast 对已有哈希只检查驱动配置，
 /// 不应用认证输入策略。驱动或配置解析失败向调用方传播。
 pub async fn cast_attribute_as_hashed_string(
     hashing: &HashManager,

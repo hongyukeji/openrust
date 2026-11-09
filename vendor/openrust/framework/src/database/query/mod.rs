@@ -31,7 +31,7 @@ pub use multi_column::{MultiColumn, MultiComparison, MultiValue};
 use super::Db;
 use crate::core::{Error, Result};
 
-/// 拥有查询状态的 Laravel 风格查询；普通克隆复制父状态，共享已接入的子查询对象。
+/// 拥有查询状态的构造器；普通克隆复制父状态，共享已接入的子查询对象。
 pub struct QueryBuilder<'tx: 'cap, 'cap> {
     inner: Arc<QueryInner<'tx, 'cap>>,
 }
@@ -288,7 +288,7 @@ fn parse_page(value: &str) -> Option<u64> {
         .and_then(|page| u64::try_from(page).ok())
 }
 
-/// 受管请求解析后登记已规范化输入，使分页读取 Laravel `Request::input`。
+/// 受管请求解析后登记已规范化输入，供分页读取 `Request::input`。
 pub(crate) fn bind_page_input(input: serde_json::Value) {
     let _ = CURRENT_PAGE_CONTEXT.try_with(|context| {
         *context

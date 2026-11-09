@@ -73,7 +73,7 @@ impl BagWrite<'_> {
     }
 }
 
-/// Laravel `ViewErrorBag` 的命名错误包集合。
+/// 命名错误包集合。
 #[derive(Default)]
 pub struct ViewErrorBag {
     bags: Collection<BagHandle>,

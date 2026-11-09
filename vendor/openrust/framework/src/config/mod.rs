@@ -7,7 +7,7 @@
 //!
 //! 1. crate 默认值（[`FrameworkConfig::default`]）
 //! 2. 显式 [`ConfigManifest`] 的 Rust 配置函数；可选 `.with_toml()` 再叠加 TOML 文件
-//! 3. Laravel 风格的 `DB_*` / `REDIS_*` 分项连接设置
+//! 3. `DB_*` / `REDIS_*` 分项连接设置
 //! 4. 本地 `.env` 与进程变量中的应用配置；默认以 `APP_` 为前缀，使用单下划线扁平键
 //!    （`SERVER_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
 //!
@@ -876,7 +876,7 @@ impl ConfigLoader {
     }
 }
 
-// Laravel env 将未加引号的 null/(null) 视为 null；Figment 默认仍把它当字符串。
+// 未加引号的 null/(null) 是空值；Figment 默认把它当字符串。
 // 只修正已声明的 nullable Session/数据库字段，且保留每层环境源的通常优先级。
 fn nullable_environment_values(
     environment: &EnvironmentSnapshot,

@@ -2,7 +2,7 @@
 
 use openrust::config::{ArgonConfig, BcryptConfig, ConfigContext, ConfigError, HashingConfig};
 
-/// 与固定 Laravel 安装配置对应的 bcrypt 默认及可选 Argon 驱动。
+/// 应用默认使用 bcrypt，可显式切换至 Argon。
 pub fn config(ctx: &ConfigContext) -> Result<HashingConfig, ConfigError> {
     let verify = ctx.bool_or("HASH_VERIFY", true)?;
     let limit = ctx

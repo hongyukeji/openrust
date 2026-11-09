@@ -84,7 +84,7 @@ use openrust::core::{Error, Result};
 /// 按固定 `Module::getPriority` 的 `(string)($raw ?? 0)` 生成显示值。
 ///
 /// JSON 对象和数组均对应 PHP array；其字符串强制转换产生 warning，
-/// Laravel 将该边界提升为错误，因此这里明确拒绝，不返回静默的 "Array"。
+/// 数组值在此边界直接报错，避免静默转换为 "Array"。
 pub(crate) fn priority_label(value: &Value) -> Result<String> {
     match value {
         Value::Null => Ok("0".to_owned()),

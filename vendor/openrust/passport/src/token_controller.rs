@@ -28,7 +28,7 @@ impl AccessTokenController {
     /// 处理已由框架执行预算及规范化的请求，直接返回 OAuth 协议响应。
     ///
     /// 框架输入错误保留为框架错误；首Authorization保原bytes，协议错误保留其状态、载荷与头。
-    /// 空 JSON bag 的 Laravel 原文回读分支尚未对应，不在此二次解析正文。
+    /// 空 JSON bag 的原文回读分支尚未实现，此处不再解析正文。
     pub async fn issue_token(&self, request: &Request) -> openrust::Result<Response> {
         let parameters = OAuthParameters::new(body_parameters(request)?);
         let authorization = request

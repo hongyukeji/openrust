@@ -191,7 +191,7 @@ impl ClassCast {
         if value.is_null() {
             return Ok(value);
         }
-        // Laravel 分别解析能力检查和实际方法调用。
+        // 分别解析能力检查和实际调用。
         drop(self.resolve()?);
         if self.serialization {
             self.resolve()?

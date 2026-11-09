@@ -198,7 +198,7 @@ fn draft_redirect_routes(routes: Router, capabilities: &RouteCapabilities) -> Ro
                 .namespace("Example\\Draft"),
             |drafts| {
                 drafts
-                    // 覆盖默认概览；静态路径先于参数路径，按 Laravel 声明顺序匹配。
+                    // 覆盖默认概览；静态路径先于参数路径，按声明顺序匹配。
                     .get("/summary", controllers::draft_redirect::summary_default)
                     .get_action(
                         "/summary",

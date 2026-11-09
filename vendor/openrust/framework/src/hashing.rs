@@ -1,4 +1,4 @@
-//! Laravel `HashManager` 对应：统一密码与客户端秘密的可扩展哈希服务。
+//! 统一密码与客户端秘密的可扩展哈希服务。
 // 对标 Laravel v13.39.0 / d52c3b3129e4c8e213c97cdc68f94b0b7d27f181
 // Illuminate/Hashing；上游版权 Taylor Otwell，MIT 许可。
 

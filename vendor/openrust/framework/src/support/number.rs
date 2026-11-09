@@ -89,7 +89,7 @@ impl InputNumber {
 }
 
 /// 按固定 PHP 64 位智能字符串比较判断宽松相等，保留整数溢出与无穷值的文本回退。
-/// 仅供独立扩展复用运行时语义；跨 crate 可见性不是 Laravel 用户 API 的新增约定。
+/// 仅供独立扩展复用运行时语义；应用使用其领域接口。
 #[doc(hidden)]
 #[must_use]
 pub fn php_loose_string_equal(left: &str, right: &str) -> bool {
@@ -125,7 +125,7 @@ pub fn php_loose_string_equal(left: &str, right: &str) -> bool {
     }
 }
 
-/// 固定 PHP 字符串与 JSON 标量的宽松比较；仅供扩展互操作，不是 Laravel 用户 API。
+/// 固定 PHP 字符串与 JSON 标量的宽松比较，仅供扩展互操作。
 ///
 /// String 复用智能字符串比较；number/string 按 Zend 的独立分支比较数值，
 /// 仅非 numeric 字符串回退到同一标量格式化。JSON Number 不保留原始数值字面量，

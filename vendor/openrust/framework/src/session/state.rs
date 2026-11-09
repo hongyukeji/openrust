@@ -1201,7 +1201,7 @@ impl Session {
         })
     }
 
-    /// 显式Rust类型读取；不替换Laravel get的Value/null语义。
+    /// 显式读取 Rust 类型；底层 get 仍返回 Value 或 null。
     pub fn get_typed<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         self.get_json(key)?
             .map(serde_json::from_value)
@@ -1282,7 +1282,7 @@ impl Session {
     pub fn pull_json(&self, key: &str) -> Result<Option<Value>> {
         self.mutate_value(|attributes| attributes.pull(key))
     }
-    /// Laravel remove 同样读取并删除；None 表示缺失，Some(Null) 保留已存 null。
+    /// 读取并删除。None 表示缺失，Some(Null) 保留已存 null。
     pub fn remove(&self, key: &str) -> Result<Option<DataValue>> {
         self.pull(key)
     }
@@ -1558,7 +1558,7 @@ impl Session {
             )
         };
         candidate.age()?;
-        // Laravel Store::save 先 ageFlashData，序列化失败后内存 flash 仍已老化。
+        // 保存先老化 flash；序列化失败时内存中的 flash 仍已老化。
         let retired = {
             let mut state = self.lock()?;
             #[cfg(feature = "view")]

@@ -1,4 +1,4 @@
-//! Laravel Session 的唯一属性树与 flash 状态转换。
+//! Session 的唯一属性树与 flash 状态转换。
 //!
 //! 固定依据：framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181 的
 //! `Session/Store.php`（233–240、280–348、393–403、471–545）及

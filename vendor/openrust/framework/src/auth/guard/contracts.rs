@@ -12,7 +12,7 @@ pub type AuthUser = Arc<dyn Authenticatable>;
 
 /// 不绑定数据库表、邮箱字段或整数主键的认证账户。
 ///
-/// 对应 Laravel Authenticatable。异步调用链共享同一账户对象，故记住我 token
+/// 异步认证调用链共享同一账户对象，故记住我 token
 /// 通过内部可变性修改；实现不得在跨越 await 时保留同步锁。
 pub trait Authenticatable: Send + Sync + 'static {
     /// 返回同一账户对象的可选持久模型身份；不能用登录标识猜测多态主键。
@@ -103,7 +103,7 @@ impl fmt::Debug for Credentials {
     }
 }
 
-/// Guard 使用的账户来源；方法与 Laravel `UserProvider` 职责逐项对应。
+/// Guard 使用的账户来源，负责账户检索、凭据校验和更新。
 ///
 /// 检索密码凭据不得建立正式登录状态。实现应只在 `rehash_password_if_required`
 /// 更新密码哈希，不能用未知账户、缺失密码或存储失败返回成功。
@@ -311,7 +311,7 @@ fn combined_regeneration_unsupported() -> Error {
     )
 }
 
-/// Laravel `GenericUser` 对应的属性账户，不依赖具体 ORM 或业务模型。
+/// 通用属性账户，不依赖具体 ORM 或业务模型。
 ///
 /// 字段名固定为 `id/password/remember_token`；需要其他字段名时实现 `Authenticatable`。
 /// Debug有意不包含任何属性值；内存属性更改不会隐式写数据库。

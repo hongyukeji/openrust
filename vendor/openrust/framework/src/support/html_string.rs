@@ -1,4 +1,4 @@
-//! Laravel 的可信 HTML 内容契约。
+//! 可信 HTML 内容契约。
 
 use crate::Result;
 use std::{any::Any, borrow::Cow, fmt};

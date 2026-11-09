@@ -17,7 +17,7 @@ pub fn config(ctx: &openrust::config::ConfigContext)
 
 默认值、代码配置、部署覆盖最终进入同一 `ConfigRepository`。进程变量优先于 dotenv；配置函数不会修改进程环境。`APP_DEBUG` 默认关闭，非法布尔值会阻止启动，不应用开启调试来暴露服务端异常细节。
 
-从应用目录执行 `openrust env`，或在根应用执行 `cargo run -- env`，可查看本次启动选定的环境，例如 `The application environment is [production].`。命令沿应用正常启动流程读取既定环境；运行期修改配置仓储不会改变这一启动身份。`env` 不接收本地参数。
+从应用目录执行 `openrust env`，或在根应用执行 `cargo run -- env`，可查看本次启动选定的环境，例如 `The application environment is [production].`。命令沿应用正常启动流程读取既定环境；运行期修改配置仓储不会改变这一启动身份。`env` 不接收本地参数。 [Laravel EnvironmentCommand（MIT）](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Console/EnvironmentCommand.php)
 
 TOML 是显式可选来源。只有在清单选择 `.with_toml()` 等公开来源接口时才参与加载，默认启动不扫描 `config/*.toml`。Rust 代码配置不能运行时扫描执行，修改后需重新编译。
 

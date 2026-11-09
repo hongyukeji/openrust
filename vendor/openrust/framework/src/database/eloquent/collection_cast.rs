@@ -1,4 +1,4 @@
-//! Laravel 的 JSON 数组对象和集合转换。
+//! JSON 数组对象和集合转换。
 use super::{
     AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster, Json,
     ModelObject, attribute_cast::encode_array_json,
@@ -63,7 +63,7 @@ impl<T: Serialize + Send + Sync + 'static> DataObject for Collection<T> {
     }
 }
 
-/// 自定义集合包装的类型契约，对应 Laravel Collection 子类。
+/// 自定义集合包装的类型契约。
 pub trait CollectionCastValue: DataObject {
     /// 集合元素类型。
     type Item;
@@ -80,7 +80,7 @@ impl<T: Serialize + Send + Sync + 'static> CollectionCastValue for Collection<T>
     }
 }
 
-/// 使用 Laravel 的数组对象类转换。
+/// 转换为可写回模型的数组对象。
 pub struct AsArrayObject;
 
 impl AsArrayObject {
@@ -178,7 +178,7 @@ impl<T: DataObject> ObjectCollection<T> {
     }
 }
 
-/// Laravel 的集合转换声明，可配置具体集合类型和键感知的元素映射。
+/// 集合转换声明，可配置具体集合类型和键感知的元素映射。
 #[derive(Clone)]
 pub struct AsCollection {
     factory: CollectionFactory,

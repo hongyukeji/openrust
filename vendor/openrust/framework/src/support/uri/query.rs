@@ -1,4 +1,4 @@
-//! 查询字符串的非改名解码与 Laravel 点路径变更。
+//! 查询字符串的非改名解码与点路径变更。
 
 use super::{Uri, parse};
 use crate::{
@@ -112,7 +112,7 @@ impl Uri {
         }
     }
 
-    /// 按 Laravel 的查询文本替换规则生成解码后的展示字符串。
+    /// 解码并替换查询文本，生成便于阅读的展示字符串。
     pub fn decode(&self) -> Result<String> {
         let query = self.query();
         if query.to_array()? == empty_query() {

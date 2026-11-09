@@ -85,7 +85,7 @@ impl ModelAttributes {
         let filter = guarded && !metadata.get_fillable().is_empty();
         let mut filtered = Vec::new();
         for (name, value) in input {
-            // Laravel 的预筛按数组键完全相等，独立于后续 isFillable 宽松比较。
+            // 预筛按数组键完全相等，独立于后续 isFillable 宽松比较。
             if filter && !metadata.get_fillable().contains(&name) {
                 if policy.prevent_silent_discard {
                     filtered.push(name);

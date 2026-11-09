@@ -106,7 +106,7 @@ impl ArithmeticNumber {
             Value::String(text) => {
                 let text = text.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}']);
                 let prefix = numeric_prefix(text)?;
-                // 尾部非空白虽能被裸 PHP 转数值，但 E_WARNING 在 Laravel 默认链中抛异常。
+                // 裸 PHP 可转换带非空白尾部的数值，固定 PHP 对照将 E_WARNING 提升为异常。
                 if prefix.len() != text.len() {
                     return None;
                 }

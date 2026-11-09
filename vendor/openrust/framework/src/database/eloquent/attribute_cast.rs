@@ -121,7 +121,7 @@ pub(crate) fn cast_read_value(cast: &AttributeCast, raw: Option<Value>) -> Resul
                 && number.as_i64().is_none()
             {
                 let number = number.as_f64().ok_or_else(cast_failed)?;
-                // PHP native float 的 (int) 越界产生 E_WARNING；Laravel 默认处理器抛异常。
+                // PHP native float 的 (int) 越界产生 E_WARNING，固定 PHP 对照将其提升为异常。
                 if !number.is_finite()
                     || !(-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0)
                         .contains(&number)

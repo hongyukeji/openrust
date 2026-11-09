@@ -1,5 +1,5 @@
 //! 同一次 INSERT 的自增结果或 PostgreSQL RETURNING；不另取连接查询 last ID。
-//! 数值返回对照固定 Laravel `Query/Processors` 的 `is_numeric(id) ? (int) id : id`，
+//! 数值按处理器的 PHP `is_numeric(id) ? (int) id : id` 规则返回，
 //! 此转换不用于 Eloquent 模型原始主键；BYTEA 保留 Bytes 是 Rust 的类型适配。
 
 use super::{ConnectionTrait, DbBackend, Error, QueryResult, QueryState, Result, Statement, Value};
@@ -63,8 +63,8 @@ fn text_id(value: String) -> Value {
 }
 
 fn float_id(value: f64) -> Result<Value> {
-    // PHP builtin 仍返回 wrapped 值，但会产生 E_WARNING；固定 Laravel
-    // HandleExceptions::bootstrap 开启 error_reporting(-1)，handleError 将其升级为异常。
+    // PHP builtin 仍返回 wrapped 值，但会产生 E_WARNING。
+    // 固定 PHP 对照将该 warning 提升为异常，此处返回对应错误。
     // INSERT 在 Processor 转换前已执行；这里不擅自开启事务或回滚已完成的写入。
     if !value.is_finite()
         || !(-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&value)

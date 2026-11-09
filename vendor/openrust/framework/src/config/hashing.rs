@@ -47,7 +47,7 @@ impl Default for ArgonConfig {
     }
 }
 
-/// Laravel 安装配置对应值；与直接创建裸驱动的默认值分开。
+/// 应用安装配置的默认值，与直接创建驱动的默认值分开。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HashingConfig {

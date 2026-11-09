@@ -1,4 +1,4 @@
-//! 固定portable-ascii默认转写的Rust对应，不代表完整Laravel Str。
+//! 使用固定 portable-ascii 数据完成默认 ASCII 转写。
 //!
 //! 数据来自portable-ascii 2.0.2固定commit；来源哈希和MIT许可随数据保留。
 //! 输入是Rust有效UTF-8 `&str`，因此不接受PHP字符串可包含的非法字节；没有
@@ -8,7 +8,7 @@ use crate::{Error, Result};
 use serde::Deserialize;
 use std::{collections::BTreeMap, sync::OnceLock};
 
-/// Laravel字符串工具的已实现子集；当前仅固定默认ASCII转写。
+/// 字符串转写工具；当前支持固定的默认 ASCII 映射。
 pub struct Str;
 
 #[derive(Deserialize)]

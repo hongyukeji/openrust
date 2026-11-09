@@ -80,7 +80,7 @@ impl DataValue {
         }
     }
 
-    /// Laravel Session 的完整字面键优先路径读取。
+    /// Session 点路径读取优先匹配完整字面键。
     pub fn get(&self, key: &str) -> Result<Option<&Self>> {
         if key.len() > 20 * 1024 * 1024 {
             return Err(limit());

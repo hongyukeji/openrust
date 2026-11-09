@@ -59,7 +59,7 @@ impl fmt::Debug for EnumCase {
     }
 }
 
-/// Eloquent 的原生枚举声明，对应 Laravel 的 `UnitEnum` 和 `BackedEnum`。
+/// 原生单元枚举和带值枚举的转换声明。
 #[derive(Clone)]
 pub struct EnumCast(Arc<Definition>);
 

@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 macro_rules! operators {
     ($(($name:ident, $sql:literal)),+ $(,)?) => {
-        /// 固定Laravel Builder及目标Grammar的已知操作符；不接收任意SQL token。
+        /// 查询构造器和目标语法支持的操作符集合。拒绝其他 SQL token。
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum WhereOperator { $(#[doc = concat!("SQL 操作符 `", $sql, "`。")] $name),+ }
         impl WhereOperator {

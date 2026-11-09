@@ -1,4 +1,4 @@
-//! Laravel 的 HTML 字符串类转换。
+//! HTML 字符串属性转换。
 
 use super::{
     AttributeCast, AttributeMap, AttributeValue, ClassCast, ClassCastWrite, ClassCaster,

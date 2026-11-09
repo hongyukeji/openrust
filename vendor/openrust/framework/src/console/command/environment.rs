@@ -1,4 +1,4 @@
-//! 固定 Laravel `EnvironmentCommand` 的应用环境查询（Laravel framework，MIT）。
+//! 查询当前已选定的应用环境。
 
 use crate::console::Command;
 use crate::core::Result;

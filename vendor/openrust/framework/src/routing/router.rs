@@ -796,7 +796,7 @@ fn valid_middleware_reference(name: &str) -> bool {
     }
 }
 
-/// 一组路由共享的 Laravel 式路径前缀与 middleware。
+/// 一组路由共享的路径前缀与 middleware。
 ///
 /// 组可嵌套；内层组会继承外层前缀与 middleware。Tower middleware 以声明顺序执行请求。
 ///
@@ -837,7 +837,7 @@ impl RouteGroup {
         self
     }
 
-    /// 为组内路由名增加 Laravel 式原样前缀，例如 `admin.`。
+    /// 为组内路由名原样增加前缀，例如 `admin.`。
     #[must_use]
     pub fn name_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.name_prefix = prefix.into();
@@ -1167,7 +1167,7 @@ impl Router {
         self.route(path, methods::on(methods, handler))
     }
 
-    /// 注册固定 Laravel 八种方法。
+    /// 注册框架默认的八种 HTTP 方法。
     #[must_use]
     pub fn any<H, T>(self, path: &str, handler: H) -> Self
     where

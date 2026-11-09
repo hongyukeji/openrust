@@ -1,4 +1,4 @@
-//! Laravel 方法参数解析对应的显式 Rust callable 入口。
+//! 显式 Rust callable 的容器参数解析入口。
 
 use std::future::Future;
 

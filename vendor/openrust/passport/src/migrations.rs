@@ -274,7 +274,7 @@ fn revoked(backend: DbBackend) -> ColumnDef {
 
 fn date_column(name: &str, backend: DbBackend, timestamps: bool) -> ColumnDef {
     let mut column = ColumnDef::new(Alias::new(name));
-    // SeaQuery默认SQLite *_text不是Laravel的datetime声明，显式恢复datetime affinity。
+    // SeaQuery 默认 SQLite *_text 会失去 datetime 声明，显式恢复 datetime affinity。
     if backend == DbBackend::Sqlite {
         column.custom(Alias::new("datetime"));
     } else if timestamps {

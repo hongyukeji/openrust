@@ -1,4 +1,4 @@
-//! Laravel 容器解析回调的登记、类型匹配与派发。
+//! 容器解析回调的登记、类型匹配与派发。
 
 use super::{
     Arc, BoxFuture, ClassRegistry, Container, ContainerBuilder, Inner, ParameterOverrides,
@@ -393,7 +393,7 @@ impl Resolver {
         Box::pin(async move {
             let inner = self.container()?.inner;
             let request = ResolveRequest::Erased(key.clone());
-            // 已发布值对应 Laravel rebound 的缓存命中，保留本次事件值快照。
+            // 重绑缓存命中时，保留本次事件的值快照。
             let result = self
                 .before_resolution(&inner, &request, Some(generation))
                 .await
@@ -435,7 +435,7 @@ impl Resolver {
             self.invoke_resolving_hook(inner, &termination, hook, &event)
                 .await?;
         }
-        // Laravel 在全局组派发完毕后读取类型组。全局回调可登记本阶段的类型回调。
+        // 在全局组派发完毕后读取类型组。全局回调可登记本阶段的类型回调。
         let keyed = {
             let state = lock(&inner.state);
             self.check_open(&state)?;

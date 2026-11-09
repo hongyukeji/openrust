@@ -756,12 +756,12 @@ impl RegisterContext<'_> {
         )
     }
 
-    /// 排入 Laravel 包配置的浅层默认合并。
+    /// 排入包配置的浅层默认合并。
     pub fn merge_defaults(&mut self, key: &'static str, defaults: Value) -> Result<()> {
         self.config.merge_defaults_for(key, defaults)
     }
 
-    /// 排入 Laravel 包配置的递归默认合并。
+    /// 排入包配置的递归默认合并。
     pub fn replace_defaults_recursively(
         &mut self,
         key: &'static str,

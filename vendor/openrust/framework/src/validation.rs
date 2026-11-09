@@ -84,15 +84,15 @@ impl Rule {
     pub fn string() -> Self {
         Self(Kind::String)
     }
-    /// 使用 Laravel 非 strict integer 规则：整数值或可由 `FILTER_VALIDATE_INT` 接受的值。
+    /// 接受整数值和符合 `FILTER_VALIDATE_INT` 的值。
     pub fn integer() -> Self {
         Self(Kind::Integer)
     }
-    /// 使用 Laravel boolean 的严格集合：true、false、0、1、字符串 0/1。
+    /// 仅接受 true、false、0、1 及字符串 0/1。
     pub fn boolean() -> Self {
         Self(Kind::Boolean)
     }
-    /// 要求数组或对象，对应 Laravel 的关联数组输入。
+    /// 接受数组或对象，覆盖关联数组输入。
     pub fn array() -> Self {
         Self(Kind::Array)
     }
@@ -100,17 +100,17 @@ impl Rule {
     pub fn email() -> Self {
         Self(Kind::Email)
     }
-    /// Laravel min：带 integer 规则的数值按大小比较，其余按字符串或集合长度。
+    /// 带 integer 规则的数值按大小比较，其余按字符串或集合长度。
     pub fn min(value: i64) -> Self {
         Self(Kind::Min(value))
     }
-    /// Laravel max：带 integer 规则的数值按大小比较，其余按字符串或集合长度。
+    /// 带 integer 规则的数值按大小比较，其余按字符串或集合长度。
     pub fn max(value: i64) -> Self {
         Self(Kind::Max(value))
     }
     /// 兼容既有 validator length 消息与上下界参数；按 Unicode 字符计数。
     ///
-    /// 显式空字符串参与检查，空白不裁剪；不沿用 Laravel 原生普通规则的空串跳过。
+    /// 显式空字符串参与检查，空白不裁剪。
     pub fn length(min: Option<u64>, max: Option<u64>) -> Self {
         Self(Kind::Length(min, max))
     }
