@@ -30,6 +30,7 @@ use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
 pub(crate) mod deferred;
+pub(crate) mod manifest;
 mod preparation;
 pub(crate) mod registration;
 pub use deferred::DeferrableProvider;
@@ -1150,6 +1151,7 @@ pub struct ProviderBuilder {
     class_descriptors: Vec<ClassDescriptor>,
     startup_callbacks: StartupCallbacks,
     deferred: Vec<deferred::Definition>,
+    services_manifest: Option<std::path::PathBuf>,
 }
 
 struct ProviderEntry {
@@ -1509,6 +1511,10 @@ impl ProviderBuilder {
         self
     }
 
+    pub(crate) fn services_manifest(&mut self, path: std::path::PathBuf) {
+        self.services_manifest = Some(path);
+    }
+
     /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
     #[allow(
         clippy::too_many_lines,
@@ -1545,8 +1551,14 @@ impl ProviderBuilder {
             &bootstrap,
         )?;
         bootstrap.extend(providers);
-        let providers = bootstrap;
-        ordered_providers(&providers, &self.removed)?;
+        ordered_providers(&bootstrap, &self.removed)?;
+        let mut deferred = self.deferred;
+        deferred.retain(|entry| !self.removed.contains(&entry.id));
+        let (providers, deferred) = if let Some(path) = &self.services_manifest {
+            manifest::prepare(path, bootstrap, deferred)?
+        } else {
+            (bootstrap, deferred)
+        };
         let mut resources = StartupResources::new();
         if let Some(register_config) = self.app_config {
             register_config(&mut bindings, config.clone());
@@ -1580,11 +1592,7 @@ impl ProviderBuilder {
             );
             active.attach_loader(&loader);
             let mut has_load_events = false;
-            for definition in self
-                .deferred
-                .into_iter()
-                .filter(|entry| !self.removed.contains(&entry.id))
-            {
+            for definition in deferred {
                 has_load_events |= definition.has_events();
                 loader.add(&container, definition)?;
             }

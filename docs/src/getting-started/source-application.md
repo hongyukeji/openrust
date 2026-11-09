@@ -167,6 +167,8 @@ docker buildx build --platform linux/amd64 --target artifacts \
   --output type=local,dest=dist/linux-amd64 .
 ```
 
+将文件部署到 Linux 主机后，在应用运行目录建立 `bootstrap/cache`，并让实际应用账号可写。首次启动会在其中生成服务清单。容器运行镜像已创建该目录。
+
 这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。根应用已在原生 Ubuntu 24.04 x86_64 上实测部署、旧命名卷迁移和回退。
 
 ### 生成应用的容器部署

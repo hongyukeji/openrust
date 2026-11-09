@@ -29,8 +29,8 @@ pub trait DeferrableProvider: ServiceProvider {
 
 pub(super) struct Definition {
     pub(super) id: ProviderId,
-    keys: Vec<ServiceKey>,
-    events: Vec<&'static str>,
+    pub(super) keys: Vec<ServiceKey>,
+    pub(super) events: Vec<&'static str>,
     factory: Box<dyn Fn() -> Box<dyn ServiceProvider> + Send + Sync>,
 }
 

@@ -17,7 +17,7 @@ HTTP 默认根据请求的 `Accept`、AJAX/PJAX 语义选择 HTML 或 JSON；`sh
 
 实现 `DeferrableProvider::provides()` 返回服务键，再用 `ProviderBuilder::deferred_provider` 或模块的 `RegisterContext::deferred_provider` 登记编译工厂。容器在解析别名后检查共享实例，首次需要某个延迟键时沿同一注册表装载 Provider。应用已启动时，首次解析等待该 Provider 完成 `boot`。可通过 `Application::is_deferred_service` 检查精确键，通过 `load_deferred_providers().await` 装载清单剩余项。
 
-同一 Provider 的并发调用共享装载结果。注册失败消费触发键，已经发布的贡献保留，其他声明键可再次尝试。应用有在途装载时，`flush()` 返回 `deferred_provider_in_progress`。按键触发沿固定 Laravel 的启动阶段顺序，持久 manifest 缓存仍待实现。
+同一 Provider 的并发调用共享装载结果。注册失败消费触发键，已经发布的贡献保留，其他声明键可再次尝试。应用有在途装载时，`flush()` 返回 `deferred_provider_in_progress`。按键触发沿固定 Laravel 的启动阶段顺序。
 
 领域 Provider 可在 `BootContext::extension_mut::<T>()` 中修改应用级贡献。调用者用 `Application::extension::<T>()` 读取。同一种贡献的借用独立协调，异步工作前先复制或克隆所需数据并结束借用。HTTP 装配在调用路由工厂前取得路由贡献快照，`Application::exception_handler()` 也返回可用于异步工作的 Handler 快照。
 
@@ -78,6 +78,10 @@ impl ServiceProvider for FeatureProvider {
 ### 通过事件装载延迟 Provider
 
 在 `DeferrableProvider::when()` 返回事件的稳定名称或 `*` 通配模式。派发使用应用现有的 `Events` 服务。事件装载执行普通 Provider 注册，保留所有服务键。若应用已启动，派发等待 Provider 启动完成。响应中的 `DataValue::Object` 可下转为 `RegisteredProvider`，借用同一注册实例。服务键解析和事件同时到达时，共享一次装载。应用清空后，外部持有的旧派发器保留监听。新派发器使用新的监听目录。
+
+### 正式引导的服务清单
+
+普通应用在 eager 注册前校验并复用 `bootstrap/cache/services.json`，清单缺失或声明变化时同目录原子发布。低层 `ProviderBuilder` 和 `TestApp` 维持内存清单。编译类型和工厂归当前进程，文件只保存有序元数据。用 `clear-compiled` 清理服务与包缓存，配置缓存由 `config:clear` 单独处理。
 
 ## 入口作用域与资源回收
 

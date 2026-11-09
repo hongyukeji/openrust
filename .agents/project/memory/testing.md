@@ -1012,6 +1012,12 @@ Rust 回归覆盖命名绑定短路、原参数覆盖、嵌套同类型调用、
 
 隔离工作树的格式、严格 Clippy、拒警 Rustdoc 与依赖门禁通过。隔离 MySQL 8.4.13 的工作区测试 2,890 项通过、54 项忽略。新生成应用 23 项测试通过，真实 TCP 首次请求以事件触发装载并验证 boot 完成，SIGTERM 正常退出。证据见 `tmp/lead-deferred-events.VwcR8QUn/v5/independent-result.json`。持久 manifest 仍待实现。
 
+## Provider 编译服务清单限定验收
+
+固定 PHP 8.5.12 对照默认与覆盖路径、冷启动与复用、名单重排失效、缺失字段及缺失父目录。Rust 使用 JSON 和当前编译声明的 TypeId，覆盖具名与类型键、声明变更、文件格式和大小、并发发布及安全清除。
+
+隔离工作树格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。MySQL 8.4.13 的工作区测试 2,900 项通过、54 项忽略。新生成应用 23 项通过，三次真实 HTTP 覆盖默认冷启动、暖启动复用与路径覆盖，`clear-compiled` 保留配置缓存。包清单的发现与生成保持开放。证据见 `tmp/lead-services-manifest.Zg7LAdza/v2/independent-result.json`。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

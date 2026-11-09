@@ -919,7 +919,7 @@ fn populate_project_with_features(
         "app/http/middleware",
         "resources/mail",
         "resources/views",
-        "bootstrap",
+        "bootstrap/cache",
         "modules",
         "routes",
         "database",
@@ -1049,6 +1049,10 @@ fn populate_project_with_features(
             include_str!("../templates/config/view.rs").to_owned(),
         ),
         ("bootstrap/app.rs", app_source(crate_name)),
+        (
+            "bootstrap/cache/.gitignore",
+            include_str!("../templates/bootstrap/cache/.gitignore").to_owned(),
+        ),
         (
             "app/mod.rs",
             include_str!("../templates/app/mod.rs").to_owned(),
@@ -3955,6 +3959,7 @@ mod tests {
             "resources/views/index.html",
             "src/main.rs",
             "bootstrap/app.rs",
+            "bootstrap/cache/.gitignore",
             "bootstrap/providers.rs",
             "app/mod.rs",
             "app/http/controllers/home.rs",

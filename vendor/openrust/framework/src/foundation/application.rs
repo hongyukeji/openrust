@@ -405,6 +405,7 @@ pub struct Application {
     state: ApplicationState,
     figment: Figment,
     config_cache_path: Option<std::path::PathBuf>,
+    provider_cache_paths: Option<super::provider::manifest::CachePaths>,
     key_environment: Option<crate::config::KeyGenerationEnvironment>,
     commands: CommandRegistry,
     extensions: Extensions,
@@ -542,6 +543,7 @@ impl Application {
             },
             figment,
             config_cache_path: None,
+            provider_cache_paths: None,
             key_environment: None,
             commands: runtime.commands,
             extensions: runtime.extensions,
@@ -661,6 +663,22 @@ impl Application {
         self.config_cache_path
             .as_deref()
             .ok_or_else(|| ConfigError::Invalid("应用未提供配置缓存路径".to_owned()))
+    }
+
+    pub(crate) fn set_provider_cache_paths(
+        &mut self,
+        paths: super::provider::manifest::CachePaths,
+    ) {
+        self.provider_cache_paths = Some(paths);
+    }
+
+    pub(crate) fn clear_compiled_providers(&self) -> Result<()> {
+        self.provider_cache_paths
+            .as_ref()
+            .ok_or_else(|| {
+                Error::custom("provider_manifest_unavailable", "应用未提供服务清单路径")
+            })?
+            .clear()
     }
 
     pub(crate) fn set_key_generation_environment(

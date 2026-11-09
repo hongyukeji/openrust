@@ -26,16 +26,29 @@ pub(crate) fn selected_path_from(
     namespace: &str,
     environment: &EnvironmentSnapshot,
 ) -> Result<PathBuf, ConfigError> {
+    cache_path(
+        app_dir,
+        namespace,
+        environment,
+        "CONFIG_CACHE",
+        "bootstrap/cache/config.json",
+    )
+}
+
+pub(crate) fn cache_path(
+    app_dir: &Path,
+    namespace: &str,
+    environment: &EnvironmentSnapshot,
+    suffix: &str,
+    default: &str,
+) -> Result<PathBuf, ConfigError> {
     super::validate_namespace(namespace)?;
-    let key = format!("{namespace}CONFIG_CACHE");
+    let key = format!("{namespace}{suffix}");
     let selected = environment.get_os(&key);
     if selected.as_ref().is_some_and(|value| value.is_empty()) {
         return Err(failure("缓存路径不能为空"));
     }
-    let path = selected.map_or_else(
-        || PathBuf::from("bootstrap/cache/config.json"),
-        PathBuf::from,
-    );
+    let path = selected.map_or_else(|| PathBuf::from(default), PathBuf::from);
     if path.is_absolute() {
         Ok(path)
     } else {

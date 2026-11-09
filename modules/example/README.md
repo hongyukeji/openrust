@@ -2,6 +2,7 @@
 
 `GET /api/example/deferred-greeting` 从请求作用域注入首次使用时装载的问候服务。模块在 register 通过 `RegisterContext::deferred_provider` 声明编译工厂，请求读到服务内容和已完成 boot 的标记。
 `POST /api/example/deferred-greeting-event` 派发示例事件，验证事件返回的 Provider 实例并读取启动完成的问候服务。事件触发保留延迟服务键。
+示例随模块注册进入当前启动清单。重新启动时，应用级服务缓存不会绕过模块启用状态或提前运行该 Provider。
 
 `ExampleServiceProvider::boot` 通过公开 `BootContext::exceptions` 为示例业务异常登记类型化报告、409 渲染及最终响应头；`GET /api/example/exception` 经真实模块路由和异常链展示。`/api` 错误 envelope 策略由根应用 `AppServiceProvider` 显式登记；模块只贡献业务异常扩展，保留宿主的全局响应策略。此接线已通过本批限定 workspace、真实 MySQL 与公开 HTTP 验收；完整异常与 HTTP 能力继续逐项交付。
 

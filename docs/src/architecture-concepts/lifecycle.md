@@ -180,7 +180,15 @@ let descriptors = [
 
 也可在 `when()` 返回事件的稳定名称或通配模式。照常通过 `Events` 派发。启动前触发会登记 Provider，并在正常启动遍历中执行一次 `boot`。启动后触发会立即登记并启动。事件保留服务键。派发或 `until` 返回的 `DataValue::Object` 可下转为 `RegisteredProvider`。示例使用 `POST /api/example/deferred-greeting-event`。
 
-持久 manifest 仍在后续范围。 [Laravel ProviderRepository 的事件装载](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L115) · [Laravel Application 的延迟服务实现](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L992-L1100)
+[Laravel ProviderRepository 的事件装载](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L115) · [Laravel Application 的延迟服务实现](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L992-L1100)
+
+### 编译服务清单
+
+普通应用在 Provider 注册前读取 `bootstrap/cache/services.json`。首次启动或有序 Provider 声明变化时，应用原子重建文件。数据记录 eager Provider、延迟服务和事件。Rust 类型键和工厂从当前二进制取得，文件内容始终按编译声明校验。模块在自身 `register` 中登记的延迟 Provider 仍由当前启用的模块决定。
+
+默认缓存目录随项目生成。可用 `APP_SERVICES_CACHE` 覆盖文件路径。相对路径以应用根目录为准，父目录须存在。应用自定环境变量前缀时使用同一前缀。损坏或无法读取的文件会使启动失败。
+
+运行 `./artisan clear-compiled` 可清除选定的服务清单和包清单。包清单路径默认是 `bootstrap/cache/packages.json`，可用 `APP_PACKAGES_CACHE` 覆盖。包发现的生成流程仍在后续范围。配置缓存由 `config:clear` 单独管理。 [Laravel ProviderRepository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L185)
 
 ### Provider 实例启动回调
 

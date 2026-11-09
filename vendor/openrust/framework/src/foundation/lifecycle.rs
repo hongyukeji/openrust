@@ -15,8 +15,8 @@ use tracing_subscriber::util::SubscriberInitExt as _;
 use crate::config::Environment;
 use crate::config::{self, ConfigLoader, LogConfig, LogFormat};
 use crate::console::command::{
-    ConfigCacheCommand, ConfigClearCommand, ConfigShowCommand, EnvironmentCommand, HelpCommand,
-    KeyGenerateCommand, ListCommand,
+    ClearCompiledCommand, ConfigCacheCommand, ConfigClearCommand, ConfigShowCommand,
+    EnvironmentCommand, HelpCommand, KeyGenerateCommand, ListCommand,
 };
 use crate::core::Cancellation;
 use crate::core::error::{Error, Result};
@@ -54,6 +54,7 @@ impl<A: ApplicationDefinition> ServiceProvider for CoreCommandsProvider<A> {
                 marker: std::marker::PhantomData,
             });
             app.command(ConfigClearCommand);
+            app.command(ClearCompiledCommand);
             app.command(KeyGenerateCommand);
             Ok(())
         })
@@ -674,9 +675,12 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
 ) -> Result<Application> {
     let namespace = A::config_namespace();
     let manifest = A::config();
+    let app_dir = std::env::current_dir()
+        .map_err(|_| config::ConfigError::Invalid("无法定位应用根目录".into()))?;
     let config::ApplicationSources {
         sources,
         cache_path,
+        environment,
         label,
         key_environment,
     } = if let Some(path) = forced_path {
@@ -687,17 +691,16 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
             .into());
         }
         let external = config::EnvironmentSnapshot::capture();
-        let app_dir = std::env::current_dir()
-            .map_err(|_| config::ConfigError::Invalid("无法定位应用根目录".into()))?;
         let dotenv_path =
             config::selected_dotenv_path(&app_dir, namespace, &external, console_environment);
         let environment = external.with_dotenv_at(&dotenv_path)?;
         let env = config::selected_environment(namespace, &environment)?;
-        let loader = ConfigLoader::from_snapshot(env, namespace, environment)?;
+        let loader = ConfigLoader::from_snapshot(env, namespace, environment.clone())?;
         let key_variable = format!("{namespace}KEY");
         config::ApplicationSources {
             sources: loader.code_sources(&manifest)?,
             cache_path: path,
+            environment,
             label: "configured",
             key_environment: config::KeyGenerationEnvironment {
                 dotenv_path,
@@ -706,8 +709,6 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
             },
         }
     } else {
-        let app_dir = std::env::current_dir()
-            .map_err(|_| config::ConfigError::Invalid("无法定位应用根目录".into()))?;
         ConfigLoader::resolve_application_sources(
             &app_dir,
             namespace,
@@ -715,12 +716,19 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
             Some(&manifest),
         )?
     };
+    let provider_cache = super::provider::manifest::CachePaths::select(
+        &app_dir,
+        namespace,
+        &environment,
+        &cache_path,
+    )?;
     let app_config: A::Config = sources
         .figment()
         .extract()
         .map_err(crate::config::ConfigError::from)?;
     let mut builder =
         ProviderBuilder::for_application_with_console::<A>(&app_config, console_environment);
+    builder.services_manifest(provider_cache.services.clone());
     if let Some(name) = name {
         builder.console_command(name);
     }
@@ -739,6 +747,7 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
     }
     let mut app = Application::from_provider_runtime(runtime)?;
     app.set_config_cache_path(cache_path);
+    app.set_provider_cache_paths(provider_cache);
     app.set_key_generation_environment(key_environment);
     init_tracing(&app.config().log);
     tracing::debug!(env = %app.config().app.env, config_source = label, "provider configuration loaded");
@@ -1018,9 +1027,67 @@ mod tests {
     }
 
     #[test]
+    fn bootstrap_reuses_services_manifest_and_clear_compiled_preserves_config() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("bootstrap")?;
+            jail.create_dir("bootstrap/cache")?;
+            jail.create_dir("cache-fixture")?;
+            jail.create_file(
+                ".env",
+                "APP_SERVICES_CACHE=cache-fixture/services.json\nAPP_PACKAGES_CACHE=cache-fixture/packages.json\n",
+            )?;
+            let runtime = fixture_result(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build(),
+            )?;
+            runtime.block_on(async {
+                let services = std::path::Path::new("cache-fixture/services.json");
+                let packages = std::path::Path::new("cache-fixture/packages.json");
+                let config = std::path::Path::new("bootstrap/cache/config.json");
+                let cold = fixture_result(bootstrap::<CommandFixture>().await)?;
+                let data: serde_json::Value = fixture_result(serde_json::from_slice(
+                    &fixture_result(std::fs::read(services))?,
+                ))?;
+                let compact = fixture_result(serde_json::to_vec(&data))?;
+                fixture_result(std::fs::write(services, &compact))?;
+                fixture_result(
+                    cold.shutdown(Instant::now() + std::time::Duration::from_secs(2))
+                        .await,
+                )?;
+                let warm = fixture_result(
+                    bootstrap_for_command::<CommandFixture>("clear-compiled").await,
+                )?;
+                assert_eq!(fixture_result(std::fs::read(services))?, compact);
+                fixture_result(std::fs::write(packages, b"{}"))?;
+                fixture_result(std::fs::write(config, b"configuration sentinel"))?;
+                fixture_result(warm.run_command("clear-compiled", Vec::new()).await)?;
+                assert!(!services.exists() && !packages.exists());
+                assert_eq!(
+                    fixture_result(std::fs::read(config))?,
+                    b"configuration sentinel"
+                );
+                fixture_result(
+                    warm.shutdown(Instant::now() + std::time::Duration::from_secs(2))
+                        .await,
+                )
+            })
+        });
+    }
+
+    fn fixture_result<T, E: std::fmt::Display>(
+        result: std::result::Result<T, E>,
+    ) -> figment::Result<T> {
+        result.map_err(|error| figment::Error::from(error.to_string()))
+    }
+
+    #[test]
     fn module_typed_config_and_raw_namespace_coexist_but_refuse_cache_command() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.clear_env();
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -1060,6 +1127,7 @@ mod tests {
     fn module_code_uses_startup_snapshot_and_cache_keeps_final_value() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.clear_env();
             jail.create_file(".env", "GREETING_TOKEN=from-module-code\n")?;
             let runtime = tokio::runtime::Builder::new_current_thread()
@@ -1398,6 +1466,7 @@ mod tests {
     fn cache_command_uses_fresh_application_and_next_boot_reads_compiled_value() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.clear_env();
             jail.create_dir("config")?;
             jail.create_file("config/app.toml", "[app]\nname = 'before'\n")?;
@@ -1465,6 +1534,7 @@ mod tests {
     fn failed_fresh_boot_leaves_previous_cache_cleared() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.clear_env();
             jail.create_dir("config")?;
             jail.create_file("config/app.toml", "[app]\nname = 'first'\n")?;
@@ -1550,6 +1620,7 @@ mod tests {
     fn console_config_cache_fresh_bootstrap_keeps_selected_environment_file() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.clear_env();
             jail.create_file(".env", "APP_NAME=plain\n")?;
             jail.create_file(
@@ -1617,6 +1688,7 @@ mod tests {
     fn cache_miss_preserves_custom_environment_value() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.clear_env();
             jail.create_file(
                 ".env",
@@ -1643,6 +1715,7 @@ mod tests {
     fn production_bootstrap_loads_dotenv_without_overriding_process_environment() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.set_env("APP_ENV", "");
             jail.set_env("SERVER_PORT", "");
             jail.set_env("APP_PORT", "");
@@ -1674,6 +1747,7 @@ mod tests {
     fn dotenv_selected_production_loads_other_keys() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.set_env("APP_ENV", "");
             jail.set_env("SERVER_PORT", "");
             jail.set_env("APP_URL", "");
@@ -1703,6 +1777,7 @@ mod tests {
     fn malformed_dotenv_fails_without_exposing_its_contents() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             jail.clear_env();
             jail.create_file(
                 ".env",
@@ -1723,6 +1798,7 @@ mod tests {
     fn development_bootstrap_loads_dotenv_then_resolves_environment() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            fixture_result(std::fs::create_dir_all("bootstrap/cache"))?;
             // 外部环境保持独立，`.env` 只供本次加载器使用。
             jail.set_env("APP_ENV", "");
             jail.set_env("SERVER_PORT", "");
@@ -1764,6 +1840,7 @@ mod tests {
                 "config show",
                 "config:cache",
                 "config:clear",
+                "clear-compiled",
                 "key:generate"
             ]
         );

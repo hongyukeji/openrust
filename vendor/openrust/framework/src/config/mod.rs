@@ -318,6 +318,7 @@ pub(crate) struct KeyGenerationEnvironment {
 pub(crate) struct ApplicationSources {
     pub(crate) sources: ConfigSources,
     pub(crate) cache_path: PathBuf,
+    pub(crate) environment: EnvironmentSnapshot,
     pub(crate) label: &'static str,
     pub(crate) key_environment: KeyGenerationEnvironment,
 }
@@ -445,6 +446,7 @@ impl ConfigLoader {
             return Ok(ApplicationSources {
                 sources: cached,
                 cache_path: early_path,
+                environment: external,
                 label: "cache",
                 key_environment: KeyGenerationEnvironment {
                     dotenv_path: app_dir.join(".env"),
@@ -475,12 +477,13 @@ impl ConfigLoader {
             return Ok(ApplicationSources {
                 sources: cached,
                 cache_path: path,
+                environment,
                 label: "cache",
                 key_environment,
             });
         }
         let env = selected_environment(namespace, &environment)?;
-        let mut loader = Self::from_snapshot(env, namespace, environment)?;
+        let mut loader = Self::from_snapshot(env, namespace, environment.clone())?;
         loader.config_dir = app_dir.join(&loader.config_dir);
         loader.application_root = Some(
             std::path::absolute(app_dir)
@@ -508,6 +511,7 @@ impl ConfigLoader {
         Ok(ApplicationSources {
             sources,
             cache_path: path,
+            environment,
             label: source,
             key_environment,
         })

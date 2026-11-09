@@ -167,6 +167,27 @@ impl Command for ConfigClearCommand {
     }
 }
 
+/// 清除当前应用选定的编译服务与包清单。
+pub(crate) struct ClearCompiledCommand;
+
+impl Command for ClearCompiledCommand {
+    fn name(&self) -> &'static str {
+        "clear-compiled"
+    }
+
+    fn about(&self) -> &'static str {
+        "Remove the compiled services and packages manifests"
+    }
+
+    fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.clear_compiled_providers()?;
+            print("Compiled services and packages files removed successfully");
+            Ok(())
+        })
+    }
+}
+
 /// 重新引导同一应用类型，再保存最终配置仓储的完整有序值。
 pub(crate) struct ConfigCacheCommand<A> {
     pub(crate) console_environment: Option<String>,

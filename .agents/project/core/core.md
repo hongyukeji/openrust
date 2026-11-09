@@ -43,9 +43,11 @@ class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件
 
 ## 延迟 Provider 按服务键装载
 
-`ProviderBuilder::deferred_provider` 和 `RegisterContext::deferred_provider` 将编译工厂登记到应用的同一清单。容器先解析别名。已有共享实例可跳过装载，同一 Provider 的在途解析等待注册和即时 boot 结束。首次装载只消耗触发键。启动遍历完成后发布的 Provider 立即 boot，并校验其 required 服务。应用可显式装载余项或通过 `flush` 清空清单。作用域关闭会结束当前解析。模块示例通过 HTTP 依赖注入触发装载。持久 manifest 仍待实现。[按键限定验收](../memory/testing.md#延迟-provider-按服务键装载限定验收)
+`ProviderBuilder::deferred_provider` 和 `RegisterContext::deferred_provider` 将编译工厂登记到应用的同一清单。容器先解析别名。已有共享实例可跳过装载，同一 Provider 的在途解析等待注册和即时 boot 结束。首次装载只消耗触发键。启动遍历完成后发布的 Provider 立即 boot，并校验其 required 服务。应用可显式装载余项或通过 `flush` 清空清单。作用域关闭会结束当前解析。模块示例通过 HTTP 依赖注入触发装载。[按键限定验收](../memory/testing.md#延迟-provider-按服务键装载限定验收)
 
 通过 `when()` 将名称或通配模式接入同一 Events 派发器。事件走普通 Provider 注册并保留所有服务键。并发事件和服务解析共享在途尝试，派发响应持有已登记 Provider 对象。应用清空后，旧派发器由其持有者管理，新派发器使用新的监听目录。[事件限定验收](../memory/testing.md#延迟-provider-事件装载限定验收)
+
+正式应用使用 `bootstrap/cache/services.json`。引导从当前环境选择路径，校验有序编译声明并原子重建失效数据。类型键与工厂保留在进程内。应用命令 `clear-compiled` 清理选定的服务和包清单，配置缓存单独管理。模块内声明随实际注册追加，包发现仍属 R13 后继。[编译服务清单验收](../memory/testing.md#provider-编译服务清单限定验收)
 
 ## R2-P Provider 注册生命周期（与 S-DV 的 main 限定组合已验收）
 
