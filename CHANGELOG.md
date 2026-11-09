@@ -10,7 +10,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - Fortify 八个双因素事件的运行标识使用 `OpenRust\Fortify\Events\` 前缀。按字符串或通配符订阅时需更新前缀，按 Rust 类型订阅的 API 保持原样。
 
-- 受控云入口的启动开关改用进程变量 `OPENRUST_CLOUD_INGRESS=1`。显式代理列表继续优先；升级时同步部署环境的变量名。
+- 受控云入口使用进程变量 `OPENRUST_CLOUD=1`。升级时同步部署环境中的旧变量名。显式代理列表优先。
 
 - 默认日志文件改为 `storage/logs/application.log`，应急记录使用 `emergency` 标签。显式日志路径继续有效；日志采集需同步新默认值。
 

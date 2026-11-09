@@ -86,7 +86,7 @@ where
     F: Future<Output = ()>,
 {
     // 信任声明只从启动进程的环境读取一次，不接受应用配置或请求头。
-    let router = if std::env::var("OPENRUST_CLOUD_INGRESS").is_ok_and(|value| value == "1") {
+    let router = if std::env::var("OPENRUST_CLOUD").is_ok_and(|value| value == "1") {
         router.layer(axum::Extension(crate::http::CloudIngress))
     } else {
         router

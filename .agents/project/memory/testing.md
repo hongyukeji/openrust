@@ -2246,7 +2246,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 
 ## 云入口开关命名限定验收
 
-冻结树 `4f2e8e2ff2d203767c7c92a7fce522f0925d6ab2` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。唯一示例由真实 TCP listener 验证 `OPENRUST_CLOUD_INGRESS=1` 的启用、旧变量/非精确值/dotenv/伪造请求头拒绝及显式空代理列表优先。生成 minimal 应用通过 check 与 tests，临时公开 RequestInfo 探针在真实进程上验证关闭时 http、开启时 https。实测环境为本地 TCP，实际云平台部署环境仍开放。
+固定 Laravel 的部署变量仅替换品牌段为 OPENRUST_CLOUD。唯一示例的真实 TCP listener 验证精确值 1 启用，两个旧变量、非精确值、应用 dotenv 和伪造请求头均无效。显式空列表及不含连接来源的代理列表均优先。实测客户端 IP、协议、主机和路径前缀。
+
+冻结树 `488d85c66685e88b55dabade2b02b31cff325344` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。fresh minimal 通过 check/test，并由实际进程使用公开 RequestInfo 验证无开关和旧开关返回 http，新开关返回 https。实际云部署仍开放。
 
 ## 双因素事件命名限定验收
 

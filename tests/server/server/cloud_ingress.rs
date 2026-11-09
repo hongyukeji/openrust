@@ -20,7 +20,7 @@ async fn deployment_switch_controls_forwarded_headers_at_the_listener() -> TestR
         include_bytes!("../../../modules/example/module.json"),
     )?;
     // 应用配置能读到此值，但可信入口只能由监听进程声明。
-    std::fs::write(root.path().join(".env"), "OPENRUST_CLOUD_INGRESS=1\n")?;
+    std::fs::write(root.path().join(".env"), "OPENRUST_CLOUD=1\n")?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(Duration::from_secs(3))
@@ -28,23 +28,25 @@ async fn deployment_switch_controls_forwarded_headers_at_the_listener() -> TestR
 
     for (label, environment, proxy_ranges, trusted) in [
         ("仅 dotenv 与请求头", None, None, false),
-        ("旧进程变量", Some(("LARAVEL_CLOUD", "1")), None, false),
+        ("上游品牌变量", Some(("LARAVEL_CLOUD", "1")), None, false),
         (
-            "非精确值",
-            Some(("OPENRUST_CLOUD_INGRESS", "true")),
+            "旧 OpenRust 变量",
+            Some(("OPENRUST_CLOUD_INGRESS", "1")),
             None,
             false,
         ),
-        (
-            "受控入口",
-            Some(("OPENRUST_CLOUD_INGRESS", "1")),
-            None,
-            true,
-        ),
+        ("非精确值", Some(("OPENRUST_CLOUD", "true")), None, false),
+        ("受控入口", Some(("OPENRUST_CLOUD", "1")), None, true),
         (
             "显式空列表",
-            Some(("OPENRUST_CLOUD_INGRESS", "1")),
+            Some(("OPENRUST_CLOUD", "1")),
             Some("[]"),
+            false,
+        ),
+        (
+            "连接来源不在显式列表中",
+            Some(("OPENRUST_CLOUD", "1")),
+            Some(r#"["192.0.2.0/24"]"#),
             false,
         ),
     ] {
@@ -105,6 +107,7 @@ async fn assert_forwarded_headers(
     let response = client
         .get(format!("http://{address}/api/example/request-url"))
         .header("host", "internal.test")
+        .header("openrust-cloud", "1")
         .header("openrust-cloud-ingress", "1")
         .header("x-forwarded-for", "198.51.100.8")
         .header("x-forwarded-host", "public.test")
