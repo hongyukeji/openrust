@@ -55,12 +55,12 @@ assert_eq!(module.is_loaded(), loaded);
 
 | 配置键 | 默认值 | 代码配置读取的部署变量 |
 | --- | --- | --- |
-| `modules.activator` | `file` | `MODULES_ACTIVATOR` |
+| `modules.activator` | `registered` | `MODULES_ACTIVATOR` |
 | `modules.activators.file.statuses-file` | `modules_statuses.json` | `MODULES_STATUSES_FILE` |
 
 `Configuration.application_root` 是应用运行根锚点，缺省为当前工作目录；模块资源仍从该根下的 `modules/<模块名>/` 解析。`ModuleManifest::from_config(&root, &config.modules)` 将状态文件的相对路径锚定到同一应用根，绝对路径保持原值。例如可将状态单独放在 `state/modules.json`，而不移动模块源码、语言或视图。不会自动搬迁旧状态文件；`APP_CONFIG_DIR` 也不会替应用选择资源根。生成的 `modules::manifest(root, &config.modules)` 使用同一入口。
 
-默认 `file` 在实际激活器构造时读取一次，后续 `snapshot/has_status` 使用该实例缓存，外部进程写文件不会刷新它。自身 set/delete 先更新缓存再写；写失败缓存不回滚，后续成功写保留尚未持久化的自身变更。`file-live` 是显式实时读取扩展，可用 `MODULES_ACTIVATOR=file-live` 选择，复用同一状态路径；它不冒充上游默认。`FileModuleActivator::new(path)` 返回 `Result`，坏文件在构造处失败，手工恢复可显式调用 `FileModuleActivator::reset_file(path)`。
+库的 `ModulesConfig::default()` 使用 `file`，与上游包默认一致。`file` 在实际激活器构造时读取一次，后续 `snapshot/has_status` 使用该实例缓存，外部进程写文件不会刷新它。自身 set/delete 先更新缓存再写，写失败时缓存保留变更，后续成功写包含尚未持久化的变更。可用 `MODULES_ACTIVATOR=file-live` 选择实时读取扩展，复用同一状态路径。`FileModuleActivator::new(path)` 返回 `Result`，坏文件在构造处失败，手工恢复可显式调用 `FileModuleActivator::reset_file(path)`。
 
 `file` 通过同一模块清单选择；自定义激活器须先用 `register_activator` 登记，未知名称启动失败。源码清单中的 `ModuleManifest::enable/disable` 只调整本次构建，持久写使用 [模块管理服务与命令](#编译模块与持久启停)。普通只读自定义激活器的写操作明确拒绝，不回退到默认文件。
 

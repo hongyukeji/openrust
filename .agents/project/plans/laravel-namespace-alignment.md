@@ -24,13 +24,31 @@ Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911
 
 ## 公开名称验收规则
 
-覆盖固定 Laravel 核心、Laravel Modules 与各已授权官方可选包中 OpenRust 已实现的公开表面。分别核对模块和类型导入、具名事件、容器绑定及别名、配置键及部署环境变量、路由名、CLI 命令，以及生成应用公开的同类约定。未实现的上游能力继续由对应功能簇跟踪。
+依 [命名规范](../conventions.md#命名) 检查固定 Laravel 核心、Laravel Modules 与各已授权官方包中已实现的公开表面。每域追到根装配、唯一示例、生成模板及真实生成结果。库的声明只能证明存在，须沿实际生产登记及消费找到应用可观察的入口。
 
-每项记录固定上游源码或测试、当前运行名称及调用入口、目标名称与必要 Rust 适配。保留上游职责段、层级和行为，只替换其中的品牌段。Rust 的 crate 命名、模块拼写与 `::` 分隔可直接映射。Rust 类型路径与字符串事件身份各自验收。重复实现、单纯沿用旧目录和缺少对照证据均不足以支持适配。无上游对应的 OpenRust 增强单列，按公开职责命名并保留行为回归。
+每项记录固定 SHA 与源码或测试、上游全名或默认值、OpenRust 现名及实际调用点、目标、差异分类和验证状态。差异分为一致、品牌映射、必要适配、待整改、独有扩展、上游能力未实现。必要适配须记约束与等价证据。独有扩展保留行为验证，上游能力未实现回归原功能簇跟踪。
 
-新增或修改公开名称时，提交评审先核固定上游全名，再核仅替换品牌段后的预期和实现。可自动验收的名称用从上游独立推导的完整字面值断言，验证实际注册或消费入口。被测常量、实现输出和随同修改的文档不能作为测试预期的来源。静态扫描用于发现候选和旧引用，固定源码对照与运行验收用于确认对应。
+提交评审独立检查 Rust 路径和运行标识。前者编译实际外部调用点，后者用上游独立推导的完整字面值验证真实登记或消费。被测常量、实现输出和随同修改的文档不能作为测试预期的来源。词语扫描或批量替换只提供候选与迁移线索。验证状态区分待取证、静态已对照、待运行、运行通过或失败，运行结论绑定实际测试及受验输入。
 
-按唯一待办和依赖逐批处理。每批同步生产注册、消费方、模板、唯一示例、测试与文档，以真实入口、错误边界和可观察结果验收。
+### 分域审查对照
+
+按唯一待办和依赖分批补齐下表。核心按职责分域，Laravel Modules 独立覆盖命令、配置、模块清单及生命周期，已实现官方包按包检查。根装配、唯一示例和生成模板是每域的消费检查点。
+
+| 域与固定上游 | 上游全名或值 | 当前 OpenRust 与入口 | 目标与差异分类 | 验证状态 |
+|---|---|---|---|---|
+| 核心 Translation，framework `d52c3b3` 的 `Translation/FileLoader.php` | `Illuminate\Translation\FileLoader` | `openrust::translation::FileLoader`，默认翻译 Provider 与根、生成应用来源配置 | 当前路径，Rust 模块映射 | [运行通过](../memory/testing.md#默认文件-loader-与无资源语言限定验收)，公开名称提交 `d61369b5` |
+| 核心 Cookie，framework `d52c3b3` 的 `Cookie/Middleware/EncryptCookies.php` | `Illuminate\Cookie\Middleware\EncryptCookies` | Provider 装配私有 `CookieLayerPlan`，根 Web 组与 `cookies` 路由别名消费 | 公开同一中间件及应用级例外入口，待整改 | 静态已对照，运行待验 |
+| 核心 Encryption，framework `d52c3b3` 的 `Contracts/Encryption/Encrypter.php` | `Illuminate\Contracts\Encryption\Encrypter` | `openrust::encryption::ApplicationEncrypter`，Cookie、Auth 与生成应用使用的应用加密 trait | 合约名称与路径待整改，完整值语义归加密后继 | 静态已对照，运行待验 |
+| 核心 Events，framework `d52c3b3` 的 `Events/EventServiceProvider.php` 与 `Foundation/Application.php` | `events` singleton，具体类 `Illuminate\Events\Dispatcher` 与契约 `Illuminate\Contracts\Events\Dispatcher` 指向同一实例 | `openrust::events::Events` 只有类型化登记，由应用、模块和默认事件 Provider 消费 | 先补 `events` 同实例具名入口，类型及完整契约随后核对，待整改 | 静态已对照 |
+| 核心 Events，framework `d52c3b3` 的 `Events/EventServiceProvider.php` | `Illuminate\Events\EventServiceProvider` | `EventsServiceProvider` 同时配置应用监听，另有 `DefaultEventsServiceProvider` 支持延迟 Provider 事件触发 | 先核框架注册与应用监听职责，再按职责对齐单数类型名，待整改 | 静态已对照 |
+| 核心 Console，framework `d52c3b3` 的 `Console/Scheduling/Schedule.php` | `Illuminate\Console\Scheduling\Schedule` | `schedule::ScheduleDefinition` 描述任务，`schedule::Scheduler` 执行 | 分别核定义、登记及运行后确定路径和类型，待取证 | 上游与本地入口已定位 |
+| 核心 Translation，framework `d52c3b3` 的 `Translation/TranslationServiceProvider.php` | `translation.loader` 与 `translator` | 默认 `TranslationServiceProvider` 将同名键关联到 Loader 与 Translator 类型绑定 | 保留原名，一致 | 静态匹配，既有[默认 FileLoader 验收](../memory/testing.md#默认文件-loader-与无资源语言限定验收) |
+| 核心 Auth / Foundation，framework `d52c3b3` 的 `Auth/Events/` 与 `Foundation/Events/Terminating.php` | `Illuminate\Auth\Events\Login` 等已实现事件，`Illuminate\Foundation\Events\Terminating` | Session Guard 及 HTTP、控制台终止链保留对应运行全名 | 保留 `Illuminate` 及其余原名，一致 | 静态匹配，既有[内核终止事件验收](../memory/testing.md#内核终止事件限定验收) |
+| Laravel Modules，`59714840708a2aece19e810764473f53227c35fe` 的 `src/Module.php`、`src/Constants/ModuleEvent.php` | `modules.<小写名>.<阶段>`，`enabling`、`enabled`、`disabling`、`disabled` | `vendor/openrust/modules/src/module/repository.rs` 经激活链派发相同模式 | 保留原名，一致。上游包的 `Nwidart` 是第三方标识 | 静态匹配，既有[模块启停验收](../memory/testing.md#模块持久启停与同容器管理限定验收) |
+| Laravel Modules，同 SHA 的 `src/Commands/Actions/{List,Enable,Disable}Command.php` | `module:list`、`module:enable`、`module:disable` | 模块包 `commands.rs` 注册相同命令名 | 保留原名，一致 | 静态匹配，既有[模块启停验收](../memory/testing.md#模块持久启停与同容器管理限定验收) |
+| Laravel Modules，同 SHA 的 `config/config.php` | `modules.activator=file` | `ModulesConfig::default()` 为 `file`，根和生成代码显式默认 `registered` | 保留库默认与显式装配选择，文档分别说明 | 静态已对照 |
+| 官方 Fortify，`c456642584c102f6a6aafee9932299542da637b5` 的 `src/Events/TwoFactorAuthenticationEnabled.php` | `Laravel\Fortify\Events\TwoFactorAuthenticationEnabled` | 同一事件类型由 `openrust::fortify::events::TwoFactorAuthenticationEnabled` 导出，运行名 `OpenRust\Fortify\Events\TwoFactorAuthenticationEnabled`，示例及 Web/JWT 生成应用消费 | 当前路径与运行名，Rust 模块映射及品牌映射 | [运行通过](../memory/testing.md#双因素事件命名限定验收)，八项逐一覆盖 |
+| 官方 Passport，`f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7` 的 `src/Http/Controllers/AccessTokenController.php` | `Laravel\Passport\Http\Controllers\AccessTokenController` | `openrust_passport::AccessTokenController` 在包根导出，叶名一致 | 保留 Passport、Http、Controllers 职责层级，按已实现的令牌路由核消费与名称，待整改 | 静态已对照，路由及 OAuth/OIDC 协议独立核对 |
 
 ## 实施与 WIP 保护
 

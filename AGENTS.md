@@ -8,6 +8,8 @@
 
 对外定位为 **OpenRust — Laravel 的 Rust 实现**，Laravel Modules 是默认集成的优秀第三方扩展，不与 Laravel 并列为项目品牌。实现范围不变：用 Rust 1:1 实现固定基线 Laravel 框架能力与 laravel-modules 模块化能力，并持续跟进上游。目录、概念、命名、默认行为、工作流和扩展方式以 Laravel 为准；仅在 Rust 语言、运行时或工具约束确有必要时适配，并记录原因与等价行为证据。上游跟进与版本范围规则见 [总计划](.agents/project/plans/laravel-rebuild.md#长期上游跟进)。
 
+新增、修改或审查公开名称前必须读 [命名规范](.agents/project/conventions.md#命名) 和 [公开名称验收规则](.agents/project/plans/laravel-namespace-alignment.md#公开名称验收规则)。以固定上游 SHA 的全名逐项对照 Laravel 核心、Laravel Modules 和已实现的官方包，同时覆盖根装配、唯一示例与生成模板。Rust 导入与可观察字符串分别取证。存量差异统一进入 AR-N01。
+
 1:1 以逐项功能与可观察语义、默认值、错误/安全边界、Container/Provider 生命周期、扩展契约和 CLI/生成/测试/部署流程为验收；Laravel 使用者可按官方章节完成对应操作，仅 Rust 语法、类型、所有权、async 等确有必要时适配。不是 PHP 运行环境或字节兼容。每项须具备上游源码/测试→Rust API/配置→等价行为测试→modules/example→文档→真实服务证据；名称近似、旧测试或目录相似不算完成。适用核心能力不得因难度、个人偏好或“Rust 惯用”被划为不适用。差异按[对应与分类规则](.agents/project/plans/laravel-rebuild.md#逐项对应与差异分类)公开记录，无法等价保留缺口，不虚报严格 1:1 已达成。
 
 用户已明确授权固定范围内Laravel核心、laravel-modules及官方可选生态全量对应开发，分阶段完成，验收语义始终以官方为准。可选表示开发者按需启用，不表示Agent可省略实现；官方工具自身必要界面/前端配套属于阶段二官方可选包，不等同暂不开发的若依/芋道式业务后台。范围、阶段及Rust必要适配见[官方全量交付规则](.agents/project/plans/laravel-official-coverage.md#全量交付授权与两阶段)，唯一todo按依赖领取；不得仅凭Tokio、同名API或上游PHP实现判定已对应或不适用。
@@ -138,7 +140,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 Laravel 对应能力须按[纠偏规则](.agents/project/plans/laravel-rebuild.md#执行偏离的纠正)核对实际生产调用链及行为证据，不能只查目录和命名。发现偏离及时修正；未修正不关闭受影响行为。结构子交付与内核/业务行为完成分别报告，不能用旧测试通过替代新 contract 验收。
 
-1. 重读修改过的每个文件；`git diff` 与声明一致；链接与路径可解析；重命名后 `rg` 扫旧名称。
+1. 重读修改过的每个文件，核对 `git diff`、链接和路径。公开名称有变更时，按[公开名称验收规则](.agents/project/plans/laravel-namespace-alignment.md#公开名称验收规则)复核固定 SHA、上游全名、目标及差异证据。对 Rust 路径编译实际消费者，对可观察字符串用独立预期验证实际登记或消费。更名后扫描旧引用并核对迁移边界。
 2. 按范围验证：
 
 | 改动范围 | 验证 |
