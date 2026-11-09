@@ -21,7 +21,7 @@ R7具名认证核心已由 `5ad34b9` 限定验收提交；官方Web默认与显�
 
 ## 当前实现
 
-八个双因素运行事件按 `OpenRust\Fortify\Events\<Type>` 公开。应用可按类型、精确名或通配符订阅同一次派发。带事务的派发向监听器传入原事务，恢复码内容须经授权显式读取。Rust 公开导入层级按[唯一待办](../todo.md#总控核心与并行分工最新真人排期)继续对齐。
+八个双因素事件可从 `openrust::fortify::events` 导入，运行名按 `OpenRust\Fortify\Events\<Type>` 公开。应用可按类型、精确名或通配符订阅同一次派发。带事务的派发向监听器传入原事务，恢复码内容须经授权显式读取。公开导入直接指向原动作与登录类型。
 
 `54f4a087` 的受管凭据组合已经限定验收：`CredentialAuthority` 串联实际Session、JWT、PAT、refresh及直接/OIDC挑战；关联与签发在最后异步边界核当前账户、父凭据、期限和撤销状态。真实Redis父Session派生JWT/PAT及父记录删除回滚、真实Keycloak双RP/独立API/故障恢复与适用生成/consumer已收齐。Redis与数据库之间不承诺分布式原子提交；完整Fortify、Google真实客户端和UUID/字符串JWT持久链仍未完成。具体输入复用及服务边界见[组合验收](../memory/testing.md#fortify-官方默认与显式-jwt-组合验收)。
 

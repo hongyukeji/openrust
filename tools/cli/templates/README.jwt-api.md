@@ -18,4 +18,4 @@ API 前缀由 `config/api.rs` 与 `config/fortify_api.rs` 配置，默认 `/api/
 
 `tests/auth_flows.rs` 验证真实 API 管理、独立 RFC TOTP、恢复码、凭据轮换和逐响应无 Cookie；`tests/jwt_api_business.rs` 保留注册、邮件验证、密码重置、受管 PAT、刷新重放及注销回归。数据库测试必须真实运行，缺少网络数据库测试 URL 视为错误。
 
-可通过 `EventsServiceProvider` 订阅 `openrust::auth::fortify` 中的双因素事件类型，也可用 `OpenRust\Fortify\Events\*` 订阅这一组事件。
+可通过 `EventsServiceProvider` 订阅 `openrust::fortify::events` 中的双因素事件类型，也可用 `OpenRust\Fortify\Events\*` 订阅这一组事件。

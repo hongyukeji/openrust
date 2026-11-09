@@ -15,7 +15,7 @@ cargo test
 
 `tests/auth_flows.rs` 使用真实账户和 Router 验证 Web 管理、Cookie、Session、CSRF 与账户 Provider。
 
-可通过 `EventsServiceProvider` 订阅 `openrust::auth::fortify` 中的双因素事件类型，也可用 `OpenRust\Fortify\Events\*` 订阅这一组事件。
+可通过 `EventsServiceProvider` 订阅 `openrust::fortify::events` 中的双因素事件类型，也可用 `OpenRust\Fortify\Events\*` 订阅这一组事件。
 
 需要完全无 Session/Cookie 的 JWT API 应用时，创建项目时显式选择 `openrust new <应用名> --profile jwt-api`，不与 `--fortify` 共选。
 

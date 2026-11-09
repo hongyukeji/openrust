@@ -3,6 +3,8 @@ use figment::Figment;
 use openrust::auth::{AuthLayer, AuthUser, Authenticatable, Guard, fortify::FortifyJwtApiConfig};
 use openrust::container::attributes::{Auth, Authenticated, CurrentUser};
 use openrust::container::{ClassAttribute, ClassDescriptor, ConstructorParam};
+use openrust::events::{Event, EventsServiceProvider};
+use openrust::fortify::events::TwoFactorAuthenticationEnabled;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
 use openrust::http::axum::{
@@ -21,6 +23,7 @@ use std::{
     collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, Mutex},
+    sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
 const PASSWORD: &str = "generated-api-real-password";
@@ -594,9 +597,20 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         entries,
     )?;
     let mut builder = TestApp::<A>::builder(sources);
-    builder.configure_providers(|builder| {
+    let enabled = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&enabled);
+    builder.configure_providers(move |builder| {
         builder.provider(IdentityRoutes);
         builder.class_descriptors([identity_descriptor()]);
+        let mut events = EventsServiceProvider::new();
+        let observed = Arc::clone(&observed);
+        events.listen::<TwoFactorAuthenticationEnabled, _>(move |_, context| {
+            assert_eq!(context.event_name(), TwoFactorAuthenticationEnabled::NAME);
+            assert!(context.transaction().is_some());
+            observed.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async { Ok(()) })
+        });
+        builder.force_provider(events);
     });
     let mail = CaptureMail::default();
     let captured = mail.clone();
@@ -655,6 +669,7 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         assert_eq!(resource.json()?["data"]["user_id"].as_i64(), Some(user));
         unbound_credentials(&client, &email, user).await?;
         let (secret, codes) = enable_confirm(&client, &email, &access).await?;
+        assert_eq!(enabled.load(Ordering::Relaxed), 1);
         let completed = totp_login(&client, &email, &secret).await?;
         refresh_and_logout(&client, &email, completed, &codes).await?;
         let db = app.app()?.state().resolve::<openrust::Db>().await?;

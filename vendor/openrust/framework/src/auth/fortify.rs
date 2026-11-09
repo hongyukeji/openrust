@@ -2,7 +2,7 @@
 //!
 //! 复用框架Guard、Provider、Session和加密器；包回退与安装默认分别公开。
 
-mod actions;
+pub(crate) mod actions;
 mod api;
 mod api_audit;
 mod api_http;
@@ -18,7 +18,7 @@ mod credentials;
 mod database;
 mod engine;
 mod http;
-mod login;
+pub(crate) mod login;
 mod migration;
 mod options;
 mod provider;
@@ -34,11 +34,7 @@ pub use options::TwoFactorOptions;
 pub use state::{TwoFactorAuthenticatable, TwoFactorState};
 pub use verification::TwoFactorCodeVerification;
 
-pub use actions::{
-    RecoveryCode, RecoveryCodeReplaced, RecoveryCodesGenerated, TwoFactorActions,
-    TwoFactorAuthenticationConfirmed, TwoFactorAuthenticationDisabled,
-    TwoFactorAuthenticationEnabled, generate_recovery_code,
-};
+pub use actions::{RecoveryCode, TwoFactorActions, generate_recovery_code};
 pub use api::{FortifyJwtApi, FortifyJwtApiConfig};
 pub use api_audit::{ApiFactorManagementAuditSink, DatabaseApiLoginAudit};
 pub(crate) use api_management::ApiManagementAuthorization;
@@ -63,10 +59,7 @@ pub use database::DatabaseTwoFactorState;
 
 pub use qr::two_factor_qr_code_svg;
 
-pub use login::{
-    AuthenticateUsing, FortifyLogin, FortifyLoginOutcome, TwoFactorAuthenticationChallenged,
-    TwoFactorAuthenticationFailed, ValidTwoFactorAuthenticationCodeProvided,
-};
+pub use login::{AuthenticateUsing, FortifyLogin, FortifyLoginOutcome};
 
 pub use provider::FortifyServiceProvider;
 

@@ -1,15 +1,14 @@
 //! 受控 JWT 管理事件及审计必须与密钥、代际、管理绑定和验证码消费共同提交。
 use super::*;
 #[cfg(feature = "db-sqlite")]
-use crate::auth::fortify::{
+use crate::fortify::events::{
     RecoveryCodesGenerated, TwoFactorAuthenticationConfirmed, TwoFactorAuthenticationDisabled,
 };
 use crate::{
     audit::{Audit, AuditPolicy, DatabaseAuditSink},
-    auth::fortify::{
-        DatabaseApiLoginAudit, FactorAuthoritySnapshot, TwoFactorAuthenticationEnabled,
-    },
+    auth::fortify::{DatabaseApiLoginAudit, FactorAuthoritySnapshot},
     database::sea_orm::ConnectionTrait,
+    fortify::events::TwoFactorAuthenticationEnabled,
 };
 #[cfg(feature = "db-sqlite")]
 use std::sync::atomic::AtomicUsize;

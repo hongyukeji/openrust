@@ -46,7 +46,7 @@ Provider 可为自身实例登记[启动前后回调](../../../docs/src/architec
 
 `auth` feature 提供 `Auth`、`Authenticated` 和 `CurrentUser` 构造属性。详见[认证属性](../../../docs/src/architecture-concepts/lifecycle.md#认证属性)。
 
-Fortify 双因素事件支持按 Rust 类型或 `OpenRust\Fortify\Events\` 名称订阅。详见[双因素事件订阅](../../../docs/src/security/authentication.md#双因素事件订阅)。
+从 `openrust::fortify::events` 导入 Fortify 双因素事件，可按 Rust 类型或 `OpenRust\Fortify\Events\` 名称订阅。详见[双因素事件订阅](../../../docs/src/security/authentication.md#双因素事件订阅)。
 
 OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀第三方扩展。框架库公开路径为 `openrust::`，根应用通过统一 Container、Provider 和配置生命周期接入。
 

@@ -54,6 +54,22 @@ pub mod view;
 #[cfg(feature = "auth")]
 pub mod auth;
 
+/// Fortify 的应用扩展接口。
+#[cfg(feature = "auth-fortify")]
+pub mod fortify {
+    /// 双因素管理与登录事件，可通过应用的事件派发器订阅。
+    pub mod events {
+        pub use crate::auth::fortify::actions::{
+            RecoveryCodeReplaced, RecoveryCodesGenerated, TwoFactorAuthenticationConfirmed,
+            TwoFactorAuthenticationDisabled, TwoFactorAuthenticationEnabled,
+        };
+        pub use crate::auth::fortify::login::{
+            TwoFactorAuthenticationChallenged, TwoFactorAuthenticationFailed,
+            ValidTwoFactorAuthenticationCodeProvided,
+        };
+    }
+}
+
 pub use crate::console::Command;
 pub use crate::support::BoxFuture;
 pub use core::ApiResponse;

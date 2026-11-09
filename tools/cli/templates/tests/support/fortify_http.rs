@@ -1,5 +1,7 @@
 //! 生成应用经真实 `Router`、账户 `Provider` 与受保护 `Session` 完成现代 `Fortify` 管理流程。
 use figment::Figment;
+use openrust::events::{Event, EventsServiceProvider};
+use openrust::fortify::events::TwoFactorAuthenticationEnabled;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
@@ -20,6 +22,7 @@ use std::{
     collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, Mutex},
+    sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
 
@@ -406,7 +409,7 @@ fn authenticator_code(encoded: &str) -> Result<String> {
 
 /// 使用调用方隔离数据库的配置，运行生成应用的现代 `Fortify` 真实 `Router` 管理闭环。
 ///
-/// 本函数不创建或销毁数据库；只增加CSRF观察路由与邮件传输捕获，保留生产认证绑定。
+/// 调用方管理数据库；保留生产认证绑定，并观察 CSRF、邮件和双因素启用事件。
 pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
     // TestApp默认testing会跳过CSRF；明确启用local以执行真实保护，绝不移除CSRF中间件。
     let entries = input
@@ -420,9 +423,20 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         entries,
     )?
     .merge_ordered_entries([("app", json!({"env":"local","url":"https://localhost"}))])?;
-    let mut app = TestApp::<FortifyApplication<A>>::builder(sources)
-        .build()
-        .await?;
+    let enabled = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&enabled);
+    let mut builder = TestApp::<FortifyApplication<A>>::builder(sources);
+    builder.configure_providers(move |providers| {
+        let mut events = EventsServiceProvider::new();
+        let observed = Arc::clone(&observed);
+        events.listen::<TwoFactorAuthenticationEnabled, _>(move |_, context| {
+            assert_eq!(context.event_name(), TwoFactorAuthenticationEnabled::NAME);
+            observed.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async { Ok(()) })
+        });
+        providers.force_provider(events);
+    });
+    let mut app = builder.build().await?;
     let outcome: Result<()> = async {
         assert_eq!(
             app.app()?.config().app.env,
@@ -451,6 +465,7 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         enable_and_confirm(&mut browser)
             .await
             .inspect_err(|error| phase("enable", error))?;
+        assert_eq!(enabled.load(Ordering::Relaxed), 1);
         rotate_and_disable(&mut browser, &email)
             .await
             .inspect_err(|error| phase("rotate_disable", error))

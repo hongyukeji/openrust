@@ -599,8 +599,8 @@ async fn management_requires_a_current_password_confirmation(
     reason = "同一安全业务流程的断言、真实资源与回收保持在一个测试生命周期内"
 )]
 async fn selected_factor_blocks_password_only_resources_and_consumes_recovery_once() -> TestResult {
-    use openrust::auth::fortify::TwoFactorAuthenticationEnabled;
     use openrust::events::{EventPropagation, EventsServiceProvider};
+    use openrust::fortify::events::TwoFactorAuthenticationEnabled;
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},

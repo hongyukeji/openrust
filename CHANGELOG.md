@@ -8,7 +8,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - 第一方源码和生成模板的普通说明统一使用职责名称。整数验证的内部名称同步调整，规则行为保持原样。
 
-- Fortify 八个双因素事件的运行标识使用 `OpenRust\Fortify\Events\` 前缀。按字符串或通配符订阅时需更新前缀，按 Rust 类型订阅的 API 保持原样。
+- Fortify 八个双因素事件从 `openrust::fortify::events` 导入，运行标识使用 `OpenRust\Fortify\Events\` 前缀。升级时更新 Rust 导入和旧的字符串订阅前缀。
 
 - 受控云入口使用进程变量 `OPENRUST_CLOUD=1`。升级时同步部署环境中的旧变量名。显式代理列表优先。
 
