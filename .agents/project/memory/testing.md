@@ -2143,3 +2143,13 @@ L044.02 对照固定 Laravel `PackageDiscoverCommand` 的无参数重建行为�
 根 Artisan 以默认与无默认特性分别重建和检查，输出不同清单路径，Cargo.lock 保持原字节。新生成 minimal 应用通过 41 个步骤和 23 项测试。只读检查遇缺失不建目录，遇过期保留文件字节和修改时间。普通构建拒绝过期清单后，源码 Artisan 只运行框架 CLI 即可恢复。包路由实际返回 HTTP 200，重复 Provider 阻止监听，移除依赖并更新锁后原路由返回 404，健康检查仍返回 200。
 
 证据见 `tmp/lead-package-workflow.qA4ZNuiu/delivery-receipt.json`。候选列表、排除原因、最终运行期顺序和项目外 Cargo 覆盖按唯一 todo 继续。
+
+## Provider 包发现候选诊断限定验收
+
+L044.02 的 `package:list` 与 `package:discover --preview` 共用 Cargo 选择、包排除及 Facade 编译条件。固定 Laravel 的清单先合并包排除项再选择条目；Rust 报告额外保留目标条件和已解析但未启用的可选依赖。候选身份按包名、版本和 Rust 依赖名记录，来源只显示类型。
+
+独立冻结树 `6dc279e1ad8215d6e55a7dfc2777d6cb1f64ace8` 通过工作区格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 和离线依赖门禁。
+
+真实 Cargo 图验收覆盖双 Git 源、可选依赖、项目内路径替换、应用单包和全局排除、包级排除与同名 Facade。根和生成应用的 Artisan 输出与直接 CLI 一致，查询前后的清单字节与 mtime 一致。七份旧预览逐字节相同。生成应用通过 check 和 23 项测试，编译引用验证 Facade 获选类型，真实 HTTP 健康检查返回 200，被排除包的路由返回 404。
+
+证据见 `tmp/lead-package-report.cirhwrb2/delivery-receipt.json`。运行期实例排序诊断、项目外 Cargo 覆盖与配置 include 按唯一 todo 继续。

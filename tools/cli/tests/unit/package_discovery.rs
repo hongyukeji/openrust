@@ -18,6 +18,10 @@ fn discovery_defaults_to_rebuild_and_modes_are_exclusive() {
         let args = ["openrust", "package:discover"].into_iter().chain(modes);
         assert!(crate::Cli::try_parse_from(args).is_err());
     }
+    assert!(
+        crate::Cli::try_parse_from(["openrust", "package:list", "--features", "provider"]).is_ok()
+    );
+    assert!(crate::Cli::try_parse_from(["openrust", "package:list", "--install"]).is_err());
 }
 
 #[test]
@@ -87,7 +91,8 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
         &[],
         false,
         &sources,
-    )?;
+    )?
+    .source;
     assert!(source.contains("(\"real-package@0.1.0 (direct)\", ::r#direct::openrust_providers)"));
     assert!(
         source.contains(
@@ -108,7 +113,8 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
         &["extra".into()],
         true,
         &sources,
-    )?;
+    )?
+    .source;
     assert!(
         selected
             .contains("(\"real-package@0.2.0 (with_extra)\", ::r#with_extra::openrust_providers)")
@@ -156,8 +162,13 @@ fn optional_alias_cannot_borrow_an_unrenamed_dependency_from_another_git_source(
         true,
         &sources,
     )?;
-    assert!(default.contains("::r#a_lib::openrust_providers"));
-    assert!(!default.contains("::r#renamed_b::openrust_providers"));
+    assert!(default.source.contains("::r#a_lib::openrust_providers"));
+    assert!(!default.source.contains("::r#renamed_b::openrust_providers"));
+    assert_eq!(default.packages[0]["source"], "git");
+    assert_eq!(default.packages[0]["decision"], "selected");
+    assert_eq!(default.packages[1]["decision"], "inactive_feature");
+    assert!(default.packages[1]["condition"].is_null());
+    assert!(!serde_json::to_string(&default.packages)?.contains("example.invalid"));
     let enabled = plan(
         &graph,
         manifest,
@@ -166,8 +177,9 @@ fn optional_alias_cannot_borrow_an_unrenamed_dependency_from_another_git_source(
         true,
         &sources,
     )?;
-    assert!(enabled.contains("::r#a_lib::openrust_providers"));
-    assert!(enabled.contains("::r#renamed_b::openrust_providers"));
+    assert!(enabled.source.contains("::r#a_lib::openrust_providers"));
+    assert!(enabled.source.contains("::r#renamed_b::openrust_providers"));
+    assert_eq!(enabled.packages[1]["decision"], "selected");
     Ok(())
 }
 
@@ -215,27 +227,46 @@ fn package_exclusions_and_facade_reexports_follow_declaration_selection() -> Res
             version: "1.0.0",
             library: "alias_first",
             options: &first,
-            active: "all()".into(),
+            source: "path",
+            activation: Activation::Active("all()".into()),
         },
         Declaration {
             package: "last",
             version: "1.0.0",
             library: "alias_last",
             options: &last,
-            active: "unix".into(),
+            source: "registry",
+            activation: Activation::Active("unix".into()),
         },
         Declaration {
             package: "excluded",
             version: "1.0.0",
             library: "exclusion",
             options: &excluded,
-            active: "windows".into(),
+            source: "git",
+            activation: Activation::Active("windows".into()),
         },
     ];
     let host = json!({"name": "app", "metadata": {"openrust": {"discovery": {
         "version": 1, "dont-discover": ["excluded"]
     }}}});
-    let source = render(&host, &declarations)?;
+    let rendered = render(&host, &declarations)?;
+    assert_eq!(rendered.packages[0]["decision"], "conditional_exclusion");
+    assert_eq!(
+        rendered.packages[0]["excluded_by"][0]["package"],
+        "excluded"
+    );
+    assert_eq!(rendered.packages[2]["decision"], "excluded_by_application");
+    assert_eq!(rendered.aliases[0]["name"], "Shared");
+    assert_eq!(
+        rendered.aliases[0]["candidates"][0]["condition"],
+        "all(all(all(), not(windows)), not(unix))"
+    );
+    assert_eq!(
+        rendered.aliases[0]["candidates"][1]["path"],
+        "::r#alias_last::r#New"
+    );
+    let source = rendered.source;
     assert!(source.contains("all(all(), not(windows))"));
     assert!(source.contains("not(unix)"));
     assert!(source.contains("::r#alias_first::r#facades::r#Old as r#Shared"));
@@ -243,8 +274,10 @@ fn package_exclusions_and_facade_reexports_follow_declaration_selection() -> Res
     let host = json!({"name": "app", "metadata": {"openrust": {"discovery": {
         "version": 1, "dont-discover": ["*"]
     }}}});
-    let source = render(&host, &declarations)?;
-    assert!(!source.contains("::r#alias_"));
+    let rendered = render(&host, &[])?;
+    assert!(rendered.global_opt_out);
+    assert_eq!(rendered.packages, [] as [Value; 0]);
+    assert!(!rendered.source.contains("::r#alias_"));
     Ok(())
 }
 

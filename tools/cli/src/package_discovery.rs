@@ -23,6 +23,12 @@ mod build_plan;
 pub(crate) struct DiscoverArgs {
     #[command(flatten)]
     mode: DiscoverMode,
+    #[command(flatten)]
+    selection: SelectionArgs,
+}
+
+#[derive(Debug, clap::Args)]
+pub(crate) struct SelectionArgs {
     /// 指定 Cargo 目标，默认使用当前 Rust 工具链的宿主目标。
     #[arg(long)]
     target: Option<String>,
@@ -50,38 +56,16 @@ struct DiscoverMode {
 
 impl DiscoverArgs {
     pub(crate) fn run(self) -> anyhow::Result<ExitCode> {
-        let cwd = std::env::current_dir()?;
-        let workspace = super::framework_workspace(&cwd)?;
-        let (project, _) = super::application_directory(&workspace, &cwd)?;
-        let target = self
-            .target
-            .filter(|target| target != "host-tuple")
-            .map_or_else(|| host_target(&project), Ok)
-            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-        let features = &self.features;
+        let (project, target) = self.selection.project_and_target()?;
+        let features = &self.selection.features;
+        let no_default = self.selection.no_default_features;
         if self.mode.preview {
-            let graph = cargo_graph(&project, &target, features, self.no_default_features)
+            let (plan, _) = inspect(&project, &target, features, no_default)
                 .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-            let manifest = project.join("Cargo.toml");
-            let source = (|| {
-                let host = host_package(&graph, &manifest)?;
-                let mut active = cargo_active_features(
-                    &project,
-                    &target,
-                    host,
-                    features,
-                    self.no_default_features,
-                )?;
-                active.extend(features.iter().cloned());
-                let sources = Sources::load(workspace_root(&graph)?, &project)?;
-                plan(&graph, &manifest, &target, &active, true, &sources)
-            })()
-            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-            io::stdout().lock().write_all(source.as_bytes())?;
+            io::stdout().lock().write_all(plan.source.as_bytes())?;
         } else {
-            let (relative, contents) =
-                prepare_plan(&project, &target, features, self.no_default_features)
-                    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+            let (relative, contents) = prepare_plan(&project, &target, features, no_default)
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
             if !plan_matches(&project.join(&relative), contents.as_bytes())? {
                 if self.mode.install || !self.mode.check {
                     write_plan(&project, &relative, contents.as_bytes())?;
@@ -96,6 +80,60 @@ impl DiscoverArgs {
         }
         Ok(ExitCode::SUCCESS)
     }
+}
+
+impl SelectionArgs {
+    fn project_and_target(&self) -> anyhow::Result<(PathBuf, String)> {
+        let cwd = std::env::current_dir()?;
+        let workspace = super::framework_workspace(&cwd)?;
+        let (project, _) = super::application_directory(&workspace, &cwd)?;
+        let target = self
+            .target
+            .as_deref()
+            .filter(|target| *target != "host-tuple")
+            .map_or_else(|| host_target(&project), |target| Ok(target.to_owned()))
+            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+        Ok((project, target))
+    }
+
+    pub(crate) fn list(self) -> anyhow::Result<ExitCode> {
+        let (project, target) = self.project_and_target()?;
+        let (plan, features) = inspect(&project, &target, &self.features, self.no_default_features)
+            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+        let target = if custom_target(&target) {
+            "custom"
+        } else {
+            &target
+        };
+        let report = serde_json::json!({
+            "target": target,
+            "features": features,
+            "global_opt_out": plan.global_opt_out,
+            "packages": plan.packages,
+            "aliases": plan.aliases,
+        });
+        let mut stdout = io::stdout().lock();
+        serde_json::to_writer_pretty(&mut stdout, &report)?;
+        writeln!(stdout)?;
+        Ok(ExitCode::SUCCESS)
+    }
+}
+
+fn inspect(
+    project: &Path,
+    target: &str,
+    features: &[String],
+    no_default: bool,
+) -> Result<(RenderedPlan, Vec<String>)> {
+    let graph = cargo_graph(project, target, features, no_default)?;
+    let manifest = project.join("Cargo.toml");
+    let host = host_package(&graph, &manifest)?;
+    let active = cargo_active_features(project, target, host, features, no_default)?;
+    let mut selection = active.clone();
+    selection.extend_from_slice(features);
+    let sources = Sources::load(workspace_root(&graph)?, project)?;
+    let plan = plan(&graph, &manifest, target, &selection, true, &sources)?;
+    Ok((plan, active))
 }
 
 fn cargo_graph(
@@ -186,11 +224,7 @@ fn prepare_plan(
     features: &[String],
     no_default_features: bool,
 ) -> Result<(PathBuf, String)> {
-    if target.contains(['/', '\\'])
-        || Path::new(target)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
-    {
+    if custom_target(target) {
         return Err("安装清单需要 Cargo 目标三元组".into());
     }
     let bootstrap = fs::read_to_string(app.join("bootstrap/app.rs"))?;
@@ -228,7 +262,7 @@ fn prepare_plan(
     let active = cargo_active_features(app, target, host, features, no_default_features)?;
     let profile = cargo_feature_keys(host, &active)?;
     let sources = Sources::load(workspace_root(&graph)?, app)?;
-    let source = plan(&graph, &manifest, target, &active, true, &sources)?;
+    let source = plan(&graph, &manifest, target, &active, true, &sources)?.source;
     let checked = cargo_graph(app, target, features, no_default_features)?;
     if graph != checked
         || inputs != input_digests(app, &checked, host_package(&checked, &manifest)?)?
@@ -372,6 +406,13 @@ fn host_target(app: &Path) -> Result<String> {
         .ok_or_else(|| "无法确定 Rust 宿主目标，请显式指定 --target".into())
 }
 
+fn custom_target(target: &str) -> bool {
+    target.contains(['/', '\\'])
+        || Path::new(target)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+}
+
 fn plan(
     graph: &Value,
     manifest: &Path,
@@ -379,7 +420,7 @@ fn plan(
     features: &[String],
     no_default_features: bool,
     sources: &Sources,
-) -> Result<String> {
+) -> Result<RenderedPlan> {
     let packages = array(&graph["packages"], "packages")?;
     let host = host_package(graph, manifest)?;
     if exclusions(&host["metadata"]["openrust"]["discovery"])?.contains("*") {
@@ -487,8 +528,56 @@ struct Declaration<'a> {
     package: &'a str,
     version: &'a str,
     library: &'a str,
+    source: &'static str,
     options: &'a Value,
-    active: String,
+    activation: Activation,
+}
+
+enum Activation {
+    Active(String),
+    InactiveFeature,
+    TargetMismatch,
+}
+
+impl Activation {
+    fn condition(&self) -> Option<&str> {
+        match self {
+            Self::Active(condition) => Some(condition),
+            Self::InactiveFeature | Self::TargetMismatch => None,
+        }
+    }
+}
+
+fn source_kind(package: &Value) -> &'static str {
+    match package["source"]
+        .as_str()
+        .and_then(|source| source.split_once('+'))
+    {
+        Some(("git", _)) => "git",
+        Some(("registry" | "sparse", _)) => "registry",
+        _ if package["source"].is_null() => "path",
+        _ => "unknown",
+    }
+}
+
+fn matches_declaration(
+    dependency: &Value,
+    package: &Value,
+    library: &str,
+    kinds: &[Value],
+    version: &semver::Version,
+) -> Result<bool> {
+    let alias = dependency["rename"].as_str();
+    Ok(dependency["name"] == package["name"]
+        && dependency["kind"].is_null()
+        && alias.map_or_else(
+            || unrenamed_library(package, library),
+            |alias| alias.replace('-', "_") == library,
+        )
+        && kinds
+            .iter()
+            .any(|kind| kind["kind"].is_null() && kind["target"] == dependency["target"])
+        && matches_dependency_version(dependency, version)?)
 }
 
 fn declarations<'a>(
@@ -520,21 +609,12 @@ fn declarations<'a>(
         let mut conditions = BTreeSet::new();
         let mut plausible = false;
         let mut matched = false;
+        let mut enabled = false;
         for (index, dependency) in dependencies.iter().enumerate() {
-            let alias = dependency["rename"].as_str();
-            if dependency["name"].as_str() != Some(name)
-                || !dependency["kind"].is_null()
-                || !alias.map_or_else(
-                    || unrenamed_library(package, library),
-                    |alias| alias.replace('-', "_") == library,
-                )
-                || !kinds
-                    .iter()
-                    .any(|kind| kind["kind"].is_null() && kind["target"] == dependency["target"])
-                || !matches_dependency_version(dependency, &version)?
-            {
+            if !matches_declaration(dependency, package, library, kinds, &version)? {
                 continue;
             }
+            let alias = dependency["rename"].as_str();
             plausible = true;
             if !sources.matches(dependency, package, &version)? {
                 continue;
@@ -558,6 +638,7 @@ fn declarations<'a>(
             if !discoverable {
                 continue;
             }
+            enabled = true;
             match dependency["target"].as_str() {
                 None => {
                     conditions.insert("all()");
@@ -578,17 +659,24 @@ fn declarations<'a>(
             )
             .into());
         }
-        if conditions.is_empty() {
+        if !discoverable || !matched {
             continue;
         }
-        check_declaration(options, name)?;
-        let active = disjunction(conditions.into_iter());
+        let activation = if !conditions.is_empty() {
+            check_declaration(options, name)?;
+            Activation::Active(disjunction(conditions.into_iter()))
+        } else if enabled {
+            Activation::TargetMismatch
+        } else {
+            Activation::InactiveFeature
+        };
         declarations.push(Declaration {
             package: name,
             version: version_text,
             library,
+            source: source_kind(package),
             options,
-            active,
+            activation,
         });
     }
     declarations.sort_by_key(|declaration| (declaration.package, declaration.library));
@@ -633,39 +721,100 @@ fn disjunction<'a>(conditions: impl Iterator<Item = &'a str>) -> String {
     )
 }
 
-fn render(host: &Value, declarations: &[Declaration<'_>]) -> Result<String> {
+struct RenderedPlan {
+    source: String,
+    global_opt_out: bool,
+    packages: Vec<Value>,
+    aliases: Vec<Value>,
+}
+
+struct ExclusionRule<'a> {
+    package: &'a str,
+    library: &'a str,
+    condition: &'a str,
+}
+
+fn exclusion_rules<'a>(
+    declarations: &'a [Declaration<'a>],
+) -> Result<BTreeMap<&'a str, Vec<ExclusionRule<'a>>>> {
+    let mut rules = BTreeMap::<_, Vec<_>>::new();
+    for declaration in declarations {
+        if let Some(condition) = declaration.activation.condition() {
+            for name in exclusions(declaration.options)? {
+                rules.entry(name).or_default().push(ExclusionRule {
+                    package: declaration.package,
+                    library: declaration.library,
+                    condition,
+                });
+            }
+        }
+    }
+    Ok(rules)
+}
+
+fn package_selection(
+    declaration: &Declaration<'_>,
+    excluded: &BTreeSet<&str>,
+    rules: &[ExclusionRule<'_>],
+) -> (&'static str, Option<String>) {
+    let active = match &declaration.activation {
+        Activation::Active(active) => active,
+        Activation::InactiveFeature => return ("inactive_feature", None),
+        Activation::TargetMismatch => return ("target_mismatch", None),
+    };
+    if excluded.contains("*") || excluded.contains(declaration.package) {
+        return ("excluded_by_application", None);
+    }
+    if rules.is_empty() {
+        return ("selected", Some(active.clone()));
+    }
+    let excluded_when = disjunction(rules.iter().map(|rule| rule.condition));
+    let reason = if rules
+        .iter()
+        .any(|rule| rule.condition == "all()" || rule.condition == active)
+    {
+        "excluded_by_package"
+    } else {
+        "conditional_exclusion"
+    };
+    (reason, Some(format!("all({active}, not({excluded_when}))")))
+}
+
+fn render(host: &Value, declarations: &[Declaration<'_>]) -> Result<RenderedPlan> {
     let host_options = &host["metadata"]["openrust"]["discovery"];
     if !host_options.is_null() {
         check_declaration(host_options, string(&host["name"], "host package name")?)?;
     }
     let excluded = exclusions(host_options)?;
-    let mut package_exclusions: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
-    for declaration in declarations {
-        for name in exclusions(declaration.options)? {
-            package_exclusions
-                .entry(name)
-                .or_default()
-                .push(&declaration.active);
-        }
-    }
+    let package_exclusions = exclusion_rules(declarations)?;
+    let mut package_report = Vec::new();
     let mut providers = String::new();
     let mut aliases: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     for declaration in declarations {
-        if excluded.contains("*") || excluded.contains(declaration.package) {
+        let rules = package_exclusions
+            .get(declaration.package)
+            .map_or(&[][..], Vec::as_slice);
+        let (decision, active) = package_selection(declaration, &excluded, rules);
+        let provider = declaration.options["providers"].as_bool() == Some(true);
+        package_report.push(serde_json::json!({
+            "package": declaration.package,
+            "version": declaration.version,
+            "library": declaration.library,
+            "source": declaration.source,
+            "decision": decision,
+            "condition": active,
+            "provider": provider,
+            "excluded_by": rules.iter().map(|rule| serde_json::json!({
+                "package": rule.package,
+                "library": rule.library,
+                "condition": rule.condition,
+            })).collect::<Vec<_>>(),
+        }));
+        let Some(active) = active else {
             continue;
-        }
+        };
         let library = rust_identifier(declaration.library)?;
-        let active = package_exclusions.get(declaration.package).map_or_else(
-            || declaration.active.clone(),
-            |conditions| {
-                format!(
-                    "all({}, not({}))",
-                    declaration.active,
-                    disjunction(conditions.iter().copied())
-                )
-            },
-        );
-        if declaration.options["providers"].as_bool() == Some(true) {
+        if provider {
             let origin = format!(
                 "{}@{} ({})",
                 declaration.package, declaration.version, declaration.library
@@ -681,21 +830,34 @@ fn render(host: &Value, declarations: &[Declaration<'_>]) -> Result<String> {
         "pub(crate) fn providers() -> Vec<::openrust::foundation::PackageProvider> {{\n    type Providers = Vec<Box<dyn ::openrust::support::ServiceProvider>>;\n    type Factory = (&'static str, fn() -> Providers);\n    let factories: &[Factory] = &[\n{providers}    ];\n    factories\n        .iter()\n        .flat_map(|&(origin, factory)| {{\n            factory().into_iter().map(move |provider| {{\n                ::openrust::foundation::PackageProvider::new(origin, provider)\n            }})\n        }})\n        .collect()\n}}\n"
     );
     source.push_str("#[allow(unused_imports, reason = \"应用按需引用发现的 facade\")]\npub(crate) mod facades {\n");
+    let mut alias_report = Vec::new();
     for (alias, candidates) in aliases {
+        let mut report = Vec::new();
         for (index, (active, path)) in candidates.iter().enumerate() {
             let later = disjunction(
                 candidates[index + 1..]
                     .iter()
                     .map(|(active, _)| active.as_str()),
             );
+            let condition = format!("all({active}, not({later}))");
             writeln!(
                 source,
-                "    #[cfg(all({active}, not({later})))]\n    pub use {path} as {alias};"
+                "    #[cfg({condition})]\n    pub use {path} as {alias};"
             )?;
+            report.push(serde_json::json!({"path": path, "condition": condition}));
         }
+        alias_report.push(serde_json::json!({
+            "name": alias.trim_start_matches("r#"),
+            "candidates": report,
+        }));
     }
     source.push_str("}\n");
-    Ok(source)
+    Ok(RenderedPlan {
+        source,
+        global_opt_out: excluded.contains("*"),
+        packages: package_report,
+        aliases: alias_report,
+    })
 }
 
 fn collect_aliases(

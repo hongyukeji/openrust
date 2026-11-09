@@ -7,11 +7,10 @@ export OPENRUST_ARTISAN=1
 run_cli() {
     cli_manifest='tools/cli/Cargo.toml'
     if [ -f "$cli_manifest" ]; then
-        if [ "$1" = package:discover ]; then
-            set -- --locked -- "$@"
-        else
-            set -- -- "$@"
-        fi
+        case "$1" in
+            package:discover|package:list) set -- --locked -- "$@" ;;
+            *) set -- -- "$@" ;;
+        esac
         exec cargo run --quiet --manifest-path "$cli_manifest" --bin openrust "$@"
     fi
     if command -v openrust >/dev/null 2>&1; then
@@ -31,7 +30,7 @@ if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
             shift
             run_cli dev --watch "$@"
             ;;
-        package:discover)
+        package:discover|package:list)
             run_cli "$@"
             ;;
         --env=*)

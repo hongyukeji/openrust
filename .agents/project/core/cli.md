@@ -54,6 +54,8 @@
 
 `package:discover` 以应用实际激活的普通依赖为输入，区分同名同版本的 Cargo 来源。Git 引用、registry 与本地路径分别核对，项目内显式 `[patch]` 可证明合法替换。来源无法确认或同一声明关联多个候选时拒绝生成。项目外覆盖、Cargo 配置 `include` 和进一步的发现诊断按唯一 todo 推进。
 
+`package:list` 与预览共用 Cargo 图及清单选择，输出已解析候选的来源类型、特性或目标状态、排除来源与条件，以及 Facade 候选的最终编译条件。源码 Artisan 与 CLI 均可只读执行。运行期 Provider 实例顺序由启动生命周期决定。
+
 ## 翻译来源生成
 
 普通、MySQL、Web 认证、JWT 与 gRPC 生成应用均包含可编辑 `translation_sources` 配置、文件来源和同一 Provider 安装机制；数据库扩展显式启用，首次迁移与后续数据库/组合模式分开。JWT 不增 Session/Cookie。五种真实生成与适用来源安装验收见[来源测试基线](../memory/testing.md#翻译来源限定验收)，完整官方翻译接口仍开放。

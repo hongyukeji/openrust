@@ -65,6 +65,10 @@ cargo run -p cli -- g migration labels slug:string
 
 在应用目录运行 `openrust package:discover --preview`，将候选 Rust 清单输出到标准输出。可用 `--target <triple>`、`--features <name,...>` 和 `--no-default-features` 选择与应用构建相同的配置。预览读取当前 `Cargo.lock` 和本机缓存的解析图。离线缺少图所需的包时返回 Cargo 诊断。
 
+运行 `./artisan package:list` 或 `openrust package:list` 可按相同参数输出只读 JSON 报告。报告列出当前 Cargo 图中有发现声明的普通直接依赖，包含来源类型、是否启用、应用或包的排除原因，以及与生成清单相同的 `cfg` 条件。应用全局排除时返回 `global_opt_out: true` 与空候选。Cargo 未解析的依赖不会出现在候选中。
+
+`aliases` 列出同名 Facade 候选及各自的最终编译条件。包列表按清单顺序排列，Provider 实例的注册顺序由应用启动时的依赖排序确定。报告只显示包标识、来源类型和编译条件，源地址与本地路径不进入输出。
+
 包在 `Cargo.toml` 的 `[package.metadata.openrust.discovery]` 中声明 `version = 1` 和 `providers = true`，并公开 `openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>>`。可用同一表下的 `aliases` 将 Rust 名称映射到包的公开路径，例如 `ExampleFacade = "facades::Example"`。应用或包的 `dont-discover` 接受 Cargo 包名列表，应用可用 `["*"]` 全部排除。预览依 Cargo 包名及编译库名给出稳定顺序，Rust 的 `cfg` 保留目标条件。
 
 使用 Cargo 添加、更新或移除依赖并更新 `Cargo.lock` 后，在应用源码目录运行 `./artisan package:discover` 或 `openrust package:discover`。命令重建 `bootstrap/packages/` 下的当前清单并输出相对路径。`--install` 可显式选择同一行为。对每个部署目标和应用特性组合执行一次，并将清单随源码交付。

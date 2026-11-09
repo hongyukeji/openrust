@@ -120,6 +120,9 @@ enum Builtin {
     /// 重建、预览或检查当前 Cargo 选择对应的 Provider 包清单。
     #[command(name = "package:discover")]
     PackageDiscover(package_discovery::DiscoverArgs),
+    /// 只读列出当前 Cargo 选择的 Provider 包、排除原因和 Facade 别名。
+    #[command(name = "package:list")]
+    PackageList(package_discovery::SelectionArgs),
     /// 管理应用本地加密密钥。
     Key {
         #[command(subcommand)]
@@ -522,6 +525,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Some(Builtin::PackageDiscover(discovery)) => discovery.run(),
+        Some(Builtin::PackageList(selection)) => selection.list(),
         Some(Builtin::Key {
             command: KeyCommand::Generate,
         }) => {
