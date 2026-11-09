@@ -1069,6 +1069,10 @@ fn populate_project_with_features(
             include_str!("../templates/bootstrap/package_discovery_build.rs").to_owned(),
         ),
         (
+            "bootstrap/package_cargo_config.rs",
+            include_str!("../templates/bootstrap/package_cargo_config.rs").to_owned(),
+        ),
+        (
             "bootstrap/cache/.gitignore",
             include_str!("../templates/bootstrap/cache/.gitignore").to_owned(),
         ),
@@ -1833,7 +1837,9 @@ fn cargo_manifest(
             ),
         );
     }
-    manifest.push_str("\n[build-dependencies]\nsha2 = { workspace = true }\n");
+    manifest.push_str(
+        "\n[build-dependencies]\nsha2 = { workspace = true }\ntoml_edit = { workspace = true }\n",
+    );
     if grpc {
         manifest.push_str(
             "tonic-prost-build = { workspace = true }\nprotoc-bin-vendored = { workspace = true }\n",
@@ -4297,6 +4303,7 @@ mod tests {
         ] {
             assert!(project.join(path).is_file(), "缺少Source生成接线: {path}");
         }
+        assert!(project.join("bootstrap/package_cargo_config.rs").is_file());
         assert!(registry.contains("openrust::database::FrameworkMigrator"));
         assert_eq!(registry.matches("MigrationServiceProvider").count(), 1);
         assert!(!registry.contains("SeedServiceProvider"));

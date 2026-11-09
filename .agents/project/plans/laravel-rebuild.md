@@ -251,7 +251,7 @@ R2 默认配置目标为可编辑 `config/*.rs` 与部署 `.env`：dotenv 加载
 
 ### R2/R13 Provider 编译期发现 Spec
 
-状态：L044.02 支持 CLI 和源码 Artisan 重建、预览、只读检查和 `package:list`。列表展示已解析候选的来源类型、选择与排除条件，以及 Facade 编译优先顺序。普通构建按目标与应用特性校验并消费 v2 清单。包来源诊断和包段依赖排序接入同一 Provider 生命周期，模块 M016 继续复用。同名同版本依赖按直接 Cargo 来源或可证明的项目内显式 patch 关联，详见 [Cargo 来源关联限定验收](../memory/testing.md#cargo-来源关联限定验收)。应用 `package:doctor` 的计划、冲突及实际槽位见 [Provider 实际顺序诊断限定验收](../memory/testing.md#provider-实际顺序诊断限定验收)。项目外覆盖、配置 include 和发布平台矩阵仍开放。
+状态：L044.02 支持 CLI 和源码 Artisan 重建、预览、只读检查和 `package:list`。列表展示已解析候选的来源类型、选择与排除条件，以及 Facade 编译优先顺序。普通构建按目标与应用特性校验并消费 v3 清单。包来源诊断和包段依赖排序接入同一 Provider 生命周期，模块 M016 继续复用。同名同版本依赖按直接 Cargo 来源或可证明的 Cargo 文件配置显式 patch 关联，详见 [Cargo 来源关联限定验收](../memory/testing.md#cargo-来源关联限定验收)。应用 `package:doctor` 的计划、冲突及实际槽位见 [Provider 实际顺序诊断限定验收](../memory/testing.md#provider-实际顺序诊断限定验收)。应用祖先目录、`CARGO_HOME` 与递归 `include` 的文件来源和增量行为见 [Cargo 文件配置增量校验限定验收](../memory/testing.md#cargo-文件配置增量校验限定验收)。`cargo --config`、其他非文件覆盖和发布平台矩阵仍开放。
 
 固定 Laravel 骨架在 Composer 生成 autoload 后调用 `package:discover`。Rust 应用先用 Cargo 更新依赖，再从源码执行同名命令，应用构建脚本只在 `OUT_DIR` 生成编译输入。`--check` 可放入 CI，核对目标与特性组合的完整清单。 [Laravel 应用骨架](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/composer.json#L50-L53) · [Cargo 构建脚本输出](https://doc.rust-lang.org/cargo/reference/build-scripts.html#outputs-of-the-build-script)
 

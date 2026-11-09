@@ -109,7 +109,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | 用途 | 当前状态 |
 | --- | --- |
 | CLI 解析 | 已用 `clap`（derive） |
-| Provider 包清单 | CLI 直接使用已锁定的 `semver` 1.x 核对 Cargo 版本要求。CLI 与应用构建脚本复用 `sha2` 0.10 校验清单输入，安装复用 `tempfile` 3.27 原子替换。 |
+| Provider 包清单 | CLI 直接使用已锁定的 `semver` 1.x 核对 Cargo 版本要求。CLI 与应用构建脚本复用 `sha2` 0.10 校验清单输入，以及既有 `toml_edit` 0.25 读取 Cargo 配置层和递归 `include`。安装复用 `tempfile` 3.27 原子替换。 |
 | 模板渲染（生成器） | CLI 继续使用内置模板文件与 Rust 字符串生成；应用页面和邮件 renderer 分别由 `view` 与 `mail-templates` feature 提供 |
 | 生成应用验收专用依赖 | gRPC 生成测试使用现有 `rcgen` 0.14.10、`tempfile` 3.27 和 Tokio process/net/io/time；Fortify 生成测试使用与框架同主版本的 `hmac` 0.13、`sha1` 0.11、`url` 2.5。分别按 `--grpc`、`--auth` / `--fortify` 或 `--profile jwt-api` 选择写入生成项目 dev-dependencies；测试用临时 CA、真实二进制联合监听和测试端 RFC 6238 验证器，不添加生产认证算法或全局证书配置。 |
 | 文件监听（`openrust dev --watch`） | macOS 和 Linux 开发入口使用 Watchexec 2.8 的 JSON 事件与 Cargo 构建消息。CLI 复用锁定的 `rustix` 1.1.5 安全进程接口发送信号并回收进程组，使用现有 `tempfile` 3.27 分离并回收运行产物 |

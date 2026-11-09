@@ -8,7 +8,15 @@ run_cli() {
     cli_manifest='tools/cli/Cargo.toml'
     if [ -f "$cli_manifest" ]; then
         case "$1" in
-            package:discover|package:list) set -- --locked -- "$@" ;;
+            package:discover|package:list)
+                command=$1
+                shift
+                application=$(pwd -P)
+                cli_directory=$(CDPATH='' cd -P "$(dirname -- "$cli_manifest")" && pwd -P)
+                CDPATH='' cd -P "$cli_directory/../.."
+                cli_manifest=tools/cli/Cargo.toml
+                set -- --locked -- "$command" --project-dir "$application" "$@"
+                ;;
             *) set -- -- "$@" ;;
         esac
         exec cargo run --quiet --manifest-path "$cli_manifest" --bin openrust "$@"

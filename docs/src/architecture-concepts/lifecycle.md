@@ -190,7 +190,7 @@ let descriptors = [
 
 运行 `./artisan clear-compiled` 可清除选定的服务清单和包清单。包清单路径默认是 `bootstrap/cache/packages.json`，可用 `APP_PACKAGES_CACHE` 覆盖。配置缓存由 `config:clear` 单独管理。 [Laravel ProviderRepository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L185)
 
-在应用源码目录运行 `./artisan package:discover`，为当前 Cargo 目标和应用特性重建清单。`--preview` 输出候选 Rust 源码和 Facade 别名，`--check` 只读校验已安装清单。普通构建校验清单输入，并通过 `ApplicationDefinition::package_providers` 把包 Provider 加入同一次应用启动。 [CLI 用法](../../../tools/cli/README.md#provider-包发现) · [Laravel PackageDiscoverCommand](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Console/PackageDiscoverCommand.php)
+在应用源码目录运行 `./artisan package:discover`，为当前 Cargo 目标和应用特性重建清单。`--preview` 输出候选 Rust 源码和 Facade 别名，`--check` 只读校验已安装清单。普通构建校验锁文件、依赖清单与 Cargo 文件配置摘要，并通过 `ApplicationDefinition::package_providers` 把包 Provider 加入同一次应用启动。 [CLI 用法](../../../tools/cli/README.md#provider-包发现) · [Laravel PackageDiscoverCommand](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Console/PackageDiscoverCommand.php)
 
 `./artisan package:list` 以 JSON 显示当前解析图中的候选来源类型、排除原因和 Facade 别名的编译条件。它读取与预览相同的 Cargo 选择。 [CLI 用法](../../../tools/cli/README.md#provider-包发现)
 

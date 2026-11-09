@@ -18,6 +18,7 @@ use source::Sources;
 #[allow(dead_code, reason = "仅应用构建脚本消费清单")]
 #[path = "../templates/bootstrap/package_discovery_build.rs"]
 mod build_plan;
+use build_plan::cargo_config::CargoConfig;
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct DiscoverArgs {
@@ -29,6 +30,8 @@ pub(crate) struct DiscoverArgs {
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct SelectionArgs {
+    #[arg(long, hide = true)]
+    project_dir: Option<PathBuf>,
     /// 指定 Cargo 目标，默认使用当前 Rust 工具链的宿主目标。
     #[arg(long)]
     target: Option<String>,
@@ -84,7 +87,10 @@ impl DiscoverArgs {
 
 impl SelectionArgs {
     fn project_and_target(&self) -> anyhow::Result<(PathBuf, String)> {
-        let cwd = std::env::current_dir()?;
+        let cwd = self
+            .project_dir
+            .clone()
+            .map_or_else(std::env::current_dir, Ok)?;
         let workspace = super::framework_workspace(&cwd)?;
         let (project, _) = super::application_directory(&workspace, &cwd)?;
         let target = self
@@ -125,13 +131,14 @@ fn inspect(
     features: &[String],
     no_default: bool,
 ) -> Result<(RenderedPlan, Vec<String>)> {
+    let config = CargoConfig::read(project)?;
     let graph = cargo_graph(project, target, features, no_default)?;
     let manifest = project.join("Cargo.toml");
     let host = host_package(&graph, &manifest)?;
     let active = cargo_active_features(project, target, host, features, no_default)?;
     let mut selection = active.clone();
     selection.extend_from_slice(features);
-    let sources = Sources::load(workspace_root(&graph)?, project)?;
+    let sources = Sources::load(workspace_root(&graph)?, &config)?;
     let plan = plan(&graph, &manifest, target, &selection, true, &sources)?;
     Ok((plan, active))
 }
@@ -237,14 +244,17 @@ fn prepare_plan(
     if !bootstrap.contains("/openrust_package_providers.rs")
         || !bootstrap.contains("PackageProvider")
         || !app.join("build.rs").is_file()
-        || !fs::read_to_string(helper).is_ok_and(|source| source.contains(build_plan::VERSION))
+        || !helper.with_file_name("package_cargo_config.rs").is_file()
+        || !fs::read_to_string(&helper).is_ok_and(|source| source.contains(build_plan::VERSION))
     {
         return Err(
-            "当前应用缺少 Provider v2 清单接线，请先按当前模板更新构建脚本和 bootstrap/app.rs"
+            "当前应用缺少 Provider v3 清单接线，请按当前模板更新构建依赖、构建脚本和 bootstrap 接线"
                 .into(),
         );
     }
     let manifest = app.join("Cargo.toml");
+    let config = CargoConfig::read(app)?;
+    let config_digest = config.fingerprint();
     let graph = cargo_graph(app, target, features, no_default_features)?;
     let host = host_package(&graph, &manifest)?;
     let name = string(&host["name"], "host package name")?;
@@ -261,16 +271,21 @@ fn prepare_plan(
     let inputs = input_digests(app, &graph, host)?;
     let active = cargo_active_features(app, target, host, features, no_default_features)?;
     let profile = cargo_feature_keys(host, &active)?;
-    let sources = Sources::load(workspace_root(&graph)?, app)?;
+    let sources = Sources::load(workspace_root(&graph)?, &config)?;
     let source = plan(&graph, &manifest, target, &active, true, &sources)?.source;
     let checked = cargo_graph(app, target, features, no_default_features)?;
     if graph != checked
+        || config_digest != CargoConfig::read(app)?.fingerprint()
         || inputs != input_digests(app, &checked, host_package(&checked, &manifest)?)?
     {
         return Err("生成期间 Cargo 包发现输入变化，请重新执行安装".into());
     }
 
-    let mut contents = format!("{}\n", build_plan::VERSION);
+    let mut contents = format!(
+        "{}\n{}{config_digest}\n",
+        build_plan::VERSION,
+        build_plan::CARGO_CONFIG
+    );
     for (path, digest) in inputs {
         writeln!(contents, "// {digest}\t{path}")?;
     }
@@ -334,19 +349,6 @@ fn input_digests(app: &Path, graph: &Value, host: &Value) -> Result<BTreeMap<Str
             relative_input(app, &path)?,
             build_plan::digest(&fs::read(&path)?),
         );
-    }
-    // Cargo 配置可切换同名同版本的 path patch，而不必改写锁文件。
-    for directory in app
-        .ancestors()
-        .take_while(|directory| directory.starts_with(workspace))
-    {
-        for name in [".cargo/config", ".cargo/config.toml"] {
-            let path = directory.join(name);
-            inputs.insert(
-                relative_input(app, &path)?,
-                build_plan::config_digest(&path)?,
-            );
-        }
     }
     Ok(inputs)
 }

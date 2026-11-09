@@ -1,6 +1,6 @@
-//! 用 Cargo 元数据与项目内显式 patch 证明依赖来源。
+//! 用 Cargo 元数据与有效配置的显式 patch 证明依赖来源。
 
-use super::Result;
+use super::{Result, build_plan::cargo_config::CargoConfig};
 use semver::{Version, VersionReq};
 use serde_json::Value;
 use std::{
@@ -21,46 +21,32 @@ pub(super) struct Sources {
 }
 
 impl Sources {
-    pub(super) fn load(workspace: &Path, app: &Path) -> Result<Self> {
-        if !app.starts_with(workspace) {
-            return Err("应用目录不在 Cargo 工作区内".into());
-        }
+    pub(super) fn load(workspace: &Path, config: &CargoConfig) -> Result<Self> {
         let manifest = read_toml(&workspace.join("Cargo.toml"))?.ok_or("缺少 Cargo 工作区清单")?;
         let mut manifest_patches = PatchTable::new();
         read_patches(&mut manifest_patches, &manifest, workspace);
 
         let mut sources = Self::default();
         let mut config_patches = PatchTable::new();
-        let mut has_include = false;
-        let directories = app
-            .ancestors()
-            .take_while(|directory| directory.starts_with(workspace))
-            .collect::<Vec<_>>();
-        for directory in directories.into_iter().rev() {
-            let cargo = directory.join(".cargo");
-            let config = match read_toml(&cargo.join("config"))? {
-                Some(config) => Some(config),
-                None => read_toml(&cargo.join("config.toml"))?,
-            };
-            if let Some(config) = config {
-                has_include |= config.get("include").is_some();
-                sources.read_registries(&config);
-                read_patches(&mut config_patches, &config, directory);
-            }
+        for layer in &config.layers {
+            let directory = layer
+                .file
+                .parent()
+                .and_then(Path::parent)
+                .ok_or("Cargo 配置文件缺少相对路径基准")?;
+            sources.read_registries(&layer.document);
+            read_patches(&mut config_patches, &layer.document, directory);
         }
 
-        // 未读取的配置 include 可能覆盖本地 patch，因此只使用直接来源证据。
-        if !has_include {
-            let mut patches = sources.resolve_origins(manifest_patches);
-            for (origin, entries) in sources.resolve_origins(config_patches) {
-                patches.entry(origin).or_default().extend(entries);
-            }
-            for (origin, entries) in patches {
-                let origin = canonical_origin(origin);
-                for (alias, fields) in entries {
-                    if let Some(patch) = fields.into_patch(origin.clone(), alias)? {
-                        sources.patches.push(patch);
-                    }
+        let mut patches = sources.resolve_origins(manifest_patches);
+        for (origin, entries) in sources.resolve_origins(config_patches) {
+            patches.entry(origin).or_default().extend(entries);
+        }
+        for (origin, entries) in patches {
+            let origin = canonical_origin(origin);
+            for (alias, fields) in entries {
+                if let Some(patch) = fields.into_patch(origin.clone(), alias)? {
+                    sources.patches.push(patch);
                 }
             }
         }

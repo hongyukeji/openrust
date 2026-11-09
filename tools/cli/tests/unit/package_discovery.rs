@@ -5,6 +5,47 @@ use clap::Parser as _;
 use serde_json::json;
 
 #[test]
+fn external_config_include_resolves_patch_and_optional_creation_changes_fingerprint() -> Result<()>
+{
+    let fixture = tempfile::tempdir()?;
+    let app = fixture.path().join("app");
+    let config = fixture.path().join(".cargo");
+    let nested = config.join("nested");
+    let replacement = fixture.path().join("replacement");
+    fs::create_dir_all(&app)?;
+    fs::create_dir_all(&nested)?;
+    fs::create_dir_all(&replacement)?;
+    fs::write(app.join("Cargo.toml"), "[workspace]\n")?;
+    fs::write(
+        config.join("config.toml"),
+        r#"include = ["nested/base.toml", { path = "optional.toml", optional = true }]"#,
+    )?;
+    fs::write(
+        nested.join("base.toml"),
+        "[patch.crates-io]\nprovider = { path = \"../replacement\" }\n",
+    )?;
+    let configuration = CargoConfig::read(&app)?;
+    let fingerprint = configuration.fingerprint();
+    let sources = Sources::load(&app, &configuration)?;
+    let dependency = json!({
+        "name": "provider",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+    });
+    let package = json!({
+        "name": "provider",
+        "source": null,
+        "manifest_path": replacement.join("Cargo.toml"),
+    });
+    assert!(sources.matches(&dependency, &package, &semver::Version::new(1, 0, 0))?);
+    let mut watches = Vec::new();
+    configuration.watch(&mut watches)?;
+    assert!(String::from_utf8(watches)?.contains("optional.toml"));
+    fs::write(config.join("optional.toml"), "[net]\noffline = true\n")?;
+    assert_ne!(CargoConfig::read(&app)?.fingerprint(), fingerprint);
+    Ok(())
+}
+
+#[test]
 fn discovery_defaults_to_rebuild_and_modes_are_exclusive() {
     for mode in [None, Some("--install"), Some("--preview"), Some("--check")] {
         let args = ["openrust", "package:discover"].into_iter().chain(mode);

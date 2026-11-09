@@ -24,7 +24,7 @@
 - `openrust dev` 和 `serve` 通过 Cargo metadata 找到当前应用，再从其目录运行 `cargo run`。开发入口复用或准备适用的 Redis 服务。根应用和生成应用的 `./artisan dev` 调用 `openrust dev --watch`，在 macOS 和 Linux 上通过 Watchexec 监听应用和本地 Cargo 依赖。成功构建的独立产物在旧进程收到 SIGTERM 并退出后启动，编译失败期间旧应用继续服务。开发配置沿用应用的 `--env` 和 dotenv 选择规则。
 
 - package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 历史决策 039 已完成。
-- 源码应用的 `./artisan package:discover` 在编译应用前重建按目标和应用特性分开的清单。CLI 保留 `--install` 和 `--preview`，`--check` 只读核对完整已安装内容。根应用和生成应用的构建脚本核对锁文件、相关 manifest 与项目 Cargo 配置，然后把对应清单交给同一 Provider 启动槽。v2 为工厂结果加上包名、版本及 Rust 依赖名。安装器先校验 v2 构建接线，保护仍由旧模板读取的清单。
+- 源码应用的 `./artisan package:discover` 在编译应用前重建按目标和应用特性分开的清单。CLI 保留 `--install` 和 `--preview`，`--check` 只读核对完整已安装内容。根应用和生成应用的构建脚本核对锁文件、相关 manifest 与 Cargo 文件配置摘要，然后把对应 v3 清单交给同一 Provider 启动槽。清单为工厂结果保留包名、版本及 Rust 依赖名。安装器先校验 v3 构建接线，旧应用按当前模板更新后再重建。
 - `openrust --help` 及子命令帮助使用简体中文标题、选项说明和帮助/版本说明；命令、参数、配置键和协议值保留技术原名。
 - 应用二进制的 `list` 和 `help <命令>` 使用同一 Provider 命令目录。`Command::usage` 提供可选参数说明，帮助入口不执行目标命令；生成项目复用同一入口。
 - 新应用的 `AGENTS.md`、`.env.example` 注释、模块入口 Rustdoc，以及 Model/Migration/Mailer/Policy 生成 Rustdoc 使用简体中文；模板说明不改变应用邮件等运行时语言策略。
@@ -52,7 +52,7 @@
 
 ## Provider 包发现
 
-`package:discover` 以应用实际激活的普通依赖为输入，区分同名同版本的 Cargo 来源。Git 引用、registry 与本地路径分别核对，项目内显式 `[patch]` 可证明合法替换。来源无法确认或同一声明关联多个候选时拒绝生成。项目外覆盖、Cargo 配置 `include` 和进一步的发现诊断按唯一 todo 推进。
+`package:discover` 以应用实际激活的普通依赖为输入，区分同名同版本的 Cargo 来源。Git 引用、registry 与本地路径分别核对，显式 `[patch]` 可证明合法替换。来源无法确认或同一声明关联多个候选时拒绝生成。应用祖先目录、`CARGO_HOME` 和递归 `include` 共用文件配置读取与增量校验，见[限定验收](../memory/testing.md#cargo-文件配置增量校验限定验收)。命令行和其他非文件覆盖按唯一 todo 推进。
 
 `package:list` 与预览共用 Cargo 图及清单选择，输出已解析候选的来源类型、特性或目标状态、排除来源与条件，以及 Facade 候选的最终编译条件。源码 Artisan 与 CLI 均可只读执行。运行期 Provider 实例顺序由启动生命周期决定。
 

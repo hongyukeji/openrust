@@ -7,8 +7,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[path = "package_cargo_config.rs"]
+pub(crate) mod cargo_config;
+
 pub const DIRECTORY: &str = "bootstrap/packages";
-pub const VERSION: &str = "// openrust-package-plan-v2";
+pub const VERSION: &str = "// openrust-package-plan-v3";
+pub const CARGO_CONFIG: &str = "// cargo-config ";
 pub const END_INPUTS: &str = "// end-package-plan-inputs";
 
 const EMPTY_SOURCE: &str = r#"
@@ -83,7 +87,19 @@ fn verify_inputs(source: &str, directives: &mut impl io::Write) -> io::Result<()
     let mut lines = source.lines();
     if lines.next() != Some(VERSION) {
         return Err(io::Error::other(
-            "Provider 清单格式需要 v2，请运行 openrust package:discover --install 重新生成",
+            "Provider 清单格式需要 v3，请运行 openrust package:discover 重新生成",
+        ));
+    }
+    let expected_config = lines
+        .next()
+        .and_then(|line| line.strip_prefix(CARGO_CONFIG))
+        .filter(|hash| hash.len() == 64)
+        .ok_or_else(|| io::Error::other("Provider 清单缺少 Cargo 配置摘要，请重新生成"))?;
+    let config = cargo_config::CargoConfig::read(&env::current_dir()?)?;
+    config.watch(directives)?;
+    if config.fingerprint() != expected_config {
+        return Err(io::Error::other(
+            "Provider 清单的 Cargo 配置输入已变化，请运行 openrust package:discover 重新生成",
         ));
     }
     let mut application = false;

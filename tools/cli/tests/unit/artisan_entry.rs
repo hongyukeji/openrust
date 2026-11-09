@@ -175,6 +175,7 @@ fn source_artisan_discovery_uses_cli_without_building_the_application() -> Resul
 
     fs::create_dir_all(project.join("tools/cli"))?;
     fs::write(project.join("tools/cli/Cargo.toml"), "")?;
+    let project_directory = project.canonicalize()?;
     fixture.assert_exec(
         &project,
         &args,
@@ -189,6 +190,8 @@ fn source_artisan_discovery_uses_cli_without_building_the_application() -> Resul
             "--locked",
             "--",
             "package:discover",
+            "--project-dir",
+            project_directory.to_str().context("应用目录必须为 UTF-8")?,
             "--check",
             "--features",
             "with-provider",

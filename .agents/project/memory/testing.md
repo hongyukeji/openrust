@@ -2163,3 +2163,13 @@ L044.02 的 `package:doctor` 与正常引导使用相同配置选择、预装配
 新生成 minimal 应用通过 check 和 23 项测试。真实 Artisan 帮助及预检不调用 Provider 回调。`--boot` 的实际槽位与两包 register 和 boot 顺序一致，关闭回调按逆序执行。跨包冲突的两种诊断模式均返回同一语义码及双方来源。正常服务真实 HTTP 200，冲突服务退出 1 且未监听。根 Artisan 预检保持现有服务清单字节和 mtime，缺失时不创建文件。
 
 证据见 `tmp/lead-provider-doctor.DYDYTseh/delivery-receipt.json`。项目外 Cargo 覆盖、配置 include 与发布平台矩阵按唯一 todo 继续。
+
+## Cargo 文件配置增量校验限定验收
+
+L044.02 以同一套读取逻辑遍历应用祖先目录、`CARGO_HOME` 与递归 `include`。按 Cargo 优先级关联文件中的 `[patch]`，相对路径按定义文件解析。v3 清单只保存配置摘要。旧版清单须先更新构建接线，再运行发现命令重建。
+
+独立冻结树 `d2d33a3bdad548f4dbb0071e79b0a4b39d1041b4` 通过工作区格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 与离线依赖门禁。真实 Cargo 图验证 `CARGO_HOME`、祖先递归配置、可选 include 和应用配置的覆盖顺序。
+
+新生成 minimal 应用通过源码 Artisan 重建、Cargo check、23 项测试及实际 HTTP 200。锁文件字节保持不变时，普通构建仍拒绝递归 include 修改或可选文件新增造成的过期清单。重建后使用正确的 Provider，实际 HTTP 响应随选中的依赖切换。普通构建拒绝旧 v2 清单，源码 Artisan 可重建 v3。
+
+完整证据见 `tmp/lead-cargo-config.qka4Ps36/delivery-receipt.json`。当前按应用目录使用文件配置，`cargo --config`、其他非文件覆盖和发布平台矩阵仍开放。

@@ -81,11 +81,11 @@ cargo run -p cli -- g migration labels slug:string
 
 在 CI 使用相同参数运行 `./artisan package:discover --check`。命令重新计算预期清单，检查已安装内容是否一致。缺失或不一致时返回非零，清单保持原状。源码 `artisan` 直接调用 CLI，因此应用因旧清单而编译失败时仍可执行重建。
 
-清单用 `包名@版本 (Rust 依赖名)` 标记来源。包 Provider 仍位于框架默认项与应用项之间。按 `ServiceProvider::dependencies()` 在包段内排序时，每步选择最早可登记的项。包之间重复声明同一个 Provider 类型会同时报告双方来源。包依赖缺失、指向后置应用项或形成循环时，启动会在注册前拒绝。升级旧应用时，按当前模板更新构建辅助文件和 `ApplicationDefinition::package_providers` 的返回类型，再重新安装 v2 清单。
+清单用 `包名@版本 (Rust 依赖名)` 标记来源。包 Provider 仍位于框架默认项与应用项之间。按 `ServiceProvider::dependencies()` 在包段内排序时，每步选择最早可登记的项。包之间重复声明同一个 Provider 类型会同时报告双方来源。包依赖缺失、指向后置应用项或形成循环时，启动会在注册前拒绝。升级旧应用时，按当前模板更新构建依赖和辅助文件，再重建 v3 清单。旧应用也须使用 `ApplicationDefinition::package_providers` 的当前返回类型。
 
-已有清单时，缺少当前组合的清单，或锁文件、相关 manifest、应用至 workspace 根之间的 Cargo 配置变化，都会中止构建。以相同特性和目标重新运行安装命令。用于选择包来源的配置放在项目内的 `.cargo/config.toml`，从应用目录执行安装和构建。
+已有清单时，缺少当前组合的清单，或锁文件、相关 manifest、Cargo 文件配置变化，都会中止构建。v3 追踪应用目录到文件系统根的配置、`CARGO_HOME` 与递归 `include`，含可选文件的新增和删除。清单只保存配置摘要。以相同目标和特性从应用目录运行重建与构建。Cargo 可能重复执行含缺失文件监听的构建脚本，生成 Rust 源码仅在内容变化时写入。
 
-同名同版本的依赖按 Cargo 来源分别关联。Git 依赖保留分支、标签或提交选择，注册源依赖按 Cargo 报告的来源匹配。项目内的 `[patch]` 可关联合法替换。无法确认来源或一个声明对应多个候选时，CLI 会报错。项目外的 Cargo 覆盖和配置 include 仍属独立验收范围。
+同名同版本的依赖按 Cargo 来源分别关联。Git 依赖保留分支、标签或提交选择，注册源依赖按 Cargo 报告的来源匹配。有效 Cargo 文件配置中的 `[patch]` 可关联合法替换。无法确认来源或一个声明对应多个候选时，CLI 会报错。命令行 `cargo --config` 和其他非文件解析覆盖须独立校验。源码 Artisan 从 CLI 所在源码目录启动工具，然后从应用目录读取依赖，隔离两者的外层配置。
 
 安装使用应用的具名特性，例如定义 `search = ["search-engine/full"]` 后使用 `--features search`。直接使用 `--features search-engine/full` 可能绕过应用特性，Cargo 构建脚本无法可靠识别。安装使用目标三元组，自定义 JSON 目标可用预览检查。旧应用可参考新生成应用的 `build.rs` 和 `bootstrap/app.rs` 接入。
 
