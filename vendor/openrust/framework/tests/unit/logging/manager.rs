@@ -291,3 +291,67 @@ async fn default_and_emergency_logs_share_the_openrust_path()
     shutdown(&runtime).await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn named_log_shares_manager_default_channel_and_logger_decoration()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("default.log");
+    let runtime = start(json!({
+        "default": "single",
+        "channels": {"single": {"path": path, "name": "configured"}}
+    }))
+    .await?;
+    let outcome: std::result::Result<(), Box<dyn std::error::Error>> = async {
+        let named = runtime
+            .container()
+            .resolve_key::<LogManager>(ServiceKey::named("log"))
+            .await?;
+        let typed = runtime.container().resolve::<LogManager>().await?;
+        assert!(Arc::ptr_eq(&named, &typed));
+        let default = named.channel(None).await?;
+        assert!(Arc::ptr_eq(&default, &typed.channel(None).await?));
+        assert!(!path.exists());
+        default
+            .log(
+                LogLevel::Info,
+                "default {value}",
+                Map::from_iter([("value".into(), json!("shared"))]),
+            )
+            .await?;
+        default
+            .with_name("request")
+            .log(LogLevel::Notice, "decorated", Map::new())
+            .await?;
+        assert_eq!(typed.channel(None).await?.name(), "configured");
+        let contents = tokio::fs::read_to_string(&path).await?;
+        assert!(contents.contains("configured.INFO: default shared"));
+        assert!(contents.contains("request.NOTICE: decorated"));
+        assert_eq!(contents.lines().count(), 2);
+
+        let decorated = Arc::new(LogManager::new(
+            named.config.clone(),
+            named.scope_factory.clone(),
+        ));
+        let expected = Arc::clone(&decorated);
+        let key = ServiceKey::named("log");
+        runtime
+            .container()
+            .extend_key::<LogManager, _>(&key, move |value, _| {
+                assert!(Arc::ptr_eq(&value, &named));
+                let decorated = Arc::clone(&decorated);
+                Box::pin(async move { Ok(decorated) })
+            })
+            .await?;
+        let named = runtime.container().resolve_key::<LogManager>(key).await?;
+        let typed = runtime.container().resolve::<LogManager>().await?;
+        assert!(Arc::ptr_eq(&expected, &named));
+        assert!(Arc::ptr_eq(&expected, &typed));
+        Ok(())
+    }
+    .await;
+    let cleanup = shutdown(&runtime).await;
+    outcome?;
+    cleanup?;
+    Ok(())
+}

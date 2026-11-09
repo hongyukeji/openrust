@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use openrust::console::{Command, print};
+use openrust::container::ServiceKey;
 use openrust::foundation::Application;
 use openrust::hashing::{HashManager, HashOptions};
 use openrust::support::BoxFuture;
@@ -38,7 +39,10 @@ impl Command for HashSecretFile {
                     "请提供一个秘密文件路径",
                 ));
             };
-            let hashing = app.state().resolve::<HashManager>().await?;
+            let hashing = app
+                .state()
+                .resolve_key::<HashManager>(ServiceKey::named("hash"))
+                .await?;
             let encoded = digest_file(&hashing, Path::new(path)).await?;
             print(&encoded);
             Ok(())

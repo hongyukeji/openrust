@@ -505,6 +505,10 @@ impl RegisterContext<'_> {
         self.container.alias(target, alias)
     }
 
+    pub(crate) fn ensure_alias(&mut self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+        self.container.ensure_alias(target, alias)
+    }
+
     /// 当前应用的MIME检测登记器；Provider晚注册的后续请求立即可见。
     pub async fn mime_types(&self) -> Result<Arc<crate::http::MimeTypes>> {
         self.container.resolve::<crate::http::MimeTypes>().await

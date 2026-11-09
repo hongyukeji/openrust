@@ -197,6 +197,7 @@ async fn assert_log_context_placeholders(
     container: &openrust::container::Container,
     selected: &std::path::Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    use openrust::container::ServiceKey;
     use openrust::logging::{LogLevel, LogManager, context::Repository};
 
     let scope = std::sync::Arc::new(container.scope()?);
@@ -206,7 +207,7 @@ async fn assert_log_context_placeholders(
             context.add("example_operation", serde_json::json!("ordinary-probe"));
             context.add_hidden("probe_hidden", serde_json::json!("hidden-probe"));
             let channel = scope
-                .resolve::<LogManager>()
+                .resolve_key::<LogManager>(ServiceKey::named("log"))
                 .await?
                 .channel(Some("single"))
                 .await?;

@@ -1,12 +1,15 @@
 //! 在应用唯一容器中登记哈希管理器与默认 Hasher 契约。
 
 use super::{HashManager, Hasher, HashingConfig, failure};
+use crate::container::ServiceKey;
 use crate::core::Result;
 use crate::foundation::RegisterContext;
 use crate::support::{BoxFuture, ServiceProvider};
 use std::sync::Arc;
 
-/// 应用哈希服务 Provider；独立于认证与 Passport 的启用状态。
+/// 登记应用哈希服务，独立于认证与 Passport 的启用状态。
+///
+/// `hash` 解析哈希管理器，`hash.driver` 解析默认驱动。
 #[derive(Debug, Clone, Copy)]
 pub struct HashServiceProvider {
     capacity: usize,
@@ -62,6 +65,14 @@ impl ServiceProvider for HashServiceProvider {
                 })
                 .await?;
             }
+            app.ensure_alias(
+                ServiceKey::typed::<HashManager>(),
+                ServiceKey::named("hash"),
+            )?;
+            app.ensure_alias(
+                ServiceKey::typed::<dyn Hasher>(),
+                ServiceKey::named("hash.driver"),
+            )?;
             Ok(())
         })
     }

@@ -522,12 +522,29 @@ impl Container {
     ///
     /// 拒绝指向同一个规范键。已登记的别名链出现循环时，跟随别名的操作返回错误。
     pub fn alias(&self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+        self.register_alias(target, alias, false)
+    }
+
+    pub(crate) fn ensure_alias(&self, target: ServiceKey, alias: ServiceKey) -> Result<()> {
+        self.register_alias(target, alias, true)
+    }
+
+    fn register_alias(
+        &self,
+        target: ServiceKey,
+        alias: ServiceKey,
+        preserve_shared_source: bool,
+    ) -> Result<()> {
         let mut state = lock(&self.inner.state);
         if state.terminated {
             return Err(container_error("container_closed", "容器已关闭"));
         }
         let target = state.classes.canonical_key_owned(target);
         let alias = state.classes.canonical_key_owned(alias);
+        // 既有应用可用具名键作为原绑定。两键已同源时保留原有方向。
+        if preserve_shared_source && state.alias_key(&target)? == state.alias_key(&alias)? {
+            return Ok(());
+        }
         if !state.aliases.change_needed(&target, &alias)? {
             return Ok(());
         }

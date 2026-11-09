@@ -14,6 +14,7 @@ use super::{LogLevel, LogSink, Logger, sinks};
 use crate::{
     Error, Result,
     config::{ConfigContext, ConfigError, repository::ConfigRepository},
+    container::ServiceKey,
     foundation::RegisterContext,
     support::{BoxFuture, ServiceProvider},
 };
@@ -371,7 +372,8 @@ impl ServiceProvider for LogServiceProvider {
                 app.config_repository(),
                 app.scope_factory(),
             )))
-            .await
+            .await?;
+            app.ensure_alias(ServiceKey::typed::<LogManager>(), ServiceKey::named("log"))
         })
     }
 }

@@ -96,3 +96,7 @@ mod regression_tests;
 
 #[cfg(test)]
 mod bytes_contract_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/hashing/named_bindings.rs"]
+mod named_binding_tests;

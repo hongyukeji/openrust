@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 新增 `hash`、`hash.driver` 和 `log` 具名容器入口，与原类型化绑定共享实例。
+
 - Cookie 加密中间件公开为 `openrust::cookie::middleware::EncryptCookies`，支持按应用追加精确名称例外。
 
 - 应用可通过容器具名键 `events` 取得同一个事件服务单例。

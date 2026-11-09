@@ -2,6 +2,8 @@
 
 启用 `hashing` feature 使用 `openrust::hashing`；`auth` 自动启用同一能力。默认 Provider 登记统一的 `HashManager` 和首次解析的驱动别名。认证、验证码及客户端秘密不各自维护成本配置。
 
+容器键 `hash` 与类型 `HashManager` 解析同一应用单例，`hash.driver` 与类型 `dyn Hasher` 共享首次解析时选定的默认驱动。管理器后续按有效配置选择驱动，已解析的驱动单例保留其身份。[Laravel HashServiceProvider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Hashing/HashServiceProvider.php)
+
 ## 配置
 
 编辑 `config/hashing.rs`，部署值放 `.env`。框架与生成应用使用同一组设置：
@@ -25,9 +27,10 @@
 ## 生成和检查
 
 ```rust,ignore
+use openrust::container::ServiceKey;
 use openrust::hashing::{HashManager, HashOptions};
 
-let hashing = app.state().resolve::<HashManager>().await?;
+let hashing = app.state().resolve_key::<HashManager>(ServiceKey::named("hash")).await?;
 let options = HashOptions::new();
 let encoded = hashing.make("a secret", &options).await?;
 assert!(hashing.check("a secret", Some(&encoded), &options).await?);

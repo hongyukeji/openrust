@@ -7,6 +7,7 @@ use openrust::fortify::events::TwoFactorAuthenticationEnabled;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
+use openrust::hashing::{HashManager, Hasher};
 use openrust::http::axum::{
     body::{Body, to_bytes},
     extract::ConnectInfo,
@@ -14,6 +15,7 @@ use openrust::http::axum::{
 };
 use openrust::http::{CookieJar, CookieOptions, Json};
 use openrust::routing::RouteGroup;
+use openrust::logging::LogManager;
 use openrust::mail::{MailDriver, Mailer};
 use openrust::session::Session;
 use openrust::support::{BoxFuture, ServiceProvider};
@@ -459,6 +461,12 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         let typed = state.resolve::<Events>().await?;
         let named = state.resolve_key::<Events>(ServiceKey::named("events")).await?;
         assert!(Arc::ptr_eq(&typed, &named));
+        let manager = state.resolve_key::<HashManager>(ServiceKey::named("hash")).await?;
+        assert!(Arc::ptr_eq(&manager, &state.resolve::<HashManager>().await?));
+        let driver = state.resolve_key::<dyn Hasher>(ServiceKey::named("hash.driver")).await?;
+        assert!(Arc::ptr_eq(&driver, &manager.driver(None)?));
+        let log = state.resolve_key::<LogManager>(ServiceKey::named("log")).await?;
+        assert!(Arc::ptr_eq(&log, &state.resolve::<LogManager>().await?));
         assert_eq!(
             app.app()?.config().app.env,
             openrust::config::Environment::Local
