@@ -7,6 +7,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{ConfigError, ENV_PREFIX, validate_namespace};
+use crate::translation::Locale;
 
 /// 应用环境的精确名称；自定义名称、大小写与空字符串均予以保留。
 #[derive(Debug, Clone, Default)]
@@ -188,6 +189,10 @@ pub struct AppConfig {
     pub previous_keys: Vec<String>,
     /// 日期便捷读取的应用默认时区；不修改进程全局时区。
     pub timezone: String,
+    /// 应用默认语言。
+    pub locale: Locale,
+    /// 当前语言缺少消息时使用的应用回退语言。
+    pub fallback_locale: Locale,
 }
 
 impl Default for AppConfig {
@@ -201,6 +206,8 @@ impl Default for AppConfig {
             key: None,
             previous_keys: Vec::new(),
             timezone: "UTC".to_owned(),
+            locale: Locale::english(),
+            fallback_locale: Locale::english(),
         }
     }
 }
@@ -217,6 +224,8 @@ impl fmt::Debug for AppConfig {
             .field("key", &self.key.as_ref().map(|_| "[REDACTED]"))
             .field("previous_keys", &"[REDACTED]")
             .field("timezone", &self.timezone)
+            .field("locale", &self.locale)
+            .field("fallback_locale", &self.fallback_locale)
             .finish()
     }
 }

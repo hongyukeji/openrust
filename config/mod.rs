@@ -10,7 +10,6 @@ pub mod fortify;
 #[cfg(feature = "grpc")]
 pub mod grpc;
 pub mod hashing;
-pub mod i18n;
 pub mod log;
 pub mod mail;
 pub mod modules;
@@ -40,7 +39,6 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("logging", log::channels)
         .section("cache", cache::config)
         .section("database", database::config)
-        .section("i18n", i18n::config)
         .section("translation_sources", translation_sources::config)
         .section("mail", mail::config)
         .section("modules", modules::config)

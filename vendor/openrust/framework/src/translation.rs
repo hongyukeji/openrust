@@ -19,7 +19,7 @@ use icu_locale::Locale as IcuLocale;
 use icu_plurals::{PluralOperands, PluralRules};
 use serde::{Deserialize, Serialize};
 
-use crate::config::ConfigError;
+use crate::config::{AppConfig, ConfigError};
 use crate::core::{Error, Result};
 
 mod composite_loader;
@@ -43,6 +43,10 @@ use source_refresh::{PublishedCatalog, RefreshRuntime};
 pub struct Locale(String);
 
 impl Locale {
+    pub(crate) fn english() -> Self {
+        Self("en".to_owned())
+    }
+
     /// 解析并规范化语言标签，例如 `en` 或 `zh-CN`。
     pub fn new(value: impl AsRef<str>) -> Result<Self, ConfigError> {
         normalize_locale(value.as_ref()).map(Self)
@@ -194,10 +198,7 @@ impl Default for MessageCatalog {
             resource_messages: BTreeMap::new(),
             source_global_keys: BTreeMap::new(),
             messages: BTreeMap::from([
-                (
-                    Locale("en".to_owned()),
-                    framework_messages(EN_MESSAGES, false),
-                ),
+                (Locale::english(), framework_messages(EN_MESSAGES, false)),
                 (
                     Locale("zh-CN".to_owned()),
                     framework_messages(ZH_CN_MESSAGES, true),
@@ -505,7 +506,7 @@ fn messages(entries: &[(&str, &str)]) -> BTreeMap<String, CatalogMessage> {
         .collect()
 }
 
-/// 传入请求没有受支持的语言偏好时使用的默认语言设置。
+/// 显式构造翻译服务时使用的默认和回退语言。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TranslationConfig {
@@ -518,8 +519,8 @@ pub struct TranslationConfig {
 impl Default for TranslationConfig {
     fn default() -> Self {
         Self {
-            default_locale: Locale("en".to_owned()),
-            fallback_locale: Locale("en".to_owned()),
+            default_locale: Locale::english(),
+            fallback_locale: Locale::english(),
         }
     }
 }
@@ -547,8 +548,8 @@ impl Translator {
     /// 创建服务，并校验两个已配置的默认 locale 均存在资源。
     pub fn new(config: TranslationConfig, catalog: MessageCatalog) -> Result<Self, ConfigError> {
         for (key, locale) in [
-            ("i18n.default_locale", &config.default_locale),
-            ("i18n.fallback_locale", &config.fallback_locale),
+            ("app.locale", &config.default_locale),
+            ("app.fallback_locale", &config.fallback_locale),
         ] {
             if !catalog.supports(locale) {
                 return Err(ConfigError::Invalid(format!(
@@ -976,23 +977,21 @@ impl crate::support::ServiceProvider for TranslationServiceProvider {
         app: &'a mut crate::foundation::RegisterContext<'_>,
     ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            use crate::config::repository::SectionSchema;
-            app.config_section(
-                "i18n",
-                TranslationConfig::default(),
-                SectionSchema::object([
-                    ("default_locale", SectionSchema::String),
-                    ("fallback_locale", SectionSchema::String),
-                ]),
-                |_| Ok(()),
-            )?;
             let catalog = self.catalog.clone();
             let loader_factory = self.loader_factory.clone();
             app.singleton::<Translator, _>(move |resolver| {
                 let catalog = catalog.clone();
                 let loader_factory = loader_factory.clone();
                 Box::pin(async move {
-                    let config = resolver.section::<TranslationConfig>("i18n")?;
+                    let application = match resolver.section::<AppConfig>("app") {
+                        Ok(application) => application,
+                        Err(ConfigError::Source(error)) if error.missing() => AppConfig::default(),
+                        Err(error) => return Err(error.into()),
+                    };
+                    let config = TranslationConfig {
+                        default_locale: application.locale,
+                        fallback_locale: application.fallback_locale,
+                    };
                     let service = match loader_factory {
                         Some(factory) => {
                             Translator::from_loader(config, factory(resolver).await?).await?
@@ -1017,105 +1016,6 @@ impl crate::support::ServiceProvider for TranslationServiceProvider {
             app.exceptions(move |handler| handler.set_i18n((*service).clone()))?;
             Ok(())
         })
-    }
-}
-
-#[cfg(test)]
-mod provider_tests {
-    use super::*;
-    use crate::foundation::BootContext;
-    use crate::foundation::ProviderBuilder;
-    use crate::support::{BoxFuture, ServiceProvider};
-    use figment::{Figment, providers::Serialized};
-    use serde_json::json;
-
-    #[test]
-    fn module_namespace_published_messages_override_source() -> Result<()> {
-        let temporary = tempfile::tempdir().map_err(Error::internal)?;
-        let source = temporary.path().join("source");
-        let published = temporary.path().join("published");
-        std::fs::create_dir(&source).map_err(Error::internal)?;
-        std::fs::create_dir(&published).map_err(Error::internal)?;
-        std::fs::write(
-            source.join("en.json"),
-            r#"{"label":"source","fallback":"source-only"}"#,
-        )
-        .map_err(Error::internal)?;
-        std::fs::write(source.join("zh-CN.json"), r#"{"only_zh":"仅源目录"}"#)
-            .map_err(Error::internal)?;
-        std::fs::write(published.join("en.json"), r#"{"label":"published"}"#)
-            .map_err(Error::internal)?;
-        let i18n = Translator::new(TranslationConfig::default(), MessageCatalog::new())?;
-        i18n.add_namespace("blog", &source, &published)?;
-        let en = Locale::new("en")?;
-        let args = MessageArgs::new();
-        assert_eq!(i18n.translate(&en, "blog::label", &args), "published");
-        assert_eq!(
-            i18n.translate(&en, "blog::fallback", &args),
-            "blog::fallback"
-        );
-        assert_eq!(i18n.translate(&en, "label", &args), "published");
-        assert_eq!(
-            i18n.translate(&Locale::new("zh-CN")?, "blog::only_zh", &args),
-            "blog::only_zh"
-        );
-        assert_eq!(i18n.translate(&en, "other::label", &args), "other::label");
-        assert_eq!(
-            i18n.add_namespace("blog", &source, &published)
-                .err()
-                .map(|error| error.code().to_owned())
-                .as_deref(),
-            Some("i18n_namespace_conflict")
-        );
-        let published_only = temporary.path().join("published-only");
-        std::fs::create_dir(&published_only).map_err(Error::internal)?;
-        std::fs::write(
-            published_only.join("en.json"),
-            r#"{"global":"published-only"}"#,
-        )
-        .map_err(Error::internal)?;
-        i18n.add_namespace(
-            "published",
-            temporary.path().join("missing"),
-            &published_only,
-        )?;
-        assert_eq!(i18n.translate(&en, "global", &args), "published-only");
-        let empty_published = temporary.path().join("empty-published");
-        std::fs::create_dir(&empty_published).map_err(Error::internal)?;
-        i18n.add_namespace("empty", &source, &empty_published)?;
-        assert_eq!(i18n.translate(&en, "empty::label", &args), "empty::label");
-        Ok(())
-    }
-
-    struct ChangeLocale;
-    impl ServiceProvider for ChangeLocale {
-        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-            Box::pin(async move { app.overlay("i18n", json!({"default_locale": "zh-CN"})) })
-        }
-    }
-
-    #[tokio::test]
-    async fn provider_factory_reads_current_overlay() -> Result<()> {
-        let mut builder = ProviderBuilder::new();
-        builder
-            .provider(ChangeLocale)
-            .provider(TranslationServiceProvider::default());
-        let runtime = builder.start(Figment::new()).await?;
-        let service = runtime.container().resolve::<Translator>().await?;
-        assert_eq!(service.locale_for_request(None).as_str(), "zh-CN");
-        runtime
-            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
-            .await
-    }
-
-    #[tokio::test]
-    async fn provider_rejects_unsupported_configured_locale() {
-        let mut builder = ProviderBuilder::new();
-        builder.provider(TranslationServiceProvider::default());
-        let sources = Figment::from(Serialized::defaults(
-            json!({"i18n": {"fallback_locale": "fr"}}),
-        ));
-        assert!(builder.start(sources).await.is_err());
     }
 }
 
@@ -1198,7 +1098,7 @@ static BOOTSTRAP_MESSAGES: std::sync::LazyLock<MessageCatalog> =
     std::sync::LazyLock::new(MessageCatalog::default);
 
 pub(crate) fn bootstrap_translation(key: &str, args: &MessageArgs) -> Option<String> {
-    let locale = Locale("en".to_owned());
+    let locale = Locale::english();
     BOOTSTRAP_MESSAGES
         .message(&locale, key)
         .map(|(locale, message)| format_catalog_message(locale, message, key, args))
@@ -1233,9 +1133,7 @@ pub(crate) fn translate_for_rendering(
 pub(crate) fn rendering_locale(service: Option<&Translator>) -> Locale {
     I18N_CONTEXT
         .try_with(|context| context.locale.clone())
-        .unwrap_or_else(|_| {
-            service.map_or_else(|| Locale("en".to_owned()), |service| service.select(None))
-        })
+        .unwrap_or_else(|_| service.map_or_else(Locale::english, |service| service.select(None)))
 }
 
 fn normalize_locale(value: &str) -> std::result::Result<String, ConfigError> {
@@ -1366,7 +1264,6 @@ const ZH_CN_MESSAGES: &[(&str, &str)] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use figment::providers::Format;
 
     #[test]
     fn canonicalizes_language_and_region() {
@@ -1638,21 +1535,16 @@ mod tests {
         assert!(service.format_number(&en, "not-a-number").is_err());
         Ok(())
     }
-
-    #[test]
-    fn i18n_config_deserializes_from_the_standard_toml_section() -> Result<()> {
-        let figment = figment::Figment::new().merge(figment::providers::Toml::string(
-            "[i18n]\ndefault_locale = \"zh-CN\"\nfallback_locale = \"en\"",
-        ));
-        let config: TranslationConfig = figment.extract_inner("i18n").map_err(ConfigError::from)?;
-        assert_eq!(config.default_locale.as_str(), "zh-CN");
-        assert_eq!(config.fallback_locale.as_str(), "en");
-        Ok(())
-    }
 }
 
 #[cfg(test)]
+#[path = "../tests/unit/translation/rendering_source.rs"]
 mod rendering_source_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/translation/loader_provider.rs"]
 mod loader_provider_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/translation/application_locales.rs"]
+mod provider_tests;

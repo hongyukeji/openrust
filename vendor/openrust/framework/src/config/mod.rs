@@ -202,8 +202,6 @@ pub struct FrameworkConfig {
     pub api: ApiConfig,
     /// `[log]` 区段。
     pub log: LogConfig,
-    /// `I18nPlugin` 使用的 `[i18n]` locale 默认值。
-    pub i18n: crate::translation::TranslationConfig,
     /// `[realtime]` 区段；仅在启用 `realtime` feature 时存在。
     #[cfg(feature = "realtime")]
     pub realtime: RealtimeConfig,
@@ -959,7 +957,6 @@ fn common_environment_path(key: &str) -> Option<String> {
         "SMS_FROM",
         "SMS_MESSAGING_SERVICE_SID",
         "SMS_DRIVER",
-        "I18N_DEFAULT_LOCALE",
         "SESSION_DRIVER",
         "SESSION_CONNECTION",
         "SESSION_TABLE",
@@ -1000,7 +997,6 @@ fn common_environment_path(key: &str) -> Option<String> {
             "SMS_API_KEY_SECRET" => "sms.api_key_secret",
             "SMS_FROM" => "sms.from",
             "SMS_MESSAGING_SERVICE_SID" => "sms.messaging_service_sid",
-            "I18N_DEFAULT_LOCALE" => "i18n.default_locale",
             "SESSION_DRIVER" => "session.driver",
             "SESSION_CONNECTION" => "session.connection",
             "SESSION_TABLE" => "session.table",
@@ -1053,6 +1049,7 @@ fn flat_environment_path(key: &str) -> String {
         "KEY" => "app.key".to_owned(),
         "PREVIOUS_KEYS" => "app.previous_keys".to_owned(),
         "TIMEZONE" => "app.timezone".to_owned(),
+        "FALLBACK_LOCALE" => "app.fallback_locale".to_owned(),
         "SERVER_CORS_ENABLED" => "server.cors.enabled".to_owned(),
         "SERVER_CORS_ALLOWED_ORIGINS" => "server.cors.allowed_origins".to_owned(),
         "AUTH_JWT_KEYS_LOCAL" => "auth.jwt.keys.local".to_owned(),
@@ -1280,6 +1277,10 @@ fn redact_secret_values(value: &mut serde_json::Value) {
 }
 
 #[cfg(test)]
+#[path = "../../tests/unit/config/application_sources.rs"]
+mod application_sources_tests;
+
+#[cfg(test)]
 // `figment::Jail` 闭包必须返回 `figment::Result`；其错误类型按设计较大。
 #[allow(clippy::result_large_err)]
 mod tests {
@@ -1486,64 +1487,6 @@ mod tests {
     }
 
     // 文件命名空间按完整键自然序载入，文件内声明顺序与环境覆盖保持原位。
-    #[test]
-    fn ordered_sources_keep_file_namespace_and_environment_precedence() {
-        let _environment_guard = crate::lock_test_env();
-        figment::Jail::expect_with(|jail| {
-            jail.create_dir("config")?;
-            jail.create_file("config/part10.toml", "last = 10\nshared = 10\n")?;
-            jail.create_file(
-                "config/part2.toml",
-                "z = 1\na = 2\nshared = 2\nitems = [9, 8]\n",
-            )?;
-            jail.set_env("APP_PART2_A", "3");
-            let sources = ConfigLoader::new("config", Environment::Test)
-                .sources()
-                .map_err(|error| figment::Error::from(error.to_string()))?;
-            let repository = repository::ConfigRepository::new(sources.clone());
-            let raw = repository
-                .all()
-                .map_err(|error| figment::Error::from(error.to_string()))?;
-            assert_eq!(
-                raw.as_object().map(|items| items
-                    .keys()
-                    .take(5)
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()),
-                Some(vec!["app", "server", "api", "log", "i18n"])
-            );
-            assert!(raw.get("modules").is_none());
-            let ordered = repository
-                .get("part2")
-                .map_err(|error| figment::Error::from(error.to_string()))?
-                .ok_or_else(|| figment::Error::from("ordered section missing"))?;
-            assert_eq!(
-                ordered
-                    .as_object()
-                    .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
-                Some(vec!["z", "a", "shared", "items"])
-            );
-            assert_eq!(ordered["a"], 3);
-            assert_eq!(ordered["shared"], 2);
-            assert_eq!(ordered["items"], serde_json::json!([9, 8]));
-            assert_eq!(
-                repository
-                    .get("part10.shared")
-                    .map_err(|error| figment::Error::from(error.to_string()))?,
-                Some(serde_json::json!(10))
-            );
-            assert_eq!(sources.figment().extract_inner::<u32>("part2.a")?, 3);
-            assert_eq!(
-                sources
-                    .figment()
-                    .find_metadata("part2.z")
-                    .map(|metadata| metadata.name.as_ref()),
-                Some("TOML file")
-            );
-            Ok(())
-        });
-    }
-
     #[test]
     fn recursive_namespaces_follow_oracle_natural_order_and_ignore_hidden_entries() {
         let _environment_guard = crate::lock_test_env();
@@ -2718,94 +2661,6 @@ mod tests {
                 conventional_database_url(&EnvironmentSnapshot::capture(), None),
                 None
             );
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn laravel_style_database_and_redis_variables_build_connection_urls() {
-        let _environment_guard = crate::lock_test_env();
-        figment::Jail::expect_with(|jail| {
-            jail.clear_env();
-            jail.set_env("DB_CONNECTION", "mysql");
-            jail.set_env("DB_HOST", "db.example.test");
-            jail.set_env("DB_DATABASE", "shop");
-            jail.set_env("DB_USERNAME", "app user");
-            jail.set_env("DB_PASSWORD", "p@ss:word");
-            jail.set_env("REDIS_HOST", "cache.example.test");
-            jail.set_env("REDIS_PASSWORD", "redis:secret");
-            jail.set_env("REDIS_PORT", "6380");
-            jail.set_env("REDIS_DB", "4");
-            jail.set_env("REDIS_CACHE_DB", "9");
-            jail.set_env("DB_TABLE_PREFIX", "shop_");
-            jail.set_env("CACHE_STORE", "redis");
-            jail.set_env("MAIL_DRIVER", "smtp");
-            jail.set_env("MAIL_SMTP_HOST", "mail.example.test");
-            jail.set_env("SMS_DRIVER", "log");
-            jail.set_env("I18N_DEFAULT_LOCALE", "zh-CN");
-            #[cfg(feature = "queue")]
-            jail.set_env("QUEUE_CONNECTION", "redis");
-
-            jail.create_dir("empty-config")?;
-            let loader = ConfigLoader::new("empty-config", Environment::Test);
-            let database: serde_json::Value = loader
-                .figment()
-                .map_err(|error| figment::Error::from(error.to_string()))?
-                .extract_inner("database")?;
-            let database_url = url::Url::parse(database["url"].as_str().unwrap_or_default())
-                .map_err(|error| figment::Error::from(error.to_string()))?;
-            assert_eq!(database_url.scheme(), "mysql");
-            assert_eq!(database_url.host_str(), Some("db.example.test"));
-            assert_eq!(database_url.path(), "/shop");
-            assert_eq!(database_url.username(), "app%20user");
-            assert_eq!(database_url.password(), Some("p%40ss%3Aword"));
-            assert_eq!(database["table_prefix"], "shop_");
-
-            let cache: serde_json::Value = loader
-                .figment()
-                .map_err(|error| figment::Error::from(error.to_string()))?
-                .extract_inner("cache")?;
-            let redis_url =
-                url::Url::parse(cache["stores"]["redis"]["dsn"].as_str().unwrap_or_default())
-                    .map_err(|error| figment::Error::from(error.to_string()))?;
-            assert_eq!(redis_url.host_str(), Some("cache.example.test"));
-            assert_eq!(redis_url.port(), Some(6380));
-            assert_eq!(redis_url.path(), "/4");
-            assert_eq!(redis_url.password(), Some("redis%3Asecret"));
-            assert_eq!(cache["default"], "redis");
-            let mail: serde_json::Value = loader
-                .figment()
-                .map_err(|error| figment::Error::from(error.to_string()))?
-                .extract_inner("mail")?;
-            assert_eq!(mail["driver"], "smtp");
-            assert_eq!(mail["smtp_host"], "mail.example.test");
-            let sms: serde_json::Value = loader
-                .figment()
-                .map_err(|error| figment::Error::from(error.to_string()))?
-                .extract_inner("sms")?;
-            assert_eq!(sms["driver"], "log");
-            let i18n: serde_json::Value = loader
-                .figment()
-                .map_err(|error| figment::Error::from(error.to_string()))?
-                .extract_inner("i18n")?;
-            assert_eq!(i18n["default_locale"], "zh-CN");
-            #[cfg(feature = "queue")]
-            {
-                let queue: serde_json::Value = loader
-                    .figment()
-                    .map_err(|error| figment::Error::from(error.to_string()))?
-                    .extract_inner("queue")?;
-                assert_eq!(queue["default"], "redis");
-                let queue_url = url::Url::parse(
-                    queue["connections"]["redis"]["redis_url"]
-                        .as_str()
-                        .unwrap_or_default(),
-                )
-                .map_err(|error| figment::Error::from(error.to_string()))?;
-                assert_eq!(queue_url.host_str(), Some("cache.example.test"));
-                assert_eq!(queue_url.path(), "/4");
-                assert_eq!(queue_url.password(), Some("redis%3Asecret"));
-            }
             Ok(())
         });
     }

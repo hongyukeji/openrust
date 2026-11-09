@@ -2173,3 +2173,13 @@ L044.02 以同一套读取逻辑遍历应用祖先目录、`CARGO_HOME` 与递�
 新生成 minimal 应用通过源码 Artisan 重建、Cargo check、23 项测试及实际 HTTP 200。锁文件字节保持不变时，普通构建仍拒绝递归 include 修改或可选文件新增造成的过期清单。重建后使用正确的 Provider，实际 HTTP 响应随选中的依赖切换。普通构建拒绝旧 v2 清单，源码 Artisan 可重建 v3。
 
 完整证据见 `tmp/lead-cargo-config.qka4Ps36/delivery-receipt.json`。当前按应用目录使用文件配置，`cargo --config`、其他非文件覆盖和发布平台矩阵仍开放。
+
+## 应用语言配置限定验收
+
+AR-N01/L041 的翻译 Provider 按固定 Laravel 配置路径从同一个 `app` 快照读取默认及回退语言。根应用和新生成应用从 `config/app.rs` 设定默认值，部署环境通过 `APP_LOCALE` 和 `APP_FALLBACK_LOCALE` 覆盖。显式构造 Translator 仍可提供独立的类型化参数。文件和显式数据库来源沿同一配置入口。
+
+冻结树 `25eba80718f7f5b09fc0f7d9315f8a893bebfce1` 通过格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 和离线依赖门禁。回归核对语言配置的环境变量、TOML、早期和晚期 overlay、分组消息回退、全局 JSON 查询及异常呈现。唯一示例真实 TCP 检查无语言头、未知语言头和显式请求语言下的本地化。
+
+新生成 minimal 应用通过 Cargo check 与 23 项测试。实际进程检查测试路由上的五次 HTTP 401。未指定或请求不支持的语言时返回配置默认语言，显式语言头优先。缓存使用生成时的语言，清理缓存后采用新环境值。非法语言标签启动失败且不输出输入值。证据见 `tmp/lead-core-next.rY8h72Eg/delivery-receipt.json`。
+
+当前资源快照仍要求配置语言可匹配资源。合法但缺少资源的语言、运行时语言变更、默认文件 Loader 与延迟 Provider 生命周期、`choice` 和发布平台矩阵仍按唯一 todo 跟踪。

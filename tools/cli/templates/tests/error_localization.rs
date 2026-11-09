@@ -33,8 +33,7 @@ const FORMATS: [Format; 3] = [Format::Json, Format::Html, Format::Envelope];
 async fn application(default_locale: &str) -> TestResult<Application> {
     let source = Figment::from(Serialized::defaults(FrameworkConfig::default())).merge(
         Serialized::defaults(serde_json::json!({
-            "app":{"env":"testing","debug":false},
-            "i18n":{"default_locale":default_locale,"fallback_locale":"en"}
+            "app":{"env":"testing","debug":false,"locale":default_locale,"fallback_locale":"en"}
         })),
     );
     let mut builder = ProviderBuilder::new();

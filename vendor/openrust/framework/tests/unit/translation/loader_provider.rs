@@ -34,9 +34,7 @@ impl TranslationLoader for FixedLoader {
 struct LateLocale;
 impl ServiceProvider for LateLocale {
     fn boot<'a>(&'a self, context: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(
-            async move { context.overlay("i18n", serde_json::json!({"default_locale":"zh-CN"})) },
-        )
+        Box::pin(async move { context.overlay("app", serde_json::json!({"locale":"zh-CN"})) })
     }
 }
 #[tokio::test]
@@ -51,8 +49,8 @@ async fn loader_factory_preserves_provider_identity_reads_late_config_and_constr
         let loaded = loaded.clone();
         Box::pin(async move {
             seen.fetch_add(1, Ordering::SeqCst);
-            let config = resolver.section::<TranslationConfig>("i18n")?;
-            assert_eq!(config.default_locale.as_str(), "zh-CN");
+            let config = resolver.section::<AppConfig>("app")?;
+            assert_eq!(config.locale.as_str(), "zh-CN");
             assert_eq!(config.fallback_locale.as_str(), "en");
             Ok(Arc::new(FixedLoader {
                 snapshots: loaded,
@@ -163,13 +161,7 @@ async fn later_boot_overlay_changes_repository_but_does_not_rebuild_existing_i18
         let loaded = loaded.clone();
         Box::pin(async move {
             seen.fetch_add(1, Ordering::SeqCst);
-            assert_eq!(
-                resolver
-                    .section::<TranslationConfig>("i18n")?
-                    .default_locale
-                    .as_str(),
-                "en"
-            );
+            assert_eq!(resolver.section::<AppConfig>("app")?.locale.as_str(), "en");
             Ok(Arc::new(FixedLoader {
                 snapshots: loaded,
                 fail: false,
@@ -178,13 +170,16 @@ async fn later_boot_overlay_changes_repository_but_does_not_rebuild_existing_i18
     });
     let mut builder = ProviderBuilder::new();
     builder.provider(provider).provider(LateLocale);
-    let runtime = builder.start(figment::Figment::new()).await?;
+    let source = figment::Figment::from(
+        figment::providers::Serialized::defaults(AppConfig::default()).key("app"),
+    );
+    let runtime = builder.start(source).await?;
     let outcome: Result<()> = async {
         assert_eq!(
             runtime
                 .config()
-                .section::<TranslationConfig>("i18n")?
-                .default_locale
+                .section::<AppConfig>("app")?
+                .locale
                 .as_str(),
             "zh-CN"
         );

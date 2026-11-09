@@ -64,7 +64,7 @@ fn rendering_config() -> figment::Figment {
         }}}
     })));
     config.merge(Serialized::defaults(json!({
-        "i18n": {"default_locale": "zh-CN", "fallback_locale": "en"},
+        "app": {"locale": "zh-CN", "fallback_locale": "en"},
         "cache": {"default": "memory", "stores": {"memory": {"driver": "memory"}}}
     })))
 }

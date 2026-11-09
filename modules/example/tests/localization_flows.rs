@@ -36,12 +36,11 @@ impl Fixture {
         let storage = tempfile::tempdir()?;
         let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
         let source=Figment::from(Serialized::defaults(defaults)).merge(Serialized::defaults(serde_json::json!({
-            "app":{"env":"test","debug":false},
+            "app":{"env":"test","debug":false,"locale":default_locale,"fallback_locale":"en"},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage.path()}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"localization-tests","active_key_id":"test","keys":{"test":key}}},
-            "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
-            "i18n":{"default_locale":default_locale,"fallback_locale":"en"}
+            "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));
         let app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(source))?)
             .build()

@@ -1,6 +1,7 @@
 //! 应用身份默认值；依赖清单中已完成的 server 区段。
 
 use openrust::config::{AppConfig, ConfigContext, ConfigError, Environment};
+use openrust::translation::Locale;
 
 /// 在同次 dotenv 快照上求值；其他领域通过仓储继承应用身份。
 pub fn config(ctx: &ConfigContext) -> Result<AppConfig, ConfigError> {
@@ -19,5 +20,7 @@ pub fn config(ctx: &ConfigContext) -> Result<AppConfig, ConfigError> {
         key: None,
         previous_keys: Vec::new(),
         timezone: "UTC".to_owned(),
+        locale: Locale::new("en")?,
+        fallback_locale: Locale::new("en")?,
     })
 }

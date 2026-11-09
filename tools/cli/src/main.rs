@@ -1006,10 +1006,6 @@ fn populate_project_with_features(
             "config/database.rs",
             include_str!("../templates/config/database.rs").to_owned(),
         ),
-        (
-            "config/i18n.rs",
-            include_str!("../templates/config/i18n.rs").to_owned(),
-        ),
         ("config/translation_sources.rs", include_str!("../templates/config/translation_sources.rs").to_owned()),
         ("app/providers/translation_sources.rs", include_str!("../templates/app/providers/translation_sources.rs").to_owned()),
         ("lang/en.json", "{}\n".to_owned()),
@@ -1933,7 +1929,7 @@ fn env_example(
 ) -> String {
     let mut contents = "# 复制为 .env 供本地或部署环境使用。不要提交填入实际值的 .env 文件。\n# 生产环境可使用权限受控的 .env 或部署平台注入的变量；进程环境变量优先。\n# 常用环境值和密钥放在这里；结构化默认值见 config/*.rs。\nAPP_ENV=development\nAPP_NAME=".to_owned();
     contents.push_str(name);
-    contents.push_str("\n# 服务端错误详情开关；部署环境保持 false。\nAPP_DEBUG=false\nSERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n# 用 key:generate 设置应用密钥。签名 URL 使用其原始字节。\nAPP_KEY=\n# 轮换时保留旧值用于验签，多个旧值以逗号分隔。\n# APP_PREVIOUS_KEYS=old-one,old-two\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
+    contents.push_str("\n# 服务端错误详情开关；部署环境保持 false。\nAPP_DEBUG=false\nAPP_LOCALE=en\nAPP_FALLBACK_LOCALE=en\nSERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n# 用 key:generate 设置应用密钥。签名 URL 使用其原始字节。\nAPP_KEY=\n# 轮换时保留旧值用于验签，多个旧值以逗号分隔。\n# APP_PREVIOUS_KEYS=old-one,old-two\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
     if grpc {
         contents.push_str(
             "\n# 仅本地开发可按需取消注释；生产环境请保持关闭。\n# APP_GRPC_ALLOW_INSECURE_SERVER=true\n",
@@ -1958,7 +1954,7 @@ fn env_example(
         );
     }
     contents.push_str(
-        "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\nI18N_DEFAULT_LOCALE=en\n",
+        "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\n",
     );
     contents.push_str("\n# 统一哈希默认；成本和完整策略见config/hashing.rs。\nHASH_DRIVER=bcrypt\nBCRYPT_ROUNDS=12\nHASH_VERIFY=true\nBCRYPT_LIMIT=null\nARGON_MEMORY=65536\nARGON_TIME=4\nARGON_THREADS=1\n");
     if database.is_some() {
@@ -4006,7 +4002,6 @@ mod tests {
             "config/cache.rs",
             "config/server.rs",
             "config/session.rs",
-            "config/i18n.rs",
             "config/api.rs",
             "config/auth.rs",
             "config/hashing.rs",
@@ -4318,7 +4313,6 @@ mod tests {
             "config/cache.rs",
             "config/server.rs",
             "config/session.rs",
-            "config/i18n.rs",
             "config/modules.rs",
             "src/main.rs",
             "bootstrap/app.rs",

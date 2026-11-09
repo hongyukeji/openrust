@@ -940,5 +940,5 @@ mod tests {
 mod initialization_diagnostic_tests;
 
 #[cfg(test)]
-#[path = "error_i18n_tests.rs"]
+#[path = "../../tests/unit/core/error_i18n.rs"]
 mod i18n_tests;

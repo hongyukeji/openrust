@@ -401,7 +401,7 @@ async fn provider_installs_the_resolved_app_catalog_without_http_dependency() ->
     let runtime = builder
         .start(figment::Figment::from(
             figment::providers::Serialized::defaults(
-                serde_json::json!({"i18n":{"default_locale":"zh-CN","fallback_locale":"en"}}),
+                serde_json::json!({"app":{"locale":"zh-CN","fallback_locale":"en"}}),
             ),
         ))
         .await?;

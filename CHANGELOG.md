@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 默认语言与回退语言统一由 `app.locale` 和 `app.fallback_locale` 配置。部署环境改用 `APP_LOCALE` 和 `APP_FALLBACK_LOCALE`。
+
 - 容器可按类型或具名服务键首次装载延迟 Provider。应用可查询或显式装载剩余项。
 - 延迟 Provider 可通过 `when()` 声明触发事件，复用应用的派发与注册机制。
 - 正式启动生成并复用有序 Provider 服务清单，应用命令 `clear-compiled` 清除选定的服务和包缓存。
