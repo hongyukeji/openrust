@@ -1867,6 +1867,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 默认工作区格式、严格 Clippy、测试、严格 Rustdoc 和离线依赖检查通过。真实 MySQL 8.4.13；工作区 2979 项，`blog` 33 项，`artisan` 33 项通过。进程测试覆盖 `artisan/public/storage/modules/bin` 五种冲突名、参数透传、搬迁及 127/126 错误。
 
+## 迁移确认与路径编码限定验收
+
+冻结树 `fff0dcfe1a4155d8af2144568ea366ed823ae9f5` 的实际根应用在精确 production 下拒绝无确认的迁移和回滚。无终端、管道肯定输入、非交互、终端否与空输入均未连接数据库。真实 MySQL 8.4.13 与 Redis 验证终端同意、显式强制、默认与命名库隔离、拒绝回滚无写入，以及缺历史和已有历史的 status 只读。根应用的真实迁移与 ARM64 Compose 使用生产源码相同的树 `1c6be577d65fc7463bc55afe365e6cc74ed75a9a`，最终差异只有 HTTP 测试断言。根和 fresh MySQL 生成 Compose 均实际以非 root 及显式授权迁移。SQLite 生成配置核对参数及空文件保护。
+
+已发布目录的 Artisan 拒绝未完成标记。默认 HTTP 路径编码验证通过实际 TCP、路由、静态资源、fallback 和 CORS 前置测试。畸形百分号字面及单次合法解码保留。工作区格式、严格 Clippy、测试、Rustdoc、离线依赖、fresh minimal check/test 与可选翻译数据库的真实 MySQL 测试通过。
+
 ## Artisan Linux 发布目录限定验收
 
 冻结树 `4268d0f414bbfa56b3e8e4a58f7180a2bafdd5e0` 对照固定 Laravel 的源码 Artisan 入口与固定 Goravel 的构建工作流。根应用和搬迁至含空格路径的 fresh minimal 均实际从源码运行 `./artisan build`，使用同一 Compose/Buildx artifacts 目标并导出各自具名的单一 ELF64。根走默认目录，minimal 走含空格、逗号及引号的显式路径。保留应用资源与空可写目录。

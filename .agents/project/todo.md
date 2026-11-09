@@ -60,7 +60,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。根应用发布 `bin/openrust`，生成应用发布 `bin/<项目名>`。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
 
-- **优先安全整改：生产迁移确认。** `./artisan build` 批次收口后由 root 领取。固定 Laravel 的生产 `migrate` 和回滚在连接、锁及写入前默认拒绝，显式 `--force` 才跳过。已有 `migrate down` 同保护，`migrate status` 保持只读。对根和生成 Compose 的自动迁移显式授权，验证无终端、PTY、参数解析和真实 MySQL 历史/业务表。同步部署文档的 `bin/<项目名>` 与迁移命令。
+- **编译部署扩展纠偏，紧接生产迁移。** 旧 ARM64 产物运行证据只覆盖已交付布局。固定 Laravel 没有 `build`，其标准 Artisan 目录、帮助、环境参数与部署工作流仍为验收基线；固定 Goravel 的编译命令经同一 Artisan 登记。OpenRust 当前脚本直接分流，`list`、`help build`、前置 `--env` 与执行入口不一致；发布目录保留标记未被 Artisan 强制检查。纠正同一命令生命周期，逐项记录编译工具、支持平台、默认值、输出和诊断差异，独立修正包根具名二进制并检验保留名称冲突。保留显式 Buildx 交付和固定 Laravel 的公开目录、可写目录与部署命令验收。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
@@ -503,6 +503,14 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 ## 23项静态纠偏的唯一执行映射
 
 来源[固定行为整改对照](plans/laravel-rebuild.md#执行偏离的纠正)。2026-11-02 已将三域46项审计逐项去重归入本表、既有C04-F/G和阶段二，不增第二队列。报告与manifest SHA核一致；取证来源仍为固定framework `d52c3b3`、docs `960eedf`，原草稿priority-five和旧行号不改变用户首批配置→bootstrap/app→固定API→模块启停/发现→DB门控顺序。
+
+近期重新核实的行为映射，仍由下表对应条目领取：
+
+- R3/L015。默认 ValidatePathEncoding 的非法 UTF-8 路径前置拒绝已通过[限定验收](memory/testing.md#迁移确认与路径编码限定验收)。CORS 的 Laravel 默认路径、通配方法/头、凭据与 max_age、host/skip callback，以及 middleware.disable 对 TrimStrings/ConvertEmptyStringsToNull 的交叉行为须补验。现有参数提取不能作为 SubstituteBindings 的模型/枚举绑定证据。
+- R7 与阶段二 Fortify。注册、密码重置、资料和密码更新、Passkeys 的已启用配置须与实际 Web 路由逐项吻合。补 SESSION_ENCRYPT/SESSION_STORE、AUTH_GUARD/AUTH_PASSWORD_TIMEOUT/AUTH_PASSWORD_BROKER 与具名服务，沿已有 Session、Guard 与通用限流机制验收。
+- R8/C14 与 R10/C18–C19。缓存前缀应读取 CACHE_PREFIX 并以有效应用名派生缺省值，验证共用 Redis 的应用隔离。Cache/Queue 的具名默认及延迟装配、队列连接/表/retry_after 配置和事务提交后派发、事件接口监听继续按各自语义验收。
+- R8/C15。固定文件系统读取 FILESYSTEM_DISK，默认 local 私有根与 public disk 独立，并由 storage:link 建立公开映射。现有根和生成配置的 storage/app 单根无法证明这一边界。分别验真实公开路径、私有目录不可读及链接初始化。
+- R13 与模块化。现有命令只返回成功或失败，须对照 Artisan 自定义退出码和可测试交互输入输出。编译及运行发现两条模块链均须验证具名 modules 与 Repository 类型解析同一实例，补迁移与翻译自动发现开关的实际行为。
 
 “确认缺口”不否定既有资产；“已编码待验”仅指未具当前contract证据的子行为；“已验子范围”不关闭全家族。必要Rust适配须写具体编译/类型/所有权/async约束与等价证据，不能据其省略功能。用户特约/授权增强与完成状态分别记录。原报告中“无运行期Provider注册”和本批“仅WIP”已纠正，历史真实验收保持。
 

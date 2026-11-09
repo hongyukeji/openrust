@@ -75,6 +75,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 根应用的 Docker Compose 将应用存储、MySQL 和 Redis 持久化到宿主机目录，并只读挂载可配置的 `public` 目录。
 - 根应用、新项目和 Linux 部署包提供统一的 `./artisan` 应用命令入口。
 - 源码 `./artisan build` 复用 Compose/Buildx 导出具名 Linux 发布目录，保留运行资源及空的存储和缓存目录。
+- 生产数据库迁移和回滚要求终端确认或显式 `--force`。迁移状态查询只读，未完成的发布目录拒绝执行 Artisan。
+- 默认 HTTP 中间件在 CORS 和路由前拒绝解码后含非法 UTF-8 的路径。
 - 容器支持与环境 `Bind` 按声明顺序执行的异步 `BindWhen` 条件。
 - 容器支持按应用环境惰性登记 `Bind` 类绑定。
 - 默认应用按作用域提供日志 Context，并支持构造属性与独立的日志 `extra` 字段。
