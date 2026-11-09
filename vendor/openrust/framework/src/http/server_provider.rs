@@ -125,7 +125,9 @@ mod provider_tests {
                 .is_ok()
         );
         assert_eq!(
-            runtime.extension::<RouteRegistry>().map(RouteRegistry::len),
+            runtime
+                .extension::<RouteRegistry>()
+                .map(|routes| routes.len()),
             Some(1)
         );
         assert!(runtime.commands().any(|command| command.name() == "serve"));

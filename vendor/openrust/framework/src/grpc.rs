@@ -885,12 +885,15 @@ impl GrpcServer {
     /// 从服务注册表和配置构建 server；不绑定端口或启动后台任务。
     pub async fn from_app(app: &Application) -> Result<Self> {
         app.state().resolve::<GrpcPluginInstalled>().await?;
-        let registry = app.extension::<GrpcServiceRegistry>().ok_or_else(|| {
-            Error::custom(
-                "grpc_service_registry_missing",
-                "GrpcServiceProvider 未注册到当前应用",
-            )
-        })?;
+        let registry = app
+            .extension::<GrpcServiceRegistry>()
+            .map(|registry| (*registry).clone())
+            .ok_or_else(|| {
+                Error::custom(
+                    "grpc_service_registry_missing",
+                    "GrpcServiceProvider 未注册到当前应用",
+                )
+            })?;
         let config = &app.config().grpc;
         config.validate()?;
         if !(1..=3600).contains(&app.config().server.shutdown_timeout_secs) {
@@ -1409,9 +1412,11 @@ impl crate::support::ServiceProvider for GrpcServiceProvider {
             )?;
             app.resolve::<GrpcClientRegistry>().await?;
             let registry = app.resolve::<GrpcServiceRegistry>().await?;
-            let extension = app.extension_mut::<GrpcServiceRegistry>()?;
-            registry.absorb(extension)?;
-            *extension = (*registry).clone();
+            {
+                let mut extension = app.extension_mut::<GrpcServiceRegistry>()?;
+                registry.absorb(&extension)?;
+                *extension = (*registry).clone();
+            }
             let config = app.config_repository();
             app.validate_at_finalize(move || {
                 Box::pin(async move {

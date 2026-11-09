@@ -113,18 +113,18 @@ async fn default_provider_handler_preserves_catalog_fallback_empty_and_scope_wit
         );
         // 无HTTP/无locale上下文的Handler也使用同一已发布目录，允许空字符串和跨语言错误回退。
         render(
-            handler,
+            &handler,
             "application_missing",
             "fallback application message",
             "zh-CN",
         )
         .await?;
-        render(handler, "application_empty", "", "zh-CN").await?;
+        render(&handler, "application_empty", "", "zh-CN").await?;
         service
             .with_locale(Locale::new("en-GB")?, async {
-                render(handler, "language_only", "language resource", "en-GB").await?;
+                render(&handler, "language_only", "language resource", "en-GB").await?;
                 render(
-                    handler,
+                    &handler,
                     "application_missing",
                     "fallback application message",
                     "en-GB",
@@ -135,7 +135,7 @@ async fn default_provider_handler_preserves_catalog_fallback_empty_and_scope_wit
             .await?;
         service
             .with_locale(Locale::new("zh-CN")?, async {
-                render(handler, "application_empty", "", "zh-CN").await?;
+                render(&handler, "application_empty", "", "zh-CN").await?;
                 assert_eq!(
                     Error::custom("application_empty", "raw")
                         .to_api_response()

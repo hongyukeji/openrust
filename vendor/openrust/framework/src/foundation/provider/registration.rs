@@ -110,23 +110,16 @@ impl ProviderRegistry {
 }
 
 /// 已启动 App 的即时 boot 上下文；启动阶段仍由原统一屏障负责 boot。
-pub(crate) struct LiveBoot<'a> {
+#[derive(Clone)]
+pub(crate) struct LiveBoot {
     pub(crate) resources: ResourceRegistrar,
-    pub(crate) extensions: &'a mut Extensions,
-    pub(crate) commands: &'a CommandRegistry,
+    pub(crate) extensions: Extensions,
+    pub(crate) commands: CommandRegistry,
 }
 
-impl LiveBoot<'_> {
-    pub(crate) fn reborrow(&mut self) -> LiveBoot<'_> {
-        LiveBoot {
-            resources: self.resources.clone(),
-            extensions: &mut *self.extensions,
-            commands: self.commands,
-        }
-    }
-
+impl LiveBoot {
     pub(crate) async fn booted(
-        &mut self,
+        &self,
         container: &Container,
         config: &mut ConfigRepository,
         startup_callbacks: &StartupCallbacks,
@@ -143,8 +136,8 @@ impl LiveBoot<'_> {
             config,
             resources: self.resources.clone(),
             required: &mut required,
-            extensions: self.extensions,
-            commands: self.commands,
+            extensions: &self.extensions,
+            commands: &self.commands,
             finalizers: &mut finalizers,
             startup_callbacks,
             provider_callbacks: None,
@@ -211,7 +204,7 @@ pub(crate) fn register<'a>(
     container: &'a Container,
     config: &'a mut ConfigRepository,
     deferred_required: &'a mut Vec<Required>,
-    mut live: Option<LiveBoot<'a>>,
+    live: Option<LiveBoot>,
 ) -> BoxFuture<'a, Result<ProviderId>> {
     Box::pin(async move {
         let id = provider.id();
@@ -243,7 +236,7 @@ pub(crate) fn register<'a>(
                 owner: id,
                 force,
                 registry,
-                live_boot: live.as_mut().map(LiveBoot::reborrow),
+                live_boot: live.clone(),
                 provider_callbacks: &mut callbacks,
             })
             .await?;
@@ -278,8 +271,8 @@ pub(crate) fn register<'a>(
                     config,
                     resources: live.resources,
                     required: &mut required,
-                    extensions: live.extensions,
-                    commands: live.commands,
+                    extensions: &live.extensions,
+                    commands: &live.commands,
                     finalizers: &mut finalizers,
                     startup_callbacks: &registry.startup_callbacks,
                     provider_callbacks: None,

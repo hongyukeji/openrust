@@ -2952,9 +2952,9 @@ mod return_roles_tests {
                     repository: app.config_repository(),
                     testing_boot: false,
                 };
-                let registry = &mut app
-                    .extension_mut::<crate::routing::registration::RouteRegistry>()?
-                    .middleware;
+                let mut routes =
+                    app.extension_mut::<crate::routing::registration::RouteRegistry>()?;
+                let registry = &mut routes.middleware;
                 registry.alias(
                     "fixture-cookie".into(),
                     Arc::new(move |name| {
@@ -2976,6 +2976,7 @@ mod return_roles_tests {
                         }),
                     )?;
                 }
+                drop(routes);
                 app.exceptions(|handler| {
                     handler.api_envelope_when(|request, _| request.path() == "/two-roles");
                 })?;

@@ -850,18 +850,16 @@ impl Application {
     /// 返回本应用 Provider 已登记的异常 Handler；未登记时返回 `None`。
     ///
     /// 外部调用方可复用本应用的翻译目录与异常策略，不另建默认 Handler。
-    pub fn exception_handler(&self) -> Option<&ExceptionHandler> {
+    pub fn exception_handler(&self) -> Option<ExceptionHandler> {
         self.extension::<ExceptionRegistry>()
-            .map(|registry| &registry.0)
+            .map(|registry| registry.0.clone())
     }
 
     /// 使用本应用 Provider 登记的报告策略处理 CLI、队列或调度器异常。
     pub fn report_exception(&self, error: &Error) {
-        if let Some(registry) = self.extension::<ExceptionRegistry>() {
-            registry.0.report_error(error);
-        } else {
-            ExceptionHandler::default().report_error(error);
-        }
+        self.exception_handler()
+            .unwrap_or_default()
+            .report_error(error);
     }
 }
 

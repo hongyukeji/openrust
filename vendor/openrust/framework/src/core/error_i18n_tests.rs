@@ -412,7 +412,7 @@ async fn provider_installs_the_resolved_app_catalog_without_http_dependency() ->
             .ok_or_else(|| Error::custom("test_handler_missing", "应用异常策略未安装"))?;
         for format in FORMATS {
             assert_message(
-                &body(handler, format, Error::Unauthorized, false).await?,
+                &body(&handler, format, Error::Unauthorized, false).await?,
                 format,
                 "需要身份验证",
                 "zh-CN",

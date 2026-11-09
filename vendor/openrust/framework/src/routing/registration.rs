@@ -11,10 +11,10 @@ use axum::routing::Route as AxumRoute;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tower::{Layer, Service};
-pub(crate) type RouteBuilder = Box<dyn Fn(Router) -> Router + Send + Sync>;
+pub(crate) type RouteBuilder = Arc<dyn Fn(Router) -> Router + Send + Sync>;
 
 /// 注册阶段收集的路由构建器；构建 router 时按顺序应用。
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct RouteRegistry {
     pub(crate) builders: Vec<RouteBuilder>,
     pub(crate) middleware: MiddlewareRegistry,
@@ -54,7 +54,7 @@ impl BootContext<'_> {
     {
         self.extension_mut::<RouteRegistry>()?
             .builders
-            .push(Box::new(builder));
+            .push(Arc::new(builder));
         Ok(self)
     }
 
@@ -80,12 +80,14 @@ impl BootContext<'_> {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        let except = &mut self.extension_mut::<RouteRegistry>()?.signed_except;
-        for key in keys.into_iter().map(Into::into) {
-            if !except.contains(&key) {
-                except.push(key);
+        let keys: Vec<String> = keys.into_iter().map(Into::into).collect();
+        let mut registry = self.extension_mut::<RouteRegistry>()?;
+        for key in keys {
+            if !registry.signed_except.contains(&key) {
+                registry.signed_except.push(key);
             }
         }
+        drop(registry);
         Ok(self)
     }
 
@@ -100,9 +102,10 @@ impl BootContext<'_> {
     {
         let builder: MiddlewareLayerBuilder =
             Arc::new(move |name| Ok(methods::tower_binding(layer.clone(), Some(name), None)));
+        let name = name.into();
         self.extension_mut::<RouteRegistry>()?
             .middleware
-            .alias(name.into(), builder)?;
+            .alias(name, Arc::clone(&builder))?;
         Ok(self)
     }
 
@@ -123,18 +126,16 @@ impl BootContext<'_> {
         <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
         <L::Service as Service<Request>>::Future: Send + 'static,
     {
+        let name = name.into();
+        let factory: super::router::MiddlewareParameterFactory = Arc::new(move |parameters| {
+            let layer = factory(parameters)?;
+            let builder: MiddlewareLayerBuilder =
+                Arc::new(move |name| Ok(methods::tower_binding(layer.clone(), Some(name), None)));
+            Ok(builder)
+        });
         self.extension_mut::<RouteRegistry>()?
             .middleware
-            .parameter_alias(
-                name.into(),
-                Arc::new(move |parameters| {
-                    let layer = factory(parameters)?;
-                    let builder: MiddlewareLayerBuilder = Arc::new(move |name| {
-                        Ok(methods::tower_binding(layer.clone(), Some(name), None))
-                    });
-                    Ok(builder)
-                }),
-            )?;
+            .parameter_alias(name, Arc::clone(&factory))?;
         Ok(self)
     }
 
@@ -145,8 +146,9 @@ impl BootContext<'_> {
         name: impl Into<String>,
     ) -> Result<&mut Self> {
         use crate::http::middleware::{handle_terminable, terminate_middleware};
-        let registry = &mut self.extension_mut::<RouteRegistry>()?.middleware;
         let name = name.into();
+        let mut routes = self.extension_mut::<RouteRegistry>()?;
+        let registry = &mut routes.middleware;
         let identity = std::any::TypeId::of::<M>();
         registry.parameter_alias(
             name.clone(),
@@ -168,6 +170,7 @@ impl BootContext<'_> {
             }),
         )?;
         registry.terminable_types.insert(name, identity);
+        drop(routes);
         Ok(self)
     }
 
@@ -181,10 +184,11 @@ impl BootContext<'_> {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
+        let name = name.into();
         let members = members.into_iter().map(Into::into).collect();
         self.extension_mut::<RouteRegistry>()?
             .middleware
-            .group(name.into(), members)?;
+            .group(name, members)?;
         Ok(self)
     }
 
@@ -197,25 +201,28 @@ impl BootContext<'_> {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
+        let names = names.into_iter().map(Into::into).collect();
         self.extension_mut::<RouteRegistry>()?
             .middleware
-            .priority(names.into_iter().map(Into::into).collect())?;
+            .priority(names)?;
         Ok(self)
     }
 
     /// 将一个 alias 放到路由优先级表首部；不改变全局 HTTP layer。
     pub fn prepend_middleware_priority(&mut self, name: impl Into<String>) -> Result<&mut Self> {
+        let name = name.into();
         self.extension_mut::<RouteRegistry>()?
             .middleware
-            .prepend_priority(name.into())?;
+            .prepend_priority(name)?;
         Ok(self)
     }
 
     /// 将一个 alias 放到路由优先级表尾部；不改变全局 HTTP layer。
     pub fn append_middleware_priority(&mut self, name: impl Into<String>) -> Result<&mut Self> {
+        let name = name.into();
         self.extension_mut::<RouteRegistry>()?
             .middleware
-            .append_priority(name.into())?;
+            .append_priority(name)?;
         Ok(self)
     }
 }

@@ -2499,6 +2499,7 @@ dependencies = [
  "jsonwebtoken",
  "lettre",
  "macros",
+ "parking_lot",
  "pcre2",
  "prost",
  "redis",

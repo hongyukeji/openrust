@@ -2290,6 +2290,7 @@ dependencies = [
  "axum-core",
  "base64 0.22.1",
  "bcrypt",
+ "bigdecimal",
  "bytes",
  "chrono",
  "chrono-tz",
@@ -2307,9 +2308,11 @@ dependencies = [
  "icu_decimal",
  "icu_locale",
  "icu_plurals",
+ "indexmap",
  "jsonwebtoken",
  "lettre",
  "macros",
+ "parking_lot",
  "pcre2",
  "redis",
  "rustix",
@@ -2333,6 +2336,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "validator",
+ "zeroize",
 ]
 
 [[package]]

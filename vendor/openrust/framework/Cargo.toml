@@ -46,6 +46,7 @@ cookie.workspace = true
 httpdate = { workspace = true, optional = true }
 ipnet = { workspace = true, optional = true }
 indexmap = "2"
+parking_lot = { version = "0.12.5", features = ["arc_lock"] }
 jsonwebtoken = { workspace = true, optional = true }
 lettre.workspace = true
 minijinja = { workspace = true, optional = true }

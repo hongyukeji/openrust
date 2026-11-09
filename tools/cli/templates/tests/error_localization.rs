@@ -51,7 +51,6 @@ async fn rendered(
 ) -> TestResult {
     let mut handler = app
         .exception_handler()
-        .cloned()
         .ok_or("I18n Provider did not install ExceptionHandler")?;
     if matches!(format, Format::Envelope) {
         handler.api_envelope_when(|_, _| true);

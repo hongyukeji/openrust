@@ -549,20 +549,21 @@ pub(crate) fn finalize_layers(
         Some(BuiltinLayer::Cookie(layer)) if layer.is_protected() => Some(Arc::clone(layer)),
         _ => None,
     });
-    if let Ok(mut entries) = entries.lock() {
-        for entry in entries.iter_mut() {
-            entry.terminating = Arc::clone(&terminating);
-            #[cfg(feature = "session")]
-            {
-                entry.protected_cookie.clone_from(&protected_cookie);
+    let mut entries = entries
+        .lock()
+        .map_err(|_| crate::Error::custom("http_route_context_poisoned", "请求路由上下文不可用"))?;
+    for entry in entries.iter_mut() {
+        entry.terminating = Arc::clone(&terminating);
+        #[cfg(feature = "session")]
+        {
+            entry.protected_cookie.clone_from(&protected_cookie);
+        }
+        if !middleware.is_empty() {
+            let mut handler = Arc::clone(&entry.handler);
+            for binding in middleware.iter().rev() {
+                handler = (binding.apply)(handler);
             }
-            if !middleware.is_empty() {
-                let mut handler = Arc::clone(&entry.handler);
-                for binding in middleware.iter().rev() {
-                    handler = (binding.apply)(handler);
-                }
-                entry.with_middleware = Some(handler);
-            }
+            entry.with_middleware = Some(handler);
         }
     }
     Ok(())

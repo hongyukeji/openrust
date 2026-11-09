@@ -30,7 +30,7 @@ impl ServiceProvider for ModelDateFactoryProbe {
         app: &'a mut openrust::foundation::BootContext<'_>,
     ) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            let calendar = app.extension_mut::<CalendarContext>()?;
+            let mut calendar = app.extension_mut::<CalendarContext>()?;
             let calls = self.0.clone();
             *calendar = calendar
                 .clone()

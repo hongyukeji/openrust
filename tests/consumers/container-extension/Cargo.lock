@@ -2110,6 +2110,7 @@ dependencies = [
  "indexmap",
  "lettre",
  "macros",
+ "parking_lot",
  "pcre2",
  "rustix",
  "sea-orm",

@@ -1,7 +1,7 @@
 //! 统一 `ServiceProvider` 的注册、配置与启动生命周期。
 
 use crate::support::ServiceProvider;
-use std::any::{Any, TypeId, type_name};
+use std::any::{TypeId, type_name};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -16,8 +16,10 @@ use tokio::time::Instant;
 use crate::config::repository::{ConfigRepository, SectionSchema};
 use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 
+use super::extensions::Extensions;
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use super::termination::TerminationCallbacks;
+use super::{ExtensionMut, ExtensionRef};
 use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
 use crate::container::{
@@ -31,15 +33,14 @@ mod preparation;
 pub(crate) mod registration;
 pub use preparation::{ProviderPreparation, ProviderRegistration};
 
-pub(crate) type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
-
 /// `TestAppBuilder` 启动身份；只有最终 Testing 环境可使用 CSRF 测试豁免。
+#[derive(Default)]
 pub(crate) struct TestingBoot;
 pub(crate) type Required = Box<dyn Fn(&Container) -> BoxFuture<'_, Result<()>> + Send + Sync>;
 pub(crate) type Finalizer = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;
 type AppConfigRegistration = Box<dyn FnOnce(&mut ContainerBuilder, ConfigRepository) + Send>;
 type BindingOverride = Box<dyn FnOnce(Container) -> BoxFuture<'static, Result<()>> + Send>;
-type DeferredBootValidator = Box<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
+type DeferredBootValidator = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
 pub(crate) type BootHook =
     dyn for<'b> Fn(&'b mut BootContext<'_>) -> BoxFuture<'b, Result<()>> + Send + Sync;
 
@@ -137,6 +138,7 @@ impl Drop for StartupCallbacks {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct DeferredBootCheck {
     pub(crate) permitted_command: TypeId,
     pub(crate) validate: DeferredBootValidator,
@@ -175,7 +177,7 @@ pub struct RegisterContext<'a> {
     owner: ProviderId,
     force: bool,
     registry: &'a registration::ProviderRegistry,
-    live_boot: Option<registration::LiveBoot<'a>>,
+    live_boot: Option<registration::LiveBoot>,
     provider_callbacks: &'a mut ProviderBootCallbacks,
 }
 
@@ -238,7 +240,7 @@ impl RegisterContext<'_> {
         + 'static,
     ) -> Result<()> {
         let callback: Arc<BootHook> = Arc::new(callback);
-        if let Some(live) = self.live_boot.as_mut() {
+        if let Some(live) = self.live_boot.as_ref() {
             live.booted(
                 self.container,
                 self.config,
@@ -403,9 +405,7 @@ impl RegisterContext<'_> {
             self.container,
             self.config,
             self.required,
-            self.live_boot
-                .as_mut()
-                .map(registration::LiveBoot::reborrow),
+            self.live_boot.clone(),
         )
         .await
     }
@@ -737,7 +737,7 @@ pub struct BootContext<'a> {
     pub(crate) config: &'a mut ConfigRepository,
     pub(crate) resources: ResourceRegistrar,
     pub(crate) required: &'a mut Vec<Required>,
-    pub(crate) extensions: &'a mut Extensions,
+    pub(crate) extensions: &'a Extensions,
     pub(crate) commands: &'a CommandRegistry,
     pub(crate) finalizers: &'a mut Vec<Finalizer>,
     pub(crate) startup_callbacks: &'a StartupCallbacks,
@@ -939,7 +939,7 @@ impl BootContext<'_> {
             .0
             .push(DeferredBootCheck {
                 permitted_command,
-                validate: Box::new(validate),
+                validate: Arc::new(validate),
             });
         Ok(())
     }
@@ -1053,15 +1053,24 @@ impl BootContext<'_> {
         self.commands.register(command);
     }
 
-    /// 取得领域贡献登记器；不能通过它重绑容器服务。
-    pub fn extension_mut<T: Default + Send + Sync + 'static>(&mut self) -> Result<&mut T> {
-        let entry = self
-            .extensions
-            .entry(TypeId::of::<T>())
-            .or_insert_with(|| Box::new(T::default()));
-        entry
-            .downcast_mut::<T>()
-            .ok_or_else(|| Error::custom("extension_type_mismatch", "领域贡献类型内部不匹配"))
+    /// 短期修改指定类型的贡献。先释放借用，再异步解析服务或再次访问同类型。
+    ///
+    /// 从临时借用取出的字段引用也会将写锁保留到当前作用域结束。
+    ///
+    /// ```compile_fail
+    /// use openrust::{Result, foundation::BootContext};
+    ///
+    /// fn register(boot: &mut BootContext<'_>) -> Result<()> {
+    ///     let names = &mut boot.extension_mut::<Vec<String>>()?[..];
+    ///     names.reverse();
+    ///     boot.extension_mut::<Vec<String>>()?.clear();
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn extension_mut<T: Default + Send + Sync + 'static>(
+        &mut self,
+    ) -> Result<ExtensionMut<'_, T>> {
+        self.extensions.get_or_default()
     }
 }
 
@@ -1088,10 +1097,8 @@ impl ProviderRuntime {
     }
 
     /// 按具体类型读取领域贡献。
-    pub fn extension<T: Send + Sync + 'static>(&self) -> Option<&T> {
-        self.extensions
-            .get(&TypeId::of::<T>())
-            .and_then(|value| value.downcast_ref::<T>())
+    pub fn extension<T: Send + Sync + 'static>(&self) -> Option<ExtensionRef<'_, T>> {
+        self.extensions.get()
     }
 
     /// 按登记顺序读取持有实例的命令快照；后续替换不影响本次快照。
@@ -1519,9 +1526,9 @@ impl ProviderBuilder {
         let mut required = Vec::new();
         let mut active = registration::ProviderRegistry::new(self.removed.clone());
         active.startup_callbacks = self.startup_callbacks;
-        let mut extensions = Extensions::new();
+        let extensions = Extensions::default();
         if self.testing_boot {
-            extensions.insert(TypeId::of::<TestingBoot>(), Box::new(TestingBoot));
+            drop(extensions.get_or_default::<TestingBoot>()?);
         }
         let commands = CommandRegistry::default();
         let mut finalizers = Vec::new();
@@ -1555,7 +1562,7 @@ impl ProviderBuilder {
                     config: &mut config,
                     resources: resources.owner()?.registrar(),
                     required: &mut required,
-                    extensions: &mut extensions,
+                    extensions: &extensions,
                     commands: &commands,
                     finalizers: &mut finalizers,
                     startup_callbacks: &active.startup_callbacks,

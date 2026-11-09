@@ -1,7 +1,6 @@
 //! 应用组装入口：[`ApplicationDefinition`]、[`Application`] 和 [`ApplicationState`]。
 
-use std::any::{Any, TypeId, type_name};
-use std::collections::HashMap;
+use std::any::type_name;
 use std::sync::Arc;
 
 use figment::Figment;
@@ -15,7 +14,9 @@ use crate::console::command_registry::CommandRegistry;
 use crate::container::{Container, ParameterOverrides, Scope, ServiceKey};
 use crate::core::error::{Error, Result};
 use crate::events::Events;
+use crate::foundation::ExtensionRef;
 use crate::foundation::events::Terminating;
+use crate::foundation::extensions::Extensions;
 use crate::foundation::lifecycle_duration::{EntryStarted, KernelDurationHandlers};
 use crate::foundation::provider::ProviderRuntime;
 use crate::foundation::provider::registration;
@@ -91,8 +92,6 @@ pub trait ApplicationDefinition: Send + Sync + 'static {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("service `{0}` is not registered; register it in a ServiceProvider")]
 pub struct MissingServiceError(pub &'static str);
-
-type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 
 struct StateInner {
     framework: FrameworkConfig,
@@ -424,7 +423,7 @@ impl Application {
         let request_durations = self.state.inner.durations.requests.take();
         let command_durations = self.state.inner.durations.commands.take();
         let commands = self.commands.take_entries();
-        let extensions = std::mem::take(&mut self.extensions);
+        let extensions = self.extensions.take();
         let mut failed = container.dispose();
         for callback in startup_callbacks {
             failed |= disposal::dispose(callback, None).seen;
@@ -444,7 +443,7 @@ impl Application {
         for command in commands {
             failed |= disposal::dispose(command, None).seen;
         }
-        for extension in extensions.into_values() {
+        for extension in extensions {
             failed |= disposal::dispose(extension, None).seen;
         }
         if failed {
@@ -480,8 +479,8 @@ impl Application {
         let mut config = self.state.config_repository();
         LiveBoot {
             resources: self.state.inner.provider_resources.registrar(),
-            extensions: &mut self.extensions,
-            commands: &self.commands,
+            extensions: self.extensions.clone(),
+            commands: self.commands.clone(),
         }
         .booted(
             &self.state.inner.services,
@@ -575,8 +574,8 @@ impl Application {
             &mut required,
             Some(LiveBoot {
                 resources: self.state.inner.provider_resources.registrar(),
-                extensions: &mut self.extensions,
-                commands: &self.commands,
+                extensions: self.extensions.clone(),
+                commands: self.commands.clone(),
             }),
         )
         .await
@@ -673,11 +672,9 @@ impl Application {
         self.commands.snapshot().into_iter()
     }
 
-    /// 注册阶段填充的 crate 专属扩展容器。
-    pub fn extension<T: Send + Sync + 'static>(&self) -> Option<&T> {
-        self.extensions
-            .get(&TypeId::of::<T>())
-            .and_then(|item| item.downcast_ref::<T>())
+    /// 短期读取当前应用的 Provider 贡献。异步工作前释放借用。
+    pub fn extension<T: Send + Sync + 'static>(&self) -> Option<ExtensionRef<'_, T>> {
+        self.extensions.get()
     }
 
     /// 使用 `args` 运行名为 `name` 的命令；调用方可继续复用应用，最后显式关闭。
@@ -775,11 +772,13 @@ impl Application {
 
     async fn run_command_inner(&self, name: &str, args: &[String]) -> Result<()> {
         let command = self.find_command(name, args)?;
-        if let Some(checks) = self.extension::<super::provider::DeferredBootChecks>() {
-            for check in &checks.0 {
-                if command.as_ref().type_id() != check.permitted_command {
-                    (check.validate)().await?;
-                }
+        let checks = self
+            .extension::<super::provider::DeferredBootChecks>()
+            .map(|checks| checks.0.clone())
+            .unwrap_or_default();
+        for check in checks {
+            if command.as_ref().type_id() != check.permitted_command {
+                (check.validate)().await?;
             }
         }
         let consumed = if command.name() == name {

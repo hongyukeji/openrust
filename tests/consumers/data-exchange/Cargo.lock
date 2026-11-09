@@ -2235,6 +2235,8 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-core",
+ "base64 0.22.1",
+ "bigdecimal",
  "bytes",
  "calamine",
  "chrono",
@@ -2254,8 +2256,10 @@ dependencies = [
  "icu_decimal",
  "icu_locale",
  "icu_plurals",
+ "indexmap",
  "lettre",
  "macros",
+ "parking_lot",
  "pcre2",
  "quick-xml",
  "redis",
@@ -2281,6 +2285,7 @@ dependencies = [
  "url",
  "uuid",
  "validator",
+ "zeroize",
  "zip",
 ]
 

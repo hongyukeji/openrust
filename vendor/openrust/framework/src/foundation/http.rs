@@ -131,13 +131,14 @@ pub(crate) fn current_route_parameter(
         .unwrap_or(Ok(None))
 }
 
-type RouterLayerBuilder = Box<dyn Fn(AxumRouter) -> Result<AxumRouter> + Send + Sync>;
+type RouterLayerBuilder = Arc<dyn Fn(AxumRouter) -> Result<AxumRouter> + Send + Sync>;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RouterLayerRegistry {
     builders: Vec<RouterLayerRegistration>,
 }
 
+#[derive(Clone)]
 struct RouterLayerRegistration {
     build: RouterLayerBuilder,
     terminate: Option<(std::any::TypeId, TerminateMiddleware)>,
@@ -243,7 +244,7 @@ impl BootContext<'_> {
         self.extension_mut::<RouterLayerRegistry>()?
             .builders
             .push(RouterLayerRegistration {
-                build: Box::new(move |router| Ok(router.layer(GlobalMiddlewareLayer(factory()?)))),
+                build: Arc::new(move |router| Ok(router.layer(GlobalMiddlewareLayer(factory()?)))),
                 terminate: None,
             });
         Ok(self)
@@ -252,16 +253,18 @@ impl BootContext<'_> {
     /// 将容器绑定的 `M` 登记为全局 HTTP 中间件，并在响应完成后重新解析它。
     /// 沿共享 HTTP layer 的顺序执行，后登记的 layer 包裹先登记的 layer。
     pub fn http_middleware_terminable<M: TerminableMiddleware>(&mut self) -> Result<&mut Self> {
-        let layers = &mut self.extension_mut::<RouterLayerRegistry>()?.builders;
+        let mut registry = self.extension_mut::<RouterLayerRegistry>()?;
+        let layers = &mut registry.builders;
         let identity = std::any::TypeId::of::<M>();
         if layers
             .iter()
             .any(|layer| layer.terminate.is_some_and(|(key, _)| key == identity))
         {
+            drop(registry);
             return Ok(self);
         }
         layers.push(RouterLayerRegistration {
-            build: Box::new(|router| {
+            build: Arc::new(|router| {
                 let layer = axum::middleware::from_fn_with_state(
                     Arc::<[String]>::default(),
                     handle_terminable::<M>,
@@ -270,6 +273,7 @@ impl BootContext<'_> {
             }),
             terminate: Some((identity, terminate_middleware::<M>)),
         });
+        drop(registry);
         Ok(self)
     }
 }
@@ -299,15 +303,12 @@ pub(crate) fn build_router_with_middleware(
     crate::http::proxy::validate_headers(app.config().server.trusted_proxy_headers)?;
     let mut route_urls = None;
     let mut stateful = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut middleware_registry = app
+        let registry = app
             .extension::<RouteRegistry>()
-            .map(|registry| registry.middleware.clone())
+            .map(|registry| (*registry).clone())
             .unwrap_or_default();
-        let signed_except = app
-            .extension::<RouteRegistry>()
-            .map(|registry| registry.signed_except.clone())
-            .unwrap_or_default();
-        middleware_registry.install_framework_defaults(signed_except)?;
+        let mut middleware_registry = registry.middleware;
+        middleware_registry.install_framework_defaults(registry.signed_except)?;
         let cookie = app
             .state()
             .container()
@@ -315,19 +316,14 @@ pub(crate) fn build_router_with_middleware(
         #[cfg(feature = "session")]
         let session = app
             .extension::<Option<crate::session::SessionRuntime>>()
-            .and_then(Option::as_ref)
-            .map(crate::session::SessionRuntime::layer)
+            .and_then(|runtime| runtime.as_ref().map(crate::session::SessionRuntime::layer))
             .transpose()?
             .flatten();
         #[cfg(feature = "session")]
-        let forgery = cookie.as_ref().map(|cookie| {
-            let policy = app
-                .extension::<RouteRegistry>()
-                .map_or_else(crate::http::PreventRequestForgery::new, |registry| {
-                    registry.forgery.clone()
-                });
-            crate::http::forgery::ForgeryRuntime {
-                policy,
+        let forgery = cookie
+            .as_ref()
+            .map(|cookie| crate::http::forgery::ForgeryRuntime {
+                policy: registry.forgery,
                 cookie: Arc::clone(cookie),
                 xsrf: session.as_ref().map(|layer| layer.settings.config.clone()),
                 repository: app.config_repository(),
@@ -335,8 +331,7 @@ pub(crate) fn build_router_with_middleware(
                     .extension::<crate::foundation::provider::TestingBoot>()
                     .is_some()
                     && app.config().app.env == crate::config::Environment::Testing,
-            }
-        });
+            });
         middleware_registry.install_web_defaults(
             cookie,
             #[cfg(feature = "session")]
@@ -346,10 +341,8 @@ pub(crate) fn build_router_with_middleware(
         )?;
         middleware_registry.validate()?;
         let mut routes = Router::with_middleware_registry(Arc::new(middleware_registry));
-        if let Some(registry) = app.extension::<RouteRegistry>() {
-            for builder in &registry.builders {
-                routes = builder(routes);
-            }
+        for builder in registry.builders {
+            routes = builder(routes);
         }
         let mut parts = routes.into_parts_with_middleware(middleware_enabled);
         if !parts.name_errors.is_empty() {
@@ -364,7 +357,11 @@ pub(crate) fn build_router_with_middleware(
         if !parts.route_errors.is_empty() {
             return Err(parts.route_errors.remove(0));
         }
-        route_urls = Some(route_url_generator(app, &mut parts)?);
+        route_urls = Some(route_url_generator(
+            app,
+            &mut parts,
+            registry.root_controller_namespace.as_deref(),
+        )?);
         let app_router = assemble(parts).with_state(app.state().clone());
         crate::http::site::mount(app_router, &app.config().server, app.state().clone())
     }))
@@ -375,23 +372,26 @@ pub(crate) fn build_router_with_middleware(
             "HTTP route registration failed; check route paths and duplicate registrations",
         )
     })??;
-    let global_terminating =
-        if middleware_enabled && let Some(layers) = app.extension::<RouterLayerRegistry>() {
-            for layer in &layers.builders {
-                stateful = (layer.build)(stateful)?;
-            }
-            layers
-                .builders
-                .iter()
-                .rev()
-                .filter_map(|layer| layer.terminate.map(|(_, callback)| callback))
-                .collect()
-        } else {
-            Arc::default()
-        };
+    let global_terminating = if middleware_enabled
+        && let Some(layers) = app
+            .extension::<RouterLayerRegistry>()
+            .map(|layers| (*layers).clone())
+    {
+        for layer in &layers.builders {
+            stateful = (layer.build)(stateful)?;
+        }
+        layers
+            .builders
+            .iter()
+            .rev()
+            .filter_map(|layer| layer.terminate.map(|(_, callback)| callback))
+            .collect()
+    } else {
+        Arc::default()
+    };
     let calendar = app
         .extension::<crate::support::CalendarContext>()
-        .cloned()
+        .map(|calendar| (*calendar).clone())
         .map_or_else(
             || {
                 app.config().app.resolved_timezone().map(|zone| {
@@ -467,6 +467,7 @@ pub(crate) fn build_router_with_middleware(
 fn route_url_generator(
     app: &Application,
     parts: &mut crate::routing::router::RouteParts,
+    namespace: Option<&str>,
 ) -> Result<UrlGenerator> {
     let mut generator = if parts.names.is_empty() && parts.actions.is_empty() {
         UrlGenerator::empty()
@@ -480,10 +481,7 @@ fn route_url_generator(
         )?
     };
     generator.set_get_paths(std::mem::take(&mut parts.get_paths));
-    if let Some(namespace) = app
-        .extension::<RouteRegistry>()
-        .and_then(|registry| registry.root_controller_namespace.as_deref())
-    {
+    if let Some(namespace) = namespace {
         generator.set_root_controller_namespace(namespace)?;
     }
     let repository = app.config_repository();

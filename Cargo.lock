@@ -3681,6 +3681,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "parking_lot",
  "pcre2",
  "prost",
  "qrcode",

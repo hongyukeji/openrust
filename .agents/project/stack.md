@@ -1,5 +1,7 @@
 # 技术栈
 
+Provider 领域贡献使用锁文件中已有的 `parking_lot 0.12.5`。框架直接启用 `arc_lock`，用安全的持有者读写借用访问独立类型槽。目录锁只用于选择槽位，调用方须在异步工作前提取所需数据并释放借用。
+
 Eloquent 日期属性载体直接声明 `indexmap` 2，当前复用锁文件中的 2.14.2，保持数据库列与属性赋值的插入顺序。原有 JSON 子树继续使用 serde_json 的保形表示。
 
 MB-A01模型Array使用现有同版serde_json的显式raw_value，局部保留JSON数字词法并恢复PHP64类别；preserve_order/float_roundtrip不变，禁止全局arbitrary_precision污染通用Serde与Figment来源。无新增依赖或版本升级；主线、三类生成与适用consumer的限定验收见[模型属性](memory/testing.md#模型属性与认证前置限定验收)。

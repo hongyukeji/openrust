@@ -4,6 +4,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Provider 领域贡献按类型共享。读取和修改扩展返回短期借用，`Application::exception_handler()` 返回拥有所有权的 Handler 快照。
 - HTTP 内核支持通过具名容器绑定 `middleware.disable` 在运行期切换应用中间件。
 - 容器支持按声明类型解析静态调用的依赖，并按命名入口分派静态方法绑定。
 - 容器支持声明、替换和调用类型化对象方法，以及通过容器解析对象的类入口。
