@@ -54,6 +54,12 @@ fresh生成SQLite JWT API与MySQL Web应用，new/check/test全0，分别26和13
 
 组合门禁在保留独立Passport/共享支持WIP的工作树上执行，限定提交只选本簇必要源码与依赖，不将WIP报交付。本簇不包含Passport协议WIP、Client/code/token持久签发、OIDC Provider、通用Manager缓存枚举/清除及Container访问/替换、完整Model hashed cast或全部Laravel对应。Rust异步、UTF-8类型输入、执行预算与增强认证策略均不等于PHP运行环境。外部Google/Keycloak客户端限制及任意网络/进程资源总体保证继续按原待办保留。已完成阶段产物用原生Cargo清理，源、fixture、日志、私有归属与服务保留；不push/tag/release。
 
+## 测试库永久锁释放验收
+
+冻结树 `73122c82912328a53f741cb7095c86e442854527`。macOS 上用真实 `try_clone` 保留同一个打开文件描述，旧实现只关闭原句柄，独立打开仍返回锁忙。新实现显式解锁，同 inode 可立即重锁，活跃 owner 期间仍拒绝独立取锁。Done 状态与 token 继续可读。
+
+真实 MySQL 8.4 验证受控连接关闭后的资源清理，以及仍有外部活动时保留资源和归属回执。17 项归属测试、完整默认并行工作区测试、严格 Clippy、全特性编译、Rustdoc 与依赖门禁通过。非 Unix 私有权限及实际 Windows 仍留在原发布矩阵。
+
 ## 网络测试数据库生命周期与持久恢复限定验收
 
 `TestDatabase` 的Unix网络范围使用独立I/O与清理线程、正常退出有界票据屏障、私有持久归属回执/永久文件锁、每资源随机远端见证及固定原生管理会话锁。目标与PG模板分别持责；每条业务池物理连接验证实际服务、库名、marker及PG OID。关闭池失败、权限/活动可见性不足、错配或未知操作均保留，下一次显式create/recover补偿；不存在库只有权威核验后才写Done。管理库名保留服务端原值，生成目标名仍严格受限。

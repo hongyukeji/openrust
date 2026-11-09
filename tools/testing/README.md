@@ -12,6 +12,8 @@ SQLite 应用启用 `testing/db-sqlite`，使用 `TestDatabase::sqlite_file::<M>
 
 回执默认位于项目 `storage/framework/testing/databases`，可用进程环境变量 `OPENRUST_TEST_DATABASE_STATE_DIR` 指定稳定私有目录。Unix 目录/文件须属当前有效用户且仅本人可访问；本地锁、每资源随机见证、实际服务身份共同核验，模板和目标分别持责。不要删除或搬动活跃回执、永久锁文件和完成墓碑；`cargo clean` 不会移除它们。恢复只读这些回执，不按数据库前缀、PID 或年龄扫描删除。缺失/错配标记、结果未知或活动连接均保留，`TestDatabaseRecovery` 分别返回 reclaimed/active/retained 数量。当前网络持久恢复不提供非 Unix ACL 实现，明确拒绝而不降级检查。
 
+归属句柄释放时显式解锁同一个锁文件。Unix 子进程在 fork 与 exec 之间短暂继承文件描述符时，恢复扫描仍可在原持有者释放后获取锁。
+
 在应用 `Cargo.toml` 中添加测试依赖：
 
 ```toml

@@ -79,12 +79,24 @@ fn transitions_are_durable_and_done_keeps_the_original_lock_inode() -> Result<()
     assert!(
         matches!(owner.persist(OwnershipState::Intent), Err(error) if error.code() == "test_database_journal_done")
     );
+    // 模拟 fork 后、exec 前仍共享同一打开文件对象的子进程。
+    let inherited = owner.lock.0.try_clone().map_err(Error::internal)?;
+    assert!(journal.open_try_locked(&path)?.is_none());
     drop(owner);
     assert!(path.is_file());
     assert!(lock_path.is_file());
     let mut tombstone = journal
         .open_try_locked(&path)?
         .ok_or_else(|| failure("test_lock_not_released"))?;
+    assert_eq!(
+        inherited.metadata().map_err(Error::internal)?.ino(),
+        initial_inode
+    );
+    assert_eq!(
+        tombstone.lock.0.metadata().map_err(Error::internal)?.ino(),
+        initial_inode
+    );
+    drop(inherited);
     assert_eq!(tombstone.load()?.state, OwnershipState::Done);
     assert_eq!(tombstone.record().token, initial_token);
     assert!(

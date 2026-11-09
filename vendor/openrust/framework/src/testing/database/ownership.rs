@@ -104,13 +104,22 @@ impl fmt::Debug for OwnershipJournal {
     }
 }
 
-/// 独占记录的打开句柄；移动到清理 future 即移交锁，释放 File 时才释放锁。
+// 只包装成功取得的锁。fork 到 exec 期间可能仍有继承描述符，析构须显式解锁。
+struct OwnershipLock(File);
+
+impl Drop for OwnershipLock {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
+/// 独占记录的打开句柄；移动到清理 future 即移交锁，析构时释放锁。
 pub(super) struct LockedOwnership {
     root: PathBuf,
     root_identity: Identity,
     path: PathBuf,
     lock_path: PathBuf,
-    file: File,
+    lock: OwnershipLock,
     record: OwnershipRecord,
     data_identity: Option<Identity>,
 }
@@ -183,12 +192,13 @@ impl OwnershipJournal {
             };
             file.try_lock()
                 .map_err(|_| failure("test_database_journal_lock_unavailable"))?;
+            let lock = OwnershipLock(file);
             let mut locked = LockedOwnership {
                 root: self.root.clone(),
                 root_identity: self.identity,
                 path,
                 lock_path,
-                file,
+                lock,
                 record,
                 data_identity: None,
             };
@@ -255,15 +265,16 @@ impl OwnershipJournal {
                 return Err(failure("test_database_journal_lock_unavailable"));
             }
         }
+        let lock = OwnershipLock(file);
         validate_root(&self.root, Some(self.identity))?;
-        validate_open_file(&lock_path, &file)?;
+        validate_open_file(&lock_path, &lock.0)?;
         let (record, data_identity) = read_record_path(path, None)?;
         Ok(Some(LockedOwnership {
             root: self.root.clone(),
             root_identity: self.identity,
             path: path.to_owned(),
             lock_path,
-            file,
+            lock,
             record,
             data_identity: Some(data_identity),
         }))
@@ -278,7 +289,7 @@ impl LockedOwnership {
 
     fn validate_lock(&self) -> Result<()> {
         validate_root(&self.root, Some(self.root_identity))?;
-        validate_open_file(&self.lock_path, &self.file)
+        validate_open_file(&self.lock_path, &self.lock.0)
     }
 
     /// 在永久锁下重读 JSON；不接受未由本句柄完成的替换或字段变动。
