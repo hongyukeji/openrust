@@ -18,7 +18,7 @@ use openrust::support::BoxFuture;
 use openrust::translation::{TranslationLoadSession, TranslationLoader, TranslationResource};
 use openrust::translation::Translator;
 use openrust::translation::TranslationServiceProvider;
-use openrust::translation::{Locale, MessageArgs, MessageCatalog, translation_session};
+use openrust::translation::{Locale, MessageArgs, MessageCatalog, Replacement, translation_session};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,6 +44,7 @@ async fn application(default_locale: &str) -> TestResult<Application> {
     let mut catalog = MessageCatalog::new();
     catalog.insert("en", "items", ":count item for :Name|:count items for :Name")?;
     catalog.insert("en", "explicit_items", "{0} No items for :Name|[1,*] :count items for :Name")?;
+    catalog.insert("en", "greeting", "<mark>Welcome, :Name</mark>")?;
     builder.provider(TranslationServiceProvider::new(catalog));
     Ok(Application::from_provider_runtime(builder.start(source).await?)?)
 }
@@ -202,6 +203,34 @@ async fn generated_translator_reads_groups_from_its_registered_loader() -> TestR
         assert_eq!(
             translator.array("menu", args, None, true)?,
             serde_json::json!({"title":"Welcome, Ada","links":["ada", {"label":"ADA"}]})
+        );
+        Ok::<_, Box<dyn std::error::Error>>(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}
+
+#[tokio::test]
+async fn generated_translator_applies_tags_and_registered_object_formatters() -> TestResult {
+    struct Author(&'static str);
+    let app = application("en").await?;
+    let result = async {
+        let translator = app.state().resolve::<Translator>().await?;
+        translator.stringable::<Author>(|author| author.0.to_owned());
+        let author = Author("ada");
+        assert_eq!(
+            translator.string_with(
+                "greeting",
+                [
+                    ("mark", Replacement::tag(|text| format!("[{text}]"))),
+                    ("name", Replacement::object(&author)),
+                ],
+                None,
+                true,
+            )?,
+            "[Welcome, Ada]"
         );
         Ok::<_, Box<dyn std::error::Error>>(())
     }

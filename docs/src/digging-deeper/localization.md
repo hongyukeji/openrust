@@ -53,6 +53,30 @@ assert_eq!(menu["links"][0], "ada");
 
 具名参数按传入顺序处理。数组有替换项时递归替换叶值，标量叶按 PHP 文本规则转换；没有替换项时保留原类型。Rust 区分列表和关联映射，分组根的连续十进制索引还原为列表。原有 `translate` 继续支持 `{name}` 和 ICU 模板。
 
+### 标签回调与对象替换
+
+共享译器的 `get_with`、`string_with`、`array_with` 和 `choice_with` 接收混合替换值。可用 `stringable` 为 Rust 类型登记格式化函数。用 `Replacement::object` 传入该类型的实例，或用 `Replacement::display` 显式采用 `Display` 作为缺省。已登记的精确类型处理器优先。未登记的普通对象返回类型错误。Rust 枚举可将变体名或背书值显式作为文本或标量传入。
+
+```rust,ignore
+use openrust::translation::Replacement;
+
+struct Author(&'static str);
+translator.stringable::<Author>(|author| author.0.to_owned());
+let author = Author("ada");
+let text = translator.string_with(
+    "<mark>Welcome, :Name</mark>",
+    [
+        ("mark", Replacement::tag(|part| format!("[{part}]"))),
+        ("name", Replacement::object(&author)),
+    ],
+    None,
+    true,
+)?;
+assert_eq!(text, "[Welcome, Ada]");
+```
+
+标签按登记顺序处理，在同一行内匹配最近的闭标签。所有标签处理完成后再替换 `:name` 等文本占位符。传入的标签键是字面名称，可使用 ASCII 字母、数字、下划线、连字符和冒号。回调结果原样写入译文，调用方负责按输出场景转义。列表按位置访问，关联映射按资源的存储键序访问。读取快照后再执行用户回调。
+
 ## 字符串复数选择
 
 `Translator::choice` 可从同一翻译目录读取 Laravel 式字符串，按 `|` 分支。优先匹配 `{0}` 等精确条件以及 `[2,*]` 等含端点的区间，再使用已选资源语言的复数规则。指定语言缺少键时，用配置回退语言查询并选择分支。选定之后替换 `:count` 和具名参数，支持 `:Name`、`:NAME` 的大小写形式。 多个参数生成同一占位符时，按传入迭代顺序处理，后项覆盖前项。
@@ -72,7 +96,7 @@ assert_eq!(messages, "2 messages");
 
 ## ICU 模板与显式 Catalog 查找
 
-结构化 JSON 的 `plural` 和 `select` 通过 `Translator::translate` 使用 ICU 规则。默认`TranslationLookup::Laravel`只在请求语言查全局JSON键；未命中后按group资源回退，不会自动补查其他语言的全局JSON。Loader 生命周期与 PHP 回调替换仍有待对应。
+结构化 JSON 的 `plural` 和 `select` 通过 `Translator::translate` 使用 ICU 规则。默认`TranslationLookup::Laravel`只在请求语言查全局JSON键；未命中后按group资源回退，不会自动补查其他语言的全局JSON。缺键处理器与 Loader 生命周期仍有待对应。
 
 需要平面目录跨语言回退的调用方显式选择`TranslationLookup::Catalog`，复用Container里同一服务：
 

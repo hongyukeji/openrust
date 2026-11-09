@@ -50,6 +50,8 @@ OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀�
 
 应用可通过共享 `Translator` 读取文本、整组列表和关联映射，并按当前语言或配置语言判断资源是否存在。用法见[读取文本和分组](../../../docs/src/digging-deeper/localization.md#读取文本和分组)。
 
+混合替换入口支持标签回调及按类型登记的对象格式化。用法见[标签回调与对象替换](../../../docs/src/digging-deeper/localization.md#标签回调与对象替换)。
+
 框架源码位于 `src/lib.rs`；宿主应用、bootstrap 和唯一综合示例保留在仓库根目录。默认启动在根执行 `cargo run`。
 
 功能与尚未完成的对应以[用户指南](../../../docs/src/SUMMARY.md)为准；独立框架包拆分已由 `44632383` 完成限定验收；职责命名空间与应用入口已由 `b3f6117b` 完成限定验收；完整官方契约与全量 Laravel 能力仍按[命名空间对应计划](../../../.agents/project/plans/laravel-namespace-alignment.md)逐项验收。

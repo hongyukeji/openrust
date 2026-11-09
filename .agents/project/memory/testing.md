@@ -2207,3 +2207,9 @@ AR-N01/L041 的 `get`、`string`、`array`、`has` 和 `has_for_locale` 共享�
 运行树 `0272f25f3720f0031c1862c07e637eeb7fbf0dfb` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 与离线依赖检查。唯一示例经真实 TCP 调用 `string`；新生成 minimal 应用通过 Cargo check 与测试，注册的公开 Loader 实际读取分组。仅加入包 README 的文档树 `5a728784209e34e7f0577c65d53c106692dd10ec` 补跑拒警 Rustdoc 通过。
 
 PHP 标签回调及对象替换、缺键回调、完整 Loader 与运行时语言生命周期仍在唯一待办。
+
+## 翻译标签与对象替换限定验收
+
+AR-N01/L041 通过 `Replacement` 与 `Translator::stringable` 按序执行标签和类型化替换。回调在目录和注册表锁外执行，复用文本占位符与目录查找。固定 Laravel 的八项 PHP 8.5 行为包含重复和嵌套标签、换行、后续回调、非递归占位符、精确类型及枚举值。Rust 标签采用字面名称，枚举显式传入变体名或背书值。
+
+冻结树 `601a25e1428fcf47ffac2c8853a8c9d11e1dab86` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 与离线依赖检查。唯一示例经 TCP 调用标签和对象替换。新生成 minimal 应用通过 Cargo check 与测试，并实际调用登记的对象处理器。

@@ -29,12 +29,14 @@ mod composite_loader;
 mod file_loader;
 mod get;
 mod loader;
+mod replacement;
 mod source_refresh;
 pub use composite_loader::CompositeTranslationLoader;
 pub use file_loader::FileTranslationLoader;
 pub use loader::{
     TranslationLines, TranslationLoadSession, TranslationLoader, TranslationResource,
 };
+pub use replacement::Replacement;
 pub use source_refresh::TranslationRefreshOutcome;
 pub use source_refresh::TranslationRefreshStatus;
 pub use source_refresh::parse_translation_lines;
@@ -646,6 +648,7 @@ pub struct Translator {
     lookup: TranslationLookup,
     catalog: Arc<RwLock<PublishedCatalog>>,
     source: Option<Arc<RefreshRuntime>>,
+    stringables: Arc<replacement::Stringables>,
 }
 
 impl Translator {
@@ -666,6 +669,7 @@ impl Translator {
             lookup: TranslationLookup::Laravel,
             catalog: Arc::new(RwLock::new(PublishedCatalog::new(catalog))),
             source: None,
+            stringables: Arc::default(),
         })
     }
 
@@ -812,6 +816,21 @@ impl Translator {
         args: impl IntoIterator<Item = (K, V)>,
         locale: Option<&Locale>,
     ) -> Result<String> {
+        let (selected, count_text) = self.select_choice(key, count, locale)?;
+        if selected.contains(':') {
+            let replacements = laravel_replacements(args, Some(&count_text));
+            Ok(replace_laravel_args(selected, &replacements))
+        } else {
+            Ok(selected)
+        }
+    }
+
+    fn select_choice(
+        &self,
+        key: &str,
+        count: InputNumber,
+        locale: Option<&Locale>,
+    ) -> Result<(String, String)> {
         let count_text = match count {
             InputNumber::Integer(number) => number.to_string(),
             InputNumber::Float(number) if number.is_finite() => scalars::double_string(number),
@@ -859,13 +878,7 @@ impl Translator {
             key
         };
         let selected = choice::select(line, count, locale)?.to_owned();
-        drop(catalog);
-        if selected.contains(':') {
-            let replacements = laravel_replacements(args, Some(&count_text));
-            Ok(replace_laravel_args(selected, &replacements))
-        } else {
-            Ok(selected)
-        }
+        Ok((selected, count_text))
     }
 
     fn try_translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> Option<String> {
@@ -1378,23 +1391,24 @@ fn laravel_replacements<K: AsRef<str>, V: AsRef<str>>(
 ) -> BTreeMap<String, String> {
     let mut replacements = BTreeMap::new();
     let mut has_count = false;
-    let mut insert = |key: &str, value: &str| {
-        replacements.insert(
-            format!(":{}", choice_case::titlecase_first(key)),
-            choice_case::titlecase_first(value),
-        );
-        replacements.insert(format!(":{}", key.to_uppercase()), value.to_uppercase());
-        replacements.insert(format!(":{key}"), value.to_owned());
-    };
     for (key, value) in args {
         let key = key.as_ref();
         has_count |= key == "count";
-        insert(key, value.as_ref());
+        insert_laravel_arg(&mut replacements, key, value.as_ref());
     }
     if let Some(count) = count.filter(|_| !has_count) {
-        insert("count", count);
+        insert_laravel_arg(&mut replacements, "count", count);
     }
     replacements
+}
+
+fn insert_laravel_arg(replacements: &mut BTreeMap<String, String>, key: &str, value: &str) {
+    replacements.insert(
+        format!(":{}", choice_case::titlecase_first(key)),
+        choice_case::titlecase_first(value),
+    );
+    replacements.insert(format!(":{}", key.to_uppercase()), value.to_uppercase());
+    replacements.insert(format!(":{key}"), value.to_owned());
 }
 
 fn replace_laravel_args(template: String, replacements: &BTreeMap<String, String>) -> String {

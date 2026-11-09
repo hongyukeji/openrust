@@ -5,6 +5,7 @@ use openrust::http::{Inject, Json, Query};
 use openrust::translation::DateFormatStyle;
 use openrust::translation::DateTimeFormatStyle;
 use openrust::translation::MessageArgs;
+use openrust::translation::Replacement;
 use openrust::translation::RequestLocale;
 use openrust::translation::Translator;
 use openrust::{Error, Result, ValidationErrors};
@@ -93,9 +94,12 @@ pub(crate) async fn show(
         &MessageArgs::new(),
         Some(locale.locale()),
     )?;
-    let as_of = i18n.string(
+    let as_of = i18n.string_with(
         "example::reading_as_of",
-        [("date", date.as_str())],
+        [
+            ("date-part", Replacement::tag(|part| part.trim().to_owned())),
+            ("date", Replacement::display(&date)),
+        ],
         Some(locale.locale()),
         true,
     )?;

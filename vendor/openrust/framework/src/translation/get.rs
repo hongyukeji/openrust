@@ -6,7 +6,7 @@ use super::{
 use crate::{Error, Result};
 use axum::http::StatusCode;
 use serde_json::{Map, Value};
-use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
+use std::{borrow::Cow, convert::Infallible, sync::Arc};
 
 impl Translator {
     /// 读取字符串、列表或关联映射。缺少资源时返回键本身。
@@ -29,28 +29,39 @@ impl Translator {
             .collect::<Vec<_>>();
         let icu_args = args.iter().cloned().collect();
         let replacements = laravel_replacements(args, None);
+        let value = self.read_value(key, &locale, fallback, &icu_args);
+        if replacements.is_empty() {
+            value
+        } else {
+            map_leaves(value, &mut |leaf| {
+                Ok::<_, Infallible>(replace_laravel_args(leaf, &replacements))
+            })
+            .unwrap_or_else(|never| match never {})
+        }
+    }
+
+    pub(super) fn read_value(
+        &self,
+        key: &str,
+        locale: &Locale,
+        fallback: bool,
+        icu_args: &MessageArgs,
+    ) -> Value {
         let catalog = self
             .catalog
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let value = self
-            .lookup_value(&catalog, &locale, key, fallback)
+        self.lookup_value(&catalog, locale, key, fallback)
             .map_or_else(
                 || Value::String(key.to_owned()),
                 |(locale, line, global)| {
                     if global && matches!(line.text(), Some("" | "0")) {
                         Value::String(key.to_owned())
                     } else {
-                        line.value(locale, key, &icu_args)
+                        line.value(locale, key, icu_args)
                     }
                 },
-            );
-        drop(catalog);
-        if replacements.is_empty() {
-            value
-        } else {
-            replace_leaves(value, &replacements)
-        }
+            )
     }
 
     /// 读取文本；值为列表或关联映射时返回翻译类型错误。
@@ -61,14 +72,7 @@ impl Translator {
         locale: Option<&Locale>,
         fallback: bool,
     ) -> Result<String> {
-        match self.get(key, args, locale, fallback) {
-            Value::String(text) => Ok(text),
-            _ => Err(Error::custom_with_status(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "translation_value_not_string",
-                "翻译值必须为字符串",
-            )),
-        }
+        expect_string(self.get(key, args, locale, fallback))
     }
 
     /// 读取列表或关联映射；值为文本或资源缺失时返回翻译类型错误。
@@ -79,14 +83,7 @@ impl Translator {
         locale: Option<&Locale>,
         fallback: bool,
     ) -> Result<Value> {
-        match self.get(key, args, locale, fallback) {
-            value @ (Value::Array(_) | Value::Object(_)) => Ok(value),
-            _ => Err(Error::custom_with_status(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "translation_value_not_array",
-                "翻译值必须为数组或关联映射",
-            )),
-        }
+        expect_array(self.get(key, args, locale, fallback))
     }
 
     /// 判断资源是否存在，按 `fallback` 决定是否查询回退语言的分组。
@@ -184,22 +181,45 @@ fn message_value(
     }
 }
 
-fn replace_leaves(value: Value, replacements: &BTreeMap<String, String>) -> Value {
+pub(super) fn expect_string(value: Value) -> Result<String> {
     match value {
-        Value::Array(items) => Value::Array(
-            items
-                .into_iter()
-                .map(|item| replace_leaves(item, replacements))
-                .collect(),
-        ),
-        Value::Object(items) => Value::Object(
-            items
-                .into_iter()
-                .map(|(key, item)| (key, replace_leaves(item, replacements)))
-                .collect(),
-        ),
-        Value::String(text) => Value::String(replace_laravel_args(text, replacements)),
-        leaf => Value::String(scalars::string(&leaf)),
+        Value::String(text) => Ok(text),
+        _ => Err(Error::custom_with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "translation_value_not_string",
+            "翻译值必须为字符串",
+        )),
+    }
+}
+
+pub(super) fn expect_array(value: Value) -> Result<Value> {
+    match value {
+        value @ (Value::Array(_) | Value::Object(_)) => Ok(value),
+        _ => Err(Error::custom_with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "translation_value_not_array",
+            "翻译值必须为数组或关联映射",
+        )),
+    }
+}
+
+pub(super) fn map_leaves<E>(
+    value: Value,
+    transform: &mut impl FnMut(String) -> std::result::Result<String, E>,
+) -> std::result::Result<Value, E> {
+    match value {
+        Value::Array(items) => items
+            .into_iter()
+            .map(|item| map_leaves(item, transform))
+            .collect::<std::result::Result<_, _>>()
+            .map(Value::Array),
+        Value::Object(items) => items
+            .into_iter()
+            .map(|(key, item)| map_leaves(item, transform).map(|item| (key, item)))
+            .collect::<std::result::Result<_, _>>()
+            .map(Value::Object),
+        Value::String(text) => transform(text).map(Value::String),
+        leaf => transform(scalars::string(&leaf)).map(Value::String),
     }
 }
 
