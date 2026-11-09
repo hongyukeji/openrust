@@ -64,7 +64,11 @@ if [ -e .openrust-build-incomplete ] || [ -L .openrust-build-incomplete ]; then
     exit 1
 fi
 
-application='./bin/openrust'
+application='./openrust'
+if [ "$application" -ef "./${0##*/}" ]; then
+    printf '%s\n' 'artisan: 部署二进制与 Artisan 启动脚本冲突' >&2
+    exit 126
+fi
 if [ ! -f "$application" ]; then
     printf 'artisan: 部署目录缺少应用二进制 %s\n' "$application" >&2
     exit 127

@@ -16,11 +16,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cp -a /framework-source/. "$framework/"; \
     cp -a /application-source/. "$application/"; \
     cd "$application"; \
+    /bin/sh "$framework/tools/cli/templates/deploy/package-assets.sh" /out "{{name}}"; \
     set -- cargo build --release --bin "{{name}}"; \
     if [ -f Cargo.lock ]; then set -- "$@" --locked; fi; \
     "$@"; \
-    install -D -m 755 "$CARGO_TARGET_DIR/release/{{name}}" "/out/bin/{{name}}"; \
-    /bin/sh "$framework/tools/cli/templates/deploy/package-assets.sh" /out
+    install -T -m 755 "$CARGO_TARGET_DIR/release/{{name}}" "/out/{{name}}"
 
 FROM scratch AS artifacts
 COPY --from=build /out/ /
@@ -36,4 +36,4 @@ ENV APP_SERVER_HOST=0.0.0.0 SERVER_PORT=3000
 USER 10001:10001
 EXPOSE 3000
 STOPSIGNAL SIGTERM
-ENTRYPOINT ["/app/bin/{{name}}"]
+ENTRYPOINT ["/app/{{name}}"]

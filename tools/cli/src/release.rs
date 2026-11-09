@@ -10,6 +10,16 @@ use serde_json::Value;
 
 const INCOMPLETE: &str = ".openrust-build-incomplete";
 const PLAN_LIMIT: u64 = 8 * 1024 * 1024;
+const PACKAGE_ENTRIES: &[&str] = &[
+    "artisan",
+    ".env.example",
+    "public",
+    "resources",
+    "lang",
+    "modules",
+    "storage",
+    "bootstrap",
+];
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct BuildArgs {
@@ -90,6 +100,12 @@ fn application_name(document: &toml_edit::DocumentMut) -> anyhow::Result<&str> {
             .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
     {
         bail!("build_package_name_invalid");
+    }
+    if PACKAGE_ENTRIES
+        .iter()
+        .any(|entry| name.eq_ignore_ascii_case(entry))
+    {
+        bail!("build_package_name_conflict: 项目名与发布目录的保留名称冲突");
     }
     Ok(name)
 }
@@ -362,14 +378,14 @@ fn build_and_publish(
         .stdout(Stdio::null());
     run_docker(&mut command, "build_artifacts_failed")?;
     validate_release(&artifacts, name, platform)?;
-    publish(&artifacts, destination)
+    publish(&artifacts, destination, name)
 }
 
 fn validate_release(root: &Path, name: &str, platform: &str) -> anyhow::Result<()> {
-    if validate_tree(root)? != 1 {
+    if validate_entries(root, Some(name))? != 1 {
         bail!("build_elf_count_invalid: 产物必须只有一个 ELF 应用");
     }
-    validate_binary(&root.join("bin").join(name), platform)?;
+    validate_binary(&root.join(name), platform)?;
     for directory in ["public", "resources", "storage", "bootstrap/cache"] {
         let path = root.join(directory);
         if !path.is_dir() {
@@ -418,11 +434,7 @@ fn validate_binary(path: &Path, platform: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn validate_tree(root: &Path) -> anyhow::Result<usize> {
-    validate_entries(root, true)
-}
-
-fn validate_entries(root: &Path, top: bool) -> anyhow::Result<usize> {
+fn validate_entries(root: &Path, application: Option<&str>) -> anyhow::Result<usize> {
     let mut binaries = 0;
     for entry in fs::read_dir(root)? {
         let entry = entry?;
@@ -431,36 +443,25 @@ fn validate_entries(root: &Path, top: bool) -> anyhow::Result<usize> {
             bail!("build_reserved_artifact_name");
         }
         let name = name.to_str().context("build_artifact_name_not_utf8")?;
-        if top
-            && !matches!(
-                name,
-                "bin"
-                    | "artisan"
-                    | ".env.example"
-                    | "public"
-                    | "resources"
-                    | "lang"
-                    | "modules"
-                    | "storage"
-                    | "bootstrap"
-            )
-        {
+        let is_application = application == Some(name);
+        if application.is_some() && !is_application && !PACKAGE_ENTRIES.contains(&name) {
             bail!("build_unexpected_artifact");
         }
         let lower = name.to_ascii_lowercase();
-        if (!top && lower.starts_with(".env."))
-            || lower == ".env"
-            || lower.contains(".sqlite")
-            || matches!(lower.as_str(), "id_rsa" | "id_ed25519")
-            || [".key", ".p12", ".pfx", ".db", ".sql"]
-                .iter()
-                .any(|suffix| lower.ends_with(suffix))
+        if !is_application
+            && ((application.is_none() && lower.starts_with(".env."))
+                || lower == ".env"
+                || lower.contains(".sqlite")
+                || matches!(lower.as_str(), "id_rsa" | "id_ed25519")
+                || [".key", ".p12", ".pfx", ".db", ".sql"]
+                    .iter()
+                    .any(|suffix| lower.ends_with(suffix)))
         {
             bail!("build_sensitive_artifact");
         }
         let kind = entry.file_type()?;
         if kind.is_dir() {
-            binaries += validate_entries(&entry.path(), false)?;
+            binaries += validate_entries(&entry.path(), None)?;
         } else if kind.is_file() {
             let mut prefix = Vec::new();
             File::open(entry.path())?
@@ -477,7 +478,7 @@ fn validate_entries(root: &Path, top: bool) -> anyhow::Result<usize> {
     Ok(binaries)
 }
 
-fn publish(source: &Path, destination: &Path) -> anyhow::Result<()> {
+fn publish(source: &Path, destination: &Path, application: &str) -> anyhow::Result<()> {
     // create_dir 本身拒绝空目录和断链；不能使用可能替换既有空目录的 rename。
     fs::create_dir(destination).context("build_output_reservation_failed: 目标已存在或无法创建")?;
     let result = (|| -> anyhow::Result<()> {
@@ -488,41 +489,53 @@ fn publish(source: &Path, destination: &Path) -> anyhow::Result<()> {
             .open(&marker)?;
         file.write_all(b"incomplete\n")?;
         drop(file);
-        copy_tree(source, destination)?;
+        // 直接执行的包根程序须等运行资源复制完成，才赋予执行权限。
+        copy_tree(source, destination, Some(application))?;
         fs::remove_file(marker)?;
         Ok(())
     })();
     result.context("build_publish_incomplete: 新建产物目录发布未完成；该目录已保留，禁止部署")
 }
 
-fn copy_tree(source: &Path, destination: &Path) -> anyhow::Result<()> {
+fn copy_tree(source: &Path, destination: &Path, application: Option<&str>) -> anyhow::Result<()> {
     for entry in fs::read_dir(source)? {
         let entry = entry?;
-        let target = destination.join(entry.file_name());
-        let metadata = fs::symlink_metadata(entry.path())?;
-        if metadata.is_dir() {
-            fs::create_dir(&target)?;
-            copy_tree(&entry.path(), &target)?;
-        } else if metadata.is_file() {
-            let mut input = File::open(entry.path())?;
-            let mut output = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&target)?;
-            std::io::copy(&mut input, &mut output)?;
-            output.flush()?;
-        } else {
-            bail!("build_artifact_special_file");
+        let name = entry.file_name();
+        if application.is_some_and(|application| name == application) {
+            continue;
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt as _;
-            // 文件归属是执行构建的用户；保普通 mode，不传播 setuid/setgid/sticky。
-            fs::set_permissions(
-                &target,
-                fs::Permissions::from_mode(metadata.permissions().mode() & 0o777),
-            )?;
-        }
+        copy_entry(&entry.path(), &destination.join(name))?;
+    }
+    if let Some(application) = application {
+        copy_entry(&source.join(application), &destination.join(application))?;
+    }
+    Ok(())
+}
+
+fn copy_entry(source: &Path, target: &Path) -> anyhow::Result<()> {
+    let metadata = fs::symlink_metadata(source)?;
+    if metadata.is_dir() {
+        fs::create_dir(target)?;
+        copy_tree(source, target, None)?;
+    } else if metadata.is_file() {
+        let mut input = File::open(source)?;
+        let mut output = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(target)?;
+        std::io::copy(&mut input, &mut output)?;
+        output.flush()?;
+    } else {
+        bail!("build_artifact_special_file");
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        // 文件归属是执行构建的用户；保普通 mode，不传播 setuid/setgid/sticky。
+        fs::set_permissions(
+            target,
+            fs::Permissions::from_mode(metadata.permissions().mode() & 0o777),
+        )?;
     }
     Ok(())
 }

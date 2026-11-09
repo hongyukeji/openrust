@@ -205,7 +205,7 @@ class Probe:
         self.receipt["app_entrypoint"] = {
             "source": entrypoint,
             "dockerfile_sha256": hashlib.sha256(dockerfile).hexdigest(),
-            "project_named_layout": entrypoint == ["/app/bin/openrust"],
+            "project_named_layout": entrypoint == ["/app/openrust"],
         }
         for stack, ref in (("legacy", OLD_REF), ("bind", self.receipt["source_commit"])):
             contents = self.run(f"{stack}-compose-source", ["git", "show", f"{ref}:docker-compose.yml"]).stdout

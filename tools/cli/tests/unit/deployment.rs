@@ -11,13 +11,13 @@ use std::path::Path;
 
 pub(super) fn assert_generated_deployment_artifacts(app: &Path, name: &str) -> anyhow::Result<()> {
     let dockerfile = fs::read_to_string(app.join("Dockerfile"))?;
-    assert!(dockerfile.contains(&format!("/out/bin/{name}")), "{name}");
+    assert!(dockerfile.contains(&format!("\"/out/{name}\"")), "{name}");
     assert!(
-        dockerfile.contains(&format!("ENTRYPOINT [\"/app/bin/{name}\"]")),
+        dockerfile.contains(&format!("ENTRYPOINT [\"/app/{name}\"]")),
         "{name}"
     );
     assert!(
-        fs::read_to_string(app.join("README.md"))?.contains(&format!("./bin/{name}")),
+        fs::read_to_string(app.join("README.md"))?.contains(&format!("./{name}")),
         "{name}"
     );
     Ok(())

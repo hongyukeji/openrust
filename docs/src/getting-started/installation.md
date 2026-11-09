@@ -29,6 +29,6 @@ SERVER_PORT=4000 cargo run
 
 需要设置应用密钥时执行 `./artisan key:generate`。使用数据库前先配置连接，再执行 `./artisan migrate`。仅在私有终端使用 `./artisan key:generate --show`，避免密钥进入日志。
 
-直接运行 `./artisan` 默认执行 `list`，只传 `--env=local` 时也会列出命令。根应用发布时将可执行的 `artisan` 放在包根，应用二进制放在 `bin/openrust`，使用 `./bin/openrust` 启动常驻进程。生成应用使用 `bin/<项目名>`；各自的 Artisan 只调用同包内的固定二进制路径。[源码与发布用法](source-application.md#查找应用命令)
+直接运行 `./artisan` 默认执行 `list`，只传 `--env=local` 时也会列出命令。根应用发布时将可执行的 `artisan` 放在包根，应用二进制放在 `openrust`，使用 `./openrust` 启动常驻进程。生成应用使用 `<项目名>`；各自的 Artisan 只调用同包内的固定二进制路径。[源码与发布用法](source-application.md#查找应用命令)
 
 对应固定 Laravel 13.x 官方章节：[installation](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/installation.md)。本章仅说明已落地的当前入口及边界，尚未覆盖该官方章节全部能力。

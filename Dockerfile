@@ -8,9 +8,9 @@ COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/workspace/target \
     set -eu; \
+    /bin/sh "tools/cli/templates/deploy/package-assets.sh" /out openrust; \
     cargo build --release --locked --bin "$APP_BINARY" --features "$APP_FEATURES"; \
-    install -D -m 755 "target/release/$APP_BINARY" /out/bin/openrust; \
-    /bin/sh "tools/cli/templates/deploy/package-assets.sh" /out
+    install -T -m 755 "target/release/$APP_BINARY" /out/openrust
 
 # 用 buildx --target artifacts 导出可交给 Linux 主机的应用文件。
 FROM scratch AS artifacts
@@ -27,4 +27,4 @@ ENV APP_SERVER_HOST=0.0.0.0 SERVER_PORT=3000
 USER 10001:10001
 EXPOSE 3000
 STOPSIGNAL SIGTERM
-ENTRYPOINT ["/app/bin/openrust"]
+ENTRYPOINT ["/app/openrust"]

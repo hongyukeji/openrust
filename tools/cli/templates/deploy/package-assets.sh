@@ -2,10 +2,18 @@
 set -eu
 
 output=$1
+name=$2
+case "$(printf '%s' "$name" | LC_ALL=C tr '[:upper:]' '[:lower:]')" in
+    artisan|bootstrap|lang|modules|public|resources|storage)
+        printf '%s\n' 'build_package_name_conflict: 项目名与发布目录的保留名称冲突' >&2
+        exit 1
+        ;;
+esac
 if [ -L .env.example ] || [ ! -f .env.example ] || [ -L artisan ] || [ ! -f artisan ]; then
     printf '%s\n' 'build_assets_invalid: Artisan 与环境示例须为普通文件' >&2
     exit 1
 fi
+mkdir -m 755 "$output"
 install -m 755 artisan "$output/artisan"
 install -d -m 755 "$output/storage" "$output/bootstrap/cache" "$output/modules"
 cp -a .env.example public resources "$output/"

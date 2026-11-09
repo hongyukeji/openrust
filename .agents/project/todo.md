@@ -57,10 +57,10 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 7. 统一 `./artisan` 已验收源码根、minimal 与 Fortify Web 生成项目、Linux ARM64 和原生 Ubuntu x86_64 根应用 Compose，以及 Buildx 产物。源码实测 `list`、`help`、环境选择、密钥生成、迁移和停机；根 Compose 以真实 MySQL 8.4 与 Redis 验证。生成项目 Compose 与其他平台继续跟踪，其他冒号命令按现有依赖分批。
 
-8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。根应用发布 `bin/openrust`，生成应用发布 `bin/<项目名>`。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
+8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。该次验收使用 `bin/<项目名>`，现行布局见下方包根整改。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
 
-- **编译部署扩展纠偏，紧接生产迁移。** 旧 ARM64 产物运行证据只覆盖已交付布局。固定 Laravel 没有 `build`，其标准 Artisan 目录、帮助、环境参数与部署工作流仍为验收基线；固定 Goravel 的编译命令经同一 Artisan 登记。OpenRust 当前脚本直接分流，`list`、`help build`、前置 `--env` 与执行入口不一致；发布目录保留标记未被 Artisan 强制检查。纠正同一命令生命周期，逐项记录编译工具、支持平台、默认值、输出和诊断差异，独立修正包根具名二进制并检验保留名称冲突。保留显式 Buildx 交付和固定 Laravel 的公开目录、可写目录与部署命令验收。
+- **编译部署扩展纠偏，紧接生产迁移。** 旧 ARM64 产物运行证据只覆盖已交付布局。固定 Laravel 没有 `build`，其标准 Artisan 目录、帮助、环境参数与部署工作流仍为验收基线；固定 Goravel 的编译命令经同一 Artisan 登记。OpenRust 当前脚本直接分流，`list`、`help build`、前置 `--env` 与执行入口不一致；Artisan 已拒绝未完成发布，包根布局已通过[限定验收](memory/testing.md#发布包根入口限定验收)。纠正同一命令生命周期，逐项记录编译工具、支持平台、默认值、输出和诊断差异。保留显式 Buildx 交付和固定 Laravel 的公开目录、可写目录与部署命令验收。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 

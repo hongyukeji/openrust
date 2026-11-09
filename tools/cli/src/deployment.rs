@@ -162,8 +162,8 @@ impl SourceLayout {
 
 pub(crate) fn artisan_source(name: &str) -> String {
     include_str!("../../../artisan").replace(
-        "application='./bin/openrust'",
-        &format!("application='./bin/{name}'"),
+        "application='./openrust'",
+        &format!("application='./{name}'"),
     )
 }
 

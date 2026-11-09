@@ -1,9 +1,9 @@
-#[cfg(unix)]
-use super::{INCOMPLETE, validate_binary, validate_release, validate_tree};
 use super::{
-    application_name, bake_path, destination, freeze_plan, host_platform, path_text, publish,
-    read_manifest, reject_existing,
+    BuildArgs, application_name, bake_path, destination, freeze_plan, host_platform, path_text,
+    publish, read_manifest, reject_existing,
 };
+#[cfg(unix)]
+use super::{INCOMPLETE, validate_binary, validate_entries, validate_release};
 #[cfg(unix)]
 use anyhow::Context as _;
 use anyhow::bail;
@@ -14,10 +14,7 @@ fn fixture() -> anyhow::Result<(tempfile::TempDir, PathBuf)> {
     let temporary = tempfile::tempdir()?;
     let project = temporary.path().join("app with spaces,comma");
     fs::create_dir(&project)?;
-    fs::write(
-        project.join("Cargo.toml"),
-        "[package]\nname = \"artisan\"\n",
-    )?;
+    fs::write(project.join("Cargo.toml"), "[package]\nname = \"blog\"\n")?;
     fs::write(project.join("Dockerfile"), "FROM scratch AS artifacts\n")?;
     Ok((temporary, project.canonicalize()?))
 }
@@ -52,12 +49,90 @@ fn package_name_and_output_are_separate_from_cargo_binary_target() -> anyhow::Re
     let (_temporary, project) = fixture()?;
     let manifest = read_manifest(&project)?;
     let name = application_name(&manifest)?;
-    assert_eq!(name, "artisan");
+    assert_eq!(name, "blog");
     assert_eq!(
         destination(&project, name, "linux/arm64", None)?,
-        project.join("dist/artisan-linux-arm64")
+        project.join("dist/blog-linux-arm64")
     );
     assert!(destination(&project, name, "linux/amd64", Some(Path::new("../escape"))).is_err());
+    Ok(())
+}
+
+#[test]
+fn build_rejects_reserved_package_names_before_creating_the_output() -> anyhow::Result<()> {
+    let (_temporary, project) = fixture()?;
+    for name in [
+        "artisan",
+        "PUBLIC",
+        "storage",
+        "Bootstrap",
+        "resources",
+        "lang",
+        "modules",
+    ] {
+        fs::write(
+            project.join("Cargo.toml"),
+            format!("[package]\nname = {name:?}\n"),
+        )?;
+        let result = BuildArgs {
+            project_dir: Some(project.clone()),
+            platform: Some("linux/arm64".to_owned()),
+            output: None,
+        }
+        .run();
+        assert!(
+            result.is_err_and(|error| error.to_string().contains("build_package_name_conflict")),
+            "{name}"
+        );
+        assert!(!project.join("dist").exists(), "{name}");
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn docker_packager_rejects_reserved_names_and_an_occupied_output() -> anyhow::Result<()> {
+    let temp = tempfile::tempdir()?;
+    let packager = include_str!("../../templates/deploy/package-assets.sh");
+    for name in [
+        "Artisan",
+        "public",
+        "storage",
+        "bootstrap",
+        "resources",
+        "lang",
+        "modules",
+    ] {
+        let output = temp.path().join("output");
+        let result = std::process::Command::new("sh")
+            .args(["-c", packager, "package-assets"])
+            .arg(&output)
+            .arg(name)
+            .current_dir(temp.path())
+            .output()?;
+        assert!(!result.status.success(), "{name}");
+        assert!(
+            String::from_utf8(result.stderr)?.contains("build_package_name_conflict"),
+            "{name}"
+        );
+        assert!(!output.exists(), "{name}");
+    }
+    fs::write(temp.path().join(".env.example"), "")?;
+    fs::write(temp.path().join("artisan"), "new launcher")?;
+    fs::create_dir(temp.path().join("public"))?;
+    fs::create_dir(temp.path().join("resources"))?;
+    let output = temp.path().join("occupied");
+    fs::create_dir(&output)?;
+    fs::write(output.join("artisan"), "keep launcher")?;
+    let result = std::process::Command::new("sh")
+        .args(["-c", packager, "package-assets"])
+        .arg(&output)
+        .arg("blog")
+        .current_dir(temp.path())
+        .output()?;
+    assert!(!result.status.success());
+    assert_eq!(fs::read_to_string(output.join("artisan"))?, "keep launcher");
+    assert!(!output.join("public").exists());
     Ok(())
 }
 
@@ -158,7 +233,7 @@ fn publication_refuses_existing_empty_and_nonempty_directories_and_files() -> an
             }
         }
         assert!(reject_existing(&output).is_err());
-        assert!(publish(&source, &output).is_err());
+        assert!(publish(&source, &output, "blog").is_err());
         assert!(!output.join("new").exists());
         match kind {
             "nonempty" => assert_eq!(fs::read_to_string(output.join("sentinel"))?, "old"),
@@ -185,7 +260,7 @@ fn publication_refuses_existing_and_dangling_symlinks() -> anyhow::Result<()> {
         let output = temporary.path().join(format!("output-{exists}"));
         symlink(&victim, &output)?;
         assert!(reject_existing(&output).is_err());
-        assert!(publish(&source, &output).is_err());
+        assert!(publish(&source, &output, "blog").is_err());
         assert_eq!(fs::read_link(&output)?, victim);
         assert_eq!(victim.exists(), exists);
         assert!(!victim.join("new").exists());
@@ -199,23 +274,14 @@ fn copied_modes_keep_executable_bits_and_no_special_bits() -> anyhow::Result<()>
     use std::os::unix::fs::PermissionsExt as _;
     let temporary = tempfile::tempdir()?;
     let source = temporary.path().join("source");
-    fs::create_dir_all(source.join("bin"))?;
-    fs::write(source.join("bin/artisan"), "application")?;
-    fs::set_permissions(
-        source.join("bin/artisan"),
-        fs::Permissions::from_mode(0o4751),
-    )?;
+    fs::create_dir(&source)?;
+    fs::write(source.join("blog"), "application")?;
+    fs::set_permissions(source.join("blog"), fs::Permissions::from_mode(0o4751))?;
     let output = temporary.path().join("new-release");
-    publish(&source, &output)?;
+    publish(&source, &output, "blog")?;
+    assert_eq!(fs::read_to_string(output.join("blog"))?, "application");
     assert_eq!(
-        fs::read_to_string(output.join("bin/artisan"))?,
-        "application"
-    );
-    assert_eq!(
-        fs::metadata(output.join("bin/artisan"))?
-            .permissions()
-            .mode()
-            & 0o7777,
+        fs::metadata(output.join("blog"))?.permissions().mode() & 0o7777,
         0o751
     );
     assert!(!output.join(INCOMPLETE).exists());
@@ -224,22 +290,27 @@ fn copied_modes_keep_executable_bits_and_no_special_bits() -> anyhow::Result<()>
 
 #[cfg(unix)]
 #[test]
-fn copy_failure_is_incomplete_and_never_follows_exported_symlink() -> anyhow::Result<()> {
-    use std::os::unix::fs::symlink;
+fn resource_copy_failure_keeps_the_marker_and_never_exposes_the_binary() -> anyhow::Result<()> {
+    use std::os::unix::fs::{PermissionsExt as _, symlink};
     let temporary = tempfile::tempdir()?;
     let source = temporary.path().join("source");
     fs::create_dir(&source)?;
+    let executable = source.join("blog");
+    fs::write(&executable, b"application")?;
+    fs::set_permissions(executable, fs::Permissions::from_mode(0o755))?;
+    fs::create_dir(source.join("resources"))?;
     let private = temporary.path().join("private");
     fs::write(&private, "private sentinel")?;
-    symlink(&private, source.join("link"))?;
-    assert!(validate_tree(&source).is_err());
+    symlink(&private, source.join("resources/link"))?;
+    assert!(validate_entries(&source, Some("blog")).is_err());
     let output = temporary.path().join("partial");
-    let error = publish(&source, &output)
+    let error = publish(&source, &output, "blog")
         .err()
         .context("expected incomplete error")?;
     assert!(error.to_string().starts_with("build_publish_incomplete:"));
     assert_eq!(fs::read_to_string(output.join(INCOMPLETE))?, "incomplete\n");
-    assert!(!output.join("link").exists());
+    assert!(!output.join("resources/link").exists());
+    assert!(!output.join("blog").exists());
     assert_eq!(fs::read_to_string(private)?, "private sentinel");
     Ok(())
 }
@@ -279,10 +350,10 @@ fn exported_binary_must_match_platform_and_artifacts_have_only_one_elf() -> anyh
     use std::os::unix::fs::PermissionsExt as _;
     let temporary = tempfile::tempdir()?;
     let root = temporary.path();
-    for directory in ["bin", "public", "resources", "storage", "bootstrap/cache"] {
+    for directory in ["public", "resources", "storage", "bootstrap/cache"] {
         fs::create_dir_all(root.join(directory))?;
     }
-    let binary = root.join("bin/application");
+    let binary = root.join("application");
     let mut header = [0_u8; 64];
     header[..4].copy_from_slice(b"\x7fELF");
     header[4] = 2;
@@ -304,8 +375,14 @@ fn exported_binary_must_match_platform_and_artifacts_have_only_one_elf() -> anyh
     fs::write(&hidden_database, b"SQLite format 3\0")?;
     assert!(validate_release(root, "application", "linux/arm64").is_err());
     fs::remove_file(hidden_database)?;
-    fs::write(root.join("bin/another"), header)?;
-    assert_eq!(validate_tree(root)?, 2);
+    fs::create_dir(root.join("bin"))?;
+    fs::rename(&binary, root.join("bin/application"))?;
+    assert!(validate_release(root, "application", "linux/arm64").is_err());
+    fs::rename(root.join("bin/application"), &binary)?;
+    fs::remove_dir(root.join("bin"))?;
+    fs::write(root.join("resources/another"), header)?;
+    assert_eq!(validate_entries(root, Some("application"))?, 2);
+    assert!(validate_release(root, "application", "linux/arm64").is_err());
     fs::set_permissions(&binary, fs::Permissions::from_mode(0o644))?;
     assert!(validate_binary(&binary, "linux/arm64").is_err());
     Ok(())

@@ -1879,6 +1879,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 Linux ARM64 的镜像和独立目录均在真实服务拓扑下运行。根使用 MySQL 8.4.13 与 Redis，生成 minimal 使用 Redis。验证迁移、语言资源 HTTP 读取、独立 Artisan 与 SIGTERM。资源私钥导致的构建失败及已有目标保护均经过负例，未输出子进程私密值。默认工作区 fmt、严格 Clippy、测试、Rustdoc、离线依赖检查和 fresh minimal check/test 通过。原生 x86_64 的该入口仍待发布矩阵。
 
+## 发布包根入口限定验收
+
+冻结树 `16d4562eecf85e352292b8c17c82f6b81288b3a3` 的根与 fresh minimal 发布包均在包根安装唯一项目同名 ELF。参照固定 Goravel 的具名编译产物与外置资源，保留 Laravel 的公开目录与可写 storage/bootstrap/cache。Docker runtime、导出目录和 Artisan 使用同一相对入口，源码生成对保留名仍可用。
+
+Linux ARM64 在实际根和搬迁后的新生成应用执行 Buildx、镜像启动及独立包直接启动。真实 MySQL 8.4 与 Redis 证实根迁移，两个包均验证 Artisan、翻译 HTTP 与 SIGTERM。保留名拒绝创建目标，已有目标保持原样，资产复制失败时不会发布可执行 ELF。工作区 fmt、严格 Clippy、测试、Rustdoc、离线依赖及 fresh minimal check/test 通过。原生 x86_64 及源码命令目录另行验收。
+
 ## 开发态两阶段重载
 
 macOS ARM64 使用 Watchexec 2.8.0、隔离 MySQL 8.4.13 与 Redis 8，通过根应用和 `openrust new --minimal` 生成应用的真实 HTTP 验收。根应用完成实际迁移，编译失败期间原进程持续响应，修复后收到 SIGTERM 并切换。选定的 `.env` 变更触发重载，其他环境文件和运行目录写入被忽略。

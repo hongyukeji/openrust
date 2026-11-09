@@ -82,13 +82,14 @@ impl Fixture {
     }
 
     fn assert_deployment_errors(&self, project: &Path, program: &str) -> Result<()> {
-        let target = format!("./bin/{program}");
+        let target = format!("./{program}");
         write_executable(&project.join("app"), FAKE_APPLICATION)?;
+        fs::create_dir(project.join("bin"))?;
+        write_executable(&project.join("bin").join(program), FAKE_APPLICATION)?;
         let (_, missing) = self.run(project, &[])?;
         assert_deployment_error(missing, 127, &target)?;
 
-        fs::create_dir_all(project.join("bin"))?;
-        let binary = project.join("bin").join(program);
+        let binary = project.join(program);
         fs::write(&binary, FAKE_APPLICATION)?;
         fs::set_permissions(binary, fs::Permissions::from_mode(0o644))?;
         let (_, not_executable) = self.run(project, &[])?;
@@ -130,8 +131,9 @@ fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> 
     fs::create_dir(&source)?;
     fs::create_dir(&deployment)?;
     create_framework_fixture(&framework);
-    let names = ["artisan", "public", "storage", "modules", "bin"];
-    for name in names {
+    let reserved = ["artisan", "public", "storage", "modules"];
+    let publishable = ["blog", "bin"];
+    for name in reserved.into_iter().chain(publishable) {
         let project = source.join(name);
         create_project(
             project.to_str().context("应用目录必须为 UTF-8")?,
@@ -145,13 +147,7 @@ fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> 
         assert_generated_deployment_artifacts(&project, name)?;
         let script = project.join("artisan");
         assert_eq!(fs::metadata(&script)?.permissions().mode() & 0o777, 0o755);
-        let installed = deployment.join(name);
-        fs::create_dir_all(installed.join("bin"))?;
-        fs::copy(&script, installed.join("artisan"))?;
-        if name == "artisan" {
-            fixture.assert_deployment_errors(&installed, name)?;
-            fs::create_dir_all(project.join("bin"))?;
-            write_executable(&project.join("bin").join(name), FAKE_APPLICATION)?;
+        if reserved.contains(&name) {
             fixture.assert_exec(
                 &project,
                 &["--env=testing", "queue:work", "two words", ""],
@@ -166,13 +162,24 @@ fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> 
                     "",
                 ],
             )?;
+            if name == "artisan" {
+                let installed = deployment.join(name);
+                fs::create_dir(&installed)?;
+                fs::copy(&script, installed.join("artisan"))?;
+                let (_, collision) = fixture.run(&installed, &[])?;
+                assert_deployment_error(collision, 126, "Artisan 启动脚本冲突")?;
+            }
+            continue;
         }
-        write_executable(&installed.join("bin").join(name), FAKE_APPLICATION)?;
+        let installed = deployment.join(name);
+        fs::create_dir(&installed)?;
+        fs::copy(&script, installed.join("artisan"))?;
+        write_executable(&installed.join(name), FAKE_APPLICATION)?;
     }
 
     fs::rename(&deployment, &relocated)?;
     let args = ["schedule:run", "two words", ""];
-    for name in names {
+    for name in publishable {
         fixture.assert_exec(&relocated.join(name), &args, name, &args)?;
     }
     Ok(())
@@ -253,13 +260,13 @@ fn source_artisan_discovery_uses_cli_without_building_the_application() -> Resul
 }
 
 #[test]
-fn deployed_root_artisan_execs_bin_openrust_without_cargo() -> Result<()> {
+fn deployed_root_artisan_execs_openrust_without_cargo() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("deployed project");
-    fs::create_dir_all(project.join("bin"))?;
+    fs::create_dir(&project)?;
     fs::write(project.join("Cargo.toml"), "")?;
     write_executable(&project.join("artisan"), ARTISAN)?;
-    write_executable(&project.join("bin/openrust"), FAKE_APPLICATION)?;
+    write_executable(&project.join("openrust"), FAKE_APPLICATION)?;
     fixture.assert_exec(
         &project,
         &["schedule:run", "two words", ""],
@@ -269,7 +276,7 @@ fn deployed_root_artisan_execs_bin_openrust_without_cargo() -> Result<()> {
 }
 
 #[test]
-fn deployed_root_artisan_reports_missing_or_non_executable_bin_openrust() -> Result<()> {
+fn deployed_root_artisan_reports_missing_or_non_executable_openrust() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("incomplete project");
     fs::create_dir_all(project.join("src"))?;
@@ -282,9 +289,9 @@ fn deployed_root_artisan_reports_missing_or_non_executable_bin_openrust() -> Res
 fn deployed_artisan_refuses_incomplete_output_before_executing_migration() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("incomplete deployment");
-    fs::create_dir_all(project.join("bin"))?;
+    fs::create_dir(&project)?;
     write_executable(&project.join("artisan"), ARTISAN)?;
-    write_executable(&project.join("bin/openrust"), FAKE_APPLICATION)?;
+    write_executable(&project.join("openrust"), FAKE_APPLICATION)?;
     fs::write(project.join(".openrust-build-incomplete"), b"incomplete\n")?;
     let (_, output) = fixture.run(&project, &["migrate", "--force"])?;
     assert_eq!(output.status.code(), Some(1));
