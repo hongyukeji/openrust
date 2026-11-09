@@ -83,6 +83,10 @@ impl ServiceProvider for FeatureProvider {
 
 普通应用在 eager 注册前校验并复用 `bootstrap/cache/services.json`，清单缺失或声明变化时同目录原子发布。低层 `ProviderBuilder` 和 `TestApp` 维持内存清单。编译类型和工厂归当前进程，文件只保存有序元数据。用 `clear-compiled` 清理服务与包缓存，配置缓存由 `config:clear` 单独处理。
 
+### 测试替换容器中间件
+
+`TestAppBuilder::without_middleware_type::<M>()` 和 `TestApp::without_middleware_type::<M>()` 可将容器登记的 `TerminableMiddleware` 类型替换为直通处理。全局和命名登记共享同一类型判定。`with_middleware_type::<M>()` 恢复后续请求。处理与响应完成后的终止读取同一请求快照，重建测试应用时恢复蓝图。
+
 ## 入口作用域与资源回收
 
 - HTTP：每个请求创建独立 scope，响应 body 仍持有它；body 结束、出错或丢弃，以及请求处理被取消时关闭。流式响应尚未结束时，scope 仍然有效。

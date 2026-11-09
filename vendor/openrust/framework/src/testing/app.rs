@@ -20,6 +20,7 @@ use crate::foundation::Application;
 use crate::foundation::ApplicationDefinition;
 use crate::foundation::ProviderBuilder;
 use crate::foundation::provider::ProviderId;
+use crate::http::middleware::{MiddlewareOverrides, TerminableMiddleware};
 use crate::support::BoxFuture;
 
 use super::response::TestResponse;
@@ -38,6 +39,7 @@ pub struct TestAppBuilder<A: ApplicationDefinition> {
     configure_providers: Vec<ConfigureProviders>,
     configure: Vec<Configure>,
     middleware_enabled: bool,
+    middleware_overrides: MiddlewareOverrides,
     application: PhantomData<fn() -> A>,
 }
 
@@ -51,6 +53,18 @@ impl<A: ApplicationDefinition> TestAppBuilder<A> {
     /// 恢复此测试蓝图的完整中间件链。
     pub fn with_middleware(&mut self) -> &mut Self {
         self.middleware_enabled = true;
+        self
+    }
+
+    /// 将此蓝图的容器中间件类型替换为直通处理。别名和全局登记按类型匹配。
+    pub fn without_middleware_type<M: TerminableMiddleware>(&mut self) -> &mut Self {
+        self.middleware_overrides.disable::<M>();
+        self
+    }
+
+    /// 恢复此蓝图中该类型的实际中间件，保留全局中间件开关。
+    pub fn with_middleware_type<M: TerminableMiddleware>(&mut self) -> &mut Self {
+        self.middleware_overrides.enable::<M>();
         self
     }
 
@@ -85,6 +99,7 @@ impl<A: ApplicationDefinition> TestAppBuilder<A> {
             app: Some(app),
             router: None,
             active: AtomicBool::new(false),
+            middleware_overrides: self.middleware_overrides.clone(),
             blueprint: self,
         };
         fixture.install_router().await?;
@@ -104,6 +119,7 @@ impl<A: ApplicationDefinition> TestAppBuilder<A> {
             app: Some(app),
             router: None,
             active: AtomicBool::new(false),
+            middleware_overrides: self.middleware_overrides.clone(),
             blueprint: self,
         };
         let result = fixture
@@ -160,6 +176,7 @@ pub struct TestApp<A: ApplicationDefinition> {
     app: Option<Application>,
     router: Option<axum::Router>,
     active: AtomicBool,
+    middleware_overrides: MiddlewareOverrides,
     blueprint: TestAppBuilder<A>,
 }
 
@@ -172,6 +189,7 @@ impl<A: ApplicationDefinition> TestApp<A> {
             configure_providers: Vec::new(),
             configure: Vec::new(),
             middleware_enabled: true,
+            middleware_overrides: MiddlewareOverrides::default(),
             application: PhantomData,
         }
     }
@@ -208,12 +226,27 @@ impl<A: ApplicationDefinition> TestApp<A> {
         }
     }
 
-    async fn dispatch(&self, request: Request<Body>) -> Result<Response<Body>> {
+    /// 将后续请求中的容器中间件类型替换为直通处理。已返回的响应保留其原决定。
+    pub fn without_middleware_type<M: TerminableMiddleware>(&mut self) -> &mut Self {
+        self.middleware_overrides.disable::<M>();
+        self
+    }
+
+    /// 为后续请求恢复此类型的实际处理与终止，保留全局中间件开关。
+    pub fn with_middleware_type<M: TerminableMiddleware>(&mut self) -> &mut Self {
+        self.middleware_overrides.enable::<M>();
+        self
+    }
+
+    async fn dispatch(&self, mut request: Request<Body>) -> Result<Response<Body>> {
         self.app()?;
         let router = self
             .router
             .as_ref()
             .ok_or_else(|| Error::custom("test_app_closed", "测试应用路由尚未就绪"))?;
+        request
+            .extensions_mut()
+            .insert(self.middleware_overrides.clone());
         router
             .clone()
             .oneshot(request)
@@ -270,6 +303,7 @@ impl<A: ApplicationDefinition> TestApp<A> {
         self.shutdown(deadline).await?;
         let app = self.blueprint.start().await?;
         self.app = Some(app);
+        self.middleware_overrides = self.blueprint.middleware_overrides.clone();
         self.install_router().await
     }
 }
@@ -289,6 +323,10 @@ impl<A: ApplicationDefinition> Drop for TestApp<A> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "middleware_override_tests.rs"]
+mod middleware_override_tests;
 
 #[cfg(test)]
 mod tests {

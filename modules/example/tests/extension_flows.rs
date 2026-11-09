@@ -44,6 +44,46 @@ test = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="
 }
 
 #[tokio::test]
+async fn test_app_replaces_example_middleware_type_and_restores_group_behavior() -> Result<()> {
+    use super::routes::ExampleResponseMarker;
+    use openrust::http::axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+
+    let mut builder = ServerApp::builder(enabled_example_sources(&sources())?);
+    builder.without_middleware_type::<ExampleResponseMarker>();
+    let mut app = builder.build().await?;
+    let request = |path| {
+        Request::get(path)
+            .header("host", "localhost")
+            .body(Body::empty())
+            .map_err(Error::internal)
+    };
+    let response = app.request(request("/api/example/middleware")?).await?;
+    response.assert_status(StatusCode::OK)?;
+    assert!(!response.headers().contains_key("x-example-middleware"));
+    assert!(response.headers().contains_key("x-request-id"));
+
+    app.with_middleware_type::<ExampleResponseMarker>();
+    let restored = app.request(request("/api/example/middleware")?).await?;
+    restored.assert_header("x-example-middleware", "named-group")?;
+    let excluded = app
+        .request(request("/api/example/middleware/without-marker")?)
+        .await?;
+    excluded.assert_status(StatusCode::OK)?;
+    assert!(!excluded.headers().contains_key("x-example-middleware"));
+
+    app.reset(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    let reset = app.request(request("/api/example/middleware")?).await?;
+    reset.assert_status(StatusCode::OK)?;
+    assert!(!reset.headers().contains_key("x-example-middleware"));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await
+}
+
+#[tokio::test]
 async fn module_named_cache_driver_preserves_default_and_rejects_unsupported_tags() -> Result<()> {
     let mut app = ServerApp::builder(enabled_example_sources(&(sources()))?)
         .build()

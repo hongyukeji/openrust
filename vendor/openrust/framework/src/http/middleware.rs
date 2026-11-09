@@ -4,7 +4,8 @@
 //! CORS → 响应上下文 → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Router::layer`](crate::routing::Router::layer) 添加的应用 layer
 //! 在此 stack 内运行。
 
-use std::any::Any;
+use std::any::{Any, TypeId};
+use std::collections::HashSet;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -202,6 +203,24 @@ pub trait TerminableMiddleware: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<()>>;
 }
 
+// 测试夹具独占修改；HTTP 入口持有当次请求的不可变快照。
+#[derive(Clone, Default)]
+pub(crate) struct MiddlewareOverrides(Arc<HashSet<TypeId>>);
+
+impl MiddlewareOverrides {
+    pub(crate) fn disable<M: TerminableMiddleware>(&mut self) {
+        Arc::make_mut(&mut self.0).insert(TypeId::of::<M>());
+    }
+
+    pub(crate) fn enable<M: TerminableMiddleware>(&mut self) {
+        Arc::make_mut(&mut self.0).remove(&TypeId::of::<M>());
+    }
+
+    pub(crate) fn contains<M: TerminableMiddleware>(&self) -> bool {
+        self.0.contains(&TypeId::of::<M>())
+    }
+}
+
 pub(crate) type TerminateMiddleware = for<'a> fn(
     &'a ApplicationState,
     &'a http::Request<()>,
@@ -213,6 +232,9 @@ pub(crate) async fn handle_terminable<M: TerminableMiddleware>(
     request: Request,
     next: axum::middleware::Next,
 ) -> Result<Response> {
+    if crate::foundation::http::middleware_is_overridden::<M>() {
+        return Ok(next.run(request).await);
+    }
     let scope = crate::foundation::http::http_entry_scope()
         .and_then(|scope| scope.upgrade())
         .ok_or_else(|| {
@@ -234,6 +256,9 @@ pub(crate) fn terminate_middleware<'a, M: TerminableMiddleware>(
     response: &'a http::Response<()>,
 ) -> BoxFuture<'a, Result<()>> {
     Box::pin(async move {
+        if crate::foundation::http::middleware_is_overridden::<M>() {
+            return Ok(());
+        }
         state
             .resolve::<M>()
             .await?

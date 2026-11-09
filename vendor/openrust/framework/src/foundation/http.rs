@@ -9,8 +9,8 @@ use crate::foundation::{
 use crate::http::authority::authority;
 use crate::http::client_ip::validate_trusted_proxy_ranges;
 use crate::http::middleware::{
-    CorsMode, GLOBAL_MIDDLEWARE_DISABLED, GlobalMiddlewareLayer, TerminableMiddleware,
-    TerminateMiddleware, handle_terminable, terminate_middleware,
+    CorsMode, GLOBAL_MIDDLEWARE_DISABLED, GlobalMiddlewareLayer, MiddlewareOverrides,
+    TerminableMiddleware, TerminateMiddleware, handle_terminable, terminate_middleware,
 };
 #[cfg(test)]
 use crate::http::server_provider::HttpServiceProvider;
@@ -43,6 +43,7 @@ tokio::task_local! {
 struct HttpEntry {
     scope: Arc<Scope>,
     middleware_enabled: bool,
+    middleware_overrides: Option<MiddlewareOverrides>,
     started: EntryStarted,
     attributes: RequestAttributes,
     route: RouteSlot,
@@ -68,6 +69,17 @@ pub(crate) async fn should_skip_middleware(state: &ApplicationState) -> Result<b
     } else {
         Ok(false)
     }
+}
+
+pub(crate) fn middleware_is_overridden<M: TerminableMiddleware>() -> bool {
+    HTTP_ENTRY_SCOPE
+        .try_with(|entry| {
+            entry
+                .middleware_overrides
+                .as_ref()
+                .is_some_and(MiddlewareOverrides::contains::<M>)
+        })
+        .unwrap_or(false)
 }
 
 pub(crate) fn request_started_at(container: &Container) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -622,6 +634,7 @@ async fn expose_app_state(
             return render_early_error(&runtime, &request, started, error);
         }
     };
+    parts.extensions.remove::<MiddlewareOverrides>();
     #[cfg(feature = "auth")]
     let entry = HttpEntry {
         request: Some(Arc::new(info.clone().without_session())),
@@ -701,6 +714,7 @@ fn install_http_entry(
     HttpEntry {
         scope,
         middleware_enabled,
+        middleware_overrides: extensions.get::<MiddlewareOverrides>().cloned(),
         started,
         attributes,
         route,
@@ -729,8 +743,12 @@ fn render_early_error(
     let Ok(scope) = runtime.state.container().scope() else {
         return response;
     };
+    let mut extensions = http::Extensions::new();
+    if let Some(overrides) = request.extensions().get::<MiddlewareOverrides>() {
+        extensions.insert(overrides.clone());
+    }
     let entry = install_http_entry(
-        &mut http::Extensions::new(),
+        &mut extensions,
         Arc::new(scope),
         started,
         runtime.middleware_enabled,
