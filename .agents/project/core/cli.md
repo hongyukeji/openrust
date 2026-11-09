@@ -24,7 +24,7 @@
 - `openrust dev` 和 `serve` 通过 Cargo metadata 找到当前应用，再从其目录运行 `cargo run`。开发入口复用或准备适用的 Redis 服务。根应用和生成应用的 `./artisan dev` 调用 `openrust dev --watch`，在 macOS 和 Linux 上通过 Watchexec 监听应用和本地 Cargo 依赖。成功构建的独立产物在旧进程收到 SIGTERM 并退出后启动，编译失败期间旧应用继续服务。开发配置沿用应用的 `--env` 和 dotenv 选择规则。
 
 - 发布二进制识别命令位置的一次 `artisan` 前缀。裸执行启动应用，单独前缀列出应用命令并退出。包装脚本使用同一控制台。生产迁移沿用确认与显式强制选项。见[发布入口实测](../memory/testing.md#发布二进制-artisan-与生产迁移验收)。
-- 源码 `./artisan build` 复用 Compose 的 `app` 构建配置及 Buildx artifacts 阶段，输出单 Linux 平台的独立发布目录。根应用和生成应用保留各自具名 ELF、Artisan 及运行资源。已有输出、非法产物或未完成发布分别明确失败。源码 Provider 在同一命令表保留 `build`，工具分派无需启动应用，复用同一命令的解析和帮助。命令前后的 `--env` 选择构建插值文件。发布应用命令表不安装该工具。见[源码 Artisan 构建命令验收](../memory/testing.md#源码-artisan-构建命令验收)。
+- 源码 `./artisan build` 默认用 Cargo 发布当前应用，按 Cargo 的默认运行目标或唯一二进制选择程序。构建使用本机目标，支持 `--features`，隔离本次可执行文件并复用 Cargo 中间缓存。显式 `--docker` 复用 Compose 的 `app` 和 Buildx artifacts 阶段，`--platform` 与命令前后的 `--env` 用于该模式。两条路径共用发布资源、包根具名入口、目标目录及产物校验。源码 Provider 和工具分派共用选项定义，源码构建无需启动运行时服务。此命令是 OpenRust 扩展，参考固定 Goravel 的本机编译流程。
 - package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 历史决策 039 已完成。
 - 源码应用的 `./artisan package:discover` 在编译应用前重建按目标和应用特性分开的清单。CLI 保留 `--install` 和 `--preview`，`--check` 只读核对完整已安装内容。根应用和生成应用的构建脚本核对锁文件、相关 manifest 与 Cargo 文件配置摘要，然后把对应 v3 清单交给同一 Provider 启动槽。清单为工厂结果保留包名、版本及 Rust 依赖名。安装器先校验 v3 构建接线，旧应用按当前模板更新后再重建。
 - `openrust --help` 及子命令帮助使用简体中文标题、选项说明和帮助/版本说明；命令、参数、配置键和协议值保留技术原名。

@@ -23,9 +23,9 @@ cargo run -p cli -- dev
 
 生成项目附带 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。从应用目录运行 `docker compose up --build -d --wait`。Compose 用应用目录和相对框架目录作为 BuildKit 上下文，宿主机 Cargo 和容器使用相同的相对依赖布局。移动应用和框架时保留两者的相对位置。配置、端口与持久化见[生成应用的容器部署](../../docs/src/getting-started/source-application.md#生成应用的容器部署)。
 
-在源码目录用 `./artisan build --platform linux/amd64` 或 `openrust build` 导出应用。默认产物目录为 `dist/<项目名>-linux-<架构>`。命令复用 Compose 的 `app` 构建配置，支持 `--output` 指向全新目录。发布目录、镜像和 Buildx 导出均保留 `<项目名>`。例如 `openrust new blog` 的部署入口为 `./blog`，`./blog artisan` 列出命令并退出。包根的 `./artisan` 调用同一个 `blog`。生成的 README 给出当前项目的命令。
+在源码目录用 `./artisan build` 或 `openrust build` 执行本机 Cargo 发布构建，可用 `--features` 启用应用功能。默认产物目录为 `dist/<项目名>-<系统>-<架构>`。显式加 `--docker --platform linux/amd64` 可复用 Compose 的 `app` 构建配置导出 Linux 产物。两种模式均支持 `--output` 指向全新目录。对于 `openrust new blog`，发布包根的 `./blog` 启动应用，`./blog artisan` 和 `./artisan` 进入同一控制台。
 
-源码下可用 `./artisan list` 查看应用 Provider 实际登记的构建命令。用 `./artisan help build` 或 `./artisan build --help` 查看相同选项。构建可在运行服务不可达时执行，`--env` 可放在 `build` 前后。
+源码下可用 `./artisan list` 查看应用 Provider 实际登记的构建命令。用 `./artisan help build` 或 `./artisan build --help` 查看相同选项。构建可在运行服务不可达时执行，Docker 构建的插值环境可用 `--env` 选择，放在 `build` 前后均可。
 
 根/生成 `config/*.rs` 显式展示已实现策略，按 `server → app → auth/security` 声明依赖。APP_NAME/APP_URL只在app配置求值，缺省URL取同次有效server.port；auth/security缺省身份读取最终app值，显式独立来源仍优先。标准生成项目默认启用queue及queue-redis，realtime仍按需选择；--minimal省略queue装配，生成Job时会保留已有queue.rs并安全登记queue代码配置，发现冲突先拒绝而不覆盖源码。根View的常量只控制默认声明，生成项目默认声明View，均不强制屏蔽显式来源。
 

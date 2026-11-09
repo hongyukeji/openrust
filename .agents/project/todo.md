@@ -60,7 +60,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。该次验收使用 `bin/<项目名>`，现行布局见下方包根整改。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
 
-- **编译部署扩展发布矩阵。** 包根布局与源码命令分别完成[限定验收](memory/testing.md#发布包根入口限定验收)和[限定验收](memory/testing.md#源码-artisan-构建命令验收)。根和新生成 MySQL 的发布二进制模式、生产迁移与直接运行已通过[Linux ARM64 限定验收](memory/testing.md#发布二进制-artisan-与生产迁移验收)。现有命令导出 Docker Buildx 的 Linux 产物。固定 Goravel 的无需 Docker 编译工作流尚未对应到此命令，原生 x86_64 发布包和其余支持环境的实际构建继续按发布矩阵验证。普通 Artisan 命令以及 Laravel 的部署优化与重载按固定 Laravel 逐项验收。
+- **编译部署扩展发布矩阵。** 包根布局与源码命令分别完成[限定验收](memory/testing.md#发布包根入口限定验收)和[限定验收](memory/testing.md#源码-artisan-构建命令验收)。根和新生成 MySQL 的发布二进制模式、生产迁移与直接运行已通过[Linux ARM64 限定验收](memory/testing.md#发布二进制-artisan-与生产迁移验收)。本机 Cargo 与显式 Docker 的当前平台证据见[发布验收](memory/testing.md#本机-cargo-与显式-docker-发布验收)。Linux 本机编译、原生 x86_64 发布包与其他支持环境按发布矩阵验收。Goravel 的交互式目标选择、静态链接及无 Docker 跨系统编译保留差距。普通 Artisan 命令以及 Laravel 的部署优化与重载按固定 Laravel 逐项验收。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 

@@ -44,10 +44,12 @@ fn build_registration_requires_the_application_manifest_and_source_entry() -> an
 }
 
 #[test]
-fn platform_selection_maps_cpu_without_choosing_host_os() -> anyhow::Result<()> {
-    assert_eq!(host_platform("x86_64")?, "linux/amd64");
-    assert_eq!(host_platform("aarch64")?, "linux/arm64");
-    assert!(host_platform("riscv64").is_err());
+fn platform_selection_preserves_native_os_and_cpu() -> anyhow::Result<()> {
+    assert_eq!(host_platform("linux", "x86_64")?, "linux/amd64");
+    assert_eq!(host_platform("linux", "aarch64")?, "linux/arm64");
+    assert_eq!(host_platform("macos", "x86_64")?, "darwin/amd64");
+    assert_eq!(host_platform("macos", "aarch64")?, "darwin/arm64");
+    assert!(host_platform("linux", "riscv64").is_err());
     Ok(())
 }
 
@@ -83,7 +85,9 @@ fn build_rejects_reserved_package_names_before_creating_the_output() -> anyhow::
         )?;
         let result = BuildArgs {
             project_dir: Some(project.clone()),
+            docker: true,
             platform: Some("linux/arm64".to_owned()),
+            features: None,
             output: None,
         }
         .run();
@@ -381,23 +385,38 @@ fn resource_copy_failure_keeps_the_marker_and_never_exposes_the_binary() -> anyh
 }
 
 #[test]
-fn public_build_parser_accepts_only_one_linux_platform() -> anyhow::Result<()> {
+fn public_build_parser_requires_explicit_docker_for_linux_platform() -> anyhow::Result<()> {
+    assert!(!BuildCommand::parse_source(&[])?.docker);
     let options = BuildCommand::parse_source(&[
+        "--docker".into(),
         "--platform".into(),
         "linux/arm64".into(),
         "--output".into(),
         "/tmp/with spaces,comma".into(),
     ])?;
+    assert!(options.docker);
     assert_eq!(options.platform.as_deref(), Some("linux/arm64"));
     assert_eq!(
         options.output.as_deref(),
         Some(Path::new("/tmp/with spaces,comma"))
     );
+    assert!(BuildCommand::parse_source(&["--platform".into(), "linux/arm64".into()]).is_err());
     assert!(
-        BuildCommand::parse_source(&["--platform".into(), "linux/amd64,linux/arm64".into()])
-            .is_err()
+        BuildCommand::parse_source(&[
+            "--docker".into(),
+            "--platform".into(),
+            "linux/amd64,linux/arm64".into(),
+        ])
+        .is_err()
     );
-    assert!(BuildCommand::parse_source(&["--platform".into(), "darwin/arm64".into()]).is_err());
+    assert!(
+        BuildCommand::parse_source(&[
+            "--docker".into(),
+            "--platform".into(),
+            "darwin/arm64".into()
+        ])
+        .is_err()
+    );
     Ok(())
 }
 
@@ -408,6 +427,8 @@ fn registered_build_help_matches_source_parser_and_hides_project_binding() {
     let help = command.render_help();
     assert!(help.as_ref().is_some_and(|text| {
         text.contains("artisan build")
+            && text.contains("--docker")
+            && text.contains("--features")
             && text.contains("--platform")
             && text.contains("--output")
             && !text.contains("--project-dir")
@@ -417,6 +438,90 @@ fn registered_build_help_matches_source_parser_and_hides_project_binding() {
         error.kind() == clap::error::ErrorKind::DisplayHelp
             && help.is_some_and(|text| text.trim_end() == error.to_string().trim_end())
     }));
+}
+
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos"),
+    any(target_arch = "aarch64", target_arch = "x86_64")
+))]
+#[test]
+fn default_build_uses_cargo_without_compose_and_runs_the_named_package() -> anyhow::Result<()> {
+    let (_temporary, project) = fixture()?;
+    fs::remove_file(project.join("Dockerfile"))?;
+    for directory in ["src/bin", "public", "resources", ".cargo"] {
+        fs::create_dir_all(project.join(directory))?;
+    }
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname = \"blog\"\nversion = \"1.0.0\"\nedition = \"2024\"\ndefault-run = \"server\"\n\
+         [[bin]]\nname = \"server\"\npath = \"src/main.rs\"\n[features]\nexample = []\n",
+    )?;
+    fs::write(
+        project.join("src/main.rs"),
+        r#"fn main() { print!("{}", if cfg!(feature = "example") { "with feature" } else { "release app" }); }"#,
+    )?;
+    fs::write(
+        project.join("src/bin/other.rs"),
+        "compile_error!(\"wrong binary\");",
+    )?;
+    fs::write(
+        project.join(".cargo/config.toml"),
+        "[build]\ntarget = \"wasm32-unknown-unknown\"\n",
+    )?;
+    fs::write(
+        project.join("artisan"),
+        "#!/bin/sh\nexec ./blog artisan \"$@\"\n",
+    )?;
+    fs::write(project.join(".env.example"), "APP_KEY=\n")?;
+    fs::write(project.join(".env"), "APP_KEY=local-only\n")?;
+    fs::write(project.join("public/index.html"), "public resource")?;
+
+    let platform = host_platform(std::env::consts::OS, std::env::consts::ARCH)?;
+    let release = project
+        .join("dist")
+        .join(format!("blog-{}", platform.replace('/', "-")));
+    assert_eq!(
+        BuildCommand::run_source(&project, &[], Some("production"))?,
+        ExitCode::SUCCESS
+    );
+    let output = std::process::Command::new(release.join("blog"))
+        .current_dir(&release)
+        .output()?;
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"release app");
+    let lock = fs::read(project.join("Cargo.lock"))?;
+    assert!(!release.join(".env").exists());
+    assert!(!release.join("bin").exists());
+    assert_eq!(
+        fs::read_to_string(release.join("public/index.html"))?,
+        "public resource"
+    );
+    assert!(BuildCommand::run_source(&project, &[], None).is_err());
+    assert_eq!(
+        fs::read_to_string(release.join(".env.example"))?,
+        "APP_KEY=\n"
+    );
+
+    let feature_build = [
+        "--features".into(),
+        "example".into(),
+        "--output".into(),
+        "dist/feature".into(),
+    ];
+    assert_eq!(
+        BuildCommand::run_source(&project, &feature_build, None)?,
+        ExitCode::SUCCESS
+    );
+    let output = std::process::Command::new(project.join("dist/feature/blog")).output()?;
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"with feature");
+    assert_eq!(fs::read(project.join("Cargo.lock"))?, lock);
+
+    fs::write(project.join("src/main.rs"), "invalid Rust")?;
+    let failed = ["--output".into(), "dist/failed".into()];
+    assert!(BuildCommand::run_source(&project, &failed, None).is_err());
+    assert!(!project.join("dist/failed").exists());
+    Ok(())
 }
 
 #[test]
@@ -463,6 +568,13 @@ fn exported_binary_must_match_platform_and_artifacts_have_only_one_elf() -> anyh
     fs::set_permissions(&binary, fs::Permissions::from_mode(0o755))?;
     validate_binary(&binary, "linux/arm64")?;
     assert!(validate_binary(&binary, "linux/amd64").is_err());
+    assert!(validate_release(root, "application", "linux/arm64").is_err());
+    let launcher = root.join("artisan");
+    fs::write(&launcher, "#!/bin/sh\n")?;
+    fs::write(root.join(".env.example"), "APP_KEY=\n")?;
+    fs::set_permissions(&launcher, fs::Permissions::from_mode(0o644))?;
+    assert!(validate_release(root, "application", "linux/arm64").is_err());
+    fs::set_permissions(&launcher, fs::Permissions::from_mode(0o755))?;
     validate_release(root, "application", "linux/arm64")?;
     let data = root.join("storage/data");
     fs::write(&data, "old data")?;

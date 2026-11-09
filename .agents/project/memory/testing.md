@@ -1882,6 +1882,14 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 已发布目录的 Artisan 拒绝未完成标记。默认 HTTP 路径编码验证通过实际 TCP、路由、静态资源、fallback 和 CORS 前置测试。畸形百分号字面及单次合法解码保留。工作区格式、严格 Clippy、测试、Rustdoc、离线依赖、fresh minimal check/test 与可选翻译数据库的真实 MySQL 测试通过。
 
+## 本机 Cargo 与显式 Docker 发布验收
+
+冻结树 `93aace7c5e1ab2cd0b15d5f751419b52f0b5423e`。编译打包是 OpenRust 的源码扩展，参考固定 Goravel a554ced 的编译入口和 a9e5a3f 的 Docker 独立流程。部署优化和长驻服务重载按固定 Laravel d52c3b3 与部署文档 960eedf 分别验收。
+
+macOS ARM64 的根和新生成 minimal 通过源码 `./artisan build` 实际编译，PATH 中 Docker 调用会立即失败。Cargo 使用本机目标和私有最终产物目录。新生成应用由首次构建生成锁文件，包搬迁至含空格路径后可直接运行。两包与真实 Redis 一起验证 Artisan 包装脚本与直接入口、HTTP 200 和 SIGTERM 退出 0。已有目标保持原样，资源含 PEM 私钥夹具时没有发布目录。小型 Cargo 回归另验证现有锁文件保留、明确 feature、同包默认二进制及编译失败无产物。
+
+显式 Docker 的 Linux ARM64 路径在根和新生成 MySQL 应用验收。两包均与真实 MySQL 8.4 和 Redis 验证无确认的生产迁移、显式强制迁移、迁移重跑、Artisan、HTTP 与 SIGTERM。工作区格式、严格 Clippy、测试、Rustdoc、离线依赖及新生成 minimal、MySQL 的 check/test 通过。Linux 宿主 Cargo 路径、原生 x86_64 和其他平台仍按发布矩阵验收。
+
 ## Artisan Linux 发布目录限定验收
 
 冻结树 `4268d0f414bbfa56b3e8e4a58f7180a2bafdd5e0` 对照固定 Laravel 的源码 Artisan 入口与固定 Goravel 的构建工作流。根应用和搬迁至含空格路径的 fresh minimal 均实际从源码运行 `./artisan build`，使用同一 Compose/Buildx artifacts 目标并导出各自具名的单一 ELF64。根走默认目录，minimal 走含空格、逗号及引号的显式路径。保留应用资源与空可写目录。

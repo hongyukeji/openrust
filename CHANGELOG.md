@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- `./artisan build` 和 `openrust build` 默认用本机 Cargo 生成具名发布包。需要 Docker Buildx 时显式选择 `--docker`。
+
 - `where_raw` 统一使用 `?` 绑定并验证参数数量。PostgreSQL 调用将原生 `$1` 改为 `?`，JSON 问号操作符使用 `??`。
 
 - 测试库归属句柄在释放时显式解锁，避免 Unix 子进程短暂继承文件描述符而延迟恢复扫描。

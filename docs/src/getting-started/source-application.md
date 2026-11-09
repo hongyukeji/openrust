@@ -164,23 +164,24 @@ done
 
 ### 导出应用文件
 
-OpenRust 提供编译型应用的 Linux 发布扩展 `./artisan build`。编译产物与外置资源的部署布局参考固定 Goravel。它由源码开发工具执行，当前使用 Docker Buildx。在 macOS 或 Linux 的应用源码目录运行该命令。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。 [Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md#deploy-server)
+OpenRust 的源码工具提供 `./artisan build`，参考固定 Goravel 将本机编译和 Docker 分开。在 macOS 或 Linux 的源码目录运行，默认使用本机 Cargo 编译 release 二进制。首次构建由 Cargo 生成锁文件，已有锁文件时使用锁定依赖。运行主机须匹配构建目标及其系统依赖。 [Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md)
 
-编译和打包属于 OpenRust 扩展。部署优化与长驻进程重载的语义分别按固定 Laravel 的部署流程验收。需要在目标机直接编译时，可使用上文的 `cargo build --release --locked --bin app` 手动安装。 [Laravel 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)
+编译和打包属于 OpenRust 扩展。部署优化与长驻进程重载按固定 Laravel 的部署流程单独验收。也可用上文的 `cargo build --release --locked --bin app` 手动编译。 [Laravel 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)
 
-`./artisan help build` 与 `./artisan build --help` 使用同一构建定义。命令前后的 `--env` 使用应用规则选择已有的 `.env.<名称>` 供 Compose 构建配置插值。进程环境优先。Buildx 不需要先启动应用或连接运行时数据库。
+`./artisan help build` 与 `./artisan build --help` 使用同一构建定义。显式加 `--docker` 时，命令复用 Compose 的 `app` 构建配置和 Dockerfile 的 `artifacts` 阶段，需要支持 Bake 文件访问授权的 Buildx。Docker 构建默认按宿主 CPU 选择 Linux 平台，可用 `--platform` 指定。此模式下，命令前后的 `--env` 按应用规则选择 Compose 插值文件，进程环境优先。两种构建均可在运行服务不可达时执行。
 
 ```bash
-./artisan build --platform linux/amd64
-# 输出 dist/openrust-linux-amd64
-./artisan build --platform linux/arm64 --output dist/arm64-release
+./artisan build
+# 例如在 Apple Silicon 上输出 dist/openrust-darwin-arm64
+./artisan build --features auth-fortify,view,realtime
+./artisan build --docker --platform linux/amd64
 ```
 
 显式输出路径可相对于项目根，也可使用绝对路径。父目录须已存在，目标须是新目录。构建先导出到临时目录，再发布到目标。收到 `build_publish_incomplete` 时不要部署该目录。Compose 构建使用应用根和生成时声明的本地 OpenRust 源码，包含额外命名上下文、构建密钥或远端缓存的自定义配置需另行构建。
 
 应用二进制位于发布目录顶层，与 `artisan` 同级。若项目名与发布文件或目录同名，例如 `artisan`、`public`、`storage`，发布构建会拒绝创建目标。
 
-将产物目录复制到 Linux 主机，保留可执行权限。产物含唯一的 `openrust`、`artisan`、应用的 `public/`、`resources/`、适用语言和模块资源，以及空的 `storage/` 与 `bootstrap/cache/`。在目标机提供环境变量或从空密钥的 `.env.example` 配置 `.env`，让运行账号可写这两个目录，并使用目标机可达的 MySQL 与 Redis。构建机的实际 dotenv、数据库及密钥须留在发布目录之外。
+将产物目录复制到匹配的目标主机，保留可执行权限。产物含唯一的 `openrust`、`artisan`、应用的 `public/`、`resources/`、适用语言和模块资源，以及空的 `storage/` 与 `bootstrap/cache/`。在目标机提供环境变量或根据 `.env.example` 配置 `.env`，让运行账号可写这两个目录，并使用目标机可达的 MySQL 与 Redis。`.env.example` 随包发布，只应填写占位值。实际 dotenv、数据库及密钥留在发布目录之外。
 
 ```bash
 cd /srv/openrust
@@ -191,7 +192,7 @@ cd /srv/openrust
 
 手动生产部署可运行 `./openrust artisan migrate` 并在终端确认。未指定 `--force` 时，无终端、`--no-interaction` 或默认否会取消生产迁移。只读的 `./openrust artisan migrate status` 不要求确认，迁移历史表缺失时返回失败。相同命令也可通过 `./artisan` 执行。
 
-二进制使用 Debian Bookworm 构建环境的 Linux ABI。按目标机检查架构、动态库并实际启动。构建仍可通过 Dockerfile 的 `artifacts` 阶段手动导出。容器运行入口为 `/app/openrust`，迁移服务仍通过 `/app/artisan` 执行。
+Docker 产物使用 Debian Bookworm 构建环境的 Linux ABI，也可通过 Dockerfile 的 `artifacts` 阶段手动导出。按目标机检查架构、动态库并实际启动。容器运行入口为 `/app/openrust`，迁移服务通过 `/app/artisan` 执行。
 
 这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。旧版根镜像已在原生 Ubuntu 24.04 x86_64 实测部署、旧命名卷迁移和回退。包根入口的原生 x86_64 验收单独记录。
 

@@ -1,4 +1,4 @@
-//! 复用 Compose 构建定义，导出不覆盖既有目录的 Linux 应用产物。
+//! 构建当前应用并发布可搬迁的应用目录。
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read as _, Write as _};
@@ -32,9 +32,15 @@ const PACKAGE_ENTRIES: &[&str] = &[
 pub struct BuildArgs {
     #[arg(long, hide = true)]
     project_dir: Option<PathBuf>,
-    /// 单一 Linux 平台，默认按当前 CLI 宿主 CPU 选择。
-    #[arg(long, value_parser = ["linux/amd64", "linux/arm64"])]
+    /// 使用 Compose 和 Docker Buildx 构建 Linux 产物。
+    #[arg(long)]
+    docker: bool,
+    /// Docker 构建的单一 Linux 平台，默认使用宿主 CPU。
+    #[arg(long, requires = "docker", value_parser = ["linux/amd64", "linux/arm64"])]
     platform: Option<String>,
+    /// 本机构建额外启用的 Cargo features，以逗号分隔。
+    #[arg(long, conflicts_with = "docker")]
+    features: Option<String>,
     /// 全新产物目录；显式路径的父目录须已存在。
     #[arg(long)]
     output: Option<PathBuf>,
@@ -46,7 +52,7 @@ impl BuildArgs {
         self.run_for_environment(None)
     }
 
-    /// 以标准应用的 `APP_` 命名空间选择 Compose 插值环境并导出发布包。
+    /// 构建发布包，Docker 构建按应用的 `APP_` 命名空间选择 Compose 插值环境。
     ///
     /// 此入口不启动应用，也不求值编译期配置。
     pub fn run_for_environment(self, environment: Option<&str>) -> anyhow::Result<ExitCode> {
@@ -66,14 +72,20 @@ impl BuildArgs {
         let project = self.project_dir.map_or_else(std::env::current_dir, Ok)?;
         let project = project.canonicalize().context("build_project_invalid")?;
         path_text(&project)?;
-        let platform = self.platform.map_or_else(
-            || host_platform(std::env::consts::ARCH).map(str::to_owned),
-            Ok,
-        )?;
+        let platform = match self.platform.as_deref() {
+            Some(platform) => platform,
+            None => host_platform(
+                if self.docker {
+                    "linux"
+                } else {
+                    std::env::consts::OS
+                },
+                std::env::consts::ARCH,
+            )?,
+        };
         let manifest = read_manifest(&project)?;
         let name = application_name(&manifest)?;
-        let dotenv = select_dotenv(&project)?;
-        let destination = destination(&project, name, &platform, self.output.as_deref())?;
+        let destination = destination(&project, name, platform, self.output.as_deref())?;
         reject_existing(&destination)?;
         let mut staging = tempfile::Builder::new();
         staging.prefix("openrust-release-");
@@ -83,15 +95,28 @@ impl BuildArgs {
             staging.permissions(fs::Permissions::from_mode(0o700));
         }
         let temporary = staging.tempdir().context("build_staging_create_failed")?;
-        let result = build_and_publish(
-            &project,
-            &manifest,
-            &platform,
-            name,
-            &destination,
-            temporary.path(),
-            &dotenv,
-        );
+        let result = (|| {
+            let staging = temporary.path().canonicalize()?;
+            if staging.starts_with(&project) {
+                bail!("build_staging_in_context: 临时目录须在源码目录外");
+            }
+            let artifacts = staging.join("artifacts");
+            if self.docker {
+                let dotenv = select_dotenv(&project)?;
+                build_docker(&project, &manifest, platform, &staging, &artifacts, &dotenv)?;
+            } else {
+                build_native(
+                    &project,
+                    name,
+                    platform,
+                    &staging,
+                    &artifacts,
+                    self.features.as_deref(),
+                )?;
+            }
+            validate_release(&artifacts, name, platform)?;
+            publish(&artifacts, &destination, name)
+        })();
         let cleanup = temporary.close();
         if cleanup.is_err() {
             eprintln!("build_staging_cleanup_failed: 自有临时目录清理失败");
@@ -102,14 +127,14 @@ impl BuildArgs {
     }
 }
 
-/// 从 Compose 的 `app` 目标导出 Linux 应用的源码命令。
+/// 用 Cargo 或显式选用的 Docker 构建应用的源码命令。
 pub struct BuildCommand;
 
 impl BuildCommand {
     /// Artisan 命令名称。
     pub const NAME: &str = "build";
     /// 命令列表与帮助中的说明。
-    pub const ABOUT: &str = "构建 Linux 应用目录产物，保留外部资源。";
+    pub const ABOUT: &str = "构建应用发布目录，默认使用本机 Cargo。";
 
     /// 在指定源码目录运行命令，无须启动应用或连接运行时服务。
     ///
@@ -232,11 +257,15 @@ fn is_source_project(project: &Path) -> bool {
     project.join("Cargo.toml").is_file() && project.join("src/main.rs").is_file()
 }
 
-fn host_platform(architecture: &str) -> anyhow::Result<&'static str> {
-    match architecture {
-        "x86_64" => Ok("linux/amd64"),
-        "aarch64" => Ok("linux/arm64"),
-        _ => bail!("build_platform_required: 请显式选择 linux/amd64 或 linux/arm64"),
+fn host_platform(os: &str, architecture: &str) -> anyhow::Result<&'static str> {
+    match (os, architecture) {
+        ("linux", "x86_64") => Ok("linux/amd64"),
+        ("linux", "aarch64") => Ok("linux/arm64"),
+        ("macos", "x86_64") => Ok("darwin/amd64"),
+        ("macos", "aarch64") => Ok("darwin/arm64"),
+        _ => bail!(
+            "build_platform_required: 当前宿主不支持本机构建，可用 --docker --platform 显式选择 Linux 平台"
+        ),
     }
 }
 
@@ -520,29 +549,161 @@ fn run_docker(command: &mut Command, code: &'static str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_and_publish(
+fn build_native(
+    project: &Path,
+    name: &str,
+    platform: &str,
+    staging: &Path,
+    artifacts: &Path,
+    features: Option<&str>,
+) -> anyhow::Result<()> {
+    let asset_status = Command::new("sh")
+        .current_dir(project)
+        .args([
+            "-c",
+            include_str!("../templates/deploy/package-assets.sh"),
+            "package-assets",
+        ])
+        .arg(artifacts)
+        .arg(name)
+        .status()
+        .context("build_assets_start_failed")?;
+    if !asset_status.success() {
+        bail!("build_assets_failed");
+    }
+
+    let manifest = project.join("Cargo.toml");
+    let cargo = native_cargo_target(project, &manifest)?;
+    // Cargo 按应用配置复用中间缓存，最终程序写入本次私有目录，避免其他构建替换。
+    let target = staging.join("cargo-target");
+    let mut command = Command::new("cargo");
+    command
+        .current_dir(project)
+        .env("CARGO_BUILD_BUILD_DIR", cargo.build_dir)
+        .arg("build")
+        .arg("--target-dir")
+        .arg(&target)
+        .args([
+            "--release",
+            "--package",
+            name,
+            "--bin",
+            &cargo.binary,
+            "--target",
+            "host-tuple",
+            "--message-format=json-render-diagnostics",
+        ])
+        .stderr(Stdio::inherit());
+    if cargo.locked {
+        command.arg("--locked");
+    }
+    if let Some(features) = features {
+        command.args(["--features", features]);
+    }
+    let output = command.output().context("build_cargo_start_failed")?;
+    if !output.status.success() {
+        bail!("build_cargo_failed: {}", output.status);
+    }
+    let executable = cargo_executable(&output.stdout, &manifest, &cargo.binary)?;
+    validate_binary(&executable, platform)?;
+    if !executable.canonicalize()?.starts_with(&target) {
+        bail!("build_cargo_artifact_outside_staging");
+    }
+    copy_entry(&executable, &artifacts.join(name))
+}
+
+struct NativeCargoTarget {
+    binary: String,
+    build_dir: PathBuf,
+    locked: bool,
+}
+
+fn native_cargo_target(project: &Path, manifest: &Path) -> anyhow::Result<NativeCargoTarget> {
+    let output = Command::new("cargo")
+        .current_dir(project)
+        .args(["metadata", "--no-deps", "--format-version=1"])
+        .stderr(Stdio::inherit())
+        .output()
+        .context("build_cargo_metadata_start_failed")?;
+    if !output.status.success() {
+        bail!("build_cargo_metadata_failed: {}", output.status);
+    }
+    let metadata: Value =
+        serde_json::from_slice(&output.stdout).context("build_cargo_metadata_invalid")?;
+    let build_dir = metadata["build_directory"]
+        .as_str()
+        .context("build_cargo_build_dir_missing")?;
+    let workspace = metadata["workspace_root"]
+        .as_str()
+        .context("build_cargo_workspace_missing")?;
+    let package = metadata["packages"]
+        .as_array()
+        .and_then(|packages| {
+            packages
+                .iter()
+                .find(|p| p["manifest_path"].as_str().map(Path::new) == Some(manifest))
+        })
+        .context("build_cargo_package_missing")?;
+    let binaries = package["targets"]
+        .as_array()
+        .context("build_cargo_targets_missing")?
+        .iter()
+        .filter(|target| {
+            target["kind"]
+                .as_array()
+                .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"))
+        })
+        .filter_map(|target| target["name"].as_str())
+        .collect::<Vec<_>>();
+    let binary = match (package["default_run"].as_str(), binaries.as_slice()) {
+        (Some(binary), _) if binaries.contains(&binary) => binary,
+        (None, [binary]) => binary,
+        _ => bail!("build_cargo_binary_ambiguous: 应用须有唯一二进制或指定 Cargo default-run"),
+    };
+    Ok(NativeCargoTarget {
+        binary: binary.to_owned(),
+        build_dir: PathBuf::from(build_dir),
+        locked: Path::new(workspace).join("Cargo.lock").is_file(),
+    })
+}
+
+fn cargo_executable(output: &[u8], manifest: &Path, binary: &str) -> anyhow::Result<PathBuf> {
+    let output = String::from_utf8_lossy(output);
+    let mut executables = output
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter(|message| {
+            message["reason"] == "compiler-artifact"
+                && message["target"]["name"] == binary
+                && message["manifest_path"].as_str().map(Path::new) == Some(manifest)
+        })
+        .filter_map(|message| message["executable"].as_str().map(PathBuf::from));
+    let executable = executables
+        .next()
+        .context("build_cargo_artifact_missing: Cargo 未返回当前应用的可执行文件")?;
+    if executables.next().is_some() {
+        bail!("build_cargo_artifact_ambiguous: Cargo 返回了多个应用产物");
+    }
+    Ok(executable)
+}
+
+fn build_docker(
     project: &Path,
     manifest: &toml_edit::DocumentMut,
     platform: &str,
-    name: &str,
-    destination: &Path,
     temporary: &Path,
+    artifacts: &Path,
     dotenv: &Path,
 ) -> anyhow::Result<()> {
-    let temporary = temporary.canonicalize()?;
-    if temporary.starts_with(project) {
-        bail!("build_staging_in_context: 临时目录须在构建上下文外");
-    }
-    let artifacts = temporary.join("artifacts");
-    let plan = capture_plan(project, &temporary, dotenv)?;
-    let (plan, framework) = freeze_plan(project, manifest, &plan, platform, &artifacts)?;
+    let plan = capture_plan(project, temporary, dotenv)?;
+    let (plan, framework) = freeze_plan(project, manifest, &plan, platform, artifacts)?;
     if framework
         .as_ref()
         .is_some_and(|path| temporary.starts_with(path))
     {
         bail!("build_staging_in_context: 临时目录须在构建上下文外");
     }
-    fs::create_dir(&artifacts)?;
+    fs::create_dir(artifacts)?;
     let snapshot = temporary.join("build.json");
     let mut file = OpenOptions::new()
         .write(true)
@@ -558,7 +719,7 @@ fn build_and_publish(
         .arg("--allow")
         .arg(format!("fs.read={}", path_text(project)?))
         .arg("--allow")
-        .arg(format!("fs.write={}", path_text(&artifacts)?));
+        .arg(format!("fs.write={}", path_text(artifacts)?));
     if let Some(framework) = framework {
         command
             .arg("--allow")
@@ -567,16 +728,28 @@ fn build_and_publish(
     command
         .args(["--progress=quiet", "app"])
         .stdout(Stdio::null());
-    run_docker(&mut command, "build_artifacts_failed")?;
-    validate_release(&artifacts, name, platform)?;
-    publish(&artifacts, destination, name)
+    run_docker(&mut command, "build_artifacts_failed")
 }
 
 fn validate_release(root: &Path, name: &str, platform: &str) -> anyhow::Result<()> {
     if validate_entries(root, Some(name))? != 1 {
-        bail!("build_elf_count_invalid: 产物必须只有一个 ELF 应用");
+        bail!("build_binary_count_invalid: 产物必须只有一个应用二进制");
     }
     validate_binary(&root.join(name), platform)?;
+    for file in ["artisan", ".env.example"] {
+        let metadata = fs::symlink_metadata(root.join(file))
+            .with_context(|| format!("build_artifact_file_missing: {file}"))?;
+        if !metadata.is_file() {
+            bail!("build_artifact_not_regular_file: {file}");
+        }
+        #[cfg(unix)]
+        if file == "artisan" {
+            use std::os::unix::fs::PermissionsExt as _;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                bail!("build_artisan_not_executable");
+            }
+        }
+    }
     for directory in ["public", "resources", "storage", "bootstrap/cache"] {
         let path = root.join(directory);
         if !path.is_dir() {
@@ -599,20 +772,15 @@ fn validate_binary(path: &Path, platform: &str) -> anyhow::Result<()> {
     let mut header = [0_u8; 64];
     File::open(path)?
         .read_exact(&mut header)
-        .context("build_binary_not_elf")?;
-    let expected_machine = match platform {
-        "linux/amd64" => 62,
-        "linux/arm64" => 183,
+        .context("build_binary_header_invalid")?;
+    let matches_platform = match platform {
+        "linux/amd64" => elf_executable(&header, 62),
+        "linux/arm64" => elf_executable(&header, 183),
+        "darwin/amd64" => macho_executable(&header, 0x0100_0007),
+        "darwin/arm64" => macho_executable(&header, 0x0100_000c),
         _ => bail!("build_platform_invalid"),
     };
-    if &header[..4] != b"\x7fELF"
-        || header[4] != 2
-        || header[5] != 1
-        || header[6] != 1
-        || !matches!(u16::from_le_bytes([header[16], header[17]]), 2 | 3)
-        || u16::from_le_bytes([header[52], header[53]]) != 64
-        || u16::from_le_bytes([header[18], header[19]]) != expected_machine
-    {
+    if !matches_platform {
         bail!("build_binary_platform_mismatch");
     }
     #[cfg(unix)]
@@ -623,6 +791,21 @@ fn validate_binary(path: &Path, platform: &str) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn elf_executable(header: &[u8; 64], machine: u16) -> bool {
+    &header[..7] == b"\x7fELF\x02\x01\x01"
+        && matches!(u16::from_le_bytes([header[16], header[17]]), 2 | 3)
+        && u16::from_le_bytes([header[52], header[53]]) == 64
+        && u16::from_le_bytes([header[18], header[19]]) == machine
+}
+
+const MACHO_64_LE: [u8; 4] = [0xcf, 0xfa, 0xed, 0xfe];
+
+fn macho_executable(header: &[u8; 64], machine: u32) -> bool {
+    header[..4] == MACHO_64_LE
+        && header[4..8] == machine.to_le_bytes()
+        && header[12..16] == 2_u32.to_le_bytes()
 }
 
 fn validate_entries(root: &Path, application: Option<&str>) -> anyhow::Result<usize> {
@@ -661,7 +844,8 @@ fn validate_entries(root: &Path, application: Option<&str>) -> anyhow::Result<us
             if prefix.starts_with(b"SQLite format 3\0") {
                 bail!("build_sensitive_artifact");
             }
-            binaries += usize::from(prefix.starts_with(b"\x7fELF"));
+            binaries +=
+                usize::from(prefix.starts_with(b"\x7fELF") || prefix.starts_with(&MACHO_64_LE));
         } else {
             bail!("build_artifact_special_file: 产物不得包含符号链接或特殊文件");
         }
