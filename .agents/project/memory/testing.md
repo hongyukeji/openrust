@@ -1898,6 +1898,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 工作区 fmt、严格 Clippy、真实 MySQL 8.4 workspace tests、严格 Rustdoc、离线依赖检查和两种生成应用 check/test 通过。当前验收范围是命令边界与编译打包。Laravel 的 `optimize`、`optimize:clear` 与 `reload` 及原生 x86_64 发布包在原矩阵独立验收。
 
+## 缓存存储全量清理限定验收
+
+冻结树 `03bc225dd110efd1811e8215fd37c747d4cfff36` 对照固定 Laravel 的 RedisStore、FileStore、ArrayStore 与 MemoizedStore。默认和具名缓存均经现有 manager 调用同一后端契约。Redis 执行所选连接的 FLUSHDB。文件后端按本地 SHA-256 文件布局清理，保留链接、目录与临时写入文件。Memory 保留用于防止已失效代际回填的元数据。外部驱动未实现时明确失败。
+
+在独立认证 Redis 8 实测唯一示例的真实应用启动、默认缓存跨前缀清除及另一物理库保留。四项定向用例覆盖文件边界、memory 代际、memo 并发及第三方能力缺失。真实 MySQL 8.4.13 工作区测试通过 2702 项，fmt、严格 Clippy、全特性编译、严格 Rustdoc、离线依赖检查及新生成 minimal/MySQL 的 check/test 均通过。命令事件、标签物理清理、锁清理和 Redis 清库后旧代际写回仍按后继契约验收。
+
 ## Redis 缓存与队列默认库限定验收
 
 冻结树 `bad2f941a44ee2916ab070544e552a229e116b4e` 对照固定 Laravel 骨架的缓存与默认 Redis 连接。根与生成配置默认选择缓存 DB 1、队列 DB 0，显式 URL 的数据库与查询选项遵守连接优先级。覆盖 TCP、Unix、密码解析及配置显示脱敏。

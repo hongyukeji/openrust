@@ -4,9 +4,9 @@ Provider 装配的缓存 store 按名称异步构造并缓存；`store/default_s
 
 `CacheServiceProvider` 支持在统一容器中装配内置和自定义 driver。
 
-`Cache::memo(&resolver, name)` 返回当前容器作用域和 store 名称共享的视图。用 `None` 选择默认 store。命中和未命中在本作用域中可重复读取，普通后端或其他作用域的写入不会更新这份读取结果。经该视图写入或删除会使对应键失效。Tagged 读取按租户和 tag generation 隔离。SWR 从后端读取新鲜度，并在写入时使该视图中对应键失效。构造参数也可以使用 `container::attributes::Cache` 和 `.memoized()` 取得同一视图。应用持有的旧句柄仍引用原视图，跨请求时应在新作用域重新解析。
+`Cache::memo(&resolver, name)` 返回当前容器作用域和 store 名称共享的视图。用 `None` 选择默认 store。命中和未命中在本作用域中可重复读取，普通后端或其他作用域的写入不会更新这份读取结果。经该视图写入或删除会使对应键失效。`flush` 清空本视图的命中和未命中，再清理后端，跨越清理的旧读取不会重新写入本地快照。Tagged 读取按租户和 tag generation 隔离。SWR 从后端读取新鲜度，并在写入时使该视图中对应键失效。构造参数也可以使用 `container::attributes::Cache` 和 `.memoized()` 取得同一视图。应用持有的旧句柄仍引用原视图，跨请求时应在新作用域重新解析。
 
-`CacheServiceProvider` 按 `config/cache.toml` 配置启动默认 store 并按需初始化命名 store。缓存能力为可选项：不安装 Provider 时不会连接 Redis；安装后必须显式配置 store，未配置、driver 不支持、初始化失败或缓存 I/O 失败均返回错误，不会回退到本地内存。容器中注册了共享 `Readiness` 时，每个已解析 store 会注册只读依赖探针；其 I/O 失败会令 `/ready` 返回 503，错误细节不会出现在健康响应中。
+`CacheServiceProvider` 按 `cache` 配置启动默认 store 并按需初始化命名 store。根与生成应用用 `config/cache.rs`，显式启用 TOML 来源时可使用下面的配置。缓存能力为可选项：不安装 Provider 时不会连接 Redis；安装后必须显式配置 store，未配置、driver 不支持、初始化失败或缓存 I/O 失败均返回错误，不会回退到本地内存。容器中注册了共享 `Readiness` 时，每个已解析 store 会注册只读依赖探针；其 I/O 失败会令 `/ready` 返回 503，错误细节不会出现在健康响应中。
 
 ```toml
 default = "redis"
@@ -14,7 +14,7 @@ default = "redis"
 [stores.redis]
 driver = "redis"
 namespace = "app"
-dsn = "redis://127.0.0.1:6379/"
+dsn = "redis://127.0.0.1:6379/1"
 
 [stores.local]
 driver = "memory"
@@ -29,9 +29,11 @@ loader_timeout_secs = 30
 max_in_flight_refreshes = 64
 ```
 
-启用 Redis 时，在 OpenRust 依赖中选择 `cache-redis` feature。常规配置使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT` 和 `REDIS_DB` 分项变量；缓存与队列共用同一 Redis 数据库编号。`CACHE_STORE` 映射到 `cache.default`，选择的名称必须在 `cache.stores` 中登记；旧 `REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 均不再选择 store。具名 `redis` 是框架默认，业务可登记名为 `default` 的 memory 或自定义 driver，并用 `CACHE_STORE=default` 选择。需要单独 store 或连接时，在 `config/cache.toml` 或对应的 `APP_CACHE_STORES_<NAME>_DSN` 中配置。
+启用 Redis 时，在 OpenRust 依赖中选择 `cache-redis` feature。常规配置使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT` 和 `REDIS_CACHE_DB` 分项变量。缓存默认 DB 1，Redis 队列使用 `REDIS_DB`，默认 DB 0。`CACHE_STORE` 映射到 `cache.default`，选择的名称必须在 `cache.stores` 中登记；旧 `REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 均不再选择 store。具名 `redis` 是框架默认，业务可登记名为 `default` 的 memory 或自定义 driver，并用 `CACHE_STORE=default` 选择。需要单独 store 或连接时，在 `config/cache.rs` 或对应的 `APP_CACHE_STORES_<NAME>_DSN` 中配置。
 
 通过 `Inject<Cache>` 或应用状态取得默认服务，`Cache::store("local")` 显式选择命名实例。`get` 返回 JSON 类型化值或 `None`，`set` 支持可选 TTL，`remove` 删除键。零 TTL、空 key 和长度超过 1024 字节的 key 会被拒绝；值编解码、驱动初始化和 I/O 失败都不会伪装成未命中。
+
+应用可在受控的维护操作中调用 `cache.flush().await?` 清空默认 store，或调用 `cache.store("local").await?.flush().await?` 清空具名 store。Redis 对所选连接执行 `FLUSHDB`，同库其他应用、租户与队列数据也会被清除。Memory 清空该实例的缓存项。File 删除配置目录中本驱动格式的普通缓存文件，保留目录、符号链接和正在写入的临时文件。并发写入可能随后重新填充缓存。未实现 `CacheBackend::flush` 的 driver 返回 `cache_flush_unsupported`。[Laravel 缓存清理](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#removing-items-from-the-cache)
 
 若调用发生在 `TenantContext` 可信作用域内，缓存 key、singleflight 合并键及 tag generation 均自动加入租户隔离；无租户作用域时沿用原有 key 行为。task-local 不会自动跨 `tokio::spawn`；SWR entry 会固定其创建时的租户物理键，后台 loader 若要读取租户业务数据仍须显式恢复可信作用域。
 

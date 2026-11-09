@@ -48,6 +48,13 @@ pub trait CacheBackend: Send + Sync + 'static {
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
     /// 删除值；键不存在时也成功。
     async fn remove(&self, key: &str) -> Result<()>;
+    /// 清空此后端的缓存数据。范围由后端决定，可能包含其他 key namespace。
+    async fn flush(&self) -> Result<()> {
+        Err(Error::custom(
+            "cache_flush_unsupported",
+            "cache backend does not support flushing",
+        ))
+    }
     /// 返回可选的原子 tag generation 能力。
     fn tag_backend(&self) -> Option<&dyn CacheTagBackend> {
         None
@@ -676,6 +683,11 @@ impl Cache {
         self.default_store().await?.remove(key).await
     }
 
+    /// 清空默认 store 的缓存数据。Redis 会清空该连接选中的整个数据库。
+    pub async fn flush(&self) -> Result<()> {
+        self.default_store().await?.flush().await
+    }
+
     /// 缓存未命中时，在本进程合并同 key、同类型与同 load ID 的加载。
     pub async fn get_or_load_with<T, F, Fut>(
         &self,
@@ -785,6 +797,12 @@ impl CacheStore {
     /// 删除 JSON 值。
     pub async fn remove(&self, key: &str) -> Result<()> {
         self.remove_at(&self.key(key)?).await
+    }
+
+    /// 清空所选 store。多个 namespace 共用同一个 Redis 库或文件目录时会一并清理。
+    pub async fn flush(&self) -> Result<()> {
+        let _flush = self.memo.as_ref().map(|memo| memo.begin_flush());
+        self.backend.flush().await
     }
 
     async fn remove_at(&self, key: &str) -> Result<()> {
@@ -1099,6 +1117,10 @@ impl crate::support::ServiceProvider for CacheServiceProvider {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/cache/flush.rs"]
+mod flush_tests;
 
 #[cfg(test)]
 mod provider_tests {
@@ -1507,6 +1529,11 @@ impl CacheBackend for MemoryBackend {
         self.values.lock().await.values.remove(key);
         Ok(())
     }
+    async fn flush(&self) -> Result<()> {
+        // 保留 generation，避免正在运行的 tagged loader 误认旧代仍有效。
+        self.values.lock().await.values.clear();
+        Ok(())
+    }
     fn tag_backend(&self) -> Option<&dyn CacheTagBackend> {
         Some(self)
     }
@@ -1653,11 +1680,30 @@ impl CacheBackend for FileBackend {
         Ok(())
     }
     async fn remove(&self, key: &str) -> Result<()> {
-        match tokio::fs::remove_file(self.path(key)).await {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(_) => Err(backend_failure()),
+        remove_cache_file(self.path(key)).await
+    }
+    async fn flush(&self) -> Result<()> {
+        let mut entries = tokio::fs::read_dir(&self.root)
+            .await
+            .map_err(|_| backend_failure())?;
+        while let Some(entry) = entries.next_entry().await.map_err(|_| backend_failure())? {
+            let name = entry.file_name();
+            // 文件布局按 SHA-256 名称识别，跳过应用文件、子目录和正在写入的临时文件。
+            if name.to_str().is_some_and(|name| {
+                name.len() == 64
+                    && name
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            }) {
+                match entry.file_type().await {
+                    Ok(kind) if kind.is_file() => remove_cache_file(entry.path()).await?,
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(_) => return Err(backend_failure()),
+                }
+            }
         }
+        Ok(())
     }
     fn scope(&self) -> CacheScope {
         CacheScope::NodeLocal
@@ -1673,6 +1719,14 @@ impl FileBackend {
             let _ = write!(name, "{byte:02x}");
         }
         self.root.join(name)
+    }
+}
+
+async fn remove_cache_file(path: PathBuf) -> Result<()> {
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(backend_failure()),
     }
 }
 
@@ -1776,6 +1830,12 @@ impl CacheBackend for RedisBackend {
     async fn remove(&self, key: &str) -> Result<()> {
         let mut connection = self.connection.clone();
         redis::AsyncCommands::del(&mut connection, key)
+            .await
+            .map_err(|_| backend_failure())
+    }
+    async fn flush(&self) -> Result<()> {
+        redis::cmd("FLUSHDB")
+            .query_async::<()>(&mut self.connection.clone())
             .await
             .map_err(|_| backend_failure())
     }

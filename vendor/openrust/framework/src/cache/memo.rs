@@ -5,7 +5,14 @@ use std::{collections::HashMap, sync::Mutex};
 use super::{CacheBackend, Result};
 
 #[derive(Default)]
-pub(super) struct MemoizedValues(Mutex<HashMap<String, Entry>>);
+pub(super) struct MemoizedValues(Mutex<State>);
+
+#[derive(Default)]
+struct State {
+    entries: HashMap<String, Entry>,
+    flush_epoch: u64,
+    flushes: usize,
+}
 
 #[derive(Default)]
 struct Entry {
@@ -27,18 +34,26 @@ impl MemoizedValues {
         backend: &dyn CacheBackend,
         key: &str,
     ) -> Result<Option<Vec<u8>>> {
-        let revision = {
-            let mut entries = self.entries();
-            let entry = entries.entry(key.to_owned()).or_default();
-            if let Read::Stored(value) = &entry.read {
-                return Ok(value.clone());
+        let observation = {
+            let mut state = self.state();
+            let epoch = state.flush_epoch;
+            if state.flushes == 0 {
+                let entry = state.entries.entry(key.to_owned()).or_default();
+                if let Read::Stored(value) = &entry.read {
+                    return Ok(value.clone());
+                }
+                (entry.writes == 0).then_some((epoch, entry.revision))
+            } else {
+                None
             }
-            (entry.writes == 0).then_some(entry.revision)
         };
         let value = backend.get(key).await?;
-        if let Some(entry) = self.entries().get_mut(key)
+        let mut state = self.state();
+        let epoch = state.flush_epoch;
+        if state.flushes == 0
+            && let Some(entry) = state.entries.get_mut(key)
             && entry.writes == 0
-            && revision == Some(entry.revision)
+            && observation == Some((epoch, entry.revision))
         {
             if let Read::Stored(cached) = &entry.read {
                 return Ok(cached.clone());
@@ -49,8 +64,8 @@ impl MemoizedValues {
     }
 
     pub(super) fn begin_write<'a>(&'a self, key: &'a str) -> MemoWrite<'a> {
-        let mut entries = self.entries();
-        let entry = entries.entry(key.to_owned()).or_default();
+        let mut state = self.state();
+        let entry = state.entries.entry(key.to_owned()).or_default();
         entry.read = Read::Unobserved;
         // 一个旧读取即使晚于写入完成，也不能重新填充这个作用域。
         entry.revision = entry.revision.wrapping_add(1);
@@ -58,7 +73,18 @@ impl MemoizedValues {
         MemoWrite { memo: self, key }
     }
 
-    fn entries(&self) -> std::sync::MutexGuard<'_, HashMap<String, Entry>> {
+    pub(super) fn begin_flush(&self) -> MemoFlush<'_> {
+        let mut state = self.state();
+        state.flush_epoch = state.flush_epoch.wrapping_add(1);
+        state.flushes += 1;
+        state.entries.retain(|_, entry| {
+            entry.read = Read::Unobserved;
+            entry.writes != 0
+        });
+        MemoFlush(self)
+    }
+
+    fn state(&self) -> std::sync::MutexGuard<'_, State> {
         self.0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -72,89 +98,20 @@ pub(super) struct MemoWrite<'a> {
 
 impl Drop for MemoWrite<'_> {
     fn drop(&mut self) {
-        if let Some(entry) = self.memo.entries().get_mut(self.key) {
+        if let Some(entry) = self.memo.state().entries.get_mut(self.key) {
             entry.writes -= 1;
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::cache::{CacheScope, MemoryBackend};
-    use std::{
-        sync::atomic::{AtomicBool, Ordering},
-        time::Duration,
-    };
-    use tokio::sync::Notify;
+pub(super) struct MemoFlush<'a>(&'a MemoizedValues);
 
-    #[derive(Default)]
-    struct PausedRead {
-        memory: MemoryBackend,
-        pause: AtomicBool,
-        captured: Notify,
-        resume: Notify,
-    }
-
-    #[async_trait::async_trait]
-    impl CacheBackend for PausedRead {
-        async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-            let value = self.memory.get(key).await?;
-            if self.pause.swap(false, Ordering::Relaxed) {
-                self.captured.notify_one();
-                self.resume.notified().await;
-            }
-            Ok(value)
-        }
-
-        async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-            self.memory.set(key, value, ttl).await
-        }
-
-        async fn remove(&self, key: &str) -> Result<()> {
-            self.memory.remove(key).await
-        }
-
-        fn scope(&self) -> CacheScope {
-            self.memory.scope()
-        }
-    }
-
-    #[tokio::test]
-    async fn read_started_before_write_cannot_restore_old_value() -> Result<()> {
-        let backend = PausedRead::default();
-        backend.set("key", vec![1], None).await?;
-        backend.pause.store(true, Ordering::Relaxed);
-        let memo = MemoizedValues::default();
-
-        let (first, write) = tokio::join!(memo.get(&backend, "key"), async {
-            backend.captured.notified().await;
-            let result = {
-                let _write = memo.begin_write("key");
-                backend.set("key", vec![2], None).await
-            };
-            backend.resume.notify_one();
-            result
-        });
-        write?;
-        assert_eq!(first?, Some(vec![1]));
-        assert_eq!(memo.get(&backend, "key").await?, Some(vec![2]));
-
-        backend.set("other", vec![3], None).await?;
-        backend.pause.store(true, Ordering::Relaxed);
-        let (other, write) = tokio::join!(memo.get(&backend, "other"), async {
-            backend.captured.notified().await;
-            let result = {
-                let _write = memo.begin_write("key");
-                backend.set("key", vec![4], None).await
-            };
-            backend.resume.notify_one();
-            result
-        });
-        write?;
-        assert_eq!(other?, Some(vec![3]));
-        backend.set("other", vec![5], None).await?;
-        assert_eq!(memo.get(&backend, "other").await?, Some(vec![3]));
-        Ok(())
+impl Drop for MemoFlush<'_> {
+    fn drop(&mut self) {
+        self.0.state().flushes -= 1;
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/cache/memo.rs"]
+mod tests;

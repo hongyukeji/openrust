@@ -513,10 +513,23 @@ async fn redis_module_heartbeat_runs_without_default_database() -> Result<()> {
 #[tokio::test]
 #[ignore = "需显式 OPENRUST_TEST_REDIS_DEFAULTS_URL，独立 Redis 实例须开放 DB 0 和 DB 1"]
 async fn redis_cache_and_module_queue_use_separate_default_databases() -> Result<()> {
+    redis_cache_and_queue_scenario("OPENRUST_TEST_REDIS_DEFAULTS_URL", false).await
+}
+
+/// 通过应用默认缓存清理整个选中库，并核对另一库保留。
+#[cfg(all(feature = "queue-redis", feature = "cache-redis"))]
+#[tokio::test]
+#[ignore = "清空 Redis DB 1，OPENRUST_TEST_REDIS_FLUSH_URL 必须指向本次专用空实例"]
+async fn redis_cache_flush_clears_its_database_only() -> Result<()> {
+    redis_cache_and_queue_scenario("OPENRUST_TEST_REDIS_FLUSH_URL", true).await
+}
+
+#[cfg(all(feature = "queue-redis", feature = "cache-redis"))]
+async fn redis_cache_and_queue_scenario(variable: &str, flush: bool) -> Result<()> {
     use openrust::config::ConfigLoader;
     use openrust::foundation::ApplicationDefinition as _;
 
-    let url = std::env::var("OPENRUST_TEST_REDIS_DEFAULTS_URL")
+    let url = std::env::var(variable)
         .map_err(|_| Error::custom("test_redis_url_missing", "必须提供独立 Redis 测试连接"))?;
     let mut address = url::Url::parse(&url).map_err(Error::internal)?;
     assert!(matches!(address.path(), "" | "/") && address.query().is_none());
@@ -557,6 +570,13 @@ async fn redis_cache_and_module_queue_use_separate_default_databases() -> Result
         .get_multiplexed_async_connection()
         .await
         .map_err(Error::internal)?;
+    if flush {
+        let count: usize = redis::cmd("DBSIZE")
+            .query_async(&mut cache_db)
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(count, 0, "全库清理只允许在本次专用空实例上测试");
+    }
     let configuration = source
         .figment()
         .extract::<crate::bootstrap::Configuration>()
@@ -582,13 +602,50 @@ async fn redis_cache_and_module_queue_use_separate_default_databases() -> Result
         assert_eq!(read_cache.as_deref(), Some("\"marker\""));
         assert!(read_queue.is_none());
         execute_redis_module_heartbeat(&app, &mut queue_db, &prefix).await?;
-        cache.remove(&namespace).await
+        if flush {
+            verify_redis_flush(&cache, &mut cache_db, &mut queue_db, &prefix).await
+        } else {
+            cache.remove(&namespace).await
+        }
     }
     .await;
     let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
     let cleanup_queue = clear_redis_heartbeat_namespace(&mut queue_db, &prefix).await;
     let cleanup_cache = clear_redis_heartbeat_namespace(&mut cache_db, &prefix).await;
     outcome.and(shutdown).and(cleanup_queue).and(cleanup_cache)
+}
+
+#[cfg(all(feature = "queue-redis", feature = "cache-redis"))]
+async fn verify_redis_flush(
+    cache: &openrust::cache::Cache,
+    cache_db: &mut redis::aio::MultiplexedConnection,
+    queue_db: &mut redis::aio::MultiplexedConnection,
+    prefix: &str,
+) -> Result<()> {
+    let foreign = format!("{prefix}other-prefix");
+    for connection in [&mut *cache_db, &mut *queue_db] {
+        redis::cmd("SET")
+            .arg(&foreign)
+            .arg("kept")
+            .arg("EX")
+            .arg(30)
+            .query_async::<()>(connection)
+            .await
+            .map_err(Error::internal)?;
+    }
+    cache.flush().await?;
+    let count: usize = redis::cmd("DBSIZE")
+        .query_async(cache_db)
+        .await
+        .map_err(Error::internal)?;
+    let retained: Option<String> = redis::cmd("GET")
+        .arg(&foreign)
+        .query_async(queue_db)
+        .await
+        .map_err(Error::internal)?;
+    assert_eq!(count, 0);
+    assert_eq!(retained.as_deref(), Some("kept"));
+    Ok(())
 }
 
 #[cfg(feature = "queue-redis")]

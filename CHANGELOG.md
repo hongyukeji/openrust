@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 缓存支持清空默认或具名 store，Redis 清理所选物理库，memo 视图同时失效。
+
 - 标准应用的 Redis 缓存默认使用 DB 1，Redis 队列默认使用 DB 0。已有部署如需继续使用旧缓存库，可通过 `REDIS_CACHE_DB` 指定原库号。
 
 - 根应用和生成项目提供 `/up` 健康诊断路由。应用可在启动装配中指定路径，并监听 `DiagnosingHealth` 添加依赖检查。

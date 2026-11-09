@@ -5,6 +5,7 @@
 - `CacheServiceProvider` 在 register 登记完整 manager 的 singleton 工厂与 `[cache]` schema；首次解析即得到可用 manager。默认 store 在 boot 预解析，具名 store 按名异步懒构造并缓存；`extend` 更新 driver 目录，`forget`/`purge` 后可重建。最终配置 validator 检查已登记 driver 及其无 I/O 选项验证；第三方 driver 未提供专属 validator 时仅能校验通用结构。默认连接失败阻止启动，未解析的具名连接不提前做网络 I/O。
 - 已解析的默认或具名 store 注册 runtime readiness 探针，通过 namespaced、非租户键的只读 `get` 检查 backend；错误只记录稳定探针名/错误码并使 `/ready` 返回通用 503。
 - `Cache` 提供 default 与按名选择的 `CacheStore`；值通过 JSON 编解码，miss 为 `None`，序列化和 I/O 错误保留为错误。key 限 1–1024 UTF-8 bytes，零 TTL 拒绝。
+- `Cache::flush` 与 `CacheStore::flush` 分别清理默认或具名后端。Redis 清除所选物理库，file 清除本驱动格式的文件，memory 保留 tag generation 防止已失效的回填。外部 driver 可选实现，memo 视图跨清理旧读取不回填。
 - Container 的 `Cache` 属性复用 manager。可选 memo 与 `Cache::memo` 共用原容器作用域和 store 名称的绑定，保留命中、未命中、写入失效和后端错误。SWR 保留直接后端读取。
 - `memory` 作用域为进程；`file` 使用 SHA-256 文件名、毫秒 TTL envelope 与同目录临时文件 rename 替换，仅适用于节点本地；`redis` 通过可选 `cache-redis` feature 提供 shared store。无本地静默回退。文件替换原子性遵循操作系统 rename 语义。
 - 外部 driver 实现 `CacheDriver`/`CacheBackend`，通过 `CacheServiceProvider::with_driver` 或 manager `extend` 注册。后端基础契约承诺 get/set/remove/TTL；只有额外实现可选原子 tag 能力的 driver 才支持 tag 与 SWR。
