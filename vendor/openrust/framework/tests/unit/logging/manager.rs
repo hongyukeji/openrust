@@ -106,8 +106,9 @@ async fn failed_resolution_uses_emergency_and_retries_after_config_changes()
     assert!(!fallback.exists());
 
     let first = manager.channel(Some("future")).await?;
-    assert_eq!(first.name(), "emergency");
+    assert_eq!(first.name(), "openrust");
     let report = tokio::fs::read_to_string(&fallback).await?;
+    assert!(report.contains("openrust.EMERGENCY:"));
     assert!(report.contains("log_driver_unsupported") && !report.contains("never-print-this"));
     manager.extend("custom-fail", |_| {
         Err(Error::custom("sensitive-dynamic-code", "sensitive detail"))
@@ -241,8 +242,8 @@ async fn cyclic_stacks_return_emergency_without_waiting_for_each_other()
         tokio::join!(manager.channel(Some("a")), manager.channel(Some("b")))
     })
     .await?;
-    assert_eq!(a?.name(), "emergency");
-    assert_eq!(b?.name(), "emergency");
+    assert_eq!(a?.name(), "openrust");
+    assert_eq!(b?.name(), "openrust");
     let text = tokio::fs::read_to_string(fallback).await?;
     assert_eq!(
         text.lines()
@@ -255,14 +256,15 @@ async fn cyclic_stacks_return_emergency_without_waiting_for_each_other()
 }
 
 #[tokio::test]
-async fn default_and_emergency_logs_share_the_application_path()
+async fn default_and_emergency_logs_share_the_openrust_path()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let logs = directory.path().join("storage/logs");
     std::fs::create_dir_all(&logs)?;
-    let previous = logs.join("laravel.log");
-    std::fs::write(&previous, "历史记录\n")?;
-    let path = logs.join("application.log");
+    for previous in ["application.log", "laravel.log"] {
+        std::fs::write(logs.join(previous), "历史记录\n")?;
+    }
+    let path = logs.join("openrust.log");
     let runtime = start(json!({})).await?;
     let manager = runtime.container().resolve::<LogManager>().await?;
     manager
@@ -274,7 +276,7 @@ async fn default_and_emergency_logs_share_the_application_path()
     default.log(LogLevel::Info, "默认频道", Map::new()).await?;
 
     let emergency = manager.channel(Some("unknown")).await?;
-    assert_eq!(emergency.name(), "emergency");
+    assert_eq!(emergency.name(), "openrust");
     manager
         .config
         .set("logging.channels.emergency.path", Value::Null)?;
@@ -282,8 +284,10 @@ async fn default_and_emergency_logs_share_the_application_path()
 
     let contents = std::fs::read_to_string(path)?;
     assert!(contents.contains("testing.INFO: 默认频道"));
-    assert_eq!(contents.matches("emergency.EMERGENCY:").count(), 2);
-    assert_eq!(std::fs::read_to_string(previous)?, "历史记录\n");
+    assert_eq!(contents.matches("openrust.EMERGENCY:").count(), 2);
+    for previous in ["application.log", "laravel.log"] {
+        assert_eq!(std::fs::read_to_string(logs.join(previous))?, "历史记录\n");
+    }
     shutdown(&runtime).await?;
     Ok(())
 }

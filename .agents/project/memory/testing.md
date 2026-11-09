@@ -2240,9 +2240,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 
 ## 日志职责命名限定验收
 
-默认单文件和应急路径统一为 `storage/logs/application.log`，应急标签为 `emergency`。正常频道名称、显式路径和旧日志内容保持原样。默认及空应急路径均经真实文件写入验证，具名频道故障后仍可重新解析。唯一示例通过 HTTP 注入具名 logger 并写入新路径。
+固定上游的默认单文件及应急文件使用 `storage/logs/openrust.log`，应急记录标签为 `openrust`。实文件验证默认、空应急路径、显式应急路径及频道配置修复。正常频道名称独立，既有 application.log 和 laravel.log 内容保持原样。唯一示例通过 HTTP 注入具名 logger 并实际写入新路径。
 
-冻结树 `75c2f8363a882241e5b0a68bef198da89d0e1cdd` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。生成 minimal 应用通过 Cargo check 与测试，实际写入自定义日志文件和默认日志文件。本簇仅关闭上述命名整改。
+冻结树 `222ea32f794ad4c3c7d85fba37b6f8268cfa60e1` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。CLI 生成快照通过。fresh minimal 通过 check/test，实际写入自定义日志文件及默认文件，并在默认文件验证 openrust.EMERGENCY 记录。
 
 ## 云入口开关命名限定验收
 

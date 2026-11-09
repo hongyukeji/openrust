@@ -161,7 +161,7 @@ fn output_paths_do_not_hide_sources_under_a_parent_tmp_or_win_over_manifest() ->
     for path in [
         fixture.target.join("debug/generated.rs"),
         fixture.app.join("target/generated.rs"),
-        fixture.app.join("storage/logs/application.log"),
+        fixture.app.join("storage/logs/openrust.log"),
         fixture.app.join("bootstrap/cache/config.json"),
         fixture.app.join("database/database.sqlite-wal"),
         fixture.app.join("database/.openrust-migration-run.lock"),

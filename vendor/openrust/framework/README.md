@@ -38,7 +38,7 @@ Provider 可为自身实例登记[启动前后回调](../../../docs/src/architec
 
 `Cache` 属性通过同一缓存管理器注入 `CacheStore`，也可在当前容器作用域内复用 memo 视图。详见[缓存属性](../../../docs/src/architecture-concepts/lifecycle.md#缓存属性)。
 
-`Log` 属性从 `LogManager` 注入应用 logger，支持频道选择和独立重命名。详见[日志属性](../../../docs/src/architecture-concepts/lifecycle.md#日志属性)。
+`Log` 属性从 `LogManager` 注入应用 logger，支持频道选择和独立重命名。默认文件为 `storage/logs/openrust.log`，应急 logger 的名称为 `openrust`。详见[日志属性](../../../docs/src/architecture-concepts/lifecycle.md#日志属性)。
 
 `Context` 属性从当前容器作用域的日志上下文读取普通或隐藏值。详见[日志上下文属性](../../../docs/src/architecture-concepts/lifecycle.md#日志上下文属性)。
 

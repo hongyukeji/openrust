@@ -224,8 +224,11 @@ async fn generated_application_injects_named_logger() -> Result<(), Box<dyn std:
     let manager = app.state().resolve::<LogManager>().await?;
     let default = manager.channel(None).await?;
     default.log(LogLevel::Info, "默认频道日志", serde_json::Map::new()).await?;
-    let log = std::fs::read_to_string(directory.path().join("storage/logs/application.log"))?;
+    let fallback = manager.channel(Some("unknown")).await?;
+    assert_eq!(fallback.name(), "openrust");
+    let log = std::fs::read_to_string(directory.path().join("storage/logs/openrust.log"))?;
     assert!(log.contains("默认频道日志"));
+    assert!(log.contains("openrust.EMERGENCY:"));
     assert!(!log.contains("生成项目日志"));
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
     Ok(())

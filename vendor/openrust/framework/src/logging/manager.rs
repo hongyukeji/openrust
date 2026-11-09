@@ -18,7 +18,7 @@ use crate::{
     support::{BoxFuture, ServiceProvider},
 };
 
-const DEFAULT_FILE: &str = "storage/logs/application.log";
+const DEFAULT_FILE: &str = "storage/logs/openrust.log";
 const MAX_STACK_DEPTH: usize = 32;
 type Factory = dyn Fn(&Value) -> Result<Arc<dyn LogSink>> + Send + Sync;
 type ResolvedChannel = Arc<OnceCell<Arc<Logger>>>;
@@ -300,7 +300,7 @@ async fn emergency(settings: &Settings, cause: &Error) -> Result<Arc<Logger>> {
             .ok_or_else(invalid)?,
     };
     let logger = Arc::new(Logger {
-        name: Arc::from("emergency"),
+        name: Arc::from("openrust"),
         sink: sinks::single(settings.path(Path::new(path)), LogLevel::Debug, false),
         handlers: None,
         scope_factory: None,

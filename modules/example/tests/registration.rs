@@ -125,7 +125,7 @@ async fn production_log_attribute_writes_only_to_the_named_channel()
 -> Result<(), Box<dyn std::error::Error>> {
     const MESSAGE: &str = "示例日志请求已处理";
     let directory = tempfile::tempdir()?;
-    let selected = directory.path().join("storage/logs/application.log");
+    let selected = directory.path().join("storage/logs/openrust.log");
     let default = directory.path().join("default.log");
     let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([
         ("example", serde_json::json!({"logging_demo": true})),
