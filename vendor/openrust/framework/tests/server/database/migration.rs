@@ -464,7 +464,7 @@ async fn custom_database_rejects_lock_connection_to_another_database()
     let probe = primary_connection
         .query_one_raw(Statement::from_string(
             primary_connection.get_database_backend(),
-            format!("SELECT COUNT(*) AS count FROM information_schema.tables WHERE {schema_filter} AND table_name = 'openrust_migrations'"),
+            format!("SELECT COUNT(*) AS count FROM information_schema.tables WHERE {schema_filter} AND table_name = 'migrations'"),
         ))
         .await?
         .ok_or("migration history probe did not return a row")?;
@@ -567,6 +567,110 @@ async fn child_migration_process_runs_migrations() -> Result<(), Box<dyn std::er
     };
     let app = build_lock_probe_app(&url, Duration::from_secs(10)).await?;
     app.run_command("migrate", vec!["up".into()]).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn migration_history_preserves_existing_batches_and_honors_configured_table()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping migration history integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = TestDatabase::create::<EmptyMigrator>(&url).await?;
+    let connection = database.connection()?;
+    let config = format!(
+        "[app]\nenv = 'testing'\n[database]\nurl = {:?}\ntable_prefix = 'tenant_'\n[database.migrations]\ntable = 'schema_history'\n",
+        database.url(),
+    );
+    let mut builder = openrust::foundation::ProviderBuilder::new();
+    builder
+        .provider(DatabaseServiceProvider)
+        .provider(MigrationServiceProvider::<TestMigrator>::new());
+    let app = builder
+        .start(Figment::new().merge(Toml::string(&config)))
+        .await
+        .and_then(Application::from_provider_runtime)?;
+    connection.execute_unprepared(
+        "CREATE TABLE openrust_migrations (version VARCHAR(255) PRIMARY KEY, batch BIGINT NOT NULL)",
+    ).await?;
+    connection
+        .execute_unprepared(
+            "INSERT INTO openrust_migrations (version, batch) VALUES ('historical_migration', 7)",
+        )
+        .await?;
+    for args in [vec![], vec!["status".into()], vec!["down".into()]] {
+        let error = app
+            .run_command("migrate", args)
+            .await
+            .err()
+            .ok_or("旧账本须阻止迁移")?;
+        assert_eq!(error.code(), "migration_history_upgrade_required");
+    }
+    let schema = SchemaManager::new(&connection);
+    assert!(!schema.has_table("schema_history").await?);
+    let legacy = connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT version FROM openrust_migrations WHERE batch = 7",
+        ))
+        .await?
+        .ok_or("旧批次被意外改动")?;
+    assert_eq!(
+        legacy.try_get_by_index::<String>(0)?,
+        "historical_migration"
+    );
+
+    schema
+        .rename_table(
+            Table::rename()
+                .table(
+                    Alias::new("openrust_migrations"),
+                    Alias::new("archived_migrations"),
+                )
+                .to_owned(),
+        )
+        .await?;
+    let id = match connection.get_database_backend() {
+        DbBackend::MySql => "INT UNSIGNED AUTO_INCREMENT PRIMARY KEY",
+        DbBackend::Postgres => "SERIAL PRIMARY KEY",
+        _ => return Err("测试只覆盖 MySQL 和 PostgreSQL".into()),
+    };
+    connection.execute_unprepared(&format!(
+        "CREATE TABLE schema_history (id {id}, migration VARCHAR(255) NOT NULL, batch INTEGER NOT NULL)",
+    )).await?;
+    connection.execute_unprepared(
+        "INSERT INTO schema_history (migration, batch) SELECT version, batch FROM archived_migrations",
+    ).await?;
+    app.run_command("migrate", vec![]).await?;
+    let row = connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT id, migration, batch FROM schema_history ORDER BY id DESC LIMIT 1",
+        ))
+        .await?
+        .ok_or("迁移没有写入配置表")?;
+    assert!(row.try_get_by_index::<String>(1)?.starts_with('m'));
+    assert_eq!(row.try_get_by_index::<i32>(2)?, 8);
+    assert!(!schema.has_table("migrations").await?);
+    assert!(!schema.has_table("tenant_schema_history").await?);
+    app.run_command("migrate", vec!["status".into()]).await?;
+    app.run_command("migrate", vec!["down".into()]).await?;
+    let remaining = connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT migration FROM schema_history LIMIT 1",
+        ))
+        .await?;
+    assert_eq!(
+        remaining
+            .ok_or("旧历史被回滚删除")?
+            .try_get_by_index::<String>(0)?,
+        "historical_migration"
+    );
+    drop(app);
+    drop(connection);
+    database.close().await?;
     Ok(())
 }
 

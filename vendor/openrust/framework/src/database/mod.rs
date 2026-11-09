@@ -721,6 +721,7 @@ fn database_schema() -> crate::config::repository::SectionSchema {
     use crate::config::repository::SectionSchema as S;
     if let S::Object { mut fields, .. } = database_instance_schema() {
         fields.insert("instances".into(), S::map(database_instance_schema()));
+        fields.insert("migrations".into(), S::object([("table", S::String)]));
         S::object(fields)
     } else {
         S::any()

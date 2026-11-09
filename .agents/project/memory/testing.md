@@ -2452,3 +2452,9 @@ Rust 导入冻结树 `cec10c7a7747adc0916ec6eac97529aaf9dfd1b5` 通过 fmt、默
 冻结树 `ab3c17630171dc3214551652caa56b57b7fcc458` 对照固定 Laravel 13.x 本地化章节与 `d52c3b3` 的 Application 目录选择。根应用和生成项目均以 `resources/lang` 目录为先，缺失或为普通文件时选根 `lang`。两处目录不合并。显式根 `lang` 与模块命名空间保留。固定 Goravel `a554ced` 的文件 Loader 提供 JSON 文件和显式路径的编译型参考，目录默认遵循 Laravel。
 
 框架单元测试覆盖空目录、普通文件、坏资源及构造时快照，唯一示例的真实 TCP 读取和生成 minimal 应用按语言配置实际验证。默认工作区格式、严格 Clippy、测试、Rustdoc、离线依赖检查，以及可选翻译数据库与真实 MySQL 8.4.13 测试通过。Linux ARM64 的根与生成项目均从仅含 `resources/lang` 的源码经 Buildx 导出。生成项目与框架在含空格目录重定位，镜像及搬迁后的导出目录均实际通过 HTTP 读取该目录文案。原生 x86_64 和完整 Laravel `path.lang` 公开接口仍按既有待办推进。
+
+## 迁移账本默认名称限定验收
+
+固定 Laravel `d52c3b3` 的配置默认 `migrations`，数据库仓储创建 `id`、`migration`、`batch`。OpenRust 的根应用、生成模板与迁移命令共用 `database.migrations.table`。不同业务表前缀的连接继续共享同一物理库的默认账本及互斥锁。
+
+真实 MySQL 8.4 验证非空旧账本拒绝迁移、状态查询和回滚，保留原始批次，离线转换后新迁移从下一批开始，回滚后旧批次仍在。真实示例验证应用和模块共用账本，禁用后历史仍在。新生成 MySQL 应用的 Cargo check 和 20 项测试通过，应用二进制实跑两次迁移及状态查询，实际表只含 `id`、`migration`、`batch`，保留六条迁移且未创建旧表。工作区格式、严格 Clippy、带真实 MySQL 的测试、Rustdoc 与离线依赖检查通过。运行回执在 `tmp/migration-ledger-UCPtl5/`。PostgreSQL 与 SQLite 运行按发布矩阵跟踪。

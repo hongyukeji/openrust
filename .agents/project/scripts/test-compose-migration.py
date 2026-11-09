@@ -401,7 +401,7 @@ class Probe:
         redis_info = self.redis("legacy-redis-version", "INFO", "server")
         self.receipt["redis_version"] = redis_info.split("redis_version:", 1)[1].splitlines()[0]
         require(self.receipt["redis_version"].startswith("8."), "Redis 不属于 8")
-        self.migration_count = self.sql("legacy-migrations", "SELECT COUNT(*) FROM openrust_migrations;")
+        self.migration_count = self.sql("legacy-migrations", "SELECT COUNT(*) FROM migrations;")
         require(int(self.migration_count) >= 15, "未完成预期数量的迁移")
         self.receipt["migration_count"] = int(self.migration_count)
         token = self.login("legacy-login")
@@ -521,7 +521,7 @@ class Probe:
                               "{{.State.Status}} {{.State.ExitCode}} {{.Path}} {{json .Args}}")
         require(status == 'exited 0 /app/artisan ["migrate","--force","--no-interaction"]',
                 "迁移服务未以显式无人值守授权通过 artisan 正常退出")
-        count = self.sql(f"{label}-migration-count", "SELECT COUNT(*) FROM openrust_migrations;")
+        count = self.sql(f"{label}-migration-count", "SELECT COUNT(*) FROM migrations;")
         require(count == self.migration_count, "迁移数量在切换后发生变化")
         require(self.request(f"{label}-public-get", "/compose-x64-proof.txt", expected=(200,)) == self.public_marker,
                 "宿主公开文件未通过 HTTP 提供")

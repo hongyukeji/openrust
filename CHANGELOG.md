@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 迁移账本默认改为 `migrations`，支持 `database.migrations.table`。非空旧账本需要先转换迁移名称和批次。
+
 - 标签视图可清理含任一标签的条目，Redis 分批删除已登记的缓存值。
 
 - 标签缓存按标签顺序区分条目，并隔离相同逻辑键的并发刷新。新版本首次读取旧标签缓存时会重新加载。

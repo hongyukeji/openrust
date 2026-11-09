@@ -4,10 +4,28 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+/// `database.migrations` 迁移账本配置。
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct DatabaseMigrationsConfig {
+    /// 迁移账本表名，默认 `migrations`。
+    pub table: String,
+}
+
+impl Default for DatabaseMigrationsConfig {
+    fn default() -> Self {
+        Self {
+            table: "migrations".to_owned(),
+        }
+    }
+}
+
 /// `[database]` 配置区段中的数据库连接和连接池设置。
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
+    /// 应用与模块共用的迁移账本。
+    pub migrations: DatabaseMigrationsConfig,
     /// 数据库连接 URL；可由 `DB_*` 分项设置生成，也可通过配置文件或 `APP_DATABASE_URL` 指定。
     pub url: Option<String>,
     /// SQLite 每条物理连接的外键约束；默认 `Some(true)`，`None` 保留原生或先行 PRAGMA。
@@ -146,6 +164,7 @@ impl From<&DatabaseConfig> for DatabaseInstanceConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
+            migrations: DatabaseMigrationsConfig::default(),
             url: None,
             foreign_key_constraints: Some(true),
             busy_timeout: None,
@@ -184,6 +203,7 @@ impl fmt::Debug for DatabaseConfig {
             .field("acquire_timeout_secs", &self.acquire_timeout_secs)
             .field("table_prefix", &self.table_prefix)
             .field("table_names", &self.table_names)
+            .field("migrations", &self.migrations)
             .field("instances", &self.instances)
             .finish_non_exhaustive()
     }

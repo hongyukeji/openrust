@@ -495,6 +495,7 @@ type MigrationFactory = fn() -> Vec<Box<dyn sea_orm_migration::MigrationTrait>>;
 
 fn catalog(factory: MigrationFactory) -> super::super::CatalogMigrator {
     super::super::CatalogMigrator {
+        history_table: "migrations".to_owned(),
         sources: vec![super::super::MigrationEntry {
             module: "sqlite-production-ownership-test",
             names: factory()
@@ -599,7 +600,7 @@ impl Fixture {
             .connection()?
             .query_one_raw(sea_orm::Statement::from_string(
                 sea_orm::DbBackend::Sqlite,
-                "SELECT count(*) AS n FROM openrust_migrations",
+                "SELECT count(*) AS n FROM migrations",
             ))
             .await
             .map_err(Error::internal)?
@@ -831,7 +832,7 @@ async fn production_memory_schema_and_history_survive_each_owner_runtime_exit() 
                 let row = database
                     .query_one_raw(sea_orm::Statement::from_string(
                         sea_orm::DbBackend::Sqlite,
-                        "SELECT count(*) AS n FROM openrust_migrations",
+                        "SELECT count(*) AS n FROM migrations",
                     ))
                     .await
                     .map_err(Error::internal)?
@@ -875,7 +876,7 @@ async fn production_anchor_rejected_after_release_cannot_report_memory_migration
             let rejected = callback_rejected.clone();
             Box::pin(async move {
                 let exists: i64 = sqlx::query_scalar(
-                    "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'openrust_migrations'",
+                    "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'migrations'",
                 )
                 .fetch_one(&mut *connection)
                 .await?;
@@ -883,7 +884,7 @@ async fn production_anchor_rejected_after_release_cannot_report_memory_migration
                     return Ok(true);
                 }
                 let applied: i64 = sqlx::query_scalar(
-                    "SELECT count(*) FROM openrust_migrations WHERE version = 'm20261102_000003_production_recovery'",
+                    "SELECT count(*) FROM migrations WHERE migration = 'm20261102_000003_production_recovery'",
                 )
                 .fetch_one(&mut *connection)
                 .await?;
@@ -964,7 +965,7 @@ async fn borrowed_memory_snapshot(connection: &mut sqlx::SqliteConnection) -> Re
         .fetch_one(&mut *connection)
         .await
         .map_err(Error::internal)?;
-    let history = sqlx::query_scalar("SELECT count(*) FROM openrust_migrations")
+    let history = sqlx::query_scalar("SELECT count(*) FROM migrations")
         .fetch_one(&mut *connection)
         .await
         .map_err(Error::internal)?;

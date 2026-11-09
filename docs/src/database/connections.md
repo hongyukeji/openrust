@@ -84,3 +84,10 @@ db.transaction_for_update_checked_context(move |context| Box::pin(async move {
 ```
 
 同源clone允许，另Db即使同pool拒绝且不执行SQL。此来源判断不是账户授权、租户过滤或具体事务身份比较。Schema的SQL/取值错误正常传播；首查失败不查第二条。完整getColumns元数据/PG服务器版本探测、完整Schema构造与Model fill/guardable缓存仍待对应；不能用此查询冒称Model生命周期已完成。日常实库仅MySQL8.4，SQLite物理lease/temp/ATTACH/副本/取消、PG及最低版本/Windows仍需发布矩阵的真实证据，编译或源码候选不算通过。
+
+
+## 迁移账本
+
+应用和已启用模块共用同一个迁移账本，默认表为 `migrations`，记录 `id`、`migration`、`batch`。在应用的 `config/database.rs` 可编辑 `database.migrations.table` 对应的 `migrations.table` 字段。每个物理库各存一份账本。同一物理库的连接默认共用账本，业务表前缀不会改变账本名。
+
+旧库存在非空 `openrust_migrations` 时，迁移、回滚和状态查询会报告 `migration_history_upgrade_required`。升级前先停用旧版迁移入口并备份，在隔离副本中创建目标账本，把旧表的 `version` 原样写入 `migration`，保留 `batch`，由目标表生成 `id`。核对迁移名称、批次和行数后，归档旧表并验证 `./artisan migrate status`，再在生产库重复已演练的转换。若目标表已有历史，先核对两份记录的来源与冲突。旧 `seaql_migrations` 没有批次列，需要依据独立历史证据确定批次。

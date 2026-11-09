@@ -1823,11 +1823,11 @@ async fn migration_versions(
     connection
         .query_all_raw(Statement::from_string(
             connection.get_database_backend(),
-            "SELECT version FROM openrust_migrations ORDER BY version".to_owned(),
+            "SELECT migration FROM migrations ORDER BY migration".to_owned(),
         ))
         .await?
         .into_iter()
-        .map(|row| row.try_get("", "version").map_err(Into::into))
+        .map(|row| row.try_get("", "migration").map_err(Into::into))
         .collect()
 }
 #[cfg(all(
@@ -1960,7 +1960,7 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     connection.query_one_raw(showcase_links.clone()).await?;
     let shared_history = Statement::from_string(
         connection.get_database_backend(),
-        "SELECT version FROM openrust_migrations".to_owned(),
+        "SELECT migration FROM migrations".to_owned(),
     );
     let before_history = migration_versions(&connection).await?;
     let before_down = before_history.len();

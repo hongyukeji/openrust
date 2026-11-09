@@ -155,10 +155,10 @@ after_refusal=$(table_count)
 after_force=$(table_count)
 [[ "$after_force" -gt 0 ]]
 ./"$name" artisan migrate status > "$evidence/migrate-status.log" 2>&1
-migrations=$(query 'SELECT COUNT(*) FROM openrust_migrations')
+migrations=$(query 'SELECT COUNT(*) FROM migrations')
 [[ "$migrations" -gt 0 ]]
 ./artisan migrate --force --no-interaction > "$evidence/migrate-repeat.log" 2>&1
-[[ "$(table_count)" == "$after_force" && "$(query 'SELECT COUNT(*) FROM openrust_migrations')" == "$migrations" ]]
+[[ "$(table_count)" == "$after_force" && "$(query 'SELECT COUNT(*) FROM migrations')" == "$migrations" ]]
 
 ./"$name" > "$evidence/server.log" 2>&1 &
 app_pid=$!

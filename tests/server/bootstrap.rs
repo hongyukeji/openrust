@@ -13,6 +13,7 @@ async fn default_provider_manifest_serves_application_route() -> Result<()> {
     let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(serde_json::json!({
         "app": {"env": "test"},
+        "database": {"url": null},
         "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
         "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
     })));
