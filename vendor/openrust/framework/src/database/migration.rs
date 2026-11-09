@@ -27,7 +27,7 @@ use sea_orm_migration::sea_orm::{
 };
 use sea_orm_migration::{MigrationTrait, MigratorTrait, SchemaManager};
 
-use crate::database::{Databases, Db};
+use crate::database::{DatabaseTableNames, Databases, Db};
 
 /// 框架数据库基础设施迁移；业务模块迁移由各模块独立贡献。
 pub struct FrameworkMigrator;
@@ -281,12 +281,24 @@ impl Command for MigrationCommand {
             if matches!(db.backend(), Ok(DbBackend::Sqlite)) {
                 return Err(execution::sqlite_feature_disabled());
             }
+            let history_table = match app.config_repository().get("database.migrations.table")? {
+                Some(serde_json::Value::String(table)) => table,
+                None => crate::config::DatabaseMigrationsConfig::default().table,
+                Some(_) => {
+                    return Err(Error::custom(
+                        "migration_history_invalid_table",
+                        "database.migrations.table 必须是字符串",
+                    ));
+                }
+            };
             let migrator = CatalogMigrator {
                 sources: self.catalog.snapshot()?,
+                history_table,
             };
             if options.action == MigrationAction::Status {
                 let database = db.primary_connection()?;
-                let history = migration_history(&database, false).await?;
+                let table = HistoryTable::new(&database, &migrator.history_table)?;
+                let history = migration_history(&database, &table, false).await?;
                 print_status(&migrator, &history);
                 return Ok(());
             }
@@ -307,6 +319,7 @@ impl Command for MigrationCommand {
 
 struct CatalogMigrator {
     sources: Vec<MigrationEntry>,
+    history_table: String,
 }
 
 impl CatalogMigrator {
@@ -340,8 +353,10 @@ async fn run_migrator_owned(
 ) -> Result<()> {
     cancellation.check()?;
     let database = db.connection()?;
+    let table = HistoryTable::new(&database, &migrator.history_table)?;
     let mut history = migration_history(
         &database,
+        &table,
         matches!(action, MigrationAction::Up(_) | MigrationAction::UpStep),
     )
     .await?;
@@ -374,7 +389,12 @@ async fn run_migrator_owned(
                     first_batch
                 };
                 db.table_names()
-                    .scope(apply_migration(&database, migration.as_ref(), batch))
+                    .scope(apply_migration(
+                        &database,
+                        &table,
+                        migration.as_ref(),
+                        batch,
+                    ))
                     .await?;
                 history.push(BatchRow {
                     version: migration.name().to_owned(),
@@ -407,7 +427,7 @@ async fn run_migrator_owned(
                     continue;
                 };
                 db.table_names()
-                    .scope(revert_migration(&database, migration.as_ref()))
+                    .scope(revert_migration(&database, &table, migration.as_ref()))
                     .await?;
             }
             print_migrations("Migrations rolled back.\n");
@@ -445,33 +465,76 @@ fn print_status(migrator: &CatalogMigrator, history: &[BatchRow]) {
     print_migrations(&output);
 }
 
-async fn migration_history(db: &DatabaseConnection, install: bool) -> Result<Vec<BatchRow>> {
-    if SchemaManager::new(db)
-        .has_table("seaql_migrations")
-        .await
-        .map_err(Error::internal)?
-        && db
-            .query_one_raw(Statement::from_string(
-                db.get_database_backend(),
-                "SELECT version FROM seaql_migrations LIMIT 1".to_owned(),
-            ))
-            .await
-            .map_err(Error::internal)?
-            .is_some()
-    {
-        return Err(Error::custom(
-            "migration_history_upgrade_required",
-            "旧迁移历史不为空；请先在隔离环境转换历史，不能把已迁移数据库当作空库",
-        ));
+const LEGACY_HISTORY_TABLES: [&str; 2] = ["openrust_migrations", "seaql_migrations"];
+
+struct HistoryTable {
+    name: String,
+    quoted: String,
+}
+
+impl HistoryTable {
+    fn new(connection: &DatabaseConnection, configured: &str) -> Result<Self> {
+        // 账本与迁移锁按物理库共享，业务表前缀不会划分历史。
+        let names = DatabaseTableNames::default();
+        let name = names.resolve(configured)?;
+        if LEGACY_HISTORY_TABLES
+            .iter()
+            .any(|legacy| name.eq_ignore_ascii_case(legacy))
+        {
+            return Err(Error::custom(
+                "migration_history_invalid_table",
+                "迁移账本不能使用旧账本表名",
+            ));
+        }
+        let quoted = names.quote(configured, connection.get_database_backend())?;
+        Ok(Self { name, quoted })
+    }
+}
+
+async fn migration_history(
+    db: &DatabaseConnection,
+    table: &HistoryTable,
+    install: bool,
+) -> Result<Vec<BatchRow>> {
+    let backend = db.get_database_backend();
+    let schema = SchemaManager::new(db);
+    for legacy in LEGACY_HISTORY_TABLES {
+        if schema.has_table(legacy).await.map_err(Error::internal)?
+            && db
+                .query_one_raw(Statement::from_string(
+                    backend,
+                    format!("SELECT version FROM {legacy} LIMIT 1"),
+                ))
+                .await
+                .map_err(Error::internal)?
+                .is_some()
+        {
+            return Err(Error::custom(
+                "migration_history_upgrade_required",
+                format!("旧迁移账本 {legacy} 不为空；请先离线转换并归档，避免重复迁移"),
+            ));
+        }
     }
     if install {
-        db.execute_unprepared(
-            "CREATE TABLE IF NOT EXISTS openrust_migrations (version VARCHAR(255) PRIMARY KEY, batch BIGINT NOT NULL)",
-        )
+        let id = match backend {
+            DbBackend::Postgres => "SERIAL PRIMARY KEY",
+            DbBackend::MySql => "INT UNSIGNED AUTO_INCREMENT PRIMARY KEY",
+            DbBackend::Sqlite => "INTEGER PRIMARY KEY AUTOINCREMENT",
+            _ => {
+                return Err(Error::custom(
+                    "unsupported_database_backend",
+                    "此数据库后端不支持迁移账本",
+                ));
+            }
+        };
+        db.execute_unprepared(&format!(
+            "CREATE TABLE IF NOT EXISTS {} (id {id}, migration VARCHAR(255) NOT NULL, batch INTEGER NOT NULL)",
+            table.quoted
+        ))
         .await
         .map_err(Error::internal)?;
-    } else if !SchemaManager::new(db)
-        .has_table("openrust_migrations")
+    } else if !schema
+        .has_table(&table.name)
         .await
         .map_err(Error::internal)?
     {
@@ -482,16 +545,16 @@ async fn migration_history(db: &DatabaseConnection, install: bool) -> Result<Vec
     }
     let rows = db
         .query_all_raw(Statement::from_string(
-            db.get_database_backend(),
-            "SELECT version, batch FROM openrust_migrations".to_owned(),
+            backend,
+            format!("SELECT migration, batch FROM {}", table.quoted),
         ))
         .await
         .map_err(Error::internal)?;
     rows.into_iter()
         .map(|row| {
             Ok(BatchRow {
-                version: row.try_get("", "version").map_err(Error::internal)?,
-                batch: row.try_get("", "batch").map_err(Error::internal)?,
+                version: row.try_get("", "migration").map_err(Error::internal)?,
+                batch: i64::from(row.try_get::<i32>("", "batch").map_err(Error::internal)?),
             })
         })
         .collect()
@@ -509,18 +572,28 @@ fn next_batch(history: &[BatchRow]) -> Result<i64> {
 
 fn history_statement(
     backend: DbBackend,
-    sql: &'static str,
+    sql: String,
     values: Vec<sea_orm_migration::sea_orm::Value>,
 ) -> Statement {
     Statement::from_sql_and_values(backend, sql, values)
 }
 
-async fn insert_history<C: ConnectionTrait>(db: &C, version: &str, batch: i64) -> Result<()> {
+async fn insert_history<C: ConnectionTrait>(
+    db: &C,
+    table: &HistoryTable,
+    version: &str,
+    batch: i32,
+) -> Result<()> {
     let backend = db.get_database_backend();
-    let sql = match backend {
-        DbBackend::Postgres => "INSERT INTO openrust_migrations (version, batch) VALUES ($1, $2)",
-        _ => "INSERT INTO openrust_migrations (version, batch) VALUES (?, ?)",
+    let values = if backend == DbBackend::Postgres {
+        "($1, $2)"
+    } else {
+        "(?, ?)"
     };
+    let sql = format!(
+        "INSERT INTO {} (migration, batch) VALUES {values}",
+        table.quoted
+    );
     db.execute_raw(history_statement(
         backend,
         sql,
@@ -531,12 +604,18 @@ async fn insert_history<C: ConnectionTrait>(db: &C, version: &str, batch: i64) -
     Ok(())
 }
 
-async fn delete_history<C: ConnectionTrait>(db: &C, version: &str) -> Result<()> {
+async fn delete_history<C: ConnectionTrait>(
+    db: &C,
+    table: &HistoryTable,
+    version: &str,
+) -> Result<()> {
     let backend = db.get_database_backend();
-    let sql = match backend {
-        DbBackend::Postgres => "DELETE FROM openrust_migrations WHERE version = $1",
-        _ => "DELETE FROM openrust_migrations WHERE version = ?",
+    let parameter = if backend == DbBackend::Postgres {
+        "$1"
+    } else {
+        "?"
     };
+    let sql = format!("DELETE FROM {} WHERE migration = {parameter}", table.quoted);
     db.execute_raw(history_statement(
         backend,
         sql,
@@ -555,9 +634,12 @@ fn migration_uses_transaction(migration: &dyn MigrationTrait, backend: DbBackend
 
 async fn apply_migration(
     db: &DatabaseConnection,
+    table: &HistoryTable,
     migration: &dyn MigrationTrait,
     batch: i64,
 ) -> Result<()> {
+    let batch = i32::try_from(batch)
+        .map_err(|_| Error::custom("migration_batch_overflow", "迁移批次超出可执行范围"))?;
     if migration_uses_transaction(migration, db.get_database_backend()) {
         let transaction = db.begin().await.map_err(Error::internal)?;
         let outcome = async {
@@ -565,7 +647,7 @@ async fn apply_migration(
                 .up(&SchemaManager::new(&transaction))
                 .await
                 .map_err(Error::internal)?;
-            insert_history(&transaction, migration.name(), batch).await
+            insert_history(&transaction, table, migration.name(), batch).await
         }
         .await;
         if let Err(error) = outcome {
@@ -577,12 +659,16 @@ async fn apply_migration(
             .up(&SchemaManager::new(db))
             .await
             .map_err(Error::internal)?;
-        insert_history(db, migration.name(), batch).await?;
+        insert_history(db, table, migration.name(), batch).await?;
     }
     Ok(())
 }
 
-async fn revert_migration(db: &DatabaseConnection, migration: &dyn MigrationTrait) -> Result<()> {
+async fn revert_migration(
+    db: &DatabaseConnection,
+    table: &HistoryTable,
+    migration: &dyn MigrationTrait,
+) -> Result<()> {
     if migration_uses_transaction(migration, db.get_database_backend()) {
         let transaction = db.begin().await.map_err(Error::internal)?;
         let outcome = async {
@@ -590,7 +676,7 @@ async fn revert_migration(db: &DatabaseConnection, migration: &dyn MigrationTrai
                 .down(&SchemaManager::new(&transaction))
                 .await
                 .map_err(Error::internal)?;
-            delete_history(&transaction, migration.name()).await
+            delete_history(&transaction, table, migration.name()).await
         }
         .await;
         if let Err(error) = outcome {
@@ -602,7 +688,7 @@ async fn revert_migration(db: &DatabaseConnection, migration: &dyn MigrationTrai
             .down(&SchemaManager::new(db))
             .await
             .map_err(Error::internal)?;
-        delete_history(db, migration.name()).await?;
+        delete_history(db, table, migration.name()).await?;
     }
     Ok(())
 }
@@ -1027,6 +1113,7 @@ mod tests {
             migrations: OrderedB::migrations,
         };
         let catalog = CatalogMigrator {
+            history_table: "migrations".to_owned(),
             sources: vec![a.clone(), b],
         };
         run_migrator(&catalog, &db, MigrationAction::Up(Some(1))).await?;
@@ -1049,7 +1136,10 @@ mod tests {
             )))
             .await?;
         let db = runtime.container().resolve::<Db>().await?;
-        let disabled = CatalogMigrator { sources: vec![a] };
+        let disabled = CatalogMigrator {
+            sources: vec![a],
+            history_table: "migrations".to_owned(),
+        };
         run_migrator(&disabled, &db, MigrationAction::Down(None)).await?;
         assert_eq!(migration_versions(&connection).await?.len(), 2);
         run_migrator(&catalog, &db, MigrationAction::UpStep).await?;
@@ -1100,6 +1190,7 @@ mod tests {
         let runtime = builder.start(source()).await?;
         let db = runtime.container().resolve::<Db>().await?;
         let failing = CatalogMigrator {
+            history_table: "migrations".to_owned(),
             sources: vec![MigrationEntry {
                 module: "probe",
                 names: vec!["m20261028_000004_failure_probe".to_owned()],
@@ -1130,6 +1221,7 @@ mod tests {
         let runtime = restarted.start(source()).await?;
         let db = runtime.container().resolve::<Db>().await?;
         let recovery = CatalogMigrator {
+            history_table: "migrations".to_owned(),
             sources: vec![MigrationEntry {
                 module: "probe",
                 names: vec!["m20261028_000004_failure_probe".to_owned()],
@@ -1193,7 +1285,7 @@ mod tests {
         assert_eq!(error.code(), "migration_history_upgrade_required");
         assert!(
             !SchemaManager::new(&connection)
-                .has_table("openrust_migrations")
+                .has_table("migrations")
                 .await
                 .map_err(crate::core::Error::internal)?
         );
@@ -1266,14 +1358,14 @@ mod tests {
         let rows = connection
             .query_all_raw(Statement::from_string(
                 connection.get_database_backend(),
-                "SELECT version FROM openrust_migrations".to_owned(),
+                "SELECT migration FROM migrations".to_owned(),
             ))
             .await
             .map_err(crate::core::Error::internal)?;
         let mut versions = rows
             .into_iter()
             .map(|row| {
-                row.try_get("", "version")
+                row.try_get("", "migration")
                     .map_err(crate::core::Error::internal)
             })
             .collect::<Result<Vec<String>>>()?;

@@ -1,6 +1,8 @@
 //! 默认连接、独立具名连接及连接池的应用默认值。
 
-use openrust::config::{ConfigContext, ConfigError, DatabaseConfig, DatabaseInstanceConfig};
+use openrust::config::{
+    ConfigContext, ConfigError, DatabaseConfig, DatabaseInstanceConfig, DatabaseMigrationsConfig,
+};
 use std::collections::BTreeMap;
 
 /// 只控制下方独立 reporting 连接是否进入默认配置，不影响部署来源的具名连接。
@@ -36,6 +38,7 @@ pub fn config(ctx: &ConfigContext) -> Result<DatabaseConfig, ConfigError> {
         BTreeMap::new()
     };
     Ok(DatabaseConfig {
+        migrations: DatabaseMigrationsConfig::default(),
         url: None,
         foreign_key_constraints: ctx.nullable_bool_or("DB_FOREIGN_KEYS", Some(true)),
         busy_timeout: None,

@@ -155,13 +155,13 @@ async fn exercise_catalog(
     app.run_command("migrate", Vec::new()).await?;
     let connection = database.connection()?;
     assert_eq!(
-        scalar(&connection, "SELECT count(*) FROM openrust_migrations").await?,
+        scalar(&connection, "SELECT count(*) FROM migrations").await?,
         expected
     );
     let rows = connection
         .query_all_raw(Statement::from_string(
             DbBackend::Sqlite,
-            "SELECT version FROM openrust_migrations ORDER BY version",
+            "SELECT migration FROM migrations ORDER BY migration",
         ))
         .await
         .map_err(openrust::Error::internal)?;
@@ -175,14 +175,14 @@ async fn exercise_catalog(
     app.run_command("migrate", vec!["down".into(), expected.to_string()])
         .await?;
     assert_eq!(
-        scalar(&connection, "SELECT count(*) FROM openrust_migrations").await?,
+        scalar(&connection, "SELECT count(*) FROM migrations").await?,
         0
     );
-    assert_eq!(scalar(&connection, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT IN ('openrust_migrations','seaql_migrations','sqlite_sequence')").await?, 0);
+    assert_eq!(scalar(&connection, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT IN ('migrations','seaql_migrations','sqlite_sequence')").await?, 0);
     assert_eq!(scalar(&connection, "PRAGMA foreign_keys").await?, 1);
     app.run_command("migrate", Vec::new()).await?;
     assert_eq!(
-        scalar(&connection, "SELECT count(*) FROM openrust_migrations").await?,
+        scalar(&connection, "SELECT count(*) FROM migrations").await?,
         expected
     );
     let foreign_key_errors = connection

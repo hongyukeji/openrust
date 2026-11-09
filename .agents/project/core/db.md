@@ -163,6 +163,7 @@ SQLite方言已由 `5c26fd04` 限定提交推送：数据库时钟、owner/fence
 - 认证迁移、Session/PAT/refresh-token SQL 使用同一 resolver；应用自行书写的 raw SQL 不自动改写，必须使用 `Db::table_name()` / `quoted_table_name()`。表名前缀或映射不会迁移既有 schema 或数据。
 - 按 历史决策 049，`MigrationServiceProvider<M>` 在 PostgreSQL/MySQL 上的 `up`、`down`、`status` 于所选 Db 主库取得独立 `migration_locks` 固定行的事务锁；resolver-aware 锁表惰性初始化，默认等待 30 秒，可通过 `with_lock_wait_timeout` 配置。竞争按 PostgreSQL/MySQL 驱动锁冲突短暂重试，超时 fail-closed；进程/连接退出释放行锁。仅保护同一物理数据库、相同 resolver 且通过 `MigrationServiceProvider` 执行的命令；直接 SeaORM/raw SQL/外部工具不受保护。DDL 仍由 SeaORM runner 管理，MySQL 隐式提交和部分 schema 清理由应用负责。PostgreSQL 18/MySQL 8.4 多进程等待超时与 owner 强杀恢复测试均通过。
 - `MigrationServiceProvider<M>` 注册 `migrate` 命令，调用应用 migrator 的 `up`、`down` 和 `status`；`sea_orm_migration` 从 `openrust::database` re-export。
+- 迁移账本读取 `database.migrations.table`，默认 `migrations(id,migration,batch)`。默认按物理库共享，业务表前缀不划分迁移历史。遇到非空旧账本先拒绝执行，转换与归档由部署方离线完成。
 - `SeedServiceProvider::new(seed_fn)` 注册 `db seed`；异步回调接收 `Db`，种子数据与幂等性由应用负责。
 - `openrust generate model` 与 `generate migration` 可一致传入 `--uuid-id`（`db-uuid` feature，UUIDv7）及 `--soft-delete`（nullable UTC `deleted_at`）；实体生成显式 `Entity::not_deleted()` scope。删除范围不会自动作用于 `find()`、raw SQL 或其他入口，恢复由应用将 `deleted_at` 清空；模型和迁移选项须匹配。
 - `dialect::timestamp_utc(name, backend)` 生成 PostgreSQL `TIMESTAMP WITH TIME ZONE` / MySQL `DATETIME(6)` / SQLite `DATETIME`；`dialect::json(name, backend)` 生成 PostgreSQL `JSONB` / MySQL `JSON` / SQLite `TEXT`，完整SQLite JSON选项仍开放；其他backend明确拒绝。

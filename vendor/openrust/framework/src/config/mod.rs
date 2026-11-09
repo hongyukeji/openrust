@@ -63,7 +63,7 @@ pub(crate) use app::app_cipher_key_size;
 pub use app::{AppConfig, Environment};
 pub use auth::JwtConfig;
 pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig};
-pub use database::{DatabaseConfig, DatabaseInstanceConfig};
+pub use database::{DatabaseConfig, DatabaseInstanceConfig, DatabaseMigrationsConfig};
 #[cfg(feature = "grpc")]
 pub use grpc::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig};
 pub use hashing::{ArgonConfig, BcryptConfig, HashingConfig};

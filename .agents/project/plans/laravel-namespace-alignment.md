@@ -36,6 +36,7 @@ Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911
 
 | 域与固定上游 | 上游全名或值 | 当前 OpenRust 与入口 | 目标与差异分类 | 验证状态 |
 |---|---|---|---|---|
+| 核心 Database，framework `d52c3b3` 的 `config/database.php`、`MigrationServiceProvider.php` 与 `DatabaseMigrationRepository.php` | `database.migrations.table`，默认 `migrations`，字段 `id`、`migration`、`batch` | 历史为硬编码 `openrust_migrations(version,batch)`。迁移命令和根、示例、生成应用共享账本 | 默认值与字段对齐。Laravel 连接前缀会参与账本查询，OpenRust 保留现有同一物理库跨业务前缀共享账本与锁的契约。非空旧账本拒绝直接执行，按升级说明离线转换 | [限定运行通过](../memory/testing.md#迁移账本默认名称限定验收) |
 | 核心 Translation，framework `d52c3b3` 的 `Translation/FileLoader.php` | `Illuminate\Translation\FileLoader` | `openrust::translation::FileLoader`，默认翻译 Provider 与根、生成应用来源配置 | Rust 模块映射及固定 Application 的语言目录选择 | [目录选择运行通过](../memory/testing.md#应用语言目录选择限定验收)，公开名称提交 `d61369b5` |
 | 核心 Cookie，framework `d52c3b3` 的 `Cookie/Middleware/EncryptCookies.php` | `Illuminate\Cookie\Middleware\EncryptCookies` | `openrust::cookie::middleware::EncryptCookies` 由 Cookie Provider 装配，根 Web 组与 `cookies` 路由别名消费同一应用快照 | Rust 模块及应用作用域适配，PHP 子类序列化与进程静态重置仍待对应 | [公开入口与例外运行通过](../memory/testing.md#cookie-公开中间件与例外限定验收) |
 | 核心 Encryption，framework `d52c3b3` 的 `Contracts/Encryption/Encrypter.php` | `Illuminate\Contracts\Encryption\Encrypter` | `openrust::encryption::ApplicationEncrypter`，Cookie、Auth 与生成应用使用的应用加密 trait | 合约名称与路径待整改，完整值语义归加密后继 | 静态已对照，运行待验 |
