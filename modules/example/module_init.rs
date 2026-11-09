@@ -1,6 +1,7 @@
 //! 已编译模块文件初始化；运行期声明只选择此回调，不执行磁盘上的 Rust 源码。
 
 use openrust::Result;
+use openrust::container::ServiceKey;
 use openrust::core::ApiResponse;
 use openrust::foundation::RegisterContext;
 use openrust::http::Inject;
@@ -20,7 +21,9 @@ pub(crate) struct ModuleInitializationMarker {
 impl ModuleFile for ExampleModuleInit {
     fn initialize<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let modules = app.resolve::<openrust_modules::ModuleRepository>().await?;
+            let modules = app
+                .resolve_key::<openrust_modules::ModuleRepository>(ServiceKey::named("modules"))
+                .await?;
             let marker = ModuleInitializationMarker {
                 initialized: modules.find("example").is_some(),
                 business_registered: app.is_bound::<super::services::ExampleMessage>(),

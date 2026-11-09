@@ -31,6 +31,8 @@ class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件
 
 ## 模块持久管理（限定验收）
 
+模块扩展在 Provider 注册期间把 `modules` 声明为 `ModuleRepository` 的同容器别名。已编译清单与运行发现复用原单例工厂，别名跟随原绑定的重绑定和实例清除。未安装扩展的宿主无此键。见[模块仓储具名绑定验收](../memory/testing.md#模块仓储具名绑定验收)。
+
 同一次 ModuleManifest 解析生成已编译 catalog 与加载标记，ModuleRepository 复用该 seed 和所选 ModuleActivator，不复制 Provider。文件驱动保留原始键和值，状态按 canonical 精确键读取；管理 find 支持原有大小写/Studly 查找。写操作稳定侧锁内重读并原子替换，显式 reset 可删除坏状态；无自动恢复。启停具名事件沿同一 Events，弱 Resolver 每次从当前根容器取事件服务，兼容重绑定与根 scope 更新；前事件失败/取消不写，后事件失败保留已提交状态，Stop 仅停止传播。并发 shutdown 与文件写入没有全局原子屏障。
 
 核心命令完整启动后执行，多名称预检、顺序及重复保留，--all 覆盖名单，异常保前项并中断后项。激活状态变化不热卸载/挂载。根/生成配置支持独立状态文件及 application_root；唯一模块真实调用、生成consumer与适用门禁/真实服务已限定验收，见[证据](../memory/testing.md#模块持久启停与同容器管理限定验收)。运行 module.json 发现、Provider/files 接线、TTY 选择、硬链接别名和Windows原生证据仍开放；本段仅关闭上述持久管理子范围，不作完整Modules声明。

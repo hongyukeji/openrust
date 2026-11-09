@@ -2,6 +2,7 @@
 
 use crate::{ModuleManifest, ModuleRepository, ModulesConfig, module};
 use openrust::Result;
+use openrust::container::ServiceKey;
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
 use openrust::foundation::ProviderPreparation;
@@ -50,6 +51,13 @@ impl ProviderRegistration for ModulesRegistration {
     }
 }
 
+pub(crate) fn register_repository_alias(app: &mut RegisterContext<'_>) -> Result<()> {
+    app.alias(
+        ServiceKey::typed::<ModuleRepository>(),
+        ServiceKey::named("modules"),
+    )
+}
+
 /// 在普通 Provider 清单安装模块；清单重配复用核心声明替换与槽位规则。
 pub trait ModuleProviderBuilderExt {
     /// 选择发现或描述符清单，并在 bootstrap 组安装模块配置与命令。
@@ -96,7 +104,12 @@ impl ServiceProvider for ModulesCommandsProvider {
                 ])
                 .open(),
                 |_: &ModulesConfig| Ok(()),
-            )
+            )?;
+            // 编译清单在预装配时已登记仓储；运行发现由自己的 Provider 登记。
+            if app.is_bound::<ModuleRepository>() {
+                register_repository_alias(app)?;
+            }
+            Ok(())
         })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {

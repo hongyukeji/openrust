@@ -1039,6 +1039,14 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         .build()
         .await?;
     let state = app.app()?.state().clone();
+    let modules = state
+        .container()
+        .resolve_key::<openrust_modules::ModuleRepository>(ServiceKey::named("modules"))
+        .await?;
+    assert!(Arc::ptr_eq(
+        &modules,
+        &state.resolve::<openrust_modules::ModuleRepository>().await?,
+    ));
     assert!(!state.container().contains::<HomePresenter>());
     assert!(state.container().contains::<dyn HomeResponse>());
     let symbol = ServiceKey::named(HomePresenter::SYMBOL);

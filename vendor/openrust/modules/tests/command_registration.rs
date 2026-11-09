@@ -5,6 +5,7 @@ use openrust::Application;
 use openrust::Result;
 use openrust::config::NoConfig;
 use openrust::console::Command;
+use openrust::container::ServiceKey;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
@@ -98,7 +99,10 @@ struct ModuleMarker;
 struct Installed;
 impl ServiceProvider for ModuleMarker {
     fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move { app.instance(Arc::new(Installed)).await })
+        Box::pin(async move {
+            assert!(app.is_bound_key(&ServiceKey::named("modules")));
+            app.instance(Arc::new(Installed)).await
+        })
     }
 }
 
@@ -139,7 +143,15 @@ async fn application_core_commands_precede_modules_and_business_boot_overrides_o
                 .load(Ordering::SeqCst),
             1
         );
-        let repository = app.state().resolve::<ModuleRepository>().await?;
+        let container = app.state().container();
+        let key = ServiceKey::named("modules");
+        assert!(container.is_alias(&key));
+        assert!(!container.resolved_key(&key)?);
+        let repository = container.resolve_key::<ModuleRepository>(key).await?;
+        assert!(Arc::ptr_eq(
+            &repository,
+            &app.state().resolve::<ModuleRepository>().await?
+        ));
         app.run_command("module:disable", vec!["Blog".into()])
             .await?;
         assert!(repository.find_or_fail("Blog")?.is_disabled()?);
@@ -174,9 +186,19 @@ async fn bare_builder_gets_module_commands_only_when_extension_is_selected() -> 
                 assert_eq!(names.contains(&name), selected);
             }
             assert!(!names.contains(&"config:clear"));
+            let container = app.state().container();
+            let key = ServiceKey::named("modules");
+            assert_eq!(container.is_alias(&key), selected);
             if selected {
-                assert!(app.state().container().contains::<ModuleRepository>());
+                assert!(container.contains::<ModuleRepository>());
                 app.run_command("module:list", Vec::new()).await?;
+                assert!(container.resolved_key(&key)?);
+            } else {
+                let missing = container.resolve_key::<ModuleRepository>(key).await.err();
+                assert_eq!(
+                    missing.as_ref().map(openrust::Error::code),
+                    Some("service_not_bound")
+                );
             }
             Ok(())
         }

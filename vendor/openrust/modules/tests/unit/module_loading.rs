@@ -6,6 +6,7 @@ use super::*;
 use crate::ModuleProviderBuilderExt;
 use figment::{Figment, providers::Serialized};
 use openrust::config::FrameworkConfig;
+use openrust::container::ServiceKey;
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
 use openrust::foundation::ProviderRuntime;
@@ -41,6 +42,7 @@ impl ModuleFile for Included {
     fn initialize<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             self.trace.lock().unwrap().push("file.initialize");
+            assert!(app.is_bound_key(&ServiceKey::named("modules")));
             assert_eq!(*app.resolve::<u16>().await?, 31);
             app.instance(Arc::new(59_u32)).await?;
             if self.fail {
@@ -111,10 +113,30 @@ async fn declaration_duplicates_construct_but_register_once_and_files_precede_bo
         *trace.lock().unwrap(),
         ["provider.register", "file.initialize", "provider.boot"]
     );
-    let repository = runtime.container().resolve::<ModuleRepository>().await?;
+    let container = runtime.container();
+    let key = ServiceKey::named("modules");
+    assert!(container.is_alias(&key));
+    assert!(!container.resolved_key(&key)?);
+    let repository = container.resolve::<ModuleRepository>().await?;
+    assert!(Arc::ptr_eq(
+        &repository,
+        &container
+            .resolve_key::<ModuleRepository>(key.clone())
+            .await?
+    ));
     assert_eq!(repository.all().len(), 1);
     assert!(repository.find_or_fail("Blog")?.is_loaded());
-    assert_eq!(*runtime.container().resolve::<u32>().await?, 59);
+    container.forget_instance::<ModuleRepository>().await?;
+    let rebuilt = container
+        .resolve_key::<ModuleRepository>(key.clone())
+        .await?;
+    assert!(!Arc::ptr_eq(&repository, &rebuilt));
+    container.instance(Arc::clone(&repository)).await?;
+    assert!(Arc::ptr_eq(
+        &repository,
+        &container.resolve_key::<ModuleRepository>(key).await?
+    ));
+    assert_eq!(*container.resolve::<u32>().await?, 59);
     shutdown(runtime).await?;
     Ok(())
 }

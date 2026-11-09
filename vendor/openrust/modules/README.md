@@ -11,6 +11,8 @@ builder.module_manifest(ModuleManifest::new());
 
 根应用在 `ApplicationDefinition::configure_providers` 安装清单，代码配置类型为 `openrust_modules::ModulesConfig`。测试的 `ModuleTestAppBuilderExt::remove_module` 通过通用 Provider 蓝图重放，reset 不改持久状态。显式描述提前校验并绑定仓储，发现清单在 register 读取配置；模块包没有独立生命周期执行器。
 
+安装模块扩展时，编译清单与运行发现均登记具名 `modules`。可用 `container.resolve_key::<ModuleRepository>(ServiceKey::named("modules"))` 读取仓储，它与类型化解析共享同一惰性单例。
+
 本包尚未通过迁移后运行验收，完整模块生成器、aliases、deferred 与其余官方能力仍按唯一待办推进；不把拆包当作全量实现。
 
 ## 编译模块与持久启停

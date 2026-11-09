@@ -261,6 +261,7 @@ impl ServiceProvider for ModulesServiceProvider {
                 Box::pin(async move { Ok(Arc::new(ModuleRepository::from_seed(seed, resolver))) })
             })
             .await?;
+            crate::registration::register_repository_alias(app)?;
             let bindings = provider_bindings(&self.bindings.providers)?;
             // PHP 类 alias 不是 Container alias；尚未完成的语义明确失败，不能静默丢弃。
             if selected.iter().any(|module| {

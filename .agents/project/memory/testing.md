@@ -1879,6 +1879,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 Linux ARM64 的镜像和独立目录均在真实服务拓扑下运行。根使用 MySQL 8.4.13 与 Redis，生成 minimal 使用 Redis。验证迁移、语言资源 HTTP 读取、独立 Artisan 与 SIGTERM。资源私钥导致的构建失败及已有目标保护均经过负例，未输出子进程私密值。默认工作区 fmt、严格 Clippy、测试、Rustdoc、离线依赖检查和 fresh minimal check/test 通过。原生 x86_64 的该入口仍待发布矩阵。
 
+## 模块仓储具名绑定验收
+
+冻结树 `4f126f48207f7952014a4477749207026fa74e1c` 对照固定 nWidart 5971484 的 Provider 仓储单例与共享实例测试。已编译清单和运行发现均在注册阶段登记 `modules`，同名键与类型键解析到同一实例。模块未安装时返回未绑定，重绑定和清除实例沿用唯一容器。唯一示例从注册阶段的具名入口读取实际模块仓储。
+
+工作区格式、严格 Clippy、测试、Rustdoc 与依赖门禁通过。测试使用真实 MySQL 8.4，根示例及两种注册路径均实际执行断言。实际生成 minimal 并通过 check/test，包含默认宿主的同实例断言。路径配置与其他模块 Provider 行为按各自合同验收。
+
 ## 发布包根入口限定验收
 
 冻结树 `16d4562eecf85e352292b8c17c82f6b81288b3a3` 的根与 fresh minimal 发布包均在包根安装唯一项目同名 ELF。参照固定 Goravel 的具名编译产物与外置资源，保留 Laravel 的公开目录与可写 storage/bootstrap/cache。Docker runtime、导出目录和 Artisan 使用同一相对入口，源码生成对保留名仍可用。
