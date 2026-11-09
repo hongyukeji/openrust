@@ -2,7 +2,6 @@
 set -eu
 
 CDPATH='' cd -P "$(dirname -- "$0")"
-export OPENRUST_ARTISAN=1
 
 cli_manifest='tools/cli/Cargo.toml'
 
@@ -67,7 +66,7 @@ if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
     if [ "${1-}" = build ]; then
         run_cli "$@"
     fi
-    exec cargo run --quiet -- "$@"
+    exec cargo run --quiet -- artisan "$@"
 fi
 
 if [ -e .openrust-build-incomplete ] || [ -L .openrust-build-incomplete ]; then
@@ -88,4 +87,4 @@ if [ ! -x "$application" ]; then
     printf 'artisan: 应用二进制 %s 不可执行\n' "$application" >&2
     exit 126
 fi
-exec "$application" "$@"
+exec "$application" artisan "$@"

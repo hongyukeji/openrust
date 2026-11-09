@@ -60,7 +60,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。该次验收使用 `bin/<项目名>`，现行布局见下方包根整改。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
 
-- **编译部署扩展发布矩阵。** 包根布局与源码命令分别完成[限定验收](memory/testing.md#发布包根入口限定验收)和[限定验收](memory/testing.md#源码-artisan-构建命令验收)。现有命令导出 Docker Buildx 的 Linux 产物。固定 Goravel 的无需 Docker 编译工作流尚未对应到此命令，原生 x86_64 发布包和其余支持环境的实际构建继续按发布矩阵验证。普通 Artisan 命令以及 Laravel 的部署优化与重载按固定 Laravel 逐项验收。
+- **编译部署扩展发布矩阵。** 包根布局与源码命令分别完成[限定验收](memory/testing.md#发布包根入口限定验收)和[限定验收](memory/testing.md#源码-artisan-构建命令验收)。根和新生成 MySQL 的发布二进制模式、生产迁移与直接运行已通过[Linux ARM64 限定验收](memory/testing.md#发布二进制-artisan-与生产迁移验收)。现有命令导出 Docker Buildx 的 Linux 产物。固定 Goravel 的无需 Docker 编译工作流尚未对应到此命令，原生 x86_64 发布包和其余支持环境的实际构建继续按发布矩阵验证。普通 Artisan 命令以及 Laravel 的部署优化与重载按固定 Laravel 逐项验收。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
@@ -147,6 +147,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 中心默认沿对应官方Web机制；显式JWT中心模式才执行全程无Cookie契约，Token持有/续期/授权事务及双RP浏览器限制先设计取证。此前一律禁止或等待Cookie确认的口径已由最终决定覆盖；实际实现和验收尚未完成。
 
 ## 网络测试库剩余平台与拓扑边界
+
+- macOS 并行 workspace 中，持久归属用例曾在释放后立即重锁时返回 `test_lock_not_released`，同一可执行的锁组独立运行通过。保留并行失败、同树串行全量复验和本机 fork 继承锁探针。后续用受控子进程定位真实触发并核同 inode、释放与活动锁保护。
 
 - Unix生命周期/持久回收已收齐[限定验收](memory/testing.md#网络测试数据库生命周期与持久恢复限定验收)，本地提交以Git为准；不重复旧22/公开20场。root只提交测试库所需源码、Cargo/lock与文档，Passport/Hashing WIP保持。
 - 后继仍需非Unix安全私有ACL/真实Windows回归、真实只读副本与无应答服务的专项验证；不得将明确unsupported或静态fail-closed标成这些平台/拓扑已交付。MySQL活动快照依赖关闭独立池并停止新借用，不合作新连接/外部DDL与同名含marker备份不具原子CAS保证，不按前缀/PID/年龄清理。不扩当前限定提交；依赖允许时按唯一队列安排，当前回Passport/统一Hashing前置。

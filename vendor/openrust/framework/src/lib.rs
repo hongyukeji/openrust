@@ -230,7 +230,7 @@ pub fn run<A: ApplicationDefinition>() -> ExitCode {
 
 /// 启动应用。未指定命令时，同进程运行 HTTP 与已配置的后台角色。
 /// 显式指定 `serve`、队列或调度命令时，只运行对应入口。
-/// 通过 `./artisan` 启动时，默认显示应用命令列表。
+/// 使用 `./artisan` 或在应用二进制后加 `artisan` 进入控制台，默认显示应用命令列表。
 pub fn run_application<A: ApplicationDefinition>() -> ExitCode {
     let default = if std::env::var_os("OPENRUST_ARTISAN").is_some_and(|value| value == "1") {
         "list"

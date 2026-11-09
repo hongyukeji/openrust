@@ -71,6 +71,66 @@ fn console_invocation_preserves_global_and_unknown_command_boundaries() {
     assert_eq!(parse(&[]).name(), "list");
 }
 
+#[test]
+fn artisan_prefix_changes_the_default_only_at_the_command_boundary() {
+    let parse = |args: &[&str]| {
+        ConsoleInvocation::parse(args.iter().map(|arg| (*arg).to_owned()), "start").into_parts()
+    };
+    assert_eq!(parse(&[]), ("start".into(), Vec::new(), None));
+    assert_eq!(parse(&["artisan"]), ("list".into(), Vec::new(), None));
+    assert_eq!(
+        parse(&["--env", "artisan"]),
+        ("start".into(), Vec::new(), Some("artisan".into()))
+    );
+    assert_eq!(
+        parse(&["--env=artisan"]),
+        ("start".into(), Vec::new(), Some("artisan".into()))
+    );
+    assert_eq!(
+        parse(&["--env=staging", "artisan", "--help", "migrate"]),
+        (
+            "help".into(),
+            vec!["migrate".into()],
+            Some("staging".into())
+        )
+    );
+    assert_eq!(
+        parse(&[
+            "artisan",
+            "migrate",
+            "--env",
+            "production",
+            "--force",
+            "--no-interaction"
+        ]),
+        (
+            "migrate".into(),
+            vec!["--force".into(), "--no-interaction".into()],
+            Some("production".into()),
+        )
+    );
+    assert_eq!(
+        parse(&["-n", "artisan", "migrate", "--database", "artisan"]),
+        (
+            "migrate".into(),
+            vec![
+                "--database".into(),
+                "artisan".into(),
+                "--no-interaction".into()
+            ],
+            None,
+        )
+    );
+    assert_eq!(
+        parse(&["help", "artisan"]),
+        ("help".into(), vec!["artisan".into()], None)
+    );
+    assert_eq!(
+        parse(&["artisan", "artisan", "literal"]),
+        ("artisan".into(), vec!["literal".into()], None)
+    );
+}
+
 struct DotenvFixture;
 
 impl ApplicationDefinition for DotenvFixture {

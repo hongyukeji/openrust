@@ -7,7 +7,8 @@ use cli::release::BuildCommand;
 use openrust::console::ConsoleInvocation;
 
 pub(crate) fn run(project: &Path, arguments: Vec<String>) -> anyhow::Result<ExitCode> {
-    let invocation = ConsoleInvocation::parse(arguments.iter().cloned(), "list");
+    let arguments = std::iter::once("artisan".to_owned()).chain(arguments);
+    let invocation = ConsoleInvocation::parse(arguments.clone(), "list");
     match invocation.name() {
         BuildCommand::NAME => {
             BuildCommand::run_source(project, invocation.arguments(), invocation.environment())
@@ -20,8 +21,7 @@ pub(crate) fn run(project: &Path, arguments: Vec<String>) -> anyhow::Result<Exit
             application
                 .current_dir(project)
                 .args(["run", "--quiet", "--features", "source-artisan", "--"])
-                .args(arguments)
-                .env("OPENRUST_ARTISAN", "1");
+                .args(arguments);
             exec_application(application)
         }
     }

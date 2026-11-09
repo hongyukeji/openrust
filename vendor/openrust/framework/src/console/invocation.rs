@@ -11,12 +11,14 @@ pub struct ConsoleInvocation {
 impl ConsoleInvocation {
     /// 分解全局参数及命令名称，保留命令自身的参数。
     ///
-    /// 环境值仅用于选择 dotenv 文件。默认命令由调用入口决定。
+    /// 环境值仅用于选择 dotenv 文件。命令位置的首个 `artisan` 是控制台前缀，
+    /// 未指定子命令时显示 `list`。其他调用使用入口传入的默认命令。
     #[must_use]
     pub fn parse(args: impl IntoIterator<Item = String>, default_command: &str) -> Self {
         let mut command = Vec::new();
         let mut environment = None;
         let mut no_interaction = false;
+        let mut artisan_prefix = false;
         let mut args = args.into_iter();
         while let Some(arg) = args.next() {
             if arg == "--env" {
@@ -31,6 +33,8 @@ impl ConsoleInvocation {
                 }
             } else if command.is_empty() && matches!(arg.as_str(), "--no-interaction" | "-n") {
                 no_interaction = true;
+            } else if !artisan_prefix && command.is_empty() && arg == "artisan" {
+                artisan_prefix = true;
             } else {
                 command.push(arg);
             }
@@ -39,6 +43,7 @@ impl ConsoleInvocation {
         let name = match command.next() {
             Some(name) if matches!(name.as_str(), "--help" | "-h") => "help".to_owned(),
             Some(name) => name,
+            None if artisan_prefix => "list".to_owned(),
             None => default_command.to_owned(),
         };
         let mut arguments: Vec<_> = command.collect();

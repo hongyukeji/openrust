@@ -23,6 +23,7 @@
 - C04-C普通与认证模板均接入CookieServiceProvider和`tests/support/request_cookie.rs`，由正式Provider/Router测试读取、队列、直接响应及删除，使用opaque wire回送；加密缺失仅显式plain选择，不暗降级。普通项目fmt/check/3项测试、认证PG18/MySQL8.4项目各2项及完整CLI20项已实际通过，证据见[testing](../memory/testing.md)。
 - `openrust dev` 和 `serve` 通过 Cargo metadata 找到当前应用，再从其目录运行 `cargo run`。开发入口复用或准备适用的 Redis 服务。根应用和生成应用的 `./artisan dev` 调用 `openrust dev --watch`，在 macOS 和 Linux 上通过 Watchexec 监听应用和本地 Cargo 依赖。成功构建的独立产物在旧进程收到 SIGTERM 并退出后启动，编译失败期间旧应用继续服务。开发配置沿用应用的 `--env` 和 dotenv 选择规则。
 
+- 发布二进制识别命令位置的一次 `artisan` 前缀。裸执行启动应用，单独前缀列出应用命令并退出。包装脚本使用同一控制台。生产迁移沿用确认与显式强制选项。见[发布入口实测](../memory/testing.md#发布二进制-artisan-与生产迁移验收)。
 - 源码 `./artisan build` 复用 Compose 的 `app` 构建配置及 Buildx artifacts 阶段，输出单 Linux 平台的独立发布目录。根应用和生成应用保留各自具名 ELF、Artisan 及运行资源。已有输出、非法产物或未完成发布分别明确失败。源码 Provider 在同一命令表保留 `build`，工具分派无需启动应用，复用同一命令的解析和帮助。命令前后的 `--env` 选择构建插值文件。发布应用命令表不安装该工具。见[源码 Artisan 构建命令验收](../memory/testing.md#源码-artisan-构建命令验收)。
 - package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 历史决策 039 已完成。
 - 源码应用的 `./artisan package:discover` 在编译应用前重建按目标和应用特性分开的清单。CLI 保留 `--install` 和 `--preview`，`--check` 只读核对完整已安装内容。根应用和生成应用的构建脚本核对锁文件、相关 manifest 与 Cargo 文件配置摘要，然后把对应 v3 清单交给同一 Provider 启动槽。清单为工厂结果保留包名、版本及 Rust 依赖名。安装器先校验 v3 构建接线，旧应用按当前模板更新后再重建。

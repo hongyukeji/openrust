@@ -28,7 +28,7 @@ fn source_launcher_routes_artisan_to_cli() {
     assert!(source.contains("artisan:source|package:discover|package:list)"));
     assert!(source.contains("run_cli artisan:source -- \"$@\""));
     assert!(source.contains("--project-dir \"$application\""));
-    assert!(source.contains("exec \"$application\" \"$@\""));
+    assert!(source.contains("exec \"$application\" artisan \"$@\""));
 }
 
 #[test]

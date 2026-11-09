@@ -21,6 +21,8 @@
 
 `list` 显示框架、应用和已启用模块实际登记的命令。直接运行 `./artisan` 默认执行 `list`。仅传全局环境选项时也默认执行 `list`，例如 `./artisan --env=local`。带空格的命令名可逐词输入。
 
+发布包也可以直接运行 `./openrust artisan` 列命令，或运行 `./openrust artisan help migrate` 查看帮助。包装脚本和显式 `artisan` 参数使用同一命令表，并在执行完毕后退出。生成应用以项目名代替 `openrust`。 [Goravel 固定控制台入口](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/console/application.go#L95-L140)
+
 源码 Artisan 启用开发专用的 `source-artisan` 特性，由应用 Provider 在命令表登记 `build`。独立发布包只运行已编译的应用命令。
 
 自定义命令由 Provider 注册。实现 `Command::about` 提供描述，实现 `Command::usage` 描述接受的参数和选项。帮助读取这些信息并沿用正常应用引导流程。
@@ -49,7 +51,7 @@ SERVER_PORT=4000 cargo run
 
 根 `default-members = ["."]`、`default-run = "app"`，无参数 `cargo run` 启动 `app`。`app/` 编写应用代码，`modules/` 可选组织业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
 
-发布根应用时，在目标平台构建 `cargo build --release --locked --bin app`，按需启用应用 feature。将 `target/release/app` 安装为部署包内的 `openrust`，可执行的 `artisan` 放在包根。使用数据库时在部署目录先运行 `./artisan migrate`，再用 `./openrust` 启动常驻进程。Artisan 按包根的固定 `openrust` 路径调用应用，不从 PATH 查找同名开发 CLI。Cargo 内部 target `app`、开发工具 CLI `openrust` 和 Compose 服务名 `app` 保持不变。
+发布根应用时，在目标平台构建 `cargo build --release --locked --bin app`，按需启用应用 feature。将 `target/release/app` 安装为部署包内的 `openrust`，可执行的 `artisan` 放在包根。使用数据库时在部署目录先运行 `./openrust artisan migrate`，再用 `./openrust` 启动常驻进程。包装脚本调用包根的固定 `openrust` 路径，不从 PATH 查找同名开发 CLI。Cargo 内部 target 为 `app`，开发工具 CLI 名为 `openrust`，Compose 服务名为 `app`。
 
 当前综合示例 [`modules/example`](../../../modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；开发者可直接在根 `app/` 编写业务；需要模块组织时，在 `modules/<业务>/` 定义模块，经模块清单与统一 Provider 接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
 
@@ -182,11 +184,12 @@ OpenRust 提供编译型应用的 Linux 发布扩展 `./artisan build`。编译�
 
 ```bash
 cd /srv/openrust
-./artisan migrate --force --no-interaction
+./openrust artisan
+./openrust artisan migrate --force --no-interaction
 ./openrust
 ```
 
-手动生产部署可运行 `./artisan migrate` 并在终端确认。未指定 `--force` 时，无终端、`--no-interaction` 或默认否会取消生产迁移。只读的 `./artisan migrate status` 不要求确认，迁移历史表缺失时返回失败。
+手动生产部署可运行 `./openrust artisan migrate` 并在终端确认。未指定 `--force` 时，无终端、`--no-interaction` 或默认否会取消生产迁移。只读的 `./openrust artisan migrate status` 不要求确认，迁移历史表缺失时返回失败。相同命令也可通过 `./artisan` 执行。
 
 二进制使用 Debian Bookworm 构建环境的 Linux ABI。按目标机检查架构、动态库并实际启动。构建仍可通过 Dockerfile 的 `artifacts` 阶段手动导出。容器运行入口为 `/app/openrust`，迁移服务仍通过 `/app/artisan` 执行。
 

@@ -81,7 +81,7 @@ impl Fixture {
         );
         assert_eq!(output.stderr, b"");
         let mut expected = format!(
-            "{pid}\n{program}\n{}\n1\n{}\n",
+            "{pid}\n{program}\n{}\nunset\n{}\n",
             working_directory.canonicalize()?.display(),
             forwarded.len()
         );
@@ -200,9 +200,14 @@ fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> 
     }
 
     fs::rename(&deployment, &relocated)?;
-    let args = ["schedule:run", "two words", ""];
+    let args = ["schedule:run", "artisan", "two words", ""];
     for name in publishable {
-        fixture.assert_exec(&relocated.join(name), &args, name, &args)?;
+        fixture.assert_exec(
+            &relocated.join(name),
+            &args,
+            name,
+            &["artisan", "schedule:run", "artisan", "two words", ""],
+        )?;
     }
     Ok(())
 }
@@ -282,6 +287,31 @@ fn source_artisan_discovery_uses_cli_without_building_the_application() -> Resul
 }
 
 #[test]
+fn source_artisan_without_cli_uses_the_same_explicit_application_prefix() -> Result<()> {
+    let fixture = Fixture::new()?;
+    let project = fixture.root.join("source project without cli");
+    fs::create_dir_all(project.join("src"))?;
+    fs::write(project.join("Cargo.toml"), "")?;
+    fs::write(project.join("src/main.rs"), "")?;
+    write_executable(&project.join("artisan"), ARTISAN)?;
+    fixture.assert_exec(
+        &project,
+        &["--env", "artisan", "migrate", "--no-interaction"],
+        "cargo",
+        &[
+            "run",
+            "--quiet",
+            "--",
+            "artisan",
+            "--env",
+            "artisan",
+            "migrate",
+            "--no-interaction",
+        ],
+    )
+}
+
+#[test]
 fn deployed_root_artisan_execs_openrust_without_cargo() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("deployed project");
@@ -289,12 +319,44 @@ fn deployed_root_artisan_execs_openrust_without_cargo() -> Result<()> {
     fs::write(project.join("Cargo.toml"), "")?;
     write_executable(&project.join("artisan"), ARTISAN)?;
     write_executable(&project.join("openrust"), FAKE_APPLICATION)?;
+    fixture.assert_exec(&project, &[], "openrust", &["artisan"])?;
     fixture.assert_exec(
         &project,
         &["schedule:run", "two words", ""],
         "openrust",
-        &["schedule:run", "two words", ""],
+        &["artisan", "schedule:run", "two words", ""],
     )
+}
+
+#[test]
+fn hidden_source_entry_keeps_a_user_supplied_artisan_command() -> Result<()> {
+    let fixture = Fixture::new()?;
+    let missing = fixture.root.join("missing application directory");
+    for arguments in [
+        &["artisan", "build"][..],
+        &["--env", "artisan", "artisan", "build"][..],
+        &["--env=artisan", "artisan", "build"][..],
+    ] {
+        let failure = super::source_artisan::run(
+            &missing,
+            arguments
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+        )
+        .err()
+        .context("不存在的工作目录应使普通命令 exec 失败")?;
+        assert_eq!(
+            failure.chain().next().and_then(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .map(std::io::Error::kind)
+            }),
+            Some(std::io::ErrorKind::NotFound),
+            "原始 artisan 命令被误认为源码 build：{failure:#}"
+        );
+    }
+    Ok(())
 }
 
 #[test]
