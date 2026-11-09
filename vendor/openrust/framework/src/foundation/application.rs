@@ -19,6 +19,7 @@ use crate::foundation::events::Terminating;
 use crate::foundation::extensions::Extensions;
 use crate::foundation::lifecycle_duration::{EntryStarted, KernelDurationHandlers};
 use crate::foundation::provider::ProviderRuntime;
+use crate::foundation::provider::deferred::DeferredProviders;
 use crate::foundation::provider::registration;
 use crate::foundation::provider::registration::LiveBoot;
 use crate::foundation::provider::registration::ProviderRegistry;
@@ -100,6 +101,8 @@ struct StateInner {
     provider_resources: Arc<ResourceOwner>,
     terminating: TerminationCallbacks,
     durations: Arc<KernelDurationHandlers>,
+    providers: Arc<ProviderRegistry>,
+    deferred: Arc<DeferredProviders>,
 }
 
 tokio::task_local! {
@@ -405,7 +408,6 @@ pub struct Application {
     key_environment: Option<crate::config::KeyGenerationEnvironment>,
     commands: CommandRegistry,
     extensions: Extensions,
-    providers: ProviderRegistry,
 }
 
 impl Application {
@@ -413,18 +415,21 @@ impl Application {
     ///
     /// 应用仍处于启动完成状态，可显式重新登记 Provider。配置快照、既有作用域及
     /// 受管资源保留，资源仍由 [`Self::shutdown`] 回收。已取得的命令等快照继续有效。
+    /// 在途延迟 Provider 装载结束后方可清空。
     /// 析构失败时返回错误，已提交的清空操作不会回滚。
     pub fn flush(&mut self) -> Result<()> {
         use crate::foundation::lifecycle::disposal;
+        let deferred = self.state.inner.deferred.prepare_flush()?;
         let container = self.state.inner.services.detach_for_application_flush()?;
-        let providers = self.providers.take_active();
-        let startup_callbacks = self.providers.startup_callbacks.take();
+        let providers = self.state.inner.providers.take_active();
+        let startup_callbacks = self.state.inner.providers.startup_callbacks.take();
         let termination_callbacks = self.state.inner.terminating.take();
         let request_durations = self.state.inner.durations.requests.take();
         let command_durations = self.state.inner.durations.commands.take();
         let commands = self.commands.take_entries();
         let extensions = self.extensions.take();
-        let mut failed = container.dispose();
+        let mut failed = deferred.clear();
+        failed |= container.dispose();
         for callback in startup_callbacks {
             failed |= disposal::dispose(callback, None).seen;
         }
@@ -463,7 +468,9 @@ impl Application {
         + Sync
         + 'static,
     ) {
-        self.providers
+        self.state
+            .inner
+            .providers
             .startup_callbacks
             .add_booting(Arc::new(callback));
     }
@@ -485,7 +492,7 @@ impl Application {
         .booted(
             &self.state.inner.services,
             &mut config,
-            &self.providers.startup_callbacks,
+            &self.state.inner.providers.startup_callbacks,
             Arc::new(callback),
         )
         .await
@@ -529,6 +536,8 @@ impl Application {
                     provider_resources: Arc::new(runtime.resources),
                     terminating: runtime.providers.startup_callbacks.terminating.clone(),
                     durations: Arc::clone(&runtime.providers.startup_callbacks.durations),
+                    providers: runtime.providers,
+                    deferred: runtime.deferred,
                 }),
             },
             figment,
@@ -536,8 +545,21 @@ impl Application {
             key_environment: None,
             commands: runtime.commands,
             extensions: runtime.extensions,
-            providers: runtime.providers,
         })
+    }
+
+    /// 检查精确服务键是否仍在本应用的延迟 Provider 清单。
+    pub fn is_deferred_service(&self, key: &ServiceKey) -> bool {
+        self.state.inner.deferred.contains(key)
+    }
+
+    /// 按清单顺序装载剩余 Provider，成功后清除延迟服务清单。
+    pub async fn load_deferred_providers(&self) -> Result<()> {
+        self.state
+            .inner
+            .deferred
+            .load_all(self.state.container())
+            .await
     }
 
     /// 登记新的 Provider；同类型已登记时返回首次身份，不重复执行生命周期。
@@ -566,13 +588,13 @@ impl Application {
         let mut config = self.state.config_repository();
         let mut required = Vec::new();
         registration::register(
-            &self.providers,
+            &self.state.inner.providers,
             provider,
             force,
             &self.state.inner.services,
             &mut config,
             &mut required,
-            Some(LiveBoot {
+            registration::BootMode::Live(LiveBoot {
                 resources: self.state.inner.provider_resources.registrar(),
                 extensions: self.extensions.clone(),
                 commands: self.commands.clone(),

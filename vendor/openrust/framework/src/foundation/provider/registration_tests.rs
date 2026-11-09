@@ -731,7 +731,7 @@ async fn pending_registration_releases_registry_for_an_independent_provider() ->
         runtime.container(),
         &mut pending_config,
         &mut pending_required,
-        None,
+        super::BootMode::Startup,
     );
     tokio::select! {
         () = started.notified() => {},
@@ -754,7 +754,7 @@ async fn pending_registration_releases_registry_for_an_independent_provider() ->
             runtime.container(),
             &mut config,
             &mut required,
-            None,
+            super::BootMode::Startup,
         ),
     )
     .await

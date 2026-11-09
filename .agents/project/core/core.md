@@ -41,6 +41,10 @@ class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件
 
 领域贡献按类型隔离借用。运行期启动句柄共享同一扩展、命令和资源登记器。路由、异常 Handler 和 gRPC 先取得所需快照，再执行工厂或异步工作。[贡献限定验收](../memory/testing.md#共享-provider-贡献限定验收)
 
+## 延迟 Provider 按服务键装载
+
+`ProviderBuilder::deferred_provider` 和 `RegisterContext::deferred_provider` 将编译工厂登记到应用的同一清单。容器先解析别名。已有共享实例可跳过装载，同一 Provider 的在途解析等待注册和即时 boot 结束。首次装载只消耗触发键。启动遍历完成后发布的 Provider 立即 boot，并校验其 required 服务。应用可显式装载余项或通过 `flush` 清空清单。作用域关闭会结束当前解析。模块示例通过 HTTP 依赖注入触发装载。事件触发与持久 manifest 仍待实现。[限定验收](../memory/testing.md#延迟-provider-按服务键装载限定验收)
+
 ## R2-P Provider 注册生命周期（与 S-DV 的 main 限定组合已验收）
 
 `Container::flush` 清空运行期绑定、别名、解析历史和所有作用域的共享槽。保留编译类、环境、持久装饰器和注册规则，旧实例及已取得的原工厂快照继续可用。旧构造无法回填已清除的缓存，用户析构在锁外运行。[限定验收](../memory/testing.md#容器清空绑定限定验收)

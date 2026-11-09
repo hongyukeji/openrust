@@ -29,8 +29,10 @@ use crate::container::{
 use crate::core::{Error, Result};
 use crate::support::BoxFuture;
 
+pub(crate) mod deferred;
 mod preparation;
 pub(crate) mod registration;
+pub use deferred::DeferrableProvider;
 pub use preparation::{ProviderPreparation, ProviderRegistration};
 
 /// `TestAppBuilder` 启动身份；只有最终 Testing 环境可使用 CSRF 测试豁免。
@@ -106,6 +108,10 @@ impl StartupCallbacks {
         self.hooks().is_booted = true;
     }
 
+    fn is_booted(&self) -> bool {
+        self.hooks().is_booted
+    }
+
     fn callback_at(&self, index: usize) -> Option<Arc<BootHook>> {
         let hooks = self.hooks();
         let queue = if hooks.is_booted {
@@ -177,7 +183,7 @@ pub struct RegisterContext<'a> {
     owner: ProviderId,
     force: bool,
     registry: &'a registration::ProviderRegistry,
-    live_boot: Option<registration::LiveBoot>,
+    boot_mode: registration::BootMode<'a>,
     provider_callbacks: &'a mut ProviderBootCallbacks,
 }
 
@@ -240,7 +246,7 @@ impl RegisterContext<'_> {
         + 'static,
     ) -> Result<()> {
         let callback: Arc<BootHook> = Arc::new(callback);
-        if let Some(live) = self.live_boot.as_ref() {
+        if let Some(live) = self.boot_mode.live() {
             live.booted(
                 self.container,
                 self.config,
@@ -384,6 +390,17 @@ impl RegisterContext<'_> {
             .await
     }
 
+    /// 声明模块的延迟 Provider。启动期随应用服务清单发布，运行期更新同一清单。
+    pub fn deferred_provider<P, F>(&mut self, factory: F) -> Result<&mut Self>
+    where
+        P: DeferrableProvider,
+        F: Fn() -> P + Send + Sync + 'static,
+    {
+        self.registry
+            .declare_deferred(self.container, deferred::Definition::new(factory))?;
+        Ok(self)
+    }
+
     /// 强制注册子 Provider；成功替换原槽位，失败保留旧实例和已发布贡献。
     pub async fn force_register_provider<P: ServiceProvider>(
         &mut self,
@@ -405,7 +422,7 @@ impl RegisterContext<'_> {
             self.container,
             self.config,
             self.required,
-            self.live_boot.clone(),
+            self.boot_mode.nested(),
         )
         .await
     }
@@ -1082,7 +1099,8 @@ pub struct ProviderRuntime {
     pub(crate) resources: ResourceOwner,
     pub(crate) extensions: Extensions,
     pub(crate) commands: CommandRegistry,
-    pub(crate) providers: registration::ProviderRegistry,
+    pub(crate) providers: Arc<registration::ProviderRegistry>,
+    pub(crate) deferred: Arc<deferred::DeferredProviders>,
 }
 
 impl ProviderRuntime {
@@ -1126,6 +1144,7 @@ pub struct ProviderBuilder {
     binding_overrides: Vec<BindingOverride>,
     class_descriptors: Vec<ClassDescriptor>,
     startup_callbacks: StartupCallbacks,
+    deferred: Vec<deferred::Definition>,
 }
 
 struct ProviderEntry {
@@ -1381,6 +1400,16 @@ impl ProviderBuilder {
         self
     }
 
+    /// 登记延迟 Provider 的编译工厂。首次解析其声明的服务时创建实例。
+    pub fn deferred_provider<P, F>(&mut self, factory: F) -> &mut Self
+    where
+        P: DeferrableProvider,
+        F: Fn() -> P + Send + Sync + 'static,
+    {
+        self.deferred.push(deferred::Definition::new(factory));
+        self
+    }
+
     /// 加入已盒装的应用 Provider，保留具体类型身份。
     pub fn boxed_provider(&mut self, provider: Box<dyn ServiceProvider>) -> &mut Self {
         self.providers.push(ProviderEntry {
@@ -1531,6 +1560,7 @@ impl ProviderBuilder {
             drop(extensions.get_or_default::<TestingBoot>()?);
         }
         let commands = CommandRegistry::default();
+        let active = Arc::new(active);
         let mut finalizers = Vec::new();
         let result = async {
             container.use_application_binding_environment(&config)?;
@@ -1542,9 +1572,26 @@ impl ProviderBuilder {
                     &container,
                     &mut config,
                     &mut required,
-                    None,
+                    registration::BootMode::Startup,
                 )
                 .await?;
+            }
+            let loader = deferred::DeferredProviders::new(
+                self.deferred
+                    .into_iter()
+                    .chain(active.take_deferred())
+                    .filter(|entry| !self.removed.contains(&entry.id)),
+                &active,
+                config.clone(),
+                registration::LiveBoot {
+                    resources: resources.owner()?.registrar(),
+                    extensions: extensions.clone(),
+                    commands: commands.clone(),
+                },
+            );
+            active.attach_loader(&loader);
+            if loader.has_keys() {
+                container.install_deferred_providers(&loader)?;
             }
             for configure in self.binding_overrides {
                 configure(container.clone()).await?;
@@ -1573,25 +1620,28 @@ impl ProviderBuilder {
                     context.config,
                     automatic_database,
                 )?;
-                for provider in active.boot_snapshot() {
+                let mut index = 0;
+                while let Some(provider) = active.next_startup_provider(index) {
                     provider.boot(&mut context).await?;
+                    index += 1;
                     crate::support::default_providers::validate_database_selection(
                         context.config,
                         automatic_database,
                     )?;
                 }
-                context.startup_callbacks.mark_booted();
                 context.fire_startup_callbacks().await?;
             }
             crate::support::default_providers::validate_database_selection(
                 &config,
                 automatic_database,
             )?;
-            finalize_startup(&mut config, finalizers, required, &container).await
+            required.extend(loader.take_startup_required());
+            let framework = finalize_startup(&mut config, finalizers, required, &container).await?;
+            Ok((framework, loader))
         }
         .await;
-        let framework = match result {
-            Ok(framework) => framework,
+        let (framework, deferred) = match result {
+            Ok(boot) => boot,
             Err(error) => {
                 let shutdown = resources
                     .shutdown(Instant::now() + Duration::from_secs(5))
@@ -1614,6 +1664,7 @@ impl ProviderBuilder {
             extensions,
             commands,
             providers: active,
+            deferred,
         })
     }
 }
@@ -1642,6 +1693,10 @@ async fn finalize_startup(
 #[cfg(test)]
 #[path = "../../tests/unit/foundation/application_startup_callbacks.rs"]
 mod application_startup_callbacks_tests;
+
+#[cfg(test)]
+#[path = "provider/deferred_tests.rs"]
+mod deferred_tests;
 
 #[cfg(test)]
 #[path = "../../tests/unit/foundation/provider_boot_callbacks.rs"]

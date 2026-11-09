@@ -15,6 +15,10 @@ HTTP 默认根据请求的 `Accept`、AJAX/PJAX 语义选择 HTML 或 JSON；`sh
 
 ## 容器与 Provider 生命周期
 
+实现 `DeferrableProvider::provides()` 返回服务键，再用 `ProviderBuilder::deferred_provider` 或模块的 `RegisterContext::deferred_provider` 登记编译工厂。容器在解析别名后检查共享实例，首次需要某个延迟键时沿同一注册表装载 Provider。应用已启动时，首次解析等待该 Provider 完成 `boot`。可通过 `Application::is_deferred_service` 检查精确键，通过 `load_deferred_providers().await` 装载清单剩余项。
+
+同一 Provider 的并发调用共享装载结果。注册失败消费触发键，已经发布的贡献保留，其他声明键可再次尝试。应用有在途装载时，`flush()` 返回 `deferred_provider_in_progress`。固定 Laravel 的启动阶段顺序适用于按键触发，事件触发和持久 manifest 缓存另行接入。
+
 领域 Provider 可在 `BootContext::extension_mut::<T>()` 中修改应用级贡献。调用者用 `Application::extension::<T>()` 读取。同一种贡献的借用独立协调，异步工作前先复制或克隆所需数据并结束借用。HTTP 装配在调用路由工厂前取得路由贡献快照，`Application::exception_handler()` 也返回可用于异步工作的 Handler 快照。
 
 `Container::call`、`Scope::call`、`Resolver::call` 和 `ApplicationState::call` 使用同一份显式 `ConstructorParam` 声明解析 callable 参数。调用级参数只属于当前调用。回调在经过检查的槽位读取服务或值，可以把取得的 `Arc` 移入异步工作。应用入口沿当前请求或命令作用域解析；直接使用容器则选根作用域。

@@ -172,6 +172,14 @@ let descriptors = [
 
 `booting` 阶段追加的同阶段回调继续按顺序执行。`booted` 阶段追加的回调立即执行一次，随后按队列顺序再执行一次。阶段结束后，通过 `app.booted(...).await` 登记的回调只立即执行一次。`app.flush()` 清除已登记的启动回调，应用保留已启动状态。
 
+### 按服务键延迟装载 Provider
+
+让服务提供者实现 `openrust::foundation::DeferrableProvider`，并在 `provides()` 返回它提供的 `ServiceKey::typed::<T>()` 或 `ServiceKey::named("package.service")`。在应用装配中调用 `builder.deferred_provider(|| MyProvider)`。模块可在其 `register` 中调用 `app.deferred_provider(|| MyProvider)?`。工厂随应用编译，注册清单时无需创建 Provider 实例。
+
+容器先展开别名。已有共享实例时可直接解析。首次装载移除触发键，并执行 Provider 的 `register`。应用已启动时，等待同一 Provider 的请求在 `boot` 完成后继续。将路由放在启动期 Provider 中，处理器可通过 `Inject<T>` 首次解析延迟服务。示例使用 `GET /api/example/deferred-greeting`。可用 `app.is_deferred_service(&key)` 查询精确清单键，或用 `app.load_deferred_providers().await?` 显式装载剩余项。
+
+当前清单支持服务键触发。事件触发及持久 manifest 仍在后续范围。 [Laravel Application 的延迟服务实现](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L992-L1100)
+
 ### Provider 实例启动回调
 
 在 `RegisterContext` 或当前 Provider 的 `BootContext` 上使用 `provider_booting`、`provider_booted`。每个实例依次执行自己的 `provider_booting` 队列、`boot` 和 `provider_booted` 队列。阶段内追加的回调排在队列末尾。强制重新登记使用新实例自己的回调。启动阶段与运行时登记遵循同一顺序。 [Laravel ServiceProvider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Support/ServiceProvider.php#L103-L154)

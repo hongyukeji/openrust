@@ -474,6 +474,10 @@ struct RootRawClose {
 #[derive(Default)]
 struct State {
     bindings: HashMap<ServiceKey, Binding>,
+    deferred_providers: Option<(
+        Weak<crate::foundation::provider::deferred::DeferredProviders>,
+        Arc<crate::foundation::provider::deferred::DeferredKeys>,
+    )>,
     binding_environment: Option<Environment>,
     checked_binding_declarations: HashSet<ServiceKey>,
     binding_discoveries: HashMap<ServiceKey, Arc<class_binding::InFlightBinding>>,
@@ -1068,6 +1072,19 @@ impl Container {
     /// 检查实例或工厂绑定是否存在，不执行构造。
     pub fn contains<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         lock(&self.inner.state).bound_key(&ServiceKey::typed::<T>())
+    }
+
+    pub(crate) fn install_deferred_providers(
+        &self,
+        providers: &Arc<crate::foundation::provider::deferred::DeferredProviders>,
+    ) -> Result<()> {
+        let mut state = lock(&self.inner.state);
+        if state.terminated {
+            return Err(container_error("container_closed", "容器已关闭"));
+        }
+        state.deferred_providers =
+            Some((Arc::downgrade(providers), Arc::clone(&providers.visible)));
+        Ok(())
     }
 
     pub(crate) fn is_terminated(&self) -> bool {
@@ -1787,6 +1804,13 @@ enum ResolveRequest {
 }
 
 impl ResolveRequest {
+    fn set_lookup_key(&mut self, key: ServiceKey) {
+        match self {
+            Self::Typed { lookup, .. } => *lookup = Some(key),
+            Self::Wrapped { concrete, .. } | Self::Erased(concrete) => *concrete = key,
+        }
+    }
+
     fn raises_events(&self) -> bool {
         !matches!(self, Self::Wrapped { .. })
     }
@@ -2387,11 +2411,18 @@ impl Resolver {
 
     fn resolve_projected(
         &self,
-        request: ResolveRequest,
+        mut request: ResolveRequest,
         expected: Option<u64>,
     ) -> BoxFuture<'_, Result<Value>> {
         Box::pin(async move {
             let container = self.container()?;
+            if expected.is_none()
+                && let Some(key) = self
+                    .load_deferred_provider(&container, request.lookup_key())
+                    .await?
+            {
+                request.set_lookup_key(key);
+            }
             let pinned = self
                 .before_resolution(&container.inner, &request, expected)
                 .await?;
@@ -2448,6 +2479,46 @@ impl Resolver {
                 }
             }
         })
+    }
+
+    async fn load_deferred_provider(
+        &self,
+        container: &Container,
+        lookup: &ServiceKey,
+    ) -> Result<Option<ServiceKey>> {
+        let selected = {
+            let state = lock(&container.inner.state);
+            let Some((loader, _)) = state.deferred_providers.as_ref() else {
+                return Ok(None);
+            };
+            self.check_open(&state)?;
+            let key = state.alias_key(lookup)?;
+            let has_instance = state
+                .bindings
+                .get(&key)
+                .is_some_and(|binding| binding.instance.is_some())
+                || state
+                    .shared_attempt_at(&key, self.scope)
+                    .is_some_and(|attempt| {
+                        lock(&attempt.outcome)
+                            .as_ref()
+                            .is_some_and(std::result::Result::is_ok)
+                    });
+            (loader.clone(), key, has_instance)
+        };
+        let (loader, key, has_instance) = selected;
+        if let Some(loader) = loader.upgrade()
+            && loader.handles(&key)
+        {
+            tokio::select! {
+                result = loader.load(container, &key, has_instance) => result?,
+                () = self.closed.wait_closed() => {
+                    return Err(container_error("scope_closed", "生命周期已关闭"));
+                }
+            }
+            return Ok(Some(key));
+        }
+        Ok(None)
     }
 
     fn deliver_output(

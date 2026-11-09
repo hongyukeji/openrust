@@ -580,12 +580,6 @@ impl ConfigRepository {
             .map_err(|_| invalid(key, "defaults serialization failed"))?;
         let snapshot = {
             let state = self.lock();
-            if state.phase == Phase::Boot {
-                return Err(invalid(
-                    "configuration",
-                    "configuration phase forbids mutation",
-                ));
-            }
             if let Some(existing) = state.sections.get(key)
                 && (existing.owner != owner || !force)
             {
@@ -679,14 +673,14 @@ impl ConfigRepository {
         if !defaults.is_object() && !defaults.is_array() {
             return Err(invalid(key, "package defaults must be object or array"));
         }
-        let (figment, raw, sections, revision) = {
+        let (figment, raw, sections, revision, phase) = {
             let state = self.lock();
-            require_phase(state.phase, Phase::Frozen)?;
             (
                 state.figment.clone(),
                 state.raw.clone(),
                 state.sections.clone(),
                 state.revision,
+                state.phase,
             )
         };
         let current = match figment.extract_inner::<Value>(key) {
@@ -712,20 +706,25 @@ impl ConfigRepository {
         }
         let original = figment.find_value(key).ok();
         let candidate = replace_section(&figment, key, merged.clone(), original.as_ref())?;
-        validate_candidate(&candidate, &sections)?;
+        if phase == Phase::Frozen {
+            validate_candidate(&candidate, &sections)?;
+        }
         let mut raw = raw;
         if let Some(raw) = &mut raw {
             set_dot_value(raw, key, merged);
         }
         let mut state = self.lock();
-        require_phase(state.phase, Phase::Frozen)?;
-        if state.revision != revision {
+        if state.phase != phase || state.revision != revision {
             return Err(invalid("configuration", "concurrent configuration update"));
         }
-        let version = state
-            .version
-            .checked_add(1)
-            .ok_or_else(|| invalid(key, "version exhausted"))?;
+        let version = if phase == Phase::Frozen {
+            state
+                .version
+                .checked_add(1)
+                .ok_or_else(|| invalid(key, "version exhausted"))?
+        } else {
+            state.version
+        };
         state.figment = candidate;
         state.raw = raw;
         state.version = version;

@@ -6,7 +6,7 @@ use openrust::container::{
     ParameterValue, Resolver, ServiceKey, StaticCall,
 };
 use openrust::foundation::RegisterContext;
-use openrust::foundation::{ApplicationState, BootContext};
+use openrust::foundation::{ApplicationState, BootContext, DeferrableProvider};
 use openrust::http::axum::extract::State;
 use openrust::support::{BoxFuture, ServiceProvider};
 use std::sync::Arc;
@@ -150,8 +150,54 @@ async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<(
             )
             .get("/api/example/container-call", call_example_message)
             .get("/api/example/container-method", call_example_method)
+            .get("/api/example/deferred-greeting", deferred_greeting)
     })?;
     Ok(())
+}
+
+struct DeferredGreetingProvider;
+
+struct DeferredGreeting {
+    message: String,
+    booted: AtomicBool,
+}
+
+impl DeferrableProvider for DeferredGreetingProvider {
+    fn provides() -> Vec<ServiceKey> {
+        vec![ServiceKey::typed::<DeferredGreeting>()]
+    }
+}
+
+impl ServiceProvider for DeferredGreetingProvider {
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let message = app.resolve::<ExampleMessage>().await?;
+            app.instance(Arc::new(DeferredGreeting {
+                message: message.text().to_owned(),
+                booted: AtomicBool::new(false),
+            }))
+            .await
+        })
+    }
+
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.resolve::<DeferredGreeting>()
+                .await?
+                .booted
+                .store(true, Ordering::Release);
+            Ok(())
+        })
+    }
+}
+
+async fn deferred_greeting(
+    openrust::http::Inject(greeting): openrust::http::Inject<DeferredGreeting>,
+) -> openrust::http::Json<serde_json::Value> {
+    openrust::http::Json(serde_json::json!({
+        "message": greeting.message,
+        "booted": greeting.booted.load(Ordering::Acquire),
+    }))
 }
 
 struct StaticMethodLabel(&'static str);
@@ -472,6 +518,7 @@ impl ServiceProvider for ExampleServiceProvider {
                 Box::pin(async move { Ok(Arc::new(original.with_binding_extension())) })
             })
             .await?;
+            app.deferred_provider(|| DeferredGreetingProvider)?;
             #[cfg(feature = "session")]
             app.extend::<openrust::session::ErrorBagCodecs, _>(|original, _resolver| {
                 Box::pin(async move {

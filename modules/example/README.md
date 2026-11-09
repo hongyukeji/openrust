@@ -1,5 +1,7 @@
 # 综合业务示例
 
+`GET /api/example/deferred-greeting` 从请求作用域注入首次使用时装载的问候服务。模块在 register 通过 `RegisterContext::deferred_provider` 声明编译工厂，请求读到服务内容和已完成 boot 的标记。
+
 `ExampleServiceProvider::boot` 通过公开 `BootContext::exceptions` 为示例业务异常登记类型化报告、409 渲染及最终响应头；`GET /api/example/exception` 经真实模块路由和异常链展示。`/api` 错误 envelope 策略由根应用 `AppServiceProvider` 显式登记；模块只贡献业务异常扩展，保留宿主的全局响应策略。此接线已通过本批限定 workspace、真实 MySQL 与公开 HTTP 验收；完整异常与 HTTP 能力继续逐项交付。
 
 本模块的 `config/mod.rs` 在 Provider boot 时通过 `BootContext::code_config` 接入应用同一个配置仓储；`EXAMPLE_GREETING` 和 `EXAMPLE_FEATURE_ENABLED` 从启动时同次 dotenv 快照求值。`example.runtime_policy` 是进程本地 typed 配置工厂，仅在显式调用 `ExampleServiceProvider::with_runtime_policy()` 后登记；Provider 从同一仓储读取并挂载 `/api/example/config-policy`。默认模块仅登记可序列化区段，继续支持 `config:cache`；开启 typed 演示后，公开缓存契约会拒绝缓存读写。旧 TOML overlay 仅保留为显式选择来源的回归 fixture；修改 Rust 配置须重新编译，运行中的进程不会热加载。

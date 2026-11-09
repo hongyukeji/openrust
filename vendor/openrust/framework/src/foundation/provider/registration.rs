@@ -2,8 +2,9 @@
 
 use std::any::TypeId;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 
+use super::deferred::{DeferredProviders, Definition};
 use super::{
     BootContext, BootHook, ConfigRepository, Container, Extensions, Finalizer,
     ProviderBootCallbacks, ProviderId, RegisterContext, Required, ResourceRegistrar,
@@ -19,6 +20,8 @@ pub(crate) struct ProviderRegistry {
     providers: Mutex<Vec<Arc<ActiveProvider>>>,
     registering: Arc<Mutex<HashSet<TypeId>>>,
     removed: HashSet<ProviderId>,
+    deferred: Mutex<Option<Vec<Definition>>>,
+    loader: OnceLock<Weak<DeferredProviders>>,
     pub(crate) startup_callbacks: StartupCallbacks,
 }
 
@@ -65,8 +68,52 @@ impl ProviderRegistry {
             providers: Mutex::default(),
             registering: Arc::default(),
             removed,
+            deferred: Mutex::new(Some(Vec::new())),
+            loader: OnceLock::new(),
             startup_callbacks: StartupCallbacks::default(),
         }
+    }
+
+    pub(super) fn declare_deferred(
+        &self,
+        container: &Container,
+        definition: Definition,
+    ) -> Result<()> {
+        {
+            let mut pending = self
+                .deferred
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(entries) = pending.as_mut() {
+                if !self.removed.contains(&definition.id) {
+                    entries.push(definition);
+                }
+                return Ok(());
+            }
+        }
+        let loader = self.loader.get().and_then(Weak::upgrade).ok_or_else(|| {
+            Error::custom(
+                "deferred_provider_retired",
+                "延迟 Provider 的应用注册表已回收",
+            )
+        })?;
+        let outcome = loader.add(definition);
+        if loader.has_keys() {
+            container.install_deferred_providers(&loader)?;
+        }
+        outcome
+    }
+
+    pub(super) fn attach_loader(&self, loader: &Arc<DeferredProviders>) {
+        let _ = self.loader.set(Arc::downgrade(loader));
+    }
+
+    pub(super) fn take_deferred(&self) -> Vec<Definition> {
+        self.deferred
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .unwrap_or_default()
     }
 
     fn providers(&self) -> std::sync::MutexGuard<'_, Vec<Arc<ActiveProvider>>> {
@@ -75,8 +122,22 @@ impl ProviderRegistry {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    #[cfg(test)]
     pub(super) fn boot_snapshot(&self) -> Vec<Arc<ActiveProvider>> {
         self.providers().clone()
+    }
+
+    pub(super) fn next_startup_provider(&self, index: usize) -> Option<Arc<ActiveProvider>> {
+        let providers = self.providers();
+        let next = providers.get(index).cloned();
+        if next.is_none() {
+            self.startup_callbacks.mark_booted();
+        }
+        next
+    }
+
+    pub(super) fn is_registered(&self, id: ProviderId) -> bool {
+        self.providers().iter().any(|active| active.id == id)
     }
 
     pub(crate) fn take_active(&self) -> Vec<Arc<ActiveProvider>> {
@@ -115,6 +176,70 @@ pub(crate) struct LiveBoot {
     pub(crate) resources: ResourceRegistrar,
     pub(crate) extensions: Extensions,
     pub(crate) commands: CommandRegistry,
+}
+
+#[derive(Clone)]
+pub(crate) enum BootMode<'a> {
+    Startup,
+    Live(LiveBoot),
+    Deferred {
+        loader: &'a DeferredProviders,
+        root: bool,
+    },
+}
+
+impl BootMode<'_> {
+    pub(super) fn live(&self) -> Option<&LiveBoot> {
+        match self {
+            Self::Startup => None,
+            Self::Live(live) => Some(live),
+            Self::Deferred { loader, .. } => Some(&loader.live),
+        }
+    }
+
+    pub(super) fn nested(&self) -> Self {
+        match self {
+            Self::Deferred { loader, .. } => Self::Deferred {
+                loader,
+                root: false,
+            },
+            mode => mode.clone(),
+        }
+    }
+
+    fn is_live(&self, callbacks: &StartupCallbacks) -> bool {
+        match self {
+            Self::Startup => false,
+            Self::Live(_) => true,
+            Self::Deferred { .. } => callbacks.is_booted(),
+        }
+    }
+
+    fn contribute_startup(
+        &self,
+        registry: &ProviderRegistry,
+        entry: &Arc<ActiveProvider>,
+        required: Vec<Required>,
+        parent_required: &mut Vec<Required>,
+    ) {
+        if let Self::Deferred { loader, root: true } = self {
+            let entry = Arc::clone(entry);
+            registry
+                .startup_callbacks
+                .add_booting(Arc::new(move |context| {
+                    let entry = Arc::clone(&entry);
+                    Box::pin(async move {
+                        let provider = entry.provider.as_deref().ok_or_else(|| {
+                            Error::custom("provider_retired", "Provider 实例已回收")
+                        })?;
+                        provider.boot(context).await
+                    })
+                }));
+            loader.add_startup_required(required);
+        } else {
+            parent_required.extend(required);
+        }
+    }
 }
 
 impl LiveBoot {
@@ -204,7 +329,7 @@ pub(crate) fn register<'a>(
     container: &'a Container,
     config: &'a mut ConfigRepository,
     deferred_required: &'a mut Vec<Required>,
-    live: Option<LiveBoot>,
+    mode: BootMode<'a>,
 ) -> BoxFuture<'a, Result<ProviderId>> {
     Box::pin(async move {
         let id = provider.id();
@@ -212,7 +337,8 @@ pub(crate) fn register<'a>(
             return Err(Error::custom("container_closed", "容器已关闭"));
         }
         // 测试清单的移除约束覆盖同一次启动中的嵌套 force；运行期显式注册沿原 App API。
-        if live.is_none() && registry.removed.contains(&id) {
+        let starting = !mode.is_live(&registry.startup_callbacks);
+        if starting && registry.removed.contains(&id) {
             return Ok(id);
         }
         let (guard, ready) = {
@@ -236,24 +362,35 @@ pub(crate) fn register<'a>(
                 owner: id,
                 force,
                 registry,
-                live_boot: live.clone(),
+                boot_mode: mode.clone(),
                 provider_callbacks: &mut callbacks,
             })
             .await?;
-        registry.verify_nested(id, &nested, live.is_none())?;
+        registry.verify_nested(id, &nested, starting)?;
         let entry = Arc::new(ActiveProvider {
             id,
             provider: Some(provider),
             callbacks: tokio::sync::Mutex::new(callbacks),
         });
-        let old = {
+        let (old, boot_now) = {
             let mut providers = registry.providers();
-            if let Some(index) = providers.iter().position(|active| active.id == id) {
+            // 启动遍历的最后一次读取与注册发布使用同一把锁。
+            let boot_now = mode.is_live(&registry.startup_callbacks);
+            if !boot_now {
+                mode.contribute_startup(
+                    registry,
+                    &entry,
+                    std::mem::take(&mut required),
+                    deferred_required,
+                );
+            }
+            let old = if let Some(index) = providers.iter().position(|active| active.id == id) {
                 Some(std::mem::replace(&mut providers[index], Arc::clone(&entry)))
             } else {
                 providers.push(Arc::clone(&entry));
                 None
-            }
+            };
+            (old, boot_now)
         };
         drop(guard);
         if old.is_some_and(ActiveProvider::dispose) {
@@ -262,14 +399,14 @@ pub(crate) fn register<'a>(
                 "Provider 已替换，但原实例或启动回调析构异常",
             ));
         }
-        if let Some(live) = live {
+        if boot_now && let Some(live) = mode.live() {
             let mut finalizers: Vec<Finalizer> = Vec::new();
             entry
                 .boot(&mut BootContext {
                     console_command: None,
                     container,
                     config,
-                    resources: live.resources,
+                    resources: live.resources.clone(),
                     required: &mut required,
                     extensions: &live.extensions,
                     commands: &live.commands,
@@ -279,9 +416,6 @@ pub(crate) fn register<'a>(
                 })
                 .await?;
             finish_boot(container, finalizers, required).await?;
-        } else {
-            // 嵌套 required 在父回调原调用位置合并，最终仍在统一启动校验中解析。
-            deferred_required.extend(required);
         }
         Ok(id)
     })

@@ -469,6 +469,10 @@ impl State {
         let key = self.classes.canonical_key(key);
         self.bindings.contains_key(&key)
             || self.aliases.contains(&key)
+            || self
+                .deferred_providers
+                .as_ref()
+                .is_some_and(|(loader, keys)| loader.strong_count() != 0 && keys.contains(&key))
             || self.shared_attempt_at(&key, scope).is_some_and(|attempt| {
                 lock(&attempt.outcome)
                     .as_ref()
