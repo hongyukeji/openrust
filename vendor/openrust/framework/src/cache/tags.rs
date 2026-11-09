@@ -1,4 +1,4 @@
-//! Tag generations provide bounded logical invalidation without scanning keys.
+//! 有序标签的代际隔离与后台刷新。
 
 use std::{fmt::Write as _, future::Future, sync::Arc, time::Duration};
 
@@ -19,9 +19,9 @@ pub trait CacheTagBackend: Send + Sync {
             .try_into()
             .map_err(|_| Error::custom("cache_clock_unavailable", "system clock is out of range"))
     }
-    /// 返回 tag 当前 generation；从未使用的 tag 必须返回 `0`。
+    /// 返回 tag 当前 generation，首次访问可初始化一个稳定值。
     async fn generation(&self, tag_key: &str) -> Result<u64>;
-    /// 原子递增 tag generation。
+    /// 原子更新 tag generation，使旧值失效。可同时清理后端维护的旧条目。
     async fn invalidate(&self, tag_key: &str) -> Result<()>;
     /// 仅当所列 generation 全部仍匹配时写入有限 TTL 的值。
     async fn set_if_generations_match(
@@ -33,7 +33,7 @@ pub trait CacheTagBackend: Send + Sync {
     ) -> Result<bool>;
 }
 
-/// 绑定 store 与一组 tag 的缓存视图。
+/// 绑定 store 与一组有序标签的缓存视图。
 #[derive(Clone)]
 pub struct TaggedCacheStore {
     store: CacheStore,
@@ -71,6 +71,14 @@ impl TaggedCacheStore {
         self.entry(key).await?.set(value, ttl).await
     }
 
+    /// 使包含视图中任一标签的条目失效。
+    ///
+    /// Redis 同时分批删除已索引的值。后端故障会返回错误，已完成的失效不会回滚。
+    pub async fn flush(&self) -> Result<()> {
+        let tags: Vec<&str> = self.tags.iter().map(String::as_str).collect();
+        self.store.invalidate_tags(&tags).await
+    }
+
     /// 在新鲜期返回当前值，在有限 stale 窗口内立即返回旧值并安排后台刷新；
     /// 超过窗口后等待加载，且 tag generation 变化会使旧值与旧刷新失效。
     pub async fn get_stale_while_revalidate<T, F, Fut>(
@@ -103,10 +111,9 @@ impl TaggedCacheStore {
             )
         })?;
         let store = &self.store;
-        let flight_key = store.flight_key::<T>(key, load_id);
-
         loop {
             let entry = self.entry(key).await?;
+            let flight_key = store.flight_key::<T>(&entry.physical_key()?, load_id);
             if let Some(cached) = entry.get_backend::<SwrValue<T>>().await?
                 && entry.is_current().await?
             {
@@ -123,7 +130,9 @@ impl TaggedCacheStore {
                         .await;
                 }
                 super::FlightRole::Waiter(waiter) => {
-                    if let Some(bytes) = waiter.wait(store.singleflight.loader_timeout).await? {
+                    if let Some(bytes) = waiter.wait(store.singleflight.loader_timeout).await?
+                        && entry.is_current().await?
+                    {
                         return serde_json::from_slice::<SwrValue<T>>(&bytes)
                             .map(|cached| cached.value)
                             .map_err(|_| {
@@ -467,19 +476,22 @@ impl TaggedCacheEntry {
         let logical = self
             .store
             .key_for_tenant(&self.key, self.tenant_id.as_deref())?;
-        let mut material = format!("{}:{logical}", self.store.store_name);
+        // 长度界定逻辑键，防止键尾伪装成标签段。
+        let mut material = format!("{}:{}:{logical}", self.store.store_name, logical.len());
         for (tag, generation) in &self.generations {
             material.push(':');
             material.push_str(tag);
             material.push(':');
             material.push_str(&generation.to_string());
         }
-        Ok(format!("__cache_tag_v1:{}", digest(&material)))
+        Ok(format!("__cache_tag_v2:{}", digest(&material)))
     }
 }
 
 pub(super) async fn invalidate_tags(store: &CacheStore, tags: &[&str]) -> Result<()> {
-    let tags = validate_tags(tags)?;
+    let mut tags = validate_tags(tags)?;
+    tags.sort_unstable();
+    tags.dedup();
     let backend = tag_backend(store.backend.as_ref())?;
     for tag in tags {
         backend.invalidate(&tag_key(store, &tag)).await?;
@@ -508,7 +520,6 @@ fn validate_tags(tags: &[&str]) -> Result<Vec<String>> {
             "cache tag sets must contain between 1 and 16 tags",
         ));
     }
-    let mut tags = tags.to_vec();
     if tags
         .iter()
         .any(|tag| tag.is_empty() || tag.len() > 128 || tag.chars().any(char::is_control))
@@ -518,9 +529,7 @@ fn validate_tags(tags: &[&str]) -> Result<Vec<String>> {
             "cache tags must contain 1 to 128 non-control bytes",
         ));
     }
-    tags.sort_unstable();
-    tags.dedup();
-    Ok(tags.into_iter().map(str::to_owned).collect())
+    Ok(tags.iter().copied().map(str::to_owned).collect())
 }
 
 fn tag_key(store: &CacheStore, tag: &str) -> String {
@@ -528,10 +537,14 @@ fn tag_key(store: &CacheStore, tag: &str) -> String {
         .map(|tenant| tenant.as_str().to_owned())
         .unwrap_or_default();
     format!(
-        "__cache_tag_meta_v1:{}",
+        "__cache_tag_meta_v2:{}",
         digest(&format!(
-            "{}:{}:{}:{tag}",
-            store.store_name, store.namespace, tenant
+            "{}:{}:{}:{}:{}:{tag}",
+            store.store_name,
+            store.namespace.len(),
+            store.namespace,
+            tenant.len(),
+            tenant,
         ))
     )
 }
@@ -552,3 +565,7 @@ fn unsupported() -> Error {
         "the configured cache driver does not support tag invalidation",
     )
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/cache/tag_identity.rs"]
+mod identity_tests;

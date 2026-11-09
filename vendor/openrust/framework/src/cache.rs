@@ -3,6 +3,8 @@
 #![deny(missing_docs)]
 
 mod memo;
+#[cfg(feature = "cache-redis")]
+mod redis_tags;
 mod tags;
 pub use tags::{CacheTagBackend, TaggedCacheEntry, TaggedCacheStore};
 
@@ -727,7 +729,7 @@ impl CacheStore {
         TaggedCacheStore::new(self.clone(), tags)
     }
 
-    /// 递增一个或多个 tag 的 generation，使旧代条目不可见。
+    /// 失效一个或多个 tag 的旧代条目，Redis 同时删除已索引的值。
     pub async fn invalidate_tags(&self, tags: &[&str]) -> Result<()> {
         tags::invalidate_tags(self, tags).await
     }
@@ -1799,6 +1801,9 @@ struct RedisBackend {
 }
 
 #[cfg(feature = "cache-redis")]
+const REDIS_TAG_EPOCH_KEY: &str = "__cache_tag_epoch_v2";
+
+#[cfg(feature = "cache-redis")]
 #[async_trait]
 impl CacheBackend for RedisBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
@@ -1864,18 +1869,36 @@ impl CacheTagBackend for RedisBackend {
 
     async fn generation(&self, tag_key: &str) -> Result<u64> {
         let mut connection = self.connection.clone();
-        let value: Option<String> = redis::AsyncCommands::get(&mut connection, tag_key)
+        let (value, epoch): (Option<String>, Option<String>) = redis::cmd("MGET")
+            .arg(tag_key)
+            .arg(REDIS_TAG_EPOCH_KEY)
+            .query_async(&mut connection)
             .await
             .map_err(|_| backend_failure())?;
-        value.map_or(Ok(0), |value| value.parse().map_err(|_| backend_failure()))
+        if let Some(epoch) = epoch {
+            return value
+                .unwrap_or(epoch)
+                .parse()
+                .map_err(|_| backend_failure());
+        }
+        let value: String = redis::cmd("EVAL")
+            .arg(
+                "
+                redis.call('SET', KEYS[2], ARGV[1], 'NX')
+                return redis.call('GET', KEYS[1]) or redis.call('GET', KEYS[2])",
+            )
+            .arg(2)
+            .arg(tag_key)
+            .arg(REDIS_TAG_EPOCH_KEY)
+            .arg(redis_tag_seed()?)
+            .query_async(&mut connection)
+            .await
+            .map_err(|_| backend_failure())?;
+        value.parse().map_err(|_| backend_failure())
     }
 
     async fn invalidate(&self, tag_key: &str) -> Result<()> {
-        let mut connection = self.connection.clone();
-        let _: i64 = redis::AsyncCommands::incr(&mut connection, tag_key, 1_i64)
-            .await
-            .map_err(|_| backend_failure())?;
-        Ok(())
+        redis_tags::invalidate(&mut self.connection.clone(), tag_key).await
     }
 
     async fn set_if_generations_match(
@@ -1885,23 +1908,16 @@ impl CacheTagBackend for RedisBackend {
         ttl: Duration,
         generations: &[(String, u64)],
     ) -> Result<bool> {
-        const SCRIPT: &str = "local n = #KEYS - 1; for i = 2, #KEYS do local current = redis.call('GET', KEYS[i]); local expected = ARGV[i - 1]; if (not current and expected ~= '0') or (current and current ~= expected) then return 0 end end; redis.call('SET', KEYS[1], ARGV[n + 1], 'PX', ARGV[n + 2]); return 1";
-        let mut connection = self.connection.clone();
-        let mut command = redis::cmd("EVAL");
-        command.arg(SCRIPT).arg(generations.len() + 1).arg(key);
-        for (tag, _) in generations {
-            command.arg(tag);
-        }
-        for (_, generation) in generations {
-            command.arg(generation.to_string());
-        }
-        command.arg(value).arg(ttl.as_millis().to_string());
-        let written: i32 = command
-            .query_async(&mut connection)
-            .await
-            .map_err(|_| backend_failure())?;
-        Ok(written == 1)
+        redis_tags::write(&mut self.connection.clone(), key, value, ttl, generations).await
     }
+}
+
+#[cfg(feature = "cache-redis")]
+fn redis_tag_seed() -> Result<u64> {
+    // 清库后重新初始化，避免旧快照重新匹配。为 Redis 的有符号 INCR 保留空间。
+    let mut seed = [0_u8; 8];
+    getrandom::fill(&mut seed).map_err(|_| backend_failure())?;
+    Ok((u64::from_ne_bytes(seed) >> 2) + 1)
 }
 
 #[cfg(not(feature = "cache-redis"))]

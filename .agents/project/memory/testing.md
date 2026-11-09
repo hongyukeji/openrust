@@ -1898,6 +1898,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 工作区 fmt、严格 Clippy、真实 MySQL 8.4 workspace tests、严格 Rustdoc、离线依赖检查和两种生成应用 check/test 通过。当前验收范围是命令边界与编译打包。Laravel 的 `optimize`、`optimize:clear` 与 `reload` 及原生 x86_64 发布包在原矩阵独立验收。
 
+## 有序缓存标签与 Redis 清理验收
+
+对照固定 Laravel 的 `TagSet`、`RedisTagSet` 与 `RedisTaggedCache`。固定顺序和重复标签构成条目身份，租户和逻辑键使用明确边界。跨应用失效时拒绝旧代际回填，SWR 合并绑定实际条目代际。Redis 记录带有效期的写入索引，退役后可分批续做删除。
+
+MySQL 8.4.13 与专用 Redis 8 实测文章 owner 授权、跨应用标签失效、SWR 与旧加载回填拒绝。清库与物理删除回归还覆盖 131 个索引值、故障后的重新清理以及保留普通键、其他标签和其他 Redis 库。首次补验的 HTTP 400 来自测试请求缺失 Host，补足请求元数据后保留原授权断言。标签身份单元测试、严格 Rustdoc 和离线依赖检查通过。旧值按原 TTL 回收，旧 generation 元数据清理及独立锁不在此批。
+
 ## 缓存存储全量清理限定验收
 
 冻结树 `03bc225dd110efd1811e8215fd37c747d4cfff36` 对照固定 Laravel 的 RedisStore、FileStore、ArrayStore 与 MemoizedStore。默认和具名缓存均经现有 manager 调用同一后端契约。Redis 执行所选连接的 FLUSHDB。文件后端按本地 SHA-256 文件布局清理，保留链接、目录与临时写入文件。Memory 保留用于防止已失效代际回填的元数据。外部驱动未实现时明确失败。

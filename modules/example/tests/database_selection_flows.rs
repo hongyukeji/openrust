@@ -645,7 +645,113 @@ async fn verify_redis_flush(
         .map_err(Error::internal)?;
     assert_eq!(count, 0);
     assert_eq!(retained.as_deref(), Some("kept"));
+
+    let store = cache.default_store().await?;
+    let tagged = store.tagged(&["flush-generation"])?;
+    let previous = tagged.entry("before").await?;
+    let ttl = Duration::from_secs(30);
+    previous.set(&"old", ttl).await?;
+    store.invalidate_tags(&["flush-generation"]).await?;
+    store.flush().await?;
+    let result = previous.set(&"stale", ttl).await;
+    assert!(matches!(result, Err(error) if error.code() == "cache_tag_invalidated"));
+    tagged.set("before", &"current", ttl).await?;
+    let result = previous.set(&"stale", ttl).await;
+    assert!(matches!(result, Err(error) if error.code() == "cache_tag_invalidated"));
+    assert_eq!(
+        tagged.get::<String>("before").await?.as_deref(),
+        Some("current")
+    );
+    verify_redis_tag_index(&store, cache_db).await
+}
+
+#[cfg(all(feature = "queue-redis", feature = "cache-redis"))]
+async fn verify_redis_tag_index(
+    store: &openrust::cache::CacheStore,
+    redis: &mut redis::aio::MultiplexedConnection,
+) -> Result<()> {
+    use sha2::{Digest, Sha256};
+
+    let ttl = Duration::from_secs(30);
+    let selected = store.tagged(&["index-selected"])?;
+    let forward = store.tagged(&["index-selected", "index-common"])?;
+    let reverse = store.tagged(&["index-common", "index-selected"])?;
+    let other = store.tagged(&["index-unrelated"])?;
+    other.set("retained", &"other", ttl).await?;
+    store.set("guarded", &"ordinary", Some(ttl)).await?;
+    let baseline = count_redis_tag_values(redis).await?;
+    for key in 0..130 {
+        forward.set(&key.to_string(), &key, ttl).await?;
+    }
+    reverse.set("0", &"reverse", ttl).await?;
+    assert_eq!(count_redis_tag_values(redis).await?, baseline + 131);
+
+    let tag = Sha256::digest(b"redis:6:server:0::index-selected");
+    let indices: Vec<String> = redis::cmd("KEYS")
+        .arg(format!("__cache_tag_meta_v2:{tag:x}:index:*"))
+        .query_async(redis)
+        .await
+        .map_err(Error::internal)?;
+    let [index] = indices.as_slice() else {
+        return Err(Error::custom(
+            "test_index_missing",
+            "必须存在唯一当前标签索引",
+        ));
+    };
+    let expiry: i64 = redis::cmd("PTTL")
+        .arg(index)
+        .query_async(redis)
+        .await
+        .map_err(Error::internal)?;
+    assert!(expiry > 0);
+
+    // 注入错误成员，第一次清理必须拒绝删除普通键，并保存已退役索引。
+    let _: usize = redis::cmd("ZADD")
+        .arg(index)
+        .arg(0)
+        .arg("server:guarded")
+        .query_async(redis)
+        .await
+        .map_err(Error::internal)?;
+    assert!(selected.flush().await.is_err());
+    assert!(forward.get::<i32>("0").await?.is_none());
+    assert!(reverse.get::<String>("0").await?.is_none());
+    assert_eq!(count_redis_tag_values(redis).await?, baseline + 131);
+    let _: usize = redis::cmd("ZREM")
+        .arg(index)
+        .arg("server:guarded")
+        .query_async(redis)
+        .await
+        .map_err(Error::internal)?;
+    selected.flush().await?;
+
+    assert_eq!(count_redis_tag_values(redis).await?, baseline);
+    assert_eq!(
+        other.get::<String>("retained").await?.as_deref(),
+        Some("other")
+    );
+    assert_eq!(
+        store.get::<String>("guarded").await?.as_deref(),
+        Some("ordinary")
+    );
+    let pending: bool = redis::cmd("EXISTS")
+        .arg(format!("__cache_tag_meta_v2:{tag:x}:retired"))
+        .query_async(redis)
+        .await
+        .map_err(Error::internal)?;
+    assert!(!pending);
     Ok(())
+}
+
+#[cfg(all(feature = "queue-redis", feature = "cache-redis"))]
+async fn count_redis_tag_values(redis: &mut redis::aio::MultiplexedConnection) -> Result<usize> {
+    // 此断言仅在明确隔离的 Redis 实例执行。
+    let values: Vec<String> = redis::cmd("KEYS")
+        .arg("__cache_tag_v2:*")
+        .query_async(redis)
+        .await
+        .map_err(Error::internal)?;
+    Ok(values.len())
 }
 
 #[cfg(feature = "queue-redis")]

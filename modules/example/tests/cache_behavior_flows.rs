@@ -154,6 +154,7 @@ impl Fixture {
             ] {
                 let request = Request::builder()
                     .uri(format!("/api/example/articles/{}/cached-title", self.id))
+                    .header("host", "example.test")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())?;
                 app.request(request).await?.assert_status(status)?;
@@ -177,10 +178,14 @@ impl Fixture {
             entry.remove().await?;
         }
         // generation 元数据按设计无 TTL；只删除本随机 namespace 的确切元数据 key。
-        let material = format!("{ARTICLE_STORE}:{}::{TAG}", self.namespace);
+        let material = format!(
+            "{ARTICLE_STORE}:{}:{}:0::{TAG}",
+            self.namespace.len(),
+            self.namespace
+        );
         let digest = format!("{:x}", Sha256::digest(material.as_bytes()));
         let _: usize = redis::cmd("DEL")
-            .arg(format!("__cache_tag_meta_v1:{digest}"))
+            .arg(format!("__cache_tag_meta_v2:{digest}"))
             .arg(format!("{}:{}", self.namespace, self.key()))
             .query_async(&mut self.redis)
             .await?;
@@ -210,6 +215,24 @@ async fn article_tags_share_invalidation_and_reject_old_loader_across_apps() -> 
         let captured = a.tagged(&[TAG])?.entry(&f.key()).await?;
         let old = load(f.db().await?, 1, f.id).await?;
         captured.set(&old, TTL).await?;
+        let forward = a.tagged(&[TAG, "presentation"])?;
+        let reverse = b.tagged(&["presentation", TAG])?;
+        let first = forward.entry(&f.key()).await?;
+        let second = reverse.entry(&f.key()).await?;
+        first.set(&"forward", TTL).await?;
+        second.set(&"reverse", TTL).await?;
+        f.entries.extend([first, second]);
+        assert_eq!(
+            b.tagged(&[TAG, "presentation"])?
+                .get::<String>(&f.key())
+                .await?
+                .as_deref(),
+            Some("forward")
+        );
+        assert_eq!(
+            reverse.get::<String>(&f.key()).await?.as_deref(),
+            Some("reverse")
+        );
         assert_eq!(
             b.tagged(&[TAG])?
                 .get::<ArticleIndexEntry>(&f.key())
@@ -220,6 +243,8 @@ async fn article_tags_share_invalidation_and_reject_old_loader_across_apps() -> 
         );
         f.update("新标题").await?;
         b.invalidate_tags(&[TAG]).await?;
+        assert_eq!(forward.get::<String>(&f.key()).await?, None);
+        assert_eq!(reverse.get::<String>(&f.key()).await?, None);
         assert_eq!(
             captured
                 .set(&old, TTL)

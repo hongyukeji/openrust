@@ -65,6 +65,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - **L010.07 应用健康诊断。** 根与生成骨架的 `/up`、诊断事件、HTML/JSON 协商、生产/调试错误路径和真实 Redis 上的搬迁产物已通过[限定验收](memory/testing.md#应用健康路由限定验收)。维护模式路径豁免及 `route:cache` 仍随各自契约验收。
 - **L010.04/.05 依赖。** `cache:clear` 需先落实默认 Redis 缓存和队列连接隔离。根与生成配置的 cache DB 1 和 queue DB 0 隔离已通过[真实 Redis 验收](memory/testing.md#redis-缓存与队列默认库限定验收)。共享 URL 显式选择同库仍有效，后续清理须区分默认隔离和显式同库。`Cache::flush` 与具名 store 全量清理已通过[限定验收](memory/testing.md#缓存存储全量清理限定验收)，专用 Redis 复核所选物理库和另一库的数据隔离。Redis 全库清理会重置该库的 tag generation，跨清理的后台 loader 回填边界随 tag 清理契约复核。命令的事件、tags、locks、禁止执行和退出状态仍待对应。事件、路由与视图缓存分别落地后再组合优化命令。重载依赖 worker 与 scheduler 从共享缓存观察信号、完成在途工作并正常退出，再对照 Provider 贡献和跳过规则。
 
+- **缓存标签后续。** 旧版本 generation 元数据按所属 store 清理。独立锁存储及 `cache:clear` 接线仍在 L031.05 和 L010.04 跟踪。
+
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
 | 稳定项 | owner／依赖与范围 | 验收与排期 |

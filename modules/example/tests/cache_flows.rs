@@ -341,7 +341,7 @@ async fn explicit_redis_default_runs_business_swr_without_memory_fallback() -> T
     );
     before.remove().await?;
     after.remove().await?;
-    let material = format!("default:{namespace}::{tag}");
+    let material = format!("default:{}:{namespace}:0::{tag}", namespace.len());
     let digest =
         Sha256::digest(material.as_bytes())
             .iter()
@@ -353,7 +353,7 @@ async fn explicit_redis_default_runs_business_swr_without_memory_fallback() -> T
         .get_multiplexed_async_connection()
         .await?;
     let _: usize = redis::cmd("DEL")
-        .arg(format!("__cache_tag_meta_v1:{digest}"))
+        .arg(format!("__cache_tag_meta_v2:{digest}"))
         .query_async(&mut connection)
         .await?;
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
