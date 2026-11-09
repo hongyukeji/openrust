@@ -328,7 +328,7 @@ async fn anonymous_unsafe_web_requires_token_while_api_has_no_session_cookie() -
 }
 
 #[tokio::test]
-async fn laravel_xsrf_header_requires_the_session_token_after_authentication() -> Result<()> {
+async fn name_bound_xsrf_header_requires_the_session_token_after_authentication() -> Result<()> {
     use openrust::encryption::ApplicationEncrypter;
 
     let app = fixture_with_cookie_provider(
@@ -396,12 +396,12 @@ async fn laravel_xsrf_header_requires_the_session_token_after_authentication() -
     }
     let xsrf = encrypter.encrypt_string(&alternate_prefix)?;
     let csrf = std::str::from_utf8(&token).map_err(openrust::Error::internal)?;
-    assert_laravel_token_source_precedence(&router, &session, csrf, &xsrf).await?;
+    assert_token_source_precedence(&router, &session, csrf, &xsrf).await?;
     assert_empty_session_token_is_rejected(&router, &session, encrypter.as_ref()).await?;
     Ok(())
 }
 
-async fn assert_laravel_token_source_precedence(
+async fn assert_token_source_precedence(
     router: &axum::Router,
     session: &str,
     csrf: &str,
@@ -526,11 +526,11 @@ async fn assert_empty_session_token_is_rejected(
 }
 
 #[tokio::test]
-async fn laravel_falsey_xsrf_headers_do_not_require_an_excluded_cookie() -> Result<()> {
+async fn falsey_xsrf_headers_do_not_require_an_excluded_cookie() -> Result<()> {
     let app = fixture_with_cookie_provider(
         PreventRequestForgery::new().without_xsrf_cookie(),
         source(openrust::config::Environment::Development).merge(("app.key", "A".repeat(32))),
-        CookieServiceProvider::laravel().except(["XSRF-TOKEN"]),
+        CookieServiceProvider::new().except(["XSRF-TOKEN"]),
     )
     .await?;
     let router = build_router(&app)?;

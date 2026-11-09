@@ -87,13 +87,7 @@ pub(crate) fn configured_confirmation(
 }
 
 #[cfg(test)]
-pub(crate) fn test_field_encrypter(
-    key: &str,
-) -> crate::Result<std::sync::Arc<dyn crate::encryption::ApplicationEncrypter>> {
-    Ok(std::sync::Arc::new(
-        crate::encryption::LaravelEncrypter::from_config(crate::config::AppConfig {
-            key: Some(format!("base64:{key}")),
-            ..crate::config::AppConfig::default()
-        })?,
-    ))
-}
+#[path = "../../tests/unit/auth/fortify_helpers.rs"]
+mod test_helpers;
+#[cfg(test)]
+pub(crate) use test_helpers::test_field_encrypter;

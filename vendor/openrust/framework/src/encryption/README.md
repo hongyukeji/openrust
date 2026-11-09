@@ -2,7 +2,7 @@
 
 `EncryptionServiceProvider` 在统一容器中登记加密服务，首次解析时读取生效配置并校验密钥。
 
-容器中的 `dyn ApplicationEncrypter` 默认由 `LaravelEncrypter` 实现，对应 Laravel 的 `encryptString` 与 `decryptString`。它读取同一应用的
+容器中的 `dyn ApplicationEncrypter` 默认由 `ConfiguredEncrypter` 实现，对应 Laravel 的 `encryptString` 与 `decryptString`。它读取同一应用的
 `app.cipher`、`app.key` 和 `app.previous_keys`，支持 AES-128/256 CBC 与 GCM。
 默认 cipher 为 AES-256-CBC。用 `openrust key:generate` 生成应用密钥；配置中的
 `base64:` 前缀只在加密服务读密钥时解析。新密文使用当前密钥，历史密钥仅用于解密。

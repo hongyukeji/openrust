@@ -99,6 +99,20 @@ async fn actual_and_cast_type_changes_publish_only_the_preview_snapshot() -> Res
             "published_at": null,
             "metadata": {"label": "数据", "values": ["1"]},
             "category_id": null,
+            "is_published": false,
+            "published_at_label": null,
+            "record_uri": "/api/example/records/7",
+            "record_preview_uri": "/api/example/records/7/preview?discard=false",
+            "metadata_tag_count": 0,
+            "metadata_projections": {
+                "object": {"label": "数据", "values": ["1"]},
+                "collection": {"label": "数据", "values": ["1"]},
+                "formatted": "{\n    \"label\": \"数据\",\n    \"values\": [\n        \"1\"\n    ]\n}",
+                "fluent": {"label": "数据", "values": ["1"]},
+                "unicode": r#"{"label":"数据","values":["1"]}"#,
+            },
+            "priority_decimal": "8.00",
+            "status_flags": ["Enabled"],
         }),
     );
     assert!(

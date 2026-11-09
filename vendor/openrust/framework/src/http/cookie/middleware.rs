@@ -48,20 +48,20 @@ impl CookieLayer {
     }
 
     #[cfg(feature = "session")]
-    pub(crate) fn uses_laravel_payload(&self) -> bool {
+    pub(crate) fn uses_name_bound_protection(&self) -> bool {
         match &self.protection {
             Protection::Plain => false,
             #[cfg(feature = "encryption")]
             Protection::Encrypted(_) => false,
             #[cfg(feature = "encryption")]
-            Protection::Laravel(_) => true,
+            Protection::NameBound(_) => true,
         }
     }
 
     #[cfg(feature = "session")]
     pub(crate) fn decrypt_xsrf_header(&self, value: &str) -> Option<String> {
         #[cfg(feature = "encryption")]
-        if let Protection::Laravel(encrypter) = &self.protection {
+        if let Protection::NameBound(encrypter) = &self.protection {
             return crate::encryption::decrypt_xsrf_header(encrypter.as_ref(), value);
         }
         let mut root = serde_json::json!({"XSRF-TOKEN": value});

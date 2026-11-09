@@ -778,4 +778,5 @@ pub fn generate_recovery_code() -> Result<String> {
 }
 
 #[cfg(test)]
+#[path = "../../../tests/unit/auth/fortify_actions.rs"]
 mod tests;

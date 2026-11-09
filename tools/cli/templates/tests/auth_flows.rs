@@ -303,7 +303,7 @@ fn assert_default_cookie_wire(pairs: &[String]) -> openrust::Result<()> {
         let error = || {
             openrust::Error::custom(
                 "generated_cookie_payload_mismatch",
-                "生成 Web 应用未发出默认 Laravel CBC Cookie",
+                "生成 Web 应用未发出默认 CBC 加密 Cookie",
             )
         };
         let (_, wire) = pair.split_once('=').ok_or_else(error)?;

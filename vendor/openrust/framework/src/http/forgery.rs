@@ -1,4 +1,6 @@
-//! 默认 Web 请求伪造防护，按固定 Laravel `PreventRequestForgery` 顺序执行。
+//! 默认 Web 请求伪造防护。
+//!
+//! 依次检查请求来源和请求令牌。
 
 use crate::config::SessionConfig;
 use crate::http::{CookieJar, CookieOptions, RequestInfo, request::InputTruthy};
@@ -29,7 +31,7 @@ impl Default for PreventRequestForgery {
 }
 
 impl PreventRequestForgery {
-    /// Laravel 默认策略：验证来源或 Session token，成功时排入 XSRF cookie。
+    /// 验证来源或 Session token，成功时排入 XSRF Cookie。
     pub fn new() -> Self {
         Self {
             except: Vec::new(),
@@ -148,7 +150,7 @@ impl std::fmt::Display for OriginMismatch {
 }
 impl std::error::Error for OriginMismatch {}
 
-/// Laravel 旧 middleware 名称；行为由同一默认 Web 防护实现。
+/// 默认 Web 请求伪造防护的旧入口。
 #[deprecated(note = "使用 PreventRequestForgery")]
 pub type VerifyCsrfToken = PreventRequestForgery;
 
@@ -281,7 +283,7 @@ async fn verify(
         .token()?
         .and_then(|token| token.as_str().map(str::to_owned))
         // 应用写入的空值不能充当请求伪造凭证。
-        .filter(|token| !cookie.uses_laravel_payload() || !token.is_empty());
+        .filter(|token| !cookie.uses_name_bound_protection() || !token.is_empty());
     let (managed, replay) = crate::http::request::prepare_csrf_request(std::mem::replace(
         request,
         Request::new(Body::empty()),
@@ -310,23 +312,23 @@ fn csrf_token(
     input: Option<serde_json::Value>,
     cookie: &crate::http::cookie::CookieLayer,
 ) -> Result<Option<String>> {
-    let laravel = cookie.uses_laravel_payload();
+    let name_bound = cookie.uses_name_bound_protection();
     // PHP 的 ?: 先判断输入真假。真值的非字符串会在令牌比对时被拒绝。
-    if laravel && input.is_truthy() {
+    if name_bound && input.is_truthy() {
         return Ok(input.and_then(|value| value.as_str().map(str::to_owned)));
     }
     let input = input
         .and_then(|value| value.as_str().map(str::to_owned))
         .filter(|value| !value.is_empty());
     let header = headers.get("x-csrf-token");
-    if laravel
+    if name_bound
         && let Some(value) =
             header.filter(|value| !value.as_bytes().is_empty() && value.as_bytes() != b"0")
     {
         return Ok(value.to_str().ok().map(str::to_owned));
     }
     let header = header.and_then(|value| value.to_str().ok());
-    if !laravel
+    if !name_bound
         && let Some(token) =
             input.or_else(|| header.filter(|value| !value.is_empty()).map(str::to_owned))
     {
@@ -334,9 +336,9 @@ fn csrf_token(
     }
     let xsrf = headers
         .get("x-xsrf-token")
-        .filter(|value| !laravel || (!value.as_bytes().is_empty() && value.as_bytes() != b"0"));
+        .filter(|value| !name_bound || (!value.as_bytes().is_empty() && value.as_bytes() != b"0"));
     let Some(xsrf) = xsrf else {
-        return Ok(header.filter(|_| laravel).map(str::to_owned));
+        return Ok(header.filter(|_| name_bound).map(str::to_owned));
     };
     if !cookie.protects_cookie("XSRF-TOKEN") {
         return Err(Error::custom(

@@ -1,0 +1,21 @@
+{
+    "profiles": [
+        {
+            "cipher": "aes-128-cbc",
+            "wire": "eyJpdiI6Ik5UblQ5WUFaWmlOT3ZJalYyT2Z1M3c9PSIsInZhbHVlIjoiVWM2ZlRDMXVJcGlKSXFQUXlPdm9VZz09IiwibWFjIjoiZGE3YzI4ZmFmYmVhYjFmODUzMGY2ZDE4NzY2ZmE5ODQzZTFhY2QxMzdjMjI1YzM2M2VjMjc0Mjk3YWMwMzdhNiIsInRhZyI6IiJ9"
+        },
+        {
+            "cipher": "aes-256-cbc",
+            "wire": "eyJpdiI6IkpNZ00yMk5oQStCK3kvNTVYVTE4d2c9PSIsInZhbHVlIjoiaTZRdHdTZWE1V01zbURybWRVSEViZz09IiwibWFjIjoiY2FjNzVmMDZmMmQwNTQyZDQ5OTA1YjQ5ZjA0NTQwOGUwNDlhNWVkOTdlZjI5YWUwOGViZWI4ZjJiMTg4Njc4OSIsInRhZyI6IiJ9"
+        },
+        {
+            "cipher": "aes-128-gcm",
+            "wire": "eyJpdiI6IjhnZ0VBZlBjaThNVmZHc0QiLCJ2YWx1ZSI6ImVuY3B5NkpLNzVHVmI3WT0iLCJtYWMiOiIiLCJ0YWciOiIwVzRvbC83VEN4bEYrT2pvTmhXbU13PT0ifQ=="
+        },
+        {
+            "cipher": "aes-256-gcm",
+            "wire": "eyJpdiI6ImZrbXZLK2xobWw3Wmt4SXciLCJ2YWx1ZSI6IkV3U1FxNGlncUllYWlicz0iLCJtYWMiOiIiLCJ0YWciOiJ1anlrUnd5cTFwUUtINHNMNTlmenNRPT0ifQ=="
+        }
+    ],
+    "cookie": "eyJpdiI6InFtbDZJVjRPVGs5VmY4RDhKLzd1NkE9PSIsInZhbHVlIjoiL3N4VnBpQUc0NXNFc1JweVhBZWd1dVdkS3ZGYjNZamdQbC8wU29wRXUwVldLbUc3QlVQcGZOUXZMVTVvYmFmcCIsIm1hYyI6IjIyMzE0MWM5NDFmODEyZDhjNDAxMDk3ZTYwZTViYjk1YzRiNTVmZDMzZGZjNWMxYzY4NTExNTk1OWQ0MjA0ZGEiLCJ0YWciOiIifQ=="
+}

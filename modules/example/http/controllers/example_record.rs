@@ -188,10 +188,10 @@ pub(crate) async fn patch_private_metadata(
                     .set_attribute(&model, &path, input.value)
                     .await
                     .map_err(|error| match error.code() {
-                        "laravel_payload_invalid"
-                        | "laravel_payload_mac_invalid"
-                        | "laravel_payload_tag_for_cbc"
-                        | "laravel_payload_decrypt_failed" => {
+                        "encryption_payload_invalid"
+                        | "encryption_payload_mac_invalid"
+                        | "encryption_payload_tag_for_cbc"
+                        | "encryption_payload_decrypt_failed" => {
                             Error::internal(std::io::Error::other("示例私有元数据的密文无效"))
                         }
                         _ => error,

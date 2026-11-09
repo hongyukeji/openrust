@@ -1,6 +1,6 @@
-//! 响应 Cookie 值对象与 Laravel 风格工厂。
+//! 响应 Cookie 值对象与工厂。
 //!
-//! 依据 Laravel d52c3b3129e4c8e213c97cdc68f94b0b7d27f181 `CookieJar`，
+//! Cookie 的作用域与安全属性可在创建时设置，
 //! 以及 Symfony `HttpFoundation` v8.0.0（19f925ff62437970e56fcdf793aa93607622d8be）
 //! Cookie 的默认值、编码、空值删除与属性模型。未知扩展不属于该对象模型。
 
@@ -45,9 +45,9 @@ const RESERVED_NAME: &[u8] = b"=,; \t\r\n\x0b\x0c";
 /// 单次创建 Cookie 的属性；空选项继承工厂默认值。
 #[derive(Clone, Debug)]
 pub struct CookieOptions {
-    /// Cookie 路径；空串或 `"0"` 按 Laravel 规则继承默认路径。
+    /// Cookie 路径。空串或 `"0"` 继承默认路径。
     pub path: Option<String>,
-    /// Cookie 域；空串或 `"0"` 按 Laravel 规则继承默认域。
+    /// Cookie 域。空串或 `"0"` 继承默认域。
     pub domain: Option<String>,
     /// 是否仅通过 HTTPS 发送；未设置时继承工厂与请求默认值。
     pub secure: Option<bool>,
@@ -171,7 +171,7 @@ impl Cookie {
 
     /// 生成有界 `Set-Cookie` 头；自动安全属性由当前请求提供。
     ///
-    /// 空值按 Symfony 规则输出删除 Cookie。应用参数或输出超限返回安全 500 错误。
+    /// 空值输出删除 Cookie。应用参数或输出超限返回安全 500 错误。
     pub fn to_header(&self, secure_default: bool) -> crate::Result<HeaderValue> {
         self.render_header(secure_default, invalid)
     }
@@ -246,7 +246,7 @@ impl Cookie {
         HeaderValue::from_str(&rendered).map_err(|_| invalid())
     }
 
-    /// 解析应用生成的 `Set-Cookie`，保留 Symfony 对象可表示的属性。
+    /// 解析应用生成的 `Set-Cookie`，保留 `Cookie` 支持的属性。
     ///
     /// 名称和值保持原始编码（对应 `Cookie::fromString` 默认 `decode=false`）；
     /// 未知扩展按上游对象模型忽略；到期时间默认使用 UTC 与系统时钟。
@@ -393,7 +393,7 @@ impl Cookie {
     }
 }
 
-/// Laravel 风格 Cookie 工厂；默认路径 `/`、自动安全属性与 `SameSite=Lax`。
+/// Cookie 工厂，默认路径 `/`、自动安全属性与 `SameSite=Lax`。
 #[derive(Clone, Debug)]
 pub struct CookieFactory {
     path: String,
@@ -509,7 +509,7 @@ impl CalendarClock for ExpiryClock {
 }
 
 fn parse_expiry(source: &str, context: &CalendarContext) -> crate::Result<Option<OffsetDateTime>> {
-    // Symfony is_numeric 分支转换为 int，而 Carbon 会把短数字文本作为日期。
+    // 优先将数字文本转换为时间戳，避免日期解析器将短数字解释为日期。
     if let Some(timestamp) = numeric_expiry(source) {
         return positive_expiry(timestamp);
     }

@@ -123,6 +123,8 @@ async fn attempt_login(auth: &AuthManager, credentials: &Credentials) -> Result<
 
 设置 `remember=true` 时，Guard 将账户 ID、remember token 和密码哈希的 HMAC 写入记住我 Cookie；缺少有效 token 时生成并通过 Provider 持久化。后续可在缺少 Session 登录键时通过该 Cookie 恢复账户，`via_remember()` 标识本请求的恢复尝试状态，不代替 `check()`。恢复需要 Provider 返回有效 token 和可用密码哈希。
 
+`CookieServiceProvider::new()` 默认使用按名称绑定的 Cookie 加密。值工厂、名称前缀及请求防伪分别对照固定框架的 [CookieJar](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Cookie/CookieJar.php)、[CookieValuePrefix](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Cookie/CookieValuePrefix.php) 与 [PreventRequestForgery](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Middleware/PreventRequestForgery.php)。
+
 记住我 Cookie 必须经 `CookieServiceProvider` 加密保护，且不能列入 `except`；否则返回 `auth_recaller_protection_required`。`hash_password_for_cookie` 只计算 HMAC，不负责 Cookie 加密。客户端 Cookie Session 的两枚 Cookie 同样需要完整保护；plain 或排除保护的载荷不能承载持久认证。普通服务器端 Session 不要求额外使用 remember Cookie。
 
 `SessionGuard` 轮换 remember token 时通过账户的条件修改入口安装原始补丁，并跨 Provider 调用持有拥有式回执。条件已改变时拒绝，准备期间出现版本冲突时可返回 `model_attribute_mutation_conflict`；最终 Cookie 值失效时返回 `auth_remember_token_conflict`。持久化失败或 future 取消时，按字段 owner/祖先链恢复仍属于本次修改的部分，不因 Guard epoch 已变化而遗漏 raw 清理，也不覆盖后继写入。此为 Rust 共享账户并发与 future 取消的内存安全扩展，不构成数据库事务或分布式 CAS。

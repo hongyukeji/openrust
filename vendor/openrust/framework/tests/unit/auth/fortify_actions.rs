@@ -3,7 +3,7 @@
 use super::*;
 use crate::auth::Authenticatable;
 use crate::auth::GenericUser;
-use crate::encryption::LaravelEncrypter;
+use crate::encryption::ConfiguredEncrypter;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::support::BoxFuture;
@@ -150,7 +150,7 @@ impl TwoFactorAuthenticationProvider for Provider {
     }
 }
 fn encryptor(byte: u8) -> Result<Arc<dyn ApplicationEncrypter>> {
-    Ok(Arc::new(LaravelEncrypter::from_config(
+    Ok(Arc::new(ConfiguredEncrypter::from_config(
         crate::config::AppConfig {
             key: Some(format!("base64:{}", STANDARD.encode([byte; 32]))),
             ..crate::config::AppConfig::default()
@@ -834,7 +834,7 @@ async fn application_encryption_is_needed_only_when_a_fortify_field_is_used() ->
         let failure = actions.enable(&user, false).await;
         assert!(
             matches!(failure, Err(Error::ServiceInitialization { source, .. })
-            if source.code() == "laravel_app_key_missing")
+            if source.code() == "encryption_app_key_missing")
         );
         assert_eq!(model.snapshot(), TwoFactorState::default());
 

@@ -14,7 +14,7 @@ use crate::support::{BoxFuture, ServiceProvider};
 enum ProtectionMode {
     Plain,
     Contextual,
-    Laravel,
+    NameBound,
 }
 
 /// 登记 Cookie 创建器和请求隔离队列。
@@ -32,28 +32,24 @@ impl Default for CookieServiceProvider {
     }
 }
 impl CookieServiceProvider {
-    /// 默认按 Laravel 名称前缀保护 Cookie，首次受保护请求时解析应用密钥。
+    /// 使用名称绑定保护 Cookie，首次受保护请求时解析应用密钥。
     pub fn new() -> Self {
         Self {
             factory: None,
-            mode: ProtectionMode::Laravel,
+            mode: ProtectionMode::NameBound,
             except: Vec::new(),
         }
     }
-    /// 显式使用明文 Cookie；不提供 Laravel web 组的默认保护。
+    /// 显式使用明文 Cookie，适用于允许发送未加密 Cookie 的路由。
     pub fn plain() -> Self {
         Self {
             mode: ProtectionMode::Plain,
             ..Self::new()
         }
     }
-    /// 显式选择默认的 Laravel Cookie 保护。需要 `encryption` feature。
-    pub fn laravel() -> Self {
-        Self::new()
-    }
-    /// 显式使用 OpenRust 上下文认证及独立密钥环保护 Cookie。
+    /// 使用上下文认证及独立密钥环保护 Cookie。
     ///
-    /// 此模式读取 `security.encryption`，密文与默认 Laravel Cookie 不互通。
+    /// 此模式读取 `security.encryption`，使用独立的上下文密文格式。
     pub fn contextual() -> Self {
         Self {
             mode: ProtectionMode::Contextual,
@@ -107,7 +103,7 @@ impl CookieLayerPlan {
                 let encrypter = scope.resolve::<crate::encryption::Encrypter>().await?;
                 Protection::Encrypted((*encrypter).clone())
             }
-            ProtectionMode::Laravel => Protection::Laravel(
+            ProtectionMode::NameBound => Protection::NameBound(
                 scope
                     .resolve::<dyn crate::encryption::ApplicationEncrypter>()
                     .await?,

@@ -180,7 +180,7 @@ pub struct AppConfig {
     pub debug: bool,
     /// 用于构造绝对链接的公开基础 URL。
     pub url: String,
-    /// Laravel 应用加密使用的 cipher；默认 AES-256-CBC。
+    /// 应用加密使用的 cipher；默认 AES-256-CBC。
     pub cipher: String,
     /// 应用密钥的原始配置值；URL 签名不解码，应用加密在使用时解析。
     pub key: Option<String>,

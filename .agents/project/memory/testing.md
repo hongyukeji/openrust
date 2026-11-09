@@ -2231,3 +2231,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 默认公开模式为 `TranslationLookup::Standard`，目录增强继续显式选用。翻译生产源码及数据库来源扩展生产 Rust 源码的品牌词扫描零命中，旧公开枚举引用及内部函数名在调用方、生成模板和文档中零命中。固定对照链接和版权声明保留。
 
 冻结树 `816461f1b792b7f2006608910065b0494d8c14de` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。默认模式与显式 Standard 通过同一字面键和语言回退断言，生成 minimal 应用通过 Cargo check 与测试并实际调用 Standard。
+
+## 加密与 Cookie 职责命名限定验收
+
+应用加密默认实现为 `ConfiguredEncrypter`，相关载荷、密钥和序列化错误码使用 `encryption_*`。默认 Cookie 保护使用 `CookieServiceProvider::new()`。读取固定 PHP 的四种 AES 载荷与轮换前的名称绑定 Cookie，错误 Cookie 名被拒绝；改名前由 `839f1b8a` 生成的上下文密文可读，错误上下文被拒绝。
+
+冻结树 `322da080b99caf36328b78e47affae8deca7947a` 通过 fmt、默认及启用 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试和拒警 Rustdoc，以及离线依赖检查。生成 Web/Fortify 和 JWT API 应用均通过 Cargo check 与真实 MySQL 测试。其余命名整改及发布前数据库矩阵继续开放。
