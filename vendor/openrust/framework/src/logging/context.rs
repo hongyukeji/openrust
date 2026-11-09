@@ -24,7 +24,7 @@ impl Repository {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// 写入普通字段。数字键按 Laravel 的合并规则追加并重新编号。
+    /// 写入普通字段。数字键追加到尾部并重新编号。
     pub fn add(&self, key: impl Into<String>, value: Value) {
         let key = key.into();
         merge_field(&mut self.fields().ordinary, key, value);

@@ -40,7 +40,7 @@ use openrust::container::{
     ParameterOverrides, ParameterValue, ServiceKey,
 };
 use openrust::foundation::RegisterContext;
-use openrust::logging::{LogLevel, Logger, context::Repository as LogContext};
+use openrust::logging::{LogLevel, LogManager, Logger, context::Repository as LogContext};
 use openrust::support::{BoxFuture, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
@@ -219,6 +219,14 @@ async fn generated_application_injects_named_logger() -> Result<(), Box<dyn std:
     let log = std::fs::read_to_string(path)?;
     assert!(log.contains("generated.preview.NOTICE: 生成项目日志 {\"entry.name\":\"generated\"}"));
     assert!(!log.contains("example-secret"));
+
+    app.config_repository().set("application_root", serde_json::json!(directory.path()))?;
+    let manager = app.state().resolve::<LogManager>().await?;
+    let default = manager.channel(None).await?;
+    default.log(LogLevel::Info, "默认频道日志", serde_json::Map::new()).await?;
+    let log = std::fs::read_to_string(directory.path().join("storage/logs/application.log"))?;
+    assert!(log.contains("默认频道日志"));
+    assert!(!log.contains("生成项目日志"));
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
     Ok(())
 }

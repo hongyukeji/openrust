@@ -156,7 +156,7 @@ cargo run -- module:enable example --no-interaction
 
 模块 `GET /api/example` 在当前请求作用域解析 `dyn GreetingPresenter`。宿主在 `configure_providers` 提供 `class_descriptors()`，模块 Provider 将接口与 `example.greeting.presenter` 别名接到 `Modules/Example/ExamplePresenter`。Provider 用 `singleton_if` 登记默认 `ExampleMessage`，宿主可提前登记自己的问候语。自定义消息属性用 `Give<ExampleMessage>` 在当前作用域跟随 `example.greeting.message` 别名。呈现器用 `Config<String>` 读取可选的 `example.greeting_suffix`，可通过 `EXAMPLE_GREETING_SUFFIX` 配置，缺失时使用空字符串。`Tag<GreetingSuffix>` 接收 `example.greeting.suffixes`，在生成响应时才按登记顺序解析标签服务并在配置后缀之后拼接。[模块回归](tests/registration.rs)使用真实启动管线验证配置、命名消息和后缀解析顺序。
 
-在本地将 `EXAMPLE_LOGGING_DEMO=true` 后启动应用，`POST /api/example/logging` 会通过 `Log::new("single").named("example.request")` 在当前请求作用域注入日志服务，向 `single` 频道写入一条固定的 INFO 日志并返回 204。此演示默认关闭。
+在本地将 `EXAMPLE_LOGGING_DEMO=true` 后启动应用，`POST /api/example/logging` 会通过 `Log::new("single").named("example.request")` 在当前请求作用域注入日志服务，向 `single` 频道写入一条固定的 INFO 日志并返回 204，默认写入 `storage/logs/application.log`。此演示默认关闭。
 
 时间属性由 Provider 通过 `when_has_attribute` 提供 RFC 3339 字符串。调用方可用 `served_at` 覆盖时间并跳过参数属性处理。构造描述用 `PhpTarget::Bytes` 接收选中的字符串，再按领域规则解析为 UTC 时间。类标记通过 `after_resolving_attribute` 观察构造后的具体对象。容器通过 `class_projection!` 提供同一个 `Arc` 的接口视图，控制器返回包含 `message` 和 `served_at` 的 `Json<ExampleInfo>`。Provider 使用 `after_resolving` 读取当前请求解析出的接口对象并记录时间。
 从仓库根启动，在另一终端请求默认端口：

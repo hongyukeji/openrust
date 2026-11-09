@@ -2237,3 +2237,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 应用加密默认实现为 `ConfiguredEncrypter`，相关载荷、密钥和序列化错误码使用 `encryption_*`。默认 Cookie 保护使用 `CookieServiceProvider::new()`。读取固定 PHP 的四种 AES 载荷与轮换前的名称绑定 Cookie，错误 Cookie 名被拒绝；改名前由 `839f1b8a` 生成的上下文密文可读，错误上下文被拒绝。
 
 冻结树 `322da080b99caf36328b78e47affae8deca7947a` 通过 fmt、默认及启用 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试和拒警 Rustdoc，以及离线依赖检查。生成 Web/Fortify 和 JWT API 应用均通过 Cargo check 与真实 MySQL 测试。其余命名整改及发布前数据库矩阵继续开放。
+
+## 日志职责命名限定验收
+
+默认单文件和应急路径统一为 `storage/logs/application.log`，应急标签为 `emergency`。正常频道名称、显式路径和旧日志内容保持原样。默认及空应急路径均经真实文件写入验证，具名频道故障后仍可重新解析。唯一示例通过 HTTP 注入具名 logger 并写入新路径。
+
+冻结树 `75c2f8363a882241e5b0a68bef198da89d0e1cdd` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。生成 minimal 应用通过 Cargo check 与测试，实际写入自定义日志文件和默认日志文件。本簇仅关闭上述命名整改。

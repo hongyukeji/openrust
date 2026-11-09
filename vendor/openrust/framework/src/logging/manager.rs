@@ -1,4 +1,4 @@
-//! 应用内频道目录和 Laravel 日志配置接线。
+//! 应用日志频道、惰性解析与驱动配置。
 
 use std::{
     collections::HashMap,
@@ -18,7 +18,7 @@ use crate::{
     support::{BoxFuture, ServiceProvider},
 };
 
-const DEFAULT_FILE: &str = "storage/logs/laravel.log";
+const DEFAULT_FILE: &str = "storage/logs/application.log";
 const MAX_STACK_DEPTH: usize = 32;
 type Factory = dyn Fn(&Value) -> Result<Arc<dyn LogSink>> + Send + Sync;
 type ResolvedChannel = Arc<OnceCell<Arc<Logger>>>;
@@ -300,7 +300,7 @@ async fn emergency(settings: &Settings, cause: &Error) -> Result<Arc<Logger>> {
             .ok_or_else(invalid)?,
     };
     let logger = Arc::new(Logger {
-        name: Arc::from("laravel"),
+        name: Arc::from("emergency"),
         sink: sinks::single(settings.path(Path::new(path)), LogLevel::Debug, false),
         handlers: None,
         scope_factory: None,
@@ -377,5 +377,5 @@ impl ServiceProvider for LogServiceProvider {
 }
 
 #[cfg(test)]
-#[path = "manager_tests.rs"]
+#[path = "../../tests/unit/logging/manager.rs"]
 mod tests;

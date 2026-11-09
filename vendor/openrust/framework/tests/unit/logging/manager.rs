@@ -106,7 +106,7 @@ async fn failed_resolution_uses_emergency_and_retries_after_config_changes()
     assert!(!fallback.exists());
 
     let first = manager.channel(Some("future")).await?;
-    assert_eq!(first.name(), "laravel");
+    assert_eq!(first.name(), "emergency");
     let report = tokio::fs::read_to_string(&fallback).await?;
     assert!(report.contains("log_driver_unsupported") && !report.contains("never-print-this"));
     manager.extend("custom-fail", |_| {
@@ -241,8 +241,8 @@ async fn cyclic_stacks_return_emergency_without_waiting_for_each_other()
         tokio::join!(manager.channel(Some("a")), manager.channel(Some("b")))
     })
     .await?;
-    assert_eq!(a?.name(), "laravel");
-    assert_eq!(b?.name(), "laravel");
+    assert_eq!(a?.name(), "emergency");
+    assert_eq!(b?.name(), "emergency");
     let text = tokio::fs::read_to_string(fallback).await?;
     assert_eq!(
         text.lines()
@@ -250,6 +250,40 @@ async fn cyclic_stacks_return_emergency_without_waiting_for_each_other()
             .count(),
         2
     );
+    shutdown(&runtime).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn default_and_emergency_logs_share_the_application_path()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let logs = directory.path().join("storage/logs");
+    std::fs::create_dir_all(&logs)?;
+    let previous = logs.join("laravel.log");
+    std::fs::write(&previous, "历史记录\n")?;
+    let path = logs.join("application.log");
+    let runtime = start(json!({})).await?;
+    let manager = runtime.container().resolve::<LogManager>().await?;
+    manager
+        .config
+        .set("application_root", json!(directory.path()))?;
+
+    let default = manager.channel(None).await?;
+    assert_eq!(default.name(), "testing");
+    default.log(LogLevel::Info, "默认频道", Map::new()).await?;
+
+    let emergency = manager.channel(Some("unknown")).await?;
+    assert_eq!(emergency.name(), "emergency");
+    manager
+        .config
+        .set("logging.channels.emergency.path", Value::Null)?;
+    manager.channel(Some("unknown")).await?;
+
+    let contents = std::fs::read_to_string(path)?;
+    assert!(contents.contains("testing.INFO: 默认频道"));
+    assert_eq!(contents.matches("emergency.EMERGENCY:").count(), 2);
+    assert_eq!(std::fs::read_to_string(previous)?, "历史记录\n");
     shutdown(&runtime).await?;
     Ok(())
 }

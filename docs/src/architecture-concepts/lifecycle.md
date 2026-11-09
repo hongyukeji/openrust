@@ -392,7 +392,9 @@ Rust 服务构造可异步挂起，因此 `Tagged<T>` 使用异步流，并在�
 
 默认 Provider 在应用容器中登记 `LogManager`。用 `Log::default()` 注入默认频道的 `Logger`，用 `Log::new("single").named("orders")` 选择具名频道并为本次注入重命名。重命名复用相同输出目标和级别过滤，原频道仍使用自己的名称。把属性附到 `ConstructorParam::class::<Logger>("logger")` 即可。 [Laravel Log 属性](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Attributes/Log.php)
 
-`config/log.rs` 通过 `logging` 区段配置频道。`LOG_CHANNEL` 默认选择 `stack`，`LOG_STACK` 默认包含 `single`，`LOG_LEVEL` 默认是 `debug`。已支持 `single`、`stderr`、`null` 和顺序写入的 `stack`。默认文件为应用根的 `storage/logs/laravel.log`。频道创建失败会写入应急文件，并返回应急 logger；应急文件也无法写入时会返回错误。
+`config/log.rs` 通过 `logging` 区段配置频道。`LOG_CHANNEL` 默认选择 `stack`，`LOG_STACK` 默认包含 `single`，`LOG_LEVEL` 默认是 `debug`。已支持 `single`、`stderr`、`null` 和顺序写入的 `stack`。默认文件为应用根的 `storage/logs/application.log`。频道创建失败会以 `emergency` 为标签写入应急文件，并返回应急 logger。应急文件默认使用同一路径，无法写入时返回错误。应急分支和频道默认配置对应固定上游。 [LogManager](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Log/LogManager.php#L185) · [日志配置](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/config/logging.php#L47)
+
+升级后，使用默认路径的日志采集应改读 `storage/logs/application.log`，应急过滤规则应使用 `emergency` 标签。历史文件留在原路径。已显式设置的 `logging.channels.single.path` 与 `logging.channels.emergency.path` 继续生效。
 
 日志通过 `Logger::log(level, message, context).await` 写入。文件按行记录时间、logger 名称、级别和消息，结构化上下文以 JSON 附在末尾。第三方通过 `LogManager::extend` 为频道配置提供 `LogSink`。框架诊断和遥测仍由 `tracing` 收集，受 `RUST_LOG` 控制。
 

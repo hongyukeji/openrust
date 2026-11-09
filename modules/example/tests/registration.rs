@@ -125,7 +125,7 @@ async fn production_log_attribute_writes_only_to_the_named_channel()
 -> Result<(), Box<dyn std::error::Error>> {
     const MESSAGE: &str = "示例日志请求已处理";
     let directory = tempfile::tempdir()?;
-    let selected = directory.path().join("selected.log");
+    let selected = directory.path().join("storage/logs/application.log");
     let default = directory.path().join("default.log");
     let source = enabled_example_sources(&production_sources(true))?.merge_ordered_entries([
         ("example", serde_json::json!({"logging_demo": true})),
@@ -138,7 +138,6 @@ async fn production_log_attribute_writes_only_to_the_named_channel()
                     "default_file": {"driver": "single", "path": default, "level": "debug"},
                     "single": {
                         "driver": "single",
-                        "path": selected,
                         "level": "debug",
                         "replace_placeholders": true
                     },
@@ -151,6 +150,9 @@ async fn production_log_attribute_writes_only_to_the_named_channel()
         .build()
         .await?;
     let outcome: Result<(), Box<dyn std::error::Error>> = async {
+        app.app()?
+            .config_repository()
+            .set("application_root", serde_json::json!(directory.path()))?;
         let greeting = Request::get("/api/example")
             .header("host", "localhost")
             .body(Body::empty())?;
