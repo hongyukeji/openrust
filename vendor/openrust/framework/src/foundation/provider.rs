@@ -221,6 +221,32 @@ impl RegisterContext<'_> {
         self.container.bind_new_instance(binding)
     }
 
+    /// 在当前容器登记可调用方法的参数和实现。
+    pub fn register_method<C: ?Sized + Send + Sync + 'static, T: Send + 'static>(
+        &self,
+        name: &str,
+        signature: Vec<crate::container::ConstructorParam>,
+        callback: impl Fn(
+            Arc<C>,
+            crate::container::CallArguments<'_>,
+            Resolver,
+        ) -> BoxFuture<'static, Result<T>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        self.container.register_method(name, signature, callback)
+    }
+
+    /// 为当前容器的方法登记替代回调。替代回调接收对象与同一解析器。
+    pub fn bind_method<C: ?Sized + Send + Sync + 'static, T: Send + 'static>(
+        &self,
+        name: &str,
+        callback: impl Fn(Arc<C>, Resolver) -> BoxFuture<'static, Result<T>> + Send + Sync + 'static,
+    ) -> Result<()> {
+        self.container.bind_method(name, callback)
+    }
+
     /// 为当前应用登记属性类型的上下文处理器。同类型后登记的处理器优先。
     pub fn when_has_attribute<A: Send + Sync + 'static>(
         &self,

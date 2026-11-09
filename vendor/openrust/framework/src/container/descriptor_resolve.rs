@@ -21,6 +21,10 @@ use crate::foundation::resources::{ResourceInlineOwner, ResourceInlineSlot, Reso
 #[path = "call.rs"]
 mod call;
 pub use call::CallArguments;
+#[path = "method_call.rs"]
+mod method_call;
+pub use method_call::MethodCall;
+pub(super) use method_call::{MethodConsumer, MethodRegistry};
 
 use std::{
     future::{Future, poll_fn},

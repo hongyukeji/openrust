@@ -2,7 +2,8 @@
 
 use openrust::Result;
 use openrust::container::{
-    AttributeValue, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+    AttributeValue, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides, ParameterValue,
+    ServiceKey,
 };
 use openrust::foundation::RegisterContext;
 use openrust::foundation::{ApplicationState, BootContext};
@@ -148,8 +149,49 @@ async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<(
                 },
             )
             .get("/api/example/container-call", call_example_message)
+            .get("/api/example/container-method", call_example_method)
     })?;
     Ok(())
+}
+
+fn register_example_method(app: &RegisterContext<'_>) -> Result<()> {
+    app.register_method(
+        "describe",
+        vec![ConstructorParam::scalar::<String>("label")],
+        |message: Arc<ExampleMessage>, args, _| {
+            let label = args
+                .resolved
+                .value(0)
+                .and_then(ParameterValue::downcast::<String>);
+            Box::pin(async move { Ok(message.describe(&label?)) })
+        },
+    )?;
+    app.bind_method("describe", |message: Arc<ExampleMessage>, _| {
+        Box::pin(async move { Ok(message.describe("provider")) })
+    })
+}
+
+async fn call_example_method(
+    State(app): State<ApplicationState>,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    let message = app.resolve::<ExampleMessage>().await?;
+    let mut parameters = ParameterOverrides::new();
+    let _ = parameters.insert(
+        ParameterKey::name("label"),
+        ParameterValue::new(String::from("direct")),
+    );
+    let direct: String = app
+        .call_method(MethodCall::direct(message, "describe"), parameters)
+        .await?;
+    let bound: String = app
+        .call_method(
+            MethodCall::<ExampleMessage>::class("describe"),
+            ParameterOverrides::new(),
+        )
+        .await?;
+    Ok(openrust::http::Json(
+        serde_json::json!({ "direct": direct, "bound": bound }),
+    ))
 }
 
 async fn call_example_message(
@@ -356,6 +398,7 @@ impl ServiceProvider for ExampleServiceProvider {
         Box::pin(async move {
             register_example_schema(app)?;
             register_greeting_attributes(app)?;
+            register_example_method(app)?;
             app.instance(Arc::new(ExampleResponseMarker)).await?;
             app.alias(
                 ServiceKey::named(EXAMPLE_PRESENTER_CLASS),

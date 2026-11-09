@@ -100,6 +100,10 @@ impl ExampleMessage {
         }
     }
 
+    pub(crate) fn describe(&self, label: &str) -> String {
+        format!("{label}: {}", self.text())
+    }
+
     pub(crate) fn binding_extension(&self) -> Option<&'static str> {
         self.binding_extension
     }

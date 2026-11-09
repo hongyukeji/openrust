@@ -96,11 +96,60 @@ fn invoke<'a, T: Send + 'a>(
     overrides: ParameterOverrides,
     callback: impl for<'b> FnOnce(CallArguments<'b>) -> BoxFuture<'a, Result<T>> + Send + 'a,
 ) -> impl Future<Output = Result<T>> + Send + 'a {
+    invoke_operation(
+        select,
+        overrides,
+        DirectCall {
+            signature,
+            callback,
+        },
+    )
+}
+
+pub(super) trait CallOperation<T>: Send {
+    fn validate(&self) -> Result<()>;
+
+    fn execute(
+        self,
+        run: &ArgumentRun<'_>,
+        overrides: ParameterOverrides,
+    ) -> impl Future<Output = Result<ResourceInlineSlot<T>>> + Send;
+}
+
+struct DirectCall<'a, F> {
+    signature: &'a [ConstructorParam],
+    callback: F,
+}
+
+impl<'a, T, F> CallOperation<T> for DirectCall<'a, F>
+where
+    T: Send + 'a,
+    F: for<'b> FnOnce(CallArguments<'b>) -> BoxFuture<'a, Result<T>> + Send,
+{
+    fn validate(&self) -> Result<()> {
+        validate_parameters(self.signature)
+    }
+
+    async fn execute(
+        self,
+        run: &ArgumentRun<'_>,
+        overrides: ParameterOverrides,
+    ) -> Result<ResourceInlineSlot<T>> {
+        run.invoke_callable(self.signature, overrides, self.callback)
+            .await
+    }
+}
+
+pub(super) fn invoke_operation<'a, T: Send + 'a>(
+    select: impl FnOnce() -> Result<Resolver> + Send + 'a,
+    overrides: ParameterOverrides,
+    operation: impl CallOperation<T> + 'a,
+) -> impl Future<Output = Result<T>> + Send + 'a {
     let mut inputs = Some(ParameterFrame::new(
         overrides,
         CallbackDisposal::new(None, None),
     ));
-    let mut callback = Callback(Some(callback));
+    let mut operation = Callback(Some(operation));
     async move {
         let result = async {
             let resolver = select()?;
@@ -108,7 +157,7 @@ fn invoke<'a, T: Send + 'a>(
                 .as_mut()
                 .ok_or_else(missing_slot)?
                 .set_disposal(resolver.callback_disposal());
-            validate_parameters(signature)?;
+            operation.0.as_ref().ok_or_else(missing_slot)?.validate()?;
             let container = resolver.container()?;
             let registrar = resolver.resources()?;
             let mut owner = ResourceInlineOwner::new();
@@ -131,8 +180,8 @@ fn invoke<'a, T: Send + 'a>(
                 consumer_key: resolver.active_consumer_frame().map(|(key, _)| key),
                 descriptor: None,
             };
-            let callback = callback.0.take().ok_or_else(missing_slot)?;
-            let result = run.invoke_callable(signature, overrides, callback).await;
+            let operation = operation.0.take().ok_or_else(missing_slot)?;
+            let result = operation.execute(&run, overrides).await;
             // 原实参先逐项退役。Scope 的完成栅栏继续观察这个调用直到退役结束。
             inputs.clear();
             match (result, owner.check_cleanup()) {
@@ -169,7 +218,7 @@ impl CallParameters {
 }
 
 impl ArgumentRun<'_> {
-    async fn invoke_callable<'a, T: Send + 'a>(
+    pub(super) async fn invoke_callable<'a, T: Send + 'a>(
         &self,
         signature: &[ConstructorParam],
         overrides: ParameterOverrides,

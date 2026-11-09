@@ -252,6 +252,17 @@ assert_eq!(name.as_str(), "OpenRust");
 
 在请求和命令中用 `ApplicationState::call`，在自管生命周期内用 `Scope::call`，在已有解析链上用 `Resolver::call`。Rust 回调可以调用普通函数或已取得实例的方法，方法和参数由编译器检查。示例路由 `/api/example/container-call` 注入模块的服务并提供命名实参。 [Laravel BoundMethod](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/BoundMethod.php)
 
+### 调用与绑定对象方法
+
+通过 `ContainerBuilder`、`Container` 或 Provider 的 `RegisterContext` 登记 `register_method::<Receiver, Output>`。登记项包含精确方法名、参数签名和 Rust 实现。用 `bind_method::<Receiver, Output>` 替换调用行为。替代回调接收对象和当前解析器，直接执行，无需解析默认签名。后登记的绑定对后续调用生效，正在执行的回调保持原登记。
+
+- `MethodCall::on(object, "run")` 使用现有对象并检查方法绑定。
+- `MethodCall::<Receiver>::class("run")` 先用容器解析对象，再分派指定方法。方法名也可以由调用方提供默认值。
+- `MethodCall::<Receiver>::invokable()` 使用已声明的 `__invoke` 作为类入口。
+- `MethodCall::direct(object, "run")` 在对象类型上下文中执行声明的方法，绕过替代绑定。
+
+将入口传给 `call_method`。根容器、自管作用域、解析器和应用入口提供同一调用方式。显式对象入口可使用对象类型的上下文绑定。类入口沿用调用前的上下文。Rust 使用编译类型和方法名表达类入口，结果类型由调用方声明。示例路由 `/api/example/container-method` 展示同一个方法的直接调用和替代绑定。 [Laravel 方法绑定](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L391-L435) · [Laravel 类入口](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/BoundMethod.php#L23-L88)
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

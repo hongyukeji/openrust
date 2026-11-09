@@ -57,7 +57,8 @@ pub use scalar_diagnostics::ScalarDiagnostics;
 #[path = "container/descriptor_race_tests.rs"]
 mod descriptor_race_tests;
 mod descriptor_resolve;
-pub use descriptor_resolve::CallArguments;
+pub use descriptor_resolve::{CallArguments, MethodCall};
+use descriptor_resolve::{MethodConsumer, MethodRegistry};
 #[cfg(test)]
 #[path = "container/descriptor_resolve_tests.rs"]
 mod descriptor_resolve_tests;
@@ -316,6 +317,7 @@ pub struct ContainerBuilder {
     hooks: ResolveHooks,
     attributes: AttributeRegistry,
     self_building: SelfBuildingBindings,
+    methods: MethodRegistry,
     classes: Arc<ClassRegistry>,
     extensions: ExtensionState,
     config: Option<ConfigRepository>,
@@ -416,6 +418,7 @@ impl ContainerBuilder {
                     hooks: self.hooks,
                     attributes: self.attributes,
                     self_building: self.self_building,
+                    methods: self.methods,
                     classes: self.classes,
                     extensions: self.extensions,
                     ..State::default()
@@ -482,6 +485,7 @@ struct State {
     hooks: ResolveHooks,
     attributes: AttributeRegistry,
     self_building: SelfBuildingBindings,
+    methods: MethodRegistry,
     classes: Arc<ClassRegistry>,
     raw_attempts: HashMap<u64, directory::RawRecord>,
     root_raw_close: Option<RootRawClose>,
@@ -1487,6 +1491,7 @@ impl Container {
             parameters: None,
             previous_parameters: None,
             build_consumer: None,
+            method_consumer: None,
             class_builds: Vec::new(),
             binding_checks: Vec::new(),
             factory_parameters: Arc::new(FactoryParameters::empty()),
@@ -1811,6 +1816,7 @@ pub struct Resolver {
     parameters: Option<ParameterView>,
     previous_parameters: Option<ParameterView>,
     build_consumer: Option<(ServiceKey, Arc<AtomicBool>)>,
+    method_consumer: Option<Arc<MethodConsumer>>,
     class_builds: Vec<ClassBuildFrame>,
     binding_checks: Vec<(ServiceKey, Arc<AtomicBool>)>,
     factory_parameters: Arc<FactoryParameters>,
