@@ -10,7 +10,7 @@
 
 ## 查找应用命令
 
-源码应用和生成项目都提供 POSIX `artisan` 脚本。它先切换到脚本所在目录，再执行应用入口。源码目录由 Cargo 运行，发布目录由脚本执行同目录的 `app`。脚本用 `exec` 交接进程，透传参数、信号和退出码。入口职责参照固定 Laravel 13.x 应用骨架的薄脚本。[Laravel artisan](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/artisan)
+源码应用和生成项目都提供 POSIX `artisan` 脚本。它先切换到脚本所在目录，再执行应用入口。源码目录由 Cargo 运行，发布目录由脚本执行同目录下与项目同名的二进制。脚本用 `exec` 交接进程，透传参数、信号和退出码。入口职责参照固定 Laravel 13.x 应用骨架的薄脚本。[Laravel artisan](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/artisan)
 
 ```bash
 ./artisan list
@@ -160,7 +160,7 @@ done
 
 ### 导出应用文件
 
-OpenRust 提供编译型应用的 Linux 发布扩展 `./artisan build`，参考固定 Goravel 的源码构建流程。它由源码开发工具执行，当前使用 Docker Buildx。在 macOS 或 Linux 的应用源码目录运行该命令。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。
+OpenRust 提供编译型应用的 Linux 发布扩展 `./artisan build`。编译产物与外置资源的部署布局参考固定 Goravel。它由源码开发工具执行，当前使用 Docker Buildx。在 macOS 或 Linux 的应用源码目录运行该命令。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。 [Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md#deploy-server)
 
 ```bash
 ./artisan build --platform linux/amd64
@@ -180,7 +180,7 @@ cd /srv/openrust
 ./openrust
 ```
 
-手动生产部署可运行 `./artisan migrate` 并在终端确认。无终端、`--no-interaction` 或默认否会取消生产迁移。只读的 `./artisan migrate status` 不要求确认；迁移历史表缺失时返回失败。
+手动生产部署可运行 `./artisan migrate` 并在终端确认。未指定 `--force` 时，无终端、`--no-interaction` 或默认否会取消生产迁移。只读的 `./artisan migrate status` 不要求确认，迁移历史表缺失时返回失败。
 
 二进制使用 Debian Bookworm 构建环境的 Linux ABI。按目标机检查架构、动态库并实际启动。构建仍可通过 Dockerfile 的 `artifacts` 阶段手动导出。容器运行入口为 `/app/openrust`，迁移服务仍通过 `/app/artisan` 执行。
 
