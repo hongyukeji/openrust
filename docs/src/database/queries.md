@@ -136,6 +136,24 @@ SQLite JSON 查询的固定 Laravel 文档基线为 3.39.0+。连接器的总体
 
 同一列表接受 `metadata_tag=typed`，以普通字符串查找 `metadata.tags` 或 `metadata.labels`。两个路径放在同一个 OR 分组中，账户条件作用于整个分组。
 
+### JSON 路径存在
+
+`where_json_contains_key` 检查路径是否存在。值为 JSON `null` 的成员仍然匹配。缺失路径和 SQL `NULL` 由 `where_json_doesnt_contain_key` 匹配。查询与 `where_nested` 分组均支持这两个方法及其 `or_where_` 变体。它们不增加参数绑定，计数、更新与删除使用相同条件。 [固定 Laravel Builder](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Database/Query/Builder.php#L2442-L2482)
+
+```rust
+use openrust::{Db, Result};
+
+pub async fn count_with_tags(db: &Db, owner: i64) -> Result<u64> {
+    db.table("records")?
+        .where_eq("owner_id", owner)?
+        .where_json_contains_key("records.metadata->tags")?
+        .count()
+        .await
+}
+```
+
+使用应用声明的路径选择器，并保留数据库方言的数组和文本键规则。MySQL 和 PostgreSQL 要求显式箭头路径，避免执行上游对裸列生成的无效 SQL。SQLite 的裸列形式检查整个 JSON 值。PostgreSQL 文本末段沿用 `jsonb ?`，可匹配对象键、数组字符串元素或同值 JSON 字符串。整数末段支持负下标，计算长度前先检查数组类型。唯一示例可用 `metadata_key=tags` 或 `metadata_key=labels` 筛选，入口仅接受预设键。
+
 ## 值区间与列区间
 
 `where_between` 把上下界作为值绑定。每行具有自己的上下界时，使用 `where_between_columns`：

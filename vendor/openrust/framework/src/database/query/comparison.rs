@@ -352,16 +352,23 @@ fn path_segment(segment: &str) -> (&str, Vec<&str>) {
     (segment, Vec::new())
 }
 fn pg_integer_attribute(value: &str) -> bool {
+    parse_pg_integer_attribute(value).is_some()
+}
+
+pub(super) fn parse_pg_integer_attribute(value: &str) -> Option<i64> {
     // 固定FILTER_VALIDATE_INT：ASCII默认空白、可选符号、无多余前导零及PHP64范围。
     let value = value.trim_matches([' ', '\t', '\n', '\r', '\u{b}']);
     let digits = value.strip_prefix(['+', '-']).unwrap_or(value);
-    !digits.is_empty()
-        && (digits == "0" || !digits.starts_with('0'))
-        && digits.bytes().all(|byte| byte.is_ascii_digit())
-        && value.parse::<i64>().is_ok()
+    if digits.is_empty()
+        || (digits != "0" && digits.starts_with('0'))
+        || !digits.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    value.parse().ok()
 }
 // 相对上游普通引号的安全增强：E字面量明确反斜线语义，兼容PG两种字符串模式。
-fn sql_path_quote(value: &str) -> String {
+pub(super) fn sql_path_quote(value: &str) -> String {
     format!("E'{}'", value.replace('\\', "\\\\").replace('\'', "''"))
 }
 pub(super) fn json_field_and_path<'selector>(

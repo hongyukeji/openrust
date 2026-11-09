@@ -76,6 +76,7 @@ async fn generated_json_contains_preserves_owner_bindings_nulls_and_exact_write_
         assert_eq!(remaining.len(),records.len()-1);
         for (row,(id,owner,payload)) in remaining.iter().zip(records.iter().filter(|(id,_,_)|*id!=3)) {assert_record(row,*id,*owner,payload)?;}
         qualified_selectors_preserve_groups_and_write_targets(&db).await?;
+        key_exists_preserves_nulls_scope_and_write_targets(&db).await?;
         Ok(())
     }.await;
     let cleanup = database.close().await;
@@ -144,4 +145,59 @@ async fn qualified_selectors_preserve_groups_and_write_targets(db: &Db) -> Resul
         .collect::<Result<Vec<_>>>()?;
     assert_eq!(remaining, [13, 14, 15, 16]);
     Ok(())
+}
+
+async fn key_exists_preserves_nulls_scope_and_write_targets(db: &Db) -> Result<()> {
+    let table = "json_contains_records";
+    let marker = "key existence";
+    let selector = "json_contains_records.payload->language";
+    let element = "payload->items[0][0]";
+    for (id, owner, payload) in [
+        (21_i64, 7_i64, Some(json!({"language":null,"items":[[null]],"a'b ? $1":null}))),
+        (22, 7, Some(json!({"items":[]}))),
+        (23, 7, None),
+        (24, 8, Some(json!({"language":null,"items":[[null]]}))),
+        (25, 7, Some(json!({"language":"中文"}))),
+    ] {
+        db.table(table)?.insert(vec![
+            ("id", id.into()), ("owner_id", owner.into()), ("label", marker.into()),
+            ("payload", Value::Json(payload.map(Box::new))), ("flag", 0_i64.into()),
+        ]).await?;
+    }
+    let owner = || db.table(table)?.where_eq("owner_id", 7_i64)?.where_eq("label", marker);
+    let exists = db.table(table)?.where_eq("owner_id", 7_i64)?
+        .where_json_contains_key(selector)?.where_eq("label", marker)?;
+    assert_eq!(exists.get_bindings()?, vec![7_i64.into(), marker.into()]);
+    let page = exists.clone().order_by("id", SortDirection::Asc)?.paginate_on(1, "page", 2).await?;
+    assert_eq!(page.total, 2);
+    assert_eq!(key_row_ids(&page.items)?, [25]);
+    assert_eq!(
+        key_row_ids(&owner()?.where_json_contains_key(element)?.get().await?)?,
+        [21]
+    );
+    assert_eq!(owner()?.where_json_contains_key("payload->a'b ? $1")?.count().await?, 1);
+    if db.backend()? == DbBackend::Postgres {
+        assert_eq!(owner()?.where_json_contains_key("payload->items[-1][-1]")?.count().await?, 1);
+    }
+    let either = owner()?.where_nested(|group| {
+        group.where_json_contains_key(element)?.or_where_json_doesnt_contain_key(selector)
+    })?.order_by("id", SortDirection::Asc)?;
+    assert_eq!(key_row_ids(&either.get().await?)?, [21, 22, 23]);
+    let reversed = owner()?.where_nested(|group| {
+        group.where_json_doesnt_contain_key(selector)?.or_where_json_contains_key(element)
+    })?.order_by("id", SortDirection::Asc)?;
+    assert_eq!(key_row_ids(&reversed.get().await?)?, [21, 22, 23]);
+    assert_eq!(exists.update(vec![("flag", 7_i64.into())]).await?, 2);
+    let updated = db.table(table)?.where_eq("label", marker)?.where_eq("flag", 7_i64)?
+        .order_by("id", SortDirection::Asc)?.get().await?;
+    assert_eq!(key_row_ids(&updated)?, [21, 25]);
+    assert_eq!(owner()?.where_json_doesnt_contain_key(selector)?.delete().await?, 2);
+    let left = db.table(table)?.where_eq("label", marker)?
+        .order_by("id", SortDirection::Asc)?.get().await?;
+    assert_eq!(key_row_ids(&left)?, [21, 24, 25]);
+    Ok(())
+}
+
+fn key_row_ids(rows: &[QueryResult]) -> Result<Vec<i64>> {
+    rows.iter().map(|row| row.try_get("", "id").map_err(Error::internal)).collect()
 }

@@ -1902,6 +1902,12 @@ Linux ARM64 的镜像和独立目录均在真实服务拓扑下运行。根使�
 
 工作区格式、严格 Clippy、测试、Rustdoc 与依赖门禁通过。测试使用真实 MySQL 8.4，根示例及两种注册路径均实际执行断言。实际生成 minimal 并通过 check/test，包含默认宿主的同实例断言。路径配置与其他模块 Provider 行为按各自合同验收。
 
+## JSON 路径存在与精确写入验收
+
+冻结树 `9e8c3fa5515c78651f3bae7d61a7ccb81392a6f4`。对照固定 Laravel d52c3b3 的 Builder、MySQL、PostgreSQL 与 SQLite Grammar。查询和嵌套条件组覆盖四个入口、JSON null、SQL NULL、分组、负下标、限定列与无新增绑定。MySQL 和 PostgreSQL 要求箭头路径，SQLite 裸列检查根 JSON。PostgreSQL 末段文本沿原生键存在语义。
+
+真实 MySQL 8.4 验证示例按预设键隔离账户与分页，以及生成项目的 JSON 空成员、缺失和 SQL NULL、正反分组、参数顺序、精确更新与删除。工作区格式、严格 Clippy、测试、全特性编译、Rustdoc、离线依赖及新生成 minimal、MySQL 的 check/test 通过。PostgreSQL、SQLite 生成测试目标已编译，SQLite 安装迁移拦截。其实际 SQL 执行、SQLite 新条件的精确写入和最低版本矩阵继续保留。SQL Server 等尚无对应驱动。
+
 ## 原始 WHERE 参数与方言词法验收
 
 冻结树 `d7d30533bed3a5970c6ebd25718ee7164a9035c0`。固定 Laravel d52c3b3 的 Builder::whereRaw 与 Grammar 按 WHERE 顺序保留参数。OpenRust 的 where_raw 和 select_raw 使用同一词法及绑定校验，读取、更新、删除共享原条件树。参数缺失、多余或混用原生占位符均返回错误。PostgreSQL 普通字符串引号边界不确定时拒绝，显式 E 续行可用。MySQL 和 SQLite 的行注释沿各自词法结束。

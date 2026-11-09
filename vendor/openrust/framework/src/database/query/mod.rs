@@ -19,6 +19,7 @@ mod existence;
 mod factory;
 mod insert_id;
 mod json_contains;
+mod json_contains_key;
 mod multi_column;
 mod sqlite_write_target;
 mod subqueries;

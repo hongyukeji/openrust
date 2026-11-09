@@ -153,6 +153,7 @@ async fn generated_sqlite_json_contains_preserves_bindings_and_exact_read_write_
             row_ids(&table.clone().where_null("payload")?.get().await?)?,
             [11]
         );
+        assert_sqlite_json_key_paths(&db, label).await?;
 
         assert_eq!(query.update(vec![("flag", 9_i64.into())]).await?, 1);
         assert_eq!(
@@ -229,6 +230,16 @@ async fn seed_json_records(db: &Db, literal: &str, label: &str) -> Result<()> {
             ])
             .await?;
     }
+    Ok(())
+}
+
+async fn assert_sqlite_json_key_paths(db: &Db, label: &str) -> Result<()> {
+    let owner = db.table("json_records")?.where_eq("owner_id", 7_i64)?.where_eq("label", label)?;
+    let array = owner.clone().where_json_contains_key("payload->[0]")?.order_by("id", SortDirection::Asc)?;
+    assert_eq!(array.get_bindings()?, vec![7_i64.into(), label.into()]);
+    assert_eq!(row_ids(&array.get().await?)?, [4, 7, 10]);
+    assert_eq!(row_ids(&owner.clone().where_json_contains_key("payload->enabled")?.get().await?)?, [8]);
+    assert_eq!(row_ids(&owner.where_json_doesnt_contain_key("payload")?.get().await?)?, [11]);
     Ok(())
 }
 

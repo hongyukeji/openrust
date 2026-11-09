@@ -43,9 +43,9 @@ fn not_found() -> Error {
     Error::NotFound("example record not found".into())
 }
 
-fn invalid_metadata_filter(message: &str) -> Error {
+fn invalid_metadata_filter(field: &str, message: &str) -> Error {
     let mut errors = openrust::ValidationErrors::new();
-    errors.add("metadata_contains", message);
+    errors.add(field, message);
     Error::Validation(errors)
 }
 
@@ -61,13 +61,17 @@ pub(crate) async fn index(
         .table("example_records")?
         .where_eq("owner_id", user.integer_id()?)?;
     if let Some(text) = page.metadata_contains.as_deref() {
-        let value = serde_json::from_str(text)
-            .map_err(|_| invalid_metadata_filter("元数据包含条件必须是有效JSON"))?;
+        let value = serde_json::from_str(text).map_err(|_| {
+            invalid_metadata_filter("metadata_contains", "元数据包含条件必须是有效JSON")
+        })?;
         query = query
             .where_json_contains("metadata", value)
             .map_err(|error| {
                 if error.code() == "query_sqlite_json_contains_requires_scalar" {
-                    invalid_metadata_filter("SQLite 元数据包含条件必须是 JSON 标量")
+                    invalid_metadata_filter(
+                        "metadata_contains",
+                        "SQLite 元数据包含条件必须是 JSON 标量",
+                    )
                 } else {
                     error
                 }
@@ -80,6 +84,20 @@ pub(crate) async fn index(
                 .where_json_contains("example_records.metadata->tags", tag.clone())?
                 .or_where_json_contains("example_records.metadata->labels", tag)
         })?;
+    }
+    if let Some(key) = page.metadata_key.as_deref() {
+        let selector = match key {
+            "tags" => "example_records.metadata->tags",
+            "labels" => "example_records.metadata->labels",
+            "archived" => "example_records.metadata->archived",
+            _ => {
+                return Err(invalid_metadata_filter(
+                    "metadata_key",
+                    "不支持此元数据键筛选",
+                ));
+            }
+        };
+        query = query.where_json_contains_key(selector)?;
     }
     let result = query
         .order_by("id", openrust::database::query::SortDirection::Asc)?

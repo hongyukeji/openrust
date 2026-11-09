@@ -151,6 +151,7 @@ async fn metadata_filter_contract(
         );
     }
     metadata_tag_contract(app, owner_token, other_token, owner_id, other_id).await?;
+    metadata_key_contract(app, owner_token, other_token, owner_id, other_id).await?;
     app.request(request(
         Method::DELETE,
         &format!("/api/example/records/{other_id}"),
@@ -198,6 +199,51 @@ async fn metadata_tag_contract(
 fn metadata_uri(condition: &str, page: u64) -> String {
     let encoded = encode_filter(condition);
     format!("/api/example/records?page={page}&per_page=1&metadata_contains={encoded}")
+}
+
+async fn metadata_key_contract(
+    app: &TestApp<crate::bootstrap::Server>,
+    owner_token: &str,
+    other_token: &str,
+    owner_id: i64,
+    other_id: i64,
+) -> TestResult {
+    for (token, key, page, total, expected) in [
+        (owner_token, "tags", 1, 1, Some(owner_id)),
+        (other_token, "tags", 1, 1, Some(other_id)),
+        (owner_token, "labels", 2, 1, None),
+        (owner_token, "archived", 1, 0, None),
+    ] {
+        let uri = format!("/api/example/records?page={page}&per_page=1&metadata_key={key}");
+        let response = app
+            .request(request(Method::GET, &uri, Some(token), None)?)
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let body: serde_json::Value = serde_json::from_slice(response.body())?;
+        assert_eq!(body["meta"]["total"], total);
+        let rows = body["data"]
+            .as_array()
+            .ok_or("metadata key page data missing")?;
+        assert_eq!(rows.len(), usize::from(expected.is_some()));
+        if let Some(id) = expected {
+            assert_eq!(rows[0]["id"], id);
+        }
+    }
+    let uri = format!(
+        "/api/example/records?metadata_key={}",
+        encode_filter("tags->arbitrary")
+    );
+    let response = app
+        .request(request(Method::GET, &uri, Some(owner_token), None)?)
+        .await?;
+    response.assert_status(StatusCode::UNPROCESSABLE_ENTITY)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert!(
+        body["errors"]["metadata_key"]
+            .as_array()
+            .is_some_and(|messages| !messages.is_empty())
+    );
+    Ok(())
 }
 
 fn encode_filter(value: &str) -> String {
