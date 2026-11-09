@@ -190,7 +190,7 @@ let descriptors = [
 
 运行 `./artisan clear-compiled` 可清除选定的服务清单和包清单。包清单路径默认是 `bootstrap/cache/packages.json`，可用 `APP_PACKAGES_CACHE` 覆盖。配置缓存由 `config:clear` 单独管理。 [Laravel ProviderRepository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L185)
 
-`openrust package:discover --preview` 可检查当前应用的编译包候选、目标条件及排除规则，并输出引用已编译 Provider 的 Rust 源码。应用启动自动接入及清单失效检查仍待实现。 [CLI 用法](../../../tools/cli/README.md#预览-provider-包发现) · [Laravel PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)
+`openrust package:discover --preview` 输出 Provider 候选与 Facade 别名。`openrust package:discover --install` 为应用的 Cargo 目标和特性生成清单。普通构建校验清单输入，并通过 `ApplicationDefinition::package_providers` 把包 Provider 加入同一次应用启动。 [CLI 用法](../../../tools/cli/README.md#provider-包发现) · [Laravel PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)
 
 ### Provider 实例启动回调
 

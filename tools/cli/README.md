@@ -61,13 +61,17 @@ cargo run -p cli -- g migration labels slug:string
 
 `config/api.rs` 通过 `API_PREFIX` 配置 API 路由前缀（默认 `api`，实际URL前缀为 `/api`）；应用 Provider 从同一 `ApiConfig` 规范化前缀并选择异常响应格式，前缀调整同时作用于路由与异常呈现。
 
-## 预览 Provider 包发现
+## Provider 包发现
 
 在应用目录运行 `openrust package:discover --preview`，将候选 Rust 清单输出到标准输出。可用 `--target <triple>`、`--features <name,...>` 和 `--no-default-features` 选择与应用构建相同的配置。预览读取当前 `Cargo.lock` 和本机缓存的解析图。离线缺少图所需的包时返回 Cargo 诊断。
 
 包在 `Cargo.toml` 的 `[package.metadata.openrust.discovery]` 中声明 `version = 1` 和 `providers = true`，并公开 `openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>>`。可用同一表下的 `aliases` 将 Rust 名称映射到包的公开路径，例如 `ExampleFacade = "facades::Example"`。应用或包的 `dont-discover` 接受 Cargo 包名列表，应用可用 `["*"]` 全部排除。预览依 Cargo 包名及编译库名给出稳定顺序，Rust 的 `cfg` 保留目标条件。
 
-当前交付为预览与 Rust 清单生成，构建输入校验、应用自动安装及启动证据仍待接入。
+准备应用的 `Cargo.lock` 后，运行 `openrust package:discover --install`，将清单写入 `bootstrap/packages/`。对每个部署目标和应用特性组合执行一次安装，并将清单随源码交付。普通 `cargo build` 和 `cargo run` 按实际目标与应用特性选取对应清单，将包 Provider 加入应用的启动清单。Facade 别名可从 `crate::bootstrap::packages::facades` 引用。首次安装前，应用继续使用显式登记的 Provider。
+
+已有清单时，缺少当前组合的清单，或锁文件、相关 manifest、应用至 workspace 根之间的 Cargo 配置变化，都会中止构建。以相同特性和目标重新运行安装命令。用于选择包来源的配置放在项目内的 `.cargo/config.toml`，从应用目录执行安装和构建。
+
+安装使用应用的具名特性，例如定义 `search = ["search-engine/full"]` 后使用 `--features search`。直接使用 `--features search-engine/full` 可能绕过应用特性，Cargo 构建脚本无法可靠识别。安装使用目标三元组，自定义 JSON 目标可用预览检查。旧应用可参考新生成应用的 `build.rs` 和 `bootstrap/app.rs` 接入。
 
 ## 接入自己的业务模块
 

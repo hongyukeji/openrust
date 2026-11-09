@@ -2104,3 +2104,13 @@ L044.02 的 CLI 预览对应冻结源码树 `9e47c3c227267c739fdcb8ba3dd1396788e
 工作区格式、严格 Clippy、MySQL 8.4.13 下的 workspace 测试、拒警 Rustdoc 和离线依赖门禁通过。测试 2917 通过、54 忽略。fresh minimal 应用将预览显式接入 `ApplicationDefinition::package_providers`，通过 check、23 项测试和真实 HTTP 200 服务解析。普通构建自动接入、清单新鲜度、运行期冲突与依赖排序、实际跨目标编译仍待验证。
 
 验收见 `tmp/lead-package-discovery.lQRIAVuB/delivery-receipt.json`。
+
+## Provider 包清单安装限定验收
+
+L044.02 的构建接入对应冻结源码树 `80f0660e16f5929f4ceb76a5a2ae1cf39f970942`。普通构建以实际 Cargo 目标和应用特性选择清单。工作区格式、严格 Clippy、MySQL 8.4.13 下的测试、拒警 Rustdoc 和离线依赖门禁通过。测试 2917 通过、54 忽略。
+
+fresh minimal 应用在清单缺省和已安装两种条件下各通过 23 项测试。普通 Cargo 启动消费外部 Provider，编译可用 Facade 别名，并在真实 TCP 上验证 HTTP 200、服务注入及 SIGTERM 正常退出。缺少当前特性清单、直接依赖 manifest 变化、锁变化及新增项目 Cargo 配置均在同一 target 中拒绝构建。各失效用例重装后恢复。相同清单重复安装保留文件时间。
+
+fresh gRPC 应用同时生成 protobuf 和包清单，通过编译与 7 项测试。真实联合服务处理 HTTP、TLS Echo、错误 CA 和错误域名，再按 SIGTERM 正常退出。无清单对照也能复现旧停机错误。修复让控制台先派发终止事件，进程入口再关闭容器。 gRPC feature 严格 Clippy、2 项运行时单元测试和 4 项嵌入式联合服务消费者测试通过，覆盖真实双监听启动、绑定失败和超时回收。
+
+同一目标专用 feature 在 macOS 无 Provider，在 Rust 1.97 的 Linux ARM64 容器内加载 1 个 Provider。该项使用最小 Cargo 夹具验证目标清单和实际链接。项目外 Cargo 覆盖、直接依赖 feature 激活、包来源冲突、运行期排序和更多平台矩阵仍开放。正式回执见 `tmp/lead-package-plan.cqhei5YN/delivery-receipt.json`。

@@ -5,6 +5,9 @@ use openrust::support::ServiceProvider;
 use openrust_modules::ModuleProviderBuilderExt as _;
 
 mod providers;
+pub(crate) mod packages {
+    include!(concat!(env!("OUT_DIR"), "/openrust_package_providers.rs"));
+}
 
 /// 应用运行根与模块配置；数据库由统一配置仓储及其 Provider 读取。
 #[derive(Default, serde::Deserialize)]
@@ -48,6 +51,10 @@ impl ApplicationDefinition for Server {
                 Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider)
                     as Box<dyn ServiceProvider>,
             ])
+    }
+
+    fn package_providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        packages::providers()
     }
 
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {

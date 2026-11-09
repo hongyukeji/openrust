@@ -117,7 +117,7 @@ enum Builtin {
     /// 创建 `ServiceProvider` 并登记到 `bootstrap/providers.rs`。
     #[command(name = "make:provider")]
     MakeProvider { name: String },
-    /// 输出当前 Cargo 选择对应的 Provider 包发现预览。
+    /// 预览或安装当前 Cargo 选择对应的 Provider 包清单。
     #[command(name = "package:discover")]
     PackageDiscover(package_discovery::DiscoverArgs),
     /// 管理应用本地加密密钥。
@@ -521,7 +521,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             generate_provider(&name, &project)?;
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::PackageDiscover(preview)) => preview.run(),
+        Some(Builtin::PackageDiscover(discovery)) => discovery.run(),
         Some(Builtin::Key {
             command: KeyCommand::Generate,
         }) => {
@@ -909,6 +909,7 @@ fn populate_project_with_features(
     fs::create_dir(project_dir)
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
     for directory in [
+        ".cargo",
         "config",
         "lang",
         "src",
@@ -1054,6 +1055,15 @@ fn populate_project_with_features(
             include_str!("../templates/config/view.rs").to_owned(),
         ),
         ("bootstrap/app.rs", app_source(crate_name)),
+        (
+            ".cargo/.gitignore",
+            include_str!("../../../.cargo/.gitignore").to_owned(),
+        ),
+        ("build.rs", package_build_script(grpc)),
+        (
+            "bootstrap/package_discovery_build.rs",
+            include_str!("../templates/bootstrap/package_discovery_build.rs").to_owned(),
+        ),
         (
             "bootstrap/cache/.gitignore",
             include_str!("../templates/bootstrap/cache/.gitignore").to_owned(),
@@ -1225,11 +1235,6 @@ fn populate_project_with_features(
     if grpc {
         let proto_package = name.replace('-', "_");
         files.extend([
-            (
-                "build.rs",
-                "fn main() -> Result<(), Box<dyn std::error::Error>> {\n    println!(\"cargo:rerun-if-changed=proto/echo.proto\");\n    let mut config = tonic_prost_build::Config::new();\n    config.protoc_executable(protoc_bin_vendored::protoc_bin_path()?);\n    tonic_prost_build::configure().compile_with_config(\n        config,\n        &[\"proto/echo.proto\"],\n        &[\"proto\"],\n    )?;\n    Ok(())\n}\n"
-                    .to_owned(),
-            ),
             (
                 "proto/echo.proto",
                 "syntax = \"proto3\";\n\npackage {{package}}.v1;\n\nmessage EchoRequest {\n  string value = 1;\n}\n\nmessage EchoResponse {\n  string value = 1;\n}\n\nservice Echo {\n  rpc Unary(EchoRequest) returns (EchoResponse);\n}\n"
@@ -1824,9 +1829,10 @@ fn cargo_manifest(
             ),
         );
     }
+    manifest.push_str("\n[build-dependencies]\nsha2 = { workspace = true }\n");
     if grpc {
         manifest.push_str(
-            "\n[build-dependencies]\ntonic-prost-build = { workspace = true }\nprotoc-bin-vendored = { workspace = true }\n",
+            "tonic-prost-build = { workspace = true }\nprotoc-bin-vendored = { workspace = true }\n",
         );
     }
     if auth {
@@ -1852,6 +1858,15 @@ fn cargo_manifest(
 
 fn app_source(crate_name: &str) -> String {
     include_str!("../templates/src/app.rs").replace("{{type_name}}", crate_name)
+}
+
+fn package_build_script(grpc: bool) -> String {
+    include_str!("../templates/bootstrap/build.rs")
+        .replace("{{grpc_build}}", if grpc {
+            "    println!(\"cargo:rerun-if-changed=proto/echo.proto\");\n    let mut config = tonic_prost_build::Config::new();\n    config.protoc_executable(protoc_bin_vendored::protoc_bin_path()?);\n    tonic_prost_build::configure().compile_with_config(\n        config,\n        &[\"proto/echo.proto\"],\n        &[\"proto\"],\n    )?;\n"
+        } else {
+            ""
+        })
 }
 
 fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
@@ -4253,6 +4268,15 @@ mod tests {
         let application = fs::read_to_string(project.join("bootstrap/app.rs"))
             .expect("read application bootstrap");
         assert!(application.contains("providers::application_providers(config)"));
+        assert!(application.contains("/openrust_package_providers.rs"));
+        let build = fs::read_to_string(project.join("build.rs")).expect("read build script");
+        assert!(build.contains("package_discovery::compile()?"));
+        assert!(
+            project
+                .join("bootstrap/package_discovery_build.rs")
+                .is_file()
+        );
+        assert!(project.join(".cargo/.gitignore").is_file());
         assert!(project.join("app/providers/app.rs").is_file());
         let registry = fs::read_to_string(project.join("bootstrap/providers.rs"))
             .expect("read application Provider list");

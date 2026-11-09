@@ -1,21 +1,29 @@
-//! Provider 包发现预览。只从 Cargo 图生成普通 Rust 引用，不执行包代码。
+//! 从 Cargo 图生成 Provider 包清单；发现阶段不执行包代码。
 
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
+    fs,
     io::{self, Write as _},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, ExitCode},
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[allow(dead_code, reason = "仅应用构建脚本消费清单")]
+#[path = "../templates/bootstrap/package_discovery_build.rs"]
+mod build_plan;
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct DiscoverArgs {
     /// 仅将候选 Rust 源码写到标准输出。
-    #[arg(long, required = true)]
+    #[arg(long, required_unless_present = "install", conflicts_with = "install")]
     preview: bool,
+    /// 安装当前目标和应用特性的清单，供普通 Cargo 构建使用。
+    #[arg(long)]
+    install: bool,
     /// 指定 Cargo 目标，默认使用当前 Rust 工具链的宿主目标。
     #[arg(long)]
     target: Option<String>,
@@ -29,43 +37,72 @@ pub(crate) struct DiscoverArgs {
 
 impl DiscoverArgs {
     pub(crate) fn run(self) -> anyhow::Result<ExitCode> {
-        anyhow::ensure!(self.preview, "请使用 --preview 输出 Provider 包发现预览");
         let cwd = std::env::current_dir()?;
         let workspace = super::framework_workspace(&cwd)?;
         let (project, _) = super::application_directory(&workspace, &cwd)?;
-        let source = preview(
-            &project,
-            self.target.as_deref(),
-            &self.features,
-            self.no_default_features,
-        )
-        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-        io::stdout().lock().write_all(source.as_bytes())?;
+        let target = self
+            .target
+            .filter(|target| target != "host-tuple")
+            .map_or_else(|| host_target(&project), Ok)
+            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+        let features = &self.features;
+        if self.install {
+            let installed = install(&project, &target, features, self.no_default_features)
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+            writeln!(io::stdout().lock(), "{}", installed.display())?;
+        } else {
+            debug_assert!(self.preview);
+            let graph = cargo_graph(&project, &target, features, self.no_default_features)
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+            let manifest = project.join("Cargo.toml");
+            let source = (|| {
+                let host = host_package(&graph, &manifest)?;
+                let mut active = cargo_active_features(
+                    &project,
+                    &target,
+                    host,
+                    features,
+                    self.no_default_features,
+                )?;
+                active.extend(features.iter().cloned());
+                plan(&graph, &manifest, &target, &active, true)
+            })()
+            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+            io::stdout().lock().write_all(source.as_bytes())?;
+        }
         Ok(ExitCode::SUCCESS)
     }
 }
 
-fn preview(
+fn cargo_graph(
     app: &Path,
-    target: Option<&str>,
+    target: &str,
     features: &[String],
     no_default_features: bool,
-) -> Result<String> {
+) -> Result<Value> {
     let manifest = app.join("Cargo.toml");
-    let target = target.map_or_else(|| host_target(app), |target| Ok(target.to_owned()))?;
     let mut command = Command::new("cargo");
     command
         .current_dir(app)
         .args(["metadata", "--format-version", "1", "--locked", "--offline"])
         .arg("--manifest-path")
         .arg(&manifest)
-        .args(["--filter-platform", &target]);
+        .args(["--filter-platform", target]);
+    cargo_selection(&mut command, features, no_default_features);
+    let output = cargo_stdout(&mut command)?;
+    Ok(serde_json::from_slice(&output)?)
+}
+
+fn cargo_selection(command: &mut Command, features: &[String], no_default_features: bool) {
     if no_default_features {
         command.arg("--no-default-features");
     }
     if !features.is_empty() {
         command.args(["--features", &features.join(",")]);
     }
+}
+
+fn cargo_stdout(command: &mut Command) -> Result<Vec<u8>> {
     let output = command.output()?;
     if !output.status.success() {
         return Err(format!(
@@ -74,8 +111,200 @@ fn preview(
         )
         .into());
     }
-    let graph: Value = serde_json::from_slice(&output.stdout)?;
-    plan(&graph, &manifest, &target, features, no_default_features)
+    Ok(output.stdout)
+}
+
+fn cargo_active_features(
+    app: &Path,
+    target: &str,
+    host: &Value,
+    features: &[String],
+    no_default_features: bool,
+) -> Result<Vec<String>> {
+    // metadata 合并 workspace 特性。tree 仅选择宿主包与当前构建目标。
+    let package = string(&host["id"], "host package id")?;
+    let mut command = Command::new("cargo");
+    command.current_dir(app).args([
+        "tree",
+        "--locked",
+        "--offline",
+        "--package",
+        package,
+        "--target",
+        target,
+        "--edges",
+        "normal,build",
+        "--depth",
+        "0",
+        "--prefix",
+        "none",
+        "--format",
+        "{f}",
+        "--color",
+        "never",
+    ]);
+    cargo_selection(&mut command, features, no_default_features);
+    let output = String::from_utf8(cargo_stdout(&mut command)?)?;
+    let actual = output.trim();
+    if actual.contains(['\n', '\r']) {
+        return Err("Cargo 返回多个应用特性集合".into());
+    }
+    Ok(actual
+        .split(',')
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
+fn install(
+    app: &Path,
+    target: &str,
+    features: &[String],
+    no_default_features: bool,
+) -> Result<PathBuf> {
+    if target.contains(['/', '\\'])
+        || Path::new(target)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+    {
+        return Err("安装清单需要 Cargo 目标三元组".into());
+    }
+    let bootstrap = fs::read_to_string(app.join("bootstrap/app.rs"))?;
+    if !bootstrap.contains("/openrust_package_providers.rs") || !app.join("build.rs").is_file() {
+        return Err(
+            "当前应用缺少 Provider 清单构建接线，请先接入 build.rs 与 bootstrap/app.rs".into(),
+        );
+    }
+    let manifest = app.join("Cargo.toml");
+    let graph = cargo_graph(app, target, features, no_default_features)?;
+    let host = host_package(&graph, &manifest)?;
+    let name = string(&host["name"], "host package name")?;
+    if let Some(feature) = features.iter().find(|feature| {
+        feature
+            .split_once('/')
+            .is_some_and(|(package, _)| package != name)
+    }) {
+        return Err(format!(
+            "安装清单无法独立识别依赖特性 `{feature}`，请用应用 Cargo 特性转发后再安装"
+        )
+        .into());
+    }
+    let inputs = input_digests(app, &graph, host)?;
+    let active = cargo_active_features(app, target, host, features, no_default_features)?;
+    let profile = cargo_feature_keys(host, &active)?;
+    let source = plan(&graph, &manifest, target, &active, true)?;
+    let checked = cargo_graph(app, target, features, no_default_features)?;
+    if graph != checked
+        || inputs != input_digests(app, &checked, host_package(&checked, &manifest)?)?
+    {
+        return Err("生成期间 Cargo 包发现输入变化，请重新执行安装".into());
+    }
+
+    let mut installed = format!("{}\n", build_plan::VERSION);
+    for (path, digest) in inputs {
+        writeln!(installed, "// {digest}\t{path}")?;
+    }
+    writeln!(installed, "{}\n{source}", build_plan::END_INPUTS)?;
+    let relative = build_plan::plan_path(target, profile);
+    let path = app.join(&relative);
+    if fs::read(&path).as_deref().ok() != Some(installed.as_bytes()) {
+        let parent = app.join(build_plan::DIRECTORY);
+        fs::create_dir_all(&parent)?;
+        let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+        temporary.write_all(installed.as_bytes())?;
+        temporary.persist(path)?;
+    }
+    Ok(relative)
+}
+
+fn input_digests(app: &Path, graph: &Value, host: &Value) -> Result<BTreeMap<String, String>> {
+    let workspace = Path::new(string(&graph["workspace_root"], "workspace root")?);
+    let node = host_node(graph, host)?;
+    let direct: Vec<_> = array(&node["deps"], "resolve node deps")?
+        .iter()
+        .filter(|edge| {
+            edge["dep_kinds"]
+                .as_array()
+                .is_some_and(|kinds| kinds.iter().any(|kind| kind["kind"].is_null()))
+        })
+        .map(|edge| &edge["pkg"])
+        .collect();
+    let mut paths = BTreeSet::from([
+        app.join("Cargo.toml"),
+        workspace.join("Cargo.toml"),
+        workspace.join("Cargo.lock"),
+    ]);
+    for package in array(&graph["packages"], "packages")? {
+        if package["source"].is_null() && direct.contains(&&package["id"]) {
+            paths.insert(PathBuf::from(string(
+                &package["manifest_path"],
+                "package manifest",
+            )?));
+        }
+    }
+    let mut inputs = BTreeMap::new();
+    for path in paths {
+        inputs.insert(
+            relative_input(app, &path)?,
+            build_plan::digest(&fs::read(&path)?),
+        );
+    }
+    // Cargo 配置可切换同名同版本的 path patch，而不必改写锁文件。
+    for directory in app
+        .ancestors()
+        .take_while(|directory| directory.starts_with(workspace))
+    {
+        for name in [".cargo/config", ".cargo/config.toml"] {
+            let path = directory.join(name);
+            inputs.insert(
+                relative_input(app, &path)?,
+                build_plan::config_digest(&path)?,
+            );
+        }
+    }
+    Ok(inputs)
+}
+
+fn relative_input(app: &Path, path: &Path) -> Result<String> {
+    let common = app
+        .ancestors()
+        .find(|parent| path.starts_with(parent))
+        .ok_or("包发现清单输入与应用必须位于同一卷")?;
+    let mut relative = PathBuf::new();
+    for _ in app.strip_prefix(common)?.components() {
+        relative.push("..");
+    }
+    relative.push(path.strip_prefix(common)?);
+    relative
+        .to_str()
+        .filter(|value| !value.contains(['\n', '\r', '\t']))
+        .map(|value| value.replace(std::path::MAIN_SEPARATOR, "/"))
+        .ok_or_else(|| "包发现清单需要无换行及制表符的 UTF-8 输入路径".into())
+}
+
+fn cargo_feature_keys(host: &Value, active: &[String]) -> Result<Vec<String>> {
+    let features = host["features"]
+        .as_object()
+        .ok_or("Cargo 图缺少当前应用特性")?;
+    let mut by_key = BTreeMap::new();
+    for name in features.keys() {
+        let key = build_plan::feature_key(name);
+        if let Some(other) = by_key.insert(key, name.as_str()) {
+            return Err(
+                format!("Cargo 特性 `{other}` 与 `{name}` 在构建环境中同名，无法安装清单").into(),
+            );
+        }
+    }
+    active
+        .iter()
+        .map(|name| {
+            let key = build_plan::feature_key(name);
+            if by_key.get(&key) != Some(&name.as_str()) {
+                return Err(format!("Cargo 返回未声明的应用特性 `{name}`").into());
+            }
+            Ok(key)
+        })
+        .collect()
 }
 
 fn host_target(app: &Path) -> Result<String> {
@@ -99,25 +328,32 @@ fn plan(
     no_default_features: bool,
 ) -> Result<String> {
     let packages = array(&graph["packages"], "packages")?;
-    let host = packages
+    let host = host_package(graph, manifest)?;
+    if exclusions(&host["metadata"]["openrust"]["discovery"])?.contains("*") {
+        return render(host, &[]);
+    }
+    let node = host_node(graph, host)?;
+    let optional = active_optional_dependencies(host, features, no_default_features)?;
+    let declarations = declarations(host, node, packages, &optional, target)?;
+    render(host, &declarations)
+}
+
+fn host_package<'a>(graph: &'a Value, manifest: &Path) -> Result<&'a Value> {
+    array(&graph["packages"], "packages")?
         .iter()
         .find(|package| {
             package["manifest_path"]
                 .as_str()
                 .is_some_and(|path| Path::new(path) == manifest)
         })
-        .ok_or("Cargo 图不包含当前应用清单")?;
-    if exclusions(&host["metadata"]["openrust"]["discovery"])?.contains("*") {
-        return render(host, &[]);
-    }
-    let nodes = array(&graph["resolve"]["nodes"], "resolve.nodes")?;
-    let node = nodes
+        .ok_or_else(|| "Cargo 图不包含当前应用清单".into())
+}
+
+fn host_node<'a>(graph: &'a Value, host: &Value) -> Result<&'a Value> {
+    array(&graph["resolve"]["nodes"], "resolve.nodes")?
         .iter()
         .find(|node| node["id"] == host["id"])
-        .ok_or("Cargo 图不包含当前应用节点")?;
-    let optional = active_optional_dependencies(host, features, no_default_features)?;
-    let declarations = declarations(host, node, packages, &optional, target)?;
-    render(host, &declarations)
+        .ok_or_else(|| "Cargo 图不包含当前应用节点".into())
 }
 
 fn active_optional_dependencies<'a>(
@@ -225,6 +461,7 @@ fn declarations<'a>(
         if options.is_null() {
             continue;
         }
+        let version = semver::Version::parse(string(&package["version"], "package version")?)?;
         let mut conditions = BTreeSet::new();
         for dependency in dependencies {
             let alias = dependency["rename"].as_str();
@@ -239,6 +476,7 @@ fn declarations<'a>(
                     .any(|kind| kind["kind"].is_null() && kind["target"] == dependency["target"])
                 || dependency["optional"].as_bool() == Some(true)
                     && !optional.contains(alias.unwrap_or(name))
+                || !matches_dependency_package(dependency, package, &version)?
             {
                 continue;
             }
@@ -270,6 +508,21 @@ fn declarations<'a>(
     }
     declarations.sort_by_key(|declaration| (declaration.package, declaration.library));
     Ok(declarations)
+}
+
+fn matches_dependency_package(
+    dependency: &Value,
+    package: &Value,
+    version: &semver::Version,
+) -> Result<bool> {
+    if let Some(path) = dependency["path"].as_str() {
+        let manifest = Path::new(string(&package["manifest_path"], "package manifest")?);
+        if manifest.parent() != Some(Path::new(path)) {
+            return Ok(false);
+        }
+    }
+    let requirement = string(&dependency["req"], "dependency version")?;
+    Ok(requirement == "*" || semver::VersionReq::parse(requirement)?.matches(version))
 }
 
 fn target_condition(platform: &str) -> Result<Option<&str>> {

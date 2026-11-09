@@ -11,6 +11,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - `BindWhen` 条件可通过当前解析器登记工厂。条件命中时按声明完成同键重绑，未命中或失败时保留条件已登记的工厂。
 - 认证 Provider 默认登记可空的 `Option<AuthUser>`，每次解析读取当前作用域的用户解析器。
 - CLI 支持预览 Provider 包发现，按 Cargo 依赖、特性、目标和排除配置生成候选 Rust 清单。
+- 根应用和生成应用可在普通 Cargo 构建中消费按目标与应用特性安装的 Provider 包清单，并在清单输入变化时提示重新安装。
+- 修复 `serve all` 在控制台终止事件之前关闭容器导致的正常停机失败。
 - Provider 领域贡献按类型共享。读取和修改扩展返回短期借用，`Application::exception_handler()` 返回拥有所有权的 Handler 快照。
 - HTTP 内核支持通过具名容器绑定 `middleware.disable` 在运行期切换应用中间件。
 - 容器支持按声明类型解析静态调用的依赖，并按命名入口分派静态方法绑定。

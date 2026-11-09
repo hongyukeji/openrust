@@ -3,6 +3,9 @@ use openrust::prelude::*;
 use openrust_modules::ModuleProviderBuilderExt as _;
 
 mod providers;
+pub(crate) mod packages {
+    include!(concat!(env!("OUT_DIR"), "/openrust_package_providers.rs"));
+}
 
 /// 应用运行根锚点与独立的模块激活配置；默认从当前工作目录解析。
 #[derive(Default, serde::Deserialize)]
@@ -26,6 +29,10 @@ impl openrust::foundation::ApplicationDefinition for {{type_name}} {
         openrust::support::DefaultProviders::auto().except([
             openrust::foundation::ProviderId::of::<openrust::translation::TranslationServiceProvider>(),
         ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])
+    }
+
+    fn package_providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        packages::providers()
     }
 
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {

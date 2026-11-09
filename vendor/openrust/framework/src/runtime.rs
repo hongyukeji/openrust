@@ -57,6 +57,17 @@ pub async fn serve_http_and_grpc_until<F>(app: &Application, shutdown: F) -> Res
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    serve_http_and_grpc_inner(app, shutdown, true).await
+}
+
+async fn serve_http_and_grpc_inner<F>(
+    app: &Application,
+    shutdown: F,
+    shutdown_application: bool,
+) -> Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     let (router, grpc_server) = prepare_http_and_grpc(app).await?;
     let http_listener = TcpListener::bind(app.config().server.bind_addr()).await?;
     let grpc_listener = TcpListener::bind(grpc_server.listen_addr()).await?;
@@ -67,6 +78,7 @@ where
         http_listener,
         grpc_listener,
         shutdown,
+        shutdown_application,
     )
     .await
 }
@@ -96,6 +108,7 @@ where
         http_listener,
         grpc_listener,
         shutdown,
+        true,
     )
     .await
 }
@@ -123,6 +136,7 @@ async fn supervise_http_and_grpc<F>(
     http_listener: TcpListener,
     grpc_listener: TcpListener,
     shutdown: F,
+    shutdown_application: bool,
 ) -> Result<()>
 where
     F: Future<Output = ()> + Send + 'static,
@@ -133,7 +147,6 @@ where
     readiness.expect_listeners(2)?;
     let shutdown_timeout = Duration::from_secs(app.config().server.shutdown_timeout_secs);
     let app_state = app.state().clone();
-    let background_state = app.state().clone();
 
     tracing::info!(%http_address, %grpc_address, "HTTP and gRPC listeners bound");
 
@@ -183,10 +196,11 @@ where
                 failure = Some(error);
             }
         }
-        background_state
-            .shutdown_resources(deadline)
-            .await
-            .map_err(Some)
+        if shutdown_application {
+            app.state().shutdown_resources(deadline).await.map_err(Some)
+        } else {
+            Ok(())
+        }
     })
     .await;
 
@@ -194,7 +208,9 @@ where
         readiness.cancel_requests();
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
-        let _ = background_state.shutdown_resources(deadline).await;
+        if shutdown_application {
+            let _ = app.state().shutdown_resources(deadline).await;
+        }
         crate::foundation::lifecycle::flush_telemetry().await;
         return Err(Error::custom(
             "http_grpc_shutdown_timeout",
@@ -262,7 +278,8 @@ impl Command for ServeAllCommand {
     }
 
     fn run<'a>(&'a self, app: &'a Application, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(serve_http_and_grpc(app))
+        // 控制台先派发终止事件，随后由进程入口关闭应用资源。
+        Box::pin(serve_http_and_grpc_inner(app, shutdown_signal(), false))
     }
 }
 

@@ -29,8 +29,8 @@ fn optional_features_respect_alias_activation_and_weak_forwarding() -> Result<()
 #[test]
 fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Result<()> {
     let manifest = Path::new("/app/Cargo.toml");
-    let package = |id, name| {
-        json!({"id": id, "name": name, "targets": [{"name": "direct", "kind": ["lib"]}], "metadata": {"openrust": {"discovery": {
+    let package = |id, name, version, lib| {
+        json!({"id": id, "name": name, "version": version, "targets": [{"name": lib, "kind": ["lib"]}], "metadata": {"openrust": {"discovery": {
             "version": 1, "providers": true
         }}}})
     };
@@ -39,15 +39,15 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
             {"id": "host", "name": "app", "manifest_path": manifest,
              "features": {"extra": ["dep:with-extra"]},
              "dependencies": [
-                {"name": "real-package", "rename": null, "kind": null, "target": null, "optional": false},
-                {"name": "real-package", "rename": "with-extra", "kind": null, "target": null, "optional": true},
-                {"name": "mixed-package", "rename": "mixed", "kind": null, "target": "cfg(target_os = \"linux\")", "optional": false},
+                {"name": "real-package", "req": "^0.1", "rename": null, "kind": null, "target": null, "optional": false},
+                {"name": "real-package", "req": "^0.2", "rename": "with-extra", "kind": null, "target": null, "optional": true},
+                {"name": "mixed-package", "req": "*", "rename": "mixed", "kind": null, "target": "cfg(target_os = \"linux\")", "optional": false},
                 {"name": "mixed-package", "rename": "mixed", "kind": "dev", "target": "cfg(target_os = \"macos\")", "optional": false},
                 {"name": "build-package", "rename": "build_only", "kind": "build", "target": null, "optional": false}
              ]},
-            package("real", "real-package"), package("extra", "real-package"),
-            package("mixed", "mixed-package"), package("build", "build-package"),
-            package("transitive", "transitive-package")
+            package("real", "real-package", "0.1.0", "direct"), package("extra", "real-package", "0.2.0", "with_extra"),
+            package("mixed", "mixed-package", "0.1.0", "mixed"), package("build", "build-package", "0.1.0", "build_only"),
+            package("transitive", "transitive-package", "0.1.0", "transitive")
         ],
         "resolve": {"nodes": [{"id": "host", "features": ["extra"], "deps": [
             {"pkg": "real", "name": "direct", "dep_kinds": [{"kind": null, "target": null}]},
