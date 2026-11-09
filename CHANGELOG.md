@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 应用可通过容器具名键 `events` 取得同一个事件服务单例。
+
 - 默认翻译服务使用 `openrust::translation::FileLoader` 读取应用根的语言文件，具名与类型绑定共享实例。合法但暂未提供资源的语言可正常回退。
 
 - 第一方源码和生成模板的普通说明统一使用职责名称。整数验证的内部名称同步调整，规则行为保持原样。

@@ -1,7 +1,7 @@
 # 综合业务示例
 
 `GET /api/example/deferred-greeting` 从请求作用域注入首次使用时装载的问候服务。模块在 register 通过 `RegisterContext::deferred_provider` 声明编译工厂，请求读到服务内容和已完成 boot 的标记。
-`POST /api/example/deferred-greeting-event` 派发示例事件，验证事件返回的 Provider 实例并读取启动完成的问候服务。事件触发保留延迟服务键。
+`POST /api/example/deferred-greeting-event` 从具名键 `events` 取得应用事件服务，派发示例事件并读取启动完成的问候服务。事件返回原 Provider 实例，并保留延迟服务键。
 示例随模块注册进入当前启动清单。重新启动时，应用级服务缓存不会绕过模块启用状态或提前运行该 Provider。
 
 `GET /api/example/middleware` 通过命名组执行容器中间件并添加 `x-example-middleware`。模块测试在 `TestApp` 中按类型替换并恢复该中间件，也验证单独配置了路由排除的 `/api/example/middleware/without-marker`。

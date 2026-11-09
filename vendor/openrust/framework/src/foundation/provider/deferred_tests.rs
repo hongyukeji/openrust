@@ -655,7 +655,14 @@ async fn event_and_service_resolution_wait_for_one_registration() -> Result<()> 
     let trace = Trace::default();
     let pause = Arc::new((Notify::new(), Notify::new()));
     let app = start(builder(&trace, Some(Arc::clone(&pause)))).await?;
-    let events = app.state().resolve::<Events>().await?;
+    let events = app
+        .state()
+        .resolve_key::<Events>(ServiceKey::named("events"))
+        .await?;
+    assert!(Arc::ptr_eq(
+        &events,
+        &app.state().resolve::<Events>().await?
+    ));
     let leader = tokio::spawn(async move { events.until(&ProbeEvent).await });
     tokio::time::timeout(Duration::from_secs(2), pause.0.notified())
         .await
@@ -766,6 +773,11 @@ async fn when_does_not_replace_explicitly_removed_event_service() -> Result<()> 
     >());
     let app = start(builder).await?;
     assert!(!app.state().container().contains::<crate::events::Events>());
+    assert!(
+        !app.state()
+            .container()
+            .contains_key(&ServiceKey::named("events"))
+    );
     assert_eq!(app.state().resolve::<DeferredValue>().await?.0, 7);
     assert_eq!(trace.values(), ["lazy.register", "lazy.boot"]);
     close(&app).await

@@ -2,7 +2,7 @@
 
 ## 当前实现
 
-- 唯一`EventsServiceProvider`登记同Container的`Events`；类事件声明`Event::NAME`，typed与同名string进入同一登记/选择/调用引擎。exact先于wildcard，同组按登记顺序；同载荷类型的不同事件名不互相触发。TypeId首次观察与登记原子绑定，回调在锁外执行。
+- `EventsServiceProvider` 与默认事件 Provider 将精确键 `events` 关联到同一 Container 的类型化 `Events` 单例；类事件声明`Event::NAME`，typed与同名string进入同一登记/选择/调用引擎。exact先于wildcard，同组按登记顺序；同载荷类型的不同事件名不互相触发。TypeId首次观察与登记原子绑定，回调在锁外执行。
 - `listen_reply`/`listen_named_reply`返回保类型与对象Arc身份的`DataValue`，不经JSON；typed payload只在实际到达监听器时下转，错误保原码。现普通dispatch/具名/事务返回`Result<Option<Vec<DataValue>>>`，立即派发为Some，收集顺序响应；false停止且不加入集合，不自动否决业务。until返回首个非null，false与0也是有效响应，无响应为Null。
 - 既有unit listener和queued listener复用同一引擎；传播Stop仅停止本次传播，Err继续由业务调用者传播处理。任务payload仍由显式mapper定义，不因此具备任意PHP mixed持久化。
 - `EventContext::transaction()`在事务派发借用实际原始事务；listener/入队失败须由调用者向外传播以回滚。普通分发独立入队，事务内queued在同一事务入队，不等待worker。不可回滚远程副作用应排队，不放提交前direct callback。

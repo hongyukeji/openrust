@@ -5,6 +5,7 @@
 //! 当前只支持单参数载荷和立即响应；接口投影、延迟及后提交派发仍未实现。
 
 use crate::{
+    container::ServiceKey,
     core::{Error, Result},
     database::DatabaseTransaction,
     foundation::ProviderId,
@@ -539,6 +540,7 @@ impl crate::support::ServiceProvider for EventsServiceProvider {
                 })
             })
             .await?;
+            app.alias(ServiceKey::typed::<Events>(), ServiceKey::named("events"))?;
             app.require::<Events>();
             Ok(())
         })
@@ -573,6 +575,7 @@ impl crate::support::ServiceProvider for DefaultEventsServiceProvider {
                     Box::pin(async { Ok(Arc::new(Events::new(Vec::new(), hooks)?)) })
                 })
                 .await?;
+                app.alias(ServiceKey::typed::<Events>(), ServiceKey::named("events"))?;
                 app.require::<Events>();
             }
             Ok(())
@@ -844,6 +847,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::{Events, EventsServiceProvider};
+    use crate::container::ServiceKey;
     use crate::foundation::ProviderBuilder;
     use figment::Figment;
 
@@ -857,7 +861,13 @@ mod tests {
         let mut builder = ProviderBuilder::new();
         builder.provider(provider);
         let runtime = builder.start(Figment::new()).await?;
-        Ok((*runtime.container().resolve::<Events>().await?).clone())
+        let typed = runtime.container().resolve::<Events>().await?;
+        let named = runtime
+            .container()
+            .resolve_key::<Events>(ServiceKey::named("events"))
+            .await?;
+        assert!(Arc::ptr_eq(&typed, &named));
+        Ok((*named).clone())
     }
 
     #[tokio::test]

@@ -322,6 +322,8 @@ fn main() {}
 
 ## 类型化事件
 
+应用可用 `app.resolve::<Events>()` 或 `app.resolve_key::<Events>(ServiceKey::named("events"))` 解析事件服务。两种入口取得当前应用的同一个单例，复用监听器、队列和派发上下文。
+
 `EventsServiceProvider` 在同一服务登记监听器。类型所有者实现 `Event::NAME` 声明稳定类名；同名字符串派发使用同一 exact 组。先执行 exact，再按 wildcard 模式首次登记顺序及组内顺序等待监听器；遇到首个错误时立即返回，不再调用后续监听器。该派发仅在当前进程内执行，不会持久化或广播。启用 `queue` feature 后，`listen_queued` 可将事件映射为已注册的 `Job`；在业务事务中调用 `dispatch_in_transaction`，可将任务与业务变更原子地持久化。worker 仍需显式启动，任务处理器必须能够应对至少一次重试。
 
 ```rust,ignore

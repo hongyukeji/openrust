@@ -1,6 +1,7 @@
 //! 生成应用经真实 `Router`、账户 `Provider` 与受保护 `Session` 完成现代 `Fortify` 管理流程。
 use figment::Figment;
-use openrust::events::{Event, EventsServiceProvider};
+use openrust::container::ServiceKey;
+use openrust::events::{Event, Events, EventsServiceProvider};
 use openrust::fortify::events::TwoFactorAuthenticationEnabled;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
@@ -438,6 +439,10 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
     });
     let mut app = builder.build().await?;
     let outcome: Result<()> = async {
+        let state = app.app()?.state();
+        let typed = state.resolve::<Events>().await?;
+        let named = state.resolve_key::<Events>(ServiceKey::named("events")).await?;
+        assert!(Arc::ptr_eq(&typed, &named));
         assert_eq!(
             app.app()?.config().app.env,
             openrust::config::Environment::Local

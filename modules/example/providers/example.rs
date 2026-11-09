@@ -212,8 +212,10 @@ async fn deferred_greeting(
 
 async fn deferred_greeting_event(
     State(app): State<ApplicationState>,
-    openrust::http::Inject(events): openrust::http::Inject<openrust::events::Events>,
 ) -> Result<openrust::http::Json<serde_json::Value>> {
+    let events = app
+        .resolve_key::<openrust::events::Events>(ServiceKey::named("events"))
+        .await?;
     let reply = events.until(&DeferredGreetingRequested).await?;
     let registered = match reply {
         openrust::support::DataValue::Object(provider) => provider

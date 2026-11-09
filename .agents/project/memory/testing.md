@@ -2047,6 +2047,10 @@ EV-R01精确运行输入为已提交Context `364233ca`上的v5，manifest `0b5b3
 
 原严格诊断、HTTP缩减profile失败、wrapper误分类、软线暂停与全部原始回执保全；source/fixture/catalog保持。完成产物按原生归属回收，最终共享target约6.70GB、磁盘余量约82.78GB/8.322%，无在途Cargo/rustc/rustdoc。固定PHP15项另记真实源参考，不是Rust或queued/事务证明；后续JWT/日期取证不混入。完整接口投影、多参/defer-aftercommit/可变Model/全部mixed、官方事务connection载荷、完整Model/L090、其他数据库/最低版本/Windows及外部OIDC/SMTP/副本/非UTF8文件系统仍开放。
 
+## 具名事件服务入口限定验收
+
+冻结树 `a1b9a3e1825fd38cd08776753db9b8b1e070c7dd` 通过默认及 Session/Fortify/View 的 workspace 测试、严格 Clippy、格式、Rustdoc 与离线依赖检查。固定 Laravel `d52c3b3` 的 `events` 键解析到现有应用单例。独立验收核类型和具名身份、默认延迟事件注册与移除、唯一示例经具名入口触发 Provider，真实 MySQL 8.4.13 的监听失败事务回滚。新生成 Web/Fortify 及 JWT API 通过 check/test，其中 Web 的真实应用容器核对两种解析取得同一实例。Dispatcher 类型和完整契约继续开放。
+
 ## Hashing字节与单次叶选择限定验收
 
 精确输入为Events提交`96aced57`上的Hashing v9：manifest `f90f39a2d111c2f18fd97f0984d9f8d829ef420f2fbd30b678c35ea2c54797ac`、1629叶，25路径Git规范源码树`08ee7f1c516d806791af5f1e852212de900a9c1c`（1629叶原始冻结树为`f7b61e50243e00b61e690c80f05e9fa5663d56f5`，唯一非任务差异为commit.cmd规定的CRLF工作树行尾，Git保持原LF对象）。正式报告`tmp/independent-testing-20261106/HASHING-OPERATION-RESULT.json` SHA `a48b20f2663e9528d59817fc978dff1f39c322c1612a2754585ec5a47392c3c0`；18分项回执、84原始日志引用与11清理回执分别保全。最终提交另含测试方正式生成的新consumer锁和七份事实文档，不将最终树冒充原受验源码树。
