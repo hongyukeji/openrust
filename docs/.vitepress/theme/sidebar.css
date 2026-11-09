@@ -1,0 +1,47 @@
+#VPSidebarNav {
+    padding-block-start: 0.5rem;
+}
+
+#VPSidebarNav > .group {
+    padding-top: 0;
+}
+
+#VPSidebarNav > .group + .group {
+    border-top: 0;
+    margin-top: 0.5rem;
+}
+
+#VPSidebarNav > .group > .VPSidebarItem.level-0 {
+    padding-bottom: 0;
+}
+
+#VPSidebarNav .VPSidebarItem.collapsible > .item,
+#VPSidebarNav .item > .link {
+    min-block-size: 2rem;
+    padding-inline: 0.625rem;
+    border-radius: 0.375rem;
+}
+
+#VPSidebarNav .VPSidebarItem.collapsible > .item:hover,
+#VPSidebarNav .item > .link:hover {
+    background: var(--vp-c-default-soft);
+}
+
+#VPSidebarNav .item > .link[aria-current="page"] {
+    background: var(--vp-c-brand-soft);
+}
+
+#VPSidebarNav .link[aria-current="page"] > .text {
+    font-weight: 600;
+}
+
+#VPSidebarNav .VPSidebarItem.collapsible > .items {
+    margin-inline-start: 0.625rem;
+    padding-inline-start: 0.375rem;
+    border-inline-start: 1px solid var(--vp-c-divider);
+}
+
+#VPSidebarNav :is(.link, .caret):focus-visible {
+    outline: 2px solid var(--vp-c-brand-1);
+    outline-offset: -2px;
+}

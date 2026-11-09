@@ -1,0 +1,12 @@
+{
+  "name": "openrust-docs",
+  "private": true,
+  "scripts": {
+    "dev": "vitepress dev --host 127.0.0.1 --port 1313",
+    "build": "vitepress build",
+    "preview": "vitepress preview --port 1313"
+  },
+  "devDependencies": {
+    "vitepress": "2.0.0-alpha.21"
+  }
+}
