@@ -60,6 +60,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。根应用发布 `bin/openrust`，生成应用发布 `bin/<项目名>`。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
 
+- **优先安全整改：生产迁移确认。** `./artisan build` 批次收口后由 root 领取。固定 Laravel 的生产 `migrate` 和回滚在连接、锁及写入前默认拒绝，显式 `--force` 才跳过。已有 `migrate down` 同保护，`migrate status` 保持只读。对根和生成 Compose 的自动迁移显式授权，验证无终端、PTY、参数解析和真实 MySQL 历史/业务表。同步部署文档的 `bin/<项目名>` 与迁移命令。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
@@ -93,6 +94,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - AR-N01/L041 已对齐[应用默认与回退语言配置](memory/testing.md#应用语言配置限定验收)。[默认文件 Loader 与无资源语言](memory/testing.md#默认文件-loader-与无资源语言限定验收)已验收。运行时语言变更与延迟 Provider 生命周期继续按本簇后继对应。
 - AR-N01/L041 字符串复数选择、[值读取](memory/testing.md#翻译值读取限定验收)、[标签和对象替换](memory/testing.md#翻译标签与对象替换限定验收)及[缺键和回退顺序](memory/testing.md#翻译缺键和回退顺序限定验收)已验收。[FileLoader 多路径与局部覆盖](memory/testing.md#文件翻译多路径与局部覆盖限定验收)已验收。运行时 locale 生命周期及延迟装配仍开放。
 - AR-N01/L041 应用语言目录选择已通过[限定验收](memory/testing.md#应用语言目录选择限定验收)。按固定 Laravel，`resources/lang` 是目录时优先，否则用根 `lang`。生成默认仍提供根 `lang`，显式 `file_root` 与模块路径保持。同步根和生成 Buildx，实测只有 `resources/lang` 的包及生成项目指南。
+- AR-N01/L041 本地化后继，按[跨语言规则](conventions.md#两层分工)逐项补齐固定 Laravel 的 `lang:publish`、`path.lang` / `useLangPath()`、应用运行时 locale 变更与事件、翻译服务延迟装配。先锁定各公开入口、生命周期和缺键行为，再接根应用、生成项目和唯一示例。
+- AR-N01/L041 三语默认资源是 OpenRust 明确交付项。英文、简体中文、繁体中文开箱可用，实际默认与回退语言仍由应用配置决定。核对框架文案、验证和错误消息，验证根应用、生成项目和发布产物的选择及缺键回退，复用同一 Translator。与 Laravel 本地化机制分别验收。
 - AR-N01 命名整改。[翻译职责命名](memory/testing.md#翻译职责命名限定验收)已验收，公开默认模式为 `TranslationLookup::Standard`。[加密与 Cookie 职责命名](memory/testing.md#加密与-cookie-职责命名限定验收)已验收。[日志职责命名](memory/testing.md#日志职责命名限定验收)已验收。[云入口开关命名](memory/testing.md#云入口开关命名限定验收)已验收。[双因素事件运行名与公开 Rust 导入](memory/testing.md#双因素事件命名限定验收)已验收。[第一方源码与生成模板命名收尾](memory/testing.md#第一方源码与生成模板命名收尾)已验收，继续按能力契约完成本项其余对应差距。对可观察运行标识单独核对调用、数据及协议兼容边界。保留固定上游来源和许可证；按[命名规则](conventions.md#命名)逐簇扫描生产和生成路径、运行受影响回归并验证推送。
 - AR-N01 公开命名全范围审查与整改，owner=root。按[公开名称验收规则](plans/laravel-namespace-alignment.md#公开名称验收规则)依次核固定 Laravel 核心、Laravel Modules、已授权官方可选包中已实现的模块与类型路径、具名事件、容器绑定与别名、配置键、环境变量、路由名、CLI 和生成模板公开约定。每项记录固定上游、当前值、目标值、必要 Rust 适配及验证；独有扩展单列。每批同步生产调用、模板、唯一示例、测试与文档，并通过适用运行门禁。
   - 云入口部署变量与默认日志名称均已按固定上游仅替换品牌段并验收。应用加密具体类型、具名绑定与 OR1 扩展命名已通过[限定验收](memory/testing.md#加密与-cookie-职责命名限定验收)。

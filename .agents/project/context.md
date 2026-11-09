@@ -89,6 +89,8 @@ MySQL+Redis标准宿主/生成路径与默认database队列已由 `3703939e` 限
 
 本机相关参考仓库共同父目录为 `/Users/Home/Codes/Git/`：`laravel-framework/` 是官方框架实现，`laravel-docs/` 是官方文档，`laravel/` 仅指官方应用骨架；固定验收 checkout 分别为 `laravel-framework-baseline/`、`laravel-docs-baseline/`。平级迁移及 linked worktree repair 已核完成，五个仓库工作区均干净；应用骨架本次 HEAD 为 `9ffef3bc4241e3cc333ef267258a404d0d95f194`，未安装 Composer 依赖。执行者不重复迁移或创建旧路径。本次拉取 framework 官方 `13.x` HEAD 为 `5a787ee008553a35206de2918d5242626ddeaed2`，docs HEAD 为 `960eedf0911155ad16326ade49c0ea5d18eda0b8`；固定验收 commit 仍为 framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911155ad16326ade49c0ea5d18eda0b8`，不随最新源码拉取静默升级。新取证/执行脚本读取固定 baseline，不能用应用骨架替代框架，也不再读取 `/tmp` 旧 Laravel 源码；冻结历史输出与 provenance 保留原路径事实。旧副本先核 owner/占用、无WIP后再安全回收，证据不当缓存删除。
 
+同一父目录的 `goravel-framework/` 和 `goravel-docs/` 分别对应固定框架与文档提交。见[上游基线](plans/laravel-rebuild-baseline.md#固定来源)。
+
 - 开发优先完成源码/测试代码/示例/模板，功能簇提交前集中验证；不默认TDD或逐小改动重复跑门禁。分支定向门禁与main完整组合验收分层，未通过不提交。正常空间预算内缓存可跨簇复用，阈值/资源归属与临时worktree清理规则保持；详见[集中验证](conventions.md#功能簇提交前集中验证)。
 
 - 当前框架保持同仓 main 集成；用户已持续授权总控在既定框架范围内直接串行整合本地任务，无需逐次询问合入许可；先组合源码再集中适用验证，通过后本地提交并安全清理，保留来源祖先或等价映射。后续默认共享main目录分工，不再默认创建worktree；既有worktree先保全交接再退役。现有 main WIP由原负责人保全，不强行迁移；分支验收后串行合入并重验组合行为，再清理任务专属资源，细则见[并行开发与集成](conventions.md#并行开发与集成)。开发仍单 main。Lead 已接管剩余验收，按[集中验证](conventions.md#功能簇提交前集中验证)调度本对话内的开发与门禁。旧验收副本按保全交接退役。

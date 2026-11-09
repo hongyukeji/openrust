@@ -21,8 +21,8 @@
 | [Laravel 文档](https://laravel.com/docs/13.x) | `13.x` / [`960eedf0911155ad16326ade49c0ea5d18eda0b8`](https://github.com/laravel/docs/tree/960eedf0911155ad16326ade49c0ea5d18eda0b8) | 2026-10-27；完整 documentation.md 导航 |
 | [Laravel 应用](https://github.com/laravel/laravel/releases/tag/v13.11.0) | `v13.11.0` / `06d016a364a37430eec9cbc52209adce3d7667ce` | 2026-10-06；app/bootstrap/config/database/routes/resources/public/storage/tests |
 | [Laravel 框架](https://github.com/laravel/framework/releases/tag/v13.39.0) | `v13.39.0` / `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` | 2026-10-27；src/Illuminate 与 tests 为各领域实现/回归锚点 |
-| [Goravel 框架](https://github.com/goravel/framework/releases/tag/v1.18.0) | `v1.18.0` / `a554ced468cada50a269780692a0491e5f9e3a11` | 2026-07-05；contracts、foundation、route、database、auth、queue 等跨语言实现 |
-| [Goravel 目录说明](https://www.goravel.dev/getting-started/directory-structure.html) | 2026-10-28 参考入口；不作为浮动新增范围来源 | Rust 编译期模块与独立工具边界优先 |
+| [Goravel 框架](https://github.com/goravel/framework/releases/tag/v1.18.0) | `v1.18.0` / `a554ced468cada50a269780692a0491e5f9e3a11` | 2026-07-05；本地 `goravel-framework/`；contracts、foundation、route、database、auth、queue 等跨语言实现 |
+| [Goravel 文档](https://github.com/goravel/docs/tree/a9e5a3f9c7aaf14099c6acf46a86228e900da275) | `a9e5a3f9c7aaf14099c6acf46a86228e900da275` | 本地 `goravel-docs/`；目录布局和编译部署的跨语言参考 |
 
 Laravel 与 Goravel 仅参考机制；复制代码需逐文件核对 MIT/原许可。矩阵保留简短章节标识和自写决策，不复制文档正文。
 
