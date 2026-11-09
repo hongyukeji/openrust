@@ -11,7 +11,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked --bin "$APP_BINARY" --features "$APP_FEATURES"; \
     install -D -m 755 "target/release/$APP_BINARY" /out/bin/openrust; \
     install -m 755 artisan /out/artisan; \
-    cp -a .env.example public resources lang /out/; \
+    cp -a .env.example public resources /out/; \
+    if [ -e lang ] || [ -L lang ]; then cp -a lang /out/; fi; \
     mkdir -p /out/modules; \
     for module in modules/*; do \
         [ -d "$module" ] || continue; \

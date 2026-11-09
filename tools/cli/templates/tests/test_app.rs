@@ -718,6 +718,65 @@ async fn assert_parameterized_home_factory_preserves_scope(
 }
 
 #[tokio::test]
+async fn generated_application_selects_a_language_directory_and_preserves_explicit_lang()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::translation::{MessageArgs, Translator};
+    use serde_json::json;
+
+    let root = tempfile::tempdir()?;
+    let resources_only = tempfile::tempdir()?;
+    for (base, path, message) in [
+        (root.path(), "lang", "root"),
+        (root.path(), "resources/lang", "resources"),
+        (resources_only.path(), "resources/lang", "resources only"),
+    ] {
+        let path = base.join(path);
+        std::fs::create_dir_all(&path)?;
+        std::fs::write(
+            path.join("en.json"),
+            json!({"generated.root.probe": message}).to_string(),
+        )?;
+    }
+    for (base, settings, expected) in [
+        (root.path(), json!({}), "resources"),
+        (root.path(), json!({"file_root":"lang"}), "root"),
+        (
+            resources_only.path(),
+            json!({"file_root":"lang"}),
+            "generated.root.probe",
+        ),
+    ] {
+        let source = Figment::from(Serialized::defaults(test_configuration())).merge(
+            Serialized::defaults(json!({
+                "app": {"locale":"en"},
+                "application_root": base,
+                "cache": {"default":"default","stores":{"default":{"driver":"memory"}}},
+                "view": {"directory": std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/views")},
+                "translation_sources": settings,
+            })),
+        );
+        let mut app = TestApp::<GeneratedApplication>::builder(source)
+            .build()
+            .await?;
+        let observed = async {
+            let translator = app
+                .app()?
+                .state()
+                .resolve_key::<Translator>(ServiceKey::named("translator"))
+                .await?;
+            translator.string("generated.root.probe", &MessageArgs::new(), None, false)
+        }
+        .await;
+        let cleanup = app
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+            .await;
+        assert_eq!(observed?, expected);
+        cleanup?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn generated_application_exposes_request_input_to_business_provider()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(

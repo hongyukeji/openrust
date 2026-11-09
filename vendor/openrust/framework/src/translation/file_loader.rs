@@ -46,14 +46,26 @@ impl FileLoader {
             max_file_bytes: 1024 * 1024,
         }
     }
-    /// 从应用根的 `lang` 读取语言文件。目录尚未创建时返回空文件来源。
+    /// 选取应用的语言目录。`resources/lang` 为目录时优先使用，否则使用根 `lang`。
     ///
-    /// 已存在但不可读取的目录与无效资源仍返回错误。
+    /// 在构造时选取一次。即使 `resources/lang` 为空也优先使用该目录。
+    /// 已选目录尚未创建时，文件来源为空。目录不可读取或资源无效时返回错误。
     pub fn for_application(root: impl AsRef<Path>) -> Self {
-        Self {
-            first_path_required: false,
-            ..Self::new(root.as_ref().join("lang"))
-        }
+        let root = root.as_ref();
+        let resources = root.join("resources/lang");
+        let path = if resources.is_dir() {
+            resources
+        } else {
+            root.join("lang")
+        };
+        Self::new(path).with_optional_primary_path()
+    }
+
+    /// 允许首个普通语言目录缺失。目录或资源存在但无效时仍返回错误。
+    #[must_use]
+    pub fn with_optional_primary_path(mut self) -> Self {
+        self.first_path_required = false;
+        self
     }
 
     /// 追加普通语言目录。目录缺失时跳过，后登记的目录可覆盖早先的值。

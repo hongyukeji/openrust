@@ -115,6 +115,43 @@ impl Fixture {
     }
 }
 #[tokio::test]
+async fn reading_summary_uses_selected_app_language_directory_without_moving_module_messages()
+-> TestResult {
+    let root = tempfile::tempdir()?;
+    let modules = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("modules");
+    for (path, message) in [("lang", "Root"), ("resources/lang", "Resources")] {
+        let path = root.path().join(path);
+        std::fs::create_dir_all(&path)?;
+        std::fs::write(
+            path.join("en.json"),
+            format!(r#"{{"example::reading_as_of":"{message} :date"}}"#),
+        )?;
+    }
+    for (settings, expected) in [
+        (serde_json::json!({}), "Resources"),
+        (serde_json::json!({"file_root":"lang"}), "Root"),
+    ] {
+        let fixture = Fixture::create_configured(
+            "en",
+            serde_json::json!({
+                "application_root": root.path(),
+                "modules": {"activator":"registered","paths":{"modules":modules}},
+                "translation_sources": settings,
+            }),
+        )
+        .await?;
+        let response = fixture.summary(Some("en"), "2", "utc").await;
+        let cleanup = fixture.close().await;
+        let body = response?;
+        cleanup?;
+        let date = body["date"].as_str().ok_or("missing localized date")?;
+        assert_eq!(body["as_of"], format!("{expected} {date}"));
+        assert_eq!(body["reading"], "2 articles read");
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn reading_summary_uses_configured_file_overlays_over_tcp() -> TestResult {
     use openrust::translation::{MessageArgs, Translator};
 

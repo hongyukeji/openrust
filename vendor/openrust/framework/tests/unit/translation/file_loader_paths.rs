@@ -16,6 +16,56 @@ fn write(root: &Path, file: &str, body: &str) -> Result<()> {
 }
 
 #[tokio::test]
+async fn application_language_path_prefers_an_existing_directory_without_merging() -> Result<()> {
+    let directory = tempfile::tempdir()?;
+    let root = directory.path();
+    let locale = Locale::new("en")?;
+    write(
+        root,
+        "lang/en.json",
+        r#"{"selected":"root","root-only":"legacy"}"#,
+    )?;
+    write(root, "resources/lang", "普通文件")?;
+    let fallback = FileLoader::for_application(root);
+    let snapshot = fallback.begin_snapshot().await?;
+    assert_eq!(
+        snapshot.load(&locale, "*", None)?.get("selected"),
+        Some(&json!("root"))
+    );
+
+    std::fs::remove_file(root.join("resources/lang"))?;
+    std::fs::create_dir(root.join("resources/lang"))?;
+    let preferred = FileLoader::for_application(root);
+    let empty = preferred.begin_snapshot().await?;
+    assert!(empty.load(&locale, "*", None)?.is_empty());
+    assert_eq!(
+        fallback
+            .begin_snapshot()
+            .await?
+            .load(&locale, "*", None)?
+            .get("selected"),
+        Some(&json!("root"))
+    );
+
+    write(
+        root,
+        "resources/lang/en.json",
+        r#"{"selected":"resources"}"#,
+    )?;
+    let snapshot = preferred.begin_snapshot().await?;
+    let globals = snapshot.load(&locale, "*", None)?;
+    assert_eq!(globals.get("selected"), Some(&json!("resources")));
+    assert!(!globals.contains_key("root-only"));
+
+    write(root, "resources/lang/en.json", "无效 JSON")?;
+    assert!(matches!(
+        preferred.begin_snapshot().await,
+        Err(error) if error.code() == "i18n_translation_resource_invalid"
+    ));
+    Ok(())
+}
+
+#[tokio::test]
 async fn ordered_paths_replace_globals_and_recursively_override_groups() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let root = temp.path();

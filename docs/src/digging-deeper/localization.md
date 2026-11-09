@@ -159,19 +159,21 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 
 框架默认 `TranslationServiceProvider` 使用 `openrust::translation::FileLoader` 加载文件资源。自定义文件来源可用 `FileLoader::new(path)` 构造，再通过 `TranslationServiceProvider::from_loader_factory` 接入。应用安装器选择来源，复用唯一 Container `Translator`，Files、Database 或 Composite 均沿用普通 Laravel 查找策略。明确业务需要跨语言全局 JSON 回退或原样空值时，使用该译器的 `clone().with_lookup(TranslationLookup::Catalog)` 视图。错误渲染与验证也复用同一目录。运行时应用语言变更、延迟装配以及官方 `get` 和 Loader 接口的完整对应仍在推进。[固定 FileLoader 源码](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Translation/FileLoader.php)
 
-根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取应用根的 `lang`，无需数据库扩展、Redis 或后台任务。框架内置消息先装入目录，应用文件按键覆盖。Loader 可按 `dyn TranslationLoader` 或 `translation.loader` 解析，译器可按 `Translator` 或 `translator` 解析。具名与类型键共享实例。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
+根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 在应用启动时选择目录。`resources/lang` 是目录时优先使用，即使它是空的。否则使用应用根的 `lang`。只从选中的主目录读取，新增另一个目录后需重启应用才会重新选择。新生成项目默认带根 `lang`。框架内置消息先装入目录，应用文件按键覆盖。 [Laravel 本地化章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md#defining-translation-strings) · [固定目录选择源码](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php)
+
+在选中的目录创建 `en.json`，例如 `{"welcome":"Welcome"}`。通过 `app.state().resolve::<Translator>().await?` 取得译器，再调用 `translator.string("welcome", &MessageArgs::new(), None, false)?`。用 `app.locale` 选择默认语言。Loader 可按 `dyn TranslationLoader` 或 `translation.loader` 解析，译器可按 `Translator` 或 `translator` 解析。具名与类型键共享实例。文件来源无需数据库扩展、Redis 或后台任务。文件和数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动。
 
 分组文件如 `lang/en/menu.json` 可包含嵌套对象和数组。`{"tabs":{"labels":["Home","Account"]}}` 中的 `Account` 可用 `menu.tabs.labels.1` 读取。分组内完整字面键优先于嵌套路径。普通文本读取和复数选择都使用同一目录。分组条目中带 ICU 参数或分支字段的 `plural` 和 `select` 对象保留模板含义。
 
 ### 多路径与模块局部覆盖
 
-在应用或生成项目的 `config/translation_sources.rs` 设置 `file_root`、`paths`、`json_paths` 和 `namespaces`。例如，`file_root` 为 `lang`，`paths` 为 `["lang-local"]`，`json_paths` 为 `["vendor/pkg/global-lang"]`，而 `namespaces` 将 `menu` 映射到 `vendor/pkg/lang`。
+在应用或生成项目的 `config/translation_sources.rs` 设置 `file_root`、`paths`、`json_paths` 和 `namespaces`。`file_root: None` 使用自动选择。若两处目录并存且要固定读取根 `lang`，设置 `file_root: Some("lang".into())`。例如，`paths` 可追加 `lang-local`，`json_paths` 可加入 `vendor/pkg/global-lang`，`namespaces` 可将 `menu` 映射到 `vendor/pkg/lang`。如果旧配置缓存已经保存 `file_root = "lang"`，重新生成配置缓存后才会按新的缺省规则选目录。
 
 - 全局 `<locale>.json` 按 JSON 专用目录、主目录、追加普通目录的顺序加载。后读到的同名字面键替换整条消息。
 - 分组 `<locale>/<group>.json` 从普通目录加载。后面的分组递归覆盖关联键和数组索引，保留未提供的条目。子目录例如 `lang/en/admin/menu.json` 对应 `admin/menu.title`。
 - 已登记命名空间先加载提示目录，再从普通目录依次读取 `vendor/<namespace>/<locale>/<group>.json`。例如 `lang-local/vendor/menu/en/sidebar.json` 可只覆盖 `menu::sidebar.title`，其余条目沿用提示目录。未知命名空间跳过发布目录。
 
-默认 `lang` 和追加目录缺失时视为没有资源。显式更换的主目录和命名空间提示目录必须可读。相对路径均从应用根解析。无效文件会拒绝本次捕获，现有译器继续使用上一快照。Rust 使用 JSON 分组文件，公开资源映射按键排序。全局 JSON 保持字符串及已支持的 ICU 消息结构。
+根 `lang` 和追加目录缺失时视为没有资源。其他显式主目录和命名空间提示目录必须可读。相对路径均从应用根解析。已选目录内的无效文件会拒绝本次捕获，现有译器继续使用上一快照。Rust 使用 JSON 分组文件，公开资源映射按键排序。全局 JSON 保持字符串及已支持的 ICU 消息结构。
 
 启用 `translation-database` 和相应 `db-mysql` 后，首次安装先保持 `mode: Files` 并设 `install_database: true`，运行标准 `migrate`；成功后改 `Database` 或 `Composite`。命名连接使用 `translation_database.connection` 与同一 `Databases`，迁移显式传 `migrate --database <连接名>`，Loader 连接不会改写命令目标。不要在新库尚未建表时直接选择数据库来源。
 

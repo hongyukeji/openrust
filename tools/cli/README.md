@@ -192,7 +192,7 @@ cargo run -- module:enable --all --no-interaction
 
 Source 簇已编码，运行验收尚未完成。框架默认 `TranslationServiceProvider` 仍不代表 Laravel 默认 FileLoader、locale/deferred 生命周期已经等价；官方 `get`/`choice`/Loader 完整接口继续保留对应缺口。下列应用安装器是显式增强，复用唯一 Container `Translator`，通过已有 extender 选择 `TranslationLookup::Catalog`，不建立第二套翻译服务。
 
-根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取 `lang`，无需数据库扩展、Redis 或后台任务。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
+根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 优先读取 `resources/lang` 目录，否则使用根 `lang`。显式 `file_root` 可固定主目录。文件来源无需数据库扩展、Redis 或后台任务。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
 
 启用 `translation-database` 和相应 `db-mysql` 后，首次安装先保持 `mode: Files` 并设 `install_database: true`，运行标准 `migrate`；成功后改 `Database` 或 `Composite`。命名连接使用 `translation_database.connection` 与同一 `Databases`，迁移显式传 `migrate --database <连接名>`，Loader 连接不会改写命令目标。不要在新库尚未建表时直接选择数据库来源。
 

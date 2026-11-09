@@ -21,7 +21,7 @@ pub(crate) enum SourceMode {
 pub(crate) struct SourceSettings {
     pub mode: SourceMode,
     pub install_database: bool,
-    pub file_root: String,
+    pub file_root: Option<String>,
     pub paths: Vec<String>,
     pub json_paths: Vec<String>,
     pub namespaces: BTreeMap<String, String>,
@@ -31,7 +31,7 @@ impl Default for SourceSettings {
         Self {
             mode: SourceMode::Files,
             install_database: false,
-            file_root: "lang".into(),
+            file_root: None,
             paths: Vec::new(),
             json_paths: Vec::new(),
             namespaces: BTreeMap::new(),
@@ -44,7 +44,9 @@ impl SourceSettings {
     }
     fn validate(&self) -> Result<()> {
         if self.mode != SourceMode::Database
-            && std::iter::once(&self.file_root)
+            && self
+                .file_root
+                .iter()
                 .chain(&self.paths)
                 .chain(&self.json_paths)
                 .chain(self.namespaces.values())
@@ -68,10 +70,10 @@ impl SourceSettings {
             }
             Err(error) => return Err(error.into()),
         };
-        let mut loader = if self.file_root == "lang" {
-            FileLoader::for_application(&root)
-        } else {
-            FileLoader::new(root.join(&self.file_root))
+        let mut loader = match self.file_root.as_deref() {
+            None => FileLoader::for_application(&root),
+            Some("lang") => FileLoader::new(root.join("lang")).with_optional_primary_path(),
+            Some(path) => FileLoader::new(root.join(path)),
         };
         for path in &self.paths {
             loader = loader.with_path(root.join(path));
@@ -112,7 +114,7 @@ impl ServiceProvider for TranslationSourcesProvider {
                 S::object([
                     ("mode", S::String),
                     ("install_database", S::Boolean),
-                    ("file_root", S::String),
+                    ("file_root", S::String.nullable()),
                     ("paths", S::array(S::String)),
                     ("json_paths", S::array(S::String)),
                     ("namespaces", S::map(S::String)),

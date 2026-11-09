@@ -21,7 +21,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     "$@"; \
     install -D -m 755 "$CARGO_TARGET_DIR/release/{{name}}" "/out/bin/{{name}}"; \
     install -m 755 artisan /out/artisan; \
-    cp -a public resources lang /out/; \
+    cp -a public resources /out/; \
+    if [ -e lang ] || [ -L lang ]; then cp -a lang /out/; fi; \
     mkdir -p /out/modules; \
     for module in modules/*; do \
         [ -d "$module" ] || continue; \

@@ -2303,3 +2303,9 @@ Rust 导入冻结树 `cec10c7a7747adc0916ec6eac97529aaf9dfd1b5` 通过 fmt、默
 框架默认用应用根的 `lang`。公开译器和 Loader 分别可按类型或具名键解析，均共享实例。根应用和生成应用沿相同根路径规则。默认目录缺失、合法语言暂无资源时仍可回退或返回原键。显式坏目录、无效资源和不安全语言标签保持拒绝。运行时全局语言 setter、变更事件和 Provider 延迟装配仍开放。
 
 冻结树 `5ec676adacb8c9ff4708fe76cc876d726750b544` 通过 fmt、默认及 translation-database/view 严格 Clippy、MySQL 8.4.13 工作区测试、拒警 Rustdoc、离线依赖检查。真实文件测试验证应用根覆盖、默认目录缺失、显式任务语言和资源移除刷新；fresh minimal 通过 check/test，并以无资源的 `fr-CA` 和 `de` 成功启动命令。
+
+## 应用语言目录选择限定验收
+
+冻结树 `ab3c17630171dc3214551652caa56b57b7fcc458` 对照固定 Laravel 13.x 本地化章节与 `d52c3b3` 的 Application 目录选择。根应用和生成项目均以 `resources/lang` 目录为先，缺失或为普通文件时选根 `lang`。两处目录不合并。显式根 `lang` 与模块命名空间保留。固定 Goravel `a554ced` 的文件 Loader 提供 JSON 文件和显式路径的编译型参考，目录默认遵循 Laravel。
+
+框架单元测试覆盖空目录、普通文件、坏资源及构造时快照，唯一示例的真实 TCP 读取和生成 minimal 应用按语言配置实际验证。默认工作区格式、严格 Clippy、测试、Rustdoc、离线依赖检查，以及可选翻译数据库与真实 MySQL 8.4.13 测试通过。Linux ARM64 的根与生成项目均从仅含 `resources/lang` 的源码经 Buildx 导出。生成项目与框架在含空格目录重定位，镜像及搬迁后的导出目录均实际通过 HTTP 读取该目录文案。原生 x86_64 和完整 Laravel `path.lang` 公开接口仍按既有待办推进。

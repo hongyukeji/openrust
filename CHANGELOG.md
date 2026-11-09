@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 默认翻译来源优先使用 `resources/lang` 目录，否则读取根 `lang`。显式指定根 `lang` 及模块语言目录的行为保持。
+
 - 默认应用通过 `EventServiceProvider` 登记 `Dispatcher`。应用监听器更新在同一个实例上，保留 `events` 具名键。
 
 - 新增 `hash`、`hash.driver` 和 `log` 具名容器入口，与原类型化绑定共享实例。
