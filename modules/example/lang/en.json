@@ -2,6 +2,7 @@
   "heartbeat": "Heartbeat completed",
   "welcome_subject": "Welcome",
   "welcome_body": "Welcome to OpenRust.",
+  "reading_choice": "{1} :count article read|:count articles read",
   "reading_count": {
     "plural": {
       "argument": "count",

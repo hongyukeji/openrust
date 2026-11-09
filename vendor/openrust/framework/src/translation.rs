@@ -21,7 +21,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{AppConfig, ConfigError};
 use crate::core::{Error, Result};
+use crate::support::{InputNumber, scalars};
 
+mod choice;
+mod choice_case;
 mod composite_loader;
 mod file_loader;
 mod loader;
@@ -352,6 +355,16 @@ impl MessageCatalog {
             .get(&resource)
             .and_then(|lines| lines.get(item))
             .map(|message| (locale, message))
+    }
+
+    fn choice_message_at(&self, locale: &Locale, key: &str) -> Option<(&CatalogMessage, bool)> {
+        // hasForLocale 区分 JSON 字面键是否存在与其最终展示值。
+        if let Some(message) = self.messages.get(locale)?.get(key) {
+            return Some((message, true));
+        }
+        self.group_message_at(locale, key)
+            .filter(|(_, message)| !matches!(message, CatalogMessage::Text(line) if line == key))
+            .map(|(_, message)| (message, false))
     }
 
     fn supports(&self, locale: &Locale) -> bool {
@@ -693,6 +706,72 @@ impl Translator {
     pub fn translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> String {
         self.try_translate(locale, key, args)
             .unwrap_or_else(|| interpolate(key, args))
+    }
+
+    /// 按 Laravel 的数值区间和语言规则选择字符串资源的一个分支。
+    ///
+    /// 先查指定语言，缺少键时改用配置的回退语言及其复数规则。未指定语言时，
+    /// 优先使用同一译器的请求或任务语言，其次使用应用默认语言。
+    /// 选定分支后替换 `:count` 与具名参数。参数按迭代顺序登记。
+    /// 非有限数、无法执行复数规则的数值或结构化消息返回错误。
+    pub fn choice<K: AsRef<str>, V: AsRef<str>>(
+        &self,
+        key: &str,
+        count: InputNumber,
+        args: impl IntoIterator<Item = (K, V)>,
+        locale: Option<&Locale>,
+    ) -> Result<String> {
+        let count_text = match count {
+            InputNumber::Integer(number) => number.to_string(),
+            InputNumber::Float(number) if number.is_finite() => scalars::double_string(number),
+            InputNumber::Float(_) => {
+                return Err(Error::custom(
+                    "translation_choice_count_invalid",
+                    "翻译数量必须是有限数值",
+                ));
+            }
+        };
+        let scoped_locale;
+        let locale = if let Some(locale) = locale {
+            locale
+        } else {
+            scoped_locale = I18N_CONTEXT
+                .try_with(|context| {
+                    Arc::ptr_eq(&context.i18n.catalog, &self.catalog)
+                        .then(|| context.locale.clone())
+                })
+                .ok()
+                .flatten();
+            scoped_locale
+                .as_ref()
+                .unwrap_or(&self.config.default_locale)
+        };
+        let catalog = self
+            .catalog
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (locale, message) = if let Some(message) = catalog.choice_message_at(locale, key) {
+            (locale, Some(message))
+        } else {
+            let fallback = &self.config.fallback_locale;
+            (fallback, catalog.choice_message_at(fallback, key))
+        };
+        // JSON 的空字符串和 "0" 会显示原键。分组资源保留同样的原始字符串值。
+        let line = match message {
+            Some((CatalogMessage::Text(line), true)) if line.is_empty() || line == "0" => key,
+            Some((CatalogMessage::Text(line), _)) => line,
+            None => key,
+            Some(_) => {
+                return Err(Error::custom_with_status(
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "translation_choice_message_invalid",
+                    "复数选择要求字符串消息",
+                ));
+            }
+        };
+        let selected = choice::select(line, count, locale)?.to_owned();
+        drop(catalog);
+        Ok(replace_choice_args(selected, args, &count_text))
     }
 
     fn try_translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> Option<String> {
@@ -1200,6 +1279,54 @@ fn interpolate(template: &str, args: &MessageArgs) -> String {
     output
 }
 
+fn replace_choice_args<K: AsRef<str>, V: AsRef<str>>(
+    template: String,
+    args: impl IntoIterator<Item = (K, V)>,
+    count: &str,
+) -> String {
+    if !template.contains(':') {
+        return template;
+    }
+    let mut replacements = BTreeMap::new();
+    let mut has_count = false;
+    let mut insert = |key: &str, value: &str| {
+        replacements.insert(
+            format!(":{}", choice_case::titlecase_first(key)),
+            choice_case::titlecase_first(value),
+        );
+        replacements.insert(format!(":{}", key.to_uppercase()), value.to_uppercase());
+        replacements.insert(format!(":{key}"), value.to_owned());
+    };
+    for (key, value) in args {
+        let key = key.as_ref();
+        has_count |= key == "count";
+        insert(key, value.as_ref());
+    }
+    if !has_count {
+        insert("count", count);
+    }
+    let mut output = String::with_capacity(template.len());
+    let mut remaining = template.as_str();
+    while let Some(start) = remaining.find(':') {
+        output.push_str(&remaining[..start]);
+        remaining = &remaining[start..];
+        // 在同一位置可匹配的两个键必为前缀关系。逆序先匹配较长键，替换值不再扫描。
+        if let Some((key, value)) = replacements
+            .iter()
+            .rev()
+            .find(|(key, _)| remaining.starts_with(key.as_str()))
+        {
+            output.push_str(value);
+            remaining = &remaining[key.len()..];
+        } else {
+            output.push(':');
+            remaining = &remaining[1..];
+        }
+    }
+    output.push_str(remaining);
+    output
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("request locale was not initialized by HTTP middleware")]
 struct MissingRequestLocale;
@@ -1548,3 +1675,7 @@ mod loader_provider_tests;
 #[cfg(test)]
 #[path = "../tests/unit/translation/application_locales.rs"]
 mod provider_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/translation/choice_translator.rs"]
+mod choice_translator_tests;

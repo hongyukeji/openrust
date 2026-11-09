@@ -2,6 +2,7 @@
   "heartbeat": "心跳任务已完成",
   "welcome_subject": "欢迎加入",
   "welcome_body": "欢迎加入 OpenRust 示例业务。",
+  "reading_choice": "已阅读 :count 篇文章",
   "reading_count": {
     "plural": {
       "argument": "count",

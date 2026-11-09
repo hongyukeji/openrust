@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 翻译器新增 Laravel 式字符串复数选择，支持显式数值区间、语言回退及 `:count` 占位符。
+
 - 默认语言与回退语言统一由 `app.locale` 和 `app.fallback_locale` 配置。部署环境改用 `APP_LOCALE` 和 `APP_FALLBACK_LOCALE`。
 
 - 容器可按类型或具名服务键首次装载延迟 Provider。应用可查询或显式装载剩余项。

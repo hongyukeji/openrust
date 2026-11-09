@@ -36,9 +36,26 @@ i18n.with_default_locale(async {
 
 消息支持具名参数及当前已实现的有限 plural/select 模板。来源保留合法空字符串，不将其当作缺失。普通 Laravel 查找的全局 JSON 空串或字符串 `0` 返回键本身；显式 Catalog 视图保留这些值。不要把业务诊断文本直接用作未登记的翻译键，也不要另建与框架错误分离的翻译器。
 
+## 字符串复数选择
+
+`Translator::choice` 可从同一翻译目录读取 Laravel 式字符串，按 `|` 分支。优先匹配 `{0}` 等精确条件以及 `[2,*]` 等含端点的区间，再使用已选资源语言的复数规则。指定语言缺少键时，用配置回退语言查询并选择分支。选定之后替换 `:count` 和具名参数，支持 `:Name`、`:NAME` 的大小写形式。 多个参数生成同一占位符时，按传入迭代顺序处理，后项覆盖前项。
+
+```json
+{"inbox.items":"{0} No messages|{1} :count message|[2,*] :count messages"}
+```
+
+```rust,ignore
+use openrust::translation::MessageArgs;
+
+let messages = translator.choice("inbox.items", 2_i64.into(), &MessageArgs::new(), None)?;
+assert_eq!(messages, "2 messages");
+```
+
+计数使用 `InputNumber` 的整数或双精度类型。集合传入长度。未显式传语言时采用同一译器当前作用域的语言或应用默认语言。非有限数、旧版复数规则中不能转换成有符号整数的计数、结构化消息均返回错误。阅读摘要接口通过该 API 选择模块内的中英文资源。 [固定 Laravel 消息选择器](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Translation/MessageSelector.php)
+
 ## ICU 模板与显式 Catalog 查找
 
-结构化JSON的`plural`/`select`是OpenRust已保留的ICU增强，不等于Laravel的`choice`。默认`TranslationLookup::Laravel`只在请求语言查全局JSON键；未命中后按group资源回退，不会自动补查其他语言的全局JSON。完整 `choice` 与 Loader 生命周期尚未全部对应，结构化模板不替代这些接口。
+结构化 JSON 的 `plural` 和 `select` 通过 `Translator::translate` 使用 ICU 规则。默认`TranslationLookup::Laravel`只在请求语言查全局JSON键；未命中后按group资源回退，不会自动补查其他语言的全局JSON。Loader 生命周期与 PHP 回调替换仍有待对应。
 
 需要平面目录跨语言回退的调用方显式选择`TranslationLookup::Catalog`，复用Container里同一服务：
 
@@ -52,13 +69,13 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 
 这个clone共享目录与Source，仅切换本次句柄的查找策略。两种策略找到相同语言的结构消息后共用ICU formatter；选择Catalog主要决定全局键/语言回退和空值等增强，不会替换为另一翻译内核。来源安装器保留普通共享译器的 Laravel 查找策略。错误渲染、验证和明确需要增强的业务调用才选择 Catalog 视图，不更换全局单例。
 
-唯一示例的`/api/example/reading-summary`通过`RequestLocale`和共享`Translator`读取模块`reading_count`，使用模块内的中英文 plural 资源。要使用select，可在同一模块语言JSON追加例如：
+示例模块也保留了结构化 `reading_count` 资源，供上面的 Catalog 调用。可在同一语言 JSON 中加入 `select` 资源。
 
 ```json
 {"reading_role":{"select":{"argument":"role","cases":{"admin":"Administrator","other":"Member"}}}}
 ```
 
-随后用同一`catalog_view.translate(&locale, "example::reading_role", &MessageArgs::from([("role".into(), "admin".into())]))`读取；未知或缺少role使用other。plural 使用消息资源语言的 ICU 规则及资源声明的 one/few/many/other 分支。阅读摘要接口展示 plural；select 可通过上述资源和共享译器调用。
+随后用同一`catalog_view.translate(&locale, "example::reading_role", &MessageArgs::from([("role".into(), "admin".into())]))`读取；未知或缺少role使用other。plural 使用消息资源语言的 ICU 规则及资源声明的 one/few/many/other 分支。同一译器也可以读取上述 `select` 资源。
 
 ## 框架错误与验证消息
 
@@ -79,7 +96,7 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 
 ## 显式翻译来源（Source）
 
-框架默认 `TranslationServiceProvider` 仍不代表 Laravel 默认 FileLoader、locale/deferred 生命周期已经等价；官方 `get`/`choice`/Loader 完整接口继续保留对应缺口。应用安装器只选择来源，复用唯一 Container `Translator` 并保留普通 Laravel 查找默认；Files、Database 或 Composite 都不会隐式切换查找策略。明确业务需要跨语言全局 JSON 回退或原样空值时，使用该译器的 `clone().with_lookup(TranslationLookup::Catalog)` 视图；错误渲染与验证也复用同一目录。
+框架默认 `TranslationServiceProvider` 仍不代表 Laravel 默认 FileLoader、locale/deferred 生命周期已经等价；官方 `get` 与 Loader 的完整接口仍有缺口。应用安装器只选择来源，复用唯一 Container `Translator` 并保留普通 Laravel 查找默认；Files、Database 或 Composite 都不会隐式切换查找策略。明确业务需要跨语言全局 JSON 回退或原样空值时，使用该译器的 `clone().with_lookup(TranslationLookup::Catalog)` 视图；错误渲染与验证也复用同一目录。
 
 根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取 `lang`，无需数据库扩展、Redis 或后台任务。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
 

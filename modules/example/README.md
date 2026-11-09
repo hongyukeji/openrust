@@ -563,7 +563,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 ## 显式翻译来源（Source）
 
-框架默认 `TranslationServiceProvider` 仍不代表 Laravel 默认 FileLoader、locale/deferred 生命周期已经等价；官方 `get`/`choice`/Loader 完整接口继续保留对应缺口。应用安装器只选择来源，复用唯一 Container `Translator` 并保留普通 Laravel 查找默认；Files、Database 或 Composite 都不会隐式切换查找策略。示例命令显式使用共享目录的 `clone().with_lookup(TranslationLookup::Catalog)` 视图，以保留空值和跨语言全局 JSON 回退；异常与验证也复用同一目录。
+框架默认 `TranslationServiceProvider` 仍不代表 Laravel 默认 FileLoader、locale/deferred 生命周期已经等价；官方 `get` 与 Loader 的完整接口仍有缺口。阅读摘要通过共享译器的 `choice` 从模块字符串资源选择复数分支。应用安装器只选择来源，复用唯一 Container `Translator` 并保留普通 Laravel 查找默认；Files、Database 或 Composite 都不会隐式切换查找策略。示例命令显式使用共享目录的 `clone().with_lookup(TranslationLookup::Catalog)` 视图，以保留空值和跨语言全局 JSON 回退；异常与验证也复用同一目录。
 
 根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取 `lang`，无需数据库扩展、Redis 或后台任务。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
 

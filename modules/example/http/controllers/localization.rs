@@ -87,11 +87,12 @@ pub(crate) async fn show(
     let datetime = i18n
         .format_datetime(locale.locale(), &local, DateTimeFormatStyle::Long)
         .map_err(Error::internal)?;
-    let reading = locale.translate(
-        &i18n,
-        "example::reading_count",
-        &MessageArgs::from([("count".into(), input.count.to_string())]),
-    );
+    let reading = i18n.choice(
+        "example::reading_choice",
+        i64::from(input.count).into(),
+        &MessageArgs::new(),
+        Some(locale.locale()),
+    )?;
     let as_of = locale.translate(
         &i18n,
         "example::reading_as_of",

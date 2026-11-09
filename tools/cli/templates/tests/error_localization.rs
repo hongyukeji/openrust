@@ -16,7 +16,7 @@ use openrust::http::axum::http::StatusCode;
 use openrust::http::axum::http::header;
 use openrust::translation::Translator;
 use openrust::translation::TranslationServiceProvider;
-use openrust::translation::Locale;
+use openrust::translation::{Locale, MessageArgs, MessageCatalog};
 use std::time::Duration;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -37,7 +37,10 @@ async fn application(default_locale: &str) -> TestResult<Application> {
         })),
     );
     let mut builder = ProviderBuilder::new();
-    builder.provider(TranslationServiceProvider::default());
+    let mut catalog = MessageCatalog::new();
+    catalog.insert("en", "items", ":count item for :Name|:count items for :Name")?;
+    catalog.insert("en", "explicit_items", "{0} No items for :Name|[1,*] :count items for :Name")?;
+    builder.provider(TranslationServiceProvider::new(catalog));
     Ok(Application::from_provider_runtime(builder.start(source).await?)?)
 }
 
@@ -137,4 +140,19 @@ async fn explicit_locale_overrides_default_and_scope_does_not_leak() -> TestResu
         outcome?;
     }
     Ok(())
+}
+
+#[tokio::test]
+async fn generated_translator_selects_fallback_message_and_replaces_after_choice() -> TestResult {
+    let app = application("zh-CN").await?;
+    let result = async {
+        let translator = app.state().resolve::<Translator>().await?;
+        let args = MessageArgs::from([("name".into(), "ada".into())]);
+        assert_eq!(translator.choice("explicit_items", 0_i64.into(), &args, None)?, "No items for Ada");
+        // 两分支消息在已选回退语言按英文规则选择。
+        assert_eq!(translator.choice("items", 2_i64.into(), &args, None)?, "2 items for Ada");
+        Ok::<_, Box<dyn std::error::Error>>(())
+    }.await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
+    result
 }

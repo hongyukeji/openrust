@@ -2183,3 +2183,13 @@ AR-N01/L041 的翻译 Provider 按固定 Laravel 配置路径从同一个 `app` 
 新生成 minimal 应用通过 Cargo check 与 23 项测试。实际进程检查测试路由上的五次 HTTP 401。未指定或请求不支持的语言时返回配置默认语言，显式语言头优先。缓存使用生成时的语言，清理缓存后采用新环境值。非法语言标签启动失败且不输出输入值。证据见 `tmp/lead-core-next.rY8h72Eg/delivery-receipt.json`。
 
 当前资源快照仍要求配置语言可匹配资源。合法但缺少资源的语言、运行时语言变更、默认文件 Loader 与延迟 Provider 生命周期、`choice` 和发布平台矩阵仍按唯一 todo 跟踪。
+
+## Laravel 字符串复数选择限定验收
+
+AR-N01/L041 的 `Translator::choice` 在同一目录快照读取字符串，指定语言未命中时按配置回退语言的规则选分支。使用固定 Laravel 的显式条件和旧版地区规则。选择后按参数顺序登记 `:count` 与字符串占位符，保留最长匹配、单次替换及 Unicode 首字 titlecase。Rust 调用方用整数、双精度或集合长度。结构化 ICU 消息继续通过 `translate`。
+
+冻结树 `bd0a5eb665e347540eff3d5141d56f400deba004` 通过格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 和离线依赖门禁。唯一示例的实际 TCP 用例检查中英文阅读摘要及请求语言隔离。
+
+生成 minimal 应用通过 Cargo check 与 24 项测试。公开 Rust API 与固定 Laravel 源码在 PHP 8.5.12 中的 12,660 个对照一致，覆盖 280 个既定地区标签及未知地区、精确条件、空白、Unicode、字符串占位符顺序和 96 个默认异常处理器升级的整数越界。依赖数据的来源及许可与实现同行。
+
+证据见 `tmp/lead-trans-choice.RKavaqy5/delivery-receipt.json`。独立 Loader 生命周期、运行时应用语言变更、通用值和回调替换以及发布平台矩阵仍沿唯一 todo 验收。
