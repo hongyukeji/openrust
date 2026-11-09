@@ -61,6 +61,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 
 - **编译部署扩展纠偏，紧接生产迁移。** 旧 ARM64 产物运行证据只覆盖已交付布局。固定 Laravel 没有 `build`，其标准 Artisan 目录、帮助、环境参数与部署工作流仍为验收基线；固定 Goravel 的编译命令经同一 Artisan 登记。OpenRust 当前脚本直接分流，`list`、`help build`、前置 `--env` 与执行入口不一致；Artisan 已拒绝未完成发布，包根布局已通过[限定验收](memory/testing.md#发布包根入口限定验收)。纠正同一命令生命周期，逐项记录编译工具、支持平台、默认值、输出和诊断差异。保留显式 Buildx 交付和固定 Laravel 的公开目录、可写目录与部署命令验收。
+  当前停点是源码命令登记契约。固定 Laravel Console Kernel 完成 Provider 启动及延迟 Provider 加载后交同一 Artisan 处理；OpenRust 配置了不可达 MySQL 时在命令分派前失败。需让源码命令列表读取真实登记项，构建与帮助共用该命令定义，并保留可跨平台构建且无需连接运行时数据库的 Buildx 入口。验收同时覆盖 `help build` 与 `build --help`、命令前后 `--env`、运行时服务不可达时的源码构建、无效参数与工具失败、包内命令可见范围；不能把子进程列表拼接当作 Provider 登记。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
