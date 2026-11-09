@@ -42,6 +42,7 @@ pub(crate) fn policy(parts: &http::request::Parts) -> InputNormalization {
 pub use normalize::InputNormalization;
 pub use raw_body::{RawBodyReader, RequestBodyLimits};
 pub use uploaded_file::{UploadedFile, UploadedFileReader};
+pub(crate) use url::decode_path;
 
 pub(crate) fn validate_json_depth(raw: &[u8]) -> crate::Result<()> {
     input::json_depth(raw)

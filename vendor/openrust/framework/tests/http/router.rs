@@ -40,6 +40,8 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 mod action_redirect;
 #[path = "router/collection_dispatch.rs"]
 mod collection_dispatch;
+#[path = "router/path_encoding.rs"]
+mod path_encoding;
 #[path = "router/signed_url.rs"]
 mod signed_url;
 
@@ -7171,7 +7173,7 @@ async fn assert_root_fallback_and_static_boundaries(
         "static asset"
     );
     assert_eq!(observed_route(&observations), None);
-    // 框架参数解码拒绝非法 UTF-8，不将失败的 fallback 发布为业务匹配。
+    // 默认路径校验先拒绝非法 UTF-8，fallback 与应用全局中间件均未执行。
     let response = router
         .oneshot(
             Request::get("/fallback/%FF")
@@ -7180,7 +7182,13 @@ async fn assert_root_fallback_and_static_boundaries(
         )
         .await?;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    assert_eq!(observed_route(&observations), None);
+    assert_eq!(
+        observations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len(),
+        0
+    );
     Ok(())
 }
 
@@ -7198,7 +7206,13 @@ async fn assert_invalid_utf8_without_business_side_effects(
         .await?;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(observed_route(&external_observations), None);
-    assert_eq!(observed_route(&observations), None);
+    assert_eq!(
+        observations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len(),
+        0
+    );
     assert_eq!(handler_calls.load(Ordering::SeqCst), 0);
     assert_eq!(middleware_calls.load(Ordering::SeqCst), 0);
     // 有效请求证明计数器确实接在同一路由的 handler/middleware。

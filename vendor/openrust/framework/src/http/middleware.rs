@@ -1,7 +1,7 @@
 //! 默认 middleware stack。
 //!
 //! 从最外层到最内层依次为：规范化并设置 `x-request-id` → 将 ID 写入响应 → tracing span →
-//! CORS → 响应上下文 → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Router::layer`](crate::routing::Router::layer) 添加的应用 layer
+//! 路径编码校验 → CORS → 响应上下文 → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Router::layer`](crate::routing::Router::layer) 添加的应用 layer
 //! 在此 stack 内运行。
 
 use std::any::{Any, TypeId};
@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use crate::config::{ApiConfig, ConfigError, CorsConfig, ServerConfig};
+use crate::config::{ApiConfig, ConfigError, CorsConfig, HttpStatusMode, ServerConfig};
 use crate::core::CancelOnDrop;
 use crate::core::Cancellation;
 use crate::core::Error;
@@ -30,7 +30,7 @@ use crate::support::BoxFuture;
 use crate::translation::Translator;
 use axum::Router;
 use axum::body::Body;
-use axum::extract::FromRequestParts;
+use axum::extract::{FromRequestParts, OriginalUri};
 use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
@@ -89,6 +89,16 @@ where
         } else {
             Either::Right(self.enabled.clone().oneshot(request))
         }
+    }
+}
+
+/// 默认全局中间件，拒绝百分号解码后不合法的 UTF-8 请求路径。
+pub struct ValidatePathEncoding;
+
+impl ValidatePathEncoding {
+    /// 校验 URI 的原始路径部分。未组成完整十六进制转义的百分号保留字面。
+    pub fn validate(path: &str) -> Result<()> {
+        crate::http::request::decode_path(path).map(|_| ())
     }
 }
 
@@ -309,6 +319,11 @@ pub(crate) fn apply_stack(
         Duration::from_secs(server.request_timeout_secs),
     ));
     let router = router.layer(axum::middleware::map_response(envelope_status));
+    let errors = RequestErrorSettings {
+        http_status: api.http_status,
+        exceptions: Arc::clone(&exceptions),
+        debug,
+    };
     let router = router.layer(axum::middleware::from_fn_with_state(
         ResponseSettings {
             api: api.clone(),
@@ -328,12 +343,87 @@ pub(crate) fn apply_stack(
     } else {
         router
     };
+    // Laravel 在进入 CORS 及路由处理前拒绝非法路径。
+    let validator = axum::middleware::from_fn_with_state(errors, validate_path_encoding);
+    let router = match cors_mode {
+        CorsMode::Always => router.layer(validator),
+        CorsMode::Runtime => router.layer(GlobalMiddlewareLayer(validator)),
+        CorsMode::Off => router,
+    };
     Ok(router
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
         // 外层也覆盖 response_context 在调用 next 前返回的异常。
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(axum::middleware::from_fn(normalize_request_id)))
+}
+
+#[derive(Clone)]
+struct RequestErrorSettings {
+    http_status: HttpStatusMode,
+    exceptions: Arc<ExceptionHandler>,
+    debug: bool,
+}
+
+impl RequestErrorSettings {
+    fn context(&self, request: &Request) -> ResponseContext {
+        let request_id = request_id(request);
+        let exception_request = exception_request(request, &request_id, self.debug);
+        ResponseContext {
+            request_id,
+            http_status: self.http_status,
+            exception_handler: Some(Arc::clone(&self.exceptions)),
+            exception_request: Some(exception_request),
+        }
+    }
+}
+
+fn request_id(request: &Request) -> String {
+    request
+        .headers()
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("-")
+        .to_owned()
+}
+
+fn exception_request(request: &Request, request_id: &str, debug: bool) -> ExceptionRequest {
+    let exception = ExceptionRequest::new(
+        request.method().clone(),
+        request.uri().path(),
+        crate::http::request::expects_json_headers(request.headers()),
+        request_id,
+        debug,
+    );
+    #[cfg(feature = "view")]
+    let exception = exception.with_views(
+        request
+            .extensions()
+            .get::<ApplicationState>()
+            .and_then(ApplicationState::get::<crate::view::Views>),
+    );
+    exception
+}
+
+async fn validate_path_encoding(
+    State(errors): State<RequestErrorSettings>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let uri = request
+        .extensions()
+        .get::<OriginalUri>()
+        .map_or_else(|| request.uri(), |original| &original.0);
+    match ValidatePathEncoding::validate(uri.path()) {
+        Ok(()) => next.run(request).await,
+        Err(error) => {
+            with_response_context(
+                errors.context(&request),
+                async move { error.into_response() },
+            )
+            .await
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -390,26 +480,8 @@ async fn response_context(
     let metric_method = crate::http::metrics::method_label(request.method());
     #[cfg(feature = "metrics")]
     let started = std::time::Instant::now();
-    let request_id = request
-        .headers()
-        .get("x-request-id")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("-")
-        .to_owned();
-    let exception_request = ExceptionRequest::new(
-        request.method().clone(),
-        request.uri().path(),
-        crate::http::request::expects_json_headers(request.headers()),
-        request_id.clone(),
-        settings.debug,
-    );
-    #[cfg(feature = "view")]
-    let exception_request = exception_request.with_views(
-        request
-            .extensions()
-            .get::<crate::foundation::ApplicationState>()
-            .and_then(crate::foundation::ApplicationState::get::<crate::view::Views>),
-    );
+    let request_id = request_id(&request);
+    let exception_request = exception_request(&request, &request_id, settings.debug);
     let locale_service = if let Some(state) = request
         .extensions()
         .get::<crate::foundation::ApplicationState>()

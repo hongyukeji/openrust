@@ -1,5 +1,7 @@
 //! 请求地址快照与星号通配匹配。
 
+use std::borrow::Cow;
+
 use super::{Error, RequestInfo, Result, StatusCode, url_query};
 
 impl RequestInfo {
@@ -92,29 +94,7 @@ impl RequestInfo {
 
     /// 百分号解码路径；加号保留字面，非法 UTF-8 返回 400。
     pub fn decoded_path(&self) -> Result<String> {
-        let bytes = self.path().as_bytes();
-        let mut output = Vec::with_capacity(bytes.len());
-        let mut position = 0;
-        while position < bytes.len() {
-            if bytes[position] == b'%'
-                && position + 2 < bytes.len()
-                && let (Some(high), Some(low)) =
-                    (hex(bytes[position + 1]), hex(bytes[position + 2]))
-            {
-                output.push(high * 16 + low);
-                position += 3;
-            } else {
-                output.push(bytes[position]);
-                position += 1;
-            }
-        }
-        String::from_utf8(output).map_err(|_| {
-            Error::custom_with_status(
-                StatusCode::BAD_REQUEST,
-                "http_request_path_encoding_invalid",
-                "request path must decode to valid UTF-8",
-            )
-        })
+        decode_path(self.path()).map(Cow::into_owned)
     }
 
     /// 解码后按斜线拆分，只移除空段。
@@ -158,6 +138,34 @@ impl RequestInfo {
         }
         Ok(false)
     }
+}
+
+pub(crate) fn decode_path(path: &str) -> Result<Cow<'_, str>> {
+    let bytes = path.as_bytes();
+    if !bytes.contains(&b'%') {
+        return Ok(Cow::Borrowed(path));
+    }
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut position = 0;
+    while position < bytes.len() {
+        if bytes[position] == b'%'
+            && position + 2 < bytes.len()
+            && let (Some(high), Some(low)) = (hex(bytes[position + 1]), hex(bytes[position + 2]))
+        {
+            output.push(high * 16 + low);
+            position += 3;
+        } else {
+            output.push(bytes[position]);
+            position += 1;
+        }
+    }
+    String::from_utf8(output).map(Cow::Owned).map_err(|_| {
+        Error::custom_with_status(
+            StatusCode::BAD_REQUEST,
+            "http_request_path_encoding_invalid",
+            "Malformed URL.",
+        )
+    })
 }
 
 fn hex(byte: u8) -> Option<u8> {
