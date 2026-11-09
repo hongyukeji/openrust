@@ -56,6 +56,8 @@
 
 `package:list` 与预览共用 Cargo 图及清单选择，输出已解析候选的来源类型、特性或目标状态、排除来源与条件，以及 Facade 候选的最终编译条件。源码 Artisan 与 CLI 均可只读执行。运行期 Provider 实例顺序由启动生命周期决定。
 
+已编译应用的 `package:doctor` 使用同一启动准备与排序，默认报告顶层计划或原预检错误码。显式 `--boot` 走正常命令生命周期并报告实际有效槽位。
+
 ## 翻译来源生成
 
 普通、MySQL、Web 认证、JWT 与 gRPC 生成应用均包含可编辑 `translation_sources` 配置、文件来源和同一 Provider 安装机制；数据库扩展显式启用，首次迁移与后续数据库/组合模式分开。JWT 不增 Session/Cookie。五种真实生成与适用来源安装验收见[来源测试基线](../memory/testing.md#翻译来源限定验收)，完整官方翻译接口仍开放。

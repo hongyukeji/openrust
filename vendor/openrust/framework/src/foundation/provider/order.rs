@@ -224,7 +224,7 @@ fn label(entry: &ProviderEntry) -> String {
 mod tests {
     use super::prepare;
     use crate::Result;
-    use crate::foundation::provider::{ProviderEntry, ProviderId};
+    use crate::foundation::provider::{ProviderBuilder, ProviderEntry, ProviderId};
     use crate::support::ServiceProvider;
     use std::collections::HashSet;
 
@@ -267,6 +267,38 @@ mod tests {
             package,
             force: false,
         }
+    }
+
+    #[tokio::test]
+    async fn diagnostics_share_package_order_and_keep_actual_replacement_origin() -> Result<()> {
+        let base = ProviderId::of::<u16>();
+        let consumer = ProviderId::of::<u32>();
+        let build = || {
+            let mut builder = ProviderBuilder::new();
+            builder.providers = vec![
+                entry::<u32>(Some("consumer"), Some(base)),
+                entry::<u16>(Some("base"), None),
+                ProviderEntry::explicit(entry::<u16>(None, None).provider, true),
+            ];
+            builder
+        };
+        let planned = build().diagnose_order(figment::Figment::new().into())?;
+        assert_eq!(
+            planned,
+            [
+                serde_json::json!({"provider": base.name(), "package": "base", "force": false}),
+                serde_json::json!({"provider": consumer.name(), "package": "consumer", "force": false}),
+                serde_json::json!({"provider": base.name(), "package": null, "force": true}),
+            ]
+        );
+        let runtime = build().start(figment::Figment::new()).await?;
+        assert_eq!(
+            runtime.providers.diagnostic_order(),
+            [(base.name(), None), (consumer.name(), Some("consumer"))]
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await
     }
 
     #[test]

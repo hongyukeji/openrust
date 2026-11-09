@@ -722,12 +722,11 @@ async fn pending_registration_releases_registry_for_an_independent_provider() ->
     let mut pending_required = Vec::new();
     let mut pending = super::register(
         &runtime.providers,
-        Box::new(PendingParent {
+        super::ProviderEntry::new(Box::new(PendingParent {
             pending: true,
             started: Arc::clone(&started),
             trace: trace.clone(),
-        }),
-        false,
+        })),
         runtime.container(),
         &mut pending_config,
         &mut pending_required,
@@ -749,8 +748,7 @@ async fn pending_registration_releases_registry_for_an_independent_provider() ->
         Duration::from_secs(2),
         super::register(
             &runtime.providers,
-            Box::new(ChildDependent(trace.clone())),
-            false,
+            super::ProviderEntry::new(Box::new(ChildDependent(trace.clone()))),
             runtime.container(),
             &mut config,
             &mut required,

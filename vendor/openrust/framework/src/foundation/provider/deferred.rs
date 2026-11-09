@@ -481,8 +481,7 @@ impl DeferredProviders {
         let mut required = Vec::new();
         registration::register(
             registry,
-            provider,
-            false,
+            super::ProviderEntry::new(provider),
             container,
             &mut config,
             &mut required,

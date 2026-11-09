@@ -592,8 +592,7 @@ impl Application {
         let mut required = Vec::new();
         registration::register(
             &self.state.inner.providers,
-            provider,
-            force,
+            super::provider::ProviderEntry::explicit(provider, force),
             &self.state.inner.services,
             &mut config,
             &mut required,
@@ -706,6 +705,10 @@ impl Application {
     /// 从当前配置仓储提取一个区段；运行期原始写入随后可见。
     pub fn section<T: DeserializeOwned>(&self, key: &str) -> Result<T, ConfigError> {
         self.state.inner.config_repository.section(key)
+    }
+
+    pub(crate) fn diagnostic_provider_order(&self) -> Vec<(&'static str, Option<&'static str>)> {
+        self.state.inner.providers.diagnostic_order()
     }
 
     /// 按注册顺序取得持有命令实例的快照；执行不持有命令目录锁。

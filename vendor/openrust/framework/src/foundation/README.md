@@ -50,6 +50,8 @@ app.extend::<dyn Driver, _>(|original, resolver| {
 
 `ApplicationDefinition::package_providers` 返回带来源的 `PackageProvider`。框架在启动注册前校验包间类型冲突，按 `ServiceProvider::dependencies` 稳定排序包段。确定会登记的依赖优先于可能嵌套的候选。缺失、后置及循环依赖会在预检报告。
 
+应用控制台的 `package:doctor` 在 Provider 回调前运行同一预检。显式 `--boot` 使用通常的应用启动、命令和关闭流程，报告当前注册表中的有效槽位。包来源随实际实例登记和替换保存。
+
 ### register 中登记子 Provider
 
 `RegisterContext::register_provider`、`force_register_provider` 和 `boxed_register_provider` 与 App 对应入口共用同一注册执行器。父 register 中 await 子注册后才继续下一语句；正常启动时子 register 不提前 boot，全部 register 完成后按实际登记顺序 boot。首次注册时子先完成并进入清单，父随后进入；已有父类型的force仍保首次槽位。已启动 App 的子注册则在返回前完成 register/boot，父才继续。不要手工调用另一 Provider 的 register 或 boot。

@@ -194,6 +194,8 @@ let descriptors = [
 
 `./artisan package:list` 以 JSON 显示当前解析图中的候选来源类型、排除原因和 Facade 别名的编译条件。它读取与预览相同的 Cargo 选择。 [CLI 用法](../../../tools/cli/README.md#provider-包发现)
 
+`./artisan package:doctor` 使用已编译应用的实际配置与同一启动预检，报告顶层顺序或冲突。显式加 `--boot` 时运行正常生命周期，再报告实际登记的有效槽位和来源。 [CLI 用法](../../../tools/cli/README.md#provider-包发现)
+
 包清单中的 `PackageProvider` 记录具体 Provider 及 Cargo 包来源。启动清单按框架默认项、发现包和显式应用项排列。注册前用 `ServiceProvider::dependencies()` 稳定排序包段。跨包的同一类型冲突会报告双方来源。显式清单的相对顺序及普通登记的同类型去重语义沿用原规则。 [Laravel Application](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L821-L843)
 
 ### Provider 实例启动回调

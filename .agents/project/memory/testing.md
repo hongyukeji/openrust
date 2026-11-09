@@ -2153,3 +2153,13 @@ L044.02 的 `package:list` 与 `package:discover --preview` 共用 Cargo 选择�
 真实 Cargo 图验收覆盖双 Git 源、可选依赖、项目内路径替换、应用单包和全局排除、包级排除与同名 Facade。根和生成应用的 Artisan 输出与直接 CLI 一致，查询前后的清单字节与 mtime 一致。七份旧预览逐字节相同。生成应用通过 check 和 23 项测试，编译引用验证 Facade 获选类型，真实 HTTP 健康检查返回 200，被排除包的路由返回 404。
 
 证据见 `tmp/lead-package-report.cirhwrb2/delivery-receipt.json`。运行期实例排序诊断、项目外 Cargo 覆盖与配置 include 按唯一 todo 继续。
+
+## Provider 实际顺序诊断限定验收
+
+L044.02 的 `package:doctor` 与正常引导使用相同配置选择、预装配和包排序，默认报告顶层尝试序列及稳定错误码。显式 `--boot` 从实际注册表报告有效槽位，保留当前实例来源。普通重复继续去重，强制替换保持槽位并更新来源。
+
+独立冻结树 `8b3779460d9550bcb8cb0c76b79e72349ba70054` 通过工作区格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 和离线依赖门禁。回归核对同一包排序、强制替换来源和内置命令目录。
+
+新生成 minimal 应用通过 check 和 23 项测试。真实 Artisan 帮助及预检不调用 Provider 回调。`--boot` 的实际槽位与两包 register 和 boot 顺序一致，关闭回调按逆序执行。跨包冲突的两种诊断模式均返回同一语义码及双方来源。正常服务真实 HTTP 200，冲突服务退出 1 且未监听。根 Artisan 预检保持现有服务清单字节和 mtime，缺失时不创建文件。
+
+证据见 `tmp/lead-provider-doctor.DYDYTseh/delivery-receipt.json`。项目外 Cargo 覆盖、配置 include 与发布平台矩阵按唯一 todo 继续。

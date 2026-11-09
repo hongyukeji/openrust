@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, OnceLock, Weak};
 use super::deferred::{DeferredProviders, Definition};
 use super::{
     BootContext, BootHook, ConfigRepository, Container, Extensions, Finalizer,
-    ProviderBootCallbacks, ProviderId, RegisterContext, Required, ResourceRegistrar,
+    ProviderBootCallbacks, ProviderEntry, ProviderId, RegisterContext, Required, ResourceRegistrar,
     StartupCallbacks, check_dependencies,
 };
 use crate::console::command_registry::CommandRegistry;
@@ -27,6 +27,7 @@ pub(crate) struct ProviderRegistry {
 /// 实际注册的 Provider 实例。延迟装载监听器可返回此对象作为事件响应。
 pub struct RegisteredProvider {
     id: ProviderId,
+    package: Option<&'static str>,
     provider: Option<Box<dyn ServiceProvider>>,
     callbacks: tokio::sync::Mutex<ProviderBootCallbacks>,
 }
@@ -144,6 +145,13 @@ impl ProviderRegistry {
             .iter()
             .find(|active| active.id == id)
             .cloned()
+    }
+
+    pub(crate) fn diagnostic_order(&self) -> Vec<(&'static str, Option<&'static str>)> {
+        self.providers()
+            .iter()
+            .map(|entry| (entry.id.name(), entry.package))
+            .collect()
     }
 
     pub(crate) fn take_active(&self) -> Vec<Arc<RegisteredProvider>> {
@@ -343,14 +351,18 @@ impl Drop for RegistrationGuard {
 /// 保持同类型去重、force 首槽与失败贡献；`BoxFuture` 允许真正的递归 await。
 pub(crate) fn register<'a>(
     registry: &'a ProviderRegistry,
-    provider: Box<dyn ServiceProvider>,
-    force: bool,
+    entry: ProviderEntry,
     container: &'a Container,
     config: &'a mut ConfigRepository,
     deferred_required: &'a mut Vec<Required>,
     mode: BootMode<'a>,
 ) -> BoxFuture<'a, Result<ProviderId>> {
     Box::pin(async move {
+        let ProviderEntry {
+            provider,
+            force,
+            package,
+        } = entry;
         let id = provider.id();
         if container.is_terminated() {
             return Err(Error::custom("container_closed", "容器已关闭"));
@@ -388,6 +400,7 @@ pub(crate) fn register<'a>(
         registry.verify_nested(id, &nested, starting)?;
         let entry = Arc::new(RegisteredProvider {
             id,
+            package,
             provider: Some(provider),
             callbacks: tokio::sync::Mutex::new(callbacks),
         });

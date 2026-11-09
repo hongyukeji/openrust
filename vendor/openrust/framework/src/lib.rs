@@ -243,11 +243,22 @@ fn run_with_default<A: ApplicationDefinition>(
         Err(error) => return fail(&format!("cannot start tokio runtime: {error}")),
     };
     runtime.block_on(async {
+        if name == console::command::package_doctor::NAME
+            && let Some(code) = console::command::package_doctor::before_boot::<A>(
+                &command_args,
+                console_environment.as_deref(),
+            )
+        {
+            return code;
+        }
         let started = foundation::EntryStarted::now();
         let app = match lifecycle::bootstrap_for_console::<A>(&name, console_environment.as_deref())
             .await
         {
             Ok(app) => app,
+            Err(error) if name == console::command::package_doctor::NAME => {
+                return console::command::package_doctor::error_exit(&error);
+            }
             Err(error) => return fail(&format!("bootstrap failed: {error}")),
         };
         let result = app.run_command_since(&name, command_args, started).await;

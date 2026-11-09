@@ -47,6 +47,7 @@ impl<A: ApplicationDefinition> ServiceProvider for CoreCommandsProvider<A> {
         Box::pin(async move {
             app.command(HelpCommand);
             app.command(ListCommand);
+            app.command(crate::console::command::package_doctor::PackageDoctorCommand);
             app.command(EnvironmentCommand);
             app.command(ConfigShowCommand);
             app.command(ConfigCacheCommand::<A> {
@@ -668,22 +669,19 @@ pub(crate) async fn bootstrap_for_cache<A: ApplicationDefinition>(
     bootstrap_with_command::<A>(Some("config:cache"), Some(path), console_environment).await
 }
 
-async fn bootstrap_with_command<A: ApplicationDefinition>(
-    name: Option<&str>,
+fn app_directory() -> Result<std::path::PathBuf> {
+    std::env::current_dir()
+        .map_err(|_| config::ConfigError::Invalid("无法定位应用根目录".into()).into())
+}
+
+fn resolve_application_sources<A: ApplicationDefinition>(
+    app_dir: &std::path::Path,
     forced_path: Option<std::path::PathBuf>,
     console_environment: Option<&str>,
-) -> Result<Application> {
+) -> Result<config::ApplicationSources> {
     let namespace = A::config_namespace();
     let manifest = A::config();
-    let app_dir = std::env::current_dir()
-        .map_err(|_| config::ConfigError::Invalid("无法定位应用根目录".into()))?;
-    let config::ApplicationSources {
-        sources,
-        cache_path,
-        environment,
-        label,
-        key_environment,
-    } = if let Some(path) = forced_path {
+    if let Some(path) = forced_path {
         if manifest.has_typed() {
             return Err(config::ConfigError::Invalid(
                 "已编译配置含运行期 Rust 类型，不能创建配置缓存".to_owned(),
@@ -692,12 +690,12 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
         }
         let external = config::EnvironmentSnapshot::capture();
         let dotenv_path =
-            config::selected_dotenv_path(&app_dir, namespace, &external, console_environment);
+            config::selected_dotenv_path(app_dir, namespace, &external, console_environment);
         let environment = external.with_dotenv_at(&dotenv_path)?;
         let env = config::selected_environment(namespace, &environment)?;
         let loader = ConfigLoader::from_snapshot(env, namespace, environment.clone())?;
         let key_variable = format!("{namespace}KEY");
-        config::ApplicationSources {
+        Ok(config::ApplicationSources {
             sources: loader.code_sources(&manifest)?,
             cache_path: path,
             environment,
@@ -707,27 +705,61 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
                 external_key_present: external.present(&key_variable),
                 key_variable,
             },
-        }
+        })
     } else {
         ConfigLoader::resolve_application_sources(
-            &app_dir,
+            app_dir,
             namespace,
             console_environment,
             Some(&manifest),
-        )?
-    };
+        )
+        .map_err(Error::from)
+    }
+}
+
+fn application_builder<A: ApplicationDefinition>(
+    sources: &config::ConfigSources,
+    console_environment: Option<&str>,
+) -> Result<ProviderBuilder> {
+    let app_config: A::Config = sources
+        .figment()
+        .extract()
+        .map_err(config::ConfigError::from)?;
+    Ok(ProviderBuilder::for_application_with_console::<A>(
+        &app_config,
+        console_environment,
+    ))
+}
+
+pub(crate) fn diagnose_provider_order<A: ApplicationDefinition>(
+    console_environment: Option<&str>,
+) -> Result<Vec<serde_json::Value>> {
+    let directory = app_directory()?;
+    let sources = resolve_application_sources::<A>(&directory, None, console_environment)?.sources;
+    application_builder::<A>(&sources, console_environment)?.diagnose_order(sources)
+}
+
+async fn bootstrap_with_command<A: ApplicationDefinition>(
+    name: Option<&str>,
+    forced_path: Option<std::path::PathBuf>,
+    console_environment: Option<&str>,
+) -> Result<Application> {
+    let namespace = A::config_namespace();
+    let app_dir = app_directory()?;
+    let config::ApplicationSources {
+        sources,
+        cache_path,
+        environment,
+        label,
+        key_environment,
+    } = resolve_application_sources::<A>(&app_dir, forced_path, console_environment)?;
     let provider_cache = super::provider::manifest::CachePaths::select(
         &app_dir,
         namespace,
         &environment,
         &cache_path,
     )?;
-    let app_config: A::Config = sources
-        .figment()
-        .extract()
-        .map_err(crate::config::ConfigError::from)?;
-    let mut builder =
-        ProviderBuilder::for_application_with_console::<A>(&app_config, console_environment);
+    let mut builder = application_builder::<A>(&sources, console_environment)?;
     builder.services_manifest(provider_cache.services.clone());
     if let Some(name) = name {
         builder.console_command(name);
@@ -1836,6 +1868,7 @@ mod tests {
             [
                 "help",
                 "list",
+                "package:doctor",
                 "env",
                 "config show",
                 "config:cache",

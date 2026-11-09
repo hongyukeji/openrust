@@ -12,6 +12,7 @@ mod environment;
 pub(crate) use environment::EnvironmentCommand;
 mod key_generate;
 pub(crate) use key_generate::KeyGenerateCommand;
+pub(crate) mod package_doctor;
 
 /// 可通过 `<app-binary> <name> [args…]` 运行的命名命令。
 ///

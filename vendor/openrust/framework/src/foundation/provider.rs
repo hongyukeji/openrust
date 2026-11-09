@@ -438,8 +438,7 @@ impl RegisterContext<'_> {
     ) -> Result<ProviderId> {
         registration::register(
             self.registry,
-            provider,
-            force,
+            ProviderEntry::explicit(provider, force),
             self.container,
             self.config,
             self.required,
@@ -1173,7 +1172,7 @@ pub struct ProviderBuilder {
     services_manifest: Option<std::path::PathBuf>,
 }
 
-struct ProviderEntry {
+pub(crate) struct ProviderEntry {
     provider: Box<dyn ServiceProvider>,
     force: bool,
     package: Option<&'static str>,
@@ -1181,12 +1180,22 @@ struct ProviderEntry {
 
 impl ProviderEntry {
     fn new(provider: Box<dyn ServiceProvider>) -> Self {
+        Self::explicit(provider, false)
+    }
+
+    pub(crate) fn explicit(provider: Box<dyn ServiceProvider>, force: bool) -> Self {
         Self {
             provider,
-            force: false,
+            force,
             package: None,
         }
     }
+}
+
+struct PreparedProviders {
+    entries: Vec<ProviderEntry>,
+    bindings: ContainerBuilder,
+    automatic_database: Option<bool>,
 }
 
 pub(crate) fn check_dependencies(
@@ -1485,21 +1494,14 @@ impl ProviderBuilder {
         self.services_manifest = Some(path);
     }
 
-    /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
-    #[allow(
-        clippy::too_many_lines,
-        reason = "统一启动顺序保持 register、配置和 boot 生命周期可审阅"
-    )]
-    pub async fn start(self, sources: impl Into<ConfigSources>) -> Result<ProviderRuntime> {
-        let console_command = self.console_command;
-        let mut providers = self.providers;
-        let defaults = self.default_providers;
-        let mut bindings = ContainerBuilder::with_class_descriptors(self.class_descriptors)?;
+    fn prepare(&mut self, config: &ConfigRepository) -> Result<PreparedProviders> {
+        let mut providers = std::mem::take(&mut self.providers);
+        let mut bindings =
+            ContainerBuilder::with_class_descriptors(std::mem::take(&mut self.class_descriptors))?;
         bindings.instance(Arc::new(crate::http::MimeTypes::new()));
-        let mut config = ConfigRepository::new(sources);
         let mut automatic_database = None;
-        if let Some((position, defaults)) = defaults {
-            let selected = defaults.resolve_selection(&config)?;
+        if let Some((position, defaults)) = self.default_providers.take() {
+            let selected = defaults.resolve_selection(config)?;
             automatic_database = selected.database;
             let entries = selected
                 .providers
@@ -1508,17 +1510,51 @@ impl ProviderBuilder {
                 .map(ProviderEntry::new);
             providers.splice(position..position, entries);
         }
-        let mut bootstrap = self.bootstrap_providers;
+        let mut bootstrap = std::mem::take(&mut self.bootstrap_providers);
         bootstrap.retain(|entry| !self.removed.contains(&entry.provider.id()));
         providers = preparation::expand(
             providers,
-            self.registrations,
+            std::mem::take(&mut self.registrations),
             &mut bindings,
             &self.removed,
             &bootstrap,
         )?;
         bootstrap.extend(providers);
-        let bootstrap = order::prepare(bootstrap, &self.removed)?;
+        Ok(PreparedProviders {
+            entries: order::prepare(bootstrap, &self.removed)?,
+            bindings,
+            automatic_database,
+        })
+    }
+
+    pub(crate) fn diagnose_order(mut self, sources: ConfigSources) -> Result<Vec<Value>> {
+        let plan = self.prepare(&ConfigRepository::new(sources))?;
+        Ok(plan
+            .entries
+            .iter()
+            .map(|entry| {
+                serde_json::json!({
+                    "provider": entry.provider.id().name(),
+                    "package": entry.package,
+                    "force": entry.force,
+                })
+            })
+            .collect())
+    }
+
+    /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "统一启动顺序保持 register、配置和 boot 生命周期可审阅"
+    )]
+    pub async fn start(mut self, sources: impl Into<ConfigSources>) -> Result<ProviderRuntime> {
+        let mut config = ConfigRepository::new(sources);
+        let PreparedProviders {
+            entries: bootstrap,
+            mut bindings,
+            automatic_database,
+        } = self.prepare(&config)?;
+        let console_command = self.console_command;
         let mut deferred = self.deferred;
         deferred.retain(|entry| !self.removed.contains(&entry.id));
         let (providers, deferred) = if let Some(path) = &self.services_manifest {
@@ -1570,8 +1606,7 @@ impl ProviderBuilder {
             {
                 registration::register(
                     &active,
-                    Box::new(crate::events::DefaultEventsServiceProvider),
-                    false,
+                    ProviderEntry::new(Box::new(crate::events::DefaultEventsServiceProvider)),
                     &container,
                     &mut config,
                     &mut required,
@@ -1582,8 +1617,7 @@ impl ProviderBuilder {
             for entry in providers {
                 registration::register(
                     &active,
-                    entry.provider,
-                    entry.force,
+                    entry,
                     &container,
                     &mut config,
                     &mut required,
