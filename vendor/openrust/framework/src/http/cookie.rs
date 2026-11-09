@@ -1,6 +1,6 @@
 //! 请求 Cookie、响应属性与请求隔离队列。
 mod crypto;
-pub(crate) mod middleware;
+pub mod middleware;
 mod parse;
 mod provider;
 mod queue;
@@ -12,7 +12,6 @@ pub use ::cookie::SameSite;
 pub(crate) use crypto::CookieProtection;
 #[cfg(feature = "session")]
 pub(crate) use middleware::CookieLayer;
-pub(crate) use provider::CookieLayerPlan;
 pub use provider::CookieServiceProvider;
 pub use queue::CookieJar;
 #[cfg(feature = "session")]

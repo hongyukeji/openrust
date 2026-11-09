@@ -193,7 +193,7 @@ pub(crate) struct MethodEntry {
     pub(crate) handler: HandlerFn,
     pub(crate) with_middleware: Option<HandlerFn>,
     #[cfg(feature = "session")]
-    pub(crate) protected_cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
+    pub(crate) protected_cookie: Option<Arc<crate::cookie::middleware::EncryptCookies>>,
     pub(crate) metadata: Option<Arc<Mutex<crate::routing::router::MatchedRouteMetadata>>>,
     pub(crate) terminating: Arc<[crate::http::middleware::TerminateMiddleware]>,
 }
@@ -436,7 +436,7 @@ where
 
 #[derive(Clone)]
 pub(crate) enum BuiltinLayer {
-    Cookie(Arc<crate::http::cookie::CookieLayerPlan>),
+    Cookie(Arc<crate::cookie::middleware::EncryptCookies>),
     #[cfg(feature = "session")]
     Session(crate::session::SessionLayer),
     #[cfg(feature = "session")]
@@ -446,9 +446,7 @@ pub(crate) enum BuiltinLayer {
 impl BuiltinLayer {
     async fn run(self, request: Request, next: ManagedNext) -> Response {
         match self {
-            Self::Cookie(layer) => {
-                crate::http::cookie::middleware::handle(layer, request, next).await
-            }
+            Self::Cookie(layer) => layer.handle(request, next).await,
             #[cfg(feature = "session")]
             Self::Session(layer) => crate::session::handle_session(layer, request, next).await,
             #[cfg(feature = "session")]

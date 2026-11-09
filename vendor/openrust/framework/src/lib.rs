@@ -25,6 +25,7 @@ pub mod grpc;
 #[cfg(feature = "hashing")]
 pub mod hashing;
 pub mod http;
+pub use http::cookie;
 pub mod logging;
 pub mod mail;
 #[cfg(feature = "queue")]

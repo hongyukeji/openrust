@@ -28,6 +28,8 @@ HTTP 和控制台共用回调前派发的[内核终止事件](../../../docs/src/
 
 具名键 `events` 与类型 `openrust::events::Events` 解析到同一个应用单例。详见[类型化事件](../../../docs/src/getting-started/source-application.md#类型化事件)。
 
+通过 `openrust::cookie::middleware::EncryptCookies` 配置[应用级 Cookie 加密例外](../../../docs/src/security/authentication.md#cookie-加密例外)。
+
 应用可通过容器登记路由和全局[HTTP 终止中间件](../../../docs/src/architecture-concepts/lifecycle.md#http-终止中间件)。
 
 具名容器绑定 `middleware.disable` 为布尔 `true` 时，应用全局、路由和终止阶段分别跳过各自的中间件。后续阶段会重新读取该值。用法见[排除中间件](../../../docs/src/architecture-concepts/lifecycle.md#排除中间件)。

@@ -2242,6 +2242,12 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 
 冻结树 `4b6eabb4b1d02a4cf2d7e9807f565a8b749b0fe8` 通过默认和 Session/Fortify/OIDC/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。新生成 Web/Fortify 与 JWT API 应用实库通过，公开 Encrypter 解开由具名服务写入的属性密文。外部 Keycloak 专项与完整加密契约继续开放。
 
+## Cookie 公开中间件与例外限定验收
+
+冻结树 `9de8eada2c1d6f4f504dd8b2ac42427d4010df1e` 对照固定 Laravel `d52c3b3` 的 `Illuminate\Cookie\Middleware\EncryptCookies`。实际路由使用新公开类型和原请求范围，双应用的队列及显式 Cookie 验证例外隔离。Provider 安装与容器直接重绑均拒绝超限，Web 构建精确拒绝 Session 和 XSRF 例外。旧路由快照仍持有原配置。新 Web 生成应用经真实 Web 路由观察例外 Cookie，再运行 Fortify 的 CSRF 和 Session 流程。
+
+默认及 Session/Fortify/View 的 workspace 测试、严格 Clippy、格式、Rustdoc、离线依赖检查、真实 MySQL 8.4.13 事务回滚与 Web/JWT 生成项目 check/test 均通过。首次默认门禁有一次所有权日志锁重取失败。保留原始失败，同一冻结树的精确探针和原命令复跑通过，具体锁持有者未确定。PHP 子类序列化和进程静态重置仍待对应。
+
 ## 日志职责命名限定验收
 
 固定上游的默认单文件及应急文件使用 `storage/logs/openrust.log`，应急记录标签为 `openrust`。实文件验证默认、空应急路径、显式应急路径及频道配置修复。正常频道名称独立，既有 application.log 和 laravel.log 内容保持原样。唯一示例通过 HTTP 注入具名 logger 并实际写入新路径。

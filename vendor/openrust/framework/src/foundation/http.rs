@@ -324,7 +324,10 @@ pub(crate) fn build_router_with_middleware(
         let cookie = app
             .state()
             .container()
-            .get_ready::<crate::http::cookie::CookieLayerPlan>();
+            .get_ready::<crate::cookie::middleware::EncryptCookies>();
+        if let Some(cookie) = &cookie {
+            cookie.validate()?;
+        }
         #[cfg(feature = "session")]
         let session = app
             .extension::<Option<crate::session::SessionRuntime>>()

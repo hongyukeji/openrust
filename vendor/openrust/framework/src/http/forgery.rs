@@ -73,7 +73,7 @@ impl PreventRequestForgery {
 #[derive(Clone)]
 pub(crate) struct ForgeryRuntime {
     pub(crate) policy: PreventRequestForgery,
-    pub(crate) cookie: Arc<crate::http::cookie::CookieLayerPlan>,
+    pub(crate) cookie: Arc<crate::cookie::middleware::EncryptCookies>,
     pub(crate) xsrf: Option<SessionConfig>,
     pub(crate) repository: crate::config::repository::ConfigRepository,
     pub(crate) testing_boot: bool,

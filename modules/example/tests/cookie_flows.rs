@@ -284,6 +284,56 @@ async fn example_cookie_round_trip_uses_the_default_laravel_provider() -> TestRe
 
 #[cfg(feature = "encryption")]
 #[tokio::test]
+async fn example_cookie_encryption_exceptions_are_application_local() -> TestResult {
+    use openrust::cookie::middleware::EncryptCookies;
+    use openrust::http::CookieServiceProvider;
+
+    let config = sources();
+    let mut builder =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?);
+    builder.configure_providers(|providers| {
+        let policy = EncryptCookies::new().except(["example_preference"]);
+        providers.force_provider(CookieServiceProvider::new().with_middleware(policy));
+    });
+    let mut clear = builder.build().await?;
+    let mut encrypted =
+        TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&config)?)
+            .build()
+            .await?;
+    let result: TestResult = async {
+        let value = "visible-preference";
+        for action in ["queue", "direct"] {
+            let pair = wire_cookie(&post(&clear, action, value).await?)?;
+            assert_eq!(pair, "example_preference=visible-preference");
+            success(
+                &get(&clear, Some(&pair)).await?,
+                &json!({"preference":value,"present":true}),
+            )?;
+            success(
+                &get(&encrypted, Some(&pair)).await?,
+                &json!({"preference":null,"present":false}),
+            )?;
+            let encrypted_pair = wire_cookie(&post(&encrypted, action, value).await?)?;
+            assert_ne!(encrypted_pair, pair);
+            success(
+                &get(&encrypted, Some(&encrypted_pair)).await?,
+                &json!({"preference":value,"present":true}),
+            )?;
+        }
+        Ok(())
+    }
+    .await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let clear_shutdown = clear.shutdown(deadline).await;
+    let encrypted_shutdown = encrypted.shutdown(deadline).await;
+    result?;
+    clear_shutdown?;
+    encrypted_shutdown?;
+    Ok(())
+}
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
 async fn default_laravel_cookie_mode_requires_app_key_only_on_protected_request() -> TestResult {
     let config = sources().merge(Serialized::defaults(json!({
         "app": {"cipher": "AES-256-CBC", "key": "example-invalid-app-key"},

@@ -272,6 +272,40 @@ async fn protected_provider_never_implicitly_downgrades_to_plain() -> openrust::
 }
 
 #[tokio::test]
+async fn public_cookie_exceptions_keep_exact_names_and_startup_limits() -> openrust::Result<()> {
+    use openrust::cookie::middleware::EncryptCookies;
+    use openrust::http::CookieServiceProvider;
+
+    let mut policy = EncryptCookies::new().except(["initial"]);
+    policy.disable_for("cookie*");
+    policy.disable_for("initial");
+    let app = cookie_app(CookieServiceProvider::new().with_middleware(policy)).await?;
+    let installed = app.state().resolve::<EncryptCookies>().await?;
+    assert!(installed.is_disabled("initial"));
+    assert!(installed.is_disabled("cookie*"));
+    assert!(!installed.is_disabled("cookie-1"));
+    for policy in [
+        EncryptCookies::new().except((0..1025).map(|index| format!("cookie_{index}"))),
+        EncryptCookies::new().except(["x".repeat(64 * 1024 + 1)]),
+    ] {
+        app.state()
+            .container()
+            .instance(std::sync::Arc::new(policy.clone()))
+            .await?;
+        let result = openrust::foundation::http::build_router(&app);
+        assert!(matches!(result, Err(error)
+            if error.code() == "input_cookie_limits_exceeded"
+                && error.status() == StatusCode::PAYLOAD_TOO_LARGE));
+        let result = cookie_app(CookieServiceProvider::new().with_middleware(policy)).await;
+        assert!(matches!(result, Err(error)
+            if error.code() == "input_cookie_limits_exceeded"
+                && error.status() == StatusCode::PAYLOAD_TOO_LARGE));
+    }
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await
+}
+
+#[tokio::test]
 async fn router_snapshot_keeps_cookie_plan_after_runtime_provider_replacement()
 -> openrust::Result<()> {
     use openrust::ServiceExt;

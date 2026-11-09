@@ -1,6 +1,7 @@
 //! 生成应用经真实 `Router`、账户 `Provider` 与受保护 `Session` 完成现代 `Fortify` 管理流程。
 use figment::Figment;
 use openrust::container::ServiceKey;
+use openrust::cookie::middleware::EncryptCookies;
 use openrust::events::{Event, Events, EventsServiceProvider};
 use openrust::fortify::events::TwoFactorAuthenticationEnabled;
 use openrust::foundation::ApplicationDefinition;
@@ -11,7 +12,7 @@ use openrust::http::axum::{
     extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
-use openrust::http::Json;
+use openrust::http::{CookieJar, CookieOptions, Json};
 use openrust::routing::RouteGroup;
 use openrust::mail::{MailDriver, Mailer};
 use openrust::session::Session;
@@ -28,6 +29,7 @@ use std::{
 };
 
 const CSRF: &str = "/__generated/fortify-http/csrf";
+const PREFERENCE: &str = "generated_preference";
 const PASSWORD: &str = "generated-modern-fortify-password";
 const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -94,7 +96,13 @@ impl ServiceProvider for HttpSupport {
         })
     }
 }
-async fn csrf(session: Session) -> Result<Json<Value>> {
+async fn csrf(session: Session, cookies: CookieJar) -> Result<Json<Value>> {
+    cookies.queue(cookies.factory().make(
+        PREFERENCE,
+        "visible",
+        0,
+        CookieOptions::default(),
+    )?)?;
     Ok(Json(json!({"token":session.token()?})))
 }
 struct FortifyApplication<A>(std::marker::PhantomData<fn() -> A>);
@@ -230,6 +238,7 @@ impl<'a, A: ApplicationDefinition> Browser<'a, A> {
     async fn refresh_csrf(&mut self) -> Result<()> {
         let response = self.get(CSRF).await?;
         response.status(StatusCode::OK, "取得真实CSRF");
+        assert_eq!(self.cookies.get(PREFERENCE).map(String::as_str), Some("visible"));
         let envelope = response.json()?;
         assert_eq!(envelope["success"], true);
         self.token = Some(
@@ -428,6 +437,10 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
     let observed = Arc::clone(&enabled);
     let mut builder = TestApp::<FortifyApplication<A>>::builder(sources);
     builder.configure_providers(move |providers| {
+        let cookie_policy = EncryptCookies::new().except([PREFERENCE]);
+        providers.force_provider(
+            openrust::http::CookieServiceProvider::new().with_middleware(cookie_policy),
+        );
         let mut events = EventsServiceProvider::new();
         let observed = Arc::clone(&observed);
         events.listen::<TwoFactorAuthenticationEnabled, _>(move |_, context| {
@@ -440,6 +453,9 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
     let mut app = builder.build().await?;
     let outcome: Result<()> = async {
         let state = app.app()?.state();
+        let cookies = state.resolve::<EncryptCookies>().await?;
+        assert!(cookies.is_disabled(PREFERENCE));
+        assert!(!cookies.is_disabled("XSRF-TOKEN"));
         let typed = state.resolve::<Events>().await?;
         let named = state.resolve_key::<Events>(ServiceKey::named("events")).await?;
         assert!(Arc::ptr_eq(&typed, &named));

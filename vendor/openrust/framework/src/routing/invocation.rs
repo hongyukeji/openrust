@@ -14,7 +14,7 @@ struct Gate {
 struct Owner {
     scope: Option<Weak<Scope>>,
     #[cfg(feature = "session")]
-    cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
+    cookie: Option<Arc<crate::cookie::middleware::EncryptCookies>>,
     // 同次派发的所有祖先闸共用事务锁。锁内只访问计数和状态。
     commit: Mutex<()>,
 }
@@ -33,7 +33,7 @@ fn lock<T>(lock: &Mutex<T>) -> MutexGuard<'_, T> {
 
 impl Invocation {
     pub(super) fn new(
-        #[cfg(feature = "session")] cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
+        #[cfg(feature = "session")] cookie: Option<Arc<crate::cookie::middleware::EncryptCookies>>,
     ) -> (Self, Retire) {
         let invocation = Self {
             owner: Arc::new(Owner {
@@ -105,7 +105,9 @@ impl Invocation {
     }
 
     #[cfg(feature = "session")]
-    pub(crate) fn protected_cookie(&self) -> Option<&Arc<crate::http::cookie::CookieLayerPlan>> {
+    pub(crate) fn protected_cookie(
+        &self,
+    ) -> Option<&Arc<crate::cookie::middleware::EncryptCookies>> {
         self.owner.cookie.as_ref()
     }
 

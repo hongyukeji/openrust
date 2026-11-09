@@ -730,6 +730,23 @@ fn response_cookie(response: &Response, name: &str) -> String {
 }
 
 #[tokio::test]
+async fn web_router_rejects_public_cookie_exceptions_for_session_and_xsrf() -> Result<()> {
+    use openrust::cookie::middleware::EncryptCookies;
+
+    for name in ["test_session", "XSRF-TOKEN"] {
+        let (mut app, _) = rename_fixture("test_session", "test_session", true, None).await?;
+        let policy = EncryptCookies::new().except([name]);
+        app.force_register_provider(CookieServiceProvider::new().with_middleware(policy))
+            .await?;
+        let error = build_router(&app).expect_err("Web 组要求受保护的 Cookie");
+        assert_eq!(error.code(), "web_cookie_encryption_missing", "{name}");
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+            .await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn protected_session_cannot_be_renamed_to_an_encryption_exclusion() -> Result<()> {
     let (app, observed) = rename_fixture(EXCLUDED_SESSION_NAME, "test_session", true, None).await?;
     let mut request = wire("GET", "/rename-session", None, "");

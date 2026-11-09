@@ -376,7 +376,7 @@ impl Default for MiddlewareRegistry {
 impl MiddlewareRegistry {
     pub(crate) fn install_web_defaults(
         &mut self,
-        cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
+        cookie: Option<Arc<crate::cookie::middleware::EncryptCookies>>,
         #[cfg(feature = "session")] session: Option<crate::session::SessionLayer>,
         #[cfg(feature = "session")] forgery: Option<crate::http::forgery::ForgeryRuntime>,
     ) -> crate::core::Result<()> {
@@ -2943,7 +2943,7 @@ mod return_roles_tests {
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, crate::Result<()>> {
             Box::pin(async move {
                 let cookie = app
-                    .resolve::<crate::http::cookie::CookieLayerPlan>()
+                    .resolve::<crate::cookie::middleware::EncryptCookies>()
                     .await?;
                 let runtime = crate::http::forgery::ForgeryRuntime {
                     policy: PreventRequestForgery::new().origin_only(),
