@@ -1888,6 +1888,12 @@ Linux ARM64 的镜像和独立目录均在真实服务拓扑下运行。根使�
 
 工作区格式、严格 Clippy、测试、Rustdoc 与依赖门禁通过。测试使用真实 MySQL 8.4，根示例及两种注册路径均实际执行断言。实际生成 minimal 并通过 check/test，包含默认宿主的同实例断言。路径配置与其他模块 Provider 行为按各自合同验收。
 
+## JSON 包含路径与布尔组验收
+
+冻结树 `44d3515298e937fc5bd414af5b4de4668252c462` 对应固定 Laravel d52c3b3 的四个 JSON 包含方法、MySQL/PostgreSQL/SQLite Grammar 与查询构造测试。三后端 AST 验证限定列、箭头路径和索引、取反范围、参数顺序与分组。Rust 把路径中的 ` as ` 当作 JSON 键数据，避免把条件路径解释成列别名。
+
+真实 MySQL 8.4 的唯一示例验证标签筛选、跨账户隔离及分页总数。新生成 MySQL 项目覆盖路径和特殊字符、缺失路径、SQL NULL、OR/NOT 及精确 UPDATE/DELETE 目标。workspace 格式、严格 Clippy、测试、Rustdoc、依赖、全特性全目标编译与生成项目 check/test 通过。SQLite 生成入口只编译，PostgreSQL 和 SQLite 实库仍按发布矩阵执行。
+
 ## SQLite 简单列 JSON 包含日常验收
 
 冻结树 `b04a57b3a5de527d701495df017aa1094e33eca4` 对应固定 Laravel d52c3b3 的 SQLiteGrammar 和 PDO 绑定。简单列通过 `json_each` 与 `IS` 传入一枚标量绑定，结构化值在 SQLite 拒绝。AST 断言覆盖绑定顺序、原 MySQL/PG 表达式、空值、布尔、整数及 PHP 浮点文本。根示例用同一查询入口返回字段验证错误，生成模板保留发布专项。
