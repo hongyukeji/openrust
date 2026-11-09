@@ -20,7 +20,7 @@ use super::{
 };
 
 #[cfg(test)]
-#[path = "loading_tests.rs"]
+#[path = "../../tests/unit/module_loading.rs"]
 mod tests;
 
 /// 一次已发现声明的构造上下文；未编译的 Rust 源码不会执行。

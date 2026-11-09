@@ -996,5 +996,5 @@ mod sqlite_tests {
 }
 
 #[cfg(all(test, feature = "auth-fortify", feature = "db-sqlite"))]
-#[path = "pat/credential_tests.rs"]
+#[path = "../../tests/unit/auth/pat_credentials.rs"]
 mod credential_tests;

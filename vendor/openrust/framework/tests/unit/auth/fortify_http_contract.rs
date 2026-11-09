@@ -19,7 +19,7 @@ use crate::core::RateLimitBucket;
 use crate::core::RateLimitFuture;
 use crate::core::RateLimitStore;
 use crate::core::RateLimiter;
-use crate::events::EventsServiceProvider;
+use crate::events::EventServiceProvider;
 use crate::foundation::ApplicationDefinition;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
@@ -315,7 +315,7 @@ impl<const MODE: u8> ApplicationDefinition for App<MODE> {
                 MemorySessionStore::default(),
             )),
             Box::new(AuthServiceProvider::with_authenticator(RejectLegacy)),
-            Box::new(EventsServiceProvider::new()),
+            Box::new(EventServiceProvider),
             Box::new(CacheServiceProvider::new()),
             Box::new(Support::<MODE>),
             Box::new(FortifyServiceProvider::new()),

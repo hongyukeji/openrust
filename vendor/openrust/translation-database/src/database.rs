@@ -9,7 +9,7 @@ use openrust::database::sea_orm::ConnectionTrait;
 use openrust::database::sea_orm::DbBackend;
 use openrust::database::sea_orm::QueryResult;
 use openrust::database::sea_orm::Statement;
-use openrust::events::Events;
+use openrust::events::Dispatcher;
 use openrust::support::BoxFuture;
 use openrust::translation::Locale;
 use openrust::translation::TranslationLines;
@@ -106,7 +106,7 @@ pub struct DatabaseTranslationLoader {
     db: Db,
     max_rows: usize,
     check_interval: Duration,
-    events: Option<Events>,
+    events: Option<Dispatcher>,
     notification_cache: Option<(CacheStore, String)>,
     state: Arc<Mutex<State>>,
     hint: Arc<AtomicU64>,
@@ -143,7 +143,7 @@ impl DatabaseTranslationLoader {
     }
     /// 复用既有事件派发器；在本管理API提交成功后按标准机制派发监听器。
     #[must_use]
-    pub fn with_events(mut self, events: Events) -> Self {
+    pub fn with_events(mut self, events: Dispatcher) -> Self {
         self.events = Some(events);
         self
     }
@@ -561,7 +561,7 @@ fn database_error() -> Error {
     test,
     any(feature = "db-mysql", feature = "db-postgres", feature = "db-sqlite")
 ))]
-#[path = "database_tests.rs"]
+#[path = "../tests/unit/database.rs"]
 mod tests;
 
 #[cfg(test)]

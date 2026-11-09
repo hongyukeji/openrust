@@ -26,7 +26,7 @@ use crate::database::DatabaseRateLimitMigration;
 use crate::database::DatabaseRateLimitStore;
 use crate::database::sea_orm_migration::MigrationTrait;
 use crate::database::sea_orm_migration::MigratorTrait;
-use crate::events::Events;
+use crate::events::Dispatcher;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::http::RequestInfo;
@@ -164,7 +164,9 @@ where
     F: FnOnce(Fixture) -> BoxFuture<'static, Result<()>>,
 {
     builder.provider(crate::database::DatabaseServiceProvider);
-    builder.provider(events);
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(events);
     let runtime = builder.start(figment::Figment::new()).await?;
     let outcome: Result<()> = async {
         let db = (*runtime.container().resolve::<Db>().await?).clone();
@@ -213,7 +215,7 @@ where
                 },
             ),
         );
-        let events = (*runtime.container().resolve::<Events>().await?).clone();
+        let events = (*runtime.container().resolve::<Dispatcher>().await?).clone();
         let actions = TwoFactorActions::new(
             Arc::new(
                 GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_000))),
@@ -1262,7 +1264,7 @@ async fn oidc_attachment_rechecks_saved_direct_login_session_at_commit() -> Resu
     .await
 }
 
-#[path = "../../../../tests/unit/auth/fortify_management_events.rs"]
+#[path = "fortify_management_events.rs"]
 mod event_tests;
 
 #[cfg(feature = "db-sqlite")]

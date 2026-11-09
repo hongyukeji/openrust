@@ -184,7 +184,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 文章标题缓存路由在主库授权后，才通过构造属性解析具名缓存与请求作用域的 memo 视图。
 
-文章创建、更新和删除在同一事务中调用 `Events::dispatch_in_transaction`，模块监听器写入 `example_article_events`，并把幂等的 `ArticleIndexJob` 插入同一持久队列事务；监听或入队失败会回滚文章写入。创建还从同一事务读取作者已验证邮箱，用公开 `Notifier::dispatch_in_transaction` 排入仅发给作者的确认邮件；入队失败同样回滚文章，测试 worker 使用捕获邮件驱动，不向真实供应商发送。显式 worker 在提交后按 owner/文章 ID 维护 `example-prefix` 命名 store 中 TTL 600 秒的派生标题，删除时移除对应键。`GET /api/example/articles/{id}/cached-title` 每次先在主库检查 owner，缓存 MISS 才从主库重建；默认 store 不受模块设置影响，应用可显式把该 named store 设为 Redis。标题是 eventual 派生值：异步 job 未消费或旧快照与新 job 交错时可能读到旧标题，单个写入的 TTL 为 600 秒，队列长期故障时不承诺端到端 600 秒内最新；授权与普通 CRUD 始终由主库决定。详情成功读取经公开 `Audit` 记录 actor、文章与结果，越权读取不会产生成功审计。
+文章创建、更新和删除在同一事务中调用 `Dispatcher::dispatch_in_transaction`，模块监听器写入 `example_article_events`，并把幂等的 `ArticleIndexJob` 插入同一持久队列事务；监听或入队失败会回滚文章写入。创建还从同一事务读取作者已验证邮箱，用公开 `Notifier::dispatch_in_transaction` 排入仅发给作者的确认邮件；入队失败同样回滚文章，测试 worker 使用捕获邮件驱动，不向真实供应商发送。显式 worker 在提交后按 owner/文章 ID 维护 `example-prefix` 命名 store 中 TTL 600 秒的派生标题，删除时移除对应键。`GET /api/example/articles/{id}/cached-title` 每次先在主库检查 owner，缓存 MISS 才从主库重建；默认 store 不受模块设置影响，应用可显式把该 named store 设为 Redis。标题是 eventual 派生值：异步 job 未消费或旧快照与新 job 交错时可能读到旧标题，单个写入的 TTL 为 600 秒，队列长期故障时不承诺端到端 600 秒内最新；授权与普通 CRUD 始终由主库决定。详情成功读取经公开 `Audit` 记录 actor、文章与结果，越权读取不会产生成功审计。
 
 ### 登录、保存文章与 worker 更新标题
 
@@ -478,7 +478,7 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 | 邮件及公开邮件实现 | `http/controllers/auth.rs::AuthCodeEmail` 实现 `Email`，`send_auth_code` 使用 `Mailer` | 根 mail 配置与 `MailerServiceProvider` | 认证测试有捕获 MailDriver；SMTP/真实发送须独立授权和条件，不能从 fake 推断 |
 | 自定义缓存/邮件/SMS driver | `PrefixCacheServiceProvider` 已生产挂载 named driver；欢迎 HTTP 只向已验证账户邮箱发送，双通道 SMS 业务调用仅在受控测试编译中执行 | 标准 Cache/Mailer/SmsSender Provider 保留，捕获驱动仅 TestApp 安装 | 7项生产 TestApp 扩展回归；未验证手机号归属前不开放 HTTP SMS，SMTP/Twilio 实发仍待独立验收 |
 | 队列与调度 | `JobsServiceProvider` 注册 heartbeat 与幂等 `ArticleIndexJob`，文章事件在事务内排入持久队列 | `queue`、数据库与模块迁移的公开挂载；API/worker/scheduler 为同一应用的进程角色 | 双库 HTTP 后 worker 消费索引；PG/MySQL 的数据库与 Redis backend 各1项真实故障→退避→恢复、终态记录→公开重试及 tenant 分区通过；Scheduler 真实数据库时钟→持久队列→worker 双库各1项通过，同进程双 App 不代表多进程调度集群 |
-| 事件与通知 | Article 写入事务内经 `Events` 派发，监听器同事务记录文章事件并排索引任务；创建经 `Notifier` 将确认邮件排入 notifications 队列 | EventsServiceProvider 由模块清单安装，根注册 NotificationsServiceProvider | 双库真实 HTTP 后显式 worker 消费各3封作者确认邮件并核对捕获内容；无 SMTP 实发，事务失败不入队 |
+| 事件与通知 | Article 写入事务内经 `Dispatcher` 派发，监听器同事务记录文章事件并排索引任务；创建经 `Notifier` 将确认邮件排入 notifications 队列 | 默认应用清单安装核心 EventServiceProvider，模块 EventsServiceProvider 贡献业务监听；根注册 NotificationsServiceProvider | 双库真实 HTTP 后显式 worker 消费各3封作者确认邮件并核对捕获内容；无 SMTP 实发，事务失败不入队 |
 | 缓存、tag/SWR、并发加载 | `ArticleIndexJob` 与授权后 `cached-title` 路由使用同一 named store，MISS 主库重建；模块默认 Prefix driver，可显式选择 Redis | 缓存不是授权来源，旧标题最多按单次写入 TTL 缓存且队列延迟另计 | PostgreSQL/MySQL 各 4 项业务回归含真实 Redis 双 App 共享、owner 拒绝、tenant 分区与失效；另默认 Redis tag/SWR 业务双库各6项通过；跨进程拓扑不由此验收 |
 | 本地/S3 存储与流式上传下载 | `ArticleAttachments` 按 owner+文章固定 key 调用公开 `FilesystemManager` 流式上传/下载/删除；主库授权、UTF-8/大小限制与安全响应头 | `storage-local`、`auth`、数据库能力；S3 需额外 `storage-s3` 与显式默认 disk 配置 | 本地双库测试及真实 MinIO+PG/MySQL S3 回归通过，含真实 CopyObject 成功响应被暂停、并发 DELETE 等待及最终 key/staging 清理；版本化 S3 multipart/取消/确切版本另1项。跨 DB/对象存储不原子；进程强杀或远端永久无响应仍不保证自动收敛 |
 | 服务端视图 | `http/controllers/pages.rs::about_page` 注入 `Views` | `view`；模块 `example::` 命名空间及发布优先/源回退 | 生产 TestApp 与真实 TCP 各自覆盖；真实 TCP 2项通过，含发布副本优先/缺失回退及转义/错误边界 |
@@ -591,7 +591,7 @@ D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响�
 
 预览响应的 `editable_fields` 是真实 Schema 列序与模型白名单的交集，表示此接口可编辑的字段，不暴露owner/id/内部时间列；它不替代Validated、owner过滤、Model guardable或权限规则。owner不符/记录不存在先404，随后才读Schema。此只读见证不会写记录；Schema目录错误正常传播，原预览快照/SQL不变边界继续有效。
 
-文章事件由模块声明稳定身份 `Example\Events\ArticleChanged`，原事务内直接记录及队列映射共用唯一 Events。模块启停仍按 `modules.<name>.<phase>` 字符串派发；相同载荷类型不会触发其他事件名的类监听。普通响应 false 只截断传播，不使文章写入或模块启停自动失败；业务错误仍向事务传播。
+文章事件由模块声明稳定身份 `Example\Events\ArticleChanged`，原事务内直接记录及队列映射共用唯一 `Dispatcher`。模块启停仍按 `modules.<name>.<phase>` 字符串派发；相同载荷类型不会触发其他事件名的类监听。普通响应 false 只截断传播，不使文章写入或模块启停自动失败；业务错误仍向事务传播。
 
 ## 集成秘密文件
 

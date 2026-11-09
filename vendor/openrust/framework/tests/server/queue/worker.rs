@@ -7,7 +7,7 @@ use openrust::config::FrameworkConfig;
 use openrust::core::{Error, Result as FrameworkResult};
 use openrust::database::sea_orm_migration::MigrationTrait;
 use openrust::database::{DatabaseServiceProvider, Db, sea_orm_migration::MigratorTrait};
-use openrust::events::{Events, EventsServiceProvider};
+use openrust::events::{Dispatcher, EventsServiceProvider};
 use openrust::queue::{
     DispatchOptions, GroupFailurePolicy, Job, JobContext, Queue, QueueMigration,
     QueueServiceProvider, QueueTask,
@@ -231,6 +231,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     builder
         .provider(DatabaseServiceProvider)
         .provider(queue_plugin)
+        .provider(openrust::events::EventServiceProvider)
         .provider(events_plugin);
     let app = builder
         .start(sources)
@@ -238,7 +239,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
         .and_then(openrust::Application::from_provider_runtime)?;
     let queue = app.state().resolve::<Queue>().await?;
     let db = app.state().resolve::<Db>().await?;
-    let events = app.state().resolve::<Events>().await?;
+    let events = app.state().resolve::<Dispatcher>().await?;
 
     *EXECUTION_METADATA
         .lock()

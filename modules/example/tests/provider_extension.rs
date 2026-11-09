@@ -46,7 +46,7 @@ async fn assert_extension(
     let mut builder = ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
-        .provider(openrust::events::DefaultEventsServiceProvider)
+        .provider(openrust::events::EventServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
         .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::Result;
 use crate::cache::Cache;
 use crate::config::repository::SectionSchema as S;
-use crate::events::Events;
+use crate::events::Dispatcher;
 use crate::foundation::BootContext;
 use crate::foundation::RegisterContext;
 use crate::support::{BoxFuture, ServiceProvider};
@@ -17,7 +17,7 @@ use super::{
 
 /// 官方双因素服务Provider；应用显式登记，并通过普通Container覆盖公开契约。
 ///
-/// 需要Auth、Session、Events、Cache与Encryption服务。路由装配和用户模型接入
+/// 需要Auth、Session、Dispatcher、Cache与Encryption服务。路由装配和用户模型接入
 /// 不通过此类型悄悄创建第二份账户或独立应用。
 #[derive(Default)]
 pub struct FortifyServiceProvider;
@@ -95,7 +95,7 @@ impl ServiceProvider for FortifyServiceProvider {
                         let provider = resolver
                             .resolve::<dyn TwoFactorAuthenticationProvider>()
                             .await?;
-                        let events = resolver.resolve::<Events>().await?;
+                        let events = resolver.resolve::<Dispatcher>().await?;
                         Ok(Arc::new(
                             TwoFactorActions::from_application(
                                 provider,

@@ -586,7 +586,10 @@ async fn transaction_events_rollback_before_commit_and_ignore_after_commit_error
             Err(Error::custom("after_commit_failed", "notification failed"))
         })
     });
-    builder.provider(DatabaseServiceProvider).provider(events);
+    builder
+        .provider(openrust::events::EventServiceProvider)
+        .provider(DatabaseServiceProvider)
+        .provider(events);
     let app = builder
         .start(sources)
         .await

@@ -2059,6 +2059,14 @@ EV-R01精确运行输入为已提交Context `364233ca`上的v5，manifest `0b5b3
 
 冻结树 `a1b9a3e1825fd38cd08776753db9b8b1e070c7dd` 通过默认及 Session/Fortify/View 的 workspace 测试、严格 Clippy、格式、Rustdoc 与离线依赖检查。固定 Laravel `d52c3b3` 的 `events` 键解析到现有应用单例。独立验收核类型和具名身份、默认延迟事件注册与移除、唯一示例经具名入口触发 Provider，真实 MySQL 8.4.13 的监听失败事务回滚。新生成 Web/Fortify 及 JWT API 通过 check/test，其中 Web 的真实应用容器核对两种解析取得同一实例。Dispatcher 类型和完整契约继续开放。
 
+## 默认事件派发器限定验收
+
+冻结树 `4585727e16d76dc47adccd623f894d801eeba0da`。对应固定 Laravel `d52c3b3` 的核心 EventServiceProvider、Application 基础清单和应用监听 Provider。默认核心惰性登记 Dispatcher，与具名 `events` 共享实例。应用在其 Provider 启动前发布监听，保留登记次序。已经取得的副本可见更新，不跨应用安装监听组。模块扩展使用同一应用服务，显式排除或替换核心后，模块及延迟监听路径均不补位。
+
+实际验证早期副本、强制替换、旧发布防回填、监听冲突和跨应用误用、启动期及运行期延迟监听、HTTP/控制台 Terminating、模块启停与生成 Fortify 路径。默认及 Session/Fortify/View/OIDC/Translation Database 组合通过工作区测试、严格 Clippy 与 Rustdoc，另有真实 MySQL 8.4.13 事务回滚及生成 Web/JWT check/test，格式及离线依赖检查通过。
+
+完整应用监听 Provider 的官方路径和发现、契约接口、after-commit 与通用广播保持开放。
+
 ## 哈希与日志具名入口限定验收
 
 冻结树 `cd849604b2c01961b461909c37256ef91ca05d6e` 对照固定 Laravel `d52c3b3` 的 HashServiceProvider 与 LogServiceProvider。应用的类型化及具名入口共享同一管理器和默认驱动。真实 Argon2id 默认解析、自定义源方向、具名装饰及默认频道写入均实跑。唯一示例经具名入口读取哈希管理器和日志频道，Web 生成应用核对三个具名键的实例身份。

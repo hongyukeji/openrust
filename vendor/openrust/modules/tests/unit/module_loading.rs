@@ -128,6 +128,7 @@ async fn disabled_uncompiled_metadata_can_enable_then_next_load_fails() -> TestR
         &json!({"name":"Unknown","providers":["NotCompiled"]}),
     )?;
     let mut builder = ProviderBuilder::new();
+    builder.provider(openrust::events::EventServiceProvider);
     builder.module_manifest(ModuleManifest::discover_from_config(
         root.path(),
         &ModulesConfig::default(),

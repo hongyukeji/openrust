@@ -12,7 +12,7 @@ use openrust::database::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter,
     QuerySelect,
 };
-use openrust::events::Events;
+use openrust::events::Dispatcher;
 use openrust::http::axum::http::StatusCode;
 #[cfg(feature = "queue")]
 use openrust::notifications::{EmailDelivery, Notification, Notifier};
@@ -22,7 +22,7 @@ use openrust::{Error, Result};
 #[derive(Clone)]
 pub(crate) struct ArticleWriter {
     db: Arc<Db>,
-    events: Arc<Events>,
+    events: Arc<Dispatcher>,
     #[cfg(feature = "queue")]
     notifier: Arc<Notifier>,
 }
@@ -30,7 +30,7 @@ pub(crate) struct ArticleWriter {
 impl ArticleWriter {
     pub(crate) fn new(
         db: Arc<Db>,
-        events: Arc<Events>,
+        events: Arc<Dispatcher>,
         #[cfg(feature = "queue")] notifier: Arc<Notifier>,
     ) -> Self {
         Self {

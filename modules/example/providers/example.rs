@@ -214,7 +214,7 @@ async fn deferred_greeting_event(
     State(app): State<ApplicationState>,
 ) -> Result<openrust::http::Json<serde_json::Value>> {
     let events = app
-        .resolve_key::<openrust::events::Events>(ServiceKey::named("events"))
+        .resolve_key::<openrust::events::Dispatcher>(ServiceKey::named("events"))
         .await?;
     let reply = events.until(&DeferredGreetingRequested).await?;
     let registered = match reply {
@@ -594,7 +594,7 @@ impl ServiceProvider for ExampleServiceProvider {
                     Box::pin(async move {
                         Ok(Arc::new(ArticleWriter::new(
                             resolver.resolve::<openrust::Db>().await?,
-                            resolver.resolve::<openrust::events::Events>().await?,
+                            resolver.resolve::<openrust::events::Dispatcher>().await?,
                             #[cfg(feature = "queue")]
                             resolver
                                 .resolve::<openrust::notifications::Notifier>()
@@ -790,4 +790,5 @@ impl ServiceProvider for ExampleServiceProvider {
 }
 
 #[cfg(test)]
+#[path = "../tests/provider_extension.rs"]
 mod extension_tests;

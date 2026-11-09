@@ -312,6 +312,7 @@ async fn terminable_middleware_uses_the_selected_route_and_container_lifetimes()
     let mut builder = ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
+        .provider(crate::events::EventServiceProvider)
         .provider(events)
         .provider(Routes(sender, Arc::default()));
     let mut config = FrameworkConfig::default();
@@ -416,6 +417,7 @@ async fn test_app_disables_middleware_but_retains_kernel_event_and_app_callback(
         });
         providers
             .provider(HttpServiceProvider)
+            .provider(crate::events::EventServiceProvider)
             .provider(events)
             .provider(Routes(sender.clone(), Arc::default()))
             .provider(DisabledOnlyRoute);

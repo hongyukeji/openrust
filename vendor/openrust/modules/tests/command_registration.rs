@@ -34,6 +34,7 @@ impl<const OVERRIDE: bool> ApplicationDefinition for WithModules<OVERRIDE> {
     type Config = Settings;
     fn default_providers() -> DefaultProviders {
         DefaultProviders::empty()
+            .merge([Box::new(openrust::events::EventServiceProvider) as Box<dyn ServiceProvider>])
     }
     fn providers(_: &Settings) -> Vec<Box<dyn ServiceProvider>> {
         if OVERRIDE {

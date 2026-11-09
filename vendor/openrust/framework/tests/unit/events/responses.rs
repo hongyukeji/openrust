@@ -1,5 +1,5 @@
 //! 检出选择顺序、到达时类型检查、原值响应与已观察身份冲突的回归。
-use super::{Event, Events, EventsServiceProvider};
+use super::{Dispatcher, Event, EventServiceProvider, EventsServiceProvider};
 use crate::{
     Result,
     support::{DataObject, DataValue},
@@ -32,11 +32,11 @@ struct Pattern;
 impl Event for Pattern {
     const NAME: &'static str = "Invalid*Class";
 }
-async fn build(provider: EventsServiceProvider) -> Result<Events> {
+async fn build(provider: EventsServiceProvider) -> Result<Dispatcher> {
     let mut builder = crate::foundation::ProviderBuilder::new();
-    builder.provider(provider);
+    builder.provider(EventServiceProvider).provider(provider);
     let runtime = builder.start(figment::Figment::new()).await?;
-    Ok((*runtime.container().resolve::<Events>().await?).clone())
+    Ok((*runtime.container().resolve::<Dispatcher>().await?).clone())
 }
 fn record(log: &Mutex<Vec<String>>, entry: String) {
     log.lock()
@@ -407,7 +407,7 @@ async fn propagation_stop_keeps_previous_responses_without_veto() -> Result<()> 
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn nested_dispatch_releases_identity_lock_before_calling_user_code() -> Result<()> {
-    let dispatcher = Arc::new(std::sync::OnceLock::<std::sync::Weak<Events>>::new());
+    let dispatcher = Arc::new(std::sync::OnceLock::<std::sync::Weak<Dispatcher>>::new());
     let nested = Arc::clone(&dispatcher);
     let mut provider = EventsServiceProvider::new();
     provider.listen_reply::<A, _>(move |_, _| {
@@ -419,7 +419,7 @@ async fn nested_dispatch_releases_identity_lock_before_calling_user_code() -> Re
                 .ok_or(crate::Error::Unauthorized)?;
             // 不阻塞地检出“带身份锁调用callback”变异，先失败而非同步重锁死整个executor。
             {
-                let unlocked = current.observed.try_lock();
+                let unlocked = current.state.try_lock();
                 assert!(unlocked.is_ok());
             }
             current.dispatch(&B(2)).await?;

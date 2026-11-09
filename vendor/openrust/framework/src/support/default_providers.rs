@@ -70,6 +70,7 @@ impl DefaultProviders {
 
     fn build(database: bool, session: bool) -> Self {
         let mut providers: Vec<Box<dyn ServiceProvider>> = vec![
+            Box::new(crate::events::EventServiceProvider),
             Box::new(crate::http::HttpServiceProvider),
             Box::new(ReadinessProvider),
             Box::new(crate::translation::TranslationServiceProvider::default()),

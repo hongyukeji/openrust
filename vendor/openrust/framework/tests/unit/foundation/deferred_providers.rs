@@ -546,7 +546,7 @@ impl ServiceProvider for EagerEventTrigger {
         Box::pin(async move {
             self.0.push("eager.register.begin");
             assert!(!app.is_bound::<DeferredValue>());
-            let events = app.resolve::<crate::events::Events>().await?;
+            let events = app.resolve::<crate::events::Dispatcher>().await?;
             assert_provider_reply(&events.until(&ProbeEvent).await?)?;
             self.0.push("eager.register.end");
             Ok(())
@@ -601,7 +601,7 @@ async fn eager_registration_event_registers_before_key_publication_and_boots_onc
 
 #[tokio::test]
 async fn event_exact_wildcard_and_until_reuse_original_provider_object() -> Result<()> {
-    use crate::events::{Events, EventsServiceProvider};
+    use crate::events::{Dispatcher, EventsServiceProvider};
     use crate::support::DataValue;
 
     let trace = Trace::default();
@@ -619,7 +619,7 @@ async fn event_exact_wildcard_and_until_reuse_original_provider_object() -> Resu
     });
     builder.provider(listeners);
     let app = start(builder).await?;
-    let events = app.state().resolve::<Events>().await?;
+    let events = app.state().resolve::<Dispatcher>().await?;
     let first = events.until(&ProbeEvent).await?;
     let first = assert_provider_reply(&first)?;
     assert_eq!(trace.values(), ["lazy.register", "lazy.boot"]);
@@ -650,18 +650,18 @@ async fn event_exact_wildcard_and_until_reuse_original_provider_object() -> Resu
 
 #[tokio::test]
 async fn event_and_service_resolution_wait_for_one_registration() -> Result<()> {
-    use crate::events::Events;
+    use crate::events::Dispatcher;
 
     let trace = Trace::default();
     let pause = Arc::new((Notify::new(), Notify::new()));
     let app = start(builder(&trace, Some(Arc::clone(&pause)))).await?;
     let events = app
         .state()
-        .resolve_key::<Events>(ServiceKey::named("events"))
+        .resolve_key::<Dispatcher>(ServiceKey::named("events"))
         .await?;
     assert!(Arc::ptr_eq(
         &events,
-        &app.state().resolve::<Events>().await?
+        &app.state().resolve::<Dispatcher>().await?
     ));
     let leader = tokio::spawn(async move { events.until(&ProbeEvent).await });
     tokio::time::timeout(Duration::from_secs(2), pause.0.notified())
@@ -709,7 +709,7 @@ impl ServiceProvider for EventOnlyProvider {
 #[tokio::test]
 async fn event_only_provider_survives_load_all_and_retries_after_failed_registration() -> Result<()>
 {
-    use crate::events::{Events, EventsServiceProvider};
+    use crate::events::{Dispatcher, EventsServiceProvider};
     use crate::support::DataValue;
 
     let trace = Trace::default();
@@ -726,7 +726,7 @@ async fn event_only_provider_survives_load_all_and_retries_after_failed_registra
     let mut app = start(builder).await?;
     app.load_deferred_providers().await?;
     assert_eq!(trace.values(), [] as [&str; 0]);
-    let events = app.state().resolve::<Events>().await?;
+    let events = app.state().resolve::<Dispatcher>().await?;
     let first = events.dispatch_named("tests.event-only", &()).await;
     assert!(matches!(first, Err(error) if error.code() == "event_only_first_failure"));
     assert_eq!(trace.values(), ["event-only.register"]);
@@ -746,8 +746,10 @@ async fn event_only_provider_survives_load_all_and_retries_after_failed_registra
         ]
     );
     app.flush()?;
+    app.register_provider(crate::events::EventServiceProvider)
+        .await?;
     app.register_provider(EventsServiceProvider::new()).await?;
-    let fresh_events = app.state().resolve::<Events>().await?;
+    let fresh_events = app.state().resolve::<Dispatcher>().await?;
     assert!(matches!(
         fresh_events.until_named("tests.event-only", &()).await?,
         DataValue::Null
@@ -769,10 +771,14 @@ async fn when_does_not_replace_explicitly_removed_event_service() -> Result<()> 
     let trace = Trace::default();
     let mut builder = builder(&trace, None);
     builder.remove_provider(crate::foundation::ProviderId::of::<
-        crate::events::EventsServiceProvider,
+        crate::events::EventServiceProvider,
     >());
     let app = start(builder).await?;
-    assert!(!app.state().container().contains::<crate::events::Events>());
+    assert!(
+        !app.state()
+            .container()
+            .contains::<crate::events::Dispatcher>()
+    );
     assert!(
         !app.state()
             .container()
@@ -781,4 +787,39 @@ async fn when_does_not_replace_explicitly_removed_event_service() -> Result<()> 
     assert_eq!(app.state().resolve::<DeferredValue>().await?.0, 7);
     assert_eq!(trace.values(), ["lazy.register", "lazy.boot"]);
     close(&app).await
+}
+
+#[tokio::test]
+async fn when_respects_default_event_provider_exclusion_and_replacement() -> Result<()> {
+    use crate::events::{Dispatcher, EventServiceProvider};
+    use crate::foundation::ProviderId;
+    use crate::support::DefaultProviders;
+
+    struct Replacement;
+    impl ServiceProvider for Replacement {}
+
+    let id = ProviderId::of::<EventServiceProvider>();
+    let selected = || {
+        DefaultProviders::empty()
+            .merge([Box::new(EventServiceProvider) as Box<dyn ServiceProvider>])
+    };
+    for defaults in [
+        selected().except([id]),
+        selected().replace(id, Box::new(Replacement)),
+    ] {
+        let trace = Trace::default();
+        let mut builder = builder(&trace, None);
+        builder.default_providers(defaults);
+        let app = start(builder).await?;
+        assert!(!app.state().container().contains::<Dispatcher>());
+        assert!(
+            !app.state()
+                .container()
+                .contains_key(&ServiceKey::named("events"))
+        );
+        assert_eq!(app.state().resolve::<DeferredValue>().await?.0, 7);
+        assert_eq!(trace.values(), ["lazy.register", "lazy.boot"]);
+        close(&app).await?;
+    }
+    Ok(())
 }

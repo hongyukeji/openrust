@@ -558,4 +558,5 @@ impl crate::events::Event for ValidTwoFactorAuthenticationCodeProvided {
 }
 
 #[cfg(test)]
+#[path = "../../../tests/unit/auth/fortify_login.rs"]
 mod tests;

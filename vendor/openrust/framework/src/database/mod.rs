@@ -38,6 +38,7 @@ pub(crate) fn cleanup_owned_sqlite_directory(directory: &std::path::Path) -> Res
     sqlite::migration_lock::cleanup_owned_directory(directory)
 }
 #[cfg(all(test, feature = "db-sqlite", feature = "auth-fortify"))]
+#[path = "../../tests/unit/database/final_checks.rs"]
 mod final_check_tests;
 pub mod schema;
 mod table_names;
@@ -128,7 +129,7 @@ pub struct Db {
     migration_lock_url: Arc<OnceLock<String>>,
     table_names: Arc<DatabaseTableNames>,
     next_replica: Arc<AtomicUsize>,
-    events: Arc<OnceLock<crate::events::Events>>,
+    events: Arc<OnceLock<crate::events::Dispatcher>>,
 }
 
 /// 由实际发起事务的 [`Db`] 签发、仅在本次事务回调内有效的借用视图。
@@ -362,12 +363,12 @@ impl Db {
             })
     }
 
-    fn install_events(&self, events: crate::events::Events) {
+    fn install_events(&self, events: crate::events::Dispatcher) {
         let _ = self.events.set(events);
     }
 
     #[cfg(feature = "auth")]
-    pub(crate) fn events(&self) -> Option<crate::events::Events> {
+    pub(crate) fn events(&self) -> Option<crate::events::Dispatcher> {
         self.events.get().cloned()
     }
 
@@ -830,8 +831,8 @@ impl crate::support::ServiceProvider for DatabaseServiceProvider {
             let config = app.section::<DatabaseConfig>("database")?;
             validate_config(&config)?;
             let databases = app.resolve::<Databases>().await?;
-            let events = if app.is_bound::<crate::events::Events>() {
-                Some(app.resolve::<crate::events::Events>().await?)
+            let events = if app.is_bound::<crate::events::Dispatcher>() {
+                Some(app.resolve::<crate::events::Dispatcher>().await?)
             } else {
                 None
             };

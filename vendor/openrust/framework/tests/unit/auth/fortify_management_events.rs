@@ -16,11 +16,13 @@ use std::sync::atomic::Ordering;
 use tokio::sync::Notify;
 
 #[cfg(feature = "db-sqlite")]
-async fn events(provider: EventsServiceProvider) -> Result<Events> {
+async fn events(provider: EventsServiceProvider) -> Result<Dispatcher> {
     let mut builder = ProviderBuilder::new();
-    builder.provider(provider);
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(provider);
     let runtime = builder.start(figment::Figment::new()).await?;
-    Ok((*runtime.container().resolve::<Events>().await?).clone())
+    Ok((*runtime.container().resolve::<Dispatcher>().await?).clone())
 }
 
 fn audit(db: &Db) -> Arc<DatabaseApiLoginAudit> {

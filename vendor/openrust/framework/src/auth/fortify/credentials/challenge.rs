@@ -807,5 +807,5 @@ fn digest(value: &str) -> String {
 }
 
 #[cfg(all(test, feature = "db-sqlite"))]
-#[path = "challenge_tests.rs"]
+#[path = "../../../../tests/unit/auth/fortify_credential_challenge.rs"]
 mod tests;

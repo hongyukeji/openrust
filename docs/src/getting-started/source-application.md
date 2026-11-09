@@ -324,9 +324,9 @@ fn main() {}
 
 ## 类型化事件
 
-应用可用 `app.resolve::<Events>()` 或 `app.resolve_key::<Events>(ServiceKey::named("events"))` 解析事件服务。两种入口取得当前应用的同一个单例，复用监听器、队列和派发上下文。
+默认 `EventServiceProvider` 登记 `openrust::events::Dispatcher`。应用可用 `app.state().resolve::<Dispatcher>()` 或 `app.state().resolve_key::<Dispatcher>(ServiceKey::named("events"))` 解析同一个应用单例。使用空 `ProviderBuilder` 时，先显式登记 `openrust::events::EventServiceProvider`。 [Laravel 核心事件 Provider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Events/EventServiceProvider.php)
 
-`EventsServiceProvider` 在同一服务登记监听器。类型所有者实现 `Event::NAME` 声明稳定类名；同名字符串派发使用同一 exact 组。先执行 exact，再按 wildcard 模式首次登记顺序及组内顺序等待监听器；遇到首个错误时立即返回，不再调用后续监听器。该派发仅在当前进程内执行，不会持久化或广播。启用 `queue` feature 后，`listen_queued` 可将事件映射为已注册的 `Job`；在业务事务中调用 `dispatch_in_transaction`，可将任务与业务变更原子地持久化。worker 仍需显式启动，任务处理器必须能够应对至少一次重试。
+应用 `EventsServiceProvider` 在自身启动前把监听器登记到该派发器。先前解析的派发器和克隆句柄也会看到本次登记。类型所有者实现 `Event::NAME` 声明稳定类名，同名字符串派发使用同一 exact 组。先执行 exact，再按 wildcard 模式首次登记顺序及组内顺序等待监听器。首个错误会立即结束派发。启用 `queue` feature 后，`listen_queued` 可将事件映射为已注册的 `Job`。在业务事务中调用 `dispatch_in_transaction`，可将任务与业务变更原子地持久化。worker 仍需显式启动，任务处理器必须能应对至少一次重试。 [Laravel 应用监听 Provider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Support/Providers/EventServiceProvider.php#L52-L73)
 
 ```rust,ignore
 // UserRegistered 由类型所有者声明；这不是框架内建事件。
@@ -340,7 +340,7 @@ events.listen_queued::<UserRegistered, WelcomeEmailJob, _>("mail", |event| {
 let mut builder = openrust::foundation::ProviderBuilder::new();
 builder.provider(openrust::queue::QueueServiceProvider::new()).provider(events);
 let app = openrust::Application::from_provider_runtime(builder.start(config).await?)?;
-let events = app.state().resolve::<openrust::events::Events>().await?;
+let events = app.state().resolve::<openrust::events::Dispatcher>().await?;
 
 db.transaction(|transaction| {
     let events = std::sync::Arc::clone(&events);
@@ -405,7 +405,7 @@ async fn greeting(locale: RequestLocale, Inject(i18n): Inject<Translator>) -> Js
 - 类事件与同名字符串共用选择器。只因载荷类型相同不会触发别的类名监听。先 exact，后按 wildcard 模式首次登记次序执行各组；类型登记与同名字符串登记在同一个 exact 组。`EventContext::event_name()` 总是本次完整名称。
 - 当前 `DataValue` 数字为有限值、字符串为 UTF-8、对象保留共享身份且不经 JSON 投影。完整 PHP mixed、零/多参数、类接口投影、可变模型视图、广播和延迟/后提交派发仍待对应；不能用普通事件响应冒称完整模型 save 生命周期。
 
-应用可以在现有同一 Provider 登记响应监听，再通过同一个应用 `Events` 读取结果：
+应用可以在现有同一 Provider 登记响应监听，再通过同一个应用 `Dispatcher` 读取结果：
 
 ```rust,ignore
 use openrust::support::DataValue;

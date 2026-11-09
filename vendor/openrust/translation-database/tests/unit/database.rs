@@ -170,12 +170,14 @@ where
         })
     });
     let mut providers = ProviderBuilder::new();
-    providers.provider(events);
+    providers
+        .provider(openrust::events::EventServiceProvider)
+        .provider(events);
     let runtime = providers.start(figment::Figment::new()).await?;
     let outcome: Result<()> = async {
         let loader = Arc::new(
             DatabaseTranslationLoader::new(db)
-                .with_events((*runtime.container().resolve::<Events>().await?).clone()),
+                .with_events((*runtime.container().resolve::<Dispatcher>().await?).clone()),
         );
         callback(loader, count).await
     }
@@ -355,11 +357,13 @@ async fn failed_transaction_rolls_back_lines_revision_and_never_notifies() -> Re
                 })
             });
             let mut builder = ProviderBuilder::new();
-            builder.provider(provider);
+            builder
+                .provider(openrust::events::EventServiceProvider)
+                .provider(provider);
             let runtime = builder.start(figment::Figment::new()).await?;
             let outcome: Result<()> = async {
                 let loader = DatabaseTranslationLoader::new(db.clone())
-                    .with_events((*runtime.container().resolve::<Events>().await?).clone());
+                    .with_events((*runtime.container().resolve::<Dispatcher>().await?).clone());
                 let en = resource("en", None)?;
                 insert_collision(&db, &en).await?;
                 assert!(
@@ -422,11 +426,13 @@ async fn notification_observes_commit_and_failure_does_not_claim_rollback() -> R
                 })
             });
             let mut builder = ProviderBuilder::new();
-            builder.provider(provider);
+            builder
+                .provider(openrust::events::EventServiceProvider)
+                .provider(provider);
             let runtime = builder.start(figment::Figment::new()).await?;
             let outcome: Result<()> = async {
                 let loader = DatabaseTranslationLoader::new(db.clone())
-                    .with_events((*runtime.container().resolve::<Events>().await?).clone());
+                    .with_events((*runtime.container().resolve::<Dispatcher>().await?).clone());
                 let en = resource("en", None)?;
                 let result = loader
                     .write(vec![put(&en, "key", json!("committed"))])

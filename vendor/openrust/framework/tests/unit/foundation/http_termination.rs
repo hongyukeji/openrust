@@ -99,7 +99,9 @@ async fn app(
             Ok(())
         })
     });
-    builder.provider(events);
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(events);
     if callbacks {
         builder.terminating(move |state| {
             let sender = sender.clone();
@@ -273,12 +275,13 @@ async fn kernel_terminating_runs_without_app_callbacks_and_keeps_sent_response_o
 async fn kernel_terminating_resolves_an_empty_cached_dispatcher_through_container_hooks()
 -> Result<()> {
     use crate::container::ServiceKey;
-    use crate::events::Events;
+    use crate::events::Dispatcher;
     use tokio::sync::Notify;
 
     let mut builder = ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
+        .provider(crate::events::EventServiceProvider)
         .provider(EventsServiceProvider::new())
         .provider(Routes);
     let app = Application::from_provider_runtime(
@@ -288,11 +291,11 @@ async fn kernel_terminating_resolves_an_empty_cached_dispatcher_through_containe
             )))
             .await?,
     )?;
-    let _ = app.state().resolve::<Events>().await?;
+    let _ = app.state().resolve::<Dispatcher>().await?;
     let called = Arc::new(Notify::new());
     let seen = Arc::clone(&called);
     app.state().container().before_resolving(
-        Some(ServiceKey::typed::<Events>()),
+        Some(ServiceKey::typed::<Dispatcher>()),
         move |_, _| {
             assert!(http_entry_scope().is_some());
             seen.notify_one();

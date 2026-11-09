@@ -1441,6 +1441,7 @@ async fn auth_flow_events_share_account_and_refresh_transactions() -> TestResult
     let mut builder = openrust::foundation::ProviderBuilder::new();
     builder
         .provider(DatabaseServiceProvider)
+        .provider(openrust::events::EventServiceProvider)
         .provider(events)
         .provider(AuthServiceProvider::new())
         .provider(JwtSettings::new(

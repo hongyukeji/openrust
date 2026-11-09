@@ -2,11 +2,8 @@
 
 use crate::{ModuleManifest, ModuleRepository, ModulesConfig, module};
 use openrust::Result;
-use openrust::events::DefaultEventsServiceProvider;
-use openrust::events::EventsServiceProvider;
 use openrust::foundation::BootContext;
 use openrust::foundation::ProviderBuilder;
-use openrust::foundation::ProviderId;
 use openrust::foundation::ProviderPreparation;
 use openrust::foundation::ProviderRegistration;
 use openrust::foundation::RegisterContext;
@@ -28,10 +25,6 @@ impl ProviderRegistration for ModulesRegistration {
         self: Box<Self>,
         context: &mut ProviderPreparation<'_>,
     ) -> Result<Vec<Box<dyn ServiceProvider>>> {
-        context.prepend_provider_unless_present(
-            Box::new(DefaultEventsServiceProvider),
-            ProviderId::of::<EventsServiceProvider>(),
-        );
         if self.manifest.has_discovery() {
             let provider = self.manifest.into_discovery_provider().ok_or_else(|| {
                 openrust::Error::custom("module_manifest_invalid", "运行发现清单缺少编译绑定表")

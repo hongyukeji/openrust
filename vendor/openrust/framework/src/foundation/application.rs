@@ -13,7 +13,7 @@ use crate::console::command::Command;
 use crate::console::command_registry::CommandRegistry;
 use crate::container::{Container, ParameterOverrides, Scope, ServiceKey};
 use crate::core::error::{Error, Result};
-use crate::events::Events;
+use crate::events::Dispatcher;
 use crate::foundation::ExtensionRef;
 use crate::foundation::events::Terminating;
 use crate::foundation::extensions::Extensions;
@@ -135,7 +135,7 @@ impl ApplicationState {
 
     pub(crate) fn has_kernel_termination(&self) -> bool {
         !self.inner.terminating.is_empty()
-            || self.container().contains::<Events>()
+            || self.container().contains::<Dispatcher>()
             || !self.inner.durations.requests.is_empty()
     }
 
@@ -233,8 +233,8 @@ impl ApplicationState {
     }
 
     pub(crate) async fn dispatch_terminating(&self) -> Result<()> {
-        if self.container().contains::<Events>() {
-            self.resolve::<Events>()
+        if self.container().contains::<Dispatcher>() {
+            self.resolve::<Dispatcher>()
                 .await?
                 .dispatch(&Terminating)
                 .await?;

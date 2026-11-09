@@ -755,13 +755,20 @@ async fn oidc_overlay_after_module_routes_fails_before_ready()
     Ok(())
 }
 
+fn module_event_fixture_builder() -> openrust::foundation::ProviderBuilder {
+    let mut builder = openrust::foundation::ProviderBuilder::new();
+    #[cfg(feature = "queue")]
+    builder.provider(openrust::queue::QueueServiceProvider::new());
+    // 裸 Builder 显式选择事件核心；模块仅贡献监听器，不补装宿主服务。
+    builder.provider(openrust::events::EventServiceProvider);
+    builder
+}
+
 #[tokio::test]
 async fn module_registration_controls_only_its_business_routes()
 -> Result<(), Box<dyn std::error::Error>> {
     for registered in [false, true] {
-        let mut builder = openrust::foundation::ProviderBuilder::new();
-        #[cfg(feature = "queue")]
-        builder.provider(openrust::queue::QueueServiceProvider::new());
+        let mut builder = module_event_fixture_builder();
         builder
             .provider(HttpServiceProvider)
             .provider(openrust::http::CookieServiceProvider::plain())
@@ -881,9 +888,7 @@ impl openrust::support::ServiceProvider for StartupExampleMessage {
 #[tokio::test]
 async fn module_business_uses_runtime_provider_rebinding_after_boot()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = openrust::foundation::ProviderBuilder::new();
-    #[cfg(feature = "queue")]
-    builder.provider(openrust::queue::QueueServiceProvider::new());
+    let mut builder = module_event_fixture_builder();
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
@@ -1651,7 +1656,6 @@ async fn orders_index(
 async fn dependent_business_module_serves_http_with_real_database()
 -> Result<(), Box<dyn std::error::Error>> {
     use openrust::database::sea_orm::{ConnectionTrait, Statement};
-    use openrust::foundation::ProviderBuilder;
     use openrust::testing::TestDatabase;
     use openrust_modules::{ModuleDescriptor, ModuleManifest};
     use std::path::PathBuf;
@@ -1668,9 +1672,7 @@ async fn dependent_business_module_serves_http_with_real_database()
         serde_json::json!({"database": {"url": database.url()}}),
     ));
 
-    let mut builder = ProviderBuilder::new();
-    #[cfg(feature = "queue")]
-    builder.provider(openrust::queue::QueueServiceProvider::new());
+    let mut builder = module_event_fixture_builder();
     builder
         .provider(HttpServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())

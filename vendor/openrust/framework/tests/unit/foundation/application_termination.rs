@@ -462,7 +462,10 @@ async fn kernel_terminating_dispatches_shared_event_before_console_callbacks() -
         Box::pin(async { Err(Error::custom("test_unexpected_listener", "传播本应已停止")) })
     });
     let mut builder = ProviderBuilder::new();
-    builder.provider(events).provider(Probe(Arc::clone(&trace)));
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(events)
+        .provider(Probe(Arc::clone(&trace)));
     let app = build(builder).await?;
     app.run_command("terminating-probe", Vec::new()).await?;
     app.run_command("terminating-probe", vec!["--help".into()])
@@ -498,7 +501,10 @@ async fn kernel_terminating_listener_error_skips_callbacks_but_manual_terminate_
         Box::pin(async { Err(Error::custom("test_listener_failed", "终止事件监听失败")) })
     });
     let mut builder = ProviderBuilder::new();
-    builder.provider(events).provider(Probe(Arc::clone(&trace)));
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(events)
+        .provider(Probe(Arc::clone(&trace)));
     let app = build(builder).await?;
     let success = app.run_command("terminating-probe", Vec::new()).await;
     assert!(matches!(success, Err(error) if error.code() == "test_listener_failed"));

@@ -52,7 +52,7 @@ impl Parts {
         auth: AuthFlows,
     ) -> Result<Self> {
         let mut builder = openrust::foundation::ProviderBuilder::new();
-        builder.provider(openrust::events::EventsServiceProvider::new());
+        builder.provider(openrust::events::EventServiceProvider);
         builder.provider(openrust::encryption::EncryptionServiceProvider);
         let runtime = builder
             .start(figment::Figment::new().merge(("app.key", "A".repeat(32))))
@@ -63,7 +63,7 @@ impl Parts {
             .await?;
         let events = (*runtime
             .container()
-            .resolve::<openrust::events::Events>()
+            .resolve::<openrust::events::Dispatcher>()
             .await?)
             .clone();
         let actions = TwoFactorActions::new(

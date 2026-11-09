@@ -6,7 +6,7 @@ use super::{
 };
 use crate::Error;
 use crate::Result;
-use crate::events::Events;
+use crate::events::Dispatcher;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::support::BoxFuture;
@@ -180,10 +180,12 @@ async fn exercise(database: &TestDatabase, observer: &DatabaseConnection) -> Res
         })
     });
     let mut builder = ProviderBuilder::new();
-    builder.provider(events);
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(events);
     let runtime = builder.start(figment::Figment::new()).await?;
     let result: Result<()> = async {
-        db.install_events((*runtime.container().resolve::<Events>().await?).clone());
+        db.install_events((*runtime.container().resolve::<Dispatcher>().await?).clone());
         succeed_or_reject(&db, observer, &after, &last_visible).await?;
         tokio::time::timeout(
             Duration::from_secs(5),

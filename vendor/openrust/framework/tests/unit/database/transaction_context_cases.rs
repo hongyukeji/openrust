@@ -363,6 +363,7 @@ async fn exercise(database: &TestDatabase) -> Result<()> {
     let observers = Arc::new(Observers::default());
     let mut builder = ProviderBuilder::new();
     builder
+        .provider(crate::events::EventServiceProvider)
         .provider(events(Arc::clone(&observers)))
         .provider(DatabaseServiceProvider);
     let runtime = builder

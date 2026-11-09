@@ -9,7 +9,7 @@ use openrust::{
         sea_orm::{ConnectionTrait, DbBackend, Statement},
         sea_orm_migration::{MigrationTrait, MigratorTrait},
     },
-    events::{Events, EventsServiceProvider},
+    events::{Dispatcher, EventsServiceProvider},
     foundation::ProviderBuilder,
     testing::TestDatabase,
 };
@@ -191,6 +191,7 @@ async fn outcomes(
 async fn exercise(database: &TestDatabase) -> Result<()> {
     let mode = Arc::new(AtomicU8::new(0));
     let mut builder = ProviderBuilder::new();
+    builder.provider(openrust::events::EventServiceProvider);
     builder
         .provider(events(Arc::clone(&mode)))
         .provider(DatabaseServiceProvider);
@@ -211,7 +212,7 @@ async fn exercise(database: &TestDatabase) -> Result<()> {
         let db=runtime.container().resolve::<Db>().await?;
         let reader=database.connection()?;
         reader.execute_unprepared("INSERT INTO users(id,email,password_hash,email_verified_at,created_at,updated_at) VALUES(1,'context1@example.test','unused',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),(2,'context2@example.test','unused',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)").await.map_err(Error::internal)?;
-        let events = runtime.container().resolve::<Events>().await?;
+        let events = runtime.container().resolve::<Dispatcher>().await?;
         #[cfg(feature = "queue")]
         let writer = ArticleWriter::new(Arc::clone(&db), events, runtime.container().resolve::<openrust::notifications::Notifier>().await?);
         #[cfg(not(feature = "queue"))]

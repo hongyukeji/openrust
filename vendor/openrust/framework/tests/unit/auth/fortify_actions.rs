@@ -157,7 +157,7 @@ fn encryptor(byte: u8) -> Result<Arc<dyn ApplicationEncrypter>> {
         },
     )?))
 }
-async fn events() -> Result<(Events, Arc<AtomicUsize>, Arc<AtomicUsize>)> {
+async fn events() -> Result<(Dispatcher, Arc<AtomicUsize>, Arc<AtomicUsize>)> {
     let enabled = Arc::new(AtomicUsize::new(0));
     let disabled = Arc::new(AtomicUsize::new(0));
     let mut provider = EventsServiceProvider::new();
@@ -178,10 +178,12 @@ async fn events() -> Result<(Events, Arc<AtomicUsize>, Arc<AtomicUsize>)> {
         })
     });
     let mut builder = ProviderBuilder::new();
-    builder.provider(provider);
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(provider);
     let runtime = builder.start(figment::Figment::new()).await?;
     Ok((
-        (*runtime.container().resolve::<Events>().await?).clone(),
+        (*runtime.container().resolve::<Dispatcher>().await?).clone(),
         enabled,
         disabled,
     ))
@@ -696,7 +698,7 @@ async fn field_encryption_runtime(
 
     let mut builder = ProviderBuilder::new();
     builder.provider(EncryptionServiceProvider);
-    builder.provider(EventsServiceProvider::new());
+    builder.provider(crate::events::EventServiceProvider);
     builder.provider(TestFactorProvider);
     builder.provider(FortifyServiceProvider::new());
     builder

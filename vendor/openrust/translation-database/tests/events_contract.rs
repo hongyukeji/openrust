@@ -1,7 +1,7 @@
 //! 外部包真实事件与应用类共用一个 exact/wildcard/响应管线。
 use openrust::{
     Result,
-    events::{Event, Events, EventsServiceProvider},
+    events::{Dispatcher, Event, EventsServiceProvider},
     foundation::ProviderBuilder,
     support::DataValue,
 };
@@ -53,10 +53,12 @@ async fn external_event_and_local_class_share_one_heterogeneous_listener() -> Re
         Box::pin(async { Ok(DataValue::Number(0.into())) })
     });
     let mut builder = ProviderBuilder::new();
-    builder.provider(provider);
+    builder
+        .provider(openrust::events::EventServiceProvider)
+        .provider(provider);
     let runtime = builder.start(figment::Figment::new()).await?;
     let outcome: Result<()> = async {
-        let events=runtime.container().resolve::<Events>().await?;
+        let events=runtime.container().resolve::<Dispatcher>().await?;
         for replies in [events.dispatch(&local).await?,events.dispatch_named(ApplicationEvent::NAME,&local).await?] {
             assert!(matches!(replies.as_deref(),Some([DataValue::Null,DataValue::Number(n),DataValue::String(s)]) if n.as_u64()==Some(0) && s=="observed"));
         }

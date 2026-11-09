@@ -500,4 +500,5 @@ fn digest(value: &[u8]) -> String {
         all(feature = "queue", any(feature = "db-mysql", feature = "db-postgres"))
     )
 ))]
+#[path = "../../../tests/unit/auth/fortify_api_management.rs"]
 mod tests;

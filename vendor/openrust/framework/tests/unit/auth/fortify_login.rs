@@ -13,7 +13,7 @@ use crate::config::ConfigSources;
 use crate::config::repository::ConfigRepository;
 use crate::container::{ContainerBuilder, Scope};
 use crate::encryption::ApplicationEncrypter;
-use crate::events::Events;
+use crate::events::Dispatcher;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::foundation::ProviderRuntime;
@@ -223,7 +223,7 @@ struct Observed {
     failed_users: Mutex<Vec<Option<Value>>>,
     fail_listener: AtomicBool,
 }
-async fn events(observed: &Arc<Observed>) -> Result<(Events, ProviderRuntime)> {
+async fn events(observed: &Arc<Observed>) -> Result<(Dispatcher, ProviderRuntime)> {
     let mut provider = EventsServiceProvider::new();
     macro_rules! record {
         ($event:ty, $name:literal) => {{
@@ -278,9 +278,11 @@ async fn events(observed: &Arc<Observed>) -> Result<(Events, ProviderRuntime)> {
         })
     });
     let mut builder = ProviderBuilder::new();
-    builder.provider(provider);
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(provider);
     let runtime = builder.start(figment::Figment::new()).await?;
-    let dispatcher = (*runtime.container().resolve::<Events>().await?).clone();
+    let dispatcher = (*runtime.container().resolve::<Dispatcher>().await?).clone();
     Ok((dispatcher, runtime))
 }
 struct Fixture {
@@ -301,7 +303,7 @@ async fn build_manager(
     provider: Arc<AccountProvider>,
     session: Session,
     cookies: CookieJar,
-    events: Events,
+    events: Dispatcher,
 ) -> Result<(Arc<AuthManager>, Scope, ResourceOwner)> {
     let drivers = AuthDrivers::default();
     let factory = provider;
@@ -315,7 +317,7 @@ async fn build_manager(
             let provider = context.user_provider().await?.ok_or_else(fixture_error)?;
             let session = context.resolver.resolve::<Session>().await?;
             let cookies = context.resolver.resolve::<CookieJar>().await?;
-            let events = context.resolver.resolve::<Events>().await?;
+            let events = context.resolver.resolve::<Dispatcher>().await?;
             Ok(Arc::new(
                 SessionGuard::new(
                     context.name,

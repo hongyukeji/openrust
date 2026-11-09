@@ -1,10 +1,10 @@
-//! Eloquent 模型事件经应用唯一 Events 派发。
+//! Eloquent 模型事件经应用唯一 Dispatcher 派发。
 
 use super::ModelMetadata;
 use crate::{
     Result,
     database::DatabaseTransaction,
-    events::{Event, Events},
+    events::{Dispatcher, Event},
     support::{BoxFuture, DataValue},
 };
 use std::{any::Any, future::Future};
@@ -20,7 +20,7 @@ pub async fn without_model_events<F: Future>(work: F) -> F::Output {
 
 /// 从本次模型实例构造并派发应用声明的映射事件，提供当前事务和 halt 模式。
 pub type MappedModelEvent<'m, M> = dyn for<'a> Fn(
-        &'a Events,
+        &'a Dispatcher,
         &'a M,
         Option<&'a DatabaseTransaction>,
         bool,
@@ -31,7 +31,7 @@ pub type MappedModelEvent<'m, M> = dyn for<'a> Fn(
 
 /// 通过同一派发器处理映射的类型事件，保留直到首个非 null 或全部响应的语义。
 pub async fn dispatch_mapped_model_event<E: Event>(
-    events: &Events,
+    events: &Dispatcher,
     event: &E,
     transaction: Option<&DatabaseTransaction>,
     halt: bool,
@@ -51,7 +51,7 @@ pub async fn dispatch_mapped_model_event<E: Event>(
 /// 具名监听器接收传入的同一模型引用。halt 模式的严格 false 可取消调用方的写入；
 /// 其他非 null 响应可结束单次派发，但不能当作写入取消。没有派发器时返回 true。
 pub async fn fire_model_event<M: Any + Send + Sync>(
-    events: Option<&Events>,
+    events: Option<&Dispatcher>,
     metadata: &ModelMetadata,
     model: &M,
     event: &str,
@@ -62,7 +62,7 @@ pub async fn fire_model_event<M: Any + Send + Sync>(
 }
 
 pub(super) async fn fire_model_event_in_context<M: Any + Send + Sync>(
-    events: Option<&Events>,
+    events: Option<&Dispatcher>,
     metadata: &ModelMetadata,
     model: &M,
     event: &str,
@@ -122,12 +122,8 @@ fn is_empty(value: &DataValue) -> bool {
 }
 
 #[cfg(test)]
-pub(super) async fn test_events(provider: crate::events::EventsServiceProvider) -> Result<Events> {
-    let mut builder = crate::foundation::ProviderBuilder::new();
-    builder.provider(provider);
-    let runtime = builder.start(figment::Figment::new()).await?;
-    Ok((*runtime.container().resolve::<Events>().await?).clone())
-}
+#[path = "../../../tests/unit/database/eloquent/model_events.rs"]
+mod tests;
 
 #[cfg(test)]
-mod tests;
+pub(super) use tests::test_events;

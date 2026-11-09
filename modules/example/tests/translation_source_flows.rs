@@ -111,7 +111,7 @@ mod queued_source_notifications {
         DatabaseTransaction, Db,
         sea_orm::{ConnectionTrait, Statement},
     };
-    use openrust::events::{Events, EventsServiceProvider};
+    use openrust::events::{Dispatcher, EventsServiceProvider};
     use openrust::foundation::RegisterContext;
     use openrust::queue::{DispatchOptions, Job, JobContext, Queue, QueueDriver};
     use openrust::support::{BoxFuture, ServiceProvider};
@@ -302,10 +302,13 @@ mod queued_source_notifications {
                 },
             );
             let mut builder = ProviderBuilder::new();
-            builder.provider(QueueBinding(queue)).provider(events);
+            builder
+                .provider(openrust::events::EventServiceProvider)
+                .provider(QueueBinding(queue))
+                .provider(events);
             let runtime = builder.start(figment::Figment::new()).await?;
             let result: Result<()> = async {
-                let events = runtime.container().resolve::<Events>().await?;
+                let events = runtime.container().resolve::<Dispatcher>().await?;
                 let loader =
                     DatabaseTranslationLoader::new(db.clone()).with_events((*events).clone());
                 let first = loader.write(vec![put("first")?]).await?;

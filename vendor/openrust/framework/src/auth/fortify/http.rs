@@ -447,4 +447,5 @@ async fn regenerate_recovery_codes(
 mod tests;
 
 #[cfg(test)]
+#[path = "../../../tests/unit/auth/fortify_http_contract.rs"]
 mod http_contract_tests;

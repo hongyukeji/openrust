@@ -200,21 +200,8 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         let date_calls = date_calls.clone();
         move |providers| {
             providers.provider(ModelDateFactoryProbe(date_calls.clone()));
+            providers.force_provider(record_save_test_events());
         }
-    });
-    builder.configure_after_register(|bindings| {
-        Box::pin(async move {
-            // 此验收只替换测试应用的派发器；生产模块的监听器不受影响。
-            let mut providers = openrust::foundation::ProviderBuilder::new();
-            providers.provider(record_save_test_events());
-            let runtime = providers.start(Figment::new()).await?;
-            let events = runtime
-                .container()
-                .resolve::<openrust::events::Events>()
-                .await?;
-            bindings.instance(events).await?;
-            Ok(())
-        })
     });
     let mut app = builder.build().await?;
     for (method, path) in [
@@ -459,7 +446,7 @@ async fn assert_model_save_or_fail_rolls_back(
             eloquent::{SaveContext, fresh, refresh, save_or_fail},
             sea_orm::EntityTrait,
         },
-        events::{Events, EventsServiceProvider},
+        events::{Dispatcher, EventsServiceProvider},
         support::CalendarContext,
     };
 
@@ -470,6 +457,7 @@ async fn assert_model_save_or_fail_rolls_back(
         .ok_or("rollback fixture missing")?;
     let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
     let mut providers = openrust::foundation::ProviderBuilder::new();
+    providers.provider(openrust::events::EventServiceProvider);
     let mut provider = EventsServiceProvider::new();
     provider.listen_named_reply(
         "eloquent.saved: modules::example::models::example_record::Model",
@@ -503,7 +491,7 @@ async fn assert_model_save_or_fail_rolls_back(
     );
     providers.provider(provider);
     let runtime = providers.start(Figment::new()).await?;
-    let events = runtime.container().resolve::<Events>().await?;
+    let events = runtime.container().resolve::<Dispatcher>().await?;
     let calendar = CalendarContext::default();
     let context = SaveContext {
         databases: &databases,

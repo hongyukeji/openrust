@@ -6,7 +6,7 @@ use super::{actions, login};
 use crate::{
     Result,
     auth::{AuthUser, GenericUser},
-    events::{Event, Events, EventsServiceProvider},
+    events::{Dispatcher, Event, EventsServiceProvider},
     fortify::events::{
         RecoveryCodeReplaced, RecoveryCodesGenerated, TwoFactorAuthenticationChallenged,
         TwoFactorAuthenticationConfirmed, TwoFactorAuthenticationDisabled,
@@ -88,9 +88,11 @@ async fn assert_dispatch<E: Event>(event: E, user_of: fn(&E) -> &AuthUser) -> Re
         }
     }
     let mut builder = ProviderBuilder::new();
-    builder.provider(listeners);
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(listeners);
     let runtime = builder.start(figment::Figment::new()).await?;
-    let dispatcher = runtime.container().resolve::<Events>().await?;
+    let dispatcher = runtime.container().resolve::<Dispatcher>().await?;
     let responses = dispatcher
         .dispatch(&event)
         .await?

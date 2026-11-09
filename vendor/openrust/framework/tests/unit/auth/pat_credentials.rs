@@ -19,7 +19,7 @@ use crate::auth::fortify::TwoFactorAuthenticatable;
 use crate::auth::fortify::TwoFactorState;
 use crate::database::sea_orm_migration::MigrationTrait;
 use crate::database::sea_orm_migration::MigratorTrait;
-use crate::events::Events;
+use crate::events::Dispatcher;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::http::CookieFactory;
@@ -178,9 +178,9 @@ async fn fixture(db: Db) -> Result<Fixture> {
     )
     .with_provider_name(Some("users".into()));
     let mut builder = ProviderBuilder::new();
-    builder.provider(EventsServiceProvider::new());
+    builder.provider(crate::events::EventServiceProvider);
     let runtime = builder.start(figment::Figment::new()).await?;
-    let events = (*runtime.container().resolve::<Events>().await?).clone();
+    let events = (*runtime.container().resolve::<Dispatcher>().await?).clone();
     let field_crypto = crate::auth::fortify::test_field_encrypter(STANDARD_KEY)?;
     let actions = TwoFactorActions::new(
         Arc::new(
@@ -928,7 +928,7 @@ async fn direct_login_flows(
             ),
         ])
         .await?;
-    let events = (*fixture.runtime.container().resolve::<Events>().await?).clone();
+    let events = (*fixture.runtime.container().resolve::<Dispatcher>().await?).clone();
     let actions = TwoFactorActions::new(
         Arc::new(
             GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_030))),
@@ -1230,6 +1230,7 @@ mod commit_boundary {
             let mut builder = ProviderBuilder::new();
             builder
                 .provider(DatabaseServiceProvider)
+                .provider(crate::events::EventServiceProvider)
                 .provider(boundary.listeners());
             let runtime = builder.start(figment::Figment::new()).await?;
             let outcome: Result<()> = Box::pin(async {

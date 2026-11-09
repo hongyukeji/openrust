@@ -11,7 +11,7 @@ use openrust::database::eloquent::{
     MassAssignment, ModelDateContext, SaveContext, save_with_query,
 };
 use openrust::database::sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter};
-use openrust::events::Events;
+use openrust::events::Dispatcher;
 use openrust::http::Created;
 use openrust::http::Json;
 use openrust::http::PageParams;
@@ -249,7 +249,7 @@ pub(crate) async fn store(
     user: CurrentUser,
     Inject(db): Inject<Db>,
     Inject(databases): Inject<Databases>,
-    Inject(events): Inject<Events>,
+    Inject(events): Inject<Dispatcher>,
     Extension(calendar): Extension<CalendarContext>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
 ) -> Result<Created<Json<ExampleRecordResource>>> {
@@ -301,7 +301,7 @@ pub(crate) async fn update(
     user: CurrentUser,
     Inject(db): Inject<Db>,
     Inject(databases): Inject<Databases>,
-    Inject(events): Inject<Events>,
+    Inject(events): Inject<Dispatcher>,
     Extension(calendar): Extension<CalendarContext>,
     Path(id): Path<i64>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,
@@ -360,7 +360,7 @@ pub(crate) async fn preview(
     user: CurrentUser,
     Inject(db): Inject<Db>,
     Inject(databases): Inject<Databases>,
-    (Inject(events), Extension(calendar)): (Inject<Events>, Extension<CalendarContext>),
+    (Inject(events), Extension(calendar)): (Inject<Dispatcher>, Extension<CalendarContext>),
     Path(id): Path<i64>,
     Query(options): Query<ExampleRecordPreviewOptions>,
     Validated(Json(input)): Validated<Json<ExampleRecordInput>>,

@@ -65,7 +65,7 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         });
         let mut builder=openrust::foundation::ProviderBuilder::new();
         builder.provider(openrust::database::DatabaseServiceProvider);
-        builder.provider(listeners);
+        builder.provider(openrust::events::EventServiceProvider).provider(listeners);
         builder.provider(openrust::encryption::EncryptionServiceProvider);
         let runtime=builder.start(figment::Figment::new().merge(("app.key", "A".repeat(32)))).await?;
         let field_crypto=runtime.container().resolve::<dyn openrust::encryption::ApplicationEncrypter>().await?;
@@ -75,7 +75,7 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         let jwt=JwtTokens::new(JwtConfig::new("oidc-owned","oidc-owned","owned",BTreeMap::from([("owned".into(),STANDARD.encode([51_u8;32]))])))?;
         let encryptor=ContextualEncrypter::new(EncryptionConfig::new("owned",BTreeMap::from([("owned".into(),STANDARD.encode([61_u8;32]))])))?;
         let policy=CredentialAuthority::new(db.clone(),false);
-        let events=(*runtime.container().resolve::<openrust::events::Events>().await?).clone();
+        let events=(*runtime.container().resolve::<openrust::events::Dispatcher>().await?).clone();
         let actions=TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None)),field_crypto,events);
         let auth=AuthFlows::new(db.clone(),passwords.clone(),jwt.clone(),RefreshTokens::new(db.clone()),
             openrust::auth::VerificationCodes::new(DatabaseVerificationCodeStore::new(db.clone()),passwords.clone()),

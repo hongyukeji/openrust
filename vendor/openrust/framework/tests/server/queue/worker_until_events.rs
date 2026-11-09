@@ -7,7 +7,7 @@ use openrust::{
         DatabaseServiceProvider, DatabaseTransaction, Db,
         sea_orm::{ConnectionTrait, Statement},
     },
-    events::{Event, EventContext, Events, EventsServiceProvider},
+    events::{Dispatcher, Event, EventContext, EventsServiceProvider},
     foundation::{ProviderBuilder, ProviderRuntime},
     queue::{Job, JobContext, Queue, QueueServiceProvider},
     support::{BoxFuture, DataValue},
@@ -122,7 +122,7 @@ fn events_provider(observed: &Arc<Observed>) -> EventsServiceProvider {
 fn assert_zero(response: &DataValue) {
     assert!(matches!(response, DataValue::Number(number) if number.as_i64() == Some(0)));
 }
-async fn rollback_cases(db: &Db, events: &Events) -> Result<()> {
+async fn rollback_cases(db: &Db, events: &Dispatcher) -> Result<()> {
     let events = events.clone();
     let jobs_table = db.quoted_table_name("jobs")?;
     let marker = db.quoted_table_name("until_marks")?;
@@ -195,6 +195,7 @@ async fn exercise(database: &TestDatabase) -> Result<()> {
     builder
         .provider(DatabaseServiceProvider)
         .provider(queue)
+        .provider(openrust::events::EventServiceProvider)
         .provider(events_provider(&observed));
     let runtime: ProviderRuntime = builder
         .start(figment::Figment::from(
@@ -205,7 +206,7 @@ async fn exercise(database: &TestDatabase) -> Result<()> {
         .await?;
     let result = AssertUnwindSafe(async {
         let db = runtime.container().resolve::<Db>().await?;
-        let events = runtime.container().resolve::<Events>().await?;
+        let events = runtime.container().resolve::<Dispatcher>().await?;
         let table = db.quoted_table_name("until_marks")?;
         db.connection()?
             .execute_unprepared(&format!(

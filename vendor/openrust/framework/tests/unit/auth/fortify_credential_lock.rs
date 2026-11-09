@@ -424,9 +424,9 @@ async fn direct_challenge_outer_rollback_and_concurrent_completion_preserve_one_
         let policy = CredentialAuthority::new(fixture.db.clone(), false);
         let user = fixture.guard.provider().retrieve_by_id(&serde_json::json!(42)).await?.ok_or(Error::Unauthorized)?;
         let mut builder = crate::foundation::ProviderBuilder::new();
-        builder.provider(crate::events::EventsServiceProvider::new());
+        builder.provider(crate::events::EventServiceProvider);
         let runtime = builder.start(figment::Figment::new()).await?;
-        let events = (*runtime.container().resolve::<crate::events::Events>().await?).clone();
+        let events = (*runtime.container().resolve::<crate::events::Dispatcher>().await?).clone();
         let field_crypto = crate::auth::fortify::test_field_encrypter(&STANDARD.encode([17_u8; 32]))?;
         let actions = crate::auth::fortify::TwoFactorActions::new(
             Arc::new(crate::auth::fortify::GoogleTwoFactorAuthenticationProvider::new(None)),
@@ -487,11 +487,11 @@ async fn actual_provider_window_and_clock_bind_nonce_to_one_database_family() ->
         let seed = b"0123456789abcdef0123";
         stage_window_factor(&policy, crypto.as_ref()).await?;
         let mut builder = crate::foundation::ProviderBuilder::new();
-        builder.provider(crate::events::EventsServiceProvider::new());
+        builder.provider(crate::events::EventServiceProvider);
         let runtime = builder.start(figment::Figment::new()).await?;
         let events = (*runtime
             .container()
-            .resolve::<crate::events::Events>()
+            .resolve::<crate::events::Dispatcher>()
             .await?)
             .clone();
         let actions = crate::auth::fortify::TwoFactorActions::new(

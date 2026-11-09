@@ -136,7 +136,7 @@ pub mod prelude {
     pub use crate::config::{CacheConfig, CacheStoreConfig};
     #[cfg(feature = "encryption")]
     pub use crate::encryption::{ContextualEncrypter, Encrypter};
-    pub use crate::events::{Event, EventContext, Events, PayloadRef};
+    pub use crate::events::{Dispatcher, Event, EventContext, PayloadRef};
     pub use crate::filesystem::FilesystemAdapter;
     pub use crate::filesystem::FilesystemManager;
     pub use crate::filesystem::StoragePath;

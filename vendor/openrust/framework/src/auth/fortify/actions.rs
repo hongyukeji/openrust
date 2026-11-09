@@ -16,7 +16,7 @@ use crate::core::error::ValidationErrors;
 use crate::database::DatabaseTransaction;
 use crate::database::Db;
 use crate::encryption::ApplicationEncrypter;
-use crate::events::Events;
+use crate::events::Dispatcher;
 
 use super::authority::{FactorAuthorityMutation, FactorAuthoritySnapshot};
 use super::{
@@ -111,7 +111,7 @@ impl fmt::Debug for RecoveryCode {
 #[derive(Clone)]
 pub(super) struct ManagementEvent {
     user: AuthUser,
-    events: Events,
+    events: Dispatcher,
     audit: Option<Arc<dyn super::api_audit::ApiFactorManagementAuditSink>>,
 }
 
@@ -198,7 +198,7 @@ pub struct TwoFactorActions {
     pub(super) options: TwoFactorOptions,
     config: Option<crate::config::repository::ConfigRepository>,
     manual_feature_enabled: bool,
-    pub(super) events: Events,
+    pub(super) events: Dispatcher,
     pub(super) recovery_generator: Arc<dyn Fn() -> Result<String> + Send + Sync>,
 }
 
@@ -227,7 +227,7 @@ impl TwoFactorActions {
     pub fn new(
         provider: Arc<dyn TwoFactorAuthenticationProvider>,
         encrypter: Arc<dyn ApplicationEncrypter>,
-        events: Events,
+        events: Dispatcher,
     ) -> Self {
         Self::build(provider, FieldEncrypter::Instance(encrypter), events)
     }
@@ -235,7 +235,7 @@ impl TwoFactorActions {
     pub(super) fn from_application(
         provider: Arc<dyn TwoFactorAuthenticationProvider>,
         resolver: crate::container::Resolver,
-        events: Events,
+        events: Dispatcher,
     ) -> Self {
         Self::build(provider, FieldEncrypter::Application(resolver), events)
     }
@@ -243,7 +243,7 @@ impl TwoFactorActions {
     fn build(
         provider: Arc<dyn TwoFactorAuthenticationProvider>,
         default_encrypter: FieldEncrypter,
-        events: Events,
+        events: Dispatcher,
     ) -> Self {
         Self {
             provider,

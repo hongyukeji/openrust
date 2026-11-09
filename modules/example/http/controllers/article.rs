@@ -26,7 +26,7 @@ use openrust::database::sea_orm::{
 };
 #[cfg(feature = "encryption")]
 use openrust::encryption::ContextualEncrypter;
-use openrust::events::Events;
+use openrust::events::Dispatcher;
 use openrust::http::Created;
 use openrust::http::Json;
 use openrust::http::PageParams;
@@ -149,7 +149,7 @@ pub(crate) async fn store(
 pub(crate) async fn update(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Inject(events): Inject<Events>,
+    Inject(events): Inject<Dispatcher>,
     Path(id): Path<i64>,
     Validated(Json(input)): Validated<Json<ArticleInput>>,
 ) -> Result<Json<ArticleResource>> {
@@ -198,7 +198,7 @@ pub(crate) async fn update(
 pub(crate) async fn destroy(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Inject(events): Inject<Events>,
+    Inject(events): Inject<Dispatcher>,
     #[cfg(feature = "storage-local")] Inject(attachments): Inject<ArticleAttachments>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>> {

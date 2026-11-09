@@ -2,7 +2,7 @@
 use figment::Figment;
 use openrust::container::ServiceKey;
 use openrust::cookie::middleware::EncryptCookies;
-use openrust::events::{Event, Events, EventsServiceProvider};
+use openrust::events::{Event, Dispatcher, EventsServiceProvider};
 use openrust::fortify::events::TwoFactorAuthenticationEnabled;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
@@ -458,8 +458,8 @@ pub async fn exercise<A: ApplicationDefinition>(input: Figment) -> Result<()> {
         let cookies = state.resolve::<EncryptCookies>().await?;
         assert!(cookies.is_disabled(PREFERENCE));
         assert!(!cookies.is_disabled("XSRF-TOKEN"));
-        let typed = state.resolve::<Events>().await?;
-        let named = state.resolve_key::<Events>(ServiceKey::named("events")).await?;
+        let typed = state.resolve::<Dispatcher>().await?;
+        let named = state.resolve_key::<Dispatcher>(ServiceKey::named("events")).await?;
         assert!(Arc::ptr_eq(&typed, &named));
         let manager = state.resolve_key::<HashManager>(ServiceKey::named("hash")).await?;
         assert!(Arc::ptr_eq(&manager, &state.resolve::<HashManager>().await?));

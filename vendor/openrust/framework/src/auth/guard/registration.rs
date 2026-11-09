@@ -275,8 +275,14 @@ async fn create_session_guard(
     })?;
     let session = context.resolver.resolve::<Session>().await?;
     let cookies = context.resolver.resolve::<CookieJar>().await?;
-    let events = if context.resolver.is_bound::<crate::events::Events>()? {
-        Some((*context.resolver.resolve::<crate::events::Events>().await?).clone())
+    let events = if context.resolver.is_bound::<crate::events::Dispatcher>()? {
+        Some(
+            (*context
+                .resolver
+                .resolve::<crate::events::Dispatcher>()
+                .await?)
+                .clone(),
+        )
     } else {
         None
     };

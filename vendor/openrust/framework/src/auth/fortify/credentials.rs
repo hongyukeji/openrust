@@ -2,6 +2,7 @@
 
 mod challenge;
 #[cfg(test)]
+#[path = "../../../tests/unit/auth/fortify_credential_lock.rs"]
 mod lock_tests;
 pub(crate) use challenge::{
     ChallengeCommitCheck, CredentialChallengeVerification, CredentialLoginDecision,

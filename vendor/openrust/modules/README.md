@@ -44,7 +44,9 @@ assert_eq!(module.is_loaded(), loaded);
 
 命令仍完成同一应用的完整 bootstrap，坏 JSON、缺失启用模块/依赖、资源或服务启动失败也会阻挡管理命令；修复这些启动输入后再运行，不提供第二启动器或自动绕过。停用后当前 App 继续持有原 Provider/路由和资源，下一 App 才按新状态加载；状态查询与已加载事实需要分别观察。
 
-生命周期通知沿同一 `Events` 服务派发 `ModuleLifecycleEvent`，阶段是 enabling/enabled/disabling/disabled，名称为 `modules.<声明名转小写>.<阶段>`。用 `EventsServiceProvider::listen_named::<ModuleLifecycleEvent, _>("modules.*.enabled", callback)` 登记命名/通配监听；回调返回 `EventPropagation::Stop` 只停止当前传播，不取消启停动作，返回 Err 则传播异常。前事件失败不写，写失败不发后事件，后事件失败时状态已经提交。同名 exact 先于 wildcard；wildcard 按模式首次登记顺序、同模式组内登记顺序执行。字符串身份不因载荷类型相同调用其他类名的 typed/queued 监听；不要另外注册空的同类型 Provider 覆盖业务监听器。
+生命周期通知沿同一 `Dispatcher` 服务派发 `ModuleLifecycleEvent`，阶段是 enabling/enabled/disabling/disabled，名称为 `modules.<声明名转小写>.<阶段>`。用 `EventsServiceProvider::listen_named::<ModuleLifecycleEvent, _>("modules.*.enabled", callback)` 登记命名/通配监听；回调返回 `EventPropagation::Stop` 只停止当前传播，不取消启停动作，返回 Err 则传播异常。前事件失败不写，写失败不发后事件，后事件失败时状态已经提交。同名 exact 先于 wildcard；wildcard 按模式首次登记顺序、同模式组内登记顺序执行。字符串身份不因载荷类型相同调用其他类名的 typed/queued 监听；不要另外注册空的同类型 Provider 覆盖业务监听器。
+
+标准应用的默认 Provider 清单登记核心 `EventServiceProvider`；模块本身不补位事件服务。裸 `ProviderBuilder::new()` 要执行启停事件时须显式安装核心，再添加 `EventsServiceProvider` 业务监听贡献者。未安装核心时仍可加载和查询模块，`enable/disable` 返回 `module_events_unavailable`，不会写状态文件；显式排除核心也不会由模块恢复。
 
 模块句柄复用弱 Resolver 访问同一根事件服务；命令和资源继续沿既有生命周期回收。调用方仍需协调并发停机与管理操作，不能依赖并发 `shutdown` 提供状态文件提交的原子屏障。文件锁/替换、hardlink 等价和 Windows 原生待验边界见 [配置说明](#模块激活与运行根)。
 

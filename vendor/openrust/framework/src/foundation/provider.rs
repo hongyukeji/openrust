@@ -1200,6 +1200,7 @@ struct PreparedProviders {
     entries: Vec<ProviderEntry>,
     bindings: ContainerBuilder,
     automatic_database: Option<bool>,
+    deferred_event_fallback: bool,
 }
 
 pub(crate) fn check_dependencies(
@@ -1504,9 +1505,16 @@ impl ProviderBuilder {
             ContainerBuilder::with_class_descriptors(std::mem::take(&mut self.class_descriptors))?;
         bindings.instance(Arc::new(crate::http::MimeTypes::new()));
         let mut automatic_database = None;
+        let mut deferred_event_fallback = true;
         if let Some((position, defaults)) = self.default_providers.take() {
             let selected = defaults.resolve_selection(config)?;
             automatic_database = selected.database;
+            let events = ProviderId::of::<crate::events::EventServiceProvider>();
+            // 默认清单显式排除或替换事件服务后，延迟监听器不能重新安装它。
+            deferred_event_fallback = selected
+                .providers
+                .iter()
+                .any(|provider| provider.id() == events);
             let entries = selected
                 .providers
                 .into_iter()
@@ -1528,6 +1536,7 @@ impl ProviderBuilder {
             entries: order::prepare(bootstrap, &self.removed)?,
             bindings,
             automatic_database,
+            deferred_event_fallback,
         })
     }
 
@@ -1557,6 +1566,7 @@ impl ProviderBuilder {
             entries: bootstrap,
             mut bindings,
             automatic_database,
+            deferred_event_fallback,
         } = self.prepare(&config)?;
         let console_command = self.console_command;
         let mut deferred = self.deferred;
@@ -1604,13 +1614,14 @@ impl ProviderBuilder {
                 loader.add(&container, definition)?;
             }
             if has_load_events
+                && deferred_event_fallback
                 && !self
                     .removed
-                    .contains(&ProviderId::of::<crate::events::EventsServiceProvider>())
+                    .contains(&ProviderId::of::<crate::events::EventServiceProvider>())
             {
                 registration::register(
                     &active,
-                    ProviderEntry::new(Box::new(crate::events::DefaultEventsServiceProvider)),
+                    ProviderEntry::new(Box::new(crate::events::EventServiceProvider)),
                     &container,
                     &mut config,
                     &mut required,
@@ -1732,7 +1743,7 @@ async fn finalize_startup(
 mod application_startup_callbacks_tests;
 
 #[cfg(test)]
-#[path = "provider/deferred_tests.rs"]
+#[path = "../../tests/unit/foundation/deferred_providers.rs"]
 mod deferred_tests;
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-//! 从原核心 Provider 测试迁入，保留模块配置/依赖/Events 合同。
+//! 从原核心 Provider 测试迁入，保留模块配置/依赖/Dispatcher 合同。
 #![allow(
     clippy::unwrap_used,
     reason = "保留原受控测试日志锁断言，不用于生产代码"

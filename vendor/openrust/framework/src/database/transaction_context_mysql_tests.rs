@@ -1,6 +1,6 @@
-//! 框架unit包装；仅环境输入使用既有cfg(test)快照，不造私有context/Events。
+//! 框架unit包装；仅环境输入使用既有cfg(test)快照，不造私有context/Dispatcher。
 use crate as framework;
-#[path = "transaction_context_cases.rs"]
+#[path = "../../tests/unit/database/transaction_context_cases.rs"]
 mod cases;
 #[tokio::test]
 async fn mysql_context_provenance_order_rollback_and_cancellation() -> crate::Result<()> {

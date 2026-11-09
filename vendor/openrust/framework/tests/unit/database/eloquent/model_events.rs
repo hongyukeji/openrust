@@ -11,7 +11,7 @@ impl Event for Mapped {
 }
 
 fn mapped<'a>(
-    events: &'a Events,
+    events: &'a Dispatcher,
     model: &'a Arc<AtomicUsize>,
     transaction: Option<&'a DatabaseTransaction>,
     halt: bool,
@@ -77,7 +77,7 @@ async fn mapped_false_cancels_and_empty_mapped_response_falls_back_to_same_model
 }
 
 fn empty_mapped<'a>(
-    _events: &'a Events,
+    _events: &'a Dispatcher,
     _model: &'a (),
     _transaction: Option<&'a DatabaseTransaction>,
     halt: bool,
@@ -129,4 +129,15 @@ async fn mapped_falsy_scalar_and_null_only_list_allow_named_fallback() -> Result
         DataValue::Bool(true)
     ));
     Ok(())
+}
+
+pub(in crate::database::eloquent) async fn test_events(
+    provider: crate::events::EventsServiceProvider,
+) -> Result<Dispatcher> {
+    let mut builder = crate::foundation::ProviderBuilder::new();
+    builder
+        .provider(crate::events::EventServiceProvider)
+        .provider(provider);
+    let runtime = builder.start(figment::Figment::new()).await?;
+    Ok((*runtime.container().resolve::<Dispatcher>().await?).clone())
 }

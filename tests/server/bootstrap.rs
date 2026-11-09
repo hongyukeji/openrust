@@ -20,6 +20,17 @@ async fn default_provider_manifest_serves_application_route() -> Result<()> {
         .start(crate::modules::example::test_sources(&(source))?)
         .await?;
     let app = openrust::Application::from_provider_runtime(runtime)?;
+    let dispatcher = app
+        .state()
+        .resolve::<openrust::events::Dispatcher>()
+        .await?;
+    let named = app
+        .state()
+        .resolve_key::<openrust::events::Dispatcher>(openrust::container::ServiceKey::named(
+            "events",
+        ))
+        .await?;
+    assert!(std::sync::Arc::ptr_eq(&dispatcher, &named));
     // 无driver/无URL仍注册通用迁移命令；具体执行必须通过未初始化Db明确失败。
     assert!(app.commands().any(|command| command.name() == "migrate"));
     let db: std::sync::Arc<openrust::prelude::Db> = app.state().resolve().await?;

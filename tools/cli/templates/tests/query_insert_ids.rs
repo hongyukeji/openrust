@@ -2154,7 +2154,7 @@ async fn generated_model_save(url: &str) -> Result<()> {
 
     let mut builder = openrust::foundation::ProviderBuilder::new();
     builder.provider(DatabaseServiceProvider);
-    builder.provider(generated_retrieved_events());
+    builder.provider(openrust::events::EventServiceProvider).provider(generated_retrieved_events());
     builder.class_descriptors([ClassDescriptor::concrete::<GeneratedDatabaseHandles>(
         "generated::DatabaseHandles",
         vec![
@@ -2197,7 +2197,7 @@ async fn generated_model_save(url: &str) -> Result<()> {
         let calendar = CalendarContext::default();
         let events = runtime
             .container()
-            .resolve::<openrust::events::Events>()
+            .resolve::<openrust::events::Dispatcher>()
             .await?;
         let context = SaveContext::new(&databases, Some(&events), &calendar);
         let mut metadata = ModelMetadata::new("insert_items", "generated::InsertItem");
@@ -2343,7 +2343,7 @@ async fn generated_storage_attribute_uses_local_disks()
 
 async fn check_generated_model_readback(
     databases: Arc<openrust::Databases>,
-    events: Arc<openrust::events::Events>,
+    events: Arc<openrust::events::Dispatcher>,
     context: &openrust::database::eloquent::SaveContext<'_>,
     mut model: GeneratedModel,
     original: i64,
@@ -2391,7 +2391,7 @@ async fn check_generated_model_readback(
 
 async fn generated_locked_model_refresh(
     databases: Arc<openrust::Databases>,
-    events: Arc<openrust::events::Events>,
+    events: Arc<openrust::events::Dispatcher>,
     mut model: GeneratedModel,
 ) -> Result<()> {
     use openrust::{

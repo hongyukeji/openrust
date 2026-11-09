@@ -9,7 +9,7 @@ use super::{
 use crate::{
     Databases, Error, Result,
     database::{DatabaseTransaction, QueryBuilder, sea_orm},
-    events::Events,
+    events::Dispatcher,
     support::{BoxFuture, CalendarContext, DataValue},
 };
 use serde_json::{Map, Value};
@@ -56,7 +56,7 @@ pub struct SaveContext<'a> {
     /// 选择默认或模型声明的连接。
     pub databases: &'a Databases,
     /// 已解析的应用派发器。None 时跳过事件。
-    pub events: Option<&'a Events>,
+    pub events: Option<&'a Dispatcher>,
     /// 应用时钟与时区。
     pub calendar: &'a CalendarContext,
     /// 保存后是否更新关联所有者时间戳，对应默认启用的 touch 选项。
@@ -67,7 +67,7 @@ impl<'a> SaveContext<'a> {
     /// 使用应用服务创建保存上下文，默认启用关联时间戳维护。
     pub const fn new(
         databases: &'a Databases,
-        events: Option<&'a Events>,
+        events: Option<&'a Dispatcher>,
         calendar: &'a CalendarContext,
     ) -> Self {
         Self {
@@ -369,7 +369,7 @@ fn inserted_key(key: sea_orm::Value) -> Result<Value> {
 pub(super) async fn cancelled<M: SaveModel>(
     model: &M,
     metadata: &ModelMetadata,
-    events: Option<&Events>,
+    events: Option<&Dispatcher>,
     event: &str,
     transaction: Option<&DatabaseTransaction>,
 ) -> Result<bool> {
@@ -391,7 +391,7 @@ pub(super) async fn cancelled<M: SaveModel>(
 pub(super) async fn notify<M: SaveModel>(
     model: &M,
     metadata: &ModelMetadata,
-    events: Option<&Events>,
+    events: Option<&Dispatcher>,
     event: &str,
     transaction: Option<&DatabaseTransaction>,
 ) -> Result<()> {

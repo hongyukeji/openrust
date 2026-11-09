@@ -6,7 +6,7 @@ use crate::auth::fortify::{
 };
 use crate::database::sea_orm_migration::MigrationTrait;
 use crate::database::sea_orm_migration::MigratorTrait;
-use crate::events::Events;
+use crate::events::Dispatcher;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::support::BoxFuture;
@@ -38,9 +38,10 @@ where
         db.connection()?.execute_unprepared("CREATE TABLE auth_factor_challenges (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, source_hash TEXT NOT NULL, context TEXT NOT NULL, purpose TEXT NOT NULL, password_hash_digest TEXT, attempts INTEGER NOT NULL, expires_at datetime NOT NULL, created_at datetime NOT NULL, consumed_at datetime)").await.map_err(Error::internal)?;
         db.table("users")?.insert(vec![("id", 42_i64.into())]).await?;
         let authority = DatabaseFactorAuthority::new(DatabaseTwoFactorState::new(db.clone(), "users", "id", Value::from(42))?);
-        let mut builder = ProviderBuilder::new(); builder.provider(EventsServiceProvider::new());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(crate::events::EventServiceProvider);
         let runtime = builder.start(figment::Figment::new()).await?;
-        let events = (*runtime.container().resolve::<Events>().await?).clone();
+        let events = (*runtime.container().resolve::<Dispatcher>().await?).clone();
         let actions = TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None).with_clock(Arc::new(|| Ok(3_000)))), crate::auth::fortify::test_field_encrypter("KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=")?, events)
             .with_recovery_code_generator(Arc::new(|| Ok("replacement-recovery".into())));
         let policy = CredentialAuthority::new(db.clone(), false);
@@ -1030,7 +1031,9 @@ mod flow_commit {
         let database = TestDatabase::sqlite_file::<Migrations>().await?;
         let mut builder = ProviderBuilder::new();
         builder.provider(DatabaseServiceProvider);
-        builder.provider(listeners);
+        builder
+            .provider(crate::events::EventServiceProvider)
+            .provider(listeners);
         let runtime = builder.start(figment::Figment::new()).await?;
         let result = async {
             let db = (*runtime.container().resolve::<Db>().await?).clone();
@@ -1073,7 +1076,7 @@ mod flow_commit {
                 crate::auth::fortify::test_field_encrypter(
                     "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
                 )?,
-                (*runtime.container().resolve::<Events>().await?).clone(),
+                (*runtime.container().resolve::<Dispatcher>().await?).clone(),
             );
             let policy = CredentialAuthority::new(db.clone(), false);
             let audit = DatabaseApiLoginAudit::new(
