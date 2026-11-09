@@ -38,7 +38,6 @@ keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 openrust = { package = "openrust-framework", path = "vendor/openrust/framework", version = "0.0.0", default-features = false }
 openrust-modules = { path = "vendor/openrust/modules", version = "0.0.0" }
 openrust-translation-database = { path = "vendor/openrust/translation-database", version = "0.0.0", default-features = false }
-cli = { path = "tools/cli", version = "0.0.0" }
 macros = { path = "tools/macros", version = "0.0.0" }
 testing = { path = "tools/testing", version = "0.0.0" }
 
@@ -155,7 +154,6 @@ must_use_candidate = "allow"
 [dependencies]
 openrust = { workspace = true }
 openrust-modules.workspace = true
-cli = { workspace = true, optional = true }
 openrust-translation-database = { workspace = true, optional = true }
 rusqlite = { workspace = true, optional = true }
 pcre2.workspace = true
@@ -274,7 +272,6 @@ reqwest.workspace = true
 tempfile.workspace = true
 rcgen.workspace = true
 [features]
-source-artisan = ["dep:cli"]
 translation-database = ["dep:openrust-translation-database"]
 default = ["db-mysql", "cache-redis", "queue-redis"]
 db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres", "dep:rustix", "dep:shutdown_hooks", "openrust/db-postgres", "openrust-translation-database?/db-postgres"]

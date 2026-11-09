@@ -1,14 +1,14 @@
 use super::{
-    BuildArgs, BuildCommand, application_name, bake_path, bake_plan_command, destination,
-    freeze_plan, host_platform, is_source_project, path_text, publish, read_manifest,
-    reject_existing,
+    BuildArgs, application_name, bake_path, bake_plan_command, destination, freeze_plan,
+    host_platform, path_text, publish, read_manifest, reject_existing,
 };
 #[cfg(unix)]
 use super::{INCOMPLETE, validate_binary, validate_entries, validate_release};
+use crate::{Builtin, Cli};
 #[cfg(unix)]
 use anyhow::Context as _;
+use clap::Parser as _;
 use openrust::config::{ConfigLoader, ENV_PREFIX};
-use openrust::console::Command as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -20,27 +20,6 @@ fn fixture() -> anyhow::Result<(tempfile::TempDir, PathBuf)> {
     fs::write(project.join("Cargo.toml"), "[package]\nname = \"blog\"\n")?;
     fs::write(project.join("Dockerfile"), "FROM scratch AS artifacts\n")?;
     Ok((temporary, project.canonicalize()?))
-}
-
-#[test]
-fn source_launcher_routes_artisan_to_cli() {
-    let source = include_str!("../../../../artisan");
-    assert!(source.contains("artisan:source|package:discover|package:list)"));
-    assert!(source.contains("run_cli artisan:source -- \"$@\""));
-    assert!(source.contains("--project-dir \"$application\""));
-    assert!(source.contains("exec \"$application\" artisan \"$@\""));
-}
-
-#[test]
-fn build_registration_requires_the_application_manifest_and_source_entry() -> anyhow::Result<()> {
-    let (_temporary, project) = fixture()?;
-    assert!(!is_source_project(&project));
-    fs::create_dir(project.join("src"))?;
-    fs::write(project.join("src/main.rs"), "fn main() {}")?;
-    assert!(is_source_project(&project));
-    fs::remove_file(project.join("Cargo.toml"))?;
-    assert!(!is_source_project(&project));
-    Ok(())
 }
 
 #[test]
@@ -87,6 +66,7 @@ fn build_rejects_reserved_package_names_before_creating_the_output() -> anyhow::
             project_dir: Some(project.clone()),
             docker: true,
             platform: Some("linux/arm64".to_owned()),
+            env: None,
             features: None,
             output: None,
         }
@@ -384,60 +364,47 @@ fn resource_copy_failure_keeps_the_marker_and_never_exposes_the_binary() -> anyh
     Ok(())
 }
 
+fn parse_build(args: &[&str]) -> anyhow::Result<BuildArgs> {
+    let cli = Cli::try_parse_from(
+        ["openrust", "build"]
+            .into_iter()
+            .chain(args.iter().copied()),
+    )?;
+    let Some(Builtin::Build(options)) = cli.command else {
+        anyhow::bail!("应分派到独立发布构建");
+    };
+    Ok(options)
+}
+
 #[test]
 fn public_build_parser_requires_explicit_docker_for_linux_platform() -> anyhow::Result<()> {
-    assert!(!BuildCommand::parse_source(&[])?.docker);
-    let options = BuildCommand::parse_source(&[
-        "--docker".into(),
-        "--platform".into(),
-        "linux/arm64".into(),
-        "--output".into(),
-        "/tmp/with spaces,comma".into(),
+    assert!(!parse_build(&[])?.docker);
+    let options = parse_build(&[
+        "--docker",
+        "--platform",
+        "linux/arm64",
+        "--env",
+        "production",
+        "--output",
+        "/tmp/with spaces,comma",
     ])?;
     assert!(options.docker);
     assert_eq!(options.platform.as_deref(), Some("linux/arm64"));
+    assert_eq!(options.env.as_deref(), Some("production"));
     assert_eq!(
         options.output.as_deref(),
         Some(Path::new("/tmp/with spaces,comma"))
     );
-    assert!(BuildCommand::parse_source(&["--platform".into(), "linux/arm64".into()]).is_err());
-    assert!(
-        BuildCommand::parse_source(&[
-            "--docker".into(),
-            "--platform".into(),
-            "linux/amd64,linux/arm64".into(),
-        ])
-        .is_err()
-    );
-    assert!(
-        BuildCommand::parse_source(&[
-            "--docker".into(),
-            "--platform".into(),
-            "darwin/arm64".into()
-        ])
-        .is_err()
-    );
+    for args in [
+        &["--platform", "linux/arm64"][..],
+        &["--env", "production"][..],
+        &["--docker", "--platform", "linux/amd64,linux/arm64"][..],
+        &["--docker", "--platform", "darwin/arm64"][..],
+        &["--docker", "--features", "view"][..],
+    ] {
+        assert!(parse_build(args).is_err(), "{args:?}");
+    }
     Ok(())
-}
-
-#[test]
-fn registered_build_help_matches_source_parser_and_hides_project_binding() {
-    let command = BuildCommand;
-    assert_eq!(command.name(), "build");
-    let help = command.render_help();
-    assert!(help.as_ref().is_some_and(|text| {
-        text.contains("artisan build")
-            && text.contains("--docker")
-            && text.contains("--features")
-            && text.contains("--platform")
-            && text.contains("--output")
-            && !text.contains("--project-dir")
-    }));
-    let parsed = BuildCommand::parse_source(&["--help".into()]);
-    assert!(parsed.is_err_and(|error| {
-        error.kind() == clap::error::ErrorKind::DisplayHelp
-            && help.is_some_and(|text| text.trim_end() == error.to_string().trim_end())
-    }));
 }
 
 #[cfg(all(
@@ -480,10 +447,14 @@ fn default_build_uses_cargo_without_compose_and_runs_the_named_package() -> anyh
     let release = project
         .join("dist")
         .join(format!("blog-{}", platform.replace('/', "-")));
-    assert_eq!(
-        BuildCommand::run_source(&project, &[], Some("production"))?,
-        ExitCode::SUCCESS
-    );
+    let build = |args: &[&str]| {
+        let project = project.to_str().context("测试应用路径必须为 UTF-8")?;
+        let args = ["--project-dir", project]
+            .into_iter()
+            .chain(args.iter().copied());
+        parse_build(&args.collect::<Vec<_>>())?.run()
+    };
+    assert_eq!(build(&[])?, ExitCode::SUCCESS);
     let output = std::process::Command::new(release.join("blog"))
         .current_dir(&release)
         .output()?;
@@ -496,53 +467,45 @@ fn default_build_uses_cargo_without_compose_and_runs_the_named_package() -> anyh
         fs::read_to_string(release.join("public/index.html"))?,
         "public resource"
     );
-    assert!(BuildCommand::run_source(&project, &[], None).is_err());
+    assert!(build(&[]).is_err());
     assert_eq!(
         fs::read_to_string(release.join(".env.example"))?,
         "APP_KEY=\n"
     );
 
-    let feature_build = [
-        "--features".into(),
-        "example".into(),
-        "--output".into(),
-        "dist/feature".into(),
-    ];
-    assert_eq!(
-        BuildCommand::run_source(&project, &feature_build, None)?,
-        ExitCode::SUCCESS
-    );
+    let feature_build = ["--features", "example", "--output", "dist/feature"];
+    assert_eq!(build(&feature_build)?, ExitCode::SUCCESS);
     let output = std::process::Command::new(project.join("dist/feature/blog")).output()?;
     assert!(output.status.success());
     assert_eq!(output.stdout, b"with feature");
     assert_eq!(fs::read(project.join("Cargo.lock"))?, lock);
 
     fs::write(project.join("src/main.rs"), "invalid Rust")?;
-    let failed = ["--output".into(), "dist/failed".into()];
-    assert!(BuildCommand::run_source(&project, &failed, None).is_err());
+    let failed = ["--output", "dist/failed"];
+    assert!(build(&failed).is_err());
     assert!(!project.join("dist/failed").exists());
     Ok(())
 }
 
 #[test]
-fn source_help_and_usage_error_return_without_entering_build() -> anyhow::Result<()> {
-    let (_temporary, project) = fixture()?;
-    let invalid_project = project.join("missing");
-    assert_eq!(
-        BuildCommand::run_source(&invalid_project, &["--help".into()], None)?,
-        ExitCode::SUCCESS
-    );
-    for arguments in [
-        vec!["--unexpected".into()],
-        vec!["--help".into(), "--unexpected".into()],
-        vec!["--project-dir".into(), project.display().to_string()],
+fn build_help_names_the_cli_and_documents_all_public_options() -> anyhow::Result<()> {
+    let Err(error) = Cli::try_parse_from(["openrust", "build", "--help"]) else {
+        anyhow::bail!("帮助参数应提前退出");
+    };
+    assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
+    let help = error.to_string();
+    for expected in [
+        "openrust build",
+        "--project-dir",
+        "--docker",
+        "--env",
+        "--features",
+        "--platform",
+        "--output",
     ] {
-        assert_eq!(
-            BuildCommand::run_source(&invalid_project, &arguments, None)?,
-            ExitCode::from(2)
-        );
+        assert!(help.contains(expected), "{help}");
     }
-    assert!(!project.join("dist").exists());
+    assert!(parse_build(&["--unexpected"]).is_err());
     Ok(())
 }
 

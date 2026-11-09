@@ -8,7 +8,7 @@ cli_manifest='tools/cli/Cargo.toml'
 run_cli() {
     if [ -f "$cli_manifest" ]; then
         case "$1" in
-            artisan:source|package:discover|package:list)
+            package:discover|package:list)
                 command=$1
                 shift
                 application=$(pwd -P)
@@ -22,10 +22,6 @@ run_cli() {
         exec cargo run --quiet --manifest-path "$cli_manifest" --bin openrust "$@"
     fi
     if command -v openrust >/dev/null 2>&1; then
-        if [ "$1" = artisan:source ]; then
-            shift
-            exec openrust artisan:source --project-dir "$(pwd -P)" "$@"
-        fi
         exec openrust "$@"
     fi
     printf 'artisan: %s 需要本地 OpenRust CLI 源码或 PATH 中的 openrust\n' "$1" >&2
@@ -60,12 +56,6 @@ if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
             fi
             ;;
     esac
-    if [ -f "$cli_manifest" ] || command -v openrust >/dev/null 2>&1; then
-        run_cli artisan:source -- "$@"
-    fi
-    if [ "${1-}" = build ]; then
-        run_cli "$@"
-    fi
     exec cargo run --quiet -- artisan "$@"
 fi
 

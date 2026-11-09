@@ -6,7 +6,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - QueryBuilder 和嵌套条件组增加 JSON 路径存在判断及 OR、取反变体。
 
-- `./artisan build` 和 `openrust build` 默认用本机 Cargo 生成具名发布包。需要 Docker Buildx 时显式选择 `--docker`。
+- 发布构建由独立工具 `openrust build` 提供。默认使用本机 Cargo，显式选择 `--docker` 可通过 Buildx 导出 Linux 产物。源码与发布包共用应用 Artisan 命令表。
 
 - `where_raw` 统一使用 `?` 绑定并验证参数数量。PostgreSQL 调用将原生 `$1` 改为 `?`，JSON 问号操作符使用 `??`。
 

@@ -23,7 +23,7 @@
 
 发布包也可以直接运行 `./openrust artisan` 列命令，或运行 `./openrust artisan help migrate` 查看帮助。包装脚本和显式 `artisan` 参数使用同一命令表，并在执行完毕后退出。生成应用以项目名代替 `openrust`。 [Goravel 固定控制台入口](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/console/application.go#L95-L140)
 
-源码 Artisan 启用开发专用的 `source-artisan` 特性，由应用 Provider 在命令表登记 `build`。独立发布包只运行已编译的应用命令。
+源码和发布包的 Artisan 都从应用命令表查找命令。源码包发现和开发重载的工具入口见下文。
 
 自定义命令由 Provider 注册。实现 `Command::about` 提供描述，实现 `Command::usage` 描述接受的参数和选项。帮助读取这些信息并沿用正常应用引导流程。
 
@@ -164,17 +164,17 @@ done
 
 ### 导出应用文件
 
-OpenRust 的源码工具提供 `./artisan build`，参考固定 Goravel 将本机编译和 Docker 分开。在 macOS 或 Linux 的源码目录运行，默认使用本机 Cargo 编译 release 二进制。首次构建由 Cargo 生成锁文件，已有锁文件时使用锁定依赖。运行主机须匹配构建目标及其系统依赖。 [Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md)
+Rust 应用需要先编译目标平台的可执行文件。在 macOS 或 Linux 的源码目录可以运行独立工具 `openrust build`，默认使用本机 Cargo 编译 release 二进制。首次构建由 Cargo 生成锁文件，已有锁文件时使用锁定依赖。运行主机须匹配构建目标及其系统依赖。工具的编译流程参考固定 Goravel。[Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md)
 
-编译和打包属于 OpenRust 扩展。部署优化与长驻进程重载按固定 Laravel 的部署流程单独验收。也可用上文的 `cargo build --release --locked --bin app` 手动编译。 [Laravel 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)
+编译和打包是 OpenRust 工具扩展。固定 Laravel 的部署流程另外定义了应用命令 `optimize`、`optimize:clear` 和 `reload`，其完整对应仍待验收。也可用上文的 `cargo build --release --locked --bin app` 手动编译。[Laravel 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)
 
-`./artisan help build` 与 `./artisan build --help` 使用同一构建定义。显式加 `--docker` 时，命令复用 Compose 的 `app` 构建配置和 Dockerfile 的 `artifacts` 阶段，需要支持 Bake 文件访问授权的 Buildx。Docker 构建默认按宿主 CPU 选择 Linux 平台，可用 `--platform` 指定。此模式下，命令前后的 `--env` 按应用规则选择 Compose 插值文件，进程环境优先。两种构建均可在运行服务不可达时执行。
+用 `openrust build --help` 查看参数。显式加 `--docker` 时，命令复用 Compose 的 `app` 构建配置和 Dockerfile 的 `artifacts` 阶段，需要支持 Bake 文件访问授权的 Buildx。Docker 构建默认按宿主 CPU 选择 Linux 平台，可用 `--platform` 指定。此模式下，`--env` 按应用规则选择 Compose 插值文件，进程环境优先。两种构建均可在运行服务不可达时执行。
 
 ```bash
-./artisan build
+openrust build
 # 例如在 Apple Silicon 上输出 dist/openrust-darwin-arm64
-./artisan build --features auth-fortify,view,realtime
-./artisan build --docker --platform linux/amd64
+openrust build --features auth-fortify,view,realtime
+openrust build --docker --platform linux/amd64
 ```
 
 显式输出路径可相对于项目根，也可使用绝对路径。父目录须已存在，目标须是新目录。构建先导出到临时目录，再发布到目标。收到 `build_publish_incomplete` 时不要部署该目录。Compose 构建使用应用根和生成时声明的本地 OpenRust 源码，包含额外命名上下文、构建密钥或远端缓存的自定义配置需另行构建。
@@ -200,7 +200,7 @@ Docker 产物使用 Debian Bookworm 构建环境的 Linux ABI，也可通过 Doc
 
 `openrust new` 生成应用自己的 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。需要支持 `additional_contexts` 的 Docker Compose 与 BuildKit。应用的 `Cargo.toml` 和 Compose 文件通过相对路径使用生成时对应的 OpenRust 源码。复制或移动到另一台构建机时，保留应用与框架的相对目录关系。容器运行只需要构建产物、公开资源和运行配置。
 
-例如，`openrust new blog` 生成的镜像执行 `/app/blog`，Buildx 的 `artifacts` 阶段导出 `blog`。独立部署时保留包根的 `artisan`，它从该目录调用 `blog`。在生成的源码目录同样运行 `./artisan build`。生成的 `README.md` 列出当前项目的发布命令。
+例如，`openrust new blog` 生成的镜像执行 `/app/blog`，Buildx 的 `artifacts` 阶段导出 `blog`。独立部署时保留包根的 `artisan`，它从该目录调用 `blog`。在生成的源码目录同样运行 `openrust build`。生成的 `README.md` 列出当前项目的发布命令。
 
 在生成的应用目录中启动服务并检查就绪状态。
 

@@ -1882,6 +1882,14 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 已发布目录的 Artisan 拒绝未完成标记。默认 HTTP 路径编码验证通过实际 TCP、路由、静态资源、fallback 和 CORS 前置测试。畸形百分号字面及单次合法解码保留。工作区格式、严格 Clippy、测试、Rustdoc、离线依赖、fresh minimal check/test 与可选翻译数据库的真实 MySQL 测试通过。
 
+## Artisan 与独立编译工具边界验收
+
+冻结树 `01121f559af03fde07c68353b5462713641ccf4a` 对照固定 Laravel 应用 `06d016a` 的 Artisan 入口、框架 `d52c3b3` 的 `ArtisanServiceProvider` 和部署文档 `960eedf`。根、fresh minimal 和 fresh MySQL 的实际源码命令均由应用处理。发布包包装脚本与二进制的命令列表一致，源码 `build` 与 `help build` 按普通未登记命令退出。CLI 进程回归验证应用自用的同名命令仍可透传，包发现和开发入口分别保留。
+
+独立 `openrust build` 的真实 Cargo 路径生成根和 fresh minimal 的 macOS ARM64 发布包。具名二进制在包根，含空格的输出路径可运行，Redis 下 HTTP 200、SIGTERM 退出 0。根应用另经 Buildx `--docker --platform linux/arm64 --env artisan-boundary` 导出 ELF，真实 MySQL 8.4.13 与 Redis 验证生产无确认拒绝、显式强制迁移、迁移状态、Artisan、HTTP 200 与 SIGTERM 退出 0。
+
+工作区 fmt、严格 Clippy、真实 MySQL 8.4 workspace tests、严格 Rustdoc、离线依赖检查和两种生成应用 check/test 通过。当前验收范围是命令边界与编译打包。Laravel 的 `optimize`、`optimize:clear` 与 `reload` 及原生 x86_64 发布包在原矩阵独立验收。
+
 ## 本机 Cargo 与显式 Docker 发布验收
 
 冻结树 `93aace7c5e1ab2cd0b15d5f751419b52f0b5423e`。编译打包是 OpenRust 的源码扩展，参考固定 Goravel a554ced 的编译入口和 a9e5a3f 的 Docker 独立流程。部署优化和长驻服务重载按固定 Laravel d52c3b3 与部署文档 960eedf 分别验收。

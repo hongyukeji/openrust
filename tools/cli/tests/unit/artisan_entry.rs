@@ -159,25 +159,15 @@ fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> 
         let script = project.join("artisan");
         assert_eq!(fs::metadata(&script)?.permissions().mode() & 0o777, 0o755);
         if reserved.contains(&name) {
-            let directory = project.canonicalize()?;
-            fixture.assert_exec_from(
+            fixture.assert_exec(
                 &project,
                 &["--env=testing", "queue:work", "two words", ""],
-                &framework,
                 "cargo",
                 &[
                     "run",
                     "--quiet",
-                    "--manifest-path",
-                    "tools/cli/Cargo.toml",
-                    "--bin",
-                    "openrust",
-                    "--locked",
                     "--",
-                    "artisan:source",
-                    "--project-dir",
-                    directory.to_str().context("应用目录必须为 UTF-8")?,
-                    "--",
+                    "artisan",
                     "--env=testing",
                     "queue:work",
                     "two words",
@@ -287,16 +277,19 @@ fn source_artisan_discovery_uses_cli_without_building_the_application() -> Resul
 }
 
 #[test]
-fn source_artisan_without_cli_uses_the_same_explicit_application_prefix() -> Result<()> {
+fn source_artisan_keeps_build_in_the_application_command_table() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("source project without cli");
     fs::create_dir_all(project.join("src"))?;
     fs::write(project.join("Cargo.toml"), "")?;
     fs::write(project.join("src/main.rs"), "")?;
     write_executable(&project.join("artisan"), ARTISAN)?;
+    write_executable(&fixture.root.join("bin/openrust"), FAKE_APPLICATION)?;
+    fs::create_dir_all(project.join("tools/cli"))?;
+    fs::write(project.join("tools/cli/Cargo.toml"), "")?;
     fixture.assert_exec(
         &project,
-        &["--env", "artisan", "migrate", "--no-interaction"],
+        &["--env", "testing", "build", "two words", ""],
         "cargo",
         &[
             "run",
@@ -304,9 +297,10 @@ fn source_artisan_without_cli_uses_the_same_explicit_application_prefix() -> Res
             "--",
             "artisan",
             "--env",
-            "artisan",
-            "migrate",
-            "--no-interaction",
+            "testing",
+            "build",
+            "two words",
+            "",
         ],
     )
 }
@@ -326,37 +320,6 @@ fn deployed_root_artisan_execs_openrust_without_cargo() -> Result<()> {
         "openrust",
         &["artisan", "schedule:run", "two words", ""],
     )
-}
-
-#[test]
-fn hidden_source_entry_keeps_a_user_supplied_artisan_command() -> Result<()> {
-    let fixture = Fixture::new()?;
-    let missing = fixture.root.join("missing application directory");
-    for arguments in [
-        &["artisan", "build"][..],
-        &["--env", "artisan", "artisan", "build"][..],
-        &["--env=artisan", "artisan", "build"][..],
-    ] {
-        let failure = super::source_artisan::run(
-            &missing,
-            arguments
-                .iter()
-                .map(|argument| (*argument).to_owned())
-                .collect(),
-        )
-        .err()
-        .context("不存在的工作目录应使普通命令 exec 失败")?;
-        assert_eq!(
-            failure.chain().next().and_then(|cause| {
-                cause
-                    .downcast_ref::<std::io::Error>()
-                    .map(std::io::Error::kind)
-            }),
-            Some(std::io::ErrorKind::NotFound),
-            "原始 artisan 命令被误认为源码 build：{failure:#}"
-        );
-    }
-    Ok(())
 }
 
 #[test]

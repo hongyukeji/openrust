@@ -17,7 +17,6 @@ use base64::engine::general_purpose::STANDARD;
 use clap::{
     Arg, ArgAction, Command, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum,
 };
-use cli::release;
 use serde_json::Value;
 
 mod controller_generation;
@@ -25,7 +24,7 @@ mod deployment;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod dev_watch;
 mod package_discovery;
-mod source_artisan;
+mod release;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -89,15 +88,8 @@ enum Builtin {
         #[arg(long)]
         watch: bool,
     },
-    #[command(about = release::BuildCommand::ABOUT)]
+    #[command(about = release::BuildArgs::ABOUT)]
     Build(release::BuildArgs),
-    #[command(name = "artisan:source", hide = true)]
-    SourceArtisan {
-        #[arg(long)]
-        project_dir: PathBuf,
-        #[arg(last = true)]
-        arguments: Vec<String>,
-    },
     /// 运行应用的 server 命令。
     Serve,
     /// 生成模型、迁移、邮件、授权策略或后台任务。
@@ -500,10 +492,6 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             watch,
         }) => run_development(&config_namespace, env.as_deref(), watch),
         Some(Builtin::Build(options)) => options.run(),
-        Some(Builtin::SourceArtisan {
-            project_dir,
-            arguments,
-        }) => source_artisan::run(&project_dir, arguments),
         Some(Builtin::Serve) => run_project(&["serve".to_owned()]),
         Some(Builtin::Generate {
             kind,
@@ -1898,7 +1886,7 @@ fn cargo_manifest(
     if !auth {
         manifest.push_str("\n[features]\n");
     }
-    manifest.push_str("source-artisan = [\"dep:cli\"]\ntranslation-database = [\"dep:openrust-translation-database\"]\n");
+    manifest.push_str("translation-database = [\"dep:openrust-translation-database\"]\n");
     manifest
 }
 
