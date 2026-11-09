@@ -20,6 +20,7 @@ pub use lifecycle::{bootstrap, shutdown_signal};
 pub(crate) use lifecycle_duration::EntryStarted;
 pub use lifecycle_duration::{CommandLifecycle, LifecycleThreshold, RequestLifecycle};
 pub use provider::{
-    BootContext, DeferrableProvider, ProviderBuilder, ProviderId, ProviderPreparation,
-    ProviderRegistration, ProviderRuntime, RegisterContext, RegisteredProvider,
+    BootContext, DeferrableProvider, PackageProvider, ProviderBuilder, ProviderId,
+    ProviderPreparation, ProviderRegistration, ProviderRuntime, RegisterContext,
+    RegisteredProvider,
 };

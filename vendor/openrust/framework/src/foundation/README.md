@@ -48,6 +48,8 @@ app.extend::<dyn Driver, _>(|original, resolver| {
 
 生产 `bootstrap` 使用同一 `Container`：`ApplicationDefinition::default_providers` 从同次配置仓储选取框架默认清单，已编译包经 `package_providers` 显式接入，`ApplicationDefinition::providers` 仅给出应用清单，模块清单随后接入；`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`Application::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。当前失败 Provider 的索引不更新，已成功登记的子项和此前贡献仍可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`ApplicationState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`Application::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
 
+`ApplicationDefinition::package_providers` 返回带来源的 `PackageProvider`。框架在启动注册前校验包间类型冲突，按 `ServiceProvider::dependencies` 稳定排序包段。确定会登记的依赖优先于可能嵌套的候选。缺失、后置及循环依赖会在预检报告。
+
 ### register 中登记子 Provider
 
 `RegisterContext::register_provider`、`force_register_provider` 和 `boxed_register_provider` 与 App 对应入口共用同一注册执行器。父 register 中 await 子注册后才继续下一语句；正常启动时子 register 不提前 boot，全部 register 完成后按实际登记顺序 boot。首次注册时子先完成并进入清单，父随后进入；已有父类型的force仍保首次槽位。已启动 App 的子注册则在返回前完成 register/boot，父才继续。不要手工调用另一 Provider 的 register 或 boot。

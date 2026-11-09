@@ -42,10 +42,7 @@ impl ProviderPreparation<'_> {
     /// 将子 Provider 追加到全部手工清单之后；显式移除继续生效。
     pub fn append_provider(&mut self, provider: Box<dyn ServiceProvider>) -> &mut Self {
         if !self.removed.contains(&provider.id()) {
-            self.tail.push(ProviderEntry {
-                provider,
-                force: false,
-            });
+            self.tail.push(ProviderEntry::new(provider));
         }
         self
     }
@@ -109,10 +106,7 @@ pub(super) fn expand(
             };
             for provider in registration.prepare(&mut context)? {
                 if !removed.contains(&provider.id()) {
-                    expanded.push(ProviderEntry {
-                        provider,
-                        force: false,
-                    });
+                    expanded.push(ProviderEntry::new(provider));
                 }
             }
         } else {
@@ -131,10 +125,7 @@ pub(super) fn expand(
             && !removed.contains(&provider.id())
             && !present.contains(&unless)
         {
-            prepend.push(ProviderEntry {
-                provider,
-                force: false,
-            });
+            prepend.push(ProviderEntry::new(provider));
         }
     }
     prepend.extend(expanded);

@@ -72,7 +72,7 @@ impl<const SESSION: bool> ApplicationDefinition for TestWebHost<SESSION> {
         GeneratedApplication::default_providers().merge(extra)
     }
 
-    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         GeneratedApplication::package_providers(config)
     }
 

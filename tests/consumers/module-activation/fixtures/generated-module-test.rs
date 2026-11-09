@@ -55,7 +55,7 @@ impl ApplicationDefinition for ActivationApplication {
         Original::default_providers()
     }
 
-    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         Original::package_providers(config)
     }
 
@@ -75,6 +75,7 @@ impl ApplicationDefinition for ActivationApplication {
         config: &Self::Config,
         builder: &mut openrust::foundation::ProviderBuilder,
     ) {
+        Original::configure_providers(config, builder);
         builder.module_manifest(
             modules::manifest(
                 config

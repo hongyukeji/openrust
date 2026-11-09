@@ -49,7 +49,7 @@ def main() -> None:
     if not isinstance(dependency, dict) or not isinstance(dependency.get("path"), str):
         raise SystemExit("生成应用缺少 workspace openrust 路径依赖")
     resolved = (project / dependency["path"]).resolve(strict=True)
-    if resolved != framework:
+    if resolved != owned_path(framework, "vendor/openrust/framework", directory=True):
         raise SystemExit("生成应用的 openrust 依赖不属于指定 framework")
     app_dependency = data.get("dependencies", {}).get("openrust", {})
     if not isinstance(app_dependency, dict) or app_dependency.get("workspace") is not True:
@@ -67,7 +67,7 @@ def main() -> None:
     if (
         len(names) != 1
         or "pub application_root:" not in source_bootstrap
-        or "pub modules: openrust::config::ModulesConfig" not in source_bootstrap
+        or "pub modules: openrust_modules::config::ModulesConfig" not in source_bootstrap
         or ".module(" in modules.read_text(encoding="utf-8")
     ):
         raise SystemExit("应用不是当前的空模块生成模板，不能安全安装 fixture")

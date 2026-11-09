@@ -131,7 +131,7 @@ impl<A: ApplicationDefinition> ApplicationDefinition for RedirectApplication<A> 
         // 本测试显式使用隔离内存 Session，先排除同类型默认项以保留替换。
         A::default_providers().except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
-    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         A::package_providers(config)
     }
     fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {

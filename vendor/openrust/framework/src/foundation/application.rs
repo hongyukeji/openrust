@@ -23,7 +23,7 @@ use crate::foundation::provider::deferred::DeferredProviders;
 use crate::foundation::provider::registration;
 use crate::foundation::provider::registration::LiveBoot;
 use crate::foundation::provider::registration::ProviderRegistry;
-use crate::foundation::provider::{BootContext, ProviderId};
+use crate::foundation::provider::{BootContext, PackageProvider, ProviderId};
 use crate::foundation::resources::ResourceOwner;
 use crate::foundation::termination::TerminationCallbacks;
 use crate::support::{BoxFuture, ServiceProvider};
@@ -63,10 +63,11 @@ pub trait ApplicationDefinition: Send + Sync + 'static {
         crate::support::DefaultProviders::auto()
     }
 
-    /// 显式登记已编译包的 Provider；位于框架默认项与应用项之间。
+    /// 登记已编译包的 Provider 及来源，位于框架默认项与应用项之间。
     ///
-    /// Cargo 包自动发现仍需独立实现；此入口不扫描包或反射 Rust 类型。
-    fn package_providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    /// 包段以声明顺序为基准，按 Provider 依赖稳定排序。应用可用
+    /// `openrust package:discover --install` 生成此清单。
+    fn package_providers(_config: &Self::Config) -> Vec<PackageProvider> {
         Vec::new()
     }
 

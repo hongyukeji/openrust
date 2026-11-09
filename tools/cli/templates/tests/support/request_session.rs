@@ -164,7 +164,7 @@ impl<A: ApplicationDefinition, const EXISTING: bool> ApplicationDefinition for S
             providers.except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
         }
     }
-    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         A::package_providers(config)
     }
     fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
@@ -347,7 +347,7 @@ impl<A: ApplicationDefinition> ApplicationDefinition for CookieSessionApplicatio
         // Cookie 场景显式替换 Session，不让默认项的同类型去重吞掉替换。
         A::default_providers().except([openrust::foundation::ProviderId::of::<SessionServiceProvider>()])
     }
-    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         A::package_providers(config)
     }
     fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
@@ -1142,7 +1142,7 @@ impl<A: ApplicationDefinition> ApplicationDefinition for OriginalHost<A> {
     fn default_providers() -> openrust::support::DefaultProviders {
         A::default_providers()
     }
-    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         A::package_providers(config)
     }
     fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {
@@ -1173,7 +1173,11 @@ pub async fn assert_original_host_cookie_session<A: ApplicationDefinition>(
     let mut app = TestApp::<OriginalHost<A>>::builder(source).build().await?;
     let outcome: openrust::Result<()> = async {
         let mut providers = A::default_providers().resolve(&app.app()?.config_repository())?;
-        providers.extend(A::package_providers(&configuration));
+        providers.extend(
+            A::package_providers(&configuration)
+                .into_iter()
+                .map(openrust::foundation::PackageProvider::into_provider),
+        );
         providers.extend(A::additional_providers());
         if A::with_bootstrap_providers() {
             providers.extend(A::providers(&configuration));

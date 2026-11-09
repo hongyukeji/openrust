@@ -53,7 +53,7 @@ impl ApplicationDefinition for Server {
             ])
     }
 
-    fn package_providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(_config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         packages::providers()
     }
 

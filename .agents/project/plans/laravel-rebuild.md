@@ -251,7 +251,7 @@ R2 默认配置目标为可编辑 `config/*.rs` 与部署 `.env`：dotenv 加载
 
 ### R2/R13 Provider 编译期发现 Spec
 
-状态：L044.02 已接入 CLI 预览和显式安装。普通构建按目标与应用特性校验并消费清单。包来源诊断、冲突和依赖排序继续按阶段一包机制推进。模块 M016 复用同一 Provider 生命周期。
+状态：L044.02 已接入 CLI 预览和显式安装。普通构建按目标与应用特性校验并消费 v2 清单。包来源诊断和包段依赖排序接入同一 Provider 生命周期，模块 M016 继续复用。精确多来源关联、安装工作流和发现诊断仍开放。
 
 1. 当前[`bootstrap/app.rs`](../../../bootstrap/app.rs)显式把example descriptor加入ModuleManifest；[`module.rs`](../../../vendor/openrust/modules/src/module.rs)只选已编译描述、校验激活/依赖并稳定拓扑排序，[`ProviderBuilder`](../../../vendor/openrust/framework/src/foundation/provider.rs)合并并走register→boot。FileModuleActivator读取启用状态不等于包发现；现生成模板仍产显式清单，尚无任意依赖Provider自动发现能力。
 2. 目标链路：扩展公开声明Provider入口 → 宿主实际启用的直接依赖/本地模块，按当前target cfg/feature与构建目标过滤 → 确定性生成可编译Rust注册清单 → 复用现ModuleManifest/拓扑排序与唯一register→boot流水线。传递依赖不能凭锁图自动提升为宿主可引用入口，dev/build依赖与host/target必须区分；不运行目标二进制来发现类型。
@@ -261,7 +261,7 @@ R2 默认配置目标为可编辑 `config/*.rs` 与部署 `.env`：dotenv 加载
 6. CLI list/doctor复用既有命令体系展示候选来源、启用/排除原因、覆盖与最终顺序，不做新管理平台。发现/加载Provider只遵现生命周期，不自动启动MQTT client/Broker/worker；这些角色仍由相应调用/显式CLI运行，既有基础服务启动校验不被发现机制绕过。
 7. 验收围绕真实缺陷：workspace/path/registry声明扩展在当前target/feature下恰当出现；rename/禁用/optout/显式覆盖及缺失/循环/冲突可诊断；清单/依赖/配置变化增量更新且稳定顺序；公开模块/生成项目cargo check/test与真实启动不改框架核心，证明已注册服务可解析、未选扩展无角色副作用。cross-compile/跨平台分别核对可支持边界，不以host通过代替target证据。新增源码/依赖前按仓库登记和门禁，不复制测试列表冒充实现。
 
-来源与取舍：固定Laravel[Package Discovery/dont-discover](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/packages.md#package-discovery)与[PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)提供声明与排除体验；Rust静态类型/链接约束决定在编译期生成可引用清单，不能照搬PHP类字符串加载。2026-10-29核对Cargo官方[metadata](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html)、[build scripts](https://doc.rust-lang.org/cargo/reference/build-scripts.html)、[features](https://doc.rust-lang.org/cargo/reference/features.html)：元数据、host构建脚本和条件编译各有边界；预览通过显式 CLI 调用 Cargo 元数据，按普通直接依赖的名称、目标和应用 feature 生成 Rust 引用。实际 Cargo 夹具发现 workspace 联合解析可能包含宿主未选的依赖，预览据宿主声明重新筛选。普通构建消费已接入。真实生成应用走 Provider 启动流程，目标差异另有 macOS 和 Linux ARM64 最小 Cargo 夹具证据。多注册源、项目外 Cargo 覆盖和更多目标矩阵独立验证。
+来源与取舍：固定Laravel[Package Discovery/dont-discover](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/packages.md#package-discovery)与[PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)提供声明与排除体验；Rust静态类型/链接约束决定在编译期生成可引用清单，不能照搬PHP类字符串加载。2026-10-29核对Cargo官方[metadata](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html)、[build scripts](https://doc.rust-lang.org/cargo/reference/build-scripts.html)、[features](https://doc.rust-lang.org/cargo/reference/features.html)：元数据、host构建脚本和条件编译各有边界；预览通过显式 CLI 调用 Cargo 元数据，按普通直接依赖的名称、目标和应用 feature 生成 Rust 引用。实际 Cargo 夹具发现 workspace 联合解析可能包含宿主未选的依赖，预览据宿主声明重新筛选。普通构建消费已接入。真实生成应用走 Provider 启动流程，目标差异另有 macOS 和 Linux ARM64 最小 Cargo 夹具证据。多注册源、项目外 Cargo 覆盖和更多目标矩阵独立验证。 包段沿固定 Laravel 的框架默认、发现包、显式应用顺序。Rust 的静态 Provider 身份和显式依赖契约要求在包段内确定登记顺序，跨包的同一类型冲突报告双方来源。同包重复继续保留第一次。
 
 ## 4. 能力交付矩阵
 

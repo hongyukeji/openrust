@@ -2114,3 +2114,12 @@ fresh minimal 应用在清单缺省和已安装两种条件下各通过 23 项�
 fresh gRPC 应用同时生成 protobuf 和包清单，通过编译与 7 项测试。真实联合服务处理 HTTP、TLS Echo、错误 CA 和错误域名，再按 SIGTERM 正常退出。无清单对照也能复现旧停机错误。修复让控制台先派发终止事件，进程入口再关闭容器。 gRPC feature 严格 Clippy、2 项运行时单元测试和 4 项嵌入式联合服务消费者测试通过，覆盖真实双监听启动、绑定失败和超时回收。
 
 同一目标专用 feature 在 macOS 无 Provider，在 Rust 1.97 的 Linux ARM64 容器内加载 1 个 Provider。该项使用最小 Cargo 夹具验证目标清单和实际链接。项目外 Cargo 覆盖、直接依赖 feature 激活、包来源冲突、运行期排序和更多平台矩阵仍开放。正式回执见 `tmp/lead-package-plan.cqhei5YN/delivery-receipt.json`。
+
+
+## 包来源与启动顺序限定验收
+
+L044.02 的包来源和依赖顺序对应冻结源码树 `47e58a83e180479acb06feec8353cdc6a16afe56`。固定 Laravel 来源核对框架默认、发现包与显式应用项的排列以及普通同类型去重。Rust 包段按显式依赖预检并稳定排序，优先等待确定会登记的依赖。五项回归覆盖同包首项、跨包冲突与移除、缺失与后置项、循环、条件嵌套和重复项声明的失效身份。
+
+工作区格式、严格 Clippy、MySQL 8.4.13 测试、拒警 Rustdoc 与离线依赖门禁通过。工作区测试 2921 通过、54 忽略。fresh minimal 的两个真实 Cargo 包经普通 check、23 项测试和实际启动验收。消费者在注册阶段解析到被依赖包的 Marker，真实 TCP 返回 HTTP 200。跨包重复启动退出 1，输出双方来源且端口未开放。v1 清单拒绝后重装恢复，旧 helper 拒绝安装且已安装清单字节保全。
+
+生成模块消费者原宿主类描述符接线修复后通过持久启停验证，覆盖原模块断言与禁用后宿主 API 可访问。fresh JWT 应用在真实 MySQL 8.4.13 下完成 check，测试 101 通过、2 忽略。正式回执见 `tmp/lead-provider-order.zIay19Ph/delivery-receipt.json`。同名同版本多来源解析、安装工作流和发现诊断按原待办继续。

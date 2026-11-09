@@ -105,7 +105,7 @@ impl<A: ApplicationDefinition> ApplicationDefinition for FortifyApplication<A> {
     fn default_providers() -> openrust::support::DefaultProviders {
         A::default_providers()
     }
-    fn package_providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         A::package_providers(config)
     }
     fn additional_providers() -> Vec<Box<dyn ServiceProvider>> {

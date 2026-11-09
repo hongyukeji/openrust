@@ -31,6 +31,7 @@ use crate::support::BoxFuture;
 
 pub(crate) mod deferred;
 pub(crate) mod manifest;
+mod order;
 mod preparation;
 pub(crate) mod registration;
 pub use deferred::DeferrableProvider;
@@ -174,6 +175,24 @@ impl ProviderId {
     /// 用于不包含用户配置值的诊断。
     pub fn name(self) -> &'static str {
         self.name
+    }
+}
+
+/// 已编译的包 Provider 和用于启动诊断的来源。
+pub struct PackageProvider {
+    source: &'static str,
+    provider: Box<dyn ServiceProvider>,
+}
+
+impl PackageProvider {
+    /// 记录稳定的包来源标识与 Provider。生成清单使用包名、版本和 Rust 依赖名。
+    pub fn new(source: &'static str, provider: Box<dyn ServiceProvider>) -> Self {
+        Self { source, provider }
+    }
+
+    /// 取出 Provider 实例，供调用方沿用已有的盒装 Provider 接口。
+    pub fn into_provider(self) -> Box<dyn ServiceProvider> {
+        self.provider
     }
 }
 
@@ -1157,6 +1176,17 @@ pub struct ProviderBuilder {
 struct ProviderEntry {
     provider: Box<dyn ServiceProvider>,
     force: bool,
+    package: Option<&'static str>,
+}
+
+impl ProviderEntry {
+    fn new(provider: Box<dyn ServiceProvider>) -> Self {
+        Self {
+            provider,
+            force: false,
+            package: None,
+        }
+    }
 }
 
 pub(crate) fn check_dependencies(
@@ -1174,65 +1204,6 @@ pub(crate) fn check_dependencies(
                 ),
             ));
         }
-    }
-    Ok(())
-}
-
-fn ordered_providers(providers: &[ProviderEntry], removed: &HashSet<ProviderId>) -> Result<()> {
-    let all: HashSet<_> = providers
-        .iter()
-        .filter(|entry| !removed.contains(&entry.provider.id()))
-        .flat_map(|entry| {
-            std::iter::once(entry.provider.id())
-                .chain(entry.provider.nested_providers())
-                .chain(entry.provider.possible_nested_providers())
-        })
-        .filter(|id| !removed.contains(id))
-        .map(|id| id.type_id)
-        .collect();
-    let mut ready = HashSet::new();
-    let mut conditional = HashSet::new();
-    for entry in providers {
-        let provider = &entry.provider;
-        if removed.contains(&provider.id()) {
-            continue;
-        }
-        if !entry.force && ready.contains(&provider.id().type_id) {
-            continue;
-        }
-        for dependency in provider.dependencies() {
-            if !all.contains(&dependency.type_id) {
-                return Err(Error::custom(
-                    "provider_dependency_missing",
-                    format!("{} 缺少依赖 {}", provider.id().name(), dependency.name()),
-                ));
-            }
-            if !ready.contains(&dependency.type_id) && !conditional.contains(&dependency.type_id) {
-                return Err(Error::custom(
-                    "provider_order_invalid",
-                    format!(
-                        "{} 必须在 {} 之后启动",
-                        provider.id().name(),
-                        dependency.name()
-                    ),
-                ));
-            }
-        }
-        ready.extend(
-            provider
-                .nested_providers()
-                .into_iter()
-                .filter(|id| !removed.contains(id))
-                .map(|id| id.type_id),
-        );
-        ready.insert(provider.id().type_id);
-        conditional.extend(
-            provider
-                .possible_nested_providers()
-                .into_iter()
-                .filter(|id| !removed.contains(id))
-                .map(|id| id.type_id),
-        );
     }
     Ok(())
 }
@@ -1400,11 +1371,7 @@ impl ProviderBuilder {
 
     /// 添加 Provider；同具体类型重复登记保留第一项。
     pub fn provider(&mut self, provider: impl ServiceProvider) -> &mut Self {
-        self.providers.push(ProviderEntry {
-            provider: Box::new(provider),
-            force: false,
-        });
-        self
+        self.boxed_provider(Box::new(provider))
     }
 
     /// 登记延迟 Provider 的编译工厂。首次解析其声明的服务时创建实例。
@@ -1419,11 +1386,16 @@ impl ProviderBuilder {
 
     /// 加入已盒装的应用 Provider，保留具体类型身份。
     pub fn boxed_provider(&mut self, provider: Box<dyn ServiceProvider>) -> &mut Self {
-        self.providers.push(ProviderEntry {
-            provider,
-            force: false,
-        });
+        self.providers.push(ProviderEntry::new(provider));
         self
+    }
+
+    pub(crate) fn package_provider(&mut self, entry: PackageProvider) {
+        self.providers.push(ProviderEntry {
+            provider: entry.provider,
+            force: false,
+            package: Some(entry.source),
+        });
     }
 
     /// 显式重注册同类型 Provider；保留首次 boot 槽位。
@@ -1436,6 +1408,7 @@ impl ProviderBuilder {
         self.providers.push(ProviderEntry {
             provider,
             force: true,
+            package: None,
         });
         self
     }
@@ -1456,10 +1429,7 @@ impl ProviderBuilder {
 
     /// 安装已盒装的启动基础 Provider，保留登记顺序。
     pub fn boxed_bootstrap_provider(&mut self, provider: Box<dyn ServiceProvider>) -> &mut Self {
-        self.bootstrap_providers.push(ProviderEntry {
-            provider,
-            force: false,
-        });
+        self.bootstrap_providers.push(ProviderEntry::new(provider));
         self
     }
 
@@ -1535,10 +1505,7 @@ impl ProviderBuilder {
                 .providers
                 .into_iter()
                 .filter(|provider| !self.removed.contains(&provider.id()))
-                .map(|provider| ProviderEntry {
-                    provider,
-                    force: false,
-                });
+                .map(ProviderEntry::new);
             providers.splice(position..position, entries);
         }
         let mut bootstrap = self.bootstrap_providers;
@@ -1551,7 +1518,7 @@ impl ProviderBuilder {
             &bootstrap,
         )?;
         bootstrap.extend(providers);
-        ordered_providers(&bootstrap, &self.removed)?;
+        let bootstrap = order::prepare(bootstrap, &self.removed)?;
         let mut deferred = self.deferred;
         deferred.retain(|entry| !self.removed.contains(&entry.id));
         let (providers, deferred) = if let Some(path) = &self.services_manifest {

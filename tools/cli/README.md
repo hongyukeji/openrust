@@ -69,6 +69,8 @@ cargo run -p cli -- g migration labels slug:string
 
 准备应用的 `Cargo.lock` 后，运行 `openrust package:discover --install`，将清单写入 `bootstrap/packages/`。对每个部署目标和应用特性组合执行一次安装，并将清单随源码交付。普通 `cargo build` 和 `cargo run` 按实际目标与应用特性选取对应清单，将包 Provider 加入应用的启动清单。Facade 别名可从 `crate::bootstrap::packages::facades` 引用。首次安装前，应用继续使用显式登记的 Provider。
 
+清单用 `包名@版本 (Rust 依赖名)` 标记来源。包 Provider 仍位于框架默认项与应用项之间。按 `ServiceProvider::dependencies()` 在包段内排序时，每步选择最早可登记的项。包之间重复声明同一个 Provider 类型会同时报告双方来源。包依赖缺失、指向后置应用项或形成循环时，启动会在注册前拒绝。升级旧应用时，按当前模板更新构建辅助文件和 `ApplicationDefinition::package_providers` 的返回类型，再重新安装 v2 清单。
+
 已有清单时，缺少当前组合的清单，或锁文件、相关 manifest、应用至 workspace 根之间的 Cargo 配置变化，都会中止构建。以相同特性和目标重新运行安装命令。用于选择包来源的配置放在项目内的 `.cargo/config.toml`，从应用目录执行安装和构建。
 
 安装使用应用的具名特性，例如定义 `search = ["search-engine/full"]` 后使用 `--features search`。直接使用 `--features search-engine/full` 可能绕过应用特性，Cargo 构建脚本无法可靠识别。安装使用目标三元组，自定义 JSON 目标可用预览检查。旧应用可参考新生成应用的 `build.rs` 和 `bootstrap/app.rs` 接入。

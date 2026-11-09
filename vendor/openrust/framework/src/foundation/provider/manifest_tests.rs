@@ -34,14 +34,8 @@ fn temporary() -> Result<tempfile::TempDir> {
 
 fn eager(reverse: bool) -> Vec<ProviderEntry> {
     let mut entries = vec![
-        ProviderEntry {
-            provider: Box::new(First),
-            force: false,
-        },
-        ProviderEntry {
-            provider: Box::new(Second),
-            force: false,
-        },
+        ProviderEntry::new(Box::new(First)),
+        ProviderEntry::new(Box::new(Second)),
     ];
     if reverse {
         entries.reverse();

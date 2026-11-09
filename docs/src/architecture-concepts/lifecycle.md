@@ -192,6 +192,8 @@ let descriptors = [
 
 `openrust package:discover --preview` 输出 Provider 候选与 Facade 别名。`openrust package:discover --install` 为应用的 Cargo 目标和特性生成清单。普通构建校验清单输入，并通过 `ApplicationDefinition::package_providers` 把包 Provider 加入同一次应用启动。 [CLI 用法](../../../tools/cli/README.md#provider-包发现) · [Laravel PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)
 
+包清单中的 `PackageProvider` 记录具体 Provider 及 Cargo 包来源。启动清单按框架默认项、发现包和显式应用项排列。注册前用 `ServiceProvider::dependencies()` 稳定排序包段。跨包的同一类型冲突会报告双方来源。显式清单的相对顺序及普通登记的同类型去重语义沿用原规则。 [Laravel Application](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L821-L843)
+
 ### Provider 实例启动回调
 
 在 `RegisterContext` 或当前 Provider 的 `BootContext` 上使用 `provider_booting`、`provider_booted`。每个实例依次执行自己的 `provider_booting` 队列、`boot` 和 `provider_booted` 队列。阶段内追加的回调排在队列末尾。强制重新登记使用新实例自己的回调。启动阶段与运行时登记遵循同一顺序。 [Laravel ServiceProvider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Support/ServiceProvider.php#L103-L154)

@@ -30,7 +30,10 @@ fn optional_features_respect_alias_activation_and_weak_forwarding() -> Result<()
 fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Result<()> {
     let manifest = Path::new("/app/Cargo.toml");
     let package = |id, name, version, lib| {
-        json!({"id": id, "name": name, "version": version, "targets": [{"name": lib, "kind": ["lib"]}], "metadata": {"openrust": {"discovery": {
+        json!({"id": id, "name": name, "version": version,
+            "manifest_path": "/private/checkout/Cargo.toml",
+            "source": "git+https://example.invalid/private",
+            "targets": [{"name": lib, "kind": ["lib"]}], "metadata": {"openrust": {"discovery": {
             "version": 1, "providers": true
         }}}})
     };
@@ -60,10 +63,16 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
         ]}]}
     });
     let source = plan(&graph, manifest, "aarch64-apple-darwin", &[], false)?;
-    assert!(source.contains("::r#direct::openrust_providers"));
+    assert!(source.contains("(\"real-package@0.1.0 (direct)\", ::r#direct::openrust_providers)"));
     assert!(
-        source.contains("#[cfg(target_os = \"linux\")]\n        ::r#mixed::openrust_providers")
+        source.contains(
+            "#[cfg(target_os = \"linux\")]\n        (\"mixed-package@0.1.0 (mixed)\", ::r#mixed::openrust_providers)"
+        )
     );
+    assert!(source.contains("Vec<::openrust::foundation::PackageProvider>"));
+    assert!(source.contains("PackageProvider::new(origin, provider)"));
+    assert!(!source.contains("/private/checkout"));
+    assert!(!source.contains("https://example.invalid/private"));
     for not_linked in ["with_extra", "build_only", "transitive"] {
         assert!(!source.contains(not_linked));
     }
@@ -74,7 +83,10 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
         &["extra".into()],
         true,
     )?;
-    assert!(selected.contains("::r#with_extra::openrust_providers"));
+    assert!(
+        selected
+            .contains("(\"real-package@0.2.0 (with_extra)\", ::r#with_extra::openrust_providers)")
+    );
     Ok(())
 }
 
@@ -86,18 +98,21 @@ fn package_exclusions_and_facade_reexports_follow_declaration_selection() -> Res
     let declarations = [
         Declaration {
             package: "first",
+            version: "1.0.0",
             library: "alias_first",
             options: &first,
             active: "all()".into(),
         },
         Declaration {
             package: "last",
+            version: "1.0.0",
             library: "alias_last",
             options: &last,
             active: "unix".into(),
         },
         Declaration {
             package: "excluded",
+            version: "1.0.0",
             library: "exclusion",
             options: &excluded,
             active: "windows".into(),

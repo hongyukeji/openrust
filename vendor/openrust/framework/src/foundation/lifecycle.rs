@@ -774,7 +774,7 @@ impl ProviderBuilder {
         });
         builder.default_providers(A::default_providers());
         for provider in A::package_providers(config) {
-            builder.boxed_provider(provider);
+            builder.package_provider(provider);
         }
         for provider in A::additional_providers() {
             builder.boxed_provider(provider);

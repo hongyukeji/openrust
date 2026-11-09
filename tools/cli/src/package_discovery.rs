@@ -170,9 +170,20 @@ fn install(
         return Err("安装清单需要 Cargo 目标三元组".into());
     }
     let bootstrap = fs::read_to_string(app.join("bootstrap/app.rs"))?;
-    if !bootstrap.contains("/openrust_package_providers.rs") || !app.join("build.rs").is_file() {
+    let generated_helper = app.join("bootstrap/package_discovery_build.rs");
+    let helper = if generated_helper.is_file() {
+        generated_helper
+    } else {
+        app.join("tools/cli/templates/bootstrap/package_discovery_build.rs")
+    };
+    if !bootstrap.contains("/openrust_package_providers.rs")
+        || !bootstrap.contains("PackageProvider")
+        || !app.join("build.rs").is_file()
+        || !fs::read_to_string(helper).is_ok_and(|source| source.contains(build_plan::VERSION))
+    {
         return Err(
-            "当前应用缺少 Provider 清单构建接线，请先接入 build.rs 与 bootstrap/app.rs".into(),
+            "当前应用缺少 Provider v2 清单接线，请先按当前模板更新构建脚本和 bootstrap/app.rs"
+                .into(),
         );
     }
     let manifest = app.join("Cargo.toml");
@@ -432,6 +443,7 @@ fn unrenamed_library(package: &Value, library: &str) -> bool {
 
 struct Declaration<'a> {
     package: &'a str,
+    version: &'a str,
     library: &'a str,
     options: &'a Value,
     active: String,
@@ -461,7 +473,8 @@ fn declarations<'a>(
         if options.is_null() {
             continue;
         }
-        let version = semver::Version::parse(string(&package["version"], "package version")?)?;
+        let version_text = string(&package["version"], "package version")?;
+        let version = semver::Version::parse(version_text)?;
         let mut conditions = BTreeSet::new();
         for dependency in dependencies {
             let alias = dependency["rename"].as_str();
@@ -501,6 +514,7 @@ fn declarations<'a>(
         let active = disjunction(conditions.into_iter());
         declarations.push(Declaration {
             package: name,
+            version: version_text,
             library,
             options,
             active,
@@ -591,15 +605,19 @@ fn render(host: &Value, declarations: &[Declaration<'_>]) -> Result<String> {
             },
         );
         if declaration.options["providers"].as_bool() == Some(true) {
+            let origin = format!(
+                "{}@{} ({})",
+                declaration.package, declaration.version, declaration.library
+            );
             writeln!(
                 providers,
-                "        #[cfg({active})]\n        ::{library}::openrust_providers,"
+                "        #[cfg({active})]\n        ({origin:?}, ::{library}::openrust_providers),"
             )?;
         }
         collect_aliases(declaration.options, &library, &active, &mut aliases)?;
     }
     let mut source = format!(
-        "pub(crate) fn providers() -> Vec<Box<dyn ::openrust::support::ServiceProvider>> {{\n    type Providers = Vec<Box<dyn ::openrust::support::ServiceProvider>>;\n    let factories: &[fn() -> Providers] = &[\n{providers}    ];\n    factories.iter().flat_map(|factory| factory()).collect()\n}}\n"
+        "pub(crate) fn providers() -> Vec<::openrust::foundation::PackageProvider> {{\n    type Providers = Vec<Box<dyn ::openrust::support::ServiceProvider>>;\n    type Factory = (&'static str, fn() -> Providers);\n    let factories: &[Factory] = &[\n{providers}    ];\n    factories\n        .iter()\n        .flat_map(|&(origin, factory)| {{\n            factory().into_iter().map(move |provider| {{\n                ::openrust::foundation::PackageProvider::new(origin, provider)\n            }})\n        }})\n        .collect()\n}}\n"
     );
     source.push_str("#[allow(unused_imports, reason = \"应用按需引用发现的 facade\")]\npub(crate) mod facades {\n");
     for (alias, candidates) in aliases {

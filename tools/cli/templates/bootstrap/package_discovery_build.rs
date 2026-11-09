@@ -8,11 +8,11 @@ use std::{
 };
 
 pub const DIRECTORY: &str = "bootstrap/packages";
-pub const VERSION: &str = "// openrust-package-plan-v1";
+pub const VERSION: &str = "// openrust-package-plan-v2";
 pub const END_INPUTS: &str = "// end-package-plan-inputs";
 
 const EMPTY_SOURCE: &str = r#"
-pub(crate) fn providers() -> Vec<Box<dyn ::openrust::support::ServiceProvider>> {
+pub(crate) fn providers() -> Vec<::openrust::foundation::PackageProvider> {
     Vec::new()
 }
 #[allow(unused_imports, reason = "应用按需引用发现的 facade")]
@@ -83,7 +83,7 @@ fn verify_inputs(source: &str, directives: &mut impl io::Write) -> io::Result<()
     let mut lines = source.lines();
     if lines.next() != Some(VERSION) {
         return Err(io::Error::other(
-            "Provider 清单版本不匹配，请运行 openrust package:discover --install",
+            "Provider 清单格式需要 v2，请运行 openrust package:discover --install 重新生成",
         ));
     }
     let mut application = false;

@@ -31,7 +31,7 @@ impl openrust::foundation::ApplicationDefinition for {{type_name}} {
         ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])
     }
 
-    fn package_providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn package_providers(_config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {
         packages::providers()
     }
 
