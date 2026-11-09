@@ -17,21 +17,31 @@ use crate::support::ServiceProvider;
 
 /// 有效实例及启动移除规则；用户回调不在正在注册身份的锁内执行。
 pub(crate) struct ProviderRegistry {
-    providers: Mutex<Vec<Arc<ActiveProvider>>>,
+    providers: Mutex<Vec<Arc<RegisteredProvider>>>,
     registering: Arc<Mutex<HashSet<TypeId>>>,
     removed: HashSet<ProviderId>,
-    deferred: Mutex<Option<Vec<Definition>>>,
     loader: OnceLock<Weak<DeferredProviders>>,
     pub(crate) startup_callbacks: StartupCallbacks,
 }
 
-pub(crate) struct ActiveProvider {
+/// 实际注册的 Provider 实例。延迟装载监听器可返回此对象作为事件响应。
+pub struct RegisteredProvider {
     id: ProviderId,
     provider: Option<Box<dyn ServiceProvider>>,
     callbacks: tokio::sync::Mutex<ProviderBootCallbacks>,
 }
 
-impl ActiveProvider {
+impl RegisteredProvider {
+    /// 获取本实例的具体 Provider 类型身份。
+    pub const fn id(&self) -> ProviderId {
+        self.id
+    }
+
+    /// 借用注册表中的原 Provider 实例。
+    pub fn provider(&self) -> Option<&dyn ServiceProvider> {
+        self.provider.as_deref()
+    }
+
     pub(super) async fn boot(&self, context: &mut BootContext<'_>) -> Result<()> {
         let provider = self
             .provider
@@ -53,7 +63,13 @@ impl ActiveProvider {
     }
 }
 
-impl Drop for ActiveProvider {
+impl crate::support::DataObject for RegisteredProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl Drop for RegisteredProvider {
     fn drop(&mut self) {
         // 快照可能延后最终析构。回收回调和 Provider 都在注册表锁外进行。
         if self.dispose_inner() {
@@ -68,7 +84,6 @@ impl ProviderRegistry {
             providers: Mutex::default(),
             registering: Arc::default(),
             removed,
-            deferred: Mutex::new(Some(Vec::new())),
             loader: OnceLock::new(),
             startup_callbacks: StartupCallbacks::default(),
         }
@@ -79,17 +94,8 @@ impl ProviderRegistry {
         container: &Container,
         definition: Definition,
     ) -> Result<()> {
-        {
-            let mut pending = self
-                .deferred
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(entries) = pending.as_mut() {
-                if !self.removed.contains(&definition.id) {
-                    entries.push(definition);
-                }
-                return Ok(());
-            }
+        if !self.startup_callbacks.is_booted() && self.removed.contains(&definition.id) {
+            return Ok(());
         }
         let loader = self.loader.get().and_then(Weak::upgrade).ok_or_else(|| {
             Error::custom(
@@ -97,37 +103,34 @@ impl ProviderRegistry {
                 "延迟 Provider 的应用注册表已回收",
             )
         })?;
-        let outcome = loader.add(definition);
-        if loader.has_keys() {
-            container.install_deferred_providers(&loader)?;
-        }
-        outcome
+        loader.add(container, definition)
     }
 
     pub(super) fn attach_loader(&self, loader: &Arc<DeferredProviders>) {
         let _ = self.loader.set(Arc::downgrade(loader));
     }
 
-    pub(super) fn take_deferred(&self) -> Vec<Definition> {
-        self.deferred
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take()
-            .unwrap_or_default()
+    pub(super) fn event_hooks(&self) -> crate::events::DeferredEventHooks {
+        self.loader
+            .get()
+            .and_then(Weak::upgrade)
+            .map_or_else(crate::events::DeferredEventHooks::default, |loader| {
+                loader.event_hooks()
+            })
     }
 
-    fn providers(&self) -> std::sync::MutexGuard<'_, Vec<Arc<ActiveProvider>>> {
+    fn providers(&self) -> std::sync::MutexGuard<'_, Vec<Arc<RegisteredProvider>>> {
         self.providers
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     #[cfg(test)]
-    pub(super) fn boot_snapshot(&self) -> Vec<Arc<ActiveProvider>> {
+    pub(super) fn boot_snapshot(&self) -> Vec<Arc<RegisteredProvider>> {
         self.providers().clone()
     }
 
-    pub(super) fn next_startup_provider(&self, index: usize) -> Option<Arc<ActiveProvider>> {
+    pub(super) fn next_startup_provider(&self, index: usize) -> Option<Arc<RegisteredProvider>> {
         let providers = self.providers();
         let next = providers.get(index).cloned();
         if next.is_none() {
@@ -136,11 +139,14 @@ impl ProviderRegistry {
         next
     }
 
-    pub(super) fn is_registered(&self, id: ProviderId) -> bool {
-        self.providers().iter().any(|active| active.id == id)
+    pub(super) fn registered(&self, id: ProviderId) -> Option<Arc<RegisteredProvider>> {
+        self.providers()
+            .iter()
+            .find(|active| active.id == id)
+            .cloned()
     }
 
-    pub(crate) fn take_active(&self) -> Vec<Arc<ActiveProvider>> {
+    pub(crate) fn take_active(&self) -> Vec<Arc<RegisteredProvider>> {
         std::mem::take(&mut *self.providers())
     }
 
@@ -184,8 +190,15 @@ pub(crate) enum BootMode<'a> {
     Live(LiveBoot),
     Deferred {
         loader: &'a DeferredProviders,
-        root: bool,
+        trigger: DeferredRegistration,
     },
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum DeferredRegistration {
+    Service,
+    Event,
+    Nested,
 }
 
 impl BootMode<'_> {
@@ -201,7 +214,7 @@ impl BootMode<'_> {
         match self {
             Self::Deferred { loader, .. } => Self::Deferred {
                 loader,
-                root: false,
+                trigger: DeferredRegistration::Nested,
             },
             mode => mode.clone(),
         }
@@ -218,26 +231,32 @@ impl BootMode<'_> {
     fn contribute_startup(
         &self,
         registry: &ProviderRegistry,
-        entry: &Arc<ActiveProvider>,
+        entry: &Arc<RegisteredProvider>,
         required: Vec<Required>,
         parent_required: &mut Vec<Required>,
     ) {
-        if let Self::Deferred { loader, root: true } = self {
-            let entry = Arc::clone(entry);
-            registry
-                .startup_callbacks
-                .add_booting(Arc::new(move |context| {
-                    let entry = Arc::clone(&entry);
-                    Box::pin(async move {
-                        let provider = entry.provider.as_deref().ok_or_else(|| {
-                            Error::custom("provider_retired", "Provider 实例已回收")
-                        })?;
-                        provider.boot(context).await
-                    })
-                }));
-            loader.add_startup_required(required);
-        } else {
+        let Self::Deferred { loader, trigger } = self else {
             parent_required.extend(required);
+            return;
+        };
+        match trigger {
+            DeferredRegistration::Event => loader.add_startup_required(required),
+            DeferredRegistration::Nested => parent_required.extend(required),
+            DeferredRegistration::Service => {
+                let entry = Arc::clone(entry);
+                registry
+                    .startup_callbacks
+                    .add_booting(Arc::new(move |context| {
+                        let entry = Arc::clone(&entry);
+                        Box::pin(async move {
+                            let provider = entry.provider.as_deref().ok_or_else(|| {
+                                Error::custom("provider_retired", "Provider 实例已回收")
+                            })?;
+                            provider.boot(context).await
+                        })
+                    }));
+                loader.add_startup_required(required);
+            }
         }
     }
 }
@@ -367,7 +386,7 @@ pub(crate) fn register<'a>(
             })
             .await?;
         registry.verify_nested(id, &nested, starting)?;
-        let entry = Arc::new(ActiveProvider {
+        let entry = Arc::new(RegisteredProvider {
             id,
             provider: Some(provider),
             callbacks: tokio::sync::Mutex::new(callbacks),
@@ -393,7 +412,7 @@ pub(crate) fn register<'a>(
             (old, boot_now)
         };
         drop(guard);
-        if old.is_some_and(ActiveProvider::dispose) {
+        if old.is_some_and(RegisteredProvider::dispose) {
             return Err(Error::custom(
                 "resource_task_interrupted",
                 "Provider 已替换，但原实例或启动回调析构异常",

@@ -21,5 +21,5 @@ pub(crate) use lifecycle_duration::EntryStarted;
 pub use lifecycle_duration::{CommandLifecycle, LifecycleThreshold, RequestLifecycle};
 pub use provider::{
     BootContext, DeferrableProvider, ProviderBuilder, ProviderId, ProviderPreparation,
-    ProviderRegistration, ProviderRuntime, RegisterContext,
+    ProviderRegistration, ProviderRuntime, RegisterContext, RegisteredProvider,
 };

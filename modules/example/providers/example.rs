@@ -151,11 +151,20 @@ async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<(
             .get("/api/example/container-call", call_example_message)
             .get("/api/example/container-method", call_example_method)
             .get("/api/example/deferred-greeting", deferred_greeting)
+            .post(
+                "/api/example/deferred-greeting-event",
+                deferred_greeting_event,
+            )
     })?;
     Ok(())
 }
 
 struct DeferredGreetingProvider;
+struct DeferredGreetingRequested;
+
+impl openrust::events::Event for DeferredGreetingRequested {
+    const NAME: &'static str = "example.deferred-greeting.requested";
+}
 
 struct DeferredGreeting {
     message: String,
@@ -165,6 +174,10 @@ struct DeferredGreeting {
 impl DeferrableProvider for DeferredGreetingProvider {
     fn provides() -> Vec<ServiceKey> {
         vec![ServiceKey::typed::<DeferredGreeting>()]
+    }
+
+    fn when() -> Vec<&'static str> {
+        vec![<DeferredGreetingRequested as openrust::events::Event>::NAME]
     }
 }
 
@@ -193,6 +206,36 @@ impl ServiceProvider for DeferredGreetingProvider {
 
 async fn deferred_greeting(
     openrust::http::Inject(greeting): openrust::http::Inject<DeferredGreeting>,
+) -> openrust::http::Json<serde_json::Value> {
+    deferred_greeting_response(&greeting)
+}
+
+async fn deferred_greeting_event(
+    State(app): State<ApplicationState>,
+    openrust::http::Inject(events): openrust::http::Inject<openrust::events::Events>,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    let reply = events.until(&DeferredGreetingRequested).await?;
+    let registered = match reply {
+        openrust::support::DataValue::Object(provider) => provider
+            .as_any()
+            .downcast_ref::<openrust::foundation::RegisteredProvider>()
+            .is_some_and(|entry| {
+                entry.id() == openrust::foundation::ProviderId::of::<DeferredGreetingProvider>()
+            }),
+        _ => false,
+    };
+    if !registered {
+        return Err(openrust::Error::custom(
+            "example_deferred_provider_missing",
+            "事件未登记示例 Provider",
+        ));
+    }
+    let greeting = app.resolve::<DeferredGreeting>().await?;
+    Ok(deferred_greeting_response(&greeting))
+}
+
+fn deferred_greeting_response(
+    greeting: &DeferredGreeting,
 ) -> openrust::http::Json<serde_json::Value> {
     openrust::http::Json(serde_json::json!({
         "message": greeting.message,

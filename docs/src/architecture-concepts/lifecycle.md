@@ -178,7 +178,9 @@ let descriptors = [
 
 容器先展开别名。已有共享实例时可直接解析。首次装载移除触发键，并执行 Provider 的 `register`。应用已启动时，等待同一 Provider 的请求在 `boot` 完成后继续。将路由放在启动期 Provider 中，处理器可通过 `Inject<T>` 首次解析延迟服务。示例使用 `GET /api/example/deferred-greeting`。可用 `app.is_deferred_service(&key)` 查询精确清单键，或用 `app.load_deferred_providers().await?` 显式装载剩余项。
 
-当前清单支持服务键触发。事件触发及持久 manifest 仍在后续范围。 [Laravel Application 的延迟服务实现](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L992-L1100)
+也可在 `when()` 返回事件的稳定名称或通配模式。照常通过 `Events` 派发。启动前触发会登记 Provider，并在正常启动遍历中执行一次 `boot`。启动后触发会立即登记并启动。事件保留服务键。派发或 `until` 返回的 `DataValue::Object` 可下转为 `RegisteredProvider`。示例使用 `POST /api/example/deferred-greeting-event`。
+
+持久 manifest 仍在后续范围。 [Laravel ProviderRepository 的事件装载](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L115) · [Laravel Application 的延迟服务实现](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L992-L1100)
 
 ### Provider 实例启动回调
 

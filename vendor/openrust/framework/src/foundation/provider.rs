@@ -34,6 +34,7 @@ mod preparation;
 pub(crate) mod registration;
 pub use deferred::DeferrableProvider;
 pub use preparation::{ProviderPreparation, ProviderRegistration};
+pub use registration::RegisteredProvider;
 
 /// `TestAppBuilder` 启动身份；只有最终 Testing 环境可使用 CSRF 测试豁免。
 #[derive(Default)]
@@ -430,6 +431,10 @@ impl RegisterContext<'_> {
     /// 读取同一次注册过程的配置仓储；前序 register 写入立即可见。
     pub fn config_repository(&self) -> ConfigRepository {
         self.config.clone()
+    }
+
+    pub(crate) fn deferred_event_hooks(&self) -> crate::events::DeferredEventHooks {
+        self.registry.event_hooks()
     }
 
     pub(crate) fn scope_factory(&self) -> crate::container::ScopeFactory {
@@ -1564,6 +1569,41 @@ impl ProviderBuilder {
         let mut finalizers = Vec::new();
         let result = async {
             container.use_application_binding_environment(&config)?;
+            let loader = deferred::DeferredProviders::new(
+                &active,
+                config.clone(),
+                registration::LiveBoot {
+                    resources: resources.owner()?.registrar(),
+                    extensions: extensions.clone(),
+                    commands: commands.clone(),
+                },
+            );
+            active.attach_loader(&loader);
+            let mut has_load_events = false;
+            for definition in self
+                .deferred
+                .into_iter()
+                .filter(|entry| !self.removed.contains(&entry.id))
+            {
+                has_load_events |= definition.has_events();
+                loader.add(&container, definition)?;
+            }
+            if has_load_events
+                && !self
+                    .removed
+                    .contains(&ProviderId::of::<crate::events::EventsServiceProvider>())
+            {
+                registration::register(
+                    &active,
+                    Box::new(crate::events::DefaultEventsServiceProvider),
+                    false,
+                    &container,
+                    &mut config,
+                    &mut required,
+                    registration::BootMode::Startup,
+                )
+                .await?;
+            }
             for entry in providers {
                 registration::register(
                     &active,
@@ -1576,23 +1616,7 @@ impl ProviderBuilder {
                 )
                 .await?;
             }
-            let loader = deferred::DeferredProviders::new(
-                self.deferred
-                    .into_iter()
-                    .chain(active.take_deferred())
-                    .filter(|entry| !self.removed.contains(&entry.id)),
-                &active,
-                config.clone(),
-                registration::LiveBoot {
-                    resources: resources.owner()?.registrar(),
-                    extensions: extensions.clone(),
-                    commands: commands.clone(),
-                },
-            );
-            active.attach_loader(&loader);
-            if loader.has_keys() {
-                container.install_deferred_providers(&loader)?;
-            }
+            loader.publish_keys(&container)?;
             for configure in self.binding_overrides {
                 configure(container.clone()).await?;
             }

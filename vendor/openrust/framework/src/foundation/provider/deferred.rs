@@ -1,27 +1,36 @@
-//! 按服务键在原 Provider 注册表中装载编译工厂。
+//! 按服务键或事件在原 Provider 注册表中装载编译工厂。
 
-use super::registration::{self, BootMode, LiveBoot, ProviderRegistry};
+use super::registration::{
+    self, BootMode, DeferredRegistration, LiveBoot, ProviderRegistry, RegisteredProvider,
+};
 use super::{ProviderId, Required};
 use crate::config::repository::ConfigRepository;
 use crate::container::{Container, ServiceKey};
-use crate::support::ServiceProvider;
+use crate::events::{DeferredEventHook, DeferredEventHooks, DeferredEventListeners};
+use crate::support::{BoxFuture, DataValue, ServiceProvider};
 use crate::{Error, Result};
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use tokio::sync::watch;
 
-/// 声明只在其服务首次解析时注册的 Provider。
+/// 声明由首次服务解析或指定事件触发的延迟 Provider。
 ///
 /// Rust 在应用清单中通过 `ProviderBuilder::deferred_provider` 显式登记编译工厂。
 pub trait DeferrableProvider: ServiceProvider {
     /// 可触发当前 Provider 的精确具名键或 Rust 类型键。
     fn provides() -> Vec<ServiceKey>;
+
+    /// 触发普通注册的事件名或通配模式；注册不会消耗服务键。
+    fn when() -> Vec<&'static str> {
+        Vec::new()
+    }
 }
 
 pub(super) struct Definition {
     pub(super) id: ProviderId,
     keys: Vec<ServiceKey>,
+    events: Vec<&'static str>,
     factory: Box<dyn Fn() -> Box<dyn ServiceProvider> + Send + Sync>,
 }
 
@@ -34,28 +43,52 @@ impl Definition {
         Self {
             id: ProviderId::of::<P>(),
             keys: P::provides(),
+            events: P::when(),
             factory: Box::new(move || Box::new(factory())),
         }
     }
+
+    pub(super) fn has_events(&self) -> bool {
+        !self.events.is_empty()
+    }
 }
 
-type Outcome = std::result::Result<(), Arc<Error>>;
+type Registered = Option<Arc<RegisteredProvider>>;
+type Outcome = std::result::Result<Registered, Arc<Error>>;
+
+#[derive(Clone, Copy)]
+enum Trigger<'a> {
+    Service {
+        key: &'a ServiceKey,
+        has_instance: bool,
+    },
+    Event(&'a Arc<Definition>),
+}
+
+enum Admission<'a> {
+    Resolved(Registered),
+    InFlight {
+        attempt: Arc<Attempt>,
+        definition: Option<Arc<Definition>>,
+        edge: Option<WaitEdge<'a>>,
+    },
+}
 
 struct Attempt {
     id: ProviderId,
-    key: ServiceKey,
+    key: Option<ServiceKey>,
     outcome: watch::Sender<Option<Outcome>>,
 }
 
 impl Attempt {
-    async fn wait(&self) -> Result<()> {
+    async fn wait(&self) -> Result<Registered> {
         let mut receiver = self.outcome.subscribe();
         let result = receiver
             .wait_for(Option::is_some)
             .await
             .map_err(Error::internal)?;
         match result.as_ref() {
-            Some(Ok(())) => Ok(()),
+            Some(Ok(provider)) => Ok(provider.clone()),
             Some(Err(error)) => Err(shared_error(error)),
             None => Err(Error::custom(
                 "deferred_provider_interrupted",
@@ -84,6 +117,7 @@ struct Directory {
     loading: HashMap<ProviderId, Arc<Attempt>>,
     waits: HashMap<(ProviderId, ProviderId), usize>,
     flushing: bool,
+    published: bool,
 }
 
 /// 容器同步 bound 查询只读取键，不持有 Provider 工厂或装载任务。
@@ -104,7 +138,11 @@ impl DeferredKeys {
 impl Directory {
     fn loading_for_key(&self, key: &ServiceKey) -> Option<&Arc<Attempt>> {
         self.keys.get(key).map_or_else(
-            || self.loading.values().find(|attempt| &attempt.key == key),
+            || {
+                self.loading
+                    .values()
+                    .find(|attempt| attempt.key.as_ref() == Some(key))
+            },
             |entry| self.loading.get(&entry.id),
         )
     }
@@ -132,6 +170,7 @@ impl Directory {
 pub(crate) struct DeferredProviders {
     directory: Mutex<Directory>,
     pub(crate) visible: Arc<DeferredKeys>,
+    events: Mutex<Arc<DeferredEventListeners>>,
     registry: Weak<ProviderRegistry>,
     config: ConfigRepository,
     pub(super) live: LiveBoot,
@@ -140,24 +179,14 @@ pub(crate) struct DeferredProviders {
 
 impl DeferredProviders {
     pub(super) fn new(
-        definitions: impl IntoIterator<Item = Definition>,
         registry: &Arc<ProviderRegistry>,
         config: ConfigRepository,
         live: LiveBoot,
     ) -> Arc<Self> {
-        let mut keys = IndexMap::new();
-        for definition in definitions {
-            let definition = Arc::new(definition);
-            for key in &definition.keys {
-                keys.insert(key.clone(), Arc::clone(&definition));
-            }
-        }
         Arc::new(Self {
-            visible: Arc::new(DeferredKeys(Mutex::new(keys.keys().cloned().collect()))),
-            directory: Mutex::new(Directory {
-                keys,
-                ..Directory::default()
-            }),
+            visible: Arc::new(DeferredKeys(Mutex::default())),
+            events: Mutex::default(),
+            directory: Mutex::default(),
             registry: Arc::downgrade(registry),
             config,
             live,
@@ -165,14 +194,59 @@ impl DeferredProviders {
         })
     }
 
-    pub(super) fn has_keys(&self) -> bool {
-        !self.directory().keys.is_empty()
+    fn events(&self) -> MutexGuard<'_, Arc<DeferredEventListeners>> {
+        self.events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    pub(super) fn add(&self, definition: Definition) -> Result<()> {
+    pub(super) fn event_hooks(&self) -> DeferredEventHooks {
+        self.events().hooks()
+    }
+
+    fn retire_events(&self) -> bool {
+        // 原派发器及其已取得的 clone 保留实际监听器；新派发器读取新的空目录。
+        let previous = std::mem::take(&mut *self.events());
+        crate::foundation::lifecycle::disposal::dispose(previous, None).seen
+    }
+
+    pub(super) fn publish_keys(self: &Arc<Self>, container: &Container) -> Result<()> {
+        let has_keys = {
+            let mut directory = self.directory();
+            directory.published = true;
+            !directory.keys.is_empty()
+        };
+        if has_keys {
+            container.install_deferred_providers(self)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn add(
+        self: &Arc<Self>,
+        container: &Container,
+        definition: Definition,
+    ) -> Result<()> {
         let definition = Arc::new(definition);
         let mut displaced = Vec::new();
-        {
+        let weak_loader = Arc::downgrade(self);
+        let factory = container.scope_factory();
+        let event_definition = Arc::clone(&definition);
+        let hook: DeferredEventHook = Arc::new(move || -> BoxFuture<'static, Result<DataValue>> {
+            let loader = weak_loader.upgrade();
+            let container = factory.container();
+            let definition = Arc::clone(&event_definition);
+            Box::pin(async move {
+                let (Some(loader), Some(container)) = (loader, container) else {
+                    return Ok(DataValue::Null);
+                };
+                Ok(loader
+                    .load_trigger(&container, Trigger::Event(&definition))
+                    .await?
+                    .map_or(DataValue::Null, |provider| DataValue::Object(provider)))
+            })
+        });
+        let (previous_listeners, install) = {
             let mut directory = self.directory();
             if directory.flushing
                 || directory.loading.contains_key(&definition.id)
@@ -194,10 +268,19 @@ impl DeferredProviders {
                 }
                 visible.insert(key.clone());
             }
-        }
+            (
+                self.events()
+                    .replace(definition.id, &definition.events, &hook),
+                directory.published && !directory.keys.is_empty(),
+            )
+        };
         let mut failed = false;
         for previous in displaced {
             failed |= crate::foundation::lifecycle::disposal::dispose(previous, None).seen;
+        }
+        failed |= previous_listeners.dispose();
+        if install {
+            container.install_deferred_providers(self)?;
         }
         if failed {
             return Err(Error::custom(
@@ -245,73 +328,30 @@ impl DeferredProviders {
         key: &ServiceKey,
         has_instance: bool,
     ) -> Result<()> {
+        self.load_trigger(container, Trigger::Service { key, has_instance })
+            .await
+            .map(|_| ())
+    }
+
+    async fn load_trigger(
+        self: &Arc<Self>,
+        container: &Container,
+        trigger: Trigger<'_>,
+    ) -> Result<Registered> {
         let registry = self.registry.upgrade().ok_or_else(|| {
             Error::custom(
                 "deferred_provider_retired",
                 "延迟 Provider 的应用注册表已回收",
             )
         })?;
-        let parent = CURRENT
-            .try_with(|(owner, attempt)| {
-                (owner.as_ptr() == Arc::as_ptr(self)).then_some(attempt.id)
-            })
-            .ok()
-            .flatten();
-        let (attempt, definition, edge) = {
-            let mut directory = self.directory();
-            let entry = directory.keys.get(key).cloned();
-            let inflight = directory.loading_for_key(key).cloned();
-            let Some(id) = inflight
-                .as_ref()
-                .map(|attempt| attempt.id)
-                .or_else(|| entry.as_ref().map(|entry| entry.id))
-            else {
-                return Ok(());
-            };
-            if directory.flushing {
-                return Err(Error::custom(
-                    "deferred_provider_flush_in_progress",
-                    "应用正在清空 Provider 注册",
-                ));
-            }
-            if parent == Some(id) && (has_instance || entry.is_none() || registry.is_registered(id))
-            {
-                return Ok(());
-            }
-            if inflight.is_none() && (has_instance || registry.is_registered(id)) {
-                return Ok(());
-            }
-            let edge = if let Some(parent) = parent {
-                if directory.reaches(id, parent) {
-                    if registry.is_registered(id) {
-                        return Ok(());
-                    }
-                    return Err(Error::custom(
-                        "deferred_provider_cycle",
-                        format!("延迟 Provider 装载循环：{} → {}", parent.name(), id.name()),
-                    ));
-                }
-                let key = (parent, id);
-                *directory.waits.entry(key).or_default() += 1;
-                Some(WaitEdge(self, key))
-            } else {
-                None
-            };
-            if let Some(attempt) = inflight {
-                (attempt, None, edge)
-            } else {
-                let attempt = Arc::new(Attempt {
-                    id,
-                    key: key.clone(),
-                    outcome: watch::channel(None).0,
-                });
-                directory.keys.shift_remove(key);
-                self.visible.keys().remove(key);
-                directory.loading.insert(id, Arc::clone(&attempt));
-                (attempt, entry, edge)
-            }
+        let (attempt, definition, _edge) = match self.admit(&registry, trigger)? {
+            Admission::Resolved(provider) => return Ok(provider),
+            Admission::InFlight {
+                attempt,
+                definition,
+                edge,
+            } => (attempt, definition, edge),
         };
-        let _edge = edge;
         let Some(definition) = definition else {
             return attempt.wait().await;
         };
@@ -320,10 +360,15 @@ impl DeferredProviders {
             attempt: Arc::clone(&attempt),
             done: false,
         };
+        let registration = if attempt.key.is_some() {
+            DeferredRegistration::Service
+        } else {
+            DeferredRegistration::Event
+        };
         let outcome = CURRENT
             .scope(
                 (Arc::downgrade(self), attempt),
-                self.register(container, &registry, &definition),
+                self.register(container, &registry, &definition, registration),
             )
             .await
             .map_err(Arc::new);
@@ -331,12 +376,100 @@ impl DeferredProviders {
         outcome.map_err(|error| shared_error(&error))
     }
 
+    fn admit<'a>(
+        self: &'a Arc<Self>,
+        registry: &ProviderRegistry,
+        trigger: Trigger<'_>,
+    ) -> Result<Admission<'a>> {
+        let parent = CURRENT
+            .try_with(|(owner, attempt)| {
+                (owner.as_ptr() == Arc::as_ptr(self)).then_some(attempt.id)
+            })
+            .ok()
+            .flatten();
+        let mut directory = self.directory();
+        let (entry, inflight, key, has_instance) = match trigger {
+            Trigger::Service { key, has_instance } => (
+                directory.keys.get(key).cloned(),
+                directory.loading_for_key(key).cloned(),
+                Some(key),
+                has_instance,
+            ),
+            Trigger::Event(definition) => (
+                Some(Arc::clone(definition)),
+                directory.loading.get(&definition.id).cloned(),
+                None,
+                false,
+            ),
+        };
+        let Some(id) = inflight
+            .as_ref()
+            .map(|attempt| attempt.id)
+            .or_else(|| entry.as_ref().map(|entry| entry.id))
+        else {
+            return Ok(Admission::Resolved(None));
+        };
+        if directory.flushing {
+            return Err(Error::custom(
+                "deferred_provider_flush_in_progress",
+                "应用正在清空 Provider 注册",
+            ));
+        }
+        let registered = registry.registered(id);
+        if parent == Some(id) && (has_instance || entry.is_none() || registered.is_some()) {
+            return Ok(Admission::Resolved(registered));
+        }
+        if inflight.is_none() && (has_instance || registered.is_some()) {
+            return Ok(Admission::Resolved(registered));
+        }
+        let edge = if let Some(parent) = parent {
+            if directory.reaches(id, parent) {
+                if registered.is_some() {
+                    return Ok(Admission::Resolved(registered));
+                }
+                return Err(Error::custom(
+                    "deferred_provider_cycle",
+                    format!("延迟 Provider 装载循环：{} → {}", parent.name(), id.name()),
+                ));
+            }
+            let key = (parent, id);
+            *directory.waits.entry(key).or_default() += 1;
+            Some(WaitEdge(self, key))
+        } else {
+            None
+        };
+        if let Some(attempt) = inflight {
+            Ok(Admission::InFlight {
+                attempt,
+                definition: None,
+                edge,
+            })
+        } else {
+            let attempt = Arc::new(Attempt {
+                id,
+                key: key.cloned(),
+                outcome: watch::channel(None).0,
+            });
+            if let Some(key) = key {
+                directory.keys.shift_remove(key);
+                self.visible.keys().remove(key);
+            }
+            directory.loading.insert(id, Arc::clone(&attempt));
+            Ok(Admission::InFlight {
+                attempt,
+                definition: entry,
+                edge,
+            })
+        }
+    }
+
     async fn register(
         &self,
         container: &Container,
         registry: &ProviderRegistry,
         definition: &Definition,
-    ) -> Result<()> {
+        trigger: DeferredRegistration,
+    ) -> Result<Registered> {
         let provider = (definition.factory)();
         if provider.id() != definition.id {
             return Err(Error::custom(
@@ -355,11 +488,11 @@ impl DeferredProviders {
             &mut required,
             BootMode::Deferred {
                 loader: self,
-                root: true,
+                trigger,
             },
         )
         .await?;
-        Ok(())
+        Ok(registry.registered(definition.id))
     }
 
     pub(crate) async fn load_all(self: &Arc<Self>, container: &Container) -> Result<()> {
@@ -371,7 +504,12 @@ impl DeferredProviders {
             directory
                 .keys
                 .keys()
-                .chain(directory.loading.values().map(|attempt| &attempt.key))
+                .chain(
+                    directory
+                        .loading
+                        .values()
+                        .filter_map(|attempt| attempt.key.as_ref()),
+                )
                 .cloned()
                 .collect()
         };
@@ -457,7 +595,7 @@ pub(crate) struct FlushGuard<'a>(&'a DeferredProviders);
 
 impl FlushGuard<'_> {
     pub(crate) fn clear(&self) -> bool {
-        self.0.clear_keys()
+        self.0.clear_keys() | self.0.retire_events()
     }
 }
 

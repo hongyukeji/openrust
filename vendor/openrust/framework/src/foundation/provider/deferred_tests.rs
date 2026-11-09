@@ -45,6 +45,13 @@ impl DeferrableProvider for DeferredProbe {
     fn provides() -> Vec<ServiceKey> {
         vec![ServiceKey::typed::<DeferredValue>(), named()]
     }
+
+    fn when() -> Vec<&'static str> {
+        vec![
+            <ProbeEvent as crate::events::Event>::NAME,
+            "tests.deferred.*",
+        ]
+    }
 }
 
 impl ServiceProvider for DeferredProbe {
@@ -523,5 +530,243 @@ async fn registration_finishing_after_startup_boots_before_resolving() -> Result
         .map_err(Error::internal)?
         .map_err(Error::internal)??;
     assert_eq!(trace.values(), ["late.register", "late.boot"]);
+    close(&app).await
+}
+
+struct ProbeEvent;
+
+impl crate::events::Event for ProbeEvent {
+    const NAME: &'static str = "tests.deferred.event";
+}
+
+struct EagerEventTrigger(Trace);
+
+impl ServiceProvider for EagerEventTrigger {
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.0.push("eager.register.begin");
+            assert!(!app.is_bound::<DeferredValue>());
+            let events = app.resolve::<crate::events::Events>().await?;
+            assert_provider_reply(&events.until(&ProbeEvent).await?)?;
+            self.0.push("eager.register.end");
+            Ok(())
+        })
+    }
+}
+
+fn assert_provider_reply(
+    reply: &crate::support::DataValue,
+) -> Result<&Arc<dyn crate::support::DataObject>> {
+    let crate::support::DataValue::Object(provider) = reply else {
+        return Err(Error::custom(
+            "fixture_missing_provider",
+            "事件应返回已登记的 Provider",
+        ));
+    };
+    let registered = provider
+        .as_any()
+        .downcast_ref::<crate::foundation::RegisteredProvider>()
+        .ok_or_else(|| Error::custom("fixture_wrong_provider", "事件响应类型不匹配"))?;
+    assert_eq!(
+        registered.id(),
+        crate::foundation::ProviderId::of::<DeferredProbe>()
+    );
+    assert_eq!(
+        registered.provider().map(ServiceProvider::id),
+        Some(registered.id())
+    );
+    Ok(provider)
+}
+
+#[tokio::test]
+async fn eager_registration_event_registers_before_key_publication_and_boots_once() -> Result<()> {
+    let trace = Trace::default();
+    let mut builder = builder(&trace, None);
+    builder.provider(EagerEventTrigger(trace.clone()));
+    let app = start(builder).await?;
+    assert_eq!(
+        trace.values(),
+        [
+            "eager.register.begin",
+            "lazy.register",
+            "eager.register.end",
+            "lazy.boot"
+        ]
+    );
+    assert!(app.is_deferred_service(&ServiceKey::typed::<DeferredValue>()));
+    assert!(app.is_deferred_service(&named()));
+    assert_eq!(app.state().resolve::<DeferredValue>().await?.0, 7);
+    close(&app).await
+}
+
+#[tokio::test]
+async fn event_exact_wildcard_and_until_reuse_original_provider_object() -> Result<()> {
+    use crate::events::{Events, EventsServiceProvider};
+    use crate::support::DataValue;
+
+    let trace = Trace::default();
+    let mut builder = builder(&trace, None);
+    let mut listeners = EventsServiceProvider::new();
+    let exact = trace.clone();
+    listeners.listen_named_reply("tests.deferred.event", move |_, _| {
+        exact.push("normal.exact");
+        Box::pin(async { Ok(DataValue::Bool(true)) })
+    });
+    let wildcard = trace.clone();
+    listeners.listen_named_reply("tests.deferred.*", move |_, _| {
+        wildcard.push("normal.wildcard");
+        Box::pin(async { Ok(DataValue::Null) })
+    });
+    builder.provider(listeners);
+    let app = start(builder).await?;
+    let events = app.state().resolve::<Events>().await?;
+    let first = events.until(&ProbeEvent).await?;
+    let first = assert_provider_reply(&first)?;
+    assert_eq!(trace.values(), ["lazy.register", "lazy.boot"]);
+    let responses = events
+        .dispatch(&ProbeEvent)
+        .await?
+        .ok_or_else(|| Error::custom("fixture_missing_responses", "派发应返回立即响应"))?;
+    assert_eq!(responses.len(), 4);
+    assert_provider_reply(&responses[0])?;
+    assert!(matches!(responses[1], DataValue::Bool(true)));
+    let second = assert_provider_reply(&responses[2])?;
+    assert!(matches!(responses[3], DataValue::Null));
+    assert!(Arc::ptr_eq(first, second));
+    assert_eq!(
+        trace.values(),
+        [
+            "lazy.register",
+            "lazy.boot",
+            "normal.exact",
+            "normal.wildcard"
+        ]
+    );
+    assert!(app.is_deferred_service(&ServiceKey::typed::<DeferredValue>()));
+    app.load_deferred_providers().await?;
+    assert_provider_reply(&events.until(&ProbeEvent).await?)?;
+    close(&app).await
+}
+
+#[tokio::test]
+async fn event_and_service_resolution_wait_for_one_registration() -> Result<()> {
+    use crate::events::Events;
+
+    let trace = Trace::default();
+    let pause = Arc::new((Notify::new(), Notify::new()));
+    let app = start(builder(&trace, Some(Arc::clone(&pause)))).await?;
+    let events = app.state().resolve::<Events>().await?;
+    let leader = tokio::spawn(async move { events.until(&ProbeEvent).await });
+    tokio::time::timeout(Duration::from_secs(2), pause.0.notified())
+        .await
+        .map_err(Error::internal)?;
+    let mut waiter = Box::pin(app.state().resolve::<DeferredValue>());
+    let pending = tokio::time::timeout(Duration::from_millis(20), &mut waiter).await;
+    pause.1.notify_one();
+    assert!(pending.is_err());
+    assert_provider_reply(&leader.await.map_err(Error::internal)??)?;
+    assert_eq!(waiter.await?.0, 7);
+    assert_eq!(trace.values(), ["lazy.register", "lazy.boot"]);
+    assert!(app.is_deferred_service(&ServiceKey::typed::<DeferredValue>()));
+    close(&app).await
+}
+
+struct EventOnlyProvider(Trace);
+
+impl DeferrableProvider for EventOnlyProvider {
+    fn provides() -> Vec<ServiceKey> {
+        Vec::new()
+    }
+
+    fn when() -> Vec<&'static str> {
+        vec!["tests.event-only"]
+    }
+}
+
+impl ServiceProvider for EventOnlyProvider {
+    fn register<'a>(&'a self, _: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let first = self.0.values().is_empty();
+            self.0.push("event-only.register");
+            if first {
+                return Err(Error::custom(
+                    "event_only_first_failure",
+                    "事件首轮注册失败",
+                ));
+            }
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn event_only_provider_survives_load_all_and_retries_after_failed_registration() -> Result<()>
+{
+    use crate::events::{Events, EventsServiceProvider};
+    use crate::support::DataValue;
+
+    let trace = Trace::default();
+    let factory_trace = trace.clone();
+    let mut builder = ProviderBuilder::new();
+    builder.deferred_provider(move || EventOnlyProvider(factory_trace.clone()));
+    let mut listeners = EventsServiceProvider::new();
+    let observed = trace.clone();
+    listeners.listen_named_reply("tests.event-only", move |_, _| {
+        observed.push("event-only.listener");
+        Box::pin(async { Ok(DataValue::Bool(false)) })
+    });
+    builder.provider(listeners);
+    let mut app = start(builder).await?;
+    app.load_deferred_providers().await?;
+    assert_eq!(trace.values(), [] as [&str; 0]);
+    let events = app.state().resolve::<Events>().await?;
+    let first = events.dispatch_named("tests.event-only", &()).await;
+    assert!(matches!(first, Err(error) if error.code() == "event_only_first_failure"));
+    assert_eq!(trace.values(), ["event-only.register"]);
+    let second = events.dispatch_named("tests.event-only", &()).await?;
+    let Some([DataValue::Object(before_flush)]) = second.as_deref() else {
+        return Err(Error::custom(
+            "fixture_missing_provider",
+            "事件应返回已登记的 Provider",
+        ));
+    };
+    assert_eq!(
+        trace.values(),
+        [
+            "event-only.register",
+            "event-only.register",
+            "event-only.listener"
+        ]
+    );
+    app.flush()?;
+    app.register_provider(EventsServiceProvider::new()).await?;
+    let fresh_events = app.state().resolve::<Events>().await?;
+    assert!(matches!(
+        fresh_events.until_named("tests.event-only", &()).await?,
+        DataValue::Null
+    ));
+    let after_flush = events.until_named("tests.event-only", &()).await?;
+    let DataValue::Object(after_flush) = after_flush else {
+        return Err(Error::custom(
+            "fixture_missing_provider",
+            "旧派发器应重新登记 Provider",
+        ));
+    };
+    assert!(!Arc::ptr_eq(before_flush, &after_flush));
+    assert_eq!(trace.values().last(), Some(&"event-only.register"));
+    close(&app).await
+}
+
+#[tokio::test]
+async fn when_does_not_replace_explicitly_removed_event_service() -> Result<()> {
+    let trace = Trace::default();
+    let mut builder = builder(&trace, None);
+    builder.remove_provider(crate::foundation::ProviderId::of::<
+        crate::events::EventsServiceProvider,
+    >());
+    let app = start(builder).await?;
+    assert!(!app.state().container().contains::<crate::events::Events>());
+    assert_eq!(app.state().resolve::<DeferredValue>().await?.0, 7);
+    assert_eq!(trace.values(), ["lazy.register", "lazy.boot"]);
     close(&app).await
 }

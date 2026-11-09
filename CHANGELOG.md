@@ -5,6 +5,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 ## [Unreleased]
 
 - 容器可按类型或具名服务键首次装载延迟 Provider。应用可查询或显式装载剩余项。
+- 延迟 Provider 可通过 `when()` 声明触发事件，复用应用的派发与注册机制。
 - Provider 领域贡献按类型共享。读取和修改扩展返回短期借用，`Application::exception_handler()` 返回拥有所有权的 Handler 快照。
 - HTTP 内核支持通过具名容器绑定 `middleware.disable` 在运行期切换应用中间件。
 - 容器支持按声明类型解析静态调用的依赖，并按命名入口分派静态方法绑定。

@@ -7,13 +7,14 @@
 use crate::{
     core::{Error, Result},
     database::DatabaseTransaction,
+    foundation::ProviderId,
     support::{BoxFuture, DataValue},
 };
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
     marker::PhantomData,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 /// 类型所有者声明的稳定事件类身份；不是 Rust 诊断类型名。
@@ -189,6 +190,135 @@ where
         (self.handler)(event, context)
     }
 }
+type Listener = Arc<dyn ErasedListener>;
+pub(crate) type DeferredEventHook =
+    Arc<dyn Fn() -> BoxFuture<'static, Result<DataValue>> + Send + Sync>;
+
+struct ProviderListener {
+    selector: &'static str,
+    hook: DeferredEventHook,
+}
+
+impl ErasedListener for ProviderListener {
+    fn selector(&self) -> &str {
+        self.selector
+    }
+
+    fn call<'a>(
+        &'a self,
+        _: PayloadRef<'a>,
+        _: EventContext<'a>,
+    ) -> BoxFuture<'a, Result<Invocation>> {
+        let pending = (self.hook)();
+        Box::pin(async move { pending.await.map(Invocation::Response) })
+    }
+}
+
+#[must_use]
+pub(crate) struct RetiredDeferredListeners(Vec<Listener>);
+
+impl RetiredDeferredListeners {
+    pub(crate) fn dispose(self) -> bool {
+        let mut failed = false;
+        for listener in self.0 {
+            failed |= crate::foundation::lifecycle::disposal::dispose(listener, None).seen;
+        }
+        failed
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct DeferredEventListeners(Mutex<DeferredEventDirectory>);
+
+#[derive(Default)]
+struct DeferredEventDirectory {
+    entries: indexmap::IndexMap<ProviderId, (usize, Vec<Listener>)>,
+    next: usize,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct DeferredEventHooks {
+    directory: Arc<DeferredEventListeners>,
+    registration_position: usize,
+}
+
+impl DeferredEventListeners {
+    fn directory(&self) -> MutexGuard<'_, DeferredEventDirectory> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    pub(crate) fn hooks(self: &Arc<Self>) -> DeferredEventHooks {
+        DeferredEventHooks {
+            directory: Arc::clone(self),
+            registration_position: self.directory().next,
+        }
+    }
+
+    pub(crate) fn replace(
+        &self,
+        id: ProviderId,
+        selectors: &[&'static str],
+        hook: &DeferredEventHook,
+    ) -> RetiredDeferredListeners {
+        let listeners: Vec<Listener> = selectors
+            .iter()
+            .map(|&selector| {
+                Arc::new(ProviderListener {
+                    selector,
+                    hook: Arc::clone(hook),
+                }) as Listener
+            })
+            .collect();
+        let mut directory = self.directory();
+        if let Some((_, current)) = directory.entries.get_mut(&id) {
+            return RetiredDeferredListeners(std::mem::replace(current, listeners));
+        }
+        if !listeners.is_empty() {
+            let position = directory.next;
+            directory.entries.insert(id, (position, listeners));
+            directory.next += 1;
+        }
+        RetiredDeferredListeners(Vec::new())
+    }
+}
+
+impl Drop for DeferredEventListeners {
+    fn drop(&mut self) {
+        let directory = self
+            .0
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for (_, listeners) in std::mem::take(&mut directory.entries).into_values() {
+            let _ = RetiredDeferredListeners(listeners).dispose();
+        }
+    }
+}
+
+impl DeferredEventHooks {
+    fn snapshot(&self, regular: &[Listener]) -> Option<Vec<Listener>> {
+        let directory = self.directory.directory();
+        if directory.entries.is_empty() {
+            return None;
+        }
+        let mut listeners = Vec::new();
+        let mut regular = Some(regular);
+        for (position, group) in directory.entries.values() {
+            if *position >= self.registration_position
+                && let Some(regular) = regular.take()
+            {
+                listeners.extend_from_slice(regular);
+            }
+            listeners.extend_from_slice(group);
+        }
+        if let Some(regular) = regular {
+            listeners.extend_from_slice(regular);
+        }
+        Some(listeners)
+    }
+}
+
 // 对应命名事件的完整匹配：只有 * 是通配符，其他字符（包括 ?）按字面值处理。
 fn wildcard_name_matches(pattern: &str, name: &str) -> bool {
     let (pattern, name) = (pattern.as_bytes(), name.as_bytes());
@@ -373,10 +503,12 @@ impl crate::support::ServiceProvider for EventsServiceProvider {
                     observe(&mut declarations, name, identity)?;
                 }
             }
+            let hooks = app.deferred_event_hooks();
             app.singleton::<Events, _>(move |resolver| {
                 #[cfg(not(feature = "queue"))]
                 let _ = resolver;
                 let registrations = registrations.clone();
+                let hooks = hooks.clone();
                 Box::pin(async move {
                     #[cfg(feature = "queue")]
                     let mut queue: Option<Arc<crate::queue::Queue>> = None;
@@ -403,7 +535,7 @@ impl crate::support::ServiceProvider for EventsServiceProvider {
                             }
                         }
                     }
-                    Ok(Arc::new(Events::new(listeners)?))
+                    Ok(Arc::new(Events::new(listeners, hooks)?))
                 })
             })
             .await?;
@@ -435,8 +567,10 @@ impl crate::support::ServiceProvider for DefaultEventsServiceProvider {
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             if !app.is_bound::<Events>() {
-                app.singleton::<Events, _>(|_| {
-                    Box::pin(async { Ok(Arc::new(Events::new(Vec::new())?)) })
+                let hooks = app.deferred_event_hooks();
+                app.singleton::<Events, _>(move |_| {
+                    let hooks = hooks.clone();
+                    Box::pin(async { Ok(Arc::new(Events::new(Vec::new(), hooks)?)) })
                 })
                 .await?;
                 app.require::<Events>();
@@ -492,7 +626,8 @@ where
 /// 应用共享的单一事件派发器；clone 共享已观察的类身份约束。
 #[derive(Clone)]
 pub struct Events {
-    listeners: Vec<Arc<dyn ErasedListener>>,
+    listeners: Vec<Listener>,
+    provider_hooks: DeferredEventHooks,
     observed: Arc<Mutex<HashMap<&'static str, TypeId>>>,
 }
 enum DispatchResult {
@@ -500,7 +635,7 @@ enum DispatchResult {
     Until(DataValue),
 }
 impl Events {
-    fn new(listeners: Vec<Arc<dyn ErasedListener>>) -> Result<Self> {
+    fn new(listeners: Vec<Listener>, provider_hooks: DeferredEventHooks) -> Result<Self> {
         let mut observed = HashMap::new();
         for listener in &listeners {
             if let Some((name, identity)) = listener.declaration() {
@@ -509,6 +644,7 @@ impl Events {
         }
         Ok(Self {
             listeners,
+            provider_hooks,
             observed: Arc::new(Mutex::new(observed)),
         })
     }
@@ -519,17 +655,18 @@ impl Events {
             .map_err(|_| configuration_error("event_identity_poisoned", "事件身份登记锁已损坏"))?;
         observe(&mut names, E::NAME, TypeId::of::<E>())
     }
-    fn selected(&self, name: &str, direct_only: bool) -> Vec<&dyn ErasedListener> {
-        let eligible = |listener: &&Arc<dyn ErasedListener>| !direct_only || !listener.is_queued();
-        let mut selected: Vec<&dyn ErasedListener> = self
-            .listeners
+    fn selected(&self, name: &str, direct_only: bool) -> Vec<Listener> {
+        let snapshot = self.provider_hooks.snapshot(&self.listeners);
+        let listeners = snapshot.as_deref().unwrap_or(&self.listeners);
+        let eligible = |listener: &&Listener| !direct_only || !listener.is_queued();
+        let mut selected: Vec<_> = listeners
             .iter()
             .filter(eligible)
             .filter(|listener| !listener.selector().contains('*') && listener.selector() == name)
-            .map(AsRef::as_ref)
+            .cloned()
             .collect();
         let mut patterns = Vec::new();
-        for listener in self.listeners.iter().filter(eligible) {
+        for listener in listeners.iter().filter(eligible) {
             let pattern = listener.selector();
             if pattern.contains('*') && !patterns.contains(&pattern) {
                 patterns.push(pattern);
@@ -538,11 +675,11 @@ impl Events {
         for pattern in patterns {
             if wildcard_name_matches(pattern, name) {
                 selected.extend(
-                    self.listeners
+                    listeners
                         .iter()
                         .filter(eligible)
                         .filter(|listener| listener.selector() == pattern)
-                        .map(AsRef::as_ref),
+                        .cloned(),
                 );
             }
         }

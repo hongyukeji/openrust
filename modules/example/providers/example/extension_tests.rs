@@ -17,6 +17,7 @@ async fn binding_extension_preserves_default_greeting() -> Result<(), Box<dyn st
     assert_extension(
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
         "Hello from modules/example",
+        false,
     )
     .await
 }
@@ -32,6 +33,7 @@ async fn binding_extension_uses_module_code_config_before_first_resolve()
     assert_extension(
         deployed.path().to_path_buf(),
         "Hello from isolated module overlay",
+        true,
     )
     .await
 }
@@ -39,10 +41,12 @@ async fn binding_extension_uses_module_code_config_before_first_resolve()
 async fn assert_extension(
     root: std::path::PathBuf,
     expected_greeting: &str,
+    trigger_event: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
+        .provider(openrust::events::DefaultEventsServiceProvider)
         .provider(openrust::http::CookieServiceProvider::plain())
         .provider(openrust::database::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
@@ -82,19 +86,20 @@ async fn assert_extension(
 
     let deferred = openrust::container::ServiceKey::typed::<super::DeferredGreeting>();
     assert!(app.is_deferred_service(&deferred));
+    let trigger = if trigger_event {
+        Request::post("/api/example/deferred-greeting-event")
+    } else {
+        Request::get("/api/example/deferred-greeting")
+    };
     let response = openrust::foundation::http::build_router(&app)?
-        .oneshot(
-            Request::get("/api/example/deferred-greeting")
-                .header("host", "localhost")
-                .body(Body::empty())?,
-        )
+        .oneshot(trigger.header("host", "localhost").body(Body::empty())?)
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
     let body: serde_json::Value =
         serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
     assert_eq!(body["data"]["message"], expected_greeting);
     assert_eq!(body["data"]["booted"], true);
-    assert!(!app.is_deferred_service(&deferred));
+    assert_eq!(app.is_deferred_service(&deferred), trigger_event);
 
     let response = openrust::foundation::http::build_router(&app)?
         .oneshot(

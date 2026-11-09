@@ -2,7 +2,7 @@
 
 Foundation承载运行应用、编译期应用声明与统一Provider生命周期。完整官方Application契约仍按对应矩阵验收。
 
-`Application::commands()` 与 `ProviderRuntime::commands()` 返回按登记顺序持有 `Arc<dyn Command>` 的快照。启动与运行期 Provider 共用同一命令目录，同名替换保留原槽位；已取得的快照继续持有原命令，新快照读取替换后的实例。命令枚举、匹配和执行不会跨用户回调或异步等待持有目录锁；调用方需要命令类型身份时使用 `command.as_ref().type_id()`。这只是共享 Provider 生命周期的命令所有权前置，完整延迟 Provider 注册/事件触发尚未完成。
+`Application::commands()` 与 `ProviderRuntime::commands()` 返回按登记顺序持有 `Arc<dyn Command>` 的快照。启动与运行期 Provider 共用同一命令目录，同名替换保留原槽位；已取得的快照继续持有原命令，新快照读取替换后的实例。命令枚举、匹配和执行不会跨用户回调或异步等待持有目录锁；调用方需要命令类型身份时使用 `command.as_ref().type_id()`。运行期与启动期命令都由同一注册表管理。
 
 ## 应用异常 Handler
 
@@ -17,7 +17,7 @@ HTTP 默认根据请求的 `Accept`、AJAX/PJAX 语义选择 HTML 或 JSON；`sh
 
 实现 `DeferrableProvider::provides()` 返回服务键，再用 `ProviderBuilder::deferred_provider` 或模块的 `RegisterContext::deferred_provider` 登记编译工厂。容器在解析别名后检查共享实例，首次需要某个延迟键时沿同一注册表装载 Provider。应用已启动时，首次解析等待该 Provider 完成 `boot`。可通过 `Application::is_deferred_service` 检查精确键，通过 `load_deferred_providers().await` 装载清单剩余项。
 
-同一 Provider 的并发调用共享装载结果。注册失败消费触发键，已经发布的贡献保留，其他声明键可再次尝试。应用有在途装载时，`flush()` 返回 `deferred_provider_in_progress`。固定 Laravel 的启动阶段顺序适用于按键触发，事件触发和持久 manifest 缓存另行接入。
+同一 Provider 的并发调用共享装载结果。注册失败消费触发键，已经发布的贡献保留，其他声明键可再次尝试。应用有在途装载时，`flush()` 返回 `deferred_provider_in_progress`。按键触发沿固定 Laravel 的启动阶段顺序，持久 manifest 缓存仍待实现。
 
 领域 Provider 可在 `BootContext::extension_mut::<T>()` 中修改应用级贡献。调用者用 `Application::extension::<T>()` 读取。同一种贡献的借用独立协调，异步工作前先复制或克隆所需数据并结束借用。HTTP 装配在调用路由工厂前取得路由贡献快照，`Application::exception_handler()` 也返回可用于异步工作的 Handler 快照。
 
@@ -74,6 +74,10 @@ impl ServiceProvider for FeatureProvider {
 `RegisterContext::resolve<T>()` 显式解析同一容器的服务，提前创建的受管资源仍随同一启动失败/取消或应用关闭回收；文件初始化也可直接调用。`config_repository()` 返回同一次注册的仓储句柄，子写入可由父后续读取；不重建既有客户端。原平面 Provider 依赖预检保留，子自身在调用点检查前置依赖。若外部 Provider 通过类型依赖引用子项，父通过 `ServiceProvider::nested_providers()` 纯声明这些身份；预检按其出现位置处理，父 register 返回前还核对它们是否实际登记或复用，不能拿声明代替执行。Rust 无法预先反射异步回调中的注册类型，未声明的未来类型仍不在预检图内；该显式声明是此依赖增强的必要适配，不冒充 Laravel 自动拓扑。
 
 模块所需的空 Events 默认服务使用独立内部 Provider 身份，只补未绑定的服务，不抢占真实 `EventsServiceProvider` 的去重位置；后续嵌套监听 Provider 正常替换默认绑定。显式移除真实事件 Provider 同时抑制默认补位。唯一示例的父 Provider 与生成应用公开 fixture 均通过此管线接入，模块 JSON 发现与编译 files 初始化沿此管线接入；class aliases 与完整 deferred 加载仍有后继范围。
+
+### 通过事件装载延迟 Provider
+
+在 `DeferrableProvider::when()` 返回事件的稳定名称或 `*` 通配模式。派发使用应用现有的 `Events` 服务。事件装载执行普通 Provider 注册，保留所有服务键。若应用已启动，派发等待 Provider 启动完成。响应中的 `DataValue::Object` 可下转为 `RegisteredProvider`，借用同一注册实例。服务键解析和事件同时到达时，共享一次装载。应用清空后，外部持有的旧派发器保留监听。新派发器使用新的监听目录。
 
 ## 入口作用域与资源回收
 
