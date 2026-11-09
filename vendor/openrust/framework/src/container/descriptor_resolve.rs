@@ -18,6 +18,10 @@ use super::{
     unresolvable_dependency,
 };
 use crate::foundation::resources::{ResourceInlineOwner, ResourceInlineSlot, ResourceTaskFailure};
+#[path = "call.rs"]
+mod call;
+pub use call::CallArguments;
+
 use std::{
     future::{Future, poll_fn},
     task::Poll,
@@ -199,20 +203,40 @@ impl Resolver {
     }
 }
 
-impl DescriptorRun<'_> {
-    fn owner(&self) -> Result<&ResourceInlineOwner> {
-        self.attempt.owner()
-    }
+struct DescriptorGuard<'a> {
+    source: &'a DescriptorSource,
+    attempt: &'a DescriptorAttempt,
+    started: &'a std::sync::atomic::AtomicBool,
+}
 
+struct ArgumentRun<'a> {
+    caller: &'a Resolver,
+    inner: &'a Arc<Inner>,
+    owner: &'a ResourceInlineOwner,
+    consumer_key: Option<&'a ServiceKey>,
+    descriptor: Option<DescriptorGuard<'a>>,
+}
+
+impl ArgumentRun<'_> {
     fn claim<T>(&self, action: impl FnOnce(&mut State) -> T) -> Result<T> {
-        let owner = self.owner()?;
-        let claimed = self
+        let owner = self.owner;
+        let Some(descriptor) = &self.descriptor else {
+            let mut state = lock(&self.inner.state);
+            self.caller.check_open(&state)?;
+            owner.check_cleanup()?;
+            return self
+                .caller
+                .resources()?
+                .with_open_owner(|| action(&mut state));
+        };
+        let claimed = descriptor
             .source
             .claim(&mut lock(&self.inner.state), self.caller, |state| {
                 owner.check_cleanup()?;
                 Ok::<Option<T>, Error>(
-                    self.attempt
-                        .active(state, self.source)
+                    descriptor
+                        .attempt
+                        .active(state, descriptor.source)
                         .then(|| action(state)),
                 )
             })?
@@ -221,21 +245,31 @@ impl DescriptorRun<'_> {
     }
 
     fn start(&self) -> Result<()> {
-        self.claim(|_| self.started.store(true, Ordering::Relaxed))
+        self.claim(|_| {
+            if let Some(descriptor) = &self.descriptor {
+                descriptor.started.store(true, Ordering::Relaxed);
+            }
+        })
     }
 
     async fn poll_stage<T, F>(&self, future: F) -> Result<ResourceInlineSlot<T>>
     where
         F: Future<Output = Result<T>>,
     {
-        let owner = self.owner()?;
+        let owner = self.owner;
         let mut future = owner.slot(Box::pin(future))?;
         let polled = poll_fn(|cx| {
             // 已开始的阶段可以在换源后返回；真实 scope/owner 关闭在下一次 poll 观察。
             let open = self
                 .caller
                 .check_open(&lock(&self.inner.state))
-                .and_then(|()| self.source.owner.with_open_owner(|| ()));
+                .and_then(|()| {
+                    if let Some(descriptor) = &self.descriptor {
+                        descriptor.source.owner.with_open_owner(|| ())
+                    } else {
+                        self.caller.resources()?.with_open_owner(|| ())
+                    }
+                });
             if let Err(error) = open {
                 return Poll::Ready(Err(error));
             }
@@ -251,10 +285,17 @@ impl DescriptorRun<'_> {
                 Err(error) => Poll::Ready(Err(error)),
             }
         });
+        let termination = async {
+            if let Some(descriptor) = &self.descriptor {
+                descriptor.attempt.termination.wait_closed().await;
+            } else {
+                std::future::pending::<()>().await;
+            }
+        };
         let output = tokio::select! {
             result = polled => result,
             () = self.caller.closed.wait_closed() => Err(lock(&self.inner.state).resolution_closure_error()),
-            () = self.attempt.termination.wait_closed() => Err(container_error("container_closed", "容器已关闭")),
+            () = termination => Err(container_error("container_closed", "容器已关闭")),
         };
         // Ready 值须先入自己的槽，原 Future 的清理失败时仍有真实退役责任。
         let value = output.and_then(|value| owner.slot(value));
@@ -270,7 +311,7 @@ impl DescriptorRun<'_> {
         } else if parameter.is_variadic() {
             Ok(SelectedArgument::Many(Vec::new()))
         } else if parameter.allows_null() {
-            self.owner()?
+            self.owner
                 .slot(ParameterValue::null())
                 .map(SelectedArgument::Value)
         } else {
@@ -283,7 +324,7 @@ impl DescriptorRun<'_> {
 
     fn default_value(&self, parameter: &ConstructorParam) -> Result<SelectedArgument> {
         self.start()?;
-        let owner = self.owner()?;
+        let owner = self.owner;
         let value = owner
             .run(|| parameter.evaluate_default())??
             .ok_or_else(missing_slot)?;
@@ -295,7 +336,7 @@ impl DescriptorRun<'_> {
         consumer: &Resolver,
         parameter: &ConstructorParam,
     ) -> Result<SelectedArgument> {
-        let owner = self.owner()?;
+        let owner = self.owner;
         if let Some(value) = self
             .caller
             .parameters
@@ -344,7 +385,7 @@ impl DescriptorRun<'_> {
             return Ok(None);
         };
         self.start()?;
-        let owner = self.owner()?;
+        let owner = self.owner;
         let handler = self
             .claim(|state| state.attributes.handler(attribute.key()))?
             .or_else(|| attribute.resolver())
@@ -383,17 +424,25 @@ impl DescriptorRun<'_> {
         &self,
         consumer: &Resolver,
         parameter: &ConstructorParam,
+        mut explicit: Option<&mut call::CallParameters>,
     ) -> Result<SelectedArgument> {
-        let attribute = self.select_attribute(consumer, parameter, true).await?;
-        let from_attribute = attribute.is_some();
-        let mut selected = if let Some(value) = attribute {
+        let named = explicit
+            .as_deref_mut()
+            .and_then(|parameters| parameters.take_named(parameter.name()));
+        let mut selected = if let Some(value) = named {
+            SelectedArgument::Value(value)
+        } else if let Some(value) = self.select_attribute(consumer, parameter, true).await? {
             value
         } else if let ParameterKind::Class {
             key, erased_output, ..
         } = parameter.kind()
         {
-            self.select_method_class(consumer, parameter, key, *erased_output)
-                .await?
+            if let Some(value) = explicit.and_then(|parameters| parameters.take_named(key.name())) {
+                SelectedArgument::Value(value)
+            } else {
+                self.select_method_class(consumer, parameter, key, *erased_output)
+                    .await?
+            }
         } else if parameter.has_default() {
             self.default_value(parameter)?
         } else if parameter.is_variadic() {
@@ -415,7 +464,7 @@ impl DescriptorRun<'_> {
                     .await?;
                 }
                 AttributeValue::Many(values) => {
-                    let mut values = self.owner()?.slot(values)?;
+                    let mut values = self.owner.slot(values)?;
                     while let Some(value) = values
                         .get_mut()
                         .and_then(super::AttributeArguments::pop_front)
@@ -430,9 +479,7 @@ impl DescriptorRun<'_> {
                 }
             }
         }
-        if from_attribute {
-            self.adapt_attribute_argument(parameter, &mut selected)?;
-        }
+        self.adapt_attribute_argument(parameter, &mut selected)?;
         Ok(selected)
     }
 
@@ -463,7 +510,7 @@ impl DescriptorRun<'_> {
         target: &ServiceKey,
         erased_output: std::any::TypeId,
     ) -> Result<()> {
-        let owner = self.owner()?;
+        let owner = self.owner;
         let mut candidate = slot.get_mut().ok_or_else(missing_slot)?.service_value();
         while let Some(value) = candidate {
             if value.as_ref().type_id() == erased_output {
@@ -504,8 +551,8 @@ impl DescriptorRun<'_> {
             let contextual = self.claim(|state| {
                 let key = state.aliases.resolve(&state.classes.canonical_key(key))?;
                 Ok::<_, Error>(
-                    state
-                        .contextual_implementation(self.source.key(), &key)
+                    self.consumer_key
+                        .and_then(|class| state.contextual_implementation(class, &key))
                         .cloned(),
                 )
             })??;
@@ -522,53 +569,13 @@ impl DescriptorRun<'_> {
             .map(SelectedArgument::Value)
     }
 
-    async fn call_self_building(
-        &self,
-        consumer: Resolver,
-        method: &SelfBuildingMethod,
-    ) -> Result<ResourceInlineSlot<Value>> {
-        let owner = self.owner()?;
-        self.start()?;
-        let binding = self.claim(|state| state.self_building.get(self.source.key()).cloned())?;
-        if let Some(binding) = binding {
-            let mut binding = owner.slot(binding)?;
-            let factory = binding.get_mut().ok_or_else(missing_slot)?;
-            let future = owner.run(|| factory(consumer))?;
-            let result = self.poll_stage(future).await?;
-            binding.clear();
-            owner.check_cleanup()?;
-            return Ok(result);
-        }
-        let mut arguments = Vec::new();
-        for parameter in method.parameters() {
-            self.claim(|_| ())?;
-            arguments.push(self.select_method_argument(&consumer, parameter).await?);
-        }
-        let future = owner.run(|| {
-            let views = arguments
-                .iter_mut()
-                .map(SelectedArgument::view)
-                .collect::<Result<Vec<_>>>()?;
-            method.call(
-                &views,
-                consumer,
-                &mut |event| self.inner.scalar_diagnostics.report(event),
-                &mut || self.claim(|_| ()),
-            )
-        })??;
-        let value = self.poll_stage(future).await?;
-        drop(arguments);
-        owner.check_cleanup()?;
-        Ok(value)
-    }
-
     async fn dispatch_attributes(
         &self,
         resolver: &Resolver,
         attributes: &[ClassAttribute],
         value: AttributeValue,
     ) -> Result<()> {
-        let owner = self.owner()?;
+        let owner = self.owner;
         let mut value = owner.slot(value)?;
         for attribute in attributes {
             if let Some(callback) = attribute.after() {
@@ -601,7 +608,7 @@ impl DescriptorRun<'_> {
         value: &mut ResourceInlineSlot<AttributeValue>,
         callback: Arc<super::attributes::AttributeAfter>,
     ) -> Result<()> {
-        let owner = self.owner()?;
+        let owner = self.owner;
         let mut callback = owner.slot(callback)?;
         self.start()?;
         let mut instance = owner.slot(owner.run(|| attribute.instantiate())??)?;
@@ -634,7 +641,7 @@ impl DescriptorRun<'_> {
                 key, erased_output, ..
             } => {
                 let (use_default, services, missing) = self.claim(|state| {
-                    let class = self.source.key();
+                    let class = self.consumer_key.ok_or_else(missing_slot)?;
                     let direct = state.contextual.get_service(class, key);
                     let use_default = parameter.has_default()
                         && !state.bound_key_at(key, consumer.scope)
@@ -694,7 +701,7 @@ impl DescriptorRun<'_> {
         target: &ServiceKey,
         erased_output: std::any::TypeId,
     ) -> Result<Option<Vec<ResourceInlineSlot<ParameterValue>>>> {
-        let owner = self.owner()?;
+        let owner = self.owner;
         let mut implementation = owner.slot(implementation)?;
         let mut closure = consumer.clone();
         closure.build_consumer = None;
@@ -756,7 +763,7 @@ impl DescriptorRun<'_> {
         let mut value = self
             .poll_stage(consumer.descriptor_dependency(lookup, target.clone(), erased_output))
             .await?;
-        self.owner()?.slot(ParameterValue::from_erased(
+        self.owner.slot(ParameterValue::from_erased(
             value.take().ok_or_else(missing_slot)?,
         ))
     }
@@ -766,17 +773,18 @@ impl DescriptorRun<'_> {
         consumer: &Resolver,
         parameter: &ConstructorParam,
     ) -> Result<SelectedArgument> {
+        let class = self.consumer_key.ok_or_else(missing_slot)?;
         let implementation = self.claim(|state| {
             state
                 .contextual
-                .get_parameter(self.source.key(), parameter.name())
+                .get_parameter(class, parameter.name())
                 .cloned()
         })?;
         let Some(implementation) = implementation else {
             return self.select_ordinary_value(parameter);
         };
         self.start()?;
-        let owner = self.owner()?;
+        let owner = self.owner;
         let mut implementation = owner.slot(implementation)?;
         let mut value = match implementation.get_mut().ok_or_else(missing_slot)?.as_ref() {
             ContextualImplementation::Parameter(value) => owner.slot(value.clone())?,
@@ -795,6 +803,85 @@ impl DescriptorRun<'_> {
         implementation.clear();
         owner.check_cleanup()?;
         Ok(SelectedArgument::Value(value))
+    }
+}
+
+impl DescriptorRun<'_> {
+    fn owner(&self) -> Result<&ResourceInlineOwner> {
+        self.attempt.owner()
+    }
+
+    fn arguments(&self) -> Result<ArgumentRun<'_>> {
+        Ok(ArgumentRun {
+            caller: self.caller,
+            inner: self.inner,
+            owner: self.owner()?,
+            consumer_key: Some(self.source.key()),
+            descriptor: Some(DescriptorGuard {
+                source: self.source,
+                attempt: self.attempt,
+                started: &self.started,
+            }),
+        })
+    }
+
+    fn claim<T>(&self, action: impl FnOnce(&mut State) -> T) -> Result<T> {
+        self.arguments()?.claim(action)
+    }
+
+    fn start(&self) -> Result<()> {
+        self.arguments()?.start()
+    }
+
+    async fn poll_stage<T, F>(&self, future: F) -> Result<ResourceInlineSlot<T>>
+    where
+        F: Future<Output = Result<T>>,
+    {
+        self.arguments()?.poll_stage(future).await
+    }
+
+    async fn call_self_building(
+        &self,
+        consumer: Resolver,
+        method: &SelfBuildingMethod,
+    ) -> Result<ResourceInlineSlot<Value>> {
+        let owner = self.owner()?;
+        self.start()?;
+        let binding = self.claim(|state| state.self_building.get(self.source.key()).cloned())?;
+        if let Some(binding) = binding {
+            let mut binding = owner.slot(binding)?;
+            let factory = binding.get_mut().ok_or_else(missing_slot)?;
+            let future = owner.run(|| factory(consumer))?;
+            let result = self.poll_stage(future).await?;
+            binding.clear();
+            owner.check_cleanup()?;
+            return Ok(result);
+        }
+        let mut arguments = Vec::new();
+        for parameter in method.parameters() {
+            self.claim(|_| ())?;
+            arguments.push(
+                self.arguments()?
+                    .select_method_argument(&consumer, parameter, None)
+                    .await?,
+            );
+        }
+        let future = owner.run(|| {
+            let views = arguments
+                .iter_mut()
+                .map(SelectedArgument::view)
+                .collect::<Result<Vec<_>>>()?;
+            method.call(
+                &views,
+                consumer,
+                &mut |event| self.inner.scalar_diagnostics.report(event),
+                &mut || self.claim(|_| ()),
+            )
+        })??;
+        let value = self.poll_stage(future).await?;
+        drop(arguments);
+        owner.check_cleanup()?;
+        Ok(value)
     }
 
     async fn dispatch_completed(&self, value: &mut ResourceInlineSlot<Value>) -> Result<()> {
@@ -842,7 +929,11 @@ impl DescriptorRun<'_> {
             }
             for parameter in prepared.parameters() {
                 self.claim(|_| ())?;
-                arguments.push(self.select_argument(&consumer, parameter).await?);
+                arguments.push(
+                    self.arguments()?
+                        .select_argument(&consumer, parameter)
+                        .await?,
+                );
             }
         }
         self.start()?;
@@ -875,12 +966,13 @@ impl DescriptorRun<'_> {
 
         if !prepared.attributes().is_empty() {
             let object = value.get_mut().ok_or_else(missing_slot)?.clone();
-            self.dispatch_attributes(
-                &self.child,
-                prepared.attributes(),
-                AttributeValue::One(ParameterValue::from_erased(object)),
-            )
-            .await?;
+            self.arguments()?
+                .dispatch_attributes(
+                    &self.child,
+                    prepared.attributes(),
+                    AttributeValue::One(ParameterValue::from_erased(object)),
+                )
+                .await?;
         }
 
         let chain = if self.source.decorates() {

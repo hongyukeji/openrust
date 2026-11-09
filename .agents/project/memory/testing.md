@@ -958,6 +958,14 @@ PHP 8.5.12 运行固定 Laravel `d52c3b3` 的 HTTP 与控制台 Kernel，8 个�
 
 格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 的工作区测试 2,857 项通过、54 项忽略，生成项目 23 项通过。证据在 `tmp/lead-kernel-duration.ykRF2YC6/acceptance.json`。HTTP 使用无正文快照，控制台状态沿用当前 Rust 命令的结果类型。
 
+## 容器 callable 限定验收
+
+固定 Laravel `d52c3b3` 使用 PHP 8.5.12 通过 9 个 Container 对照场景，覆盖显式空值、属性后置、类名实参、默认值、变参与绑定方法分流。Rust 本批覆盖直接 callable 的参数选择和已取得实例的方法调用入口。运行时类字符串、默认方法分流及 `bindMethod` 仍是后继项。
+
+Rust 回归验证命名覆盖、属性回调、类实参单次消费、变参类型和剩余实参顺序。调用在原作用域解析，工厂看不到调用实参。并发验收验证 scope 关闭中止 pending callable，并等待显式参数完成析构。唯一示例通过 HTTP 调用配置驱动的模块服务。新生成应用以真实 TCP 返回 HTTP 200，验证命名参数和同一 scoped 实例，SIGTERM 退出 0。
+
+格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 的工作区测试 2,861 项通过、54 项忽略，生成项目 23 项通过。证据见 `tmp/lead-container-call.fGj6i3D9/acceptance.json`。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

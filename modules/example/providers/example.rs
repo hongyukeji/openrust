@@ -1,9 +1,12 @@
 //! 通过 `ServiceProvider` 装配本模块业务。
 
 use openrust::Result;
-use openrust::container::{AttributeValue, ParameterValue, ServiceKey};
-use openrust::foundation::BootContext;
+use openrust::container::{
+    AttributeValue, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey,
+};
 use openrust::foundation::RegisterContext;
+use openrust::foundation::{ApplicationState, BootContext};
+use openrust::http::axum::extract::State;
 use openrust::support::{BoxFuture, ServiceProvider};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -130,21 +133,50 @@ async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<(
     let boot_message = app.resolve::<ExampleMessage>().await?;
     app.routes(move |routes| {
         let boot_message = Arc::clone(&boot_message);
-        routes.get(
-            "/api/example/container-extension",
-            move |openrust::http::Inject(message): openrust::http::Inject<ExampleMessage>| {
-                let boot_message = Arc::clone(&boot_message);
-                async move {
-                    openrust::http::Json(serde_json::json!({
-                        "message": message.text(),
-                        "binding_extension": message.binding_extension(),
-                        "same_boot_instance": Arc::ptr_eq(&message, &boot_message),
-                    }))
-                }
-            },
-        )
+        routes
+            .get(
+                "/api/example/container-extension",
+                move |openrust::http::Inject(message): openrust::http::Inject<ExampleMessage>| {
+                    let boot_message = Arc::clone(&boot_message);
+                    async move {
+                        openrust::http::Json(serde_json::json!({
+                            "message": message.text(),
+                            "binding_extension": message.binding_extension(),
+                            "same_boot_instance": Arc::ptr_eq(&message, &boot_message),
+                        }))
+                    }
+                },
+            )
+            .get("/api/example/container-call", call_example_message)
     })?;
     Ok(())
+}
+
+async fn call_example_message(
+    State(app): State<ApplicationState>,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    let signature = [
+        ConstructorParam::class::<ExampleMessage>("message"),
+        ConstructorParam::scalar::<String>("label"),
+    ];
+    let mut overrides = ParameterOverrides::new();
+    let _ = overrides.insert(
+        ParameterKey::name("label"),
+        ParameterValue::new(String::from("container-call")),
+    );
+    app.call(&signature, overrides, |args| {
+        let response = (|| {
+            let message = args.resolved.service::<ExampleMessage>(0)?;
+            let label = args.resolved.value(1)?.downcast::<String>()?;
+            Ok(openrust::http::Json(serde_json::json!({
+                "message": message.text(),
+                "label": label.as_str(),
+                "binding_extension": message.binding_extension(),
+            })))
+        })();
+        Box::pin(async move { response })
+    })
+    .await
 }
 
 async fn overlay_example_config_and_register_resources(

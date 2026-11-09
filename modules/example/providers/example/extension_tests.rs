@@ -79,6 +79,21 @@ async fn assert_extension(
     assert_eq!(body["data"]["message"], expected_greeting);
     assert_eq!(body["data"]["binding_extension"], "module-provider");
     assert_eq!(body["data"]["same_boot_instance"], true);
+
+    let response = openrust::foundation::http::build_router(&app)?
+        .oneshot(
+            Request::get("/api/example/container-call")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"]["message"], expected_greeting);
+    assert_eq!(body["data"]["label"], "container-call");
+    assert_eq!(body["data"]["binding_extension"], "module-provider");
+
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await?;
     Ok(())

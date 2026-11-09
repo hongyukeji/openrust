@@ -221,6 +221,37 @@ app.when_request_lifecycle_is_longer_than(std::time::Duration::from_secs(1), |_,
 
 隔离测试可在构建前调用 `TestAppBuilder::without_middleware()`，跳过路由中间件、应用全局层和 CORS。`with_middleware()` 恢复默认链。两种模式都保留协议校验、作用域回收、`Terminating` 事件和应用终止回调。
 
+### 通过容器调用 callable
+
+给 `Container::call` 传入编译期参数声明、调用级实参和回调。回调在 `CallArguments::resolved` 中读取声明槽位，未消费的实参按输入顺序保存在 `remaining`。声明末尾的变参槽会先接收已解析值，再接收剩余实参。
+
+```rust
+use openrust::container::{ConstructorParam, ContainerBuilder, ParameterOverrides};
+use std::sync::Arc;
+
+# async fn example() -> openrust::Result<()> {
+let mut builder = ContainerBuilder::new();
+builder.instance(Arc::new(String::from("OpenRust")));
+let container = builder.build();
+let name = container
+    .call(
+        &[ConstructorParam::class::<String>("name")],
+        ParameterOverrides::new(),
+        |args| {
+            let name = args.resolved.service::<String>(0);
+            Box::pin(async move { name })
+        },
+    )
+    .await?;
+assert_eq!(name.as_str(), "OpenRust");
+# Ok(())
+# }
+```
+
+参数按同名实参、上下文属性、类名实参、服务或默认值的顺序选择。用 `ParameterValue::null()` 传递显式空值。类名实参的键取自 `ServiceKey::typed::<T>().name()`，类值通过 `ParameterValue::service(arc)` 提供。类默认值仅在对应服务未绑定时采用。实参不会继承到所解析服务的工厂。
+
+在请求和命令中用 `ApplicationState::call`，在自管生命周期内用 `Scope::call`，在已有解析链上用 `Resolver::call`。Rust 回调可以调用普通函数或已取得实例的方法，方法和参数由编译器检查。示例路由 `/api/example/container-call` 注入模块的服务并提供命名实参。 [Laravel BoundMethod](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/BoundMethod.php)
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

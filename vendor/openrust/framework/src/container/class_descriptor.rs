@@ -45,7 +45,7 @@ pub(super) enum ParameterKind {
     },
 }
 
-/// 一个构造参数的编译期声明。参数顺序与构造回调读取的槽位一致。
+/// 构造器或可调用对象参数的编译期声明。声明顺序与回调读取的槽位一致。
 pub struct ConstructorParam {
     name: &'static str,
     kind: ParameterKind,
@@ -247,12 +247,22 @@ pub(super) enum Argument {
     Many(Vec<ParameterValue>),
 }
 
-/// 借用当前已校验的构造参数帧。构造回调通过从零开始的槽位读取依赖。
+/// 借用当前已校验的参数帧。回调通过从零开始的槽位读取依赖。
 pub struct ResolvedArgs<'a> {
     parameters: &'a [ConstructorParam],
     arguments: &'a [Argument],
 }
 impl<'a> ResolvedArgs<'a> {
+    pub(super) fn from_materialized(
+        parameters: &'a [ConstructorParam],
+        arguments: &'a [Argument],
+    ) -> Self {
+        Self {
+            parameters,
+            arguments,
+        }
+    }
+
     fn validate(parameters: &'a [ConstructorParam], arguments: &'a [Argument]) -> Result<Self> {
         validate_argument_count(parameters, arguments)?;
         for (parameter, argument) in parameters.iter().zip(arguments) {
@@ -272,7 +282,7 @@ impl<'a> ResolvedArgs<'a> {
         })
     }
 
-    fn materialize_selected(
+    pub(super) fn materialize_selected(
         parameters: &[ConstructorParam],
         selected: &[Argument],
         diagnostic: &mut impl FnMut(ScalarDiagnostic) -> Result<()>,
@@ -757,7 +767,7 @@ impl ClassRegistry {
     }
 }
 
-fn validate_parameters(parameters: &[ConstructorParam]) -> Result<()> {
+pub(super) fn validate_parameters(parameters: &[ConstructorParam]) -> Result<()> {
     let mut names = HashSet::with_capacity(parameters.len());
     for (index, parameter) in parameters.iter().enumerate() {
         if parameter.name.is_empty() || !names.insert(parameter.name) {

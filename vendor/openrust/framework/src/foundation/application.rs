@@ -291,6 +291,20 @@ impl ApplicationState {
         self.inner.services.resolve_in(Some(key), parameters, true)
     }
 
+    /// 在当前应用入口作用域或根生命周期调用显式声明参数的 Rust callable。
+    pub fn call<'a, T: Send + 'a>(
+        &'a self,
+        signature: &'a [crate::container::ConstructorParam],
+        overrides: ParameterOverrides,
+        callback: impl for<'b> FnOnce(crate::container::CallArguments<'b>) -> BoxFuture<'a, Result<T>>
+        + Send
+        + 'a,
+    ) -> impl std::future::Future<Output = Result<T>> + Send + 'a {
+        self.inner
+            .services
+            .call_in_entry(signature, overrides, callback)
+    }
+
     /// 启动时解析的框架配置快照；运行期原始写入不重建其中的服务配置。
     pub fn config(&self) -> &FrameworkConfig {
         &self.inner.framework

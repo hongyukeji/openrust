@@ -55,6 +55,8 @@ HTTP 与控制台分别登记生命周期时长处理器。两者在应用回调
 
 已绑定服务登记 `rebinding` 时立即解析并返回当前实例；登记本身不调用新回调，后续真实重绑在原位执行回调，错误阻止后续 register 语句。绑定 generation 与缓存槽同步准入；旧 `Arc` 可继续使用，后续解析不让旧工厂或等待者填入新槽。配置登记即时可读，来源值优先于默认值；后到 Provider 默认值不回滚先前成功发布的 `merge_defaults` 数组贡献和显式 `set`，启动仍保留校验与缓存屏障。Cookie 已解析单例保持首次快照，晚首次解析可读取新配置。当前只证明重建 Router 可见新贡献；已服务 Router 热更新、Provider 自动发现、完整 Facade/Container 仍开放。来源 `4ac8099`、S-DV来源 `6ffb5c8` 与三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 的实际门禁见[组合记录](../memory/testing.md#r2-p-s-dv-main-limited)。
 
+显式 callable 通过 `Container::call`、`Scope::call`、`Resolver::call` 或 `ApplicationState::call` 解析方法参数。参数先取同名实参，再取属性与类名实参，随后解析服务或求默认值。剩余值保留顺序，调用输入与受管完成责任一起退役。实例方法可用闭包装入，类字符串与 `bindMethod` 路由仍待对应。[限定验收](../memory/testing.md#容器-callable-限定验收)
+
 ## C04-F MIME 注册（任务分支限定验收）
 
 任务分支的 `MimeTypes` 通过同一 `Container` 解析，`Application`/`ApplicationState` 与 `RegisterContext` 的异步入口共用应用作用域注册状态；Provider工厂覆盖、晚重绑及两App隔离由外部consumer验证。默认Unix `FileBinary` 和固定Symfony v8.0.0有序扩展表在该分支经代码与真实生成/模块流程限定验收；本次任务分支限定交付的源码现已叠入未提交main候选，组合门禁待执行，不得据此声称main新API已验收。原生Fileinfo、Windows默认检测/清理和完整MIME仍开放。见[分支证据](../memory/testing.md#c04-f-request文件家族分支限定验收)。

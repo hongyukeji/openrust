@@ -15,6 +15,8 @@ HTTP 默认根据请求的 `Accept`、AJAX/PJAX 语义选择 HTML 或 JSON；`sh
 
 ## 容器与 Provider 生命周期
 
+`Container::call`、`Scope::call`、`Resolver::call` 和 `ApplicationState::call` 使用同一份显式 `ConstructorParam` 声明解析 callable 参数。调用级参数只属于当前调用。回调在经过检查的槽位读取服务或值，可以把取得的 `Arc` 移入异步工作。应用入口沿当前请求或命令作用域解析；直接使用容器则选根作用域。
+
 `openrust::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；`build` 建立唯一容器后，Provider 注册仍可在同一容器动态重绑，不使用 PHP 反射构造。重绑使各 scope 的旧缓存失效；已交给调用方的旧 `Arc` 和在途引用仍有效，新解析按新定义构造。绑定版本与缓存槽准入同锁核验，旧构造不能回填新槽。
 
 `RegisterContext::extend::<T, _>(...).await?` 保留原 factory，再把异步装饰器依登记顺序作用于其结果；可在 `bind` 前登记，也可包装外部 `Arc<dyn Trait>`。装饰器接收旧 `Arc<T>` 与 `Resolver`，返回 `BoxFuture<'static, Result<Arc<T>>>`。同类型 factory 覆盖仍保留未解析服务的持久装饰链；`forget_extenders::<T>().await?` 清除未来构造的持久链，不撤销已缓存服务。`rebinding::<T, _>(...).await?` 登记监听者；服务已绑定时立即解析并返回当前 `Arc`，后续缓存更新按顺序通知。回调错误在当前 `register` 位置短路，不延迟到 `register` 返回后。已缓存 singleton/instance 可通过 `Container::extend(...).await` 或 `BootContext::extend(...).await` 即时变换；变换失败保留旧缓存，通知失败则新值已发布。`ServiceProvider::register` 返回 `BoxFuture`，绑定、实例、装饰与通知均在原调用位置 `await?`；已完成的贡献即使后续操作失败也不回滚。直接使用 `ContainerBuilder` 时，显式 `instance` 的待执行装饰仍在首次异步 `resolve` 执行；待执行时同步 `get_ready` 不返回旧值。
