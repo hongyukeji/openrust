@@ -333,6 +333,12 @@ Provider/cache 验证在账户事务外完成；数据库回滚不撤回第三�
 
 通用审计扩展为 `ApiLoginAuditSink`，成功双因素直接登录在凭据消费的同一事务调用它。`DatabaseApiLoginAudit::new(db, audit)` 复用通用脱敏策略，并严格核同一 `Db` 与实际 `audit_records` 表；可通过 `FortifyJwtApiServiceProvider::with_database_audit` 显式选择。默认不绑定该 sink，不自动查询审计表；自定义 sink 必须使用传入事务，错误回滚本次消费和签发，不记录密码、代码、secret 或 token。
 
+## 双因素事件订阅
+
+八个双因素事件沿用 `openrust::auth::fortify` 的公开 Rust 类型。字符串事件名由 `OpenRust\Auth\TwoFactor\Events\` 和类型名组成，覆盖启用、确认、关闭、恢复码生成和替换，以及登录挑战、失败和验证码通过。使用 `EventsServiceProvider::listen::<TwoFactorAuthenticationEnabled, _>` 可按类型订阅；需要按名称订阅时，可用该类型的 `Event::NAME` 或 `OpenRust\Auth\TwoFactor\Events\*`。
+
+升级时，将写死的 `Laravel\Fortify\Events\` 字符串前缀替换为新前缀。事件载荷、触发点及原有事务边界保持不变。受信监听器可以通过 `EventContext::transaction()` 取得派发方事务。恢复码只可由授权监听器显式读取，调试输出脱敏。 [上游启用动作](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Actions/EnableTwoFactorAuthentication.php) · [上游挑战完成入口](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Http/Controllers/TwoFactorAuthenticatedSessionController.php)
+
 ## Laravel 对应与 Rust 边界
 
 本文对照固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `AuthManager`、`CreatesUserProviders`、`SessionGuard`、`DatabaseUserProvider` 与认证契约，以及 docs `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 authentication 与 fortify 章节。Fortify/TOTP 对照固定 Fortify `c456642584c102f6a6aafee9932299542da637b5` 与 google2fa `f00bc788c555adfb6765c437ff3538e59cd88af1`，不随浮动分支静默切换默认值。异步 trait 使用 `BoxFuture`，账户使用 `Arc`，模型通过已编译工厂显式注册，不能运行期按 PHP 类名实例化。

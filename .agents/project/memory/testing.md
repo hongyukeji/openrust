@@ -2247,3 +2247,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 ## 云入口开关命名限定验收
 
 冻结树 `4f2e8e2ff2d203767c7c92a7fce522f0925d6ab2` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。唯一示例由真实 TCP listener 验证 `OPENRUST_CLOUD_INGRESS=1` 的启用、旧变量/非精确值/dotenv/伪造请求头拒绝及显式空代理列表优先。生成 minimal 应用通过 check 与 tests，临时公开 RequestInfo 探针在真实进程上验证关闭时 http、开启时 https。实测环境为本地 TCP，实际云平台部署环境仍开放。
+
+## 双因素事件命名限定验收
+
+八个 Fortify 运行事件使用 `OpenRust\Auth\TwoFactor\Events\` 前缀。类型、载荷、派发和事务边界沿用原行为。新单测固定所有事件名及类型、具名、通配符的同次派发顺序，旧前缀不触发订阅。真实 MySQL 事务测试验证新具名监听收到同一事务，事务末检拒绝后因子、审计与队列写入全部回滚。
+
+冻结树 `2ce2410abb56f32ceaed8ff20f8dc269705323fa` 通过 fmt、默认和启用 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。唯一示例验证因子流程与一次性恢复码，fresh Web/Fortify、JWT API 生成应用通过 check 和真实 MySQL 测试。

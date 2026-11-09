@@ -596,6 +596,20 @@ mod queued {
         let database = TestDatabase::create::<QueueMigrator>(&url).await?;
         let gate = CommitGate::default();
         let mut listeners = gate.listeners("jobs");
+        let observed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let named = Arc::clone(&observed);
+        listeners.listen_named::<TwoFactorAuthenticationEnabled, _>(
+            r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationEnabled",
+            move |event, context| {
+                let named = Arc::clone(&named);
+                Box::pin(async move {
+                    assert!(context.transaction().is_some());
+                    assert_eq!(event.user.auth_identifier()?, serde_json::json!(42));
+                    named.store(true, Ordering::SeqCst);
+                    Ok(crate::events::EventPropagation::Continue)
+                })
+            },
+        );
         listeners.listen_queued::<TwoFactorAuthenticationEnabled, EnrollmentNotice, _>(
             "default",
             |event| {
@@ -613,7 +627,11 @@ mod queued {
         queues.contributions().register_job::<EnrollmentNotice>()?;
         builder.provider(queues);
         owned_database(database, true, listeners, builder, move |fixture| {
-            Box::pin(gate.verify_rollback(fixture, "jobs"))
+            Box::pin(async move {
+                gate.verify_rollback(fixture, "jobs").await?;
+                assert!(observed.load(Ordering::SeqCst));
+                Ok(())
+            })
         })
         .await
     }

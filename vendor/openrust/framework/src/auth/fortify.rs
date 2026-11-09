@@ -91,3 +91,7 @@ pub(crate) fn configured_confirmation(
 mod test_helpers;
 #[cfg(test)]
 pub(crate) use test_helpers::test_field_encrypter;
+
+#[cfg(test)]
+#[path = "../../tests/unit/auth/fortify_event_names.rs"]
+mod event_name_tests;

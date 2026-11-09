@@ -536,7 +536,7 @@ user_event!(
 );
 
 impl crate::events::Event for TwoFactorAuthenticationChallenged {
-    const NAME: &'static str = r"Laravel\Fortify\Events\TwoFactorAuthenticationChallenged";
+    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationChallenged";
 }
 
 user_event!(
@@ -545,7 +545,7 @@ user_event!(
 );
 
 impl crate::events::Event for TwoFactorAuthenticationFailed {
-    const NAME: &'static str = r"Laravel\Fortify\Events\TwoFactorAuthenticationFailed";
+    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationFailed";
 }
 
 user_event!(
@@ -554,7 +554,8 @@ user_event!(
 );
 
 impl crate::events::Event for ValidTwoFactorAuthenticationCodeProvided {
-    const NAME: &'static str = r"Laravel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided";
+    const NAME: &'static str =
+        r"OpenRust\Auth\TwoFactor\Events\ValidTwoFactorAuthenticationCodeProvided";
 }
 
 #[cfg(test)]

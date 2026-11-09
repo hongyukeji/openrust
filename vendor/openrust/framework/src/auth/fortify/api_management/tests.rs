@@ -1262,7 +1262,7 @@ async fn oidc_attachment_rechecks_saved_direct_login_session_at_commit() -> Resu
     .await
 }
 
-#[path = "event_tests.rs"]
+#[path = "../../../../tests/unit/auth/fortify_management_events.rs"]
 mod event_tests;
 
 #[cfg(feature = "db-sqlite")]
