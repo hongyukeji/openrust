@@ -3,7 +3,7 @@
 use crate::support::ServiceProvider;
 use std::any::{Any, TypeId, type_name};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[cfg(test)]
@@ -72,18 +72,58 @@ impl Drop for ProviderBootCallbacks {
 
 #[derive(Default)]
 pub(crate) struct StartupCallbacks {
-    pub(crate) booting: Vec<Arc<BootHook>>,
-    pub(crate) booted: Vec<Arc<BootHook>>,
+    hooks: Mutex<StartupHooks>,
     pub(crate) terminating: TerminationCallbacks,
     pub(crate) durations: Arc<super::lifecycle_duration::KernelDurationHandlers>,
+}
+
+#[derive(Default)]
+struct StartupHooks {
+    pub(crate) booting: Vec<Arc<BootHook>>,
+    pub(crate) booted: Vec<Arc<BootHook>>,
     is_booted: bool,
 }
 
 impl StartupCallbacks {
-    pub(crate) fn take(&mut self) -> impl Iterator<Item = Arc<BootHook>> + use<> {
-        std::mem::take(&mut self.booting)
-            .into_iter()
-            .chain(std::mem::take(&mut self.booted))
+    fn hooks(&self) -> std::sync::MutexGuard<'_, StartupHooks> {
+        self.hooks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    pub(crate) fn add_booting(&self, callback: Arc<BootHook>) {
+        self.hooks().booting.push(callback);
+    }
+
+    fn add_booted(&self, callback: Arc<BootHook>) -> bool {
+        let mut hooks = self.hooks();
+        hooks.booted.push(callback);
+        hooks.is_booted
+    }
+
+    fn mark_booted(&self) {
+        self.hooks().is_booted = true;
+    }
+
+    fn callback_at(&self, index: usize) -> Option<Arc<BootHook>> {
+        let hooks = self.hooks();
+        let queue = if hooks.is_booted {
+            &hooks.booted
+        } else {
+            &hooks.booting
+        };
+        queue.get(index).cloned()
+    }
+
+    pub(crate) fn take(&self) -> impl Iterator<Item = Arc<BootHook>> + use<> {
+        let (booting, booted) = {
+            let mut hooks = self.hooks();
+            (
+                std::mem::take(&mut hooks.booting),
+                std::mem::take(&mut hooks.booted),
+            )
+        };
+        booting.into_iter().chain(booted)
     }
 }
 
@@ -134,7 +174,7 @@ pub struct RegisterContext<'a> {
     required: &'a mut Vec<Required>,
     owner: ProviderId,
     force: bool,
-    registry: &'a mut registration::ProviderRegistry,
+    registry: &'a registration::ProviderRegistry,
     live_boot: Option<registration::LiveBoot<'a>>,
     provider_callbacks: &'a mut ProviderBootCallbacks,
 }
@@ -186,8 +226,7 @@ impl RegisterContext<'_> {
     ) {
         self.registry
             .startup_callbacks
-            .booting
-            .push(Arc::new(callback));
+            .add_booting(Arc::new(callback));
     }
 
     /// 登记在所有 Provider boot 后执行的应用回调。应用已经启动时立即执行。
@@ -203,12 +242,12 @@ impl RegisterContext<'_> {
             live.booted(
                 self.container,
                 self.config,
-                &mut self.registry.startup_callbacks,
+                &self.registry.startup_callbacks,
                 callback,
             )
             .await
         } else {
-            self.registry.startup_callbacks.booted.push(callback);
+            self.registry.startup_callbacks.add_booted(callback);
             Ok(())
         }
     }
@@ -701,7 +740,7 @@ pub struct BootContext<'a> {
     pub(crate) extensions: &'a mut Extensions,
     pub(crate) commands: &'a CommandRegistry,
     pub(crate) finalizers: &'a mut Vec<Finalizer>,
-    pub(crate) startup_callbacks: &'a mut StartupCallbacks,
+    pub(crate) startup_callbacks: &'a StartupCallbacks,
     pub(super) provider_callbacks: Option<&'a mut ProviderBootCallbacks>,
 }
 
@@ -844,7 +883,7 @@ impl BootContext<'_> {
         + Sync
         + 'static,
     ) {
-        self.startup_callbacks.booting.push(Arc::new(callback));
+        self.startup_callbacks.add_booting(Arc::new(callback));
     }
 
     /// 登记应用 booted 回调。标记已启动后，登记时立即执行回调。
@@ -859,8 +898,7 @@ impl BootContext<'_> {
     }
 
     pub(super) async fn add_booted(&mut self, callback: Arc<BootHook>) -> Result<()> {
-        self.startup_callbacks.booted.push(Arc::clone(&callback));
-        if self.startup_callbacks.is_booted {
+        if self.startup_callbacks.add_booted(Arc::clone(&callback)) {
             callback(&mut self.reborrow(None)).await?;
         }
         Ok(())
@@ -869,12 +907,7 @@ impl BootContext<'_> {
     async fn fire_startup_callbacks(&mut self) -> Result<()> {
         let mut index = 0;
         loop {
-            let queue = if self.startup_callbacks.is_booted {
-                &self.startup_callbacks.booted
-            } else {
-                &self.startup_callbacks.booting
-            };
-            let Some(callback) = queue.get(index).cloned() else {
+            let Some(callback) = self.startup_callbacks.callback_at(index) else {
                 return Ok(());
             };
             callback(self).await?;
@@ -1285,7 +1318,7 @@ impl ProviderBuilder {
         + Sync
         + 'static,
     ) -> &mut Self {
-        self.startup_callbacks.booting.push(Arc::new(callback));
+        self.startup_callbacks.add_booting(Arc::new(callback));
         self
     }
 
@@ -1297,7 +1330,7 @@ impl ProviderBuilder {
         + Sync
         + 'static,
     ) -> &mut Self {
-        self.startup_callbacks.booted.push(Arc::new(callback));
+        self.startup_callbacks.add_booted(Arc::new(callback));
         self
     }
 
@@ -1496,7 +1529,7 @@ impl ProviderBuilder {
             container.use_application_binding_environment(&config)?;
             for entry in providers {
                 registration::register(
-                    &mut active,
+                    &active,
                     entry.provider,
                     entry.force,
                     &container,
@@ -1516,7 +1549,6 @@ impl ProviderBuilder {
             config.validate_base()?;
             container.initialize_extensions().await?;
             {
-                let (providers, startup_callbacks) = active.boot_parts();
                 let mut context = BootContext {
                     console_command: console_command.as_deref(),
                     container: &container,
@@ -1526,7 +1558,7 @@ impl ProviderBuilder {
                     extensions: &mut extensions,
                     commands: &commands,
                     finalizers: &mut finalizers,
-                    startup_callbacks,
+                    startup_callbacks: &active.startup_callbacks,
                     provider_callbacks: None,
                 };
                 context.fire_startup_callbacks().await?;
@@ -1534,14 +1566,14 @@ impl ProviderBuilder {
                     context.config,
                     automatic_database,
                 )?;
-                for provider in providers {
+                for provider in active.boot_snapshot() {
                     provider.boot(&mut context).await?;
                     crate::support::default_providers::validate_database_selection(
                         context.config,
                         automatic_database,
                     )?;
                 }
-                context.startup_callbacks.is_booted = true;
+                context.startup_callbacks.mark_booted();
                 context.fire_startup_callbacks().await?;
             }
             crate::support::default_providers::validate_database_selection(

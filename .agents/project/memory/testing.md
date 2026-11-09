@@ -988,6 +988,12 @@ Rust 回归覆盖命名绑定短路、原参数覆盖、嵌套同类型调用、
 
 格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 的工作区测试 2,871 项通过、54 项忽略。新生成应用 23 项通过，真实 TCP 验证同一监听进程禁用并恢复全局及路由中间件，SIGTERM 正常退出。证据见 `tmp/lead-middleware-runtime.GKMGl9BX/acceptance.json`。
 
+## 延迟 Provider 注册器前置验收
+
+新的注册回归覆盖父注册等待期间另一 Provider 使用已发布子项完成注册，后续取消保留已完成槽位。既有嵌套、强制替换、启动和回收回归随工作区执行。格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 的工作区测试 2,872 项通过、54 项忽略。新生成应用 23 项通过，真实 TCP 验证嵌套服务可用及启动回调完成，SIGTERM 正常退出。
+
+固定 Laravel `d52c3b31` 的两个 PHP 对照记录各阶段首次解析、事件、显式清载和真实 manifest 缓存。本批验收覆盖共享注册器前置。容器首次解析和事件触发的延迟装载仍待接线。证据见 `tmp/lead-deferred-provider.9M1HjQmY/acceptance.json`。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

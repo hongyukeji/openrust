@@ -712,3 +712,68 @@ async fn child_declaration_without_real_registration_cannot_create_a_phantom_dep
     assert_eq!(trace.values(), ["incomplete.register"]);
     Ok(())
 }
+
+#[tokio::test]
+async fn pending_registration_releases_registry_for_an_independent_provider() -> Result<()> {
+    let trace = Trace::default();
+    let started = Arc::new(tokio::sync::Notify::new());
+    let runtime = ProviderBuilder::new().start(Figment::new()).await?;
+    let mut pending_config = runtime.config().clone();
+    let mut pending_required = Vec::new();
+    let mut pending = super::register(
+        &runtime.providers,
+        Box::new(PendingParent {
+            pending: true,
+            started: Arc::clone(&started),
+            trace: trace.clone(),
+        }),
+        false,
+        runtime.container(),
+        &mut pending_config,
+        &mut pending_required,
+        None,
+    );
+    tokio::select! {
+        () = started.notified() => {},
+        result = &mut pending => {
+            result?;
+            return Err(Error::custom("expected_pending", "父注册应等待取消"));
+        },
+        () = tokio::time::sleep(Duration::from_secs(2)) => {
+            return Err(Error::custom("nested_registration_timeout", "未到达可取消的父注册阶段"));
+        },
+    }
+    let mut config = runtime.config().clone();
+    let mut required = Vec::new();
+    let selected = tokio::time::timeout(
+        Duration::from_secs(2),
+        super::register(
+            &runtime.providers,
+            Box::new(ChildDependent(trace.clone())),
+            false,
+            runtime.container(),
+            &mut config,
+            &mut required,
+            None,
+        ),
+    )
+    .await
+    .map_err(Error::internal)??;
+    assert_eq!(selected, ProviderId::of::<ChildDependent>());
+    assert_eq!(
+        runtime
+            .providers
+            .boot_snapshot()
+            .iter()
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>(),
+        [
+            ProviderId::of::<Child>(),
+            ProviderId::of::<ChildDependent>()
+        ]
+    );
+    drop(pending);
+    runtime
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await
+}

@@ -466,8 +466,7 @@ impl Application {
     ) {
         self.providers
             .startup_callbacks
-            .booting
-            .push(Arc::new(callback));
+            .add_booting(Arc::new(callback));
     }
 
     /// 登记并立即运行已启动应用的 booted 回调。
@@ -487,7 +486,7 @@ impl Application {
         .booted(
             &self.state.inner.services,
             &mut config,
-            &mut self.providers.startup_callbacks,
+            &self.providers.startup_callbacks,
             Arc::new(callback),
         )
         .await
@@ -568,7 +567,7 @@ impl Application {
         let mut config = self.state.config_repository();
         let mut required = Vec::new();
         registration::register(
-            &mut self.providers,
+            &self.providers,
             provider,
             force,
             &self.state.inner.services,

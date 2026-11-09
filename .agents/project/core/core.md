@@ -35,6 +35,10 @@ class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件
 
 核心命令完整启动后执行，多名称预检、顺序及重复保留，--all 覆盖名单，异常保前项并中断后项。激活状态变化不热卸载/挂载。根/生成配置支持独立状态文件及 application_root；唯一模块真实调用、生成consumer与适用门禁/真实服务已限定验收，见[证据](../memory/testing.md#模块持久启停与同容器管理限定验收)。运行 module.json 发现、Provider/files 接线、TTY 选择、硬链接别名和Windows原生证据仍开放；本段仅关闭上述持久管理子范围，不作完整Modules声明。
 
+## 延迟 Provider 注册器前置
+
+活动 Provider 按原注册槽位保存。注册表只在读写身份和槽位时持锁，启动使用独立实例句柄。应用启动回调按队列取出后再执行，Provider 实例自己的启动回调按实例串行。已核嵌套、强制替换、取消、应用 flush 和生成应用的正常启动。[前置验收](../memory/testing.md#延迟-provider-注册器前置验收)
+
 ## R2-P Provider 注册生命周期（与 S-DV 的 main 限定组合已验收）
 
 `Container::flush` 清空运行期绑定、别名、解析历史和所有作用域的共享槽。保留编译类、环境、持久装饰器和注册规则，旧实例及已取得的原工厂快照继续可用。旧构造无法回填已清除的缓存，用户析构在锁外运行。[限定验收](../memory/testing.md#容器清空绑定限定验收)
