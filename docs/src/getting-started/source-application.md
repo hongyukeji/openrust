@@ -166,7 +166,7 @@ done
 
 Rust 应用需要先编译目标平台的可执行文件。在 macOS 或 Linux 的源码目录可以运行独立工具 `openrust build`，默认使用本机 Cargo 编译 release 二进制。首次构建由 Cargo 生成锁文件，已有锁文件时使用锁定依赖。运行主机须匹配构建目标及其系统依赖。工具的编译流程参考固定 Goravel。[Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md)
 
-编译和打包是 OpenRust 工具扩展。固定 Laravel 的部署流程另外定义了应用命令 `optimize`、`optimize:clear` 和 `reload`，其完整对应仍待验收。也可用上文的 `cargo build --release --locked --bin app` 手动编译。[Laravel 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)
+编译和打包是 OpenRust 工具扩展，也可用上文的 `cargo build --release --locked --bin app` 手动编译。当前应用的 Artisan 提供 `config:cache` 和 `config:clear`。Laravel 的 `optimize`、`optimize:clear` 和 `reload` 尚未实现，分别涉及部署缓存、缓存清理和长驻服务重载。[Laravel 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md#optimization)
 
 用 `openrust build --help` 查看参数。显式加 `--docker` 时，命令复用 Compose 的 `app` 构建配置和 Dockerfile 的 `artifacts` 阶段，需要支持 Bake 文件访问授权的 Buildx。Docker 构建默认按宿主 CPU 选择 Linux 平台，可用 `--platform` 指定。此模式下，`--env` 按应用规则选择 Compose 插值文件，进程环境优先。两种构建均可在运行服务不可达时执行。
 
