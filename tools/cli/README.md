@@ -23,7 +23,7 @@ cargo run -p cli -- dev
 
 生成项目附带 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。从应用目录运行 `docker compose up --build -d --wait`。Compose 用应用目录和相对框架目录作为 BuildKit 上下文，宿主机 Cargo 和容器使用相同的相对依赖布局。移动应用和框架时保留两者的相对位置。配置、端口与持久化见[生成应用的容器部署](../../docs/src/getting-started/source-application.md#生成应用的容器部署)。
 
-在源码目录用 `openrust build` 执行本机 Cargo 发布构建，可用 `--features` 启用应用功能。默认产物目录为 `dist/<项目名>-<系统>-<架构>`。显式加 `--docker --platform linux/amd64` 可复用 Compose 的 `app` 构建配置导出 Linux 产物。两种模式均支持 `--output` 指向全新目录。对于 `openrust new blog`，发布包根的 `./blog` 启动应用，`./blog artisan` 和 `./artisan` 进入同一控制台。
+在源码目录用 `./artisan build` 执行本机 Cargo 发布构建。独立的 `openrust build` 使用相同的构建逻辑，可用 `--features` 启用应用功能。默认产物目录为 `dist/<项目名>-<系统>-<架构>`。显式加 `--docker --platform linux/amd64` 可复用 Compose 的 `app` 构建配置导出 Linux 产物。两种模式均支持 `--output` 指向全新目录。对于 `openrust new blog`，发布包根的 `./blog` 启动应用，`./blog artisan` 和 `./artisan` 进入同一控制台。
 
 用 `openrust build --help` 查看编译打包参数。可用 `--project-dir` 指定应用源码目录。构建可在运行服务不可达时执行，Docker 构建的插值环境可用 `openrust build --docker --env production` 选择。
 

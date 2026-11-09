@@ -56,7 +56,7 @@ if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
             fi
             ;;
     esac
-    exec cargo run --quiet -- artisan "$@"
+    OPENRUST_SOURCE_ARTISAN=1 exec cargo run --quiet --features source-artisan -- artisan "$@"
 fi
 
 if [ -e .openrust-build-incomplete ] || [ -L .openrust-build-incomplete ]; then

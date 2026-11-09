@@ -727,6 +727,10 @@ impl Application {
         self.commands.snapshot().into_iter()
     }
 
+    pub(crate) fn register_console_command(&self, command: impl Command) {
+        self.commands.register(command);
+    }
+
     /// 短期读取当前应用的 Provider 贡献。异步工作前释放借用。
     pub fn extension<T: Send + Sync + 'static>(&self) -> Option<ExtensionRef<'_, T>> {
         self.extensions.get()

@@ -166,6 +166,8 @@ fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> 
                 &[
                     "run",
                     "--quiet",
+                    "--features",
+                    "source-artisan",
                     "--",
                     "artisan",
                     "--env=testing",
@@ -294,6 +296,8 @@ fn source_artisan_keeps_build_in_the_application_command_table() -> Result<()> {
         &[
             "run",
             "--quiet",
+            "--features",
+            "source-artisan",
             "--",
             "artisan",
             "--env",

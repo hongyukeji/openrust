@@ -242,19 +242,47 @@ pub fn run_application<A: ApplicationDefinition>() -> ExitCode {
     } else {
         "start"
     };
-    run_with_default::<A>(std::env::args().skip(1), default)
+    run_with_default::<A>(std::env::args().skip(1), default, |_, _, _| Ok(()))
+}
+
+/// 从源码启动控制台，并在应用完成引导后加入开发工具命令。
+///
+/// 应用已有同名命令时保留应用登记，调用同名命令或帮助会返回冲突。
+pub fn run_application_with_source_command<A: ApplicationDefinition>(
+    command: impl console::Command,
+) -> ExitCode {
+    run_with_default::<A>(std::env::args().skip(1), "list", |app, name, args| {
+        let source_name = command.name();
+        if app.commands().any(|entry| entry.name() == source_name) {
+            let message = format!(
+                "源码工具与应用命令 `{source_name}` 同名。请使用独立开发工具，或用 cargo run -- artisan {source_name} 执行应用命令。"
+            );
+            if name == source_name
+                || (name == "help" && args.first().is_some_and(|arg| arg == source_name))
+            {
+                return Err(Error::custom("source_command_conflict", message));
+            }
+            if name == "list" {
+                eprintln!("{message}");
+            }
+        } else {
+            app.register_console_command(command);
+        }
+        Ok(())
+    })
 }
 
 /// 使用显式控制台参数启动应用；`--env name` 和 `--env=name` 只选择存在的环境文件。
 ///
 /// 嵌入式调用方传入自己的参数，普通 [`lifecycle::bootstrap`] 不观察进程参数。
 pub fn run_with_args<A: ApplicationDefinition>(args: impl IntoIterator<Item = String>) -> ExitCode {
-    run_with_default::<A>(args, "serve")
+    run_with_default::<A>(args, "serve", |_, _, _| Ok(()))
 }
 
 fn run_with_default<A: ApplicationDefinition>(
     args: impl IntoIterator<Item = String>,
     default_command: &str,
+    configure_console: impl FnOnce(&foundation::Application, &str, &[String]) -> Result<()>,
 ) -> ExitCode {
     let (name, command_args, console_environment) =
         console::ConsoleInvocation::parse(args, default_command).into_parts();
@@ -288,11 +316,16 @@ fn run_with_default<A: ApplicationDefinition>(
             }
             Err(error) => return fail(&format!("bootstrap failed: {error}")),
         };
-        let result = database::migration::with_confirmation(
-            approval,
-            app.run_command_since(&name, command_args, started),
-        )
-        .await;
+        let result = match configure_console(&app, &name, &command_args) {
+            Ok(()) => {
+                database::migration::with_confirmation(
+                    approval,
+                    app.run_command_since(&name, command_args, started),
+                )
+                .await
+            }
+            Err(error) => Err(error),
+        };
         let shutdown = app
             .shutdown(
                 tokio::time::Instant::now()

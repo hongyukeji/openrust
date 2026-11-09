@@ -2,12 +2,19 @@ name: Compose deployment acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: 验收场景
+        type: choice
+        options: [compose-migration, artisan-package]
+        default: compose-migration
 
 permissions:
   contents: read
 
 jobs:
   migration:
+    if: inputs.suite == 'compose-migration'
     name: Ubuntu x86_64 Compose and named-volume migration
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -47,4 +54,30 @@ jobs:
           path: |
             ${{ runner.temp }}/openrust-compose-runner.txt
             ${{ runner.temp }}/openrust-compose-evidence/receipt.json
+          retention-days: 7
+
+  artisan:
+    if: inputs.suite == 'artisan-package'
+    name: Ubuntu x86_64 Artisan package (${{ matrix.profile }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [root, generated]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify standalone package, production migration and startup
+        run: |
+          bash .agents/project/scripts/test-artisan-release.sh "${{ matrix.profile }}" \
+            "$RUNNER_TEMP/openrust-artisan-evidence"
+      - name: Upload package acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-x86-64-artisan-${{ matrix.profile }}
+          path: ${{ runner.temp }}/openrust-artisan-evidence/
           retention-days: 7

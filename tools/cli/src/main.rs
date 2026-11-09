@@ -24,7 +24,7 @@ mod deployment;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod dev_watch;
 mod package_discovery;
-mod release;
+use cli::release;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -1932,7 +1932,7 @@ fn append_application_features(
     } else {
         manifest.push_str("\n[features]\n");
     }
-    manifest.push_str("translation-database = [\"dep:openrust-translation-database\"]\n");
+    manifest.push_str("source-artisan = [\"dep:cli\"]\ntranslation-database = [\"dep:openrust-translation-database\"]\n");
     if has_database {
         manifest
             .push_str("passport = [\"dep:openrust-passport\", \"openrust-migration/passport\"]\n");

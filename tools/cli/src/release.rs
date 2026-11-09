@@ -6,7 +6,11 @@ use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 use anyhow::{Context as _, bail};
+use clap::{CommandFactory as _, FromArgMatches as _};
 use openrust::config::{ConfigLoader, ENV_PREFIX};
+use openrust::console::Command as ConsoleCommand;
+use openrust::foundation::Application;
+use openrust::support::BoxFuture;
 use serde_json::Value;
 
 const INCOMPLETE: &str = ".openrust-build-incomplete";
@@ -22,9 +26,9 @@ const PACKAGE_ENTRIES: &[&str] = &[
     "bootstrap",
 ];
 
-/// 独立 CLI 的发布构建参数。
+/// 独立 CLI 与源码 Artisan 共用的发布构建参数。
 #[derive(Debug, clap::Args)]
-pub(super) struct BuildArgs {
+pub struct BuildArgs {
     /// 应用源码目录，默认使用当前目录。
     #[arg(long)]
     project_dir: Option<PathBuf>,
@@ -46,9 +50,16 @@ pub(super) struct BuildArgs {
 }
 
 impl BuildArgs {
-    pub(super) const ABOUT: &str = "构建应用发布目录，默认使用本机 Cargo。";
+    /// 命令列表与帮助中的构建说明。
+    pub const ABOUT: &str = "构建应用发布目录，默认使用本机 Cargo。";
 
-    pub(super) fn run(self) -> anyhow::Result<ExitCode> {
+    /// 从独立工具执行构建。
+    pub fn run(self) -> anyhow::Result<ExitCode> {
+        self.build(None)?;
+        Ok(ExitCode::SUCCESS)
+    }
+
+    fn build(self, selected_dotenv: Option<PathBuf>) -> anyhow::Result<()> {
         let project = self.project_dir.map_or_else(std::env::current_dir, Ok)?;
         let project = project.canonicalize().context("build_project_invalid")?;
         path_text(&project)?;
@@ -82,11 +93,14 @@ impl BuildArgs {
             }
             let artifacts = staging.join("artifacts");
             if self.docker {
-                let dotenv = ConfigLoader::application_dotenv_path(
-                    &project,
-                    ENV_PREFIX,
-                    self.env.as_deref(),
-                )?;
+                let dotenv = match selected_dotenv {
+                    Some(path) => path,
+                    None => ConfigLoader::application_dotenv_path(
+                        &project,
+                        ENV_PREFIX,
+                        self.env.as_deref(),
+                    )?,
+                };
                 build_docker(&project, &manifest, platform, &staging, &artifacts, &dotenv)?;
             } else {
                 build_native(
@@ -107,7 +121,92 @@ impl BuildArgs {
         }
         result?;
         writeln!(std::io::stdout().lock(), "{}", destination.display())?;
-        Ok(ExitCode::SUCCESS)
+        Ok(())
+    }
+}
+
+#[derive(clap::Parser)]
+#[command(name = "build", bin_name = "./artisan build", about = BuildArgs::ABOUT)]
+struct SourceBuildArgs {
+    #[command(flatten)]
+    build: BuildArgs,
+}
+
+impl SourceBuildArgs {
+    fn source_command() -> clap::Command {
+        Self::command()
+            .mut_arg("project_dir", |arg| arg.hide(true))
+            .help_template("{about-with-newline}用法：{usage}\n\n选项：\n{options}\n")
+            .disable_help_flag(true)
+            .arg(
+                clap::Arg::new("help")
+                    .short('h')
+                    .long("help")
+                    .action(clap::ArgAction::Help)
+                    .help("显示帮助信息并退出"),
+            )
+    }
+}
+
+/// 构建源项目的 Artisan 命令。
+pub struct SourceBuild;
+
+impl ConsoleCommand for SourceBuild {
+    fn name(&self) -> &'static str {
+        "build"
+    }
+
+    fn about(&self) -> &'static str {
+        BuildArgs::ABOUT
+    }
+
+    fn accepts_args(&self) -> bool {
+        true
+    }
+
+    fn render_help(&self) -> Option<String> {
+        Some(
+            SourceBuildArgs::source_command()
+                .render_long_help()
+                .to_string(),
+        )
+    }
+
+    fn run<'a>(
+        &'a self,
+        app: &'a Application,
+        args: Vec<String>,
+    ) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            let options = match SourceBuildArgs::source_command()
+                .try_get_matches_from(std::iter::once("build".to_owned()).chain(args))
+                .and_then(|matches| SourceBuildArgs::from_arg_matches(&matches))
+            {
+                Ok(options) => options.build,
+                Err(error) if error.kind() == clap::error::ErrorKind::DisplayHelp => {
+                    return error.print().map_err(|_| {
+                        openrust::Error::custom("build_help_failed", "无法输出构建帮助")
+                    });
+                }
+                Err(error) => {
+                    return Err(openrust::Error::custom(
+                        "invalid_build_arguments",
+                        error.to_string(),
+                    ));
+                }
+            };
+            if options.project_dir.is_some() {
+                return Err(openrust::Error::custom(
+                    "invalid_build_arguments",
+                    "源码构建始终在当前应用目录执行",
+                ));
+            }
+            let selected_dotenv = app.dotenv_path().map(Path::to_path_buf);
+            openrust::tokio::task::spawn_blocking(move || options.build(selected_dotenv))
+                .await
+                .map_err(|_| openrust::Error::custom("build_task_failed", "构建任务异常结束"))?
+                .map_err(|error| openrust::Error::custom("build_failed", error.to_string()))
+        })
     }
 }
 

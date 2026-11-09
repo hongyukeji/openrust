@@ -60,7 +60,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。该次验收使用 `bin/<项目名>`，现行布局见下方包根整改。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
 
-- **编译部署扩展发布矩阵。** 现行入口和实跑范围以[Artisan 与独立编译工具边界验收](memory/testing.md#artisan-与独立编译工具边界验收)为准。独立工具使用本机 Cargo 或显式 Docker 导出，应用二进制与 Artisan 同在包根。旧 `./artisan build` 的通过记录仅对应已撤销的入口。Linux 本机编译、原生 x86_64 发布包与其他支持环境按发布矩阵验收。Goravel 的交互式目标选择、静态链接及无 Docker 跨系统编译保留差距。独立 `openrust build` 属 Rust 编译工具扩展。Laravel 的应用部署流程按 L010.04/.05 单独验收，待核 `optimize` / `optimize:clear` 的子命令和默认缓存清理，以及 `reload` 的长驻进程优雅退出、监督重启与失败退出码。
+- **编译部署扩展发布矩阵。** 源码 `./artisan build` 与独立 `openrust build` 共用构建工具。原生 Ubuntu x86_64 根和生成 MySQL 的打包、生产迁移和启动见[源码 Artisan 与 Ubuntu x86_64 发布验收](memory/testing.md#源码-artisan-与-ubuntu-x86_64-发布验收)。Laravel 部署优化和重载按 L010.04/.05 单独验收。
+
+  - **Goravel 构建体验对照。** 参考固定 [Goravel BuildCommand](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/console/console/build_command.go) 和[编译指南](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md)。独立 OpenRust CLI 保持本机默认与非交互目标选择。首批明确 Apple Silicon 到 Ubuntu x86_64 的 `openrust build --docker --platform linux/amd64`、环境参数、产物路径与不支持组合的失败行为，分别核对目标机实跑和本机编译证据。
+  - 在原生 Ubuntu x86_64 运行 Apple Silicon 经 Docker 导出的包。Windows 原生包及 `<项目名>.exe artisan` 另行验收。
+  - 无 Docker 交叉编译与静态链接分别核 Rust target、链接器、原生依赖和目标机运行结果。若引入 `--os/--arch` 仅作为同一平台参数的入口，保持单一构建路径。Laravel Artisan 继续从应用命令表解析，应用自定义 `build` 沿现有公开扩展运行。
 
 - **L010.07 应用健康诊断。** 根与生成骨架的 `/up`、诊断事件、HTML/JSON 协商、生产/调试错误路径和真实 Redis 上的搬迁产物已通过[限定验收](memory/testing.md#应用健康路由限定验收)。维护模式路径豁免及 `route:cache` 仍随各自契约验收。
 - **L010.04/.05 依赖。** `cache:clear` 需先落实默认 Redis 缓存和队列连接隔离。根与生成配置的 cache DB 1 和 queue DB 0 隔离已通过[真实 Redis 验收](memory/testing.md#redis-缓存与队列默认库限定验收)。共享 URL 显式选择同库仍有效，后续清理须区分默认隔离和显式同库。`Cache::flush` 与具名 store 全量清理已通过[限定验收](memory/testing.md#缓存存储全量清理限定验收)，专用 Redis 复核所选物理库和另一库的数据隔离。Redis 全库清理会重置该库的 tag generation，跨清理的后台 loader 回填边界随 tag 清理契约复核。命令的事件、tags、locks、禁止执行和退出状态仍待对应。事件、路由与视图缓存分别落地后再组合优化命令。重载依赖 worker 与 scheduler 从共享缓存观察信号、完成在途工作并正常退出，再对照 Provider 贡献和跳过规则。
@@ -82,6 +86,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 ## Query 剩余对应
 
 - DB-COMPAT：owner=root协调，目标MariaDB 10.3+、MySQL 5.7+、PostgreSQL 10.0+、SQLite 3.26.0+、SQL Server 2017+，详见[兼容基线](plans/database-compatibility-baseline.md)。当前vendor/openrust/framework/src/database/mod.rs仍PG14/MySQL8拒绝阈值，MariaDB/SQL Server及旧版SQL/驱动差异未闭合；先逐项对应生产链，不只降阈值。日常仅MySQL8.4，其他类型/最低版完整运行转发布前，不能扩当前C07或推迟AR-P01。
+- **SQLite 捆绑库安全公告。** 远端在线依赖门禁报告 RUSTSEC-2026-0459／CVE-2026-119375，当前锁定的 `libsqlite3-sys` 0.37 落在受影响范围。跟踪 SQLx 与 rusqlite 共用单一修复引擎，按当前及最低版政策验收，不放宽公告门禁。 [官方公告](https://github.com/advisories/GHSA-72w2-rjgg-q729)
 - SQLite 写目标发布验收：`9fb58bb3` 已将联表和限量 UPDATE/DELETE 接入固定 SQLiteGrammar 的 rowid 子查询语义，保留 rowid 遮蔽与 WITHOUT ROWID 原生边界。默认和日常 MySQL 组合、严格 Clippy、Rustdoc、依赖门禁、Web/JWT 生成回归与 SQLite 生成测试目标编译已通过；发布前须对当前 SQLite 和 3.26.0 各运行框架、示例、生成项目实库回归，含实际迁移。 发布矩阵命令见 `tmp/sqlite-write-v4-v8-review/review.md`，对应当前提交的日常证据见 `tmp/local-closeout-20261107/sqlite-write-after-j01-v9/COMMIT-RESULT.json`。
 
 - 完整FROM/跨连接、Query/ORM及官方五后端最终验收仍开放，不由before-query子簇关闭。冷PREPARE失败淘汰的限定事实及Cargo必要构建约束见[testing](memory/testing.md#mysql-冷预处理取消与连接淘汰限定验收)。升级/发布前核对应上游修复及patch实际生效，未证明任意网络阶段取消后同连接可复用。

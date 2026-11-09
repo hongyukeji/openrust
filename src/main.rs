@@ -15,5 +15,11 @@ mod modules;
 mod routes;
 
 fn main() -> std::process::ExitCode {
+    #[cfg(feature = "source-artisan")]
+    if std::env::var_os("OPENRUST_SOURCE_ARTISAN").is_some_and(|value| value == "1") {
+        return openrust::run_application_with_source_command::<bootstrap::Server>(
+            cli::release::SourceBuild,
+        );
+    }
     openrust::run_application::<bootstrap::Server>()
 }

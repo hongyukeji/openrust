@@ -4,7 +4,6 @@ use super::{
 };
 #[cfg(unix)]
 use super::{INCOMPLETE, validate_binary, validate_entries, validate_release};
-use crate::{Builtin, Cli};
 #[cfg(unix)]
 use anyhow::Context as _;
 use clap::Parser as _;
@@ -364,16 +363,18 @@ fn resource_copy_failure_keeps_the_marker_and_never_exposes_the_binary() -> anyh
     Ok(())
 }
 
+#[derive(clap::Parser)]
+#[command(name = "openrust build")]
+struct StandaloneBuildParser {
+    #[command(flatten)]
+    build: BuildArgs,
+}
+
 fn parse_build(args: &[&str]) -> anyhow::Result<BuildArgs> {
-    let cli = Cli::try_parse_from(
-        ["openrust", "build"]
-            .into_iter()
-            .chain(args.iter().copied()),
+    let cli = StandaloneBuildParser::try_parse_from(
+        ["openrust build"].into_iter().chain(args.iter().copied()),
     )?;
-    let Some(Builtin::Build(options)) = cli.command else {
-        anyhow::bail!("应分派到独立发布构建");
-    };
-    Ok(options)
+    Ok(cli.build)
 }
 
 #[test]
@@ -489,7 +490,7 @@ fn default_build_uses_cargo_without_compose_and_runs_the_named_package() -> anyh
 
 #[test]
 fn build_help_names_the_cli_and_documents_all_public_options() -> anyhow::Result<()> {
-    let Err(error) = Cli::try_parse_from(["openrust", "build", "--help"]) else {
+    let Err(error) = StandaloneBuildParser::try_parse_from(["openrust build", "--help"]) else {
         anyhow::bail!("帮助参数应提前退出");
     };
     assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
