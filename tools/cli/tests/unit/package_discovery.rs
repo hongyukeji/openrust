@@ -1,7 +1,24 @@
 //! 包发现只允许宿主能链接的声明进入候选 Rust 清单。
 
 use super::*;
+use clap::Parser as _;
 use serde_json::json;
+
+#[test]
+fn discovery_defaults_to_rebuild_and_modes_are_exclusive() {
+    for mode in [None, Some("--install"), Some("--preview"), Some("--check")] {
+        let args = ["openrust", "package:discover"].into_iter().chain(mode);
+        assert!(crate::Cli::try_parse_from(args).is_ok());
+    }
+    for modes in [
+        ["--install", "--preview"],
+        ["--install", "--check"],
+        ["--preview", "--check"],
+    ] {
+        let args = ["openrust", "package:discover"].into_iter().chain(modes);
+        assert!(crate::Cli::try_parse_from(args).is_err());
+    }
+}
 
 #[test]
 fn optional_features_respect_alias_activation_and_weak_forwarding() -> Result<()> {

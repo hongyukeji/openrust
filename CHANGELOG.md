@@ -15,6 +15,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 修复 `serve all` 在控制台终止事件之前关闭容器导致的正常停机失败。
 - 包清单记录 Cargo 来源，启动时按 Provider 依赖排序，并诊断跨包冲突、缺失依赖及循环。已有安装清单需重新生成 v2 格式。
 - 修复同名同版本的不同 Cargo 来源误入 Provider 清单，保留项目内显式补丁替换。
+- 源码应用可用 `./artisan package:discover` 重建 Provider 清单，并用 `--check` 只读校验。
 - Provider 领域贡献按类型共享。读取和修改扩展返回短期借用，`Application::exception_handler()` 返回拥有所有权的 Handler 快照。
 - HTTP 内核支持通过具名容器绑定 `middleware.disable` 在运行期切换应用中间件。
 - 容器支持按声明类型解析静态调用的依赖，并按命名入口分派静态方法绑定。

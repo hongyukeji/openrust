@@ -190,7 +190,7 @@ let descriptors = [
 
 运行 `./artisan clear-compiled` 可清除选定的服务清单和包清单。包清单路径默认是 `bootstrap/cache/packages.json`，可用 `APP_PACKAGES_CACHE` 覆盖。配置缓存由 `config:clear` 单独管理。 [Laravel ProviderRepository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L185)
 
-`openrust package:discover --preview` 输出 Provider 候选与 Facade 别名。`openrust package:discover --install` 为应用的 Cargo 目标和特性生成清单。普通构建校验清单输入，并通过 `ApplicationDefinition::package_providers` 把包 Provider 加入同一次应用启动。 [CLI 用法](../../../tools/cli/README.md#provider-包发现) · [Laravel PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)
+在应用源码目录运行 `./artisan package:discover`，为当前 Cargo 目标和应用特性重建清单。`--preview` 输出候选 Rust 源码和 Facade 别名，`--check` 只读校验已安装清单。普通构建校验清单输入，并通过 `ApplicationDefinition::package_providers` 把包 Provider 加入同一次应用启动。 [CLI 用法](../../../tools/cli/README.md#provider-包发现) · [Laravel PackageDiscoverCommand](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Console/PackageDiscoverCommand.php)
 
 包清单中的 `PackageProvider` 记录具体 Provider 及 Cargo 包来源。启动清单按框架默认项、发现包和显式应用项排列。注册前用 `ServiceProvider::dependencies()` 稳定排序包段。跨包的同一类型冲突会报告双方来源。显式清单的相对顺序及普通登记的同类型去重语义沿用原规则。 [Laravel Application](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Application.php#L821-L843)
 

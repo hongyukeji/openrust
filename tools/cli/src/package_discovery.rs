@@ -21,12 +21,8 @@ mod build_plan;
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct DiscoverArgs {
-    /// 仅将候选 Rust 源码写到标准输出。
-    #[arg(long, required_unless_present = "install", conflicts_with = "install")]
-    preview: bool,
-    /// 安装当前目标和应用特性的清单，供普通 Cargo 构建使用。
-    #[arg(long)]
-    install: bool,
+    #[command(flatten)]
+    mode: DiscoverMode,
     /// 指定 Cargo 目标，默认使用当前 Rust 工具链的宿主目标。
     #[arg(long)]
     target: Option<String>,
@@ -36,6 +32,20 @@ pub(crate) struct DiscoverArgs {
     /// 排除应用默认 Cargo 特性。
     #[arg(long)]
     no_default_features: bool,
+}
+
+#[derive(Debug, clap::Args)]
+#[group(multiple = false)]
+struct DiscoverMode {
+    /// 仅将候选 Rust 源码写到标准输出。
+    #[arg(long)]
+    preview: bool,
+    /// 显式重建当前清单，与不指定模式相同。
+    #[arg(long)]
+    install: bool,
+    /// 检查当前清单是否存在且与重新生成的内容一致。
+    #[arg(long)]
+    check: bool,
 }
 
 impl DiscoverArgs {
@@ -49,12 +59,7 @@ impl DiscoverArgs {
             .map_or_else(|| host_target(&project), Ok)
             .map_err(|error| anyhow::anyhow!(error.to_string()))?;
         let features = &self.features;
-        if self.install {
-            let installed = install(&project, &target, features, self.no_default_features)
-                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-            writeln!(io::stdout().lock(), "{}", installed.display())?;
-        } else {
-            debug_assert!(self.preview);
+        if self.mode.preview {
             let graph = cargo_graph(&project, &target, features, self.no_default_features)
                 .map_err(|error| anyhow::anyhow!(error.to_string()))?;
             let manifest = project.join("Cargo.toml");
@@ -73,6 +78,21 @@ impl DiscoverArgs {
             })()
             .map_err(|error| anyhow::anyhow!(error.to_string()))?;
             io::stdout().lock().write_all(source.as_bytes())?;
+        } else {
+            let (relative, contents) =
+                prepare_plan(&project, &target, features, self.no_default_features)
+                    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+            if !plan_matches(&project.join(&relative), contents.as_bytes())? {
+                if self.mode.install || !self.mode.check {
+                    write_plan(&project, &relative, contents.as_bytes())?;
+                } else {
+                    anyhow::bail!(
+                        "Provider 清单缺失或已过期（{}），请以相同目标和应用特性运行 package:discover 重建",
+                        relative.display()
+                    );
+                }
+            }
+            writeln!(io::stdout().lock(), "{}", relative.display())?;
         }
         Ok(ExitCode::SUCCESS)
     }
@@ -160,12 +180,12 @@ fn cargo_active_features(
         .collect())
 }
 
-fn install(
+fn prepare_plan(
     app: &Path,
     target: &str,
     features: &[String],
     no_default_features: bool,
-) -> Result<PathBuf> {
+) -> Result<(PathBuf, String)> {
     if target.contains(['/', '\\'])
         || Path::new(target)
             .extension()
@@ -216,21 +236,30 @@ fn install(
         return Err("生成期间 Cargo 包发现输入变化，请重新执行安装".into());
     }
 
-    let mut installed = format!("{}\n", build_plan::VERSION);
+    let mut contents = format!("{}\n", build_plan::VERSION);
     for (path, digest) in inputs {
-        writeln!(installed, "// {digest}\t{path}")?;
+        writeln!(contents, "// {digest}\t{path}")?;
     }
-    writeln!(installed, "{}\n{source}", build_plan::END_INPUTS)?;
+    writeln!(contents, "{}\n{source}", build_plan::END_INPUTS)?;
     let relative = build_plan::plan_path(target, profile);
-    let path = app.join(&relative);
-    if fs::read(&path).as_deref().ok() != Some(installed.as_bytes()) {
-        let parent = app.join(build_plan::DIRECTORY);
-        fs::create_dir_all(&parent)?;
-        let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
-        temporary.write_all(installed.as_bytes())?;
-        temporary.persist(path)?;
+    Ok((relative, contents))
+}
+
+fn plan_matches(path: &Path, expected: &[u8]) -> io::Result<bool> {
+    match fs::read(path) {
+        Ok(current) => Ok(current == expected),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
     }
-    Ok(relative)
+}
+
+fn write_plan(app: &Path, relative: &Path, contents: &[u8]) -> io::Result<()> {
+    let parent = app.join(build_plan::DIRECTORY);
+    fs::create_dir_all(&parent)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(contents)?;
+    temporary.persist(app.join(relative))?;
+    Ok(())
 }
 
 fn workspace_root(graph: &Value) -> Result<&Path> {

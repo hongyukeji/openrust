@@ -251,7 +251,9 @@ R2 默认配置目标为可编辑 `config/*.rs` 与部署 `.env`：dotenv 加载
 
 ### R2/R13 Provider 编译期发现 Spec
 
-状态：L044.02 已接入 CLI 预览和显式安装。普通构建按目标与应用特性校验并消费 v2 清单。包来源诊断和包段依赖排序接入同一 Provider 生命周期，模块 M016 继续复用。同名同版本依赖按直接 Cargo 来源或可证明的项目内显式 patch 关联，详见 [Cargo 来源关联限定验收](../memory/testing.md#cargo-来源关联限定验收)。项目外覆盖、配置 include、安装工作流和进一步的发现诊断仍开放。
+状态：L044.02 支持 CLI 和源码 Artisan 重建、预览和只读检查。普通构建按目标与应用特性校验并消费 v2 清单。包来源诊断和包段依赖排序接入同一 Provider 生命周期，模块 M016 继续复用。同名同版本依赖按直接 Cargo 来源或可证明的项目内显式 patch 关联，详见 [Cargo 来源关联限定验收](../memory/testing.md#cargo-来源关联限定验收)。项目外覆盖、配置 include 和进一步的发现诊断仍开放。
+
+固定 Laravel 骨架在 Composer 生成 autoload 后调用 `package:discover`。Rust 应用先用 Cargo 更新依赖，再从源码执行同名命令，应用构建脚本只在 `OUT_DIR` 生成编译输入。`--check` 可放入 CI，核对目标与特性组合的完整清单。 [Laravel 应用骨架](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/composer.json#L50-L53) · [Cargo 构建脚本输出](https://doc.rust-lang.org/cargo/reference/build-scripts.html#outputs-of-the-build-script)
 
 1. 当前[`bootstrap/app.rs`](../../../bootstrap/app.rs)显式把example descriptor加入ModuleManifest；[`module.rs`](../../../vendor/openrust/modules/src/module.rs)只选已编译描述、校验激活/依赖并稳定拓扑排序，[`ProviderBuilder`](../../../vendor/openrust/framework/src/foundation/provider.rs)合并并走register→boot。FileModuleActivator读取启用状态不等于包发现；现生成模板仍产显式清单，尚无任意依赖Provider自动发现能力。
 2. 目标链路：扩展公开声明Provider入口 → 宿主实际启用的直接依赖/本地模块，按当前target cfg/feature与构建目标过滤 → 确定性生成可编译Rust注册清单 → 复用现ModuleManifest/拓扑排序与唯一register→boot流水线。传递依赖不能凭锁图自动提升为宿主可引用入口，dev/build依赖与host/target必须区分；不运行目标二进制来发现类型。

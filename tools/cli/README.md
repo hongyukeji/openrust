@@ -67,7 +67,11 @@ cargo run -p cli -- g migration labels slug:string
 
 包在 `Cargo.toml` 的 `[package.metadata.openrust.discovery]` 中声明 `version = 1` 和 `providers = true`，并公开 `openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>>`。可用同一表下的 `aliases` 将 Rust 名称映射到包的公开路径，例如 `ExampleFacade = "facades::Example"`。应用或包的 `dont-discover` 接受 Cargo 包名列表，应用可用 `["*"]` 全部排除。预览依 Cargo 包名及编译库名给出稳定顺序，Rust 的 `cfg` 保留目标条件。
 
-准备应用的 `Cargo.lock` 后，运行 `openrust package:discover --install`，将清单写入 `bootstrap/packages/`。对每个部署目标和应用特性组合执行一次安装，并将清单随源码交付。普通 `cargo build` 和 `cargo run` 按实际目标与应用特性选取对应清单，将包 Provider 加入应用的启动清单。Facade 别名可从 `crate::bootstrap::packages::facades` 引用。首次安装前，应用继续使用显式登记的 Provider。
+使用 Cargo 添加、更新或移除依赖并更新 `Cargo.lock` 后，在应用源码目录运行 `./artisan package:discover` 或 `openrust package:discover`。命令重建 `bootstrap/packages/` 下的当前清单并输出相对路径。`--install` 可显式选择同一行为。对每个部署目标和应用特性组合执行一次，并将清单随源码交付。
+
+普通 `cargo build` 和 `cargo run` 按实际目标与应用特性选取对应清单，将包 Provider 加入应用的启动清单。Facade 别名可从 `crate::bootstrap::packages::facades` 引用。首次安装前，应用继续使用显式登记的 Provider。
+
+在 CI 使用相同参数运行 `./artisan package:discover --check`。命令重新计算预期清单，检查已安装内容是否一致。缺失或不一致时返回非零，清单保持原状。源码 `artisan` 直接调用 CLI，因此应用因旧清单而编译失败时仍可执行重建。
 
 清单用 `包名@版本 (Rust 依赖名)` 标记来源。包 Provider 仍位于框架默认项与应用项之间。按 `ServiceProvider::dependencies()` 在包段内排序时，每步选择最早可登记的项。包之间重复声明同一个 Provider 类型会同时报告双方来源。包依赖缺失、指向后置应用项或形成循环时，启动会在注册前拒绝。升级旧应用时，按当前模板更新构建辅助文件和 `ApplicationDefinition::package_providers` 的返回类型，再重新安装 v2 清单。
 

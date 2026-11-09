@@ -2133,3 +2133,13 @@ L044.02 按 Cargo 元数据的来源字段区分同名同版本依赖，保留 G
 fresh minimal 应用以 registry 依赖声明和本地补丁安装 Provider 清单。普通 Cargo check、23 项测试和实际 HTTP 200 通过。旧版或过期清单拒绝构建，跨包冲突拒绝启动且端口未开放。完整证据见 `tmp/lead-cargo-sources.xT55JQYD/delivery-receipt.json`。
 
 项目外 Cargo 覆盖、配置 `include` 与进一步的发现工作流仍按唯一 todo 推进。
+
+## Provider 清单重建与检查限定验收
+
+L044.02 对照固定 Laravel `PackageDiscoverCommand` 的无参数重建行为。源码 `./artisan package:discover` 使用独立 CLI，应用编译因清单失效时仍可重建。`--install` 复用同一入口，`--preview` 输出 Rust 源码，`--check` 比对同一目标与特性的完整预期内容。
+
+独立冻结树 `fca81499a2e4e22504e839292c6f1cb3c0586e73` 通过工作区格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 和离线依赖门禁。进程回归核对根源码及 PATH 中 CLI 的参数、退出码和 exec 语义，参数测试核对默认模式和模式互斥。
+
+根 Artisan 以默认与无默认特性分别重建和检查，输出不同清单路径，Cargo.lock 保持原字节。新生成 minimal 应用通过 41 个步骤和 23 项测试。只读检查遇缺失不建目录，遇过期保留文件字节和修改时间。普通构建拒绝过期清单后，源码 Artisan 只运行框架 CLI 即可恢复。包路由实际返回 HTTP 200，重复 Provider 阻止监听，移除依赖并更新锁后原路由返回 404，健康检查仍返回 200。
+
+证据见 `tmp/lead-package-workflow.qA4ZNuiu/delivery-receipt.json`。候选列表、排除原因、最终运行期顺序和项目外 Cargo 覆盖按唯一 todo 继续。

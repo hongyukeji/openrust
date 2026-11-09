@@ -162,6 +162,41 @@ fn source_artisan_dev_execs_cli_with_selected_environment() -> Result<()> {
 }
 
 #[test]
+fn source_artisan_discovery_uses_cli_without_building_the_application() -> Result<()> {
+    let fixture = Fixture::new()?;
+    let project = fixture.root.join("source project");
+    fs::create_dir_all(project.join("src"))?;
+    fs::write(project.join("Cargo.toml"), "")?;
+    fs::write(project.join("src/main.rs"), "")?;
+    write_executable(&project.join("artisan"), ARTISAN)?;
+    write_executable(&fixture.root.join("bin/openrust"), FAKE_APPLICATION)?;
+    let args = ["package:discover", "--check", "--features", "with-provider"];
+    fixture.assert_exec(&project, &args, "openrust", &args)?;
+
+    fs::create_dir_all(project.join("tools/cli"))?;
+    fs::write(project.join("tools/cli/Cargo.toml"), "")?;
+    fixture.assert_exec(
+        &project,
+        &args,
+        "cargo",
+        &[
+            "run",
+            "--quiet",
+            "--manifest-path",
+            "tools/cli/Cargo.toml",
+            "--bin",
+            "openrust",
+            "--locked",
+            "--",
+            "package:discover",
+            "--check",
+            "--features",
+            "with-provider",
+        ],
+    )
+}
+
+#[test]
 fn deployed_artisan_execs_adjacent_app_without_cargo() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("deployed project");
