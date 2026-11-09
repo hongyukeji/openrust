@@ -75,10 +75,73 @@ async fn generated_json_contains_preserves_owner_bindings_nulls_and_exact_write_
         let remaining=db.table("json_contains_records")?.order_by("id",SortDirection::Asc)?.get().await?;
         assert_eq!(remaining.len(),records.len()-1);
         for (row,(id,owner,payload)) in remaining.iter().zip(records.iter().filter(|(id,_,_)|*id!=3)) {assert_record(row,*id,*owner,payload)?;}
+        qualified_selectors_preserve_groups_and_write_targets(&db).await?;
         Ok(())
     }.await;
     let cleanup = database.close().await;
     outcome?;
     cleanup?;
+    Ok(())
+}
+
+async fn qualified_selectors_preserve_groups_and_write_targets(db: &Db) -> Result<()> {
+    let table = "json_contains_records";
+    let selector = "json_contains_records.payload->nested->tags";
+    let marker = "qualified selector";
+    for (id, owner, payload) in [
+        (11_i64, 7_i64, Some(json!({"nested":{"tags":["en","blocked"]}}))),
+        (12, 7, Some(json!({"nested":{"tags":["fr"]},"a'b ? $1":"needle"}))),
+        (13, 7, Some(json!({"nested":{"tags":["blocked"]}}))),
+        (14, 7, Some(json!({"nested":{}}))),
+        (15, 7, None),
+        (16, 8, Some(json!({"nested":{"tags":["fr"]}}))),
+    ] {
+        db.table(table)?
+            .insert(vec![
+                ("id", id.into()),
+                ("owner_id", owner.into()),
+                ("payload", Value::Json(payload.map(Box::new))),
+                ("label", marker.into()),
+                ("flag", 0_i64.into()),
+            ])
+            .await?;
+    }
+    let owner = || db.table(table)?.where_eq("owner_id", 7_i64)?.where_eq("label", marker);
+    let group = owner()?.where_nested(|group| {
+        group
+            .where_json_contains(selector, json!("en"))?
+            .or_where_json_contains(selector, json!("fr"))
+    })?;
+    assert_eq!(group.count().await?, 2);
+    assert_eq!(
+        owner()?
+            .where_json_contains("json_contains_records.payload->a'b ? $1", json!("needle"))?
+            .count()
+            .await?,
+        1
+    );
+    let negative = owner()?.where_json_doesnt_contain(selector, json!("blocked"))?;
+    assert_eq!(negative.update(vec![("flag", 4_i64.into())]).await?, 1);
+    assert_eq!(
+        db.table(table)?.where_eq("id", 12_i64)?.where_eq("flag", 4_i64)?.count().await?,
+        1
+    );
+    assert_eq!(
+        owner()?
+            .where_nested(|group| {
+                group
+                    .where_json_contains(selector, json!("en"))?
+                    .or_where_json_doesnt_contain(selector, json!("blocked"))
+            })?
+            .delete()
+            .await?,
+        2
+    );
+    let rows = db.table(table)?.where_eq("label", marker)?
+        .order_by("id", SortDirection::Asc)?.get().await?;
+    let remaining = rows.iter()
+        .map(|row| row.try_get::<i64>("", "id").map_err(Error::internal))
+        .collect::<Result<Vec<_>>>()?;
+    assert_eq!(remaining, [13, 14, 15, 16]);
     Ok(())
 }

@@ -574,11 +574,6 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
         self.transform(|state| state.or_where_eq(column, value))?;
         Ok(self)
     }
-    /// 添加当前后端支持的JSON包含条件。
-    pub fn where_json_contains(self, column: &str, value: serde_json::Value) -> Result<Self> {
-        self.transform(|state| state.where_json_contains(column, value))?;
-        Ok(self)
-    }
     /// 添加受信SQL片段与显式绑定。
     #[must_use]
     pub fn where_raw(self, sql: RawSql, bindings: Vec<Value>) -> Self {

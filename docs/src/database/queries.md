@@ -94,7 +94,7 @@ let rows = db.table("users")?
 
 ## JSON 包含
 
-`where_json_contains` 接受简单列名与 `serde_json::Value`，查找值始终作为参数绑定。PostgreSQL 将列转换为 `jsonb` 后使用包含操作符，MySQL 使用 `JSON_CONTAINS`。当前入口覆盖简单列的 AND 包含。路径、限定列和 OR/NOT 组合仍待实现。
+`where_json_contains` 接受列名、限定列或箭头路径，查找值使用 `serde_json::Value` 绑定。MySQL 把路径传给 `JSON_CONTAINS`，PostgreSQL 取出 JSON 节点并转换为 `jsonb` 后检查包含，SQLite 把路径传给 `json_each`。在查询和 `where_nested` 分组内都可用 `or_where_json_contains`、`where_json_doesnt_contain` 和 `or_where_json_doesnt_contain`。否定只作用于当前谓词。MySQL 与 PostgreSQL 中，缺失路径或 SQL `NULL` 得到未知值，否定仍不匹配；SQLite 中不存在可迭代元素时，否定的 `exists` 匹配。
 
 ```rust
 use openrust::{Db, Result};
@@ -102,17 +102,23 @@ use openrust::{Db, Result};
 pub async fn count_tagged(db: &Db, owner_id: i64) -> Result<u64> {
     db.table("records")?
         .where_eq("owner_id", owner_id)?
-        .where_json_contains("metadata", serde_json::json!({"tags":["typed"]}))?
+        .where_nested(|group| {
+            group
+                .where_json_contains("records.metadata->tags", serde_json::json!("typed"))?
+                .or_where_json_contains("records.metadata->labels", serde_json::json!("typed"))
+        })?
         .count()
         .await
 }
 ```
 
-SQLite 按固定 Laravel 的 `json_each` 和 `IS` 比较处理标量。例如将上例的查找值改为 `serde_json::json!("typed")`，即可匹配顶层数组中的对应字符串。整数直接绑定，布尔值绑定为 0 或 1，浮点及超出有符号 64 位范围的整数按固定 PDO 精度转换为文本。JSON `null` 可匹配文档中的 JSON 空值，SQL `NULL` 列没有可匹配项。SQLite 拒绝数组和对象查找值，确保相邻条件各自保留自己的绑定。
+SQLite 按固定 Laravel 的 `json_each` 和 `IS` 比较处理标量。整数直接绑定，布尔值绑定为 0 或 1，浮点及超出有符号 64 位范围的整数按固定 PDO 精度转换为文本。JSON `null` 可匹配文档中的 JSON 空值，SQL `NULL` 列没有可匹配项。SQLite 拒绝数组和对象查找值，确保相邻条件各自保留自己的绑定。
 
-SQLite JSON 查询的固定 Laravel 文档基线为 3.39.0+。连接器的总体最低目标仍为 3.26.0，旧版执行本查询需要引擎提供 JSON1。简单列名 `value` 或 `key` 可能与 `json_each` 的列名重叠，显式限定列的入口留待后续实现。 [固定 SQLite Grammar](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Database/Query/Grammars/SQLiteGrammar.php#L213-L229) · [固定 JSON 查询文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queries.md#json-where-clauses)
+SQLite JSON 查询的固定 Laravel 文档基线为 3.39.0+。连接器的总体最低目标仍为 3.26.0，旧版执行本查询需要引擎提供 JSON1。列名 `value` 或 `key` 与 `json_each` 同名时，使用 `records.value` 一类的限定列。路径选择器使用箭头和数组下标，沿用各数据库的 JSON 路径语法。 [固定 SQLite Grammar](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Database/Query/Grammars/SQLiteGrammar.php#L213-L229) · [固定 JSON 查询文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queries.md#json-where-clauses)
 
 唯一示例的记录列表用 `metadata_contains` 传入 URL 编码的 JSON 文本。MySQL 和 PostgreSQL 可查找 `{"tags":["typed"]}`，SQLite 可查找标量 `"typed"`。账户条件与包含条件始终组合，分页总数使用相同筛选。缺省和归一化后的空文本不筛选，非法 JSON、超过 4096 字符的文本或 SQLite 的结构化查找值返回字段验证错误。
+
+同一列表接受 `metadata_tag=typed`，以普通字符串查找 `metadata.tags` 或 `metadata.labels`。两个路径放在同一个 OR 分组中，账户条件作用于整个分组。
 
 ## 值区间与列区间
 

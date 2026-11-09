@@ -150,6 +150,7 @@ async fn metadata_filter_contract(
                 .is_some_and(|messages| !messages.is_empty())
         );
     }
+    metadata_tag_contract(app, owner_token, other_token, owner_id, other_id).await?;
     app.request(request(
         Method::DELETE,
         &format!("/api/example/records/{other_id}"),
@@ -161,15 +162,53 @@ async fn metadata_filter_contract(
     Ok(())
 }
 
+async fn metadata_tag_contract(
+    app: &TestApp<crate::bootstrap::Server>,
+    owner_token: &str,
+    other_token: &str,
+    owner_id: i64,
+    other_id: i64,
+) -> TestResult {
+    for (token, tag, page, total, expected) in [
+        (owner_token, "typed", 1, 1, Some(owner_id)),
+        (other_token, "typed", 1, 1, Some(other_id)),
+        (owner_token, "中文标签", 1, 1, Some(owner_id)),
+        (owner_token, "中文标签", 2, 1, None),
+        (owner_token, "' OR 1=1 --", 1, 0, None),
+    ] {
+        let uri = format!(
+            "/api/example/records?page={page}&per_page=1&metadata_tag={}",
+            encode_filter(tag)
+        );
+        let result = app
+            .request(request(Method::GET, &uri, Some(token), None)?)
+            .await?;
+        result.assert_status(StatusCode::OK)?;
+        let body: serde_json::Value = serde_json::from_slice(result.body())?;
+        assert_eq!(body["meta"]["total"], total);
+        let rows = body["data"].as_array().ok_or("tag page data missing")?;
+        assert_eq!(rows.len(), usize::from(expected.is_some()));
+        if let Some(id) = expected {
+            assert_eq!(rows[0]["id"], id);
+        }
+    }
+    Ok(())
+}
+
 fn metadata_uri(condition: &str, page: u64) -> String {
+    let encoded = encode_filter(condition);
+    format!("/api/example/records?page={page}&per_page=1&metadata_contains={encoded}")
+}
+
+fn encode_filter(value: &str) -> String {
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
-    let mut encoded = String::with_capacity(condition.len() * 3);
-    for byte in condition.bytes() {
+    let mut encoded = String::with_capacity(value.len() * 3);
+    for byte in value.bytes() {
         encoded.push('%');
         encoded.push(char::from(HEX[usize::from(byte >> 4)]));
         encoded.push(char::from(HEX[usize::from(byte & 15)]));
     }
-    format!("/api/example/records?page={page}&per_page=1&metadata_contains={encoded}")
+    encoded
 }
 
 #[tokio::test]
@@ -251,7 +290,7 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
     let payload = serde_json::json!({
         "name":"示例记录", "description":"字段类型完整演示", "priority":7, "view_count":42,
         "enabled":true, "published_at":"2026-10-29T12:00:00Z",
-        "metadata":{"source":"modules/example","tags":["typed","crud"],"备注":"数据"},
+        "metadata":{"source":"modules/example","tags":["typed","crud"],"labels":["中文标签"],"备注":"数据"},
         "category_id":category_id
     });
     let created = app

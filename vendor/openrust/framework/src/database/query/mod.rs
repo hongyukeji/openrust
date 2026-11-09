@@ -534,14 +534,6 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         Ok(self)
     }
 
-    /// 简单列 JSON 包含；SQLite 只接受标量查询值。
-    pub fn where_json_contains(mut self, column: &str, value: serde_json::Value) -> Result<Self> {
-        validate_identifier(column)?;
-        let predicate = json_contains::predicate(self.db.backend()?, column, value)?;
-        self.predicates = self.predicates.add(predicate);
-        Ok(self)
-    }
-
     /// 显式受信 SQL where 逃生口；动态值只能通过 `bindings` 传入。
     #[must_use]
     pub fn where_raw(mut self, sql: RawSql, bindings: Vec<Value>) -> Self {

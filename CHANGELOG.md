@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- JSON 包含条件支持限定列、箭头路径及 OR/NOT 变体。示例记录列表可按标签筛选，保留账户隔离。
+
 - `where_json_contains` 支持 SQLite 简单列与标量查找值，采用固定 Laravel/PDO 的绑定规则。
 
 - 源码 Artisan 的命令表登记 Linux 发布扩展 `build`。构建与帮助共用选项定义，支持命令前后的 `--env`，通过 Docker Buildx 导出发布目录。

@@ -73,6 +73,14 @@ pub(crate) async fn index(
                 }
             })?;
     }
+    if let Some(tag) = page.metadata_tag.as_deref() {
+        let tag = serde_json::json!(tag);
+        query = query.where_nested(|group| {
+            group
+                .where_json_contains("example_records.metadata->tags", tag.clone())?
+                .or_where_json_contains("example_records.metadata->labels", tag)
+        })?;
+    }
     let result = query
         .order_by("id", openrust::database::query::SortDirection::Asc)?
         .paginate_on(page.per_page, "page", page.page)

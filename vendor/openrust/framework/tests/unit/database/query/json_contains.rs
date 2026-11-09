@@ -1,8 +1,33 @@
 //! 旧PG模板丢失列与JSON绑定的纯AST反例，以及修复后的声明顺序和标识符边界。
 
 use super::*;
-use sea_orm::sea_query::{Asterisk, ExprTrait, MysqlQueryBuilder, PostgresQueryBuilder, Query};
+use sea_orm::sea_query::{
+    Alias, Asterisk, ExprTrait, MysqlQueryBuilder, PostgresQueryBuilder, Query,
+};
 use serde_json::json;
+
+pub(super) fn predicate(backend: DbBackend, column: &str, value: JsonValue) -> Result<Expr> {
+    selector_predicate(&selector_context(), backend, column, value, false)
+}
+
+pub(super) fn selector_context() -> QueryContext<'static> {
+    QueryContext {
+        db: super::super::Db::default(),
+        table: "users".into(),
+        transaction: None,
+    }
+}
+
+pub(super) fn selector_predicate(
+    context: &QueryContext<'_>,
+    backend: DbBackend,
+    selector: &str,
+    value: JsonValue,
+    not: bool,
+) -> Result<Expr> {
+    let (field, path) = json_field_and_path(context, selector)?;
+    super::predicate(backend, field, path, value, not)
+}
 
 #[test]
 fn old_postgres_question_template_leaves_sql_tokens_and_loses_both_expressions() {
@@ -87,12 +112,12 @@ fn mysql_statement_matches_original_expression() -> Result<()> {
 }
 
 #[test]
-fn column_injection_paths_and_qualified_names_are_rejected_without_expanding_scope() {
+fn invalid_identifiers_are_rejected_before_rendering_json_path() {
     for column in [
         "",
         "options); DROP TABLE users;--",
-        "users.options",
-        "options->languages",
+        "users..options->languages",
+        "users.options; DROP TABLE users->languages",
         "非法列",
     ] {
         assert!(

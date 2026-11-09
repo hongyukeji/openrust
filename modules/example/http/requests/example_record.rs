@@ -33,6 +33,8 @@ pub(crate) struct ExampleRecordPage {
     pub(crate) per_page: u64,
     #[serde(default)]
     pub(crate) metadata_contains: Option<String>,
+    #[serde(default)]
+    pub(crate) metadata_tag: Option<String>,
 }
 
 const fn default_page() -> u64 {
@@ -100,6 +102,14 @@ impl Validate for ExampleRecordPage {
                     Rule::nullable(),
                     Rule::string(),
                     Rule::length(None, Some(4096)),
+                ],
+            )
+            .field(
+                "metadata_tag",
+                [
+                    Rule::nullable(),
+                    Rule::string(),
+                    Rule::length(None, Some(160)),
                 ],
             )
     }

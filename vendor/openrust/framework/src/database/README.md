@@ -8,7 +8,7 @@ Query Builder 的 `r#where`／`where_compare` 及 OR／条件组入口支持默�
 
 `where_any`／`where_all`／`where_none` 及 OR 变体通过 `MultiComparison` 区分省略、等值和显式比较，列闭包与可重复右值保留官方分派顺序。空 FROM 查询、逻辑表名 `from` 与受控 `select_raw` 复用同一执行及投影管线；原始 SQL 的完整会话模式与版本感知仍有明确边界。
 
-`where_json_contains` 对简单列绑定查找值。PostgreSQL 将列转换为 `jsonb`，MySQL 使用 `JSON_CONTAINS`，SQLite 使用 `json_each` 和按 PDO 类型转换的标量参数。示例记录列表可按 `metadata` 筛选，保留所有者条件与分页总数。SQLite 版本和标量语义见[JSON 包含](../../../../../docs/src/database/queries.md#json-包含)。路径、限定列和 OR/NOT 组合仍开放。
+`where_json_contains` 绑定查找值，支持列名、限定列和箭头路径。查询及嵌套组都可使用 OR 和 NOT 变体。PostgreSQL 用 `jsonb` 包含操作符，MySQL 用 `JSON_CONTAINS`，SQLite 用 `json_each` 和按 PDO 类型转换的标量参数。示例按两个标签路径组合 OR，同时保留所有者条件与分页总数。见 [JSON 包含](../../../../../docs/src/database/queries.md#json-包含)。
 
 ## 通用能力、驱动与连接
 

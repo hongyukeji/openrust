@@ -1,7 +1,7 @@
 //! 固定 SQLite JSON 包含语法与 PDO 标量绑定回归。
 
-use super::*;
-use sea_orm::sea_query::{Asterisk, ExprTrait, Query, SqliteQueryBuilder};
+use super::{DbBackend, Expr, Result, Value, tests::predicate};
+use sea_orm::sea_query::{Alias, Asterisk, ExprTrait, Query, SqliteQueryBuilder};
 use serde_json::json;
 
 #[test]

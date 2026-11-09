@@ -344,7 +344,8 @@ fn path_segment(segment: &str) -> (&str, Vec<&str>) {
             indices.push(&index[..end]);
             rest = &index[end + 1..];
         }
-        if rest.is_empty() {
+        // PCRE 的 $ 也匹配单个末尾换行前的位置。
+        if rest.is_empty() || rest == "\n" {
             return (&segment[..start], indices);
         }
     }
@@ -363,6 +364,95 @@ fn pg_integer_attribute(value: &str) -> bool {
 fn sql_path_quote(value: &str) -> String {
     format!("E'{}'", value.replace('\\', "\\\\").replace('\'', "''"))
 }
+pub(super) fn json_field_and_path<'selector>(
+    context: &QueryContext<'_>,
+    selector: &'selector str,
+) -> Result<(Expr, Option<&'selector str>)> {
+    // 只拆字段与路径。路径中的空格及 " as " 仍属于 JSON 键。
+    let (field, path) = selector
+        .split_once("->")
+        .map_or((selector, None), |(field, path)| (field, Some(path)));
+    let (field, _, _) = ColumnOperand::from(field).expressions(context)?;
+    Ok((field, path))
+}
+
+pub(super) fn pg_json_path_template(path: Option<&str>, terminal_text: bool) -> String {
+    let mut attributes = Vec::new();
+    for segment in path.into_iter().flat_map(|path| path.split("->")) {
+        let (key, indices) = path_segment(segment);
+        if indices.is_empty() {
+            attributes.push(segment);
+        } else {
+            if !key.is_empty() {
+                attributes.push(key);
+            }
+            attributes.extend(indices);
+        }
+    }
+    let last = attributes.len().saturating_sub(1);
+    let mut template = "$1".to_owned();
+    for (index, attribute) in attributes.into_iter().enumerate() {
+        template.push_str(if index == last && terminal_text {
+            "->>"
+        } else {
+            "->"
+        });
+        template.push_str(&if pg_integer_attribute(attribute) {
+            attribute.to_owned()
+        } else {
+            sql_path_quote(attribute)
+        });
+    }
+    template
+}
+
+pub(super) fn native_json_path_literal(path: Option<&str>) -> String {
+    let mut rendered = String::from("$");
+    for (index, segment) in path
+        .into_iter()
+        .flat_map(|path| path.split("->"))
+        .enumerate()
+    {
+        let (key, indices) = path_segment(segment);
+        if (!key.is_empty() && key != "0") || indices.is_empty() {
+            rendered.push('.');
+            rendered.push('"');
+            rendered.push_str(key);
+            rendered.push('"');
+        } else if index != 0 {
+            rendered.push('.');
+        }
+        for index in indices {
+            rendered.push('[');
+            rendered.push_str(index);
+            rendered.push(']');
+        }
+    }
+    // 固定wrapJsonPath把紧贴单引号的反斜线一起替换，保留其它路径字符。
+    let mut literal = String::from("'");
+    let mut backslashes = 0;
+    for character in rendered.chars() {
+        if character == '\\' {
+            backslashes += 1;
+            continue;
+        }
+        if character == '\'' {
+            literal.push_str("''");
+        } else {
+            for _ in 0..backslashes {
+                literal.push('\\');
+            }
+            literal.push(character);
+        }
+        backslashes = 0;
+    }
+    for _ in 0..backslashes {
+        literal.push('\\');
+    }
+    literal.push('\'');
+    literal
+}
+
 fn json_selector(
     context: &QueryContext<'_>,
     selector: &str,
@@ -370,81 +460,18 @@ fn json_selector(
     boolean: bool,
     null: bool,
 ) -> Result<Expr> {
-    let mut parts = selector.split("->");
-    let field = parts.next().ok_or_else(super::invalid_identifier)?;
-    let (field, _, _) = ColumnOperand::from(field).expressions(context)?;
-    let segments = parts.collect::<Vec<_>>();
+    let (field, path) = json_field_and_path(context, selector)?;
     if backend == DbBackend::Postgres {
-        let mut attributes = Vec::new();
-        for segment in segments {
-            let (key, indices) = path_segment(segment);
-            if indices.is_empty() {
-                attributes.push(segment);
-            } else {
-                if !key.is_empty() {
-                    attributes.push(key);
-                }
-                attributes.extend(indices);
-            }
-        }
-        let last = attributes.len().saturating_sub(1);
-        let mut template = "$1".to_owned();
-        for (index, attribute) in attributes.into_iter().enumerate() {
-            template.push_str(if index == last && !boolean {
-                "->>"
-            } else {
-                "->"
-            });
-            template.push_str(&if pg_integer_attribute(attribute) {
-                attribute.to_owned()
-            } else {
-                sql_path_quote(attribute)
-            });
-        }
-        if boolean {
-            template = format!("({template})::jsonb");
-        }
+        let template = pg_json_path_template(path, !boolean);
+        let template = if boolean {
+            format!("({template})::jsonb")
+        } else {
+            template
+        };
         Ok(Expr::cust_with_expr(template, field))
     } else {
-        let mut path = String::from("$");
-        for (index, segment) in segments.into_iter().enumerate() {
-            let (key, indices) = path_segment(segment);
-            if (!key.is_empty() && key != "0") || indices.is_empty() {
-                path.push('.');
-                path.push('"');
-                path.push_str(key);
-                path.push('"');
-            } else if index != 0 {
-                path.push('.');
-            }
-            for index in indices {
-                path.push('[');
-                path.push_str(index);
-                path.push(']');
-            }
-        }
-        // 固定wrapJsonPath把紧贴单引号的反斜线一起替换，保留其它路径字符。
-        let mut escaped = String::new();
-        let mut backslashes = 0;
-        for character in path.chars() {
-            if character == '\\' {
-                backslashes += 1;
-                continue;
-            }
-            if character == '\'' {
-                escaped.push_str("''");
-            } else {
-                for _ in 0..backslashes {
-                    escaped.push('\\');
-                }
-                escaped.push(character);
-            }
-            backslashes = 0;
-        }
-        for _ in 0..backslashes {
-            escaped.push('\\');
-        }
-        let extract = format!("json_extract(?, '{escaped}')");
+        let path = native_json_path_literal(path);
+        let extract = format!("json_extract(?, {path})");
         let template = if backend == DbBackend::MySql && !boolean && !null {
             format!("json_unquote({extract})")
         } else {
