@@ -78,14 +78,15 @@ pub trait ApplicationEncrypter: Send + Sync {
 ///
 /// 由 [`super::EncryptionServiceProvider`] 延迟装配。新密文使用当前应用密钥；
 /// 解密依次尝试当前和历史密钥，均受同一 cipher 约束。
-pub struct ConfiguredEncrypter {
+pub struct Encrypter {
     cipher: AppCipher,
     key: Zeroizing<Vec<u8>>,
     previous_keys: Vec<Zeroizing<Vec<u8>>>,
 }
 
-impl ConfiguredEncrypter {
-    pub(crate) fn from_config(config: AppConfig) -> Result<Self> {
+impl Encrypter {
+    /// 从应用配置构造加密器，立即校验当前密钥、算法和全部历史密钥。
+    pub fn from_config(config: AppConfig) -> Result<Self> {
         // 先接管本次配置快照中的每个临时密钥，任一校验提前返回都要清理其余值。
         let key = config.key.map(Zeroizing::new);
         let previous_keys: Vec<_> = config
@@ -181,7 +182,7 @@ pub(crate) fn decrypt_cookie_value(
     Ok(bool::from(valid).then(|| value.to_vec()))
 }
 
-impl ApplicationEncrypter for ConfiguredEncrypter {
+impl ApplicationEncrypter for Encrypter {
     fn encrypt_string(&self, plaintext: &[u8]) -> Result<String> {
         Self::encrypt_string(self, plaintext)
     }
@@ -230,10 +231,10 @@ fn cookie_prefix(name: &str, key: &[u8]) -> [u8; COOKIE_PREFIX_BYTES] {
     prefix
 }
 
-impl fmt::Debug for ConfiguredEncrypter {
+impl fmt::Debug for Encrypter {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("ConfiguredEncrypter")
+            .debug_struct("Encrypter")
             .field("previous_key_count", &self.previous_keys.len())
             .finish_non_exhaustive()
     }

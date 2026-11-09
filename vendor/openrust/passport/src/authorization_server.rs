@@ -7,7 +7,7 @@ use base64::{
     engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig},
 };
 use openrust::{
-    encryption::Encrypter,
+    encryption::ContextualEncrypter,
     hashing::{HashManager, HashOptions},
 };
 
@@ -64,7 +64,7 @@ impl AuthorizationServer {
         repository: Arc<dyn GrantStorage>,
         hashing: Arc<HashManager>,
         signer: Arc<OAuthAccessSigner>,
-        encryption: Arc<Encrypter>,
+        encryption: Arc<ContextualEncrypter>,
         scopes: ScopeRepository,
         config: GrantConfig,
     ) -> Self {

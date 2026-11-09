@@ -124,7 +124,7 @@ fn fixture(
     let model = factory.new_from_builder(attributes)?;
     let client = ClientSnapshot::capture(model.as_ref())?;
     let store = Arc::new(ControlledStore::new(errors));
-    let encryption = Arc::new(Encrypter::new(EncryptionConfig::new(
+    let encryption = Arc::new(ContextualEncrypter::new(EncryptionConfig::new(
         "fixture",
         [(
             "fixture".to_owned(),

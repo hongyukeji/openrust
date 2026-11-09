@@ -12,7 +12,7 @@ use openrust::{
     config::repository::SectionSchema,
     container::Resolver,
     database::{DatabaseServiceProvider, Databases},
-    encryption::{Encrypter, EncryptionServiceProvider},
+    encryption::{ContextualEncrypter, EncryptionServiceProvider},
     foundation::{BootContext, ProviderId, RegisterContext},
     hashing::{HashManager, HashServiceProvider},
     support::{BoxFuture, ServiceProvider},
@@ -336,7 +336,7 @@ async fn register_grants(app: &mut RegisterContext<'_>) -> Result<()> {
                 let repository = resolver.resolve::<dyn GrantStorage>().await?;
                 let hashing = resolver.resolve::<HashManager>().await?;
                 let signer = resolver.resolve::<OAuthAccessSigner>().await?;
-                let encryption = resolver.resolve::<Encrypter>().await?;
+                let encryption = resolver.resolve::<ContextualEncrypter>().await?;
                 let scopes = resolver.resolve::<ScopeRepository>().await?;
                 let config = resolver.resolve::<GrantConfig>().await?;
                 Ok(Arc::new(AuthorizationServer::new(

@@ -2,8 +2,8 @@ use super::*;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::json;
 
-fn encryptor(active: &str) -> crate::Result<crate::encryption::Encrypter> {
-    crate::encryption::Encrypter::new(crate::config::EncryptionConfig::new(
+fn encryptor(active: &str) -> crate::Result<crate::encryption::ContextualEncrypter> {
+    crate::encryption::ContextualEncrypter::new(crate::config::EncryptionConfig::new(
         active,
         [
             ("old".to_owned(), STANDARD.encode([7u8; 32])),

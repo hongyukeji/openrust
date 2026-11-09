@@ -2234,9 +2234,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 
 ## 加密与 Cookie 职责命名限定验收
 
-应用加密默认实现为 `ConfiguredEncrypter`，相关载荷、密钥和序列化错误码使用 `encryption_*`。默认 Cookie 保护使用 `CookieServiceProvider::new()`。读取固定 PHP 的四种 AES 载荷与轮换前的名称绑定 Cookie，错误 Cookie 名被拒绝；改名前由 `839f1b8a` 生成的上下文密文可读，错误上下文被拒绝。
+应用具体类型为 `Encrypter`。具名 `encrypter` 与类型化应用契约共享实例及装饰器。OR1 扩展使用 `ContextualEncrypter`，保留独立密钥环和认证上下文。固定 PHP 四种 AES 载荷、轮换前的名称绑定 Cookie 与旧 OR1 密文均可读取；错误 Cookie 名和错误上下文继续被拒绝。Cookie/Session/CSRF 回归核对同一应用装饰器。
 
-冻结树 `322da080b99caf36328b78e47affae8deca7947a` 通过 fmt、默认及启用 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试和拒警 Rustdoc，以及离线依赖检查。生成 Web/Fortify 和 JWT API 应用均通过 Cargo check 与真实 MySQL 测试。其余命名整改及发布前数据库矩阵继续开放。
+冻结树 `4b6eabb4b1d02a4cf2d7e9807f565a8b749b0fe8` 通过默认和 Session/Fortify/OIDC/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。新生成 Web/Fortify 与 JWT API 应用实库通过，公开 Encrypter 解开由具名服务写入的属性密文。外部 Keycloak 专项与完整加密契约继续开放。
 
 ## 日志职责命名限定验收
 

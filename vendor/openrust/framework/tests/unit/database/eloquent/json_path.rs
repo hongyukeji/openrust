@@ -329,13 +329,13 @@ async fn encrypted_paths_rewrite_full_plaintext_with_current_key_and_reject_bad_
         database::eloquent::{
             AsEncryptedArrayObject, AsEncryptedCollection, EncryptedCast, EncryptedCastKind,
         },
-        encryption::{ApplicationEncrypter, ConfiguredEncrypter},
+        encryption::{ApplicationEncrypter, Encrypter},
     };
     use std::sync::Arc;
     let old_key = "0123456789abcdef0123456789abcdef";
     let new_key = "abcdef0123456789abcdef0123456789";
     let make = |key: &str, previous_keys| {
-        ConfiguredEncrypter::from_config(AppConfig {
+        Encrypter::from_config(AppConfig {
             key: Some(key.into()),
             previous_keys,
             ..AppConfig::default()

@@ -14,13 +14,14 @@ use zeroize::Zeroizing;
 
 use crate::config::ConfigError;
 pub use crate::config::EncryptionConfig;
+use crate::container::ServiceKey;
 use crate::core::{Error, Result};
 
 mod application;
 mod application_payload;
 #[cfg(feature = "session")]
 pub(crate) use application::decrypt_xsrf_header;
-pub use application::{ApplicationEncrypter, ConfiguredEncrypter};
+pub use application::{ApplicationEncrypter, Encrypter};
 pub(crate) use application::{decrypt_cookie_value, encrypt_cookie_value};
 
 const ENVELOPE_VERSION: &str = "or1";
@@ -40,13 +41,13 @@ struct KeyRing {
     keys: BTreeMap<String, Aes256GcmSiv>,
 }
 
-/// 使用固定 AES-256-GCM-SIV 算法和可轮换密钥环的认证加密服务。
+/// 使用固定 AES-256-GCM-SIV 和可轮换密钥环的上下文认证加密服务。
 #[derive(Clone)]
-pub struct Encrypter {
+pub struct ContextualEncrypter {
     inner: Arc<KeyRing>,
 }
 
-impl Encrypter {
+impl ContextualEncrypter {
     /// 校验并加载当前加密密钥，以及仅用于解密的历史密钥。
     pub fn new(config: EncryptionConfig) -> Result<Self> {
         validate_key_id(&config.active_key_id)?;
@@ -189,10 +190,10 @@ impl Encrypter {
     }
 }
 
-impl std::fmt::Debug for Encrypter {
+impl std::fmt::Debug for ContextualEncrypter {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("Encryptor")
+            .debug_struct("ContextualEncrypter")
             .field("active_key_id", &self.inner.active_key_id)
             .field("key_count", &self.inner.keys.len())
             .field("keys", &"[REDACTED]")
@@ -228,16 +229,20 @@ impl crate::support::ServiceProvider for EncryptionServiceProvider {
                 app.singleton::<dyn ApplicationEncrypter, _>(|resolver| {
                     Box::pin(async move {
                         let config = resolver.section::<crate::config::AppConfig>("app")?;
-                        Ok(Arc::new(ConfiguredEncrypter::from_config(config)?)
+                        Ok(Arc::new(Encrypter::from_config(config)?)
                             as Arc<dyn ApplicationEncrypter>)
                     })
                 })
                 .await?;
             }
-            app.singleton::<Encrypter, _>(|resolver| {
+            app.alias(
+                ServiceKey::typed::<dyn ApplicationEncrypter>(),
+                ServiceKey::named("encrypter"),
+            )?;
+            app.singleton::<ContextualEncrypter, _>(|resolver| {
                 Box::pin(async move {
                     let config = resolver.section::<EncryptionConfig>("security.encryption")?;
-                    Ok(Arc::new(Encrypter::new(config)?))
+                    Ok(Arc::new(ContextualEncrypter::new(config)?))
                 })
             })
             .await

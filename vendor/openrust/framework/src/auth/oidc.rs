@@ -32,7 +32,7 @@ use crate::audit::{Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, D
 use crate::auth::{AuthFlows, LoginAttempt, Session, SessionStoreHandle};
 use crate::core::{Error, Result};
 use crate::database::{DatabaseTransaction, Db};
-use crate::encryption::Encrypter;
+use crate::encryption::ContextualEncrypter;
 use crate::http::{DependencyClient, HttpBody};
 use crate::support::BoxFuture;
 
@@ -1209,7 +1209,7 @@ impl std::fmt::Debug for ExternalIdentityLink {
 pub struct ExternalIdentityFlows {
     db: Db,
     auth: AuthFlows,
-    encryptor: Encrypter,
+    encryptor: ContextualEncrypter,
     providers: Arc<BTreeMap<String, Arc<dyn ExternalIdentityProvider>>>,
     audit: DatabaseAuditSink,
 }
@@ -1232,7 +1232,7 @@ impl ExternalIdentityFlows {
     pub fn new(
         db: Db,
         auth: AuthFlows,
-        encryptor: Encrypter,
+        encryptor: ContextualEncrypter,
         providers: impl IntoIterator<Item = Arc<dyn ExternalIdentityProvider>>,
     ) -> Result<Self> {
         auth.require_store(&db)?;
@@ -2639,7 +2639,7 @@ async fn record_external_logout(
 }
 
 async fn delete_external_session(
-    encryptor: &Encrypter,
+    encryptor: &ContextualEncrypter,
     db: &Db,
     sessions: &SessionStoreHandle,
     association_hash: &str,

@@ -25,7 +25,7 @@ use openrust::database::sea_orm::{
     ColumnTrait, Condition, EntityTrait, QueryFilter, sea_query::Expr,
 };
 #[cfg(feature = "encryption")]
-use openrust::encryption::Encrypter;
+use openrust::encryption::ContextualEncrypter;
 use openrust::events::Events;
 use openrust::http::Created;
 use openrust::http::Json;
@@ -252,7 +252,7 @@ pub(crate) async fn destroy(
 pub(crate) async fn put_private_note(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Inject(encryptor): Inject<Encrypter>,
+    Inject(encryptor): Inject<ContextualEncrypter>,
     Path(id): Path<i64>,
     Validated(Json(input)): Validated<Json<PrivateNoteInput>>,
 ) -> Result<Response> {
@@ -285,7 +285,7 @@ pub(crate) async fn put_private_note(
 pub(crate) async fn get_private_note(
     user: CurrentUser,
     Inject(db): Inject<Db>,
-    Inject(encryptor): Inject<Encrypter>,
+    Inject(encryptor): Inject<ContextualEncrypter>,
     Path(id): Path<i64>,
 ) -> Result<Response> {
     let model = article_rule()

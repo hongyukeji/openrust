@@ -141,7 +141,7 @@ impl Validate for CreatePost {
 
 `CookieResponseExt::with_cookie` / `with_cookies` 将 Cookie 对象附加到既有 `Json`、统一响应或其他响应；`without_cookie_named` 通过明确传入的工厂创建删除标记。业务仍使用现有响应与异常策略，不需要另一套正文协议。实际调用及路由见[唯一模块 Cookie Controller](../../../../../modules/example/http/controllers/cookie.rs)。
 
-`CookieServiceProvider::new()` 为 Router 提供保护计划。首个匹配的 Cookie 请求要求 `encryption` feature、已登记的 `Encrypter` 和有效密钥；条件不满足时拒绝请求，响应不附加 Cookie。显式替换 Provider 后，新建 Router 使用最新保护计划。已建 Router 继续使用构建时的计划。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
+`CookieServiceProvider::new()` 为 Router 提供保护计划。首个匹配的 Cookie 请求要求 `encryption` feature、已登记的应用加密契约和有效密钥。显式选择上下文保护时解析 `ContextualEncrypter`。条件不满足时拒绝请求，响应不附加 Cookie。显式替换 Provider 后，新建 Router 使用最新保护计划。已建 Router 继续使用构建时的计划。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
 
 工厂默认 path `/`、httpOnly=true、SameSite=Lax，domain 与 secure 未指定。有 Session 配置时读取最终共享配置；`with_cookie_config` 在对应 Provider boot 时覆盖，后续显式 overlay 按原 Provider 顺序生效，`with_factory` 仅覆盖 Cookie 工厂。最终配置冻结后才装配 Session 层，避免原生 Session 与 Cookie 工厂使用不同快照。当前 Session 自身默认 secure=true，不能据此声称所有 Session 默认已与上游完成对齐。
 

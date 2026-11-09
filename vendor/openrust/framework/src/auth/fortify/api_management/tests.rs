@@ -191,7 +191,7 @@ where
                 ("updated_at", now),
             ])
             .await?;
-        let encrypter = Encrypter::new(EncryptionConfig::new(
+        let encrypter = ContextualEncrypter::new(EncryptionConfig::new(
             "test",
             BTreeMap::from([("test".into(), KEY.into())]),
         ))?;

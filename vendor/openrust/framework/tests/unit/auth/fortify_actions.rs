@@ -3,7 +3,7 @@
 use super::*;
 use crate::auth::Authenticatable;
 use crate::auth::GenericUser;
-use crate::encryption::ConfiguredEncrypter;
+use crate::encryption::Encrypter;
 use crate::events::EventsServiceProvider;
 use crate::foundation::ProviderBuilder;
 use crate::support::BoxFuture;
@@ -150,7 +150,7 @@ impl TwoFactorAuthenticationProvider for Provider {
     }
 }
 fn encryptor(byte: u8) -> Result<Arc<dyn ApplicationEncrypter>> {
-    Ok(Arc::new(ConfiguredEncrypter::from_config(
+    Ok(Arc::new(Encrypter::from_config(
         crate::config::AppConfig {
             key: Some(format!("base64:{}", STANDARD.encode([byte; 32]))),
             ..crate::config::AppConfig::default()
@@ -783,7 +783,7 @@ async fn fortify_actions_use_application_encrypter_for_persisted_fields() -> Res
         assert_ne!(&*decoded, &*expected);
 
         let obsolete =
-            crate::encryption::Encrypter::new(crate::encryption::EncryptionConfig::new(
+            crate::encryption::ContextualEncrypter::new(crate::encryption::EncryptionConfig::new(
                 "test",
                 std::collections::BTreeMap::from([("test".into(), STANDARD.encode([b'A'; 32]))]),
             ))?;

@@ -1546,7 +1546,7 @@ async fn serve_keycloak_api_node(
     use openrust::database::DatabaseRateLimitStore;
     use openrust::database::DatabaseTableNames;
     use openrust::database::Db;
-    use openrust::encryption::Encrypter;
+    use openrust::encryption::ContextualEncrypter;
 
     let names = DatabaseTableNames::new(prefix, BTreeMap::new())?;
     let raw = openrust::database::sea_orm::Database::connect(database_url).await?;
@@ -1582,7 +1582,7 @@ async fn serve_keycloak_api_node(
         passwords.clone(),
     );
     let encryption_key = STANDARD.encode([0xa8_u8; 32]);
-    let encryptor = Encrypter::new(EncryptionConfig::new(
+    let encryptor = ContextualEncrypter::new(EncryptionConfig::new(
         "keycloak-test-key",
         BTreeMap::from([("keycloak-test-key".to_owned(), encryption_key)]),
     ))?;
@@ -1884,7 +1884,7 @@ async fn create_logout_app(
     use openrust::database::DatabaseRateLimitStore;
     use openrust::database::DatabaseTableNames;
     use openrust::database::Db;
-    use openrust::encryption::Encrypter;
+    use openrust::encryption::ContextualEncrypter;
 
     let names = DatabaseTableNames::new(prefix, BTreeMap::new())?;
     let database = openrust::testing::TestDatabase::create_with_table_names::<KeycloakMigrator>(
@@ -1925,7 +1925,7 @@ async fn create_logout_app(
         passwords.clone(),
     );
     let key = STANDARD.encode([0xa8_u8; 32]);
-    let encryptor = Encrypter::new(EncryptionConfig::new(
+    let encryptor = ContextualEncrypter::new(EncryptionConfig::new(
         "keycloak-test-key",
         BTreeMap::from([("keycloak-test-key".to_owned(), key)]),
     ))?;

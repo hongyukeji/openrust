@@ -12,7 +12,7 @@ async fn configured_provider_resolves_ordered_keys_and_rejects_invalid_history_o
     let new_key = "fedcba9876543210";
     let first_history_key = "unrelated-key-00";
     let with_single_key = |key: &str| {
-        ConfiguredEncrypter::from_config(crate::config::AppConfig {
+        Encrypter::from_config(crate::config::AppConfig {
             key: Some(key.to_owned()),
             cipher: "AES-128-CBC".to_owned(),
             ..crate::config::AppConfig::default()
@@ -55,7 +55,7 @@ async fn configured_provider_resolves_ordered_keys_and_rejects_invalid_history_o
             assert_eq!(service.decrypt_string(&new_wire)?, b"new");
             let same = runtime
                 .container()
-                .resolve::<dyn ApplicationEncrypter>()
+                .resolve_key::<dyn ApplicationEncrypter>(ServiceKey::named("encrypter"))
                 .await?;
             assert!(Arc::ptr_eq(&service, &same));
         } else {
@@ -82,7 +82,7 @@ impl ServiceProvider for Rotate {
 async fn provider_uses_overlay_key_and_decrypts_old_key() -> Result<()> {
     let old = STANDARD.encode([1u8; 32]);
     let new = STANDARD.encode([2u8; 32]);
-    let prior = Encrypter::new(EncryptionConfig::new(
+    let prior = ContextualEncrypter::new(EncryptionConfig::new(
         "old",
         BTreeMap::from([("old".into(), old.clone())]),
     ))?;
@@ -95,10 +95,10 @@ async fn provider_uses_overlay_key_and_decrypts_old_key() -> Result<()> {
         .provider(Rotate)
         .provider(EncryptionServiceProvider);
     let runtime = providers.start(sources).await?;
-    let service = runtime.container().resolve::<Encrypter>().await?;
+    let service = runtime.container().resolve::<ContextualEncrypter>().await?;
     assert!(service.encrypt(b"next")?.starts_with("or1.new."));
     assert_eq!(service.decrypt(&ciphertext)?, b"message");
-    let same = runtime.container().resolve::<Encrypter>().await?;
+    let same = runtime.container().resolve::<ContextualEncrypter>().await?;
     assert!(Arc::ptr_eq(&service, &same));
     runtime
         .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
@@ -116,7 +116,7 @@ async fn provider_rejects_missing_and_invalid_keys_without_secret_output() -> Re
         let runtime = providers
             .start(Figment::from(Serialized::defaults(source)))
             .await?;
-        let result = runtime.container().resolve::<Encrypter>().await;
+        let result = runtime.container().resolve::<ContextualEncrypter>().await;
         assert!(result.is_err());
         if let Err(error) = result {
             assert!(!format!("{error:?} {error}").contains("secret-sentinel"));

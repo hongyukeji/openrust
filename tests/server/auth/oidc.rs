@@ -51,7 +51,7 @@ use openrust::database::sea_orm::ConnectionTrait;
 use openrust::database::sea_orm::Statement;
 use openrust::database::sea_orm_migration::MigratorTrait;
 use openrust::database::sea_orm_migration::prelude::*;
-use openrust::encryption::Encrypter;
+use openrust::encryption::ContextualEncrypter;
 use openrust::session::SessionStore as _;
 use openrust::testing::TestDatabase;
 #[cfg(feature = "auth-fortify")]
@@ -299,7 +299,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         passwords.clone(),
     );
     let refresh = RefreshTokens::new(db.clone());
-    let encryptor = Encrypter::new(EncryptionConfig::new(
+    let encryptor = ContextualEncrypter::new(EncryptionConfig::new(
         "test-key",
         BTreeMap::from([("test-key".to_owned(), STANDARD.encode([0xa3_u8; 32]))]),
     ))?;
@@ -574,7 +574,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     }
     #[cfg(feature = "auth-fortify")]
     let cleanup_external = {
-        let encryption = Encrypter::new(EncryptionConfig::new("test-key", BTreeMap::from([("test-key".into(),STANDARD.encode([0xa3_u8;32]))])))?;
+        let encryption = ContextualEncrypter::new(EncryptionConfig::new("test-key", BTreeMap::from([("test-key".into(),STANDARD.encode([0xa3_u8;32]))])))?;
         let parts = web::Parts::new(db.clone(),std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?),encryption.clone(),auth.clone()).await?;
         ExternalIdentityFlows::new(db.clone(),parts.auth,encryption,[provider.clone() as Arc<dyn ExternalIdentityProvider>])?
     };
@@ -1081,7 +1081,7 @@ async fn verify_external_two_factor_completion(
     use openrust::auth::LoginAttempt;
 
     use openrust::auth::UserProvider as _;
-    let encryptor = Encrypter::new(EncryptionConfig::new(
+    let encryptor = ContextualEncrypter::new(EncryptionConfig::new(
         "test-key",
         BTreeMap::from([("test-key".into(), STANDARD.encode([0xa3_u8; 32]))]),
     ))?;

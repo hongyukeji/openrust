@@ -18,7 +18,7 @@ use openrust::auth::{AuthFlows, ExternalIdentityFlows, Session, SessionStoreHand
 use openrust::config::FrameworkConfig;
 use openrust::container::Scope;
 use openrust::database::Db;
-use openrust::encryption::Encrypter;
+use openrust::encryption::ContextualEncrypter;
 use openrust::foundation::ApplicationDefinition;
 use openrust::foundation::BootContext;
 use openrust::http::CookieServiceProvider;
@@ -42,13 +42,13 @@ pub(super) struct Parts {
     pub(super) users: Arc<DatabaseUserProvider>,
     db: Db,
     passwords: std::sync::Arc<openrust::hashing::HashManager>,
-    encryptor: Encrypter,
+    encryptor: ContextualEncrypter,
 }
 impl Parts {
     pub(super) async fn new(
         db: Db,
         passwords: std::sync::Arc<openrust::hashing::HashManager>,
-        encryptor: Encrypter,
+        encryptor: ContextualEncrypter,
         auth: AuthFlows,
     ) -> Result<Self> {
         let mut builder = openrust::foundation::ProviderBuilder::new();

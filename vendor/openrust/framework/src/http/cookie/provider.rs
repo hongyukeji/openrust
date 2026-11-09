@@ -100,7 +100,9 @@ impl CookieLayerPlan {
         let protection = match self.mode {
             ProtectionMode::Plain => Protection::Plain,
             ProtectionMode::Contextual => {
-                let encrypter = scope.resolve::<crate::encryption::Encrypter>().await?;
+                let encrypter = scope
+                    .resolve::<crate::encryption::ContextualEncrypter>()
+                    .await?;
                 Protection::Encrypted((*encrypter).clone())
             }
             ProtectionMode::NameBound => Protection::NameBound(

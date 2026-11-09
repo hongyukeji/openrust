@@ -5,7 +5,7 @@ use serde_json::Value;
 pub(crate) enum Protection {
     Plain,
     #[cfg(feature = "encryption")]
-    Encrypted(crate::encryption::Encrypter),
+    Encrypted(crate::encryption::ContextualEncrypter),
     #[cfg(feature = "encryption")]
     NameBound(std::sync::Arc<dyn crate::encryption::ApplicationEncrypter>),
 }

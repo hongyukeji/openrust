@@ -15,7 +15,7 @@ fn cookie_prefix_binds_nested_name_and_accepts_current_or_historical_key() -> Re
     );
     let make = |key: [u8; 32], previous_keys| {
         let key = String::from_utf8(key.to_vec()).map_err(Error::internal)?;
-        ConfiguredEncrypter::from_config(AppConfig {
+        Encrypter::from_config(AppConfig {
             key: Some(key),
             previous_keys,
             ..AppConfig::default()
@@ -54,7 +54,7 @@ fn cookie_prefix_binds_nested_name_and_accepts_current_or_historical_key() -> Re
 #[cfg(feature = "session")]
 #[test]
 fn xsrf_header_removes_prefix_after_authentication() -> Result<()> {
-    let encrypter = ConfiguredEncrypter::from_config(AppConfig {
+    let encrypter = Encrypter::from_config(AppConfig {
         key: Some("A".repeat(32)),
         ..AppConfig::default()
     })?;
@@ -79,11 +79,11 @@ fn xsrf_header_removes_prefix_after_authentication() -> Result<()> {
 
 #[test]
 fn serialized_string_uses_byte_lengths_and_authenticates_before_parsing() -> Result<()> {
-    let old = ConfiguredEncrypter::from_config(AppConfig {
+    let old = Encrypter::from_config(AppConfig {
         key: Some("B".repeat(32)),
         ..AppConfig::default()
     })?;
-    let reader = ConfiguredEncrypter::from_config(AppConfig {
+    let reader = Encrypter::from_config(AppConfig {
         key: Some("A".repeat(32)),
         previous_keys: vec!["B".repeat(32)],
         ..AppConfig::default()
@@ -133,7 +133,7 @@ fn parses_all_historical_keys_before_validating_their_lengths() -> Result<()> {
             previous_keys: vec!["short".to_owned(), missing.to_owned()],
             ..AppConfig::default()
         };
-        let Err(error) = ConfiguredEncrypter::from_config(config) else {
+        let Err(error) = Encrypter::from_config(config) else {
             return Err(Error::custom("test_expected_failure", "空历史密钥被接受"));
         };
         assert_eq!(error.code(), "encryption_app_key_missing");
@@ -170,14 +170,14 @@ fn reads_fixed_php_ciphertexts_with_rotated_keys() -> Result<()> {
             key: Some("n".repeat(key_len)),
             ..AppConfig::default()
         };
-        let current = ConfiguredEncrypter::from_config(config.clone())?;
+        let current = Encrypter::from_config(config.clone())?;
         assert!(current.decrypt_string(&profile.wire).is_err());
         config.previous_keys = vec!["o".repeat(key_len)];
-        let rotated = ConfiguredEncrypter::from_config(config)?;
+        let rotated = Encrypter::from_config(config)?;
         assert_eq!(rotated.decrypt_string(&profile.wire)?, b"persisted\0\xff");
     }
 
-    let rotated = ConfiguredEncrypter::from_config(AppConfig {
+    let rotated = Encrypter::from_config(AppConfig {
         cipher: "aes-128-cbc".to_owned(),
         key: Some("n".repeat(16)),
         previous_keys: vec!["o".repeat(16)],

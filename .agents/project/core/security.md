@@ -3,7 +3,7 @@
 > 更新：2026-10-26
 > 摘要：`encryption` feature 提供应用进程内 AES-256-GCM-SIV 加密与本地 key ring 轮换；不是 TLS、密码哈希或数据库备份加密的替代品。
 
-- 公开 API：`EncryptionConfig::new(active_key_id, keys)`、`EncryptionServiceProvider` 与 `Encrypter::{encrypt,decrypt,encrypt_with_context,decrypt_with_context}`。根 facade 的 `prelude` 重导出服务和插件。
+- 应用加密的具体类型为 `Encrypter`，由 `EncryptionServiceProvider` 按 `app.key`、`app.cipher` 和历史密钥延迟装配。具名 `encrypter` 与 `dyn ApplicationEncrypter` 解析同一单例。OR1 扩展使用 `ContextualEncrypter` 和 `EncryptionConfig::new(active_key_id, keys)`，维持独立密钥环。
 - 每把 Base64 key 必须解码为 32 bytes；key ID 为 1–64 个小写 ASCII 字母、数字、`_` 或 `-`；总 key 数 1–16，必须含 active key。所有配置错误与 `Debug` 输出均不暴露 key 值。
 - 每次加密使用 OS CSPRNG 的 96-bit nonce。`or1.<key_id>.<nonce-b64url-no-pad>.<ciphertext-tag-b64url-no-pad>` envelope 将格式版本、key ID 和最多 1 KiB 的调用者可信 context 绑定至 AAD；明文上限 1 MiB。解密只按 envelope key ID 查找，不试探所有 key。
 - active key 用于新密文，历史 key 只解密。轮换通过让所有实例同时加载新旧 key、切换 active key、由应用迁移数据并验证备份，最后手动退休旧 key；框架不热更新或自动重密文。

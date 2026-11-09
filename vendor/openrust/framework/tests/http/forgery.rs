@@ -968,6 +968,12 @@ async fn decorated_application_encryption_serves_cookie_and_xsrf() -> Result<()>
         .expect("decoded XSRF cookie");
     assert!(header.starts_with("wrapped."));
     let binding = app.state().resolve::<ApplicationCipher>().await?;
+    let named = app
+        .state()
+        .container()
+        .resolve_key::<ApplicationCipher>(openrust::container::ServiceKey::named("encrypter"))
+        .await?;
+    assert!(std::sync::Arc::ptr_eq(&binding, &named));
     assert!(binding.decrypt_string(&header)?.len() > 41);
     let stripped = header.strip_prefix("wrapped.").expect("decorated payload");
     for (value, status) in [

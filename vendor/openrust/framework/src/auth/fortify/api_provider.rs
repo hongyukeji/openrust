@@ -166,7 +166,9 @@ async fn register_management(app: &mut RegisterContext<'_>) -> Result<()> {
                 audit.require_management_store(api.authority.db())?;
                 actions = actions.with_api_management_audit(audit);
             }
-            let encrypter = resolver.resolve::<crate::encryption::Encrypter>().await?;
+            let encrypter = resolver
+                .resolve::<crate::encryption::ContextualEncrypter>()
+                .await?;
             let options = super::JwtApiFactorManagementOptions {
                 encrypter: (*encrypter).clone(),
                 guard: api.scope.guard.clone(),

@@ -15,7 +15,7 @@ fn config(active: &str, keys: &[(&str, u8)]) -> EncryptionConfig {
 
 #[test]
 fn encrypts_binary_and_empty_plaintext_and_generates_fresh_nonces() -> Result<()> {
-    let encryptor = Encrypter::new(config("current", &[("current", 7)]))?;
+    let encryptor = ContextualEncrypter::new(config("current", &[("current", 7)]))?;
     for plaintext in [&b"\0OpenRust\xff"[..], &b""[..]] {
         let first = encryptor.encrypt(plaintext)?;
         let second = encryptor.encrypt(plaintext)?;
@@ -27,7 +27,7 @@ fn encrypts_binary_and_empty_plaintext_and_generates_fresh_nonces() -> Result<()
 
 #[test]
 fn context_is_authenticated_and_must_come_from_the_caller() -> Result<()> {
-    let encryptor = Encrypter::new(config("current", &[("current", 7)]))?;
+    let encryptor = ContextualEncrypter::new(config("current", &[("current", 7)]))?;
     let ciphertext = encryptor.encrypt_with_context(b"pii", b"users.email:42")?;
     assert_eq!(
         encryptor.decrypt_with_context(&ciphertext, b"users.email:42")?,
@@ -45,17 +45,17 @@ fn context_is_authenticated_and_must_come_from_the_caller() -> Result<()> {
 
 #[test]
 fn key_rotation_writes_only_with_active_key_and_reads_old_ciphertexts() -> Result<()> {
-    let previous = Encrypter::new(config("old", &[("old", 3)]))?;
+    let previous = ContextualEncrypter::new(config("old", &[("old", 3)]))?;
     let legacy = previous.encrypt(b"existing value")?;
-    let all_keys = Encrypter::new(config("old", &[("old", 3), ("new", 9)]))?;
-    let rotated = Encrypter::new(config("new", &[("old", 3), ("new", 9)]))?;
+    let all_keys = ContextualEncrypter::new(config("old", &[("old", 3), ("new", 9)]))?;
+    let rotated = ContextualEncrypter::new(config("new", &[("old", 3), ("new", 9)]))?;
     assert_eq!(all_keys.decrypt(&legacy)?, b"existing value");
     assert_eq!(rotated.decrypt(&legacy)?, b"existing value");
     let current = rotated.encrypt(b"new value")?;
     assert!(current.starts_with("or1.new."));
     assert_eq!(rotated.decrypt(&current)?, b"new value");
     assert_eq!(
-        Encrypter::new(config("new", &[("new", 9)]))?
+        ContextualEncrypter::new(config("new", &[("new", 9)]))?
             .decrypt(&legacy)
             .err()
             .map(|e| e.code().to_owned()),
@@ -66,7 +66,7 @@ fn key_rotation_writes_only_with_active_key_and_reads_old_ciphertexts() -> Resul
 
 #[test]
 fn malformed_or_tampered_envelopes_fail_without_echoing_input() -> Result<()> {
-    let encryptor = Encrypter::new(config("current", &[("current", 7)]))?;
+    let encryptor = ContextualEncrypter::new(config("current", &[("current", 7)]))?;
     let ciphertext = encryptor.encrypt(b"secret plaintext")?;
     for malformed in [
         "or1.current.bad.bad",
@@ -109,7 +109,7 @@ fn rejects_bad_key_rings_and_redacts_configuration_debug() {
         ),
     ];
     for config in invalid {
-        assert!(Encrypter::new(config).is_err());
+        assert!(ContextualEncrypter::new(config).is_err());
     }
     let secret = key(42);
     let config = EncryptionConfig::new("current", [("current".to_owned(), secret.clone())].into());
@@ -118,7 +118,7 @@ fn rejects_bad_key_rings_and_redacts_configuration_debug() {
 
 #[test]
 fn rejects_oversized_inputs_before_encryption() -> Result<()> {
-    let encryptor = Encrypter::new(config("current", &[("current", 7)]))?;
+    let encryptor = ContextualEncrypter::new(config("current", &[("current", 7)]))?;
     assert_eq!(
         encryptor
             .encrypt(&vec![0_u8; MAX_PLAINTEXT_BYTES + 1])
@@ -159,8 +159,8 @@ fn known_aes_256_gcm_siv_vector_matches_rfc_8452() -> Result<()> {
 
 #[test]
 fn independent_encryptors_with_the_same_ring_can_decrypt_each_other() -> Result<()> {
-    let first = Encrypter::new(config("current", &[("current", 7)]))?;
-    let second = Encrypter::new(config("current", &[("current", 7)]))?;
+    let first = ContextualEncrypter::new(config("current", &[("current", 7)]))?;
+    let second = ContextualEncrypter::new(config("current", &[("current", 7)]))?;
     let envelope = first.encrypt(b"shared application data")?;
     assert_eq!(second.decrypt(&envelope)?, b"shared application data");
     Ok(())
@@ -170,7 +170,7 @@ fn independent_encryptors_with_the_same_ring_can_decrypt_each_other() -> Result<
 fn reads_contextual_ciphertext_from_before_the_rename() -> Result<()> {
     // 载荷由改名前的 839f1b8a 生成，使用测试密钥。
     let wire = include_str!("fixtures/pre_rename_contextual.txt").trim();
-    let reader = Encrypter::new(config("current", &[("legacy", 7), ("current", 9)]))?;
+    let reader = ContextualEncrypter::new(config("current", &[("legacy", 7), ("current", 9)]))?;
     assert_eq!(
         reader.decrypt_with_context(wire, b"record:41")?,
         b"persisted\0\xff"

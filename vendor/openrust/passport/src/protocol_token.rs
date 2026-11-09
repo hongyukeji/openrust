@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use openrust::{Error, Result, encryption::Encrypter};
+use openrust::{Error, Result, encryption::ContextualEncrypter};
 use serde::{Deserialize, Serialize};
 
 use crate::{CodeChallenge, GrantAuthorityBinding};
@@ -89,11 +89,11 @@ impl RefreshPayload {
 
 #[derive(Clone)]
 pub(crate) struct GrantTokenCodec {
-    encryption: Arc<Encrypter>,
+    encryption: Arc<ContextualEncrypter>,
 }
 
 impl GrantTokenCodec {
-    pub(crate) fn new(encryption: Arc<Encrypter>) -> Self {
+    pub(crate) fn new(encryption: Arc<ContextualEncrypter>) -> Self {
         Self { encryption }
     }
 

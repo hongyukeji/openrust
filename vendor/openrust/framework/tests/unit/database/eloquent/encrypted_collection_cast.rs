@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     config::AppConfig,
     database::eloquent::{ModelAttributes, ModelMetadata},
-    encryption::ConfiguredEncrypter,
+    encryption::Encrypter,
 };
 use serde_json::{Map, json};
 
@@ -10,7 +10,7 @@ const OLD_KEY: &str = "0123456789abcdef0123456789abcdef";
 const NEW_KEY: &str = "abcdef0123456789abcdef0123456789";
 
 fn service(key: &str, previous_keys: Vec<String>) -> Result<Arc<dyn ApplicationEncrypter>> {
-    Ok(Arc::new(ConfiguredEncrypter::from_config(AppConfig {
+    Ok(Arc::new(Encrypter::from_config(AppConfig {
         key: Some(key.into()),
         previous_keys,
         ..AppConfig::default()

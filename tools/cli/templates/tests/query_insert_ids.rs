@@ -211,26 +211,32 @@ async fn check_generated_collection_cast() -> Result<()> {
 async fn check_generated_encrypted_collection() -> Result<()> {
     use figment::{Figment, providers::Serialized};
     use openrust::{
+        container::ServiceKey,
         database::eloquent::{
             AsEncryptedArrayObject, AttributeCast, EncryptedCast, EncryptedCastKind, Json,
             ModelAttributes, ModelMetadata,
         },
-        encryption::{ApplicationEncrypter, EncryptionServiceProvider},
+        encryption::{ApplicationEncrypter, Encrypter, EncryptionServiceProvider},
         foundation::ProviderBuilder,
     };
     use serde_json::json;
 
+    let key = "0123456789abcdef0123456789abcdef";
     let mut providers = ProviderBuilder::new();
     providers.provider(EncryptionServiceProvider);
     let runtime = providers
         .start(Figment::from(Serialized::defaults(json!({
-            "app":{"key":"0123456789abcdef0123456789abcdef"}
+            "app":{"key":key}
         }))))
         .await?;
     let encrypter = runtime
         .container()
-        .resolve::<dyn ApplicationEncrypter>()
+        .resolve_key::<dyn ApplicationEncrypter>(ServiceKey::named("encrypter"))
         .await?;
+    let concrete = Encrypter::from_config(openrust::config::AppConfig {
+        key: Some(key.into()),
+        ..openrust::config::AppConfig::default()
+    })?;
     let mut metadata = ModelMetadata::new("insert_items", "GeneratedRecord");
     metadata.casts.insert(
         "data".into(),
@@ -245,7 +251,7 @@ async fn check_generated_encrypted_collection() -> Result<()> {
         .as_ref()
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| Error::custom("generated_encrypted_cast_missing", "缺少加密数组对象密文"))?;
-    check(encrypter.decrypt_string(raw)? == br#"{"tag":"encrypted"}"#)?;
+    check(concrete.decrypt_string(raw)? == br#"{"tag":"encrypted"}"#)?;
     attributes
         .set_attribute(&metadata, "data->settings->enabled", json!(true))
         .await?;

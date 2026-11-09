@@ -9,7 +9,7 @@ use super::*;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use openrust::{
     database::sea_orm::ConnectionTrait,
-    encryption::{Encrypter, EncryptionConfig},
+    encryption::{ContextualEncrypter, EncryptionConfig},
     hashing::{BcryptConfig, HashManager, HashOptions, HashingConfig},
     http::axum::{
         body::to_bytes,
@@ -114,7 +114,7 @@ fn scoped_engine(
     hashing: Arc<HashManager>,
 ) -> TestResult<AuthorizationServer> {
     let signer = Arc::new(OAuthAccessSigner::from_pem(PRIVATE)?);
-    let encryption = Arc::new(Encrypter::new(EncryptionConfig::new(
+    let encryption = Arc::new(ContextualEncrypter::new(EncryptionConfig::new(
         "engine-fixture",
         [("engine-fixture".to_owned(), STANDARD.encode([41; 32]))].into(),
     ))?);

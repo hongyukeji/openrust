@@ -14,7 +14,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - 默认日志文件改为 `storage/logs/openrust.log`，应急记录使用 `openrust` 标签。显式日志路径继续有效，使用默认值的日志采集需同步更新。
 
-- 应用加密的公开实现改为 `ConfiguredEncrypter`，载荷、密钥与序列化错误码改用 `encryption_*`。Cookie 默认保护使用 `CookieServiceProvider::new()`，现有密文和 Cookie 继续可读。
+- 应用加密的公开实现为 `Encrypter`，可通过容器键 `encrypter` 解析。使用 OR1 上下文加密的调用方需改用 `ContextualEncrypter`。现有密文和 Cookie 继续可读。
 
 - 默认翻译查找模式使用 `TranslationLookup::Standard`，保留字面键优先与分组回退。
 

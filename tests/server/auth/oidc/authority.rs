@@ -73,7 +73,7 @@ async fn selected_oidc_challenge_and_attachments_follow_current_authority() -> T
         db.initialize(connection.clone())?;
         let passwords=std::sync::Arc::new(openrust::hashing::HashManager::new(openrust::hashing::HashingConfig { driver: "argon2id".into(), argon: openrust::hashing::ArgonConfig { memory: 19_456, time: 1, threads: 1, verify: true }, ..openrust::hashing::HashingConfig::default() })?);
         let jwt=JwtTokens::new(JwtConfig::new("oidc-owned","oidc-owned","owned",BTreeMap::from([("owned".into(),STANDARD.encode([51_u8;32]))])))?;
-        let encryptor=Encrypter::new(EncryptionConfig::new("owned",BTreeMap::from([("owned".into(),STANDARD.encode([61_u8;32]))])))?;
+        let encryptor=ContextualEncrypter::new(EncryptionConfig::new("owned",BTreeMap::from([("owned".into(),STANDARD.encode([61_u8;32]))])))?;
         let policy=CredentialAuthority::new(db.clone(),false);
         let events=(*runtime.container().resolve::<openrust::events::Events>().await?).clone();
         let actions=TwoFactorActions::new(Arc::new(GoogleTwoFactorAuthenticationProvider::new(None)),field_crypto,events);

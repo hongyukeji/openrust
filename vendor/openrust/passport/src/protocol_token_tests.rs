@@ -9,7 +9,7 @@ fn codec(active: &str, keys: &[(&str, u8)]) -> Result<GrantTokenCodec> {
         .iter()
         .map(|(name, value)| ((*name).to_owned(), STANDARD.encode([*value; 32])))
         .collect();
-    Ok(GrantTokenCodec::new(Arc::new(Encrypter::new(
+    Ok(GrantTokenCodec::new(Arc::new(ContextualEncrypter::new(
         EncryptionConfig::new(active, keys),
     )?)))
 }

@@ -7,7 +7,7 @@ use openrust::auth::{
     ExternalLogoutRedirect, OidcProvider, Session, SessionStoreHandle,
 };
 use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
-use openrust::encryption::Encrypter;
+use openrust::encryption::ContextualEncrypter;
 use openrust::foundation::BootContext;
 use openrust::foundation::RegisterContext;
 use openrust::http::{DependencyPolicy, HttpClient, HttpClientConfig, HttpTargetPolicy};
@@ -162,7 +162,7 @@ impl ServiceProvider for ExampleOidcServiceProvider {
                     let provider = resolver.resolve::<Discovered>().await?;
                     let db = resolver.resolve::<Db>().await?;
                     let auth = resolver.resolve::<AuthFlows>().await?;
-                    let encryptor = resolver.resolve::<Encrypter>().await?;
+                    let encryptor = resolver.resolve::<ContextualEncrypter>().await?;
                     let issuer = provider.0.issuer().to_owned();
                     let redirect_uri =
                         configured(resolver.section::<ExampleConfig>("example")?)?.redirect_uri;
