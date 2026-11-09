@@ -9,6 +9,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 正式启动生成并复用有序 Provider 服务清单，应用命令 `clear-compiled` 清除选定的服务和包缓存。
 - 测试应用可按类型替换并恢复容器中间件，处理与终止沿同一请求决定。
 - `BindWhen` 条件可通过当前解析器登记工厂。条件命中时按声明完成同键重绑，未命中或失败时保留条件已登记的工厂。
+- 认证 Provider 默认登记可空的 `Option<AuthUser>`，每次解析读取当前作用域的用户解析器。
 - Provider 领域贡献按类型共享。读取和修改扩展返回短期借用，`Application::exception_handler()` 返回拥有所有权的 Handler 快照。
 - HTTP 内核支持通过具名容器绑定 `middleware.disable` 在运行期切换应用中间件。
 - 容器支持按声明类型解析静态调用的依赖，并按命名入口分派静态方法绑定。

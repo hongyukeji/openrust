@@ -90,6 +90,7 @@ pub(crate) struct SessionAuthAttributes {
     guard: Arc<dyn Guard>,
     authenticated: Option<AuthUser>,
     current_user: Option<AuthUser>,
+    default_user: Option<AuthUser>,
 }
 
 pub(crate) fn session_auth_descriptor() -> ClassDescriptor {
@@ -108,6 +109,7 @@ pub(crate) fn session_auth_descriptor() -> ClassDescriptor {
                 .with_attribute(ClassAttribute::contextual(|| {
                     Ok(CurrentUserAttribute::default())
                 })),
+            ConstructorParam::class::<Option<AuthUser>>("default_user"),
         ],
         |args| {
             let account = |index| {
@@ -121,6 +123,7 @@ pub(crate) fn session_auth_descriptor() -> ClassDescriptor {
                 guard: args.service::<dyn Guard>(0)?,
                 authenticated: account(1)?,
                 current_user: account(2)?,
+                default_user: args.service::<Option<AuthUser>>(3)?.as_ref().clone(),
             }))
         },
     )
@@ -133,7 +136,16 @@ pub(crate) async fn session_status(
         "guard_authenticated": attributes.guard.check().await?,
         "authenticated": attributes.authenticated.is_some(),
         "current_user": attributes.current_user.is_some(),
+        "default_user": attributes.default_user.is_some(),
     })))
+}
+
+#[cfg(feature = "auth-fortify")]
+pub(crate) async fn bearer_account(
+    Inject(user): Inject<Option<AuthUser>>,
+) -> Result<Json<serde_json::Value>> {
+    let user = user.as_ref().as_ref().ok_or(Error::Unauthorized)?;
+    Ok(Json(serde_json::json!({"user_id":user.auth_identifier()?})))
 }
 
 pub(crate) async fn session_logout(

@@ -60,6 +60,8 @@ async fn current_id(auth: &AuthManager) -> Result<Option<serde_json::Value>> {
 
 `Authenticatable` 提供标识字段名、原始标识、密码字段名、可选密码哈希以及可选 remember token 的读写契约。`AuthUser` 是 `Arc<dyn Authenticatable>`，供异步调用链共享；账户实现应通过内部可变性更新 token，不跨 `await` 持有同步锁。
 
+`AuthServiceProvider` 将 Laravel 的可空 `Authenticatable` 默认绑定映射到 Rust 的 `Option<AuthUser>`。用 `Inject<Option<AuthUser>>`、`resolver.resolve::<Option<AuthUser>>().await?` 或 `ConstructorParam::class::<Option<AuthUser>>("account")` 读取当前入口的账户。每次解析调用该作用域的 `AuthManager::user(None)`，所以同一请求中替换用户解析器后立即可见。访客为 `None`，登录用户共享 Guard 返回的原账户，失败按容器规则保留原错误来源。Session Guard 仍需已装配的 Web 请求上下文，显式 JWT 则沿已选择的无状态 Guard。
+
 `Authenticatable::set_remember_token` 返回异步 future，模型可复用同一属性 setter/cast。Guard 的 `begin_remember_token_update(expected, replacement)` 返回 `Option<RememberTokenUpdate>`：条件不匹配为 None，成功则已经原子安装完整原始补丁并持有恢复所有权。Provider 成功后 commit；失败或 future 取消时，同步回滚只恢复仍属于本次变更的字段，保留后继写入与缺失/null区别，不在 Drop 中再次调用用户访问器或异步任务。
 
 `GenericUser` 保留原始属性语义，应用模型使用相同存储的 getter/cast；两者不复制 token 状态。外部账户可实现公开 `RememberTokenMutation` 后端并用 `RememberTokenUpdate::new` 包装，后端须同步、幂等且不panic。未实现修改能力时返回 `auth_token_atomic_update_unsupported`，不允许用先读再写模拟原子更新。

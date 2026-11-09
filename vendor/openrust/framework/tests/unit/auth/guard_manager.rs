@@ -850,3 +850,69 @@ async fn forgetting_guards_during_construction_distinguishes_same_name_cell_gene
     assert_eq!(calls.load(Ordering::SeqCst), 2);
     Ok(())
 }
+
+#[tokio::test]
+async fn nullable_account_binding_uses_the_latest_resolver_in_each_scope() -> Result<()> {
+    use crate::auth::{AuthCredential, AuthPrincipal, AuthServiceProvider, Authenticator};
+    use crate::foundation::ProviderBuilder;
+    use figment::Figment;
+
+    struct RejectAuthenticator;
+    impl Authenticator for RejectAuthenticator {
+        fn authenticate<'a>(
+            &'a self,
+            _: AuthCredential<'a>,
+        ) -> BoxFuture<'a, Result<AuthPrincipal>> {
+            Box::pin(async { Err(Error::Unauthorized) })
+        }
+    }
+
+    let mut builder = ProviderBuilder::new();
+    builder.provider(AuthServiceProvider::with_authenticator(RejectAuthenticator));
+    let runtime = builder.start(Figment::new()).await?;
+    let container = runtime.container();
+    let first = container.scope()?;
+    let second = container.scope()?;
+    for scope in [&first, &second] {
+        scope
+            .resolve::<AuthManager>()
+            .await?
+            .resolve_users_using(|_, guard| {
+                assert_eq!(guard, None);
+                Box::pin(async { Ok(None) })
+            })?;
+        assert!(scope.resolve::<Option<AuthUser>>().await?.is_none());
+    }
+
+    let account = Arc::new(GenericUser::new(serde_json::Map::from_iter([(
+        "id".into(),
+        json!("account-0001"),
+    )]))) as AuthUser;
+    let selected = Arc::clone(&account);
+    let manager = first.resolve::<AuthManager>().await?;
+    manager.resolve_users_using(move |_, guard| {
+        assert_eq!(guard, None);
+        let selected = Arc::clone(&selected);
+        Box::pin(async move { Ok(Some(selected)) })
+    })?;
+    let resolved = first.resolve::<Option<AuthUser>>().await?;
+    assert!(
+        resolved
+            .as_ref()
+            .as_ref()
+            .is_some_and(|user| Arc::ptr_eq(user, &account))
+    );
+    assert!(second.resolve::<Option<AuthUser>>().await?.is_none());
+
+    manager.resolve_users_using(|_, _| {
+        Box::pin(async { Err(Error::custom("test_account_read_failed", "账户读取失败")) })
+    })?;
+    let result = first.resolve::<Option<AuthUser>>().await;
+    assert!(matches!(result, Err(Error::Custom { code, message, .. })
+        if code == "test_account_read_failed" && message == "账户读取失败"));
+
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    first.shutdown(deadline).await?;
+    second.shutdown(deadline).await?;
+    runtime.shutdown(deadline).await
+}

@@ -956,6 +956,12 @@ PHP 8.5.12 对照固定 Laravel 的按类直通、别名参数、终止、恢复
 
 隔离工作区格式、严格 Clippy、拒警 Rustdoc 和依赖门禁通过。使用真实 MySQL 8.4.13 的工作区测试 2,907 项通过、54 项忽略。生成应用 24 项通过，独立测试使用公开类型替换 API，普通服务器真实 TCP 执行原中间件并返回 HTTP 200，SIGTERM 正常退出。证据见 `tmp/lead-typed-middleware.VLJnB9pR/independent-result.json`。
 
+## 可空认证账户默认绑定限定验收
+
+固定 Laravel `d52c3b3` 的 AuthServiceProvider 在 PHP 8.5.12 验证直接解析与可空构造依赖、访客、账户同一性、回调替换和错误传播。Rust 使用瞬态 `Option<AuthUser>`，回归核对两作用域、当前回调和原错误。唯一示例在 MySQL 8.4.13 实测 Session 访客、登录、退出及 CSRF，并移除 Session/Cookie Provider 后验证显式 JWT 账户资源、拒绝无效凭据和无 Set-Cookie。
+
+格式、默认及 auth-fortify 严格 Clippy、拒警 Rustdoc 和依赖检查通过。工作区 2,911 项通过、54 项忽略，另两项 MySQL 认证入口均通过。新生成 MySQL 认证应用 54 项通过、2 项忽略，用公开容器 API 验证访客和真实账户对象，普通服务器通过真实 TCP 返回访客和 HTTP 200，SIGTERM 退出 0。证据见 `tmp/lead-auth-account-binding.a9wL52kt/delivery-receipt.json`。
+
 ## BindWhen 条件内同键重绑限定验收
 
 PHP 8.5.12 执行固定 Laravel `d52c3b3` 的真实容器，验证条件同键登记后命中覆盖、未命中继续构造原类、抛错保留已登记工厂，以及条件内缓存的共享值由原类替换。Rust 回归覆盖同一行为，另外验证并发解析等待共享槽、独立重绑取消旧选择。唯一示例以 conditional 环境走 HTTP 注入。

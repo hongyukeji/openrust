@@ -14,6 +14,8 @@
 
 接口描述符可通过 `Bind` 或 `BindWhen` 按应用环境和运行条件登记编译实现。条件可通过 `Resolver::bind` 登记同一容器的工厂，随后按声明完成选择。详见[按条件声明绑定](../../../docs/src/architecture-concepts/lifecycle.md#按条件声明绑定)。
 
+启用认证并登记 `AuthServiceProvider` 后，通过 `Option<AuthUser>` 解析当前账户。用法见[账户与凭据](../../../docs/src/security/authentication.md#账户与凭据)。
+
 编译类可声明应用单例或作用域共享实例。详见[声明共享生命周期](../../../docs/src/architecture-concepts/lifecycle.md#声明共享生命周期)。
 
 `Container::flush` 清除绑定与共享实例。`Application::flush` 还撤销已登记的 Provider 和宿主贡献。两种入口适用于隔离测试和重新装配。详见[清空容器绑定](../../../docs/src/architecture-concepts/lifecycle.md#清空容器绑定)。

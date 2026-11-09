@@ -531,7 +531,7 @@ fn account_routes(routes: Router, capabilities: &RouteCapabilities) -> Router {
     #[cfg(feature = "auth-fortify")]
     if let Some(guard) = &capabilities.jwt_api_guard {
         return routes.nest("/api/example/account", |api| {
-            api.get("/me", current_user)
+            api.get("/me", account::bearer_account)
                 .layer(AuthLayer::guard(guard.clone()))
                 .layer(openrust::http::axum::middleware::from_fn(
                     private_account_response,

@@ -7,6 +7,7 @@ use serde_json::{Map, Value};
 use crate::{Error, Result, support::BoxFuture};
 
 /// Provider 返回的共享账户；缓存必须属于请求，不能放入进程级已登录状态。
+/// 通过容器解析 `Option<AuthUser>` 获取当前默认 Guard 的可空账户。
 pub type AuthUser = Arc<dyn Authenticatable>;
 
 /// 不绑定数据库表、邮箱字段或整数主键的认证账户。

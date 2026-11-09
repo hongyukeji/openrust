@@ -1,8 +1,8 @@
 //! 认证 driver 注册复用 `AuthServiceProvider` 与请求 scope。
 
 use super::{
-    AuthDefaults, AuthDrivers, AuthManager, DatabaseUserProvider, Guard, GuardConfig, SessionGuard,
-    UserProvider, UserProviderConfig,
+    AuthDefaults, AuthDrivers, AuthManager, AuthUser, DatabaseUserProvider, Guard, GuardConfig,
+    SessionGuard, UserProvider, UserProviderConfig,
 };
 
 use crate::Error;
@@ -107,6 +107,13 @@ pub(in crate::auth) async fn register(app: &mut RegisterContext<'_>) -> Result<(
         Box::pin(async move {
             let drivers = resolver.resolve::<AuthDrivers>().await?;
             Ok(Arc::new(AuthManager::new(resolver, (*drivers).clone())))
+        })
+    })
+    .await?;
+    app.bind::<Option<AuthUser>, _>(|resolver| {
+        Box::pin(async move {
+            let manager = resolver.resolve::<AuthManager>().await?;
+            Ok(Arc::new(manager.user(None).await?))
         })
     })
     .await?;

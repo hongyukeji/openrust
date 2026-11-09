@@ -235,6 +235,7 @@ async fn assert_session_auth_attributes(
             "guard_authenticated": authenticated,
             "authenticated": authenticated,
             "current_user": authenticated,
+            "default_user": authenticated,
         })
     );
     Ok(())

@@ -824,11 +824,33 @@ async fn default_root_uses_web_and_rejects_unknown_profiles() -> Result<()> {
 #[cfg(feature = "db-sqlite")]
 #[tokio::test]
 async fn example_account_resource_requires_the_selected_api_guard() -> Result<()> {
-    let db = TestDatabase::sqlite_file::<crate::database::Migrator>().await?;
+    exercise_example_account_resource(
+        TestDatabase::sqlite_file::<crate::database::Migrator>().await?,
+    )
+    .await
+}
+
+#[cfg(feature = "db-mysql")]
+#[tokio::test]
+async fn mysql_example_account_resource_uses_the_default_account_binding() -> Result<()> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("缺少 OPENRUST_TEST_DATABASE_URL，跳过 MySQL 账户资源测试");
+        return Ok(());
+    };
+    let db = TestDatabase::create::<crate::database::Migrator>(&url).await?;
+    assert_eq!(
+        db.connection()?.get_database_backend(),
+        openrust::database::sea_orm::DbBackend::MySql
+    );
+    exercise_example_account_resource(db).await
+}
+
+#[cfg(any(feature = "db-sqlite", feature = "db-mysql"))]
+async fn exercise_example_account_resource(db: TestDatabase) -> Result<()> {
     let result: Result<()> = async {
         let root = tempfile::tempdir().map_err(Error::internal)?;
         let source = sources(root.path(), db.url(), true, "https://issuer.test")?;
-        let mut app = builder(source, true, false).build().await?;
+        let mut app = builder(source, true, true).build().await?;
         let result: Result<()> = async {
             register(&app).await?;
             let client = Client::new(&app);

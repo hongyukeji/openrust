@@ -266,9 +266,9 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 启用 `auth-fortify` 后，根应用默认采用官方 Web/Fortify 模式，沿具名 Session Guard、同源 Cookie/CSRF、同一账户的三字段和 `TwoFactorActions` 完成登录与二因素管理。用户自行选择绑定；本应用 `confirm=true` 时，生成密钥只是待确认，确认后后续登录才要求挑战。恢复码加密保存，成功使用后替换该码并保持八份，不维护另一套 MFA 服务或旧 `auth-mfa` 开关。
 
-Web/Session 模式下的 `GET /api/example/account/session/status` 通过 `Auth`、`Authenticated` 和 `CurrentUser` 构造属性读取当前请求的 `web` Guard 和账户。响应只含三项认证布尔值并设置 `Cache-Control: no-store`。游客和登出后的请求返回 false，已登录的请求返回 true。[账户安全回归](tests/account_security_flows.rs)使用实际 Session 登录和登出验证这三种状态。
+Web/Session 模式下的 `GET /api/example/account/session/status` 通过 `Auth`、`Authenticated` 和 `CurrentUser` 构造属性读取当前请求的 `web` Guard 和账户。响应只含认证布尔值并设置 `Cache-Control: no-store`。游客和登出后的请求返回 false，已登录的请求返回 true。构造函数同时注入 `Option<AuthUser>`，并用 `default_user` 表示默认绑定是否取得账户。[账户安全回归](tests/account_security_flows.rs)使用实际 Session 登录和登出验证这三种状态。
 
-显式设置 `AUTH_PROFILE=jwt-api` 后，框架 `/api/auth` 提供密码登录、必要 TOTP/恢复码挑战、access/refresh、近期密码管理授权及二因素管理；这些流程不依赖 Session、Cookie 或 CSRF-cookie。模块的 `/api/example/me` 与 `/api/example/account/me` 使用该具名 API Guard，跳过旧账户 Session 登录与无作用域 JWT 入口。管理请求只使用受限的 `X-Fortify-Management` 授权，不能把它当资源 Bearer；遗失待确认绑定时可通过当前 JWT 和密码重开全新绑定，不能取回旧密钥或重置已确认因子。完整字段、装配与配置见[认证指南](../../docs/src/security/authentication.md#显式-jwt-api-profile)。
+显式设置 `AUTH_PROFILE=jwt-api` 后，框架 `/api/auth` 提供密码登录、必要 TOTP/恢复码挑战、access/refresh、近期密码管理授权及二因素管理；这些流程不依赖 Session、Cookie 或 CSRF-cookie。模块的 `/api/example/me` 与 `/api/example/account/me` 使用该具名 API Guard，跳过旧账户 Session 登录与无作用域 JWT 入口。账户接口通过 `Inject<Option<AuthUser>>` 取得该请求选定 Guard 的账户。管理请求只使用受限的 `X-Fortify-Management` 授权，不能把它当资源 Bearer；遗失待确认绑定时可通过当前 JWT 和密码重开全新绑定，不能取回旧密钥或重置已确认因子。完整字段、装配与配置见[认证指南](../../docs/src/security/authentication.md#显式-jwt-api-profile)。
 
 两种传输复用唯一 Provider、Fortify 状态和实际因子证明。受管资源入口核验当前账户、代际和凭据家族，不能用同步 JWT 签名校验推定当前授权。账户响应禁止缓存；Cookie 名由所选 Session Provider 配置决定。新认证组合的完整后端、Session 派生凭据、OIDC 关联及生成应用验收尚未闭合。通用模型保留原始 ID，但当前 JWT 持久适配的正整数 `users.id` 限制尚未消除。
 
