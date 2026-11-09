@@ -2193,3 +2193,9 @@ AR-N01/L041 的 `Translator::choice` 在同一目录快照读取字符串，指�
 生成 minimal 应用通过 Cargo check 与 24 项测试。公开 Rust API 与固定 Laravel 源码在 PHP 8.5.12 中的 12,660 个对照一致，覆盖 280 个既定地区标签及未知地区、精确条件、空白、Unicode、字符串占位符顺序和 96 个默认异常处理器升级的整数越界。依赖数据的来源及许可与实现同行。
 
 证据见 `tmp/lead-trans-choice.RKavaqy5/delivery-receipt.json`。独立 Loader 生命周期、运行时应用语言变更、通用值和回调替换以及发布平台矩阵仍沿唯一 todo 验收。
+
+## 分组翻译资源限定验收
+
+AR-N01/L041 分组文件在同一来源快照中保留对象与数组。已有文本与复数入口覆盖点路径、字面键优先、数组索引、语言回退和普通 `plural` / `select` 字段。四项回归通过，另以固定 Laravel Translator 和 Arr 在 PHP 8.5 容器核对七个文本及复数结果。
+
+冻结树 `df1f3f5dc4f39770462880832918cd6da41adfde` 通过格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 和离线依赖门禁。通用整组值与递归替换仍沿唯一待办交付。

@@ -1,7 +1,8 @@
 //! 统一翻译来源的快照契约；对应 Laravel Loader，异步阶段先完整物化再同步读取。
 
-use super::{Locale, MessageCatalog};
+use super::{CatalogMessage, Locale, RawMessage};
 use crate::{Error, Result, support::BoxFuture};
+use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -15,7 +16,9 @@ pub struct TranslationResource {
     /// 可选模块命名空间；None和空字符串不是同一个合法声明。
     pub namespace: Option<String>,
 }
-/// 消息键到Catalog可接受的字符串、plural或select结构；空字符串是有效消息。
+/// 资源键到 JSON 值的映射。分组资源还可保存嵌套对象、数组和标量叶。
+///
+/// 全局 JSON 资源仅接受字符串或合法 ICU 结构。空字符串是有效消息。
 pub type TranslationLines = BTreeMap<String, Value>;
 
 /// 已验证不可变资源快照；同步load不得再查数据库或文件。
@@ -90,6 +93,13 @@ pub(crate) fn validate_lines(
     resource: &TranslationResource,
     lines: &TranslationLines,
 ) -> Result<()> {
+    parse_resource(resource, lines).map(|_| ())
+}
+
+pub(super) fn parse_resource(
+    resource: &TranslationResource,
+    lines: &TranslationLines,
+) -> Result<BTreeMap<String, CatalogMessage>> {
     if resource.locale.as_str().len() > 128
         || resource.group.is_empty()
         || resource.group.len() > 255
@@ -103,18 +113,64 @@ pub(crate) fn validate_lines(
     {
         return Err(invalid_resource());
     }
-    let serialized = serde_json::to_string(lines).map_err(|_| invalid_resource())?;
-    MessageCatalog::new()
-        .merge_json(resource.locale.as_str(), &serialized)
-        .map_err(|_| invalid_resource())
+    lines
+        .iter()
+        .map(|(key, value)| {
+            validate_depth(value, MAX_ENTRY_DEPTH)?;
+            let reserved =
+                [("plural", "forms"), ("select", "cases")]
+                    .into_iter()
+                    .any(|(kind, branches)| {
+                        value
+                            .get(kind)
+                            .and_then(Value::as_object)
+                            .is_some_and(|options| {
+                                options.contains_key("argument") || options.contains_key(branches)
+                            })
+                    });
+            let message = if resource.group != "*" && !value.is_string() && !reserved {
+                CatalogMessage::Data(value.clone())
+            } else {
+                let raw = RawMessage::deserialize(value).map_err(|_| invalid_resource())?;
+                CatalogMessage::try_from(raw).map_err(|_| invalid_resource())?
+            };
+            Ok((key.clone(), message))
+        })
+        .collect()
 }
+
+// JSON 反序列化器最多允许 127 层容器。根资源对象已占一层。
+const MAX_ENTRY_DEPTH: usize = 126;
+
+fn validate_depth(value: &Value, remaining: usize) -> Result<()> {
+    match value {
+        Value::Array(_) | Value::Object(_) if remaining == 0 => Err(invalid_resource()),
+        Value::Array(items) => items
+            .iter()
+            .try_for_each(|child| validate_depth(child, remaining - 1)),
+        Value::Object(items) => items
+            .values()
+            .try_for_each(|child| validate_depth(child, remaining - 1)),
+        _ => Ok(()),
+    }
+}
+
 pub(crate) fn invalid_resource() -> Error {
     Error::custom("i18n_translation_resource_invalid", "翻译资源结构无效")
 }
 
 pub(crate) fn parse_lines(bytes: &[u8]) -> Result<TranslationLines> {
+    parse_file_lines(bytes, "*")
+}
+
+pub(super) fn parse_file_lines(bytes: &[u8], group: &str) -> Result<TranslationLines> {
     match parse_value(bytes)? {
         Value::Object(lines) => Ok(lines.into_iter().collect()),
+        Value::Array(lines) if group != "*" => Ok(lines
+            .into_iter()
+            .enumerate()
+            .map(|(index, line)| (index.to_string(), line))
+            .collect()),
         _ => Err(invalid_resource()),
     }
 }
@@ -185,3 +241,7 @@ impl<'de> serde::de::Visitor<'de> for UniqueVisitor {
         Ok(Value::Object(values))
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/translation/group_data_loader.rs"]
+mod group_data_loader_tests;

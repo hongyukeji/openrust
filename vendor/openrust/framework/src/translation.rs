@@ -149,6 +149,7 @@ pub enum TranslationFormatError {
 #[derive(Debug, Clone)]
 enum CatalogMessage {
     Text(String),
+    Data(serde_json::Value),
     Plural {
         argument: String,
         forms: BTreeMap<PluralCategory, String>,
@@ -157,6 +158,76 @@ enum CatalogMessage {
         argument: String,
         cases: BTreeMap<String, String>,
     },
+}
+
+#[derive(Clone, Copy)]
+enum CatalogLine<'a> {
+    Message(&'a CatalogMessage),
+    Text(&'a str),
+    Collection,
+}
+
+impl<'a> CatalogLine<'a> {
+    fn grouped(message: &'a CatalogMessage) -> Option<Self> {
+        match message {
+            CatalogMessage::Data(value) => Self::from_value(value),
+            _ => Some(Self::Message(message)),
+        }
+    }
+
+    fn from_value(value: &'a serde_json::Value) -> Option<Self> {
+        match value {
+            serde_json::Value::String(text) => Some(Self::Text(text)),
+            serde_json::Value::Object(items) if !items.is_empty() => Some(Self::Collection),
+            serde_json::Value::Array(items) if !items.is_empty() => Some(Self::Collection),
+            _ => None,
+        }
+    }
+
+    fn text(self) -> Option<&'a str> {
+        match self {
+            Self::Message(CatalogMessage::Text(text)) => Some(text),
+            Self::Text(text) => Some(text),
+            _ => None,
+        }
+    }
+
+    fn format(self, locale: &Locale, key: &str, args: &MessageArgs) -> String {
+        match self {
+            Self::Message(message) => format_catalog_message(locale, message, key, args),
+            Self::Text(text) => interpolate(text, args),
+            Self::Collection => interpolate(key, args),
+        }
+    }
+}
+
+fn grouped_line<'a>(
+    lines: &'a BTreeMap<String, CatalogMessage>,
+    item: &str,
+) -> Option<CatalogLine<'a>> {
+    if let Some(message) = lines.get(item) {
+        return CatalogLine::grouped(message);
+    }
+    let (head, tail) = item.split_once('.')?;
+    let CatalogMessage::Data(value) = lines.get(head)? else {
+        return None;
+    };
+    let mut value = value;
+    for segment in tail.split('.') {
+        value = match value {
+            serde_json::Value::Object(items) => items.get(segment)?,
+            serde_json::Value::Array(items) => {
+                if !segment.bytes().all(|byte| byte.is_ascii_digit())
+                    || (segment.starts_with('0') && segment.len() > 1)
+                {
+                    return None;
+                }
+                items.get(segment.parse::<usize>().ok()?)?
+            }
+            _ => return None,
+        };
+    }
+    CatalogLine::from_value(value)
 }
 
 #[derive(Debug, Deserialize)]
@@ -303,7 +374,7 @@ impl MessageCatalog {
         self.messages.keys()
     }
 
-    fn message(&self, locale: &Locale, key: &str) -> Option<(&Locale, &CatalogMessage)> {
+    fn message(&self, locale: &Locale, key: &str) -> Option<(&Locale, CatalogLine<'_>)> {
         self.message_at(locale, key)
             .or_else(|| self.message_at(&Locale(locale.language().to_owned()), key))
             .or_else(|| {
@@ -317,16 +388,16 @@ impl MessageCatalog {
             })
     }
 
-    fn message_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, &CatalogMessage)> {
+    fn message_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, CatalogLine<'_>)> {
         let (locale, global) = self.messages.get_key_value(locale)?;
         // 固定Translator::get先查完整JSON字面键，再解析group/namespace；不可平铺覆盖。
         if let Some(message) = global.get(key) {
-            return Some((locale, message));
+            return Some((locale, CatalogLine::Message(message)));
         }
         self.group_message_at(locale, key)
     }
 
-    fn group_message_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, &CatalogMessage)> {
+    fn group_message_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, CatalogLine<'_>)> {
         let (locale, _) = self.messages.get_key_value(locale)?;
         let (namespace, item) = key
             .split_once("::")
@@ -342,7 +413,7 @@ impl MessageCatalog {
                 .get(&resource)
                 .and_then(|lines| lines.get(item))
             {
-                return Some((locale, message));
+                return Some((locale, CatalogLine::Message(message)));
             }
         }
         let (group, item) = item.split_once('.')?;
@@ -353,17 +424,17 @@ impl MessageCatalog {
         };
         self.resource_messages
             .get(&resource)
-            .and_then(|lines| lines.get(item))
+            .and_then(|lines| grouped_line(lines, item))
             .map(|message| (locale, message))
     }
 
-    fn choice_message_at(&self, locale: &Locale, key: &str) -> Option<(&CatalogMessage, bool)> {
+    fn choice_message_at(&self, locale: &Locale, key: &str) -> Option<(CatalogLine<'_>, bool)> {
         // hasForLocale 区分 JSON 字面键是否存在与其最终展示值。
         if let Some(message) = self.messages.get(locale)?.get(key) {
-            return Some((message, true));
+            return Some((CatalogLine::Message(message), true));
         }
         self.group_message_at(locale, key)
-            .filter(|(_, message)| !matches!(message, CatalogMessage::Text(line) if line == key))
+            .filter(|(_, message)| message.text() != Some(key))
             .map(|(_, message)| (message, false))
     }
 
@@ -757,17 +828,21 @@ impl Translator {
             (fallback, catalog.choice_message_at(fallback, key))
         };
         // JSON 的空字符串和 "0" 会显示原键。分组资源保留同样的原始字符串值。
-        let line = match message {
-            Some((CatalogMessage::Text(line), true)) if line.is_empty() || line == "0" => key,
-            Some((CatalogMessage::Text(line), _)) => line,
-            None => key,
-            Some(_) => {
-                return Err(Error::custom_with_status(
+        let line = if let Some((message, global)) = message {
+            let line = message.text().ok_or_else(|| {
+                Error::custom_with_status(
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     "translation_choice_message_invalid",
                     "复数选择要求字符串消息",
-                ));
+                )
+            })?;
+            if global && (line.is_empty() || line == "0") {
+                key
+            } else {
+                line
             }
+        } else {
+            key
         };
         let selected = choice::select(line, count, locale)?.to_owned();
         drop(catalog);
@@ -807,9 +882,7 @@ impl Translator {
                     .or_else(|| catalog.group_message_at(&self.config.fallback_locale, key))
             }
         };
-        message.map(|(message_locale, message)| {
-            format_catalog_message(message_locale, message, key, args)
-        })
+        message.map(|(message_locale, message)| message.format(message_locale, key, args))
     }
 
     /// 按 locale 格式化精确十进制字符串，不经过浮点数或舍入。
@@ -916,6 +989,7 @@ fn format_catalog_message(
 ) -> String {
     match message {
         CatalogMessage::Text(template) => interpolate(template, args),
+        CatalogMessage::Data(_) => interpolate(key, args),
         CatalogMessage::Select { argument, cases } => {
             let selected = args
                 .get(argument)
@@ -1180,7 +1254,7 @@ pub(crate) fn bootstrap_translation(key: &str, args: &MessageArgs) -> Option<Str
     let locale = Locale::english();
     BOOTSTRAP_MESSAGES
         .message(&locale, key)
-        .map(|(locale, message)| format_catalog_message(locale, message, key, args))
+        .map(|(locale, message)| message.format(locale, key, args))
 }
 
 pub(crate) fn translate_for_rendering(

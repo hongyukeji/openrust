@@ -100,6 +100,8 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 
 根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取 `lang`，无需数据库扩展、Redis 或后台任务。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
 
+分组文件如 `lang/en/menu.json` 可包含嵌套对象和数组。`{"tabs":{"labels":["Home","Account"]}}` 中的 `Account` 可用 `menu.tabs.labels.1` 读取。分组内完整字面键优先于嵌套路径。普通文本读取和复数选择都使用同一目录。分组条目中带 ICU 参数或分支字段的 `plural` 和 `select` 对象保留模板含义。返回整个分组或数组的接口仍在后续计划中。
+
 启用 `translation-database` 和相应 `db-mysql` 后，首次安装先保持 `mode: Files` 并设 `install_database: true`，运行标准 `migrate`；成功后改 `Database` 或 `Composite`。命名连接使用 `translation_database.connection` 与同一 `Databases`，迁移显式传 `migrate --database <连接名>`，Loader 连接不会改写命令目标。不要在新库尚未建表时直接选择数据库来源。
 
 组合顺序固定为 `[files, database]`：同一 locale/resource/key 后者覆盖前者；空串是有效资源值，禁用/删除表示该来源缺失。以下平面 JSON 返回示例使用显式 Catalog 业务视图；普通 Laravel 查找仍遵循其 JSON falsey 和 group 回退规则。先在请求的精确语言查全部来源，再按既有语言回退顺序查询。例如 `fr` 文件为 `Bonjour`、`en` 数据库为 `Hello` 时，显式 `fr` 返回 `Bonjour`。`en` 文件 `label=file`、数据库 `label=db` 返回 `db`；数据库值改空串返回空串；禁用/删除后返回 `file`。模块文件别名仅补缺，不能覆盖已捕获 Source 的精确全局键或 `namespace::key`；数据库删除并发布下一快照后恢复模块文件。JSON 字面键优先规则保持原有公开行为。

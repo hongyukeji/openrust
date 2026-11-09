@@ -4,7 +4,7 @@ use super::{
     Locale,
     loader::{
         MaterializedSession, TranslationLines, TranslationLoadSession, TranslationLoader,
-        TranslationResource, invalid_resource, parse_lines,
+        TranslationResource, invalid_resource, parse_file_lines,
     },
 };
 use crate::{Error, Result, support::BoxFuture};
@@ -26,7 +26,9 @@ pub struct FileTranslationLoader {
     max_file_bytes: u64,
 }
 impl FileTranslationLoader {
-    /// 读取`<locale>.json`全局资源及`<locale>/<group>.json`分组资源。
+    /// 读取 `<locale>.json` 全局资源及 `<locale>/<group>.json` 分组资源。
+    ///
+    /// 全局文件的根必须是对象。分组文件也可使用数组根，其索引以十进制键进入资源映射。
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             paths: vec![(None, path.into())],
@@ -124,7 +126,7 @@ impl FileTranslationLoader {
         if u64::try_from(bytes.len()).map_err(|_| limit_error())? > self.max_file_bytes {
             return Err(limit_error());
         }
-        let lines = parse_lines(&bytes)?;
+        let lines = parse_file_lines(&bytes, &resource.group)?;
         if all.insert(resource, lines).is_some() {
             return Err(invalid_resource());
         }

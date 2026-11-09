@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 文件翻译来源保留分组 JSON 的嵌套对象和数组，文本查找和复数选择可使用点路径读取文本叶。
+
 - 翻译器新增 Laravel 式字符串复数选择，支持显式数值区间、语言回退及 `:count` 占位符。
 
 - 默认语言与回退语言统一由 `app.locale` 和 `app.fallback_locale` 配置。部署环境改用 `APP_LOCALE` 和 `APP_FALLBACK_LOCALE`。

@@ -214,18 +214,8 @@ fn catalog_from_session(
                 resource.namespace.as_deref(),
             )
             .map_err(|_| source_error("i18n_source_catalog_invalid"))?;
-        loader::validate_lines(resource, &lines)
+        let messages = loader::parse_resource(resource, &lines)
             .map_err(|_| source_error("i18n_source_catalog_invalid"))?;
-        let json = serde_json::to_string(&lines)
-            .map_err(|_| source_error("i18n_source_catalog_invalid"))?;
-        let mut parsed = empty_catalog();
-        parsed
-            .merge_json(resource.locale.as_str(), &json)
-            .map_err(|_| source_error("i18n_source_catalog_invalid"))?;
-        let messages = parsed
-            .messages
-            .remove(&resource.locale)
-            .ok_or_else(|| source_error("i18n_source_catalog_invalid"))?;
         catalog.messages.entry(resource.locale.clone()).or_default();
         if resource.group == "*" && resource.namespace.is_none() {
             // 保留显式Source键身份，避免模块的旧JSON别名覆写数据库/文件Source。
