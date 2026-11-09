@@ -71,6 +71,7 @@ x-app: &app
     REDIS_HOST: redis
     REDIS_PORT: "6379"
     REDIS_DB: ${REDIS_DB:-0}
+    REDIS_CACHE_DB: ${REDIS_CACHE_DB:-1}
 {{environment}}
   volumes:
     - *storage

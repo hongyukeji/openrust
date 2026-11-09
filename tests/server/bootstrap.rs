@@ -441,7 +441,7 @@ async fn verify_named_only_database_host(database: &openrust::testing::TestDatab
 
 #[cfg(feature = "queue")]
 #[test]
-fn queue_defaults_inherit_effective_cache_configuration() -> Result<()> {
+fn queue_redis_defaults_ignore_cache_store_overrides() -> Result<()> {
     let root = tempfile::tempdir().map_err(openrust::Error::internal)?;
     std::fs::write(
         root.path().join(".env"),
@@ -467,6 +467,14 @@ fn queue_defaults_inherit_effective_cache_configuration() -> Result<()> {
     assert_eq!(queue.default, "database");
     assert_eq!(
         queue.connections["redis"]["redis_url"],
+        "redis://initial.example.test:6379/0"
+    );
+    let cache: serde_json::Value = source
+        .figment()
+        .extract_inner("cache")
+        .map_err(openrust::config::ConfigError::from)?;
+    assert_eq!(
+        cache["stores"]["redis"]["dsn"],
         "redis://effective.example.test:6381/6"
     );
     assert_eq!(queue.connections["database"]["driver"], "database");

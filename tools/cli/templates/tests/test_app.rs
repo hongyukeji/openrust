@@ -59,6 +59,43 @@ fn test_configuration() -> openrust::config::FrameworkConfig {
     config
 }
 
+#[test]
+fn generated_redis_connections_preserve_independent_defaults() -> openrust::Result<()> {
+    use openrust::config::{ConfigError, ConfigLoader};
+    use openrust::foundation::ApplicationDefinition as _;
+
+    let root = tempfile::tempdir()?;
+    std::fs::write(
+        root.path().join(".env"),
+        "REDIS_URL=redis://redis.example.test:6380\n",
+    )?;
+    let sources = ConfigLoader::application_code_sources(
+        root.path(),
+        "GENERATED_REDIS_TEST_",
+        Some("testing"),
+        &GeneratedApplication::config(),
+    )?;
+    let figment = sources.figment();
+    assert_eq!(
+        figment
+            .extract_inner::<String>("cache.stores.redis.dsn")
+            .map_err(ConfigError::from)?,
+        "redis://redis.example.test:6380/1"
+    );
+    // 精简模板保留可选源码，只有登记到清单的区段才参与求值。
+    if include_str!("../config/mod.rs").contains(r#".section("queue", queue::config)"#) {
+        assert_eq!(
+            figment
+                .extract_inner::<String>("queue.connections.redis.redis_url")
+                .map_err(ConfigError::from)?,
+            "redis://redis.example.test:6380/0"
+        );
+    } else {
+        assert!(figment.find_value("queue").is_err());
+    }
+    Ok(())
+}
+
 #[tokio::test]
 async fn generated_application_exposes_health_outside_web_and_api() -> openrust::Result<()> {
     let source = Figment::from(Serialized::defaults(test_configuration())).merge(Toml::string(

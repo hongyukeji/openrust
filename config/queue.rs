@@ -4,11 +4,11 @@ use openrust::config::{ConfigContext, ConfigError, QueueConfig};
 use std::collections::HashMap;
 
 /// 仅解析被选择的连接；编译 driver 不会自动连接或启动 worker。
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "保持 ConfigManifest 配置函数统一的可失败契约"
+)]
 pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
-    let redis_url = match ctx.env("QUEUE_REDIS_URL") {
-        Some(url) => Some(url),
-        None => ctx.get::<String>("cache.stores.redis.dsn")?,
-    };
     Ok(QueueConfig {
         default: ctx.env_or("QUEUE_CONNECTION", "database"),
         connections: HashMap::from([
@@ -25,7 +25,7 @@ pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
                 serde_json::json!({
                     "driver": "redis",
                     "queue": "default",
-                    "redis_url": redis_url,
+                    "redis_url": "redis://127.0.0.1:6379/0",
                     "redis_namespace": ctx.env_or("QUEUE_REDIS_NAMESPACE", "server"),
                     "options": {},
                 }),

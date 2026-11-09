@@ -288,7 +288,7 @@ fn decode(input: &str) -> String {
     String::from_utf8_lossy(&decode_bytes(input)).into_owned()
 }
 
-pub(super) fn decode_bytes(input: &str) -> Vec<u8> {
+pub(crate) fn decode_bytes(input: &str) -> Vec<u8> {
     let bytes = input.as_bytes();
     let mut output = Vec::with_capacity(bytes.len());
     let mut index = 0;

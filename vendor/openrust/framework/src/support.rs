@@ -45,6 +45,7 @@ pub use number::php_loose_string_equal;
 #[doc(hidden)]
 pub use number::php_loose_string_value_equal;
 pub use service_provider::ServiceProvider;
+pub(crate) use uri::raw_url_decode;
 pub use uri::{Uri, UriQueryString};
 pub use view_error_bag::{BagHandle, BagRead, BagWrite, ViewErrorBag};
 

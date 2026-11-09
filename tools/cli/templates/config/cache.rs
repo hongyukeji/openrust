@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 /// 仅展示可选本机 store，默认不加入 store 表，不改变 redis 选择及初始化行为。
 const LOCAL_STORES_ENABLED: bool = false;
 
-/// 使用统一 Redis URL；store 的 driver 还须实际编译并登记。
+/// 默认缓存使用独立 Redis DB 1；部署连接通过统一配置来源覆盖。
 #[allow(
     clippy::unnecessary_wraps,
     reason = "保持 ConfigManifest 配置函数统一的可失败契约"
@@ -23,7 +23,7 @@ pub fn config(ctx: &ConfigContext) -> Result<CacheConfig, ConfigError> {
             // driver 专属选项；memory 可用空表，file 使用 path，非所有 driver 都读取 dsn。
             options: BTreeMap::from([(
                 "dsn".to_owned(),
-                serde_json::Value::String(ctx.env_or("REDIS_URL", "redis://127.0.0.1:6379/")),
+                serde_json::Value::String("redis://127.0.0.1:6379/1".to_owned()),
             )]),
         },
     )]);

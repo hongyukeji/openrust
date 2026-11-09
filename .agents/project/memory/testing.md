@@ -1898,6 +1898,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 工作区 fmt、严格 Clippy、真实 MySQL 8.4 workspace tests、严格 Rustdoc、离线依赖检查和两种生成应用 check/test 通过。当前验收范围是命令边界与编译打包。Laravel 的 `optimize`、`optimize:clear` 与 `reload` 及原生 x86_64 发布包在原矩阵独立验收。
 
+## Redis 缓存与队列默认库限定验收
+
+冻结树 `bad2f941a44ee2916ab070544e552a229e116b4e` 对照固定 Laravel 骨架的缓存与默认 Redis 连接。根与生成配置默认选择缓存 DB 1、队列 DB 0，显式 URL 的数据库与查询选项遵守连接优先级。覆盖 TCP、Unix、密码解析及配置显示脱敏。
+
+根应用唯一示例在真实 Redis 上验证 DB 1 缓存键与 DB 0 队列任务分别写入，反向查询均为空。新生成 minimal 和 MySQL 通过 check/test，工作区通过 fmt、严格 Clippy、全特性编译、真实 MySQL 8.4.13 测试、严格 Rustdoc 和离线依赖检查。独立 Redis、MySQL 已退出。显式配置可选同库，`cache:clear` 仍须单独验证清理范围。
+
 ## 应用健康路由限定验收
 
 冻结树 `7723093960fda9177634235574ec14f9038ba98d` 对照固定 Laravel `06d016a` 骨架、框架 `d52c3b3` 的 `ApplicationBuilder`、`HealthCheck` 与 `RouteServiceProviderHealthTest`。根和生成项目在 API 与 Web 路由组之间注册 `/up`，共享应用事件派发器与异常报告。HTML 和 JSON 生产 500 通过已渲染响应标记保留，未标记的非 JSON 500 继续由原中间件脱敏。Rust 的 `Result::Err` 一律表示诊断失败，不按 PHP 异常消息文本的空串或零值判断健康。

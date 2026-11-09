@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 标准应用的 Redis 缓存默认使用 DB 1，Redis 队列默认使用 DB 0。已有部署如需继续使用旧缓存库，可通过 `REDIS_CACHE_DB` 指定原库号。
+
 - 根应用和生成项目提供 `/up` 健康诊断路由。应用可在启动装配中指定路径，并监听 `DiagnosingHealth` 添加依赖检查。
 
 - 原始 WHERE 支持 OR 及显式嵌套分组，按 SQL 原生优先级执行复合片段，读取和写入共用参数顺序。

@@ -508,6 +508,89 @@ async fn redis_module_heartbeat_runs_without_default_database() -> Result<()> {
     outcome.and(cleanup)
 }
 
+/// 默认缓存与 Redis 队列从同一部署地址选择各自的物理库。
+#[cfg(all(feature = "queue-redis", feature = "cache-redis"))]
+#[tokio::test]
+#[ignore = "需显式 OPENRUST_TEST_REDIS_DEFAULTS_URL，独立 Redis 实例须开放 DB 0 和 DB 1"]
+async fn redis_cache_and_module_queue_use_separate_default_databases() -> Result<()> {
+    use openrust::config::ConfigLoader;
+    use openrust::foundation::ApplicationDefinition as _;
+
+    let url = std::env::var("OPENRUST_TEST_REDIS_DEFAULTS_URL")
+        .map_err(|_| Error::custom("test_redis_url_missing", "必须提供独立 Redis 测试连接"))?;
+    let mut address = url::Url::parse(&url).map_err(Error::internal)?;
+    assert!(matches!(address.path(), "" | "/") && address.query().is_none());
+    let root = deployment()?;
+    let namespace = format!(
+        "redis-defaults-{}",
+        root.path()
+            .file_name()
+            .ok_or_else(|| Error::custom("test_root_missing", "临时目录缺少名称"))?
+            .to_string_lossy()
+            .trim_start_matches('.')
+    );
+    let prefix = format!("{{openrust:{namespace}}}:");
+    std::fs::write(root.path().join(".env"), format!("REDIS_URL={address}\n"))?;
+    let source = ConfigLoader::application_code_sources_with_overrides(
+        root.path(),
+        "OPENRUST_REDIS_DEFAULTS_TEST_",
+        Some("testing"),
+        &crate::bootstrap::Server::config(),
+        [
+            ("database", json!({"url":null})),
+            ("session", json!({"driver":null})),
+            (
+                "queue",
+                json!({"default":"redis","connections":{"redis":{"redis_namespace":namespace}}}),
+            ),
+        ],
+    )?;
+    address.set_path("/0");
+    let mut queue_db = redis::Client::open(address.as_str())
+        .map_err(Error::internal)?
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(Error::internal)?;
+    address.set_path("/1");
+    let mut cache_db = redis::Client::open(address.as_str())
+        .map_err(Error::internal)?
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(Error::internal)?;
+    let configuration = source
+        .figment()
+        .extract::<crate::bootstrap::Configuration>()
+        .map_err(Error::internal)?;
+    let builder = ProviderBuilder::for_application::<crate::bootstrap::Server>(&configuration);
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
+    let outcome = async {
+        let cache = app.state().resolve::<openrust::cache::Cache>().await?;
+        cache
+            .set(&namespace, &"marker", Some(Duration::from_secs(30)))
+            .await?;
+        let marker = format!("server:{namespace}");
+        let read_cache: Option<String> = redis::cmd("GET")
+            .arg(&marker)
+            .query_async(&mut cache_db)
+            .await
+            .map_err(Error::internal)?;
+        let read_queue: Option<String> = redis::cmd("GET")
+            .arg(&marker)
+            .query_async(&mut queue_db)
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(read_cache.as_deref(), Some("\"marker\""));
+        assert!(read_queue.is_none());
+        execute_redis_module_heartbeat(&app, &mut queue_db, &prefix).await?;
+        cache.remove(&namespace).await
+    }
+    .await;
+    let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    let cleanup_queue = clear_redis_heartbeat_namespace(&mut queue_db, &prefix).await;
+    let cleanup_cache = clear_redis_heartbeat_namespace(&mut cache_db, &prefix).await;
+    outcome.and(shutdown).and(cleanup_queue).and(cleanup_cache)
+}
+
 #[cfg(feature = "queue-redis")]
 async fn execute_redis_module_heartbeat(
     app: &Application,

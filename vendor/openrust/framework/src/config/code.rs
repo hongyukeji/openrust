@@ -344,6 +344,13 @@ impl ConfigManifest {
         self.include_toml
     }
 
+    #[cfg(feature = "queue")]
+    pub(crate) fn declares_section(&self, section: &str) -> bool {
+        self.entries
+            .iter()
+            .any(|entry| matches!(entry, Entry::Section { name, .. } if name == section))
+    }
+
     /// 登记一个可序列化配置区段；环境文件加载后、Provider 注册前调用函数。
     #[must_use]
     pub fn section<T, F>(mut self, name: impl Into<String>, evaluate: F) -> Self

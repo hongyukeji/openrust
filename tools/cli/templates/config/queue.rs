@@ -5,11 +5,6 @@ use std::collections::HashMap;
 
 /// 配置不启动 worker 或执行迁移；只建立实际选择的连接，不静默切换后端。
 pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
-    let redis_url = match ctx.env("QUEUE_REDIS_URL") {
-        Some(url) => Some(url),
-        // CacheStoreConfig 的专属选项已 flatten；继承同次最终缓存来源，不重复拼接 Redis 环境。
-        None => ctx.get::<String>("cache.stores.redis.dsn")?,
-    };
     // app.name 可含空格/Unicode；默认隔离名限制为 Redis driver 接受的安全 ASCII。
     let mut namespace = ctx
         .require::<String>("app.name")?
@@ -44,8 +39,8 @@ pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
                 serde_json::json!({
                     "driver":"redis",
                     "queue":"default",
-                    // null 表示没有配置 URL，选择此连接时必须明确报错；未选连接不建立服务连接。
-                    "redis_url":redis_url,
+                    // 默认连接使用 DB 0；统一配置来源可独立覆盖队列 URL。
+                    "redis_url":"redis://127.0.0.1:6379/0",
                     "redis_namespace":namespace,
                     "options":{},
                 }),

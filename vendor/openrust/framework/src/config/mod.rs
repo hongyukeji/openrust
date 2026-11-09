@@ -711,7 +711,7 @@ impl ConfigLoader {
                 layer,
             ));
         }
-        if let Some(dsn) = conventional_redis_dsn(&environment) {
+        if let Some(dsn) = conventional_redis_dsn(&environment, "REDIS_CACHE_DB", "1") {
             let layer = serde_json::json!({ "cache": { "stores": { "redis": { "dsn": dsn } } } });
             environment_layers.push((
                 CapturedProvider::new(&Serialized::defaults(layer.clone()))?,
@@ -719,8 +719,12 @@ impl ConfigLoader {
             ));
         }
         #[cfg(feature = "queue")]
-        if manifest.is_none()
-            && let Some(redis_url) = conventional_redis_dsn(&environment)
+        let queue_configured = manifest
+            .is_none_or(|manifest| manifest.declares_section("queue") || manifest.includes_toml());
+        #[cfg(not(feature = "queue"))]
+        let queue_configured = false;
+        if queue_configured
+            && let Some(redis_url) = conventional_redis_dsn(&environment, "REDIS_DB", "0")
         {
             let layer = serde_json::json!({ "queue": { "connections": { "redis": { "redis_url": redis_url } } } });
             environment_layers.push((
@@ -728,7 +732,10 @@ impl ConfigLoader {
                 layer,
             ));
         }
-        let common = environment.layer(common_environment_path)?;
+        let common = environment.layer(|key| {
+            common_environment_path(key)
+                .filter(|path| queue_configured || !path.starts_with("queue."))
+        })?;
         let common_provider = CapturedProvider::new(&Serialized::defaults(common.clone()))?
             .with_metadata(Env::prefixed("").metadata());
         environment_layers.push((common_provider, common));
@@ -1168,60 +1175,178 @@ fn conventional_database_url(
     Some(url.into())
 }
 
-fn conventional_redis_dsn(environment: &EnvironmentSnapshot) -> Option<String> {
-    const KEYS: [&str; 6] = [
+fn conventional_redis_dsn(
+    environment: &EnvironmentSnapshot,
+    database_key: &str,
+    default_database: &str,
+) -> Option<String> {
+    const KEYS: [&str; 5] = [
         "REDIS_HOST",
         "REDIS_PASSWORD",
         "REDIS_USERNAME",
         "REDIS_PORT",
-        "REDIS_DB",
         "REDIS_SCHEME",
     ];
-    if !KEYS.iter().any(|key| environment.present(key)) {
+    let shared_url = environment_value(environment, "REDIS_URL")
+        .as_deref()
+        .and_then(code::nullable_env_string)
+        .filter(|value| !value.is_empty());
+    if shared_url.is_none()
+        && !environment.present(database_key)
+        && !KEYS.iter().any(|key| environment.present(key))
+    {
         return None;
     }
 
+    let url = if let Some(value) = shared_url {
+        let Ok(url) = url::Url::parse(&value) else {
+            return Some("invalid://".to_owned());
+        };
+        url
+    } else {
+        let Some(url) = conventional_redis_address(environment) else {
+            return Some("invalid://".to_owned());
+        };
+        url
+    };
+    Some(
+        redis_dsn_with_defaults(url, environment, database_key, default_database)
+            .unwrap_or_else(|| "invalid://".to_owned()),
+    )
+}
+
+fn conventional_redis_address(environment: &EnvironmentSnapshot) -> Option<url::Url> {
     let scheme =
         environment_value(environment, "REDIS_SCHEME").unwrap_or_else(|| "redis".to_owned());
     if !matches!(scheme.as_str(), "redis" | "rediss") {
-        return Some("invalid://".to_owned());
+        return None;
     }
-    let Ok(mut url) = url::Url::parse(&format!("{scheme}://localhost")) else {
-        return Some("invalid://".to_owned());
-    };
+    let mut url = url::Url::parse(&format!("{scheme}://localhost")).ok()?;
     let host =
         environment_value(environment, "REDIS_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
-    if url.set_host(Some(&host)).is_err() {
-        return Some("invalid://".to_owned());
+    url.set_host(Some(&host)).ok()?;
+    Some(url)
+}
+
+fn redis_dsn_with_defaults(
+    mut url: url::Url,
+    environment: &EnvironmentSnapshot,
+    database_key: &str,
+    default_database: &str,
+) -> Option<String> {
+    let socket = matches!(url.scheme(), "unix" | "redis+unix" | "valkey+unix");
+    if !socket && !matches!(url.scheme(), "redis" | "rediss" | "valkey" | "valkeys") {
+        return None;
     }
-    let port = environment_value(environment, "REDIS_PORT").unwrap_or_else(|| "6379".to_owned());
-    if port.parse::<u16>().is_err() || url.set_port(port.parse::<u16>().ok()).is_err() {
-        return Some("invalid://".to_owned());
+    let query: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
+    // Laravel 的 query 覆盖 URL 路径；redis-rs 的 Unix DSN 通过 db 表示库号。
+    let explicit_database = if let Some(database) = query.get("database") {
+        Some(database.clone())
+    } else if socket {
+        query.get("db").cloned()
+    } else {
+        let path = url.path().strip_prefix('/').unwrap_or(url.path());
+        if path.is_empty() {
+            None
+        } else {
+            Some(String::from_utf8(crate::support::raw_url_decode(path)).ok()?)
+        }
+    };
+    let database = explicit_database
+        .or_else(|| environment_value(environment, database_key))
+        .unwrap_or_else(|| default_database.to_owned())
+        .parse::<u32>()
+        .ok()?
+        .to_string();
+
+    let username = environment_value(environment, "REDIS_USERNAME");
+    let password = environment_value(environment, "REDIS_PASSWORD")
+        .as_deref()
+        .and_then(code::nullable_env_string)
+        .filter(|password| !password.is_empty());
+    if socket {
+        return Some(redis_socket_dsn(
+            url,
+            &query,
+            &database,
+            username.as_deref(),
+            password.as_deref(),
+        ));
     }
-    if let Some(username) = environment_value(environment, "REDIS_USERNAME")
-        && url.set_username(&username).is_err()
-    {
-        return Some("invalid://".to_owned());
+    if let Some(host) = query.get("host") {
+        url.set_host(Some(host)).ok()?;
+    } else if url.host_str().is_none() {
+        let host =
+            environment_value(environment, "REDIS_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
+        url.set_host(Some(&host)).ok()?;
     }
-    if let Some(password) = environment_value(environment, "REDIS_PASSWORD")
-        .filter(|password| !password.eq_ignore_ascii_case("null"))
-        && url.set_password(Some(&password)).is_err()
-    {
-        return Some("invalid://".to_owned());
+    let port = if let Some(port) = query.get("port") {
+        port.parse::<u16>().ok()?
+    } else if let Some(port) = url.port() {
+        port
+    } else {
+        environment_value(environment, "REDIS_PORT")
+            .map_or(Some(6379), |port| port.parse::<u16>().ok())?
+    };
+    url.set_port(Some(port)).ok()?;
+    if let Some(username) = query.get("username").or_else(|| {
+        if url.username().is_empty() {
+            username.as_ref()
+        } else {
+            None
+        }
+    }) {
+        url.set_username(&username.replace('%', "%25")).ok()?;
     }
-    let database = environment_value(environment, "REDIS_DB").unwrap_or_else(|| "0".to_owned());
-    if database.parse::<u32>().is_err()
-        || url
-            .path_segments_mut()
-            .map(|mut segments| {
-                segments.pop_if_empty();
-                segments.push(&database);
-            })
-            .is_err()
-    {
-        return Some("invalid://".to_owned());
+    if let Some(password) = query.get("password").or_else(|| {
+        if url.password().is_none() {
+            password.as_ref()
+        } else {
+            None
+        }
+    }) {
+        url.set_password(Some(&password.replace('%', "%25"))).ok()?;
     }
+    url.set_path(&format!("/{database}"));
     Some(url.into())
+}
+
+fn redis_socket_dsn(
+    mut url: url::Url,
+    query: &std::collections::HashMap<String, String>,
+    database: &str,
+    username: Option<&str>,
+    password: Option<&str>,
+) -> String {
+    let remaining = url
+        .query_pairs()
+        .filter(|(key, _)| !matches!(key.as_ref(), "db" | "user" | "pass"))
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    let mut output = url.query_pairs_mut();
+    output
+        .clear()
+        .extend_pairs(remaining)
+        .append_pair("db", database);
+    if let Some(username) = query
+        .get("username")
+        .or(query.get("user"))
+        .map(String::as_str)
+        .or(username)
+    {
+        output.append_pair("user", username);
+    }
+    if let Some(password) = query
+        .get("password")
+        .or(query.get("pass"))
+        .map(String::as_str)
+        .or(password)
+    {
+        output.append_pair("pass", password);
+    }
+    output.finish();
+    drop(output);
+    url.into()
 }
 
 fn validate_namespace(namespace: &str) -> Result<(), ConfigError> {
@@ -1252,7 +1377,7 @@ pub fn redact_secrets(value: &mut serde_json::Value) {
         serde_json::Value::Object(map) => {
             for (key, child) in map.iter_mut() {
                 let lowered = key.to_ascii_lowercase();
-                if SECRET_MARKERS.iter().any(|m| lowered.contains(m)) {
+                if lowered == "redis_url" || SECRET_MARKERS.iter().any(|m| lowered.contains(m)) {
                     redact_secret_values(child);
                 } else {
                     redact_secrets(child);

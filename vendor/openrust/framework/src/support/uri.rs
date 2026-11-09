@@ -3,6 +3,7 @@
 mod parse;
 mod query;
 mod response;
+pub(crate) use parse::decode_bytes as raw_url_decode;
 pub use query::UriQueryString;
 
 use super::{Collection, DataObject, Htmlable, Stringable};

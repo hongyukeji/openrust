@@ -173,7 +173,7 @@ use std::collections::BTreeMap;
 /// 仅展示可选本机 store，默认不加入 store 表，不改变 redis 选择及初始化行为。
 const LOCAL_STORES_ENABLED: bool = false;
 
-/// 使用统一 Redis URL；store 的 driver 还须实际编译并登记。
+/// 默认缓存使用独立 Redis DB 1；部署连接通过统一配置来源覆盖。
 #[allow(
     clippy::unnecessary_wraps,
     reason = "保持 ConfigManifest 配置函数统一的可失败契约"
@@ -187,7 +187,7 @@ pub fn config(ctx: &ConfigContext) -> Result<CacheConfig, ConfigError> {
             // driver 专属选项；memory 可用空表，file 使用 path，非所有 driver 都读取 dsn。
             options: BTreeMap::from([(
                 "dsn".to_owned(),
-                serde_json::Value::String(ctx.env_or("REDIS_URL", "redis://127.0.0.1:6379/")),
+                serde_json::Value::String("redis://127.0.0.1:6379/1".to_owned()),
             )]),
         },
     )]);
@@ -713,6 +713,43 @@ fn test_configuration() -> openrust::config::FrameworkConfig {
     let mut config = openrust::config::FrameworkConfig::default();
     config.app.env = openrust::config::Environment::Testing;
     config
+}
+
+#[test]
+fn generated_redis_connections_preserve_independent_defaults() -> openrust::Result<()> {
+    use openrust::config::{ConfigError, ConfigLoader};
+    use openrust::foundation::ApplicationDefinition as _;
+
+    let root = tempfile::tempdir()?;
+    std::fs::write(
+        root.path().join(".env"),
+        "REDIS_URL=redis://redis.example.test:6380\n",
+    )?;
+    let sources = ConfigLoader::application_code_sources(
+        root.path(),
+        "GENERATED_REDIS_TEST_",
+        Some("testing"),
+        &GeneratedApplication::config(),
+    )?;
+    let figment = sources.figment();
+    assert_eq!(
+        figment
+            .extract_inner::<String>("cache.stores.redis.dsn")
+            .map_err(ConfigError::from)?,
+        "redis://redis.example.test:6380/1"
+    );
+    // 精简模板保留可选源码，只有登记到清单的区段才参与求值。
+    if include_str!("../config/mod.rs").contains(r#".section("queue", queue::config)"#) {
+        assert_eq!(
+            figment
+                .extract_inner::<String>("queue.connections.redis.redis_url")
+                .map_err(ConfigError::from)?,
+            "redis://redis.example.test:6380/0"
+        );
+    } else {
+        assert!(figment.find_value("queue").is_err());
+    }
+    Ok(())
 }
 
 #[tokio::test]
@@ -4598,7 +4635,7 @@ pub async fn assert_request_redirect<A: ApplicationDefinition>(
 
 标准 `openrust new` 预置 MySQL、Redis 缓存以及数据库和 Redis 队列实现；`--db postgres` 可选择 PostgreSQL，`--auth` 或 `--fortify` 选择官方 Web/Fortify、`web` Guard 和受保护 Session/Cookie，自动启用加密与现代因子迁移；只有显式 `--profile jwt-api` 选择不使用 Cookie/Session 的完整 JWT API，认证装配复用默认数据库，`--minimal` 明确省略数据库驱动、迁移包和队列（仍保留 Redis 缓存、view、session）。生成项目显式选择框架依赖 feature；认证应用提供本地 `auth`、`encryption`、`auth-fortify` feature 转发，其他能力由生成时所选依赖启用，不能仅靠 `cargo check --no-default-features` 取消这些已选依赖。
 
-复制 `.env.example` 为 `.env` 并填写实际连接信息；标准默认 `QUEUE_CONNECTION=database`，可改为 `redis`，不需要手改 Cargo 或 Provider。Redis 队列 URL 默认继承同次有效 `cache.stores.redis.dsn`，可用 `QUEUE_REDIS_URL` 独立覆盖，`QUEUE_REDIS_NAMESPACE` 覆盖键隔离名。框架迁移与应用自定义迁移由同一 `Migrator` 贡献，部署须显式执行 `openrust migrate`。任务处理器须已编译并登记；`openrust generate job delivery` 自动接入应用任务 Provider，生成的未实现 handler 会明确报错。启动 worker 使用 `openrust queue work database --queue default` 或 `openrust queue work redis --queue default`；第一个参数选择连接，`--queue` 选择该连接的队列。`serve` 不自动运行迁移或 worker，未选连接不初始化，不静默改用其他后端。
+复制 `.env.example` 为 `.env` 并填写实际连接信息。标准默认 `QUEUE_CONNECTION=database`，可改为 `redis`，不需要手改 Cargo 或 Provider。Redis 缓存使用 `REDIS_CACHE_DB`（默认 1），Redis 队列使用 `REDIS_DB`（默认 0）。`QUEUE_REDIS_URL` 可独立覆盖队列连接，`QUEUE_REDIS_NAMESPACE` 可覆盖键隔离名。框架迁移与应用自定义迁移由同一 `Migrator` 贡献，部署须显式执行 `openrust migrate`。任务处理器须已编译并登记；`openrust generate job delivery` 自动接入应用任务 Provider，生成的未实现 handler 会明确报错。启动 worker 使用 `openrust queue work database --queue default` 或 `openrust queue work redis --queue default`；第一个参数选择连接，`--queue` 选择该连接的队列。`serve` 不自动运行迁移或 worker，未选连接不初始化，不静默改用其他后端。
 
 `src/main.rs` 只负责入口；`bootstrap/app.rs` 装配应用与路由前缀、middleware 组，`bootstrap/providers.rs` 登记应用 Provider，`routes/mod.rs` 只声明路由文件的 Rust 模块；`routes/api.rs` 声明无状态 API，`routes/web.rs` 声明 Web 路由与全局 fallback。普通业务可直接写在 `app/` 的控制器、模型和 Provider 中；`modules/<业务>/` 是可选并存的组织方式。配置在 `config/`，迁移与种子在 `database/`，资源在 `resources/`，公开文件在 `public/`，运行数据在 `storage/`。
 

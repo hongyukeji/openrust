@@ -113,7 +113,7 @@ fn laravel_style_database_and_redis_variables_build_connection_urls() {
                 .map_err(|error| figment::Error::from(error.to_string()))?;
         assert_eq!(redis_url.host_str(), Some("cache.example.test"));
         assert_eq!(redis_url.port(), Some(6380));
-        assert_eq!(redis_url.path(), "/4");
+        assert_eq!(redis_url.path(), "/9");
         assert_eq!(redis_url.password(), Some("redis%3Asecret"));
         assert_eq!(cache["default"], "redis");
         let mail: serde_json::Value = loader
@@ -152,6 +152,78 @@ fn laravel_style_database_and_redis_variables_build_connection_urls() {
         }
         Ok(())
     });
+}
+
+#[cfg(feature = "queue")]
+#[test]
+fn shared_redis_url_preserves_role_defaults_and_explicit_database() -> crate::Result<()> {
+    let root = tempfile::tempdir()?;
+    let dotenv = root.path().join(".env");
+    let manifest = ConfigManifest::new().section("queue", |_| Ok(QueueConfig::default()));
+    let cases = [
+        (
+            "REDIS_URL=rediss://alice:p%40ss@shared.example.test:6380\n",
+            "rediss://alice:p%40ss@shared.example.test:6380/1",
+            "rediss://alice:p%40ss@shared.example.test:6380/0",
+        ),
+        (
+            "REDIS_URL=redis://shared.example.test:6380/3\nREDIS_DB=5\nREDIS_CACHE_DB=9\n",
+            "redis://shared.example.test:6380/3",
+            "redis://shared.example.test:6380/3",
+        ),
+        (
+            "REDIS_URL=redis://shared.example.test:6380/3?database=4\nQUEUE_REDIS_URL=redis://queue.example.test:6381/7\n",
+            "redis://shared.example.test:6380/4?database=4",
+            "redis://queue.example.test:6381/7",
+        ),
+        (
+            "REDIS_URL=redis://old:before@old.example.test:6379/%33?host=new.example.test&port=6381&username=alice&password=p%2540\n",
+            "redis://alice:p%2540@new.example.test:6381/3?host=new.example.test&port=6381&username=alice&password=p%2540",
+            "redis://alice:p%2540@new.example.test:6381/3?host=new.example.test&port=6381&username=alice&password=p%2540",
+        ),
+        (
+            "REDIS_URL=redis+unix:///tmp/fixture.sock?protocol=resp3\nREDIS_PASSWORD=(null)\n",
+            "redis+unix:///tmp/fixture.sock?protocol=resp3&db=1",
+            "redis+unix:///tmp/fixture.sock?protocol=resp3&db=0",
+        ),
+        (
+            "REDIS_URL=(null)\nREDIS_HOST=shared.example.test\nREDIS_PASSWORD=(empty)\n",
+            "redis://shared.example.test:6379/1",
+            "redis://shared.example.test:6379/0",
+        ),
+    ];
+    for (contents, expected_cache, expected_queue) in cases {
+        std::fs::write(&dotenv, contents)?;
+        let mut loader = ConfigLoader::new(root.path(), Environment::Test);
+        loader.environment = Some(EnvironmentSnapshot::default().with_dotenv_at(&dotenv)?);
+        let source = loader.code_sources(&manifest)?;
+        let cache: serde_json::Value = source
+            .figment()
+            .extract_inner("cache")
+            .map_err(ConfigError::from)?;
+        let queue: QueueConfig = source
+            .figment()
+            .extract_inner("queue")
+            .map_err(ConfigError::from)?;
+        assert_eq!(cache["stores"]["redis"]["dsn"], expected_cache);
+        assert_eq!(queue.connections["redis"]["redis_url"], expected_queue);
+        let mut output = serde_json::json!({"cache": cache, "queue": queue});
+        redact_secrets(&mut output);
+        assert_eq!(output["cache"]["stores"]["redis"]["dsn"], "********");
+        assert_eq!(
+            output["queue"]["connections"]["redis"]["redis_url"],
+            "********"
+        );
+    }
+    std::fs::write(
+        &dotenv,
+        "REDIS_URL=redis://shared.example.test:6380\nQUEUE_CONNECTION=redis\nQUEUE_REDIS_URL=redis://queue.example.test:6381/7\n",
+    )?;
+    let mut loader = ConfigLoader::new(root.path(), Environment::Test);
+    loader.environment = Some(EnvironmentSnapshot::default().with_dotenv_at(&dotenv)?);
+    let no_queue = loader.code_sources(&ConfigManifest::new())?;
+    assert!(no_queue.figment().find_value("queue").is_err());
+    Ok(())
 }
 
 #[allow(

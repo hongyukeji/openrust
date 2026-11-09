@@ -205,7 +205,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
            namespace: "article-worker-demo".into(),
            options: BTreeMap::from([(
                "dsn".into(),
-               serde_json::Value::String(ctx.env_or("REDIS_URL", "redis://127.0.0.1:6379/")),
+               serde_json::Value::String("redis://127.0.0.1:6379/1".to_owned()),
            )]),
        },
    );

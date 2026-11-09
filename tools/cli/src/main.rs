@@ -2075,12 +2075,12 @@ fn env_example(
         );
     }
     contents.push_str(
-        "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\n",
+        "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nREDIS_CACHE_DB=1\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\n",
     );
     contents.push_str("\n# 统一哈希默认；成本和完整策略见config/hashing.rs。\nHASH_DRIVER=bcrypt\nBCRYPT_ROUNDS=12\nHASH_VERIFY=true\nBCRYPT_LIMIT=null\nARGON_MEMORY=65536\nARGON_TIME=4\nARGON_THREADS=1\n");
     if database.is_some() {
         contents.push_str(
-            "\n# 默认数据库队列；可选择已预置的 Redis 连接，URL 默认继承有效缓存 dsn。\nQUEUE_CONNECTION=database\n# QUEUE_CONNECTION=redis\n# 独立 Redis 队列连接和命名空间可按需覆盖：\n# QUEUE_REDIS_URL=redis://127.0.0.1:6379/\n# QUEUE_REDIS_NAMESPACE=app_queue\n# 先执行 cargo run -- migrate，再用 cargo run 在同一进程启动 Web 与后台任务。\n# 分开部署：cargo run -- serve、cargo run -- queue work、cargo run -- schedule run。\n",
+            "\n# 默认数据库队列。可选 Redis 队列使用 REDIS_DB，缓存使用 REDIS_CACHE_DB。\nQUEUE_CONNECTION=database\n# QUEUE_CONNECTION=redis\n# 独立 Redis 队列连接和命名空间可按需覆盖：\n# QUEUE_REDIS_URL=redis://127.0.0.1:6379/0\n# QUEUE_REDIS_NAMESPACE=app_queue\n# 先执行 cargo run -- migrate，再用 cargo run 在同一进程启动 Web 与后台任务。\n# 分开部署：cargo run -- serve、cargo run -- queue work、cargo run -- schedule run。\n",
         );
     } else {
         contents.push_str(
@@ -4348,13 +4348,15 @@ mod tests {
         );
         let queue = fs::read_to_string(project.join("config/queue.rs")).expect("队列配置");
         assert!(queue.contains("ctx.env_or(\"QUEUE_CONNECTION\", \"database\")"));
-        assert!(queue.contains("cache.stores.redis.dsn"));
+        assert!(queue.contains("redis://127.0.0.1:6379/0"));
+        assert!(!queue.contains("cache.stores.redis.dsn"));
         assert!(!queue.contains("NAMED_CONNECTIONS_ENABLED"));
         assert!(!queue.contains("QueueDriverKind"));
         let env = fs::read_to_string(project.join(".env.example")).expect("环境配置");
         assert!(env.contains("DB_CONNECTION=mysql"));
         assert!(env.contains("DB_PORT=3306"));
         assert!(env.contains("QUEUE_CONNECTION=database"));
+        assert!(env.contains("REDIS_CACHE_DB=1"));
         assert!(env.contains("QUEUE_REDIS_NAMESPACE"));
         assert!(!env.contains("QUEUE_DRIVER"));
         generate_job(&["delivery".to_owned()], &project).expect("标准应用生成任务无需手改依赖");
