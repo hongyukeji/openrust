@@ -381,6 +381,25 @@ impl WhereGroup<'_, '_> {
     pub fn or_where_eq(self, column: &str, value: impl Into<Value>) -> Result<Self> {
         self.or_where_value(column, WhereValue::from(Into::<Value>::into(value)))
     }
+
+    /// 在组内追加受信 SQL 的 AND 条件，按顺序绑定代码区中的 `?`。
+    ///
+    /// 规则与 [`QueryBuilder::where_raw`] 一致。模板或绑定错误在构造条件组时返回。
+    pub fn where_raw(self, sql: RawSql, bindings: Vec<Value>) -> Result<Self> {
+        self.append_raw_where(sql, bindings, false)
+    }
+
+    /// 在组内追加受信 SQL 的 OR 条件，错误时机与 [`Self::where_raw`] 一致。
+    pub fn or_where_raw(self, sql: RawSql, bindings: Vec<Value>) -> Result<Self> {
+        self.append_raw_where(sql, bindings, true)
+    }
+
+    fn append_raw_where(mut self, sql: RawSql, bindings: Vec<Value>, or: bool) -> Result<Self> {
+        let RawSql(sql) = sql;
+        let expression = factory::raw_expression(&sql, bindings, self.context.db.backend()?)?;
+        self.condition = self.condition.add_raw(expression, or);
+        Ok(self)
+    }
 }
 
 impl Db {
@@ -538,10 +557,10 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         Ok(self)
     }
 
-    fn where_raw(mut self, sql: RawSql, bindings: Vec<Value>) -> Result<Self> {
+    fn where_raw(mut self, sql: RawSql, bindings: Vec<Value>, or: bool) -> Result<Self> {
         let RawSql(sql) = sql;
-        let predicate = factory::raw_expression(&sql, bindings, self.db.backend()?)?;
-        self.predicates = self.predicates.add(predicate);
+        let expression = factory::raw_expression(&sql, bindings, self.db.backend()?)?;
+        self.predicates = self.predicates.add_raw(expression, or);
         Ok(self)
     }
 

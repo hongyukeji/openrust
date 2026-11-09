@@ -112,10 +112,55 @@ async fn generated_multiple_columns_preserve_groups_nulls_and_subquery_contexts(
             .ok_or_else(|| Error::custom("generated_projection_missing", "常量投影未返回行"))?;
         let amount: i64 = row.try_get("", "amount").map_err(Error::internal)?;
         assert_eq!(amount, 7);
+        assert_raw_boolean_scope(&db).await?;
         Ok(())
     }
     .await;
     database.close().await?;
     outcome?;
+    Ok(())
+}
+
+async fn assert_raw_boolean_scope(db: &Db) -> Result<()> {
+    let table = db.table("multi_items")?;
+    let top_level = table
+        .clone()
+        .where_eq("id", 2_i64)?
+        .or_where_raw(RawSql::new("a = ?"), vec![1_i64.into()])
+        .where_raw(RawSql::new("b = ?"), vec![1_i64.into()]);
+    assert_eq!(
+        top_level.get_bindings()?,
+        vec![2_i64.into(), 1_i64.into(), 1_i64.into()]
+    );
+    assert_eq!(top_level.count().await?, 2);
+
+    let predicate = || RawSql::new("a = ? OR b = ?");
+    let values = || vec![2_i64.into(), 1_i64.into()];
+    let direct = table
+        .clone()
+        .where_eq("id", 2_i64)?
+        .where_raw(predicate(), values());
+    assert_eq!(direct.count().await?, 2);
+    let explicitly_grouped = table
+        .clone()
+        .where_eq("id", 2_i64)?
+        .where_nested(|group| group.where_raw(predicate(), values()))?;
+    assert_eq!(explicitly_grouped.count().await?, 1);
+
+    let grouped = table.clone().where_eq("a", 2_i64)?.where_nested(|group| {
+        group
+            .where_raw(RawSql::new("b = ?"), vec![1_i64.into()])?
+            .or_where_raw(RawSql::new("b = ?"), vec![3_i64.into()])
+    })?;
+    assert_eq!(
+        grouped.get_bindings()?,
+        vec![2_i64.into(), 1_i64.into(), 3_i64.into()]
+    );
+    assert_eq!(grouped.clone().value::<i64>("id").await?, Some(2));
+    assert_eq!(grouped.update(vec![("a", 4_i64.into())]).await?, 1);
+    assert_eq!(
+        table.where_eq("a", 4_i64)?.value::<i64>("id").await?,
+        Some(2)
+    );
     Ok(())
 }

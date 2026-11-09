@@ -580,7 +580,15 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
     /// 参数数目或模板无效时，返回的查询在读取绑定、编译或执行时报告错误。
     #[must_use]
     pub fn where_raw(self, sql: RawSql, bindings: Vec<Value>) -> Self {
-        if let Err(error) = self.transform(|state| state.where_raw(sql, bindings)) {
+        self.append_raw_where(sql, bindings, false)
+    }
+    /// 添加受信 SQL 的 OR 条件；绑定和错误时机与 [`Self::where_raw`] 一致。
+    #[must_use]
+    pub fn or_where_raw(self, sql: RawSql, bindings: Vec<Value>) -> Self {
+        self.append_raw_where(sql, bindings, true)
+    }
+    fn append_raw_where(self, sql: RawSql, bindings: Vec<Value>, or: bool) -> Self {
+        if let Err(error) = self.transform(|state| state.where_raw(sql, bindings, or)) {
             return self.failed_copy(&error);
         }
         self

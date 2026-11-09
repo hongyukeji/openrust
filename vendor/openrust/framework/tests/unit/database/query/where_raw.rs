@@ -72,6 +72,214 @@ async fn where_raw_binds_between_other_where_terms_in_select_update_and_delete()
     Ok(())
 }
 
+const RAW_BOOLEAN_BACKENDS: &[(&str, DbBackend, char, &str, &str)] = &[
+    #[cfg(feature = "db-mysql")]
+    (
+        "mysql://fixture@127.0.0.1:1/openrust",
+        DbBackend::MySql,
+        '`',
+        "category = ?",
+        "category =",
+    ),
+    #[cfg(feature = "db-postgres")]
+    (
+        "postgres://fixture@127.0.0.1:1/openrust",
+        DbBackend::Postgres,
+        '"',
+        "payload ?? ?",
+        "payload ?",
+    ),
+];
+
+fn raw_bind(backend: DbBackend, index: usize) -> String {
+    if backend == DbBackend::Postgres {
+        format!("${index}")
+    } else {
+        "?".to_owned()
+    }
+}
+
+#[tokio::test]
+async fn raw_where_keeps_top_level_order_and_omits_the_first_or() -> Result<()> {
+    for &(url, backend, quote, predicate, rendered) in RAW_BOOLEAN_BACKENDS {
+        let db = planning_database(url).await?;
+        let bind = |index| raw_bind(backend, index);
+        let needle = "中文 ' OR 1=1 -- ? $1";
+        let top = db
+            .table("records")?
+            .where_eq("owner_id", 17_i64)?
+            .or_where_raw(
+                RawSql::new(format!("{predicate} OR '?' = '?' /* ? */")),
+                vec![needle.into()],
+            )
+            .where_eq("tag", "visible")?;
+        assert_eq!(
+            normalize_space(&top.to_sql()?),
+            format!(
+                "SELECT * FROM {quote}records{quote} WHERE ({quote}owner_id{quote} = {}) \
+                 OR {rendered} {} OR '?' = '?' /* ? */ AND ({quote}tag{quote} = {})",
+                bind(1),
+                bind(2),
+                bind(3),
+            )
+        );
+        assert_eq!(
+            top.get_bindings()?,
+            vec![17_i64.into(), needle.into(), "visible".into()]
+        );
+
+        let first = db
+            .table("records")?
+            .where_nested(Ok)?
+            .or_where_raw(RawSql::new("flag = ?"), vec![0_i64.into()]);
+        assert_eq!(
+            normalize_space(&first.to_sql()?),
+            format!(
+                "SELECT * FROM {quote}records{quote} WHERE flag = {}",
+                bind(1)
+            )
+        );
+        assert_eq!(first.get_bindings()?, vec![0_i64.into()]);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn raw_where_boolean_precedence_and_nested_bindings_match_read_and_write_plans() -> Result<()>
+{
+    for &(url, backend, quote, predicate, rendered) in RAW_BOOLEAN_BACKENDS {
+        let db = planning_database(url).await?;
+        let bind = |index| raw_bind(backend, index);
+        let needle = "中文 ' OR 1=1 -- ? $1";
+        let nested = db
+            .table("records")?
+            .where_eq("owner_id", 17_i64)?
+            .where_nested(|group| {
+                group
+                    .or_where_raw(RawSql::new(predicate), vec![needle.into()])?
+                    .where_raw(RawSql::new("flag = ?"), vec![0_i64.into()])?
+                    .or_where_raw(RawSql::new("tag = ?"), vec!["visible".into()])
+            })?
+            .where_eq("archived", 0_i64)?;
+        let nested_where = |start| {
+            let [owner, raw, flag, tag, archived] =
+                std::array::from_fn(|index| bind(start + index));
+            format!(
+                "({quote}owner_id{quote} = {owner}) AND ({rendered} {raw} AND flag = {flag} \
+                 OR tag = {tag} ) AND ({quote}archived{quote} = {archived})"
+            )
+        };
+        let where_values = vec![
+            17_i64.into(),
+            needle.into(),
+            0_i64.into(),
+            "visible".into(),
+            0_i64.into(),
+        ];
+        assert_eq!(nested.get_bindings()?, where_values);
+        assert_eq!(
+            normalize_space(&nested.to_sql()?),
+            format!(
+                "SELECT * FROM {quote}records{quote} WHERE {}",
+                nested_where(1)
+            )
+        );
+
+        let state = nested.snapshot()?;
+        let pairs = [(Alias::new("flag"), Expr::val(99_i64))];
+        let mut update_values = vec![99_i64.into()];
+        update_values.extend(where_values.clone());
+        for bindings in [false, true] {
+            let (update, update_bindings) = state.compile_update(&pairs, bindings)?;
+            assert_eq!(
+                normalize_space(&update),
+                format!(
+                    "UPDATE {quote}records{quote} SET {quote}flag{quote} = {} WHERE {}",
+                    bind(1),
+                    nested_where(2)
+                )
+            );
+            assert_eq!(update_bindings.0, update_values);
+
+            let (delete, delete_bindings) = state.compile_delete(bindings)?;
+            assert_eq!(
+                normalize_space(&delete),
+                format!(
+                    "DELETE FROM {quote}records{quote} WHERE {}",
+                    nested_where(1)
+                )
+            );
+            assert_eq!(delete_bindings.0, where_values);
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn raw_where_preserves_nested_comment_not_and_subquery_boundaries() -> Result<()> {
+    for &(url, backend, quote, _, _) in RAW_BOOLEAN_BACKENDS {
+        let db = planning_database(url).await?;
+        let bind = |index| raw_bind(backend, index);
+        let guarded = db
+            .table("records")?
+            .where_eq("owner_id", 17_i64)?
+            .where_nested(|group| {
+                group.where_raw(
+                    RawSql::new("flag = ? OR flag = ? -- tail"),
+                    vec![1_i64.into(), 2_i64.into()],
+                )
+            })?
+            .where_null("archived")?;
+        let sql = guarded.to_sql()?;
+        assert!(sql.contains("-- tail\n) AND ("), "{sql}");
+        assert_eq!(
+            normalize_space(&sql),
+            format!(
+                "SELECT * FROM {quote}records{quote} WHERE ({quote}owner_id{quote} = {}) AND \
+                 (flag = {} OR flag = {} -- tail ) AND ({quote}archived{quote} IS NULL)",
+                bind(1),
+                bind(2),
+                bind(3)
+            )
+        );
+        assert_eq!(
+            guarded.get_bindings()?,
+            vec![17_i64.into(), 1_i64.into(), 2_i64.into()]
+        );
+
+        let negated = db.table("records")?.where_none(
+            [super::MultiColumn::callback(|query| {
+                Ok(query.where_raw(
+                    RawSql::new("flag = ? OR flag = ?"),
+                    vec![1_i64.into(), 2_i64.into()],
+                ))
+            })],
+            super::MultiComparison::Omitted,
+        )?;
+        let sql = normalize_space(&negated.to_sql()?);
+        assert!(
+            sql.contains(&format!(
+                "NOT ((flag = {} OR flag = {} ))",
+                bind(1),
+                bind(2)
+            )),
+            "{sql}"
+        );
+        assert_eq!(negated.get_bindings()?, vec![1_i64.into(), 2_i64.into()]);
+
+        let scalar = db
+            .query()
+            .select_raw(RawSql::new("?"), vec![9_i64.into()])?;
+        let with_child = guarded.where_compare("flag", super::WhereOperator::Eq, &scalar)?;
+        assert!(normalize_space(&with_child.to_sql()?).contains(&format!("SELECT {}", bind(4))));
+        assert_eq!(
+            with_child.get_bindings()?,
+            vec![17_i64.into(), 1_i64.into(), 2_i64.into(), 9_i64.into()]
+        );
+    }
+    Ok(())
+}
+
 fn normalize_space(sql: &str) -> String {
     sql.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -344,16 +552,33 @@ async fn invalid_where_raw_bindings_fail_before_any_read_or_write_execution() ->
         ("category = ? AND id = ?", vec![1_i64.into()]),
         ("category = ?", vec![1_i64.into(), 2_i64.into()]),
     ] {
-        let invalid = guarded
-            .clone()
-            .where_raw(RawSql::new(sql), bindings)
-            .where_eq("tag", "visible")?;
-        assert_invalid_bindings(invalid.get_bindings());
-        assert_invalid_bindings(invalid.to_sql());
-        assert_invalid_bindings(invalid.get().await);
-        assert_invalid_bindings(invalid.count().await);
-        assert_invalid_bindings(invalid.update(vec![("flag", 99_i64.into())]).await);
-        assert_invalid_bindings(invalid.delete().await);
+        for invalid in [
+            guarded
+                .clone()
+                .where_raw(RawSql::new(sql), bindings.clone()),
+            guarded
+                .clone()
+                .or_where_raw(RawSql::new(sql), bindings.clone()),
+        ] {
+            let invalid = invalid.where_eq("tag", "visible")?;
+            assert_invalid_bindings(invalid.get_bindings());
+            assert_invalid_bindings(invalid.to_sql());
+            assert_invalid_bindings(invalid.get().await);
+            assert_invalid_bindings(invalid.count().await);
+            assert_invalid_bindings(invalid.update(vec![("flag", 99_i64.into())]).await);
+            assert_invalid_bindings(invalid.delete().await);
+        }
+        for or in [false, true] {
+            let invalid = guarded.alias().where_nested(|group| {
+                let group = group.where_eq("tag", "visible")?;
+                if or {
+                    group.or_where_raw(RawSql::new(sql), bindings.clone())
+                } else {
+                    group.where_raw(RawSql::new(sql), bindings.clone())
+                }
+            });
+            assert_invalid_bindings(invalid);
+        }
     }
     assert_eq!(guarded.get_bindings()?, vec![Value::from(17_i64)]);
     #[cfg(feature = "db-postgres")]
@@ -435,6 +660,8 @@ async fn real_mysql_where_raw_targets_only_the_bound_owner_and_text() -> Result<
         assert_invalid_bindings(invalid.delete().await);
         assert_eq!(table.count().await?, 4);
         assert_mysql_raw_where_line_comments(&guarded, needle).await?;
+        assert_mysql_raw_where_boolean(&db, needle).await?;
+        assert_mysql_compound_raw_where(&db, needle).await?;
         let query = guarded
             .where_raw(
                 RawSql::new("category = ? AND '?' = '?' /* ? */"),
@@ -494,6 +721,153 @@ async fn assert_mysql_raw_where_line_comments(
         assert_eq!(commented.pluck::<i64>("id").await?, [1]);
         assert_eq!(commented.count().await?, 1);
     }
+    Ok(())
+}
+
+#[cfg(feature = "db-mysql")]
+async fn assert_mysql_raw_where_boolean(db: &Db, needle: &str) -> Result<()> {
+    use sea_orm::TransactionTrait as _;
+
+    let tx = db
+        .primary_connection()?
+        .begin()
+        .await
+        .map_err(Error::internal)?;
+    let table = db.table("raw_where_records")?.using_transaction(&tx);
+    let top = table
+        .clone()
+        .where_eq("owner_id", 18_i64)?
+        .or_where_raw(RawSql::new("category = ?"), vec![needle.into()])
+        .where_eq("tag", "hidden")?
+        .order_by("id", super::SortDirection::Asc)?;
+    assert_eq!(top.pluck::<i64>("id").await?, [2, 3]);
+    assert_eq!(top.count().await?, 2);
+
+    let scoped = table
+        .clone()
+        .where_eq("owner_id", 17_i64)?
+        .where_nested(|group| {
+            group
+                .where_raw(RawSql::new("category = ?"), vec![needle.into()])?
+                .or_where_raw(RawSql::new("category = ?"), vec!["other".into()])
+        })?
+        .where_eq("tag", "visible")?;
+    assert_eq!(
+        scoped
+            .clone()
+            .order_by("id", super::SortDirection::Asc)?
+            .pluck::<i64>("id")
+            .await?,
+        [1, 4]
+    );
+    assert_eq!(scoped.count().await?, 2);
+    assert_eq!(scoped.update(vec![("flag", 77_i64.into())]).await?, 2);
+    assert_eq!(
+        table
+            .clone()
+            .where_eq("flag", 77_i64)?
+            .order_by("id", super::SortDirection::Asc)?
+            .pluck::<i64>("id")
+            .await?,
+        [1, 4]
+    );
+    assert_eq!(scoped.delete().await?, 2);
+    assert_eq!(
+        table
+            .order_by("id", super::SortDirection::Asc)?
+            .pluck::<i64>("id")
+            .await?,
+        [2, 3]
+    );
+    drop(scoped);
+    drop(top);
+    tx.rollback().await.map_err(Error::internal)?;
+    assert_eq!(
+        db.table("raw_where_records")?
+            .where_eq("flag", 0_i64)?
+            .count()
+            .await?,
+        4
+    );
+    Ok(())
+}
+
+#[cfg(feature = "db-mysql")]
+async fn assert_mysql_compound_raw_where(db: &Db, needle: &str) -> Result<()> {
+    use sea_orm::TransactionTrait as _;
+
+    let tx = db
+        .primary_connection()?
+        .begin()
+        .await
+        .map_err(Error::internal)?;
+    let table = db.table("raw_where_records")?.using_transaction(&tx);
+    for marker in ["--", "#"] {
+        let blocked = table
+            .clone()
+            .where_raw(
+                RawSql::new(format!("id = ? {marker} tail")),
+                vec![1_i64.into()],
+            )
+            .where_null("tag")?;
+        assert_eq!(blocked.count().await?, 0);
+        assert_eq!(blocked.update(vec![("flag", 66_i64.into())]).await?, 0);
+        assert_eq!(blocked.delete().await?, 0);
+    }
+
+    let fragment = RawSql::new("category = ? OR id = ?");
+    let bindings = vec![needle.into(), 2_i64.into()];
+    let owner = table.clone().where_eq("owner_id", 17_i64)?;
+    let ungrouped = owner
+        .clone()
+        .where_raw(fragment.clone(), bindings.clone())
+        .where_eq("tag", "visible")?;
+    let grouped = owner
+        .where_nested(|group| group.where_raw(fragment, bindings))?
+        .where_eq("tag", "visible")?;
+    assert_eq!(
+        ungrouped
+            .clone()
+            .order_by("id", super::SortDirection::Asc)?
+            .pluck::<i64>("id")
+            .await?,
+        [1, 2, 3]
+    );
+    assert_eq!(grouped.pluck::<i64>("id").await?, [1]);
+
+    assert_eq!(grouped.update(vec![("flag", 77_i64.into())]).await?, 1);
+    assert_eq!(
+        table
+            .clone()
+            .where_eq("flag", 77_i64)?
+            .pluck::<i64>("id")
+            .await?,
+        [1]
+    );
+    assert_eq!(ungrouped.update(vec![("flag", 88_i64.into())]).await?, 3);
+    assert_eq!(
+        table
+            .clone()
+            .where_eq("flag", 88_i64)?
+            .order_by("id", super::SortDirection::Asc)?
+            .pluck::<i64>("id")
+            .await?,
+        [1, 2, 3]
+    );
+    assert_eq!(grouped.delete().await?, 1);
+    assert_eq!(ungrouped.delete().await?, 2);
+    assert_eq!(table.pluck::<i64>("id").await?, [4]);
+    drop(grouped);
+    drop(ungrouped);
+    drop(table);
+    tx.rollback().await.map_err(Error::internal)?;
+    assert_eq!(
+        db.table("raw_where_records")?
+            .where_eq("flag", 0_i64)?
+            .count()
+            .await?,
+        4
+    );
     Ok(())
 }
 

@@ -108,6 +108,8 @@ let rows = query.get().await?;
 
 这里的 WHERE 绑定顺序为账户、下限、上限和状态。相同条件也用于计数、更新和删除。参数缺少或多余时，读取绑定、编译和执行都会报告 `query_raw_bindings_invalid`。
 
+`or_where_raw` 用 OR 连接一个原始条件，顶层仍遵循 SQL 的 AND 优先级。在 `where_nested` 中使用 `where_raw` 和 `or_where_raw` 可限制 OR 的作用域，组内无效模板会立即返回错误。示例导入时间线用 `(state = ? OR state = ?)` 筛选已完成或失败的任务，账户条件仍约束整个状态组。复合片段按原文参与 SQL 优先级。使用 `where_nested` 或显式 SQL 括号让账户条件约束整个 OR 组，特别是更新和删除。 框架在 raw 片段后保留换行边界，使末尾行注释无法吞掉后续谓词、分组括号或查询子句。
+
 ## JSON 包含
 
 `where_json_contains` 接受列名、限定列或箭头路径，查找值使用 `serde_json::Value` 绑定。MySQL 把路径传给 `JSON_CONTAINS`，PostgreSQL 取出 JSON 节点并转换为 `jsonb` 后检查包含，SQLite 把路径传给 `json_each`。在查询和 `where_nested` 分组内都可用 `or_where_json_contains`、`where_json_doesnt_contain` 和 `or_where_json_doesnt_contain`。否定只作用于当前谓词。MySQL 与 PostgreSQL 中，缺失路径或 SQL `NULL` 得到未知值，否定仍不匹配；SQLite 中不存在可迭代元素时，否定的 `exists` 匹配。

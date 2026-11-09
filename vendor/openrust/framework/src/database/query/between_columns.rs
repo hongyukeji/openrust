@@ -1,8 +1,9 @@
 //! 列间区间谓词与保留生命期的动态布尔树。
 
 use super::{
-    Alias, Condition, DatabaseTransaction, Db, Error, Expr, ExprTrait, QueryBuilder, QueryState,
-    RawSql, Result, SelectStatement, WhereGroup, subqueries::DeferredChild, validate_identifier,
+    Alias, Condition, DatabaseTransaction, Db, DbBackend, Error, Expr, ExprTrait, QueryBuilder,
+    QueryState, RawSql, Result, SelectStatement, WhereGroup, subqueries::DeferredChild,
+    validate_identifier,
 };
 use std::sync::Arc;
 
@@ -201,6 +202,7 @@ impl<'a> ColumnOperand<'a> {
 #[derive(Clone)]
 enum Term<'a> {
     Plain(Condition),
+    Raw(Expr),
     Frozen {
         sql: Expr,
         bindings: Expr,
@@ -219,6 +221,67 @@ enum Term<'a> {
         not: bool,
     },
     Exists(Box<DeferredChild<'a>>),
+}
+
+impl Term<'_> {
+    fn compile(&self, context: &QueryContext<'_>, bindings: bool) -> Result<Condition> {
+        Ok(match self {
+            Self::Plain(condition) => condition.clone(),
+            Self::Raw(expression) => expression.clone().into(),
+            Self::Frozen {
+                sql,
+                bindings: frozen,
+                origins,
+            } => {
+                for origin in origins {
+                    origin.validate_connection(context)?;
+                }
+                if bindings {
+                    frozen.clone()
+                } else {
+                    sql.clone()
+                }
+                .into()
+            }
+            Self::ComparisonSub {
+                sql,
+                bindings: frozen,
+                operator,
+                child,
+                origins,
+            } => {
+                for origin in origins {
+                    origin.validate_connection(context)?;
+                }
+                child.validate(context)?;
+                let left = if bindings {
+                    frozen.clone()
+                } else {
+                    sql.clone()
+                };
+                left.binary(
+                    sea_orm::sea_query::BinOper::Custom(operator),
+                    Expr::from(child.prepare(bindings, false)?),
+                )
+                .into()
+            }
+            Self::Nested {
+                tree,
+                context: origin,
+                not,
+            } => {
+                if tree.has_subquery {
+                    origin.validate_same(context)?;
+                }
+                let nested = tree.compile(context, bindings)?;
+                if *not { nested.not() } else { nested }
+            }
+            Self::Exists(child) => {
+                child.validate(context)?;
+                Expr::exists(child.prepare(bindings, false)?).into()
+            }
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -279,6 +342,9 @@ impl<'a> PredicateChain<'a> {
             self.push(Term::Plain(condition), false)
         }
     }
+    pub(super) fn add_raw(self, expression: Expr, or: bool) -> Self {
+        self.push(Term::Raw(expression), or)
+    }
     pub(super) fn add_nested(self, tree: Self, context: QueryContext<'a>) -> Self {
         if tree.branches.is_empty() {
             self
@@ -334,7 +400,7 @@ impl<'a> PredicateChain<'a> {
                         tree.validate_sources(context)?;
                     }
                     Term::Exists(child) => child.validate(context)?,
-                    Term::Plain(_) => {}
+                    Term::Plain(_) | Term::Raw(_) => {}
                 }
             }
         }
@@ -366,67 +432,56 @@ impl<'a> PredicateChain<'a> {
         if self.branches.is_empty() {
             return Ok(Condition::all());
         }
+        if self.contains_raw() {
+            return self.compile_with_raw(context, bindings);
+        }
         let mut result = Condition::any();
         for branch in &self.branches {
             let mut conditions = Condition::all();
             for term in branch {
-                conditions = match term {
-                    Term::Plain(condition) => conditions.add(condition.clone()),
-                    Term::Frozen {
-                        sql,
-                        bindings: frozen,
-                        origins,
-                    } => {
-                        for origin in origins {
-                            origin.validate_connection(context)?;
-                        }
-                        conditions.add(if bindings {
-                            frozen.clone()
-                        } else {
-                            sql.clone()
-                        })
-                    }
-                    Term::ComparisonSub {
-                        sql,
-                        bindings: frozen,
-                        operator,
-                        child,
-                        origins,
-                    } => {
-                        for origin in origins {
-                            origin.validate_connection(context)?;
-                        }
-                        child.validate(context)?;
-                        let left = if bindings {
-                            frozen.clone()
-                        } else {
-                            sql.clone()
-                        };
-                        conditions.add(left.binary(
-                            sea_orm::sea_query::BinOper::Custom(operator),
-                            Expr::from(child.prepare(bindings, false)?),
-                        ))
-                    }
-                    Term::Nested {
-                        tree,
-                        context: origin,
-                        not,
-                    } => {
-                        if tree.has_subquery {
-                            origin.validate_same(context)?;
-                        }
-                        let nested = tree.compile(context, bindings)?;
-                        conditions.add(if *not { nested.not() } else { nested })
-                    }
-                    Term::Exists(child) => {
-                        child.validate(context)?;
-                        conditions.add(Expr::exists(child.prepare(bindings, false)?))
-                    }
-                };
+                conditions = conditions.add(term.compile(context, bindings)?);
             }
             result = result.add(conditions);
         }
         Ok(result)
+    }
+
+    fn contains_raw(&self) -> bool {
+        self.branches.iter().flatten().any(|term| match term {
+            Term::Raw(_) => true,
+            Term::Nested { tree, .. } => tree.contains_raw(),
+            _ => false,
+        })
+    }
+
+    fn compile_with_raw(&self, context: &QueryContext<'_>, bindings: bool) -> Result<Condition> {
+        let postgres = context.db.backend()? == DbBackend::Postgres;
+        let mut template = String::new();
+        let mut expressions = Vec::new();
+        for branch in &self.branches {
+            for (index, term) in branch.iter().enumerate() {
+                if !expressions.is_empty() {
+                    template.push_str(if index == 0 { " OR " } else { " AND " });
+                }
+                expressions.push(Expr::from(term.compile(context, bindings)?));
+                let slot = if postgres {
+                    format!("${}", expressions.len())
+                } else {
+                    "?".to_owned()
+                };
+                if matches!(term, Term::Raw(_)) {
+                    template.push_str(&slot);
+                    // 保留原始布尔优先级，并阻止末尾行注释吞掉后续条件或组右括号。
+                    template.push('\n');
+                } else {
+                    // 普通谓词仍是原有表达式，显式条件组保留括号边界。
+                    template.push('(');
+                    template.push_str(&slot);
+                    template.push(')');
+                }
+            }
+        }
+        Ok(Expr::cust_with_exprs(template, expressions).into())
     }
     pub(super) fn add_comparison_sub(
         mut self,

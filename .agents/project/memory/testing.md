@@ -1938,6 +1938,12 @@ cargo test -p openrust-framework --features db-postgres --lib \
   -- --ignored --exact --nocapture
 ```
 
+## 原始 WHERE 布尔优先级与嵌套验收
+
+冻结树 `7a0fcb3803810c6417cf0c6e8f95c0cb4a40aa1c` 对照固定 Laravel d52c3b3 的 Builder::whereRaw、orWhereRaw、whereNested、Grammar 与 DatabaseQueryBuilderTest。顶层保留原始 SQL 的布尔优先级和绑定顺序，显式嵌套组限定范围。原始片段末尾行注释用换行隔开后续条件或右括号。查询、更新和删除使用同一条件树。
+
+真实 MySQL 8.4 验证精确读写、事务回滚、唯一示例的导入时间线 HTTP 账户隔离，以及新生成 MySQL 应用的复合条件和显式分组。格式、严格 Clippy、workspace tests、全特性及 SQLite 根目标编译、严格 Rustdoc、离线依赖检查、新生成 minimal 和 MySQL 的 check/test 通过。新生成 PostgreSQL 与 SQLite 的测试目标通过编译，实库留在发布矩阵。
+
 ## JSON 包含路径与布尔组验收
 
 冻结树 `44d3515298e937fc5bd414af5b4de4668252c462` 对应固定 Laravel d52c3b3 的四个 JSON 包含方法、MySQL/PostgreSQL/SQLite Grammar 与查询构造测试。三后端 AST 验证限定列、箭头路径和索引、取反范围、参数顺序与分组。Rust 把路径中的 ` as ` 当作 JSON 键数据，避免把条件路径解释成列别名。

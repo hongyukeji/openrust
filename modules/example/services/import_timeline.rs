@@ -88,7 +88,11 @@ pub(crate) async fn report_filtered(
         ExistsOrResult::Callback(fallback) => fallback,
     };
     let records = owner_imports
-        .where_in("state", ["completed", "failed"])?
+        .where_nested(|group| {
+            group
+                .where_raw(RawSql::new("state = ?"), vec!["completed".into()])?
+                .or_where_raw(RawSql::new("state = ?"), vec!["failed".into()])
+        })?
         .where_compare("terminal_at_ms", WhereOperator::NotEq, Option::<i64>::None)?;
     // SQL 上界只来自校验后的服务器整数，不接收用户提供的 SQL 或时钟。
     let bounds = || {
