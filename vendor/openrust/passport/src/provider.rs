@@ -23,8 +23,8 @@ use zeroize::Zeroizing;
 
 use crate::{
     AuthorizationServer, BridgeClientRepository, ClientFactory, ClientLookup, ClientModelFactory,
-    ClientRepository, DatabaseGrantAuthority, DatabaseGrantRepository, GrantConfig, GrantStorage,
-    GrantUserKey, OAuthAccessSigner, OAuthAccessVerifier, ScopeRepository,
+    ClientRepository, DatabaseGrantRepository, GrantConfig, GrantStorage, GrantUserKey,
+    OAuthAccessSigner, OAuthAccessVerifier, ResourceServer, ScopeRepository,
     register_client_repository_scope,
 };
 
@@ -299,20 +299,15 @@ async fn register_grants(app: &mut RegisterContext<'_>) -> Result<()> {
     if !app.is_bound::<DatabaseGrantRepository>() {
         app.scoped::<DatabaseGrantRepository, _>(|resolver| {
             Box::pin(async move {
-                if !resolver.is_bound::<DatabaseGrantAuthority>()? {
-                    return Err(authority_missing());
-                }
                 let config = resolver.section::<PassportConfig>("passport")?;
-                let authority = resolver.resolve::<DatabaseGrantAuthority>().await?;
                 let databases = resolver.resolve::<Databases>().await?;
                 let factory = resolver.resolve::<dyn ClientModelFactory>().await?;
                 let user_key = resolver.resolve::<GrantUserKey>().await?;
-                Ok(Arc::new(DatabaseGrantRepository::new(
+                Ok(Arc::new(DatabaseGrantRepository::from_scope(
                     &databases,
                     config.connection.as_deref(),
                     factory,
                     *user_key,
-                    authority,
                     resolver.resolve::<dyn ClientLookup>().await?,
                     resolver.clone(),
                 )?))
@@ -334,6 +329,7 @@ async fn register_grants(app: &mut RegisterContext<'_>) -> Result<()> {
         app.scoped::<AuthorizationServer, _>(|resolver| {
             Box::pin(async move {
                 let repository = resolver.resolve::<dyn GrantStorage>().await?;
+                repository.require_issuance_authority().await?;
                 let hashing = resolver.resolve::<HashManager>().await?;
                 let signer = resolver.resolve::<OAuthAccessSigner>().await?;
                 let encryption = resolver.resolve::<ContextualEncrypter>().await?;
@@ -347,6 +343,16 @@ async fn register_grants(app: &mut RegisterContext<'_>) -> Result<()> {
                     (*scopes).clone(),
                     (*config).clone(),
                 )))
+            })
+        })
+        .await?;
+    }
+    if !app.is_bound::<ResourceServer>() {
+        app.scoped::<ResourceServer, _>(|resolver| {
+            Box::pin(async move {
+                let verifier = resolver.resolve::<OAuthAccessVerifier>().await?;
+                let storage = resolver.resolve::<dyn GrantStorage>().await?;
+                Ok(Arc::new(ResourceServer::new(verifier, storage)))
             })
         })
         .await?;
@@ -635,12 +641,6 @@ fn key_mode_allowed(mode: u32) -> bool {
     matches!(mode & 0o777, 0o400 | 0o440 | 0o600 | 0o640 | 0o660)
 }
 
-fn authority_missing() -> Error {
-    failure(
-        "passport_grant_authority_missing",
-        "必须显式安装当前认证模式的OAuth用户与父凭据权威适配器",
-    )
-}
 fn failure(code: &'static str, message: &'static str) -> Error {
     Error::custom_with_status(
         openrust::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -650,5 +650,5 @@ fn failure(code: &'static str, message: &'static str) -> Error {
 }
 
 #[cfg(test)]
-#[path = "provider_tests.rs"]
+#[path = "../tests/unit/provider.rs"]
 mod tests;

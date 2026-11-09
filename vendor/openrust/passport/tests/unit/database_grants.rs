@@ -566,10 +566,10 @@ impl SqlGrantFixture {
             .ok_or_else(binding_invalid)?;
         assert!(!revoked(&attributes_from_row(&row)?)?);
         let mut final_repository = repository.clone();
-        final_repository.authority = Arc::new(RejectFinal(
+        final_repository.authority = Some(Arc::new(RejectFinal(
             std::sync::atomic::AtomicUsize::new(0),
             db.clone(),
-        ));
+        )));
         let mut final_code = code.clone();
         final_code.id = "final-rejected-code".into();
         assert_eq!(
@@ -638,7 +638,7 @@ impl SqlGrantFixture {
                     .clone(),
             };
             let mut attacked = repository.clone();
-            attacked.authority = Arc::new(TamperAuthority {
+            attacked.authority = Some(Arc::new(TamperAuthority {
                 db: db.clone(),
                 calls: std::sync::atomic::AtomicUsize::new(0),
                 table,
@@ -646,7 +646,7 @@ impl SqlGrantFixture {
                 column,
                 value,
                 advance: None,
-            });
+            }));
             assert_eq!(
                 attacked
                     .exchange_code(&attacked_code, snapshot, &attacked_tokens, 1_700_000_000)
@@ -701,7 +701,7 @@ impl SqlGrantFixture {
             }
             repository.persist_code(&attacked_code, snapshot).await?;
             let mut attacked = repository.clone();
-            attacked.authority = Arc::new(TamperAuthority {
+            attacked.authority = Some(Arc::new(TamperAuthority {
                 db: db.clone(),
                 calls: std::sync::atomic::AtomicUsize::new(0),
                 table: "oauth_clients",
@@ -709,7 +709,7 @@ impl SqlGrantFixture {
                 column: Some(column),
                 value,
                 advance: None,
-            });
+            }));
             assert_eq!(
                 attacked
                     .exchange_code(&attacked_code, snapshot, &attacked_tokens, 1_700_000_000)
@@ -762,7 +762,7 @@ impl SqlGrantFixture {
                 refresh.id = format!("timed-refresh-{index}");
                 refresh.access = timed_tokens.access.clone();
             }
-            timed.authority = Arc::new(TamperAuthority {
+            timed.authority = Some(Arc::new(TamperAuthority {
                 db: db.clone(),
                 calls: std::sync::atomic::AtomicUsize::new(0),
                 table: "oauth_auth_codes",
@@ -770,7 +770,7 @@ impl SqlGrantFixture {
                 column: None,
                 value: false.into(),
                 advance: Some((clock, end_time)),
-            });
+            }));
             assert_eq!(
                 timed
                     .exchange_code(&timed_code, snapshot, &timed_tokens, 1_700_000_000)
@@ -942,7 +942,7 @@ impl SqlGrantFixture {
             } else {
                 false.into()
             };
-            attacked.authority = Arc::new(TamperAuthority {
+            attacked.authority = Some(Arc::new(TamperAuthority {
                 db: db.clone(),
                 calls: std::sync::atomic::AtomicUsize::new(0),
                 table: "oauth_refresh_tokens",
@@ -950,7 +950,7 @@ impl SqlGrantFixture {
                 column,
                 value,
                 advance: None,
-            });
+            }));
             assert_eq!(
                 attacked
                     .rotate_refresh_payload(payload, snapshot, rotated, 1_700_000_000, true)
@@ -993,7 +993,7 @@ impl SqlGrantFixture {
         )));
         let mut timed = repository.clone();
         timed.clock = clock.clone();
-        timed.authority = Arc::new(TamperAuthority {
+        timed.authority = Some(Arc::new(TamperAuthority {
             db: db.clone(),
             calls: std::sync::atomic::AtomicUsize::new(0),
             table: "oauth_refresh_tokens",
@@ -1001,7 +1001,7 @@ impl SqlGrantFixture {
             column: None,
             value: false.into(),
             advance: Some((clock, payload.expire_time + 1)),
-        });
+        }));
         assert_eq!(
             timed
                 .rotate_refresh_payload(payload, snapshot, rotated, 1_700_000_000, true)
@@ -1207,10 +1207,10 @@ impl BoundFixture {
         let other_snapshot = create_other_bound_client(db, repository).await?;
         let phases = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let mut bounded = repository.clone();
-        bounded.authority = Arc::new(BoundAuthority {
+        bounded.authority = Some(Arc::new(BoundAuthority {
             db: db.clone(),
             phases: phases.clone(),
-        });
+        }));
         let storage: Arc<dyn crate::GrantStorage> = Arc::new(bounded.clone());
         assert_eq!(
             storage.current_time().map_err(Error::internal)?,
@@ -1476,7 +1476,7 @@ impl SqlGrantFixture {
             binding: code.authority.clone(),
         });
         let mut repository = self.repository.clone();
-        repository.authority = authority.clone();
+        repository.authority = Some(authority.clone());
         let result = repository.persist_code(&code, &self.snapshot).await;
         assert!(matches!(result, Err(error) if error.code() == "scope_closed"));
         assert_eq!(authority.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
@@ -1507,10 +1507,10 @@ impl SqlGrantFixture {
         let foreign = Db::default();
         foreign.initialize(self.db.primary_connection()?)?;
         let mut repository = self.repository.clone();
-        repository.authority = Arc::new(Authority(
+        repository.authority = Some(Arc::new(Authority(
             std::sync::atomic::AtomicBool::new(false),
             foreign,
-        ));
+        )));
         let mut code = self.code.clone();
         code.id = "foreign-context-code".to_owned();
         assert_eq!(
@@ -1535,6 +1535,60 @@ impl SqlGrantFixture {
 
 #[cfg(any(feature = "db-mysql", feature = "db-postgres"))]
 impl SqlGrantFixture {
+    async fn assert_resource_exchange_and_revocation(
+        &self,
+        code: &CodeRecord,
+        tokens: &TokenRecords,
+    ) -> Result<()> {
+        use crate::{
+            OAuthAccessVerifier, ResourceServer,
+            resource_server::tests::{
+                assert_unprojected, projected, rejected, resource_request, resource_token,
+            },
+            test_keys::PUBLIC,
+        };
+        use openrust::http::axum::{http::StatusCode, response::IntoResponse as _};
+
+        let server = ResourceServer::new(
+            Arc::new(OAuthAccessVerifier::from_pem(PUBLIC).map_err(Error::internal)?),
+            Arc::new(self.repository.clone()),
+        );
+        let token = resource_token(
+            &tokens.access.id,
+            &tokens.access.client_id,
+            Some(&tokens.access.user_id),
+            &tokens.access.scopes,
+        )?;
+        let authorization = format!("Bearer {token}");
+        let assert_denied = || async {
+            let request = resource_request(&[&authorization]).await?;
+            let error = rejected(&server, &request).await?;
+            assert_eq!(error.into_response().status(), StatusCode::UNAUTHORIZED);
+            assert_unprojected(&request)
+        };
+        assert_denied().await?;
+        self.repository
+            .exchange_code(code, &self.snapshot, tokens, 1_700_000_000)
+            .await?;
+        let authorized = resource_request(&[&authorization]).await?;
+        server
+            .validate_authenticated_request(&authorized)
+            .await
+            .map_err(Error::internal)?;
+        let jti = projected(&authorized, "oauth_access_token_id")?;
+        assert_eq!(jti.downcast::<String>()?.as_str(), tokens.access.id);
+        assert!(self.repository.is_code_revoked(&code.id).await?);
+        assert!(
+            !self
+                .repository
+                .is_refresh_revoked("early-read-refresh")
+                .await?
+        );
+        self.repository.revoke_access(&tokens.access.id).await?;
+        assert_denied().await?;
+        Ok(())
+    }
+
     async fn ordinary_revocation_reads_match_active_revoked_and_missing_rows(&self) -> Result<()> {
         let mut code = self.code.clone();
         code.id = "early-read-code".to_owned();
@@ -1563,17 +1617,8 @@ impl SqlGrantFixture {
             refresh.id = "early-read-refresh".to_owned();
             refresh.access = tokens.access.clone();
         }
-        self.repository
-            .exchange_code(&code, &self.snapshot, &tokens, 1_700_000_000)
+        self.assert_resource_exchange_and_revocation(&code, &tokens)
             .await?;
-        assert!(self.repository.is_code_revoked(&code.id).await?);
-        assert!(
-            !self
-                .repository
-                .is_refresh_revoked("early-read-refresh")
-                .await?
-        );
-        self.repository.revoke_access(&tokens.access.id).await?;
         // 官方refresh早检只看refresh本行，不由旧access已撤销推断。
         assert!(
             !self

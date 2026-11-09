@@ -23,6 +23,12 @@ use crate::{ClientRecord, ClientSnapshot, CodeRecord, RefreshRedemption, TokenRe
 /// 取消发生在提交前应回滚消费及全部写入。开始提交后的取消或网络失败可能
 /// 结果未知；实现和调用方不得自动重复兑换、返回未确认的bearer或声称已回滚。
 pub trait GrantStorage: Send + Sync {
+    /// 签发服务解析时检查本存储的授权前置。只读资源验证不会调用此方法。
+    /// 自定义存储的权威由自身原子操作保证，默认没有额外装配检查。
+    fn require_issuance_authority(&self) -> BoxFuture<'_, openrust::Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+
     /// 受信时钟；实现还须在锁后和最终commit边界重新取时。
     fn current_time(&self) -> GrantStorageResult<i64>;
 

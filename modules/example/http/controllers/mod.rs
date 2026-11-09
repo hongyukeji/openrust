@@ -34,6 +34,8 @@ pub(crate) mod logging;
 pub(crate) mod oidc;
 #[cfg(feature = "view")]
 pub(crate) mod pages;
+#[cfg(feature = "passport")]
+pub(crate) mod passport_resource;
 #[cfg(feature = "realtime")]
 pub(crate) mod realtime;
 #[cfg(feature = "auth")]

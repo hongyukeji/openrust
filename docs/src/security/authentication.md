@@ -357,6 +357,12 @@ Provider/cache 验证在账户事务外完成；数据库回滚不撤回第三�
 
 升级时，将事件类型的导入从 `openrust::auth::fortify` 改为 `openrust::fortify::events`，并将写死的 `Laravel\Fortify\Events\` 或 `OpenRust\Auth\TwoFactor\Events\` 字符串前缀改为 `OpenRust\Fortify\Events\`。受信监听器可以通过 `EventContext::transaction()` 取得派发方事务。恢复码只可由授权监听器显式读取，调试输出脱敏。 [上游启用动作](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Actions/EnableTwoFactorAuthentication.php) · [上游挑战完成入口](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Http/Controllers/TwoFactorAuthenticatedSessionController.php)
 
+## Passport 资源服务
+
+标准应用可选择 Cargo feature `passport`。编译启用后，应用在同一 Provider 生命周期登记 Passport，并在应用迁移清单登记四张 OAuth 表。使用 `cargo run --features passport -- artisan migrate` 执行迁移。设置 `PASSPORT_PUBLIC_KEY` 或在应用的 `storage/oauth-public.key` 放入可信 RSA 公钥。若设置 `PASSPORT_CONNECTION`，该连接须包含应用使用的 OAuth 表。仅校验资源访问令牌时使用 Passport 公钥和数据库。宿主独立选择应用认证和 Cookie 加密。
+
+应用的资源处理器可按请求解析 `openrust_passport::ResourceServer`，调用 `validate_authenticated_request(&request)`。校验先使用公钥验签并检查令牌时间，然后向主库确认 `jti` 未撤销。成功后可从请求属性读取 `oauth_access_token_id`、`oauth_client_id`、`oauth_user_id` 和 `oauth_scopes`，再执行应用的资源授权。唯一示例的 `/api/example/passport/resource` 展示客户端属性。签发权威、用户 Guard 和同意流程各自独立配置。 [固定 Passport Provider](https://github.com/laravel/passport/blob/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7/src/PassportServiceProvider.php#L274-L280)
+
 ## Laravel 对应与 Rust 边界
 
 本文对照固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `AuthManager`、`CreatesUserProviders`、`SessionGuard`、`DatabaseUserProvider` 与认证契约，以及 docs `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 authentication 与 fortify 章节。Fortify/TOTP 对照固定 Fortify `c456642584c102f6a6aafee9932299542da637b5` 与 google2fa `f00bc788c555adfb6765c437ff3538e59cd88af1`，不随浮动分支静默切换默认值。异步 trait 使用 `BoxFuture`，账户使用 `Arc`，模型通过已编译工厂显式注册，不能运行期按 PHP 类名实例化。

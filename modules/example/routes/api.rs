@@ -102,6 +102,8 @@ pub(super) fn register(
     } else {
         routes
     };
+    #[cfg(feature = "passport")]
+    let routes = passport_routes(routes, capabilities.database);
     #[cfg(feature = "queue")]
     let routes = routes.post(
         "/api/example/jobs/heartbeat",
@@ -112,6 +114,18 @@ pub(super) fn register(
     #[cfg(not(feature = "auth"))]
     let _ = capabilities.database;
     routes
+}
+
+#[cfg(feature = "passport")]
+fn passport_routes(routes: Router, database_available: bool) -> Router {
+    if database_available {
+        routes.get(
+            "/api/example/passport/resource",
+            controllers::passport_resource::show,
+        )
+    } else {
+        routes
+    }
 }
 
 fn example_routes(routes: Router) -> Router {

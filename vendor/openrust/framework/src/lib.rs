@@ -54,6 +54,11 @@ pub mod view;
 
 #[cfg(feature = "auth")]
 pub mod auth;
+#[cfg(not(feature = "auth"))]
+#[path = "auth/contracts_only.rs"]
+pub mod auth;
+#[path = "auth/account.rs"]
+mod auth_account;
 
 /// Fortify 的应用扩展接口。
 #[cfg(feature = "auth-fortify")]

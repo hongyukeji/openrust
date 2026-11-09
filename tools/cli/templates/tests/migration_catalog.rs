@@ -18,4 +18,13 @@ fn generated_application_extends_the_framework_catalog_once() {
     assert!(names.contains(&openrust::queue::QueueMigration.name().to_owned()));
     assert!(names.contains(&openrust::session::SessionGcMigration.name().to_owned()));
     // {{auth_migration_assertions}}
+    #[cfg(feature = "passport")]
+    {
+        let passport = openrust_passport::default_passport_migrations()
+            .into_iter()
+            .map(|migration| migration.name().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(passport.len(), 4);
+        assert!(names[framework.len()..].starts_with(&passport));
+    }
 }

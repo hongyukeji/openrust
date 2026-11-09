@@ -19,7 +19,7 @@ db-sqlite = ["openrust/db-sqlite"]
 
 [dependencies]
 tokio.workspace = true
-openrust = { workspace = true, features = ["auth", "hashing", "encryption"] }
+openrust = { workspace = true, features = ["hashing", "encryption"] }
 base64.workspace = true
 chrono.workspace = true
 getrandom.workspace = true

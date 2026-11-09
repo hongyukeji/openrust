@@ -2,6 +2,10 @@
 
 mod config;
 
+#[cfg(all(test, feature = "passport", feature = "db-mysql"))]
+#[path = "tests/passport_resource.rs"]
+mod passport_resource;
+
 #[cfg(all(
     test,
     feature = "auth",

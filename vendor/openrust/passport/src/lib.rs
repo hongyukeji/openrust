@@ -1,7 +1,7 @@
 //! OpenRust Passport 的协议、客户端模型与持久读取子范围。
 //!
 //! 固定对应 Laravel Passport v13.10.0 与 League oauth2-server 9.4.1。
-//! 当前包含客户端模型/读取、PKCE、scope、授权码与刷新编排及原子协议存储。
+//! 当前包含客户端模型/读取、PKCE、scope、授权码与刷新编排、原子协议存储及资源令牌验证。
 //! 不会自动注册授权端点；Client模型保存、认证权威适配及真实组合验收尚未闭合。
 //! 不能将协议候选视为完整 AS/OP/SSO 已交付。
 //!
@@ -42,6 +42,7 @@ mod protocol_token;
 mod provider;
 mod redirect_uri;
 mod repository;
+mod resource_server;
 mod scopes;
 mod token_controller;
 mod token_response;
@@ -79,6 +80,7 @@ pub use repository::{
     ClientLookup, ClientLookupContext, ClientRecord, ClientRepository,
     register_client_repository_scope,
 };
+pub use resource_server::ResourceServer;
 pub use scopes::{Scope, ScopeRepository};
 
 #[cfg(test)]

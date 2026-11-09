@@ -5,7 +5,9 @@
 
 use std::fmt;
 
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use openrust::support::calendar::{CalendarInstant, parse_php_numeric_timestamp};
 use serde::{Deserialize, Serialize};
 
 /// 固定上游 access token 的公开载荷，不额外添加 issuer 或用途字段。
@@ -166,6 +168,30 @@ pub struct OAuthAccessVerifier {
     verification: DecodingKey,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct ResourceClaims {
+    #[serde(with = "audience_wire")]
+    pub(crate) aud: Vec<String>,
+    pub(crate) jti: String,
+    pub(crate) sub: Option<String>,
+    pub(crate) scopes: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "resource_date")]
+    iat: Option<CalendarInstant>,
+    #[serde(default, deserialize_with = "resource_date")]
+    nbf: Option<CalendarInstant>,
+    #[serde(default, deserialize_with = "resource_date")]
+    exp: Option<CalendarInstant>,
+}
+
+fn resource_date<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<CalendarInstant>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    parse_php_numeric_timestamp(&value)
+        .map(Some)
+        .map_err(serde::de::Error::custom)
+}
+
 impl fmt::Debug for OAuthAccessVerifier {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -222,6 +248,50 @@ impl OAuthAccessVerifier {
             || claims.exp <= now
             || claims.exp <= claims.nbf
             || claims.exp <= claims.iat
+        {
+            return Err(AccessSigningError::VerificationFailed);
+        }
+        Ok(claims)
+    }
+
+    pub(crate) fn verify_resource_at(
+        &self,
+        token: &str,
+        now: CalendarInstant,
+    ) -> Result<ResourceClaims, AccessSigningError> {
+        let mut validation = Validation::new(Algorithm::RS256);
+        // League 的资源验证没有配置预期 audience/issuer，LooseValidAt 只检查存在的时间声明。
+        validation.required_spec_claims.clear();
+        validation.validate_aud = false;
+        validation.validate_exp = false;
+        validation.validate_nbf = false;
+        let claims = decode::<serde_json::Map<String, serde_json::Value>>(
+            token,
+            &self.verification,
+            &validation,
+        )
+        .map_err(|_| AccessSigningError::VerificationFailed)?
+        .claims;
+        if claims.contains_key("") {
+            return Err(AccessSigningError::VerificationFailed);
+        }
+        let claims: ResourceClaims = serde_json::from_value(serde_json::Value::Object(claims))
+            .map_err(|_| AccessSigningError::VerificationFailed)?;
+        let encoded_header = token
+            .split_once('.')
+            .ok_or(AccessSigningError::VerificationFailed)?
+            .0;
+        let header = base64::Engine::decode(&URL_SAFE_NO_PAD, encoded_header)
+            .map_err(|_| AccessSigningError::VerificationFailed)?;
+        let header: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(&header).map_err(|_| AccessSigningError::VerificationFailed)?;
+        if header.contains_key("enc")
+            || header.contains_key("")
+            || claims.jti.is_empty()
+            || claims.aud.first().is_none_or(String::is_empty)
+            || claims.iat.is_some_and(|instant| instant > now)
+            || claims.nbf.is_some_and(|instant| instant > now)
+            || claims.exp.is_some_and(|instant| instant <= now)
         {
             return Err(AccessSigningError::VerificationFailed);
         }

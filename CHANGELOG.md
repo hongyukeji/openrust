@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Passport 可选扩展提供公钥资源令牌验证和主库撤销检查。标准应用可显式启用 `passport`，复用应用的 Provider 与迁移清单。
+
 - QueryBuilder 和嵌套条件组增加 JSON 路径存在判断及 OR、取反变体。
 
 - 发布构建由独立工具 `openrust build` 提供。默认使用本机 Cargo，显式选择 `--docker` 可通过 Buildx 导出 Linux 产物。源码与发布包共用应用 Artisan 命令表。

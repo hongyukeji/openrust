@@ -10,7 +10,7 @@ pub mod translation_sources;
 pub mod log;
 pub mod mail;
 pub mod modules;
-{{queue_module}}pub mod security;
+{{passport_module}}{{queue_module}}pub mod security;
 pub mod server;
 pub mod session;
 pub mod sms;
@@ -39,7 +39,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("auth", auth::config)
         .section("hashing", hashing::config)
         .section("security", security::config);
-{{queue_registration}}    // 只控制默认区段声明；显式来源仍可让 OptionalViewServiceProvider 启用视图。
+{{passport_registration}}{{queue_registration}}    // 只控制默认区段声明；显式来源仍可让 OptionalViewServiceProvider 启用视图。
     let manifest = if view::ENABLED {
         manifest.section("view", view::config)
     } else {

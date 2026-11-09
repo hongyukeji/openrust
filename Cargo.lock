@@ -3586,6 +3586,7 @@ dependencies = [
  "opendal",
  "openrust-framework",
  "openrust-modules",
+ "openrust-passport",
  "openrust-translation-database",
  "opentelemetry",
  "opentelemetry-otlp",

@@ -37,6 +37,11 @@ impl ApplicationDefinition for Server {
 
     fn default_providers() -> openrust::support::DefaultProviders {
         let providers = openrust::support::DefaultProviders::auto();
+        #[cfg(all(feature = "passport", not(feature = "encryption")))]
+        let providers = providers.replace(
+            openrust::foundation::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            Box::new(openrust::http::CookieServiceProvider::plain()),
+        );
         #[cfg(feature = "auth-fortify")]
         let providers = providers.replace(
             openrust::foundation::ProviderId::of::<openrust::auth::fortify::FortifyServiceProvider>(

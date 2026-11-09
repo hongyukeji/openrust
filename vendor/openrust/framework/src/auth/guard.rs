@@ -5,9 +5,9 @@ mod database;
 mod manager;
 mod proof;
 mod registration;
-mod remember;
 mod session;
 
+pub use crate::auth_account::{RememberTokenMutation, RememberTokenUpdate};
 pub use contracts::{
     AuthUser, Authenticatable, Credentials, GenericUser, Guard, StatefulGuard, UserProvider,
 };
@@ -19,7 +19,6 @@ pub use manager::{
 pub use proof::{
     FactorManagementContext, FactorReceipt, FactorVerificationMethod, SessionFactorProof,
 };
-pub use remember::{RememberTokenMutation, RememberTokenUpdate};
 pub use session::{Attempting, Authenticated, Failed, Login, Logout, SessionGuard, Validated};
 
 pub(super) use registration::register;

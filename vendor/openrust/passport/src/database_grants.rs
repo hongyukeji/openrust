@@ -50,7 +50,8 @@ pub struct DatabaseGrantRepository {
     db: Db,
     factory: Arc<dyn ClientModelFactory>,
     user_key: GrantUserKey,
-    authority: Arc<DatabaseGrantAuthority>,
+    authority: Option<Arc<DatabaseGrantAuthority>>,
+    scoped_authority: Arc<tokio::sync::OnceCell<Arc<DatabaseGrantAuthority>>>,
     clock: Arc<dyn GrantClock>,
     clients: Arc<dyn ClientLookup>,
     resolver: Resolver,
@@ -71,6 +72,26 @@ impl DatabaseGrantRepository {
         clients: Arc<dyn ClientLookup>,
         resolver: Resolver,
     ) -> Result<Self> {
+        let mut repository = Self::from_scope(
+            databases,
+            passport_connection,
+            factory,
+            user_key,
+            clients,
+            resolver,
+        )?;
+        repository.authority = Some(authority);
+        Ok(repository)
+    }
+
+    pub(crate) fn from_scope(
+        databases: &Databases,
+        passport_connection: Option<&str>,
+        factory: Arc<dyn ClientModelFactory>,
+        user_key: GrantUserKey,
+        clients: Arc<dyn ClientLookup>,
+        resolver: Resolver,
+    ) -> Result<Self> {
         let db = factory
             .metadata()
             .resolve_connection(databases, passport_connection)?;
@@ -86,7 +107,8 @@ impl DatabaseGrantRepository {
             db,
             factory,
             user_key,
-            authority,
+            authority: None,
+            scoped_authority: Arc::default(),
             clock: Arc::new(SystemGrantClock),
             clients,
             resolver,
@@ -122,6 +144,26 @@ impl DatabaseGrantRepository {
             .await
     }
 
+    async fn issuance_authority(&self) -> Result<Arc<DatabaseGrantAuthority>> {
+        if let Some(authority) = &self.authority {
+            return Ok(Arc::clone(authority));
+        }
+        // 保持一个仓储及其事务克隆共用同一权威实例，即使应用绑定的是 transient。
+        self.scoped_authority
+            .get_or_try_init(|| async {
+                if !self.resolver.is_bound::<DatabaseGrantAuthority>()? {
+                    return Err(Error::custom_with_status(
+                        openrust::http::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        "passport_grant_authority_missing",
+                        "必须显式安装当前认证模式的OAuth用户与父凭据权威适配器",
+                    ));
+                }
+                self.resolver.resolve::<DatabaseGrantAuthority>().await
+            })
+            .await
+            .cloned()
+    }
+
     #[cfg(all(test, any(feature = "db-mysql", feature = "db-postgres")))]
     pub(crate) async fn client(&self, identifier: &Value) -> Result<Option<ClientRecord>> {
         let context = ClientLookupContext::from(&self.resolver);
@@ -135,6 +177,7 @@ impl DatabaseGrantRepository {
         client: &ClientSnapshot,
     ) -> Result<()> {
         self.ensure_open().await?;
+        self.issuance_authority().await?;
         check_identity(&code.client_id, client)?;
         let work = self.clone();
         let final_check = self.clone();
@@ -154,7 +197,8 @@ impl DatabaseGrantRepository {
                             scopes: &code.scopes,
                             operation: GrantOperation::Authorize,
                         };
-                        work.authority
+                        work.issuance_authority()
+                            .await?
                             .validate(&db_context, &context, &code.authority)
                             .await?;
                         work.db
@@ -201,6 +245,7 @@ impl DatabaseGrantRepository {
         _now: i64,
     ) -> Result<()> {
         self.ensure_open().await?;
+        self.issuance_authority().await?;
         check_identity(&code.client_id, client)?;
         check_new_tokens(
             tokens,
@@ -238,7 +283,8 @@ impl DatabaseGrantRepository {
                             scopes: &tokens.access.scopes,
                             operation: GrantOperation::Redeem,
                         };
-                        work.authority
+                        work.issuance_authority()
+                            .await?
                             .validate(&db_context, &context, &code.authority)
                             .await?;
                         let affected = work
@@ -335,6 +381,7 @@ impl DatabaseGrantRepository {
         revoke_old_refresh: bool,
     ) -> Result<()> {
         self.ensure_open().await?;
+        self.issuance_authority().await?;
         check_identity(&payload.client_id, client)?;
         let authority = payload.authority()?;
         check_new_tokens(
@@ -428,7 +475,8 @@ impl DatabaseGrantRepository {
             scopes: &tokens.access.scopes,
             operation: GrantOperation::Refresh,
         };
-        self.authority
+        self.issuance_authority()
+            .await?
             .validate(db_context, &context, authority)
             .await?;
         if revoke_old_refresh {
@@ -541,6 +589,7 @@ impl DatabaseGrantRepository {
     /// 此为原子协议存储增强，不宣称已实现完整Eloquent模型事件生命周期。
     pub async fn revoke_access(&self, identifier: &str) -> Result<()> {
         self.ensure_open().await?;
+        self.issuance_authority().await?;
         // 预读只确定锁序中的 client；锁定后重验关联，不能信任预读状态。
         let query = self
             .db
@@ -637,7 +686,8 @@ impl DatabaseGrantRepository {
         let tx = db_context.transaction();
         self.ensure_open().await?;
         // 框架 checked 事务保证此处位于全部直接 BeforeCommit 监听器之后。
-        self.authority
+        self.issuance_authority()
+            .await?
             .validate(db_context, context, binding)
             .await?;
         // 扩展契约要求只读；仍在回调之后重读客户端，拒绝可观察的安全状态改写。
@@ -909,6 +959,10 @@ impl DatabaseGrantRepository {
 
 // 默认适配器只委托同一Db仓储；trait本身不替代事务、权威或提交边界证据。
 impl crate::GrantStorage for DatabaseGrantRepository {
+    fn require_issuance_authority(&self) -> openrust::support::BoxFuture<'_, Result<()>> {
+        Box::pin(async { self.issuance_authority().await.map(drop) })
+    }
+
     fn current_time(&self) -> crate::GrantStorageResult<i64> {
         DatabaseGrantRepository::current_time(self).map_err(crate::GrantStorageError::Unavailable)
     }
@@ -1195,7 +1249,7 @@ fn failure(code: &'static str) -> Error {
 }
 
 #[cfg(test)]
-#[path = "database_grants_tests.rs"]
+#[path = "../tests/unit/database_grants.rs"]
 mod tests;
 
 #[cfg(test)]
@@ -1203,7 +1257,7 @@ mod tests;
 mod engine_flow_tests;
 
 #[cfg(test)]
-#[path = "lookup_test_support.rs"]
+#[path = "../tests/unit/lookup_test_support.rs"]
 mod lookup_test_support;
 
 #[cfg(test)]

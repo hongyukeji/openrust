@@ -3,9 +3,9 @@
 use openrust::support::ServiceProvider;
 
 pub(super) fn application_providers(
-    _config: &super::Configuration,
+    {{config_argument}}: &super::Configuration,
 ) -> Vec<Box<dyn ServiceProvider>> {
-    let mut providers: Vec<Box<dyn ServiceProvider>> = Vec::new();
+{{unused_config_guard}}    let mut providers: Vec<Box<dyn ServiceProvider>> = Vec::new();
     providers.push(Box::new(crate::app::providers::AppServiceProvider));
 {{application_providers}}
     providers

@@ -8,7 +8,10 @@ use serde_json::{Map, Value, json};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::{
-    ClientRecord, GrantAuthority,
+    ClientRecord, DatabaseGrantAuthority, GrantAuthority,
+    resource_server::tests::{
+        assert_unprojected, projected, rejected, resource_request, resource_token, signed,
+    },
     test_keys::{OTHER_PUBLIC, PRIVATE, PUBLIC},
 };
 
@@ -206,28 +209,25 @@ async fn missing_authority_and_dependency_are_not_silently_defaulted() -> TestRe
     let runtime = builder.start(source()?).await?;
     let scope = runtime.container().scope()?;
     let result: TestResult = async {
+        let repository: Arc<dyn GrantStorage> = scope.resolve::<DatabaseGrantRepository>().await?;
+        assert!(Arc::ptr_eq(
+            &repository,
+            &scope.resolve::<dyn GrantStorage>().await?
+        ));
         let error = scope
-            .resolve::<DatabaseGrantRepository>()
+            .resolve::<AuthorizationServer>()
             .await
             .err()
             .ok_or_else(|| {
                 Error::custom(
                     "provider_fixture_expected_rejection",
-                    "缺失权威未阻断真实授权仓储解析",
+                    "缺失权威未阻断签发服务解析",
                 )
             })?;
         assert_service_initialization_cause(&error, "passport_grant_authority_missing");
-        let storage_error = scope
-            .resolve::<dyn GrantStorage>()
-            .await
-            .err()
-            .ok_or_else(|| {
-                Error::custom(
-                    "provider_fixture_expected_rejection",
-                    "默认存储alias不应绕过权威",
-                )
-            })?;
-        assert_service_initialization_cause(&storage_error, "passport_grant_authority_missing");
+        assert!(matches!(repository.revoke_access("no-write").await,
+            Err(crate::GrantStorageError::Unavailable(error))
+                if error.code() == "passport_grant_authority_missing"));
         Ok(())
     }
     .await;
@@ -1523,6 +1523,11 @@ async fn public_only_singleton_verifier_ignores_missing_or_invalid_private_key()
                 &verifier,
                 &scope.resolve::<OAuthAccessVerifier>().await?
             ));
+            let resource = scope.resolve::<ResourceServer>().await?;
+            assert!(Arc::ptr_eq(
+                &resource,
+                &scope.resolve::<ResourceServer>().await?
+            ));
             let token = OAuthAccessSigner::from_pem(PRIVATE)?.sign_at(
                 "client",
                 "public-only",
@@ -1582,6 +1587,16 @@ async fn mismatched_capabilities_resolve_independently_but_signature_and_explici
 #[derive(Default)]
 struct RejectingStorage {
     lookups: AtomicUsize,
+    access_reads: std::sync::Mutex<Vec<String>>,
+    resource_state: AtomicUsize,
+}
+
+impl RejectingStorage {
+    fn access_reads(&self) -> Result<std::sync::MutexGuard<'_, Vec<String>>> {
+        self.access_reads
+            .lock()
+            .map_err(|_| Error::custom("resource_fixture_lock_poisoned", "测试撤销读取记录不可用"))
+    }
 }
 
 fn rejecting_storage_unavailable() -> crate::GrantStorageError {
@@ -1654,9 +1669,16 @@ impl GrantStorage for RejectingStorage {
     }
     fn is_access_revoked<'a>(
         &'a self,
-        _id: &'a str,
+        id: &'a str,
     ) -> BoxFuture<'a, crate::GrantStorageResult<bool>> {
-        Box::pin(async { Err(rejecting_storage_unavailable()) })
+        Box::pin(async move {
+            self.access_reads()?.push(id.to_owned());
+            match self.resource_state.load(Ordering::SeqCst) {
+                1 => Ok(false),
+                2 => Ok(true),
+                _ => Err(rejecting_storage_unavailable()),
+            }
+        })
     }
     fn revoke_access<'a>(&'a self, _id: &'a str) -> BoxFuture<'a, crate::GrantStorageResult<()>> {
         Box::pin(async { Err(rejecting_storage_unavailable()) })
@@ -1731,6 +1753,153 @@ async fn prepare_reaches_rejecting_store(server: &AuthorizationServer) -> TestRe
             .contains("fixture_custom_store_reached")
     );
     Ok(())
+}
+
+async fn assert_invalid_resource_headers(
+    server: &ResourceServer,
+    token: &str,
+    valid_header: &str,
+) -> TestResult {
+    use openrust::http::axum::{http::StatusCode, response::IntoResponse as _};
+
+    let expired = OAuthAccessSigner::from_pem(PRIVATE)?.sign_at(
+        "client",
+        "expired",
+        Some("user"),
+        &[],
+        100,
+        200,
+    )?;
+    let mut wrong_signature = token.to_owned();
+    let signature = wrong_signature
+        .rsplit_once('.')
+        .ok_or_else(|| Error::custom("resource_fixture_invalid_token", "测试令牌应有签名"))?
+        .1;
+    let replacement = if signature.starts_with('A') { "B" } else { "A" };
+    let offset = wrong_signature.len() - signature.len();
+    wrong_signature.replace_range(offset..=offset, replacement);
+    for first in ["Bearer invalid", expired.as_str(), wrong_signature.as_str()] {
+        let request = resource_request(&[first, valid_header]).await?;
+        let error = rejected(server, &request).await?;
+        assert_eq!(error.into_response().status(), StatusCode::UNAUTHORIZED);
+        assert_unprojected(&request)?;
+    }
+    let reused = resource_request(&["Bearer invalid", valid_header]).await?;
+    reused.attributes().insert(
+        "oauth_client_id",
+        openrust::container::ParameterValue::new("此前请求属性".to_owned()),
+    )?;
+    assert_eq!(
+        rejected(server, &reused).await?.into_response().status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        projected(&reused, "oauth_client_id")?
+            .downcast::<String>()?
+            .as_str(),
+        "此前请求属性"
+    );
+    assert!(reused.attributes().get("oauth_access_token_id")?.is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn resource_server_uses_custom_storage_only_after_validation() -> TestResult {
+    use openrust::http::axum::{http::StatusCode, response::IntoResponse as _};
+
+    let database_attempts = Arc::new(AtomicUsize::new(0));
+    let mut builder = builder();
+    builder
+        .provider(PassportServiceProvider::new(directory()))
+        .provider(ApplicationStorageProvider {
+            shared: None,
+            database_attempts: database_attempts.clone(),
+        });
+    let runtime = builder
+        .start(capability_source(None, Some(PUBLIC))?)
+        .await?;
+    let scope = runtime.container().scope()?;
+    let other_scope = runtime.container().scope()?;
+    let result: TestResult = async {
+        let store = scope.resolve::<RejectingStorage>().await?;
+        let other_store = other_scope.resolve::<RejectingStorage>().await?;
+        let server = scope.resolve::<ResourceServer>().await?;
+        let other = other_scope.resolve::<ResourceServer>().await?;
+        assert!(!Arc::ptr_eq(&server, &other));
+
+        let token = resource_token(
+            "store-jti",
+            "other-audience",
+            Some("user"),
+            &["read".into()],
+        )?;
+        let header = format!("beARer {token}");
+        assert_invalid_resource_headers(&server, &token, &header).await?;
+        assert!(store.access_reads()?.is_empty());
+
+        store.resource_state.store(1, Ordering::SeqCst);
+        let request = resource_request(&[&header, "Bearer invalid"]).await?;
+        server.validate_authenticated_request(&request).await?;
+        for (key, expected) in [
+            ("oauth_access_token_id", "store-jti"),
+            ("oauth_client_id", "other-audience"),
+            ("oauth_user_id", "user"),
+        ] {
+            let value = projected(&request, key)?;
+            assert_eq!(value.downcast::<String>()?.as_str(), expected);
+        }
+        let scopes = projected(&request, "oauth_scopes")?;
+        assert_eq!(scopes.downcast::<Vec<String>>()?.as_slice(), ["read"]);
+
+        let minimal = signed(&json!({"jti": "minimal", "aud": ["first", "second"]}))?;
+        let request = resource_request(&[&minimal]).await?;
+        server.validate_authenticated_request(&request).await?;
+        assert_eq!(
+            projected(&request, "oauth_client_id")?
+                .downcast::<String>()?
+                .as_str(),
+            "first"
+        );
+        assert!(projected(&request, "oauth_user_id")?.is_null());
+        assert!(projected(&request, "oauth_scopes")?.is_null());
+
+        store.resource_state.store(2, Ordering::SeqCst);
+        let revoked = resource_request(&[&token]).await?;
+        let error = rejected(&server, &revoked).await?;
+        assert_eq!(
+            serde_json::to_value(&error)?["hint"],
+            "Access token has been revoked"
+        );
+        assert_eq!(error.into_response().status(), StatusCode::UNAUTHORIZED);
+        assert_unprojected(&revoked)?;
+        assert_eq!(
+            store.access_reads()?.as_slice(),
+            ["store-jti", "minimal", "store-jti"]
+        );
+
+        let unavailable = resource_request(&[&header]).await?;
+        let error = rejected(&other, &unavailable).await?;
+        let serialized = serde_json::to_value(&error)?;
+        assert_eq!(serialized["error"], "server_error");
+        assert!(
+            !serialized
+                .to_string()
+                .contains("fixture_custom_store_reached")
+        );
+        assert_eq!(
+            error.into_response().status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_unprojected(&unavailable)?;
+        assert_eq!(other_store.access_reads()?.as_slice(), ["store-jti"]);
+        assert_eq!(database_attempts.load(Ordering::SeqCst), 0);
+        Ok(())
+    }
+    .await;
+    scope.shutdown(deadline()).await?;
+    other_scope.shutdown(deadline()).await?;
+    runtime.shutdown(deadline()).await?;
+    result
 }
 
 #[tokio::test]

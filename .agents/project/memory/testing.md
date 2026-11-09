@@ -1882,6 +1882,14 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 已发布目录的 Artisan 拒绝未完成标记。默认 HTTP 路径编码验证通过实际 TCP、路由、静态资源、fallback 和 CORS 前置测试。畸形百分号字面及单次合法解码保留。工作区格式、严格 Clippy、测试、Rustdoc、离线依赖、fresh minimal check/test 与可选翻译数据库的真实 MySQL 测试通过。
 
+## Passport 资源令牌与撤销限定验收
+
+冻结树 `2e8d45da5dc1f5ad87aa80edca992faa33615fba` 对照 Passport v13.10.0 的 `PassportServiceProvider` 与 League oauth2-server 9.4.1 的 `ResourceServer::validateAuthenticatedRequest` 和 `BearerTokenValidator`。公开入口 `openrust_passport::ResourceServer::validate_authenticated_request` 校验首个 Authorization 值、RS256 和现有时间声明，按 `jti` 读取应用同一主库撤销存储。成功后投影四个 `oauth_*` 属性。ID 和 scopes 使用明确的 Rust 类型，未提供的 subject 和 scopes 投影为显式 null，存储故障脱敏拒绝。
+
+包内安全回归、根应用唯一示例和新生成 MySQL 应用经 MySQL 8.4.13 验证缺失记录返回 401、写入有效记录后放行以及撤销后恢复 401。根与生成应用仅配置 Passport 公钥，保持宿主所选认证、Cookie 和 Session。特性图证明 Passport 不启用 Core 的 auth 或 signing，标准生成应用保留 Session 迁移并精确追加四个 Passport 迁移。fresh minimal 无 Passport 依赖并通过 check/test。
+
+本批工作区 fmt、严格 Clippy、全特性编译、workspace tests、严格 Rustdoc 和离线依赖门禁通过。TokenGuard 与用户解析、OAuth 签发路由及同意流程、OIDC Provider 和双应用 SSO 继续按 L090 与原队列验收。
+
 ## Artisan 与独立编译工具边界验收
 
 冻结树 `01121f559af03fde07c68353b5462713641ccf4a` 对照固定 Laravel 应用 `06d016a` 的 Artisan 入口、框架 `d52c3b3` 的 `ArtisanServiceProvider` 和部署文档 `960eedf`。根、fresh minimal 和 fresh MySQL 的实际源码命令均由应用处理。发布包包装脚本与二进制的命令列表一致，源码 `build` 与 `help build` 按普通未登记命令退出。CLI 进程回归验证应用自用的同名命令仍可透传，包发现和开发入口分别保留。

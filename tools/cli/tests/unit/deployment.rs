@@ -1,9 +1,10 @@
 #![allow(clippy::expect_used, reason = "测试夹具创建失败时立即终止")]
 
 use super::deployment::SourceLayout;
+use super::tests::assert_framework_migration_registry;
 use super::workspace_entry_tests::create_framework_fixture;
 use super::{
-    DatabaseBackend, application_directory, create_project, framework_workspace,
+    DatabaseBackend, application_directory, create_project, framework_workspace, populate_project,
     standalone_manifest,
 };
 use std::fs;
@@ -114,6 +115,10 @@ fn creates_independent_apps_without_changing_source_workspace() {
                 .filter_map(toml_edit::Value::as_str)
                 .collect::<Vec<_>>(),
             vec!["."]
+        );
+        assert_eq!(
+            generated["workspace"]["dependencies"]["openrust-passport"]["path"].as_str(),
+            Some("../vendor/openrust/passport")
         );
         let metadata = framework_workspace(&app).expect("独立应用 metadata");
         assert_eq!(
@@ -231,4 +236,102 @@ fn relocated_project_keeps_cargo_and_compose_source_paths() -> anyhow::Result<()
 
     fs::remove_dir_all(root)?;
     Ok(())
+}
+
+#[test]
+fn database_templates_include_backend_migration_and_seed_support() {
+    let root = std::env::temp_dir().join(format!("openrust-cli-db-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("create temporary test directory");
+    for (backend, feature) in [
+        (DatabaseBackend::Postgres, "db-postgres"),
+        (DatabaseBackend::Mysql, "db-mysql"),
+    ] {
+        let project = root.join(feature);
+        populate_project(
+            &project,
+            "blog",
+            "Blog",
+            Some(backend),
+            false,
+            false,
+            false,
+            false,
+        )
+        .expect("generate database project");
+        let manifest =
+            fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
+        assert!(manifest.contains(feature));
+        let json_test = fs::read_to_string(project.join("tests/query_json_contains.rs"))
+            .expect("读取生成的 JSON 包含测试");
+        assert_eq!(
+            json_test.contains("#[ignore ="),
+            backend == DatabaseBackend::Postgres
+        );
+        assert!(!json_test.contains("{{runtime_scope}}"));
+        assert_eq!(
+            project.join("tests/sqlite_shared_locks.rs").is_file(),
+            backend == DatabaseBackend::Sqlite
+        );
+        assert!(project.join("database/migrations/Cargo.toml").is_file());
+        assert!(project.join("database/migrations/src/lib.rs").is_file());
+        assert!(
+            fs::read_to_string(project.join("config/database.rs"))
+                .expect("read database domain config")
+                .contains("DatabaseConfig {")
+        );
+        assert!(
+            fs::read_to_string(project.join("database/migrations/src/lib.rs"))
+                .expect("read empty migration registry")
+                .contains("vec![]")
+        );
+        let registry = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
+            .expect("读取统一迁移清单");
+        assert_framework_migration_registry(&registry);
+        let catalog = fs::read_to_string(project.join("tests/migration_catalog.rs"))
+            .expect("读取可执行迁移目录回归");
+        assert!(catalog.contains("QueueMigration.name()"));
+        assert!(catalog.contains("SessionGcMigration.name()"));
+        assert!(catalog.contains("SessionMigration.name()"));
+        assert!(!catalog.contains("{{"));
+        let app = fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
+        assert!(app.contains("providers::application_providers(config)"));
+        assert_eq!(app.matches("fn default_providers(").count(), 1);
+        assert!(app.contains("DefaultProviders::auto().except(["));
+        assert!(
+            app.contains("ProviderId::of::<openrust::translation::TranslationServiceProvider>()")
+        );
+        assert!(app.contains(
+            "]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])"
+        ));
+        // 保持 Source 装配；只有显式 Passport 可触发宿主 Cookie 模式复位。
+        assert_eq!(app.matches(".except([").count(), 1);
+        assert_eq!(app.matches(".merge([").count(), 1);
+        assert_eq!(app.matches(".replace(").count(), 1);
+        assert!(app.contains(
+            "#[cfg(feature = \"passport\")]\n        let providers = providers.replace("
+        ));
+        assert!(app.contains("openrust::http::CookieServiceProvider::plain()"));
+        let defaults =
+            include_str!("../../../../vendor/openrust/framework/src/support/default_providers.rs");
+        assert!(defaults.contains("DatabaseServiceProvider"));
+        let providers = fs::read_to_string(project.join("bootstrap/providers.rs"))
+            .expect("read generated provider registry");
+        assert!(providers.contains("openrust_migration::Migrator"));
+        assert!(providers.contains("SeedServiceProvider"));
+        assert!(!providers.contains("openrust::database::FrameworkMigrator"));
+        assert_eq!(providers.matches("MigrationServiceProvider").count(), 1);
+        assert!(project.join(".env.example").is_file());
+        let env = fs::read_to_string(project.join(".env.example"))
+            .expect("read generated database environment example");
+        assert!(env.contains(&format!("DB_CONNECTION={}", backend.connection_name())));
+        assert!(env.contains(&format!(
+            "DB_PORT={}",
+            backend.port().expect("网络数据库端口")
+        )));
+        assert!(env.contains("DB_DATABASE=blog"));
+        assert!(env.contains("DB_TABLE_PREFIX="));
+        assert!(env.contains("REDIS_HOST=127.0.0.1"));
+    }
+    let _ = fs::remove_dir_all(root);
 }

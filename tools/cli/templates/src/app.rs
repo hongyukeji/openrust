@@ -26,9 +26,9 @@ impl openrust::foundation::ApplicationDefinition for {{type_name}} {
     }
 
     fn default_providers() -> openrust::support::DefaultProviders {
-        openrust::support::DefaultProviders::auto().except([
+        {{passport_provider_binding}}openrust::support::DefaultProviders::auto().except([
             openrust::foundation::ProviderId::of::<openrust::translation::TranslationServiceProvider>(),
-        ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])
+        ]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>]){{passport_cookie_selection}}
     }
 
     fn package_providers(_config: &Self::Config) -> Vec<openrust::foundation::PackageProvider> {

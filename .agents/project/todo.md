@@ -139,7 +139,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - EN-L01 加密 Provider 默认生命周期：按固定 Laravel 的延迟解析契约收敛首次使用，核根应用、CLI、生成、Cookie 与 Session 的安全失败和退出边界。以当前生产接线核对剩余差距。
 
 - Passport OAuth2 已由 `8bd2e20c` 限定交付。下一项先核对 Passport 剩余行为及授权服务器前置，OIDC Provider 与双 RP SSO/退出仍开放。
-- L090 ResourceServer 包内实现已交 root，根与生成应用的显式 feature、配置、迁移及真实 MySQL 夹具已编码。下一步核对固定验签和撤销契约，冻结执行包、根、生成与工作区门禁。TokenGuard、同意、签发接线、OP 与双 RP 沿原待办推进。
+- L090 ResourceServer 的公钥验签、请求属性及撤销读链已收齐[限定验收](memory/testing.md#passport-资源令牌与撤销限定验收)。TokenGuard、用户解析、同意、签发接线、OP 与双 RP 沿原待办推进。
 - MB-S01 已收齐[调用级默认属性 setter 限定验收](memory/testing.md#调用级默认属性-setter-限定验收)。Passport Client 依赖其调用级默认 setter，下一步从准确已提交父树接入有限组合诊断。
 - PHP8.5框架异常边界后继审计：原始float越界/INF/NaN(int)会E_WARNING，默认HandleExceptions抛ErrorException；本次Query插入ID已覆盖，既有Request/scalars整数入口需按其真实生产调用链复核Result/错误边界，不把裸PHP吞warning后的modulo返回当已等价。见本次18case真实oracle与独审，不重写未受影响数值路径或丢失原证据。
 - HA-X01 已收齐[增强认证限定验收](memory/testing.md#增强认证单次叶选择限定验收)。按现有边界接续首用安全配置和认证后继。

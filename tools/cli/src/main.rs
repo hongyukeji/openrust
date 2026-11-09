@@ -1082,7 +1082,10 @@ fn populate_project_with_features(
             "config/view.rs",
             include_str!("../templates/config/view.rs").to_owned(),
         ),
-        ("bootstrap/app.rs", app_source(crate_name)),
+        (
+            "bootstrap/app.rs",
+            app_source(crate_name, database.is_some(), auth, encryption),
+        ),
         (
             ".cargo/.gitignore",
             include_str!("../../../.cargo/.gitignore").to_owned(),
@@ -1254,6 +1257,10 @@ fn populate_project_with_features(
     if let Some(database) = database {
         files.extend([
             (
+                "config/passport.rs",
+                include_str!("../../../config/passport.rs").to_owned(),
+            ),
+            (
                 "database/migrations/Cargo.toml",
                 migration_manifest(name, database, auth),
             ),
@@ -1263,6 +1270,21 @@ fn populate_project_with_features(
                 migration_catalog_test_source(auth),
             ),
         ]);
+        if database == DatabaseBackend::Mysql {
+            files.push((
+                "tests/passport_resource.rs",
+                include_str!("../templates/tests/passport_resource.rs")
+                    .replace("{{type_name}}", crate_name)
+                    .replace(
+                        "{{grpc_module}}",
+                        if grpc {
+                            "#[path = \"../app/grpc.rs\"]\nmod grpc;\n"
+                        } else {
+                            ""
+                        },
+                    ),
+            ));
+        }
     }
     if grpc {
         let proto_package = name.replace('-', "_");
@@ -1645,15 +1667,27 @@ fn initialize_sqlite_installation_keys(
     Ok(())
 }
 
-fn code_config_manifest(grpc: bool, queue: bool) -> String {
+fn code_config_manifest(grpc: bool, database: bool) -> String {
     include_str!("../templates/config/mod.rs")
         .replace(
+            "{{passport_module}}",
+            if database { "#[cfg(feature = \"passport\")]\npub mod passport;\n" } else { "" },
+        )
+        .replace(
+            "{{passport_registration}}",
+            if database {
+                "    #[cfg(feature = \"passport\")]\n    let manifest = manifest.section(\"passport\", passport::config);\n"
+            } else {
+                ""
+            },
+        )
+        .replace(
             "{{queue_module}}",
-            if queue { "pub mod queue;\n" } else { "" },
+            if database { "pub mod queue;\n" } else { "" },
         )
         .replace(
             "{{queue_registration}}",
-            if queue {
+            if database {
                 "    let manifest = manifest.section(\"queue\", queue::config);\n"
             } else {
                 ""
@@ -1832,6 +1866,9 @@ fn cargo_manifest(
         manifest,
         "openrust-translation-database = {{ workspace = true, optional = true, features = {source_features:?} }}"
     );
+    if database.is_some() {
+        manifest.push_str("openrust-passport = { workspace = true, optional = true }\n");
+    }
     manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\ntime = \"0.3\"\n");
     manifest.push_str("tempfile = \"3.27\"\n");
     if auth {
@@ -1869,6 +1906,16 @@ fn cargo_manifest(
             "tonic-prost-build = { workspace = true }\nprotoc-bin-vendored = { workspace = true }\n",
         );
     }
+    append_application_features(&mut manifest, auth, encryption, database.is_some());
+    manifest
+}
+
+fn append_application_features(
+    manifest: &mut String,
+    auth: bool,
+    encryption: bool,
+    has_database: bool,
+) {
     if auth {
         let _ = write!(
             manifest,
@@ -1882,16 +1929,47 @@ fn cargo_manifest(
                 selected
             }
         );
-    }
-    if !auth {
+    } else {
         manifest.push_str("\n[features]\n");
     }
     manifest.push_str("translation-database = [\"dep:openrust-translation-database\"]\n");
-    manifest
+    if has_database {
+        manifest
+            .push_str("passport = [\"dep:openrust-passport\", \"openrust-migration/passport\"]\n");
+    }
 }
 
-fn app_source(crate_name: &str) -> String {
-    include_str!("../templates/src/app.rs").replace("{{type_name}}", crate_name)
+fn app_source(crate_name: &str, database: bool, auth: bool, encryption: bool) -> String {
+    // Passport 的签发依赖加密实现，宿主仍独立选择 Cookie 加密。
+    let passport_cookie_selection = if database && !encryption {
+        let condition = if auth {
+            r#"all(feature = "passport", not(feature = "encryption"))"#
+        } else {
+            r#"feature = "passport""#
+        };
+        format!(
+            r";
+        #[cfg({condition})]
+        let providers = providers.replace(
+            openrust::foundation::ProviderId::of::<openrust::http::CookieServiceProvider>(),
+            Box::new(openrust::http::CookieServiceProvider::plain()),
+        );
+        providers"
+        )
+    } else {
+        String::new()
+    };
+    include_str!("../templates/src/app.rs")
+        .replace("{{type_name}}", crate_name)
+        .replace("{{passport_cookie_selection}}", &passport_cookie_selection)
+        .replace(
+            "{{passport_provider_binding}}",
+            if passport_cookie_selection.is_empty() {
+                ""
+            } else {
+                "let providers = "
+            },
+        )
 }
 
 fn package_build_script(grpc: bool) -> String {
@@ -1907,13 +1985,27 @@ fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
     let mut additions = String::new();
     if database.is_some() {
         additions.push_str("    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust_migration::Migrator,\n    >::new()));\n    providers.push(Box::new(openrust::database::SeedServiceProvider::new(crate::seed::run)));");
+        additions.push_str(
+            "\n    #[cfg(feature = \"passport\")]\n    {\n        let root = config.application_root.as_deref().unwrap_or(std::path::Path::new(\".\"));\n        providers.push(Box::new(openrust_passport::PassportServiceProvider::new(root.join(\"storage\"))));\n    }",
+        );
     } else {
         additions.push_str("    providers.push(Box::new(openrust::database::MigrationServiceProvider::<\n        openrust::database::FrameworkMigrator,\n    >::new()));");
     }
     if grpc {
         additions.push_str("\n    providers.push(Box::new(openrust::grpc::GrpcServiceProvider::new()));\n    providers.push(Box::new(crate::grpc::EchoServiceProvider));\n    providers.push(Box::new(openrust::runtime::HttpGrpcServiceProvider));");
     }
-    include_str!("../templates/src/providers.rs").replace("{{application_providers}}", &additions)
+    let (config_argument, unused_config_guard) = if database.is_some() {
+        (
+            "config",
+            "    #[cfg(not(feature = \"passport\"))]\n    let _ = config;\n",
+        )
+    } else {
+        ("_config", "")
+    };
+    include_str!("../templates/src/providers.rs")
+        .replace("{{config_argument}}", config_argument)
+        .replace("{{unused_config_guard}}", unused_config_guard)
+        .replace("{{application_providers}}", &additions)
 }
 
 fn api_routes_source(auth: bool) -> String {
@@ -1976,6 +2068,7 @@ fn env_example(
             contents.push_str("DB_DATABASE=database/database.sqlite\n");
         }
         contents.push_str("DB_TABLE_PREFIX=\n");
+        contents.push_str("\n# 可选 Passport 公钥或可信路径，默认读取 storage/oauth-public.key。\n# PASSPORT_PUBLIC_KEY=\n# PASSPORT_CONNECTION=\n");
     } else {
         contents.push_str(
             "# 此精简应用未编译数据库驱动或队列；标准 new 默认 MySQL，--db postgres 可选择 PostgreSQL。\n# DB_CONNECTION=postgres\n# DB_HOST=127.0.0.1\n# DB_PORT=5432\n# DB_DATABASE=应用数据库名\n# DB_USERNAME=数据库用户名\n# DB_PASSWORD=数据库密码\n",
@@ -2024,13 +2117,14 @@ fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> Stri
         features.push("auth");
     }
 
+    let driver = database.feature();
     format!(
-        "[package]\nname = \"{name}-migration\"\npublish = false\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ workspace = true, features = {features:?} }}\n"
+        "[package]\nname = \"{name}-migration\"\npublish = false\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ workspace = true, features = {features:?} }}\nopenrust-passport = {{ workspace = true, optional = true, features = [\"{driver}\"] }}\n\n[features]\npassport = [\"dep:openrust-passport\"]\n"
     )
 }
 
 fn migration_lib() -> String {
-    "//! 应用数据库迁移；框架基础设施仅从统一清单贡献一次。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        let mut migrations = openrust::database::FrameworkMigrator::migrations();\n        let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![];\n        migrations.extend(application_migrations);\n        migrations\n    }\n}\n".to_owned()
+    "//! 应用数据库迁移；框架基础设施仅从统一清单贡献一次。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        let mut migrations = openrust::database::FrameworkMigrator::migrations();\n        #[cfg(feature = \"passport\")]\n        migrations.extend(openrust_passport::default_passport_migrations());\n        let application_migrations: Vec<Box<dyn MigrationTrait>> = vec![];\n        migrations.extend(application_migrations);\n        migrations\n    }\n}\n".to_owned()
 }
 
 fn migration_catalog_test_source(auth: bool) -> String {
@@ -4142,7 +4236,7 @@ mod tests {
         assert!(modules.contains("modules_statuses.json"));
     }
 
-    fn assert_framework_migration_registry(source: &str) {
+    pub(super) fn assert_framework_migration_registry(source: &str) {
         assert_eq!(
             source
                 .matches("openrust::database::FrameworkMigrator::migrations()")
@@ -4516,103 +4610,6 @@ mod tests {
         result?;
         cleanup?;
         Ok(())
-    }
-
-    #[test]
-    fn database_templates_include_backend_migration_and_seed_support() {
-        let root = std::env::temp_dir().join(format!("openrust-cli-db-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("create temporary test directory");
-        for (backend, feature) in [
-            (DatabaseBackend::Postgres, "db-postgres"),
-            (DatabaseBackend::Mysql, "db-mysql"),
-        ] {
-            let project = root.join(feature);
-            populate_project(
-                &project,
-                "blog",
-                "Blog",
-                Some(backend),
-                false,
-                false,
-                false,
-                false,
-            )
-            .expect("generate database project");
-            let manifest =
-                fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
-            assert!(manifest.contains(feature));
-            let json_test = fs::read_to_string(project.join("tests/query_json_contains.rs"))
-                .expect("读取生成的 JSON 包含测试");
-            assert_eq!(
-                json_test.contains("#[ignore ="),
-                backend == DatabaseBackend::Postgres
-            );
-            assert!(!json_test.contains("{{runtime_scope}}"));
-            assert_eq!(
-                project.join("tests/sqlite_shared_locks.rs").is_file(),
-                backend == DatabaseBackend::Sqlite
-            );
-            assert!(project.join("database/migrations/Cargo.toml").is_file());
-            assert!(project.join("database/migrations/src/lib.rs").is_file());
-            assert!(
-                fs::read_to_string(project.join("config/database.rs"))
-                    .expect("read database domain config")
-                    .contains("DatabaseConfig {")
-            );
-            assert!(
-                fs::read_to_string(project.join("database/migrations/src/lib.rs"))
-                    .expect("read empty migration registry")
-                    .contains("vec![]")
-            );
-            let registry = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
-                .expect("读取统一迁移清单");
-            assert_framework_migration_registry(&registry);
-            let catalog = fs::read_to_string(project.join("tests/migration_catalog.rs"))
-                .expect("读取可执行迁移目录回归");
-            assert!(catalog.contains("QueueMigration.name()"));
-            assert!(catalog.contains("SessionGcMigration.name()"));
-            assert!(catalog.contains("SessionMigration.name()"));
-            assert!(!catalog.contains("{{"));
-            let app =
-                fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            assert!(app.contains("providers::application_providers(config)"));
-            assert_eq!(app.matches("fn default_providers(").count(), 1);
-            assert!(app.contains("DefaultProviders::auto().except(["));
-            assert!(
-                app.contains(
-                    "ProviderId::of::<openrust::translation::TranslationServiceProvider>()"
-                )
-            );
-            assert!(app.contains(
-                "]).merge([Box::new(crate::app::providers::translation_sources::TranslationSourcesProvider) as Box<dyn ServiceProvider>])"
-            ));
-            // Source仅移出原Translation并追加安装器，其他默认Provider仍由auto选择。
-            assert_eq!(app.matches(".except([").count(), 1);
-            assert_eq!(app.matches(".merge([").count(), 1);
-            assert!(!app.contains(".replace("));
-            let defaults =
-                include_str!("../../../vendor/openrust/framework/src/support/default_providers.rs");
-            assert!(defaults.contains("DatabaseServiceProvider"));
-            let providers = fs::read_to_string(project.join("bootstrap/providers.rs"))
-                .expect("read generated provider registry");
-            assert!(providers.contains("openrust_migration::Migrator"));
-            assert!(providers.contains("SeedServiceProvider"));
-            assert!(!providers.contains("openrust::database::FrameworkMigrator"));
-            assert_eq!(providers.matches("MigrationServiceProvider").count(), 1);
-            assert!(project.join(".env.example").is_file());
-            let env = fs::read_to_string(project.join(".env.example"))
-                .expect("read generated database environment example");
-            assert!(env.contains(&format!("DB_CONNECTION={}", backend.connection_name())));
-            assert!(env.contains(&format!(
-                "DB_PORT={}",
-                backend.port().expect("网络数据库端口")
-            )));
-            assert!(env.contains("DB_DATABASE=blog"));
-            assert!(env.contains("DB_TABLE_PREFIX="));
-            assert!(env.contains("REDIS_HOST=127.0.0.1"));
-        }
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

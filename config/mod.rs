@@ -13,6 +13,8 @@ pub mod hashing;
 pub mod log;
 pub mod mail;
 pub mod modules;
+#[cfg(feature = "passport")]
+pub mod passport;
 #[cfg(feature = "queue")]
 pub mod queue;
 #[cfg(feature = "realtime")]
@@ -48,6 +50,8 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("auth", auth::config)
         .section("hashing", hashing::config)
         .section("security", security::config);
+    #[cfg(feature = "passport")]
+    let manifest = manifest.section("passport", passport::config);
     #[cfg(feature = "auth-fortify")]
     let manifest = manifest
         .section("fortify", fortify::config)
