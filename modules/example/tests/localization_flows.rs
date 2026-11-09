@@ -112,6 +112,42 @@ impl Fixture {
     }
 }
 #[tokio::test]
+async fn reading_summary_uses_the_application_missing_handler_over_tcp() -> TestResult {
+    use openrust::translation::{MissingReplacements, Translator};
+
+    let fixture = Fixture::create().await?;
+    let outcome = async {
+        let i18n = fixture.app.app()?.state().resolve::<Translator>().await?;
+        let fixture_language = tempfile::tempdir()?;
+        std::fs::write(
+            fixture_language.path().join("fr.json"),
+            r#"{"ready":"Prêt"}"#,
+        )?;
+        i18n.add_namespace(
+            "hook-fixture",
+            fixture_language.path(),
+            fixture_language.path(),
+        )?;
+        i18n.determine_locales_using(|_| Vec::new());
+        i18n.handle_missing_keys_using(|missing| {
+            (missing.key == "example::reading_as_of"
+                && missing.locale.as_str() == "fr"
+                && missing.fallback
+                && matches!(missing.replacements, MissingReplacements::Mixed(_)))
+            .then(|| "Aperçu <date-part> :date </date-part>".into())
+        });
+        let body = fixture.summary(Some("fr"), "2", "utc").await?;
+        assert_eq!(body["locale"], "fr");
+        let date = body["date"].as_str().ok_or("missing localized date")?;
+        assert_eq!(body["as_of"], format!("Aperçu {date}"));
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+    fixture.close().await?;
+    outcome
+}
+
+#[tokio::test]
 async fn reading_summary_formats_plural_locales_fixed_offsets_and_fallback_over_tcp() -> TestResult
 {
     let f = Fixture::create().await?;

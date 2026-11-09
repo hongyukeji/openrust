@@ -105,7 +105,7 @@ impl fmt::Debug for RefreshRuntime {
     }
 }
 pub(super) struct PublishedCatalog {
-    current: MessageCatalog,
+    current: Arc<MessageCatalog>,
     published: Option<Arc<dyn TranslationLoadSession>>,
     overlay: MessageCatalog,
     namespaces: HashSet<String>,
@@ -134,7 +134,7 @@ impl Deref for PublishedCatalog {
 impl PublishedCatalog {
     pub(super) fn new(current: MessageCatalog) -> Self {
         Self {
-            current,
+            current: Arc::new(current),
             published: None,
             overlay: empty_catalog(),
             namespaces: HashSet::new(),
@@ -145,6 +145,9 @@ impl PublishedCatalog {
             last_error: None,
             failed_at: None,
         }
+    }
+    pub(super) fn snapshot(&self) -> Arc<MessageCatalog> {
+        self.current.clone()
     }
     fn complete(&mut self, _outcome: TranslationRefreshOutcome, error: Option<&'static str>) {
         // 开始尝试前已为finished预留一代，namespace登记不消耗此计数。
@@ -346,7 +349,7 @@ impl Attempt {
             merge_module_overlay(&mut next, &state.overlay);
             validate_catalog(config, &next)?;
             let generation = state.generation.checked_add(1).ok_or_else(catalog_error)?;
-            state.current = next;
+            state.current = Arc::new(next);
             let previous = state.published.replace(session);
             state.generation = generation;
             let outcome = TranslationRefreshOutcome::Updated { generation };
@@ -527,14 +530,14 @@ impl Translator {
             ));
         }
         let generation = state.generation.checked_add(1).ok_or_else(catalog_error)?;
-        let mut current = state.current.clone();
+        let mut current = (*state.current).clone();
         if self.source.is_some() {
             merge_module_overlay(&mut current, overlay);
         } else {
             merge_catalog(&mut current, overlay);
         }
         merge_catalog(&mut state.overlay, overlay);
-        state.current = current;
+        state.current = Arc::new(current);
         state.namespaces.insert(namespace.into());
         state.generation = generation;
         Ok(())

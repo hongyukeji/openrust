@@ -1,5 +1,6 @@
 //! 请求作用域的消息目录与 locale 选择。
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::Path;
@@ -29,6 +30,7 @@ mod composite_loader;
 mod file_loader;
 mod get;
 mod loader;
+mod lookup;
 mod replacement;
 mod source_refresh;
 pub use composite_loader::CompositeTranslationLoader;
@@ -36,6 +38,7 @@ pub use file_loader::FileTranslationLoader;
 pub use loader::{
     TranslationLines, TranslationLoadSession, TranslationLoader, TranslationResource,
 };
+pub use lookup::{MissingReplacements, MissingTranslation};
 pub use replacement::Replacement;
 pub use source_refresh::TranslationRefreshOutcome;
 pub use source_refresh::TranslationRefreshStatus;
@@ -446,18 +449,9 @@ impl MessageCatalog {
         Some((locale, line))
     }
 
-    fn laravel_line_at(
-        &self,
-        locale: &Locale,
-        key: &str,
-        include_json: bool,
-    ) -> Option<(&Locale, CatalogLine<'_>, bool)> {
+    fn json_line_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, CatalogLine<'_>)> {
         let (locale, global) = self.messages.get_key_value(locale)?;
-        if include_json && let Some(message) = global.get(key) {
-            return Some((locale, CatalogLine::Message(message), true));
-        }
-        self.group_line_at(locale, key, true)
-            .map(|(locale, line)| (locale, line, false))
+        Some((locale, CatalogLine::Message(global.get(key)?)))
     }
 
     fn supports(&self, locale: &Locale) -> bool {
@@ -649,6 +643,7 @@ pub struct Translator {
     catalog: Arc<RwLock<PublishedCatalog>>,
     source: Option<Arc<RefreshRuntime>>,
     stringables: Arc<replacement::Stringables>,
+    lookup_hooks: Arc<lookup::LookupHooks>,
 }
 
 impl Translator {
@@ -670,6 +665,7 @@ impl Translator {
             catalog: Arc::new(RwLock::new(PublishedCatalog::new(catalog))),
             source: None,
             stringables: Arc::default(),
+            lookup_hooks: Arc::default(),
         })
     }
 
@@ -842,42 +838,34 @@ impl Translator {
             }
         };
         let locale = self.lookup_locale(locale);
-        let catalog = self
-            .catalog
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (locale, message) = if let Some((locale, line, global)) = catalog
-            .laravel_line_at(&locale, key, true)
-            .filter(|(_, line, global)| *global || line.text() != Some(key))
+        let catalog = self.lookup_snapshot();
+        // Laravel 先按原语言的精确存在性选择复数语言，再在该语言执行一次普通读取。
+        let locale = if self
+            .lookup_value(&catalog, &locale, key, false)
+            .is_some_and(|(_, line, global)| global || line.text() != Some(key))
         {
-            (locale, Some((line, global)))
+            locale.as_ref()
         } else {
-            let fallback = &self.config.fallback_locale;
-            (
-                fallback,
-                catalog
-                    .laravel_line_at(fallback, key, true)
-                    .map(|(_, line, global)| (line, global)),
-            )
+            &self.config.fallback_locale
         };
-        // JSON 的空字符串和 "0" 会显示原键。分组资源保留同样的原始字符串值。
-        let line = if let Some((message, global)) = message {
-            let line = message.text().ok_or_else(|| {
-                Error::custom_with_status(
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "translation_choice_message_invalid",
-                    "复数选择要求字符串消息",
-                )
-            })?;
-            if global && (line.is_empty() || line == "0") {
-                key
-            } else {
-                line
+        let line = match self.lookup_value(&catalog, locale, key, true) {
+            Some((_, message, global)) => {
+                let text = message.text().ok_or_else(|| {
+                    Error::custom_with_status(
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        "translation_choice_message_invalid",
+                        "复数选择要求字符串消息",
+                    )
+                })?;
+                if global && (text.is_empty() || text == "0") {
+                    Cow::Borrowed(key)
+                } else {
+                    Cow::Borrowed(text)
+                }
             }
-        } else {
-            key
+            None => self.missing_text(key, locale, true, MissingReplacements::Text(&[])),
         };
-        let selected = choice::select(line, count, locale)?.to_owned();
+        let selected = choice::select(&line, count, locale)?.to_owned();
         Ok((selected, count_text))
     }
 

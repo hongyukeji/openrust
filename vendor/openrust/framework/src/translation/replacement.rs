@@ -1,6 +1,6 @@
 //! Laravel 标签回调和按类型的字符串化。
 use super::{
-    Locale, Translator,
+    Locale, MissingReplacements, Translator,
     get::{expect_array, expect_string, map_leaves},
     insert_laravel_arg, replace_laravel_args, scalars,
 };
@@ -49,6 +49,30 @@ impl<'a> Replacement<'a> {
             value,
             display: Some(value),
         })
+    }
+
+    /// 读取已转换为文本的替换值。
+    pub fn as_text(&self) -> Option<&str> {
+        match &self.0 {
+            Kind::Text(text) => Some(text),
+            Kind::Tag(_) | Kind::Object { .. } => None,
+        }
+    }
+
+    /// 按精确类型借用传入的对象。
+    pub fn as_object<T: Any>(&self) -> Option<&T> {
+        match &self.0 {
+            Kind::Object { value, .. } => value.downcast_ref(),
+            _ => None,
+        }
+    }
+
+    /// 借用传入的标签回调。
+    pub fn as_tag(&self) -> Option<&dyn Fn(&str) -> String> {
+        match &self.0 {
+            Kind::Tag(render) => Some(render.as_ref()),
+            _ => None,
+        }
     }
 }
 
@@ -130,12 +154,15 @@ impl Translator {
             .collect();
         let icu_args = args
             .iter()
-            .filter_map(|(key, value)| match &value.0 {
-                Kind::Text(text) => Some((key.clone(), text.to_string())),
-                Kind::Tag(_) | Kind::Object { .. } => None,
-            })
+            .filter_map(|(key, value)| Some((key.clone(), value.as_text()?.to_owned())))
             .collect();
-        let value = self.read_value(key, &locale, fallback, &icu_args);
+        let value = self.read_value(
+            key,
+            &locale,
+            fallback,
+            &icu_args,
+            MissingReplacements::Mixed(&args),
+        );
         if args.is_empty() {
             Ok(value)
         } else {

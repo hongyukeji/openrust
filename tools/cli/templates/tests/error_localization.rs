@@ -18,7 +18,7 @@ use openrust::support::BoxFuture;
 use openrust::translation::{TranslationLoadSession, TranslationLoader, TranslationResource};
 use openrust::translation::Translator;
 use openrust::translation::TranslationServiceProvider;
-use openrust::translation::{Locale, MessageArgs, MessageCatalog, Replacement, translation_session};
+use openrust::translation::{Locale, MessageArgs, MessageCatalog, MissingReplacements, Replacement, translation_session};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -232,6 +232,35 @@ async fn generated_translator_applies_tags_and_registered_object_formatters() ->
             )?,
             "[Welcome, Ada]"
         );
+        Ok::<_, Box<dyn std::error::Error>>(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}
+
+#[tokio::test]
+async fn generated_translator_dispatches_lookup_hooks() -> TestResult {
+    let app = application("zh-CN").await?;
+    let result = async {
+        let i18n = app.state().resolve::<Translator>().await?;
+        i18n.determine_locales_using(|locales| {
+            assert_eq!(locales[0].as_str(), "zh-CN");
+            Vec::new()
+        });
+        i18n.handle_missing_keys_using(|missing| {
+            assert_eq!(missing.locale.as_str(), "zh-CN");
+            assert!(missing.fallback);
+            assert!(matches!(missing.replacements, MissingReplacements::Text(_)));
+            Some("Welcome, :Name".into())
+        });
+        let args = [("name", "ada")];
+        assert!(!i18n.has("missing", None, true));
+        assert_eq!(i18n.string("missing", args, None, true)?, "Welcome, Ada");
+        i18n.clear_missing_key_handler();
+        i18n.clear_locale_resolver();
+        assert_eq!(i18n.string("missing", args, None, true)?, "missing");
         Ok::<_, Box<dyn std::error::Error>>(())
     }
     .await;

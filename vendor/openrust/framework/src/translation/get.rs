@@ -1,7 +1,7 @@
 //! Laravel 值读取复用已发布的翻译快照。
 use super::{
-    CatalogLine, CatalogMessage, I18N_CONTEXT, Locale, MessageArgs, MessageCatalog, Translator,
-    format_catalog_message, laravel_replacements, replace_laravel_args, scalars,
+    CatalogLine, CatalogMessage, I18N_CONTEXT, Locale, MessageArgs, MissingReplacements,
+    Translator, format_catalog_message, laravel_replacements, replace_laravel_args, scalars,
 };
 use crate::{Error, Result};
 use axum::http::StatusCode;
@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 use std::{borrow::Cow, convert::Infallible, sync::Arc};
 
 impl Translator {
-    /// 读取字符串、列表或关联映射。缺少资源时返回键本身。
+    /// 读取字符串、列表或关联映射。缺少资源时使用缺键处理器或返回键本身。
     ///
     /// 未传语言时使用当前请求或任务语言，再使用应用默认语言。全局 JSON 字面键
     /// 仅在请求语言查找。启用 `fallback` 时，缺少分组资源可回退到配置语言。
@@ -28,8 +28,14 @@ impl Translator {
             .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned()))
             .collect::<Vec<_>>();
         let icu_args = args.iter().cloned().collect();
+        let value = self.read_value(
+            key,
+            &locale,
+            fallback,
+            &icu_args,
+            MissingReplacements::Text(&args),
+        );
         let replacements = laravel_replacements(args, None);
-        let value = self.read_value(key, &locale, fallback, &icu_args);
         if replacements.is_empty() {
             value
         } else {
@@ -46,14 +52,12 @@ impl Translator {
         locale: &Locale,
         fallback: bool,
         icu_args: &MessageArgs,
+        args: MissingReplacements<'_>,
     ) -> Value {
-        let catalog = self
-            .catalog
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let catalog = self.lookup_snapshot();
         self.lookup_value(&catalog, locale, key, fallback)
             .map_or_else(
-                || Value::String(key.to_owned()),
+                || Value::String(self.missing_text(key, locale, fallback, args).into_owned()),
                 |(locale, line, global)| {
                     if global && matches!(line.text(), Some("" | "0")) {
                         Value::String(key.to_owned())
@@ -90,11 +94,9 @@ impl Translator {
     ///
     /// 精确 JSON 键的空字符串和字符串 `0` 仍算存在。分组文本等于传入键时视为缺失。
     pub fn has(&self, key: &str, locale: Option<&Locale>, fallback: bool) -> bool {
+        let _suppression = self.suppress_missing();
         let locale = self.lookup_locale(locale);
-        let catalog = self
-            .catalog
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let catalog = self.lookup_snapshot();
         self.lookup_value(&catalog, &locale, key, fallback)
             .is_some_and(|(locale, line, global)| {
                 global
@@ -124,20 +126,6 @@ impl Translator {
             .ok()
             .flatten()
             .map_or(Cow::Borrowed(&self.config.default_locale), Cow::Owned)
-    }
-
-    fn lookup_value<'a>(
-        &self,
-        catalog: &'a MessageCatalog,
-        locale: &Locale,
-        key: &str,
-        fallback: bool,
-    ) -> Option<(&'a Locale, CatalogLine<'a>, bool)> {
-        catalog.laravel_line_at(locale, key, true).or_else(|| {
-            (fallback && locale != &self.config.fallback_locale)
-                .then(|| catalog.laravel_line_at(&self.config.fallback_locale, key, false))
-                .flatten()
-        })
     }
 }
 
