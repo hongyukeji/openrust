@@ -536,7 +536,7 @@ user_event!(
 );
 
 impl crate::events::Event for TwoFactorAuthenticationChallenged {
-    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationChallenged";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\TwoFactorAuthenticationChallenged";
 }
 
 user_event!(
@@ -545,7 +545,7 @@ user_event!(
 );
 
 impl crate::events::Event for TwoFactorAuthenticationFailed {
-    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationFailed";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\TwoFactorAuthenticationFailed";
 }
 
 user_event!(
@@ -554,8 +554,7 @@ user_event!(
 );
 
 impl crate::events::Event for ValidTwoFactorAuthenticationCodeProvided {
-    const NAME: &'static str =
-        r"OpenRust\Auth\TwoFactor\Events\ValidTwoFactorAuthenticationCodeProvided";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided";
 }
 
 #[cfg(test)]

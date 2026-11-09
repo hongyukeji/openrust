@@ -15,6 +15,8 @@ cargo test
 
 `tests/auth_flows.rs` 使用真实账户和 Router 验证 Web 管理、Cookie、Session、CSRF 与账户 Provider。
 
+可通过 `EventsServiceProvider` 订阅 `openrust::auth::fortify` 中的双因素事件类型，也可用 `OpenRust\Fortify\Events\*` 订阅这一组事件。
+
 需要完全无 Session/Cookie 的 JWT API 应用时，创建项目时显式选择 `openrust new <应用名> --profile jwt-api`，不与 `--fortify` 共选。
 
 启用加密的 Web 项目在首次处理受保护 Cookie 时读取 `APP_KEY`。请在部署前运行 `./artisan key:generate`，或由部署平台注入有效的应用密钥。`./artisan key:generate --show` 会输出密钥，请只在私有终端运行并避免记录到日志。

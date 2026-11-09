@@ -599,7 +599,7 @@ mod queued {
         let observed = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let named = Arc::clone(&observed);
         listeners.listen_named::<TwoFactorAuthenticationEnabled, _>(
-            r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationEnabled",
+            r"OpenRust\Fortify\Events\TwoFactorAuthenticationEnabled",
             move |event, context| {
                 let named = Arc::clone(&named);
                 Box::pin(async move {

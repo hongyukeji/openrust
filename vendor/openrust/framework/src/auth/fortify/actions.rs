@@ -46,25 +46,25 @@ account_event!(
 );
 
 impl crate::events::Event for TwoFactorAuthenticationEnabled {
-    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationEnabled";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\TwoFactorAuthenticationEnabled";
 }
 
 account_event!(TwoFactorAuthenticationConfirmed, "双因素绑定验证码已确认。");
 
 impl crate::events::Event for TwoFactorAuthenticationConfirmed {
-    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationConfirmed";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\TwoFactorAuthenticationConfirmed";
 }
 
 account_event!(TwoFactorAuthenticationDisabled, "双因素三项属性已清除。");
 
 impl crate::events::Event for TwoFactorAuthenticationDisabled {
-    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationDisabled";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\TwoFactorAuthenticationDisabled";
 }
 
 account_event!(RecoveryCodesGenerated, "双因素恢复码已重新生成。");
 
 impl crate::events::Event for RecoveryCodesGenerated {
-    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\RecoveryCodesGenerated";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\RecoveryCodesGenerated";
 }
 
 /// 恢复码替换事件，保留官方code字段但禁止Debug泄露。
@@ -77,7 +77,7 @@ pub struct RecoveryCodeReplaced {
 }
 
 impl crate::events::Event for RecoveryCodeReplaced {
-    const NAME: &'static str = r"OpenRust\Auth\TwoFactor\Events\RecoveryCodeReplaced";
+    const NAME: &'static str = r"OpenRust\Fortify\Events\RecoveryCodeReplaced";
 }
 
 impl fmt::Debug for RecoveryCodeReplaced {

@@ -2250,9 +2250,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 
 ## 双因素事件命名限定验收
 
-八个 Fortify 运行事件使用 `OpenRust\Auth\TwoFactor\Events\` 前缀。类型、载荷、派发和事务边界沿用原行为。新单测固定所有事件名及类型、具名、通配符的同次派发顺序，旧前缀不触发订阅。真实 MySQL 事务测试验证新具名监听收到同一事务，事务末检拒绝后因子、审计与队列写入全部回滚。
+对照 Fortify c456642 的八个源文件，字符串身份为 `OpenRust\Fortify\Events\<Type>`。固定名称回归覆盖全部八项。类、具名和通配符各收到同一次派发，旧名称不匹配。唯一示例的账户流程经应用事件总线观察写入完成后的单次启用事件。独立真实 MySQL 回归验证具名监听收到原事务，事务末检拒绝时因子、审计和队列写入共同回滚。
 
-冻结树 `2ce2410abb56f32ceaed8ff20f8dc269705323fa` 通过 fmt、默认和启用 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。唯一示例验证因子流程与一次性恢复码，fresh Web/Fortify、JWT API 生成应用通过 check 和真实 MySQL 测试。
+冻结树 `3399ba7be46474f52d1279b3a3704aa923ea0300` 通过 fmt、默认和 Session/Fortify/View 严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 与离线依赖检查。新生成的 Web/Fortify 和 JWT API 项目通过 check 与实库测试。Rust 导入层级继续按唯一待办验收。
 
 ## 第一方源码与生成模板命名收尾
 

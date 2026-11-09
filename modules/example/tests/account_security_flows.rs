@@ -37,6 +37,12 @@ struct Fixture {
 }
 impl Fixture {
     async fn create() -> TestResult<Option<Self>> {
+        Self::create_with_providers(|_| {}).await
+    }
+
+    async fn create_with_providers(
+        configure: impl Fn(&mut openrust::foundation::ProviderBuilder) + Send + Sync + 'static,
+    ) -> TestResult<Option<Self>> {
         let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
             eprintln!("skipping account security DB test: OPENRUST_TEST_DATABASE_URL is unset");
             return Ok(None);
@@ -52,11 +58,11 @@ impl Fixture {
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":ORIGIN,"active_key_id":"test","keys":{"test":key}}},
             "session":{"secure":false,"cookie":"example_account_session","same_site":"strict"}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(
+        let mut builder = TestApp::<crate::bootstrap::Server>::builder(
             crate::modules::example::test_sources(&(source))?,
-        )
-        .build()
-        .await?;
+        );
+        builder.configure_providers(configure);
+        let app = builder.build().await?;
         let flows = app.app()?.state().resolve::<AuthFlows>().await?;
         let code = flows
             .register(EMAIL, PASSWORD, "fixture-seed")
@@ -593,13 +599,42 @@ async fn management_requires_a_current_password_confirmation(
     reason = "同一安全业务流程的断言、真实资源与回收保持在一个测试生命周期内"
 )]
 async fn selected_factor_blocks_password_only_resources_and_consumes_recovery_once() -> TestResult {
-    let Some(fixture) = Fixture::create().await? else {
+    use openrust::auth::fortify::TwoFactorAuthenticationEnabled;
+    use openrust::events::{EventPropagation, EventsServiceProvider};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let enable_count = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&enable_count);
+    let Some(fixture) = Fixture::create_with_providers(move |providers| {
+        let mut listeners = EventsServiceProvider::new();
+        let observed = Arc::clone(&observed);
+        listeners.listen_named::<TwoFactorAuthenticationEnabled, _>(
+            r"OpenRust\Fortify\Events\TwoFactorAuthenticationEnabled",
+            move |_, context| {
+                let observed = Arc::clone(&observed);
+                Box::pin(async move {
+                    // 普通启用在写入完成后派发；API 管理事务另有回滚回归。
+                    assert!(context.transaction().is_none());
+                    observed.fetch_add(1, Ordering::Relaxed);
+                    Ok(EventPropagation::Continue)
+                })
+            },
+        );
+        // 示例模块先登记同类型 Provider。此 fixture 替换监听清单，继续使用应用事件总线。
+        providers.force_provider(listeners);
+    })
+    .await?
+    else {
         return Ok(());
     };
     let (old_session, csrf) = login_session(&fixture).await?;
     management_requires_a_current_password_confirmation(&fixture, &old_session, &csrf).await?;
     let scope = fixture.app.app()?.state().container().scope()?;
     let (actions, user) = setup_confirmed_factor(&scope, fixture.user_id).await?;
+    assert_eq!(enable_count.load(Ordering::Relaxed), 1);
     let codes = actions.recovery_codes(&user).await?;
     assert_eq!(codes.len(), 8);
     let first = codes.first().ok_or("missing recovery code")?;

@@ -335,9 +335,9 @@ Provider/cache 验证在账户事务外完成；数据库回滚不撤回第三�
 
 ## 双因素事件订阅
 
-八个双因素事件沿用 `openrust::auth::fortify` 的公开 Rust 类型。字符串事件名由 `OpenRust\Auth\TwoFactor\Events\` 和类型名组成，覆盖启用、确认、关闭、恢复码生成和替换，以及登录挑战、失败和验证码通过。使用 `EventsServiceProvider::listen::<TwoFactorAuthenticationEnabled, _>` 可按类型订阅；需要按名称订阅时，可用该类型的 `Event::NAME` 或 `OpenRust\Auth\TwoFactor\Events\*`。
+八个双因素事件沿用 `openrust::auth::fortify` 的公开 Rust 类型。字符串事件名由 `OpenRust\Fortify\Events\` 和类型名组成，覆盖启用、确认、关闭、恢复码生成和替换，以及登录挑战、失败和验证码通过。使用 `EventsServiceProvider::listen::<TwoFactorAuthenticationEnabled, _>` 可按类型订阅；需要按名称订阅时，可用该类型的 `Event::NAME` 或 `OpenRust\Fortify\Events\*`。
 
-升级时，将写死的 `Laravel\Fortify\Events\` 字符串前缀替换为新前缀。事件载荷、触发点及原有事务边界保持不变。受信监听器可以通过 `EventContext::transaction()` 取得派发方事务。恢复码只可由授权监听器显式读取，调试输出脱敏。 [上游启用动作](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Actions/EnableTwoFactorAuthentication.php) · [上游挑战完成入口](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Http/Controllers/TwoFactorAuthenticatedSessionController.php)
+升级时，将写死的 `Laravel\Fortify\Events\` 或 `OpenRust\Auth\TwoFactor\Events\` 字符串前缀改为 `OpenRust\Fortify\Events\`。受信监听器可以通过 `EventContext::transaction()` 取得派发方事务。恢复码只可由授权监听器显式读取，调试输出脱敏。 [上游启用动作](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Actions/EnableTwoFactorAuthentication.php) · [上游挑战完成入口](https://github.com/laravel/fortify/blob/c456642584c102f6a6aafee9932299542da637b5/src/Http/Controllers/TwoFactorAuthenticatedSessionController.php)
 
 ## Laravel 对应与 Rust 边界
 

@@ -17,7 +17,7 @@ use crate::{
 };
 
 #[test]
-fn two_factor_events_have_distinct_responsibility_names() {
+fn two_factor_events_use_the_fixed_fortify_namespace() {
     assert_eq!(
         [
             TwoFactorAuthenticationEnabled::NAME,
@@ -30,14 +30,14 @@ fn two_factor_events_have_distinct_responsibility_names() {
             ValidTwoFactorAuthenticationCodeProvided::NAME,
         ],
         [
-            r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationEnabled",
-            r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationConfirmed",
-            r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationDisabled",
-            r"OpenRust\Auth\TwoFactor\Events\RecoveryCodesGenerated",
-            r"OpenRust\Auth\TwoFactor\Events\RecoveryCodeReplaced",
-            r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationChallenged",
-            r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationFailed",
-            r"OpenRust\Auth\TwoFactor\Events\ValidTwoFactorAuthenticationCodeProvided",
+            r"OpenRust\Fortify\Events\TwoFactorAuthenticationEnabled",
+            r"OpenRust\Fortify\Events\TwoFactorAuthenticationConfirmed",
+            r"OpenRust\Fortify\Events\TwoFactorAuthenticationDisabled",
+            r"OpenRust\Fortify\Events\RecoveryCodesGenerated",
+            r"OpenRust\Fortify\Events\RecoveryCodeReplaced",
+            r"OpenRust\Fortify\Events\TwoFactorAuthenticationChallenged",
+            r"OpenRust\Fortify\Events\TwoFactorAuthenticationFailed",
+            r"OpenRust\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided",
         ],
     );
 }
@@ -45,7 +45,7 @@ fn two_factor_events_have_distinct_responsibility_names() {
 #[tokio::test]
 async fn typed_exact_and_wildcard_two_factor_subscriptions_share_one_dispatch() -> Result<()> {
     let mut listeners = EventsServiceProvider::new();
-    listeners.listen_named_reply(r"OpenRust\Auth\TwoFactor\Events\*", |_, context| {
+    listeners.listen_named_reply(r"OpenRust\Fortify\Events\*", |_, context| {
         Box::pin(async move {
             assert_eq!(context.event_name(), TwoFactorAuthenticationEnabled::NAME);
             Ok(DataValue::from("wildcard"))
@@ -59,7 +59,7 @@ async fn typed_exact_and_wildcard_two_factor_subscriptions_share_one_dispatch() 
         })
     });
     listeners.listen_named_reply(
-        r"OpenRust\Auth\TwoFactor\Events\TwoFactorAuthenticationEnabled",
+        r"OpenRust\Fortify\Events\TwoFactorAuthenticationEnabled",
         |payload, _| {
             Box::pin(async move {
                 assert!(
@@ -72,7 +72,10 @@ async fn typed_exact_and_wildcard_two_factor_subscriptions_share_one_dispatch() 
         },
     );
     listeners.listen_named_reply(r"Laravel\Fortify\Events\*", |_, _| {
-        Box::pin(async { Ok(DataValue::from("old namespace")) })
+        Box::pin(async { Ok(DataValue::from("upstream brand namespace")) })
+    });
+    listeners.listen_named_reply(r"OpenRust\Auth\TwoFactor\Events\*", |_, _| {
+        Box::pin(async { Ok(DataValue::from("previous OpenRust namespace")) })
     });
     listeners.listen_named_reply(r"OpenRust\Auth\Events\*", |_, _| {
         Box::pin(async { Ok(DataValue::from("general auth namespace")) })
