@@ -35,7 +35,7 @@ async fn global_group_and_namespace_resources_preserve_empty_and_snapshot() -> R
     let module = tempfile::tempdir().map_err(Error::internal)?;
     std::fs::write(module.path().join("en.json"), r#"{"hello":"module"}"#)
         .map_err(Error::internal)?;
-    let loader = FileTranslationLoader::new(root.path()).with_namespace("shop", module.path());
+    let loader = FileLoader::new(root.path()).with_namespace("shop", module.path());
     let snapshot = loader.begin_snapshot().await?;
     assert_eq!(snapshot.resources().len(), 3);
     let en = Locale::new("en")?;
@@ -81,32 +81,23 @@ async fn invalid_duplicate_oversize_and_bad_catalog_structures_fail_whole_snapsh
         r#"{"bad":{"plural":{"argument":"n","forms":{"one":"one"}}}}"#,
     ] {
         std::fs::write(root.path().join("en.json"), contents).map_err(Error::internal)?;
-        assert!(
-            FileTranslationLoader::new(root.path())
-                .begin_snapshot()
-                .await
-                .is_err()
-        );
+        assert!(FileLoader::new(root.path()).begin_snapshot().await.is_err());
     }
     std::fs::write(root.path().join("en.json"), r#"{"key":"long value"}"#)
         .map_err(Error::internal)?;
     assert!(
-        matches!(FileTranslationLoader::new(root.path()).with_limits(1, 2)?.begin_snapshot().await,
+        matches!(FileLoader::new(root.path()).with_limits(1, 2)?.begin_snapshot().await,
         Err(error) if error.code() == "i18n_file_source_limit")
     );
     std::fs::write(root.path().join("fr.json"), "{}").map_err(Error::internal)?;
     assert!(
-        FileTranslationLoader::new(root.path())
+        FileLoader::new(root.path())
             .with_limits(1, 1024)?
             .begin_snapshot()
             .await
             .is_err()
     );
-    assert!(
-        FileTranslationLoader::new(root.path())
-            .with_limits(0, 100)
-            .is_err()
-    );
+    assert!(FileLoader::new(root.path()).with_limits(0, 100).is_err());
     Ok(())
 }
 
@@ -114,7 +105,7 @@ async fn invalid_duplicate_oversize_and_bad_catalog_structures_fail_whole_snapsh
 async fn repeated_namespace_resources_fail_instead_of_silently_replacing() -> Result<()> {
     let root = tempfile::tempdir().map_err(Error::internal)?;
     std::fs::write(root.path().join("en.json"), r#"{"key":"value"}"#).map_err(Error::internal)?;
-    let loader = FileTranslationLoader::new(root.path())
+    let loader = FileLoader::new(root.path())
         .with_namespace("shop", root.path())
         .with_namespace("shop", root.path());
     assert!(loader.begin_snapshot().await.is_err());
@@ -128,7 +119,7 @@ async fn fifo_is_rejected_before_blocking_and_open_rechecks_actual_handle_type()
     let fifo = root.path().join("en.json");
     create_fifo_fixture(&fifo)?;
     assert!(open_regular(&fifo).is_err());
-    let loader = FileTranslationLoader::new(root.path());
+    let loader = FileLoader::new(root.path());
     let result = tokio::time::timeout(std::time::Duration::from_secs(1), loader.begin_snapshot())
         .await
         .map_err(Error::internal)?;
@@ -157,9 +148,7 @@ async fn trusted_regular_file_symlinks_keep_original_locale_and_group_addresses(
         root.path().join("fr/messages.json"),
     )
     .map_err(Error::internal)?;
-    let snapshot = FileTranslationLoader::new(root.path())
-        .begin_snapshot()
-        .await?;
+    let snapshot = FileLoader::new(root.path()).begin_snapshot().await?;
     assert_eq!(snapshot.resources().len(), 2);
     assert_eq!(
         snapshot.load(&Locale::new("en")?, "*", None)?.get("hello"),
@@ -189,7 +178,7 @@ async fn trusted_links_to_fifo_broken_targets_or_cycles_fail_without_waiting_for
         }
         std::os::unix::fs::symlink(&target, &link).map_err(Error::internal)?;
         assert!(open_regular(&link).is_err());
-        let loader = FileTranslationLoader::new(root.path());
+        let loader = FileLoader::new(root.path());
         assert!(
             tokio::time::timeout(std::time::Duration::from_secs(1), loader.begin_snapshot())
                 .await

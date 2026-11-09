@@ -2264,6 +2264,8 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 
 ## 默认文件 Loader 与无资源语言限定验收
 
+固定上游具体类型已对齐为 `openrust::translation::FileLoader`。冻结树 `27f637b9abcaf54e35fdd223eca331f79d3f73e9` 通过默认和 translation-database/view 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。fresh minimal 用公开类型实测文件路径与局部覆盖，缺资源语言仍可启动。
+
 框架默认用应用根的 `lang`。公开译器和 Loader 分别可按类型或具名键解析，均共享实例。根应用和生成应用沿相同根路径规则。默认目录缺失、合法语言暂无资源时仍可回退或返回原键。显式坏目录、无效资源和不安全语言标签保持拒绝。运行时全局语言 setter、变更事件和 Provider 延迟装配仍开放。
 
 冻结树 `5ec676adacb8c9ff4708fe76cc876d726750b544` 通过 fmt、默认及 translation-database/view 严格 Clippy、MySQL 8.4.13 工作区测试、拒警 Rustdoc、离线依赖检查。真实文件测试验证应用根覆盖、默认目录缺失、显式任务语言和资源移除刷新；fresh minimal 通过 check/test，并以无资源的 `fr-CA` 和 `de` 成功启动命令。

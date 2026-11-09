@@ -1,7 +1,7 @@
 //! 精确 JSON、分组顺序、缺键参数和同步重入边界。
 use crate::Result;
 use crate::translation::{
-    FileTranslationLoader, Locale, MessageArgs, MessageCatalog, MissingReplacements, Replacement,
+    FileLoader, Locale, MessageArgs, MessageCatalog, MissingReplacements, Replacement,
     TranslationConfig, Translator,
 };
 use std::sync::{
@@ -41,7 +41,7 @@ async fn translator() -> Result<Translator> {
             default_locale: Locale::new("fr")?,
             fallback_locale: Locale::english(),
         },
-        Arc::new(FileTranslationLoader::new(dir.path())),
+        Arc::new(FileLoader::new(dir.path())),
     )
     .await
 }

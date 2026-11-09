@@ -151,7 +151,7 @@ async fn file_provider_uses_application_fallback_for_groups_without_falling_back
     let path = directory.path().to_path_buf();
     let mut builder = ProviderBuilder::new();
     builder.provider(TranslationServiceProvider::from_loader_factory(move |_| {
-        let loader: Arc<dyn TranslationLoader> = Arc::new(FileTranslationLoader::new(&path));
+        let loader: Arc<dyn TranslationLoader> = Arc::new(FileLoader::new(&path));
         Box::pin(async move { Ok(loader) })
     }));
     let sources = Figment::from(Serialized::defaults(

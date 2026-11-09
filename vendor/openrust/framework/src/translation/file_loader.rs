@@ -24,7 +24,7 @@ use std::{
 /// 来源为应用维护的受信目录；Unix允许指向普通文件的链接，资源地址取原路径。
 /// 子目录链接须在已登记目录内，循环链接会中止捕获。不提供所有祖先组件的原子路径约束。
 #[derive(Clone)]
-pub struct FileTranslationLoader {
+pub struct FileLoader {
     paths: Vec<PathBuf>,
     json_paths: Vec<PathBuf>,
     hints: Vec<(String, PathBuf)>,
@@ -32,7 +32,7 @@ pub struct FileTranslationLoader {
     max_files: usize,
     max_file_bytes: u64,
 }
-impl FileTranslationLoader {
+impl FileLoader {
     /// 读取 `<locale>.json` 全局资源及 `<locale>/<group>.json` 分组资源。
     ///
     /// 全局文件的根必须是对象。分组文件也可使用数组根，其索引以十进制键进入资源映射。
@@ -135,7 +135,7 @@ enum LayerKind {
 }
 
 struct Capture<'a> {
-    loader: &'a FileTranslationLoader,
+    loader: &'a FileLoader,
     files: usize,
 }
 
@@ -330,7 +330,7 @@ fn directory(path: &Path, boundary: Option<&Path>, optional: bool) -> Result<Opt
     Ok(Some(actual))
 }
 
-impl TranslationLoader for FileTranslationLoader {
+impl TranslationLoader for FileLoader {
     fn begin_snapshot(&self) -> BoxFuture<'_, Result<Arc<dyn TranslationLoadSession>>> {
         let owned = self.clone();
         Box::pin(async move {

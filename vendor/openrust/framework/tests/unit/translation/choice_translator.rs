@@ -26,7 +26,7 @@ async fn choice_uses_json_presence_and_fallback_locale_rules() -> Result<()> {
             default_locale: fr.clone(),
             fallback_locale: Locale::english(),
         },
-        Arc::new(FileTranslationLoader::new(root)),
+        Arc::new(FileLoader::new(root)),
     )
     .await?;
     let args = MessageArgs::new();

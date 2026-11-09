@@ -157,7 +157,7 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 
 ## 显式翻译来源（Source）
 
-框架默认 `TranslationServiceProvider` 从文件加载资源。应用安装器选择来源，复用唯一 Container `Translator`，Files、Database 或 Composite 均沿用普通 Laravel 查找策略。明确业务需要跨语言全局 JSON 回退或原样空值时，使用该译器的 `clone().with_lookup(TranslationLookup::Catalog)` 视图。错误渲染与验证也复用同一目录。运行时应用语言变更、延迟装配以及官方 `get` 和 Loader 接口的完整对应仍在推进。
+框架默认 `TranslationServiceProvider` 使用 `openrust::translation::FileLoader` 加载文件资源。自定义文件来源可用 `FileLoader::new(path)` 构造，再通过 `TranslationServiceProvider::from_loader_factory` 接入。应用安装器选择来源，复用唯一 Container `Translator`，Files、Database 或 Composite 均沿用普通 Laravel 查找策略。明确业务需要跨语言全局 JSON 回退或原样空值时，使用该译器的 `clone().with_lookup(TranslationLookup::Catalog)` 视图。错误渲染与验证也复用同一目录。运行时应用语言变更、延迟装配以及官方 `get` 和 Loader 接口的完整对应仍在推进。[固定 FileLoader 源码](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Translation/FileLoader.php)
 
 根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取应用根的 `lang`，无需数据库扩展、Redis 或后台任务。框架内置消息先装入目录，应用文件按键覆盖。Loader 可按 `dyn TranslationLoader` 或 `translation.loader` 解析，译器可按 `Translator` 或 `translator` 解析。具名与类型键共享实例。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
 

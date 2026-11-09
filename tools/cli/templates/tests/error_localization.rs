@@ -274,7 +274,7 @@ async fn generated_translator_dispatches_lookup_hooks() -> TestResult {
 
 #[tokio::test]
 async fn generated_application_uses_file_loader_paths_and_partial_overrides() -> TestResult {
-    use openrust::translation::FileTranslationLoader;
+    use openrust::translation::FileLoader;
 
     let files = tempfile::tempdir()?;
     for (relative, contents) in [
@@ -290,7 +290,7 @@ async fn generated_application_uses_file_loader_paths_and_partial_overrides() ->
         }
         std::fs::write(path, contents)?;
     }
-    let loader = FileTranslationLoader::new(files.path().join("base"))
+    let loader = FileLoader::new(files.path().join("base"))
         .with_json_path(files.path().join("json"))
         .with_path(files.path().join("missing"))
         .with_path(files.path().join("addon"))

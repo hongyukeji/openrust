@@ -3,8 +3,8 @@
 use super::{CatalogMessage, MAX_ENTRY_DEPTH, parse_file_lines, parse_resource, validate_lines};
 use crate::Result;
 use crate::translation::{
-    FileTranslationLoader, Locale, MessageArgs, TranslationConfig, TranslationLoader,
-    TranslationResource, Translator,
+    FileLoader, Locale, MessageArgs, TranslationConfig, TranslationLoader, TranslationResource,
+    Translator,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -113,7 +113,7 @@ async fn grouped_file_arrays_preserve_indices_and_duplicate_nested_keys_fail() -
     )?;
     std::fs::write(directory.path().join("en.json"), br#"{"global":"line"}"#)?;
 
-    let loader = FileTranslationLoader::new(directory.path());
+    let loader = FileLoader::new(directory.path());
     let session = loader.begin_snapshot().await?;
     let locale = Locale::new("en")?;
     assert_eq!(
@@ -163,7 +163,7 @@ async fn grouped_file_text_and_choice_use_nested_paths_without_masking_fallback(
             default_locale: fr.clone(),
             fallback_locale: Locale::english(),
         },
-        Arc::new(FileTranslationLoader::new(directory.path())),
+        Arc::new(FileLoader::new(directory.path())),
     )
     .await?;
     let args = MessageArgs::new();

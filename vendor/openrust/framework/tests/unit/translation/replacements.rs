@@ -1,7 +1,7 @@
 //! 标签匹配顺序、对象精确类型和用户代码锁外执行。
 use crate::Result;
 use crate::translation::{
-    FileTranslationLoader, Locale, MessageCatalog, Replacement, TranslationConfig, Translator,
+    FileLoader, Locale, MessageCatalog, Replacement, TranslationConfig, Translator,
 };
 use serde_json::json;
 use std::{
@@ -157,7 +157,7 @@ async fn recursive_replacements_release_catalog_before_running_user_callbacks() 
     )?;
     let translator = Translator::from_loader(
         TranslationConfig::default(),
-        Arc::new(FileTranslationLoader::new(dir.path())),
+        Arc::new(FileLoader::new(dir.path())),
     )
     .await?;
     let calls = Cell::new(0);

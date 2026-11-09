@@ -1,6 +1,6 @@
 //! 防止路径优先级、递归覆盖和目录边界在快照捕获时偏离固定 Laravel。
 
-use super::{FileTranslationLoader, Locale, TranslationLoader};
+use super::{FileLoader, Locale, TranslationLoader};
 use crate::Result;
 use crate::translation::{MessageArgs, TranslationConfig, Translator};
 use serde_json::json;
@@ -56,7 +56,7 @@ async fn ordered_paths_replace_globals_and_recursively_override_groups() -> Resu
     write(&first, "en/list.json", r#"["first","tail"]"#)?;
     write(&last, "en/list.json", r#"["last"]"#)?;
 
-    let loader = FileTranslationLoader::new(&first)
+    let loader = FileLoader::new(&first)
         .with_path(root.join("missing"))
         .with_path(&last)
         .with_json_path(&json_path)
@@ -119,7 +119,7 @@ async fn vendor_overrides_known_hint_groups_in_ordinary_path_order() -> Result<(
     write(&last, "vendor/shop/en.json", "not a group")?;
 
     let locale = Locale::new("en")?;
-    let snapshot = FileTranslationLoader::new(&first)
+    let snapshot = FileLoader::new(&first)
         .with_path(&last)
         .with_namespace("shop", &hint)
         .begin_snapshot()
@@ -148,7 +148,7 @@ async fn every_replaced_file_is_checked_and_counted() -> Result<()> {
     let last = temp.path().join("last");
     write(&first, "en.json", r#"{"key":"first"}"#)?;
     write(&last, "en.json", r#"{"key":"last"}"#)?;
-    let loader = FileTranslationLoader::new(&first).with_path(&last);
+    let loader = FileLoader::new(&first).with_path(&last);
     assert!(matches!(
         loader.clone().with_limits(1, 1024)?.begin_snapshot().await,
         Err(error) if error.code() == "i18n_file_source_limit"
@@ -167,7 +167,7 @@ async fn every_replaced_file_is_checked_and_counted() -> Result<()> {
     }
 
     assert!(
-        FileTranslationLoader::new(temp.path().join("required-missing"))
+        FileLoader::new(temp.path().join("required-missing"))
             .begin_snapshot()
             .await
             .is_err()
@@ -189,7 +189,7 @@ async fn invalid_lower_layer_does_not_replace_the_published_snapshot() -> Result
     let last = temp.path().join("last");
     write(&first, "en.json", r#"{"stable":"lower"}"#)?;
     write(&last, "en.json", r#"{"stable":"published"}"#)?;
-    let loader = FileTranslationLoader::new(&first).with_path(&last);
+    let loader = FileLoader::new(&first).with_path(&last);
     let translator =
         Translator::from_loader(TranslationConfig::default(), Arc::new(loader)).await?;
     let generation = translator.refresh_status()?.generation;
@@ -210,12 +210,12 @@ async fn unsafe_group_names_and_namespace_traversal_fail_capture() -> Result<()>
     let temp = tempfile::tempdir()?;
     write(temp.path(), "en/danger..menu.json", r#"{"title":"bad"}"#)?;
     assert!(matches!(
-        FileTranslationLoader::new(temp.path()).begin_snapshot().await,
+        FileLoader::new(temp.path()).begin_snapshot().await,
         Err(error) if error.code() == "i18n_translation_resource_invalid"
     ));
     let clean = tempfile::tempdir()?;
     assert!(matches!(
-        FileTranslationLoader::new(clean.path())
+        FileLoader::new(clean.path())
             .with_namespace("../escape", temp.path())
             .begin_snapshot()
             .await,
@@ -243,7 +243,7 @@ async fn directory_links_stay_inside_the_active_root_and_do_not_cycle() -> Resul
         json_path.join("unrelated"),
     )?;
     symlink(root.join("en/sub"), root.join("en/alias"))?;
-    let loader = FileTranslationLoader::new(&root).with_json_path(&json_path);
+    let loader = FileLoader::new(&root).with_json_path(&json_path);
     let locale = Locale::new("en")?;
     let snapshot = loader.begin_snapshot().await?;
     assert_eq!(

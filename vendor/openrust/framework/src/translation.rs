@@ -35,7 +35,7 @@ mod lookup;
 mod replacement;
 mod source_refresh;
 pub use composite_loader::CompositeTranslationLoader;
-pub use file_loader::FileTranslationLoader;
+pub use file_loader::FileLoader;
 pub use loader::{
     TranslationLines, TranslationLoadSession, TranslationLoader, TranslationResource,
 };
@@ -1155,7 +1155,7 @@ impl crate::support::ServiceProvider for TranslationServiceProvider {
                             }
                             Err(error) => return Err(error.into()),
                         };
-                        Ok(Arc::new(FileTranslationLoader::for_application(root))
+                        Ok(Arc::new(FileLoader::for_application(root))
                             as Arc<dyn TranslationLoader>)
                     })
                 })

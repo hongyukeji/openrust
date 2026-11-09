@@ -1,8 +1,8 @@
 //! 共享 Loader 的整组值、存在性与字面键语义。
 use crate::Result;
 use crate::translation::{
-    FileTranslationLoader, Locale, MessageArgs, MessageCatalog, TranslationConfig,
-    TranslationLookup, Translator,
+    FileLoader, Locale, MessageArgs, MessageCatalog, TranslationConfig, TranslationLookup,
+    Translator,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -54,7 +54,7 @@ async fn translator() -> Result<Translator> {
             default_locale: Locale::new("fr")?,
             fallback_locale: Locale::english(),
         },
-        Arc::new(FileTranslationLoader::new(root).with_namespace("pkg", root.join("pkg"))),
+        Arc::new(FileLoader::new(root).with_namespace("pkg", root.join("pkg"))),
     )
     .await
 }

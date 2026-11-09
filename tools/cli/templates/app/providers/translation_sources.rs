@@ -3,7 +3,7 @@ use openrust::foundation::{ProviderId, RegisterContext};
 use openrust::support::{BoxFuture, ServiceProvider};
 #[cfg(feature = "translation-database")]
 use openrust::translation::CompositeTranslationLoader;
-use openrust::translation::{FileTranslationLoader, TranslationLoader, TranslationServiceProvider};
+use openrust::translation::{FileLoader, TranslationLoader, TranslationServiceProvider};
 use openrust::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -64,9 +64,9 @@ impl SourceSettings {
         Err(error) => return Err(error.into()),
     };
         let mut loader = if self.file_root == "lang" {
-            FileTranslationLoader::for_application(&root)
+            FileLoader::for_application(&root)
         } else {
-            FileTranslationLoader::new(root.join(&self.file_root))
+            FileLoader::new(root.join(&self.file_root))
         };
         for path in &self.paths {
             loader = loader.with_path(root.join(path));
