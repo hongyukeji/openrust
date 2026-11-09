@@ -221,6 +221,17 @@ app.when_request_lifecycle_is_longer_than(std::time::Duration::from_secs(1), |_,
 
 隔离测试可在构建前调用 `TestAppBuilder::without_middleware()`，跳过路由中间件、应用全局层和 CORS。`with_middleware()` 恢复默认链。两种模式都保留协议校验、作用域回收、`Terminating` 事件和应用终止回调。
 
+需要在已构建的应用中切换时，通过应用容器设置具名绑定 `middleware.disable`。只有布尔值 `true` 会跳过中间件，设置为 `false` 可恢复。这个开关作用于当前应用，适合由测试装配或可信应用代码控制。应用全局层（含 CORS）、匹配路由的中间件和终止中间件分别在各阶段读取该绑定。终止阶段在 `Terminating` 事件之后读取。作用域、协议校验及应用终止回调仍由内核负责。 [Laravel HTTP 内核](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Kernel.php) [Laravel 路由分派](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Routing/Router.php#L824-L835)
+
+```rust,ignore
+use openrust::container::ServiceKey;
+use std::sync::Arc;
+
+state.container()
+    .instance_key(ServiceKey::named("middleware.disable"), Arc::new(true))
+    .await?;
+```
+
 ### 通过容器调用 callable
 
 给 `Container::call` 传入编译期参数声明、调用级实参和回调。回调在 `CallArguments::resolved` 中读取声明槽位，未消费的实参按输入顺序保存在 `remaining`。声明末尾的变参槽会先接收已解析值，再接收剩余实参。

@@ -445,3 +445,174 @@ async fn test_app_disables_middleware_but_retains_kernel_event_and_app_callback(
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
         .await
 }
+
+struct SwitchProbe<const N: u8>(Sender);
+
+impl<const N: u8> TerminableMiddleware for SwitchProbe<N> {
+    fn handle<'a>(
+        &'a self,
+        request: Request,
+        next: Next,
+        _: &'a [String],
+    ) -> BoxFuture<'a, Result<Response>> {
+        Box::pin(async move {
+            record(&self.0, "handle", N, 0)?;
+            Ok(next.run(request).await)
+        })
+    }
+
+    fn terminate<'a>(
+        &'a self,
+        request: &'a http::Request<()>,
+        _: &'a http::Response<()>,
+    ) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            assert_eq!(
+                request.extensions().get::<Route>().and_then(Route::name),
+                Some("runtime-switch")
+            );
+            record(&self.0, "terminate", N, 0)
+        })
+    }
+}
+
+struct SwitchRoutes(Sender);
+
+impl ServiceProvider for SwitchRoutes {
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(SwitchProbe::<1>(self.0.clone())))
+                .await?;
+            app.instance(Arc::new(SwitchProbe::<2>(self.0.clone())))
+                .await
+        })
+    }
+
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.http_middleware_terminable::<SwitchProbe<1>>()?;
+            app.middleware_alias_terminable::<SwitchProbe<2>>("switch-route")?;
+            app.routes(|routes| {
+                routes
+                    .get("/switch", || async { "ok" })
+                    .name("runtime-switch")
+                    .middleware_alias("switch-route")
+            })?;
+            let sender = self.0.clone();
+            app.terminating(move |_| {
+                let result = record(&sender, "app", 0, 0);
+                Box::pin(async { result })
+            });
+            Ok(())
+        })
+    }
+}
+
+async fn assert_switch_request(
+    router: &AxumRouter,
+    records: &mut mpsc::UnboundedReceiver<Mark>,
+    cors: bool,
+    expected: Trace,
+) -> Result<()> {
+    use tower::ServiceExt;
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/switch")
+                .header("origin", "https://example.test")
+                .body(Body::empty())
+                .map_err(Error::internal)?,
+        )
+        .await
+        .map_err(Error::internal)?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .contains_key("access-control-allow-origin"),
+        cors
+    );
+    assert!(response.headers().contains_key("x-request-id"));
+    let body = axum::body::to_bytes(response.into_body(), 16)
+        .await
+        .map_err(Error::internal)?;
+    assert_eq!(body, "ok");
+    for &(phase, kind) in expected.iter().chain(&[("app", 0)]) {
+        let mark = tokio::time::timeout(Duration::from_secs(2), records.recv())
+            .await
+            .map_err(Error::internal)?
+            .ok_or_else(|| Error::custom("test_record_missing", "缺少中间件执行记录"))?;
+        assert_eq!((mark.phase, mark.kind), (phase, kind));
+    }
+    assert!(records.try_recv().is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn middleware_disable_is_strict_and_resolved_independently_at_each_phase() -> Result<()> {
+    let (sender, mut records) = mpsc::unbounded_channel();
+    let mut builder = ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(SwitchRoutes(sender));
+    let mut config = crate::config::FrameworkConfig::default();
+    config.server.cors.enabled = true;
+    config.server.cors.allowed_origins = vec!["https://example.test".to_owned()];
+    let app = Application::from_provider_runtime(
+        builder
+            .start(Figment::from(Serialized::defaults(config)))
+            .await?,
+    )?;
+    let router = build_router(&app)?;
+    let container = app.state().container();
+    let key = &*MIDDLEWARE_DISABLE_KEY;
+    let enabled: Trace = &[
+        ("handle", 1),
+        ("handle", 2),
+        ("terminate", 2),
+        ("terminate", 1),
+    ];
+    assert_switch_request(&router, &mut records, true, enabled).await?;
+    container.instance_key(key.clone(), Arc::new(true)).await?;
+    assert_switch_request(&router, &mut records, false, &[]).await?;
+    container.instance_key(key.clone(), Arc::new(false)).await?;
+    assert_switch_request(&router, &mut records, true, enabled).await?;
+    container
+        .instance_key(key.clone(), Arc::new("true"))
+        .await?;
+    assert_switch_request(&router, &mut records, true, enabled).await?;
+    container.forget_instance_key(key.clone()).await?;
+
+    // 独立求值允许全局执行、路由跳过，随后恢复路由和全局的终止回调。
+    let evaluations = Arc::new(AtomicUsize::new(0));
+    let count = Arc::clone(&evaluations);
+    container
+        .bind_key(key.clone(), move |_| {
+            let phase = count.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async move { Ok(Arc::new(phase == 1)) })
+        })
+        .await?;
+    assert_switch_request(
+        &router,
+        &mut records,
+        true,
+        &[("handle", 1), ("terminate", 2), ("terminate", 1)],
+    )
+    .await?;
+    assert_eq!(evaluations.load(Ordering::Relaxed), 3);
+
+    evaluations.store(0, Ordering::Relaxed);
+    let count = Arc::clone(&evaluations);
+    container
+        .bind_key(key.clone(), move |_| {
+            let phase = count.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async move { Ok(Arc::new(phase == 2)) })
+        })
+        .await?;
+    assert_switch_request(&router, &mut records, true, &[("handle", 1), ("handle", 2)]).await?;
+    assert_eq!(evaluations.load(Ordering::Relaxed), 3);
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await
+}

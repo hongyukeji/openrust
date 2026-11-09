@@ -191,6 +191,7 @@ fn precognitive_success() -> Response {
 pub(crate) struct MethodEntry {
     pub(crate) methods: Vec<Method>,
     pub(crate) handler: HandlerFn,
+    pub(crate) with_middleware: Option<HandlerFn>,
     #[cfg(feature = "session")]
     pub(crate) protected_cookie: Option<Arc<crate::http::cookie::CookieLayerPlan>>,
     pub(crate) metadata: Option<Arc<Mutex<crate::routing::router::MatchedRouteMetadata>>>,
@@ -255,6 +256,7 @@ impl RouteMethods {
                     }
                 })
             }),
+            with_middleware: None,
             #[cfg(feature = "session")]
             protected_cookie: None,
             metadata: None,
@@ -554,8 +556,12 @@ pub(crate) fn finalize_layers(
             {
                 entry.protected_cookie.clone_from(&protected_cookie);
             }
-            for binding in middleware.iter().rev() {
-                entry.handler = (binding.apply)(Arc::clone(&entry.handler));
+            if !middleware.is_empty() {
+                let mut handler = Arc::clone(&entry.handler);
+                for binding in middleware.iter().rev() {
+                    handler = (binding.apply)(handler);
+                }
+                entry.with_middleware = Some(handler);
             }
         }
     }

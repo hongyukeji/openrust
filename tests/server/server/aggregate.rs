@@ -490,7 +490,8 @@ fn api_root_reports_server_name_and_version() -> TestResult {
 #[test]
 fn example_business_route_is_mounted_through_the_root_application() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
-        let router = router().await?;
+        let app = test_server().await?;
+        let router = build_router(&app)?;
         let response = router
             .clone()
             .oneshot(
@@ -528,6 +529,7 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["x-example-middleware"], "named-group");
         let response = router
+            .clone()
             .oneshot(
                 Request::get("/api/example/middleware/without-marker")
                     .header("host", "localhost")
@@ -536,6 +538,28 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert!(response.headers().get("x-example-middleware").is_none());
+
+        let key = openrust::container::ServiceKey::named("middleware.disable");
+        for disabled in [true, false] {
+            app.state()
+                .container()
+                .instance_key(key.clone(), std::sync::Arc::new(disabled))
+                .await?;
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::get("/api/example/middleware")
+                        .header("host", "localhost")
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response.headers().contains_key("x-example-middleware"),
+                !disabled
+            );
+            assert!(response.headers().contains_key("x-request-id"));
+        }
         Ok(())
     })
 }

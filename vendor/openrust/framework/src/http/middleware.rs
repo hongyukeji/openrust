@@ -33,6 +33,63 @@ use axum::extract::FromRequestParts;
 use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+use axum::routing::Route;
+use futures_util::future::Either;
+use std::convert::Infallible;
+use tower::util::Oneshot;
+use tower::{Layer, Service, ServiceExt};
+
+tokio::task_local! {
+    pub(crate) static GLOBAL_MIDDLEWARE_DISABLED: bool;
+}
+
+/// 根据入口已选定的全局链，只轮询本次实际调用的服务。
+#[derive(Clone)]
+pub(crate) struct GlobalMiddlewareLayer<L>(pub L);
+
+impl<L> Layer<Route> for GlobalMiddlewareLayer<L>
+where
+    L: Layer<Route>,
+{
+    type Service = GlobalMiddlewareService<L::Service>;
+
+    fn layer(&self, inner: Route) -> Self::Service {
+        GlobalMiddlewareService {
+            enabled: self.0.layer(inner.clone()),
+            bypass: inner,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct GlobalMiddlewareService<S> {
+    enabled: S,
+    bypass: Route,
+}
+
+impl<S> Service<Request> for GlobalMiddlewareService<S>
+where
+    S: Service<Request, Response = Response, Error = Infallible> + Clone,
+{
+    type Response = Response;
+    type Error = Infallible;
+    type Future = Either<Oneshot<Route, Request>, Oneshot<S, Request>>;
+
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<std::result::Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: Request) -> Self::Future {
+        if matches!(
+            GLOBAL_MIDDLEWARE_DISABLED.try_with(|disabled| *disabled),
+            Ok(true)
+        ) {
+            Either::Left(self.bypass.clone().oneshot(request))
+        } else {
+            Either::Right(self.enabled.clone().oneshot(request))
+        }
+    }
+}
 
 /// 签名 URL middleware 的实例选项；忽略集合按原始查询字段名匹配。
 #[derive(Clone, Debug, Default)]
@@ -193,18 +250,25 @@ pub fn apply(
     exceptions: Arc<ExceptionHandler>,
     debug: bool,
 ) -> Result<Router> {
-    apply_with_middleware(router, server, api, exceptions, debug, true)
+    apply_stack(router, server, api, exceptions, debug, CorsMode::Always)
 }
 
-pub(crate) fn apply_with_middleware(
+#[derive(Clone, Copy)]
+pub(crate) enum CorsMode {
+    Always,
+    Runtime,
+    Off,
+}
+
+pub(crate) fn apply_stack(
     router: Router,
     server: &ServerConfig,
     api: &ApiConfig,
     exceptions: Arc<ExceptionHandler>,
     debug: bool,
-    middleware_enabled: bool,
+    cors_mode: CorsMode,
 ) -> Result<Router> {
-    let cors = if middleware_enabled && server.cors.enabled {
+    let cors = if !matches!(cors_mode, CorsMode::Off) && server.cors.enabled {
         Some(cors_layer(&server.cors)?)
     } else {
         None
@@ -232,7 +296,10 @@ pub(crate) fn apply_with_middleware(
     ));
     // CORS 也要包装刷新、admission 与绝对期限直接返回的响应。
     let router = if let Some(cors) = cors {
-        router.layer(cors)
+        match cors_mode {
+            CorsMode::Runtime => router.layer(GlobalMiddlewareLayer(cors)),
+            CorsMode::Always | CorsMode::Off => router.layer(cors),
+        }
     } else {
         router
     };

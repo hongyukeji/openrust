@@ -211,11 +211,24 @@ pub(crate) async fn dispatch_managed(
             }
         }
     }
+    let disabled = match crate::foundation::http::should_skip_middleware(&state).await {
+        Ok(disabled) => disabled,
+        Err(error) => return crate::http::cookie::private_error_response(error),
+    };
+    let handler = if disabled {
+        &entry.handler
+    } else {
+        entry.with_middleware.as_ref().unwrap_or(&entry.handler)
+    };
     let (invocation, _retire) = super::invocation::Invocation::new(
         #[cfg(feature = "session")]
-        entry.protected_cookie.clone(),
+        if disabled {
+            None
+        } else {
+            entry.protected_cookie.clone()
+        },
     );
-    (entry.handler)(request, state, invocation).await
+    handler(request, state, invocation).await
 }
 
 // 已由 Axum 验证完整路径；按前缀段数裁剪可同时保留静态与参数化组的原 nest URI 语义。

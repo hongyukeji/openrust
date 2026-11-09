@@ -1,6 +1,6 @@
 //! 应用HTTP装配、请求作用域、URL快照和异常收尾。
 
-use crate::container::{Container, ParameterValue, Resolver, Scope};
+use crate::container::{Container, ParameterValue, Resolver, Scope, ServiceKey};
 use crate::core::{Error, Result};
 use crate::foundation::exceptions::ExceptionRegistry;
 use crate::foundation::{
@@ -9,7 +9,8 @@ use crate::foundation::{
 use crate::http::authority::authority;
 use crate::http::client_ip::validate_trusted_proxy_ranges;
 use crate::http::middleware::{
-    TerminableMiddleware, TerminateMiddleware, handle_terminable, terminate_middleware,
+    CorsMode, GLOBAL_MIDDLEWARE_DISABLED, GlobalMiddlewareLayer, TerminableMiddleware,
+    TerminateMiddleware, handle_terminable, terminate_middleware,
 };
 #[cfg(test)]
 use crate::http::server_provider::HttpServiceProvider;
@@ -30,7 +31,7 @@ use http_body::{Body as HttpBody, Frame, SizeHint};
 use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
@@ -41,11 +42,32 @@ tokio::task_local! {
 
 struct HttpEntry {
     scope: Arc<Scope>,
+    middleware_enabled: bool,
     started: EntryStarted,
     attributes: RequestAttributes,
     route: RouteSlot,
     #[cfg(feature = "auth")]
     request: Option<Arc<crate::http::RequestInfo>>,
+}
+
+static MIDDLEWARE_DISABLE_KEY: LazyLock<ServiceKey> =
+    LazyLock::new(|| ServiceKey::named("middleware.disable"));
+
+pub(crate) async fn should_skip_middleware(state: &ApplicationState) -> Result<bool> {
+    if matches!(
+        HTTP_ENTRY_SCOPE.try_with(|entry| entry.middleware_enabled),
+        Ok(false)
+    ) {
+        return Ok(true);
+    }
+    if state.container().contains_key(&MIDDLEWARE_DISABLE_KEY) {
+        state
+            .container()
+            .resolve_key_is_true(MIDDLEWARE_DISABLE_KEY.clone())
+            .await
+    } else {
+        Ok(false)
+    }
 }
 
 pub(crate) fn request_started_at(container: &Container) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -221,7 +243,7 @@ impl BootContext<'_> {
         self.extension_mut::<RouterLayerRegistry>()?
             .builders
             .push(RouterLayerRegistration {
-                build: Box::new(move |router| Ok(router.layer(factory()?))),
+                build: Box::new(move |router| Ok(router.layer(GlobalMiddlewareLayer(factory()?)))),
                 terminate: None,
             });
         Ok(self)
@@ -240,10 +262,11 @@ impl BootContext<'_> {
         }
         layers.push(RouterLayerRegistration {
             build: Box::new(|router| {
-                Ok(router.layer(axum::middleware::from_fn_with_state(
+                let layer = axum::middleware::from_fn_with_state(
                     Arc::<[String]>::default(),
                     handle_terminable::<M>,
-                )))
+                );
+                Ok(router.layer(GlobalMiddlewareLayer(layer)))
             }),
             terminate: Some((identity, terminate_middleware::<M>)),
         });
@@ -389,13 +412,17 @@ pub(crate) fn build_router_with_middleware(
             .map(|registry| registry.0.clone())
             .unwrap_or_default(),
     );
-    let app_router = middleware::apply_with_middleware(
+    let app_router = middleware::apply_stack(
         stateful,
         &app.config().server,
         &app.config().api,
         Arc::clone(&exceptions),
         app.config().app.debug,
-        middleware_enabled,
+        if middleware_enabled {
+            CorsMode::Runtime
+        } else {
+            CorsMode::Off
+        },
     )?;
     let app_router = app_router.layer(axum::middleware::from_fn_with_state(
         route_urls.ok_or_else(|| {
@@ -427,6 +454,7 @@ pub(crate) fn build_router_with_middleware(
             exceptions,
             debug: app.config().app.debug,
             global_terminating,
+            middleware_enabled,
             trusted_hosts: TrustedHostsRuntime {
                 app: app.state().clone(),
                 source,
@@ -521,6 +549,7 @@ struct ExceptionRuntime {
     debug: bool,
     trusted_hosts: TrustedHostsRuntime,
     global_terminating: Arc<[TerminateMiddleware]>,
+    middleware_enabled: bool,
 }
 
 async fn expose_app_state(
@@ -579,7 +608,12 @@ async fn expose_app_state(
         Err(error) => return render_early_error(&runtime, &request, started, error),
     };
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
-    let entry = install_http_entry(request.extensions_mut(), scope, started);
+    let entry = install_http_entry(
+        request.extensions_mut(),
+        scope,
+        started,
+        runtime.middleware_enabled,
+    );
     request.extensions_mut().insert(state.clone());
     let page = crate::database::query::PageContext::from_uri(request.uri());
     let (mut parts, body) = request.into_parts();
@@ -604,7 +638,7 @@ async fn expose_app_state(
             Arc::clone(&entry),
             entry.scope.run(crate::database::query::with_page_context(
                 page,
-                next.run(request),
+                dispatch_global_middleware(&runtime, request, next),
             )),
         )
         .await;
@@ -620,10 +654,38 @@ async fn expose_app_state(
     response
 }
 
+async fn dispatch_global_middleware(
+    runtime: &ExceptionRuntime,
+    request: Request,
+    next: Next,
+) -> Response {
+    // CORS 包裹响应上下文，故在其外确定全局链；具名异步工厂也有请求超时约束。
+    let duration =
+        std::time::Duration::from_secs(runtime.state.config().server.request_timeout_secs);
+    let decision = tokio::time::timeout(duration, should_skip_middleware(&runtime.state))
+        .await
+        .unwrap_or_else(|_| {
+            Err(Error::custom_with_status(
+                StatusCode::REQUEST_TIMEOUT,
+                "request_timeout",
+                "请求超过处理期限",
+            ))
+        });
+    match decision {
+        Ok(disabled) => {
+            GLOBAL_MIDDLEWARE_DISABLED
+                .scope(disabled, next.run(request))
+                .await
+        }
+        Err(error) => render_http_error(runtime, &request, error),
+    }
+}
+
 fn install_http_entry(
     extensions: &mut http::Extensions,
     scope: Arc<Scope>,
     started: EntryStarted,
+    middleware_enabled: bool,
 ) -> HttpEntry {
     let route = extensions
         .get::<RouteSlot>()
@@ -640,6 +702,7 @@ fn install_http_entry(
     extensions.insert(Arc::clone(&scope));
     HttpEntry {
         scope,
+        middleware_enabled,
         started,
         attributes,
         route,
@@ -654,6 +717,37 @@ fn render_early_error(
     started: EntryStarted,
     error: Error,
 ) -> Response {
+    let response = render_http_error(runtime, request, error);
+    let needs_termination = runtime.state.has_kernel_termination()
+        || !runtime.global_terminating.is_empty()
+        || (runtime.middleware_enabled
+            && runtime
+                .state
+                .container()
+                .contains_key(&MIDDLEWARE_DISABLE_KEY));
+    if !needs_termination {
+        return response;
+    }
+    let Ok(scope) = runtime.state.container().scope() else {
+        return response;
+    };
+    let entry = install_http_entry(
+        &mut http::Extensions::new(),
+        Arc::new(scope),
+        started,
+        runtime.middleware_enabled,
+    );
+    let request_head = termination_request(request, &entry);
+    finish_response(
+        response,
+        Arc::new(entry),
+        runtime.state.clone(),
+        request_head,
+        &runtime.global_terminating,
+    )
+}
+
+fn render_http_error(runtime: &ExceptionRuntime, request: &Request, error: Error) -> Response {
     let view = ExceptionRequest::new(
         request.method().clone(),
         request.uri().path(),
@@ -663,22 +757,7 @@ fn render_early_error(
     );
     #[cfg(feature = "view")]
     let view = view.with_views(runtime.state.get::<crate::view::Views>());
-    let response = runtime.exceptions.render_for_request(error, &view);
-    if !runtime.state.has_kernel_termination() && runtime.global_terminating.is_empty() {
-        return response;
-    }
-    let Ok(scope) = runtime.state.container().scope() else {
-        return response;
-    };
-    let entry = install_http_entry(&mut http::Extensions::new(), Arc::new(scope), started);
-    let request_head = termination_request(request, &entry);
-    finish_response(
-        response,
-        Arc::new(entry),
-        runtime.state.clone(),
-        request_head,
-        &runtime.global_terminating,
-    )
+    runtime.exceptions.render_for_request(error, &view)
 }
 
 fn finish_response(
@@ -778,8 +857,10 @@ impl HttpTermination {
         if let Some(route) = entry.route.route()? {
             request.extensions_mut().insert(route);
         }
-        for terminate in route?.iter().chain(global.iter()) {
-            terminate(state, &request, &response).await?;
+        if !should_skip_middleware(state).await? {
+            for terminate in route?.iter().chain(global.iter()) {
+                terminate(state, &request, &response).await?;
+            }
         }
         state.run_terminating().await?;
         state
@@ -819,7 +900,9 @@ impl ScopeBody {
                     .termination
                     .as_ref()
                     .is_some_and(|entry| entry.has_middleware())
-                    || state.has_kernel_termination())
+                    || state.has_kernel_termination()
+                    || (entry.middleware_enabled
+                        && state.container().contains_key(&MIDDLEWARE_DISABLE_KEY)))
         }) else {
             entry.scope.close();
             return;
@@ -952,7 +1035,12 @@ mod tests {
         let manual_scope = Arc::new(container.scope()?);
         let manual = manual_scope.factory_resolver()?;
         let mut extensions = http::Extensions::new();
-        let entry = install_http_entry(&mut extensions, Arc::clone(&scope), EntryStarted::now());
+        let entry = install_http_entry(
+            &mut extensions,
+            Arc::clone(&scope),
+            EntryStarted::now(),
+            true,
+        );
         let _ = entry.attributes.insert("item", ParameterValue::new(7_u8))?;
         entry.route.publish(
             crate::routing::Route::new(

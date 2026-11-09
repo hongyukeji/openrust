@@ -982,6 +982,12 @@ Rust 回归覆盖命名绑定短路、原参数覆盖、嵌套同类型调用、
 
 格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 的工作区测试 2,871 项通过、54 项忽略，生成项目 23 项通过。证据见 `tmp/lead-static-call.BRte8QO5/acceptance.json`。
 
+## 运行时中间件开关限定验收
+
+固定 Laravel `d52c3b31` 使用 PHP 8.5.12 的实际 HTTP Kernel 和 Router 通过 12 项。覆盖严格布尔、三阶段重新解析、全局影响路由和终止事件切换。Rust 回归验证同一 Router 上禁用与恢复，覆盖 CORS、请求 ID、已匹配路由、终止顺序和三阶段求值。唯一示例在根应用装配下验证响应标记与请求 ID。
+
+格式、严格 Clippy、拒警 Rustdoc 和依赖检查通过。隔离 MySQL 8.4.13 的工作区测试 2,871 项通过、54 项忽略。新生成应用 23 项通过，真实 TCP 验证同一监听进程禁用并恢复全局及路由中间件，SIGTERM 正常退出。证据见 `tmp/lead-middleware-runtime.GKMGl9BX/acceptance.json`。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

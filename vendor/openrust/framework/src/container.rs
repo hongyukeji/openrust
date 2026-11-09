@@ -1174,6 +1174,18 @@ impl Container {
         self.root_resolver()?.resolve_key(key).await
     }
 
+    // 框架保留严格布尔比较，仍解析其他类型的具名值并执行其工厂。
+    pub(crate) async fn resolve_key_is_true(&self, key: ServiceKey) -> Result<bool> {
+        let resolver = match self.current_entry_scope() {
+            Some(scope) => scope.resolver(),
+            None => self.root_resolver()?,
+        };
+        let value = resolver.resolve_at_generation(key, None).await?;
+        Ok(value
+            .downcast_ref::<Arc<bool>>()
+            .is_some_and(|value| **value))
+    }
+
     /// 在根生命周期用调用级参数解析类型。非空参数构造独立实例。
     pub fn resolve_with<T: ?Sized + Send + Sync + 'static>(
         &self,
