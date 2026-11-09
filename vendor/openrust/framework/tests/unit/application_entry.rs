@@ -1,4 +1,4 @@
-use super::parse_console_args;
+use super::console::ConsoleInvocation;
 use super::prelude::*;
 
 #[test]
@@ -10,11 +10,12 @@ fn prelude_json_is_a_response() {
 
 #[test]
 fn console_environment_argument_is_removed_before_command_dispatch() {
-    let parse =
-        |args: &[&str]| parse_console_args(args.iter().map(|arg| (*arg).to_owned()), "serve");
+    let parse = |args: &[&str]| {
+        ConsoleInvocation::parse(args.iter().map(|arg| (*arg).to_owned()), "serve").into_parts()
+    };
     assert_eq!(parse(&[]), ("serve".into(), Vec::new(), None));
     assert_eq!(
-        parse_console_args(["--env=local".to_owned()], "start"),
+        ConsoleInvocation::parse(["--env=local".to_owned()], "start").into_parts(),
         ("start".into(), Vec::new(), Some("local".into()))
     );
     assert_eq!(
@@ -37,4 +38,90 @@ fn console_environment_argument_is_removed_before_command_dispatch() {
             Some("production".into()),
         )
     );
+}
+
+#[test]
+fn console_invocation_preserves_global_and_unknown_command_boundaries() {
+    let parse =
+        |args: &[&str]| ConsoleInvocation::parse(args.iter().map(|arg| (*arg).to_owned()), "list");
+    let help = parse(&["--env=staging", "--help", "build", "--env=ignored"]);
+    assert_eq!(help.name(), "help");
+    assert_eq!(help.arguments(), ["build"]);
+    assert_eq!(help.environment(), Some("staging"));
+
+    let build = parse(&["-n", "--env", "local", "build", "--platform=linux/arm64"]);
+    assert_eq!(build.name(), "build");
+    assert_eq!(build.arguments(), ["--platform=linux/arm64"]);
+    assert_eq!(build.environment(), Some("local"));
+
+    let unknown = parse(&[
+        "custom:entry",
+        "--unknown",
+        "-n",
+        "--env",
+        "testing",
+        "value",
+    ]);
+    assert_eq!(unknown.name(), "custom:entry");
+    assert_eq!(unknown.arguments(), ["--unknown", "-n", "value"]);
+    assert_eq!(unknown.environment(), Some("testing"));
+
+    let key = parse(&["--no-interaction", "key:generate", "--force"]);
+    assert_eq!(key.arguments(), ["--force", "--no-interaction"]);
+    assert_eq!(parse(&[]).name(), "list");
+}
+
+struct DotenvFixture;
+
+impl ApplicationDefinition for DotenvFixture {
+    type Config = NoConfig;
+
+    fn default_providers() -> crate::support::DefaultProviders {
+        crate::support::DefaultProviders::empty()
+    }
+}
+
+#[test]
+#[expect(
+    clippy::result_large_err,
+    reason = "figment::Jail 要求回调返回其固定错误类型"
+)]
+fn application_exposes_the_dotenv_path_selected_by_bootstrap() {
+    let _environment = crate::lock_test_env();
+    figment::Jail::expect_with(|jail| {
+        jail.clear_env();
+        jail.create_dir("bootstrap")?;
+        jail.create_dir("bootstrap/cache")?;
+        jail.create_file(".env", "APP_NAME=default\n")?;
+        jail.create_file(".env.build", "APP_NAME=selected\n")?;
+        let error = |error: crate::Error| figment::Error::from(error.to_string());
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| figment::Error::from(error.to_string()))?;
+        runtime.block_on(async {
+            let app =
+                crate::lifecycle::bootstrap_for_console::<DotenvFixture>("build", Some("build"))
+                    .await
+                    .map_err(error)?;
+            assert_eq!(app.config().app.name, "selected");
+            assert_eq!(
+                app.dotenv_path().and_then(std::path::Path::file_name),
+                Some(std::ffi::OsStr::new(".env.build"))
+            );
+            app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                .await
+                .map_err(error)?;
+
+            let runtime = crate::foundation::ProviderBuilder::new()
+                .start(figment::Figment::new())
+                .await
+                .map_err(error)?;
+            let app = Application::from_provider_runtime(runtime).map_err(error)?;
+            assert!(app.dotenv_path().is_none());
+            app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                .await
+                .map_err(error)
+        })
+    });
 }

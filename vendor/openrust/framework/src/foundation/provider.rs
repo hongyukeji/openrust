@@ -1093,9 +1093,16 @@ impl BootContext<'_> {
         &self.resources
     }
 
-    /// 贡献命令；同名命令由后启动的 Provider 替换。
+    /// 贡献命令；未保留的同名命令由后启动的 Provider 替换。
     pub fn command(&mut self, command: impl Command) {
         self.commands.register(command);
+    }
+
+    /// 登记并保留命令名，替换已有普通命令。
+    ///
+    /// 同名的首个保留命令在本次应用生命周期内生效。保留命令须始终返回同一名称。
+    pub fn reserve_command(&mut self, command: impl Command) {
+        self.commands.reserve(command);
     }
 
     /// 短期修改指定类型的贡献。先释放借用，再异步解析服务或再次访问同类型。

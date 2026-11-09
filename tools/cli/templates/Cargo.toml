@@ -8,3 +8,4 @@ license.workspace = true
 [dependencies]
 openrust = { workspace = true }
 openrust-modules = { workspace = true }
+cli = { workspace = true, optional = true }

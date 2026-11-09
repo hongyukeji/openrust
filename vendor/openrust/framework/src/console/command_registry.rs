@@ -1,5 +1,6 @@
 //! Provider 生命周期共享的命令所有权仓储。
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use crate::console::Command;
@@ -8,6 +9,7 @@ use crate::console::Command;
 struct State {
     revision: Arc<()>,
     entries: Vec<Arc<dyn Command>>,
+    reserved: HashSet<&'static str>,
 }
 
 /// 同名覆盖且保留首次注册顺序的共享命令仓储。
@@ -19,6 +21,15 @@ pub(crate) struct CommandRegistry {
 impl CommandRegistry {
     /// 注册命令；被替换实例在释放仓储锁后析构。
     pub(crate) fn register(&self, command: impl Command) {
+        self.install(command, false);
+    }
+
+    /// 在同一次注册操作中保留命令名，首个保留者生效。
+    pub(crate) fn reserve(&self, command: impl Command) {
+        self.install(command, true);
+    }
+
+    fn install(&self, command: impl Command, reserve: bool) {
         // name 和 Drop 都可能进入用户代码，不能在持锁期间调用。
         let name = command.name();
         let command: Arc<dyn Command> = Arc::new(command);
@@ -28,6 +39,9 @@ impl CommandRegistry {
                     .state
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if state.reserved.contains(name) {
+                    return;
+                }
                 (Arc::clone(&state.revision), state.entries.clone())
             };
             // 名称允许依赖实例状态；回调也可能注册命令，因此提交前核对版本。
@@ -50,6 +64,9 @@ impl CommandRegistry {
                     state.entries.push(Arc::clone(&command));
                     None
                 };
+                if reserve {
+                    state.reserved.insert(name);
+                }
                 state.revision = Arc::new(());
                 replaced
             };
@@ -74,9 +91,14 @@ impl CommandRegistry {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.revision = Arc::new(());
+        state.reserved.clear();
         std::mem::take(&mut state.entries)
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/console/command_registry_reservations.rs"]
+mod reservation_tests;
 
 #[cfg(test)]
 mod tests {

@@ -6,6 +6,12 @@ use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 use anyhow::{Context as _, bail};
+use clap::{Arg, ArgAction, Args as _, FromArgMatches as _, error::ErrorKind};
+use openrust::config::{ConfigLoader, ENV_PREFIX};
+use openrust::console::Command as ConsoleCommand;
+use openrust::foundation::BootContext;
+use openrust::support::{BoxFuture, ServiceProvider};
+use openrust::{Application, Error, Result};
 use serde_json::Value;
 
 const INCOMPLETE: &str = ".openrust-build-incomplete";
@@ -21,8 +27,9 @@ const PACKAGE_ENTRIES: &[&str] = &[
     "bootstrap",
 ];
 
+/// 独立 CLI 与源码 Artisan 共用的构建参数。
 #[derive(Debug, clap::Args)]
-pub(crate) struct BuildArgs {
+pub struct BuildArgs {
     #[arg(long, hide = true)]
     project_dir: Option<PathBuf>,
     /// 单一 Linux 平台，默认按当前 CLI 宿主 CPU 选择。
@@ -34,7 +41,28 @@ pub(crate) struct BuildArgs {
 }
 
 impl BuildArgs {
-    pub(crate) fn run(self) -> anyhow::Result<ExitCode> {
+    /// 使用当前应用的默认构建环境导出发布包。
+    pub fn run(self) -> anyhow::Result<ExitCode> {
+        self.run_for_environment(None)
+    }
+
+    /// 以标准应用的 `APP_` 命名空间选择 Compose 插值环境并导出发布包。
+    ///
+    /// 此入口不启动应用，也不求值编译期配置。
+    pub fn run_for_environment(self, environment: Option<&str>) -> anyhow::Result<ExitCode> {
+        self.build(|project| {
+            Ok(ConfigLoader::application_dotenv_path(
+                project,
+                ENV_PREFIX,
+                environment,
+            )?)
+        })
+    }
+
+    fn build(
+        self,
+        select_dotenv: impl FnOnce(&Path) -> anyhow::Result<PathBuf>,
+    ) -> anyhow::Result<ExitCode> {
         let project = self.project_dir.map_or_else(std::env::current_dir, Ok)?;
         let project = project.canonicalize().context("build_project_invalid")?;
         path_text(&project)?;
@@ -44,6 +72,7 @@ impl BuildArgs {
         )?;
         let manifest = read_manifest(&project)?;
         let name = application_name(&manifest)?;
+        let dotenv = select_dotenv(&project)?;
         let destination = destination(&project, name, &platform, self.output.as_deref())?;
         reject_existing(&destination)?;
         let mut staging = tempfile::Builder::new();
@@ -61,6 +90,7 @@ impl BuildArgs {
             name,
             &destination,
             temporary.path(),
+            &dotenv,
         );
         let cleanup = temporary.close();
         if cleanup.is_err() {
@@ -70,6 +100,136 @@ impl BuildArgs {
         writeln!(std::io::stdout().lock(), "{}", destination.display())?;
         Ok(ExitCode::SUCCESS)
     }
+}
+
+/// 从 Compose 的 `app` 目标导出 Linux 应用的源码命令。
+pub struct BuildCommand;
+
+impl BuildCommand {
+    /// Artisan 命令名称。
+    pub const NAME: &str = "build";
+    /// 命令列表与帮助中的说明。
+    pub const ABOUT: &str = "构建 Linux 应用目录产物，保留外部资源。";
+
+    /// 在指定源码目录运行命令，无须启动应用或连接运行时服务。
+    ///
+    /// 帮助和参数错误按 Clap 规则输出，返回对应退出码。
+    pub fn run_source(
+        project: &Path,
+        args: &[String],
+        environment: Option<&str>,
+    ) -> anyhow::Result<ExitCode> {
+        match Self::parse_source(args) {
+            Ok(mut options) => {
+                options.project_dir = Some(project.to_path_buf());
+                options.run_for_environment(environment)
+            }
+            Err(error) => {
+                error.print()?;
+                Ok(ExitCode::from(u8::try_from(error.exit_code())?))
+            }
+        }
+    }
+
+    fn source_clap() -> clap::Command {
+        BuildArgs::augment_args(
+            clap::Command::new(Self::NAME)
+                .bin_name("artisan build")
+                .about(Self::ABOUT)
+                .help_template("{about-with-newline}用法：{usage}\n\n选项：\n{options}\n")
+                .disable_help_flag(true)
+                .arg(
+                    Arg::new("help")
+                        .short('h')
+                        .long("help")
+                        .action(ArgAction::HelpLong)
+                        .help("显示帮助信息并退出"),
+                ),
+        )
+    }
+
+    fn parse_source(args: &[String]) -> clap::error::Result<BuildArgs> {
+        let mut command = Self::source_clap();
+        let matches = command.try_get_matches_from_mut(
+            std::iter::once(Self::NAME).chain(args.iter().map(String::as_str)),
+        );
+        let matches = match matches {
+            Err(error) if error.kind() == ErrorKind::DisplayHelp && args.len() != 1 => {
+                return Err(command.error(ErrorKind::ArgumentConflict, "帮助选项须单独使用"));
+            }
+            result => result?,
+        };
+        let options = BuildArgs::from_arg_matches(&matches)?;
+        if options.project_dir.is_some() {
+            return Err(command.error(
+                ErrorKind::UnknownArgument,
+                "源码构建入口不接受 --project-dir",
+            ));
+        }
+        Ok(options)
+    }
+}
+
+impl ConsoleCommand for BuildCommand {
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn about(&self) -> &'static str {
+        Self::ABOUT
+    }
+
+    fn accepts_args(&self) -> bool {
+        true
+    }
+
+    fn render_help(&self) -> Option<String> {
+        Self::parse_source(&["--help".to_owned()])
+            .err()
+            .map(|help| help.to_string())
+    }
+
+    fn run<'a>(&'a self, app: &'a Application, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let options = match Self::parse_source(&args) {
+                Ok(options) => options,
+                Err(error) if error.kind() == ErrorKind::DisplayHelp => {
+                    return error
+                        .print()
+                        .map_err(|_| Error::custom("build_help_failed", "无法输出构建帮助"));
+                }
+                Err(error) => {
+                    return Err(Error::custom("invalid_build_arguments", error.to_string()));
+                }
+            };
+            let dotenv = app.dotenv_path().map(Path::to_path_buf);
+            openrust::tokio::task::spawn_blocking(move || {
+                options.build(|project| Ok(dotenv.unwrap_or_else(|| project.join(".env"))))
+            })
+            .await
+            .map_err(|_| Error::custom("build_task_failed", "构建任务异常结束"))?
+            .map_err(|error| Error::custom("build_failed", error.to_string()))?;
+            Ok(())
+        })
+    }
+}
+
+/// 在源码应用的同一 Artisan 注册表中登记构建命令。
+pub struct BuildServiceProvider;
+
+impl ServiceProvider for BuildServiceProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if is_source_project(Path::new(".")) {
+                app.reserve_command(BuildCommand);
+            }
+            Ok(())
+        })
+    }
+}
+
+fn is_source_project(project: &Path) -> bool {
+    project.join("Cargo.toml").is_file() && project.join("src/main.rs").is_file()
 }
 
 fn host_platform(architecture: &str) -> anyhow::Result<&'static str> {
@@ -175,15 +335,45 @@ fn docker(project: &Path) -> Command {
     command
 }
 
-fn capture_plan(project: &Path, capture: &Path) -> anyhow::Result<Value> {
+fn bake_plan_command(project: &Path, temporary: &Path, dotenv: &Path) -> anyhow::Result<Command> {
+    let working_directory = if dotenv == project.join(".env") {
+        project
+    } else {
+        // Bake 从 cwd 读取 .env，绝对 Compose 路径保留原应用的构建路径基准。
+        copy_dotenv(dotenv, &temporary.join(".env"))
+            .map_err(|_| anyhow::anyhow!("build_dotenv_snapshot_failed: 无法复制构建环境文件"))?;
+        temporary
+    };
+    let mut command = docker(working_directory);
+    command
+        .arg("-f")
+        .arg(project.join("docker-compose.yml"))
+        .args(["--print", "app"]);
+    Ok(command)
+}
+
+fn copy_dotenv(source: &Path, snapshot: &Path) -> std::io::Result<()> {
+    let mut input = File::open(source)?;
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
+    let mut output = options.open(snapshot)?;
+    std::io::copy(&mut input, &mut output)?;
+    output.flush()
+}
+
+fn capture_plan(project: &Path, temporary: &Path, dotenv: &Path) -> anyhow::Result<Value> {
+    let mut command = bake_plan_command(project, temporary, dotenv)?;
+    let capture = temporary.join("capture.json");
     let file = OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(capture)?;
-    let mut command = docker(project);
-    command
-        .args(["-f", "docker-compose.yml", "--print", "app"])
-        .stdout(file);
+        .open(&capture)?;
+    command.stdout(file);
     run_docker(&mut command, "build_plan_failed")?;
     let mut bytes = Vec::new();
     File::open(capture)?
@@ -337,13 +527,14 @@ fn build_and_publish(
     name: &str,
     destination: &Path,
     temporary: &Path,
+    dotenv: &Path,
 ) -> anyhow::Result<()> {
     let temporary = temporary.canonicalize()?;
     if temporary.starts_with(project) {
         bail!("build_staging_in_context: 临时目录须在构建上下文外");
     }
     let artifacts = temporary.join("artifacts");
-    let plan = capture_plan(project, &temporary.join("capture.json"))?;
+    let plan = capture_plan(project, &temporary, dotenv)?;
     let (plan, framework) = freeze_plan(project, manifest, &plan, platform, &artifacts)?;
     if framework
         .as_ref()

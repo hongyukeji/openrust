@@ -47,6 +47,9 @@ pub(super) fn create_framework_fixture(root: &Path) {
         let mut manifest = format!(
             "[package]\nname = \"{name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n"
         );
+        if name == "cli" {
+            fs::write(package.join("src/lib.rs"), "").expect("源码 Artisan 工具库入口");
+        }
         if name == "macros" {
             manifest.push_str("\n[lib]\nproc-macro = true\n");
         }

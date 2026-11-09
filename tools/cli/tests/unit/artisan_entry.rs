@@ -61,6 +61,17 @@ impl Fixture {
         program: &str,
         forwarded: &[&str],
     ) -> Result<()> {
+        self.assert_exec_from(project, args, project, program, forwarded)
+    }
+
+    fn assert_exec_from(
+        &self,
+        project: &Path,
+        args: &[&str],
+        working_directory: &Path,
+        program: &str,
+        forwarded: &[&str],
+    ) -> Result<()> {
         let (pid, output) = self.run(project, args)?;
         assert_eq!(
             output.status.code(),
@@ -71,7 +82,7 @@ impl Fixture {
         assert_eq!(output.stderr, b"");
         let mut expected = format!(
             "{pid}\n{program}\n{}\n1\n{}\n",
-            project.canonicalize()?.display(),
+            working_directory.canonicalize()?.display(),
             forwarded.len()
         );
         for argument in forwarded {
@@ -148,13 +159,24 @@ fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> 
         let script = project.join("artisan");
         assert_eq!(fs::metadata(&script)?.permissions().mode() & 0o777, 0o755);
         if reserved.contains(&name) {
-            fixture.assert_exec(
+            let directory = project.canonicalize()?;
+            fixture.assert_exec_from(
                 &project,
                 &["--env=testing", "queue:work", "two words", ""],
+                &framework,
                 "cargo",
                 &[
                     "run",
                     "--quiet",
+                    "--manifest-path",
+                    "tools/cli/Cargo.toml",
+                    "--bin",
+                    "openrust",
+                    "--locked",
+                    "--",
+                    "artisan:source",
+                    "--project-dir",
+                    directory.to_str().context("应用目录必须为 UTF-8")?,
                     "--",
                     "--env=testing",
                     "queue:work",

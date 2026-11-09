@@ -8,5 +8,7 @@
 
 pub mod command;
 pub(crate) mod command_registry;
+mod invocation;
 
 pub use command::{Command, print};
+pub use invocation::ConsoleInvocation;

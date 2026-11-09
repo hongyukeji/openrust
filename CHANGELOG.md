@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 源码 Artisan 的命令表登记 `build`，其构建与帮助共用选项定义，并支持命令前后的 `--env`。
+
 - 安装模块扩展后，可通过容器具名键 `modules` 取得与 `ModuleRepository` 类型绑定共享的仓储。
 
 - 默认翻译来源优先使用 `resources/lang` 目录，否则读取根 `lang`。显式指定根 `lang` 及模块语言目录的行为保持。

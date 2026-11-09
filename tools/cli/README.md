@@ -25,6 +25,8 @@ cargo run -p cli -- dev
 
 在源码目录用 `./artisan build --platform linux/amd64` 或 `openrust build` 导出应用。默认产物目录为 `dist/<项目名>-linux-<架构>`。命令复用 Compose 的 `app` 构建配置，支持 `--output` 指向全新目录。发布目录、镜像和 Buildx 导出均保留 `<项目名>`。例如 `openrust new blog` 的部署入口为 `./blog`，包根的 `./artisan` 调用同一个 `blog`。生成的 README 给出当前项目的命令。
 
+源码下可用 `./artisan list` 查看应用 Provider 实际登记的构建命令。用 `./artisan help build` 或 `./artisan build --help` 查看相同选项。构建可在运行服务不可达时执行，`--env` 可放在 `build` 前后。
+
 根/生成 `config/*.rs` 显式展示已实现策略，按 `server → app → auth/security` 声明依赖。APP_NAME/APP_URL只在app配置求值，缺省URL取同次有效server.port；auth/security缺省身份读取最终app值，显式独立来源仍优先。标准生成项目默认启用queue及queue-redis，realtime仍按需选择；--minimal省略queue装配，生成Job时会保留已有queue.rs并安全登记queue代码配置，发现冲突先拒绝而不覆盖源码。根View的常量只控制默认声明，生成项目默认声明View，均不强制屏蔽显式来源。
 
 队列统一由 `config/queue.rs` 的 `default` 与 `connections` 配置；`QUEUE_CONNECTION` 默认 `database`，可选择 `redis`，不再使用 `QUEUE_DRIVER`。先完成实际服务配置与迁移，再显式运行 `openrust queue work` 或 `openrust queue work redis --queue example`。编译内置 driver 与登记 Provider 不自动启动 worker，也不连接未选队列。`--minimal` 与 `--db`、`--auth`、`--fortify`、`--profile jwt-api` 互斥。
@@ -82,6 +84,8 @@ cargo run -p cli -- g migration labels slug:string
 普通 `cargo build` 和 `cargo run` 按实际目标与应用特性选取对应清单，将包 Provider 加入应用的启动清单。Facade 别名可从 `crate::bootstrap::packages::facades` 引用。首次安装前，应用继续使用显式登记的 Provider。
 
 在 CI 使用相同参数运行 `./artisan package:discover --check`。命令重新计算预期清单，检查已安装内容是否一致。缺失或不一致时返回非零，清单保持原状。源码 `artisan` 直接调用 CLI，因此应用因旧清单而编译失败时仍可执行重建。
+
+应用含需发现的 Provider 时，源码 Artisan 使用的宿主特性包含 `source-artisan`。为该组合生成清单，例如运行 `./artisan package:discover --features source-artisan`，并按项目所需追加其他特性。
 
 清单用 `包名@版本 (Rust 依赖名)` 标记来源。包 Provider 仍位于框架默认项与应用项之间。按 `ServiceProvider::dependencies()` 在包段内排序时，每步选择最早可登记的项。包之间重复声明同一个 Provider 类型会同时报告双方来源。包依赖缺失、指向后置应用项或形成循环时，启动会在注册前拒绝。升级旧应用时，按当前模板更新构建依赖和辅助文件，再重建 v3 清单。旧应用也须使用 `ApplicationDefinition::package_providers` 的当前返回类型。
 

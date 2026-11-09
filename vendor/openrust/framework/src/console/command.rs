@@ -31,6 +31,11 @@ pub trait Command: Any + Send + Sync + 'static {
         None
     }
 
+    /// 返回由命令定义生成的完整帮助；默认使用说明和用法渲染。
+    fn render_help(&self) -> Option<String> {
+        None
+    }
+
     /// 命令名后是否可接收参数；默认不接收参数。
     fn accepts_args(&self) -> bool {
         false
@@ -111,6 +116,16 @@ impl Command for HelpCommand {
 }
 
 pub(crate) fn print_help(command: &dyn Command) {
+    print(&command_help(command));
+}
+
+fn command_help(command: &dyn Command) -> String {
+    if let Some(mut help) = command.render_help() {
+        if help.ends_with('\n') {
+            let _ = help.pop();
+        }
+        return help;
+    }
     let mut out = format!("{}\n\n用法\n  {}", command.about(), command.name());
     if let Some(usage) = command.usage() {
         out.push(' ');
@@ -118,7 +133,7 @@ pub(crate) fn print_help(command: &dyn Command) {
     } else if command.accepts_args() {
         out.push_str(" [args…]");
     }
-    print(&out);
+    out
 }
 
 /// 输出合并后的配置，并隐藏敏感值。
@@ -263,3 +278,7 @@ pub(crate) fn confirm_in_terminal(
     let answer = answer.trim();
     Ok(answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes"))
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/console/command_help.rs"]
+mod help_tests;

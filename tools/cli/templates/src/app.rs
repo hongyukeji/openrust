@@ -50,6 +50,8 @@ impl openrust::foundation::ApplicationDefinition for {{type_name}} {
                 .unwrap_or(std::path::Path::new(".")),
             &config.modules,
         ));
+        #[cfg(feature = "source-artisan")]
+        builder.bootstrap_provider(cli::release::BuildServiceProvider);
     }
 }
 

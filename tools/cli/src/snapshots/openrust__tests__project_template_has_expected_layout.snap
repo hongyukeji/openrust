@@ -13,6 +13,7 @@ license.workspace = true
 [dependencies]
 openrust = { workspace = true, features = ["cache-redis", "view", "session"] }
 openrust-modules = { workspace = true }
+cli = { workspace = true, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 openrust-translation-database = { workspace = true, optional = true, features = [] }
@@ -28,6 +29,7 @@ sha2 = { workspace = true }
 toml_edit = { workspace = true }
 
 [features]
+source-artisan = ["dep:cli"]
 translation-database = ["dep:openrust-translation-database"]
 
 --- .gitignore ---
@@ -424,6 +426,8 @@ impl openrust::foundation::ApplicationDefinition for Blog {
                 .unwrap_or(std::path::Path::new(".")),
             &config.modules,
         ));
+        #[cfg(feature = "source-artisan")]
+        builder.bootstrap_provider(cli::release::BuildServiceProvider);
     }
 }
 

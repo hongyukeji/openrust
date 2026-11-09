@@ -2,7 +2,7 @@
 
 Foundation承载运行应用、编译期应用声明与统一Provider生命周期。完整官方Application契约仍按对应矩阵验收。
 
-`Application::commands()` 与 `ProviderRuntime::commands()` 返回按登记顺序持有 `Arc<dyn Command>` 的快照。启动与运行期 Provider 共用同一命令目录，同名替换保留原槽位；已取得的快照继续持有原命令，新快照读取替换后的实例。命令枚举、匹配和执行不会跨用户回调或异步等待持有目录锁；调用方需要命令类型身份时使用 `command.as_ref().type_id()`。运行期与启动期命令都由同一注册表管理。
+`Application::commands()` 与 `ProviderRuntime::commands()` 返回按登记顺序持有 `Arc<dyn Command>` 的快照。启动与运行期 Provider 共用同一命令目录，同名替换保留原槽位。已取得的快照继续持有原命令，新快照读取替换后的实例。`BootContext::reserve_command` 可在同一目录替换并保留普通命令，后续同名登记保留首个保留实例。没有显式保留的命令仍按登记顺序覆盖。命令枚举、匹配和执行不会跨用户回调或异步等待持有目录锁。调用方需要命令类型身份时使用 `command.as_ref().type_id()`。
 
 ## 应用异常 Handler
 
@@ -164,6 +164,8 @@ match (result, cleanup) {
 - [`ProviderBuilder`] / [`ServiceProvider`](crate::support::ServiceProvider) / [`Application`] / [`ApplicationState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`Application::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `Application::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
 - `openrust_modules::ModuleManifest` 声明已编译模块及激活器；启用模块的 Provider 进入同一 register/boot 管线，全量 metadata（含未加载模块）与激活器由同一 Container 的 `ModuleRepository` 共享。`ModuleDescriptor::requires` 保留启用依赖校验与拓扑排序；普通启停不级联修改依赖状态，也不删除迁移历史。资源根、独立状态路径与文件边界见 [模块激活配置](../../../modules/README.md#模块激活与运行根)，业务接线见 [`modules/example`](../../../../../modules/example/README.md)。
 - [`Command`](crate::console::Command)：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
+- `Command::render_help()` 可从命令自身的参数定义生成完整帮助，供 `help <命令>` 与 `<命令> --help` 共用。默认仍从命令说明和用法生成。
+- `openrust::console::ConsoleInvocation` 解析控制台全局参数及命令名。`Application::dotenv_path()` 返回本次引导采用的环境文件路径，文件可尚未创建。配置缓存直接命中时返回应用根的 `.env` 路径。直接从 Provider 运行时构造的应用无此路径。
 - 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp::build/reset` 均无该上下文；受控的 `TestAppBuilder::run_command` 只引导、执行并关闭同名命令。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
 - [`Error`](crate::core::Error) / [`Result`](crate::core::Result) / [`ApiResponse<T>`](crate::core::ApiResponse) / [`PageMeta`](crate::core::PageMeta)：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`](crate::core::ExecutionContext) / [`ExecutionMetadata`](crate::core::ExecutionMetadata) / [`Cancellation`](crate::core::Cancellation)：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。

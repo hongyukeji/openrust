@@ -251,7 +251,8 @@ fn run_with_default<A: ApplicationDefinition>(
     args: impl IntoIterator<Item = String>,
     default_command: &str,
 ) -> ExitCode {
-    let (name, command_args, console_environment) = parse_console_args(args, default_command);
+    let (name, command_args, console_environment) =
+        console::ConsoleInvocation::parse(args, default_command).into_parts();
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -304,44 +305,6 @@ fn run_with_default<A: ApplicationDefinition>(
             (Ok(()), Ok(())) => ExitCode::SUCCESS,
         }
     })
-}
-
-fn parse_console_args(
-    args: impl IntoIterator<Item = String>,
-    default_command: &str,
-) -> (String, Vec<String>, Option<String>) {
-    let mut command = Vec::new();
-    let mut environment = None;
-    let mut no_interaction = false;
-    let mut args = args.into_iter();
-    while let Some(arg) = args.next() {
-        if arg == "--env" {
-            if let Some(value) = args.next()
-                && environment.is_none()
-            {
-                environment = Some(value);
-            }
-        } else if let Some(value) = arg.strip_prefix("--env=") {
-            if environment.is_none() {
-                environment = Some(value.to_owned());
-            }
-        } else if command.is_empty() && matches!(arg.as_str(), "--no-interaction" | "-n") {
-            no_interaction = true;
-        } else {
-            command.push(arg);
-        }
-    }
-    let mut command = command.into_iter();
-    let name = match command.next() {
-        Some(name) if matches!(name.as_str(), "--help" | "-h") => "help".to_owned(),
-        Some(name) => name,
-        None => default_command.to_owned(),
-    };
-    let mut arguments: Vec<_> = command.collect();
-    if no_interaction && matches!(name.as_str(), "migrate" | "key:generate") {
-        arguments.push("--no-interaction".to_owned());
-    }
-    (name, arguments, environment)
 }
 
 fn fail(message: &str) -> ExitCode {

@@ -1,14 +1,17 @@
 use super::{
-    BuildArgs, application_name, bake_path, destination, freeze_plan, host_platform, path_text,
-    publish, read_manifest, reject_existing,
+    BuildArgs, BuildCommand, application_name, bake_path, bake_plan_command, destination,
+    freeze_plan, host_platform, is_source_project, path_text, publish, read_manifest,
+    reject_existing,
 };
 #[cfg(unix)]
 use super::{INCOMPLETE, validate_binary, validate_entries, validate_release};
 #[cfg(unix)]
 use anyhow::Context as _;
-use anyhow::bail;
+use openrust::config::{ConfigLoader, ENV_PREFIX};
+use openrust::console::Command as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 fn fixture() -> anyhow::Result<(tempfile::TempDir, PathBuf)> {
     let temporary = tempfile::tempdir()?;
@@ -20,20 +23,24 @@ fn fixture() -> anyhow::Result<(tempfile::TempDir, PathBuf)> {
 }
 
 #[test]
-fn source_launcher_and_generated_launcher_route_build_to_cli() {
-    for source in [
-        include_str!("../../../../artisan").to_owned(),
-        crate::deployment::artisan_source("artisan"),
-    ] {
-        assert_eq!(
-            source
-                .matches("build|package:discover|package:list)")
-                .count(),
-            2
-        );
-        assert!(source.contains("--project-dir \"$application\""));
-        assert!(source.contains("exec \"$application\" \"$@\""));
-    }
+fn source_launcher_routes_artisan_to_cli() {
+    let source = include_str!("../../../../artisan");
+    assert!(source.contains("artisan:source|package:discover|package:list)"));
+    assert!(source.contains("run_cli artisan:source -- \"$@\""));
+    assert!(source.contains("--project-dir \"$application\""));
+    assert!(source.contains("exec \"$application\" \"$@\""));
+}
+
+#[test]
+fn build_registration_requires_the_application_manifest_and_source_entry() -> anyhow::Result<()> {
+    let (_temporary, project) = fixture()?;
+    assert!(!is_source_project(&project));
+    fs::create_dir(project.join("src"))?;
+    fs::write(project.join("src/main.rs"), "fn main() {}")?;
+    assert!(is_source_project(&project));
+    fs::remove_file(project.join("Cargo.toml"))?;
+    assert!(!is_source_project(&project));
+    Ok(())
 }
 
 #[test]
@@ -133,6 +140,64 @@ fn docker_packager_rejects_reserved_names_and_an_occupied_output() -> anyhow::Re
     assert!(!result.status.success());
     assert_eq!(fs::read_to_string(output.join("artisan"))?, "keep launcher");
     assert!(!output.join("public").exists());
+    Ok(())
+}
+
+#[test]
+fn bake_capture_uses_a_private_copy_only_for_the_selected_environment() -> anyhow::Result<()> {
+    use std::ffi::{OsStr, OsString};
+
+    let (_temporary, project) = fixture()?;
+    let staging = tempfile::tempdir()?;
+    let default_dotenv = project.join(".env");
+    let selected_dotenv = project.join(".env.candidate");
+    let args = [
+        OsString::from("buildx"),
+        OsString::from("bake"),
+        OsString::from("-f"),
+        project.join("docker-compose.yml").into_os_string(),
+        OsString::from("--print"),
+        OsString::from("app"),
+    ];
+    let args = args
+        .iter()
+        .map(OsString::as_os_str)
+        .collect::<Vec<&OsStr>>();
+
+    fs::write(&default_dotenv, b"OPENRUST_BUILD_FEATURES=default\n")?;
+    let dotenv = ConfigLoader::application_dotenv_path(&project, ENV_PREFIX, Some("missing"))?;
+    let fallback = bake_plan_command(&project, staging.path(), &dotenv)?;
+    assert_eq!(fallback.get_current_dir(), Some(project.as_path()));
+    assert_eq!(fallback.get_args().collect::<Vec<_>>(), args);
+    assert!(!staging.path().join(".env").exists());
+
+    let selected_bytes = b"OPENRUST_BUILD_FEATURES=candidate\nPRIVATE_FIXTURE=opaque\n";
+    fs::write(&selected_dotenv, selected_bytes)?;
+    let dotenv = ConfigLoader::application_dotenv_path(&project, ENV_PREFIX, Some("candidate"))?;
+    let selected = bake_plan_command(&project, staging.path(), &dotenv)?;
+    assert_eq!(selected.get_current_dir(), Some(staging.path()));
+    assert_eq!(selected.get_args().collect::<Vec<_>>(), args);
+    assert_eq!(
+        selected.get_envs().collect::<Vec<_>>(),
+        fallback.get_envs().collect::<Vec<_>>(),
+    );
+    let snapshot = staging.path().join(".env");
+    assert_eq!(fs::read(&snapshot)?, selected_bytes);
+    assert_eq!(fs::read(&selected_dotenv)?, selected_bytes);
+    assert_eq!(
+        fs::read(&default_dotenv)?,
+        b"OPENRUST_BUILD_FEATURES=default\n"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        assert_eq!(fs::metadata(&snapshot)?.permissions().mode() & 0o077, 0);
+    }
+    let second_copy = bake_plan_command(&project, staging.path(), &dotenv);
+    assert!(
+        second_copy.is_err_and(|error| error.to_string().contains("build_dotenv_snapshot_failed"))
+    );
+    assert_eq!(fs::read(snapshot)?, selected_bytes);
     Ok(())
 }
 
@@ -317,30 +382,62 @@ fn resource_copy_failure_keeps_the_marker_and_never_exposes_the_binary() -> anyh
 
 #[test]
 fn public_build_parser_accepts_only_one_linux_platform() -> anyhow::Result<()> {
-    use clap::Parser as _;
-    let parsed = crate::Cli::try_parse_from([
-        "openrust",
-        "build",
-        "--platform",
-        "linux/arm64",
-        "--output",
-        "/tmp/with spaces,comma",
+    let options = BuildCommand::parse_source(&[
+        "--platform".into(),
+        "linux/arm64".into(),
+        "--output".into(),
+        "/tmp/with spaces,comma".into(),
     ])?;
-    let Some(crate::Builtin::Build(options)) = parsed.command else {
-        bail!("build did not select its own command");
-    };
     assert_eq!(options.platform.as_deref(), Some("linux/arm64"));
     assert_eq!(
         options.output.as_deref(),
         Some(Path::new("/tmp/with spaces,comma"))
     );
     assert!(
-        crate::Cli::try_parse_from(["openrust", "build", "--platform", "linux/amd64,linux/arm64"])
+        BuildCommand::parse_source(&["--platform".into(), "linux/amd64,linux/arm64".into()])
             .is_err()
     );
-    assert!(
-        crate::Cli::try_parse_from(["openrust", "build", "--platform", "darwin/arm64"]).is_err()
+    assert!(BuildCommand::parse_source(&["--platform".into(), "darwin/arm64".into()]).is_err());
+    Ok(())
+}
+
+#[test]
+fn registered_build_help_matches_source_parser_and_hides_project_binding() {
+    let command = BuildCommand;
+    assert_eq!(command.name(), "build");
+    let help = command.render_help();
+    assert!(help.as_ref().is_some_and(|text| {
+        text.contains("artisan build")
+            && text.contains("--platform")
+            && text.contains("--output")
+            && !text.contains("--project-dir")
+    }));
+    let parsed = BuildCommand::parse_source(&["--help".into()]);
+    assert!(parsed.is_err_and(|error| {
+        error.kind() == clap::error::ErrorKind::DisplayHelp
+            && help.is_some_and(|text| text.trim_end() == error.to_string().trim_end())
+    }));
+}
+
+#[test]
+fn source_help_and_usage_error_return_without_entering_build() -> anyhow::Result<()> {
+    let (_temporary, project) = fixture()?;
+    let invalid_project = project.join("missing");
+    assert_eq!(
+        BuildCommand::run_source(&invalid_project, &["--help".into()], None)?,
+        ExitCode::SUCCESS
     );
+    for arguments in [
+        vec!["--unexpected".into()],
+        vec!["--help".into(), "--unexpected".into()],
+        vec!["--project-dir".into(), project.display().to_string()],
+    ] {
+        assert_eq!(
+            BuildCommand::run_source(&invalid_project, &arguments, None)?,
+            ExitCode::from(2)
+        );
+    }
+    assert!(!project.join("dist").exists());
     Ok(())
 }
 

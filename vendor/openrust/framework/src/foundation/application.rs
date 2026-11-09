@@ -655,6 +655,17 @@ impl Application {
         &self.figment
     }
 
+    /// 返回本次启动选定的 dotenv 路径。
+    ///
+    /// 路径可能尚不存在。直接从 Provider 运行时构造的应用未设定此路径。
+    /// 配置缓存直接命中时返回应用根的 `.env` 路径，启动不读取该文件。
+    #[must_use]
+    pub fn dotenv_path(&self) -> Option<&std::path::Path> {
+        self.key_environment
+            .as_ref()
+            .map(|environment| environment.dotenv_path.as_path())
+    }
+
     pub(crate) fn set_config_cache_path(&mut self, path: std::path::PathBuf) {
         self.config_cache_path = Some(path);
     }

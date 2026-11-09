@@ -69,6 +69,8 @@ impl ApplicationDefinition for Server {
         builder
             .class_descriptors(crate::modules::example::class_descriptors())
             .module_manifest(crate::modules::manifest(&root, &config.modules));
+        #[cfg(feature = "source-artisan")]
+        builder.bootstrap_provider(cli::release::BuildServiceProvider);
     }
 }
 

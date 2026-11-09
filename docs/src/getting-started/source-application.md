@@ -21,6 +21,8 @@
 
 `list` 显示框架、应用和已启用模块实际登记的命令。直接运行 `./artisan` 默认执行 `list`。仅传全局环境选项时也默认执行 `list`，例如 `./artisan --env=local`。带空格的命令名可逐词输入。
 
+源码 Artisan 启用开发专用的 `source-artisan` 特性，由应用 Provider 在命令表登记 `build`。独立发布包只运行已编译的应用命令。
+
 自定义命令由 Provider 注册。实现 `Command::about` 提供描述，实现 `Command::usage` 描述接受的参数和选项。帮助读取这些信息并沿用正常应用引导流程。
 
 根应用与生成项目运行 `cargo run` 时，默认通过 `start` 在一个进程内启动 HTTP、已配置的队列 worker 和适用的定时任务。应用注册的 WebSocket 路由与 HTTP 共用端口，启用 `realtime` 并配置应用路由和授权后随 HTTP 可用。部署可用同一二进制的 `serve`、`queue work` 或 `schedule run` 分开运行各角色。
@@ -161,6 +163,8 @@ done
 ### 导出应用文件
 
 OpenRust 提供编译型应用的 Linux 发布扩展 `./artisan build`。编译产物与外置资源的部署布局参考固定 Goravel。它由源码开发工具执行，当前使用 Docker Buildx。在 macOS 或 Linux 的应用源码目录运行该命令。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。 [Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md#deploy-server)
+
+`./artisan help build` 与 `./artisan build --help` 使用同一构建定义。命令前后的 `--env` 使用应用规则选择已有的 `.env.<名称>` 供 Compose 构建配置插值。进程环境优先。Buildx 不需要先启动应用或连接运行时数据库。
 
 ```bash
 ./artisan build --platform linux/amd64
