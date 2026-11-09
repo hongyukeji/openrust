@@ -1,18 +1,15 @@
-//! 编译可用模块与唯一默认注册清单；Rust mod 本身不表示启用。
+//! 运行模块清单与显式编译绑定；元数据发现不执行未编译源码。
 
-pub(crate) mod example;
+use openrust_modules::ModuleManifest;
 
-/// 默认显式注册即启用；文件发现和持久状态须由应用显式选择。
+/// 默认只加载显式登记模块；其他激活器按配置发现 module.json 与文件状态。
 pub(crate) fn manifest(
     root: &std::path::Path,
     config: &openrust_modules::config::ModulesConfig,
-) -> openrust_modules::ModuleManifest {
+) -> ModuleManifest {
     if config.activator == "registered" {
-        openrust_modules::ModuleManifest::new()
-            .with_application_root(root)
-            .module(example::registered_descriptor(root, config))
-            .enable("example")
+        ModuleManifest::new().with_application_root(root)
     } else {
-        example::manifest(root, config)
+        ModuleManifest::discover_from_config(root, config)
     }
 }

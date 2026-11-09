@@ -8,7 +8,7 @@
 cargo test --manifest-path tests/consumers/container-extension/Cargo.toml
 ```
 
-它不属于根 workspace；唯一综合业务示例仍位于 `modules/example`。
+它不属于根 workspace；综合业务示例随 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example) 维护。
 
 ## 第三方 SessionStore 装饰
 

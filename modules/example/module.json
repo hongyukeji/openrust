@@ -1,6 +1,0 @@
-{
-  "name": "example",
-  "priority": 0,
-  "providers": ["ExampleModuleServiceProvider"],
-  "files": ["module_init.rs"]
-}

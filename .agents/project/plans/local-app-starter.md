@@ -15,7 +15,7 @@
 | 顺序 | 工作 | 代码与文档入口 | 通过条件 |
 | --- | --- | --- | --- |
 | P0 ① | 生成、迁移与无 Redis 启动。先复用现有缓存配置，给 SQLite 小应用提供明确可选的本地缓存路径。按应用实际需要初始化 `APP_KEY`，并复用正式 `key:generate` 语义。 | [生成器](../../../tools/cli/src/main.rs)、[缓存模板](../../../tools/cli/templates/config/cache.rs)、[安装指南](../../../docs/src/getting-started/installation.md) | 从空目录生成 SQLite 应用，不启动 Redis。应用完成迁移，使用生成产物实际启动，探针和业务路由可访问。若启用 Web 登录，受保护请求也能完成往返。 |
-| P0 ② | 用一个任务清单贯通最小 CRUD，采用现有 Query Builder 和参数绑定。记录迁移、路由、请求校验、错误响应、列表分页和测试入口。 | [数据库查询](../../../docs/src/database/queries.md)、[路由](../../../docs/src/the-basics/routing.md)、[唯一综合示例](../../../modules/example/README.md) | 真实 HTTP 覆盖新增、列表、修改、删除、无效输入和不存在记录。至少保留一条记录跨进程重启验证持久化。教程按发布的步骤重做可以复现。 |
+| P0 ② | 用一个任务清单贯通最小 CRUD，采用现有 Query Builder 和参数绑定。记录迁移、路由、请求校验、错误响应、列表分页和测试入口。 | [数据库查询](../../../docs/src/database/queries.md)、[路由](../../../docs/src/the-basics/routing.md)、[唯一综合示例](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md) | 真实 HTTP 覆盖新增、列表、修改、删除、无效输入和不存在记录。至少保留一条记录跨进程重启验证持久化。教程按发布的步骤重做可以复现。 |
 | P0 ③ | 解决跨目录和跨机器构建。先验证生成 manifest 的框架依赖和本地补丁如何解析，再由总控选择可固定、可重建的依赖布局。可与 CRUD 文档并行，生成器与 manifest 的编辑须串行。 | [CLI 文档](../../../tools/cli/README.md)、[生成器](../../../tools/cli/src/main.rs) | 在另一干净目录或 CI，从固定输入生成或检出应用，执行 `cargo check`、`cargo test`。原机器的框架绝对路径不可用时仍能构建。 |
 | P1 | 形成单机部署闭环。使用 release 二进制，说明运行目录、静态资源、环境变量、数据库迁移、健康检查、备份恢复和停机步骤。 | [源码应用指南](../../../docs/src/getting-started/source-application.md) | 从干净部署目录启动 release 产物，完成一次业务读写和一次 SQLite 备份恢复验证。 |
 

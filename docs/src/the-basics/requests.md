@@ -1,5 +1,7 @@
 # HTTP 请求
 
+本页提到的综合示例路由和模块源码位于 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example)。
+
 ## 读取与转换输入
 
 控制器通过公开 `Request` 读取当前请求输入。`integer_or`、`float_or` 提供显式缺失默认值；字段存在且为 null 时仍执行转换，不采用这两个方法的缺失默认值。

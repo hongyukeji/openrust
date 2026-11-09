@@ -1,6 +1,6 @@
 # Session 使用指南
 
-Session 为同一请求提供共享属性与 flash，并在响应发送前持久保存。本文面向使用 `openrust::session` 的应用开发者；业务示例位于唯一的 [`modules/example`](../../../../../modules/example/http/controllers/session.rs)。
+Session 为同一请求提供共享属性与 flash，并在响应发送前持久保存。本文面向使用 `openrust::session` 的应用开发者；业务示例位于唯一的 [`modules/example`](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/session.rs)。
 
 ## 启用与存储
 
@@ -322,7 +322,7 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 ## 示例与当前范围
 
-[示例处理器](../../../../../modules/example/http/controllers/session.rs) 与[模块 HTTP 回归](../../../../../modules/example/tests/session_flows.rs) 使用 `/api/example/session` 的 GET/POST，仅读写示例自己的偏好和提示；支持固定 put/forget/flash/now/keep 操作，不接收任意 Session 键。公开 API 的边界分别见[生命周期测试](../../tests/http/session.rs)、[受管理 HTTP 测试](../../tests/http/session_http.rs)与[数据库存储测试](../../tests/http/session_store.rs)。这些入口对应不同验证层次，不能互相替代。`http_session` 测试入口挂载同目录的 `session_helpers.rs`、`session_source_cases.rs` 与 `session_extensions.rs` 三个私有模块，保留全部生命周期、便捷方法和扩展回归。使用 `cargo test -p openrust-framework --no-default-features --features session --test http_session` 运行该入口；环境子进程、数据库和 Redis 测试仍使用各自独立入口。
+[示例处理器](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/session.rs) 与[模块 HTTP 回归](https://github.com/hongyukeji/openrust/blob/example/modules/example/tests/session_flows.rs) 使用 `/api/example/session` 的 GET/POST，仅读写示例自己的偏好和提示；支持固定 put/forget/flash/now/keep 操作，不接收任意 Session 键。公开 API 的边界分别见[生命周期测试](../../tests/http/session.rs)、[受管理 HTTP 测试](../../tests/http/session_http.rs)与[数据库存储测试](../../tests/http/session_store.rs)。这些入口对应不同验证层次，不能互相替代。`http_session` 测试入口挂载同目录的 `session_helpers.rs`、`session_source_cases.rs` 与 `session_extensions.rs` 三个私有模块，保留全部生命周期、便捷方法和扩展回归。使用 `cargo test -p openrust-framework --no-default-features --features session --test http_session` 运行该入口；环境子进程、数据库和 Redis 测试仍使用各自独立入口。
 
 `Session::flash_input(DataValue)` 将对象或数组写入现有 `_old_input` flash；可用 `get_old_input(None)` 读取完整 bag（缺失为 `[]`），或用 `Some(key)` 在 bag 内按完整字面键优先、其次 dot 路径读取。`get_old_input_or` 仅在缺失时使用默认值，显式 null 保持原值；`has_old_input` 判断整 bag 非空或指定键非 null，false 与 0 均算有值。写入沿唯一 Session 状态机和记录预算，失败不发布部分 flash 元数据。
 

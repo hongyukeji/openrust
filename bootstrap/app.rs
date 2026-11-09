@@ -26,7 +26,7 @@ impl Configuration {
     }
 }
 
-/// 框架与综合示例共用的默认应用宿主。
+/// 默认应用宿主。
 pub(crate) struct Server;
 impl ApplicationDefinition for Server {
     type Config = Configuration;
@@ -71,9 +71,7 @@ impl ApplicationDefinition for Server {
         builder: &mut openrust::foundation::ProviderBuilder,
     ) {
         let root = config.application_root();
-        builder
-            .class_descriptors(crate::modules::example::class_descriptors())
-            .module_manifest(crate::modules::manifest(&root, &config.modules));
+        builder.module_manifest(crate::modules::manifest(&root, &config.modules));
     }
 }
 
@@ -97,6 +95,8 @@ mod host_without_database;
 #[cfg(test)]
 #[path = "../tests/server/bootstrap.rs"]
 mod tests;
+#[cfg(test)]
+pub(crate) use tests::test_config_sources;
 
 #[cfg(all(
     test,

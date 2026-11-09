@@ -23,7 +23,7 @@ OpenRust 使用 Rust 实现 Laravel 的框架能力与开发体验。目录、�
 
 从 [OpenRust 指南](docs/src/README.md)开始，依次阅读[安装与运行](docs/src/getting-started/installation.md)、[配置](docs/src/getting-started/configuration.md)和[目录结构](docs/src/getting-started/structure.md)。指南按固定 Laravel 13.x 的章节与阅读顺序逐步完善；实际 API 使用 Rust 写法，不直接执行 PHP 源码。
 
-[源码应用与扩展指南](docs/src/getting-started/source-application.md)保留运行、生成应用、事件与执行作用域等详细用法；[唯一综合示例](modules/example/README.md)展示业务模块和公开扩展的实际接入。各专题说明会标明适用条件与尚未完成的边界。
+[源码应用与扩展指南](docs/src/getting-started/source-application.md)保留运行、生成应用、事件与执行作用域等详细用法；[`example` 分支的综合示例](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md)展示业务模块和公开扩展的实际接入。各专题说明会标明适用条件与尚未完成的边界。
 
 在源码目录用 `cargo run` 启动应用，用 `./artisan list` 查看应用命令。发布后用 `./openrust` 启动，用 `./openrust artisan` 列出命令并退出。包根脚本 `./artisan` 进入同一控制台。生成应用以 `<项目名>` 代替 `openrust`。[Artisan 使用说明](docs/src/getting-started/source-application.md#查找应用命令)
 

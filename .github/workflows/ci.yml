@@ -131,9 +131,6 @@ jobs:
       - run: cargo test --workspace --features auth,db-mysql
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
-      - run: cargo test -p openrust --features 'auth queue view encryption db-mysql' --test example_auth_flows
-        env:
-          OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
       - run: |
           cargo test -p openrust --features 'auth-fortify auth-oidc db-mysql' --test auth_oidc
           cargo test -p openrust --features 'auth-fortify auth-oidc db-mysql' --bin app bootstrap::fortify_flows::mysql_ -- --ignored
@@ -144,7 +141,7 @@ jobs:
             exit 1
           fi
           cat "$RUNNER_TEMP/fortify-event-test.log"
-          rg -q '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/fortify-event-test.log
+          rg -q '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/fortify-event-test.log"
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
       - run: cargo test -p openrust-framework --features queue,db-mysql --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
@@ -176,9 +173,6 @@ jobs:
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
       - run: cargo test --workspace --features auth,db-postgres
-        env:
-          OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
-      - run: cargo test -p openrust --features 'auth queue view encryption db-postgres' --test example_auth_flows
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
       - run: |

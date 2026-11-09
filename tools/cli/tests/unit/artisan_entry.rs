@@ -282,9 +282,9 @@ fn source_artisan_discovery_uses_cli_without_building_the_application() -> Resul
 fn source_artisan_keeps_build_in_the_application_command_table() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("source project without cli");
-    fs::create_dir_all(project.join("src"))?;
+    fs::create_dir(&project)?;
     fs::write(project.join("Cargo.toml"), "")?;
-    fs::write(project.join("src/main.rs"), "")?;
+    fs::write(project.join("main.rs"), "")?;
     write_executable(&project.join("artisan"), ARTISAN)?;
     write_executable(&fixture.root.join("bin/openrust"), FAKE_APPLICATION)?;
     fs::create_dir_all(project.join("tools/cli"))?;

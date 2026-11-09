@@ -269,6 +269,16 @@ fn validate_framework_source(workspace: &FrameworkWorkspace) -> anyhow::Result<(
     Ok(())
 }
 
+fn application_entry(project: &Path) -> (PathBuf, &'static str) {
+    let root_entry = project.join("main.rs");
+    let standard_entry = project.join("src/main.rs");
+    if root_entry.is_file() && !standard_entry.is_file() {
+        (root_entry, "")
+    } else {
+        (standard_entry, "../")
+    }
+}
+
 fn application_directory(
     workspace: &FrameworkWorkspace,
     current_dir: &Path,
@@ -285,7 +295,7 @@ fn application_directory(
         .iter()
         .filter_map(|package| {
             let directory = package.manifest_path.parent()?;
-            (directory.join("src/main.rs").is_file()
+            (application_entry(directory).0.is_file()
                 && directory.join("bootstrap/app.rs").is_file()
                 && (current_dir.starts_with(directory)
                     || (current_dir == workspace.root && unique_default && package.default_member)))
@@ -2284,7 +2294,7 @@ fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     {
         bail!("mailer module is already registered: {module}");
     }
-    let main_file = project_dir.join("src/main.rs");
+    let (main_file, module_root) = application_entry(project_dir);
     enable_openrust_feature(project_dir, "mail-templates")?;
     for (locale, text, html) in [
         ("en", "Hello, {{ user }}", "<p>Hello, {{ user }}</p>"),
@@ -2303,7 +2313,7 @@ fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     )?;
     append_module(
         &main_file,
-        "#[path = \"../app/mail/mod.rs\"]\npub mod mailers;",
+        &format!("#[path = \"{module_root}app/mail/mod.rs\"]\npub mod mailers;"),
         "//! 应用入口。\n",
     )?;
     print_generated(&format!("Generated mailer `{module}`."))?;
@@ -2333,7 +2343,7 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     {
         bail!("policy module is already registered: {module}");
     }
-    let main_file = project_dir.join("src/main.rs");
+    let (main_file, module_root) = application_entry(project_dir);
     fs::write(policy_file, render_policy(&type_name, &resource))?;
     append_sorted_module(
         &module_file,
@@ -2342,7 +2352,7 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     )?;
     append_module(
         &main_file,
-        "#[path = \"../app/policies/mod.rs\"]\npub mod policies;",
+        &format!("#[path = \"{module_root}app/policies/mod.rs\"]\npub mod policies;"),
         "//! 应用入口。\n",
     )?;
     print_generated(&format!("Generated policy `{module}` for `{resource}`."))?;
@@ -2396,7 +2406,7 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     {
         bail!("job module is already registered: {module}");
     }
-    let main_file = project_dir.join("src/main.rs");
+    let (main_file, module_root) = application_entry(project_dir);
     let main_source = fs::read_to_string(&main_file)?;
     let app_file = project_dir.join("bootstrap/providers.rs");
     let app_source = fs::read_to_string(&app_file)?;
@@ -2438,7 +2448,7 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let updated_main = if main_source.contains("mod jobs;") {
         main_source
     } else {
-        format!("{main_source}\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;\n")
+        format!("{main_source}\n#[path = \"{module_root}app/jobs/mod.rs\"]\nmod jobs;\n")
     };
     let updated_modules = if modules.contains("pub struct JobsServiceProvider") {
         let registration =
@@ -2789,7 +2799,7 @@ fn generate_model(
     }
     let entity_module = project_dir.join("app/models/_entities/mod.rs");
     let models_module = project_dir.join("app/models/mod.rs");
-    let main_file = project_dir.join("src/main.rs");
+    let (main_file, module_root) = application_entry(project_dir);
     let generated = render_model(&table, &fields, uuid_id, soft_delete);
     if uuid_id {
         enable_uuid_feature(project_dir)?;
@@ -2803,7 +2813,7 @@ fn generate_model(
     append_module(&models_module, "pub mod _entities;", "//! 应用模型。\n")?;
     append_module(
         &main_file,
-        "#[path = \"../app/models/mod.rs\"]\npub mod models;",
+        &format!("#[path = \"{module_root}app/models/mod.rs\"]\npub mod models;"),
         "//! 应用入口。\n",
     )?;
     print_generated(&format!("Generated model `{module}` for table `{table}`."))?;

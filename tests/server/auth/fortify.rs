@@ -28,10 +28,6 @@ use openrust::{Error, Result};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-#[cfg(feature = "realtime")]
-#[path = "fortify_socket.rs"]
-mod native_socket;
-
 const PASSWORD: &str = "fortify-real-provider-password";
 
 fn note(phase: &'static str, error: &Error) {
@@ -40,17 +36,6 @@ fn note(phase: &'static str, error: &Error) {
         error.code(),
         error.status()
     );
-}
-
-struct FortifyMigrations;
-impl openrust::database::sea_orm_migration::MigratorTrait for FortifyMigrations {
-    fn migrations() -> Vec<Box<dyn openrust::database::sea_orm_migration::MigrationTrait>> {
-        #[allow(unused_mut, reason = "模块实时业务迁移仅在其feature下进入本fixture")]
-        let mut migrations = <crate::database::Migrator as openrust::database::sea_orm_migration::MigratorTrait>::migrations();
-        #[cfg(feature = "realtime")]
-        migrations.extend(<crate::modules::example::database::migrations::Migrator as openrust::database::sea_orm_migration::MigratorTrait>::migrations());
-        migrations
-    }
 }
 
 struct RootApplication;
@@ -246,13 +231,6 @@ impl<'a> Browser<'a> {
             .header(header::HOST, "localhost")
             .header(header::ACCEPT, accept)
             .header(header::REFERER, "http://localhost/settings");
-        if path.starts_with("/api/example/account/") {
-            let url =
-                url::Url::parse(&self.app.app()?.config().app.url).map_err(Error::internal)?;
-            request = request
-                .header(header::ORIGIN, url.origin().ascii_serialization())
-                .header("x-example-request", "same-origin");
-        }
         if !self.cookies.is_empty() {
             request = request.header(
                 header::COOKIE,
@@ -557,206 +535,6 @@ async fn login(browser: &mut Browser<'_>, account: &str, remember: bool) -> Resu
     Ok(reply)
 }
 
-async fn bearer_status(
-    fixture: &TestApp<RootApplication>,
-    path: &str,
-    token: &str,
-) -> Result<StatusCode> {
-    let response = fixture
-        .raw_response(
-            Request::builder()
-                .uri(path)
-                .header(header::HOST, "localhost")
-                .header(header::ACCEPT, "application/json")
-                .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::empty())
-                .map_err(Error::internal)?,
-        )
-        .await?;
-    Ok(response.status())
-}
-
-async fn assert_read_token_deadline(fixture: &TestApp<RootApplication>) -> Result<()> {
-    let tokens = fixture
-        .app()?
-        .state()
-        .resolve::<openrust::auth::PersonalAccessTokens>()
-        .await?;
-    let lifetime = fixture
-        .app()?
-        .section::<openrust::config::SessionConfig>("session")?
-        .lifetime;
-    let bound = chrono::Utc::now()
-        + chrono::Duration::minutes(i64::try_from(lifetime).map_err(Error::internal)?);
-    let metadata = tokens.list_for_user(41).await?;
-    let issued = metadata
-        .iter()
-        .find(|token| token.name == "example-read")
-        .ok_or(Error::Unauthorized)?;
-    assert!(issued.expires_at.is_some_and(|expiry| expiry <= bound));
-    Ok(())
-}
-
-async fn exercise_managed_credentials(
-    browser: &mut Browser<'_>,
-    recovery_code: &str,
-) -> Result<()> {
-    let fixture = browser.app;
-    let signed = browser
-        .post("/api/example/account/session/credentials", json!({}))
-        .await?;
-    assert_eq!(signed.status, StatusCode::OK);
-    let envelope = signed.json()?;
-    let credentials = envelope.get("data").ok_or(Error::Unauthorized)?;
-    let access = credentials["access_token"]
-        .as_str()
-        .ok_or(Error::Unauthorized)?;
-    let refresh = credentials["refresh_token"]
-        .as_str()
-        .ok_or(Error::Unauthorized)?;
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me", access).await?,
-        StatusCode::OK
-    );
-    let bare = fixture
-        .app()?
-        .state()
-        .resolve::<openrust::auth::JwtTokens>()
-        .await?
-        .issue_access_token(41)?;
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me", &bare).await?,
-        StatusCode::UNAUTHORIZED
-    );
-    let personal = browser
-        .post("/api/example/account/session/read-token", json!({}))
-        .await?;
-    assert_eq!(personal.status, StatusCode::OK);
-    assert_read_token_deadline(fixture).await?;
-    let personal = personal.json()?;
-    let token = personal["data"]["token"]
-        .as_str()
-        .ok_or(Error::Unauthorized)?;
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me/pat", token).await?,
-        StatusCode::OK
-    );
-    let rotated = browser
-        .post(
-            "/api/example/auth/refresh",
-            json!({"refresh_token":refresh}),
-        )
-        .await?;
-    assert_eq!(
-        rotated.status,
-        StatusCode::OK,
-        "refresh error code: {:?}",
-        rotated.json()?.get("code")
-    );
-    let rotated = rotated.json()?;
-    let next_access = rotated["data"]["access_token"]
-        .as_str()
-        .ok_or(Error::Unauthorized)?;
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me", next_access).await?,
-        StatusCode::OK
-    );
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me", access).await?,
-        StatusCode::OK
-    );
-    assert_eq!(
-        browser
-            .post(
-                "/api/example/auth/refresh",
-                json!({"refresh_token":refresh})
-            )
-            .await?
-            .status,
-        StatusCode::UNAUTHORIZED
-    );
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me", access).await?,
-        StatusCode::UNAUTHORIZED
-    );
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me", next_access).await?,
-        StatusCode::UNAUTHORIZED
-    );
-    // 家族撤销不擅自撤销独立PAT；该PAT仍受自身撤销及当前factor代际约束。
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me/pat", token).await?,
-        StatusCode::OK
-    );
-    exercise_direct_credentials(browser, recovery_code).await
-}
-
-async fn exercise_direct_credentials(browser: &mut Browser<'_>, recovery_code: &str) -> Result<()> {
-    let fixture = browser.app;
-    // 既有直接账户增强保留显式email域；这里验证它真正消费因子后才签发凭据。
-    let db = fixture.app()?.state().resolve::<Db>().await?;
-    db.table("users")?
-        .where_eq("id", 41_i64)?
-        .update(vec![
-            ("email", "direct-41@example.test".into()),
-            ("email_verified_at", chrono::Utc::now().into()),
-        ])
-        .await?;
-    let direct = browser
-        .post(
-            "/api/example/account/login",
-            json!({"email":"direct-41@example.test","password":PASSWORD}),
-        )
-        .await?;
-    assert_eq!(direct.status, StatusCode::OK);
-    let direct = direct.json()?;
-    let challenge = direct["data"]["challenge"]
-        .as_str()
-        .ok_or(Error::Unauthorized)?;
-    assert_eq!(direct["data"]["status"], "two_factor_required");
-    assert!(direct["data"].get("credentials").is_none());
-    let completed = browser
-        .post(
-            "/api/example/account/login/two-factor",
-            json!({"challenge":challenge,"recovery_code":recovery_code}),
-        )
-        .await?;
-    assert_eq!(completed.status, StatusCode::OK);
-    let completed = completed.json()?;
-    let direct_token = completed["data"]["access_token"]
-        .as_str()
-        .ok_or(Error::Unauthorized)?;
-    assert_eq!(
-        bearer_status(fixture, "/api/example/me", direct_token).await?,
-        StatusCode::OK
-    );
-    assert_eq!(
-        browser
-            .post(
-                "/api/example/account/login/two-factor",
-                json!({"challenge":challenge,"recovery_code":recovery_code})
-            )
-            .await?
-            .status,
-        StatusCode::UNAUTHORIZED
-    );
-    #[cfg(feature = "realtime")]
-    crate::modules::example::managed_realtime::exercise(
-        fixture,
-        41,
-        direct_token,
-        completed["data"]["refresh_token"]
-            .as_str()
-            .ok_or(Error::Unauthorized)?,
-    )
-    .await?;
-    Ok(())
-}
-
-#[allow(
-    clippy::too_many_lines,
-    reason = "同一真实浏览器流程验证密码确认、绑定、退出、挑战和Session过期的连续状态"
-)]
 async fn exercise(fixture: &TestApp<RootApplication>) -> Result<()> {
     let app = fixture.app()?;
     for account in ["Member", "Member@example.test", "+8613800000000"] {
@@ -912,7 +690,6 @@ async fn exercise(fixture: &TestApp<RootApplication>) -> Result<()> {
             .status,
         StatusCode::OK
     );
-    exercise_managed_credentials(&mut browser, &codes[7]).await?;
     browser.logout().await?;
     assert!(!browser.has_recaller());
     let challenge = login(&mut browser, "local-only", true).await?;
@@ -1200,13 +977,7 @@ async fn assert_runtime_store(app: &openrust::Application) -> Result<()> {
 
 async fn run(database: TestDatabase, confirm: bool) -> Result<()> {
     let root = tempfile::tempdir().map_err(Error::internal)?;
-    crate::modules::example::write_discovery_fixture(root.path())?;
-    for directory in [
-        "modules/example/resources/views",
-        "modules/example/lang",
-        "resources/views",
-        "bootstrap/cache",
-    ] {
+    for directory in ["resources/views", "bootstrap/cache"] {
         std::fs::create_dir_all(root.path().join(directory)).map_err(Error::internal)?;
     }
     let sources = sources(root.path(), database.url())
@@ -1238,8 +1009,6 @@ async fn run(database: TestDatabase, confirm: bool) -> Result<()> {
             exercise(&fixture)
                 .await
                 .inspect_err(|error| note("exercise", error))?;
-            #[cfg(feature = "realtime")]
-            native_socket::exercise(&fixture).await?;
             Ok(())
         } else {
             exercise_without_confirmation(&fixture)
@@ -1261,7 +1030,7 @@ async fn run(database: TestDatabase, confirm: bool) -> Result<()> {
 #[tokio::test]
 async fn sqlite_root_provider_optional_accounts_fortify_and_real_web_csrf() -> Result<()> {
     run(
-        TestDatabase::sqlite_file::<FortifyMigrations>().await?,
+        TestDatabase::sqlite_file::<crate::database::Migrator>().await?,
         true,
     )
     .await
@@ -1271,7 +1040,7 @@ async fn sqlite_root_provider_optional_accounts_fortify_and_real_web_csrf() -> R
 #[tokio::test]
 async fn sqlite_confirm_false_keeps_setup_reads_without_publishing_resource_proof() -> Result<()> {
     run(
-        TestDatabase::sqlite_file::<FortifyMigrations>().await?,
+        TestDatabase::sqlite_file::<crate::database::Migrator>().await?,
         false,
     )
     .await
@@ -1282,7 +1051,7 @@ async fn sqlite_confirm_false_keeps_setup_reads_without_publishing_resource_proo
 #[ignore = "需要真实MySQL及OPENRUST_TEST_DATABASE_URL；复用根应用Provider/配置/迁移/Session全HTTP链"]
 async fn mysql_root_provider_optional_accounts_fortify_and_real_web_csrf() -> Result<()> {
     let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
-    let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
+    let database = TestDatabase::create::<crate::database::Migrator>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
         openrust::database::sea_orm::DbBackend::MySql
@@ -1295,7 +1064,7 @@ async fn mysql_root_provider_optional_accounts_fortify_and_real_web_csrf() -> Re
 #[ignore = "需要真实PostgreSQL及OPENRUST_TEST_DATABASE_URL；复用同根应用完整HTTP链"]
 async fn postgres_root_provider_optional_accounts_fortify_and_real_web_csrf() -> Result<()> {
     let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
-    let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
+    let database = TestDatabase::create::<crate::database::Migrator>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
         openrust::database::sea_orm::DbBackend::Postgres
@@ -1308,7 +1077,7 @@ async fn postgres_root_provider_optional_accounts_fortify_and_real_web_csrf() ->
 #[ignore = "需要真实数据库；验证原生Session下confirm=false的管理读取和资源证明边界"]
 async fn mysql_confirm_false_keeps_setup_reads_without_publishing_resource_proof() -> Result<()> {
     let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
-    let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
+    let database = TestDatabase::create::<crate::database::Migrator>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
         openrust::database::sea_orm::DbBackend::MySql
@@ -1322,7 +1091,7 @@ async fn mysql_confirm_false_keeps_setup_reads_without_publishing_resource_proof
 async fn postgres_confirm_false_keeps_setup_reads_without_publishing_resource_proof() -> Result<()>
 {
     let url = std::env::var("OPENRUST_TEST_DATABASE_URL").map_err(Error::internal)?;
-    let database = TestDatabase::create::<FortifyMigrations>(&url).await?;
+    let database = TestDatabase::create::<crate::database::Migrator>(&url).await?;
     assert_eq!(
         database.connection()?.get_database_backend(),
         openrust::database::sea_orm::DbBackend::Postgres

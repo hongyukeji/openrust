@@ -1,5 +1,7 @@
 # Eloquent：模型基础
 
+本页提到的综合示例路由和模块源码位于 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example)。
+
 当前模型前置提供元数据、原始属性、水合、读取转换、访问器及持久身份。原值/dirty/changes为同一属性存储的状态能力；完整 Eloquent 查询、save、关系、事件、mass assignment、全局作用域与工厂仍在实现；本章不把属性容器等同于完整 ORM。
 
 ## 定义模型

@@ -1,5 +1,7 @@
 # 项目上下文
 
+当前根应用由 `main.rs` 启动。`main` 保留空模块清单，综合示例及其专用测试在 `example` 分支。以下历史验收以各自输入和 Git 提交为准。
+
 共享 Calendar 数值日期入口已收齐[数值日期限定验收](memory/testing.md#数值日期格式化与解析限定验收)。唯一示例消费公开 API，外部 consumer 无默认 feature。
 
 HA-X01 已收齐[增强认证限定验收](memory/testing.md#增强认证单次叶选择限定验收)。增强认证每个秘密操作保持一次已选真实叶，生产数据库和唯一模块 HTTP 路径有实际证据。Manager 其余表面、Model 值载体和完整认证对应继续按唯一 todo。

@@ -1,6 +1,6 @@
 # 应用数据库结构
 
-本目录承载根应用的迁移与公开装配。`mod.rs` 将框架统一迁移清单与应用迁移登记一次；唯一示例专属结构、种子与测试 fixture 留在 `modules/example/database/`。
+本目录承载根应用的迁移与公开装配。`mod.rs` 将框架统一迁移清单与应用迁移登记一次；示例迁移与种子随 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example) 维护。
 
 当前 `auth-fortify` 应用升级将邮箱改为可空，并追加可空、各自唯一的用户名和手机号。它不要求每个账户拥有联系方式，也不替注册、邮件或短信业务验证地址。登录逐字匹配；数据库唯一索引的collation仍由当前后端/应用结构决定，不据此宣称各后端允许创建的标识集合完全相同。
 

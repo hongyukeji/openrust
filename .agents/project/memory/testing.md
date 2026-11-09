@@ -1900,6 +1900,14 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 合并提交 `40873985` 保留原迁移账本提交 `68786443`。验收分支的源码树与合并提交完全一致。原生 Ubuntu 24.04 x86_64 上，根应用与新生成的 MySQL 应用均通过源码 Artisan 打包和 ELF 架构校验。实际 MySQL 8.4.13 与 Redis 8.10.3 下，拒绝无确认的生产迁移后仍无表，强制迁移在 `migrations` 账本分别登记 15 和 6 条，重跑无新增。两个包的 `/up` 和 `/api` 均返回 200，SIGTERM 退出码为 0。 [合并后的 Ubuntu 复验](https://github.com/hongyukeji/openrust/actions/runs/42669215105)
 
+双任务通过后，已下载根应用和生成应用的验收产物至 `tmp/architect-migration-merge.RKHCX8Cu/ubuntu-root/` 和 `tmp/architect-migration-merge.RKHCX8Cu/ubuntu-generated/`。随后删除远端 `validation/artisan-ubuntu-e33705d47a`，当时远端只剩 `main`。之后按新布局要求建立独立的 `example` 分支。
+
+### 根入口迁移和示例分支拆分
+
+macOS ARM64 冻结源码通过格式检查、全特性编译、严格 Clippy、严格 Rustdoc 和离线依赖审计。工作区测试在隔离的 MySQL 8.4 临时内存数据目录上串行全量通过。此前磁盘卷运行曾触发既有测试库回收的一秒超时，独立回归连续四次通过，最终整套复验保留原断言。根应用的真实 MySQL Fortify Web 和无 Session JWT 用例各通过一项。新生成的 MySQL 应用保留 `src/main.rs`，实际 `cargo check` 和 `cargo test` 通过。
+
+隔离 MySQL 8.4 和 Redis 下，根应用源码 `./artisan list` 能发现构建命令。生产迁移拒绝确认后表数为 0，显式强制迁移登记 4 条。默认 `cargo run` 启动后，`/up` 和 `/api` 返回 200，原示例路由 `/api/example/articles` 返回 404，SIGTERM 退出码为 0。
+
 ## Artisan 与独立编译工具边界验收
 
 冻结树 `01121f559af03fde07c68353b5462713641ccf4a` 对照固定 Laravel 应用 `06d016a` 的 Artisan 入口、框架 `d52c3b3` 的 `ArtisanServiceProvider` 和部署文档 `960eedf`。根、fresh minimal 和 fresh MySQL 的实际源码命令均由应用处理。发布包包装脚本与二进制的命令列表一致，源码 `build` 与 `help build` 按普通未登记命令退出。CLI 进程回归验证应用自用的同名命令仍可透传，包发现和开发入口分别保留。

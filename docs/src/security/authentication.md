@@ -1,5 +1,7 @@
 # 认证
 
+本页提到的综合示例路由和模块源码位于 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example)。
+
 OpenRust 通过具名 Guard 判断当前请求身份，通过 `UserProvider` 检索账户及验证凭据。本文面向应用开发者，介绍当前公共 API、配置和 Session 登录边界；JWT、PAT、refresh、OIDC 及显式双因素增强另见[认证模块指南](../../../vendor/openrust/framework/src/auth/README.md)。
 
 ## Guard 与账户来源
@@ -117,7 +119,7 @@ async fn attempt_login(auth: &AuthManager, credentials: &Credentials) -> Result<
 
 `AuthFlows::login_session_with_guard` / `logout_session_with_guard` 为现有已验证邮箱应用提供带来源校验的Session适配，仍面向正整数账户域。`require_account_provider` 严格核同一Db与实际users表；其他Provider的相同数字ID不能借此登录或注销。需要双因素的账户应完成选中的Fortify流程，不以低层登录入口替代挑战。
 
-唯一示例的[账户安全服务](../../../modules/example/services/account_security.rs)使用同scope具名Guard，受保护Web路由加载Cookie/Session、标准CSRF和 `require_session_account`。启用Fortify时，`require_session_factor` 通过 `authorize_session_factor` 核当前账户状态和真实Guard证明，而非仅查询“已绑定”布尔值。显式 `login_session` / `logout_session` 与 `AuthMode::Session` 是各自现有适配，不是JWT API profile的前置或临时桥接。
+唯一示例的[账户安全服务](https://github.com/hongyukeji/openrust/blob/example/modules/example/services/account_security.rs)使用同scope具名Guard，受保护Web路由加载Cookie/Session、标准CSRF和 `require_session_account`。启用Fortify时，`require_session_factor` 通过 `authorize_session_factor` 核当前账户状态和真实Guard证明，而非仅查询“已绑定”布尔值。显式 `login_session` / `logout_session` 与 `AuthMode::Session` 是各自现有适配，不是JWT API profile的前置或临时桥接。
 
 ### 记住我与 Cookie 保护
 
@@ -163,9 +165,9 @@ Laravel 在 PHP 中提供实例和进程静态例外。Rust 在启动时按应�
 
 `SessionStoreHandle::authorized_until_guard(session, guard)` 读取实际 Guard 的 `id()` 与 `StatefulGuard::session_name()`，要求当前 Session 的对应键和实际持久记录都具有相同的原始类型账户 ID。它读取 Session 当前实际 handler，不续期，返回不晚于持久记录或 TTL 的授权截止。仅通过 `once` / `set_user` 建立、没有匹配持久登录键的身份不能取得此期限。
 
-该方法通过实际 handler 的 `load_authorized` 读取当前记录。原生 database 使用同次读取的真实 `last_activity` 与配置 lifetime 计算截止，不续期；客户端 Cookie 快照不能提供独立服务器端读取，仍拒绝。`database-guarded` 提供更强的删除后迟到保存保护；原生 database 沿 Laravel 的并发 INSERT 回退，不能防止迟到 writer 重建已删除记录。唯一示例的[浏览器实时连接](../../../modules/example/http/controllers/article_socket.rs)核对来源、资源所有权与具名 Session 身份后，用这个期限限制连接。它是持续撤销需求下的扩展，不改变 Laravel 原生 database 的默认语义。
+该方法通过实际 handler 的 `load_authorized` 读取当前记录。原生 database 使用同次读取的真实 `last_activity` 与配置 lifetime 计算截止，不续期；客户端 Cookie 快照不能提供独立服务器端读取，仍拒绝。`database-guarded` 提供更强的删除后迟到保存保护；原生 database 沿 Laravel 的并发 INSERT 回退，不能防止迟到 writer 重建已删除记录。唯一示例的[浏览器实时连接](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/article_socket.rs)核对来源、资源所有权与具名 Session 身份后，用这个期限限制连接。它是持续撤销需求下的扩展，不改变 Laravel 原生 database 的默认语义。
 
-启用 `auth-oidc` 后，`ExternalIdentityFlows::attach_session_with_guard(user_id, handle, session, guard)` 先校验 Provider 使用同一 `Db` 句柄与实际 `users` 表，再要求正整数外部关联账户与实际 Guard ID、对应 Session 登录键一致，随后关联当前 Session ID；没有对应键的仅请求身份不能关联。唯一示例的[OIDC 服务](../../../modules/example/services/oidc.rs)先重新验证应用密码，再调用此接口。外部句柄只用于关联与撤销，不能代替账户认证；远程注销使用创建该 Session 的同一服务器端存储；原生 database 执行实际 DELETE，但不具备 Guarded 的防复活保证。
+启用 `auth-oidc` 后，`ExternalIdentityFlows::attach_session_with_guard(user_id, handle, session, guard)` 先校验 Provider 使用同一 `Db` 句柄与实际 `users` 表，再要求正整数外部关联账户与实际 Guard ID、对应 Session 登录键一致，随后关联当前 Session ID；没有对应键的仅请求身份不能关联。唯一示例的[OIDC 服务](https://github.com/hongyukeji/openrust/blob/example/modules/example/services/oidc.rs)先重新验证应用密码，再调用此接口。外部句柄只用于关联与撤销，不能代替账户认证；远程注销使用创建该 Session 的同一服务器端存储；原生 database 执行实际 DELETE，但不具备 Guarded 的防复活保证。
 
 `authorized_until(session, user_id)` 和 `attach_session(user_id, handle, session)` 保留显式旧认证键的适配契约；具名身份使用上述带 Guard 的方法。OIDC 尚不支持 SQLite，具名 Guard 适配不会扩大该后端范围。
 
@@ -177,7 +179,7 @@ Guard 工厂收到 `GuardContext`，包含本请求 `resolver`、具名 `name` �
 
 Provider 工厂收到本请求 `Resolver` 和 `UserProviderConfig`。自定义来源须实现按 ID、按 token、按 credentials 检索、密码校验、token 更新及重哈希契约；查询凭据本身不得建立登录态。`create_user_provider(None)` 在默认 provider 为 null 或对应配置不存在时返回 None；已配置但 driver 未注册则报错。工厂只供请求解析，不能把 resolver、Session 或用户保存在共享注册表中。
 
-根应用的[Provider 注册](../../../app/providers/app.rs)及[账户适配](../../../app/models/user.rs)展示 `DatabaseUserProvider::with_user_factory` 的真实接线；生成模板使用同样公开机制。唯一综合业务模块的[账户安全处理器](../../../modules/example/http/controllers/account_security.rs)经同 scope `AuthManager` 和 `AuthFlows::login_session_with_guard` 展示真实 Session 登录与业务 DTO，整数账户的业务调用显式使用 `integer_id()`；这些流程不替代自定义 Guard/Provider 的适配。更多底层 API 见[认证模块指南](../../../vendor/openrust/framework/src/auth/README.md)。
+根应用的[Provider 注册](../../../app/providers/app.rs)及[账户适配](../../../app/models/user.rs)展示 `DatabaseUserProvider::with_user_factory` 的真实接线；生成模板使用同样公开机制。唯一综合业务模块的[账户安全处理器](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/account_security.rs)经同 scope `AuthManager` 和 `AuthFlows::login_session_with_guard` 展示真实 Session 登录与业务 DTO，整数账户的业务调用显式使用 `integer_id()`；这些流程不替代自定义 Guard/Provider 的适配。更多底层 API 见[认证模块指南](../../../vendor/openrust/framework/src/auth/README.md)。
 
 `UserProvider::uses_database_accounts(db, table) -> Result<bool>` 是既有数据库账户流程与具名 Guard 桥接的显式兼容能力，默认返回 false。`DatabaseUserProvider` 同时比较 `Db` 句柄身份和经表名映射解析的实际表；仅 URL、Provider 名称或账户 ID 相等不能证明兼容。包装 Provider 若确实委托同一账户来源，可实现此能力；不能为通过校验无条件返回 true。该方法是既有增强流程的安全适配，不是 Laravel 官方 `UserProvider` 原有的第七个方法；自定义 Guard/Provider 的独立认证不要求兼容旧 `users` 账户域。
 

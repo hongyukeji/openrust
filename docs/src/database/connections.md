@@ -1,5 +1,7 @@
 # 数据库连接
 
+本页提到的综合示例路由和模块源码位于 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example)。
+
 应用的可编辑默认值位于 `config/database.rs`，部署值位于 `.env`。标准 Provider 在同一 Container 中提供 `Db` 和 `Databases`；当前在启动时建立已配置连接，完整 Laravel 懒连接仍待实现。
 
 ## 兼容目标与运行验收

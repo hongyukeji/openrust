@@ -28,7 +28,7 @@ run_cli() {
     exit 127
 }
 
-if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
+if [ -f Cargo.toml ] && { [ -f main.rs ] || [ -f src/main.rs ]; }; then
     if ! command -v cargo >/dev/null 2>&1; then
         printf '%s\n' 'artisan: 源码应用需要 Cargo' >&2
         exit 127

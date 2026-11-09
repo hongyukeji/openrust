@@ -62,7 +62,7 @@ async fn store(
 }
 ```
 
-用 `accepts(&["application/json"])` 检查 MIME，用 `prefers(&["html", "json"])` 取得原候选格式，用 `format("html")` 取得默认格式名；`wants_json()` 与 `expects_json()` 分别检查首选 Accept 及 AJAX/PJAX 语义。协商保留固定 Laravel/Symfony 的质量排序、通配符、参数与 q=0 行为，不能将它当成授权或凭据验证。缺少或为空的 Accept 使 `accepts` 为真、`prefers` 为 None；应用明确选择默认表示。协商不会自动改写已有异常策略，返回不同表示的 handler 应设置 `Vary: Accept`。完整调用见 [唯一业务示例](../../../../../modules/example/README.md)。
+用 `accepts(&["application/json"])` 检查 MIME，用 `prefers(&["html", "json"])` 取得原候选格式，用 `format("html")` 取得默认格式名；`wants_json()` 与 `expects_json()` 分别检查首选 Accept 及 AJAX/PJAX 语义。协商保留固定 Laravel/Symfony 的质量排序、通配符、参数与 q=0 行为，不能将它当成授权或凭据验证。缺少或为空的 Accept 使 `accepts` 为真、`prefers` 为 None；应用明确选择默认表示。协商不会自动改写已有异常策略，返回不同表示的 handler 应设置 `Vary: Accept`。完整调用见 [唯一业务示例](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md)。
 
 检查快照限制 headers 总计 64 KiB/128 个值、Accept 16 KiB/128 项，超限拒绝且不截断。`Debug` 不输出头、凭据或 URI/query；显式读取后的日志脱敏仍由调用方负责。这些 helper 不等同于完整 Laravel Request：输入修改、Cookie、Session、用户解析、FormRequest、flash 与文件能力按各自公开接口使用或交付，不由检查快照隐式提供。
 
@@ -130,7 +130,7 @@ impl Validate for CreatePost {
 
 启用 Session 后，GET 真实路由下游返回才记录完整 URL 与可空路由名，不按响应状态过滤。处理器读取 `session.previous_url()` / `previous_route()` 时看到的是此前请求的值；下次同一会话请求才能看到本次记录。匿名路由写入显式 null，HEAD、ajax、prefetch 不更新 previous，但仍正常保存其他 Session 属性。
 
-已确认 Precognition 仍启动 Session、执行 GC 与处理响应 Cookie，只跳过自动 driver.save 和 previous 更新；这不禁止应用自行调用保存，也不承诺其他中间件无副作用。单纯发送头不会跳过保存。公开 previous helper 显式读取纯 JSON，保留 `Option<Value>` 的缺失/null 区分；原始 `Session::get` 返回 `DataValue`。setter 沿既有状态与预算检查；`has_previous_uri` 只检查非 null，不解析 URI 对象。业务参考[唯一模块 Session Controller](../../../../../modules/example/http/controllers/session.rs)。
+已确认 Precognition 仍启动 Session、执行 GC 与处理响应 Cookie，只跳过自动 driver.save 和 previous 更新；这不禁止应用自行调用保存，也不承诺其他中间件无副作用。单纯发送头不会跳过保存。公开 previous helper 显式读取纯 JSON，保留 `Option<Value>` 的缺失/null 区分；原始 `Session::get` 返回 `DataValue`。setter 沿既有状态与预算检查；`has_previous_uri` 只检查非 null，不解析 URI 对象。业务参考[唯一模块 Session Controller](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/session.rs)。
 
 ## Cookie 读取、队列与响应
 
@@ -140,7 +140,7 @@ impl Validate for CreatePost {
 
 `jar.factory().make(name, value, minutes, options)` 创建值对象；0 分钟为会话 Cookie，`forever` 为 400 天。`jar.queue(cookie)` 在本请求响应阶段发送，`jar.expire(name, options)` 排队删除标记；删除必须使用原有 path/domain。队列按 name/path 标识，修改相同位置不改变顺序；domain 不参与队列标识。不同请求的队列互不共享。
 
-`CookieResponseExt::with_cookie` / `with_cookies` 将 Cookie 对象附加到既有 `Json`、统一响应或其他响应；`without_cookie_named` 通过明确传入的工厂创建删除标记。业务仍使用现有响应与异常策略，不需要另一套正文协议。实际调用及路由见[唯一模块 Cookie Controller](../../../../../modules/example/http/controllers/cookie.rs)。
+`CookieResponseExt::with_cookie` / `with_cookies` 将 Cookie 对象附加到既有 `Json`、统一响应或其他响应；`without_cookie_named` 通过明确传入的工厂创建删除标记。业务仍使用现有响应与异常策略，不需要另一套正文协议。实际调用及路由见[唯一模块 Cookie Controller](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/cookie.rs)。
 
 `CookieServiceProvider::new()` 为 Router 提供保护计划。首个匹配的 Cookie 请求要求 `encryption` feature、已登记的应用加密契约和有效密钥。显式选择上下文保护时解析 `ContextualEncrypter`。条件不满足时拒绝请求，响应不附加 Cookie。显式替换 Provider 后，新建 Router 使用最新保护计划。已建 Router 继续使用构建时的计划。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
 
@@ -203,7 +203,7 @@ async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 }
 ```
 
-完整业务接线见唯一示例的 [Controller](../../../../../modules/example/http/controllers/example.rs) 与 [路由](../../../../../modules/example/routes/api.rs)；集合、枚举、条件分支及日期读取沿同一 `Request` 入口，不需要新建输入仓储。
+完整业务接线见唯一示例的 [Controller](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/example.rs) 与 [路由](https://github.com/hongyukeji/openrust/blob/example/modules/example/routes/api.rs)；集合、枚举、条件分支及日期读取沿同一 `Request` 入口，不需要新建输入仓储。
 
 ### 日期与时间间隔
 

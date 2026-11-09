@@ -101,4 +101,4 @@ assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localh
 
 业务代码可按固定白名单键读取，例如 `repository.get_or("app.name", serde_json::json!("应用"))?`；返回值是原始 JSON，调用方仍须判断类型。独立公开 API 调用与边界测试位于 [config-repository-reading consumer](../../../../../tests/consumers/config-repository-reading/README.md)。生成器建立空 `modules/`，开发者可在自己模块的 Provider 中取得 `BootContext::config_repository()` 并把其克隆放入业务服务；当前生成器不会复制唯一示例模块。
 
-当前接口与固定上游映射见 历史决策 086。唯一示例的固定业务入口见[模块路由](../../../../../modules/example/routes/api.rs)与[服务](../../../../../modules/example/services/config_reading.rs)；生成应用可显式安装上述 consumer 的 Provider。读取子簇的既有验收不代替本轮写入、应用接线及真实请求验证，也不代表完整 Laravel Config 已验收。
+当前接口与固定上游映射见 历史决策 086。唯一示例的固定业务入口见[模块路由](https://github.com/hongyukeji/openrust/blob/example/modules/example/routes/api.rs)与[服务](https://github.com/hongyukeji/openrust/blob/example/modules/example/services/config_reading.rs)；生成应用可显式安装上述 consumer 的 Provider。读取子簇的既有验收不代替本轮写入、应用接线及真实请求验证，也不代表完整 Laravel Config 已验收。

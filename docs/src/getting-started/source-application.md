@@ -4,7 +4,7 @@
 
 ## 当前实现与目标结构
 
-根 `app/` 支持正常应用开发（Controller、Model、Provider）；`modules/<模块名>/` 是可选且可并存的业务组织，唯一综合示例为 `modules/example/`。根目录继续保留 Laravel 的 `bootstrap/`、`config/`、`database/`、`public/`、`resources/`、`routes/`、`storage/` 和 `tests/`，并保留 Rust 的 `src/`、`tools/` 和 Cargo。框架与应用同仓、同 workspace、只在 main 开发。
+根 `app/` 支持正常应用开发（Controller、Model、Provider）；`modules/<模块名>/` 是可选且可并存的业务组织，综合示例可在 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example) 运行。根目录继续保留 Laravel 的 `bootstrap/`、`config/`、`database/`、`public/`、`resources/`、`routes/`、`storage/` 和 `tests/`，并提供 Rust 的 `main.rs`、`tools/` 和 Cargo。框架与应用同仓、同 workspace、只在 main 开发。
 
 业务示例代码现位于 `modules/example/`，通过模块清单和默认 registered 激活器接入统一 Provider 内核。模块管理命令、完整 CRUD 与全部能力示例仍在实施，当前闭环不代表 laravel-modules 全矩阵已完成。目标与边界见 [ADR-001](../../../.agents/project/decisions/adr-001-framework-principles.md)。
 
@@ -53,7 +53,7 @@ SERVER_PORT=4000 cargo run
 
 发布根应用时，在目标平台构建 `cargo build --release --locked --bin app`，按需启用应用 feature。将 `target/release/app` 安装为部署包内的 `openrust`，可执行的 `artisan` 放在包根。使用数据库时在部署目录先运行 `./openrust artisan migrate`，再用 `./openrust` 启动常驻进程。包装脚本调用包根的固定 `openrust` 路径，不从 PATH 查找同名开发 CLI。Cargo 内部 target 为 `app`，开发工具 CLI 名为 `openrust`，Compose 服务名为 `app`。
 
-当前综合示例 [`modules/example`](../../../modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；开发者可直接在根 `app/` 编写业务；需要模块组织时，在 `modules/<业务>/` 定义模块，经模块清单与统一 Provider 接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
+当前综合示例 [`modules/example`](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；开发者可直接在根 `app/` 编写业务；需要模块组织时，在 `modules/<业务>/` 定义模块，经模块清单与统一 Provider 接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
 
 标准应用默认启用 Redis 缓存，需可用的 Redis 配置与服务。R2-M 模块清单、资源与迁移已有真实服务验收。管理写命令、完整发布和 CRUD 仍按当前计划推进。
 
@@ -133,6 +133,8 @@ docker compose up --no-build -d --wait
 ```
 
 ### 从命名卷迁移
+
+命名卷迁移的文章与附件验收使用 `example` 分支，验收工作流会检出该分支。迁移操作本身沿用下列步骤。
 
 旧 Compose 使用 `storage`、`mysql`、`redis` 三个命名卷。切换前保留旧 Compose 文件、环境配置和镜像。先停外部流量和其他写入进程，正常停止应用，在 Redis 保存数据后正常停止 Redis 与 MySQL。确认旧容器使用的实际卷名及镜像版本。物理复制应沿用相同的 MySQL 与 Redis 镜像版本，跨版本迁移遵循相应数据库的升级流程。
 
@@ -236,11 +238,11 @@ Fortify 提供 Web 认证动作。登录页等浏览器视图由应用通过 For
 
 ## 编写业务与扩展
 
-真实参考链为 `src/main.rs` → `bootstrap::Server::modules` → `modules::manifest` → 同一模块仓储与 Provider → 模块路由和 handler。根应用与新生成应用默认使用 `registered`：在 `modules/mod.rs` 显式登记模块即启用，移除登记即不挂载，Rust `mod` 本身只负责编译。默认不依赖状态 JSON；需要持久启停时显式选择 `file` 或 `file-live`。业务接入不修改框架 `src/`，详见[模块注册指南](../../../docs/src/modules/registration.md)和[唯一综合示例](../../../modules/example/README.md#新建自己的业务模块)。
+根应用从 `main.rs` 进入 `bootstrap::Server`，由 `modules::manifest` 装配模块 → 同一模块仓储与 Provider → 模块路由和 handler。根应用与新生成应用默认使用 `registered`：在 `modules/mod.rs` 显式登记模块即启用，移除登记即不挂载，Rust `mod` 本身只负责编译。默认不依赖状态 JSON；需要持久启停时显式选择 `file` 或 `file-live`。业务接入不修改框架 `src/`，详见[模块注册指南](../../../docs/src/modules/registration.md)和[唯一综合示例](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md#新建自己的业务模块)。
 
-综合示例的硬交付包括完整实体 CRUD，以及当前所有已实现公开能力的实际使用和 Provider/driver 扩展参考；目标业务边界为 modules/，模块之外保留框架通用结构和代码；示例专有迁移/种子/资源/协议/生成脚本及测试 fixture 留模块内，根只提供通用结构和公开挂载，不因示例保留 build.rs 或 build 依赖。当前正在补齐，基础常量路由不是 CRUD，文档或其他 consumer 的代码不代表模块已覆盖；实际代码、接入条件与测试缺口见 [能力覆盖表](../../../modules/example/README.md#当前能力覆盖与缺口)。
+综合示例的硬交付包括完整实体 CRUD，以及当前所有已实现公开能力的实际使用和 Provider/driver 扩展参考；目标业务边界为 modules/，模块之外保留框架通用结构和代码；示例专有迁移/种子/资源/协议/生成脚本及测试 fixture 留模块内，根只提供通用结构和公开挂载，不因示例保留 build.rs 或 build 依赖。当前正在补齐，基础常量路由不是 CRUD，文档或其他 consumer 的代码不代表模块已覆盖；实际代码、接入条件与测试缺口见 [能力覆盖表](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md#当前能力覆盖与缺口)。
 
-业务可以使用或新增第三方包，声明位置是根应用清单；普通 Rust 业务模块没有独立 Cargo 依赖边界，普通业务模块与根应用共享依赖解析和 feature 选择。已有 `serde`/`serde_json` 的实际导入、workspace 继承、新包位置和锁图检查见 [业务依赖教程](../../../modules/example/README.md#使用业务自己的第三方依赖)。
+业务可以使用或新增第三方包，声明位置是根应用清单；普通 Rust 业务模块没有独立 Cargo 依赖边界，普通业务模块与根应用共享依赖解析和 feature 选择。已有 `serde`/`serde_json` 的实际导入、workspace 继承、新包位置和锁图检查见 [业务依赖教程](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md#使用业务自己的第三方依赖)。
 
 ## 消息与命名错误包
 
@@ -261,7 +263,7 @@ fn business_errors() -> openrust::Result<String> {
 
 `ViewErrorBag` 按名称保存实现 `MessageBagContract` 的包。`count`、`any` 和 `default_*` 代理只读取 `default` 包；读取缺失包返回临时空包，不隐式插入。业务自定义包通过公开契约接入，已存包的借用与修改保留原实例。
 
-纯错误包调用参考位于[唯一示例模块](../../../modules/example/README.md)的 `POST /api/example/message-bag`。Session 的命名错误包须由应用显式闪存和读取；视图自动共享与验证失败重定向仍属后继范围。
+纯错误包调用参考位于[唯一示例模块](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md)的 `POST /api/example/message-bag`。Session 的命名错误包须由应用显式闪存和读取；视图自动共享与验证失败重定向仍属后继范围。
 
 ## 请求绑定重定向与错误闪存
 
@@ -269,7 +271,7 @@ fn business_errors() -> openrust::Result<String> {
 
 需要闪存当前请求输入时，handler 接收公开 `openrust::http::Request`，以 `Redirector::from_request(&request)` 建立响应，再调用 `with_input`、`only_input` 或 `except_input`。这些方法读取同一请求的规范化输入；手动闪存**不会默认排除密码或令牌**，应用应按业务规则显式排除。文件输入未并入此输入仓储；不应把上传文件视为可闪存值。未安装 Session 时闪存返回错误，普通重定向本身仍可返回。
 
-在启用 Session 的应用中，`with_errors(RedirectErrors::Text/Entries/Provider, name)` 将命名错误包闪存到下一请求；下一请求可由 `RequestInfo::session()?.read_errors()?` 读取，`RequestInfo::old_all()?` 读取旧输入。内置 `MessageBag` 无需登记 codec；自定义 `MessageBagContract` 须在 Provider 装配阶段通过 `ErrorBagCodecs::register` 登记稳定标识、版本、编码和解码函数，可用 `RegisterContext::extend::<ErrorBagCodecs, _>` 扩展现有绑定。实现示例见[唯一模块的草稿路由](../../../modules/example/http/controllers/draft_redirect.rs)与[Provider 扩展](../../../modules/example/providers/example.rs)。本请求编码失败、错误格式不合法或 Session 容量超限会返回错误并保留此前状态；自定义 codec 在 Session 状态锁外运行。Rust 的类型化持久格式用于跨请求恢复自定义行为：固定 Laravel Store 的 PHP 序列化保留对象类型，JSON 序列化恢复为基础消息包，此处不承诺 PHP 字节兼容。
+在启用 Session 的应用中，`with_errors(RedirectErrors::Text/Entries/Provider, name)` 将命名错误包闪存到下一请求；下一请求可由 `RequestInfo::session()?.read_errors()?` 读取，`RequestInfo::old_all()?` 读取旧输入。内置 `MessageBag` 无需登记 codec；自定义 `MessageBagContract` 须在 Provider 装配阶段通过 `ErrorBagCodecs::register` 登记稳定标识、版本、编码和解码函数，可用 `RegisterContext::extend::<ErrorBagCodecs, _>` 扩展现有绑定。实现示例见[唯一模块的草稿路由](https://github.com/hongyukeji/openrust/blob/example/modules/example/http/controllers/draft_redirect.rs)与[Provider 扩展](https://github.com/hongyukeji/openrust/blob/example/modules/example/providers/example.rs)。本请求编码失败、错误格式不合法或 Session 容量超限会返回错误并保留此前状态；自定义 codec 在 Session 状态锁外运行。Rust 的类型化持久格式用于跨请求恢复自定义行为：固定 Laravel Store 的 PHP 序列化保留对象类型，JSON 序列化恢复为基础消息包，此处不承诺 PHP 字节兼容。
 
 本节公开调用链已通过默认/全特性集中门禁、无 Session 与 MySQL8.4 真实 HTTP，以及普通生成应用验证；MySQL 生成认证回归不替代 Session 验收，PostgreSQL 留发布矩阵。`ShareErrorsFromSession`、异常处理器的 `dontFlash` 与自动验证失败重定向仍待后继功能簇。
 
@@ -290,7 +292,7 @@ cargo run
 
 生成项目的默认二进制按 Cargo 包名构建。例如 `blog` 执行 `cargo build --release --locked` 后得到 `target/release/blog`。发布时将该二进制安装为 `blog`，并在包根安装可执行的 `artisan`。生成的 Artisan 固定调用同包的 `blog`；其他项目对应 `<项目名>`，不统一重命名为 `app`。
 
-未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](../../../vendor/openrust/framework/src/foundation/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `ApplicationDefinition` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](../../../modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
+未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](../../../vendor/openrust/framework/src/foundation/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `ApplicationDefinition` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](https://github.com/hongyukeji/openrust/blob/example/modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
 
 宿主 JSON API 前缀由 `config/api.rs` 的 `prefix`（部署变量 `API_PREFIX`）选择，配置默认值为 `api`，最终 URI 为 `/api`；挂载和异常范围读取同一配置。模块可以保留自己的 API 路径及响应策略；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](../../../vendor/openrust/framework/src/http/README.md)。
 
@@ -321,7 +323,7 @@ cargo run
 
 先配置所需服务并显式执行 `./artisan migrate`。随后 `cargo run` 消费默认连接的默认队列以及 `config/queue.rs` 的 `embedded_queues`，这些队列共享 `worker_concurrency`。没有默认数据库的应用只有选择 Redis 等可用连接时才启动 worker。使用数据库队列且已登记任务时同进程运行调度器。选用 Redis 队列时，应用会提示已登记的事务型定时任务需要数据库队列。停机时 Web 停止接收新请求，调度器停止扫描新时段，worker 停止领取新任务，并在配置期限内收尾。
 
-分开部署时用 `./artisan serve` 启动 Web，用 `./artisan queue work redis --queue example` 单独消费 Redis 的 `example` 队列。省略连接取 `queue.default`，省略 `--queue` 取该连接的 `queue`（默认 `default`）。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；数据库事务派发与任务组仍明确不支持。语义为至少一次，handler 必须幂等；Redis 持久性和故障切换取决于部署。详见 [`modules/example/`](../../../modules/example/README.md)。
+分开部署时用 `./artisan serve` 启动 Web，用 `./artisan queue work redis --queue example` 单独消费 Redis 的 `example` 队列。省略连接取 `queue.default`，省略 `--queue` 取该连接的 `queue`（默认 `default`）。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；数据库事务派发与任务组仍明确不支持。语义为至少一次，handler 必须幂等；Redis 持久性和故障切换取决于部署。详见 [`modules/example/`](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md)。
 外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](../../../tests/consumers/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
 
 统一 Provider 装配使用 `QueueServiceProvider` 与容器中的 `QueueContributions`：所有 register 完成后读取最终绑定，任务目录在克隆间共享，后续 boot 注册的任务对已经构造的 driver 可见。`QueueContributions::extend_validated` 将 creator 与最终配置校验器作为同一条目替换；仅 `extend` 时，自定义选项的合法性由实现者负责，框架不会推断第三方配置。最终校验检查管理器全局参数、默认连接名及其存在和已登记任务/调度引用；具名条目保留原始值，只有实际选择时才解码并执行对应 validator。内置 Redis URL/命名空间校验不建立网络连接。worker 停机先封闭整个 manager，所有已构造连接收到停止请求，尚未构造的名称不能在停止后首次初始化；显式重启使用新代缓存，旧代在途结果不能重新发布。
@@ -474,6 +476,6 @@ formatter 只处理有限 `f64`，不做 JSON 类型转换。六位小数采用 
 
 大整数也先经浮点阶段，`2^53+1` 可能与 `2^53` 得到同一值，`i64::MAX` 转成浮点后已超过可解析秒范围。JSON 数字不能承载 NaN/Infinity，直接 Rust formatter 遇到这类非有限值会在格式化入口拒绝；这与 PHP mixed 值先格式化、再在 `U.u` 解析失败的阶段不同。此接口不提供完整 PHP mixed、非法 UTF-8 字节字符串或任意对象值域，字符串还受20 MiB资源限制。
 
-唯一[示例模块](../../../modules/example/README.md#数值日期输入)通过现有 `POST /api/example/input` 展示两个可选 `typed.numeric_timestamp`、`typed.numeric_format` 字段。前者接受数字或数值字符串，后者作为业务约束只收 JSON number；未传时响应不增加这两个字段。HTTP 请求仍先经过正常输入中间件，首尾 NUL 裁剪、空串转 null 与直接 Core 调用要分层理解，不能靠关闭归一来模拟 parser。
+唯一[示例模块](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md#数值日期输入)通过现有 `POST /api/example/input` 展示两个可选 `typed.numeric_timestamp`、`typed.numeric_format` 字段。前者接受数字或数值字符串，后者作为业务约束只收 JSON number；未传时响应不增加这两个字段。HTTP 请求仍先经过正常输入中间件，首尾 NUL 裁剪、空串转 null 与直接 Core 调用要分层理解，不能靠关闭归一来模拟 parser。
 
 这两个纯函数不改变 `Request::date` 的默认日期处理，也不实现 Model 日期属性生命周期、JWT Parser 或 ResourceServer。公开外包用法见 [calendar-numeric consumer](../../../tests/consumers/calendar-numeric/README.md)。

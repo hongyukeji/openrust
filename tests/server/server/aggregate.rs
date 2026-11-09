@@ -43,11 +43,6 @@ use std::time::Duration;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-#[cfg(unix)]
-mod cloud_ingress;
-#[cfg(all(unix, feature = "queue-redis"))]
-mod embedded;
-
 #[test]
 fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
@@ -490,83 +485,6 @@ fn api_root_reports_server_name_and_version() -> TestResult {
 }
 
 #[test]
-fn example_business_route_is_mounted_through_the_root_application() -> TestResult {
-    openrust::tokio::runtime::Runtime::new()?.block_on(async {
-        let app = test_server().await?;
-        let router = build_router(&app)?;
-        let response = router
-            .clone()
-            .oneshot(
-                Request::get("/api/example")
-                    .header("host", "localhost")
-                    .body(Body::empty())?,
-            )
-            .await?;
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await?;
-        let json: serde_json::Value = serde_json::from_slice(&body)?;
-        assert_eq!(json["data"]["message"], "Hello from modules/example");
-
-        let response = router
-            .clone()
-            .oneshot(
-                Request::get("/api/example/route-url")
-                    .header("host", "localhost")
-                    .body(Body::empty())?,
-            )
-            .await?;
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await?;
-        let json: serde_json::Value = serde_json::from_slice(&body)?;
-        assert_eq!(json["data"]["url"], "http://localhost:3000/api/example");
-
-        let response = router
-            .clone()
-            .oneshot(
-                Request::get("/api/example/middleware")
-                    .header("host", "localhost")
-                    .body(Body::empty())?,
-            )
-            .await?;
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["x-example-middleware"], "named-group");
-        let response = router
-            .clone()
-            .oneshot(
-                Request::get("/api/example/middleware/without-marker")
-                    .header("host", "localhost")
-                    .body(Body::empty())?,
-            )
-            .await?;
-        assert_eq!(response.status(), StatusCode::OK);
-        assert!(response.headers().get("x-example-middleware").is_none());
-
-        let key = openrust::container::ServiceKey::named("middleware.disable");
-        for disabled in [true, false] {
-            app.state()
-                .container()
-                .instance_key(key.clone(), std::sync::Arc::new(disabled))
-                .await?;
-            let response = router
-                .clone()
-                .oneshot(
-                    Request::get("/api/example/middleware")
-                        .header("host", "localhost")
-                        .body(Body::empty())?,
-                )
-                .await?;
-            assert_eq!(response.status(), StatusCode::OK);
-            assert_eq!(
-                response.headers().contains_key("x-example-middleware"),
-                !disabled
-            );
-            assert!(response.headers().contains_key("x-request-id"));
-        }
-        Ok(())
-    })
-}
-
-#[test]
 fn database_configuration_enables_infrastructure_without_silent_fallback() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let loader = openrust::config::ConfigLoader::new(
@@ -581,10 +499,11 @@ fn database_configuration_enables_infrastructure_without_silent_fallback() -> Te
                 "security.encryption.keys.local",
                 "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
             ));
-        let configuration = figment.extract::<apps::Configuration>()?;
+        let sources = bootstrap::test_config_sources(&figment)?;
+        let configuration = sources.figment().extract::<apps::Configuration>()?;
         let builder = ProviderBuilder::for_application::<apps::Server>(&configuration);
         let error = builder
-            .start(crate::modules::example::test_sources(&(figment))?)
+            .start(sources)
             .await
             .err()
             .ok_or("声明错误数据库应导致启动失败")?;
@@ -662,7 +581,7 @@ async fn test_application<A: ApplicationDefinition>()
     }
     openrust::Application::from_provider_runtime(
         builder
-            .start(crate::modules::example::test_sources(&(loader.figment()?))?)
+            .start(bootstrap::test_config_sources(&loader.figment()?)?)
             .await?,
     )
 }
@@ -681,7 +600,7 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
         builder.provider(openrust::database::DatabaseServiceProvider);
         let app = openrust::Application::from_provider_runtime(
             builder
-                .start(crate::modules::example::test_sources(&(figment))?)
+                .start(bootstrap::test_config_sources(&figment)?)
                 .await?,
         )?;
         let database = app.state().resolve::<openrust::Db>().await?.connection()?;

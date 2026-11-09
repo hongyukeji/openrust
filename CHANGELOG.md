@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 根应用入口移至 `main.rs`。综合业务示例及其专用验收保存在 `example` 分支，`main` 默认模块清单为空。
+
 - 迁移账本默认改为 `migrations`，支持 `database.migrations.table`。非空旧账本需要先转换迁移名称和批次。
 
 - 标签视图可清理含任一标签的条目，Redis 分批删除已登记的缓存值。

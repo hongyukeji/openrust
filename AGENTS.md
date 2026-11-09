@@ -10,7 +10,7 @@
 
 新增、修改或审查公开名称前必须读 [命名规范](.agents/project/conventions.md#命名) 和 [公开名称验收规则](.agents/project/plans/laravel-namespace-alignment.md#公开名称验收规则)。以固定上游 SHA 的全名逐项对照 Laravel 核心、Laravel Modules 和已实现的官方包，同时覆盖根装配、唯一示例与生成模板。Rust 导入与可观察字符串分别取证。存量差异统一进入 AR-N01。
 
-1:1 以逐项功能与可观察语义、默认值、错误/安全边界、Container/Provider 生命周期、扩展契约和 CLI/生成/测试/部署流程为验收；Laravel 使用者可按官方章节完成对应操作，仅 Rust 语法、类型、所有权、async 等确有必要时适配。不是 PHP 运行环境或字节兼容。每项须具备上游源码/测试→Rust API/配置→等价行为测试→modules/example→文档→真实服务证据；名称近似、旧测试或目录相似不算完成。适用核心能力不得因难度、个人偏好或“Rust 惯用”被划为不适用。差异按[对应与分类规则](.agents/project/plans/laravel-rebuild.md#逐项对应与差异分类)公开记录，无法等价保留缺口，不虚报严格 1:1 已达成。
+1:1 以逐项功能与可观察语义、默认值、错误/安全边界、Container/Provider 生命周期、扩展契约和 CLI/生成/测试/部署流程为验收；Laravel 使用者可按官方章节完成对应操作，仅 Rust 语法、类型、所有权、async 等确有必要时适配。不是 PHP 运行环境或字节兼容。每项须具备上游源码/测试→Rust API/配置→等价行为测试→应用或生成项目→文档→真实服务证据；名称近似、旧测试或目录相似不算完成。适用核心能力不得因难度、个人偏好或“Rust 惯用”被划为不适用。差异按[对应与分类规则](.agents/project/plans/laravel-rebuild.md#逐项对应与差异分类)公开记录，无法等价保留缺口，不虚报严格 1:1 已达成。
 
 用户已明确授权固定范围内Laravel核心、laravel-modules及官方可选生态全量对应开发，分阶段完成，验收语义始终以官方为准。可选表示开发者按需启用，不表示Agent可省略实现；官方工具自身必要界面/前端配套属于阶段二官方可选包，不等同暂不开发的若依/芋道式业务后台。范围、阶段及Rust必要适配见[官方全量交付规则](.agents/project/plans/laravel-official-coverage.md#全量交付授权与两阶段)，唯一todo按依赖领取；不得仅凭Tokio、同名API或上游PHP实现判定已对应或不适用。
 
@@ -20,7 +20,7 @@
 
 每项 Spec、实现和审查由 Agent 主动对照固定官方源码、默认、生命周期、公开扩展与开发流程；Goravel 仅供跨语言参考，Rust 适配须有具体必要约束和等价证据。现有代码、旧决策或旧测试不能为偏离背书。发现不符主动整改并映射唯一 todo，不能只改名、套 Provider、换目录或自创机制后称 1:1 完成。报告分别标明已编码、对标差距、已验证、已提交，未闭合保留缺口；编码优先和后置运行验证不豁免事先 contract 对照及静态自审。
 
-当前目标布局以 [ADR-001](.agents/project/decisions/adr-001-framework-principles.md) 为准；业务代码已迁至 `modules/example/`，R2-M 的具体验收以当前 todo、源码和 Git 为准，不能将目录相似当作完整能力验收：Laravel 应用职责直接位于根；根应用与框架使用独立 Cargo package：框架目标为 `vendor/openrust/framework/src/lib.rs`，包根保留 `Cargo.toml`、`README.md` 与测试；根 `src/main.rs` 是应用二进制 `app` 的薄入口，default-members=["."]、default-run="app"，保留 `openrust::` 导入及直接 `cargo run`。独立框架包迁移已由 `44632383` 限定验收，职责命名空间与应用入口已由 `b3f6117b` 限定验收并提交；完整 Laravel 对应仍按唯一 todo 逐项推进。此前同 package 与平铺 lib.rs 方案已被替代。第一方可选扩展位于 `vendor/openrust/<扩展>/`，依赖方向为应用→扩展→框架及应用→框架，不允许反向依赖或两套框架。根 `app/` 支持 Laravel 正常应用开发职责（Controller、Model、Provider 等）；`modules/<模块名>/` 是可选且可并存的业务组织，两者复用唯一 Container / Provider / routes 机制。示例专有迁移、种子、模板、协议、生成脚本与测试 fixture 全留模块内；框架核心不放示例 build.rs / build 依赖或业务特判。唯一 modules/example 是供开发者参考的普通业务模块；根 app 按 Laravel 职责承载应用代码，bootstrap 承担应用启动装配，app/mod.rs 只作必要 Rust 模块导出；模块经统一 Provider / 模块清单与公开接口接入，只用公开框架 API；不包含完整子应用骨架，不新增 example feature，不保留 demo/example 双应用或根 examples 目录。新布局迁移与验收以当前 todo、源码和 Git 为准。
+当前布局以 [ADR-001](.agents/project/decisions/adr-001-framework-principles.md) 为准。根应用入口为 `main.rs`，Cargo 默认二进制为 `app`，保持直接 `cargo run`。生成项目继续使用 Cargo 的 `src/main.rs` 布局。独立框架包入口为 `vendor/openrust/framework/src/lib.rs`，公开导入为 `openrust::`；第一方扩展置于 `vendor/openrust/<扩展>/`，应用经公开框架接口使用扩展。根 `app/` 承载应用职责，`bootstrap/` 装配配置、路由和 Provider，`modules/mod.rs` 默认清单为空并提供模块接线入口。综合业务示例和对应夹具仅在 `example` 分支的 `modules/example/` 维护。main 使用真实根应用、生成项目、独立 consumer 和框架测试验收；需要综合业务场景时在 `example` 分支同步验证。
 
 默认应用配置目标为可编辑的 `config/*.rs`，`.env` 提供部署值；已编译配置函数在 dotenv 加载后向同一 ConfigRepository / Provider 生命周期求值，模块同机制。Rust 源码需显式 mod / manifest 编译，不运行期扫描执行或热编译。旧默认 TOML 是临时实现，整改后仅作显式可选 source；缓存遇不可序列化类型 / 工厂必须明确拒绝，不静默丢弃。管理员 DBSettings 仍是独立领域。
 
@@ -163,7 +163,7 @@ Laravel 对应能力须按[纠偏规则](.agents/project/plans/laravel-rebuild.m
 总控可按依赖图批准多个契约明确、前置满足且相互独立的功能簇并行 in_progress；每项记录负责人、分支/worktree、基线与集成状态。main 集成与最终门禁串行。功能簇完成必须满足：
 
 - [ ] §6.3 匹配范围的验证实际执行并通过
-- [ ] 公共行为变化有测试；新增或变化能力在唯一 modules/example 综合业务模块同步真实调用/公开扩展、根装配/配置及行为验证，不以文档链接或独立 consumer 替代示例覆盖
+- [ ] 公共行为变化有测试；新增或变化能力验证根装配、生成项目或真实公开 API 消费；涉及综合业务模块时同时在 `example` 分支验证
 - [ ] 新能力已接入当前获准架构的可运行应用，并有公开 API、生成项目及集成测试；迁移前根 `server` 的验收责任在新结构中保留
 - [ ] 受影响 `docs/`、crate `README.md` 已更新
 - [ ] 受影响 `.agents/project/`（`context.md` / `todo.md` / `plan.md` / `core/<crate>.md` / 必要时 ADR）已更新

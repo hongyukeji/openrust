@@ -2,7 +2,7 @@
 
 Laravel Modules 是默认集成的第三方扩展，用于把同一应用内的一组业务代码、路由、配置和资源组织在 `modules/<名称>/`。模块使用与根应用相同的 Container、Provider 和路由机制。模块机制位于独立 `openrust-modules` 包，应用依赖该扩展和框架；框架不反向依赖它。
 
-默认应用与新生成应用以 `modules/mod.rs` 为集中编译和注册入口，应用在 `ApplicationDefinition::configure_providers` 中通过 `ModuleProviderBuilderExt::module_manifest` 安装它返回的清单。将新模块声明为 Rust 模块，再通过公开 `ModuleDescriptor` 和 `ModuleManifest` 登记 Provider 及其他贡献。可以从唯一 `modules/example/` 学习实际接线，无需复制完整应用骨架。
+默认应用与新生成应用以 `modules/mod.rs` 为集中编译和注册入口，应用在 `ApplicationDefinition::configure_providers` 中通过 `ModuleProviderBuilderExt::module_manifest` 安装它返回的清单。将新模块声明为 Rust 模块，再通过公开 `ModuleDescriptor` 和 `ModuleManifest` 登记 Provider 及其他贡献。可参考 [`example` 分支的模块接线](https://github.com/hongyukeji/openrust/tree/example/modules/example)，无需复制完整应用骨架。
 
 安装模块扩展后，`ServiceKey::named("modules")` 指向同一容器中的 `ModuleRepository`。模块 Provider 和已编译文件初始化均可通过 `resolve_key::<ModuleRepository>` 取得仓储。具名与类型化入口共享实例和重绑定行为。 [固定 nWidart 仓储注册](https://github.com/nWidart/laravel-modules/blob/59714840708a2aece19e810764473f53227c35fe/src/LaravelModulesServiceProvider.php#L70-L103)
 
@@ -12,7 +12,7 @@ Laravel Modules 是默认集成的第三方扩展，用于把同一应用内的�
 
 Rust 模块显式编译是语言约束；默认 `registered` 是本项目获准的应用约定。独立扩展 `openrust_modules::ModulesConfig::default()` 仍保留上游 `file` 默认，不因本应用约定改写。当前入口不代表动态加载或完整 laravel-modules 命令族已实现。
 
-根应用清单的核心接线如下，模块 Provider 仍通过统一管线注册；删去 `module` 和 `enable` 两项即不装载该模块，单独的 Rust `mod` 不启用它。
+`main` 的默认清单为空。以下接线来自 `example` 分支，模块 Provider 仍通过统一管线注册；删去 `module` 和 `enable` 两项即不装载该模块，单独的 Rust `mod` 不启用它。
 
 ```rust,ignore
 openrust_modules::ModuleManifest::new()

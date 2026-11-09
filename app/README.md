@@ -1,8 +1,8 @@
 # 应用代码
 
-`app/` 可承载 Laravel 式应用控制器、模型和 Provider；`modules/<名称>/` 是可选并存的业务组织。唯一综合示例位于 [`modules/example/`](../modules/example/README.md)，无需把普通应用业务放入模块。两处代码共用框架的 Container、ServiceProvider 生命周期和路由机制。
+`app/` 可承载 Laravel 式应用控制器、模型和 Provider；`modules/<名称>/` 是可选并存的业务组织。综合示例位于 [`example` 分支](https://github.com/hongyukeji/openrust/tree/example/modules/example)，无需把普通应用业务放入模块。两处代码共用框架的 Container、ServiceProvider 生命周期和路由机制。
 
-根 `src/main.rs` 是薄 server 入口。框架启动链从同次配置仓储装载默认 Provider，随后接入显式编译的包 Provider、`bootstrap/providers.rs` 的应用 Provider 与模块；`bootstrap/app.rs` 保持启动和模块装配。`app/mod.rs` 只声明 Rust 编译模块。应用控制器在 `app/http/controllers/` 编译声明后由 `routes/web.rs` 或 `routes/api.rs` 注册；模型在 `app/models/`；Provider 类型在 `app/providers/`，使用公开的 `ServiceProvider::register` 与 `boot`。这些 `mod.rs` 是 Rust 编译所需适配，不是另一套运行时。
+根 `main.rs` 是薄 server 入口。框架启动链从同次配置仓储装载默认 Provider，随后接入显式编译的包 Provider、`bootstrap/providers.rs` 的应用 Provider 与模块；`bootstrap/app.rs` 保持启动和模块装配。`app/mod.rs` 只声明 Rust 编译模块。应用控制器在 `app/http/controllers/` 编译声明后由 `routes/web.rs` 或 `routes/api.rs` 注册；模型在 `app/models/`；Provider 类型在 `app/providers/`，使用公开的 `ServiceProvider::register` 与 `boot`。这些 `mod.rs` 是 Rust 编译所需适配，不是另一套运行时。
 
 生成应用可用 `openrust make:controller PostController`、`openrust make:model Post`（需数据库选项）和 `openrust make:provider CatalogServiceProvider`。控制器由开发者选择具体处理函数并在路由注册；Provider 生成后写入 `bootstrap/providers.rs`。生成器拒绝覆盖同名文件。`openrust generate model` 仍保留原字段驱动实体生成路径；`make:model` 创建应用根 `app/models/` 中的模型，可省略字段。
 

@@ -46,7 +46,7 @@
 
 ### 普通业务模块布局
 
-本仓唯一综合示例为 modules/example；根 app 可正常开发应用业务，也可按需使用 modules/<业务>，遵循 [ADR-001](decisions/adr-001-framework-principles.md)。以下是有实现才采用的职责约定，不是要求预建整棵空目录：
+综合示例在 `example` 分支的 `modules/example`；`main` 的默认模块清单为空。根 app 可正常开发应用业务，也可按需使用 modules/<业务>，遵循 [ADR-001](decisions/adr-001-framework-principles.md)。以下是有实现才采用的职责约定，不是要求预建整棵空目录：
 
 | 位置 | 职责 |
 | --- | --- |
@@ -63,9 +63,9 @@
 | tests/ | 模块专有测试与 fixture |
 | proto/、generated/ | 仅实际 gRPC 示例需要的协议与已生成代码 |
 
-模块只保留实际业务与专属资源，不复制 app/bootstrap/main/Cargo 完整骨架。除 modules/example 外均为框架通用结构和代码；应用 Provider/模块清单及 Rust 编译声明是公开接入入口，根其余职责只提供通用加载/公开挂载，不加入样例逻辑、专有 build.rs 或 build 依赖。框架核心不反向依赖业务。
+模块只保留实际业务与专属资源，不复制 app/bootstrap/main/Cargo 完整骨架。`main` 保留通用应用骨架与框架；应用 Provider/模块清单及 Rust 编译声明是公开接入入口，根其余职责只提供通用加载/公开挂载，不加入样例逻辑、专有 build.rs 或 build 依赖。框架核心不反向依赖业务。
 
-新能力在同功能簇同步 modules/example 实际调用/扩展与测试；文档或独立 consumer 不能替代综合模块覆盖。当前 Plugin 不是 Laravel ServiceProvider 等价声明，R2 收敛 register/boot 时统一迁移，不能形成双内核；provider 不替代 Cargo 依赖解析。
+新能力随主线同步根应用、生成应用或公开 API consumer 的实际调用与测试；涉及综合业务时在 `example` 分支验证。当前 Plugin 不是 Laravel ServiceProvider 等价声明，R2 收敛 register/boot 时统一迁移，不能形成双内核；provider 不替代 Cargo 依赖解析。
 
 ### 起名前三问
 
@@ -154,13 +154,13 @@ cargo deny check
 ### 测试源码与生产源码分离
 
 - 第一方框架、扩展、工具、应用、业务模块和生成模板都必须把测试用例、测试专用夹具、测试脚本和测试专用辅助实现放在各自的 `tests/` 目录。禁止在正式源码文件内编写测试函数或内联测试模块，也禁止在 `src/`、`app/`、`bootstrap/`、`routes/`、`config/` 等正式目录存放独立测试文件。
-- 框架及扩展、工具使用所属 Cargo package 的 `tests/`，根应用使用根 `tests/`，示例模块使用 `modules/example/tests/`，生成项目用例使用 `tools/cli/templates/tests/`。需要访问私有实现的单元测试放在所属 `tests/unit/` 的对应领域目录，正式文件只保留 `#[cfg(test)]` 和必要 feature 条件下的 `#[path]`、`mod` 挂载。测试正文留在测试目录，无需为迁移放宽生产 API 的可见性。
+- 框架及扩展、工具使用所属 Cargo package 的 `tests/`，根应用使用根 `tests/`，综合示例使用 `example` 分支的 `modules/example/tests/`，生成项目用例使用 `tools/cli/templates/tests/`。需要访问私有实现的单元测试放在所属 `tests/unit/` 的对应领域目录，正式文件只保留 `#[cfg(test)]` 和必要 feature 条件下的 `#[path]`、`mod` 挂载。测试正文留在测试目录，无需为迁移放宽生产 API 的可见性。
 - `TestApp`、公开测试 API 和显式 `test-util` 提供的 fake 仍按各自公共契约组织，其自身的测试用例和专用夹具归测试目录。Rustdoc 的用法示例属于接口文档。
 - 新增和修改的测试须遵守本节。提交前检查涉及的正式文件与测试路径，按范围核对测试实际被 Cargo 收集和执行。历史混放纳入唯一 todo，按领域和现行验收边界迁移，保留原断言、feature 和进程隔离。第三方 vendor 保留原有布局。
 
 ### 测试分层与入口整合
 
-- 基础语义矩阵集中在快速unit/contract层；`modules/example`验证公开API、Provider/路由与持久化接线；生成项目验证模板实际编译运行；真实TCP/DB保护协议与后端独有风险。不得在每层、每后端和生成变体机械复制全部边界；Laravel行为严格对应，不要求测试文件或用例数量对应。
+- 基础语义矩阵集中在快速unit/contract层；根应用与独立 consumer 验证公开 API 和 Provider、路由与持久化接线；生成项目验证模板实际编译运行；真实TCP/DB保护协议与后端独有风险。不得在每层、每后端和生成变体机械复制全部边界；Laravel行为严格对应，不要求测试文件或用例数量对应。
 - 合并前核对实际Cargo入口、独有缺陷保护和失败原因。纯行为测试可按领域聚合入口并保留子模块文件；进程环境变量、独立feature、真实服务和特殊harness需要的隔离必须保留，不用整套串行执行掩盖竞争。同步Cargo、`#[path]`、feature、模板/快照及消费者，受控删除走`git rm`。
 - 先做小范围试点，记录删并理由与保留隔离点，并证明关键负例/回归仍实际执行。比较相同工具链、feature与缓存条件下的文件/用例/target数及编译、链接、执行耗时；数目减少不等于覆盖不变或加速已证实。在途冻结验收不因精简重排，按唯一todo在安全交接点领取。
 

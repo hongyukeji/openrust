@@ -154,7 +154,7 @@ match (result, cleanup) {
 
 `openrust::testing::TestApp<A>` 使用与生产相同的 `ApplicationDefinition::providers`、`ProviderBuilder` 和 Router。测试显式传入 `Figment`，不修改全局环境或工作目录。`remove_provider(ProviderId)` 在注册前调整清单；`configure_after_register` 在所有 Provider 注册后、boot 前通过同一 `Container` 异步覆盖绑定，因此后续 `boot` 能读取替代服务。测试可通过 `request` 发起进程内请求，默认总期限五秒、响应体上限 1 MiB；`request_with_limits` 可调整这两个预算，`raw_response` 保留流式正文并由调用方消费或丢弃。
 
-`TestResponse` 提供状态、响应头、字节和 JSON 读取以及链式断言；断言失败不会回显正文或头值。状态断言遵循应用配置的 `[api] http_status`，默认为 Laravel 式语义状态；仅显式配置 `always_ok` 时才将框架 JSON 错误映射为 HTTP 200。`shutdown(deadline).await` 等待本应用拥有的资源回收；`reset(deadline).await` 先关闭整个旧应用，再用相同蓝图重建，不把根 scoped 缓存清空冒充完整重置。这里的 deadline 只约束旧应用关闭，新应用的启动与路由构建不受同一期限约束。丢弃 `TestApp` 会立即封闭新解析；存活的 `Tokio` runtime 才能继续异步兜底回收。独立 `TestApp` 持有各自容器，捕获的外部共享 `Arc` fixture 由调用方负责重置。实际业务替换与 Provider 移除示例见 [`modules/example`](../../../../../modules/example/README.md)，CLI 生成项目也包含普通 HTTP 与认证测试。进程内请求不替代真实 TCP 验收。
+`TestResponse` 提供状态、响应头、字节和 JSON 读取以及链式断言；断言失败不会回显正文或头值。状态断言遵循应用配置的 `[api] http_status`，默认为 Laravel 式语义状态；仅显式配置 `always_ok` 时才将框架 JSON 错误映射为 HTTP 200。`shutdown(deadline).await` 等待本应用拥有的资源回收；`reset(deadline).await` 先关闭整个旧应用，再用相同蓝图重建，不把根 scoped 缓存清空冒充完整重置。这里的 deadline 只约束旧应用关闭，新应用的启动与路由构建不受同一期限约束。丢弃 `TestApp` 会立即封闭新解析；存活的 `Tokio` runtime 才能继续异步兜底回收。独立 `TestApp` 持有各自容器，捕获的外部共享 `Arc` fixture 由调用方负责重置。实际业务替换与 Provider 移除示例见 [`modules/example`](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md)，CLI 生成项目也包含普通 HTTP 与认证测试。进程内请求不替代真实 TCP 验收。
 
 需要从空数据库测试迁移命令时，使用 `TestApp::<A>::builder(sources).run_command("migrate", args).await`：该入口以相同命令名引导并执行一次命令，然后限时回收应用；成功后再用普通 `build()` 验证迁移后的启动与请求。命令失败仍回收资源，命令和回收同时失败时保留命令错误并记录回收错误码；取消执行 future 时沿夹具 Drop 做异步兜底回收。它不返回带命令上下文的应用。
 
@@ -162,7 +162,7 @@ match (result, cleanup) {
 
 - [`ApplicationDefinition`]：项目实现一次该 trait，用于描述应用的组装方式。
 - [`ProviderBuilder`] / [`ServiceProvider`](crate::support::ServiceProvider) / [`Application`] / [`ApplicationState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`Application::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `Application::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
-- `openrust_modules::ModuleManifest` 声明已编译模块及激活器；启用模块的 Provider 进入同一 register/boot 管线，全量 metadata（含未加载模块）与激活器由同一 Container 的 `ModuleRepository` 共享。`ModuleDescriptor::requires` 保留启用依赖校验与拓扑排序；普通启停不级联修改依赖状态，也不删除迁移历史。资源根、独立状态路径与文件边界见 [模块激活配置](../../../modules/README.md#模块激活与运行根)，业务接线见 [`modules/example`](../../../../../modules/example/README.md)。
+- `openrust_modules::ModuleManifest` 声明已编译模块及激活器；启用模块的 Provider 进入同一 register/boot 管线，全量 metadata（含未加载模块）与激活器由同一 Container 的 `ModuleRepository` 共享。`ModuleDescriptor::requires` 保留启用依赖校验与拓扑排序；普通启停不级联修改依赖状态，也不删除迁移历史。资源根、独立状态路径与文件边界见 [模块激活配置](../../../modules/README.md#模块激活与运行根)，业务接线见 [`modules/example`](https://github.com/hongyukeji/openrust/blob/example/modules/example/README.md)。
 - [`Command`](crate::console::Command)：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - `Command::render_help()` 可从命令自身的参数定义生成完整帮助，供 `help <命令>` 与 `<命令> --help` 共用。默认仍从命令说明和用法生成。
 - `openrust::console::ConsoleInvocation` 解析控制台全局参数及命令名。`Application::dotenv_path()` 返回本次引导采用的环境文件路径，文件可尚未创建。配置缓存直接命中时返回应用根的 `.env` 路径。直接从 Provider 运行时构造的应用无此路径。

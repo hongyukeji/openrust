@@ -35,7 +35,7 @@ pub fn config(ctx: &ConfigContext) -> Result<QueueConfig, ConfigError> {
         lease_secs: 60,
         job_timeout_secs: 300,
         worker_concurrency: 1,
-        embedded_queues: vec!["example".into(), "notifications".into()],
+        embedded_queues: vec!["default".into()],
         shutdown_timeout_secs: 10,
     })
 }

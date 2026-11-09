@@ -12,9 +12,6 @@ use openrust::http::axum::{
 use openrust::session::{SessionServiceProvider, SessionStoreHandle};
 use openrust::testing::{TestApp, TestAppBuilder, TestDatabase};
 use openrust::{Db, Error, Result};
-#[cfg(feature = "db-sqlite")]
-use openrust_modules::ModuleProviderBuilderExt as _;
-use openrust_modules::ModuleTestAppBuilderExt as _;
 use serde_json::{Value, json};
 use std::{net::SocketAddr, path::Path, time::Duration};
 
@@ -30,14 +27,7 @@ fn invalid() -> Error {
 }
 
 fn sources(root: &Path, url: &str, api: bool, issuer: &str) -> Result<ConfigSources> {
-    crate::modules::example::write_discovery_fixture(root)?;
-    for dir in [
-        "config",
-        "modules/example/resources/views",
-        "modules/example/lang",
-        "resources/views",
-        "bootstrap/cache",
-    ] {
+    for dir in ["config", "resources/views", "bootstrap/cache"] {
         std::fs::create_dir_all(root.join(dir)).map_err(Error::internal)?;
     }
     std::fs::write(
@@ -61,7 +51,6 @@ fn sources(root: &Path, url: &str, api: bool, issuer: &str) -> Result<ConfigSour
     });
     source.merge_ordered_entries([
         ("application_root", json!(root)),
-        ("modules", json!({"activator":"registered","activators":{"file":{"statuses-file":root.join("module-statuses.json")}}})),
         ("app", app),
         ("database", json!({"url":url,"max_connections":4,"min_connections":0})),
         ("session", json!({"driver":"database","secure":false,"lottery":[0,100]})),
@@ -73,11 +62,8 @@ fn sources(root: &Path, url: &str, api: bool, issuer: &str) -> Result<ConfigSour
     ]).map_err(Error::from)
 }
 
-fn builder(source: ConfigSources, example: bool, stateless: bool) -> TestAppBuilder<Server> {
+fn builder(source: ConfigSources, stateless: bool) -> TestAppBuilder<Server> {
     let mut builder = TestApp::<Server>::builder(source);
-    if !example {
-        builder.remove_module("example");
-    }
     if stateless {
         builder
             .remove_provider(ProviderId::of::<openrust::http::CookieServiceProvider>())
@@ -679,7 +665,7 @@ async fn lifecycle(database: &TestDatabase) -> Result<()> {
         true,
         "https://other-issuer.test",
     )?;
-    let mut selected = builder(source, false, true);
+    let mut selected = builder(source, true);
     let gate = std::sync::Arc::new(AuditGate::default());
     let observed = gate.clone();
     selected.configure_after_register(move |bindings| {
@@ -697,7 +683,7 @@ async fn lifecycle(database: &TestDatabase) -> Result<()> {
     });
     let mut primary = selected.build().await?;
     let result: Result<()> = async {
-        let mut other = builder(other_source, false, true).build().await?;
+        let mut other = builder(other_source, true).build().await?;
         let result = exercise(&primary, &other, &gate).await;
         let stopped = stop(&mut other).await;
         result.and(stopped)
@@ -768,7 +754,7 @@ async fn default_root_uses_web_and_rejects_unknown_profiles() -> Result<()> {
         let bad = source
             .clone()
             .merge_ordered_entries([("auth-profile", json!("unknown"))])?;
-        let error = builder(bad, false, false)
+        let error = builder(bad, false)
             .build()
             .await
             .err()
@@ -779,16 +765,14 @@ async fn default_root_uses_web_and_rejects_unknown_profiles() -> Result<()> {
             .extract::<crate::bootstrap::Configuration>()
             .map_err(Error::internal)?;
         let mut changed = openrust::foundation::ProviderBuilder::for_application::<Server>(&config);
-        changed
-            .remove_module("example")
-            .provider(ChangeRegisteredProfile);
+        changed.provider(ChangeRegisteredProfile);
         let error = changed
             .start(source.clone())
             .await
             .err()
             .ok_or_else(invalid)?;
         assert_eq!(error.code(), "application_auth_profile_changed");
-        let mut app = builder(source, false, false).build().await?;
+        let mut app = builder(source, false).build().await?;
         let result: Result<()> = async {
             assert_eq!(app.app()?.section::<String>("auth-profile")?, "web");
             assert!(!app.app()?.state().container().contains::<FortifyJwtApi>());
@@ -812,99 +796,6 @@ async fn default_root_uses_web_and_rejects_unknown_profiles() -> Result<()> {
             )
             .await?
             .assert_status(StatusCode::from_u16(419).map_err(Error::internal)?)?;
-            Ok(())
-        }
-        .await;
-        result.and(stop(&mut app).await)
-    }
-    .await;
-    result.and(db.close().await)
-}
-
-#[cfg(feature = "db-sqlite")]
-#[tokio::test]
-async fn example_account_resource_requires_the_selected_api_guard() -> Result<()> {
-    exercise_example_account_resource(
-        TestDatabase::sqlite_file::<crate::database::Migrator>().await?,
-    )
-    .await
-}
-
-#[cfg(feature = "db-mysql")]
-#[tokio::test]
-async fn mysql_example_account_resource_uses_the_default_account_binding() -> Result<()> {
-    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("缺少 OPENRUST_TEST_DATABASE_URL，跳过 MySQL 账户资源测试");
-        return Ok(());
-    };
-    let db = TestDatabase::create::<crate::database::Migrator>(&url).await?;
-    assert_eq!(
-        db.connection()?.get_database_backend(),
-        openrust::database::sea_orm::DbBackend::MySql
-    );
-    exercise_example_account_resource(db).await
-}
-
-#[cfg(any(feature = "db-sqlite", feature = "db-mysql"))]
-async fn exercise_example_account_resource(db: TestDatabase) -> Result<()> {
-    let result: Result<()> = async {
-        let root = tempfile::tempdir().map_err(Error::internal)?;
-        let source = sources(root.path(), db.url(), true, "https://issuer.test")?;
-        let mut app = builder(source, true, true).build().await?;
-        let result: Result<()> = async {
-            register(&app).await?;
-            let client = Client::new(&app);
-            let pair = client.login().await?;
-            let id = pair["user_id"].as_i64().ok_or_else(invalid)?;
-            let path = "/api/example/account/me";
-            client
-                .request(
-                    Method::GET,
-                    path,
-                    Authorization::None,
-                    None,
-                    StatusCode::UNAUTHORIZED,
-                )
-                .await?;
-            let result = client
-                .request(
-                    Method::GET,
-                    path,
-                    Authorization::Bearer(text(&pair, "access_token")?),
-                    None,
-                    StatusCode::OK,
-                )
-                .await?;
-            assert_eq!(result["data"]["user_id"], id);
-            let bare = app
-                .app()?
-                .state()
-                .resolve::<JwtTokens>()
-                .await?
-                .issue_access_token(id)?;
-            client
-                .request(
-                    Method::GET,
-                    path,
-                    Authorization::Bearer(&bare),
-                    None,
-                    StatusCode::UNAUTHORIZED,
-                )
-                .await?;
-            for path in [
-                "/api/example/account/session/login",
-                "/api/example/account/login",
-            ] {
-                client
-                    .request(
-                        Method::POST,
-                        path,
-                        Authorization::None,
-                        Some(json!({"account":EMAIL,"password":PASSWORD})),
-                        StatusCode::NOT_FOUND,
-                    )
-                    .await?;
-            }
             Ok(())
         }
         .await;
@@ -994,7 +885,6 @@ async fn api_group_short_circuit_errors_are_not_cached_or_given_cookies() -> Res
             ])?;
         let mut builder = TestApp::<ApiGroupApplication>::builder(source);
         builder
-            .remove_module("example")
             .remove_provider(ProviderId::of::<openrust::http::CookieServiceProvider>())
             .remove_provider(ProviderId::of::<SessionServiceProvider>());
         let mut app = builder.build().await?;
