@@ -1912,6 +1912,8 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 ## 本机 Cargo 与显式 Docker 发布验收
 
+历史快照。该快照中的内置 `./artisan build` 已撤销，当前入口及验收见[Artisan 与独立编译工具边界](#artisan-与独立编译工具边界验收)。
+
 冻结树 `93aace7c5e1ab2cd0b15d5f751419b52f0b5423e`。编译打包是 OpenRust 的源码扩展，参考固定 Goravel a554ced 的编译入口和 a9e5a3f 的 Docker 独立流程。部署优化和长驻服务重载按固定 Laravel d52c3b3 与部署文档 960eedf 分别验收。
 
 macOS ARM64 的根和新生成 minimal 通过源码 `./artisan build` 实际编译，PATH 中 Docker 调用会立即失败。Cargo 使用本机目标和私有最终产物目录。新生成应用由首次构建生成锁文件，包搬迁至含空格路径后可直接运行。两包与真实 Redis 一起验证 Artisan 包装脚本与直接入口、HTTP 200 和 SIGTERM 退出 0。已有目标保持原样，资源含 PEM 私钥夹具时没有发布目录。小型 Cargo 回归另验证现有锁文件保留、明确 feature、同包默认二进制及编译失败无产物。
@@ -1919,6 +1921,8 @@ macOS ARM64 的根和新生成 minimal 通过源码 `./artisan build` 实际编�
 显式 Docker 的 Linux ARM64 路径在根和新生成 MySQL 应用验收。两包均与真实 MySQL 8.4 和 Redis 验证无确认的生产迁移、显式强制迁移、迁移重跑、Artisan、HTTP 与 SIGTERM。工作区格式、严格 Clippy、测试、Rustdoc、离线依赖及新生成 minimal、MySQL 的 check/test 通过。Linux 宿主 Cargo 路径、原生 x86_64 和其他平台仍按发布矩阵验收。
 
 ## Artisan Linux 发布目录限定验收
+
+历史快照。该快照中的内置 `./artisan build` 已撤销，当前入口及验收见[Artisan 与独立编译工具边界](#artisan-与独立编译工具边界验收)。
 
 冻结树 `4268d0f414bbfa56b3e8e4a58f7180a2bafdd5e0` 对照固定 Laravel 的源码 Artisan 入口与固定 Goravel 的构建工作流。根应用和搬迁至含空格路径的 fresh minimal 均实际从源码运行 `./artisan build`，使用同一 Compose/Buildx artifacts 目标并导出各自具名的单一 ELF64。根走默认目录，minimal 走含空格、逗号及引号的显式路径。保留应用资源与空可写目录。
 
@@ -1975,6 +1979,8 @@ cargo test -p openrust-framework --features db-postgres --lib \
 两包在无 Cargo 的运行环境中比较了直接二进制与包装脚本的列表和帮助。真实 MySQL 8.4 验证无确认的生产迁移退出且空库不变，显式强制迁移写入历史，重跑保持历史。无参数直接启动通过 HTTP，收到 SIGTERM 后退出 0。工作区格式、严格 Clippy、测试、Rustdoc、依赖、全特性编译与新生成项目检查通过。同树的并行测试曾在既有测试库文件锁用例间歇失败，独立锁组通过，工作区完整复跑采用串行测试线程。原生 x86_64 与无 Docker 的一键编译留在发布矩阵。
 
 ## 源码 Artisan 构建命令验收
+
+历史快照。该快照中的内置 `./artisan build` 已撤销，当前入口及验收见[Artisan 与独立编译工具边界](#artisan-与独立编译工具边界验收)。
 
 冻结树 `7d550d2fa7812b87439448c75b539b915f99b3ee`。根应用和生成应用的源码命令表通过 Provider 登记唯一的 `build`。命令与帮助复用同一定义，普通应用和模块命令仍来自正常 Provider。开发入口优先执行独立构建工具，使跨平台导出不依赖宿主应用编译和运行时服务。运行时同名普通命令不能替换源码工具保留项。
 

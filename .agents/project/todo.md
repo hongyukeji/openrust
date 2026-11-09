@@ -60,10 +60,10 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。该次验收使用 `bin/<项目名>`，现行布局见下方包根整改。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
 
-- **编译部署扩展发布矩阵。** 包根布局与源码命令分别完成[限定验收](memory/testing.md#发布包根入口限定验收)和[限定验收](memory/testing.md#源码-artisan-构建命令验收)。根和新生成 MySQL 的发布二进制模式、生产迁移与直接运行已通过[Linux ARM64 限定验收](memory/testing.md#发布二进制-artisan-与生产迁移验收)。本机 Cargo 与显式 Docker 的当前平台证据见[发布验收](memory/testing.md#本机-cargo-与显式-docker-发布验收)。Linux 本机编译、原生 x86_64 发布包与其他支持环境按发布矩阵验收。Goravel 的交互式目标选择、静态链接及无 Docker 跨系统编译保留差距。独立 `openrust build` 属 Rust 编译工具扩展，源码与发布包命令边界见[当前验收](memory/testing.md#artisan-与独立编译工具边界验收)。Laravel 的应用部署流程按 L010.04/.05 单独验收，待核 `optimize` / `optimize:clear` 的子命令和默认缓存清理，以及 `reload` 的长驻进程优雅退出、监督重启与失败退出码。
+- **编译部署扩展发布矩阵。** 现行入口和实跑范围以[Artisan 与独立编译工具边界验收](memory/testing.md#artisan-与独立编译工具边界验收)为准。独立工具使用本机 Cargo 或显式 Docker 导出，应用二进制与 Artisan 同在包根。旧 `./artisan build` 的通过记录仅对应已撤销的入口。Linux 本机编译、原生 x86_64 发布包与其他支持环境按发布矩阵验收。Goravel 的交互式目标选择、静态链接及无 Docker 跨系统编译保留差距。独立 `openrust build` 属 Rust 编译工具扩展。Laravel 的应用部署流程按 L010.04/.05 单独验收，待核 `optimize` / `optimize:clear` 的子命令和默认缓存清理，以及 `reload` 的长驻进程优雅退出、监督重启与失败退出码。
 
 - **L010.07 应用健康诊断。** 根与生成骨架的 `/up`、诊断事件、HTML/JSON 协商、生产/调试错误路径和真实 Redis 上的搬迁产物已通过[限定验收](memory/testing.md#应用健康路由限定验收)。维护模式路径豁免及 `route:cache` 仍随各自契约验收。
-- **L010.04/.05 依赖。** `cache:clear` 需先落实默认 Redis 缓存和队列连接隔离。根与生成配置的 cache DB 1 和 queue DB 0 隔离已通过[真实 Redis 验收](memory/testing.md#redis-缓存与队列默认库限定验收)。Redis 全库清理须匹配实际选定缓存连接并验证队列数据保全。事件、路由与视图缓存分别落地后再组合优化命令。重载依赖 worker 与 scheduler 从共享缓存观察信号、完成在途工作并正常退出，再对照 Provider 贡献和跳过规则。
+- **L010.04/.05 依赖。** `cache:clear` 需先落实默认 Redis 缓存和队列连接隔离。根与生成配置的 cache DB 1 和 queue DB 0 隔离已通过[真实 Redis 验收](memory/testing.md#redis-缓存与队列默认库限定验收)。共享 URL 显式选择同库仍有效，后续清理须区分默认隔离和显式同库。Redis 全库清理须匹配实际选定缓存连接并验证队列数据保全。事件、路由与视图缓存分别落地后再组合优化命令。重载依赖 worker 与 scheduler 从共享缓存观察信号、完成在途工作并正常退出，再对照 Provider 贡献和跳过规则。
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
