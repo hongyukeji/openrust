@@ -1896,6 +1896,10 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 [原生 Ubuntu 24.04 x86_64 验收](https://github.com/hongyukeji/openrust/actions/runs/42666880374) 使用冻结源码 `acd1e2185442ab2a2c0fdf1de7ec02bddb10eec1`。根和新生成 MySQL 应用均在 Ubuntu 用 `./artisan build` 导出具名 ELF、Artisan、资源和空可写目录。MySQL 8.4.13 与 Redis 8.10.3 实测拒绝无确认的生产迁移且库仍为空，显式强制后分别登记 15 与 6 条迁移，重复执行没有新增记录。两个包的 `/up` 与 `/api` 均返回 200，SIGTERM 退出码为 0。默认工作区格式、严格 Clippy、全特性编译、真实 MySQL 8.4 测试和严格 Rustdoc 通过。macOS 导出 Linux 包、Windows 原生及发布多数据库矩阵另验。
 
+### 迁移账本合并后复验
+
+合并提交 `40873985` 保留原迁移账本提交 `68786443`。验收分支的源码树与合并提交完全一致。原生 Ubuntu 24.04 x86_64 上，根应用与新生成的 MySQL 应用均通过源码 Artisan 打包和 ELF 架构校验。实际 MySQL 8.4.13 与 Redis 8.10.3 下，拒绝无确认的生产迁移后仍无表，强制迁移在 `migrations` 账本分别登记 15 和 6 条，重跑无新增。两个包的 `/up` 和 `/api` 均返回 200，SIGTERM 退出码为 0。 [合并后的 Ubuntu 复验](https://github.com/hongyukeji/openrust/actions/runs/42669215105)
+
 ## Artisan 与独立编译工具边界验收
 
 冻结树 `01121f559af03fde07c68353b5462713641ccf4a` 对照固定 Laravel 应用 `06d016a` 的 Artisan 入口、框架 `d52c3b3` 的 `ArtisanServiceProvider` 和部署文档 `960eedf`。根、fresh minimal 和 fresh MySQL 的实际源码命令均由应用处理。发布包包装脚本与二进制的命令列表一致，源码 `build` 与 `help build` 按普通未登记命令退出。CLI 进程回归验证应用自用的同名命令仍可透传，包发现和开发入口分别保留。
