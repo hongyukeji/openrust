@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 默认翻译服务使用应用根的文件 Loader，具名与类型绑定共享实例。合法但暂未提供资源的语言可正常回退。
+
 - 第一方源码和生成模板的普通说明统一使用职责名称。整数验证的内部名称同步调整，规则行为保持原样。
 
 - Fortify 八个双因素事件的运行标识使用 `OpenRust\Auth\TwoFactor\Events\` 前缀。按字符串或通配符订阅时需更新前缀，按 Rust 类型订阅的 API 保持原样。

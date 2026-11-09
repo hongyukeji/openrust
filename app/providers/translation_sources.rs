@@ -6,7 +6,7 @@ use openrust::translation::CompositeTranslationLoader;
 use openrust::translation::{FileTranslationLoader, TranslationLoader, TranslationServiceProvider};
 use openrust::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -57,18 +57,32 @@ impl SourceSettings {
         }
         Ok(())
     }
-    fn files(&self) -> Arc<dyn TranslationLoader> {
-        let mut loader = FileTranslationLoader::new(&self.file_root);
+    fn files(
+        &self,
+        resolver: &openrust::container::Resolver,
+    ) -> Result<Arc<dyn TranslationLoader>> {
+        let root = match resolver.section::<Option<PathBuf>>("application_root") {
+            Ok(root) => root.unwrap_or_else(|| PathBuf::from(".")),
+            Err(openrust::config::ConfigError::Source(error)) if error.missing() => {
+                PathBuf::from(".")
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let mut loader = if self.file_root == "lang" {
+            FileTranslationLoader::for_application(&root)
+        } else {
+            FileTranslationLoader::new(root.join(&self.file_root))
+        };
         for path in &self.paths {
-            loader = loader.with_path(path);
+            loader = loader.with_path(root.join(path));
         }
         for path in &self.json_paths {
-            loader = loader.with_json_path(path);
+            loader = loader.with_json_path(root.join(path));
         }
         for (namespace, path) in &self.namespaces {
-            loader = loader.with_namespace(namespace, path);
+            loader = loader.with_namespace(namespace, root.join(path));
         }
-        Arc::new(loader)
+        Ok(Arc::new(loader))
     }
 }
 /// App register阶段贡献配置及显式扩展；文件模式不登记/解析数据库。
@@ -133,7 +147,7 @@ pub(crate) fn configured_translator() -> TranslationServiceProvider {
             let settings = resolver.section::<SourceSettings>("translation_sources")?;
             settings.validate()?;
             if settings.mode == SourceMode::Files {
-                return Ok(settings.files());
+                return settings.files(&resolver);
             }
             #[cfg(feature = "translation-database")]
             {
@@ -144,7 +158,7 @@ pub(crate) fn configured_translator() -> TranslationServiceProvider {
                     return Ok(database);
                 }
                 Ok(Arc::new(CompositeTranslationLoader::new(vec![
-                    settings.files(),
+                    settings.files(&resolver)?,
                     database,
                 ])) as Arc<dyn TranslationLoader>)
             }

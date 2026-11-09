@@ -194,16 +194,7 @@ fn merge_module_overlay(target: &mut MessageCatalog, overlay: &MessageCatalog) {
     merge_catalog(target, &fallback);
 }
 
-fn validate_catalog(config: &TranslationConfig, catalog: &MessageCatalog) -> Result<()> {
-    if !catalog.supports(&config.default_locale) || !catalog.supports(&config.fallback_locale) {
-        return Err(source_error("i18n_source_catalog_invalid"));
-    }
-    Ok(())
-}
-fn catalog_from_session(
-    session: &dyn TranslationLoadSession,
-    config: &TranslationConfig,
-) -> Result<MessageCatalog> {
+fn catalog_from_session(session: &dyn TranslationLoadSession) -> Result<MessageCatalog> {
     let mut catalog = MessageCatalog::new();
     let mut seen = BTreeSet::new();
     for resource in session.resources() {
@@ -236,7 +227,6 @@ fn catalog_from_session(
             catalog.resource_messages.insert(resource.clone(), messages);
         }
     }
-    validate_catalog(config, &catalog)?;
     Ok(catalog)
 }
 fn source_error(code: &'static str) -> Error {
@@ -342,12 +332,10 @@ impl Attempt {
         &mut self,
         mut next: MessageCatalog,
         session: Arc<dyn TranslationLoadSession>,
-        config: &TranslationConfig,
     ) -> Result<TranslationRefreshOutcome> {
         let (outcome, previous) = {
             let mut state = self.state.write().map_err(|_| catalog_error())?;
             merge_module_overlay(&mut next, &state.overlay);
-            validate_catalog(config, &next)?;
             let generation = state.generation.checked_add(1).ok_or_else(catalog_error)?;
             state.current = Arc::new(next);
             let previous = state.published.replace(session);
@@ -391,9 +379,8 @@ impl Translator {
             .begin_snapshot()
             .await
             .map_err(|_| source_error("i18n_source_refresh_failed"))?;
-        let catalog = catalog_from_session(session.as_ref(), &config)?;
-        let mut service =
-            Self::new(config, catalog).map_err(|_| source_error("i18n_source_catalog_invalid"))?;
+        let catalog = catalog_from_session(session.as_ref())?;
+        let mut service = Self::new(config, catalog)?;
         service.source = Some(Arc::new(RefreshRuntime {
             loader,
             flight: std::sync::Mutex::new(None),
@@ -509,11 +496,11 @@ impl Translator {
                 let Ok(session) = snapshot else {
                     return attempt.fail("i18n_source_refresh_failed");
                 };
-                let catalog_result = catalog_from_session(session.as_ref(), &self.config);
+                let catalog_result = catalog_from_session(session.as_ref());
                 let Ok(catalog) = catalog_result else {
                     return attempt.fail("i18n_source_catalog_invalid");
                 };
-                match attempt.publish(catalog, session, &self.config) {
+                match attempt.publish(catalog, session) {
                     Ok(outcome) => Ok(outcome),
                     Err(_) => attempt.fail("i18n_source_catalog_invalid"),
                 }

@@ -2259,3 +2259,9 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 普通实现注释和生成说明使用职责名称，整数校验私有实现使用 `valid_integer_value`。固定上游对照、许可、项目定位及示例实际调用的官方指南 URL 保留。分类扫描覆盖 Git 跟踪文本和文件名，并覆盖 fresh minimal、Web/Fortify、JWT API 三个生成目录的文本和文件名，未发现未分类生产残留。
 
 冻结树 `64014794c56405188a21ef04bbe40dcd75a789b4` 通过默认及 Session/Fortify/View 的严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。整数校验原回归和生成布局快照通过；三个 fresh 项目均通过 check/test。最终验收树 `dc0edba86c2141e346429b031c7f5212b2305f89` 较运行测试树仅三个文件四行普通 Rust 注释勘误，行数和可执行代码相同，并重新通过格式、差异及名称扫描。
+
+## 默认文件 Loader 与无资源语言限定验收
+
+框架默认用应用根的 `lang`。公开译器和 Loader 分别可按类型或具名键解析，均共享实例。根应用和生成应用沿相同根路径规则。默认目录缺失、合法语言暂无资源时仍可回退或返回原键。显式坏目录、无效资源和不安全语言标签保持拒绝。运行时全局语言 setter、变更事件和 Provider 延迟装配仍开放。
+
+冻结树 `5ec676adacb8c9ff4708fe76cc876d726750b544` 通过 fmt、默认及 translation-database/view 严格 Clippy、MySQL 8.4.13 工作区测试、拒警 Rustdoc、离线依赖检查。真实文件测试验证应用根覆盖、默认目录缺失、显式任务语言和资源移除刷新；fresh minimal 通过 check/test，并以无资源的 `fr-CA` 和 `de` 成功启动命令。

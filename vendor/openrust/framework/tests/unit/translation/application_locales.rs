@@ -114,18 +114,28 @@ async fn provider_factory_reads_current_overlay() -> Result<()> {
 }
 
 #[tokio::test]
-async fn provider_rejects_unsupported_configured_locale() {
+async fn provider_rejects_invalid_configured_locale() -> Result<()> {
     let mut builder = ProviderBuilder::new();
     builder.provider(TranslationServiceProvider::default());
     let sources = Figment::from(Serialized::defaults(
-        json!({"app": {"fallback_locale": "fr"}}),
+        json!({"app": {"fallback_locale": "../fr"}}),
     ));
-    assert!(matches!(
-        builder.start(sources).await,
-        Err(Error::ServiceInitialization { source, .. })
-            if source.code() == "configuration_error"
-                && source.to_string().contains("app.fallback_locale")
-    ));
+    let error =
+        builder.start(sources).await.err().ok_or_else(|| {
+            Error::custom("test_invalid_locale_accepted", "非法回退语言不得启动应用")
+        })?;
+    let cause = match &error {
+        Error::ServiceInitialization { source, .. } => source.as_ref(),
+        cause => cause,
+    };
+    assert_eq!(cause.code(), "configuration_error", "{cause}");
+    assert!(
+        cause
+            .to_string()
+            .contains("app: invalid configuration value"),
+        "{cause}"
+    );
+    Ok(())
 }
 
 #[tokio::test]

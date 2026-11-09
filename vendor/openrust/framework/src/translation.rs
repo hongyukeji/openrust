@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
@@ -21,6 +21,7 @@ use icu_plurals::{PluralOperands, PluralRules};
 use serde::{Deserialize, Serialize};
 
 use crate::config::{AppConfig, ConfigError};
+use crate::container::ServiceKey;
 use crate::core::{Error, Result};
 use crate::support::{InputNumber, scalars};
 
@@ -647,18 +648,8 @@ pub struct Translator {
 }
 
 impl Translator {
-    /// 创建服务，并校验两个已配置的默认 locale 均存在资源。
+    /// 创建静态目录服务。未提供资源的语言仍可作为默认或回退语言。
     pub fn new(config: TranslationConfig, catalog: MessageCatalog) -> Result<Self, ConfigError> {
-        for (key, locale) in [
-            ("app.locale", &config.default_locale),
-            ("app.fallback_locale", &config.fallback_locale),
-        ] {
-            if !catalog.supports(locale) {
-                return Err(ConfigError::Invalid(format!(
-                    "{key}: locale `{locale}` has no message resource"
-                )));
-            }
-        }
         Ok(Self {
             config,
             lookup: TranslationLookup::Standard,
@@ -979,7 +970,6 @@ impl Translator {
 
     /// 使用显式 locale 执行 future，并覆盖从请求头中选择的 locale。
     pub async fn with_locale<F: Future>(&self, locale: Locale, future: F) -> F::Output {
-        let locale = self.select(Some(locale.as_str()));
         I18N_CONTEXT
             .scope(
                 I18nContext {
@@ -1105,10 +1095,10 @@ type LoaderFactory = Arc<
         + Sync,
 >;
 
-/// 注册配置驱动的国际化服务；应用可选择静态目录或显式异步Loader工厂。
+/// 注册应用共享的翻译器和默认文件 Loader，允许显式替换来源。
 #[derive(Default)]
 pub struct TranslationServiceProvider {
-    catalog: MessageCatalog,
+    catalog: Option<MessageCatalog>,
     loader_factory: Option<LoaderFactory>,
 }
 
@@ -1116,17 +1106,17 @@ impl TranslationServiceProvider {
     /// 使用应用的消息目录；语言配置始终从当前配置仓储读取。
     pub fn new(catalog: MessageCatalog) -> Self {
         Self {
-            catalog,
+            catalog: Some(catalog),
             loader_factory: None,
         }
     }
 
-    /// 显式选择异步Loader工厂；配置和来源在同一I18n单例首次构造时读取。
+    /// 显式选择异步 Loader 工厂。工厂读取 Loader 首次解析时的配置。
     ///
-    /// 工厂及初始快照失败直接沿启动返回，不静默切换来源，不登记全局Loader或后台任务。
+    /// 工厂返回的 Loader 在应用内共享，初始快照失败沿启动返回。
     /// Provider类型身份与new/default相同，可用于`DefaultProviders::replace`。
-    /// 单例通常在本Provider的boot首次解析；此后其他boot对配置的覆盖不追溯重建已有单例，
-    /// 工厂读取的是首次构造时的视图，不承诺所有Provider启动完成后的最终视图。
+    /// 译器在首次构造时读取语言配置，通常发生在本 Provider 的 boot。
+    /// Loader 可先独立解析。后续配置更新不追溯重建已解析的实例。
     pub fn from_loader_factory<F>(factory: F) -> Self
     where
         F: Fn(
@@ -1138,7 +1128,7 @@ impl TranslationServiceProvider {
             + 'static,
     {
         Self {
-            catalog: MessageCatalog::default(),
+            catalog: None,
             loader_factory: Some(Arc::new(factory)),
         }
     }
@@ -1151,10 +1141,32 @@ impl crate::support::ServiceProvider for TranslationServiceProvider {
     ) -> crate::support::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let catalog = self.catalog.clone();
-            let loader_factory = self.loader_factory.clone();
+            if catalog.is_none() {
+                let factory = self.loader_factory.clone();
+                app.singleton::<dyn TranslationLoader, _>(move |resolver| {
+                    if let Some(factory) = &factory {
+                        return factory(resolver);
+                    }
+                    Box::pin(async move {
+                        let root = match resolver.section::<Option<PathBuf>>("application_root") {
+                            Ok(root) => root.unwrap_or_else(|| PathBuf::from(".")),
+                            Err(ConfigError::Source(error)) if error.missing() => {
+                                PathBuf::from(".")
+                            }
+                            Err(error) => return Err(error.into()),
+                        };
+                        Ok(Arc::new(FileTranslationLoader::for_application(root))
+                            as Arc<dyn TranslationLoader>)
+                    })
+                })
+                .await?;
+                app.alias(
+                    ServiceKey::typed::<dyn TranslationLoader>(),
+                    ServiceKey::named("translation.loader"),
+                )?;
+            }
             app.singleton::<Translator, _>(move |resolver| {
                 let catalog = catalog.clone();
-                let loader_factory = loader_factory.clone();
                 Box::pin(async move {
                     let application = match resolver.section::<AppConfig>("app") {
                         Ok(application) => application,
@@ -1165,16 +1177,20 @@ impl crate::support::ServiceProvider for TranslationServiceProvider {
                         default_locale: application.locale,
                         fallback_locale: application.fallback_locale,
                     };
-                    let service = match loader_factory {
-                        Some(factory) => {
-                            Translator::from_loader(config, factory(resolver).await?).await?
-                        }
-                        None => Translator::new(config, catalog)?,
+                    let service = if let Some(catalog) = catalog {
+                        Translator::new(config, catalog)?
+                    } else {
+                        let loader = resolver.resolve::<dyn TranslationLoader>().await?;
+                        Translator::from_loader(config, loader).await?
                     };
                     Ok(Arc::new(service))
                 })
             })
             .await?;
+            app.alias(
+                ServiceKey::typed::<Translator>(),
+                ServiceKey::named("translator"),
+            )?;
             app.require::<Translator>();
             Ok(())
         })

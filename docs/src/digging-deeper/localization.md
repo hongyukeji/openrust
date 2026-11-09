@@ -13,7 +13,7 @@ APP_LOCALE=zh-CN
 APP_FALLBACK_LOCALE=en
 ```
 
-升级已有应用时，把语言设置移入 `config/app.rs`，并将部署环境的语言变量改为上述名称。使用配置缓存的应用更新后需重建缓存。翻译器构造时读取当前应用配置，语言标签须有效，且选定的语言须有资源。 [Laravel 翻译 Provider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Translation/TranslationServiceProvider.php)
+升级已有应用时，把语言设置移入 `config/app.rs`，并将部署环境的语言变量改为上述名称。使用配置缓存的应用更新后需重建缓存。翻译器构造时读取当前应用配置，语言标签须有效。合法语言即使暂无资源也可使用，按原查找顺序回退或返回键。 [Laravel 翻译 Provider](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Translation/TranslationServiceProvider.php)
 
 `TranslationServiceProvider` 将同一个应用服务接入异常 Handler。需要通过公开异常渲染入口复用策略时，可读取 `Application::exception_handler()`；该引用来自已登记的应用策略，未登记时返回 `None`，不会另建默认 Handler。HTTP 请求从 `Accept-Language` 协商已支持语言；没有语言头或请求语言不受支持时采用配置默认值。精确语言候选先于同语言候选。普通译器按 group 资源回退；全局 JSON 的跨语言回退由显式 Catalog 视图提供。
 
@@ -157,9 +157,9 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 
 ## 显式翻译来源（Source）
 
-框架默认 `TranslationServiceProvider` 仍不代表 Laravel 默认 FileLoader、locale/deferred 生命周期已经等价；官方 `get` 与 Loader 的完整接口仍有缺口。应用安装器只选择来源，复用唯一 Container `Translator` 并保留普通 Laravel 查找默认；Files、Database 或 Composite 都不会隐式切换查找策略。明确业务需要跨语言全局 JSON 回退或原样空值时，使用该译器的 `clone().with_lookup(TranslationLookup::Catalog)` 视图；错误渲染与验证也复用同一目录。
+框架默认 `TranslationServiceProvider` 从文件加载资源。应用安装器选择来源，复用唯一 Container `Translator`，Files、Database 或 Composite 均沿用普通 Laravel 查找策略。明确业务需要跨语言全局 JSON 回退或原样空值时，使用该译器的 `clone().with_lookup(TranslationLookup::Catalog)` 视图。错误渲染与验证也复用同一目录。运行时应用语言变更、延迟装配以及官方 `get` 和 Loader 接口的完整对应仍在推进。
 
-根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取 `lang`，无需数据库扩展、Redis 或后台任务。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
+根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取应用根的 `lang`，无需数据库扩展、Redis 或后台任务。框架内置消息先装入目录，应用文件按键覆盖。Loader 可按 `dyn TranslationLoader` 或 `translation.loader` 解析，译器可按 `Translator` 或 `translator` 解析。具名与类型键共享实例。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
 
 分组文件如 `lang/en/menu.json` 可包含嵌套对象和数组。`{"tabs":{"labels":["Home","Account"]}}` 中的 `Account` 可用 `menu.tabs.labels.1` 读取。分组内完整字面键优先于嵌套路径。普通文本读取和复数选择都使用同一目录。分组条目中带 ICU 参数或分支字段的 `plural` 和 `select` 对象保留模板含义。
 
@@ -171,7 +171,7 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 - 分组 `<locale>/<group>.json` 从普通目录加载。后面的分组递归覆盖关联键和数组索引，保留未提供的条目。子目录例如 `lang/en/admin/menu.json` 对应 `admin/menu.title`。
 - 已登记命名空间先加载提示目录，再从普通目录依次读取 `vendor/<namespace>/<locale>/<group>.json`。例如 `lang-local/vendor/menu/en/sidebar.json` 可只覆盖 `menu::sidebar.title`，其余条目沿用提示目录。未知命名空间跳过发布目录。
 
-追加目录缺失时视为没有资源。主目录和显式提示目录必须可读。无效文件会拒绝本次捕获，现有译器继续使用上一快照。Rust 使用 JSON 分组文件，公开资源映射按键排序。全局 JSON 保持字符串及已支持的 ICU 消息结构。
+默认 `lang` 和追加目录缺失时视为没有资源。显式更换的主目录和命名空间提示目录必须可读。相对路径均从应用根解析。无效文件会拒绝本次捕获，现有译器继续使用上一快照。Rust 使用 JSON 分组文件，公开资源映射按键排序。全局 JSON 保持字符串及已支持的 ICU 消息结构。
 
 启用 `translation-database` 和相应 `db-mysql` 后，首次安装先保持 `mode: Files` 并设 `install_database: true`，运行标准 `migrate`；成功后改 `Database` 或 `Composite`。命名连接使用 `translation_database.connection` 与同一 `Databases`，迁移显式传 `migrate --database <连接名>`，Loader 连接不会改写命令目标。不要在新库尚未建表时直接选择数据库来源。
 

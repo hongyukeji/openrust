@@ -137,13 +137,13 @@ async fn configured_default_without_accept_language_is_shared_by_all_formats() -
 }
 
 #[tokio::test]
-async fn explicit_scope_wins_and_unsupported_language_uses_configured_default() -> Result<()> {
+async fn explicit_scope_keeps_its_tag_while_messages_can_fall_back() -> Result<()> {
     let i18n = service("zh-CN", MessageCatalog::new())?;
     let mut handler = ExceptionHandler::default();
     handler.set_i18n(i18n.clone());
     for (requested, expected, locale) in [
         ("en", "authentication required", "en"),
-        ("fr", "需要身份验证", "zh-CN"),
+        ("fr", "需要身份验证", "fr"),
     ] {
         i18n.with_locale(Locale::new(requested)?, async {
             for format in FORMATS {
@@ -579,12 +579,14 @@ async fn regional_configured_default_keeps_its_tag_with_language_only_resources(
                     &body(&handler, format, Error::Unauthorized, false).await?,
                     format,
                     "authentication required",
-                    "en-US",
+                    requested,
                 )?;
             }
             Ok::<_, Error>(())
         })
         .await?;
     }
+    assert_eq!(i18n.select(None).as_str(), "en-US");
+    assert_eq!(i18n.select(Some("fr")).as_str(), "en-US");
     Ok(())
 }

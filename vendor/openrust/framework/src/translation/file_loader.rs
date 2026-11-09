@@ -28,6 +28,7 @@ pub struct FileTranslationLoader {
     paths: Vec<PathBuf>,
     json_paths: Vec<PathBuf>,
     hints: Vec<(String, PathBuf)>,
+    first_path_required: bool,
     max_files: usize,
     max_file_bytes: u64,
 }
@@ -40,10 +41,21 @@ impl FileTranslationLoader {
             paths: vec![path.into()],
             json_paths: Vec::new(),
             hints: Vec::new(),
+            first_path_required: true,
             max_files: 4096,
             max_file_bytes: 1024 * 1024,
         }
     }
+    /// 从应用根的 `lang` 读取语言文件。目录尚未创建时返回空文件来源。
+    ///
+    /// 已存在但不可读取的目录与无效资源仍返回错误。
+    pub fn for_application(root: impl AsRef<Path>) -> Self {
+        Self {
+            first_path_required: false,
+            ..Self::new(root.as_ref().join("lang"))
+        }
+    }
+
     /// 追加普通语言目录。目录缺失时跳过，后登记的目录可覆盖早先的值。
     #[must_use]
     pub fn with_path(mut self, path: impl Into<PathBuf>) -> Self {
@@ -93,7 +105,7 @@ impl FileTranslationLoader {
         }
         let mut roots = Vec::new();
         for (index, path) in self.paths.iter().enumerate() {
-            if let Some(root) = directory(path, None, index != 0)? {
+            if let Some(root) = directory(path, None, index != 0 || !self.first_path_required)? {
                 merge_layer(&mut all, capture.read_root(&root, None, LayerKind::Both)?);
                 roots.push(root);
             }

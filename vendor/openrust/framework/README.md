@@ -54,7 +54,7 @@ OpenRust 是 Laravel 的 Rust 实现；Laravel Modules 是默认集成的优秀�
 
 应用可在共享译器上登记[缺键处理器与分组回退顺序](../../../docs/src/digging-deeper/localization.md#缺键处理与分组回退顺序)。
 
-文件 Loader 支持追加普通目录、JSON 专用目录、命名空间提示及局部发布覆盖。见[多路径与模块局部覆盖](../../../docs/src/digging-deeper/localization.md#多路径与模块局部覆盖)。
+默认翻译 Provider 读取应用根的 `lang`。默认目录不存在时仍可启动。文件 Loader 支持追加普通目录、JSON 专用目录、命名空间提示及局部发布覆盖。见[多路径与模块局部覆盖](../../../docs/src/digging-deeper/localization.md#多路径与模块局部覆盖)。
 
 框架源码位于 `src/lib.rs`；宿主应用、bootstrap 和唯一综合示例保留在仓库根目录。默认启动在根执行 `cargo run`。
 
