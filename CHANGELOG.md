@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 根应用和生成项目提供 `/up` 健康诊断路由。应用可在启动装配中指定路径，并监听 `DiagnosingHealth` 添加依赖检查。
+
 - 原始 WHERE 支持 OR 及显式嵌套分组，按 SQL 原生优先级执行复合片段，读取和写入共用参数顺序。
 
 - Passport 可选扩展提供公钥资源令牌验证和主库撤销检查。标准应用可显式启用 `passport`，复用应用的 Provider 与迁移清单。

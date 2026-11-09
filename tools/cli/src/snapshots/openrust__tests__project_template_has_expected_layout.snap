@@ -433,6 +433,7 @@ pub(crate) fn routes(routes: Router, prefix: &str) -> Router {
         RouteGroup::new().prefix(prefix).middleware_group("api"),
         crate::routes::api::register,
     );
+    let routes = routes.get("/up", openrust::http::health::diagnose);
     crate::routes::web::register(routes)
 }
 
@@ -712,6 +713,59 @@ fn test_configuration() -> openrust::config::FrameworkConfig {
     let mut config = openrust::config::FrameworkConfig::default();
     config.app.env = openrust::config::Environment::Testing;
     config
+}
+
+#[tokio::test]
+async fn generated_application_exposes_health_outside_web_and_api() -> openrust::Result<()> {
+    let source = Figment::from(Serialized::defaults(test_configuration())).merge(Toml::string(
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n",
+    ));
+    let mut app = TestApp::<GeneratedApplication>::builder(source)
+        .build()
+        .await?;
+    let html = app
+        .request(
+            Request::get("/up")
+                .header("host", "localhost")
+                .body(Body::empty())
+                .map_err(openrust::Error::internal)?,
+        )
+        .await?;
+    assert_eq!(html.status(), StatusCode::OK);
+    html.assert_header("cache-control", "no-cache, private")?;
+    assert!(
+        std::str::from_utf8(html.body())
+            .map_err(openrust::Error::internal)?
+            .contains("Application up")
+    );
+    assert!(html.headers().get("set-cookie").is_none());
+    let json = app
+        .request(
+            Request::get("/up")
+                .header("host", "localhost")
+                .header("accept", "application/json")
+                .body(Body::empty())
+                .map_err(openrust::Error::internal)?,
+        )
+        .await?;
+    assert_eq!(json.status(), StatusCode::OK);
+    json.assert_header("cache-control", "no-cache, private")?;
+    assert_eq!(
+        json.json::<serde_json::Value>()?,
+        serde_json::json!({"status": "up"})
+    );
+    let head = app
+        .request(
+            Request::head("/up")
+                .header("host", "localhost")
+                .body(Body::empty())
+                .map_err(openrust::Error::internal)?,
+        )
+        .await?;
+    assert_eq!(head.status(), StatusCode::OK);
+    assert!(head.body().is_empty());
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await
 }
 
 struct GeneratedRequestValues {

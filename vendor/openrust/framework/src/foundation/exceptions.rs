@@ -577,6 +577,9 @@ impl ExceptionHandler {
             *response.body_mut() = axum::body::Body::empty();
         }
         response
+            .extensions_mut()
+            .insert(crate::http::middleware::RenderedErrorResponse);
+        response
     }
 
     fn default_response(&self, error: &Error, request: &ExceptionRequest) -> Response {
@@ -816,7 +819,7 @@ fn debug_sources(error: &Error) -> Vec<String> {
     sources
 }
 
-fn escape_html(value: &str) -> String {
+pub(crate) fn escape_html(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
     for character in value.chars() {
         match character {

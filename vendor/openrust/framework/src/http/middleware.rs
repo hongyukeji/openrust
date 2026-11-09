@@ -693,6 +693,10 @@ async fn envelope_status(response: Response) -> Response {
         )
         .into_response()
     } else if response.status() == StatusCode::INTERNAL_SERVER_ERROR
+        && response
+            .extensions()
+            .get::<RenderedErrorResponse>()
+            .is_none()
         && response.headers().get(axum::http::header::CONTENT_TYPE)
             != Some(&axum::http::HeaderValue::from_static("application/json"))
     {
@@ -701,6 +705,10 @@ async fn envelope_status(response: Response) -> Response {
         response
     }
 }
+
+/// 内核已构造可公开的错误响应，外层不再把 HTML 等响应重新渲染为通用 500。
+#[derive(Clone, Copy)]
+pub(crate) struct RenderedErrorResponse;
 
 #[derive(Debug)]
 struct UnwrappedInternalResponse;

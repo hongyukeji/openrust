@@ -85,6 +85,7 @@ pub(crate) fn routes(routes: openrust::routing::Router, prefix: &str) -> openrus
             .middleware_group("api"),
         crate::routes::api::register,
     );
+    let routes = routes.get("/up", openrust::http::health::diagnose);
     crate::routes::web::register(routes)
 }
 

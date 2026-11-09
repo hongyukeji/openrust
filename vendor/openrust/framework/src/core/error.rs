@@ -621,7 +621,7 @@ pub(crate) fn clear_exception_input() {
     });
 }
 
-fn response_context() -> ResponseContext {
+pub(crate) fn response_context() -> ResponseContext {
     RESPONSE_CONTEXT
         .try_with(Clone::clone)
         .unwrap_or_else(|_| ResponseContext::new("-", HttpStatusMode::Semantic))

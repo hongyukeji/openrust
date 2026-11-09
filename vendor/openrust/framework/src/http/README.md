@@ -215,6 +215,8 @@ async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 日历解析另限制源字符串与显式参数合计20MiB；默认日期解析的语义操作、区间词项分别限制每次最多1024项操作，超限返回413。区间预算同样覆盖无空格的compact表达式；这些预算与值树展开键预算分别执行。错误不回显原始日期、格式或时区内容。完整PHP/Carbon语法对应仍按历史决策 079推进，当前公开方法不表示整个Carbon工具箱已经交付。
 
+根应用和生成骨架在启动装配中用 [`health::diagnose`](crate::http::health::diagnose) 登记 `/up`。诊断经同一个应用派发器调用 [`DiagnosingHealth`](crate::foundation::events::DiagnosingHealth) 的监听器。应用可改变登记路径，或通过事件 Provider 添加只读检查。请求期望 JSON 时返回单一 `status` 字段，其他请求返回 HTML。生产失败由现有异常报告策略处理，并返回 HTTP 500。调试失败进入应用的异常渲染。
+
 `/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabaseServiceProvider 检查每个已配置连接池，CacheServiceProvider 对已解析 store 执行只读读取探针；应用 Provider 也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
 启用 `metrics` Cargo feature 后，HTTP 请求会记录请求数、耗时和在途数；指标标签只包含固定的 HTTP 方法类别和状态类别，不包含路径、请求标识、用户信息或错误内容。`/metrics` 默认不注册。仅当 `[server].metrics_endpoint_enabled = true` 时才开放 Prometheus scrape 端点；生产部署应通过监听网络、反向代理或防火墙限制采集访问，不要将端点公开给普通客户端。日志中的 HTTP 请求 span 只记录方法，不记录完整 URI、查询参数、request ID 或 `traceparent`。

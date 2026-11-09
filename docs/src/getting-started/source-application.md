@@ -55,7 +55,13 @@ SERVER_PORT=4000 cargo run
 
 当前综合示例 [`modules/example`](../../../modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；开发者可直接在根 `app/` 编写业务；需要模块组织时，在 `modules/<业务>/` 定义模块，经模块清单与统一 Provider 接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
 
-标准应用默认启用 Redis 缓存，需可用的 Redis 配置与服务；`/health` 与 `/ready` 提供探针。R2-M 模块清单、资源与迁移已有真实服务验收；管理写命令、完整发布和 CRUD 仍按当前计划推进。
+标准应用默认启用 Redis 缓存，需可用的 Redis 配置与服务。R2-M 模块清单、资源与迁移已有真实服务验收。管理写命令、完整发布和 CRUD 仍按当前计划推进。
+
+### 应用健康路由
+
+根应用和新生成应用在启动装配中用 `routes.get("/up", openrust::http::health::diagnose)` 注册健康路由。可在同处修改路径。默认响应为 HTML，期望 JSON 的请求收到 `{"status":"up"}`。应用可在现有 `EventsServiceProvider` 中监听 `openrust::foundation::events::DiagnosingHealth` 并执行有界只读检查。生产检查失败时通过异常处理器报告，路由返回 HTTP 500 和不包含错误细节的响应。调试模式使用应用的异常渲染策略。[固定 Laravel 健康路由](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md#the-health-route)
+
+`/health` 检查进程存活，`/ready` 检查监听状态与已登记的依赖探针。
 
 ```bash
 cargo test -p openrust-framework -p openrust

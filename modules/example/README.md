@@ -144,6 +144,8 @@ python3 -B modules/example/tests/browser_cookie_session.py \
 
 `GET /api/example/module-state` 经公开 `Inject<ModuleRepository>` 与共享日志服务返回 `data` 中的 `name`、`enabled`、`loaded`、`events`。这是只读业务接口，持久写只通过核心命令或公开模块管理 API。`ModuleStateServiceProvider` 与父 Provider 的同一个 `EventsServiceProvider` 共享日志；命名监听 `modules.example.*` 追加生命周期事件，适用时再向该 Provider 追加原文章事务/队列监听，不另建事件 bus。
 
+同一 Provider 监听 `DiagnosingHealth`，在 `/up` 请求中检查状态端点使用的共享记录可访问。监听器不改动观察记录，失败经应用异常策略报告。
+
 ```bash
 cargo run -- module:list
 cargo run -- module:disable example --no-interaction

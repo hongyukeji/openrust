@@ -37,6 +37,7 @@ async fn default_provider_manifest_serves_application_route() -> Result<()> {
     assert!(db.backend().is_err());
     let router = openrust::foundation::http::build_router(&app)?;
     let response = router
+        .clone()
         .oneshot(
             openrust::http::axum::http::Request::builder()
                 .uri("/api")
@@ -56,8 +57,156 @@ async fn default_provider_manifest_serves_application_route() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&body).map_err(openrust::Error::internal)?;
     assert_eq!(json, application_identity("OpenRust"));
+    let response = router
+        .oneshot(
+            openrust::http::axum::http::Request::builder()
+                .uri("/up")
+                .header("host", "localhost")
+                .header("accept", "application/json")
+                .body(openrust::http::axum::body::Body::empty())
+                .map_err(openrust::Error::internal)?,
+        )
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert_eq!(
+        response.status(),
+        openrust::http::axum::http::StatusCode::OK
+    );
+    let body = openrust::http::axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .map_err(openrust::Error::internal)?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).map_err(openrust::Error::internal)?,
+        serde_json::json!({"status": "up"})
+    );
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
         .await
+}
+
+struct HealthFailureReporter(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+impl ServiceProvider for HealthFailureReporter {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::foundation::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use openrust::http::axum::{http::StatusCode, response::IntoResponse as _};
+            let reported = std::sync::Arc::clone(&self.0);
+            app.exceptions(|handler| {
+                handler
+                    .report::<std::io::Error, _>(move |_| {
+                        reported.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        openrust::foundation::ReportDecision::Stop
+                    })
+                    .render::<std::io::Error, _>(|_, _| {
+                        Some((StatusCode::INTERNAL_SERVER_ERROR, "debug-rendered").into_response())
+                    });
+            })?;
+            app.routes(|routes| routes.get("/healthz", openrust::http::health::diagnose))?;
+            Ok(())
+        })
+    }
+}
+
+fn health_request(path: &str, accept: &str) -> Result<openrust::http::axum::extract::Request> {
+    use openrust::http::axum::{body::Body, http::Request};
+
+    Request::get(path)
+        .header("host", "localhost")
+        .header("accept", accept)
+        .body(Body::empty())
+        .map_err(openrust::Error::internal)
+}
+
+#[tokio::test]
+async fn application_health_reports_failure_and_delegates_debug_rendering() -> Result<()> {
+    use openrust::events::EventsServiceProvider;
+    use openrust::foundation::events::DiagnosingHealth;
+    use openrust::http::axum::http::StatusCode;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    for debug in [false, true] {
+        let report_count = Arc::new(AtomicUsize::new(0));
+        let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+            .merge(Serialized::defaults(serde_json::json!({
+                "app": {"env": "testing", "name": "<diagnostics>", "debug": debug},
+                "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
+                "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
+            })));
+        let mut builder = openrust::testing::TestApp::<Server>::builder(
+            crate::modules::example::test_sources(&source)?,
+        );
+        let reported = Arc::clone(&report_count);
+        builder.configure_providers(move |providers| {
+            let mut listeners = EventsServiceProvider::new();
+            listeners.listen_named::<DiagnosingHealth, _>(
+                r"Illuminate\Foundation\Events\DiagnosingHealth",
+                |_, _| {
+                    Box::pin(async {
+                        Err(openrust::Error::internal(std::io::Error::other(
+                            "private diagnostic detail",
+                        )))
+                    })
+                },
+            );
+            providers.force_provider(listeners);
+            providers.provider(HealthFailureReporter(Arc::clone(&reported)));
+        });
+        let mut app = builder.build().await?;
+        assert_eq!(app.app()?.config().app.debug, debug);
+        assert_eq!(app.app()?.config().app.name, "<diagnostics>");
+        let path = if debug { "/healthz" } else { "/up" };
+        let response = app
+            .request(health_request(path, "application/json")?)
+            .await?;
+        assert_eq!(
+            response.status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "{}",
+            String::from_utf8_lossy(response.body())
+        );
+        assert_eq!(report_count.load(Ordering::Relaxed), 1);
+        if debug {
+            assert_eq!(response.body(), b"debug-rendered");
+        } else {
+            assert_eq!(
+                response.json::<serde_json::Value>()?,
+                serde_json::json!({"status": "down"})
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get("cache-control")
+                    .and_then(|value| value.to_str().ok()),
+                Some("no-cache, private"),
+                "JSON 健康诊断响应"
+            );
+            let html = app.request(health_request("/up", "text/html")?).await?;
+            assert_eq!(html.status(), StatusCode::INTERNAL_SERVER_ERROR);
+            let text = std::str::from_utf8(html.body()).map_err(openrust::Error::internal)?;
+            assert!(
+                text.contains("<title>&lt;diagnostics&gt;</title>"),
+                "测试夹具的 HTML 诊断响应为 {text}"
+            );
+            assert!(text.contains("Application experiencing problems"));
+            assert!(!text.contains("private diagnostic detail"));
+            assert_eq!(
+                html.headers()
+                    .get("cache-control")
+                    .and_then(|value| value.to_str().ok()),
+                Some("no-cache, private"),
+                "HTML 健康诊断响应"
+            );
+            assert_eq!(report_count.load(Ordering::Relaxed), 2);
+        }
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await?;
+    }
+    Ok(())
 }
 
 #[tokio::test]

@@ -3,7 +3,7 @@
 use openrust::core::ApiResponse;
 use openrust::events::{EventPropagation, EventsServiceProvider};
 use openrust::foundation::RegisterContext;
-use openrust::foundation::events::Terminating;
+use openrust::foundation::events::{DiagnosingHealth, Terminating};
 use openrust::http::Inject;
 use openrust::support::ServiceProvider;
 use openrust::{BoxFuture, Error, Result};
@@ -69,6 +69,15 @@ pub(crate) fn events_provider(log: Arc<ModuleStateLog>) -> EventsServiceProvider
     events.listen::<Terminating, _>(|_, context| {
         Box::pin(async move {
             tracing::trace!(event = context.event_name(), "示例内核开始终止入口");
+            Ok(())
+        })
+    });
+    let diagnostic_log = Arc::clone(&log);
+    events.listen::<DiagnosingHealth, _>(move |_, _| {
+        let log = Arc::clone(&diagnostic_log);
+        Box::pin(async move {
+            // 检查只读状态端点依赖的共享记录可访问，避免复制记录或修改观察结果。
+            drop(log.events.lock().map_err(|_| unavailable())?);
             Ok(())
         })
     });

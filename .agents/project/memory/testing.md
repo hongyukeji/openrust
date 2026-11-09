@@ -1898,6 +1898,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 工作区 fmt、严格 Clippy、真实 MySQL 8.4 workspace tests、严格 Rustdoc、离线依赖检查和两种生成应用 check/test 通过。当前验收范围是命令边界与编译打包。Laravel 的 `optimize`、`optimize:clear` 与 `reload` 及原生 x86_64 发布包在原矩阵独立验收。
 
+## 应用健康路由限定验收
+
+冻结树 `7723093960fda9177634235574ec14f9038ba98d` 对照固定 Laravel `06d016a` 骨架、框架 `d52c3b3` 的 `ApplicationBuilder`、`HealthCheck` 与 `RouteServiceProviderHealthTest`。根和生成项目在 API 与 Web 路由组之间注册 `/up`，共享应用事件派发器与异常报告。HTML 和 JSON 生产 500 通过已渲染响应标记保留，未标记的非 JSON 500 继续由原中间件脱敏。Rust 的 `Result::Err` 一律表示诊断失败，不按 PHP 异常消息文本的空串或零值判断健康。
+
+根和新生成 minimal/MySQL 的路由测试覆盖内容协商、固定事件标识、替换路径、异常报告与调试渲染。根和 minimal 产物搬迁到含空格路径后，用真实 Redis 实测 HTML、JSON、HEAD 200 及 SIGTERM 退出 0。维护模式路径豁免与路由缓存序列化继续随对应契约验收。
+
 ## 本机 Cargo 与显式 Docker 发布验收
 
 冻结树 `93aace7c5e1ab2cd0b15d5f751419b52f0b5423e`。编译打包是 OpenRust 的源码扩展，参考固定 Goravel a554ced 的编译入口和 a9e5a3f 的 Docker 独立流程。部署优化和长驻服务重载按固定 Laravel d52c3b3 与部署文档 960eedf 分别验收。
