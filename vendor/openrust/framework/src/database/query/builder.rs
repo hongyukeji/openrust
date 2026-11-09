@@ -574,10 +574,13 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
         self.transform(|state| state.or_where_eq(column, value))?;
         Ok(self)
     }
-    /// 添加受信SQL片段与显式绑定。
+    /// 添加受信 SQL 条件，参数按顺序绑定到代码区中的 `?`。
+    ///
+    /// 占位符规则与 [`Self::select_raw`] 相同，包括 PostgreSQL 的 `??` 操作符转义。
+    /// 参数数目或模板无效时，返回的查询在读取绑定、编译或执行时报告错误。
     #[must_use]
     pub fn where_raw(self, sql: RawSql, bindings: Vec<Value>) -> Self {
-        if let Err(error) = self.transform(|state| Ok(state.where_raw(sql, bindings))) {
+        if let Err(error) = self.transform(|state| state.where_raw(sql, bindings)) {
             return self.failed_copy(&error);
         }
         self

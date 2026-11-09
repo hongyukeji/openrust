@@ -177,6 +177,8 @@ SQLite自定义插件仍可经通用Db公开API提供连接；只有实际启用
 
 `cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库默认连接支持 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD` 与 `DB_TABLE_PREFIX`；需要完整 URL 时可通过配置文件或应用变量 `APP_DATABASE__URL` 设置。历史决策002的暂定版本已由[兼容基线](../plans/database-compatibility-baseline.md)替代；上述历史验收不外推新最低版本。
 
+原始 WHERE 与投影共用问号模板，按条件顺序保留绑定。方言词法决定引号和注释边界，无法确定 PostgreSQL 会话下的引号边界时明确失败。实际 MySQL 与发布专跑见[原始 WHERE 验收](../memory/testing.md#原始-where-参数与方言词法验收)。
+
 JSON 包含通过同一布尔树处理限定列、路径、OR 与否定，查询与嵌套组共享查找值绑定和方言编译。MySQL 与 PostgreSQL 的路径缺失保留 SQL 未知值，SQLite 的否定保留原生 NOT EXISTS 语义。证据见[路径与布尔组验收](../memory/testing.md#json-包含路径与布尔组验收)。
 
 SQLite 简单列 `where_json_contains` 复用 Query Builder，采用固定 Laravel 的 `json_each` 和标量绑定。浮点按 PDO 文本语义处理，结构化参数明确拒绝。示例与生成项目接线及发布矩阵见[日常验收](../memory/testing.md#sqlite-简单列-json-包含日常验收)。

@@ -929,7 +929,7 @@ async fn check_generated_belongs_to_many(
     connection.execute_unprepared("INSERT INTO relation_links (parent_id, item_id, tag) VALUES (7, 1, 'first'), (8, 1, 'second')").await.map_err(Error::internal)?;
     let observed = Arc::new(AtomicUsize::new(0));
     let calls = Arc::clone(&observed);
-    BelongsToMany::new(
+    let links = BelongsToMany::new(
         related,
         PivotKeys {
             table: "relation_links",
@@ -940,22 +940,23 @@ async fn check_generated_belongs_to_many(
         },
     )
     .with_pivot(&["tag"])
-    .with_pivot_accessor("membership")
-    .load(
-        parents,
-        RelationLoad {
-            name: "linked_items",
-            nested: &[],
-        },
-        context,
-        move |query| {
-            Ok(query.before_query(move |_| {
-                calls.fetch_add(1, Ordering::SeqCst);
-                Ok(())
-            }))
-        },
-    )
-    .await?;
+    .with_pivot_accessor("membership");
+    links
+        .load(
+            parents,
+            RelationLoad {
+                name: "linked_items",
+                nested: &[],
+            },
+            context,
+            move |query| {
+                Ok(query.before_query(move |_| {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                }))
+            },
+        )
+        .await?;
     check(observed.load(Ordering::SeqCst) == 1)?;
     for (parent, expected) in
         parents
@@ -985,6 +986,7 @@ async fn check_generated_belongs_to_many(
             check(items.is_empty())?;
         }
     }
+    check_generated_filtered_pivot(links, parents, context).await?;
     check_generated_custom_pivot(related, parents, context).await?;
     check_generated_pivot_transaction(db, related, context).await?;
     check_generated_pivot_writes(db, related, context).await?;
@@ -998,6 +1000,65 @@ async fn check_generated_belongs_to_many(
     check_generated_custom_pivot_delete(db, related, context).await?;
     check_generated_pivot_value(db, related, context).await?;
     check_generated_pivot_touch_transaction_source(db, related, context).await
+}
+
+async fn check_generated_filtered_pivot(
+    links: openrust::database::eloquent::BelongsToMany<'_, GeneratedModel>,
+    parents: &mut [GeneratedModel],
+    context: &openrust::database::eloquent::SaveContext<'_>,
+) -> Result<()> {
+    use openrust::database::eloquent::{LoadedRelation, Pivot, RelationLoad};
+    use serde_json::json;
+
+    links
+        .where_pivot_eq("tag", "second")
+        .load(
+            parents,
+            RelationLoad {
+                name: "filtered_linked_items",
+                nested: &[],
+            },
+            context,
+            |query| {
+                check(
+                    query.get_bindings()?
+                        == vec![
+                            Value::from(7_i64),
+                            Value::from(8_i64),
+                            Value::from(9_i64),
+                            Value::from("second"),
+                        ],
+                )?;
+                Ok(query)
+            },
+        )
+        .await?;
+    for (parent, expected_count) in parents.iter().zip([0, 1, 0, 0, 0]) {
+        let items = parent
+            .relations
+            .get_relation("filtered_linked_items")
+            .and_then(LoadedRelation::downcast_ref::<Vec<Arc<GeneratedModel>>>)
+            .ok_or_else(|| {
+                Error::custom(
+                    "generated_pivot_relation_missing",
+                    "筛选后的多对多关系未加载",
+                )
+            })?;
+        check(items.len() == expected_count)?;
+        if let Some(item) = items.first() {
+            check(item.attributes.raw_attribute("id")? == Some(json!(1)))?;
+            let pivot = item
+                .relations
+                .get_relation("membership")
+                .and_then(LoadedRelation::downcast_ref::<Pivot>)
+                .ok_or_else(|| {
+                    Error::custom("generated_pivot_missing", "缺少筛选后的中间表数据")
+                })?;
+            check(pivot.attributes().get("parent_id") == Some(&json!(8)))?;
+            check(pivot.attributes().get("tag") == Some(&json!("second")))?;
+        }
+    }
+    Ok(())
 }
 
 async fn check_generated_pivot_touch_transaction_source(

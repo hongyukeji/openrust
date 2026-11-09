@@ -207,7 +207,7 @@ impl UserProvider for DatabaseUserProvider {
             let exact = match self.db.backend()? {
                 DbBackend::MySql => format!("CAST(`{field}` AS BINARY) = CAST(? AS BINARY)"),
                 DbBackend::Postgres => {
-                    format!("convert_to(\"{field}\", 'UTF8') = convert_to($1, 'UTF8')")
+                    format!("convert_to(\"{field}\", 'UTF8') = convert_to(?, 'UTF8')")
                 }
                 DbBackend::Sqlite => format!("CAST(\"{field}\" AS BLOB) = CAST(? AS BLOB)"),
                 _ => {

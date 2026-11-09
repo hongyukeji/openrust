@@ -75,9 +75,9 @@ let rows = db.query()
     .get().await?;
 ```
 
-投影绑定模板统一使用 `?`，按出现顺序取值；SQL 字符串、引用标识符和普通注释内的问号不消耗绑定。PostgreSQL 的 JSON 问号操作符用 `??`，其他后端在执行代码区拒绝 `??`；原生编号或命名参数不能混入这条模板。`select_raw` 追加显式投影，第一次显式投影替换缺省 `*`；普通 `select` 替换已选投影，计数和分页不会丢失原投影绑定。
+`select_raw` 和 `where_raw` 的绑定模板统一使用 `?`，按出现顺序取值。SQL 字符串、引用标识符和普通注释内的问号不消耗绑定。PostgreSQL 的 JSON 问号操作符用 `??`，其他后端在执行代码区拒绝 `??`。原生编号或命名参数不能混入这条模板。`select_raw` 追加显式投影，第一次显式投影替换缺省 `*`。普通 `select` 替换已选投影，计数和分页不会丢失原投影绑定。
 
-原始 SQL 的模式边界仍受控：PostgreSQL 普通字符串按标准字符串模式处理，跨模式反斜线内容使用绑定或独立 `E` 字符串；MySQL 无法确认字符串转义模式时明确拒绝歧义反斜线。版本门控的 MySQL 执行注释含参数时也明确拒绝，不能从测试服务器版本推断实际是否执行。完整会话模式与版本感知编译仍未完成，这些限制不作为任意原始 SQL 已等价的声明。
+PostgreSQL 普通字符串的单引号前出现奇数个连续反斜线时，查询返回 `query_raw_sql_mode_ambiguous`。可使用值绑定、美元引用或显式 `E` 字符串。显式 `E` 字符串以换行衔接时继续使用原转义规则。MySQL 对字符串中的反斜线也要求使用绑定，避免会话转义模式改变边界。带版本门控的 MySQL 执行注释中无法绑定参数。当前仅编译词法边界可确定的模板。
 
 ### JSON 路径比较
 
@@ -91,6 +91,22 @@ let rows = db.table("users")?
 ```
 
 数组路径保留目标方言对键和索引的区别，不能把所有数字外观的键都当作数组索引。MySQL 的 JSON NULL／缺失路径使用提取值与 JSON 类型的联合判定。普通路径由框架引用和转义；`RawSql` 仍只用于应用选择的可信表达式。
+
+## 原始 WHERE 条件
+
+`where_raw` 用于应用审查过的固定 SQL 片段。将外部值放进绑定列表，并保留账户等普通条件：
+
+```rust,ignore
+use openrust::database::query::RawSql;
+
+let query = db.table("records")?
+    .where_eq("owner_id", owner_id)?
+    .where_raw(RawSql::new("priority >= ? AND priority < ?"), vec![min.into(), max.into()])
+    .where_eq("status", "visible")?;
+let rows = query.get().await?;
+```
+
+这里的 WHERE 绑定顺序为账户、下限、上限和状态。相同条件也用于计数、更新和删除。参数缺少或多余时，读取绑定、编译和执行都会报告 `query_raw_bindings_invalid`。
 
 ## JSON 包含
 

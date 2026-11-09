@@ -1,4 +1,4 @@
-//! 空查询、显式FROM及带绑定原始投影；复用唯一SelectStatement与执行计划。
+//! 空查询、显式 FROM 与带绑定的受信 SQL 表达式。
 
 use super::{
     Alias, Asterisk, DatabaseTransaction, Db, DbBackend, Error, Expr, PredicateChain, Query,
@@ -41,7 +41,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
     }
     fn select_raw(mut self, sql: RawSql, values: Vec<Value>) -> Result<Self> {
         let RawSql(sql) = sql;
-        let expression = raw_projection(&sql, values, self.db.backend()?)?;
+        let expression = raw_expression(&sql, values, self.db.backend()?)?;
         if self.projection.is_none() {
             self.select.clear_selects();
         }
@@ -75,7 +75,8 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
     ///
     /// 参数用 `?` 绑定；PG 问号操作符用 `??`，其余后端的代码区拒绝 `??`。
     /// 数据问号使用引用或绑定，代码区原生参数明确拒绝。
-    /// PG普通字符串使用标准字符串词法，反斜线转义须用独立`E`前缀。
+    /// PostgreSQL 普通字符串拒绝引号前的奇数反斜线。请用值绑定、美元引用或显式 `E` 字符串；
+    /// PostgreSQL 以换行衔接的 `E` 字符串片段延续转义规则。
     /// `MySQL` 的反斜线字面量存在 `SQL mode` 歧义，请使用绑定；未知版本执行注释参数明确拒绝。
     pub fn select_raw(self, sql: RawSql, bindings: Vec<Value>) -> Result<Self> {
         self.transform(|state| state.select_raw(sql, bindings))?;
@@ -84,11 +85,14 @@ impl<'tx: 'cap, 'cap> QueryBuilder<'tx, 'cap> {
 }
 
 fn raw_invalid() -> Error {
-    Error::custom("query_raw_bindings_invalid", "原始投影的占位符与绑定不匹配")
+    Error::custom(
+        "query_raw_bindings_invalid",
+        "原始 SQL 的占位符与绑定不匹配",
+    )
 }
 
 // 只识别占位符所在词法区间；SQL语法仍交由数据库，不在此解析或执行SQL。
-fn raw_projection(sql: &str, values: Vec<Value>, backend: DbBackend) -> Result<Expr> {
+pub(super) fn raw_expression(sql: &str, values: Vec<Value>, backend: DbBackend) -> Result<Expr> {
     let postgres = match backend {
         DbBackend::Postgres => true,
         DbBackend::MySql | DbBackend::Sqlite => false,
@@ -169,9 +173,10 @@ fn skip_region(sql: &str, index: usize, backend: DbBackend) -> Result<Option<usi
                 .is_none_or(|byte| byte.is_ascii_whitespace() || byte.is_ascii_control()));
     if dash || (backend == DbBackend::MySql && byte == b'#') {
         let mut end = index + 1;
+        // PostgreSQL 把 CR 和 LF 都视为换行，MySQL 与 SQLite 的行注释只在 LF 处结束。
         while end < bytes.len()
             && bytes[end] != b'\n'
-            && (backend == DbBackend::Sqlite || bytes[end] != b'\r')
+            && (backend != DbBackend::Postgres || bytes[end] != b'\r')
         {
             end += 1;
         }
@@ -260,11 +265,24 @@ fn quoted_end(sql: &str, mut index: usize, backend: DbBackend) -> Result<usize> 
             if backend == DbBackend::MySql && quote != b'`' {
                 return Err(Error::custom(
                     "query_raw_sql_mode_ambiguous",
-                    "原始投影中的反斜线文本请改用值绑定",
+                    "原始 SQL 中的反斜线文本请改用值绑定",
                 ));
             }
             if escape {
                 index += 2;
+                continue;
+            }
+            if backend == DbBackend::Postgres && quote == b'\'' {
+                let start = index;
+                while bytes.get(index) == Some(&b'\\') {
+                    index += 1;
+                }
+                if !(index - start).is_multiple_of(2) && bytes.get(index) == Some(&quote) {
+                    return Err(Error::custom(
+                        "query_raw_sql_mode_ambiguous",
+                        "PostgreSQL 普通字符串的引号边界随会话变化，请改用值绑定、美元引用或显式 E 字符串",
+                    ));
+                }
                 continue;
             }
         }
@@ -274,12 +292,42 @@ fn quoted_end(sql: &str, mut index: usize, backend: DbBackend) -> Result<usize> 
                 index += 1;
                 continue;
             }
+            if escape && let Some(next) = postgres_escape_continuation(bytes, index) {
+                index = next;
+                continue;
+            }
             return Ok(index);
         }
         index += 1;
     }
     Err(raw_invalid())
 }
+
+// PostgreSQL quotecontinue 须跨 LF/CR，仅容许词法空白和行注释。
+fn postgres_escape_continuation(bytes: &[u8], mut index: usize) -> Option<usize> {
+    let mut newline = false;
+    loop {
+        match *bytes.get(index)? {
+            b'\n' | b'\r' => {
+                newline = true;
+                index += 1;
+            }
+            b' ' | b'\t' | b'\x0b' | b'\x0c' => index += 1,
+            b'-' if bytes.get(index + 1) == Some(&b'-') => {
+                index += 2;
+                while bytes
+                    .get(index)
+                    .is_some_and(|byte| !matches!(*byte, b'\n' | b'\r'))
+                {
+                    index += 1;
+                }
+            }
+            b'\'' if newline => return Some(index + 1),
+            _ => return None,
+        }
+    }
+}
+
 fn identifier_before(sql: &str, index: usize) -> bool {
     sql[..index]
         .chars()
@@ -292,7 +340,7 @@ fn identifier_continue(character: char) -> bool {
 fn native_bindings() -> Error {
     Error::custom(
         "query_raw_native_bindings_unsupported",
-        "原始投影只接受统一问号参数模板",
+        "原始 SQL 只接受统一问号参数模板",
     )
 }
 fn block_end(bytes: &[u8], mut index: usize, nested: bool) -> Result<usize> {

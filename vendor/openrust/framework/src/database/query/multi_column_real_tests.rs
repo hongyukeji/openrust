@@ -70,7 +70,7 @@ async fn real_raw_projection_driver_lexical_regions_preserve_parameter_values() 
                 }
                 let tx=connection.begin().await.map_err(Error::internal)?;
                 tx.execute_unprepared("SET LOCAL standard_conforming_strings=on").await.map_err(Error::internal)?;
-                let query=db.query().using_transaction(&tx).select_raw(RawSql::new(r"CASE WHEN true THEN '' ELSE'\' END || ? AS value"),vec!["safe".into()])?;
+                let query=db.query().using_transaction(&tx).select_raw(RawSql::new(r"CASE WHEN true THEN '' ELSE E'\\' END || ? AS value"),vec!["safe".into()])?;
                 let rows=query.get().await?;assert_eq!(rows[0].try_get::<String>("","value").map_err(Error::internal)?,"safe");
                 drop(query);tx.rollback().await.map_err(Error::internal)?;
                 assert!(matches!(db.query().select_raw(RawSql::new("$1 || ?"),vec!["bound".into()]),Err(error) if error.code()=="query_raw_native_bindings_unsupported"));

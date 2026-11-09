@@ -22,6 +22,9 @@ mod json_contains;
 mod multi_column;
 mod sqlite_write_target;
 mod subqueries;
+#[cfg(all(test, any(feature = "db-mysql", feature = "db-postgres")))]
+#[path = "../../../tests/unit/database/query/where_raw.rs"]
+mod where_raw_tests;
 pub use between_columns::ColumnOperand;
 use between_columns::{PredicateChain, QueryContext};
 pub use comparison::{WhereOperator, WhereValue};
@@ -534,11 +537,11 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         Ok(self)
     }
 
-    /// 显式受信 SQL where 逃生口；动态值只能通过 `bindings` 传入。
-    #[must_use]
-    pub fn where_raw(mut self, sql: RawSql, bindings: Vec<Value>) -> Self {
-        self.predicates = self.predicates.add(Expr::cust_with_values(sql.0, bindings));
-        self
+    fn where_raw(mut self, sql: RawSql, bindings: Vec<Value>) -> Result<Self> {
+        let RawSql(sql) = sql;
+        let predicate = factory::raw_expression(&sql, bindings, self.db.backend()?)?;
+        self.predicates = self.predicates.add(predicate);
+        Ok(self)
     }
 
     /// `where column in (...)`；空集合遵 SQL 永假语义。
@@ -890,24 +893,8 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
             validate_identifier(column)?;
             pairs.push((Alias::new(column), Expr::val(value)));
         }
-        let build = |bindings: bool| -> Result<(String, Values)> {
-            if self.db.backend()? == DbBackend::Sqlite {
-                return self.sqlite_compile_update(&pairs, bindings);
-            }
-            let mut statement = Query::update();
-            statement
-                .table(Alias::new(self.required_table()?))
-                .values(pairs.clone());
-            statement.cond_where(self.predicates.compile(&self.context(), bindings)?);
-            match self.db.backend()? {
-                DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
-                DbBackend::MySql => Ok(statement.build(MysqlQueryBuilder)),
-                DbBackend::Sqlite => Ok(statement.build(SqliteQueryBuilder)),
-                _ => Err(unsupported_backend()),
-            }
-        };
-        let current = build(false)?;
-        let captured = build(true)?;
+        let current = self.compile_update(&pairs, false)?;
+        let captured = self.compile_update(&pairs, true)?;
         if current.1.0.len() != captured.1.0.len() {
             return Err(Error::custom(
                 "query_subquery_bindings_mismatch",
@@ -917,24 +904,27 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         self.execute((current.0, captured.1)).await
     }
 
+    fn compile_update(&self, pairs: &[(Alias, Expr)], bindings: bool) -> Result<(String, Values)> {
+        let backend = self.db.backend()?;
+        if backend == DbBackend::Sqlite {
+            return self.sqlite_compile_update(pairs, bindings);
+        }
+        let mut statement = Query::update();
+        statement
+            .table(Alias::new(self.required_table()?))
+            .values(pairs.iter().cloned());
+        statement.cond_where(self.predicates.compile(&self.context(), bindings)?);
+        match backend {
+            DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
+            DbBackend::MySql => Ok(statement.build(MysqlQueryBuilder)),
+            _ => Err(unsupported_backend()),
+        }
+    }
+
     /// 删除满足当前 where 约束的行。
     pub async fn delete(&self) -> Result<u64> {
-        let build = |bindings: bool| -> Result<(String, Values)> {
-            if self.db.backend()? == DbBackend::Sqlite {
-                return self.sqlite_compile_delete(bindings);
-            }
-            let mut statement = Query::delete();
-            statement.from_table(Alias::new(self.required_table()?));
-            statement.cond_where(self.predicates.compile(&self.context(), bindings)?);
-            match self.db.backend()? {
-                DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
-                DbBackend::MySql => Ok(statement.build(MysqlQueryBuilder)),
-                DbBackend::Sqlite => Ok(statement.build(SqliteQueryBuilder)),
-                _ => Err(unsupported_backend()),
-            }
-        };
-        let current = build(false)?;
-        let captured = build(true)?;
+        let current = self.compile_delete(false)?;
+        let captured = self.compile_delete(true)?;
         if current.1.0.len() != captured.1.0.len() {
             return Err(Error::custom(
                 "query_subquery_bindings_mismatch",
@@ -942,6 +932,22 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
             ));
         }
         self.execute((current.0, captured.1)).await
+    }
+
+    fn compile_delete(&self, bindings: bool) -> Result<(String, Values)> {
+        let backend = self.db.backend()?;
+        if backend == DbBackend::Sqlite {
+            return self.sqlite_compile_delete(bindings);
+        }
+        let mut statement = Query::delete();
+        statement
+            .from_table(Alias::new(self.required_table()?))
+            .cond_where(self.predicates.compile(&self.context(), bindings)?);
+        match backend {
+            DbBackend::Postgres => Ok(statement.build(PostgresQueryBuilder)),
+            DbBackend::MySql => Ok(statement.build(MysqlQueryBuilder)),
+            _ => Err(unsupported_backend()),
+        }
     }
 
     fn reaches(

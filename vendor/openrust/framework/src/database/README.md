@@ -10,6 +10,8 @@ Query Builder 的 `r#where`／`where_compare` 及 OR／条件组入口支持默�
 
 `where_json_contains` 绑定查找值，支持列名、限定列和箭头路径。查询及嵌套组都可使用 OR 和 NOT 变体。PostgreSQL 用 `jsonb` 包含操作符，MySQL 用 `JSON_CONTAINS`，SQLite 用 `json_each` 和按 PDO 类型转换的标量参数。示例按两个标签路径组合 OR，同时保留所有者条件与分页总数。见 [JSON 包含](../../../../../docs/src/database/queries.md#json-包含)。
 
+`where_raw` 与 `select_raw` 共用问号模板。参数顺序保留，引用和普通注释中的问号不绑定。参数不匹配或会话可能改变引号边界时明确报错。见 [原始 WHERE 条件](../../../../../docs/src/database/queries.md#原始-where-条件)。
+
 ## 通用能力、驱动与连接
 
 `openrust::database`、门面及 prelude 的 `Db/Databases` 始终可编译，不需要先选择 MySQL/PG。`db-postgres` / `db-mysql` / `db-sqlite` 只编入具体官方连接器；启用 feature 不代表已经配置或建立连接。默认应用始终注册数据库服务及迁移命令，活跃模块可贡献迁移和种子；注册本身不执行迁移，缺少连接时实际数据库操作明确失败。

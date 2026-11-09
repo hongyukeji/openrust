@@ -814,8 +814,11 @@ async fn assert_owner_record_relation(
     let other_id = other["data"]["id"]
         .as_i64()
         .ok_or("foreign sibling ID missing")?;
+    let filtered_label = "共享 ' OR 1=1 -- ?";
     attach_preview_category(app, id, "owner").await?;
-    attach_preview_category(app, other_id, "other").await?;
+    attach_preview_category(app, sibling_id, filtered_label).await?;
+    attach_preview_category(app, other_id, filtered_label).await?;
+    assert_account_pivot_filter(app, [id, sibling_id, other_id], filtered_label).await?;
     let url = format!("{path}?include_owner_records=true");
     let preview = app
         .request(request(
@@ -1907,6 +1910,78 @@ async fn attach_preview_category(
             .await?,
         0
     );
+    Ok(())
+}
+
+async fn assert_account_pivot_filter(
+    app: &TestApp<crate::bootstrap::Server>,
+    ids: [i64; 3],
+    label: &str,
+) -> TestResult {
+    use crate::modules::example::{
+        models::example_record, services::record_preview::category_links,
+    };
+    use openrust::database::{
+        eloquent::{HasRelationships as _, RelationLoad, SaveContext},
+        sea_orm::{ColumnTrait as _, EntityTrait as _, QueryFilter as _, QueryOrder as _, Value},
+    };
+
+    const RELATION: &str = "filtered_category_links";
+    let databases = app.app()?.state().resolve::<openrust::Databases>().await?;
+    let db = example_record::record_query_db(&databases.default_database())?;
+    let rows = example_record::Entity::find()
+        .filter(example_record::Column::Id.is_in(ids))
+        .order_by_asc(example_record::Column::Id)
+        .all(&db.primary_connection()?)
+        .await?;
+    let [record, sibling, foreign] = rows.as_slice() else {
+        return Err("缺少两账户的关系测试记录".into());
+    };
+    assert_eq!([record.id, sibling.id, foreign.id], ids);
+    assert_eq!(record.owner_id, sibling.owner_id);
+    assert_ne!(record.owner_id, foreign.owner_id);
+    let mut parents = [
+        example_record::RecordForSave::from_existing(record)?,
+        example_record::RecordForSave::from_existing(sibling)?,
+    ];
+    let mut parent_keys = [record.id, sibling.id];
+    parent_keys.sort_unstable_by_key(i64::to_string);
+    let [first, second] = parent_keys;
+    let calendar = CalendarContext::default();
+    let context = SaveContext::new(&databases, None, &calendar);
+    let category = example_record::RecordCategory::new();
+    category_links(&category)
+        .where_pivot_eq("label", label)
+        .load_on(
+            &mut parents,
+            RelationLoad {
+                name: RELATION,
+                nested: &[],
+            },
+            &context,
+            &db,
+            |query| {
+                // 外部账户使用相同标签，必须由限定父键的 IN 排除。
+                assert_eq!(
+                    query.get_bindings()?,
+                    vec![Value::from(first), Value::from(second), Value::from(label)]
+                );
+                assert!(!query.to_sql()?.contains(label));
+                Ok(query)
+            },
+        )
+        .await?;
+    assert_eq!(
+        parents[0].json_serialize()?[RELATION],
+        serde_json::json!([])
+    );
+    let serialized = parents[1].json_serialize()?;
+    let Some([link]) = serialized[RELATION].as_array().map(Vec::as_slice) else {
+        return Err("同账户第二条记录应只加载一个匹配分类".into());
+    };
+    assert_eq!(link["name"], "field-types");
+    assert_eq!(link["pivot"]["record_id"], sibling.id);
+    assert_eq!(link["pivot"]["label"], label);
     Ok(())
 }
 

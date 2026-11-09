@@ -66,7 +66,7 @@ async fn empty_query_raw_projection_replacement_restore_and_no_table_writes() ->
 #[test]
 fn raw_templates_protect_nonparameter_regions_and_declared_binding_order() -> Result<()> {
     for backend in [DbBackend::MySql, DbBackend::Postgres, DbBackend::Sqlite] {
-        let expression = raw_projection(
+        let expression = raw_expression(
             "? + ? /* ? */ + length('?')",
             vec![1.into(), 2.into()],
             backend,
@@ -82,7 +82,7 @@ fn raw_templates_protect_nonparameter_regions_and_declared_binding_order() -> Re
         assert!(sql.contains("/* ? */"));
         assert!(sql.contains("'?'"));
     }
-    let expression = raw_projection(
+    let expression = raw_expression(
         "? + E'\\\\?'::text || $tag$? $1$tag$ /* a /* ? */ b */ -- ?\n || '?'",
         vec![3.into()],
         DbBackend::Postgres,
@@ -90,7 +90,7 @@ fn raw_templates_protect_nonparameter_regions_and_declared_binding_order() -> Re
     let (sql, values) = Query::select().expr(expression).build(PostgresQueryBuilder);
     assert_eq!(values.0, vec![3.into()]);
     assert!(sql.contains("$tag$? $1$tag$"));
-    let expression = raw_projection("payload ?? ?", vec!["key".into()], DbBackend::Postgres)?;
+    let expression = raw_expression("payload ?? ?", vec!["key".into()], DbBackend::Postgres)?;
     let (sql, values) = Query::select().expr(expression).build(PostgresQueryBuilder);
     assert!(sql.contains("payload ?"));
     assert_eq!(values.0, vec!["key".into()]);
@@ -101,7 +101,7 @@ fn raw_templates_protect_nonparameter_regions_and_declared_binding_order() -> Re
         ("$tag$unterminated", vec![]),
     ] {
         assert!(
-            matches!(raw_projection(sql,values,DbBackend::Postgres),Err(error) if error.code()=="query_raw_bindings_invalid")
+            matches!(raw_expression(sql,values,DbBackend::Postgres),Err(error) if error.code()=="query_raw_bindings_invalid")
         );
     }
     Ok(())
@@ -117,7 +117,7 @@ fn raw_lexing_keeps_quoted_identifiers_and_escaped_questions_out_of_bindings() -
             "? AS \"literal?\", E'\\\\?' AS value /* outer /* ? */ inner */",
         ),
     ] {
-        let expression = raw_projection(sql, vec![9.into()], backend)?;
+        let expression = raw_expression(sql, vec![9.into()], backend)?;
         let statement = Query::select().expr(expression).to_owned();
         let (_, values) = match backend {
             DbBackend::MySql => statement.build(MysqlQueryBuilder),
@@ -128,7 +128,7 @@ fn raw_lexing_keeps_quoted_identifiers_and_escaped_questions_out_of_bindings() -
         assert_eq!(values.0, vec![9.into()]);
     }
     assert!(
-        matches!(raw_projection("$2 || ? || $1",vec!["declared".into()],DbBackend::Postgres),Err(error) if error.code()=="query_raw_native_bindings_unsupported")
+        matches!(raw_expression("$2 || ? || $1",vec!["declared".into()],DbBackend::Postgres),Err(error) if error.code()=="query_raw_native_bindings_unsupported")
     );
     Ok(())
 }

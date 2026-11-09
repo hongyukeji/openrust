@@ -1894,6 +1894,20 @@ Linux ARM64 的镜像和独立目录均在真实服务拓扑下运行。根使�
 
 工作区格式、严格 Clippy、测试、Rustdoc 与依赖门禁通过。测试使用真实 MySQL 8.4，根示例及两种注册路径均实际执行断言。实际生成 minimal 并通过 check/test，包含默认宿主的同实例断言。路径配置与其他模块 Provider 行为按各自合同验收。
 
+## 原始 WHERE 参数与方言词法验收
+
+冻结树 `d7d30533bed3a5970c6ebd25718ee7164a9035c0`。固定 Laravel d52c3b3 的 Builder::whereRaw 与 Grammar 按 WHERE 顺序保留参数。OpenRust 的 where_raw 和 select_raw 使用同一词法及绑定校验，读取、更新、删除共享原条件树。参数缺失、多余或混用原生占位符均返回错误。PostgreSQL 普通字符串引号边界不确定时拒绝，显式 E 续行可用。MySQL 和 SQLite 的行注释沿各自词法结束。
+
+真实 MySQL 8.4.13 验证限定账户查询、注释中的问号、事务内精确 UPDATE/DELETE 与回滚，并验证唯一示例和生成应用的关联过滤以及 Fortify Web。workspace 格式、默认并行测试、严格 Clippy、全特性编译、Rustdoc、依赖门禁和生成检查通过。PostgreSQL 双会话真实 oracle 与 SQLite 实库留发布矩阵。
+
+PostgreSQL 专跑配置真实隔离库的 `OPENRUST_TEST_DATABASE_URL` 后执行：
+
+```sh
+cargo test -p openrust-framework --features db-postgres --lib \
+  database::query::where_raw_tests::real_postgres_raw_where_same_binding_mode_oracle \
+  -- --ignored --exact --nocapture
+```
+
 ## JSON 包含路径与布尔组验收
 
 冻结树 `44d3515298e937fc5bd414af5b4de4668252c462` 对应固定 Laravel d52c3b3 的四个 JSON 包含方法、MySQL/PostgreSQL/SQLite Grammar 与查询构造测试。三后端 AST 验证限定列、箭头路径和索引、取反范围、参数顺序与分组。Rust 把路径中的 ` as ` 当作 JSON 键数据，避免把条件路径解释成列别名。

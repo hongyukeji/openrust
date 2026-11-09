@@ -176,10 +176,10 @@ pub(super) fn match_ciphertext<'cap>(
             "CAST(\"two_factor_recovery_codes\" AS BLOB) = CAST(? AS BLOB)"
         }
         (DbBackend::Postgres, SECRET) => {
-            "convert_to(\"two_factor_secret\", 'UTF8') = convert_to($1, 'UTF8')"
+            "convert_to(\"two_factor_secret\", 'UTF8') = convert_to(?, 'UTF8')"
         }
         (DbBackend::Postgres, RECOVERY) => {
-            "convert_to(\"two_factor_recovery_codes\", 'UTF8') = convert_to($1, 'UTF8')"
+            "convert_to(\"two_factor_recovery_codes\", 'UTF8') = convert_to(?, 'UTF8')"
         }
         _ => {
             return Err(state_error(
