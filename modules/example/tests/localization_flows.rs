@@ -31,6 +31,9 @@ impl Fixture {
         Self::create_with_locale("en").await
     }
     async fn create_with_locale(default_locale: &str) -> TestResult<Self> {
+        Self::create_configured(default_locale, serde_json::json!({})).await
+    }
+    async fn create_configured(default_locale: &str, overrides: Value) -> TestResult<Self> {
         let mut defaults = openrust::config::FrameworkConfig::default();
         defaults.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let storage = tempfile::tempdir()?;
@@ -41,7 +44,7 @@ impl Fixture {
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage.path()}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"localization-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
-        })));
+        }))).merge(Serialized::defaults(overrides));
         let app = TestApp::<crate::bootstrap::Server>::builder(enabled_example_sources(&(source))?)
             .build()
             .await?;
@@ -111,6 +114,66 @@ impl Fixture {
         Ok(())
     }
 }
+#[tokio::test]
+async fn reading_summary_uses_configured_file_overlays_over_tcp() -> TestResult {
+    use openrust::translation::{MessageArgs, Translator};
+
+    let files = tempfile::tempdir()?;
+    for (relative, data) in [
+        (
+            "json/en.json",
+            r#"{"example::reading_as_of":"JSON only :date","extra-key":"available"}"#,
+        ),
+        ("base/en.json", r#"{"example::reading_as_of":"Base :date"}"#),
+        (
+            "extra/en.json",
+            r#"{"example::reading_as_of":"Published :date"}"#,
+        ),
+        (
+            "hint/en/menu.json",
+            r#"{"links":["home","account"],"title":"original"}"#,
+        ),
+        (
+            "extra/vendor/example-files/en/menu.json",
+            r#"{"links":["new home"]}"#,
+        ),
+    ] {
+        let path = files.path().join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, data)?;
+    }
+    let fixture = Fixture::create_configured(
+        "en",
+        serde_json::json!({
+            "translation_sources": {
+                "file_root": files.path().join("base"),
+                "paths": [files.path().join("absent"), files.path().join("extra")],
+                "json_paths": [files.path().join("json")],
+                "namespaces": {"example-files": files.path().join("hint")}
+            }
+        }),
+    )
+    .await?;
+    let outcome = async {
+        let body = fixture.summary(Some("en"), "2", "utc").await?;
+        let date = body["date"].as_str().ok_or("missing localized date")?;
+        assert_eq!(body["as_of"], format!("Published {date}"));
+        let i18n = fixture.app.app()?.state().resolve::<Translator>().await?;
+        let args = MessageArgs::new();
+        assert_eq!(i18n.string("extra-key", &args, None, false)?, "available");
+        assert_eq!(
+            i18n.array("example-files::menu", &args, None, false)?,
+            serde_json::json!({"links":["new home","account"],"title":"original"}),
+        );
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+    fixture.close().await?;
+    outcome
+}
+
 #[tokio::test]
 async fn reading_summary_uses_the_application_missing_handler_over_tcp() -> TestResult {
     use openrust::translation::{MissingReplacements, Translator};

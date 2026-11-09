@@ -22,6 +22,8 @@ pub(crate) struct SourceSettings {
     pub mode: SourceMode,
     pub install_database: bool,
     pub file_root: String,
+    pub paths: Vec<String>,
+    pub json_paths: Vec<String>,
     pub namespaces: BTreeMap<String, String>,
 }
 impl Default for SourceSettings {
@@ -30,6 +32,8 @@ impl Default for SourceSettings {
             mode: SourceMode::Files,
             install_database: false,
             file_root: "lang".into(),
+            paths: Vec::new(),
+            json_paths: Vec::new(),
             namespaces: BTreeMap::new(),
         }
     }
@@ -39,7 +43,13 @@ impl SourceSettings {
         self.install_database || self.mode != SourceMode::Files
     }
     fn validate(&self) -> Result<()> {
-        if self.mode != SourceMode::Database && self.file_root.trim().is_empty() {
+        if self.mode != SourceMode::Database
+            && std::iter::once(&self.file_root)
+                .chain(&self.paths)
+                .chain(&self.json_paths)
+                .chain(self.namespaces.values())
+                .any(|path| path.trim().is_empty())
+        {
             return Err(Error::custom(
                 "translation_source_config_invalid",
                 "文件来源需要非空目录",
@@ -49,6 +59,12 @@ impl SourceSettings {
     }
     fn files(&self) -> Arc<dyn TranslationLoader> {
         let mut loader = FileTranslationLoader::new(&self.file_root);
+        for path in &self.paths {
+            loader = loader.with_path(path);
+        }
+        for path in &self.json_paths {
+            loader = loader.with_json_path(path);
+        }
         for (namespace, path) in &self.namespaces {
             loader = loader.with_namespace(namespace, path);
         }
@@ -83,6 +99,8 @@ impl ServiceProvider for TranslationSourcesProvider {
                     ("mode", S::String),
                     ("install_database", S::Boolean),
                     ("file_root", S::String),
+                    ("paths", S::array(S::String)),
+                    ("json_paths", S::array(S::String)),
                     ("namespaces", S::map(S::String)),
                 ]),
                 SourceSettings::validate,

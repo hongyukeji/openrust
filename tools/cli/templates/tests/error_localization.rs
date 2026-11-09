@@ -268,3 +268,51 @@ async fn generated_translator_dispatches_lookup_hooks() -> TestResult {
         .await?;
     result
 }
+
+#[tokio::test]
+async fn generated_application_uses_file_loader_paths_and_partial_overrides() -> TestResult {
+    use openrust::translation::FileTranslationLoader;
+
+    let files = tempfile::tempdir()?;
+    for (relative, contents) in [
+        ("json/en.json", r#"{"mode":"json-only","extra":"available"}"#),
+        ("base/en.json", r#"{"mode":"ordinary"}"#),
+        ("addon/en/sub/menu.json", r#"{"title":"Menu"}"#),
+        ("hint/en/menu.json", r#"{"links":["home","account"]}"#),
+        ("addon/vendor/package/en/menu.json", r#"{"links":["new home"]}"#),
+    ] {
+        let path = files.path().join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, contents)?;
+    }
+    let loader = FileTranslationLoader::new(files.path().join("base"))
+        .with_json_path(files.path().join("json"))
+        .with_path(files.path().join("missing"))
+        .with_path(files.path().join("addon"))
+        .with_namespace("package", files.path().join("hint"));
+    let mut builder = ProviderBuilder::new();
+    builder.provider(TranslationServiceProvider::from_loader_factory(move |_| {
+        let loader = loader.clone();
+        Box::pin(async move { Ok(Arc::new(loader) as Arc<dyn TranslationLoader>) })
+    }));
+    let source = Figment::from(Serialized::defaults(FrameworkConfig::default()));
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
+    let result = async {
+        let i18n = app.state().resolve::<Translator>().await?;
+        let args = MessageArgs::new();
+        assert_eq!(i18n.string("mode", &args, None, true)?, "ordinary");
+        assert_eq!(i18n.string("extra", &args, None, true)?, "available");
+        assert_eq!(i18n.string("sub/menu.title", &args, None, true)?, "Menu");
+        assert_eq!(
+            i18n.array("package::menu", &args, None, false)?,
+            serde_json::json!({"links":["new home","account"]}),
+        );
+        Ok::<_, Box<dyn std::error::Error>>(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    result
+}
