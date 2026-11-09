@@ -1,5 +1,6 @@
 # Rust
 /target/
+/dist/
 **/target/
 Cargo.lock.bak
 /storage/*

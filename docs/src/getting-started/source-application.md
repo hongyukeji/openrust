@@ -160,14 +160,25 @@ done
 
 ### 导出应用文件
 
-在 Mac 上也可以用同一个 Dockerfile 导出 Linux 应用文件，导出目录中包含 `bin/openrust` 和包根的 `artisan`。下面的命令目标是 x86_64，ARM64 对应 `linux/arm64`。导出的二进制使用构建镜像的 Linux ABI，直接部署前应在目标系统检查依赖并实际启动。
+在 macOS 或 Linux 的应用源码目录运行 `./artisan build`。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。
 
 ```bash
-docker buildx build --platform linux/amd64 --target artifacts \
-  --output type=local,dest=dist/linux-amd64 .
+./artisan build --platform linux/amd64
+# 输出 dist/openrust-linux-amd64
+./artisan build --platform linux/arm64 --output dist/arm64-release
 ```
 
-将文件部署到 Linux 主机后，在应用运行目录建立 `bootstrap/cache`，并让实际应用账号可写。首次启动会在其中生成服务清单。容器运行镜像已创建该目录，应用入口为 `/app/bin/openrust`，迁移服务仍通过 `/app/artisan` 执行。
+显式输出路径可相对于项目根，也可使用绝对路径。父目录须已存在，目标须是新目录。构建先导出到临时目录，再发布到目标。收到 `build_publish_incomplete` 时不要部署该目录。Compose 构建使用应用根和生成时声明的本地 OpenRust 源码，包含额外命名上下文、构建密钥或远端缓存的自定义配置需另行构建。
+
+将产物目录复制到 Linux 主机，保留可执行权限。产物含唯一的 `bin/openrust`、`artisan`、应用的 `public/`、`resources/`、适用语言和模块资源，以及空的 `storage/` 与 `bootstrap/cache/`。在目标机提供环境变量或从空密钥的 `.env.example` 配置 `.env`，让运行账号可写这两个目录，并使用目标机可达的 MySQL 与 Redis。构建机的实际 dotenv、数据库及密钥须留在发布目录之外。
+
+```bash
+cd /srv/openrust
+./artisan migrate
+./bin/openrust
+```
+
+二进制使用 Debian Bookworm 构建环境的 Linux ABI。按目标机检查架构、动态库并实际启动。构建仍可通过 Dockerfile 的 `artifacts` 阶段手动导出。容器运行入口为 `/app/bin/openrust`，迁移服务仍通过 `/app/artisan` 执行。
 
 这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。历史根应用镜像已在原生 Ubuntu 24.04 x86_64 上实测部署、旧命名卷迁移和回退；该记录不替代新 `bin/openrust` 发布布局的验收。
 
@@ -175,7 +186,7 @@ docker buildx build --platform linux/amd64 --target artifacts \
 
 `openrust new` 生成应用自己的 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。需要支持 `additional_contexts` 的 Docker Compose 与 BuildKit。应用的 `Cargo.toml` 和 Compose 文件通过相对路径使用生成时对应的 OpenRust 源码。复制或移动到另一台构建机时，保留应用与框架的相对目录关系。容器运行只需要构建产物、公开资源和运行配置。
 
-例如，`openrust new blog` 生成的镜像执行 `/app/bin/blog`，Buildx 的 `artifacts` 阶段导出 `bin/blog`。独立部署时保留包根的 `artisan`，它从该目录调用 `bin/blog`。生成的 `README.md` 列出当前项目的发布命令。
+例如，`openrust new blog` 生成的镜像执行 `/app/bin/blog`，Buildx 的 `artifacts` 阶段导出 `bin/blog`。独立部署时保留包根的 `artisan`，它从该目录调用 `bin/blog`。在生成的源码目录同样运行 `./artisan build`。生成的 `README.md` 列出当前项目的发布命令。
 
 在生成的应用目录中启动服务并检查就绪状态。
 

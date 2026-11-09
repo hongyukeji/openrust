@@ -24,6 +24,7 @@ mod deployment;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod dev_watch;
 mod package_discovery;
+mod release;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -87,6 +88,8 @@ enum Builtin {
         #[arg(long)]
         watch: bool,
     },
+    /// 构建 Linux 应用目录产物，保留外部资源。
+    Build(release::BuildArgs),
     /// 运行应用的 server 命令。
     Serve,
     /// 生成模型、迁移、邮件、授权策略或后台任务。
@@ -488,6 +491,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             env,
             watch,
         }) => run_development(&config_namespace, env.as_deref(), watch),
+        Some(Builtin::Build(options)) => options.run(),
         Some(Builtin::Serve) => run_project(&["serve".to_owned()]),
         Some(Builtin::Generate {
             kind,

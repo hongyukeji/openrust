@@ -1867,6 +1867,12 @@ Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认
 
 默认工作区格式、严格 Clippy、测试、严格 Rustdoc 和离线依赖检查通过。真实 MySQL 8.4.13；工作区 2979 项，`blog` 33 项，`artisan` 33 项通过。进程测试覆盖 `artisan/public/storage/modules/bin` 五种冲突名、参数透传、搬迁及 127/126 错误。
 
+## Artisan Linux 发布目录限定验收
+
+冻结树 `4268d0f414bbfa56b3e8e4a58f7180a2bafdd5e0` 对照固定 Laravel 的源码 Artisan 入口与固定 Goravel 的构建工作流。根应用和搬迁至含空格路径的 fresh minimal 均实际从源码运行 `./artisan build`，使用同一 Compose/Buildx artifacts 目标并导出各自具名的单一 ELF64。根走默认目录，minimal 走含空格、逗号及引号的显式路径。保留应用资源与空可写目录。
+
+Linux ARM64 的镜像和独立目录均在真实服务拓扑下运行。根使用 MySQL 8.4.13 与 Redis，生成 minimal 使用 Redis。验证迁移、语言资源 HTTP 读取、独立 Artisan 与 SIGTERM。资源私钥导致的构建失败及已有目标保护均经过负例，未输出子进程私密值。默认工作区 fmt、严格 Clippy、测试、Rustdoc、离线依赖检查和 fresh minimal check/test 通过。原生 x86_64 的该入口仍待发布矩阵。
+
 ## 开发态两阶段重载
 
 macOS ARM64 使用 Watchexec 2.8.0、隔离 MySQL 8.4.13 与 Redis 8，通过根应用和 `openrust new --minimal` 生成应用的真实 HTTP 验收。根应用完成实际迁移，编译失败期间原进程持续响应，修复后收到 SIGTERM 并切换。选定的 `.env` 变更触发重载，其他环境文件和运行目录写入被忽略。

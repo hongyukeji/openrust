@@ -8,7 +8,7 @@ run_cli() {
     cli_manifest='tools/cli/Cargo.toml'
     if [ -f "$cli_manifest" ]; then
         case "$1" in
-            package:discover|package:list)
+            build|package:discover|package:list)
                 command=$1
                 shift
                 application=$(pwd -P)
@@ -38,7 +38,7 @@ if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
             shift
             run_cli dev --watch "$@"
             ;;
-        package:discover|package:list)
+        build|package:discover|package:list)
             run_cli "$@"
             ;;
         --env=*)

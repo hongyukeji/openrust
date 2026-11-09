@@ -20,18 +20,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     if [ -f Cargo.lock ]; then set -- "$@" --locked; fi; \
     "$@"; \
     install -D -m 755 "$CARGO_TARGET_DIR/release/{{name}}" "/out/bin/{{name}}"; \
-    install -m 755 artisan /out/artisan; \
-    cp -a public resources /out/; \
-    if [ -e lang ] || [ -L lang ]; then cp -a lang /out/; fi; \
-    mkdir -p /out/modules; \
-    for module in modules/*; do \
-        [ -d "$module" ] || continue; \
-        destination="/out/$module"; \
-        mkdir -p "$destination"; \
-        for asset in module.json public resources lang; do \
-            if [ -e "$module/$asset" ]; then cp -a "$module/$asset" "$destination/"; fi; \
-        done; \
-    done
+    /bin/sh "$framework/tools/cli/templates/deploy/package-assets.sh" /out
 
 FROM scratch AS artifacts
 COPY --from=build /out/ /
@@ -39,10 +28,10 @@ COPY --from=build /out/ /
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && install -d -o 10001 -g 10001 /app/storage /app/bootstrap/cache
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=artifacts --chown=10001:10001 / /app/
+RUN install -d -m 755 -o 10001 -g 10001 /app/storage /app/bootstrap/cache
 ENV APP_SERVER_HOST=0.0.0.0 SERVER_PORT=3000
 USER 10001:10001
 EXPOSE 3000

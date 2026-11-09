@@ -59,7 +59,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。根应用发布 `bin/openrust`，生成应用发布 `bin/<项目名>`。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
 
-9. 源码 `./artisan build`，owner=root，L041 依赖已满足，可领取。参照固定 Goravel 构建工作流，复用当前 Compose/Buildx 发布入口，导出一个 `bin/<项目名>` ELF、外部 `public/`、干净 `storage/` 与必要资源。发布目录独立迁移、启动和关停；不包含真实 dotenv、私钥或开发数据。根和生成应用实际执行指南，架构和 ABI 分开取证。
+
 
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 

@@ -23,7 +23,7 @@ cargo run -p cli -- dev
 
 生成项目附带 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。从应用目录运行 `docker compose up --build -d --wait`。Compose 用应用目录和相对框架目录作为 BuildKit 上下文，宿主机 Cargo 和容器使用相同的相对依赖布局。移动应用和框架时保留两者的相对位置。配置、端口与持久化见[生成应用的容器部署](../../docs/src/getting-started/source-application.md#生成应用的容器部署)。
 
-发布目录、镜像和 Buildx 导出均保留 `bin/<项目名>`。例如 `openrust new blog` 的部署入口为 `./bin/blog`，包根的 `./artisan` 调用同一个 `bin/blog`。生成的 README 给出当前项目的命令。
+在源码目录用 `./artisan build --platform linux/amd64` 或 `openrust build` 导出应用。默认产物目录为 `dist/<项目名>-linux-<架构>`。命令复用 Compose 的 `app` 构建配置，支持 `--output` 指向全新目录。发布目录、镜像和 Buildx 导出均保留 `bin/<项目名>`。例如 `openrust new blog` 的部署入口为 `./bin/blog`，包根的 `./artisan` 调用同一个 `bin/blog`。生成的 README 给出当前项目的命令。
 
 根/生成 `config/*.rs` 显式展示已实现策略，按 `server → app → auth/security` 声明依赖。APP_NAME/APP_URL只在app配置求值，缺省URL取同次有效server.port；auth/security缺省身份读取最终app值，显式独立来源仍优先。标准生成项目默认启用queue及queue-redis，realtime仍按需选择；--minimal省略queue装配，生成Job时会保留已有queue.rs并安全登记queue代码配置，发现冲突先拒绝而不覆盖源码。根View的常量只控制默认声明，生成项目默认声明View，均不强制屏蔽显式来源。
 

@@ -4,6 +4,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+dist
 docker-data
 **/storage
 **/mysql

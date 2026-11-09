@@ -1,4 +1,5 @@
 /target/
+/dist/
 /storage/
 /docker-data/
 /database/*.sqlite
