@@ -11,7 +11,7 @@
       }
     }
   },
-  "reading_as_of": "统计截至 {date}",
+  "reading_as_of": "统计截至 :date",
   "reading_invalid_count": "阅读计数不能超过 1000000。",
   "reading_invalid_at": "请提供有效的 RFC3339 阅读时间。",
   "reading_invalid_zone": "阅读时区请选择 utc 或 utc+08:00。",

@@ -14,9 +14,13 @@ use openrust::http::axum::body::to_bytes;
 use openrust::http::axum::http::Method;
 use openrust::http::axum::http::StatusCode;
 use openrust::http::axum::http::header;
+use openrust::support::BoxFuture;
+use openrust::translation::{TranslationLoadSession, TranslationLoader, TranslationResource};
 use openrust::translation::Translator;
 use openrust::translation::TranslationServiceProvider;
-use openrust::translation::{Locale, MessageArgs, MessageCatalog};
+use openrust::translation::{Locale, MessageArgs, MessageCatalog, translation_session};
+use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -154,5 +158,55 @@ async fn generated_translator_selects_fallback_message_and_replaces_after_choice
         Ok::<_, Box<dyn std::error::Error>>(())
     }.await;
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await?;
+    result
+}
+
+struct GroupedTranslations;
+
+impl TranslationLoader for GroupedTranslations {
+    fn begin_snapshot(&self) -> BoxFuture<'_, openrust::Result<Arc<dyn TranslationLoadSession>>> {
+        Box::pin(async {
+            translation_session(BTreeMap::from([(
+                TranslationResource {
+                    locale: Locale::new("en")?,
+                    group: "menu".into(),
+                    namespace: None,
+                },
+                BTreeMap::from([
+                    ("title".into(), serde_json::json!("Welcome, :Name")),
+                    ("links".into(), serde_json::json!([":name", {"label":":NAME"}])),
+                ]),
+            )]))
+        })
+    }
+}
+
+#[tokio::test]
+async fn generated_translator_reads_groups_from_its_registered_loader() -> TestResult {
+    let mut builder = ProviderBuilder::new();
+    builder.provider(TranslationServiceProvider::from_loader_factory(|_| {
+        Box::pin(async { Ok(Arc::new(GroupedTranslations) as Arc<dyn TranslationLoader>) })
+    }));
+    let source = Figment::from(Serialized::defaults(FrameworkConfig::default())).merge(
+        Serialized::defaults(serde_json::json!({
+            "app":{"env":"testing","debug":false,"locale":"zh-CN","fallback_locale":"en"}
+        })),
+    );
+    let app = Application::from_provider_runtime(builder.start(source).await?)?;
+    let result = async {
+        let translator = app.state().resolve::<Translator>().await?;
+        let args = [("name", "ada")];
+        assert!(!translator.has_for_locale("menu", None));
+        assert!(translator.has("menu", None, true));
+        assert_eq!(translator.string("menu.title", args, None, true)?, "Welcome, Ada");
+        assert_eq!(
+            translator.array("menu", args, None, true)?,
+            serde_json::json!({"title":"Welcome, Ada","links":["ada", {"label":"ADA"}]})
+        );
+        Ok::<_, Box<dyn std::error::Error>>(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     result
 }

@@ -2199,3 +2199,11 @@ AR-N01/L041 的 `Translator::choice` 在同一目录快照读取字符串，指�
 AR-N01/L041 分组文件在同一来源快照中保留对象与数组。已有文本与复数入口覆盖点路径、字面键优先、数组索引、语言回退和普通 `plural` / `select` 字段。四项回归通过，另以固定 Laravel Translator 和 Arr 在 PHP 8.5 容器核对七个文本及复数结果。
 
 冻结树 `df1f3f5dc4f39770462880832918cd6da41adfde` 通过格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 和离线依赖门禁。通用整组值与递归替换仍沿唯一待办交付。
+
+## 翻译值读取限定验收
+
+AR-N01/L041 的 `get`、`string`、`array`、`has` 和 `has_for_locale` 共享发布快照。已核对精确 JSON 键、分组回退、短键整组读取、嵌套值、递归占位符、有序替换及类型错误。使用 PHP 8.5 执行固定 Laravel Translator 与 Arr 核对 42 个可观察结果。Rust 保留 JSON 列表与关联映射两种表示。
+
+运行树 `0272f25f3720f0031c1862c07e637eeb7fbf0dfb` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 与离线依赖检查。唯一示例经真实 TCP 调用 `string`；新生成 minimal 应用通过 Cargo check 与测试，注册的公开 Loader 实际读取分组。仅加入包 README 的文档树 `5a728784209e34e7f0577c65d53c106692dd10ec` 补跑拒警 Rustdoc 通过。
+
+PHP 标签回调及对象替换、缺键回调、完整 Loader 与运行时语言生命周期仍在唯一待办。

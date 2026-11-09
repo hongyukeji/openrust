@@ -27,6 +27,7 @@ mod choice;
 mod choice_case;
 mod composite_loader;
 mod file_loader;
+mod get;
 mod loader;
 mod source_refresh;
 pub use composite_loader::CompositeTranslationLoader;
@@ -164,7 +165,8 @@ enum CatalogMessage {
 enum CatalogLine<'a> {
     Message(&'a CatalogMessage),
     Text(&'a str),
-    Collection,
+    Collection(&'a serde_json::Value),
+    Group(&'a BTreeMap<String, CatalogMessage>),
 }
 
 impl<'a> CatalogLine<'a> {
@@ -178,8 +180,8 @@ impl<'a> CatalogLine<'a> {
     fn from_value(value: &'a serde_json::Value) -> Option<Self> {
         match value {
             serde_json::Value::String(text) => Some(Self::Text(text)),
-            serde_json::Value::Object(items) if !items.is_empty() => Some(Self::Collection),
-            serde_json::Value::Array(items) if !items.is_empty() => Some(Self::Collection),
+            serde_json::Value::Object(items) if !items.is_empty() => Some(Self::Collection(value)),
+            serde_json::Value::Array(items) if !items.is_empty() => Some(Self::Collection(value)),
             _ => None,
         }
     }
@@ -196,7 +198,7 @@ impl<'a> CatalogLine<'a> {
         match self {
             Self::Message(message) => format_catalog_message(locale, message, key, args),
             Self::Text(text) => interpolate(text, args),
-            Self::Collection => interpolate(key, args),
+            Self::Collection(_) | Self::Group(_) => interpolate(key, args),
         }
     }
 }
@@ -398,6 +400,15 @@ impl MessageCatalog {
     }
 
     fn group_message_at(&self, locale: &Locale, key: &str) -> Option<(&Locale, CatalogLine<'_>)> {
+        self.group_line_at(locale, key, false)
+    }
+
+    fn group_line_at(
+        &self,
+        locale: &Locale,
+        key: &str,
+        whole_group: bool,
+    ) -> Option<(&Locale, CatalogLine<'_>)> {
         let (locale, _) = self.messages.get_key_value(locale)?;
         let (namespace, item) = key
             .split_once("::")
@@ -416,26 +427,35 @@ impl MessageCatalog {
                 return Some((locale, CatalogLine::Message(message)));
             }
         }
-        let (group, item) = item.split_once('.')?;
+        let (group, item) = item
+            .split_once('.')
+            .map_or((item, None), |(group, item)| (group, Some(item)));
         let resource = TranslationResource {
             locale: locale.clone(),
             group: group.into(),
             namespace: namespace.map(str::to_owned),
         };
-        self.resource_messages
-            .get(&resource)
-            .and_then(|lines| grouped_line(lines, item))
-            .map(|message| (locale, message))
+        let lines = self.resource_messages.get(&resource)?;
+        let line = match item {
+            Some(item) => grouped_line(lines, item)?,
+            None if whole_group && !lines.is_empty() => CatalogLine::Group(lines),
+            None => return None,
+        };
+        Some((locale, line))
     }
 
-    fn choice_message_at(&self, locale: &Locale, key: &str) -> Option<(CatalogLine<'_>, bool)> {
-        // hasForLocale 区分 JSON 字面键是否存在与其最终展示值。
-        if let Some(message) = self.messages.get(locale)?.get(key) {
-            return Some((CatalogLine::Message(message), true));
+    fn laravel_line_at(
+        &self,
+        locale: &Locale,
+        key: &str,
+        include_json: bool,
+    ) -> Option<(&Locale, CatalogLine<'_>, bool)> {
+        let (locale, global) = self.messages.get_key_value(locale)?;
+        if include_json && let Some(message) = global.get(key) {
+            return Some((locale, CatalogLine::Message(message), true));
         }
-        self.group_message_at(locale, key)
-            .filter(|(_, message)| message.text() != Some(key))
-            .map(|(_, message)| (message, false))
+        self.group_line_at(locale, key, true)
+            .map(|(locale, line)| (locale, line, false))
     }
 
     fn supports(&self, locale: &Locale) -> bool {
@@ -802,30 +822,24 @@ impl Translator {
                 ));
             }
         };
-        let scoped_locale;
-        let locale = if let Some(locale) = locale {
-            locale
-        } else {
-            scoped_locale = I18N_CONTEXT
-                .try_with(|context| {
-                    Arc::ptr_eq(&context.i18n.catalog, &self.catalog)
-                        .then(|| context.locale.clone())
-                })
-                .ok()
-                .flatten();
-            scoped_locale
-                .as_ref()
-                .unwrap_or(&self.config.default_locale)
-        };
+        let locale = self.lookup_locale(locale);
         let catalog = self
             .catalog
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (locale, message) = if let Some(message) = catalog.choice_message_at(locale, key) {
-            (locale, Some(message))
+        let (locale, message) = if let Some((locale, line, global)) = catalog
+            .laravel_line_at(&locale, key, true)
+            .filter(|(_, line, global)| *global || line.text() != Some(key))
+        {
+            (locale, Some((line, global)))
         } else {
             let fallback = &self.config.fallback_locale;
-            (fallback, catalog.choice_message_at(fallback, key))
+            (
+                fallback,
+                catalog
+                    .laravel_line_at(fallback, key, true)
+                    .map(|(_, line, global)| (line, global)),
+            )
         };
         // JSON 的空字符串和 "0" 会显示原键。分组资源保留同样的原始字符串值。
         let line = if let Some((message, global)) = message {
@@ -846,7 +860,12 @@ impl Translator {
         };
         let selected = choice::select(line, count, locale)?.to_owned();
         drop(catalog);
-        Ok(replace_choice_args(selected, args, &count_text))
+        if selected.contains(':') {
+            let replacements = laravel_replacements(args, Some(&count_text));
+            Ok(replace_laravel_args(selected, &replacements))
+        } else {
+            Ok(selected)
+        }
     }
 
     fn try_translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> Option<String> {
@@ -1353,14 +1372,10 @@ fn interpolate(template: &str, args: &MessageArgs) -> String {
     output
 }
 
-fn replace_choice_args<K: AsRef<str>, V: AsRef<str>>(
-    template: String,
+fn laravel_replacements<K: AsRef<str>, V: AsRef<str>>(
     args: impl IntoIterator<Item = (K, V)>,
-    count: &str,
-) -> String {
-    if !template.contains(':') {
-        return template;
-    }
+    count: Option<&str>,
+) -> BTreeMap<String, String> {
     let mut replacements = BTreeMap::new();
     let mut has_count = false;
     let mut insert = |key: &str, value: &str| {
@@ -1376,8 +1391,15 @@ fn replace_choice_args<K: AsRef<str>, V: AsRef<str>>(
         has_count |= key == "count";
         insert(key, value.as_ref());
     }
-    if !has_count {
+    if let Some(count) = count.filter(|_| !has_count) {
         insert("count", count);
+    }
+    replacements
+}
+
+fn replace_laravel_args(template: String, replacements: &BTreeMap<String, String>) -> String {
+    if replacements.is_empty() || !template.contains(':') {
+        return template;
     }
     let mut output = String::with_capacity(template.len());
     let mut remaining = template.as_str();

@@ -36,6 +36,23 @@ i18n.with_default_locale(async {
 
 消息支持具名参数及当前已实现的有限 plural/select 模板。来源保留合法空字符串，不将其当作缺失。普通 Laravel 查找的全局 JSON 空串或字符串 `0` 返回键本身；显式 Catalog 视图保留这些值。不要把业务诊断文本直接用作未登记的翻译键，也不要另建与框架错误分离的翻译器。
 
+### 读取文本和分组
+
+`get` 返回 `serde_json::Value`。可用短键读取整组，用点路径读取某一项。`string` 和 `array` 检查返回类型，后者同时接受列表与关联映射。`has` 可查回退语言，`has_for_locale` 只查指定语言或当前语言。省略语言时使用同一译器的请求或任务作用域，接着使用应用默认语言。
+
+例如 `lang/en/menu.json` 包含 `{"title":"Welcome, :Name","links":[":name","Account"]}` 时：
+
+```rust,ignore
+let args = [("name", "ada")];
+assert_eq!(translator.string("menu.title", args, None, true)?, "Welcome, Ada");
+let menu = translator.array("menu", args, None, true)?;
+assert_eq!(menu["links"][0], "ada");
+```
+
+只有请求语言的全局 JSON 参与字面键匹配。末尾参数为 `false` 时关闭分组语言回退。缺少资源时 `get` 和 `string` 返回键，`array` 返回类型错误。空字符串和字符串 `0` 在精确全局 JSON 中算存在，读取时显示键，在分组中保留原值。
+
+具名参数按传入顺序处理。数组有替换项时递归替换叶值，标量叶按 PHP 文本规则转换；没有替换项时保留原类型。Rust 区分列表和关联映射，分组根的连续十进制索引还原为列表。原有 `translate` 继续支持 `{name}` 和 ICU 模板。
+
 ## 字符串复数选择
 
 `Translator::choice` 可从同一翻译目录读取 Laravel 式字符串，按 `|` 分支。优先匹配 `{0}` 等精确条件以及 `[2,*]` 等含端点的区间，再使用已选资源语言的复数规则。指定语言缺少键时，用配置回退语言查询并选择分支。选定之后替换 `:count` 和具名参数，支持 `:Name`、`:NAME` 的大小写形式。 多个参数生成同一占位符时，按传入迭代顺序处理，后项覆盖前项。
@@ -100,7 +117,7 @@ let text = catalog_view.translate(&Locale::new("en")?, "example::reading_count",
 
 根应用和新生成应用在 `config/translation_sources.rs` 编辑 `SourceSettings`。默认 `files` 读取 `lang`，无需数据库扩展、Redis 或后台任务。文件和显式数据库来源共用 `app.locale` 与 `app.fallback_locale`。显式数据库初始捕获失败会阻止启动，不静默当成文件来源成功。
 
-分组文件如 `lang/en/menu.json` 可包含嵌套对象和数组。`{"tabs":{"labels":["Home","Account"]}}` 中的 `Account` 可用 `menu.tabs.labels.1` 读取。分组内完整字面键优先于嵌套路径。普通文本读取和复数选择都使用同一目录。分组条目中带 ICU 参数或分支字段的 `plural` 和 `select` 对象保留模板含义。返回整个分组或数组的接口仍在后续计划中。
+分组文件如 `lang/en/menu.json` 可包含嵌套对象和数组。`{"tabs":{"labels":["Home","Account"]}}` 中的 `Account` 可用 `menu.tabs.labels.1` 读取。分组内完整字面键优先于嵌套路径。普通文本读取和复数选择都使用同一目录。分组条目中带 ICU 参数或分支字段的 `plural` 和 `select` 对象保留模板含义。
 
 启用 `translation-database` 和相应 `db-mysql` 后，首次安装先保持 `mode: Files` 并设 `install_database: true`，运行标准 `migrate`；成功后改 `Database` 或 `Composite`。命名连接使用 `translation_database.connection` 与同一 `Databases`，迁移显式传 `migrate --database <连接名>`，Loader 连接不会改写命令目标。不要在新库尚未建表时直接选择数据库来源。
 

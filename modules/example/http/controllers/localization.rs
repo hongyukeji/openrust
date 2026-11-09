@@ -93,11 +93,12 @@ pub(crate) async fn show(
         &MessageArgs::new(),
         Some(locale.locale()),
     )?;
-    let as_of = locale.translate(
-        &i18n,
+    let as_of = i18n.string(
         "example::reading_as_of",
-        &MessageArgs::from([("date".into(), date.clone())]),
-    );
+        [("date", date.as_str())],
+        Some(locale.locale()),
+        true,
+    )?;
     Ok(Json(ReadingSummary {
         preview: true,
         locale: locale.as_str().into(),
