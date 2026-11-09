@@ -116,7 +116,7 @@ assert_eq!(messages, "2 messages");
 
 ## ICU 模板与显式 Catalog 查找
 
-结构化 JSON 的 `plural` 和 `select` 通过 `Translator::translate` 使用 ICU 规则。默认`TranslationLookup::Laravel`只在请求语言查全局JSON键；未命中后按group资源回退，不会自动补查其他语言的全局JSON。新钩子用于 Laravel 值读取和复数选择；旧 ICU 文本入口保持自身的查找行为。完整 Loader 生命周期仍有待对应。
+结构化 JSON 的 `plural` 和 `select` 通过 `Translator::translate` 使用 ICU 规则。默认`TranslationLookup::Standard`只在请求语言查全局JSON键；未命中后按group资源回退，不会自动补查其他语言的全局JSON。新钩子用于 Laravel 值读取和复数选择；旧 ICU 文本入口保持自身的查找行为。完整 Loader 生命周期仍有待对应。
 
 需要平面目录跨语言回退的调用方显式选择`TranslationLookup::Catalog`，复用Container里同一服务：
 

@@ -1,4 +1,4 @@
-//! Laravel 查找钩子。用户代码运行在固定目录快照上，且不占用内部锁。
+//! 翻译查找钩子。用户代码运行在固定目录快照上，且不占用内部锁。
 use super::{CatalogLine, Locale, MessageCatalog, Replacement, Translator};
 use std::{
     borrow::Cow,

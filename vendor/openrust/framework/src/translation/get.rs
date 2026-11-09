@@ -1,7 +1,7 @@
-//! Laravel 值读取复用已发布的翻译快照。
+//! 翻译值读取复用已发布的翻译快照。
 use super::{
     CatalogLine, CatalogMessage, I18N_CONTEXT, Locale, MessageArgs, MissingReplacements,
-    Translator, format_catalog_message, laravel_replacements, replace_laravel_args, scalars,
+    Translator, format_catalog_message, named_replacements, replace_named_placeholders, scalars,
 };
 use crate::{Error, Result};
 use axum::http::StatusCode;
@@ -35,12 +35,12 @@ impl Translator {
             &icu_args,
             MissingReplacements::Text(&args),
         );
-        let replacements = laravel_replacements(args, None);
+        let replacements = named_replacements(args, None);
         if replacements.is_empty() {
             value
         } else {
             map_leaves(value, &mut |leaf| {
-                Ok::<_, Infallible>(replace_laravel_args(leaf, &replacements))
+                Ok::<_, Infallible>(replace_named_placeholders(leaf, &replacements))
             })
             .unwrap_or_else(|never| match never {})
         }

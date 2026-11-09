@@ -1,4 +1,4 @@
-//! 统一翻译来源的快照契约；对应 Laravel Loader，异步阶段先完整物化再同步读取。
+//! 统一翻译来源的快照契约。异步阶段先完整物化，再同步读取。
 
 use super::{CatalogMessage, Locale, RawMessage};
 use crate::{Error, Result, support::BoxFuture};

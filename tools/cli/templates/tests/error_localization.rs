@@ -152,7 +152,10 @@ async fn generated_translator_selects_fallback_message_and_replaces_after_choice
     let app = application("zh-CN").await?;
     let result = async {
         let translator = app.state().resolve::<Translator>().await?;
+        let translator = translator.as_ref().clone()
+            .with_lookup(openrust::translation::TranslationLookup::Standard);
         let args = MessageArgs::from([("name".into(), "ada".into())]);
+        assert_eq!(translator.translate(&Locale::new("zh-CN")?, "items", &args), "items");
         assert_eq!(translator.choice("explicit_items", 0_i64.into(), &args, None)?, "No items for Ada");
         // 两分支消息在已选回退语言按英文规则选择。
         assert_eq!(translator.choice("items", 2_i64.into(), &args, None)?, "2 items for Ada");

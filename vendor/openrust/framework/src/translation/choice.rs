@@ -1,7 +1,5 @@
-//! 固定 Laravel 消息分支语法和旧版地区复数规则。
+//! 字符串分支语法和地区复数规则。
 //!
-//! 源码基线为 Laravel Framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的
-//! [MessageSelector.php](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Translation/MessageSelector.php)。
 //! 复数规则来自 Zend Framework（2010-09-25），采用 New BSD License。
 //! Copyright (c) 2005–2010 Zend Technologies USA Inc.
 
@@ -141,7 +139,7 @@ impl ModuloRule {
             _ => {}
         }
 
-        // PHP 8.5 在显式 int 转换超界时发出 E_WARNING，Laravel 默认将其转为异常。
+        // PHP 8.5 在显式整数转换超界时发出 E_WARNING，固定上游的默认异常处理将其升级。
         let integer = match count {
             InputNumber::Integer(value) => value,
             InputNumber::Float(value) if value < TWO_TO_63 => {
@@ -186,7 +184,7 @@ impl ModuloRule {
     }
 }
 
-// 固定 Laravel MessageSelector::getPluralIndex 的完整地区表。Locale 使用 BCP 47
+// 固定上游消息选择器的完整地区表。Locale 使用 BCP 47
 // 连字符，因此直接匹配规范拼写。不将未列出的地区或书写系统扩展降级为语言规则。
 #[allow(clippy::too_many_lines, reason = "保持固定上游地区分组可逐项核对")]
 fn plural_rule(locale: &str) -> Option<PluralRule> {

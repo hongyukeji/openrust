@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 默认翻译查找模式使用 `TranslationLookup::Standard`，保留字面键优先与分组回退。
+
 - 文件翻译 Loader 支持有序追加目录、全局 JSON 专用目录、分组子目录和命名空间局部发布覆盖。
 
 - 翻译器支持注册缺键处理器和自定义分组语言回退顺序。

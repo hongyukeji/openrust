@@ -612,7 +612,7 @@ fn messages(entries: &[(&str, &str)]) -> BTreeMap<String, CatalogMessage> {
 pub struct TranslationConfig {
     /// 请求中没有受支持的语言时使用的 locale。
     pub default_locale: Locale,
-    /// Laravel查找在请求locale后使用此最终回退；显式Catalog增强可先查语言级资源。
+    /// 标准查找在请求语言之后使用最终回退。目录视图可先查语言级资源。
     pub fallback_locale: Locale,
 }
 
@@ -625,12 +625,12 @@ impl Default for TranslationConfig {
     }
 }
 
-/// 默认遵循Laravel JSON字面键优先规则；原Catalog增强只能显式选择。
+/// 标准模式优先匹配 JSON 字面键。目录视图提供额外的回退策略。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum TranslationLookup {
     /// JSON仅查请求locale；空串或"0"命中后返回原key，group再按locale回退。
     #[default]
-    Laravel,
+    Standard,
     /// 显式保留全局Catalog跨locale回退及空串/"0"原样返回的增强。
     Catalog,
 }
@@ -661,7 +661,7 @@ impl Translator {
         }
         Ok(Self {
             config,
-            lookup: TranslationLookup::Laravel,
+            lookup: TranslationLookup::Standard,
             catalog: Arc::new(RwLock::new(PublishedCatalog::new(catalog))),
             source: None,
             stringables: Arc::default(),
@@ -799,7 +799,7 @@ impl Translator {
             .unwrap_or_else(|| interpolate(key, args))
     }
 
-    /// 按 Laravel 的数值区间和语言规则选择字符串资源的一个分支。
+    /// 按数值区间和语言的复数规则选择字符串资源的一个分支。
     ///
     /// 先查指定语言，缺少键时改用配置的回退语言及其复数规则。未指定语言时，
     /// 优先使用同一译器的请求或任务语言，其次使用应用默认语言。
@@ -814,8 +814,8 @@ impl Translator {
     ) -> Result<String> {
         let (selected, count_text) = self.select_choice(key, count, locale)?;
         if selected.contains(':') {
-            let replacements = laravel_replacements(args, Some(&count_text));
-            Ok(replace_laravel_args(selected, &replacements))
+            let replacements = named_replacements(args, Some(&count_text));
+            Ok(replace_named_placeholders(selected, &replacements))
         } else {
             Ok(selected)
         }
@@ -839,7 +839,7 @@ impl Translator {
         };
         let locale = self.lookup_locale(locale);
         let catalog = self.lookup_snapshot();
-        // Laravel 先按原语言的精确存在性选择复数语言，再在该语言执行一次普通读取。
+        // 先按原语言的精确存在性选择复数语言，再在该语言执行一次普通读取。
         let locale = if self
             .lookup_value(&catalog, &locale, key, false)
             .is_some_and(|(_, line, global)| global || line.text() != Some(key))
@@ -877,7 +877,7 @@ impl Translator {
         // 显式translator调用保留原请求locale；HTTP入口已负责Accept-Language协商。
         let selected;
         let locale = match self.lookup {
-            TranslationLookup::Laravel => locale,
+            TranslationLookup::Standard => locale,
             TranslationLookup::Catalog => {
                 selected = self.select_from_catalog(&catalog, Some(locale.as_str()));
                 &selected
@@ -887,7 +887,7 @@ impl Translator {
             TranslationLookup::Catalog => catalog
                 .message(locale, key)
                 .or_else(|| catalog.message(&self.config.fallback_locale, key)),
-            TranslationLookup::Laravel => {
+            TranslationLookup::Standard => {
                 if let Some((message_locale, global)) = catalog.messages.get_key_value(locale)
                     && let Some(message) = global.get(key)
                 {
@@ -1253,7 +1253,7 @@ pub(crate) async fn with_request_locale<F: Future>(
     i18n.with_locale(locale, future).await
 }
 
-// 统一validation入口属于项目Catalog协议增强；公开I18n::translate默认仍是Laravel规则。
+// 验证入口使用目录视图。公开文本入口默认使用标准查找。
 pub(crate) fn translate_current(key: &str, args: &MessageArgs) -> Option<String> {
     I18N_CONTEXT
         .try_with(|context| {
@@ -1373,7 +1373,7 @@ fn interpolate(template: &str, args: &MessageArgs) -> String {
     output
 }
 
-fn laravel_replacements<K: AsRef<str>, V: AsRef<str>>(
+fn named_replacements<K: AsRef<str>, V: AsRef<str>>(
     args: impl IntoIterator<Item = (K, V)>,
     count: Option<&str>,
 ) -> BTreeMap<String, String> {
@@ -1382,15 +1382,15 @@ fn laravel_replacements<K: AsRef<str>, V: AsRef<str>>(
     for (key, value) in args {
         let key = key.as_ref();
         has_count |= key == "count";
-        insert_laravel_arg(&mut replacements, key, value.as_ref());
+        insert_named_replacement(&mut replacements, key, value.as_ref());
     }
     if let Some(count) = count.filter(|_| !has_count) {
-        insert_laravel_arg(&mut replacements, "count", count);
+        insert_named_replacement(&mut replacements, "count", count);
     }
     replacements
 }
 
-fn insert_laravel_arg(replacements: &mut BTreeMap<String, String>, key: &str, value: &str) {
+fn insert_named_replacement(replacements: &mut BTreeMap<String, String>, key: &str, value: &str) {
     replacements.insert(
         format!(":{}", choice_case::titlecase_first(key)),
         choice_case::titlecase_first(value),
@@ -1399,7 +1399,7 @@ fn insert_laravel_arg(replacements: &mut BTreeMap<String, String>, key: &str, va
     replacements.insert(format!(":{key}"), value.to_owned());
 }
 
-fn replace_laravel_args(template: String, replacements: &BTreeMap<String, String>) -> String {
+fn replace_named_placeholders(template: String, replacements: &BTreeMap<String, String>) -> String {
     if replacements.is_empty() || !template.contains(':') {
         return template;
     }

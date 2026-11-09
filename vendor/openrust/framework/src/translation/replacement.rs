@@ -1,8 +1,8 @@
-//! Laravel 标签回调和按类型的字符串化。
+//! 标签回调和按类型的字符串化。
 use super::{
     Locale, MissingReplacements, Translator,
     get::{expect_array, expect_string, map_leaves},
-    insert_laravel_arg, replace_laravel_args, scalars,
+    insert_named_replacement, replace_named_placeholders, scalars,
 };
 use crate::{Error, Result, support::InputNumber};
 use axum::http::StatusCode;
@@ -222,18 +222,18 @@ impl Translator {
             let key = key.as_ref();
             has_count |= key == "count";
             match &replacement.borrow().0 {
-                Kind::Text(text) => insert_laravel_arg(&mut replacements, key, text),
+                Kind::Text(text) => insert_named_replacement(&mut replacements, key, text),
                 Kind::Tag(render) => line = replace_tag(line, key, render.as_ref())?,
                 Kind::Object { value, display } => {
                     let text = self.stringify(*value, *display)?;
-                    insert_laravel_arg(&mut replacements, key, &text);
+                    insert_named_replacement(&mut replacements, key, &text);
                 }
             }
         }
         if let Some(count) = count.filter(|_| !has_count) {
-            insert_laravel_arg(&mut replacements, "count", count);
+            insert_named_replacement(&mut replacements, "count", count);
         }
-        Ok(replace_laravel_args(line, &replacements))
+        Ok(replace_named_placeholders(line, &replacements))
     }
 
     fn stringify(&self, value: &dyn Any, display: Option<&dyn fmt::Display>) -> Result<String> {

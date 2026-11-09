@@ -11,6 +11,30 @@ use figment::{
 use serde_json::json;
 
 #[test]
+fn standard_is_the_default_lookup_and_catalog_remains_opt_in() -> Result<()> {
+    assert_eq!(TranslationLookup::default(), TranslationLookup::Standard);
+    let mut messages = MessageCatalog::new();
+    messages.insert("en", "exact-empty", "")?;
+    messages.insert("en", "fallback-global", "in fallback")?;
+    let translator = Translator::new(TranslationConfig::default(), messages)?;
+    let explicit = translator.clone().with_lookup(TranslationLookup::Standard);
+    let catalog = translator.clone().with_lookup(TranslationLookup::Catalog);
+    let en = Locale::english();
+    let zh = Locale::new("zh-CN")?;
+    let args = MessageArgs::new();
+    for (locale, key) in [(&en, "exact-empty"), (&zh, "fallback-global")] {
+        assert_eq!(translator.translate(locale, key, &args), key);
+        assert_eq!(explicit.translate(locale, key, &args), key);
+    }
+    assert_eq!(catalog.translate(&en, "exact-empty", &args), "");
+    assert_eq!(
+        catalog.translate(&zh, "fallback-global", &args),
+        "in fallback"
+    );
+    Ok(())
+}
+
+#[test]
 fn module_namespace_published_messages_override_source() -> Result<()> {
     let temporary = tempfile::tempdir().map_err(Error::internal)?;
     let source = temporary.path().join("source");
