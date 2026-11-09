@@ -61,6 +61,14 @@ cargo run -p cli -- g migration labels slug:string
 
 `config/api.rs` 通过 `API_PREFIX` 配置 API 路由前缀（默认 `api`，实际URL前缀为 `/api`）；应用 Provider 从同一 `ApiConfig` 规范化前缀并选择异常响应格式，前缀调整同时作用于路由与异常呈现。
 
+## 预览 Provider 包发现
+
+在应用目录运行 `openrust package:discover --preview`，将候选 Rust 清单输出到标准输出。可用 `--target <triple>`、`--features <name,...>` 和 `--no-default-features` 选择与应用构建相同的配置。预览读取当前 `Cargo.lock` 和本机缓存的解析图。离线缺少图所需的包时返回 Cargo 诊断。
+
+包在 `Cargo.toml` 的 `[package.metadata.openrust.discovery]` 中声明 `version = 1` 和 `providers = true`，并公开 `openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>>`。可用同一表下的 `aliases` 将 Rust 名称映射到包的公开路径，例如 `ExampleFacade = "facades::Example"`。应用或包的 `dont-discover` 接受 Cargo 包名列表，应用可用 `["*"]` 全部排除。预览依 Cargo 包名及编译库名给出稳定顺序，Rust 的 `cfg` 保留目标条件。
+
+当前交付为预览与 Rust 清单生成，构建输入校验、应用自动安装及启动证据仍待接入。
+
 ## 接入自己的业务模块
 
 模块能力由独立 `openrust-modules` 包提供，类型通过 `openrust_modules::` 导入。应用在 `ApplicationDefinition::configure_providers` 中引入 `ModuleProviderBuilderExt` 并调用 `builder.module_manifest(...)`，复用框架唯一 Provider/Container 管线；框架核心不再重导出模块类型。

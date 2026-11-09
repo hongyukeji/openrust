@@ -2096,3 +2096,11 @@ NumericDate v6 通过共享 Calendar 的六位舍入和 `U.u` UTC 解析处理 J
 验收绑定源码树 `a5e36797b3ea042e28eb29699c637dae760097a6`。隔离 Workspace 测试、格式检查、严格 Clippy、Rustdoc 与离线依赖门禁通过。两文件复审修订只移动示例断言到清理保护段并恢复原 import 布局，随后重验严格 Clippy、格式、真实 MySQL 8.4.13 示例及 fresh MySQL Web/Fortify 项目。生成应用通过 check 和 55 项测试，Schema 专跑 1 项保留 ignored。测试库及账号目录恢复，验收见 `tmp/model-date-final-20261108/acceptance.json`。
 
 PostgreSQL 日期绑定类型、秒精度与本地时间经过定向验证；实际 PostgreSQL、其他最低版本、追加字段及关联序列化按各自矩阵推进。
+
+## Provider 包发现预览限定验收
+
+L044.02 的 CLI 预览对应冻结源码树 `9e47c3c227267c739fdcb8ba3dd1396788e6e9a0`。固定 Laravel PackageManifest 对照覆盖宿主与包声明排除、全局排除和 Facade 别名合并。真实 Cargo 夹具编译生成源码，覆盖重命名、自定义库名、同名双版本、可选 feature 与普通直接依赖选择。非宿主目标仅验证输出中的条件编译。
+
+工作区格式、严格 Clippy、MySQL 8.4.13 下的 workspace 测试、拒警 Rustdoc 和离线依赖门禁通过。测试 2917 通过、54 忽略。fresh minimal 应用将预览显式接入 `ApplicationDefinition::package_providers`，通过 check、23 项测试和真实 HTTP 200 服务解析。普通构建自动接入、清单新鲜度、运行期冲突与依赖排序、实际跨目标编译仍待验证。
+
+验收见 `tmp/lead-package-discovery.lQRIAVuB/delivery-receipt.json`。

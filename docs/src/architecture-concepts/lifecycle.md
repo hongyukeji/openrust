@@ -188,7 +188,9 @@ let descriptors = [
 
 默认缓存目录随项目生成。可用 `APP_SERVICES_CACHE` 覆盖文件路径。相对路径以应用根目录为准，父目录须存在。应用自定环境变量前缀时使用同一前缀。损坏或无法读取的文件会使启动失败。
 
-运行 `./artisan clear-compiled` 可清除选定的服务清单和包清单。包清单路径默认是 `bootstrap/cache/packages.json`，可用 `APP_PACKAGES_CACHE` 覆盖。包发现的生成流程仍在后续范围。配置缓存由 `config:clear` 单独管理。 [Laravel ProviderRepository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L185)
+运行 `./artisan clear-compiled` 可清除选定的服务清单和包清单。包清单路径默认是 `bootstrap/cache/packages.json`，可用 `APP_PACKAGES_CACHE` 覆盖。配置缓存由 `config:clear` 单独管理。 [Laravel ProviderRepository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/ProviderRepository.php#L48-L185)
+
+`openrust package:discover --preview` 可检查当前应用的编译包候选、目标条件及排除规则，并输出引用已编译 Provider 的 Rust 源码。应用启动自动接入及清单失效检查仍待实现。 [CLI 用法](../../../tools/cli/README.md#预览-provider-包发现) · [Laravel PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)
 
 ### Provider 实例启动回调
 

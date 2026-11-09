@@ -23,6 +23,7 @@ mod controller_generation;
 mod deployment;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod dev_watch;
+mod package_discovery;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -116,6 +117,9 @@ enum Builtin {
     /// 创建 `ServiceProvider` 并登记到 `bootstrap/providers.rs`。
     #[command(name = "make:provider")]
     MakeProvider { name: String },
+    /// 输出当前 Cargo 选择对应的 Provider 包发现预览。
+    #[command(name = "package:discover")]
+    PackageDiscover(package_discovery::DiscoverArgs),
     /// 管理应用本地加密密钥。
     Key {
         #[command(subcommand)]
@@ -517,6 +521,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             generate_provider(&name, &project)?;
             Ok(ExitCode::SUCCESS)
         }
+        Some(Builtin::PackageDiscover(preview)) => preview.run(),
         Some(Builtin::Key {
             command: KeyCommand::Generate,
         }) => {
