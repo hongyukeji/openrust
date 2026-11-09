@@ -12,6 +12,9 @@ use std::{
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+mod source;
+use source::Sources;
+
 #[allow(dead_code, reason = "仅应用构建脚本消费清单")]
 #[path = "../templates/bootstrap/package_discovery_build.rs"]
 mod build_plan;
@@ -65,7 +68,8 @@ impl DiscoverArgs {
                     self.no_default_features,
                 )?;
                 active.extend(features.iter().cloned());
-                plan(&graph, &manifest, &target, &active, true)
+                let sources = Sources::load(workspace_root(&graph)?, &project)?;
+                plan(&graph, &manifest, &target, &active, true, &sources)
             })()
             .map_err(|error| anyhow::anyhow!(error.to_string()))?;
             io::stdout().lock().write_all(source.as_bytes())?;
@@ -203,7 +207,8 @@ fn install(
     let inputs = input_digests(app, &graph, host)?;
     let active = cargo_active_features(app, target, host, features, no_default_features)?;
     let profile = cargo_feature_keys(host, &active)?;
-    let source = plan(&graph, &manifest, target, &active, true)?;
+    let sources = Sources::load(workspace_root(&graph)?, app)?;
+    let source = plan(&graph, &manifest, target, &active, true, &sources)?;
     let checked = cargo_graph(app, target, features, no_default_features)?;
     if graph != checked
         || inputs != input_digests(app, &checked, host_package(&checked, &manifest)?)?
@@ -228,8 +233,15 @@ fn install(
     Ok(relative)
 }
 
+fn workspace_root(graph: &Value) -> Result<&Path> {
+    Ok(Path::new(string(
+        &graph["workspace_root"],
+        "workspace root",
+    )?))
+}
+
 fn input_digests(app: &Path, graph: &Value, host: &Value) -> Result<BTreeMap<String, String>> {
-    let workspace = Path::new(string(&graph["workspace_root"], "workspace root")?);
+    let workspace = workspace_root(graph)?;
     let node = host_node(graph, host)?;
     let direct: Vec<_> = array(&node["deps"], "resolve node deps")?
         .iter()
@@ -337,6 +349,7 @@ fn plan(
     target: &str,
     features: &[String],
     no_default_features: bool,
+    sources: &Sources,
 ) -> Result<String> {
     let packages = array(&graph["packages"], "packages")?;
     let host = host_package(graph, manifest)?;
@@ -345,7 +358,7 @@ fn plan(
     }
     let node = host_node(graph, host)?;
     let optional = active_optional_dependencies(host, features, no_default_features)?;
-    let declarations = declarations(host, node, packages, &optional, target)?;
+    let declarations = declarations(host, node, packages, &optional, target, sources)?;
     render(host, &declarations)
 }
 
@@ -455,8 +468,10 @@ fn declarations<'a>(
     packages: &'a [Value],
     optional: &BTreeSet<&str>,
     target: &str,
+    sources: &Sources,
 ) -> Result<Vec<Declaration<'a>>> {
     let mut declarations = Vec::new();
+    let mut assignments = BTreeMap::new();
     let dependencies = array(&host["dependencies"], "dependencies")?;
     for edge in array(&node["deps"], "resolve node deps")? {
         let kinds = array(&edge["dep_kinds"], "dependency kinds")?;
@@ -470,13 +485,13 @@ fn declarations<'a>(
         let name = string(&package["name"], "package name")?;
         let library = string(&edge["name"], "library name")?;
         let options = &package["metadata"]["openrust"]["discovery"];
-        if options.is_null() {
-            continue;
-        }
+        let discoverable = !options.is_null();
         let version_text = string(&package["version"], "package version")?;
         let version = semver::Version::parse(version_text)?;
         let mut conditions = BTreeSet::new();
-        for dependency in dependencies {
+        let mut plausible = false;
+        let mut matched = false;
+        for (index, dependency) in dependencies.iter().enumerate() {
             let alias = dependency["rename"].as_str();
             if dependency["name"].as_str() != Some(name)
                 || !dependency["kind"].is_null()
@@ -487,10 +502,31 @@ fn declarations<'a>(
                 || !kinds
                     .iter()
                     .any(|kind| kind["kind"].is_null() && kind["target"] == dependency["target"])
-                || dependency["optional"].as_bool() == Some(true)
-                    && !optional.contains(alias.unwrap_or(name))
-                || !matches_dependency_package(dependency, package, &version)?
+                || !matches_dependency_version(dependency, &version)?
             {
+                continue;
+            }
+            plausible = true;
+            if !sources.matches(dependency, package, &version)? {
+                continue;
+            }
+            matched = true;
+            if dependency["optional"].as_bool() == Some(true)
+                && !optional.contains(alias.unwrap_or(name))
+            {
+                continue;
+            }
+            // 候选包可能没有发现声明，但仍会让该 extern 关联变得不唯一。
+            if let Some((first, first_discoverable)) =
+                assignments.insert(index, (&edge["pkg"], discoverable))
+                && first != &edge["pkg"]
+                && (discoverable || first_discoverable)
+            {
+                return Err(
+                    format!("依赖 `{}` 的 Provider 包来源有歧义", alias.unwrap_or(name)).into(),
+                );
+            }
+            if !discoverable {
                 continue;
             }
             match dependency["target"].as_str() {
@@ -506,6 +542,12 @@ fn declarations<'a>(
                     }
                 }
             }
+        }
+        if discoverable && plausible && !matched {
+            return Err(format!(
+                "无法确认 Provider 包 `{name}` 的 Cargo 来源，请检查 workspace 的 [patch] 声明"
+            )
+            .into());
         }
         if conditions.is_empty() {
             continue;
@@ -524,17 +566,7 @@ fn declarations<'a>(
     Ok(declarations)
 }
 
-fn matches_dependency_package(
-    dependency: &Value,
-    package: &Value,
-    version: &semver::Version,
-) -> Result<bool> {
-    if let Some(path) = dependency["path"].as_str() {
-        let manifest = Path::new(string(&package["manifest_path"], "package manifest")?);
-        if manifest.parent() != Some(Path::new(path)) {
-            return Ok(false);
-        }
-    }
+fn matches_dependency_version(dependency: &Value, version: &semver::Version) -> Result<bool> {
     let requirement = string(&dependency["req"], "dependency version")?;
     Ok(requirement == "*" || semver::VersionReq::parse(requirement)?.matches(version))
 }

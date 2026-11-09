@@ -50,6 +50,10 @@
 
 后继 R13 补全命令/生成器、doctor、watch 和编排；当前 generate API 暂保留，未宣称 Artisan 全命令完成。
 
+## Provider 包发现
+
+`package:discover` 以应用实际激活的普通依赖为输入，区分同名同版本的 Cargo 来源。Git 引用、registry 与本地路径分别核对，项目内显式 `[patch]` 可证明合法替换。来源无法确认或同一声明关联多个候选时拒绝生成。项目外覆盖、Cargo 配置 `include` 和进一步的发现诊断按唯一 todo 推进。
+
 ## 翻译来源生成
 
 普通、MySQL、Web 认证、JWT 与 gRPC 生成应用均包含可编辑 `translation_sources` 配置、文件来源和同一 Provider 安装机制；数据库扩展显式启用，首次迁移与后续数据库/组合模式分开。JWT 不增 Session/Cookie。五种真实生成与适用来源安装验收见[来源测试基线](../memory/testing.md#翻译来源限定验收)，完整官方翻译接口仍开放。

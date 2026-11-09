@@ -2122,4 +2122,14 @@ L044.02 的包来源和依赖顺序对应冻结源码树 `47e58a83e180479acb06fe
 
 工作区格式、严格 Clippy、MySQL 8.4.13 测试、拒警 Rustdoc 与离线依赖门禁通过。工作区测试 2921 通过、54 忽略。fresh minimal 的两个真实 Cargo 包经普通 check、23 项测试和实际启动验收。消费者在注册阶段解析到被依赖包的 Marker，真实 TCP 返回 HTTP 200。跨包重复启动退出 1，输出双方来源且端口未开放。v1 清单拒绝后重装恢复，旧 helper 拒绝安装且已安装清单字节保全。
 
-生成模块消费者原宿主类描述符接线修复后通过持久启停验证，覆盖原模块断言与禁用后宿主 API 可访问。fresh JWT 应用在真实 MySQL 8.4.13 下完成 check，测试 101 通过、2 忽略。正式回执见 `tmp/lead-provider-order.zIay19Ph/delivery-receipt.json`。同名同版本多来源解析、安装工作流和发现诊断按原待办继续。
+生成模块消费者原宿主类描述符接线修复后通过持久启停验证，覆盖原模块断言与禁用后宿主 API 可访问。fresh JWT 应用在真实 MySQL 8.4.13 下完成 check，测试 101 通过、2 忽略。正式回执见 `tmp/lead-provider-order.zIay19Ph/delivery-receipt.json`。
+
+## Cargo 来源关联限定验收
+
+L044.02 按 Cargo 元数据的来源字段区分同名同版本依赖，保留 Git 分支、标签与提交选择以及正常依赖的应用特性约束。项目内显式 `[patch]` 可证明替换。候选歧义或来源无法确认时拒绝生成，诊断和清单不披露源地址。
+
+独立冻结树 `91c3c986996367f97f2fb0d94a3ab1ec3aa9e375` 通过工作区格式、严格 Clippy、真实 MySQL 8.4.13 下的工作区测试、拒警 Rustdoc 与离线依赖门禁。新增回归覆盖同名 Git 包串入、来源未知和候选歧义。真实 Cargo 夹具的七个预览覆盖双 Git 来源的默认及可选激活、工作区和应用配置内的 Git 补丁、离线 registry 补丁。
+
+fresh minimal 应用以 registry 依赖声明和本地补丁安装 Provider 清单。普通 Cargo check、23 项测试和实际 HTTP 200 通过。旧版或过期清单拒绝构建，跨包冲突拒绝启动且端口未开放。完整证据见 `tmp/lead-cargo-sources.xT55JQYD/delivery-receipt.json`。
+
+项目外 Cargo 覆盖、配置 `include` 与进一步的发现工作流仍按唯一 todo 推进。

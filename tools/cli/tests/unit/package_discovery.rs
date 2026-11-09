@@ -42,9 +42,9 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
             {"id": "host", "name": "app", "manifest_path": manifest,
              "features": {"extra": ["dep:with-extra"]},
              "dependencies": [
-                {"name": "real-package", "req": "^0.1", "rename": null, "kind": null, "target": null, "optional": false},
-                {"name": "real-package", "req": "^0.2", "rename": "with-extra", "kind": null, "target": null, "optional": true},
-                {"name": "mixed-package", "req": "*", "rename": "mixed", "kind": null, "target": "cfg(target_os = \"linux\")", "optional": false},
+                {"name": "real-package", "req": "^0.1", "source": "git+https://example.invalid/private", "rename": null, "kind": null, "target": null, "optional": false},
+                {"name": "real-package", "req": "^0.2", "source": "git+https://example.invalid/private", "rename": "with-extra", "kind": null, "target": null, "optional": true},
+                {"name": "mixed-package", "req": "*", "source": "git+https://example.invalid/private", "rename": "mixed", "kind": null, "target": "cfg(target_os = \"linux\")", "optional": false},
                 {"name": "mixed-package", "rename": "mixed", "kind": "dev", "target": "cfg(target_os = \"macos\")", "optional": false},
                 {"name": "build-package", "rename": "build_only", "kind": "build", "target": null, "optional": false}
              ]},
@@ -62,7 +62,15 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
             {"pkg": "build", "name": "build_only", "dep_kinds": [{"kind": "build", "target": null}]}
         ]}]}
     });
-    let source = plan(&graph, manifest, "aarch64-apple-darwin", &[], false)?;
+    let sources = Sources::default();
+    let source = plan(
+        &graph,
+        manifest,
+        "aarch64-apple-darwin",
+        &[],
+        false,
+        &sources,
+    )?;
     assert!(source.contains("(\"real-package@0.1.0 (direct)\", ::r#direct::openrust_providers)"));
     assert!(
         source.contains(
@@ -82,12 +90,101 @@ fn rejects_workspace_union_and_preserves_the_target_of_the_normal_edge() -> Resu
         "aarch64-apple-darwin",
         &["extra".into()],
         true,
+        &sources,
     )?;
     assert!(
         selected
             .contains("(\"real-package@0.2.0 (with_extra)\", ::r#with_extra::openrust_providers)")
     );
     Ok(())
+}
+
+fn same_name_sources() -> Value {
+    let package = |id, source: &str, lib| {
+        json!({"id": id, "name": "twin", "version": "0.1.0",
+            "source": format!("{source}#{}", "a".repeat(40)),
+            "targets": [{"name": lib, "kind": ["lib"]}],
+            "metadata": {"openrust": {"discovery": {"version": 1, "providers": true}}}})
+    };
+    let a = "git+https://example.invalid/a?branch=stable/v1";
+    let b = "git+https://example.invalid/b?tag=v0.1";
+    json!({
+        "packages": [
+            {"id": "host", "name": "app", "manifest_path": "/app/Cargo.toml",
+             "features": {"extra": ["dep:renamed-b"]},
+             "dependencies": [
+                {"name": "twin", "req": "*", "source": a, "rename": null, "kind": null, "optional": false},
+                {"name": "twin", "req": "*", "source": b, "rename": "renamed-b", "kind": null, "optional": true}
+             ]},
+            package("a", a, "a_lib"),
+            package("b", b, "renamed_b")
+        ],
+        "resolve": {"nodes": [{"id": "host", "deps": [
+            {"pkg": "a", "name": "a_lib", "dep_kinds": [{"kind": null, "target": null}]},
+            {"pkg": "b", "name": "renamed_b", "dep_kinds": [{"kind": null, "target": null}]}
+        ]}]}
+    })
+}
+
+#[test]
+fn optional_alias_cannot_borrow_an_unrenamed_dependency_from_another_git_source() -> Result<()> {
+    let graph = same_name_sources();
+    let manifest = Path::new("/app/Cargo.toml");
+    let sources = Sources::default();
+    let default = plan(
+        &graph,
+        manifest,
+        "aarch64-apple-darwin",
+        &[],
+        true,
+        &sources,
+    )?;
+    assert!(default.contains("::r#a_lib::openrust_providers"));
+    assert!(!default.contains("::r#renamed_b::openrust_providers"));
+    let enabled = plan(
+        &graph,
+        manifest,
+        "aarch64-apple-darwin",
+        &["extra".into()],
+        true,
+        &sources,
+    )?;
+    assert!(enabled.contains("::r#a_lib::openrust_providers"));
+    assert!(enabled.contains("::r#renamed_b::openrust_providers"));
+    Ok(())
+}
+
+#[test]
+fn uncertain_source_is_rejected_without_printing_the_repository() {
+    let mut graph = same_name_sources();
+    graph["packages"][2]["source"] = json!("git+https://example.invalid/unproven?tag=v0.1");
+    let result = plan(
+        &graph,
+        Path::new("/app/Cargo.toml"),
+        "aarch64-apple-darwin",
+        &[],
+        true,
+        &Sources::default(),
+    );
+    assert!(
+        matches!(result, Err(error) if error.to_string().contains("无法确认 Provider 包 `twin` 的 Cargo 来源") && !error.to_string().contains("example.invalid"))
+    );
+}
+
+#[test]
+fn one_declaration_matching_two_resolved_packages_is_rejected() {
+    let mut graph = same_name_sources();
+    graph["packages"][2]["source"] = graph["packages"][1]["source"].clone();
+    graph["packages"][2]["version"] = json!("0.2.0");
+    let result = plan(
+        &graph,
+        Path::new("/app/Cargo.toml"),
+        "aarch64-apple-darwin",
+        &[],
+        true,
+        &Sources::default(),
+    );
+    assert!(matches!(result, Err(error) if error.to_string().contains("Provider 包来源有歧义")));
 }
 
 #[test]
