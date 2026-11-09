@@ -43,6 +43,8 @@ use std::time::Duration;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[cfg(unix)]
+mod cloud_ingress;
 #[cfg(all(unix, feature = "queue-redis"))]
 mod embedded;
 

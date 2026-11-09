@@ -26,3 +26,9 @@ TOML 是显式可选来源。只有在清单选择 `.with_toml()` 等公开来�
 接口细节见仓库 `src/config/README.md`。本章只介绍配置入口与当前边界，不代表完整 Laravel Config 行为已闭合。
 
 对应固定 Laravel 13.x 官方章节：[configuration](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/configuration.md)。本章仅说明已落地的当前入口及边界，尚未覆盖该官方章节全部能力。
+
+### 受控云入口
+
+受控入口后运行的应用可在部署进程中设置 `OPENRUST_CLOUD_INGRESS=1`。监听器启动时只读一次该变量，仅精确值 `1` 生效。启用前应确保应用只能经受控代理到达，且代理会清除客户端传入的转发头。应用读取 `trusted_proxy_headers` 允许的转发头。显式的 `server.trusted_proxy_ranges` 优先，空列表关闭自动代理信任。
+
+从旧版本升级时，将部署进程中的 `LARAVEL_CLOUD=1` 改为新变量。应用的 dotenv 与 HTTP 请求头均不能开启此模式。固定上游的精确值判定与代理优先规则见 [Support helper](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Support/helpers.php#L233) 和 [TrustProxies](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/Middleware/TrustProxies.php#L67)。

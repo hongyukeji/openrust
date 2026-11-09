@@ -18,7 +18,7 @@ impl RequestSecurity {
     }
 }
 
-/// 受信宿主声明此请求来自 Laravel Cloud；普通 HTTP 头不能设置此标记。
+/// 受信宿主声明请求经受控云入口转发。普通 HTTP 头不能设置此标记。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct CloudIngress;
 

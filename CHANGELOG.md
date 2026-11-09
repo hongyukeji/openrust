@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- 受控云入口的启动开关改用进程变量 `OPENRUST_CLOUD_INGRESS=1`。显式代理列表继续优先；升级时同步部署环境的变量名。
+
 - 默认日志文件改为 `storage/logs/application.log`，应急记录使用 `emergency` 标签。显式日志路径继续有效；日志采集需同步新默认值。
 
 - 应用加密的公开实现改为 `ConfiguredEncrypter`，载荷、密钥与序列化错误码改用 `encryption_*`。Cookie 默认保护使用 `CookieServiceProvider::new()`，现有密文和 Cookie 继续可读。

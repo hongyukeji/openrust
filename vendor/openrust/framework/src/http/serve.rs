@@ -85,8 +85,8 @@ async fn serve_listener_inner<F>(
 where
     F: Future<Output = ()>,
 {
-    // PHP 的 laravel_cloud() 仅识别宿主环境中的精确字符串 `1`；启动时捕获一次。
-    let router = if std::env::var("LARAVEL_CLOUD").is_ok_and(|value| value == "1") {
+    // 信任声明只从启动进程的环境读取一次，不接受应用配置或请求头。
+    let router = if std::env::var("OPENRUST_CLOUD_INGRESS").is_ok_and(|value| value == "1") {
         router.layer(axum::Extension(crate::http::CloudIngress))
     } else {
         router

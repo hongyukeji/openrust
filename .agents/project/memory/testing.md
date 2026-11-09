@@ -2243,3 +2243,7 @@ AR-N01/L041 的文件 Loader 区分有序普通路径、全局 JSON 专用路径
 默认单文件和应急路径统一为 `storage/logs/application.log`，应急标签为 `emergency`。正常频道名称、显式路径和旧日志内容保持原样。默认及空应急路径均经真实文件写入验证，具名频道故障后仍可重新解析。唯一示例通过 HTTP 注入具名 logger 并写入新路径。
 
 冻结树 `75c2f8363a882241e5b0a68bef198da89d0e1cdd` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。生成 minimal 应用通过 Cargo check 与测试，实际写入自定义日志文件和默认日志文件。本簇仅关闭上述命名整改。
+
+## 云入口开关命名限定验收
+
+冻结树 `4f2e8e2ff2d203767c7c92a7fce522f0925d6ab2` 通过 fmt、严格 Clippy、真实 MySQL 8.4.13 工作区测试、拒警 Rustdoc 和离线依赖检查。唯一示例由真实 TCP listener 验证 `OPENRUST_CLOUD_INGRESS=1` 的启用、旧变量/非精确值/dotenv/伪造请求头拒绝及显式空代理列表优先。生成 minimal 应用通过 check 与 tests，临时公开 RequestInfo 探针在真实进程上验证关闭时 http、开启时 https。实测环境为本地 TCP，实际云平台部署环境仍开放。
