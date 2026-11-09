@@ -59,12 +59,13 @@ if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
     exec cargo run --quiet -- "$@"
 fi
 
-if [ ! -f ./app ]; then
-    printf '%s\n' 'artisan: 部署目录缺少应用二进制 ./app' >&2
+application='./bin/openrust'
+if [ ! -f "$application" ]; then
+    printf 'artisan: 部署目录缺少应用二进制 %s\n' "$application" >&2
     exit 127
 fi
-if [ ! -x ./app ]; then
-    printf '%s\n' 'artisan: 应用二进制 ./app 不可执行' >&2
+if [ ! -x "$application" ]; then
+    printf 'artisan: 应用二进制 %s 不可执行\n' "$application" >&2
     exit 126
 fi
-exec ./app "$@"
+exec "$application" "$@"

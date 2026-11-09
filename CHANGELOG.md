@@ -74,7 +74,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 容器支持按应用环境惰性登记 `Bind` 类绑定。
 - 默认应用按作用域提供日志 Context，并支持构造属性与独立的日志 `extra` 字段。
 - 根应用与生成项目默认同进程启动 Web、已配置的队列和调度，并保留独立角色命令。
-- 根应用的二进制名称改为 `app`，发布部署入口为 `./app`。
+- 根应用保留 Cargo 内部 target `app`，发布部署入口按项目名安装为 `bin/openrust`；生成应用发布为 `bin/<项目名>`。Artisan 在包根调用固定同包路径，Docker 入口为 `/app/bin/openrust`，Compose 服务名 `app` 与迁移入口 `/app/artisan` 保持不变。
 - 根应用提供多阶段 Dockerfile 和 Compose，自动等待 MySQL 与 Redis 就绪并执行迁移。
 - 容器支持注入具名 Guard 和当前账户，应用可按请求覆盖账户解析器。
 - 容器增加 `RequestAttribute` 和 `RouteParameter`，支持注入服务端请求属性、已解码捕获及可信路由绑定。

@@ -20,5 +20,3 @@ cargo test
 需要完全无 Session/Cookie 的 JWT API 应用时，创建项目时显式选择 `openrust new <应用名> --profile jwt-api`，不与 `--fortify` 共选。
 
 启用加密的 Web 项目在首次处理受保护 Cookie 时读取 `APP_KEY`。请在部署前运行 `./artisan key:generate`，或由部署平台注入有效的应用密钥。`./artisan key:generate --show` 会输出密钥，请只在私有终端运行并避免记录到日志。
-
-源码开发用 `cargo run` 启动应用。发布时将 Cargo 按包名构建的二进制安装为 `app`，并将可执行的 `artisan` 放在同一目录。用 `./app` 启动常驻进程，用 `./artisan` 执行应用命令。直接运行 `./artisan` 默认列出命令。

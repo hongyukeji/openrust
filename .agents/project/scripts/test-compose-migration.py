@@ -193,6 +193,20 @@ class Probe:
             self.run("source-archive", ["git", "archive", self.receipt["source_commit"]], stdout=archive)
         self.run("source-extract", ["tar", "-xf", str(snapshot), "-C", str(source)])
         snapshot.unlink()
+        # 从所选历史/现行源码取入口，不能用当前布局否定旧 ref 的原始证据。
+        dockerfile = (source / "Dockerfile").read_bytes()
+        entries = re.findall(rb"(?m)^ENTRYPOINT[ \t]+(\[[^\r\n]*\])[ \t]*$", dockerfile)
+        require(bool(entries), "所选源码缺少 JSON ENTRYPOINT")
+        entrypoint = json.loads(entries[-1])
+        require(isinstance(entrypoint, list) and len(entrypoint) == 1
+                and isinstance(entrypoint[0], str) and entrypoint[0].startswith("/"),
+                "所选应用 ENTRYPOINT 必须是单一绝对路径")
+        self.app_entrypoint = entrypoint
+        self.receipt["app_entrypoint"] = {
+            "source": entrypoint,
+            "dockerfile_sha256": hashlib.sha256(dockerfile).hexdigest(),
+            "project_named_layout": entrypoint == ["/app/bin/openrust"],
+        }
         for stack, ref in (("legacy", OLD_REF), ("bind", self.receipt["source_commit"])):
             contents = self.run(f"{stack}-compose-source", ["git", "show", f"{ref}:docker-compose.yml"]).stdout
             (self.work / f"{stack}.yml").write_bytes(contents)
@@ -240,6 +254,17 @@ class Probe:
             "prebuilt": bool(self.args.app_image), "oci_revision": image_revision or None,
             "source_ref_label_matches": image_revision == revision,
         }
+        actual_entrypoint = json.loads(self.inspect(
+            "image", self.image, "app-image-entrypoint", "{{json .Config.Entrypoint}}"
+        ))
+        self.receipt["app_entrypoint"]["image"] = actual_entrypoint
+        require(actual_entrypoint == self.app_entrypoint, "应用镜像入口与 source-ref 不同")
+        self.docker(
+            "app-image-executable", "run", "--rm", "--platform", TARGET, "--network", "none",
+            "--entrypoint", "/bin/sh", self.image, "-ec", 'test -f "$1" && test -x "$1"',
+            "entrypoint-probe", self.app_entrypoint[0],
+        )
+        self.receipt["app_entrypoint"]["image_executable_verified"] = True
         # 通过架构 manifest digest 拉取，不改本机共享的版本标签。
         self.database_tags = {name: self.pull_amd64_alias(name, image)
                               for name, image in DATABASE_IMAGES.items()}
@@ -275,6 +300,11 @@ class Probe:
             except RuntimeError:
                 pass
             raise
+        actual_path = self.inspect(
+            "container", self.container("app", label), f"{label}-app-entrypoint", "{{.Path}}"
+        )
+        require(actual_path == self.app_entrypoint[0], "Compose 应用实际入口与所选镜像不同")
+        self.receipt["app_entrypoint"].setdefault("started_containers", {})[label] = actual_path
 
     def down(self, label):
         self.compose(self.active, label, "down", "--remove-orphans", "--timeout", "120", timeout=300)

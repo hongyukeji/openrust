@@ -48,10 +48,10 @@ impl SourceLayout {
         portable_path(&self.context.join(relative))
     }
 
-    pub(crate) fn artisan_source(&self) -> anyhow::Result<String> {
+    pub(crate) fn artisan_source(&self, name: &str) -> anyhow::Result<String> {
         let manifest = portable_path(&self.context.join("tools/cli/Cargo.toml"))?;
         let literal = manifest.replace('\'', "'\\''");
-        Ok(include_str!("../../../artisan").replace(
+        Ok(artisan_source(name).replace(
             "cli_manifest='tools/cli/Cargo.toml'",
             &format!("cli_manifest='{literal}'"),
         ))
@@ -72,6 +72,14 @@ impl SourceLayout {
             include_str!("../templates/deploy/.dockerignore"),
         )?;
         fs::write(project.join("docker-compose.yml"), self.compose(database)?)?;
+        let readme = project.join("README.md");
+        let mut contents = if readme.is_file() {
+            fs::read_to_string(&readme)?
+        } else {
+            format!("# {name}\n")
+        };
+        contents.push_str(&include_str!("../templates/deploy/README.md").replace("{{name}}", name));
+        fs::write(readme, contents)?;
         if database == Some(DatabaseBackend::Postgres) {
             let directory = project.join(".docker");
             fs::create_dir(&directory)?;
@@ -139,6 +147,13 @@ impl SourceLayout {
             .replace("{{application_layout}}", &compose_string(&self.application))
             .replace("{{framework_layout}}", &compose_string(&self.framework)))
     }
+}
+
+pub(crate) fn artisan_source(name: &str) -> String {
+    include_str!("../../../artisan").replace(
+        "application='./bin/openrust'",
+        &format!("application='./bin/{name}'"),
+    )
 }
 
 fn portable_path(path: &Path) -> anyhow::Result<String> {

@@ -14,8 +14,6 @@ API 前缀由 `config/api.rs` 与 `config/fortify_api.rs` 配置，默认 `/api/
 ./artisan migrate
 ```
 
-源码开发用 `cargo run` 启动应用。发布时将 Cargo 按包名构建的二进制安装为 `app`，并将可执行的 `artisan` 放在同一目录。用 `./app` 启动常驻进程，用 `./artisan` 执行应用命令。直接运行 `./artisan` 默认列出命令。
-
 `tests/auth_flows.rs` 验证真实 API 管理、独立 RFC TOTP、恢复码、凭据轮换和逐响应无 Cookie；`tests/jwt_api_business.rs` 保留注册、邮件验证、密码重置、受管 PAT、刷新重放及注销回归。数据库测试必须真实运行，缺少网络数据库测试 URL 视为错误。
 
 可通过 `EventsServiceProvider` 订阅 `openrust::fortify::events` 中的双因素事件类型，也可用 `OpenRust\Fortify\Events\*` 订阅这一组事件。

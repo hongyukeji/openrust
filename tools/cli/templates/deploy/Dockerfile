@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     set -- cargo build --release --bin "{{name}}"; \
     if [ -f Cargo.lock ]; then set -- "$@" --locked; fi; \
     "$@"; \
-    install -D -m 755 "$CARGO_TARGET_DIR/release/{{name}}" /out/app; \
+    install -D -m 755 "$CARGO_TARGET_DIR/release/{{name}}" "/out/bin/{{name}}"; \
     install -m 755 artisan /out/artisan; \
     cp -a public resources lang /out/; \
     mkdir -p /out/modules; \
@@ -46,4 +46,4 @@ ENV APP_SERVER_HOST=0.0.0.0 SERVER_PORT=3000
 USER 10001:10001
 EXPOSE 3000
 STOPSIGNAL SIGTERM
-ENTRYPOINT ["/app/app"]
+ENTRYPOINT ["/app/bin/{{name}}"]

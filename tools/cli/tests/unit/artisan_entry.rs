@@ -1,6 +1,8 @@
 //! Artisan 生成与源码、部署分流的进程级回归。
 
-use super::populate_project;
+use super::deployment_tests::assert_generated_deployment_artifacts;
+use super::workspace_entry_tests::create_framework_fixture;
+use super::{create_project, populate_project};
 use anyhow::{Context, Result};
 use std::fmt::Write as _;
 use std::fs;
@@ -78,6 +80,20 @@ impl Fixture {
         assert_eq!(String::from_utf8(output.stdout)?, expected);
         Ok(())
     }
+
+    fn assert_deployment_errors(&self, project: &Path, program: &str) -> Result<()> {
+        let target = format!("./bin/{program}");
+        write_executable(&project.join("app"), FAKE_APPLICATION)?;
+        let (_, missing) = self.run(project, &[])?;
+        assert_deployment_error(missing, 127, &target)?;
+
+        fs::create_dir_all(project.join("bin"))?;
+        let binary = project.join("bin").join(program);
+        fs::write(&binary, FAKE_APPLICATION)?;
+        fs::set_permissions(binary, fs::Permissions::from_mode(0o644))?;
+        let (_, not_executable) = self.run(project, &[])?;
+        assert_deployment_error(not_executable, 126, &target)
+    }
 }
 
 impl Drop for Fixture {
@@ -92,37 +108,74 @@ fn write_executable(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+fn assert_deployment_error(output: Output, code: i32, target: &str) -> Result<()> {
+    let diagnostic = String::from_utf8(output.stderr)?;
+    assert_eq!(output.status.code(), Some(code), "{diagnostic}");
+    assert_eq!(output.stdout, b"");
+    assert!(
+        diagnostic.contains("artisan") && diagnostic.contains(target),
+        "{diagnostic}"
+    );
+    Ok(())
+}
+
 #[test]
-fn generated_artisan_is_executable_and_runs_source_through_cargo() -> Result<()> {
+fn generated_artisan_runs_source_and_relocated_deployments_by_project_name() -> Result<()> {
     let fixture = Fixture::new()?;
-    let project = fixture.root.join("source project");
-    populate_project(
-        &project,
-        "artisan-fixture",
-        "ArtisanFixture",
-        None,
-        false,
-        false,
-        false,
-        false,
-    )?;
-    let script = project.join("artisan");
-    assert_eq!(fs::read(&script)?, ARTISAN);
-    assert_eq!(fs::metadata(&script)?.permissions().mode() & 0o777, 0o755);
-    fixture.assert_exec(
-        &project,
-        &["--env=testing", "queue:work", "two words", ""],
-        "cargo",
-        &[
-            "run",
-            "--quiet",
-            "--",
-            "--env=testing",
-            "queue:work",
-            "two words",
-            "",
-        ],
-    )
+    let framework = fixture.root.join("framework source");
+    let source = fixture.root.join("source projects");
+    let deployment = fixture.root.join("original deployment");
+    let relocated = fixture.root.join("relocated deployment with spaces");
+    fs::create_dir_all(&framework)?;
+    fs::create_dir(&source)?;
+    fs::create_dir(&deployment)?;
+    create_framework_fixture(&framework);
+    let names = ["artisan", "public", "storage", "modules", "bin"];
+    for name in names {
+        let project = source.join(name);
+        create_project(
+            project.to_str().context("应用目录必须为 UTF-8")?,
+            None,
+            false,
+            false,
+            false,
+            false,
+            &framework,
+        )?;
+        assert_generated_deployment_artifacts(&project, name)?;
+        let script = project.join("artisan");
+        assert_eq!(fs::metadata(&script)?.permissions().mode() & 0o777, 0o755);
+        let installed = deployment.join(name);
+        fs::create_dir_all(installed.join("bin"))?;
+        fs::copy(&script, installed.join("artisan"))?;
+        if name == "artisan" {
+            fixture.assert_deployment_errors(&installed, name)?;
+            fs::create_dir_all(project.join("bin"))?;
+            write_executable(&project.join("bin").join(name), FAKE_APPLICATION)?;
+            fixture.assert_exec(
+                &project,
+                &["--env=testing", "queue:work", "two words", ""],
+                "cargo",
+                &[
+                    "run",
+                    "--quiet",
+                    "--",
+                    "--env=testing",
+                    "queue:work",
+                    "two words",
+                    "",
+                ],
+            )?;
+        }
+        write_executable(&installed.join("bin").join(name), FAKE_APPLICATION)?;
+    }
+
+    fs::rename(&deployment, &relocated)?;
+    let args = ["schedule:run", "two words", ""];
+    for name in names {
+        fixture.assert_exec(&relocated.join(name), &args, name, &args)?;
+    }
+    Ok(())
 }
 
 #[test]
@@ -200,33 +253,27 @@ fn source_artisan_discovery_uses_cli_without_building_the_application() -> Resul
 }
 
 #[test]
-fn deployed_artisan_execs_adjacent_app_without_cargo() -> Result<()> {
+fn deployed_root_artisan_execs_bin_openrust_without_cargo() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("deployed project");
-    fs::create_dir(&project)?;
+    fs::create_dir_all(project.join("bin"))?;
     fs::write(project.join("Cargo.toml"), "")?;
     write_executable(&project.join("artisan"), ARTISAN)?;
-    write_executable(&project.join("app"), FAKE_APPLICATION)?;
+    write_executable(&project.join("bin/openrust"), FAKE_APPLICATION)?;
     fixture.assert_exec(
         &project,
         &["schedule:run", "two words", ""],
-        "app",
+        "openrust",
         &["schedule:run", "two words", ""],
     )
 }
 
 #[test]
-fn deployed_artisan_reports_missing_app_without_cargo() -> Result<()> {
+fn deployed_root_artisan_reports_missing_or_non_executable_bin_openrust() -> Result<()> {
     let fixture = Fixture::new()?;
     let project = fixture.root.join("incomplete project");
     fs::create_dir_all(project.join("src"))?;
     fs::write(project.join("src/main.rs"), "")?;
     write_executable(&project.join("artisan"), ARTISAN)?;
-
-    let (_, output) = fixture.run(&project, &[])?;
-    assert_eq!(output.status.code(), Some(127));
-    assert_eq!(output.stdout, b"");
-    let diagnostic = String::from_utf8(output.stderr)?;
-    assert!(diagnostic.contains("artisan") && diagnostic.contains("./app"));
-    Ok(())
+    fixture.assert_deployment_errors(&project, "openrust")
 }

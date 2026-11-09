@@ -47,7 +47,7 @@ SERVER_PORT=4000 cargo run
 
 根 `default-members = ["."]`、`default-run = "app"`，无参数 `cargo run` 启动 `app`。`app/` 编写应用代码，`modules/` 可选组织业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
 
-发布根应用时，在目标平台构建 `cargo build --release --locked --bin app`，按需启用应用 feature。将 `target/release/app` 和可执行的 `artisan` 放在同一个部署目录。使用数据库时在部署目录先运行 `./artisan migrate`，再用 `./app` 启动常驻进程。
+发布根应用时，在目标平台构建 `cargo build --release --locked --bin app`，按需启用应用 feature。将 `target/release/app` 安装为部署包内的 `bin/openrust`，可执行的 `artisan` 放在包根。使用数据库时在部署目录先运行 `./artisan migrate`，再用 `./bin/openrust` 启动常驻进程。Artisan 按包根的固定 `bin/openrust` 路径调用应用，不从 PATH 查找同名开发 CLI。Cargo 内部 target `app`、开发工具 CLI `openrust` 和 Compose 服务名 `app` 保持不变。
 
 当前综合示例 [`modules/example`](../../../modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；开发者可直接在根 `app/` 编写业务；需要模块组织时，在 `modules/<业务>/` 定义模块，经模块清单与统一 Provider 接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
 
@@ -160,20 +160,22 @@ done
 
 ### 导出应用文件
 
-在 Mac 上也可以用同一个 Dockerfile 导出 Linux 应用文件，导出目录中包含同级的 `app` 和 `artisan`。下面的命令目标是 x86_64，ARM64 对应 `linux/arm64`。导出的二进制使用构建镜像的 Linux ABI，直接部署前应在目标系统检查依赖并实际启动。
+在 Mac 上也可以用同一个 Dockerfile 导出 Linux 应用文件，导出目录中包含 `bin/openrust` 和包根的 `artisan`。下面的命令目标是 x86_64，ARM64 对应 `linux/arm64`。导出的二进制使用构建镜像的 Linux ABI，直接部署前应在目标系统检查依赖并实际启动。
 
 ```bash
 docker buildx build --platform linux/amd64 --target artifacts \
   --output type=local,dest=dist/linux-amd64 .
 ```
 
-将文件部署到 Linux 主机后，在应用运行目录建立 `bootstrap/cache`，并让实际应用账号可写。首次启动会在其中生成服务清单。容器运行镜像已创建该目录。
+将文件部署到 Linux 主机后，在应用运行目录建立 `bootstrap/cache`，并让实际应用账号可写。首次启动会在其中生成服务清单。容器运行镜像已创建该目录，应用入口为 `/app/bin/openrust`，迁移服务仍通过 `/app/artisan` 执行。
 
-这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。根应用已在原生 Ubuntu 24.04 x86_64 上实测部署、旧命名卷迁移和回退。
+这里的 Compose 文件用于根应用。默认构建上下文、数据目录 `./docker-data` 和公开资源 `./public` 均相对 Compose 文件解析。历史根应用镜像已在原生 Ubuntu 24.04 x86_64 上实测部署、旧命名卷迁移和回退；该记录不替代新 `bin/openrust` 发布布局的验收。
 
 ### 生成应用的容器部署
 
 `openrust new` 生成应用自己的 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。需要支持 `additional_contexts` 的 Docker Compose 与 BuildKit。应用的 `Cargo.toml` 和 Compose 文件通过相对路径使用生成时对应的 OpenRust 源码。复制或移动到另一台构建机时，保留应用与框架的相对目录关系。容器运行只需要构建产物、公开资源和运行配置。
+
+例如，`openrust new blog` 生成的镜像执行 `/app/bin/blog`，Buildx 的 `artifacts` 阶段导出 `bin/blog`。独立部署时保留包根的 `artisan`，它从该目录调用 `bin/blog`。生成的 `README.md` 列出当前项目的发布命令。
 
 在生成的应用目录中启动服务并检查就绪状态。
 
@@ -255,7 +257,7 @@ cargo run
 
 生成应用可使用自己的名称、workspace 和 Cargo.lock，本地框架/tool 依赖须保持可达；不修改本仓 workspace，也不要求维护额外源码仓库。标准生成应用默认使用 Redis，运行前准备服务或显式选择其他 cache store。
 
-生成项目的默认二进制按 Cargo 包名构建。例如 `blog` 执行 `cargo build --release --locked` 后得到 `target/release/blog`。发布时将该二进制安装为 `app`，并在同一目录安装可执行的 `artisan`。
+生成项目的默认二进制按 Cargo 包名构建。例如 `blog` 执行 `cargo build --release --locked` 后得到 `target/release/blog`。发布时将该二进制安装为 `bin/blog`，并在包根安装可执行的 `artisan`。生成的 Artisan 固定调用同包的 `bin/blog`；其他项目对应 `bin/<项目名>`，不统一重命名为 `app`。
 
 未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](../../../vendor/openrust/framework/src/foundation/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `ApplicationDefinition` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](../../../modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
 

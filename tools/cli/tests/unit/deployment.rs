@@ -6,6 +6,21 @@ use super::{
     standalone_manifest,
 };
 use std::fs;
+use std::path::Path;
+
+pub(super) fn assert_generated_deployment_artifacts(app: &Path, name: &str) -> anyhow::Result<()> {
+    let dockerfile = fs::read_to_string(app.join("Dockerfile"))?;
+    assert!(dockerfile.contains(&format!("/out/bin/{name}")), "{name}");
+    assert!(
+        dockerfile.contains(&format!("ENTRYPOINT [\"/app/bin/{name}\"]")),
+        "{name}"
+    );
+    assert!(
+        fs::read_to_string(app.join("README.md"))?.contains(&format!("./bin/{name}")),
+        "{name}"
+    );
+    Ok(())
+}
 
 #[test]
 fn standalone_apps_inherit_relative_driver_patches_without_changing_source() {
@@ -174,7 +189,7 @@ fn relocated_project_keeps_cargo_and_compose_source_paths() -> anyhow::Result<()
     assert!(!compose.contains("env_file:"));
     assert!(!compose.contains("DB_CONNECTION:"));
     assert!(!compose.contains("  migrate:"));
-    assert!(app.join("Dockerfile").is_file());
+    assert_generated_deployment_artifacts(&app, "minimal-app")?;
     assert!(app.join(".dockerignore").is_file());
     assert!(
         fs::read_to_string(app.join("artisan"))?

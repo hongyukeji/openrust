@@ -768,7 +768,10 @@ fn create_project_with_selected_profile(
     let deployment = standalone_manifest(&workspace.root, &project_dir, database.is_some())
         .context("无法配置独立应用的本地依赖")
         .and_then(|layout| {
-            fs::write(project_dir.join("artisan"), layout.artisan_source()?)?;
+            fs::write(
+                project_dir.join("artisan"),
+                layout.artisan_source(project_name)?,
+            )?;
             layout.write_templates(&project_dir, project_name, database)
         });
     if let Err(error) = deployment {
@@ -1341,7 +1344,7 @@ fn populate_project_with_features(
             .with_context(|| format!("failed to write {relative_path}"))?;
     }
     let artisan = project_dir.join("artisan");
-    fs::write(&artisan, include_str!("../../../artisan"))?;
+    fs::write(&artisan, deployment::artisan_source(name))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;

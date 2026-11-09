@@ -1859,6 +1859,14 @@ Docker Desktop Linux ARM64 实测 minimal 无锁文件构建和 Fortify Web 锁�
 
 `tmp/lead-class-lifetime-U5c8kV7e/next-compose-x64/` 的 `generated-relocation-live-02/`、`generated-relocation-live-04/` 保存搬迁、构建与重建回执，`generated-workspace-*.log` 保存 fmt、严格 Clippy、带隔离 MySQL 的工作区测试、Rustdoc 与依赖门禁证据。PostgreSQL 生成配置通过静态 Compose 解析与 Shell 语法检查。SQLite 和 PostgreSQL 的 Compose 运行及生成部署的原生 x86_64 仍需相应环境验收。
 
+## 部署二进制按项目名限定验收
+
+冻结树 `b3f456e4f2f21592b8bad33b7682cac9466dcc67`。根 Cargo 应用目标为 `app`，工具为 `openrust`。根及生成应用按发布项目名安装在 `bin/`。Artisan 在发布目录使用生成时确定的路径，源码模式继续从 Cargo 启动。命令以固定 Laravel v13.11.0 的包根 Artisan 为对照。部署路径和同名资源隔离是编译型应用的打包约定。
+
+Linux ARM64 的 Buildx 和 Compose 实跑根、`blog`、`artisan`。镜像默认入口和导出产物同名，各自以真实 MySQL 8.4 和 Redis 完成迁移、就绪探针及 Artisan 命令。生成应用及框架源码迁到含空格的父目录后再构建。导出产物在含空格的挂载路径验证 Artisan、实际监听和 SIGTERM。原生 x86_64 的新布局留待发布矩阵。
+
+默认工作区格式、严格 Clippy、测试、严格 Rustdoc 和离线依赖检查通过。真实 MySQL 8.4.13；工作区 2979 项，`blog` 33 项，`artisan` 33 项通过。进程测试覆盖 `artisan/public/storage/modules/bin` 五种冲突名、参数透传、搬迁及 127/126 错误。
+
 ## 开发态两阶段重载
 
 macOS ARM64 使用 Watchexec 2.8.0、隔离 MySQL 8.4.13 与 Redis 8，通过根应用和 `openrust new --minimal` 生成应用的真实 HTTP 验收。根应用完成实际迁移，编译失败期间原进程持续响应，修复后收到 SIGTERM 并切换。选定的 `.env` 变更触发重载，其他环境文件和运行目录写入被忽略。

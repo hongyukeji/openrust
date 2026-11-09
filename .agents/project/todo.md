@@ -57,6 +57,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 7. 统一 `./artisan` 已验收源码根、minimal 与 Fortify Web 生成项目、Linux ARM64 和原生 Ubuntu x86_64 根应用 Compose，以及 Buildx 产物。源码实测 `list`、`help`、环境选择、密钥生成、迁移和停机；根 Compose 以真实 MySQL 8.4 与 Redis 验证。生成项目 Compose 与其他平台继续跟踪，其他冒号命令按现有依赖分批。
 
+8. [部署产物按项目名](memory/testing.md#部署二进制按项目名限定验收)已完成本机 Linux ARM64 限定验收。根应用发布 `bin/openrust`，生成应用发布 `bin/<项目名>`。原生 x86_64 新布局及其他数据库部署继续在发布矩阵核验。
+
 ## 其他旧兼容整改（已授权，当前Fortify优先）
 
 | 稳定项 | owner／依赖与范围 | 验收与排期 |
