@@ -1,5 +1,6 @@
 #![allow(clippy::expect_used, reason = "测试夹具创建失败时立即终止")]
 
+use super::deployment::SourceLayout;
 use super::workspace_entry_tests::create_framework_fixture;
 use super::{
     DatabaseBackend, application_directory, create_project, framework_workspace,
@@ -127,6 +128,9 @@ fn creates_independent_apps_without_changing_source_workspace() {
         assert!(
             compose.contains("      migrate:\n        condition: service_completed_successfully")
         );
+        assert!(compose.contains(
+            "    entrypoint: [/app/artisan]\n    command: [migrate, --force, --no-interaction]\n"
+        ));
         assert!(!compose.contains("env_file:"));
         if backend == DatabaseBackend::Postgres {
             assert!(compose.contains("    user: \"postgres:postgres\""));
@@ -141,6 +145,35 @@ fn creates_independent_apps_without_changing_source_workspace() {
         original
     );
     fs::remove_dir_all(root).expect("清理本测试目录");
+}
+
+#[test]
+fn sqlite_compose_sets_migration_arguments_before_creating_database() -> anyhow::Result<()> {
+    let root = tempfile::tempdir()?;
+    let framework = root.path().join("framework");
+    let app = root.path().join("sqlite-app");
+    fs::create_dir(&framework)?;
+    fs::create_dir(&app)?;
+    SourceLayout::new(&framework, &app)?.write_templates(
+        &app,
+        "sqlite-app",
+        Some(DatabaseBackend::Sqlite),
+    )?;
+
+    let compose = fs::read_to_string(app.join("docker-compose.yml"))?;
+    assert!(compose.contains(concat!(
+        "    entrypoint: [/bin/sh, -ec]\n",
+        "    command:\n",
+        "      - |\n",
+        "        set -- migrate --force --no-interaction\n",
+        "        umask 077\n",
+        "        mkdir -p storage/app\n",
+        "        if [ ! -e storage/app/database.sqlite ]; then\n",
+        "          (set -C; : > storage/app/database.sqlite)\n",
+        "        fi\n",
+        "        exec /app/artisan \"$$@\"\n",
+    )));
+    Ok(())
 }
 
 #[test]

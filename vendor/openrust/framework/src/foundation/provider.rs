@@ -1556,11 +1556,19 @@ impl ProviderBuilder {
     }
 
     /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
+    pub async fn start(self, sources: impl Into<ConfigSources>) -> Result<ProviderRuntime> {
+        self.start_with_preflight(sources, |_, _| Ok(())).await
+    }
+
     #[allow(
         clippy::too_many_lines,
         reason = "统一启动顺序保持 register、配置和 boot 生命周期可审阅"
     )]
-    pub async fn start(mut self, sources: impl Into<ConfigSources>) -> Result<ProviderRuntime> {
+    pub(crate) async fn start_with_preflight(
+        mut self,
+        sources: impl Into<ConfigSources>,
+        preflight: impl FnOnce(&ConfigRepository, &Container) -> Result<()> + Send,
+    ) -> Result<ProviderRuntime> {
         let mut config = ConfigRepository::new(sources);
         let PreparedProviders {
             entries: bootstrap,
@@ -1649,6 +1657,7 @@ impl ProviderBuilder {
                 automatic_database,
             )?;
             config.validate_base()?;
+            preflight(&config, &container)?;
             container.initialize_extensions().await?;
             {
                 let mut context = BootContext {

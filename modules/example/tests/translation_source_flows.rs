@@ -23,7 +23,7 @@ async fn app(database: &TestDatabase, files: &std::path::Path, mode: &str) -> Re
         .provider(TranslationSourcesProvider)
         .provider(TranslationSourceExampleProvider);
     Application::from_provider_runtime(builder.start(figment::Figment::from(figment::providers::Serialized::defaults(
-        serde_json::json!({"database":{"url":database.url()},"translation_sources":{"mode":mode,"install_database":true,"file_root":files,"namespaces":{"example-source":files.parent().ok_or_else(|| Error::custom("test_source_fixture", "测试来源缺少父目录"))?.join("example-source")}}})
+        serde_json::json!({"app":{"env":"testing"},"database":{"url":database.url()},"translation_sources":{"mode":mode,"install_database":true,"file_root":files,"namespaces":{"example-source":files.parent().ok_or_else(|| Error::custom("test_source_fixture", "测试来源缺少父目录"))?.join("example-source")}}})
     ))).await?)
 }
 #[tokio::test]

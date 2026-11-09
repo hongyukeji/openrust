@@ -120,7 +120,7 @@ services:
     <<: *openrust
     pull_policy: never
     entrypoint: ["/app/artisan"]
-    command: [migrate]
+    command: [migrate, --force, --no-interaction]
     volumes:
       - *storage-mount
     depends_on:

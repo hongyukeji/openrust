@@ -29,4 +29,12 @@ fn console_environment_argument_is_removed_before_command_dispatch() {
         parse(&["--envelope=mail", "--env"]),
         ("--envelope=mail".into(), Vec::new(), None)
     );
+    assert_eq!(
+        parse(&["-n", "--env=production", "migrate", "down"]),
+        (
+            "migrate".into(),
+            vec!["down".into(), "--no-interaction".into()],
+            Some("production".into()),
+        )
+    );
 }

@@ -62,7 +62,7 @@ cargo test --workspace
 
 ## 用 Docker Compose 运行
 
-从 OpenRust 源码仓库根目录运行以下命令。镜像包含同目录的 `app` 和 `artisan`。MySQL 8.4 和 Redis 就绪后，Compose 的一次性 `migrate` 服务执行 `./artisan migrate`。迁移成功后，应用容器直接运行 `app`，队列和适用的调度与 Web 共用一个进程。
+从 OpenRust 源码仓库根目录运行以下命令。镜像的入口为 `/app/bin/openrust`，命令入口为 `/app/artisan`。MySQL 8.4 和 Redis 就绪后，Compose 的一次性 `migrate` 服务显式执行 `./artisan migrate --force --no-interaction`。迁移成功后，应用容器运行 `/app/bin/openrust`，队列和适用的调度与 Web 共用一个进程。
 
 ```bash
 docker compose up --build -d --wait
@@ -160,7 +160,7 @@ done
 
 ### 导出应用文件
 
-在 macOS 或 Linux 的应用源码目录运行 `./artisan build`。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。
+OpenRust 提供编译型应用的 Linux 发布扩展 `./artisan build`，参考固定 Goravel 的源码构建流程。它由源码开发工具执行，当前使用 Docker Buildx。在 macOS 或 Linux 的应用源码目录运行该命令。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。
 
 ```bash
 ./artisan build --platform linux/amd64
@@ -174,9 +174,11 @@ done
 
 ```bash
 cd /srv/openrust
-./artisan migrate
+./artisan migrate --force --no-interaction
 ./bin/openrust
 ```
+
+手动生产部署可运行 `./artisan migrate` 并在终端确认。无终端、`--no-interaction` 或默认否会取消生产迁移。只读的 `./artisan migrate status` 不要求确认；迁移历史表缺失时返回失败。
 
 二进制使用 Debian Bookworm 构建环境的 Linux ABI。按目标机检查架构、动态库并实际启动。构建仍可通过 Dockerfile 的 `artifacts` 阶段手动导出。容器运行入口为 `/app/bin/openrust`，迁移服务仍通过 `/app/artisan` 执行。
 

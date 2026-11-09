@@ -268,7 +268,7 @@ async fn main() -> Result<()> {
     );
     assert_eq!(entries.count().await?, 1);
     let unsupported_migration = app
-        .run_command("migrate", vec!["up".into()])
+        .run_command("migrate", vec!["up".into(), "--force".into()])
         .await
         .err()
         .ok_or_else(|| {

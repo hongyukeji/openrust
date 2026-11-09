@@ -2,6 +2,7 @@
 //!
 //! `Command` 定义异步命令处理入口。
 
+use std::io::{self, IsTerminal as _};
 use std::{any::Any, fmt::Write as _};
 
 use crate::core::error::Result;
@@ -244,4 +245,21 @@ impl<A: crate::foundation::ApplicationDefinition> Command for ConfigCacheCommand
 /// 将命令输出写入标准输出；外部命令复用同一输出入口。
 pub fn print(text: &str) {
     println!("{text}");
+}
+
+pub(crate) fn confirm_in_terminal(
+    no_interaction: bool,
+    prompt: &str,
+    error_code: &'static str,
+) -> Result<bool> {
+    if no_interaction || !io::stdin().is_terminal() {
+        return Ok(false);
+    }
+    print(prompt);
+    let mut answer = String::new();
+    io::stdin()
+        .read_line(&mut answer)
+        .map_err(|_| crate::Error::custom(error_code, "无法读取生产环境确认输入"))?;
+    let answer = answer.trim();
+    Ok(answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes"))
 }

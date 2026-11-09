@@ -128,7 +128,7 @@ impl TestDatabase {
             builder.provider(crate::database::MigrationServiceProvider::<M>::new());
             let runtime = builder
                 .start(figment::Figment::from(
-                    figment::providers::Serialized::defaults(serde_json::json!({"database": {
+                    figment::providers::Serialized::defaults(serde_json::json!({"app":{"env":"testing"},"database": {
                         "url": guard.database_url, "max_connections": 2, "min_connections": 0,
                         "table_prefix": table_names.prefix(), "table_names": table_names.mappings(),
                     }})),

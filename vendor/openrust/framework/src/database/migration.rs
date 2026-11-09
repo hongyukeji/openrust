@@ -10,6 +10,7 @@ pub(super) fn sqlite_execution_owner() -> bool {
     execution::is_sqlite_owner()
 }
 
+use std::cell::Cell;
 use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
@@ -241,6 +242,8 @@ struct MigrationCommand {
     resources: crate::foundation::resources::ResourceRegistrar,
 }
 
+const MIGRATE_USAGE: &str = "[--database <name>] [--force] [--no-interaction|-n] [up [steps | --step] | --step | down [steps] | status]";
+
 impl Command for MigrationCommand {
     fn name(&self) -> &'static str {
         "migrate"
@@ -251,7 +254,7 @@ impl Command for MigrationCommand {
     }
 
     fn usage(&self) -> Option<&'static str> {
-        Some("[--database <name>] [up [steps | --step] | --step | down [steps] | status]")
+        Some(MIGRATE_USAGE)
     }
 
     fn accepts_args(&self) -> bool {
@@ -260,8 +263,16 @@ impl Command for MigrationCommand {
 
     fn run<'a>(&'a self, app: &'a Application, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let (database_name, action) = MigrationAction::parse(&args)?;
-            let db = if let Some(name) = database_name.as_deref() {
+            if args
+                .iter()
+                .any(|arg| matches!(arg.as_str(), "--help" | "-h"))
+            {
+                crate::console::command::print_help(self);
+                return Ok(());
+            }
+            let options = MigrationOptions::parse(&args)?;
+            options.authorize(app.is_production(), options.consume_confirmation())?;
+            let db = if let Some(name) = options.database.as_deref() {
                 app.state().resolve::<Databases>().await?.get(name)?
             } else {
                 app.state().resolve::<Db>().await?.as_ref().clone()
@@ -270,17 +281,23 @@ impl Command for MigrationCommand {
             if matches!(db.backend(), Ok(DbBackend::Sqlite)) {
                 return Err(execution::sqlite_feature_disabled());
             }
-            let lock_url = db.migration_lock_url()?.to_owned();
             let migrator = CatalogMigrator {
                 sources: self.catalog.snapshot()?,
             };
+            if options.action == MigrationAction::Status {
+                let database = db.primary_connection()?;
+                let history = migration_history(&database, false).await?;
+                print_status(&migrator, &history);
+                return Ok(());
+            }
+            let lock_url = db.migration_lock_url()?.to_owned();
             execution::execute(
                 app,
                 &self.resources,
                 db,
                 lock_url,
                 migrator,
-                action,
+                options.action,
                 self.lock_wait_timeout,
             )
             .await
@@ -323,7 +340,11 @@ async fn run_migrator_owned(
 ) -> Result<()> {
     cancellation.check()?;
     let database = db.connection()?;
-    let mut history = migration_history(&database).await?;
+    let mut history = migration_history(
+        &database,
+        matches!(action, MigrationAction::Up(_) | MigrationAction::UpStep),
+    )
+    .await?;
     let migrations = migrator.migrations();
     let applied = history
         .iter()
@@ -392,21 +413,7 @@ async fn run_migrator_owned(
             print_migrations("Migrations rolled back.\n");
         }
         MigrationAction::Status => {
-            if migrations.is_empty() {
-                print_migrations("No migrations registered.\n");
-            } else {
-                let mut output = String::new();
-                for migration in migrations {
-                    use std::fmt::Write as _;
-                    let status = if applied.contains(migration.name()) {
-                        "Applied"
-                    } else {
-                        "Pending"
-                    };
-                    let _ = writeln!(output, "{}: {}", migration.name(), status);
-                }
-                print_migrations(&output);
-            }
+            print_status(migrator, &history);
         }
     }
     Ok(())
@@ -417,7 +424,28 @@ struct BatchRow {
     batch: i64,
 }
 
-async fn migration_history(db: &DatabaseConnection) -> Result<Vec<BatchRow>> {
+fn print_status(migrator: &CatalogMigrator, history: &[BatchRow]) {
+    use std::fmt::Write as _;
+
+    let migrations = migrator.migrations();
+    if migrations.is_empty() {
+        print_migrations("No migrations registered.\n");
+        return;
+    }
+    let applied: HashSet<_> = history.iter().map(|row| row.version.as_str()).collect();
+    let mut output = String::new();
+    for migration in migrations {
+        let status = if applied.contains(migration.name()) {
+            "Applied"
+        } else {
+            "Pending"
+        };
+        let _ = writeln!(output, "{}: {}", migration.name(), status);
+    }
+    print_migrations(&output);
+}
+
+async fn migration_history(db: &DatabaseConnection, install: bool) -> Result<Vec<BatchRow>> {
     if SchemaManager::new(db)
         .has_table("seaql_migrations")
         .await
@@ -436,11 +464,22 @@ async fn migration_history(db: &DatabaseConnection) -> Result<Vec<BatchRow>> {
             "旧迁移历史不为空；请先在隔离环境转换历史，不能把已迁移数据库当作空库",
         ));
     }
-    db.execute_unprepared(
-        "CREATE TABLE IF NOT EXISTS openrust_migrations (version VARCHAR(255) PRIMARY KEY, batch BIGINT NOT NULL)",
-    )
-    .await
-    .map_err(Error::internal)?;
+    if install {
+        db.execute_unprepared(
+            "CREATE TABLE IF NOT EXISTS openrust_migrations (version VARCHAR(255) PRIMARY KEY, batch BIGINT NOT NULL)",
+        )
+        .await
+        .map_err(Error::internal)?;
+    } else if !SchemaManager::new(db)
+        .has_table("openrust_migrations")
+        .await
+        .map_err(Error::internal)?
+    {
+        return Err(Error::custom(
+            "migration_history_missing",
+            "找不到迁移历史表",
+        ));
+    }
     let rows = db
         .query_all_raw(Statement::from_string(
             db.get_database_backend(),
@@ -593,7 +632,7 @@ async fn commit_migration(transaction: sea_orm::DatabaseTransaction) -> Result<(
     })
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum MigrationAction {
     Up(Option<u32>),
     UpStep,
@@ -601,37 +640,131 @@ enum MigrationAction {
     Status,
 }
 
-impl MigrationAction {
-    fn parse(args: &[String]) -> Result<(Option<String>, Self)> {
+#[derive(PartialEq, Eq)]
+pub(crate) struct MigrationOptions {
+    database: Option<String>,
+    action: MigrationAction,
+    force: bool,
+    no_interaction: bool,
+}
+
+tokio::task_local! {
+    static CONFIRMED_MIGRATION: Cell<Option<MigrationOptions>>;
+}
+
+pub(crate) async fn with_confirmation<T>(
+    approval: Option<MigrationOptions>,
+    entry: impl std::future::Future<Output = T>,
+) -> T {
+    CONFIRMED_MIGRATION.scope(Cell::new(approval), entry).await
+}
+
+pub(crate) fn confirm_before_boot(
+    name: &str,
+    args: &[String],
+    config: &crate::config::repository::ConfigRepository,
+    container: &crate::container::Container,
+) -> Result<Option<MigrationOptions>> {
+    if name != "migrate"
+        || !container.contains::<MigrationCatalog>()
+        || args
+            .iter()
+            .any(|arg| matches!(arg.as_str(), "--help" | "-h"))
+    {
+        return Ok(None);
+    }
+    // 其他多词命令保留命令仓储的最长名称分派。
+    let Ok(options) = MigrationOptions::parse(args) else {
+        return Ok(None);
+    };
+    let app: crate::config::AppConfig = config.section("app")?;
+    if !options.needs_confirmation(app.env.is_production()) {
+        return Ok(None);
+    }
+    options.authorize(true, false)?;
+    Ok(Some(options))
+}
+
+impl MigrationOptions {
+    fn needs_confirmation(&self, production: bool) -> bool {
+        production && self.action != MigrationAction::Status && !self.force
+    }
+
+    fn authorize(&self, production: bool, confirmed: bool) -> Result<()> {
+        if self.needs_confirmation(production)
+            && !confirmed
+            && !crate::console::command::confirm_in_terminal(
+                self.no_interaction,
+                "应用处于生产环境。是否继续数据库迁移？[y/N]",
+                "migration_confirmation_failed",
+            )?
+        {
+            return Err(Error::custom(
+                "migration_confirmation_required",
+                "已取消生产迁移。无人值守部署请显式指定 --force。",
+            ));
+        }
+        Ok(())
+    }
+
+    fn consume_confirmation(&self) -> bool {
+        CONFIRMED_MIGRATION
+            .try_with(|approval| {
+                let allowed = approval.take();
+                if allowed.as_ref() == Some(self) {
+                    true
+                } else {
+                    approval.set(allowed);
+                    false
+                }
+            })
+            .unwrap_or(false)
+    }
+
+    fn parse(args: &[String]) -> Result<Self> {
         let invalid = || {
             Error::custom(
                 "invalid_migration_command",
-                "usage: migrate [--database <name>] [up [steps | --step] | --step | down [steps] | status]",
+                format!("用法：migrate {MIGRATE_USAGE}"),
             )
         };
-        let (database_name, action_args) = match args {
-            [flag, name, rest @ ..] if flag == "--database" && !name.is_empty() => {
-                (Some(name.clone()), rest)
+        let mut database = None;
+        let mut force = false;
+        let mut no_interaction = false;
+        let mut action_args = Vec::new();
+        let mut args = args.iter().map(String::as_str);
+        while let Some(arg) = args.next() {
+            match arg {
+                "--force" => force = true,
+                "--no-interaction" | "-n" => no_interaction = true,
+                flag if flag == "--database" || flag.starts_with("--database=") => {
+                    let value = flag
+                        .strip_prefix("--database=")
+                        .or_else(|| args.next())
+                        .filter(|value| !value.is_empty() && !value.starts_with('-'))
+                        .ok_or_else(invalid)?;
+                    if database.replace(value.to_owned()).is_some() {
+                        return Err(invalid());
+                    }
+                }
+                _ => action_args.push(arg),
             }
-            [flag, ..] if flag == "--database" => return Err(invalid()),
-            _ => (None, args),
-        };
-        let action = match action_args {
-            [] => Self::Up(None),
-            [action] if action == "up" => Self::Up(None),
-            [flag] if flag == "--step" => Self::UpStep,
-            [action, flag] if action == "up" && flag == "--step" => Self::UpStep,
-            [action, count] if action == "up" => {
-                Self::Up(Some(parse_steps(count).ok_or_else(invalid)?))
-            }
-            [action] if action == "down" => Self::Down(None),
-            [action, count] if action == "down" => {
-                Self::Down(Some(parse_steps(count).ok_or_else(invalid)?))
-            }
-            [action] if action == "status" => Self::Status,
+        }
+        let action = match action_args.as_slice() {
+            [] | ["up"] => MigrationAction::Up(None),
+            ["--step"] | ["up", "--step"] => MigrationAction::UpStep,
+            ["up", count] => MigrationAction::Up(Some(parse_steps(count).ok_or_else(invalid)?)),
+            ["down"] => MigrationAction::Down(None),
+            ["down", count] => MigrationAction::Down(Some(parse_steps(count).ok_or_else(invalid)?)),
+            ["status"] if !force => MigrationAction::Status,
             _ => return Err(invalid()),
         };
-        Ok((database_name, action))
+        Ok(Self {
+            database,
+            action,
+            force,
+            no_interaction,
+        })
     }
 }
 
@@ -648,7 +781,7 @@ fn print_migrations(output: &str) {
 mod tests {
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
     use super::{CatalogMigrator, MigrationEntry, run_migrator};
-    use super::{MigrationAction, MigrationCatalog, MigrationServiceProvider};
+    use super::{MigrationAction, MigrationCatalog, MigrationOptions, MigrationServiceProvider};
     use crate::core::Result;
     use crate::foundation::ProviderBuilder;
     use sea_orm_migration::prelude::*;
@@ -1044,6 +1177,7 @@ mod tests {
         let runtime = builder
             .start(figment::Figment::from(Serialized::defaults(
                 serde_json::json!({
+                    "app": {"env": "testing"},
                     "database": {"url": database.url(), "max_connections": 1, "min_connections": 1}
                 }),
             )))
@@ -1098,6 +1232,7 @@ mod tests {
                 .provider(DatabaseServiceProvider)
                 .provider(MigrationServiceProvider::<OrderedA>::new());
             let source = figment::Figment::from(Serialized::defaults(serde_json::json!({
+                "app": {"env": "testing"},
                 "database": {"url": database.url(), "max_connections": 1, "min_connections": 1, "table_prefix": prefix}
             })));
             async move {
@@ -1153,50 +1288,98 @@ mod tests {
     #[test]
     fn migration_actions_default_to_all_up_or_one_down() {
         assert!(matches!(
-            MigrationAction::parse(&[]),
-            Ok((None, MigrationAction::Up(None)))
+            MigrationOptions::parse(&[]),
+            Ok(MigrationOptions {
+                action: MigrationAction::Up(None),
+                database: None,
+                ..
+            })
         ));
         assert!(matches!(
-            MigrationAction::parse(&args(&["up"])),
-            Ok((None, MigrationAction::Up(None)))
+            MigrationOptions::parse(&args(&["up"])),
+            Ok(MigrationOptions {
+                action: MigrationAction::Up(None),
+                database: None,
+                ..
+            })
         ));
         assert!(matches!(
-            MigrationAction::parse(&args(&["down"])),
-            Ok((None, MigrationAction::Down(None)))
+            MigrationOptions::parse(&args(&["down"])),
+            Ok(MigrationOptions {
+                action: MigrationAction::Down(None),
+                database: None,
+                ..
+            })
         ));
         assert!(matches!(
-            MigrationAction::parse(&args(&["--step"])),
-            Ok((None, MigrationAction::UpStep))
+            MigrationOptions::parse(&args(&["--step"])),
+            Ok(MigrationOptions {
+                action: MigrationAction::UpStep,
+                database: None,
+                ..
+            })
         ));
     }
 
     #[test]
     fn migration_actions_accept_positive_step_counts_and_status() {
         assert!(matches!(
-            MigrationAction::parse(&args(&["up", "2"])),
-            Ok((None, MigrationAction::Up(Some(2))))
+            MigrationOptions::parse(&args(&["up", "2"])),
+            Ok(MigrationOptions {
+                action: MigrationAction::Up(Some(2)),
+                database: None,
+                ..
+            })
         ));
         assert!(matches!(
-            MigrationAction::parse(&args(&["down", "3"])),
-            Ok((None, MigrationAction::Down(Some(3))))
+            MigrationOptions::parse(&args(&["down", "3"])),
+            Ok(MigrationOptions {
+                action: MigrationAction::Down(Some(3)),
+                database: None,
+                ..
+            })
         ));
         assert!(matches!(
-            MigrationAction::parse(&args(&["status"])),
-            Ok((None, MigrationAction::Status))
+            MigrationOptions::parse(&args(&["status"])),
+            Ok(MigrationOptions {
+                action: MigrationAction::Status,
+                database: None,
+                ..
+            })
         ));
     }
 
     #[test]
     fn migration_action_selects_an_explicit_database() {
         assert!(matches!(
-            MigrationAction::parse(&args(&["--database", "analytics", "up", "2"])),
-            Ok((Some(name), MigrationAction::Up(Some(2)))) if name == "analytics"
+            MigrationOptions::parse(&args(&["--database", "analytics", "up", "2"])),
+            Ok(MigrationOptions { database: Some(name), action: MigrationAction::Up(Some(2)), .. }) if name == "analytics"
         ));
-        assert!(MigrationAction::parse(&args(&["--database"])).is_err());
+        assert!(MigrationOptions::parse(&args(&["--database"])).is_err());
         assert!(
-            MigrationAction::parse(&args(&["--database", "analytics", "--database", "other"]))
+            MigrationOptions::parse(&args(&["--database", "analytics", "--database", "other"]))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn production_confirmation_is_required_only_for_unapproved_writes() -> Result<()> {
+        for args in [&["up", "-n"][..], &["down", "--no-interaction", "2"]] {
+            let options = MigrationOptions::parse(&self::args(args))?;
+            assert!(options.authorize(false, false).is_ok());
+            assert!(options.authorize(true, true).is_ok());
+            assert!(matches!(
+                options.authorize(true, false),
+                Err(error) if error.code() == "migration_confirmation_required"
+            ));
+        }
+        let forced =
+            MigrationOptions::parse(&args(&["down", "--force", "--database=analytics", "2"]))?;
+        assert_eq!(forced.database.as_deref(), Some("analytics"));
+        assert!(forced.authorize(true, false).is_ok());
+        let status = MigrationOptions::parse(&args(&["status", "--no-interaction"]))?;
+        assert!(status.authorize(true, false).is_ok());
+        Ok(())
     }
 
     #[test]
@@ -1206,8 +1389,11 @@ mod tests {
             &["down", "0"],
             &["up", "-1"],
             &["status", "1"],
+            &["status", "--force"],
+            &["--database", "--force"],
+            &["--database="],
         ] {
-            assert!(MigrationAction::parse(&args(invalid)).is_err());
+            assert!(MigrationOptions::parse(&args(invalid)).is_err());
         }
     }
 }

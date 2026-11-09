@@ -1,7 +1,5 @@
 //! 应用密钥生成和配置写入入口。
 
-use std::io::{self, IsTerminal as _};
-
 use crate::config::AppConfig;
 use crate::console::Command;
 use crate::foundation::Application;
@@ -90,7 +88,13 @@ impl Command for KeyGenerateCommand {
                 super::print(&key);
                 return Ok(());
             }
-            if options.needs_confirmation(&config) && !confirm_production(options.no_interaction)? {
+            if options.needs_confirmation(&config)
+                && !super::confirm_in_terminal(
+                    options.no_interaction,
+                    "应用处于生产环境。是否继续替换现有密钥？[y/N]",
+                    "app_key_confirmation_failed",
+                )?
+            {
                 super::print("已取消命令。");
                 return Ok(());
             }
@@ -108,19 +112,6 @@ impl Command for KeyGenerateCommand {
             Ok(())
         })
     }
-}
-
-fn confirm_production(no_interaction: bool) -> Result<bool> {
-    if no_interaction || !io::stdin().is_terminal() {
-        return Ok(false);
-    }
-    super::print("应用处于生产环境。是否继续替换现有密钥？[y/N]");
-    let mut answer = String::new();
-    io::stdin()
-        .read_line(&mut answer)
-        .map_err(|_| Error::custom("app_key_confirmation_failed", "无法读取生产环境确认输入"))?;
-    let answer = answer.trim();
-    Ok(answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes"))
 }
 
 #[cfg(test)]

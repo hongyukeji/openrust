@@ -643,7 +643,7 @@ impl BackgroundTaskHandle {
 
 /// 从当前工作目录的配置引导启动 `A`。
 pub async fn bootstrap<A: ApplicationDefinition>() -> Result<Application> {
-    bootstrap_with_command::<A>(None, None, None).await
+    bootstrap_with_command::<A>(None, None, None, |_, _| Ok(())).await
 }
 
 /// 测试现有命令引导路径；生产控制台入口使用 [`bootstrap_for_console`]。
@@ -651,7 +651,7 @@ pub async fn bootstrap<A: ApplicationDefinition>() -> Result<Application> {
 pub(crate) async fn bootstrap_for_command<A: ApplicationDefinition>(
     name: &str,
 ) -> Result<Application> {
-    bootstrap_with_command::<A>(Some(name), None, None).await
+    bootstrap_with_command::<A>(Some(name), None, None, |_, _| Ok(())).await
 }
 
 /// 使用显式 console 环境文件选择启动，不读取进程 argv。
@@ -659,14 +659,43 @@ pub async fn bootstrap_for_console<A: ApplicationDefinition>(
     name: &str,
     console_environment: Option<&str>,
 ) -> Result<Application> {
-    bootstrap_with_command::<A>(Some(name), None, console_environment).await
+    bootstrap_with_command::<A>(Some(name), None, console_environment, |_, _| Ok(())).await
+}
+
+pub(crate) async fn bootstrap_for_console_entry<A: ApplicationDefinition>(
+    name: &str,
+    args: &[String],
+    console_environment: Option<&str>,
+) -> Result<(
+    Application,
+    Option<crate::database::migration::MigrationOptions>,
+)> {
+    let mut approval = None;
+    let application = bootstrap_with_command::<A>(
+        Some(name),
+        None,
+        console_environment,
+        |config, container| {
+            approval =
+                crate::database::migration::confirm_before_boot(name, args, config, container)?;
+            Ok(())
+        },
+    )
+    .await?;
+    Ok((application, approval))
 }
 
 pub(crate) async fn bootstrap_for_cache<A: ApplicationDefinition>(
     path: std::path::PathBuf,
     console_environment: Option<&str>,
 ) -> Result<Application> {
-    bootstrap_with_command::<A>(Some("config:cache"), Some(path), console_environment).await
+    bootstrap_with_command::<A>(
+        Some("config:cache"),
+        Some(path),
+        console_environment,
+        |_, _| Ok(()),
+    )
+    .await
 }
 
 fn app_directory() -> Result<std::path::PathBuf> {
@@ -743,6 +772,11 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
     name: Option<&str>,
     forced_path: Option<std::path::PathBuf>,
     console_environment: Option<&str>,
+    preflight: impl FnOnce(
+        &config::repository::ConfigRepository,
+        &crate::container::Container,
+    ) -> Result<()>
+    + Send,
 ) -> Result<Application> {
     let namespace = A::config_namespace();
     let app_dir = app_directory()?;
@@ -764,7 +798,7 @@ async fn bootstrap_with_command<A: ApplicationDefinition>(
     if let Some(name) = name {
         builder.console_command(name);
     }
-    let runtime = builder.start(sources).await?;
+    let runtime = builder.start_with_preflight(sources, preflight).await?;
     if let Err(error) = runtime.container().resolve::<A::Config>().await {
         if let Err(cleanup_error) = runtime
             .shutdown(Instant::now() + std::time::Duration::from_secs(5))

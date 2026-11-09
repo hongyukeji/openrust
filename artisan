@@ -59,6 +59,11 @@ if [ -f Cargo.toml ] && [ -f src/main.rs ]; then
     exec cargo run --quiet -- "$@"
 fi
 
+if [ -e .openrust-build-incomplete ] || [ -L .openrust-build-incomplete ]; then
+    printf '%s\n' 'artisan: 发布目录尚未完成，不能执行应用命令' >&2
+    exit 1
+fi
+
 application='./bin/openrust'
 if [ ! -f "$application" ]; then
     printf 'artisan: 部署目录缺少应用二进制 %s\n' "$application" >&2

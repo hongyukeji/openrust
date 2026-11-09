@@ -118,10 +118,21 @@ impl SourceLayout {
         };
         let (application_dependency, migration) = if database.is_some() {
             let command = if database == Some(DatabaseBackend::Sqlite) {
-                // SQLite Connector 保持拒绝缺失文件，由部署初始化创建新应用文件。
-                "    entrypoint: [/bin/sh, -ec]\n    command:\n      - |\n        umask 077\n        mkdir -p storage/app\n        if [ ! -e storage/app/database.sqlite ]; then\n          (set -C; : > storage/app/database.sqlite)\n        fi\n        exec /app/artisan migrate\n"
+                // 在创建本地 SQLite 文件前固定部署迁移授权，再将同一组参数交给 Artisan。
+                concat!(
+                    "    entrypoint: [/bin/sh, -ec]\n",
+                    "    command:\n",
+                    "      - |\n",
+                    "        set -- migrate --force --no-interaction\n",
+                    "        umask 077\n",
+                    "        mkdir -p storage/app\n",
+                    "        if [ ! -e storage/app/database.sqlite ]; then\n",
+                    "          (set -C; : > storage/app/database.sqlite)\n",
+                    "        fi\n",
+                    "        exec /app/artisan \"$$@\"\n",
+                )
             } else {
-                "    entrypoint: [/app/artisan]\n    command: [migrate]\n"
+                "    entrypoint: [/app/artisan]\n    command: [migrate, --force, --no-interaction]\n"
             };
             (
                 "      migrate:\n        condition: service_completed_successfully\n",

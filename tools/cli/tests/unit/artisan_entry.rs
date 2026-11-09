@@ -277,3 +277,18 @@ fn deployed_root_artisan_reports_missing_or_non_executable_bin_openrust() -> Res
     write_executable(&project.join("artisan"), ARTISAN)?;
     fixture.assert_deployment_errors(&project, "openrust")
 }
+
+#[test]
+fn deployed_artisan_refuses_incomplete_output_before_executing_migration() -> Result<()> {
+    let fixture = Fixture::new()?;
+    let project = fixture.root.join("incomplete deployment");
+    fs::create_dir_all(project.join("bin"))?;
+    write_executable(&project.join("artisan"), ARTISAN)?;
+    write_executable(&project.join("bin/openrust"), FAKE_APPLICATION)?;
+    fs::write(project.join(".openrust-build-incomplete"), b"incomplete\n")?;
+    let (_, output) = fixture.run(&project, &["migrate", "--force"])?;
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, [] as [u8; 0]);
+    assert!(String::from_utf8(output.stderr)?.contains("发布目录尚未完成"));
+    Ok(())
+}

@@ -518,8 +518,9 @@ class Probe:
                                    'set -- $(grep "^Uid:" /proc/1/status); test "$2" != 0; printf "%s" "$2"').stdout
                 require(uid.isdigit() and int(uid) != 0, f"{service} PID 1 仍为 root")
         status = self.inspect("container", self.container("migrate", f"{label}-job"), f"{label}-migrate",
-                              "{{.State.Status}} {{.State.ExitCode}} {{.Path}}")
-        require(status == "exited 0 /app/artisan", "迁移服务未通过 artisan 正常退出")
+                              "{{.State.Status}} {{.State.ExitCode}} {{.Path}} {{json .Args}}")
+        require(status == 'exited 0 /app/artisan ["migrate","--force","--no-interaction"]',
+                "迁移服务未以显式无人值守授权通过 artisan 正常退出")
         count = self.sql(f"{label}-migration-count", "SELECT COUNT(*) FROM openrust_migrations;")
         require(count == self.migration_count, "迁移数量在切换后发生变化")
         require(self.request(f"{label}-public-get", "/compose-x64-proof.txt", expected=(200,)) == self.public_marker,

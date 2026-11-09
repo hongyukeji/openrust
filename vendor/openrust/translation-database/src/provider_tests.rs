@@ -106,6 +106,7 @@ async fn provider_contributes_singleton_loader_and_standard_migrations_without_o
         translation_tables(&database, false).await?;
         let config = figment::Figment::new().merge(figment::providers::Serialized::defaults(
             serde_json::json!({
+                "app":{"env":"testing"},
                 "database":{"url":database.url()},
                 "translation_database":{"max_rows":5,"revision_check_interval_secs":1}
             }),
@@ -213,6 +214,7 @@ async fn named_connection_migration_contribution_creates_only_selected_schema_an
         translation_tables(&named, false).await?;
         let config = figment::Figment::new().merge(figment::providers::Serialized::defaults(
             serde_json::json!({
+                "app":{"env":"testing"},
                 "database":{"url":default.url(),"instances":{"translations":{"url":named.url()}}},
                 "translation_database":{"connection":"translations"}
             }),

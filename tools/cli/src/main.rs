@@ -582,9 +582,30 @@ fn format_created_project(command: &mut Process) -> anyhow::Result<()> {
 
 fn installation_migration_command(project_dir: &Path) -> Process {
     let mut command = Process::new("cargo");
+    // 只初始化本次生成的新库。宿主应用的连接、环境及缓存配置不得进入子进程。
+    for (key, _) in std::env::vars_os() {
+        let key_text = key.to_string_lossy();
+        if [
+            "APP_",
+            "DB_",
+            "DATABASE_",
+            "CACHE_",
+            "REDIS_",
+            "QUEUE_",
+            "AUTH_",
+        ]
+        .iter()
+        .any(|prefix| key_text.starts_with(prefix))
+        {
+            command.env_remove(key);
+        }
+    }
     command
         .current_dir(project_dir)
-        .args(["run", "--quiet", "--", "migrate"]);
+        .env("APP_ENV", "development")
+        .env("DB_CONNECTION", "sqlite")
+        .env("DB_DATABASE", project_dir.join("database/database.sqlite"))
+        .args(["run", "--quiet", "--", "migrate", "--no-interaction"]);
     command
 }
 
@@ -5818,7 +5839,20 @@ mod tests {
         assert_eq!(command.get_current_dir(), Some(directory));
         assert_eq!(
             command.get_args().collect::<Vec<_>>(),
-            ["run", "--quiet", "--", "migrate"]
+            ["run", "--quiet", "--", "migrate", "--no-interaction"]
+        );
+        let environment: std::collections::BTreeMap<_, _> = command.get_envs().collect();
+        assert_eq!(
+            environment[std::ffi::OsStr::new("APP_ENV")],
+            Some(std::ffi::OsStr::new("development"))
+        );
+        assert_eq!(
+            environment[std::ffi::OsStr::new("DB_CONNECTION")],
+            Some(std::ffi::OsStr::new("sqlite"))
+        );
+        assert_eq!(
+            environment[std::ffi::OsStr::new("DB_DATABASE")],
+            Some(directory.join("database/database.sqlite").as_os_str())
         );
     }
 

@@ -234,6 +234,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     let source = format!("[database]\nurl = {:?}\n", test_database.url());
     let figment = Figment::new().merge(Toml::string(&source));
     let mut framework_config = FrameworkConfig::default();
+    framework_config.app.env = openrust::config::Environment::Testing;
     framework_config.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let sources =
         figment::Figment::from(figment::providers::Serialized::defaults(framework_config))
@@ -405,7 +406,9 @@ impl MigrationTrait for LockProbeMigration {
 }
 
 async fn build_lock_probe_app(url: &str, timeout: Duration) -> FrameworkResult<Application> {
-    let source = format!("[database]\nurl = {url:?}\ntable_prefix = 'migration_lock_test_'\n");
+    let source = format!(
+        "[app]\nenv = 'testing'\n[database]\nurl = {url:?}\ntable_prefix = 'migration_lock_test_'\n"
+    );
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ))
@@ -431,7 +434,10 @@ async fn custom_database_rejects_lock_connection_to_another_database()
     };
     let primary = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
     let other = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
-    let source = format!("[database]\nurl = {:?}\n", primary.url());
+    let source = format!(
+        "[app]\nenv = 'testing'\n[database]\nurl = {:?}\n",
+        primary.url()
+    );
     let sources = Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ))
@@ -525,7 +531,7 @@ async fn migration_commands_serialize_timeout_and_recover_after_process_exit()
     wait_for_file(&first_path).await?;
     let second_path = unique_migration_probe_path("second")?;
     let mut second = spawn_lock_probe_migration(isolated.url(), &second_path, 0)?;
-    let timeout = app.run_command("migrate", vec!["status".into()]).await;
+    let timeout = app.run_command("migrate", vec!["up".into()]).await;
     assert_eq!(
         timeout.err().map(|error| error.code().to_owned()),
         Some("migration_lock_timeout".to_owned())
@@ -579,7 +585,7 @@ async fn named_database_instances_keep_migrations_and_transactions_isolated()
         openrust::testing::TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
     // 隔离用例显式声明三个前缀；不借用宿主环境，也不改变生产空前缀默认值。
     let source = format!(
-        "[database]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'tb_'\n[database.instances.analytics]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'analytics_'\n[database.instances.reporting]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'reporting_'\n",
+        "[app]\nenv = 'testing'\n[database]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'tb_'\n[database.instances.analytics]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'analytics_'\n[database.instances.reporting]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'reporting_'\n",
         default_database.url(),
         default_database.url(),
         named_database.url(),

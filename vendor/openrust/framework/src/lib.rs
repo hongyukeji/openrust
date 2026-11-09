@@ -269,8 +269,12 @@ fn run_with_default<A: ApplicationDefinition>(
             return code;
         }
         let started = foundation::EntryStarted::now();
-        let app = match lifecycle::bootstrap_for_console::<A>(&name, console_environment.as_deref())
-            .await
+        let (app, approval) = match lifecycle::bootstrap_for_console_entry::<A>(
+            &name,
+            &command_args,
+            console_environment.as_deref(),
+        )
+        .await
         {
             Ok(app) => app,
             Err(error) if name == console::command::package_doctor::NAME => {
@@ -278,7 +282,11 @@ fn run_with_default<A: ApplicationDefinition>(
             }
             Err(error) => return fail(&format!("bootstrap failed: {error}")),
         };
-        let result = app.run_command_since(&name, command_args, started).await;
+        let result = database::migration::with_confirmation(
+            approval,
+            app.run_command_since(&name, command_args, started),
+        )
+        .await;
         let shutdown = app
             .shutdown(
                 tokio::time::Instant::now()
@@ -304,6 +312,7 @@ fn parse_console_args(
 ) -> (String, Vec<String>, Option<String>) {
     let mut command = Vec::new();
     let mut environment = None;
+    let mut no_interaction = false;
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         if arg == "--env" {
@@ -316,6 +325,8 @@ fn parse_console_args(
             if environment.is_none() {
                 environment = Some(value.to_owned());
             }
+        } else if command.is_empty() && matches!(arg.as_str(), "--no-interaction" | "-n") {
+            no_interaction = true;
         } else {
             command.push(arg);
         }
@@ -326,7 +337,11 @@ fn parse_console_args(
         Some(name) => name,
         None => default_command.to_owned(),
     };
-    (name, command.collect(), environment)
+    let mut arguments: Vec<_> = command.collect();
+    if no_interaction && matches!(name.as_str(), "migrate" | "key:generate") {
+        arguments.push("--no-interaction".to_owned());
+    }
+    (name, arguments, environment)
 }
 
 fn fail(message: &str) -> ExitCode {
