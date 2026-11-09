@@ -6,7 +6,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - `where_json_contains` 支持 SQLite 简单列与标量查找值，采用固定 Laravel/PDO 的绑定规则。
 
-- 源码 Artisan 的命令表登记 `build`，其构建与帮助共用选项定义，并支持命令前后的 `--env`。
+- 源码 Artisan 的命令表登记 Linux 发布扩展 `build`。构建与帮助共用选项定义，支持命令前后的 `--env`，通过 Docker Buildx 导出发布目录。
 
 - 安装模块扩展后，可通过容器具名键 `modules` 取得与 `ModuleRepository` 类型绑定共享的仓储。
 
@@ -80,15 +80,13 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 容器类描述支持声明应用单例和作用域共享，并沿环境与条件绑定登记工厂。
 - 根应用的 Docker Compose 将应用存储、MySQL 和 Redis 持久化到宿主机目录，并只读挂载可配置的 `public` 目录。
 - 根应用、新项目和 Linux 部署包提供统一的 `./artisan` 应用命令入口。
-- 源码 `./artisan build` 复用 Compose/Buildx 导出具名 Linux 发布目录，保留运行资源及空的存储和缓存目录。
-- 新发布目录与镜像在应用根安装项目同名 ELF。源码项目仍可使用与发布资源同名的项目名，构建发布目录时会拒绝冲突名称。
+- 发布目录与镜像在应用根安装项目同名 ELF，与 `artisan` 同级，并保留运行资源及空的存储和缓存目录。构建发布目录时拒绝与发布资源冲突的项目名。
 - 生产数据库迁移和回滚要求终端确认或显式 `--force`。迁移状态查询只读，未完成的发布目录拒绝执行 Artisan。
 - 默认 HTTP 中间件在 CORS 和路由前拒绝解码后含非法 UTF-8 的路径。
 - 容器支持与环境 `Bind` 按声明顺序执行的异步 `BindWhen` 条件。
 - 容器支持按应用环境惰性登记 `Bind` 类绑定。
 - 默认应用按作用域提供日志 Context，并支持构造属性与独立的日志 `extra` 字段。
 - 根应用与生成项目默认同进程启动 Web、已配置的队列和调度，并保留独立角色命令。
-- 根应用保留 Cargo 内部 target `app`，发布部署入口按项目名安装为 `bin/openrust`；生成应用发布为 `bin/<项目名>`。Artisan 在包根调用固定同包路径，Docker 入口为 `/app/bin/openrust`，Compose 服务名 `app` 与迁移入口 `/app/artisan` 保持不变。
 - 根应用提供多阶段 Dockerfile 和 Compose，自动等待 MySQL 与 Redis 就绪并执行迁移。
 - 容器支持注入具名 Guard 和当前账户，应用可按请求覆盖账户解析器。
 - 容器增加 `RequestAttribute` 和 `RouteParameter`，支持注入服务端请求属性、已解码捕获及可信路由绑定。

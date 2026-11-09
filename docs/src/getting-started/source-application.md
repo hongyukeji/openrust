@@ -164,6 +164,8 @@ done
 
 OpenRust 提供编译型应用的 Linux 发布扩展 `./artisan build`。编译产物与外置资源的部署布局参考固定 Goravel。它由源码开发工具执行，当前使用 Docker Buildx。在 macOS 或 Linux 的应用源码目录运行该命令。命令需要 Docker 和支持 Bake 文件访问授权的 Buildx。它读取项目 Compose 的 `app` 构建配置，使用同一 Dockerfile 的 `artifacts` 阶段。默认按构建机 CPU 选择 Linux 平台。为不同架构的主机发布时显式指定平台。 [Goravel 编译与部署](https://github.com/goravel/docs/blob/a9e5a3f9c7aaf14099c6acf46a86228e900da275/en/getting-started/compile.md#deploy-server)
 
+编译和打包属于 OpenRust 扩展。部署优化与长驻进程重载的语义分别按固定 Laravel 的部署流程验收。需要在目标机直接编译时，可使用上文的 `cargo build --release --locked --bin app` 手动安装。 [Laravel 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)
+
 `./artisan help build` 与 `./artisan build --help` 使用同一构建定义。命令前后的 `--env` 使用应用规则选择已有的 `.env.<名称>` 供 Compose 构建配置插值。进程环境优先。Buildx 不需要先启动应用或连接运行时数据库。
 
 ```bash
