@@ -112,6 +112,8 @@ async fn assert_extension(
         body["data"]["bound"],
         format!("provider: {expected_greeting}")
     );
+    assert_eq!(body["data"]["static_direct"], "direct: context");
+    assert_eq!(body["data"]["static_bound"], "provider: context");
 
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await?;

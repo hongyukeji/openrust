@@ -57,7 +57,7 @@ pub use scalar_diagnostics::ScalarDiagnostics;
 #[path = "container/descriptor_race_tests.rs"]
 mod descriptor_race_tests;
 mod descriptor_resolve;
-pub use descriptor_resolve::{CallArguments, MethodCall};
+pub use descriptor_resolve::{CallArguments, MethodCall, StaticCall};
 use descriptor_resolve::{MethodConsumer, MethodRegistry};
 #[cfg(test)]
 #[path = "container/descriptor_resolve_tests.rs"]

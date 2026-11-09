@@ -19,6 +19,9 @@ use crate::{BoxFuture, Result};
 type Declared<C, T> =
     dyn Fn(Arc<C>, CallArguments<'_>, Resolver) -> BoxFuture<'static, Result<T>> + Send + Sync;
 type Bound<C, T> = dyn Fn(Arc<C>, Resolver) -> BoxFuture<'static, Result<T>> + Send + Sync;
+type StaticBindingCallback<T> =
+    dyn Fn(ServiceKey, Resolver) -> BoxFuture<'static, Result<T>> + Send + Sync;
+pub(super) struct StaticBinding<T>(pub(super) Box<StaticBindingCallback<T>>);
 type ErasedMethod = Arc<dyn Any + Send + Sync>;
 
 pub(in crate::container) struct MethodConsumer {
@@ -46,22 +49,29 @@ impl MethodRegistry {
         self.0.get(class)?.get(name)
     }
 
-    fn insert<C: ?Sized + Send + Sync + 'static, T: Send + 'static>(
+    fn insert(
         &mut self,
+        class: ServiceKey,
         name: &str,
-        method: Method<C, T>,
+        bound: bool,
+        method: ErasedMethod,
     ) -> Option<ErasedMethod> {
         let entry = self
             .0
-            .entry(ServiceKey::typed::<C>())
+            .entry(class)
             .or_default()
             .entry(Arc::from(name))
             .or_default();
-        let slot = match &method {
-            Method::Declared(..) => &mut entry.declared,
-            Method::Bound(_) => &mut entry.bound,
+        let slot = if bound {
+            &mut entry.bound
+        } else {
+            &mut entry.declared
         };
-        slot.replace(Arc::new(method))
+        slot.replace(method)
+    }
+
+    pub(super) fn binding(&self, class: &ServiceKey, name: &str) -> Option<ErasedMethod> {
+        self.get(class, name)?.bound.clone()
     }
 }
 
@@ -173,6 +183,23 @@ impl ContainerBuilder {
         self.set_method(name, Method::Bound(Box::new(callback)))
     }
 
+    /// 登记静态方法替代回调，回调接收调用入口类型键和解析器。
+    pub fn bind_static_method<C: ?Sized + 'static, T: Send + 'static>(
+        &mut self,
+        name: &str,
+        callback: impl Fn(ServiceKey, Resolver) -> BoxFuture<'static, Result<T>> + Send + Sync + 'static,
+    ) -> Result<()> {
+        let method = StaticBinding(Box::new(callback));
+        let disposal = CallbackDisposal::new(None, None);
+        if let Err(error) = validate_name(name) {
+            return retire_registration(&disposal, method, Err(error));
+        }
+        let old = self
+            .methods
+            .insert(ServiceKey::typed::<C>(), name, true, Arc::new(method));
+        retire_registration(&disposal, old, Ok(()))
+    }
+
     fn set_method<C: ?Sized + Send + Sync + 'static, T: Send + 'static>(
         &mut self,
         name: &str,
@@ -182,7 +209,11 @@ impl ContainerBuilder {
         if let Err(error) = method.validate(name) {
             return retire_registration(&disposal, method, Err(error));
         }
-        retire_registration(&disposal, self.methods.insert(name, method), Ok(()))
+        let bound = matches!(&method, Method::Bound(_));
+        let old = self
+            .methods
+            .insert(ServiceKey::typed::<C>(), name, bound, Arc::new(method));
+        retire_registration(&disposal, old, Ok(()))
     }
 }
 
@@ -210,12 +241,46 @@ impl Container {
         self.set_method(name, Method::Bound(Box::new(callback)))
     }
 
+    /// 登记静态方法的替代回调，参与命名静态入口的分派。
+    pub fn bind_static_method<C: ?Sized + 'static, T: Send + 'static>(
+        &self,
+        name: &str,
+        callback: impl Fn(ServiceKey, Resolver) -> BoxFuture<'static, Result<T>> + Send + Sync + 'static,
+    ) -> Result<()> {
+        let method = StaticBinding(Box::new(callback));
+        self.set_method_entry(
+            ServiceKey::typed::<C>(),
+            name,
+            true,
+            Arc::new(method),
+            validate_name(name),
+        )
+    }
+
     fn set_method<C: ?Sized + Send + Sync + 'static, T: Send + 'static>(
         &self,
         name: &str,
         method: Method<C, T>,
     ) -> Result<()> {
         let validation = method.validate(name);
+        let bound = matches!(&method, Method::Bound(_));
+        self.set_method_entry(
+            ServiceKey::typed::<C>(),
+            name,
+            bound,
+            Arc::new(method),
+            validation,
+        )
+    }
+
+    fn set_method_entry(
+        &self,
+        class: ServiceKey,
+        name: &str,
+        bound: bool,
+        method: ErasedMethod,
+        validation: Result<()>,
+    ) -> Result<()> {
         let mut state = lock(&self.inner.state);
         let disposal = CallbackDisposal::new(None, Some(state.root_resources.registrar()));
         if let Err(error) = validation.and_then(|()| {
@@ -228,7 +293,7 @@ impl Container {
             drop(state);
             return retire_registration(&disposal, method, Err(error));
         }
-        let previous = state.methods.insert(name, method);
+        let previous = state.methods.insert(class, name, bound, method);
         drop(state);
         retire_registration(&disposal, previous, Ok(()))
     }
@@ -283,15 +348,7 @@ impl ApplicationState {
         overrides: ParameterOverrides,
     ) -> impl Future<Output = Result<T>> + Send + 'a {
         let container = self.container();
-        invoke_operation(
-            || {
-                container
-                    .current_entry_scope()
-                    .map_or_else(|| container.root_resolver(), |scope| Ok(scope.resolver()))
-            },
-            overrides,
-            method,
-        )
+        invoke_operation(|| container.entry_resolver(), overrides, method)
     }
 }
 
@@ -353,31 +410,12 @@ impl<C: ?Sized + Send + Sync + 'static, T: Send + 'static> CallOperation<T> for 
 
         // 固定 BoundMethod 的类入口直接分派已构造对象，只在显式对象入口建立新类型帧。
         let mut caller = run.caller.clone();
-        let _frame = if explicit_receiver && !in_call_stack(&caller, &class) {
-            let active = Arc::new(AtomicBool::new(true));
-            let frame = ActiveFactory(Arc::clone(&active));
-            let parent = std::iter::successors(caller.method_consumer.as_ref(), |frame| {
-                frame.parent.as_ref()
-            })
-            .find(|frame| frame.active.load(Ordering::Acquire))
-            .cloned();
-            caller.method_consumer = Some(Arc::new(MethodConsumer {
-                class: class.clone(),
-                active: Arc::clone(&active),
-                parent,
-            }));
-            caller.build_consumer = Some((class, active));
-            Some(frame)
+        let _frame = if explicit_receiver {
+            caller.enter_method_consumer(class)
         } else {
             None
         };
-        let scoped = ArgumentRun {
-            caller: &caller,
-            inner: run.inner,
-            owner: run.owner,
-            consumer_key: caller.active_consumer_frame().map(|(key, _)| key),
-            descriptor: None,
-        };
+        let scoped = ArgumentRun::for_call(&caller, run.inner, run.owner);
         match method.as_ref() {
             Method::Declared(signature, callback) => {
                 scoped
@@ -394,6 +432,27 @@ impl<C: ?Sized + Send + Sync + 'static, T: Send + 'static> CallOperation<T> for 
                 scoped.poll_stage(future).await
             }
         }
+    }
+}
+
+impl Resolver {
+    pub(super) fn enter_method_consumer(&mut self, class: ServiceKey) -> Option<ActiveFactory> {
+        if in_call_stack(self, &class) {
+            return None;
+        }
+        let active = Arc::new(AtomicBool::new(true));
+        let frame = ActiveFactory(Arc::clone(&active));
+        let parent =
+            std::iter::successors(self.method_consumer.as_ref(), |frame| frame.parent.as_ref())
+                .find(|frame| frame.active.load(Ordering::Acquire))
+                .cloned();
+        self.method_consumer = Some(Arc::new(MethodConsumer {
+            class: class.clone(),
+            active: Arc::clone(&active),
+            parent,
+        }));
+        self.build_consumer = Some((class, active));
+        Some(frame)
     }
 }
 

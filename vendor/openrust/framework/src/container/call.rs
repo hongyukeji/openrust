@@ -2,16 +2,19 @@
 
 use std::future::Future;
 
+use super::method_call::StaticBinding;
 use super::{ArgumentRun, ResourceInlineOwner, ResourceInlineSlot, SelectedArgument, missing_slot};
 use crate::container::class_descriptor::{ResolvedArgs, validate_parameters};
 use crate::container::parameters::ParameterFrame;
 use crate::container::{
-    ConstructorParam, Container, ParameterKey, ParameterOverrides, ParameterValue, Resolver, Scope,
-    lock,
+    ConstructorParam, Container, Inner, ParameterKey, ParameterOverrides, ParameterValue, Resolver,
+    Scope, ServiceKey, container_error, lock,
 };
+use crate::foundation::ApplicationState;
 use crate::foundation::lifecycle::{CallbackDisposal, disposal};
 use crate::foundation::resources::ResourceTaskFailure;
 use crate::{BoxFuture, Result};
+use std::sync::Arc;
 
 /// 传给已声明 callable 的参数。剩余实参依输入顺序提供，不再携带原键。
 pub struct CallArguments<'a> {
@@ -19,6 +22,30 @@ pub struct CallArguments<'a> {
     pub resolved: ResolvedArgs<'a>,
     /// 未被声明槽或末尾变参消费的实参。
     pub remaining: &'a [ParameterValue],
+}
+
+/// 静态 callable 的类型上下文和可选方法绑定入口。
+pub struct StaticCall<'a> {
+    declaring: ServiceKey,
+    binding: Option<(ServiceKey, &'a str)>,
+}
+
+impl<'a> StaticCall<'a> {
+    /// 在声明类型上下文中执行静态 callable。
+    pub fn direct<D: ?Sized + 'static>() -> Self {
+        Self {
+            declaring: ServiceKey::typed::<D>(),
+            binding: None,
+        }
+    }
+
+    /// 先按调用类型和名称匹配绑定。参数解析使用独立的声明类型。
+    pub fn named<C: ?Sized + 'static, D: ?Sized + 'static>(name: &'a str) -> Self {
+        Self {
+            declaring: ServiceKey::typed::<D>(),
+            binding: Some((ServiceKey::typed::<C>(), name)),
+        }
+    }
 }
 
 impl Container {
@@ -38,14 +65,33 @@ impl Container {
         overrides: ParameterOverrides,
         callback: impl for<'b> FnOnce(CallArguments<'b>) -> BoxFuture<'a, Result<T>> + Send + 'a,
     ) -> impl Future<Output = Result<T>> + Send + 'a {
-        invoke(
-            || {
-                self.current_entry_scope()
-                    .map_or_else(|| self.root_resolver(), |scope| Ok(scope.resolver()))
-            },
-            signature,
+        invoke(|| self.entry_resolver(), signature, overrides, callback)
+    }
+
+    pub(super) fn entry_resolver(&self) -> Result<Resolver> {
+        self.current_entry_scope()
+            .map_or_else(|| self.root_resolver(), |scope| Ok(scope.resolver()))
+    }
+
+    /// 在根生命周期调用静态 callable，按声明类型解析上下文依赖。
+    pub fn call_static<'a, T: Send + 'static, F>(
+        &'a self,
+        target: StaticCall<'a>,
+        signature: &'a [ConstructorParam],
+        overrides: ParameterOverrides,
+        callback: impl FnOnce(CallArguments<'_>, Resolver) -> F + Send + 'a,
+    ) -> impl Future<Output = Result<T>> + Send + 'a
+    where
+        F: Future<Output = Result<T>> + Send + 'a,
+    {
+        invoke_operation(
+            || self.root_resolver(),
             overrides,
-            callback,
+            StaticOperation {
+                target,
+                signature,
+                callback,
+            },
         )
     }
 }
@@ -59,6 +105,28 @@ impl Scope {
         callback: impl for<'b> FnOnce(CallArguments<'b>) -> BoxFuture<'a, Result<T>> + Send + 'a,
     ) -> impl Future<Output = Result<T>> + Send + 'a {
         invoke(|| Ok(self.resolver()), signature, overrides, callback)
+    }
+
+    /// 在本作用域调用静态 callable，按声明类型解析上下文依赖。
+    pub fn call_static<'a, T: Send + 'static, F>(
+        &'a self,
+        target: StaticCall<'a>,
+        signature: &'a [ConstructorParam],
+        overrides: ParameterOverrides,
+        callback: impl FnOnce(CallArguments<'_>, Resolver) -> F + Send + 'a,
+    ) -> impl Future<Output = Result<T>> + Send + 'a
+    where
+        F: Future<Output = Result<T>> + Send + 'a,
+    {
+        invoke_operation(
+            || Ok(self.resolver()),
+            overrides,
+            StaticOperation {
+                target,
+                signature,
+                callback,
+            },
+        )
     }
 }
 
@@ -76,6 +144,52 @@ impl Resolver {
             signature,
             overrides,
             callback,
+        )
+    }
+
+    /// 沿当前解析链和作用域调用静态 callable。
+    pub fn call_static<'a, T: Send + 'static, F>(
+        &'a self,
+        target: StaticCall<'a>,
+        signature: &'a [ConstructorParam],
+        overrides: ParameterOverrides,
+        callback: impl FnOnce(CallArguments<'_>, Resolver) -> F + Send + 'a,
+    ) -> impl Future<Output = Result<T>> + Send + 'a
+    where
+        F: Future<Output = Result<T>> + Send + 'a,
+    {
+        invoke_operation(
+            || Ok(self.clone().for_new_lookup()),
+            overrides,
+            StaticOperation {
+                target,
+                signature,
+                callback,
+            },
+        )
+    }
+}
+
+impl ApplicationState {
+    /// 在当前请求、命令或应用根生命周期调用静态 callable。
+    pub fn call_static<'a, T: Send + 'static, F>(
+        &'a self,
+        target: StaticCall<'a>,
+        signature: &'a [ConstructorParam],
+        overrides: ParameterOverrides,
+        callback: impl FnOnce(CallArguments<'_>, Resolver) -> F + Send + 'a,
+    ) -> impl Future<Output = Result<T>> + Send + 'a
+    where
+        F: Future<Output = Result<T>> + Send + 'a,
+    {
+        invoke_operation(
+            || self.container().entry_resolver(),
+            overrides,
+            StaticOperation {
+                target,
+                signature,
+                callback,
+            },
         )
     }
 }
@@ -140,6 +254,70 @@ where
     }
 }
 
+struct StaticOperation<'a, F> {
+    target: StaticCall<'a>,
+    signature: &'a [ConstructorParam],
+    callback: F,
+}
+
+impl<T, F, Output> CallOperation<T> for StaticOperation<'_, F>
+where
+    T: Send + 'static,
+    F: FnOnce(CallArguments<'_>, Resolver) -> Output + Send,
+    Output: Future<Output = Result<T>> + Send,
+{
+    fn validate(&self) -> Result<()> {
+        if self
+            .target
+            .binding
+            .as_ref()
+            .is_some_and(|(_, name)| name.is_empty())
+        {
+            return Err(container_error(
+                "container_method_name_missing",
+                "必须提供容器方法名",
+            ));
+        }
+        Ok(())
+    }
+
+    async fn execute(
+        self,
+        run: &ArgumentRun<'_>,
+        overrides: ParameterOverrides,
+    ) -> Result<ResourceInlineSlot<T>> {
+        let mut callback = run.owner.slot(self.callback)?;
+        let mut caller = run.caller.clone();
+        let _frame = caller.enter_method_consumer(self.target.declaring);
+        let scoped = ArgumentRun::for_call(&caller, run.inner, run.owner);
+        if let Some((class, name)) = self.target.binding
+            && let Some(bound) = scoped.claim(|state| state.methods.binding(&class, name))?
+        {
+            let bound = Arc::downcast::<StaticBinding<T>>(bound).map_err(|bound| {
+                drop(run.owner.slot(bound));
+                container_error(
+                    "container_method_output_mismatch",
+                    "静态绑定或输出类型与调用声明不同",
+                )
+            })?;
+            let mut bound = run.owner.slot(bound)?;
+            scoped.start()?;
+            let future = run.owner.run(|| {
+                let bound = bound.get_mut().ok_or_else(missing_slot)?;
+                Ok::<_, crate::Error>((bound.0)(class, caller.clone()))
+            })??;
+            return scoped.poll_stage(future).await;
+        }
+        validate_parameters(self.signature)?;
+        let callback = callback.take().ok_or_else(missing_slot)?;
+        scoped
+            .invoke_callable(self.signature, overrides, |args| {
+                callback(args, caller.clone())
+            })
+            .await
+    }
+}
+
 pub(super) fn invoke_operation<'a, T: Send + 'a>(
     select: impl FnOnce() -> Result<Resolver> + Send + 'a,
     overrides: ParameterOverrides,
@@ -173,13 +351,7 @@ pub(super) fn invoke_operation<'a, T: Send + 'a>(
                 Some(registrar),
             ));
             let overrides = frame.view().snapshot();
-            let run = ArgumentRun {
-                caller: &resolver,
-                inner: &container.inner,
-                owner: &owner,
-                consumer_key: resolver.active_consumer_frame().map(|(key, _)| key),
-                descriptor: None,
-            };
+            let run = ArgumentRun::for_call(&resolver, &container.inner, &owner);
             let operation = operation.0.take().ok_or_else(missing_slot)?;
             let result = operation.execute(&run, overrides).await;
             // 原实参先逐项退役。Scope 的完成栅栏继续观察这个调用直到退役结束。
@@ -217,13 +389,30 @@ impl CallParameters {
     }
 }
 
-impl ArgumentRun<'_> {
-    pub(super) async fn invoke_callable<'a, T: Send + 'a>(
+impl<'a> ArgumentRun<'a> {
+    pub(super) fn for_call(
+        caller: &'a Resolver,
+        inner: &'a Arc<Inner>,
+        owner: &'a ResourceInlineOwner,
+    ) -> Self {
+        Self {
+            caller,
+            inner,
+            owner,
+            consumer_key: caller.active_consumer_frame().map(|(key, _)| key),
+            descriptor: None,
+        }
+    }
+
+    pub(super) async fn invoke_callable<T: Send, F>(
         &self,
         signature: &[ConstructorParam],
         overrides: ParameterOverrides,
-        callback: impl for<'b> FnOnce(CallArguments<'b>) -> BoxFuture<'a, Result<T>> + Send,
-    ) -> Result<ResourceInlineSlot<T>> {
+        callback: impl FnOnce(CallArguments<'_>) -> F + Send,
+    ) -> Result<ResourceInlineSlot<T>>
+    where
+        F: Future<Output = Result<T>> + Send,
+    {
         let mut callback = self.owner.slot(callback)?;
         // 原输入帧在调用结束前仍持有全部显式参数。这里仅在受管槽中持有克隆。
         let mut remaining = CallParameters(

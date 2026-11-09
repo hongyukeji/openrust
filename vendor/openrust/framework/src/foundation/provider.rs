@@ -247,6 +247,15 @@ impl RegisterContext<'_> {
         self.container.bind_method(name, callback)
     }
 
+    /// 登记命名静态方法的替代回调。回调接收调用类型键和同一解析器。
+    pub fn bind_static_method<C: ?Sized + 'static, T: Send + 'static>(
+        &self,
+        name: &str,
+        callback: impl Fn(ServiceKey, Resolver) -> BoxFuture<'static, Result<T>> + Send + Sync + 'static,
+    ) -> Result<()> {
+        self.container.bind_static_method::<C, T>(name, callback)
+    }
+
     /// 为当前应用登记属性类型的上下文处理器。同类型后登记的处理器优先。
     pub fn when_has_attribute<A: Send + Sync + 'static>(
         &self,

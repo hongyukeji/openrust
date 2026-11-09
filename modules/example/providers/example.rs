@@ -2,8 +2,8 @@
 
 use openrust::Result;
 use openrust::container::{
-    AttributeValue, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides, ParameterValue,
-    ServiceKey,
+    AttributeValue, CallArguments, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides,
+    ParameterValue, Resolver, ServiceKey, StaticCall,
 };
 use openrust::foundation::RegisterContext;
 use openrust::foundation::{ApplicationState, BootContext};
@@ -154,6 +154,8 @@ async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<(
     Ok(())
 }
 
+struct StaticMethodLabel(&'static str);
+
 fn register_example_method(app: &RegisterContext<'_>) -> Result<()> {
     app.register_method(
         "describe",
@@ -168,7 +170,25 @@ fn register_example_method(app: &RegisterContext<'_>) -> Result<()> {
     )?;
     app.bind_method("describe", |message: Arc<ExampleMessage>, _| {
         Box::pin(async move { Ok(message.describe("provider")) })
+    })?;
+    app.when(ServiceKey::typed::<ExampleMessage>())?
+        .needs(ServiceKey::typed::<StaticMethodLabel>())
+        .give_factory(|_| Box::pin(async { Ok(Arc::new(StaticMethodLabel("context"))) }))?;
+    app.bind_static_method::<ExampleMessage, String>("describe_static", |_, resolver| {
+        Box::pin(async move {
+            let label = resolver.resolve::<StaticMethodLabel>().await?;
+            Ok(ExampleMessage::describe_static("provider", label.0))
+        })
     })
+}
+
+fn describe_example_static(
+    args: CallArguments<'_>,
+    _: Resolver,
+) -> BoxFuture<'static, Result<String>> {
+    let CallArguments { resolved, .. } = args;
+    let label = resolved.service::<StaticMethodLabel>(0);
+    Box::pin(async move { Ok(ExampleMessage::describe_static("direct", label?.0)) })
 }
 
 async fn call_example_method(
@@ -189,9 +209,27 @@ async fn call_example_method(
             ParameterOverrides::new(),
         )
         .await?;
-    Ok(openrust::http::Json(
-        serde_json::json!({ "direct": direct, "bound": bound }),
-    ))
+    let signature = [ConstructorParam::class::<StaticMethodLabel>("label")];
+    let static_direct = app
+        .call_static(
+            StaticCall::direct::<ExampleMessage>(),
+            &signature,
+            ParameterOverrides::new(),
+            describe_example_static,
+        )
+        .await?;
+    let static_bound = app
+        .call_static(
+            StaticCall::named::<ExampleMessage, ExampleMessage>("describe_static"),
+            &signature,
+            ParameterOverrides::new(),
+            describe_example_static,
+        )
+        .await?;
+    Ok(openrust::http::Json(serde_json::json!({
+        "direct": direct, "bound": bound,
+        "static_direct": static_direct, "static_bound": static_bound,
+    })))
 }
 
 async fn call_example_message(

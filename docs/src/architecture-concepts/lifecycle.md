@@ -263,6 +263,14 @@ assert_eq!(name.as_str(), "OpenRust");
 
 将入口传给 `call_method`。根容器、自管作用域、解析器和应用入口提供同一调用方式。显式对象入口可使用对象类型的上下文绑定。类入口沿用调用前的上下文。Rust 使用编译类型和方法名表达类入口，结果类型由调用方声明。示例路由 `/api/example/container-method` 展示同一个方法的直接调用和替代绑定。 [Laravel 方法绑定](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L391-L435) · [Laravel 类入口](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/BoundMethod.php#L23-L88)
 
+### 静态调用的声明类型
+
+关联函数通过 `call_static` 执行。传入 `StaticCall::direct::<Declaring>()` 后，参数在声明类型的上下文中解析。回调接收声明槽位及当前 `Resolver`，可用它继续嵌套调用。静态入口无需构造接收者。
+
+需要模拟命名静态 callable 时，用 `StaticCall::named::<Called, Declaring>("render")`。命名入口以调用类型 `Called` 和方法名查找 `bind_static_method` 的登记，以声明类型 `Declaring` 解析上下文。两者通常是同一 Rust 类型。命中时替代回调取得调用类型键及解析器，并跳过默认参数解析。直接入口始终执行传入的回调。
+
+同一请求可以依次使用直接和命名静态入口。示例路由 `/api/example/container-method` 分别返回两个入口的结果。 [Laravel 调用上下文](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L736-L770) · [Laravel 绑定分派](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/BoundMethod.php#L74-L100)
+
 ### 清空容器绑定
 
 在隔离测试或重新装配容器时，调用 `container.flush()?` 清除显式绑定、别名、解析记录和全部作用域的共享实例缓存。环境、编译类描述、标签、上下文规则、持久装饰器与回调仍可用。清空后，首次解析可重新发现 `Bind` 和 `BindWhen` 声明。 [Laravel Container::flush](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Container/Container.php#L1800-L1811)

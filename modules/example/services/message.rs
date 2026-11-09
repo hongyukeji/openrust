@@ -104,6 +104,10 @@ impl ExampleMessage {
         format!("{label}: {}", self.text())
     }
 
+    pub(crate) fn describe_static(source: &str, label: &str) -> String {
+        format!("{source}: {label}")
+    }
+
     pub(crate) fn binding_extension(&self) -> Option<&'static str> {
         self.binding_extension
     }

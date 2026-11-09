@@ -20,7 +20,7 @@ use super::{
 use crate::foundation::resources::{ResourceInlineOwner, ResourceInlineSlot, ResourceTaskFailure};
 #[path = "call.rs"]
 mod call;
-pub use call::CallArguments;
+pub use call::{CallArguments, StaticCall};
 #[path = "method_call.rs"]
 mod method_call;
 pub use method_call::MethodCall;

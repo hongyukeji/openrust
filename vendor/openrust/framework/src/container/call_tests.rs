@@ -291,3 +291,167 @@ async fn shutdown_waits_for_explicit_parameter_disposal() -> Result<()> {
     shutdown.await.map_err(crate::Error::internal)??;
     Ok(())
 }
+
+struct StaticOwner;
+struct StaticChild;
+
+fn static_builder() -> Result<ContainerBuilder> {
+    let mut builder = ContainerBuilder::new();
+    builder.instance(Arc::new(Dep(7)));
+    builder
+        .when(ServiceKey::typed::<StaticOwner>())?
+        .needs(ServiceKey::typed::<Dep>())
+        .give_factory(|_| Box::pin(async { Ok(Arc::new(Dep(11))) }))?;
+    builder
+        .when(ServiceKey::typed::<StaticChild>())?
+        .needs(ServiceKey::typed::<Dep>())
+        .give_factory(|_| Box::pin(async { Ok(Arc::new(Dep(19))) }))?;
+    Ok(builder)
+}
+
+#[tokio::test]
+async fn static_calls_separate_declaring_context_and_named_binding_identity() -> Result<()> {
+    let constructed = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&constructed);
+    let mut builder = static_builder()?;
+    builder.bind::<StaticChild, _>(move |_| {
+        observed.fetch_add(1, Ordering::Relaxed);
+        Box::pin(async { Ok(Arc::new(StaticChild)) })
+    });
+    builder.bind_static_method::<StaticOwner, u32>("read", |_, _| Box::pin(async { Ok(31) }))?;
+    builder.bind_static_method::<StaticChild, u32>("read", |key, resolver| {
+        Box::pin(async move {
+            assert_eq!(key, ServiceKey::typed::<StaticChild>());
+            Ok(resolver.resolve::<Dep>().await?.0 + 1)
+        })
+    })?;
+    let container = builder.build();
+    assert!(container.has_method_binding::<StaticChild>("read"));
+    let signature = [ConstructorParam::class::<Dep>("dep")];
+    let direct = container
+        .call_static(
+            StaticCall::direct::<StaticOwner>(),
+            &signature,
+            ParameterOverrides::new(),
+            |args, _| {
+                let result = args.resolved.service::<Dep>(0).map(|dep| dep.0);
+                Box::pin(async move { result })
+            },
+        )
+        .await?;
+    assert_eq!(direct, 11);
+
+    let bound = container
+        .call_static(
+            StaticCall::named::<StaticChild, StaticOwner>("read"),
+            &[ConstructorParam::scalar::<String>("missing")],
+            ParameterOverrides::new(),
+            |_, _| {
+                Box::pin(async {
+                    Err::<u32, _>(crate::Error::custom(
+                        "unexpected_default",
+                        "绑定命中时不执行默认回调",
+                    ))
+                })
+            },
+        )
+        .await?;
+    assert_eq!(bound, 12);
+
+    let mut overrides = ParameterOverrides::new();
+    let _ = overrides.insert(
+        ParameterKey::name("dep"),
+        ParameterValue::service(Arc::new(Dep(23))),
+    );
+    let fallback = container
+        .call_static(
+            StaticCall::named::<StaticChild, StaticOwner>("other"),
+            &signature,
+            overrides,
+            |args, resolver| {
+                let supplied = args.resolved.service::<Dep>(0).map(|dep| dep.0);
+                Box::pin(async move { Ok((supplied?, resolver.resolve::<Dep>().await?.0)) })
+            },
+        )
+        .await?;
+    assert_eq!(fallback, (23, 11));
+    assert_eq!(constructed.load(Ordering::Relaxed), 0);
+    assert_eq!(container.resolve::<Dep>().await?.0, 7);
+    Ok(())
+}
+
+#[tokio::test]
+async fn nested_static_call_preserves_active_top_type_and_recovers_after_error() -> Result<()> {
+    let container = static_builder()?.build();
+    let output = container
+        .call_static(
+            StaticCall::direct::<StaticOwner>(),
+            &[],
+            ParameterOverrides::new(),
+            |_, outer| {
+                Box::pin(async move {
+                    let failed: Result<()> = outer
+                        .call_static(
+                            StaticCall::direct::<StaticChild>(),
+                            &[],
+                            ParameterOverrides::new(),
+                            |_, middle| {
+                                Box::pin(async move {
+                                    let inner = middle
+                                        .call_static(
+                                            StaticCall::direct::<StaticOwner>(),
+                                            &[],
+                                            ParameterOverrides::new(),
+                                            |_, inner| {
+                                                Box::pin(async move {
+                                                    Ok(inner.resolve::<Dep>().await?.0)
+                                                })
+                                            },
+                                        )
+                                        .await?;
+                                    assert_eq!(inner, 19);
+                                    Err(crate::Error::custom("static_call_error", "静态方法故障"))
+                                })
+                            },
+                        )
+                        .await;
+                    assert!(matches!(failed, Err(error) if error.code() == "static_call_error"));
+                    Ok(outer.resolve::<Dep>().await?.0)
+                })
+            },
+        )
+        .await?;
+    assert_eq!(output, 11);
+    assert_eq!(container.resolve::<Dep>().await?.0, 7);
+    Ok(())
+}
+
+#[tokio::test]
+async fn cancelling_static_call_expires_the_context_in_escaped_resolver() -> Result<()> {
+    let container = static_builder()?.build();
+    let scope = container.scope()?;
+    let (send, receive) = tokio::sync::oneshot::channel();
+    let mut call = Box::pin(scope.call_static(
+        StaticCall::direct::<StaticOwner>(),
+        &[],
+        ParameterOverrides::new(),
+        |_, resolver| {
+            Box::pin(async move {
+                assert_eq!(resolver.resolve::<Dep>().await?.0, 11);
+                send.send(resolver).map_err(|_| missing_slot())?;
+                std::future::pending::<Result<()>>().await
+            })
+        },
+    ));
+    let escaped = tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::select! {
+            received = receive => received.map_err(crate::Error::internal),
+            finished = &mut call => finished.and(Err(missing_slot())),
+        }
+    })
+    .await
+    .map_err(crate::Error::internal)??;
+    drop(call);
+    assert_eq!(escaped.resolve::<Dep>().await?.0, 7);
+    Ok(())
+}
