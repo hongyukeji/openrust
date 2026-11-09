@@ -43,6 +43,12 @@ fn not_found() -> Error {
     Error::NotFound("example record not found".into())
 }
 
+fn invalid_metadata_filter(message: &str) -> Error {
+    let mut errors = openrust::ValidationErrors::new();
+    errors.add("metadata_contains", message);
+    Error::Validation(errors)
+}
+
 pub(crate) async fn index(
     user: CurrentUser,
     Inject(db): Inject<Db>,
@@ -55,12 +61,17 @@ pub(crate) async fn index(
         .table("example_records")?
         .where_eq("owner_id", user.integer_id()?)?;
     if let Some(text) = page.metadata_contains.as_deref() {
-        let value = serde_json::from_str(text).map_err(|_| {
-            let mut errors = openrust::ValidationErrors::new();
-            errors.add("metadata_contains", "元数据包含条件必须是有效JSON");
-            Error::Validation(errors)
-        })?;
-        query = query.where_json_contains("metadata", value)?;
+        let value = serde_json::from_str(text)
+            .map_err(|_| invalid_metadata_filter("元数据包含条件必须是有效JSON"))?;
+        query = query
+            .where_json_contains("metadata", value)
+            .map_err(|error| {
+                if error.code() == "query_sqlite_json_contains_requires_scalar" {
+                    invalid_metadata_filter("SQLite 元数据包含条件必须是 JSON 标量")
+                } else {
+                    error
+                }
+            })?;
     }
     let result = query
         .order_by("id", openrust::database::query::SortDirection::Asc)?

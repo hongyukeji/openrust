@@ -534,7 +534,7 @@ impl<'tx: 'cap, 'cap> QueryState<'tx, 'cap> {
         Ok(self)
     }
 
-    /// JSON 包含；PostgreSQL 使用 `@>`，MySQL 使用 `JSON_CONTAINS`。
+    /// 简单列 JSON 包含；SQLite 只接受标量查询值。
     pub fn where_json_contains(mut self, column: &str, value: serde_json::Value) -> Result<Self> {
         validate_identifier(column)?;
         let predicate = json_contains::predicate(self.db.backend()?, column, value)?;

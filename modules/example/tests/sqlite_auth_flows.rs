@@ -16,6 +16,9 @@ use openrust::{
 };
 use serde_json::{Value, json};
 
+#[path = "sqlite_record_json_contains.rs"]
+mod sqlite_record_json_contains;
+
 const BUDGET: Duration = Duration::from_secs(20);
 const ACCOUNT: &str = "/api/example/account";
 const EMAIL: &str = "sqlite-root-auth@example.test";

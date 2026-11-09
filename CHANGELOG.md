@@ -4,6 +4,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- `where_json_contains` 支持 SQLite 简单列与标量查找值，采用固定 Laravel/PDO 的绑定规则。
+
 - 源码 Artisan 的命令表登记 `build`，其构建与帮助共用选项定义，并支持命令前后的 `--env`。
 
 - 安装模块扩展后，可通过容器具名键 `modules` 取得与 `ModuleRepository` 类型绑定共享的仓储。

@@ -71,7 +71,7 @@ fn json_binding_stays_between_distinct_before_and_after_values_in_both_dialects(
 }
 
 #[test]
-fn mysql_statement_matches_original_expression_and_sqlite_remains_unsupported() -> Result<()> {
+fn mysql_statement_matches_original_expression() -> Result<()> {
     let value = json!(["en"]);
     let (sql, values) = Query::select()
         .column(Asterisk)
@@ -83,9 +83,6 @@ fn mysql_statement_matches_original_expression_and_sqlite_remains_unsupported() 
         "SELECT * FROM `users` WHERE JSON_CONTAINS(`options`, ?)"
     );
     assert_eq!(values.0, vec![Value::Json(Some(Box::new(value)))]);
-    assert!(
-        matches!(predicate(DbBackend::Sqlite,"options",json!(["en"])),Err(error) if error.code()=="query_backend_unsupported")
-    );
     Ok(())
 }
 

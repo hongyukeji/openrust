@@ -406,7 +406,7 @@ P分支默认严格Clippy曾连续三次失败，按§5暂停并获用户明确�
 
 ## Query JSON 包含与 SQLite 写目标的发布运行入口
 
-C07-J01 的 PostgreSQL `json`、`jsonb` 及 SQLite 写目标专项仍待发布验收。日常保留全特性编译检查和 J01 的 MySQL 8.4 生成项目运行。以下专项需要显式执行忽略测试，普通 workspace 结果不能替代。
+C07-J01 的 PostgreSQL `json`、`jsonb`、SQLite 简单列 JSON 包含及 SQLite 写目标专项仍待发布验收。日常保留全特性编译检查和 J01 的 MySQL 8.4 生成项目运行。以下专项需要显式执行忽略测试，普通 workspace 结果不能替代。
 
 ```bash
 # 从 OpenRust 根目录执行，测试 URL 由验收环境提供。
@@ -418,9 +418,12 @@ cargo test -p openrust-framework --features db-sqlite --lib \
   database::query::sqlite_write_target::tests:: -- --ignored --nocapture
 cargo test -p openrust --features 'auth,data-exchange-tasks,storage-local,db-sqlite' --bin app \
   limited_article_import_write_keeps_other_receipts_open -- --ignored
+# 连接需提供 JSON1，环境变量为实际目标引擎的版本前缀。
+cargo test -p openrust --features 'auth,encryption,db-sqlite' --bin app \
+  sqlite_record_json_contains_preserves_owner_pagination_and_scalar_types -- --ignored --nocapture
 ```
 
-从相应生成项目根目录执行 PostgreSQL 的 `cargo test --test query_json_contains -- --ignored`，以及 SQLite 的 `cargo test --test sqlite_write_targets -- --ignored`。确认 PostgreSQL URL 指向专用测试库。SQLite 的当前版和 3.26.0 分别记录实际链接来源及版本，框架用 `OPENRUST_EXPECT_SQLITE_VERSION_PREFIX` 核对运行时报告。每条命令记录实际选中并执行的测试数。
+从相应生成项目根目录执行 PostgreSQL 的 `cargo test --test query_json_contains -- --ignored`，以及 SQLite 的 `cargo test --test sqlite_write_targets -- --ignored --nocapture`。确认 PostgreSQL URL 指向专用测试库。SQLite 当前版和 3.26.0 分别记录实际链接来源及版本，设置 `OPENRUST_EXPECT_SQLITE_VERSION_PREFIX` 核对运行时报告。低版 JSON 包含须另外确认 JSON1 可用，区别普通连接器的 3.26.0 最低目标。每条命令记录实际选中并执行的测试数。
 
 ## R2-ENV 环境命名（限定验收通过）
 
@@ -1884,6 +1887,12 @@ Linux ARM64 的镜像和独立目录均在真实服务拓扑下运行。根使�
 冻结树 `4f126f48207f7952014a4477749207026fa74e1c` 对照固定 nWidart 5971484 的 Provider 仓储单例与共享实例测试。已编译清单和运行发现均在注册阶段登记 `modules`，同名键与类型键解析到同一实例。模块未安装时返回未绑定，重绑定和清除实例沿用唯一容器。唯一示例从注册阶段的具名入口读取实际模块仓储。
 
 工作区格式、严格 Clippy、测试、Rustdoc 与依赖门禁通过。测试使用真实 MySQL 8.4，根示例及两种注册路径均实际执行断言。实际生成 minimal 并通过 check/test，包含默认宿主的同实例断言。路径配置与其他模块 Provider 行为按各自合同验收。
+
+## SQLite 简单列 JSON 包含日常验收
+
+冻结树 `b04a57b3a5de527d701495df017aa1094e33eca4` 对应固定 Laravel d52c3b3 的 SQLiteGrammar 和 PDO 绑定。简单列通过 `json_each` 与 `IS` 传入一枚标量绑定，结构化值在 SQLite 拒绝。AST 断言覆盖绑定顺序、原 MySQL/PG 表达式、空值、布尔、整数及 PHP 浮点文本。根示例用同一查询入口返回字段验证错误，生成模板保留发布专项。
+
+默认工作区格式、严格 Clippy、测试、Rustdoc、依赖门禁和全特性全目标编译通过。真实 MySQL 8.4 下示例记录和新生成 MySQL 应用的包含回归实际运行。普通生成项目 check/test 通过。SQLite 根目标与 SQLite 生成项目测试目标编译通过。生成探针拦截安装迁移，未执行 SQLite 实库测试。SQLite 生成项目既有 query_insert_ids 的 encryption 特性检查仍产生两条警告。SQLite 当前版与最低版 JSON1 的实际运行留待[发布矩阵](#query-json-包含与-sqlite-写目标的发布运行入口)。
 
 ## 源码 Artisan 构建命令验收
 
