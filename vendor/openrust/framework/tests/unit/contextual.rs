@@ -242,9 +242,8 @@ fn tags_are_lazy_rewindable_ordered_and_preserve_duplicates_and_late_registratio
     let absent = app.tagged::<usize>("services");
     app.tag(["first"], ["services"]);
     let tagged = app.tagged::<usize>("services");
-    assert_eq!(tagged.len(), 1);
     app.tag(["second", "first"], ["services"]);
-    assert_eq!(tagged.len(), 1); // Laravel caches count separately from repeat iteration.
+    assert_eq!(tagged.len(), 1); // Laravel fixes count at creation, even before the first len call.
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(absent.is_empty());
     let values: Vec<_> = tagged.iter().map(|result| *result.unwrap()).collect();

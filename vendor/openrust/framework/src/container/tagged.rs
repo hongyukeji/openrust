@@ -1,34 +1,32 @@
 use super::ServiceKey;
 use crate::contracts::container::{BindingResolutionError, Container};
-use std::{
-    marker::PhantomData,
-    sync::{Arc, OnceLock},
-};
+use std::{marker::PhantomData, sync::Arc};
 
 /// A lazy service sequence. Each iteration resolves the current tagged identities anew.
 pub struct Tagged<'a, C: Container, T: ?Sized> {
     container: &'a C,
     keys: Box<dyn Fn() -> Vec<ServiceKey> + Send + Sync + 'a>,
-    count: OnceLock<usize>,
+    count: usize,
     service: PhantomData<fn() -> T>,
 }
 
 impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> Tagged<'a, C, T> {
     pub(crate) fn new(
         container: &'a C,
+        count: usize,
         keys: impl Fn() -> Vec<ServiceKey> + Send + Sync + 'a,
     ) -> Self {
         Self {
             container,
             keys: Box::new(keys),
-            count: OnceLock::new(),
+            count,
             service: PhantomData,
         }
     }
 
-    /// Counts identities without constructing services, caching the first count like Laravel.
+    /// Returns the identity count captured when the sequence was created.
     pub fn len(&self) -> usize {
-        *self.count.get_or_init(|| (self.keys)().len())
+        self.count
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0

@@ -113,7 +113,7 @@ fn main() {
 
 `give` 接收型別明確的工廠。`giveService(key)` 對應 Laravel 中傳服務名稱的 `give`，目標須按預期回傳契約登記；`Arc<Concrete>` 到 `Arc<dyn Trait>` 的轉換在工廠中明確完成。`giveConfig(key, default)` 在解析依賴時讀取目前 `config` 服務，`None` 對應 Laravel 省略預設值。鍵缺失時使用預設值，明確 JSON null 保持 null。反序列化會檢查 Rust 宣告型別，不符則傳回錯誤，不隱含執行 PHP 純量轉換。
 
-`tag(keys, tags)` 保留登記順序和重複項。`tagged::<T>(tag)` 迭代至某項時才解析服務，每次迭代按原服務生命週期重新解析。未知標籤取得空序列；既有序列的下一次迭代可看到之前追加的服務。`len()` 快取首次計數，對應 Laravel 可重複產生器的行為。`giveTagged` 收集為 `Vec<Arc<T>>`，未綁定或型別不符的項目傳播錯誤。
+`tag(keys, tags)` 保留登記順序和重複項。`tagged::<T>(tag)` 迭代至某項時才解析服務，每次迭代按原服務生命週期重新解析。未知標籤取得空序列；既有序列的下一次迭代可看到之前追加的服務。`len()` 傳回建立序列時固定的數量，對應 Laravel 可重複產生器的行為。`giveTagged` 收集為 `Vec<Arc<T>>`，未綁定或型別不符的項目傳播錯誤。
 
 ```rust
 use std::sync::Arc;
@@ -146,5 +146,46 @@ fn main() {
     assert_eq!(*report.port, 8080);
     assert_eq!(report.services.len(), 1);
     assert_eq!(&*container.make::<String>().unwrap(), "default");
+}
+```
+
+## 容器解析事件
+
+`beforeResolving`、`resolving` 和 `afterResolving` 用 `None` 登記全域回呼，用 `Some(ServiceKey)` 選擇服務身分。登記時正規化別名。回呼接收 `ResolutionEvent` 與目前容器，傳回 `Result<(), BindingResolutionError>`。實作提取舊版的事件檢視與有序選擇器設計，適配目前同步工廠。
+
+執行順序為全域 before → 指定 before → 建構 → 全域 resolving → 指定 resolving → 全域 after → 指定 after。before 回呼可以登記尚未綁定的服務，每次查找都執行，快取命中也執行。明確提供的實例及共享快取命中略過建構後回呼。每階段先取得全域回呼快照，全域執行完再讀取指定回呼；因此全域回呼中新登記的指定回呼可以參與目前階段，登記到後續階段的回呼也可在本次建構中執行。
+
+`event.key()` 是執行 before 前確定的正規服務身分。`event.value::<T>()` 在建構前傳回 `None`，建構後按已宣告的回傳契約取得同一 `Arc<T>`。建構後的指定回呼按服務鍵或 Rust 宣告的回傳型別匹配。Rust 無法於執行期發現任意 PHP 繼承或介面關係，須明確登記預期的回傳契約；需要設定共享物件時使用內部可變性。動態建構參數覆寫和屬性投影尚未納入本回呼介面。
+
+共享物件先發布再執行建構後回呼，回呼可重入解析同一共享物件；其他執行緒等待回呼結束，不讀取設定到一半的物件。建構後回呼失敗或 panic 時，已發布物件仍保留快取，命中快取不重複執行回呼，但不記錄成功解析歷史。暫態物件失敗時沒有快取，下次重新建構。回呼錯誤沿既有 HTTP/Artisan 錯誤處理傳播。沒有終止條件的同服務回呼遞迴傳回循環依賴錯誤。執行使用者回呼時不持有登錄表鎖。
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{container::{Container, ServiceKey}, contracts::container::Container as _};
+fn main() {
+    let app = Container::default();
+    let trace = Arc::new(Mutex::new(Vec::new()));
+    let before = trace.clone();
+    app.beforeResolving(None, move |event, _| {
+        assert!(event.value::<String>().is_none());
+        before.lock().unwrap().push("before");
+        Ok(())
+    }).unwrap();
+    app.singleton::<String, _>(|_| Ok(Arc::new("service".into())));
+    let resolving = trace.clone();
+    app.resolving(Some(ServiceKey::typed::<String>()), move |event, container| {
+        assert_eq!(&*event.value::<String>().unwrap(), "service");
+        assert!(container.resolved(event.key().clone())?);
+        resolving.lock().unwrap().push("resolving");
+        Ok(())
+    }).unwrap();
+    let after = trace.clone();
+    app.afterResolving(None, move |_, _| {
+        after.lock().unwrap().push("after");
+        Ok(())
+    }).unwrap();
+    let first = app.make::<String>().unwrap();
+    assert!(Arc::ptr_eq(&first, &app.make::<String>().unwrap()));
+    assert_eq!(*trace.lock().unwrap(), ["before", "resolving", "after", "before"]);
 }
 ```

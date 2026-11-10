@@ -5,7 +5,10 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
     panic::{self, AssertUnwindSafe},
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{
+        Arc, Condvar, Mutex, RwLock,
+        atomic::{AtomicBool, AtomicU8, Ordering},
+    },
     thread::{self, ThreadId},
 };
 
@@ -15,6 +18,9 @@ mod contextual_binding_builder;
 pub use contextual_binding_builder::{ContextualBinding, ContextualBindingBuilder};
 mod tagged;
 pub use tagged::{Tagged, TaggedIter};
+mod resolving_hooks;
+pub use resolving_hooks::ResolutionEvent;
+use resolving_hooks::{Phase, ResolveHooks};
 mod scope;
 mod service_key;
 pub use service_key::ServiceKey;
@@ -29,6 +35,7 @@ pub struct Container {
     identity: scope::Identity,
     registry: RwLock<Registry>,
     waiting: Mutex<HashMap<ThreadId, Wait>>,
+    hook_phases: AtomicU8,
 }
 
 #[derive(Default)]
@@ -41,6 +48,7 @@ struct Registry {
     scoped: HashSet<ServiceKey>,
     contextual: HashMap<ServiceKey, HashMap<ServiceKey, RegisteredBinding>>,
     tags: HashMap<String, Vec<ServiceKey>>,
+    hooks: ResolveHooks,
 }
 
 #[derive(Clone)]
@@ -50,7 +58,20 @@ struct RegisteredBinding {
     version: Arc<()>,
     instance: bool,
     shared: bool,
-    fresh: Option<Arc<dyn Fn() -> ErasedBinding + Send + Sync>>,
+    fresh: Option<Arc<dyn Fn() -> RegisteredBinding + Send + Sync>>,
+    published: Option<Arc<AtomicBool>>,
+}
+
+impl RegisteredBinding {
+    fn with_version(mut self, version: Arc<()>) -> Self {
+        self.version = version;
+        self
+    }
+    fn is_published(&self) -> bool {
+        self.published
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Acquire))
+    }
 }
 
 impl Registry {
@@ -121,6 +142,7 @@ enum Binding<T: ?Sized> {
 enum SingletonState<T: ?Sized> {
     Empty,
     Running(ThreadId),
+    Publishing(ThreadId, Arc<T>),
     Ready(Arc<T>),
 }
 
@@ -160,13 +182,13 @@ impl Container {
             Binding::Singleton { factory, .. } => {
                 let factory = factory.clone();
                 Some(Arc::new(move || {
-                    Arc::new(Binding::Singleton {
+                    Self::entry(Binding::Singleton {
                         factory: factory.clone(),
                         state: Mutex::new(SingletonState::Empty),
                         ready: Condvar::new(),
-                    }) as ErasedBinding
+                    })
                 })
-                    as Arc<dyn Fn() -> ErasedBinding + Send + Sync>)
+                    as Arc<dyn Fn() -> RegisteredBinding + Send + Sync>)
             }
             _ => None,
         };
@@ -177,6 +199,7 @@ impl Container {
             instance,
             shared,
             fresh,
+            published: (shared && !instance).then(|| Arc::new(AtomicBool::new(false))),
         }
     }
 
@@ -192,10 +215,9 @@ impl Container {
             registry.remove_alias(&key);
             if entry.instance {
                 let cached = registry.bindings.get_mut(&key).and_then(|binding| {
-                    binding
-                        .fresh
-                        .as_ref()
-                        .map(|fresh| std::mem::replace(&mut binding.value, fresh()))
+                    binding.fresh.clone().map(|fresh| {
+                        std::mem::replace(binding, fresh().with_version(binding.version.clone()))
+                    })
                 });
                 (registry.instances.insert(key, entry), None, cached)
             } else {
@@ -472,7 +494,15 @@ impl container::Container for Container {
     fn resolved(&self, id: impl Into<ServiceKey>) -> Result<bool, BindingResolutionError> {
         let registry = self.registry.read().expect("container lock poisoned");
         let key = registry.get_alias(id.into(), |key| scope::alias_removed(self, key))?;
+        let cached = registry.bindings.get(&key).is_some_and(|entry| {
+            if registry.scoped.contains(&key) && scope::active(self) {
+                scope::is_published(self, &key, entry)
+            } else {
+                entry.is_published()
+            }
+        });
         Ok(registry.resolved.contains(&key)
+            || cached
             || scope::lookup(self, &key).is_some()
             || (registry.instances.contains_key(&key)
                 && registry.root_instance_visible(self, &key)))
@@ -497,10 +527,9 @@ impl container::Container for Container {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let instance = registry.instances.remove(&key);
             let cached = registry.bindings.get_mut(&key).and_then(|binding| {
-                binding
-                    .fresh
-                    .as_ref()
-                    .map(|fresh| std::mem::replace(&mut binding.value, fresh()))
+                binding.fresh.clone().map(|fresh| {
+                    std::mem::replace(binding, fresh().with_version(binding.version.clone()))
+                })
             });
             (instance, cached)
         };
@@ -517,10 +546,9 @@ impl container::Container for Container {
                 .bindings
                 .values_mut()
                 .filter_map(|binding| {
-                    binding
-                        .fresh
-                        .as_ref()
-                        .map(|fresh| std::mem::replace(&mut binding.value, fresh()))
+                    binding.fresh.clone().map(|fresh| {
+                        std::mem::replace(binding, fresh().with_version(binding.version.clone()))
+                    })
                 })
                 .collect::<Vec<_>>();
             (instances, cached)
@@ -703,14 +731,14 @@ impl container::Container for Container {
     }
 
     fn tagged<T: ?Sized + Send + Sync + 'static>(&self, tag: &str) -> Tagged<'_, Self, T> {
-        let tag = self
+        let (tag, count) = self
             .registry
             .read()
             .expect("container lock poisoned")
             .tags
-            .contains_key(tag)
-            .then(|| tag.to_owned());
-        Tagged::new(self, move || {
+            .get(tag)
+            .map_or((None, 0), |keys| (Some(tag.to_owned()), keys.len()));
+        Tagged::new(self, count, move || {
             tag.as_ref()
                 .and_then(|tag| {
                     self.registry
@@ -722,6 +750,42 @@ impl container::Container for Container {
                 })
                 .unwrap_or_default()
         })
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    fn beforeResolving(
+        &self,
+        selector: Option<ServiceKey>,
+        callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        self.register_hook(selector, Phase::Before, callback)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    fn resolving(
+        &self,
+        selector: Option<ServiceKey>,
+        callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        self.register_hook(selector, Phase::Resolving, callback)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    fn afterResolving(
+        &self,
+        selector: Option<ServiceKey>,
+        callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        self.register_hook(selector, Phase::After, callback)
     }
 
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
@@ -736,11 +800,21 @@ impl container::Container for Container {
         &self,
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        let id = id.into();
+        let (id, canonical) = if self.has_hooks(Phase::Before) {
+            let key = self.getAlias(id)?;
+            self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
+            (key, true)
+        } else {
+            (id.into(), false)
+        };
         let consumer = self.consumer();
         let (key, mut entry, scoped, contextual) = {
             let registry = self.registry.read().expect("container lock poisoned");
-            let key = registry.get_alias(id, |key| scope::alias_removed(self, key))?;
+            let key = if canonical {
+                id
+            } else {
+                registry.get_alias(id, |key| scope::alias_removed(self, key))?
+            };
             let scoped = registry.scoped.contains(&key);
             let provided = scope::lookup(self, &key);
             let root = if !registry.root_instance_visible(self, &key) {
@@ -776,9 +850,21 @@ impl container::Container for Container {
         if let Binding::Instance(instance) = binding.as_ref() {
             return Ok(instance.clone());
         }
-        let _resolution = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
-        let result = match binding.as_ref() {
-            Binding::Factory(factory) => factory(self),
+        let resolution = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
+        match binding.as_ref() {
+            Binding::Factory(factory) => {
+                let value = factory(self)?;
+                drop(resolution);
+                self.fire_constructed(&key, value.clone())?;
+                if !contextual {
+                    self.registry
+                        .write()
+                        .expect("container lock poisoned")
+                        .resolved
+                        .insert(key);
+                }
+                Ok(value)
+            }
             Binding::Instance(instance) => Ok(Arc::clone(instance)),
             Binding::Singleton {
                 factory,
@@ -791,11 +877,14 @@ impl container::Container for Container {
                 loop {
                     match &*slot {
                         SingletonState::Ready(instance) => return Ok(Arc::clone(instance)),
+                        SingletonState::Publishing(owner, instance) if *owner == caller => {
+                            return Ok(Arc::clone(instance));
+                        }
                         SingletonState::Empty => {
                             *slot = SingletonState::Running(caller);
                             break;
                         }
-                        SingletonState::Running(owner) => {
+                        SingletonState::Running(owner) | SingletonState::Publishing(owner, _) => {
                             self.wait_for(caller, *owner, key.clone(), binding)?;
                             slot = ready.wait(slot).expect("singleton state poisoned");
                             self.waiting
@@ -806,35 +895,44 @@ impl container::Container for Container {
                     }
                 }
                 drop(slot);
-                let result = panic::catch_unwind(AssertUnwindSafe(|| factory(self)));
+                let constructed = panic::catch_unwind(AssertUnwindSafe(|| factory(self)));
+                drop(resolution);
+                let mut value = None;
+                let result = match constructed {
+                    Ok(Ok(instance)) => {
+                        *state.lock().expect("singleton state poisoned") =
+                            SingletonState::Publishing(caller, instance.clone());
+                        entry
+                            .published
+                            .as_ref()
+                            .expect("shared cache marker")
+                            .store(true, Ordering::Release);
+                        value = Some(instance.clone());
+                        panic::catch_unwind(AssertUnwindSafe(|| {
+                            self.fire_constructed(&key, instance.clone())
+                                .map(|()| instance)
+                        }))
+                    }
+                    other => other,
+                };
                 if matches!(&result, Ok(Ok(_))) {
                     self.registry
                         .write()
                         .expect("container lock poisoned")
                         .resolved
-                        .insert(key.clone());
+                        .insert(key);
                 }
-                let mut slot = state.lock().expect("singleton state poisoned");
-                *slot = match &result {
-                    Ok(Ok(instance)) => SingletonState::Ready(Arc::clone(instance)),
-                    _ => SingletonState::Empty,
+                *state.lock().expect("singleton state poisoned") = match value {
+                    Some(instance) => SingletonState::Ready(instance),
+                    None => SingletonState::Empty,
                 };
                 self.waiting
                     .lock()
                     .expect("container wait graph poisoned")
                     .retain(|_, (_, _, waiting_for)| *waiting_for != binding);
                 ready.notify_all();
-                drop(slot);
                 result.unwrap_or_else(|payload| panic::resume_unwind(payload))
             }
-        };
-        if result.is_ok() && !entry.shared && !contextual {
-            self.registry
-                .write()
-                .expect("container lock poisoned")
-                .resolved
-                .insert(key);
         }
-        result
     }
 }

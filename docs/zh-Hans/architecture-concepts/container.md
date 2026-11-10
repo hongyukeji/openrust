@@ -113,7 +113,7 @@ fn main() {
 
 `give` 接收类型明确的工厂。`giveService(key)` 对应 Laravel 中传服务名的 `give`，目标须按预期返回契约登记；`Arc<Concrete>` 到 `Arc<dyn Trait>` 的转换在工厂中显式完成。`giveConfig(key, default)` 在解析依赖时读取当前 `config` 服务，`None` 对应 Laravel 省略默认值。键缺失时使用默认值，显式 JSON null 保持 null。反序列化会检查 Rust 声明类型，不匹配返回错误，不隐式执行 PHP 标量转换。
 
-`tag(keys, tags)` 保留登记顺序和重复项。`tagged::<T>(tag)` 迭代到某项时才解析服务，每次迭代按原服务生命周期重新解析。未知标签得到空序列；已有序列的下一次迭代可看到之前追加的服务。`len()` 缓存首次计数，对应 Laravel 可重复生成器的行为。`giveTagged` 收集为 `Vec<Arc<T>>`，未绑定或类型不符的项传播错误。
+`tag(keys, tags)` 保留登记顺序和重复项。`tagged::<T>(tag)` 迭代到某项时才解析服务，每次迭代按原服务生命周期重新解析。未知标签得到空序列；已有序列的下一次迭代可看到之前追加的服务。`len()` 返回创建序列时固定的数量，对应 Laravel 可重复生成器的行为。`giveTagged` 收集为 `Vec<Arc<T>>`，未绑定或类型不符的项传播错误。
 
 ```rust
 use std::sync::Arc;
@@ -146,5 +146,46 @@ fn main() {
     assert_eq!(*report.port, 8080);
     assert_eq!(report.services.len(), 1);
     assert_eq!(&*container.make::<String>().unwrap(), "default");
+}
+```
+
+## 容器解析事件
+
+`beforeResolving`、`resolving` 和 `afterResolving` 用 `None` 登记全局回调，用 `Some(ServiceKey)` 选择服务身份。登记时规范化别名。回调接收 `ResolutionEvent` 与当前容器，返回 `Result<(), BindingResolutionError>`。实现提取旧版的事件视图与有序选择器设计，适配当前同步工厂。
+
+执行顺序为全局 before → 指定 before → 构造 → 全局 resolving → 指定 resolving → 全局 after → 指定 after。before 回调可以登记尚未绑定的服务，每次查找都执行，缓存命中也执行。显式实例及共享缓存命中跳过构造后回调。每阶段先取得全局回调快照，全局执行完再读取指定回调；因此全局回调中新登记的指定回调可以参与当前阶段，登记到后续阶段的回调也可在本次构造中执行。
+
+`event.key()` 是执行 before 前确定的规范服务身份。`event.value::<T>()` 在构造前返回 `None`，构造后按已声明的返回契约取得同一 `Arc<T>`。构造后的指定回调按服务键或 Rust 声明的返回类型匹配。Rust 无法运行时发现任意 PHP 继承或接口关系，须显式登记预期的返回契约；需要配置共享对象时使用内部可变性。动态构造参数覆盖和属性投影尚未纳入本回调接口。
+
+共享对象先发布再执行构造后回调，回调可重入解析同一共享对象；其他线程等待回调结束，不读取配置到一半的对象。构造后回调失败或 panic 时，已发布对象仍保留缓存，命中缓存不重复执行回调，但不记录成功解析历史。瞬态对象失败时没有缓存，下次重新构造。回调错误沿现有 HTTP/Artisan 错误处理传播。没有终止条件的同服务回调递归返回循环依赖错误。执行用户回调时不持有注册表锁。
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{container::{Container, ServiceKey}, contracts::container::Container as _};
+fn main() {
+    let app = Container::default();
+    let trace = Arc::new(Mutex::new(Vec::new()));
+    let before = trace.clone();
+    app.beforeResolving(None, move |event, _| {
+        assert!(event.value::<String>().is_none());
+        before.lock().unwrap().push("before");
+        Ok(())
+    }).unwrap();
+    app.singleton::<String, _>(|_| Ok(Arc::new("service".into())));
+    let resolving = trace.clone();
+    app.resolving(Some(ServiceKey::typed::<String>()), move |event, container| {
+        assert_eq!(&*event.value::<String>().unwrap(), "service");
+        assert!(container.resolved(event.key().clone())?);
+        resolving.lock().unwrap().push("resolving");
+        Ok(())
+    }).unwrap();
+    let after = trace.clone();
+    app.afterResolving(None, move |_, _| {
+        after.lock().unwrap().push("after");
+        Ok(())
+    }).unwrap();
+    let first = app.make::<String>().unwrap();
+    assert!(Arc::ptr_eq(&first, &app.make::<String>().unwrap()));
+    assert_eq!(*trace.lock().unwrap(), ["before", "resolving", "after", "before"]);
 }
 ```

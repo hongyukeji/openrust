@@ -113,7 +113,7 @@ Contextual rules apply only to the nearest consumer. They take precedence over d
 
 `give` accepts a typed factory. `giveService(key)` is the Rust overload of Laravel's service-name `give`: the implementation must be registered with the expected output contract. Use a factory to explicitly coerce `Arc<Concrete>` to `Arc<dyn Trait>`. `giveConfig(key, default)` reads the current `config` service when the dependency is resolved. Pass `None` for Laravel's omitted default. Missing keys use the default; an explicit JSON null stays null. Deserialization checks the declared Rust type and returns an error on mismatch; it does not silently coerce PHP scalar values.
 
-`tag(keys, tags)` preserves registration order and duplicates. `tagged::<T>(tag)` resolves services lazily on iteration; each iteration resolves them anew using their registered lifetimes. An unknown tag yields an empty sequence. Existing sequences see services added before their next iteration; `len()` caches its first count, as Laravel's rewindable generator does. `giveTagged` collects the tagged services as `Vec<Arc<T>>`; an unresolved or mismatched entry propagates its error.
+`tag(keys, tags)` preserves registration order and duplicates. `tagged::<T>(tag)` resolves services lazily on iteration; each iteration resolves them anew using their registered lifetimes. An unknown tag yields an empty sequence. Existing sequences see services added before their next iteration; `len()` returns the count captured when the sequence was created, as Laravel's rewindable generator does. `giveTagged` collects the tagged services as `Vec<Arc<T>>`; an unresolved or mismatched entry propagates its error.
 
 ```rust
 use std::sync::Arc;
@@ -146,5 +146,46 @@ fn main() {
     assert_eq!(*report.port, 8080);
     assert_eq!(report.services.len(), 1);
     assert_eq!(&*container.make::<String>().unwrap(), "default");
+}
+```
+
+## Container resolution events
+
+`beforeResolving`, `resolving` and `afterResolving` accept `None` for a global callback or `Some(ServiceKey)` for a selected identity. Aliases are normalized when registering the callback. The callback receives a `ResolutionEvent` and the current container, and returns `Result<(), BindingResolutionError>`. This follows the old implementation's event and ordered-selector design, adapted to the current synchronous factories.
+
+The sequence is global before → selected before → construction → global resolving → selected resolving → global after → selected after. Before callbacks can register a missing service and execute on every lookup, including cache hits. Existing instances and shared cache hits skip post-construction callbacks. Each stage snapshots the global callbacks first, then reads selected callbacks after the globals have run: a global callback may register a selected callback for that same stage. A callback registered for a later stage can run during the current construction.
+
+`event.key()` is the canonical identity fixed before the before callbacks. `event.value::<T>()` is `None` before construction and otherwise returns the existing `Arc<T>` when its declared output contract matches. Selected post-construction callbacks match the service key or its declared Rust output type. Rust cannot discover arbitrary PHP inheritance or interface relationships at runtime; register the intended output contract explicitly. Use interior mutability when a callback must configure a shared object. Dynamic constructor overrides and attribute projections are not part of this callback interface yet.
+
+Shared objects are published before the post-construction callbacks, allowing those callbacks to resolve the same shared object. Other threads wait for callback completion instead of observing a partly configured object. If a post callback fails or panics, the already published shared object remains cached and the callback is not repeated on a cache hit; successful resolution history is not recorded. A failed transient has no cached object and is constructed again next time. Callback errors propagate through HTTP/Artisan's existing error handling. Unbounded same-service callback recursion returns a circular-dependency error; callback registration and execution do not hold the registry lock while running user code.
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{container::{Container, ServiceKey}, contracts::container::Container as _};
+fn main() {
+    let app = Container::default();
+    let trace = Arc::new(Mutex::new(Vec::new()));
+    let before = trace.clone();
+    app.beforeResolving(None, move |event, _| {
+        assert!(event.value::<String>().is_none());
+        before.lock().unwrap().push("before");
+        Ok(())
+    }).unwrap();
+    app.singleton::<String, _>(|_| Ok(Arc::new("service".into())));
+    let resolving = trace.clone();
+    app.resolving(Some(ServiceKey::typed::<String>()), move |event, container| {
+        assert_eq!(&*event.value::<String>().unwrap(), "service");
+        assert!(container.resolved(event.key().clone())?);
+        resolving.lock().unwrap().push("resolving");
+        Ok(())
+    }).unwrap();
+    let after = trace.clone();
+    app.afterResolving(None, move |_, _| {
+        after.lock().unwrap().push("after");
+        Ok(())
+    }).unwrap();
+    let first = app.make::<String>().unwrap();
+    assert!(Arc::ptr_eq(&first, &app.make::<String>().unwrap()));
+    assert_eq!(*trace.lock().unwrap(), ["before", "resolving", "after", "before"]);
 }
 ```

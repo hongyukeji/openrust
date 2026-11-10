@@ -34,6 +34,13 @@ impl Facade for ContextProbes {
     }
 }
 struct ScopedProbes;
+struct HookResults;
+impl Facade for HookResults {
+    type Service = String;
+    fn getFacadeAccessor() -> ServiceKey {
+        "hook-result".into()
+    }
+}
 impl Facade for ScopedProbes {
     type Service = ScopedProbe;
     const cached: bool = false;
@@ -46,6 +53,15 @@ impl ServiceProvider for Provider {
     fn register(&mut self, app: &Application) -> ProviderResult {
         app.container()
             .scoped::<ScopedProbe, _>(|_| Ok(Arc::new(ScopedProbe)));
+        app.container()
+            .afterResolving(Some(ServiceKey::typed::<ScopedProbe>()), |event, c| {
+                assert!(Arc::ptr_eq(
+                    &event.value::<ScopedProbe>().unwrap(),
+                    &c.make::<ScopedProbe>()?
+                ));
+                c.instanceNamed("hook-result", Arc::new(String::from("hooked")));
+                Ok(())
+            })?;
         app.container()
             .bindIf::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))));
         let key = ServiceKey::typed::<Greeting>();
@@ -73,6 +89,12 @@ fn routes() -> Result<(), ConsoleError> {
         let contextual = ContextProbes::getFacadeRoot().unwrap();
         output.stdout.push_str(&contextual.0.0);
         assert_eq!(Greetings::getFacadeRoot().unwrap().0, "from provider");
+    })?;
+    Artisan::command("hooks:probe", |output| {
+        ScopedProbes::getFacadeRoot().unwrap();
+        output
+            .stdout
+            .push_str(&HookResults::getFacadeRoot().unwrap());
     })?;
     Artisan::command("scope:probe", |output: &mut Output| {
         let first = ScopedProbes::getFacadeRoot().unwrap();
@@ -105,6 +127,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "probe"], 0),
         (vec!["artisan", "scope:probe"], 0),
         (vec!["artisan", "context:probe"], 0),
+        (vec!["artisan", "hooks:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -126,6 +149,8 @@ async fn main() -> ExitCode {
                     b"scoped".as_slice()
                 } else if args.last() == Some(&"context:probe") {
                     b"contextual".as_slice()
+                } else if args.last() == Some(&"hooks:probe") {
+                    b"hooked".as_slice()
                 } else {
                     b"from provider".as_slice()
                 }
@@ -135,6 +160,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("5 container/provider Artisan process checks passed");
+    println!("6 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

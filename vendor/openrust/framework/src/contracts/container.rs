@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::container::{ContextualBindingBuilder, ServiceKey, Tagged};
+use crate::container::{ContextualBindingBuilder, ResolutionEvent, ServiceKey, Tagged};
 
 mod binding_resolution_error;
 
@@ -188,6 +188,36 @@ pub trait Container: Send + Sync + Sized {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(ContextualBindingBuilder::new(self, consumers))
     }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    fn beforeResolving(
+        &self,
+        selector: Option<ServiceKey>,
+        callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError>;
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    fn resolving(
+        &self,
+        selector: Option<ServiceKey>,
+        callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError>;
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    fn afterResolving(
+        &self,
+        selector: Option<ServiceKey>,
+        callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError>;
 
     /// Check whether the service type has a binding.
     fn bound<T>(&self) -> bool

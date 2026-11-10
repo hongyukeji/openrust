@@ -108,8 +108,8 @@ pub(super) fn select(
             {
                 return entry.clone();
             }
-            let mut entry = root.clone();
-            entry.value = root.fresh.as_ref().expect("scoped factories are shared")();
+            let entry = root.fresh.as_ref().expect("scoped factories are shared")()
+                .with_version(root.version.clone());
             let previous = cache.entries.insert(key.clone(), entry.clone());
             (entry, previous)
         };
@@ -117,6 +117,23 @@ pub(super) fn select(
         entry
     })
     .unwrap_or_else(|| root.clone())
+}
+
+pub(super) fn is_published(
+    container: &Container,
+    key: &ServiceKey,
+    root: &RegisteredBinding,
+) -> bool {
+    with(container, |context| {
+        context
+            .cache
+            .lock()
+            .expect("scope cache poisoned")
+            .entries
+            .get(key)
+            .is_some_and(|entry| Arc::ptr_eq(&entry.version, &root.version) && entry.is_published())
+    })
+    .unwrap_or(false)
 }
 
 pub(super) fn remove(container: &Container, key: &ServiceKey) {
