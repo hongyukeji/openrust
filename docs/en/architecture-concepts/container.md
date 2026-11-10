@@ -104,3 +104,47 @@ Lifecycle futures own the cached references. Completion, failure or cancellation
 `forgetScopedInstances()` clears the current lifecycle's scoped cache while preserving other active lifecycles and ordinary singletons. Outside an execution scope it clears the root scoped instances. `forgetInstance(key)` still uses the original key, and `forgetInstances()` clears current scoped instances as well as the application's ordinary instance caches. A scoped `instance` override stays local to that lifecycle. Rebinding remains an application-level registration operation.
 
 Container eviction does not clear a facade's separately cached root. Clear that facade cache when you need to re-resolve it within the same execution. Application-created Tokio tasks do not inherit ambient scopes; pass services explicitly or start the intended lifecycle around the task. Streaming bodies can retain already resolved services through owned `Arc` values. Streaming and termination callback wiring remain part of the HTTP delivery units.
+
+## Contextual binding and tagged services
+
+`when::<Consumer>()?.needs::<Dependency>().give(factory)?` selects a dependency for the currently constructed consumer. `whenNamed(name)` and `whenMany(keys)` cover named and multiple consumers; `needsNamed::<T>("$parameter")` covers explicitly named constructor inputs. Factories resolve their dependencies explicitly because Rust does not provide PHP constructor reflection. The registered consumer identity takes the place of the reflected PHP class.
+
+Contextual rules apply only to the nearest consumer. They take precedence over default instances, singletons and scoped caches, without replacing those caches or marking the dependency globally resolved. A contextual factory can resolve the same dependency again to use its default binding. Actual recursive factories still produce a circular-dependency error. Consumer aliases are normalized when `when` is called; dependency aliases are normalized when `give` is called, and later direct aliases are considered during lookup.
+
+`give` accepts a typed factory. `giveService(key)` is the Rust overload of Laravel's service-name `give`: the implementation must be registered with the expected output contract. Use a factory to explicitly coerce `Arc<Concrete>` to `Arc<dyn Trait>`. `giveConfig(key, default)` reads the current `config` service when the dependency is resolved. Pass `None` for Laravel's omitted default. Missing keys use the default; an explicit JSON null stays null. Deserialization checks the declared Rust type and returns an error on mismatch; it does not silently coerce PHP scalar values.
+
+`tag(keys, tags)` preserves registration order and duplicates. `tagged::<T>(tag)` resolves services lazily on iteration; each iteration resolves them anew using their registered lifetimes. An unknown tag yields an empty sequence. Existing sequences see services added before their next iteration; `len()` caches its first count, as Laravel's rewindable generator does. `giveTagged` collects the tagged services as `Vec<Arc<T>>`; an unresolved or mismatched entry propagates its error.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+};
+struct Report {
+    channel: Arc<String>,
+    port: Arc<u16>,
+    services: Arc<Vec<Arc<String>>>,
+}
+fn main() {
+    let app = Application::configure(std::env::current_dir().unwrap()).create().unwrap();
+    let container = app.container();
+    let config = container.get::<dyn openrust::contracts::config::Repository>("config").unwrap();
+    config.set("reports.port", 8080.into()).unwrap();
+    container.singleton::<String, _>(|_| Ok(Arc::new("default".into())));
+    container.instanceNamed("local", Arc::new(String::from("local")));
+    container.tag(["local"], ["reports"]);
+    container.bind::<Report, _>(|c| Ok(Arc::new(Report {
+        channel: c.make()?, port: c.get("$port")?, services: c.make()?,
+    })));
+    container.when::<Report>().unwrap()
+        .needs::<String>().giveService("local").unwrap()
+        .needsNamed::<u16>("$port").giveConfig("reports.port", None).unwrap()
+        .needs::<Vec<Arc<String>>>().giveTagged("reports").unwrap();
+    let report = container.make::<Report>().unwrap();
+    assert_eq!(&*report.channel, "local");
+    assert_eq!(*report.port, 8080);
+    assert_eq!(report.services.len(), 1);
+    assert_eq!(&*container.make::<String>().unwrap(), "default");
+}
+```

@@ -25,6 +25,14 @@ impl Facade for Greetings {
     }
 }
 struct ScopedProbe;
+struct ContextProbe(Arc<Greeting>);
+struct ContextProbes;
+impl Facade for ContextProbes {
+    type Service = ContextProbe;
+    fn getFacadeAccessor() -> ServiceKey {
+        ServiceKey::typed::<ContextProbe>()
+    }
+}
 struct ScopedProbes;
 impl Facade for ScopedProbes {
     type Service = ScopedProbe;
@@ -51,10 +59,21 @@ impl ServiceProvider for Provider {
         assert!(app.container().resolved(key)?);
         app.container()
             .alias(ServiceKey::typed::<Greeting>(), "greeting")?;
+        app.container()
+            .bind::<ContextProbe, _>(|c| Ok(Arc::new(ContextProbe(c.make()?))));
+        app.container()
+            .when::<ContextProbe>()?
+            .needs::<Greeting>()
+            .give(|_| Ok(Arc::new(Greeting("contextual".into()))))?;
         Ok(())
     }
 }
 fn routes() -> Result<(), ConsoleError> {
+    Artisan::command("context:probe", |output| {
+        let contextual = ContextProbes::getFacadeRoot().unwrap();
+        output.stdout.push_str(&contextual.0.0);
+        assert_eq!(Greetings::getFacadeRoot().unwrap().0, "from provider");
+    })?;
     Artisan::command("scope:probe", |output: &mut Output| {
         let first = ScopedProbes::getFacadeRoot().unwrap();
         let second = ScopedProbes::getFacadeRoot().unwrap();
@@ -85,6 +104,7 @@ async fn main() -> ExitCode {
     for (args, expected) in [
         (vec!["artisan", "probe"], 0),
         (vec!["artisan", "scope:probe"], 0),
+        (vec!["artisan", "context:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -104,6 +124,8 @@ async fn main() -> ExitCode {
                 output.stdout,
                 if args.last() == Some(&"scope:probe") {
                     b"scoped".as_slice()
+                } else if args.last() == Some(&"context:probe") {
+                    b"contextual".as_slice()
                 } else {
                     b"from provider".as_slice()
                 }
@@ -113,6 +135,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("4 container/provider Artisan process checks passed");
+    println!("5 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

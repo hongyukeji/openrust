@@ -104,3 +104,47 @@ fn main() {
 `forgetScopedInstances()` 清除当前生命周期的作用域缓存，保留其他活动生命周期及普通单例。在执行作用域之外调用，则清除根作用域实例。`forgetInstance(key)` 仍按原始键操作；`forgetInstances()` 同时清除当前作用域实例及应用的普通实例缓存。作用域服务的 `instance` 覆盖仅在当前生命周期生效，重新绑定仍是应用级注册操作。
 
 容器清理不会清除门面独立缓存的根对象；需要在同一次执行中重新解析时，同时清除门面缓存。应用自行创建的 Tokio 任务不继承环境作用域，应显式传入服务，或为任务设置所需生命周期。流式正文可以通过持有已解析服务的 `Arc` 延续其使用。流式及终止回调接线仍属于 HTTP 交付单元。
+
+## 上下文绑定与标签服务
+
+`when::<Consumer>()?.needs::<Dependency>().give(factory)?` 为当前构造的消费者选择依赖。`whenNamed(name)` 和 `whenMany(keys)` 对应具名及多个消费者；`needsNamed::<T>("$parameter")` 对应显式命名的构造输入。Rust 没有 PHP 构造反射，工厂需显式解析依赖，登记的消费者身份对应 PHP 反射得到的类。
+
+上下文规则只作用于最近的消费者，优先于默认实例、单例和作用域缓存，但不替换默认缓存，也不把依赖记为全局已解析。上下文工厂可以再次解析同一依赖取得默认绑定；实际递归工厂仍返回循环依赖错误。消费者别名在调用 `when` 时规范化，依赖别名在调用 `give` 时规范化，解析时还会检查后续增加的直接别名。
+
+`give` 接收类型明确的工厂。`giveService(key)` 对应 Laravel 中传服务名的 `give`，目标须按预期返回契约登记；`Arc<Concrete>` 到 `Arc<dyn Trait>` 的转换在工厂中显式完成。`giveConfig(key, default)` 在解析依赖时读取当前 `config` 服务，`None` 对应 Laravel 省略默认值。键缺失时使用默认值，显式 JSON null 保持 null。反序列化会检查 Rust 声明类型，不匹配返回错误，不隐式执行 PHP 标量转换。
+
+`tag(keys, tags)` 保留登记顺序和重复项。`tagged::<T>(tag)` 迭代到某项时才解析服务，每次迭代按原服务生命周期重新解析。未知标签得到空序列；已有序列的下一次迭代可看到之前追加的服务。`len()` 缓存首次计数，对应 Laravel 可重复生成器的行为。`giveTagged` 收集为 `Vec<Arc<T>>`，未绑定或类型不符的项传播错误。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+};
+struct Report {
+    channel: Arc<String>,
+    port: Arc<u16>,
+    services: Arc<Vec<Arc<String>>>,
+}
+fn main() {
+    let app = Application::configure(std::env::current_dir().unwrap()).create().unwrap();
+    let container = app.container();
+    let config = container.get::<dyn openrust::contracts::config::Repository>("config").unwrap();
+    config.set("reports.port", 8080.into()).unwrap();
+    container.singleton::<String, _>(|_| Ok(Arc::new("default".into())));
+    container.instanceNamed("local", Arc::new(String::from("local")));
+    container.tag(["local"], ["reports"]);
+    container.bind::<Report, _>(|c| Ok(Arc::new(Report {
+        channel: c.make()?, port: c.get("$port")?, services: c.make()?,
+    })));
+    container.when::<Report>().unwrap()
+        .needs::<String>().giveService("local").unwrap()
+        .needsNamed::<u16>("$port").giveConfig("reports.port", None).unwrap()
+        .needs::<Vec<Arc<String>>>().giveTagged("reports").unwrap();
+    let report = container.make::<Report>().unwrap();
+    assert_eq!(&*report.channel, "local");
+    assert_eq!(*report.port, 8080);
+    assert_eq!(report.services.len(), 1);
+    assert_eq!(&*container.make::<String>().unwrap(), "default");
+}
+```

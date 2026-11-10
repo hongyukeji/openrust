@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::container::ServiceKey;
+use crate::container::{ContextualBindingBuilder, ServiceKey, Tagged};
 
 mod binding_resolution_error;
 
@@ -141,6 +141,53 @@ pub trait Container: Send + Sync + Sized {
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn addContextualBinding<T, F>(
+        &self,
+        concrete: impl Into<ServiceKey>,
+        r#abstract: impl Into<ServiceKey>,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    /// Appends raw service identities to each tag, preserving order and duplicates.
+    fn tag(
+        &self,
+        abstracts: impl IntoIterator<Item = impl Into<ServiceKey>>,
+        tags: impl IntoIterator<Item = impl Into<String>>,
+    );
+
+    /// Returns a lazy, rewindable view of services carrying this tag.
+    fn tagged<T: ?Sized + Send + Sync + 'static>(&self, tag: &str) -> Tagged<'_, Self, T>;
+
+    fn when<T: ?Sized + 'static>(
+        &self,
+    ) -> Result<ContextualBindingBuilder<'_, Self>, BindingResolutionError> {
+        self.whenMany([ServiceKey::typed::<T>()])
+    }
+
+    #[allow(non_snake_case, reason = "Named overload for Laravel's when")]
+    fn whenNamed(
+        &self,
+        concrete: &str,
+    ) -> Result<ContextualBindingBuilder<'_, Self>, BindingResolutionError> {
+        self.whenMany([ServiceKey::named(concrete)])
+    }
+
+    #[allow(non_snake_case, reason = "Rust form of Laravel's array when")]
+    fn whenMany(
+        &self,
+        concretes: impl IntoIterator<Item = impl Into<ServiceKey>>,
+    ) -> Result<ContextualBindingBuilder<'_, Self>, BindingResolutionError> {
+        let consumers = concretes
+            .into_iter()
+            .map(|key| self.getAlias(key))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ContextualBindingBuilder::new(self, consumers))
+    }
 
     /// Check whether the service type has a binding.
     fn bound<T>(&self) -> bool

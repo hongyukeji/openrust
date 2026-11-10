@@ -471,6 +471,7 @@ dependencies = [
  "percent-encoding",
  "quick-xml",
  "regex",
+ "serde",
  "serde_json",
  "tokio",
  "tokio-util",

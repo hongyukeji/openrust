@@ -11,6 +11,10 @@ use std::{
 
 use crate::contracts::container::{self, BindingResolutionError};
 
+mod contextual_binding_builder;
+pub use contextual_binding_builder::{ContextualBinding, ContextualBindingBuilder};
+mod tagged;
+pub use tagged::{Tagged, TaggedIter};
 mod scope;
 mod service_key;
 pub use service_key::ServiceKey;
@@ -31,9 +35,12 @@ pub struct Container {
 struct Registry {
     bindings: HashMap<ServiceKey, RegisteredBinding>,
     aliases: HashMap<ServiceKey, ServiceKey>,
+    abstract_aliases: HashMap<ServiceKey, Vec<ServiceKey>>,
     instances: HashMap<ServiceKey, RegisteredBinding>,
     resolved: HashSet<ServiceKey>,
     scoped: HashSet<ServiceKey>,
+    contextual: HashMap<ServiceKey, HashMap<ServiceKey, RegisteredBinding>>,
+    tags: HashMap<String, Vec<ServiceKey>>,
 }
 
 #[derive(Clone)]
@@ -47,6 +54,33 @@ struct RegisteredBinding {
 }
 
 impl Registry {
+    fn remove_alias(&mut self, key: &ServiceKey) {
+        if let Some(target) = self.aliases.remove(key)
+            && let Some(aliases) = self.abstract_aliases.get_mut(&target)
+        {
+            aliases.retain(|alias| alias != key);
+        }
+    }
+
+    fn contextual_binding(
+        &self,
+        container: &Container,
+        consumer: &ServiceKey,
+        key: &ServiceKey,
+    ) -> Option<RegisteredBinding> {
+        let bindings = self.contextual.get(consumer)?;
+        bindings
+            .get(key)
+            .or_else(|| {
+                self.abstract_aliases.get(key)?.iter().find_map(|alias| {
+                    (!scope::alias_removed(container, alias))
+                        .then(|| bindings.get(alias))
+                        .flatten()
+                })
+            })
+            .cloned()
+    }
+
     fn root_instance_visible(&self, container: &Container, key: &ServiceKey) -> bool {
         !(scope::active(container)
             && (self.scoped.contains(key) || scope::alias_removed(container, key)))
@@ -91,7 +125,13 @@ enum SingletonState<T: ?Sized> {
 }
 
 thread_local! {
-    static RESOLVING: RefCell<Vec<(usize, ServiceKey)>> = const { RefCell::new(Vec::new()) };
+    static RESOLVING: RefCell<Vec<ResolutionFrame>> = const { RefCell::new(Vec::new()) };
+}
+
+struct ResolutionFrame {
+    container: usize,
+    key: ServiceKey,
+    recipe: usize,
 }
 
 struct Resolution;
@@ -149,7 +189,7 @@ impl Container {
         let local = (!entry.instance).then(|| key.clone());
         let previous = {
             let mut registry = self.registry.write().expect("container lock poisoned");
-            registry.aliases.remove(&key);
+            registry.remove_alias(&key);
             if entry.instance {
                 let cached = registry.bindings.get_mut(&key).and_then(|binding| {
                     binding
@@ -229,7 +269,7 @@ impl Container {
             } else {
                 applied = true;
                 registry.scoped.insert(key.clone());
-                registry.aliases.remove(&key);
+                registry.remove_alias(&key);
                 let instance = registry.instances.remove(&key);
                 (registry.bindings.insert(key, entry), instance)
             }
@@ -240,21 +280,39 @@ impl Container {
         drop(previous);
     }
 
-    fn resolve(&self, key: &ServiceKey) -> Result<Resolution, BindingResolutionError> {
+    fn consumer(&self) -> Option<ServiceKey> {
+        let owner = std::ptr::from_ref(self).addr();
+        RESOLVING.with_borrow(|stack| {
+            stack
+                .iter()
+                .rev()
+                .find(|frame| frame.container == owner)
+                .map(|frame| frame.key.clone())
+        })
+    }
+
+    fn resolve(
+        &self,
+        key: &ServiceKey,
+        recipe: usize,
+    ) -> Result<Resolution, BindingResolutionError> {
         let container = std::ptr::from_ref(self).addr();
         RESOLVING.with_borrow_mut(|stack| {
-            if let Some(start) = stack
-                .iter()
-                .position(|(owner, binding)| *owner == container && binding == key)
-            {
+            if let Some(start) = stack.iter().position(|frame| {
+                frame.container == container && frame.key == *key && frame.recipe == recipe
+            }) {
                 let services = stack[start..]
                     .iter()
-                    .map(|(_, name)| name.clone())
+                    .map(|frame| frame.key.clone())
                     .chain(std::iter::once(key.clone()))
                     .collect();
                 return Err(BindingResolutionError::CircularDependency { services });
             }
-            stack.push((container, key.clone()));
+            stack.push(ResolutionFrame {
+                container,
+                key: key.clone(),
+                recipe,
+            });
             Ok(Resolution)
         })
     }
@@ -352,11 +410,16 @@ impl container::Container for Container {
         if target == alias {
             return Err(BindingResolutionError::AliasToSelf { service: target });
         }
-        self.registry
-            .write()
-            .expect("container lock poisoned")
-            .aliases
-            .insert(alias.clone(), target);
+        {
+            let mut registry = self.registry.write().expect("container lock poisoned");
+            registry.remove_alias(&alias);
+            registry
+                .abstract_aliases
+                .entry(target.clone())
+                .or_default()
+                .push(alias.clone());
+            registry.aliases.insert(alias.clone(), target);
+        }
         scope::restore_alias(self, &alias);
         Ok(())
     }
@@ -597,6 +660,70 @@ impl container::Container for Container {
         self.insert_scoped(ServiceKey::named(name), Arc::new(factory), true);
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn addContextualBinding<T, F>(
+        &self,
+        concrete: impl Into<ServiceKey>,
+        r#abstract: impl Into<ServiceKey>,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        let key = self.getAlias(r#abstract)?;
+        let entry = Self::entry(Binding::Factory(Arc::new(factory)));
+        let previous = self
+            .registry
+            .write()
+            .expect("container lock poisoned")
+            .contextual
+            .entry(concrete.into())
+            .or_default()
+            .insert(key, entry);
+        drop(previous);
+        Ok(())
+    }
+
+    fn tag(
+        &self,
+        abstracts: impl IntoIterator<Item = impl Into<ServiceKey>>,
+        tags: impl IntoIterator<Item = impl Into<String>>,
+    ) {
+        let services: Vec<ServiceKey> = abstracts.into_iter().map(Into::into).collect();
+        let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
+        let mut registry = self.registry.write().expect("container lock poisoned");
+        for tag in tags {
+            registry
+                .tags
+                .entry(tag)
+                .or_default()
+                .extend(services.iter().cloned());
+        }
+    }
+
+    fn tagged<T: ?Sized + Send + Sync + 'static>(&self, tag: &str) -> Tagged<'_, Self, T> {
+        let tag = self
+            .registry
+            .read()
+            .expect("container lock poisoned")
+            .tags
+            .contains_key(tag)
+            .then(|| tag.to_owned());
+        Tagged::new(self, move || {
+            tag.as_ref()
+                .and_then(|tag| {
+                    self.registry
+                        .read()
+                        .expect("container lock poisoned")
+                        .tags
+                        .get(tag)
+                        .cloned()
+                })
+                .unwrap_or_default()
+        })
+    }
+
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.has(ServiceKey::typed::<T>())
     }
@@ -610,7 +737,8 @@ impl container::Container for Container {
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError> {
         let id = id.into();
-        let (key, mut entry, scoped) = {
+        let consumer = self.consumer();
+        let (key, mut entry, scoped, contextual) = {
             let registry = self.registry.read().expect("container lock poisoned");
             let key = registry.get_alias(id, |key| scope::alias_removed(self, key))?;
             let scoped = registry.scoped.contains(&key);
@@ -623,12 +751,17 @@ impl container::Container for Container {
                     .get(&key)
                     .or_else(|| registry.bindings.get(&key))
             };
-            let entry = provided.or_else(|| root.cloned()).ok_or_else(|| {
-                BindingResolutionError::NotBound {
+            let contextual = consumer
+                .as_ref()
+                .and_then(|consumer| registry.contextual_binding(self, consumer, &key));
+            let has_contextual = contextual.is_some();
+            let entry = contextual
+                .or(provided)
+                .or_else(|| root.cloned())
+                .ok_or_else(|| BindingResolutionError::NotBound {
                     service: key.clone(),
-                }
-            })?;
-            (key, entry, scoped)
+                })?;
+            (key, entry, scoped, has_contextual)
         };
         if scoped && entry.shared && !entry.instance {
             entry = scope::select(self, &key, &entry);
@@ -643,7 +776,7 @@ impl container::Container for Container {
         if let Binding::Instance(instance) = binding.as_ref() {
             return Ok(instance.clone());
         }
-        let _resolution = self.resolve(&key)?;
+        let _resolution = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
         let result = match binding.as_ref() {
             Binding::Factory(factory) => factory(self),
             Binding::Instance(instance) => Ok(Arc::clone(instance)),
@@ -695,7 +828,7 @@ impl container::Container for Container {
                 result.unwrap_or_else(|payload| panic::resume_unwind(payload))
             }
         };
-        if result.is_ok() && !entry.shared {
+        if result.is_ok() && !entry.shared && !contextual {
             self.registry
                 .write()
                 .expect("container lock poisoned")
