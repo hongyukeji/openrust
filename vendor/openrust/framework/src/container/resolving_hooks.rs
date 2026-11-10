@@ -14,8 +14,12 @@ pub struct ResolutionEvent {
     key: ServiceKey,
     value: Option<Arc<dyn Any + Send + Sync>>,
     output: Option<TypeId>,
+    parameters: super::ParameterOverrides,
 }
 impl ResolutionEvent {
+    pub fn parameters(&self) -> &super::ParameterOverrides {
+        &self.parameters
+    }
     pub fn key(&self) -> &ServiceKey {
         &self.key
     }
@@ -24,10 +28,14 @@ impl ResolutionEvent {
         self.value.as_ref()?.downcast_ref::<Arc<T>>().cloned()
     }
     pub(super) fn before(key: ServiceKey) -> Self {
+        Self::before_with(key, super::ParameterOverrides::default())
+    }
+    pub(super) fn before_with(key: ServiceKey, parameters: super::ParameterOverrides) -> Self {
         Self {
             key,
             value: None,
             output: None,
+            parameters,
         }
     }
     pub(super) fn constructed<T: ?Sized + Send + Sync + 'static>(
@@ -38,6 +46,7 @@ impl ResolutionEvent {
             key,
             value: Some(Arc::new(value)),
             output: Some(TypeId::of::<T>()),
+            parameters: super::ParameterOverrides::default(),
         }
     }
 }

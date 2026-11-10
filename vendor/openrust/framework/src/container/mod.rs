@@ -28,7 +28,9 @@ mod async_resolution;
 pub(crate) mod deferred;
 pub use async_resolution::FactoryFuture;
 use async_resolution::{AsyncFactory, Owner, OwnerKey};
+mod parameters;
 mod scope;
+pub use parameters::{ParameterKey, ParameterOverrides, ParameterValue};
 mod service_key;
 pub use service_key::ServiceKey;
 
@@ -1260,25 +1262,74 @@ impl container::Container for Container {
         self.get(ServiceKey::typed::<T>())
     }
 
+    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    fn getLastParameterOverride(&self) -> ParameterOverrides {
+        parameters::current(self)
+    }
+    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    fn makeWith<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        self.make_with_parameters(ServiceKey::typed::<T>(), parameters)
+    }
+    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    fn makeWithNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey>,
+        parameters: ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        self.make_with_parameters(key.into(), parameters)
+    }
+    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    async fn makeWithAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        self.get_async_with_parameters(ServiceKey::typed::<T>(), parameters)
+            .await
+    }
+    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    async fn makeWithAsyncNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        parameters: ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        self.get_async_with_parameters(key.into(), parameters).await
+    }
+
     fn get<T: ?Sized + Send + Sync + 'static>(
         &self,
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        scope::check_open(self)?;
-        let id = self.require_sync(id.into())?;
-        let (id, canonical) = if self.has_hooks(Phase::Before) {
-            let key = self.getAlias(id)?;
-            self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
-            (key, true)
-        } else {
-            (id, false)
-        };
-        let (key, entry, scoped, contextual) = self.select_entry(id, canonical)?;
-        self.resolve_entry(key, entry, scoped, contextual)
+        self.make_with_parameters(id.into(), ParameterOverrides::default())
     }
 }
 
 impl Container {
+    fn make_with_parameters<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: ServiceKey,
+        values: ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        parameters::run(self, values, || {
+            scope::check_open(self)?;
+            let id = self.require_sync(id)?;
+            let (id, canonical) = if self.has_hooks(Phase::Before) {
+                let key = self.getAlias(id)?;
+                self.fire_hooks(
+                    &ResolutionEvent::before_with(key.clone(), parameters::current(self)),
+                    Phase::Before,
+                )?;
+                (key, true)
+            } else {
+                (id, false)
+            };
+            let (key, entry, scoped, contextual) = self.select_entry(id, canonical)?;
+            self.resolve_entry(key, entry, scoped, contextual)
+        })
+    }
+
     fn current_recipe(
         &self,
         key: &ServiceKey,
@@ -1323,6 +1374,8 @@ impl Container {
         canonical: bool,
     ) -> Result<(ServiceKey, RegisteredBinding, bool, bool), BindingResolutionError> {
         let consumer = self.consumer();
+        let parameters = parameters::current(self);
+        let parameterized = !parameters.is_empty();
         let selected = {
             let registry = self.registry.read().expect("container lock poisoned");
             let key = if canonical {
@@ -1331,8 +1384,12 @@ impl Container {
                 registry.get_alias(id, |key| scope::alias_removed(self, key))?
             };
             let scoped = registry.scoped.contains(&key);
-            let provided = scope::lookup(self, &key);
-            let root = if !registry.root_instance_visible(self, &key) {
+            let provided = if parameterized {
+                None
+            } else {
+                scope::lookup(self, &key)
+            };
+            let root = if parameterized || !registry.root_instance_visible(self, &key) {
                 registry.bindings.get(&key)
             } else {
                 registry
@@ -1344,13 +1401,24 @@ impl Container {
                 .as_ref()
                 .and_then(|consumer| registry.contextual_binding(self, consumer, &key));
             let has_contextual = contextual.is_some();
-            let entry = contextual
+            let mut entry = contextual
                 .or(provided)
                 .or_else(|| root.cloned())
                 .ok_or_else(|| BindingResolutionError::NotBound {
                     service: key.clone(),
                 })?;
-            (key, entry, scoped, has_contextual)
+            if parameterized {
+                if let Some(fresh) = &entry.fresh {
+                    entry = fresh();
+                }
+                entry.version = parameters.identity().expect("nonempty parameters");
+            }
+            (
+                key,
+                entry,
+                scoped && !parameterized,
+                has_contextual || parameterized,
+            )
         };
         Ok(selected)
     }

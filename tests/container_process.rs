@@ -3,7 +3,7 @@ use openrust::{
     console::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
-    container::ServiceKey,
+    container::{ParameterKey, ParameterOverrides, ParameterValue, ServiceKey},
     contracts::{container::Container as _, foundation::Application as _},
     foundation::{Application, configuration::Routing},
     support::{
@@ -86,6 +86,33 @@ impl FrameworkCommand for AsyncProbeCommand {
         })
     }
 }
+struct ParametersProbeCommand(CommandDefinition);
+impl FrameworkCommand for ParametersProbeCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let mut parameters = ParameterOverrides::new();
+            parameters.insert(ParameterKey::name("number"), ParameterValue::new(12u32));
+            let value = app
+                .makeWithNamed::<u32>("parameter-number", parameters)
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            let cached = app
+                .get::<u32>("parameter-number")
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            output.stdout.push_str(&format!("{value}:{cached}"));
+            Ok(0)
+        })
+    }
+}
 struct Provider;
 impl ServiceProvider for Provider {
     fn register<'a>(
@@ -93,6 +120,20 @@ impl ServiceProvider for Provider {
         app: &'a Application,
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            app.container()
+                .singletonAsyncNamed::<u32, _>("parameter-number", |c| {
+                    Box::pin(async move {
+                        tokio::task::yield_now().await;
+                        let value = c
+                            .getLastParameterOverride()
+                            .get(&ParameterKey::name("number"))
+                            .map(|v| v.downcast::<u32>())
+                            .transpose()?
+                            .map_or(0, |v| *v);
+                        Ok(Arc::new(value))
+                    })
+                })
+                .await?;
             app.container()
                 .bindAsyncNamed::<u32, _>("async-number", |_| {
                     Box::pin(async {
@@ -206,6 +247,9 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
         .withCommands(|artisan| {
+            artisan.add_command(Box::new(ParametersProbeCommand(CommandDefinition::new(
+                clap::Command::new("parameters:probe"),
+            ))))?;
             artisan.add_command(Box::new(AsyncProbeCommand(CommandDefinition::new(
                 clap::Command::new("async:probe"),
             ))))
@@ -227,6 +271,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "extend:probe"], 0),
         (vec!["artisan", "rebind:probe"], 0),
         (vec!["artisan", "async:probe"], 0),
+        (vec!["artisan", "parameters:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -254,6 +299,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"parameters:probe") {
+                    b"12:0".as_slice()
                 } else if args.last() == Some(&"async:probe") {
                     b"7".as_slice()
                 } else {

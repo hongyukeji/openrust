@@ -333,3 +333,48 @@ async fn main() -> Result<(), BindingResolutionError> {
 並行共用解析不阻塞執行器，同次建構的等待者共用結果。建構失敗或取消時喚醒已有等待者並回傳錯誤，後續新呼叫可重試；相依環回傳錯誤。若解析回呼在值發布後失敗，已發布的共用值仍保留快取，沿用現有容器行為。
 
 框架每次 poll 還原建構情境，暫停的工廠不會把消費者洩漏給其他 Future。請求與命令結束時關閉作用域並清空快取，即使外部還保留暫停的 Future。透過已關閉作用域繼續解析回傳 `ScopeClosed`；將門面 Future 移到另一應用執行中回傳 `FacadeNotSet`。銷毀暫停工作時還原仍存活的原情境；原情境關閉後不提供環境門面。應用主動持有的 Future 與服務參考仍由應用負責，drop 時釋放。這些明確的非同步錯誤與生命週期保護，是 PHP 順序機制在 Rust 並行執行環境中的轉換。
+
+## 參數覆寫
+
+使用 `Application::makeWith::<T>(parameters).await` 提供明確建構參數。直接呼叫容器時，同步使用 `makeWith`，非同步使用 `makeWithAsync`；具名鍵對應 `makeWithNamed` 與 `makeWithAsyncNamed`。應用提供 `makeWithNamed(...).await` 解析具名鍵。
+
+空參數集合沿用普通解析，可重用共用實例。非空集合選擇已註冊工廠，繞過明確實例與共用快取，單獨建構結果；仍套用情境選擇、裝飾器與解析回呼，但不取代普通共用值，也不寫入普通解析歷史。僅登記實例而無工廠的服務收到非空參數時回傳 `NotBound`。
+
+PHP 工廠接收參數陣列；Rust 工廠保留明確容器引數，透過 `getLastParameterOverride()` 讀取目前不可變快照。解析前回呼透過 `ResolutionEvent::parameters()` 取得快照。普通巢狀解析使用空參數，需要轉交時明確傳遞快照。非同步解析每次 poll 還原自己的參數框架，包括在另一帶參數建構中還原普通暫停解析的情況。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+fn arguments(number: u32) -> ParameterOverrides {
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("number"), ParameterValue::new(number));
+    parameters
+}
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.singletonAsync::<u32, _>(|container| Box::pin(async move {
+        tokio::task::yield_now().await;
+        let value = container.getLastParameterOverride()
+            .get(&ParameterKey::name("number"))
+            .map(|value| value.downcast::<u32>()).transpose()?;
+        Ok(Arc::new(value.map_or(0, |value| *value)))
+    })).await?;
+    assert_eq!(*app.makeWithAsync::<u32>(arguments(7)).await?, 7);
+    assert!(!app.resolved(ServiceKey::typed::<u32>())?);
+    let normal = app.makeAsync::<u32>().await?;
+    assert_eq!(*normal, 0);
+    assert_eq!(*app.makeWithAsync::<u32>(arguments(9)).await?, 9);
+    assert!(Arc::ptr_eq(&normal, &app.makeAsync::<u32>().await?));
+    Ok(())
+}
+```
+
+`ParameterOverrides` 保留插入順序；覆寫同鍵保持位置並回傳舊值。複製共用不可變資料，後續修改複製集合。`ParameterKey::Name` 與 `Index` 是明確身分，數字字串不隱式轉換成整數鍵。`ParameterValue::null()` 與缺少參數不同。值需要 `Send + Sync + 'static`，無需實作 Clone 或序列化；`from_arc` 保留既有物件身分。儲存 `Arc<dyn Trait>` 時使用 `new` 包裝，並按相同 `Arc<dyn Trait>` 型別讀取。
+
+`downcast` 要求宣告的 Rust 型別；型別錯誤或 null 回傳 `ParameterTypeMismatch`，不暴露承載內容。此載體不執行 PHP 純量隱式轉換。錯誤、panic、取消後還原原參數框架。暫停工廠清理可讀取自己的參數；退役參數內容在空參數框架內釋放，不借用另一呼叫的參數。呼叫者明確保留的快照與服務參考仍由呼叫者持有。
+
+本節完成工廠參數覆寫。自動建構描述、原始值/預設值/可變參數注入與容器方法呼叫仍待後續單元，不能據此認為反射式建構已完成。

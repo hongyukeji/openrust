@@ -233,6 +233,8 @@ impl Container {
 }
 
 struct Retained<F> {
+    parameters: super::ParameterOverrides,
+    identity: Identity,
     future: Option<std::pin::Pin<Box<F>>>,
     contexts: Arc<HashMap<Identity, Arc<Context>>>,
     active: Option<Arc<Context>>,
@@ -248,8 +250,10 @@ impl<F> Retained<F> {
                 .is_some_and(|context| context.closed.load(Ordering::Acquire))
     }
     fn run<R>(&self, operation: impl FnOnce() -> R) -> R {
-        self.facade
-            .run(|| CURRENT.sync_scope(self.contexts.clone(), operation))
+        super::parameters::with_snapshot(self.identity.clone(), self.parameters.clone(), || {
+            self.facade
+                .run(|| CURRENT.sync_scope(self.contexts.clone(), operation))
+        })
     }
 }
 impl<F, R> Future for Retained<F>
@@ -279,15 +283,21 @@ where
                 crate::contracts::container::BindingResolutionError::ScopeClosed,
             ));
         }
-        let result = this.facade.run(|| {
-            CURRENT.sync_scope(this.contexts.clone(), || {
-                this.future
-                    .as_mut()
-                    .expect("retained future")
-                    .as_mut()
-                    .poll(cx)
-            })
-        });
+        let result = super::parameters::with_snapshot(
+            this.identity.clone(),
+            this.parameters.clone(),
+            || {
+                this.facade.run(|| {
+                    CURRENT.sync_scope(this.contexts.clone(), || {
+                        this.future
+                            .as_mut()
+                            .expect("retained future")
+                            .as_mut()
+                            .poll(cx)
+                    })
+                })
+            },
+        );
         if this.is_closed() {
             this.run(|| drop(result));
             return std::task::Poll::Ready(Err(
@@ -331,6 +341,8 @@ where
         (None, None) => None,
     };
     Retained {
+        parameters: super::parameters::current(container),
+        identity: container.identity.clone(),
         future: Some(Box::pin(future)),
         contexts,
         active,

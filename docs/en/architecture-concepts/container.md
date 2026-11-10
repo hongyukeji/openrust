@@ -333,3 +333,48 @@ async fn main() -> Result<(), BindingResolutionError> {
 Concurrent shared lookups wait without blocking the executor and share one construction attempt. Failed or cancelled construction wakes its existing waiters with an error; a later lookup can retry. Dependency cycles return an error. A value already published before a resolving callback fails remains cached, following the existing container behavior.
 
 The framework restores construction context on each poll, so a suspended factory cannot leak its consumer into another future. Request and command completion closes their scope and drains its caches even when a future is retained. Further container resolution through that closed scope returns `ScopeClosed`; a facade future moved into a different application execution returns `FacadeNotSet`. Dropping pending work restores its live origin for cleanup; a closed origin has no ambient facade. Caller-owned futures and service references remain the caller's responsibility and are released when dropped. These explicit async errors and lifecycle guards adapt PHP's sequential mechanism to Rust's concurrent runtime.
+
+## Parameter Overrides
+
+Use `Application::makeWith::<T>(parameters).await` to supply explicit construction arguments. Container callers use synchronous `makeWith` or `makeWithAsync`; named keys use `makeWithNamed` and `makeWithAsyncNamed`. The application provides `makeWithNamed(...).await` for named keys.
+
+An empty set follows normal resolution and may reuse a shared instance. A nonempty set selects the registered factory, bypasses supplied instances and shared caches, and constructs a separate value. It applies contextual selection, decorators and resolving callbacks without replacing the ordinary shared value or recording ordinary resolved history. Supplying parameters to an instance-only service with no factory returns `NotBound`.
+
+PHP passes its factory an argument array. Rust factories retain their explicit container argument and read the current immutable snapshot through `getLastParameterOverride()`. `ResolutionEvent::parameters()` exposes the snapshot to before-resolving callbacks. Ordinary nested lookups receive an empty set; forward the snapshot explicitly when a dependency should use it. Each async poll restores its own frame, including when an ordinary pending lookup resumes inside another parameterized construction.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+fn arguments(number: u32) -> ParameterOverrides {
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("number"), ParameterValue::new(number));
+    parameters
+}
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.singletonAsync::<u32, _>(|container| Box::pin(async move {
+        tokio::task::yield_now().await;
+        let value = container.getLastParameterOverride()
+            .get(&ParameterKey::name("number"))
+            .map(|value| value.downcast::<u32>()).transpose()?;
+        Ok(Arc::new(value.map_or(0, |value| *value)))
+    })).await?;
+    assert_eq!(*app.makeWithAsync::<u32>(arguments(7)).await?, 7);
+    assert!(!app.resolved(ServiceKey::typed::<u32>())?);
+    let normal = app.makeAsync::<u32>().await?;
+    assert_eq!(*normal, 0);
+    assert_eq!(*app.makeWithAsync::<u32>(arguments(9)).await?, 9);
+    assert!(Arc::ptr_eq(&normal, &app.makeAsync::<u32>().await?));
+    Ok(())
+}
+```
+
+`ParameterOverrides` preserves insertion order. Replacing a key retains its position and returns the previous value; cloning shares immutable data and later mutation copies the collection. `ParameterKey::Name` and `Index` are explicit identities: numeric strings are not silently converted to integer keys. `ParameterValue::null()` differs from a missing key. Values need `Send + Sync + 'static`, but need not be cloned or serialized; `from_arc` preserves an existing object's identity. To store an `Arc<dyn Trait>`, wrap it with `new` and read that same `Arc<dyn Trait>` type.
+
+`downcast` requires the declared Rust type; a wrong type or null returns `ParameterTypeMismatch` without exposing payload contents. This carrier performs no PHP scalar coercion. Errors, panics and cancellation restore the previous frame. Pending factory cleanup sees its own arguments; retired argument payloads are dropped with an empty argument frame so they cannot read another call's parameters. Caller-retained snapshots and service references remain owned by the caller.
+
+This delivers factory argument overrides. Automatic constructor descriptors, primitive/default/variadic parameter injection and container method calls remain separate pending work; this interface does not claim reflection-based construction is complete.

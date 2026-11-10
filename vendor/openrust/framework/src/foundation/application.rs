@@ -225,6 +225,33 @@ impl Application {
         .await
     }
 
+    /// Resolve a fresh service when explicit parameters are supplied.
+    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    pub async fn makeWith<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: crate::container::ParameterOverrides,
+    ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
+        crate::support::facades::application_scope(
+            self.container_handle(),
+            self.shared.container.makeWithAsync::<T>(parameters),
+        )
+        .await
+    }
+    #[allow(non_snake_case, reason = "Named Rust overload")]
+    pub async fn makeWithNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        parameters: crate::container::ParameterOverrides,
+    ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
+        crate::support::facades::application_scope(
+            self.container_handle(),
+            self.shared
+                .container
+                .makeWithAsyncNamed::<T>(key, parameters),
+        )
+        .await
+    }
+
     #[allow(non_snake_case, reason = "Matches Laravel's application API")]
     pub fn isDeferredService(&self, key: impl Into<ServiceKey>) -> bool {
         use crate::container::deferred::DeferredServices as _;

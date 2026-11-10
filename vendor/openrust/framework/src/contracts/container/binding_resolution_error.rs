@@ -6,6 +6,10 @@ use crate::container::ServiceKey;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum BindingResolutionError {
+    ParameterTypeMismatch {
+        expected: &'static str,
+        actual: Option<&'static str>,
+    },
     FacadeNotSet,
     ScopeClosed,
     AsyncResolutionRequired {
@@ -44,6 +48,11 @@ pub enum BindingResolutionError {
 impl fmt::Display for BindingResolutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ParameterTypeMismatch { expected, actual } => write!(
+                f,
+                "parameter returns {}, expected {expected}",
+                actual.unwrap_or("null")
+            ),
             Self::DeferredServiceRequiresAsync { service } => {
                 write!(
                     f,

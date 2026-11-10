@@ -61,6 +61,31 @@ pub trait Container: Send + Sync + Sized {
     /// Tests whether a typed or named entry is bound or registered as an alias.
     fn has(&self, id: impl Into<ServiceKey>) -> bool;
 
+    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    fn getLastParameterOverride(&self) -> crate::container::ParameterOverrides;
+    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    fn makeWith<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: crate::container::ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError>;
+    #[allow(non_snake_case, reason = "Named Rust overload")]
+    fn makeWithNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey>,
+        parameters: crate::container::ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError>;
+    #[allow(non_snake_case, reason = "Async Rust overload")]
+    fn makeWithAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        parameters: crate::container::ParameterOverrides,
+    ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send;
+    #[allow(non_snake_case, reason = "Named async Rust overload")]
+    fn makeWithAsyncNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        parameters: crate::container::ParameterOverrides,
+    ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send;
+
     /// Resolves a typed or named entry and checks its Rust output type.
     fn get<T: ?Sized + Send + Sync + 'static>(
         &self,

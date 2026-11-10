@@ -333,3 +333,48 @@ async fn main() -> Result<(), BindingResolutionError> {
 并发共享解析不阻塞执行器，同一次构造的等待者共享结果。构造失败或被取消时唤醒已有等待者并返回错误，后续新调用可以重试；依赖环返回错误。若解析回调在值发布后失败，已经发布的共享值仍保留缓存，沿用现有容器行为。
 
 框架每次 poll 恢复构造上下文，挂起工厂不会把消费者泄漏给其他 Future。请求和命令结束时关闭作用域并清空缓存，即使外部还保留挂起的 Future。通过已关闭作用域继续解析返回 `ScopeClosed`；把门面 Future 移到另一应用执行中返回 `FacadeNotSet`。销毁挂起工作时恢复尚存活的原上下文；原上下文关闭后不提供环境门面。应用主动持有的 Future 和服务引用仍由应用负责，drop 时释放。这些显式异步错误和生命周期保护，是 PHP 顺序机制在 Rust 并发运行时中的适配。
+
+## 参数覆盖
+
+使用 `Application::makeWith::<T>(parameters).await` 提供显式构造参数。直接调用容器时，同步使用 `makeWith`，异步使用 `makeWithAsync`；命名键对应 `makeWithNamed` 和 `makeWithAsyncNamed`。应用提供 `makeWithNamed(...).await` 解析命名键。
+
+空参数集合沿用普通解析，可以复用共享实例。非空集合选择已注册工厂，绕过显式实例和共享缓存，单独构造结果；仍应用上下文选择、装饰器和解析回调，但不替换普通共享值，也不写入普通解析历史。仅登记实例而无工厂的服务收到非空参数时返回 `NotBound`。
+
+PHP 工厂接收参数数组；Rust 工厂保留显式容器实参，通过 `getLastParameterOverride()` 读取当前不可变快照。解析前回调通过 `ResolutionEvent::parameters()` 获取快照。普通嵌套解析使用空参数，需要转交时显式传递快照。异步解析每次 poll 恢复自己的参数帧，包括在另一带参构造中恢复普通挂起解析的情况。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ParameterKey, ParameterOverrides, ParameterValue, ServiceKey},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+fn arguments(number: u32) -> ParameterOverrides {
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("number"), ParameterValue::new(number));
+    parameters
+}
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.singletonAsync::<u32, _>(|container| Box::pin(async move {
+        tokio::task::yield_now().await;
+        let value = container.getLastParameterOverride()
+            .get(&ParameterKey::name("number"))
+            .map(|value| value.downcast::<u32>()).transpose()?;
+        Ok(Arc::new(value.map_or(0, |value| *value)))
+    })).await?;
+    assert_eq!(*app.makeWithAsync::<u32>(arguments(7)).await?, 7);
+    assert!(!app.resolved(ServiceKey::typed::<u32>())?);
+    let normal = app.makeAsync::<u32>().await?;
+    assert_eq!(*normal, 0);
+    assert_eq!(*app.makeWithAsync::<u32>(arguments(9)).await?, 9);
+    assert!(Arc::ptr_eq(&normal, &app.makeAsync::<u32>().await?));
+    Ok(())
+}
+```
+
+`ParameterOverrides` 保留插入顺序；覆盖同键保持位置并返回旧值。克隆共享不可变数据，后续修改复制集合。`ParameterKey::Name` 与 `Index` 是显式身份，数字字符串不隐式转换成整数键。`ParameterValue::null()` 区别于缺少参数。值需要 `Send + Sync + 'static`，无需实现 Clone 或序列化；`from_arc` 保留已有对象身份。保存 `Arc<dyn Trait>` 时使用 `new` 包装，并按相同 `Arc<dyn Trait>` 类型读取。
+
+`downcast` 要求声明的 Rust 类型；类型错误或 null 返回 `ParameterTypeMismatch`，不暴露载荷内容。此载体不执行 PHP 标量隐式转换。错误、panic、取消后恢复原参数帧。挂起工厂清理可读取自己的参数；退役参数载荷在空参数帧内释放，不借用另一调用的参数。调用者明确保留的快照和服务引用仍由调用者持有。
+
+本节完成工厂参数覆盖。自动构造描述、原始值/默认值/变参注入以及容器方法调用仍待后续单元，不能据此认为反射式构造已经完成。

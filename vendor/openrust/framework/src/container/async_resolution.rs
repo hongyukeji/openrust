@@ -43,6 +43,10 @@ fn duplicate(error: &Arc<BindingResolutionError>) -> BindingResolutionError {
     match error.as_ref() {
         FacadeNotSet => FacadeNotSet,
         ScopeClosed => ScopeClosed,
+        ParameterTypeMismatch { expected, actual } => ParameterTypeMismatch {
+            expected,
+            actual: *actual,
+        },
         AsyncResolutionRequired { service } => AsyncResolutionRequired {
             service: service.clone(),
         },
@@ -250,19 +254,33 @@ impl Container {
         &self,
         id: ServiceKey,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        scope::check_open(self)?;
-        let key = match self.require_sync(id.clone()) {
-            Ok(key) => key,
-            Err(BindingResolutionError::DeferredServiceRequiresAsync { .. }) => {
-                scope::preserve(self, self.load_deferred(id)).await?
-            }
-            Err(error) => return Err(error),
-        };
-        let key = self.getAlias(key)?;
-        self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
-        let (key, entry, scoped, contextual) = self.select_entry(key, true)?;
-        self.resolve_entry_async(key, entry, scoped, contextual)
+        self.get_async_with_parameters(id, super::ParameterOverrides::default())
             .await
+    }
+    pub(super) async fn get_async_with_parameters<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: ServiceKey,
+        parameters: super::ParameterOverrides,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        super::parameters::run_async(self, parameters, async move {
+            scope::check_open(self)?;
+            let key = match self.require_sync(id.clone()) {
+                Ok(key) => key,
+                Err(BindingResolutionError::DeferredServiceRequiresAsync { .. }) => {
+                    scope::preserve(self, self.load_deferred(id)).await?
+                }
+                Err(error) => return Err(error),
+            };
+            let key = self.getAlias(key)?;
+            self.fire_hooks(
+                &ResolutionEvent::before_with(key.clone(), super::parameters::current(self)),
+                Phase::Before,
+            )?;
+            let (key, entry, scoped, contextual) = self.select_entry(key, true)?;
+            self.resolve_entry_async(key, entry, scoped, contextual)
+                .await
+        })
+        .await
     }
     pub(super) async fn resolve_entry_async<T: ?Sized + Send + Sync + 'static>(
         &self,
