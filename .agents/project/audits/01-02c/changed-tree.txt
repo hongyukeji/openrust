@@ -1,0 +1,30 @@
+.
+├── Cargo.lock
+├── vendor
+│   └── openrust
+│       └── framework
+│           ├── Cargo.toml
+│           ├── src
+│           │   ├── container
+│           │   │   ├── mod.rs
+│           │   │   ├── contextual_binding_builder.rs
+│           │   │   └── tagged.rs
+│           │   └── contracts
+│           │       └── container.rs
+│           └── tests
+│               └── unit
+│                   ├── main.rs
+│                   └── contextual.rs
+├── tests
+│   ├── contextual_lifecycle.rs
+│   └── container_process.rs
+└── docs
+    ├── en
+    │   └── architecture-concepts
+    │       └── container.md
+    ├── zh-Hans
+    │   └── architecture-concepts
+    │       └── container.md
+    └── zh-Hant
+        └── architecture-concepts
+            └── container.md

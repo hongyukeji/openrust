@@ -1,0 +1,15 @@
+{
+  "Cargo.lock": "d963dbb500f260a782d8d046d59f19f7c31adf5e6e73657a10cac6f71acdf037",
+  "vendor/openrust/framework/Cargo.toml": "f1bf1ec0334561e3bb31158ceda52e354acbedab974d4ff8fb74b4f2ea221d13",
+  "vendor/openrust/framework/src/container/mod.rs": "005b152d90f5bfd705822ed6ccacf9b28dc44d705fdd4e561a4830f270bdd091",
+  "vendor/openrust/framework/src/container/contextual_binding_builder.rs": "86a966bfe00ca1df162ba385a5574280351406a82a8eee1d8c44ccdc1487d2e9",
+  "vendor/openrust/framework/src/container/tagged.rs": "143e1e95283c31a361f95ce7bb6dc33571d3e3b6fafdd446a9053e7d3981eb90",
+  "vendor/openrust/framework/src/contracts/container.rs": "edde5796e3c5c703ee88e1424b011719fd00ea95ae17b296142ed67f9239a503",
+  "vendor/openrust/framework/tests/unit/main.rs": "c4361283252b2f2144a0c4b278357d9ba9771e5f615c30b076e38e77011de808",
+  "vendor/openrust/framework/tests/unit/contextual.rs": "c15111dff67095e48867355ad01d41a4076590bd5f43b6dbce304bc13a10dd24",
+  "tests/contextual_lifecycle.rs": "fb47ffe33aac827ea3e18c73d156db3bde28f58aa9d0ecb673ee5de400862be2",
+  "tests/container_process.rs": "757f5094545ae863f709f9de162e77f5443bf20c590642ced11f570a319747f3",
+  "docs/en/architecture-concepts/container.md": "ccef2a85ef7b77af4bcd28166bb6360bd4df73f8381efa1199671b6a7acf0337",
+  "docs/zh-Hans/architecture-concepts/container.md": "86a9603738573c480ff91624371b94247f1a80cebd1e7e746a7d79e2b944fd37",
+  "docs/zh-Hant/architecture-concepts/container.md": "c3017737049ffda0097ccbc19612eb07a2843be488dd44bb7d040bd90d152e7c"
+}
