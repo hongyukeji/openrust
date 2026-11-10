@@ -1,0 +1,14 @@
+{
+  "removed": [
+    "/private/tmp/openrust-01-02g-review-20261111/target"
+  ],
+  "removed_kib": 1646640,
+  "free_bytes": 61610708992,
+  "preserved": [
+    "/private/tmp/openrust-01-02g-review-20261111",
+    "/private/tmp/openrust-01-02g-review-20261111/.artifacts/release",
+    "/private/tmp/openrust-01-02g-frozen-20261111",
+    "/Users/Home/Codes/Rust/openrust/target",
+    "shared dependency downloads"
+  ]
+}

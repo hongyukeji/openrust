@@ -1,0 +1,44 @@
+{
+  "shared_files": [
+    {
+      "path": "vendor/openrust/framework/src/foundation/application.rs",
+      "workspace_sha256": "d61974696cf876cf7b8ecbdcee1adc36e3dd6cb8931395e4626660a9cd9a712f",
+      "accepted_sha256": "19ff829f8799ecc9b25f440f56e849ad168c6b804c8a911cc2d1708ac6b9ba65",
+      "excluded": "pre-existing gRPC, broadcasting, installation or collection skeleton WIP"
+    },
+    {
+      "path": "vendor/openrust/framework/src/foundation/console/mod.rs",
+      "workspace_sha256": "a9757851813e478ca22adfde1b45c47c13d3752a43c13e2a841a8bb7c6f03fe7",
+      "accepted_sha256": "57eed6fd1d798a2bcbcc1dfbad227e258cb76c8dea6646db7a49832e7753cd74",
+      "excluded": "pre-existing gRPC, broadcasting, installation or collection skeleton WIP"
+    },
+    {
+      "path": "vendor/openrust/framework/src/support/mod.rs",
+      "workspace_sha256": "f6215b467f6eb82193d3c73fa250dd576e67cd9f6ae8f403836efa0c3da2fd06",
+      "accepted_sha256": "5cbf017b109e9a4f4a611ec19e4fecd2db0dff266665d928c4a75600b622317e",
+      "excluded": "pre-existing gRPC, broadcasting, installation or collection skeleton WIP"
+    },
+    {
+      "path": "vendor/openrust/framework/src/foundation/mod.rs",
+      "workspace_sha256": "43a979d0fe6cb32cb3e47e0720d0004305e1be2274f4fc88e0efa793e2892f89",
+      "accepted_sha256": "b92566c5d80b0ae86bb4241acca5cd4ce1947ffb2abf56e28725cba27fc04143",
+      "excluded": "pre-existing gRPC, broadcasting, installation or collection skeleton WIP"
+    },
+    {
+      "path": "vendor/openrust/framework/src/contracts/mod.rs",
+      "workspace_sha256": "5a7a809489bf1dcb3ce41f6ec4772979fac727457970de586c8d7521142a9927",
+      "accepted_sha256": "eae494b895aa8b8a67c7170754b041bab7b0f7e78e5ad39f8e9de42dcc42709f",
+      "excluded": "pre-existing gRPC, broadcasting, installation or collection skeleton WIP"
+    },
+    {
+      "path": "tests/startup.rs",
+      "workspace_sha256": "813036a2a0742071888e38d046fe8025deed436b3d7cf779c4cbaa69513ff996",
+      "accepted_sha256": "00fafc55d7baaf30d52b45399403a980367b723fb5151eb144f7584fe5e9ab81",
+      "excluded": "pre-existing gRPC, broadcasting, installation or collection skeleton WIP"
+    }
+  ],
+  "additional_wip_adapters": [
+    "foundation/configuration/application_builder.rs",
+    "foundation/http/server.rs"
+  ]
+}

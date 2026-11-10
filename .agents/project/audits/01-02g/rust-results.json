@@ -1,0 +1,101 @@
+[
+  {
+    "location": "workspace",
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "fmt",
+      "--all",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 0.18
+  },
+  {
+    "location": "workspace",
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "test",
+      "--workspace",
+      "--locked",
+      "--offline"
+    ],
+    "exit": 0,
+    "seconds": 4.51
+  },
+  {
+    "location": "workspace",
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--locked",
+      "--offline",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0,
+    "seconds": 3.1
+  },
+  {
+    "location": "candidate",
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "fmt",
+      "--all",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 0.17
+  },
+  {
+    "location": "candidate",
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "test",
+      "--workspace",
+      "--locked",
+      "--offline"
+    ],
+    "exit": 0,
+    "seconds": 1.97
+  },
+  {
+    "location": "candidate",
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--locked",
+      "--offline",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0,
+    "seconds": 0.69
+  },
+  {
+    "location": "candidate",
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "build",
+      "--locked",
+      "--offline",
+      "--release",
+      "--features",
+      "standalone"
+    ],
+    "exit": 0,
+    "seconds": 2.56
+  }
+]

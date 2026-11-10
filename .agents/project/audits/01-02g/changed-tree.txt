@@ -1,0 +1,63 @@
+.
+├── app
+│   └── providers
+│       └── app_service_provider.rs
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       ├── facades.md
+│   │       ├── lifecycle.md
+│   │       └── providers.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       ├── facades.md
+│   │       ├── lifecycle.md
+│   │       └── providers.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           ├── container.md
+│           ├── facades.md
+│           ├── lifecycle.md
+│           └── providers.md
+├── tests
+│   ├── container_lifecycle.rs
+│   ├── container_process.rs
+│   ├── contextual_lifecycle.rs
+│   ├── deferred_lifecycle.rs
+│   ├── extension_lifecycle.rs
+│   ├── rebinding_lifecycle.rs
+│   ├── resolving_lifecycle.rs
+│   ├── scoped_lifecycle.rs
+│   └── startup.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── deferred.rs
+            │   │   └── mod.rs
+            │   ├── contracts
+            │   │   ├── container
+            │   │   │   └── binding_resolution_error.rs
+            │   │   ├── container.rs
+            │   │   ├── mod.rs
+            │   │   └── support
+            │   │       └── mod.rs
+            │   ├── foundation
+            │   │   ├── application.rs
+            │   │   ├── console
+            │   │   │   └── mod.rs
+            │   │   ├── http.rs
+            │   │   ├── mod.rs
+            │   │   └── provider_repository.rs
+            │   └── support
+            │       ├── deferred_provider.rs
+            │       ├── facades
+            │       │   └── facade.rs
+            │       ├── mod.rs
+            │       └── service_provider.rs
+            └── tests
+                └── unit
+                    └── deferred_resolution.rs
