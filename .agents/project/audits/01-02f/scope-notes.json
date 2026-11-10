@@ -1,0 +1,47 @@
+{
+  "shared_files": [
+    {
+      "path": "tests/startup.rs",
+      "excluded": "pre-existing gRPC, broadcast, route-installation or planned-facade WIP",
+      "workspace_sha256": "a208b59123c1afd4838830efcf25fee7cdef9cc8cf6e245d705f3b3b6b56faba",
+      "accepted_sha256": "8445713a38b56589021be1f0b3e2cc5c32be0a36386962d411e723ad7599c34f"
+    },
+    {
+      "path": "vendor/openrust/framework/src/foundation/application.rs",
+      "excluded": "pre-existing gRPC, broadcast, route-installation or planned-facade WIP",
+      "workspace_sha256": "ef73d399fab4096ebb74719c475e0b085f5f44ef302a5370f062810eaa7ad24e",
+      "accepted_sha256": "4d1f4bd560d352c0a51f5abcac69cce5b8cf72e672d5f00bef4e1c8f0257b767"
+    },
+    {
+      "path": "vendor/openrust/framework/src/foundation/bootstrap_error.rs",
+      "excluded": "pre-existing gRPC, broadcast, route-installation or planned-facade WIP",
+      "workspace_sha256": "d636a0c95492120b9f51b5c8f93fc6fb024f24964182b03b803298824f0b82ff",
+      "accepted_sha256": "59bbeccb1ce9b8d0f9b7213191802517973f2f51b07daf4903f0ea2333a26439"
+    },
+    {
+      "path": "vendor/openrust/framework/src/foundation/configuration/routing.rs",
+      "excluded": "pre-existing gRPC, broadcast, route-installation or planned-facade WIP",
+      "workspace_sha256": "f1b14576b653403a02be505763e7aaffc6fb0a198fd65cf2ac080510b60327d0",
+      "accepted_sha256": "00f56af8150a9784bc080334da40f34efdf6c423484b386c8448f82b7548b6c6"
+    },
+    {
+      "path": "vendor/openrust/framework/src/foundation/http/server.rs",
+      "excluded": "pre-existing gRPC, broadcast, route-installation or planned-facade WIP",
+      "workspace_sha256": "b2446360abda78f3b4d0f939ce53f08225941908ad9ade213158cd8256fa862c",
+      "accepted_sha256": "a8e7cd10ec3797d446dcf52842ff7cc74b566416c9387684a12fad841a2e4935"
+    },
+    {
+      "path": "vendor/openrust/framework/src/routing/error.rs",
+      "excluded": "pre-existing gRPC, broadcast, route-installation or planned-facade WIP",
+      "workspace_sha256": "4a07a8f2023392f006e371687cdff80d0c18616bb5896451f862da1da9aa8f66",
+      "accepted_sha256": "1635f5e95f1a56aaebe39a5c9b75c9e4c266bd39ac225ead1c1f5a6de4f23cbb"
+    },
+    {
+      "path": "vendor/openrust/framework/src/support/facades.rs",
+      "excluded": "pre-existing gRPC, broadcast, route-installation or planned-facade WIP",
+      "workspace_sha256": "e037584e0c48c8302a76c3cafeb654cad6a8c2e5ef026a3194c9741bbf7d6ec0",
+      "accepted_sha256": "02e7c33e6d974da1131d7e8ab74d83b6c5195b91cb7fbb0e546c2529380e616a"
+    }
+  ],
+  "additional_wip_adapter": "broadcasting/broadcast_controller.rs propagates its instance registration error; existing gRPC branch handles Result<Arc<Repository>>; neither module is added to the candidate"
+}

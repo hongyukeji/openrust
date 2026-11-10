@@ -1,0 +1,65 @@
+.
+├── docs
+│   ├── en
+│   │   ├── architecture-concepts
+│   │   │   └── container.md
+│   │   └── getting-started
+│   │       └── configuration.md
+│   ├── zh-Hans
+│   │   ├── architecture-concepts
+│   │   │   └── container.md
+│   │   └── getting-started
+│   │       └── configuration.md
+│   └── zh-Hant
+│       ├── architecture-concepts
+│       │   └── container.md
+│       └── getting-started
+│           └── configuration.md
+├── tests
+│   ├── container_lifecycle.rs
+│   ├── container_process.rs
+│   ├── contextual_lifecycle.rs
+│   ├── extension_lifecycle.rs
+│   ├── health.rs
+│   ├── rebinding_lifecycle.rs
+│   ├── resolving_lifecycle.rs
+│   ├── scoped_lifecycle.rs
+│   └── startup.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── config
+            │   │   └── repository.rs
+            │   ├── container
+            │   │   ├── extensions.rs
+            │   │   ├── mod.rs
+            │   │   ├── rebinding.rs
+            │   │   └── scope.rs
+            │   ├── contracts
+            │   │   ├── container.rs
+            │   │   └── foundation.rs
+            │   ├── foundation
+            │   │   ├── application.rs
+            │   │   ├── bootstrap_error.rs
+            │   │   ├── configuration
+            │   │   │   └── routing.rs
+            │   │   ├── http
+            │   │   │   ├── health_check.rs
+            │   │   │   └── server.rs
+            │   │   └── http.rs
+            │   ├── routing
+            │   │   └── error.rs
+            │   └── support
+            │       ├── facades
+            │       │   └── facade.rs
+            │       └── facades.rs
+            └── tests
+                └── unit
+                    ├── container.rs
+                    ├── contextual.rs
+                    ├── extensions.rs
+                    ├── main.rs
+                    ├── rebinding.rs
+                    ├── resolving_hooks.rs
+                    └── scoped.rs

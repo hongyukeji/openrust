@@ -1,0 +1,71 @@
+[
+  {
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "fmt",
+      "--all",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 0.16
+  },
+  {
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "test",
+      "--workspace",
+      "--locked",
+      "--offline"
+    ],
+    "exit": 0,
+    "seconds": 2.11
+  },
+  {
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--locked",
+      "--offline",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0,
+    "seconds": 0.69
+  },
+  {
+    "command": [
+      "cargo",
+      "+1.94.0",
+      "build",
+      "--locked",
+      "--offline",
+      "--release",
+      "--features",
+      "standalone"
+    ],
+    "exit": 0,
+    "seconds": 2.37
+  },
+  {
+    "workspace_commands": [
+      "cargo +1.94.0 fmt --all --check",
+      "cargo +1.94.0 test --workspace --locked --offline",
+      "cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings"
+    ],
+    "exit": 0,
+    "regular_tests": 140,
+    "container_process_probes": 8
+  },
+  {
+    "candidate_regular_tests": 121,
+    "container_process_probes": 8,
+    "rebinding_unit_tests": 15,
+    "retired_value_drop_reentrancy": "passed"
+  }
+]
