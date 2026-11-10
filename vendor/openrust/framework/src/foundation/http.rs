@@ -66,42 +66,45 @@ impl http::Kernel for Kernel {
     }
 
     fn handle<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, Response> {
-        Box::pin(async move {
-            if !self.ready {
-                return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
-            }
-            let previous_exceptions = request
-                .exceptions
-                .replace(self.application.exceptions.clone());
-            let previous_view_root = request
-                .parts_mut()
-                .extensions
-                .insert(self.view_root.clone());
-            let head = request.method() == Method::HEAD;
-            let mut response = Next::new(&self.middleware.global, &self.application.routes)
-                .run(request)
-                .await;
-            request.exceptions = previous_exceptions;
-            let extensions = &mut request.parts_mut().extensions;
-            if let Some(view_root) = previous_view_root {
-                extensions.insert(view_root);
-            } else {
-                extensions.remove::<ViewRoot>();
-            }
-            if head {
-                let body = response.take_body();
-                if response.status() != StatusCode::NOT_MODIFIED
-                    && let Some(length) = body.size_hint().exact()
-                {
-                    response
-                        .parts_mut()
-                        .headers
-                        .entry(::http::header::CONTENT_LENGTH)
-                        .or_insert_with(|| ::http::HeaderValue::from(length));
+        Box::pin(crate::support::facades::scope(
+            self.application.container_handle(),
+            async move {
+                if !self.ready {
+                    return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
-            }
-            response
-        })
+                let previous_exceptions = request
+                    .exceptions
+                    .replace(self.application.exceptions.clone());
+                let previous_view_root = request
+                    .parts_mut()
+                    .extensions
+                    .insert(self.view_root.clone());
+                let head = request.method() == Method::HEAD;
+                let mut response = Next::new(&self.middleware.global, &self.application.routes)
+                    .run(request)
+                    .await;
+                request.exceptions = previous_exceptions;
+                let extensions = &mut request.parts_mut().extensions;
+                if let Some(view_root) = previous_view_root {
+                    extensions.insert(view_root);
+                } else {
+                    extensions.remove::<ViewRoot>();
+                }
+                if head {
+                    let body = response.take_body();
+                    if response.status() != StatusCode::NOT_MODIFIED
+                        && let Some(length) = body.size_hint().exact()
+                    {
+                        response
+                            .parts_mut()
+                            .headers
+                            .entry(::http::header::CONTENT_LENGTH)
+                            .or_insert_with(|| ::http::HeaderValue::from(length));
+                    }
+                }
+                response
+            },
+        ))
     }
 
     fn terminate<'a>(

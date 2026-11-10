@@ -31,3 +31,8 @@ tokio = { version = "1.54.1", features = ["macros", "rt"] }
 [dev-dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["net"] }
+
+[[test]]
+name = "container_process"
+path = "tests/container_process.rs"
+harness = false

@@ -18,11 +18,15 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Register bindings without starting services.
-    fn register(&mut self, app: &Application) -> ProviderResult;
+    fn register(&mut self, _app: &Application) -> ProviderResult {
+        Ok(())
+    }
 
     /// Initialize services after all providers have registered.
     fn boot<'a>(
         &'a mut self,
-        app: &'a Application,
-    ) -> Pin<Box<dyn Future<Output = ProviderResult> + Send + 'a>>;
+        _app: &'a Application,
+    ) -> Pin<Box<dyn Future<Output = ProviderResult> + Send + 'a>> {
+        Box::pin(async { Ok(()) })
+    }
 }

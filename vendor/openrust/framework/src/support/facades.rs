@@ -1,4 +1,8 @@
-//! Static entry points for the application's route and command registration.
+//! Static entry points for application services, routes and commands.
+
+mod facade;
+pub use facade::Facade;
+pub(crate) use facade::scope;
 
 use std::{
     cell::RefCell,

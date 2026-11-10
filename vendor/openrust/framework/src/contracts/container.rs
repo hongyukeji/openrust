@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::container::ServiceKey;
+
 mod binding_resolution_error;
 
 pub use binding_resolution_error::BindingResolutionError;
@@ -22,6 +24,44 @@ pub trait Container: Send + Sync + Sized {
     fn instance<T>(&self, service: Arc<T>)
     where
         T: ?Sized + Send + Sync + 'static;
+
+    /// Register a factory under a named identity instead of a Rust type.
+    #[allow(non_snake_case, reason = "Named overload for Rust's typed bind")]
+    fn bindNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Named overload for Rust's typed singleton")]
+    fn singletonNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Named overload for Rust's typed instance")]
+    fn instanceNamed<T: ?Sized + Send + Sync + 'static>(&self, name: &str, service: Arc<T>);
+
+    /// Point an alias at another typed or named identity.
+    fn alias(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+        alias: impl Into<ServiceKey>,
+    ) -> Result<(), BindingResolutionError>;
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn isAlias(&self, name: impl Into<ServiceKey>) -> bool;
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn getAlias(&self, name: impl Into<ServiceKey>) -> Result<ServiceKey, BindingResolutionError>;
+
+    /// Tests whether a typed or named entry is bound or registered as an alias.
+    fn has(&self, id: impl Into<ServiceKey>) -> bool;
+
+    /// Resolves a typed or named entry and checks its Rust output type.
+    fn get<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: impl Into<ServiceKey>,
+    ) -> Result<Arc<T>, BindingResolutionError>;
 
     /// Check whether the service type has a binding.
     fn bound<T>(&self) -> bool

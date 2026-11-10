@@ -18,7 +18,7 @@ use super::{
 use crate::{
     config::{ConfigError, Repository, Value},
     console::{Application as Artisan, ConsoleError, Output},
-    container::Container,
+    container::{Container, ServiceKey},
     contracts::{
         config,
         console::Kernel as _,
@@ -40,7 +40,7 @@ pub struct Application {
     publicPath: Option<PathBuf>,
     config: Arc<Repository>,
     load_config: ConfigLoader,
-    container: Container,
+    container: Arc<Container>,
     providers: Vec<Box<dyn ServiceProvider>>,
     state: BootState,
     routing: Option<Routing>,
@@ -144,9 +144,12 @@ impl Application {
         exceptions: Option<Exceptions>,
     ) -> Self {
         let config = Arc::new(Repository::new(Default::default()));
-        let container = Container::default();
+        let container = Arc::new(Container::default());
         let repository: Arc<dyn config::Repository> = config.clone();
         container.instance(repository);
+        container
+            .alias(ServiceKey::typed::<dyn config::Repository>(), "config")
+            .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
         let providers = providers
@@ -170,7 +173,15 @@ impl Application {
         }
     }
 
+    pub(crate) fn container_handle(&self) -> Arc<Container> {
+        self.container.clone()
+    }
+
     pub async fn boot(&mut self) -> Result<(), BootstrapError> {
+        crate::support::facades::scope(self.container.clone(), self.boot_application()).await
+    }
+
+    async fn boot_application(&mut self) -> Result<(), BootstrapError> {
         match self.state {
             BootState::Booted => return Ok(()),
             BootState::Failed => return Err(BootstrapError::PreviousBootFailed),

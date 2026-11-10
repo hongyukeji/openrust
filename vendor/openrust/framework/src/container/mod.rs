@@ -1,9 +1,9 @@
 //! The framework's service container.
 
 use std::{
-    any::{Any, TypeId, type_name},
+    any::{Any, type_name},
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     panic::{self, AssertUnwindSafe},
     sync::{Arc, Condvar, Mutex, RwLock},
     thread::{self, ThreadId},
@@ -11,15 +11,46 @@ use std::{
 
 use crate::contracts::container::{self, BindingResolutionError};
 
+mod service_key;
+pub use service_key::ServiceKey;
+
 type Factory<T> = dyn Fn(&Container) -> Result<Arc<T>, BindingResolutionError> + Send + Sync;
 type ErasedBinding = Arc<dyn Any + Send + Sync>;
-type Wait = (ThreadId, &'static str, usize);
+type Wait = (ThreadId, ServiceKey, usize);
 
 /// Owns the application's service bindings and shared instances.
 #[derive(Default)]
 pub struct Container {
-    bindings: RwLock<HashMap<TypeId, ErasedBinding>>,
+    registry: RwLock<Registry>,
     waiting: Mutex<HashMap<ThreadId, Wait>>,
+}
+
+#[derive(Default)]
+struct Registry {
+    bindings: HashMap<ServiceKey, RegisteredBinding>,
+    aliases: HashMap<ServiceKey, ServiceKey>,
+}
+
+#[derive(Clone)]
+struct RegisteredBinding {
+    value: ErasedBinding,
+    output: &'static str,
+}
+
+impl Registry {
+    fn get_alias(&self, key: ServiceKey) -> Result<ServiceKey, BindingResolutionError> {
+        let mut current = key;
+        let mut seen = HashSet::new();
+        let mut path = Vec::new();
+        while let Some(next) = self.aliases.get(&current) {
+            path.push(current.clone());
+            if !seen.insert(current.clone()) {
+                return Err(BindingResolutionError::CircularAlias { services: path });
+            }
+            current = next.clone();
+        }
+        Ok(current)
+    }
 }
 
 enum Binding<T: ?Sized> {
@@ -39,7 +70,7 @@ enum SingletonState<T: ?Sized> {
 }
 
 thread_local! {
-    static RESOLVING: RefCell<Vec<(usize, TypeId, &'static str)>> = const { RefCell::new(Vec::new()) };
+    static RESOLVING: RefCell<Vec<(usize, ServiceKey)>> = const { RefCell::new(Vec::new()) };
 }
 
 struct Resolution;
@@ -53,34 +84,44 @@ impl Drop for Resolution {
 }
 
 impl Container {
-    fn insert<T: ?Sized + Send + Sync + 'static>(&self, binding: Binding<T>) {
-        let previous = self
-            .bindings
-            .write()
-            .expect("container lock poisoned")
-            .insert(TypeId::of::<T>(), Arc::new(binding));
+    pub(crate) fn instance_key<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        instance: Arc<T>,
+    ) {
+        self.insert(key, Binding::Instance(instance));
+    }
+
+    fn insert<T: ?Sized + Send + Sync + 'static>(&self, key: ServiceKey, binding: Binding<T>) {
+        let previous = {
+            let mut registry = self.registry.write().expect("container lock poisoned");
+            registry.aliases.remove(&key);
+            registry.bindings.insert(
+                key,
+                RegisteredBinding {
+                    value: Arc::new(binding),
+                    output: type_name::<T>(),
+                },
+            )
+        };
         drop(previous);
     }
 
-    fn resolve<T: ?Sized + Send + Sync + 'static>(
-        &self,
-    ) -> Result<Resolution, BindingResolutionError> {
+    fn resolve(&self, key: &ServiceKey) -> Result<Resolution, BindingResolutionError> {
         let container = std::ptr::from_ref(self).addr();
-        let id = TypeId::of::<T>();
-        let service = type_name::<T>();
         RESOLVING.with_borrow_mut(|stack| {
             if let Some(start) = stack
                 .iter()
-                .position(|&(owner, binding, _)| owner == container && binding == id)
+                .position(|(owner, binding)| *owner == container && binding == key)
             {
                 let services = stack[start..]
                     .iter()
-                    .map(|&(_, _, name)| name)
-                    .chain(std::iter::once(service))
+                    .map(|(_, name)| name.clone())
+                    .chain(std::iter::once(key.clone()))
                     .collect();
                 return Err(BindingResolutionError::CircularDependency { services });
             }
-            stack.push((container, id, service));
+            stack.push((container, key.clone()));
             Ok(Resolution)
         })
     }
@@ -89,15 +130,15 @@ impl Container {
         &self,
         caller: ThreadId,
         owner: ThreadId,
-        service: &'static str,
+        service: ServiceKey,
         binding: usize,
     ) -> Result<(), BindingResolutionError> {
         let mut waiting = self.waiting.lock().expect("container wait graph poisoned");
         let mut thread = owner;
-        let mut services = vec![service];
-        while let Some(&(next, name, _)) = waiting.get(&thread) {
-            services.push(name);
-            thread = next;
+        let mut services = vec![service.clone()];
+        while let Some((next, name, _)) = waiting.get(&thread) {
+            services.push(name.clone());
+            thread = *next;
             if thread == caller {
                 services.push(service);
                 return Err(BindingResolutionError::CircularDependency { services });
@@ -114,7 +155,10 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert(Binding::Factory(Box::new(factory)));
+        self.insert(
+            ServiceKey::typed::<T>(),
+            Binding::Factory(Box::new(factory)),
+        );
     }
 
     fn singleton<T, F>(&self, factory: F)
@@ -122,37 +166,120 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert(Binding::Singleton {
-            factory: Box::new(factory),
-            state: Mutex::new(SingletonState::Empty),
-            ready: Condvar::new(),
-        });
+        self.insert(
+            ServiceKey::typed::<T>(),
+            Binding::Singleton {
+                factory: Box::new(factory),
+                state: Mutex::new(SingletonState::Empty),
+                ready: Condvar::new(),
+            },
+        );
     }
 
     fn instance<T: ?Sized + Send + Sync + 'static>(&self, service: Arc<T>) {
-        self.insert(Binding::Instance(service));
+        self.insert(ServiceKey::typed::<T>(), Binding::Instance(service));
+    }
+
+    #[allow(non_snake_case, reason = "Named overload for Rust's typed bind")]
+    fn bindNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert(ServiceKey::named(name), Binding::Factory(Box::new(factory)));
+    }
+
+    #[allow(non_snake_case, reason = "Named overload for Rust's typed singleton")]
+    fn singletonNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert(
+            ServiceKey::named(name),
+            Binding::Singleton {
+                factory: Box::new(factory),
+                state: Mutex::new(SingletonState::Empty),
+                ready: Condvar::new(),
+            },
+        );
+    }
+
+    #[allow(non_snake_case, reason = "Named overload for Rust's typed instance")]
+    fn instanceNamed<T: ?Sized + Send + Sync + 'static>(&self, name: &str, service: Arc<T>) {
+        self.insert(ServiceKey::named(name), Binding::Instance(service));
+    }
+
+    fn alias(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+        alias: impl Into<ServiceKey>,
+    ) -> Result<(), BindingResolutionError> {
+        let (target, alias) = (r#abstract.into(), alias.into());
+        if target == alias {
+            return Err(BindingResolutionError::AliasToSelf { service: target });
+        }
+        self.registry
+            .write()
+            .expect("container lock poisoned")
+            .aliases
+            .insert(alias, target);
+        Ok(())
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn isAlias(&self, name: impl Into<ServiceKey>) -> bool {
+        self.registry
+            .read()
+            .expect("container lock poisoned")
+            .aliases
+            .contains_key(&name.into())
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn getAlias(&self, name: impl Into<ServiceKey>) -> Result<ServiceKey, BindingResolutionError> {
+        self.registry
+            .read()
+            .expect("container lock poisoned")
+            .get_alias(name.into())
+    }
+
+    fn has(&self, id: impl Into<ServiceKey>) -> bool {
+        let id = id.into();
+        let registry = self.registry.read().expect("container lock poisoned");
+        registry.bindings.contains_key(&id) || registry.aliases.contains_key(&id)
     }
 
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
-        self.bindings
-            .read()
-            .expect("container lock poisoned")
-            .contains_key(&TypeId::of::<T>())
+        self.has(ServiceKey::typed::<T>())
     }
 
     fn make<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>, BindingResolutionError> {
-        let service = type_name::<T>();
-        let binding = self
-            .bindings
-            .read()
-            .expect("container lock poisoned")
-            .get(&TypeId::of::<T>())
-            .cloned()
-            .ok_or(BindingResolutionError::NotBound { service })?;
-        let binding = binding
-            .downcast::<Binding<T>>()
-            .expect("binding type matches its key");
-        let _resolution = self.resolve::<T>()?;
+        self.get(ServiceKey::typed::<T>())
+    }
+
+    fn get<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: impl Into<ServiceKey>,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        let (key, entry) = {
+            let registry = self.registry.read().expect("container lock poisoned");
+            let key = registry.get_alias(id.into())?;
+            let binding = registry.bindings.get(&key).cloned().ok_or_else(|| {
+                BindingResolutionError::NotBound {
+                    service: key.clone(),
+                }
+            })?;
+            (key, binding)
+        };
+        let binding = entry.value.downcast::<Binding<T>>().map_err(|_| {
+            BindingResolutionError::TypeMismatch {
+                service: key.clone(),
+                expected: type_name::<T>(),
+                actual: entry.output,
+            }
+        })?;
+        let _resolution = self.resolve(&key)?;
         match binding.as_ref() {
             Binding::Factory(factory) => factory(self),
             Binding::Instance(instance) => Ok(Arc::clone(instance)),
@@ -172,7 +299,7 @@ impl container::Container for Container {
                             break;
                         }
                         SingletonState::Running(owner) => {
-                            self.wait_for(caller, *owner, service, binding)?;
+                            self.wait_for(caller, *owner, key.clone(), binding)?;
                             slot = ready.wait(slot).expect("singleton state poisoned");
                             self.waiting
                                 .lock()
@@ -191,7 +318,7 @@ impl container::Container for Container {
                 self.waiting
                     .lock()
                     .expect("container wait graph poisoned")
-                    .retain(|_, &mut (_, _, waiting_for)| waiting_for != binding);
+                    .retain(|_, (_, _, waiting_for)| *waiting_for != binding);
                 ready.notify_all();
                 drop(slot);
                 result.unwrap_or_else(|payload| panic::resume_unwind(payload))
