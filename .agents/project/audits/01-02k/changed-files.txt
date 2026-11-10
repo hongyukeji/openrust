@@ -1,0 +1,15 @@
+docs/en/architecture-concepts/container.md
+docs/zh-Hans/architecture-concepts/container.md
+docs/zh-Hant/architecture-concepts/container.md
+tests/container_process.rs
+tests/variadic_lifecycle.rs
+vendor/openrust/framework/Cargo.toml
+vendor/openrust/framework/src/container/async_resolution.rs
+vendor/openrust/framework/src/container/class_descriptor.rs
+vendor/openrust/framework/src/container/contextual_binding_builder.rs
+vendor/openrust/framework/src/container/mod.rs
+vendor/openrust/framework/src/container/variadic.rs
+vendor/openrust/framework/src/contracts/container.rs
+vendor/openrust/framework/src/contracts/container/binding_resolution_error.rs
+vendor/openrust/framework/tests/unit/main.rs
+vendor/openrust/framework/tests/unit/variadic_construction.rs

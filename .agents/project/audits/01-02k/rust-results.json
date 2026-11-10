@@ -1,0 +1,64 @@
+{
+  "checks": [
+    {
+      "location": "workspace",
+      "command": "cargo +1.94.0 fmt --all --check",
+      "exit": 0,
+      "log": "fmt.log"
+    },
+    {
+      "location": "workspace",
+      "command": "cargo +1.94.0 test --workspace --locked --offline",
+      "exit": 0,
+      "log": "workspace.log"
+    },
+    {
+      "location": "workspace",
+      "command": "cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "exit": 0,
+      "log": "clippy.log"
+    },
+    {
+      "location": "candidate",
+      "command": "cargo +1.94.0 fmt --all --check",
+      "exit": 0,
+      "log": "isolated-fmt.log",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      }
+    },
+    {
+      "location": "candidate",
+      "command": "cargo +1.94.0 test --workspace --locked --offline",
+      "exit": 0,
+      "log": "isolated-test.log",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      }
+    },
+    {
+      "location": "candidate",
+      "command": "cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "exit": 0,
+      "log": "isolated-clippy.log",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      }
+    },
+    {
+      "location": "candidate",
+      "command": "cargo +1.94.0 build --locked --offline --release --features standalone",
+      "exit": 0,
+      "log": "release.log",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      }
+    }
+  ],
+  "workspace_tests": 232,
+  "candidate_tests": 213,
+  "child_process_probes": 12,
+  "new_unit_tests": 17,
+  "new_lifecycle_tests": 1,
+  "lifecycle_http_requests": 5
+}

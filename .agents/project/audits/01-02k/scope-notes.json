@@ -1,0 +1,13 @@
+{
+  "base": "fcafb08ccbf4b0c01e3b907ba038e2d21f6f2297",
+  "candidate": "/private/tmp/openrust-01-02k-review-20261111",
+  "selected_paths": 15,
+  "shared_files": {
+    "vendor/openrust/framework/Cargo.toml": "Only enable existing serde rc feature. Exclude preexisting gRPC dependencies."
+  },
+  "excluded": "All other preexisting WIP, including root Cargo.lock and startup/configuration.",
+  "dependencies": "No new versions; Serde rc enables typed Arc configuration arrays.",
+  "candidate_environment": {
+    "CARGO_INCREMENTAL": "0"
+  }
+}

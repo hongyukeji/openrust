@@ -1,0 +1,33 @@
+.
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           └── container.md
+├── tests
+│   ├── container_process.rs
+│   └── variadic_lifecycle.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── Cargo.toml
+            ├── src
+            │   ├── container
+            │   │   ├── async_resolution.rs
+            │   │   ├── class_descriptor.rs
+            │   │   ├── contextual_binding_builder.rs
+            │   │   ├── mod.rs
+            │   │   └── variadic.rs
+            │   └── contracts
+            │       ├── container.rs
+            │       └── container
+            │           └── binding_resolution_error.rs
+            └── tests
+                └── unit
+                    ├── main.rs
+                    └── variadic_construction.rs
