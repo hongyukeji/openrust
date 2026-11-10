@@ -6,6 +6,9 @@ use crate::container::ServiceKey;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum BindingResolutionError {
+    InvalidArgumentShape {
+        index: usize,
+    },
     InvalidConstructor {
         service: ServiceKey,
         reason: &'static str,
@@ -59,6 +62,9 @@ pub enum BindingResolutionError {
 impl fmt::Display for BindingResolutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidArgumentShape { index } => {
+                write!(f, "constructor argument slot {index} has a different shape")
+            }
             Self::InvalidConstructor { service, reason } => {
                 write!(f, "invalid constructor for {service}: {reason}")
             }

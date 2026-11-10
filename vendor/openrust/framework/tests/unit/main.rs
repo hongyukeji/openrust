@@ -9,3 +9,5 @@ mod scoped;
 mod parameter_overrides;
 
 mod class_construction;
+
+mod variadic_construction;

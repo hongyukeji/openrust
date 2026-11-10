@@ -61,6 +61,14 @@ pub trait Container: Send + Sync + Sized {
     /// Tests whether a typed or named entry is bound or registered as an alias.
     fn has(&self, id: impl Into<ServiceKey>) -> bool;
 
+    #[allow(non_snake_case, reason = "Typed Rust contextual array adapter")]
+    fn addContextualServices<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        consumer: impl Into<ServiceKey>,
+        need: impl Into<ServiceKey>,
+        services: Vec<ServiceKey>,
+    ) -> Result<(), BindingResolutionError>;
+
     /// Registers immutable constructor metadata without marking the service bound.
     #[allow(non_snake_case, reason = "Static Rust reflection adapter")]
     fn registerClass(

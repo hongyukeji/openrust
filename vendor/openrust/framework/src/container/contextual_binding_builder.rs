@@ -199,3 +199,22 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
         })
     }
 }
+
+impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, C, T> {
+    /// Rust array overload of Laravel's give: resolve these service keys in the consumer context.
+    #[allow(non_snake_case, reason = "Typed Rust overload for Laravel give(array)")]
+    pub fn giveServices(
+        self,
+        services: impl IntoIterator<Item = impl Into<ServiceKey>>,
+    ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError> {
+        let services: Vec<ServiceKey> = services.into_iter().map(Into::into).collect();
+        for consumer in &self.builder.consumers {
+            self.builder.container.addContextualServices::<T>(
+                consumer.clone(),
+                self.need.clone(),
+                services.clone(),
+            )?;
+        }
+        Ok(self.builder)
+    }
+}

@@ -140,6 +140,35 @@ impl FrameworkCommand for ConstructionCommand {
         })
     }
 }
+struct VariadicProbe(Vec<Arc<Greeting>>);
+struct VariadicCommand(CommandDefinition);
+impl FrameworkCommand for VariadicCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let value = app
+                .make::<VariadicProbe>()
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            output.stdout.push_str(
+                &value
+                    .0
+                    .iter()
+                    .map(|g| g.0.as_str())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+            Ok(0)
+        })
+    }
+}
 struct Provider;
 impl ServiceProvider for Provider {
     fn register<'a>(
@@ -147,6 +176,23 @@ impl ServiceProvider for Provider {
         app: &'a Application,
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            app.container()
+                .bindNamed::<Greeting, _>("variadic-first", |_| {
+                    Ok(Arc::new(Greeting("first".into())))
+                })?;
+            app.container()
+                .bindNamed::<Greeting, _>("variadic-second", |_| {
+                    Ok(Arc::new(Greeting("second".into())))
+                })?;
+            app.container()
+                .registerClass(ClassDescriptor::concrete::<VariadicProbe, _>(
+                    vec![ConstructorParam::class::<Greeting>("greetings").variadic()],
+                    |args| Ok(Arc::new(VariadicProbe(args.services(0)?))),
+                )?)?;
+            app.container()
+                .when::<VariadicProbe>()?
+                .needs::<Greeting>()
+                .giveServices(["variadic-first", "variadic-second"])?;
             app.container()
                 .registerClass(ClassDescriptor::concrete::<CompiledProbe, _>(
                     vec![ConstructorParam::class::<Greeting>("greeting")],
@@ -279,6 +325,9 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
         .withCommands(|artisan| {
+            artisan.add_command(Box::new(VariadicCommand(CommandDefinition::new(
+                clap::Command::new("variadic:probe"),
+            ))))?;
             artisan.add_command(Box::new(ConstructionCommand(CommandDefinition::new(
                 clap::Command::new("construction:probe"),
             ))))?;
@@ -308,6 +357,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "async:probe"], 0),
         (vec!["artisan", "parameters:probe"], 0),
         (vec!["artisan", "construction:probe"], 0),
+        (vec!["artisan", "variadic:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -335,6 +385,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"variadic:probe") {
+                    b"first,second".as_slice()
                 } else if args.last() == Some(&"construction:probe") {
                     b"constructed:from provider".as_slice()
                 } else if args.last() == Some(&"parameters:probe") {

@@ -51,6 +51,7 @@ fn duplicate(error: &Arc<BindingResolutionError>) -> BindingResolutionError {
             parameter,
             service: service.clone(),
         },
+        InvalidArgumentShape { index } => InvalidArgumentShape { index: *index },
         InvalidArgumentSlot { index } => InvalidArgumentSlot { index: *index },
         ParameterTypeMismatch { expected, actual } => ParameterTypeMismatch {
             expected,

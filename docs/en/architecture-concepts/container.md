@@ -429,4 +429,47 @@ Dependencies and defaults are evaluated in declaration order, then the selected 
 
 `build::<T>()` / `buildAsync::<T>().await` directly invoke the compiled constructor, bypassing the target binding, cache, extenders, resolving callbacks and resolved history. Its dependencies still use ordinary container resolution. Use `singleton(|container| container.build::<T>())`, `scoped`, or their async equivalents to give a described class a shared lifetime. `build` uses the active parameter snapshot, so a parameterized factory can forward arguments without copying them into a global registry.
 
-Variadic injection, method invocation, SelfBuilding and contextual/class attributes or automatic interface projections remain pending; metadata registration does not imply those capabilities are available.
+Method invocation, SelfBuilding and contextual/class attributes or automatic interface projections remain pending; metadata registration does not imply those capabilities are available.
+
+## Variadic Injection
+
+Mark the final `ConstructorParam` as `variadic()`. It cannot have a default, and only one variadic declaration is permitted. `ResolvedArgs::values(index)` reads its ordered items, including an empty list; `services::<T>(index)` returns service references. `len()` counts declared slots. Ordinary `value` / `get` / `service` access rejects a variadic slot with `InvalidArgumentShape`.
+
+A named override supplies exactly one item. It is not spread when that item is itself a vector. Integer-indexed overrides do not replace the named slot. Each selected item must match the declared Rust type; `nullable()` also permits explicit null items. Neither an omitted primitive variadic nor an unresolved class variadic injects a null: they produce an empty list. A constructible class without a contextual list contributes one normally resolved instance.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ClassDescriptor, ConstructorParam},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+trait Filter: Send + Sync { fn name(&self) -> &str; }
+struct Named(&'static str);
+impl Filter for Named { fn name(&self) -> &str { self.0 } }
+struct Pipeline(Vec<Arc<dyn Filter>>);
+fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.bindNamed::<dyn Filter, _>("first", |_| Ok(Arc::new(Named("first"))))?;
+    app.bindNamed::<dyn Filter, _>("second", |_| Ok(Arc::new(Named("second"))))?;
+    app.registerClass(ClassDescriptor::concrete::<Pipeline, _>(
+        vec![ConstructorParam::class::<dyn Filter>("filters").variadic()],
+        |args| Ok(Arc::new(Pipeline(args.services(0)?))),
+    )?)?;
+    app.when::<Pipeline>()?.needs::<dyn Filter>()
+        .giveServices(["first", "second", "first"])?;
+    let pipeline = app.make::<Pipeline>()?;
+    let names: Vec<_> = pipeline.0.iter().map(|filter| filter.name()).collect();
+    assert_eq!(names, ["first", "second", "first"]);
+    Ok(())
+}
+```
+
+Use `needs::<T>().giveServices(keys)` for Laravel's `give(array)` class-service list. Keys resolve in order, including duplicates, within the original consumer context. Registration is lazy, normalizes dependency aliases, and uses an immutable key snapshot for an in-flight construction. The asynchronous constructor channel waits for deferred or async services without requiring a separate registration method.
+
+Tagged or computed collection factories use the existing typed collection contract: `needs::<Vec<Arc<T>>>().giveTagged(tag)` or `giveTaggedAsync(tag)`. The variadic constructor can consume that collection. A direct contextual binding for `T` takes precedence over the collection adapter. Collection factories execute as their own resolution, so items do not inherit the consuming class's contextual bindings; direct `giveServices` arrays preserve that class context. Collection callbacks use the `Vec<Arc<T>>` identity, reflecting the Rust list contract.
+
+For primitives, bind `$name` to `Vec<Arc<T>>` or `Vec<ParameterValue>`. For example, `needsNamed::<Vec<Arc<String>>>("$names").giveConfig("app.names", None)` reads the current configuration array. The framework enables Serde's `rc` feature for these typed lists. Shared item references support values without `Clone`; heterogeneous carriers preserve null and are checked individually. These ownership representations add argument wrappers and reference counting; no zero-cost or numerical performance claim is made.
+
+Primitive contextual closures execute inline in the constructor context, as in Laravel's primitive resolver. They keep the constructor's parameter snapshot and do not create an additional service event/cache/history for `$name`. Normal dependency lookups inside the closure still follow ordinary container behavior. Async primitive closures can await initialization in that same context.
+
+A class variadic catches missing bindings and unresolved primitive dependency errors and returns an empty list for the whole argument, including a partially resolved service array. Business failures, type mismatches, dependency/alias cycles, async-required errors, provider failures and closed lifecycles propagate. Primitive variadic errors also propagate. Cancellation releases partial values under the originating context. Shared services and any values explicitly retained by application code keep their usual ownership.

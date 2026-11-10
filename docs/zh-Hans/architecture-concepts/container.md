@@ -429,4 +429,47 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 `build::<T>()` / `buildAsync::<T>().await` 直接调用编译构造函数，绕过目标的绑定、缓存、装饰器、解析回调和历史；其依赖仍使用普通容器解析。可用 `singleton(|container| container.build::<T>())`、`scoped` 或相应异步接口为描述类设置共享生命周期。`build` 使用当前参数快照，带参工厂可直接转交，不把参数写入全局注册表。
 
-变参注入、方法调用、SelfBuilding、上下文/类属性和自动接口投影仍待交付，登记元数据不代表这些能力已经可用。
+方法调用、SelfBuilding、上下文/类属性和自动接口投影仍待交付，登记元数据不代表这些能力已经可用。
+
+## 变参注入
+
+为末尾的 `ConstructorParam` 添加 `variadic()`。变参不能有默认值，且只能有一个声明。`ResolvedArgs::values(index)` 读取有序条目，包括空列表；`services::<T>(index)` 返回服务引用。`len()` 统计声明槽位；普通 `value` / `get` / `service` 读取变参槽会返回 `InvalidArgumentShape`。
+
+具名覆盖恰好传入一项，值本身是向量时也不会展开。整数索引覆盖不会替代同名槽。每项必须符合声明的 Rust 类型，`nullable()` 允许显式 null 条目。缺少原始值变参或无法解析的类变参都产生空列表，不注入 null。可构造的类没有上下文列表时，贡献一个普通解析实例。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ClassDescriptor, ConstructorParam},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+trait Filter: Send + Sync { fn name(&self) -> &str; }
+struct Named(&'static str);
+impl Filter for Named { fn name(&self) -> &str { self.0 } }
+struct Pipeline(Vec<Arc<dyn Filter>>);
+fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.bindNamed::<dyn Filter, _>("first", |_| Ok(Arc::new(Named("first"))))?;
+    app.bindNamed::<dyn Filter, _>("second", |_| Ok(Arc::new(Named("second"))))?;
+    app.registerClass(ClassDescriptor::concrete::<Pipeline, _>(
+        vec![ConstructorParam::class::<dyn Filter>("filters").variadic()],
+        |args| Ok(Arc::new(Pipeline(args.services(0)?))),
+    )?)?;
+    app.when::<Pipeline>()?.needs::<dyn Filter>()
+        .giveServices(["first", "second", "first"])?;
+    let pipeline = app.make::<Pipeline>()?;
+    let names: Vec<_> = pipeline.0.iter().map(|filter| filter.name()).collect();
+    assert_eq!(names, ["first", "second", "first"]);
+    Ok(())
+}
+```
+
+Laravel 的类服务 `give(array)` 对应 `needs::<T>().giveServices(keys)`。服务键在原消费者上下文中按顺序解析，保留重复项；登记不提前构造，依赖别名会归一化，进行中的构造持有不可变键快照。异步构造通道会等待延迟或异步服务，不需要另一套列表登记接口。
+
+标签或计算型集合工厂沿用现有类型化集合契约：`needs::<Vec<Arc<T>>>().giveTagged(tag)` 或 `giveTaggedAsync(tag)`，变参构造器可消费该集合。`T` 的直接上下文绑定优先于集合适配。集合工厂作为自己的解析执行，条目不会继承消费者类的上下文绑定；直接 `giveServices` 数组则保留该类上下文。集合回调使用 `Vec<Arc<T>>` 身份，这是 Rust 列表输出契约的适配。
+
+原始值的 `$name` 上下文可提供 `Vec<Arc<T>>` 或 `Vec<ParameterValue>`。例如 `needsNamed::<Vec<Arc<String>>>("$names").giveConfig("app.names", None)` 读取当前配置数组；框架启用 Serde 的 `rc` 特性支持这些类型化列表。共享条目无需实现 Clone，异构载体保留 null 并逐项校验。所有权表示有参数包装与引用计数开销，未宣称零成本或数值性能收益。
+
+原始值上下文闭包在构造上下文内直接执行，对应 Laravel 的原始值解析器；保留构造参数快照，不为 `$name` 增加服务事件、缓存或解析历史。闭包内的普通依赖仍按容器机制解析，异步闭包可在相同上下文等待初始化。
+
+类变参遇到缺少绑定或依赖中的原始值不可解析错误时，将整个参数回退为空列表，包括已经部分解析的服务数组。业务失败、类型错误、依赖/别名环、异步解析要求、Provider 失败和生命周期关闭仍传播；原始值变参的错误也传播。取消在原上下文释放部分条目，共享服务和应用主动保留的值仍按原所有权存活。

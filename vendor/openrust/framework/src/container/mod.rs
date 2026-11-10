@@ -29,6 +29,7 @@ pub(crate) mod deferred;
 pub use async_resolution::FactoryFuture;
 use async_resolution::{AsyncFactory, Owner, OwnerKey};
 mod class_descriptor;
+mod variadic;
 pub use class_descriptor::{ClassDescriptor, ConstructorParam, ResolvedArgs};
 mod parameters;
 mod scope;
@@ -69,6 +70,7 @@ struct Registry {
 
 #[derive(Clone)]
 struct RegisteredBinding {
+    services: Option<Arc<Vec<ServiceKey>>>,
     value: ErasedBinding,
     output: &'static str,
     version: Arc<()>,
@@ -282,6 +284,7 @@ impl Container {
             _ => None,
         };
         RegisteredBinding {
+            services: None,
             value: Arc::new(binding),
             output: type_name::<T>(),
             version: Arc::new(()),
@@ -1258,6 +1261,15 @@ impl container::Container for Container {
         Ok(())
     }
 
+    #[allow(non_snake_case, reason = "Typed Rust contextual array adapter")]
+    fn addContextualServices<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        consumer: impl Into<ServiceKey>,
+        need: impl Into<ServiceKey>,
+        services: Vec<ServiceKey>,
+    ) -> Result<(), BindingResolutionError> {
+        self.contextual_services::<T>(consumer.into(), need.into(), services)
+    }
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.has(ServiceKey::typed::<T>())
     }

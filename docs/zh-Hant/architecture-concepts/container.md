@@ -429,4 +429,47 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 `build::<T>()` / `buildAsync::<T>().await` 直接呼叫編譯建構函式，繞過目標的綁定、快取、裝飾器、解析回呼與歷史；其相依服務仍使用普通容器解析。可用 `singleton(|container| container.build::<T>())`、`scoped` 或對應非同步介面為描述類別設定共用生命週期。`build` 使用目前參數快照，帶參數工廠可直接轉交，不把參數寫入全域註冊表。
 
-可變參數注入、方法呼叫、SelfBuilding、情境/類別屬性與自動介面投影仍待交付，登記中繼資料不代表這些能力已可用。
+方法呼叫、SelfBuilding、情境/類別屬性與自動介面投影仍待交付，登記中繼資料不代表這些能力已可用。
+
+## 可變參數注入
+
+為末尾的 `ConstructorParam` 加上 `variadic()`。可變參數不能有預設值，且只能有一個宣告。`ResolvedArgs::values(index)` 讀取有序項目，包括空清單；`services::<T>(index)` 回傳服務參考。`len()` 統計宣告槽位；普通 `value` / `get` / `service` 讀取可變參數槽會回傳 `InvalidArgumentShape`。
+
+具名覆寫恰好傳入一項，值本身是向量時也不會展開。整數索引覆寫不會取代同名槽。每項必須符合宣告的 Rust 型別，`nullable()` 允許明確 null 項目。缺少原始值可變參數或無法解析的類別可變參數均產生空清單，不注入 null。可建構的類別沒有情境清單時，提供一個普通解析實例。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ClassDescriptor, ConstructorParam},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+trait Filter: Send + Sync { fn name(&self) -> &str; }
+struct Named(&'static str);
+impl Filter for Named { fn name(&self) -> &str { self.0 } }
+struct Pipeline(Vec<Arc<dyn Filter>>);
+fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.bindNamed::<dyn Filter, _>("first", |_| Ok(Arc::new(Named("first"))))?;
+    app.bindNamed::<dyn Filter, _>("second", |_| Ok(Arc::new(Named("second"))))?;
+    app.registerClass(ClassDescriptor::concrete::<Pipeline, _>(
+        vec![ConstructorParam::class::<dyn Filter>("filters").variadic()],
+        |args| Ok(Arc::new(Pipeline(args.services(0)?))),
+    )?)?;
+    app.when::<Pipeline>()?.needs::<dyn Filter>()
+        .giveServices(["first", "second", "first"])?;
+    let pipeline = app.make::<Pipeline>()?;
+    let names: Vec<_> = pipeline.0.iter().map(|filter| filter.name()).collect();
+    assert_eq!(names, ["first", "second", "first"]);
+    Ok(())
+}
+```
+
+Laravel 的類別服務 `give(array)` 對應 `needs::<T>().giveServices(keys)`。服務鍵在原消費者情境中按順序解析，保留重複項目；登記不預先建構，相依鍵的別名會正規化，進行中的建構持有不可變鍵快照。非同步建構通道會等待延遲或非同步服務，無需另一套清單登記介面。
+
+標籤或計算型集合工廠沿用既有型別化集合契約：`needs::<Vec<Arc<T>>>().giveTagged(tag)` 或 `giveTaggedAsync(tag)`，可變參數建構式可使用該集合。`T` 的直接情境綁定優先於集合轉接。集合工廠作為自己的解析執行，項目不會繼承消費者類別的情境綁定；直接 `giveServices` 陣列則保留該類別情境。集合回呼使用 `Vec<Arc<T>>` 身分，這是 Rust 清單輸出契約的轉換。
+
+原始值的 `$name` 情境可提供 `Vec<Arc<T>>` 或 `Vec<ParameterValue>`。例如 `needsNamed::<Vec<Arc<String>>>("$names").giveConfig("app.names", None)` 讀取目前設定陣列；框架啟用 Serde 的 `rc` 特性支援這些型別化清單。共用項目無需實作 Clone，異質載體保留 null 並逐項驗證。所有權表示有參數包裝與參考計數成本，未宣稱零成本或數值效能收益。
+
+原始值情境閉包在建構情境內直接執行，對應 Laravel 的原始值解析器；保留建構參數快照，不為 `$name` 增加服務事件、快取或解析歷史。閉包內的普通相依服務仍按容器機制解析，非同步閉包可在相同情境等待初始化。
+
+類別可變參數遇到缺少綁定或相依服務的原始值無法解析錯誤時，將整個參數退回空清單，包括已部分解析的服務陣列。業務失敗、型別錯誤、相依/別名環、非同步解析要求、Provider 失敗與生命週期關閉仍傳播；原始值可變參數的錯誤亦傳播。取消時在原情境釋放部分項目，共用服務與應用主動保留的值仍按原所有權存活。
