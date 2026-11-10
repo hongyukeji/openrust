@@ -1,0 +1,14 @@
+{
+  "docs/en/architecture-concepts/container.md": "6c222863d8ca255609efc55d561adb43b6621017495aa2f6385995eb2a38daf3",
+  "docs/zh-Hans/architecture-concepts/container.md": "77970444a47483625cb16bc508d791dcc81bf149b451bac76c8b54d19e67d038",
+  "docs/zh-Hant/architecture-concepts/container.md": "751b4f011e60f585b77b6ace39304fa41b2aa84728599ea1475c2ac25dec61c0",
+  "tests/container_process.rs": "7f93d9dd9ee4316fab813dafce997421f5353bf4c3bcc6253499881842b5df91",
+  "tests/scoped_lifecycle.rs": "38d11bd1c49507bcfd21ed04a4e0415ca38b0d8943032108972e9fd06c9287c4",
+  "vendor/openrust/framework/src/container/mod.rs": "61a373ad841861516efea5a8b69c4eaa175e6476b693ccc101c739389640ed48",
+  "vendor/openrust/framework/src/container/scope.rs": "2721865dc94eae4e9a91a025cacafa1e417dacb3c3eb9f2d5188d40c34552e6a",
+  "vendor/openrust/framework/src/contracts/container.rs": "b4e9bf5a1e418fee306784e5780d984a970a35c01d3cbeae693097053a9f3efe",
+  "vendor/openrust/framework/src/support/facades/facade.rs": "fe5768c14385fb12e6048f429a04995acabff7ac0bbae61ae44b8e4e757bed28",
+  "vendor/openrust/framework/tests/unit/container.rs": "e6100317b30227f561f0db410a6d852c020b96fdd0341a04b7411ec085856a6a",
+  "vendor/openrust/framework/tests/unit/main.rs": "daa1e1c153b43fcb01c431d566987f5436897003a4b6d8030b400f8328b9e795",
+  "vendor/openrust/framework/tests/unit/scoped.rs": "9d26156f3a1d244ca2fbde54b6f22d13f3ca875f1138c541c6125cb7e5654f8e"
+}

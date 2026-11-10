@@ -1,0 +1,47 @@
+[
+  {
+    "language": "en",
+    "example": 1,
+    "result": "passed"
+  },
+  {
+    "language": "en",
+    "example": 2,
+    "result": "passed"
+  },
+  {
+    "language": "en",
+    "example": 3,
+    "result": "passed"
+  },
+  {
+    "language": "zh-Hans",
+    "example": 1,
+    "result": "passed"
+  },
+  {
+    "language": "zh-Hans",
+    "example": 2,
+    "result": "passed"
+  },
+  {
+    "language": "zh-Hans",
+    "example": 3,
+    "result": "passed"
+  },
+  {
+    "language": "zh-Hant",
+    "example": 1,
+    "result": "passed"
+  },
+  {
+    "language": "zh-Hant",
+    "example": 2,
+    "result": "passed"
+  },
+  {
+    "language": "zh-Hant",
+    "example": 3,
+    "result": "passed"
+  }
+]
