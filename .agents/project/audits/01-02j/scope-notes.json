@@ -1,0 +1,8 @@
+{
+  "base": "03853e56c9eb5cd061bee99bc354c0fa7d59d045",
+  "candidate": "/private/tmp/openrust-01-02j-review-20261111",
+  "selected_paths": 16,
+  "shared_files": [],
+  "excluded": "All preexisting WIP, including gRPC, config, manifests and lockfile.",
+  "dependencies": "No new dependencies"
+}

@@ -1,0 +1,356 @@
+[
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "list"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "help",
+      "list"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "list",
+      "--help"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "help",
+      "inspire"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "inspire"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "inspire",
+      "--ansi"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "--no-ansi",
+      "inspire"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "list",
+      "--raw"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "list",
+      "cache",
+      "--format=json",
+      "--short"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "list",
+      "cache",
+      "--format=xml"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "list",
+      "cache",
+      "--format=md"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "unknown-command"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "help",
+      "unknown-command"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "list",
+      "--unknown-option"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "inspire",
+      "unexpected-argument"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "migrate:fresh"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "artisan",
+      "help",
+      "build"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/target/debug/main",
+      "unexpected-mode"
+    ],
+    "expected_exit": 2
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "list"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "help",
+      "list"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "list",
+      "--help"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "help",
+      "inspire"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "inspire"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "inspire",
+      "--ansi"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "--no-ansi",
+      "inspire"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "list",
+      "--raw"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "list",
+      "cache",
+      "--format=json",
+      "--short"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "list",
+      "cache",
+      "--format=xml"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "list",
+      "cache",
+      "--format=md"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "unknown-command"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "help",
+      "unknown-command"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "list",
+      "--unknown-option"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "inspire",
+      "unexpected-argument"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "migrate:fresh"
+    ],
+    "expected_exit": 1
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "artisan",
+      "help",
+      "build"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-00-03-9gp2zpg2/relocated release/main",
+      "unexpected-mode"
+    ],
+    "expected_exit": 2
+  },
+  {
+    "arguments": [
+      "/private/tmp/openrust-01-02j-review-20261111/artisan",
+      "inspire"
+    ],
+    "expected_exit": 0
+  },
+  {
+    "arguments": [
+      "cargo",
+      "+1.94.0",
+      "run",
+      "--locked",
+      "--offline",
+      "--",
+      "artisan",
+      "inspire"
+    ],
+    "expected_exit": 0
+  }
+]

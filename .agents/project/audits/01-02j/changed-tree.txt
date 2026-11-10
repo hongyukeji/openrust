@@ -1,0 +1,34 @@
+.
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       └── providers.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       └── providers.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           ├── container.md
+│           └── providers.md
+├── tests
+│   ├── construction_lifecycle.rs
+│   └── container_process.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── async_resolution.rs
+            │   │   ├── class_descriptor.rs
+            │   │   ├── extensions.rs
+            │   │   └── mod.rs
+            │   └── contracts
+            │       ├── container.rs
+            │       └── container
+            │           └── binding_resolution_error.rs
+            └── tests
+                └── unit
+                    ├── class_construction.rs
+                    └── main.rs
