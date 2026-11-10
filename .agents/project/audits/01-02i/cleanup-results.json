@@ -1,0 +1,15 @@
+{
+  "removed": "/private/tmp/openrust-01-02i-review-20261111/target",
+  "removed_kib": 1524852,
+  "free_bytes": 58338578432,
+  "free_decimal_gb": 58.34,
+  "quota_remaining_percent": 95,
+  "active_compiler_processes": 0,
+  "preserved": [
+    "candidate source",
+    ".artifacts/release/main and welcome view",
+    "immutable frozen source",
+    "root workspace target",
+    "shared dependency caches"
+  ]
+}

@@ -1,0 +1,37 @@
+.
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       └── facades.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       └── facades.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           ├── container.md
+│           └── facades.md
+├── tests
+│   ├── container_process.rs
+│   └── parameter_lifecycle.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── async_resolution.rs
+            │   │   ├── mod.rs
+            │   │   ├── parameters.rs
+            │   │   ├── resolving_hooks.rs
+            │   │   └── scope.rs
+            │   ├── contracts
+            │   │   ├── container.rs
+            │   │   └── container
+            │   │       └── binding_resolution_error.rs
+            │   └── foundation
+            │       └── application.rs
+            └── tests
+                └── unit
+                    ├── main.rs
+                    └── parameter_overrides.rs

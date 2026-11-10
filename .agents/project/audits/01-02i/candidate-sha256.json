@@ -1,0 +1,20 @@
+{
+  "docs/en/architecture-concepts/container.md": "90ac59bb980d013ee16425719df131a4c2566ec35f2d990f2358694dc3140f7d",
+  "docs/en/architecture-concepts/facades.md": "9fbc9d424aed70df8276efb883121c64e3cfcfddcf502e37db996c2c4b5653e3",
+  "docs/zh-Hans/architecture-concepts/container.md": "65db668dad5f446edd9439f96f0415c5321455ec2601e4c1bc590f624aa09a14",
+  "docs/zh-Hans/architecture-concepts/facades.md": "835e753e3399aa2250aa84c1e85d678586b4775d5901d00be77a39bf184deb8b",
+  "docs/zh-Hant/architecture-concepts/container.md": "1ea52324074f63d5fcd1c740350d8387cdd2813bfec7caa5f9ccbf965be00162",
+  "docs/zh-Hant/architecture-concepts/facades.md": "bfa6d706f4a27a911b3c73348d0e589c93c39795df963697b3eae20d0cef6220",
+  "tests/container_process.rs": "c4eb2690b4ce5b7116c970c8fc50487a6bafe0ec6347272bfd75873caca2acbc",
+  "tests/parameter_lifecycle.rs": "88c62ed8b45e7c3692a410a88aa188ad9374519fe2adfd188228edec9e3b8f83",
+  "vendor/openrust/framework/src/container/async_resolution.rs": "0c2fe0ba0d64001855bbadecd92582e391ffae40ba1c38df0ac6e0249c301f86",
+  "vendor/openrust/framework/src/container/mod.rs": "362180c599b93490a73249820afe7be811cbc31f2d1e921fe1c3669b89de071b",
+  "vendor/openrust/framework/src/container/parameters.rs": "ea316473b934a582c3c2d2629b82868a88e7f167144507436da39a829cfca8f7",
+  "vendor/openrust/framework/src/container/resolving_hooks.rs": "6c49d99abaca847c5b9c1d2ac2e6a91091794ff73c86e8afd070346a82995bcf",
+  "vendor/openrust/framework/src/container/scope.rs": "0f98ff63797b12347f593b23fd4bad7d1a5024711e342885e23e259a59931a6d",
+  "vendor/openrust/framework/src/contracts/container.rs": "db84a49b1ceea7f8a601ba6e49b27ab788481d3dac556afdcb29bcae5d1f98d0",
+  "vendor/openrust/framework/src/contracts/container/binding_resolution_error.rs": "6f540baa244b1dfbbab92731667b5ff35397a00a43241bf34a05ba527b479476",
+  "vendor/openrust/framework/src/foundation/application.rs": "c39d4e44d0d58a91e3b590bcc97ecb9411a8948d676c662c3a85fa3205e6fab4",
+  "vendor/openrust/framework/tests/unit/main.rs": "3dcb6fb48298d1695d757cbc87fb720661494cbc9a72e585c1cf5969f36eed68",
+  "vendor/openrust/framework/tests/unit/parameter_overrides.rs": "391611fe5ab70a87c0fcbcfde3adaa09ca966ac3622fd2b0d8f1b883e4e47051"
+}
