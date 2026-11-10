@@ -11,3 +11,13 @@ Use `render::<E>` to return an HTTP response for an error and request. Returning
 The application declares its exception policy with `withExceptions` in `bootstrap/app.rs`. Paths matching `api/*` and requests that expect JSON receive a JSON exception response. Other requests receive an HTML error page.
 
 For example, a missing API route returns `404` with a JSON `message` field. A missing Web route returns an HTML `404`, or JSON if the request prefers a JSON media type in its `Accept` header.
+
+## Missing Routes
+
+The application's `withExceptions` policy returns JSON for paths matching `api/*` or requests expecting JSON. Other missing routes return HTML. This changes the response format, not the 404 status. The same policy applies to missing static files; HEAD preserves the status and content type with an empty body.
+
+```sh
+curl -i http://localhost:8000/missing
+curl -i http://localhost:8000/api/missing
+curl -i -H 'Accept: application/json' http://localhost:8000/missing
+```

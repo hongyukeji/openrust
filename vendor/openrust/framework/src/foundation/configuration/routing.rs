@@ -1,7 +1,7 @@
 use crate::{
     console::ConsoleError,
     contracts::foundation::Application as _,
-    foundation::{Application, http::health_check},
+    foundation::{Application, http::HealthCheck},
     routing::{RouteGroup, Router, RoutingError},
     support::facades::Route,
 };
@@ -62,7 +62,7 @@ impl Routing {
             )?;
         }
         if let Some(path) = self.health {
-            router.get(&path, health_check)?;
+            router.get(&path, HealthCheck::new(app.configuration_repository()))?;
         }
         if let Some(register) = self.web {
             router.group(RouteGroup::new().middleware_name("web"), |router| {

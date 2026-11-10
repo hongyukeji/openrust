@@ -11,3 +11,13 @@
 應用程式在 `bootstrap/app.rs` 中透過 `withExceptions` 宣告例外策略。路徑符合 `api/*` 或請求預期 JSON 時，框架傳回 JSON 例外回應。其他請求收到 HTML 錯誤頁。
 
 例如，存取不存在的 API 路由會傳回 `404` 和包含 `message` 欄位的 JSON。存取不存在的 Web 路由會傳回 HTML `404`，如果請求的 `Accept` 優先選擇 JSON 媒體類型，則傳回 JSON。
+
+## 路由不存在
+
+應用的 `withExceptions` 策略對符合 `api/*` 的路徑或期望 JSON 的請求回傳 JSON，其他缺失路由回傳 HTML。回應格式改變，404 狀態保持。缺失靜態檔案也使用此策略；HEAD 保留狀態和內容類型，本文為空。
+
+```sh
+curl -i http://localhost:8000/missing
+curl -i http://localhost:8000/api/missing
+curl -i -H 'Accept: application/json' http://localhost:8000/missing
+```

@@ -6,7 +6,7 @@ pub mod middleware;
 mod server;
 
 pub use form_request::{FormRequest, FormRequestError};
-pub use health_check::health_check;
+pub use health_check::HealthCheck;
 
 use axum::body::HttpBody as _;
 
