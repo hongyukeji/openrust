@@ -372,3 +372,17 @@ fn rejected_conditional_factories_are_dropped_after_unlocking_the_registry() {
         .unwrap();
     worker.join().unwrap();
 }
+
+#[test]
+fn supplying_an_instance_releases_the_replaced_singleton_cache_but_keeps_its_factory() {
+    let container = Container::default();
+    container.singleton::<u32, _>(|_| Ok(Arc::new(7)));
+    let first = container.make::<u32>().unwrap();
+    let weak = Arc::downgrade(&first);
+    drop(first);
+    container.instance(Arc::new(99_u32));
+    assert!(weak.upgrade().is_none());
+    assert_eq!(*container.make::<u32>().unwrap(), 99);
+    container.forgetInstance(openrust::container::ServiceKey::typed::<u32>());
+    assert_eq!(*container.make::<u32>().unwrap(), 7);
+}

@@ -40,7 +40,7 @@ A direct self-alias is rejected. Alias cycles and factory dependency cycles retu
 
 Use `make::<T>()` for a Rust type and `get::<T>(key)` for a named or explicit key. The default configuration repository is bound as `dyn openrust::contracts::config::Repository` and aliased as `config`. Every application owns its container; bindings and instances are not process-global.
 
-Scoped bindings, deferred services, contextual binding, extenders and resolution callbacks remain in progress in container unit 01-02. The binding and resolving behavior above does not imply those features are implemented.
+Deferred services, contextual binding, extenders and resolution callbacks remain in progress in container unit 01-02. The binding and resolving behavior above does not imply those features are implemented.
 
 ## Conditional Bindings and Instance State
 
@@ -71,4 +71,36 @@ fn main() -> Result<(), BindingResolutionError> {
 }
 ```
 
-These operations do not clear a facade's own cached root; use its cache-clearing API when required. Scoped service eviction is delivered with the scoped lifecycle portion of the container unit.
+These operations do not clear a facade's own cached root; use its cache-clearing API when required. Scoped service eviction is described below.
+
+## Scoped Bindings
+
+`scoped::<T, _>` shares a service within one execution lifecycle. Its named form is `scopedNamed::<T, _>(name, factory)`. Use `scopedIf` or `scopedIfNamed` to register only when the original key is unbound. HTTP handler execution and each Artisan dispatch automatically enter a lifecycle. Ordinary `singleton` instances remain shared by the application.
+
+Use the Rust lifecycle helper `Container::scope(future)` for manual execution. Nested calls for the same container reuse its current scope. Concurrent executions have independent caches, including when they run on the same Tokio thread. Different applications keep their own service bindings and instances.
+
+```rust
+use std::sync::Arc;
+use openrust::{container::Container, contracts::container::Container as _};
+
+fn main() {
+    let app = Container::default();
+    app.scoped::<u32, _>(|_| Ok(Arc::new(7)));
+    let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+    runtime.block_on(async {
+        let first = app.scope(async {
+            let instance = app.make::<u32>().unwrap();
+            assert!(Arc::ptr_eq(&instance, &app.make::<u32>().unwrap()));
+            instance
+        }).await;
+        let second = app.scope(async { app.make::<u32>().unwrap() }).await;
+        assert!(!Arc::ptr_eq(&first, &second));
+    });
+}
+```
+
+Lifecycle futures own the cached references. Completion, failure or cancellation releases them when the owning futures are dropped. Callers may retain an `Arc` beyond the scope; the value is destroyed when its last reference is released. New scopes start with fresh scoped instances, without taking an instance cached in the container's root lifecycle.
+
+`forgetScopedInstances()` clears the current lifecycle's scoped cache while preserving other active lifecycles and ordinary singletons. Outside an execution scope it clears the root scoped instances. `forgetInstance(key)` still uses the original key, and `forgetInstances()` clears current scoped instances as well as the application's ordinary instance caches. A scoped `instance` override stays local to that lifecycle. Rebinding remains an application-level registration operation.
+
+Container eviction does not clear a facade's separately cached root. Clear that facade cache when you need to re-resolve it within the same execution. Application-created Tokio tasks do not inherit ambient scopes; pass services explicitly or start the intended lifecycle around the task. Streaming bodies can retain already resolved services through owned `Arc` values. Streaming and termination callback wiring remain part of the HTTP delivery units.

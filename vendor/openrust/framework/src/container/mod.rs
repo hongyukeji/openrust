@@ -11,6 +11,7 @@ use std::{
 
 use crate::contracts::container::{self, BindingResolutionError};
 
+mod scope;
 mod service_key;
 pub use service_key::ServiceKey;
 
@@ -21,6 +22,7 @@ type Wait = (ThreadId, ServiceKey, usize);
 /// Owns the application's service bindings and shared instances.
 #[derive(Default)]
 pub struct Container {
+    identity: scope::Identity,
     registry: RwLock<Registry>,
     waiting: Mutex<HashMap<ThreadId, Wait>>,
 }
@@ -31,23 +33,37 @@ struct Registry {
     aliases: HashMap<ServiceKey, ServiceKey>,
     instances: HashMap<ServiceKey, RegisteredBinding>,
     resolved: HashSet<ServiceKey>,
+    scoped: HashSet<ServiceKey>,
 }
 
 #[derive(Clone)]
 struct RegisteredBinding {
     value: ErasedBinding,
     output: &'static str,
+    version: Arc<()>,
     instance: bool,
     shared: bool,
     fresh: Option<Arc<dyn Fn() -> ErasedBinding + Send + Sync>>,
 }
 
 impl Registry {
-    fn get_alias(&self, key: ServiceKey) -> Result<ServiceKey, BindingResolutionError> {
+    fn root_instance_visible(&self, container: &Container, key: &ServiceKey) -> bool {
+        !(scope::active(container)
+            && (self.scoped.contains(key) || scope::alias_removed(container, key)))
+    }
+
+    fn get_alias(
+        &self,
+        key: ServiceKey,
+        blocked: impl Fn(&ServiceKey) -> bool,
+    ) -> Result<ServiceKey, BindingResolutionError> {
         let mut current = key;
         let mut seen = HashSet::new();
         let mut path = Vec::new();
         while let Some(next) = self.aliases.get(&current) {
+            if blocked(&current) {
+                break;
+            }
             path.push(current.clone());
             if !seen.insert(current.clone()) {
                 return Err(BindingResolutionError::CircularAlias { services: path });
@@ -117,6 +133,7 @@ impl Container {
         RegisteredBinding {
             value: Arc::new(binding),
             output: type_name::<T>(),
+            version: Arc::new(()),
             instance,
             shared,
             fresh,
@@ -125,16 +142,30 @@ impl Container {
 
     fn insert<T: ?Sized + Send + Sync + 'static>(&self, key: ServiceKey, binding: Binding<T>) {
         let entry = Self::entry(binding);
+        if entry.instance && scope::active(self) && self.scoped_identity(&key) {
+            scope::put(self, key, entry);
+            return;
+        }
+        let local = (!entry.instance).then(|| key.clone());
         let previous = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             registry.aliases.remove(&key);
             if entry.instance {
-                (registry.instances.insert(key, entry), None)
+                let cached = registry.bindings.get_mut(&key).and_then(|binding| {
+                    binding
+                        .fresh
+                        .as_ref()
+                        .map(|fresh| std::mem::replace(&mut binding.value, fresh()))
+                });
+                (registry.instances.insert(key, entry), None, cached)
             } else {
                 let instance = registry.instances.remove(&key);
-                (registry.bindings.insert(key, entry), instance)
+                (registry.bindings.insert(key, entry), instance, None)
             }
         };
+        if let Some(key) = local {
+            scope::remove(self, &key);
+        }
         drop(previous);
     }
 
@@ -147,8 +178,10 @@ impl Container {
         let rejected = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             if registry.bindings.contains_key(&key)
-                || registry.instances.contains_key(&key)
-                || registry.aliases.contains_key(&key)
+                || (registry.instances.contains_key(&key)
+                    && registry.root_instance_visible(self, &key))
+                || (!scope::alias_removed(self, &key) && registry.aliases.contains_key(&key))
+                || scope::lookup(self, &key).is_some()
             {
                 Some(entry)
             } else {
@@ -157,6 +190,54 @@ impl Container {
             }
         };
         drop(rejected);
+    }
+
+    fn scoped_identity(&self, key: &ServiceKey) -> bool {
+        if scope::lookup(self, key).is_some() {
+            return true;
+        }
+        let registry = self.registry.read().expect("container lock poisoned");
+        registry.scoped.contains(key)
+            || registry
+                .get_alias(key.clone(), |_| false)
+                .is_ok_and(|key| registry.scoped.contains(&key))
+    }
+
+    fn insert_scoped<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        factory: Arc<Factory<T>>,
+        conditional: bool,
+    ) {
+        let entry = Self::entry(Binding::Singleton {
+            factory,
+            state: Mutex::new(SingletonState::Empty),
+            ready: Condvar::new(),
+        });
+        let reset = key.clone();
+        let mut applied = false;
+        let previous = {
+            let mut registry = self.registry.write().expect("container lock poisoned");
+            if conditional
+                && (registry.bindings.contains_key(&key)
+                    || (registry.instances.contains_key(&key)
+                        && registry.root_instance_visible(self, &key))
+                    || (!scope::alias_removed(self, &key) && registry.aliases.contains_key(&key))
+                    || scope::lookup(self, &key).is_some())
+            {
+                (Some(entry), None)
+            } else {
+                applied = true;
+                registry.scoped.insert(key.clone());
+                registry.aliases.remove(&key);
+                let instance = registry.instances.remove(&key);
+                (registry.bindings.insert(key, entry), instance)
+            }
+        };
+        if applied {
+            scope::remove(self, &reset);
+        }
+        drop(previous);
     }
 
     fn resolve(&self, key: &ServiceKey) -> Result<Resolution, BindingResolutionError> {
@@ -275,17 +356,21 @@ impl container::Container for Container {
             .write()
             .expect("container lock poisoned")
             .aliases
-            .insert(alias, target);
+            .insert(alias.clone(), target);
+        scope::restore_alias(self, &alias);
         Ok(())
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's container API")]
     fn isAlias(&self, name: impl Into<ServiceKey>) -> bool {
-        self.registry
-            .read()
-            .expect("container lock poisoned")
-            .aliases
-            .contains_key(&name.into())
+        let key = name.into();
+        !scope::alias_removed(self, &key)
+            && self
+                .registry
+                .read()
+                .expect("container lock poisoned")
+                .aliases
+                .contains_key(&key)
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's container API")]
@@ -293,22 +378,28 @@ impl container::Container for Container {
         self.registry
             .read()
             .expect("container lock poisoned")
-            .get_alias(name.into())
+            .get_alias(name.into(), |key| scope::alias_removed(self, key))
     }
 
     fn has(&self, id: impl Into<ServiceKey>) -> bool {
         let id = id.into();
+        if scope::lookup(self, &id).is_some() {
+            return true;
+        }
         let registry = self.registry.read().expect("container lock poisoned");
         registry.bindings.contains_key(&id)
-            || registry.instances.contains_key(&id)
-            || registry.aliases.contains_key(&id)
+            || (registry.instances.contains_key(&id) && registry.root_instance_visible(self, &id))
+            || (!scope::alias_removed(self, &id) && registry.aliases.contains_key(&id))
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's container API")]
     fn isShared(&self, id: impl Into<ServiceKey>) -> bool {
         let id = id.into();
+        if scope::lookup(self, &id).is_some() {
+            return true;
+        }
         let registry = self.registry.read().expect("container lock poisoned");
-        registry.instances.contains_key(&id)
+        (registry.instances.contains_key(&id) && registry.root_instance_visible(self, &id))
             || registry
                 .bindings
                 .get(&id)
@@ -317,13 +408,28 @@ impl container::Container for Container {
 
     fn resolved(&self, id: impl Into<ServiceKey>) -> Result<bool, BindingResolutionError> {
         let registry = self.registry.read().expect("container lock poisoned");
-        let key = registry.get_alias(id.into())?;
-        Ok(registry.resolved.contains(&key) || registry.instances.contains_key(&key))
+        let key = registry.get_alias(id.into(), |key| scope::alias_removed(self, key))?;
+        Ok(registry.resolved.contains(&key)
+            || scope::lookup(self, &key).is_some()
+            || (registry.instances.contains_key(&key)
+                && registry.root_instance_visible(self, &key)))
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's container API")]
     fn forgetInstance(&self, id: impl Into<ServiceKey>) {
         let key = id.into();
+        if scope::active(self)
+            && (scope::lookup(self, &key).is_some()
+                || self
+                    .registry
+                    .read()
+                    .expect("container lock poisoned")
+                    .scoped
+                    .contains(&key))
+        {
+            scope::remove(self, &key);
+            return;
+        }
         let previous = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let instance = registry.instances.remove(&key);
@@ -340,6 +446,7 @@ impl container::Container for Container {
 
     #[allow(non_snake_case, reason = "Matches Laravel's container API")]
     fn forgetInstances(&self) {
+        scope::clear(self);
         let previous = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let instances = std::mem::take(&mut registry.instances);
@@ -423,6 +530,73 @@ impl container::Container for Container {
         );
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetScopedInstances(&self) {
+        if scope::active(self) {
+            scope::clear(self);
+        } else {
+            let keys = self
+                .registry
+                .read()
+                .expect("container lock poisoned")
+                .scoped
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            for key in keys {
+                self.forgetInstance(key);
+            }
+        }
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scoped<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_scoped(ServiceKey::typed::<T>(), Arc::new(factory), false);
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scopedIf<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_scoped(ServiceKey::typed::<T>(), Arc::new(factory), true);
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scopedNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_scoped(ServiceKey::named(name), Arc::new(factory), false);
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scopedIfNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_scoped(ServiceKey::named(name), Arc::new(factory), true);
+    }
+
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.has(ServiceKey::typed::<T>())
     }
@@ -435,19 +609,30 @@ impl container::Container for Container {
         &self,
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        let (key, entry) = {
+        let id = id.into();
+        let (key, mut entry, scoped) = {
             let registry = self.registry.read().expect("container lock poisoned");
-            let key = registry.get_alias(id.into())?;
-            let binding = registry
-                .instances
-                .get(&key)
-                .or_else(|| registry.bindings.get(&key))
-                .cloned()
-                .ok_or_else(|| BindingResolutionError::NotBound {
+            let key = registry.get_alias(id, |key| scope::alias_removed(self, key))?;
+            let scoped = registry.scoped.contains(&key);
+            let provided = scope::lookup(self, &key);
+            let root = if !registry.root_instance_visible(self, &key) {
+                registry.bindings.get(&key)
+            } else {
+                registry
+                    .instances
+                    .get(&key)
+                    .or_else(|| registry.bindings.get(&key))
+            };
+            let entry = provided.or_else(|| root.cloned()).ok_or_else(|| {
+                BindingResolutionError::NotBound {
                     service: key.clone(),
-                })?;
-            (key, binding)
+                }
+            })?;
+            (key, entry, scoped)
         };
+        if scoped && entry.shared && !entry.instance {
+            entry = scope::select(self, &key, &entry);
+        }
         let binding = entry.value.downcast::<Binding<T>>().map_err(|_| {
             BindingResolutionError::TypeMismatch {
                 service: key.clone(),
@@ -455,6 +640,9 @@ impl container::Container for Container {
                 actual: entry.output,
             }
         })?;
+        if let Binding::Instance(instance) = binding.as_ref() {
+            return Ok(instance.clone());
+        }
         let _resolution = self.resolve(&key)?;
         let result = match binding.as_ref() {
             Binding::Factory(factory) => factory(self),
@@ -507,7 +695,7 @@ impl container::Container for Container {
                 result.unwrap_or_else(|payload| panic::resume_unwind(payload))
             }
         };
-        if result.is_ok() && !entry.instance {
+        if result.is_ok() && !entry.shared {
             self.registry
                 .write()
                 .expect("container lock poisoned")

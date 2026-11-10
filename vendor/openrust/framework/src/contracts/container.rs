@@ -107,6 +107,41 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetScopedInstances(&self);
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scoped<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scopedIf<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scopedNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn scopedIfNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
     /// Check whether the service type has a binding.
     fn bound<T>(&self) -> bool
     where

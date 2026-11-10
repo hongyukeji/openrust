@@ -40,7 +40,7 @@ fn main() -> Result<(), BindingResolutionError> {
 
 使用 `make::<T>()` 按 Rust 類型解析，使用 `get::<T>(key)` 按名稱或顯式鍵解析。預設設定儲存庫綁定為 `dyn openrust::contracts::config::Repository`，並有 `config` 別名。每個應用擁有自己的容器，綁定和實例不是程序全域狀態。
 
-作用域綁定、延遲服務、上下文綁定、擴充器和解析回呼屬於下一容器單元。上述綁定與解析能力不代表這些功能已經實作。
+延遲服務、上下文綁定、擴充器和解析回呼仍在 01-02 容器單元推進。上述綁定與解析能力不代表這些功能已經實作。
 
 ## 條件綁定與實例狀態
 
@@ -71,4 +71,36 @@ fn main() -> Result<(), BindingResolutionError> {
 }
 ```
 
-這些操作不會清除門面自己的根物件快取，需要時另行呼叫門面快取清除介面。作用域服務清理由容器單元中的作用域生命週期部分交付。
+這些操作不會清除門面自己的根物件快取，需要時另行呼叫門面快取清除介面。作用域服務清理見下文。
+
+## 作用域綁定
+
+`scoped::<T, _>` 在一次執行生命週期中共用服務，命名形式為 `scopedNamed::<T, _>(name, factory)`。使用 `scopedIf`、`scopedIfNamed` 僅在原始鍵未綁定時註冊。HTTP 處理器執行及每次 Artisan 分派自動進入生命週期，普通 `singleton` 實例仍由應用共用。
+
+手動執行使用 Rust 生命週期輔助方法 `Container::scope(future)`。同一容器中的巢狀呼叫複用目前作用域，並行執行擁有獨立快取，即使執行在同一個 Tokio 執行緒中也不會混用。不同應用各自保存服務綁定及實例。
+
+```rust
+use std::sync::Arc;
+use openrust::{container::Container, contracts::container::Container as _};
+
+fn main() {
+    let app = Container::default();
+    app.scoped::<u32, _>(|_| Ok(Arc::new(7)));
+    let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+    runtime.block_on(async {
+        let first = app.scope(async {
+            let instance = app.make::<u32>().unwrap();
+            assert!(Arc::ptr_eq(&instance, &app.make::<u32>().unwrap()));
+            instance
+        }).await;
+        let second = app.scope(async { app.make::<u32>().unwrap() }).await;
+        assert!(!Arc::ptr_eq(&first, &second));
+    });
+}
+```
+
+生命週期 Future 持有快取引用，在執行完成、失敗或取消並釋放關聯 Future 後釋放。呼叫方可以持有超過作用域的 `Arc`，物件在最後一個引用釋放後銷毀。新作用域使用新的作用域實例，不複用容器根生命週期中已快取的實例。
+
+`forgetScopedInstances()` 清除目前生命週期的作用域快取，保留其他活動生命週期及普通單例。在執行作用域之外呼叫，則清除根作用域實例。`forgetInstance(key)` 仍按原始鍵操作；`forgetInstances()` 同時清除目前作用域實例及應用的普通實例快取。作用域服務的 `instance` 覆蓋僅在目前生命週期生效，重新綁定仍是應用級註冊操作。
+
+容器清理不會清除門面獨立快取的根物件；需要在同一次執行中重新解析時，同時清除門面快取。應用自行建立的 Tokio 任務不繼承環境作用域，應顯式傳入服務，或為任務設定所需生命週期。串流本文可以透過持有已解析服務的 `Arc` 延續其使用。串流及終止回呼接線仍屬於 HTTP 交付單元。

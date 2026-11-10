@@ -24,11 +24,22 @@ impl Facade for Greetings {
         "greeting".into()
     }
 }
+struct ScopedProbe;
+struct ScopedProbes;
+impl Facade for ScopedProbes {
+    type Service = ScopedProbe;
+    const cached: bool = false;
+    fn getFacadeAccessor() -> ServiceKey {
+        ServiceKey::typed::<ScopedProbe>()
+    }
+}
 struct Provider;
 impl ServiceProvider for Provider {
     fn register(&mut self, app: &Application) -> ProviderResult {
         app.container()
-            .bind::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))));
+            .scoped::<ScopedProbe, _>(|_| Ok(Arc::new(ScopedProbe)));
+        app.container()
+            .bindIf::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))));
         let key = ServiceKey::typed::<Greeting>();
         assert!(!app.container().isShared(key.clone()));
         assert!(!app.container().resolved(key.clone())?);
@@ -44,6 +55,12 @@ impl ServiceProvider for Provider {
     }
 }
 fn routes() -> Result<(), ConsoleError> {
+    Artisan::command("scope:probe", |output: &mut Output| {
+        let first = ScopedProbes::getFacadeRoot().unwrap();
+        let second = ScopedProbes::getFacadeRoot().unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+        output.stdout.push_str("scoped");
+    })?;
     Artisan::command("probe", |output: &mut Output| {
         let first = Greetings::getFacadeRoot().unwrap();
         let second = Greetings::getFacadeRoot().unwrap();
@@ -67,6 +84,7 @@ async fn main() -> ExitCode {
     let executable = std::env::current_exe().unwrap();
     for (args, expected) in [
         (vec!["artisan", "probe"], 0),
+        (vec!["artisan", "scope:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -82,12 +100,19 @@ async fn main() -> ExitCode {
             String::from_utf8_lossy(&output.stderr)
         );
         if expected == 0 {
-            assert_eq!(output.stdout, b"from provider");
+            assert_eq!(
+                output.stdout,
+                if args.last() == Some(&"scope:probe") {
+                    b"scoped".as_slice()
+                } else {
+                    b"from provider".as_slice()
+                }
+            );
             assert!(output.stderr.is_empty());
         } else {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("3 container/provider Artisan process checks passed");
+    println!("4 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

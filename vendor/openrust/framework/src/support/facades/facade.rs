@@ -112,20 +112,25 @@ pub trait Facade {
 }
 
 pub(crate) async fn scope<F: Future>(container: Arc<Container>, future: F) -> F::Output {
-    if APPLICATION
-        .try_with(|context| Arc::ptr_eq(&context.container, &container))
-        .unwrap_or(false)
-    {
-        future.await
-    } else {
-        APPLICATION
-            .scope(
-                Context {
-                    container,
-                    resolved: RefCell::default(),
-                },
-                future,
-            )
-            .await
-    }
+    let scoped = container.clone();
+    scoped
+        .scope(async move {
+            if APPLICATION
+                .try_with(|context| Arc::ptr_eq(&context.container, &container))
+                .unwrap_or(false)
+            {
+                future.await
+            } else {
+                APPLICATION
+                    .scope(
+                        Context {
+                            container,
+                            resolved: RefCell::default(),
+                        },
+                        future,
+                    )
+                    .await
+            }
+        })
+        .await
 }
