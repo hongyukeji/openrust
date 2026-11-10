@@ -124,8 +124,11 @@ struct Second(Arc<Mutex<Vec<&'static str>>>);
 
 impl ServiceProvider for First {
     fn register(&mut self, app: &Application) -> ProviderResult {
-        assert_eq!(app.config().get("app.name"), Some(json!("test app")));
-        app.container().instance(self.0.clone());
+        assert_eq!(
+            app.config().unwrap().get("app.name"),
+            Some(json!("test app"))
+        );
+        app.container().instance(self.0.clone()).unwrap();
         self.0.lock().unwrap().push("first.register");
         Ok(())
     }
@@ -143,7 +146,8 @@ impl ServiceProvider for First {
 impl ServiceProvider for Second {
     fn register(&mut self, app: &Application) -> ProviderResult {
         app.container()
-            .instance::<str>(Arc::from("service from second"));
+            .instance::<str>(Arc::from("service from second"))
+            .unwrap();
         self.0.lock().unwrap().push("second.register");
         Ok(())
     }
@@ -187,18 +191,20 @@ async fn all_providers_register_before_boot_and_success_is_idempotent() {
     assert_eq!(application.base_path(), root.0.canonicalize().unwrap());
     assert!(!application.is_booted());
     assert!(events.lock().unwrap().is_empty());
-    let repository = application
-        .container()
-        .make::<dyn openrust::contracts::config::Repository>()
-        .unwrap();
-    assert!(!repository.has("app.name"));
+    assert!(
+        application
+            .container()
+            .make::<dyn openrust::contracts::config::Repository>()
+            .is_err()
+    );
     let mut kernel = Kernel::new(application);
     kernel.bootstrap().await.unwrap();
     kernel.bootstrap().await.unwrap();
     assert!(kernel.get_application().is_booted());
-    assert_eq!(repository.get("app.name"), Some(json!("test app")));
-    repository.set("app.extra", Value::Null).unwrap();
-    assert!(kernel.get_application().config().has("app.extra"));
+    let current = kernel.get_application().config().unwrap();
+    assert_eq!(current.get("app.name"), Some(json!("test app")));
+    current.set("app.extra", Value::Null).unwrap();
+    assert!(kernel.get_application().config().unwrap().has("app.extra"));
     assert_eq!(
         *events.lock().unwrap(),
         [
@@ -419,7 +425,7 @@ async fn public_mount_serves_files_after_application_routes() {
     let mut kernel = Kernel::new(application);
     kernel.bootstrap().await.unwrap();
 
-    let config = kernel.get_application().config();
+    let config = kernel.get_application().config().unwrap();
     let app_url = config.get("app.url").unwrap();
     let disk_url = format!(
         "{}/storage",
@@ -725,7 +731,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     fs::write(&environment, "APP_PORT=9081\nPUBLIC_STORAGE_ROOT=uploads\n").unwrap();
     let mut kernel = Kernel::new(application(web::register));
     kernel.bootstrap().await.unwrap();
-    let config = kernel.get_application().config();
+    let config = kernel.get_application().config().unwrap();
     assert_eq!(config.get("app.port"), Some(json!(9081)));
     assert_eq!(config.get("app.url"), Some(json!("http://localhost:9081")));
     assert_eq!(

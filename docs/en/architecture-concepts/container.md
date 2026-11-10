@@ -19,7 +19,7 @@ impl Mailer for SmtpMailer { fn send(&self) -> &'static str { "sent" } }
 
 fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.singleton::<dyn Mailer, _>(|_| Ok(Arc::new(SmtpMailer)));
+    app.singleton::<dyn Mailer, _>(|_| Ok(Arc::new(SmtpMailer)))?;
     app.alias(ServiceKey::typed::<dyn Mailer>(), "mailer")?;
     let mailer = app.get::<dyn Mailer>("mailer")?;
     assert_eq!(mailer.send(), "sent");
@@ -38,9 +38,9 @@ A direct self-alias is rejected. Alias cycles and factory dependency cycles retu
 
 ## Resolving
 
-Use `make::<T>()` for a Rust type and `get::<T>(key)` for a named or explicit key. The default configuration repository is bound as `dyn openrust::contracts::config::Repository` and aliased as `config`. Every application owns its container; bindings and instances are not process-global.
+Use `make::<T>()` for a Rust type and `get::<T>(key)` for a named or explicit key. During boot, the configuration repository is bound under `config`, with `dyn openrust::contracts::config::Repository` as its typed alias. Every application owns its container; bindings and instances are not process-global.
 
-Deferred services, contextual binding, extenders and resolution callbacks remain in progress in container unit 01-02. The binding and resolving behavior above does not imply those features are implemented.
+Contextual bindings, extenders, resolution callbacks and rebinding are covered below. Deferred providers, dynamic constructor overrides and attribute projections remain unfinished; container unit 01-02 is not closed.
 
 ## Conditional Bindings and Instance State
 
@@ -56,12 +56,12 @@ use openrust::{container::Container, contracts::container::{Container as _, Bind
 
 fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.singletonIfNamed::<u32, _>("counter", |_| Ok(Arc::new(7)));
-    app.bindIfNamed::<u32, _>("counter", |_| Ok(Arc::new(8)));
+    app.singletonIfNamed::<u32, _>("counter", |_| Ok(Arc::new(7))).unwrap();
+    app.bindIfNamed::<u32, _>("counter", |_| Ok(Arc::new(8))).unwrap();
     assert!(app.isShared("counter"));
     assert!(!app.resolved("counter")?);
     let original = app.get::<u32>("counter")?;
-    app.instanceNamed("counter", Arc::new(99_u32));
+    app.instanceNamed("counter", Arc::new(99_u32)).unwrap();
     assert_eq!(*app.get::<u32>("counter")?, 99);
     app.forgetInstance("counter");
     let rebuilt = app.get::<u32>("counter")?;
@@ -85,7 +85,7 @@ use openrust::{container::Container, contracts::container::Container as _};
 
 fn main() {
     let app = Container::default();
-    app.scoped::<u32, _>(|_| Ok(Arc::new(7)));
+    app.scoped::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
     runtime.block_on(async {
         let first = app.scope(async {
@@ -117,26 +117,23 @@ Contextual rules apply only to the nearest consumer. They take precedence over d
 
 ```rust
 use std::sync::Arc;
-use openrust::{
-    contracts::{container::Container as _, foundation::Application as _},
-    foundation::Application,
-};
+use openrust::{container::Container, contracts::container::Container as _};
 struct Report {
     channel: Arc<String>,
     port: Arc<u16>,
     services: Arc<Vec<Arc<String>>>,
 }
 fn main() {
-    let app = Application::configure(std::env::current_dir().unwrap()).create().unwrap();
-    let container = app.container();
-    let config = container.get::<dyn openrust::contracts::config::Repository>("config").unwrap();
+    let container = Container::default();
+    let config: Arc<dyn openrust::contracts::config::Repository> = Arc::new(openrust::config::Repository::new(Default::default()));
+    container.instanceNamed("config", config.clone()).unwrap();
     config.set("reports.port", 8080.into()).unwrap();
-    container.singleton::<String, _>(|_| Ok(Arc::new("default".into())));
-    container.instanceNamed("local", Arc::new(String::from("local")));
+    container.singleton::<String, _>(|_| Ok(Arc::new("default".into()))).unwrap();
+    container.instanceNamed("local", Arc::new(String::from("local"))).unwrap();
     container.tag(["local"], ["reports"]);
     container.bind::<Report, _>(|c| Ok(Arc::new(Report {
         channel: c.make()?, port: c.get("$port")?, services: c.make()?,
-    })));
+    }))).unwrap();
     container.when::<Report>().unwrap()
         .needs::<String>().giveService("local").unwrap()
         .needsNamed::<u16>("$port").giveConfig("reports.port", None).unwrap()
@@ -171,7 +168,7 @@ fn main() {
         before.lock().unwrap().push("before");
         Ok(())
     }).unwrap();
-    app.singleton::<String, _>(|_| Ok(Arc::new("service".into())));
+    app.singleton::<String, _>(|_| Ok(Arc::new("service".into()))).unwrap();
     let resolving = trace.clone();
     app.resolving(Some(ServiceKey::typed::<String>()), move |event, container| {
         assert_eq!(&*event.value::<String>().unwrap(), "service");
@@ -200,7 +197,7 @@ If an instance is already cached, `extend` immediately replaces that cached valu
 
 Construction and cached replacement run user code without the registry lock. A decorator registered while a constructor is pending is included before publication. Updates of the same cache slot serialize, and other readers wait until the update finishes; a decorator can read its own slot's old value. An in-flight update of a retired slot does not overwrite a newly rebound service. Recursive extension or dependency cycles return a circular-dependency error. An error or panic before publication leaves a shared constructor retryable; a failed cached update keeps its previous pointer. Mutations made inside a shared object are not rolled back.
 
-Pending chains are application registrations. An immediate extension of an already cached scoped service changes only the current lifecycle's instance; the next lifecycle still uses its original factory and pending chain. A separately cached facade root is not automatically replaced: clear it or use an uncached facade before resolving again. Extenders and removed captures are released outside internal locks; retired decorator captures are released before publishing a new construction. Rebinding listeners and `refresh` remain a separate delivery step.
+Pending chains are application registrations. An immediate extension of an already cached scoped service changes only the current lifecycle's instance; the next lifecycle still uses its original factory and pending chain. A separately cached facade root is not automatically replaced: clear it or use an uncached facade before resolving again. Extenders and removed captures are released outside internal locks; retired decorator captures are released before publishing a new construction. Rebinding listeners and `refresh` are described below.
 
 ```rust
 use std::sync::Arc;
@@ -215,7 +212,7 @@ impl Service for Decorated {
 fn main() {
     let app = Container::default();
     let key = ServiceKey::typed::<dyn Service>();
-    app.singleton::<dyn Service, _>(|_| Ok(Arc::new(Base)));
+    app.singleton::<dyn Service, _>(|_| Ok(Arc::new(Base))).unwrap();
     app.extend::<dyn Service, _>(key.clone(), |service, _| {
         Ok(Arc::new(Decorated("decorated", service)))
     }).unwrap();
@@ -229,5 +226,34 @@ fn main() {
     app.forgetExtenders(key.clone()).unwrap();
     app.forgetInstance(key);
     assert_eq!(app.make::<dyn Service>().unwrap().name(), "base");
+}
+```
+
+## Rebinding and refreshing consumers
+
+`rebinding::<T, _>(key, |container, service| ...)` follows aliases when registering a listener. If the service is already bound, registration resolves and returns `Some(Arc<T>)` without calling that listener; otherwise it returns `None`. The listener remains registered if this initial resolution fails.
+
+Replacing an already resolved binding triggers its listeners. Supplying an instance triggers listeners only if that raw key was already bound before the replacement. First bindings, rejected conditional bindings and instance eviction do not notify. A future decorator added to an already resolved transient or an evicted shared service rebuilds it for listeners; a cached decoration notifies with the replacement value. Each event holds its own committed value and ordered callback snapshot, so concurrent updates do not deliver a later value for an earlier event. A listener registered during dispatch participates in later events.
+
+Callbacks run after the new binding or cache is committed. Their errors and panics propagate without rolling that state back. Later listeners in the failed event are skipped. Recursive same-service notification returns a cycle error after the nested change has committed. Binding registration methods therefore return `Result`; propagate errors with `?`. `instance` and `instanceNamed` return the supplied `Arc` on success.
+
+`refresh::<T, _, _>(key, target, setter)` is the Rust form of Laravel's target/method refresh. It accepts an explicit `Arc` target and setter instead of a PHP method-name string. Registration returns the current service without initially calling the setter; later rebindings call it. Callbacks use explicit output contracts, execute outside registry locks, and preserve application and scoped-instance isolation. A facade swap updates its facade cache before rebinding the container; a listener failure leaves both committed values in place.
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{container::Container, contracts::container::{BindingResolutionError, Container as _}};
+fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.instanceNamed("service", Arc::new(String::from("first")))?;
+    let target = Arc::new(Mutex::new(String::new()));
+    let current = app.refresh::<String, _, _>("service", target.clone(), |target, value| {
+        *target.lock().unwrap() = (*value).clone();
+        Ok(())
+    })?.unwrap();
+    assert_eq!(&*current, "first");
+    assert!(target.lock().unwrap().is_empty());
+    app.instanceNamed("service", Arc::new(String::from("second")))?;
+    assert_eq!(&*target.lock().unwrap(), "second");
+    Ok(())
 }
 ```

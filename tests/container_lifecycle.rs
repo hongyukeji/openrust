@@ -63,15 +63,18 @@ struct Services(&'static str);
 impl ServiceProvider for Services {
     fn register(&mut self, app: &Application) -> ProviderResult {
         app.container()
-            .bind::<Reenter, _>(|_| Ok(Arc::new(Reenter)));
+            .bind::<Reenter, _>(|_| Ok(Arc::new(Reenter)))
+            .unwrap();
         let name = self.0;
         let sequence = AtomicUsize::new(0);
-        app.container().bindIf::<Message, _>(move |_| {
-            Ok(Arc::new(Message {
-                name,
-                sequence: sequence.fetch_add(1, Ordering::SeqCst) + 1,
-            }))
-        });
+        app.container()
+            .bindIf::<Message, _>(move |_| {
+                Ok(Arc::new(Message {
+                    name,
+                    sequence: sequence.fetch_add(1, Ordering::SeqCst) + 1,
+                }))
+            })
+            .unwrap();
         app.container()
             .alias(ServiceKey::typed::<Message>(), "message")?;
         assert_eq!(Messages::getFacadeRoot()?.name, name);

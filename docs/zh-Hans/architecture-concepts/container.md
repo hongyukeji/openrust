@@ -19,7 +19,7 @@ impl Mailer for SmtpMailer { fn send(&self) -> &'static str { "sent" } }
 
 fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.singleton::<dyn Mailer, _>(|_| Ok(Arc::new(SmtpMailer)));
+    app.singleton::<dyn Mailer, _>(|_| Ok(Arc::new(SmtpMailer)))?;
     app.alias(ServiceKey::typed::<dyn Mailer>(), "mailer")?;
     let mailer = app.get::<dyn Mailer>("mailer")?;
     assert_eq!(mailer.send(), "sent");
@@ -38,9 +38,9 @@ fn main() -> Result<(), BindingResolutionError> {
 
 ## 解析
 
-使用 `make::<T>()` 按 Rust 类型解析，使用 `get::<T>(key)` 按名称或显式键解析。默认配置仓库绑定为 `dyn openrust::contracts::config::Repository`，并有 `config` 别名。每个应用拥有自己的容器，绑定和实例不是进程全局状态。
+使用 `make::<T>()` 按 Rust 类型解析，使用 `get::<T>(key)` 按名称或显式键解析。引导时，配置仓储绑定为 `config`，`dyn openrust::contracts::config::Repository` 是其类型别名。每个应用拥有自己的容器，绑定和实例不是进程全局状态。
 
-延迟服务、上下文绑定、扩展器和解析回调仍在 01-02 容器单元推进。上述绑定与解析能力不代表这些功能已经实现。
+上下文绑定、扩展器、解析回调及重绑定见下文。延迟 Provider、动态构造覆盖和属性投影仍待完成，01-02 尚未整体关闭。
 
 ## 条件绑定与实例状态
 
@@ -56,12 +56,12 @@ use openrust::{container::Container, contracts::container::{Container as _, Bind
 
 fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.singletonIfNamed::<u32, _>("counter", |_| Ok(Arc::new(7)));
-    app.bindIfNamed::<u32, _>("counter", |_| Ok(Arc::new(8)));
+    app.singletonIfNamed::<u32, _>("counter", |_| Ok(Arc::new(7))).unwrap();
+    app.bindIfNamed::<u32, _>("counter", |_| Ok(Arc::new(8))).unwrap();
     assert!(app.isShared("counter"));
     assert!(!app.resolved("counter")?);
     let original = app.get::<u32>("counter")?;
-    app.instanceNamed("counter", Arc::new(99_u32));
+    app.instanceNamed("counter", Arc::new(99_u32)).unwrap();
     assert_eq!(*app.get::<u32>("counter")?, 99);
     app.forgetInstance("counter");
     let rebuilt = app.get::<u32>("counter")?;
@@ -85,7 +85,7 @@ use openrust::{container::Container, contracts::container::Container as _};
 
 fn main() {
     let app = Container::default();
-    app.scoped::<u32, _>(|_| Ok(Arc::new(7)));
+    app.scoped::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
     runtime.block_on(async {
         let first = app.scope(async {
@@ -117,26 +117,23 @@ fn main() {
 
 ```rust
 use std::sync::Arc;
-use openrust::{
-    contracts::{container::Container as _, foundation::Application as _},
-    foundation::Application,
-};
+use openrust::{container::Container, contracts::container::Container as _};
 struct Report {
     channel: Arc<String>,
     port: Arc<u16>,
     services: Arc<Vec<Arc<String>>>,
 }
 fn main() {
-    let app = Application::configure(std::env::current_dir().unwrap()).create().unwrap();
-    let container = app.container();
-    let config = container.get::<dyn openrust::contracts::config::Repository>("config").unwrap();
+    let container = Container::default();
+    let config: Arc<dyn openrust::contracts::config::Repository> = Arc::new(openrust::config::Repository::new(Default::default()));
+    container.instanceNamed("config", config.clone()).unwrap();
     config.set("reports.port", 8080.into()).unwrap();
-    container.singleton::<String, _>(|_| Ok(Arc::new("default".into())));
-    container.instanceNamed("local", Arc::new(String::from("local")));
+    container.singleton::<String, _>(|_| Ok(Arc::new("default".into()))).unwrap();
+    container.instanceNamed("local", Arc::new(String::from("local"))).unwrap();
     container.tag(["local"], ["reports"]);
     container.bind::<Report, _>(|c| Ok(Arc::new(Report {
         channel: c.make()?, port: c.get("$port")?, services: c.make()?,
-    })));
+    }))).unwrap();
     container.when::<Report>().unwrap()
         .needs::<String>().giveService("local").unwrap()
         .needsNamed::<u16>("$port").giveConfig("reports.port", None).unwrap()
@@ -171,7 +168,7 @@ fn main() {
         before.lock().unwrap().push("before");
         Ok(())
     }).unwrap();
-    app.singleton::<String, _>(|_| Ok(Arc::new("service".into())));
+    app.singleton::<String, _>(|_| Ok(Arc::new("service".into()))).unwrap();
     let resolving = trace.clone();
     app.resolving(Some(ServiceKey::typed::<String>()), move |event, container| {
         assert_eq!(&*event.value::<String>().unwrap(), "service");
@@ -200,7 +197,7 @@ fn main() {
 
 构造和缓存替换在注册表锁外执行用户代码；构造等待期间登记的装饰器在发布前纳入。同一缓存槽的更新串行处理，其他读取方等待更新完成，装饰器可读取自身槽的旧值。已退役槽上的更新不会覆盖新绑定。递归扩展或依赖循环返回循环依赖错误。发布前失败或 panic 的共享构造可重试；缓存更新失败保留旧指针，不回滚共享对象内部已经发生的修改。
 
-待执行链属于应用登记。对已缓存作用域服务的即时扩展只修改当前生命周期实例，下一生命周期继续使用原工厂和待执行链。门面自己缓存的根对象不会自动替换，需要清理门面缓存或使用不缓存的门面重新解析。装饰器及移除的捕获对象在内部锁外释放，退役装饰器的捕获对象在新构造发布前释放。重绑定监听器与 `refresh` 继续单独交付。
+待执行链属于应用登记。对已缓存作用域服务的即时扩展只修改当前生命周期实例，下一生命周期继续使用原工厂和待执行链。门面自己缓存的根对象不会自动替换，需要清理门面缓存或使用不缓存的门面重新解析。装饰器及移除的捕获对象在内部锁外释放，退役装饰器的捕获对象在新构造发布前释放。重绑定监听器与 `refresh` 见下文。
 
 ```rust
 use std::sync::Arc;
@@ -215,7 +212,7 @@ impl Service for Decorated {
 fn main() {
     let app = Container::default();
     let key = ServiceKey::typed::<dyn Service>();
-    app.singleton::<dyn Service, _>(|_| Ok(Arc::new(Base)));
+    app.singleton::<dyn Service, _>(|_| Ok(Arc::new(Base))).unwrap();
     app.extend::<dyn Service, _>(key.clone(), |service, _| {
         Ok(Arc::new(Decorated("decorated", service)))
     }).unwrap();
@@ -229,5 +226,34 @@ fn main() {
     app.forgetExtenders(key.clone()).unwrap();
     app.forgetInstance(key);
     assert_eq!(app.make::<dyn Service>().unwrap().name(), "base");
+}
+```
+
+## 重绑定与刷新消费者
+
+`rebinding::<T, _>(key, |container, service| ...)` 在登记监听器时跟随别名。服务已绑定时，登记会解析并返回 `Some(Arc<T>)`，但不调用该监听器；尚未绑定时返回 `None`。初始解析失败也保留已经登记的监听器。
+
+替换已解析的绑定时触发监听器；提供实例时，只有该原始键在替换前已经绑定才通知。首次绑定、被拒绝的条件绑定以及清除实例不通知。为已解析瞬态服务或已清除缓存的共享服务追加未来装饰器时，会为监听器重新构造服务；装饰已有缓存则通知替换后的值。每次事件持有自己的已提交值和有序回调快照，并发更新不会把后一次值错交给前一次事件。派发期间新登记的监听器参与后续事件。
+
+回调在新绑定或缓存提交后执行，错误和 panic 向调用方传播，不回滚已提交状态，失败事件中后续监听器不再执行。同服务递归通知在嵌套变更提交后返回循环错误。因此绑定登记方法返回 `Result`，应通过 `?` 传播错误；`instance` 和 `instanceNamed` 成功时返回传入的 `Arc`。
+
+`refresh::<T, _, _>(key, target, setter)` 对应 Laravel 的目标对象/方法刷新，接收明确的 `Arc` 目标与 setter，替代 PHP 方法名字符串。登记返回当前服务，不立即调用 setter，后续重绑定才调用。回调使用显式返回契约，在注册表锁外执行，保持应用及作用域隔离。门面 swap 先更新门面缓存，再绑定容器；监听器失败时两边的新值都保留。
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{container::Container, contracts::container::{BindingResolutionError, Container as _}};
+fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.instanceNamed("service", Arc::new(String::from("first")))?;
+    let target = Arc::new(Mutex::new(String::new()));
+    let current = app.refresh::<String, _, _>("service", target.clone(), |target, value| {
+        *target.lock().unwrap() = (*value).clone();
+        Ok(())
+    })?.unwrap();
+    assert_eq!(&*current, "first");
+    assert!(target.lock().unwrap().is_empty());
+    app.instanceNamed("service", Arc::new(String::from("second")))?;
+    assert_eq!(&*target.lock().unwrap(), "second");
+    Ok(())
 }
 ```

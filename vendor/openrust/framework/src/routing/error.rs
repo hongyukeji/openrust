@@ -7,6 +7,9 @@ use crate::config::ConfigError;
 #[non_exhaustive]
 pub enum RoutingError {
     NoRegistrationScope,
+    ContainerFailed {
+        source: crate::contracts::container::BindingResolutionError,
+    },
     InvalidUri {
         uri: String,
     },
@@ -38,6 +41,9 @@ pub enum RoutingError {
 impl fmt::Display for RoutingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ContainerFailed { .. } => {
+                f.write_str("service container failed during route registration")
+            }
             Self::NoRegistrationScope => f.write_str("no active route registration scope"),
             Self::InvalidUri { uri } => write!(f, "invalid route URI {uri:?}"),
             Self::EmptyStaticDirectory => f.write_str("a static mount requires a directory"),
@@ -67,6 +73,7 @@ impl fmt::Display for RoutingError {
 impl Error for RoutingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::ContainerFailed { source } => Some(source),
             Self::InvalidRoutePattern { source, .. } => Some(source),
             Self::StaticMountConfiguration { source } => Some(source),
             _ => None,

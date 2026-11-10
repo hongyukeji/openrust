@@ -13,6 +13,9 @@ pub enum BootstrapError {
         path: PathBuf,
         source: io::Error,
     },
+    ContainerFailed {
+        source: crate::contracts::container::BindingResolutionError,
+    },
     ConfigurationFailed {
         source: ConfigError,
     },
@@ -47,6 +50,7 @@ impl fmt::Display for BootstrapError {
             Self::InvalidBasePath { path, source } => {
                 write!(f, "invalid application root {}: {source}", path.display())
             }
+            Self::ContainerFailed { .. } => f.write_str("service container failed"),
             Self::ConfigurationFailed { source } => write!(f, "configuration failed: {source}"),
             Self::RoutingFailed { source } => write!(f, "route registration failed: {source}"),
             Self::CommandRegistrationFailed { source } => {
@@ -68,6 +72,7 @@ impl Error for BootstrapError {
         match self {
             Self::ExecutablePathUnavailable { source } => Some(source),
             Self::InvalidBasePath { source, .. } => Some(source),
+            Self::ContainerFailed { source } => Some(source),
             Self::ConfigurationFailed { source } => Some(source),
             Self::RoutingFailed { source } => Some(source),
             Self::CommandRegistrationFailed { source } => Some(source),

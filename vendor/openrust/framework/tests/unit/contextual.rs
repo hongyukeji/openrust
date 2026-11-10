@@ -14,15 +14,18 @@ struct Consumer(Arc<String>);
 struct Other(Arc<String>);
 fn container() -> Container {
     let app = Container::default();
-    app.bind::<Consumer, _>(|c| Ok(Arc::new(Consumer(c.make::<String>()?))));
-    app.bind::<Other, _>(|c| Ok(Arc::new(Other(c.make::<String>()?))));
+    app.bind::<Consumer, _>(|c| Ok(Arc::new(Consumer(c.make::<String>()?))))
+        .unwrap();
+    app.bind::<Other, _>(|c| Ok(Arc::new(Other(c.make::<String>()?))))
+        .unwrap();
     app
 }
 
 #[test]
 fn contextual_dependencies_bypass_existing_instances_and_do_not_populate_default_state() {
     let app = container();
-    app.singleton::<String, _>(|_| Ok(Arc::new("default".into())));
+    app.singleton::<String, _>(|_| Ok(Arc::new("default".into())))
+        .unwrap();
     app.when::<Consumer>()
         .unwrap()
         .needs::<String>()
@@ -35,7 +38,7 @@ fn contextual_dependencies_bypass_existing_instances_and_do_not_populate_default
     let two = app.make::<Consumer>().unwrap();
     assert!(!Arc::ptr_eq(&one.0, &two.0));
     assert!(Arc::ptr_eq(&default, &app.make::<Other>().unwrap().0));
-    app.instance(Arc::new(String::from("instance")));
+    app.instance(Arc::new(String::from("instance"))).unwrap();
     assert_eq!(&*app.make::<Consumer>().unwrap().0, "custom");
     assert_eq!(&*app.make::<String>().unwrap(), "instance");
 }
@@ -43,7 +46,8 @@ fn contextual_dependencies_bypass_existing_instances_and_do_not_populate_default
 #[test]
 fn contextual_factory_can_delegate_to_the_default_binding_of_the_same_dependency() {
     let app = container();
-    app.singleton::<String, _>(|_| Ok(Arc::new("default".into())));
+    app.singleton::<String, _>(|_| Ok(Arc::new("default".into())))
+        .unwrap();
     app.when::<Consumer>()
         .unwrap()
         .needs::<String>()
@@ -51,7 +55,7 @@ fn contextual_factory_can_delegate_to_the_default_binding_of_the_same_dependency
         .unwrap();
     let consumer = app.make::<Consumer>().unwrap();
     assert!(Arc::ptr_eq(&consumer.0, &app.make::<String>().unwrap()));
-    app.bind::<String, _>(|c| c.make::<String>());
+    app.bind::<String, _>(|c| c.make::<String>()).unwrap();
     assert!(matches!(
         app.make::<Consumer>(),
         Err(BindingResolutionError::CircularDependency { .. })
@@ -62,8 +66,10 @@ fn contextual_factory_can_delegate_to_the_default_binding_of_the_same_dependency
 fn nearest_consumer_wins_without_inheriting_an_ancestors_rule() {
     struct Outer(Arc<Other>, Arc<String>);
     let app = container();
-    app.bind::<String, _>(|_| Ok(Arc::new("default".into())));
-    app.bind::<Outer, _>(|c| Ok(Arc::new(Outer(c.make()?, c.make()?))));
+    app.bind::<String, _>(|_| Ok(Arc::new("default".into())))
+        .unwrap();
+    app.bind::<Outer, _>(|c| Ok(Arc::new(Outer(c.make()?, c.make()?))))
+        .unwrap();
     app.when::<Outer>()
         .unwrap()
         .needs::<String>()
@@ -85,7 +91,8 @@ fn multiple_consumers_and_aliased_service_implementations_preserve_identity() {
     let app = container();
     app.alias(ServiceKey::typed::<Consumer>(), "consumer")
         .unwrap();
-    app.instanceNamed("implementation", Arc::new(String::from("shared")));
+    app.instanceNamed("implementation", Arc::new(String::from("shared")))
+        .unwrap();
     app.alias("implementation", "implementation-alias").unwrap();
     app.whenMany([ServiceKey::named("consumer"), ServiceKey::typed::<Other>()])
         .unwrap()
@@ -103,7 +110,8 @@ fn multiple_consumers_and_aliased_service_implementations_preserve_identity() {
 #[test]
 fn late_aliases_are_followed_and_retargeted_aliases_do_not_leave_stale_contexts() {
     let app = Container::default();
-    app.bindNamed::<String, _>("consumer", |c| c.get("dependency"));
+    app.bindNamed::<String, _>("consumer", |c| c.get("dependency"))
+        .unwrap();
     app.whenNamed("consumer")
         .unwrap()
         .needsNamed::<String>("stale")
@@ -118,7 +126,8 @@ fn late_aliases_are_followed_and_retargeted_aliases_do_not_leave_stale_contexts(
     app.alias("unrelated", "stale").unwrap();
     app.alias("dependency", "live").unwrap();
     assert_eq!(&*app.get::<String>("consumer").unwrap(), "live");
-    app.bindNamed::<String, _>("live", |_| Ok(Arc::new("raw".into())));
+    app.bindNamed::<String, _>("live", |_| Ok(Arc::new("raw".into())))
+        .unwrap();
     assert!(app.get::<String>("consumer").is_err());
 
     app.whenNamed("consumer")
@@ -155,7 +164,8 @@ fn wrong_contextual_output_type_is_rejected_before_executing_the_factory() {
 fn error_and_panic_unwind_the_consumer_stack_and_allow_retries() {
     let app = container();
     let calls = AtomicUsize::new(0);
-    app.bind::<String, _>(|_| Ok(Arc::new("default".into())));
+    app.bind::<String, _>(|_| Ok(Arc::new("default".into())))
+        .unwrap();
     app.when::<Consumer>()
         .unwrap()
         .needs::<String>()
@@ -177,7 +187,8 @@ fn error_and_panic_unwind_the_consumer_stack_and_allow_retries() {
 #[tokio::test]
 async fn contextual_factories_bypass_scoped_overrides_without_replacing_them() {
     let app = container();
-    app.scoped::<String, _>(|_| Ok(Arc::new("scoped".into())));
+    app.scoped::<String, _>(|_| Ok(Arc::new("scoped".into())))
+        .unwrap();
     app.when::<Consumer>()
         .unwrap()
         .needs::<String>()
@@ -188,7 +199,7 @@ async fn contextual_factories_bypass_scoped_overrides_without_replacing_them() {
         let custom = app.make::<Consumer>().unwrap();
         assert_eq!(&*custom.0, "custom");
         assert!(Arc::ptr_eq(&default, &app.make::<String>().unwrap()));
-        app.instance(Arc::new(String::from("override")));
+        app.instance(Arc::new(String::from("override"))).unwrap();
         assert_eq!(&*app.make::<Consumer>().unwrap().0, "custom");
         assert_eq!(&*app.make::<String>().unwrap(), "override");
     })
@@ -199,16 +210,12 @@ async fn contextual_factories_bypass_scoped_overrides_without_replacing_them() {
 fn configuration_is_read_lazily_with_missing_defaults_nulls_and_checked_types() {
     struct Configured(Arc<String>, Arc<Option<String>>);
     let app = Container::default();
-    use openrust::{contracts::foundation::Application as _, foundation::Application};
-    let application = Application::configure(std::env::current_dir().unwrap())
-        .create()
+    let repo: Arc<dyn openrust::contracts::config::Repository> =
+        Arc::new(openrust::config::Repository::new(Default::default()));
+    app.instanceNamed::<dyn openrust::contracts::config::Repository>("config", repo.clone())
         .unwrap();
-    let repo = application
-        .container()
-        .get::<dyn openrust::contracts::config::Repository>("config")
+    app.bind::<Configured, _>(|c| Ok(Arc::new(Configured(c.get("$name")?, c.get("$optional")?))))
         .unwrap();
-    app.instanceNamed::<dyn openrust::contracts::config::Repository>("config", repo.clone());
-    app.bind::<Configured, _>(|c| Ok(Arc::new(Configured(c.get("$name")?, c.get("$optional")?))));
     app.when::<Configured>()
         .unwrap()
         .needsNamed::<String>("$name")
@@ -237,8 +244,9 @@ fn tags_are_lazy_rewindable_ordered_and_preserve_duplicates_and_late_registratio
     let count = calls.clone();
     app.bindNamed::<usize, _>("first", move |_| {
         Ok(Arc::new(count.fetch_add(1, Ordering::SeqCst)))
-    });
-    app.instanceNamed("second", Arc::new(99_usize));
+    })
+    .unwrap();
+    app.instanceNamed("second", Arc::new(99_usize)).unwrap();
     let absent = app.tagged::<usize>("services");
     app.tag(["first"], ["services"]);
     let tagged = app.tagged::<usize>("services");
@@ -255,7 +263,8 @@ fn tags_are_lazy_rewindable_ordered_and_preserve_duplicates_and_late_registratio
             .collect::<Vec<_>>(),
         [2, 99, 3]
     );
-    app.bindNamed::<Vec<Arc<usize>>, _>("consumer", |c| c.get("$services"));
+    app.bindNamed::<Vec<Arc<usize>>, _>("consumer", |c| c.get("$services"))
+        .unwrap();
     app.whenNamed("consumer")
         .unwrap()
         .needsNamed::<Vec<Arc<usize>>>("$services")
@@ -278,7 +287,7 @@ fn replacing_a_contextual_factory_drops_captures_outside_the_registry_lock() {
     struct Reenter(Arc<Container>);
     impl Drop for Reenter {
         fn drop(&mut self) {
-            self.0.instance(Arc::new(42_u32));
+            self.0.instance(Arc::new(42_u32)).unwrap();
         }
     }
     let app = Arc::new(container());
@@ -311,7 +320,9 @@ fn concurrent_threads_and_nested_containers_do_not_share_consumers() {
             .unwrap();
     }
     let nested = second.clone();
-    first.bind::<Other, _>(move |_| Ok(Arc::new(Other(nested.make::<Consumer>()?.0.clone()))));
+    first
+        .bind::<Other, _>(move |_| Ok(Arc::new(Other(nested.make::<Consumer>()?.0.clone()))))
+        .unwrap();
     let gate = Arc::new(std::sync::Barrier::new(4));
     std::thread::scope(|scope| {
         for app in [first.clone(), second.clone(), first.clone(), second.clone()] {

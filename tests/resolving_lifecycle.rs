@@ -57,7 +57,8 @@ impl ServiceProvider for Provider {
                 name,
                 stages: Mutex::new(vec!["construct"]),
             }))
-        });
+        })
+        .unwrap();
         let stats = self.stats.clone();
         c.beforeResolving(Some(ServiceKey::typed::<Probe>()), move |_, _| {
             stats.before.fetch_add(1, Ordering::SeqCst);

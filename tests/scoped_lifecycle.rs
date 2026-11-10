@@ -50,13 +50,15 @@ impl ServiceProvider for Provider {
     fn register(&mut self, app: &Application) -> ProviderResult {
         let name = self.0;
         let stats = self.1.clone();
-        app.container().scoped::<Session, _>(move |_| {
-            Ok(Arc::new(Session {
-                name,
-                id: stats.created.fetch_add(1, Ordering::SeqCst) + 1,
-                stats: stats.clone(),
-            }))
-        });
+        app.container()
+            .scoped::<Session, _>(move |_| {
+                Ok(Arc::new(Session {
+                    name,
+                    id: stats.created.fetch_add(1, Ordering::SeqCst) + 1,
+                    stats: stats.clone(),
+                }))
+            })
+            .unwrap();
         Ok(())
     }
 }

@@ -1,6 +1,7 @@
 //! Binding decorators share the container's cache slots and wait graph.
 use super::{
-    Binding, Container, ErasedBinding, RegisteredBinding, ServiceKey, SingletonState, scope,
+    Binding, Container, ErasedBinding, RegisteredBinding, RegisteredRebinding, ServiceKey,
+    SingletonState, scope,
 };
 use crate::contracts::container::{BindingResolutionError, Container as _};
 use std::{
@@ -89,6 +90,7 @@ enum Admission<T: ?Sized> {
         publishing: bool,
     },
     Wait(Arc<Binding<T>>),
+    Pending(Option<RegisteredBinding>, Vec<RegisteredRebinding>),
 }
 type Publication<'a, T> = (
     &'a Mutex<SingletonState<T>>,
@@ -227,7 +229,12 @@ impl Container {
                 } else {
                     registry.bindings.get(&key)
                 };
-                let mut entry = scope::lookup(self, &key).or_else(|| root.cloned());
+                let original = scope::lookup(self, &key).or_else(|| root.cloned());
+                let mut entry = original.clone();
+                let notify = registry.resolved.contains(&key)
+                    || original
+                        .as_ref()
+                        .is_some_and(|entry| entry.instance || entry.is_published());
                 if let Some(known) = &entry {
                     // Validate even if a scoped constructor has not been selected yet.
                     if !known.value.is::<Binding<T>>() {
@@ -290,11 +297,32 @@ impl Container {
                             .or_default()
                             .push(extender.clone());
                         self.has_extenders.store(true, Ordering::Release);
-                        return Ok(());
+                        let callbacks = if notify {
+                            registry
+                                .rebound_callbacks
+                                .get(&key)
+                                .cloned()
+                                .unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        };
+                        Admission::Pending(original, callbacks)
                     }
                 }
             };
             match admission {
+                Admission::Pending(entry, callbacks) => {
+                    // Registration is finished. A rebound construction enters its own decorator guard.
+                    drop(_extension);
+                    drop(extender);
+                    if callbacks.is_empty() {
+                        return Ok(());
+                    }
+                    return match entry {
+                        Some(entry) => self.dispatch_rebound::<T>(key, entry, callbacks),
+                        None => Err(BindingResolutionError::NotBound { service: key }),
+                    };
+                }
                 Admission::Wait(binding) => {
                     let (state, ready) = slot(&binding).expect("cached binding");
                     // Wait without holding the registry, then reselect after any rebind/forget.
@@ -326,9 +354,12 @@ impl Container {
                     };
                     self.release_waiters(state, ready);
                     drop(previous);
-                    return outcome
-                        .unwrap_or_else(|payload| panic::resume_unwind(payload))
-                        .map(|_| ());
+                    let value = outcome.unwrap_or_else(|payload| panic::resume_unwind(payload))?;
+                    return self.dispatch_rebound_value(
+                        key.clone(),
+                        value,
+                        self.rebound_callbacks(&key),
+                    );
                 }
             }
         }

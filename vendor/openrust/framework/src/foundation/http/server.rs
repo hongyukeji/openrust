@@ -18,7 +18,7 @@ impl Kernel {
     /// Boots the application and binds its configured HTTP address.
     pub async fn listen(&mut self) -> Result<TcpListener, Box<dyn Error + Send + Sync>> {
         self.bootstrap().await?;
-        let (host, port) = listener_address(self.get_application().config())?;
+        let (host, port) = listener_address(self.get_application().config()?.as_ref())?;
         let listener = TcpListener::bind((host.as_str(), port))
             .await
             .map_err(|error| {

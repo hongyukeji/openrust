@@ -38,7 +38,6 @@ pub(super) type MiddlewareConfigurator = Box<dyn FnOnce(&mut Middleware) + Send 
 pub struct Application {
     basePath: PathBuf,
     publicPath: Option<PathBuf>,
-    config: Arc<Repository>,
     load_config: ConfigLoader,
     container: Arc<Container>,
     providers: Vec<Box<dyn ServiceProvider>>,
@@ -104,8 +103,11 @@ impl Application {
         self
     }
 
-    pub(crate) fn configuration_repository(&self) -> Arc<dyn config::Repository> {
-        self.config.clone()
+    pub(crate) fn configuration_repository(
+        &self,
+    ) -> Result<Arc<dyn config::Repository>, crate::contracts::container::BindingResolutionError>
+    {
+        self.container.get::<dyn config::Repository>("config")
     }
 
     pub(crate) fn render_console_exception(
@@ -143,12 +145,9 @@ impl Application {
         commands: CommandRegistrar,
         exceptions: Option<Exceptions>,
     ) -> Self {
-        let config = Arc::new(Repository::new(Default::default()));
         let container = Arc::new(Container::default());
-        let repository: Arc<dyn config::Repository> = config.clone();
-        container.instance(repository);
         container
-            .alias(ServiceKey::typed::<dyn config::Repository>(), "config")
+            .alias("config", ServiceKey::typed::<dyn config::Repository>())
             .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
@@ -159,7 +158,6 @@ impl Application {
         Self {
             basePath,
             publicPath: None,
-            config,
             load_config,
             container,
             providers,
@@ -190,10 +188,15 @@ impl Application {
         let configuration_failed = |source| BootstrapError::ConfigurationFailed { source };
         let environment = LoadEnvironmentVariables::bootstrap(&self.basePath, None)
             .map_err(configuration_failed)?;
-        let config = LoadConfiguration::bootstrap(&self.basePath, &environment, self.load_config)
+        let config = Arc::new(Repository::new(Default::default()));
+        self.container
+            .instanceNamed::<dyn config::Repository>("config", config.clone())
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        let loaded = LoadConfiguration::bootstrap(&self.basePath, &environment, self.load_config)
             .map_err(configuration_failed)?;
+        config.replace_with(loaded);
         if self.publicPath.is_none() {
-            match config::Repository::get(&config, "app.public_path") {
+            match config::Repository::get(config.as_ref(), "app.public_path") {
                 None | Some(Value::Null) => {}
                 Some(Value::String(path)) if !path.trim().is_empty() => {
                     self.usePublicPath(path);
@@ -206,7 +209,6 @@ impl Application {
                 }
             }
         }
-        self.config.replace_with(config);
 
         let mut providers = std::mem::take(&mut self.providers);
         for provider in &mut providers {
@@ -258,8 +260,11 @@ impl foundation::Application for Application {
     fn base_path(&self) -> &Path {
         &self.basePath
     }
-    fn config(&self) -> &dyn config::Repository {
-        self.config.as_ref()
+    fn config(
+        &self,
+    ) -> Result<Arc<dyn config::Repository>, crate::contracts::container::BindingResolutionError>
+    {
+        self.configuration_repository()
     }
     fn container(&self) -> &Container {
         &self.container

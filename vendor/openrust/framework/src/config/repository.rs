@@ -9,7 +9,7 @@ pub struct Repository {
 }
 
 impl Repository {
-    pub(crate) fn new(values: BTreeMap<String, Value>) -> Self {
+    pub fn new(values: BTreeMap<String, Value>) -> Self {
         Self {
             values: RwLock::new(values),
         }

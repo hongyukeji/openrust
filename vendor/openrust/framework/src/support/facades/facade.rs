@@ -95,19 +95,17 @@ pub trait Facade {
         APPLICATION
             .try_with(|context| {
                 let key = Self::getFacadeAccessor();
-                context
-                    .container
-                    .instance_key(key.clone(), instance.clone());
                 let previous = context.resolved.borrow_mut().insert(
-                    key,
+                    key.clone(),
                     Cached {
-                        value: Arc::new(instance),
+                        value: Arc::new(instance.clone()),
                         output: type_name::<Self::Service>(),
                     },
                 );
                 drop(previous);
+                context.container.instance_key(key, instance)
             })
-            .map_err(|_| BindingResolutionError::FacadeNotSet)
+            .map_err(|_| BindingResolutionError::FacadeNotSet)?
     }
 }
 

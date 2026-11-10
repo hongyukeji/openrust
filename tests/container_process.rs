@@ -25,6 +25,13 @@ impl Facade for Greetings {
     }
 }
 struct ScopedProbe;
+struct ReboundResults;
+impl Facade for ReboundResults {
+    type Service = u32;
+    fn getFacadeAccessor() -> ServiceKey {
+        "rebind-result".into()
+    }
+}
 struct ExtendedProbe(u32);
 struct ExtendedProbes;
 impl Facade for ExtendedProbes {
@@ -60,29 +67,43 @@ struct Provider;
 impl ServiceProvider for Provider {
     fn register(&mut self, app: &Application) -> ProviderResult {
         app.container()
-            .bind::<ExtendedProbe, _>(|_| Ok(Arc::new(ExtendedProbe(1))));
+            .instanceNamed("rebind-probe", Arc::new(1_u32))?;
+        app.container()
+            .rebinding::<u32, _>("rebind-probe", |container, value| {
+                container.instanceNamed("rebind-result", value)?;
+                Ok(())
+            })?;
+        app.container()
+            .instanceNamed("rebind-probe", Arc::new(2_u32))?;
+        app.container()
+            .bind::<ExtendedProbe, _>(|_| Ok(Arc::new(ExtendedProbe(1))))
+            .unwrap();
         app.container()
             .extend::<ExtendedProbe, _>(ServiceKey::typed::<ExtendedProbe>(), |value, _| {
                 Ok(Arc::new(ExtendedProbe(value.0 + 10)))
             })?;
         app.container()
-            .scoped::<ScopedProbe, _>(|_| Ok(Arc::new(ScopedProbe)));
+            .scoped::<ScopedProbe, _>(|_| Ok(Arc::new(ScopedProbe)))
+            .unwrap();
         app.container()
             .afterResolving(Some(ServiceKey::typed::<ScopedProbe>()), |event, c| {
                 assert!(Arc::ptr_eq(
                     &event.value::<ScopedProbe>().unwrap(),
                     &c.make::<ScopedProbe>()?
                 ));
-                c.instanceNamed("hook-result", Arc::new(String::from("hooked")));
+                c.instanceNamed("hook-result", Arc::new(String::from("hooked")))
+                    .unwrap();
                 Ok(())
             })?;
         app.container()
-            .bindIf::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))));
+            .bindIf::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))))
+            .unwrap();
         let key = ServiceKey::typed::<Greeting>();
         assert!(!app.container().isShared(key.clone()));
         assert!(!app.container().resolved(key.clone())?);
         app.container()
-            .instance(Arc::new(Greeting("temporary override".into())));
+            .instance(Arc::new(Greeting("temporary override".into())))
+            .unwrap();
         assert_eq!(app.container().make::<Greeting>()?.0, "temporary override");
         app.container().forgetInstance(key.clone());
         assert_eq!(app.container().make::<Greeting>()?.0, "from provider");
@@ -90,7 +111,8 @@ impl ServiceProvider for Provider {
         app.container()
             .alias(ServiceKey::typed::<Greeting>(), "greeting")?;
         app.container()
-            .bind::<ContextProbe, _>(|c| Ok(Arc::new(ContextProbe(c.make()?))));
+            .bind::<ContextProbe, _>(|c| Ok(Arc::new(ContextProbe(c.make()?))))
+            .unwrap();
         app.container()
             .when::<ContextProbe>()?
             .needs::<Greeting>()
@@ -103,6 +125,11 @@ fn routes() -> Result<(), ConsoleError> {
         let contextual = ContextProbes::getFacadeRoot().unwrap();
         output.stdout.push_str(&contextual.0.0);
         assert_eq!(Greetings::getFacadeRoot().unwrap().0, "from provider");
+    })?;
+    Artisan::command("rebind:probe", |output| {
+        output
+            .stdout
+            .push_str(&ReboundResults::getFacadeRoot().unwrap().to_string());
     })?;
     Artisan::command("extend:probe", |output| {
         output
@@ -148,6 +175,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "context:probe"], 0),
         (vec!["artisan", "hooks:probe"], 0),
         (vec!["artisan", "extend:probe"], 0),
+        (vec!["artisan", "rebind:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -173,6 +201,8 @@ async fn main() -> ExitCode {
                     b"hooked".as_slice()
                 } else if args.last() == Some(&"extend:probe") {
                     b"11".as_slice()
+                } else if args.last() == Some(&"rebind:probe") {
+                    b"2".as_slice()
                 } else {
                     b"from provider".as_slice()
                 }
@@ -182,6 +212,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("7 container/provider Artisan process checks passed");
+    println!("8 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

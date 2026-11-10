@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use ::http::{
     HeaderValue,
@@ -6,18 +6,21 @@ use ::http::{
 };
 
 use crate::{
-    contracts::{config::Repository, routing::Handler},
+    container::Container,
+    contracts::{container::Container as _, routing::Handler},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
 };
 
 /// Reports that the application has booted and can handle HTTP requests.
 pub struct HealthCheck {
-    config: Arc<dyn Repository>,
+    container: Weak<Container>,
 }
 
 impl HealthCheck {
-    pub(crate) fn new(config: Arc<dyn Repository>) -> Self {
-        Self { config }
+    pub(crate) fn new(container: Arc<Container>) -> Self {
+        Self {
+            container: Arc::downgrade(&container),
+        }
     }
 }
 
@@ -30,7 +33,20 @@ impl Handler for HealthCheck {
             let (body, content_type) = if request.expectsJson() {
                 (String::from(r#"{"status":"up"}"#), "application/json")
             } else {
-                let name = self.config.get("app.name");
+                let container = self
+                    .container
+                    .upgrade()
+                    .ok_or_else(|| HttpError::Internal {
+                        source: Box::new(std::io::Error::other(
+                            "application container unavailable",
+                        )),
+                    })?;
+                let config = container
+                    .get::<dyn crate::contracts::config::Repository>("config")
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?;
+                let name = config.get("app.name");
                 let name = name
                     .as_ref()
                     .and_then(|value| value.as_str())

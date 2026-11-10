@@ -9,37 +9,41 @@ pub use binding_resolution_error::BindingResolutionError;
 /// Registers services by type and resolves them through explicit factories.
 pub trait Container: Send + Sync + Sized {
     /// Register a factory that is invoked for each resolution.
-    fn bind<T, F>(&self, factory: F)
+    fn bind<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
     /// Register a factory whose first successful result is shared.
-    fn singleton<T, F>(&self, factory: F)
+    fn singleton<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
     /// Register an existing shared instance.
-    fn instance<T>(&self, service: Arc<T>)
+    fn instance<T>(&self, service: Arc<T>) -> Result<Arc<T>, BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static;
 
     /// Register a factory under a named identity instead of a Rust type.
     #[allow(non_snake_case, reason = "Named overload for Rust's typed bind")]
-    fn bindNamed<T, F>(&self, name: &str, factory: F)
+    fn bindNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
     #[allow(non_snake_case, reason = "Named overload for Rust's typed singleton")]
-    fn singletonNamed<T, F>(&self, name: &str, factory: F)
+    fn singletonNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
     #[allow(non_snake_case, reason = "Named overload for Rust's typed instance")]
-    fn instanceNamed<T: ?Sized + Send + Sync + 'static>(&self, name: &str, service: Arc<T>);
+    fn instanceNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        name: &str,
+        service: Arc<T>,
+    ) -> Result<Arc<T>, BindingResolutionError>;
 
     /// Point an alias at another typed or named identity.
     fn alias(
@@ -75,7 +79,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn bindIf<T, F>(&self, factory: F)
+    fn bindIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -84,7 +88,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn singletonIf<T, F>(&self, factory: F)
+    fn singletonIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -93,7 +97,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn bindIfNamed<T, F>(&self, name: &str, factory: F)
+    fn bindIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -102,7 +106,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn singletonIfNamed<T, F>(&self, name: &str, factory: F)
+    fn singletonIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -113,7 +117,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn scoped<T, F>(&self, factory: F)
+    fn scoped<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -121,7 +125,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn scopedIf<T, F>(&self, factory: F)
+    fn scopedIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -129,7 +133,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn scopedNamed<T, F>(&self, name: &str, factory: F)
+    fn scopedNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -137,7 +141,7 @@ pub trait Container: Send + Sync + Sized {
         non_snake_case,
         reason = "Matches Laravel's container API with explicit named overloads"
     )]
-    fn scopedIfNamed<T, F>(&self, name: &str, factory: F)
+    fn scopedIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
@@ -187,6 +191,31 @@ pub trait Container: Send + Sync + Sized {
             .map(|key| self.getAlias(key))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(ContextualBindingBuilder::new(self, consumers))
+    }
+
+    /// Registers a listener and resolves an already bound service without invoking that listener.
+    fn rebinding<T, F>(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+        callback: F,
+    ) -> Result<Option<Arc<T>>, BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static;
+
+    /// Updates an explicit Rust target through its setter when a service is rebound.
+    fn refresh<T, Target, F>(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+        target: Arc<Target>,
+        method: F,
+    ) -> Result<Option<Arc<T>>, BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        Target: ?Sized + Send + Sync + 'static,
+        F: Fn(&Target, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.rebinding(r#abstract, move |_, value| method(&target, value))
     }
 
     /// Decorates a cached value immediately, or appends a future construction decorator.

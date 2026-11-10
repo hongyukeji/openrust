@@ -48,7 +48,10 @@ impl http::Kernel for Kernel {
                 self.view_root
                     .configure(
                         self.application.base_path(),
-                        self.application.config().get("view.paths"),
+                        self.application
+                            .config()
+                            .map_err(|source| BootstrapError::ContainerFailed { source })?
+                            .get("view.paths"),
                     )
                     .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
                 self.application

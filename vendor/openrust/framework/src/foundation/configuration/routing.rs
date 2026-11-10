@@ -62,7 +62,7 @@ impl Routing {
             )?;
         }
         if let Some(path) = self.health {
-            router.get(&path, HealthCheck::new(app.configuration_repository()))?;
+            router.get(&path, HealthCheck::new(app.container_handle()))?;
         }
         if let Some(register) = self.web {
             router.group(RouteGroup::new().middleware_name("web"), |router| {

@@ -50,7 +50,8 @@ impl ServiceProvider for Provider {
         c.scoped::<Probe, _>(move |_| {
             stats.constructed.fetch_add(1, Ordering::SeqCst);
             Ok(Arc::new(Probe(name.into())))
-        });
+        })
+        .unwrap();
         c.extend::<Probe, _>(ServiceKey::typed::<Probe>(), |value, _| {
             Ok(Arc::new(Probe(format!("{}:one", value.0))))
         })?;

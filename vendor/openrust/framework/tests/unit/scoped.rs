@@ -11,7 +11,9 @@ use std::sync::{
 async fn nested_scopes_share_instances_and_concurrent_lifecycles_release_them() {
     let container = Container::default();
     let calls = AtomicUsize::new(0);
-    container.scoped::<usize, _>(move |_| Ok(Arc::new(calls.fetch_add(1, Ordering::SeqCst))));
+    container
+        .scoped::<usize, _>(move |_| Ok(Arc::new(calls.fetch_add(1, Ordering::SeqCst))))
+        .unwrap();
     let outside = container.make::<usize>().unwrap();
     let run = || {
         container.scope(async {
@@ -35,8 +37,8 @@ async fn nested_scopes_share_instances_and_concurrent_lifecycles_release_them() 
 #[tokio::test]
 async fn clearing_one_scope_keeps_other_requests_and_singletons_intact() {
     let container = Container::default();
-    container.scoped::<usize, _>(|_| Ok(Arc::new(1)));
-    container.singleton::<u64, _>(|_| Ok(Arc::new(2)));
+    container.scoped::<usize, _>(|_| Ok(Arc::new(1))).unwrap();
+    container.singleton::<u64, _>(|_| Ok(Arc::new(2))).unwrap();
     let singleton = container.make::<u64>().unwrap();
     let gate = tokio::sync::Barrier::new(2);
     let first = container.scope(async {
@@ -60,12 +62,14 @@ async fn clearing_one_scope_keeps_other_requests_and_singletons_intact() {
 #[tokio::test]
 async fn scoped_instance_overrides_and_removed_aliases_stay_in_the_current_lifecycle() {
     let container = Container::default();
-    container.scopedNamed::<u32, _>("service", |_| Ok(Arc::new(7)));
+    container
+        .scopedNamed::<u32, _>("service", |_| Ok(Arc::new(7)))
+        .unwrap();
     container.alias("service", "alias").unwrap();
     let gate = tokio::sync::Barrier::new(2);
     tokio::join!(
         container.scope(async {
-            container.instanceNamed("alias", Arc::new(99_u32));
+            container.instanceNamed("alias", Arc::new(99_u32)).unwrap();
             assert_eq!(*container.get::<u32>("alias").unwrap(), 99);
             assert!(!container.isAlias("alias"));
             gate.wait().await;
@@ -85,9 +89,11 @@ async fn scoped_instance_overrides_and_removed_aliases_stay_in_the_current_lifec
     assert_eq!(*container.get::<u32>("alias").unwrap(), 7);
     container
         .scope(async {
-            container.instanceNamed("alias", Arc::new(99_u32));
+            container.instanceNamed("alias", Arc::new(99_u32)).unwrap();
             container.forgetInstance("alias");
-            container.scopedIfNamed::<u32, _>("alias", |_| Ok(Arc::new(23)));
+            container
+                .scopedIfNamed::<u32, _>("alias", |_| Ok(Arc::new(23)))
+                .unwrap();
             assert_eq!(*container.get::<u32>("alias").unwrap(), 23);
         })
         .await;
@@ -96,10 +102,14 @@ async fn scoped_instance_overrides_and_removed_aliases_stay_in_the_current_lifec
 #[test]
 fn scoped_if_does_not_register_existing_singletons_for_lifecycle_eviction() {
     let container = Container::default();
-    container.singleton::<u64, _>(|_| Ok(Arc::new(5)));
+    container.singleton::<u64, _>(|_| Ok(Arc::new(5))).unwrap();
     let shared = container.make::<u64>().unwrap();
-    container.scopedIf::<u64, _>(|_| panic!("existing singleton replaced"));
-    container.scopedIfNamed::<u32, _>("fresh", |_| Ok(Arc::new(8)));
+    container
+        .scopedIf::<u64, _>(|_| panic!("existing singleton replaced"))
+        .unwrap();
+    container
+        .scopedIfNamed::<u32, _>("fresh", |_| Ok(Arc::new(8)))
+        .unwrap();
     let first = container.get::<u32>("fresh").unwrap();
     container.forgetScopedInstances();
     assert!(!Arc::ptr_eq(
@@ -114,8 +124,8 @@ fn scoped_if_does_not_register_existing_singletons_for_lifecycle_eviction() {
 async fn rebinds_evict_local_overrides_and_nested_applications_restore_their_scopes() {
     let first = Container::default();
     let second = Container::default();
-    first.scoped::<usize, _>(|_| Ok(Arc::new(1)));
-    second.scoped::<usize, _>(|_| Ok(Arc::new(2)));
+    first.scoped::<usize, _>(|_| Ok(Arc::new(1))).unwrap();
+    second.scoped::<usize, _>(|_| Ok(Arc::new(2))).unwrap();
     first
         .scope(async {
             let original = first.make::<usize>().unwrap();
@@ -125,9 +135,9 @@ async fn rebinds_evict_local_overrides_and_nested_applications_restore_their_sco
                     assert_eq!(*second.make::<usize>().unwrap(), 2);
                 })
                 .await;
-            first.instance(Arc::new(99_usize));
+            first.instance(Arc::new(99_usize)).unwrap();
             assert_eq!(*first.make::<usize>().unwrap(), 99);
-            first.scoped::<usize, _>(|_| Ok(Arc::new(3)));
+            first.scoped::<usize, _>(|_| Ok(Arc::new(3))).unwrap();
             assert_eq!(*first.make::<usize>().unwrap(), 3);
             let key = ServiceKey::typed::<usize>();
             first.forgetInstance(key);
@@ -140,14 +150,16 @@ async fn rebinds_evict_local_overrides_and_nested_applications_restore_their_sco
 async fn failed_constructors_retry_and_cancelled_futures_release_scoped_instances() {
     let container = Container::default();
     let attempts = AtomicUsize::new(0);
-    container.scoped::<usize, _>(move |_| {
-        if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
-            return Err(BindingResolutionError::NotBound {
-                service: "probe".into(),
-            });
-        }
-        Ok(Arc::new(11))
-    });
+    container
+        .scoped::<usize, _>(move |_| {
+            if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(BindingResolutionError::NotBound {
+                    service: "probe".into(),
+                });
+            }
+            Ok(Arc::new(11))
+        })
+        .unwrap();
     container
         .scope(async {
             assert!(container.make::<usize>().is_err());
@@ -169,10 +181,12 @@ async fn failed_constructors_retry_and_cancelled_futures_release_scoped_instance
 #[tokio::test]
 async fn explicitly_supplied_instances_can_break_a_factory_cycle() {
     let container = Container::default();
-    container.scoped::<usize, _>(|container| {
-        container.instance(Arc::new(17_usize));
-        container.make::<usize>()
-    });
+    container
+        .scoped::<usize, _>(|container| {
+            container.instance(Arc::new(17_usize)).unwrap();
+            container.make::<usize>()
+        })
+        .unwrap();
     container
         .scope(async {
             assert_eq!(*container.make::<usize>().unwrap(), 17);
@@ -192,11 +206,13 @@ fn scoped_cache_eviction_drops_values_outside_its_lock() {
     let (send, receive) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {
         let container = Arc::new(Container::default());
-        container.scoped::<u32, _>(|_| Ok(Arc::new(7)));
+        container.scoped::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
         let weak = Arc::downgrade(&container);
         let dropped = Arc::new(AtomicUsize::new(0));
         let drops = dropped.clone();
-        container.scoped::<Reenter, _>(move |_| Ok(Arc::new(Reenter(weak.clone(), drops.clone()))));
+        container
+            .scoped::<Reenter, _>(move |_| Ok(Arc::new(Reenter(weak.clone(), drops.clone()))))
+            .unwrap();
         tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap()
@@ -217,14 +233,16 @@ fn scoped_cache_eviction_drops_values_outside_its_lock() {
 async fn panicking_constructors_can_retry_without_poisoning_the_scope_cache() {
     let container = Container::default();
     let attempts = AtomicUsize::new(0);
-    container.scoped::<u8, _>(move |_| {
-        assert_ne!(
-            attempts.fetch_add(1, Ordering::SeqCst),
-            0,
-            "constructor panic"
-        );
-        Ok(Arc::new(4))
-    });
+    container
+        .scoped::<u8, _>(move |_| {
+            assert_ne!(
+                attempts.fetch_add(1, Ordering::SeqCst),
+                0,
+                "constructor panic"
+            );
+            Ok(Arc::new(4))
+        })
+        .unwrap();
     container
         .scope(async {
             assert!(
@@ -239,11 +257,13 @@ async fn panicking_constructors_can_retry_without_poisoning_the_scope_cache() {
 #[tokio::test]
 async fn instance_and_global_eviction_do_not_flush_another_active_scope() {
     let container = Container::default();
-    container.scopedNamed::<u32, _>("value", |_| Ok(Arc::new(1)));
+    container
+        .scopedNamed::<u32, _>("value", |_| Ok(Arc::new(1)))
+        .unwrap();
     let gate = tokio::sync::Barrier::new(2);
     tokio::join!(
         container.scope(async {
-            container.instanceNamed("value", Arc::new(99_u32));
+            container.instanceNamed("value", Arc::new(99_u32)).unwrap();
             assert_eq!(*container.get::<u32>("value").unwrap(), 99);
             gate.wait().await;
             container.forgetInstances();
@@ -265,12 +285,14 @@ async fn instance_and_global_eviction_do_not_flush_another_active_scope() {
 #[tokio::test]
 async fn forgetting_a_scoped_alias_override_does_not_resurrect_hidden_root_instances() {
     let container = Container::default();
-    container.instanceNamed("alias", Arc::new(99_u32));
-    container.scopedNamed::<u32, _>("value", |_| Ok(Arc::new(7)));
+    container.instanceNamed("alias", Arc::new(99_u32)).unwrap();
+    container
+        .scopedNamed::<u32, _>("value", |_| Ok(Arc::new(7)))
+        .unwrap();
     container.alias("value", "alias").unwrap();
     container
         .scope(async {
-            container.instanceNamed("alias", Arc::new(12_u32));
+            container.instanceNamed("alias", Arc::new(12_u32)).unwrap();
             container.forgetInstance("alias");
             assert!(!container.has("alias"));
             assert!(!container.isShared("alias"));
@@ -285,7 +307,7 @@ async fn forgetting_a_scoped_alias_override_does_not_resurrect_hidden_root_insta
 #[tokio::test]
 async fn root_scoped_reset_preserves_a_child_lifecycle_on_another_execution() {
     let container = Container::default();
-    container.scoped::<usize, _>(|_| Ok(Arc::new(1)));
+    container.scoped::<usize, _>(|_| Ok(Arc::new(1))).unwrap();
     let root = container.make::<usize>().unwrap();
     container
         .scope(async {
@@ -308,13 +330,13 @@ async fn root_scoped_reset_preserves_a_child_lifecycle_on_another_execution() {
 #[tokio::test]
 async fn replacing_a_scoped_instance_releases_the_previous_cached_reference() {
     let container = Container::default();
-    container.scoped::<u32, _>(|_| Ok(Arc::new(7)));
+    container.scoped::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     container
         .scope(async {
             let first = container.make::<u32>().unwrap();
             let weak = Arc::downgrade(&first);
             drop(first);
-            container.instance(Arc::new(99_u32));
+            container.instance(Arc::new(99_u32)).unwrap();
             assert!(weak.upgrade().is_none());
             assert_eq!(*container.make::<u32>().unwrap(), 99);
         })
@@ -329,7 +351,11 @@ async fn replacing_a_scoped_instance_releases_the_previous_cached_reference() {
 async fn retained_nested_futures_cannot_confuse_a_replaced_container_at_the_same_address() {
     use std::future::Future as _;
     let owner = Arc::new(std::sync::Mutex::new(Box::new(Container::default())));
-    owner.lock().unwrap().scoped::<u32, _>(|_| Ok(Arc::new(7)));
+    owner
+        .lock()
+        .unwrap()
+        .scoped::<u32, _>(|_| Ok(Arc::new(7)))
+        .unwrap();
     let other = Container::default();
     let (send, receive) = tokio::sync::oneshot::channel::<()>();
     let captured = owner.clone();
@@ -354,7 +380,7 @@ async fn retained_nested_futures_cannot_confuse_a_replaced_container_at_the_same
     let expected = {
         let mut current = owner.lock().unwrap();
         **current = Container::default();
-        current.scoped::<u32, _>(|_| Ok(Arc::new(99)));
+        current.scoped::<u32, _>(|_| Ok(Arc::new(99))).unwrap();
         current.make::<u32>().unwrap()
     };
     send.send(()).unwrap();

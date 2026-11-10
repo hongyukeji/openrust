@@ -12,14 +12,16 @@ use openrust::{
 fn singleton_retries_after_failure_and_shares_the_first_success() {
     let container = Container::default();
     let calls = AtomicUsize::new(0);
-    container.singleton::<usize, _>(move |_| {
-        if calls.fetch_add(1, Ordering::SeqCst) == 0 {
-            return Err(BindingResolutionError::NotBound {
-                service: "probe".into(),
-            });
-        }
-        Ok(Arc::new(42))
-    });
+    container
+        .singleton::<usize, _>(move |_| {
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(BindingResolutionError::NotBound {
+                    service: "probe".into(),
+                });
+            }
+            Ok(Arc::new(42))
+        })
+        .unwrap();
     assert!(container.make::<usize>().is_err());
 
     let gate = Barrier::new(4);
@@ -44,7 +46,7 @@ fn singleton_retries_after_failure_and_shares_the_first_success() {
     );
     assert_eq!(*instances[0], 42);
     let replacement = Arc::new(7);
-    container.instance(replacement.clone());
+    container.instance(replacement.clone()).unwrap();
     assert!(Arc::ptr_eq(
         &container.make::<usize>().unwrap(),
         &replacement
@@ -54,12 +56,14 @@ fn singleton_retries_after_failure_and_shares_the_first_success() {
 #[test]
 fn transient_factory_and_cycles() {
     let container = Container::default();
-    container.bind::<usize, _>(|_| Ok(Arc::new(7)));
+    container.bind::<usize, _>(|_| Ok(Arc::new(7))).unwrap();
     assert!(!Arc::ptr_eq(
         &container.make::<usize>().unwrap(),
         &container.make::<usize>().unwrap()
     ));
-    container.singleton::<usize, _>(|container| container.make::<usize>());
+    container
+        .singleton::<usize, _>(|container| container.make::<usize>())
+        .unwrap();
     assert!(matches!(
         container.make::<usize>(),
         Err(BindingResolutionError::CircularDependency { .. })
@@ -74,19 +78,23 @@ fn cross_thread_singleton_cycles_report_an_error() {
         let gate = Arc::clone(&gate);
         let attempts = AtomicUsize::new(0);
         if binding {
-            container.singleton::<u32, _>(move |container| {
-                if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
-                    gate.wait();
-                }
-                container.make::<u64>().map(|_| Arc::new(0))
-            });
+            container
+                .singleton::<u32, _>(move |container| {
+                    if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                        gate.wait();
+                    }
+                    container.make::<u64>().map(|_| Arc::new(0))
+                })
+                .unwrap();
         } else {
-            container.singleton::<u64, _>(move |container| {
-                if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
-                    gate.wait();
-                }
-                container.make::<u32>().map(|_| Arc::new(0))
-            });
+            container
+                .singleton::<u64, _>(move |container| {
+                    if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                        gate.wait();
+                    }
+                    container.make::<u32>().map(|_| Arc::new(0))
+                })
+                .unwrap();
         }
     }
     let (send, receive) = std::sync::mpsc::channel();
@@ -115,7 +123,9 @@ fn cross_thread_singleton_cycles_report_an_error() {
 fn named_bindings_alias_chains_and_rebinding_keep_service_identity() {
     use openrust::container::ServiceKey;
     let container = Container::default();
-    container.singletonNamed::<String, _>("mail", |_| Ok(Arc::new("first".into())));
+    container
+        .singletonNamed::<String, _>("mail", |_| Ok(Arc::new("first".into())))
+        .unwrap();
     container.alias("mail", "mailer").unwrap();
     container.alias("mailer", "outgoing").unwrap();
     assert!(container.has("outgoing"));
@@ -129,13 +139,17 @@ fn named_bindings_alias_chains_and_rebinding_keep_service_identity() {
         &first,
         &container.get::<String>("mail").unwrap()
     ));
-    container.instanceNamed("mail", Arc::new(String::from("replacement")));
+    container
+        .instanceNamed("mail", Arc::new(String::from("replacement")))
+        .unwrap();
     assert_eq!(
         &*container.get::<String>("outgoing").unwrap(),
         "replacement"
     );
     assert_eq!(&*first, "first");
-    container.instanceNamed("outgoing", Arc::new(19_u64));
+    container
+        .instanceNamed("outgoing", Arc::new(19_u64))
+        .unwrap();
     assert!(!container.isAlias("outgoing"));
     assert_eq!(*container.get::<u64>("outgoing").unwrap(), 19);
     assert_eq!(&*container.get::<String>("mailer").unwrap(), "replacement");
@@ -157,7 +171,7 @@ fn aliases_allow_late_bindings_and_detect_cycles_without_changing_types() {
         container.get::<str>("name"),
         Err(BindingResolutionError::NotBound { .. })
     ));
-    container.instance::<str>(Arc::from("Taylor"));
+    container.instance::<str>(Arc::from("Taylor")).unwrap();
     assert_eq!(&*container.get::<str>("name").unwrap(), "Taylor");
     container.alias("other", "name").unwrap();
     container.alias("name", "other").unwrap();
@@ -181,10 +195,12 @@ fn named_output_type_is_checked_before_the_factory_runs() {
     let container = Container::default();
     let calls = Arc::new(AtomicUsize::new(0));
     let called = calls.clone();
-    container.bindNamed::<u32, _>("value", move |_| {
-        called.fetch_add(1, Ordering::SeqCst);
-        Ok(Arc::new(7))
-    });
+    container
+        .bindNamed::<u32, _>("value", move |_| {
+            called.fetch_add(1, Ordering::SeqCst);
+            Ok(Arc::new(7))
+        })
+        .unwrap();
     assert!(matches!(
         container.get::<String>("value"),
         Err(BindingResolutionError::TypeMismatch { .. })
@@ -195,7 +211,9 @@ fn named_output_type_is_checked_before_the_factory_runs() {
         &container.get::<u32>("value").unwrap(),
         &container.get::<u32>("value").unwrap()
     ));
-    container.bindNamed::<u32, _>("recursive", |container| container.get("recursive"));
+    container
+        .bindNamed::<u32, _>("recursive", |container| container.get("recursive"))
+        .unwrap();
     assert!(matches!(
         container.get::<u32>("recursive"),
         Err(BindingResolutionError::CircularDependency { .. })
@@ -215,9 +233,13 @@ fn trait_contracts_and_type_names_are_distinct_from_named_keys() {
         }
     }
     let container = Container::default();
-    container.singleton::<dyn Transport, _>(|_| Ok(Arc::new(Mail)));
+    container
+        .singleton::<dyn Transport, _>(|_| Ok(Arc::new(Mail)))
+        .unwrap();
     let typed = ServiceKey::typed::<dyn Transport>();
-    container.instanceNamed(typed.name(), Arc::new(13_u32));
+    container
+        .instanceNamed(typed.name(), Arc::new(13_u32))
+        .unwrap();
     assert_eq!(container.make::<dyn Transport>().unwrap().send(), "sent");
     assert_eq!(*container.get::<u32>(typed.name()).unwrap(), 13);
     container.alias(typed.clone(), "transport").unwrap();
@@ -233,10 +255,12 @@ fn trait_contracts_and_type_names_are_distinct_from_named_keys() {
 fn singleton_panic_does_not_poison_resolution_or_prevent_retry() {
     let container = Container::default();
     let calls = AtomicUsize::new(0);
-    container.singleton::<u16, _>(move |_| {
-        assert_ne!(calls.fetch_add(1, Ordering::SeqCst), 0, "constructor panic");
-        Ok(Arc::new(8))
-    });
+    container
+        .singleton::<u16, _>(move |_| {
+            assert_ne!(calls.fetch_add(1, Ordering::SeqCst), 0, "constructor panic");
+            Ok(Arc::new(8))
+        })
+        .unwrap();
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| container.make::<u16>())).is_err()
     );
@@ -247,12 +271,16 @@ fn singleton_panic_does_not_poison_resolution_or_prevent_retry() {
 fn instance_overrides_preserve_the_original_factory_and_raw_forget_identity() {
     let container = Container::default();
     let calls = AtomicUsize::new(0);
-    container.singletonNamed::<usize, _>("service", move |_| {
-        Ok(Arc::new(calls.fetch_add(1, Ordering::SeqCst)))
-    });
+    container
+        .singletonNamed::<usize, _>("service", move |_| {
+            Ok(Arc::new(calls.fetch_add(1, Ordering::SeqCst)))
+        })
+        .unwrap();
     container.alias("service", "alias").unwrap();
     let original = container.get::<usize>("service").unwrap();
-    container.instanceNamed("service", Arc::new(99_usize));
+    container
+        .instanceNamed("service", Arc::new(99_usize))
+        .unwrap();
     assert_eq!(*container.get::<usize>("alias").unwrap(), 99);
     container.forgetInstance("alias");
     assert_eq!(*container.get::<usize>("service").unwrap(), 99);
@@ -268,8 +296,12 @@ fn instance_overrides_preserve_the_original_factory_and_raw_forget_identity() {
 #[test]
 fn shared_and_resolved_states_distinguish_raw_aliases_instances_and_history() {
     let container = Container::default();
-    container.singletonNamed::<u32, _>("shared", |_| Ok(Arc::new(1)));
-    container.bindNamed::<u32, _>("transient", |_| Ok(Arc::new(2)));
+    container
+        .singletonNamed::<u32, _>("shared", |_| Ok(Arc::new(1)))
+        .unwrap();
+    container
+        .bindNamed::<u32, _>("transient", |_| Ok(Arc::new(2)))
+        .unwrap();
     container.alias("shared", "alias").unwrap();
     assert!(container.isShared("shared"));
     assert!(!container.isShared("alias"));
@@ -283,7 +315,9 @@ fn shared_and_resolved_states_distinguish_raw_aliases_instances_and_history() {
     assert!(!container.resolved("transient").unwrap());
     container.get::<u32>("transient").unwrap();
     assert!(container.resolved("transient").unwrap());
-    container.instanceNamed("provided", Arc::new(3_u32));
+    container
+        .instanceNamed("provided", Arc::new(3_u32))
+        .unwrap();
     assert!(container.resolved("provided").unwrap());
     assert!(container.isShared("provided"));
     container.get::<u32>("provided").unwrap();
@@ -297,21 +331,29 @@ fn shared_and_resolved_states_distinguish_raw_aliases_instances_and_history() {
 fn conditional_bindings_preserve_dangling_aliases_instances_and_cached_singletons() {
     use openrust::container::ServiceKey;
     let container = Container::default();
-    container.singletonIf::<u32, _>(|_| Ok(Arc::new(5)));
+    container
+        .singletonIf::<u32, _>(|_| Ok(Arc::new(5)))
+        .unwrap();
     let first = container.make::<u32>().unwrap();
-    container.bindIf::<u32, _>(|_| panic!("existing binding replaced"));
+    container
+        .bindIf::<u32, _>(|_| panic!("existing binding replaced"))
+        .unwrap();
     assert!(Arc::ptr_eq(&first, &container.make::<u32>().unwrap()));
-    container.instance::<u64>(Arc::new(7));
-    container.singletonIf::<u64, _>(|_| panic!("existing instance replaced"));
+    container.instance::<u64>(Arc::new(7)).unwrap();
+    container
+        .singletonIf::<u64, _>(|_| panic!("existing instance replaced"))
+        .unwrap();
     assert_eq!(*container.make::<u64>().unwrap(), 7);
     container.alias("missing", "alias").unwrap();
-    container.bindIfNamed::<u32, _>("alias", |_| panic!("alias replaced"));
+    container
+        .bindIfNamed::<u32, _>("alias", |_| panic!("alias replaced"))
+        .unwrap();
     assert_eq!(
         container.getAlias("alias").unwrap(),
         ServiceKey::named("missing")
     );
     assert!(container.get::<u32>("alias").is_err());
-    container.bindIf::<u16, _>(|_| Ok(Arc::new(11)));
+    container.bindIf::<u16, _>(|_| Ok(Arc::new(11))).unwrap();
     assert_eq!(*container.make::<u16>().unwrap(), 11);
     assert!(!Arc::ptr_eq(
         &container.make::<u16>().unwrap(),
@@ -331,10 +373,12 @@ fn concurrent_conditional_registration_selects_one_factory_without_eager_executi
             let executions = executions.clone();
             scope.spawn(move || {
                 gate.wait();
-                container.singletonIfNamed::<usize, _>("winner", move |_| {
-                    executions.fetch_add(1, Ordering::SeqCst);
-                    Ok(Arc::new(value))
-                });
+                container
+                    .singletonIfNamed::<usize, _>("winner", move |_| {
+                        executions.fetch_add(1, Ordering::SeqCst);
+                        Ok(Arc::new(value))
+                    })
+                    .unwrap();
             });
         }
     });
@@ -356,15 +400,19 @@ fn rejected_conditional_factories_are_dropped_after_unlocking_the_registry() {
         }
     }
     let container = Arc::new(Container::default());
-    container.instanceNamed("existing", Arc::new(1_usize));
+    container
+        .instanceNamed("existing", Arc::new(1_usize))
+        .unwrap();
     let weak = Arc::downgrade(&container);
     let (send, receive) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {
         let owned = Reenter(weak);
-        container.bindIfNamed::<usize, _>("existing", move |_| {
-            let _ = &owned;
-            Ok(Arc::new(2))
-        });
+        container
+            .bindIfNamed::<usize, _>("existing", move |_| {
+                let _ = &owned;
+                Ok(Arc::new(2))
+            })
+            .unwrap();
         send.send(()).unwrap();
     });
     receive
@@ -376,11 +424,11 @@ fn rejected_conditional_factories_are_dropped_after_unlocking_the_registry() {
 #[test]
 fn supplying_an_instance_releases_the_replaced_singleton_cache_but_keeps_its_factory() {
     let container = Container::default();
-    container.singleton::<u32, _>(|_| Ok(Arc::new(7)));
+    container.singleton::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let first = container.make::<u32>().unwrap();
     let weak = Arc::downgrade(&first);
     drop(first);
-    container.instance(Arc::new(99_u32));
+    container.instance(Arc::new(99_u32)).unwrap();
     assert!(weak.upgrade().is_none());
     assert_eq!(*container.make::<u32>().unwrap(), 99);
     container.forgetInstance(openrust::container::ServiceKey::typed::<u32>());

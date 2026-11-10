@@ -18,6 +18,7 @@ async fn health_negotiates_content_and_preserves_application_isolation() {
         kernel
             .get_application()
             .config()
+            .unwrap()
             .set("app.name", json!(name))
             .unwrap();
         kernels.push(kernel);

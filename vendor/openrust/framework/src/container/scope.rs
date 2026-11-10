@@ -100,23 +100,30 @@ pub(super) fn select(
     key: &ServiceKey,
     root: &RegisteredBinding,
 ) -> RegisteredBinding {
+    let (entry, retired) = select_retained(container, key, root);
+    drop(retired);
+    entry
+}
+
+// Callers holding a registry guard must defer the retired entry's destruction.
+pub(super) fn select_retained(
+    container: &Container,
+    key: &ServiceKey,
+    root: &RegisteredBinding,
+) -> (RegisteredBinding, Option<RegisteredBinding>) {
     with(container, |context| {
-        let (entry, previous) = {
-            let mut cache = context.cache.lock().expect("scope cache poisoned");
-            if let Some(entry) = cache.entries.get(key)
-                && Arc::ptr_eq(&entry.version, &root.version)
-            {
-                return entry.clone();
-            }
-            let entry = root.fresh.as_ref().expect("scoped factories are shared")()
-                .with_version(root.version.clone());
-            let previous = cache.entries.insert(key.clone(), entry.clone());
-            (entry, previous)
-        };
-        drop(previous);
-        entry
+        let mut cache = context.cache.lock().expect("scope cache poisoned");
+        if let Some(entry) = cache.entries.get(key)
+            && Arc::ptr_eq(&entry.version, &root.version)
+        {
+            return (entry.clone(), None);
+        }
+        let entry = root.fresh.as_ref().expect("scoped factories are shared")()
+            .with_version(root.version.clone());
+        let retired = cache.entries.insert(key.clone(), entry.clone());
+        (entry, retired)
     })
-    .unwrap_or_else(|| root.clone())
+    .unwrap_or_else(|| (root.clone(), None))
 }
 
 pub(super) fn cached_entry(

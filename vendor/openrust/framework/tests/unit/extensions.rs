@@ -31,7 +31,8 @@ fn future_extenders_follow_aliases_and_registration_order_without_eager_construc
     c.bind::<u32, _>(move |_| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Arc::new(1))
-    });
+    })
+    .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert_eq!(*c.make::<u32>().unwrap(), 9);
     assert_eq!(*c.get::<u32>("number").unwrap(), 9);
@@ -43,7 +44,7 @@ fn future_extenders_follow_aliases_and_registration_order_without_eager_construc
 #[test]
 fn cached_singletons_are_updated_immediately_without_persisting_the_new_extender() {
     let c = Container::default();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(1)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
     c.extend::<u32, _>(key::<u32>(), |value, _| Ok(Arc::new(*value + 1)))
         .unwrap();
     let original = c.make::<u32>().unwrap();
@@ -62,10 +63,10 @@ fn cached_singletons_are_updated_immediately_without_persisting_the_new_extender
 #[test]
 fn supplied_instances_bypass_pending_extenders_and_keep_the_original_factory() {
     let c = Container::default();
-    c.bind::<u32, _>(|_| Ok(Arc::new(1)));
+    c.bind::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
     c.extend::<u32, _>(key::<u32>(), |value, _| Ok(Arc::new(*value + 10)))
         .unwrap();
-    c.instance(Arc::new(99_u32));
+    c.instance(Arc::new(99_u32)).unwrap();
     assert_eq!(*c.make::<u32>().unwrap(), 99);
     c.extend::<u32, _>(key::<u32>(), |value, app| {
         assert_eq!(*app.make::<u32>()?, 99);
@@ -89,7 +90,8 @@ fn extender_contracts_are_checked_before_factories_or_mismatched_decorators_exec
     c.bindNamed::<u32, _>("number", move |_| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Arc::new(1))
-    });
+    })
+    .unwrap();
     assert!(matches!(
         c.get::<u32>("number"),
         Err(BindingResolutionError::TypeMismatch { .. })
@@ -105,7 +107,7 @@ fn extender_contracts_are_checked_before_factories_or_mismatched_decorators_exec
 fn failing_or_panicking_future_extenders_retry_without_publishing_a_partial_singleton() {
     let c = Container::default();
     let attempts = AtomicUsize::new(0);
-    c.singleton::<u32, _>(|_| Ok(Arc::new(1)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
     c.extend::<u32, _>(key::<u32>(), move |value, _| {
         match attempts.fetch_add(1, Ordering::SeqCst) {
             0 => Err(failure()),
@@ -125,7 +127,7 @@ fn failing_or_panicking_future_extenders_retry_without_publishing_a_partial_sing
 #[test]
 fn failing_cached_updates_restore_the_existing_pointer_and_allow_another_extension() {
     let c = Container::default();
-    c.instance(Arc::new(1_u32));
+    c.instance(Arc::new(1_u32)).unwrap();
     let original = c.make::<u32>().unwrap();
     assert!(
         c.extend::<u32, _>(key::<u32>(), |_, _| Err(failure()))
@@ -152,7 +154,8 @@ fn decorators_run_before_resolution_callbacks_and_contextual_values_do_not_repla
     c.singleton::<u32, _>(move |_| {
         seen.lock().unwrap().push("factory");
         Ok(Arc::new(1))
-    });
+    })
+    .unwrap();
     let seen = trace.clone();
     c.extend::<u32, _>(key::<u32>(), move |value, _| {
         seen.lock().unwrap().push("extend");
@@ -178,7 +181,8 @@ fn decorators_run_before_resolution_callbacks_and_contextual_values_do_not_repla
         ["factory", "extend", "resolving", "after"]
     );
     // Contextual values use the same persistent chain, without overwriting the default cache.
-    c.bind::<Consumer, _>(|c| Ok(Arc::new(Consumer(c.make()?))));
+    c.bind::<Consumer, _>(|c| Ok(Arc::new(Consumer(c.make()?))))
+        .unwrap();
     c.when::<Consumer>()
         .unwrap()
         .needs::<u32>()
@@ -194,7 +198,7 @@ fn decorators_run_before_resolution_callbacks_and_contextual_values_do_not_repla
 #[test]
 fn extending_from_a_post_callback_changes_the_cache_without_overwriting_it_at_completion() {
     let c = Container::default();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(1)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
     c.resolving(Some(key::<u32>()), |event, app| {
         app.extend::<u32, _>(event.key().clone(), |value, _| Ok(Arc::new(*value + 10)))?;
         assert_eq!(*app.make::<u32>()?, 11);
@@ -216,7 +220,8 @@ fn an_extender_registered_during_construction_is_included_once_before_publicatio
         entered.send(()).unwrap();
         receiver.lock().unwrap().recv().unwrap();
         Ok(Arc::new(1))
-    });
+    })
+    .unwrap();
     let calls = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
         let pending = scope.spawn(|| c.make::<u32>().unwrap());
@@ -238,7 +243,7 @@ fn an_extender_registered_during_construction_is_included_once_before_publicatio
 fn concurrent_cached_extensions_are_serialized_and_other_readers_wait() {
     use std::sync::mpsc::channel;
     let c = Arc::new(Container::default());
-    c.instance(Arc::new(1_u32));
+    c.instance(Arc::new(1_u32)).unwrap();
     let (entered, enter_rx) = channel();
     let (release, release_rx) = channel();
     let receiver = Mutex::new(release_rx);
@@ -282,7 +287,7 @@ fn concurrent_cached_extensions_are_serialized_and_other_readers_wait() {
 #[test]
 fn recursive_extensions_are_rejected_without_poisoning_the_cache() {
     let c = Container::default();
-    c.instance(Arc::new(1_u32));
+    c.instance(Arc::new(1_u32)).unwrap();
     assert!(matches!(
         c.extend::<u32, _>(key::<u32>(), |value, app| {
             app.extend::<u32, _>(key::<u32>(), |inner, _| Ok(inner))?;
@@ -292,7 +297,7 @@ fn recursive_extensions_are_rejected_without_poisoning_the_cache() {
     ));
     assert_eq!(*c.make::<u32>().unwrap(), 1);
     let c = Container::default();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(1)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
     c.extend::<u32, _>(key::<u32>(), |_, app| app.make::<u32>())
         .unwrap();
     assert!(matches!(
@@ -304,7 +309,7 @@ fn recursive_extensions_are_rejected_without_poisoning_the_cache() {
 #[tokio::test]
 async fn cached_scoped_extensions_stay_local_and_future_chains_survive_scope_eviction() {
     let c = Container::default();
-    c.scoped::<u32, _>(|_| Ok(Arc::new(1)));
+    c.scoped::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
     c.extend::<u32, _>(key::<u32>(), |value, _| Ok(Arc::new(*value + 1)))
         .unwrap();
     c.scope(async {
@@ -327,7 +332,7 @@ fn forgetting_extenders_drops_captures_outside_the_registry_lock() {
     struct Reenter(Arc<Container>);
     impl Drop for Reenter {
         fn drop(&mut self) {
-            self.0.instance(Arc::new(42_u16));
+            self.0.instance(Arc::new(42_u16)).unwrap();
         }
     }
     let c = Arc::new(Container::default());
@@ -350,7 +355,7 @@ fn retired_extender_captures_are_dropped_before_publishing_the_constructed_value
         }
     }
     let c = Container::default();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(1)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
     let capture = PanicDrop;
     c.extend::<u32, _>(key::<u32>(), move |value, app| {
         let _ = &capture;
@@ -381,7 +386,7 @@ fn interface_services_can_be_wrapped_without_changing_the_public_contract() {
         }
     }
     let c = Container::default();
-    c.bind::<dyn Named, _>(|_| Ok(Arc::new(Base)));
+    c.bind::<dyn Named, _>(|_| Ok(Arc::new(Base))).unwrap();
     c.extend::<dyn Named, _>(key::<dyn Named>(), |value, _| {
         Ok(Arc::new(Decorated(value)))
     })
@@ -392,8 +397,8 @@ fn interface_services_can_be_wrapped_without_changing_the_public_contract() {
 #[test]
 fn cross_thread_extension_cycles_use_the_existing_wait_graph_instead_of_deadlocking() {
     let c = Arc::new(Container::default());
-    c.instance(Arc::new(1_u32));
-    c.instance(Arc::new(2_u64));
+    c.instance(Arc::new(1_u32)).unwrap();
+    c.instance(Arc::new(2_u64)).unwrap();
     let gate = Arc::new(std::sync::Barrier::new(2));
     let outcomes = std::thread::scope(|scope| {
         let first_gate = gate.clone();
@@ -425,7 +430,7 @@ fn cross_thread_extension_cycles_use_the_existing_wait_graph_instead_of_deadlock
 fn an_inflight_extension_cannot_overwrite_a_newly_rebound_instance() {
     use std::sync::mpsc::channel;
     let c = Arc::new(Container::default());
-    c.instance(Arc::new(1_u32));
+    c.instance(Arc::new(1_u32)).unwrap();
     let (entered, entered_rx) = channel();
     let (release, release_rx) = channel();
     let receiver = Mutex::new(release_rx);
@@ -439,7 +444,7 @@ fn an_inflight_extension_cannot_overwrite_a_newly_rebound_instance() {
             .unwrap()
         });
         entered_rx.recv().unwrap();
-        c.instance(Arc::new(99_u32));
+        c.instance(Arc::new(99_u32)).unwrap();
         release.send(()).unwrap();
         pending.join().unwrap();
     });

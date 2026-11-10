@@ -102,7 +102,9 @@ impl Route {
     ) -> Result<(), RoutingError> {
         let scope = RouteRegistration {
             router: RefCell::new(std::mem::take(router)),
-            config: application.configuration_repository(),
+            config: application
+                .configuration_repository()
+                .map_err(|source| RoutingError::ContainerFailed { source })?,
             public_path: application.publicPath(),
         };
         ROUTER.sync_scope(scope, || {

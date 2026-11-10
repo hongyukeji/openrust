@@ -27,7 +27,8 @@ fn global_callbacks_precede_keyed_callbacks_in_each_stage_and_values_keep_identi
     c.bind::<u32, _>(move |_| {
         record(&seen, "factory");
         Ok(Arc::new(42))
-    });
+    })
+    .unwrap();
     for (selector, label) in [
         (Some(ServiceKey::typed::<u32>()), "before-key"),
         (None, "before-global"),
@@ -87,7 +88,7 @@ fn before_callbacks_can_supply_missing_services_and_use_the_original_canonical_a
     c.beforeResolving(Some("alias".into()), |event, app| {
         assert_eq!(event.key(), &ServiceKey::named("original"));
         app.alias("elsewhere", "alias")?;
-        app.instanceNamed("original", Arc::new(7_u32));
+        app.instanceNamed("original", Arc::new(7_u32)).unwrap();
         Ok(())
     })
     .unwrap();
@@ -112,10 +113,10 @@ fn shared_cache_hits_run_before_callbacks_only_and_supplied_instances_skip_post_
         Ok(())
     })
     .unwrap();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(7)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let first = c.make::<u32>().unwrap();
     assert!(Arc::ptr_eq(&first, &c.make::<u32>().unwrap()));
-    c.instance(Arc::new(9_u32));
+    c.instance(Arc::new(9_u32)).unwrap();
     assert_eq!(*c.make::<u32>().unwrap(), 9);
     assert_eq!(before.load(Ordering::SeqCst), 3);
     assert_eq!(after.load(Ordering::SeqCst), 1);
@@ -124,7 +125,7 @@ fn shared_cache_hits_run_before_callbacks_only_and_supplied_instances_skip_post_
 #[test]
 fn singleton_callbacks_can_reenter_the_published_cache_before_history_is_recorded() {
     let c = Container::default();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(7)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     c.resolving(Some(ServiceKey::typed::<u32>()), |event, app| {
         assert!(app.resolved(event.key().clone())?);
         assert!(Arc::ptr_eq(
@@ -140,8 +141,8 @@ fn singleton_callbacks_can_reenter_the_published_cache_before_history_is_recorde
 #[test]
 fn failing_post_callbacks_preserve_published_singletons_but_not_transient_history() {
     let c = Container::default();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(7)));
-    c.bind::<u64, _>(|_| Ok(Arc::new(9)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
+    c.bind::<u64, _>(|_| Ok(Arc::new(9))).unwrap();
     c.resolving(None, |_, _| Err(missing())).unwrap();
     assert!(c.make::<u32>().is_err());
     assert!(c.resolved(ServiceKey::typed::<u32>()).unwrap());
@@ -156,7 +157,7 @@ fn failing_post_callbacks_preserve_published_singletons_but_not_transient_histor
 #[test]
 fn callback_panics_release_waiters_and_leave_the_already_published_shared_value() {
     let c = Container::default();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(7)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     c.afterResolving(None, |_, _| panic!("post callback"))
         .unwrap();
     assert!(catch_unwind(AssertUnwindSafe(|| c.make::<u32>())).is_err());
@@ -175,7 +176,8 @@ fn before_callback_failures_retry_without_calling_the_constructor() {
     c.bind::<u32, _>(move |_| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Arc::new(7))
-    });
+    })
+    .unwrap();
     c.beforeResolving(None, move |_, _| {
         match attempts.fetch_add(1, Ordering::SeqCst) {
             0 => Err(missing()),
@@ -202,7 +204,7 @@ fn unbounded_before_and_transient_post_recursion_returns_a_cycle_error() {
         c.make::<u32>(),
         Err(BindingResolutionError::CircularDependency { .. })
     ));
-    c.bind::<u64, _>(|_| Ok(Arc::new(9)));
+    c.bind::<u64, _>(|_| Ok(Arc::new(9))).unwrap();
     c.afterResolving(Some(ServiceKey::typed::<u64>()), |_, c| {
         c.make::<u64>()?;
         Ok(())
@@ -218,7 +220,7 @@ fn unbounded_before_and_transient_post_recursion_returns_a_cycle_error() {
 fn snapshots_allow_global_callbacks_to_register_keyed_callbacks_for_the_current_stage() {
     let c = Container::default();
     let trace = Trace::default();
-    c.bind::<u32, _>(|_| Ok(Arc::new(7)));
+    c.bind::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let before = trace.clone();
     c.beforeResolving(None, move |_, app| {
         let seen = before.clone();
@@ -249,7 +251,8 @@ fn snapshots_allow_global_callbacks_to_register_keyed_callbacks_for_the_current_
 
     let c = Container::default();
     let trace = Trace::default();
-    c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(7)));
+    c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(7)))
+        .unwrap();
     let seen = trace.clone();
     c.resolving(None, move |_, app| {
         record(&seen, "global");
@@ -289,8 +292,9 @@ fn snapshots_allow_global_callbacks_to_register_keyed_callbacks_for_the_current_
 fn named_services_also_match_their_declared_output_type_without_duplicate_dispatch() {
     let c = Container::default();
     let calls = Arc::new(AtomicUsize::new(0));
-    c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(7)));
-    c.bind::<u32, _>(|_| Ok(Arc::new(9)));
+    c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(7)))
+        .unwrap();
+    c.bind::<u32, _>(|_| Ok(Arc::new(9))).unwrap();
     let count = calls.clone();
     c.resolving(Some(ServiceKey::typed::<u32>()), move |event, _| {
         assert!(event.value::<u32>().is_some());
@@ -313,7 +317,7 @@ fn concurrent_shared_readers_wait_for_post_callbacks_and_callbacks_run_once() {
     let release_rx = Mutex::new(release_rx);
     let stage = Arc::new(AtomicUsize::new(0));
     let active = stage.clone();
-    c.singleton::<u32, _>(|_| Ok(Arc::new(7)));
+    c.singleton::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     c.resolving(None, move |_, _| {
         active.store(1, Ordering::SeqCst);
         entered.send(()).unwrap();
@@ -353,7 +357,7 @@ fn concurrent_shared_readers_wait_for_post_callbacks_and_callbacks_run_once() {
 async fn scoped_callbacks_run_once_per_lifecycle_and_failed_callbacks_do_not_escape_the_scope() {
     let c = Container::default();
     let calls = Arc::new(AtomicUsize::new(0));
-    c.scoped::<u32, _>(|_| Ok(Arc::new(7)));
+    c.scoped::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let count = calls.clone();
     c.afterResolving(None, move |_, _| {
         count.fetch_add(1, Ordering::SeqCst);
