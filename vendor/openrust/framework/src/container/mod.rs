@@ -9,7 +9,6 @@ use std::{
         Arc, Condvar, Mutex, OnceLock, RwLock,
         atomic::{AtomicBool, AtomicU8, Ordering},
     },
-    thread::{self, ThreadId},
 };
 
 use crate::contracts::container::{self, BindingResolutionError, Container as _};
@@ -25,14 +24,17 @@ mod rebinding;
 use rebinding::RegisteredRebinding;
 mod extensions;
 use extensions::RegisteredExtender;
+mod async_resolution;
 pub(crate) mod deferred;
+pub use async_resolution::FactoryFuture;
+use async_resolution::{AsyncFactory, Owner, OwnerKey};
 mod scope;
 mod service_key;
 pub use service_key::ServiceKey;
 
 type Factory<T> = dyn Fn(&Container) -> Result<Arc<T>, BindingResolutionError> + Send + Sync;
 type ErasedBinding = Arc<dyn Any + Send + Sync>;
-type Wait = (ThreadId, ServiceKey, usize);
+type Wait = (usize, ServiceKey, usize);
 
 /// Owns the application's service bindings and shared instances.
 #[derive(Default)]
@@ -40,7 +42,7 @@ pub struct Container {
     identity: scope::Identity,
     deferred: OnceLock<Arc<dyn deferred::DeferredServices>>,
     registry: RwLock<Registry>,
-    waiting: Mutex<HashMap<ThreadId, Wait>>,
+    waiting: Mutex<HashMap<(OwnerKey, OwnerKey), Wait>>,
     hook_phases: AtomicU8,
     has_extenders: AtomicBool,
 }
@@ -80,6 +82,31 @@ impl RegisteredBinding {
         self.published
             .as_ref()
             .is_some_and(|flag| flag.load(Ordering::Acquire))
+    }
+}
+
+struct Mutation<T: ?Sized> {
+    key: ServiceKey,
+    entry: RegisteredBinding,
+    supplied: Option<Arc<T>>,
+    callbacks: Vec<RegisteredRebinding>,
+}
+impl<T: ?Sized + Send + Sync + 'static> Mutation<T> {
+    fn dispatch(self, container: &Container) -> Result<(), BindingResolutionError> {
+        match self.supplied {
+            Some(value) => container.dispatch_rebound_value(self.key, value, self.callbacks),
+            None => container.dispatch_rebound::<T>(self.key, self.entry, self.callbacks),
+        }
+    }
+    async fn dispatch_async(self, container: &Container) -> Result<(), BindingResolutionError> {
+        match self.supplied {
+            Some(value) => container.dispatch_rebound_value(self.key, value, self.callbacks),
+            None => {
+                container
+                    .dispatch_rebound_async::<T>(self.key, self.entry, self.callbacks)
+                    .await
+            }
+        }
     }
 }
 
@@ -154,22 +181,31 @@ impl Registry {
 
 enum Binding<T: ?Sized> {
     Factory(Arc<Factory<T>>),
+    AsyncFactory(Arc<AsyncFactory<T>>),
+    AsyncSingleton {
+        factory: Arc<AsyncFactory<T>>,
+        state: Mutex<SingletonState<T>>,
+        ready: Condvar,
+        changed: tokio::sync::Notify,
+    },
     Singleton {
         factory: Arc<Factory<T>>,
         state: Mutex<SingletonState<T>>,
         ready: Condvar,
+        changed: tokio::sync::Notify,
     },
     Instance {
         state: Mutex<SingletonState<T>>,
         ready: Condvar,
+        changed: tokio::sync::Notify,
     },
 }
 
 enum SingletonState<T: ?Sized> {
     Empty,
-    Running(ThreadId),
-    Publishing(ThreadId, Arc<T>),
-    Extending(ThreadId, Arc<T>),
+    Running(Owner),
+    Publishing(Owner, Arc<T>),
+    Extending(Owner, Arc<T>),
     Ready(Arc<T>),
 }
 
@@ -206,12 +242,13 @@ impl Container {
         Binding::Instance {
             state: Mutex::new(SingletonState::Ready(value)),
             ready: Condvar::new(),
+            changed: tokio::sync::Notify::new(),
         }
     }
 
     fn entry<T: ?Sized + Send + Sync + 'static>(binding: Binding<T>) -> RegisteredBinding {
         let instance = matches!(binding, Binding::Instance { .. });
-        let shared = !matches!(binding, Binding::Factory(_));
+        let shared = !matches!(binding, Binding::Factory(_) | Binding::AsyncFactory(_));
         let fresh = match &binding {
             Binding::Singleton { factory, .. } => {
                 let factory = factory.clone();
@@ -220,6 +257,19 @@ impl Container {
                         factory: factory.clone(),
                         state: Mutex::new(SingletonState::Empty),
                         ready: Condvar::new(),
+                        changed: tokio::sync::Notify::new(),
+                    })
+                })
+                    as Arc<dyn Fn() -> RegisteredBinding + Send + Sync>)
+            }
+            Binding::AsyncSingleton { factory, .. } => {
+                let factory = factory.clone();
+                Some(Arc::new(move || {
+                    Self::entry(Binding::AsyncSingleton {
+                        factory: factory.clone(),
+                        state: Mutex::new(SingletonState::Empty),
+                        ready: Condvar::new(),
+                        changed: tokio::sync::Notify::new(),
                     })
                 })
                     as Arc<dyn Fn() -> RegisteredBinding + Send + Sync>)
@@ -242,6 +292,14 @@ impl Container {
         key: ServiceKey,
         binding: Binding<T>,
     ) -> Result<(), BindingResolutionError> {
+        self.commit(key, binding).dispatch(self)
+    }
+
+    fn commit<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        binding: Binding<T>,
+    ) -> Mutation<T> {
         let supplied = match &binding {
             Binding::Instance { state, .. } => match &*state.lock().expect("new instance state") {
                 SingletonState::Ready(value) => Some(value.clone()),
@@ -258,11 +316,12 @@ impl Container {
             } else {
                 Vec::new()
             };
-            return self.dispatch_rebound_value(
+            return Mutation {
                 key,
-                supplied.expect("explicit scoped value"),
+                entry,
+                supplied,
                 callbacks,
-            );
+            };
         }
         let local = (!entry.instance).then(|| key.clone());
         let (previous, callbacks) = {
@@ -309,9 +368,11 @@ impl Container {
             scope::remove(self, &key);
         }
         drop(previous);
-        match supplied {
-            Some(value) => self.dispatch_rebound_value(key, value, callbacks),
-            None => self.dispatch_rebound::<T>(key, entry, callbacks),
+        Mutation {
+            key,
+            entry,
+            supplied,
+            callbacks,
         }
     }
 
@@ -320,6 +381,14 @@ impl Container {
         key: ServiceKey,
         binding: Binding<T>,
     ) -> Result<(), BindingResolutionError> {
+        self.commit_if_absent(key, binding).dispatch(self)
+    }
+
+    fn commit_if_absent<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        binding: Binding<T>,
+    ) -> Mutation<T> {
         let entry = Self::entry(binding);
         let mut callbacks = Vec::new();
         let rejected = {
@@ -348,7 +417,12 @@ impl Container {
             }
         };
         drop(rejected);
-        self.dispatch_rebound::<T>(key, entry, callbacks)
+        Mutation {
+            key,
+            entry,
+            callbacks,
+            supplied: None,
+        }
     }
 
     fn scoped_identity(&self, key: &ServiceKey) -> bool {
@@ -372,7 +446,18 @@ impl Container {
             factory,
             state: Mutex::new(SingletonState::Empty),
             ready: Condvar::new(),
+            changed: tokio::sync::Notify::new(),
         });
+        self.commit_scoped::<T>(key, entry, conditional)
+            .dispatch(self)
+    }
+
+    fn commit_scoped<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        entry: RegisteredBinding,
+        conditional: bool,
+    ) -> Mutation<T> {
         let reset = key.clone();
         let mut callbacks = Vec::new();
         let committed = entry.clone();
@@ -410,7 +495,12 @@ impl Container {
             scope::remove(self, &reset);
         }
         drop(previous);
-        self.dispatch_rebound::<T>(reset, committed, callbacks)
+        Mutation {
+            key: reset,
+            entry: committed,
+            callbacks,
+            supplied: None,
+        }
     }
 
     fn consumer(&self) -> Option<ServiceKey> {
@@ -452,23 +542,39 @@ impl Container {
 
     fn wait_for(
         &self,
-        caller: ThreadId,
-        owner: ThreadId,
+        caller: Owner,
+        owner: Owner,
         service: ServiceKey,
         binding: usize,
     ) -> Result<(), BindingResolutionError> {
+        if caller.is_sync() && !owner.is_sync() {
+            return Err(BindingResolutionError::AsyncResolutionRequired { service });
+        }
         let mut waiting = self.waiting.lock().expect("container wait graph poisoned");
-        let mut thread = owner;
-        let mut services = vec![service.clone()];
-        while let Some((next, name, _)) = waiting.get(&thread) {
-            services.push(name.clone());
-            thread = *next;
-            if thread == caller {
+        let caller = caller.key();
+        let owner = owner.key();
+        let mut pending = vec![(owner, vec![service.clone()])];
+        let mut seen = HashSet::new();
+        while let Some((next, path)) = pending.pop() {
+            if next == caller {
+                let mut services = path;
                 services.push(service);
                 return Err(BindingResolutionError::CircularDependency { services });
             }
+            if seen.insert(next) {
+                for ((from, to), (_, name, _)) in waiting.iter() {
+                    if *from == next {
+                        let mut path = path.clone();
+                        path.push(name.clone());
+                        pending.push((*to, path));
+                    }
+                }
+            }
         }
-        waiting.insert(caller, (owner, service, binding));
+        let edge = waiting
+            .entry((caller, owner))
+            .or_insert((0, service, binding));
+        edge.0 += 1;
         Ok(())
     }
 }
@@ -496,6 +602,7 @@ impl container::Container for Container {
                 factory: Arc::new(factory),
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
+                changed: tokio::sync::Notify::new(),
             },
         )
     }
@@ -530,6 +637,7 @@ impl container::Container for Container {
                 factory: Arc::new(factory),
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
+                changed: tokio::sync::Notify::new(),
             },
         )
     }
@@ -703,6 +811,7 @@ impl container::Container for Container {
                 factory: Arc::new(factory),
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
+                changed: tokio::sync::Notify::new(),
             },
         )
     }
@@ -734,6 +843,7 @@ impl container::Container for Container {
                 factory: Arc::new(factory),
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
+                changed: tokio::sync::Notify::new(),
             },
         )
     }
@@ -945,9 +1055,201 @@ impl container::Container for Container {
         &self,
         id: impl Into<ServiceKey> + Send,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        self.load_deferred(id.into())
+        self.get_async(id.into()).await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn bindAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::typed::<T>(), factory, false, false, false)
             .await
-            .and_then(|key| self.get(key))
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn bindAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::named(name), factory, false, false, false)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn bindIfAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::typed::<T>(), factory, false, false, true)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn bindIfAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::named(name), factory, false, false, true)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn singletonAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::typed::<T>(), factory, true, false, false)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn singletonAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::named(name), factory, true, false, false)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn singletonIfAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::typed::<T>(), factory, true, false, true)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn singletonIfAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::named(name), factory, true, false, true)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn scopedAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::typed::<T>(), factory, true, true, false)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn scopedAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::named(name), factory, true, true, false)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn scopedIfAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::typed::<T>(), factory, true, true, true)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    async fn scopedIfAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(ServiceKey::named(name), factory, true, true, true)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Async companion to Laravel rebinding")]
+    async fn rebindingAsync<T, F>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        callback: F,
+    ) -> Result<Option<Arc<T>>, BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.register_rebinding_async(key, callback).await
+    }
+
+    #[allow(non_snake_case, reason = "Async companion to Laravel extend")]
+    async fn extendAsync<T, F>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        closure: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.extend_async_value(key, closure).await
+    }
+
+    #[allow(non_snake_case, reason = "Async contextual factory adapter")]
+    fn addContextualBindingAsync<T, F>(
+        &self,
+        consumer: impl Into<ServiceKey>,
+        need: impl Into<ServiceKey>,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        let entry = Self::entry(Binding::AsyncFactory(Arc::new(factory)));
+        let previous = self
+            .registry
+            .write()
+            .expect("container lock poisoned")
+            .contextual
+            .entry(consumer.into())
+            .or_default()
+            .insert(need.into(), entry);
+        drop(previous);
+        Ok(())
     }
 
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
@@ -962,6 +1264,7 @@ impl container::Container for Container {
         &self,
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError> {
+        scope::check_open(self)?;
         let id = self.require_sync(id.into())?;
         let (id, canonical) = if self.has_hooks(Phase::Before) {
             let key = self.getAlias(id)?;
@@ -970,8 +1273,57 @@ impl container::Container for Container {
         } else {
             (id, false)
         };
+        let (key, entry, scoped, contextual) = self.select_entry(id, canonical)?;
+        self.resolve_entry(key, entry, scoped, contextual)
+    }
+}
+
+impl Container {
+    fn current_recipe(
+        &self,
+        key: &ServiceKey,
+        entry: &RegisteredBinding,
+        contextual: bool,
+    ) -> bool {
+        if contextual {
+            return false;
+        }
+        let local = scope::lookup(self, key);
+        let cached = scope::cached_entry(self, key, entry);
+        let registry = self.registry.read().expect("container lock poisoned");
+        let root = if registry.root_instance_visible(self, key) {
+            registry
+                .instances
+                .get(key)
+                .or_else(|| registry.bindings.get(key))
+        } else {
+            registry.bindings.get(key)
+        };
+        let current = if let Some(local) = &local {
+            Arc::ptr_eq(&local.value, &entry.value)
+        } else if entry.shared
+            && scope::active(self)
+            && registry.scoped.contains(key)
+            && root.is_some_and(|root| !root.instance)
+        {
+            root.is_some_and(|root| Arc::ptr_eq(&root.version, &entry.version))
+                && cached
+                    .as_ref()
+                    .is_some_and(|cached| Arc::ptr_eq(&cached.value, &entry.value))
+        } else {
+            root.is_some_and(|root| Arc::ptr_eq(&root.value, &entry.value))
+        };
+        drop(registry);
+        current
+    }
+
+    fn select_entry(
+        &self,
+        id: ServiceKey,
+        canonical: bool,
+    ) -> Result<(ServiceKey, RegisteredBinding, bool, bool), BindingResolutionError> {
         let consumer = self.consumer();
-        let (key, entry, scoped, contextual) = {
+        let selected = {
             let registry = self.registry.read().expect("container lock poisoned");
             let key = if canonical {
                 id
@@ -1000,11 +1352,9 @@ impl container::Container for Container {
                 })?;
             (key, entry, scoped, has_contextual)
         };
-        self.resolve_entry(key, entry, scoped, contextual)
+        Ok(selected)
     }
-}
 
-impl Container {
     fn resolve_entry<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: ServiceKey,
@@ -1022,17 +1372,30 @@ impl Container {
                 actual: entry.output,
             }
         })?;
-        if let Binding::Instance { state, ready } = binding {
+        if let Binding::Instance { state, ready, .. } = binding {
             return self.read_instance(&key, state, ready);
         }
         let resolution = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
         match binding {
+            Binding::AsyncFactory(_) => {
+                Err(BindingResolutionError::AsyncResolutionRequired { service: key })
+            }
+            Binding::AsyncSingleton { state, ready, .. } => {
+                if matches!(
+                    &*state.lock().expect("singleton state poisoned"),
+                    SingletonState::Empty
+                ) {
+                    return Err(BindingResolutionError::AsyncResolutionRequired { service: key });
+                }
+                self.read_instance(&key, state, ready)
+            }
             Binding::Factory(factory) => {
                 self.check_extenders::<T>(&key)?;
                 let value = self.decorate(&key, factory(self)?, None)?;
                 drop(resolution);
+                let current = self.current_recipe(&key, &entry, contextual);
                 self.fire_constructed(&key, value.clone())?;
-                if !contextual {
+                if current {
                     self.registry
                         .write()
                         .expect("container lock poisoned")
@@ -1041,13 +1404,14 @@ impl Container {
                 }
                 Ok(value)
             }
-            Binding::Instance { state, ready } => self.read_instance(&key, state, ready),
+            Binding::Instance { state, ready, .. } => self.read_instance(&key, state, ready),
             Binding::Singleton {
                 factory,
                 state,
                 ready,
+                changed,
             } => {
-                let caller = thread::current().id();
+                let caller = Owner::current_thread();
                 let binding = std::ptr::from_ref(state).addr();
                 let mut slot = state.lock().expect("singleton state poisoned");
                 loop {
@@ -1055,33 +1419,34 @@ impl Container {
                         SingletonState::Ready(instance) => return Ok(Arc::clone(instance)),
                         SingletonState::Publishing(owner, instance)
                         | SingletonState::Extending(owner, instance)
-                            if *owner == caller =>
+                            if owner.is_current() =>
                         {
                             return Ok(Arc::clone(instance));
                         }
                         SingletonState::Empty => {
-                            *slot = SingletonState::Running(caller);
+                            *slot = SingletonState::Running(caller.clone());
                             break;
                         }
                         SingletonState::Running(owner)
                         | SingletonState::Publishing(owner, _)
                         | SingletonState::Extending(owner, _) => {
-                            self.wait_for(caller, *owner, key.clone(), binding)?;
+                            self.wait_for(caller.clone(), owner.clone(), key.clone(), binding)?;
                             slot = ready.wait(slot).expect("singleton state poisoned");
                             self.waiting
                                 .lock()
                                 .expect("container wait graph poisoned")
-                                .remove(&caller);
+                                .retain(|(from, _), _| *from != caller.key());
                         }
                     }
                 }
                 drop(slot);
                 let constructed = panic::catch_unwind(AssertUnwindSafe(|| {
                     self.check_extenders::<T>(&key)?;
-                    self.decorate(&key, factory(self)?, Some((state, &entry, caller)))
+                    self.decorate(&key, factory(self)?, Some((state, &entry, caller.clone())))
                 }));
                 drop(resolution);
                 let mut value = None;
+                let current = self.current_recipe(&key, &entry, contextual);
                 let result = match constructed {
                     Ok(Ok(instance)) => {
                         value = Some(instance.clone());
@@ -1092,7 +1457,7 @@ impl Container {
                     }
                     other => other,
                 };
-                if matches!(&result, Ok(Ok(_))) {
+                if current && matches!(&result, Ok(Ok(_))) {
                     self.registry
                         .write()
                         .expect("container lock poisoned")
@@ -1112,6 +1477,7 @@ impl Container {
                     .expect("container wait graph poisoned")
                     .retain(|_, (_, _, waiting_for)| *waiting_for != binding);
                 ready.notify_all();
+                changed.notify_waiters();
                 result.unwrap_or_else(|payload| panic::resume_unwind(payload))
             }
         }

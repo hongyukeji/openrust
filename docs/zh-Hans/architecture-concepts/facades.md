@@ -31,4 +31,6 @@ impl Messages {
 
 `Route::get` 与 `Artisan::command` 在路由模块的 `register()` 执行期间使用专用注册作用域，属于已交付的注册门面。其他门面类型声明存在，不代表对应服务已经实现。Mocking 辅助接口和解析回调由后续单元交付。
 
-根服务属于尚未加载的延迟 Provider 时，使用 `getFacadeRootAsync().await`。它等待服务就绪，并使用同一应用的门面缓存；Provider 未就绪时同步解析会返回需要异步解析的错误。参阅[延迟服务提供者](providers.md#延迟服务提供者)。
+未加载的延迟 Provider 或异步工厂使用 `getFacadeRootAsync().await`。它直接走一次异步容器解析，等待就绪并共用当前应用的门面缓存；期间出现较新的 `swap` 或其他已缓存根对象时保留该值。同步解析未就绪的 Provider 或尚未构造的异步工厂返回类型化的异步解析错误。
+
+挂起的门面 Future 属于原应用执行上下文，移入另一请求、命令或应用继续 poll 会返回 `FacadeNotSet`。生命周期结束会清空缓存；保留的容器解析不能重新打开已关闭作用域（`ScopeClosed`）。销毁工作时恢复仍存活的原上下文，原上下文关闭后屏蔽环境门面。应用明确保留的服务和 Future 仍由应用持有。参阅[异步工厂](container.md#异步工厂)和[延迟服务提供者](providers.md#延迟服务提供者)。

@@ -20,6 +20,8 @@ Provider 鉤子在所屬應用的門面作用域內執行。HTTP 與 Artisan 使
 
 使用 `Application::make::<T>().await` 或 `get::<T>(key).await` 等待延遲 Provider。容器對應 `makeAsync` / `getAsync`，門面對應 `getFacadeRootAsync`。同步解析尚未初始化的延遲服務會回傳 `DeferredServiceRequiresAsync`，不會阻塞 Tokio。同步綁定工廠需接收已初始化的相依服務，不能在內部等待另一個 Provider。`register` 和 `boot` 都回傳 Future，註冊鉤子可以透過 `app.make().await` 載入另一個 Provider。
 
+使用[非同步工廠](container.md#非同步工廠)可在建構內自動解析延遲相依服務。
+
 ```rust
 use std::{error::Error, sync::Arc};
 use openrust::{
@@ -40,7 +42,10 @@ impl DeferrableProvider for ClientProvider {
 impl ServiceProvider for ClientProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container().singleton::<Client, _>(|_| Ok(Arc::new(Client)))?;
+            app.container().singletonAsync::<Client, _>(|_| Box::pin(async {
+                tokio::task::yield_now().await;
+                Ok(Arc::new(Client))
+            })).await?;
             Ok(())
         })
     }

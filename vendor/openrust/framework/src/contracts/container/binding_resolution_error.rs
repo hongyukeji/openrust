@@ -7,6 +7,10 @@ use crate::container::ServiceKey;
 #[non_exhaustive]
 pub enum BindingResolutionError {
     FacadeNotSet,
+    ScopeClosed,
+    AsyncResolutionRequired {
+        service: ServiceKey,
+    },
     DeferredServiceRequiresAsync {
         service: ServiceKey,
     },
@@ -46,6 +50,10 @@ impl fmt::Display for BindingResolutionError {
                     "service {service} requires asynchronous provider initialization; use getAsync or makeAsync"
                 )
             }
+            Self::AsyncResolutionRequired { service } => {
+                write!(f, "service {service} requires asynchronous resolution")
+            }
+            Self::ScopeClosed => f.write_str("the service lifecycle has closed"),
             Self::FacadeNotSet => f.write_str("a facade application has not been set"),
             Self::DeferredProviderFailed { provider, .. } => {
                 write!(f, "deferred provider {provider} failed")

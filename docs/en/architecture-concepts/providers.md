@@ -20,6 +20,8 @@ Implement `openrust::contracts::support::DeferrableProvider` and declare exact s
 
 `Application::make::<T>().await` and `get::<T>(key).await` wait for a deferred provider. Container callers use `makeAsync` / `getAsync`; facades offer `getFacadeRootAsync`. Synchronous lookups of an uninitialized deferred service return `DeferredServiceRequiresAsync` rather than blocking Tokio. Synchronous binding factories must receive already initialized dependencies; they cannot await another provider. Both `register` and `boot` return futures, so a registration hook can await `app.make()` for another provider.
 
+Use an [asynchronous factory](container.md#asynchronous-factories) to resolve deferred dependencies automatically inside construction.
+
 ```rust
 use std::{error::Error, sync::Arc};
 use openrust::{
@@ -40,7 +42,10 @@ impl DeferrableProvider for ClientProvider {
 impl ServiceProvider for ClientProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container().singleton::<Client, _>(|_| Ok(Arc::new(Client)))?;
+            app.container().singletonAsync::<Client, _>(|_| Box::pin(async {
+                tokio::task::yield_now().await;
+                Ok(Arc::new(Client))
+            })).await?;
             Ok(())
         })
     }

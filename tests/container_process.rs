@@ -1,6 +1,8 @@
 //! Runs the actual framework entry in child processes with a test provider.
 use openrust::{
-    console::{ConsoleError, Output},
+    console::{
+        Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
+    },
     container::ServiceKey,
     contracts::{container::Container as _, foundation::Application as _},
     foundation::{Application, configuration::Routing},
@@ -63,6 +65,27 @@ impl Facade for ScopedProbes {
         ServiceKey::typed::<ScopedProbe>()
     }
 }
+struct AsyncProbeCommand(CommandDefinition);
+impl FrameworkCommand for AsyncProbeCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let value = app
+                .get::<u32>("async-sum")
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            output.stdout.push_str(&value.to_string());
+            Ok(0)
+        })
+    }
+}
 struct Provider;
 impl ServiceProvider for Provider {
     fn register<'a>(
@@ -70,6 +93,21 @@ impl ServiceProvider for Provider {
         app: &'a Application,
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            app.container()
+                .bindAsyncNamed::<u32, _>("async-number", |_| {
+                    Box::pin(async {
+                        tokio::task::yield_now().await;
+                        Ok(Arc::new(3))
+                    })
+                })
+                .await?;
+            app.container()
+                .bindAsyncNamed::<u32, _>("async-sum", |c| {
+                    Box::pin(
+                        async move { Ok(Arc::new(*c.getAsync::<u32>("async-number").await? + 4)) },
+                    )
+                })
+                .await?;
             app.container()
                 .instanceNamed("rebind-probe", Arc::new(1_u32))?;
             app.container()
@@ -167,6 +205,11 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
     Ok(Application::configure(env!("CARGO_MANIFEST_DIR").into())
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
+        .withCommands(|artisan| {
+            artisan.add_command(Box::new(AsyncProbeCommand(CommandDefinition::new(
+                clap::Command::new("async:probe"),
+            ))))
+        })
         .withRouting(Routing::default().commands(routes))
         .create()?)
 }
@@ -183,6 +226,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "hooks:probe"], 0),
         (vec!["artisan", "extend:probe"], 0),
         (vec!["artisan", "rebind:probe"], 0),
+        (vec!["artisan", "async:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -210,6 +254,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"async:probe") {
+                    b"7".as_slice()
                 } else {
                     b"from provider".as_slice()
                 }
@@ -219,6 +265,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("8 container/provider Artisan process checks passed");
+    println!("9 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

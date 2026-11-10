@@ -1,3 +1,4 @@
+mod asynchronous_factories;
 mod container;
 mod contextual;
 mod extensions;

@@ -2,7 +2,7 @@
 
 mod facade;
 pub use facade::Facade;
-pub(crate) use facade::scope;
+pub(crate) use facade::{ContextSnapshot, application_scope, context_snapshot, scope};
 
 use std::{
     cell::RefCell,

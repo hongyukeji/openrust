@@ -207,14 +207,22 @@ impl Application {
     pub async fn make<T: ?Sized + Send + Sync + 'static>(
         &self,
     ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
-        self.shared.container.makeAsync::<T>().await
+        crate::support::facades::application_scope(
+            self.container_handle(),
+            self.shared.container.makeAsync::<T>(),
+        )
+        .await
     }
 
     pub async fn get<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey> + Send,
     ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
-        self.shared.container.getAsync::<T>(key).await
+        crate::support::facades::application_scope(
+            self.container_handle(),
+            self.shared.container.getAsync::<T>(key),
+        )
+        .await
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's application API")]

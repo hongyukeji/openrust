@@ -258,4 +258,78 @@ fn main() -> Result<(), BindingResolutionError> {
 }
 ```
 
-延遲 Provider 相依服務透過 `Application::make().await` 或容器的 `makeAsync` / `getAsync` 解析。同步工廠需接收已初始化的相依服務；Provider 尚未就緒時回傳需要非同步解析的型別化錯誤。參閱[延遲服務提供者](providers.md#延遲服務提供者)。
+## 非同步工廠
+
+服務建構需要 I/O 或延遲相依服務時，使用非同步工廠。這些介面共用現有綁定表與生命週期，不建立第二個容器；將 PHP 的閉包執行轉為 Rust 明確等待的 Future。原同步介面繼續可用。
+
+| 生命週期 | 型別工廠 | 具名工廠 |
+| --- | --- | --- |
+| 每次建構 | `bindAsync` | `bindAsyncNamed` |
+| 單例 | `singletonAsync` | `singletonAsyncNamed` |
+| 作用域 | `scopedAsync` | `scopedAsyncNamed` |
+
+條件變體將 `If` 放在 `Async` 前，例如 `bindIfAsync`、`singletonIfAsyncNamed` 與 `scopedIfAsync`。註冊與重綁定通知都需 await；條件不符時不執行工廠。工廠接收目前容器，回傳 `Box::pin(async move { ... })`，結果為 `Result<Arc<T>, BindingResolutionError>`；公開型別別名是 `openrust::container::FactoryFuture`。
+
+```rust
+use std::sync::Arc;
+use openrust::{container::Container, contracts::container::{BindingResolutionError, Container as _}};
+struct Client;
+struct Worker(Arc<Client>);
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.singletonAsync::<Client, _>(|_| Box::pin(async {
+        tokio::task::yield_now().await;
+        Ok(Arc::new(Client))
+    })).await?;
+    app.scopedAsync::<Worker, _>(|container| Box::pin(async move {
+        Ok(Arc::new(Worker(container.makeAsync::<Client>().await?)))
+    })).await?;
+    app.scope(async {
+        let a = app.makeAsync::<Worker>().await?;
+        let b = app.makeAsync::<Worker>().await?;
+        assert!(Arc::ptr_eq(&a, &b));
+        assert!(Arc::ptr_eq(&a.0, &app.makeAsync::<Client>().await?));
+        Ok::<(), BindingResolutionError>(())
+    }).await?;
+    Ok(())
+}
+```
+
+工廠內的 `makeAsync`、`getAsync` 自動載入相依服務的延遲 Provider 並等待就緒，無需預先初始化。同步與非同步綁定共用消費者情境、別名、輸出型別、裝飾器與解析回呼。同步解析尚未建構的非同步工廠會回傳 `AsyncResolutionRequired`；共用快取就緒後可同步讀取。
+
+情境選擇需要非同步解析時，使用 `giveAsync`、`giveServiceAsync`、`giveConfigAsync` 或 `giveTaggedAsync`。`tagged(...).collectAsync().await` 解析集合；`iter().nextAsync().await` 逐項解析，取消後該項仍留給下次呼叫。`rebindingAsync`、`refreshAsync`、`extendAsync` 等待必要建構與通知，但它們的回呼與裝飾器仍為同步函式；需要 await 的初始化放在工廠內。
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{container::{Container, ServiceKey}, contracts::container::{BindingResolutionError, Container as _}};
+struct Worker(Arc<String>);
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.bindAsyncNamed::<String, _>("message", |_| Box::pin(async {
+        Ok(Arc::new(String::from("first")))
+    })).await?;
+    app.when::<Worker>()?.needs::<String>().giveServiceAsync("message")?;
+    app.bindAsync::<Worker, _>(|container| Box::pin(async move {
+        Ok(Arc::new(Worker(container.makeAsync::<String>().await?)))
+    })).await?;
+    app.tag([ServiceKey::typed::<Worker>()], ["workers"]);
+    let workers = app.tagged::<Worker>("workers").collectAsync().await?;
+    assert_eq!(&*workers[0].0, "first");
+    let target = Arc::new(Mutex::new(String::new()));
+    app.refreshAsync::<String, _, _>("message", target.clone(), |target, value| {
+        *target.lock().unwrap() = (*value).clone();
+        Ok(())
+    }).await?;
+    app.bindAsyncNamed::<String, _>("message", |_| Box::pin(async {
+        Ok(Arc::new(String::from("second")))
+    })).await?;
+    assert_eq!(&*target.lock().unwrap(), "second");
+    Ok(())
+}
+```
+
+並行共用解析不阻塞執行器，同次建構的等待者共用結果。建構失敗或取消時喚醒已有等待者並回傳錯誤，後續新呼叫可重試；相依環回傳錯誤。若解析回呼在值發布後失敗，已發布的共用值仍保留快取，沿用現有容器行為。
+
+框架每次 poll 還原建構情境，暫停的工廠不會把消費者洩漏給其他 Future。請求與命令結束時關閉作用域並清空快取，即使外部還保留暫停的 Future。透過已關閉作用域繼續解析回傳 `ScopeClosed`；將門面 Future 移到另一應用執行中回傳 `FacadeNotSet`。銷毀暫停工作時還原仍存活的原情境；原情境關閉後不提供環境門面。應用主動持有的 Future 與服務參考仍由應用負責，drop 時釋放。這些明確的非同步錯誤與生命週期保護，是 PHP 順序機制在 Rust 並行執行環境中的轉換。

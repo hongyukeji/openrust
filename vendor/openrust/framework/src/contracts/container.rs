@@ -264,6 +264,166 @@ pub trait Container: Send + Sync + Sized {
         + 'static,
     ) -> Result<(), BindingResolutionError>;
 
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn bindAsync<T, F>(
+        &self,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn bindAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn bindIfAsync<T, F>(
+        &self,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn bindIfAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn singletonAsync<T, F>(
+        &self,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn singletonAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn singletonIfAsync<T, F>(
+        &self,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn singletonIfAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn scopedAsync<T, F>(
+        &self,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn scopedAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn scopedIfAsync<T, F>(
+        &self,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    fn scopedIfAsyncNamed<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async companion to Laravel rebinding")]
+    fn rebindingAsync<T, F>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        callback: F,
+    ) -> impl Future<Output = Result<Option<Arc<T>>, BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async companion to Laravel refresh")]
+    fn refreshAsync<T, Target, F>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        target: Arc<Target>,
+        setter: F,
+    ) -> impl Future<Output = Result<Option<Arc<T>>, BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        Target: ?Sized + Send + Sync + 'static,
+        F: Fn(&Target, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.rebindingAsync(key, move |_, value| setter(target.as_ref(), value))
+    }
+
+    #[allow(non_snake_case, reason = "Async companion to Laravel extend")]
+    fn extendAsync<T, F>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        closure: F,
+    ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Async contextual factory adapter")]
+    fn addContextualBindingAsync<T, F>(
+        &self,
+        consumer: impl Into<ServiceKey>,
+        need: impl Into<ServiceKey>,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
+
     /// Resolve a service after awaiting an asynchronous deferred provider, when present.
     #[allow(
         non_snake_case,

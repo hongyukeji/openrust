@@ -36,11 +36,11 @@ impl Drop for Rebound {
     }
 }
 impl Container {
-    pub(super) fn register_rebinding<T, F>(
+    pub(super) fn store_rebinding<T, F>(
         &self,
         abstract_key: impl Into<ServiceKey>,
         callback: F,
-    ) -> Result<Option<Arc<T>>, BindingResolutionError>
+    ) -> Result<ServiceKey, BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
@@ -63,8 +63,36 @@ impl Container {
             .entry(key.clone())
             .or_default()
             .push(registered);
+        Ok(key)
+    }
+    pub(super) fn register_rebinding<T, F>(
+        &self,
+        key: impl Into<ServiceKey>,
+        callback: F,
+    ) -> Result<Option<Arc<T>>, BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
+    {
+        let key = self.store_rebinding(key, callback)?;
         if self.has(key.clone()) {
             self.get(key).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+    pub(super) async fn register_rebinding_async<T, F>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        callback: F,
+    ) -> Result<Option<Arc<T>>, BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
+    {
+        let key = self.store_rebinding(key, callback)?;
+        if self.has(key.clone()) {
+            self.getAsync(key).await.map(Some)
         } else {
             Ok(None)
         }
@@ -103,26 +131,16 @@ impl Container {
         self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
         self.deliver_rebound(key, value, callbacks)
     }
-    pub(super) fn dispatch_rebound<T: ?Sized + Send + Sync + 'static>(
-        &self,
-        key: ServiceKey,
-        mut entry: RegisteredBinding,
-        callbacks: Vec<RegisteredRebinding>,
-    ) -> Result<(), BindingResolutionError> {
-        if callbacks.is_empty() {
-            return Ok(());
-        }
-        let _rebound = Rebound::enter(self, &key)?;
-        self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
+    fn rebound_entry(&self, key: &ServiceKey, mut entry: RegisteredBinding) -> RegisteredBinding {
         let retired = if entry.shared && !entry.instance && scope::active(self) {
             let registry = self.registry.read().expect("container lock poisoned");
-            if registry.scoped.contains(&key) {
+            if registry.scoped.contains(key) {
                 let current = registry
                     .bindings
-                    .get(&key)
+                    .get(key)
                     .is_some_and(|current| Arc::ptr_eq(&current.value, &entry.value));
                 if current {
-                    let (selected, retired) = scope::select_retained(self, &key, &entry);
+                    let (selected, retired) = scope::select_retained(self, key, &entry);
                     entry = selected;
                     retired
                 } else {
@@ -137,8 +155,51 @@ impl Container {
             None
         };
         drop(retired);
+        entry
+    }
+    pub(super) fn dispatch_rebound<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        mut entry: RegisteredBinding,
+        callbacks: Vec<RegisteredRebinding>,
+    ) -> Result<(), BindingResolutionError> {
+        if callbacks.is_empty() {
+            return Ok(());
+        }
+        let _rebound = Rebound::enter(self, &key)?;
+        self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
+        entry = self.rebound_entry(&key, entry);
         // Use this mutation's committed recipe, never a later same-name replacement.
         let value = self.resolve_entry::<T>(key.clone(), entry, false, false)?;
         self.deliver_rebound(key, value, callbacks)
+    }
+    pub(super) fn dispatch_rebound_async<'a, T: ?Sized + Send + Sync + 'static>(
+        &'a self,
+        key: ServiceKey,
+        entry: RegisteredBinding,
+        callbacks: Vec<RegisteredRebinding>,
+    ) -> super::deferred::LoadFuture<'a> {
+        Box::pin(async move {
+            if callbacks.is_empty() {
+                return Ok(());
+            }
+            let mut delivery = Box::pin(async {
+                self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
+                let entry = self.rebound_entry(&key, entry);
+                let value = self
+                    .resolve_entry_async::<T>(key.clone(), entry, false, false)
+                    .await?;
+                self.deliver_rebound(key.clone(), value, callbacks)?;
+                Ok(())
+            });
+            std::future::poll_fn(|cx| {
+                let _guard = match Rebound::enter(self, &key) {
+                    Ok(guard) => guard,
+                    Err(error) => return std::task::Poll::Ready(Err(error)),
+                };
+                delivery.as_mut().poll(cx)
+            })
+            .await
+        })
     }
 }

@@ -258,4 +258,78 @@ fn main() -> Result<(), BindingResolutionError> {
 }
 ```
 
-Deferred provider dependencies use `Application::make().await` or the container’s `makeAsync` / `getAsync`. Synchronous factories must receive initialized dependencies; a pending provider returns a typed async-required error. See [deferred providers](providers.md#deferred-providers).
+## Asynchronous Factories
+
+Use an asynchronous factory when constructing a service requires I/O or a deferred dependency. These methods use the existing binding registry and lifetimes; they do not create a second container. PHP closure execution becomes an explicitly awaited Rust future. Existing synchronous methods remain available.
+
+| Lifetime | Typed factory | Named factory |
+| --- | --- | --- |
+| Transient | `bindAsync` | `bindAsyncNamed` |
+| Singleton | `singletonAsync` | `singletonAsyncNamed` |
+| Scoped | `scopedAsync` | `scopedAsyncNamed` |
+
+Conditional variants put `If` before `Async`: for example, `bindIfAsync`, `singletonIfAsyncNamed`, and `scopedIfAsync`. Await registration, including rebinding notifications. A rejected conditional registration never invokes its factory. A factory receives the current container and returns `Box::pin(async move { ... })` with `Result<Arc<T>, BindingResolutionError>`; the public alias is `openrust::container::FactoryFuture`.
+
+```rust
+use std::sync::Arc;
+use openrust::{container::Container, contracts::container::{BindingResolutionError, Container as _}};
+struct Client;
+struct Worker(Arc<Client>);
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.singletonAsync::<Client, _>(|_| Box::pin(async {
+        tokio::task::yield_now().await;
+        Ok(Arc::new(Client))
+    })).await?;
+    app.scopedAsync::<Worker, _>(|container| Box::pin(async move {
+        Ok(Arc::new(Worker(container.makeAsync::<Client>().await?)))
+    })).await?;
+    app.scope(async {
+        let a = app.makeAsync::<Worker>().await?;
+        let b = app.makeAsync::<Worker>().await?;
+        assert!(Arc::ptr_eq(&a, &b));
+        assert!(Arc::ptr_eq(&a.0, &app.makeAsync::<Client>().await?));
+        Ok::<(), BindingResolutionError>(())
+    }).await?;
+    Ok(())
+}
+```
+
+Inside a factory, `makeAsync` and `getAsync` automatically load a dependency's deferred provider and wait for readiness. The same consumer context, aliases, output contracts, decorators, and resolution callbacks apply to synchronous and asynchronous bindings. A synchronous lookup of an uncached asynchronous factory returns `AsyncResolutionRequired`; a ready shared cache is readable synchronously.
+
+Use contextual `giveAsync`, `giveServiceAsync`, `giveConfigAsync`, or `giveTaggedAsync` when the selected value needs asynchronous resolution. `tagged(...).collectAsync().await` resolves a collection; `iter().nextAsync().await` resolves one entry at a time. Cancelling the latter leaves that entry available for the next call. `rebindingAsync`, `refreshAsync`, and `extendAsync` await required construction and notification, while their callbacks and decorators remain synchronous. Perform awaited initialization in a factory, not a synchronous callback.
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{container::{Container, ServiceKey}, contracts::container::{BindingResolutionError, Container as _}};
+struct Worker(Arc<String>);
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.bindAsyncNamed::<String, _>("message", |_| Box::pin(async {
+        Ok(Arc::new(String::from("first")))
+    })).await?;
+    app.when::<Worker>()?.needs::<String>().giveServiceAsync("message")?;
+    app.bindAsync::<Worker, _>(|container| Box::pin(async move {
+        Ok(Arc::new(Worker(container.makeAsync::<String>().await?)))
+    })).await?;
+    app.tag([ServiceKey::typed::<Worker>()], ["workers"]);
+    let workers = app.tagged::<Worker>("workers").collectAsync().await?;
+    assert_eq!(&*workers[0].0, "first");
+    let target = Arc::new(Mutex::new(String::new()));
+    app.refreshAsync::<String, _, _>("message", target.clone(), |target, value| {
+        *target.lock().unwrap() = (*value).clone();
+        Ok(())
+    }).await?;
+    app.bindAsyncNamed::<String, _>("message", |_| Box::pin(async {
+        Ok(Arc::new(String::from("second")))
+    })).await?;
+    assert_eq!(&*target.lock().unwrap(), "second");
+    Ok(())
+}
+```
+
+Concurrent shared lookups wait without blocking the executor and share one construction attempt. Failed or cancelled construction wakes its existing waiters with an error; a later lookup can retry. Dependency cycles return an error. A value already published before a resolving callback fails remains cached, following the existing container behavior.
+
+The framework restores construction context on each poll, so a suspended factory cannot leak its consumer into another future. Request and command completion closes their scope and drains its caches even when a future is retained. Further container resolution through that closed scope returns `ScopeClosed`; a facade future moved into a different application execution returns `FacadeNotSet`. Dropping pending work restores its live origin for cleanup; a closed origin has no ambient facade. Caller-owned futures and service references remain the caller's responsibility and are released when dropped. These explicit async errors and lifecycle guards adapt PHP's sequential mechanism to Rust's concurrent runtime.

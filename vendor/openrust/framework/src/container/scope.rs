@@ -2,7 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     future::Future,
     hash::{Hash, Hasher},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use super::{Container, RegisteredBinding, ServiceKey};
@@ -30,9 +33,27 @@ struct Cache {
 
 struct Context {
     cache: Mutex<Cache>,
+    closed: AtomicBool,
+    changed: tokio::sync::watch::Sender<bool>,
+}
+impl Context {
+    fn close(&self) {
+        if !self.closed.swap(true, Ordering::AcqRel) {
+            self.changed.send_replace(true);
+            let retired = std::mem::take(&mut *self.cache.lock().expect("scope cache poisoned"));
+            crate::support::facades::ContextSnapshot::empty()
+                .run(|| CURRENT.sync_scope(Arc::default(), || drop(retired)));
+        }
+    }
+}
+struct CloseContext(Arc<Context>);
+impl Drop for CloseContext {
+    fn drop(&mut self) {
+        self.0.close();
+    }
 }
 
-tokio::task_local! { static CURRENT: HashMap<Identity, Arc<Context>>; }
+tokio::task_local! { static CURRENT: Arc<HashMap<Identity, Arc<Context>>>; }
 
 fn with<R>(container: &Container, operation: impl FnOnce(&Context) -> R) -> Option<R> {
     CURRENT
@@ -46,7 +67,16 @@ fn with<R>(container: &Container, operation: impl FnOnce(&Context) -> R) -> Opti
 }
 
 pub(super) fn active(container: &Container) -> bool {
-    with(container, |_| ()).is_some()
+    with(container, |context| !context.closed.load(Ordering::Acquire)).unwrap_or(false)
+}
+
+pub(super) fn check_open(
+    container: &Container,
+) -> Result<(), crate::contracts::container::BindingResolutionError> {
+    if with(container, |context| context.closed.load(Ordering::Acquire)).unwrap_or(false) {
+        return Err(crate::contracts::container::BindingResolutionError::ScopeClosed);
+    }
+    Ok(())
 }
 
 pub(super) fn alias_removed(container: &Container, key: &ServiceKey) -> bool {
@@ -187,14 +217,130 @@ impl Container {
         if active(self) {
             future.await
         } else {
-            let mut contexts = CURRENT.try_with(Clone::clone).unwrap_or_default();
-            contexts.insert(
-                self.identity.clone(),
-                Arc::new(Context {
-                    cache: Mutex::default(),
-                }),
-            );
-            CURRENT.scope(contexts, future).await
+            let mut contexts = CURRENT
+                .try_with(|contexts| contexts.as_ref().clone())
+                .unwrap_or_default();
+            let context = Arc::new(Context {
+                cache: Mutex::default(),
+                closed: AtomicBool::new(false),
+                changed: tokio::sync::watch::channel(false).0,
+            });
+            contexts.insert(self.identity.clone(), context.clone());
+            let _close = CloseContext(context);
+            CURRENT.scope(Arc::new(contexts), future).await
         }
+    }
+}
+
+struct Retained<F> {
+    future: Option<std::pin::Pin<Box<F>>>,
+    contexts: Arc<HashMap<Identity, Arc<Context>>>,
+    active: Option<Arc<Context>>,
+    facade: crate::support::facades::ContextSnapshot,
+    cancelled: Option<std::pin::Pin<Box<dyn Future<Output = ()> + Send>>>,
+}
+impl<F> Retained<F> {
+    fn is_closed(&self) -> bool {
+        self.facade.is_closed()
+            || self
+                .active
+                .as_ref()
+                .is_some_and(|context| context.closed.load(Ordering::Acquire))
+    }
+    fn run<R>(&self, operation: impl FnOnce() -> R) -> R {
+        self.facade
+            .run(|| CURRENT.sync_scope(self.contexts.clone(), operation))
+    }
+}
+impl<F, R> Future for Retained<F>
+where
+    F: Future<Output = Result<R, crate::contracts::container::BindingResolutionError>>,
+{
+    type Output = F::Output;
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let this = self.get_mut();
+        if this.is_closed() {
+            return std::task::Poll::Ready(Err(
+                crate::contracts::container::BindingResolutionError::ScopeClosed,
+            ));
+        }
+        if !this.facade.matches_current() {
+            return std::task::Poll::Ready(Err(
+                crate::contracts::container::BindingResolutionError::FacadeNotSet,
+            ));
+        }
+        if let Some(cancelled) = &mut this.cancelled
+            && cancelled.as_mut().poll(cx).is_ready()
+        {
+            return std::task::Poll::Ready(Err(
+                crate::contracts::container::BindingResolutionError::ScopeClosed,
+            ));
+        }
+        let result = this.facade.run(|| {
+            CURRENT.sync_scope(this.contexts.clone(), || {
+                this.future
+                    .as_mut()
+                    .expect("retained future")
+                    .as_mut()
+                    .poll(cx)
+            })
+        });
+        if this.is_closed() {
+            this.run(|| drop(result));
+            return std::task::Poll::Ready(Err(
+                crate::contracts::container::BindingResolutionError::ScopeClosed,
+            ));
+        }
+        result
+    }
+}
+impl<F> Drop for Retained<F> {
+    fn drop(&mut self) {
+        let future = self.future.take();
+        self.run(|| drop(future));
+    }
+}
+async fn wait_closed(mut receiver: tokio::sync::watch::Receiver<bool>) {
+    let _ = receiver.wait_for(|closed| *closed).await;
+}
+/// Cold or waiting resolutions own snapshots; closing a lifecycle clears its caches and wakes them.
+pub(super) async fn preserve<R, F>(
+    container: &Container,
+    future: F,
+) -> Result<R, crate::contracts::container::BindingResolutionError>
+where
+    F: Future<Output = Result<R, crate::contracts::container::BindingResolutionError>> + Send,
+{
+    let contexts = CURRENT.try_with(Clone::clone).unwrap_or_default();
+    let active = contexts.get(&container.identity).cloned();
+    let facade = crate::support::facades::context_snapshot();
+    let cancelled = match (
+        active.as_ref().map(|context| context.changed.subscribe()),
+        facade.subscribe(),
+    ) {
+        (Some(a), Some(b)) => Some(Box::pin(async move {
+            tokio::select! {()=wait_closed(a)=>{},()=wait_closed(b)=>{}}
+        })
+            as std::pin::Pin<Box<dyn Future<Output = ()> + Send>>),
+        (Some(a), None) | (None, Some(a)) => {
+            Some(Box::pin(wait_closed(a)) as std::pin::Pin<Box<dyn Future<Output = ()> + Send>>)
+        }
+        (None, None) => None,
+    };
+    Retained {
+        future: Some(Box::pin(future)),
+        contexts,
+        active,
+        facade,
+        cancelled,
+    }
+    .await
+}
+impl Drop for Context {
+    fn drop(&mut self) {
+        self.close();
     }
 }
