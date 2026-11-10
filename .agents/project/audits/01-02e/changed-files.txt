@@ -1,0 +1,11 @@
+vendor/openrust/framework/src/container/mod.rs
+vendor/openrust/framework/src/container/scope.rs
+vendor/openrust/framework/src/container/extensions.rs
+vendor/openrust/framework/src/contracts/container.rs
+vendor/openrust/framework/tests/unit/main.rs
+vendor/openrust/framework/tests/unit/extensions.rs
+tests/extension_lifecycle.rs
+tests/container_process.rs
+docs/en/architecture-concepts/container.md
+docs/zh-Hans/architecture-concepts/container.md
+docs/zh-Hant/architecture-concepts/container.md
