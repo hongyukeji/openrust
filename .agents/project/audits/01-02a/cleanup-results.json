@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-11-10T17:28:08.660372+00:00",
+  "active_rust_builds": 0,
+  "removed_path": "/private/tmp/openrust-01-02a-review-20261111/target",
+  "removed_kib": 882216,
+  "available_bytes": 66795012096,
+  "preserved": [
+    "candidate source",
+    "candidate .artifacts/release",
+    "root shared target",
+    "Cargo download cache"
+  ]
+}

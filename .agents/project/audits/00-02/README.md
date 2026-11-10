@@ -50,7 +50,7 @@ python3 .agents/project/audits/00-02/verify_runtime.py /tmp/openrust-00-02-revie
 
 三语站点 `npm run build` 通过，`tests/check_browser.mjs` 的根路径和 `/docs/`、三语桌面与移动共 12 项浏览器检查通过。未做 Windows 实机验收。
 
-目录清单复核补充：另有 [1 个必要删除路径](deleted-files.txt)，即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件的历史 SHA-256 保留不变；删除规则已在累计 00-03 候选重新构造核对。00-01 的源文件后续已有变化，历史构造脚本会按校验值拒绝不同内容，应使用最新累计候选。
+目录清单复核补充：另有 [1 个必要删除路径](deleted-files.txt)，即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件的历史 SHA-256 保留不变；删除规则已在累计 00-03 候选重新构造核对。已提交阶段的构造工具优先按 git-commit.txt 从不可变提交恢复，源工作区变化不影响复现。
 
 ## 本地提交
 

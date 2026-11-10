@@ -1,0 +1,10 @@
+{
+  "docs/en/architecture-concepts/container.md": "40b51fcdc65aa264613c99b028c7b40f3b31bec513cad84f7d4d17e03b783b28",
+  "docs/zh-Hans/architecture-concepts/container.md": "b4b0b19ae013c98ebab54f1baea4ad012bbd0401f50b5a12292d8fc8cc5c96a7",
+  "docs/zh-Hant/architecture-concepts/container.md": "38ef58817e89a9e09db31806a83e6e01b8e90eeae468301b22a2e73c517107c2",
+  "tests/container_lifecycle.rs": "42722a33a7049ee518548204cc3b99ad2bcf68fc595bd3a60996df46507de0c4",
+  "tests/container_process.rs": "c1aa56414e6d2f29e07f94e70490243162655427618623c8b21e6d862df9878e",
+  "vendor/openrust/framework/src/container/mod.rs": "7300ba97c0f9a0814235aabb3679fb73af8720831407bb8fae9028792eb0530c",
+  "vendor/openrust/framework/src/contracts/container.rs": "98450390968621ed36a210bf2d9960bd0a9b74672e96e908e7b240db23b91b8a",
+  "vendor/openrust/framework/tests/unit/container.rs": "b4c3ff2ff562a25ecc543579395c7acef55c22d3dcd2b3272dc36106b5fa081b"
+}
