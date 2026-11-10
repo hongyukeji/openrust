@@ -63,6 +63,50 @@ pub trait Container: Send + Sync + Sized {
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError>;
 
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn isShared(&self, id: impl Into<ServiceKey>) -> bool;
+    fn resolved(&self, id: impl Into<ServiceKey>) -> Result<bool, BindingResolutionError>;
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetInstance(&self, id: impl Into<ServiceKey>);
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetInstances(&self);
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn bindIf<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn singletonIf<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn bindIfNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn singletonIfNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
     /// Check whether the service type has a binding.
     fn bound<T>(&self) -> bool
     where

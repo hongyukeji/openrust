@@ -29,6 +29,15 @@ impl ServiceProvider for Provider {
     fn register(&mut self, app: &Application) -> ProviderResult {
         app.container()
             .bind::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))));
+        let key = ServiceKey::typed::<Greeting>();
+        assert!(!app.container().isShared(key.clone()));
+        assert!(!app.container().resolved(key.clone())?);
+        app.container()
+            .instance(Arc::new(Greeting("temporary override".into())));
+        assert_eq!(app.container().make::<Greeting>()?.0, "temporary override");
+        app.container().forgetInstance(key.clone());
+        assert_eq!(app.container().make::<Greeting>()?.0, "from provider");
+        assert!(app.container().resolved(key)?);
         app.container()
             .alias(ServiceKey::typed::<Greeting>(), "greeting")?;
         Ok(())

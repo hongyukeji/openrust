@@ -41,3 +41,34 @@ fn main() -> Result<(), BindingResolutionError> {
 使用 `make::<T>()` 按 Rust 類型解析，使用 `get::<T>(key)` 按名稱或顯式鍵解析。預設設定儲存庫綁定為 `dyn openrust::contracts::config::Repository`，並有 `config` 別名。每個應用擁有自己的容器，綁定和實例不是程序全域狀態。
 
 作用域綁定、延遲服務、上下文綁定、擴充器和解析回呼屬於下一容器單元。上述綁定與解析能力不代表這些功能已經實作。
+
+## 條件綁定與實例狀態
+
+`bindIf`、`singletonIf` 僅在類型鍵沒有綁定、實例或別名時註冊工廠，命名形式為 `bindIfNamed`、`singletonIfNamed`。存在性檢查和寫入是原子操作，被拒絕的工廠不執行，並在登錄表解鎖後釋放。即使別名指向尚不存在的服務，也視為已有項目。
+
+`isShared(key)` 檢查原始鍵，不跟隨別名。`resolved(key)` 跟隨別名，在存在實例或工廠已經成功解析時回傳 true。清除實例不會清除解析歷史。提供實例不會執行或丟棄原工廠。
+
+`forgetInstance(key)` 清除精確鍵對應的實例，不跟隨別名。已有單例工廠隨後可重新建構實例。`forgetInstances()` 清除全部現存實例，保留工廠、別名和解析歷史。沒有工廠的實例項目會變為未綁定；已經回傳的 `Arc` 仍然有效。
+
+```rust
+use std::sync::Arc;
+use openrust::{container::Container, contracts::container::{Container as _, BindingResolutionError}};
+
+fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.singletonIfNamed::<u32, _>("counter", |_| Ok(Arc::new(7)));
+    app.bindIfNamed::<u32, _>("counter", |_| Ok(Arc::new(8)));
+    assert!(app.isShared("counter"));
+    assert!(!app.resolved("counter")?);
+    let original = app.get::<u32>("counter")?;
+    app.instanceNamed("counter", Arc::new(99_u32));
+    assert_eq!(*app.get::<u32>("counter")?, 99);
+    app.forgetInstance("counter");
+    let rebuilt = app.get::<u32>("counter")?;
+    assert_eq!(*rebuilt, 7);
+    assert!(!Arc::ptr_eq(&original, &rebuilt));
+    Ok(())
+}
+```
+
+這些操作不會清除門面自己的根物件快取，需要時另行呼叫門面快取清除介面。作用域服務清理由容器單元中的作用域生命週期部分交付。

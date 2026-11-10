@@ -40,4 +40,35 @@ A direct self-alias is rejected. Alias cycles and factory dependency cycles retu
 
 Use `make::<T>()` for a Rust type and `get::<T>(key)` for a named or explicit key. The default configuration repository is bound as `dyn openrust::contracts::config::Repository` and aliased as `config`. Every application owns its container; bindings and instances are not process-global.
 
-Scoped bindings, deferred services, contextual binding, extenders and resolution callbacks belong to the next container unit. The binding and resolving behavior above does not imply those features are implemented.
+Scoped bindings, deferred services, contextual binding, extenders and resolution callbacks remain in progress in container unit 01-02. The binding and resolving behavior above does not imply those features are implemented.
+
+## Conditional Bindings and Instance State
+
+`bindIf` and `singletonIf` register a typed factory only when the key has no binding, instance or alias. Their named forms are `bindIfNamed` and `singletonIfNamed`. The existence check and insertion are atomic; a rejected factory is not executed and is dropped outside the registry lock. Even an alias pointing to a missing service counts as an existing entry.
+
+`isShared(key)` examines the original key without following aliases. `resolved(key)` follows aliases and returns true for an existing instance or a successfully resolved factory. Resolution history survives instance eviction. Supplying an instance does not execute or discard the original factory.
+
+`forgetInstance(key)` removes the instance for that exact key. It does not follow aliases. A previously registered singleton factory can then construct a fresh instance. `forgetInstances()` clears all existing instances while preserving factories, aliases and resolution history. Instances without a backing factory become unbound; previously returned `Arc` values stay valid.
+
+```rust
+use std::sync::Arc;
+use openrust::{container::Container, contracts::container::{Container as _, BindingResolutionError}};
+
+fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.singletonIfNamed::<u32, _>("counter", |_| Ok(Arc::new(7)));
+    app.bindIfNamed::<u32, _>("counter", |_| Ok(Arc::new(8)));
+    assert!(app.isShared("counter"));
+    assert!(!app.resolved("counter")?);
+    let original = app.get::<u32>("counter")?;
+    app.instanceNamed("counter", Arc::new(99_u32));
+    assert_eq!(*app.get::<u32>("counter")?, 99);
+    app.forgetInstance("counter");
+    let rebuilt = app.get::<u32>("counter")?;
+    assert_eq!(*rebuilt, 7);
+    assert!(!Arc::ptr_eq(&original, &rebuilt));
+    Ok(())
+}
+```
+
+These operations do not clear a facade's own cached root; use its cache-clearing API when required. Scoped service eviction is delivered with the scoped lifecycle portion of the container unit.

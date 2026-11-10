@@ -29,12 +29,17 @@ pub struct Container {
 struct Registry {
     bindings: HashMap<ServiceKey, RegisteredBinding>,
     aliases: HashMap<ServiceKey, ServiceKey>,
+    instances: HashMap<ServiceKey, RegisteredBinding>,
+    resolved: HashSet<ServiceKey>,
 }
 
 #[derive(Clone)]
 struct RegisteredBinding {
     value: ErasedBinding,
     output: &'static str,
+    instance: bool,
+    shared: bool,
+    fresh: Option<Arc<dyn Fn() -> ErasedBinding + Send + Sync>>,
 }
 
 impl Registry {
@@ -54,9 +59,9 @@ impl Registry {
 }
 
 enum Binding<T: ?Sized> {
-    Factory(Box<Factory<T>>),
+    Factory(Arc<Factory<T>>),
     Singleton {
-        factory: Box<Factory<T>>,
+        factory: Arc<Factory<T>>,
         state: Mutex<SingletonState<T>>,
         ready: Condvar,
     },
@@ -92,19 +97,66 @@ impl Container {
         self.insert(key, Binding::Instance(instance));
     }
 
+    fn entry<T: ?Sized + Send + Sync + 'static>(binding: Binding<T>) -> RegisteredBinding {
+        let instance = matches!(binding, Binding::Instance(_));
+        let shared = !matches!(binding, Binding::Factory(_));
+        let fresh = match &binding {
+            Binding::Singleton { factory, .. } => {
+                let factory = factory.clone();
+                Some(Arc::new(move || {
+                    Arc::new(Binding::Singleton {
+                        factory: factory.clone(),
+                        state: Mutex::new(SingletonState::Empty),
+                        ready: Condvar::new(),
+                    }) as ErasedBinding
+                })
+                    as Arc<dyn Fn() -> ErasedBinding + Send + Sync>)
+            }
+            _ => None,
+        };
+        RegisteredBinding {
+            value: Arc::new(binding),
+            output: type_name::<T>(),
+            instance,
+            shared,
+            fresh,
+        }
+    }
+
     fn insert<T: ?Sized + Send + Sync + 'static>(&self, key: ServiceKey, binding: Binding<T>) {
+        let entry = Self::entry(binding);
         let previous = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             registry.aliases.remove(&key);
-            registry.bindings.insert(
-                key,
-                RegisteredBinding {
-                    value: Arc::new(binding),
-                    output: type_name::<T>(),
-                },
-            )
+            if entry.instance {
+                (registry.instances.insert(key, entry), None)
+            } else {
+                let instance = registry.instances.remove(&key);
+                (registry.bindings.insert(key, entry), instance)
+            }
         };
         drop(previous);
+    }
+
+    fn insert_if_absent<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+        binding: Binding<T>,
+    ) {
+        let entry = Self::entry(binding);
+        let rejected = {
+            let mut registry = self.registry.write().expect("container lock poisoned");
+            if registry.bindings.contains_key(&key)
+                || registry.instances.contains_key(&key)
+                || registry.aliases.contains_key(&key)
+            {
+                Some(entry)
+            } else {
+                registry.bindings.insert(key, entry);
+                None
+            }
+        };
+        drop(rejected);
     }
 
     fn resolve(&self, key: &ServiceKey) -> Result<Resolution, BindingResolutionError> {
@@ -157,7 +209,7 @@ impl container::Container for Container {
     {
         self.insert(
             ServiceKey::typed::<T>(),
-            Binding::Factory(Box::new(factory)),
+            Binding::Factory(Arc::new(factory)),
         );
     }
 
@@ -169,7 +221,7 @@ impl container::Container for Container {
         self.insert(
             ServiceKey::typed::<T>(),
             Binding::Singleton {
-                factory: Box::new(factory),
+                factory: Arc::new(factory),
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
             },
@@ -186,7 +238,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert(ServiceKey::named(name), Binding::Factory(Box::new(factory)));
+        self.insert(ServiceKey::named(name), Binding::Factory(Arc::new(factory)));
     }
 
     #[allow(non_snake_case, reason = "Named overload for Rust's typed singleton")]
@@ -198,7 +250,7 @@ impl container::Container for Container {
         self.insert(
             ServiceKey::named(name),
             Binding::Singleton {
-                factory: Box::new(factory),
+                factory: Arc::new(factory),
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
             },
@@ -247,7 +299,128 @@ impl container::Container for Container {
     fn has(&self, id: impl Into<ServiceKey>) -> bool {
         let id = id.into();
         let registry = self.registry.read().expect("container lock poisoned");
-        registry.bindings.contains_key(&id) || registry.aliases.contains_key(&id)
+        registry.bindings.contains_key(&id)
+            || registry.instances.contains_key(&id)
+            || registry.aliases.contains_key(&id)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn isShared(&self, id: impl Into<ServiceKey>) -> bool {
+        let id = id.into();
+        let registry = self.registry.read().expect("container lock poisoned");
+        registry.instances.contains_key(&id)
+            || registry
+                .bindings
+                .get(&id)
+                .is_some_and(|binding| binding.shared)
+    }
+
+    fn resolved(&self, id: impl Into<ServiceKey>) -> Result<bool, BindingResolutionError> {
+        let registry = self.registry.read().expect("container lock poisoned");
+        let key = registry.get_alias(id.into())?;
+        Ok(registry.resolved.contains(&key) || registry.instances.contains_key(&key))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetInstance(&self, id: impl Into<ServiceKey>) {
+        let key = id.into();
+        let previous = {
+            let mut registry = self.registry.write().expect("container lock poisoned");
+            let instance = registry.instances.remove(&key);
+            let cached = registry.bindings.get_mut(&key).and_then(|binding| {
+                binding
+                    .fresh
+                    .as_ref()
+                    .map(|fresh| std::mem::replace(&mut binding.value, fresh()))
+            });
+            (instance, cached)
+        };
+        drop(previous);
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetInstances(&self) {
+        let previous = {
+            let mut registry = self.registry.write().expect("container lock poisoned");
+            let instances = std::mem::take(&mut registry.instances);
+            let cached = registry
+                .bindings
+                .values_mut()
+                .filter_map(|binding| {
+                    binding
+                        .fresh
+                        .as_ref()
+                        .map(|fresh| std::mem::replace(&mut binding.value, fresh()))
+                })
+                .collect::<Vec<_>>();
+            (instances, cached)
+        };
+        drop(previous);
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn bindIf<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_if_absent(
+            ServiceKey::typed::<T>(),
+            Binding::Factory(Arc::new(factory)),
+        );
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn singletonIf<T, F>(&self, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_if_absent(
+            ServiceKey::typed::<T>(),
+            Binding::Singleton {
+                factory: Arc::new(factory),
+                state: Mutex::new(SingletonState::Empty),
+                ready: Condvar::new(),
+            },
+        );
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn bindIfNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_if_absent(ServiceKey::named(name), Binding::Factory(Arc::new(factory)));
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's container API with explicit named overloads"
+    )]
+    fn singletonIfNamed<T, F>(&self, name: &str, factory: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.insert_if_absent(
+            ServiceKey::named(name),
+            Binding::Singleton {
+                factory: Arc::new(factory),
+                state: Mutex::new(SingletonState::Empty),
+                ready: Condvar::new(),
+            },
+        );
     }
 
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
@@ -265,11 +438,14 @@ impl container::Container for Container {
         let (key, entry) = {
             let registry = self.registry.read().expect("container lock poisoned");
             let key = registry.get_alias(id.into())?;
-            let binding = registry.bindings.get(&key).cloned().ok_or_else(|| {
-                BindingResolutionError::NotBound {
+            let binding = registry
+                .instances
+                .get(&key)
+                .or_else(|| registry.bindings.get(&key))
+                .cloned()
+                .ok_or_else(|| BindingResolutionError::NotBound {
                     service: key.clone(),
-                }
-            })?;
+                })?;
             (key, binding)
         };
         let binding = entry.value.downcast::<Binding<T>>().map_err(|_| {
@@ -280,7 +456,7 @@ impl container::Container for Container {
             }
         })?;
         let _resolution = self.resolve(&key)?;
-        match binding.as_ref() {
+        let result = match binding.as_ref() {
             Binding::Factory(factory) => factory(self),
             Binding::Instance(instance) => Ok(Arc::clone(instance)),
             Binding::Singleton {
@@ -310,6 +486,13 @@ impl container::Container for Container {
                 }
                 drop(slot);
                 let result = panic::catch_unwind(AssertUnwindSafe(|| factory(self)));
+                if matches!(&result, Ok(Ok(_))) {
+                    self.registry
+                        .write()
+                        .expect("container lock poisoned")
+                        .resolved
+                        .insert(key.clone());
+                }
                 let mut slot = state.lock().expect("singleton state poisoned");
                 *slot = match &result {
                     Ok(Ok(instance)) => SingletonState::Ready(Arc::clone(instance)),
@@ -323,6 +506,14 @@ impl container::Container for Container {
                 drop(slot);
                 result.unwrap_or_else(|payload| panic::resume_unwind(payload))
             }
+        };
+        if result.is_ok() && !entry.instance {
+            self.registry
+                .write()
+                .expect("container lock poisoned")
+                .resolved
+                .insert(key);
         }
+        result
     }
 }

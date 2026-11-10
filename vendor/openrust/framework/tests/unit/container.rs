@@ -242,3 +242,133 @@ fn singleton_panic_does_not_poison_resolution_or_prevent_retry() {
     );
     assert_eq!(*container.make::<u16>().unwrap(), 8);
 }
+
+#[test]
+fn instance_overrides_preserve_the_original_factory_and_raw_forget_identity() {
+    let container = Container::default();
+    let calls = AtomicUsize::new(0);
+    container.singletonNamed::<usize, _>("service", move |_| {
+        Ok(Arc::new(calls.fetch_add(1, Ordering::SeqCst)))
+    });
+    container.alias("service", "alias").unwrap();
+    let original = container.get::<usize>("service").unwrap();
+    container.instanceNamed("service", Arc::new(99_usize));
+    assert_eq!(*container.get::<usize>("alias").unwrap(), 99);
+    container.forgetInstance("alias");
+    assert_eq!(*container.get::<usize>("service").unwrap(), 99);
+    container.forgetInstance("service");
+    let next = container.get::<usize>("alias").unwrap();
+    assert_eq!(*next, 1);
+    assert_eq!(*original, 0);
+    assert!(!Arc::ptr_eq(&original, &next));
+    container.forgetInstances();
+    assert_eq!(*container.get::<usize>("service").unwrap(), 2);
+}
+
+#[test]
+fn shared_and_resolved_states_distinguish_raw_aliases_instances_and_history() {
+    let container = Container::default();
+    container.singletonNamed::<u32, _>("shared", |_| Ok(Arc::new(1)));
+    container.bindNamed::<u32, _>("transient", |_| Ok(Arc::new(2)));
+    container.alias("shared", "alias").unwrap();
+    assert!(container.isShared("shared"));
+    assert!(!container.isShared("alias"));
+    assert!(!container.resolved("alias").unwrap());
+    container.get::<u32>("alias").unwrap();
+    assert!(container.resolved("shared").unwrap());
+    assert!(container.resolved("alias").unwrap());
+    container.forgetInstance("shared");
+    assert!(container.resolved("alias").unwrap());
+    assert!(!container.isShared("transient"));
+    assert!(!container.resolved("transient").unwrap());
+    container.get::<u32>("transient").unwrap();
+    assert!(container.resolved("transient").unwrap());
+    container.instanceNamed("provided", Arc::new(3_u32));
+    assert!(container.resolved("provided").unwrap());
+    assert!(container.isShared("provided"));
+    container.get::<u32>("provided").unwrap();
+    container.forgetInstances();
+    assert!(!container.has("provided"));
+    assert!(!container.resolved("provided").unwrap());
+    assert!(container.resolved("transient").unwrap());
+}
+
+#[test]
+fn conditional_bindings_preserve_dangling_aliases_instances_and_cached_singletons() {
+    use openrust::container::ServiceKey;
+    let container = Container::default();
+    container.singletonIf::<u32, _>(|_| Ok(Arc::new(5)));
+    let first = container.make::<u32>().unwrap();
+    container.bindIf::<u32, _>(|_| panic!("existing binding replaced"));
+    assert!(Arc::ptr_eq(&first, &container.make::<u32>().unwrap()));
+    container.instance::<u64>(Arc::new(7));
+    container.singletonIf::<u64, _>(|_| panic!("existing instance replaced"));
+    assert_eq!(*container.make::<u64>().unwrap(), 7);
+    container.alias("missing", "alias").unwrap();
+    container.bindIfNamed::<u32, _>("alias", |_| panic!("alias replaced"));
+    assert_eq!(
+        container.getAlias("alias").unwrap(),
+        ServiceKey::named("missing")
+    );
+    assert!(container.get::<u32>("alias").is_err());
+    container.bindIf::<u16, _>(|_| Ok(Arc::new(11)));
+    assert_eq!(*container.make::<u16>().unwrap(), 11);
+    assert!(!Arc::ptr_eq(
+        &container.make::<u16>().unwrap(),
+        &container.make::<u16>().unwrap()
+    ));
+}
+
+#[test]
+fn concurrent_conditional_registration_selects_one_factory_without_eager_execution() {
+    let container = Arc::new(Container::default());
+    let gate = Arc::new(Barrier::new(8));
+    let executions = Arc::new(AtomicUsize::new(0));
+    std::thread::scope(|scope| {
+        for value in 0..8 {
+            let container = container.clone();
+            let gate = gate.clone();
+            let executions = executions.clone();
+            scope.spawn(move || {
+                gate.wait();
+                container.singletonIfNamed::<usize, _>("winner", move |_| {
+                    executions.fetch_add(1, Ordering::SeqCst);
+                    Ok(Arc::new(value))
+                });
+            });
+        }
+    });
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+    let first = container.get::<usize>("winner").unwrap();
+    assert!(Arc::ptr_eq(
+        &first,
+        &container.get::<usize>("winner").unwrap()
+    ));
+    assert_eq!(executions.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn rejected_conditional_factories_are_dropped_after_unlocking_the_registry() {
+    struct Reenter(std::sync::Weak<Container>);
+    impl Drop for Reenter {
+        fn drop(&mut self) {
+            assert!(self.0.upgrade().unwrap().has("existing"));
+        }
+    }
+    let container = Arc::new(Container::default());
+    container.instanceNamed("existing", Arc::new(1_usize));
+    let weak = Arc::downgrade(&container);
+    let (send, receive) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let owned = Reenter(weak);
+        container.bindIfNamed::<usize, _>("existing", move |_| {
+            let _ = &owned;
+            Ok(Arc::new(2))
+        });
+        send.send(()).unwrap();
+    });
+    receive
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap();
+    worker.join().unwrap();
+}

@@ -66,7 +66,7 @@ impl ServiceProvider for Services {
             .bind::<Reenter, _>(|_| Ok(Arc::new(Reenter)));
         let name = self.0;
         let sequence = AtomicUsize::new(0);
-        app.container().bind::<Message, _>(move |_| {
+        app.container().bindIf::<Message, _>(move |_| {
             Ok(Arc::new(Message {
                 name,
                 sequence: sequence.fetch_add(1, Ordering::SeqCst) + 1,
@@ -75,6 +75,8 @@ impl ServiceProvider for Services {
         app.container()
             .alias(ServiceKey::typed::<Message>(), "message")?;
         assert_eq!(Messages::getFacadeRoot()?.name, name);
+        assert!(app.container().resolved("message")?);
+        assert!(!app.container().isShared(ServiceKey::typed::<Message>()));
         Ok(())
     }
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
