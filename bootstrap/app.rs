@@ -2,10 +2,7 @@ use std::error::Error;
 
 use openrust::foundation::{Application, configuration::Routing};
 
-use crate::{
-    app::{console::commands, http::middleware},
-    config, routes,
-};
+use crate::{app::console::commands, config, routes};
 
 #[allow(non_snake_case, reason = "Preserves application assembly names")]
 pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + Sync>> {
@@ -22,7 +19,9 @@ pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + 
                 .commands(routes::console::register)
                 .health("/up"),
         )
-        .withMiddleware(middleware::configure)
+        .withMiddleware(|_middleware| {
+            //
+        })
         .withExceptions(|exceptions| {
             exceptions
                 .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expectsJson());

@@ -45,10 +45,10 @@ cargo run
 ### 构建二进制
 
 ```sh
-cargo build --release --locked
+cargo build --release --locked --features standalone
 ```
 
-构建产物为 `target/release/openrust`，Windows 上为 `target/release/openrust.exe`。在应用运行目录直接执行二进制即可启动服务，追加 `artisan list` 可查看命令。应用从当前目录读取 `.env`。
+将构建产物放在发布应用的根目录，并按原路径随包提供 `resources/views/welcome.html`。直接执行二进制即可启动服务，追加 `artisan list` 可查看命令。 [产物路径与应用根目录规则](docs/zh-Hans/architecture-concepts/lifecycle.md)
 
 ## 文档
 
