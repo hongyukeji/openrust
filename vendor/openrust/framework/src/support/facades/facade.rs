@@ -14,6 +14,7 @@ use crate::{
 struct Cached {
     value: Arc<dyn Any + Send + Sync>,
     output: &'static str,
+    provisional: Option<ServiceKey>,
 }
 
 struct Context {
@@ -39,12 +40,17 @@ pub trait Facade {
         APPLICATION
             .try_with(|context| {
                 let key = Self::getFacadeAccessor();
-                let cached = context
-                    .resolved
-                    .borrow()
-                    .get(&key)
-                    .map(|cached| (cached.value.clone(), cached.output));
-                if let Some((value, actual)) = cached {
+                let cached = context.resolved.borrow().get(&key).map(|cached| {
+                    (
+                        cached.value.clone(),
+                        cached.output,
+                        cached.provisional.clone(),
+                    )
+                });
+                if let Some((value, actual, provisional)) = cached {
+                    if let Some(key) = provisional {
+                        context.container.check_provisional_cache(&key)?;
+                    }
                     return value
                         .downcast::<Arc<Self::Service>>()
                         .map(|value| (*value).clone())
@@ -56,11 +62,13 @@ pub trait Facade {
                 }
                 let service = context.container.get::<Self::Service>(key.clone())?;
                 if Self::cached {
+                    let provisional = context.container.provisional_cache_key(&key)?;
                     let previous = context.resolved.borrow_mut().insert(
                         key,
                         Cached {
                             value: Arc::new(service.clone()),
                             output: type_name::<Self::Service>(),
+                            provisional,
                         },
                     );
                     drop(previous);
@@ -68,6 +76,41 @@ pub trait Facade {
                 Ok(service)
             })
             .map_err(|_| BindingResolutionError::FacadeNotSet)?
+    }
+
+    /// Resolve an asynchronous deferred provider in the current application scope.
+    fn getFacadeRootAsync()
+    -> impl Future<Output = Result<Arc<Self::Service>, BindingResolutionError>> + Send {
+        async {
+            match Self::getFacadeRoot() {
+                Err(BindingResolutionError::DeferredServiceRequiresAsync { .. }) => {}
+                result => return result,
+            }
+            let container = APPLICATION
+                .try_with(|context| context.container.clone())
+                .map_err(|_| BindingResolutionError::FacadeNotSet)?;
+            let key = Self::getFacadeAccessor();
+            let service = container.getAsync::<Self::Service>(key.clone()).await?;
+            APPLICATION
+                .try_with(|context| {
+                    if !Arc::ptr_eq(&context.container, &container) {
+                        return Err(BindingResolutionError::FacadeNotSet);
+                    }
+                    if Self::cached {
+                        let previous = context.resolved.borrow_mut().insert(
+                            key,
+                            Cached {
+                                value: Arc::new(service.clone()),
+                                output: type_name::<Self::Service>(),
+                                provisional: None,
+                            },
+                        );
+                        drop(previous);
+                    }
+                    Ok(service)
+                })
+                .map_err(|_| BindingResolutionError::FacadeNotSet)?
+        }
     }
 
     fn clearResolvedInstance(name: Option<ServiceKey>) -> Result<(), BindingResolutionError> {
@@ -95,11 +138,13 @@ pub trait Facade {
         APPLICATION
             .try_with(|context| {
                 let key = Self::getFacadeAccessor();
+                let provisional = context.container.provisional_cache_key(&key).ok().flatten();
                 let previous = context.resolved.borrow_mut().insert(
                     key.clone(),
                     Cached {
                         value: Arc::new(instance.clone()),
                         output: type_name::<Self::Service>(),
+                        provisional,
                     },
                 );
                 drop(previous);

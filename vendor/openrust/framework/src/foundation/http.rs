@@ -23,12 +23,19 @@ pub struct Kernel {
     middleware: Middleware,
     view_root: ViewRoot,
     ready: bool,
+    routes: Option<crate::routing::Router>,
 }
 
 impl Kernel {
-    pub fn new(mut application: Application) -> Self {
+    pub fn new(application: Application) -> Self {
         let mut middleware = Middleware::default();
-        for configure in std::mem::take(&mut application.middleware_configurators) {
+        for configure in std::mem::take(
+            &mut *application
+                .shared
+                .middleware_configurators
+                .lock()
+                .expect("middleware configuration lock poisoned"),
+        ) {
             configure(&mut middleware);
         }
         Self {
@@ -36,6 +43,7 @@ impl Kernel {
             application,
             middleware,
             ready: false,
+            routes: None,
         }
     }
 }
@@ -54,8 +62,18 @@ impl http::Kernel for Kernel {
                             .get("view.paths"),
                     )
                     .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
-                self.application
-                    .routes
+                if self.routes.is_none() {
+                    self.routes = self
+                        .application
+                        .shared
+                        .routes
+                        .lock()
+                        .expect("application routes lock poisoned")
+                        .take();
+                }
+                self.routes
+                    .as_mut()
+                    .expect("boot assembled the application routes")
                     .configure_middleware(&self.middleware.registry)
                     .map_err(|source| BootstrapError::RoutingFailed { source })?;
                 self.ready = true;
@@ -77,15 +95,18 @@ impl http::Kernel for Kernel {
                 }
                 let previous_exceptions = request
                     .exceptions
-                    .replace(self.application.exceptions.clone());
+                    .replace(self.application.shared.exceptions.clone());
                 let previous_view_root = request
                     .parts_mut()
                     .extensions
                     .insert(self.view_root.clone());
                 let head = request.method() == Method::HEAD;
-                let mut response = Next::new(&self.middleware.global, &self.application.routes)
-                    .run(request)
-                    .await;
+                let mut response = Next::new(
+                    &self.middleware.global,
+                    self.routes.as_ref().expect("ready kernel has routes"),
+                )
+                .run(request)
+                .await;
                 request.exceptions = previous_exceptions;
                 let extensions = &mut request.parts_mut().extensions;
                 if let Some(view_root) = previous_view_root {

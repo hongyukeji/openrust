@@ -42,38 +42,43 @@ struct Provider {
     stats: Arc<Stats>,
 }
 impl ServiceProvider for Provider {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        use openrust::contracts::foundation::Application as _;
-        let c = app.container();
-        let name = self.name;
-        let stats = self.stats.clone();
-        c.scoped::<Probe, _>(move |_| {
-            stats.constructed.fetch_add(1, Ordering::SeqCst);
-            Ok(Arc::new(Probe(name.into())))
-        })
-        .unwrap();
-        c.extend::<Probe, _>(ServiceKey::typed::<Probe>(), |value, _| {
-            Ok(Arc::new(Probe(format!("{}:one", value.0))))
-        })?;
-        let fail = AtomicBool::new(self.fail);
-        c.extend::<Probe, _>(ServiceKey::typed::<Probe>(), move |value, _| {
-            if fail.swap(false, Ordering::SeqCst) {
-                Err(BindingResolutionError::NotBound {
-                    service: "extension-failure".into(),
-                })
-            } else {
-                Ok(Arc::new(Probe(format!("{}:two", value.0))))
-            }
-        })?;
-        let stats = self.stats.clone();
-        c.afterResolving(Some(ServiceKey::typed::<Probe>()), move |event, app| {
-            assert!(event.value::<Probe>().unwrap().0.ends_with(":one:two"));
-            stats.after.fetch_add(1, Ordering::SeqCst);
-            app.extend::<Probe, _>(event.key().clone(), |value, _| {
-                Ok(Arc::new(Probe(format!("{}:cached", value.0))))
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            use openrust::contracts::foundation::Application as _;
+            let c = app.container();
+            let name = self.name;
+            let stats = self.stats.clone();
+            c.scoped::<Probe, _>(move |_| {
+                stats.constructed.fetch_add(1, Ordering::SeqCst);
+                Ok(Arc::new(Probe(name.into())))
             })
-        })?;
-        Ok(())
+            .unwrap();
+            c.extend::<Probe, _>(ServiceKey::typed::<Probe>(), |value, _| {
+                Ok(Arc::new(Probe(format!("{}:one", value.0))))
+            })?;
+            let fail = AtomicBool::new(self.fail);
+            c.extend::<Probe, _>(ServiceKey::typed::<Probe>(), move |value, _| {
+                if fail.swap(false, Ordering::SeqCst) {
+                    Err(BindingResolutionError::NotBound {
+                        service: "extension-failure".into(),
+                    })
+                } else {
+                    Ok(Arc::new(Probe(format!("{}:two", value.0))))
+                }
+            })?;
+            let stats = self.stats.clone();
+            c.afterResolving(Some(ServiceKey::typed::<Probe>()), move |event, app| {
+                assert!(event.value::<Probe>().unwrap().0.ends_with(":one:two"));
+                stats.after.fetch_add(1, Ordering::SeqCst);
+                app.extend::<Probe, _>(event.key().clone(), |value, _| {
+                    Ok(Arc::new(Probe(format!("{}:cached", value.0))))
+                })
+            })?;
+            Ok(())
+        })
     }
 }
 fn result() -> Result<String, BindingResolutionError> {

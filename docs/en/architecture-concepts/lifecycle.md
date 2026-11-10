@@ -2,7 +2,7 @@
 
 The Tokio entry point passes `bootstrap::createApplication` to `openrust::foundation::runApplication`. The framework selects the entry point before creating the application. With no arguments it calls `Application::start()` for HTTP. With `artisan` as the first argument it calls [`Application::handleCommand`](../digging-deeper/artisan.md).
 
-The application entry declares its root as `basePath` and passes it to `Application::configure(basePath)`, matching Laravel’s `configure(basePath: ...)`. It then calls `create()` to validate the root and create the service container. The selected kernel boots the application. Boot loads environment variables and configuration, runs every provider’s `register` before any provider’s `boot`, and registers shared routes. Process environment variables take precedence over the environment file.
+The application entry declares its root as `basePath` and passes it to `Application::configure(basePath)`, matching Laravel’s `configure(basePath: ...)`. It then calls `create()` to validate the root and create the service container. The selected kernel boots the application. Boot loads environment variables and configuration, runs every eager provider’s `register` before their `boot` hooks, and registers shared routes. Process environment variables take precedence over the environment file.
 
 An absolute `APP_BASE_PATH` in the process environment takes precedence. Otherwise, source builds use the application crate directory recorded at build time, including when you run `cargo run --release`. Builds with the `standalone` feature use the executable’s directory as the application root. HTTP and Artisan both read `.env` from the selected root, regardless of the working directory.
 
@@ -15,3 +15,5 @@ The HTTP kernel runs [middleware](../the-basics/middleware.md) and dispatches th
 `bootstrap/app.rs` declares the Web routes, console routes and health path with `withRouting`. The framework mounts Web routes in the `web` group and loads console routes after the Console Kernel boots. The default application loads Web and console routes. API, broadcasting and gRPC use separate optional registration paths. The built-in `web` group currently includes route binding. The framework’s `/up` endpoint returns `200 OK` as an HTTP liveness check. The health diagnostic event and the cookie, session and CSRF layers depend on their respective framework components.
 
 When routing or middleware returns an HTTP error, the kernel applies the [exception rendering policy](../the-basics/errors.md#rendering-exceptions-as-json) declared in `bootstrap/app.rs`.
+
+Deferred providers are loaded by first service resolution. The Console Kernel loads all remaining deferred providers before command registration; the HTTP kernel leaves unused providers deferred. See [deferred providers](providers.md#deferred-providers) for ordering and asynchronous resolution.

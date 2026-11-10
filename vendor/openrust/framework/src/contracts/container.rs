@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use crate::container::{ContextualBindingBuilder, ResolutionEvent, ServiceKey, Tagged};
 
@@ -263,6 +263,29 @@ pub trait Container: Send + Sync + Sized {
         + Sync
         + 'static,
     ) -> Result<(), BindingResolutionError>;
+
+    /// Resolve a service after awaiting an asynchronous deferred provider, when present.
+    #[allow(
+        non_snake_case,
+        reason = "Async companion to Laravel container resolution"
+    )]
+    fn getAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: impl Into<ServiceKey> + Send,
+    ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send {
+        async move { self.get(id) }
+    }
+
+    /// Resolve a type without blocking the executor while its provider initializes.
+    #[allow(
+        non_snake_case,
+        reason = "Async companion to Laravel container resolution"
+    )]
+    fn makeAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+    ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send {
+        self.getAsync(ServiceKey::typed::<T>())
+    }
 
     /// Check whether the service type has a binding.
     fn bound<T>(&self) -> bool

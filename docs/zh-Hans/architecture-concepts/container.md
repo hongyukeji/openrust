@@ -257,3 +257,5 @@ fn main() -> Result<(), BindingResolutionError> {
     Ok(())
 }
 ```
+
+延迟 Provider 依赖通过 `Application::make().await` 或容器的 `makeAsync` / `getAsync` 解析。同步工厂需接收已初始化的依赖；Provider 未就绪时返回需要异步解析的类型化错误。参阅[延迟服务提供者](providers.md#延迟服务提供者)。

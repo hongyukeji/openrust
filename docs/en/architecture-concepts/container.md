@@ -257,3 +257,5 @@ fn main() -> Result<(), BindingResolutionError> {
     Ok(())
 }
 ```
+
+Deferred provider dependencies use `Application::make().await` or the container’s `makeAsync` / `getAsync`. Synchronous factories must receive initialized dependencies; a pending provider returns a typed async-required error. See [deferred providers](providers.md#deferred-providers).

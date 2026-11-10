@@ -82,29 +82,34 @@ struct Provider {
     seen: Arc<Mutex<Vec<String>>>,
 }
 impl ServiceProvider for Provider {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        let previous = app
-            .container()
-            .refresh::<dyn RepositoryContract, _, _>(
-                "config",
-                self.seen.clone(),
-                |seen, config| {
-                    seen.lock()
-                        .unwrap()
-                        .push(config.get("app.name").unwrap().as_str().unwrap().to_owned());
-                    Ok(())
-                },
-            )?
-            .unwrap();
-        assert_eq!(previous.get("app.name"), Some(json!("seed")));
-        app.container()
-            .instanceNamed("config", self.repository.clone())?;
-        assert!(Arc::ptr_eq(&app.config()?, &self.repository));
-        assert!(Arc::ptr_eq(
-            &app.config()?,
-            &app.container().make::<dyn RepositoryContract>()?
-        ));
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let previous = app
+                .container()
+                .refresh::<dyn RepositoryContract, _, _>(
+                    "config",
+                    self.seen.clone(),
+                    |seen, config| {
+                        seen.lock()
+                            .unwrap()
+                            .push(config.get("app.name").unwrap().as_str().unwrap().to_owned());
+                        Ok(())
+                    },
+                )?
+                .unwrap();
+            assert_eq!(previous.get("app.name"), Some(json!("seed")));
+            app.container()
+                .instanceNamed("config", self.repository.clone())?;
+            assert!(Arc::ptr_eq(&app.config()?, &self.repository));
+            assert!(Arc::ptr_eq(
+                &app.config()?,
+                &app.container().make::<dyn RepositoryContract>()?
+            ));
+            Ok(())
+        })
     }
 }
 fn web() -> Result<(), RoutingError> {

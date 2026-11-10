@@ -2,7 +2,7 @@
 
 Tokio 入口将 `bootstrap::createApplication` 交给 `openrust::foundation::runApplication`。框架先选择运行入口，再创建应用。无参数时调用 `Application::start()` 运行 HTTP，首个参数为 `artisan` 时调用 [`Application::handleCommand`](../digging-deeper/artisan.md)。
 
-应用入口将选定的根目录命名为 `basePath`，传给 `Application::configure(basePath)`，对应 Laravel 的 `configure(basePath: ...)`。随后 `create()` 校验根目录并建立服务容器，由选定的 Kernel 引导应用。引导时加载环境和配置，执行所有 Provider 的 `register`，再执行各 Provider 的 `boot`，然后注册共享路由。进程环境变量优先于环境文件。
+应用入口将选定的根目录命名为 `basePath`，传给 `Application::configure(basePath)`，对应 Laravel 的 `configure(basePath: ...)`。随后 `create()` 校验根目录并建立服务容器，由选定的 Kernel 引导应用。引导时加载环境和配置，执行所有普通 Provider 的 `register`，再执行各 Provider 的 `boot`，然后注册共享路由。进程环境变量优先于环境文件。
 
 进程环境中的绝对路径 `APP_BASE_PATH` 优先。未设置时，源码构建使用构建时记录的应用 crate 目录，`cargo run --release` 也采用这条规则。启用 `standalone` 特性的构建使用可执行文件所在目录。HTTP 和 Artisan 都从选定的应用根目录读取 `.env`，启动时的工作目录不影响选择。
 
@@ -15,3 +15,5 @@ HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路�
 `bootstrap/app.rs` 通过 `withRouting` 声明 Web 路由、控制台路由及健康路径。框架将 Web 路由挂入 `web` 组，Console Kernel 在引导后加载控制台路由。默认应用加载 Web 和控制台路由。API、广播和 gRPC 使用各自的可选注册入口。内置 `web` 组目前接入路由绑定。框架的 `/up` 返回 `200 OK`，用于验证 HTTP 服务存活。健康诊断事件、Cookie、Session 和 CSRF 随各自的框架组件接入。
 
 路由或中间件返回 HTTP 错误时，内核应用 `bootstrap/app.rs` 中声明的[异常渲染策略](../the-basics/errors.md#将异常渲染为-json)。
+
+延迟 Provider 在首次解析服务时加载。Console Kernel 在注册命令前加载所有剩余延迟 Provider；HTTP Kernel 保留未使用项。执行顺序及异步解析见[延迟服务提供者](providers.md#延迟服务提供者)。

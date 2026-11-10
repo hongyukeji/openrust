@@ -8,8 +8,11 @@ use openrust::{
 pub(crate) struct AppServiceProvider;
 
 impl ServiceProvider for AppServiceProvider {
-    fn register(&mut self, _app: &Application) -> ProviderResult {
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        _app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move { Ok(()) })
     }
 
     fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {

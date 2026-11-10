@@ -4,7 +4,10 @@ use std::{
     ffi::OsString,
     io::{self, Write as _},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc, Mutex, OnceLock, RwLock,
+        atomic::{AtomicBool, AtomicU8, Ordering},
+    },
 };
 
 use super::{
@@ -36,25 +39,30 @@ pub(super) type MiddlewareConfigurator = Box<dyn FnOnce(&mut Middleware) + Send 
 /// Owns the application root, service container, and provider lifecycle.
 #[allow(non_snake_case, reason = "Retains Laravel's basePath property name")]
 pub struct Application {
+    pub(super) shared: Arc<ApplicationState>,
+}
+
+#[allow(non_snake_case, reason = "Retains Laravel application state names")]
+pub(super) struct ApplicationState {
     basePath: PathBuf,
-    publicPath: Option<PathBuf>,
+    publicPath: RwLock<Option<PathBuf>>,
     load_config: ConfigLoader,
-    container: Arc<Container>,
-    providers: Vec<Box<dyn ServiceProvider>>,
-    state: BootState,
-    routing: Option<Routing>,
-    pub(super) middleware_configurators: Vec<MiddlewareConfigurator>,
+    pub(super) container: Arc<Container>,
+    providers: Mutex<Vec<Box<dyn ServiceProvider>>>,
+    deferred: OnceLock<Arc<super::provider_repository::ProviderRepository>>,
+    state: AtomicU8,
+    booting_started: AtomicBool,
+    routing: Mutex<Option<Routing>>,
+    pub(super) middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
     pub(super) commands: CommandRegistrar,
     pub(super) command_routes: Option<CommandRoutes>,
     pub(super) exceptions: Arc<Handler>,
-    pub(super) routes: Router,
+    pub(super) routes: Mutex<Option<Router>>,
 }
 
-enum BootState {
-    Pending,
-    Failed,
-    Booted,
-}
+const PENDING: u8 = 0;
+const FAILED: u8 = 1;
+const BOOTED: u8 = 2;
 
 impl Application {
     #[allow(non_snake_case, reason = "Uses Laravel's basePath argument name")]
@@ -91,15 +99,22 @@ impl Application {
     /// Returns the application's configured public directory.
     #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
     pub fn publicPath(&self) -> PathBuf {
-        self.publicPath
+        self.shared
+            .publicPath
+            .read()
+            .expect("application path lock poisoned")
             .clone()
-            .unwrap_or_else(|| self.basePath.join("public"))
+            .unwrap_or_else(|| self.shared.basePath.join("public"))
     }
 
     /// Overrides the public directory. Relative paths are resolved from the application root.
     #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
     pub fn usePublicPath(&mut self, path: impl AsRef<Path>) -> &mut Self {
-        self.publicPath = Some(self.basePath.join(path));
+        *self
+            .shared
+            .publicPath
+            .write()
+            .expect("application path lock poisoned") = Some(self.shared.basePath.join(path));
         self
     }
 
@@ -107,7 +122,9 @@ impl Application {
         &self,
     ) -> Result<Arc<dyn config::Repository>, crate::contracts::container::BindingResolutionError>
     {
-        self.container.get::<dyn config::Repository>("config")
+        self.shared
+            .container
+            .get::<dyn config::Repository>("config")
     }
 
     pub(crate) fn render_console_exception(
@@ -116,8 +133,8 @@ impl Application {
         error: &(dyn Error + Send + Sync + 'static),
     ) {
         let exception = Exception::Error(error);
-        let _ = self.exceptions.report(&exception);
-        self.exceptions.renderForConsole(output, &exception);
+        let _ = self.shared.exceptions.report(&exception);
+        self.shared.exceptions.renderForConsole(output, &exception);
     }
 
     /// Executes an Artisan invocation and terminates its console kernel.
@@ -151,51 +168,123 @@ impl Application {
             .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
-        let providers = providers
+        let providers: Vec<_> = providers
             .into_iter()
-            .filter(|provider| seen.insert(provider.as_ref().type_id()))
+            .filter(|provider| seen.insert(provider.providerType()))
             .collect();
-        Self {
+        let (deferred, providers): (Vec<_>, Vec<_>) = providers
+            .into_iter()
+            .partition(|provider| provider.isDeferred());
+        let shared = Arc::new(ApplicationState {
             basePath,
-            publicPath: None,
+            publicPath: RwLock::new(None),
             load_config,
             container,
-            providers,
-            state: BootState::Pending,
-            routing,
-            middleware_configurators,
+            providers: Mutex::new(providers),
+            deferred: OnceLock::new(),
+            state: AtomicU8::new(PENDING),
+            booting_started: AtomicBool::new(false),
+            routing: Mutex::new(routing),
+            middleware_configurators: Mutex::new(middleware_configurators),
             commands,
             command_routes,
             exceptions: Arc::new(Handler::new(exceptions)),
-            routes: Router::new(),
+            routes: Mutex::new(None),
+        });
+        let deferred =
+            super::provider_repository::ProviderRepository::new(Arc::downgrade(&shared), deferred);
+        if !deferred.is_empty() {
+            shared.container.install_deferred(deferred.clone());
         }
+        assert!(
+            shared.deferred.set(deferred).is_ok(),
+            "provider registry already initialized"
+        );
+        Self { shared }
+    }
+
+    /// Resolve a service, awaiting deferred provider boot when the application is ready.
+    pub async fn make<T: ?Sized + Send + Sync + 'static>(
+        &self,
+    ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
+        self.shared.container.makeAsync::<T>().await
+    }
+
+    pub async fn get<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+    ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
+        self.shared.container.getAsync::<T>(key).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    pub fn isDeferredService(&self, key: impl Into<ServiceKey>) -> bool {
+        use crate::container::deferred::DeferredServices as _;
+        self.shared
+            .deferred
+            .get()
+            .expect("provider registry initialized")
+            .contains(&key.into())
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    pub async fn loadDeferredProviders(
+        &self,
+    ) -> Result<(), crate::contracts::container::BindingResolutionError> {
+        self.shared
+            .deferred
+            .get()
+            .expect("provider registry initialized")
+            .load_all()
+            .await
+    }
+
+    pub(super) fn booting_started(&self) -> bool {
+        self.shared.booting_started.load(Ordering::Acquire)
     }
 
     pub(crate) fn container_handle(&self) -> Arc<Container> {
-        self.container.clone()
+        self.shared.container.clone()
     }
 
     pub async fn boot(&mut self) -> Result<(), BootstrapError> {
-        crate::support::facades::scope(self.container.clone(), self.boot_application()).await
+        crate::support::facades::scope(self.shared.container.clone(), self.boot_application()).await
     }
 
     async fn boot_application(&mut self) -> Result<(), BootstrapError> {
-        match self.state {
-            BootState::Booted => return Ok(()),
-            BootState::Failed => return Err(BootstrapError::PreviousBootFailed),
-            BootState::Pending => self.state = BootState::Failed,
+        match self.shared.state.compare_exchange(
+            PENDING,
+            FAILED,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => {}
+            Err(BOOTED) => return Ok(()),
+            Err(_) => return Err(BootstrapError::PreviousBootFailed),
         }
+
         let configuration_failed = |source| BootstrapError::ConfigurationFailed { source };
-        let environment = LoadEnvironmentVariables::bootstrap(&self.basePath, None)
+        let environment = LoadEnvironmentVariables::bootstrap(&self.shared.basePath, None)
             .map_err(configuration_failed)?;
         let config = Arc::new(Repository::new(Default::default()));
-        self.container
+        self.shared
+            .container
             .instanceNamed::<dyn config::Repository>("config", config.clone())
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
-        let loaded = LoadConfiguration::bootstrap(&self.basePath, &environment, self.load_config)
-            .map_err(configuration_failed)?;
+        let loaded = LoadConfiguration::bootstrap(
+            &self.shared.basePath,
+            &environment,
+            self.shared.load_config,
+        )
+        .map_err(configuration_failed)?;
         config.replace_with(loaded);
-        if self.publicPath.is_none() {
+        if self
+            .shared
+            .publicPath
+            .read()
+            .expect("application path lock poisoned")
+            .is_none()
+        {
             match config::Repository::get(config.as_ref(), "app.public_path") {
                 None | Some(Value::Null) => {}
                 Some(Value::String(path)) if !path.trim().is_empty() => {
@@ -210,10 +299,16 @@ impl Application {
             }
         }
 
-        let mut providers = std::mem::take(&mut self.providers);
+        let mut providers = std::mem::take(
+            &mut *self
+                .shared
+                .providers
+                .lock()
+                .expect("provider list lock poisoned"),
+        );
         for provider in &mut providers {
-            let (provider_type, name) = (provider.as_ref().type_id(), provider.name());
-            provider.register(self).map_err(|source| {
+            let (provider_type, name) = (provider.providerType(), provider.name());
+            provider.register(self).await.map_err(|source| {
                 BootstrapError::ProviderRegistrationFailed {
                     provider: provider_type,
                     name,
@@ -221,8 +316,16 @@ impl Application {
                 }
             })?;
         }
+        self.shared.booting_started.store(true, Ordering::Release);
+        self.shared
+            .deferred
+            .get()
+            .expect("provider registry initialized")
+            .boot_prepared()
+            .await
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
         for provider in &mut providers {
-            let (provider_type, name) = (provider.as_ref().type_id(), provider.name());
+            let (provider_type, name) = (provider.providerType(), provider.name());
             provider
                 .boot(self)
                 .await
@@ -232,13 +335,42 @@ impl Application {
                     source,
                 })?;
         }
+        self.shared
+            .deferred
+            .get()
+            .expect("provider registry initialized")
+            .boot_registered()
+            .await
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let routing_failed = |source| BootstrapError::RoutingFailed { source };
-        self.routes = match self.routing.take() {
+        let routing = self
+            .shared
+            .routing
+            .lock()
+            .expect("application routing lock poisoned")
+            .take();
+        let routes = match routing {
             Some(routing) => routing.register(self).map_err(routing_failed)?,
             None => Router::new(),
         };
-        self.providers = providers;
-        self.state = BootState::Booted;
+        *self
+            .shared
+            .routes
+            .lock()
+            .expect("application routes lock poisoned") = Some(routes);
+        *self
+            .shared
+            .providers
+            .lock()
+            .expect("provider list lock poisoned") = providers;
+        self.shared
+            .deferred
+            .get()
+            .expect("provider registry initialized")
+            .boot_registered()
+            .await
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        self.shared.state.store(BOOTED, Ordering::Release);
         Ok(())
     }
 }
@@ -258,7 +390,7 @@ impl foundation::Application for Application {
     type Container = Container;
 
     fn base_path(&self) -> &Path {
-        &self.basePath
+        &self.shared.basePath
     }
     fn config(
         &self,
@@ -267,9 +399,9 @@ impl foundation::Application for Application {
         self.configuration_repository()
     }
     fn container(&self) -> &Container {
-        &self.container
+        &self.shared.container
     }
     fn is_booted(&self) -> bool {
-        matches!(self.state, BootState::Booted)
+        self.shared.state.load(Ordering::Acquire) == BOOTED
     }
 }

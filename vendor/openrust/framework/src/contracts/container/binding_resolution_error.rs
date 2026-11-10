@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, sync::Arc};
 
 use crate::container::ServiceKey;
 
@@ -7,6 +7,13 @@ use crate::container::ServiceKey;
 #[non_exhaustive]
 pub enum BindingResolutionError {
     FacadeNotSet,
+    DeferredServiceRequiresAsync {
+        service: ServiceKey,
+    },
+    DeferredProviderFailed {
+        provider: &'static str,
+        source: Arc<dyn Error + Send + Sync>,
+    },
     NotBound {
         service: ServiceKey,
     },
@@ -33,7 +40,16 @@ pub enum BindingResolutionError {
 impl fmt::Display for BindingResolutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::DeferredServiceRequiresAsync { service } => {
+                write!(
+                    f,
+                    "service {service} requires asynchronous provider initialization; use getAsync or makeAsync"
+                )
+            }
             Self::FacadeNotSet => f.write_str("a facade application has not been set"),
+            Self::DeferredProviderFailed { provider, .. } => {
+                write!(f, "deferred provider {provider} failed")
+            }
             Self::NotBound { service } => write!(f, "service {service} is not bound"),
             Self::CircularDependency { services } => {
                 write!(
@@ -70,6 +86,7 @@ impl Error for BindingResolutionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::FactoryFailed { source, .. } => Some(source.as_ref()),
+            Self::DeferredProviderFailed { source, .. } => Some(source.as_ref()),
             _ => None,
         }
     }

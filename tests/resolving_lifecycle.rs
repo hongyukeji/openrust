@@ -46,54 +46,59 @@ struct Provider {
     stats: Arc<Stats>,
 }
 impl ServiceProvider for Provider {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        use openrust::contracts::foundation::Application as _;
-        let c = app.container();
-        let name = self.name;
-        let stats = self.stats.clone();
-        c.scoped::<Probe, _>(move |_| {
-            stats.constructed.fetch_add(1, Ordering::SeqCst);
-            Ok(Arc::new(Probe {
-                name,
-                stages: Mutex::new(vec!["construct"]),
-            }))
-        })
-        .unwrap();
-        let stats = self.stats.clone();
-        c.beforeResolving(Some(ServiceKey::typed::<Probe>()), move |_, _| {
-            stats.before.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        })?;
-        c.resolving(Some(ServiceKey::typed::<Probe>()), |event, _| {
-            event
-                .value::<Probe>()
-                .unwrap()
-                .stages
-                .lock()
-                .unwrap()
-                .push("resolving");
-            Ok(())
-        })?;
-        let fail = AtomicBool::new(self.fail);
-        let stats = self.stats.clone();
-        c.afterResolving(Some(ServiceKey::typed::<Probe>()), move |event, _| {
-            event
-                .value::<Probe>()
-                .unwrap()
-                .stages
-                .lock()
-                .unwrap()
-                .push("after");
-            stats.after.fetch_add(1, Ordering::SeqCst);
-            if fail.swap(false, Ordering::SeqCst) {
-                Err(BindingResolutionError::NotBound {
-                    service: "hook-failure".into(),
-                })
-            } else {
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            use openrust::contracts::foundation::Application as _;
+            let c = app.container();
+            let name = self.name;
+            let stats = self.stats.clone();
+            c.scoped::<Probe, _>(move |_| {
+                stats.constructed.fetch_add(1, Ordering::SeqCst);
+                Ok(Arc::new(Probe {
+                    name,
+                    stages: Mutex::new(vec!["construct"]),
+                }))
+            })
+            .unwrap();
+            let stats = self.stats.clone();
+            c.beforeResolving(Some(ServiceKey::typed::<Probe>()), move |_, _| {
+                stats.before.fetch_add(1, Ordering::SeqCst);
                 Ok(())
-            }
-        })?;
-        Ok(())
+            })?;
+            c.resolving(Some(ServiceKey::typed::<Probe>()), |event, _| {
+                event
+                    .value::<Probe>()
+                    .unwrap()
+                    .stages
+                    .lock()
+                    .unwrap()
+                    .push("resolving");
+                Ok(())
+            })?;
+            let fail = AtomicBool::new(self.fail);
+            let stats = self.stats.clone();
+            c.afterResolving(Some(ServiceKey::typed::<Probe>()), move |event, _| {
+                event
+                    .value::<Probe>()
+                    .unwrap()
+                    .stages
+                    .lock()
+                    .unwrap()
+                    .push("after");
+                stats.after.fetch_add(1, Ordering::SeqCst);
+                if fail.swap(false, Ordering::SeqCst) {
+                    Err(BindingResolutionError::NotBound {
+                        service: "hook-failure".into(),
+                    })
+                } else {
+                    Ok(())
+                }
+            })?;
+            Ok(())
+        })
     }
 }
 fn result() -> Result<String, BindingResolutionError> {

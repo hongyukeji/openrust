@@ -49,13 +49,17 @@ impl console::Kernel for Kernel {
             self.application.container_handle(),
             async move {
                 self.application.boot().await?;
+                self.application
+                    .loadDeferredProviders()
+                    .await
+                    .map_err(|source| BootstrapError::ContainerFailed { source })?;
                 self.command_registration
                     .get_or_insert_with(|| {
                         if self.register_planned {
                             self.artisan.register_planned_commands()?;
                         }
-                        (self.application.commands)(&mut self.artisan)?;
-                        if let Some(register) = self.application.command_routes {
+                        (self.application.shared.commands)(&mut self.artisan)?;
+                        if let Some(register) = self.application.shared.command_routes {
                             facades::Artisan::register(&mut self.artisan, register)?;
                         }
                         Ok(())

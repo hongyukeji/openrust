@@ -61,26 +61,31 @@ impl Facade for FreshMessages {
 }
 struct Services(&'static str);
 impl ServiceProvider for Services {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        app.container()
-            .bind::<Reenter, _>(|_| Ok(Arc::new(Reenter)))
-            .unwrap();
-        let name = self.0;
-        let sequence = AtomicUsize::new(0);
-        app.container()
-            .bindIf::<Message, _>(move |_| {
-                Ok(Arc::new(Message {
-                    name,
-                    sequence: sequence.fetch_add(1, Ordering::SeqCst) + 1,
-                }))
-            })
-            .unwrap();
-        app.container()
-            .alias(ServiceKey::typed::<Message>(), "message")?;
-        assert_eq!(Messages::getFacadeRoot()?.name, name);
-        assert!(app.container().resolved("message")?);
-        assert!(!app.container().isShared(ServiceKey::typed::<Message>()));
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .bind::<Reenter, _>(|_| Ok(Arc::new(Reenter)))
+                .unwrap();
+            let name = self.0;
+            let sequence = AtomicUsize::new(0);
+            app.container()
+                .bindIf::<Message, _>(move |_| {
+                    Ok(Arc::new(Message {
+                        name,
+                        sequence: sequence.fetch_add(1, Ordering::SeqCst) + 1,
+                    }))
+                })
+                .unwrap();
+            app.container()
+                .alias(ServiceKey::typed::<Message>(), "message")?;
+            assert_eq!(Messages::getFacadeRoot()?.name, name);
+            assert!(app.container().resolved("message")?);
+            assert!(!app.container().isShared(ServiceKey::typed::<Message>()));
+            Ok(())
+        })
     }
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
@@ -281,8 +286,11 @@ async fn providers_may_omit_both_hooks_and_configuration_keeps_its_contract_alia
 async fn failed_provider_registration_stops_boot_and_preserves_the_error_source() {
     struct Fail;
     impl ServiceProvider for Fail {
-        fn register(&mut self, _: &Application) -> ProviderResult {
-            Err(std::io::Error::other("private provider detail").into())
+        fn register<'a>(
+            &'a mut self,
+            _: &'a Application,
+        ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+            Box::pin(async move { Err(std::io::Error::other("private provider detail").into()) })
         }
         fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async { panic!("boot must not run after a failed registration") })

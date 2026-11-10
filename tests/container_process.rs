@@ -65,59 +65,66 @@ impl Facade for ScopedProbes {
 }
 struct Provider;
 impl ServiceProvider for Provider {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        app.container()
-            .instanceNamed("rebind-probe", Arc::new(1_u32))?;
-        app.container()
-            .rebinding::<u32, _>("rebind-probe", |container, value| {
-                container.instanceNamed("rebind-result", value)?;
-                Ok(())
-            })?;
-        app.container()
-            .instanceNamed("rebind-probe", Arc::new(2_u32))?;
-        app.container()
-            .bind::<ExtendedProbe, _>(|_| Ok(Arc::new(ExtendedProbe(1))))
-            .unwrap();
-        app.container()
-            .extend::<ExtendedProbe, _>(ServiceKey::typed::<ExtendedProbe>(), |value, _| {
-                Ok(Arc::new(ExtendedProbe(value.0 + 10)))
-            })?;
-        app.container()
-            .scoped::<ScopedProbe, _>(|_| Ok(Arc::new(ScopedProbe)))
-            .unwrap();
-        app.container()
-            .afterResolving(Some(ServiceKey::typed::<ScopedProbe>()), |event, c| {
-                assert!(Arc::ptr_eq(
-                    &event.value::<ScopedProbe>().unwrap(),
-                    &c.make::<ScopedProbe>()?
-                ));
-                c.instanceNamed("hook-result", Arc::new(String::from("hooked")))
-                    .unwrap();
-                Ok(())
-            })?;
-        app.container()
-            .bindIf::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))))
-            .unwrap();
-        let key = ServiceKey::typed::<Greeting>();
-        assert!(!app.container().isShared(key.clone()));
-        assert!(!app.container().resolved(key.clone())?);
-        app.container()
-            .instance(Arc::new(Greeting("temporary override".into())))
-            .unwrap();
-        assert_eq!(app.container().make::<Greeting>()?.0, "temporary override");
-        app.container().forgetInstance(key.clone());
-        assert_eq!(app.container().make::<Greeting>()?.0, "from provider");
-        assert!(app.container().resolved(key)?);
-        app.container()
-            .alias(ServiceKey::typed::<Greeting>(), "greeting")?;
-        app.container()
-            .bind::<ContextProbe, _>(|c| Ok(Arc::new(ContextProbe(c.make()?))))
-            .unwrap();
-        app.container()
-            .when::<ContextProbe>()?
-            .needs::<Greeting>()
-            .give(|_| Ok(Arc::new(Greeting("contextual".into()))))?;
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .instanceNamed("rebind-probe", Arc::new(1_u32))?;
+            app.container()
+                .rebinding::<u32, _>("rebind-probe", |container, value| {
+                    container.instanceNamed("rebind-result", value)?;
+                    Ok(())
+                })?;
+            app.container()
+                .instanceNamed("rebind-probe", Arc::new(2_u32))?;
+            app.container()
+                .bind::<ExtendedProbe, _>(|_| Ok(Arc::new(ExtendedProbe(1))))
+                .unwrap();
+            app.container()
+                .extend::<ExtendedProbe, _>(ServiceKey::typed::<ExtendedProbe>(), |value, _| {
+                    Ok(Arc::new(ExtendedProbe(value.0 + 10)))
+                })?;
+            app.container()
+                .scoped::<ScopedProbe, _>(|_| Ok(Arc::new(ScopedProbe)))
+                .unwrap();
+            app.container().afterResolving(
+                Some(ServiceKey::typed::<ScopedProbe>()),
+                |event, c| {
+                    assert!(Arc::ptr_eq(
+                        &event.value::<ScopedProbe>().unwrap(),
+                        &c.make::<ScopedProbe>()?
+                    ));
+                    c.instanceNamed("hook-result", Arc::new(String::from("hooked")))
+                        .unwrap();
+                    Ok(())
+                },
+            )?;
+            app.container()
+                .bindIf::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))))
+                .unwrap();
+            let key = ServiceKey::typed::<Greeting>();
+            assert!(!app.container().isShared(key.clone()));
+            assert!(!app.container().resolved(key.clone())?);
+            app.container()
+                .instance(Arc::new(Greeting("temporary override".into())))
+                .unwrap();
+            assert_eq!(app.container().make::<Greeting>()?.0, "temporary override");
+            app.container().forgetInstance(key.clone());
+            assert_eq!(app.container().make::<Greeting>()?.0, "from provider");
+            assert!(app.container().resolved(key)?);
+            app.container()
+                .alias(ServiceKey::typed::<Greeting>(), "greeting")?;
+            app.container()
+                .bind::<ContextProbe, _>(|c| Ok(Arc::new(ContextProbe(c.make()?))))
+                .unwrap();
+            app.container()
+                .when::<ContextProbe>()?
+                .needs::<Greeting>()
+                .give(|_| Ok(Arc::new(Greeting("contextual".into()))))?;
+            Ok(())
+        })
     }
 }
 fn routes() -> Result<(), ConsoleError> {

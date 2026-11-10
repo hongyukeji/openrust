@@ -257,3 +257,5 @@ fn main() -> Result<(), BindingResolutionError> {
     Ok(())
 }
 ```
+
+延遲 Provider 相依服務透過 `Application::make().await` 或容器的 `makeAsync` / `getAsync` 解析。同步工廠需接收已初始化的相依服務；Provider 尚未就緒時回傳需要非同步解析的型別化錯誤。參閱[延遲服務提供者](providers.md#延遲服務提供者)。

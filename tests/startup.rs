@@ -123,14 +123,19 @@ struct First(Arc<Mutex<Vec<&'static str>>>);
 struct Second(Arc<Mutex<Vec<&'static str>>>);
 
 impl ServiceProvider for First {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        assert_eq!(
-            app.config().unwrap().get("app.name"),
-            Some(json!("test app"))
-        );
-        app.container().instance(self.0.clone()).unwrap();
-        self.0.lock().unwrap().push("first.register");
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            assert_eq!(
+                app.config().unwrap().get("app.name"),
+                Some(json!("test app"))
+            );
+            app.container().instance(self.0.clone()).unwrap();
+            self.0.lock().unwrap().push("first.register");
+            Ok(())
+        })
     }
 
     fn boot(&mut self, app: &Application) -> openrust::http::HttpFuture<'_, ProviderResult> {
@@ -144,12 +149,17 @@ impl ServiceProvider for First {
 }
 
 impl ServiceProvider for Second {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        app.container()
-            .instance::<str>(Arc::from("service from second"))
-            .unwrap();
-        self.0.lock().unwrap().push("second.register");
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .instance::<str>(Arc::from("service from second"))
+                .unwrap();
+            self.0.lock().unwrap().push("second.register");
+            Ok(())
+        })
     }
 
     fn boot(&mut self, _app: &Application) -> openrust::http::HttpFuture<'_, ProviderResult> {
@@ -221,8 +231,11 @@ async fn all_providers_register_before_boot_and_success_is_idempotent() {
 struct FailingProvider;
 
 impl ServiceProvider for FailingProvider {
-    fn register(&mut self, _app: &Application) -> ProviderResult {
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        _app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move { Ok(()) })
     }
 
     fn boot(&mut self, _app: &Application) -> openrust::http::HttpFuture<'_, ProviderResult> {

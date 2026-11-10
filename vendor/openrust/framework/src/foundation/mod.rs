@@ -10,6 +10,7 @@ pub mod events;
 pub mod exceptions;
 pub mod http;
 mod inspiring;
+mod provider_repository;
 pub mod providers;
 pub mod support;
 

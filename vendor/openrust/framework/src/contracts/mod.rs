@@ -18,5 +18,6 @@ pub mod queue;
 pub mod redis;
 pub mod routing;
 pub mod session;
+pub mod support;
 pub mod translation;
 pub mod validation;

@@ -38,19 +38,24 @@ impl Facade for DefaultFacade {
 }
 struct Provider(&'static str);
 impl ServiceProvider for Provider {
-    fn register(&mut self, app: &Application) -> ProviderResult {
-        let name = self.0;
-        let c = app.container();
-        c.singleton::<String, _>(move |_| Ok(Arc::new(format!("{name}:default"))))
-            .unwrap();
-        c.bind::<Selected, _>(|c| Ok(Arc::new(Selected(c.make()?))))
-            .unwrap();
-        c.bind::<Defaulted, _>(|c| Ok(Arc::new(Defaulted(c.make()?))))
-            .unwrap();
-        c.when::<Selected>()?
-            .needs::<String>()
-            .give(move |_| Ok(Arc::new(format!("{name}:custom"))))?;
-        Ok(())
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let name = self.0;
+            let c = app.container();
+            c.singleton::<String, _>(move |_| Ok(Arc::new(format!("{name}:default"))))
+                .unwrap();
+            c.bind::<Selected, _>(|c| Ok(Arc::new(Selected(c.make()?))))
+                .unwrap();
+            c.bind::<Defaulted, _>(|c| Ok(Arc::new(Defaulted(c.make()?))))
+                .unwrap();
+            c.when::<Selected>()?
+                .needs::<String>()
+                .give(move |_| Ok(Arc::new(format!("{name}:custom"))))?;
+            Ok(())
+        })
     }
 }
 fn result() -> String {

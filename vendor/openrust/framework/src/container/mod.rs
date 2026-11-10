@@ -6,7 +6,7 @@ use std::{
     collections::{HashMap, HashSet},
     panic::{self, AssertUnwindSafe},
     sync::{
-        Arc, Condvar, Mutex, RwLock,
+        Arc, Condvar, Mutex, OnceLock, RwLock,
         atomic::{AtomicBool, AtomicU8, Ordering},
     },
     thread::{self, ThreadId},
@@ -25,6 +25,7 @@ mod rebinding;
 use rebinding::RegisteredRebinding;
 mod extensions;
 use extensions::RegisteredExtender;
+pub(crate) mod deferred;
 mod scope;
 mod service_key;
 pub use service_key::ServiceKey;
@@ -37,6 +38,7 @@ type Wait = (ThreadId, ServiceKey, usize);
 #[derive(Default)]
 pub struct Container {
     identity: scope::Identity,
+    deferred: OnceLock<Arc<dyn deferred::DeferredServices>>,
     registry: RwLock<Registry>,
     waiting: Mutex<HashMap<ThreadId, Wait>>,
     hook_phases: AtomicU8,
@@ -327,6 +329,10 @@ impl Container {
                     && registry.root_instance_visible(self, &key))
                 || (!scope::alias_removed(self, &key) && registry.aliases.contains_key(&key))
                 || scope::lookup(self, &key).is_some()
+                || self
+                    .deferred
+                    .get()
+                    .is_some_and(|loader| loader.contains(&key))
             {
                 Some(entry.clone())
             } else {
@@ -378,7 +384,11 @@ impl Container {
                     || (registry.instances.contains_key(&key)
                         && registry.root_instance_visible(self, &key))
                     || (!scope::alias_removed(self, &key) && registry.aliases.contains_key(&key))
-                    || scope::lookup(self, &key).is_some())
+                    || scope::lookup(self, &key).is_some()
+                    || self
+                        .deferred
+                        .get()
+                        .is_some_and(|loader| loader.contains(&key)))
             {
                 (Some(entry), None)
             } else {
@@ -584,9 +594,15 @@ impl container::Container for Container {
             return true;
         }
         let registry = self.registry.read().expect("container lock poisoned");
-        registry.bindings.contains_key(&id)
+        let bound = registry.bindings.contains_key(&id)
             || (registry.instances.contains_key(&id) && registry.root_instance_visible(self, &id))
-            || (!scope::alias_removed(self, &id) && registry.aliases.contains_key(&id))
+            || (!scope::alias_removed(self, &id) && registry.aliases.contains_key(&id));
+        drop(registry);
+        bound
+            || self
+                .deferred
+                .get()
+                .is_some_and(|loader| loader.contains(&id))
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's container API")]
@@ -921,6 +937,19 @@ impl container::Container for Container {
         self.forget_extenders(r#abstract)
     }
 
+    #[allow(
+        non_snake_case,
+        reason = "Async companion to Laravel container resolution"
+    )]
+    async fn getAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: impl Into<ServiceKey> + Send,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        self.load_deferred(id.into())
+            .await
+            .and_then(|key| self.get(key))
+    }
+
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.has(ServiceKey::typed::<T>())
     }
@@ -933,12 +962,13 @@ impl container::Container for Container {
         &self,
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError> {
+        let id = self.require_sync(id.into())?;
         let (id, canonical) = if self.has_hooks(Phase::Before) {
             let key = self.getAlias(id)?;
             self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
             (key, true)
         } else {
-            (id.into(), false)
+            (id, false)
         };
         let consumer = self.consumer();
         let (key, entry, scoped, contextual) = {
