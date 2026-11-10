@@ -1,0 +1,18 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Build output and dependencies
+/target/
+/node_modules/
+
+# Application runtime data
+/tmp/
+*.log
+
+# Local editor and OS metadata
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
