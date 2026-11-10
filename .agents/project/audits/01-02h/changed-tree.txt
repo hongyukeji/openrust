@@ -1,0 +1,46 @@
+.
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       ├── facades.md
+│   │       └── providers.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       ├── container.md
+│   │       ├── facades.md
+│   │       └── providers.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           ├── container.md
+│           ├── facades.md
+│           └── providers.md
+├── tests
+│   ├── async_factory_lifecycle.rs
+│   └── container_process.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── async_resolution.rs
+            │   │   ├── contextual_binding_builder.rs
+            │   │   ├── extensions.rs
+            │   │   ├── mod.rs
+            │   │   ├── rebinding.rs
+            │   │   ├── scope.rs
+            │   │   └── tagged.rs
+            │   ├── contracts
+            │   │   ├── container.rs
+            │   │   └── container
+            │   │       └── binding_resolution_error.rs
+            │   ├── foundation
+            │   │   └── application.rs
+            │   └── support
+            │       ├── facades.rs
+            │       └── facades
+            │           └── facade.rs
+            └── tests
+                └── unit
+                    ├── asynchronous_factories.rs
+                    └── main.rs

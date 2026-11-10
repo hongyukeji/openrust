@@ -1,0 +1,10 @@
+{
+  "base": "bdac3c9b703b64837c9c41c756fccfece03b4fba",
+  "candidate": "/private/tmp/openrust-01-02h-review-20261111",
+  "selected_paths": 25,
+  "shared_files": {
+    "vendor/openrust/framework/src/foundation/application.rs": "Only make/get application scope; excludes existing gRPC fields and boot wiring.",
+    "vendor/openrust/framework/src/support/facades.rs": "Only internal context snapshot exports; excludes other facade skeletons and Broadcast."
+  },
+  "dependencies": "No manifest or lockfile changes."
+}
