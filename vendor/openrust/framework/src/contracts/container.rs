@@ -189,6 +189,22 @@ pub trait Container: Send + Sync + Sized {
         Ok(ContextualBindingBuilder::new(self, consumers))
     }
 
+    /// Decorates a cached value immediately, or appends a future construction decorator.
+    fn extend<T, F>(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+        closure: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetExtenders(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+    ) -> Result<(), BindingResolutionError>;
+
     #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
     fn beforeResolving(
         &self,

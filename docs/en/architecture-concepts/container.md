@@ -189,3 +189,45 @@ fn main() {
     assert_eq!(*trace.lock().unwrap(), ["before", "resolving", "after", "before"]);
 }
 ```
+
+## Extending bindings
+
+`extend::<T, _>(key, |service, container| ...)` follows aliases and decorates the registered output contract. Return an `Arc<T>` containing the configured service or a wrapper implementing the same contract. The closure may resolve other services through its container argument. Contract mismatches are rejected before an incompatible factory or decorator runs.
+
+If no instance is cached, `extend` saves the closure for future construction without eagerly making the service. These decorators run in registration order after construction and before resolving callbacks, including contextual constructions. A shared service caches the decorated value. A supplied `instance` bypasses the pending chain; forgetting it restores the original factory and that chain.
+
+If an instance is already cached, `extend` immediately replaces that cached value. This closure is not added to the future chain. Existing callers retain their original `Arc`; the next lookup gets the replacement. As in Laravel, forgetting a cached instance discards an immediate-only decoration. `forgetExtenders(key)` removes future decorators, without undoing a decorated cached instance.
+
+Construction and cached replacement run user code without the registry lock. A decorator registered while a constructor is pending is included before publication. Updates of the same cache slot serialize, and other readers wait until the update finishes; a decorator can read its own slot's old value. An in-flight update of a retired slot does not overwrite a newly rebound service. Recursive extension or dependency cycles return a circular-dependency error. An error or panic before publication leaves a shared constructor retryable; a failed cached update keeps its previous pointer. Mutations made inside a shared object are not rolled back.
+
+Pending chains are application registrations. An immediate extension of an already cached scoped service changes only the current lifecycle's instance; the next lifecycle still uses its original factory and pending chain. A separately cached facade root is not automatically replaced: clear it or use an uncached facade before resolving again. Extenders and removed captures are released outside internal locks; retired decorator captures are released before publishing a new construction. Rebinding listeners and `refresh` remain a separate delivery step.
+
+```rust
+use std::sync::Arc;
+use openrust::{container::{Container, ServiceKey}, contracts::container::Container as _};
+trait Service: Send + Sync { fn name(&self) -> String; }
+struct Base;
+impl Service for Base { fn name(&self) -> String { "base".into() } }
+struct Decorated(&'static str, Arc<dyn Service>);
+impl Service for Decorated {
+    fn name(&self) -> String { format!("{}:{}", self.0, self.1.name()) }
+}
+fn main() {
+    let app = Container::default();
+    let key = ServiceKey::typed::<dyn Service>();
+    app.singleton::<dyn Service, _>(|_| Ok(Arc::new(Base)));
+    app.extend::<dyn Service, _>(key.clone(), |service, _| {
+        Ok(Arc::new(Decorated("decorated", service)))
+    }).unwrap();
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "decorated:base");
+    app.extend::<dyn Service, _>(key.clone(), |service, _| {
+        Ok(Arc::new(Decorated("cached", service)))
+    }).unwrap();
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "cached:decorated:base");
+    app.forgetInstance(key.clone());
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "decorated:base");
+    app.forgetExtenders(key.clone()).unwrap();
+    app.forgetInstance(key);
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "base");
+}
+```

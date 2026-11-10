@@ -119,6 +119,24 @@ pub(super) fn select(
     .unwrap_or_else(|| root.clone())
 }
 
+pub(super) fn cached_entry(
+    container: &Container,
+    key: &ServiceKey,
+    root: &RegisteredBinding,
+) -> Option<RegisteredBinding> {
+    with(container, |context| {
+        context
+            .cache
+            .lock()
+            .expect("scope cache poisoned")
+            .entries
+            .get(key)
+            .filter(|entry| Arc::ptr_eq(&entry.version, &root.version))
+            .cloned()
+    })
+    .flatten()
+}
+
 pub(super) fn is_published(
     container: &Container,
     key: &ServiceKey,

@@ -21,6 +21,8 @@ pub use tagged::{Tagged, TaggedIter};
 mod resolving_hooks;
 pub use resolving_hooks::ResolutionEvent;
 use resolving_hooks::{Phase, ResolveHooks};
+mod extensions;
+use extensions::RegisteredExtender;
 mod scope;
 mod service_key;
 pub use service_key::ServiceKey;
@@ -36,6 +38,7 @@ pub struct Container {
     registry: RwLock<Registry>,
     waiting: Mutex<HashMap<ThreadId, Wait>>,
     hook_phases: AtomicU8,
+    has_extenders: AtomicBool,
 }
 
 #[derive(Default)]
@@ -49,6 +52,7 @@ struct Registry {
     contextual: HashMap<ServiceKey, HashMap<ServiceKey, RegisteredBinding>>,
     tags: HashMap<String, Vec<ServiceKey>>,
     hooks: ResolveHooks,
+    extenders: HashMap<ServiceKey, Vec<RegisteredExtender>>,
 }
 
 #[derive(Clone)]
@@ -136,13 +140,17 @@ enum Binding<T: ?Sized> {
         state: Mutex<SingletonState<T>>,
         ready: Condvar,
     },
-    Instance(Arc<T>),
+    Instance {
+        state: Mutex<SingletonState<T>>,
+        ready: Condvar,
+    },
 }
 
 enum SingletonState<T: ?Sized> {
     Empty,
     Running(ThreadId),
     Publishing(ThreadId, Arc<T>),
+    Extending(ThreadId, Arc<T>),
     Ready(Arc<T>),
 }
 
@@ -172,11 +180,18 @@ impl Container {
         key: ServiceKey,
         instance: Arc<T>,
     ) {
-        self.insert(key, Binding::Instance(instance));
+        self.insert(key, Self::provided(instance));
+    }
+
+    fn provided<T: ?Sized>(value: Arc<T>) -> Binding<T> {
+        Binding::Instance {
+            state: Mutex::new(SingletonState::Ready(value)),
+            ready: Condvar::new(),
+        }
     }
 
     fn entry<T: ?Sized + Send + Sync + 'static>(binding: Binding<T>) -> RegisteredBinding {
-        let instance = matches!(binding, Binding::Instance(_));
+        let instance = matches!(binding, Binding::Instance { .. });
         let shared = !matches!(binding, Binding::Factory(_));
         let fresh = match &binding {
             Binding::Singleton { factory, .. } => {
@@ -390,7 +405,7 @@ impl container::Container for Container {
     }
 
     fn instance<T: ?Sized + Send + Sync + 'static>(&self, service: Arc<T>) {
-        self.insert(ServiceKey::typed::<T>(), Binding::Instance(service));
+        self.insert(ServiceKey::typed::<T>(), Self::provided(service));
     }
 
     #[allow(non_snake_case, reason = "Named overload for Rust's typed bind")]
@@ -420,7 +435,7 @@ impl container::Container for Container {
 
     #[allow(non_snake_case, reason = "Named overload for Rust's typed instance")]
     fn instanceNamed<T: ?Sized + Send + Sync + 'static>(&self, name: &str, service: Arc<T>) {
-        self.insert(ServiceKey::named(name), Binding::Instance(service));
+        self.insert(ServiceKey::named(name), Self::provided(service));
     }
 
     fn alias(
@@ -788,6 +803,26 @@ impl container::Container for Container {
         self.register_hook(selector, Phase::After, callback)
     }
 
+    fn extend<T, F>(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+        closure: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    {
+        self.extend_value(r#abstract, closure)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    fn forgetExtenders(
+        &self,
+        r#abstract: impl Into<ServiceKey>,
+    ) -> Result<(), BindingResolutionError> {
+        self.forget_extenders(r#abstract)
+    }
+
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.has(ServiceKey::typed::<T>())
     }
@@ -840,20 +875,21 @@ impl container::Container for Container {
         if scoped && entry.shared && !entry.instance {
             entry = scope::select(self, &key, &entry);
         }
-        let binding = entry.value.downcast::<Binding<T>>().map_err(|_| {
+        let binding = entry.value.downcast_ref::<Binding<T>>().ok_or_else(|| {
             BindingResolutionError::TypeMismatch {
                 service: key.clone(),
                 expected: type_name::<T>(),
                 actual: entry.output,
             }
         })?;
-        if let Binding::Instance(instance) = binding.as_ref() {
-            return Ok(instance.clone());
+        if let Binding::Instance { state, ready } = binding {
+            return self.read_instance(&key, state, ready);
         }
         let resolution = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
-        match binding.as_ref() {
+        match binding {
             Binding::Factory(factory) => {
-                let value = factory(self)?;
+                self.check_extenders::<T>(&key)?;
+                let value = self.decorate(&key, factory(self)?, None)?;
                 drop(resolution);
                 self.fire_constructed(&key, value.clone())?;
                 if !contextual {
@@ -865,7 +901,7 @@ impl container::Container for Container {
                 }
                 Ok(value)
             }
-            Binding::Instance(instance) => Ok(Arc::clone(instance)),
+            Binding::Instance { state, ready } => self.read_instance(&key, state, ready),
             Binding::Singleton {
                 factory,
                 state,
@@ -877,14 +913,19 @@ impl container::Container for Container {
                 loop {
                     match &*slot {
                         SingletonState::Ready(instance) => return Ok(Arc::clone(instance)),
-                        SingletonState::Publishing(owner, instance) if *owner == caller => {
+                        SingletonState::Publishing(owner, instance)
+                        | SingletonState::Extending(owner, instance)
+                            if *owner == caller =>
+                        {
                             return Ok(Arc::clone(instance));
                         }
                         SingletonState::Empty => {
                             *slot = SingletonState::Running(caller);
                             break;
                         }
-                        SingletonState::Running(owner) | SingletonState::Publishing(owner, _) => {
+                        SingletonState::Running(owner)
+                        | SingletonState::Publishing(owner, _)
+                        | SingletonState::Extending(owner, _) => {
                             self.wait_for(caller, *owner, key.clone(), binding)?;
                             slot = ready.wait(slot).expect("singleton state poisoned");
                             self.waiting
@@ -895,18 +936,14 @@ impl container::Container for Container {
                     }
                 }
                 drop(slot);
-                let constructed = panic::catch_unwind(AssertUnwindSafe(|| factory(self)));
+                let constructed = panic::catch_unwind(AssertUnwindSafe(|| {
+                    self.check_extenders::<T>(&key)?;
+                    self.decorate(&key, factory(self)?, Some((state, &entry, caller)))
+                }));
                 drop(resolution);
                 let mut value = None;
                 let result = match constructed {
                     Ok(Ok(instance)) => {
-                        *state.lock().expect("singleton state poisoned") =
-                            SingletonState::Publishing(caller, instance.clone());
-                        entry
-                            .published
-                            .as_ref()
-                            .expect("shared cache marker")
-                            .store(true, Ordering::Release);
                         value = Some(instance.clone());
                         panic::catch_unwind(AssertUnwindSafe(|| {
                             self.fire_constructed(&key, instance.clone())
@@ -922,10 +959,14 @@ impl container::Container for Container {
                         .resolved
                         .insert(key);
                 }
-                *state.lock().expect("singleton state poisoned") = match value {
-                    Some(instance) => SingletonState::Ready(instance),
-                    None => SingletonState::Empty,
-                };
+                {
+                    let mut slot = state.lock().expect("singleton state poisoned");
+                    let cached = match &*slot {
+                        SingletonState::Publishing(_, instance) => Some(instance.clone()),
+                        _ => value,
+                    };
+                    *slot = cached.map_or(SingletonState::Empty, SingletonState::Ready);
+                }
                 self.waiting
                     .lock()
                     .expect("container wait graph poisoned")

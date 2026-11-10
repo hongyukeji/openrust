@@ -189,3 +189,45 @@ fn main() {
     assert_eq!(*trace.lock().unwrap(), ["before", "resolving", "after", "before"]);
 }
 ```
+
+## 擴展綁定
+
+`extend::<T, _>(key, |service, container| ...)` 跟隨別名，裝飾已登記的回傳契約。閉包傳回設定後的 `Arc<T>`，或實作同一契約的包裝物件；可透過容器參數解析其他服務。契約不符時，在不相容的工廠或裝飾器執行前傳回錯誤。
+
+尚無快取實例時，`extend` 儲存閉包供未來建構，不提前解析服務。裝飾器按登記順序在建構完成後、解析回呼前執行，上下文建構同樣適用。共享服務快取裝飾後的值。明確提供的 `instance` 略過待執行鏈；清除實例後恢復原工廠及該鏈。
+
+已有快取實例時，`extend` 立即替換快取值，這次閉包不加入未來建構鏈。既有呼叫方保留原 `Arc`，下一次查找取得新值。與 Laravel 一樣，清除快取後不保留這種僅即時生效的裝飾。`forgetExtenders(key)` 移除未來裝飾器，不撤銷已經裝飾的快取實例。
+
+建構和快取替換在登錄表鎖外執行使用者程式碼；建構等待期間登記的裝飾器在發布前納入。同一快取槽的更新循序處理，其他讀取方等待更新完成，裝飾器可讀取自身槽的舊值。已退役槽上的更新不會覆寫新綁定。遞迴擴展或依賴循環傳回循環依賴錯誤。發布前失敗或 panic 的共享建構可重試；快取更新失敗保留舊指標，不回復共享物件內部已經發生的修改。
+
+待執行鏈屬於應用登記。對已快取作用域服務的即時擴展只修改目前生命週期實例，下一生命週期繼續使用原工廠和待執行鏈。門面自行快取的根物件不會自動替換，需要清理門面快取或使用不快取的門面重新解析。裝飾器及移除的擷取物件在內部鎖外釋放，退役裝飾器的擷取物件在新建構發布前釋放。重綁定監聽器與 `refresh` 繼續單獨交付。
+
+```rust
+use std::sync::Arc;
+use openrust::{container::{Container, ServiceKey}, contracts::container::Container as _};
+trait Service: Send + Sync { fn name(&self) -> String; }
+struct Base;
+impl Service for Base { fn name(&self) -> String { "base".into() } }
+struct Decorated(&'static str, Arc<dyn Service>);
+impl Service for Decorated {
+    fn name(&self) -> String { format!("{}:{}", self.0, self.1.name()) }
+}
+fn main() {
+    let app = Container::default();
+    let key = ServiceKey::typed::<dyn Service>();
+    app.singleton::<dyn Service, _>(|_| Ok(Arc::new(Base)));
+    app.extend::<dyn Service, _>(key.clone(), |service, _| {
+        Ok(Arc::new(Decorated("decorated", service)))
+    }).unwrap();
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "decorated:base");
+    app.extend::<dyn Service, _>(key.clone(), |service, _| {
+        Ok(Arc::new(Decorated("cached", service)))
+    }).unwrap();
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "cached:decorated:base");
+    app.forgetInstance(key.clone());
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "decorated:base");
+    app.forgetExtenders(key.clone()).unwrap();
+    app.forgetInstance(key);
+    assert_eq!(app.make::<dyn Service>().unwrap().name(), "base");
+}
+```
